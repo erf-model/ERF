@@ -208,6 +208,7 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Kessler/ERF_GTestKesslerKernel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Kessler/ERF_GTestKesslerPhysicalProperties.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Morrison/ERF_GTestMorrisonPhysicalProperties.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMFoundation.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/SLM/ERF_GTestSLMInterface.cpp
 )
 if(ERF_ENABLE_NETCDF)
@@ -269,6 +270,95 @@ add_test(NAME erf_unit_tests_shuffle_repeat
     --gtest_repeat=3
     --gtest_output=xml:${ERF_GTEST_REPORT_ROOT}/${erf_exe_name}/shuffle-repeat.xml
 )
+
+# Exercise the bounded zero-transport fixture through ERF's native level,
+# advance, checkpoint, and exact-schema restart paths.  Header min/max values
+# make the manufactured uniform spectrum and projected qc/qr independently
+# observable without adding test-only diagnostics to the application.
+if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
+   ERF_PRECISION STREQUAL "DOUBLE" AND NOT AMReX_HDF5)
+  add_dependencies(${erf_exe_name} erf_exec)
+  add_executable(erf_sbm_checkpoint_corruptor
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_SBMCorrupter.cpp
+    ${PROJECT_SOURCE_DIR}/Exec/ERF_Prob.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ERF_GTestRuntimeStubs.cpp)
+  build_erf_exe(erf_sbm_checkpoint_corruptor NO_ERF_MAIN)
+
+  add_test(NAME SBM_ZeroTransport_ERF_Smoke
+    COMMAND ${CMAKE_COMMAND}
+      -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+      -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_zero_transport
+      -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+      -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunZeroTransportSmoke.cmake)
+  set_tests_properties(SBM_ZeroTransport_ERF_Smoke PROPERTIES
+    LABELS "integration;sbm"
+    RUN_SERIAL TRUE
+    TIMEOUT 120)
+
+  add_test(NAME SBM_ZeroTransport_2M_ERF_Smoke
+    COMMAND ${CMAKE_COMMAND}
+      -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+      -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_zero_transport_2m
+      -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+      -DEXPECTED_SPECTRUM_VALUES=1.50000000000000004e-06,6.00000000000000015e-06,1.80000000000000005e-05,4.80000000000000012e-05,1.00000000000000000e+12,2.00000000000000000e+12,3.00000000000000000e+12,4.00000000000000000e+12,
+      -DEXPECTED_CORE_VALUES=1.00000000000000000e+00,2.99999999999999886e+02,0.00000000000000000e+00,0.00000000000000000e+00,0.00000000000000000e+00,7.50000000000000019e-06,6.60000000000000051e-05,
+      -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunZeroTransportSmoke.cmake)
+  set_tests_properties(SBM_ZeroTransport_2M_ERF_Smoke PROPERTIES
+    LABELS "integration;sbm"
+    RUN_SERIAL TRUE
+    TIMEOUT 120)
+
+  function(add_sbm_expected_failure_test test_name input_file diagnostic)
+    add_test(NAME ${test_name}
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/${input_file}
+        -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+        "-DEXPECTED_DIAGNOSTIC=${diagnostic}"
+        ${ARGN}
+        -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunExpectedFailure.cmake)
+    set_tests_properties(${test_name} PROPERTIES
+      LABELS "integration;sbm;negative"
+      RUN_SERIAL TRUE
+      TIMEOUT 120)
+  endfunction()
+
+  add_sbm_expected_failure_test(SBM_Unrealizable_2M_Init inputs_unrealizable_2m
+    "SBM fixture initial state is unrealizable.*failed_constraint=endpoint_low")
+  add_sbm_expected_failure_test(SBM_Nonzero_Carrier inputs_zero_transport
+    "SBM zero-transport fixture requires exactly zero carrier momentum"
+    "-DOVERRIDE=erf.sbm_test_carrier_momentum_fault=true")
+  add_sbm_expected_failure_test(SBM_Native_QC_Write_Fault inputs_zero_transport
+    "SBM owns compact qc/qr; native advection write denied for component range"
+    "-DOVERRIDE=erf.sbm_test_native_qc_write_fault=true")
+  add_sbm_expected_failure_test(SBM_Invalid_Nonmonotonic_Edges inputs_invalid_edges_nonmonotonic
+    "Invalid SBM configuration: edges must be strictly increasing")
+  add_sbm_expected_failure_test(SBM_Invalid_Zero_Edge_AutoPivot inputs_invalid_zero_edge_autopivot
+    "Invalid SBM configuration: pivots must be finite and positive")
+  add_sbm_expected_failure_test(SBM_Implicit_Substepping inputs_zero_transport
+    "SBM zero-transport fixture requires acoustic substepping_type=None"
+    "-DOVERRIDE=erf.substepping_type=Implicit")
+  add_sbm_expected_failure_test(SBM_Nonperiodic_Geometry inputs_nonperiodic
+    "SBM zero-transport fixture requires triply periodic geometry")
+  add_sbm_expected_failure_test(SBM_Immersed_Buildings inputs_zero_transport
+    "SBM zero-transport fixture requires buildings_type=None"
+    "-DOVERRIDE=erf.buildings_type=ImmersedForcing")
+  add_sbm_expected_failure_test(SBM_Nonconstant_Mesh inputs_stretched
+    "SBM zero-transport fixture requires mesh_type=ConstantDz")
+
+  add_test(NAME SBM_Inadmissible_2M_Restart
+    COMMAND ${CMAKE_COMMAND}
+      -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+      -DTEST_HELPER=$<TARGET_FILE:erf_sbm_checkpoint_corruptor>
+      -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_zero_transport_2m
+      -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+      "-DEXPECTED_DIAGNOSTIC=SBM authoritative restart state is inadmissible.*level=0.*population=0.*bin=0.*constraint=endpoint_low"
+      -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunAuthoritativeRestartFailure.cmake)
+  set_tests_properties(SBM_Inadmissible_2M_Restart PROPERTIES
+    LABELS "integration;sbm;negative"
+    RUN_SERIAL TRUE
+    TIMEOUT 180)
+endif()
 set_tests_properties(erf_unit_tests_shuffle_repeat
   PROPERTIES
     LABELS "stress"

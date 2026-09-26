@@ -1,4 +1,5 @@
 #include <ERF.H>
+#include "ERF_SBMStateManager.H"
 
 using namespace amrex;
 
@@ -28,6 +29,13 @@ void ERF::advance_microphysics (int lev,
         micro->Advance(lev, static_cast<Real>(dt_advance), iteration,
                        static_cast<Real>(time), solverChoice, vars_new, z_phys_nd, phys_bc_type);
         micro->Update_State_Vars_Lev(lev, cons, *z_phys_nd[lev]);
+        if (sbm_state_manager) {
+            // The adapter is intentionally a no-op for compact liquid state;
+            // refresh the compatibility lanes only from authoritative bins.
+            sbm_state_manager->project_to_core(lev, cons,
+                                               solverChoice.moisture_indices.qc,
+                                               solverChoice.moisture_indices.qr);
+        }
         if (cloud_chamber_budget) {
             cloud_chamber_budget->record_internal_source(
                 micro_state_before, cloud_chamber_budget->state_integrals(cons, geom[lev]));

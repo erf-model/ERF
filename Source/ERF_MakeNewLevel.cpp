@@ -15,6 +15,7 @@
 #include "ERF.H"
 #include "ERF_Utils.H"
 #include "ERF_ProbCommon.H"
+#include "ERF_SBMStateManager.H"
 
 using namespace amrex;
 
@@ -26,6 +27,13 @@ using namespace amrex;
 void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
                                    const DistributionMapping& dm_in)
 {
+    if (sbm_state_manager) {
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(geom[lev].isPeriodic(dir),
+                "SBM zero-transport fixture requires triply periodic geometry; "
+                "spectral physical boundary filling is not implemented at M1");
+        }
+    }
     //
     // Note that "time" here is elapsed time
     //
@@ -113,6 +121,13 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     //      terrain arrays, metric terms and base state.
     // *******************************************************************************************
     init_stuff(lev, ba, dm, lev_new, lev_old, base_state[lev], z_phys_nd[lev]);
+    if (sbm_state_manager) {
+        sbm_state_manager->define(lev, ba, dm);
+        for (int comp = 0; comp < static_cast<int>(solverChoice.sbm_fixture_initial_state.size()); ++comp) {
+            sbm_state_manager->state(lev).setVal(
+                solverChoice.sbm_fixture_initial_state[static_cast<std::size_t>(comp)], comp, 1, 0);
+        }
+    }
 
     //********************************************************************************************
     // Land Surface Model
@@ -332,6 +347,12 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         // regrid() completes, not here inside MakeNewLevelFromCoarse.
     }
 #endif
+
+    if (sbm_state_manager) {
+        sbm_state_manager->project_to_core(lev, vars_new[lev][Vars::cons],
+                                           solverChoice.moisture_indices.qc,
+                                           solverChoice.moisture_indices.qr);
+    }
 }
 
 // Make a new level using provided BoxArray and DistributionMapping and
@@ -342,6 +363,8 @@ void
 ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
                              const DistributionMapping& dm)
 {
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!sbm_state_manager,
+        "SBM M1 zero-transport fixture does not support coarse-to-fine auxiliary initialization");
     //
     // Note that "time" here is elapsed time
     //
@@ -740,6 +763,8 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 void
 ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapping& dm)
 {
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!sbm_state_manager,
+        "SBM M1 zero-transport fixture does not support regridding or auxiliary remap");
     //
     // Note that "time" here is elapsed time
     //
@@ -1311,6 +1336,9 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 void
 ERF::ClearLevel (int lev)
 {
+    if (sbm_state_manager && sbm_state_manager->is_defined(lev)) {
+        sbm_state_manager->destroy(lev);
+    }
     for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
         vars_new[lev][var_idx].clear();
         vars_old[lev][var_idx].clear();

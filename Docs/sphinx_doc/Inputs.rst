@@ -3811,11 +3811,17 @@ See :ref:`CouplingToAMRWind` and :ref:`CouplingToWW3` for more information.
 Moisture
 ========
 
-ERF has several different moisture models. The models that are currently implemented
-are Eulerian models; however, ERF has the capability for Lagrangian models when
-compiled with particles.
+ERF supports several Eulerian moisture and microphysics models and, when
+particle support is enabled, the Lagrangian Super-Droplet Method. ERF also
+contains the developing Eulerian spectral-bin capability selected with
+``erf.moisture_model = SBM``.
 
-The following run-time options control how the full moisture model is used.
+The current ``SBM`` option is restricted to its zero-transport infrastructure
+fixture; it is not yet a production spectral-bin cloud-microphysics scheme.
+See :ref:`sec:SpectralBinMicrophysics` for its state representation,
+configuration, and current limitations.
+
+The following run-time options control the moisture model.
 
 List of Parameters
 ------------------
@@ -3831,7 +3837,7 @@ List of Parameters
 |                                   |                                                          | Morrison,            |                  |
 |                                   |                                                          | Morrison_NoIce,      |                  |
 |                                   |                                                          | WSM6, WDM6,          |                  |
-|                                   |                                                          | SuperDroplets,       |                  |
+|                                   |                                                          | SuperDroplets, SBM,  |                  |
 |                                   |                                                          | MoistNoCondensation  |                  |
 +-----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **erf.moisture_tight_coupling**   | If true, advance microphysics after every slow step in   | Boolean              | false            |
@@ -3864,6 +3870,81 @@ List of Parameters
 +-----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **erf.micro_diag_store**          | which WSM6 forensic diagnostic quantities are stored     | List of Strings      | standing         |
 +-----------------------------------+----------------------------------------------------------+----------------------+------------------+
+
+SBM inputs
+----------
+
+The inputs below are read only when ``erf.moisture_model = SBM``. The current
+SBM implementation is the bounded zero-transport infrastructure described in
+:ref:`sec:SpectralBinMicrophysics`.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 27 43 15 15
+
+   * - Parameter
+     - Definition
+     - Acceptable values
+     - Default
+   * - ``erf.sbm_zero_transport_fixture``
+     - Enables the current bounded SBM infrastructure fixture. This must
+       currently be true whenever ``erf.moisture_model = SBM``; production
+       spectral transport is not yet implemented.
+     - Boolean; currently ``true`` is required for SBM
+     - ``false``
+   * - ``erf.sbm_nbins``
+     - Number of liquid spectral bins when explicit ``sbm_edges`` are not
+       supplied. Explicit edges determine the effective bin count.
+     - Integer :math:`\ge 2`
+     - ``4``
+   * - ``erf.sbm_moment_mode``
+     - Spectral moments stored per bin. ``1`` stores liquid-water mass;
+       ``2`` stores liquid-water mass and droplet number.
+     - ``1`` or ``2``
+     - ``1``
+   * - ``erf.sbm_cloud_rain_split``
+     - Interior bin index separating projected cloud water from projected rain
+       water. Bins below the index contribute to ``qc`` and bins at or above
+       it contribute to ``qr``.
+     - Integer satisfying
+       :math:`0 < s < N_{\mathrm{bins}}`
+     - ``N_bins / 2`` using integer division
+   * - ``erf.sbm_edges``
+     - Spectral bin edges in individual-particle liquid-water mass [kg].
+       Values must be finite, nonnegative, strictly increasing, and
+       numerically well separated. When supplied, the array length determines
+       the number of bins.
+     - List of :math:`N_{\mathrm{bins}}+1` real values
+     - Log-spaced from :math:`10^{-18}` to :math:`10^{-12}` kg
+   * - ``erf.sbm_pivots``
+     - Representative particle mass [kg] for each bin. Each pivot must be
+       finite, positive, and lie inside its bin. With explicit edges and no
+       pivots, ERF uses geometric-mean pivots.
+     - List of :math:`N_{\mathrm{bins}}` positive real values
+     - Geometric mean of adjacent edges
+   * - ``erf.sbm_fixture_initial_state``
+     - Spatially uniform authoritative spectral state. A 1M state contains all
+       bin mass densities [kg m^-3]. A 2M state contains all mass densities
+       followed by all number densities [m^-3]. Two-moment states must satisfy
+       the bin realizability constraints.
+     - :math:`N_{\mathrm{bins}}` values for 1M or
+       :math:`2N_{\mathrm{bins}}` values for 2M
+     - All zero
+
+.. note::
+
+   ``erf.sbm_pivots`` is meaningful as a user input only when explicit
+   ``erf.sbm_edges`` are also supplied. If edges are omitted, ERF generates
+   both the default edges and their pivots.
+
+   If an explicit first bin begins at zero, its geometric-mean pivot is also
+   zero and is invalid because SBM requires a positive pivot. Supply an
+   explicit positive pivot inside that bin.
+
+The automatically generated spectral grid and the example initial states are
+qualification defaults rather than recommended atmospheric discretizations.
+See :ref:`sec:SpectralBinMicrophysics` for the full interpretation of these
+inputs.
 
 .. _inputs-radiation:
 

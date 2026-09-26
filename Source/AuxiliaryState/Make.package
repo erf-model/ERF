@@ -1,0 +1,3 @@
+CEXE_sources += ERF_AuxiliaryProjection.cpp
+CEXE_headers += ERF_AuxiliaryStateLayout.H
+CEXE_headers += ERF_AuxiliaryProjection.H

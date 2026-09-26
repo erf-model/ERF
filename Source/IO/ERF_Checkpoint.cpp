@@ -17,6 +17,8 @@
 #include "ERF_Provenance.H"
 #include "ERF_IntervalMeansCheckpoint.H"
 #include "ERF_CheckpointSurfaceTemperature.H"
+#include "ERF_SBMStateManager.H"
+#include "ERF_SBMRestart.H"
 
 using namespace amrex;
 
@@ -175,6 +177,19 @@ ERF::WriteCheckpointFile () const
     // ---- after all directories are built
     // ---- ParallelDescriptor::IOProcessor() creates the directories
     PreBuildDirectorHierarchy(checkpointname, "Level_", nlevels, true);
+
+    if (sbm_state_manager) {
+        const std::string schema_file = checkpointname + "/SBM_Schema";
+        if (ParallelDescriptor::IOProcessor()) {
+            std::ofstream schema(schema_file, std::ofstream::out |
+                                              std::ofstream::trunc |
+                                              std::ofstream::binary);
+            if (!schema.good()) FileOpenFailed(schema_file);
+            schema << erf_sbm::restart_schema(sbm_state_manager->layout());
+            if (!schema.good()) FileOpenFailed(schema_file);
+        }
+        ParallelDescriptor::Barrier();
+    }
 
     if (ParallelDescriptor::IOProcessor()) {
         write_surface_temperature_contract(checkpointname);
@@ -373,6 +388,11 @@ ERF::WriteCheckpointFile () const
         MultiFab cons(grids[lev],dmap[lev],ncomp_cons,0);
         MultiFab::Copy(cons,vars_new[lev][Vars::cons],0,0,ncomp_cons,0);
         VisMF::Write(cons, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Cell"));
+
+        if (sbm_state_manager) {
+            VisMF::Write(sbm_state_manager->state(lev),
+                         MultiFabFileFullPrefix(lev, checkpointname, "Level_", "SBMSpectrum"));
+        }
 
         MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
         MultiFab::Copy(xvel,vars_new[lev][Vars::xvel],0,0,1,0);
@@ -860,6 +880,19 @@ ERF::ReadCheckpointFile ()
 {
     Print() << "Restart from native checkpoint " << restart_chkfile << "\n";
 
+    if (sbm_state_manager) {
+        const std::string schema_file = restart_chkfile + "/SBM_Schema";
+        if (!FileExists(schema_file)) {
+            Abort("SBM restart is missing required exact-schema file '" + schema_file + "'");
+        }
+        Vector<char> schema_chars;
+        ParallelDescriptor::ReadAndBcastFile(schema_file, schema_chars);
+        const std::string persisted_schema(schema_chars.dataPtr());
+        if (!erf_sbm::restart_schema_matches(sbm_state_manager->layout(), persisted_schema)) {
+            Abort("SBM restart schema does not exactly match the active spectral layout and M1 fixture identity");
+        }
+    }
+
     const auto provenance_result =
         erf_provenance::read_job_info_file(restart_chkfile + "/job_info");
     if (provenance_result.valid() &&
@@ -1092,6 +1125,11 @@ ERF::ReadCheckpointFile ()
     // NOTE: Data is written over ncomp, so check that we match the header file
     int ncomp_cons = vars_new[0][Vars::cons].nComp();
 
+    if (sbm_state_manager) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(chk_ncomp_cons == ncomp_cons,
+            "SBM restart requires an exact compact core component count");
+    }
+
     // NOTE: QKE was removed so this is for backward compatibility
     AMREX_ASSERT((chk_ncomp_cons==ncomp_cons) || ((chk_ncomp_cons-1)==ncomp_cons));
     //
@@ -1146,6 +1184,31 @@ ERF::ReadCheckpointFile ()
             VisMF::Read(cons, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Cell"));
             MultiFab::Copy(vars_new[lev][Vars::cons],cons,0,0,ncomp_cons,0);
             vars_new[lev][Vars::cons].setBndry(bogus_large_value);
+        }
+
+        if (sbm_state_manager) {
+            const std::string spectrum_file =
+                MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "SBMSpectrum");
+            if (!FileExists(spectrum_file + "_H")) {
+                Abort("SBM restart is missing authoritative spectrum for level " + std::to_string(lev));
+            }
+            auto& spectrum = sbm_state_manager->state(lev);
+            VisMF::Read(spectrum, spectrum_file);
+            std::string state_diagnostic;
+            if (!erf_sbm::authoritative_state_admissible(
+                    spectrum, sbm_state_manager->layout(), lev, &state_diagnostic)) {
+                Abort(state_diagnostic);
+            }
+            const int qc = solverChoice.moisture_indices.qc;
+            const int qr = solverChoice.moisture_indices.qr;
+            const erf_sbm::SBMBulkProjection projection(sbm_state_manager->layout());
+            if (!erf_sbm::restart_projection_matches(
+                    spectrum, vars_new[lev][Vars::cons], projection, qc, qr)) {
+                Abort("SBM restart compact qc/qr do not match the persisted authoritative spectrum");
+            }
+            // Compact fields are overwritten only after their persisted values
+            // have passed the consistency check above.
+            sbm_state_manager->project_to_core(lev, vars_new[lev][Vars::cons], qc, qr);
         }
 
         MultiFab xvel(convert(grids[lev],IntVect(1,0,0)),dmap[lev],1,0);
