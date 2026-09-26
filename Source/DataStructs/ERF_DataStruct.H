@@ -1212,7 +1212,7 @@ struct SolverChoice {
 
         // erf.radiation_model = TwoStream selects the two-stream model; its
         // erf.radiation.* sub-options are read only then.
-        radChoice.init_params(rad_type == RadiationType::TwoStream, max_level, pp_prefix);
+        radChoice.init_params(rad_type == RadiationType::TwoStream, pp_prefix);
 
         vert_implicit_fac.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {

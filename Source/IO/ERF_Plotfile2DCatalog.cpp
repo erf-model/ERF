@@ -38,6 +38,8 @@ const amrex::Vector<DiagnosticDescriptor>& catalog_storage ()
         {DiagnosticID::QSurf,          "q_surf",       "Surface humidity from the surface layer",         "kg/kg",     DiagnosticCategory::SurfaceLayer,    MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::Z0,             "z0",           "Roughness height from the surface layer",         "m",         DiagnosticCategory::SurfaceLayer,    MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::OLR,            "OLR",          "Outgoing longwave radiation at the model top",    "W/m^2",     DiagnosticCategory::Radiation,       MissingPolicy::FillMinus999WhenUnavailable},
+        {DiagnosticID::SebTsfc,        "seb_t_sfc",    "Prognostic surface temperature from the two-stream simplified surface energy balance", "K",         DiagnosticCategory::Radiation,       MissingPolicy::FillMinus999WhenUnavailable},
+        {DiagnosticID::SebQsfc,        "seb_q_sfc",    "Prognostic surface specific humidity from the two-stream simplified surface energy balance", "kg/kg",     DiagnosticCategory::Radiation,       MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::SensFlux,       "sens_flux",    "Surface sensible heat flux",                      "kg K m^-2 s^-1", DiagnosticCategory::SurfaceFlux, MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::LatenFlux,      "laten_flux",   "Surface moisture flux (legacy output name)",      "kg m^-2 s^-1", DiagnosticCategory::SurfaceFlux,    MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::SurfPres,       "surf_pres",    "Surface pressure",                                "Pa",        DiagnosticCategory::SurfaceState,   MissingPolicy::AlwaysAvailable},

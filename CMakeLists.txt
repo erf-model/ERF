@@ -239,14 +239,19 @@ if (${ERF_USE_INTERNAL_AMREX})
         CACHE STRING "Path to fcompare executable for regression tests")
       set(FEXTREMA_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/*/amrex_fextrema.exe
         CACHE STRING "Path to fextrema executable for regression tests")
+      set(FEXTRACT_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/*/amrex_fextract.exe
+        CACHE STRING "Path to fextract executable for regression tests")
     else()
       set(FCOMPARE_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fcompare
         CACHE STRING "Path to fcompare executable for regression tests")
       set(FEXTREMA_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fextrema
         CACHE STRING "Path to fextrema executable for regression tests")
+      set(FEXTRACT_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fextract
+        CACHE STRING "Path to fextract executable for regression tests")
     endif()
     message(VERBOSE "fcompare executable: ${FCOMPARE_EXE}")
     message(VERBOSE "fextrema executable: ${FEXTREMA_EXE}")
+    message(VERBOSE "fextract executable: ${FEXTRACT_EXE}")
 else()
     message(STATUS "Using external AMReX")
 
@@ -340,14 +345,19 @@ else()
         CACHE STRING "Path to fcompare executable for regression tests")
       set(FEXTREMA_EXE ${AMReX_DIR}/../../../*/amrex_fextrema.exe
         CACHE STRING "Path to fextrema executable for regression tests")
+      set(FEXTRACT_EXE ${AMReX_DIR}/../../../*/amrex_fextract.exe
+        CACHE STRING "Path to fextract executable for regression tests")
     else()
       set(FCOMPARE_EXE ${AMReX_DIR}/../../../bin/amrex_fcompare
         CACHE STRING "Path to fcompare executable for regression tests")
       set(FEXTREMA_EXE ${AMReX_DIR}/../../../bin/amrex_fextrema
         CACHE STRING "Path to fextrema executable for regression tests")
+      set(FEXTRACT_EXE ${AMReX_DIR}/../../../bin/amrex_fextract
+        CACHE STRING "Path to fextract executable for regression tests")
     endif()
     message(VERBOSE "fcompare executable: ${FCOMPARE_EXE}")
     message(VERBOSE "fextrema executable: ${FEXTREMA_EXE}")
+    message(VERBOSE "fextract executable: ${FEXTRACT_EXE}")
 
 endif()
 

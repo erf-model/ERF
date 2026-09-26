@@ -29,6 +29,18 @@ set(RESTART_DIR  "${WORKING_DIRECTORY}/restart")
 file(REMOVE_RECURSE "${STRAIGHT_DIR}" "${RESTART_DIR}")
 file(MAKE_DIRECTORY "${STRAIGHT_DIR}" "${RESTART_DIR}")
 
+# A deck may need auxiliary inputs sitting beside it -- an input_sounding, a table, a
+# terrain file -- which it names relatively. Each leg runs in its own subdirectory, so
+# those files have to be there too; otherwise the run aborts at start-up reading them.
+# Directories are skipped: the plotfiles and checkpoints of an earlier run are not inputs.
+file(GLOB _rp_aux "${WORKING_DIRECTORY}/*")
+foreach(_rp_f IN LISTS _rp_aux)
+    if(NOT IS_DIRECTORY "${_rp_f}")
+        file(COPY "${_rp_f}" DESTINATION "${STRAIGHT_DIR}")
+        file(COPY "${_rp_f}" DESTINATION "${RESTART_DIR}")
+    endif()
+endforeach()
+
 # MPIEXEC may be a multi-word command such as "flux run"; the helper splits
 # it, validates the program and applies MPIEXEC_PREFLAGS. An empty MPIEXEC
 # yields an empty prefix, so the runs stay serial.
@@ -71,18 +83,32 @@ function(run_erf dir log timeout_s)
     endif()
 endfunction()
 
+# Optional second comparison: a 2D plotfile. The 3D plotfile carries no surface
+# fields, so state that is checkpointed but never restored -- a surface temperature
+# reloading as its scalar default, say -- can leave plt identical while plt2d is
+# wrong. Drive its cadence exactly as the 3D one is driven.
+set(plot2d_end "")
+set(plot2d_off "")
+if(NOT "${PLT2DFILE}" STREQUAL "")
+    set(plot2d_end "erf.plot2d_int_1=${STEP_END}")
+    set(plot2d_off "erf.plot2d_int_1=-1")
+endif()
+
 # straight to the end, no checkpoint
 run_erf("${STRAIGHT_DIR}" "simulation.log" ${RUN_TIMEOUT}
-        "max_step=${STEP_END}" "erf.check_int=-1" "erf.plot_int_1=${STEP_END}")
+        "max_step=${STEP_END}" "erf.check_int=-1" "erf.plot_int_1=${STEP_END}"
+        ${plot2d_end})
 # to the checkpoint step, writing it there
 run_erf("${RESTART_DIR}" "checkpoint.log" ${RUN_TIMEOUT}
-        "max_step=${STEP_CHK}" "erf.check_int=${STEP_CHK}" "erf.plot_int_1=-1")
+        "max_step=${STEP_CHK}" "erf.check_int=${STEP_CHK}" "erf.plot_int_1=-1"
+        ${plot2d_off})
 if(NOT EXISTS "${RESTART_DIR}/${CHKFILE}/Header")
     message(FATAL_ERROR "RunRestartParity.cmake: no ${CHKFILE} written by the checkpoint run")
 endif()
 # from the checkpoint to the end
 run_erf("${RESTART_DIR}" "restart.log" ${RUN_TIMEOUT}
-        "erf.restart=${CHKFILE}" "max_step=${STEP_END}" "erf.check_int=-1" "erf.plot_int_1=${STEP_END}")
+        "erf.restart=${CHKFILE}" "max_step=${STEP_END}" "erf.check_int=-1" "erf.plot_int_1=${STEP_END}"
+        ${plot2d_end})
 
 foreach(dir "${STRAIGHT_DIR}" "${RESTART_DIR}")
     if(NOT EXISTS "${dir}/${PLTFILE}/Header")
@@ -102,6 +128,31 @@ if(NOT parity_result EQUAL 0)
     message(FATAL_ERROR "RunRestartParity.cmake: the restarted run's ${PLTFILE} differs from the straight run's: ${parity_result} (see parity.log)")
 endif()
 message(STATUS "RunRestartParity: restart from ${CHKFILE} reproduces ${PLTFILE}")
+
+if(NOT "${PLT2DFILE}" STREQUAL "")
+    foreach(dir "${STRAIGHT_DIR}" "${RESTART_DIR}")
+        if(NOT EXISTS "${dir}/${PLT2DFILE}/Header")
+            message(FATAL_ERROR
+                "RunRestartParity.cmake: no ${PLT2DFILE} in ${dir}; the deck must select 2D "
+                "output with erf.plot2d_vars_1 for the 2D comparison to mean anything")
+        endif()
+    endforeach()
+    execute_process(
+        COMMAND ${launch_one} ${FCOMPARE} --abort_if_not_all_found
+                --rel_tol ${RTOL} --abs_tol ${ATOL}
+                ${STRAIGHT_DIR}/${PLT2DFILE} ${RESTART_DIR}/${PLT2DFILE}
+        WORKING_DIRECTORY "${WORKING_DIRECTORY}"
+        OUTPUT_FILE "${WORKING_DIRECTORY}/parity2d.log"
+        ERROR_FILE "${WORKING_DIRECTORY}/parity2d.log"
+        RESULT_VARIABLE parity2d_result)
+    if(NOT parity2d_result EQUAL 0)
+        message(FATAL_ERROR
+            "RunRestartParity.cmake: the restarted run's ${PLT2DFILE} differs from the straight "
+            "run's: ${parity2d_result} (see parity2d.log). A surface field that is written to the "
+            "checkpoint but not read back looks exactly like this.")
+    endif()
+    message(STATUS "RunRestartParity: restart also reproduces ${PLT2DFILE}")
+endif()
 
 # Optional: a time series that the run appends to, such as a station file written by
 # erf.station_names, must come out the same whether it was written in one run or in two.

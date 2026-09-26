@@ -67,7 +67,7 @@ if(NRANKS GREATER 1)
     execute_process(
         COMMAND ${serial_launcher} ${TEST_EXE} ${INPUT} ${runtime_options}
                 ${diag_options} erf.radiation.diag_file=${diag_serial}
-                erf.plot_int_1=-1
+                erf.plot_int_1=-1 erf.plot2d_int_1=-1
         WORKING_DIRECTORY "${WORKING_DIRECTORY}"
         OUTPUT_FILE "${SIMULATION_LOG}.np1"
         ERROR_FILE "${SIMULATION_LOG}.np1"
@@ -158,3 +158,41 @@ foreach(check_level IN LISTS check_level_list)
             "TwoStream radiation column check failed at level ${check_level}: ${checker_result}")
     endif()
 endforeach()
+
+# The prognostic surface state, when the deck asks for it. average_down leaves each coarse
+# cell holding the mean of the fine cells above it; the checker asserts that equality on a
+# 1-d slice (the companion case varies in x only, so one slice carries the whole field).
+# Run last, so a failure here is not confused with a failure of the column checks above.
+if(DEFINED SEB_PARITY_PLOTFILE AND NOT "${SEB_PARITY_PLOTFILE}" STREQUAL "")
+    foreach(required PYTHON_EXE SEB_PARITY_CHECKER FEXTRACT)
+        if(NOT DEFINED ${required} OR "${${required}}" STREQUAL "")
+            message(FATAL_ERROR
+                "SEB_PARITY_PLOTFILE was given but ${required} is empty; the parity check "
+                "would be skipped silently")
+        endif()
+    endforeach()
+    set(seb_parity_log "${CHECKER_LOG}.seb_parity")
+    execute_process(
+        COMMAND ${PYTHON_EXE} ${SEB_PARITY_CHECKER}
+                --plotfile ${SEB_PARITY_PLOTFILE}
+                --fextract ${FEXTRACT}
+                --tol ${SEB_PARITY_TOL}
+        WORKING_DIRECTORY "${WORKING_DIRECTORY}"
+        OUTPUT_FILE "${seb_parity_log}"
+        ERROR_FILE "${seb_parity_log}"
+        RESULT_VARIABLE seb_parity_result)
+    two_stream_report_log("SEB parity check" "${seb_parity_log}")
+    # The checker separates the two: 1 means it compared the levels and they disagree,
+    # 2 means it could not make the comparison at all (missing field, mismatched level
+    # coverage, or a field so uniform that agreeing would prove nothing). Reporting a 2 as
+    # a parity failure would send the reader after the wrong defect.
+    if(seb_parity_result EQUAL 1)
+        message(FATAL_ERROR
+            "TwoStream prognostic SEB parity check failed: the coarse surface state is not "
+            "the average of the fine one, so the levels disagree about the ground they share")
+    elseif(NOT seb_parity_result EQUAL 0)
+        message(FATAL_ERROR
+            "TwoStream prognostic SEB parity check could not run (${seb_parity_result}); see "
+            "the checker log above -- this is a broken check, not a parity failure")
+    endif()
+endif()

@@ -300,20 +300,34 @@ as often as its parent -- twice as often for a refinement ratio of two. This mat
 path and is physically correct, since the heating is recomputed from the current old state each
 time; there is no call-interval input to reduce it.
 
-The surface energy balance runs on level 0 only. The surface is one physical object whose
-force-restore state is prognostic and checkpointed, so it has a single owner, and only level 0
-writes or reads that state in a checkpoint. The diagnostic SEB residual is likewise reported for
-level 0. Because the prognostic surface temperature *is* the longwave boundary condition,
-combining ``erf.radiation.seb_prognostic_enable`` with ``amr.max_level > 0`` would leave level 0
-and its fine levels with two different surface boundary conditions for one surface; that
-combination is refused at start-up rather than allowed to disagree silently.
+The surface energy balance runs on every level. Each level carries its own force-restore
+surface state, evolves it from the fluxes its own sweep computes, and checkpoints it, and the
+diagnostic SEB residual is reported per level. Because the prognostic surface temperature *is*
+the longwave boundary condition, the levels must not be allowed to hold different temperatures
+for one physical surface, so ERF keeps them consistent in three places:
+
+- **A new level starts from its parent.** ``t_sfc`` and ``q_sfc`` are interpolated from the
+  coarse level when a level is created, so a fine level begins from the surface its parent has
+  already reached rather than from ``erf.rad_t_sfc``.
+- **Fine levels are averaged down.** After the finer levels advance, their surface state is
+  averaged onto the coarse level, exactly as the atmospheric state is. This runs under
+  ``erf.coupling_type = TwoWay``; with ``OneWay`` the levels are left to evolve independently,
+  which is what that option asks for everywhere else as well.
+- **A regrid keeps what the surface had reached.** Rebuilding a level reallocates its surface
+  fields, so the pre-regrid values are copied back onto the new grids, with cells the new grids
+  added filled from the parent.
+
+The surface temperature a fine level sees is therefore its parent's wherever the fine level has
+not yet changed it, which is a real limitation: refining does not by itself give the surface
+more structure than the coarse grid resolved. What refinement does give is a surface that
+responds to the fine level's own radiative fluxes.
 
 Limitations
 --------------------------------------
 
 - **Refined runs.** Multiple levels are supported; see `Multiple Levels`_ above for the grid
   requirement, the lateral coarse-fine seam, the absence of feedback from fine to coarse, the
-  subcycled call cadence, and the single-level restrictions on the surface energy balance.
+  subcycled call cadence, and how the surface energy balance is kept consistent between levels.
 - **Sun and site.** The sun, the site and the surface temperature come from the inputs the
   RRTMGP interface reads (``erf.fixed_solar_zenith_angle``, ``erf.fixed_total_solar_irradiance``,
   ``erf.rad_t_sfc``, ``erf.rad_cons_lat``/``lon``, ``erf.rad_orbital_*``, ``start_datetime``),

@@ -114,6 +114,11 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // *******************************************************************************************
     init_stuff(lev, ba, dm, lev_new, lev_old, base_state[lev], z_phys_nd[lev]);
 
+    // define_level (inside init_stuff) filled the two-stream SEB state with the scalar
+    // defaults; a level that evolves it needs its parent's values instead, or it
+    // radiates at erf.rad_t_sfc for its first step.
+    fill_seb_from_coarse(lev);
+
     //********************************************************************************************
     // Land Surface Model
     // *******************************************************************************************
@@ -361,6 +366,11 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     //      terrain arrays, ba2d, metric terms and base state.
     // *******************************************************************************************
     init_stuff(lev, ba, dm, vars_new[lev], vars_old[lev], base_state[lev], z_phys_nd[lev]);
+
+    // define_level (inside init_stuff) filled the two-stream SEB state with the scalar
+    // defaults; a level that evolves it needs its parent's values instead, or it
+    // radiates at erf.rad_t_sfc for its first step.
+    fill_seb_from_coarse(lev);
 
     //
     // Note that t_new = time here is elapsed time
@@ -777,6 +787,30 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     std::unique_ptr<iMultiFab> old_land_type = retain(land_type_lev,lev);
     std::unique_ptr<iMultiFab> old_soil_type = retain(soil_type_lev,lev);
 
+    //
+    // The two-stream prognostic surface energy balance is in the same position again, and
+    // it is genuinely prognostic: define_level (inside init_stuff) reallocates t_sfc/q_sfc
+    // on the new grids and setVal()s them back to the scalar erf.rad_t_sfc, and nothing
+    // downstream recomputes them, so a regrid that changes the fine grids would throw away
+    // however far the surface had evolved.  Copy the pre-regrid fields out here.  (This
+    // path only became reachable when the single-level restriction on the prognostic SEB
+    // was lifted -- before that a level carrying this state could never be regridded.)
+    //
+    std::unique_ptr<MultiFab> old_seb_t_sfc, old_seb_q_sfc;
+    if (solverChoice.rad_type == RadiationType::TwoStream &&
+        two_stream_rad.seb_prognostic_active())
+    {
+        auto keep = [] (MultiFab* src) -> std::unique_ptr<MultiFab> {
+            if (!src) { return nullptr; }
+            auto dst = std::make_unique<MultiFab>(src->boxArray(), src->DistributionMap(),
+                                                  1, src->nGrowVect());
+            MultiFab::Copy(*dst, *src, 0, 0, 1, src->nGrowVect());
+            return dst;
+        };
+        old_seb_t_sfc = keep(two_stream_rad.seb_t_sfc(lev));
+        old_seb_q_sfc = keep(two_stream_rad.seb_q_sfc(lev));
+    }
+
     //********************************************************************************************
     // This allocates all kinds of things, including but not limited to: solution arrays,
     //      terrain arrays and metrics, and base state.
@@ -826,6 +860,27 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
             IntVect ngv = new_land[i]->nGrowVect(); ngv[2] = 0;
             new_land[i]->ParallelCopy(*old_land[i], 0, 0, 1, ngv, ngv, geom[lev].periodicity());
             new_land[i]->FillBoundary(geom[lev].periodicity());
+        }
+    }
+
+    //
+    // Restore the prognostic surface state the same way the arrays above are restored:
+    // interpolate from the parent first, so cells the new grids added -- which the
+    // pre-regrid fields never covered -- start from the coarse surface rather than from
+    // the scalar default, then copy the retained values on top wherever we still have them.
+    //
+    if (solverChoice.rad_type == RadiationType::TwoStream &&
+        two_stream_rad.seb_prognostic_active())
+    {
+        if (lev > 0) { fill_seb_from_coarse(lev); }
+
+        MultiFab* new_seb[] = {two_stream_rad.seb_t_sfc(lev), two_stream_rad.seb_q_sfc(lev)};
+        MultiFab* old_seb[] = {old_seb_t_sfc.get(), old_seb_q_sfc.get()};
+        for (int i = 0; i < 2; i++) {
+            if (!new_seb[i] || !old_seb[i]) { continue; }
+            IntVect ngv = new_seb[i]->nGrowVect(); ngv[2] = 0;
+            new_seb[i]->ParallelCopy(*old_seb[i], 0, 0, 1, ngv, ngv, geom[lev].periodicity());
+            new_seb[i]->FillBoundary(geom[lev].periodicity());
         }
     }
 

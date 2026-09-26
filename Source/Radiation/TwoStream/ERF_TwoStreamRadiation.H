@@ -129,6 +129,28 @@ public:
                   double epoch_time,
                   bool have_datetime);
 
+    /**
+     * @brief The prognostic surface state of one level, or nullptr when the SEB is
+     * off or the level has not been built.
+     *
+     * Exposed so ERF can average t_sfc and q_sfc down after the finer levels have
+     * advanced. Every level evolves its own copy, and without that transfer the two
+     * estimates of one surface drift apart -- which would give the longwave boundary
+     * condition two different values for the same ground. ERF owns refRatio and the
+     * level geometries; this class does not, and should not grow them for one call.
+     */
+    [[nodiscard]] amrex::MultiFab* seb_t_sfc (int lev) {
+        return (active() && m_rad->seb_enable && lev < m_t_sfc.size()) ? m_t_sfc[lev].get() : nullptr;
+    }
+    [[nodiscard]] amrex::MultiFab* seb_q_sfc (int lev) {
+        return (active() && m_rad->seb_enable && lev < m_q_sfc.size()) ? m_q_sfc[lev].get() : nullptr;
+    }
+
+    /** @brief True when the force-restore state is being evolved and so needs transferring. */
+    [[nodiscard]] bool seb_prognostic_active () const {
+        return active() && m_rad->seb_enable && m_rad->seb_prognostic_enable;
+    }
+
     /** @brief Write the prognostic surface state of one level (SEB on). */
     void write_checkpoint (int lev, const std::string& checkpointname) const;
 
