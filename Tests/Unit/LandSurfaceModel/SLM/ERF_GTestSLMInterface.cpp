@@ -29,6 +29,23 @@ amrex::MultiFab* get_slm_data (LandSurface& land_surface, const int lev,
     return land_surface.Get_Data_Ptr(lev, land_surface.Get_DataIdx(lev, name));
 }
 
+/**
+ * Sets a horizontal surface-temperature gradient for a test state.
+ */
+void set_surface_temperature_gradient (LandSurface& land_surface,
+                                       const int lev,
+                                       const amrex::Real base_temperature)
+{
+    auto* tsurf = get_slm_data(land_surface, lev, "tsurf");
+    for (amrex::MFIter mfi(*tsurf, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const amrex::Box box = mfi.validbox();
+        auto tsurf_arr = tsurf->array(mfi);
+        amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            tsurf_arr(i, j, k) = base_temperature + i + 2.0 * j;
+        });
+    }
+}
+
 struct SLMTestState {
     amrex::Box domain;
     amrex::BoxArray ba;
@@ -292,19 +309,6 @@ protected:
         get_slm_data(land_surface, lev, "veg_frac_max")->setVal(0.0);
         for (int var = 0; var < land_surface.Get_Flux_Size(); ++var) {
             land_surface.Get_Flux_Ptr(lev, var)->setVal(flux);
-        }
-    }
-
-    void set_surface_temperature_gradient (const int lev,
-                                           const amrex::Real base_temperature)
-    {
-        auto* tsurf = get_slm_data(land_surface, lev, "tsurf");
-        for (amrex::MFIter mfi(*tsurf, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            const amrex::Box box = mfi.validbox();
-            auto tsurf_arr = tsurf->array(mfi);
-            amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                tsurf_arr(i, j, k) = base_temperature + i + 2.0 * j;
-            });
         }
     }
 
@@ -928,8 +932,8 @@ TEST_F(SLMInterfaceTest, UsesCumulativeAndParentSourceRatios)
                         amrex::Real(0.5), amrex::Real(5.0));
     seed_transfer_state(1, amrex::Real(288.0), amrex::Real(293.0),
                         amrex::Real(0.55), amrex::Real(6.0));
-    set_surface_temperature_gradient(0, amrex::Real(287.0));
-    set_surface_temperature_gradient(1, amrex::Real(288.0));
+    set_surface_temperature_gradient(land_surface, 0, amrex::Real(287.0));
+    set_surface_temperature_gradient(land_surface, 1, amrex::Real(288.0));
 
     land_surface.Initialize_From_Source(2, 0, amrex::IntVect(4),
                                          LSMTransferMode::ProcessedState);

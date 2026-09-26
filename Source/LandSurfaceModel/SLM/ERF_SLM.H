@@ -187,6 +187,8 @@ class SLM : public NullSurf {
     using FabPtr = std::shared_ptr<amrex::MultiFab>;
 
 public:
+    using NullSurf::Init;
+
     // Constructor
     SLM () {}
 

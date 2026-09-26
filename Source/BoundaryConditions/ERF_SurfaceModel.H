@@ -662,8 +662,6 @@ public:
      */
     void ReadCheckpoint(const std::string &checkpointname);
 
-private:
-
     /**
      * @brief Validates the layout contract for a canonical radiation output.
      * @param lev AMR level associated with the destination.
@@ -773,6 +771,8 @@ private:
      */
     void weight_model_field(int lev, const amrex::MultiFab* source,
                             amrex::MultiFab* weighted, SurfaceModelType type);
+
+private:
 
     int m_nlevs;
 
