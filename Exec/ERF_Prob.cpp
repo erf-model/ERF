@@ -166,6 +166,9 @@ Problem::init_custom_pert (
     else if  (my_prob_name_ci == "bomex") {
 #include "Prob/ERF_InitCustomPert_Bomex.H"
     }
+    else if (my_prob_name_ci == "slm") {
+#include "Prob/ERF_InitCustomPert_SLM.H"
+    }
     else if  (   my_prob_name_ci == "rico"
               || my_prob_name_ci == "dycoms2rf01"
               || my_prob_name_ci == "dycoms2rf02") {
@@ -278,6 +281,9 @@ Problem::init_custom_pert_vels (
 #include "Prob/ERF_InitCustomPertVels_ConstantU.H"
     }
     else if  (my_prob_name_ci == "bomex") {
+#include "Prob/ERF_InitCustomPertVels_Bomex.H"
+    }
+    else if (my_prob_name_ci == "slm") {
 #include "Prob/ERF_InitCustomPertVels_Bomex.H"
     }
     else if  (   my_prob_name_ci == "rico"

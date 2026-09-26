@@ -261,12 +261,22 @@ RUN_CTEST=${RUN_CTEST,,}
 
 ERF_ENABLE_CUDA=${ERF_ENABLE_CUDA:-"OFF"}
 ERF_ENABLE_HIP=${ERF_ENABLE_HIP:-"OFF"}
+ERF_ENABLE_NETCDF=${ERF_ENABLE_NETCDF:-"OFF"}
+ERF_ENABLE_FFT=${ERF_ENABLE_FFT:-"OFF"}
 
 echo "HOST: ${host}"
 src_dir="${PWD}"
 echo "Source directory: ${src_dir}"
 build_dir="$(realpath -- "${src_dir}/../build_${host}_${CI_PIPELINE_ID}_${CI_JOB_ID}_$(date +%F_%H_%M_%S)")"
 echo "Build directory: ${build_dir}"
+
+# Parse test labels (if any)
+echo "COMMIT: '${CI_COMMIT_MESSAGE}'"
+if [[ "${CI_COMMIT_MESSAGE}" =~ \[run-ci[[:space:]]*([[:alpha:]]*)[[:space:]]*\] ]];
+then
+    ctest_label=${BASH_REMATCH[1]}
+    echo "Running tests for CTest label: '${ctest_label}'"
+fi
 
 phase_begin "Setup modules"
 
@@ -391,6 +401,7 @@ cmake \
      -D CMAKE_CUDA_ARCHITECTURES:STRING="${CUDA_ARCH:-""}" \
      -D ERF_ENABLE_HIP:BOOL="${ERF_ENABLE_HIP:-"OFF"}" \
      -D AMReX_AMD_ARCH:STRING="${AMD_ARCH:-""}" \
+     -D ERF_ENABLE_NETCDF:BOOL="${ERF_ENABLE_NETCDF}" \
      -D ERF_ENABLE_FFT:BOOL="${ERF_ENABLE_FFT:-"OFF"}" \
      -D ERF_ENABLE_FCOMPARE:BOOL=ON \
      -D FCOMPARE_EXE="${FCOMPARE_EXE}" \
@@ -405,7 +416,8 @@ cmake \
      -D CMAKE_EXPORT_COMPILE_COMMANDS:BOOL=ON \
      -D CMAKE_JOB_POOLS:STRING="link=${link_jobs}" \
      -D CMAKE_JOB_POOL_LINK:STRING=link \
-     -D ERF_ENABLE_CRAY_AUTO_FIXES=OFF
+     -D ERF_ENABLE_CRAY_AUTO_FIXES=OFF \
+    "${EXTRA_CMAKE_ARGS:-""}"
 
 phase_end
 
@@ -428,6 +440,7 @@ if [[ "$RUN_CTEST" == "true" ]]; then
     ctest_junit="${build_dir}/ctest_results.xml"
     ctest_rc=0
     ctest --test-dir "${build_dir}" --extra-verbose --output-on-failure \
+          -LE "manual" -L "${ctest_label:-}" \
           --no-tests=error --output-junit "${ctest_junit}" || ctest_rc=$?
 
     report_slowest_tests "${ctest_junit}" "${CTEST_SLOWEST_N}" \

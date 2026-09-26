@@ -1258,6 +1258,137 @@ ERF::InitData_post ()
         }
     }
 
+    if (solverChoice.lsm_type != LandSurfaceType::None ||
+        solverChoice.urban_type != UrbanType::None) {
+        m_SurfaceModel = std::make_unique<SurfaceModel>(finest_level+1, grids, geom, dmap, solverChoice, lmask_lev);
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            m_SurfaceModel->initialize_for_level(lev, grids[lev], geom[lev], dmap[lev], lmask_lev[lev], domain_bcs_type, refRatio());
+        }
+        if (solverChoice.lsm_type != LandSurfaceType::None) {
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                m_SurfaceModel->set_model_data(lev, lsm_data[lev], lsm_data_name, SurfaceModelType::LAND);
+                m_SurfaceModel->set_model_fluxes(lev, lsm_flux[lev], lsm_flux_name, SurfaceModelType::LAND);
+            }
+
+            const int flux_offset = lsm_data[0].size();
+            const std::string tsurf_name = solverChoice.lsm_type == LandSurfaceType::SLM ? "tsurf" : "t_sfc";
+            m_SurfaceModel->set_model_fields(SurfaceModelType::LAND, amrex::Vector<int>{flux_offset + lsm.Get_FluxIdx(0, "tau13"),
+                                                                                        flux_offset + lsm.Get_FluxIdx(0, "tau23"),
+                                                                                        flux_offset + lsm.Get_FluxIdx(0, "t_flux"),
+                                                                                        flux_offset + lsm.Get_FluxIdx(0, "q_flux"),
+                                                                                        lsm.Get_DataIdx(0, tsurf_name)}, true);
+
+        }
+
+        if (solverChoice.urban_type != UrbanType::None) {
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                if (solverChoice.urban_enabled_lev[lev] == 0) {
+                    continue;
+                }
+                m_SurfaceModel->set_model_data(lev, urban_data[lev], urban_data_name, SurfaceModelType::URBAN);
+            }
+        }
+
+        if (solverChoice.lsm_type == LandSurfaceType::SLM) {
+            m_SurfaceModel->register_radiation_input("tskin", {lsm.Get_DataIdx(0, "tsurf"), -1});
+            m_SurfaceModel->register_radiation_input("emiss", {lsm.Get_DataIdx(0, "emis_sfc"), -1});
+            m_SurfaceModel->register_radiation_input("albedo_vis", {lsm.Get_DataIdx(0, "alb_vis_sfc"), -1});
+            m_SurfaceModel->register_radiation_input("albedo_nir", {lsm.Get_DataIdx(0, "alb_nir_sfc"), -1});
+            m_SurfaceModel->register_radiation_input("albedo_vis_diff", {lsm.Get_DataIdx(0, "alb_vis_sfc_diff"), -1});
+            m_SurfaceModel->register_radiation_input("albedo_nir_diff", {lsm.Get_DataIdx(0, "alb_nir_sfc_diff"), -1});
+            if (solverChoice.rad_type == RadiationType::RRTMGP) {
+                const amrex::Vector<std::string> rad_output_names = {
+                    "cos_zenith_angle", "sw_flux_dn", "sw_flux_dn_dir_vis",
+                    "sw_flux_dn_dir_nir", "sw_flux_dn_dif_vis", "sw_flux_dn_dif_nir",
+                    "lw_flux_dn"};
+                const auto& slm_output_map = lsm.get_model_lev<SLM>(0)->get_rad_output_map();
+                for (const auto& output_name : rad_output_names) {
+                    const auto output_it = slm_output_map.find(output_name);
+                    if (output_it != slm_output_map.end() && !output_it->second.empty()) {
+                        m_SurfaceModel->register_radiation_output(
+                            output_name, {lsm.Get_DataIdx(0, output_it->second), -1});
+                    }
+                }
+            }
+        } else if (solverChoice.lsm_type != LandSurfaceType::None) {
+            const amrex::Vector<std::pair<std::string, std::string>> rad_inputs = {
+                {"tskin", "t_sfc"}, {"emiss", "sfc_emis"},
+                {"albedo_vis", "sfc_alb_dir_vis"}, {"albedo_nir", "sfc_alb_dir_nir"},
+                {"albedo_vis_diff", "sfc_alb_dif_vis"}, {"albedo_nir_diff", "sfc_alb_dif_nir"}};
+            for (const auto& input : rad_inputs) {
+                const int idx = lsm.Get_DataIdx(0, input.second);
+                if (idx >= 0) { m_SurfaceModel->register_radiation_input(input.first, {idx, -1}); }
+            }
+            if (solverChoice.rad_type == RadiationType::RRTMGP) {
+                const amrex::Vector<std::string> rad_output_names = {
+                    "cos_zenith_angle", "sw_flux_dn", "sw_flux_dn_dir_vis",
+                    "sw_flux_dn_dir_nir", "sw_flux_dn_dif_vis", "sw_flux_dn_dif_nir",
+                    "lw_flux_dn"};
+                for (const auto& output_name : rad_output_names) {
+                    const int idx = lsm.Get_DataIdx(0, output_name);
+                    if (idx >= 0) { m_SurfaceModel->register_radiation_output(output_name, {idx, -1}); }
+                }
+            }
+        }
+
+        // Populate weighted outputs after all active surface models are registered.
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            if (solverChoice.lsm_type == LandSurfaceType::None &&
+                (solverChoice.urban_type == UrbanType::None ||
+                 solverChoice.urban_enabled_lev[lev] == 0)) {
+                continue;
+            }
+            m_SurfaceModel->calculate_weight_average(lev, urb_frac_lev[lev][0].get());
+        }
+
+        // Define surface value mapping between SLM and BEM_BEP
+        if (solverChoice.lsm_type == LandSurfaceType::SLM) {
+            amrex::Vector<amrex::MultiFab*> olen_ptrs_slm(finest_level+1);
+            amrex::Vector<amrex::MultiFab*> olen_ptrs_urb(finest_level+1);
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                olen_ptrs_slm[lev] = lsm_flux[lev][lsm.Get_FluxIdx(lev, "olen")];
+                olen_ptrs_urb[lev] = nullptr;
+            }
+            /*
+            if (solverChoice.urban_type == UrbanType::BEM_BEP) {
+                m_SurfaceModel->register_field_map("tskin", {lsm.Get_DataIdx(0, "tsurf"), UrbanVar_BEP::tsk});
+                m_SurfaceModel->register_field_map("emiss", {lsm.Get_DataIdx(0, "emis_sfc"), UrbanVar_BEP::emiss});
+                m_SurfaceModel->register_field_map("albedo_vis", {lsm.Get_DataIdx(0, "alb_vis_sfc"), -1});
+                m_SurfaceModel->register_field_map("albedo_nir", {lsm.Get_DataIdx(0, "alb_nir_sfc"), -1});
+                m_SurfaceModel->register_field_map("albedo_vis_diff", {lsm.Get_DataIdx(0, "alb_vis_sfc_diff"), -1});
+                m_SurfaceModel->register_field_map("albedo_nir_diff", {lsm.Get_DataIdx(0, "alb_nir_sfc_diff"), -1});
+                m_SurfaceModel->register_field_map("ustar", {lsm.Get_DataIdx(0, "ustar"), UrbanVar_BEP::ustar}, true);
+                m_SurfaceModel->register_field_map("tstar", {lsm.Get_DataIdx(0, "tstar"), -1}, true);
+                m_SurfaceModel->register_field_map("qstar", {lsm.Get_DataIdx(0, "qstar"), -1}, true);
+                m_SurfaceModel->register_field_map("olen", olen_ptrs_slm, olen_ptrs_urb, true);
+            } else {
+            */
+            m_SurfaceModel->register_field_map("ustar", {lsm.Get_DataIdx(0, "ustar"), -1}, true);
+            m_SurfaceModel->register_field_map("tstar", {lsm.Get_DataIdx(0, "tstar"), -1}, true);
+            m_SurfaceModel->register_field_map("qstar", {lsm.Get_DataIdx(0, "qstar"), -1}, true);
+            m_SurfaceModel->register_field_map("olen", olen_ptrs_slm, olen_ptrs_urb, true);
+            //}
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                // Set initial olen to > 0. Note: at initial MOST compute_fluxes call, urban fraction has not been set,
+                // so weight-avg olen would be 0 which causes issues in PBL
+                m_SurfaceModel->get_field("olen", lev)->setVal(1.0E3);
+            }
+        }
+
+        if (restart_chkfile != "") {
+            // Update surface fields if needed (and available)
+            const std::string surface_model_header = restart_chkfile + "/SurfaceModel_Header";
+            if (amrex::FileExists(surface_model_header)) {
+                m_SurfaceModel->ReadCheckpoint(restart_chkfile);
+            } else {
+                amrex::Warning("Checkpoint has no SurfaceModel state; rebuilding it from LSM fields");
+            }
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                m_SurfaceModel->calculate_weight_average(lev, urb_frac_lev[lev][0].get());
+            }
+        }
+    }
+
     // Configure SurfaceLayer params if used
     // NOTE: we must set up the MOST routine after calling FillPatch
     //       in order to have lateral ghost cells filled (MOST + terrain interp).
@@ -1350,7 +1481,9 @@ ERF::InitData_post ()
 #else
                                                                  zero, zero, zero,
 #endif
-                                                                 eb_ptrs);
+                                                                 eb_ptrs,
+                                                                 (static_cast<int>(ori) == Orientation::zlo())
+                                                                     ? m_SurfaceModel.get() : nullptr);
             m_SurfaceLayer[ori]->set_surface_layer_faces(surface_layer_faces);
             m_SurfaceLayer[ori]->set_coupled_sst_active(solverChoice.use_coupled_sst &&
                                                         static_cast<int>(ori) == Orientation::zlo());
@@ -1460,6 +1593,18 @@ ERF::InitData_post ()
             const amrex::MultiFab* base = solverChoice.anelastic[lev] ? &base_state[lev] : nullptr;
             micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons], base);
             micro->FinishInit(lev, vars_new[lev][Vars::cons], z_phys_nd);
+        }
+    }
+
+    // Update LSM with initial condition
+    if (solverChoice.lsm_type != LandSurfaceType::None) {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            if (solverChoice.lsm_type == LandSurfaceType::SLM) {
+                lsm.get_model_lev<SLM>(lev)->set_dt(dt[lev]); // set SLM dt
+            }
+            lsm.set_LSM_terrain_inputs(lev, tsk_lev, lmask_lev);
+            lsm.Update_Lsm_Vars_Lev(lev, vars_new[lev][Vars::cons],
+                                     vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel]);
         }
     }
 
@@ -1947,7 +2092,8 @@ ERF::interp_mapfac_from_coarse (int lev)
 // *this* level -- ever fills it.  A level created by tagging therefore never had a
 // surface pressure at all, and a level that did read a file lost it at the next regrid.
 // update_sst_tsk uses it to convert the sea surface temperature from the wrflowinp file
-// into a potential temperature for the surface layer, and the LSM reads it as well.
+// into a potential temperature for the surface layer, and the active land-surface model
+// consumes it as well.
 //
 void
 ERF::interp_psfc_from_coarse (int lev)
@@ -2122,6 +2268,16 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
         interp_mapfac_from_coarse(lev);
         interp_psfc_from_coarse(lev);
         interp_land_masks_from_coarse(lev);
+    }
+
+    if (solverChoice.lsm_type == LandSurfaceType::SLM &&
+        precip[lev-1] && precip[lev]) {
+        IntVect ngv = precip[lev]->nGrowVect(); ngv[2] = 0;
+        InterpFromCoarseLevel(*precip[lev], ngv, IntVect(0,0,0),
+                              *precip[lev-1], 0, 0, 1,
+                              geom[lev-1], geom[lev],
+                              rr2d, &cell_cons_interp,
+                              domain_bcs_type, BCVars::cons_bc);
     }
 
     if (lon_m[lev-1] && !lon_m[lev]) {
@@ -2359,6 +2515,7 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
     }
 
     qmoist.resize(a_nlevsmax);
+    precip.resize(a_nlevsmax);
     return;
 }
 
@@ -2972,6 +3129,9 @@ ERF::ReadParameters ()
         pp.queryAdd("destag_profiles", destag_profiles);
 
         pp.queryAdd("plot_lsm", plot_lsm);
+        if (plot_lsm) { // || plot_urban) {
+            plot_surfmodel = true;
+        }
 #ifdef ERF_USE_RRTMGP
         pp.queryAdd("plot_rad", plot_rad);
 #endif
@@ -3303,6 +3463,9 @@ ERF::ReadParameters ()
     } else {
         Abort("Dont know this LandSurfaceType!") ;
     }
+
+    urban.ReSize(max_level+1, solverChoice.urban_enabled_lev);
+    urban.SetModel<NullUrban>();
 
     if (verbose > 0) {
         solverChoice.display(max_level,pp_prefix);

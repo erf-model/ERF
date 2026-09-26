@@ -380,6 +380,13 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         }
     }
 
+    if (solverChoice.lsm_type == LandSurfaceType::SLM) {
+        BoxList precip_bl = ba.boxList();
+        for (auto& b : precip_bl) { b.setRange(2, b.smallEnd(2)); }
+        precip[lev] = std::make_unique<MultiFab>(BoxArray(std::move(precip_bl)), dm, 1, ngrow_state);
+        precip[lev]->setVal(0.0);
+    }
+
     if (solverChoice.nudging_from_input_sounding) {
         nudge_data[lev] = std::make_unique<MultiFab>(ba, dm, 4, ngrow_state);
         nudge_data[lev]->setVal(0.0);
@@ -993,6 +1000,10 @@ ERF::init_zphys (int lev, double elapsed_time)
                                   domain_bcs_type, BCVars::cons_bc);
         }
     } // init_type
+
+    if (solverChoice.flat_terrain) {
+        validate_flat_terrain(lev, *z_phys_nd[lev], zlevels_stag[lev]);
+    }
 
     if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
         solverChoice.buildings_type == BuildingsType::ImmersedForcing) {

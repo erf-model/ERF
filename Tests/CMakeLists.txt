@@ -26,7 +26,9 @@ if(ERF_ENABLE_TESTS)
   set(ERF_TEST_FCOMPARE_RTOL "2.0e-10" CACHE STRING "fcompare relative tolerance")
   set(ERF_TEST_FCOMPARE_ATOL "2.0e-10" CACHE STRING "fcompare absolute tolerance")
   set(ERF_TEST_GOLD_FILES_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/ERFGoldFiles" CACHE PATH "Path to ERF gold files")
+  set(ERF_TEST_EXTRA_FILES_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/test_files/" CACHE PATH "Path to additional input files")
   option(ERF_TEST_ENABLE_EXTRA_SDM_TESTS "Enable additional SDM tests that require machine-specific gold files" OFF)
+  option(ERF_TEST_ENABLE_EXTRA_LSM_TESTS "Enable long-running LSM regression tests" OFF)
   option(ERF_TEST_SDM_SMOKE_GATED "Run the machine-specific SDM tests to completion, without gold comparison, under the smoke label" OFF)
 
   message(STATUS "ERF testing configuration summary:")
@@ -37,6 +39,7 @@ if(ERF_ENABLE_TESTS)
   message(STATUS "   comparison absolute tolerance = ${ERF_TEST_FCOMPARE_ATOL}")
   message(STATUS "   Gold file directory           = ${ERF_TEST_GOLD_FILES_DIRECTORY}")
   message(STATUS "   Extra SDM tests enabled       = ${ERF_TEST_ENABLE_EXTRA_SDM_TESTS}")
+  message(STATUS "   Extra LSM tests enabled       = ${ERF_TEST_ENABLE_EXTRA_LSM_TESTS}")
   message(STATUS "   Gated SDM smoke tests         = ${ERF_TEST_SDM_SMOKE_GATED}")
 
   add_executable(erf_shoc_plotfile_check

@@ -2169,7 +2169,11 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
     // LSM writes it's own data
     if (which==1 && plot_lsm) {
-        lsm.Plot_Lsm_Data(tnew, finest_level, istep, refRatio());
+        lsm.Plot_Lsm_Data(plotfile_type, tnew, istep, refRatio(), finest_level);
+    }
+
+    if (which==1 && plot_surfmodel && m_SurfaceModel) {
+        m_SurfaceModel->write_output(finest_level, tnew, "plt_surf_", istep, refRatio());
     }
 
 #ifdef ERF_USE_RRTMGP

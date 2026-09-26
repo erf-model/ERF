@@ -22,6 +22,7 @@
 #include "ERF_SurfaceDiagnosticSource.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_PBLHeight.H"
+#include "ERF_SurfaceModel.H"
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_EB.H"
 
@@ -77,6 +78,7 @@ public:
    * @param[in]     final_low_time      final available low-boundary-data time
    * @param[in]     low_time_interval   low-boundary-data time interval
    * @param[in]     eb_vec              optional embedded-boundary geometry data
+   * @param[in]     surf_model          optional weighted surface-model interface
    */
   explicit SurfaceLayer (amrex::Orientation face,
                          const amrex::Vector<amrex::Geometry>& geom,
@@ -92,7 +94,8 @@ public:
                          double start_low_time,
                          double final_low_time,
                          double low_time_interval = 0.0,
-                         const amrex::Vector<const eb_*>& eb_vec = {})
+                         const amrex::Vector<const eb_*>& eb_vec = {},
+                         SurfaceModel* surf_model = nullptr)
   : m_face(face),
     m_pp_prefix(a_pp_prefix),
     m_geom(geom),
@@ -104,7 +107,8 @@ public:
     m_terrain_type(a_terrain_type),
     m_rdOcp(a_rdOcp),
     m_ma(face, geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_mesh_type, a_terrain_type,
-         zlevels_stag, eb_vec)
+         zlevels_stag, eb_vec),
+    m_surf_model(surf_model)
   {
       // We have a moisture model if Qv_prim is a valid pointer
       use_moisture = (Qv_prim[0].get());
@@ -185,6 +189,12 @@ public:
       if (m_include_wstar && (pblh_type == PBLHeightCalcType::None)) {
           amrex::Abort("erf.most.include_wstar requires a PBL height: set "
                        "erf.most.pblh_calc (MYNN25 is the only scheme implemented)");
+      }
+
+      if (m_surf_model) {
+          use_surface_model = true;
+          amrex::Print() << " Using fluxes from surface model!" << std::endl;
+          surf_model_fluxes = m_surf_model->are_fluxes();
       }
 
       // Get surface temperature.  surf_temp and surf_moist are declared with negative
@@ -504,6 +514,9 @@ public:
           amrex::Abort("Only one of most.use_sfc_fluxes and most.use_sfc_sst may be enabled");
       }
       if (m_use_sfc_fluxes || m_use_sfc_sst) {
+          if (m_use_sfc_fluxes) {
+              AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!use_surface_model, "Cannot use surface flux forcing with LSM/Urban model!");
+          }
           if (m_terrain_type == TerrainType::EB) {
               amrex::Abort("Text-file surface forcing is not supported with EB terrain");
           }
@@ -560,7 +573,7 @@ public:
           m_lsm_data_name[n]     = lsm_data_name[n];
           m_lsm_data_lev[lev][n] = lsm_data[n];
           const std::string lc_name = amrex::toLower(lsm_data_name[n]);
-          if (lc_name == "theta" || lc_name == "t_surf") {
+          if (lc_name == "tsurf" || lc_name == "theta" || lc_name == "t_surf") {
               m_has_lsm_tsurf  = true;
               m_lsm_tsurf_indx = n;
           }
@@ -744,7 +757,7 @@ public:
 
       // TODO: Do we want an enum struct for indexing?
 
-      if (use_sst || use_tsk || m_has_lsm_tsurf || m_use_coupled_sst) {
+      if (use_sst || use_tsk || m_has_lsm_tsurf || m_use_coupled_sst || use_surface_model) {
           // Valid SST, TSK, LSM or coupled-ocean data; t_surf set before computing
           // fluxes (avoids extended lambda capture) Note that land temp will be set
           // from m_tsk_lev while sea temp will be set from m_sst_lev
@@ -1243,6 +1256,11 @@ public:
   amrex::MultiFab* get_t_surf (const int& lev) { return t_surf[lev].get(); }
 
   /**
+   * Return whether prescribed surface fluxes are active.
+   */
+  bool use_sfc_fluxes () const { return m_use_sfc_fluxes; }
+
+  /**
    * Set the surface-temperature field to a constant value.
    *
    * @param[in] lev   level index
@@ -1514,6 +1532,9 @@ private:
   TerrainType m_terrain_type;
   amrex::Real m_rdOcp = RdoCp;
   MOSTAverage m_ma;
+  SurfaceModel* m_surf_model = nullptr;
+  bool use_surface_model = false;
+  bool surf_model_fluxes = false;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> u_star;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> w_star;
   amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_star;

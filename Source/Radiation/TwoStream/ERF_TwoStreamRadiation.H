@@ -91,6 +91,8 @@ public:
      * @param z_phys_nd  nodal heights (layer interfaces), or nullptr on a uniform grid
      * @param geom       geometry of this level
      * @param lsm        land-surface model (queried for per-column fields)
+     * @param radiation_inputs canonical surface-property inputs, in fixed order
+     * @param noahmp_active whether Noah-MP diagnostics may be queried
      * @param qheating   2-component (SW, LW) heating-rate MultiFab of this
      *                   level, written at the pre-dycore call; may be nullptr
      * @param rad_fluxes 4-component (SW up, SW down, LW up, LW down) interface
@@ -121,6 +123,8 @@ public:
                   const amrex::MultiFab* z_phys_nd,
                   const amrex::Geometry& geom,
                   LandSurface& lsm,
+                  const amrex::Vector<const amrex::MultiFab*>& radiation_inputs,
+                  bool noahmp_active,
                   amrex::MultiFab* qheating,
                   amrex::MultiFab* rad_fluxes,
                   const amrex::MultiFab* t_surf,

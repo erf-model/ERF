@@ -100,6 +100,12 @@ make_terrain_fitted_coords (int lev, const amrex::Geometry& geom,
                             FineTerrain fine_terrain = FineTerrain::None,
                             amrex::MultiFab const* z_phys_interp = nullptr);
 
+/** Verify that a fitted mesh is horizontally flat and follows z_levels_h. */
+void
+validate_flat_terrain (int lev,
+                       const amrex::MultiFab& z_phys_nd,
+                       const amrex::Vector<amrex::Real>& z_levels_h);
+
 /**
  * Initialize the terrain grid mapping.
  *

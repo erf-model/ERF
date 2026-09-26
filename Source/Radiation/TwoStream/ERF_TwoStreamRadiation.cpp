@@ -340,6 +340,8 @@ TwoStreamRadiation::advance (int lev,
                              const MultiFab* z_phys_nd,
                              const Geometry& geom,
                              LandSurface& lsm,
+                             const Vector<const MultiFab*>& radiation_inputs,
+                             bool noahmp_active,
                              MultiFab* qheating,
                             MultiFab* rad_fluxes,
                             const MultiFab* t_surf,
@@ -545,10 +547,10 @@ TwoStreamRadiation::advance (int lev,
         // otherwise the scalar defaults.
         const bool sw_flux_from_rad = seb_active &&
                                       rad_choice.seb_use_radiation_fluxes &&
-                                      !lsm_has_field(lsm, lev, "sav");
+                                      !(noahmp_active && lsm_has_field(lsm, lev, "sav"));
         const bool lw_flux_from_rad = seb_active &&
                                       rad_choice.seb_use_radiation_fluxes &&
-                                      !lsm_has_field(lsm, lev, "fira");
+                                      !(noahmp_active && lsm_has_field(lsm, lev, "fira"));
 
         if (seb_active) {
             fill_or_copy_seb_field(m_alb_sw[lev].get(), lsm, lev, "sfc_alb_dir_vis", rad_choice.surface_albedo_sw);
@@ -642,8 +644,11 @@ TwoStreamRadiation::advance (int lev,
             Array4<const amrex::Real> hetero_alb_sw_arr;
             {
                 std::string varname_alb = "sfc_alb_dir_vis";
-                int lsm_idx = lsm.Get_DataIdx(lev, varname_alb);
-                if (lsm_idx >= 0) {
+                int lsm_idx = noahmp_active ? lsm.Get_DataIdx(lev, varname_alb) : -1;
+                if (radiation_inputs.size() > 2 && radiation_inputs[2]) {
+                    hetero_alb_sw_arr = radiation_inputs[2]->const_array(mfi);
+                    has_hetero_alb_sw = true;
+                } else if (lsm_idx >= 0) {
                     auto lsm_ptr = lsm.Get_Data_Ptr(lev, lsm_idx);
                     if (lsm_ptr) {
                         hetero_alb_sw_arr = lsm_ptr->const_array(mfi);
@@ -660,8 +665,11 @@ TwoStreamRadiation::advance (int lev,
             Array4<const amrex::Real> hetero_emiss_lw_arr;
             {
                 std::string varname_emiss = "sfc_emis";
-                int lsm_idx = lsm.Get_DataIdx(lev, varname_emiss);
-                if (lsm_idx >= 0) {
+                int lsm_idx = noahmp_active ? lsm.Get_DataIdx(lev, varname_emiss) : -1;
+                if (radiation_inputs.size() > 1 && radiation_inputs[1]) {
+                    hetero_emiss_lw_arr = radiation_inputs[1]->const_array(mfi);
+                    has_hetero_emiss_lw = true;
+                } else if (lsm_idx >= 0) {
                     auto lsm_ptr = lsm.Get_Data_Ptr(lev, lsm_idx);
                     if (lsm_ptr) {
                         hetero_emiss_lw_arr = lsm_ptr->const_array(mfi);
@@ -688,8 +696,11 @@ TwoStreamRadiation::advance (int lev,
             Array4<const amrex::Real> surface_layer_theta_arr;
             {
                 std::string varname_t_sfc = "t_sfc";
-                int lsm_idx = lsm.Get_DataIdx(lev, varname_t_sfc);
-                if (lsm_idx >= 0) {
+                int lsm_idx = noahmp_active ? lsm.Get_DataIdx(lev, varname_t_sfc) : -1;
+                if (radiation_inputs.size() > 0 && radiation_inputs[0]) {
+                    lsm_t_sfc_arr = radiation_inputs[0]->const_array(mfi);
+                    has_lsm_t_sfc = true;
+                } else if (lsm_idx >= 0) {
                     auto lsm_ptr = lsm.Get_Data_Ptr(lev, lsm_idx);
                     if (lsm_ptr) {
                         lsm_t_sfc_arr = lsm_ptr->const_array(mfi);
@@ -1018,9 +1029,6 @@ TwoStreamRadiation::advance (int lev,
             call_site == "post_dycore") {
             // Check if Noah-MP is active at this level by attempting to get the LSM t_sfc field
             std::string varname_t_sfc_prog = "t_sfc";
-            int lsm_idx_t_sfc = lsm.Get_DataIdx(lev, varname_t_sfc_prog);
-            bool noahmp_active = (lsm_idx_t_sfc >= 0);
-
             if (!noahmp_active) {
                 // Noah-MP is NOT active; proceed with prognostic update
 

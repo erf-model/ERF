@@ -22,7 +22,6 @@ if(NOT ERF_BUILD_LIBRARY_ONLY)
   build_erf_exe(${erf_exe_name})
 
   add_subdirectory(${PROJECT_SOURCE_DIR}/.Exec_dev ${PROJECT_BINARY_DIR}/Exec_dev)
-
 if(ERF_ENABLE_TOOLS)
   message(STATUS "Building additional ERF tools")
   add_subdirectory(Tools)

@@ -171,8 +171,16 @@ void make_mom_sources (double time_d,
                           (solverChoice.large_scale_forcing || solverChoice.nudging_u)) ||
                          enforce_massflux_x || enforce_massflux_y))
     {
-        // The plane averaging operates at fixed z not fixed height so is not correct for variable dz
-        AMREX_ALWAYS_ASSERT(solverChoice.mesh_type != MeshType::VariableDz);
+        // The plane averaging operates at fixed z rather than fixed physical
+        // height. It is valid for a variable-dz fitted mesh only when that
+        // mesh has been explicitly validated as horizontally flat.
+        const bool planar_averages_valid =
+            solverChoice.mesh_type != MeshType::VariableDz ||
+            solverChoice.flat_terrain;
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            planar_averages_valid,
+            "Fixed-index planar averages require a non-variable-dz mesh or "
+            "a validated flat fitted mesh (erf.flat_terrain = true).");
 
         const int offset = 1;
         const int u_offset = 1;

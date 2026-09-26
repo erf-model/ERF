@@ -620,8 +620,6 @@ if(ERF_ENABLE_RRTMGP)
   endif()
 
   message(VERBOSE "Building RRTMGP with Kokkos support")
-  add_compile_options(-Wno-c++11-narrowing)
-  message(DEBUG "Adding -Wno-c++11-narrowing for mo_gas_optics_rrtmgp issue on sycl/hip RRTMGP target")
 
   # Build the static rrtmgp library
   set(RRTMGP_BIN ${PROJECT_BINARY_DIR}/Submodules/rrtmgp)
@@ -631,6 +629,10 @@ if(ERF_ENABLE_RRTMGP)
   # Set up kokkos library and definitions
   set(RRTMGP_ENABLE_KOKKOS TRUE)
   target_compile_definitions(rrtmgp PUBLIC RRTMGP_ENABLE_KOKKOS)
+  target_compile_options(rrtmgp PRIVATE
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang>:-Wno-unused-local-typedefs>
+    $<$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>:-Wno-c++11-narrowing>
+  )
   target_link_libraries(rrtmgp kokkos)
   message(DEBUG "Added Kokkos to RRTMGP target")
 
