@@ -563,13 +563,19 @@ ifeq ($(USE_KOKKOS), TRUE)
 endif
 
 ifeq ($(USE_KOKKOS), TRUE)
+# When using CUDA, employ the KOKKOS nvcc wrapper (nvcc isn't GCC-compatible)
+EKAT_CXX := $(CXX)
+ifeq ($(USE_CUDA), TRUE)
+    EKAT_CXX := $(EKAT_SOURCE_DIR)/extern/kokkos/bin/nvcc_wrapper
+endif
+
 # These defaults build the subset of EKAT/Kokkos needed by ERF. Backend choices
 # mirror the AMReX-style USE_OMP/USE_CUDA/USE_HIP/USE_SYCL switches from the
 # including GNUmakefile. Use EKAT_EXTRA_CMAKE_FLAGS for compiler, architecture,
 # or site-specific CMake options that are not represented here.
 EKAT_CMAKE_FLAGS := \
   -D CMAKE_BUILD_TYPE:STRING=Release \
-  -D CMAKE_CXX_COMPILER:STRING="$(CXX)" \
+  -D CMAKE_CXX_COMPILER:STRING="$(EKAT_CXX)" \
   -D CMAKE_CXX_STANDARD:STRING=17 \
   -D CMAKE_INSTALL_PREFIX:PATH="$(EKAT_INSTALL_PREFIX)" \
   -D CMAKE_INSTALL_LIBDIR:PATH="$(EKAT_INSTALL_LIBDIR)" \
