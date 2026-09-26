@@ -68,14 +68,22 @@ void SurfaceModel::weight_model_field(int lev, const amrex::MultiFab* source,
 }
 
 
-void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urban_frac)
+void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urban_frac,
+                                            bool update_derived)
 {
+    m_last_urban_frac[lev] = urban_frac;
     const SurfaceProviderMode mode = m_provider_mode[lev];
-    AMREX_ASSERT_WITH_MESSAGE(mode != SurfaceProviderMode::None,
-                              "Must have at least one land or urban model enabled for weighted average");
+    // An urban model can be enabled on only a subset of AMR levels.  Those
+    // inactive levels have no surface-provider data to update.
+    if (mode == SurfaceProviderMode::None) {
+        return;
+    }
 
-    // Calculate weighted averages between Land and Urban
-    calculate_simple_average(lev, urban_frac);
+    // Calculate weighted averages between Land and Urban.  Output consumers
+    // can reuse the weights computed during the timestep update.
+    if (update_derived || !m_weights_updated) {
+        calculate_simple_average(lev, urban_frac);
+    }
 
     const bool use_urban = mode == SurfaceProviderMode::UrbanOnly ||
                            mode == SurfaceProviderMode::Both;
@@ -83,12 +91,15 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
                           mode == SurfaceProviderMode::Both;
     const bool use_weights = mode == SurfaceProviderMode::Both;
     const bool use_fluxes = m_export_fluxes;
+    const bool output_fields_registered =
+        (use_land && m_output_fields_registered[SurfaceModelType::LAND]) ||
+        (use_urban && m_output_fields_registered[SurfaceModelType::URBAN]);
 
     amrex::MultiFab* const outputs[] = {u_star[lev].get(), t_star[lev].get(), q_star[lev].get(), t_surf[lev].get()};
 
     const int nfields = (m_export_fluxes) ? 5 : 4;
 
-    if (!use_weights) {
+    if (m_surface_outputs_requested[lev] && output_fields_registered && !use_weights) {
         const auto& provider_fields = use_land ? lsm_fields : urban_fields;
         const auto& provider_data = use_land ? lsm_data_lev[lev] : urban_data_lev[lev];
         auto source_for = [&] (const int field) -> const amrex::MultiFab* {
@@ -155,7 +166,7 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
 
     // Output weighted surface fluxes into ustar, tstar, qstar and surface temperature into tsurf
     // TODO: make sure grids of urban and LSM inputs match
-    if (use_weights) {
+    if (m_surface_outputs_requested[lev] && output_fields_registered && use_weights) {
     if (!use_fluxes) {
         u_star[lev]->setVal(0.0, 1, 1, 0);
     }
@@ -211,7 +222,7 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
 
     // Write weighted copies only when both providers contribute.  With one
     // provider, get_weighted_model_data() returns the provider-owned source.
-    if (use_weights && use_land) {
+    if (update_derived && use_weights && use_land) {
         for (int field = nfields; field < static_cast<int>(lsm_fields.size()); ++field) {
             if (lsm_fields[field] == -1) continue;
             if (is_field_mapped(lev, SurfaceModelType::LAND, lsm_fields[field],
@@ -232,7 +243,7 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
         }
     }
 
-    if (use_weights && use_urban) {
+    if (update_derived && use_weights && use_urban) {
         for (int field = nfields; field < static_cast<int>(urban_fields.size()); ++field) {
             if (urban_fields[field] == -1) continue;
             if (is_field_mapped(lev, SurfaceModelType::URBAN, urban_fields[field],
@@ -254,6 +265,8 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
     }
 
     weight_average_fields(lev, urban_frac);
+
+    if (!update_derived) { return; }
 
     for (auto& entry : radiation_input_map) {
         const int land_idx = entry.second.map.first;
@@ -553,15 +566,8 @@ void SurfaceModel::register_field_map(std::string name, const std::pair<int, int
         field.mf_ind = -1;
         field.fill_bound = fill_boundary;
 
-        // Create MF to hold output for this field
-
+        // Storage is allocated when a consumer activates this mapping.
         amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_lev(m_nlevs);
-        for (int lev = 0; lev < m_nlevs; lev++)
-        {
-            mf_lev[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, IntVect(1,1,0));
-            mf_lev[lev]->setVal(0.0);
-        }
-
         fields.push_back(std::move(mf_lev));
         field.mf_ind = fields.size() - 1;
 
@@ -589,15 +595,8 @@ void SurfaceModel::register_field_map(std::string name, amrex::Vector<amrex::Mul
         field.lsm_ptr = lsm_lev_mf;
         field.urb_ptr = urb_lev_mf;
 
-        // Create MF to hold output for this field
-
+        // Storage is allocated when a consumer activates this mapping.
         amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_lev(m_nlevs);
-        for (int lev = 0; lev < m_nlevs; lev++)
-        {
-            mf_lev[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, IntVect(1,1,0));
-            mf_lev[lev]->setVal(0.0);
-        }
-
         fields.push_back(std::move(mf_lev));
         field.mf_ind = fields.size() - 1;
 
@@ -627,6 +626,48 @@ void SurfaceModel::set_field_map_pointers(const std::string& name, int lev,
     field.urb_ptr[lev] = urban_mf;
 }
 
+void SurfaceModel::activate_field_map(const std::string& name, const bool persistent)
+{
+    auto field_it = fieldmap.find(name);
+    if (field_it == fieldmap.end()) { return; }
+
+    Field& field = field_it->second;
+    field.active = true;
+    field.persistent_consumer = field.persistent_consumer || persistent;
+    if (field.mf_ind == -1) {
+        field.mf_ind = static_cast<int>(fields.size());
+        fields.emplace_back(m_nlevs);
+    }
+
+    for (int lev = 0; lev < m_nlevs; ++lev) {
+        if (fields[field.mf_ind][lev] == nullptr) {
+            fields[field.mf_ind][lev] = std::make_unique<amrex::MultiFab>(
+                m_ba2d[lev], m_dmap[lev], 1, IntVect(1,1,0));
+            fields[field.mf_ind][lev]->setVal(0.0);
+        }
+    }
+}
+
+void SurfaceModel::activate_all_field_maps(const bool persistent)
+{
+    for (const auto& entry : fieldmap) {
+        activate_field_map(entry.first, persistent);
+    }
+}
+
+void SurfaceModel::deactivate_transient_field_maps()
+{
+    for (auto& entry : fieldmap) {
+        Field& field = entry.second;
+        if (field.persistent_consumer) { continue; }
+        field.active = false;
+        if (field.mf_ind == -1) { continue; }
+        for (auto& mf : fields[field.mf_ind]) {
+            mf.reset();
+        }
+    }
+}
+
 void SurfaceModel::weight_average_fields(int lev, amrex::MultiFab* const /*urban_frac*/)
 {
     const SurfaceProviderMode mode = m_provider_mode[lev];
@@ -637,6 +678,7 @@ void SurfaceModel::weight_average_fields(int lev, amrex::MultiFab* const /*urban
 
     for (auto &field : fieldmap)
     {
+        if (!field.second.active) { continue; }
         int mf_idx = field.second.mf_ind;
         AMREX_ASSERT(mf_idx != -1);
 
@@ -707,6 +749,8 @@ void SurfaceModel::weight_average_fields(int lev, amrex::MultiFab* const /*urban
 
 void SurfaceModel::write_output(const int &finest_lev, const amrex::Real &time, const std::string &plot_prefix, const amrex::Vector<int> &level_steps, const amrex::Vector<amrex::IntVect> &ref_ratio)
 {
+    request_surface_outputs(false);
+    activate_all_field_maps(false);
     std::string plotfilename = amrex::Concatenate(plot_prefix + "2D_", level_steps[0], 5);
 
     const int nfields = (m_export_fluxes) ? 5 : 4;
@@ -718,6 +762,7 @@ void SurfaceModel::write_output(const int &finest_lev, const amrex::Real &time, 
 
     amrex::Vector<amrex::MultiFab> fab(finest_lev+1);
     for (int lev = 0; lev <= finest_lev; lev++) {
+        calculate_weight_average(lev, m_last_urban_frac[lev], false);
         amrex::MultiFab* const outputs[] = {u_star[lev].get(), t_star[lev].get(), q_star[lev].get(), t_surf[lev].get()};
         fab[lev].define(outputs[0]->boxArray(), m_dmap[lev], noutput, ng);
 
@@ -761,6 +806,8 @@ void SurfaceModel::write_output(const int &finest_lev, const amrex::Real &time, 
     }
 
     amrex::WriteMultiLevelPlotfile(plotfilename, finest_lev+1, GetVecOfConstPtrs(fab), varnames, m_geom2d, time, level_steps, ref_ratio);
+    deactivate_transient_field_maps();
+    release_transient_surface_outputs();
 }
 
 // utility to skip to next line in Header
@@ -774,6 +821,8 @@ SurfaceModel::GotoNextLine (std::istream& is)
 
 void SurfaceModel::WriteCheckpoint(const std::string &checkpointname)
 {
+    request_surface_outputs(false);
+    activate_all_field_maps(false);
     auto check_start = amrex::second();
 
     // write header
@@ -852,6 +901,7 @@ void SurfaceModel::WriteCheckpoint(const std::string &checkpointname)
     // rebuilt after restart rather than written to the checkpoint.
     for (int lev = 0; lev < m_nlevs; lev++) {
         IntVect ng(1,1,0);
+        calculate_weight_average(lev, m_last_urban_frac[lev], false);
 
         {
             MultiFab mf(m_ba2d[lev],m_dmap[lev],2,ng);
@@ -880,12 +930,16 @@ void SurfaceModel::WriteCheckpoint(const std::string &checkpointname)
     }
 
     auto check_end = amrex::second() - check_start;
+    deactivate_transient_field_maps();
+    release_transient_surface_outputs();
     ParallelDescriptor::ReduceRealMax(check_end,ParallelDescriptor::IOProcessorNumber());
     amrex::Print() << "    SurfaceModel Checkpoint write time = " << check_end << " seconds." << '\n';
 }
 
 void SurfaceModel::ReadCheckpoint(const std::string &checkpointname)
 {
+    request_surface_outputs(false);
+    activate_all_field_maps(false);
     auto check_start = amrex::second();
 
     amrex::Print() << " Reading SurfaceModel checkpoint " << std::endl;
@@ -1186,6 +1240,9 @@ void SurfaceModel::ReadCheckpoint(const std::string &checkpointname)
     // was written.  Without this a restart would spend its first step treating the
     // checkpointed u*/t*/q* as unfilled and fall back to the MOST values instead.
     m_fields_are_valid = chk_fields_are_valid;
+
+    deactivate_transient_field_maps();
+    release_transient_surface_outputs();
 
     auto check_end = amrex::second() - check_start;
     ParallelDescriptor::ReduceRealMax(check_end,ParallelDescriptor::IOProcessorNumber());

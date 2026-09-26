@@ -1387,6 +1387,9 @@ ERF::InitData_post ()
         for (int lev = 0; lev <= finest_level; ++lev) {
             m_SurfaceModel->initialize_for_level(lev, grids[lev], geom[lev], dmap[lev], lmask_lev[lev], domain_bcs_type, refRatio());
         }
+        if (phys_bc_type[Orientation::zlo()] == ERF_BC::surface_layer) {
+            m_SurfaceModel->request_surface_outputs();
+        }
         if (solverChoice.lsm_type != LandSurfaceType::None) {
             for (int lev = 0; lev <= finest_level; ++lev) {
                 m_SurfaceModel->set_model_data(lev, lsm_data[lev], lsm_data_name, SurfaceModelType::LAND);
@@ -1486,10 +1489,18 @@ ERF::InitData_post ()
                 m_SurfaceModel->register_field_map("olen", olen_ptrs_slm, olen_ptrs_urb, true);
             } else {
             */
-            m_SurfaceModel->register_field_map("ustar", {lsm.Get_DataIdx(0, "ustar"), -1}, true);
-            m_SurfaceModel->register_field_map("tstar", {lsm.Get_DataIdx(0, "tstar"), -1}, true);
-            m_SurfaceModel->register_field_map("qstar", {lsm.Get_DataIdx(0, "qstar"), -1}, true);
-            m_SurfaceModel->register_field_map("olen", olen_ptrs_slm, olen_ptrs_urb, true);
+            // Flux-based models do not consume these MOST mappings.  Keep them
+            // available for the non-flux path and explicit surface-model output.
+            if (!m_SurfaceModel->are_fluxes() || plot_surfmodel ||
+                m_check_int > 0 || m_check_per > zero || !restart_chkfile.empty()) {
+                m_SurfaceModel->register_field_map("ustar", {lsm.Get_DataIdx(0, "ustar"), -1}, true);
+                m_SurfaceModel->register_field_map("tstar", {lsm.Get_DataIdx(0, "tstar"), -1}, true);
+                m_SurfaceModel->register_field_map("qstar", {lsm.Get_DataIdx(0, "qstar"), -1}, true);
+                m_SurfaceModel->register_field_map("olen", olen_ptrs_slm, olen_ptrs_urb, true);
+                if (!m_SurfaceModel->are_fluxes()) {
+                    m_SurfaceModel->activate_all_field_maps();
+                }
+            }
             //}
             for (int lev = 0; lev <= finest_level; ++lev) {
                 // Seed olen to > 0 so that a surface model which exports u*/t*/q* directly
@@ -1502,7 +1513,9 @@ ERF::InitData_post ()
                 // maps never runs.  This setVal, and the four register_field_map calls above,
                 // therefore have no effect on any current configuration; they are kept for the
                 // non-flux path.  The intended wiring needs confirming before that path is used.
-                m_SurfaceModel->get_field("olen", lev)->setVal(1.0E3);
+                if (!m_SurfaceModel->are_fluxes()) {
+                    m_SurfaceModel->get_field("olen", lev)->setVal(1.0E3);
+                }
             }
         }
 
@@ -3260,8 +3273,20 @@ ERF::ReadParameters ()
         pp.queryAdd("destag_profiles", destag_profiles);
 
         pp.queryAdd("plot_lsm", plot_lsm);
-        if (plot_lsm) { // || plot_urban) {
-            plot_surfmodel = true;
+
+        // SurfaceModel output is opt-in for single-provider runs.  When both
+        // providers are active, retain the useful combined diagnostic output
+        // by default, while allowing an explicit false to disable it.
+        if (pp.contains("plot_surfmodel")) {
+            pp.get("plot_surfmodel", plot_surfmodel);
+        } else {
+            bool urban_active = false;
+            for (const int enabled : solverChoice.urban_enabled_lev) {
+                urban_active = urban_active || (enabled != 0);
+            }
+            plot_surfmodel = solverChoice.lsm_type != LandSurfaceType::None &&
+                             solverChoice.urban_type != UrbanType::None &&
+                             urban_active;
         }
 #ifdef ERF_USE_RRTMGP
         pp.queryAdd("plot_rad", plot_rad);
