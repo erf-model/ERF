@@ -59,6 +59,10 @@ class NOAHMP : public NullSurf {
     using FabPtr = std::shared_ptr<amrex::MultiFab>;
 
 public:
+    // Bring the base-class Init overloads into scope so the single override below
+    // does not hide them (-Woverloaded-virtual), matching SLM.
+    using NullSurf::Init;
+
     // Constructor
     NOAHMP () {}
 

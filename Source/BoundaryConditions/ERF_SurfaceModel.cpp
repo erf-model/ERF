@@ -361,10 +361,17 @@ void SurfaceModel::distribute_radiation_output(int lev, int output_index)
                 source_box.smallEnd(2) <= 0 && source_box.bigEnd(2) >= 0 &&
                 target_box.smallEnd(2) <= 0 && target_box.bigEnd(2) >= 0,
                 "Radiation output destinations must contain the k=0 surface plane");
-            const Box target_slab = makeSlab(target_box, 2, 0);
+            //
+            // These are the *grown* boxes, so the two destinations need not carry the same
+            // ghost vector.  Loop over the intersection of the two surface planes rather than
+            // over the target alone: indexing the source at the target's indices would read
+            // out of bounds wherever the urban halo reaches past the LSM one.
+            //
+            const Box copy_slab = makeSlab(source_box, 2, 0) & makeSlab(target_box, 2, 0);
+            if (copy_slab.isEmpty()) { continue; }
             const auto source = (*lsm)[mfi].array();
             auto target = (*urban)[mfi].array();
-            amrex::ParallelFor(target_slab, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            amrex::ParallelFor(copy_slab, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 target(i, j, k) = source(i, j, k);
             });
         }
@@ -703,6 +710,7 @@ void SurfaceModel::WriteCheckpoint(const std::string &checkpointname)
         HeaderFile << m_use_land << "\n";
         HeaderFile << m_export_fluxes << "\n";
         HeaderFile << m_weights_updated << "\n";
+        HeaderFile << m_fields_are_valid << "\n";
         HeaderFile << "\n";
 
         // Write box arrays
@@ -820,7 +828,9 @@ void SurfaceModel::ReadCheckpoint(const std::string &checkpointname)
     bool chk_use_land = false;
     bool chk_export_fluxes = false;
     bool chk_weights_updated = false;
-    if (!(is >> chk_use_urban >> chk_use_land >> chk_export_fluxes >> chk_weights_updated)) {
+    bool chk_fields_are_valid = false;
+    if (!(is >> chk_use_urban >> chk_use_land >> chk_export_fluxes >> chk_weights_updated
+             >> chk_fields_are_valid)) {
         checkpoint_error("invalid flags in header");
     }
     GotoNextLine(is);
@@ -851,24 +861,26 @@ void SurfaceModel::ReadCheckpoint(const std::string &checkpointname)
     }
     GotoNextLine(is);
 
-    // The fields below are read straight back into the live MultiFabs, so the decomposition
-    // has to be the one that was checkpointed.  Note that ERF turns regridding of level 0 on
-    // by itself when a restart uses more ranks than level 0 has boxes
-    // (see ERF::restart), so "restart on a different number of ranks" is the usual way to
-    // reach this.
-    const std::string decomposition_hint =
-        "; the SurfaceModel checkpoint can only be read back on the decomposition it was "
-        "written with, so restart with erf.regrid_level_0_on_restart = 0 on the original "
-        "grids, or on a rank count that does not force level 0 to be regridded";
+    // The checkpointed fields are read back on the decomposition they were written with and
+    // then redistributed onto the live one, so the two BoxArrays need not match box for box.
+    // They do have to cover the same index space: ERF turns regridding of level 0 on by itself
+    // when a restart uses more ranks than level 0 has boxes (see ERF::restart), which changes
+    // the boxes but not the region they tile.
+    const std::string coverage_hint =
+        "; the SurfaceModel checkpoint can be read back on a different decomposition, but not "
+        "on a different domain -- check that the restart uses the same grid extents and "
+        "refinement as the run that wrote the checkpoint";
+    amrex::Vector<amrex::DistributionMapping> chk_dmap(chk_nlevs);
     for (int lev = 0; lev < chk_nlevs; ++lev) {
-        if (!(chk_ba[lev] == m_ba[lev])) {
-            checkpoint_error("3D BoxArray mismatch at level " + std::to_string(lev) +
-                             decomposition_hint);
+        if (chk_ba[lev].minimalBox() != m_ba[lev].minimalBox()) {
+            checkpoint_error("3D domain coverage mismatch at level " + std::to_string(lev) +
+                             coverage_hint);
         }
-        if (!(chk_ba2d[lev] == m_ba2d[lev])) {
-            checkpoint_error("2D BoxArray mismatch at level " + std::to_string(lev) +
-                             decomposition_hint);
+        if (chk_ba2d[lev].minimalBox() != m_ba2d[lev].minimalBox()) {
+            checkpoint_error("2D domain coverage mismatch at level " + std::to_string(lev) +
+                             coverage_hint);
         }
+        chk_dmap[lev].define(chk_ba2d[lev]);
     }
 
     // Read in LSM fields
@@ -995,11 +1007,11 @@ void SurfaceModel::ReadCheckpoint(const std::string &checkpointname)
             checkpoint_error("invalid MultiFab header '" + header_name + "'");
         }
         if (header.m_ncomp != ncomp || header.m_ngrow != ng ||
-            !(header.m_ba == m_ba2d[lev])) {
+            !(header.m_ba == chk_ba2d[lev])) {
             checkpoint_error("MultiFab layout mismatch for level " + std::to_string(lev) +
                              " in '" + name + "'");
         }
-        if (static_cast<amrex::Long>(header.m_fod.size()) != m_ba2d[lev].size()) {
+        if (static_cast<amrex::Long>(header.m_fod.size()) != chk_ba2d[lev].size()) {
             checkpoint_error("MultiFab FAB count mismatch for level " + std::to_string(lev) +
                              " in '" + name + "'");
         }
@@ -1024,34 +1036,60 @@ void SurfaceModel::ReadCheckpoint(const std::string &checkpointname)
         }
     }
 
+    //
+    // Move a field that was read on the checkpointed layout onto the live one.  When the two
+    // layouts are identical this is the same local copy it always was, so an unchanged restart
+    // stays bitwise identical; otherwise the data is redistributed.
+    //
+    // The redistribution is done in two passes because the checkpoint carries ghost cells and
+    // a single ParallelCopy over grown source boxes would leave the outcome up to the order in
+    // which overlapping sources happen to be applied.  The first pass seeds everything,
+    // including the ghost cells outside a non-periodic physical boundary, which no amount of
+    // valid-region copying can reach.  The second pass then lays the valid data over the top,
+    // so wherever a cell is covered by a valid source cell that value wins.
+    //
+    auto redistribute = [&] (MultiFab& dst, const MultiFab& src, int ncomp, int lev)
+    {
+        if (dst.boxArray() == src.boxArray() && dst.DistributionMap() == src.DistributionMap()) {
+            MultiFab::Copy(dst, src, 0, 0, ncomp, ng);
+            return;
+        }
+        dst.ParallelCopy(src, 0, 0, ncomp, ng, ng);
+        dst.ParallelCopy(src, 0, 0, ncomp, IntVect(0), ng, m_geom2d[lev].periodicity());
+    };
+
     for (int lev = 0; lev < m_nlevs; lev++) {
         {
-            MultiFab mf(m_ba2d[lev],m_dmap[lev],2,ng);
+            MultiFab mf(chk_ba2d[lev],chk_dmap[lev],2,ng);
             VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "ustar"));
-            MultiFab::Copy(*(u_star[lev]),mf,0,0,2,ng);
+            redistribute(*(u_star[lev]),mf,2,lev);
 
             VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "wavg"));
-            MultiFab::Copy(*wavg[lev],mf,0,0,2,ng);
+            redistribute(*wavg[lev],mf,2,lev);
         }
 
-        MultiFab mf(m_ba2d[lev],m_dmap[lev],1,ng);
+        MultiFab mf(chk_ba2d[lev],chk_dmap[lev],1,ng);
 
         VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "tstar"));
-        MultiFab::Copy(*t_star[lev],mf,0,0,1,ng);
+        redistribute(*t_star[lev],mf,1,lev);
 
         VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "qstar"));
-        MultiFab::Copy(*q_star[lev],mf,0,0,1,ng);
+        redistribute(*q_star[lev],mf,1,lev);
 
         VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "tsurf"));
-        MultiFab::Copy(*t_surf[lev],mf,0,0,1,ng);
+        redistribute(*t_surf[lev],mf,1,lev);
 
         for (auto &field : fieldmap) {
             VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "_f_" + field.first));
-            MultiFab::Copy(*(fields[field.second.mf_ind][lev]), mf, 0, 0, 1, ng);
+            redistribute(*(fields[field.second.mf_ind][lev]), mf, 1, lev);
         }
     }
 
     m_weights_updated = chk_weights_updated;
+    // Restore whether the surface models had already integrated a step when the checkpoint
+    // was written.  Without this a restart would spend its first step treating the
+    // checkpointed u*/t*/q* as unfilled and fall back to the MOST values instead.
+    m_fields_are_valid = chk_fields_are_valid;
 
     auto check_end = amrex::second() - check_start;
     ParallelDescriptor::ReduceRealMax(check_end,ParallelDescriptor::IOProcessorNumber());
