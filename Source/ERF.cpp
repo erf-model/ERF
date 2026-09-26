@@ -1369,8 +1369,16 @@ ERF::InitData_post ()
             m_SurfaceModel->register_field_map("olen", olen_ptrs_slm, olen_ptrs_urb, true);
             //}
             for (int lev = 0; lev <= finest_level; ++lev) {
-                // Set initial olen to > 0. Note: at initial MOST compute_fluxes call, urban fraction has not been set,
-                // so weight-avg olen would be 0 which causes issues in PBL
+                // Seed olen to > 0 so that a surface model which exports u*/t*/q* directly
+                // (rather than fluxes) does not hand the PBL a weight-averaged olen of 0 on the
+                // first MOST compute_fluxes call, before the urban fraction has been set.
+                //
+                // NOTE: every model registered today calls set_model_fields with use_fluxes =
+                // true, so are_fluxes() is always true and the block in
+                // SurfaceLayer::update_fluxes that reads these "ustar"/"tstar"/"qstar"/"olen"
+                // maps never runs.  This setVal, and the four register_field_map calls above,
+                // therefore have no effect on any current configuration; they are kept for the
+                // non-flux path.  The intended wiring needs confirming before that path is used.
                 m_SurfaceModel->get_field("olen", lev)->setVal(1.0E3);
             }
         }
