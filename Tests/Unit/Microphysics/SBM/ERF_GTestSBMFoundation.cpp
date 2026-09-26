@@ -107,7 +107,8 @@ Real max_component_norm(const MultiFab& mf, const int ncomp)
 
 Real first_valid_value(const MultiFab& mf, const int component)
 {
-    for (amrex::MFIter mfi(mf); mfi.isValid(); ++mfi) {
+    amrex::MFIter mfi(mf);
+    if (mfi.isValid()) {
         const auto valid_box = mfi.validbox();
         const auto lo = valid_box.smallEnd();
         return mf.const_array(mfi)(lo[0], lo[1], lo[2], component);
