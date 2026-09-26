@@ -39,10 +39,10 @@ SLM::Init (const int& /*lev*/,
     }
     pp.queryarr("soil_dz", m_dz_lsm);
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-      m_dz_lsm.size() == m_nz_lsm,
+      static_cast<int>(m_dz_lsm.size()) == m_nz_lsm,
       "Provided soil thicknesses most match number of soil layers");
-    AMREX_ALWAYS_ASSERT(m_dz_lsm.size() > 0);
-    for (int k = 0; k < m_dz_lsm.size(); ++k) {
+    AMREX_ALWAYS_ASSERT(static_cast<int>(m_dz_lsm.size()) > 0);
+    for (int k = 0; k < static_cast<int>(m_dz_lsm.size()); ++k) {
         if (!std::isfinite(m_dz_lsm[k]) || m_dz_lsm[k] <= zero) {
             amrex::Abort("SLM: soil_dz values must be finite and positive");
         }
@@ -86,7 +86,7 @@ SLM::Init (const int& /*lev*/,
                   "soil_transp_frac"};
 
     AMREX_ALWAYS_ASSERT(LsmDataMap.size() == LsmDataName.size());
-    AMREX_ALWAYS_ASSERT(LsmDataMap.size() == m_lsm_data_size);
+    AMREX_ALWAYS_ASSERT(static_cast<int>(LsmDataMap.size()) == m_lsm_data_size);
 
     LsmFluxMap.resize(m_lsm_flux_size);
     LsmFluxMap = {LsmFlux_SLM::t_flux, LsmFlux_SLM::q_flux, LsmFlux_SLM::tau13, LsmFlux_SLM::tau23, LsmFlux_SLM::olen};
@@ -95,7 +95,7 @@ SLM::Init (const int& /*lev*/,
     LsmFluxName = {"t_flux", "q_flux", "tau13", "tau23", "olen"};
 
     AMREX_ALWAYS_ASSERT(LsmFluxMap.size() == LsmFluxName.size());
-    AMREX_ALWAYS_ASSERT(LsmFluxMap.size() == m_lsm_flux_size);
+    AMREX_ALWAYS_ASSERT(static_cast<int>(LsmFluxMap.size()) == m_lsm_flux_size);
 
     // NOTE: All boxes in ba extend from zlo to zhi, so this transform is valid.
     //       If that were to change, the dm and new ba are no longer valid and
@@ -436,7 +436,7 @@ void SLM::init_from_inputs()
             std::fill(prop.begin(), prop.end(), tmp);
         } else {
             pp.queryarr(name.c_str(), prop);
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(prop.size() == nz, " Expected " + name + " to have " + std::to_string(nz) + " values!");
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(static_cast<int>(prop.size()) == nz, " Expected " + name + " to have " + std::to_string(nz) + " values!");
         }
         for (const amrex::Real value : prop) {
             validate_value(name, value, lower, upper);
@@ -527,8 +527,8 @@ void SLM::init_from_inputs()
         auto &h_soil_params = full_params.at(soil_param_key);
         auto &h_veg_params = full_params.at(veg_param_key);
 
-        for (int i = 0; i < h_soil_params.size(); i++) {
-            const int varsize = h_soil_params[i].second.size();
+        for (int i = 0; i < static_cast<int>(h_soil_params.size()); ++i) {
+            const int varsize = static_cast<int>(h_soil_params[i].second.size());
             if (varsize > 1) {
                 //amrex::Print() << " -- copying soil param '" << h_soil_params[i].first << "' to GPU " << std::endl;
                 auto d_var = std::make_unique<amrex::Gpu::DeviceVector<amrex::Real>>(varsize);
@@ -538,8 +538,8 @@ void SLM::init_from_inputs()
             }
         }
 
-        for (int i = 0; i < h_veg_params.size(); i++) {
-            const int varsize = h_veg_params[i].second.size();
+        for (int i = 0; i < static_cast<int>(h_veg_params.size()); ++i) {
+            const int varsize = static_cast<int>(h_veg_params[i].second.size());
             if (h_veg_params[i].first == "nroot") {
                 for (const amrex::Real value : h_veg_params[i].second) {
                     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
@@ -562,9 +562,9 @@ void SLM::init_from_inputs()
         // Read noahmp_rad_parameters block
         if (full_params.count("noahmp_rad_parameters") > 0) {
             auto &h_rad_params = full_params.at("noahmp_rad_parameters");
-            for (int i = 0; i < h_rad_params.size(); i++) {
+            for (int i = 0; i < static_cast<int>(h_rad_params.size()); ++i) {
                 std::string pname = h_rad_params[i].first;
-                const int varsize = h_rad_params[i].second.size();
+                const int varsize = static_cast<int>(h_rad_params[i].second.size());
 
                 if (varsize > 1 &&
                     (pname == "albsat_vis" || pname == "albsat_nir" ||
@@ -586,9 +586,9 @@ void SLM::init_from_inputs()
         // Read noahmp_global_parameters block for snow albedo parameters
         if (full_params.count("noahmp_global_parameters") > 0) {
             auto &h_global_params = full_params.at("noahmp_global_parameters");
-            for (int i = 0; i < h_global_params.size(); i++) {
+            for (int i = 0; i < static_cast<int>(h_global_params.size()); ++i) {
                 std::string pname = h_global_params[i].first;
-                const int varsize = h_global_params[i].second.size();
+                const int varsize = static_cast<int>(h_global_params[i].second.size());
 
                 if (varsize == 1) {
                     if (pname == "tau0") tau0_rad = h_global_params[i].second[0];
@@ -626,15 +626,15 @@ void SLM::init_from_inputs()
         pp.gettable("sai", sai_table);
 
         // validate LAI and SAI tables
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lai_table.size() == 12, "Invalid LAI table size, expected values for all 12 months");
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(sai_table.size() == 12, "Invalid SAI table size, expected values for all 12 months");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(static_cast<int>(lai_table.size()) == 12, "Invalid LAI table size, expected values for all 12 months");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(static_cast<int>(sai_table.size()) == 12, "Invalid SAI table size, expected values for all 12 months");
         if (lai_table[0].empty()) {
             amrex::Abort("SLM: LAI table must contain at least one landtype column");
         }
-        num_landtypes = lai_table[0].size(); // use first entry as size, check all others against
-        for (int i = 0; i < lai_table.size(); i++) {
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lai_table[i].size() == num_landtypes, "Invalid LAI table - inconsistent number of landtype entries between months");
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(sai_table[i].size() == num_landtypes, "Invalid SAI table - inconsistent number of landtype entries between months");
+        num_landtypes = static_cast<int>(lai_table[0].size()); // use first entry as size, check all others against
+        for (int i = 0; i < static_cast<int>(lai_table.size()); ++i) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(static_cast<int>(lai_table[i].size()) == num_landtypes, "Invalid LAI table - inconsistent number of landtype entries between months");
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(static_cast<int>(sai_table[i].size()) == num_landtypes, "Invalid SAI table - inconsistent number of landtype entries between months");
         }
 
         d_lai_curr.resize(num_landtypes);
@@ -645,23 +645,23 @@ void SLM::init_from_inputs()
 
     if (use_wrf_lai) {
         pp.gettable("vegparam", param_table);
-        if (param_table.size() < 16) {
+        if (static_cast<int>(param_table.size()) < 16) {
             amrex::Abort("SLM: vegparam must contain at least 16 landtype rows");
         }
-        if (param_table[0].size() < 10) {
+        if (static_cast<int>(param_table[0].size()) < 10) {
             amrex::Abort("SLM: vegparam must contain at least 10 columns");
         }
         amrex::Print() << " param table = " << std::endl;
 
-        int nparam = param_table[0].size();
-        for (int t = 0; t < param_table.size(); t++) {
+        const int nparam = static_cast<int>(param_table[0].size());
+        for (int t = 0; t < static_cast<int>(param_table.size()); ++t) {
             amrex::Print() << "     LANDTYPE " << t << ": ";
-            for (int i = 0; i < param_table[t].size(); i++) {
+            for (int i = 0; i < static_cast<int>(param_table[t].size()); ++i) {
                 amrex::Print() << param_table[t][i] << " ";
             }
             amrex::Print() << std::endl;
 
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(param_table[t].size() == nparam, "Invalid param table, inconsistent number of parameters for landtype");
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(static_cast<int>(param_table[t].size()) == nparam, "Invalid param table, inconsistent number of parameters for landtype");
             if (param_table[t][0] != t + 1) {
                 amrex::Abort("SLM: vegparam landtype IDs must be sequential");
             }
@@ -675,8 +675,8 @@ void SLM::init_from_inputs()
 #else
         auto const &h_tab = d_param_table.table();
 #endif
-        for (int t = 0; t < param_table.size(); t++) {
-            for (int i = 0; i < param_table[t].size(); i++) {
+        for (int t = 0; t < static_cast<int>(param_table.size()); ++t) {
+            for (int i = 0; i < static_cast<int>(param_table[t].size()); ++i) {
                 h_tab(t, i) = param_table[t][i];
             }
         }
@@ -1115,7 +1115,7 @@ SLM::Lsm_Regrid_Level (const int& lev,
     for (int ivar = 0; ivar < m_lsm_flux_size; ++ivar) {
         saved_flux[ivar] = std::make_unique<MultiFab>(Lsm_Flux_Ptr(ivar)->deepCopy());
     }
-    for (int ivar = 0; ivar < unmapped_fields.size(); ++ivar) {
+    for (int ivar = 0; ivar < static_cast<int>(unmapped_fields.size()); ++ivar) {
         saved_unmapped[ivar] = std::make_unique<MultiFab>(
             lsm_fab_vars[unmapped_fields[ivar]]->deepCopy());
     }
@@ -1143,7 +1143,7 @@ SLM::Lsm_Regrid_Level (const int& lev,
         for (int ivar = 0; ivar < m_lsm_flux_size; ++ivar) {
             source_flux[ivar] = saved_flux[ivar].get();
         }
-        for (int ivar = 0; ivar < unmapped_fields.size(); ++ivar) {
+        for (int ivar = 0; ivar < static_cast<int>(unmapped_fields.size()); ++ivar) {
             source_unmapped[ivar] = saved_unmapped[ivar].get();
         }
 
@@ -1154,7 +1154,7 @@ SLM::Lsm_Regrid_Level (const int& lev,
     // ERF checkpoints the mapped fields and this registry of otherwise-private
     // SLM fields. Restore the latter after rebuilding the level so a remake
     // does not discard state which ERF does not expose through lsm_data.
-    for (int ivar = 0; ivar < unmapped_fields.size(); ++ivar) {
+    for (int ivar = 0; ivar < static_cast<int>(unmapped_fields.size()); ++ivar) {
         lsm_fab_vars[unmapped_fields[ivar]]->ParallelCopy(*saved_unmapped[ivar], 0, 0, 1);
     }
     initialize_processed_state(true);
@@ -1174,8 +1174,8 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
                                   const IntVect& ref_ratio,
                                   const LSMTransferMode mode)
 {
-    AMREX_ALWAYS_ASSERT(source_data.size() == m_lsm_data_size);
-    AMREX_ALWAYS_ASSERT(source_flux.size() == m_lsm_flux_size);
+    AMREX_ALWAYS_ASSERT(static_cast<int>(source_data.size()) == m_lsm_data_size);
+    AMREX_ALWAYS_ASSERT(static_cast<int>(source_flux.size()) == m_lsm_flux_size);
     AMREX_ALWAYS_ASSERT(source_unmapped.size() == unmapped_fields.size());
 
     const IntVect rr2d(ref_ratio[0], ref_ratio[1], 1);
@@ -1199,7 +1199,7 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
                               BCVars::cons_bc);
     }
 
-    for (int ivar = 0; ivar < unmapped_fields.size(); ++ivar) {
+    for (int ivar = 0; ivar < static_cast<int>(unmapped_fields.size()); ++ivar) {
         AMREX_ALWAYS_ASSERT(source_unmapped[ivar] != nullptr);
         InterpFromCoarseLevel(*lsm_fab_vars[unmapped_fields[ivar]],
                               lsm_fab_vars[unmapped_fields[ivar]]->nGrowVect(),
@@ -1267,7 +1267,7 @@ SLM::initialize_processed_state (const bool preserve_checkpoint_fields)
                 lsm_fab_vars[LsmDataMap[ivar]]->deepCopy());
         }
         saved_unmapped.resize(unmapped_fields.size());
-        for (int ivar = 0; ivar < unmapped_fields.size(); ++ivar) {
+        for (int ivar = 0; ivar < static_cast<int>(unmapped_fields.size()); ++ivar) {
             saved_unmapped[ivar] = std::make_unique<MultiFab>(
                 lsm_fab_vars[unmapped_fields[ivar]]->deepCopy());
         }
@@ -1325,7 +1325,7 @@ SLM::initialize_processed_state (const bool preserve_checkpoint_fields)
             MultiFab::Copy(*lsm_fab_vars[LsmDataMap[ivar]], *saved_data[ivar],
                            0, 0, 1, ng);
         }
-        for (int ivar = 0; ivar < unmapped_fields.size(); ++ivar) {
+        for (int ivar = 0; ivar < static_cast<int>(unmapped_fields.size()); ++ivar) {
             const IntVect ng = lsm_fab_vars[unmapped_fields[ivar]]->nGrowVect();
             MultiFab::Copy(*lsm_fab_vars[unmapped_fields[ivar]], *saved_unmapped[ivar],
                            0, 0, 1, ng);
@@ -1345,8 +1345,9 @@ void SLM::init_landtype()
 
         auto landtype_arr = landtype.const_array(mfi);
         auto landmask_arr = landmask.array(mfi);
+#ifndef AMREX_USE_GPU
         auto LAI_arr = LAI.const_array(mfi);
-
+#endif
         auto albedovis_v_arr = albedovis_v.array(mfi);
         auto albedonir_v_arr = albedonir_v.array(mfi);
         auto albedovis_s_arr = albedovis_s.array(mfi);
@@ -2299,9 +2300,9 @@ SLMParameterTable SLM::ReadParameterFile(const std::string &filename, amrex::Vec
         amrex::Print() << "  '" << block.first << "':" << std::endl;
         for (auto &var : block.second) {
             amrex::Print() << "      - '" << var.first << "': [";
-            for (int i = 0; i < var.second.size(); i++) {
+            for (int i = 0; i < static_cast<int>(var.second.size()); ++i) {
                 amrex::Print() << " " << var.second[i];
-                if (i + 1 < var.second.size()) {
+                if (i + 1 < static_cast<int>(var.second.size())) {
                     amrex::Print() << ",";
                 }
             }
@@ -2406,7 +2407,7 @@ void SLM::validate_parameter_tables()
         if (parameter.second.empty()) {
             amrex::Abort("SLM: parameter '" + parameter.first + "' in block '" + veg_param_key + "' is empty");
         }
-        if (parameter.first != "nveg" && parameter.second.size() > 1 &&
+        if (parameter.first != "nveg" && static_cast<int>(parameter.second.size()) > 1 &&
             static_cast<int>(parameter.second.size()) != num_veg_params) {
             amrex::Abort("SLM: parameter '" + parameter.first + "' in block '" + veg_param_key +
                          "' has " + std::to_string(parameter.second.size()) +
@@ -2483,7 +2484,7 @@ void SLM::validate_parameter_tables()
         if (parameter.second.empty()) {
             amrex::Abort("SLM: parameter '" + parameter.first + "' in block '" + soil_param_key + "' is empty");
         }
-        if (parameter.second.size() > 1 && static_cast<int>(parameter.second.size()) != num_soil_params) {
+        if (static_cast<int>(parameter.second.size()) > 1 && static_cast<int>(parameter.second.size()) != num_soil_params) {
             amrex::Abort("SLM: parameter '" + parameter.first + "' in block '" + soil_param_key +
                          "' has " + std::to_string(parameter.second.size()) +
                          " values; expected " + std::to_string(num_soil_params) +
@@ -2798,16 +2799,11 @@ void SLM::UpdateLAI(const amrex::MFIter &mfi)
 
         auto landmask_arr = landmask.const_array(mfi);
         auto landtype_arr = landtype.const_array(mfi);
-        auto vegetype_arr = vegetype.const_array(mfi);
-
         auto veg_frac_arr = lsm_fab_vars[LsmVar_SLM::veg_frac]->array(mfi);
         auto veg_frac_min_arr = lsm_fab_vars[LsmVar_SLM::veg_frac_min]->const_array(mfi);
         auto veg_frac_max_arr = lsm_fab_vars[LsmVar_SLM::veg_frac_max]->const_array(mfi);
 
-        auto IR_emis_veg = IR_emis_vege.array(mfi);
-
         auto LAI_arr = LAI.array(mfi);
-        auto SAI_arr = SAI.array(mfi);
 
         auto const& d_params = d_param_table.const_table();
 
@@ -2946,22 +2942,13 @@ SLM::AdvanceSLM ()
         auto Bconst_arr = lsm_fab_vars[LsmVar_SLM::Bconst]->const_array(mfi);
 
         auto ustar_arr = lsm_fab_vars[LsmVar_SLM::ustar]->const_array(mfi);
-        auto tstar_arr = lsm_fab_vars[LsmVar_SLM::tstar]->array(mfi);
         auto qstar_arr = lsm_fab_vars[LsmVar_SLM::qstar]->array(mfi);
 
-        auto BAI_arr = BAI.const_array(mfi);
-        auto ztop_arr = ztop.const_array(mfi);
         auto SAI_arr = SAI.const_array(mfi);
         auto cbiom_arr = cbiom.const_array(mfi);
 
-        auto shf_canop_arr = shf_canop.array(mfi);
-        auto shf_soil_arr = shf_soil.array(mfi);
         auto shf_air_arr = shf_air.array(mfi);
 
-        auto lhf_canop_arr = lhf_canop.array(mfi);
-        auto lhf_soil_arr = lhf_soil.array(mfi);
-        auto lhf_air_arr = lhf_air.array(mfi);
-        auto evp_canop_arr = evp_canop.array(mfi);
         auto evp_air_arr = evp_air.array(mfi);
 
         auto vegetype_arr = vegetype.const_array(mfi);
@@ -2972,8 +2959,6 @@ SLM::AdvanceSLM ()
         auto sdew_arr = sdew.array(mfi);
 
         auto tref_arr  = lsm_fab_vars[LsmVar_SLM::tref]->const_array(mfi);
-        auto ur_arr  = lsm_fab_vars[LsmVar_SLM::uref]->const_array(mfi);
-        auto vr_arr  = lsm_fab_vars[LsmVar_SLM::vref]->const_array(mfi);
         auto dref_arr  = lsm_fab_vars[LsmVar_SLM::dref]->const_array(mfi);
         auto qref_arr  = lsm_fab_vars[LsmVar_SLM::qref]->const_array(mfi);
         auto pref_arr  = lsm_fab_vars[LsmVar_SLM::pref]->const_array(mfi);
@@ -2995,7 +2980,6 @@ SLM::AdvanceSLM ()
         auto flbt_arr  = lsm_fab_vars[LsmVar_SLM::flbt]->array(mfi);
         auto prsfc_arr  = lsm_fab_vars[LsmVar_SLM::prsfc]->array(mfi);
 
-        auto net_rad_arr = net_rad.const_array(mfi);
         auto wet_canop_arr = wet_canop.const_array(mfi);
 
         // TODO: Copies for MOST
@@ -3236,24 +3220,13 @@ void SLM::transfer_coeff(const amrex::MFIter &mfi)
 
     auto landmask_arr = landmask.const_array(mfi);
 
-    auto t_cas_arr = t_cas.const_array(mfi);
-    auto q_cas_arr = q_cas.const_array(mfi);
-
     auto t_sfc_arr = t_sfc.const_array(mfi);
     auto q_sfc_arr = q_sfc.const_array(mfi);
-
-    auto soilt_arr = lsm_fab_vars[LsmVar_SLM::soilt]->const_array(mfi);
-    auto soilw_arr = lsm_fab_vars[LsmVar_SLM::soilw]->const_array(mfi);
-    auto vegetype_arr = vegetype.const_array(mfi);
-
-    auto mws_arr = mws.const_array(mfi);
 
     auto disp_hgt_arr = disp_hgt.const_array(mfi);
     auto z0_sfc_arr = z0_sfc.const_array(mfi);
 
     auto qr_arr = lsm_fab_vars[LsmVar_SLM::qref]->const_array(mfi);
-    auto m_pot_sat_arr = lsm_fab_vars[LsmVar_SLM::m_pot_sat]->const_array(mfi);
-    auto Bconst_arr = lsm_fab_vars[LsmVar_SLM::Bconst]->const_array(mfi);
 
     auto ustar_arr = lsm_fab_vars[LsmVar_SLM::ustar]->array(mfi);
     auto tstar_arr = lsm_fab_vars[LsmVar_SLM::tstar]->array(mfi);
@@ -3261,10 +3234,7 @@ void SLM::transfer_coeff(const amrex::MFIter &mfi)
     auto tref_arr  = lsm_fab_vars[LsmVar_SLM::tref]->const_array(mfi);
     auto ur_arr  = lsm_fab_vars[LsmVar_SLM::uref]->const_array(mfi);
     auto vr_arr  = lsm_fab_vars[LsmVar_SLM::vref]->const_array(mfi);
-    auto dref_arr  = lsm_fab_vars[LsmVar_SLM::dref]->const_array(mfi);
-    auto qref_arr  = lsm_fab_vars[LsmVar_SLM::qref]->const_array(mfi);
     auto pref_arr  = lsm_fab_vars[LsmVar_SLM::pref]->const_array(mfi);
-    auto precip_array  = lsm_fab_vars[LsmVar_SLM::precipref]->const_array(mfi);
 
     auto r_a_arr = r_a.array(mfi);
 
@@ -3489,7 +3459,6 @@ void SLM::resistances(const amrex::MFIter &mfi)
     auto t_cas_arr = t_cas.const_array(mfi);
     auto q_cas_arr = q_cas.const_array(mfi);
     auto ustar_arr = lsm_fab_vars[LsmVar_SLM::ustar]->const_array(mfi);
-    auto tstar_arr = lsm_fab_vars[LsmVar_SLM::tstar]->const_array(mfi);
 
     auto poro_soil_arr = lsm_fab_vars[LsmVar_SLM::poro_soil]->const_array(mfi);
     auto theta_FC_arr = lsm_fab_vars[LsmVar_SLM::theta_FC]->const_array(mfi);
@@ -3514,9 +3483,6 @@ void SLM::resistances(const amrex::MFIter &mfi)
     auto r_b_arr = r_b.array(mfi);
     auto r_c_arr = r_c.array(mfi);
     auto r_d_arr = r_d.array(mfi);
-
-    auto phi_1_arr = phi_1.array(mfi);
-    auto phi_2_arr = phi_2.array(mfi);
 
     // Get CWPVT parameter (canopy wind extinction factor) if available
     const amrex::Real* d_cwpvt = nullptr;
@@ -3773,11 +3739,9 @@ void SLM::fluxes_canopy(const amrex::MFIter &mfi)
 
     auto LAI_arr = LAI.const_array(mfi);
 
-    auto q_cas_arr = q_cas.const_array(mfi);
     auto t_sfc_arr = t_sfc.const_array(mfi);
     auto q_sfc_arr = q_sfc.const_array(mfi);
 
-    auto soilt_arr            = lsm_fab_vars[LsmVar_SLM::soilt]->const_array(mfi);
     auto soilw_arr            = lsm_fab_vars[LsmVar_SLM::soilw]->const_array(mfi);
     auto poro_soil_arr        = lsm_fab_vars[LsmVar_SLM::poro_soil]->const_array(mfi);
     auto s_depth_arr          = lsm_fab_vars[LsmVar_SLM::s_depth]->const_array(mfi);
@@ -3787,34 +3751,22 @@ void SLM::fluxes_canopy(const amrex::MFIter &mfi)
 
     auto lhf_canop_arr = lhf_canop.array(mfi);
     auto evp_canop_arr = evp_canop.array(mfi);
-    auto lhf_soil_arr = lhf_soil.array(mfi);
-    auto lhf_air_arr = lhf_air.array(mfi);
-
     auto shf_canop_arr = shf_canop.array(mfi);
 
     auto vegetype_arr = vegetype.const_array(mfi);
     auto vege_YES_arr = vege_YES.const_array(mfi);
 
-    auto precip_array  = lsm_fab_vars[LsmVar_SLM::precipref]->const_array(mfi);
-
     auto mw_arr = mw.array(mfi);
     auto mw_mx_arr = mw_mx.const_array(mfi);
     auto mw_inc_arr = mw_inc.array(mfi);
-    auto mws_arr = mws.const_array(mfi);
     auto cp_vege_arr = cp_vege.const_array(mfi);
 
     auto dref_arr = lsm_fab_vars[LsmVar_SLM::dref]->const_array(mfi);
-    auto qr_arr = lsm_fab_vars[LsmVar_SLM::qref]->const_array(mfi);
     auto tr_arr = lsm_fab_vars[LsmVar_SLM::tref]->const_array(mfi);
-    auto m_pot_sat_arr = lsm_fab_vars[LsmVar_SLM::m_pot_sat]->const_array(mfi);
-    auto Bconst_arr = lsm_fab_vars[LsmVar_SLM::Bconst]->const_array(mfi);
     auto t_canop_arr = t_canop.array(mfi);
 
-    auto r_a_arr = r_a.const_array(mfi);
     auto r_b_arr = r_b.const_array(mfi);
     auto r_c_arr = r_c.const_array(mfi);
-    auto r_d_arr = r_d.const_array(mfi);
-    auto r_soil_arr = r_soil.array(mfi);
 
     auto wet_canop_arr = wet_canop.array(mfi);
     auto evapo_dry_arr = evapo_dry.array(mfi);
@@ -3972,12 +3924,6 @@ void SLM::solve_ground_skin_temperature(const amrex::MFIter &mfi)
     auto sdew_arr = sdew.array(mfi);
 
     auto vegetype_arr = vegetype.const_array(mfi);
-    auto vege_YES_arr = vege_YES.const_array(mfi);
-
-    auto precip_array  = lsm_fab_vars[LsmVar_SLM::precipref]->const_array(mfi);
-
-    auto mw_arr = mw.const_array(mfi);
-    auto mw_mx_arr = mw_mx.const_array(mfi);
     auto mws_arr = mws.const_array(mfi);
 
     auto dref_arr = lsm_fab_vars[LsmVar_SLM::dref]->const_array(mfi);
@@ -3990,12 +3936,8 @@ void SLM::solve_ground_skin_temperature(const amrex::MFIter &mfi)
     auto t_canop_arr = t_canop.const_array(mfi);
 
     auto r_a_arr = r_a.const_array(mfi);
-    auto r_b_arr = r_b.const_array(mfi);
-    auto r_c_arr = r_c.const_array(mfi);
     auto r_d_arr = r_d.const_array(mfi);
     auto r_soil_arr = r_soil.array(mfi);
-
-    auto wet_canop_arr = wet_canop.array(mfi);
     auto evapo_dry_arr = evapo_dry.array(mfi);
 
     auto slm_diag_arr = slm_diag.array(mfi);
@@ -4242,22 +4184,11 @@ void SLM::soil_water(const amrex::MFIter &mfi)
     auto soilt_arr = lsm_fab_vars[LsmVar_SLM::soilt]->const_array(mfi);
     auto soilw_arr = lsm_fab_vars[LsmVar_SLM::soilw]->array(mfi);
 
-    auto sst_capa_arr = lsm_fab_vars[LsmVar_SLM::sst_capa]->const_array(mfi);
-    auto sst_cond_arr = lsm_fab_vars[LsmVar_SLM::sst_cond]->const_array(mfi);
     auto poro_soil_arr = lsm_fab_vars[LsmVar_SLM::poro_soil]->const_array(mfi);
     auto s_depth_arr = lsm_fab_vars[LsmVar_SLM::s_depth]->const_array(mfi);
 
-    auto shf_soil_arr = shf_soil.const_array(mfi);
-    auto lhf_soil_arr = lhf_soil.const_array(mfi);
-    auto net_rad_arr = net_rad.const_array(mfi);
-
-    auto precip_array  = lsm_fab_vars[LsmVar_SLM::precipref]->const_array(mfi);
-    auto LAI_arr = LAI.const_array(mfi);
     auto IMPERV_arr = IMPERV.const_array(mfi);
-    auto precip_extinc_arr = precip_extinc.const_array(mfi);
 
-    auto mw_arr = mw.array(mfi);
-    auto mw_mx_arr = mw_mx.const_array(mfi);
     auto mws_arr = mws.array(mfi);
     auto mws_mx_arr = mws_mx.const_array(mfi);
 
@@ -4982,12 +4913,6 @@ void SLM::Copy_Lsm_to_State(MultiFab& cons_in)
     for ( amrex::MFIter mfi(cons_in,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const auto& box3d = mfi.tilebox();
 
-        auto states_arr = cons_in.array(mfi);
-
-        auto tref_array  = lsm_fab_vars[LsmVar_SLM::tref]->array(mfi);
-        auto rho_array   = lsm_fab_vars[LsmVar_SLM::dref]->array(mfi);
-        auto pres_array  = lsm_fab_vars[LsmVar_SLM::pref]->array(mfi);
-
         // get potential total density, temperature, qt, qp
         ParallelFor( box3d, [=] AMREX_GPU_DEVICE (int /*i*/, int /*j*/, int /*k*/)
         {
@@ -5065,10 +4990,10 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
     IntVect ng(0, 0, 0);
 
     // Total number of output MFs: net_rad components + mf_data size - 1 + diag vars + olen
-    const int output_size = SLM_NetRad::NumVars + mf_data.size() - 1 + SLM_Diag::NumVars + 1;
+    const int output_size = SLM_NetRad::NumVars + static_cast<int>(mf_data.size()) - 1 + SLM_Diag::NumVars + 1;
     fab.define(ba_lsm_2d, net_rad.DistributionMap(), output_size, ng);
     MultiFab::Copy(fab, *(mf_data[0]), 0, 0, SLM_NetRad::NumVars, 0);
-    for (int i = 1; i < mf_data.size(); i++)
+    for (int i = 1; i < static_cast<int>(mf_data.size()); ++i)
     {
         MultiFab::Copy(fab, *(mf_data[i]), 0, i + SLM_NetRad::NumVars - 1, 1, 0);
     }
@@ -5139,14 +5064,14 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real time
     varnames.push_back("vegtype");
     varnames.push_back("landmask");
 
-    for (int i = 0; i < diag_names.size(); i++)
+    for (int i = 0; i < static_cast<int>(diag_names.size()); ++i)
     {
         varnames.push_back(diag_names[i]);
     }
 
     varnames.push_back("olen");
 
-    AMREX_ALWAYS_ASSERT(varnames.size() == output_size);
+    AMREX_ALWAYS_ASSERT(static_cast<int>(varnames.size()) == output_size);
 
     if (plotfile_type == PlotFileType::Amrex) {
         //amrex::WriteSingleLevelPlotfile(plotfilename, fab, varnames, lsm_2d_geom, time, level_step);
@@ -5722,7 +5647,6 @@ void SLM::radiation_noahmp(const amrex::MFIter &mfi)
     auto SAI_arr   = SAI.const_array(mfi);
     auto t_canop_arr = t_canop.const_array(mfi);
     auto t_ground_skin_arr = t_ground_skin.const_array(mfi);
-    auto soilt_arr = lsm_fab_vars[LsmVar_SLM::soilt]->const_array(mfi);
     auto soilw_arr = lsm_fab_vars[LsmVar_SLM::soilw]->const_array(mfi);
     auto poro_soil_arr = lsm_fab_vars[LsmVar_SLM::poro_soil]->const_array(mfi);
     auto veg_frac_arr = lsm_fab_vars[LsmVar_SLM::veg_frac]->const_array(mfi);
@@ -5734,7 +5658,6 @@ void SLM::radiation_noahmp(const amrex::MFIter &mfi)
     auto ztop_arr = ztop.const_array(mfi);      // canopy height (NOAHMP name: HVT)
 
     // State variables for NOAHMP radiation
-    auto albold_arr = albold_noahmp.array(mfi);
     auto tauss_arr  = tauss_noahmp.array(mfi);
 
     // Net radiation arrays for output

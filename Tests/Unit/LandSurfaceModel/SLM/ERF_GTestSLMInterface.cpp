@@ -345,8 +345,8 @@ TEST_F(SLMInterfaceTest, ExposesCurrentStateAndFluxContract)
     const std::vector<std::string> expected_flux_names{
         "t_flux", "q_flux", "tau13", "tau23", "olen"};
 
-    ASSERT_EQ(land_surface.Get_Data_Size(), expected_data_names.size());
-    ASSERT_EQ(land_surface.Get_Flux_Size(), expected_flux_names.size());
+    ASSERT_EQ(land_surface.Get_Data_Size(), static_cast<int>(expected_data_names.size()));
+    ASSERT_EQ(land_surface.Get_Flux_Size(), static_cast<int>(expected_flux_names.size()));
 
     for (int var = 0; var < land_surface.Get_Data_Size(); ++var) {
         EXPECT_EQ(land_surface.Get_DataName(var), expected_data_names[var]);
@@ -497,7 +497,7 @@ TEST_F(SLMInterfaceTest, RadiationExportUsesCurrentSLMFields)
     ASSERT_NE(slm, nullptr);
 
     const auto& radiation_fields = slm->export_to_RRTMGP();
-    ASSERT_EQ(radiation_fields.size(), 6);
+    ASSERT_EQ(static_cast<int>(radiation_fields.size()), 6);
     EXPECT_EQ(radiation_fields[0], get_slm_data(land_surface, 0, "tsurf"));
     EXPECT_EQ(radiation_fields[1], get_slm_data(land_surface, 0, "emis_sfc"));
     EXPECT_EQ(radiation_fields[2], get_slm_data(land_surface, 0, "alb_vis_sfc"));

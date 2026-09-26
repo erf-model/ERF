@@ -418,14 +418,14 @@ TEST(SurfaceModel, RadiationFieldListUsesCanonicalMappings)
         fixture.model->set_model_data(
             0, fixture.pointers(land), {"f0", "f1", "f2", "f3", "f4", "f5"},
             SurfaceModelType::LAND);
-        for (int i = 0; i < radiation_names.size(); ++i) {
+        for (int i = 0; i < static_cast<int>(radiation_names.size()); ++i) {
             fixture.model->register_radiation_input(
                 radiation_names[i], std::pair<int, int>{i, -1});
         }
 
         const auto radiation_fields = fixture.model->get_radiation_fields(0);
         ASSERT_EQ(radiation_fields.size(), radiation_names.size());
-        for (int i = 0; i < radiation_names.size(); ++i) {
+        for (int i = 0; i < static_cast<int>(radiation_names.size()); ++i) {
             EXPECT_EQ(radiation_fields[i], land[i].get());
         }
     }
@@ -438,13 +438,13 @@ TEST(SurfaceModel, RadiationFieldListUsesCanonicalMappings)
     fixture.configure_models(land, urban);
     const std::vector<std::pair<int, int>> provider_mappings{
         {0, 0}, {1, 1}, {2, -1}, {3, -1}, {4, -1}, {5, -1}};
-    for (int i = 0; i < radiation_names.size(); ++i) {
+    for (int i = 0; i < static_cast<int>(radiation_names.size()); ++i) {
         fixture.model->register_radiation_input(radiation_names[i], provider_mappings[i]);
     }
 
     const auto radiation_fields = fixture.model->get_radiation_fields(0);
     ASSERT_EQ(radiation_fields.size(), radiation_names.size());
-    for (int i = 0; i < radiation_names.size(); ++i) {
+    for (int i = 0; i < static_cast<int>(radiation_names.size()); ++i) {
         EXPECT_NE(radiation_fields[i], nullptr);
     }
     EXPECT_NE(radiation_fields[0], land[0].get());
@@ -463,7 +463,7 @@ TEST(SurfaceModel, RadiationFieldListUsesCanonicalMappings)
     const auto fallback_fields = fallback_fixture.model->get_radiation_fields(0);
     ASSERT_EQ(fallback_fields.size(), radiation_names.size());
     EXPECT_EQ(fallback_fields[0], fallback_land[0].get());
-    for (int i = 1; i < fallback_fields.size(); ++i) {
+    for (int i = 1; i < static_cast<int>(fallback_fields.size()); ++i) {
         EXPECT_EQ(fallback_fields[i], nullptr);
     }
 }
@@ -480,7 +480,7 @@ TEST(SurfaceModel, RadiationInputsResolveProviderModesAndWeights)
     fixture.configure_models(land, urban);
 
     std::unordered_map<std::string, std::pair<int, int>> mappings;
-    for (int i = 0; i < names.size(); ++i) {
+    for (int i = 0; i < static_cast<int>(names.size()); ++i) {
         mappings.emplace(names[i], std::pair<int, int>{i, i});
     }
     fixture.model->register_radiation_inputs(mappings);
@@ -493,7 +493,7 @@ TEST(SurfaceModel, RadiationInputsResolveProviderModesAndWeights)
 
     const auto fields = fixture.model->get_radiation_fields(0);
     ASSERT_EQ(fields.size(), names.size());
-    for (int i = 0; i < fields.size(); ++i) {
+    for (int i = 0; i < static_cast<int>(fields.size()); ++i) {
         EXPECT_NE(fields[i], land[i].get());
         EXPECT_NE(fields[i], urban[i].get());
         EXPECT_NEAR(fields[i]->max(0), Real(12.5) + Real(i), 1.e-12);

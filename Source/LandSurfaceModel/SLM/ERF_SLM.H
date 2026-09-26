@@ -330,7 +330,7 @@ public:
                              amrex::MultiFab* source_data_ptr) override
     {
         AMREX_ALWAYS_ASSERT(varIdx >= 0 && varIdx < m_lsm_data_size);
-        if (source_data.size() != m_lsm_data_size) {
+        if (static_cast<int>(source_data.size()) != m_lsm_data_size) {
             source_data.resize(m_lsm_data_size, nullptr);
         }
         source_data[varIdx] = source_data_ptr;
@@ -344,7 +344,7 @@ public:
                              amrex::MultiFab* source_flux_ptr) override
     {
         AMREX_ALWAYS_ASSERT(varIdx >= 0 && varIdx < m_lsm_flux_size);
-        if (source_flux.size() != m_lsm_flux_size) {
+        if (static_cast<int>(source_flux.size()) != m_lsm_flux_size) {
             source_flux.resize(m_lsm_flux_size, nullptr);
         }
         source_flux[varIdx] = source_flux_ptr;
@@ -354,7 +354,7 @@ public:
      * Returns the number of private SLM state fields.
      */
     int
-    Lsm_Unmapped_Size () override { return unmapped_fields.size(); }
+    Lsm_Unmapped_Size () override { return static_cast<int>(unmapped_fields.size()); }
 
     /**
      * Returns a private SLM state field.
@@ -362,7 +362,7 @@ public:
     amrex::MultiFab*
     Lsm_Unmapped_Ptr (const int& varIdx) override
     {
-        AMREX_ALWAYS_ASSERT(varIdx >= 0 && varIdx < unmapped_fields.size());
+        AMREX_ALWAYS_ASSERT(varIdx >= 0 && varIdx < static_cast<int>(unmapped_fields.size()));
         return lsm_fab_vars[unmapped_fields[varIdx]].get();
     }
 
@@ -373,7 +373,7 @@ public:
     Lsm_Set_Source_Unmapped_Ptr (const int& varIdx,
                                   amrex::MultiFab* source_data_ptr) override
     {
-        AMREX_ALWAYS_ASSERT(varIdx >= 0 && varIdx < unmapped_fields.size());
+        AMREX_ALWAYS_ASSERT(varIdx >= 0 && varIdx < static_cast<int>(unmapped_fields.size()));
         if (source_unmapped.size() != unmapped_fields.size()) {
             source_unmapped.resize(unmapped_fields.size(), nullptr);
         }
@@ -551,13 +551,13 @@ public:
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static void surrad_noahmp(amrex::Real mpe, amrex::Real fsun, amrex::Real fsha, amrex::Real elai, amrex::Real vai,
-                       amrex::Real laisun, amrex::Real laisha, const amrex::Real* solad, const amrex::Real* solai,
-                       const amrex::Real* fabd, const amrex::Real* fabi, const amrex::Real* ftdd,
-                       const amrex::Real* ftid, const amrex::Real* ftii, const amrex::Real* albgrd,
-                       const amrex::Real* albgri, const amrex::Real* albd, const amrex::Real* albi,
-                       const amrex::Real* frevd, const amrex::Real* frevi, const amrex::Real* fregd, const amrex::Real* fregi,
-                       amrex::Real& parsun, amrex::Real& parsha, amrex::Real& sav, amrex::Real& sag,
-                       amrex::Real& fsa, amrex::Real& fsr, amrex::Real& fsrv, amrex::Real& fsrg);
+                              amrex::Real laisun, amrex::Real laisha, const amrex::Real* solad, const amrex::Real* solai,
+                              const amrex::Real* fabd, const amrex::Real* fabi, const amrex::Real* ftdd,
+                              const amrex::Real* ftid, const amrex::Real* ftii, const amrex::Real* albgrd,
+                              const amrex::Real* albgri, const amrex::Real* albd, const amrex::Real* albi,
+                              const amrex::Real* frevd, const amrex::Real* frevi, const amrex::Real* fregd, const amrex::Real* fregi,
+                              amrex::Real& parsun, amrex::Real& parsha, amrex::Real& sav, amrex::Real& sag,
+                              amrex::Real& fsa, amrex::Real& fsr, amrex::Real& fsrv, amrex::Real& fsrg);
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static void snow_age_noahmp(amrex::Real dt, amrex::Real tg, amrex::Real sneqvo, amrex::Real sneqv,
@@ -606,12 +606,12 @@ public:
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real fh_calc(const amrex::Real &t, const amrex::Real &mps,
-                        const amrex::Real &sw, const amrex::Real &B);
+                               const amrex::Real &sw, const amrex::Real &B);
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real linear_interp(const amrex::Real t0, const amrex::Real t1,
-                              const amrex::Real t, const amrex::Real x,
-                              const amrex::Real y);
+                                     const amrex::Real t, const amrex::Real x,
+                                     const amrex::Real y);
 
 #ifdef ERF_USE_NETCDF
     void writeSLM_NetCDF(const amrex::MultiFab& mf, const amrex::Vector<std::string>& varnames,
@@ -650,7 +650,6 @@ public:
 
     void ReadCheckpoint(const int &lev, const std::string &checkpointname) override;
 
-private:
     /**
      * Initializes the canopy-adjusted reference height on the current grid.
      */
@@ -661,6 +660,7 @@ private:
      */
     void initialize_processed_state(const bool preserve_checkpoint_fields = false);
 
+private:
     // number of lsm variables (theta)
     int m_lsm_data_size = 44;
 
