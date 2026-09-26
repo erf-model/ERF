@@ -5343,7 +5343,7 @@ void SLM::groundalb_noahmp(int /*nsoil*/, int nband, int /*ice*/, int ist, amrex
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void SLM::twostream_noahmp(int ib, int ic, int /*vegtyp*/, amrex::Real cosz, amrex::Real vai,
                            amrex::Real fwet, amrex::Real t, const amrex::Real* albgrd, const amrex::Real* albgri,
-                           const amrex::Real* rho, const amrex::Real* tau, amrex::Real fveg, int ist,
+                           const amrex::Real* rho, const amrex::Real* tau, amrex::Real fveg, int /*ist*/,
                            amrex::Real xl, amrex::Real omegas_param, amrex::Real betads, amrex::Real betais,
                            int opt_rad, amrex::Real rc, amrex::Real hvt, amrex::Real hvb, amrex::Real /*den*/,
                            amrex::Real* fab, amrex::Real* fre, amrex::Real* ftd, amrex::Real* fti,

@@ -1038,6 +1038,17 @@ private:
 
     static_assert(sizeof(LsmVarName_Full)/sizeof(*LsmVarName_Full) == LsmVar_SLM::NumVars);
 
+    inline static const std::vector<std::string> diag_names = {
+        "precip",
+        "precip_in",
+        "precip_sfc",
+        "runoff_sfc",
+        "drain",
+        "drain_flux",
+        "evapo_wet",
+        "grflux"
+    };
+
 #ifdef ERF_USE_NETCDF
     // List of output variables that are constant in time
     inline static const std::unordered_set<int> const_vars = {
@@ -1060,17 +1071,6 @@ private:
       LsmVar_SLM::m_pot_sat,
       LsmVar_SLM::Bconst,
       LsmVar_SLM::ks
-    };
-
-    inline static const std::vector<std::string> diag_names = {
-        "precip",
-        "precip_in",
-        "precip_sfc",
-        "runoff_sfc",
-        "drain",
-        "drain_flux",
-        "evapo_wet",
-        "grflux"
     };
 
     inline static const std::vector<std::string> soilt_var_names = {
