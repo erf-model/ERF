@@ -383,15 +383,15 @@ public:
         {
             amrex::Vector<amrex::MultiFab> fab_2d(finest_level+1);
             amrex::Vector<amrex::Geometry> geom_2d(finest_level+1);
-            amrex::Vector<std::string> varnames;
+            amrex::Vector<std::string> varnames_2d;
             std::string plotfilename_2d = amrex::Concatenate(plot_file_lsm + "2D_", level_steps[0], 5);
             for (int lev = 0; lev <= finest_level; ++lev) {
-                static_cast<SLM*>(m_lsm_model[lev].get())->writeSLM_Data(plotfile_type, static_cast<amrex::Real>(time), plot_file_lsm, level_steps[0], lev, finest_level, fab_2d[lev], geom_2d[lev], varnames);
+                static_cast<SLM*>(m_lsm_model[lev].get())->writeSLM_Data(plotfile_type, static_cast<amrex::Real>(time), plot_file_lsm, level_steps[0], lev, finest_level, fab_2d[lev], geom_2d[lev], varnames_2d);
             }
             // For a NetCDF run writeSLM_Data has already written these fields itself, one file
             // per level, so only the AMReX format is assembled here.
             if (plotfile_type == PlotFileType::Amrex) {
-                amrex::WriteMultiLevelPlotfile(plotfilename_2d, finest_level+1, GetVecOfConstPtrs(fab_2d), varnames, geom_2d, static_cast<amrex::Real>(time), level_steps, ref_ratio);
+                amrex::WriteMultiLevelPlotfile(plotfilename_2d, finest_level+1, GetVecOfConstPtrs(fab_2d), varnames_2d, geom_2d, static_cast<amrex::Real>(time), level_steps, ref_ratio);
             }
         }
     }
@@ -453,7 +453,9 @@ private:
     // Vector of data pointers
     amrex::Vector<amrex::MultiFab> m_lsm_data_lev;
 
+#ifdef ERF_USE_NETCDF
     // Whether we have already told the user that LSM plotfiles fall back to the AMReX format
-    bool m_warned_nc_lsm_plot = false;
+    [[maybe_unused]] bool m_warned_nc_lsm_plot = false;
+#endif
 };
 #endif

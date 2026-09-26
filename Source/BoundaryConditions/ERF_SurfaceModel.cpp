@@ -87,7 +87,7 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
 
     // Output weighted surface fluxes into ustar, tstar, qstar and surface temperature into tsurf
     // TODO: make sure grids of urban and LSM inputs match
-    for (int field=0; field < nfields; field++)
+    for (int field = 0; field < nfields; ++field)
     {
         int output_field = (use_fluxes && field > 0) ? field - 1 : field;
         int comp = (use_fluxes && field < 2) ? field : 0;
@@ -132,12 +132,12 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
 
     // Write weighted copies of the remaining selected model fields.
     if (use_land) {
-        for (int field = nfields; field < lsm_fields.size(); field++) {
+        for (int field = nfields; field < static_cast<int>(lsm_fields.size()); ++field) {
             if (lsm_fields[field] == -1) continue;
             if (is_field_mapped(lev, SurfaceModelType::LAND, lsm_fields[field],
                                 lsm_data_lev[lev][lsm_fields[field]])) continue;
             const int field_idx = lsm_fields[field];
-            if (weighted_lsm_data_lev[lev].size() <= field_idx) {
+            if (static_cast<int>(weighted_lsm_data_lev[lev].size()) <= field_idx) {
                 weighted_lsm_data_lev[lev].resize(lsm_data_lev[lev].size());
             }
             if (weighted_lsm_data_lev[lev][field_idx] == nullptr) {
@@ -153,12 +153,12 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
     }
 
     if (use_urban) {
-        for (int field = nfields; field < urban_fields.size(); field++) {
+        for (int field = nfields; field < static_cast<int>(urban_fields.size()); ++field) {
             if (urban_fields[field] == -1) continue;
             if (is_field_mapped(lev, SurfaceModelType::URBAN, urban_fields[field],
                                 urban_data_lev[lev][urban_fields[field]])) continue;
             const int field_idx = urban_fields[field];
-            if (weighted_urban_data_lev[lev].size() <= field_idx) {
+            if (static_cast<int>(weighted_urban_data_lev[lev].size()) <= field_idx) {
                 weighted_urban_data_lev[lev].resize(urban_data_lev[lev].size());
             }
             if (weighted_urban_data_lev[lev][field_idx] == nullptr) {
@@ -361,9 +361,12 @@ void SurfaceModel::distribute_radiation_output(int lev, int output_index)
                 source_box.smallEnd(2) <= 0 && source_box.bigEnd(2) >= 0 &&
                 target_box.smallEnd(2) <= 0 && target_box.bigEnd(2) >= 0,
                 "Radiation output destinations must contain the k=0 surface plane");
-            const Box source_slab = makeSlab(source_box, 2, 0);
             const Box target_slab = makeSlab(target_box, 2, 0);
-            (*urban)[mfi].copy((*lsm)[mfi], source_slab, 0, target_slab, 0, 1);
+            const auto source = (*lsm)[mfi].array();
+            auto target = (*urban)[mfi].array();
+            amrex::ParallelFor(target_slab, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                target(i, j, k) = source(i, j, k);
+            });
         }
     }
 }
@@ -520,7 +523,7 @@ void SurfaceModel::set_field_map_pointers(const std::string& name, int lev,
 
     Field& field = field_it->second;
     AMREX_ALWAYS_ASSERT(field.map.first == -1 && field.map.second == -1);
-    if (field.lsm_ptr.size() < static_cast<std::size_t>(m_nlevs)) {
+    if (static_cast<int>(field.lsm_ptr.size()) < m_nlevs) {
         field.lsm_ptr.resize(m_nlevs, nullptr);
         field.urb_ptr.resize(m_nlevs, nullptr);
     }
@@ -560,8 +563,6 @@ void SurfaceModel::weight_average_fields(int lev, amrex::MultiFab* const /*urban
         for (MFIter mfi(*fields[mf_idx][lev], TileNoZ()); mfi.isValid(); ++mfi)
         {
             Box tbx = mfi.tilebox();
-            Box b2d = makeSlab(tbx, 2, 0);
-
             auto weights_arr = wavg[lev]->const_array(mfi);
 
             // Calculate weight average into output
@@ -719,13 +720,13 @@ void SurfaceModel::WriteCheckpoint(const std::string &checkpointname)
 
         // Write out fields
         // LSM fields
-        for (int i = 0; i < lsm_fields.size(); ++i) {
+        for (int i = 0; i < static_cast<int>(lsm_fields.size()); ++i) {
             HeaderFile << lsm_fields[i] << " ";
         }
         HeaderFile << '\n';
 
         // Urban fields
-        for (int i = 0; i < urban_fields.size(); ++i) {
+        for (int i = 0; i < static_cast<int>(urban_fields.size()); ++i) {
             HeaderFile << urban_fields[i] << " ";
         }
         HeaderFile << '\n';
@@ -938,7 +939,7 @@ void SurfaceModel::ReadCheckpoint(const std::string &checkpointname)
         if (field.mf_ind < 0 || field.mf_ind >= static_cast<int>(fields.size())) {
             checkpoint_error("current mapped-field storage is invalid for '" + field_name + "'");
         }
-        if (fields[field.mf_ind].size() != static_cast<std::size_t>(m_nlevs)) {
+        if (static_cast<int>(fields[field.mf_ind].size()) != m_nlevs) {
             checkpoint_error("current mapped-field level storage is invalid for '" + field_name + "'");
         }
         if (field.map.first != lsm_ind || field.map.second != urb_ind ||
@@ -946,8 +947,8 @@ void SurfaceModel::ReadCheckpoint(const std::string &checkpointname)
             checkpoint_error("mapped-field metadata mismatch for '" + field_name + "'");
         }
         if (lsm_ind == -1 && urb_ind == -1) {
-            if (field.lsm_ptr.size() != static_cast<std::size_t>(m_nlevs) ||
-                field.urb_ptr.size() != static_cast<std::size_t>(m_nlevs)) {
+            if (static_cast<int>(field.lsm_ptr.size()) != m_nlevs ||
+                static_cast<int>(field.urb_ptr.size()) != m_nlevs) {
                 checkpoint_error("pointer mapping has the wrong number of levels for '" + field_name + "'");
             }
             for (int lev = 0; lev < m_nlevs; ++lev) {
@@ -998,7 +999,7 @@ void SurfaceModel::ReadCheckpoint(const std::string &checkpointname)
             checkpoint_error("MultiFab layout mismatch for level " + std::to_string(lev) +
                              " in '" + name + "'");
         }
-        if (header.m_fod.size() != static_cast<std::size_t>(m_ba2d[lev].size())) {
+        if (static_cast<amrex::Long>(header.m_fod.size()) != m_ba2d[lev].size()) {
             checkpoint_error("MultiFab FAB count mismatch for level " + std::to_string(lev) +
                              " in '" + name + "'");
         }

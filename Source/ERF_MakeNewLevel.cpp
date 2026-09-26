@@ -348,7 +348,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     AMREX_ALWAYS_ASSERT(lev > 0);
     bool lsm_initialized = false;
 #ifdef ERF_USE_NETCDF
-    bool use_surface_only = false;
+    [[maybe_unused]] bool use_surface_only = false;
 #endif
 
     if (verbose) {

@@ -162,8 +162,8 @@ public:
 
         // Recreate registered fields on the current level layout. This is also
         // needed when an existing AMR level is remade with a new grid layout.
-        for (int field=0; field < fields.size(); field++) {
-            if (fields[field].size() < m_nlevs) {
+        for (int field = 0; field < static_cast<int>(fields.size()); ++field) {
+            if (static_cast<int>(fields[field].size()) < m_nlevs) {
                 fields[field].resize(m_nlevs);
             }
             fields[field][lev] = std::make_unique<amrex::MultiFab>(
@@ -171,7 +171,7 @@ public:
             fields[field][lev]->setVal(0.0);
         }
         for (auto& entry : radiation_input_map) {
-            if (entry.second.weighted.size() < static_cast<std::size_t>(m_nlevs)) {
+            if (static_cast<int>(entry.second.weighted.size()) < m_nlevs) {
                 entry.second.weighted.resize(m_nlevs);
             }
             entry.second.weighted[lev].reset();
@@ -239,7 +239,7 @@ public:
                                       refRatio[lev-1], mapper, domain_bcs_type,
                                       BCVars::cons_bc);
 
-            for (int field=0; field < fields.size(); field++) {
+            for (int field = 0; field < static_cast<int>(fields.size()); ++field) {
                 amrex::IntVect ngv = fields[field][lev-1]->nGrowVect(); ngv[2] = 0;
                 amrex::InterpFromCoarseLevel(*fields[field][lev], ngv, ng_od,
                                              *fields[field][lev-1], 0, 0, 1,
@@ -275,12 +275,12 @@ public:
                 // only set names on first level, since they are the same for all levels
                 m_lsm_names.resize(model_data.size());
                 AMREX_ALWAYS_ASSERT(data_names.size() == model_data.size());
-                for (int i = 0; i < data_names.size(); i++) {
+                for (int i = 0; i < static_cast<int>(data_names.size()); ++i) {
                     m_lsm_names[i] = data_names[i];
                 }
             }
 
-            for (int i = 0; i < lsm_data_lev[lev].size(); i++) {
+            for (int i = 0; i < static_cast<int>(lsm_data_lev[lev].size()); ++i) {
                 AMREX_ALWAYS_ASSERT(model_data[i]);
                 lsm_data_lev[lev][i] = model_data[i];
             }
@@ -300,11 +300,11 @@ public:
                 // only set names on first level, since they are the same for all levels
                 m_urban_names.resize(model_data.size());
                 AMREX_ALWAYS_ASSERT(data_names.size() == model_data.size());
-                for (int i = 0; i < data_names.size(); i++) {
+                for (int i = 0; i < static_cast<int>(data_names.size()); ++i) {
                     m_urban_names[i] = data_names[i];
                 }
             }
-            for (int i = 0; i < urban_data_lev[lev].size(); i++) {
+            for (int i = 0; i < static_cast<int>(urban_data_lev[lev].size()); ++i) {
                 AMREX_ALWAYS_ASSERT(model_data[i]);
                 urban_data_lev[lev][i] = model_data[i];
             }
@@ -345,13 +345,13 @@ public:
         AMREX_ALWAYS_ASSERT(model_names != nullptr);
         AMREX_ALWAYS_ASSERT(flux_names.size() == model_fluxes.size());
 
-        const int data_size = model_data->size();
-        model_data->resize(data_size + model_fluxes.size());
+        const int data_size = static_cast<int>(model_data->size());
+        model_data->resize(data_size + static_cast<int>(model_fluxes.size()));
         if (lev == 0) {
-            model_names->resize(data_size + model_fluxes.size());
+            model_names->resize(data_size + static_cast<int>(model_fluxes.size()));
         }
 
-        for (int i = 0; i < model_fluxes.size(); ++i) {
+        for (int i = 0; i < static_cast<int>(model_fluxes.size()); ++i) {
             AMREX_ALWAYS_ASSERT(model_fluxes[i]);
             (*model_data)[data_size + i] = model_fluxes[i];
             if (lev == 0) {
@@ -369,12 +369,12 @@ public:
      * field index of -1 skips that field.
      *
      * @param type Whether the fields belong to the land or urban model.
-     * @param fields Indices of the fields to average.
+     * @param field_indices Indices of the fields to average.
      * @param use_fluxes Whether the selected fields are fluxes.
      */
-    void set_model_fields(SurfaceModelType type, const amrex::Vector<int> &fields, const bool use_fluxes = true)
+    void set_model_fields(SurfaceModelType type, const amrex::Vector<int> &field_indices, const bool use_fluxes = true)
     {
-        int nfields = fields.size();
+        const int nfields = static_cast<int>(field_indices.size());
         if (!use_fluxes) {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nfields >= 4, "Must have at least four fields to average (ustar, tstar, qstar, tsurf)");
         } else {
@@ -395,19 +395,19 @@ public:
         const int nregistered = (type == SurfaceModelType::LAND)
             ? static_cast<int>(m_lsm_names.size())
             : static_cast<int>(m_urban_names.size());
-        for (const int field : fields) {
+        for (const int field : field_indices) {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
                 field == -1 || (field >= 0 && field < nregistered),
                 "Model field index must be -1 or within the registered provider data range");
         }
 
         if (type == SurfaceModelType::LAND) {
-            lsm_fields = amrex::Vector<int>(fields);
+            lsm_fields = amrex::Vector<int>(field_indices);
             for (auto& fields_at_level : weighted_lsm_data_lev) {
                 fields_at_level.clear();
             }
         } else if (type == SurfaceModelType::URBAN) {
-            urban_fields = amrex::Vector<int>(fields);
+            urban_fields = amrex::Vector<int>(field_indices);
             for (auto& fields_at_level : weighted_urban_data_lev) {
                 fields_at_level.clear();
             }
@@ -684,7 +684,7 @@ public:
         amrex::Print() << "  --- building radiation field list" << std::endl;
 
         // loop over fields and check against names of radiation variables
-        for (int i = 0; i < radnames.size(); i++) {
+        for (int i = 0; i < static_cast<int>(radnames.size()); ++i) {
             amrex::Print() << "    - Checking for radiation variable '" << radnames[i] << "'" << std::endl;
 
             amrex::MultiFab* mf = nullptr;
@@ -741,7 +741,9 @@ public:
                 rad_fields[lev].push_back(nullptr);
             }
         }
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rad_fields[lev].size() == radnames.size(), "Did not find all radiation fields");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            static_cast<int>(rad_fields[lev].size()) == static_cast<int>(radnames.size()),
+            "Did not find all radiation fields");
     }
 
     /**
