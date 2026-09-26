@@ -755,7 +755,7 @@ private:
 
     static constexpr amrex::Real IR_emis_urban = 0.9;
 
-	// Model variables
+    // Model variables
     //   NOTE: these MultiFabs are defined over the grid only in X and Y (no Z component)
     amrex::MultiFab t_canop; // canopy leaf temperature
     amrex::MultiFab mw; // water storage on leaves, kg/m^2 = mm of water
@@ -763,11 +763,11 @@ private:
     amrex::MultiFab t_skin; // skin temperature, surface level viewed from atmosphere
     amrex::MultiFab t_ground_skin; // massless ground-atmosphere interface temperature
     amrex::MultiFab t_sfc; // 'surface' level temperature. for vegetated, t_sfc = t_cas, for non-vegetated = t_sfc=top soil t
-	amrex::MultiFab q_sfc; // 'surface' level specific humidity, for vegetated, q_sfc = q_cas, for non-vegetated = top soil specific humidity
+    amrex::MultiFab q_sfc; // 'surface' level specific humidity, for vegetated, q_sfc = q_cas, for non-vegetated = top soil specific humidity
     amrex::MultiFab t_cas; // canopy air space temperature
     amrex::MultiFab q_cas; // canopy air space specific humidity
 
-	amrex::MultiFab q_gr; // soil pore space specific humidity
+    amrex::MultiFab q_gr; // soil pore space specific humidity
     amrex::MultiFab sdew; // soil dew condition
 
     // TODO: placeholder landmask array - should probably use the one defined by ERF

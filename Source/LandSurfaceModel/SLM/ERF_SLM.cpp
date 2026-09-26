@@ -2538,8 +2538,8 @@ void SLM::init_from_params()
     // Get pointers to GPU soil parameter values
     const amrex::Real *d_param_poro = d_soil_params.at("maxsmc")->data();
     const amrex::Real *d_param_theta_FC = d_soil_params.at("refsmc")->data();
-	const amrex::Real *d_param_theta_WP = d_soil_params.at("wltsmc")->data();
-	const amrex::Real *d_param_m_pot_sat = d_soil_params.at("satpsi")->data();
+    const amrex::Real *d_param_theta_WP = d_soil_params.at("wltsmc")->data();
+    const amrex::Real *d_param_m_pot_sat = d_soil_params.at("satpsi")->data();
     const amrex::Real *d_param_Bconst = d_soil_params.at("bb")->data();
     const amrex::Real *d_param_ks = d_soil_params.at("satdk")->data();
 
