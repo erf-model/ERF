@@ -7,8 +7,8 @@ using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
 void
-SLM::writeSLM_NetCDF(const MultiFab& mf, const Vector<std::string>& varnames, const amrex::Real time,
-                     const std::string plot_prefix, const int level_step)
+SLM::writeSLM_NetCDF(const MultiFab& mf, const Vector<std::string>& varnames, const amrex::Real cur_time,
+                     const std::string plot_prefix, const int /*level_step*/)
 {
     std::string plotfilename = plot_prefix + ".nc";
 
@@ -37,8 +37,8 @@ SLM::writeSLM_NetCDF(const MultiFab& mf, const Vector<std::string>& varnames, co
     // Write out SLM 3D fields
     for (int var = 0; var < LsmVar_SLM::NumVars; ++var) {
         if (const_vars.find(var) != const_vars.end()) continue;
-        //writeMFtoNC(ncf, lsm_fab_vars[var].get(), LsmVarName_Full[var], time, true); // write ghost cells
-        writeMFtoNC(ncf, lsm_fab_vars[var].get(), LsmVarName_Full[var], time, false); // write ghost cells
+        //writeMFtoNC(ncf, lsm_fab_vars[var].get(), LsmVarName_Full[var], cur_time, true); // write ghost cells
+        writeMFtoNC(ncf, lsm_fab_vars[var].get(), LsmVarName_Full[var], cur_time, false); // write ghost cells
     }
 
     // Write out SLM 2D fields
@@ -49,34 +49,34 @@ SLM::writeSLM_NetCDF(const MultiFab& mf, const Vector<std::string>& varnames, co
     for (int var = 0; var < mf.nComp(); ++var)
     {
         MultiFab fab(mf, make_alias, var, 1);
-        writeMFtoNC(ncf, &fab, varnames[var], time);
+        writeMFtoNC(ncf, &fab, varnames[var], cur_time);
     }
 
-    writeMFtoNC(ncf, &cp_vege, "cp_vege", time);
-    writeMFtoNC(ncf, &z0_sfc, "z0_sfc", time);
+    writeMFtoNC(ncf, &cp_vege, "cp_vege", cur_time);
+    writeMFtoNC(ncf, &z0_sfc, "z0_sfc", cur_time);
 
     //writeMFtoNC(ncf, &Khai_L, "Khai_L", -1.0);
 
-    //writeMFtoNC(ncf, &ustar, "ustar", time); // ustar and tstar already saved in 2D fab array above
+    //writeMFtoNC(ncf, &ustar, "ustar", cur_time); // ustar and tstar already saved in 2D fab array above
 
     // additional slm outputs
     for (int var = 0; var < slm_diag.nComp(); ++var)
     {
         MultiFab fab(slm_diag, make_alias, var, 1);
-        writeMFtoNC(ncf, &fab, diag_names[var], time);
+        writeMFtoNC(ncf, &fab, diag_names[var], cur_time);
     }
 
     // Save soil temperature and moisture diagnostic variables
     for (int var = 0; var < soilt_vars.nComp(); ++var)
     {
         MultiFab fab (soilt_vars, make_alias, var, 1);
-        writeMFtoNC(ncf, &fab, soilt_var_names[var], time);
+        writeMFtoNC(ncf, &fab, soilt_var_names[var], cur_time);
     }
 
     for (int var = 0; var < soilw_vars.nComp() - 1; ++var)
     {
         MultiFab fab (soilw_vars, make_alias, var, 1);
-        writeMFtoNC(ncf, &fab, soilw_var_names[var], time);
+        writeMFtoNC(ncf, &fab, soilw_var_names[var], cur_time);
     }
 
     ncf.close();
@@ -134,7 +134,6 @@ SLM::writeNCHeader(ncutils::NCFile &nc_file, const amrex::Geometry &geom)
     auto z_arr = z.table();
 
     const auto prob_lo = geom.ProbLoArray();
-    const auto prob_hi = geom.ProbHiArray();
     const auto dx = geom.CellSizeArray();
     const int d_khi_lsm = khi_lsm;
     for(MFIter mfi(*lsm_fab_vars[0]); mfi.isValid(); ++mfi)
@@ -170,7 +169,7 @@ SLM::writeNCHeader(ncutils::NCFile &nc_file, const amrex::Geometry &geom)
 }
 
 void SLM::writeMFtoNC(ncutils::NCFile &nc_file, const MultiFab* mf,
-                      const std::string name, Real time, bool write_ghost)
+                      const std::string name, Real cur_time, bool write_ghost)
 {
     IntVect ngrow = mf->nGrowVect();
 
@@ -188,7 +187,7 @@ void SLM::writeMFtoNC(ncutils::NCFile &nc_file, const MultiFab* mf,
 
         // create time dimension in file
         // TODO: fix this - move time dim to NCInterface
-        if (time > -1.0 && !nc_file.has_dim("time"))
+        if (cur_time > -1.0 && !nc_file.has_dim("time"))
         {
             nc_file.def_dim("time", NC_UNLIMITED);
             nc_file.def_var("time", ncutils::NCDType::Real, {"time"});
@@ -205,8 +204,8 @@ void SLM::writeMFtoNC(ncutils::NCFile &nc_file, const MultiFab* mf,
         if (nc_file.has_dim("x") && nc_file.has_dim("y"))
         {
             // Check that the dimension bounds match
-            size_t x_size = nc_file.dim("x").len();
-            size_t y_size = nc_file.dim("y").len();
+            int x_size = static_cast<int>(nc_file.dim("x").len());
+            int y_size = static_cast<int>(nc_file.dim("y").len());
 
             if (x_size == box_size[0] && y_size == box_size[1])
             {
@@ -242,7 +241,7 @@ void SLM::writeMFtoNC(ncutils::NCFile &nc_file, const MultiFab* mf,
             dim_names.emplace(dim_names.begin(), name + "_nComp");
         }
 
-        if (time > -1.0)
+        if (cur_time > -1.0)
         {
             dim_names.emplace(dim_names.begin(), "time");
         }
@@ -260,7 +259,7 @@ void SLM::writeMFtoNC(ncutils::NCFile &nc_file, const MultiFab* mf,
     // This is needed to avoid the time dimension from growing each time a MF is written to file
     // TODO: fix this - move time dim to NCInterface
     int time_index = -1;
-    if (time > -1.0)
+    if (cur_time > -1.0)
     {
         size_t time_dim_len = nc_file.dim("time").len();
         size_t time_var_len = nc_file.var("time").shape()[0];
@@ -275,10 +274,10 @@ void SLM::writeMFtoNC(ncutils::NCFile &nc_file, const MultiFab* mf,
 
         AMREX_ALWAYS_ASSERT(time_dim_len == time_var_len);
 
-        if (last_time != time)
+        if (last_time != cur_time)
         {
             nc_file.var("time").par_access(NC_COLLECTIVE);
-            nc_file.var("time").put(&time, {static_cast<size_t>(std::max(0, static_cast<int>(time_var_len)))}, {1});
+            nc_file.var("time").put(&cur_time, {static_cast<size_t>(std::max(0, static_cast<int>(time_var_len)))}, {1});
 
             time_dim_len = nc_file.dim("time").len();
             time_var_len = nc_file.var("time").shape()[0];
@@ -332,7 +331,7 @@ void SLM::writeMFtoNC(ncutils::NCFile &nc_file, const MultiFab* mf,
                 counts.emplace(counts.begin(), 1);
             }
 
-            if (time > -1.0)
+            if (cur_time > -1.0)
             {
                 starts.emplace(starts.begin(), time_index);
                 counts.emplace(counts.begin(), 1);
@@ -359,10 +358,10 @@ void SLM::writeMFtoNC(ncutils::NCFile &nc_file, const MultiFab* mf,
 }
 
 void
-SLM::writeMFVecToNC(ncutils::NCFile &nc_file,
-                    const Vector<const MultiFab*> &mf_vec,
-                    const Vector<std::string> &mf_names,
-                    const Geometry& geom) const
+SLM::writeMFVecToNC(ncutils::NCFile& /*nc_file*/,
+                    const Vector<const MultiFab*>& /*mf_vec*/,
+                    const Vector<std::string>& /*mf_names*/,
+                    const Geometry& /*geom*/) const
 {
     // Helper function to write a vector of MF to a NetCDF file
     // it is assumed that all MFs in mf_vec share geom
@@ -659,9 +658,9 @@ void SLM::WriteCheckpoint(const int &lev, const std::string &checkpointname) con
     VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "tauss_noahmp"));
 
     for (int i = 0; i < static_cast<int>(unmapped_fields.size()); i++) {
-        MultiFab mf(lsm_fab_vars[unmapped_fields[i]]->boxArray(),dm,1,IntVect(1,1,1));
-        MultiFab::Copy(mf,*(lsm_fab_vars[unmapped_fields[i]]),0,0,1,IntVect(1,1,1));
-        VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "Data" + std::to_string(unmapped_fields[i])));
+        MultiFab mf_unmapped(lsm_fab_vars[unmapped_fields[i]]->boxArray(),dm,1,IntVect(1,1,1));
+        MultiFab::Copy(mf_unmapped,*(lsm_fab_vars[unmapped_fields[i]]),0,0,1,IntVect(1,1,1));
+        VisMF::Write(mf_unmapped, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "Data" + std::to_string(unmapped_fields[i])));
     }
 
     auto check_end = amrex::second() - check_start;
@@ -938,9 +937,9 @@ void SLM::ReadCheckpoint(const int &lev, const std::string &checkpointname)
     MultiFab::Copy(tauss_noahmp,mf,0,0,1,ng);
 
     for (int i = 0; i < static_cast<int>(unmapped_fields.size()); i++) {
-        MultiFab mf(lsm_fab_vars[unmapped_fields[i]]->boxArray(),dm,1,IntVect(1,1,1));
-        VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "Data" + std::to_string(unmapped_fields[i])));
-        MultiFab::Copy(*(lsm_fab_vars[unmapped_fields[i]]),mf,0,0,1,IntVect(1,1,1));
+        MultiFab mf_unmapped(lsm_fab_vars[unmapped_fields[i]]->boxArray(),dm,1,IntVect(1,1,1));
+        VisMF::Read(mf_unmapped, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "Data" + std::to_string(unmapped_fields[i])));
+        MultiFab::Copy(*(lsm_fab_vars[unmapped_fields[i]]),mf_unmapped,0,0,1,IntVect(1,1,1));
     }
 
     first_step = false;
