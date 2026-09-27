@@ -412,8 +412,12 @@ TwoStreamRadiation::advance (int lev,
     // agree where they overlap.
     //
     // A level that does not sweep has no fluxes of its own and returns earlier.
-    // (The `&& (lev == 0)` that stood here is what this branch removes: the SEB now
-    // runs on every level that sweeps.)
+    //
+    // NOTE for anyone resolving a merge here: the development side of this line still
+    // carries `&& (lev == 0)`, the single-level restriction. Taking that side back --
+    // which a "resolve by accepting theirs" does -- silently turns this whole branch
+    // into a no-op: the surface energy balance returns to level 0 only while the tests,
+    // docs and PR all still claim otherwise. Keep this form.
     const bool seb_active = rad_choice.seb_enable;
     // The force-restore state is only the longwave boundary when no external
     // surface-temperature provider owns that boundary on this level. The
