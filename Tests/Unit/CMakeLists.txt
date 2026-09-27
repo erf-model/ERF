@@ -164,6 +164,7 @@ target_sources(${erf_exe_name}
     # and reflect (1 - eps) of the downwelling LW at a gray surface.
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamKernels.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamColumn.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamRadiationDriver.cpp
     # Motivation: RRTMGP consumes absolute surface temperature; a
     # SurfaceLayer fallback must convert theta at the physical surface
     # pressure diagnosed from the lowest atmospheric cell,

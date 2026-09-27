@@ -1955,7 +1955,6 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
                                     const MultiFab& cons_in,
                                     const std::unique_ptr<MultiFab>& z_phys_nd)
 {
-    // NOTE: We have already tested a moisture model exists
     const int dir = m_face.coordDir();
     int sm_index;
     if (m_face.isLow()) {
@@ -1972,6 +1971,7 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
                                 amrex::min(t_surf[lev]->nGrowVect()[2],
                                            q_surf[lev]->nGrowVect()[2]));
     const bool moist = use_moisture;
+    const bool have_rho_qv = cons_in.nComp() > RhoQ1_comp;
     const Real rdOcp = m_rdOcp;
     amrex::Gpu::DeviceScalar<int> d_conversion_failed(0);
     int* conversion_failed = d_conversion_failed.dataPtr();
@@ -2048,20 +2048,35 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
                                            k >= src_k_lo && k <= src_k_hi;
                 const Real rho = cons_arr(i,j,k,Rho_comp);
                 const Real rho_theta = cons_arr(i,j,k,RhoTheta_comp);
-                const Real rho_qv = cons_arr(i,j,k,RhoQ1_comp);
                 if (!amrex::Math::isfinite(rho) || rho <= Real(0.0) ||
-                    !amrex::Math::isfinite(rho_theta) || !amrex::Math::isfinite(rho_qv)) {
+                    !amrex::Math::isfinite(rho_theta)) {
                     if (authoritative) {
                         amrex::Gpu::Atomic::Max(conversion_failed, 1);
                     }
                     return;
                 }
-                const Real qv = moist ? rho_qv / rho : Real(0.0);
-                if (!amrex::Math::isfinite(qv)) {
-                    if (authoritative) {
-                        amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                Real qv = Real(0.0);
+                if (moist) {
+                    if (!have_rho_qv) {
+                        if (authoritative) {
+                            amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                        }
+                        return;
                     }
-                    return;
+                    const Real rho_qv = cons_arr(i,j,k,RhoQ1_comp);
+                    if (!amrex::Math::isfinite(rho_qv)) {
+                        if (authoritative) {
+                            amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                        }
+                        return;
+                    }
+                    qv = rho_qv / rho;
+                    if (!amrex::Math::isfinite(qv)) {
+                        if (authoritative) {
+                            amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                        }
+                        return;
+                    }
                 }
                 Real delta_z = Real(0.0);
                 if (z_face) {
