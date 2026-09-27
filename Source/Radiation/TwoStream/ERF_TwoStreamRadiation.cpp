@@ -415,6 +415,13 @@ TwoStreamRadiation::advance (int lev,
     // it transfers between levels -- the 2D interpolation Noah-MP does -- which
     // is deliberately left out of this change.
     const bool seb_active = rad_choice.seb_enable && (lev == 0);
+    // The force-restore state is only the longwave boundary when no external
+    // surface-temperature provider owns that boundary on this level. The
+    // canonical radiation input covers SurfaceModel providers such as SLM;
+    // Noah-MP can also supply t_sfc directly when no canonical input is set.
+    const bool has_external_surface_temperature =
+        (radiation_inputs.size() > 0 && radiation_inputs[0] != nullptr) ||
+        (noahmp_active && lsm_has_field(lsm, lev, "t_sfc"));
     // The column kernel would substitute placeholders (rho = 1, rho*theta of
     // 288 K) for a non-finite or non-positive density or rho*theta and carry
     // on, hiding a corrupt state behind plausible heating rates. Refuse such
@@ -556,9 +563,10 @@ TwoStreamRadiation::advance (int lev,
             fill_or_copy_seb_field(m_alb_sw[lev].get(), lsm, lev, "sfc_alb_dir_vis", rad_choice.surface_albedo_sw);
             fill_or_copy_seb_field(m_emiss_lw[lev].get(), lsm, lev, "sfc_emis", rad_choice.surface_emissivity_lw);
 
-            // Gate t_sfc fill on prognostic mode: when seb_prognostic_enable is true,
-            // t_sfc is owned and evolved by the prognostic update, not reset by fill_or_copy.
-            // This prevents silently overwriting the prognostic state before the update reads it.
+            // In prognostic mode, do not seed this state from an LSM field.
+            // The column sweep applies external-provider precedence directly,
+            // and the post-dycore update advances this state only when
+            // TwoStream owns the surface-temperature boundary.
             if (!rad_choice.seb_prognostic_enable) {
                 fill_or_copy_seb_field(m_t_sfc[lev].get(), lsm, lev, "t_sfc", rad_choice.rad_t_sfc);
             }
@@ -707,9 +715,10 @@ TwoStreamRadiation::advance (int lev,
                         has_lsm_t_sfc = true;
                     }
                 }
-                // Prognostic SEB is a level-wide alternative to Noah t_sfc.
-                // When Noah exposes t_sfc on this level, m_t_sfc is not advanced,
-                // so it must not be offered as a per-cell fallback.
+                // Prognostic SEB is a level-wide alternative to an authoritative
+                // external surface-temperature provider. When one owns this
+                // level's boundary, m_t_sfc is not advanced and is not offered
+                // as a per-cell fallback.
                 if (!has_lsm_t_sfc && rad_choice.seb_prognostic_enable &&
                     seb_active && m_t_sfc[lev]) {
                     seb_t_sfc_arr = m_t_sfc[lev]->const_array(mfi);
@@ -1024,13 +1033,12 @@ TwoStreamRadiation::advance (int lev,
         }
 
         //  Prognostic SEB surface temperature and moisture evolution
-        // Only run if prognostic mode is enabled and Noah-MP is NOT driving LSM at this level
+        // Only advance the force-restore state when TwoStream owns the
+        // surface-temperature boundary at this level.
         if (rad_choice.seb_prognostic_enable && seb_active &&
             call_site == "post_dycore") {
-            // Check if Noah-MP is active at this level by attempting to get the LSM t_sfc field
-            std::string varname_t_sfc_prog = "t_sfc";
-            if (!noahmp_active) {
-                // Noah-MP is NOT active; proceed with prognostic update
+            if (!has_external_surface_temperature) {
+                // No external provider owns the boundary; advance TwoStream's state.
 
                 // Initialize diagnostics for T_s and q_s
                 amrex::Real t_s_sum = 0.0;
@@ -1169,8 +1177,8 @@ TwoStreamRadiation::advance (int lev,
                     q_s_max = std::numeric_limits<amrex::Real>::quiet_NaN();
                 }
             } else {
-                // Noah-MP is active; skip prognostic update for this level
-                // Leave t_s and q_s as populated by LSM passthrough
+                // An external provider owns the boundary; leave the unused
+                // TwoStream state untouched and do not report it as active.
                 t_s_mean = std::numeric_limits<amrex::Real>::quiet_NaN();
                 t_s_max = std::numeric_limits<amrex::Real>::quiet_NaN();
                 q_s_mean = std::numeric_limits<amrex::Real>::quiet_NaN();

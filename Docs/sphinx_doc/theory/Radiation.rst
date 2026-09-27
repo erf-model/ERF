@@ -412,12 +412,19 @@ In discretized form:
 
 After the update, :math:`q_s` is clamped to [``seb_prognostic_q_min``, ``seb_prognostic_q_max``].
 
-Noah-MP Precedence and Double-Counting Safeguard
+External Surface-Temperature Provider Ownership
 -------------------------------------------------
 
-When Noah-MP is active at a particular level, the SEB prognostic update is automatically skipped at that level,
-and Noah-MP's own surface prognostics (which include soil heat conduction and explicit soil moisture layers)
-are used instead. This prevents double-counting of surface energy and moisture evolution.
+TwoStream advances its prognostic surface state only when TwoStream owns the longwave surface-temperature
+boundary. If an authoritative external or LSM surface-temperature provider owns that boundary at a level, the
+TwoStream prognostic update is skipped there, preventing an unused shadow state from being evolved alongside
+the provider. Noah-MP's ``t_sfc`` field and SLM's ``tsurf`` field supplied through the canonical SurfaceModel
+radiation input are examples of external providers. The simplified prognostic state does not override either
+provider.
+
+The per-column temperature resolver retains its existing fallback order: valid external/LSM absolute
+temperature, valid prognostic SEB absolute temperature when offered, valid SurfaceLayer potential temperature
+converted to absolute temperature, then the scalar ``erf.rad_t_sfc`` fallback.
 
 Cloud Fraction Diagnosis
 --------------------------------
