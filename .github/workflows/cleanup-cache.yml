@@ -9,7 +9,7 @@ on:
 # Auto-cancel identical cleanup jobs for the same branch/PR execution
 concurrency:
   group: cleanup-${{ github.event.workflow_run.head_branch }}-${{ github.event.workflow_run.head_sha }}
-  cancel-in-progress: true# Auto-cancel identical cleanup jobs for the same branch/PR execution
+  cancel-in-progress: true
 
 jobs:
   CleanUpCcacheCache:
