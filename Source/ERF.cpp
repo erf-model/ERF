@@ -365,6 +365,91 @@ ERF::ResetIntervalMeans ()
     }
 }
 
+// True when a level takes its radiation fields from its parent instead of sweeping.
+//
+// The column sweep needs a whole column inside ONE box, so the question is whether every
+// box spans the domain in z, not whether the boxes together do. A bounding-box test gets
+// three layouts right and one wrong: a level tagged at genuinely different heights in
+// different horizontal regions has a bounding box reaching both domain ends while no single
+// box holds a column.
+//
+// RRTMGP records its own predicate at Init and it stays authoritative for that model. The
+// two-stream model has no IRadiation object -- reading rad[] would dereference a null
+// pointer -- so derive it from the grids.
+//
+// This lives here, rather than as a lambda in one caller, because three places have to
+// agree about it: advance_radiation (which routes such a level through
+// interp_rad_from_coarse), the two-stream solver's own early return, and post_timestep,
+// which must not average a surface state down off a level that never advanced it.
+bool
+ERF::rad_level_needs_interpolation (int lev) const
+{
+    if (lev <= 0) { return false; }
+    if (solverChoice.rad_uses_interface() && rad[lev]) { return rad[lev]->is_nested_patch(); }
+    const Box& dom = geom[lev].Domain();
+    for (int ibox = 0; ibox < grids[lev].size(); ++ibox) {
+        const Box& b = grids[lev][ibox];
+        if (b.smallEnd(2) != dom.smallEnd(2) || b.bigEnd(2) != dom.bigEnd(2)) { return true; }
+    }
+    return false;
+}
+
+// Give a newly built level its surface-energy-balance state.
+//
+// define_level allocates t_sfc and q_sfc filled with the erf.radiation.seb_* scalar
+// defaults. For a level that is about to evolve them, that is wrong twice over: the
+// defaults are not this column's surface, and the level would radiate at them for its
+// first step. Interpolate from the parent instead, as the radiation heating rates are.
+//
+// The parent's covered values are the average of this level's own from the previous
+// step (post_timestep averages them down), so on a regrid this recovers the fine field's
+// cell means and loses only the sub-coarse-cell variation. On a level that never
+// existed before there is nothing finer to lose.
+void
+ERF::fill_seb_from_coarse (int lev)
+{
+    if (lev == 0) { return; }
+    if (solverChoice.rad_type != RadiationType::TwoStream) { return; }
+    if (!two_stream_rad.seb_prognostic_active()) { return; }
+
+    const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
+    const Box& crse_dom = geom[lev-1].Domain();
+    auto fill_one = [&] (MultiFab* fine, MultiFab* crse)
+    {
+        if (!fine || !crse) { return; }
+        // The coarse halo feeds the interpolation stencil, so fill it first. FillBoundary
+        // covers the interior and periodic ghosts only; the slope stencil
+        // (0.5*(u(i+1)-u(i-1)), evaluated for every BC type) also reaches outside the
+        // domain at a non-periodic face. define_level setVal'd the whole array, so those
+        // cells still hold erf.rad_t_sfc while the interior has evolved, and a fine level
+        // abutting such a face would get its edge column interpolated from a stencil
+        // biased toward the scalar. Extend the surface outward by clamping into the valid
+        // region first -- the same zeroth-order extension init_from_wrfinput gives the
+        // fields whose halos this interpolater is documented to require.
+        crse->FillBoundary(geom[lev-1].periodicity());
+        for (MFIter mfi(*crse, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const Box& gbx = mfi.growntilebox();
+            const Array4<Real>& a = crse->array(mfi);
+            const auto dlo = lbound(crse_dom);
+            const auto dhi = ubound(crse_dom);
+            ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                const int ic = amrex::max(dlo.x, amrex::min(dhi.x, i));
+                const int jc = amrex::max(dlo.y, amrex::min(dhi.y, j));
+                if (ic != i || jc != j) { a(i,j,k) = a(ic,jc,k); }
+            });
+        }
+        InterpFromCoarseLevel(*fine, fine->nGrowVect(),
+                              IntVect(0,0,0),          // no ghosts outside the domain
+                              *crse, 0, 0, 1,
+                              geom[lev-1], geom[lev],
+                              rr2d, &cell_cons_interp,
+                              domain_bcs_type, BCVars::cons_bc);
+    };
+    fill_one(two_stream_rad.seb_t_sfc(lev), two_stream_rad.seb_t_sfc(lev-1));
+    fill_one(two_stream_rad.seb_q_sfc(lev), two_stream_rad.seb_q_sfc(lev-1));
+}
+
 // Called after every coarse timestep
 void
 ERF::post_timestep (int nstep, double time, double dt_lev0)
@@ -447,6 +532,44 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
             }
             int num_comp = ncomp - src_comp;
             AverageDownTo(lev,src_comp,num_comp);
+
+            // The two-stream surface energy balance's prognostic state, for the same
+            // reason and at the same moment as the state above: level lev+1 has just
+            // finished its subcycles, and every level evolves its own copy of t_sfc
+            // and q_sfc. Left alone those two estimates of one surface drift apart,
+            // and since that surface temperature IS the longwave boundary condition,
+            // the ground would radiate at two temperatures depending on which level
+            // asked.
+            //
+            // Inside the TwoWay block deliberately: under OneWay ERF does not correct
+            // a coarse level with its fine solution at all, and the surface should not
+            // be the one exception. The levels then keep independent surfaces, which
+            // is what OneWay means.
+            //
+            // The ratio is horizontal only -- these are 2D fields collapsed to a single
+            // z index. Note the force-restore ODE is nonlinear in T_s, so the mean of
+            // the fine temperatures is not the temperature the coarse column would have
+            // reached on its own; defining the coarse value as that mean is the ordinary
+            // AMR compromise.
+            // ... but only off a level that actually advanced it. A level no box of which
+            // spans the domain in z never sweeps: TwoStreamRadiation::advance returns at
+            // its top and advance_radiation interpolates that level's fields from its
+            // parent instead. Its t_sfc and q_sfc therefore sit frozen at whatever
+            // fill_seb_from_coarse wrote when the level was built, and averaging that down
+            // would overwrite the coarse level's own evolving surface underneath the nest
+            // -- pinning the longwave boundary condition there at its level-creation value.
+            if (solverChoice.rad_type == RadiationType::TwoStream &&
+                two_stream_rad.seb_prognostic_active() &&
+                !rad_level_needs_interpolation(lev+1))
+            {
+                const IntVect rr2d(refRatio(lev)[0], refRatio(lev)[1], 1);
+                MultiFab* t_crse = two_stream_rad.seb_t_sfc(lev);
+                MultiFab* t_fine = two_stream_rad.seb_t_sfc(lev+1);
+                if (t_crse && t_fine) { average_down(*t_fine, *t_crse, 0, 1, rr2d); }
+                MultiFab* q_crse = two_stream_rad.seb_q_sfc(lev);
+                MultiFab* q_fine = two_stream_rad.seb_q_sfc(lev+1);
+                if (q_crse && q_fine) { average_down(*q_fine, *q_crse, 0, 1, rr2d); }
+            }
         }
     }
 
