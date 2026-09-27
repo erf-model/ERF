@@ -1,0 +1,27 @@
+name: Cancel CI on Closed PRs
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  cancel-running-ci:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Cancel running workflows for this PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Fetch all active runs for the repository
+          RUNS=$(gh api /repos/${{ github.repository }}/actions/runs?status=in_progress -q '.workflow_runs[] | select(.pull_requests[].number == ${{ github.event.pull_request.number }}) | .id')
+          
+          if [ -z "$RUNS" ]; then
+            echo "No running CI jobs found for PR #${{ github.event.pull_request.number }}."
+          else
+            for RUN_ID in $RUNS; do
+              echo "Canceling workflow run: $RUN_ID"
+              gh run cancel "$RUN_ID"
+            done
+          fi
