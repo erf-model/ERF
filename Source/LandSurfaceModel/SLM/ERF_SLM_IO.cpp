@@ -659,9 +659,9 @@ void SLM::WriteCheckpoint(const int &lev, const std::string &checkpointname) con
     VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "tauss_noahmp"));
 
     for (int i = 0; i < static_cast<int>(unmapped_fields.size()); i++) {
-        MultiFab mf(lsm_fab_vars[unmapped_fields[i]]->boxArray(),dm,1,IntVect(1,1,1));
-        MultiFab::Copy(mf,*(lsm_fab_vars[unmapped_fields[i]]),0,0,1,IntVect(1,1,1));
-        VisMF::Write(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "Data" + std::to_string(unmapped_fields[i])));
+        MultiFab mf_unmapped(lsm_fab_vars[unmapped_fields[i]]->boxArray(),dm,1,IntVect(1,1,1));
+        MultiFab::Copy(mf_unmapped,*(lsm_fab_vars[unmapped_fields[i]]),0,0,1,IntVect(1,1,1));
+        VisMF::Write(mf_unmapped, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "Data" + std::to_string(unmapped_fields[i])));
     }
 
     auto check_end = amrex::second() - check_start;
@@ -938,9 +938,9 @@ void SLM::ReadCheckpoint(const int &lev, const std::string &checkpointname)
     MultiFab::Copy(tauss_noahmp,mf,0,0,1,ng);
 
     for (int i = 0; i < static_cast<int>(unmapped_fields.size()); i++) {
-        MultiFab mf(lsm_fab_vars[unmapped_fields[i]]->boxArray(),dm,1,IntVect(1,1,1));
-        VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "Data" + std::to_string(unmapped_fields[i])));
-        MultiFab::Copy(*(lsm_fab_vars[unmapped_fields[i]]),mf,0,0,1,IntVect(1,1,1));
+        MultiFab mf_unmapped(lsm_fab_vars[unmapped_fields[i]]->boxArray(),dm,1,IntVect(1,1,1));
+        VisMF::Read(mf_unmapped, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "Data" + std::to_string(unmapped_fields[i])));
+        MultiFab::Copy(*(lsm_fab_vars[unmapped_fields[i]]),mf_unmapped,0,0,1,IntVect(1,1,1));
     }
 
     first_step = false;
