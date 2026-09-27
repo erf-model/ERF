@@ -152,11 +152,10 @@ amrex::Real MaxFaceFieldDifference(const MappedFaceFluxRate& lhs,
                                   const MappedFaceFluxRate& rhs,
                                   int rhs_comp);
 
-/** Scale every directional component of a flux rate into an integrated ledger. */
+/** Scale every component and direction of a flux rate into an integrated ledger. */
 void AccumulateIntegratedFaceFlux(IntegratedMappedFaceFlux& ledger,
                                  const MappedFaceFluxRate& rate,
-                                 amrex::Real weight,
-                                 int component = 0);
+                                 amrex::Real weight);
 
 } // namespace erf_auxiliary
 

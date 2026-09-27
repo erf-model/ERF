@@ -171,16 +171,14 @@ amrex::Real MaxFaceFieldDifference(const MappedFaceFluxRate& lhs,
 
 void AccumulateIntegratedFaceFlux(IntegratedMappedFaceFlux& ledger,
                                  const MappedFaceFluxRate& rate,
-                                 const amrex::Real weight,
-                                 const int component)
+                                 const amrex::Real weight)
 {
     AMREX_ALWAYS_ASSERT(ledger.is_defined() && rate.is_defined());
     AMREX_ALWAYS_ASSERT(ledger.nComp() == rate.nComp());
-    AMREX_ALWAYS_ASSERT(component >= 0 && component < ledger.nComp());
     AMREX_ALWAYS_ASSERT(std::isfinite(weight) && weight >= amrex::Real(0.0));
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
         amrex::MultiFab::Saxpy(ledger.dir(dir), weight, rate.dir(dir),
-                               component, component, 1, 0);
+                               0, 0, ledger.nComp(), 0);
     }
 }
 

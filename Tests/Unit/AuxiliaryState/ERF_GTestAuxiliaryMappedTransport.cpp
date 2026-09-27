@@ -7,7 +7,6 @@
 #include "ERF_AdvectionSrcForScalars.H"
 #include "ERF_IndexDefines.H"
 
-#include <AMReX_Constants.H>
 #include <AMReX_Gpu.H>
 #include <AMReX_Math.H>
 
@@ -15,6 +14,7 @@
 
 #include <cmath>
 #include <algorithm>
+#include <array>
 #include <limits>
 #include <type_traits>
 
@@ -139,6 +139,39 @@ void fill_constant_rate(MappedFaceFluxRate& rate, const Real value)
             });
         }
     }
+}
+
+void fill_componentwise_constant_rate(MappedFaceFluxRate& rate,
+                                      const std::array<Real, 3>& values)
+{
+    AMREX_ALWAYS_ASSERT(rate.nComp() == static_cast<int>(values.size()));
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        auto& face = rate.dir(dir);
+        for (int comp = 0; comp < rate.nComp(); ++comp) {
+            face.setVal(values[static_cast<std::size_t>(comp)], comp, 1, 0);
+        }
+    }
+}
+
+Real max_face_component_error(const IntegratedMappedFaceFlux& flux,
+                              const int component,
+                              const Real expected)
+{
+    Real maximum = Real(0.0);
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        const auto& face = flux.dir(dir);
+        MultiFab difference(face.boxArray(), face.DistributionMap(), 1, 0);
+        for (amrex::MFIter mfi(face); mfi.isValid(); ++mfi) {
+            const Box bx = mfi.validbox();
+            const auto in = face.const_array(mfi);
+            const auto out = difference.array(mfi);
+            amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                out(i, j, k, 0) = amrex::Math::abs(in(i, j, k, component) - expected);
+            });
+        }
+        maximum = amrex::max(maximum, difference.norm0(0));
+    }
+    return maximum;
 }
 
 void fill_diffusion_raw(MultiFab& face, const int dir, const int comp)
@@ -762,6 +795,69 @@ TEST(AuxiliaryMappedTransport, CompletedLedgerUsesExactHostTemporalWeights)
     EXPECT_GT(amrex::Math::abs(heun_expected - Real(dt) * Real(11.0)), Real(0.1));
 }
 
+TEST(AuxiliaryMappedTransport, CompletedLedgerAccumulatesEveryComponent)
+{
+    TestGrid g;
+    constexpr int ncomp = 3;
+    constexpr double dt = 0.41;
+    MappedFaceFluxRate rate;
+    rate.define(g.ba, g.dm, ncomp, 0);
+    AuxiliaryStageRecipe recipe;
+    std::string diagnostic;
+
+    CompletedStepFluxLedger compressible;
+    compressible.define(g.ba, g.dm, ncomp);
+    fill_componentwise_constant_rate(rate, {Real(1.0), Real(2.0), Real(3.0)});
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::CompressibleRK3, 0,
+                                         dt / 3.0, recipe, diagnostic)) << diagnostic;
+    ASSERT_TRUE(compressible.accept_stage(HostIntegrator::CompressibleRK3, 0,
+                                          0.0, recipe, rate, diagnostic)) << diagnostic;
+    fill_componentwise_constant_rate(rate, {Real(4.0), Real(5.0), Real(6.0)});
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::CompressibleRK3, 1,
+                                         dt / 2.0, recipe, diagnostic)) << diagnostic;
+    ASSERT_TRUE(compressible.accept_stage(HostIntegrator::CompressibleRK3, 1,
+                                          0.0, recipe, rate, diagnostic)) << diagnostic;
+    fill_componentwise_constant_rate(rate, {Real(7.0), Real(11.0), Real(13.0)});
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::CompressibleRK3, 2,
+                                         dt, recipe, diagnostic)) << diagnostic;
+    ASSERT_TRUE(compressible.accept_stage(HostIntegrator::CompressibleRK3, 2,
+                                          0.0, recipe, rate, diagnostic)) << diagnostic;
+    ASSERT_TRUE(compressible.step_complete());
+
+    const std::array<Real, ncomp> compressible_expected{
+        Real(dt) * Real(7.0), Real(dt) * Real(11.0), Real(dt) * Real(13.0)};
+    const Real tolerance = Real(32.0) * std::numeric_limits<Real>::epsilon();
+    for (int comp = 0; comp < ncomp; ++comp) {
+        EXPECT_NEAR(max_face_component_error(compressible.integrated_flux(), comp,
+                                             compressible_expected[static_cast<std::size_t>(comp)]),
+                    Real(0.0), tolerance) << "compressible component " << comp;
+    }
+
+    CompletedStepFluxLedger heun;
+    heun.define(g.ba, g.dm, ncomp);
+    fill_componentwise_constant_rate(rate, {Real(2.0), Real(4.0), Real(6.0)});
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 0,
+                                         dt, recipe, diagnostic)) << diagnostic;
+    ASSERT_TRUE(heun.accept_stage(HostIntegrator::AnelasticHeun, 0,
+                                  0.0, recipe, rate, diagnostic)) << diagnostic;
+    fill_componentwise_constant_rate(rate, {Real(10.0), Real(20.0), Real(30.0)});
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 1,
+                                         dt, recipe, diagnostic)) << diagnostic;
+    ASSERT_TRUE(heun.accept_stage(HostIntegrator::AnelasticHeun, 1,
+                                  0.0, recipe, rate, diagnostic)) << diagnostic;
+    ASSERT_TRUE(heun.step_complete());
+
+    const std::array<Real, ncomp> heun_expected{
+        Real(0.5 * dt) * Real(12.0),
+        Real(0.5 * dt) * Real(24.0),
+        Real(0.5 * dt) * Real(36.0)};
+    for (int comp = 0; comp < ncomp; ++comp) {
+        EXPECT_NEAR(max_face_component_error(heun.integrated_flux(), comp,
+                                             heun_expected[static_cast<std::size_t>(comp)]),
+                    Real(0.0), tolerance) << "Heun component " << comp;
+    }
+}
+
 TEST(AuxiliaryMappedTransport, ZeroRateStillAppliesHostAnchorInputRecurrence)
 {
     TestGrid g;
@@ -778,7 +874,7 @@ TEST(AuxiliaryMappedTransport, ZeroRateStillAppliesHostAnchorInputRecurrence)
         const auto ra = rho_anchor.array(mfi); const auto ri = rho_input.array(mfi);
         const auto rt = rho_target.array(mfi);
         const auto oa = omega_anchor.array(mfi); const auto oi = omega_input.array(mfi);
-        const auto ot = omega_target.array(mfi);
+        const auto omega_target_array = omega_target.array(mfi);
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int x, int y, int z) noexcept {
             a(x, y, z, 0) = Real(1.1) + Real(0.1) * x;
             i(x, y, z, 0) = Real(2.4) - Real(0.07) * y + Real(0.02) * z;
@@ -787,7 +883,7 @@ TEST(AuxiliaryMappedTransport, ZeroRateStillAppliesHostAnchorInputRecurrence)
             rt(x, y, z, 0) = Real(1.4) + Real(0.05) * z;
             oa(x, y, z, 0) = Real(0.9) + Real(0.02) * x;
             oi(x, y, z, 0) = Real(1.3) + Real(0.03) * y;
-            ot(x, y, z, 0) = Real(1.7) + Real(0.01) * z;
+            omega_target_array(x, y, z, 0) = Real(1.7) + Real(0.01) * z;
         });
     }
     auto make_context = [&](const double aweight, const double iweight) {
@@ -814,9 +910,11 @@ TEST(AuxiliaryMappedTransport, ZeroRateStillAppliesHostAnchorInputRecurrence)
     for (amrex::MFIter mfi(expected); mfi.isValid(); ++mfi) {
         const Box bx = mfi.validbox();
         const auto a = anchor.const_array(mfi); const auto oa = omega_anchor.const_array(mfi);
-        const auto ot = omega_target.const_array(mfi); const auto e = expected.array(mfi);
+        const auto omega_target_array = omega_target.const_array(mfi);
+        const auto e = expected.array(mfi);
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            e(i, j, k, 0) = oa(i, j, k, 0) * a(i, j, k, 0) / ot(i, j, k, 0);
+            e(i, j, k, 0) = oa(i, j, k, 0) * a(i, j, k, 0) /
+                            omega_target_array(i, j, k, 0);
         });
     }
     EXPECT_LT(max_component_difference(target, 0, expected, 0),
@@ -828,11 +926,12 @@ TEST(AuxiliaryMappedTransport, ZeroRateStillAppliesHostAnchorInputRecurrence)
         const Box bx = mfi.validbox();
         const auto a = anchor.const_array(mfi); const auto i = input.const_array(mfi);
         const auto oa = omega_anchor.const_array(mfi); const auto oi = omega_input.const_array(mfi);
-        const auto ot = omega_target.const_array(mfi); const auto e = expected.array(mfi);
+        const auto omega_target_array = omega_target.const_array(mfi);
+        const auto e = expected.array(mfi);
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int x, int y, int z) noexcept {
             e(x, y, z, 0) = (Real(0.5) * oa(x, y, z, 0) * a(x, y, z, 0) +
                              Real(0.5) * oi(x, y, z, 0) * i(x, y, z, 0)) /
-                            ot(x, y, z, 0);
+                            omega_target_array(x, y, z, 0);
         });
     }
     EXPECT_LT(max_component_difference(target, 0, expected, 0),

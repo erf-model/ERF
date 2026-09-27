@@ -189,7 +189,7 @@ void ApplyAuxiliaryMappedStage(const AuxiliaryStageContext& context,
         const auto ut = context.state_target.field->array(mfi);
         const auto oa = omega_anchor.const_array(mfi);
         const auto oi = omega_input.const_array(mfi);
-        const auto ot = omega_target.const_array(mfi);
+        const auto omega_target_array = omega_target.const_array(mfi);
         const auto fx = rate.dir(0).const_array(mfi);
         const auto fy = rate.dir(1).const_array(mfi);
         const auto fz = rate.dir(2).const_array(mfi);
@@ -198,7 +198,7 @@ void ApplyAuxiliaryMappedStage(const AuxiliaryStageContext& context,
         const int ut_comp = context.state_target.component;
         const int oa_comp = context.measure_anchor.component;
         const int oi_comp = context.measure_input.component;
-        const int ot_comp = context.measure_target.component;
+        const int omega_target_component = context.measure_target.component;
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             const amrex::Real div = ComputationalMappedDivergence(
                 fx(i + 1, j, k, rate_component), fx(i, j, k, rate_component),
@@ -209,7 +209,8 @@ void ApplyAuxiliaryMappedStage(const AuxiliaryStageContext& context,
                 anchor_weight * oa(i, j, k, oa_comp) * ua(i, j, k, ua_comp) +
                 input_weight * oi(i, j, k, oi_comp) * ui(i, j, k, ui_comp) -
                 face_weight * div;
-            ut(i, j, k, ut_comp) = h_target / ot(i, j, k, ot_comp);
+            ut(i, j, k, ut_comp) = h_target /
+                omega_target_array(i, j, k, omega_target_component);
         });
     }
 }

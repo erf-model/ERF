@@ -5,7 +5,6 @@
 #include "ERF_IndexDefines.H"
 #include "Advection/ERF_AdvectionSrcForScalars.H"
 
-#include <AMReX_Constants.H>
 #include <AMReX_Math.H>
 #include <algorithm>
 #include <cmath>
