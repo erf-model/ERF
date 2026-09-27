@@ -1446,7 +1446,7 @@ that cuts through static refinement patches retains the finer in-plane resolutio
 By default all intersecting levels are written; ``erf.plane_sampling_max_level = <int>``
 caps the finest level (``0`` forces level-0-only output). The slice-normal direction is
 resolved natively on each level by replicating the sampled plane across the level's cells,
-so the resulting dataset has an isotropic refinement ratio and loads cleanly in yt/amrvis.
+so the resulting dataset has an isotropic refinement ratio and loads cleanly in amrvis.
 
 Line and plane samples will be default be written to plotfiles, one plotfile per output
 snapshot, with all output variables in the same file. Alternatively, line sampling has
