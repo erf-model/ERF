@@ -52,6 +52,12 @@ public:
         return (m_rad != nullptr) && m_rad->enabled;
     }
 
+    /** @brief Read-only view of the per-level prognostic surface-temperature state. */
+    [[nodiscard]] const amrex::MultiFab* prognostic_surface_temperature_state (int lev) const noexcept {
+        return (lev >= 0 && lev < static_cast<int>(m_t_sfc.size()))
+            ? m_t_sfc[lev].get() : nullptr;
+    }
+
     /**
      * @brief Allocate the 2D surface fields of one level on the given
      * horizontal BoxArray and fill them with the scalar defaults. A no-op

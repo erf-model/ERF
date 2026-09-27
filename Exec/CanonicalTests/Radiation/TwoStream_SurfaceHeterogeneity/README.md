@@ -10,9 +10,8 @@ This feature extends TwoStream to:
 
 1. **Consume Per-Column Surface Properties**: Accept albedo, emissivity, and surface temperature from optional LSM/radiation interface fields
 2. **Implement Robust Fallback Chain**: 
-   - Primary: Use hetero field value if finite and in valid range
-   - Secondary: Fall back to scalar RadChoice parameter (from inputs file)
-   - Tertiary: Fall back to hard-coded default value
+   - Use a heterogeneous value only when it is finite and in `[0,1]`
+   - Otherwise use the configured scalar `RadChoice` value (whose default applies when the input is omitted)
 3. **Maintain Backward Compatibility**: When hetero fields unavailable, produce bitwise-identical results
 
 ## Test Configuration
@@ -128,11 +127,10 @@ This runs the validation script in the current directory (where the test was run
 ## Key Features Exercised
 
 1. **Helper Functions**:
-   - `resolve_surface_albedo_sw()`: Resolves per-column albedo
-   - `resolve_surface_emissivity_lw()`: Resolves per-column emissivity
-   - `resolve_surface_temp_k()`: Resolves per-column surface temperature
-   - `clamp_finite()`: Safely clamps invalid values
-   - `is_finite_positive()`: Validates temperature values
+   - `resolve_surface_albedo_sw()`: Accepts a heterogeneous value only when finite and in `[0,1]`; otherwise keeps the configured scalar fallback
+   - `resolve_surface_emissivity_lw()`: Applies the same finite, in-range rule and scalar fallback
+   - `resolve_surface_temp_k()`: Resolves valid external/LSM absolute temperature, valid prognostic SEB temperature, valid SurfaceLayer theta, then the scalar temperature fallback
+   - `valid_surface_temperature()`: Validates absolute-temperature candidates before the resolver accepts them
 
 2. **Function Signature Updates**:
    - `vertical_two_stream_sweep()` accepts 6 new optional parameters
@@ -141,7 +139,7 @@ This runs the validation script in the current directory (where the test was run
 3. **Physics Integration**:
    - SW flux *= (1 - albedo) [surface absorption]
    - LW upwelling = emissivity × σ × T^4 [surface emission]
-   - Both fallback to RadChoice or hard defaults if hetero field unavailable
+   - Albedo and emissivity use their configured scalar `RadChoice` fallbacks when the heterogeneous value is missing or invalid; invalid fractions are rejected rather than clamped
 
 4. **Diagnostics**:
    - CSV file accumulates data over multiple timesteps
