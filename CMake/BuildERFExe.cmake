@@ -523,6 +523,9 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/SatAdj/ERF_SatAdj.cpp
        ${SRC_DIR}/Microphysics/SatAdj/ERF_UpdateSatAdj.cpp
        ${SRC_DIR}/AuxiliaryState/ERF_AuxiliaryProjection.cpp
+       ${SRC_DIR}/AuxiliaryState/ERF_AuxiliaryMappedTransport.cpp
+       ${SRC_DIR}/AuxiliaryState/ERF_AuxiliaryStage.cpp
+       ${SRC_DIR}/AuxiliaryState/ERF_AuxiliaryInertTracer.cpp
        ${SRC_DIR}/Microphysics/SBM/ERF_SpectralGrid.cpp
        ${SRC_DIR}/Microphysics/SBM/ERF_SBMLayout.cpp
        ${SRC_DIR}/Microphysics/SBM/ERF_SBMConstraintGroups.cpp

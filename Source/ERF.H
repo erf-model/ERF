@@ -85,6 +85,7 @@
 #endif
 
 #include "ERF_ShocDriver.H"
+#include "AuxiliaryState/ERF_AuxiliaryInertTracer.H"
 
 #ifdef ERF_USE_P3
 #include "ERF_P3Interface.H"
@@ -1296,6 +1297,7 @@ private:
 
     std::unique_ptr<Microphysics> micro;
     std::unique_ptr<erf_sbm::SBMStateManager> sbm_state_manager;
+    std::unique_ptr<erf_auxiliary::AuxiliaryInertTracer> auxiliary_inert_tracer;
     std::unique_ptr<CloudChamberBudget> cloud_chamber_budget;
     erf_cloud_chamber::Config cloud_chamber_config;
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) rain_accum, snow_accum, graup_accum
