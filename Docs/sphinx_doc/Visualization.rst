@@ -11,7 +11,7 @@ ERF currently generates plotfile in the native AMReX format or as NetCDF files; 
  :ref:`sec:Plotfiles` for how to set the plotfile options.
 
 There are several visualization tools that can be used for AMReX plotfiles, specifically
-ParaView and VisIt.
+ParaView, VisIt and AMReXplorer.
 
 In addition, a new tool called "pltview" is available at https://github.com/wang1202/pltview;
 this is a lightweight X11 viewer for AMReX plotfiles.  See the `plotview README <https://github.com/wang1202/pltview/>`_
@@ -176,3 +176,38 @@ If you call it plt00100_old it will also correctly recognize and print Cycle: 10
 But, if you do not have "plt" followed immediately by the number,
 e.g. you name it pltx00100, then VisIt will not be able to correctly recognize
 and print the value for "Cycle".  (It will still read and display the data itself.)
+
+.. _sec:amrexplorer:
+
+.. _section-3:
+
+AMReXplorer
+-----------
+
+AMReXplorer is a desktop application for interactive exploration of AMReX data,
+available at https://github.com/AMReX-Codes/amrexplorer. A single executable opens
+2-D and 3-D plotfiles as well as standalone FAB and MultiFab data, so it can be
+used both on ERF plotfiles and on raw data dumped while debugging.
+
+It is worth noting for ERF users in particular that AMReXplorer draws mapped
+(terrain-following and stretched) grids from the node positions that ERF plotfiles
+store, rather than assuming a uniform mesh, so a run over terrain is displayed on
+the grid it was actually computed on.
+
+Other features of interest include demand-driven reads of the AMR hierarchy with a
+bounded cache, composite and exact-level views, value probing, line plots, contours,
+vector glyphs, three orthogonal slice views for 3-D data, plotfile-sequence and
+plane-sweep animation, and PNG, FITS and MP4 export.
+
+Plotfiles that live on a remote machine can be opened without copying them: the
+application starts its own server on the remote machine over ssh, with no ports or
+tunnels to arrange. This is convenient for looking at output that is still sitting
+on an HPC file system.
+
+AMReXplorer is built from source and requires CMake 3.25 or newer, a C++20 compiler,
+and Qt 6.4 or newer; it has been tested on Linux, macOS and WSL. See the
+`AMReXplorer installation guide <https://github.com/AMReX-Codes/amrexplorer/blob/main/INSTALL.md>`_
+for the dependencies and build instructions, and the
+`AMReXplorer user guide <https://github.com/AMReX-Codes/amrexplorer/blob/main/docs/user-guide.md>`_
+for the workflows, controls and keyboard shortcuts. The user guide is also bundled
+in the application under **Help > User Guide...**.
