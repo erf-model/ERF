@@ -1,19 +1,10 @@
 name: ERF CI
 
 on:
-  pull_request:
-    branches: [ main ]
-
-# Automatically cancel older in-progress runs for the same PR
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
-on:
   push:
     # branches: [development]
     paths-ignore:
-      - Docs
+      - Docs/**
       - README.rst
       - license.txt
 
@@ -21,8 +12,10 @@ on:
     branches: [development]
     types: [opened, synchronize, reopened, closed]
 
+# Collapse the push run and the pull_request run for a branch into one group so
+# that the older in-progress run is cancelled instead of running in parallel.
 concurrency:
-  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-ci
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
