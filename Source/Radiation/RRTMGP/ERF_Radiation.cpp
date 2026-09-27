@@ -268,7 +268,7 @@ Radiation::set_grids (int& level,
                       MultiFab* cons_in,
                       iMultiFab* lmask,
                       MultiFab*  t_surf,
-                      Vector<MultiFab*>& lsm_input_ptrs,
+                      const Vector<const MultiFab*>& lsm_input_ptrs,
                       MultiFab* qheating_rates,
                       MultiFab* rad_fluxes,
                       MultiFab* z_phys,
@@ -579,7 +579,7 @@ Radiation::dealloc_buffers ()
 void
 Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                                  MultiFab*  t_surf,
-                                 Vector<MultiFab*>& lsm_input_ptrs)
+                                 const Vector<const MultiFab*>& lsm_input_ptrs)
 {
     Table2D<Real,Order::C> r_lay_tab(r_lay.data(), {0,0}, {static_cast<int>(r_lay.extent(0)),static_cast<int>(r_lay.extent(1))});
     Table2D<Real,Order::C> p_lay_tab(p_lay.data(), {0,0}, {static_cast<int>(p_lay.extent(0)),static_cast<int>(p_lay.extent(1))});
@@ -755,8 +755,8 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                                                                    Array4<const int> {};
                 const Array4<const Real>& tsurf_arr  = (t_surf) ? t_surf->const_array(mfi) :
                                                                   Array4<const Real> {};
-                const Array4<      Real>& lsm_in_arr = (lsm_input_ptrs[ivar]) ? lsm_input_ptrs[ivar]->array(mfi) :
-                                                                                Array4<      Real> {};
+                const Array4<const Real>& lsm_in_arr = (lsm_input_ptrs[ivar]) ? lsm_input_ptrs[ivar]->const_array(mfi) :
+                                                                                Array4<const Real> {};
                 ParallelFor(sbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     // map [i,j,k] 0-based to [icol, ilay] 0-based
@@ -772,7 +772,9 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                     if (ivar == 0) {
                         const bool has_lsm_t_sfc = static_cast<bool>(lsm_in_arr);
                         const bool valid_lsm_t_sfc =
-                            has_lsm_t_sfc && (lsm_in_arr(i,j,k) < lsm_undefined);
+                            has_lsm_t_sfc && amrex::Math::isfinite(lsm_in_arr(i,j,k)) &&
+                            (lsm_in_arr(i,j,k) > Real(0.)) &&
+                            (lsm_in_arr(i,j,k) < lsm_undefined);
                         // Match TwoStream: convert SurfaceLayer theta with
                         // the physical surface pressure diagnosed from the
                         // lowest atmospheric cell.
@@ -791,8 +793,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                                 z_arr ? Compute_Zrel_AtCellCenter(i,j,k_surface,z_arr) : Real(0.5)*dz),
                             rdOcp,
                             rrtmgp_default_val,
-                            rrtmgp_to_fill(icol),
-                            has_lsm_t_sfc ? &lsm_in_arr(i,j,k) : nullptr);
+                            rrtmgp_to_fill(icol));
                     } else {
                         // Have LSM and are over land.
                         const bool valid_lsm_data =
@@ -802,7 +803,6 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
                         } else {
                             // Use the default value.
                             rrtmgp_to_fill(icol) = rrtmgp_default_val;
-                            if (lsm_in_arr) { lsm_in_arr(i,j,k) = rrtmgp_default_val; }
                         }
                     }
                 });
@@ -821,7 +821,7 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
 
 
 void
-Radiation::kokkos_buffers_to_mf (Vector<MultiFab*>& lsm_output_ptrs)
+Radiation::kokkos_buffers_to_mf (const Vector<MultiFab*>& lsm_output_ptrs)
 {
     // Heating rate, fluxes, zenith, lsm ptrs
 
@@ -1247,6 +1247,8 @@ Radiation::run_impl ()
     // Day of the year plus fraction, calday 1 == Jan 1 0Z (leap-aware)
     double calday = orbital_calday(m_orbital_year, m_orbital_mon, m_orbital_day, m_orbital_sec);
     orbital_decl(calday, eccen, mvelpp, lambm0, obliqr, delta, eccf);
+    m_calday = calday;
+    m_declin = delta;
 
     // Overwrite eccf if using a fixed solar constant.
     auto fixed_total_solar_irradiance = m_fixed_total_solar_irradiance;
@@ -1304,6 +1306,7 @@ Radiation::run_impl ()
         Kokkos::fence();
     }
 
+    // Determine the cosine zenith angle.
     // Populate mu0 1D array
     // This must be done on HOST and copied to device.
     auto h_mu0 = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), mu0);
@@ -1517,7 +1520,7 @@ Radiation::run_impl ()
 
 
 void
-Radiation::finalize_impl (Vector<MultiFab*>& lsm_output_ptrs)
+Radiation::finalize_impl (const Vector<MultiFab*>& lsm_output_ptrs)
 {
     // Reset gas concentrations (k-dist data persists across steps)
     m_gas_concs.reset();

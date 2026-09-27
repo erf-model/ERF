@@ -1244,4 +1244,3 @@ compute_aerocom_cloudtop (int ncol, int nlay ,
 }
 
 }  // namespace rrtmgp
-

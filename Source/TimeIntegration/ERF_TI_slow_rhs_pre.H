@@ -138,6 +138,12 @@
                                                     solverChoice.c_p, solverChoice.rdOcp);
         }
 
+        // Nudging of potential temperature towards observations at stations
+        if (solverChoice.nudging_from_observations && obs_nudging) {
+            obs_nudging->add_theta_source(level, old_stage_time, static_cast<Real>(slow_dt), fine_geom,
+                                          S_data[IntVars::cons], cc_src, zpn_to_use, terrain_blank);
+        }
+
         // *****************************************************************************
         // Add nudging terms on moist variables if we have a non-zero relaxation region
         // *****************************************************************************
@@ -209,6 +215,15 @@
                          (solverChoice.hindcast_lateral_forcing? &forecast_state_interp[level] : nullptr),
                          input_sounding_data, lsf, lsf_data[level],
                          get_eb(level), true);
+
+        // Nudging of the velocity towards observations at stations
+        if (solverChoice.nudging_from_observations && obs_nudging) {
+            obs_nudging->add_momentum_sources(level, old_stage_time, static_cast<Real>(slow_dt), fine_geom,
+                                              S_data[IntVars::cons], xvel_new, yvel_new, zvel_new,
+                                              xmom_src, ymom_src, zmom_src, zpn_to_use,
+                                              terrain_blank_xface, terrain_blank_yface,
+                                              terrain_blank_zface);
+        }
 
         // *****************************************************************************
         // Add body sources if doing flow around a body

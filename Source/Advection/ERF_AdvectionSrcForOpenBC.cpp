@@ -236,20 +236,84 @@ AdvectionSrcForOpenBC_Tangent_Zmom (const Box& bxz,
 }
 
 /**
- * Compute second-order advection tendencies for conserved variables tangent to an open boundary.
+ * Compute second-order advection tendencies for scalar fields tangent to an open boundary.
  *
- * @param[in] bx box over which conserved variables are updated
+ * @param[in] bx box over which the scalar tendencies are updated
  * @param[in] x_side which x boundary the cells lie on, if any
  * @param[in] y_side which y boundary the cells lie on, if any
- * @param[in] icomp first conserved component to update
- * @param[in] ncomp number of conserved components to update
- * @param[out] cell_rhs tendency for conserved variables
- * @param[in] cell_prim primitive scalar variables
- * @param[in] avg_xmom x-component of time-averaged momentum
- * @param[in] avg_ymom y-component of time-averaged momentum
- * @param[in] avg_zmom z-component of time-averaged momentum
+ * @param[in] scalar_icomp first component of the supplied scalar view to read
+ * @param[in] rhs_icomp first component of the supplied tendency view to write
+ * @param[in] ncomp number of components to update
+ * @param[out] cell_rhs tendency view
+ * @param[in] cell_prim supplied scalar view
+ * @param[in] avg_xmom x-component of time-averaged mass flux
+ * @param[in] avg_ymom y-component of time-averaged mass flux
+ * @param[in] avg_zmom z-component of time-averaged mass flux
  * @param[in] detJ Jacobian of the metric transformation
  * @param[in] cellSizeInv inverse grid spacing
+ */
+void
+AdvectionSrcForOpenBC_Tangent_Scalars (const Box& bx,
+                                       const OpenSide x_side,
+                                       const OpenSide y_side,
+                                       const int scalar_icomp,
+                                       const int rhs_icomp,
+                                       const int ncomp,
+                                       const Array4<      Real>& cell_rhs,
+                                       const Array4<const Real>& cell_prim,
+                                       const Array4<const Real>& avg_xmom,
+                                       const Array4<const Real>& avg_ymom,
+                                       const Array4<const Real>& avg_zmom,
+                                       const Array4<const Real>& detJ,
+                                       const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv)
+{
+    // At a corner both sides are set, and neither x nor y may be differenced across
+    const bool xopen   = (x_side != OpenSide::none);
+    const bool yopen   = (y_side != OpenSide::none);
+    const bool x_do_lo = (x_side == OpenSide::lo);
+    const bool y_do_lo = (y_side == OpenSide::lo);
+
+    AMREX_ALWAYS_ASSERT(xopen || yopen);
+
+    auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
+
+    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+    {
+        if (detJ(i,j,k) > zero) {
+            const int scalar_comp = scalar_icomp + n;
+            const int rhs_comp = rhs_icomp + n;
+            Real prim_xlo = myhalf * (cell_prim(i,j,k,scalar_comp) + cell_prim(i-1,j,k,scalar_comp));
+            Real prim_xhi = myhalf * (cell_prim(i,j,k,scalar_comp) + cell_prim(i+1,j,k,scalar_comp));
+            Real xflux_lo = avg_xmom(i  ,j,k) * prim_xlo;
+            Real xflux_hi = avg_xmom(i+1,j,k) * prim_xhi;
+
+            Real prim_ylo = myhalf * (cell_prim(i,j,k,scalar_comp) + cell_prim(i,j-1,k,scalar_comp));
+            Real prim_yhi = myhalf * (cell_prim(i,j,k,scalar_comp) + cell_prim(i,j+1,k,scalar_comp));
+            Real yflux_lo = avg_ymom(i,j  ,k) * prim_ylo;
+            Real yflux_hi = avg_ymom(i,j+1,k) * prim_yhi;
+
+            Real prim_zlo = myhalf * (cell_prim(i,j,k,scalar_comp) + cell_prim(i,j,k-1,scalar_comp));
+            Real prim_zhi = myhalf * (cell_prim(i,j,k,scalar_comp) + cell_prim(i,j,k+1,scalar_comp));
+            Real zflux_lo = avg_zmom(i,j,k  ) * prim_zlo;
+            Real zflux_hi = avg_zmom(i,j,k+1) * prim_zhi;
+
+            Real x_src = (xopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k,
+                                                                 scalar_comp, 0, cell_prim,
+                                                                 avg_xmom, dxInv, x_do_lo) :
+                                   (xflux_hi - xflux_lo) * dxInv;
+            Real y_src = (yopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k,
+                                                                 scalar_comp, 1, cell_prim,
+                                                                 avg_ymom, dyInv, y_do_lo) :
+                                   (yflux_hi - yflux_lo) * dyInv;
+            Real z_src = (zflux_hi - zflux_lo) * dzInv;
+            Real advectionSrc = x_src + y_src + z_src;
+            cell_rhs(i,j,k,rhs_comp) = -advectionSrc / detJ(i,j,k);
+        }
+    });
+}
+
+/**
+ * Adapt the native conserved-state layout to the component-explicit scalar open-BC operation.
  */
 void
 AdvectionSrcForOpenBC_Tangent_Cons (const Box& bx,
@@ -265,49 +329,12 @@ AdvectionSrcForOpenBC_Tangent_Cons (const Box& bx,
                                     const Array4<const Real>& detJ,
                                     const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv)
 {
-    // At a corner both sides are set, and neither x nor y may be differenced across
-    const bool xopen   = (x_side != OpenSide::none);
-    const bool yopen   = (y_side != OpenSide::none);
-    const bool x_do_lo = (x_side == OpenSide::lo);
-    const bool y_do_lo = (y_side == OpenSide::lo);
-
-    AMREX_ALWAYS_ASSERT((xopen || yopen) && icomp>0);
-
-    auto dxInv = cellSizeInv[0], dyInv = cellSizeInv[1], dzInv = cellSizeInv[2];
-
-    ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-    {
-        if (detJ(i,j,k) > zero) {
-            const int cons_index = icomp + n;
-            const int prim_index = cons_index - 1;
-            Real prim_xlo = myhalf * (cell_prim(i,j,k,prim_index) + cell_prim(i-1,j,k,prim_index));
-            Real prim_xhi = myhalf * (cell_prim(i,j,k,prim_index) + cell_prim(i+1,j,k,prim_index));
-            Real xflux_lo = avg_xmom(i  ,j,k) * prim_xlo;
-            Real xflux_hi = avg_xmom(i+1,j,k) * prim_xhi;
-
-            Real prim_ylo = myhalf * (cell_prim(i,j,k,prim_index) + cell_prim(i,j-1,k,prim_index));
-            Real prim_yhi = myhalf * (cell_prim(i,j,k,prim_index) + cell_prim(i,j+1,k,prim_index));
-            Real yflux_lo = avg_ymom(i,j  ,k) * prim_ylo;
-            Real yflux_hi = avg_ymom(i,j+1,k) * prim_yhi;
-
-            Real prim_zlo = myhalf * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k-1,prim_index));
-            Real prim_zhi = myhalf * (cell_prim(i,j,k,prim_index) + cell_prim(i,j,k+1,prim_index));
-            Real zflux_lo = avg_zmom(i,j,k  ) * prim_zlo;
-            Real zflux_hi = avg_zmom(i,j,k+1) * prim_zhi;
-
-            Real x_src = (xopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k,
-                                                                 prim_index, 0, cell_prim,
-                                                                 avg_xmom, dxInv, x_do_lo) :
-                                   (xflux_hi - xflux_lo) * dxInv;
-            Real y_src = (yopen) ? AdvectionSrcForOpenBC_Tangent(i, j, k,
-                                                                 prim_index, 1, cell_prim,
-                                                                 avg_ymom, dyInv, y_do_lo) :
-                                   (yflux_hi - yflux_lo) * dyInv;
-            Real z_src = (zflux_hi - zflux_lo) * dzInv;
-            Real advectionSrc = x_src + y_src + z_src;
-            cell_rhs(i,j,k,cons_index) = -advectionSrc / detJ(i,j,k);
-        }
-    });
+    AMREX_ALWAYS_ASSERT(icomp > 0);
+    AdvectionSrcForOpenBC_Tangent_Scalars(bx, x_side, y_side,
+                                          icomp - 1, icomp, ncomp,
+                                          cell_rhs, cell_prim,
+                                          avg_xmom, avg_ymom, avg_zmom,
+                                          detJ, cellSizeInv);
 }
 
 

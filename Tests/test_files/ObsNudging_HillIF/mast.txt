@@ -1,0 +1,4 @@
+# Met mast upwind of the summit: one height, 40 m above the ground
+time    z      u     v     theta   su    sv    stheta
+0.0     40.0   7.0   0.5   300.5   0.2   0.2   0.05
+600.0   40.0   8.0   1.0   301.0   0.2   0.2   0.05

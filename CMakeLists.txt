@@ -239,14 +239,19 @@ if (${ERF_USE_INTERNAL_AMREX})
         CACHE STRING "Path to fcompare executable for regression tests")
       set(FEXTREMA_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/*/amrex_fextrema.exe
         CACHE STRING "Path to fextrema executable for regression tests")
+      set(FEXTRACT_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/*/amrex_fextract.exe
+        CACHE STRING "Path to fextract executable for regression tests")
     else()
       set(FCOMPARE_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fcompare
         CACHE STRING "Path to fcompare executable for regression tests")
       set(FEXTREMA_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fextrema
         CACHE STRING "Path to fextrema executable for regression tests")
+      set(FEXTRACT_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fextract
+        CACHE STRING "Path to fextract executable for regression tests")
     endif()
     message(VERBOSE "fcompare executable: ${FCOMPARE_EXE}")
     message(VERBOSE "fextrema executable: ${FEXTREMA_EXE}")
+    message(VERBOSE "fextract executable: ${FEXTRACT_EXE}")
 else()
     message(STATUS "Using external AMReX")
 
@@ -340,14 +345,19 @@ else()
         CACHE STRING "Path to fcompare executable for regression tests")
       set(FEXTREMA_EXE ${AMReX_DIR}/../../../*/amrex_fextrema.exe
         CACHE STRING "Path to fextrema executable for regression tests")
+      set(FEXTRACT_EXE ${AMReX_DIR}/../../../*/amrex_fextract.exe
+        CACHE STRING "Path to fextract executable for regression tests")
     else()
       set(FCOMPARE_EXE ${AMReX_DIR}/../../../bin/amrex_fcompare
         CACHE STRING "Path to fcompare executable for regression tests")
       set(FEXTREMA_EXE ${AMReX_DIR}/../../../bin/amrex_fextrema
         CACHE STRING "Path to fextrema executable for regression tests")
+      set(FEXTRACT_EXE ${AMReX_DIR}/../../../bin/amrex_fextract
+        CACHE STRING "Path to fextract executable for regression tests")
     endif()
     message(VERBOSE "fcompare executable: ${FCOMPARE_EXE}")
     message(VERBOSE "fextrema executable: ${FEXTREMA_EXE}")
+    message(VERBOSE "fextract executable: ${FEXTRACT_EXE}")
 
 endif()
 
@@ -620,8 +630,6 @@ if(ERF_ENABLE_RRTMGP)
   endif()
 
   message(VERBOSE "Building RRTMGP with Kokkos support")
-  add_compile_options(-Wno-c++11-narrowing)
-  message(DEBUG "Adding -Wno-c++11-narrowing for mo_gas_optics_rrtmgp issue on sycl/hip RRTMGP target")
 
   # Build the static rrtmgp library
   set(RRTMGP_BIN ${PROJECT_BINARY_DIR}/Submodules/rrtmgp)
@@ -631,6 +639,10 @@ if(ERF_ENABLE_RRTMGP)
   # Set up kokkos library and definitions
   set(RRTMGP_ENABLE_KOKKOS TRUE)
   target_compile_definitions(rrtmgp PUBLIC RRTMGP_ENABLE_KOKKOS)
+  target_compile_options(rrtmgp PRIVATE
+    $<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang>:-Wno-unused-local-typedefs>
+    $<$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>:-Wno-c++11-narrowing>
+  )
   target_link_libraries(rrtmgp kokkos)
   message(DEBUG "Added Kokkos to RRTMGP target")
 

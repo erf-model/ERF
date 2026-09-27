@@ -20,6 +20,37 @@
 #include <ERF_EddyViscosity.H>
 #include <ERF_TerrainMetrics.H>
 
+/**
+ * Make the ghost cells below the bottom of the domain agree between boxes.
+ *
+ * On a terrain-fitted mesh the zero-gradient condition at the bottom is corrected
+ * by the slope of the terrain times the lateral gradient of the variable at the
+ * first cell (impose_vertical_*_bcs).  Each box computes that for its own ghost
+ * cells, and in the outermost ring of its lateral ghost cells the gradient can
+ * only be one-sided, so the same ghost cell below the ground holds different
+ * values in different boxes.  The fill of a finer level copies ghost cells of
+ * this level, taking whichever box's copy it meets, so the finer level then
+ * depends on the box decomposition.
+ *
+ * This replaces every ghost cell below the domain with the value computed by the
+ * box whose valid columns contain it (or, outside the domain laterally, the box
+ * at that boundary), where the lateral stencil is always centred.  Values in the
+ * owning box are unchanged.  The layout of the owning slabs is cached.
+ */
+struct BelowGroundGhostSync
+{
+    void operator() (amrex::MultiFab& mf, int icomp, int ncomp,
+                     const amrex::IntVect& nghost, const amrex::Geometry& geom);
+
+private:
+    amrex::BoxArray            m_src_ba;
+    amrex::DistributionMapping m_src_dm;
+    amrex::IntVect             m_nghost;
+    amrex::BoxArray            m_slab_ba;
+    amrex::DistributionMapping m_slab_dm;
+    amrex::Vector<int>         m_src_index;   // the box of mf each slab lies under
+};
+
 class ERFPhysBCFunct_cons
 {
 public:
@@ -32,6 +63,7 @@ public:
      * @param[in] domain_bcs_type_d device boundary-condition records
      * @param[in] bc_extdir_vals external Dirichlet values for boundary faces
      * @param[in] bc_neumann_vals Neumann values for boundary faces
+     * @param[in] terrain_type terrain type for the level
      * @param[in] z_phys_nd nodal physical height MultiFab
      * @param[in] use_real_bcs whether real-data boundary conditions are active
      * @param[in] th_bc_data optional theta boundary data
@@ -41,6 +73,7 @@ public:
                          const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
                          amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> bc_extdir_vals,
                          amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> bc_neumann_vals,
+                         const TerrainType& terrain_type,
                          std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                          const bool use_real_bcs,
                          amrex::Real* th_bc_data)
@@ -49,6 +82,7 @@ public:
           m_domain_bcs_type_d(domain_bcs_type_d),
           m_bc_extdir_vals(bc_extdir_vals),
           m_bc_neumann_vals(bc_neumann_vals),
+          m_terrain_type(terrain_type),
           m_z_phys_nd(z_phys_nd.get()),
           m_use_real_bcs(use_real_bcs),
           m_th_bc_data(th_bc_data)
@@ -124,9 +158,11 @@ private:
     amrex::Gpu::DeviceVector<amrex::BCRec> m_domain_bcs_type_d;
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> m_bc_extdir_vals;
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> m_bc_neumann_vals;
+    TerrainType      m_terrain_type;
     amrex::MultiFab* m_z_phys_nd;
     bool             m_use_real_bcs;
     amrex::Real*     m_th_bc_data;
+    BelowGroundGhostSync m_below_ground_sync;
 };
 
 class ERFPhysBCFunct_u
@@ -141,6 +177,7 @@ public:
      * @param[in] domain_bcs_type_d device boundary-condition records
      * @param[in] bc_extdir_vals external Dirichlet values for boundary faces
      * @param[in] bc_neumann_vals Neumann values for boundary faces
+     * @param[in] terrain_type terrain type for the level
      * @param[in] z_phys_nd nodal physical height MultiFab
      * @param[in] use_real_bcs whether real-data boundary conditions are active
      * @param[in] u_bc_data optional x-velocity boundary data
@@ -150,6 +187,7 @@ public:
                       const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> bc_extdir_vals,
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> bc_neumann_vals,
+                      const TerrainType& terrain_type,
                       std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                       const bool use_real_bcs,
                       amrex::Real* u_bc_data)
@@ -158,6 +196,7 @@ public:
           m_domain_bcs_type_d(domain_bcs_type_d),
           m_bc_extdir_vals(bc_extdir_vals),
           m_bc_neumann_vals(bc_neumann_vals),
+          m_terrain_type(terrain_type),
           m_z_phys_nd(z_phys_nd.get()),
           m_use_real_bcs(use_real_bcs),
           m_u_bc_data(u_bc_data)
@@ -225,9 +264,11 @@ private:
     amrex::Gpu::DeviceVector<amrex::BCRec> m_domain_bcs_type_d;
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> m_bc_extdir_vals;
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> m_bc_neumann_vals;
+    TerrainType      m_terrain_type;
     amrex::MultiFab* m_z_phys_nd;
     bool             m_use_real_bcs;
     amrex::Real*     m_u_bc_data;
+    BelowGroundGhostSync m_below_ground_sync;
 };
 
 class ERFPhysBCFunct_v
@@ -242,6 +283,7 @@ public:
      * @param[in] domain_bcs_type_d device boundary-condition records
      * @param[in] bc_extdir_vals external Dirichlet values for boundary faces
      * @param[in] bc_neumann_vals Neumann values for boundary faces
+     * @param[in] terrain_type terrain type for the level
      * @param[in] z_phys_nd nodal physical height MultiFab
      * @param[in] use_real_bcs whether real-data boundary conditions are active
      * @param[in] v_bc_data optional y-velocity boundary data
@@ -251,6 +293,7 @@ public:
                       const amrex::Gpu::DeviceVector<amrex::BCRec>& domain_bcs_type_d,
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> bc_extdir_vals,
                       amrex::Array<amrex::Array<amrex::Real,AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> bc_neumann_vals,
+                      const TerrainType& terrain_type,
                       std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                       const bool use_real_bcs,
                       amrex::Real* v_bc_data)
@@ -259,6 +302,7 @@ public:
           m_domain_bcs_type_d(domain_bcs_type_d),
           m_bc_extdir_vals(bc_extdir_vals),
           m_bc_neumann_vals(bc_neumann_vals),
+          m_terrain_type(terrain_type),
           m_z_phys_nd(z_phys_nd.get()),
           m_use_real_bcs(use_real_bcs),
           m_v_bc_data(v_bc_data)
@@ -326,9 +370,11 @@ private:
     amrex::Gpu::DeviceVector<amrex::BCRec> m_domain_bcs_type_d;
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> m_bc_extdir_vals;
     amrex::Array<amrex::Array<amrex::Real, AMREX_SPACEDIM*2>,AMREX_SPACEDIM+NBCVAR_max> m_bc_neumann_vals;
+    TerrainType      m_terrain_type;
     amrex::MultiFab* m_z_phys_nd;
     bool             m_use_real_bcs;
     amrex::Real*     m_v_bc_data;
+    BelowGroundGhostSync m_below_ground_sync;
 };
 
 class ERFPhysBCFunct_w

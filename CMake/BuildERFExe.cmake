@@ -248,8 +248,28 @@ function(build_erf_lib erf_lib_name)
 
   ########################### RRTMGP #################################
   if(ERF_ENABLE_RRTMGP)
+    set(RRTMGP_ERF_SOURCES
+        ${SRC_DIR}/Radiation/RRTMGP/ERF_RRTMGP_Interface.cpp
+        ${SRC_DIR}/Radiation/RRTMGP/ERF_Radiation.cpp
+        ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/mo_rrtmgp_util_reorder.cpp
+        ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/kernels/mo_gas_optics_kernels.cpp
+        ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/expand_and_transpose.cpp
+        ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/kernels/mo_fluxes_broadband_kernels.cpp
+        ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/kernels/mo_optical_props_kernels.cpp
+        ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/kernels/mo_rte_solver_kernels.cpp
+        ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/mo_load_coefficients.cpp
+        ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/all-sky/mo_garand_atmos_io.cpp
+        ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/all-sky/mo_load_cloud_coefficients.cpp
+        ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/fluxes_byband/mo_fluxes_byband_kernels.cpp
+    )
+
+    # RRTMGP is third-party code. Mark only its include directories as SYSTEM
+    # so warnings from its headers do not leak into ordinary ERF translation
+    # units that include ERF.H.
     target_include_directories(${erf_lib_name} PUBLIC
                                $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Radiation/RRTMGP>
+                              )
+    target_include_directories(${erf_lib_name} SYSTEM PUBLIC
                                $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp>
                                $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp>
                                $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/kernels>
@@ -261,19 +281,12 @@ function(build_erf_lib erf_lib_name)
                                $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/fluxes_byband>
                               )
     target_sources(${erf_lib_name} PRIVATE
-                   ${SRC_DIR}/Radiation/RRTMGP/ERF_RRTMGP_Interface.cpp
-                   ${SRC_DIR}/Radiation/RRTMGP/ERF_Radiation.cpp
-                   ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/mo_rrtmgp_util_reorder.cpp
-                   ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rrtmgp/kernels/mo_gas_optics_kernels.cpp
-                   ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/expand_and_transpose.cpp
-                   ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/kernels/mo_fluxes_broadband_kernels.cpp
-                   ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/kernels/mo_optical_props_kernels.cpp
-                   ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/rte/kernels/mo_rte_solver_kernels.cpp
-                   ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/mo_load_coefficients.cpp
-                   ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/all-sky/mo_garand_atmos_io.cpp
-                   ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/examples/all-sky/mo_load_cloud_coefficients.cpp
-                   ${PROJECT_SOURCE_DIR}/Submodules/RRTMGP/cpp/extensions/fluxes_byband/mo_fluxes_byband_kernels.cpp
+                   ${RRTMGP_ERF_SOURCES}
                   )
+    set_source_files_properties(${RRTMGP_ERF_SOURCES}
+      PROPERTIES COMPILE_OPTIONS
+      "$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang>:-Wno-unused-local-typedefs>;$<$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>:-Wno-c++11-narrowing>"
+    )
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_RRTMGP)
     target_compile_definitions(${erf_lib_name} PUBLIC RRTMGP_ENABLE_KOKKOS)
   endif()
@@ -398,6 +411,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForState.cpp
        ${SRC_DIR}/Advection/ERF_AdvectionSrcForOpenBC.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_SurfaceLayer.cpp
+       ${SRC_DIR}/BoundaryConditions/ERF_SurfaceModel.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_MOSTAverage.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsCons.cpp
        ${SRC_DIR}/BoundaryConditions/ERF_BoundaryConditionsXvel.cpp
@@ -508,6 +522,14 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/SatAdj/ERF_InitSatAdj.cpp
        ${SRC_DIR}/Microphysics/SatAdj/ERF_SatAdj.cpp
        ${SRC_DIR}/Microphysics/SatAdj/ERF_UpdateSatAdj.cpp
+       ${SRC_DIR}/AuxiliaryState/ERF_AuxiliaryProjection.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SpectralGrid.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SBMLayout.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SBMConstraintGroups.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SBMBulkProjection.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SBMStateManager.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SBMOwnership.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SBMRestart.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistAdvance.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistInit.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistPhaseChange.cpp
@@ -535,6 +557,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/SourceTerms/ERF_MakeSources.cpp
        ${SRC_DIR}/SourceTerms/ERF_NumericalDiffusion.cpp
        ${SRC_DIR}/SourceTerms/ERF_ImmersedForcing.cpp
+       ${SRC_DIR}/ObsNudging/ERF_ObsNudging.cpp
+       ${SRC_DIR}/ObsNudging/ERF_ObsNudgingSeries.cpp
        ${SRC_DIR}/ImmersedBoundarySEB/ERF_IBFaceSet.cpp
        ${SRC_DIR}/ImmersedBoundarySEB/ERF_IBSEB.cpp
        ${SRC_DIR}/ImmersedBoundarySEB/ERF_IBSEBMaterials.cpp
@@ -545,6 +569,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ERF_AdvanceDycore.cpp
        ${SRC_DIR}/TimeIntegration/ERF_AdvanceMicrophysics.cpp
        ${SRC_DIR}/TimeIntegration/ERF_AdvanceLSM.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_AdvanceUrban.cpp
        ${SRC_DIR}/TimeIntegration/ERF_AdvanceRadiation.cpp
        ${SRC_DIR}/TimeIntegration/ERF_MakeFastCoeffs.cpp
        ${SRC_DIR}/TimeIntegration/ERF_MakeTauTerms.cpp
@@ -556,6 +581,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_AverageDown.cpp
        ${SRC_DIR}/Utils/ERF_ChopGrids.cpp
        ${SRC_DIR}/Utils/ERF_ColumnBands.cpp
+       ${SRC_DIR}/Utils/ERF_LatLonMap.cpp
+       ${SRC_DIR}/Utils/ERF_TerrainSurfaceSlab.cpp
        ${SRC_DIR}/Utils/ERF_ConvertForProjection.cpp
        ${SRC_DIR}/Utils/ERF_EnforceConstraintOnBdy.cpp
        ${SRC_DIR}/Utils/ERF_HurricaneDiagnostics.cpp
@@ -578,6 +605,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/WindFarmParametrization/SimpleActuatorDisk/ERF_AdvanceSimpleAD.cpp
        ${SRC_DIR}/WindFarmParametrization/GeneralActuatorDisk/ERF_AdvanceGeneralAD.cpp
        ${SRC_DIR}/LandSurfaceModel/SLM/ERF_SLM.cpp
+       ${SRC_DIR}/LandSurfaceModel/SLM/ERF_SLM_IO.cpp
        ${SRC_DIR}/Radiation/Simple/ERF_RadiationSimple.cpp
   )
 
@@ -639,6 +667,7 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Radiation/TwoStream>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/SourceTerms>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/ImmersedBoundarySEB>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/ObsNudging>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/TimeIntegration>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Utils>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>)
@@ -654,6 +683,8 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/SatAdj>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/SuperDropletsMoist>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/MoistNoCondensation>)  
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/AuxiliaryState>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/SBM>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/WindFarmParametrization>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/WindFarmParametrization/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/WindFarmParametrization/Fitch>)
@@ -663,6 +694,8 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LandSurfaceModel>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LandSurfaceModel/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/LandSurfaceModel/SLM>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/UrbanModel>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/UrbanModel/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Radiation>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Radiation/Simple>)
 
