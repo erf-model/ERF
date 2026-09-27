@@ -522,6 +522,14 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/SatAdj/ERF_InitSatAdj.cpp
        ${SRC_DIR}/Microphysics/SatAdj/ERF_SatAdj.cpp
        ${SRC_DIR}/Microphysics/SatAdj/ERF_UpdateSatAdj.cpp
+       ${SRC_DIR}/AuxiliaryState/ERF_AuxiliaryProjection.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SpectralGrid.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SBMLayout.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SBMConstraintGroups.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SBMBulkProjection.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SBMStateManager.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SBMOwnership.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SBMRestart.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistAdvance.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistInit.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistPhaseChange.cpp
@@ -675,6 +683,8 @@ function(build_erf_lib erf_lib_name)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/SatAdj>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/SuperDropletsMoist>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/MoistNoCondensation>)  
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/AuxiliaryState>)
+  target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/Microphysics/SBM>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/WindFarmParametrization>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/WindFarmParametrization/Null>)
   target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/WindFarmParametrization/Fitch>)

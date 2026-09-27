@@ -94,6 +94,11 @@ jobs:
         export return=$(tail -n 1 ${{runner.workspace}}/build-output-warnings.txt | awk '{print $2}')
         exit ${return}
 
+    - name: GNUmake Compile and Link
+      if: matrix.particles == 'OFF' && matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
+      run: |
+        make -C Exec -j2 USE_NETCDF=FALSE USE_PARTICLES=FALSE
+
     - name: Check Unit Test Registration
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
@@ -105,6 +110,12 @@ jobs:
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
         ctest -L unit --output-on-failure --no-tests=error
+      working-directory: ${{runner.workspace}}/ERF/build
+
+    - name: Run SBM Integration Tests
+      if: matrix.particles == 'OFF' && matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
+      run: |
+        ctest -L sbm --output-on-failure --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build
 
     # Keep the existing DOUBLE unit/regression coverage and add one focused

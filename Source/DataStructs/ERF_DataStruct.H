@@ -3,6 +3,7 @@
 
 #include <string>
 #include <iostream>
+#include <cmath>
 
 #include <AMReX_ParmParse.H>
 #include <AMReX_Print.H>
@@ -127,7 +128,7 @@ AMREX_ENUM(MoistureModelType,
  * @brief Moisture and microphysics model.
  */
 AMREX_ENUM(MoistureType,
-    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, WSM6, WDM6, SuperDroplets, MoistNoCondensation, None
+    SAM, SAM_NoIce, SAM_NoPrecip_NoIce, Kessler, Kessler_NoRain, SatAdj, Morrison, Morrison_NoIce, WSM6, WDM6, SuperDroplets, MoistNoCondensation, SBM, None
 );
 
 /**
@@ -367,6 +368,14 @@ struct MoistureComponentIndices {
             mi.qc         = RhoQ2_comp;
             mi.qr         = RhoQ3_comp;
             mi.rain_accum = 0;
+            break;
+
+        case MoistureType::SBM:
+            // SBM stores the distribution in an auxiliary state.  These two
+            // compact liquid lanes are projections for host compatibility.
+            mi.qv = RhoQ1_comp;
+            mi.qc = RhoQ2_comp;
+            mi.qr = RhoQ3_comp;
             break;
 
         case MoistureType::SAM_NoIce:
@@ -714,12 +723,79 @@ struct SolverChoice {
 
         pp.query_enum_case_insensitive("moisture_model",moisture_type);
 
+        // Test-only M1 failure injections. They remain disabled unless an
+        // integration test explicitly enables the corresponding option.
+        pp.queryAdd("sbm_test_native_qc_write_fault", sbm_test_native_qc_write_fault);
+        pp.queryAdd("sbm_test_carrier_momentum_fault", sbm_test_carrier_momentum_fault);
+        if (moisture_type != MoistureType::SBM &&
+            (sbm_test_native_qc_write_fault || sbm_test_carrier_momentum_fault)) {
+            amrex::Error("SBM test fault-injection options require moisture_model=SBM");
+        }
+
         // Register the moisture data this scheme carries: conserved-state
         // components and qmoist diagnostic slots alike.  MoistureComponentIndices
         // is the one place that mapping lives, and every consumer -- source terms,
         // turbulence closures, and the plotfile/subvolume writers -- queries it
         // instead of testing moisture_type.
         moisture_indices = MoistureComponentIndices::from_moisture_model(moisture_type);
+
+        if (moisture_type == MoistureType::SBM) {
+            pp.queryAdd("sbm_zero_transport_fixture", sbm_zero_transport_fixture);
+            pp.queryAdd("sbm_nbins", sbm_nbins);
+            pp.queryAdd("sbm_moment_mode", sbm_moment_mode);
+            pp.queryAdd("sbm_cloud_rain_split", sbm_cloud_rain_split);
+            pp.queryarr("sbm_edges", sbm_edges);
+            pp.queryarr("sbm_pivots", sbm_pivots);
+            pp.queryarr("sbm_fixture_initial_state", sbm_fixture_initial_state);
+
+            if (!sbm_zero_transport_fixture) {
+                amrex::Error("moisture_model=SBM requires erf.sbm_zero_transport_fixture=true; production spectral transport is not implemented");
+            }
+            if (sbm_nbins < 2 || (sbm_moment_mode != 1 && sbm_moment_mode != 2)) {
+                amrex::Error("SBM requires sbm_nbins >= 2 and sbm_moment_mode equal to 1 or 2");
+            }
+            if (sbm_edges.empty()) {
+                sbm_edges.resize(static_cast<std::size_t>(sbm_nbins + 1));
+                sbm_pivots.resize(static_cast<std::size_t>(sbm_nbins));
+                for (int b = 0; b <= sbm_nbins; ++b) {
+                    const amrex::Real fraction = static_cast<amrex::Real>(b) /
+                                                 static_cast<amrex::Real>(sbm_nbins);
+                    sbm_edges[static_cast<std::size_t>(b)] =
+                        std::pow(amrex::Real(10.0), amrex::Real(-18.0) + amrex::Real(6.0) * fraction);
+                }
+                for (int b = 0; b < sbm_nbins; ++b) {
+                    sbm_pivots[static_cast<std::size_t>(b)] = std::sqrt(
+                        sbm_edges[static_cast<std::size_t>(b)] * sbm_edges[static_cast<std::size_t>(b + 1)]);
+                }
+            } else {
+                sbm_nbins = static_cast<int>(sbm_edges.size()) - 1;
+                if (sbm_nbins < 2) amrex::Error("sbm_edges must define at least two bins");
+                if (sbm_pivots.empty()) {
+                    sbm_pivots.resize(static_cast<std::size_t>(sbm_nbins));
+                    for (int b = 0; b < sbm_nbins; ++b) {
+                        sbm_pivots[static_cast<std::size_t>(b)] = std::sqrt(
+                            sbm_edges[static_cast<std::size_t>(b)] * sbm_edges[static_cast<std::size_t>(b + 1)]);
+                    }
+                }
+            }
+            if (sbm_pivots.size() != static_cast<amrex::Long>(sbm_nbins)) {
+                amrex::Error("sbm_pivots must contain one value per SBM bin");
+            }
+            if (sbm_cloud_rain_split < 0) sbm_cloud_rain_split = sbm_nbins / 2;
+            if (sbm_cloud_rain_split <= 0 || sbm_cloud_rain_split >= sbm_nbins) {
+                amrex::Error("sbm_cloud_rain_split must be strictly inside the liquid bin range");
+            }
+            const int expected_sbm_components = sbm_nbins * (sbm_moment_mode == 2 ? 2 : 1);
+            if (!sbm_fixture_initial_state.empty() &&
+                sbm_fixture_initial_state.size() != static_cast<amrex::Long>(expected_sbm_components)) {
+                amrex::Error("sbm_fixture_initial_state must match the full runtime SBM component count");
+            }
+            for (const amrex::Real value : sbm_fixture_initial_state) {
+                if (!std::isfinite(value) || value < amrex::Real(0.0)) {
+                    amrex::Error("sbm_fixture_initial_state values must be finite and nonnegative");
+                }
+            }
+        }
 
         // Set a default for both dry and moist
         buoyancy_type.resize(max_level+1);
@@ -1821,6 +1897,8 @@ struct SolverChoice {
             amrex::Print() << "Moisture Model: SuperDroplets" << std::endl;
         } else if (moisture_type == MoistureType::MoistNoCondensation) {
             amrex::Print() << "Moisture Model: MoistNoCondensation" << std::endl;
+        } else if (moisture_type == MoistureType::SBM) {
+            amrex::Print() << "Moisture Model: SBM zero-transport fixture" << std::endl;
         } else {
             amrex::Print() << "Moisture Model: None" << std::endl;
         }
@@ -2284,6 +2362,15 @@ struct SolverChoice {
 
     CouplingType coupling_type;
     MoistureType moisture_type;
+    int sbm_nbins{4};
+    int sbm_moment_mode{1};
+    int sbm_cloud_rain_split{-1};
+    bool sbm_zero_transport_fixture{false};
+    bool sbm_test_native_qc_write_fault{false};
+    bool sbm_test_carrier_momentum_fault{false};
+    amrex::Vector<amrex::Real> sbm_edges;
+    amrex::Vector<amrex::Real> sbm_pivots;
+    amrex::Vector<amrex::Real> sbm_fixture_initial_state;
     WindFarmType windfarm_type;
     WindFarmLocType windfarm_loc_type;
     LandSurfaceType lsm_type;
