@@ -2719,7 +2719,7 @@ void SLM::UpdateLAI(const amrex::MFIter &mfi)
 
         auto landmask_arr = landmask.const_array(mfi);
         auto landtype_arr = landtype.const_array(mfi);
-        auto vegetype_arr = vegetype.const_array(mfi);
+        // auto vegetype_arr = vegetype.const_array(mfi);
         auto LAI_arr = LAI.array(mfi);
         auto SAI_arr = SAI.array(mfi);
 

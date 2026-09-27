@@ -11,9 +11,11 @@
 #include <AMReX_BoxArray.H>
 #include <AMReX_DistributionMapping.H>
 #include <AMReX_Geometry.H>
+#include <AMReX_iMultiFab.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_ParmParse.H>
 #include <AMReX_RealBox.H>
+#include <AMReX_Reduce.H>
 #include <AMReX_Utility.H>
 
 #include <gtest/gtest.h>
@@ -44,6 +46,49 @@ void set_surface_temperature_gradient (LandSurface& land_surface,
             tsurf_arr(i, j, k) = base_temperature + i + 2.0 * j;
         });
     }
+}
+
+/**
+ * Marks alternating cells as land and non-land.
+ *
+ * Note that this (and the other device kernels here) must live outside the
+ * test bodies: nvcc rejects extended device lambdas in the protected TestBody
+ * member functions that the gtest macros generate.
+ */
+void set_checkerboard_landmask (amrex::iMultiFab& landmask)
+{
+    for (amrex::MFIter mfi(landmask, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const amrex::Box& bx = mfi.validbox();
+        auto mask = landmask.array(mfi);
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            mask(i, j, k) = ((i + j) % 2 == 0) ? 1 : 0;
+        });
+    }
+}
+
+/**
+ * Returns the largest flux magnitude found at the non-land cells of a mask.
+ */
+amrex::Real max_flux_at_non_land_cells (const amrex::MultiFab& flux_mf,
+                                        const amrex::iMultiFab& landmask)
+{
+    amrex::ReduceOps<amrex::ReduceOpMax> reduce_op;
+    amrex::ReduceData<amrex::Real> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+
+    for (amrex::MFIter mfi(flux_mf, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const amrex::Box& bx = mfi.validbox();
+        const auto flux = flux_mf.const_array(mfi);
+        const auto mask = landmask.const_array(mfi);
+        reduce_op.eval(bx, reduce_data,
+                       [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple {
+            return (mask(i, j, k) == 0) ? amrex::Math::abs(flux(i, j, k)) : amrex::Real(0.0);
+        });
+    }
+
+    amrex::Real max_flux = amrex::get<0>(reduce_data.value());
+    amrex::ParallelDescriptor::ReduceRealMax(max_flux);
+    return max_flux;
 }
 
 struct SLMTestState {
@@ -752,13 +797,7 @@ TEST_F(SLMInterfaceTest, AdvancesMixedLandAndNonLandCells)
     landmask[0][0] = std::make_unique<amrex::iMultiFab>(surface_box, lsm_dm, 1, amrex::IntVect(0));
     sst[0][0]->setVal(301.0);
 
-    for (amrex::MFIter mfi(*landmask[0][0], amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        auto mask = landmask[0][0]->array(mfi);
-        const auto& bx = mfi.validbox();
-        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            mask(i, j, k) = ((i + j) % 2 == 0) ? 1 : 0;
-        });
-    }
+    set_checkerboard_landmask(*landmask[0][0]);
 
     amrex::MultiFab precip(surface_box, lsm_dm, 1, amrex::IntVect(0));
     precip.setVal(0.0);
@@ -774,16 +813,7 @@ TEST_F(SLMInterfaceTest, AdvancesMixedLandAndNonLandCells)
     ASSERT_FALSE(q_flux->contains_nan());
     ASSERT_FALSE(olen->contains_nan());
 
-    for (amrex::MFIter mfi(*t_flux, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-        const auto flux = t_flux->const_array(mfi);
-        const auto mask = landmask[0][0]->const_array(mfi);
-        const auto& bx = mfi.validbox();
-        amrex::Loop(bx, [=] (int i, int j, int k) noexcept {
-            if (mask(i, j, k) == 0) {
-                EXPECT_EQ(flux(i, j, k), amrex::Real(0.0));
-            }
-        });
-    }
+    EXPECT_EQ(max_flux_at_non_land_cells(*t_flux, *landmask[0][0]), amrex::Real(0.0));
 }
 
 TEST_F(SLMInterfaceTest, AcceptsNonIntegralAndRestartLikeTimes)
