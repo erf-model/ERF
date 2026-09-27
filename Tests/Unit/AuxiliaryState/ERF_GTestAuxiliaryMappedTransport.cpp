@@ -328,7 +328,7 @@ Real mapped_diffusion_parity(const char kind,
     return max_component_difference(native, rhs_comp, generic, rhs_comp);
 }
 
-TEST(AuxiliaryMappedTransport, MappedMeasureIsExplicitAndRejectsInvalidMetrics)
+void run_auxiliary_mapped_transport_MappedMeasureIsExplicitAndRejectsInvalidMetrics()
 {
     TestGrid g;
     std::string diagnostic;
@@ -362,7 +362,7 @@ TEST(AuxiliaryMappedTransport, MappedMeasureIsExplicitAndRejectsInvalidMetrics)
     }
 }
 
-TEST(AuxiliaryMappedTransport, FluxRateAndIntegratedFluxHaveDistinctLayoutsAndTypes)
+void run_auxiliary_mapped_transport_FluxRateAndIntegratedFluxHaveDistinctLayoutsAndTypes()
 {
     TestGrid g;
     MappedFaceFluxRate rate;
@@ -382,7 +382,7 @@ TEST(AuxiliaryMappedTransport, FluxRateAndIntegratedFluxHaveDistinctLayoutsAndTy
     }
 }
 
-TEST(AuxiliaryMappedTransport, ComputationalMappedDivergenceMatchesIndependentArithmetic)
+void run_auxiliary_mapped_transport_ComputationalMappedDivergenceMatchesIndependentArithmetic()
 {
     TestGrid g;
     ASSERT_TRUE(g.build_measure());
@@ -416,7 +416,7 @@ TEST(AuxiliaryMappedTransport, ComputationalMappedDivergenceMatchesIndependentAr
                      Real(5.0) * Real(0.5) + Real(4.0) * Real(0.25) + Real(8.0) * Real(2.0));
 }
 
-TEST(AuxiliaryMappedTransport, PeriodicArbitraryMappedFluxTelescopes)
+void run_auxiliary_mapped_transport_PeriodicArbitraryMappedFluxTelescopes()
 {
     TestGrid g;
     ASSERT_TRUE(g.build_measure());
@@ -454,7 +454,7 @@ TEST(AuxiliaryMappedTransport, PeriodicArbitraryMappedFluxTelescopes)
                 std::max(Real(1.0), amrex::Math::abs(h0.sum(0))));
 }
 
-TEST(AuxiliaryMappedTransport, NativeScalarAdvectionParityAndMetricNegativeControls)
+void run_auxiliary_mapped_transport_NativeScalarAdvectionParityAndMetricNegativeControls()
 {
     TestGrid g;
     ASSERT_TRUE(g.build_measure());
@@ -508,17 +508,17 @@ TEST(AuxiliaryMappedTransport, NativeScalarAdvectionParityAndMetricNegativeContr
                    << " doubled_map_factor=" << doubled_map_discrepancy << std::endl;
 }
 
-TEST(AuxiliaryMappedTransport, CanonicalNGridDiffusionTransferParity)
+void run_auxiliary_mapped_transport_CanonicalNGridDiffusionTransferParity()
 {
     EXPECT_LT(mapped_diffusion_parity('N'), Real(64.0) * std::numeric_limits<Real>::epsilon());
 }
 
-TEST(AuxiliaryMappedTransport, CanonicalStretchedGridDiffusionTransferParity)
+void run_auxiliary_mapped_transport_CanonicalStretchedGridDiffusionTransferParity()
 {
     EXPECT_LT(mapped_diffusion_parity('S'), Real(64.0) * std::numeric_limits<Real>::epsilon());
 }
 
-TEST(AuxiliaryMappedTransport, CanonicalStaticTerrainParityAndMetricNegativeControls)
+void run_auxiliary_mapped_transport_CanonicalStaticTerrainParityAndMetricNegativeControls()
 {
     Real raw_fz_discrepancy = 0.0;
     Real missing_cross_discrepancy = 0.0;
@@ -534,7 +534,7 @@ TEST(AuxiliaryMappedTransport, CanonicalStaticTerrainParityAndMetricNegativeCont
                    << std::endl;
 }
 
-TEST(AuxiliaryMappedTransport, CompressibleRK3RecipeUsesAuditedStageCoefficients)
+void run_auxiliary_mapped_transport_CompressibleRK3RecipeUsesAuditedStageCoefficients()
 {
     constexpr double dt = 0.37;
     const double trial[] = {dt / 3.0, dt / 2.0, dt};
@@ -554,7 +554,7 @@ TEST(AuxiliaryMappedTransport, CompressibleRK3RecipeUsesAuditedStageCoefficients
     }
 }
 
-TEST(AuxiliaryMappedTransport, HeunRecipeSeparatesTrialAndWeightedFaceTime)
+void run_auxiliary_mapped_transport_HeunRecipeSeparatesTrialAndWeightedFaceTime()
 {
     constexpr double dt = 0.61;
     AuxiliaryStageRecipe recipe;
@@ -577,7 +577,7 @@ TEST(AuxiliaryMappedTransport, HeunRecipeSeparatesTrialAndWeightedFaceTime)
     EXPECT_NE(recipe.limiter_trial_interval, recipe.face_rate_time_coefficient);
 }
 
-TEST(AuxiliaryMappedTransport, TimedInputViewsBuildIntensiveStateFromRhoInput)
+void run_auxiliary_mapped_transport_TimedInputViewsBuildIntensiveStateFromRhoInput()
 {
     TestGrid g;
     MultiFab u(g.ba, g.dm, 3, 0), rho_anchor(g.ba, g.dm, 3, 0);
@@ -624,7 +624,7 @@ TEST(AuxiliaryMappedTransport, TimedInputViewsBuildIntensiveStateFromRhoInput)
         {&u, 0, 0.0}, {&rho_input, 0, 1.0}, 1.0, intensive, diagnostic));
 }
 
-TEST(AuxiliaryMappedTransport, ConstantConstituentRatioSurvivesVariableDensityStages)
+void run_auxiliary_mapped_transport_ConstantConstituentRatioSurvivesVariableDensityStages()
 {
     auto run = [](const HostIntegrator method) {
         TestGrid g;
@@ -741,7 +741,7 @@ TEST(AuxiliaryMappedTransport, ConstantConstituentRatioSurvivesVariableDensitySt
     run(HostIntegrator::AnelasticHeun);
 }
 
-TEST(AuxiliaryMappedTransport, CompletedLedgerUsesExactHostTemporalWeights)
+void run_auxiliary_mapped_transport_CompletedLedgerUsesExactHostTemporalWeights()
 {
     TestGrid g;
     constexpr double dt = 0.41;
@@ -795,7 +795,7 @@ TEST(AuxiliaryMappedTransport, CompletedLedgerUsesExactHostTemporalWeights)
     EXPECT_GT(amrex::Math::abs(heun_expected - Real(dt) * Real(11.0)), Real(0.1));
 }
 
-TEST(AuxiliaryMappedTransport, CompletedLedgerAccumulatesEveryComponent)
+void run_auxiliary_mapped_transport_CompletedLedgerAccumulatesEveryComponent()
 {
     TestGrid g;
     constexpr int ncomp = 3;
@@ -858,7 +858,7 @@ TEST(AuxiliaryMappedTransport, CompletedLedgerAccumulatesEveryComponent)
     }
 }
 
-TEST(AuxiliaryMappedTransport, ZeroRateStillAppliesHostAnchorInputRecurrence)
+void run_auxiliary_mapped_transport_ZeroRateStillAppliesHostAnchorInputRecurrence()
 {
     TestGrid g;
     MappedFaceFluxRate zero_rate;
@@ -938,7 +938,7 @@ TEST(AuxiliaryMappedTransport, ZeroRateStillAppliesHostAnchorInputRecurrence)
               Real(32.0) * std::numeric_limits<Real>::epsilon());
 }
 
-TEST(AuxiliaryMappedTransport, StageSequenceFailsClosed)
+void run_auxiliary_mapped_transport_StageSequenceFailsClosed()
 {
     TestGrid g;
     MappedFaceFluxRate rate;
@@ -996,6 +996,73 @@ TEST(AuxiliaryMappedTransport, StageSequenceFailsClosed)
                                          1.0, recipe, diagnostic));
     EXPECT_FALSE(method_change.accept_stage(HostIntegrator::AnelasticHeun, 1,
                                             0.0, recipe, rate, diagnostic));
+}
+
+// Keep GPU kernels in free functions: NVCC rejects extended device lambdas nested
+// in GoogleTest's private TestBody().
+TEST(AuxiliaryMappedTransport, MappedMeasureIsExplicitAndRejectsInvalidMetrics)
+{
+    run_auxiliary_mapped_transport_MappedMeasureIsExplicitAndRejectsInvalidMetrics();
+}
+TEST(AuxiliaryMappedTransport, FluxRateAndIntegratedFluxHaveDistinctLayoutsAndTypes)
+{
+    run_auxiliary_mapped_transport_FluxRateAndIntegratedFluxHaveDistinctLayoutsAndTypes();
+}
+TEST(AuxiliaryMappedTransport, ComputationalMappedDivergenceMatchesIndependentArithmetic)
+{
+    run_auxiliary_mapped_transport_ComputationalMappedDivergenceMatchesIndependentArithmetic();
+}
+TEST(AuxiliaryMappedTransport, PeriodicArbitraryMappedFluxTelescopes)
+{
+    run_auxiliary_mapped_transport_PeriodicArbitraryMappedFluxTelescopes();
+}
+TEST(AuxiliaryMappedTransport, NativeScalarAdvectionParityAndMetricNegativeControls)
+{
+    run_auxiliary_mapped_transport_NativeScalarAdvectionParityAndMetricNegativeControls();
+}
+TEST(AuxiliaryMappedTransport, CanonicalNGridDiffusionTransferParity)
+{
+    run_auxiliary_mapped_transport_CanonicalNGridDiffusionTransferParity();
+}
+TEST(AuxiliaryMappedTransport, CanonicalStretchedGridDiffusionTransferParity)
+{
+    run_auxiliary_mapped_transport_CanonicalStretchedGridDiffusionTransferParity();
+}
+TEST(AuxiliaryMappedTransport, CanonicalStaticTerrainParityAndMetricNegativeControls)
+{
+    run_auxiliary_mapped_transport_CanonicalStaticTerrainParityAndMetricNegativeControls();
+}
+TEST(AuxiliaryMappedTransport, CompressibleRK3RecipeUsesAuditedStageCoefficients)
+{
+    run_auxiliary_mapped_transport_CompressibleRK3RecipeUsesAuditedStageCoefficients();
+}
+TEST(AuxiliaryMappedTransport, HeunRecipeSeparatesTrialAndWeightedFaceTime)
+{
+    run_auxiliary_mapped_transport_HeunRecipeSeparatesTrialAndWeightedFaceTime();
+}
+TEST(AuxiliaryMappedTransport, TimedInputViewsBuildIntensiveStateFromRhoInput)
+{
+    run_auxiliary_mapped_transport_TimedInputViewsBuildIntensiveStateFromRhoInput();
+}
+TEST(AuxiliaryMappedTransport, ConstantConstituentRatioSurvivesVariableDensityStages)
+{
+    run_auxiliary_mapped_transport_ConstantConstituentRatioSurvivesVariableDensityStages();
+}
+TEST(AuxiliaryMappedTransport, CompletedLedgerUsesExactHostTemporalWeights)
+{
+    run_auxiliary_mapped_transport_CompletedLedgerUsesExactHostTemporalWeights();
+}
+TEST(AuxiliaryMappedTransport, CompletedLedgerAccumulatesEveryComponent)
+{
+    run_auxiliary_mapped_transport_CompletedLedgerAccumulatesEveryComponent();
+}
+TEST(AuxiliaryMappedTransport, ZeroRateStillAppliesHostAnchorInputRecurrence)
+{
+    run_auxiliary_mapped_transport_ZeroRateStillAppliesHostAnchorInputRecurrence();
+}
+TEST(AuxiliaryMappedTransport, StageSequenceFailsClosed)
+{
+    run_auxiliary_mapped_transport_StageSequenceFailsClosed();
 }
 
 } // namespace
