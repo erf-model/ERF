@@ -1548,7 +1548,8 @@ ERF::make_lsm_at_level (int lev, bool from_regrid,
         for (int l = 0; l < lev; ++l) { RefRatio *= refRatio(l); }
         lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel],
                  vars_new[lev][Vars::yvel], Geom(lev), Geom(0),
-                 domain_bcs_type, RefRatio, zero, z_phys_nd[lev], nc_init_file); // dummy dt value
+                 domain_bcs_type, RefRatio, zero, z_phys_nd[lev],
+                 nc_init_file); // dummy dt value
     }
 
     // Access LSM data pointers only after initialization.

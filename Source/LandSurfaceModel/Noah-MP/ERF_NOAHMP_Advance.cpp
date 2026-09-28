@@ -96,6 +96,7 @@ NOAHMP::stage_forcing (const MFIter& mfi,
                        MultiFab& cons_in,
                        MultiFab& xvel_in,
                        MultiFab& yvel_in,
+                       MultiFab* zref,
                        const erf_noahmp::PrecipSlots& precip,
                        Vector<erf_noahmp::ClampedPrecipCell>& clamped_cells,
                        Vector<erf_noahmp::InvariantPrecipCell>& invariant_cells)
@@ -105,6 +106,9 @@ NOAHMP::stage_forcing (const MFIter& mfi,
     const Array4<const Real>& U_PHY  = xvel_in.const_array(mfi);
     const Array4<const Real>& V_PHY  = yvel_in.const_array(mfi);
     const Array4<const Real>& CONS   = cons_in.const_array(mfi);
+
+    const Array4<const Real> zref_arr = (zref) ? zref->const_array(mfi) :
+                                                 Array4<const Real> {};
 
     // Forcing pulled from the coupling data fields
     const Array4<const Real>& SWDOWN = lsm_fab_data[LsmData_NOAHMP::sw_flux_dn]->const_array(mfi);
@@ -131,6 +135,7 @@ NOAHMP::stage_forcing (const MFIter& mfi,
     const int kklo = klo;
 
     // (1) Stage ERF forcing into the pinned buffer (device).
+    Real zref_default = noahmpio->ZLVL;
     ParallelFor(bx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real qv = (is_moist) ? CONS(i,j,k,RhoQ1_comp)/CONS(i,j,k,Rho_comp) : zero_d;
@@ -139,6 +144,7 @@ NOAHMP::stage_forcing (const MFIter& mfi,
         noah_input_arr(i,j,0,NoahmpInputComp::t_phy)   = getTgivenRandRTh(CONS(i,j,k,Rho_comp),CONS(i,j,k,RhoTheta_comp),qv);
         noah_input_arr(i,j,0,NoahmpInputComp::qv_curr) = qv;
         noah_input_arr(i,j,0,NoahmpInputComp::p8w)     = getPgivenRTh(CONS(i,j,k,RhoTheta_comp),qv);
+        noah_input_arr(i,j,0,NoahmpInputComp::dz8w)    = two * ((zref_arr) ? zref_arr(i,j,kklo) : zref_default);
         noah_input_arr(i,j,0,NoahmpInputComp::swdown)  = SWDOWN(i,j,0);
         noah_input_arr(i,j,0,NoahmpInputComp::glw)     = GLW(i,j,0);
         noah_input_arr(i,j,0,NoahmpInputComp::coszen)  = COSZEN(i,j,0);
@@ -363,7 +369,8 @@ NOAHMP::Advance_With_State (const int& lev,
                             const Real& elapsed_time,
                             const Real& dt,
                             const int& nstep,
-                            const bool updated_lev0)
+                            const bool updated_lev0,
+                            MultiFab* zref)
 {
     amrex::ignore_unused(dt);
 
@@ -419,7 +426,7 @@ NOAHMP::Advance_With_State (const int& lev,
 
             // (1-3) ERF forcing -> pinned input -> NoahmpIO arrays.
             stage_forcing(mfi, blk, bx, klo, lev, is_moist,
-                          cons_in, xvel_in, yvel_in,
+                          cons_in, xvel_in, yvel_in, zref,
                           precip, clamped_cells, invariant_cells);
 
             // (4) Drive Noah-MP. Mirror the authoritative counter into the block first.

@@ -82,10 +82,16 @@ void ERF::advance_lsm (int lev,
             const SurfacePrecipAccumulationSources precip_sources =
                 micro ? micro->Get_Surface_Precip_Accumulation_Ptrs(lev)
                       : SurfacePrecipAccumulationSources{};
+
+            // Get the reference heights from surface layer if needed
+            const int zlo  = Orientation(Direction::z, Orientation::low);
+            MultiFab* zref = m_SurfaceLayer[zlo] ? m_SurfaceLayer[zlo]->get_zref(lev) :
+                                                   nullptr;
+
             lsm.Advance(lev, cons_in, xvel_in, yvel_in,
                         SFS_hfx3_lev[lev].get(), SFS_q1fx3_lev[lev].get(),
-                        precip_sources,
-                        time, dt_advance, istep[0], lsm.Get_LSM_Update_Status(0));
+                        precip_sources, time, dt_advance, istep[0],
+                        lsm.Get_LSM_Update_Status(0), zref);
         } else {
             lsm.Advance(lev, dt_advance, t_new[lev], start_time);
         }

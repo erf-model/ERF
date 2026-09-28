@@ -76,7 +76,7 @@ NOAHMP::Init (const int& lev,
     }
 
     LsmFluxMap  = {LsmFlux_NOAHMP::t_flux         , LsmFlux_NOAHMP::q_flux         ,
-                  LsmFlux_NOAHMP::tau13          , LsmFlux_NOAHMP::tau23          };
+                   LsmFlux_NOAHMP::tau13          , LsmFlux_NOAHMP::tau23          };
     LsmFluxName = {"t_flux"         , "q_flux"         ,
                    "tau13"          , "tau23"          };
 
@@ -218,3 +218,5 @@ NOAHMP::Init (const int& lev,
     } // has nc_init_file
 
 };
+
+
