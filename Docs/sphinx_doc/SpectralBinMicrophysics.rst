@@ -188,6 +188,76 @@ reading the authoritative spectral state from a checkpoint. A materially
 unrealizable two-moment state is rejected rather than clipped or silently
 repaired.
 
+Reference spectral reconstruction and remapping
+------------------------------------------------
+
+The persisted representation defines how process-generated particle packets
+are projected back to the spectral state. ERF assigns these policies from the
+population's moment mode and includes their versioned identities in the layout
+and restart schema.
+
+For a one-moment population, particle number is diagnosed from mass at the
+fixed pivot :math:`p_i`:
+
+.. math::
+
+   N_i = \frac{q_i}{p_i}.
+
+A packet with number :math:`N_p` and actual particle mass :math:`m` between
+adjacent pivots :math:`p_-` and :math:`p_+` is divided between those pivots
+with number weights
+
+.. math::
+
+   w_- = \frac{p_+-m}{p_+-p_-},
+   \qquad
+   w_+ = \frac{m-p_-}{p_+-p_-}.
+
+The receiving water masses are evaluated at their pivots, and each attached
+extensive property uses the same number weights. This preserves packet number,
+water mass, and every attached inventory. The fixed-pivot representation adds
+the numerical second-moment increment
+
+.. math::
+
+   \Delta Q_2 = N_p(m-p_-)(p_+-m) \ge 0,
+
+which is numerical spreading from the representation, not physical cloud
+broadening. A packet below the first pivot splits into a wet first-pivot part
+and a zero-water residual with the same number and attached-property
+partition. A packet above the largest pivot reports overflow; it is not
+clipped into the top bin.
+
+For a two-moment population, the reference reconstruction places the stored
+number at the stored mean particle mass :math:`\bar m_i=M_i/C_i`. This
+``mean-delta`` view recovers the stored mass and number and does not assert
+that within-bin variance or nonlinear process rates are determined by those
+two moments. A process packet is deposited in the interval containing its
+actual mass:
+
+.. math::
+
+   \Delta N_i = N_p,
+   \qquad
+   \Delta q_i = N_p m.
+
+Attached extensive properties are deposited into that same interval. Interior
+intervals are half-open, so an exact shared edge belongs to the upper
+interval; the global upper edge belongs to the final interval. Out-of-range
+packets report a status instead of being clipped.
+
+The persisted policy identities are ``fixed-pivot-1m-v1`` with
+``fixed-pivot-delta-v1`` and ``fixed-pivot-two-center-v1`` for one moment, and
+``interval-2m-v1`` with ``mean-delta-2m-v1`` and
+``actual-mass-interval-v1`` for two moments. Restart comparison is exact and
+rejects a different policy identity; automatic checkpoint conversion is not
+provided.
+
+These contracts define temporary within-bin evaluation and mass-space packet
+projection only. The current SBM runtime still performs no spectral
+advection, cloud microphysical evolution, activation, collision-coalescence,
+sedimentation, or precipitation.
+
 Auxiliary prognostic-state transport
 ------------------------------------
 

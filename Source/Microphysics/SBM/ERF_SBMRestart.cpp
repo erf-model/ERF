@@ -1,6 +1,7 @@
 #include "ERF_SBMRestart.H"
 
 #include "ERF_SBMConstraintGroups.H"
+#include "ERF_SBMRepresentation.H"
 #include <AMReX_Arena.H>
 #include <AMReX_BoxIterator.H>
 #include <AMReX_FArrayBox.H>
@@ -20,12 +21,20 @@ namespace erf_sbm {
 
 std::string restart_schema(const SBMLayout& layout)
 {
-    return std::string("ERF-SBM-RESTART-M1-v1\n") +
-           "layout=" + layout.schema_identity() + "\n" +
-           "constraint-policy=nonnegative-bin-mass-and-moments-v1\n" +
-           "projection=liquid-mass-sum-to-qc-qr-v1\n" +
-           "representation=bin-mass-density-v1\n" +
-           "transport=zero-transport-fixture-v1\n";
+    std::ostringstream schema;
+    schema << "ERF-SBM-RESTART-M2R-v1\n"
+           << "layout=" << layout.schema_identity() << '\n'
+           << "constraint-policy=nonnegative-bin-mass-and-moments-v1\n"
+           << "projection=liquid-mass-sum-to-qc-qr-v1\n"
+           << "transport=zero-transport-fixture-v1\n";
+    for (const auto& population : layout.populations()) {
+        const auto identity = representation_identity(population.moment_mode);
+        schema << "population=" << population.population_id
+               << ":representation=" << identity.representation
+               << ":reconstruction=" << identity.reconstruction
+               << ":packet-remap=" << identity.packet_remap << '\n';
+    }
+    return schema.str();
 }
 
 bool restart_schema_matches(const SBMLayout& layout, const std::string& persisted)

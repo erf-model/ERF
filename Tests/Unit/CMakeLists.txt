@@ -218,6 +218,7 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Kessler/ERF_GTestKesslerPhysicalProperties.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Morrison/ERF_GTestMorrisonPhysicalProperties.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMFoundation.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMRemapping.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/SLM/ERF_GTestSLMInterface.cpp
 )
 if(ERF_DIM STREQUAL "3")

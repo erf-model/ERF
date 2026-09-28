@@ -1,5 +1,6 @@
 #include "ERF_SBMLayout.H"
 #include "ERF_SBMCanonicalIdentity.H"
+#include "ERF_SBMRepresentation.H"
 
 #include <algorithm>
 #include <cmath>
@@ -16,9 +17,20 @@ LayoutValidation SBMLayout::validate(const SBMLayoutSpec& spec)
         const auto& population = spec.populations[i];
         const auto grid_result = SpectralGrid::validate(population.grid);
         if (!grid_result.valid) return {false, grid_result.message};
+        if (population.moment_mode != MomentMode::OneMoment &&
+            population.moment_mode != MomentMode::TwoMoment) {
+            return {false, "population moment mode is unsupported"};
+        }
         if (population.population_id < 0 || population.semantic_id.empty() ||
             population.mass_state_units.empty() || population.number_state_units.empty()) {
             return {false, "population id, semantic id, and state units are required"};
+        }
+        if (population.moment_mode == MomentMode::OneMoment) {
+            for (std::size_t bin = 1; bin < population.grid.pivots.size(); ++bin) {
+                if (!(population.grid.pivots[bin - 1] < population.grid.pivots[bin])) {
+                    return {false, "one-moment fixed pivots must increase strictly across adjacent bins"};
+                }
+            }
         }
         if (std::find(ids.begin(), ids.end(), population.population_id) != ids.end()) {
             return {false, "population ids must be unique"};
@@ -120,16 +132,19 @@ SBMLayout::SBMLayout(SBMLayoutSpec spec)
     }
 
     std::ostringstream schema;
-    schema << "sbm-layout-m1-v1|ncomp=" << m_ncomp
+    schema << "sbm-layout-m2r-v1|ncomp=" << m_ncomp
            << "|constraint_policy=nonnegative-bin-mass-and-moments-v1"
-           << "|representation=bin-mass-density-v1"
            << "|projection=liquid-mass-sum-to-qc-qr-v1"
            << "|projection_population=" << m_liquid_projection.population_id
            << "|projection_cloud_rain_split=" << m_liquid_projection.cloud_rain_split << '|';
     for (const auto& p : m_populations) {
+        const auto identity = representation_identity(p.moment_mode);
         schema << "population=" << p.population_id << ':' << p.semantic_id
                << ":phase=" << static_cast<int>(p.phase) << ':' << p.grid.identity()
                << ":moment=" << static_cast<int>(p.moment_mode)
+               << ":representation=" << identity.representation
+               << ":reconstruction=" << identity.reconstruction
+               << ":packet_remap=" << identity.packet_remap
                << ":mass_units=" << p.mass_state_units
                << ":number_units=" << p.number_state_units
                << ":mass=" << p.mass_offset << ":number=" << p.number_offset << '|';
@@ -168,9 +183,13 @@ std::string SBMLayout::inspection() const
     std::ostringstream out;
     out << "schema=" << m_schema_identity << "\ncomponents=" << m_ncomp << "\n";
     for (const auto& p : m_populations) {
+        const auto identity = representation_identity(p.moment_mode);
         out << "population " << p.population_id << " bins=" << p.grid.nbins()
             << " semantic_id=" << p.semantic_id
             << " moment_mode=" << static_cast<int>(p.moment_mode)
+            << " representation=" << identity.representation
+            << " reconstruction=" << identity.reconstruction
+            << " packet_remap=" << identity.packet_remap
             << " coordinate_units=" << p.grid.coordinate_units()
             << " mass_state_units=" << p.mass_state_units
             << " number_state_units=" << p.number_state_units
