@@ -90,7 +90,7 @@ public:
              const double& dt_advance_d,
              const int& nstep,
              const bool updated_lev0,
-             amrex::MultiFab* zref)
+             amrex::MultiFab* z_nd)
     {
         amrex::Real time = static_cast<amrex::Real>(time_d);
         amrex::Real dt_advance = static_cast<amrex::Real>(dt_advance_d);
@@ -98,7 +98,7 @@ public:
                                              hfx3_out, qfx3_out,
                                              precip_sources,
                                              time, dt_advance, nstep,
-                                             updated_lev0, zref);
+                                             updated_lev0, z_nd);
     }
 
     void

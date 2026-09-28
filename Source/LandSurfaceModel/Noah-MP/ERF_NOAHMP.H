@@ -100,7 +100,7 @@ public:
                         const amrex::Real& dt,
                         const int& nstep,
                         const bool updated_lev0,
-                        amrex::MultiFab* zref) override;
+                        amrex::MultiFab* z_nd) override;
 
     void
     Plot_Landfile (const int& nstep) override;
@@ -252,7 +252,7 @@ public:
                    amrex::MultiFab& cons_in,
                    amrex::MultiFab& xvel_in,
                    amrex::MultiFab& yvel_in,
-                   amrex::MultiFab* zref,
+                   amrex::MultiFab* z_nd,
                    const erf_noahmp::PrecipSlots& precip,
                    amrex::Vector<erf_noahmp::ClampedPrecipCell>& clamped_cells,
                    amrex::Vector<erf_noahmp::InvariantPrecipCell>& invariant_cells);

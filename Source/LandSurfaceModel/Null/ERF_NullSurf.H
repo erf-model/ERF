@@ -68,7 +68,7 @@ class NullSurf {
                         const amrex::Real& /*dt_advance*/,
                         const int& /*nstep*/,
                         const bool /*updated_lev0*/,
-                        amrex::MultiFab* /*zref*/) { }
+                        amrex::MultiFab* /*z_nd*/) { }
 
     virtual
     void
