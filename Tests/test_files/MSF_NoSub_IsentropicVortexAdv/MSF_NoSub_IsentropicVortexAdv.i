@@ -40,7 +40,9 @@ erf.check_int       = -100        # number of timesteps between checkpoints
 # PLOTFILES
 erf.plot_file_1     = plt        # prefix of plotfile name
 erf.plot_int_1      = 100        # number of timesteps between plotfiles
-erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta temp scalar
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure theta temp scalar dpdx dpdy pres_hse_x pres_hse_y
+# NOTE: this test runs with erf.test_mapfactor, so the lateral pressure gradients
+#       above are the only regression coverage of gradp with a non-unit map factor
 
 # SOLVER CHOICE
 erf.alpha_T = 0.1
