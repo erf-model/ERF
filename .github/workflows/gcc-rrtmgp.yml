@@ -2,13 +2,14 @@ name: Linux GCC NetCDF RRTMGP
 
 on:
   push:
+    branches: [development]
   pull_request:
     types: [opened, synchronize, reopened, closed]
   workflow_dispatch:
 
 concurrency:
   group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-linux-gcc-rrtmgp
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
   library:
@@ -16,6 +17,7 @@ jobs:
     if: github.event.action != 'closed'
     name: GNU@9.3 C++17 Release - NetCDF ${{matrix.netcdf}} - Particles ${{matrix.particles}} - RRTMGP ${{matrix.rrtmgp}}
     runs-on: ubuntu-22.04
+    timeout-minutes: 180
     permissions:
       contents: read
       packages: write

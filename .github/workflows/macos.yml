@@ -2,12 +2,13 @@ name: MacOS
 
 on:
   push:
+    branches: [development]
   pull_request:
     types: [opened, synchronize, reopened, closed]
 
 concurrency:
   group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-macos
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
   MacOS-Clang:
@@ -15,6 +16,7 @@ jobs:
     if: github.event.action != 'closed'
     name: Apple Clang@11.0 - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     runs-on: macos-latest
+    timeout-minutes: 120
     # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
     strategy:
       matrix:

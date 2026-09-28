@@ -2,9 +2,9 @@ name: ERF CI (sycl)
 
 on:
   push:
-    # branches: [development]
+    branches: [development]
     paths-ignore:
-      - Docs
+      - Docs/**
       - README.rst
       - license.txt
 
@@ -14,7 +14,7 @@ on:
 
 concurrency:
   group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-sycl
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
   Build-And-Test-SYCL:
@@ -22,6 +22,7 @@ jobs:
     if: github.event.action != 'closed'
     name: oneAPI SYCL - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     runs-on: ubuntu-24.04
+    timeout-minutes: 120
     strategy:
       matrix:
         particles: [OFF, ON]

@@ -22,6 +22,7 @@ jobs:
     # The closed event exists only to cancel in-progress runs via concurrency.
     if: github.event.action != 'closed'
     runs-on: ${{matrix.os}}
+    timeout-minutes: 180
     name: OS ${{matrix.os}} - Particles ${{matrix.particles}}
     env:
       ERF_PARALLEL_TEST_NRANKS: '1;2;4'
