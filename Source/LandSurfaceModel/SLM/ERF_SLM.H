@@ -168,7 +168,7 @@ namespace SLM_DSW {
 using SLMParameterTable = std::unordered_map<std::string, amrex::Vector<std::pair<std::string, amrex::Vector<amrex::Real>>>>;
 
 /**
- * The Simple Land-surface Model (SLM) supplies lower-boundary
+ * The Simplified Land-surface Model (SLM) supplies lower-boundary
  * sensible-heat, latent-heat, and momentum fluxes for land cells.
  *
  * The original formulation and evaluation of SLM are documented in Lee and
