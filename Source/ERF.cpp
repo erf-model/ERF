@@ -1491,16 +1491,14 @@ ERF::InitData_post ()
             } else {
             */
             // Flux-based models do not consume these MOST mappings.  Keep them
-            // available for the non-flux path and explicit surface-model output.
-            if (!m_SurfaceModel->are_fluxes() || plot_surfmodel ||
-                m_check_int > 0 || m_check_per > zero || !restart_chkfile.empty()) {
-                m_SurfaceModel->register_field_map("ustar", {lsm.Get_DataIdx(0, "ustar"), -1}, true);
-                m_SurfaceModel->register_field_map("tstar", {lsm.Get_DataIdx(0, "tstar"), -1}, true);
-                m_SurfaceModel->register_field_map("qstar", {lsm.Get_DataIdx(0, "qstar"), -1}, true);
-                m_SurfaceModel->register_field_map("olen", olen_ptrs_slm, olen_ptrs_urb, true);
-                if (!m_SurfaceModel->are_fluxes()) {
-                    m_SurfaceModel->activate_all_field_maps();
-                }
+            // registered for regridding and the non-flux path; their storage remains
+            // lazy until a consumer activates them.
+            m_SurfaceModel->register_field_map("ustar", {lsm.Get_DataIdx(0, "ustar"), -1}, true);
+            m_SurfaceModel->register_field_map("tstar", {lsm.Get_DataIdx(0, "tstar"), -1}, true);
+            m_SurfaceModel->register_field_map("qstar", {lsm.Get_DataIdx(0, "qstar"), -1}, true);
+            m_SurfaceModel->register_field_map("olen", olen_ptrs_slm, olen_ptrs_urb, true);
+            if (!m_SurfaceModel->are_fluxes()) {
+                m_SurfaceModel->activate_all_field_maps();
             }
             //}
             for (int lev = 0; lev <= finest_level; ++lev) {
