@@ -26,17 +26,34 @@ if(ERF_ENABLE_TESTS)
   set(ERF_TEST_FCOMPARE_RTOL "2.0e-10" CACHE STRING "fcompare relative tolerance")
   set(ERF_TEST_FCOMPARE_ATOL "2.0e-10" CACHE STRING "fcompare absolute tolerance")
   set(ERF_TEST_GOLD_FILES_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/ERFGoldFiles" CACHE PATH "Path to ERF gold files")
+  set(ERF_TEST_EXTRA_FILES_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/test_files/" CACHE PATH "Path to additional input files")
   option(ERF_TEST_ENABLE_EXTRA_SDM_TESTS "Enable additional SDM tests that require machine-specific gold files" OFF)
+  option(ERF_TEST_ENABLE_EXTRA_LSM_TESTS "Enable long-running LSM regression tests" OFF)
   option(ERF_TEST_SDM_SMOKE_GATED "Run the machine-specific SDM tests to completion, without gold comparison, under the smoke label" OFF)
+
+  # The SEB multi-level parity check is a python script rather than another compiled
+  # checker: it asserts an exact relation between two fextract slices, so it needs no
+  # AMReX linkage of its own.
+  find_package(Python3 COMPONENTS Interpreter QUIET)
+  set(TWO_STREAM_SEB_PARITY_CHECKER
+      "${CMAKE_CURRENT_SOURCE_DIR}/check_two_stream_seb_parity.py")
+  if(Python3_Interpreter_FOUND)
+    set(ERF_TEST_PYTHON "${Python3_EXECUTABLE}")
+  else()
+    set(ERF_TEST_PYTHON "")
+  endif()
 
   message(STATUS "ERF testing configuration summary:")
   message(STATUS "   Number of ranks               = ${ERF_TEST_NRANKS}")
   message(STATUS "   fcompare executable           = ${FCOMPARE_EXE}")
   message(STATUS "   fextrema executable           = ${FEXTREMA_EXE}")
+  message(STATUS "   fextract executable           = ${FEXTRACT_EXE}")
+  message(STATUS "   test python interpreter       = ${ERF_TEST_PYTHON}")
   message(STATUS "   comparison relative tolerance = ${ERF_TEST_FCOMPARE_RTOL}")
   message(STATUS "   comparison absolute tolerance = ${ERF_TEST_FCOMPARE_ATOL}")
   message(STATUS "   Gold file directory           = ${ERF_TEST_GOLD_FILES_DIRECTORY}")
   message(STATUS "   Extra SDM tests enabled       = ${ERF_TEST_ENABLE_EXTRA_SDM_TESTS}")
+  message(STATUS "   Extra LSM tests enabled       = ${ERF_TEST_ENABLE_EXTRA_LSM_TESTS}")
   message(STATUS "   Gated SDM smoke tests         = ${ERF_TEST_SDM_SMOKE_GATED}")
 
   add_executable(erf_shoc_plotfile_check

@@ -52,6 +52,12 @@ public:
         return (m_rad != nullptr) && m_rad->enabled;
     }
 
+    /** @brief Read-only view of the per-level prognostic surface-temperature state. */
+    [[nodiscard]] const amrex::MultiFab* prognostic_surface_temperature_state (int lev) const noexcept {
+        return (lev >= 0 && lev < static_cast<int>(m_t_sfc.size()))
+            ? m_t_sfc[lev].get() : nullptr;
+    }
+
     /**
      * @brief Allocate the 2D surface fields of one level on the given
      * horizontal BoxArray and fill them with the scalar defaults. A no-op
@@ -91,6 +97,8 @@ public:
      * @param z_phys_nd  nodal heights (layer interfaces), or nullptr on a uniform grid
      * @param geom       geometry of this level
      * @param lsm        land-surface model (queried for per-column fields)
+     * @param radiation_inputs canonical surface-property inputs, in fixed order
+     * @param noahmp_active whether Noah-MP diagnostics may be queried
      * @param qheating   2-component (SW, LW) heating-rate MultiFab of this
      *                   level, written at the pre-dycore call; may be nullptr
      * @param rad_fluxes 4-component (SW up, SW down, LW up, LW down) interface
@@ -121,6 +129,8 @@ public:
                   const amrex::MultiFab* z_phys_nd,
                   const amrex::Geometry& geom,
                   LandSurface& lsm,
+                  const amrex::Vector<const amrex::MultiFab*>& radiation_inputs,
+                  bool noahmp_active,
                   amrex::MultiFab* qheating,
                   amrex::MultiFab* rad_fluxes,
                   const amrex::MultiFab* t_surf,
@@ -128,6 +138,28 @@ public:
                   const amrex::MultiFab* lon_m,
                   double epoch_time,
                   bool have_datetime);
+
+    /**
+     * @brief The prognostic surface state of one level, or nullptr when the SEB is
+     * off or the level has not been built.
+     *
+     * Exposed so ERF can average t_sfc and q_sfc down after the finer levels have
+     * advanced. Every level evolves its own copy, and without that transfer the two
+     * estimates of one surface drift apart -- which would give the longwave boundary
+     * condition two different values for the same ground. ERF owns refRatio and the
+     * level geometries; this class does not, and should not grow them for one call.
+     */
+    [[nodiscard]] amrex::MultiFab* seb_t_sfc (int lev) {
+        return (active() && m_rad->seb_enable && lev < m_t_sfc.size()) ? m_t_sfc[lev].get() : nullptr;
+    }
+    [[nodiscard]] amrex::MultiFab* seb_q_sfc (int lev) {
+        return (active() && m_rad->seb_enable && lev < m_q_sfc.size()) ? m_q_sfc[lev].get() : nullptr;
+    }
+
+    /** @brief True when the force-restore state is being evolved and so needs transferring. */
+    [[nodiscard]] bool seb_prognostic_active () const {
+        return active() && m_rad->seb_enable && m_rad->seb_prognostic_enable;
+    }
 
     /** @brief Write the prognostic surface state of one level (SEB on). */
     void write_checkpoint (int lev, const std::string& checkpointname) const;

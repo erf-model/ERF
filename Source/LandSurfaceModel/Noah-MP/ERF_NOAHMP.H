@@ -59,6 +59,10 @@ class NOAHMP : public NullSurf {
     using FabPtr = std::shared_ptr<amrex::MultiFab>;
 
 public:
+    // Bring the base-class Init overloads into scope so the single override below
+    // does not hide them (-Woverloaded-virtual), matching SLM.
+    using NullSurf::Init;
+
     // Constructor
     NOAHMP () {}
 
@@ -95,7 +99,8 @@ public:
                         const amrex::Real& elapsed_time,
                         const amrex::Real& dt,
                         const int& nstep,
-                        const bool updated_lev0) override;
+                        const bool updated_lev0,
+                        amrex::MultiFab* z_nd) override;
 
     void
     Plot_Landfile (const int& nstep) override;
@@ -142,7 +147,7 @@ public:
 
     // Get variable index from name
     int
-    Lsm_DataIndex (std::string varname) override
+    Lsm_DataIndex (const std::string& varname) override
     {
         int varIdx = -1;
         std::string lc_varname = amrex::toLower(varname);
@@ -165,7 +170,7 @@ public:
 
     // Get flux variable index from name
     int
-    Lsm_FluxIndex (std::string varname) override
+    Lsm_FluxIndex (const std::string& varname) override
     {
         int varIdx = -1;
         std::string lc_varname = amrex::toLower(varname);
@@ -174,7 +179,7 @@ public:
                 varIdx = idx;
             }
         }
-        return varIdx;
+        return varIdx; // -1 if this model does not carry that flux; callers probe with this
     }
 
     void
@@ -247,6 +252,7 @@ public:
                    amrex::MultiFab& cons_in,
                    amrex::MultiFab& xvel_in,
                    amrex::MultiFab& yvel_in,
+                   amrex::MultiFab* z_nd,
                    const erf_noahmp::PrecipSlots& precip,
                    amrex::Vector<erf_noahmp::ClampedPrecipCell>& clamped_cells,
                    amrex::Vector<erf_noahmp::InvariantPrecipCell>& invariant_cells);

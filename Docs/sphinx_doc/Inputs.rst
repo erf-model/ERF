@@ -1230,6 +1230,10 @@ List of Parameters
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.plot_lsm**                    | write the land-surface-model fields to the plotfile      | Boolean            | false            |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.plot_surfmodel**              | write SurfaceModel fields to ``plt_surf_*`` files;       | Boolean            | both LSM+Urban   |
+|                                     | independent of ``erf.plot_lsm``                          |                    | active by default|
+|                                     |                                                          |                    | false otherwise  |
++-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.plot_rad**                    | write the radiation fields to the plotfile; read only in | Boolean            | false            |
 |                                     | an RRTMGP build                                          |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -1446,7 +1450,7 @@ that cuts through static refinement patches retains the finer in-plane resolutio
 By default all intersecting levels are written; ``erf.plane_sampling_max_level = <int>``
 caps the finest level (``0`` forces level-0-only output). The slice-normal direction is
 resolved natively on each level by replicating the sampled plane across the level's cells,
-so the resulting dataset has an isotropic refinement ratio and loads cleanly in yt/amrvis.
+so the resulting dataset has an isotropic refinement ratio and loads cleanly in amrvis.
 
 Line and plane samples will be default be written to plotfiles, one plotfile per output
 snapshot, with all output variables in the same file. Alternatively, line sampling has
@@ -3212,6 +3216,9 @@ List of Parameters
 |                                  |                                                          | EB,                |                  |
 |                                  |                                                          | ImmersedForcing    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.flat_terrain**             | require a horizontally flat ``StaticFittedMesh`` and     | Boolean            | false            |
+|                                  | permit fixed-index planar averages after validation.     |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.terrain_smoothing**        | specify terrain following                                | 0, 1, 2            | 0                |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.amr_terrain_refinement**   | terrain refinement strategy for fine levels with         | "interpolate",     | "interpolate"    |
@@ -3306,8 +3313,6 @@ interfaces.
     the y-coordinate, then the (nx times ny) values of the z-coordinate associated
     with the (x,y) values we have just read in.  Note that the z-values are in the
     order z(x1,y1), z(x1,y2), z(x1,y3), ... which is contrary to standard Fortran ordering
-
-.. _inputs-land-surface-model:
 
 .. _sec:ImmersedForcingInputs:
 
@@ -3708,6 +3713,8 @@ the ones marked **Required** abort the run if they are not given.
 | **erf.most.include_subgrid_vel**      | add a subgrid contribution to the mean surface velocity  | Boolean             | false            |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 
+.. _inputs-land-surface-model:
+
 Land Surface Model
 ==================
 
@@ -3733,6 +3740,7 @@ List of Parameters
 .. note::
 
    Noah-MP requires ``USE_NOAHMP=TRUE`` at build time. See :ref:`CouplingToNoahMP` for details.
+   See :ref:`SLM` for the complete set of ``slm.`` options.
 
 .. note::
 
@@ -3807,11 +3815,17 @@ See :ref:`CouplingToAMRWind` and :ref:`CouplingToWW3` for more information.
 Moisture
 ========
 
-ERF has several different moisture models. The models that are currently implemented
-are Eulerian models; however, ERF has the capability for Lagrangian models when
-compiled with particles.
+ERF supports several Eulerian moisture and microphysics models and, when
+particle support is enabled, the Lagrangian Super-Droplet Method. ERF also
+contains the developing Eulerian spectral-bin capability selected with
+``erf.moisture_model = SBM``.
 
-The following run-time options control how the full moisture model is used.
+The current ``SBM`` option is restricted to its zero-transport infrastructure
+fixture; it is not yet a production spectral-bin cloud-microphysics scheme.
+See :ref:`sec:SpectralBinMicrophysics` for its state representation,
+configuration, and current limitations.
+
+The following run-time options control the moisture model.
 
 List of Parameters
 ------------------
@@ -3827,7 +3841,7 @@ List of Parameters
 |                                   |                                                          | Morrison,            |                  |
 |                                   |                                                          | Morrison_NoIce,      |                  |
 |                                   |                                                          | WSM6, WDM6,          |                  |
-|                                   |                                                          | SuperDroplets,       |                  |
+|                                   |                                                          | SuperDroplets, SBM,  |                  |
 |                                   |                                                          | MoistNoCondensation  |                  |
 +-----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **erf.moisture_tight_coupling**   | If true, advance microphysics after every slow step in   | Boolean              | false            |
@@ -3860,6 +3874,81 @@ List of Parameters
 +-----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **erf.micro_diag_store**          | which WSM6 forensic diagnostic quantities are stored     | List of Strings      | standing         |
 +-----------------------------------+----------------------------------------------------------+----------------------+------------------+
+
+SBM inputs
+----------
+
+The inputs below are read only when ``erf.moisture_model = SBM``. The current
+SBM implementation is the bounded zero-transport infrastructure described in
+:ref:`sec:SpectralBinMicrophysics`.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 27 43 15 15
+
+   * - Parameter
+     - Definition
+     - Acceptable values
+     - Default
+   * - ``erf.sbm_zero_transport_fixture``
+     - Enables the current bounded SBM infrastructure fixture. This must
+       currently be true whenever ``erf.moisture_model = SBM``; production
+       spectral transport is not yet implemented.
+     - Boolean; currently ``true`` is required for SBM
+     - ``false``
+   * - ``erf.sbm_nbins``
+     - Number of liquid spectral bins when explicit ``sbm_edges`` are not
+       supplied. Explicit edges determine the effective bin count.
+     - Integer :math:`\ge 2`
+     - ``4``
+   * - ``erf.sbm_moment_mode``
+     - Spectral moments stored per bin. ``1`` stores liquid-water mass;
+       ``2`` stores liquid-water mass and droplet number.
+     - ``1`` or ``2``
+     - ``1``
+   * - ``erf.sbm_cloud_rain_split``
+     - Interior bin index separating projected cloud water from projected rain
+       water. Bins below the index contribute to ``qc`` and bins at or above
+       it contribute to ``qr``.
+     - Integer satisfying
+       :math:`0 < s < N_{\mathrm{bins}}`
+     - ``N_bins / 2`` using integer division
+   * - ``erf.sbm_edges``
+     - Spectral bin edges in individual-particle liquid-water mass [kg].
+       Values must be finite, nonnegative, strictly increasing, and
+       numerically well separated. When supplied, the array length determines
+       the number of bins.
+     - List of :math:`N_{\mathrm{bins}}+1` real values
+     - Log-spaced from :math:`10^{-18}` to :math:`10^{-12}` kg
+   * - ``erf.sbm_pivots``
+     - Representative particle mass [kg] for each bin. Each pivot must be
+       finite, positive, and lie inside its bin. With explicit edges and no
+       pivots, ERF uses geometric-mean pivots.
+     - List of :math:`N_{\mathrm{bins}}` positive real values
+     - Geometric mean of adjacent edges
+   * - ``erf.sbm_fixture_initial_state``
+     - Spatially uniform authoritative spectral state. A 1M state contains all
+       bin mass densities [kg m^-3]. A 2M state contains all mass densities
+       followed by all number densities [m^-3]. Two-moment states must satisfy
+       the bin realizability constraints.
+     - :math:`N_{\mathrm{bins}}` values for 1M or
+       :math:`2N_{\mathrm{bins}}` values for 2M
+     - All zero
+
+.. note::
+
+   ``erf.sbm_pivots`` is meaningful as a user input only when explicit
+   ``erf.sbm_edges`` are also supplied. If edges are omitted, ERF generates
+   both the default edges and their pivots.
+
+   If an explicit first bin begins at zero, its geometric-mean pivot is also
+   zero and is invalid because SBM requires a positive pivot. Supply an
+   explicit positive pivot inside that bin.
+
+The automatically generated spectral grid and the example initial states are
+qualification defaults rather than recommended atmospheric discretizations.
+See :ref:`sec:SpectralBinMicrophysics` for the full interpretation of these
+inputs.
 
 .. _inputs-radiation:
 
@@ -4025,10 +4114,15 @@ be solved on its own. The requirement is per box -- the sweep needs a whole colu
 -- so a level tagged at different heights in different horizontal regions is interpolated too,
 not just one that stops below the domain top. The only refusal is on level 0, which has no parent
 to interpolate from: a box there that does not span :math:`z` means grids decomposed in the
-vertical, which ERF's default ``amr.no_box_split_dir = 2`` already prevents. The surface energy balance remains a level-0 feature, so
-``erf.radiation.seb_prognostic_enable`` -- which evolves the surface temperature that the longwave
-boundary condition reads -- cannot be combined with ``amr.max_level > 0``; that combination is
-refused when the inputs are read, whether or not a fine level is ever built.
+vertical, which ERF's default ``amr.no_box_split_dir = 2`` already prevents. The surface energy balance runs on every level. ``erf.radiation.seb_prognostic_enable`` -- which
+evolves the surface temperature that the longwave boundary condition reads -- may be combined
+with ``amr.max_level > 0``: a new level's surface state is interpolated from its parent, the
+fine levels' state is averaged down after they advance (under ``erf.coupling_type = TwoWay``),
+and a regrid keeps what the surface had reached. The average-down is skipped for a level
+whose boxes do not span the domain in :math:`z`, since such a level takes its radiation
+from its parent and never evolves a surface of its own. A fine level therefore starts from its parent's
+surface rather than resolving more surface structure than the coarse grid did. The fields are
+written with the 2D plotfile variables ``seb_t_sfc`` and ``seb_q_sfc``.
 
 
 
@@ -4858,7 +4952,8 @@ Initialization, Terrain and Vertical Mesh
 * :ref:`Initialization <inputs-initialization>` -- ``erf.avg_grid_faces_to_nodes``,
   ``erf.init_type``, ``erf.nc_bdy_file``, ``erf.rebalance_wrf_input``,
   ``erf.sounding_type``, ``erf.use_real_bcs``
-* :ref:`Terrain <inputs-terrain>` -- ``erf.buildings_type``, ``erf.terrain_type``
+* :ref:`Terrain <inputs-terrain>` -- ``erf.buildings_type``, ``erf.flat_terrain``,
+  ``erf.terrain_type``
 
 Physics Model Selection
 -----------------------
