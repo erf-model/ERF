@@ -101,9 +101,17 @@ jobs:
         # netcdf.h (Submodules/Noah-MP/drivers/erf/cmake-modules/FindNetCDF.cmake), but spack
         # installs netcdf-c and netcdf-fortran in separate prefixes. The environment's view
         # merges them into one tree, so point the Noah-MP build at that.
+        # `spack env create` gives the environment this default view unless told otherwise;
+        # stop here, and say why, if it is ever missing either half rather than failing deep
+        # inside Noah-MP's configure.
         NOAHMP_ARGS=""
         if [ "${{matrix.noahmp}}" = "ON" ]; then
-          NOAHMP_ARGS="-DERF_ENABLE_NOAHMP:BOOL=ON -DNETCDF_DIR=${SPACK_ENV}/.spack-env/view"
+          NETCDF_VIEW="${SPACK_ENV}/.spack-env/view"
+          if [ ! -f "${NETCDF_VIEW}/include/netcdf.h" ] || [ ! -f "${NETCDF_VIEW}/include/netcdf.mod" ]; then
+            echo "::error::spack view ${NETCDF_VIEW} lacks netcdf.h or netcdf.mod; Noah-MP needs the C and Fortran NetCDF in one tree"
+            exit 1
+          fi
+          NOAHMP_ARGS="-DERF_ENABLE_NOAHMP:BOOL=ON -DNETCDF_DIR=${NETCDF_VIEW}"
         fi
         cmake \
           -B${ERF_DIR}/build \

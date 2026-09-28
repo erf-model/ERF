@@ -413,13 +413,19 @@ NOAHMP::Advance_With_State (const int& lev,
         Print () << "Noah-MP driver at level " << lev << " started at time step: " << nstep+1 << std::endl;
 
         // stage_forcing replaces a radiation input that is still the lsm_undefined sentinel
-        // (or non-finite) with zero. The start-up warning covers the configurations known
-        // not to write them; this catches the rest -- a radiation model that should write
-        // them but did not reach this cell -- by looking at what is actually there. Checked
-        // once, on the first land step, and reported once: a land model run without
-        // sunlight is worth saying out loud, but not every step. The radiation model runs
-        // before the land model within a step (pre-dycore vs post-step), so the first land
-        // step already sees whatever the radiation model is going to supply.
+        // (or non-finite) with zero. Look at what is actually there on the first land step:
+        // the radiation model runs before the land model within a step (pre-dycore vs
+        // post-step), and RRTMGP always computes on step 0, so the first land step already
+        // sees whatever the radiation model is going to supply. The fields are part of the
+        // LSM checkpoint data, so a restart sees them too.
+        //
+        // What a missing input means depends on the radiation model. RRTMGP writes these
+        // fields, so with RRTMGP a missing one is a broken coupling -- for example a fine
+        // level that is a nested patch, on which RRTMGP does not solve -- and running on
+        // zero would be a 0 K sky (in the smoke test, t_sfc falls about 47 K in one land
+        // hour): abort. Any other radiation model does not write them, the start-up
+        // warning in SolverChoice::init_params has already said so, and zero is the
+        // intended fallback: say it once more here, at the level concerned.
         if (!m_checked_radiation_inputs) {
             m_checked_radiation_inputs = true;
             const std::pair<int, const char*> rad_inputs[] = {
@@ -434,6 +440,15 @@ NOAHMP::Advance_With_State (const int& lev,
                 }
             }
             if (!invalid.empty()) {
+                if (m_radiation_feeds_lsm) {
+                    amrex::Abort("Noah-MP at level " + std::to_string(lev) + " found no valid "
+                                 + invalid + " although erf.radiation_model = RRTMGP, which "
+                                 "should supply them before the first land step. The RRTMGP -> "
+                                 "land coupling did not reach this level (RRTMGP does not solve "
+                                 "on a fine level that is a nested patch, one that does not span "
+                                 "the full height of the domain); running on zero radiation "
+                                 "would be a 0 K sky.");
+                }
                 amrex::Print() << "WARNING: Noah-MP at level " << lev << " found no valid "
                                << invalid << " from the radiation model and is using zero in "
                                   "its place; the land surface will receive no radiative "

@@ -53,9 +53,11 @@ into NetCDF with ``ncgen -o wrfinput_d01 wrfinput_ideal.cdl``.
 
 ERF checks for all three files before the driver runs and names the one that is missing. It does
 so because the driver reports its own errors by writing to standard output and then stopping,
-and that line is usually lost, leaving only ``Noah-MP fatal error``. A problem *inside* one of the
-files (a malformed namelist entry, for example -- every ``*_TIMESTEP`` and ``*_OPTION`` is an
-integer) still reaches that generic message.
+and that line is usually lost, leaving only ``Noah-MP fatal error``. If ERF cannot find the
+``ERF_SETUP_FILE_0N`` entry for a level in ``namelist.erf`` it only warns, since the driver is the
+authority on what the namelist says; it stops only when the entry names a file that does not
+exist. A problem *inside* one of the files (a malformed namelist entry, for example -- every
+``*_TIMESTEP`` and ``*_OPTION`` is an integer) still reaches the driver's generic message.
 
 Several other conditions are reported at start-up or on the first land step:
 
@@ -63,15 +65,19 @@ Several other conditions are reported at start-up or on the first land step:
   zenith angle a radiation model writes for it, and only ``erf.radiation_model = "RRTMGP"`` does
   so. Under any other choice (including none) those inputs are replaced with zero, so the land
   surface receives no radiative forcing, and ERF warns once at start-up and once when it first
-  sees them missing. (Before this was guarded, Noah-MP read the unset inputs as roughly
-  :math:`10^{150}` W/m\ :sup:`2` of shortwave.)
+  sees them missing. Zero longwave is a 0 K sky, so the surface cools quickly: in
+  ``NoahMP_Ideal`` the skin temperature falls from 300 K to about 253 K in one land hour. With
+  RRTMGP, inputs still missing on the first land step mean the coupling did not reach that level
+  (RRTMGP does not solve on a fine level that is a nested patch), and ERF stops with a message
+  instead of running on zero.
 - **Surface layer.** The land model's fluxes reach the atmosphere only through the surface layer,
   so a ``surface_layer`` boundary is needed (``zlo.type = "surface_layer"``); without one ERF warns
   that the fluxes will not be applied. The surface layer in turn needs a diffusive closure.
 - **Timestep.** See below.
 - **Fortran STOP.** Noah-MP's own physics checks end the run with a Fortran ``STOP``, which exits
-  with status 0. ERF reports an exit that happens while the run is still in progress as a failure,
-  so a stopped run is not mistaken for a successful one.
+  with status 0. ERF reports any exit that happens while the run is still in progress as a
+  failure, whatever status was requested, so a stopped run is not mistaken for a successful one.
+  This applies to every ERF run, not only those using Noah-MP.
 
 To improve computational efficiency, the Noah-MP timestep, specified via ``NOAH_TIMESTEP``
 in the **namelist.erf** file, may be set larger than the ERF timestep to allow subcycling
