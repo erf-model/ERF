@@ -3310,8 +3310,6 @@ interfaces.
     with the (x,y) values we have just read in.  Note that the z-values are in the
     order z(x1,y1), z(x1,y2), z(x1,y3), ... which is contrary to standard Fortran ordering
 
-.. _inputs-land-surface-model:
-
 .. _sec:ImmersedForcingInputs:
 
 Immersed Forcing
@@ -3710,6 +3708,8 @@ the ones marked **Required** abort the run if they are not given.
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.include_subgrid_vel**      | add a subgrid contribution to the mean surface velocity  | Boolean             | false            |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+
+.. _inputs-land-surface-model:
 
 Land Surface Model
 ==================

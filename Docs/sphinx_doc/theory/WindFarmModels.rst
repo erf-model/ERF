@@ -205,9 +205,6 @@ cells recovers the swept area :math:`\pi R^2` of the disk at any angle in betwee
 
 .. _`Wind Energy Handbook 2nd edition`: https://www.wiley.com/en-us/Wind+Energy+Handbook%2C+2nd+Edition-p-9781119993926
 
-.. _Inputs:
-
-
 .. _generalized_actuator_disk_model:
 
 Generalized actuator disk model
@@ -343,6 +340,8 @@ An iterative procedure is needed to compute the source terms, and is as follows:
 .. _`details of the blade geometry`: https://github.com/NREL/openfast-turbine-models/blob/main/IEA-scaled/NREL-2.8-127/20_monolithic_opt2/OpenFAST/NREL-2p8-127_AeroDyn15_blade.dat
 .. _`sectional coefficients of the airfoil cross sections` : https://github.com/NREL/openfast-turbine-models/tree/main/IEA-scaled/NREL-2.8-127/20_monolithic_opt2/OpenFAST/Airfoils
 
+.. _sec:WindFarmInputs:
+
 Inputs for wind farm parametrization models
 ------------------------------------------------------------
 
@@ -459,7 +458,7 @@ The second line gives the height in meters of the turbine hub, the diameter in
 meters of the rotor, the standing thrust coefficient, and the nominal power of the turbine in MW.
 The remaining lines (four in this case) contain the three values of: wind speed (m/s), thrust coefficient, and power production in kW.
 
-.. _Outputs:
+.. _sec:WindFarmOutputs:
 
 Outputs
 ----------
