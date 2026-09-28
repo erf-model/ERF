@@ -16,7 +16,7 @@ jobs:
         run: |
           # Fetch all active runs for the repository
           RUNS=$(gh api /repos/${{ github.repository }}/actions/runs?status=in_progress -q '.workflow_runs[] | select(.pull_requests[].number == ${{ github.event.pull_request.number }}) | .id')
-          
+
           if [ -z "$RUNS" ]; then
             echo "No running CI jobs found for PR #${{ github.event.pull_request.number }}."
           else
