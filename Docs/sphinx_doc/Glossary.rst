@@ -165,7 +165,7 @@ relevant section.
    LSM
       Land Surface Model -- the component that evolves soil and surface state and
       supplies energy and moisture fluxes at a land lower boundary.  See
-      :ref:`SLM` and :ref:`CouplingToNoahMP`.
+      :ref:`inputs-land-surface-model`, :ref:`SLM` and :ref:`CouplingToNoahMP`.
 
    LW
       Longwave -- the thermal infrared part of the radiative spectrum.  See
