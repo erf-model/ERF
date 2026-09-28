@@ -52,7 +52,7 @@ soil-layer thicknesses and initial soil/vegetation properties.  For example:
    slm.sw0 = 0.50
    slm.st0 = 300.0
 
-For real cases using ``erf.init_type == WRFInput``, an example minimal configration is:
+For real cases using ``erf.init_type == WRFInput``, an example minimal configuration is:
 
 .. code-block:: text
 
