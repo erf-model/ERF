@@ -1,3 +1,9 @@
 CEXE_sources += ERF_AuxiliaryProjection.cpp
+CEXE_sources += ERF_AuxiliaryMappedTransport.cpp
+CEXE_sources += ERF_AuxiliaryStage.cpp
+CEXE_sources += ERF_AuxiliaryInertTracer.cpp
 CEXE_headers += ERF_AuxiliaryStateLayout.H
 CEXE_headers += ERF_AuxiliaryProjection.H
+CEXE_headers += ERF_AuxiliaryMappedTransport.H
+CEXE_headers += ERF_AuxiliaryStage.H
+CEXE_headers += ERF_AuxiliaryInertTracer.H

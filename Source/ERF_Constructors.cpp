@@ -91,6 +91,51 @@ void validate_sbm_zero_transport_fixture(const SolverChoice& choice,
         "SBM zero-transport fixture rejects problem-specific liquid forcing and custom initial perturbations");
 }
 
+void validate_auxiliary_inert_tracer_fixture(const SolverChoice& choice,
+                                             const int max_level)
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.moisture_type == MoistureType::None,
+        "M2 auxiliary inert tracer fixture requires moisture_model=None");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(AMREX_SPACEDIM == 3,
+        "M2 auxiliary inert tracer fixture requires three dimensions");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(max_level == 0,
+        "M2 auxiliary inert tracer fixture supports one AMR level only");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.mesh_type == MeshType::ConstantDz &&
+                                     choice.terrain_type == TerrainType::None &&
+                                     choice.buildings_type == BuildingsType::None,
+        "M2 auxiliary inert tracer fixture requires static Cartesian ConstantDz geometry");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!choice.use_gravity,
+        "M2 auxiliary inert tracer fixture requires gravity disabled");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.substepping_type.size() == 1 &&
+                                     choice.substepping_type[0] == SubsteppingType::None,
+        "M2 auxiliary inert tracer fixture does not support acoustic substepping");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.diffChoice.molec_diff_type == MolecDiffType::None,
+        "M2 auxiliary inert tracer fixture does not support scalar diffusion");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!choice.use_num_diff,
+        "M2 auxiliary inert tracer fixture does not support numerical diffusion");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!choice.turbChoice[0].use_kturb &&
+                                     choice.turbChoice[0].les_type == LESType::None &&
+                                     choice.turbChoice[0].rans_type == RANSType::None &&
+                                     choice.turbChoice[0].pbl_type == PBLType::None,
+        "M2 auxiliary inert tracer fixture does not support LES, PBL, or turbulent diffusion");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!choice.advChoice.use_efficient_advection,
+        "M2 auxiliary inert tracer fixture requires native scalar advection");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        choice.advChoice.dryscal_horiz_adv_type == AdvType::Centered_2nd &&
+        choice.advChoice.dryscal_vert_adv_type == AdvType::Centered_2nd,
+        "M2 auxiliary inert tracer fixture requires Centered_2nd dry scalar advection");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        !choice.anelastic[0] || choice.anelastic_type[0] == AnelasticType::RK2,
+        "M2 auxiliary inert tracer fixture does not support Anelastic MidPoint");
+
+    std::string problem_name = "Undefined";
+    amrex::ParmParse pp_erf("erf");
+    pp_erf.queryAdd("prob_name", problem_name);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        amrex::toLower(problem_name) == "scalar advection/diffusion",
+        "M2 auxiliary inert tracer fixture requires erf.prob_name=Scalar Advection/Diffusion");
+}
+
 } // namespace
 
 using namespace amrex;
@@ -208,6 +253,13 @@ ERF::ERF_shared ()
 
     ReadParameters();
     validate_sbm_zero_transport_fixture(solverChoice, max_level);
+    bool auxiliary_inert_tracer_test = false;
+    ParmParse pp_auxiliary("erf");
+    pp_auxiliary.queryAdd("auxiliary_inert_tracer_test", auxiliary_inert_tracer_test);
+    if (auxiliary_inert_tracer_test) {
+        validate_auxiliary_inert_tracer_fixture(solverChoice, max_level);
+        auxiliary_inert_tracer = std::make_unique<erf_auxiliary::AuxiliaryInertTracer>(max_level + 1);
+    }
     if (solverChoice.moisture_type == MoistureType::SBM) {
         auto layout = make_sbm_layout(solverChoice);
         std::vector<amrex::Real> candidate(static_cast<std::size_t>(layout.ncomp()),
