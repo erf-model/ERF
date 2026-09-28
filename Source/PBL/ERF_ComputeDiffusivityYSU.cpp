@@ -50,7 +50,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
       Implementation follows WRF as of early 2024 with some simplifications
     */
 
-    const Real most_zref = SurfLayer->get_zref(level);
+    const Real most_zref = SurfLayer->get_zref_min(level);
 
     // Require that MOST zref is 10 m so we get the wind speed at 10 m from most
     bool invalid_zref = false;

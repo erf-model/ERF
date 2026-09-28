@@ -84,8 +84,8 @@ void ERF::advance_lsm (int lev,
                       : SurfacePrecipAccumulationSources{};
             lsm.Advance(lev, cons_in, xvel_in, yvel_in,
                         SFS_hfx3_lev[lev].get(), SFS_q1fx3_lev[lev].get(),
-                        precip_sources,
-                        time, dt_advance, istep[0], lsm.Get_LSM_Update_Status(0));
+                        precip_sources, time, dt_advance, istep[0],
+                        lsm.Get_LSM_Update_Status(0), z_phys_nd[lev].get());
         } else {
             lsm.Advance(lev, dt_advance, t_new[lev], start_time);
         }

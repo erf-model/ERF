@@ -809,11 +809,11 @@ public:
         amrex::Print() << "  --- building radiation field list" << std::endl;
 
         // loop over fields and check against names of radiation variables
-        for (int i = 0; i < static_cast<int>(radnames.size()); ++i) {
-            amrex::Print() << "    - Checking for radiation variable '" << radnames[i] << "'" << std::endl;
+        for (int li = 0; li < static_cast<int>(radnames.size()); ++li) {
+            amrex::Print() << "    - Checking for radiation variable '" << radnames[li] << "'" << std::endl;
 
             amrex::MultiFab* mf = nullptr;
-            auto rad_it = radiation_input_map.find(radnames[i]);
+            auto rad_it = radiation_input_map.find(radnames[li]);
             if (rad_it != radiation_input_map.end()) {
                 const int land_idx = rad_it->second.map.first;
                 const int urban_idx = rad_it->second.map.second;
