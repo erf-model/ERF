@@ -136,9 +136,11 @@ relevant section.
       High-Performance Computing -- the large parallel machines on which production
       ERF simulations are run.  See :ref:`sec:build:hpc`.
 
-   IB
-      Immersed Boundary -- a representation of solid bodies that applies forcing on
-      a background grid instead of cutting cells.  See :ref:`sec:IBSEB`.
+   IF
+      Immersed Forcing -- the representation of terrain or buildings in which large
+      body forces drive the velocity to zero inside solid cells, selected with
+      ``erf.terrain_type`` or ``erf.buildings_type`` = ``ImmersedForcing``.  See
+      :ref:`sec:ImmersedForcingInputs`.
 
    INAS
       Ice Nucleation Active Surface site -- the density of sites on an insoluble
@@ -162,7 +164,8 @@ relevant section.
 
    LSM
       Land Surface Model -- the component that evolves soil and surface state and
-      supplies surface fluxes.  See :ref:`inputs-land-surface-model`.
+      supplies energy and moisture fluxes at a land lower boundary.  See
+      :ref:`SLM` and :ref:`CouplingToNoahMP`.
 
    LW
       Longwave -- the thermal infrared part of the radiative spectrum.  See
