@@ -50,6 +50,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    BestPractices.rst
    AgenticWorkFlow.rst
    ERFKnowledgeAssistant.rst
+   Glossary.rst
    HowToCite.rst
 
 .. toctree::
