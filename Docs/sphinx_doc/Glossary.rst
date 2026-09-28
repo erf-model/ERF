@@ -285,7 +285,7 @@ relevant section.
       parameterization taken from EAMxx.  See :ref:`SHOC`.
 
    SLM
-      Simple Land Model -- ERF's lightweight land surface model.  See :ref:`SLM`.
+      Simplified Land Model -- ERF's lightweight land surface model.  See :ref:`SLM`.
 
    SST
       Sea Surface Temperature -- the prescribed or coupled temperature of the ocean
