@@ -5,6 +5,7 @@
 #include "AMReX_ParmParse.H"
 #include "AMReX_FArrayBox.H"
 #include "AMReX_IntVect.H"
+#include "AMReX_MFIter.H"
 #include "AMReX_MultiFab.H"
 #include "AMReX_FillPatchUtil.H"
 #include "AMReX_GpuLaunch.H"
@@ -14,6 +15,16 @@
 enum SurfaceModelType { LAND = 0, URBAN = 1};
 
 enum class SurfaceProviderMode { None, LandOnly, UrbanOnly, Both };
+
+/**
+ * @brief Non-owning views of surface fluxes for one tile.
+ */
+struct SurfaceFluxView {
+    amrex::Array4<const amrex::Real> tau13;
+    amrex::Array4<const amrex::Real> tau23;
+    amrex::Array4<const amrex::Real> t_flux;
+    amrex::Array4<const amrex::Real> q_flux;
+};
 
 /**
  * @brief Interface between ERF and land-surface and urban models.
@@ -192,6 +203,8 @@ public:
             amrex::Vector<amrex::Real> ctime    = {time_for_fp, time_for_fp};
             amrex::IntVect ng_od(0, 0, 0); // ng outside domain
             amrex::Interpolater* mapper = &amrex::cell_cons_interp;
+            amrex::Vector<amrex::MultiFab*> fmf;
+            amrex::Vector<amrex::MultiFab*> cmf;
             if (u_star[lev] != nullptr && u_star[lev-1] != nullptr) {
             amrex::InterpFromCoarseLevel(*u_star[lev], u_star[lev-1]->nGrowVect(), ng_od,
                                          *u_star[lev-1], 0, 0, 2,
@@ -214,8 +227,8 @@ public:
                                          refRatio[lev-1], &amrex::cell_cons_interp,
                                          domain_bcs_type, BCVars::cons_bc);
 
-            amrex::Vector<amrex::MultiFab*> fmf = {u_star[lev  ].get(), u_star[lev  ].get()};
-            amrex::Vector<amrex::MultiFab*> cmf = {u_star[lev-1].get(), u_star[lev-1].get()};
+            fmf = {u_star[lev  ].get(), u_star[lev  ].get()};
+            cmf = {u_star[lev-1].get(), u_star[lev-1].get()};
             amrex::FillPatchTwoLevels(*u_star[lev].get(), u_star[lev]->nGrowVect(), ng_od,
                                       time_for_fp, cmf, ctime, fmf, ftime,
                                       0, 0, 2, m_geom[lev-1], m_geom[lev],
@@ -470,6 +483,20 @@ public:
     }
 
     /**
+     * @brief Enables blended surface outputs needed by the SurfaceLayer.
+     */
+    void request_surface_layer_outputs()
+    {
+        m_surface_layer_outputs_enabled = true;
+        for (int lev = 0; lev < m_nlevs; ++lev) {
+            if (m_provider_mode[lev] == SurfaceProviderMode::Both) {
+                m_surface_outputs_requested[lev] = true;
+                ensure_surface_outputs(lev);
+            }
+        }
+    }
+
+    /**
      * @brief Marks the registered surface fields as filled by an actual model advance.
      */
     void mark_fields_valid() { m_fields_are_valid = true; }
@@ -515,6 +542,47 @@ public:
      */
     amrex::MultiFab* get_tsurf(const int& lev) {
         return t_surf[lev].get();
+    }
+
+    /**
+     * @brief Returns provider or blended surface-flux views for one tile.
+     * @param lev AMR level to query.
+     * @param mfi Tile whose flux arrays are requested.
+     * @return Read-only flux views selected for the level's provider mode.
+     */
+    SurfaceFluxView get_surface_flux_view(const int lev, const amrex::MFIter& mfi) const
+    {
+        AMREX_ALWAYS_ASSERT(m_export_fluxes);
+
+        const SurfaceProviderMode mode = m_provider_mode[lev];
+        if (mode == SurfaceProviderMode::Both) {
+            AMREX_ALWAYS_ASSERT(u_star[lev] != nullptr);
+            AMREX_ALWAYS_ASSERT(t_star[lev] != nullptr);
+            AMREX_ALWAYS_ASSERT(q_star[lev] != nullptr);
+            return {u_star[lev]->const_array(mfi, 0),
+                    u_star[lev]->const_array(mfi, 1),
+                    t_star[lev]->const_array(mfi),
+                    q_star[lev]->const_array(mfi)};
+        }
+
+        const auto& provider_fields = (mode == SurfaceProviderMode::LandOnly)
+            ? lsm_fields : urban_fields;
+        const auto& provider_data = (mode == SurfaceProviderMode::LandOnly)
+            ? lsm_data_lev[lev] : urban_data_lev[lev];
+        auto get_provider_field = [&] (const int field) -> amrex::Array4<const amrex::Real> {
+            if (field >= static_cast<int>(provider_fields.size())) {
+                return {};
+            }
+            const int index = provider_fields[field];
+            if (index < 0 || index >= static_cast<int>(provider_data.size()) ||
+                provider_data[index] == nullptr) {
+                return {};
+            }
+            return provider_data[index]->const_array(mfi);
+        };
+
+        return {get_provider_field(0), get_provider_field(1),
+                get_provider_field(2), get_provider_field(3)};
     }
 
     /**
@@ -860,6 +928,10 @@ private:
         if (has_land && has_urban) {
             m_provider_mode[lev] = SurfaceProviderMode::Both;
             ensure_weight_factors(lev);
+            if (m_surface_layer_outputs_enabled) {
+                m_surface_outputs_requested[lev] = true;
+                ensure_surface_outputs(lev);
+            }
         } else if (has_land) {
             m_provider_mode[lev] = SurfaceProviderMode::LandOnly;
             wavg[lev].reset();
@@ -914,6 +986,10 @@ private:
     {
         if (m_surface_outputs_enabled) { return; }
         for (int lev = 0; lev < m_nlevs; ++lev) {
+            if (m_surface_layer_outputs_enabled &&
+                m_provider_mode[lev] == SurfaceProviderMode::Both) {
+                continue;
+            }
             m_surface_outputs_requested[lev] = false;
             u_star[lev].reset();
             t_star[lev].reset();
@@ -962,8 +1038,9 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> q_star;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_surf;
 
-    amrex::Vector<bool> m_surface_outputs_requested;
+    amrex::Vector<int> m_surface_outputs_requested;
     bool m_surface_outputs_enabled = false;
+    bool m_surface_layer_outputs_enabled = false;
     amrex::Vector<amrex::MultiFab*> m_last_urban_frac;
 
     // Current weight average factors for each level (2 components: land and urban)
