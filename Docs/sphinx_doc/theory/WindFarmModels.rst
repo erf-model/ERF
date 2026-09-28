@@ -458,7 +458,7 @@ The second line gives the height in meters of the turbine hub, the diameter in
 meters of the rotor, the standing thrust coefficient, and the nominal power of the turbine in MW.
 The remaining lines (four in this case) contain the three values of: wind speed (m/s), thrust coefficient, and power production in kW.
 
-.. _Outputs:
+.. _sec:WindFarmOutputs:
 
 Outputs
 ----------
