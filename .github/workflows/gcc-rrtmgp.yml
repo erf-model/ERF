@@ -14,7 +14,9 @@ jobs:
   library:
     # The closed event exists only to cancel in-progress runs via concurrency.
     if: github.event.action != 'closed'
-    name: GNU@9.3 C++17 Release - NetCDF ${{matrix.netcdf}} - Particles ${{matrix.particles}} - RRTMGP ${{matrix.rrtmgp}}
+    # The Noah-MP suffix is added only to the Noah-MP job, so the names of the existing jobs
+    # (which branch protection may list as required checks) do not change.
+    name: GNU@9.3 C++17 Release - NetCDF ${{matrix.netcdf}} - Particles ${{matrix.particles}} - RRTMGP ${{matrix.rrtmgp}}${{ matrix.noahmp == 'ON' && ' - Noah-MP' || '' }}
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -25,9 +27,19 @@ jobs:
         particles: [OFF, ON]
         netcdf: [OFF, ON]
         rrtmgp: [OFF, ON]
+        noahmp: [OFF]
         exclude:
         - rrtmgp: ON
           netcdf: OFF
+        # One extra job builds Noah-MP and runs its smoke test (NoahMP_Ideal). It is its
+        # own job rather than a flag on an existing one, so a Noah-MP failure is isolated.
+        # Noah-MP needs NetCDF and the Fortran NetCDF bindings; this is the only workflow
+        # that installs both.
+        include:
+        - particles: OFF
+          netcdf: ON
+          rrtmgp: OFF
+          noahmp: ON
     env:
       ERF_DIR: ${{ github.workspace }}/erf_clone
     steps:
@@ -85,6 +97,14 @@ jobs:
         spack env activate erf_netcdf
         export HDF5_ROOT=$(spack location -i hdf5)
         export NETCDF_ROOT=$(spack location -i netcdf-c)
+        # Noah-MP's driver looks for the Fortran NetCDF module and library only beside
+        # netcdf.h (Submodules/Noah-MP/drivers/erf/cmake-modules/FindNetCDF.cmake), but spack
+        # installs netcdf-c and netcdf-fortran in separate prefixes. The environment's view
+        # merges them into one tree, so point the Noah-MP build at that.
+        NOAHMP_ARGS=""
+        if [ "${{matrix.noahmp}}" = "ON" ]; then
+          NOAHMP_ARGS="-DERF_ENABLE_NOAHMP:BOOL=ON -DNETCDF_DIR=${SPACK_ENV}/.spack-env/view"
+        fi
         cmake \
           -B${ERF_DIR}/build \
           -DCMAKE_INSTALL_PREFIX:PATH=${ERF_DIR}/install \
@@ -105,6 +125,7 @@ jobs:
           -DERF_ENABLE_TESTS:BOOL=ON \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \
+          ${NOAHMP_ARGS} \
           ${ERF_DIR};
 
     - name: Compile and Link

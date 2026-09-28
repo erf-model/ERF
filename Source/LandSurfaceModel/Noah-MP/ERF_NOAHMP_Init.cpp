@@ -3,20 +3,102 @@
  * and initializes one NoahmpIO_type per box, and broadcasts the firing parameters.
  */
 
+#include <cstdio>
+#include <cstdlib>
+#include <fstream>
 #include <iostream>
+#include <regex>
 #include <string>
 #include <vector>
 #include <limits>
 
+#include <AMReX.H>
 #include <AMReX_ParmParse.H>
 #include <AMReX_Print.H>
 #include <AMReX_ParallelDescriptor.H>
+#include <AMReX_Utility.H>
 
 #include <ERF_NOAHMP.H>
 #include <ERF_Constants.H>
 #include <NoahmpFatal.H>
 
 using namespace amrex;
+
+namespace {
+
+//
+// Check, before the Fortran driver runs, every file it is about to open.
+//
+// The driver reports a missing file with a Fortran WRITE on rank 0 and then calls
+// NoahmpIO_abort(), which reaches amrex::Abort through the handler installed in
+// NOAHMP::Init with no message at all. The user sees only "Noah-MP fatal error" -- for
+// a missing namelist.erf, a missing NoahmpTable.TBL and a missing land setup file alike
+// -- with the one line that says which file it wanted lost with the Fortran unit. So
+// look for them here and name the missing one.
+//
+// The driver reads its setup file from ERF_SETUP_FILE_01/02/03 in namelist.erf for
+// levels 0/1/2 (NoahmpReadNamelistMod.F90) and has no fourth.
+//
+void
+noahmp_preflight (int lev)
+{
+    const std::string namelist = "namelist.erf";
+    const std::string table    = "NoahmpTable.TBL";
+
+    if (!amrex::FileExists(namelist)) {
+        amrex::Abort("Noah-MP: " + namelist + " was not found in the run directory. The "
+                     "Noah-MP driver reads its physics options and the name of its land "
+                     "setup file from it; a template is in "
+                     "Submodules/Noah-MP/drivers/erf/tests/namelist.erf.");
+    }
+    if (!amrex::FileExists(table)) {
+        amrex::Abort("Noah-MP: " + table + " was not found in the run directory. Copy "
+                     "it from Submodules/Noah-MP/parameters/NoahmpTable.TBL.");
+    }
+    if (lev > 2) {
+        amrex::Abort("Noah-MP: the driver reads a land setup file for levels 0-2 only "
+                     "(ERF_SETUP_FILE_01..03 in namelist.erf); level " + std::to_string(lev) +
+                     " has none. Limit amr.max_level to 2.");
+    }
+
+    // Fortran namelists are case-insensitive and take either quote. The key has to open
+    // its line, so a commented-out assignment ("! ERF_SETUP_FILE_01 = ...") is skipped;
+    // a later assignment overrides an earlier one, as it does in Fortran.
+    const std::string key = "ERF_SETUP_FILE_0" + std::to_string(lev + 1);
+    const std::regex assign("^\\s*" + key + "\\s*=\\s*['\"]([^'\"]*)['\"]",
+                            std::regex::icase);
+    std::string setup_file;
+    bool found_key = false;
+    {
+        std::ifstream in(namelist);
+        std::string line;
+        std::smatch m;
+        while (std::getline(in, line)) {
+            if (std::regex_search(line, m, assign)) {
+                found_key  = true;
+                setup_file = m[1].str();
+            }
+        }
+    }
+    // Trim, since Fortran pads its character variables with blanks.
+    const auto first = setup_file.find_first_not_of(' ');
+    const auto last  = setup_file.find_last_not_of(' ');
+    setup_file = (first == std::string::npos) ? std::string{}
+                                              : setup_file.substr(first, last - first + 1);
+
+    if (!found_key || setup_file.empty()) {
+        amrex::Abort("Noah-MP: " + namelist + " does not set " + key + ", the wrfinput-format "
+                     "NetCDF file Noah-MP reads its land state from at level " +
+                     std::to_string(lev) + " (soil and vegetation type, soil temperature and "
+                     "moisture, and the WRF grid attributes).");
+    }
+    if (!amrex::FileExists(setup_file)) {
+        amrex::Abort("Noah-MP: the land setup file '" + setup_file + "' named by " + key +
+                     " in " + namelist + " does not exist.");
+    }
+}
+
+} // namespace
 
 void
 NOAHMP::Init (const int& lev,
@@ -31,15 +113,55 @@ NOAHMP::Init (const int& lev,
     // Install Noah-MP's fatal-error handler once: route NoahmpIO_fatal() through
     // amrex::Abort so a fatal error propagates via MPI_Abort. See NoahmpFatal.H.
     static const bool noahmp_fatal_installed = []() {
+        // The driver's own aborts pass no message: it WRITEs the reason to standard output
+        // on rank 0 first, and that line is usually lost when the job is killed. NOAHMP::Init
+        // checks the files the driver opens beforehand (noahmp_preflight); what reaches
+        // this default is a problem inside one of them, so point at the likely ones.
         NoahmpIO_set_fatal_handler([](const char* msg){
-            amrex::Abort(msg ? msg : "Noah-MP fatal error");
+            amrex::Abort(msg ? msg :
+                "Noah-MP fatal error in the Fortran driver. Its explanation is written to "
+                "standard output on rank 0 and is usually lost when the job stops; check for a "
+                "malformed namelist.erf (every *_TIMESTEP and *_OPTION is an integer), a "
+                "NoahmpTable.TBL that does not match the land-use scheme (MMINLU), or a land "
+                "setup file missing one of the fields Noah-MP reads.");
         });
         return true;
     }();
     amrex::ignore_unused(noahmp_fatal_installed);
 
+    // Noah-MP's own physics checks end the run with a bare Fortran STOP -- there are 27
+    // across src/ and drivers/erf/, e.g. "Error: Solar radiation budget problem in NoahMP
+    // LSM" -- and a STOP exits with status 0. The run then dies part-way, with no final
+    // plotfile or checkpoint. Under Open MPI's launcher that is still reported as a
+    // failure, because the rank exits without MPI_Finalize; but run directly, without a
+    // launcher, or under one that does not enforce that rule, it reports success.
+    //
+    // STOP leaves through exit(), which runs atexit handlers. A normal ERF run has called
+    // amrex::Finalize before it gets there, and amrex::Abort never calls exit() at all, so
+    // a process leaving through exit() while AMReX is still initialised has stopped where
+    // it should not have. Say so and leave with a failure status. The Fortran is not
+    // modified; this only changes what the process reports.
+    static const bool noahmp_stop_trap_installed = []() {
+        std::atexit([]() {
+            if (amrex::Initialized()) {
+                std::fputs("ERF: the run ended through exit() while AMReX was still running "
+                           "-- typically a Fortran STOP inside Noah-MP, whose message is "
+                           "printed above. Reporting failure instead of exit status 0.\n",
+                           stderr);
+                std::fflush(stderr);
+                std::_Exit(EXIT_FAILURE);
+            }
+        });
+        return true;
+    }();
+    amrex::ignore_unused(noahmp_stop_trap_installed);
+
+    // dt is a placeholder: ERF::make_lsm_at_level passes zero, because the level's step is
+    // not known yet when the level is built. Nothing here may depend on it; the step is
+    // checked against NOAH_TIMESTEP in Advance_With_State, where it is real.
+    amrex::ignore_unused(dt);
+
     m_lev   = lev;
-    m_dt    = dt;
     m_geom  = geom;
     m_geom0 = geom0;
     m_domain_bcs_type = domain_bcs_type;
@@ -116,9 +238,19 @@ NOAHMP::Init (const int& lev,
         lsm_fab_flux[ivar]->setVal(lsm_undefined);
     }
 
-    m_has_nc_file = (!nc_init_file[lev].empty());
+    // Level 0 always runs the Noah-MP driver: the driver reads its land state from the
+    // file ERF_SETUP_FILE_01 in namelist.erf names, whatever ERF's own initialization is,
+    // and there is no coarser level for the other branch (interp_from_lev0) to take it
+    // from. This used to follow only from ERF::nc_init_file's static default being
+    // {{""}} -- one empty string at level 0, so the vector below is never empty there,
+    // with or without erf.nc_init_file_0 -- which is how an idealized run could use
+    // Noah-MP at all. Say it outright so it does not rest on that placeholder.
+    // A finer level runs the driver only if it has an init file of its own.
+    m_has_nc_file = (lev == 0) || (!nc_init_file[lev].empty());
     if (m_has_nc_file) {
         Print() << "Noah-MP initialization started" << std::endl;
+
+        noahmp_preflight(lev);
 
         // Size noahmpio_vect to the local boxes. A rank owning no boxes leaves it
         // empty and relies on the class-level m_itimestep/m_dtbl instead.
@@ -211,8 +343,16 @@ NOAHMP::Init (const int& lev,
         ParallelDescriptor::ReduceIntMax(m_itimestep);
 
         // Guard against a decomposition in which no rank owns a land box.
-        AMREX_ALWAYS_ASSERT(m_dtbl > Real(0.0));
-        AMREX_ALWAYS_ASSERT(m_dt <= m_dtbl);
+        // DTBL is real(NOAH_TIMESTEP) from namelist.erf, and NOAH_TIMESTEP defaults to
+        // -9999 in the driver, so this is what an absent NOAH_TIMESTEP looks like. (It is
+        // not about land: noahmpio_vect is sized by boxes, land or not, so every rank that
+        // owns a box contributes a DTBL to the max.)
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_dtbl > Real(0.0),
+            "Noah-MP: the Noah-MP timestep is not positive. Set NOAH_TIMESTEP (in seconds, "
+            "an integer) in namelist.erf.");
+        // The ERF-step-versus-NOAH_TIMESTEP constraint is enforced in Advance_With_State:
+        // the dt this function receives is a placeholder zero (see the top of Init), so a
+        // check against it here -- there used to be one -- could never fire.
 
         Print() << "Noah-MP initialization completed" << std::endl;
     } // has nc_init_file

@@ -277,6 +277,45 @@ function(add_test_two_stream_radiation TEST_NAME PLTFILE)
         ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
 endfunction(add_test_two_stream_radiation)
 
+# Noah-MP smoke test: stage the files Noah-MP's WRF driver reads from the run directory,
+# run ERF, and require Noah-MP's own 2D outputs to lie within physical bounds. RANGES is
+# a comma-separated list of NAME:LO:HI (commas, not semicolons: a semicolon inside a -D
+# argument is split again when the COMMAND is built).
+function(add_test_noahmp_smoke TEST_NAME PLTFILE)
+    set(oneValueArgs "RANGES")
+    cmake_parse_arguments(ADD_TEST_NM "" "${oneValueArgs}" "" ${ARGN})
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
+    set(test_checker_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.checker.log")
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=1"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DNCGEN=${ERF_NCGEN_EXE}"
+        "-DCDL=${CURRENT_TEST_BINARY_DIR}/wrfinput_ideal.cdl"
+        "-DTABLE=${PROJECT_SOURCE_DIR}/Submodules/Noah-MP/parameters/NoahmpTable.TBL"
+        "-DFEXTREMA=${FEXTREMA_EXE}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${PROJECT_SOURCE_DIR}/Tests/check_plotfile_ranges.py"
+        "-DPLOTFILE=${CURRENT_TEST_BINARY_DIR}/${PLTFILE}"
+        "-DRANGES=${ADD_TEST_NM_RANGES}"
+        "-DSIMULATION_LOG=${test_simulation_log}"
+        "-DCHECKER_LOG=${test_checker_log}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunNoahMPSmoke.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 600
+        PROCESSORS 1
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;noahmp"
+        ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
+endfunction(add_test_noahmp_smoke)
+
 function(add_test_cloud_chamber_parity TEST_NAME)
     set(TEST_FILES_DIR "CloudChamber_SatAdj")
     if (ARGC GREATER 1)
@@ -1499,6 +1538,25 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   # PLT2DFILE the check would pass on a surface temperature that reset to its default.
   add_test_restart_parity(TwoStream_PrognosticSEB_Restart TwoStream_PrognosticSEBRestart 3 6
                           PLT2DFILE "plt2d00006")
+
+  # Noah-MP from an idealized case -- the only test that builds and runs Noah-MP (it
+  # needs ERF_ENABLE_NOAHMP, which needs NetCDF). No radiation model is set, so the
+  # radiation inputs Noah-MP reads are never written; ERF now replaces them with zero
+  # instead of the lsm_undefined sentinel it used to pass through (~2e149 W/m^2), which
+  # had Noah-MP's energy-budget check end the run at its first step with a Fortran STOP
+  # (exit status 0; only Open MPI's launcher, objecting to the missing MPI_Finalize,
+  # reported it). The final plotfile is required, so that does not rely on the launcher.
+  # The bounds are physical: absorbed shortwave (sav, sag) must be zero with no
+  # radiation, a land surface stays within 150-350 K, fluxes within +/-2000 W/m^2.
+  if(ERF_ENABLE_NOAHMP)
+    if(ERF_NCGEN_EXE AND ERF_TEST_PYTHON)
+      add_test_noahmp_smoke(NoahMP_Ideal "plt2d00002"
+        RANGES "t_sfc:150:350,sav:-1e-6:1e-6,sag:-1e-6:1e-6,sensible_heat_flux:-2000:2000,grdflx:-2000:2000,fira:-1000:1000")
+    else()
+      message(WARNING "ERF_ENABLE_NOAHMP is on but ncgen or a Python interpreter was not "
+                      "found, so the NoahMP_Ideal smoke test is not registered")
+    endif()
+  endif()
 endif()
 add_test_plotfile_header(Plotfile3D_TwoStreamHeatingSelection "" "erf_exec" "plt00000")
 

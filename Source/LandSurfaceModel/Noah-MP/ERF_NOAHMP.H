@@ -357,8 +357,6 @@ private:
     // domain bc types
     amrex::Vector<amrex::BCRec> m_domain_bcs_type;
 
-    // timestep
-    amrex::Real m_dt;
 
     // Authoritative NoahMP substep counter, kept on the class so the firing decision
     // is identical on every rank (including land-free ranks with empty noahmpio_vect).
@@ -418,5 +416,9 @@ private:
 
     // Do we have a nc init file?
     bool m_has_nc_file = false;
+
+    // Set after the first land step has checked its radiation inputs, so the check in
+    // Advance_With_State (a global reduction) and its warning happen once per run.
+    bool m_checked_radiation_inputs = false;
 };
 #endif

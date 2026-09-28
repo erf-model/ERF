@@ -43,12 +43,22 @@ if(ERF_ENABLE_TESTS)
     set(ERF_TEST_PYTHON "")
   endif()
 
+  # The Noah-MP smoke test turns a CDL description of its land setup file into NetCDF
+  # at test time, so the repository holds text rather than a binary. ncgen ships with
+  # netcdf-c; find_program also searches <prefix>/bin for each CMAKE_PREFIX_PATH entry.
+  if(ERF_ENABLE_NOAHMP)
+    find_program(ERF_NCGEN_EXE ncgen HINTS "$ENV{NETCDF_ROOT}/bin" "${NETCDF_ROOT}/bin")
+  endif()
+
   message(STATUS "ERF testing configuration summary:")
   message(STATUS "   Number of ranks               = ${ERF_TEST_NRANKS}")
   message(STATUS "   fcompare executable           = ${FCOMPARE_EXE}")
   message(STATUS "   fextrema executable           = ${FEXTREMA_EXE}")
   message(STATUS "   fextract executable           = ${FEXTRACT_EXE}")
   message(STATUS "   test python interpreter       = ${ERF_TEST_PYTHON}")
+  if(ERF_ENABLE_NOAHMP)
+    message(STATUS "   ncgen (Noah-MP smoke test)    = ${ERF_NCGEN_EXE}")
+  endif()
   message(STATUS "   comparison relative tolerance = ${ERF_TEST_FCOMPARE_RTOL}")
   message(STATUS "   comparison absolute tolerance = ${ERF_TEST_FCOMPARE_ATOL}")
   message(STATUS "   Gold file directory           = ${ERF_TEST_GOLD_FILES_DIRECTORY}")

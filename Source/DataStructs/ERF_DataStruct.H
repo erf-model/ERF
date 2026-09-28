@@ -1321,6 +1321,20 @@ struct SolverChoice {
         // erf.radiation.* sub-options are read only then.
         radChoice.init_params(rad_type == RadiationType::TwoStream, pp_prefix);
 
+        // Noah-MP integrates on the downwelling shortwave, downwelling longwave and solar
+        // zenith angle a radiation model writes into it. Only RRTMGP registers those
+        // outputs with the land model (ERF::init_stuff), so under any other choice they are
+        // never written and Noah-MP runs with no radiative forcing at all -- the inputs it
+        // reads fall back to zero. That is a legitimate thing to want in a test, and rarely
+        // what anyone running a land model means, so say it at start-up.
+        if (lsm_type == LandSurfaceType::NOAHMP && rad_type != RadiationType::RRTMGP) {
+            amrex::Print() << "WARNING: erf.land_surface_model = NOAHMP with erf.radiation_model = "
+                           << amrex::getEnumNameString(rad_type)
+                           << ": only RRTMGP supplies the downwelling shortwave, downwelling "
+                              "longwave and solar zenith angle Noah-MP needs. Noah-MP will run "
+                              "with no radiative forcing (zero SWDOWN, GLW and COSZEN).\n";
+        }
+
         vert_implicit_fac.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {
             vert_implicit_fac[lev].resize(3);
