@@ -212,6 +212,12 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMFoundation.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/SLM/ERF_GTestSLMInterface.cpp
 )
+if(ERF_DIM STREQUAL "3")
+  # Motivation: the auxiliary mapped state must reproduce ERF's computational
+  # divergence, exact host stage recipes, canonical metric transfers, and ledger.
+  target_sources(${erf_exe_name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/AuxiliaryState/ERF_GTestAuxiliaryMappedTransport.cpp)
+endif()
 if(ERF_ENABLE_NETCDF)
   target_sources(${erf_exe_name} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestTerrainNetCDF.cpp
@@ -359,6 +365,19 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     LABELS "integration;sbm;negative"
     RUN_SERIAL TRUE
     TIMEOUT 180)
+
+  if(NOT ERF_ENABLE_CUDA AND NOT ERF_ENABLE_HIP AND NOT ERF_ENABLE_SYCL)
+    add_test(NAME Auxiliary_InertTracer_ERF_Smoke
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/AuxiliaryState/inputs_inert_tracer
+        -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+        -P ${PROJECT_SOURCE_DIR}/Tests/test_files/AuxiliaryState/RunInertTracerSmoke.cmake)
+    set_tests_properties(Auxiliary_InertTracer_ERF_Smoke PROPERTIES
+      LABELS "integration;auxiliary"
+      RUN_SERIAL TRUE
+      TIMEOUT 120)
+  endif()
 endif()
 set_tests_properties(erf_unit_tests_shuffle_repeat
   PROPERTIES

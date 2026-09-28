@@ -24,6 +24,8 @@
  */
 class CloudChamberBudget;
 
+namespace erf_auxiliary { class AuxiliaryInertTracer; }
+
 /**
  * @brief Driver for the SHOC physics model.
  */
@@ -122,6 +124,9 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
  *
  */
 void erf_slow_rhs_post (int level, int finest_level, int nrk,
+                       double step_old_time,
+                       double input_time,
+                       double target_time,
                        double dt,
                        int n_qstate,
                        amrex::Vector<amrex::MultiFab>& S_rhs,
@@ -174,6 +179,7 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        std::unique_ptr<ReadBndryPlanes>& m_r2d,
                        const amrex::MultiFab* cloud_chamber_base_state,
                        const erf_cloud_chamber::Config* cloud_chamber_config,
-                       CloudChamberBudget* cloud_budget);
+                       CloudChamberBudget* cloud_budget,
+                       erf_auxiliary::AuxiliaryInertTracer* auxiliary_inert_tracer);
 
 #endif
