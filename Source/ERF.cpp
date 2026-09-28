@@ -3274,20 +3274,6 @@ ERF::ReadParameters ()
 
         pp.queryAdd("plot_lsm", plot_lsm);
 
-        // SurfaceModel output is opt-in for single-provider runs.  When both
-        // providers are active, retain the useful combined diagnostic output
-        // by default, while allowing an explicit false to disable it.
-        if (pp.contains("plot_surfmodel")) {
-            pp.get("plot_surfmodel", plot_surfmodel);
-        } else {
-            bool urban_active = false;
-            for (const int enabled : solverChoice.urban_enabled_lev) {
-                urban_active = urban_active || (enabled != 0);
-            }
-            plot_surfmodel = solverChoice.lsm_type != LandSurfaceType::None &&
-                             solverChoice.urban_type != UrbanType::None &&
-                             urban_active;
-        }
 #ifdef ERF_USE_RRTMGP
         pp.queryAdd("plot_rad", plot_rad);
 #endif
@@ -3338,6 +3324,18 @@ ERF::ReadParameters ()
 #endif
 
     solverChoice.init_params(max_level,pp_prefix);
+
+    // SurfaceModel output is opt-in for single-provider runs.  When both
+    // providers are active, retain the useful combined diagnostic output
+    // by default, while allowing an explicit false to disable it.
+    bool urban_active = false;
+    for (const int enabled : solverChoice.urban_enabled_lev) {
+        urban_active = urban_active || (enabled != 0);
+    }
+    plot_surfmodel = solverChoice.lsm_type != LandSurfaceType::None &&
+                     solverChoice.urban_type != UrbanType::None &&
+                     urban_active;
+    pp.queryAdd("plot_surfmodel", plot_surfmodel);
 
     // Implicit acoustic substepping inverts one tridiagonal system per column, so it is
     // only well posed if no column is chopped between boxes.  That does not require one
