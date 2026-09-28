@@ -2,9 +2,9 @@ name: ERF CI (cuda)
 
 on:
   push:
-    # branches: [development]
+    branches: [development]
     paths-ignore:
-      - Docs
+      - Docs/**
       - README.rst
       - license.txt
 
@@ -14,13 +14,14 @@ on:
 
 concurrency:
   group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-cuda-ci
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
   cuda-build:
     # The closed event exists only to cancel in-progress runs via concurrency.
     if: github.event.action != 'closed'
     runs-on: ubuntu-22.04
+    timeout-minutes: 120
     name: CUDA v${{matrix.cuda_ver}} - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     strategy:
       matrix:

@@ -2,9 +2,9 @@ name: ERF CI (hip)
 
 on:
   push:
-    # branches: [development]
+    branches: [development]
     paths-ignore:
-      - Docs
+      - Docs/**
       - README.rst
       - license.txt
 
@@ -14,7 +14,7 @@ on:
 
 concurrency:
   group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-hip
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
   # MPI_C is broken since HIP 4.1
@@ -25,6 +25,7 @@ jobs:
     if: github.event.action != 'closed'
     name: HIP ROCm GFortran@9.3 C++17 - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     runs-on: ubuntu-22.04
+    timeout-minutes: 180
     # Have to have -Wno-deprecated-declarations due to deprecated atomicAddNoRet
     # Have to have -Wno-gnu-zero-variadic-macro-arguments to avoid
     #    amrex/Src/Base/AMReX_GpuLaunchGlobal.H:15:5: error: must specify at least one argument for '...' parameter of variadic macro [-Werror,-Wgnu-zero-variadic-macro-arguments]

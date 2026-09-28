@@ -10,7 +10,7 @@ on:
 
   pull_request:
     branches: [development]
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, closed]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -22,6 +22,7 @@ jobs:
     # The closed event exists only to cancel in-progress runs via concurrency.
     if: github.event.action != 'closed'
     runs-on: ${{matrix.os}}
+    timeout-minutes: 180
     name: OS ${{matrix.os}} - Particles ${{matrix.particles}}
     env:
       ERF_PARALLEL_TEST_NRANKS: '1;2;4'

@@ -2,12 +2,13 @@ name: Windows
 
 on:
   push:
+    branches: [development]
   pull_request:
     types: [opened, synchronize, reopened, closed]
 
 concurrency:
   group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-windows
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
   WIN32-MSVC10:
@@ -15,6 +16,7 @@ jobs:
     if: github.event.action != 'closed'
     name: WIN32 MSVC@19.29 - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     runs-on: windows-latest
+    timeout-minutes: 90
     strategy:
       matrix:
         particles: [OFF, ON]

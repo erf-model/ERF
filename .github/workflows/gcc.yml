@@ -2,12 +2,13 @@ name: Linux GCC
 
 on:
   push:
+    branches: [development]
   pull_request:
     types: [opened, synchronize, reopened, closed]
 
 concurrency:
   group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-linux-gcc
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
   library:
@@ -15,6 +16,7 @@ jobs:
     if: github.event.action != 'closed'
     name: GNU@9.3 C++17 Release - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     runs-on: ubuntu-22.04
+    timeout-minutes: 120
     # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
     strategy:
       matrix:
@@ -156,3 +158,23 @@ jobs:
       run: |
         ctest -L smoke --output-on-failure --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build
+
+  # Single stable required status check. Branch protection previously pinned the
+  # individual matrix job names ("GNU@9.3 C++17 Release - Particles OFF"), which silently
+  # stopped matching when the matrix gained its Mesh/precision axes -- leaving every PR
+  # waiting forever on a context that could never report. Requiring only this job means
+  # the matrix can be reshaped without touching branch protection again.
+  ci-required:
+    name: ci-required
+    if: always() && github.event.action != 'closed'
+    needs: [library]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - name: Check build matrix result
+        run: |
+          result="${{ needs.library.result }}"
+          echo "Linux GCC matrix result: ${result}"
+          # 'skipped' is legitimate (path filters); anything other than that or
+          # 'success' means the matrix did not pass.
+          [[ "${result}" == "success" || "${result}" == "skipped" ]] || exit 1
