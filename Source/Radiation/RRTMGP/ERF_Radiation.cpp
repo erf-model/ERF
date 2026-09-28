@@ -1300,10 +1300,6 @@ Radiation::run_impl ()
         } else {
             Abort("Radiation: Unknown gas component.");
         }
-
-        // Populate GasConcs object
-        m_gas_concs.set_vmr(name, tmp2d);
-        Kokkos::fence();
     }
 
     // Determine the cosine zenith angle.
