@@ -1,9 +1,9 @@
 .. _SLM:
 
-Simple Land-surface Model (SLM)
+Simplified Land-surface Model (SLM)
 ===============================
 
-The original formulation and evaluation of the Simple Land Model (SLM) are
+The original formulation and evaluation of the Simplified Land Model (SLM) are
 documented in Lee, J. M., and M. Khairoutdinov (2015), *A Simplified Land Model
 (SLM) for use in cloud-resolving models: Formulation and evaluation*, Journal
 of Advances in Modeling Earth Systems, 7, 1368--1392,
@@ -17,7 +17,7 @@ from gSAM-SLM, and SLM-specific corrections to the surface energy and water
 budgets. SLM remains a simplified land model; it is not a complete
 implementation of NoahMP.
 
-The Simple Land-surface Model (SLM) supplies lower-boundary sensible-heat,
+The Simplified Land-surface Model (SLM) supplies lower-boundary sensible-heat,
 latent-heat, and momentum fluxes for land cells.  Select it with
 ``erf.land_surface_model = "SLM"``.  SLM uses the ``slm.`` input prefix.
 
@@ -37,8 +37,8 @@ terrain is active.
 Basic configuration
 -------------------
 
-The minimum uniform-initialization configuration supplies the soil-layer
-thicknesses and initial soil/vegetation properties.  For example:
+The minimum idealized uniform-initialization configuration supplies the
+soil-layer thicknesses and initial soil/vegetation properties.  For example:
 
 .. code-block:: text
 
@@ -51,6 +51,16 @@ thicknesses and initial soil/vegetation properties.  For example:
    slm.sand0 = 10.0
    slm.sw0 = 0.50
    slm.st0 = 300.0
+
+For real cases using ``erf.init_type == WRFInput``, an example minimal configuration is:
+
+.. code-block:: text
+
+   erf.land_surface_model = "SLM"
+   slm.nsoil = 4
+   slm.soil_dz = 0.1 0.3 0.6 1.0
+
+where ``slm.nsoil`` and ``slm.soil_dz`` should match the WRFInput file values.
 
 Core soil and surface options
 -----------------------------

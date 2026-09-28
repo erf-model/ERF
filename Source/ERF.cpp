@@ -1412,6 +1412,10 @@ ERF::InitData_post ()
             }
         }
 
+        if (phys_bc_type[Orientation::zlo()] == ERF_BC::surface_layer) {
+            m_SurfaceModel->request_surface_layer_outputs();
+        }
+
         if (solverChoice.lsm_type == LandSurfaceType::SLM) {
             m_SurfaceModel->register_radiation_input("tskin", {lsm.Get_DataIdx(0, "tsurf"), -1});
             m_SurfaceModel->register_radiation_input("emiss", {lsm.Get_DataIdx(0, "emis_sfc"), -1});
@@ -1486,10 +1490,16 @@ ERF::InitData_post ()
                 m_SurfaceModel->register_field_map("olen", olen_ptrs_slm, olen_ptrs_urb, true);
             } else {
             */
+            // Flux-based models do not consume these MOST mappings.  Keep them
+            // registered for regridding and the non-flux path; their storage remains
+            // lazy until a consumer activates them.
             m_SurfaceModel->register_field_map("ustar", {lsm.Get_DataIdx(0, "ustar"), -1}, true);
             m_SurfaceModel->register_field_map("tstar", {lsm.Get_DataIdx(0, "tstar"), -1}, true);
             m_SurfaceModel->register_field_map("qstar", {lsm.Get_DataIdx(0, "qstar"), -1}, true);
             m_SurfaceModel->register_field_map("olen", olen_ptrs_slm, olen_ptrs_urb, true);
+            if (!m_SurfaceModel->are_fluxes()) {
+                m_SurfaceModel->activate_all_field_maps();
+            }
             //}
             for (int lev = 0; lev <= finest_level; ++lev) {
                 // Seed olen to > 0 so that a surface model which exports u*/t*/q* directly
@@ -1502,7 +1512,9 @@ ERF::InitData_post ()
                 // maps never runs.  This setVal, and the four register_field_map calls above,
                 // therefore have no effect on any current configuration; they are kept for the
                 // non-flux path.  The intended wiring needs confirming before that path is used.
-                m_SurfaceModel->get_field("olen", lev)->setVal(1.0E3);
+                if (!m_SurfaceModel->are_fluxes()) {
+                    m_SurfaceModel->get_field("olen", lev)->setVal(1.0E3);
+                }
             }
         }
 
@@ -3282,9 +3294,7 @@ ERF::ReadParameters ()
         pp.queryAdd("destag_profiles", destag_profiles);
 
         pp.queryAdd("plot_lsm", plot_lsm);
-        if (plot_lsm) { // || plot_urban) {
-            plot_surfmodel = true;
-        }
+
 #ifdef ERF_USE_RRTMGP
         pp.queryAdd("plot_rad", plot_rad);
 #endif
@@ -3335,6 +3345,18 @@ ERF::ReadParameters ()
 #endif
 
     solverChoice.init_params(max_level,pp_prefix);
+
+    // SurfaceModel output is opt-in for single-provider runs.  When both
+    // providers are active, retain the useful combined diagnostic output
+    // by default, while allowing an explicit false to disable it.
+    bool urban_active = false;
+    for (const int enabled : solverChoice.urban_enabled_lev) {
+        urban_active = urban_active || (enabled != 0);
+    }
+    plot_surfmodel = solverChoice.lsm_type != LandSurfaceType::None &&
+                     solverChoice.urban_type != UrbanType::None &&
+                     urban_active;
+    pp.queryAdd("plot_surfmodel", plot_surfmodel);
 
     // Implicit acoustic substepping inverts one tridiagonal system per column, so it is
     // only well posed if no column is chopped between boxes.  That does not require one
