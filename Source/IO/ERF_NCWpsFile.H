@@ -252,7 +252,10 @@ fill_fab_from_arrays (int iv,
                       NC_Data_Dims_Type& NC_dim_type,
                       FAB& temp)
 {
-    int ns1, ns2, ns3; // bottom_top, south_north, west_east (these can be staggered or unstaggered)
+    // bottom_top, south_north, west_east (these can be staggered or unstaggered).
+    // Initialised because amrex::Abort is not [[noreturn]], so the compiler
+    // cannot tell that the final else never falls through.
+    int ns1 = 0, ns2 = 0, ns3 = 0;
     if (NC_dim_type == NC_Data_Dims_Type::Time_BT) {
         ns1 = nc_arrays[iv].get_vshape()[1];
         ns2 = 1;
@@ -280,7 +283,10 @@ fill_fab_from_arrays (int iv,
         // amrex::Print() << "TYPE SL " << ns1 << std::endl;
     }
     else {
-        amrex::Abort("Dont know this NC_Data_Dims_Type");
+        amrex::Abort("fill_fab_from_arrays: variable " + var_name +
+                     " has NC_Data_Dims_Type " + std::to_string(static_cast<int>(NC_dim_type)) +
+                     ", which this reader does not handle (only Time_BT, Time_SN_WE,"
+                     " Time_BT_SN_WE, Time_SL_SN_WE and Time_SL)");
     }
 
     // allow fewer z levels to be read in
