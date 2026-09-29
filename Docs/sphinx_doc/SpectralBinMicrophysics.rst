@@ -78,11 +78,13 @@ quantity :math:`C_i` therefore has units of :math:`\mathrm{m^{-3}}`.
 The spectral coordinate used by the current ERF SBM runtime configuration is
 the liquid-water mass of an individual particle, in kg. Bin edges and pivots
 therefore describe particle water mass, not atmospheric liquid-water content.
-The reference fixed-pivot and interval remappers are defined in individual
-particle-mass coordinates. A spectral grid expressed in another coordinate,
-such as radius, requires the corresponding transformed measure and Jacobian
-and is not interpreted by these reference policies as though its coordinate
-were particle mass.
+The reference fixed-pivot and interval remapping policies require
+individual-particle liquid-water mass as their spectral coordinate. A spectrum
+expressed in another coordinate, such as particle radius, is a different
+representation because its number measure and moments transform with the
+coordinate change. The current reference policies therefore reject non-mass
+coordinates rather than interpreting radius numerically as though it were
+particle mass.
 
 Bulk cloud and rain fields
 --------------------------
@@ -124,6 +126,10 @@ One- and two-moment bins
 ------------------------
 
 ERF currently supports one- and two-moment spectral bins.
+
+Here ``one moment`` and ``two moments`` refer to the moments stored within each
+spectral bin. They should not be confused with conventional one- or two-moment
+bulk cloud and precipitation parameterizations.
 
 One-moment representation
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -196,21 +202,53 @@ repaired.
 Reference spectral reconstruction and remapping
 ------------------------------------------------
 
-The persisted representation defines how process-generated particle packets
-are projected back to the spectral state. ERF assigns these policies from the
-population's moment mode and includes their versioned identities in the layout
-and restart schema.
+This section concerns redistribution in the spectral coordinate---that is,
+how a particle population is represented after a local process changes
+particle liquid-water mass. It is distinct from advection between atmospheric
+grid cells, AMR transfer between spatial resolutions, and conversion of a
+checkpoint from one spectral schema to another.
 
-For a one-moment population, particle number is diagnosed from mass at the
-fixed pivot :math:`p_i`:
+The current runtime does not yet execute cloud microphysical processes that
+use these remappers. M2-R establishes the reference representation and
+remapping contract that such processes must obey.
+
+Moment normalization
+~~~~~~~~~~~~~~~~~~~~
+
+The prognostic spectral state stored by ERF is density weighted. Within one
+atmospheric grid cell it is convenient to state the remapping algebra using
+the corresponding quantities per unit mass of dry air,
+
+.. math::
+
+   N_i = \frac{C_i}{\rho_d},
+   \qquad
+   q_i = \frac{M_i}{\rho_d},
+
+where :math:`N_i` is particle number per unit mass of dry air and :math:`q_i`
+is liquid-water mass per unit mass of dry air. The stored quantities are
+:math:`C_i=\rho_d N_i` and :math:`M_i=\rho_d q_i`.
+
+Because :math:`\rho_d` is a common factor within the cell, the same linear
+remapping formulas apply to the density-weighted state. For example, a packet
+containing :math:`N_p` particles per unit mass of dry air can equivalently be
+written as the number-density packet :math:`C_p=\rho_d N_p`.
+
+One-moment fixed-pivot remapping
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In the one-moment representation, bin :math:`i` stores its water moment
+:math:`q_i` but not an independent number moment. Particle number is diagnosed
+at the fixed positive pivot mass :math:`p_i`,
 
 .. math::
 
    N_i = \frac{q_i}{p_i}.
 
-A packet with number :math:`N_p` and actual particle mass :math:`m` between
-adjacent pivots :math:`p_-` and :math:`p_+` is divided between those pivots
-with number weights
+Consider a packet with number :math:`N_p` and actual liquid-water mass
+:math:`m` per particle. If :math:`m` lies between adjacent pivots
+:math:`p_-` and :math:`p_+`, the packet is divided between them using the
+number weights
 
 .. math::
 
@@ -218,31 +256,123 @@ with number weights
    \qquad
    w_+ = \frac{m-p_-}{p_+-p_-}.
 
-The receiving water masses are evaluated at their pivots, and each attached
-extensive property uses the same number weights. This preserves packet number,
-water mass, and every attached inventory. The fixed-pivot representation adds
-the numerical second-moment increment
+The corresponding increments are
 
 .. math::
 
-   \Delta Q_2 = N_p(m-p_-)(p_+-m) \ge 0,
+   \Delta N_\pm = N_p w_\pm,
+   \qquad
+   \Delta q_\pm = p_\pm N_p w_\pm.
 
-which is numerical spreading from the representation, not physical cloud
-broadening. A packet below the first pivot splits into a wet first-pivot part
-and a zero-water residual with the same number and attached-property
-partition. A packet above the largest pivot reports overflow; it is not
-clipped into the top bin.
+Any attached extensive inventory follows the same number weights. The mapping
+therefore conserves the implied packet number, liquid water, and each attached
+inventory, even though only the water moment and attached inventories are
+persisted in one-moment mode.
 
-For a two-moment population, the reference reconstruction places the stored
-number at the stored mean particle mass :math:`\bar m_i=M_i/C_i`. This
-``mean-delta`` view recovers the stored mass and number and does not assert
-that within-bin variance or nonlinear process rates are determined by those
-two moments. For an attached extensive property, this reference closure
-assigns the bin-mean amount per particle to the reconstructed node. This
-reproduces the stored attached-property inventory exactly, but it is a closure
-assumption: the stored moments do not determine unresolved within-bin
-covariance between particle composition and liquid-water mass. A process
-packet is deposited in the interval containing its actual mass:
+Fixed-pivot remapping necessarily introduces spectral spreading for an
+off-pivot packet. If
+
+.. math::
+
+   Q_2 = \int m^2\,d\mu
+
+denotes the second particle-mass moment of the number measure, the increment
+relative to retaining the packet at its actual mass is
+
+.. math::
+
+   \Delta Q_2
+   =
+   N_p(m-p_-)(p_+-m)
+   \ge 0.
+
+This is numerical broadening introduced by the representation; it is not
+physical cloud-spectrum broadening produced by a microphysical process.
+
+For a packet below the first pivot, :math:`0<m<p_0`, define
+
+.. math::
+
+   f_{\mathrm{wet}} = \frac{m}{p_0}.
+
+The reference closure places the fraction :math:`f_{\mathrm{wet}}` of the
+packet number at the first pivot and returns the remaining number through the
+zero-water residual path,
+
+.. math::
+
+   \Delta N_0 = N_p f_{\mathrm{wet}},
+   \qquad
+   \Delta q_0 = N_p m,
+   \qquad
+   N_{\mathrm{res}} = N_p(1-f_{\mathrm{wet}}).
+
+Attached inventories are partitioned by the same
+:math:`f_{\mathrm{wet}}` and :math:`1-f_{\mathrm{wet}}` fractions. This is a
+numerical sub-pivot evaporation closure. It should not be interpreted as a
+statement that the unresolved physical particles represented by the residual
+have necessarily undergone complete physical evaporation.
+
+A zero-water packet is returned entirely through the residual path. A packet
+above the largest fixed pivot reports overflow and is not clipped into the
+largest bin.
+
+Two-moment interval representation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In the two-moment representation, number and liquid-water mass are stored
+independently. For a populated bin with edges :math:`a_i` and :math:`b_i`,
+
+.. math::
+
+   \bar m_i = \frac{q_i}{N_i}
+            = \frac{M_i}{C_i}
+
+may occupy the full admissible interval.
+
+The reference ``mean-delta`` reconstruction is a temporary monodisperse
+representation that places all of the bin number at :math:`\bar m_i`. It
+recovers the persisted number and water moments exactly; it is not an
+additional prognostic description of within-bin shape.
+
+The first two moments do not uniquely determine that shape. For any
+nonnegative number distribution supported on :math:`[a_i,b_i]` with
+:math:`N_i>0`, the second mass moment satisfies
+
+.. math::
+
+   \frac{q_i^2}{N_i}
+   \le
+   Q_{2,i}
+   \le
+   (a_i+b_i)q_i-a_i b_i N_i.
+
+A delta distribution at :math:`\bar m_i` attains the lower bound, whereas an
+appropriate mixture at the two bin edges attains the upper bound. The
+mean-delta reference reconstruction therefore selects the minimum-variance
+distribution consistent with the two stored moments. Quantities that depend
+on unresolved within-bin structure---for example nonlinear collision rates,
+size-dependent sedimentation, or optical properties---are not uniquely
+determined by :math:`N_i` and :math:`q_i` alone.
+
+For an attached extensive property, the mean-delta reference closure assigns
+the bin-mean amount per particle to the reconstructed node. This reproduces
+the stored attached-property inventory exactly, but it likewise does not
+resolve covariance between particle composition and liquid-water mass.
+
+If several physically distinct packets are accumulated in the same interval,
+their total number and first water-mass moment are retained, but their
+within-bin spread is not an additional persisted degree of freedom.
+Subsequent mean-delta reconstruction therefore cannot recover that spread.
+This is representation loss, not physical coalescence: particle number has
+not been reduced by the representation itself.
+
+Two-moment packet deposition
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A two-moment process packet is deposited using its actual particle mass,
+rather than being replaced by neighboring pivot masses. If a packet with
+number :math:`N_p` and particle mass :math:`m` lies in interval :math:`i`,
 
 .. math::
 
@@ -250,31 +380,64 @@ packet is deposited in the interval containing its actual mass:
    \qquad
    \Delta q_i = N_p m.
 
-Attached extensive properties are deposited into that same interval. Interior
-intervals are half-open, so an exact shared edge belongs to the upper
-interval; the global upper edge belongs to the final interval. Out-of-range
-packets report a status instead of being clipped. A value up to four
-representable steps outside a global edge may be treated as boundary roundoff
-rather than physical overflow. The accepted packet is deposited at the exact
-boundary, and the resulting rounding-sized water adjustment relative to the
-incoming packet is reported explicitly. This keeps the persisted two-moment
-state inside its declared support and preserves the reconstruction/projection
-no-process identity.
-A positive-number packet with zero liquid-water mass is returned through the
-zero-water residual path rather than retained in a populated two-moment liquid
-bin. The reference remapper does not create or update aerosol state.
+Any attached extensive inventory is deposited into the same interval.
 
-The persisted policy identities are ``fixed-pivot-1m-v1`` with
-``fixed-pivot-delta-v1`` and ``fixed-pivot-two-center-v1`` for one moment, and
-``interval-2m-v1`` with ``mean-delta-2m-v1`` and
-``actual-mass-interval-v1`` for two moments. Restart comparison is exact and
-rejects a different policy identity; automatic checkpoint conversion is not
-provided.
+Interior intervals are half-open: a packet exactly on an edge shared by two
+bins belongs to the upper bin. The global upper edge is included in the final
+bin. Materially out-of-range packets return an underflow or overflow status
+rather than being silently clipped.
 
-These contracts define temporary within-bin evaluation and mass-space packet
-projection only. The current SBM runtime still performs no spectral
-advection, cloud microphysical evolution, activation, collision-coalescence,
-sedimentation, or precipitation.
+At a global interval boundary, the implementation permits only a very small,
+explicitly bounded floating-point exception: a value up to four representable
+floating-point steps outside the boundary may be classified as roundoff. Such
+a packet is deposited at the exact boundary mass :math:`m_b`, not at its
+slightly out-of-support input mass :math:`m_{\mathrm{in}}`.
+
+The corresponding signed numerical water correction is
+
+.. math::
+
+   \delta q_{\mathrm{round}}
+   =
+   N_p\left(m_b-m_{\mathrm{in}}\right),
+
+with the analogous density-weighted correction obtained by multiplication by
+:math:`\rho_d`. A positive correction means boundary normalization increased
+the persisted water amount relative to the incoming floating-point packet; a
+negative correction means it decreased it. This quantity is explicit
+numerical roundoff accounting, not a physical condensation, evaporation, or
+precipitation source.
+
+Storing the exact boundary mass keeps the accepted state inside its declared
+spectral support and ensures that reconstruction followed immediately by
+projection does not change the accepted moments.
+
+A positive-number packet with exactly zero liquid-water mass is returned
+through the zero-water residual path rather than retained as a populated
+liquid bin. Residual number and attached inventory are returned to the caller
+for process-level handling; the reference remapper itself does not create or
+modify an aerosol population.
+
+Restart and scientific identity
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The representation, temporary reconstruction, and packet-remapping policies
+are versioned parts of the SBM scientific identity. The current one-moment
+identities are ``fixed-pivot-1m-v1``, ``fixed-pivot-delta-v1``, and
+``fixed-pivot-two-center-v1``. The current two-moment identities are
+``interval-2m-v1``, ``mean-delta-2m-v1``, and
+``actual-mass-interval-v1``.
+
+These strings are restart and provenance metadata; they are not user-selectable
+microphysics options. Restart comparison is exact, and ERF does not
+automatically convert a checkpoint to a different representation or remapping
+policy.
+
+The contracts described here provide reference within-bin reconstruction and
+spectral-coordinate packet projection only. The current SBM runtime still
+performs no spectral advection, condensation or evaporation, aerosol
+activation, aerosol evolution, collision-coalescence, sedimentation, or
+precipitation.
 
 Auxiliary prognostic-state transport
 ------------------------------------
@@ -297,12 +460,15 @@ the coupling to ERF. The SBM spectral state is not yet advanced through this
 path, so ``erf.moisture_model = SBM`` remains the zero-transport
 infrastructure configuration described elsewhere on this page.
 
-The test-only inert-tracer consumer uses a time-independent mapped cell
-measure. Its stored measure is constructed only after ERF has finalized the
-level Jacobian and horizontal map factors. The generic stage interface retains
-separate anchor-, input-, and target-time measure views; a moving-mesh
-consumer would have to provide those time-dependent measures explicitly.
-Moving-terrain transport is not qualified by the current auxiliary fixture.
+The test-only inert-tracer consumer is qualified only for time-independent
+geometry. Its mapped cell measure is constructed after ERF has finalized the
+level Jacobian and horizontal map factors and is then used consistently across
+the host time-integration stages. The generic stage interface nevertheless
+retains separate old-step, input-stage, and target-stage measure views. A
+future moving-terrain consumer would have to provide the appropriate
+time-dependent geometry at those stages and satisfy a separate geometric
+conservation qualification. Moving-terrain transport is not qualified by the
+current auxiliary fixture.
 
 Density-weighted state and mapped conservation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -729,6 +895,14 @@ not a recommended atmospheric spectral discretization.
 Defines one representative particle mass for each spectral bin.
 
 Each pivot must be finite, positive, and lie inside its corresponding bin.
+
+For ``erf.sbm_moment_mode = 1``, the pivots must also increase strictly from
+one bin to the next. Coincident pivots at a shared bin edge are therefore not
+valid for the fixed-pivot one-moment representation.
+
+In two-moment mode the pivots remain part of the spectral-grid and restart
+identity, but the reference packet remapper uses the packet's actual mass and
+its containing interval rather than replacing the packet by pivot masses.
 
 When explicit ``erf.sbm_edges`` are supplied and ``erf.sbm_pivots`` are
 omitted, ERF uses the geometric mean of each pair of adjacent bin edges.
