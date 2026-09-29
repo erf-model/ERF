@@ -1423,7 +1423,7 @@ ERF::InitData_post ()
             m_SurfaceModel->register_radiation_input("albedo_nir", {lsm.Get_DataIdx(0, "alb_nir_sfc"), -1});
             m_SurfaceModel->register_radiation_input("albedo_vis_diff", {lsm.Get_DataIdx(0, "alb_vis_sfc_diff"), -1});
             m_SurfaceModel->register_radiation_input("albedo_nir_diff", {lsm.Get_DataIdx(0, "alb_nir_sfc_diff"), -1});
-            if (solverChoice.rad_type == RadiationType::RRTMGP) {
+            if (solverChoice.rad_feeds_lsm()) {
                 const amrex::Vector<std::string> rad_output_names = {
                     "cos_zenith_angle", "sw_flux_dn", "sw_flux_dn_dir_vis",
                     "sw_flux_dn_dir_nir", "sw_flux_dn_dif_vis", "sw_flux_dn_dif_nir",
@@ -1446,7 +1446,7 @@ ERF::InitData_post ()
                 const int idx = lsm.Get_DataIdx(0, input.second);
                 if (idx >= 0) { m_SurfaceModel->register_radiation_input(input.first, {idx, -1}); }
             }
-            if (solverChoice.rad_type == RadiationType::RRTMGP) {
+            if (solverChoice.rad_feeds_lsm()) {
                 const amrex::Vector<std::string> rad_output_names = {
                     "cos_zenith_angle", "sw_flux_dn", "sw_flux_dn_dir_vis",
                     "sw_flux_dn_dir_nir", "sw_flux_dn_dif_vis", "sw_flux_dn_dif_nir",
@@ -1575,14 +1575,19 @@ ERF::InitData_post ()
         }
     }
 
+    bool any_surface_layer = false;
     for (OrientationIter oit; oit; ++oit) {
         Orientation ori = oit();
         if (phys_bc_type[ori] == ERF_BC::surface_layer) {
+            any_surface_layer = true;
             bool has_diff = ( (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None) ||
                               (solverChoice.turbChoice[0].les_type  != LESType::None)          ||
                               (solverChoice.turbChoice[0].rans_type != RANSType::None)         ||
                               (solverChoice.turbChoice[0].pbl_type  != PBLType::None) );
-            AMREX_ALWAYS_ASSERT(has_diff);
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(has_diff,
+                "A surface_layer boundary applies its fluxes through the diffusion operator, so it "
+                "needs a diffusive closure: set erf.molec_diff_type, erf.les_type, erf.rans_type "
+                "or erf.pbl_type.");
 
             bool rotate = solverChoice.use_rotate_surface_flux;
             if (rotate) {
@@ -1724,6 +1729,19 @@ ERF::InitData_post ()
             m_SurfaceLayer[ori] = nullptr;
         }
     } // end if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
+
+    // A land-surface model hands its fluxes to the atmosphere only through the surface
+    // layer (make_SurfaceLayer_at_level is the one consumer of lsm_flux). Without a
+    // surface_layer boundary the land model still runs and still computes fluxes, but
+    // nothing applies them: the atmosphere never sees the land surface.
+    if (solverChoice.lsm_type != LandSurfaceType::None && !any_surface_layer) {
+        amrex::Print() << "WARNING: erf.land_surface_model = "
+                       << amrex::getEnumNameString(solverChoice.lsm_type)
+                       << " but no boundary is a surface_layer. The land model's heat, "
+                          "moisture and momentum fluxes reach the atmosphere only through "
+                          "the surface layer, so they will not be applied; set "
+                          "zlo.type = \"surface_layer\".\n";
+    }
 
     if (!restart_chkfile.empty()) {
         // All active faces now exist, so restore every surface-layer field once.

@@ -1321,6 +1321,20 @@ struct SolverChoice {
         // erf.radiation.* sub-options are read only then.
         radChoice.init_params(rad_type == RadiationType::TwoStream, pp_prefix);
 
+        // Noah-MP integrates on the downwelling shortwave, downwelling longwave and solar
+        // zenith angle a radiation model writes into it. Only RRTMGP registers those
+        // outputs with the land model (rad_feeds_lsm, ERF::init_stuff), so under any other
+        // choice they are never written and Noah-MP runs with no radiative forcing at all
+        // -- the inputs it reads fall back to zero. That is a legitimate thing to want in a
+        // test, and rarely what anyone running a land model means, so say it at start-up.
+        if (lsm_type == LandSurfaceType::NOAHMP && !rad_feeds_lsm()) {
+            amrex::Print() << "WARNING: erf.land_surface_model = NOAHMP with erf.radiation_model = "
+                           << amrex::getEnumNameString(rad_type)
+                           << ": only RRTMGP supplies the downwelling shortwave, downwelling "
+                              "longwave and solar zenith angle Noah-MP needs. Noah-MP will run "
+                              "with no radiative forcing (zero SWDOWN, GLW and COSZEN).\n";
+        }
+
         vert_implicit_fac.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {
             vert_implicit_fac[lev].resize(3);
@@ -2382,6 +2396,16 @@ struct SolverChoice {
      *  (RRTMGP, Simple); the two-stream model has its own class. */
     [[nodiscard]] bool rad_uses_interface () const {
         return (rad_type == RadiationType::RRTMGP) || (rad_type == RadiationType::Simple);
+    }
+
+    /** @brief True for the radiation models whose outputs feed the land model
+     *  (downwelling shortwave, downwelling longwave, solar zenith angle). Only
+     *  RRTMGP registers those outputs (ERF::init_stuff) and only RRTMGP's are
+     *  gated into lsm_output_ptrs (ERF::advance_radiation); every site that
+     *  encodes that rule must use this predicate so wiring another model in
+     *  (e.g. Simple, which already runs through the interface) is one edit. */
+    [[nodiscard]] bool rad_feeds_lsm () const {
+        return (rad_type == RadiationType::RRTMGP);
     }
 
     // Does an external ocean coupler supply SST? See the query in init_params.

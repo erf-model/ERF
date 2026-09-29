@@ -4,6 +4,8 @@
 #include <cmath>
 #include <limits>
 #include <AMReX_REAL.H>
+#include <AMReX_GpuQualifiers.H>
+#include <AMReX_Math.H>
 #include "ERF_NumericalConstants.H"
 
 // Safe overly large value to fill data so that it is not uninitialized
@@ -24,6 +26,16 @@ constexpr amrex::Real bogus_large_value = amrex::Real(1.e150);
 // to how WRF computes the atmospheric surface flux from a skin temperature via
 // the surface-layer scheme rather than taking an undefined LSM flux.
 constexpr amrex::Real lsm_undefined = bogus_large_value;
+
+// The one definition of "this LSM coupling value was computed": finite and below the
+// lsm_undefined sentinel. amrex::Math::isfinite rather than std::isfinite because the
+// latter is always false in SYCL device code. Consumers that must also reject other
+// fill conventions (e.g. Noah-MP's -9999) add their own tests on top of this one.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool is_valid_lsm_value (amrex::Real v)
+{
+    return amrex::Math::isfinite(v) && v < lsm_undefined;
+}
 
 // Physical ceiling [mm] on interval precip handed to Noah-MP over one land call.
 // 500 mm is far above any real rate, so a larger value signals noisy IC/BC or a
