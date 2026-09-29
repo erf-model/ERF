@@ -3423,9 +3423,8 @@ ERF::ReadParameters ()
                 start_datetime += ":00"; // add seconds
             }
             if (start_datetime.length() != 19) {
-                Print() << "Got start_datetime = \"" << start_datetime
-                    << "\", format should be " << datetime_format << std::endl;
-                exit(0);
+                Abort("Got start_datetime = \"" + start_datetime +
+                      "\", format should be " + datetime_format);
             }
             start_time = static_cast<double>(getEpochTime(start_datetime, datetime_format));
 
@@ -3488,13 +3487,12 @@ ERF::ReadParameters ()
                 stop_datetime += ":00"; // add seconds
             }
             if (stop_datetime.length() != 19) {
-                Print() << "Got stop_datetime = \"" << stop_datetime
-                    << "\", format should be " << datetime_format << std::endl;
-                exit(0);
+                Abort("Got stop_datetime = \"" + stop_datetime +
+                      "\", format should be " + datetime_format);
             }
 
             stop_time = static_cast<double>(getEpochTime(stop_datetime, datetime_format));
-            Print() << "Stop  datetime : " << start_datetime << std::endl;
+            Print() << "Stop  datetime : " << stop_datetime << std::endl;
 
         } else {
 
@@ -4055,24 +4053,12 @@ ERF::check_vels_for_nans(MultiFab const& xvel, MultiFab const& yvel, MultiFab co
     //
     // Test at the end of every full timestep whether the solution data contains NaNs
     //
-    bool any_have_nans = false;
-    if (xvel.contains_nan(0,1,0))
-    {
-        amrex::Print() << "x-velocity contains NaNs " << '\n';
-        any_have_nans = true;
-    }
-    if (yvel.contains_nan(0,1,0))
-    {
-        amrex::Print() << "y-velocity contains NaNs" << '\n';
-        any_have_nans = true;
-    }
-    if (zvel.contains_nan(0,1,0))
-    {
-        amrex::Print() << "z-velocity contains NaNs" << '\n';
-        any_have_nans = true;
-    }
-    if (any_have_nans) {
-        exit(0);
+    std::string have_nans;
+    if (xvel.contains_nan(0,1,0)) { have_nans += " x-velocity"; }
+    if (yvel.contains_nan(0,1,0)) { have_nans += " y-velocity"; }
+    if (zvel.contains_nan(0,1,0)) { have_nans += " z-velocity"; }
+    if (!have_nans.empty()) {
+        amrex::Abort("NaNs found in" + have_nans);
     }
 }
 
