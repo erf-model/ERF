@@ -297,6 +297,13 @@ the coupling to ERF. The SBM spectral state is not yet advanced through this
 path, so ``erf.moisture_model = SBM`` remains the zero-transport
 infrastructure configuration described elsewhere on this page.
 
+The test-only inert-tracer consumer uses a time-independent mapped cell
+measure. Its stored measure is constructed only after ERF has finalized the
+level Jacobian and horizontal map factors. The generic stage interface retains
+separate anchor-, input-, and target-time measure views; a moving-mesh
+consumer would have to provide those time-dependent measures explicitly.
+Moving-terrain transport is not qualified by the current auxiliary fixture.
+
 Density-weighted state and mapped conservation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

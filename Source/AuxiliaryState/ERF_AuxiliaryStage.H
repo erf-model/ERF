@@ -39,6 +39,13 @@ struct AuxiliaryStageRecipe {
     double completed_ledger_time{0.0};
 };
 
+enum class AuxiliaryFieldValidationPolicy {
+    /** Perform global positive-density and finite-result validation. */
+    Global,
+    /** Skip global checks; caller guarantees finite state and positive finite density. */
+    AssumeValid
+};
+
 /** Semantic host and state views at the pre-overwrite slow-RHS post seam. */
 struct AuxiliaryStageContext {
     HostIntegrator method{HostIntegrator::CompressibleRK3};
@@ -78,6 +85,7 @@ bool BuildAuxiliaryIntensiveState(const ConstTimedFieldView& state_input,
                                   const ConstTimedFieldView& rho_input,
                                   double input_time,
                                   amrex::MultiFab& intensive,
+                                  AuxiliaryFieldValidationPolicy validation,
                                   std::string& diagnostic);
 
 const char* HostIntegratorName(HostIntegrator method) noexcept;
@@ -87,6 +95,9 @@ void ApplyAuxiliaryMappedStage(const AuxiliaryStageContext& context,
                                const MappedFaceFluxRate& rate,
                                const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dx_inv,
                                int rate_component = 0);
+
+/** Whether the mutable stage target is a distinct MultiFab from both inputs. */
+bool AuxiliaryStageTargetIsDisjoint(const AuxiliaryStageContext& context);
 
 /** Completed-step time integral of accepted mapped face rates and stage order. */
 class CompletedStepFluxLedger {
