@@ -15,7 +15,7 @@ jobs:
   library:
     # The closed event exists only to cancel in-progress runs via concurrency.
     if: github.event.action != 'closed'
-    name: GNU@9.3 C++17 Release - NetCDF ${{matrix.netcdf}} - Particles ${{matrix.particles}} - RRTMGP ${{matrix.rrtmgp}}
+    name: GNU@9.3 C++17 - NetCDF ${{matrix.netcdf}} - Particles ${{matrix.particles}} - RRTMGP ${{matrix.rrtmgp}}
     runs-on: ubuntu-22.04
     timeout-minutes: 180
     permissions:

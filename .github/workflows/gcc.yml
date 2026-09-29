@@ -14,7 +14,7 @@ jobs:
   library:
     # The closed event exists only to cancel in-progress runs via concurrency.
     if: github.event.action != 'closed'
-    name: GNU@9.3 C++17 Release - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
+    name: GNU@9.3 C++17 - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     runs-on: ubuntu-22.04
     timeout-minutes: 120
     # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
