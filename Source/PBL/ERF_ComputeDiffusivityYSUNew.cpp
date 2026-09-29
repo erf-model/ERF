@@ -41,21 +41,21 @@ using namespace amrex;
  */
 void
 ComputeDiffusivityYSUNew (const MultiFab& xvel,
-                       const MultiFab& yvel,
-                       const MultiFab& cons_in,
-                       MultiFab& eddyViscosity,
-                       const Geometry& geom,
-                       const TurbChoice& turbChoice,
-                       std::unique_ptr<SurfaceLayer>& SurfLayer,
-                       bool use_terrain_fitted_coords,
-                       bool use_moisture,
-                       int level,
-                       const BCRec* bc_ptr,
-                       bool /*vert_only*/,
-                       const std::unique_ptr<MultiFab>& z_phys_nd,
-                       const std::unique_ptr<MultiFab>& z_phys_cc,
-                       const MoistureComponentIndices& moisture_indices,
-                       const MultiFab* qheating_rates,
+                          const MultiFab& yvel,
+                          const MultiFab& cons_in,
+                          MultiFab& eddyViscosity,
+                          const Geometry& geom,
+                          const TurbChoice& turbChoice,
+                          std::unique_ptr<SurfaceLayer>& SurfLayer,
+                          bool use_terrain_fitted_coords,
+                          bool use_moisture,
+                          int level,
+                          const BCRec* bc_ptr,
+                          bool /*vert_only*/,
+                          const std::unique_ptr<MultiFab>& z_phys_nd,
+                          const std::unique_ptr<MultiFab>& z_phys_cc,
+                          const MoistureComponentIndices& moisture_indices,
+                          const MultiFab* qheating_rates,
                           const MultiFab* terrain_blank)
 {
     /*
@@ -1810,14 +1810,14 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 // immersed surface is handled the same way as the domain bottom.
                 if (k == ksrf) {
                     const Real zrel_sl = amrex::max(zval - zib, Real(1.0e-4));
-                    const Real theta_k = cell_data(i, j, k, RhoTheta_comp) / rho;
-                    const Real qv_k    = (moisture_indices.qv >= 0) ?
+                    const Real theta   = cell_data(i, j, k, RhoTheta_comp) / rho;
+                    const Real qv      = (moisture_indices.qv >= 0) ?
                                          cell_data(i, j, k, moisture_indices.qv) / rho : zero;
                     PBLSurfaceLayerGradient sl;
                     sl.u_star  = us_eff_arr(i, j, 0);
                     sl.tstar_v = ComputeVirtualTStarPBL(ts_eff_arr(i, j, 0),
                                                         use_moisture ? qs_eff_arr(i, j, 0) : zero,
-                                                        theta_k, qv_k, use_moisture);
+                                                        theta, qv, use_moisture);
                     sl.zval    = zrel_sl;
                     sl.zeta    = zrel_sl / obuk_val;
                     ApplySurfaceLayerGradientsPBL(sl, dthetadz, dudz, dvdz);

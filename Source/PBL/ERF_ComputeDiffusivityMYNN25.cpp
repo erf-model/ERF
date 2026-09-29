@@ -198,8 +198,6 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             if (k == izmin) {
                 PBLSurfaceLayerGradient sl;
                 sl.u_star  = u_star_arr(i,j,0);
-                // Equals -surface_heat_flux/u_*, formed directly to avoid
-                // dividing by a vanishing u_*
                 sl.tstar_v = ComputeVirtualTStarPBL(t_star_arr(i,j,0),
                                                     (use_moisture) ? q_star_arr(i,j,0) : zero,
                                                     theta0, qv0, use_moisture);

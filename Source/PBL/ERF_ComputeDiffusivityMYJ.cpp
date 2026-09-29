@@ -250,10 +250,10 @@ ComputeDiffusivityMYJ (double dt,
                     const Real zval = use_terrain_fitted_coords ?
                                       Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr) :
                                       gdata.ProbLo(2) + (k + myhalf)*gdata.CellSize(2);
-                    const Real rho_k  = cell_data(i,j,k,Rho_comp);
-                    const Real theta  = cell_data(i,j,k,RhoTheta_comp) / rho_k;
-                    const Real qv     = (moisture_indices.qv >= 0) ?
-                                        cell_data(i,j,k,moisture_indices.qv) / rho_k : zero;
+                    const Real rho   = cell_data(i,j,k,Rho_comp);
+                    const Real theta = cell_data(i,j,k,RhoTheta_comp) / rho;
+                    const Real qv    = (moisture_indices.qv >= 0) ?
+                                        cell_data(i,j,k,moisture_indices.qv) / rho : zero;
                     PBLSurfaceLayerGradient sl;
                     sl.u_star  = u_star_arr(i,j,0);
                     sl.tstar_v = ComputeVirtualTStarPBL(t_star_arr(i,j,0),
@@ -360,14 +360,17 @@ ComputeDiffusivityMYJ (double dt,
                         qvel(i,j,k) = EPSQ1;
                     }
                 }
-                /*
-                // Boundary condition
-                if (k==klo) {
-                    Real q2 = std::pow(B1,(two/three))*ustar_arr(i,j,k)*ustar_arr(i,j,k);
-                    Real q  = std::max(std::sqrt(q2),EPSQ1);
-                    qvel(i,j,k) = myhalf * (q + qvel(i,j,k));
-                }
-                */
+
+                // NOTE: MYJ in WRF places the TKE at the w-faces and not the CC.
+                //       Therefore, WRF sets the bottom face in accordance with
+                //       the surface layer friction velocity (below). We do not
+                //       do that since TKE lives at CC here.
+                //if (k==klo) {
+                //    Real q2 = std::pow(B1,(two/three))*ustar_arr(i,j,k)*ustar_arr(i,j,k);
+                //    Real q  = std::max(std::sqrt(q2),EPSQ1);
+                //    qvel(i,j,k) = myhalf * (q + qvel(i,j,k));
+                //}
+
                 cell_data(i,j,k,RhoKE_comp) = myhalf*cell_data(i,j,k,Rho_comp)*qvel(i,j,k)*qvel(i,j,k);
 
                 // L^n/Q^n
