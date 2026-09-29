@@ -184,6 +184,12 @@ if(DEFINED SEB_PARITY_PLOTFILE AND NOT "${SEB_PARITY_PLOTFILE}" STREQUAL "")
         set(seb_fail_message "a fine level created mid-run did not start from the surface "
                              "its parent had reached")
     endif()
+    set(seb_regridded_arg "")
+    if(DEFINED SEB_REGRIDDED_FROM AND NOT "${SEB_REGRIDDED_FROM}" STREQUAL "")
+        set(seb_regridded_arg --regridded-from ${SEB_REGRIDDED_FROM})
+        set(seb_fail_message "a regrid that moved the fine level did not keep its surface "
+                             "state, or did not start the newly covered cells from the parent")
+    endif()
     execute_process(
         COMMAND ${PYTHON_EXE} ${SEB_PARITY_CHECKER}
                 --plotfile ${SEB_PARITY_PLOTFILE}
@@ -191,6 +197,7 @@ if(DEFINED SEB_PARITY_PLOTFILE AND NOT "${SEB_PARITY_PLOTFILE}" STREQUAL "")
                 --tol ${SEB_PARITY_TOL}
                 ${seb_evolved_arg}
                 ${seb_created_arg}
+                ${seb_regridded_arg}
         WORKING_DIRECTORY "${WORKING_DIRECTORY}"
         OUTPUT_FILE "${seb_parity_log}"
         ERROR_FILE "${seb_parity_log}"
