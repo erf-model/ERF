@@ -62,8 +62,23 @@ longwave or solar zenith angle Noah-MP reads. ERF prints a warning at start-up a
 at the first land step, and passes zero for all three. In the output:
 
 - the absorbed shortwave, `sav` and `sag`, is exactly zero;
-- the surface cools from the 300 K in the setup file to about 252 K, because zero longwave
-  is a 0 K sky. That is the correct response to this configuration, not a Noah-MP defect.
+- the surface cools from the 300 K in the setup file to about 252 K. With no downwelling
+  longwave it radiates to a 0 K sky, and it settles where its own emission is balanced by
+  heat from below and above:
+
+  | Term at the last step (positive away from the surface) | W/m² |
+  | --- | --- |
+  | net longwave, `fira` | +228.4 |
+  | ground heat flux, `grdflx` (heat conducted up from the warmer soil) | −151.2 |
+  | sensible heat, `sensible_heat_flux` (heat from the warmer air) | −78.2 |
+  | latent heat (evaporation), Noah-MP `LH` | +1.0 |
+  | absorbed shortwave, `sav` + `sag` | 0 |
+
+  Noah-MP's land output, `lnd00002/Level_0.nc`, closes this budget (`FIRAXY`, `HFX`, `LH`,
+  `GRDFLX`) to 0.02 W/m², so evaporation plays almost no part even though the air is dry.
+  The latent heat is not in `plt2d00002`: ERF fills its `latent_heat_flux` there only when a
+  moisture model is set. This is the correct response to the configuration, not a Noah-MP
+  defect.
 
 A run that stops before `plt00002` and `plt2d00002` are written has failed, whatever its
 exit status. Noah-MP's own physics checks end with a Fortran `STOP`, which ERF reports as a

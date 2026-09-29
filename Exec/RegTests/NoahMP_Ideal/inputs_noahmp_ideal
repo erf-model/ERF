@@ -18,10 +18,13 @@
 #
 # 3. The outputs. The absorbed shortwave (sav, sag) must be zero here.
 #
-# With no radiation reaching the surface the ground radiates to a 0 K sky and cools
-# quickly (about 300 K to 252 K in the one Noah-MP hour this runs). That is the
-# correct response to the configuration, not a Noah-MP defect; the start-up warning
-# says the same.
+# With no downwelling longwave the surface radiates to a 0 K sky and cools, from 300 K
+# to about 252 K in the one Noah-MP hour this runs. There it loses 228 W/m^2 of its own
+# emission (fira), balanced by 151 W/m^2 conducted up from the warmer soil (grdflx) and
+# 78 W/m^2 of sensible heat from the warmer air (sensible_heat_flux, negative = toward
+# the surface). Evaporation is about 1 W/m^2. Noah-MP's land output lnd00002 closes this
+# budget (FIRAXY, HFX, LH, GRDFLX) to 0.02 W/m^2. That is the correct response to the
+# configuration, not a Noah-MP defect; the start-up warning says the same.
 
 max_step = 2
 stop_time = 100.0
