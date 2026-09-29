@@ -762,3 +762,6 @@ clean::
 ifeq ($(USE_NOAHMP), TRUE)
 	$(MAKE) -C $(NOAHMP_HOME)/drivers/erf -f Makefile clean_noahmp
 endif
+ifeq ($(USE_KOKKOS), TRUE)
+	rm -rf $(EKAT_BUILD_DIR)
+endif
