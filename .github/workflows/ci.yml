@@ -1,10 +1,10 @@
 name: ERF CI
 
 on:
-  # Keep ERF CI PR-only in the canonical repository, but allow forks to run
-  # the primary test matrix before opening a PR.
+  # Keep ERF CI PR-only in the canonical repository, but allow fork feature
+  # branches to run the primary test matrix before opening a PR.
   push:
-    branches: ['**']
+    branches-ignore: [development]
     paths-ignore:
       - Docs/**
       - README.rst
@@ -21,7 +21,9 @@ concurrency:
 jobs:
 
   Build-And-Test:
-    if: github.event_name != 'push' || github.repository != 'erf-model/ERF'
+    if: >-
+      (github.event_name == 'pull_request' && !github.event.repository.fork) ||
+      (github.event_name == 'push' && github.event.repository.fork)
     runs-on: ${{matrix.os}}
     timeout-minutes: 180
     name: OS ${{matrix.os}} - Particles ${{matrix.particles}}

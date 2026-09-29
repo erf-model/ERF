@@ -1,7 +1,7 @@
 name: codespell
 
 on:
-  # Fork pushes provide pre-PR CI; jobs below skip canonical feature-branch pushes.
+  # Fork feature pushes provide pre-PR CI; development sync pushes are skipped.
   push:
     branches: ['**']
   pull_request:
@@ -13,9 +13,17 @@ concurrency:
 
 jobs:
   codespell:
+    name: >-
+      ${{ github.event_name == 'push' && !github.event.repository.fork &&
+          github.ref != 'refs/heads/development' && 'codespell [skipped push]' ||
+          'codespell' }}
     if: >-
-      github.event_name != 'push' || github.repository != 'erf-model/ERF' ||
-      github.ref == 'refs/heads/development'
+      (github.event_name == 'pull_request' && !github.event.repository.fork) ||
+      (github.event_name == 'push' &&
+       ((!github.event.repository.fork &&
+         github.ref == 'refs/heads/development') ||
+        (github.event.repository.fork &&
+         github.ref != 'refs/heads/development')))
     runs-on: ubuntu-22.04
     timeout-minutes: 15
 

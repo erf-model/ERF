@@ -1,7 +1,7 @@
 name: Linux GCC
 
 on:
-  # Fork pushes provide pre-PR CI; jobs below skip canonical feature-branch pushes.
+  # Fork feature pushes provide pre-PR CI; development sync pushes are skipped.
   push:
     branches: ['**']
   pull_request:
@@ -14,8 +14,12 @@ concurrency:
 jobs:
   library:
     if: >-
-      github.event_name != 'push' || github.repository != 'erf-model/ERF' ||
-      github.ref == 'refs/heads/development'
+      (github.event_name == 'pull_request' && !github.event.repository.fork) ||
+      (github.event_name == 'push' &&
+       ((!github.event.repository.fork &&
+         github.ref == 'refs/heads/development') ||
+        (github.event.repository.fork &&
+         github.ref != 'refs/heads/development')))
     name: GNU@9.3 C++17 - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     runs-on: ubuntu-22.04
     timeout-minutes: 120
@@ -180,11 +184,18 @@ jobs:
   # waiting forever on a context that could never report. Requiring only this job means
   # the matrix can be reshaped without touching branch protection again.
   ci-required:
-    name: ci-required
+    name: >-
+      ${{ github.event_name == 'push' && !github.event.repository.fork &&
+          github.ref != 'refs/heads/development' && 'ci-required [skipped push]' ||
+          'ci-required' }}
     if: >-
       always() &&
-      (github.event_name != 'push' || github.repository != 'erf-model/ERF' ||
-       github.ref == 'refs/heads/development')
+      ((github.event_name == 'pull_request' && !github.event.repository.fork) ||
+       (github.event_name == 'push' &&
+        ((!github.event.repository.fork &&
+          github.ref == 'refs/heads/development') ||
+         (github.event.repository.fork &&
+          github.ref != 'refs/heads/development'))))
     needs: [library]
     runs-on: ubuntu-22.04
     timeout-minutes: 5
@@ -193,6 +204,4 @@ jobs:
         run: |
           result="${{ needs.library.result }}"
           echo "Linux GCC matrix result: ${result}"
-          # 'skipped' is legitimate (path filters); anything other than that or
-          # 'success' means the matrix did not pass.
-          [[ "${result}" == "success" || "${result}" == "skipped" ]] || exit 1
+          [[ "${result}" == "success" ]] || exit 1

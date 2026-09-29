@@ -1,7 +1,7 @@
 name: Style
 
 on:
-  # Fork pushes provide pre-PR CI; jobs below skip canonical feature-branch pushes.
+  # Fork feature pushes provide pre-PR CI; development sync pushes are skipped.
   push:
     branches: ['**']
   pull_request:
@@ -13,9 +13,17 @@ concurrency:
 
 jobs:
   tabs:
+    name: >-
+      ${{ github.event_name == 'push' && !github.event.repository.fork &&
+          github.ref != 'refs/heads/development' && 'tabs [skipped push]' ||
+          'tabs' }}
     if: >-
-      github.event_name != 'push' || github.repository != 'erf-model/ERF' ||
-      github.ref == 'refs/heads/development'
+      (github.event_name == 'pull_request' && !github.event.repository.fork) ||
+      (github.event_name == 'push' &&
+       ((!github.event.repository.fork &&
+         github.ref == 'refs/heads/development') ||
+        (github.event.repository.fork &&
+         github.ref != 'refs/heads/development')))
     runs-on: ubuntu-22.04
     timeout-minutes: 15
     steps:
@@ -24,9 +32,17 @@ jobs:
         run: .github/workflows/style/check_tabs.sh
 
   trailing_whitespaces:
+    name: >-
+      ${{ github.event_name == 'push' && !github.event.repository.fork &&
+          github.ref != 'refs/heads/development' && 'trailing_whitespaces [skipped push]' ||
+          'trailing_whitespaces' }}
     if: >-
-      github.event_name != 'push' || github.repository != 'erf-model/ERF' ||
-      github.ref == 'refs/heads/development'
+      (github.event_name == 'pull_request' && !github.event.repository.fork) ||
+      (github.event_name == 'push' &&
+       ((!github.event.repository.fork &&
+         github.ref == 'refs/heads/development') ||
+        (github.event.repository.fork &&
+         github.ref != 'refs/heads/development')))
     runs-on: ubuntu-22.04
     timeout-minutes: 15
     steps:

@@ -1,7 +1,7 @@
 name: ERF CI (cuda)
 
 on:
-  # Fork pushes provide pre-PR CI; jobs below skip canonical feature-branch pushes.
+  # Fork feature pushes provide pre-PR CI; development sync pushes are skipped.
   push:
     branches: ['**']
     paths-ignore:
@@ -20,8 +20,12 @@ concurrency:
 jobs:
   cuda-build:
     if: >-
-      github.event_name != 'push' || github.repository != 'erf-model/ERF' ||
-      github.ref == 'refs/heads/development'
+      (github.event_name == 'pull_request' && !github.event.repository.fork) ||
+      (github.event_name == 'push' &&
+       ((!github.event.repository.fork &&
+         github.ref == 'refs/heads/development') ||
+        (github.event.repository.fork &&
+         github.ref != 'refs/heads/development')))
     runs-on: ubuntu-22.04
     timeout-minutes: 120
     name: CUDA v${{matrix.cuda_ver}} - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
