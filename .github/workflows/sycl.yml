@@ -1,8 +1,9 @@
 name: ERF CI (sycl)
 
 on:
+  # Fork pushes provide pre-PR CI; jobs below skip canonical feature-branch pushes.
   push:
-    branches: [development]
+    branches: ['**']
     paths-ignore:
       - Docs/**
       - README.rst
@@ -18,6 +19,9 @@ concurrency:
 
 jobs:
   Build-And-Test-SYCL:
+    if: >-
+      github.event_name != 'push' || github.repository != 'erf-model/ERF' ||
+      github.ref == 'refs/heads/development'
     name: oneAPI SYCL - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     runs-on: ubuntu-24.04
     timeout-minutes: 120

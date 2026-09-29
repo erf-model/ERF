@@ -21,6 +21,14 @@ concurrency:
 
 jobs:
   CleanUpCcacheCache:
+    # workflow_run fires even when Linux GCC's jobs were skipped. Preserve
+    # cleanup for PRs, canonical development, forks, schedules and dispatches,
+    # but do not spend a runner on canonical feature-branch push runs.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.event != 'push' ||
+      github.repository != 'erf-model/ERF' ||
+      github.event.workflow_run.head_branch == 'development'
     name: Clean Up Ccache Cache
     runs-on: ubuntu-22.04
     timeout-minutes: 15

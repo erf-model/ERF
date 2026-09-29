@@ -1,8 +1,9 @@
 name: Linux GCC
 
 on:
+  # Fork pushes provide pre-PR CI; jobs below skip canonical feature-branch pushes.
   push:
-    branches: [development]
+    branches: ['**']
   pull_request:
     types: [opened, synchronize, reopened]
 
@@ -12,6 +13,9 @@ concurrency:
 
 jobs:
   library:
+    if: >-
+      github.event_name != 'push' || github.repository != 'erf-model/ERF' ||
+      github.ref == 'refs/heads/development'
     name: GNU@9.3 C++17 - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     runs-on: ubuntu-22.04
     timeout-minutes: 120
@@ -177,7 +181,10 @@ jobs:
   # the matrix can be reshaped without touching branch protection again.
   ci-required:
     name: ci-required
-    if: always()
+    if: >-
+      always() &&
+      (github.event_name != 'push' || github.repository != 'erf-model/ERF' ||
+       github.ref == 'refs/heads/development')
     needs: [library]
     runs-on: ubuntu-22.04
     timeout-minutes: 5
