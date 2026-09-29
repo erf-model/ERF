@@ -213,7 +213,7 @@
                          dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev, d_sinesq_stag_at_lev,
                          d_sponge_ptrs_at_lev,
                          (solverChoice.hindcast_lateral_forcing? &forecast_state_interp[level] : nullptr),
-                         input_sounding_data, lsf, lsf_data[level],
+                         sounding_at_level(level), lsf_at_level(level), lsf_data[level],
                          get_eb(level), true);
 
         // Nudging of the velocity towards observations at stations
