@@ -154,27 +154,49 @@ void add_par () {
    }
 }
 
+#ifdef ERF_HAS_FORTRAN
+// Source/Utils/ERF_FlushFortranUnits.F90
+extern "C" void erf_flush_fortran_units ();
+#else
+static void erf_flush_fortran_units () {}
+#endif
+
 /**
  * Make a run that leaves through exit() before amrex::Finalize report failure.
  *
- * A normal run calls amrex::Finalize before main returns, and amrex::Abort never calls
- * exit(), so a process that reaches exit() while AMReX is still initialised has stopped
- * part-way -- with no final plotfile or checkpoint -- whatever status it asked for. The
- * ways in are a Fortran STOP in a coupled library (Noah-MP has 27, all exit status 0)
- * and the exit() calls left in ERF itself, some of which also pass 0. Run under Open
- * MPI's launcher such a run is still flagged, because the rank never calls MPI_Finalize;
- * run directly, or under a launcher that does not enforce that, it reports success.
- * Every return from main after amrex::Initialize goes through amrex::Finalize, so this
- * never fires on a normal exit.
+ * A normal run calls amrex::Finalize before main returns, so a process that reaches
+ * exit() while AMReX is still initialised has stopped part-way -- with no final
+ * plotfile or checkpoint -- whatever status it asked for. The ways in are a Fortran STOP
+ * in a coupled library (Noah-MP has 27, all exit status 0) and the exit() calls left in
+ * ERF itself, some of which also pass 0. Run under Open MPI's launcher such a run is
+ * still flagged, because the rank never calls MPI_Finalize; run directly, or under a
+ * launcher that does not enforce that, it reports success. Every return from main after
+ * amrex::Initialize goes through amrex::Finalize, so this never fires on a normal exit.
+ *
+ * amrex::Abort ends in MPI_Abort, or std::_Exit in a serial build. Open MPI's MPI_Abort
+ * kills the job without exit(), but MPICH's (and Cray MPICH's) ends in exit(errorcode),
+ * so there the trap runs after an abort as well: the run is still reported as a failure,
+ * with status 1 in place of the abort's code, and the message below allows for it.
+ *
+ * std::_Exit is the only way to change the status from here, and it skips the rest of the
+ * exit sequence, which is what would flush the output buffers. Standard output is fully
+ * buffered when it is redirected to a file, so flush everything first -- C++ streams, C
+ * stdio and the Fortran units -- or the lines that explain the stop are lost.
  */
 void install_exit_trap ()
 {
     std::atexit([]() {
         if (amrex::Initialized()) {
+            std::cout.flush();
+            std::clog.flush();
+            std::cerr.flush();
+            erf_flush_fortran_units();
+            std::fflush(nullptr);
             std::fputs("ERF: exit() was called while AMReX was still initialised, so the run "
                        "stopped before finishing; the reason should be printed above (a "
-                       "Fortran STOP in a coupled library such as Noah-MP, or an error exit "
-                       "in ERF). Reporting failure whatever exit status was requested.\n",
+                       "Fortran STOP in a coupled library such as Noah-MP, an error exit in "
+                       "ERF, or an amrex::Abort under an MPI whose MPI_Abort calls exit()). "
+                       "Reporting failure whatever exit status was requested.\n",
                        stderr);
             std::fflush(stderr);
             std::_Exit(EXIT_FAILURE);
