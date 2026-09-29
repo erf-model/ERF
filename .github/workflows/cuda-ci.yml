@@ -29,7 +29,7 @@ jobs:
         # GPU builds cover the particle-enabled configuration only. The
         # particles-OFF variant costs a second long GPU compile for solver
         # coverage the particles-ON build already provides; it is still built
-        # on CPU by ci, gcc, gcc-rrtmgp and windows-mpi.
+        # on CPU by ci, gcc and windows-mpi.
         particles: [ON]
         particles_precision: [DOUBLE, SINGLE]
         mesh_precision: [DOUBLE, SINGLE]

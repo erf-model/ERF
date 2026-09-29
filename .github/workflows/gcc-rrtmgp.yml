@@ -24,7 +24,11 @@ jobs:
     # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
     strategy:
       matrix:
-        particles: [OFF, ON]
+        # This workflow exercises the NetCDF and RRTMGP combinations, which
+        # are orthogonal to particles -- crossing the axis doubled the matrix
+        # for no added coverage of either. Particles OFF is still built by
+        # ci, gcc and windows-mpi.
+        particles: [ON]
         netcdf: [OFF, ON]
         rrtmgp: [OFF, ON]
         exclude:
