@@ -205,7 +205,7 @@ function(add_test_two_stream_radiation TEST_NAME PLTFILE)
     # CHECK_LEVELS is multi-value: as a one-value arg CMake's list semantics
     # split "0;1" into two arguments and only the first was ever seen, so the
     # fine level went unchecked and the test passed vacuously.
-    set(multiValueArgs "CHECK_LEVELS" "DIAG_LEVELS" "SEB_CREATED_FROM")
+    set(multiValueArgs "CHECK_LEVELS" "DIAG_LEVELS" "SEB_CREATED_FROM" "SEB_REGRIDDED_FROM")
     cmake_parse_arguments(ADD_TEST_TSR "" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
     # Join with a comma, not a semicolon: a semicolon inside a -D argument is
     # split again when the COMMAND is built. The runner splits on the comma.
@@ -253,6 +253,16 @@ function(add_test_two_stream_radiation TEST_NAME PLTFILE)
         endforeach()
         string(JOIN "," tsr_seb_created ${tsr_seb_created_paths})
     endif()
+    # A regrid that moves an existing fine level: the same three plotfiles, with the fine
+    # level present in the last two on the grids the regrid replaces.
+    set(tsr_seb_regridded "")
+    if(DEFINED ADD_TEST_TSR_SEB_REGRIDDED_FROM)
+        set(tsr_seb_regridded_paths "")
+        foreach(regridded_plt ${ADD_TEST_TSR_SEB_REGRIDDED_FROM})
+            list(APPEND tsr_seb_regridded_paths "${CURRENT_TEST_BINARY_DIR}/${regridded_plt}")
+        endforeach()
+        string(JOIN "," tsr_seb_regridded ${tsr_seb_regridded_paths})
+    endif()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i")
     set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
@@ -276,6 +286,7 @@ function(add_test_two_stream_radiation TEST_NAME PLTFILE)
         "-DSEB_PARITY_TOL=${tsr_seb_tol}"
         "-DSEB_EVOLVED_FROM=${tsr_seb_evolved}"
         "-DSEB_CREATED_FROM=${tsr_seb_created}"
+        "-DSEB_REGRIDDED_FROM=${tsr_seb_regridded}"
         "-DSEB_PARITY_CHECKER=${TWO_STREAM_SEB_PARITY_CHECKER}"
         "-DFEXTRACT=${FEXTRACT_EXE}"
         "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
@@ -1537,6 +1548,23 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                                   CHECK_LEVELS 0 1
                                   SEB_PARITY_PLOTFILE "plt2d00011"
                                   SEB_CREATED_FROM "plt2d00000" "plt2d00009" "plt2d00010")
+  endif()
+
+  # A regrid that MOVES an existing fine level must keep the surface it has evolved. The
+  # cases above tag a fixed region, so the fine BoxArray never changes and RemakeLevel never
+  # runs. Here the refinement box moves at step 11, keeping fine x-cells 4-7, adding 8-11 and
+  # dropping 0-3. The checker asserts the kept cells carry on from the fine surface (block
+  # means and sub-coarse deviations, each extrapolated one step) and the added cells start
+  # from the parent. Each piece of RemakeLevel's restore fails its own assertion when
+  # removed: the whole block (means off by 7.9e-2 against 2.0e-3), only the copy of the
+  # retained values (deviations off by 2.2e-4 against 3.8e-5), only the interpolation from
+  # the parent (added cells off by 7.9e-2 against 2.0e-3). The correct run sits at 7e-6,
+  # 3e-6 and 4e-5.
+  if(ERF_TEST_PYTHON)
+    add_test_two_stream_radiation(TwoStream_PrognosticSEBRegrid "plt00011"
+                                  CHECK_LEVELS 0 1
+                                  SEB_PARITY_PLOTFILE "plt2d00011"
+                                  SEB_REGRIDDED_FROM "plt2d00000" "plt2d00009" "plt2d00010")
   endif()
 
   # The force-restore surface state is checkpointed per level. A level whose copy is
