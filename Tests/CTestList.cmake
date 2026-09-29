@@ -419,6 +419,23 @@ set_tests_properties(ResolveExecutable_SelfTest
     PROCESSORS 1
     LABELS "unit")
 
+# The nightly case Exec/RegTests/NoahMP_Ideal keeps a copy of Noah-MP's parameter table so it
+# runs in place; fail as soon as that copy stops matching the submodule, so the nightly
+# reference never silently tests stale parameters. A file comparison: no Noah-MP build needed.
+# Registered only when the submodule is checked out, which every CI job does.
+set(ERF_NOAHMP_TABLE "${PROJECT_SOURCE_DIR}/Submodules/Noah-MP/parameters/NoahmpTable.TBL")
+if(EXISTS "${ERF_NOAHMP_TABLE}")
+  add_test(NoahMP_Ideal_TableMatchesSubmodule ${CMAKE_COMMAND}
+      "-DSUBMODULE_TABLE=${ERF_NOAHMP_TABLE}"
+      "-DCOPY_TABLE=${PROJECT_SOURCE_DIR}/Exec/RegTests/NoahMP_Ideal/NoahmpTable.TBL"
+      -P ${PROJECT_SOURCE_DIR}/Tests/CheckNoahmpTableCopy.cmake)
+  set_tests_properties(NoahMP_Ideal_TableMatchesSubmodule
+      PROPERTIES
+      TIMEOUT 60
+      PROCESSORS 1
+      LABELS "unit;noahmp")
+endif()
+
 # Restart parity: run one deck straight, then to a checkpoint and on from it, and
 # require the plotfile at the end to be identical (no gold file). Every run has a
 # time limit; the default stays at 600, but an explicit RUN_TIMEOUT is forwarded
