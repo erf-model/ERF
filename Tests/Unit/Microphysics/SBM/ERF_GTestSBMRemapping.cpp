@@ -154,7 +154,6 @@ TEST(SBMRemapping, FixedPivotExactPivotResidualOverflowAndAtomicFailure)
 {
     const auto layout = make_layout(erf_sbm::MomentMode::OneMoment,
         {make_property("material_a", 0), make_property("material_b", 0)});
-    const auto& liquid = population(layout, 0);
     std::vector<Real> state(static_cast<std::size_t>(layout.ncomp()), Real(0.0));
 
     const auto exact = erf_sbm::plan_packet_routing(
@@ -657,7 +656,7 @@ TEST(SBMRemapping, CanonicalEndpointTransformIsUnitInvariantAndDimensioned)
 
 TEST(SBMRemapping, CanonicalInverseAndCompatibilityInverseAreIdentical)
 {
-    for (const auto endpoints : {
+    for (const auto& endpoints : {
              std::pair<Real, Real>{Real(0.0), Real(3.0)},
              std::pair<Real, Real>{Real(2.0), Real(0.0)},
              std::pair<Real, Real>{Real(0.25), Real(0.75)},
