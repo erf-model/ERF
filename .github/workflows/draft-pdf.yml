@@ -1,8 +1,19 @@
-on: [push]
+name: Paper Draft
+
+on:
+  push:
+    branches: [development]
+    paths: ['paper/**']
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-draft-pdf
+  cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
   paper:
     runs-on: ubuntu-22.04
+    timeout-minutes: 20
     name: Paper Draft
     steps:
       - name: Checkout

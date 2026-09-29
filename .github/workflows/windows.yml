@@ -2,22 +2,25 @@ name: Windows
 
 on:
   push:
+    branches: [development]
   pull_request:
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened]
 
 concurrency:
   group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-windows
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
   WIN32-MSVC10:
-    # The closed event exists only to cancel in-progress runs via concurrency.
-    if: github.event.action != 'closed'
     name: WIN32 MSVC@19.29 - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     runs-on: windows-latest
+    timeout-minutes: 90
     strategy:
       matrix:
-        particles: [OFF, ON]
+        # Only the particle-enabled configuration is built here; the
+        # particles-OFF variant duplicates its solver coverage. Particles OFF
+        # is still built by ci, gcc and windows-mpi.
+        particles: [ON]
         particles_precision: [DOUBLE, SINGLE]
         mesh_precision: [DOUBLE, SINGLE]
         exclude:
@@ -27,9 +30,6 @@ jobs:
             particles_precision: SINGLE
           - mesh_precision: SINGLE
             particles_precision: DOUBLE
-          # SINGLE precision is only exercised in the particle-enabled build.
-          - mesh_precision: SINGLE
-            particles: OFF
 
     steps:
 
@@ -41,7 +41,8 @@ jobs:
       run: |
         cmake -S . -B build `
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install `
-          -DCMAKE_BUILD_TYPE:STRING=Debug `
+          -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo `
+          -DAMReX_ASSERTIONS:BOOL=ON `
           -DERF_DIM:STRING=3 `
           -DERF_ENABLE_MPI:BOOL=OFF `
           -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} `
@@ -54,13 +55,13 @@ jobs:
 
     - name: Compile and Link
       run: |
-        cmake --build build --config Debug --parallel 2 --verbose
+        cmake --build build --config RelWithDebInfo --parallel 2 --verbose
 
     - name: Check Unit Test Registration
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       shell: pwsh
       run: |
-        $out = & "${{runner.workspace}}/ERF/build/Tests/Unit/Debug/erf_unit_tests.exe" --gtest_list_tests
+        $out = & "${{runner.workspace}}/ERF/build/Tests/Unit/RelWithDebInfo/erf_unit_tests.exe" --gtest_list_tests
         $out
         $outText = $out -join "`n"
         if ($outText -notmatch '(?m)^[A-Za-z0-9_].*\.$') {
@@ -71,17 +72,17 @@ jobs:
     - name: CMake Unit Tests
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
-        ctest -C Debug -L unit -VV
+        ctest -C RelWithDebInfo -L unit -VV
       working-directory: ${{runner.workspace}}/ERF/build
 
     - name: CMake Shuffle Stress Test
-      if: matrix.particles == 'OFF' && matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
+      if: matrix.particles == 'ON' && matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       shell: pwsh
-      run: ctest -C Debug -L stress --output-on-failure --no-tests=error
+      run: ctest -C RelWithDebInfo -L stress --output-on-failure --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build
 
     - name: CMake Regression Tests # see file ERF/Tests/CTestList.cmake
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
-        ctest -C Debug -L regression -VV
+        ctest -C RelWithDebInfo -L regression -VV
       working-directory: ${{runner.workspace}}/ERF/build

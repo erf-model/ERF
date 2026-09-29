@@ -222,7 +222,7 @@ void ERF::advance_radiation (int lev,
             }
         }
 
-        if (m_SurfaceModel && solverChoice.rad_type == RadiationType::RRTMGP) {
+        if (m_SurfaceModel && solverChoice.rad_feeds_lsm()) {
             const auto fine_outputs = m_SurfaceModel->get_radiation_output_fields(lev);
             const auto coarse_outputs = m_SurfaceModel->get_radiation_output_fields(lev-1);
             const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
@@ -316,7 +316,7 @@ void ERF::advance_radiation (int lev,
 
         if (m_SurfaceModel) {
             lsm_input_ptrs = m_SurfaceModel->get_radiation_fields(lev);
-            if (solverChoice.rad_type == RadiationType::RRTMGP) {
+            if (solverChoice.rad_feeds_lsm()) {
                 lsm_output_ptrs = m_SurfaceModel->get_radiation_output_fields(lev);
             }
         }

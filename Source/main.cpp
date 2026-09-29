@@ -1,3 +1,5 @@
+#include <cstdio>
+#include <cstdlib>
 #include <iostream>
 
 #include <AMReX.H>
@@ -152,6 +154,75 @@ void add_par () {
    }
 }
 
+#ifdef ERF_HAS_FORTRAN
+// Source/Utils/ERF_FlushFortranUnits.F90
+extern "C" void erf_flush_fortran_units ();
+#else
+static void erf_flush_fortran_units () {}
+#endif
+
+/**
+ * Make a run that leaves through exit() before amrex::Finalize report failure.
+ *
+ * A normal run calls amrex::Finalize before main returns, so a process that reaches
+ * exit() while AMReX is still initialised has stopped part-way -- with no final
+ * plotfile or checkpoint -- whatever status it asked for. The ways in are a Fortran STOP
+ * in a coupled library (Noah-MP has 27, all exit status 0) and the exit() calls left in
+ * ERF itself, some of which also pass 0. Run under Open MPI's launcher such a run is
+ * still flagged, because the rank never calls MPI_Finalize; run directly, or under a
+ * launcher that does not enforce that, it reports success. Every return from main after
+ * amrex::Initialize goes through amrex::Finalize, so this never fires on a normal exit.
+ *
+ * amrex::Abort ends in MPI_Abort, or std::_Exit in a serial build. Open MPI's MPI_Abort
+ * kills the job without exit(), but MPICH's (and Cray MPICH's) ends in exit(errorcode),
+ * so there the trap runs after an abort as well: the run is still reported as a failure,
+ * with status 1 in place of the abort's code, and the message below allows for it.
+ *
+ * A Fortran STOP or an exit() fires on the one rank that hit the problem; ending only
+ * that rank would leave the others blocked in their next collective until the launcher
+ * notices (Open MPI does; srun without --kill-on-bad-exit and some PMI setups may not).
+ * So the trap calls MPI_Abort to tear the whole job down, guarded so that an MPI whose
+ * own MPI_Abort ends in exit() (MPICH, Cray MPICH) cannot re-enter it, and skipped when
+ * MPI is not initialised or already finalised.
+ *
+ * std::_Exit is the only way to change the status from here, and it skips the rest of the
+ * exit sequence, which is what would flush the output buffers. Standard output is fully
+ * buffered when it is redirected to a file, so flush everything first -- C++ streams, C
+ * stdio and the Fortran units -- or the lines that explain the stop are lost.
+ */
+void install_exit_trap ()
+{
+    std::atexit([]() {
+        if (amrex::Initialized()) {
+            std::cout.flush();
+            std::clog.flush();
+            std::cerr.flush();
+            erf_flush_fortran_units();
+            std::fflush(nullptr);
+            std::fputs("ERF: exit() was called while AMReX was still initialised, so the run "
+                       "stopped before finishing; the reason should be printed above (a "
+                       "Fortran STOP in a coupled library such as Noah-MP, an error exit in "
+                       "ERF, or an amrex::Abort under an MPI whose MPI_Abort calls exit()). "
+                       "Reporting failure whatever exit status was requested.\n",
+                       stderr);
+            std::fflush(stderr);
+#ifdef AMREX_USE_MPI
+            // atexit handlers run single-threaded, so a plain flag is enough of a
+            // reentrancy guard for the MPI_Abort-calls-exit() implementations.
+            static bool aborting = false;
+            int mpi_up = 0, mpi_done = 0;
+            MPI_Initialized(&mpi_up);
+            MPI_Finalized(&mpi_done);
+            if (mpi_up && !mpi_done && !aborting) {
+                aborting = true;
+                MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+            }
+#endif
+            std::_Exit(EXIT_FAILURE);
+        }
+    });
+}
+
 /**
  * Main driver -- creates the ERF object, calls ERF.InitData() and ERF.Evolve()
 */
@@ -230,6 +301,8 @@ return code;
 #else
     amrex::Initialize(argc,argv,true,MPI_COMM_WORLD,add_par);
 #endif
+
+    install_exit_trap();
 
     // Only when argv[1] is actually an inputs file (same test the surrounding code uses).
     if (argc > 1 && std::string(argv[1]).find('=') == std::string::npos) {

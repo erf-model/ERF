@@ -5,12 +5,17 @@ on:
       - closed
 
 # This workflow does not have the permission to clean up cache for PRs
-# originated from a fork. The purpose here is to trigger a workflow_run
-# cleanup-cache-postpr.yml that has the right permission.
+# originated from a fork, nor to cancel their leftover CI runs: the
+# GITHUB_TOKEN for a pull_request event from a fork is read-only whatever
+# the permissions block says. The purpose here is to trigger the workflow_run
+# workflows that do have the right permission -- cleanup-cache-postpr.yml to
+# drop the PR's ccache entries, and cancel-stale-ci.yml to cancel whatever it
+# left running.
 
 jobs:
   noop:
     runs-on: ubuntu-22.04
+    timeout-minutes: 15
     steps:
       - name: No OP
-        run: echo "This workflow is going to trigger CleanUpCachePostPR."
+        run: echo "This workflow is going to trigger CleanUpCachePostPR and CancelStaleCI."

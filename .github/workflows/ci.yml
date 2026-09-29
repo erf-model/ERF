@@ -19,9 +19,8 @@ concurrency:
 jobs:
 
   Build-And-Test:
-    # The closed event exists only to cancel in-progress runs via concurrency.
-    if: github.event.action != 'closed'
     runs-on: ${{matrix.os}}
+    timeout-minutes: 180
     name: OS ${{matrix.os}} - Particles ${{matrix.particles}}
     env:
       ERF_PARALLEL_TEST_NRANKS: '1;2;4'
@@ -71,7 +70,8 @@ jobs:
         cmake \
           -B${{runner.workspace}}/ERF/build-${{matrix.os}} \
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install \
-          -DCMAKE_BUILD_TYPE:STRING=Debug \
+          -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
+          -DAMReX_ASSERTIONS:BOOL=ON \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
