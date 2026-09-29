@@ -1291,11 +1291,18 @@ public:
   amrex::MultiFab* get_surface_diagnostic_source (const int& lev) { return surface_diagnostic_source[lev].get(); }
 
   /**
+   * Return the 2D MF of zref heights.
+   *
+   * @param[in] lev level index
+   */
+  amrex::MultiFab* get_zref (const int& lev) { return m_ma.get_zref(lev); }
+
+  /**
    * Return the minimum reference height for one level.
    *
    * @param[in] lev level index
    */
-  amrex::Real get_zref (const int& lev) { return (m_ma.get_zref(lev))->min(0); }
+  amrex::Real get_zref_min (const int& lev) { return (m_ma.get_zref(lev))->min(0); }
 
   /**
    * Return the roughness-height field.

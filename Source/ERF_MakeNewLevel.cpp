@@ -27,6 +27,16 @@ using namespace amrex;
 void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
                                    const DistributionMapping& dm_in)
 {
+    if (auxiliary_inert_tracer) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(restart_chkfile.empty(),
+            "M2 auxiliary inert tracer fixture does not support checkpoint/restart");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lev == 0,
+            "M2 auxiliary inert tracer fixture supports level 0 only");
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(geom[lev].isPeriodic(dir),
+                "M2 auxiliary inert tracer fixture requires triply periodic geometry");
+        }
+    }
     if (sbm_state_manager) {
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(geom[lev].isPeriodic(dir),
@@ -121,6 +131,14 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     //      terrain arrays, metric terms and base state.
     // *******************************************************************************************
     init_stuff(lev, ba, dm, lev_new, lev_old, base_state[lev], z_phys_nd[lev]);
+    if (auxiliary_inert_tracer) {
+        AMREX_ALWAYS_ASSERT(detJ_cc[lev] != nullptr);
+        AMREX_ALWAYS_ASSERT(mapfac[lev][MapFacType::m_x] != nullptr);
+        AMREX_ALWAYS_ASSERT(mapfac[lev][MapFacType::m_y] != nullptr);
+        auxiliary_inert_tracer->define(lev, ba, dm, *detJ_cc[lev],
+                                       *mapfac[lev][MapFacType::m_x],
+                                       *mapfac[lev][MapFacType::m_y]);
+    }
     if (sbm_state_manager) {
         sbm_state_manager->define(lev, ba, dm);
         for (int comp = 0; comp < static_cast<int>(solverChoice.sbm_fixture_initial_state.size()); ++comp) {
@@ -287,6 +305,12 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         }
     }
 
+    // Initialize the non-cons auxiliary tracer only after the host atmospheric
+    // density has been initialized from the selected problem configuration.
+    if (auxiliary_inert_tracer) {
+        auxiliary_inert_tracer->initialize(lev, lev_new[Vars::cons], geom[lev]);
+    }
+
      // Read in tables needed for windfarm simulations
     // fill in Nturb multifab - number of turbines in each mesh cell
     // write out the vtk files for wind turbine location and/or
@@ -368,6 +392,8 @@ void
 ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
                              const DistributionMapping& dm)
 {
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!auxiliary_inert_tracer,
+        "M2 auxiliary inert tracer fixture does not support coarse-to-fine initialization");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!sbm_state_manager,
         "SBM M1 zero-transport fixture does not support coarse-to-fine auxiliary initialization");
     //
@@ -773,6 +799,8 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 void
 ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapping& dm)
 {
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!auxiliary_inert_tracer,
+        "M2 auxiliary inert tracer fixture does not support regrid/remake");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!sbm_state_manager,
         "SBM M1 zero-transport fixture does not support regridding or auxiliary remap");
     //
@@ -1405,6 +1433,9 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 void
 ERF::ClearLevel (int lev)
 {
+    if (auxiliary_inert_tracer && auxiliary_inert_tracer->is_defined(lev)) {
+        auxiliary_inert_tracer->destroy(lev);
+    }
     if (sbm_state_manager && sbm_state_manager->is_defined(lev)) {
         sbm_state_manager->destroy(lev);
     }
@@ -1548,7 +1579,8 @@ ERF::make_lsm_at_level (int lev, bool from_regrid,
         for (int l = 0; l < lev; ++l) { RefRatio *= refRatio(l); }
         lsm.Init(lev, vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel],
                  vars_new[lev][Vars::yvel], Geom(lev), Geom(0),
-                 domain_bcs_type, RefRatio, zero, z_phys_nd[lev], nc_init_file); // dummy dt value
+                 domain_bcs_type, RefRatio, zero, z_phys_nd[lev],
+                 nc_init_file); // dummy dt value
     }
 
     // Access LSM data pointers only after initialization.

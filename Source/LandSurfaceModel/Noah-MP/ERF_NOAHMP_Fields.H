@@ -32,7 +32,8 @@
     X(    v_phy,        V_PHY   )                                             \
     X(    t_phy,        T_PHY   )                                             \
     X(    qv_curr,      QV_CURR )                                             \
-    X(    p8w,          P8W     )
+    X(    p8w,          P8W     )                                             \
+    X(    dz8w,         DZ8W    )
 
 #define NOAHMP_INPUT_2D_FIELDS(X)                                             \
     /*    ERF comp      NoahmpIO member  */                                   \

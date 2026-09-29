@@ -1235,6 +1235,10 @@ List of Parameters
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.plot_lsm**                    | write the land-surface-model fields to the plotfile      | Boolean            | false            |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.plot_surfmodel**              | write SurfaceModel fields to ``plt_surf_*`` files;       | Boolean            | both LSM+Urban   |
+|                                     | independent of ``erf.plot_lsm``                          |                    | active by default|
+|                                     |                                                          |                    | false otherwise  |
++-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.plot_rad**                    | write the radiation fields to the plotfile; read only in | Boolean            | false            |
 |                                     | an RRTMGP build                                          |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+

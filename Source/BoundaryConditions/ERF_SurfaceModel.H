@@ -5,6 +5,7 @@
 #include "AMReX_ParmParse.H"
 #include "AMReX_FArrayBox.H"
 #include "AMReX_IntVect.H"
+#include "AMReX_MFIter.H"
 #include "AMReX_MultiFab.H"
 #include "AMReX_FillPatchUtil.H"
 #include "AMReX_GpuLaunch.H"
@@ -12,6 +13,18 @@
 #include <ERF_DataStruct.H>
 
 enum SurfaceModelType { LAND = 0, URBAN = 1};
+
+enum class SurfaceProviderMode { None, LandOnly, UrbanOnly, Both };
+
+/**
+ * @brief Non-owning views of surface fluxes for one tile.
+ */
+struct SurfaceFluxView {
+    amrex::Array4<const amrex::Real> tau13;
+    amrex::Array4<const amrex::Real> tau23;
+    amrex::Array4<const amrex::Real> t_flux;
+    amrex::Array4<const amrex::Real> q_flux;
+};
 
 /**
  * @brief Interface between ERF and land-surface and urban models.
@@ -58,6 +71,8 @@ public:
         t_surf.resize(m_nlevs);
 
         wavg.resize(m_nlevs);
+        m_provider_mode.resize(m_nlevs, SurfaceProviderMode::None);
+        m_output_fields_registered = {false, false};
 
         m_ba2d.resize(m_nlevs);
         m_geom2d.resize(m_nlevs);
@@ -72,6 +87,8 @@ public:
 
         rad_fields.resize(m_nlevs);
         rad_output_fields.resize(m_nlevs);
+        m_surface_outputs_requested.resize(m_nlevs, false);
+        m_last_urban_frac.resize(m_nlevs, nullptr);
 
         // set initial fields for each model to none
         lsm_fields = amrex::Vector<int>(5, -1);
@@ -103,6 +120,7 @@ public:
             t_surf.resize(m_nlevs);
 
             wavg.resize(m_nlevs);
+            m_provider_mode.resize(m_nlevs, SurfaceProviderMode::None);
 
             m_dmap.resize(m_nlevs);
             m_ba.resize(m_nlevs);
@@ -119,6 +137,8 @@ public:
 
             rad_fields.resize(m_nlevs);
             rad_output_fields.resize(m_nlevs);
+            m_surface_outputs_requested.resize(m_nlevs, m_surface_outputs_enabled);
+            m_last_urban_frac.resize(m_nlevs, nullptr);
         }
 
         m_ba[lev] = ba;
@@ -141,24 +161,15 @@ public:
         weighted_lsm_data_lev[lev].clear();
         weighted_urban_data_lev[lev].clear();
 
-        amrex::IntVect ng(1,1,0);
-        // Create output arrays for surface boundary condition
-        u_star[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 2, ng);
-        t_star[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, ng);
-        q_star[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, ng);
-        t_surf[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, ng);
-
-        u_star[lev]->setVal(0.0);
-        t_star[lev]->setVal(0.0);
-        q_star[lev]->setVal(0.0);
-        t_surf[lev]->setVal(300.0);
-
-        // Initialize storage for weight average factors
-        wavg[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 2, ng);
-        //  - default to land=1, urban=0 (i.e, 100% land, no urban fraction)
-        // the weight average factors for this new level will get calculated on the next call to weight average
-        wavg[lev]->setVal(1.0, SurfaceModelType::LAND, 1, 0);
-        wavg[lev]->setVal(0.0, SurfaceModelType::URBAN, 1, 0);
+        u_star[lev].reset();
+        t_star[lev].reset();
+        q_star[lev].reset();
+        t_surf[lev].reset();
+        wavg[lev].reset();
+        if (m_surface_outputs_requested[lev]) {
+            ensure_surface_outputs(lev);
+        }
+        m_provider_mode[lev] = SurfaceProviderMode::None;
 
         // Recreate registered fields on the current level layout. This is also
         // needed when an existing AMR level is remade with a new grid layout.
@@ -166,9 +177,12 @@ public:
             if (static_cast<int>(fields[field].size()) < m_nlevs) {
                 fields[field].resize(m_nlevs);
             }
-            fields[field][lev] = std::make_unique<amrex::MultiFab>(
-                m_ba2d[lev], m_dmap[lev], 1, amrex::IntVect(1,1,0));
-            fields[field][lev]->setVal(0.0);
+            fields[field][lev].reset();
+        }
+        for (const auto& entry : fieldmap) {
+            if (entry.second.active) {
+                activate_field_map(entry.first);
+            }
         }
         for (auto& entry : radiation_input_map) {
             if (static_cast<int>(entry.second.weighted.size()) < m_nlevs) {
@@ -188,6 +202,10 @@ public:
             amrex::Vector<amrex::Real> ftime    = {time_for_fp, time_for_fp};
             amrex::Vector<amrex::Real> ctime    = {time_for_fp, time_for_fp};
             amrex::IntVect ng_od(0, 0, 0); // ng outside domain
+            amrex::Interpolater* mapper = &amrex::cell_cons_interp;
+            amrex::Vector<amrex::MultiFab*> fmf;
+            amrex::Vector<amrex::MultiFab*> cmf;
+            if (u_star[lev] != nullptr && u_star[lev-1] != nullptr) {
             amrex::InterpFromCoarseLevel(*u_star[lev], u_star[lev-1]->nGrowVect(), ng_od,
                                          *u_star[lev-1], 0, 0, 2,
                                          m_geom[lev-1], m_geom[lev],
@@ -209,9 +227,8 @@ public:
                                          refRatio[lev-1], &amrex::cell_cons_interp,
                                          domain_bcs_type, BCVars::cons_bc);
 
-            amrex::Interpolater* mapper = &amrex::cell_cons_interp;
-            amrex::Vector<amrex::MultiFab*> fmf = {u_star[lev  ].get(), u_star[lev  ].get()};
-            amrex::Vector<amrex::MultiFab*> cmf = {u_star[lev-1].get(), u_star[lev-1].get()};
+            fmf = {u_star[lev  ].get(), u_star[lev  ].get()};
+            cmf = {u_star[lev-1].get(), u_star[lev-1].get()};
             amrex::FillPatchTwoLevels(*u_star[lev].get(), u_star[lev]->nGrowVect(), ng_od,
                                       time_for_fp, cmf, ctime, fmf, ftime,
                                       0, 0, 2, m_geom[lev-1], m_geom[lev],
@@ -238,8 +255,10 @@ public:
                                       0, 0, 1, m_geom[lev-1], m_geom[lev],
                                       refRatio[lev-1], mapper, domain_bcs_type,
                                       BCVars::cons_bc);
+            }
 
             for (int field = 0; field < static_cast<int>(fields.size()); ++field) {
+                if (fields[field][lev] == nullptr || fields[field][lev-1] == nullptr) { continue; }
                 amrex::IntVect ngv = fields[field][lev-1]->nGrowVect(); ngv[2] = 0;
                 amrex::InterpFromCoarseLevel(*fields[field][lev], ngv, ng_od,
                                              *fields[field][lev-1], 0, 0, 1,
@@ -285,6 +304,7 @@ public:
                 lsm_data_lev[lev][i] = model_data[i];
             }
             m_use_land = true;
+            update_provider_mode(lev);
             for (auto& fields_at_level : rad_fields) { fields_at_level.clear(); }
             for (auto& fields_at_level : rad_output_fields) { fields_at_level.clear(); }
             for (auto& entry : radiation_input_map) {
@@ -309,6 +329,7 @@ public:
                 urban_data_lev[lev][i] = model_data[i];
             }
             m_use_urban = true;
+            update_provider_mode(lev);
             for (auto& fields_at_level : rad_fields) { fields_at_level.clear(); }
             for (auto& fields_at_level : rad_output_fields) { fields_at_level.clear(); }
             for (auto& entry : radiation_input_map) {
@@ -403,11 +424,13 @@ public:
 
         if (type == SurfaceModelType::LAND) {
             lsm_fields = amrex::Vector<int>(field_indices);
+            m_output_fields_registered[SurfaceModelType::LAND] = true;
             for (auto& fields_at_level : weighted_lsm_data_lev) {
                 fields_at_level.clear();
             }
         } else if (type == SurfaceModelType::URBAN) {
             urban_fields = amrex::Vector<int>(field_indices);
+            m_output_fields_registered[SurfaceModelType::URBAN] = true;
             for (auto& fields_at_level : weighted_urban_data_lev) {
                 fields_at_level.clear();
             }
@@ -438,13 +461,40 @@ public:
      * @param lev AMR level to update.
      * @param urban_frac Urban fraction used to compute the weights.
      */
-    void calculate_weight_average(int lev, amrex::MultiFab* const urban_frac);
+    void calculate_weight_average(int lev, amrex::MultiFab* const urban_frac,
+                                  bool update_derived = true);
 
     /**
      * @brief Returns whether the interface exports fluxes rather than MOST variables.
      * @return True when weighted outputs are fluxes.
      */
     bool are_fluxes() { return m_export_fluxes; }
+
+    /**
+     * @brief Enables and materializes the surface outputs consumed by ERF.
+     */
+    void request_surface_outputs(const bool persistent = true)
+    {
+        m_surface_outputs_enabled = m_surface_outputs_enabled || persistent;
+        for (int lev = 0; lev < m_nlevs; ++lev) {
+            m_surface_outputs_requested[lev] = true;
+            ensure_surface_outputs(lev);
+        }
+    }
+
+    /**
+     * @brief Enables blended surface outputs needed by the SurfaceLayer.
+     */
+    void request_surface_layer_outputs()
+    {
+        m_surface_layer_outputs_enabled = true;
+        for (int lev = 0; lev < m_nlevs; ++lev) {
+            if (m_provider_mode[lev] == SurfaceProviderMode::Both) {
+                m_surface_outputs_requested[lev] = true;
+                ensure_surface_outputs(lev);
+            }
+        }
+    }
 
     /**
      * @brief Marks the registered surface fields as filled by an actual model advance.
@@ -495,15 +545,84 @@ public:
     }
 
     /**
-     * @brief Returns a weighted copy of a selected model field.
+     * @brief Returns provider or blended surface-flux views for one tile.
+     * @param lev AMR level to query.
+     * @param mfi Tile whose flux arrays are requested.
+     * @return Read-only flux views selected for the level's provider mode.
+     */
+    SurfaceFluxView get_surface_flux_view(const int lev, const amrex::MFIter& mfi) const
+    {
+        AMREX_ALWAYS_ASSERT(m_export_fluxes);
+
+        const SurfaceProviderMode mode = m_provider_mode[lev];
+        if (mode == SurfaceProviderMode::Both) {
+            AMREX_ALWAYS_ASSERT(u_star[lev] != nullptr);
+            AMREX_ALWAYS_ASSERT(t_star[lev] != nullptr);
+            AMREX_ALWAYS_ASSERT(q_star[lev] != nullptr);
+            return {u_star[lev]->const_array(mfi, 0),
+                    u_star[lev]->const_array(mfi, 1),
+                    t_star[lev]->const_array(mfi),
+                    q_star[lev]->const_array(mfi)};
+        }
+
+        const auto& provider_fields = (mode == SurfaceProviderMode::LandOnly)
+            ? lsm_fields : urban_fields;
+        const auto& provider_data = (mode == SurfaceProviderMode::LandOnly)
+            ? lsm_data_lev[lev] : urban_data_lev[lev];
+        auto get_provider_field = [&] (const int field) -> amrex::Array4<const amrex::Real> {
+            if (field >= static_cast<int>(provider_fields.size())) {
+                return {};
+            }
+            const int index = provider_fields[field];
+            if (index < 0 || index >= static_cast<int>(provider_data.size()) ||
+                provider_data[index] == nullptr) {
+                return {};
+            }
+            return provider_data[index]->const_array(mfi);
+        };
+
+        return {get_provider_field(0), get_provider_field(1),
+                get_provider_field(2), get_provider_field(3)};
+    }
+
+    /**
+     * @brief Returns weighted data for a selected model field.
      * @param lev AMR level to query.
      * @param type Provider type owning the field.
      * @param field_idx Provider field index.
-     * @return Weighted field, or nullptr if it has not been selected.
+     * @return Weighted field or the source field for a single provider, or nullptr if it has not been selected.
      */
     const amrex::MultiFab* get_weighted_model_data(const int lev,
                                                     SurfaceModelType type,
                                                     const int field_idx) const {
+        const SurfaceProviderMode mode = m_provider_mode[lev];
+        const bool single_provider =
+            (mode == SurfaceProviderMode::LandOnly && type == SurfaceModelType::LAND) ||
+            (mode == SurfaceProviderMode::UrbanOnly && type == SurfaceModelType::URBAN);
+        if (single_provider) {
+            const auto& selected = (type == SurfaceModelType::LAND)
+                ? lsm_fields : urban_fields;
+            const int first_output_field = m_export_fluxes ? 5 : 4;
+            bool is_weighted_field = false;
+            for (int field = first_output_field;
+                 field < static_cast<int>(selected.size()); ++field) {
+                if (selected[field] == field_idx) {
+                    is_weighted_field = true;
+                    break;
+                }
+            }
+            if (!is_weighted_field) {
+                return nullptr;
+            }
+
+            const auto& source = (type == SurfaceModelType::LAND)
+                ? lsm_data_lev[lev] : urban_data_lev[lev];
+            if (field_idx < 0 || field_idx >= static_cast<int>(source.size())) {
+                return nullptr;
+            }
+            return source[field_idx];
+        }
+
         const auto& weighted = (type == SurfaceModelType::LAND)
             ? weighted_lsm_data_lev[lev] : weighted_urban_data_lev[lev];
         if (field_idx < 0 || field_idx >= static_cast<int>(weighted.size())) {
@@ -518,8 +637,14 @@ public:
      * @return Pointer to the weighting-factor field.
      */
     amrex::MultiFab* get_wavg_factors(const int &lev) {
+        ensure_weight_factors(lev);
         return wavg[lev].get();
     }
+
+    /**
+     * @brief Activates all registered mapped fields for an output consumer.
+     */
+    void activate_all_field_maps(const bool persistent = true);
 
     /**
      * @brief Writes registered surface-model fields to plotfile output.
@@ -596,7 +721,7 @@ public:
      */
     amrex::MultiFab* get_field(const std::string &name, int lev = 0) {
         if (auto field = fieldmap.find(name); field != fieldmap.end()) {
-            AMREX_ASSERT(field->second.mf_ind != -1);
+            activate_field_map(name);
             return fields[field->second.mf_ind][lev].get();
         } else {
             return nullptr;
@@ -684,19 +809,24 @@ public:
         amrex::Print() << "  --- building radiation field list" << std::endl;
 
         // loop over fields and check against names of radiation variables
-        for (int i = 0; i < static_cast<int>(radnames.size()); ++i) {
-            amrex::Print() << "    - Checking for radiation variable '" << radnames[i] << "'" << std::endl;
+        for (int li = 0; li < static_cast<int>(radnames.size()); ++li) {
+            amrex::Print() << "    - Checking for radiation variable '" << radnames[li] << "'" << std::endl;
 
             amrex::MultiFab* mf = nullptr;
-            auto rad_it = radiation_input_map.find(radnames[i]);
+            auto rad_it = radiation_input_map.find(radnames[li]);
             if (rad_it != radiation_input_map.end()) {
                 const int land_idx = rad_it->second.map.first;
                 const int urban_idx = rad_it->second.map.second;
-                const bool valid_land = m_use_land && land_idx >= 0 &&
+                const SurfaceProviderMode mode = m_provider_mode[lev];
+                const bool use_land = mode == SurfaceProviderMode::LandOnly ||
+                                      mode == SurfaceProviderMode::Both;
+                const bool use_urban = mode == SurfaceProviderMode::UrbanOnly ||
+                                       mode == SurfaceProviderMode::Both;
+                const bool valid_land = use_land && land_idx >= 0 &&
                     lev < static_cast<int>(lsm_data_lev.size()) &&
                     land_idx < static_cast<int>(lsm_data_lev[lev].size()) &&
                     lsm_data_lev[lev][land_idx] != nullptr;
-                const bool valid_urban = m_use_urban && urban_idx >= 0 &&
+                const bool valid_urban = use_urban && urban_idx >= 0 &&
                     lev < static_cast<int>(urban_data_lev.size()) &&
                     urban_idx < static_cast<int>(urban_data_lev[lev].size()) &&
                     urban_data_lev[lev][urban_idx] != nullptr;
@@ -754,6 +884,17 @@ public:
     void weight_average_fields(int lev, amrex::MultiFab* const /*urban_frac*/);
 
     /**
+     * @brief Activates a mapped field and allocates its storage on all levels.
+     * @param name Common mapped field name.
+     */
+    void activate_field_map(const std::string& name, const bool persistent = true);
+
+    /**
+     * @brief Disables and releases mapped fields used only by the last output.
+     */
+    void deactivate_transient_field_maps();
+
+    /**
      * @brief Checks whether a model field participates in a registered mapping.
      * @param lev AMR level to query.
      * @param type Land or urban model owning the field.
@@ -776,6 +917,87 @@ public:
 
 private:
 
+    /**
+     * @brief Updates the provider mode after model data are registered.
+     * @param lev AMR level whose provider mode should be updated.
+     */
+    void update_provider_mode(const int lev)
+    {
+        const bool has_land = !lsm_data_lev[lev].empty();
+        const bool has_urban = !urban_data_lev[lev].empty();
+        if (has_land && has_urban) {
+            m_provider_mode[lev] = SurfaceProviderMode::Both;
+            ensure_weight_factors(lev);
+            if (m_surface_layer_outputs_enabled) {
+                m_surface_outputs_requested[lev] = true;
+                ensure_surface_outputs(lev);
+            }
+        } else if (has_land) {
+            m_provider_mode[lev] = SurfaceProviderMode::LandOnly;
+            wavg[lev].reset();
+        } else if (has_urban) {
+            m_provider_mode[lev] = SurfaceProviderMode::UrbanOnly;
+            wavg[lev].reset();
+        } else {
+            m_provider_mode[lev] = SurfaceProviderMode::None;
+        }
+    }
+
+    /**
+     * @brief Creates weighting factors when an external caller requests them.
+     * @param lev AMR level whose weighting factors should be materialized.
+     */
+    void ensure_weight_factors(const int lev)
+    {
+        if (wavg[lev] != nullptr) { return; }
+
+        const amrex::IntVect ng(1,1,0);
+        wavg[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 2, ng);
+        const SurfaceProviderMode mode = m_provider_mode[lev];
+        wavg[lev]->setVal(mode != SurfaceProviderMode::UrbanOnly ? 1.0 : 0.0,
+                          SurfaceModelType::LAND, 1, 0);
+        wavg[lev]->setVal(mode == SurfaceProviderMode::UrbanOnly ? 1.0 : 0.0,
+                          SurfaceModelType::URBAN, 1, 0);
+    }
+
+    /**
+     * @brief Allocates surface-output fields for one level.
+     * @param lev AMR level whose outputs should be materialized.
+     */
+    void ensure_surface_outputs(const int lev)
+    {
+        if (u_star[lev] != nullptr) { return; }
+
+        const amrex::IntVect ng(1,1,0);
+        u_star[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 2, ng);
+        t_star[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, ng);
+        q_star[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, ng);
+        t_surf[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, ng);
+        u_star[lev]->setVal(0.0);
+        t_star[lev]->setVal(0.0);
+        q_star[lev]->setVal(0.0);
+        t_surf[lev]->setVal(300.0);
+    }
+
+    /**
+     * @brief Releases surface outputs that have no persistent consumer.
+     */
+    void release_transient_surface_outputs()
+    {
+        if (m_surface_outputs_enabled) { return; }
+        for (int lev = 0; lev < m_nlevs; ++lev) {
+            if (m_surface_layer_outputs_enabled &&
+                m_provider_mode[lev] == SurfaceProviderMode::Both) {
+                continue;
+            }
+            m_surface_outputs_requested[lev] = false;
+            u_star[lev].reset();
+            t_star[lev].reset();
+            q_star[lev].reset();
+            t_surf[lev].reset();
+        }
+    }
+
     int m_nlevs;
 
     bool m_use_urban = false; // whether we have an urban model
@@ -783,6 +1005,7 @@ private:
 
     bool m_export_fluxes = true;
     bool m_export_fluxes_set = false; // whether a model has registered and latched the mode above
+    amrex::GpuArray<bool, 2> m_output_fields_registered{{false, false}};
 
     // Set once the surface models have actually integrated at least one step, so consumers can
     // tell registered-but-unfilled fields from real ones.
@@ -790,6 +1013,8 @@ private:
 
     // internal flag to indicate if the weight average has been calculated this time step
     bool m_weights_updated = false;
+
+    amrex::Vector<SurfaceProviderMode> m_provider_mode;
 
     amrex::Vector<amrex::BoxArray> m_ba;
     amrex::Vector<amrex::BoxArray> m_ba2d;
@@ -812,6 +1037,11 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_star;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> q_star;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> t_surf;
+
+    amrex::Vector<int> m_surface_outputs_requested;
+    bool m_surface_outputs_enabled = false;
+    bool m_surface_layer_outputs_enabled = false;
+    amrex::Vector<amrex::MultiFab*> m_last_urban_frac;
 
     // Current weight average factors for each level (2 components: land and urban)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> wavg;
@@ -844,6 +1074,10 @@ private:
         int mf_ind;
         /// Whether boundaries are filled after mapping the field.
         bool fill_bound;
+        /// Whether a consumer currently requires this mapped field.
+        bool active = false;
+        /// Whether the field must be updated on every timestep.
+        bool persistent_consumer = false;
     };
     amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>> fields; // NOTE: this is stored in inverse order: (field, nlev)
     std::unordered_map<std::string, Field> fieldmap;

@@ -57,8 +57,8 @@ public:
           amrex::Vector<amrex::Vector<std::string>>& nc_init_file)
     {
         m_lsm_model[lev]->Init(lev, cons_in, u_in, v_in, geom, geom0,
-                               domain_bcs_type, refRatio,
-                               dt_advance, z_phys_nd, nc_init_file);
+                               domain_bcs_type, refRatio, dt_advance,
+                               z_phys_nd, nc_init_file);
     }
 
     void
@@ -73,8 +73,9 @@ public:
         amrex::Vector<amrex::BCRec> domain_bcs_type;
         amrex::IntVect refRatio(1);
         amrex::Vector<amrex::Vector<std::string>> nc_init_file;
-        Init(lev, cons_in, u_in, v_in, geom, geom, domain_bcs_type,
-             refRatio, dt_advance, z_phys_nd, nc_init_file);
+        Init(lev, cons_in, u_in, v_in, geom, geom,
+             domain_bcs_type, refRatio, dt_advance,
+             z_phys_nd, nc_init_file);
     }
 
     void
@@ -88,14 +89,16 @@ public:
              const double& time_d,
              const double& dt_advance_d,
              const int& nstep,
-             const bool updated_lev0)
+             const bool updated_lev0,
+             amrex::MultiFab* z_nd)
     {
         amrex::Real time = static_cast<amrex::Real>(time_d);
         amrex::Real dt_advance = static_cast<amrex::Real>(dt_advance_d);
         m_lsm_model[lev]->Advance_With_State(lev, cons_in, xvel_in, yvel_in,
                                              hfx3_out, qfx3_out,
                                              precip_sources,
-                                             time, dt_advance, nstep, updated_lev0);
+                                             time, dt_advance, nstep,
+                                             updated_lev0, z_nd);
     }
 
     void

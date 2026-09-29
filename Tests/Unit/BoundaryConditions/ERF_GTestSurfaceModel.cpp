@@ -156,6 +156,7 @@ struct SurfaceModelFixture {
 TEST(SurfaceModel, InitializesOutputsAndDefaultWeights)
 {
     SurfaceModelFixture fixture;
+    fixture.model->request_surface_outputs();
 
     EXPECT_EQ(fixture.model->get_ustar(0)->nComp(), 2);
     EXPECT_EQ(fixture.model->get_tstar(0)->nComp(), 1);
@@ -169,6 +170,7 @@ TEST(SurfaceModel, InitializesOutputsAndDefaultWeights)
 TEST(SurfaceModel, CalculatesWeightedFluxOutputs)
 {
     SurfaceModelFixture fixture;
+    fixture.model->request_surface_outputs();
     auto land = fixture.make_fields(Real(10.0), Real(10.0), 1);
     auto urban = fixture.make_fields(Real(100.0), Real(10.0), 0);
     fixture.configure_models(land, urban);
@@ -189,6 +191,7 @@ TEST(SurfaceModel, CalculatesWeightedFluxOutputs)
 TEST(SurfaceModel, RegistersAndAveragesModelsOnMultipleLevels)
 {
     SurfaceModelFixture fixture(2);
+    fixture.model->request_surface_outputs();
 
     auto land_coarse = fixture.make_fields(0, Real(10.0), Real(10.0), 1);
     auto urban_coarse = fixture.make_fields(0, Real(100.0), Real(10.0), 0);
@@ -225,6 +228,7 @@ TEST(SurfaceModel, RegistersAndAveragesModelsOnMultipleLevels)
 TEST(SurfaceModel, UrbanOnlyModelUsesFullSurface)
 {
     SurfaceModelFixture fixture;
+    fixture.model->request_surface_outputs();
     auto urban = fixture.make_fields(Real(100.0), Real(10.0), 0);
     const amrex::Vector<int> field_indices{0, 1, 2, 3, 4, 5};
     fixture.model->set_model_data(
@@ -245,10 +249,13 @@ TEST(SurfaceModel, UrbanOnlyModelUsesFullSurface)
 TEST(SurfaceModel, UnconfiguredProviderFieldsAreSkipped)
 {
     SurfaceModelFixture fixture;
+    fixture.model->request_surface_outputs();
     auto urban = fixture.make_fields(Real(100.0), Real(10.0), 0);
     fixture.model->set_model_data(
         0, fixture.pointers(urban), {"f0", "f1", "f2", "f3", "f4", "f5"},
         SurfaceModelType::URBAN);
+    fixture.model->set_model_fields(SurfaceModelType::URBAN,
+                                    {-1, -1, -1, -1, -1, -1});
 
     fixture.model->calculate_weight_average(0, nullptr);
 
@@ -262,6 +269,7 @@ TEST(SurfaceModel, UnconfiguredProviderFieldsAreSkipped)
 TEST(SurfaceModel, SingleEnabledModelUsesFullSurfaceWithoutFraction)
 {
     SurfaceModelFixture fixture;
+    fixture.model->request_surface_outputs();
     auto land = fixture.make_fields(Real(10.0), Real(1.0), 1);
     auto urban = fixture.make_fields(Real(100.0), Real(1.0), 0);
     fixture.model->set_model_data(0, fixture.pointers(land), {"f0", "f1", "f2", "f3", "f4", "f5"},
@@ -331,6 +339,7 @@ TEST(SurfaceModel, PointerMappedFieldIsNotScaledTwice)
     amrex::Vector<amrex::MultiFab*> land_ptrs{land[5].get()};
     amrex::Vector<amrex::MultiFab*> urban_ptrs{urban[5].get()};
     fixture.model->register_field_map("mapped", land_ptrs, urban_ptrs);
+    fixture.model->activate_field_map("mapped", false);
 
     amrex::MultiFab urban_fraction(fixture.ba, fixture.dm, 1, amrex::IntVect(0));
     urban_fraction.setVal(Real(0.25));
@@ -569,10 +578,12 @@ TEST(SurfaceModel, CheckpointRoundTripPreservesSyntheticState)
     ASSERT_TRUE(std::filesystem::create_directories(checkpoint / "Level_0"));
 
     SurfaceModelFixture writer;
+    writer.model->request_surface_outputs();
     auto writer_land = writer.make_fields(Real(10.0), Real(10.0), 1);
     auto writer_urban = writer.make_fields(Real(100.0), Real(10.0), 0);
     writer.configure_models(writer_land, writer_urban);
     writer.model->register_field_map("mapped", std::pair<int, int>{5, 5});
+    writer.model->activate_field_map("mapped");
 
     amrex::MultiFab writer_fraction(writer.ba, writer.dm, 1, amrex::IntVect(0));
     writer_fraction.setVal(Real(0.25));
@@ -587,10 +598,12 @@ TEST(SurfaceModel, CheckpointRoundTripPreservesSyntheticState)
     EXPECT_NE(header_text.find("Checkpoint file for SurfaceModel"), std::string::npos);
 
     SurfaceModelFixture reader;
+    reader.model->request_surface_outputs();
     auto reader_land = reader.make_fields(Real(-1.0), Real(1.0), 1);
     auto reader_urban = reader.make_fields(Real(-2.0), Real(1.0), 0);
     reader.configure_models(reader_land, reader_urban);
     reader.model->register_field_map("mapped", std::pair<int, int>{5, 5});
+    reader.model->activate_field_map("mapped");
     reader.model->ReadCheckpoint(checkpoint.string());
 
     EXPECT_EQ(reader.model->get_ustar(0)->max(0), writer.model->get_ustar(0)->max(0));
