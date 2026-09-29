@@ -205,7 +205,7 @@ function(add_test_two_stream_radiation TEST_NAME PLTFILE)
     # CHECK_LEVELS is multi-value: as a one-value arg CMake's list semantics
     # split "0;1" into two arguments and only the first was ever seen, so the
     # fine level went unchecked and the test passed vacuously.
-    set(multiValueArgs "CHECK_LEVELS" "DIAG_LEVELS")
+    set(multiValueArgs "CHECK_LEVELS" "DIAG_LEVELS" "SEB_CREATED_FROM")
     cmake_parse_arguments(ADD_TEST_TSR "" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
     # Join with a comma, not a semicolon: a semicolon inside a -D argument is
     # split again when the COMMAND is built. The runner splits on the comma.
@@ -242,6 +242,17 @@ function(add_test_two_stream_radiation TEST_NAME PLTFILE)
     if(DEFINED ADD_TEST_TSR_SEB_EVOLVED_FROM AND NOT "${ADD_TEST_TSR_SEB_EVOLVED_FROM}" STREQUAL "")
         set(tsr_seb_evolved "${ADD_TEST_TSR_SEB_EVOLVED_FROM}")
     endif()
+    # A level created mid-run: the three 2D plotfiles (initial, and the last two before
+    # the level existed) the checker extrapolates the parent's surface from. Joined with a
+    # comma for the same reason as CHECK_LEVELS.
+    set(tsr_seb_created "")
+    if(DEFINED ADD_TEST_TSR_SEB_CREATED_FROM)
+        set(tsr_seb_created_paths "")
+        foreach(created_plt ${ADD_TEST_TSR_SEB_CREATED_FROM})
+            list(APPEND tsr_seb_created_paths "${CURRENT_TEST_BINARY_DIR}/${created_plt}")
+        endforeach()
+        string(JOIN "," tsr_seb_created ${tsr_seb_created_paths})
+    endif()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i")
     set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
@@ -264,6 +275,7 @@ function(add_test_two_stream_radiation TEST_NAME PLTFILE)
         "-DSEB_PARITY_PLOTFILE=${tsr_seb_parity}"
         "-DSEB_PARITY_TOL=${tsr_seb_tol}"
         "-DSEB_EVOLVED_FROM=${tsr_seb_evolved}"
+        "-DSEB_CREATED_FROM=${tsr_seb_created}"
         "-DSEB_PARITY_CHECKER=${TWO_STREAM_SEB_PARITY_CHECKER}"
         "-DFEXTRACT=${FEXTRACT_EXE}"
         "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
@@ -1506,6 +1518,25 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                                   DIAG_LEVELS 0
                                   SEB_PARITY_PLOTFILE "plt2d00006"
                                   SEB_EVOLVED_FROM "300.0")
+  endif()
+
+  # A level created MID-RUN must start from the surface its parent has reached.
+  # TwoStream_PrognosticSEBMultiLevel cannot see that: its fine level exists from t = 0, when
+  # both levels are uniform at erf.rad_t_sfc and interpolating from the parent is a no-op.
+  # Here the tagging switches on only after level 0 has run alone for 10 steps, so the regrid
+  # at step 11 builds level 1 over a surface that has drifted ~0.08 K. The checker asserts
+  # level 1 averages to the parent's surface extrapolated one step on, to a quarter of one
+  # step's change; without ERF::fill_seb_from_coarse at level creation it misses by the whole
+  # drift (7.9e-2 against a 2.0e-3 tolerance, where the transfer gives 7.9e-5).
+  #
+  # The runner's 1-rank vs 2-rank comparison matters here too: it is what showed the
+  # interpolation reading a periodic halo that fill_seb_from_coarse had clamped, which left
+  # the new level's edge columns dependent on the box layout.
+  if(ERF_TEST_PYTHON)
+    add_test_two_stream_radiation(TwoStream_PrognosticSEBLateLevel "plt00011"
+                                  CHECK_LEVELS 0 1
+                                  SEB_PARITY_PLOTFILE "plt2d00011"
+                                  SEB_CREATED_FROM "plt2d00000" "plt2d00009" "plt2d00010")
   endif()
 
   # The force-restore surface state is checkpointed per level. A level whose copy is
