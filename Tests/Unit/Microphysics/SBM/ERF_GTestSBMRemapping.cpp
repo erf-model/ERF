@@ -785,6 +785,34 @@ TEST(SBMRemapping, AllocationFreeCoreMatchesHostReferenceAdapters)
 }
 
 #if defined(AMREX_USE_GPU)
+void launch_device_remap_kernel(const amrex::Box& box,
+                               const erf_sbm::PopulationRemapView population_view,
+                               const Real packet_mass,
+                               const Real* edges,
+                               Real* state,
+                               Real* output)
+{
+    amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE (int, int, int) noexcept {
+        const auto plan = erf_sbm::plan_packet_routing(
+            population_view, Real(1.0), packet_mass);
+        const auto applied = erf_sbm::apply_packet_routing_core(
+            population_view, plan, nullptr, 0, nullptr, 0, state, 4);
+        erf_sbm::EndpointTransform endpoints;
+        const bool endpoint_valid = erf_sbm::try_two_moment_to_endpoints(
+            state[3], state[1], edges[1], edges[2], endpoints);
+        output[0] = static_cast<Real>(static_cast<int>(plan.status));
+        output[1] = static_cast<Real>(plan.destination_count);
+        output[2] = static_cast<Real>(plan.destinations[0].bin);
+        output[3] = plan.normalized_roundoff ? Real(1.0) : Real(0.0);
+        output[4] = static_cast<Real>(static_cast<int>(applied.status));
+        output[5] = state[1];
+        output[6] = state[3];
+        output[7] = endpoint_valid ? Real(1.0) : Real(0.0);
+        output[8] = endpoints.normalized_roundoff ? Real(1.0) : Real(0.0);
+        output[9] = applied.roundoff_water_mass_correction;
+    });
+}
+
 TEST(SBMRemapping, AllocationFreeTwoMomentCoreRunsInDeviceKernel)
 {
     const std::vector<Real> host_edges{Real(0.5), Real(1.5), Real(2.5)};
@@ -808,25 +836,7 @@ TEST(SBMRemapping, AllocationFreeTwoMomentCoreRunsInDeviceKernel)
     auto* state = device_state.data();
     auto* output = device_output.data();
     const amrex::Box box(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0));
-    amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE (int, int, int) noexcept {
-        const auto plan = erf_sbm::plan_packet_routing(
-            population_view, Real(1.0), packet_mass);
-        const auto applied = erf_sbm::apply_packet_routing_core(
-            population_view, plan, nullptr, 0, nullptr, 0, state, 4);
-        erf_sbm::EndpointTransform endpoints;
-        const bool endpoint_valid = erf_sbm::try_two_moment_to_endpoints(
-            state[3], state[1], edges[1], edges[2], endpoints);
-        output[0] = static_cast<Real>(static_cast<int>(plan.status));
-        output[1] = static_cast<Real>(plan.destination_count);
-        output[2] = static_cast<Real>(plan.destinations[0].bin);
-        output[3] = plan.normalized_roundoff ? Real(1.0) : Real(0.0);
-        output[4] = static_cast<Real>(static_cast<int>(applied.status));
-        output[5] = state[1];
-        output[6] = state[3];
-        output[7] = endpoint_valid ? Real(1.0) : Real(0.0);
-        output[8] = endpoints.normalized_roundoff ? Real(1.0) : Real(0.0);
-        output[9] = applied.roundoff_water_mass_correction;
-    });
+    launch_device_remap_kernel(box, population_view, packet_mass, edges, state, output);
     amrex::Gpu::streamSynchronize();
     std::vector<Real> result(10, Real(0.0));
     amrex::Gpu::copy(amrex::Gpu::deviceToHost, device_output.begin(), device_output.end(),
