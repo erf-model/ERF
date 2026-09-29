@@ -59,6 +59,10 @@ class NOAHMP : public NullSurf {
     using FabPtr = std::shared_ptr<amrex::MultiFab>;
 
 public:
+    // Bring the base-class Init overloads into scope so the single override below
+    // does not hide them (-Woverloaded-virtual), matching SLM.
+    using NullSurf::Init;
+
     // Constructor
     NOAHMP () {}
 
@@ -67,9 +71,11 @@ public:
 
     // Set thermo and grid properties
     void
-    Define (SolverChoice& /*sc*/) override
+    Define (SolverChoice& sc) override
     {
-        // Parse solver constants from sc here if needed.
+        // Whether the configured radiation model writes Noah-MP's radiation inputs
+        // (SWDOWN, GLW, COSZEN); see the first-land-step check in Advance_With_State.
+        m_radiation_feeds_lsm = sc.rad_feeds_lsm();
     }
 
     // Initialize data structures
@@ -95,7 +101,8 @@ public:
                         const amrex::Real& elapsed_time,
                         const amrex::Real& dt,
                         const int& nstep,
-                        const bool updated_lev0) override;
+                        const bool updated_lev0,
+                        amrex::MultiFab* z_nd) override;
 
     void
     Plot_Landfile (const int& nstep) override;
@@ -142,7 +149,7 @@ public:
 
     // Get variable index from name
     int
-    Lsm_DataIndex (std::string varname) override
+    Lsm_DataIndex (const std::string& varname) override
     {
         int varIdx = -1;
         std::string lc_varname = amrex::toLower(varname);
@@ -165,7 +172,7 @@ public:
 
     // Get flux variable index from name
     int
-    Lsm_FluxIndex (std::string varname) override
+    Lsm_FluxIndex (const std::string& varname) override
     {
         int varIdx = -1;
         std::string lc_varname = amrex::toLower(varname);
@@ -174,7 +181,7 @@ public:
                 varIdx = idx;
             }
         }
-        return varIdx;
+        return varIdx; // -1 if this model does not carry that flux; callers probe with this
     }
 
     void
@@ -247,6 +254,7 @@ public:
                    amrex::MultiFab& cons_in,
                    amrex::MultiFab& xvel_in,
                    amrex::MultiFab& yvel_in,
+                   amrex::MultiFab* z_nd,
                    const erf_noahmp::PrecipSlots& precip,
                    amrex::Vector<erf_noahmp::ClampedPrecipCell>& clamped_cells,
                    amrex::Vector<erf_noahmp::InvariantPrecipCell>& invariant_cells);
@@ -353,8 +361,6 @@ private:
     // domain bc types
     amrex::Vector<amrex::BCRec> m_domain_bcs_type;
 
-    // timestep
-    amrex::Real m_dt;
 
     // Authoritative NoahMP substep counter, kept on the class so the firing decision
     // is identical on every rank (including land-free ranks with empty noahmpio_vect).
@@ -414,5 +420,30 @@ private:
 
     // Do we have a nc init file?
     bool m_has_nc_file = false;
+
+    // Set once a land step has seen valid radiation inputs (or warned that a model
+    // that never writes them is in use), so the check in Advance_With_State (a global
+    // reduction) stops running. Reset by Init: a rebuilt level (regrid, including the
+    // one a restart can trigger) re-installs the lsm_undefined sentinel, so a verdict
+    // from before the wipe no longer holds.
+    bool m_checked_radiation_inputs = false;
+
+    // Set when the missing-radiation-inputs warning for a restarted/rebuilt level has
+    // been printed, so re-checking on later land steps does not repeat it.
+    bool m_warned_radiation_inputs = false;
+
+    // The ERF step of the first Advance_With_State call since this level was last
+    // (re)built: 0 only on a run started from scratch, positive after a restart or a
+    // mid-run regrid (Init resets it to -1 when it re-installs the sentinel).
+    // Distinguishes "RRTMGP has certainly computed since the fields were initialized"
+    // (a fresh run computes radiation on step 0, before any land step) from "RRTMGP
+    // may not have recomputed yet" (after a restart or regrid it recomputes only on
+    // its rad_freq_in_steps schedule). Set by Advance_With_State.
+    int m_first_advance_nstep = -1;
+
+    // True when the configured radiation model writes the radiation inputs (RRTMGP), so
+    // an input still missing on the first land step is a broken coupling, not a
+    // configuration without radiation. Set in Define.
+    bool m_radiation_feeds_lsm = false;
 };
 #endif

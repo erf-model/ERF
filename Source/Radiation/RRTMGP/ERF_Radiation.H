@@ -136,14 +136,16 @@ public:
          amrex::MultiFab* cons_in,
          amrex::iMultiFab* lmask,
          amrex::MultiFab*  t_surf,
-         amrex::Vector<amrex::MultiFab*>& lsm_input_ptrs,
-         amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs,
+         const amrex::Vector<const amrex::MultiFab*>& lsm_input_ptrs,
+         const amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs,
          amrex::MultiFab* qheating_rates,
          amrex::MultiFab* rad_fluxes,
          amrex::MultiFab* z_phys,
          amrex::MultiFab* lat_ptr,
          amrex::MultiFab* lon_ptr,
-         const bool updated_lsm) override
+         const bool updated_lsm,
+         amrex::Real& declin,
+         amrex::Real& calday) override
     {
         // Skip radiation computation on nested patches - heating rates will be
         // filled via interpolation from coarser level in ERF::FillPatch
@@ -163,7 +165,11 @@ public:
                   rad_fluxes, z_phys, lat_ptr, lon_ptr,
                   updated_lsm);
         rad_run_impl(lsm_output_ptrs);
+        declin = m_declin;
+        calday = m_calday;
     }
+
+    bool radiation_updated () const override { return m_update_rad && !m_is_nested_patch; }
 
     // Set the grid info for columnar data in KOKKOS
     void
@@ -176,7 +182,7 @@ public:
                amrex::MultiFab* cons_in,
                amrex::iMultiFab* lmask,
                amrex::MultiFab*  t_surf,
-               amrex::Vector<amrex::MultiFab*>& lsm_input_ptrs,
+               const amrex::Vector<const amrex::MultiFab*>& lsm_input_ptrs,
                amrex::MultiFab* qheating_rates,
                amrex::MultiFab* rad_fluxes,
                amrex::MultiFab* z_phys,
@@ -196,11 +202,11 @@ public:
     void
     mf_to_kokkos_buffers(amrex::iMultiFab* lmask,
                          amrex::MultiFab*  t_surf,
-                         amrex::Vector<amrex::MultiFab*>& lsm_input_ptrs);
+                         const amrex::Vector<const amrex::MultiFab*>& lsm_input_ptrs);
 
     // Fill AMReX MultiFabs from KOKKOS Views
     void
-    kokkos_buffers_to_mf (amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs);
+    kokkos_buffers_to_mf (const amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs);
 
     // Write the rrtmgp fluxes
     void
@@ -216,11 +222,11 @@ public:
 
     // Finalize the implementation
     void
-    finalize_impl (amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs);
+    finalize_impl (const amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs);
 
     // Wrapper for implementation steps
     void
-    rad_run_impl (amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs)
+    rad_run_impl (const amrex::Vector<amrex::MultiFab*>& lsm_output_ptrs)
     {
         if (m_update_rad) {
             amrex::Print() << "Radiation advancing level " << m_lev << " at (YY-MM-DD SS) " << m_orbital_year << '-'
@@ -421,6 +427,9 @@ private:
     // Fixed solar zenith angle to use for shortwave calculations
     // This is only used if a positive value is supplied
     amrex::Real m_fixed_solar_zenith_angle = -amrex::Real(9999.);
+
+    amrex::Real m_declin = 0.0;
+    amrex::Real m_calday = 0.0;
 
     // Dimensions to be read from lookup data
     int m_nswbands;

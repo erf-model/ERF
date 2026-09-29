@@ -3,20 +3,231 @@
  * and initializes one NoahmpIO_type per box, and broadcasts the firing parameters.
  */
 
+#include <cctype>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <string>
 #include <vector>
 #include <limits>
 
+#include <AMReX.H>
 #include <AMReX_ParmParse.H>
 #include <AMReX_Print.H>
 #include <AMReX_ParallelDescriptor.H>
+#include <AMReX_Utility.H>
 
 #include <ERF_NOAHMP.H>
 #include <ERF_Constants.H>
 #include <NoahmpFatal.H>
 
 using namespace amrex;
+
+namespace {
+
+bool
+is_ident_char (char c)
+{
+    return std::isalnum(static_cast<unsigned char>(c)) || c == '_';
+}
+
+//
+// Find the value of the last assignment to `key` inside the first `&group` record of a
+// Fortran namelist file, the way the driver's single READ(nml=group) sees it: everything
+// before the group header, after the group's terminating '/', or inside a group with
+// another name is invisible to that READ and must not be scanned (a stale assignment in
+// a leftover block would otherwise be reported against a file the driver accepts).
+// Within the group, keys are case-insensitive and may appear anywhere on a line, several
+// assignments may share a line, '!' starts a comment outside a string, and a string
+// value may be delimited by either quote (a doubled quote inside is a literal one) or,
+// as gfortran accepts, not delimited at all. Returns false if the key is not assigned
+// in that group (including when the group itself is absent).
+//
+bool
+namelist_string_value (const std::string& file, const std::string& group,
+                       const std::string& key, std::string& value)
+{
+    std::ifstream in(file);
+    const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    const std::size_t n = text.size();
+
+    auto iequal = [] (const std::string& a, const std::string& b) {
+        if (a.size() != b.size()) { return false; }
+        for (std::size_t k = 0; k < a.size(); ++k) {
+            if (std::toupper(static_cast<unsigned char>(a[k])) !=
+                std::toupper(static_cast<unsigned char>(b[k]))) { return false; }
+        }
+        return true;
+    };
+    // Read a quoted string starting at the opening quote text[i]; returns one past the
+    // closing quote (or n if it is unterminated).
+    auto read_quoted = [&] (std::size_t i, std::string* out) {
+        const char q = text[i++];
+        while (i < n) {
+            if (text[i] == q) {
+                if (i + 1 < n && text[i+1] == q) {
+                    if (out) { out->push_back(q); }
+                    i += 2;
+                    continue;
+                }
+                return i + 1;
+            }
+            if (out) { out->push_back(text[i]); }
+            ++i;
+        }
+        return n;
+    };
+
+    bool found = false;
+    bool in_group = false;
+    std::size_t i = 0;
+    while (i < n) {
+        const char c = text[i];
+        if (!in_group) {
+            // Skip records until the group header, honoring comments so a commented-out
+            // '&group' does not open the scan. '&' starts a group in list-directed
+            // namelist input; '$' is the pre-standard spelling gfortran also accepts.
+            if (c == '!') {
+                while (i < n && text[i] != '\n') { ++i; }
+            } else if (c == '&' || c == '$') {
+                const std::size_t start = ++i;
+                while (i < n && is_ident_char(text[i])) { ++i; }
+                in_group = iequal(text.substr(start, i - start), group);
+            } else {
+                ++i;
+            }
+            continue;
+        }
+        if (c == '\'' || c == '"') {
+            i = read_quoted(i, nullptr);
+        } else if (c == '!') {
+            while (i < n && text[i] != '\n') { ++i; }
+        } else if (c == '/' || c == '&' || c == '$') {
+            // '/' terminates the group ('&end'/'$end' are pre-standard spellings of the
+            // same thing), and the READ consumes exactly one group: stop scanning.
+            break;
+        } else if (is_ident_char(c)) {
+            const std::size_t start = i;
+            while (i < n && is_ident_char(text[i])) { ++i; }
+            if (!iequal(text.substr(start, i - start), key)) { continue; }
+            std::size_t j = i;
+            while (j < n && std::isspace(static_cast<unsigned char>(text[j]))) { ++j; }
+            if (j >= n || text[j] != '=') { continue; }
+            ++j;
+            while (j < n && std::isspace(static_cast<unsigned char>(text[j]))) { ++j; }
+            std::string v;
+            if (j < n && (text[j] == '\'' || text[j] == '"')) {
+                j = read_quoted(j, &v);
+            } else {
+                while (j < n && !std::isspace(static_cast<unsigned char>(text[j])) &&
+                       text[j] != ',' && text[j] != '/' && text[j] != '!') {
+                    v.push_back(text[j++]);
+                }
+            }
+            // A later assignment overrides an earlier one, as in a Fortran namelist read.
+            found = true;
+            value = v;
+            i = j;
+        } else {
+            ++i;
+        }
+    }
+
+    // Trim, since Fortran pads its character variables with blanks.
+    const auto first = value.find_first_not_of(' ');
+    const auto last  = value.find_last_not_of(' ');
+    value = (first == std::string::npos) ? std::string{} : value.substr(first, last - first + 1);
+    return found;
+}
+
+//
+// Check, before the Fortran driver runs, every file it is about to open.
+//
+// The driver reports a missing file with a Fortran WRITE on rank 0 and then calls
+// NoahmpIO_abort(), which reaches amrex::Abort through the handler installed in
+// NOAHMP::Init with no message at all. The user sees only "Noah-MP fatal error" -- for
+// a missing namelist.erf, a missing NoahmpTable.TBL and a missing land setup file alike
+// -- with the one line that says which file it wanted lost with the Fortran unit. So
+// look for them here and name the missing one.
+//
+// The driver reads its setup file from ERF_SETUP_FILE_01/02/03 in namelist.erf for
+// levels 0/1/2 (NoahmpReadNamelistMod.F90) and has no fourth. This is a diagnostic, not
+// a second namelist reader: it aborts only on something that is certainly wrong (a file
+// that does not exist) and only warns when it cannot find the setup-file entry, since
+// the driver itself is the authority on what namelist.erf says.
+//
+// Called on every rank; the file system is checked on the I/O rank only and the others
+// wait at the barrier, so they do not run ahead into the driver while it is checked.
+//
+void
+noahmp_preflight (int lev)
+{
+    if (ParallelDescriptor::IOProcessor()) {
+        const std::string namelist = "namelist.erf";
+        const std::string table    = "NoahmpTable.TBL";
+
+        if (!amrex::FileExists(namelist)) {
+            amrex::Abort("Noah-MP: " + namelist + " was not found in the run directory. The "
+                         "Noah-MP driver reads its physics options and the name of its land "
+                         "setup file from it; a template is in "
+                         "Submodules/Noah-MP/drivers/erf/tests/namelist.erf.");
+        }
+        if (!amrex::FileExists(table)) {
+            amrex::Abort("Noah-MP: " + table + " was not found in the run directory. Copy "
+                         "it from Submodules/Noah-MP/parameters/NoahmpTable.TBL.");
+        }
+
+        // amrex::FileExists is a stat-style test: it is also true for a directory and
+        // for a file this rank cannot read, and namelist_string_value would then scan
+        // an empty string and misreport the problem below as a missing key. Say
+        // "unreadable" distinctly. (peek() forces the first read, which is what fails
+        // on a directory; an empty namelist.erf is reported here too, since the driver
+        // cannot read its group from one either.)
+        {
+            std::ifstream probe(namelist);
+            if (!probe || probe.peek() == std::char_traits<char>::eof()) {
+                amrex::Abort("Noah-MP: " + namelist + " exists but cannot be read (or is "
+                             "empty). Check that it is a regular, readable file and "
+                             "contains the &NOAHLSM_OFFLINE namelist group.");
+            }
+        }
+        if (lev > 2) {
+            amrex::Abort("Noah-MP: the driver reads a land setup file for levels 0-2 only "
+                         "(ERF_SETUP_FILE_01..03 in namelist.erf); level " + std::to_string(lev) +
+                         " has none. Limit amr.max_level to 2.");
+        }
+
+        // The driver rejects ZLVL (the reference height is now staged per column as DZ8W),
+        // but says so with a WRITE that is usually lost, so a namelist.erf carried over from
+        // an older setup would stop with only the generic message.
+        // The driver reads exactly one group from namelist.erf: NOAHLSM_OFFLINE
+        // (NoahmpReadNamelistMod.F90); scan only that group, as its READ does.
+        const std::string group = "NOAHLSM_OFFLINE";
+
+        std::string zlvl;
+        if (namelist_string_value(namelist, group, "ZLVL", zlvl)) {
+            amrex::Abort("Noah-MP: " + namelist + " sets ZLVL, which is no longer a Noah-MP "
+                         "namelist option: ERF passes the reference height to Noah-MP for every "
+                         "column (DZ8W). Remove ZLVL from " + namelist + ".");
+        }
+
+        const std::string key = "ERF_SETUP_FILE_0" + std::to_string(lev + 1);
+        std::string setup_file;
+        if (!namelist_string_value(namelist, group, key, setup_file) || setup_file.empty()) {
+            amrex::Print() << "WARNING: Noah-MP: could not find " << key << " in " << namelist
+                           << ". It names the wrfinput-format NetCDF file Noah-MP reads its "
+                              "land state from at level " << lev << " (soil and vegetation "
+                              "type, soil temperature and moisture, and the WRF grid "
+                              "attributes); if it is missing the driver will stop.\n";
+        } else if (!amrex::FileExists(setup_file)) {
+            amrex::Abort("Noah-MP: the land setup file '" + setup_file + "' named by " + key +
+                         " in " + namelist + " does not exist.");
+        }
+    }
+    ParallelDescriptor::Barrier();
+}
+
+} // namespace
 
 void
 NOAHMP::Init (const int& lev,
@@ -31,17 +242,43 @@ NOAHMP::Init (const int& lev,
     // Install Noah-MP's fatal-error handler once: route NoahmpIO_fatal() through
     // amrex::Abort so a fatal error propagates via MPI_Abort. See NoahmpFatal.H.
     static const bool noahmp_fatal_installed = []() {
+        // The driver's own aborts pass no message: it WRITEs the reason to standard output
+        // on rank 0 first, and that line is usually lost when the job is killed. NOAHMP::Init
+        // checks the files the driver opens beforehand (noahmp_preflight); what reaches
+        // this default is a problem inside one of them, so point at the likely ones.
         NoahmpIO_set_fatal_handler([](const char* msg){
-            amrex::Abort(msg ? msg : "Noah-MP fatal error");
+            amrex::Abort(msg ? msg :
+                "Noah-MP fatal error in the Fortran driver. Its explanation is written to "
+                "standard output on rank 0 and is usually lost when the job stops; check for a "
+                "malformed namelist.erf (every *_TIMESTEP and *_OPTION is an integer), a "
+                "NoahmpTable.TBL that does not match the land-use scheme (MMINLU), or a land "
+                "setup file missing one of the fields Noah-MP reads.");
         });
         return true;
     }();
     amrex::ignore_unused(noahmp_fatal_installed);
 
+    // Noah-MP's own physics checks end the run with a bare Fortran STOP (27 of them, e.g.
+    // "Error: Solar radiation budget problem in NoahMP LSM"), which exits with status 0.
+    // main() installs an atexit trap that turns any exit() while AMReX is still
+    // initialised into a failure status; see install_exit_trap in main.cpp.
+
+    // dt is a placeholder: ERF::make_lsm_at_level passes zero, because the level's step is
+    // not known yet when the level is built. Nothing here may depend on it; the step is
+    // checked against NOAH_TIMESTEP in Advance_With_State, where it is real.
+    amrex::ignore_unused(dt);
+
     m_lev   = lev;
-    m_dt    = dt;
     m_geom  = geom;
     m_geom0 = geom0;
+
+    // Init runs again when a level is rebuilt (a regrid, including the one a restart
+    // can trigger), and the setVal below re-installs the lsm_undefined sentinel in the
+    // radiation inputs; make Advance_With_State re-check them rather than trust a
+    // verdict from before the wipe, and let it see that this is a rebuild.
+    m_checked_radiation_inputs = false;
+    m_warned_radiation_inputs  = false;
+    m_first_advance_nstep      = -1;
     m_domain_bcs_type = domain_bcs_type;
     m_refRatio = refRatio;
 
@@ -76,7 +313,7 @@ NOAHMP::Init (const int& lev,
     }
 
     LsmFluxMap  = {LsmFlux_NOAHMP::t_flux         , LsmFlux_NOAHMP::q_flux         ,
-                  LsmFlux_NOAHMP::tau13          , LsmFlux_NOAHMP::tau23          };
+                   LsmFlux_NOAHMP::tau13          , LsmFlux_NOAHMP::tau23          };
     LsmFluxName = {"t_flux"         , "q_flux"         ,
                    "tau13"          , "tau23"          };
 
@@ -116,9 +353,19 @@ NOAHMP::Init (const int& lev,
         lsm_fab_flux[ivar]->setVal(lsm_undefined);
     }
 
-    m_has_nc_file = (!nc_init_file[lev].empty());
+    // Level 0 always runs the Noah-MP driver: the driver reads its land state from the
+    // file ERF_SETUP_FILE_01 in namelist.erf names, whatever ERF's own initialization is,
+    // and there is no coarser level for the other branch (interp_from_lev0) to take it
+    // from. This used to follow only from ERF::nc_init_file's static default being
+    // {{""}} -- one empty string at level 0, so the vector below is never empty there,
+    // with or without erf.nc_init_file_0 -- which is how an idealized run could use
+    // Noah-MP at all. Say it outright so it does not rest on that placeholder.
+    // A finer level runs the driver only if it has an init file of its own.
+    m_has_nc_file = (lev == 0) || (!nc_init_file[lev].empty());
     if (m_has_nc_file) {
         Print() << "Noah-MP initialization started" << std::endl;
+
+        noahmp_preflight(lev);
 
         // Size noahmpio_vect to the local boxes. A rank owning no boxes leaves it
         // empty and relies on the class-level m_itimestep/m_dtbl instead.
@@ -211,10 +458,20 @@ NOAHMP::Init (const int& lev,
         ParallelDescriptor::ReduceIntMax(m_itimestep);
 
         // Guard against a decomposition in which no rank owns a land box.
-        AMREX_ALWAYS_ASSERT(m_dtbl > Real(0.0));
-        AMREX_ALWAYS_ASSERT(m_dt <= m_dtbl);
+        // DTBL is real(NOAH_TIMESTEP) from namelist.erf, and NOAH_TIMESTEP defaults to
+        // -9999 in the driver, so this is what an absent NOAH_TIMESTEP looks like. (It is
+        // not about land: noahmpio_vect is sized by boxes, land or not, so every rank that
+        // owns a box contributes a DTBL to the max.)
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_dtbl > Real(0.0),
+            "Noah-MP: the Noah-MP timestep is not positive. Set NOAH_TIMESTEP (in seconds, "
+            "an integer) in namelist.erf.");
+        // The ERF-step-versus-NOAH_TIMESTEP constraint is enforced in Advance_With_State:
+        // the dt this function receives is a placeholder zero (see the top of Init), so a
+        // check against it here -- there used to be one -- could never fire.
 
         Print() << "Noah-MP initialization completed" << std::endl;
     } // has nc_init_file
 
 };
+
+

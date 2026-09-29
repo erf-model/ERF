@@ -162,7 +162,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
         const Real l_C_k        = turbChoice.Ck;
         const Real l_C_e        = turbChoice.Ce;
         const Real l_C_e_wall   = turbChoice.Ce_wall;
-        const Real Ce_lcoeff    = amrex::max(zero, l_C_e - Real(1.9)*l_C_k);
+        const Real Ce_lcoeff    = amrex::max(amrex::Real(zero), l_C_e - Real(1.9)*l_C_k);
         const Real l_abs_g      = const_grav;
 
         // Clamped divisor: the select is if-converted, so 1/theta_ref runs even

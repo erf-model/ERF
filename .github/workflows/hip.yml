@@ -2,29 +2,28 @@ name: ERF CI (hip)
 
 on:
   push:
-    # branches: [development]
+    branches: [development]
     paths-ignore:
-      - Docs
+      - Docs/**
       - README.rst
       - license.txt
 
   pull_request:
     branches: [development]
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened]
 
 concurrency:
   group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-hip
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
   # MPI_C is broken since HIP 4.1
   # https://gitlab.kitware.com/cmake/cmake/-/issues/21968
   # https://github.com/ROCm-Developer-Tools/HIP/issues/2246
   Build-And-Test-HIP:
-    # The closed event exists only to cancel in-progress runs via concurrency.
-    if: github.event.action != 'closed'
     name: HIP ROCm GFortran@9.3 C++17 - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     runs-on: ubuntu-22.04
+    timeout-minutes: 180
     # Have to have -Wno-deprecated-declarations due to deprecated atomicAddNoRet
     # Have to have -Wno-gnu-zero-variadic-macro-arguments to avoid
     #    amrex/Src/Base/AMReX_GpuLaunchGlobal.H:15:5: error: must specify at least one argument for '...' parameter of variadic macro [-Werror,-Wgnu-zero-variadic-macro-arguments]
@@ -39,7 +38,11 @@ jobs:
     env: {CXXFLAGS: "-Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual -Wextra-semi -Wunreachable-code -Wno-deprecated-declarations -Wno-gnu-zero-variadic-macro-arguments -Wno-pass-failed"}
     strategy:
       matrix:
-        particles: [OFF, ON]
+        # GPU builds cover the particle-enabled configuration only. The
+        # particles-OFF variant costs a second long GPU compile for solver
+        # coverage the particles-ON build already provides; it is still built
+        # on CPU by ci, gcc and windows-mpi.
+        particles: [ON]
         particles_precision: [DOUBLE, SINGLE]
         mesh_precision: [DOUBLE, SINGLE]
         exclude:
@@ -49,9 +52,6 @@ jobs:
             particles_precision: SINGLE
           - mesh_precision: SINGLE
             particles_precision: DOUBLE
-          # SINGLE precision is only exercised in the particle-enabled build.
-          - mesh_precision: SINGLE
-            particles: OFF
 
     steps:
 

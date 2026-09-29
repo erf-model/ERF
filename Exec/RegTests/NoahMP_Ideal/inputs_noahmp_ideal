@@ -1,0 +1,74 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Regression motivation:
+# The Noah-MP land-surface model from an idealized ERF case (input_sounding atmosphere,
+# no radiation model). It needs ERF_ENABLE_NOAHMP, which needs a parallel NetCDF build.
+# See README.md for the files it needs in the run directory.
+#
+# What it guards:
+#
+# 1. The radiation inputs. No erf.radiation_model is set, so nothing writes the
+#    downwelling shortwave, downwelling longwave or solar zenith angle Noah-MP reads;
+#    they hold the lsm_undefined sentinel (1e150). ERF replaces an invalid input with
+#    zero. Taken raw, Noah-MP's energy-budget check ends the run at the first land step
+#    with a Fortran STOP.
+#
+# 2. The exit status. That STOP exits with status 0; ERF turns an exit() taken while
+#    AMReX is still running into a failure. A run that dies early also never writes
+#    its last plotfiles (plt00002, plt2d00002).
+#
+# 3. The outputs. The absorbed shortwave (sav, sag) must be zero here.
+#
+# With no downwelling longwave the surface radiates to a 0 K sky and cools, from 300 K
+# to about 252 K in the one Noah-MP hour this runs. There it loses 228 W/m^2 of its own
+# emission (fira), balanced by 151 W/m^2 conducted up from the warmer soil (grdflx) and
+# 78 W/m^2 of sensible heat from the warmer air (sensible_heat_flux, negative = toward
+# the surface). Evaporation is about 1 W/m^2. Noah-MP's land output lnd00002 closes this
+# budget (FIRAXY, HFX, LH, GRDFLX) to 0.02 W/m^2. That is the correct response to the
+# configuration, not a Noah-MP defect; the start-up warning says the same.
+
+max_step = 2
+stop_time = 100.0
+
+amrex.fpe_trap_invalid = 0
+
+geometry.prob_extent = 1000 1000 1000
+amr.n_cell           = 4 4 32
+geometry.is_periodic = 1 1 0
+amr.max_level = 0
+
+# Noah-MP applies its fluxes to the atmosphere through the surface layer, which in
+# turn needs a diffusive closure.
+zlo.type = "surface_layer"
+zhi.type = "SlipWall"
+erf.most.z0   = 0.1
+# Above the first cell centre (dz = 31.25 m, so 15.6 m); MOSTAverage requires it.
+erf.most.zref = 20.0
+
+erf.fixed_dt = 1.0
+erf.v = 1
+
+erf.prob_name = "ABL"
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "input_sounding"
+
+erf.use_gravity = true
+erf.les_type = "Smagorinsky"
+erf.Cs = 0.16
+erf.pbl_type = "None"
+erf.molec_diff_type = "None"
+
+start_datetime = "2024-08-05 12:00:00"
+
+erf.land_surface_model = "NOAHMP"
+
+erf.check_int = -1
+# The atmosphere at the last step (plt00002), for the reference comparison.
+erf.plot_file_1 = plt
+erf.plot_int_1 = 2
+erf.plot_vars_1 = density x_velocity y_velocity z_velocity pressure temp theta
+
+# Noah-MP's own outputs.
+erf.plot2d_file_1 = plt2d
+erf.plot2d_int_1 = 2
+erf.plot2d_vars_1 = t_sfc sav sag sensible_heat_flux grdflx fira

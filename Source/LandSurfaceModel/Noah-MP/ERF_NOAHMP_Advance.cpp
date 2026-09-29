@@ -10,10 +10,11 @@
 
 #include <AMReX_Print.H>
 
-#include <ERF_NOAHMP.H>
-#include <ERF_Constants.H>
-#include <ERF_EOS.H>
+#include "ERF_NOAHMP.H"
+#include "ERF_Constants.H"
+#include "ERF_EOS.H"
 #include "ERF_NOAHMP_ResultPolicy.H"
+#include "ERF_TerrainMetrics.H"
 
 using namespace amrex;
 
@@ -96,6 +97,7 @@ NOAHMP::stage_forcing (const MFIter& mfi,
                        MultiFab& cons_in,
                        MultiFab& xvel_in,
                        MultiFab& yvel_in,
+                       MultiFab* z_nd,
                        const erf_noahmp::PrecipSlots& precip,
                        Vector<erf_noahmp::ClampedPrecipCell>& clamped_cells,
                        Vector<erf_noahmp::InvariantPrecipCell>& invariant_cells)
@@ -105,6 +107,9 @@ NOAHMP::stage_forcing (const MFIter& mfi,
     const Array4<const Real>& U_PHY  = xvel_in.const_array(mfi);
     const Array4<const Real>& V_PHY  = yvel_in.const_array(mfi);
     const Array4<const Real>& CONS   = cons_in.const_array(mfi);
+
+    const Array4<const Real> z_nd_arr = (z_nd) ? z_nd->const_array(mfi) :
+                                                 Array4<const Real> {};
 
     // Forcing pulled from the coupling data fields
     const Array4<const Real>& SWDOWN = lsm_fab_data[LsmData_NOAHMP::sw_flux_dn]->const_array(mfi);
@@ -131,6 +136,7 @@ NOAHMP::stage_forcing (const MFIter& mfi,
     const int kklo = klo;
 
     // (1) Stage ERF forcing into the pinned buffer (device).
+    Real zref_default = noahmpio->ZLVL;
     ParallelFor(bx, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real qv = (is_moist) ? CONS(i,j,k,RhoQ1_comp)/CONS(i,j,k,Rho_comp) : zero_d;
@@ -139,9 +145,25 @@ NOAHMP::stage_forcing (const MFIter& mfi,
         noah_input_arr(i,j,0,NoahmpInputComp::t_phy)   = getTgivenRandRTh(CONS(i,j,k,Rho_comp),CONS(i,j,k,RhoTheta_comp),qv);
         noah_input_arr(i,j,0,NoahmpInputComp::qv_curr) = qv;
         noah_input_arr(i,j,0,NoahmpInputComp::p8w)     = getPgivenRTh(CONS(i,j,k,RhoTheta_comp),qv);
-        noah_input_arr(i,j,0,NoahmpInputComp::swdown)  = SWDOWN(i,j,0);
-        noah_input_arr(i,j,0,NoahmpInputComp::glw)     = GLW(i,j,0);
-        noah_input_arr(i,j,0,NoahmpInputComp::coszen)  = COSZEN(i,j,0);
+        noah_input_arr(i,j,0,NoahmpInputComp::dz8w)    = two * ((z_nd_arr) ? Compute_Zrel_AtCellCenter(i,j,kklo,z_nd_arr) : zref_default);
+        // The radiation inputs come from whichever radiation model writes them, and
+        // NOAHMP::Init setVal'd every lsm_fab_data to lsm_undefined (1e150 in double,
+        // 1e18 in single). A model that does not write them -- erf.radiation_model unset,
+        // or a model whose radiation -> land direction is not wired -- therefore leaves
+        // the sentinel here, and taking it raw had Noah-MP integrating on ~2e149 W/m^2 of
+        // shortwave while the run exited 0.
+        //
+        // Apply the shared validity test (is_valid_lsm_value in ERF_Constants.H, the
+        // same test RRTMGP applies to its own LSM inputs) and fall back to zero, which
+        // is what "no radiation reaching the surface" physically means.
+        {
+            const Real sw_in = SWDOWN(i,j,0);
+            const Real lw_in = GLW(i,j,0);
+            const Real cz_in = COSZEN(i,j,0);
+            noah_input_arr(i,j,0,NoahmpInputComp::swdown) = is_valid_lsm_value(sw_in) ? sw_in : zero_d;
+            noah_input_arr(i,j,0,NoahmpInputComp::glw)    = is_valid_lsm_value(lw_in) ? lw_in : zero_d;
+            noah_input_arr(i,j,0,NoahmpInputComp::coszen) = is_valid_lsm_value(cz_in) ? cz_in : zero_d;
+        }
 
         // RAW water-equivalent interval precip [mm]: per slot d = max(0, (now-prev)
         // * native_to_kg_m2). Host applies the guard and derives SR / MP_RAINNC.
@@ -363,9 +385,13 @@ NOAHMP::Advance_With_State (const int& lev,
                             const Real& elapsed_time,
                             const Real& dt,
                             const int& nstep,
-                            const bool updated_lev0)
+                            const bool updated_lev0,
+                            MultiFab* z_nd)
 {
-    amrex::ignore_unused(dt);
+    // The ERF step this level's first Advance call saw: 0 on a run started from
+    // scratch, the restart step on a restarted run. The radiation-input check below
+    // uses it to tell a coupling that never fires from one that has not fired yet.
+    if (m_first_advance_nstep < 0) { m_first_advance_nstep = nstep; }
 
     if (!m_has_nc_file) {
         // Skip interpolation if lev 0 was just updated: Noah runs post-step, so
@@ -376,12 +402,91 @@ NOAHMP::Advance_With_State (const int& lev,
             m_updated = false;
         }
     } else {
+        // time_to_fire lets Noah-MP advance one NOAH_TIMESTEP per call and fires at most
+        // once per ERF step, so an ERF step longer than NOAH_TIMESTEP leaves the land clock
+        // further behind the atmosphere's every step: with dt = 7200 s against a 3600 s
+        // land step the run completes normally while the land surface advances half as
+        // fast. Checked here because this is the first place the real step is known --
+        // Init receives a dummy dt of zero.
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dt <= m_dtbl,
+            "Noah-MP: the ERF timestep exceeds the Noah-MP timestep (NOAH_TIMESTEP in "
+            "namelist.erf). Noah-MP advances at most one NOAH_TIMESTEP per ERF step, so the "
+            "land surface would fall behind the atmosphere; raise NOAH_TIMESTEP or reduce the "
+            "ERF timestep.");
+
         // Gate on the subcycling schedule (identical on every rank).
         if (!time_to_fire(elapsed_time)) { return; }
 
         Box domain = m_geom.Domain();
 
         Print () << "Noah-MP driver at level " << lev << " started at time step: " << nstep+1 << std::endl;
+
+        // stage_forcing replaces a radiation input that is not is_valid_lsm_value (still
+        // the lsm_undefined sentinel, or non-finite) with zero. Look at what is actually
+        // there before the land model integrates on it. On a run started from scratch the
+        // radiation model runs before the land model within a step (pre-dycore vs
+        // post-step) and RRTMGP always computes on step 0, so the first land step already
+        // sees whatever the radiation model is going to supply. On a restarted run that is
+        // not so: the fields are part of the LSM checkpoint data, but a regrid at restart
+        // rebuilds the level and NOAHMP::Init re-installs the sentinel, and RRTMGP
+        // recomputes only on its erf.rad_freq_in_steps schedule -- the sentinel can be
+        // legitimate and transient. So keep checking each land step until valid values
+        // arrive, and reserve the abort for the case that is certainly broken.
+        //
+        // What a missing input means depends on the radiation model. RRTMGP writes these
+        // fields, so with RRTMGP an input still missing on a run started from scratch is a
+        // coupling that never reaches this level, and running on zero would be a 0 K sky
+        // (on an idealized grassland patch t_sfc falls about 48 K in one land hour):
+        // abort. On a restarted run, warn and integrate on zero until the next RRTMGP
+        // update fills the fields. Any other radiation model does not write them, the
+        // start-up warning in SolverChoice::init_params has already said so, and zero is
+        // the intended fallback: say it once more here, at the level concerned.
+        if (!m_checked_radiation_inputs) {
+            const std::pair<int, const char*> rad_inputs[] = {
+                {LsmData_NOAHMP::sw_flux_dn,       "downwelling shortwave (SWDOWN)"},
+                {LsmData_NOAHMP::lw_flux_dn,       "downwelling longwave (GLW)"},
+                {LsmData_NOAHMP::cos_zenith_angle, "solar zenith angle (COSZEN)"}};
+            std::string invalid;
+            for (const auto& [idx, what] : rad_inputs) {
+                const MultiFab& mf = *lsm_fab_data[idx];
+                // The complement of is_valid_lsm_value over the whole field: max catches
+                // the sentinel and +inf, contains_inf catches -inf (which a max test alone
+                // passes while stage_forcing zeroes every cell), contains_nan the rest.
+                // All three reduce over ranks, so the verdict below is identical on every
+                // rank.
+                if (mf.max(0) >= lsm_undefined || mf.contains_nan(0, 1) || mf.contains_inf(0, 1)) {
+                    invalid += std::string(invalid.empty() ? "" : ", ") + what;
+                }
+            }
+            if (invalid.empty()) {
+                m_checked_radiation_inputs = true;
+            } else if (m_radiation_feeds_lsm) {
+                if (m_first_advance_nstep == 0) {
+                    amrex::Abort("Noah-MP at level " + std::to_string(lev) + " found no valid "
+                                 + invalid + " although erf.radiation_model = RRTMGP, which "
+                                 "should supply them before the first land step. Check that "
+                                 "RRTMGP updates at all (erf.rad_freq_in_steps > 0) and that "
+                                 "the RRTMGP -> land coupling reaches this level; running on "
+                                 "zero radiation would be a 0 K sky.");
+                }
+                if (!m_warned_radiation_inputs) {
+                    m_warned_radiation_inputs = true;
+                    amrex::Print() << "WARNING: Noah-MP at level " << lev << " found no valid "
+                                   << invalid << " on its first land step after a restart or "
+                                      "regrid and is using zero in its place until the next "
+                                      "RRTMGP update writes them (every erf.rad_freq_in_steps "
+                                      "steps). This warning is printed once; the run aborts "
+                                      "only when the inputs are already missing on a run "
+                                      "started from scratch.\n";
+                }
+            } else {
+                m_checked_radiation_inputs = true;
+                amrex::Print() << "WARNING: Noah-MP at level " << lev << " found no valid "
+                               << invalid << " from the radiation model and is using zero in "
+                                  "its place; the land surface will receive no radiative "
+                                  "forcing there. This warning is printed once.\n";
+            }
+        }
 
         bool is_moist = (cons_in.nComp() > RhoQ1_comp);
 
@@ -419,7 +524,7 @@ NOAHMP::Advance_With_State (const int& lev,
 
             // (1-3) ERF forcing -> pinned input -> NoahmpIO arrays.
             stage_forcing(mfi, blk, bx, klo, lev, is_moist,
-                          cons_in, xvel_in, yvel_in,
+                          cons_in, xvel_in, yvel_in, z_nd,
                           precip, clamped_cells, invariant_cells);
 
             // (4) Drive Noah-MP. Mirror the authoritative counter into the block first.

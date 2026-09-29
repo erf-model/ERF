@@ -2,30 +2,33 @@ name: ERF CI (cuda)
 
 on:
   push:
-    # branches: [development]
+    branches: [development]
     paths-ignore:
-      - Docs
+      - Docs/**
       - README.rst
       - license.txt
 
   pull_request:
     branches: [development]
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened]
 
 concurrency:
   group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-cuda-ci
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
   cuda-build:
-    # The closed event exists only to cancel in-progress runs via concurrency.
-    if: github.event.action != 'closed'
     runs-on: ubuntu-22.04
+    timeout-minutes: 120
     name: CUDA v${{matrix.cuda_ver}} - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     strategy:
       matrix:
         cuda_pkg: [12-2]
-        particles: [OFF, ON]
+        # GPU builds cover the particle-enabled configuration only. The
+        # particles-OFF variant costs a second long GPU compile for solver
+        # coverage the particles-ON build already provides; it is still built
+        # on CPU by ci, gcc and windows-mpi.
+        particles: [ON]
         particles_precision: [DOUBLE, SINGLE]
         mesh_precision: [DOUBLE, SINGLE]
         exclude:
@@ -35,9 +38,6 @@ jobs:
             particles_precision: SINGLE
           - mesh_precision: SINGLE
             particles_precision: DOUBLE
-          # SINGLE precision is only exercised in the particle-enabled build.
-          - mesh_precision: SINGLE
-            particles: OFF
         include:
           - cuda_ver: "12.2"
             cuda_pkg: 12-2

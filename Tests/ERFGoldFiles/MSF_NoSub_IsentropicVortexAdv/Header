@@ -1,5 +1,5 @@
 HyperCLaw-V1.1
-8
+12
 density
 x_velocity
 y_velocity
@@ -8,6 +8,10 @@ temp
 theta
 scalar
 pressure
+dpdx
+dpdy
+pres_hse_x
+pres_hse_y
 3
 0.0029999999999999996
 0
@@ -19,18 +23,12 @@ pressure
 0.5 0.5 0.5 
 0
 0
-0 4 0.0029999999999999996
+0 2 0.0029999999999999996
 10
 -12 0
--12 0
+-12 12
 -1 1
 0 12
--12 0
--1 1
--12 0
-0 12
--1 1
-0 12
-0 12
+-12 12
 -1 1
 Level_0/Cell
