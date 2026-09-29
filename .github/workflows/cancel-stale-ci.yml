@@ -1,0 +1,96 @@
+name: CancelStaleCI
+
+# Cancels CI that nobody is waiting for any more.
+#
+# GitHub does not stop a PR's builds when it is merged, and it does not stop
+# the previous commit's builds when a new one arrives. The concurrency groups
+# are supposed to handle the second case, but they cannot do it under load:
+# a run that is still "pending" has not had its jobs evaluated yet, so it
+# never applies its concurrency group. Exactly when the queue is long enough
+# to matter, the run that is meant to cancel its predecessor is itself stuck
+# behind it. The erf-model org is capped at 20 concurrent jobs, so this is
+# the normal case rather than the rare one.
+#
+# Cancelling over the API needs a single runner slot and does not have that
+# problem.
+
+on:
+  workflow_run:
+    workflows: [PostPR, PRSync]
+    types:
+      - completed
+
+jobs:
+  CancelStaleCI:
+    name: Cancel stale CI runs
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    permissions:
+      actions: write
+      contents: read
+      pull-requests: read
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Cancel runs this PR no longer needs
+        run: |
+          REPO=${{ github.repository }}
+          BRANCH=${{ github.event.workflow_run.head_branch }}
+          EVENT_SHA=${{ github.event.workflow_run.head_sha }}
+          TRIGGER=${{ github.event.workflow_run.name }}
+
+          # Do not fail the workflow if a run reaches a terminal state on its
+          # own between the listing and the cancel.
+          set +e
+
+          if [ "$TRIGGER" = "PostPR" ]; then
+            # The PR is closed, so nothing still running on the branch is
+            # wanted and there is no commit to keep.
+            KEEP_SHA=""
+            echo "PR closed -- cancelling every unfinished run on ${BRANCH}"
+          else
+            # A new commit arrived. Resolve the PR's head commit *now* rather
+            # than trusting the commit that triggered this run: another commit
+            # may well have landed while this workflow sat in the queue, and
+            # that newer commit's builds are the ones actually being waited
+            # on. Cancelling against the stale value would kill the newest
+            # commit's CI and leave the PR with nothing running at all.
+            pr_number=$(gh pr list --repo "$REPO" --state all --search "$EVENT_SHA" \
+                          --json number --jq '.[0].number')
+            KEEP_SHA=$(gh pr view "$pr_number" --repo "$REPO" \
+                         --json headRefOid --jq '.headRefOid')
+
+            if [ -z "$KEEP_SHA" ]; then
+              # Better to keep the triggering commit's runs than to guess and
+              # cancel the wrong ones.
+              KEEP_SHA=$EVENT_SHA
+              echo "Could not resolve the current head; falling back to ${EVENT_SHA}"
+            fi
+            echo "Keeping runs for ${KEEP_SHA} on ${BRANCH}, cancelling older ones"
+          fi
+
+          # --paginate so a branch with more than a page of unfinished runs
+          # does not quietly keep the remainder.
+          runs=$(gh api --paginate -X GET "repos/${REPO}/actions/runs" \
+                   -f branch="${BRANCH}" -f per_page=100 \
+                   --jq '.workflow_runs[]
+                         | select(.status != "completed")
+                         | "\(.id) \(.head_sha)"')
+
+          echo "$runs" | while read -r id sha
+          do
+            [ -z "$id" ] && continue
+
+            # Never cancel this run, nor the one that triggered it.
+            if [ "$id" = "${{ github.run_id }}" ] || \
+               [ "$id" = "${{ github.event.workflow_run.id }}" ]; then
+              continue
+            fi
+
+            if [ -n "$KEEP_SHA" ] && [ "$sha" = "$KEEP_SHA" ]; then
+              continue
+            fi
+
+            echo "Cancelling run ${id} (${sha})"
+            gh api -X POST "repos/${REPO}/actions/runs/${id}/cancel"
+          done
