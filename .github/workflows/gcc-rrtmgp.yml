@@ -15,7 +15,7 @@ jobs:
   library:
     # The closed event exists only to cancel in-progress runs via concurrency.
     if: github.event.action != 'closed'
-    name: GNU@9.3 C++17 Release - NetCDF ${{matrix.netcdf}} - Particles ${{matrix.particles}} - RRTMGP ${{matrix.rrtmgp}}
+    name: GNU@9.3 C++17 - NetCDF ${{matrix.netcdf}} - Particles ${{matrix.particles}} - RRTMGP ${{matrix.rrtmgp}}
     runs-on: ubuntu-22.04
     timeout-minutes: 180
     permissions:
@@ -24,7 +24,11 @@ jobs:
     # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
     strategy:
       matrix:
-        particles: [OFF, ON]
+        # This workflow exercises the NetCDF and RRTMGP combinations, which
+        # are orthogonal to particles -- crossing the axis doubled the matrix
+        # for no added coverage of either. Particles OFF is still built by
+        # ci, gcc and windows-mpi.
+        particles: [ON]
         netcdf: [OFF, ON]
         rrtmgp: [OFF, ON]
         exclude:
@@ -90,7 +94,8 @@ jobs:
         cmake \
           -B${ERF_DIR}/build \
           -DCMAKE_INSTALL_PREFIX:PATH=${ERF_DIR}/install \
-          -DCMAKE_BUILD_TYPE:STRING=Debug \
+          -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
+          -DAMReX_ASSERTIONS:BOOL=ON \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \

@@ -25,7 +25,11 @@ jobs:
     timeout-minutes: 120
     strategy:
       matrix:
-        particles: [OFF, ON]
+        # GPU builds cover the particle-enabled configuration only. The
+        # particles-OFF variant costs a second long GPU compile for solver
+        # coverage the particles-ON build already provides; it is still built
+        # on CPU by ci, gcc and windows-mpi.
+        particles: [ON]
         particles_precision: [DOUBLE, SINGLE]
         mesh_precision: [DOUBLE, SINGLE]
         exclude:
@@ -35,9 +39,6 @@ jobs:
             particles_precision: SINGLE
           - mesh_precision: SINGLE
             particles_precision: DOUBLE
-          # SINGLE precision is only exercised in the particle-enabled build.
-          - mesh_precision: SINGLE
-            particles: OFF
 
     steps:
 
