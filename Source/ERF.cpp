@@ -1147,16 +1147,6 @@ ERF::InitData_post ()
         if (verbose) {
             lsf.verbose_print = true;
         }
-        // The forcing profiles are interpolated to the level-0 cell centres and indexed by the
-        // cell index k on every level, which is only the right height when no level is refined
-        // in the vertical
-        for (int lev = 0; lev < max_level; ++lev) {
-            if (refRatio(lev)[2] != 1) {
-                Abort("erf.large_scale_forcing supports refinement only in the horizontal: level " +
-                      std::to_string(lev+1) + " is refined by " + std::to_string(refRatio(lev)[2]) +
-                      " in z; set the z component of amr.ref_ratio_vect to 1");
-            }
-        }
         lsf.read_forcing_file();
         lsf.interp_forcing(geom[0].data(), zlevels_stag[0], input_sounding_data);
     }

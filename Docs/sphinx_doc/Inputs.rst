@@ -2540,10 +2540,10 @@ in ``input_*_sounding_*_file`` will be used for all times later than the final v
 in ``input_*_sounding_*_time``.
 
 Every level samples the input sounding at its own cell centres, for the initial state and base
-state and for nudging, just as a single-level run at that resolution does.  A fine cell below the
-first level-0 cell centre therefore starts from the sounding's air values there, not from a blend
-with the surface line of the file (which, with ``erf.most.surf_temp``, holds the surface
-temperature).
+state and for nudging, just as a single-level run at that resolution does; the large-scale forcing
+profiles are likewise interpolated to each level's own cell centres. A fine cell below the first
+level-0 cell centre therefore starts from the sounding's air values there, not from a blend with
+the surface line of the file (which, with ``erf.most.surf_temp``, holds the surface temperature).
 
 .. _inputs-obs-nudging:
 
@@ -2745,8 +2745,7 @@ temperature, water vapor, horizontal wind, and vertical subsidence.
 | Parameter                         | Definition                                               | Acceptable Values  | Default          |
 +===================================+==========================================================+====================+==================+
 | **erf.large_scale_forcing**       | Apply time-varying large-scale tendencies and subsidence | Boolean            | false            |
-|                                   | read from a forcing file.  With more than one level, no  |                    |                  |
-|                                   | level may be refined in z (the run aborts otherwise)     |                    |                  |
+|                                   | read from a forcing file                                 |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.large_scale_forcing_file**  | Name of the large-scale forcing file                     | String             | None             |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+

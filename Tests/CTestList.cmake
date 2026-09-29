@@ -1963,8 +1963,8 @@ add_test_option_parity(StationSampling_AnswerParity_MOST ABL_MOST "plt00010"
     REQUIRE_ON_FILE "Output_Stations/T.dat")
 
 #=============================================================================
-# Input sounding on refined levels (#4143): each level samples the sounding at
-# its own cell centres, for the initial state and for nudging
+# Input sounding on refined levels (#4143): each level samples the sounding, and
+# the large-scale forcing profiles, at its own cell centres
 #=============================================================================
 # The two sounding files differ only in their surface line, which lies below every cell
 # centre, so the initial states must be identical on both levels.
@@ -1972,11 +1972,26 @@ add_test_option_parity(InputSounding_FineLevelInit InputSoundingFineLevels "plt0
     OFF_OPTIONS "erf.input_sounding_file=../input_sounding_sfc300"
     ON_OPTIONS  "erf.input_sounding_file=../input_sounding_sfc303")
 
-# Nudging towards the sounding the run started from adds exactly zero on every level.
+# Nudging towards the sounding the run started from adds exactly zero on every level:
+# theta here (the wind is not nudged, since the sheared wind is advected by the w that the
+# theta profile sets going) ...
 add_test_option_parity(InputSounding_FineLevelNudging InputSoundingFineLevels "plt00001"
-    COMMON_OPTIONS "max_step=1"
+    COMMON_OPTIONS "max_step=1 erf.nudging_u=false"
     OFF_OPTIONS "erf.nudging_from_input_sounding=false"
     ON_OPTIONS  "erf.nudging_from_input_sounding=true erf.tau_nudging=0.5")
+
+# ... and u, v through the momentum sources, over a constant theta so that nothing moves.
+add_test_option_parity(InputSounding_FineLevelWindNudging InputSoundingFineLevels "plt00001"
+    COMMON_OPTIONS "max_step=1 erf.input_sounding_file=../input_sounding_wind"
+    OFF_OPTIONS "erf.nudging_from_input_sounding=false"
+    ON_OPTIONS  "erf.nudging_from_input_sounding=true erf.tau_nudging=0.5")
+
+# Large-scale forcing that relaxes the wind towards the sounding's own wind, with no
+# tendencies or subsidence, adds exactly zero on every level, refined in z included.
+add_test_option_parity(InputSounding_FineLevelLSF InputSoundingFineLevels "plt00001"
+    COMMON_OPTIONS "max_step=1 erf.input_sounding_file=../input_sounding_wind"
+    OFF_OPTIONS "erf.large_scale_forcing=false"
+    ON_OPTIONS  "erf.nudging_from_input_sounding=true erf.large_scale_forcing=true erf.large_scale_forcing_file=../lsf_zero_tendency erf.forcing_timescale=0.5")
 
 #=============================================================================
 # Terrain: decomposition and station output over a hill

@@ -771,6 +771,14 @@ public:
      */
     const InputSoundingData& sounding_at_level (int lev);
 
+    /**
+     * The large-scale forcing profiles interpolated to the cell centres of level lev.
+     * Level 0 is lsf itself; a finer level gets its own copy, interpolated at
+     * geom[lev] / zlevels_stag[lev] against sounding_at_level(lev), so that its profile
+     * index k is its own cell k.
+     */
+    const LargeScaleForcingData& lsf_at_level (int lev);
+
     void init_immersed_forcing (int lev);
 
     // Immersed-boundary surface energy balance (Source/ImmersedBoundarySEB)
@@ -1342,6 +1350,10 @@ private:
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> urban_flux; // (lev,ncomp) Fluxes from urban model
 
     LargeScaleForcingData lsf;
+
+    // The large-scale forcing profiles on each level > 0, built on first use from lsf
+    // (index 0 is unused)
+    amrex::Vector<std::unique_ptr<LargeScaleForcingData>> lsf_fine;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> nudge_data; // holds nudging inputs: tnudge, qnudge, unudge, vnudge
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> lsf_data; //  holds large scale forcing tendencies: ttend, qtend, wsub
 

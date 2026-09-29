@@ -1,19 +1,25 @@
 # Two levels initialised from an input sounding (issue #4143).
 #
-# Every level samples the sounding at its own cell centres. The sounding has an entry every
-# 5 m, on every level-0 (10, 30, ... m) and level-1 (5, 15, ... m) cell centre, with
-# theta = 300 + z/40, which is exact in binary. Two tests use this deck:
+# Every level samples the sounding, and the large-scale forcing profiles, at its own cell
+# centres. The soundings have an entry every 5 m, on every level-0 (10, 30, ... m) and level-1
+# (5, 15, ... m) cell centre, with values exact in binary: theta = 300 + z/40 and U = z/64 in
+# input_sounding_sfc300/303, theta = 300 and U = z/64 in input_sounding_wind. Four tests use
+# this deck:
 #
-# - InputSounding_FineLevelInit: the two sounding files differ only in their surface line
-#   (303 K against 300 K). A fine cell samples the file at its own height, above that line,
-#   so both runs start from the same state. Resampling a level-0 profile instead blended
-#   the surface line into the fine cells below the first level-0 centre (the lowest fine
-#   layer then starts at 301.625 K with a 303 K surface line).
+# - InputSounding_FineLevelInit: the two sfc files differ only in their surface line (303 K
+#   against 300 K). A fine cell samples the file at its own height, above that line, so both
+#   runs start from the same state. Resampling a level-0 profile instead blended the surface
+#   line into the fine cells below the first level-0 centre (the lowest fine layer then
+#   starts at 301.625 K with a 303 K surface line).
 #
-# - InputSounding_FineLevelNudging: one step with and without nudging towards the sounding.
-#   The target equals the initial state on every level, so nudging adds exactly zero. The
-#   level-0 profile indexed by a fine k is the value from twice the height, which nudged
-#   the fine level.
+# - InputSounding_FineLevelNudging (theta) and InputSounding_FineLevelWindNudging (u and v,
+#   through the momentum sources): one step with and without nudging towards the sounding the
+#   run started from, so nudging adds exactly zero on every level. The level-0 profile indexed
+#   by a fine k is the value from twice the height, which nudged the fine level.
+#
+# - InputSounding_FineLevelLSF: one step with and without large-scale forcing whose
+#   tendencies and subsidence are zero and whose wind equals the sounding's
+#   (lsf_zero_tendency), so relaxing towards it adds exactly zero on every level.
 
 erf.prob_name = "ABL"
 max_step = 0

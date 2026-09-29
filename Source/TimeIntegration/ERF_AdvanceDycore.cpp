@@ -270,22 +270,26 @@ void ERF::advance_dycore (int level,
     if (use_lsf) {
         lsf_data[level]->setVal(0.0);
 
+        // The forcing profiles interpolated to this level's cell centres, so that index k
+        // below is this level's cell k
+        const LargeScaleForcingData& lsf_lev = lsf_at_level(level);
+
         int itime_curr = 0;
         int itime_next = 0;
         amrex::Real coeff_curr = 1.0;
         amrex::Real coeff_next = 0.0;
 
-        lsf.get_forcing_time_coeffs(old_time, itime_curr, itime_next, coeff_curr, coeff_next);
+        lsf_lev.get_forcing_time_coeffs(old_time, itime_curr, itime_next, coeff_curr, coeff_next);
 
         // ttend, qtend, wsub = lsf
         // ug0, vg0 = lsf - avg u,v
 
-        const Real* theta_lsf_n   = lsf.t_int_lsf_d[itime_curr].dataPtr();
-        const Real* theta_lsf_np1 = lsf.t_int_lsf_d[itime_next].dataPtr();
-        const Real* qv_lsf_n   = lsf.q_int_lsf_d[itime_curr].dataPtr();
-        const Real* qv_lsf_np1 = lsf.q_int_lsf_d[itime_next].dataPtr();
-        const Real* w_lsf_n   = lsf.w_int_lsf_d[itime_curr].dataPtr();
-        const Real* w_lsf_np1 = lsf.w_int_lsf_d[itime_next].dataPtr();
+        const Real* theta_lsf_n   = lsf_lev.t_int_lsf_d[itime_curr].dataPtr();
+        const Real* theta_lsf_np1 = lsf_lev.t_int_lsf_d[itime_next].dataPtr();
+        const Real* qv_lsf_n   = lsf_lev.q_int_lsf_d[itime_curr].dataPtr();
+        const Real* qv_lsf_np1 = lsf_lev.q_int_lsf_d[itime_next].dataPtr();
+        const Real* w_lsf_n   = lsf_lev.w_int_lsf_d[itime_curr].dataPtr();
+        const Real* w_lsf_np1 = lsf_lev.w_int_lsf_d[itime_next].dataPtr();
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -468,13 +472,14 @@ void ERF::advance_dycore (int level,
                     int itime_next = 0;
                     uv_coeff_n = 1.0;
                     uv_coeff_np1 = 0.0;
-                    tau = 1.0 / lsf.tau_lsf; // only applies to u,v LSF nudging
+                    const LargeScaleForcingData& lsf_uv = lsf_at_level(level);
+                    tau = 1.0 / lsf_uv.tau_lsf; // only applies to u,v LSF nudging
 
-                    lsf.get_forcing_time_coeffs(old_time, itime_curr, itime_next, uv_coeff_n, uv_coeff_np1);
-                    u_nudge_n   = lsf.u_int_lsf_d[itime_curr].dataPtr();
-                    u_nudge_np1 = lsf.u_int_lsf_d[itime_next].dataPtr();
-                    v_nudge_n   = lsf.v_int_lsf_d[itime_curr].dataPtr();
-                    v_nudge_np1 = lsf.v_int_lsf_d[itime_next].dataPtr();
+                    lsf_uv.get_forcing_time_coeffs(old_time, itime_curr, itime_next, uv_coeff_n, uv_coeff_np1);
+                    u_nudge_n   = lsf_uv.u_int_lsf_d[itime_curr].dataPtr();
+                    u_nudge_np1 = lsf_uv.u_int_lsf_d[itime_next].dataPtr();
+                    v_nudge_n   = lsf_uv.v_int_lsf_d[itime_curr].dataPtr();
+                    v_nudge_np1 = lsf_uv.v_int_lsf_d[itime_next].dataPtr();
                 }
 
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept

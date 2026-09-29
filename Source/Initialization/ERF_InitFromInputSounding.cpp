@@ -88,7 +88,11 @@ init_velocities_from_input_sounding (const Box &bx,
 const InputSoundingData&
 ERF::sounding_at_level (int lev)
 {
-    if (lev == 0) { return input_sounding_data; }
+    // Level 0, or a run that never read a sounding (the callers pass it on whatever the
+    // physics options): there is nothing to resample
+    const bool sounding_read = !input_sounding_data.z_inp_sound.empty() &&
+                               !input_sounding_data.z_inp_sound[0].empty();
+    if (lev == 0 || !sounding_read) { return input_sounding_data; }
 
     if (input_sounding_data_fine.size() <= lev) { input_sounding_data_fine.resize(lev+1); }
     if (!input_sounding_data_fine[lev]) {
@@ -113,6 +117,25 @@ ERF::sounding_at_level (int lev)
         input_sounding_data_fine[lev] = std::move(snd);
     }
     return *input_sounding_data_fine[lev];
+}
+
+const LargeScaleForcingData&
+ERF::lsf_at_level (int lev)
+{
+    // Level 0, or a run without large-scale forcing (the callers pass it on whatever the
+    // physics options): there is nothing to interpolate
+    if (lev == 0 || lsf.num_times <= 0) { return lsf; }
+
+    if (lsf_fine.size() <= lev) { lsf_fine.resize(lev+1); }
+    if (!lsf_fine[lev]) {
+        // lsf holds the forcing file as read and its profiles interpolated to the level-0 cell
+        // centres; interpolate the same file to this level's cell centres instead
+        auto l = std::make_unique<LargeScaleForcingData>(lsf);
+        l->verbose_print = false;
+        l->interp_forcing(geom[lev].data(), zlevels_stag[lev], sounding_at_level(lev));
+        lsf_fine[lev] = std::move(l);
+    }
+    return *lsf_fine[lev];
 }
 
 /**
