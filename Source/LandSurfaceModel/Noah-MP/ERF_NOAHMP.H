@@ -71,9 +71,11 @@ public:
 
     // Set thermo and grid properties
     void
-    Define (SolverChoice& /*sc*/) override
+    Define (SolverChoice& sc) override
     {
-        // Parse solver constants from sc here if needed.
+        // RRTMGP is the only radiation model that writes Noah-MP's radiation inputs
+        // (SWDOWN, GLW, COSZEN); see the first-land-step check in Advance_With_State.
+        m_radiation_feeds_lsm = (sc.rad_type == RadiationType::RRTMGP);
     }
 
     // Initialize data structures
@@ -359,8 +361,6 @@ private:
     // domain bc types
     amrex::Vector<amrex::BCRec> m_domain_bcs_type;
 
-    // timestep
-    amrex::Real m_dt;
 
     // Authoritative NoahMP substep counter, kept on the class so the firing decision
     // is identical on every rank (including land-free ranks with empty noahmpio_vect).
@@ -420,5 +420,14 @@ private:
 
     // Do we have a nc init file?
     bool m_has_nc_file = false;
+
+    // Set after the first land step has checked its radiation inputs, so the check in
+    // Advance_With_State (a global reduction) and its warning happen once per run.
+    bool m_checked_radiation_inputs = false;
+
+    // True when the configured radiation model writes the radiation inputs (RRTMGP), so
+    // an input still missing on the first land step is a broken coupling, not a
+    // configuration without radiation. Set in Define.
+    bool m_radiation_feeds_lsm = false;
 };
 #endif

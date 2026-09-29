@@ -1,3 +1,5 @@
+#include <cstdio>
+#include <cstdlib>
 #include <iostream>
 
 #include <AMReX.H>
@@ -153,6 +155,34 @@ void add_par () {
 }
 
 /**
+ * Make a run that leaves through exit() before amrex::Finalize report failure.
+ *
+ * A normal run calls amrex::Finalize before main returns, and amrex::Abort never calls
+ * exit(), so a process that reaches exit() while AMReX is still initialised has stopped
+ * part-way -- with no final plotfile or checkpoint -- whatever status it asked for. The
+ * ways in are a Fortran STOP in a coupled library (Noah-MP has 27, all exit status 0)
+ * and the exit() calls left in ERF itself, some of which also pass 0. Run under Open
+ * MPI's launcher such a run is still flagged, because the rank never calls MPI_Finalize;
+ * run directly, or under a launcher that does not enforce that, it reports success.
+ * Every return from main after amrex::Initialize goes through amrex::Finalize, so this
+ * never fires on a normal exit.
+ */
+void install_exit_trap ()
+{
+    std::atexit([]() {
+        if (amrex::Initialized()) {
+            std::fputs("ERF: exit() was called while AMReX was still initialised, so the run "
+                       "stopped before finishing; the reason should be printed above (a "
+                       "Fortran STOP in a coupled library such as Noah-MP, or an error exit "
+                       "in ERF). Reporting failure whatever exit status was requested.\n",
+                       stderr);
+            std::fflush(stderr);
+            std::_Exit(EXIT_FAILURE);
+        }
+    });
+}
+
+/**
  * Main driver -- creates the ERF object, calls ERF.InitData() and ERF.Evolve()
 */
 int main (int argc, char* argv[])
@@ -230,6 +260,8 @@ return code;
 #else
     amrex::Initialize(argc,argv,true,MPI_COMM_WORLD,add_par);
 #endif
+
+    install_exit_trap();
 
     // Only when argv[1] is actually an inputs file (same test the surrounding code uses).
     if (argc > 1 && std::string(argv[1]).find('=') == std::string::npos) {
