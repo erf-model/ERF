@@ -244,8 +244,7 @@ void SAM::Compute_Coefficients (const bool use_anelastic_reference_pressure)
     });
 
     if(round(gam3) != 2) {
-        std::cout << "cannot compute gamma-function in Microphysics::Init" << std::endl;
-        std::exit(-1);
+        amrex::Abort("cannot compute gamma-function in Microphysics::Init");
     }
 
     // Populate all the coefficients

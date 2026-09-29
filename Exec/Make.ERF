@@ -244,6 +244,13 @@ ifneq ($(filter TRUE,$(USE_MORR_FORT) $(USE_WDM6_FORT)),)
   F90EXE_sources += ERF_module_model_constants.F90
 endif
 
+# Any Fortran in the build: the exit trap in main.cpp flushes the Fortran units
+# before it ends the process (Source/Utils/ERF_FlushFortranUnits.F90).
+ifneq ($(filter TRUE,$(USE_MORR_FORT) $(USE_WSM6_FORT) $(USE_WDM6_FORT) $(USE_NOAHMP)),)
+  F90EXE_sources += ERF_FlushFortranUnits.F90
+  DEFINES += -DERF_HAS_FORTRAN
+endif
+
 ERF_MOISTURE_SATADJ_DIR = $(ERF_SOURCE_DIR)/Microphysics/SatAdj
 include $(ERF_MOISTURE_SATADJ_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MOISTURE_SATADJ_DIR)
@@ -349,6 +356,14 @@ ifeq ($(USE_NOAHMP), TRUE)
       NOAHMP_PRECISION_FLAG :=
     endif
 
+    # pkg-config wrappers for the netCDF probes. Environment is set inline on the
+    # command because GNU Make < 4.4 does not pass `export`ed variables to $(shell).
+    ERF_PKG_CONFIG := $(if $(MPICH_DIR),PKG_CONFIG_PATH="$(MPICH_DIR)/lib/pkgconfig:$$PKG_CONFIG_PATH") pkg-config
+
+    # Keep system -I dirs for the Fortran probe: gfortran does not search
+    # /usr/include for .mod files, so a dropped -I/usr/include loses netcdf.mod.
+    ERF_PKG_CONFIG_F := PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1 $(ERF_PKG_CONFIG)
+
     # Try netcdf-fortran => netcdf-fortran_parallel. The Fortran include flags are
     # captured in NETCDF_FORTRAN_CFLAGS rather than appended straight to `includes`
     # so that the Noah-MP sub-make (below) can be handed the very same flags. If the
@@ -356,20 +371,16 @@ ifeq ($(USE_NOAHMP), TRUE)
     # than the one we link against, the mangled module symbols still resolve and the
     # link succeeds -- but the procedure signatures disagree, and calls arrive with
     # their arguments (including the hidden character lengths) in the wrong slots.
-    NETCDF_FORTRAN_CFLAGS :=
-    has_netcdf_fortran := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf-fortran 2>/dev/null; echo $$?)
-    ifeq ($(has_netcdf_fortran),0)
-      NETCDF_FORTRAN_CFLAGS := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf-fortran)
-      LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf-fortran)
+    ifeq ($(shell $(ERF_PKG_CONFIG_F) --exists netcdf-fortran 2>/dev/null; echo $$?),0)
+      NETCDF_FORTRAN_PKG := netcdf-fortran
+    else ifeq ($(shell $(ERF_PKG_CONFIG_F) --exists netcdf-fortran_parallel 2>/dev/null; echo $$?),0)
+      NETCDF_FORTRAN_PKG := netcdf-fortran_parallel
     else
-      has_netcdf_fortran_parallel := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --exists netcdf-fortran_parallel 2>/dev/null; echo $$?)
-      ifeq ($(has_netcdf_fortran_parallel),0)
-        NETCDF_FORTRAN_CFLAGS := $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --cflags netcdf-fortran_parallel)
-        LIBRARIES += $(shell if [ -n "$$MPICH_DIR" ]; then export PKG_CONFIG_PATH="$$MPICH_DIR/lib/pkgconfig:$$PKG_CONFIG_PATH"; fi; pkg-config --libs netcdf-fortran_parallel)
-      else
-        $(error NetCDF Fortran not found. Tried netcdf-fortran and netcdf-fortran_parallel; set PKG_CONFIG_PATH to the directory holding netcdf-fortran.pc)
-      endif
+      $(error NetCDF Fortran not found. Tried netcdf-fortran and netcdf-fortran_parallel; set PKG_CONFIG_PATH to the directory holding netcdf-fortran.pc)
     endif
+
+    NETCDF_FORTRAN_CFLAGS := $(shell $(ERF_PKG_CONFIG_F) --cflags $(NETCDF_FORTRAN_PKG))
+    LIBRARIES             += $(shell $(ERF_PKG_CONFIG) --libs $(NETCDF_FORTRAN_PKG))
 
     includes += $(NETCDF_FORTRAN_CFLAGS)
 

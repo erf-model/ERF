@@ -257,6 +257,14 @@ ReadBndryPlanes::ReadBndryPlanes (const Geometry& geom, const Real& rdOcp_in)
             if (m_var_names[i] == "qv")           is_q1_read = 1;
             if (m_var_names[i] == "qc")           is_q2_read = 1;
             if (m_var_names[i] == "ke")           is_KE_read = 1;
+            const bool known = m_var_names[i] == "velocity" || m_var_names[i] == "density"     ||
+                               m_var_names[i] == "temperature" || m_var_names[i] == "theta" ||
+                               m_var_names[i] == "scalar"   || m_var_names[i] == "qv"          ||
+                               m_var_names[i] == "qc"       || m_var_names[i] == "ke";
+            if (!known) {
+                Abort("erf.bndry_input_var_names: unknown variable \"" + m_var_names[i] +
+                      "\"; the names read are velocity, density, temperature, theta, scalar, qv, qc and ke");
+            }
         }
     }
 
@@ -499,7 +507,9 @@ void ReadBndryPlanes::read_file (const int idx,
             ncomp = 1;
         }
 
-        int n_offset;
+        // Every name was checked against this list in the constructor; the -1 only
+        // keeps the compiler from seeing an unset value.
+        int n_offset = -1;
         if (var_name == "density")     n_offset = BCVars::Rho_bc_comp;
         if (var_name == "theta")       n_offset = BCVars::RhoTheta_bc_comp;
         if (var_name == "temperature") n_offset = BCVars::RhoTheta_bc_comp;

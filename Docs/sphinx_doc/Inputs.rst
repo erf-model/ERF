@@ -2894,11 +2894,15 @@ List of Parameters
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.bndry_output_box_hi**           | Upper-right (x,y) of output box                          | 2 Reals            | None             |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.bndry_output_var_names**        | Variables to write                                       | List of strings    | All              |
+| **erf.bndry_output_var_names**        | Variables to write; any of velocity, density,            | List of strings    | None (no         |
+|                                       | temperature, theta, scalar, qv, qc and ke. An unknown    |                    | variables)       |
+|                                       | name aborts at the first write                           |                    |                  |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.bndry_file**                    | Input boundary-plane directory                           | String             | None             |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.bndry_input_var_names**         | Variables to read                                        | List of strings    | All              |
+| **erf.bndry_input_var_names**         | Variables to read; any of velocity, density,             | List of strings    | None (no         |
+|                                       | temperature, theta, scalar, qv, qc and ke. An unknown    |                    | variables)       |
+|                                       | name aborts at start-up                                  |                    |                  |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.in_rad**                        | width, in cells, of the region inside the domain         | Integer >= 0       | 1                |
 |                                       | boundary from which the boundary planes are written and  |                    |                  |
@@ -4648,6 +4652,8 @@ List of Parameters
 | Parameter                   | Definition                | Acceptable Values | Default    |
 +=============================+===========================+===================+============+
 | **erf.check_for_nans**      | Test solution for NaNs    |  int              | 0          |
+|                             | and abort if any are      |                   |            |
+|                             | found                     |                   |            |
 +-----------------------------+---------------------------+-------------------+------------+
 | **amrex.fpe_trap_invalid**  | Raise errors for NaNs     |  0 / 1            | 0          |
 +-----------------------------+---------------------------+-------------------+------------+
