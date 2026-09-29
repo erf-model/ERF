@@ -78,6 +78,11 @@ quantity :math:`C_i` therefore has units of :math:`\mathrm{m^{-3}}`.
 The spectral coordinate used by the current ERF SBM runtime configuration is
 the liquid-water mass of an individual particle, in kg. Bin edges and pivots
 therefore describe particle water mass, not atmospheric liquid-water content.
+The reference fixed-pivot and interval remappers are defined in individual
+particle-mass coordinates. A spectral grid expressed in another coordinate,
+such as radius, requires the corresponding transformed measure and Jacobian
+and is not interpreted by these reference policies as though its coordinate
+were particle mass.
 
 Bulk cloud and rain fields
 --------------------------
@@ -232,8 +237,12 @@ For a two-moment population, the reference reconstruction places the stored
 number at the stored mean particle mass :math:`\bar m_i=M_i/C_i`. This
 ``mean-delta`` view recovers the stored mass and number and does not assert
 that within-bin variance or nonlinear process rates are determined by those
-two moments. A process packet is deposited in the interval containing its
-actual mass:
+two moments. For an attached extensive property, this reference closure
+assigns the bin-mean amount per particle to the reconstructed node. This
+reproduces the stored attached-property inventory exactly, but it is a closure
+assumption: the stored moments do not determine unresolved within-bin
+covariance between particle composition and liquid-water mass. A process
+packet is deposited in the interval containing its actual mass:
 
 .. math::
 
@@ -244,7 +253,12 @@ actual mass:
 Attached extensive properties are deposited into that same interval. Interior
 intervals are half-open, so an exact shared edge belongs to the upper
 interval; the global upper edge belongs to the final interval. Out-of-range
-packets report a status instead of being clipped.
+packets report a status instead of being clipped. A value up to four
+representable steps outside a global edge is classified at that boundary and
+records roundoff normalization while retaining the packet's original mass.
+A positive-number packet with zero liquid-water mass is returned through the
+zero-water residual path rather than retained in a populated two-moment liquid
+bin. The reference remapper does not create or update aerosol state.
 
 The persisted policy identities are ``fixed-pivot-1m-v1`` with
 ``fixed-pivot-delta-v1`` and ``fixed-pivot-two-center-v1`` for one moment, and

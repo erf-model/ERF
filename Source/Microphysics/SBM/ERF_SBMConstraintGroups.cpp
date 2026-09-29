@@ -281,11 +281,7 @@ EndpointTransform transform_two_moment(const amrex::Real C, const amrex::Real M,
 std::pair<amrex::Real, amrex::Real> inverse_two_moment(const amrex::Real L, const amrex::Real H,
                                                        const amrex::Real lower, const amrex::Real upper)
 {
-    if (!finite(L) || !finite(H) || !finite(lower) || !finite(upper) || !(lower < upper) ||
-        L < amrex::Real(0.0) || H < amrex::Real(0.0)) {
-        throw std::invalid_argument("invalid endpoint transport state");
-    }
-    return {L + H, std::fma(lower, L, upper * H)};
+    return SpectralGrid::endpoints_to_two_moment(L, H, lower, upper);
 }
 
 bool property_support_is_admissible(const amrex::Real property,

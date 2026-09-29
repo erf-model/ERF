@@ -17,6 +17,9 @@ LayoutValidation SBMLayout::validate(const SBMLayoutSpec& spec)
         const auto& population = spec.populations[i];
         const auto grid_result = SpectralGrid::validate(population.grid);
         if (!grid_result.valid) return {false, grid_result.message};
+        if (population.grid.coordinate_kind != CoordinateKind::Mass) {
+            return {false, "reference SBM representations require individual-particle-mass coordinates"};
+        }
         if (population.moment_mode != MomentMode::OneMoment &&
             population.moment_mode != MomentMode::TwoMoment) {
             return {false, "population moment mode is unsupported"};
@@ -89,7 +92,7 @@ SBMLayout::SBMLayout(SBMLayoutSpec spec)
         PopulationLayout population{input.population_id, input.semantic_id, input.phase,
                                     SpectralGrid(input.grid), input.moment_mode,
                                     input.mass_state_units, input.number_state_units,
-                                    offset, -1, 0};
+                                    offset, -1, 0, {}};
         population.component_count = population.grid.nbins();
         offset += population.component_count;
         if (population.moment_mode == MomentMode::TwoMoment) {
@@ -101,7 +104,7 @@ SBMLayout::SBMLayout(SBMLayoutSpec spec)
     }
     for (const auto& property : spec.attached_properties) {
         m_properties.push_back(property);
-        const auto& carrier = std::find_if(m_populations.begin(), m_populations.end(),
+        auto carrier = std::find_if(m_populations.begin(), m_populations.end(),
             [&](const PopulationLayout& candidate) {
                 return candidate.population_id == m_properties.back().carrier_population;
             });
@@ -113,6 +116,7 @@ SBMLayout::SBMLayout(SBMLayoutSpec spec)
         // mass-bounded subset is not folded into liquid mass; both remain
         // typed, independently addressable transport components.
         m_property_offsets.push_back(offset);
+        carrier->property_component_offsets.push_back(offset);
         offset += carrier->grid.nbins();
     }
     m_ncomp = offset;

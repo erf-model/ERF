@@ -59,62 +59,31 @@ std::string SpectralGrid::identity() const
 bool SpectralGrid::two_moment_realizable(const amrex::Real C, const amrex::Real M,
                                          const amrex::Real lower, const amrex::Real upper) noexcept
 {
-    try {
-        static_cast<void>(two_moment_to_endpoints(C, M, lower, upper));
-        return true;
-    } catch (...) {
-        return false;
-    }
+    EndpointTransform result;
+    return try_two_moment_to_endpoints(C, M, lower, upper, result);
 }
 
 EndpointTransform
 SpectralGrid::two_moment_to_endpoints(const amrex::Real C, const amrex::Real M,
                                       const amrex::Real lower, const amrex::Real upper)
 {
-    if (!std::isfinite(C) || !std::isfinite(M) || !std::isfinite(lower) ||
-        !std::isfinite(upper) || !(lower < upper) || C < amrex::Real(0.0)) {
-        throw std::invalid_argument("two-moment transform requires finite state, nonnegative count, and lower < upper");
+    EndpointTransform result;
+    if (!try_two_moment_to_endpoints(C, M, lower, upper, result)) {
+        throw std::invalid_argument("invalid or materially non-realizable two-moment state");
     }
-    const amrex::Real scale = std::abs(M) + std::abs(lower*C) + std::abs(upper*C);
-    const amrex::Real moment_tolerance = amrex::Real(128.0) *
-        std::numeric_limits<amrex::Real>::epsilon() * scale;
-    const amrex::Real low_numerator = std::fma(upper, C, -M);
-    const amrex::Real high_numerator = std::fma(-lower, C, M);
-    if (!std::isfinite(scale) || !std::isfinite(moment_tolerance) ||
-        !std::isfinite(low_numerator) || !std::isfinite(high_numerator) ||
-        low_numerator < -moment_tolerance || high_numerator < -moment_tolerance) {
-        throw std::invalid_argument("materially non-realizable two-moment state");
-    }
-    if (C == amrex::Real(0.0)) {
-        if (std::abs(M) > moment_tolerance) {
-            throw std::invalid_argument("zero-number state carries mass");
-        }
-        const bool normalized = M != amrex::Real(0.0);
-        return {amrex::Real(0.0), amrex::Real(0.0), moment_tolerance,
-                moment_tolerance / (upper - lower), normalized};
-    }
-    const amrex::Real denominator = upper - lower;
-    amrex::Real L = low_numerator / denominator;
-    amrex::Real H = high_numerator / denominator;
-    const amrex::Real endpoint_tolerance = moment_tolerance / denominator;
-    if (!std::isfinite(L) || !std::isfinite(H) || !std::isfinite(endpoint_tolerance)) {
-        throw std::invalid_argument("two-moment endpoint transform overflowed");
-    }
-    bool normalized = false;
-    if (L < amrex::Real(0.0)) { L = amrex::Real(0.0); normalized = true; }
-    if (H < amrex::Real(0.0)) { H = amrex::Real(0.0); normalized = true; }
-    return {L, H, moment_tolerance, endpoint_tolerance, normalized};
+    return result;
 }
 
 std::pair<amrex::Real, amrex::Real>
 SpectralGrid::endpoints_to_two_moment(const amrex::Real L, const amrex::Real H,
                                       const amrex::Real lower, const amrex::Real upper)
 {
-    if (!std::isfinite(L) || !std::isfinite(H) || L < amrex::Real(0.0) || H < amrex::Real(0.0) || lower >= upper) {
+    amrex::Real C = amrex::Real(0.0);
+    amrex::Real M = amrex::Real(0.0);
+    if (!try_endpoints_to_two_moment(L, H, lower, upper, C, M)) {
         throw std::invalid_argument("invalid two-moment endpoint state");
     }
-    const amrex::Real C = L + H;
-    return {C, lower*L + upper*H};
+    return {C, M};
 }
 
 } // namespace erf_sbm

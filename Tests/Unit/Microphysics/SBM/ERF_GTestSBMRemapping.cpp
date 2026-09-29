@@ -1,5 +1,10 @@
 #include <gtest/gtest.h>
 
+#include <AMReX_Box.H>
+#include <AMReX_Gpu.H>
+#include <AMReX_GpuContainers.H>
+#include <AMReX_GpuLaunch.H>
+
 #include "ERF_SBMConstraintGroups.H"
 #include "ERF_SBMRemapping.H"
 #include "ERF_SBMRepresentation.H"
@@ -10,6 +15,7 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -66,12 +72,6 @@ erf_sbm::SBMLayout make_layout(
     return erf_sbm::SBMLayout(std::move(spec));
 }
 
-erf_sbm::SpectralGridView grid_view(const erf_sbm::PopulationLayout& population)
-{
-    return {population.grid.edges().data(), population.grid.pivots().data(),
-            population.grid.nbins()};
-}
-
 const erf_sbm::PopulationLayout& population(const erf_sbm::SBMLayout& layout,
                                            const int id)
 {
@@ -96,7 +96,7 @@ TEST(SBMRemapping, FixedPivotOneMomentConservesNumberWaterPropertiesAndVariance)
     constexpr Real packet_number = Real(3.0);
     constexpr Real packet_mass = Real(1.4);
     const auto plan = erf_sbm::plan_packet_routing(
-        grid_view(liquid), liquid.moment_mode, packet_number, packet_mass);
+        erf_sbm::population_remap_view(layout, 0), packet_number, packet_mass);
     ASSERT_EQ(plan.status, erf_sbm::RemapStatus::Ok);
     ASSERT_EQ(plan.destination_count, 2);
     EXPECT_EQ(plan.destinations[0].bin, 0);
@@ -106,7 +106,7 @@ TEST(SBMRemapping, FixedPivotOneMomentConservesNumberWaterPropertiesAndVariance)
 
     std::vector<Real> state(static_cast<std::size_t>(layout.ncomp()), Real(0.0));
     const auto result = erf_sbm::apply_packet_routing(
-        layout, 0, plan, {Real(6.0), Real(15.0)}, state);
+        layout, plan, {Real(6.0), Real(15.0)}, state);
     ASSERT_EQ(result.status, erf_sbm::RemapStatus::Ok);
     EXPECT_DOUBLE_EQ(result.residual_number, Real(0.0));
     expect_close(state[0], Real(1.8));
@@ -158,25 +158,25 @@ TEST(SBMRemapping, FixedPivotExactPivotResidualOverflowAndAtomicFailure)
     std::vector<Real> state(static_cast<std::size_t>(layout.ncomp()), Real(0.0));
 
     const auto exact = erf_sbm::plan_packet_routing(
-        grid_view(liquid), liquid.moment_mode, Real(4.0), Real(2.0));
+        erf_sbm::population_remap_view(layout, 0), Real(4.0), Real(2.0));
     ASSERT_EQ(exact.status, erf_sbm::RemapStatus::Ok);
     ASSERT_EQ(exact.destination_count, 1);
     EXPECT_EQ(exact.destinations[0].bin, 1);
     EXPECT_DOUBLE_EQ(exact.destinations[0].number_weight, Real(1.0));
-    ASSERT_EQ(erf_sbm::apply_packet_routing(layout, 0, exact,
+    ASSERT_EQ(erf_sbm::apply_packet_routing(layout, exact,
         {Real(8.0), Real(12.0)}, state).status, erf_sbm::RemapStatus::Ok);
     EXPECT_DOUBLE_EQ(state[0], Real(0.0));
     EXPECT_DOUBLE_EQ(state[1], Real(8.0));
 
     const auto subpivot = erf_sbm::plan_packet_routing(
-        grid_view(liquid), liquid.moment_mode, Real(5.0), Real(0.4));
+        erf_sbm::population_remap_view(layout, 0), Real(5.0), Real(0.4));
     ASSERT_EQ(subpivot.status, erf_sbm::RemapStatus::ZeroWaterResidual);
     ASSERT_EQ(subpivot.destination_count, 1);
     expect_close(subpivot.destinations[0].number_weight, Real(0.4));
     expect_close(subpivot.residual_number_weight, Real(0.6));
     const auto before_subpivot = state;
     const auto residual = erf_sbm::apply_packet_routing(
-        layout, 0, subpivot, {Real(10.0), Real(20.0)}, state);
+        layout, subpivot, {Real(10.0), Real(20.0)}, state);
     ASSERT_EQ(residual.status, erf_sbm::RemapStatus::ZeroWaterResidual);
     expect_close(residual.residual_number, Real(3.0));
     EXPECT_DOUBLE_EQ(residual.residual_water_mass, Real(0.0));
@@ -188,36 +188,36 @@ TEST(SBMRemapping, FixedPivotExactPivotResidualOverflowAndAtomicFailure)
     expect_close(state[static_cast<std::size_t>(layout.property_offset(1))], Real(8.0));
 
     const auto zero_water = erf_sbm::plan_packet_routing(
-        grid_view(liquid), liquid.moment_mode, Real(2.0), Real(0.0));
+        erf_sbm::population_remap_view(layout, 0), Real(2.0), Real(0.0));
     ASSERT_EQ(zero_water.status, erf_sbm::RemapStatus::ZeroWaterResidual);
     EXPECT_EQ(zero_water.destination_count, 0);
     const auto all_residual = erf_sbm::apply_packet_routing(
-        layout, 0, zero_water, {Real(3.0), Real(7.0)}, state);
+        layout, zero_water, {Real(3.0), Real(7.0)}, state);
     expect_close(all_residual.residual_number, Real(2.0));
     EXPECT_EQ(all_residual.residual_properties, (std::vector<Real>{Real(3.0), Real(7.0)}));
     EXPECT_EQ(all_residual.residual_water_mass, Real(0.0));
 
     const auto overflow = erf_sbm::plan_packet_routing(
-        grid_view(liquid), liquid.moment_mode, Real(1.0), Real(2.1));
+        erf_sbm::population_remap_view(layout, 0), Real(1.0), Real(2.1));
     ASSERT_EQ(overflow.status, erf_sbm::RemapStatus::Overflow);
     const auto before_overflow = state;
     EXPECT_EQ(erf_sbm::apply_packet_routing(
-        layout, 0, overflow, {Real(1.0), Real(1.0)}, state).status,
+        layout, overflow, {Real(1.0), Real(1.0)}, state).status,
         erf_sbm::RemapStatus::Overflow);
     EXPECT_EQ(state, before_overflow);
 
     const auto invalid = erf_sbm::plan_packet_routing(
-        grid_view(liquid), liquid.moment_mode,
+        erf_sbm::population_remap_view(layout, 0),
         std::numeric_limits<Real>::quiet_NaN(), Real(1.0));
     EXPECT_EQ(invalid.status, erf_sbm::RemapStatus::Invalid);
     const auto atomic_plan = erf_sbm::plan_packet_routing(
-        grid_view(liquid), liquid.moment_mode, Real(1.0), Real(1.4));
+        erf_sbm::population_remap_view(layout, 0), Real(1.0), Real(1.4));
     auto atomic_state = std::vector<Real>(static_cast<std::size_t>(layout.ncomp()), Real(0.0));
     atomic_state[static_cast<std::size_t>(layout.property_offset(0) + 1)] =
         std::numeric_limits<Real>::max();
     const auto unchanged = atomic_state;
     const auto failed_apply = erf_sbm::apply_packet_routing(
-        layout, 0, atomic_plan, {std::numeric_limits<Real>::max(), Real(0.0)}, atomic_state);
+        layout, atomic_plan, {std::numeric_limits<Real>::max(), Real(0.0)}, atomic_state);
     EXPECT_EQ(failed_apply.status, erf_sbm::RemapStatus::Invalid);
     EXPECT_EQ(atomic_state, unchanged);
 }
@@ -229,14 +229,14 @@ TEST(SBMRemapping, IntervalTwoMomentPreservesActualMassAndUsesHalfOpenEdges)
     const auto& liquid = population(layout, 0);
 
     const auto packet = erf_sbm::plan_packet_routing(
-        grid_view(liquid), liquid.moment_mode, Real(1.0), Real(1.4));
+        erf_sbm::population_remap_view(layout, 0), Real(1.0), Real(1.4));
     ASSERT_EQ(packet.status, erf_sbm::RemapStatus::Ok);
     ASSERT_EQ(packet.destination_count, 1);
     EXPECT_EQ(packet.destinations[0].bin, 0);
     EXPECT_DOUBLE_EQ(packet.destinations[0].particle_mass, Real(1.4));
     std::vector<Real> state(static_cast<std::size_t>(layout.ncomp()), Real(0.0));
     ASSERT_EQ(erf_sbm::apply_packet_routing(
-        layout, 0, packet, {Real(2.0), Real(5.0)}, state).status,
+        layout, packet, {Real(2.0), Real(5.0)}, state).status,
         erf_sbm::RemapStatus::Ok);
     EXPECT_DOUBLE_EQ(state[static_cast<std::size_t>(liquid.mass_offset)], Real(1.4));
     EXPECT_DOUBLE_EQ(state[static_cast<std::size_t>(liquid.number_offset)], Real(1.0));
@@ -247,33 +247,223 @@ TEST(SBMRemapping, IntervalTwoMomentPreservesActualMassAndUsesHalfOpenEdges)
 
     const Real shared = Real(1.5);
     const auto at_shared_edge = erf_sbm::plan_packet_routing(
-        grid_view(liquid), liquid.moment_mode, Real(1.0), shared);
+        erf_sbm::population_remap_view(layout, 0), Real(1.0), shared);
     ASSERT_EQ(at_shared_edge.status, erf_sbm::RemapStatus::Ok);
     EXPECT_EQ(at_shared_edge.destinations[0].bin, 1);
     const auto below_shared = erf_sbm::plan_packet_routing(
-        grid_view(liquid), liquid.moment_mode, Real(1.0), std::nextafter(shared, Real(0.0)));
+        erf_sbm::population_remap_view(layout, 0), Real(1.0), std::nextafter(shared, Real(0.0)));
     const auto above_shared = erf_sbm::plan_packet_routing(
-        grid_view(liquid), liquid.moment_mode, Real(1.0),
+        erf_sbm::population_remap_view(layout, 0), Real(1.0),
         std::nextafter(shared, std::numeric_limits<Real>::infinity()));
     EXPECT_EQ(below_shared.destinations[0].bin, 0);
     EXPECT_EQ(above_shared.destinations[0].bin, 1);
 
     const auto at_lower = erf_sbm::plan_packet_routing(
-        grid_view(liquid), liquid.moment_mode, Real(1.0), Real(0.5));
+        erf_sbm::population_remap_view(layout, 0), Real(1.0), Real(0.5));
     const auto at_upper = erf_sbm::plan_packet_routing(
-        grid_view(liquid), liquid.moment_mode, Real(1.0), Real(2.5));
+        erf_sbm::population_remap_view(layout, 0), Real(1.0), Real(2.5));
+    const auto just_inside_lower = erf_sbm::plan_packet_routing(
+        erf_sbm::population_remap_view(layout, 0), Real(1.0),
+        std::nextafter(Real(0.5), std::numeric_limits<Real>::infinity()));
+    const auto just_inside_upper = erf_sbm::plan_packet_routing(
+        erf_sbm::population_remap_view(layout, 0), Real(1.0),
+        std::nextafter(Real(2.5), Real(0.0)));
     EXPECT_EQ(at_lower.status, erf_sbm::RemapStatus::Ok);
     EXPECT_EQ(at_lower.destinations[0].bin, 0);
     EXPECT_EQ(at_upper.status, erf_sbm::RemapStatus::Ok);
     EXPECT_EQ(at_upper.destinations[0].bin, 1);
+    EXPECT_EQ(just_inside_lower.status, erf_sbm::RemapStatus::Ok);
+    EXPECT_FALSE(just_inside_lower.normalized_roundoff);
+    EXPECT_EQ(just_inside_upper.status, erf_sbm::RemapStatus::Ok);
+    EXPECT_FALSE(just_inside_upper.normalized_roundoff);
+    const auto one_step_below = erf_sbm::plan_packet_routing(
+        erf_sbm::population_remap_view(layout, 0), Real(1.0),
+        std::nextafter(Real(0.5), Real(0.0)));
+    EXPECT_EQ(one_step_below.status, erf_sbm::RemapStatus::Ok);
+    EXPECT_EQ(one_step_below.destinations[0].bin, 0);
+    EXPECT_TRUE(one_step_below.normalized_roundoff);
+    const auto one_step_above = erf_sbm::plan_packet_routing(
+        erf_sbm::population_remap_view(layout, 0), Real(1.0),
+        std::nextafter(Real(2.5), std::numeric_limits<Real>::infinity()));
+    EXPECT_EQ(one_step_above.status, erf_sbm::RemapStatus::Ok);
+    EXPECT_EQ(one_step_above.destinations[0].bin, 1);
+    EXPECT_TRUE(one_step_above.normalized_roundoff);
+    auto four_steps_below_mass = Real(0.5);
+    for (int step = 0; step < 4; ++step) {
+        four_steps_below_mass = std::nextafter(four_steps_below_mass, Real(0.0));
+    }
+    const auto four_steps_below = erf_sbm::plan_packet_routing(
+        erf_sbm::population_remap_view(layout, 0), Real(1.0), four_steps_below_mass);
+    EXPECT_EQ(four_steps_below.status, erf_sbm::RemapStatus::Ok);
+    EXPECT_TRUE(four_steps_below.normalized_roundoff);
+    const auto five_steps_below_mass = std::nextafter(four_steps_below_mass, Real(0.0));
     EXPECT_EQ(erf_sbm::plan_packet_routing(
-        grid_view(liquid), liquid.moment_mode, Real(1.0),
-        std::nextafter(Real(0.5), Real(0.0))).status,
-        erf_sbm::RemapStatus::BelowSupportedGrid);
+        erf_sbm::population_remap_view(layout, 0), Real(1.0),
+        five_steps_below_mass).status, erf_sbm::RemapStatus::BelowSupportedGrid);
+    auto four_steps_above_mass = Real(2.5);
+    for (int step = 0; step < 4; ++step) {
+        four_steps_above_mass = std::nextafter(
+            four_steps_above_mass, std::numeric_limits<Real>::infinity());
+    }
+    const auto four_steps_above = erf_sbm::plan_packet_routing(
+        erf_sbm::population_remap_view(layout, 0), Real(1.0), four_steps_above_mass);
+    EXPECT_EQ(four_steps_above.status, erf_sbm::RemapStatus::Ok);
+    EXPECT_EQ(four_steps_above.destinations[0].bin, 1);
+    EXPECT_TRUE(four_steps_above.normalized_roundoff);
+    const auto five_steps_above_mass = std::nextafter(
+        four_steps_above_mass, std::numeric_limits<Real>::infinity());
     EXPECT_EQ(erf_sbm::plan_packet_routing(
-        grid_view(liquid), liquid.moment_mode, Real(1.0),
-        std::nextafter(Real(2.5), std::numeric_limits<Real>::infinity())).status,
+        erf_sbm::population_remap_view(layout, 0), Real(1.0),
+        five_steps_above_mass).status, erf_sbm::RemapStatus::Overflow);
+    EXPECT_EQ(erf_sbm::plan_packet_routing(
+        erf_sbm::population_remap_view(layout, 0), Real(1.0), Real(3.0)).status,
         erf_sbm::RemapStatus::Overflow);
+    EXPECT_EQ(erf_sbm::plan_packet_routing(
+        erf_sbm::population_remap_view(layout, 0), Real(1.0), Real(0.1)).status,
+        erf_sbm::RemapStatus::BelowSupportedGrid);
+}
+
+TEST(SBMRemapping, TwoMomentZeroWaterPacketReturnsCompleteResidual)
+{
+    auto wet_population = make_population(0, erf_sbm::MomentMode::TwoMoment,
+        {Real(0.0), Real(1.0), Real(2.0)}, {Real(0.5), Real(1.5)});
+    erf_sbm::SBMLayoutSpec spec;
+    spec.populations.push_back(wet_population);
+    spec.liquid_projection = {0, 1};
+    spec.attached_properties = {make_property("solute_a", 0), make_property("solute_b", 0)};
+    const erf_sbm::SBMLayout layout(std::move(spec));
+    const auto view = erf_sbm::population_remap_view(layout, 0);
+    const auto plan = erf_sbm::plan_packet_routing(view, Real(2.0), Real(0.0));
+    ASSERT_EQ(plan.status, erf_sbm::RemapStatus::ZeroWaterResidual);
+    EXPECT_EQ(plan.destination_count, 0);
+    EXPECT_DOUBLE_EQ(plan.residual_number_weight, Real(1.0));
+
+    std::vector<Real> state(static_cast<std::size_t>(layout.ncomp()), Real(0.0));
+    const auto before = state;
+    const auto applied = erf_sbm::apply_packet_routing(
+        layout, plan, {Real(3.0), Real(8.0)}, state);
+    ASSERT_EQ(applied.status, erf_sbm::RemapStatus::ZeroWaterResidual);
+    EXPECT_EQ(state, before);
+    EXPECT_DOUBLE_EQ(applied.residual_number, Real(2.0));
+    EXPECT_DOUBLE_EQ(applied.residual_water_mass, Real(0.0));
+    ASSERT_EQ(applied.residual_properties.size(), 2u);
+    EXPECT_DOUBLE_EQ(applied.residual_properties[0], Real(3.0));
+    EXPECT_DOUBLE_EQ(applied.residual_properties[1], Real(8.0));
+
+    erf_sbm::SBMLayoutSpec no_property_spec;
+    no_property_spec.populations.push_back(wet_population);
+    no_property_spec.liquid_projection = {0, 1};
+    const erf_sbm::SBMLayout no_property_layout(std::move(no_property_spec));
+    const auto no_property_plan = erf_sbm::plan_packet_routing(
+        erf_sbm::population_remap_view(no_property_layout, 0), Real(1.0), Real(0.0));
+    std::vector<Real> no_property_state(static_cast<std::size_t>(no_property_layout.ncomp()), Real(0.0));
+    const auto no_property_result = erf_sbm::apply_packet_routing(
+        no_property_layout, no_property_plan, {}, no_property_state);
+    EXPECT_EQ(no_property_result.status, erf_sbm::RemapStatus::ZeroWaterResidual);
+    EXPECT_DOUBLE_EQ(no_property_result.residual_number, Real(1.0));
+    EXPECT_TRUE(no_property_result.residual_properties.empty());
+    EXPECT_EQ(no_property_state,
+              (std::vector<Real>(static_cast<std::size_t>(no_property_layout.ncomp()), Real(0.0))));
+}
+
+TEST(SBMRemapping, ZeroNumberPacketIsNoOpAndRejectsUnattachedMaterial)
+{
+    const auto layout = make_layout(erf_sbm::MomentMode::TwoMoment,
+        {make_property("solute_a", 0), make_property("solute_b", 0)});
+    const auto plan = erf_sbm::plan_packet_routing(
+        erf_sbm::population_remap_view(layout, 0), Real(0.0), Real(0.0));
+    ASSERT_EQ(plan.status, erf_sbm::RemapStatus::Ok);
+    EXPECT_EQ(plan.destination_count, 0);
+    EXPECT_DOUBLE_EQ(plan.residual_number_weight, Real(0.0));
+    std::vector<Real> state(static_cast<std::size_t>(layout.ncomp()), Real(0.0));
+    state[0] = Real(1.25);
+    const auto before = state;
+    const auto no_op = erf_sbm::apply_packet_routing(
+        layout, plan, {Real(0.0), Real(0.0)}, state);
+    EXPECT_EQ(no_op.status, erf_sbm::RemapStatus::Ok);
+    EXPECT_DOUBLE_EQ(no_op.residual_number, Real(0.0));
+    EXPECT_EQ(no_op.residual_properties, (std::vector<Real>{Real(0.0), Real(0.0)}));
+    EXPECT_EQ(state, before);
+    EXPECT_EQ(erf_sbm::apply_packet_routing(layout, plan, {Real(1.0), Real(0.0)}, state).status,
+              erf_sbm::RemapStatus::Invalid);
+    EXPECT_EQ(state, before);
+}
+
+TEST(SBMRemapping, ReferenceLayoutRejectsNonMassCoordinates)
+{
+    auto radius_population = make_population(0, erf_sbm::MomentMode::TwoMoment);
+    radius_population.grid.coordinate_kind = erf_sbm::CoordinateKind::Radius;
+    radius_population.grid.coordinate_units = "m";
+    erf_sbm::SBMLayoutSpec spec;
+    spec.populations.push_back(std::move(radius_population));
+    spec.liquid_projection = {0, 1};
+    EXPECT_TRUE(erf_sbm::SpectralGrid::validate(spec.populations[0].grid).valid);
+    const auto validation = erf_sbm::SBMLayout::validate(spec);
+    EXPECT_FALSE(validation.valid);
+    EXPECT_NE(validation.message.find("mass"), std::string::npos);
+
+    const auto valid_layout = make_layout(erf_sbm::MomentMode::TwoMoment);
+    auto non_mass_view = erf_sbm::population_remap_view(valid_layout, 0);
+    non_mass_view.coordinate_kind = erf_sbm::CoordinateKind::Radius;
+    EXPECT_EQ(erf_sbm::plan_packet_routing(non_mass_view, Real(1.0), Real(1.4)).status,
+              erf_sbm::RemapStatus::Invalid);
+}
+
+TEST(SBMRemapping, RoutingPlanCannotCrossPopulationOrGridContexts)
+{
+    erf_sbm::SBMLayoutSpec spec;
+    spec.populations.push_back(make_population(0, erf_sbm::MomentMode::OneMoment));
+    spec.populations.push_back(make_population(1, erf_sbm::MomentMode::TwoMoment,
+        {Real(0.5), Real(1.5), Real(2.5)}, {Real(1.0), Real(2.0)},
+        erf_sbm::PopulationPhase::Aerosol));
+    spec.liquid_projection = {0, 1};
+    const erf_sbm::SBMLayout layout(std::move(spec));
+    const auto first_view = erf_sbm::population_remap_view(layout, 0);
+    const auto second_view = erf_sbm::population_remap_view(layout, 1);
+    const auto first_plan = erf_sbm::plan_packet_routing(first_view, Real(1.0), Real(1.4));
+    std::vector<Real> candidate(static_cast<std::size_t>(layout.ncomp()), Real(0.0));
+    const auto unchanged = candidate;
+    const auto mismatch = erf_sbm::apply_packet_routing_core(
+        second_view, first_plan, nullptr, 0, nullptr, 0,
+        candidate.data(), static_cast<int>(candidate.size()));
+    EXPECT_EQ(mismatch.status, erf_sbm::RemapStatus::Invalid);
+    EXPECT_EQ(candidate, unchanged);
+
+    auto forged_plan = first_plan;
+    forged_plan.destinations[0].bin = 1;
+    const auto forged = erf_sbm::apply_packet_routing_core(
+        first_view, forged_plan, nullptr, 0, nullptr, 0,
+        candidate.data(), static_cast<int>(candidate.size()));
+    EXPECT_EQ(forged.status, erf_sbm::RemapStatus::Invalid);
+    EXPECT_EQ(candidate, unchanged);
+
+    const auto second_plan = erf_sbm::plan_packet_routing(second_view, Real(1.0), Real(1.4));
+    ASSERT_EQ(second_plan.status, erf_sbm::RemapStatus::Ok);
+    ASSERT_EQ(second_plan.destination_count, 1);
+    EXPECT_EQ(second_plan.destinations[0].bin, 0);
+    EXPECT_DOUBLE_EQ(second_plan.destinations[0].particle_mass, Real(1.4));
+    const auto accepted = erf_sbm::apply_packet_routing_core(
+        second_view, second_plan, nullptr, 0, nullptr, 0,
+        candidate.data(), static_cast<int>(candidate.size()));
+    ASSERT_EQ(accepted.status, erf_sbm::RemapStatus::Ok);
+    const auto& second = population(layout, 1);
+    EXPECT_DOUBLE_EQ(candidate[static_cast<std::size_t>(second.mass_offset)], Real(1.4));
+    EXPECT_DOUBLE_EQ(candidate[static_cast<std::size_t>(second.number_offset)], Real(1.0));
+
+    erf_sbm::SBMLayoutSpec other_spec;
+    other_spec.populations.push_back(make_population(0, erf_sbm::MomentMode::OneMoment,
+        {Real(0.5), Real(1.25), Real(2.5)}, {Real(0.9), Real(1.75)}));
+    other_spec.liquid_projection = {0, 1};
+    const erf_sbm::SBMLayout other_layout(std::move(other_spec));
+    const auto other_view = erf_sbm::population_remap_view(other_layout, 0);
+    const auto other_plan = erf_sbm::plan_packet_routing(first_view, Real(1.0), Real(1.4));
+    std::vector<Real> other_state(static_cast<std::size_t>(other_layout.ncomp()), Real(0.0));
+    const auto other_before = other_state;
+    const auto stale_grid = erf_sbm::apply_packet_routing_core(
+        other_view, other_plan, nullptr, 0, nullptr, 0,
+        other_state.data(), static_cast<int>(other_state.size()));
+    EXPECT_EQ(stale_grid.status, erf_sbm::RemapStatus::Invalid);
+    EXPECT_EQ(other_state, other_before);
 }
 
 TEST(SBMRemapping, MeanDeltaReconstructionProjectsExactlyAndIntegratesIntervals)
@@ -395,6 +585,242 @@ TEST(SBMRemapping, CanonicalEndpointTransformIsUnitInvariantAndDimensioned)
     EXPECT_DOUBLE_EQ(exact.H, Real(1.0));
 }
 
+TEST(SBMRemapping, CanonicalInverseAndCompatibilityInverseAreIdentical)
+{
+    for (const auto endpoints : {
+             std::pair<Real, Real>{Real(0.0), Real(3.0)},
+             std::pair<Real, Real>{Real(2.0), Real(0.0)},
+             std::pair<Real, Real>{Real(0.25), Real(0.75)},
+             std::pair<Real, Real>{Real(0.0), Real(0.0)}}) {
+        const auto canonical = erf_sbm::SpectralGrid::endpoints_to_two_moment(
+            endpoints.first, endpoints.second, Real(0.5), Real(1.5));
+        const auto compatibility = erf_sbm::inverse_two_moment(
+            endpoints.first, endpoints.second, Real(0.5), Real(1.5));
+        EXPECT_DOUBLE_EQ(canonical.first, compatibility.first);
+        EXPECT_DOUBLE_EQ(canonical.second, compatibility.second);
+        EXPECT_DOUBLE_EQ(canonical.first, endpoints.first + endpoints.second);
+        EXPECT_DOUBLE_EQ(canonical.second,
+            std::fma(Real(0.5), endpoints.first, Real(1.5) * endpoints.second));
+    }
+    Real count = Real(0.0);
+    Real mass = Real(0.0);
+    EXPECT_FALSE(erf_sbm::try_endpoints_to_two_moment(
+        std::numeric_limits<Real>::infinity(), Real(0.0), Real(0.5), Real(1.5), count, mass));
+    EXPECT_FALSE(erf_sbm::try_endpoints_to_two_moment(
+        Real(-1.0), Real(0.0), Real(0.5), Real(1.5), count, mass));
+    EXPECT_THROW(static_cast<void>(erf_sbm::inverse_two_moment(
+        std::numeric_limits<Real>::max(), std::numeric_limits<Real>::max(),
+        Real(0.5), Real(1.5))), std::invalid_argument);
+}
+
+TEST(SBMRemapping, AllocationFreeCoreMatchesHostReferenceAdapters)
+{
+    static_assert(std::is_trivially_copyable_v<erf_sbm::PopulationRemapView>);
+    static_assert(std::is_trivially_copyable_v<erf_sbm::RouteDestination>);
+    static_assert(std::is_trivially_copyable_v<erf_sbm::PacketRoutingPlan>);
+    static_assert(std::is_trivially_copyable_v<erf_sbm::PacketApplicationCoreResult>);
+    static_assert(std::is_trivially_copyable_v<erf_sbm::ReconstructionDeltaView>);
+    static_assert(std::is_trivially_copyable_v<erf_sbm::IntegratedMomentsCoreResult>);
+
+    for (const auto mode : {erf_sbm::MomentMode::OneMoment,
+                            erf_sbm::MomentMode::TwoMoment}) {
+        const auto layout = make_layout(mode,
+            {make_property("solute_a", 0), make_property("solute_b", 0)});
+        const auto population_view = erf_sbm::population_remap_view(layout, 0);
+        const auto plan = erf_sbm::plan_packet_routing(population_view, Real(3.0), Real(1.4));
+        ASSERT_EQ(plan.status, erf_sbm::RemapStatus::Ok);
+        if (mode == erf_sbm::MomentMode::OneMoment) {
+            ASSERT_EQ(plan.destination_count, 2);
+            EXPECT_EQ(plan.destinations[0].bin, 0);
+            EXPECT_EQ(plan.destinations[1].bin, 1);
+            expect_close(plan.destinations[0].number_weight, Real(0.6));
+            expect_close(plan.destinations[1].number_weight, Real(0.4));
+        } else {
+            ASSERT_EQ(plan.destination_count, 1);
+            EXPECT_EQ(plan.destinations[0].bin, 0);
+            EXPECT_DOUBLE_EQ(plan.destinations[0].particle_mass, Real(1.4));
+        }
+        const std::vector<Real> property_amounts{Real(6.0), Real(15.0)};
+        std::vector<Real> core_state(static_cast<std::size_t>(layout.ncomp()), Real(0.0));
+        std::vector<Real> host_state(core_state.size(), Real(0.0));
+        Real residual_properties[2] = {Real(-1.0), Real(-1.0)};
+        const auto core_application = erf_sbm::apply_packet_routing_core(
+            population_view, plan, property_amounts.data(), 2,
+            residual_properties, 2, core_state.data(), static_cast<int>(core_state.size()));
+        const auto host_application = erf_sbm::apply_packet_routing(
+            layout, plan, property_amounts, host_state);
+        EXPECT_EQ(core_application.status, host_application.status);
+        EXPECT_DOUBLE_EQ(core_application.residual_number, host_application.residual_number);
+        EXPECT_DOUBLE_EQ(core_application.residual_water_mass, host_application.residual_water_mass);
+        EXPECT_EQ(core_application.normalized_roundoff, host_application.normalized_roundoff);
+        ASSERT_EQ(host_application.residual_properties.size(), 2u);
+        for (int property = 0; property < 2; ++property) {
+            EXPECT_DOUBLE_EQ(residual_properties[property],
+                             host_application.residual_properties[static_cast<std::size_t>(property)]);
+        }
+        ASSERT_EQ(core_state.size(), host_state.size());
+        for (std::size_t component = 0; component < core_state.size(); ++component) {
+            EXPECT_DOUBLE_EQ(core_state[component], host_state[component]);
+        }
+
+        std::vector<Real> core_projected(core_state.size(), Real(0.0));
+        std::vector<Real> host_projected(host_state.size(), Real(0.0));
+        const auto& pop = population(layout, 0);
+        for (int bin = 0; bin < pop.grid.nbins(); ++bin) {
+            Real core_properties[2] = {Real(-1.0), Real(-1.0)};
+            erf_sbm::ReconstructionDeltaView core_reconstruction;
+            const auto core_status = erf_sbm::reconstruct_bin_core(
+                population_view, bin, core_state.data(), static_cast<int>(core_state.size()),
+                core_properties, 2, core_reconstruction);
+            erf_sbm::ReconstructionDelta host_reconstruction;
+            const auto host_status = erf_sbm::reconstruct_bin(
+                layout, 0, bin, host_state, host_reconstruction);
+            ASSERT_EQ(core_status, host_status);
+            EXPECT_EQ(core_reconstruction.empty, host_reconstruction.empty);
+            EXPECT_EQ(core_reconstruction.normalized_roundoff, host_reconstruction.normalized_roundoff);
+            EXPECT_DOUBLE_EQ(core_reconstruction.number, host_reconstruction.number);
+            EXPECT_DOUBLE_EQ(core_reconstruction.particle_mass, host_reconstruction.particle_mass);
+            ASSERT_EQ(host_reconstruction.property_per_particle.size(), 2u);
+            for (int property = 0; property < 2; ++property) {
+                EXPECT_DOUBLE_EQ(core_properties[property],
+                    host_reconstruction.property_per_particle[static_cast<std::size_t>(property)]);
+            }
+
+            Real core_integrated_properties[2] = {Real(-1.0), Real(-1.0)};
+            erf_sbm::IntegratedMomentsCoreResult core_integral;
+            ASSERT_TRUE(erf_sbm::integrate_interval_core(
+                core_reconstruction, Real(0.0), Real(3.0), true,
+                core_integrated_properties, 2, core_integral));
+            erf_sbm::IntegratedMoments host_integral;
+            ASSERT_TRUE(erf_sbm::integrate_interval(
+                host_reconstruction, Real(0.0), Real(3.0), true, host_integral));
+            EXPECT_DOUBLE_EQ(core_integral.number, host_integral.number);
+            EXPECT_DOUBLE_EQ(core_integral.water_mass, host_integral.water_mass);
+            for (int property = 0; property < 2; ++property) {
+                EXPECT_DOUBLE_EQ(core_integrated_properties[property],
+                    host_integral.attached_properties[static_cast<std::size_t>(property)]);
+            }
+
+            ASSERT_TRUE(erf_sbm::project_reconstruction_bin_core(
+                population_view, core_reconstruction, core_projected.data(),
+                static_cast<int>(core_projected.size())));
+            ASSERT_TRUE(erf_sbm::project_reconstruction_bin(
+                layout, host_reconstruction, host_projected));
+        }
+        EXPECT_EQ(core_projected, core_state);
+        EXPECT_EQ(host_projected, host_state);
+    }
+}
+
+#if defined(AMREX_USE_GPU)
+TEST(SBMRemapping, AllocationFreeTwoMomentCoreRunsInDeviceKernel)
+{
+    const std::vector<Real> host_edges{Real(0.5), Real(1.5), Real(2.5)};
+    const Real packet_mass = std::nextafter(
+        Real(2.5), std::numeric_limits<Real>::infinity());
+    amrex::Gpu::DeviceVector<Real> device_edges(host_edges.size());
+    amrex::Gpu::DeviceVector<Real> device_state(4, Real(0.0));
+    amrex::Gpu::DeviceVector<Real> device_output(9, Real(-1.0));
+    amrex::Gpu::copy(amrex::Gpu::hostToDevice, host_edges.begin(), host_edges.end(),
+                     device_edges.begin());
+    erf_sbm::PopulationRemapView population_view;
+    population_view.population_id = 7;
+    population_view.moment_mode = erf_sbm::MomentMode::TwoMoment;
+    population_view.coordinate_kind = erf_sbm::CoordinateKind::Mass;
+    population_view.edges = device_edges.data();
+    population_view.nbins = 2;
+    population_view.mass_offset = 0;
+    population_view.number_offset = 2;
+    population_view.state_components = 4;
+    const auto* edges = device_edges.data();
+    auto* state = device_state.data();
+    auto* output = device_output.data();
+    const amrex::Box box(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 0));
+    amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE (int, int, int) noexcept {
+        const auto plan = erf_sbm::plan_packet_routing(
+            population_view, Real(1.0), packet_mass);
+        const auto applied = erf_sbm::apply_packet_routing_core(
+            population_view, plan, nullptr, 0, nullptr, 0, state, 4);
+        erf_sbm::EndpointTransform endpoints;
+        const bool endpoint_valid = erf_sbm::try_two_moment_to_endpoints(
+            state[3], state[1], edges[1], edges[2], endpoints);
+        output[0] = static_cast<Real>(static_cast<int>(plan.status));
+        output[1] = static_cast<Real>(plan.destination_count);
+        output[2] = static_cast<Real>(plan.destinations[0].bin);
+        output[3] = plan.normalized_roundoff ? Real(1.0) : Real(0.0);
+        output[4] = static_cast<Real>(static_cast<int>(applied.status));
+        output[5] = state[1];
+        output[6] = state[3];
+        output[7] = endpoint_valid ? Real(1.0) : Real(0.0);
+        output[8] = endpoints.normalized_roundoff ? Real(1.0) : Real(0.0);
+    });
+    amrex::Gpu::streamSynchronize();
+    std::vector<Real> result(9, Real(0.0));
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost, device_output.begin(), device_output.end(),
+                     result.begin());
+    EXPECT_EQ(static_cast<int>(result[0]), static_cast<int>(erf_sbm::RemapStatus::Ok));
+    EXPECT_DOUBLE_EQ(result[1], Real(1.0));
+    EXPECT_DOUBLE_EQ(result[2], Real(1.0));
+    EXPECT_DOUBLE_EQ(result[3], Real(1.0));
+    EXPECT_EQ(static_cast<int>(result[4]), static_cast<int>(erf_sbm::RemapStatus::Ok));
+    EXPECT_DOUBLE_EQ(result[5], packet_mass);
+    EXPECT_DOUBLE_EQ(result[6], Real(1.0));
+    EXPECT_DOUBLE_EQ(result[7], Real(1.0));
+    EXPECT_DOUBLE_EQ(result[8], Real(1.0));
+}
+#endif
+
+TEST(SBMRemapping, EndpointAndConstraintAdmissibilityAgreeForRoundoffStates)
+{
+    const auto layout = make_layout(erf_sbm::MomentMode::TwoMoment);
+    const auto groups = erf_sbm::make_constraint_groups(layout);
+    const auto group = std::find_if(groups.begin(), groups.end(),
+        [](const erf_sbm::ConstraintGroup& candidate) {
+            return candidate.population_id == 0 && candidate.bin == 1;
+        });
+    ASSERT_NE(group, groups.end());
+    const auto& pop = population(layout, 0);
+    const Real lower = pop.grid.edges()[1];
+    const Real upper = pop.grid.edges()[2];
+    std::vector<Real> state(static_cast<std::size_t>(layout.ncomp()), Real(0.0));
+    state[static_cast<std::size_t>(pop.number_offset + 1)] = Real(1.0);
+
+    for (const Real edge_mass : {lower, upper}) {
+        state[static_cast<std::size_t>(pop.mass_offset + 1)] = edge_mass;
+        erf_sbm::EndpointTransform endpoints;
+        EXPECT_TRUE(erf_sbm::try_two_moment_to_endpoints(
+            Real(1.0), edge_mass, lower, upper, endpoints));
+        EXPECT_TRUE(group->admissible(state));
+    }
+
+    const Real just_above_upper = std::nextafter(
+        upper, std::numeric_limits<Real>::infinity());
+    state[static_cast<std::size_t>(pop.mass_offset + 1)] = Real(0.0);
+    state[static_cast<std::size_t>(pop.number_offset + 1)] = Real(0.0);
+    const auto plan = erf_sbm::plan_packet_routing(
+        erf_sbm::population_remap_view(layout, 0), Real(1.0), just_above_upper);
+    ASSERT_EQ(plan.status, erf_sbm::RemapStatus::Ok);
+    ASSERT_TRUE(plan.normalized_roundoff);
+    ASSERT_EQ(plan.destinations[0].bin, 1);
+    EXPECT_DOUBLE_EQ(plan.destinations[0].particle_mass, just_above_upper);
+    const auto applied = erf_sbm::apply_packet_routing_core(
+        erf_sbm::population_remap_view(layout, 0), plan, nullptr, 0, nullptr, 0,
+        state.data(), static_cast<int>(state.size()));
+    ASSERT_EQ(applied.status, erf_sbm::RemapStatus::Ok);
+    EXPECT_DOUBLE_EQ(state[static_cast<std::size_t>(pop.mass_offset + 1)], just_above_upper);
+    erf_sbm::EndpointTransform normalized;
+    EXPECT_TRUE(erf_sbm::try_two_moment_to_endpoints(
+        state[static_cast<std::size_t>(pop.number_offset + 1)],
+        state[static_cast<std::size_t>(pop.mass_offset + 1)], lower, upper, normalized));
+    EXPECT_TRUE(normalized.normalized_roundoff);
+    EXPECT_TRUE(group->admissible(state));
+
+    state[static_cast<std::size_t>(pop.mass_offset + 1)] = Real(3.0);
+    EXPECT_FALSE(erf_sbm::try_two_moment_to_endpoints(
+        Real(1.0), Real(3.0), lower, upper, normalized));
+    EXPECT_FALSE(group->admissible(state));
+}
+
 TEST(SBMRemapping, ProductionSparseConstraintFlattenerSupportsThreeTerms)
 {
     erf_sbm::ConstraintGroup synthetic;
@@ -453,11 +879,11 @@ TEST(SBMRemapping, UnequalSecondPopulationUsesItsGridOffsetsAndProperties)
 
     std::vector<Real> state(static_cast<std::size_t>(layout.ncomp()), Real(0.0));
     const auto plan = erf_sbm::plan_packet_routing(
-        grid_view(second), second.moment_mode, Real(4.0), Real(0.6));
+        erf_sbm::population_remap_view(layout, 1), Real(4.0), Real(0.6));
     ASSERT_EQ(plan.status, erf_sbm::RemapStatus::Ok);
     ASSERT_EQ(plan.destination_count, 1);
     EXPECT_EQ(plan.destinations[0].bin, 1);
-    ASSERT_EQ(erf_sbm::apply_packet_routing(layout, 1, plan, {Real(7.0)}, state).status,
+    ASSERT_EQ(erf_sbm::apply_packet_routing(layout, plan, {Real(7.0)}, state).status,
               erf_sbm::RemapStatus::Ok);
     EXPECT_DOUBLE_EQ(state[0], Real(0.0));
     EXPECT_DOUBLE_EQ(state[1], Real(0.0));

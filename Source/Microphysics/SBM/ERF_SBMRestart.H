@@ -9,7 +9,7 @@
 
 namespace erf_sbm {
 
-/** Exact M1 semantic schema; this deliberately identifies the bounded fixture. */
+/** Exact M2-R semantic restart schema; no implicit checkpoint migration is performed. */
 [[nodiscard]] std::string restart_schema(const SBMLayout& layout);
 
 /** Compare persisted and expected schemas byte-for-byte. */
