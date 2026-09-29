@@ -6,6 +6,7 @@
 #include <limits>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "AMReX.H"
 #include "AMReX_Array4.H"
@@ -865,6 +866,152 @@ private:
 };
 
 /**
+ * Exactly de-average one line.
+ *
+ * Given cell values t(0..n-1), produce node values s(0..n) satisfying
+ *
+ *     1/2 ( s(k) + s(k+1) ) = t(k),    k = 0 .. n-1
+ *
+ * exactly.  The system is underdetermined by exactly one degree of freedom: the
+ * recursion s(k+1) = 2 t(k) - s(k) solves it for any seed, and changing the seed
+ * adds the sawtooth (-1)^k, which the averaging operator annihilates.  So the
+ * seed is free, and it is chosen here in closed form to minimize the
+ * first-difference energy sum_k ( s(k+1) - s(k) )^2 along the line, i.e. to leave
+ * as little of that sawtooth in the answer as the constraint permits.
+ *
+ * \param[in]  t cell values, length n
+ * \param[in]  n number of cells
+ * \param[out] s node values, length n+1
+ */
+inline void
+deaverage_line (amrex::Real const* t, int n, amrex::Real* s)
+{
+    using amrex::Real;
+
+    // Particular solution, seeded at zero.
+    s[0] = zero;
+    for (int k(0); k<n; ++k) { s[k+1] = two*t[k] - s[k]; }
+
+    // With s(k) = (-1)^k s0 + p(k) we have s(k+1) - s(k) = -2 (-1)^k s0 + dp(k),
+    //    and minimizing the sum of squares of that over s0 gives the closed form
+    //    s0 = sum_k (-1)^k dp(k) / (2n).
+    Real acc(zero), sgn(one);
+    for (int k(0); k<n; ++k) { acc += sgn * (s[k+1] - s[k]); sgn = -sgn; }
+    Real const s0 = acc / (two * static_cast<Real>(n));
+
+    sgn = one;
+    for (int k(0); k<=n; ++k) { s[k] += sgn * s0; sgn = -sgn; }
+}
+
+/**
+ * Exactly de-average one horizontal slice: find nodal S with avg4(S) = T to
+ * round-off, rather than the closest such field a smoothness prior will allow.
+ *
+ * The four-node averaging operator is a tensor product of two one-dimensional
+ * two-point averages, A = Ax (x) Ay.  Each of those is surjective -- the line
+ * recursion above always solves -- so A is surjective and an exact solution
+ * always exists; the system is underdetermined, not inconsistent, with
+ * (nx+1)(ny+1) unknowns against nx*ny equations.  Separability means it can be
+ * solved in two sweeps: first Ay U = T for U (cell-centered in x, nodal in y),
+ * then Ax S = U.  Both are O(N) and non-iterative.
+ *
+ * What cannot be removed is grid-scale structure.  The null space is spanned by
+ * (-1)^i a(j) + (-1)^j b(i), in which a does not vary with i, so the amplitude of
+ * the sawtooth cannot be varied along a line; rough terrain anywhere on a line
+ * leaves a signature everywhere on it.  Minimizing the first-difference energy
+ * line by line, as deaverage_line does, exhausts that freedom -- a globally
+ * coupled optimization over the whole null space was measured to give no further
+ * improvement.  The caller is therefore responsible for deciding whether the
+ * result is usable as terrain, and for falling back if it is not.
+ *
+ * \param[in] cc_box cell-centered box of the slice
+ * \param[in] z_cc   cell-centered heights on \p cc_box
+ * \param[in] z_ref  direct interpolation of \p z_cc to the nodes, for diagnostics only
+ * \return the nodal heights and the diagnostics describing them
+ */
+inline std::pair<amrex::FArrayBox,SolveInfo>
+deaverage_nodal_slice (amrex::Box const& cc_box,
+                       amrex::FArrayBox const& z_cc,
+                       amrex::FArrayBox const& z_ref)
+{
+    using amrex::Real;
+
+    amrex::Box nd_box = amrex::surroundingNodes(cc_box);
+    nd_box.setSmall(2,0);
+    nd_box.setBig(2,0);
+
+    amrex::FArrayBox S(nd_box, 1, amrex::The_Managed_Arena());
+
+    int const ilo = cc_box.smallEnd(0), ihi = cc_box.bigEnd(0);
+    int const jlo = cc_box.smallEnd(1), jhi = cc_box.bigEnd(1);
+    int const nx  = ihi - ilo + 1;
+    int const ny  = jhi - jlo + 1;
+
+    auto const T_arr = z_cc.const_array();
+    auto const R_arr = z_ref.const_array();
+    auto const S_arr = S.array();
+
+    // U is the x-average of S, so it is cell-centered in x and nodal in y.
+    std::vector<Real> U(static_cast<std::size_t>(nx) * static_cast<std::size_t>(ny+1));
+    std::vector<Real> tline(static_cast<std::size_t>(std::max(nx,ny)));
+    std::vector<Real> sline(static_cast<std::size_t>(std::max(nx,ny)+1));
+
+    // Sweep 1: Ay U = T, one line in y per x-cell.
+    for (int i(0); i<nx; ++i) {
+        for (int j(0); j<ny; ++j) { tline[static_cast<std::size_t>(j)] = T_arr(ilo+i,jlo+j,0); }
+        deaverage_line(tline.data(), ny, sline.data());
+        for (int j(0); j<=ny; ++j) {
+            U[static_cast<std::size_t>(i)*static_cast<std::size_t>(ny+1) +
+              static_cast<std::size_t>(j)] = sline[static_cast<std::size_t>(j)];
+        }
+    }
+
+    // Sweep 2: Ax S = U, one line in x per y-node.
+    for (int j(0); j<=ny; ++j) {
+        for (int i(0); i<nx; ++i) {
+            tline[static_cast<std::size_t>(i)] =
+                U[static_cast<std::size_t>(i)*static_cast<std::size_t>(ny+1) +
+                  static_cast<std::size_t>(j)];
+        }
+        deaverage_line(tline.data(), nx, sline.data());
+        for (int i(0); i<=nx; ++i) { S_arr(ilo+i,jlo+j,0) = sline[static_cast<std::size_t>(i)]; }
+    }
+
+    SolveInfo info;
+    info.converged      = true;
+    info.iterations     = 0;
+    info.refinements    = 0;
+    info.regularization = zero;
+    info.deviation_cap  = zero;
+    info.min_value      =  std::numeric_limits<Real>::max();
+    info.max_value      = -std::numeric_limits<Real>::max();
+
+    for (int j(jlo); j<=jhi+1; ++j) {
+        for (int i(ilo); i<=ihi+1; ++i) {
+            Real const v = S_arr(i,j,0);
+            info.min_value = std::min(info.min_value, v);
+            info.max_value = std::max(info.max_value, v);
+            info.deviation = std::max(info.deviation, std::abs(v - R_arr(i,j,0)));
+        }
+    }
+    for (int j(jlo); j<=jhi; ++j) {
+        for (int i(ilo); i<=ihi; ++i) {
+            Real const a4 = fourth * ( S_arr(i,j,0) + S_arr(i+1,j,0)
+                                     + S_arr(i,j+1,0) + S_arr(i+1,j+1,0) );
+            Real const r4 = fourth * ( R_arr(i,j,0) + R_arr(i+1,j,0)
+                                     + R_arr(i,j+1,0) + R_arr(i+1,j+1,0) );
+            info.max_average_error    = std::max(info.max_average_error,
+                                                 std::abs(a4 - T_arr(i,j,0)));
+            info.interp_average_error = std::max(info.interp_average_error,
+                                                 std::abs(r4 - T_arr(i,j,0)));
+        }
+    }
+    info.final_residual = info.max_average_error;
+
+    return {std::move(S), info};
+}
+
+/**
  * Reconstruct one horizontal slice of nodal heights from heights that live at
  * cell centers in (x,y), reporting diagnostics and aborting if the result is
  * unusable as terrain.
@@ -925,29 +1072,10 @@ reconstruct_nodal_height_slice (amrex::Box const& cc_slice_box,
 
     if (amrex::ParallelDescriptor::IOProcessor())
     {
-        // Solve for node values that reproduce the cell-centered values as closely
-        // as a bounded, smooth nodal field can.  We deliberately do *not* invert the
-        // four-node averaging operator exactly: its symbol vanishes at the grid
-        // Nyquist mode, so exact de-averaging amplifies grid-scale content of the
-        // terrain without bound and returns nodal heights that are kilometers away
-        // from the input terrain.  See the class documentation above for the
-        // regularized least-squares formulation used instead.
-        amrex::Real const tol = amrex::Real(1.e-10);
-        NodalReconstruction NR_solver(cc_slice_box, geom);
-        amrex::FArrayBox z_ref = NR_solver.makeReference(z_cc_slice);
-        std::pair<amrex::FArrayBox,SolveInfo> result = NR_solver.solve(z_cc_slice, z_ref,
-                                                                      VariationOperator::FirstDeriv, tol);
-        SolveInfo const& info = result.second;
-
-        if (!info.converged) {
-            amrex::Print() << "WARNING: Nodal reconstruction did not converge at k = " << klev
-                           << "; residual is: " << info.final_residual
-                           << " and requested tolerance was: " << tol << "\n";
-        }
-
-        // Range check on the reconstructed heights.  This is the check that has
-        // teeth: max |avg4(nodal) - source| is close to satisfied by construction
-        // and cannot detect a blown-up reconstruction.
+        // Range of the source data, used to decide whether a reconstruction is
+        // usable as terrain.  Nodes may legitimately over/undershoot the cell values
+        // where the terrain is under-resolved, but only by a fraction of the relief
+        // of the layer itself.
         amrex::Real src_min =  std::numeric_limits<amrex::Real>::max();
         amrex::Real src_max = -std::numeric_limits<amrex::Real>::max();
         {
@@ -958,26 +1086,74 @@ reconstruct_nodal_height_slice (amrex::Box const& cc_slice_box,
                 src_max = std::max(src_max, src_arr(i,j,0));
             });
         }
-
-        amrex::Print() << "Nodal reconstruction at k = " << klev << ": "
-                       << info.iterations << " CG iterations, " << info.refinements
-                       << " refinements, regularization " << info.regularization
-                       << "\n    nodal heights in [" << info.min_value << ", " << info.max_value
-                       << "] m vs " << src_name << " in [" << src_min << ", " << src_max << "] m"
-                       << "\n    max |avg4(nodal) - " << src_name << "| = " << info.max_average_error
-                       << " m (direct interpolation gives " << info.interp_average_error << " m)"
-                       << "\n    max deviation from direct interpolation = " << info.deviation
-                       << " m (cap " << info.deviation_cap << " m)" << std::endl;
-
-        // Nodes may legitimately over/undershoot the cell values where the terrain
-        // is under-resolved, but only by a fraction of the relief of the layer itself.
         amrex::Real const relief = std::max(src_max - src_min, amrex::Real(1.0));
         amrex::Real const slack  = std::max(amrex::Real(0.5) * relief, amrex::Real(10.0));
 
-        if ( !std::isfinite(info.min_value) || !std::isfinite(info.max_value) ||
-             (info.min_value < src_min - slack) || (info.max_value > src_max + slack) )
+        auto in_range = [=] (SolveInfo const& si) noexcept -> bool
         {
-            bad_reconstruction = 1;
+            return std::isfinite(si.min_value) && std::isfinite(si.max_value) &&
+                   (si.min_value >= src_min - slack) && (si.max_value <= src_max + slack);
+        };
+
+        NodalReconstruction NR_solver(cc_slice_box, geom);
+        amrex::FArrayBox z_ref = NR_solver.makeReference(z_cc_slice);
+
+        // Invert the four-node averaging operator exactly.  The operator is
+        // surjective, so this is always possible; what it costs is grid-scale
+        // structure in the nodal field, because the sawtooth it cannot control is
+        // the operator's own null space.  See deaverage_nodal_slice.
+        //
+        // Exactness is what the callers actually need.  z_cc is the average of the
+        // nodes, so avg4(S) = T makes the cell-centered heights -- which is what the
+        // vertical remap of the atmospheric state searches against, and what the
+        // lateral pressure-gradient metric differences -- agree with the source to
+        // round-off rather than to within a regularization-dependent error.
+        std::pair<amrex::FArrayBox,SolveInfo> result = deaverage_nodal_slice(cc_slice_box,
+                                                                            z_cc_slice, z_ref);
+        SolveInfo info = result.second;
+        bool const exact_usable = in_range(info);
+
+        if (exact_usable) {
+            amrex::Print() << "Nodal reconstruction at k = " << klev << ": exact de-averaging"
+                           << "\n    nodal heights in [" << info.min_value << ", " << info.max_value
+                           << "] m vs " << src_name << " in [" << src_min << ", " << src_max << "] m"
+                           << "\n    max |avg4(nodal) - " << src_name << "| = " << info.max_average_error
+                           << " m (direct interpolation gives " << info.interp_average_error << " m)"
+                           << "\n    max deviation from direct interpolation = " << info.deviation
+                           << " m" << std::endl;
+        } else {
+            // Rough enough terrain can force an exact solution whose nodal heights are
+            // nowhere near the source.  Fall back to the regularized least-squares fit,
+            // which stays bounded but no longer reproduces the source exactly, and say so.
+            amrex::Print() << "WARNING: exact de-averaging at k = " << klev
+                           << " gives nodal heights in [" << info.min_value << ", " << info.max_value
+                           << "] m, outside the range of the " << src_name << " ["
+                           << src_min << ", " << src_max << "] m.\n"
+                           << "         Falling back to the regularized least-squares fit, which "
+                              "does NOT reproduce the " << src_name << " exactly; the cell-centered "
+                              "heights will differ from the source by the error reported below.\n";
+
+            amrex::Real const tol = amrex::Real(1.e-10);
+            result = NR_solver.solve(z_cc_slice, z_ref, VariationOperator::FirstDeriv, tol);
+            info   = result.second;
+
+            if (!info.converged) {
+                amrex::Print() << "WARNING: Nodal reconstruction did not converge at k = " << klev
+                               << "; residual is: " << info.final_residual
+                               << " and requested tolerance was: " << tol << "\n";
+            }
+
+            amrex::Print() << "Nodal reconstruction at k = " << klev << ": "
+                           << info.iterations << " CG iterations, " << info.refinements
+                           << " refinements, regularization " << info.regularization
+                           << "\n    nodal heights in [" << info.min_value << ", " << info.max_value
+                           << "] m vs " << src_name << " in [" << src_min << ", " << src_max << "] m"
+                           << "\n    max |avg4(nodal) - " << src_name << "| = " << info.max_average_error
+                           << " m (direct interpolation gives " << info.interp_average_error << " m)"
+                           << "\n    max deviation from direct interpolation = " << info.deviation
+                           << " m (cap " << info.deviation_cap << " m)" << std::endl;
+
+            if (!in_range(info)) { bad_reconstruction = 1; }
         }
 
         z_nd_slice.copy<amrex::RunOn::Host>(result.first, nd_box, 0, nd_box, 0, 1);
