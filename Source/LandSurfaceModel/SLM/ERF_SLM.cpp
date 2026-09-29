@@ -5321,7 +5321,7 @@ void SLM::twostream_noahmp(int ib, int ic, int /*vegtyp*/, amrex::Real cosz, amr
     amrex::Real tmp0,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmp8,tmp9;
     amrex::Real p1,p2,p3,p4,s1,s2,u1,u2,u3;
     amrex::Real b,c,d,d1,d2,f,h,h1,h2,h3,h4,h5,h6,h7,h8,h9,h10;
-    amrex::Real phi1,phi2,sigma;
+    amrex::Real phi1,phi2,sigma_ts;
     amrex::Real ftds,ftis,fres;
     amrex::Real denfveg;
     //jref:start
@@ -5426,8 +5426,8 @@ void SLM::twostream_noahmp(int ib, int ic, int /*vegtyp*/, amrex::Real cosz, amr
     f = tmp0 * omega*(1.0-betad);
     tmp1 = b*b - c*c;
     h = std::sqrt(tmp1) / avmu;
-    sigma = tmp0*tmp0 - tmp1;
-        if ( std::abs(sigma) < 1.0e-6 ) sigma = (sigma >= zero) ? 1.0e-6 : -1.0e-6;
+    sigma_ts = tmp0*tmp0 - tmp1;
+        if ( std::abs(sigma_ts) < 1.0e-6 ) sigma_ts = (sigma_ts >= zero) ? 1.0e-6 : -1.0e-6;
     p1 = b + avmu*h;
     p2 = b - avmu*h;
     p3 = b + tmp0;
@@ -5450,12 +5450,12 @@ void SLM::twostream_noahmp(int ib, int ic, int /*vegtyp*/, amrex::Real cosz, amr
     tmp5 = u2 - avmu*h;
     d2 = tmp4/s1 - tmp5*s1;
     h1 = -d*p4 - c*f;
-    tmp6 = d - h1*p3/sigma;
-    tmp7 = ( d - c - h1/sigma*(u1+tmp0) ) * s2;
+    tmp6 = d - h1*p3/sigma_ts;
+    tmp7 = ( d - c - h1/sigma_ts*(u1+tmp0) ) * s2;
     h2 = ( tmp6*tmp2/s1 - p2*tmp7 ) / d1;
     h3 = - ( tmp6*tmp3*s1 - p1*tmp7 ) / d1;
     h4 = -f*p3 - c*d;
-    tmp8 = h4/sigma;
+    tmp8 = h4/sigma_ts;
     tmp9 = ( u3 - tmp8*(u2-tmp0) ) * s2;
     h5 = - ( tmp8*tmp4/s1 + tmp9 ) / d2;
     h6 = ( tmp8*tmp5*s1 + tmp9 ) / d2;
@@ -5469,7 +5469,7 @@ void SLM::twostream_noahmp(int ib, int ic, int /*vegtyp*/, amrex::Real cosz, amr
 
     if (ic == 0) {
         ftds = s2                           *(1.0-gap) + gap;
-        ftis = (h4*s2/sigma + h5*s1 + h6/s1)*(1.0-gap);
+        ftis = (h4*s2/sigma_ts + h5*s1 + h6/s1)*(1.0-gap);
     } else {
         ftds = zero;
         ftis = (h9*s1 + h10/s1)*(1.0-kopen) + kopen;
@@ -5480,8 +5480,8 @@ void SLM::twostream_noahmp(int ib, int ic, int /*vegtyp*/, amrex::Real cosz, amr
     // flux reflected by the surface (veg. and ground)
 
     if (ic == 0) {
-        fres   = (h1/sigma + h2 + h3)*(1.0-gap  ) + albgrd[ib]*gap;
-        freveg = (h1/sigma + h2 + h3)*(1.0-gap  );
+        fres   = (h1/sigma_ts + h2 + h3)*(1.0-gap  ) + albgrd[ib]*gap;
+        freveg = (h1/sigma_ts + h2 + h3)*(1.0-gap  );
         frebar = albgrd[ib]*gap;                   //jref - separate veg. and ground reflection
     } else {
         fres   = (h7 + h8) *(1.0-kopen) + albgri[ib]*kopen;
