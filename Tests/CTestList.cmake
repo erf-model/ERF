@@ -1915,6 +1915,22 @@ add_test_option_parity(StationSampling_AnswerParity_MOST ABL_MOST "plt00010"
     REQUIRE_ON_FILE "Output_Stations/T.dat")
 
 #=============================================================================
+# Input sounding on refined levels (#4143): each level samples the sounding at
+# its own cell centres, for the initial state and for nudging
+#=============================================================================
+# The two sounding files differ only in their surface line, which lies below every cell
+# centre, so the initial states must be identical on both levels.
+add_test_option_parity(InputSounding_FineLevelInit InputSoundingFineLevels "plt00000"
+    OFF_OPTIONS "erf.input_sounding_file=../input_sounding_sfc300"
+    ON_OPTIONS  "erf.input_sounding_file=../input_sounding_sfc303")
+
+# Nudging towards the sounding the run started from adds exactly zero on every level.
+add_test_option_parity(InputSounding_FineLevelNudging InputSoundingFineLevels "plt00001"
+    COMMON_OPTIONS "max_step=1"
+    OFF_OPTIONS "erf.nudging_from_input_sounding=false"
+    ON_OPTIONS  "erf.nudging_from_input_sounding=true erf.tau_nudging=0.5")
+
+#=============================================================================
 # Terrain: decomposition and station output over a hill
 #=============================================================================
 

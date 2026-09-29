@@ -763,6 +763,14 @@ public:
 
     void init_from_input_sounding (int lev);
 
+    /**
+     * The input sounding sampled at the cell centres of level lev. Level 0 is
+     * input_sounding_data itself; a finer level gets its own copy, resampled at
+     * geom[lev] / zlevels_stag[lev], so that its profile index k is its own cell k
+     * and no fine cell blends in the surface line of the sounding.
+     */
+    const InputSoundingData& sounding_at_level (int lev);
+
     void init_immersed_forcing (int lev);
 
     // Immersed-boundary surface energy balance (Source/ImmersedBoundarySEB)
@@ -1173,8 +1181,13 @@ private:
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> sinPhi_m, cosPhi_m; // Coriolis factors on the grid
 
-    // Struct for working with the sounding data we take as an input
+    // Struct for working with the sounding data we take as an input. Its profiles are
+    // sampled at the level-0 cell centres; use sounding_at_level for any other level.
     InputSoundingData input_sounding_data;
+
+    // The sounding sampled at the cell centres of each level > 0, built on first use
+    // from input_sounding_data (index 0 is unused)
+    amrex::Vector<std::unique_ptr<InputSoundingData>> input_sounding_data_fine;
 
     // Struct for working with the sponge data we take as an input
     InputSpongeData input_sponge_data;

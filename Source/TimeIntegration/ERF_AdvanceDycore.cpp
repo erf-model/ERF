@@ -362,30 +362,34 @@ void ERF::advance_dycore (int level,
     if (use_nudging) {
         nudge_data[level]->setVal(0.0);
 
+        // The sounding sampled at this level's cell centres, so that index k below is this
+        // level's cell k (the level-0 profile indexed by a fine k is the wrong height)
+        const InputSoundingData& snd = sounding_at_level(level);
+
         int itime_n    = 0;
         int itime_np1  = 0;
         Real coeff_n   = Real(1.0);
         Real coeff_np1 = Real(0.0);
-        Real tau_inv = Real(1.0) / input_sounding_data.tau_nudging;
+        Real tau_inv = Real(1.0) / snd.tau_nudging;
 
-        int n_sounding_times = input_sounding_data.input_sounding_time.size();
+        int n_sounding_times = snd.input_sounding_time.size();
 
         for (int nt = 1; nt < n_sounding_times; nt++) {
-            if (old_time > input_sounding_data.input_sounding_time[nt]) itime_n = nt;
+            if (old_time > snd.input_sounding_time[nt]) itime_n = nt;
         }
         if (itime_n == n_sounding_times-1) {
             itime_np1 = itime_n;
         } else {
             itime_np1 = itime_n+1;
-            coeff_np1 = (old_time                                           - input_sounding_data.input_sounding_time[itime_n]) /
-                        (input_sounding_data.input_sounding_time[itime_np1] - input_sounding_data.input_sounding_time[itime_n]);
+            coeff_np1 = (old_time                                           - snd.input_sounding_time[itime_n]) /
+                        (snd.input_sounding_time[itime_np1] - snd.input_sounding_time[itime_n]);
             coeff_n   = Real(1.0) - coeff_np1;
         }
 
-        const Real* theta_inp_sound_n   = input_sounding_data.theta_inp_sound_d[itime_n].dataPtr() + 1;
-        const Real* theta_inp_sound_np1 = input_sounding_data.theta_inp_sound_d[itime_np1].dataPtr() + 1;
-        const Real* qv_inp_sound_n   = input_sounding_data.qv_inp_sound_d[itime_n].dataPtr() + 1;
-        const Real* qv_inp_sound_np1 = input_sounding_data.qv_inp_sound_d[itime_np1].dataPtr() + 1;
+        const Real* theta_inp_sound_n   = snd.theta_inp_sound_d[itime_n].dataPtr() + 1;
+        const Real* theta_inp_sound_np1 = snd.theta_inp_sound_d[itime_np1].dataPtr() + 1;
+        const Real* qv_inp_sound_n   = snd.qv_inp_sound_d[itime_n].dataPtr() + 1;
+        const Real* qv_inp_sound_np1 = snd.qv_inp_sound_d[itime_np1].dataPtr() + 1;
 
         const int n  = RhoTheta_comp;
         const int nq  = RhoQ1_comp;
@@ -452,13 +456,13 @@ void ERF::advance_dycore (int level,
                 Real uv_coeff_n = coeff_n;
                 Real uv_coeff_np1 = coeff_np1;
                 Real tau = tau_inv;
-                Real* u_nudge_n, *u_nudge_np1, *v_nudge_n, *v_nudge_np1;
+                const Real *u_nudge_n, *u_nudge_np1, *v_nudge_n, *v_nudge_np1;
                 if (!use_lsf)
                 {
-                    u_nudge_n = input_sounding_data.U_inp_sound_d[itime_n].dataPtr() + 1;
-                    u_nudge_np1 = input_sounding_data.U_inp_sound_d[itime_np1].dataPtr() + 1;
-                    v_nudge_n  = input_sounding_data.V_inp_sound_d[itime_n].dataPtr() + 1;
-                    v_nudge_np1 = input_sounding_data.V_inp_sound_d[itime_np1].dataPtr() + 1;
+                    u_nudge_n = snd.U_inp_sound_d[itime_n].dataPtr() + 1;
+                    u_nudge_np1 = snd.U_inp_sound_d[itime_np1].dataPtr() + 1;
+                    v_nudge_n  = snd.V_inp_sound_d[itime_n].dataPtr() + 1;
+                    v_nudge_np1 = snd.V_inp_sound_d[itime_np1].dataPtr() + 1;
                 } else {
                     int itime_curr = 0;
                     int itime_next = 0;
