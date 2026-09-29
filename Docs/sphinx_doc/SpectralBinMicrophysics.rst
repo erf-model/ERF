@@ -19,10 +19,11 @@ hydrometeor size distribution and its evolution through physical processes
 rather than representing cloud and precipitation only through a few bulk
 categories. The current ERF SBM runtime establishes the state, configuration,
 ownership, projection, and restart infrastructure needed for that capability.
-ERF also contains a generic mapped transport foundation for prognostic states
-stored outside the core conserved-state array. That transport foundation is
-described below; at present it is exercised with a test-only non-SBM inert
-tracer and is not yet connected to the SBM spectral state.
+ERF also contains a generic mapped transport substrate for prognostic states
+stored outside the core conserved-state array; its conservation, geometry,
+and time-integration contracts are documented in :ref:`AuxiliaryState`. At
+present that substrate is exercised with a test-only non-SBM inert tracer and
+is not yet connected to the SBM spectral state.
 
 .. warning::
 
@@ -209,8 +210,9 @@ grid cells, AMR transfer between spatial resolutions, and conversion of a
 checkpoint from one spectral schema to another.
 
 The current runtime does not yet execute cloud microphysical processes that
-use these remappers. M2-R establishes the reference representation and
-remapping contract that such processes must obey.
+use these remappers. The present implementation establishes the reference
+representation and remapping contracts that future process implementations
+must obey.
 
 Moment normalization
 ~~~~~~~~~~~~~~~~~~~~
@@ -230,9 +232,9 @@ is liquid-water mass per unit mass of dry air. The stored quantities are
 :math:`C_i=\rho_d N_i` and :math:`M_i=\rho_d q_i`.
 
 Because :math:`\rho_d` is a common factor within the cell, the same linear
-remapping formulas apply to the density-weighted state. For example, a packet
-containing :math:`N_p` particles per unit mass of dry air can equivalently be
-written as the number-density packet :math:`C_p=\rho_d N_p`.
+remapping formulas apply to the density-weighted state. For example, if a
+packet number :math:`N_p` is expressed per unit mass of dry air, the
+corresponding number-density packet is :math:`C_p=\rho_d N_p`.
 
 One-moment fixed-pivot remapping
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -387,11 +389,14 @@ bins belongs to the upper bin. The global upper edge is included in the final
 bin. Materially out-of-range packets return an underflow or overflow status
 rather than being silently clipped.
 
-At a global interval boundary, the implementation permits only a very small,
-explicitly bounded floating-point exception: a value up to four representable
-floating-point steps outside the boundary may be classified as roundoff. Such
-a packet is deposited at the exact boundary mass :math:`m_b`, not at its
-slightly out-of-support input mass :math:`m_{\mathrm{in}}`.
+At a positive global lower edge or at the global upper edge, the implementation
+permits only a very small, explicitly bounded floating-point exception: a
+nonnegative particle mass up to four representable floating-point steps
+outside the boundary may be classified as roundoff. Such a packet is deposited
+at the exact boundary mass :math:`m_b`, not at its slightly out-of-support
+input mass :math:`m_{\mathrm{in}}`. Negative particle masses are invalid; in
+particular, a spectrum whose lower edge is exactly zero does not admit
+negative roundoff excursions below that edge.
 
 The corresponding signed numerical water correction is
 
@@ -442,328 +447,29 @@ precipitation.
 Auxiliary prognostic-state transport
 ------------------------------------
 
-The spectral-bin state is stored outside ERF's core conserved-state array.
-Advancing such a state consistently requires more than applying an independent
-advection operator: it must use the same atmospheric mass carrier, mapped
-geometry, and time-integration stages as the host model. ERF now contains a
-generic auxiliary-state transport foundation for this purpose.
-
-The transport layer is deliberately independent of spectral-bin
-microphysics. It carries density-weighted cell-centered components and mapped
-face fluxes, but it contains no knowledge of liquid-water bins, cloud/rain
-partitioning, aerosol activation, collision-coalescence, sedimentation, or
-other microphysical processes.
-
-At the present revision this infrastructure is not a new user-selectable
-tracer package. Its live consumer is a test-only inert tracer used to verify
-the coupling to ERF. The SBM spectral state is not yet advanced through this
-path, so ``erf.moisture_model = SBM`` remains the zero-transport
-infrastructure configuration described elsewhere on this page.
-
-The test-only inert-tracer consumer is qualified only for time-independent
-geometry. Its mapped cell measure is constructed after ERF has finalized the
-level Jacobian and horizontal map factors and is then used consistently across
-the host time-integration stages. The generic stage interface nevertheless
-retains separate old-step, input-stage, and target-stage measure views. A
-future moving-terrain consumer would have to provide the appropriate
-time-dependent geometry at those stages and satisfy a separate geometric
-conservation qualification. Moving-terrain transport is not qualified by the
-current auxiliary fixture.
-
-Density-weighted state and mapped conservation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Consider an auxiliary atmospheric quantity whose intensive value per unit
-mass of dry air is :math:`z_a`. As for other ERF dry-air-based constituents,
-the corresponding density-weighted state is
-
-.. math::
-
-   U_a = \rho_d z_a,
-
-where :math:`\rho_d` is the dry-air density.
-
-For mapped-coordinate transport ERF defines the cell measure
-
-.. math::
-
-   \omega = \frac{\det J}{m_x m_y},
-
-where :math:`\det J` is ERF's cell-centered mapping Jacobian and
-:math:`m_x` and :math:`m_y` are the horizontal map factors. The conservative
-mapped state is then
-
-.. math::
-
-   H_a = \omega U_a.
-
-The face quantities supplied to the generic transport operator are already in
-ERF's mapped-coordinate convention. Their computational-coordinate divergence
-may be written schematically as
-
-.. math::
-
-   D_\xi\left(\widetilde{\mathbf{F}}_a\right)
-   =
-   \sum_{d=1}^{3}
-   \frac{
-      \widetilde{F}_{a,d,+}
-      -
-      \widetilde{F}_{a,d,-}
-   }{\Delta \xi_d}.
-
-No additional physical face-area factor or second application of the map
-factors belongs in this divergence. The map factors and Jacobian enter through
-ERF's mapped face-transfer convention and the cell measure
-:math:`\omega`.
-
-For a host stage with recurrence coefficients :math:`a`, :math:`b`, and
-:math:`c`, the generic update has the form
-
-.. math::
-
-   H_a^{\mathrm{target}}
-   =
-   a H_a^n
-   +
-   b H_a^{\mathrm{input}}
-   -
-   c D_\xi\left(\widetilde{\mathbf{F}}_a\right),
-
-followed by
-
-.. math::
-
-   U_a^{\mathrm{target}}
-   =
-   \frac{H_a^{\mathrm{target}}}
-        {\omega^{\mathrm{target}}}.
-
-The old-step, input-stage, and target-stage states are carried with explicit
-time identities. The same is true of the corresponding density and mapped
-measure. This prevents, for example, forming an intensive constituent from a
-predictor state but dividing it by density from a different stage.
-
-Carrier mass flux and the intensive transport variable
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The intensive quantity used to construct an advective face flux is formed
-from state and density at the same input time,
-
-.. math::
-
-   z_a^{\mathrm{input}}
-   =
-   \frac{U_a^{\mathrm{input}}}
-        {\rho_d^{\mathrm{input}}}.
-
-For the inert-tracer verification problem, ERF's native scalar-advection
-operator constructs the mapped constituent face-flux rate from the actual
-host mass carrier,
-
-.. math::
-
-   \widetilde{F}_{a,f}
-   =
-   \widetilde{F}_{d,f} z_{a,f},
-
-where :math:`\widetilde{F}_{d,f}` is the time-averaged carrier mass flux used
-by ERF at that stage and :math:`z_{a,f}` is the reconstructed face value.
-
-The auxiliary state does not independently reconstruct a carrier as
-:math:`\rho_d\mathbf{u}` from separately sampled density and velocity fields.
-It consumes the same stage carrier used by ERF's scalar transport.
-
-A useful consequence is the constant-constituent-ratio property. If
-
-.. math::
-
-   U_a = k\rho_d
-
-everywhere, then
-
-.. math::
-
-   z_a = k.
-
-When the auxiliary constituent and dry-air density are advanced with the same
-carrier and compatible recurrence, transport should preserve this relationship,
-
-.. math::
-
-   U_a^{\mathrm{new}}
-   =
-   k\rho_d^{\mathrm{new}},
-
-apart from floating-point error. ERF's auxiliary transport tests exercise this
-property with spatially varying density and with stage-dependent face fluxes.
-
-Time integration and completed-step face fluxes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Auxiliary transport follows ERF's host time integration rather than advancing
-on an independent timestep. See :ref:`TimeAdvance` for the corresponding ERF
-state recurrences.
-
-For the three-stage compressible advance, let
-:math:`\widetilde{\mathbf{F}}_0`,
-:math:`\widetilde{\mathbf{F}}_1`, and
-:math:`\widetilde{\mathbf{F}}_2` denote the mapped auxiliary face-flux rates
-constructed at the three host stages. The auxiliary conservative state follows
-
-.. math::
-
-   H_a^*
-   =
-   H_a^n
-   -
-   \frac{\Delta t}{3}
-   D_\xi\left(\widetilde{\mathbf{F}}_0\right),
-
-.. math::
-
-   H_a^{**}
-   =
-   H_a^n
-   -
-   \frac{\Delta t}{2}
-   D_\xi\left(\widetilde{\mathbf{F}}_1\right),
-
-and
-
-.. math::
-
-   H_a^{n+1}
-   =
-   H_a^n
-   -
-   \Delta t
-   D_\xi\left(\widetilde{\mathbf{F}}_2\right).
-
-The first two states are predictors anchored at the old state; they are not
-three additive pieces of one forward-Euler update. Consequently, the mapped
-face flux associated with the completed compressible timestep is
-
-.. math::
-
-   \mathbf{J}_a
-   =
-   \Delta t\,\widetilde{\mathbf{F}}_2,
-
-rather than the sum of all three stage rates multiplied by their predictor
-intervals.
-
-For ERF's two-stage anelastic Runge--Kutta method, the first auxiliary stage is
-
-.. math::
-
-   H_a^*
-   =
-   H_a^n
-   -
-   \Delta t
-   D_\xi\left(\widetilde{\mathbf{F}}_0\right),
-
-and the second stage is
-
-.. math::
-
-   H_a^{n+1}
-   =
-   \frac{1}{2}H_a^n
-   +
-   \frac{1}{2}H_a^*
-   -
-   \frac{\Delta t}{2}
-   D_\xi\left(\widetilde{\mathbf{F}}_1\right).
-
-Equivalently,
-
-.. math::
-
-   H_a^{n+1}
-   =
-   H_a^n
-   -
-   \frac{\Delta t}{2}
-   D_\xi\left(
-      \widetilde{\mathbf{F}}_0
-      +
-      \widetilde{\mathbf{F}}_1
-   \right),
-
-so the completed-step mapped face flux is
-
-.. math::
-
-   \mathbf{J}_a
-   =
-   \frac{\Delta t}{2}
-   \left(
-      \widetilde{\mathbf{F}}_0
-      +
-      \widetilde{\mathbf{F}}_1
-   \right).
-
-ERF stores stage face-flux rates and completed-step integrated face fluxes as
-distinct quantities so that these temporal meanings cannot be interchanged
-accidentally. The completed-step ledger supports multiple auxiliary
-components, with every component receiving the same appropriate host-stage
-time weighting.
-
-The anelastic midpoint method is part of ERF's general time-integration
-capability, but it is not currently qualified by this auxiliary-state stage
-adapter and is rejected by the present auxiliary verification path.
-
-Mapped-geometry verification and current limits
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The generic mapped-divergence convention has been checked directly against
-ERF's native scalar operators. The verification includes scalar-advection
-divergence, mapped scalar-diffusion transfers on the native flat and
-vertically stretched grids, and the static-terrain mapped-diffusion transfer
-including its terrain metric cross terms.
-
-The tests also evaluate deliberately incorrect metric treatments. Omitting the
-Jacobian from the mapped cell measure, applying a horizontal map factor a
-second time, using the raw terrain vertical diffusive flux instead of ERF's
-mapped transfer, or omitting the terrain cross terms must disagree with the
-native ERF result. These negative controls help distinguish agreement with the
-actual ERF metric convention from agreement caused by repeating the same
-mistake in both calculations.
-
-This operator-level verification should not be confused with a fully
-user-qualified auxiliary tracer on every ERF geometry. The current live inert
-tracer is intentionally much narrower. It is limited to one AMR level,
-triply periodic ``ConstantDz`` geometry without terrain or buildings, uses
-centered-second-order native scalar advection, and rejects acoustic
-substepping, scalar diffusion, turbulent transport, regridding, and restart.
-It exists to verify the generic transport coupling rather than to provide a
-scientific tracer option.
-
-Potential uses beyond spectral-bin microphysics
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The auxiliary-state layer is generic because some atmospheric constituent
-systems are naturally much larger than ERF's compact core state. In principle,
-the same approach could support future sectional aerosol or atmospheric
-chemistry state, specialized families of passive or reactive tracers, or other
-multi-component moment and distribution representations that need
-conservative transport with ERF's atmospheric carrier while remaining outside
-the fixed core conserved-state array.
-
-These are architectural possibilities, not currently advertised runtime
-capabilities. Each new consumer would still need to define its component
-semantics and physical source terms and separately qualify its boundary
-conditions, diffusion, AMR lifecycle, restart behavior, and any
-application-specific physical constraints.
-
-For SBM, the generic transport foundation removes the need to invent a second
-geometry or time-integration convention for the spectrum. It does not by
-itself provide spectral reconstruction, realizability-preserving limiting,
-spectral diffusion, sedimentation, or cloud microphysical processes. Those
-capabilities must be connected and qualified before the current SBM
-zero-transport restrictions can be relaxed.
+The SBM spectral state is stored outside ERF's core conserved-state array.
+Its physical-space transport is therefore intended to use ERF's generic
+auxiliary-state transport substrate rather than introducing a second
+SBM-specific carrier, mapped-geometry convention, or time integrator. See
+:ref:`AuxiliaryState` for the generic conservation equations, host-stage
+semantics, completed-step flux ledger, verification evidence, and current
+qualification envelope.
+
+At the present revision the SBM spectral state is **not** advanced through
+that transport substrate. ``erf.moisture_model = SBM`` therefore remains the
+bounded zero-transport infrastructure configuration described below. The
+non-SBM inert tracer used to qualify the generic substrate is a test fixture,
+not an SBM transport implementation and not a user-selectable tracer package.
+
+The auxiliary-state layer addresses physical-space transport between
+atmospheric grid cells. It does not define SBM representation or redistribution
+in particle-mass space. The fixed-pivot and interval remapping contracts
+above are separate spectral-coordinate operations. Likewise, the generic
+transport substrate does not by itself provide SBM realizability-preserving
+limiting, sedimentation, aerosol activation, collision-coalescence, or other
+cloud microphysical processes. Those capabilities require their own scientific
+and numerical qualification before the current SBM zero-transport restriction
+can be relaxed.
 
 SBM runtime inputs
 ------------------
