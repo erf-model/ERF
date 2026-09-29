@@ -73,9 +73,9 @@ public:
     void
     Define (SolverChoice& sc) override
     {
-        // RRTMGP is the only radiation model that writes Noah-MP's radiation inputs
+        // Whether the configured radiation model writes Noah-MP's radiation inputs
         // (SWDOWN, GLW, COSZEN); see the first-land-step check in Advance_With_State.
-        m_radiation_feeds_lsm = (sc.rad_type == RadiationType::RRTMGP);
+        m_radiation_feeds_lsm = sc.rad_feeds_lsm();
     }
 
     // Initialize data structures
@@ -421,9 +421,25 @@ private:
     // Do we have a nc init file?
     bool m_has_nc_file = false;
 
-    // Set after the first land step has checked its radiation inputs, so the check in
-    // Advance_With_State (a global reduction) and its warning happen once per run.
+    // Set once a land step has seen valid radiation inputs (or warned that a model
+    // that never writes them is in use), so the check in Advance_With_State (a global
+    // reduction) stops running. Reset by Init: a rebuilt level (regrid, including the
+    // one a restart can trigger) re-installs the lsm_undefined sentinel, so a verdict
+    // from before the wipe no longer holds.
     bool m_checked_radiation_inputs = false;
+
+    // Set when the missing-radiation-inputs warning for a restarted/rebuilt level has
+    // been printed, so re-checking on later land steps does not repeat it.
+    bool m_warned_radiation_inputs = false;
+
+    // The ERF step of the first Advance_With_State call since this level was last
+    // (re)built: 0 only on a run started from scratch, positive after a restart or a
+    // mid-run regrid (Init resets it to -1 when it re-installs the sentinel).
+    // Distinguishes "RRTMGP has certainly computed since the fields were initialized"
+    // (a fresh run computes radiation on step 0, before any land step) from "RRTMGP
+    // may not have recomputed yet" (after a restart or regrid it recomputes only on
+    // its rad_freq_in_steps schedule). Set by Advance_With_State.
+    int m_first_advance_nstep = -1;
 
     // True when the configured radiation model writes the radiation inputs (RRTMGP), so
     // an input still missing on the first land step is a broken coupling, not a

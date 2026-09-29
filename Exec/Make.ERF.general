@@ -237,6 +237,13 @@ include $(ERF_MOISTURE_WDM6_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MOISTURE_WDM6_DIR)
 INCLUDE_LOCATIONS += $(ERF_MOISTURE_WDM6_DIR)
 
+# Any Fortran in the build: the exit trap in main.cpp flushes the Fortran units
+# before it ends the process (Source/Utils/ERF_FlushFortranUnits.F90).
+ifneq ($(filter TRUE,$(USE_MORR_FORT) $(USE_WSM6_FORT) $(USE_WDM6_FORT) $(USE_NOAHMP)),)
+  F90EXE_sources += ERF_FlushFortranUnits.F90
+  DEFINES += -DERF_HAS_FORTRAN
+endif
+
 ERF_MOISTURE_SATADJ_DIR = $(ERF_SOURCE_DIR)/Microphysics/SatAdj
 include $(ERF_MOISTURE_SATADJ_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MOISTURE_SATADJ_DIR)

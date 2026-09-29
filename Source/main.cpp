@@ -178,6 +178,13 @@ static void erf_flush_fortran_units () {}
  * so there the trap runs after an abort as well: the run is still reported as a failure,
  * with status 1 in place of the abort's code, and the message below allows for it.
  *
+ * A Fortran STOP or an exit() fires on the one rank that hit the problem; ending only
+ * that rank would leave the others blocked in their next collective until the launcher
+ * notices (Open MPI does; srun without --kill-on-bad-exit and some PMI setups may not).
+ * So the trap calls MPI_Abort to tear the whole job down, guarded so that an MPI whose
+ * own MPI_Abort ends in exit() (MPICH, Cray MPICH) cannot re-enter it, and skipped when
+ * MPI is not initialised or already finalised.
+ *
  * std::_Exit is the only way to change the status from here, and it skips the rest of the
  * exit sequence, which is what would flush the output buffers. Standard output is fully
  * buffered when it is redirected to a file, so flush everything first -- C++ streams, C
@@ -199,6 +206,18 @@ void install_exit_trap ()
                        "Reporting failure whatever exit status was requested.\n",
                        stderr);
             std::fflush(stderr);
+#ifdef AMREX_USE_MPI
+            // atexit handlers run single-threaded, so a plain flag is enough of a
+            // reentrancy guard for the MPI_Abort-calls-exit() implementations.
+            static bool aborting = false;
+            int mpi_up = 0, mpi_done = 0;
+            MPI_Initialized(&mpi_up);
+            MPI_Finalized(&mpi_done);
+            if (mpi_up && !mpi_done && !aborting) {
+                aborting = true;
+                MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+            }
+#endif
             std::_Exit(EXIT_FAILURE);
         }
     });

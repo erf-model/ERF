@@ -32,15 +32,20 @@ is_ident_char (char c)
 }
 
 //
-// Find the value of the last assignment to `key` in a Fortran namelist file, the way a
-// namelist read would see it: keys are case-insensitive and may appear anywhere on a
-// line, several assignments may share a line, '!' starts a comment outside a string,
-// and a string value may be delimited by either quote (a doubled quote inside is a
-// literal one) or, as gfortran accepts, not delimited at all. Returns false if the key
-// is not assigned.
+// Find the value of the last assignment to `key` inside the first `&group` record of a
+// Fortran namelist file, the way the driver's single READ(nml=group) sees it: everything
+// before the group header, after the group's terminating '/', or inside a group with
+// another name is invisible to that READ and must not be scanned (a stale assignment in
+// a leftover block would otherwise be reported against a file the driver accepts).
+// Within the group, keys are case-insensitive and may appear anywhere on a line, several
+// assignments may share a line, '!' starts a comment outside a string, and a string
+// value may be delimited by either quote (a doubled quote inside is a literal one) or,
+// as gfortran accepts, not delimited at all. Returns false if the key is not assigned
+// in that group (including when the group itself is absent).
 //
 bool
-namelist_string_value (const std::string& file, const std::string& key, std::string& value)
+namelist_string_value (const std::string& file, const std::string& group,
+                       const std::string& key, std::string& value)
 {
     std::ifstream in(file);
     const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
@@ -74,13 +79,33 @@ namelist_string_value (const std::string& file, const std::string& key, std::str
     };
 
     bool found = false;
+    bool in_group = false;
     std::size_t i = 0;
     while (i < n) {
         const char c = text[i];
+        if (!in_group) {
+            // Skip records until the group header, honoring comments so a commented-out
+            // '&group' does not open the scan. '&' starts a group in list-directed
+            // namelist input; '$' is the pre-standard spelling gfortran also accepts.
+            if (c == '!') {
+                while (i < n && text[i] != '\n') { ++i; }
+            } else if (c == '&' || c == '$') {
+                const std::size_t start = ++i;
+                while (i < n && is_ident_char(text[i])) { ++i; }
+                in_group = iequal(text.substr(start, i - start), group);
+            } else {
+                ++i;
+            }
+            continue;
+        }
         if (c == '\'' || c == '"') {
             i = read_quoted(i, nullptr);
         } else if (c == '!') {
             while (i < n && text[i] != '\n') { ++i; }
+        } else if (c == '/' || c == '&' || c == '$') {
+            // '/' terminates the group ('&end'/'$end' are pre-standard spellings of the
+            // same thing), and the READ consumes exactly one group: stop scanning.
+            break;
         } else if (is_ident_char(c)) {
             const std::size_t start = i;
             while (i < n && is_ident_char(text[i])) { ++i; }
@@ -151,6 +176,21 @@ noahmp_preflight (int lev)
             amrex::Abort("Noah-MP: " + table + " was not found in the run directory. Copy "
                          "it from Submodules/Noah-MP/parameters/NoahmpTable.TBL.");
         }
+
+        // amrex::FileExists is a stat-style test: it is also true for a directory and
+        // for a file this rank cannot read, and namelist_string_value would then scan
+        // an empty string and misreport the problem below as a missing key. Say
+        // "unreadable" distinctly. (peek() forces the first read, which is what fails
+        // on a directory; an empty namelist.erf is reported here too, since the driver
+        // cannot read its group from one either.)
+        {
+            std::ifstream probe(namelist);
+            if (!probe || probe.peek() == std::char_traits<char>::eof()) {
+                amrex::Abort("Noah-MP: " + namelist + " exists but cannot be read (or is "
+                             "empty). Check that it is a regular, readable file and "
+                             "contains the &NOAHLSM_OFFLINE namelist group.");
+            }
+        }
         if (lev > 2) {
             amrex::Abort("Noah-MP: the driver reads a land setup file for levels 0-2 only "
                          "(ERF_SETUP_FILE_01..03 in namelist.erf); level " + std::to_string(lev) +
@@ -160,8 +200,12 @@ noahmp_preflight (int lev)
         // The driver rejects ZLVL (the reference height is now staged per column as DZ8W),
         // but says so with a WRITE that is usually lost, so a namelist.erf carried over from
         // an older setup would stop with only the generic message.
+        // The driver reads exactly one group from namelist.erf: NOAHLSM_OFFLINE
+        // (NoahmpReadNamelistMod.F90); scan only that group, as its READ does.
+        const std::string group = "NOAHLSM_OFFLINE";
+
         std::string zlvl;
-        if (namelist_string_value(namelist, "ZLVL", zlvl)) {
+        if (namelist_string_value(namelist, group, "ZLVL", zlvl)) {
             amrex::Abort("Noah-MP: " + namelist + " sets ZLVL, which is no longer a Noah-MP "
                          "namelist option: ERF passes the reference height to Noah-MP for every "
                          "column (DZ8W). Remove ZLVL from " + namelist + ".");
@@ -169,7 +213,7 @@ noahmp_preflight (int lev)
 
         const std::string key = "ERF_SETUP_FILE_0" + std::to_string(lev + 1);
         std::string setup_file;
-        if (!namelist_string_value(namelist, key, setup_file) || setup_file.empty()) {
+        if (!namelist_string_value(namelist, group, key, setup_file) || setup_file.empty()) {
             amrex::Print() << "WARNING: Noah-MP: could not find " << key << " in " << namelist
                            << ". It names the wrfinput-format NetCDF file Noah-MP reads its "
                               "land state from at level " << lev << " (soil and vegetation "
@@ -227,6 +271,14 @@ NOAHMP::Init (const int& lev,
     m_lev   = lev;
     m_geom  = geom;
     m_geom0 = geom0;
+
+    // Init runs again when a level is rebuilt (a regrid, including the one a restart
+    // can trigger), and the setVal below re-installs the lsm_undefined sentinel in the
+    // radiation inputs; make Advance_With_State re-check them rather than trust a
+    // verdict from before the wipe, and let it see that this is a rebuild.
+    m_checked_radiation_inputs = false;
+    m_warned_radiation_inputs  = false;
+    m_first_advance_nstep      = -1;
     m_domain_bcs_type = domain_bcs_type;
     m_refRatio = refRatio;
 
