@@ -127,11 +127,11 @@ jobs:
 
     - name: Report
       run: |
-        grep -Ei "warning:|error:" ${ERF_DIR}/../build-output.txt \
+        grep -Ei "warning:|error:" ${ERF_DIR}/build-output.txt \
           | grep -Ev "Submodules/(amrex|googletest)" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
-          | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${ERF_DIR}/../build-output-warnings.txt
-        cat ${ERF_DIR}/../build-output-warnings.txt
-        export return=$(tail -n 1 ${ERF_DIR}/../build-output-warnings.txt | awk '{print $2}')
+          | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${ERF_DIR}/build-output-warnings.txt
+        cat ${ERF_DIR}/build-output-warnings.txt
+        export return=$(tail -n 1 ${ERF_DIR}/build-output-warnings.txt | awk '{print $2}')
         exit ${return}
 
     - name: Check Unit Test Registration

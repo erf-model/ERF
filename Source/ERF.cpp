@@ -426,7 +426,16 @@ ERF::fill_seb_from_coarse (int lev)
         // biased toward the scalar. Extend the surface outward by clamping into the valid
         // region first -- the same zeroth-order extension init_from_wrfinput gives the
         // fields whose halos this interpolater is documented to require.
+        //
+        // Only across a NON-periodic face. Across a periodic one FillBoundary has already
+        // put the periodic image there, and InterpFromCoarseLevel's ParallelCopy reads
+        // that cell twice -- from this halo and from the periodic image of the valid cell
+        // it mirrors. Clamping it would make the two sources disagree, and ParallelCopy
+        // does not say which one wins: the answer then depended on the box layout, and a
+        // level created mid-run came out different on 1 and 2 ranks.
         crse->FillBoundary(geom[lev-1].periodicity());
+        const bool clamp_x = !geom[lev-1].isPeriodic(0);
+        const bool clamp_y = !geom[lev-1].isPeriodic(1);
         for (MFIter mfi(*crse, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             const Box& gbx = mfi.growntilebox();
             const Array4<Real>& a = crse->array(mfi);
@@ -434,8 +443,8 @@ ERF::fill_seb_from_coarse (int lev)
             const auto dhi = ubound(crse_dom);
             ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                const int ic = amrex::max(dlo.x, amrex::min(dhi.x, i));
-                const int jc = amrex::max(dlo.y, amrex::min(dhi.y, j));
+                const int ic = clamp_x ? amrex::max(dlo.x, amrex::min(dhi.x, i)) : i;
+                const int jc = clamp_y ? amrex::max(dlo.y, amrex::min(dhi.y, j)) : j;
                 if (ic != i || jc != j) { a(i,j,k) = a(ic,jc,k); }
             });
         }
