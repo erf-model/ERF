@@ -369,7 +369,10 @@ void SuperDropletPC::iceCategoryDensity(MultiFab& a_mf, const MultiFab& a_z_phys
             auto mass = ptd.m_runtime_rdata[ridx_s(idx,na,ns)][i];
             auto mrime = ptd.m_runtime_rdata[ridx_ice_mrime(na,ns)][i];
             auto nmono = ptd.m_runtime_rdata[ridx_ice_nmono(na,ns)][i];
-            auto frac = (mass > amrex::ParticleReal(0) ? mrime / mass : amrex::ParticleReal(0));
+            // The division is evaluated before the selection; keep its denominator nonzero
+            // (0/0 for an ice-free particle trips amrex.fpe_trap_invalid). Equal to mass for mass >= min().
+            auto frac_any = mrime / amrex::max(mass, std::numeric_limits<amrex::ParticleReal>::min());
+            auto frac = (mass > amrex::ParticleReal(0) ? frac_any : amrex::ParticleReal(0));
 
             bool include = false;
             switch (category) {
@@ -476,11 +479,11 @@ void SuperDropletPC::effectiveRadius (  MultiFab& a_mf,
         const auto nd_arr = number_density.const_array(mfi);
         ParallelFor( box, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                           {
-                              if (nd_arr(i,j,k,0) > 0) {
-                                  mf_arr(i,j,k,a_comp) /= nd_arr(i,j,k,0);
-                              } else {
-                                  mf_arr(i,j,k,a_comp) = zero;
-                              }
+                              // The division is evaluated before the selection; keep its denominator
+                              // nonzero (0/0 in an empty cell trips amrex.fpe_trap_invalid).
+                              const Real nd = nd_arr(i,j,k,0);
+                              const Real r_avg = mf_arr(i,j,k,a_comp) / amrex::max(nd, std::numeric_limits<Real>::min());
+                              mf_arr(i,j,k,a_comp) = (nd > 0) ? r_avg : zero;
                           } );
     }
 }

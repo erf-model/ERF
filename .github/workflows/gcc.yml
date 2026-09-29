@@ -158,6 +158,18 @@ jobs:
         ctest -L smoke --output-on-failure --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build
 
+    # A test that dies on a signal (for example SIGILL from amrex.fpe_trap_invalid)
+    # writes Backtrace.<rank> into its run directory; the log only says "See
+    # Backtrace.0 file for details", so keep those files when a step has failed.
+    - name: Upload backtraces from failed tests
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: backtraces-gcc-mesh-${{matrix.mesh_precision}}-particles-${{matrix.particles}}-${{matrix.particles_precision}}
+        path: ${{runner.workspace}}/ERF/build/Tests/**/Backtrace.*
+        if-no-files-found: ignore
+        retention-days: 14
+
   # Single stable required status check. Branch protection previously pinned the
   # individual matrix job names ("GNU@9.3 C++17 Release - Particles OFF"), which silently
   # stopped matching when the matrix gained its Mesh/precision axes -- leaving every PR

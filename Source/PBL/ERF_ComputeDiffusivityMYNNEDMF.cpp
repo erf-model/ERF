@@ -4402,7 +4402,10 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
             Real Rf  = level2.calc_Rf(GM, GH);
             Real SM2 = level2.calc_SM(Rf);
             Real qe2 = mynn.B1*Lm*Lm*SM2*(one-Rf)*shearProd;
-            Real qe  = (qe2 < zero) ? zero : std::sqrt(qe2);
+            // Clamp before the sqrt rather than selecting after it: the optimiser
+            // evaluates a guarded sqrt of a negative qe2 before the selection, which
+            // trips amrex.fpe_trap_invalid. The value is unchanged for every qe2.
+            Real qe  = std::sqrt(amrex::max(qe2, amrex::Real(zero)));
 
             // Level 2 limiting (Helfand and Labraga 1988)
             Real alphac  = (qvel(i,j,k) > qe) ? one : qvel(i,j,k) / (qe + eps);
