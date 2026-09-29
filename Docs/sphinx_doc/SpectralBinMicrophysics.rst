@@ -254,8 +254,12 @@ Attached extensive properties are deposited into that same interval. Interior
 intervals are half-open, so an exact shared edge belongs to the upper
 interval; the global upper edge belongs to the final interval. Out-of-range
 packets report a status instead of being clipped. A value up to four
-representable steps outside a global edge is classified at that boundary and
-records roundoff normalization while retaining the packet's original mass.
+representable steps outside a global edge may be treated as boundary roundoff
+rather than physical overflow. The accepted packet is deposited at the exact
+boundary, and the resulting rounding-sized water adjustment relative to the
+incoming packet is reported explicitly. This keeps the persisted two-moment
+state inside its declared support and preserves the reconstruction/projection
+no-process identity.
 A positive-number packet with zero liquid-water mass is returned through the
 zero-water residual path rather than retained in a populated two-moment liquid
 bin. The reference remapper does not create or update aerosol state.

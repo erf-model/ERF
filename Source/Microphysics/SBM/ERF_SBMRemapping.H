@@ -199,7 +199,8 @@ bool same_route(const PacketRoutingPlan& actual,
 /**
  * Classify one packet without allocation or state mutation. Two-moment routing
  * uses half-open intervals, includes the global top edge, and admits only four
- * representable steps of outer-boundary roundoff while preserving packet mass.
+ * representable steps of outer-boundary roundoff. The plan keeps the original
+ * packet mass while its destination records the exact boundary mass.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 PacketRoutingPlan plan_packet_routing(const PopulationRemapView population,
@@ -236,7 +237,7 @@ PacketRoutingPlan plan_packet_routing(const PopulationRemapView population,
             }
             plan.status = RemapStatus::Ok;
             plan.destination_count = 1;
-            plan.destinations[0] = {0, amrex::Real(1.0), particle_mass};
+            plan.destinations[0] = {0, amrex::Real(1.0), population.edges[0]};
             plan.normalized_roundoff = true;
             return plan;
         }
@@ -248,7 +249,8 @@ PacketRoutingPlan plan_packet_routing(const PopulationRemapView population,
             }
             plan.status = RemapStatus::Ok;
             plan.destination_count = 1;
-            plan.destinations[0] = {population.nbins - 1, amrex::Real(1.0), particle_mass};
+            plan.destinations[0] = {population.nbins - 1, amrex::Real(1.0),
+                                    population.edges[population.nbins]};
             plan.normalized_roundoff = true;
             return plan;
         }
@@ -317,6 +319,7 @@ struct PacketApplicationCoreResult {
     RemapStatus status{RemapStatus::Invalid};
     amrex::Real residual_number{0.0};
     amrex::Real residual_water_mass{0.0};
+    amrex::Real roundoff_water_mass_correction{0.0};
     bool normalized_roundoff{false};
 };
 
@@ -413,6 +416,7 @@ PacketApplicationCoreResult apply_packet_routing_core(
     }
     result.residual_water_mass = amrex::Real(0.0);
     result.normalized_roundoff = plan.normalized_roundoff;
+    amrex::Real roundoff_water_mass_correction = amrex::Real(0.0);
     // Validate all outputs and candidate increments before changing either.
     for (int property = 0; property < property_count; ++property) {
         amrex::Real residual = amrex::Real(0.0);
@@ -426,13 +430,22 @@ PacketApplicationCoreResult apply_packet_routing_core(
         const auto& route = plan.destinations[destination];
         amrex::Real number_increment = amrex::Real(0.0);
         amrex::Real mass_increment = amrex::Real(0.0);
-        const amrex::Real deposited_mass = population.moment_mode == MomentMode::OneMoment ?
-            route.particle_mass : plan.packet_particle_mass;
+        const amrex::Real deposited_mass = route.particle_mass;
         if (!remap_detail::finite_product(plan.packet_number, route.number_weight,
                                            number_increment) ||
             !remap_detail::finite_product(number_increment, deposited_mass, mass_increment)) {
             result.status = RemapStatus::Invalid;
             return result;
+        }
+        if (population.moment_mode == MomentMode::TwoMoment && plan.normalized_roundoff) {
+            const amrex::Real correction = plan.packet_number *
+                (route.particle_mass - plan.packet_particle_mass);
+            if (!std::isfinite(correction) ||
+                !std::isfinite(roundoff_water_mass_correction + correction)) {
+                result.status = RemapStatus::Invalid;
+                return result;
+            }
+            roundoff_water_mass_correction += correction;
         }
         const int mass_component = population.mass_offset + route.bin;
         const amrex::Real old_mass = candidate_state[mass_component];
@@ -464,11 +477,11 @@ PacketApplicationCoreResult apply_packet_routing_core(
         }
     }
 
+    result.roundoff_water_mass_correction = roundoff_water_mass_correction;
     for (int destination = 0; destination < plan.destination_count; ++destination) {
         const auto& route = plan.destinations[destination];
         const amrex::Real number_increment = plan.packet_number * route.number_weight;
-        const amrex::Real deposited_mass = population.moment_mode == MomentMode::OneMoment ?
-            route.particle_mass : plan.packet_particle_mass;
+        const amrex::Real deposited_mass = route.particle_mass;
         candidate_state[population.mass_offset + route.bin] += number_increment * deposited_mass;
         if (population.number_offset >= 0) {
             candidate_state[population.number_offset + route.bin] += number_increment;
@@ -702,6 +715,7 @@ struct PacketApplicationResult {
     RemapStatus status{RemapStatus::Invalid};
     amrex::Real residual_number{0.0};
     amrex::Real residual_water_mass{0.0};
+    amrex::Real roundoff_water_mass_correction{0.0};
     bool normalized_roundoff{false};
     std::vector<amrex::Real> residual_properties;
 };

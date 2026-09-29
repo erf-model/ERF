@@ -57,6 +57,7 @@ apply_packet_routing(const SBMLayout& layout, const PacketRoutingPlan& plan,
     result.status = core.status;
     result.residual_number = core.residual_number;
     result.residual_water_mass = core.residual_water_mass;
+    result.roundoff_water_mass_correction = core.roundoff_water_mass_correction;
     result.normalized_roundoff = core.normalized_roundoff;
     return result;
 }
