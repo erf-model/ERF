@@ -19,7 +19,10 @@ jobs:
     timeout-minutes: 90
     strategy:
       matrix:
-        particles: [OFF, ON]
+        # Only the particle-enabled configuration is built here; the
+        # particles-OFF variant duplicates its solver coverage. Particles OFF
+        # is still built by ci, gcc, gcc-rrtmgp and windows-mpi.
+        particles: [ON]
         particles_precision: [DOUBLE, SINGLE]
         mesh_precision: [DOUBLE, SINGLE]
         exclude:
@@ -29,9 +32,6 @@ jobs:
             particles_precision: SINGLE
           - mesh_precision: SINGLE
             particles_precision: DOUBLE
-          # SINGLE precision is only exercised in the particle-enabled build.
-          - mesh_precision: SINGLE
-            particles: OFF
 
     steps:
 
@@ -78,7 +78,7 @@ jobs:
       working-directory: ${{runner.workspace}}/ERF/build
 
     - name: CMake Shuffle Stress Test
-      if: matrix.particles == 'OFF' && matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
+      if: matrix.particles == 'ON' && matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       shell: pwsh
       run: ctest -C RelWithDebInfo -L stress --output-on-failure --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build
