@@ -1,0 +1,16 @@
+CEXE_sources += ERF_SpectralGrid.cpp
+CEXE_sources += ERF_SBMLayout.cpp
+CEXE_sources += ERF_SBMConstraintGroups.cpp
+CEXE_sources += ERF_SBMBulkProjection.cpp
+CEXE_sources += ERF_SBMStateManager.cpp
+CEXE_sources += ERF_SBMOwnership.cpp
+CEXE_sources += ERF_SBMRestart.cpp
+CEXE_headers += ERF_SpectralGrid.H
+CEXE_headers += ERF_SBMLayout.H
+CEXE_headers += ERF_SBMConstraintGroups.H
+CEXE_headers += ERF_SBMBulkProjection.H
+CEXE_headers += ERF_SBMStateManager.H
+CEXE_headers += ERF_SBMOwnership.H
+CEXE_headers += ERF_SBMRestart.H
+CEXE_headers += ERF_SBMNullMoist.H
+CEXE_headers += ERF_SBMCanonicalIdentity.H

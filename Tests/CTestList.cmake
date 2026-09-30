@@ -10,7 +10,11 @@ include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
 #=============================================================================
 function(resolve_test_exe TEST_DIR TEST_EXE OUT_VAR)
     if(WIN32)
-        # Multi-config generators place binaries in a config subdir.
+        # Multi-config generators place binaries in a config subdir, and which config is
+        # built is not known here.  The tests that launch through `sh -c` let the shell
+        # expand the wildcard; the ones driven through `cmake -P` call execute_process,
+        # which never invokes a shell, and expand it with erf_resolve_executable
+        # (Tests/ResolveExecutable.cmake) out of the CONFIG those tests are given.
         set(${OUT_VAR} "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/*/${TEST_EXE}.exe" PARENT_SCOPE)
     else()
         set(_exe_in_subdir "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/${TEST_EXE}${CMAKE_EXECUTABLE_SUFFIX}")
@@ -197,9 +201,58 @@ endfunction(add_test_cloud_chamber)
 # and verify the vertical structure of qsrc_sw / qsrc_lw in the plotfile
 # (surface at k = 0, cooling to space from the top layer).
 function(add_test_two_stream_radiation TEST_NAME PLTFILE)
-    set(oneValueArgs "RUNTIME_OPTIONS")
-    cmake_parse_arguments(ADD_TEST_TSR "" "${oneValueArgs}" "" ${ARGN})
+    set(oneValueArgs "RUNTIME_OPTIONS" "SEB_PARITY_PLOTFILE" "SEB_PARITY_TOL" "SEB_EVOLVED_FROM")
+    # CHECK_LEVELS is multi-value: as a one-value arg CMake's list semantics
+    # split "0;1" into two arguments and only the first was ever seen, so the
+    # fine level went unchecked and the test passed vacuously.
+    set(multiValueArgs "CHECK_LEVELS" "DIAG_LEVELS" "SEB_CREATED_FROM")
+    cmake_parse_arguments(ADD_TEST_TSR "" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+    # Join with a comma, not a semicolon: a semicolon inside a -D argument is
+    # split again when the COMMAND is built. The runner splits on the comma.
+    set(tsr_check_levels "0")
+    if(DEFINED ADD_TEST_TSR_CHECK_LEVELS)
+        string(JOIN "," tsr_check_levels ${ADD_TEST_TSR_CHECK_LEVELS})
+    endif()
+    # Levels that must appear in the diagnostics CSV. Usually the same list, but a nested
+    # patch is checked in the plotfile while writing no CSV row of its own: it never sweeps,
+    # so it has no flux diagnostics to report.
+    #
+    # DEFINED, not truthiness: if(<var>) treats the string "0" as false, so a list of just
+    # level 0 would silently fall back to the default.
+    set(tsr_diag_levels "${tsr_check_levels}")
+    if(DEFINED ADD_TEST_TSR_DIAG_LEVELS)
+        string(JOIN "," tsr_diag_levels ${ADD_TEST_TSR_DIAG_LEVELS})
+    endif()
     setup_test()
+    # Optional second check: the prognostic surface state a refined run keeps on every
+    # level must satisfy the relation average_down establishes -- each coarse cell holding
+    # the mean of the fine cells above it. Only the decks that switch the prognostic SEB
+    # on ask for this.
+    set(tsr_seb_parity "")
+    if(DEFINED ADD_TEST_TSR_SEB_PARITY_PLOTFILE AND NOT "${ADD_TEST_TSR_SEB_PARITY_PLOTFILE}" STREQUAL "")
+        set(tsr_seb_parity "${CURRENT_TEST_BINARY_DIR}/${ADD_TEST_TSR_SEB_PARITY_PLOTFILE}")
+    endif()
+    set(tsr_seb_tol "1.0e-8")
+    if(DEFINED ADD_TEST_TSR_SEB_PARITY_TOL AND NOT "${ADD_TEST_TSR_SEB_PARITY_TOL}" STREQUAL "")
+        set(tsr_seb_tol "${ADD_TEST_TSR_SEB_PARITY_TOL}")
+    endif()
+    # A shallow nest never sweeps, so there is no fine solution to compare against; what
+    # must hold is that the coarse level kept evolving underneath it.
+    set(tsr_seb_evolved "")
+    if(DEFINED ADD_TEST_TSR_SEB_EVOLVED_FROM AND NOT "${ADD_TEST_TSR_SEB_EVOLVED_FROM}" STREQUAL "")
+        set(tsr_seb_evolved "${ADD_TEST_TSR_SEB_EVOLVED_FROM}")
+    endif()
+    # A level created mid-run: the three 2D plotfiles (initial, and the last two before
+    # the level existed) the checker extrapolates the parent's surface from. Joined with a
+    # comma for the same reason as CHECK_LEVELS.
+    set(tsr_seb_created "")
+    if(DEFINED ADD_TEST_TSR_SEB_CREATED_FROM)
+        set(tsr_seb_created_paths "")
+        foreach(created_plt ${ADD_TEST_TSR_SEB_CREATED_FROM})
+            list(APPEND tsr_seb_created_paths "${CURRENT_TEST_BINARY_DIR}/${created_plt}")
+        endforeach()
+        string(JOIN "," tsr_seb_created ${tsr_seb_created_paths})
+    endif()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i")
     set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
@@ -217,6 +270,15 @@ function(add_test_two_stream_radiation TEST_NAME PLTFILE)
         "-DCHECKER=${TWO_STREAM_RADIATION_CHECKER}"
         "-DPLOTFILE=${CURRENT_TEST_BINARY_DIR}/${PLTFILE}"
         "-DRUNTIME_OPTIONS=${ADD_TEST_TSR_RUNTIME_OPTIONS}"
+        "-DCHECK_LEVELS=${tsr_check_levels}"
+        "-DDIAG_LEVELS=${tsr_diag_levels}"
+        "-DSEB_PARITY_PLOTFILE=${tsr_seb_parity}"
+        "-DSEB_PARITY_TOL=${tsr_seb_tol}"
+        "-DSEB_EVOLVED_FROM=${tsr_seb_evolved}"
+        "-DSEB_CREATED_FROM=${tsr_seb_created}"
+        "-DSEB_PARITY_CHECKER=${TWO_STREAM_SEB_PARITY_CHECKER}"
+        "-DFEXTRACT=${FEXTRACT_EXE}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunTwoStreamRadiation.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -272,12 +334,13 @@ function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
         set(_fcompare_atol "${ADD_TEST_BP_FCOMPARE_ATOL}")
     endif()
 
-    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
         "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
         "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
         "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
         "-DNRANKS=${NP}"
         "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
         "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
         "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
         "-DFCOMPARE=${FCOMPARE_EXE}"
@@ -317,12 +380,13 @@ function(add_test_option_parity TEST_NAME TEST_FILES_DIR PLTFILE)
         math(EXPR _ctest_timeout "2 * ${_run_timeout} + 600")
     endif()
 
-    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
         "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
         "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
         "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
         "-DNRANKS=${NP}"
         "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
         "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
         "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
         "-DFCOMPARE=${FCOMPARE_EXE}"
@@ -354,12 +418,42 @@ set_tests_properties(CompareDataLogs_SelfTest
     PROCESSORS 1
     LABELS "unit;box-parity")
 
+# The wildcard expansion the same scripts rely on to find erf_exec and fcompare in a
+# multi-config build tree.  A resolution that picks the wrong binary, or none at all, only
+# shows up on Windows, and there as a regression test that fails before it starts, so it is
+# tested here on every platform.  Pure CMake, no ERF run, hence the "unit" label.
+add_test(ResolveExecutable_SelfTest ${CMAKE_COMMAND}
+    "-DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/test_files/ResolveExecutable_SelfTest"
+    -P ${PROJECT_SOURCE_DIR}/Tests/ResolveExecutableSelfTest.cmake)
+set_tests_properties(ResolveExecutable_SelfTest
+    PROPERTIES
+    TIMEOUT 60
+    PROCESSORS 1
+    LABELS "unit")
+
+# The nightly case Exec/RegTests/NoahMP_Ideal keeps a copy of Noah-MP's parameter table so it
+# runs in place; fail as soon as that copy stops matching the submodule, so the nightly
+# reference never silently tests stale parameters. A file comparison: no Noah-MP build needed.
+# Registered only when the submodule is checked out, which every CI job does.
+set(ERF_NOAHMP_TABLE "${PROJECT_SOURCE_DIR}/Submodules/Noah-MP/parameters/NoahmpTable.TBL")
+if(EXISTS "${ERF_NOAHMP_TABLE}")
+  add_test(NoahMP_Ideal_TableMatchesSubmodule ${CMAKE_COMMAND}
+      "-DSUBMODULE_TABLE=${ERF_NOAHMP_TABLE}"
+      "-DCOPY_TABLE=${PROJECT_SOURCE_DIR}/Exec/RegTests/NoahMP_Ideal/NoahmpTable.TBL"
+      -P ${PROJECT_SOURCE_DIR}/Tests/CheckNoahmpTableCopy.cmake)
+  set_tests_properties(NoahMP_Ideal_TableMatchesSubmodule
+      PROPERTIES
+      TIMEOUT 60
+      PROCESSORS 1
+      LABELS "unit;noahmp")
+endif()
+
 # Restart parity: run one deck straight, then to a checkpoint and on from it, and
 # require the plotfile at the end to be identical (no gold file). Every run has a
 # time limit; the default stays at 600, but an explicit RUN_TIMEOUT is forwarded
 # unchanged to each leg and used to size the outer CTest watchdog.
 function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
-    set(oneValueArgs "COMMON_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT" "DATALOG" "DATALOG_SIGDIGITS")
+    set(oneValueArgs "COMMON_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT" "DATALOG" "DATALOG_SIGDIGITS" "PLT2DFILE")
     cmake_parse_arguments(ADD_TEST_RP "" "${oneValueArgs}" "" ${ARGN})
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
@@ -379,12 +473,13 @@ function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
         math(EXPR _ctest_timeout "3 * ${_run_timeout} + 600")
     endif()
 
-    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
         "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
         "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
         "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
         "-DNRANKS=${NP}"
         "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
         "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
         "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
         "-DFCOMPARE=${FCOMPARE_EXE}"
@@ -396,6 +491,7 @@ function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
         "-DCOMMON_OPTIONS=${ADD_TEST_RP_COMMON_OPTIONS}"
         "-DDATALOG=${ADD_TEST_RP_DATALOG}"
         "-DDATALOG_SIGDIGITS=${ADD_TEST_RP_DATALOG_SIGDIGITS}"
+        "-DPLT2DFILE=${ADD_TEST_RP_PLT2DFILE}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunRestartParity.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -926,6 +1022,82 @@ function(add_test_0 TEST_NAME TEST_DIR TEST_EXE PLTFILE)
     )
 endfunction(add_test_0)
 
+# Regression test for land surface models
+function(add_test_lsm TEST_NAME TEST_DIR TEST_EXE)
+    set(options )
+    set(oneValueArgs "INPUT_SOUNDING" "RUNTIME_OPTIONS")
+    set(multiValueArgs PLTFILES "EXTRA_FILES" "LABELS")
+    cmake_parse_arguments(ADD_TEST_LSM "${options}" "${oneValueArgs}"
+        "${multiValueArgs}" ${ARGN})
+
+    # Check additional external files before creating the test directory.
+    foreach(EXTRA_FILE IN LISTS ADD_TEST_LSM_EXTRA_FILES)
+        if(NOT EXISTS "${EXTRA_FILE}")
+            message(WARNING
+                "Skipping LSM test '${TEST_NAME}': extra file does not exist: "
+                "'${EXTRA_FILE}'")
+            return()
+        endif()
+    endforeach()
+
+    setup_test()
+
+    set(RUNTIME_OPTIONS "${ADD_TEST_LSM_RUNTIME_OPTIONS}")
+    if(NOT "${ADD_TEST_LSM_INPUT_SOUNDING}" STREQUAL "")
+      string(APPEND RUNTIME_OPTIONS "erf.input_sounding_file=${CURRENT_TEST_BINARY_DIR}/${ADD_TEST_LSM_INPUT_SOUNDING}")
+    endif()
+
+    # Copy any additional external files needed to the test directory
+    foreach(EXTRA_FILE IN LISTS ADD_TEST_LSM_EXTRA_FILES)
+        message(DEBUG " -- Copying extra file '${EXTRA_FILE}' to test directory '${CURRENT_TEST_BINARY_DIR}'")
+        file(COPY "${EXTRA_FILE}" DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+    endforeach()
+
+    if (ADD_TEST_LSM_LABELS)
+        set(test_labels "")
+        foreach(LABEL ${ADD_TEST_LSM_LABELS})
+            list(APPEND test_labels "${LABEL}")
+        endforeach()
+    else()
+        set(test_labels "regression")
+    endif()
+
+    if(WIN32)
+        set(TEST_EXE "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/*/${TEST_EXE}.exe")
+    else()
+        set(TEST_EXE "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/${TEST_EXE}")
+    endif()
+
+    set(FCOMPARE_TOLERANCE "-r ${ERF_TEST_FCOMPARE_RTOL} --abs_tol ${ERF_TEST_FCOMPARE_ATOL}")
+    set(FCOMPARE_FLAGS "--abort_if_not_all_found -a ${FCOMPARE_TOLERANCE}")
+
+    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i ${RUNTIME_OPTIONS} > ${TEST_NAME}.log")
+    # These tests are gated on external input data, so their reference plotfiles are not carried
+    # in Tests/ERFGoldFiles either.  Compare against whichever ones the configured gold directory
+    # actually has, and run the rest to completion as smoke tests rather than failing every run on
+    # a reference that is not there -- fcompare is invoked with --abort_if_not_all_found.
+    foreach(PLTFILE ${ADD_TEST_LSM_PLTFILES})
+        if(EXISTS "${PLOT_GOLD}/${PLTFILE}")
+            set(test_command "${test_command} && ${MPI_FCOMP_COMMANDS} ${FCOMPARE_EXE} ${FCOMPARE_FLAGS} ${PLOT_GOLD}/${PLTFILE} ${CURRENT_TEST_BINARY_DIR}/${PLTFILE}")
+        else()
+            message(STATUS
+                " -- LSM test '${TEST_NAME}': no gold file '${PLOT_GOLD}/${PLTFILE}', "
+                "running without a plotfile comparison")
+        endif()
+    endforeach()
+    message(DEBUG "TEST COMMAND FOR '${TEST_NAME}': ${test_command}")
+
+    add_test(${TEST_NAME} ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 5400
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "${test_labels}"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log"
+    )
+endfunction(add_test_lsm)
+
 # SDM regression test
 function(add_test_sdm TEST_NAME TEST_DIR TEST_EXE PLTFILE TEST_RTOL TEST_ATOL)
     set(options )
@@ -1261,6 +1433,120 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   # the runner's 1-rank vs NRANKS comparison of the diagnostics CSV has a
   # real signal (rank-local means fail it).
   add_test_two_stream_radiation(TwoStream_ColumnHeating_Terrain "plt00002")
+  # Two levels. The same column physics must hold on the fine level, which runs
+  # its own sweep: CHECK_LEVELS 0 1 runs the vertical-structure assertions on
+  # both, so a fine level left at the allocation's zero heating fails the
+  # "qsrc_sw is zero everywhere" check. The refinement patch is tagged (not an
+  # explicit erf.boxN), so amr.refine_whole_domain_dir = 2 is what makes it span
+  # z -- which is also the remediation the model's abort recommends.
+  add_test_two_stream_radiation(TwoStream_ColumnHeating_TwoLevel "plt00002"
+                                CHECK_LEVELS 0 1)
+endif()
+
+# Start-up check: copy SOURCE_DIR, run INPUT_FILE on one rank with RUNTIME_OPTIONS
+# that break a start-up requirement, and pass when the run stops with
+# EXPECTED_MESSAGE in its output. The run is meant to abort, so its exit status is
+# dropped by the pipe into tee (a ';' here would split the CMake command list).
+function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME_OPTIONS)
+    set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
+    file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
+    file(GLOB TEST_FILES "${SOURCE_DIR}/*")
+    file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+
+    if(ERF_ENABLE_MPI)
+        set(MPI_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
+    else()
+        unset(MPI_COMMANDS)
+    endif()
+
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${INPUT_FILE} max_step=1 erf.plot_int_1=-1 erf.plot_int_2=-1 erf.check_int=-1 ${RUNTIME_OPTIONS} 2>&1 | tee ${test_log}")
+
+    add_test(${TEST_NAME} ${test_command})
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 600
+        PROCESSORS 1
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        PASS_REGULAR_EXPRESSION "${EXPECTED_MESSAGE}"
+        ATTACHED_FILES_ON_FAIL "${test_log}"
+    )
+endfunction(add_test_abort)
+
+if(ERF_ENABLE_MPI AND NOT WIN32)
+  # A shallow nest -- a fine level that stops below the domain top -- has no complete
+  # column, so the sweep cannot run on it. That is a supported configuration, not an
+  # error: advance_radiation interpolates the level's heating rates and fluxes from its
+  # parent, the same route RRTMGP takes for a nested patch. Same deck as the two-level
+  # case with the grid guarantee switched off, so the patch really is shallow (it comes
+  # out as k = 0..7 of a 32-cell domain). The checker detects the nested level from the
+  # data and asserts what remains meaningful there -- finite, non-negative, and not
+  # identically zero, which is exactly what fails if the interpolation never happened.
+  add_test_two_stream_radiation(TwoStream_NestedPatch "plt00002"
+                                CHECK_LEVELS 0 1
+                                DIAG_LEVELS 0)
+
+  # The prognostic surface energy balance now runs on a refined hierarchy: every level
+  # evolves its own force-restore surface temperature, and ERF averages t_sfc and q_sfc
+  # down so the levels agree about the ground they share. (This replaces the abort test for
+  # the old single-level restriction, which this branch lifts.)
+  #
+  # The parity checker asserts the relation average_down establishes exactly -- a coarse
+  # cell holds the mean of the fine cells above it -- so its tolerance is a round-off
+  # bound. Dropping the average-down moves the worst cell to ~3e-5 K, four orders of
+  # magnitude above it, from the first output onward. Domain means would NOT catch this:
+  # average_down is mean-preserving, so the two levels' means agree either way.
+  if(ERF_TEST_PYTHON)
+    add_test_two_stream_radiation(TwoStream_PrognosticSEBMultiLevel "plt00006"
+                                  CHECK_LEVELS 0 1
+                                  SEB_PARITY_PLOTFILE "plt2d00006")
+  endif()
+
+  # The complement of the case above: a SHALLOW nest, whose boxes do not span the domain
+  # in z. Such a level never sweeps, so its surface state stays frozen at what
+  # fill_seb_from_coarse wrote, and averaging that down would pin level 0's surface under
+  # the patch at its level-creation value -- a regression against the old level-0-only
+  # behaviour. post_timestep skips the transfer for such a level; this asserts every cell
+  # of level 0 moved away from erf.rad_t_sfc. With the guard removed those cells sit at
+  # exactly 300.0 instead of 300.0476.
+  if(ERF_TEST_PYTHON)
+    add_test_two_stream_radiation(TwoStream_PrognosticSEBShallowNest "plt00006"
+                                  CHECK_LEVELS 0
+                                  DIAG_LEVELS 0
+                                  SEB_PARITY_PLOTFILE "plt2d00006"
+                                  SEB_EVOLVED_FROM "300.0")
+  endif()
+
+  # A level created MID-RUN must start from the surface its parent has reached.
+  # TwoStream_PrognosticSEBMultiLevel cannot see that: its fine level exists from t = 0, when
+  # both levels are uniform at erf.rad_t_sfc and interpolating from the parent is a no-op.
+  # Here the tagging switches on only after level 0 has run alone for 10 steps, so the regrid
+  # at step 11 builds level 1 over a surface that has drifted ~0.08 K. The checker asserts
+  # level 1 averages to the parent's surface extrapolated one step on, to a quarter of one
+  # step's change; without ERF::fill_seb_from_coarse at level creation it misses by the whole
+  # drift (7.9e-2 against a 2.0e-3 tolerance, where the transfer gives 7.9e-5).
+  #
+  # The runner's 1-rank vs 2-rank comparison matters here too: it is what showed the
+  # interpolation reading a periodic halo that fill_seb_from_coarse had clamped, which left
+  # the new level's edge columns dependent on the box layout.
+  if(ERF_TEST_PYTHON)
+    add_test_two_stream_radiation(TwoStream_PrognosticSEBLateLevel "plt00011"
+                                  CHECK_LEVELS 0 1
+                                  SEB_PARITY_PLOTFILE "plt2d00011"
+                                  SEB_CREATED_FROM "plt2d00000" "plt2d00009" "plt2d00010")
+  endif()
+
+  # The force-restore surface state is checkpointed per level. A level whose copy is
+  # never written, or is written and never read back, restarts from the erf.rad_t_sfc
+  # scalar instead of the surface the run had reached -- and nothing in the 3D plotfile
+  # would show it, because the 3D plotfile carries no surface fields. So this case
+  # selects the surface state as 2D output and compares plt2d as well as plt; without
+  # PLT2DFILE the check would pass on a surface temperature that reset to its default.
+  add_test_restart_parity(TwoStream_PrognosticSEB_Restart TwoStream_PrognosticSEBRestart 3 6
+                          PLT2DFILE "plt2d00006")
 endif()
 add_test_plotfile_header(Plotfile3D_TwoStreamHeatingSelection "" "erf_exec" "plt00000")
 
@@ -1270,6 +1556,40 @@ add_test_0(PoiseuilleFlow_x                  "" "erf_exec" "plt00010" RUNTIME_OP
 add_test_0(PoiseuilleFlow_y                  "" "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_0(InitSoundingIdeal_stationary      "" "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_0(Deardorff_stationary              "" "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
+
+# LSM tests are gated because they require large input files (wrfinput, etc)
+# and can take several hours to run.
+if(ERF_TEST_ENABLE_EXTRA_LSM_TESTS)
+    # CASS case with external-driven radiation fluxes to SLM (no RRTMGP).
+    # The listed plotfiles are compared only if the configured gold directory has them.
+    add_test_lsm(SLM_CASS_SAMRadiation            "" "erf_exec"
+                                                  LABELS "slm"
+                                                  EXTRA_FILES "${CMAKE_SOURCE_DIR}/Tests/test_files/SLM_CASS_SAMRadiation/sounding_cass_interpolated"
+                                                              "${CMAKE_SOURCE_DIR}/Tests/test_files/SLM_CASS_SAMRadiation/lsf_cass"
+                                                              "${ERF_TEST_EXTRA_FILES_DIRECTORY}/CASS_32x32x156_50m_50m_1s_rad_coszrs_combined.nc"
+                                                  PLTFILES "plt34500"
+                                                           "plt_lsm_34500"
+                                                           "plt_lsm_2D_34500")
+
+    # LBA case using RRTMGP radiation
+    add_test_lsm(SLM_LBA_RRTMGP                   "" "erf_exec"
+                                                  LABELS "slm" "manual"
+                                                  EXTRA_FILES "${CMAKE_SOURCE_DIR}/Tests/test_files/SLM_LBA_RRTMGP/snd_lba"
+                                                              "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-gas-sw-g112.nc"
+                                                              "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-gas-lw-g128.nc"
+                                                              "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-cloud-optics-coeffs-sw.nc"
+                                                              "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-cloud-optics-coeffs-lw.nc")
+
+    # AWAKEN case testing the fully coupled real pathway
+    add_test_lsm(SLM_AWAKEN                       "" "erf_exec"
+                                                  LABELS "slm" "manual"
+                                                  EXTRA_FILES "${ERF_TEST_EXTRA_FILES_DIRECTORY}/SLM_AWAKEN/wrfinput_d01"
+                                                              "${ERF_TEST_EXTRA_FILES_DIRECTORY}/SLM_AWAKEN/wrfbdy_d01"
+                                                              "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-gas-sw-g112.nc"
+                                                              "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-gas-lw-g128.nc"
+                                                              "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-cloud-optics-coeffs-sw.nc"
+                                                              "${ERF_TEST_EXTRA_FILES_DIRECTORY}/rrtmgp-cloud-optics-coeffs-lw.nc")
+endif()
 
 if(ERF_ENABLE_PARTICLES)
     # These tests require machine-specific gold files due to platform-dependent initial sampling.
@@ -1623,9 +1943,10 @@ add_test_restart_parity(StationSampling_Restart StationSampling 4 10
 # fill the requested variables over whole levels, so the claim is not free and is tested
 # rather than asserted.  Each test runs the same deck with the stations off and on and
 # requires the plotfile to be identical bit for bit, not to a tolerance: a diagnostic that
-# moves the answer at all is a bug.  The three decks cover the paths that could break it.
+# moves the answer at all is a bug.  The two decks below cover the dry AMR path and the
+# surface-layer path.
 #
-# AMR, dry: the only one of the three whose station resolves to level 1, so it is the case
+# AMR, dry: the one of the two whose station resolves to level 1, so it is the case
 # that exercises FillPatchFineLevel.  The deck's own stations are switched off with
 # erf.do_station_sampling for the off leg.
 add_test_option_parity(StationSampling_AnswerParity StationSampling "plt00010"
@@ -1641,18 +1962,239 @@ add_test_option_parity(StationSampling_AnswerParity_MOST ABL_MOST "plt00010"
     ON_OPTIONS  "erf.station_names=T erf.station_sampling_interval=1 erf.T.field=theta magvel vorticity_z pressure u_star t_star erf.T.x=500 erf.T.y=500 erf.T.height_agl=8.0 100.0"
     REQUIRE_ON_FILE "Output_Stations/T.dat")
 
-if(ERF_ENABLE_PARTICLES)
-    # Lagrangian microphysics on two levels with TwoWay coupling: the configuration in which
-    # BuildPlot3DScratch would average the microphysics state down, and so the one the
-    # sync_solution = false argument exists for.  It also has qmoist to re-point on every
-    # level.  Unlike the SDM gold-file tests this one compares a run against itself, so it
-    # needs neither the machine-specific gold files nor the flags that gate them.
-    add_test_option_parity(StationSampling_AnswerParity_SDM SDM_MoistBubble2D_AMR1 "plt00020"
-        COMMON_OPTIONS "erf.vert_implicit=false"
-        OFF_OPTIONS "erf.do_station_sampling=false"
-        ON_OPTIONS  "erf.station_names=T erf.station_sampling_interval=1 erf.T.field=theta magvel vorticity_z qv qc qrain pressure erf.T.x=10000 erf.T.y=200 erf.T.height_agl=500.0 2000.0"
-        REQUIRE_ON_FILE "Output_Stations/T.dat")
-endif()
+#=============================================================================
+# Terrain: decomposition and station output over a hill
+#=============================================================================
+
+# Run a deck and check its station series (see Tests/RunStationSeries.cmake):
+# MODE single runs it once and hands CHECKS, separated by '|', to the checker;
+# analytic compares the series STATION with a closed-form answer, approach
+# compares it between runs with and without nudging (OFF_OPTIONS), and abort
+# requires a start-up abort containing EXPECTED_MESSAGE.
+function(add_test_station_series TEST_NAME TEST_FILES_DIR MODE)
+    set(oneValueArgs "RUNTIME_OPTIONS" "CHECKS" "OFF_OPTIONS" "STATION" "EXPECTED_MESSAGE" "LABELS")
+    # PARSE_ARGV takes the arguments from ARGV verbatim, so a value that itself
+    # holds a ';' (LABELS "regression;obs-nudging") stays one argument.  Passing
+    # an unquoted ${ARGN} instead would split it and drop all but the first word.
+    cmake_parse_arguments(PARSE_ARGV 3 ADD_TEST_SS "" "${oneValueArgs}" "")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    set(_nranks ${NP})
+    if("${MODE}" STREQUAL "abort")
+        set(_nranks 1)
+    endif()
+    set(_labels "regression;station")
+    if(NOT "${ADD_TEST_SS_LABELS}" STREQUAL "")
+        set(_labels "${ADD_TEST_SS_LABELS}")
+    endif()
+    # The checker is named by its target file, which is exact under every
+    # generator; the ERF executable is resolved by the runner (it may carry a
+    # wildcard for the config subdirectory on Windows)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${_nranks}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DLOG=${test_log}"
+        "-DMODE=${MODE}"
+        "-DCHECKER=$<TARGET_FILE:erf_station_series_check>"
+        "-DCHECKS=${ADD_TEST_SS_CHECKS}"
+        "-DSTATION=${ADD_TEST_SS_STATION}"
+        "-DRUNTIME_OPTIONS=${ADD_TEST_SS_RUNTIME_OPTIONS}"
+        "-DOFF_OPTIONS=${ADD_TEST_SS_OFF_OPTIONS}"
+        "-DEXPECTED_MESSAGE=${ADD_TEST_SS_EXPECTED_MESSAGE}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunStationSeries.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 600
+        PROCESSORS ${_nranks}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "${_labels}"
+        ATTACHED_FILES_ON_FAIL "${test_log};${test_log}.off;${test_log}.checker")
+endfunction(add_test_station_series)
+
+# The parity drivers run each leg in a subdirectory, so the sounding is named by
+# absolute path.
+function(terrain_hill_files TEST_NAME OUT_VAR)
+    set(${OUT_VAR} "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME}/input_sounding" PARENT_SCOPE)
+endfunction()
+
+# Two levels over a 100 m hill on a terrain-fitted mesh.  The zero-gradient
+# condition below the mesh is corrected by the terrain slope times a lateral
+# gradient that each box can only take one-sided in its outermost ghost
+# columns, so the copies of a ghost cell below the ground differed between
+# boxes, and the refined level, which interpolates from coarse ghost cells,
+# moved with the decomposition (x-velocity 9.4e-6 apart on level 1 after 20
+# steps).  The copies are now made to agree (BelowGroundGhostSync), and the
+# answer must not depend on the decomposition.
+terrain_hill_files(Terrain2Lev_Hill_BoxParity _hill_files)
+add_test_box_parity(Terrain2Lev_Hill_BoxParity TerrainHill "plt00020"
+    COMMON_OPTIONS "${_hill_files}"
+    REFERENCE_OPTIONS "amr.max_grid_size=1024"
+    SPLIT_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64"
+    DATALOG "Output_Stations/gate.dat"
+    DATALOG_SIGDIGITS 10)
+
+# The same with the refined level starting 100 m up, so that none of its boxes
+# reaches the ground: the synchronisation has no cells below the ground to own
+# on that level and must leave it alone (a first version copied from boxes
+# that do not reach the bottom, and the run aborted in Debug).
+terrain_hill_files(Terrain2Lev_HillAloft_BoxParity _hill_files)
+add_test_box_parity(Terrain2Lev_HillAloft_BoxParity TerrainHill "plt00020"
+    COMMON_OPTIONS "${_hill_files} erf.box1.in_box_lo=400.0 200.0 100.0"
+    REFERENCE_OPTIONS "amr.max_grid_size=1024"
+    SPLIT_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64")
+
+# Station output over terrain: a height above the local terrain is measured
+# from the ground at the station, so a series asked for 40 m above the terrain
+# on the flank of the hill must be the series asked for at 93.08 m above z = 0
+# (the ground is 53.08 m up there).  They agree to 1.4e-5 m/s on the fitted
+# mesh and 1.2e-4 m/s over the immersed hill, and to 3e-6 K.  The previous
+# code fails both: it interpolated the ground from cell averages between cell
+# centres, 3.4 m too low on the flank (0.047 m/s away on the fitted mesh), and
+# with immersed-forcing terrain it measured the height from the flat bottom of
+# the mesh, so the series was the flow inside the hill (3.8 m/s away).
+add_test_station_series(StationSampling_FittedTerrain TerrainHill single
+    RUNTIME_OPTIONS "amr.max_level=0 erf.station_names=mast mastabs erf.mastabs.field=x_velocity y_velocity theta erf.mastabs.x=700.0 erf.mastabs.y=400.0 erf.mastabs.height_abs=93.08"
+    CHECKS "equal a=@RUN@/Output_Stations/mast.dat:2 b=@RUN@/Output_Stations/mastabs.dat:2 tol=0.005|equal a=@RUN@/Output_Stations/mast.dat:4 b=@RUN@/Output_Stations/mastabs.dat:4 tol=0.001")
+
+add_test_station_series(StationSampling_ImmersedTerrain TerrainHill single
+    RUNTIME_OPTIONS "amr.max_level=0 erf.terrain_type=ImmersedForcing erf.immersed_forcing_substep=true eb2.small_volfrac=0.005 erf.station_names=mast mastabs erf.mastabs.field=x_velocity y_velocity theta erf.mastabs.x=700.0 erf.mastabs.y=400.0 erf.mastabs.height_abs=93.08"
+    CHECKS "equal a=@RUN@/Output_Stations/mast.dat:2 b=@RUN@/Output_Stations/mastabs.dat:2 tol=0.005|equal a=@RUN@/Output_Stations/mast.dat:4 b=@RUN@/Output_Stations/mastabs.dat:4 tol=0.001")
+
+# The same for terrain carried by an embedded boundary: the mesh is flat there
+# too, so the ground under the station is the surface the EB was built from and
+# not the bottom of the mesh.  The hill is 50 m up at the station, so 40 m above
+# the terrain is 90 m above z = 0.  Measuring from the mesh instead puts the
+# station at 40 m, inside the hill, where the velocity is held at zero and the
+# checker reports a constant series.
+#add_test_station_series(StationSampling_EBTerrain HillEB single
+#    RUNTIME_OPTIONS "erf.station_names=mast mastabs erf.mastabs.field=x_velocity theta erf.mastabs.x=400.0 erf.mastabs.y=10.0 erf.mastabs.height_abs=90.0"
+#    CHECKS "equal a=@RUN@/Output_Stations/mast.dat:2 b=@RUN@/Output_Stations/mastabs.dat:2 tol=0.001")
+
+#=============================================================================
+# Observation nudging
+#=============================================================================
+
+# The obs-nudging tests run through add_test_station_series (above), in its
+# analytic, approach, single and abort modes.
+
+# A uniform flow relaxing to a target linear in time: u, v and theta at three
+# heights of a probe far from the station must follow the closed form (see the
+# deck).  The error is a few 1e-6 at dt / tau = 1/20; 1e-4 still fails a rate,
+# time interpolation or target that is wrong by a percent.
+add_test_station_series(ObsNudging_Uniform ObsNudging_Uniform analytic
+    STATION "probe"
+    LABELS "regression;obs-nudging"
+    CHECKS "col=2 phi0=4.0 a=6.0 b=0.01 tau=20.0 tol=1.0e-4|col=7 phi0=1.0 a=-1.0 b=0.0 tau=20.0 tol=1.0e-4|col=13 phi0=300.0 a=301.0 b=0.005 tau=20.0 tol=1.0e-4")
+
+# The same flow with the band mean +- sigma: u and theta start below the band
+# and v above it, so each relaxes to the near edge, mean - sigma (u: 6 - 0.5,
+# theta: 301 - 0.2) or mean + sigma (v: -1 + 0.25), and never enters it.
+add_test_station_series(ObsNudging_Uniform_SigmaBand ObsNudging_Uniform analytic
+    RUNTIME_OPTIONS "erf.obs_nudging.sigma_factor=1.0"
+    STATION "probe"
+    LABELS "regression;obs-nudging"
+    CHECKS "col=2 phi0=4.0 a=5.5 b=0.01 tau=20.0 tol=1.0e-4|col=7 phi0=1.0 a=-0.75 b=0.0 tau=20.0 tol=1.0e-4|col=13 phi0=300.0 a=300.8 b=0.005 tau=20.0 tol=1.0e-4")
+
+# Over a hill on a terrain-fitted mesh, with a refined level from the ground up:
+# after 10 s the nudged run must be closer than the free one to the measurements
+# interpolated to that time (mast: u 7.0167, v 0.5083, theta 300.5083 at 40 m;
+# lidar gate at 120 m: u 6.4083, w 0.4), by the factors below.  The ratios
+# measured when the test was written are 0.53, 0.60, 0.36, 0.50 and 0.71.
+add_test_station_series(ObsNudging_Hill ObsNudging_Hill approach
+    LABELS "regression;obs-nudging"
+    OFF_OPTIONS "erf.nudging_from_observations=false"
+    CHECKS "series=mast col=2 target=7.0167 factor=0.7|series=mast col=3 target=0.5083 factor=0.75|series=mast col=4 target=300.5083 factor=0.6|series=gate col=2 target=6.4083 factor=0.7|series=gate col=3 target=0.4 factor=0.85")
+
+# The parity drivers run each leg in a subdirectory, so the deck's data files
+# are named by absolute path.
+function(obs_nudging_hill_files TEST_NAME OUT_VAR)
+    set(_d "${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME}")
+    set(${OUT_VAR} "erf.input_sounding_file=${_d}/input_sounding erf.obs_nudging.mast.file=${_d}/mast.txt erf.obs_nudging.lidar.file=${_d}/lidar.txt" PARENT_SCOPE)
+endfunction()
+
+# The nudging reads a face's neighbours (the density, the mesh and the terrain
+# under it), the terrain is gathered from the boxes that touch the ground, and
+# the two copies of a face on a periodic boundary must see the same distance to
+# every station, so the answer is checked across a change of decomposition on
+# both levels, with the station series compared as well as the plotfile.
+obs_nudging_hill_files(ObsNudging_Hill_BoxParity _obs_files)
+add_test_box_parity(ObsNudging_Hill_BoxParity ObsNudging_Hill "plt00020"
+    COMMON_OPTIONS "${_obs_files}"
+    REFERENCE_OPTIONS "amr.max_grid_size=1024"
+    SPLIT_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64"
+    DATALOG "Output_Stations/gate.dat"
+    DATALOG_SIGDIGITS 10)
+
+# The same hill as an immersed boundary in a flat mesh: the station heights are
+# measured from the immersed terrain surface, 53 m up at the stations, so the
+# nudging reaches the station series (placed at the absolute heights 93.08 and
+# 173.08 m) only if the terrain under the stations is found.  The ratios
+# measured when the test was written are 0.72, 0.74, 0.52, 0.46 and 0.79.
+add_test_station_series(ObsNudging_HillIF ObsNudging_HillIF approach
+    LABELS "regression;obs-nudging"
+    OFF_OPTIONS "erf.nudging_from_observations=false"
+    CHECKS "series=mast col=2 target=7.0167 factor=0.85|series=mast col=3 target=0.5083 factor=0.85|series=mast col=4 target=300.5083 factor=0.7|series=gate col=2 target=6.4083 factor=0.65|series=gate col=3 target=0.4 factor=0.9")
+
+function(obs_nudging_hillif_files TEST_NAME OUT_VAR)
+    set(_d "${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME}")
+    set(${OUT_VAR} "erf.input_sounding_file=${_d}/input_sounding erf.obs_nudging.mast.file=${_d}/mast.txt erf.obs_nudging.lidar.file=${_d}/lidar.txt" PARENT_SCOPE)
+endfunction()
+obs_nudging_hillif_files(ObsNudging_HillIF_BoxParity _obs_files)
+add_test_box_parity(ObsNudging_HillIF_BoxParity ObsNudging_HillIF "plt00020"
+    COMMON_OPTIONS "${_obs_files}"
+    REFERENCE_OPTIONS "amr.max_grid_size=1024"
+    SPLIT_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64"
+    DATALOG "Output_Stations/gate.dat"
+    DATALOG_SIGDIGITS 10)
+
+# Every input the nudging checks must be refused at start-up, before the first
+# step, with a message that names it.  Each test changes one input of a deck
+# that otherwise runs.
+foreach(_case IN ITEMS
+        "NoTau|StationSampling|erf.nudging_from_observations=true|needs erf.obs_nudging.tau"
+        "NoStations|StationSampling|erf.nudging_from_observations=true erf.obs_nudging.tau=10|needs erf.obs_nudging.stations"
+        "EBTerrain|StationSampling|erf.nudging_from_observations=true erf.terrain_type=EB|does not support erf.terrain_type = EB"
+        "NegativeTau|ObsNudging_Uniform|erf.obs_nudging.tau=-1|erf.obs_nudging.tau must be positive"
+        "ZeroRadius|ObsNudging_Uniform|erf.obs_nudging.horizontal_radius=0|horizontal_radius must be positive"
+        "NegativeSigma|ObsNudging_Uniform|erf.obs_nudging.sigma_factor=-1|sigma_factor must not be negative"
+        "NothingNudged|ObsNudging_Uniform|erf.obs_nudging.nudge_wind=false erf.obs_nudging.nudge_w=false erf.obs_nudging.nudge_theta=false|nothing would be nudged"
+        "NoUsableStation|ObsNudging_Uniform|erf.obs_nudging.nudge_wind=false erf.obs_nudging.nudge_theta=false|no station measures any of the quantities"
+        "EpochNoDate|ObsNudging_Uniform|erf.obs_nudging.time_type=epoch|needs the run to know its start date"
+        "BadTimeType|ObsNudging_Uniform|erf.obs_nudging.time_type=utc|must be elapsed or epoch"
+        "BadWindFrame|ObsNudging_Uniform|erf.obs_nudging.mast.wind_frame=north|wind_frame must be earth or grid"
+        "BadHeightRef|ObsNudging_Uniform|erf.obs_nudging.mast.height_ref=asl|height_ref must be agl or msl"
+        "MissingFile|ObsNudging_Uniform|erf.obs_nudging.mast.file=no_such_station.txt|cannot open 'no_such_station.txt'"
+        "BadColumn|ObsNudging_Uniform|erf.obs_nudging.mast.file=bad_columns_station.txt|unknown column 'pressure'"
+        "HeightMismatch|ObsNudging_Uniform|erf.obs_nudging.mast.file=mismatched_heights_station.txt|does not match the heights of the first time"
+        "XYAndLatLon|ObsNudging_Uniform|erf.obs_nudging.mast.lat=40.0 erf.obs_nudging.mast.long=-105.0|give either lat/long or x/y, not both"
+        "LatLonNoArrays|ObsNudging_Uniform|erf.obs_nudging.stations=geo erf.obs_nudging.geo.file=uniform_station.txt erf.obs_nudging.geo.lat=40.0 erf.obs_nudging.geo.long=-105.0|lat/long needs a run with latitude/longitude arrays"
+        "OutsideDomain|ObsNudging_Uniform|erf.obs_nudging.mast.x=5000.0|is outside the problem domain"
+        "LevelOffGround|ObsNudging_Hill|erf.box1.in_box_lo=400.0 200.0 100.0|do not reach the bottom of the domain")
+    string(REPLACE "|" ";" _fields "${_case}")
+    list(GET _fields 0 _name)
+    list(GET _fields 1 _deck)
+    list(GET _fields 2 _options)
+    list(GET _fields 3 _message)
+    add_test_station_series(ObsNudging_Abort_${_name} ${_deck} abort
+        LABELS "regression;obs-nudging"
+        RUNTIME_OPTIONS "${_options}"
+        EXPECTED_MESSAGE "${_message}")
+endforeach()
+
+# The targets are interpolated in time from the run time and the terrain is
+# rebuilt from the grids, so a restart must continue the run exactly.
+obs_nudging_hill_files(ObsNudging_Hill_Restart _obs_files)
+add_test_restart_parity(ObsNudging_Hill_Restart ObsNudging_Hill 10 20
+    COMMON_OPTIONS "${_obs_files}"
+    DATALOG "Output_Stations/mast.dat"
+    DATALOG_SIGDIGITS 10)
 
 #=============================================================================
 # Performance tests

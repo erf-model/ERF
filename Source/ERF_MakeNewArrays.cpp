@@ -380,6 +380,13 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         }
     }
 
+    if (solverChoice.lsm_type == LandSurfaceType::SLM) {
+        BoxList precip_bl = ba.boxList();
+        for (auto& b : precip_bl) { b.setRange(2, b.smallEnd(2)); }
+        precip[lev] = std::make_unique<MultiFab>(BoxArray(std::move(precip_bl)), dm, 1, ngrow_state);
+        precip[lev]->setVal(0.0);
+    }
+
     if (solverChoice.nudging_from_input_sounding) {
         nudge_data[lev] = std::make_unique<MultiFab>(ba, dm, 4, ngrow_state);
         nudge_data[lev]->setVal(0.0);
@@ -539,7 +546,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // Two-stream radiation: the model owns its 2D surface and SEB fields.
     if (solverChoice.rad_type == RadiationType::TwoStream)
     {
-        two_stream_rad.define_level(lev, solverChoice.radChoice, solverChoice.rdOcp, ba2d[lev], dm);
+        two_stream_rad.define_level(lev, solverChoice.radChoice, solverChoice.rdOcp, ba2d[lev], dm,
+                                    ba, geom[lev].Domain());
     }
 
     //*********************************************************
@@ -993,6 +1001,10 @@ ERF::init_zphys (int lev, double elapsed_time)
         }
     } // init_type
 
+    if (solverChoice.flat_terrain) {
+        validate_flat_terrain(lev, *z_phys_nd[lev], zlevels_stag[lev]);
+    }
+
     if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
         solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
         // Read the small_volfrac threshold from eb2 namespace
@@ -1316,12 +1328,15 @@ ERF::make_physbcs (int lev)
 
     physbcs_cons[lev] = std::make_unique<ERFPhysBCFunct_cons> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                                m_bc_extdir_vals, m_bc_neumann_vals,
+                                                               solverChoice.terrain_type,
                                                                z_phys_nd[lev], l_use_real_bcs, th_bc_data[lev].data());
     physbcs_u[lev]    = std::make_unique<ERFPhysBCFunct_u> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
+                                                            solverChoice.terrain_type,
                                                             z_phys_nd[lev], l_use_real_bcs, xvel_bc_data[lev].data());
     physbcs_v[lev]    = std::make_unique<ERFPhysBCFunct_v> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals,
+                                                            solverChoice.terrain_type,
                                                             z_phys_nd[lev], l_use_real_bcs, yvel_bc_data[lev].data());
     physbcs_w[lev]    = std::make_unique<ERFPhysBCFunct_w> (lev, geom[lev], domain_bcs_type, domain_bcs_type_d,
                                                             m_bc_extdir_vals, m_bc_neumann_vals,

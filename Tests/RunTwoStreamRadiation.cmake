@@ -67,7 +67,7 @@ if(NRANKS GREATER 1)
     execute_process(
         COMMAND ${serial_launcher} ${TEST_EXE} ${INPUT} ${runtime_options}
                 ${diag_options} erf.radiation.diag_file=${diag_serial}
-                erf.plot_int_1=-1
+                erf.plot_int_1=-1 erf.plot2d_int_1=-1
         WORKING_DIRECTORY "${WORKING_DIRECTORY}"
         OUTPUT_FILE "${SIMULATION_LOG}.np1"
         ERROR_FILE "${SIMULATION_LOG}.np1"
@@ -86,14 +86,126 @@ if(NRANKS GREATER 1)
     endif()
 endif()
 
+# Levels to run the column check on, as a comma-separated string; default "0". Tests name
+# them as a CMake list (CHECK_LEVELS 0 1) and add_test_two_stream_radiation joins them with
+# commas on the way here -- one spelling per layer, and the comma is why:
+# not just the coarse one's; each level gets the same assertions. Comma rather
+# than semicolon because a semicolon in a -D argument is split when the
+# COMMAND is built, which silently reduced this to level 0 only.
+if(NOT DEFINED CHECK_LEVELS OR "${CHECK_LEVELS}" STREQUAL "")
+    set(CHECK_LEVELS "0")
+endif()
+string(REPLACE "," ";" check_level_list "${CHECK_LEVELS}")
+# Levels required to appear in the diagnostics CSV; defaults to the checked levels.
+if(NOT DEFINED DIAG_LEVELS OR "${DIAG_LEVELS}" STREQUAL "")
+    set(DIAG_LEVELS "${CHECK_LEVELS}")
+endif()
+string(REPLACE "," ";" diag_level_list "${DIAG_LEVELS}")
+message(STATUS "TwoStream column check will run on level(s): ${check_level_list}")
+
+# The diagnostics CSV must actually carry a row for every level that was checked.
+#
+# The 1-rank vs NRANKS byte-comparison above cannot see this: it passes just as well if
+# every fine-level row is dropped in both runs, which is precisely the defect the per-level
+# writer fixes (one shared writer deduplicates on (step, call_site, time), which every level
+# reports identically). So assert the content, not only that two runs agree.
+# A missing file is a failure, not a skip: the runner forces
+# erf.radiation.diag_csv_enable=true above, so no file at all means the writer produced
+# nothing -- a superset of the defect this block exists to catch, and exactly the "passes
+# vacuously" mode the CHECK_LEVELS plumbing was fixed for.
+if(NOT EXISTS "${diag_nranks}")
+    message(FATAL_ERROR
+        "TwoStream diagnostics CSV ${diag_nranks} was not written, though the runner forces "
+        "erf.radiation.diag_csv_enable=true; the diagnostics writer produced nothing")
+endif()
+file(STRINGS "${diag_nranks}" diag_lines)
+list(POP_FRONT diag_lines diag_header)
+if(NOT diag_header MATCHES ",level$")
+    message(FATAL_ERROR
+        "TwoStream diagnostics CSV header does not end with the level column: ${diag_header}")
+endif()
+foreach(check_level IN LISTS diag_level_list)
+    set(found_level FALSE)
+    foreach(row IN LISTS diag_lines)
+        if(row MATCHES ",${check_level}$")
+            set(found_level TRUE)
+            break()
+        endif()
+    endforeach()
+    if(NOT found_level)
+        message(FATAL_ERROR
+            "TwoStream diagnostics CSV has no row for level ${check_level}; the per-level "
+            "writer is not emitting one row set per level")
+    endif()
+endforeach()
+message(STATUS "TwoStream diagnostics CSV carries rows for level(s): ${diag_level_list}")
+
 two_stream_launcher(1 checker_launcher)
-execute_process(
-    COMMAND ${checker_launcher} ${CHECKER} ${PLOTFILE}
-    WORKING_DIRECTORY "${WORKING_DIRECTORY}"
-    OUTPUT_FILE "${CHECKER_LOG}"
-    ERROR_FILE "${CHECKER_LOG}"
-    RESULT_VARIABLE checker_result)
-if(NOT checker_result EQUAL 0)
-    two_stream_report_log("checker log" "${CHECKER_LOG}")
-    message(FATAL_ERROR "TwoStream radiation column check failed: ${checker_result}")
+foreach(check_level IN LISTS check_level_list)
+    set(level_log "${CHECKER_LOG}.lev${check_level}")
+    execute_process(
+        COMMAND ${checker_launcher} ${CHECKER} ${PLOTFILE} ${check_level}
+        WORKING_DIRECTORY "${WORKING_DIRECTORY}"
+        OUTPUT_FILE "${level_log}"
+        ERROR_FILE "${level_log}"
+        RESULT_VARIABLE checker_result)
+    # Keep the un-suffixed log too, so an existing single-level test's attached
+    # file name still resolves.
+    configure_file("${level_log}" "${CHECKER_LOG}" COPYONLY)
+    if(NOT checker_result EQUAL 0)
+        two_stream_report_log("checker log (level ${check_level})" "${level_log}")
+        message(FATAL_ERROR
+            "TwoStream radiation column check failed at level ${check_level}: ${checker_result}")
+    endif()
+endforeach()
+
+# The prognostic surface state, when the deck asks for it. average_down leaves each coarse
+# cell holding the mean of the fine cells above it; the checker asserts that equality on a
+# 1-d slice (the companion case varies in x only, so one slice carries the whole field).
+# Run last, so a failure here is not confused with a failure of the column checks above.
+if(DEFINED SEB_PARITY_PLOTFILE AND NOT "${SEB_PARITY_PLOTFILE}" STREQUAL "")
+    foreach(required PYTHON_EXE SEB_PARITY_CHECKER FEXTRACT)
+        if(NOT DEFINED ${required} OR "${${required}}" STREQUAL "")
+            message(FATAL_ERROR
+                "SEB_PARITY_PLOTFILE was given but ${required} is empty; the parity check "
+                "would be skipped silently")
+        endif()
+    endforeach()
+    set(seb_parity_log "${CHECKER_LOG}.seb_parity")
+    set(seb_evolved_arg "")
+    if(NOT "${SEB_EVOLVED_FROM}" STREQUAL "")
+        set(seb_evolved_arg --evolved-from ${SEB_EVOLVED_FROM})
+    endif()
+    set(seb_created_arg "")
+    set(seb_fail_message "the coarse surface state is not the average of the fine one, so "
+                         "the levels disagree about the ground they share")
+    if(DEFINED SEB_CREATED_FROM AND NOT "${SEB_CREATED_FROM}" STREQUAL "")
+        set(seb_created_arg --created-from ${SEB_CREATED_FROM})
+        set(seb_fail_message "a fine level created mid-run did not start from the surface "
+                             "its parent had reached")
+    endif()
+    execute_process(
+        COMMAND ${PYTHON_EXE} ${SEB_PARITY_CHECKER}
+                --plotfile ${SEB_PARITY_PLOTFILE}
+                --fextract ${FEXTRACT}
+                --tol ${SEB_PARITY_TOL}
+                ${seb_evolved_arg}
+                ${seb_created_arg}
+        WORKING_DIRECTORY "${WORKING_DIRECTORY}"
+        OUTPUT_FILE "${seb_parity_log}"
+        ERROR_FILE "${seb_parity_log}"
+        RESULT_VARIABLE seb_parity_result)
+    two_stream_report_log("SEB parity check" "${seb_parity_log}")
+    # The checker separates the two: 1 means it compared the levels and they disagree,
+    # 2 means it could not make the comparison at all (missing field, mismatched level
+    # coverage, or a field so uniform that agreeing would prove nothing). Reporting a 2 as
+    # a parity failure would send the reader after the wrong defect.
+    if(seb_parity_result EQUAL 1)
+        message(FATAL_ERROR
+            "TwoStream prognostic SEB parity check failed: " ${seb_fail_message})
+    elseif(NOT seb_parity_result EQUAL 0)
+        message(FATAL_ERROR
+            "TwoStream prognostic SEB parity check could not run (${seb_parity_result}); see "
+            "the checker log above -- this is a broken check, not a parity failure")
+    endif()
 endif()

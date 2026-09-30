@@ -112,6 +112,47 @@ ERF also accepts **amr.restart** for compatibility with AMReX and existing
 regression inputs. When both keys are present, **amr.restart** takes
 precedence because ``ReadParameters()`` queries it after ``erf.restart``.
 
+SBM checkpoints
+---------------
+
+When ``erf.moisture_model = SBM``, the liquid spectral distribution is
+authoritative and is checkpointed separately from ERF's conventional compact
+moisture state.
+
+An SBM checkpoint therefore contains two additional pieces of information:
+
+* ``SBM_Schema``, which records the exact spectral layout and current
+  representation contract; and
+* ``SBMSpectrum`` at each active level, which contains the authoritative
+  bin-resolved liquid state.
+
+The saved schema must match the active SBM layout exactly on restart. A
+different moment mode, spectral grid, pivot definition, cloud/rain split, or
+other schema-defining change is rejected rather than interpreted as compatible.
+
+ERF validates the saved spectral state before using it to reconstruct the
+compact cloud- and rain-water fields. Spectral values must be finite and must
+satisfy the constraints of the saved representation. For two-moment bins this
+includes requiring the mean particle mass implied by the saved mass and number
+to lie within that bin.
+
+The checkpoint also contains the conventional ``qc`` and ``qr`` fields in the
+normal ERF state. Before overwriting those fields, ERF compares them with the
+cloud- and rain-water projection calculated from the saved authoritative
+spectrum. The comparison uses a tight floating-point consistency tolerance.
+
+Only after the spectral state and the saved bulk projection have passed these
+checks are ``qc`` and ``qr`` regenerated from the spectrum. This ordering is
+intentional: a corrupted compact field or corrupted spectrum cannot be hidden
+by projecting a new value over the evidence of the inconsistency.
+
+A restart fails if the required SBM schema or spectrum is missing, the schema
+does not match, the authoritative spectral state is inadmissible, or the saved
+bulk liquid fields are inconsistent with the spectrum.
+
+See :ref:`sec:SpectralBinMicrophysics` for the current SBM state definition and
+supported execution envelope.
+
 Time-accumulated diagnostics
 ============================
 

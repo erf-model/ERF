@@ -876,13 +876,19 @@ namespace SDMassChangeUtils_SV
                         const RT a_c  /*!< polar radius */ ) const noexcept
         {
             auto phi = a_c / a_a;
+            // The optimiser evaluates both shape branches before selecting one (a sphere,
+            // phi = 1, divides 0 by 0 in each), so keep every argument in its domain. The
+            // abs, min and max leave the selected branch's values unchanged.
+            const RT tiny = std::numeric_limits<RT>::min();
+            auto ecent_prolate = std::sqrt(std::abs(RT(1.0) - RT(1.0)/(phi*phi)));
+            auto ecent_oblate  = std::sqrt(amrex::min(std::abs(RT(1.0) - phi*phi), RT(1.0)));
+            auto capaci_prolate = ecent_prolate*a_c / amrex::max(std::log((RT(1.0)+ecent_prolate)*phi), tiny);
+            auto capaci_oblate  = ecent_oblate*a_a / amrex::max(std::asin(ecent_oblate), tiny);
             RT capaci = RT(0.0);
             if(phi >= RT(1.001)) {
-                auto ecent = std::sqrt(RT(1.0) - RT(1.0)/(phi*phi));
-                capaci = ecent*a_c / std::log((RT(1.0)+ecent)*phi);
+                capaci = capaci_prolate;
             } else if (phi <= RT(0.999)) {
-                auto ecent = std::sqrt(RT(1.0) - phi*phi);
-                capaci = ecent*a_a / std::asin(ecent);
+                capaci = capaci_oblate;
             } else {
                 capaci = (RT(2.0)*a_a + a_c)/three;
             }

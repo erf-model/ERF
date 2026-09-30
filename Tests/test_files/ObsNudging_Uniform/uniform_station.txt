@@ -1,0 +1,8 @@
+# The measurements span the domain in height, so no cell is outside them.
+# u goes from 6 to 8 m/s and theta from 301 to 302 K over 200 s; v holds at
+# -1 m/s.  The standard deviations are used only by the sigma-band variant.
+time    z       u     v     theta   su    sv    stheta
+0.0     0.0     6.0  -1.0   301.0   0.5   0.25  0.2
+0.0     400.0   6.0  -1.0   301.0   0.5   0.25  0.2
+200.0   0.0     8.0  -1.0   302.0   0.5   0.25  0.2
+200.0   400.0   8.0  -1.0   302.0   0.5   0.25  0.2

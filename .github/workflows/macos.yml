@@ -2,23 +2,26 @@ name: MacOS
 
 on:
   push:
+    branches: [development]
   pull_request:
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened]
 
 concurrency:
   group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-macos
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
   MacOS-Clang:
-    # The closed event exists only to cancel in-progress runs via concurrency.
-    if: github.event.action != 'closed'
     name: Apple Clang@11.0 - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     runs-on: macos-latest
+    timeout-minutes: 120
     # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
     strategy:
       matrix:
-        particles: [OFF, ON]
+        # Only the particle-enabled configuration is built here; the
+        # particles-OFF variant duplicates its solver coverage. Particles OFF
+        # is still built by ci, gcc and windows-mpi.
+        particles: [ON]
         particles_precision: [DOUBLE, SINGLE]
         mesh_precision: [DOUBLE, SINGLE]
         exclude:
@@ -28,9 +31,6 @@ jobs:
             particles_precision: SINGLE
           - mesh_precision: SINGLE
             particles_precision: DOUBLE
-          # SINGLE precision is only exercised in the particle-enabled build.
-          - mesh_precision: SINGLE
-            particles: OFF
 
     steps:
 
@@ -55,7 +55,8 @@ jobs:
           -B${{runner.workspace}}/ERF/build \
           -DBUILD_SHARED_LIBS:BOOL=FALSE \
           -DCMAKE_CXX_COMPILER_LAUNCHER=$(which ccache) \
-          -DCMAKE_BUILD_TYPE:STRING=Debug \
+          -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
+          -DAMReX_ASSERTIONS:BOOL=ON \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=TRUE \
@@ -116,3 +117,15 @@ jobs:
       run: |
         ctest -L regression -VV
       working-directory: ${{runner.workspace}}/ERF/build
+
+    # A test that dies on a signal (for example SIGILL from amrex.fpe_trap_invalid)
+    # writes Backtrace.<rank> into its run directory; the log only says "See
+    # Backtrace.0 file for details", so keep those files when a step has failed.
+    - name: Upload backtraces from failed tests
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: backtraces-macos-mesh-${{matrix.mesh_precision}}-particles-${{matrix.particles}}-${{matrix.particles_precision}}
+        path: ${{runner.workspace}}/ERF/build/Tests/**/Backtrace.*
+        if-no-files-found: ignore
+        retention-days: 14

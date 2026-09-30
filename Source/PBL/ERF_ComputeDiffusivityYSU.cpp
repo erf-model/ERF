@@ -50,7 +50,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
       Implementation follows WRF as of early 2024 with some simplifications
     */
 
-    const Real most_zref = SurfLayer->get_zref(level);
+    const Real most_zref = SurfLayer->get_zref_min(level);
 
     // Require that MOST zref is 10 m so we get the wind speed at 10 m from most
     bool invalid_zref = false;
@@ -139,7 +139,9 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
 
             bool above_critical = false;
             int kpbl = 0;
-            Real Rib_up = Rib_layer, Rib_dn;
+            // Rib_dn is overwritten on the first pass of the loop; it starts equal to
+            // Rib_up only so that a column with no k = 1 does not read it unset.
+            Real Rib_up = Rib_layer, Rib_dn = Rib_layer;
             const Real base_theta = cell_data(i,j,0,RhoTheta_comp) / cell_data(i,j,0,Rho_comp);
             while (!above_critical and bx.contains(i,j,kpbl+1)) {
                 kpbl += 1;

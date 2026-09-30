@@ -1,20 +1,20 @@
-name: Windows
+name: Windows MPI
 
 on:
   push:
+    branches: [development]
   pull_request:
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened]
 
 concurrency:
   group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-windows-mpi
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
   WIN64-MSVC:
-    # The closed event exists only to cancel in-progress runs via concurrency.
-    if: github.event.action != 'closed'
     name: WIN64-MSVC - MPI ${{ matrix.mpi }} - Mesh ${{ matrix.mesh_precision }} Particles ${{ matrix.particles }} ${{ matrix.particles_precision }}
     runs-on: windows-latest
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:

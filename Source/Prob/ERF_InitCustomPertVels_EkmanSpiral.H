@@ -1,6 +1,6 @@
 
     ParmParse pp_for_pert_vels("erf");
-    InitType init_type;
+    InitType init_type = InitType::None; // the default of erf.init_type
     pp_for_pert_vels.query_enum_case_insensitive("init_type",init_type);
 
     ParmParse pp_for_pert_vels_prob("prob");
