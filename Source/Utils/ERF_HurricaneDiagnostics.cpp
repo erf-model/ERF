@@ -357,11 +357,12 @@ ERF::HurricaneEyeTrackerInitial (const SolverChoice& sc,
 }
 
 /**
- * Track the hurricane eye by searching for minimum pressure near the previous position.
+ * Track the hurricane eye by searching for minimum velocity magnitude near the previous position.
  *
  * @param[in] sc Solver choices
  * @param[in] lev_geom Geometry of the current level
  * @param[in] S_data Conservative state data
+ * @param[in] mf_cc_vel Cell-centered velocity multifabs
  * @param[in] moisture_type Moisture model type
  */
 void
@@ -685,9 +686,6 @@ ERF::HurricaneMaxVelTracker(const Geometry& lev_geom,
     Gpu::DeviceVector<Real> d_val_max(1, -bogus_large_value);
     d_val_max_ptr = d_val_max.data();
 
-    if(hurricane_eye_track_xy.empty()){
-        return;
-    }
     const auto [x_last, y_last] = hurricane_eye_track_xy.back();
     const auto dx = lev_geom.CellSizeArray();
     const auto prob_lo = lev_geom.ProbLoArray();
@@ -752,9 +750,7 @@ ERF::HurricaneMinPressureTracker (MoistureType moisture_type,
     Real* d_val_min_ptr;
     Gpu::DeviceVector<Real> d_val_min(1, bogus_large_value);
     d_val_min_ptr = d_val_min.data();
-    if(hurricane_eye_track_xy.empty()){
-        return;
-    }
+
     const Real x_last = hurricane_eye_track_xy.back()[0];
     const Real y_last = hurricane_eye_track_xy.back()[1];
     const auto dx = lev_geom.CellSizeArray();
