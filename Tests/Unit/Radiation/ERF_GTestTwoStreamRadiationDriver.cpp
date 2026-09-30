@@ -146,3 +146,114 @@ TEST(TwoStreamRadiationDriver, ExternalCanonicalTemperatureOwnsBoundary)
     EXPECT_NEAR(external_provider.lw_up_surface,
                 sigma * std::pow(amrex::Real(280.0), 4), flux_tolerance);
 }
+
+namespace {
+
+struct LandForcingResult
+{
+    bool supplied = false;
+    amrex::Real sw_dn = 0.0, lw_dn = 0.0, coszen = 0.0;
+    amrex::Real rad_sw_dn_sfc = 0.0, rad_lw_dn_sfc = 0.0, rad_sw_dn_toa = 0.0;
+    amrex::Real lsm_sw_dn = 0.0, lsm_lw_dn = 0.0, lsm_coszen = 0.0;
+};
+
+LandForcingResult run_land_forcing (bool supply)
+{
+    using namespace amrex;
+
+    const Box domain(IntVect(0, 0, 0), IntVect(1, 0, 3));
+    const RealBox real_box({0.0, 0.0, 0.0}, {200.0, 100.0, 4000.0});
+    const int is_periodic[3] = {1, 1, 0};
+    const Geometry geom(domain, &real_box, 0, is_periodic);
+    const BoxArray ba(domain);
+    const BoxArray ba2d = collapse_z(ba);
+    const DistributionMapping dm(ba);
+
+    MultiFab state(ba, dm, RhoQ2_comp + 1, 0);
+    state.setVal(Real(0.0));
+    state.setVal(Real(1.0), Rho_comp, 1);
+    state.setVal(getThgivenRandT(Real(1.0), Real(290.0), RdoCp), RhoTheta_comp, 1);
+
+    // Both bands on, an absorbing and scattering atmosphere, and a cloudy fraction, so
+    // the surface SW differs from the top and the fluxes are a clear/cloudy blend.
+    RadChoice rad;
+    rad.enabled = true;
+    rad.sw_enabled = true;
+    rad.lw_enabled = true;
+    rad.fixed_solar_zenith_angle = Real(0.6);
+    rad.fixed_total_solar_irradiance = Real(1360.9);
+    rad.rad_t_sfc = Real(300.0);
+    rad.tau_per_layer = Real(0.1);
+    rad.single_scattering_albedo = Real(0.5);
+    rad.cloud_fraction = Real(0.4);
+
+    TwoStreamRadiation radiation;
+    radiation.resize(1);
+    radiation.define_level(0, rad, RdoCp, ba2d, dm, ba, domain, supply);
+
+    LandForcingResult r;
+    r.supplied = radiation.supplies_land_forcing(0);
+    if (!supply) {
+        EXPECT_EQ(radiation.land_forcing_sw_dn(0), nullptr);
+        EXPECT_EQ(radiation.land_forcing_lw_dn(0), nullptr);
+        EXPECT_EQ(radiation.land_forcing_cos_zenith(0), nullptr);
+        return r;
+    }
+
+    LandSurface lsm;
+    lsm.ReSize(1);
+    lsm.SetModel<NullSurf>();
+
+    MultiFab qheating(ba, dm, 2, 0);
+    const BoxArray flux_ba = convert(ba, IntVect(0, 0, 1));
+    MultiFab rad_fluxes(flux_ba, dm, 4, 0);
+    const Vector<const MultiFab*> radiation_inputs;
+
+    radiation.advance(0, 1, Real(0.0), Real(10.0), "pre_dycore",
+                      state, nullptr, geom, lsm, radiation_inputs, false,
+                      &qheating, &rad_fluxes, nullptr, nullptr, nullptr,
+                      0.0, false);
+
+    r.sw_dn  = component_at(*radiation.land_forcing_sw_dn(0), IntVect(1, 0, 0), 0);
+    r.lw_dn  = component_at(*radiation.land_forcing_lw_dn(0), IntVect(1, 0, 0), 0);
+    r.coszen = component_at(*radiation.land_forcing_cos_zenith(0), IntVect(1, 0, 0), 0);
+    r.rad_sw_dn_sfc = component_at(rad_fluxes, IntVect(1, 0, 0), 1);
+    r.rad_lw_dn_sfc = component_at(rad_fluxes, IntVect(1, 0, 0), 3);
+    r.rad_sw_dn_toa = component_at(rad_fluxes, IntVect(1, 0, 4), 1);
+
+    // The copy into a land model's layout (Noah-MP: the 2D boxes, x/y ghost cells).
+    MultiFab lsm_sw(ba2d, dm, 1, IntVect(1, 1, 0));
+    MultiFab lsm_lw(ba2d, dm, 1, IntVect(1, 1, 0));
+    MultiFab lsm_cz(ba2d, dm, 1, IntVect(1, 1, 0));
+    lsm_sw.setVal(Real(-1.0));
+    lsm_lw.setVal(Real(-1.0));
+    lsm_cz.setVal(Real(-1.0));
+    radiation.write_land_forcing(0, &lsm_sw, &lsm_lw, &lsm_cz);
+    r.lsm_sw_dn  = component_at(lsm_sw, IntVect(1, 0, 0), 0);
+    r.lsm_lw_dn  = component_at(lsm_lw, IntVect(1, 0, 0), 0);
+    r.lsm_coszen = component_at(lsm_cz, IntVect(1, 0, 0), 0);
+    return r;
+}
+
+} // namespace
+
+// The forcing a land model receives is the sweep's own surface-interface downwelling
+// flux -- after the clear/cloudy blend -- and this call's sun, and it reaches the land
+// model's field unchanged. Without the request nothing is allocated.
+TEST(TwoStreamRadiationDriver, SuppliesLandForcingFromTheSweep)
+{
+    const LandForcingResult off = run_land_forcing(false);
+    EXPECT_FALSE(off.supplied);
+
+    const LandForcingResult on = run_land_forcing(true);
+    ASSERT_TRUE(on.supplied);
+    EXPECT_GT(on.rad_sw_dn_sfc, amrex::Real(0.0));
+    EXPECT_LT(on.rad_sw_dn_sfc, on.rad_sw_dn_toa);  // attenuated: the surface, not the top
+    EXPECT_GT(on.rad_lw_dn_sfc, amrex::Real(0.0));
+    EXPECT_EQ(on.sw_dn, on.rad_sw_dn_sfc);
+    EXPECT_EQ(on.lw_dn, on.rad_lw_dn_sfc);
+    EXPECT_EQ(on.coszen, amrex::Real(0.6));
+    EXPECT_EQ(on.lsm_sw_dn, on.sw_dn);
+    EXPECT_EQ(on.lsm_lw_dn, on.lw_dn);
+    EXPECT_EQ(on.lsm_coszen, on.coszen);
+}

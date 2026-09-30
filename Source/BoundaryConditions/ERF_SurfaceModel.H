@@ -754,6 +754,14 @@ public:
     const amrex::Vector<amrex::MultiFab*> get_radiation_output_fields(int lev = 0);
 
     /**
+     * @brief Returns the destination of one canonical radiation output by name.
+     * @param lev AMR level to query.
+     * @param name Canonical radiation output name (aborts on an unknown name).
+     * @return The registered destination, or nullptr when none is registered.
+     */
+    amrex::MultiFab* get_radiation_output_field(int lev, const std::string& name);
+
+    /**
      * @brief Distributes updated canonical radiation outputs to other providers.
      * @param lev AMR level to update.
      */

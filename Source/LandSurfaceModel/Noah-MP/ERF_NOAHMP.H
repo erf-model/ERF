@@ -76,6 +76,7 @@ public:
         // Whether the configured radiation model writes Noah-MP's radiation inputs
         // (SWDOWN, GLW, COSZEN); see the first-land-step check in Advance_With_State.
         m_radiation_feeds_lsm = sc.rad_feeds_lsm();
+        m_radiation_model_name = amrex::getEnumNameString(sc.rad_type);
     }
 
     // Initialize data structures
@@ -441,9 +442,11 @@ private:
     // its rad_freq_in_steps schedule). Set by Advance_With_State.
     int m_first_advance_nstep = -1;
 
-    // True when the configured radiation model writes the radiation inputs (RRTMGP), so
-    // an input still missing on the first land step is a broken coupling, not a
-    // configuration without radiation. Set in Define.
+    // True when the configured radiation model writes the radiation inputs (RRTMGP, or
+    // TwoStream), so an input still missing on the first land step is a broken coupling,
+    // not a configuration without radiation. Set in Define, with the model's name for the
+    // messages.
     bool m_radiation_feeds_lsm = false;
+    std::string m_radiation_model_name;
 };
 #endif

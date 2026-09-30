@@ -212,6 +212,9 @@ TwoStreamRadiation::resize (int nlevs_max)
     m_hfx_sfc.resize(nlevs_max);
     m_lh_sfc.resize(nlevs_max);
     m_grdflx_sfc.resize(nlevs_max);
+    m_sw_dn_sfc.resize(nlevs_max);
+    m_lw_dn_sfc.resize(nlevs_max);
+    m_cos_zenith.resize(nlevs_max);
     m_q_sfc.resize(nlevs_max);
     m_t_deep.resize(nlevs_max);
     m_q_deep.resize(nlevs_max);
@@ -226,7 +229,8 @@ TwoStreamRadiation::define_level (int lev,
                                   const BoxArray& ba2d,
                                   const DistributionMapping& dm,
                                   const BoxArray& ba,
-                                  const Box& domain)
+                                  const Box& domain,
+                                  bool supply_land_forcing)
 {
     if (!rad_choice.enabled) { return; }
     m_rad = &rad_choice;
@@ -287,7 +291,54 @@ TwoStreamRadiation::define_level (int lev,
         m_t_deep[lev]->setVal(rad_choice.seb_t_deep_default);
         m_q_deep[lev]->setVal(rad_choice.seb_q_deep_default);
     }
+
+    // The land-model forcing (see the members). Zero, not the lsm_undefined sentinel,
+    // until the first sweep fills it; nothing copies it out before then.
+    if (supply_land_forcing) {
+        m_sw_dn_sfc[lev]  = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
+        m_lw_dn_sfc[lev]  = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
+        m_cos_zenith[lev] = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
+        m_sw_dn_sfc[lev]->setVal(0.0);
+        m_lw_dn_sfc[lev]->setVal(0.0);
+        m_cos_zenith[lev]->setVal(0.0);
+    } else {
+        m_sw_dn_sfc[lev].reset();
+        m_lw_dn_sfc[lev].reset();
+        m_cos_zenith[lev].reset();
+    }
     m_flux_diag[lev] = FluxDiag{};
+}
+
+void
+copy_surface_plane (const MultiFab& src2d, MultiFab& dst)
+{
+    BoxList flat = dst.boxArray().boxList();
+    for (Box& b : flat) { b.setRange(2, 0); }
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        BoxArray(std::move(flat)) == src2d.boxArray() &&
+        dst.DistributionMap() == src2d.DistributionMap(),
+        "copy_surface_plane: the destination's horizontal grids differ from the source's");
+    for (MFIter mfi(dst); mfi.isValid(); ++mfi) {
+        const Box& fab_box = dst[mfi].box();
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(fab_box.smallEnd(2) <= 0 && fab_box.bigEnd(2) >= 0,
+            "copy_surface_plane: the destination must hold the k = 0 plane in its valid or ghost region");
+        const Box plane = makeSlab(mfi.validbox(), 2, 0);
+        dst[mfi].template copy<RunOn::Device>(src2d[mfi], plane, 0, plane, 0, 1);
+    }
+}
+
+void
+TwoStreamRadiation::write_land_forcing (int lev,
+                                        MultiFab* sw_flux_dn,
+                                        MultiFab* lw_flux_dn,
+                                        MultiFab* cos_zenith_angle) const
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(supplies_land_forcing(lev),
+        "TwoStreamRadiation::write_land_forcing: level " + std::to_string(lev) +
+        " was not defined to supply a land-surface model's forcing");
+    if (sw_flux_dn != nullptr)       { copy_surface_plane(*m_sw_dn_sfc[lev], *sw_flux_dn); }
+    if (lw_flux_dn != nullptr)       { copy_surface_plane(*m_lw_dn_sfc[lev], *lw_flux_dn); }
+    if (cos_zenith_angle != nullptr) { copy_surface_plane(*m_cos_zenith[lev], *cos_zenith_angle); }
 }
 
 void
@@ -395,6 +446,10 @@ TwoStreamRadiation::advance (int lev,
                                          m_t_deep[lev] && m_q_deep[lev],
             "TwoStreamRadiation: seb_enable is set but the SEB fields were not allocated");
     }
+    // The land-model forcing is read off the interface fluxes the sweep writes.
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!supplies_land_forcing(lev) || rad_fluxes != nullptr ||
+                                     call_site == "post_dycore",
+        "TwoStreamRadiation: supplying a land-surface model's forcing needs the rad_fluxes array");
     if (call_site == "post_dycore" && rad_choice.seb_prognostic_enable) {
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dt_step > 0.0 && std::isfinite(dt_step),
             "TwoStreamRadiation: the force-restore update needs a positive, finite dt_step");
@@ -940,6 +995,24 @@ TwoStreamRadiation::advance (int lev,
             lw_net_sum += lw_sum_box;
             lw_up_toa_sum += lw_up_sum_box;
             sw_toa_sum += sw_toa_sum_box;
+
+            // What a land-surface model integrates on: the surface-interface values of
+            // the (blended) fluxes just written, and this call's sun.
+            if (supplies_land_forcing(lev)) {
+                const Array4<const amrex::Real> rad_flux_arr = rad_fluxes->const_array(mfi);
+                const Array4<amrex::Real> sw_dn_arr = m_sw_dn_sfc[lev]->array(mfi);
+                const Array4<amrex::Real> lw_dn_arr = m_lw_dn_sfc[lev]->array(mfi);
+                const Array4<amrex::Real> coszen_arr = m_cos_zenith[lev]->array(mfi);
+                const int kmin = bx.smallEnd(2);
+                amrex::ParallelFor(xy_box, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                {
+                    const amrex::Real cos_zenith = two_stream_cos_zenith(
+                        i, j, ts_params, has_latlon, &lat_arr, &lon_arr);
+                    two_stream_land_forcing(i, j, kmin, rad_flux_arr, cos_zenith,
+                                            sw_dn_arr(i, j, 0), lw_dn_arr(i, j, 0),
+                                            coszen_arr(i, j, 0));
+                });
+            }
         }
         // Every accumulator above is rank-local. Reduce before forming means
         // and maxima, so the diagnostics describe the whole domain and do
