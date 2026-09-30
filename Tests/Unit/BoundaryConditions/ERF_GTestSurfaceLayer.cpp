@@ -1035,6 +1035,47 @@ TEST(SurfaceLayer, DryCoupledSstDoesNotReadMoistureComponent)
                 Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta);
 }
 
+// Motivation: fill_qsurf_with_qsat is public and must remain safe when called
+// directly in a dry run, even though its production caller normally skips it.
+TEST(SurfaceLayer, DryQsurfDoesNotReadMoistureComponent)
+{
+    const std::string prefix = "unit_surface_layer_dry_qsurf";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(geom, false, RhoQ1_comp);
+    ASSERT_EQ(fields.cons.nComp(), RhoQ1_comp);
+    fields.lmask[0]->setVal(0);
+
+    const Real expected_surface_temperature = Real(300.0);
+    const Real expected_surface_pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        expected_surface_pressure - test_rho * CONST_GRAV * myhalf * geom.CellSize(2),
+        Real(0.0));
+    auto layer = fields.prepare_layer(face, active_faces({face}), prefix,
+                                      false, false);
+    const Real surface_theta = expected_surface_temperature *
+        std::pow(p_0 / expected_surface_pressure, RdoCp);
+    layer->get_t_surf(0)->setVal(surface_theta);
+
+    layer->fill_qsurf_with_qsat(0, fields.cons, fields.no_walldist);
+
+    // Independent dry oracle: recover p from the dry conserved theta and add
+    // the half-cell hydrostatic correction, then evaluate qsat at the surface T.
+    const IntVect point = face_point(fields.domain, face);
+    const Box surface_cell(point, point);
+    const Real rho_theta = single_value(fields.cons, surface_cell, RhoTheta_comp);
+    const Real cell_pressure = getPgivenRTh(rho_theta, Real(0.0));
+    const Real surface_pressure = cell_pressure + test_rho * CONST_GRAV *
+        myhalf * geom.CellSize(2);
+    Real expected_qsat_dry = Real(0.0);
+    erf_qsatw(expected_surface_temperature, surface_pressure * Real(0.01),
+              expected_qsat_dry);
+    const Real actual_qsat = mf_value(*layer->get_q_surf(0), point);
+    EXPECT_TRUE(std::isfinite(actual_qsat));
+    EXPECT_NEAR(actual_qsat, expected_qsat_dry, qsat_tolerance(expected_qsat_dry));
+}
+
 // Motivation: production coupled-SST donors have no lateral ghost cells, but
 // the SurfaceLayer destination carries a one-cell grown halo. A covered
 // nonperiodic edge must therefore sample the clamped physical donor rather

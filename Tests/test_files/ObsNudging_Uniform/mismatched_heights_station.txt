@@ -1,0 +1,7 @@
+# Used by the ObsNudging_Abort_HeightMismatch test: the second time has a
+# different second height, which the time interpolation cannot pair.
+time    z       u     v
+0.0     10.0    6.0  -1.0
+0.0     80.0    6.5  -1.0
+60.0    10.0    6.0  -1.0
+60.0    90.0    6.5  -1.0

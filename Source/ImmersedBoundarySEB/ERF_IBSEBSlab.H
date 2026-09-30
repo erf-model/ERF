@@ -107,7 +107,9 @@ void slab_skin_response (const amrex::Real* T, amrex::Real T_int,
                          amrex::Real dt, int N, amrex::Real& a, amrex::Real& b)
 {
     if (N < 1 || N > SLAB_MAX_LAYERS) { a = 0.0; b = 0.0; return; }
-    amrex::Real W[SLAB_MAX_LAYERS];
+    // Zero-initialized: only the first N entries are ever used, but the
+    // compiler cannot see that through the inlined solve and warns otherwise.
+    amrex::Real W[SLAB_MAX_LAYERS] = {};
     for (int l = 0; l < N; ++l) { W[l] = T[l]; }
     const amrex::Real G0 = advance_slab_dirichlet(W, 0.0, T_int, k, rho_cp, dz, dt, N);
     for (int l = 0; l < N; ++l) { W[l] = T[l]; }

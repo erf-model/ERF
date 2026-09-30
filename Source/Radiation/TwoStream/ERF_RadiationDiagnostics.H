@@ -52,6 +52,11 @@
  *
  * **Dedup Contract:**
  *
+ * Each AMR level owns its own RadiationDiagnostics, so the identity below is
+ * implicitly per level: two levels reporting the same step, call_site and time
+ * are distinct instances and neither suppresses the other. All instances append
+ * to the same CSV, which carries a `level` column to tell the rows apart.
+ *
  * Duplicate detection uses a 3-tuple identity (step, call_site, time):
  * - step: timestep number (int)
  * - call_site: diagnostic call-site label (e.g., "pre_dycore", "post_dycore")
@@ -74,7 +79,10 @@ public:
    *
    * @param[in] verbosity Debug verbosity level (0=off, 1+=print).
    * @param[in] diag_file Output CSV file path (relative to working directory).
-   * @param[in] amr_level AMR level index.
+   * @param[in] amr_level AMR level this instance reports for. Written as the
+   *            `level` CSV column and tagged onto the stdout lines. One
+   *            instance per level, so the duplicate guard below is per level
+   *            and a fine level's row is never mistaken for a coarse one.
    * @param[in] diag_enable Master switch for all diagnostics.
    * @param[in] diag_stdout_enable Enable human-readable stdout block.
    * @param[in] diag_tagged_enable Enable tagged debug lines.
@@ -83,7 +91,7 @@ public:
    * @param[in] diag_callsite_mode Call-site filter: "both", "pre_only", "post_only".
    * @param[in] diag_dedup_tol Tolerance for time equality in duplicate guard.
    */
-  RadiationDiagnostics(int verbosity, const std::string& diag_file,
+  RadiationDiagnostics(int verbosity, const std::string& diag_file, int amr_level,
                       bool diag_enable = true, bool diag_stdout_enable = true,
                       bool diag_tagged_enable = true, bool diag_regtest_line_enable = true,
                       bool diag_csv_enable = true, const std::string& diag_callsite_mode = "both",
@@ -102,6 +110,9 @@ public:
    * CSV columns (order):
    *   step, time, call_site, SW_surface, SW_TOA, SW_up_TOA, LW_net_surface, LW_up_TOA, heating_rate_max
    *   [optional]: SEB_residual_mean, SEB_residual_max (only if seb_diagnostic_enable=true)
+   *   [optional]: T_s_mean, T_s_max, q_s_mean, q_s_max
+   *   level  -- appended last, following this file's rule that new columns go
+   *             at the end so existing header-name parsers keep working.
    *
    * Also prints tagged debug output and RADIATION_DIAG: line for RegTest parsing.
    *
@@ -142,6 +153,7 @@ private:
 
   int m_verbosity;              ///< Debug verbosity level
   std::string m_diag_file;      ///< Output CSV file path
+  int m_amr_level = 0;          ///< AMR level this instance reports for
   int m_last_write_step = -1;   ///< Guard against duplicate writes
   bool m_header_written = false; ///< Track whether CSV header was written
   std::string m_last_write_call_site = "";

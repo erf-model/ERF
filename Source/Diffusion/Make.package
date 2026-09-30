@@ -22,6 +22,9 @@ CEXE_sources += ERF_ImplicitDiff_T.cpp
 CEXE_sources += ERF_ComputeTurbulentViscosity.cpp
 
 CEXE_headers += ERF_SetupDiff.H
+CEXE_headers += ERF_SetupScalarDiffusion.H
 CEXE_headers += ERF_SetupImplicitDiff.H
 CEXE_headers += ERF_Diffusion.H
+CEXE_headers += ERF_ScalarDiffusion.H
+CEXE_headers += ERF_NativeScalarDiffusion.H
 CEXE_headers += ERF_EddyViscosity.H

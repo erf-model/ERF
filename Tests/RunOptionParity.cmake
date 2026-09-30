@@ -12,6 +12,7 @@
 # identical and the test would pass while checking nothing.
 # -DX= defines X as empty, so test for a value, not for DEFINED
 include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/ResolveExecutable.cmake")
 
 foreach(arg NRANKS TEST_EXE INPUT WORKING_DIRECTORY FCOMPARE PLTFILE RUN_TIMEOUT ON_OPTIONS)
     if("${${arg}}" STREQUAL "")
@@ -24,6 +25,13 @@ endif()
 if("${OFF_OPTIONS}" STREQUAL "${ON_OPTIONS}")
     message(FATAL_ERROR "RunOptionParity.cmake: the two legs are given the same options, so the comparison would be trivial")
 endif()
+
+# On Windows the executables are named with a wildcard for the config subdirectory
+# a multi-config generator picks; execute_process does not expand it.
+erf_resolve_executable(TEST_EXE "${TEST_EXE}" CONFIG "${CONFIG}"
+    CONTEXT "RunOptionParity.cmake: ERF executable")
+erf_resolve_executable(FCOMPARE "${FCOMPARE}" CONFIG "${CONFIG}"
+    CONTEXT "RunOptionParity.cmake: fcompare")
 
 separate_arguments(common_options UNIX_COMMAND "${COMMON_OPTIONS}")
 separate_arguments(off_options    UNIX_COMMAND "${OFF_OPTIONS}")

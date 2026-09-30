@@ -805,6 +805,9 @@ occupies:
    * - ``Kessler``
      - qv (Q1), qc (Q2), qr (Q3)
      - none
+   * - ``SBM``
+     - qv (Q1), qc (Q2 projection), qr (Q3 projection)
+     - none in the compact state
    * - ``SAM_NoPrecip_NoIce``
      - qv (Q1), qc (Q2)
      - none
@@ -829,6 +832,26 @@ occupies:
    * - ``SuperDroplets``
      - qv (Q1), qc (Q2), qi (Q3), qr (Q4), qs (Q5), qg (Q6)
      - none
+
+For ``SBM``, ``qc`` and ``qr`` are compatibility projections from the
+authoritative bin-resolved liquid-water mass. They are not independent liquid
+reservoirs.
+
+A two-moment SBM state also contains droplet-number density in every spectral
+bin, but those number components live in the auxiliary spectral state rather
+than in conventional ERF ``nc`` or ``nr`` conserved components. Individual SBM
+bin masses and bin numbers are not currently registered as standard 3D
+plotfile variables; the bin-resolved state is currently preserved through the
+SBM checkpoint state.
+
+For the current SBM layout, the aggregate moisture diagnostics therefore use
+
+* ``qt = qv + qc + qr``;
+* ``qn = qv + qc``; and
+* ``qp = qr``.
+
+See :ref:`sec:SpectralBinMicrophysics` for the distinction between the
+authoritative spectrum and these projected bulk fields.
 
 Note that ``nn``, the CCN / total aerosol number, is not a hydrometeor count:
 it is an aerosol reservoir with no companion mass species, and it takes the
@@ -858,9 +881,16 @@ arrays:
    * - ``SuperDroplets``
      - ``rain_accum``, ``snow_accum``
      - ``rel_humidity``, ``condensation_rate``
+   * - ``SBM``
+     - none
+     - none
    * - all others
      - none
      - none
+
+The current SBM fixture has no surface-precipitation accumulation or
+microphysical tendency diagnostics because sedimentation and cloud
+microphysical processes are not yet implemented.
 
 ``SuperDroplets`` allocates a graupel accumulation slot that nothing fills, so
 ``graup_accum`` is not offered for that scheme. ``SatAdj`` publishes no qmoist

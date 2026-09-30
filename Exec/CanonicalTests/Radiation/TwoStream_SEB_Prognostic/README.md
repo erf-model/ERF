@@ -5,11 +5,22 @@
 Validate the SEB prognostic evolution feature:
 - **Prognostic T_s and q_s evolution** from SEB residual using force-restore formulation
 - **Time integration** via explicit Euler with configurable timescales and bounds
-- **Noah-MP gating** — update skipped when Noah-MP actively drives LSM fields
+- **External-provider ownership** — update skipped when an authoritative external surface-temperature provider owns the longwave boundary
 - **Backward compatibility** — when disabled (default), output is bitwise-identical to the feature-off baseline
 - **GPU-safe implementation** — time integration via device-side update kernels
 
 ## Test Design
+
+### Surface-Temperature Ownership
+
+TwoStream's prognostic surface temperature advances only when TwoStream owns the longwave boundary. An
+authoritative external or LSM canonical surface-temperature provider retains precedence and suppresses the
+TwoStream force-restore update. Noah-MP's ``t_sfc`` and SLM's ``tsurf`` supplied through the canonical
+SurfaceModel radiation field are examples. The prognostic state does not override a provider.
+
+The existing per-column resolver order remains: valid external/LSM absolute temperature, valid prognostic SEB
+absolute temperature when offered, valid SurfaceLayer potential temperature converted to absolute temperature,
+then the scalar fallback. The feature-on scenario below has no LSM provider, so it exercises TwoStream ownership.
 
 ### Baseline Scenario (Disabled)
 - **SEB prognostic disabled** (`seb_prognostic_enable=false`, default)
@@ -91,8 +102,8 @@ See README for full sounding documentation.
    T_s by `dt * dT_s/dt(T_s_old)` with dt the time between rows (2% tolerance)
 7. **Restart continuity** — restarting from the mid-run checkpoint reproduces
    the fresh run's T_s and q_s (see Restart Mode below)
-8. **No impact on radiation** — SW/LW/heating diagnostics identical to baseline
-   (prognostic update occurs after radiation calculation; no feedback)
+8. **No same-step impact on radiation** — the post-dycore update follows that step's radiation sweep; the updated
+   prognostic temperature can supply the boundary on the next sweep when no external provider owns it
 
 ## Surface Energy Balance Prognostic Equations
 

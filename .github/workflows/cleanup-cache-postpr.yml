@@ -10,6 +10,7 @@ jobs:
   CleanUpCcacheCachePostPR:
     name: Clean Up Ccache Cache Post PR
     runs-on: ubuntu-22.04
+    timeout-minutes: 15
     permissions:
       actions: write
       contents: read

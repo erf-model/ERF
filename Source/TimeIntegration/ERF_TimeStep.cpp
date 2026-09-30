@@ -245,6 +245,18 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
                 for (int k = old_finest+1; k <= finest_level; ++k) {
                     dt[k] = dt[k-1] / static_cast<double>(nsubsteps[k]);
                 }
+
+                // The terrain under each regridded level has moved with its
+                // grids.  Find it now, as start-up does, so that a level the
+                // nudging cannot handle (on a terrain-fitted mesh, one whose
+                // grids no longer reach the ground) is refused here rather
+                // than part-way through the next right-hand side.
+                if (solverChoice.nudging_from_observations && obs_nudging) {
+                    for (int k = lev+1; k <= finest_level; ++k) {
+                        obs_nudging->prepare_level(k, geom[k], vars_new[k][Vars::cons],
+                                                   z_phys_nd[k].get(), time);
+                    }
+                }
             } // if
         } // lev
     }

@@ -2,19 +2,19 @@ name: Linux GCC
 
 on:
   push:
+    branches: [development]
   pull_request:
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened]
 
 concurrency:
   group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-linux-gcc
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
   library:
-    # The closed event exists only to cancel in-progress runs via concurrency.
-    if: github.event.action != 'closed'
-    name: GNU@9.3 C++17 Release - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
+    name: GNU@9.3 C++17 - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     runs-on: ubuntu-22.04
+    timeout-minutes: 120
     # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
     strategy:
       matrix:
@@ -57,7 +57,8 @@ jobs:
         cmake \
           -B${{runner.workspace}}/ERF/build \
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install \
-          -DCMAKE_BUILD_TYPE:STRING=Debug \
+          -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
+          -DAMReX_ASSERTIONS:BOOL=ON \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
@@ -94,6 +95,11 @@ jobs:
         export return=$(tail -n 1 ${{runner.workspace}}/build-output-warnings.txt | awk '{print $2}')
         exit ${return}
 
+    - name: GNUmake Compile and Link
+      if: matrix.particles == 'OFF' && matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
+      run: |
+        make -C Exec -j2 USE_NETCDF=FALSE USE_PARTICLES=FALSE
+
     - name: Check Unit Test Registration
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
@@ -105,6 +111,18 @@ jobs:
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
         ctest -L unit --output-on-failure --no-tests=error
+      working-directory: ${{runner.workspace}}/ERF/build
+
+    - name: Run SBM Integration Tests
+      if: matrix.particles == 'OFF' && matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
+      run: |
+        ctest -L sbm --output-on-failure --no-tests=error
+      working-directory: ${{runner.workspace}}/ERF/build
+
+    - name: Run Auxiliary Integration Tests
+      if: matrix.particles == 'OFF' && matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
+      run: |
+        ctest -L auxiliary --output-on-failure --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build
 
     # Keep the existing DOUBLE unit/regression coverage and add one focused
@@ -139,3 +157,35 @@ jobs:
       run: |
         ctest -L smoke --output-on-failure --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build
+
+    # A test that dies on a signal (for example SIGILL from amrex.fpe_trap_invalid)
+    # writes Backtrace.<rank> into its run directory; the log only says "See
+    # Backtrace.0 file for details", so keep those files when a step has failed.
+    - name: Upload backtraces from failed tests
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: backtraces-gcc-mesh-${{matrix.mesh_precision}}-particles-${{matrix.particles}}-${{matrix.particles_precision}}
+        path: ${{runner.workspace}}/ERF/build/Tests/**/Backtrace.*
+        if-no-files-found: ignore
+        retention-days: 14
+
+  # Single stable required status check. Branch protection previously pinned the
+  # individual matrix job names ("GNU@9.3 C++17 Release - Particles OFF"), which silently
+  # stopped matching when the matrix gained its Mesh/precision axes -- leaving every PR
+  # waiting forever on a context that could never report. Requiring only this job means
+  # the matrix can be reshaped without touching branch protection again.
+  ci-required:
+    name: ci-required
+    if: always()
+    needs: [library]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - name: Check build matrix result
+        run: |
+          result="${{ needs.library.result }}"
+          echo "Linux GCC matrix result: ${result}"
+          # 'skipped' is legitimate (path filters); anything other than that or
+          # 'success' means the matrix did not pass.
+          [[ "${result}" == "success" || "${result}" == "skipped" ]] || exit 1

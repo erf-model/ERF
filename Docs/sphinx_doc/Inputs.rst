@@ -1230,6 +1230,10 @@ List of Parameters
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.plot_lsm**                    | write the land-surface-model fields to the plotfile      | Boolean            | false            |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.plot_surfmodel**              | write SurfaceModel fields to ``plt_surf_*`` files;       | Boolean            | both LSM+Urban   |
+|                                     | independent of ``erf.plot_lsm``                          |                    | active by default|
+|                                     |                                                          |                    | false otherwise  |
++-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.plot_rad**                    | write the radiation fields to the plotfile; read only in | Boolean            | false            |
 |                                     | an RRTMGP build                                          |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -1446,7 +1450,7 @@ that cuts through static refinement patches retains the finer in-plane resolutio
 By default all intersecting levels are written; ``erf.plane_sampling_max_level = <int>``
 caps the finest level (``0`` forces level-0-only output). The slice-normal direction is
 resolved natively on each level by replicating the sampled plane across the level's cells,
-so the resulting dataset has an isotropic refinement ratio and loads cleanly in yt/amrvis.
+so the resulting dataset has an isotropic refinement ratio and loads cleanly in amrvis.
 
 Line and plane samples will be default be written to plotfiles, one plotfile per output
 snapshot, with all output variables in the same file. Alternatively, line sampling has
@@ -1604,6 +1608,11 @@ which is what an aircraft or a sounding level is.  A station uses one or the
 other, never both.  One of them is required if the station requests any 3D
 variable; both are ignored by 2D variables, which are surface quantities.
 
+The local terrain is the elevation of the ground at the station itself, interpolated
+bilinearly from the terrain at the nodes around it: the bottom of a terrain-fitted
+mesh, or, with ``erf.terrain_type = ImmersedForcing``, the terrain surface the immersed
+boundary is built from (the mesh is then flat, and its bottom is not the ground).
+
 The variable names accepted are the names of the 3D plotfile variables
 (``erf.plot_vars_1``) and of the built-in 2D diagnostics (``erf.plot2d_vars_1``),
 and the values are produced by the same code, so a station column and the
@@ -1717,9 +1726,10 @@ distinct.
    one without.  That is tested rather than asserted -- the
    ``StationSampling_AnswerParity*`` regression tests run a deck with the
    stations off and on and require the plotfiles to be identical bit for bit,
-   on a two-level dry case, on a surface-layer case and on a case with
-   Lagrangian microphysics -- with one gap: no test covers a run driven by
-   time-dependent lateral boundary data, because no such deck can run in CI.
+   on a two-level dry case and on a surface-layer case -- with two gaps: no
+   test covers a case with Lagrangian microphysics, and none covers a run
+   driven by time-dependent lateral boundary data, for which no deck can run
+   in CI.
    See :ref:`RegressionTests`.
 
 .. _list-of-parameters-10c:
@@ -2529,6 +2539,119 @@ the one file corresponds to time = 0.0.   If the final time supplied in
 in ``input_*_sounding_*_file`` will be used for all times later than the final value in
 in ``input_*_sounding_*_time``.
 
+Every level samples the input sounding at its own cell centres, for the initial state and base
+state and for nudging, just as a single-level run at that resolution does; the large-scale forcing
+profiles are likewise interpolated to each level's own cell centres. A fine cell below the first
+level-0 cell centre therefore starts from the sounding's air values there, not from a blend with
+the surface line of the file (which, with ``erf.most.surf_temp``, holds the surface temperature).
+
+.. _inputs-obs-nudging:
+
+Nudging towards Observations
+----------------------------
+
+Near stations such as met masts and lidars, u, v, w and theta can be nudged towards
+their measured profiles; see :ref:`sec:ObsNudging` for the formulation.  A station is
+named in ``erf.obs_nudging.stations`` and given by the keys ``erf.obs_nudging.<name>.*``:
+
+::
+
+    erf.nudging_from_observations     = true
+    erf.obs_nudging.stations          = mast lidar
+    erf.obs_nudging.tau               = 600.0
+    erf.obs_nudging.horizontal_radius = 500.0
+    erf.obs_nudging.vertical_radius   = 25.0
+    erf.obs_nudging.mast.file         = mast.txt
+    erf.obs_nudging.mast.x            = 700.0
+    erf.obs_nudging.mast.y            = 400.0
+    erf.obs_nudging.lidar.file        = lidar.txt
+    erf.obs_nudging.lidar.lat         = 39.91
+    erf.obs_nudging.lidar.long        = -105.23
+
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                              | Definition                                               | Acceptable Values  | Default          |
++========================================+==========================================================+====================+==================+
+| **erf.nudging_from_observations**      | Nudge the solution towards observations at the stations  | Boolean            | false            |
+|                                        | below                                                    |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.stations**           | Names of the stations                                    | List of strings    | required         |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.tau**                | Relaxation time scale                                    | Real > 0 [s]       | required         |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.horizontal_radius**  | Horizontal radius R_h of a station's weight              | Real > 0 [m]       | 500              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.vertical_radius**    | Vertical radius R_z of the taper outside the measured    | Real > 0 [m]       | 25               |
+|                                        | height range                                             |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.cutoff**             | Stations further than this many radii away are not used  | Real > 0           | 6                |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.sigma_factor**       | Half-width alpha of the band mean +- alpha sigma inside  | Real >= 0          | 1                |
+|                                        | which the value is left alone; 0 nudges to the mean      |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.nudge_wind**         | Nudge u and v where a station measures them              | Boolean            | true             |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.nudge_w**            | Nudge w where a station measures it                      | Boolean            | true             |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.nudge_theta**        | Nudge theta where a station measures it                  | Boolean            | true             |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.time_type**          | Clock of the time column: elapsed (seconds of run time)  | elapsed, epoch     | elapsed          |
+|                                        | or epoch (seconds since 1970, needs start_datetime or a  |                    |                  |
+|                                        | WRF/metgrid start)                                       |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.missing_value**      | Entry of a station file that marks a missing measurement | Real               | -9999            |
+|                                        | (as does nan)                                            |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.<name>.file**        | The station file                                         | String             | required         |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.<name>.x, .y**       | Position in domain coordinates                           | Real [m]           | x/y or lat/long  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.<name>.lat, .long**  | Latitude and longitude (needs latitude/longitude         | Real [deg]         | x/y or lat/long  |
+|                                        | arrays); .lon is accepted for .long                      |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.<name>.wind_frame**  | earth: the file's wind is east/north and is rotated into | earth, grid        | earth            |
+|                                        | the grid; grid: it is already along the grid axes        |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.obs_nudging.<name>.height_ref**  | agl: heights above the local terrain; msl: above z = 0   | agl, msl           | agl              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+
+A station file is plain text.  Everything from a ``#`` to the end of a line is a
+comment.  The first line that is not blank names the columns, in any order, from
+``time z u v w theta su sv sw stheta speed direction``: ``time`` and ``z`` are required,
+the wind is given as ``u v`` or as ``speed direction`` (m/s, and the meteorological
+direction the wind blows from, in degrees clockwise from north), and ``su sv sw stheta``
+are the standard deviations.  A quantity with no column is not nudged at that station.
+Each following row is one height at one time; the rows are grouped by time in increasing
+order, with the heights of each time increasing and the same at every time.  An entry
+that is not a number (``nan``) or equals ``erf.obs_nudging.missing_value`` is missing: that
+quantity is not nudged at that height and time, and a missing standard deviation is 0.
+For example, a lidar with no temperature:
+
+::
+
+    # time [s]  z [m]  u v w [m/s]      su sv sw [m/s]
+    time    z       u     v     w      su    sv    sw
+    0.0     40.0    6.0   0.0   0.40   0.3   0.3   0.05
+    0.0     80.0    6.2   0.0   0.40   0.3   0.3   0.05
+    600.0   40.0    6.5   0.5   0.40   0.3   0.3   0.05
+    600.0   80.0    nan   nan   nan    nan   nan   nan
+
+A file with one time holds for the whole run.  A file with several is interpolated
+linearly in time, a height being used only where both bracketing times have it, and the
+station is inactive before its first time and after its last.  A station none of whose
+quantities are nudged in the run (a lidar without temperature when only theta is nudged)
+is skipped with a warning.
+
+Every input is checked at start-up: a missing ``tau`` or station list, a value out of
+range, a malformed file (with the line), a station outside the domain, a ``lat``/``long``
+station in a run without latitude/longitude arrays, ``time_type = epoch`` without a start
+date, EB terrain, and, on a terrain-fitted mesh, a refined level whose grids do not reach
+the ground under them all abort with a message naming the input.  The terrain under each
+level is found again after every regrid, so a refined level that its tagging later moves
+off the ground aborts at that regrid rather than part-way through the following step.
+The run prints each station with its position, the rotation of its wind, its heights and
+times and what it nudges.  To compare the model with the measurements, write station
+time series at the same positions (``erf.station_names``, :ref:`Station time series <inputs-station-time-series>`).
+
 .. _sec:LateralBoundaryNudgingInputs:
 
 Lateral Boundary Nudging
@@ -2777,11 +2900,15 @@ List of Parameters
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.bndry_output_box_hi**           | Upper-right (x,y) of output box                          | 2 Reals            | None             |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.bndry_output_var_names**        | Variables to write                                       | List of strings    | All              |
+| **erf.bndry_output_var_names**        | Variables to write; any of velocity, density,            | List of strings    | None (no         |
+|                                       | temperature, theta, scalar, qv, qc and ke. An unknown    |                    | variables)       |
+|                                       | name aborts at the first write                           |                    |                  |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.bndry_file**                    | Input boundary-plane directory                           | String             | None             |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.bndry_input_var_names**         | Variables to read                                        | List of strings    | All              |
+| **erf.bndry_input_var_names**         | Variables to read; any of velocity, density,             | List of strings    | None (no         |
+|                                       | temperature, theta, scalar, qv, qc and ke. An unknown    |                    | variables)       |
+|                                       | name aborts at start-up                                  |                    |                  |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.in_rad**                        | width, in cells, of the region inside the domain         | Integer >= 0       | 1                |
 |                                       | boundary from which the boundary planes are written and  |                    |                  |
@@ -3099,6 +3226,9 @@ List of Parameters
 |                                  |                                                          | EB,                |                  |
 |                                  |                                                          | ImmersedForcing    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.flat_terrain**             | require a horizontally flat ``StaticFittedMesh`` and     | Boolean            | false            |
+|                                  | permit fixed-index planar averages after validation.     |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.terrain_smoothing**        | specify terrain following                                | 0, 1, 2            | 0                |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.amr_terrain_refinement**   | terrain refinement strategy for fine levels with         | "interpolate",     | "interpolate"    |
@@ -3193,8 +3323,6 @@ interfaces.
     the y-coordinate, then the (nx times ny) values of the z-coordinate associated
     with the (x,y) values we have just read in.  Note that the z-values are in the
     order z(x1,y1), z(x1,y2), z(x1,y3), ... which is contrary to standard Fortran ordering
-
-.. _inputs-land-surface-model:
 
 .. _sec:ImmersedForcingInputs:
 
@@ -3595,6 +3723,8 @@ the ones marked **Required** abort the run if they are not given.
 | **erf.most.include_subgrid_vel**      | add a subgrid contribution to the mean surface velocity  | Boolean             | false            |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 
+.. _inputs-land-surface-model:
+
 Land Surface Model
 ==================
 
@@ -3620,6 +3750,7 @@ List of Parameters
 .. note::
 
    Noah-MP requires ``USE_NOAHMP=TRUE`` at build time. See :ref:`CouplingToNoahMP` for details.
+   See :ref:`SLM` for the complete set of ``slm.`` options.
 
 .. note::
 
@@ -3694,11 +3825,17 @@ See :ref:`CouplingToAMRWind` and :ref:`CouplingToWW3` for more information.
 Moisture
 ========
 
-ERF has several different moisture models. The models that are currently implemented
-are Eulerian models; however, ERF has the capability for Lagrangian models when
-compiled with particles.
+ERF supports several Eulerian moisture and microphysics models and, when
+particle support is enabled, the Lagrangian Super-Droplet Method. ERF also
+contains the developing Eulerian spectral-bin capability selected with
+``erf.moisture_model = SBM``.
 
-The following run-time options control how the full moisture model is used.
+The current ``SBM`` option is restricted to its zero-transport infrastructure
+fixture; it is not yet a production spectral-bin cloud-microphysics scheme.
+See :ref:`sec:SpectralBinMicrophysics` for its state representation,
+configuration, and current limitations.
+
+The following run-time options control the moisture model.
 
 List of Parameters
 ------------------
@@ -3714,7 +3851,7 @@ List of Parameters
 |                                   |                                                          | Morrison,            |                  |
 |                                   |                                                          | Morrison_NoIce,      |                  |
 |                                   |                                                          | WSM6, WDM6,          |                  |
-|                                   |                                                          | SuperDroplets,       |                  |
+|                                   |                                                          | SuperDroplets, SBM,  |                  |
 |                                   |                                                          | MoistNoCondensation  |                  |
 +-----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **erf.moisture_tight_coupling**   | If true, advance microphysics after every slow step in   | Boolean              | false            |
@@ -3747,6 +3884,81 @@ List of Parameters
 +-----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **erf.micro_diag_store**          | which WSM6 forensic diagnostic quantities are stored     | List of Strings      | standing         |
 +-----------------------------------+----------------------------------------------------------+----------------------+------------------+
+
+SBM inputs
+----------
+
+The inputs below are read only when ``erf.moisture_model = SBM``. The current
+SBM implementation is the bounded zero-transport infrastructure described in
+:ref:`sec:SpectralBinMicrophysics`.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 27 43 15 15
+
+   * - Parameter
+     - Definition
+     - Acceptable values
+     - Default
+   * - ``erf.sbm_zero_transport_fixture``
+     - Enables the current bounded SBM infrastructure fixture. This must
+       currently be true whenever ``erf.moisture_model = SBM``; production
+       spectral transport is not yet implemented.
+     - Boolean; currently ``true`` is required for SBM
+     - ``false``
+   * - ``erf.sbm_nbins``
+     - Number of liquid spectral bins when explicit ``sbm_edges`` are not
+       supplied. Explicit edges determine the effective bin count.
+     - Integer :math:`\ge 2`
+     - ``4``
+   * - ``erf.sbm_moment_mode``
+     - Spectral moments stored per bin. ``1`` stores liquid-water mass;
+       ``2`` stores liquid-water mass and droplet number.
+     - ``1`` or ``2``
+     - ``1``
+   * - ``erf.sbm_cloud_rain_split``
+     - Interior bin index separating projected cloud water from projected rain
+       water. Bins below the index contribute to ``qc`` and bins at or above
+       it contribute to ``qr``.
+     - Integer satisfying
+       :math:`0 < s < N_{\mathrm{bins}}`
+     - ``N_bins / 2`` using integer division
+   * - ``erf.sbm_edges``
+     - Spectral bin edges in individual-particle liquid-water mass [kg].
+       Values must be finite, nonnegative, strictly increasing, and
+       numerically well separated. When supplied, the array length determines
+       the number of bins.
+     - List of :math:`N_{\mathrm{bins}}+1` real values
+     - Log-spaced from :math:`10^{-18}` to :math:`10^{-12}` kg
+   * - ``erf.sbm_pivots``
+     - Representative particle mass [kg] for each bin. Each pivot must be
+       finite, positive, and lie inside its bin. With explicit edges and no
+       pivots, ERF uses geometric-mean pivots.
+     - List of :math:`N_{\mathrm{bins}}` positive real values
+     - Geometric mean of adjacent edges
+   * - ``erf.sbm_fixture_initial_state``
+     - Spatially uniform authoritative spectral state. A 1M state contains all
+       bin mass densities [kg m^-3]. A 2M state contains all mass densities
+       followed by all number densities [m^-3]. Two-moment states must satisfy
+       the bin realizability constraints.
+     - :math:`N_{\mathrm{bins}}` values for 1M or
+       :math:`2N_{\mathrm{bins}}` values for 2M
+     - All zero
+
+.. note::
+
+   ``erf.sbm_pivots`` is meaningful as a user input only when explicit
+   ``erf.sbm_edges`` are also supplied. If edges are omitted, ERF generates
+   both the default edges and their pivots.
+
+   If an explicit first bin begins at zero, its geometric-mean pivot is also
+   zero and is invalid because SBM requires a positive pivot. Supply an
+   explicit positive pivot inside that bin.
+
+The automatically generated spectral grid and the example initial states are
+qualification defaults rather than recommended atmospheric discretizations.
+See :ref:`sec:SpectralBinMicrophysics` for the full interpretation of these
+inputs.
 
 .. _inputs-radiation:
 
@@ -3903,6 +4115,24 @@ albedo and emissivity, dynamic moisture-dependent optical depth, PBL coupling, a
 Simplified Surface Energy Balance (SEB) module (diagnostic + prognostic force-restore) for surface
 temperature and moisture evolution. Select this model via ``erf.radiation_model = TwoStream``;
 the other values are ``None``, ``RRTMGP`` and ``Simple``, so exactly one radiation model runs.
+
+The model runs on a refined hierarchy. A level that carries complete atmospheric columns sweeps
+them itself; a level whose grids stop short of the domain top or bottom -- a nested patch -- has
+its heating rates and fluxes interpolated from its parent, as they are for RRTMGP. Set
+``amr.refine_whole_domain_dir = 2`` if you would rather every refinement patch span :math:`z` and
+be solved on its own. The requirement is per box -- the sweep needs a whole column inside one box
+-- so a level tagged at different heights in different horizontal regions is interpolated too,
+not just one that stops below the domain top. The only refusal is on level 0, which has no parent
+to interpolate from: a box there that does not span :math:`z` means grids decomposed in the
+vertical, which ERF's default ``amr.no_box_split_dir = 2`` already prevents. The surface energy balance runs on every level. ``erf.radiation.seb_prognostic_enable`` -- which
+evolves the surface temperature that the longwave boundary condition reads -- may be combined
+with ``amr.max_level > 0``: a new level's surface state is interpolated from its parent, the
+fine levels' state is averaged down after they advance (under ``erf.coupling_type = TwoWay``),
+and a regrid keeps what the surface had reached. The average-down is skipped for a level
+whose boxes do not span the domain in :math:`z`, since such a level takes its radiation
+from its parent and never evolves a surface of its own. A fine level therefore starts from its parent's
+surface rather than resolving more surface structure than the coarse grid did. The fields are
+written with the 2D plotfile variables ``seb_t_sfc`` and ``seb_q_sfc``.
 
 
 
@@ -4063,6 +4293,7 @@ atmospheric cell), ``start_datetime`` and the
 | **erf.radiation.seb_diagnostic_enable**            | Enable diagnostic SEB residual computation                 | Boolean            | false            |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_prognostic_enable**            | Enable prognostic SEB surface T_s and q_s evolution        | Boolean            | false            |
+|                                                    | single level only; refused with amr.max_level > 0          |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_sw_flux_default**              | Fallback SEB net shortwave flux [W/m²]                     | Real               | 0.0              |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
@@ -4427,6 +4658,8 @@ List of Parameters
 | Parameter                   | Definition                | Acceptable Values | Default    |
 +=============================+===========================+===================+============+
 | **erf.check_for_nans**      | Test solution for NaNs    |  int              | 0          |
+|                             | and abort if any are      |                   |            |
+|                             | found                     |                   |            |
 +-----------------------------+---------------------------+-------------------+------------+
 | **amrex.fpe_trap_invalid**  | Raise errors for NaNs     |  0 / 1            | 0          |
 +-----------------------------+---------------------------+-------------------+------------+
@@ -4731,7 +4964,8 @@ Initialization, Terrain and Vertical Mesh
 * :ref:`Initialization <inputs-initialization>` -- ``erf.avg_grid_faces_to_nodes``,
   ``erf.init_type``, ``erf.nc_bdy_file``, ``erf.rebalance_wrf_input``,
   ``erf.sounding_type``, ``erf.use_real_bcs``
-* :ref:`Terrain <inputs-terrain>` -- ``erf.buildings_type``, ``erf.terrain_type``
+* :ref:`Terrain <inputs-terrain>` -- ``erf.buildings_type``, ``erf.flat_terrain``,
+  ``erf.terrain_type``
 
 Physics Model Selection
 -----------------------

@@ -252,6 +252,7 @@ compute_gradp_xy (const MultiFab& p,
                 gpy_arr(i,j,k) *= mf_vy_arr(i,j,0);
             });
 
+        // solverChoice.terrain_type == TerrainType::EB
         } else {
 
             // Pressure gradients are fitted at the centroids of cut cells, if EB and Compressible.
@@ -273,7 +274,6 @@ compute_gradp_xy (const MultiFab& p,
             Array4<const Real      > u_volfrac = u_factory->getVolFrac().const_array(mfi);
             bool u_is_cut = (u_factory->getMultiEBCellFlagFab()[mfi].getType() == FabType::singlevalued);
             Array4<const Real      > u_volcent = u_is_cut ? u_factory->getCentroid().const_array(mfi) : Array4<const Real>{};
-
 
             // EB v-factory
             auto const* v_factory = ebfact.get_v_const_factory();
@@ -331,10 +331,25 @@ compute_gradp_xy (const MultiFab& p,
                 [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
                     if (u_volfrac(i,j,k) > zero) {
+
                         if (cellflg(i,j,k).isCovered()) {
-                            gpx_arr(i,j,k) = dxInv[0] * (p_arr(i-3,j,k) - three*p_arr(i-2,j,k) + two*p_arr(i-1,j,k));
+                            // Check if all donor cells on the low side are not covered
+                            if (!cellflg(i-1,j,k).isCovered() && !cellflg(i-2,j,k).isCovered() && !cellflg(i-3,j,k).isCovered()) {
+                                // Use three-point stencil (second-order accurate)
+                                gpx_arr(i,j,k) = dxInv[0] * (p_arr(i-3,j,k) - three*p_arr(i-2,j,k) + two*p_arr(i-1,j,k));
+                            } else {
+                                // Fall back to one-sided two-point stencil (first-order)
+                                gpx_arr(i,j,k) = dxInv[0] * (p_arr(i-1,j,k) - p_arr(i-2,j,k));
+                            }
                         } else if (cellflg(i-1,j,k).isCovered()) {
-                            gpx_arr(i,j,k) = dxInv[0] * (three*p_arr(i+1,j,k) - p_arr(i+2,j,k) - two*p_arr(i,j,k));
+                            // Check if all donor cells on the high side are not covered
+                            if (!cellflg(i,j,k).isCovered() && !cellflg(i+1,j,k).isCovered() && !cellflg(i+2,j,k).isCovered()) {
+                                // Use three-point stencil (second-order accurate)
+                                gpx_arr(i,j,k) = dxInv[0] * (three*p_arr(i+1,j,k) - p_arr(i+2,j,k) - two*p_arr(i,j,k));
+                            } else {
+                                // Fall back to one-sided two-point stencil (first-order)
+                                gpx_arr(i,j,k) = dxInv[0] * (p_arr(i+1,j,k) - p_arr(i,j,k));
+                            }
                         } else {
                             gpx_arr(i,j,k) = dxInv[0] * (p_arr(i,j,k) - p_arr(i-1,j,k));
                         }
@@ -346,9 +361,23 @@ compute_gradp_xy (const MultiFab& p,
                 {
                     if (v_volfrac(i,j,k) > zero) {
                         if (cellflg(i,j,k).isCovered()) {
-                            gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j-3,k) - three*p_arr(i,j-2,k) + two*p_arr(i,j-1,k));
+                            // Check if all donor cells on the low side are not covered
+                            if (!cellflg(i,j-1,k).isCovered() && !cellflg(i,j-2,k).isCovered() && !cellflg(i,j-3,k).isCovered()) {
+                                // Use three-point stencil (second-order accurate)
+                                gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j-3,k) - three*p_arr(i,j-2,k) + two*p_arr(i,j-1,k));
+                            } else {
+                                // Fall back to one-sided two-point stencil (first-order)
+                                gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j-1,k) - p_arr(i,j-2,k));
+                            }
                         } else if (cellflg(i,j-1,k).isCovered()) {
-                            gpy_arr(i,j,k) = dxInv[1] * (three*p_arr(i,j+1,k) - p_arr(i,j+2,k) - two*p_arr(i,j,k));
+                            // Check if all donor cells on the high side are not covered
+                            if (!cellflg(i,j,k).isCovered() && !cellflg(i,j+1,k).isCovered() && !cellflg(i,j+2,k).isCovered()) {
+                                // Use three-point stencil (second-order accurate)
+                                gpy_arr(i,j,k) = dxInv[1] * (three*p_arr(i,j+1,k) - p_arr(i,j+2,k) - two*p_arr(i,j,k));
+                            } else {
+                                // Fall back to one-sided two-point stencil (first-order)
+                                gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j+1,k) - p_arr(i,j,k));
+                            }
                         } else {
                             gpy_arr(i,j,k) = dxInv[1] * (p_arr(i,j,k) - p_arr(i,j-1,k));
                         }
@@ -470,9 +499,23 @@ compute_gradp_z (const MultiFab& p,
                 {
                     if (w_volfrac(i,j,k) > zero) {
                         if (cellflg(i,j,k).isCovered()) {
-                            gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k-3) - three*p_arr(i,j,k-2) + two*p_arr(i,j,k-1) );
+                            // Check if all donor cells on the low side are not covered
+                            if (!cellflg(i,j,k-1).isCovered() && !cellflg(i,j,k-2).isCovered() && !cellflg(i,j,k-3).isCovered()) {
+                                // Use three-point stencil (second-order accurate)
+                                gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k-3) - three*p_arr(i,j,k-2) + two*p_arr(i,j,k-1) );
+                            } else {
+                                // Fall back to one-sided two-point stencil (first-order)
+                                gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k-1) - p_arr(i,j,k-2) );
+                            }
                         } else if (cellflg(i,j,k-1).isCovered()) {
-                            gpz_arr(i,j,k) = dxInv[2] * ( three*p_arr(i,j,k+1) - p_arr(i,j,k+2) - two*p_arr(i,j,k) );
+                            // Check if all donor cells on the high side are not covered
+                            if (!cellflg(i,j,k).isCovered() && !cellflg(i,j,k+1).isCovered() && !cellflg(i,j,k+2).isCovered()) {
+                                // Use three-point stencil (second-order accurate)
+                                gpz_arr(i,j,k) = dxInv[2] * ( three*p_arr(i,j,k+1) - p_arr(i,j,k+2) - two*p_arr(i,j,k) );
+                            } else {
+                                // Fall back to one-sided two-point stencil (first-order)
+                                gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k+1) - p_arr(i,j,k) );
+                            }
                         } else {
                             gpz_arr(i,j,k) = dxInv[2] * ( p_arr(i,j,k)-p_arr(i,j,k-1) );
                         }
