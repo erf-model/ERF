@@ -1,7 +1,7 @@
 name: codespell
 
 on:
-  # Fork feature pushes provide pre-PR CI; development sync pushes are skipped.
+  # Fork feature pushes provide pre-PR CI; all fork development pushes are intentionally skipped.
   push:
     branches: ['**']
   pull_request:
@@ -13,17 +13,16 @@ concurrency:
 
 jobs:
   codespell:
+    # GitHub currently leaves skipped-job names raw; this fallback stays distinct if evaluated.
     name: >-
-      ${{ github.event_name == 'push' && !github.event.repository.fork &&
-          github.ref != 'refs/heads/development' && 'codespell [skipped push]' ||
-          'codespell' }}
+      ${{ ((github.event_name == 'pull_request' && !github.event.repository.fork) ||
+           (github.event_name == 'push' &&
+            github.event.repository.fork == (github.ref != 'refs/heads/development')))
+          && 'codespell' || 'codespell [policy skipped]' }}
     if: >-
       (github.event_name == 'pull_request' && !github.event.repository.fork) ||
       (github.event_name == 'push' &&
-       ((!github.event.repository.fork &&
-         github.ref == 'refs/heads/development') ||
-        (github.event.repository.fork &&
-         github.ref != 'refs/heads/development')))
+       github.event.repository.fork == (github.ref != 'refs/heads/development'))
     runs-on: ubuntu-22.04
     timeout-minutes: 15
 

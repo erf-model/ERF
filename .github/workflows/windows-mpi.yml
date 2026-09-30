@@ -1,7 +1,7 @@
 name: Windows MPI
 
 on:
-  # Fork feature pushes provide pre-PR CI; development sync pushes are skipped.
+  # Fork feature pushes provide pre-PR CI; all fork development pushes are intentionally skipped.
   push:
     branches: ['**']
   pull_request:
@@ -16,10 +16,7 @@ jobs:
     if: >-
       (github.event_name == 'pull_request' && !github.event.repository.fork) ||
       (github.event_name == 'push' &&
-       ((!github.event.repository.fork &&
-         github.ref == 'refs/heads/development') ||
-        (github.event.repository.fork &&
-         github.ref != 'refs/heads/development')))
+       github.event.repository.fork == (github.ref != 'refs/heads/development'))
     name: WIN64-MSVC - MPI ${{ matrix.mpi }} - Mesh ${{ matrix.mesh_precision }} Particles ${{ matrix.particles }} ${{ matrix.particles_precision }}
     runs-on: windows-latest
     timeout-minutes: 90

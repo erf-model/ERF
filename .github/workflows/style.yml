@@ -1,7 +1,7 @@
 name: Style
 
 on:
-  # Fork feature pushes provide pre-PR CI; development sync pushes are skipped.
+  # Fork feature pushes provide pre-PR CI; all fork development pushes are intentionally skipped.
   push:
     branches: ['**']
   pull_request:
@@ -13,17 +13,16 @@ concurrency:
 
 jobs:
   tabs:
+    # GitHub currently leaves skipped-job names raw; this fallback stays distinct if evaluated.
     name: >-
-      ${{ github.event_name == 'push' && !github.event.repository.fork &&
-          github.ref != 'refs/heads/development' && 'tabs [skipped push]' ||
-          'tabs' }}
+      ${{ ((github.event_name == 'pull_request' && !github.event.repository.fork) ||
+           (github.event_name == 'push' &&
+            github.event.repository.fork == (github.ref != 'refs/heads/development')))
+          && 'tabs' || 'tabs [policy skipped]' }}
     if: >-
       (github.event_name == 'pull_request' && !github.event.repository.fork) ||
       (github.event_name == 'push' &&
-       ((!github.event.repository.fork &&
-         github.ref == 'refs/heads/development') ||
-        (github.event.repository.fork &&
-         github.ref != 'refs/heads/development')))
+       github.event.repository.fork == (github.ref != 'refs/heads/development'))
     runs-on: ubuntu-22.04
     timeout-minutes: 15
     steps:
@@ -32,17 +31,16 @@ jobs:
         run: .github/workflows/style/check_tabs.sh
 
   trailing_whitespaces:
+    # GitHub currently leaves skipped-job names raw; this fallback stays distinct if evaluated.
     name: >-
-      ${{ github.event_name == 'push' && !github.event.repository.fork &&
-          github.ref != 'refs/heads/development' && 'trailing_whitespaces [skipped push]' ||
-          'trailing_whitespaces' }}
+      ${{ ((github.event_name == 'pull_request' && !github.event.repository.fork) ||
+           (github.event_name == 'push' &&
+            github.event.repository.fork == (github.ref != 'refs/heads/development')))
+          && 'trailing_whitespaces' || 'trailing_whitespaces [policy skipped]' }}
     if: >-
       (github.event_name == 'pull_request' && !github.event.repository.fork) ||
       (github.event_name == 'push' &&
-       ((!github.event.repository.fork &&
-         github.ref == 'refs/heads/development') ||
-        (github.event.repository.fork &&
-         github.ref != 'refs/heads/development')))
+       github.event.repository.fork == (github.ref != 'refs/heads/development'))
     runs-on: ubuntu-22.04
     timeout-minutes: 15
     steps:

@@ -1,7 +1,7 @@
 name: Linux GCC NetCDF RRTMGP
 
 on:
-  # Fork feature pushes provide pre-PR CI; development sync pushes are skipped.
+  # Fork feature pushes provide pre-PR CI; all fork development pushes are intentionally skipped.
   push:
     branches: ['**']
   pull_request:
@@ -11,14 +11,12 @@ on:
 concurrency:
   group: >-
     ${{ github.event_name == 'workflow_dispatch'
-        && format('{0}-dispatch-{1}', github.workflow, github.run_id)
+        && format('{0}-{1}-dispatch', github.workflow, github.ref)
         || format('{0}-{1}-{2}-linux-gcc-rrtmgp',
                   github.workflow,
                   github.event.pull_request.number || github.ref,
                   github.head_ref) }}
-  cancel-in-progress: >-
-    ${{ github.event_name != 'workflow_dispatch' &&
-        github.ref != 'refs/heads/development' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
   library:
@@ -26,10 +24,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request' && !github.event.repository.fork) ||
       (github.event_name == 'push' &&
-       ((!github.event.repository.fork &&
-         github.ref == 'refs/heads/development') ||
-        (github.event.repository.fork &&
-         github.ref != 'refs/heads/development')))
+       github.event.repository.fork == (github.ref != 'refs/heads/development'))
     name: GNU@9.3 C++17 - NetCDF ${{matrix.netcdf}} - Particles ${{matrix.particles}} - RRTMGP ${{matrix.rrtmgp}}
     runs-on: ubuntu-22.04
     timeout-minutes: 180
