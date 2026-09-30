@@ -458,7 +458,7 @@ private:
 
 #ifdef ERF_USE_NETCDF
     // Whether we have already told the user that LSM plotfiles fall back to the AMReX format
-    [[maybe_unused]] bool m_warned_nc_lsm_plot = false;
+    bool m_warned_nc_lsm_plot = false;
 #endif
 };
 #endif

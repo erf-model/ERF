@@ -418,11 +418,14 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
 
     // NOTE: These temporaries keep us from overwriting the lev==0 wrf data that is
     //       stored for the BDY operations.
-    MultiFab* mf_C1H;
-    MultiFab* mf_C2H;
-    MultiFab* mf_RDNW;
-    MultiFab* mf_MUB;
-    MultiFab* mf_PHB;
+    // Each is set when the matching variable is read below; the code that uses
+    // them is guarded by the flag that the read sets, so start them at null
+    // rather than leaving them indeterminate.
+    MultiFab* mf_C1H  = nullptr;
+    MultiFab* mf_C2H  = nullptr;
+    MultiFab* mf_RDNW = nullptr;
+    MultiFab* mf_MUB  = nullptr;
+    MultiFab* mf_PHB  = nullptr;
     MultiFab  C1H_tmp;
     MultiFab  C2H_tmp;
     MultiFab  RDNW_tmp;
@@ -745,14 +748,11 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             {
                 for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
                 {
-                    FArrayBox* cur_fab;
-                    if (var_name == "U") {
-                      cur_fab  = &lev_new[Vars::xvel][mfi];
-                    } else if (var_name == "V") {
-                      cur_fab  = &lev_new[Vars::yvel][mfi];
-                    } else if (var_name == "W") {
-                      cur_fab  = &lev_new[Vars::zvel][mfi];
-                    }
+                    // The enclosing test admits only U, V and W, so the last
+                    // case is W and cur_fab is always set.
+                    FArrayBox* cur_fab = (var_name == "U") ? &lev_new[Vars::xvel][mfi] :
+                                         (var_name == "V") ? &lev_new[Vars::yvel][mfi] :
+                                                             &lev_new[Vars::zvel][mfi];
 
                     if (success) {
                         cur_fab->template copy<RunOn::Device>(var_fab, 0, 0, 1);
@@ -1313,6 +1313,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
     // Compute min and max of terrain
     // **************************************************************************
     if (compute_terrain_here) {
+        // compute_terrain_here is only left true when PHB was read, which is
+        // what sets mf_PHB; everything below dereferences it.
+        AMREX_ALWAYS_ASSERT(mf_PHB != nullptr);
         if (lev == 0) {
             AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
             z_top = compute_terrain_top_and_bottom(mf_PH, *mf_PHB, geom[lev].Domain());
@@ -1432,6 +1435,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
     //       ERF's grid already, after this function returns.
     // **************************************************************************
     if (compute_terrain_here && read_atmos_state) {
+        // Set together with compute_terrain_here when PHB was read; the remap
+        // below dereferences it.
+        AMREX_ALWAYS_ASSERT(mf_PHB != nullptr);
 
         // **************************************************************************
         // NOTE: When keeping the WRF grid, we really only need to interpolate
