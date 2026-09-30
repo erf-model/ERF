@@ -85,6 +85,59 @@ init_velocities_from_input_sounding (const Box &bx,
                                      Array4<const Real> const &z_nd_arr,
                                      InputSoundingData const &inputSoundingData);
 
+const InputSoundingData&
+ERF::sounding_at_level (int lev)
+{
+    // Level 0, or a run that never read a sounding (the callers pass it on whatever the
+    // physics options): there is nothing to resample
+    const bool sounding_read = !input_sounding_data.z_inp_sound.empty() &&
+                               !input_sounding_data.z_inp_sound[0].empty();
+    if (lev == 0 || !sounding_read) { return input_sounding_data; }
+
+    if (input_sounding_data_fine.size() <= lev) { input_sounding_data_fine.resize(lev+1); }
+    if (!input_sounding_data_fine[lev]) {
+        // input_sounding_data holds the profiles sampled at the level-0 cell centres, with the
+        // surface line of the sounding at z = 0. Interpolating those to a fine cell below the
+        // first level-0 centre blends in the surface values (with erf.most.surf_temp the surface
+        // theta is the surface temperature, and U = V = 0) even where the sounding has air
+        // values, and indexing them with a fine k reads the wrong height. So resample the file
+        // at this level's own cell centres, exactly as a single-level run at this resolution does.
+        auto snd = std::make_unique<InputSoundingData>(input_sounding_data);
+        const bool is_moist = (solverChoice.moisture_type != MoistureType::None);
+        for (int n = 0; n < snd->n_sounding_files; n++) {
+            snd->read_from_file(geom[lev], zlevels_stag[lev], n, is_moist);
+        }
+        if (solverChoice.sounding_type == SoundingType::Ideal) {
+            snd->calc_rho_p(0);
+        } else if (solverChoice.sounding_type == SoundingType::Isentropic ||
+                   solverChoice.sounding_type == SoundingType::DryIsentropic) {
+            snd->assume_dry = (solverChoice.sounding_type == SoundingType::DryIsentropic);
+            snd->calc_rho_p_isentropic(0);
+        }
+        input_sounding_data_fine[lev] = std::move(snd);
+    }
+    return *input_sounding_data_fine[lev];
+}
+
+const LargeScaleForcingData&
+ERF::lsf_at_level (int lev)
+{
+    // Level 0, or a run without large-scale forcing (the callers pass it on whatever the
+    // physics options): there is nothing to interpolate
+    if (lev == 0 || lsf.num_times <= 0) { return lsf; }
+
+    if (lsf_fine.size() <= lev) { lsf_fine.resize(lev+1); }
+    if (!lsf_fine[lev]) {
+        // lsf holds the forcing file as read and its profiles interpolated to the level-0 cell
+        // centres; interpolate the same file to this level's cell centres instead
+        auto l = std::make_unique<LargeScaleForcingData>(lsf);
+        l->verbose_print = false;
+        l->interp_forcing(geom[lev].data(), zlevels_stag[lev], sounding_at_level(lev));
+        lsf_fine[lev] = std::move(l);
+    }
+    return *lsf_fine[lev];
+}
+
 /**
  * High level wrapper for initializing scalar and velocity
  * level data from input sounding data.
@@ -146,6 +199,9 @@ ERF::init_from_input_sounding (int lev)
          (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
     }
 
+    // The sounding sampled at this level's own cell centres
+    const InputSoundingData& sounding = sounding_at_level(lev);
+
     auto& lev_new = vars_new[lev];
 
     const bool l_isentropic = (solverChoice.sounding_type == SoundingType::Isentropic ||
@@ -183,7 +239,7 @@ ERF::init_from_input_sounding (int lev)
             // This assumes rho_0 = one
             // HSE will be calculated later with call to initHSE
             init_state_from_input_sounding(bx, cons_arr, geom[lev].data(), z_cc_arr,
-                                           l_moist, input_sounding_data);
+                                           l_moist, sounding);
         }
         else
         {
@@ -192,7 +248,7 @@ ERF::init_from_input_sounding (int lev)
             init_state_from_input_sounding_hse(bx, cons_arr,
                 r_hse_arr, p_hse_arr, pi_hse_arr, th_hse_arr, qv_hse_arr,
                 geom[lev].data(), z_cc_arr,
-                l_gravity, l_rdOcp, l_moist, input_sounding_data,
+                l_gravity, l_rdOcp, l_moist, sounding,
                 l_isentropic, ngz);
         }
     }
@@ -224,7 +280,7 @@ ERF::init_from_input_sounding (int lev)
         const auto& zvel_arr = lev_new[Vars::zvel].array(mfi);
         const auto& z_nd_arr = (z_phys_nd[lev]) ? z_phys_nd[lev]->const_array(mfi) : Array4<Real const>{};
         init_velocities_from_input_sounding(bx, xvel_arr, yvel_arr, zvel_arr,
-                                            geom[lev].data(), z_nd_arr, input_sounding_data);
+                                            geom[lev].data(), z_nd_arr, sounding);
     }
 
     // *****************************************************************************

@@ -237,13 +237,22 @@ void ERF::advance_radiation (int lev,
                     MultiFab fine_surface(BoxArray(std::move(fine_boxes)),
                                           fine_outputs[i]->DistributionMap(), 1, 0);
 
-                    // Radiation output fields are surface-slab fields even when stored in 3-D.
+                    // Radiation output fields are surface-slab fields even when stored in 3-D,
+                    // and the surface plane k = 0 may sit in the field's z GHOST region (SLM
+                    // stores soil layers at k < 0 and exchanges surface values at k = 0; see
+                    // SurfaceModel::validate_radiation_output_layout). The copies must pair
+                    // regions of identical size: the surface MultiFabs' valid boxes are the
+                    // output fields' VALID boxes flattened to k = 0 (above), so take the i,j
+                    // extent from the valid box -- a slab of the fab's own box also carries
+                    // the ghost cells in x and y and is larger than the paired valid box.
                     for (MFIter mfi(coarse_surface); mfi.isValid(); ++mfi) {
-                        const Box& source_box = (*coarse_outputs[i])[mfi.index()].box();
+                        const Box source_valid = coarse_outputs[i]->boxArray()[mfi.index()];
+                        const Box& source_fab_box = (*coarse_outputs[i])[mfi.index()].box();
                         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-                            source_box.smallEnd(2) <= 0 && source_box.bigEnd(2) >= 0,
-                            "Radiation output destination must contain the k=0 surface plane");
-                        const Box source_slab = makeSlab(source_box, 2, 0);
+                            source_fab_box.smallEnd(2) <= 0 && source_fab_box.bigEnd(2) >= 0,
+                            "Radiation output source must contain the k=0 surface plane in "
+                            "its valid or ghost region");
+                        const Box source_slab = makeSlab(source_valid, 2, 0);
                         coarse_surface[mfi].template copy<RunOn::Device>(
                             (*coarse_outputs[i])[mfi.index()], source_slab, 0, mfi.validbox(), 0, 1);
                     }
@@ -254,11 +263,13 @@ void ERF::advance_radiation (int lev,
                                           domain_bcs_type, BCVars::cons_bc);
 
                     for (MFIter mfi(fine_surface); mfi.isValid(); ++mfi) {
-                        const Box& destination_box = (*fine_outputs[i])[mfi.index()].box();
+                        const Box destination_valid = fine_outputs[i]->boxArray()[mfi.index()];
+                        const Box& destination_fab_box = (*fine_outputs[i])[mfi.index()].box();
                         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-                            destination_box.smallEnd(2) <= 0 && destination_box.bigEnd(2) >= 0,
-                            "Radiation output destination must contain the k=0 surface plane");
-                        const Box destination_slab = makeSlab(destination_box, 2, 0);
+                            destination_fab_box.smallEnd(2) <= 0 && destination_fab_box.bigEnd(2) >= 0,
+                            "Radiation output destination must contain the k=0 surface plane in "
+                            "its valid or ghost region");
+                        const Box destination_slab = makeSlab(destination_valid, 2, 0);
                         (*fine_outputs[i])[mfi.index()].template copy<RunOn::Device>(
                             fine_surface[mfi], mfi.validbox(), 0, destination_slab, 0, 1);
                     }

@@ -66,8 +66,8 @@ void make_mom_sources (double time_d,
                        const amrex::Real* d_sinesq_stag_at_lev,
                        const Vector<Real*> d_sponge_ptrs_at_lev,
                        const Vector<MultiFab>* forecast_state_at_lev,
-                             InputSoundingData& input_sounding_data,
-                             LargeScaleForcingData &lsf_data,
+                       const InputSoundingData& input_sounding_data,
+                       const LargeScaleForcingData& lsf_data,
                        std::unique_ptr<amrex::MultiFab>& lsf_tendencies,
                        const eb_& ebfact,
                        bool is_slow_step)
@@ -696,7 +696,7 @@ void make_mom_sources (double time_d,
             Real uv_coeff_n = 1.0;
             Real uv_coeff_np1 = 0.0;
             Real tau = Real(1.0) / input_sounding_data.tau_nudging;
-            Real* u_nudge_n, *u_nudge_np1, *v_nudge_n, *v_nudge_np1;
+            const Real *u_nudge_n, *u_nudge_np1, *v_nudge_n, *v_nudge_np1;
             if (!l_lsf)
             {
                 int itime_n    = 0;
