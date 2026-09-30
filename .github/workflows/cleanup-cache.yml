@@ -26,7 +26,8 @@ jobs:
     # workflow_run fires even when all Linux GCC jobs were skipped.
     if: >-
       github.event_name != 'workflow_run' ||
-      github.event.workflow_run.conclusion != 'skipped'
+      (github.event.workflow_run.conclusion != 'skipped' &&
+       github.event.workflow_run.conclusion != 'cancelled')
     name: Clean Up Ccache Cache
     runs-on: ubuntu-22.04
     timeout-minutes: 15

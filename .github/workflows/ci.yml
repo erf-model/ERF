@@ -23,7 +23,8 @@ jobs:
   Build-And-Test:
     if: >-
       (github.event_name == 'pull_request' && !github.event.repository.fork) ||
-      (github.event_name == 'push' && github.event.repository.fork)
+      (github.event_name == 'push' &&
+       github.event.repository.fork == (github.ref != 'refs/heads/development'))
     runs-on: ${{matrix.os}}
     timeout-minutes: 180
     name: OS ${{matrix.os}} - Particles ${{matrix.particles}}

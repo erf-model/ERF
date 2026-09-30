@@ -89,6 +89,8 @@ jobs:
             // and so is everything else: this mechanism must not be able to
             // touch deployment, cache-maintenance, or manually dispatched
             // runs. A new CI workflow must be added here to be covered.
+            // CI workflows accepting broad branch pushes must also preserve
+            // the canonical-development / fork-feature job gate.
             const allowedPaths = new Set([
               '.github/workflows/ci.yml',
               '.github/workflows/codespell.yml',
