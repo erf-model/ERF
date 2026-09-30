@@ -197,6 +197,9 @@ while the following tests are run nightly:
 | MovingTerrain_nosub           | 40  8  79   | Periodic | Periodic | SlipWall   | None  | terrain_type = MovingFittedMesh |
 |                               |             |          |          | SlipWall   |       |                                 |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
+| NoahMP_Ideal                  | 4  4  32    | Periodic | Periodic | SurfLay    | None  | Noah-MP land model, init from   |
+|                               |             |          |          | SlipWall   |       | input_sounding                  |
++-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
 | ParticlesOverWoA              | 256 8  64   | Inflow   | Periodic | SlipWall   | None  | particle                        |
 |                               |             | Outflow  |          | SlipWall   |       | advection                       |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+

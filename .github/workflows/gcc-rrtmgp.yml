@@ -127,11 +127,11 @@ jobs:
 
     - name: Report
       run: |
-        grep -Ei "warning:|error:" ${ERF_DIR}/../build-output.txt \
+        grep -Ei "warning:|error:" ${ERF_DIR}/build-output.txt \
           | grep -Ev "Submodules/(amrex|googletest)" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
-          | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${ERF_DIR}/../build-output-warnings.txt
-        cat ${ERF_DIR}/../build-output-warnings.txt
-        export return=$(tail -n 1 ${ERF_DIR}/../build-output-warnings.txt | awk '{print $2}')
+          | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${ERF_DIR}/build-output-warnings.txt
+        cat ${ERF_DIR}/build-output-warnings.txt
+        export return=$(tail -n 1 ${ERF_DIR}/build-output-warnings.txt | awk '{print $2}')
         exit ${return}
 
     - name: Check Unit Test Registration
@@ -154,3 +154,15 @@ jobs:
       run: |
         ctest -L regression -VV
       working-directory: ${{ github.workspace }}/erf_clone/build
+
+    # A test that dies on a signal (for example SIGILL from amrex.fpe_trap_invalid)
+    # writes Backtrace.<rank> into its run directory; the log only says "See
+    # Backtrace.0 file for details", so keep those files when a step has failed.
+    - name: Upload backtraces from failed tests
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: backtraces-gcc-rrtmgp-netcdf-${{matrix.netcdf}}-rrtmgp-${{matrix.rrtmgp}}
+        path: ${{ github.workspace }}/erf_clone/build/Tests/**/Backtrace.*
+        if-no-files-found: ignore
+        retention-days: 14

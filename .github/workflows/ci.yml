@@ -333,6 +333,7 @@ jobs:
           ${{runner.workspace}}/ERF/build-${{matrix.os}}/test-results/**
           ${{runner.workspace}}/ERF/build-${{matrix.os}}/Testing/Temporary/LastTest.log
           ${{runner.workspace}}/ERF/build-${{matrix.os}}/Testing/Temporary/LastTestsFailed.log
+          ${{runner.workspace}}/ERF/build-${{matrix.os}}/Tests/**/Backtrace.*
 
     # Raf: disabled Codecov since the dashboard and GitHub comments were buggy,
     # but it may be useful to post the gcov coverage reports to GitHub Actions

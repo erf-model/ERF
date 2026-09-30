@@ -263,7 +263,7 @@ Radiation::set_grids (int& level,
                       int& step,
                       double& time,
                       const double& dt,
-                      const BoxArray& ba,
+                      const BoxArray& /*ba*/,
                       Geometry& geom,
                       MultiFab* cons_in,
                       iMultiFab* lmask,
@@ -1351,8 +1351,6 @@ Radiation::run_impl ()
 
     for (int col_s = 0; col_s < ncol; col_s += ncol_chunk) {
         const int ncol_c = std::min(ncol_chunk, ncol - col_s);
-        const int col_e  = col_s + ncol_c;
-        auto cr = std::make_pair(col_s, col_e);
 
         // --- Chunk subviews: 1D (ncol) ---
         real1d_k mu0_c              (mu0.data()              + col_s, ncol_c);

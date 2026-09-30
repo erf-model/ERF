@@ -253,8 +253,10 @@ static amrex::ParticleReal SD_effective_radius( const int a_idx, /*!< Particle i
             rho_p += a_ae_rho[j]*a_ae_mass[j][a_idx];
         }
     }
-    if (m_p > zero) { rho_p /= m_p; }
-    else           { rho_p = one; }
+    // The optimiser evaluates the division before the selection, so its denominator
+    // must never be zero (0/0 trips amrex.fpe_trap_invalid); equal to m_p for m_p >= min().
+    const auto rho_p_avg = rho_p / amrex::max(m_p, std::numeric_limits<amrex::ParticleReal>::min());
+    rho_p = (m_p > zero) ? rho_p_avg : one;
     auto m_t = m_w + m_s + (a_rho_w/rho_p)*m_p;
     auto r_eff = std::cbrt(m_t / (four_thirds_pi*a_rho_w));
     return r_eff;
@@ -286,8 +288,9 @@ static amrex::ParticleReal SD_dry_radius( const int a_idx, /*!< Particle index *
             rho_p += a_ae_rho[j]*a_ae_mass[j][a_idx];
         }
     }
-    if (m_p > zero) { rho_p /= m_p; }
-    else           { rho_p = one; }
+    // Never-zero denominator, as in SD_effective_radius.
+    const auto rho_p_avg = rho_p / amrex::max(m_p, std::numeric_limits<amrex::ParticleReal>::min());
+    rho_p = (m_p > zero) ? rho_p_avg : one;
     auto r_dry = std::cbrt(m_p / (four_thirds_pi*rho_p));
     return r_dry;
 }

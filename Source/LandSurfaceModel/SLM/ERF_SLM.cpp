@@ -5337,8 +5337,10 @@ void SLM::twostream_noahmp(int ib, int ic, int /*vegtyp*/, amrex::Real cosz, amr
     amrex::Real thetap;   //angle conversion from SZA
     amrex::Real fa;       //foliage volume density (m-1)
     amrex::Real newvai;   //effective LSAI (-)
-    amrex::Real kopen;    //gap fraction for diffue light (-)
-    amrex::Real gap;      //total gap fraction for beam ( <=1-shafac )
+    // Set below for opt_rad = 1, 2 or 3 (the only values); initialised so that no
+    // path reads them unset.
+    amrex::Real kopen = one; //gap fraction for diffue light (-)
+    amrex::Real gap   = one; //total gap fraction for beam ( <=1-shafac )
 
     // -----------------------------------------------------------------
     // compute within and between gaps

@@ -139,7 +139,9 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
 
             bool above_critical = false;
             int kpbl = 0;
-            Real Rib_up = Rib_layer, Rib_dn;
+            // Rib_dn is overwritten on the first pass of the loop; it starts equal to
+            // Rib_up only so that a column with no k = 1 does not read it unset.
+            Real Rib_up = Rib_layer, Rib_dn = Rib_layer;
             const Real base_theta = cell_data(i,j,0,RhoTheta_comp) / cell_data(i,j,0,Rho_comp);
             while (!above_critical and bx.contains(i,j,kpbl+1)) {
                 kpbl += 1;

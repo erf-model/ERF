@@ -1,7 +1,7 @@
 .. _SLM:
 
 Simplified Land-surface Model (SLM)
-===============================
+===================================
 
 The original formulation and evaluation of the Simplified Land Model (SLM) are
 documented in Lee, J. M., and M. Khairoutdinov (2015), *A Simplified Land Model
