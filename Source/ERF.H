@@ -764,6 +764,22 @@ public:
 
     void init_from_input_sounding (int lev);
 
+    /**
+     * The input sounding sampled at the cell centres of level lev. Level 0 is
+     * input_sounding_data itself; a finer level gets its own copy, resampled at
+     * geom[lev] / zlevels_stag[lev], so that its profile index k is its own cell k
+     * and no fine cell blends in the surface line of the sounding.
+     */
+    const InputSoundingData& sounding_at_level (int lev);
+
+    /**
+     * The large-scale forcing profiles interpolated to the cell centres of level lev.
+     * Level 0 is lsf itself; a finer level gets its own copy, interpolated at
+     * geom[lev] / zlevels_stag[lev] against sounding_at_level(lev), so that its profile
+     * index k is its own cell k.
+     */
+    const LargeScaleForcingData& lsf_at_level (int lev);
+
     void init_immersed_forcing (int lev);
 
     // Immersed-boundary surface energy balance (Source/ImmersedBoundarySEB)
@@ -1174,8 +1190,13 @@ private:
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> sinPhi_m, cosPhi_m; // Coriolis factors on the grid
 
-    // Struct for working with the sounding data we take as an input
+    // Struct for working with the sounding data we take as an input. Its profiles are
+    // sampled at the level-0 cell centres; use sounding_at_level for any other level.
     InputSoundingData input_sounding_data;
+
+    // The sounding sampled at the cell centres of each level > 0, built on first use
+    // from input_sounding_data (index 0 is unused)
+    amrex::Vector<std::unique_ptr<InputSoundingData>> input_sounding_data_fine;
 
     // Struct for working with the sponge data we take as an input
     InputSpongeData input_sponge_data;
@@ -1330,6 +1351,10 @@ private:
     amrex::Vector<amrex::Vector<amrex::MultiFab*>> urban_flux; // (lev,ncomp) Fluxes from urban model
 
     LargeScaleForcingData lsf;
+
+    // The large-scale forcing profiles on each level > 0, built on first use from lsf
+    // (index 0 is unused)
+    amrex::Vector<std::unique_ptr<LargeScaleForcingData>> lsf_fine;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> nudge_data; // holds nudging inputs: tnudge, qnudge, unudge, vnudge
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> lsf_data; //  holds large scale forcing tendencies: ttend, qtend, wsub
 

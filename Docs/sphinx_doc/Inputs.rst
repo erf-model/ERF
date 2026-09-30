@@ -2539,6 +2539,12 @@ the one file corresponds to time = 0.0.   If the final time supplied in
 in ``input_*_sounding_*_file`` will be used for all times later than the final value in
 in ``input_*_sounding_*_time``.
 
+Every level samples the input sounding at its own cell centres, for the initial state and base
+state and for nudging, just as a single-level run at that resolution does; the large-scale forcing
+profiles are likewise interpolated to each level's own cell centres. A fine cell below the first
+level-0 cell centre therefore starts from the sounding's air values there, not from a blend with
+the surface line of the file (which, with ``erf.most.surf_temp``, holds the surface temperature).
+
 .. _inputs-obs-nudging:
 
 Nudging towards Observations
