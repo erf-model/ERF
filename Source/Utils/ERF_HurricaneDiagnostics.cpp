@@ -363,7 +363,6 @@ ERF::HurricaneEyeTrackerInitial (const SolverChoice& sc,
  * @param[in] lev_geom Geometry of the current level
  * @param[in] S_data Conservative state data
  * @param[in] mf_cc_vel Cell-centered velocity multifabs
- * @param[in] moisture_type Moisture model type
  */
 void
 ERF::HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
