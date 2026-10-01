@@ -42,7 +42,12 @@ struct AuxiliaryStageRecipe {
 enum class AuxiliaryFieldValidationPolicy {
     /** Perform global positive-density and finite-result validation. */
     Global,
-    /** Skip global checks; caller guarantees finite state and positive finite density. */
+    /**
+     * Skip global checks. The caller guarantees every input state value is
+     * finite, density is finite and strictly positive, and each state/density
+     * quotient is finite and representable in amrex::Real. No global
+     * reduction is performed by this policy.
+     */
     AssumeValid
 };
 

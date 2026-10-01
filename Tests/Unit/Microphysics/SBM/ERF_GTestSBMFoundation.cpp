@@ -298,24 +298,40 @@ TEST(SBMFoundation, AuthoritativeRestartValidationUsesRuntimeConstraintGroups)
     EXPECT_TRUE(erf_sbm::authoritative_state_admissible(
         two_moment, two_moment_layout, 0, &diagnostic)) << "lower endpoint: " << diagnostic;
     two_moment.setVal(Real(2.0), mass, 1, 0);
-    EXPECT_TRUE(erf_sbm::authoritative_state_admissible(
-        two_moment, two_moment_layout, 0, &diagnostic)) << "upper endpoint: " << diagnostic;
+    EXPECT_FALSE(erf_sbm::authoritative_state_admissible(
+        two_moment, two_moment_layout, 0, &diagnostic));
+    EXPECT_NE(diagnostic.find("constraint=canonical-two-moment-bin-state"), std::string::npos);
 
+    two_moment.setVal(Real(0.0));
+    two_moment.setVal(Real(2.0), mass + 1, 1, 0);
+    two_moment.setVal(Real(1.0), number + 1, 1, 0);
+    EXPECT_TRUE(erf_sbm::authoritative_state_admissible(
+        two_moment, two_moment_layout, 0, &diagnostic)) << "upper-owned shared edge: " << diagnostic;
+
+    two_moment.setVal(Real(0.0));
+    two_moment.setVal(Real(5.0), mass + 3, 1, 0);
+    two_moment.setVal(Real(1.0), number + 3, 1, 0);
+    EXPECT_TRUE(erf_sbm::authoritative_state_admissible(
+        two_moment, two_moment_layout, 0, &diagnostic)) << "global top endpoint: " << diagnostic;
+
+    two_moment.setVal(Real(0.0));
+    two_moment.setVal(Real(1.0), number, 1, 0);
     two_moment.setVal(Real(0.9), mass, 1, 0);
     EXPECT_FALSE(erf_sbm::authoritative_state_admissible(
         two_moment, two_moment_layout, 0, &diagnostic));
-    EXPECT_NE(diagnostic.find("constraint=endpoint_high"), std::string::npos);
+    EXPECT_NE(diagnostic.find("constraint=canonical-two-moment-bin-state"), std::string::npos);
 
+    two_moment.setVal(Real(0.0), mass, 1, 0);
     two_moment.setVal(Real(2.1), mass, 1, 0);
     EXPECT_FALSE(erf_sbm::authoritative_state_admissible(
         two_moment, two_moment_layout, 0, &diagnostic));
-    EXPECT_NE(diagnostic.find("constraint=endpoint_low"), std::string::npos);
+    EXPECT_NE(diagnostic.find("constraint=canonical-two-moment-bin-state"), std::string::npos);
 
     two_moment.setVal(Real(1.5), mass, 1, 0);
     two_moment.setVal(Real(0.0), number, 1, 0);
     EXPECT_FALSE(erf_sbm::authoritative_state_admissible(
         two_moment, two_moment_layout, 0, &diagnostic));
-    EXPECT_NE(diagnostic.find("constraint=endpoint_low"), std::string::npos);
+    EXPECT_NE(diagnostic.find("constraint=canonical-two-moment-bin-state"), std::string::npos);
 
     two_moment.setVal(Real(0.0));
     EXPECT_TRUE(erf_sbm::authoritative_state_admissible(
@@ -331,6 +347,23 @@ TEST(SBMFoundation, AuthoritativeRestartValidationUsesRuntimeConstraintGroups)
     EXPECT_FALSE(erf_sbm::authoritative_state_admissible(
         two_moment, two_moment_layout, 0, &diagnostic));
     EXPECT_NE(diagnostic.find("constraint=finite"), std::string::npos);
+
+    auto zero_lower_population = make_population(0, 2, erf_sbm::MomentMode::TwoMoment);
+    zero_lower_population.grid.edges = {Real(0.0), Real(1.0), Real(2.0)};
+    zero_lower_population.grid.pivots = {Real(0.5), Real(1.5)};
+    erf_sbm::SBMLayoutSpec zero_lower_spec;
+    zero_lower_spec.populations.push_back(std::move(zero_lower_population));
+    zero_lower_spec.liquid_projection = {0, 1};
+    const erf_sbm::SBMLayout zero_lower_layout(std::move(zero_lower_spec));
+    MultiFab zero_lower(boxes, mapping, zero_lower_layout.ncomp(), 0);
+    zero_lower.setVal(Real(0.0));
+    zero_lower.setVal(Real(1.0), zero_lower_layout.populations()[0].number_offset, 1, 0);
+    EXPECT_FALSE(erf_sbm::authoritative_state_admissible(
+        zero_lower, zero_lower_layout, 0, &diagnostic));
+    EXPECT_NE(diagnostic.find("constraint=canonical-two-moment-bin-state"), std::string::npos);
+    zero_lower.setVal(std::numeric_limits<Real>::epsilon(), 0, 1, 0);
+    EXPECT_TRUE(erf_sbm::authoritative_state_admissible(
+        zero_lower, zero_lower_layout, 0, &diagnostic)) << diagnostic;
 }
 
 TEST(SBMFoundation, ZeroAndNonzeroFixtureStatesRemainIdentityAndProject)

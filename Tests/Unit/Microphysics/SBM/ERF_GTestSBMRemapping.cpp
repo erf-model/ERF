@@ -374,6 +374,160 @@ TEST(SBMRemapping, TwoMomentZeroWaterPacketReturnsCompleteResidual)
               (std::vector<Real>(static_cast<std::size_t>(no_property_layout.ncomp()), Real(0.0))));
 }
 
+TEST(SBMRemapping, StrictTwoMomentOwnershipAndNoProcessFixedPoint)
+{
+    auto layout_spec = erf_sbm::SBMLayoutSpec{};
+    layout_spec.populations.push_back(make_population(
+        0, erf_sbm::MomentMode::TwoMoment, {Real(0.0), Real(1.0), Real(2.0)},
+        {Real(0.5), Real(1.5)}));
+    layout_spec.liquid_projection = {0, 1};
+    layout_spec.attached_properties = {make_property("coating", 0)};
+    const erf_sbm::SBMLayout layout(std::move(layout_spec));
+    const auto& pop = population(layout, 0);
+    const auto view = erf_sbm::population_remap_view(layout, 0);
+    ASSERT_TRUE(erf_sbm::valid_population_remap_view(view));
+
+    // A dry packet still uses the residual path, but the corresponding liquid
+    // persisted state is noncanonical even though this grid starts at zero.
+    const auto dry_packet = erf_sbm::plan_packet_routing(view, Real(1.0), Real(0.0));
+    ASSERT_EQ(dry_packet.status, erf_sbm::RemapStatus::ZeroWaterResidual);
+    EXPECT_EQ(dry_packet.destination_count, 0);
+    std::vector<Real> dry_state(static_cast<std::size_t>(layout.ncomp()), Real(0.0));
+    dry_state[static_cast<std::size_t>(pop.number_offset)] = Real(1.0);
+    EXPECT_FALSE(erf_sbm::remap_detail::canonical_two_moment_bin_state(
+        view, 0, dry_state.data(), static_cast<int>(dry_state.size())));
+    erf_sbm::ReconstructionDelta rejected;
+    EXPECT_EQ(erf_sbm::reconstruct_bin(layout, 0, 0, dry_state, rejected),
+              erf_sbm::ReconstructionStatus::Invalid);
+    auto bad_projection = erf_sbm::ReconstructionDeltaView{};
+    bad_projection.population = view;
+    bad_projection.bin = 0;
+    bad_projection.empty = false;
+    bad_projection.number = Real(1.0);
+    bad_projection.particle_mass = Real(0.0);
+    const Real zero_property = Real(0.0);
+    bad_projection.property_per_particle = &zero_property;
+    bad_projection.property_count = 1;
+    const auto unchanged = dry_state;
+    EXPECT_FALSE(erf_sbm::project_reconstruction_bin_core(
+        view, bad_projection, dry_state.data(), static_cast<int>(dry_state.size())));
+    EXPECT_EQ(dry_state, unchanged);
+
+    // Shared edges are upper-owned. Persisting one in the lower bin is
+    // rejected, and the same moment pair in the upper bin is canonical.
+    auto shared_plan = erf_sbm::plan_packet_routing(view, Real(1.0), Real(1.0));
+    ASSERT_EQ(shared_plan.status, erf_sbm::RemapStatus::Ok);
+    ASSERT_EQ(shared_plan.destination_count, 1);
+    EXPECT_EQ(shared_plan.destinations[0].bin, 1);
+    std::vector<Real> edge_state(static_cast<std::size_t>(layout.ncomp()), Real(0.0));
+    edge_state[static_cast<std::size_t>(pop.mass_offset)] = Real(1.0);
+    edge_state[static_cast<std::size_t>(pop.number_offset)] = Real(1.0);
+    EXPECT_EQ(erf_sbm::reconstruct_bin(layout, 0, 0, edge_state, rejected),
+              erf_sbm::ReconstructionStatus::Invalid);
+    edge_state[static_cast<std::size_t>(pop.mass_offset)] = Real(0.0);
+    edge_state[static_cast<std::size_t>(pop.number_offset)] = Real(0.0);
+    edge_state[static_cast<std::size_t>(pop.mass_offset + 1)] = Real(1.0);
+    edge_state[static_cast<std::size_t>(pop.number_offset + 1)] = Real(1.0);
+    EXPECT_EQ(erf_sbm::reconstruct_bin(layout, 0, 1, edge_state, rejected),
+              erf_sbm::ReconstructionStatus::Populated);
+
+    // The tolerant endpoint transform remains tolerant, while persisted-state
+    // admission rejects the out-of-owned-interval mean without normalizing it.
+    const Real upper = Real(1.0);
+    const Real tolerance_probe = upper + Real(64.0) * std::numeric_limits<Real>::epsilon();
+    erf_sbm::EndpointTransform endpoint_probe;
+    ASSERT_TRUE(erf_sbm::try_two_moment_to_endpoints(
+        Real(1.0), tolerance_probe, Real(0.0), upper, endpoint_probe));
+    EXPECT_TRUE(endpoint_probe.normalized_roundoff);
+    std::vector<Real> noncanonical(static_cast<std::size_t>(layout.ncomp()), Real(0.0));
+    noncanonical[static_cast<std::size_t>(pop.mass_offset)] = tolerance_probe;
+    noncanonical[static_cast<std::size_t>(pop.number_offset)] = Real(1.0);
+    EXPECT_EQ(erf_sbm::reconstruct_bin(layout, 0, 0, noncanonical, rejected),
+              erf_sbm::ReconstructionStatus::Invalid);
+    EXPECT_DOUBLE_EQ(noncanonical[static_cast<std::size_t>(pop.mass_offset)], tolerance_probe);
+    bad_projection.number = Real(1.0);
+    bad_projection.particle_mass = tolerance_probe;
+    const auto noncanonical_before = noncanonical;
+    EXPECT_FALSE(erf_sbm::project_reconstruction_bin_core(
+        view, bad_projection, noncanonical.data(), static_cast<int>(noncanonical.size())));
+    EXPECT_EQ(noncanonical, noncanonical_before);
+
+    // A positive tiny mean in the zero-based first interval remains valid.
+    const Real tiny_positive_mass = std::numeric_limits<Real>::epsilon();
+    std::vector<Real> tiny_state(static_cast<std::size_t>(layout.ncomp()), Real(0.0));
+    tiny_state[static_cast<std::size_t>(pop.mass_offset)] = tiny_positive_mass;
+    tiny_state[static_cast<std::size_t>(pop.number_offset)] = Real(1.0);
+    EXPECT_EQ(erf_sbm::reconstruct_bin(layout, 0, 0, tiny_state, rejected),
+              erf_sbm::ReconstructionStatus::Populated);
+
+    // Every bin reconstructs and redeposits with its original moments and
+    // attached extensive inventory, including the global top endpoint.
+    std::vector<Real> original(static_cast<std::size_t>(layout.ncomp()), Real(0.0));
+    original[static_cast<std::size_t>(pop.mass_offset)] = Real(1.0);
+    original[static_cast<std::size_t>(pop.number_offset)] = Real(2.0);
+    original[static_cast<std::size_t>(layout.property_offset(0))] = Real(6.0);
+    original[static_cast<std::size_t>(pop.mass_offset + 1)] = Real(2.0);
+    original[static_cast<std::size_t>(pop.number_offset + 1)] = Real(1.0);
+    original[static_cast<std::size_t>(layout.property_offset(0) + 1)] = Real(4.0);
+    std::vector<Real> redeposited(original.size(), Real(0.0));
+    for (int bin = 0; bin < pop.grid.nbins(); ++bin) {
+        erf_sbm::ReconstructionDelta reconstructed;
+        ASSERT_EQ(erf_sbm::reconstruct_bin(layout, 0, bin, original, reconstructed),
+                  erf_sbm::ReconstructionStatus::Populated);
+        const Real property_amount = reconstructed.number *
+            reconstructed.property_per_particle[0];
+        const auto route = erf_sbm::plan_packet_routing(
+            view, reconstructed.number, reconstructed.particle_mass);
+        ASSERT_EQ(route.status, erf_sbm::RemapStatus::Ok);
+        ASSERT_EQ(route.destination_count, 1);
+        EXPECT_EQ(route.destinations[0].bin, bin);
+        const auto applied = erf_sbm::apply_packet_routing(
+            layout, route, {property_amount}, redeposited);
+        ASSERT_EQ(applied.status, erf_sbm::RemapStatus::Ok);
+    }
+    for (std::size_t component = 0; component < original.size(); ++component) {
+        expect_close(redeposited[component], original[component]);
+    }
+}
+
+TEST(SBMRemapping, PositiveProductUnderflowHasDistinctAtomicStatus)
+{
+    const Real tiny = std::numeric_limits<Real>::denorm_min();
+    ASSERT_GT(tiny, Real(0.0));
+    Real product = Real(0.0);
+    EXPECT_EQ(erf_sbm::remap_detail::checked_product(tiny, Real(0.5), product),
+              erf_sbm::remap_detail::ProductStatus::Underflow);
+    EXPECT_DOUBLE_EQ(product, Real(0.0));
+
+    const auto layout = make_layout(erf_sbm::MomentMode::OneMoment,
+        {make_property("coating", 0)});
+    const auto view = erf_sbm::population_remap_view(layout, 0);
+    const auto plan = erf_sbm::plan_packet_routing(view, Real(1.0), Real(0.5));
+    ASSERT_EQ(plan.status, erf_sbm::RemapStatus::ZeroWaterResidual);
+    std::vector<Real> state(static_cast<std::size_t>(layout.ncomp()), Real(0.0));
+    std::vector<Real> residual_properties{Real(77.0)};
+    const auto unchanged = state;
+    const auto applied = erf_sbm::apply_packet_routing_core(
+        view, plan, &tiny, 1, residual_properties.data(), 1,
+        state.data(), static_cast<int>(state.size()));
+    EXPECT_EQ(applied.status, erf_sbm::RemapStatus::NumericalUnderflow);
+    EXPECT_EQ(state, unchanged);
+    ASSERT_EQ(residual_properties.size(), 1u);
+    EXPECT_DOUBLE_EQ(residual_properties[0], Real(77.0));
+
+    const auto two_moment = make_layout(erf_sbm::MomentMode::TwoMoment);
+    const auto two_view = erf_sbm::population_remap_view(two_moment, 0);
+    const auto two_plan = erf_sbm::plan_packet_routing(two_view, tiny, Real(0.5));
+    ASSERT_EQ(two_plan.status, erf_sbm::RemapStatus::Ok);
+    std::vector<Real> two_state(static_cast<std::size_t>(two_moment.ncomp()), Real(0.0));
+    const auto two_unchanged = two_state;
+    const auto two_applied = erf_sbm::apply_packet_routing_core(
+        two_view, two_plan, nullptr, 0, nullptr, 0,
+        two_state.data(), static_cast<int>(two_state.size()));
+    EXPECT_EQ(two_applied.status, erf_sbm::RemapStatus::NumericalUnderflow);
+    EXPECT_EQ(two_state, two_unchanged);
+}
+
 TEST(SBMRemapping, NormalizedTwoMomentBoundariesPreserveZeroProcessIdentity)
 {
     const auto layout = make_layout(erf_sbm::MomentMode::TwoMoment);
@@ -611,8 +765,8 @@ TEST(SBMRemapping, CanonicalEndpointTransformIsUnitInvariantAndDimensioned)
         const Real mass = Real(2.8) * scale;
         const auto endpoints = erf_sbm::SpectralGrid::two_moment_to_endpoints(
             count, mass, lower, upper);
-        ASSERT_NEAR(endpoints.L, Real(0.2), Real(2.0e-14));
-        ASSERT_NEAR(endpoints.H, Real(1.8), Real(2.0e-14));
+        expect_close(endpoints.L, Real(0.2));
+        expect_close(endpoints.H, Real(1.8));
         if (scale == Real(1.0e-12)) {
             reference_low = endpoints.L;
             reference_high = endpoints.H;
@@ -628,7 +782,7 @@ TEST(SBMRemapping, CanonicalEndpointTransformIsUnitInvariantAndDimensioned)
             count, just_above, lower, upper);
         EXPECT_TRUE(roundoff.normalized_roundoff);
         EXPECT_DOUBLE_EQ(roundoff.L, Real(0.0));
-        EXPECT_NEAR(roundoff.H, count, Real(2.0e-14));
+        expect_close(roundoff.H, count);
         EXPECT_NEAR(roundoff.endpoint_tolerance,
                     roundoff.moment_tolerance / (upper - lower),
                     Real(8.0) * std::numeric_limits<Real>::epsilon() *
@@ -642,7 +796,8 @@ TEST(SBMRemapping, CanonicalEndpointTransformIsUnitInvariantAndDimensioned)
         const Real lower = Real(0.5) * scale;
         const Real upper = Real(1.5) * scale;
         const Real count = Real(1.0);
-        const Real negative_endpoint_number = Real(1.0e-12);
+        const Real negative_endpoint_number = Real(1024.0) *
+            std::numeric_limits<Real>::epsilon();
         const Real mass = upper * count + negative_endpoint_number * (upper - lower);
         EXPECT_FALSE(erf_sbm::SpectralGrid::two_moment_realizable(count, mass, lower, upper));
         EXPECT_THROW(static_cast<void>(erf_sbm::SpectralGrid::two_moment_to_endpoints(
@@ -916,7 +1071,7 @@ TEST(SBMRemapping, ProductionSparseConstraintFlattenerSupportsThreeTerms)
     synthetic.members = {0, 1, 2};
     synthetic.constraints.push_back({"total_minus_coating_minus_rime",
         {{0, Real(1.0)}, {1, Real(-1.0)}, {2, Real(-1.0)}}});
-    const auto flattened = erf_sbm::flatten_constraint_groups({synthetic});
+    const auto flattened = erf_sbm::flatten_constraint_groups({synthetic}, 3);
     ASSERT_EQ(flattened.constraints.size(), 1u);
     ASSERT_EQ(flattened.terms.size(), 3u);
     const auto& descriptor = flattened.constraints[0];
@@ -933,6 +1088,11 @@ TEST(SBMRemapping, ProductionSparseConstraintFlattenerSupportsThreeTerms)
     truncated.term_count = 2;
     EXPECT_NE(erf_sbm::evaluate_constraint_descriptor(
                   truncated, flattened.terms.data(), state), independent);
+
+    auto out_of_bounds = synthetic;
+    out_of_bounds.constraints[0].terms[2].component = 3;
+    EXPECT_THROW(static_cast<void>(erf_sbm::flatten_constraint_groups(
+                     {out_of_bounds}, 3)), std::invalid_argument);
 
     const auto real_layout = make_layout(erf_sbm::MomentMode::TwoMoment);
     const auto production = erf_sbm::make_constraint_descriptors(real_layout);
@@ -1002,6 +1162,10 @@ TEST(SBMRemapping, ScientificIdentityAndRestartAreExactAndVersioned)
 
     const std::string persisted = erf_sbm::restart_schema(one_moment);
     EXPECT_NE(persisted.find("ERF-SBM-RESTART-M2R-v1"), std::string::npos);
+    EXPECT_EQ(persisted.find("population=0:representation="), std::string::npos);
+    const auto layout_representation = persisted.find(":representation=");
+    ASSERT_NE(layout_representation, std::string::npos);
+    EXPECT_EQ(persisted.find(":representation=", layout_representation + 1), std::string::npos);
     EXPECT_TRUE(erf_sbm::restart_schema_matches(one_moment, persisted));
     std::string changed = persisted;
     const auto identity = changed.find("fixed-pivot-delta-v1");

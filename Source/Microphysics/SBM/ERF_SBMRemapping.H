@@ -3,7 +3,9 @@
 
 #include "ERF_SBMLayout.H"
 
+#include <AMReX_Algorithm.H>
 #include <AMReX_GpuQualifiers.H>
+#include <AMReX_Math.H>
 #include <AMReX_REAL.H>
 
 #include <cmath>
@@ -12,7 +14,9 @@
 
 namespace erf_sbm {
 
-enum class RemapStatus { Ok, ZeroWaterResidual, BelowSupportedGrid, Overflow, Invalid };
+enum class RemapStatus {
+    Ok, ZeroWaterResidual, BelowSupportedGrid, Overflow, NumericalUnderflow, Invalid
+};
 enum class ReconstructionStatus { Populated, Empty, Invalid };
 
 /**
@@ -39,9 +43,13 @@ struct PopulationRemapView {
 [[nodiscard]] PopulationRemapView
 population_remap_view(const SBMLayout& layout, int population_id) noexcept;
 
-/** Fixed-pivot 1M and interval 2M policies currently require mass coordinates. */
+/**
+ * Constant-time structural/context checks for already qualified immutable
+ * metadata. Callers must derive views from a validated SBMLayout or call the
+ * full validator below once before using a raw view in the remapping cores.
+ */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool valid_population_remap_view(const PopulationRemapView& population) noexcept
+bool valid_population_remap_context(const PopulationRemapView& population) noexcept
 {
     if (population.population_id < 0 ||
         population.coordinate_kind != CoordinateKind::Mass ||
@@ -61,9 +69,22 @@ bool valid_population_remap_view(const PopulationRemapView& population) noexcept
                population.number_offset > population.state_components - population.nbins) {
         return false;
     }
+    if (population.moment_mode == MomentMode::TwoMoment &&
+        population.number_offset < population.mass_offset + population.nbins &&
+        population.mass_offset < population.number_offset + population.nbins) {
+        return false;
+    }
+    return true;
+}
+
+/** Full O(nbins + properties^2) validator for untrusted/arbitrary views. */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool valid_population_remap_view(const PopulationRemapView& population) noexcept
+{
+    if (!valid_population_remap_context(population)) return false;
     for (int edge = 0; edge <= population.nbins; ++edge) {
         const amrex::Real value = population.edges[edge];
-        if (!std::isfinite(value) || value < amrex::Real(0.0) ||
+        if (!amrex::Math::isfinite(value) || value < amrex::Real(0.0) ||
             (edge > 0 && !(population.edges[edge - 1] < value))) {
             return false;
         }
@@ -71,17 +92,12 @@ bool valid_population_remap_view(const PopulationRemapView& population) noexcept
     if (population.moment_mode == MomentMode::OneMoment) {
         for (int bin = 0; bin < population.nbins; ++bin) {
             const amrex::Real pivot = population.pivots[bin];
-            if (!std::isfinite(pivot) || pivot <= amrex::Real(0.0) ||
+            if (!amrex::Math::isfinite(pivot) || pivot <= amrex::Real(0.0) ||
                 pivot < population.edges[bin] || pivot > population.edges[bin + 1] ||
                 (bin > 0 && !(population.pivots[bin - 1] < pivot))) {
                 return false;
             }
         }
-    }
-    if (population.moment_mode == MomentMode::TwoMoment &&
-        population.number_offset < population.mass_offset + population.nbins &&
-        population.mass_offset < population.number_offset + population.nbins) {
-        return false;
     }
     for (int property = 0; property < population.property_count; ++property) {
         const int offset = population.property_component_offsets[property];
@@ -141,20 +157,38 @@ struct PacketRoutingPlan {
 
 namespace remap_detail {
 
+enum class ProductStatus { Ok, Underflow, Invalid };
+
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool finite_nonnegative(const amrex::Real value) noexcept
 {
-    return std::isfinite(value) && value >= amrex::Real(0.0);
+    return amrex::Math::isfinite(value) && value >= amrex::Real(0.0);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+ProductStatus checked_product(const amrex::Real left, const amrex::Real right,
+                              amrex::Real& result) noexcept
+{
+    if (!finite_nonnegative(left) || !finite_nonnegative(right)) return ProductStatus::Invalid;
+    result = left * right;
+    if (!amrex::Math::isfinite(result)) return ProductStatus::Invalid;
+    if (left > amrex::Real(0.0) && right > amrex::Real(0.0) &&
+        result == amrex::Real(0.0)) return ProductStatus::Underflow;
+    return ProductStatus::Ok;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool finite_product(const amrex::Real left, const amrex::Real right,
                     amrex::Real& result) noexcept
 {
-    result = left * right;
-    return std::isfinite(result) && result >= amrex::Real(0.0) &&
-           !(left > amrex::Real(0.0) && right > amrex::Real(0.0) &&
-             result == amrex::Real(0.0));
+    return checked_product(left, right, result) == ProductStatus::Ok;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+RemapStatus remap_product_status(const ProductStatus status) noexcept
+{
+    return status == ProductStatus::Underflow ? RemapStatus::NumericalUnderflow :
+           status == ProductStatus::Ok ? RemapStatus::Ok : RemapStatus::Invalid;
 }
 
 /** Accept at most four representable steps outward from a global endpoint. */
@@ -172,22 +206,149 @@ bool within_boundary_roundoff(const amrex::Real value, const amrex::Real endpoin
     return lower_boundary ? value >= allowance : value <= allowance;
 }
 
+/** Validate a route against its local claimed bin(s), without searching. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool same_route(const PacketRoutingPlan& actual,
-                const PacketRoutingPlan& expected) noexcept
+bool route_plan_is_consistent(const PopulationRemapView& population,
+                              const PacketRoutingPlan& plan) noexcept
 {
-    if (actual.status != expected.status ||
-        actual.packet_number != expected.packet_number ||
-        actual.packet_particle_mass != expected.packet_particle_mass ||
-        actual.destination_count != expected.destination_count ||
-        actual.residual_number_weight != expected.residual_number_weight ||
-        actual.normalized_roundoff != expected.normalized_roundoff) {
+    if (!valid_population_remap_context(population) ||
+        !same_population_context(population, plan.population) ||
+        !amrex::Math::isfinite(plan.packet_number) ||
+        !amrex::Math::isfinite(plan.packet_particle_mass) ||
+        plan.packet_number < amrex::Real(0.0) || plan.packet_particle_mass < amrex::Real(0.0) ||
+        plan.destination_count < 0 || plan.destination_count > 2 ||
+        !finite_nonnegative(plan.residual_number_weight) ||
+        plan.residual_number_weight > amrex::Real(1.0)) return false;
+
+    if (plan.packet_number == amrex::Real(0.0)) {
+        return plan.status == RemapStatus::Ok && plan.destination_count == 0 &&
+               plan.residual_number_weight == amrex::Real(0.0) &&
+               !plan.normalized_roundoff;
+    }
+
+    if (population.moment_mode == MomentMode::TwoMoment) {
+        if (plan.packet_particle_mass == amrex::Real(0.0)) {
+            return plan.status == RemapStatus::ZeroWaterResidual &&
+                   plan.destination_count == 0 &&
+                   plan.residual_number_weight == amrex::Real(1.0) &&
+                   !plan.normalized_roundoff;
+        }
+        const amrex::Real lower = population.edges[0];
+        const amrex::Real top = population.edges[population.nbins];
+        int required_bin = -1;
+        amrex::Real expected_mass = plan.packet_particle_mass;
+        bool normalized = false;
+        if (plan.packet_particle_mass < lower) {
+            if (!within_boundary_roundoff(plan.packet_particle_mass, lower, true)) return false;
+            required_bin = 0;
+            expected_mass = lower;
+            normalized = true;
+        } else if (plan.packet_particle_mass > top) {
+            if (!within_boundary_roundoff(plan.packet_particle_mass, top, false)) return false;
+            required_bin = population.nbins - 1;
+            expected_mass = top;
+            normalized = true;
+        }
+        if (plan.status != RemapStatus::Ok || plan.destination_count != 1 ||
+            plan.residual_number_weight != amrex::Real(0.0) ||
+            plan.normalized_roundoff != normalized) return false;
+        const auto& route = plan.destinations[0];
+        return (required_bin < 0 || route.bin == required_bin) &&
+               route.number_weight == amrex::Real(1.0) &&
+               route.particle_mass == expected_mass && route.bin >= 0 &&
+               route.bin < population.nbins && expected_mass >= population.edges[route.bin] &&
+               (expected_mass < population.edges[route.bin + 1] ||
+                (route.bin == population.nbins - 1 &&
+                 expected_mass <= population.edges[route.bin + 1]));
+    }
+
+    const amrex::Real first = population.pivots[0];
+    const amrex::Real last = population.pivots[population.nbins - 1];
+    if (plan.packet_particle_mass == amrex::Real(0.0)) {
+        return plan.status == RemapStatus::ZeroWaterResidual &&
+               plan.destination_count == 0 &&
+               plan.residual_number_weight == amrex::Real(1.0) &&
+               !plan.normalized_roundoff;
+    }
+    if (plan.packet_particle_mass < first) {
+        const amrex::Real wet_weight = plan.packet_particle_mass / first;
+        return plan.status == RemapStatus::ZeroWaterResidual && !plan.normalized_roundoff &&
+               plan.destination_count == 1 && plan.residual_number_weight ==
+               amrex::Real(1.0) - wet_weight && plan.destinations[0].bin == 0 &&
+               plan.destinations[0].number_weight == wet_weight &&
+               plan.destinations[0].particle_mass == first;
+    }
+    if (plan.packet_particle_mass > last || plan.status == RemapStatus::ZeroWaterResidual) {
         return false;
     }
-    for (int destination = 0; destination < actual.destination_count; ++destination) {
-        if (actual.destinations[destination].bin != expected.destinations[destination].bin ||
-            actual.destinations[destination].number_weight != expected.destinations[destination].number_weight ||
-            actual.destinations[destination].particle_mass != expected.destinations[destination].particle_mass) {
+    if (plan.destination_count == 1) {
+        const int pivot_bin = plan.destinations[0].bin;
+        if (pivot_bin < 0 || pivot_bin >= population.nbins) return false;
+        return plan.status == RemapStatus::Ok && !plan.normalized_roundoff &&
+               plan.destination_count == 1 && plan.residual_number_weight == amrex::Real(0.0) &&
+               plan.packet_particle_mass == population.pivots[pivot_bin] &&
+               plan.destinations[0].bin == pivot_bin &&
+               plan.destinations[0].number_weight == amrex::Real(1.0) &&
+               plan.destinations[0].particle_mass == population.pivots[pivot_bin];
+    }
+    if (plan.destination_count != 2) return false;
+    const int lower_bin = plan.destinations[0].bin;
+    if (lower_bin < 0 || lower_bin + 1 >= population.nbins ||
+        plan.destinations[1].bin != lower_bin + 1) return false;
+    const amrex::Real lower = population.pivots[lower_bin];
+    const amrex::Real upper = population.pivots[lower_bin + 1];
+    if (!(plan.packet_particle_mass > lower && plan.packet_particle_mass < upper)) return false;
+    const amrex::Real width = upper - lower;
+    const amrex::Real lower_weight = (upper - plan.packet_particle_mass) / width;
+    const amrex::Real upper_weight = (plan.packet_particle_mass - lower) / width;
+    return plan.status == RemapStatus::Ok && !plan.normalized_roundoff &&
+           plan.destination_count == 2 && plan.residual_number_weight == amrex::Real(0.0) &&
+           plan.destinations[0].bin == lower_bin &&
+           plan.destinations[0].number_weight == lower_weight &&
+           plan.destinations[0].particle_mass == lower &&
+           plan.destinations[1].bin == lower_bin + 1 &&
+           plan.destinations[1].number_weight == upper_weight &&
+           plan.destinations[1].particle_mass == upper;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool canonical_two_moment_moments(const PopulationRemapView& population,
+                                  const int bin, const amrex::Real number,
+                                  const amrex::Real mass) noexcept
+{
+    if (!valid_population_remap_context(population) ||
+        population.moment_mode != MomentMode::TwoMoment || bin < 0 || bin >= population.nbins ||
+        !finite_nonnegative(number) || !finite_nonnegative(mass)) return false;
+    if (number == amrex::Real(0.0)) return mass == amrex::Real(0.0);
+    if (mass <= amrex::Real(0.0)) return false;
+    const amrex::Real mean = mass / number;
+    const amrex::Real lower = population.edges[bin];
+    const amrex::Real upper = population.edges[bin + 1];
+    return amrex::Math::isfinite(mean) && mean >= lower &&
+           (mean < upper || (bin == population.nbins - 1 && mean <= upper));
+}
+
+/** Strict persisted-state test shared by reconstruction, restart, and fixtures. */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool canonical_two_moment_bin_state(const PopulationRemapView& population,
+                                    const int bin, const amrex::Real* state,
+                                    const int state_count) noexcept
+{
+    if (!valid_population_remap_context(population) || state == nullptr ||
+        state_count != population.state_components || bin < 0 || bin >= population.nbins ||
+        population.moment_mode != MomentMode::TwoMoment) return false;
+    const amrex::Real mass = state[population.mass_offset + bin];
+    const amrex::Real number = state[population.number_offset + bin];
+    if (!canonical_two_moment_moments(population, bin, number, mass)) return false;
+    if (number == amrex::Real(0.0)) {
+        for (int property = 0; property < population.property_count; ++property) {
+            if (state[population.property_component_offsets[property] + bin] != amrex::Real(0.0)) {
+                return false;
+            }
+        }
+    }
+    for (int property = 0; property < population.property_count; ++property) {
+        if (!finite_nonnegative(state[population.property_component_offsets[property] + bin])) {
             return false;
         }
     }
@@ -200,7 +361,10 @@ bool same_route(const PacketRoutingPlan& actual,
  * Classify one packet without allocation or state mutation. Two-moment routing
  * uses half-open intervals, includes the global top edge, and admits only four
  * representable steps of outer-boundary roundoff. The plan keeps the original
- * packet mass while its destination records the exact boundary mass.
+ * packet mass while its destination records the exact boundary mass. The
+ * immutable metadata must have been fully qualified once before this call;
+ * the per-packet path performs only constant-time context checks and a
+ * logarithmic interval search.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 PacketRoutingPlan plan_packet_routing(const PopulationRemapView population,
@@ -211,8 +375,8 @@ PacketRoutingPlan plan_packet_routing(const PopulationRemapView population,
     plan.population = population;
     plan.packet_number = packet_number;
     plan.packet_particle_mass = particle_mass;
-    if (!valid_population_remap_view(population) ||
-        !std::isfinite(packet_number) || !std::isfinite(particle_mass) ||
+    if (!valid_population_remap_context(population) ||
+        !amrex::Math::isfinite(packet_number) || !amrex::Math::isfinite(particle_mass) ||
         packet_number < amrex::Real(0.0) || particle_mass < amrex::Real(0.0)) {
         return plan;
     }
@@ -254,18 +418,12 @@ PacketRoutingPlan plan_packet_routing(const PopulationRemapView population,
             plan.normalized_roundoff = true;
             return plan;
         }
-        for (int bin = 0; bin < population.nbins; ++bin) {
-            const bool in_interval = particle_mass >= population.edges[bin] &&
-                (particle_mass < population.edges[bin + 1] ||
-                 (bin == population.nbins - 1 && particle_mass <= population.edges[bin + 1]));
-            if (in_interval) {
-                plan.status = RemapStatus::Ok;
-                plan.destination_count = 1;
-                plan.destinations[0] = {bin, amrex::Real(1.0), particle_mass};
-                return plan;
-            }
-        }
-        plan.status = RemapStatus::Overflow;
+        const int bin = particle_mass == population.edges[population.nbins] ?
+            population.nbins - 1 :
+            amrex::bisect(population.edges, 0, population.nbins, particle_mass);
+        plan.status = RemapStatus::Ok;
+        plan.destination_count = 1;
+        plan.destinations[0] = {bin, amrex::Real(1.0), particle_mass};
         return plan;
     }
 
@@ -286,31 +444,24 @@ PacketRoutingPlan plan_packet_routing(const PopulationRemapView population,
         plan.status = RemapStatus::Overflow;
         return plan;
     }
-    for (int bin = 0; bin < population.nbins; ++bin) {
-        const amrex::Real lower = population.pivots[bin];
-        if (particle_mass == lower) {
-            plan.status = RemapStatus::Ok;
-            plan.destination_count = 1;
-            plan.destinations[0] = {bin, amrex::Real(1.0), lower};
-            return plan;
-        }
-        if (bin + 1 < population.nbins) {
-            const amrex::Real upper = population.pivots[bin + 1];
-            if (particle_mass == upper) {
-                plan.status = RemapStatus::Ok;
-                plan.destination_count = 1;
-                plan.destinations[0] = {bin + 1, amrex::Real(1.0), upper};
-                return plan;
-            }
-            if (particle_mass > lower && particle_mass < upper) {
-                const amrex::Real width = upper - lower;
-                plan.status = RemapStatus::Ok;
-                plan.destination_count = 2;
-                plan.destinations[0] = {bin, (upper - particle_mass) / width, lower};
-                plan.destinations[1] = {bin + 1, (particle_mass - lower) / width, upper};
-                return plan;
-            }
-        }
+    const int lower_bin = particle_mass == population.pivots[population.nbins - 1] ?
+        population.nbins - 1 :
+        amrex::bisect(population.pivots, 0, population.nbins - 1, particle_mass);
+    if (particle_mass == population.pivots[lower_bin]) {
+        plan.status = RemapStatus::Ok;
+        plan.destination_count = 1;
+        plan.destinations[0] = {lower_bin, amrex::Real(1.0), population.pivots[lower_bin]};
+        return plan;
+    }
+    if (lower_bin + 1 < population.nbins) {
+        const amrex::Real lower = population.pivots[lower_bin];
+        const amrex::Real upper = population.pivots[lower_bin + 1];
+        const amrex::Real width = upper - lower;
+        plan.status = RemapStatus::Ok;
+        plan.destination_count = 2;
+        plan.destinations[0] = {lower_bin, (upper - particle_mass) / width, lower};
+        plan.destinations[1] = {lower_bin + 1, (particle_mass - lower) / width, upper};
+        return plan;
     }
     return plan;
 }
@@ -341,23 +492,22 @@ PacketApplicationCoreResult apply_packet_routing_core(
     if (plan.status != RemapStatus::Ok && plan.status != RemapStatus::ZeroWaterResidual) {
         return result;
     }
-    if (!valid_population_remap_view(population) ||
+    if (!valid_population_remap_context(population) ||
         !same_population_context(population, plan.population) ||
-        !std::isfinite(plan.packet_number) || !std::isfinite(plan.packet_particle_mass) ||
+        !amrex::Math::isfinite(plan.packet_number) ||
+        !amrex::Math::isfinite(plan.packet_particle_mass) ||
         plan.packet_number < amrex::Real(0.0) || plan.packet_particle_mass < amrex::Real(0.0) ||
         property_count != population.property_count ||
         (property_count > 0 && (property_packet_amounts == nullptr || residual_properties == nullptr)) ||
         residual_capacity < property_count || candidate_state == nullptr ||
         state_count != population.state_components || plan.destination_count < 0 ||
-        plan.destination_count > 2 || !std::isfinite(plan.residual_number_weight) ||
+        plan.destination_count > 2 || !amrex::Math::isfinite(plan.residual_number_weight) ||
         plan.residual_number_weight < amrex::Real(0.0) ||
         plan.residual_number_weight > amrex::Real(1.0)) {
         result.status = RemapStatus::Invalid;
         return result;
     }
-    const PacketRoutingPlan expected = plan_packet_routing(
-        population, plan.packet_number, plan.packet_particle_mass);
-    if (!remap_detail::same_route(plan, expected)) {
+    if (!remap_detail::route_plan_is_consistent(population, plan)) {
         result.status = RemapStatus::Invalid;
         return result;
     }
@@ -379,7 +529,7 @@ PacketApplicationCoreResult apply_packet_routing_core(
     for (int destination = 0; destination < plan.destination_count; ++destination) {
         const auto& route = plan.destinations[destination];
         if (route.bin < 0 || route.bin >= population.nbins ||
-            !std::isfinite(route.number_weight) || route.number_weight < amrex::Real(0.0) ||
+            !amrex::Math::isfinite(route.number_weight) || route.number_weight < amrex::Real(0.0) ||
             route.number_weight > amrex::Real(1.0) ||
             !remap_detail::finite_nonnegative(route.particle_mass)) {
             result.status = RemapStatus::Invalid;
@@ -396,7 +546,7 @@ PacketApplicationCoreResult apply_packet_routing_core(
     if (plan.packet_number > amrex::Real(0.0)) {
         const amrex::Real weight_tolerance = amrex::Real(16.0) *
             std::numeric_limits<amrex::Real>::epsilon();
-        if (!std::isfinite(weight_sum) ||
+        if (!amrex::Math::isfinite(weight_sum) ||
             std::abs(weight_sum - amrex::Real(1.0)) > weight_tolerance ||
             ((plan.status == RemapStatus::ZeroWaterResidual) !=
              (plan.residual_number_weight > amrex::Real(0.0)))) {
@@ -409,9 +559,10 @@ PacketApplicationCoreResult apply_packet_routing_core(
         return result;
     }
 
-    if (!remap_detail::finite_product(plan.packet_number, plan.residual_number_weight,
-                                      result.residual_number)) {
-        result.status = RemapStatus::Invalid;
+    auto product_status = remap_detail::checked_product(
+        plan.packet_number, plan.residual_number_weight, result.residual_number);
+    if (product_status != remap_detail::ProductStatus::Ok) {
+        result.status = remap_detail::remap_product_status(product_status);
         return result;
     }
     result.residual_water_mass = amrex::Real(0.0);
@@ -420,9 +571,10 @@ PacketApplicationCoreResult apply_packet_routing_core(
     // Validate all outputs and candidate increments before changing either.
     for (int property = 0; property < property_count; ++property) {
         amrex::Real residual = amrex::Real(0.0);
-        if (!remap_detail::finite_product(property_packet_amounts[property],
-                                           plan.residual_number_weight, residual)) {
-            result.status = RemapStatus::Invalid;
+        product_status = remap_detail::checked_product(
+            property_packet_amounts[property], plan.residual_number_weight, residual);
+        if (product_status != remap_detail::ProductStatus::Ok) {
+            result.status = remap_detail::remap_product_status(product_status);
             return result;
         }
     }
@@ -431,17 +583,21 @@ PacketApplicationCoreResult apply_packet_routing_core(
         amrex::Real number_increment = amrex::Real(0.0);
         amrex::Real mass_increment = amrex::Real(0.0);
         const amrex::Real deposited_mass = route.particle_mass;
-        if (!remap_detail::finite_product(plan.packet_number, route.number_weight,
-                                           number_increment) ||
-            !remap_detail::finite_product(number_increment, deposited_mass, mass_increment)) {
-            result.status = RemapStatus::Invalid;
+        product_status = remap_detail::checked_product(
+            plan.packet_number, route.number_weight, number_increment);
+        if (product_status == remap_detail::ProductStatus::Ok) {
+            product_status = remap_detail::checked_product(
+                number_increment, deposited_mass, mass_increment);
+        }
+        if (product_status != remap_detail::ProductStatus::Ok) {
+            result.status = remap_detail::remap_product_status(product_status);
             return result;
         }
         if (population.moment_mode == MomentMode::TwoMoment && plan.normalized_roundoff) {
             const amrex::Real correction = plan.packet_number *
                 (route.particle_mass - plan.packet_particle_mass);
-            if (!std::isfinite(correction) ||
-                !std::isfinite(roundoff_water_mass_correction + correction)) {
+            if (!amrex::Math::isfinite(correction) ||
+                !amrex::Math::isfinite(roundoff_water_mass_correction + correction)) {
                 result.status = RemapStatus::Invalid;
                 return result;
             }
@@ -467,9 +623,13 @@ PacketApplicationCoreResult apply_packet_routing_core(
             amrex::Real increment = amrex::Real(0.0);
             const int component = population.property_component_offsets[property] + route.bin;
             const amrex::Real old_value = candidate_state[component];
-            if (!remap_detail::finite_product(property_packet_amounts[property],
-                                               route.number_weight, increment) ||
-                !remap_detail::finite_nonnegative(old_value) ||
+            product_status = remap_detail::checked_product(
+                property_packet_amounts[property], route.number_weight, increment);
+            if (product_status != remap_detail::ProductStatus::Ok) {
+                result.status = remap_detail::remap_product_status(product_status);
+                return result;
+            }
+            if (!remap_detail::finite_nonnegative(old_value) ||
                 !remap_detail::finite_nonnegative(old_value + increment)) {
                 result.status = RemapStatus::Invalid;
                 return result;
@@ -517,7 +677,7 @@ ReconstructionStatus reconstruct_bin_core(
     amrex::Real* property_per_particle, const int property_capacity,
     ReconstructionDeltaView& reconstruction) noexcept
 {
-    if (!valid_population_remap_view(population) || bin < 0 || bin >= population.nbins ||
+    if (!valid_population_remap_context(population) || bin < 0 || bin >= population.nbins ||
         persisted_state == nullptr || state_count != population.state_components ||
         property_capacity < population.property_count ||
         (population.property_count > 0 && property_per_particle == nullptr)) {
@@ -540,6 +700,10 @@ ReconstructionStatus reconstruct_bin_core(
     } else {
         const amrex::Real number = persisted_state[population.number_offset + bin];
         if (!remap_detail::finite_nonnegative(number)) return ReconstructionStatus::Invalid;
+        if (!remap_detail::canonical_two_moment_bin_state(
+                population, bin, persisted_state, state_count)) {
+            return ReconstructionStatus::Invalid;
+        }
         const amrex::Real lower = population.edges[bin];
         const amrex::Real upper = population.edges[bin + 1];
         EndpointTransform endpoints;
@@ -547,19 +711,14 @@ ReconstructionStatus reconstruct_bin_core(
             return ReconstructionStatus::Invalid;
         }
         next.number = number;
-        next.normalized_roundoff = endpoints.normalized_roundoff;
+        // Endpoint tolerance is only a realizability aid for the transform.
+        // Persisted state has already passed strict canonical ownership and is
+        // never normalized by no-process reconstruction.
+        next.normalized_roundoff = false;
         if (number > amrex::Real(0.0)) {
             next.particle_mass = mass / number;
-            if (next.particle_mass < lower && endpoints.H == amrex::Real(0.0)) {
-                next.particle_mass = lower;
-                next.normalized_roundoff = true;
-            } else if (next.particle_mass > upper && endpoints.L == amrex::Real(0.0)) {
-                next.particle_mass = upper;
-                next.normalized_roundoff = true;
-            }
-            if (!std::isfinite(next.particle_mass) ||
-                (mass > amrex::Real(0.0) && next.particle_mass == amrex::Real(0.0)) ||
-                next.particle_mass < lower || next.particle_mass > upper) {
+            if (!amrex::Math::isfinite(next.particle_mass) ||
+                (mass > amrex::Real(0.0) && next.particle_mass == amrex::Real(0.0))) {
                 return ReconstructionStatus::Invalid;
             }
         }
@@ -590,10 +749,8 @@ ReconstructionStatus reconstruct_bin_core(
 }
 
 struct IntegratedMomentsCoreResult {
-    bool valid{false};
     amrex::Real number{0.0};
     amrex::Real water_mass{0.0};
-    int property_count{0};
 };
 
 /** Integrate one reconstructed delta over [lower, upper), optionally including upper. */
@@ -604,7 +761,7 @@ bool integrate_interval_core(const ReconstructionDeltaView reconstruction,
                              const int property_capacity,
                              IntegratedMomentsCoreResult& integral) noexcept
 {
-    if (!std::isfinite(lower) || !std::isfinite(upper) || !(lower < upper) ||
+    if (!amrex::Math::isfinite(lower) || !amrex::Math::isfinite(upper) || !(lower < upper) ||
         !remap_detail::finite_nonnegative(reconstruction.number) ||
         !remap_detail::finite_nonnegative(reconstruction.particle_mass) ||
         reconstruction.property_count < 0 || property_capacity < reconstruction.property_count ||
@@ -626,8 +783,6 @@ bool integrate_interval_core(const ReconstructionDeltaView reconstruction,
         (reconstruction.particle_mass < upper ||
          (include_upper && reconstruction.particle_mass == upper));
     IntegratedMomentsCoreResult next;
-    next.valid = true;
-    next.property_count = reconstruction.property_count;
     if (contains) {
         next.number = reconstruction.number;
         if (!remap_detail::finite_product(reconstruction.number,
@@ -661,7 +816,7 @@ bool project_reconstruction_bin_core(const PopulationRemapView population,
                                      amrex::Real* candidate_state,
                                      const int state_count) noexcept
 {
-    if (!valid_population_remap_view(population) ||
+    if (!valid_population_remap_context(population) ||
         !same_population_context(population, reconstruction.population) ||
         reconstruction.bin < 0 || reconstruction.bin >= population.nbins ||
         candidate_state == nullptr || state_count != population.state_components ||
@@ -677,9 +832,6 @@ bool project_reconstruction_bin_core(const PopulationRemapView population,
     if (!reconstruction.empty) {
         if (population.moment_mode == MomentMode::OneMoment) {
             if (reconstruction.particle_mass != population.pivots[reconstruction.bin]) return false;
-        } else if (reconstruction.particle_mass < population.edges[reconstruction.bin] ||
-                   reconstruction.particle_mass > population.edges[reconstruction.bin + 1]) {
-            return false;
         }
     }
     amrex::Real mass = amrex::Real(0.0);
@@ -687,6 +839,9 @@ bool project_reconstruction_bin_core(const PopulationRemapView population,
                                       reconstruction.particle_mass, mass)) {
         return false;
     }
+    if (population.moment_mode == MomentMode::TwoMoment &&
+        !remap_detail::canonical_two_moment_moments(
+            population, reconstruction.bin, reconstruction.number, mass)) return false;
     for (int property = 0; property < population.property_count; ++property) {
         const amrex::Real value = reconstruction.property_per_particle[property];
         amrex::Real amount = amrex::Real(0.0);

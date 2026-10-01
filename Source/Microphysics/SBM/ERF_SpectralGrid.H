@@ -3,6 +3,7 @@
 
 #include <AMReX_REAL.H>
 #include <AMReX_GpuQualifiers.H>
+#include <AMReX_Math.H>
 
 #include <cmath>
 #include <limits>
@@ -48,8 +49,8 @@ bool try_two_moment_to_endpoints(const amrex::Real C, const amrex::Real M,
                                  const amrex::Real lower, const amrex::Real upper,
                                  EndpointTransform& result) noexcept
 {
-    if (!std::isfinite(C) || !std::isfinite(M) || !std::isfinite(lower) ||
-        !std::isfinite(upper) || lower < amrex::Real(0.0) ||
+    if (!amrex::Math::isfinite(C) || !amrex::Math::isfinite(M) || !amrex::Math::isfinite(lower) ||
+        !amrex::Math::isfinite(upper) || lower < amrex::Real(0.0) ||
         !(lower < upper) || C < amrex::Real(0.0)) {
         return false;
     }
@@ -58,8 +59,8 @@ bool try_two_moment_to_endpoints(const amrex::Real C, const amrex::Real M,
         std::numeric_limits<amrex::Real>::epsilon() * scale;
     const amrex::Real low_numerator = std::fma(upper, C, -M);
     const amrex::Real high_numerator = std::fma(-lower, C, M);
-    if (!std::isfinite(scale) || !std::isfinite(moment_tolerance) ||
-        !std::isfinite(low_numerator) || !std::isfinite(high_numerator) ||
+    if (!amrex::Math::isfinite(scale) || !amrex::Math::isfinite(moment_tolerance) ||
+        !amrex::Math::isfinite(low_numerator) || !amrex::Math::isfinite(high_numerator) ||
         low_numerator < -moment_tolerance || high_numerator < -moment_tolerance) {
         return false;
     }
@@ -67,13 +68,13 @@ bool try_two_moment_to_endpoints(const amrex::Real C, const amrex::Real M,
         if (std::abs(M) > moment_tolerance) return false;
         result = {amrex::Real(0.0), amrex::Real(0.0), moment_tolerance,
                   moment_tolerance / (upper - lower), M != amrex::Real(0.0)};
-        return std::isfinite(result.endpoint_tolerance);
+        return amrex::Math::isfinite(result.endpoint_tolerance);
     }
     const amrex::Real denominator = upper - lower;
     amrex::Real L = low_numerator / denominator;
     amrex::Real H = high_numerator / denominator;
     const amrex::Real endpoint_tolerance = moment_tolerance / denominator;
-    if (!std::isfinite(L) || !std::isfinite(H) || !std::isfinite(endpoint_tolerance)) {
+    if (!amrex::Math::isfinite(L) || !amrex::Math::isfinite(H) || !amrex::Math::isfinite(endpoint_tolerance)) {
         return false;
     }
     const bool normalized = L < amrex::Real(0.0) || H < amrex::Real(0.0);
@@ -89,14 +90,14 @@ bool try_endpoints_to_two_moment(const amrex::Real L, const amrex::Real H,
                                  const amrex::Real lower, const amrex::Real upper,
                                  amrex::Real& C, amrex::Real& M) noexcept
 {
-    if (!std::isfinite(L) || !std::isfinite(H) || !std::isfinite(lower) ||
-        !std::isfinite(upper) || L < amrex::Real(0.0) || H < amrex::Real(0.0) ||
+    if (!amrex::Math::isfinite(L) || !amrex::Math::isfinite(H) || !amrex::Math::isfinite(lower) ||
+        !amrex::Math::isfinite(upper) || L < amrex::Real(0.0) || H < amrex::Real(0.0) ||
         lower < amrex::Real(0.0) || !(lower < upper)) {
         return false;
     }
     const amrex::Real count = L + H;
     const amrex::Real mass = std::fma(lower, L, upper * H);
-    if (!std::isfinite(count) || !std::isfinite(mass) ||
+    if (!amrex::Math::isfinite(count) || !amrex::Math::isfinite(mass) ||
         count < amrex::Real(0.0) || mass < amrex::Real(0.0)) {
         return false;
     }

@@ -1,7 +1,7 @@
 #include "ERF_SBMRestart.H"
 
 #include "ERF_SBMConstraintGroups.H"
-#include "ERF_SBMRepresentation.H"
+#include "ERF_SBMRemapping.H"
 #include <AMReX_Arena.H>
 #include <AMReX_BoxIterator.H>
 #include <AMReX_FArrayBox.H>
@@ -27,13 +27,6 @@ std::string restart_schema(const SBMLayout& layout)
            << "constraint-policy=nonnegative-bin-mass-and-moments-v1\n"
            << "projection=liquid-mass-sum-to-qc-qr-v1\n"
            << "transport=zero-transport-fixture-v1\n";
-    for (const auto& population : layout.populations()) {
-        const auto identity = representation_identity(population.moment_mode);
-        schema << "population=" << population.population_id
-               << ":representation=" << identity.representation
-               << ":reconstruction=" << identity.reconstruction
-               << ":packet-remap=" << identity.packet_remap << '\n';
-    }
     return schema.str();
 }
 
@@ -58,6 +51,11 @@ bool authoritative_state_admissible(const amrex::MultiFab& spectrum,
     }
 
     const auto groups = make_constraint_groups(layout);
+    std::vector<PopulationRemapView> remap_views;
+    remap_views.reserve(layout.populations().size());
+    for (const auto& population : layout.populations()) {
+        remap_views.push_back(population_remap_view(layout, population.population_id));
+    }
     std::vector<amrex::Real> state(static_cast<std::size_t>(layout.ncomp()));
     const int precision = std::numeric_limits<amrex::Real>::max_digits10;
 
@@ -104,6 +102,27 @@ bool authoritative_state_admissible(const amrex::MultiFab& spectrum,
                     return reject(message.str());
                 }
                 state[static_cast<std::size_t>(component)] = value;
+            }
+
+            for (std::size_t population_index = 0;
+                 population_index < remap_views.size(); ++population_index) {
+                const auto& view = remap_views[population_index];
+                if (view.moment_mode != MomentMode::TwoMoment) continue;
+                for (int bin = 0; bin < view.nbins; ++bin) {
+                    if (remap_detail::canonical_two_moment_bin_state(
+                            view, bin, state.data(), static_cast<int>(state.size()))) continue;
+                    std::ostringstream message;
+                    message << "SBM authoritative restart state is inadmissible"
+                            << ": level=" << level << ", cell=(";
+                    for (int direction = 0; direction < AMREX_SPACEDIM; ++direction) {
+                        if (direction != 0) message << ',';
+                        message << cell[direction];
+                    }
+                    message << "), population=" << view.population_id
+                            << ", bin=" << bin
+                            << ", constraint=canonical-two-moment-bin-state";
+                    return reject(message.str());
+                }
             }
 
             for (const auto& group : groups) {

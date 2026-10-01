@@ -268,8 +268,8 @@ The corresponding increments are
 
 Any attached extensive inventory follows the same number weights. The mapping
 therefore conserves the implied packet number, liquid water, and each attached
-inventory, even though only the water moment and attached inventories are
-persisted in one-moment mode.
+inventory to floating-point roundoff, even though only the water moment and
+attached inventories are persisted in one-moment mode.
 
 Fixed-pivot remapping necessarily introduces spectral spreading for an
 off-pivot packet. If
@@ -334,8 +334,16 @@ may occupy the full admissible interval.
 
 The reference ``mean-delta`` reconstruction is a temporary monodisperse
 representation that places all of the bin number at :math:`\bar m_i`. It
-recovers the persisted number and water moments exactly; it is not an
-additional prognostic description of within-bin shape.
+reproduces the persisted number and water moments to floating-point roundoff;
+it is not an additional prognostic description of within-bin shape.
+
+Canonical persisted two-moment state requires a populated bin to have positive
+number and positive water mass, with its mean inside that bin's routing-owned
+interval. Interior bins own :math:`[a_i,b_i)`; the final bin owns
+:math:`[a_i,b_i]`. A bin with zero number is empty only when its water mass and
+every attached extensive inventory are also exactly zero. A positive-number,
+zero-water liquid-bin state is invalid; a zero-water packet is handled by the
+explicit residual path.
 
 The first two moments do not uniquely determine that shape. For any
 nonnegative number distribution supported on :math:`[a_i,b_i]` with
@@ -359,8 +367,9 @@ determined by :math:`N_i` and :math:`q_i` alone.
 
 For an attached extensive property, the mean-delta reference closure assigns
 the bin-mean amount per particle to the reconstructed node. This reproduces
-the stored attached-property inventory exactly, but it likewise does not
-resolve covariance between particle composition and liquid-water mass.
+the stored attached-property inventory to floating-point roundoff, but it
+likewise does not resolve covariance between particle composition and
+liquid-water mass.
 
 If several physically distinct packets are accumulated in the same interval,
 their total number and first water-mass moment are retained, but their
@@ -389,6 +398,11 @@ bins belongs to the upper bin. The global upper edge is included in the final
 bin. Materially out-of-range packets return an underflow or overflow status
 rather than being silently clipped.
 
+An unchanged mean-delta reconstruction redeposits into its original interval.
+A state concentrated exactly on an interior shared edge belongs to the upper
+bin; the same state stored in the lower bin is noncanonical and is rejected
+rather than silently migrated by a no-process reconstruction/remapping cycle.
+
 At a positive global lower edge or at the global upper edge, the implementation
 permits only a very small, explicitly bounded floating-point exception: a
 nonnegative particle mass up to four representable floating-point steps
@@ -414,14 +428,20 @@ numerical roundoff accounting, not a physical condensation, evaporation, or
 precipitation source.
 
 Storing the exact boundary mass keeps the accepted state inside its declared
-spectral support and ensures that reconstruction followed immediately by
-projection does not change the accepted moments.
+spectral support and lets reconstruction followed immediately by projection
+preserve the accepted moments to floating-point roundoff.
 
 A positive-number packet with exactly zero liquid-water mass is returned
 through the zero-water residual path rather than retained as a populated
 liquid bin. Residual number and attached inventory are returned to the caller
 for process-level handling; the reference remapper itself does not create or
 modify an aerosol population.
+
+A separate fail-closed numerical-range status is used if a mathematically
+positive required packet or attached-property increment underflows to exactly
+zero in the active floating-point precision. This condition is not
+reinterpreted as physical evaporation or residual material, and packet
+application remains atomic.
 
 Restart and scientific identity
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

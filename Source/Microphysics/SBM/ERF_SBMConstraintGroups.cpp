@@ -164,8 +164,12 @@ std::vector<ConstraintGroup> make_constraint_groups(const SBMLayout& layout)
     return groups;
 }
 
-FlattenedConstraintSet flatten_constraint_groups(const std::vector<ConstraintGroup>& groups)
+FlattenedConstraintSet flatten_constraint_groups(const std::vector<ConstraintGroup>& groups,
+                                                  const int state_components)
 {
+    if (state_components < 0) {
+        throw std::invalid_argument("SBM production constraints require a nonnegative state size");
+    }
     FlattenedConstraintSet flattened;
     for (std::size_t gi = 0; gi < groups.size(); ++gi) {
         const auto& group = groups[gi];
@@ -187,7 +191,8 @@ FlattenedConstraintSet flatten_constraint_groups(const std::vector<ConstraintGro
             descriptor.term_offset = static_cast<int>(flattened.terms.size());
             descriptor.term_count = static_cast<int>(constraint.terms.size());
             for (const auto& term : constraint.terms) {
-                if (term.component < 0 || !finite(term.coefficient)) {
+                if (term.component < 0 || term.component >= state_components ||
+                    !finite(term.coefficient)) {
                     throw std::invalid_argument(
                         "SBM production constraint has an invalid sparse term: " +
                         constraint.semantic_id);
@@ -202,7 +207,7 @@ FlattenedConstraintSet flatten_constraint_groups(const std::vector<ConstraintGro
 
 FlattenedConstraintSet make_constraint_descriptors(const SBMLayout& layout)
 {
-    return flatten_constraint_groups(make_constraint_groups(layout));
+    return flatten_constraint_groups(make_constraint_groups(layout), layout.ncomp());
 }
 
 std::vector<AttachedPropertySupportDescriptor>

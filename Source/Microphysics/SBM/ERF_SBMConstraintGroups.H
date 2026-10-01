@@ -105,7 +105,8 @@ make_constraint_descriptors(const SBMLayout& layout);
 
 /** Flatten arbitrary semantic groups through the production sparse format. */
 [[nodiscard]] FlattenedConstraintSet
-flatten_constraint_groups(const std::vector<ConstraintGroup>& groups);
+flatten_constraint_groups(const std::vector<ConstraintGroup>& groups,
+                          int state_components);
 
 [[nodiscard]] std::vector<AttachedPropertySupportDescriptor>
 make_attached_property_support_descriptors(const SBMLayout& layout);

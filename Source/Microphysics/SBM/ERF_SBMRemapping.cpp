@@ -27,6 +27,12 @@ PopulationRemapView population_remap_view(const SBMLayout& layout,
     view.state_components = layout.ncomp();
     view.property_component_offsets = found->property_component_offsets.data();
     view.property_count = static_cast<int>(found->property_component_offsets.size());
+    // SBMLayout validates these immutable arrays and constructs the component
+    // offsets. This adapter is used on per-packet paths, so do not repeat the
+    // O(nbins + properties^2) full qualification here. Keep the full validator
+    // for arbitrary raw views; this layout-derived view needs only a constant-
+    // time context check before entering the device/core routines.
+    if (!valid_population_remap_context(view)) return {};
     return view;
 }
 
