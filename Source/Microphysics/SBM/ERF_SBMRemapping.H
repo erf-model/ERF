@@ -685,8 +685,24 @@ PacketApplicationCoreResult apply_packet_routing_core(
             return result;
         }
         if (population.moment_mode == MomentMode::TwoMoment && plan.normalized_roundoff) {
-            const amrex::Real correction = plan.packet_number *
-                (route.particle_mass - plan.packet_particle_mass);
+            const amrex::Real mass_delta =
+                route.particle_mass - plan.packet_particle_mass;
+            if (!amrex::Math::isfinite(mass_delta) ||
+                mass_delta == amrex::Real(0.0)) {
+                result.status = RemapStatus::Invalid;
+                return result;
+            }
+            const amrex::Real mass_delta_magnitude = mass_delta < amrex::Real(0.0) ?
+                -mass_delta : mass_delta;
+            amrex::Real correction_magnitude = amrex::Real(0.0);
+            product_status = remap_detail::checked_product(
+                plan.packet_number, mass_delta_magnitude, correction_magnitude);
+            if (product_status != remap_detail::ProductStatus::Ok) {
+                result.status = remap_detail::remap_product_status(product_status);
+                return result;
+            }
+            const amrex::Real correction = mass_delta < amrex::Real(0.0) ?
+                -correction_magnitude : correction_magnitude;
             if (!amrex::Math::isfinite(correction) ||
                 !amrex::Math::isfinite(roundoff_water_mass_correction + correction)) {
                 result.status = RemapStatus::Invalid;

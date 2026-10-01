@@ -8,6 +8,7 @@
 
 #include "ERF_SBMConstraintGroups.H"
 #include "ERF_SBMBulkProjection.H"
+#include "ERF_SBMFixtureValidation.H"
 #include "ERF_SBMOwnership.H"
 #include "ERF_SBMRestart.H"
 #include "ERF_SBMStateManager.H"
@@ -166,6 +167,50 @@ TEST(SBMFoundation, ConstraintGroupsAreAtomicAndRuntimeSized)
     EXPECT_TRUE(synthetic.admissible({Real(1.0), Real(2.0), Real(1.0)}, &margin));
     EXPECT_DOUBLE_EQ(margin, Real(4.0));
     EXPECT_FALSE(synthetic.admissible({Real(0.0), Real(0.0), Real(1.0)}));
+}
+
+TEST(SBMFoundation, FixtureInitialStateCanonicalityCoversOneMoment)
+{
+    const auto layout = make_layout(4, erf_sbm::MomentMode::OneMoment);
+    const auto& population = layout.populations().front();
+    constexpr int bin = 1;
+    const Real tiny = std::numeric_limits<Real>::denorm_min();
+    ASSERT_GT(tiny, Real(0.0));
+    ASSERT_GT(population.grid.pivot(bin), Real(2.0));
+    ASSERT_EQ(tiny / population.grid.pivot(bin), Real(0.0));
+
+    std::vector<Real> candidate(static_cast<std::size_t>(layout.ncomp()), Real(0.0));
+    candidate[static_cast<std::size_t>(population.mass_offset + bin)] = tiny;
+    for (const auto& group : erf_sbm::make_constraint_groups(layout)) {
+        EXPECT_TRUE(group.admissible(candidate));
+    }
+
+    // The audited two-moment-only startup loop skips this 1M population, so
+    // it accepts the candidate after the generic linear constraints above.
+    bool legacy_two_moment_dispatch_accepts = true;
+    for (const auto& current_population : layout.populations()) {
+        if (current_population.moment_mode != erf_sbm::MomentMode::TwoMoment) continue;
+        const auto view = erf_sbm::population_remap_view(
+            layout, current_population.population_id);
+        for (int current_bin = 0; current_bin < current_population.grid.nbins(); ++current_bin) {
+            legacy_two_moment_dispatch_accepts = legacy_two_moment_dispatch_accepts &&
+                erf_sbm::remap_detail::canonical_two_moment_bin_state(
+                    view, current_bin, candidate.data(), static_cast<int>(candidate.size()));
+        }
+    }
+    EXPECT_TRUE(legacy_two_moment_dispatch_accepts);
+
+    const auto rejected = erf_sbm::validate_fixture_initial_state_canonicality(
+        layout, candidate);
+    EXPECT_FALSE(rejected.canonical);
+    EXPECT_EQ(rejected.population_id, population.population_id);
+    EXPECT_EQ(rejected.bin, bin);
+    EXPECT_EQ(rejected.moment_mode, erf_sbm::MomentMode::OneMoment);
+
+    std::vector<Real> valid_candidate(static_cast<std::size_t>(layout.ncomp()), Real(1.0e-6));
+    const auto accepted = erf_sbm::validate_fixture_initial_state_canonicality(
+        layout, valid_candidate);
+    EXPECT_TRUE(accepted.canonical);
 }
 
 TEST(SBMFoundation, FixedBulkProjectionIsLinearAndNonMutating)

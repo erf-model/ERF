@@ -670,6 +670,50 @@ TEST(SBMRemapping, NormalizedTwoMomentBoundariesPreserveZeroProcessIdentity)
     }
 }
 
+TEST(SBMRemapping, BoundaryCorrectionUnderflowFailsAtomically)
+{
+    erf_sbm::SBMLayoutSpec spec;
+    spec.populations.push_back(make_population(0, erf_sbm::MomentMode::TwoMoment,
+        {Real(1.0), Real(2.0), Real(3.0)}, {Real(1.5), Real(2.5)}));
+    spec.attached_properties.push_back(make_property("coating", 0));
+    spec.liquid_projection = {0, 1};
+    const erf_sbm::SBMLayout layout(std::move(spec));
+    const auto& pop = population(layout, 0);
+    const Real boundary_mass = pop.grid.edges().front();
+    const Real input_mass = std::nextafter(boundary_mass, Real(0.0));
+    const Real packet_number = std::numeric_limits<Real>::denorm_min();
+
+    ASSERT_GT(packet_number, Real(0.0));
+    ASSERT_NE(input_mass, boundary_mass);
+    const Real mass_delta = boundary_mass - input_mass;
+    ASSERT_NE(mass_delta, Real(0.0));
+    const Real deposited_water_increment = packet_number * boundary_mass;
+    ASSERT_GT(deposited_water_increment, Real(0.0));
+    const Real naive_correction = packet_number * std::abs(mass_delta);
+    ASSERT_EQ(naive_correction, Real(0.0));
+
+    const auto view = erf_sbm::population_remap_view(layout, 0);
+    const auto plan = erf_sbm::plan_packet_routing(view, packet_number, input_mass);
+    ASSERT_EQ(plan.status, erf_sbm::RemapStatus::Ok);
+    ASSERT_TRUE(plan.normalized_roundoff);
+    ASSERT_EQ(plan.destination_count, 1);
+    EXPECT_DOUBLE_EQ(plan.destinations[0].particle_mass, boundary_mass);
+
+    std::vector<Real> candidate(static_cast<std::size_t>(layout.ncomp()), Real(0.0));
+    const auto before = candidate;
+    Real residual_property = Real(77.0);
+    const auto applied = erf_sbm::apply_packet_routing_core(
+        view, plan, &packet_number, 1, &residual_property, 1,
+        candidate.data(), static_cast<int>(candidate.size()));
+    EXPECT_EQ(applied.status, erf_sbm::RemapStatus::NumericalUnderflow);
+    EXPECT_DOUBLE_EQ(applied.residual_number, Real(0.0));
+    EXPECT_DOUBLE_EQ(applied.residual_water_mass, Real(0.0));
+    EXPECT_DOUBLE_EQ(applied.roundoff_water_mass_correction, Real(0.0));
+    EXPECT_FALSE(applied.normalized_roundoff);
+    EXPECT_EQ(candidate, before);
+    EXPECT_DOUBLE_EQ(residual_property, Real(77.0));
+}
+
 TEST(SBMRemapping, ZeroNumberPacketIsNoOpAndRejectsUnattachedMaterial)
 {
     const auto layout = make_layout(erf_sbm::MomentMode::TwoMoment,

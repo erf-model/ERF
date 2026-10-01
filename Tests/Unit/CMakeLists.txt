@@ -340,7 +340,7 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
   endfunction()
 
   add_sbm_expected_failure_test(SBM_Unrealizable_2M_Init inputs_unrealizable_2m
-    "SBM fixture initial state is not canonical for two-moment bin ownership: population=0 bin=0")
+    "SBM fixture initial state is not canonical for selected spectral representation: population=0 representation=two-moment bin=0")
   add_sbm_expected_failure_test(SBM_Nonzero_Carrier inputs_zero_transport
     "SBM zero-transport fixture requires exactly zero carrier momentum"
     "-DOVERRIDE=erf.sbm_test_carrier_momentum_fault=true")
