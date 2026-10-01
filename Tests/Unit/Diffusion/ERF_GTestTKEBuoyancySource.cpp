@@ -186,14 +186,14 @@ BuoyancyResult run_column (Real implicit_fac, Real c, bool with_sfc = false, Rea
     const GpuArray<Real, AMREX_SPACEDIM> dx_inv = {Real(1.0), Real(1.0), Real(1.0)/dz};
     const GpuArray<Real, AMREX_SPACEDIM> grav = {Real(0.0), Real(0.0), -gabs};
     Array4<const Real> tm_arr{};
-    auto hfx_x_arr = hfx_x[0].array();
-    auto hfx_y_arr = hfx_y[0].array();
-    auto hfx_z_arr = hfx_z[0].array();
+    auto hfx_x_arr  =  hfx_x[0].array();
+    auto hfx_y_arr  =  hfx_y[0].array();
+    auto hfx_z_arr  =  hfx_z[0].array();
     auto qfx1_x_arr = qfx1_x[0].array();
     auto qfx1_y_arr = qfx1_y[0].array();
     auto qfx1_z_arr = qfx1_z[0].array();
-    auto qfx2_arr = qfx2_z[0].array();
-    auto diss_arr = diss[0].array();
+    auto qfx2_arr   = qfx2_z[0].array();
+    auto diss_arr   =   diss[0].array();
     Vector<std::unique_ptr<SurfaceLayer>> surf_layer(6);
     std::string sfc_prefix("unit_tke_buoyancy_sfc");
     if (with_sfc) {
@@ -225,7 +225,7 @@ BuoyancyResult run_column (Real implicit_fac, Real c, bool with_sfc = false, Rea
         cell_rhs[0].array(), xflux[0].array(), yflux[0].array(), zflux[0].array(), dx_inv,
         smn[0].const_array(), mf_mx[0].const_array(), mf_ux[0].const_array(), mf_vx[0].const_array(),
         mf_my[0].const_array(), mf_uy[0].const_array(), mf_vy[0].const_array(), hfx_x_arr, hfx_y_arr, hfx_z_arr,
-        qfx1_x_arr, qfx1_y_arr, qfx1_z_arr, qfx2_arr, diss_arr, mu_turb[0].const_array(), solver_choice, 0,
+        qfx1_x_arr, qfx1_y_arr, qfx1_z_arr, qfx2_arr, diss_arr, Array4<const Real>{}, Array4<const Real>{}, mu_turb[0].const_array(), solver_choice, 0,
         tm_arr, grav, bcs_d.data(), with_sfc, surf_layer, implicit_fac);
     DiffusionSrcForState_N(
         domain, domain, RhoQ1_comp, 1,
@@ -233,7 +233,7 @@ BuoyancyResult run_column (Real implicit_fac, Real c, bool with_sfc = false, Rea
         cell_rhs[0].array(), xflux[0].array(), yflux[0].array(), zflux[0].array(), dx_inv,
         smn[0].const_array(), mf_mx[0].const_array(), mf_ux[0].const_array(), mf_vx[0].const_array(),
         mf_my[0].const_array(), mf_uy[0].const_array(), mf_vy[0].const_array(), hfx_x_arr, hfx_y_arr, hfx_z_arr,
-        qfx1_x_arr, qfx1_y_arr, qfx1_z_arr, qfx2_arr, diss_arr, mu_turb[0].const_array(), solver_choice, 0,
+        qfx1_x_arr, qfx1_y_arr, qfx1_z_arr, qfx2_arr, diss_arr, Array4<const Real>{}, Array4<const Real>{}, mu_turb[0].const_array(), solver_choice, 0,
         tm_arr, grav, bcs_d.data(), with_sfc, surf_layer, implicit_fac);
     Gpu::streamSynchronize();
 

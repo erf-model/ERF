@@ -309,6 +309,7 @@ struct NativeTerrainScalarCase
       mf_ux.const_array(), mf_vx.const_array(), mf_my.const_array(),
       mf_uy.const_array(), mf_vy.const_array(), hfx_x_arr, hfx_y_arr,
       hfx_z_arr, qfx1_x_arr, qfx1_y_arr, qfx1_z_arr, qfx2_z_arr, diss_arr,
+      Array4<const Real>{}, Array4<const Real>{},
       mu.const_array(), solver, 0,
       tm.const_array(), gravity, bcs_device.data(), false, surface,
       implicit_fac);
@@ -786,6 +787,7 @@ ERF_GPU_TEST(
       mf_my.const_array(), mf_uy.const_array(), mf_vy.const_array(),
       hfx_x_arr, hfx_y_arr, hfx_z_arr, qfx1_x_arr, qfx1_y_arr, qfx1_z_arr,
       qfx2_z_arr, diss_arr,
+      Array4<const Real>{}, Array4<const Real>{},
       mu.const_array(), solver, 0, tm.const_array(), gravity,
       bcs_device.data(), false, surface, Real(0.0));
     Gpu::streamSynchronize();
@@ -1162,9 +1164,10 @@ ERF_GPU_TEST(ScalarDiffusionPrimitives, NativeAdaptersMatchExplicitPrimitives)
     smn.const_array(), mf_mx.const_array(), mf_ux.const_array(),
     mf_vx.const_array(), mf_my.const_array(), mf_uy.const_array(),
     mf_vy.const_array(), hfx_x_arr, hfx_y_arr, hfx_z_arr, qfx1_x_arr,
-    qfx1_y_arr, qfx1_z_arr, qfx2_z_arr, diss_arr, mu4, solver, 0,
-    tm.const_array(), gravity, bcs_device.data(), use_surface_layer, surface,
-    Real(0.0));
+    qfx1_y_arr, qfx1_z_arr, qfx2_z_arr, diss_arr,
+    Array4<const Real>{}, Array4<const Real>{},
+    mu4, solver, 0, tm.const_array(), gravity, bcs_device.data(),
+    use_surface_layer, surface, Real(0.0));
   compare();
 
   reset_rhs();
@@ -1177,9 +1180,10 @@ ERF_GPU_TEST(ScalarDiffusionPrimitives, NativeAdaptersMatchExplicitPrimitives)
     smn.const_array(), mf_mx.const_array(), mf_ux.const_array(),
     mf_vx.const_array(), mf_my.const_array(), mf_uy.const_array(),
     mf_vy.const_array(), hfx_x_arr, hfx_y_arr, hfx_z_arr, qfx1_x_arr,
-    qfx1_y_arr, qfx1_z_arr, qfx2_z_arr, diss_arr, mu4, solver, 0,
-    tm.const_array(), gravity, bcs_device.data(), use_surface_layer, surface,
-    Real(0.0));
+    qfx1_y_arr, qfx1_z_arr, qfx2_z_arr, diss_arr,
+    Array4<const Real>{}, Array4<const Real>{},
+    mu4, solver, 0, tm.const_array(), gravity, bcs_device.data(),
+    use_surface_layer, surface, Real(0.0));
   compare();
 
   reset_rhs();
@@ -1191,8 +1195,9 @@ ERF_GPU_TEST(ScalarDiffusionPrimitives, NativeAdaptersMatchExplicitPrimitives)
     mf_mx.const_array(), mf_ux.const_array(), mf_vx.const_array(),
     mf_my.const_array(), mf_uy.const_array(), mf_vy.const_array(), hfx_x_arr,
     hfx_y_arr, hfx_z_arr, qfx1_x_arr, qfx1_y_arr, qfx1_z_arr, qfx2_z_arr,
-    diss_arr, mu4, solver, 0, tm.const_array(), gravity, bcs_device.data(),
-    use_surface_layer, surface, Real(0.0));
+    diss_arr, Array4<const Real>{}, Array4<const Real>{}, mu4, solver, 0,
+    tm.const_array(), gravity, bcs_device.data(), use_surface_layer, surface,
+    Real(0.0));
   compare();
 }
 
