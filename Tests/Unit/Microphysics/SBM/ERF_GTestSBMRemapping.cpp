@@ -535,8 +535,7 @@ TEST(SBMRemapping, PositiveProductUnderflowHasDistinctAtomicStatus)
 TEST(SBMRemapping, PositiveQuotientUnderflowRejectsPersistedAndDepositedState)
 {
     const Real tiny = std::numeric_limits<Real>::denorm_min();
-   ASSERT_GT(tiny, Real(0.0));
-   EXPECT_EQ(tiny / Real(2.0), Real(0.0));
+    ASSERT_GT(tiny, Real(0.0));
 
     erf_sbm::SBMLayoutSpec tiny_route_spec;
     tiny_route_spec.populations.push_back(make_population(
@@ -544,6 +543,9 @@ TEST(SBMRemapping, PositiveQuotientUnderflowRejectsPersistedAndDepositedState)
         {Real(1.0), Real(3.0), Real(5.0)}, {Real(2.0), Real(4.0)}));
     tiny_route_spec.liquid_projection = {0, 1};
     const erf_sbm::SBMLayout tiny_route_layout(std::move(tiny_route_spec));
+    const Real tiny_pivot = tiny_route_layout.populations()[0].grid.pivot(0);
+    ASSERT_GT(tiny_pivot, Real(0.0));
+    EXPECT_EQ(tiny / tiny_pivot, Real(0.0));
     const auto tiny_route = erf_sbm::plan_packet_routing(
         erf_sbm::population_remap_view(tiny_route_layout, 0), Real(1.0), tiny);
     EXPECT_EQ(tiny_route.status, erf_sbm::RemapStatus::NumericalUnderflow);

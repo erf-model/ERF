@@ -395,10 +395,10 @@ TEST(SBMFoundation, AuthoritativeRestartValidationUsesRuntimeConstraintGroups)
     const int coating = property_layout.property_offset(0);
     const Real tiny = std::numeric_limits<Real>::denorm_min();
     ASSERT_GT(tiny, Real(0.0));
-    ASSERT_EQ(tiny / Real(2.0), Real(0.0));
     property_state.setVal(Real(2.0), property_mass, 1, 0);
     property_state.setVal(Real(2.0), property_number, 1, 0);
     property_state.setVal(tiny, coating, 1, 0);
+    ASSERT_EQ(tiny / first_valid_value(property_state, property_number), Real(0.0));
    EXPECT_FALSE(erf_sbm::authoritative_state_admissible(
        property_state, property_layout, 0, &diagnostic));
    EXPECT_NE(diagnostic.find("constraint=canonical-two-moment-bin-state"), std::string::npos);
