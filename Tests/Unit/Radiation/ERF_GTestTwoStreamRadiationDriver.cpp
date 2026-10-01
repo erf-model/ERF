@@ -269,7 +269,7 @@ LandForcingResult run_land_forcing (bool supply, amrex::Real cloud_fraction)
     MultiFab qheating(ba, dm, 2, 0);
     const BoxArray flux_ba = convert(ba, IntVect(0, 0, 1));
     MultiFab rad_fluxes(flux_ba, dm, 4, 0);
-    const Vector<const MultiFab*> radiation_inputs;
+    const Vector<const MultiFab*> radiation_inputs{};
 
     radiation.advance(0, 1, Real(0.0), Real(10.0), "pre_dycore",
                       state, nullptr, geom, lsm, radiation_inputs, false,
