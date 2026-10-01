@@ -48,9 +48,9 @@ struct SolveInfo {
 };
 
 /**
- * Reconstruct a nodal field S from data T that lives at cell centers in (x,y),
- * such that the four-node average of S matches T as closely as a *bounded*,
- * smooth nodal field can.
+ * Reconstruct a nodal field S from data T that lives at w-faces, such that the
+ * four-node average of S matches T as closely as a *bounded*, smooth nodal
+ * field can.
  *
  * ---------------------------------------------------------------------------
  * Why we do not simply invert the averaging operator
@@ -135,37 +135,37 @@ public:
      * @brief Construct a nodal reconstruction object for one horizontal slice.
      *
      * The operator that is inverted is the purely horizontal four-node average,
-     * so the only thing that matters about the input is that it is cell-centered
-     * in (x,y); whether the data happens to sit on a z-face (wrfinput
-     * geopotential) or at a cell center (metgrid HGT_M) is irrelevant here.
+     * so the only thing that matters about the input is that it carries the
+     * w-face staggering; whether the heights come from the wrfinput geopotential
+     * at a z-face or from the metgrid surface field HGT_M is irrelevant here.
      *
-     * @param cc_slice_box Box specifying the data region: cell-centered in (x,y),
-     *                     a single slab at k = 0.
+     * @param w_face_slice_box Box specifying the data region: w-face staggered,
+     *                         a single slab at k = 0.
      * @param geom Geometry used for grid spacing and anisotropy weights.
      */
-    explicit NodalReconstruction (amrex::Box const& cc_slice_box,
+    explicit NodalReconstruction (amrex::Box const& w_face_slice_box,
                                   amrex::Geometry const& geom)
-        : m_cc_slice_box(cc_slice_box),
-          m_ilo(cc_slice_box.smallEnd(0)),
-          m_ihi(cc_slice_box.bigEnd(0)),
-          m_jlo(cc_slice_box.smallEnd(1)),
-          m_jhi(cc_slice_box.bigEnd(1))
+        : m_w_face_slice_box(w_face_slice_box),
+          m_ilo(w_face_slice_box.smallEnd(0)),
+          m_ihi(w_face_slice_box.bigEnd(0)),
+          m_jlo(w_face_slice_box.smallEnd(1)),
+          m_jhi(w_face_slice_box.bigEnd(1))
     {
         // These are amrex::Abort rather than throw: an uncaught exception under
         // MPI is std::terminate, which tells the user nothing about what failed.
-        if (!cc_slice_box.ok()) {
-            amrex::Abort("NodalReconstruction: cc_slice_box is empty; the input "
+        if (!w_face_slice_box.ok()) {
+            amrex::Abort("NodalReconstruction: w_face_slice_box is empty; the input "
                          "heights were probably never read.");
         }
-        if (cc_slice_box.length(2) != 1) {
-            amrex::Abort("NodalReconstruction: cc_slice_box must contain exactly one z cell.");
+        if (w_face_slice_box.length(2) != 1) {
+            amrex::Abort("NodalReconstruction: w_face_slice_box must contain exactly one z cell.");
         }
-        if (cc_slice_box.smallEnd(2) != 0) {
-            amrex::Abort("NodalReconstruction: cc_slice_box must be a slab at k = 0; "
+        if (w_face_slice_box.smallEnd(2) != 0) {
+            amrex::Abort("NodalReconstruction: w_face_slice_box must be a slab at k = 0; "
                          "all fabs are indexed at k = 0.");
         }
 
-        m_nodal_box = amrex::surroundingNodes(cc_slice_box);
+        m_nodal_box = amrex::surroundingNodes(w_face_slice_box);
         m_nodal_box.setSmall(2, 0);
         m_nodal_box.setBig(2, 0);
 
@@ -198,9 +198,9 @@ public:
     }
 
     /**
-     * Direct interpolation of the cell-centered data to the nodes: the average
-     * of the (up to four) cells that touch each node, with edge and corner
-     * nodes taking the average of the cells that exist.  This is the field the
+     * Direct interpolation of the w-face data to the nodes: the average of the
+     * (up to four) w-faces that touch each node, with edge and corner nodes
+     * taking the average of the w-faces that exist.  This is the field the
      * solve corrects, and the field it falls back to.
      */
     [[nodiscard]] amrex::FArrayBox makeReference (amrex::FArrayBox const& T) const
@@ -228,7 +228,7 @@ public:
     /**
      * Solve the regularized least-squares problem described above.
      *
-     * \param T                  cell-centered data to be matched
+     * \param T                  w-face data to be matched
      * \param reference          the interpolant to correct (see makeReference)
      * \param var_op             roughness operator used as the smoothness prior
      * \param relative_tolerance CG stopping tolerance
@@ -259,7 +259,7 @@ public:
         m_var_op = var_op;
         m_lambda = smoothing;
 
-        m_cc_scratch.resize(m_cc_slice_box ,1,amrex::The_Managed_Arena());
+        m_w_face_scratch.resize(m_w_face_slice_box ,1,amrex::The_Managed_Arena());
         m_nd_scratch.resize(m_nodal_box,1,amrex::The_Managed_Arena());
         m_difx.resize(m_x_edge_box,1,amrex::The_Managed_Arena());
         m_dify.resize(m_y_edge_box,1,amrex::The_Managed_Arena());
@@ -273,7 +273,7 @@ public:
         /**
          * @brief Local storage for the interpolation misfit.
          */
-        amrex::FArrayBox misfit(m_cc_slice_box,1,amrex::The_Managed_Arena());
+        amrex::FArrayBox misfit(m_w_face_slice_box,1,amrex::The_Managed_Arena());
         Real misfit_max = zero;
         Real t_min      =  std::numeric_limits<Real>::max();
         Real t_max      = -std::numeric_limits<Real>::max();
@@ -394,7 +394,7 @@ private:
     static constexpr amrex::Real mu_growth        = amrex::Real(4.0);
     static constexpr int         max_attempts     = 24;
 
-    amrex::Box m_cc_slice_box;
+    amrex::Box m_w_face_slice_box;
     amrex::Box m_nodal_box;
     amrex::Box m_x_edge_box;
     amrex::Box m_y_edge_box;
@@ -411,7 +411,7 @@ private:
     amrex::Real m_mu     = zero;
     VariationOperator m_var_op = VariationOperator::FirstDeriv;
 
-    mutable amrex::FArrayBox m_cc_scratch;
+    mutable amrex::FArrayBox m_w_face_scratch;
     mutable amrex::FArrayBox m_nd_scratch;
     //! Scratch for the roughness operators, which are applied once per CG
     //! iteration; sized in solve() so the iteration itself never allocates.
@@ -423,7 +423,7 @@ private:
     /**
      * @brief Apply the four-node averaging operator A.
      * @param[in] S Nodal field to be averaged.
-     * @param[out] T Resulting cell-centered field.
+     * @param[out] T Resulting w-face field.
      */
     void applyA (amrex::FArrayBox const& S,
                  amrex::FArrayBox& T) const
@@ -438,10 +438,10 @@ private:
         }
     }
 
-    //! Adjoint of applyA: scatter each cell value to its four nodes.
+    //! Adjoint of applyA: scatter each w-face value to its four nodes.
     /**
      * @brief Apply the adjoint of the averaging operator A.
-     * @param[in] T Cell-centered field to be scattered.
+     * @param[in] T W-face field to be scattered.
      * @param[out] R Resulting nodal field.
      */
     void applyAT (amrex::FArrayBox const& T,
@@ -636,8 +636,8 @@ private:
     void applyM (amrex::FArrayBox const& S,
                  amrex::FArrayBox& R) const
     {
-        applyA(S,m_cc_scratch);
-        applyAT(m_cc_scratch,R);
+        applyA(S,m_w_face_scratch);
+        applyAT(m_w_face_scratch,R);
         applyVariationOperator(S,m_nd_scratch);
 
         auto const R_arr = R.array();
@@ -704,7 +704,7 @@ private:
 
     /**
      * @brief Compute diagnostic metrics for the reconstructed nodal field.
-     * @param[in] T Cell-centered data.
+     * @param[in] T W-face data.
      * @param[in] S Reconstructed nodal field.
      * @param[in,out] info Structure to store diagnostics.
      */
@@ -924,30 +924,30 @@ deaverage_line (amrex::Real const* t, int n, amrex::Real* s)
  * improvement.  The caller is therefore responsible for deciding whether the
  * result is usable as terrain, and for falling back if it is not.
  *
- * \param[in] cc_box cell-centered box of the slice
- * \param[in] z_cc   cell-centered heights on \p cc_box
- * \param[in] z_ref  direct interpolation of \p z_cc to the nodes, for diagnostics only
+ * \param[in] w_face_box box of the w-face slice
+ * \param[in] z_w_face   w-face heights on \p w_face_box
+ * \param[in] z_ref      direct interpolation of \p z_w_face to the nodes, for diagnostics only
  * \return the nodal heights and the diagnostics describing them
  */
 inline std::pair<amrex::FArrayBox,SolveInfo>
-deaverage_nodal_slice (amrex::Box const& cc_box,
-                       amrex::FArrayBox const& z_cc,
+deaverage_nodal_slice (amrex::Box const& w_face_box,
+                       amrex::FArrayBox const& z_w_face,
                        amrex::FArrayBox const& z_ref)
 {
     using amrex::Real;
 
-    amrex::Box nd_box = amrex::surroundingNodes(cc_box);
+    amrex::Box nd_box = amrex::surroundingNodes(w_face_box);
     nd_box.setSmall(2,0);
     nd_box.setBig(2,0);
 
     amrex::FArrayBox S(nd_box, 1, amrex::The_Managed_Arena());
 
-    int const ilo = cc_box.smallEnd(0), ihi = cc_box.bigEnd(0);
-    int const jlo = cc_box.smallEnd(1), jhi = cc_box.bigEnd(1);
+    int const ilo = w_face_box.smallEnd(0), ihi = w_face_box.bigEnd(0);
+    int const jlo = w_face_box.smallEnd(1), jhi = w_face_box.bigEnd(1);
     int const nx  = ihi - ilo + 1;
     int const ny  = jhi - jlo + 1;
 
-    auto const T_arr = z_cc.const_array();
+    auto const T_arr = z_w_face.const_array();
     auto const R_arr = z_ref.const_array();
     auto const S_arr = S.array();
 
@@ -1013,11 +1013,11 @@ deaverage_nodal_slice (amrex::Box const& cc_box,
 
 /**
  * Reconstruct one horizontal slice of nodal heights from heights that live at
- * cell centers in (x,y), reporting diagnostics and aborting if the result is
- * unusable as terrain.
+ * w-faces, reporting diagnostics and aborting if the result is unusable as
+ * terrain.
  *
  * Both NetCDF initialization paths need exactly this operation and differ only
- * in how the cell-centered slice is assembled (geopotential from PH + PHB for
+ * in how the w-face slice is assembled (geopotential from PH + PHB for
  * wrfinput, HGT_M for metgrid) and in what they do with the answer, so the
  * solve and its checks live here and are called from both.
  *
@@ -1025,29 +1025,29 @@ deaverage_nodal_slice (amrex::Box const& cc_box,
  * only and the resulting nodal slice is broadcast.  Running it redundantly on
  * every rank would cost a full-domain CG solve and several full-domain managed
  * allocations *per rank*, i.e. a startup stall and a memory spike that grow with
- * the rank count rather than with the decomposition.  \p z_cc_slice must be
+ * the rank count rather than with the decomposition.  \p z_w_face_slice must be
  * host-accessible and must hold the *global* slice on the I/O rank.
  *
  * This is collective: every rank must call it.
  *
- * @param[in] cc_slice_box Box covering the domain, cell-centered in (x,y) and a single k = 0 slab.
+ * @param[in] w_face_slice_box Box covering the domain at the w-face staggering, a single k = 0 slab.
  * @param[in] geom Geometry of the level, used for the grid spacing.
- * @param[in] z_cc_slice Heights on \p cc_slice_box.
+ * @param[in] z_w_face_slice Heights on \p w_face_slice_box.
  * @param[in] klev Vertical index of the slice; used only in messages.
  * @param[in] src_name Name of the source data; used only in messages.
- * @return The nodal heights on surroundingNodes(cc_slice_box), indexed at k = 0.
+ * @return The nodal heights on surroundingNodes(w_face_slice_box), indexed at k = 0.
  */
 inline amrex::FArrayBox
-reconstruct_nodal_height_slice (amrex::Box const& cc_slice_box,
+reconstruct_nodal_height_slice (amrex::Box const& w_face_slice_box,
                                 amrex::Geometry const& geom,
-                                amrex::FArrayBox const& z_cc_slice,
+                                amrex::FArrayBox const& z_w_face_slice,
                                 int klev,
                                 std::string const& src_name)
 {
     // Fail here, with a message naming the data, rather than deep inside the
     // solver: an empty box means the source heights were never read, and the
     // degenerate loop bounds it produces would otherwise read out of bounds.
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(cc_slice_box.ok() && cc_slice_box.length(2) == 1,
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(w_face_slice_box.ok() && w_face_slice_box.length(2) == 1,
                                      "reconstruct_nodal_height_slice: the input slice is empty "
                                      "or spans more than one z level -- check that the source "
                                      "heights were read successfully.");
@@ -1056,7 +1056,7 @@ reconstruct_nodal_height_slice (amrex::Box const& cc_slice_box,
     // reads it from the host.
     amrex::Gpu::streamSynchronize();
 
-    amrex::Box nd_box = amrex::surroundingNodes(cc_slice_box);
+    amrex::Box nd_box = amrex::surroundingNodes(w_face_slice_box);
     nd_box.setSmall(2, 0);
     nd_box.setBig(2, 0);
 
@@ -1073,14 +1073,14 @@ reconstruct_nodal_height_slice (amrex::Box const& cc_slice_box,
     if (amrex::ParallelDescriptor::IOProcessor())
     {
         // Range of the source data, used to decide whether a reconstruction is
-        // usable as terrain.  Nodes may legitimately over/undershoot the cell values
-        // where the terrain is under-resolved, but only by a fraction of the relief
-        // of the layer itself.
+        // usable as terrain.  Nodes may legitimately over/undershoot the w-face
+        // values where the terrain is under-resolved, but only by a fraction of the
+        // relief of the layer itself.
         amrex::Real src_min =  std::numeric_limits<amrex::Real>::max();
         amrex::Real src_max = -std::numeric_limits<amrex::Real>::max();
         {
-            auto const src_arr = z_cc_slice.const_array();
-            amrex::LoopOnCpu(cc_slice_box, [=,&src_min,&src_max] (int i, int j, int /*k*/) noexcept
+            auto const src_arr = z_w_face_slice.const_array();
+            amrex::LoopOnCpu(w_face_slice_box, [=,&src_min,&src_max] (int i, int j, int /*k*/) noexcept
             {
                 src_min = std::min(src_min, src_arr(i,j,0));
                 src_max = std::max(src_max, src_arr(i,j,0));
@@ -1095,21 +1095,23 @@ reconstruct_nodal_height_slice (amrex::Box const& cc_slice_box,
                    (si.min_value >= src_min - slack) && (si.max_value <= src_max + slack);
         };
 
-        NodalReconstruction NR_solver(cc_slice_box, geom);
-        amrex::FArrayBox z_ref = NR_solver.makeReference(z_cc_slice);
+        NodalReconstruction NR_solver(w_face_slice_box, geom);
+        amrex::FArrayBox z_ref = NR_solver.makeReference(z_w_face_slice);
 
         // Invert the four-node averaging operator exactly.  The operator is
         // surjective, so this is always possible; what it costs is grid-scale
         // structure in the nodal field, because the sawtooth it cannot control is
         // the operator's own null space.  See deaverage_nodal_slice.
         //
-        // Exactness is what the callers actually need.  z_cc is the average of the
-        // nodes, so avg4(S) = T makes the cell-centered heights -- which is what the
-        // vertical remap of the atmospheric state searches against, and what the
-        // lateral pressure-gradient metric differences -- agree with the source to
-        // round-off rather than to within a regularization-dependent error.
-        std::pair<amrex::FArrayBox,SolveInfo> result = deaverage_nodal_slice(cc_slice_box,
-                                                                            z_cc_slice, z_ref);
+        // Exactness is what the callers actually need.  Each w-face height is the
+        // average of the four nodes around it, and each cell-centered height is in
+        // turn the average of the two w-faces bracketing it, so avg4(S) = T makes
+        // both of them -- and hence what the vertical remap of the atmospheric state
+        // searches against, and what the lateral pressure-gradient metric
+        // differences -- agree with the source to round-off rather than to within a
+        // regularization-dependent error.
+        std::pair<amrex::FArrayBox,SolveInfo> result = deaverage_nodal_slice(w_face_slice_box,
+                                                                            z_w_face_slice, z_ref);
         SolveInfo info = result.second;
         bool const exact_usable = in_range(info);
 
@@ -1130,11 +1132,11 @@ reconstruct_nodal_height_slice (amrex::Box const& cc_slice_box,
                            << "] m, outside the range of the " << src_name << " ["
                            << src_min << ", " << src_max << "] m.\n"
                            << "         Falling back to the regularized least-squares fit, which "
-                              "does NOT reproduce the " << src_name << " exactly; the cell-centered "
+                              "does NOT reproduce the " << src_name << " exactly; the w-face "
                               "heights will differ from the source by the error reported below.\n";
 
             amrex::Real const tol = amrex::Real(1.e-10);
-            result = NR_solver.solve(z_cc_slice, z_ref, VariationOperator::FirstDeriv, tol);
+            result = NR_solver.solve(z_w_face_slice, z_ref, VariationOperator::FirstDeriv, tol);
             info   = result.second;
 
             if (!info.converged) {
