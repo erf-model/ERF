@@ -27,7 +27,7 @@ namespace {
 
 constexpr amrex::Real kSentinel = amrex::Real(-999.0);
 
-// Number of cells, ghost cells included, holding exactly `value`.
+// Number of cells, ghost cells included, holding exactly `value`, over all ranks.
 amrex::Long count_equal (const amrex::MultiFab& mf, amrex::Real value)
 {
     amrex::ReduceOps<amrex::ReduceOpSum> reduce_op;
@@ -41,10 +41,12 @@ amrex::Long count_equal (const amrex::MultiFab& mf, amrex::Real value)
             });
     }
     amrex::Gpu::streamSynchronize();
-    return amrex::get<0>(reduce_data.value());
+    amrex::Long count = amrex::get<0>(reduce_data.value());
+    amrex::ParallelDescriptor::ReduceLongSum(count);
+    return count;
 }
 
-// Largest |dst(i,j,0) - src(i,j,0)| over the valid i,j extent of dst's boxes.
+// Largest |dst(i,j,0) - src(i,j,0)| over the valid i,j extent of dst's boxes, over all ranks.
 amrex::Real max_plane_difference (const amrex::MultiFab& dst, const amrex::MultiFab& src)
 {
     amrex::ReduceOps<amrex::ReduceOpMax> reduce_op;
@@ -59,7 +61,9 @@ amrex::Real max_plane_difference (const amrex::MultiFab& dst, const amrex::Multi
             });
     }
     amrex::Gpu::streamSynchronize();
-    return amrex::get<0>(reduce_data.value());
+    amrex::Real diff = amrex::get<0>(reduce_data.value());
+    amrex::ParallelDescriptor::ReduceRealMax(diff);
+    return diff;
 }
 
 void fill_ramp (amrex::MultiFab& mf)

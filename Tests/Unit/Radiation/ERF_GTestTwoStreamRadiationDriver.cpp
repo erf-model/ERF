@@ -44,7 +44,10 @@ amrex::Real component_at (const amrex::MultiFab& mf,
             });
     }
     amrex::Gpu::streamSynchronize();
-    return amrex::get<0>(reduce_data.value());
+    // Only the rank that owns the point contributes; the sum gives every rank its value.
+    amrex::Real value = amrex::get<0>(reduce_data.value());
+    amrex::ParallelDescriptor::ReduceRealSum(value);
+    return value;
 }
 
 struct DriverResult
@@ -256,4 +259,71 @@ TEST(TwoStreamRadiationDriver, SuppliesLandForcingFromTheSweep)
     EXPECT_EQ(on.lsm_sw_dn, on.sw_dn);
     EXPECT_EQ(on.lsm_lw_dn, on.lw_dn);
     EXPECT_EQ(on.lsm_coszen, on.coszen);
+}
+
+namespace {
+
+// What write_land_forcing copies on a level that has not swept: level 0 before its first
+// advance(), and a level-1 patch that stops below the domain top, whose advance() returns
+// before sweeping (its radiation comes from the parent by interpolation).
+std::pair<amrex::Real, amrex::Real> land_forcing_before_a_sweep ()
+{
+    using namespace amrex;
+
+    const Box domain0(IntVect(0, 0, 0), IntVect(1, 0, 3));
+    const Box domain1(IntVect(0, 0, 0), IntVect(3, 1, 7));
+    const RealBox real_box({0.0, 0.0, 0.0}, {200.0, 100.0, 4000.0});
+    const int is_periodic[3] = {1, 1, 0};
+    const Geometry geom1(domain1, &real_box, 0, is_periodic);
+
+    const BoxArray ba0(domain0);
+    const BoxArray ba1(Box(IntVect(0, 0, 0), IntVect(3, 1, 3)));  // shallow: k = 0..3 of 0..7
+    const DistributionMapping dm0(ba0);
+    const DistributionMapping dm1(ba1);
+
+    RadChoice rad;
+    rad.enabled = true;
+    rad.fixed_solar_zenith_angle = Real(0.6);
+    rad.fixed_total_solar_irradiance = Real(1360.9);
+    rad.rad_t_sfc = Real(300.0);
+
+    TwoStreamRadiation radiation;
+    radiation.resize(2);
+    radiation.define_level(0, rad, RdoCp, collapse_z(ba0), dm0, ba0, domain0, true);
+    radiation.define_level(1, rad, RdoCp, collapse_z(ba1), dm1, ba1, domain1, true);
+
+    // Level 0, never advanced.
+    MultiFab lsm0(collapse_z(ba0), dm0, 1, IntVect(1, 1, 0));
+    lsm0.setVal(Real(7.0));
+    radiation.write_land_forcing(0, &lsm0, nullptr, nullptr);
+
+    // Level 1, advanced -- but the call returns before the sweep.
+    MultiFab state1(ba1, dm1, RhoQ2_comp + 1, 0);
+    state1.setVal(Real(1.0));
+    LandSurface lsm;
+    lsm.ReSize(2);
+    lsm.SetModel<NullSurf>();
+    const Vector<const MultiFab*> radiation_inputs;
+    radiation.advance(1, 1, Real(0.0), Real(10.0), "pre_dycore",
+                      state1, nullptr, geom1, lsm, radiation_inputs, false,
+                      nullptr, nullptr, nullptr, nullptr, nullptr, 0.0, false);
+    MultiFab lsm1(collapse_z(ba1), dm1, 1, IntVect(1, 1, 0));
+    lsm1.setVal(Real(7.0));
+    radiation.write_land_forcing(1, nullptr, nullptr, &lsm1);
+
+    return {component_at(lsm0, IntVect(1, 0, 0), 0), component_at(lsm1, IntVect(2, 1, 0), 0)};
+}
+
+} // namespace
+
+// A copy made before any sweep on the level must not hand the land model a valid zero:
+// it carries lsm_undefined, which Noah-MP's first-land-step check rejects (zero would
+// pass it, and be a 0 K sky).
+TEST(TwoStreamRadiationDriver, LandForcingIsUndefinedUntilASweep)
+{
+    const auto [lev0, lev1] = land_forcing_before_a_sweep();
+    EXPECT_FALSE(is_valid_lsm_value(lev0));
+    EXPECT_FALSE(is_valid_lsm_value(lev1));
+    EXPECT_EQ(lev0, lsm_undefined);
+    EXPECT_EQ(lev1, lsm_undefined);
 }

@@ -177,7 +177,8 @@ public:
      * @brief The surface forcing of the last sweep on @p lev (2D: i,j), or nullptr when
      * the level does not supply it: total downwelling shortwave [W/m^2], downwelling
      * longwave [W/m^2] and the cosine of the solar zenith angle floored at zero [1].
-     * Zero until the first sweep.
+     * lsm_undefined until a sweep has run on the level, so a copy made before one is
+     * caught by the land model's missing-input check instead of reading as zero.
      */
     [[nodiscard]] const amrex::MultiFab* land_forcing_sw_dn (int lev) const noexcept {
         return supplies_land_forcing(lev) ? m_sw_dn_sfc[lev].get() : nullptr;
@@ -193,7 +194,8 @@ public:
      * @brief Copy the surface forcing of the last sweep on @p lev into a land-surface
      * model's radiation inputs (SurfaceModel's "sw_flux_dn", "lw_flux_dn" and
      * "cos_zenith_angle" outputs). A null destination is skipped. Each destination
-     * must lie on this level's horizontal grids; see copy_surface_plane.
+     * must lie on this level's horizontal grids; see copy_surface_plane. Before the
+     * level's first sweep this copies the lsm_undefined sentinel, not zero.
      */
     void write_land_forcing (int lev,
                              amrex::MultiFab* sw_flux_dn,

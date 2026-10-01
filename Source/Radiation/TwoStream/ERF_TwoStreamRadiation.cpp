@@ -6,6 +6,7 @@
 #include <AMReX_Math.H>
 #include <ERF_RadiationDiagnostics.H>
 #include <ERF_TwoStreamColumn.H>
+#include <ERF_Constants.H>
 #include <ERF_PrognosticCloudFraction.H>
 #include <ERF_AerosolOpticalDepth.H>
 #include <ERF_SimplifiedSEB.H>
@@ -292,15 +293,19 @@ TwoStreamRadiation::define_level (int lev,
         m_q_deep[lev]->setVal(rad_choice.seb_q_deep_default);
     }
 
-    // The land-model forcing (see the members). Zero, not the lsm_undefined sentinel,
-    // until the first sweep fills it; nothing copies it out before then.
+    // The land-model forcing (see the members). It holds the lsm_undefined sentinel until a
+    // sweep on this level fills it. Zero would be a valid forcing (night, no sky), so a copy
+    // made before any sweep -- a level whose advance() returned early, or a caller that
+    // drifts out of step with the sweep -- would hand the land model a 0 K sky that its
+    // first-land-step check (NOAHMP::Advance_With_State) accepts. The sentinel is what
+    // that check looks for.
     if (supply_land_forcing) {
         m_sw_dn_sfc[lev]  = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
         m_lw_dn_sfc[lev]  = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
         m_cos_zenith[lev] = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
-        m_sw_dn_sfc[lev]->setVal(0.0);
-        m_lw_dn_sfc[lev]->setVal(0.0);
-        m_cos_zenith[lev]->setVal(0.0);
+        m_sw_dn_sfc[lev]->setVal(lsm_undefined);
+        m_lw_dn_sfc[lev]->setVal(lsm_undefined);
+        m_cos_zenith[lev]->setVal(lsm_undefined);
     } else {
         m_sw_dn_sfc[lev].reset();
         m_lw_dn_sfc[lev].reset();

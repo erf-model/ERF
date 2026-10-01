@@ -465,6 +465,9 @@ atmosphere. They are copied into Noah-MP's ``sw_flux_dn``, ``lw_flux_dn`` and
 ``cos_zenith_angle`` fields every step, since the sweep runs every step; the land model runs
 after the dycore and so always sees the current step's radiation. Those fields are part of the
 land model's checkpointed data, and a restarted run refills them before its first land step.
+Until a sweep has run on a level the stored fields hold the land model's undefined sentinel
+rather than zero, so a copy made before one is caught by Noah-MP's missing-input check
+instead of being taken as a dark, 0 K sky.
 The two-stream model is broadband, so the visible / near-infrared direct / diffuse split that
 RRTMGP also provides is not written; Noah-MP does not read it. SLM does, so the two-stream model
 does not feed SLM.
