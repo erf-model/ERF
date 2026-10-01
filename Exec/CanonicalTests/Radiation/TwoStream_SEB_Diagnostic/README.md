@@ -23,6 +23,11 @@ Validate the SEB diagnostic residual computation feature:
 - **Expected behavior**: SEB residual computed and reported in diagnostics
 - **Validates**: Residual computation correct and diagnostic output present
 
+The decks that set `seb_hfx_default` and `seb_lh_default` also set
+`erf.radiation.seb_turbulent_flux_source = defaults`. The balance otherwise takes H and LE from
+the surface layer's applied fluxes (the default), which are zero for this adiabatic surface layer,
+and the hand-computed residual assumes the constants.
+
 ## Input Files
 
 ### `input_sounding` (Atmospheric Profile)

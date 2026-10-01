@@ -1018,6 +1018,22 @@ public:
                                     const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
   /**
+   * Overwrite the land surface temperature with an external skin temperature.
+   *
+   * The skin is an absolute temperature [K]; it is converted to the potential
+   * temperature the surface layer works in with the pressure at the surface
+   * diagnosed from the lowest cell, as for coupled SST. Runs last among the
+   * surface-temperature writers, so on land it replaces what they wrote.
+   *
+   * @param[in] lev       level index
+   * @param[in] cons_in   conserved state used to evaluate surface pressure
+   * @param[in] z_phys_nd nodal physical-height field
+   */
+  void fill_tsurf_with_skin_temperature (const int& lev,
+                                         const amrex::MultiFab& cons_in,
+                                         const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+
+  /**
    * Fill surface moisture from saturation specific humidity.
    *
    * @param[in] lev       level index
@@ -1256,9 +1272,62 @@ public:
   amrex::MultiFab* get_t_surf (const int& lev) { return t_surf[lev].get(); }
 
   /**
+   * Take the land surface temperature of level lev from an external absolute
+   * skin temperature [K] on the surface-layer layout, or stop doing so (nullptr).
+   * update_fluxes reads it; the owner keeps it alive and resets the pointer
+   * whenever it reallocates the field.
+   *
+   * @param[in] lev    level index
+   * @param[in] t_skin absolute skin temperature, or nullptr
+   */
+  void set_skin_temperature (const int& lev, const amrex::MultiFab* t_skin)
+  {
+      if (lev >= static_cast<int>(m_skin_tsurf_lev.size())) {
+          m_skin_tsurf_lev.resize(lev + 1, nullptr);
+      }
+      m_skin_tsurf_lev[lev] = t_skin;
+  }
+
+  /**
+   * Why this surface layer cannot take its surface temperature from an external
+   * skin temperature, or an empty string when it can: the skin sets t_surf, so the
+   * surface layer must compute its heat flux from t_surf (erf.most.surf_temp given,
+   * no heating rate) on a non-EB lower surface without rotated surface fluxes, and no
+   * land model may own t_surf.
+   */
+  [[nodiscard]] std::string skin_temperature_conflict () const
+  {
+      if (m_terrain_type == TerrainType::EB) {
+          return "the surface layer is on EB terrain";
+      }
+      // Rotated, the flux is split over hfx1/hfx2/hfx3 and the balance, which removes
+      // the vertical-face flux hfx3 only, would lose cos(slope) of what the air gains.
+      if (m_rotate) {
+          return "erf.use_rotate_surface_flux is set";
+      }
+      if (theta_type != ThetaCalcType::SURFACE_TEMPERATURE) {
+          return "the surface layer does not compute its heat flux from a surface "
+                 "temperature (set erf.most.surf_temp, not a flux or custom/bulk fluxes)";
+      }
+      if (surf_heating_rate != amrex::Real(0)) {
+          return "erf.most.surf_heating_rate is set";
+      }
+      if (m_has_lsm_tsurf || use_surface_model) {
+          return "a land-surface or surface model supplies the surface temperature";
+      }
+      return "";
+  }
+
+  /**
    * Return whether prescribed surface fluxes are active.
    */
   bool use_sfc_fluxes () const { return m_use_sfc_fluxes; }
+
+  /**
+   * Return whether the surface fluxes are rotated with the terrain slope
+   * (erf.use_rotate_surface_flux), splitting them over the x, y and z faces.
+   */
+  bool rotates_surface_fluxes () const { return m_rotate; }
 
   /**
    * Set the surface-temperature field to a constant value.
@@ -1593,6 +1662,9 @@ private:
   // lower-boundary SST/TSK value filled earlier in update_fluxes stands.
   amrex::Vector<amrex::MultiFab*>  m_coupled_sst_lev;
   amrex::Vector<amrex::iMultiFab*> m_coupled_sst_valid_lev;
+  // External absolute skin temperature per level (set_skin_temperature), owned
+  // by the caller; nullptr where none is supplied.
+  amrex::Vector<const amrex::MultiFab*> m_skin_tsurf_lev;
   amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_lsm_data_lev;
   amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_lsm_flux_lev;
   amrex::Vector<std::string> m_lsm_data_name;
