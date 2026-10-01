@@ -328,7 +328,7 @@ function(add_test_two_stream_seb_flux_source TEST_NAME)
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression;radiation"
-        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/surface_layer/simulation.log;${CURRENT_TEST_BINARY_DIR}/defaults/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/surface_layer/simulation.log;${CURRENT_TEST_BINARY_DIR}/defaults/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_way/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
 endfunction(add_test_two_stream_seb_flux_source)
 
 function(add_test_cloud_chamber_parity TEST_NAME)
@@ -1619,6 +1619,16 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   if(ERF_TEST_PYTHON)
     add_test_two_stream_seb_flux_source(TwoStream_SEBSurfaceLayerFluxes)
   endif()
+
+  # With seb_turbulent_flux_source = surface_layer (the default) the balance takes H from
+  # the surface layer wherever its flux field exists -- including an adiabatic surface layer,
+  # whose flux is zero -- so a nonzero erf.radiation.seb_hfx_default in the deck is not used.
+  # That must be said at start-up rather than happen silently. One step of the deck above.
+  add_test_abort(TwoStream_SEBDefaultReplacedWarning
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_hfx_default = 10 is not used"
+                 "erf.radiation.seb_hfx_default=10")
 endif()
 add_test_plotfile_header(Plotfile3D_TwoStreamHeatingSelection "" "erf_exec" "plt00000")
 

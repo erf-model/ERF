@@ -14,8 +14,11 @@
  * Precedence, per field and per level:
  *   1. a land-surface model field of that name ("hfx" or "lh");
  *   2. the surface layer's applied flux, with seb_turbulent_flux_source =
- *      surface_layer and a flux present (a zlo surface layer that applies one,
- *      not on EB terrain; the latent flux exists only with a moisture model);
+ *      surface_layer and the flux field allocated: a zlo surface layer with any
+ *      diffusion or closure, not on EB terrain; the latent flux only with a
+ *      moisture model. An adiabatic surface layer has the field and a zero flux,
+ *      so H (or LE) is then 0, and ERF warns at start-up if the scalar default it
+ *      replaces is nonzero;
  *   3. the scalar default (seb_hfx_default or seb_lh_default).
  *
  * The surface-layer flux is the conservative flux on the lowest z face (rho
@@ -56,6 +59,11 @@ select_seb_flux_origin (bool land_surface_field_present,
 
 /**
  * @brief Fill the SEB's H or LE [W/m^2] on the valid cells of seb_flux.
+ *
+ * Only the valid cells are written in the land-surface and surface-layer cases
+ * (the default case sets the halo too): the force-restore update, the residual
+ * diagnostic and the seb_hfx/seb_lh outputs all read valid cells only, so the
+ * halo is never consumed. A consumer that needs it must fill it first.
  *
  * @param[out] seb_flux           2D SEB field (k = 0), laid out like the level's state
  * @param[in]  kind               sensible or latent

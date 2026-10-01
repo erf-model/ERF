@@ -381,10 +381,16 @@ default), from the fluxes the ``zlo`` surface layer applies to the air,
 
 positive away from the surface -- the same conversion as the ``sensible_heat_flux`` and
 ``latent_heat_flux`` 2D outputs, so the ground loses exactly what those report the air gaining;
-otherwise from the scalar ``seb_hfx_default`` and ``seb_lh_default``. The latter apply with
-``seb_turbulent_flux_source = defaults``, without a ``zlo`` surface layer, on EB terrain (where the
-surface layer's flux goes to the embedded boundary instead), when the surface layer applies no flux
-(no diffusion and no turbulence closure), and for :math:`\text{LE}` without a moisture model. The fluxes the balance used are written as the ``seb_hfx`` and ``seb_lh`` 2D
+otherwise from the scalar ``seb_hfx_default`` and ``seb_lh_default``. The surface layer is the
+source wherever its flux field exists, that is with any diffusion or turbulence closure; the
+defaults apply with ``seb_turbulent_flux_source = defaults``, without a ``zlo`` surface layer, on EB
+terrain (where the surface layer's flux goes to the embedded boundary instead), without diffusion
+or a closure, and for :math:`\text{LE}` without a moisture model. An adiabatic surface layer
+(``erf.most.surf_temp_flux = 0``) has the field and a zero flux, so :math:`H = 0` there rather than
+``seb_hfx_default``; ERF warns at start-up when a nonzero default is replaced this way. With
+``erf.use_rotate_surface_flux`` the surface layer splits its flux over the three faces of the lowest
+cell, and the balance, like the 2D outputs, removes only the vertical-face part, :math:`\cos`
+of the slope times :math:`H` and :math:`\text{LE}`; ERF warns at start-up. The fluxes the balance used are written as the ``seb_hfx`` and ``seb_lh`` 2D
 plotfile variables.
 
 By default the surface layer computes these fluxes from its own surface temperature and moisture
@@ -403,8 +409,9 @@ coupled sea-surface temperatures use). A warmer skin then gives a larger :math:`
 balance removes. The surface moisture stays the surface layer's own: the balance's :math:`q_s` is a
 soil-water store, not a surface specific humidity. The option needs the prognostic balance,
 ``seb_turbulent_flux_source = surface_layer``, a ``zlo`` surface layer in surface-temperature mode
-(``erf.most.surf_temp`` given, no ``erf.most.surf_heating_rate``) on planar terrain, and no
-land-surface or surface model; ERF stops at start-up otherwise. On a level that takes its
+(``erf.most.surf_temp`` given, no ``erf.most.surf_heating_rate``), no EB terrain, no
+``erf.use_rotate_surface_flux``, and no land-surface or surface model; ERF stops at start-up
+otherwise. On a level that takes its
 radiation from its parent (a nested patch that does not span the column), no skin evolves, and
 the surface layer keeps its own temperature there.
 

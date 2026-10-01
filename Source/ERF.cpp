@@ -402,6 +402,8 @@ ERF::rad_level_needs_interpolation (int lev) const
 //
 // A level that takes its radiation from its parent never evolves a skin of its own (see
 // rad_level_needs_interpolation), so its surface layer keeps its own temperature there.
+// That is warned once per level each time a level stops coupling, so a regrid that turns
+// another level into a nested patch is reported too.
 void
 ERF::set_surface_layer_skin (int lev)
 {
@@ -413,33 +415,67 @@ ERF::set_surface_layer_skin (int lev)
         return;
     }
     // The initial update_fluxes runs inside InitData_post, before InitData's own call.
-    check_surface_layer_skin();
+    if (!m_seb_surface_layer_checked) { check_seb_surface_layer(); }
+    if (lev >= static_cast<int>(m_skin_uncoupled_warned.size())) {
+        m_skin_uncoupled_warned.resize(lev + 1, 0);
+    }
     if (rad_level_needs_interpolation(lev)) {
-        static bool warned = false;
-        if (!warned && ParallelDescriptor::IOProcessor()) {
+        if (!m_skin_uncoupled_warned[lev]) {
             Print() << "WARNING: erf.radiation.seb_surface_layer_uses_skin: level " << lev
                     << " takes its radiation from its parent and evolves no skin temperature, "
                        "so its surface layer keeps its own surface temperature.\n";
+            m_skin_uncoupled_warned[lev] = 1;
         }
-        warned = true;
         surface_layer->set_skin_temperature(lev, nullptr);
         return;
     }
+    m_skin_uncoupled_warned[lev] = 0;
     surface_layer->set_skin_temperature(lev, two_stream_rad.seb_t_sfc(lev));
 }
 
-// The start-up checks of erf.radiation.seb_surface_layer_uses_skin that need the surface
-// layer and land model built (RadChoice::init_params checks the radiation inputs). Run from
-// InitData, from scratch and on restart alike, which is what catches a run with no zlo
-// surface layer (set_surface_layer_skin is never called then), and before every hand-over.
+// Start-up checks of the two-stream balance's coupling with the zlo surface layer, run
+// once: from InitData, from scratch and on restart alike (which is what catches a two-way
+// run with no zlo surface layer, where set_surface_layer_skin is never called), or from
+// the first set_surface_layer_skin, since the initial update_fluxes runs inside
+// InitData_post. RadChoice::init_params has already checked the radiation inputs.
 void
-ERF::check_surface_layer_skin ()
+ERF::check_seb_surface_layer ()
 {
-    if (solverChoice.rad_type != RadiationType::TwoStream ||
-        !solverChoice.radChoice.seb_surface_layer_uses_skin) {
-        return;
-    }
+    m_seb_surface_layer_checked = true;
+    const RadChoice& rc = solverChoice.radChoice;
+    if (solverChoice.rad_type != RadiationType::TwoStream || !rc.seb_enable) { return; }
     SurfaceLayer* surface_layer = m_SurfaceLayer[Orientation::zlo()].get();
+
+    // The balance takes H and LE from the surface layer wherever it has a flux field,
+    // which it has with any diffusion or closure -- an adiabatic surface layer included,
+    // whose flux is zero. A nonzero scalar default is then not used; say so, since the
+    // deck setting it most likely relied on it.
+    if (rc.seb_turbulent_flux_source == SEBTurbulentFluxSource::SurfaceLayer) {
+        const MultiFab* sens = nullptr;
+        const MultiFab* laten = nullptr;
+        seb_surface_layer_fluxes(0, sens, laten);
+        if (sens && rc.seb_hfx_default != 0.0) {
+            Print() << "WARNING: erf.radiation.seb_hfx_default = " << rc.seb_hfx_default
+                    << " is not used: the surface energy balance takes H from the zlo surface "
+                       "layer's applied flux (erf.radiation.seb_turbulent_flux_source = "
+                       "surface_layer). Set seb_turbulent_flux_source = defaults to use it.\n";
+        }
+        if (laten && rc.seb_lh_default != 0.0) {
+            Print() << "WARNING: erf.radiation.seb_lh_default = " << rc.seb_lh_default
+                    << " is not used: the surface energy balance takes LE from the zlo surface "
+                       "layer's applied flux (erf.radiation.seb_turbulent_flux_source = "
+                       "surface_layer). Set seb_turbulent_flux_source = defaults to use it.\n";
+        }
+        // Rotated with the terrain slope, the surface flux is split over hfx1/hfx2/hfx3;
+        // the balance (like sensible_heat_flux) reads the vertical face only.
+        if (sens && surface_layer->rotates_surface_fluxes()) {
+            Print() << "WARNING: erf.use_rotate_surface_flux: the surface energy balance removes "
+                       "only the vertical-face part of the surface layer's flux, cos(slope) of "
+                       "H and LE, as the sensible_heat_flux and latent_heat_flux outputs report.\n";
+        }
+    }
+
+    if (!rc.seb_surface_layer_uses_skin) { return; }
     if (!surface_layer) {
         Abort("erf.radiation.seb_surface_layer_uses_skin = true needs zlo.type = surface_layer");
     }
@@ -831,7 +867,7 @@ ERF::InitData ()
     BL_PROFILE_VAR("ERF::InitData()", InitData);
     InitData_pre();
     InitData_post();
-    check_surface_layer_skin();
+    if (!m_seb_surface_layer_checked) { check_seb_surface_layer(); }
     BL_PROFILE_VAR_STOP(InitData);
 }
 // This is called from main.cpp and handles all initialization, whether from start or restart

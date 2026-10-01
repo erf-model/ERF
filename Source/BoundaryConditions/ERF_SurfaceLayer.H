@@ -1292,12 +1292,18 @@ public:
    * Why this surface layer cannot take its surface temperature from an external
    * skin temperature, or an empty string when it can: the skin sets t_surf, so the
    * surface layer must compute its heat flux from t_surf (erf.most.surf_temp given,
-   * no heating rate) on a planar lower surface, and no land model may own t_surf.
+   * no heating rate) on a non-EB lower surface without rotated surface fluxes, and no
+   * land model may own t_surf.
    */
   [[nodiscard]] std::string skin_temperature_conflict () const
   {
       if (m_terrain_type == TerrainType::EB) {
           return "the surface layer is on EB terrain";
+      }
+      // Rotated, the flux is split over hfx1/hfx2/hfx3 and the balance, which removes
+      // the vertical-face flux hfx3 only, would lose cos(slope) of what the air gains.
+      if (m_rotate) {
+          return "erf.use_rotate_surface_flux is set";
       }
       if (theta_type != ThetaCalcType::SURFACE_TEMPERATURE) {
           return "the surface layer does not compute its heat flux from a surface "
@@ -1316,6 +1322,12 @@ public:
    * Return whether prescribed surface fluxes are active.
    */
   bool use_sfc_fluxes () const { return m_use_sfc_fluxes; }
+
+  /**
+   * Return whether the surface fluxes are rotated with the terrain slope
+   * (erf.use_rotate_surface_flux), splitting them over the x, y and z faces.
+   */
+  bool rotates_surface_fluxes () const { return m_rotate; }
 
   /**
    * Set the surface-temperature field to a constant value.

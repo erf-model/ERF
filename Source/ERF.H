@@ -447,9 +447,17 @@ public:
     //! computes its fluxes
     void set_surface_layer_skin (int lev);
 
-    //! Start-up checks of erf.radiation.seb_surface_layer_uses_skin against the surface
-    //! layer and land model
-    void check_surface_layer_skin ();
+    //! Start-up checks of the two-stream balance's coupling with the zlo surface layer:
+    //! warnings for a scalar default the surface layer's flux replaces and for rotated
+    //! surface fluxes, aborts for erf.radiation.seb_surface_layer_uses_skin conflicts
+    void check_seb_surface_layer ();
+
+    //! check_seb_surface_layer has run
+    bool m_seb_surface_layer_checked = false;
+
+    //! Per level: the "takes its radiation from its parent, no skin coupling" warning
+    //! of set_surface_layer_skin has been printed since the level last coupled
+    amrex::Vector<int> m_skin_uncoupled_warned;
 
     //! The zlo surface layer's applied heat and moisture fluxes for the two-stream
     //! surface energy balance's H and LE, or nullptr where it applies none

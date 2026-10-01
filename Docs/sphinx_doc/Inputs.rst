@@ -4300,13 +4300,18 @@ atmospheric cell), ``start_datetime`` and the
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_turbulent_flux_source**        | Source of the SEB sensible (H) and latent (LE) heat        | surface_layer,     | surface_layer    |
 |                                                    | fluxes where no land-surface model supplies them:          | defaults           |                  |
-|                                                    | ``surface_layer`` takes the fluxes the zlo surface layer   |                    |                  |
-|                                                    | applies to the air (as ``sensible_heat_flux`` and          |                    |                  |
-|                                                    | ``latent_heat_flux``), so the ground loses what the air    |                    |                  |
+|                                                    | ``surface_layer`` takes the fluxes the zlo surface layer   | (case-insensitive, |                  |
+|                                                    | applies to the air (as ``sensible_heat_flux`` and          | underscores        |                  |
+|                                                    | ``latent_heat_flux``), so the ground loses what the air    | ignored)           |                  |
 |                                                    | gains; ``defaults`` takes seb_hfx_default and              |                    |                  |
-|                                                    | seb_lh_default. Without a zlo surface layer applying a     |                    |                  |
-|                                                    | flux, or LE without a moisture model, the defaults         |                    |                  |
-|                                                    | are used either way                                        |                    |                  |
+|                                                    | seb_lh_default. ``surface_layer`` uses the surface         |                    |                  |
+|                                                    | layer whenever its flux field exists: a zlo surface        |                    |                  |
+|                                                    | layer with any diffusion or closure, not on EB terrain,    |                    |                  |
+|                                                    | and for LE a moisture model. An adiabatic surface layer    |                    |                  |
+|                                                    | has a zero flux, so H = 0 there; ERF warns when a          |                    |                  |
+|                                                    | nonzero default is replaced. With                          |                    |                  |
+|                                                    | erf.use_rotate_surface_flux only the vertical-face part    |                    |                  |
+|                                                    | (cos(slope) of the flux) is removed, with a warning        |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_surface_layer_uses_skin**      | Two-way coupling: the zlo surface layer takes its land     | Boolean            | false            |
 |                                                    | surface temperature from the SEB skin T_s (as a            |                    |                  |
@@ -4314,8 +4319,9 @@ atmospheric cell), ``start_datetime`` and the
 |                                                    | T_s. Needs seb_prognostic_enable,                          |                    |                  |
 |                                                    | seb_turbulent_flux_source = surface_layer and a surface    |                    |                  |
 |                                                    | layer in surface-temperature mode (erf.most.surf_temp,     |                    |                  |
-|                                                    | no surf_heating_rate), on planar terrain, with no land     |                    |                  |
-|                                                    | or surface model; each is checked at start-up              |                    |                  |
+|                                                    | no surf_heating_rate), not on EB terrain, without          |                    |                  |
+|                                                    | erf.use_rotate_surface_flux, with no land or surface       |                    |                  |
+|                                                    | model; each is checked at start-up                         |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_diagnostic_enable**            | Enable diagnostic SEB residual computation                 | Boolean            | false            |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+

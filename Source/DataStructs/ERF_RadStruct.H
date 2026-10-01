@@ -1041,15 +1041,17 @@ public:
       pp.query("radiation.seb_use_radiation_fluxes", seb_use_radiation_fluxes);
       pp.query("radiation.seb_sw_flux_default", seb_sw_flux_default);
       pp.query("radiation.seb_lw_flux_default", seb_lw_flux_default);
-      std::string seb_flux_source_str = "surface_layer";
-      pp.query("radiation.seb_turbulent_flux_source", seb_flux_source_str);
-      if (seb_flux_source_str == "surface_layer") {
-          seb_turbulent_flux_source = SEBTurbulentFluxSource::SurfaceLayer;
-      } else if (seb_flux_source_str == "defaults") {
-          seb_turbulent_flux_source = SEBTurbulentFluxSource::Defaults;
-      } else {
+      // Through the AMREX_ENUM, case-insensitive and ignoring underscores, so
+      // surface_layer, SurfaceLayer and surfacelayer all select SurfaceLayer. The
+      // parser throws on any other value; turn that into an abort naming the input.
+      try {
+          pp.query_enum_sloppy("radiation.seb_turbulent_flux_source",
+                               seb_turbulent_flux_source, "_");
+      } catch (...) {
+          std::string value;
+          pp.query("radiation.seb_turbulent_flux_source", value);
           amrex::Abort("erf.radiation.seb_turbulent_flux_source must be surface_layer "
-                       "or defaults, not '" + seb_flux_source_str + "'");
+                       "or defaults, not '" + value + "'");
       }
       pp.query("radiation.seb_surface_layer_uses_skin", seb_surface_layer_uses_skin);
       pp.query("radiation.seb_hfx_default", seb_hfx_default);

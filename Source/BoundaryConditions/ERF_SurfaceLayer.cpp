@@ -2328,6 +2328,9 @@ SurfaceLayer::fill_tsurf_with_skin_temperature (const int& lev,
     const Real dz = m_geom[lev].CellSize(2);
     const bool moist = use_moisture;
     const Real rdOcp = m_rdOcp;
+    // As in fill_tsurf_with_coupled_sst: a moist run whose state lacks the vapour
+    // component aborts below rather than reading past the components.
+    const bool have_rho_qv = cons_in.nComp() > RhoQ1_comp;
     amrex::Gpu::DeviceScalar<int> d_conversion_failed(0);
     int* conversion_failed = d_conversion_failed.dataPtr();
 
@@ -2365,6 +2368,10 @@ SurfaceLayer::fill_tsurf_with_skin_temperature (const int& lev,
 
             const Real rho = cons_arr(li,lj,klo,Rho_comp);
             const Real rho_theta = cons_arr(li,lj,klo,RhoTheta_comp);
+            if (moist && !have_rho_qv) {
+                amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                return;
+            }
             const Real qv = moist ? cons_arr(li,lj,klo,RhoQ1_comp) / rho : Real(0.0);
             const Real delta_z = z_arr
                 ? Compute_Z_AtCellCenter(li,lj,klo,z_arr) -
@@ -2388,7 +2395,8 @@ SurfaceLayer::fill_tsurf_with_skin_temperature (const int& lev,
     if (conversion_failed_host != 0) {
         amrex::Abort("SurfaceLayer fill_tsurf_with_skin_temperature: failed to convert the "
                      "skin temperature to potential temperature (non-finite or non-positive "
-                     "skin temperature, density or pressure).");
+                     "skin temperature, density or pressure, or a moist state without "
+                     "water vapour).");
     }
 }
 
