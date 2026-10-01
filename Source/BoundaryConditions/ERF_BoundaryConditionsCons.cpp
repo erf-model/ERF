@@ -74,6 +74,24 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
     bool is_periodic_in_x = geomdata.isPeriodic(0);
     bool is_periodic_in_y = geomdata.isPeriodic(1);
 
+    // The density a ghost cell on each face carries after this fill: the prescribed inflow
+    // density where Rho itself is ext_dir on that face (<face>.density was given), otherwise
+    // the first interior cell's. A primitive Dirichlet value (ext_dir_prim, e.g. theta from a
+    // dirichlet_file) must be multiplied by that density, not by the interior density alone:
+    // otherwise the ghost holds rho_interior * theta over a ghost density rho_in, and the
+    // primitive theta the scheme sees is scaled by rho_interior / rho_in.
+    GpuArray<int,6>  rho_is_extdir;
+    GpuArray<Real,6> rho_extdir_val;
+    for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
+        const int dir  = ori % AMREX_SPACEDIM;
+        const bool low = (ori < AMREX_SPACEDIM);
+        const int rho_type = low ? m_domain_bcs_type[BCVars::Rho_bc_comp].lo(dir)
+                                 : m_domain_bcs_type[BCVars::Rho_bc_comp].hi(dir);
+        const Real rho_val = m_bc_extdir_vals[BCVars::Rho_bc_comp][ori];
+        rho_is_extdir[ori]  = (rho_type == ERFBCType::ext_dir && rho_val > zero) ? 1 : 0;
+        rho_extdir_val[ori] = rho_val;
+    }
+
     // First do all ext_dir bcs
     if (!is_periodic_in_x)
     {
@@ -105,7 +123,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                         dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][0];
                     }
                 } else if (l_bc_type == ERFBCType::ext_dir_prim) {
-                    Real rho = dest_arr(dom_lo.x,j,k,Rho_comp);
+                    Real rho = rho_is_extdir[0] ? rho_extdir_val[0] : dest_arr(dom_lo.x,j,k,Rho_comp);
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
                         dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k_profile];
                     } else {
@@ -131,7 +149,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                         dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][3];
                     }
                 } else if (h_bc_type == ERFBCType::ext_dir_prim) {
-                    Real rho = dest_arr(dom_hi.x,j,k,Rho_comp);
+                    Real rho = rho_is_extdir[3] ? rho_extdir_val[3] : dest_arr(dom_hi.x,j,k,Rho_comp);
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
                         dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k_profile];
                     } else {
@@ -172,7 +190,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                         dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][1];
                     }
                 } else if (l_bc_type == ERFBCType::ext_dir_prim) {
-                    Real rho = dest_arr(i,dom_lo.y,k,Rho_comp);
+                    Real rho = rho_is_extdir[1] ? rho_extdir_val[1] : dest_arr(i,dom_lo.y,k,Rho_comp);
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
                         dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k_profile];
                     } else {
@@ -197,7 +215,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                         dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][4];
                     }
                 } else if (h_bc_type == ERFBCType::ext_dir_prim) {
-                    Real rho = dest_arr(i,dom_hi.y,k,Rho_comp);
+                    Real rho = rho_is_extdir[4] ? rho_extdir_val[4] : dest_arr(i,dom_hi.y,k,Rho_comp);
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
                         dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k_profile];
                     } else {
@@ -387,6 +405,20 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
     Gpu::copyAsync(Gpu::hostToDevice, bcrs.begin(), bcrs.end(), bcrs_d.begin());
     const BCRec* bc_ptr = bcrs_d.data();
 
+    // The density a ghost cell carries on the z faces (see the lateral fill above): the
+    // prescribed value where Rho is ext_dir there, the first interior cell's otherwise
+    GpuArray<int,6>  rho_is_extdir;
+    GpuArray<Real,6> rho_extdir_val;
+    for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
+        const int dir  = ori % AMREX_SPACEDIM;
+        const bool low = (ori < AMREX_SPACEDIM);
+        const int rho_type = low ? m_domain_bcs_type[BCVars::Rho_bc_comp].lo(dir)
+                                 : m_domain_bcs_type[BCVars::Rho_bc_comp].hi(dir);
+        const Real rho_val = m_bc_extdir_vals[BCVars::Rho_bc_comp][ori];
+        rho_is_extdir[ori]  = (rho_type == ERFBCType::ext_dir && rho_val > zero) ? 1 : 0;
+        rho_extdir_val[ori] = rho_val;
+    }
+
     {
         Box bx_zlo(bx);  bx_zlo.setBig  (2,dom_lo.z-1);
         Box bx_zhi(bx);  bx_zhi.setSmall(2,dom_hi.z+1);
@@ -401,7 +433,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                 if (l_bc_type == ERFBCType::ext_dir) {
                     dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][2];
                 } else if (l_bc_type == ERFBCType::ext_dir_prim) {
-                    Real rho = dest_arr(i,j,dom_lo.z,Rho_comp);
+                    Real rho = rho_is_extdir[2] ? rho_extdir_val[2] : dest_arr(i,j,dom_lo.z,Rho_comp);
                     dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][2];
                 }
             },
@@ -415,7 +447,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                 if (h_bc_type == ERFBCType::ext_dir) {
                     dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][5];
                 } else if (h_bc_type == ERFBCType::ext_dir_prim) {
-                    Real rho = dest_arr(i,j,dom_hi.z,Rho_comp);
+                    Real rho = rho_is_extdir[5] ? rho_extdir_val[5] : dest_arr(i,j,dom_hi.z,Rho_comp);
                     dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][5];
                 }
 
