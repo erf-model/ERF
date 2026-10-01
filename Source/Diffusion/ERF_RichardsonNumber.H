@@ -79,7 +79,7 @@
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 bool
-IsSaturated(int i, int j, int k,
+IsSaturated (int i, int j, int k,
             const amrex::Array4<const amrex::Real>& cell_data,
             int qc_index)
 {
@@ -127,7 +127,7 @@ IsSaturated(int i, int j, int k,
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
-ComputeN2(int i, int j, int k,
+ComputeN2 (int i, int j, int k,
           amrex::Real dzInv,
           amrex::Real const_grav,
           const amrex::Array4<const amrex::Real>& cell_data,
@@ -189,7 +189,7 @@ ComputeN2(int i, int j, int k,
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
-ComputeN2_EB(int i, int j, int k,
+ComputeN2_EB (int i, int j, int k,
           const amrex::Array4<const amrex::EBCellFlag>& c_cflag,
           amrex::Real dzInv,
           amrex::Real const_grav,
@@ -297,7 +297,7 @@ ComputeN2_EB(int i, int j, int k,
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
-ComputeVerticalShear2(int i, int j, int k,
+ComputeVerticalShear2 (int i, int j, int k,
                       amrex::Real dzInv,
                       const amrex::Array4<const amrex::Real>& u,
                       const amrex::Array4<const amrex::Real>& v)
@@ -333,7 +333,7 @@ ComputeVerticalShear2(int i, int j, int k,
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
-ComputeVerticalShear2_EB(int i, int j, int k,
+ComputeVerticalShear2_EB (int i, int j, int k,
                       const amrex::Array4<const amrex::EBCellFlag>& c_cflag,
                       const amrex::Array4<const amrex::Real>& u_vfrac,
                       const amrex::Array4<const amrex::Real>& v_vfrac,
@@ -400,7 +400,7 @@ ComputeVerticalShear2_EB(int i, int j, int k,
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
-ComputeRichardson(amrex::Real N2_moist, amrex::Real S2_vert)
+ComputeRichardson (amrex::Real N2_moist, amrex::Real S2_vert)
 {
     amrex::Real S2_safe = amrex::max(S2_vert, amrex::Real(1.0e-10));
     return N2_moist / S2_safe;
@@ -416,7 +416,7 @@ ComputeRichardson(amrex::Real N2_moist, amrex::Real S2_vert)
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
-StabilityFunction(amrex::Real Ri, amrex::Real Ri_crit)
+StabilityFunction (amrex::Real Ri, amrex::Real Ri_crit)
 {
     amrex::Real stability_factor = amrex::Real(0.);
     if (Ri >= Ri_crit) {

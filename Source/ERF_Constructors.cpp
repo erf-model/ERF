@@ -18,7 +18,7 @@
 
 namespace {
 
-erf_sbm::SBMLayout make_sbm_layout(const SolverChoice& choice)
+erf_sbm::SBMLayout make_sbm_layout (const SolverChoice& choice)
 {
     erf_sbm::SpectralGridSpec grid;
     grid.coordinate_kind = erf_sbm::CoordinateKind::Mass;
@@ -44,7 +44,7 @@ erf_sbm::SBMLayout make_sbm_layout(const SolverChoice& choice)
     return erf_sbm::SBMLayout(std::move(spec));
 }
 
-void validate_sbm_zero_transport_fixture(const SolverChoice& choice,
+void validate_sbm_zero_transport_fixture (const SolverChoice& choice,
                                          const int max_level)
 {
     if (choice.moisture_type != MoistureType::SBM) return;
@@ -91,7 +91,7 @@ void validate_sbm_zero_transport_fixture(const SolverChoice& choice,
         "SBM zero-transport fixture rejects problem-specific liquid forcing and custom initial perturbations");
 }
 
-void validate_auxiliary_inert_tracer_fixture(const SolverChoice& choice,
+void validate_auxiliary_inert_tracer_fixture (const SolverChoice& choice,
                                              const int max_level)
 {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.moisture_type == MoistureType::None,

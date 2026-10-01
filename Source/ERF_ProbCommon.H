@@ -89,7 +89,7 @@ public:
     }
 
     virtual void
-    erf_init_const_dens_hse(amrex::MultiFab& /*rho_hse*/)
+    erf_init_const_dens_hse (amrex::MultiFab& /*rho_hse*/)
     {
         amrex::Error("Should never call this version of erf_init_const_dens_hse for "+name()+" problem");
     }
@@ -843,7 +843,7 @@ public:
 #endif
 
     void
-    read_custom_terrain(const std::string& fname,
+    read_custom_terrain (const std::string& fname,
                          const bool is_usgs,
                          const amrex::Geometry& geom,
                          amrex::FArrayBox& terrain_fab,
@@ -1173,7 +1173,7 @@ public:
     }
 
 #ifdef ERF_USE_TERRAIN_VELOCITY
-    virtual amrex::Real compute_terrain_velocity(const double /*time*/)
+    virtual amrex::Real compute_terrain_velocity (const double /*time*/)
     {
         amrex::Error("Should never call compute_terrain_velocity for "+name()+" problem");
     }
@@ -1208,7 +1208,7 @@ protected:
         base_parms.T_0 = T_0;
     }
 
-    std::string name() {
+    std::string name () {
         std::string prob_name;
         amrex::ParmParse pp("erf");
         pp.get("prob_name",prob_name); return prob_name;

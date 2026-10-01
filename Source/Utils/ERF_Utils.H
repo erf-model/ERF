@@ -90,7 +90,7 @@ ERFPostProcessBaseGrids (const amrex::Box& domain, bool decompose_in_z);
  * @param[in] ng Number of ghost cells.
  */
 void
-cons_to_prim(const amrex::MultiFab& cons_state, amrex::MultiFab& S_prim, int ng);
+cons_to_prim (const amrex::MultiFab& cons_state, amrex::MultiFab& S_prim, int ng);
 
 /**
  * Fill the ghost cells of the wall distance field, which is only computed on
@@ -109,7 +109,7 @@ fill_wall_dist_ghost_cells (amrex::MultiFab& wdist, const amrex::Geometry& geom)
  * @param[in] n_qstate_into_total Number of components to include in total water.
  */
 void
-make_qt(const amrex::MultiFab& cons_state, amrex::MultiFab& qt, int n_qstate_into_total);
+make_qt (const amrex::MultiFab& cons_state, amrex::MultiFab& qt, int n_qstate_into_total);
 
 /*
  * Create the Jacobian for the metric transformation when use_terrain is true
@@ -734,7 +734,7 @@ thinbody_wall_dist (std::unique_ptr<amrex::MultiFab>& wdist,
                     std::unique_ptr<amrex::MultiFab>& z_phys_cc);
 
 
-void WeatherDataInterpolation(const double time);
+void WeatherDataInterpolation (const double time);
 
 /**
  * Perform quadratic interpolation in one dimension.
@@ -750,7 +750,7 @@ void WeatherDataInterpolation(const double time);
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
-quad_interp_1d(amrex::Real z,
+quad_interp_1d (amrex::Real z,
                amrex::Real z0, amrex::Real p0,
                amrex::Real z1, amrex::Real p1,
                amrex::Real z2, amrex::Real p2)

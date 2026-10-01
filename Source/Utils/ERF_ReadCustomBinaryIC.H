@@ -12,7 +12,7 @@
  */
 
 inline void
-ReadCustomBinaryIC(const std::string filename,
+ReadCustomBinaryIC (const std::string filename,
                    amrex::Vector<amrex::Real>& latvec_h,
                    amrex::Vector<amrex::Real>& lonvec_h,
                    amrex::Vector<amrex::Real>& xvec_h,

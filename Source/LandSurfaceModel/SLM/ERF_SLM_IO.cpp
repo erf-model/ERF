@@ -7,7 +7,7 @@ using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
 void
-SLM::writeSLM_NetCDF(const MultiFab& mf, const Vector<std::string>& varnames, const amrex::Real cur_time,
+SLM::writeSLM_NetCDF (const MultiFab& mf, const Vector<std::string>& varnames, const amrex::Real cur_time,
                      const std::string plot_prefix, const int /*level_step*/)
 {
     std::string plotfilename = plot_prefix + ".nc";
@@ -83,7 +83,7 @@ SLM::writeSLM_NetCDF(const MultiFab& mf, const Vector<std::string>& varnames, co
 }
 
 void
-SLM::writeNCHeader(ncutils::NCFile &nc_file, const amrex::Geometry &geom)
+SLM::writeNCHeader (ncutils::NCFile &nc_file, const amrex::Geometry &geom)
 {
     // define data dimensions: time, x, y, z
     nc_file.enter_def_mode();
@@ -168,7 +168,7 @@ SLM::writeNCHeader(ncutils::NCFile &nc_file, const amrex::Geometry &geom)
     amrex::ParallelDescriptor::Barrier();
 }
 
-void SLM::writeMFtoNC(ncutils::NCFile &nc_file, const MultiFab* mf,
+void SLM::writeMFtoNC (ncutils::NCFile &nc_file, const MultiFab* mf,
                       const std::string name, Real cur_time, bool write_ghost)
 {
     IntVect ngrow = mf->nGrowVect();
@@ -358,7 +358,7 @@ void SLM::writeMFtoNC(ncutils::NCFile &nc_file, const MultiFab* mf,
 }
 
 void
-SLM::writeMFVecToNC(ncutils::NCFile& /*nc_file*/,
+SLM::writeMFVecToNC (ncutils::NCFile& /*nc_file*/,
                     const Vector<const MultiFab*>& /*mf_vec*/,
                     const Vector<std::string>& /*mf_names*/,
                     const Geometry& /*geom*/) const
@@ -378,7 +378,7 @@ SLM::GotoNextLine (std::istream& is)
     is.ignore(bl_ignore_max, '\n');
 }
 
-void SLM::WriteCheckpoint(const int &lev, const std::string &checkpointname) const
+void SLM::WriteCheckpoint (const int &lev, const std::string &checkpointname) const
 {
     auto check_start = amrex::second();
 
@@ -668,7 +668,7 @@ void SLM::WriteCheckpoint(const int &lev, const std::string &checkpointname) con
     amrex::Print() << "    SLM Checkpoint write time = " << check_end << " seconds." << '\n';
 }
 
-void SLM::ReadCheckpoint(const int &lev, const std::string &checkpointname)
+void SLM::ReadCheckpoint (const int &lev, const std::string &checkpointname)
 {
     auto check_start = amrex::second();
 

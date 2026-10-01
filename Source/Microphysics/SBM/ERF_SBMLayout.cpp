@@ -8,7 +8,7 @@
 
 namespace erf_sbm {
 
-LayoutValidation SBMLayout::validate(const SBMLayoutSpec& spec)
+LayoutValidation SBMLayout::validate (const SBMLayoutSpec& spec)
 {
     if (spec.populations.empty()) return {false, "at least one SBM population is required"};
     std::vector<int> ids;
@@ -64,7 +64,7 @@ LayoutValidation SBMLayout::validate(const SBMLayoutSpec& spec)
     return {true, {}};
 }
 
-SBMLayout::SBMLayout(SBMLayoutSpec spec)
+SBMLayout::SBMLayout (SBMLayoutSpec spec)
 {
     const auto result = validate(spec);
     if (!result.valid) throw std::invalid_argument("invalid SBM layout: " + result.message);
@@ -149,7 +149,7 @@ SBMLayout::SBMLayout(SBMLayoutSpec spec)
     m_schema_identity = schema.str();
 }
 
-int SBMLayout::property_offset(const int property) const
+int SBMLayout::property_offset (const int property) const
 {
     if (property < 0 || property >= static_cast<int>(m_property_offsets.size())) {
         throw std::out_of_range("unknown SBM attached property");
@@ -157,13 +157,13 @@ int SBMLayout::property_offset(const int property) const
     return m_property_offsets[static_cast<std::size_t>(property)];
 }
 
-int SBMLayout::mass_offset(const int population) const
+int SBMLayout::mass_offset (const int population) const
 {
     for (const auto& p : m_populations) if (p.population_id == population) return p.mass_offset;
     throw std::out_of_range("unknown SBM population");
 }
 
-std::string SBMLayout::inspection() const
+std::string SBMLayout::inspection () const
 {
     std::ostringstream out;
     out << "schema=" << m_schema_identity << "\ncomponents=" << m_ncomp << "\n";
@@ -194,7 +194,7 @@ std::string SBMLayout::inspection() const
     return out.str();
 }
 
-::erf_auxiliary::AuxiliaryStateLayout SBMLayout::auxiliary_layout() const
+::erf_auxiliary::AuxiliaryStateLayout SBMLayout::auxiliary_layout () const
 {
     std::vector<::erf_auxiliary::ComponentDescriptor> components;
     components.reserve(static_cast<std::size_t>(m_ncomp));

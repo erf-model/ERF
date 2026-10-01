@@ -25,15 +25,15 @@ struct AuxiliaryInertTracer::LevelStorage {
     amrex::Real max_stage_rate_delta{0.0};
 };
 
-AuxiliaryInertTracer::~AuxiliaryInertTracer() = default;
+AuxiliaryInertTracer::~AuxiliaryInertTracer () = default;
 
-AuxiliaryInertTracer::AuxiliaryInertTracer(const int number_of_levels)
+AuxiliaryInertTracer::AuxiliaryInertTracer (const int number_of_levels)
     : m_levels(static_cast<std::size_t>(number_of_levels))
 {
     AMREX_ALWAYS_ASSERT(number_of_levels > 0);
 }
 
-const AuxiliaryStateLayout& AuxiliaryInertTracer::layout()
+const AuxiliaryStateLayout& AuxiliaryInertTracer::layout ()
 {
     static const AuxiliaryStateLayout value(
         "erf-auxiliary-inert-tracer-m2-v1",
@@ -41,7 +41,7 @@ const AuxiliaryStateLayout& AuxiliaryInertTracer::layout()
     return value;
 }
 
-void AuxiliaryInertTracer::define(const int level,
+void AuxiliaryInertTracer::define (const int level,
                                  const amrex::BoxArray& cell_ba,
                                  const amrex::DistributionMapping& dm,
                                  const amrex::MultiFab& detJ,
@@ -72,7 +72,7 @@ void AuxiliaryInertTracer::define(const int level,
     m_levels[static_cast<std::size_t>(level)] = std::move(data);
 }
 
-void AuxiliaryInertTracer::initialize(const int level,
+void AuxiliaryInertTracer::initialize (const int level,
                                      const amrex::MultiFab& conserved,
                                      const amrex::Geometry& geometry)
 {
@@ -112,7 +112,7 @@ void AuxiliaryInertTracer::initialize(const int level,
                    << " components=" << layout().ncomp() << std::endl;
 }
 
-void AuxiliaryInertTracer::advance_stage(
+void AuxiliaryInertTracer::advance_stage (
     const int level,
     const HostIntegrator method,
     const int stage,
@@ -297,19 +297,19 @@ void AuxiliaryInertTracer::advance_stage(
     }
 }
 
-void AuxiliaryInertTracer::destroy(const int level)
+void AuxiliaryInertTracer::destroy (const int level)
 {
     AMREX_ALWAYS_ASSERT(level >= 0 && level < static_cast<int>(m_levels.size()));
     m_levels[static_cast<std::size_t>(level)].reset();
 }
 
-bool AuxiliaryInertTracer::is_defined(const int level) const
+bool AuxiliaryInertTracer::is_defined (const int level) const
 {
     return level >= 0 && level < static_cast<int>(m_levels.size()) &&
            m_levels[static_cast<std::size_t>(level)] != nullptr;
 }
 
-const amrex::MultiFab& AuxiliaryInertTracer::state(const int level) const
+const amrex::MultiFab& AuxiliaryInertTracer::state (const int level) const
 {
     AMREX_ALWAYS_ASSERT(is_defined(level));
     return m_levels[static_cast<std::size_t>(level)]->state;

@@ -89,19 +89,19 @@ struct LayoutValidation {
 /** Immutable runtime SBM component and projection layout. */
 class SBMLayout {
 public:
-    static LayoutValidation validate(const SBMLayoutSpec& spec);
-    explicit SBMLayout(SBMLayoutSpec spec);
+    static LayoutValidation validate (const SBMLayoutSpec& spec);
+    explicit SBMLayout (SBMLayoutSpec spec);
 
-    [[nodiscard]] const std::vector<PopulationLayout>& populations() const noexcept { return m_populations; }
-    [[nodiscard]] const std::vector<AttachedPropertyDescriptor>& attached_properties() const noexcept { return m_properties; }
-    [[nodiscard]] const ::erf_auxiliary::AuxiliaryProjection& bulk_projection() const noexcept { return m_projection; }
-    [[nodiscard]] const LiquidProjectionSpec& liquid_projection() const noexcept { return m_liquid_projection; }
-    [[nodiscard]] int ncomp() const noexcept { return m_ncomp; }
-    [[nodiscard]] int mass_offset(const int population) const;
-    [[nodiscard]] int property_offset(const int property) const;
-    [[nodiscard]] std::string schema_identity() const noexcept { return m_schema_identity; }
-    [[nodiscard]] std::string inspection() const;
-    [[nodiscard]] ::erf_auxiliary::AuxiliaryStateLayout auxiliary_layout() const;
+    [[nodiscard]] const std::vector<PopulationLayout>& populations () const noexcept { return m_populations; }
+    [[nodiscard]] const std::vector<AttachedPropertyDescriptor>& attached_properties () const noexcept { return m_properties; }
+    [[nodiscard]] const ::erf_auxiliary::AuxiliaryProjection& bulk_projection () const noexcept { return m_projection; }
+    [[nodiscard]] const LiquidProjectionSpec& liquid_projection () const noexcept { return m_liquid_projection; }
+    [[nodiscard]] int ncomp () const noexcept { return m_ncomp; }
+    [[nodiscard]] int mass_offset (const int population) const;
+    [[nodiscard]] int property_offset (const int property) const;
+    [[nodiscard]] std::string schema_identity () const noexcept { return m_schema_identity; }
+    [[nodiscard]] std::string inspection () const;
+    [[nodiscard]] ::erf_auxiliary::AuxiliaryStateLayout auxiliary_layout () const;
 
 private:
     std::vector<PopulationLayout> m_populations;

@@ -649,7 +649,7 @@ void wdm6_ccn_activation (
 // Main Advance routine
 // ---------------------------------------------------------------
 
-void WDM6::Advance(const Real& dt_advance,
+void WDM6::Advance (const Real& dt_advance,
                    const SolverChoice& /*solverChoice*/)
 {
     // ---------------------------------------------------------------

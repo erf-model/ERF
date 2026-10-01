@@ -9,7 +9,7 @@
 
 namespace erf_sbm {
 
-SBMBulkProjection::SBMBulkProjection(const SBMLayout& layout)
+SBMBulkProjection::SBMBulkProjection (const SBMLayout& layout)
 {
     const auto& projection = layout.liquid_projection();
     const auto p = std::find_if(layout.populations().begin(), layout.populations().end(),
@@ -25,7 +25,7 @@ SBMBulkProjection::SBMBulkProjection(const SBMLayout& layout)
     m_rain_count = p->grid.nbins() - m_cloud_count;
 }
 
-BulkProjection SBMBulkProjection::apply(const std::vector<amrex::Real>& auxiliary) const
+BulkProjection SBMBulkProjection::apply (const std::vector<amrex::Real>& auxiliary) const
 {
     if (m_rain_offset + m_rain_count > static_cast<int>(auxiliary.size())) {
         throw std::invalid_argument("auxiliary state is smaller than SBM projection");
@@ -40,7 +40,7 @@ BulkProjection SBMBulkProjection::apply(const std::vector<amrex::Real>& auxiliar
     return result;
 }
 
-void SBMBulkProjection::apply_to_core(const amrex::Box& box,
+void SBMBulkProjection::apply_to_core (const amrex::Box& box,
                                       const amrex::Array4<const amrex::Real>& auxiliary,
                                       const amrex::Array4<amrex::Real>& core,
                                       const int qc_component,

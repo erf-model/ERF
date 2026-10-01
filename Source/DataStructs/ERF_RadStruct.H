@@ -755,7 +755,7 @@ public:
     }
   }
 
-  void init_params(bool two_stream_selected, std::string pp_prefix)
+  void init_params (bool two_stream_selected, std::string pp_prefix)
   {
     amrex::ParmParse pp(pp_prefix);
     enabled = two_stream_selected;
@@ -1180,7 +1180,7 @@ public:
    *
    * @return true when erf.radiation_model = TwoStream.
    */
-  [[nodiscard]] bool uses_two_stream_radiation() const noexcept
+  [[nodiscard]] bool uses_two_stream_radiation () const noexcept
   {
     return enabled;
   }

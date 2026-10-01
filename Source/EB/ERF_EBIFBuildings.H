@@ -56,7 +56,7 @@ public:
      * 3. Pre-samples signed distances onto a reference grid
      * 4. Stores interpolation data for operator() calls
      */
-    BuildingsIF(std::string const& stl_file,
+    BuildingsIF (std::string const& stl_file,
                 amrex::Real scale,
                 amrex::Array<amrex::Real, 3> const& center,
                 int reverse_normal,
@@ -155,7 +155,7 @@ public:
      * during construction, then replicated for fast operator() access.
      */
     AMREX_GPU_HOST_DEVICE inline
-    amrex::Real operator()(AMREX_D_DECL(amrex::Real x,
+    amrex::Real operator() (AMREX_D_DECL(amrex::Real x,
                                         amrex::Real y,
                                         amrex::Real z)) const noexcept
     {
@@ -216,7 +216,7 @@ public:
      * \return Signed distance value.
      */
     AMREX_GPU_HOST_DEVICE inline
-    amrex::Real operator()(const amrex::RealArray& p) const noexcept
+    amrex::Real operator() (const amrex::RealArray& p) const noexcept
     {
         return this->operator()(AMREX_D_DECL(p[0], p[1], p[2]));
     }

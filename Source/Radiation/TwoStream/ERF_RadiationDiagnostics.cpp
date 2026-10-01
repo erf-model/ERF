@@ -9,7 +9,7 @@
  * @brief Implementation of RadiationDiagnostics CSV logger and debug output.
  */
 
-RadiationDiagnostics::RadiationDiagnostics(int verbosity,
+RadiationDiagnostics::RadiationDiagnostics (int verbosity,
                                            const std::string& diag_file,
                                            int amr_level,
                                            bool diag_enable,
@@ -30,13 +30,13 @@ RadiationDiagnostics::RadiationDiagnostics(int verbosity,
   // write_header_if_needed() is called on first append()
 }
 
-RadiationDiagnostics::~RadiationDiagnostics()
+RadiationDiagnostics::~RadiationDiagnostics ()
 {
   // Destructor: nothing special needed
   // File handles are closed by ofstream RAII
 }
 
-void RadiationDiagnostics::write_header_if_needed()
+void RadiationDiagnostics::write_header_if_needed ()
 {
   if (m_header_written || !m_diag_csv_enable || !m_diag_enable) {
     return;
@@ -76,7 +76,7 @@ void RadiationDiagnostics::write_header_if_needed()
   m_header_written = true;
 }
 
-void RadiationDiagnostics::append(int step, amrex::Real time, const std::string& call_site,
+void RadiationDiagnostics::append (int step, amrex::Real time, const std::string& call_site,
                                   amrex::Real SW_surface, amrex::Real SW_TOA, amrex::Real SW_up_TOA,
                                   amrex::Real LW_net_surface, amrex::Real LW_up_TOA,
                                   amrex::Real heating_rate_max,

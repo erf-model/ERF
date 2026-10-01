@@ -18,7 +18,7 @@ using namespace amrex;
  * @param lgeom Geometry defining the vertical domain
  * @param zlev_stag Optional stretched-grid staggered height levels
  */
-void ERF::init_geo_wind_profile(const std::string input_file,
+void ERF::init_geo_wind_profile (const std::string input_file,
                                 Vector<Real>& u_geos,
                                 Gpu::DeviceVector<Real>& u_geos_d,
                                 Vector<Real>& v_geos,

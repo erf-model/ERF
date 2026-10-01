@@ -9,7 +9,7 @@
 
 using namespace amrex;
 
-void InitERFBdyFile(const std::string& bdy_file_name,
+void InitERFBdyFile (const std::string& bdy_file_name,
                     int ntimes,
                     const Vector<double>& bdy_times,
                     const Box& domain,
@@ -63,7 +63,7 @@ void InitERFBdyFile(const std::string& bdy_file_name,
     ParallelDescriptor::Barrier();
 }
 
-void WriteERFBdyTimeSlice(const std::string& bdy_file_name,
+void WriteERFBdyTimeSlice (const std::string& bdy_file_name,
                           int itime,
                           const Vector<FArrayBox>& bdy_data_xlo,
                           const Vector<FArrayBox>& bdy_data_xhi,

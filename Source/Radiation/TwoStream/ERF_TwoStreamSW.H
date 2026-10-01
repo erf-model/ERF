@@ -69,7 +69,7 @@
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
-compute_sw_direct_flux(amrex::Real tau_cumulative, amrex::Real S0,
+compute_sw_direct_flux (amrex::Real tau_cumulative, amrex::Real S0,
                        amrex::Real cos_zenith)
 {
   if (cos_zenith <= 0.0) {
@@ -98,7 +98,7 @@ compute_sw_direct_flux(amrex::Real tau_cumulative, amrex::Real S0,
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
-compute_sw_heating_rate(amrex::Real flux_top, amrex::Real flux_bot,
+compute_sw_heating_rate (amrex::Real flux_top, amrex::Real flux_bot,
                         amrex::Real dz, amrex::Real rho, amrex::Real cp)
 {
   if (dz <= 0.0 || rho <= 0.0 || cp <= 0.0) {
@@ -173,7 +173,7 @@ struct TwoStreamLayerSW
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 TwoStreamLayerSW
-compute_sw_layer_two_stream(amrex::Real tau, amrex::Real omega, amrex::Real g,
+compute_sw_layer_two_stream (amrex::Real tau, amrex::Real omega, amrex::Real g,
                             amrex::Real cos_zenith)
 {
   TwoStreamLayerSW L{0.0, 1.0, 0.0, 0.0, 1.0};

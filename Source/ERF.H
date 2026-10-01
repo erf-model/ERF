@@ -142,13 +142,13 @@ public:
     ERF (ERF&&)  noexcept = delete;
 
     // Declare a default move assignment operator
-    ERF& operator=(ERF&& other)  noexcept = delete;
+    ERF& operator= (ERF&& other)  noexcept = delete;
 
     // Delete the copy constructor
     ERF (const ERF& other) = delete;
     //
     // Delete the copy assignment operator
-    ERF& operator=(const ERF& other) = delete;
+    ERF& operator= (const ERF& other) = delete;
 
     // Advance solution to final time
     void Evolve ();
@@ -298,33 +298,33 @@ public:
 
     amrex::Vector<amrex::Vector<amrex::MultiFab>> bckgnd_state;
 
-    std::string MakeVTKFilename(int nstep);
-    std::string MakeVTKFilename_TrackerCircle(int nstep);
-    std::string MakeVTKFilename_EyeTracker_xy(int nstep);
-    std::string MakeFilename_EyeTracker_latlon(int nstep);
-    std::string MakeFilename_EyeTracker_maxvel(int nstep);
-    std::string MakeFilename_EyeTracker_minpressure(int nstep);
-    void WriteVTKPolyline(const std::string& filename,
+    std::string MakeVTKFilename (int nstep);
+    std::string MakeVTKFilename_TrackerCircle (int nstep);
+    std::string MakeVTKFilename_EyeTracker_xy (int nstep);
+    std::string MakeFilename_EyeTracker_latlon (int nstep);
+    std::string MakeFilename_EyeTracker_maxvel (int nstep);
+    std::string MakeFilename_EyeTracker_minpressure (int nstep);
+    void WriteVTKPolyline (const std::string& filename,
                           amrex::Vector<std::array<amrex::Real, 2>>& points_xy);
 
-    void WriteLinePlot(const std::string& filename,
+    void WriteLinePlot (const std::string& filename,
                        amrex::Vector<std::array<amrex::Real, 2>>& points_xy);
 
-    void HurricaneEyeTracker(const SolverChoice& solverChoice,
+    void HurricaneEyeTracker (const SolverChoice& solverChoice,
                              const amrex::MultiFab& mf_cc_vel);
 
-    void HurricaneEyeTrackerInitial(const SolverChoice& sc,
+    void HurricaneEyeTrackerInitial (const SolverChoice& sc,
                                     const amrex::Geometry& geom,
                                     const amrex::Vector<amrex::MultiFab>& S_data,
                                     const amrex::Real& hurricane_eye_latitude,
                                     const amrex::Real& hurricane_eye_longitude);
 
-    void HurricaneEyeTrackerNotInitial(const SolverChoice& sc,
+    void HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
                                        const amrex::Geometry& geom,
                                        const amrex::MultiFab& mf_cc_vel,
                                        const amrex::Vector<amrex::MultiFab>& S_data);
 
-    void ComputeGlobalMinLocation(const SolverChoice& sc,
+    void ComputeGlobalMinLocation (const SolverChoice& sc,
                                   const amrex::Geometry& geom,
                                   const amrex::Vector<amrex::MultiFab>& S_data,
                                   amrex::Real* d_val_min_ptr,
@@ -334,18 +334,18 @@ public:
                                   int& global_i_min,
                                   int& global_j_min);
 
-    void HurricaneMaxVelTracker(const amrex::Geometry& geom,
+    void HurricaneMaxVelTracker (const amrex::Geometry& geom,
                                 const amrex::MultiFab& mf_cc_vel,
                                 const double& time);
 
-    void HurricaneMinPressureTracker(MoistureType moisture_type,
+    void HurricaneMinPressureTracker (MoistureType moisture_type,
                                      const amrex::Geometry& geom,
                                      const amrex::MultiFab& mf_cons_var,
                                      const double& time);
 
-    void HurricaneTrackerCircle();
+    void HurricaneTrackerCircle ();
 
-    void ReadStormTrackerRestart();
+    void ReadStormTrackerRestart ();
 
     // Initialize multilevel data
     void InitData ();
@@ -393,7 +393,7 @@ public:
     // Calculate wall distance by solving a Poisson equation
     void poisson_wall_dist (int lev);
 
-    void make_subdomains(const amrex::BoxList& ba, amrex::Vector<amrex::BoxArray>& bins);
+    void make_subdomains (const amrex::BoxList& ba, amrex::Vector<amrex::BoxArray>& bins);
 
 #ifdef ERF_USE_FFT
     void build_fft_solvers (int lev);
@@ -417,18 +417,18 @@ public:
     void restart ();
 
     // Check for NaNs and other bad stuff
-    void check_state_for_nans(amrex::MultiFab const& S);
-    void check_vels_for_nans(amrex::MultiFab const& xvel, amrex::MultiFab const& yvel, amrex::MultiFab const& zvel);
+    void check_state_for_nans (amrex::MultiFab const& S);
+    void check_vels_for_nans (amrex::MultiFab const& xvel, amrex::MultiFab const& yvel, amrex::MultiFab const& zvel);
     void check_for_negative_theta (amrex::MultiFab& S);
     void check_for_low_temp       (amrex::MultiFab& S);
 
-    void compute_max_pressure_gradient_diagnostic(int lev);
+    void compute_max_pressure_gradient_diagnostic (int lev);
 
     // Max of (buoyancy - vertical gradient of perturbational pressure);
     //    this is identically zero if the state is in HSE and buoyancy_type = 1
-    void compute_max_buoyancy_gradp_diagnostic(int lev);
+    void compute_max_buoyancy_gradp_diagnostic (int lev);
 
-    void check_mesh_type(int lev);
+    void check_mesh_type (int lev);
 
     // Is it time to write a plotfile or checkpoint?
     // Note that "cur_time" is always in double precision
@@ -476,10 +476,10 @@ public:
     void post_timestep (int nstep, double time, double dt_lev);
 
     // Do whatever writing needs to be done at intermediate times
-    void WriteAtIntermediateTime(int nstep, double time);
+    void WriteAtIntermediateTime (int nstep, double time);
 
     // Do whatever writing needs to be done after time-stepping is complete
-    void WriteAtFinalTime();
+    void WriteAtFinalTime ();
 
     // Diagnostics
     void sum_integrated_quantities (double time);
@@ -553,7 +553,7 @@ public:
                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_hfx3,  amrex::Gpu::HostVector<amrex::Real>& h_avg_q1fx3,
                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_q2fx3, amrex::Gpu::HostVector<amrex::Real>& h_avg_diss);
 
-    void derive_forcing_profiles_stag(amrex::Gpu::HostVector<amrex::Real>& h_avg_ttend,  amrex::Gpu::HostVector<amrex::Real>& h_avg_qtend,
+    void derive_forcing_profiles_stag (amrex::Gpu::HostVector<amrex::Real>& h_avg_ttend,  amrex::Gpu::HostVector<amrex::Real>& h_avg_qtend,
                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_wsub,   amrex::Gpu::HostVector<amrex::Real>& h_avg_thtend,
                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_qhtend, amrex::Gpu::HostVector<amrex::Real>& h_avg_tvtend,
                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_qvtend, amrex::Gpu::HostVector<amrex::Real>& h_avg_qcvtend,
@@ -601,9 +601,9 @@ public:
 
 #ifdef ERF_USE_WW3_COUPLING
     //amrex::Print() <<  " About to call send_to_ww3 from ERF.H" << std::endl;
-    void send_to_ww3(int lev);
+    void send_to_ww3 (int lev);
     //amrex::Print() <<  " About to call read_waves from ERF.H" << std::endl;
-    void read_waves(int lev);
+    void read_waves (int lev);
     //void send_to_ww3 (int lev);
     //void read_waves (int lev);
 
@@ -827,22 +827,22 @@ public:
 
     void init_thin_body (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
 
-    void FillForecastStateMultiFabs(const int lev,
+    void FillForecastStateMultiFabs (const int lev,
                                     const std::string& filename,
                                     const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                                     amrex::Vector<amrex::Vector<amrex::MultiFab>>& forecast_state);
 
-    void FillSurfaceStateMultiFabs(const int lev,
+    void FillSurfaceStateMultiFabs (const int lev,
                                    const std::string& filename,
                                    amrex::Vector<amrex::MultiFab>& surface_state);
 
 
-    void WeatherDataInterpolation(const int nlevs,
+    void WeatherDataInterpolation (const int nlevs,
                                   const double time,
                                   amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                                   bool regrid_forces_file_read);
 
-    void SurfaceDataInterpolation(const int nlevs,
+    void SurfaceDataInterpolation (const int nlevs,
                                   const double time,
                                   amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
                                   bool regrid_forces_file_read);
@@ -969,7 +969,7 @@ public:
 #endif // ERF_USE_NETCDF
 
 #ifdef ERF_USE_WINDFARM
-    void init_windfarm(int lev);
+    void init_windfarm (int lev);
     void advance_windfarm (const amrex::Geometry& a_geom,
                            const double& dt_advance,
                            amrex::MultiFab& cons_in,
@@ -1747,7 +1747,7 @@ private:
     bool  m_use_tracer_particles; /*!< tracer particles that advect with flow with optional sedimentation */
 
     /*! Read tracer and hydro particles parameters */
-    void readTracersParams();
+    void readTracersParams ();
 
     /*! Initialize tracer and hydro particles */
     void initializeTracers ( amrex::ParGDBBase*,
@@ -1758,7 +1758,7 @@ private:
     void restartTracers ( amrex::ParGDBBase*, const std::string& );
 
     /*! Evolve tracers and hydro particles */
-    void evolveTracers( int,
+    void evolveTracers ( int,
                         double,
                         amrex::Vector<amrex::Vector<amrex::MultiFab>>&,
                         const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& );
@@ -2296,11 +2296,11 @@ public:
                        double artifact_time_seconds) const;
     static void writeBuildInfo (std::ostream& os);
 
-    static void print_banner(MPI_Comm /*comm*/, std::ostream& /*out*/);
-    static void print_usage(MPI_Comm /*comm*/, std::ostream& /*out*/);
-    static void print_error(MPI_Comm /*comm*/, const std::string& msg);
-    static void print_summary(std::ostream&);
-    static void print_tpls(std::ostream& /*out*/);
+    static void print_banner (MPI_Comm /*comm*/, std::ostream& /*out*/);
+    static void print_usage (MPI_Comm /*comm*/, std::ostream& /*out*/);
+    static void print_error (MPI_Comm /*comm*/, const std::string& msg);
+    static void print_summary (std::ostream&);
+    static void print_tpls (std::ostream& /*out*/);
 };
 
 #endif

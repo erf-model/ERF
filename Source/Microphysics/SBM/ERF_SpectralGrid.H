@@ -29,28 +29,28 @@ struct GridValidation {
 /** Runtime-sized, immutable-after-construction spectral grid. */
 class SpectralGrid {
 public:
-    static GridValidation validate(const SpectralGridSpec& spec);
+    static GridValidation validate (const SpectralGridSpec& spec);
 
-    explicit SpectralGrid(SpectralGridSpec spec);
+    explicit SpectralGrid (SpectralGridSpec spec);
 
-    [[nodiscard]] CoordinateKind coordinate_kind() const noexcept { return m_spec.coordinate_kind; }
-    [[nodiscard]] const std::string& coordinate_units() const noexcept { return m_spec.coordinate_units; }
-    [[nodiscard]] const std::vector<amrex::Real>& edges() const noexcept { return m_spec.edges; }
-    [[nodiscard]] const std::vector<amrex::Real>& pivots() const noexcept { return m_spec.pivots; }
-    [[nodiscard]] int nbins() const noexcept { return static_cast<int>(m_spec.edges.size()) - 1; }
+    [[nodiscard]] CoordinateKind coordinate_kind () const noexcept { return m_spec.coordinate_kind; }
+    [[nodiscard]] const std::string& coordinate_units () const noexcept { return m_spec.coordinate_units; }
+    [[nodiscard]] const std::vector<amrex::Real>& edges () const noexcept { return m_spec.edges; }
+    [[nodiscard]] const std::vector<amrex::Real>& pivots () const noexcept { return m_spec.pivots; }
+    [[nodiscard]] int nbins () const noexcept { return static_cast<int>(m_spec.edges.size()) - 1; }
 
-    [[nodiscard]] amrex::Real pivot(const int bin) const { return m_spec.pivots.at(static_cast<std::size_t>(bin)); }
-    [[nodiscard]] std::string identity() const;
+    [[nodiscard]] amrex::Real pivot (const int bin) const { return m_spec.pivots.at(static_cast<std::size_t>(bin)); }
+    [[nodiscard]] std::string identity () const;
 
     // For a two-moment endpoint representation, L/H are number-equivalent
     // endpoint masses and C/M are count and first-moment densities.
-    [[nodiscard]] static bool two_moment_realizable(amrex::Real C, amrex::Real M,
+    [[nodiscard]] static bool two_moment_realizable (amrex::Real C, amrex::Real M,
                                                      amrex::Real lower, amrex::Real upper) noexcept;
     [[nodiscard]] static std::pair<amrex::Real, amrex::Real>
-    two_moment_to_endpoints(amrex::Real C, amrex::Real M,
+    two_moment_to_endpoints (amrex::Real C, amrex::Real M,
                             amrex::Real lower, amrex::Real upper);
     [[nodiscard]] static std::pair<amrex::Real, amrex::Real>
-    endpoints_to_two_moment(amrex::Real L, amrex::Real H,
+    endpoints_to_two_moment (amrex::Real L, amrex::Real H,
                             amrex::Real lower, amrex::Real upper);
 
 private:

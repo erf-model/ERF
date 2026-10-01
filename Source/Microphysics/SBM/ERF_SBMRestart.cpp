@@ -18,7 +18,7 @@
 
 namespace erf_sbm {
 
-std::string restart_schema(const SBMLayout& layout)
+std::string restart_schema (const SBMLayout& layout)
 {
     return std::string("ERF-SBM-RESTART-M1-v1\n") +
            "layout=" + layout.schema_identity() + "\n" +
@@ -28,12 +28,12 @@ std::string restart_schema(const SBMLayout& layout)
            "transport=zero-transport-fixture-v1\n";
 }
 
-bool restart_schema_matches(const SBMLayout& layout, const std::string& persisted)
+bool restart_schema_matches (const SBMLayout& layout, const std::string& persisted)
 {
     return restart_schema(layout) == persisted;
 }
 
-bool authoritative_state_admissible(const amrex::MultiFab& spectrum,
+bool authoritative_state_admissible (const amrex::MultiFab& spectrum,
                                     const SBMLayout& layout,
                                     const int level,
                                     std::string* diagnostic)
@@ -130,7 +130,7 @@ bool authoritative_state_admissible(const amrex::MultiFab& spectrum,
     return true;
 }
 
-bool restart_projection_matches(const amrex::MultiFab& spectrum,
+bool restart_projection_matches (const amrex::MultiFab& spectrum,
                                 const amrex::MultiFab& persisted_core,
                                 const SBMBulkProjection& projection,
                                 const int qc_component, const int qr_component,

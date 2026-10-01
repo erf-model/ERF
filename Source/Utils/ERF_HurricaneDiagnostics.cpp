@@ -675,7 +675,7 @@ ERF::HurricaneEyeTracker (const SolverChoice& sc,
  * @param[in] time Current simulation time
  */
 void
-ERF::HurricaneMaxVelTracker(const Geometry& lev_geom,
+ERF::HurricaneMaxVelTracker (const Geometry& lev_geom,
                             const MultiFab& mf_cc_vel,
                             const double& time)
 {

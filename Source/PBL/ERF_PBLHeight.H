@@ -23,7 +23,7 @@ struct MYNNPBLH {
      */
     AMREX_GPU_HOST
     AMREX_FORCE_INLINE
-    void compute_pblh(const amrex::Geometry& geom,
+    void compute_pblh (const amrex::Geometry& geom,
                       const amrex::MultiFab* z_phys_cc,
                       amrex::MultiFab* pblh,
                       const amrex::MultiFab& cons,

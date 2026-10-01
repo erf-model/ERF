@@ -439,7 +439,7 @@ struct eb_cut_cell_::path_data
   //! Construct empty path data.
   AMREX_GPU_HOST_DEVICE
   AMREX_FORCE_INLINE
-  path_data() = default;
+  path_data () = default;
 
   //! Whether the edge intersects the EB plane.
   bool intersected{};
@@ -463,7 +463,7 @@ struct eb_cut_cell_::path_data
    */
   AMREX_GPU_HOST_DEVICE
   AMREX_FORCE_INLINE
-  void set(const amrex::RealVect& eb_point,
+  void set (const amrex::RealVect& eb_point,
           const amrex::RealVect& eb_normal,
           const amrex::RealVect& v_start,
           const amrex::RealVect& v_end)

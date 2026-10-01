@@ -19,7 +19,7 @@ namespace {
     /*! \brief Update common attributes for predator particle (remainder > 0 case)
      *  Updates Tfz, species masses, and aerosol masses for particle i */
     AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-    void update_common_positive_rmndr(
+    void update_common_positive_rmndr (
         const int a_i, const int a_j,
         const ParticleReal a_gamma,
         ParticleReal* const a_Tfz,
@@ -34,7 +34,7 @@ namespace {
     /*! \brief Update common attributes for both particles (remainder == 0 case)
      *  Splits multiplicity and updates Tfz, species masses, aerosol masses for both */
     AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-    void update_common_zero_rmndr(
+    void update_common_zero_rmndr (
         const int a_i, const int a_j,
         const ParticleReal a_gamma,
         ParticleReal* const a_mult,
@@ -81,7 +81,7 @@ static ParticleReal coalescence_rate ( const RandomEngine& a_rnd_eng, /*!< rando
  *  BSD 2-Clause License
  */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-static void coal_update_attribs(const int a_i, /*!< index of particle */
+static void coal_update_attribs (const int a_i, /*!< index of particle */
                                 const int a_j, /*!< index of coalescence partner */
                                 const int* const a_prey, /*!< prey/predator */
                                 const ParticleReal* const a_gamma, /*!< coalescence rate */
@@ -130,7 +130,7 @@ static void coal_update_attribs(const int a_i, /*!< index of particle */
 
 /*! \brief Binary aggregation between two superdroplets */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-static void aggr_update_attribs(const int a_i, /*!< index of particle */
+static void aggr_update_attribs (const int a_i, /*!< index of particle */
                                 const int a_j, /*!< index of coalescence partner */
                                 const int a_sp_idx_i, /*!< species index of ice */
                                 const Real a_rho_ice, /*!< true ice density */
@@ -235,7 +235,7 @@ static void aggr_update_attribs(const int a_i, /*!< index of particle */
 
 /*! \brief Binary riming between a water droplet and an ice particle */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-static void rime_update_attribs(const int a_i, /*!< index of particle */
+static void rime_update_attribs (const int a_i, /*!< index of particle */
                                 const int a_j, /*!< index of coalescence partner */
                                 const int a_sp_idx_w, /*!< species index of water */
                                 const int a_sp_idx_i, /*!< species index of ice */
@@ -424,7 +424,7 @@ static void rime_update_attribs(const int a_i, /*!< index of particle */
 }
 
 /*! Compute the coalescence of superdroplets in each time step */
-void SuperDropletPC::Coalescence( int   a_lev,
+void SuperDropletPC::Coalescence ( int   a_lev,
                                   double                               a_dt,
                                   const MultiFab& a_pressure,
                                   const MultiFab& a_moist_density,

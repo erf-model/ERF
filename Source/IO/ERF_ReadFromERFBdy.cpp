@@ -10,7 +10,7 @@
 using namespace amrex;
 
 double
-read_times_from_erfbdy(const std::string& bdy_file_name,
+read_times_from_erfbdy (const std::string& bdy_file_name,
                        int& ntimes,
                        int& nvars,
                        int& real_width,
@@ -65,7 +65,7 @@ read_times_from_erfbdy(const std::string& bdy_file_name,
 }
 
 void
-read_from_erfbdy(int itime,
+read_from_erfbdy (int itime,
                  const std::string& bdy_file_name,
                  Vector<Vector<FArrayBox>>& bdy_data_xlo,
                  Vector<Vector<FArrayBox>>& bdy_data_xhi,

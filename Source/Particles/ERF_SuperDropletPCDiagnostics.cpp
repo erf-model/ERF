@@ -73,7 +73,7 @@ Vector<std::string> SuperDropletPC::meshPlotVarNames () const
 }
 
 /*! Compute diagnostics (max, min, avg radius, mass, etc) */
-void SuperDropletPC::Diagnostics( const int a_iter,
+void SuperDropletPC::Diagnostics ( const int a_iter,
                                   const int a_lev,
                                   const double a_time,
                                   const bool a_flag )
@@ -598,7 +598,7 @@ void SuperDropletPC::Diagnostics( const int a_iter,
 /*! Compute and write the distributions (as a function of the log of
     the droplet radius. The file written is a text file with multiple columns:
     R, g_mass(ln R), g_n(ln R) */
-void SuperDropletPC::ComputeDistributions( const int a_iter,
+void SuperDropletPC::ComputeDistributions ( const int a_iter,
                                            const int a_lev,
                                            const ParticleReal a_r_min,
                                            const ParticleReal a_r_max )
@@ -719,7 +719,7 @@ void SuperDropletPC::ComputeDistributions( const int a_iter,
 /*! Compute and write the distributions (as a function of the log of
     the droplet radius. The file written is a text file with multiple columns:
     R, g_mass(ln R), g_n(ln R) */
-void SuperDropletPC::ComputeBinnedDistributions( const int a_iter, const int a_lev)
+void SuperDropletPC::ComputeBinnedDistributions ( const int a_iter, const int a_lev)
 {
     BL_PROFILE("SuperDropletPC::ComputeBinnedDistributions()");
     int Nbin = m_distribution_grid_size;
@@ -805,7 +805,7 @@ void SuperDropletPC::ComputeBinnedDistributions( const int a_iter, const int a_l
 /*! Compute and write the cell-wise distributions (as a function of the log of
     the droplet radius. The file written is a text file with multiple columns:
     R, g_mass(ln R), g_n(ln R) */
-void SuperDropletPC::ComputeBinnedDistributionsCell( const int a_iter,
+void SuperDropletPC::ComputeBinnedDistributionsCell ( const int a_iter,
                                                      const int a_lev,
                                                      const double a_time )
 {

@@ -14,7 +14,7 @@ using namespace amrex;
  * @param rad_tag Radius within which to tag.
  */
 void
-tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
+tag_on_distance_from_eye (const Geometry& cgeom, TagBoxArray* tags,
                          const Real eye_x, const Real eye_y, const Real rad_tag);
 
 /**
@@ -28,7 +28,7 @@ tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
  * @return True if the eye was found, false otherwise.
  */
 bool
-ERF::FindInitialEye(int levc,
+ERF::FindInitialEye (int levc,
                     const MultiFab& mf_cc_vel,
                     const Real velmag_threshold,
                     Real& eye_x, Real& eye_y)
@@ -108,7 +108,7 @@ ERF::FindInitialEye(int levc,
  * @param rad_tag Radius within which to tag.
  */
 void
-tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
+tag_on_distance_from_eye (const Geometry& cgeom, TagBoxArray* tags,
                          const Real eye_x, const Real eye_y, const Real rad_tag)
 {
     const auto dx      = cgeom.CellSizeArray();
@@ -144,7 +144,7 @@ tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
  * @param[out] tags TagBoxArray to be filled for refinement.
  */
 void
-ERF::HurricaneTracker(int levc,
+ERF::HurricaneTracker (int levc,
                       double time,
                       const MultiFab& mf_cc_vel,
                       const Real velmag_threshold,

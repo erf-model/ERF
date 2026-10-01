@@ -319,7 +319,7 @@ struct MoistureComponentIndices {
     /**
      * @brief Construct an empty map, i.e. a dry run.
      */
-    MoistureComponentIndices() = default;
+    MoistureComponentIndices () = default;
 
     /**
      * @brief Build the complete index map -- conserved-state components and

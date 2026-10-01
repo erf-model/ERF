@@ -15,25 +15,25 @@ namespace erf_auxiliary {
 /** Test-only, non-SBM proof consumer for the generic mapped transport substrate. */
 class AuxiliaryInertTracer {
 public:
-    explicit AuxiliaryInertTracer(int number_of_levels);
-    ~AuxiliaryInertTracer();
-    AuxiliaryInertTracer(const AuxiliaryInertTracer&) = delete;
-    AuxiliaryInertTracer& operator=(const AuxiliaryInertTracer&) = delete;
+    explicit AuxiliaryInertTracer (int number_of_levels);
+    ~AuxiliaryInertTracer ();
+    AuxiliaryInertTracer (const AuxiliaryInertTracer&) = delete;
+    AuxiliaryInertTracer& operator= (const AuxiliaryInertTracer&) = delete;
 
-    [[nodiscard]] static const AuxiliaryStateLayout& layout();
+    [[nodiscard]] static const AuxiliaryStateLayout& layout ();
 
-    void define(int level,
+    void define (int level,
                 const amrex::BoxArray& cell_ba,
                 const amrex::DistributionMapping& dm,
                 const amrex::MultiFab& detJ,
                 const amrex::MultiFab& mx,
                 const amrex::MultiFab& my);
 
-    void initialize(int level,
+    void initialize (int level,
                     const amrex::MultiFab& conserved,
                     const amrex::Geometry& geometry);
 
-    void advance_stage(int level,
+    void advance_stage (int level,
                        HostIntegrator method,
                        int stage,
                        double step_old_time,
@@ -49,9 +49,9 @@ public:
                        const AdvChoice& advection,
                        const amrex::Geometry& geometry);
 
-    void destroy(int level);
-    [[nodiscard]] bool is_defined(int level) const;
-    [[nodiscard]] const amrex::MultiFab& state(int level) const;
+    void destroy (int level);
+    [[nodiscard]] bool is_defined (int level) const;
+    [[nodiscard]] const amrex::MultiFab& state (int level) const;
 
 private:
     struct LevelStorage;

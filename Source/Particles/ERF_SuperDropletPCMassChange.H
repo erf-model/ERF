@@ -872,7 +872,7 @@ namespace SDMassChangeUtils_SV
 
         /*! \brief Compute capacitance */
         AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-        RT capacitance( const RT a_a, /*!< equatorial radius */
+        RT capacitance ( const RT a_a, /*!< equatorial radius */
                         const RT a_c  /*!< polar radius */ ) const noexcept
         {
             auto phi = a_c / a_a;

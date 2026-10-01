@@ -8,12 +8,12 @@
 namespace erf_auxiliary {
 namespace {
 
-bool same_cell_layout(const amrex::MultiFab& a, const amrex::MultiFab& b)
+bool same_cell_layout (const amrex::MultiFab& a, const amrex::MultiFab& b)
 {
     return a.boxArray() == b.boxArray() && a.DistributionMap() == b.DistributionMap();
 }
 
-bool same_horizontal_layout(const amrex::MultiFab& cell_field,
+bool same_horizontal_layout (const amrex::MultiFab& cell_field,
                            const amrex::MultiFab& map_field)
 {
     if (cell_field.DistributionMap() != map_field.DistributionMap() ||
@@ -36,7 +36,7 @@ bool same_horizontal_layout(const amrex::MultiFab& cell_field,
 
 } // namespace
 
-bool BuildMappedCellMeasure(amrex::MultiFab& omega,
+bool BuildMappedCellMeasure (amrex::MultiFab& omega,
                             const amrex::MultiFab& detJ,
                             const amrex::MultiFab& mx,
                             const amrex::MultiFab& my,
@@ -84,7 +84,7 @@ bool BuildMappedCellMeasure(amrex::MultiFab& omega,
     return true;
 }
 
-bool ValidatePositiveFiniteComponent(const amrex::MultiFab& field,
+bool ValidatePositiveFiniteComponent (const amrex::MultiFab& field,
                                      const int component,
                                      std::string& diagnostic)
 {
@@ -112,7 +112,7 @@ bool ValidatePositiveFiniteComponent(const amrex::MultiFab& field,
     return true;
 }
 
-bool ValidateFiniteComponent(const amrex::MultiFab& field,
+bool ValidateFiniteComponent (const amrex::MultiFab& field,
                              const int component,
                              std::string& diagnostic)
 {
@@ -139,7 +139,7 @@ bool ValidateFiniteComponent(const amrex::MultiFab& field,
     return true;
 }
 
-amrex::Real MaxFaceFieldDifference(const MappedFaceFluxRate& lhs,
+amrex::Real MaxFaceFieldDifference (const MappedFaceFluxRate& lhs,
                                   const int lhs_comp,
                                   const MappedFaceFluxRate& rhs,
                                   const int rhs_comp)
@@ -169,7 +169,7 @@ amrex::Real MaxFaceFieldDifference(const MappedFaceFluxRate& lhs,
     return maximum;
 }
 
-void AccumulateIntegratedFaceFlux(IntegratedMappedFaceFlux& ledger,
+void AccumulateIntegratedFaceFlux (IntegratedMappedFaceFlux& ledger,
                                  const MappedFaceFluxRate& rate,
                                  const amrex::Real weight)
 {

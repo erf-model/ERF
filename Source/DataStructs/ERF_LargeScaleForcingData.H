@@ -45,7 +45,7 @@ public:
      * @param str Input line to inspect.
      * @return Number of columns in the line.
      */
-    int get_columns_in_str(std::string &str)
+    int get_columns_in_str (std::string &str)
     {
         std::istringstream iss(str);
         std::string tmp;
@@ -61,7 +61,7 @@ public:
     /**
      * @brief Read the forcing file and cache the raw time slices on host.
      */
-    void read_forcing_file()
+    void read_forcing_file ()
     {
         amrex::Print() << "  Opening LSF file '" << lsf_file << "'" << std::endl;
         std::ifstream ifs(lsf_file);
@@ -214,7 +214,7 @@ public:
      * @param sounding Input sounding data used when the forcing file is on pressure levels.
      */
     void
-    interp_forcing(const amrex::GeometryData &geom,
+    interp_forcing (const amrex::GeometryData &geom,
                    const amrex::Vector<amrex::Real>& zlevels_stag,
                    const InputSoundingData &sounding)
     {
@@ -332,7 +332,7 @@ public:
      * @param coeff_next Interpolation weight for the upper time slice.
      */
     void
-    get_forcing_time_coeffs(const amrex::Real& time,
+    get_forcing_time_coeffs (const amrex::Real& time,
                             int& curr,
                             int& next,
                             amrex::Real& coeff_curr,

@@ -73,7 +73,7 @@ bool CheckForDensity (const std::string& fname)
  * @return Box specifying the subdomain index space.
  */
 Box
-read_subdomain_from_wrfinput(int /*lev*/,
+read_subdomain_from_wrfinput (int /*lev*/,
                              const std::string& fname,
                              int& ratio);
 

@@ -238,7 +238,7 @@ ERF::write_1D_profiles (double time)
  * @param h_avg_wthv Profile for vertical velocity * virtual potential temperature on Host
  */
 void
-ERF::derive_diag_profiles(double /*time*/,
+ERF::derive_diag_profiles (double /*time*/,
                           Gpu::HostVector<Real>& h_avg_u   , Gpu::HostVector<Real>& h_avg_v  , Gpu::HostVector<Real>& h_avg_w,
                           Gpu::HostVector<Real>& h_avg_rho , Gpu::HostVector<Real>& h_avg_th , Gpu::HostVector<Real>& h_avg_ksgs,
                           Gpu::HostVector<Real>& h_avg_Kmv , Gpu::HostVector<Real>& h_avg_Khv,
@@ -639,7 +639,7 @@ ERF::derive_stress_profiles (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostVector
 }
 
 void
-ERF::WriteLinePlot(const std::string& filename,
+ERF::WriteLinePlot (const std::string& filename,
                    Vector<std::array<Real, 2>>& points_xy)
 {
     std::ofstream ofs(filename);

@@ -8,7 +8,7 @@
 using namespace amrex;
 
 void
-WDM6::Init(const MultiFab& cons_in,
+WDM6::Init (const MultiFab& cons_in,
            const BoxArray&,
            const Geometry& geom,
            const Real& dt_advance,
@@ -82,13 +82,13 @@ WDM6::Init(const MultiFab& cons_in,
 }
 
 void
-WDM6::Copy_State_to_Micro(const MultiFab& cons_in)
+WDM6::Copy_State_to_Micro (const MultiFab& cons_in)
 {
     Copy_State_to_Micro(cons_in, nullptr);
 }
 
 void
-WDM6::Copy_State_to_Micro(const MultiFab& cons_in,
+WDM6::Copy_State_to_Micro (const MultiFab& cons_in,
                           const MultiFab* base_state)
 {
     assert_base_state_available(base_state);
@@ -160,14 +160,14 @@ WDM6::Copy_State_to_Micro(const MultiFab& cons_in,
 }
 
 void
-WDM6::Update_Micro_Vars(MultiFab& cons_in,
+WDM6::Update_Micro_Vars (MultiFab& cons_in,
                          const MultiFab* base_state)
 {
     Copy_State_to_Micro(cons_in, base_state);
 }
 
 void
-WDM6::initialize_coeffs()
+WDM6::initialize_coeffs ()
 {
     using amrex::Real;
 

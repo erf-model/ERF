@@ -23,7 +23,7 @@ using namespace amrex;
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
-compute_if_most_target_vel(
+compute_if_most_target_vel (
     const amrex::Real u1_2r,
     const amrex::Real u2_2r,
     const amrex::Real delta,

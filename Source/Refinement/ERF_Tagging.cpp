@@ -19,7 +19,7 @@ Box read_subdomain_from_metgrid (int lev, const std::string& fname, int& ratio, 
  * @param[in] rad_tag Radius within which cells are tagged.
  */
 void
-tag_on_distance_from_eye(const Geometry& cgeom, TagBoxArray* tags,
+tag_on_distance_from_eye (const Geometry& cgeom, TagBoxArray* tags,
                          const Real eye_x, const Real eye_y, const Real rad_tag);
 
 /**

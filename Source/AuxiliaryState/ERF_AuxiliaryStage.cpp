@@ -5,7 +5,7 @@
 namespace erf_auxiliary {
 namespace {
 
-int stage_count(const HostIntegrator method) noexcept
+int stage_count (const HostIntegrator method) noexcept
 {
     switch (method) {
     case HostIntegrator::CompressibleRK3: return 3;
@@ -15,12 +15,12 @@ int stage_count(const HostIntegrator method) noexcept
     return 0;
 }
 
-bool finite_nonnegative(const double value) noexcept
+bool finite_nonnegative (const double value) noexcept
 {
     return std::isfinite(value) && value >= 0.0;
 }
 
-bool valid_const_view(const ConstTimedFieldView& view,
+bool valid_const_view (const ConstTimedFieldView& view,
                       const double expected_time) noexcept
 {
     return view.field != nullptr && view.component >= 0 &&
@@ -28,14 +28,14 @@ bool valid_const_view(const ConstTimedFieldView& view,
            std::isfinite(view.time) && view.time == expected_time;
 }
 
-bool same_layout(const amrex::MultiFab& a, const amrex::MultiFab& b)
+bool same_layout (const amrex::MultiFab& a, const amrex::MultiFab& b)
 {
     return a.boxArray() == b.boxArray() && a.DistributionMap() == b.DistributionMap();
 }
 
 } // namespace
 
-const char* HostIntegratorName(const HostIntegrator method) noexcept
+const char* HostIntegratorName (const HostIntegrator method) noexcept
 {
     switch (method) {
     case HostIntegrator::CompressibleRK3: return "CompressibleRK3";
@@ -45,7 +45,7 @@ const char* HostIntegratorName(const HostIntegrator method) noexcept
     return "Unknown";
 }
 
-bool MakeAuxiliaryStageRecipe(const HostIntegrator method,
+bool MakeAuxiliaryStageRecipe (const HostIntegrator method,
                               const int stage,
                               const double host_stage_interval,
                               AuxiliaryStageRecipe& recipe,
@@ -96,7 +96,7 @@ bool MakeAuxiliaryStageRecipe(const HostIntegrator method,
     return true;
 }
 
-bool BuildAuxiliaryIntensiveState(const ConstTimedFieldView& state_input,
+bool BuildAuxiliaryIntensiveState (const ConstTimedFieldView& state_input,
                                   const ConstTimedFieldView& rho_input,
                                   const double input_time,
                                   amrex::MultiFab& intensive,
@@ -135,7 +135,7 @@ bool BuildAuxiliaryIntensiveState(const ConstTimedFieldView& state_input,
     return true;
 }
 
-void ApplyAuxiliaryMappedStage(const AuxiliaryStageContext& context,
+void ApplyAuxiliaryMappedStage (const AuxiliaryStageContext& context,
                                const MappedFaceFluxRate& rate,
                                const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dx_inv,
                                const int rate_component)
@@ -215,7 +215,7 @@ void ApplyAuxiliaryMappedStage(const AuxiliaryStageContext& context,
     }
 }
 
-void CompletedStepFluxLedger::define(const amrex::BoxArray& cell_ba,
+void CompletedStepFluxLedger::define (const amrex::BoxArray& cell_ba,
                                     const amrex::DistributionMapping& dm,
                                     const int ncomp)
 {
@@ -227,7 +227,7 @@ void CompletedStepFluxLedger::define(const amrex::BoxArray& cell_ba,
     m_step_old_time = 0.0;
 }
 
-bool CompletedStepFluxLedger::accept_stage(const HostIntegrator method,
+bool CompletedStepFluxLedger::accept_stage (const HostIntegrator method,
                                            const int stage,
                                            const double step_old_time,
                                            const AuxiliaryStageRecipe& recipe,

@@ -22,7 +22,7 @@
 
 using namespace amrex;
 
-eb_::~eb_()
+eb_::~eb_ ()
 {
     // if (m_factory) { m_factory.reset(nullptr); }
 }
