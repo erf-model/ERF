@@ -136,7 +136,7 @@ SBMLayout::SBMLayout(SBMLayoutSpec spec)
     }
 
     std::ostringstream schema;
-    schema << "sbm-layout-m2r-v1|ncomp=" << m_ncomp
+    schema << "sbm-layout-v1|ncomp=" << m_ncomp
            << "|constraint_policy=nonnegative-bin-mass-and-moments-v1"
            << "|projection=liquid-mass-sum-to-qc-qr-v1"
            << "|projection_population=" << m_liquid_projection.population_id

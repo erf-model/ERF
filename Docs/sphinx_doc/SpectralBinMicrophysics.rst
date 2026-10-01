@@ -345,6 +345,15 @@ every attached extensive inventory are also exactly zero. A positive-number,
 zero-water liquid-bin state is invalid; a zero-water packet is handled by the
 explicit residual path.
 
+The endpoint transform uses a small floating-point tolerance when testing
+moment realizability. That tolerance is a numerical aid for the transform; it
+does not authorize silent normalization of authoritative persisted state. A
+persisted bin must already satisfy its canonical routing-owned interval and
+must be numerically reconstructable in the active ``amrex::Real`` precision.
+In particular, a mathematically positive stored quantity whose required
+per-particle quotient underflows to zero is rejected rather than interpreted
+as an empty particle population.
+
 The first two moments do not uniquely determine that shape. For any
 nonnegative number distribution supported on :math:`[a_i,b_i]` with
 :math:`N_i>0`, the second mass moment satisfies
@@ -357,8 +366,13 @@ nonnegative number distribution supported on :math:`[a_i,b_i]` with
    \le
    (a_i+b_i)q_i-a_i b_i N_i.
 
-A delta distribution at :math:`\bar m_i` attains the lower bound, whereas an
-appropriate mixture at the two bin edges attains the upper bound. The
+A delta distribution at :math:`\bar m_i` attains the lower bound. On the
+closed mathematical support :math:`[a_i,b_i]`, an appropriate mixture at the
+two endpoints attains the upper bound. For the canonical routing ownership
+used here, an interior bin owns :math:`[a_i,b_i)`, so the same expression is
+the upper bound (and limiting supremum) for that bin while a particle exactly
+at :math:`b_i` belongs to the next bin. The final bin includes its global upper
+endpoint. The
 mean-delta reference reconstruction therefore selects the minimum-variance
 distribution consistent with the two stored moments. Quantities that depend
 on unresolved within-bin structure---for example nonlinear collision rates,
@@ -437,11 +451,11 @@ liquid bin. Residual number and attached inventory are returned to the caller
 for process-level handling; the reference remapper itself does not create or
 modify an aerosol population.
 
-A separate fail-closed numerical-range status is used if a mathematically
-positive required packet or attached-property increment underflows to exactly
-zero in the active floating-point precision. This condition is not
-reinterpreted as physical evaporation or residual material, and packet
-application remains atomic.
+A separate fail-closed numerical-range status is used when a mathematically
+positive required deposited or reconstructed quantity underflows to exactly
+zero in the active floating-point precision. Such a condition is not
+reinterpreted as physical evaporation, residual material, or an empty
+population. Packet application remains atomic.
 
 Restart and scientific identity
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

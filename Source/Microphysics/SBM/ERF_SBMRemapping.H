@@ -158,6 +158,7 @@ struct PacketRoutingPlan {
 namespace remap_detail {
 
 enum class ProductStatus { Ok, Underflow, Invalid };
+enum class QuotientStatus { Ok, Underflow, Invalid };
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool finite_nonnegative(const amrex::Real value) noexcept
@@ -178,6 +179,21 @@ ProductStatus checked_product(const amrex::Real left, const amrex::Real right,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+QuotientStatus checked_quotient(const amrex::Real numerator,
+                                const amrex::Real denominator,
+                                amrex::Real& result) noexcept
+{
+    if (!finite_nonnegative(numerator) || !amrex::Math::isfinite(denominator) ||
+        !(denominator > amrex::Real(0.0))) return QuotientStatus::Invalid;
+    result = numerator / denominator;
+    if (!amrex::Math::isfinite(result)) return QuotientStatus::Invalid;
+    if (numerator > amrex::Real(0.0) && result == amrex::Real(0.0)) {
+        return QuotientStatus::Underflow;
+    }
+    return QuotientStatus::Ok;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool finite_product(const amrex::Real left, const amrex::Real right,
                     amrex::Real& result) noexcept
 {
@@ -189,6 +205,13 @@ RemapStatus remap_product_status(const ProductStatus status) noexcept
 {
     return status == ProductStatus::Underflow ? RemapStatus::NumericalUnderflow :
            status == ProductStatus::Ok ? RemapStatus::Ok : RemapStatus::Invalid;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+RemapStatus remap_quotient_status(const QuotientStatus status) noexcept
+{
+    return status == QuotientStatus::Underflow ? RemapStatus::NumericalUnderflow :
+           status == QuotientStatus::Ok ? RemapStatus::Ok : RemapStatus::Invalid;
 }
 
 /** Accept at most four representable steps outward from a global endpoint. */
@@ -271,7 +294,9 @@ bool route_plan_is_consistent(const PopulationRemapView& population,
                !plan.normalized_roundoff;
     }
     if (plan.packet_particle_mass < first) {
-        const amrex::Real wet_weight = plan.packet_particle_mass / first;
+        amrex::Real wet_weight = amrex::Real(0.0);
+        if (checked_quotient(plan.packet_particle_mass, first, wet_weight) !=
+            QuotientStatus::Ok) return false;
         return plan.status == RemapStatus::ZeroWaterResidual && !plan.normalized_roundoff &&
                plan.destination_count == 1 && plan.residual_number_weight ==
                amrex::Real(1.0) - wet_weight && plan.destinations[0].bin == 0 &&
@@ -299,8 +324,12 @@ bool route_plan_is_consistent(const PopulationRemapView& population,
     const amrex::Real upper = population.pivots[lower_bin + 1];
     if (!(plan.packet_particle_mass > lower && plan.packet_particle_mass < upper)) return false;
     const amrex::Real width = upper - lower;
-    const amrex::Real lower_weight = (upper - plan.packet_particle_mass) / width;
-    const amrex::Real upper_weight = (plan.packet_particle_mass - lower) / width;
+    amrex::Real lower_weight = amrex::Real(0.0);
+    amrex::Real upper_weight = amrex::Real(0.0);
+    if (checked_quotient(upper - plan.packet_particle_mass, width, lower_weight) !=
+            QuotientStatus::Ok ||
+        checked_quotient(plan.packet_particle_mass - lower, width, upper_weight) !=
+            QuotientStatus::Ok) return false;
     return plan.status == RemapStatus::Ok && !plan.normalized_roundoff &&
            plan.destination_count == 2 && plan.residual_number_weight == amrex::Real(0.0) &&
            plan.destinations[0].bin == lower_bin &&
@@ -321,7 +350,8 @@ bool canonical_two_moment_moments(const PopulationRemapView& population,
         !finite_nonnegative(number) || !finite_nonnegative(mass)) return false;
     if (number == amrex::Real(0.0)) return mass == amrex::Real(0.0);
     if (mass <= amrex::Real(0.0)) return false;
-    const amrex::Real mean = mass / number;
+    amrex::Real mean = amrex::Real(0.0);
+    if (checked_quotient(mass, number, mean) != QuotientStatus::Ok) return false;
     const amrex::Real lower = population.edges[bin];
     const amrex::Real upper = population.edges[bin + 1];
     return amrex::Math::isfinite(mean) && mean >= lower &&
@@ -348,11 +378,54 @@ bool canonical_two_moment_bin_state(const PopulationRemapView& population,
         }
     }
     for (int property = 0; property < population.property_count; ++property) {
-        if (!finite_nonnegative(state[population.property_component_offsets[property] + bin])) {
-            return false;
+        const amrex::Real amount = state[population.property_component_offsets[property] + bin];
+        if (!finite_nonnegative(amount)) return false;
+        if (number == amrex::Real(0.0)) continue;
+        amrex::Real per_particle = amrex::Real(0.0);
+        if (checked_quotient(amount, number, per_particle) != QuotientStatus::Ok) return false;
+    }
+    return true;
+}
+
+/** Strict persisted-state test for a one-moment bin and its attached inventories. */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool canonical_one_moment_bin_state(const PopulationRemapView& population,
+                                    const int bin, const amrex::Real* state,
+                                    const int state_count) noexcept
+{
+    if (!valid_population_remap_context(population) || state == nullptr ||
+        state_count != population.state_components || bin < 0 || bin >= population.nbins ||
+        population.moment_mode != MomentMode::OneMoment) return false;
+    const amrex::Real mass = state[population.mass_offset + bin];
+    if (!finite_nonnegative(mass)) return false;
+    amrex::Real number = amrex::Real(0.0);
+    if (checked_quotient(mass, population.pivots[bin], number) != QuotientStatus::Ok) {
+        return false;
+    }
+    for (int property = 0; property < population.property_count; ++property) {
+        const amrex::Real amount = state[population.property_component_offsets[property] + bin];
+        if (!finite_nonnegative(amount)) return false;
+        if (number == amrex::Real(0.0)) {
+            if (amount != amrex::Real(0.0)) return false;
+        } else {
+            amrex::Real per_particle = amrex::Real(0.0);
+            if (checked_quotient(amount, number, per_particle) != QuotientStatus::Ok) {
+                return false;
+            }
         }
     }
     return true;
+}
+
+/** Shared admission rule for every persisted bin accepted by reconstruction. */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool canonical_persisted_bin_state(const PopulationRemapView& population,
+                                   const int bin, const amrex::Real* state,
+                                   const int state_count) noexcept
+{
+    return population.moment_mode == MomentMode::OneMoment ?
+        canonical_one_moment_bin_state(population, bin, state, state_count) :
+        canonical_two_moment_bin_state(population, bin, state, state_count);
 }
 
 } // namespace remap_detail
@@ -433,7 +506,13 @@ PacketRoutingPlan plan_packet_routing(const PopulationRemapView population,
         return plan;
     }
     if (particle_mass < population.pivots[0]) {
-        const amrex::Real wet_weight = particle_mass / population.pivots[0];
+        amrex::Real wet_weight = amrex::Real(0.0);
+        const auto quotient_status = remap_detail::checked_quotient(
+            particle_mass, population.pivots[0], wet_weight);
+        if (quotient_status != remap_detail::QuotientStatus::Ok) {
+            plan.status = remap_detail::remap_quotient_status(quotient_status);
+            return plan;
+        }
         plan.status = RemapStatus::ZeroWaterResidual;
         plan.destination_count = 1;
         plan.destinations[0] = {0, wet_weight, population.pivots[0]};
@@ -457,10 +536,23 @@ PacketRoutingPlan plan_packet_routing(const PopulationRemapView population,
         const amrex::Real lower = population.pivots[lower_bin];
         const amrex::Real upper = population.pivots[lower_bin + 1];
         const amrex::Real width = upper - lower;
+        amrex::Real lower_weight = amrex::Real(0.0);
+        amrex::Real upper_weight = amrex::Real(0.0);
+        const auto lower_status = remap_detail::checked_quotient(
+            upper - particle_mass, width, lower_weight);
+        const auto upper_status = remap_detail::checked_quotient(
+            particle_mass - lower, width, upper_weight);
+        if (lower_status != remap_detail::QuotientStatus::Ok ||
+            upper_status != remap_detail::QuotientStatus::Ok) {
+            const auto quotient_status =
+                lower_status != remap_detail::QuotientStatus::Ok ? lower_status : upper_status;
+            plan.status = remap_detail::remap_quotient_status(quotient_status);
+            return plan;
+        }
         plan.status = RemapStatus::Ok;
         plan.destination_count = 2;
-        plan.destinations[0] = {lower_bin, (upper - particle_mass) / width, lower};
-        plan.destinations[1] = {lower_bin + 1, (particle_mass - lower) / width, upper};
+        plan.destinations[0] = {lower_bin, lower_weight, lower};
+        plan.destinations[1] = {lower_bin + 1, upper_weight, upper};
         return plan;
     }
     return plan;
@@ -559,14 +651,13 @@ PacketApplicationCoreResult apply_packet_routing_core(
         return result;
     }
 
+    amrex::Real residual_number = amrex::Real(0.0);
     auto product_status = remap_detail::checked_product(
-        plan.packet_number, plan.residual_number_weight, result.residual_number);
+        plan.packet_number, plan.residual_number_weight, residual_number);
     if (product_status != remap_detail::ProductStatus::Ok) {
         result.status = remap_detail::remap_product_status(product_status);
         return result;
     }
-    result.residual_water_mass = amrex::Real(0.0);
-    result.normalized_roundoff = plan.normalized_roundoff;
     amrex::Real roundoff_water_mass_correction = amrex::Real(0.0);
     // Validate all outputs and candidate increments before changing either.
     for (int property = 0; property < property_count; ++property) {
@@ -610,12 +701,44 @@ PacketApplicationCoreResult apply_packet_routing_core(
             result.status = RemapStatus::Invalid;
             return result;
         }
+        const amrex::Real next_mass = old_mass + mass_increment;
+        amrex::Real next_number = amrex::Real(0.0);
         if (population.number_offset >= 0) {
             const int number_component = population.number_offset + route.bin;
             const amrex::Real old_number = candidate_state[number_component];
-            if (!remap_detail::finite_nonnegative(old_number) ||
-                !remap_detail::finite_nonnegative(old_number + number_increment)) {
+            if (!remap_detail::finite_nonnegative(old_number)) {
                 result.status = RemapStatus::Invalid;
+                return result;
+            }
+            next_number = old_number + number_increment;
+            if (!remap_detail::finite_nonnegative(next_number)) {
+                result.status = RemapStatus::Invalid;
+                return result;
+            }
+            if (next_number == amrex::Real(0.0)) {
+                if (next_mass != amrex::Real(0.0)) {
+                    result.status = RemapStatus::Invalid;
+                    return result;
+                }
+            } else {
+                amrex::Real mean = amrex::Real(0.0);
+                const auto quotient_status = remap_detail::checked_quotient(
+                    next_mass, next_number, mean);
+                if (quotient_status != remap_detail::QuotientStatus::Ok) {
+                    result.status = remap_detail::remap_quotient_status(quotient_status);
+                    return result;
+                }
+                if (!remap_detail::canonical_two_moment_moments(
+                        population, route.bin, next_number, next_mass)) {
+                    result.status = RemapStatus::Invalid;
+                    return result;
+                }
+            }
+        } else {
+            const auto quotient_status = remap_detail::checked_quotient(
+                next_mass, population.pivots[route.bin], next_number);
+            if (quotient_status != remap_detail::QuotientStatus::Ok) {
+                result.status = remap_detail::remap_quotient_status(quotient_status);
                 return result;
             }
         }
@@ -629,15 +752,32 @@ PacketApplicationCoreResult apply_packet_routing_core(
                 result.status = remap_detail::remap_product_status(product_status);
                 return result;
             }
-            if (!remap_detail::finite_nonnegative(old_value) ||
-                !remap_detail::finite_nonnegative(old_value + increment)) {
+            if (!remap_detail::finite_nonnegative(old_value)) {
                 result.status = RemapStatus::Invalid;
                 return result;
+            }
+            const amrex::Real next_value = old_value + increment;
+            if (!remap_detail::finite_nonnegative(next_value)) {
+                result.status = RemapStatus::Invalid;
+                return result;
+            }
+            if (next_number == amrex::Real(0.0)) {
+                if (next_value != amrex::Real(0.0)) {
+                    result.status = RemapStatus::Invalid;
+                    return result;
+                }
+            } else {
+                amrex::Real per_particle = amrex::Real(0.0);
+                const auto quotient_status = remap_detail::checked_quotient(
+                    next_value, next_number, per_particle);
+                if (quotient_status != remap_detail::QuotientStatus::Ok) {
+                    result.status = remap_detail::remap_quotient_status(quotient_status);
+                    return result;
+                }
             }
         }
     }
 
-    result.roundoff_water_mass_correction = roundoff_water_mass_correction;
     for (int destination = 0; destination < plan.destination_count; ++destination) {
         const auto& route = plan.destinations[destination];
         const amrex::Real number_increment = plan.packet_number * route.number_weight;
@@ -655,6 +795,10 @@ PacketApplicationCoreResult apply_packet_routing_core(
         residual_properties[property] =
             property_packet_amounts[property] * plan.residual_number_weight;
     }
+    result.residual_number = residual_number;
+    result.residual_water_mass = amrex::Real(0.0);
+    result.roundoff_water_mass_correction = roundoff_water_mass_correction;
+    result.normalized_roundoff = plan.normalized_roundoff;
     return result;
 }
 
@@ -683,6 +827,10 @@ ReconstructionStatus reconstruct_bin_core(
         (population.property_count > 0 && property_per_particle == nullptr)) {
         return ReconstructionStatus::Invalid;
     }
+    if (!remap_detail::canonical_persisted_bin_state(
+            population, bin, persisted_state, state_count)) {
+        return ReconstructionStatus::Invalid;
+    }
     const amrex::Real mass = persisted_state[population.mass_offset + bin];
     if (!remap_detail::finite_nonnegative(mass)) return ReconstructionStatus::Invalid;
     ReconstructionDeltaView next;
@@ -692,9 +840,8 @@ ReconstructionStatus reconstruct_bin_core(
     next.property_count = population.property_count;
     if (population.moment_mode == MomentMode::OneMoment) {
         next.particle_mass = population.pivots[bin];
-        next.number = mass / next.particle_mass;
-        if (!remap_detail::finite_nonnegative(next.number) ||
-            (mass > amrex::Real(0.0) && next.number == amrex::Real(0.0))) {
+        if (remap_detail::checked_quotient(
+                mass, next.particle_mass, next.number) != remap_detail::QuotientStatus::Ok) {
             return ReconstructionStatus::Invalid;
         }
     } else {
@@ -716,9 +863,8 @@ ReconstructionStatus reconstruct_bin_core(
         // never normalized by no-process reconstruction.
         next.normalized_roundoff = false;
         if (number > amrex::Real(0.0)) {
-            next.particle_mass = mass / number;
-            if (!amrex::Math::isfinite(next.particle_mass) ||
-                (mass > amrex::Real(0.0) && next.particle_mass == amrex::Real(0.0))) {
+            if (remap_detail::checked_quotient(
+                    mass, number, next.particle_mass) != remap_detail::QuotientStatus::Ok) {
                 return ReconstructionStatus::Invalid;
             }
         }
@@ -732,9 +878,9 @@ ReconstructionStatus reconstruct_bin_core(
         if (next.empty) {
             if (amount != amrex::Real(0.0)) return ReconstructionStatus::Invalid;
         } else {
-            const amrex::Real per_particle = amount / next.number;
-            if (!remap_detail::finite_nonnegative(per_particle) ||
-                (amount > amrex::Real(0.0) && per_particle == amrex::Real(0.0))) {
+            amrex::Real per_particle = amrex::Real(0.0);
+            if (remap_detail::checked_quotient(
+                    amount, next.number, per_particle) != remap_detail::QuotientStatus::Ok) {
                 return ReconstructionStatus::Invalid;
             }
         }
@@ -742,7 +888,13 @@ ReconstructionStatus reconstruct_bin_core(
     for (int property = 0; property < population.property_count; ++property) {
         const amrex::Real amount = persisted_state[
             population.property_component_offsets[property] + bin];
-        property_per_particle[property] = next.empty ? amrex::Real(0.0) : amount / next.number;
+        if (next.empty) {
+            property_per_particle[property] = amrex::Real(0.0);
+        } else if (remap_detail::checked_quotient(
+                       amount, next.number, property_per_particle[property]) !=
+                   remap_detail::QuotientStatus::Ok) {
+            return ReconstructionStatus::Invalid;
+        }
     }
     reconstruction = next;
     return next.empty ? ReconstructionStatus::Empty : ReconstructionStatus::Populated;
@@ -839,9 +991,15 @@ bool project_reconstruction_bin_core(const PopulationRemapView population,
                                       reconstruction.particle_mass, mass)) {
         return false;
     }
-    if (population.moment_mode == MomentMode::TwoMoment &&
-        !remap_detail::canonical_two_moment_moments(
-            population, reconstruction.bin, reconstruction.number, mass)) return false;
+    amrex::Real projected_number = reconstruction.number;
+    if (population.moment_mode == MomentMode::OneMoment) {
+        if (remap_detail::checked_quotient(
+                mass, population.pivots[reconstruction.bin], projected_number) !=
+            remap_detail::QuotientStatus::Ok) return false;
+    } else if (!remap_detail::canonical_two_moment_moments(
+                   population, reconstruction.bin, projected_number, mass)) {
+        return false;
+    }
     for (int property = 0; property < population.property_count; ++property) {
         const amrex::Real value = reconstruction.property_per_particle[property];
         amrex::Real amount = amrex::Real(0.0);
@@ -849,6 +1007,14 @@ bool project_reconstruction_bin_core(const PopulationRemapView population,
             (reconstruction.empty && value != amrex::Real(0.0)) ||
             !remap_detail::finite_product(reconstruction.number, value, amount)) {
             return false;
+        }
+        if (projected_number == amrex::Real(0.0)) {
+            if (amount != amrex::Real(0.0)) return false;
+        } else {
+            amrex::Real per_particle = amrex::Real(0.0);
+            if (remap_detail::checked_quotient(
+                    amount, projected_number, per_particle) !=
+                remap_detail::QuotientStatus::Ok) return false;
         }
     }
     const int bin = reconstruction.bin;

@@ -22,7 +22,7 @@ namespace erf_sbm {
 std::string restart_schema(const SBMLayout& layout)
 {
     std::ostringstream schema;
-    schema << "ERF-SBM-RESTART-M2R-v1\n"
+    schema << "ERF-SBM-RESTART-v1\n"
            << "layout=" << layout.schema_identity() << '\n'
            << "constraint-policy=nonnegative-bin-mass-and-moments-v1\n"
            << "projection=liquid-mass-sum-to-qc-qr-v1\n"
@@ -152,6 +152,27 @@ bool authoritative_state_admissible(const amrex::MultiFab& spectrum,
                 }
                 message << '}';
                 return reject(message.str());
+            }
+
+            for (std::size_t population_index = 0;
+                 population_index < remap_views.size(); ++population_index) {
+                const auto& view = remap_views[population_index];
+                if (view.moment_mode != MomentMode::OneMoment) continue;
+                for (int bin = 0; bin < view.nbins; ++bin) {
+                    if (remap_detail::canonical_persisted_bin_state(
+                            view, bin, state.data(), static_cast<int>(state.size()))) continue;
+                    std::ostringstream message;
+                    message << "SBM authoritative restart state is inadmissible"
+                            << ": level=" << level << ", cell=(";
+                    for (int direction = 0; direction < AMREX_SPACEDIM; ++direction) {
+                        if (direction != 0) message << ',';
+                        message << cell[direction];
+                    }
+                    message << "), population=" << view.population_id
+                            << ", bin=" << bin
+                            << ", constraint=canonical-one-moment-bin-state";
+                    return reject(message.str());
+                }
             }
         }
     }

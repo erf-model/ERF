@@ -511,6 +511,10 @@ TEST(SBMRemapping, PositiveProductUnderflowHasDistinctAtomicStatus)
         view, plan, &tiny, 1, residual_properties.data(), 1,
         state.data(), static_cast<int>(state.size()));
     EXPECT_EQ(applied.status, erf_sbm::RemapStatus::NumericalUnderflow);
+    EXPECT_DOUBLE_EQ(applied.residual_number, Real(0.0));
+    EXPECT_DOUBLE_EQ(applied.residual_water_mass, Real(0.0));
+    EXPECT_DOUBLE_EQ(applied.roundoff_water_mass_correction, Real(0.0));
+    EXPECT_FALSE(applied.normalized_roundoff);
     EXPECT_EQ(state, unchanged);
     ASSERT_EQ(residual_properties.size(), 1u);
     EXPECT_DOUBLE_EQ(residual_properties[0], Real(77.0));
@@ -526,6 +530,83 @@ TEST(SBMRemapping, PositiveProductUnderflowHasDistinctAtomicStatus)
         two_state.data(), static_cast<int>(two_state.size()));
     EXPECT_EQ(two_applied.status, erf_sbm::RemapStatus::NumericalUnderflow);
     EXPECT_EQ(two_state, two_unchanged);
+}
+
+TEST(SBMRemapping, PositiveQuotientUnderflowRejectsPersistedAndDepositedState)
+{
+    const Real tiny = std::numeric_limits<Real>::denorm_min();
+   ASSERT_GT(tiny, Real(0.0));
+   EXPECT_EQ(tiny / Real(2.0), Real(0.0));
+
+    erf_sbm::SBMLayoutSpec tiny_route_spec;
+    tiny_route_spec.populations.push_back(make_population(
+        0, erf_sbm::MomentMode::OneMoment,
+        {Real(1.0), Real(3.0), Real(5.0)}, {Real(2.0), Real(4.0)}));
+    tiny_route_spec.liquid_projection = {0, 1};
+    const erf_sbm::SBMLayout tiny_route_layout(std::move(tiny_route_spec));
+    const auto tiny_route = erf_sbm::plan_packet_routing(
+        erf_sbm::population_remap_view(tiny_route_layout, 0), Real(1.0), tiny);
+    EXPECT_EQ(tiny_route.status, erf_sbm::RemapStatus::NumericalUnderflow);
+
+   const auto two_moment = make_layout(erf_sbm::MomentMode::TwoMoment,
+        {make_property("coating", 0)});
+    const auto& two_pop = population(two_moment, 0);
+    const auto two_view = erf_sbm::population_remap_view(two_moment, 0);
+    std::vector<Real> persisted(static_cast<std::size_t>(two_moment.ncomp()), Real(0.0));
+    persisted[static_cast<std::size_t>(two_pop.mass_offset)] = Real(2.0);
+    persisted[static_cast<std::size_t>(two_pop.number_offset)] = Real(2.0);
+    persisted[static_cast<std::size_t>(two_moment.property_offset(0))] = tiny;
+    EXPECT_FALSE(erf_sbm::remap_detail::canonical_two_moment_bin_state(
+        two_view, 0, persisted.data(), static_cast<int>(persisted.size())));
+    EXPECT_FALSE(erf_sbm::remap_detail::canonical_persisted_bin_state(
+        two_view, 0, persisted.data(), static_cast<int>(persisted.size())));
+    erf_sbm::ReconstructionDelta reconstruction;
+    EXPECT_EQ(erf_sbm::reconstruct_bin(two_moment, 0, 0, persisted, reconstruction),
+              erf_sbm::ReconstructionStatus::Invalid);
+
+    const auto two_plan = erf_sbm::plan_packet_routing(two_view, Real(2.0), Real(1.0));
+    ASSERT_EQ(two_plan.status, erf_sbm::RemapStatus::Ok);
+    std::vector<Real> two_candidate(static_cast<std::size_t>(two_moment.ncomp()), Real(0.0));
+    const auto two_before = two_candidate;
+    Real residual_property = Real(77.0);
+    const auto two_applied = erf_sbm::apply_packet_routing_core(
+        two_view, two_plan, &tiny, 1, &residual_property, 1, two_candidate.data(),
+        static_cast<int>(two_candidate.size()));
+    EXPECT_EQ(two_applied.status, erf_sbm::RemapStatus::NumericalUnderflow);
+    EXPECT_DOUBLE_EQ(two_applied.residual_number, Real(0.0));
+    EXPECT_DOUBLE_EQ(two_applied.residual_water_mass, Real(0.0));
+    EXPECT_DOUBLE_EQ(two_applied.roundoff_water_mass_correction, Real(0.0));
+    EXPECT_FALSE(two_applied.normalized_roundoff);
+    EXPECT_EQ(two_candidate, two_before);
+    EXPECT_DOUBLE_EQ(residual_property, Real(77.0));
+
+    const auto one_moment = make_layout(erf_sbm::MomentMode::OneMoment,
+        {make_property("coating", 0)});
+    const auto& one_pop = population(one_moment, 0);
+    const auto one_view = erf_sbm::population_remap_view(one_moment, 0);
+    std::vector<Real> one_persisted(static_cast<std::size_t>(one_moment.ncomp()), Real(0.0));
+    one_persisted[static_cast<std::size_t>(one_pop.mass_offset)] = Real(4.0);
+    one_persisted[static_cast<std::size_t>(one_moment.property_offset(0))] = tiny;
+    EXPECT_FALSE(erf_sbm::remap_detail::canonical_persisted_bin_state(
+        one_view, 0, one_persisted.data(), static_cast<int>(one_persisted.size())));
+    EXPECT_EQ(erf_sbm::reconstruct_bin(one_moment, 0, 0, one_persisted, reconstruction),
+              erf_sbm::ReconstructionStatus::Invalid);
+
+    const auto one_plan = erf_sbm::plan_packet_routing(one_view, Real(4.0), Real(1.0));
+    ASSERT_EQ(one_plan.status, erf_sbm::RemapStatus::Ok);
+    std::vector<Real> one_candidate(static_cast<std::size_t>(one_moment.ncomp()), Real(0.0));
+    const auto one_before = one_candidate;
+    residual_property = Real(77.0);
+    const auto one_applied = erf_sbm::apply_packet_routing_core(
+        one_view, one_plan, &tiny, 1, &residual_property, 1, one_candidate.data(),
+        static_cast<int>(one_candidate.size()));
+    EXPECT_EQ(one_applied.status, erf_sbm::RemapStatus::NumericalUnderflow);
+    EXPECT_DOUBLE_EQ(one_applied.residual_number, Real(0.0));
+    EXPECT_DOUBLE_EQ(one_applied.residual_water_mass, Real(0.0));
+    EXPECT_DOUBLE_EQ(one_applied.roundoff_water_mass_correction, Real(0.0));
+    EXPECT_FALSE(one_applied.normalized_roundoff);
+    EXPECT_EQ(one_candidate, one_before);
+    EXPECT_DOUBLE_EQ(residual_property, Real(77.0));
 }
 
 TEST(SBMRemapping, NormalizedTwoMomentBoundariesPreserveZeroProcessIdentity)
@@ -1155,13 +1236,20 @@ TEST(SBMRemapping, ScientificIdentityAndRestartAreExactAndVersioned)
     EXPECT_NE(one_moment.schema_identity().find("fixed-pivot-1m-v1"), std::string::npos);
     EXPECT_NE(one_moment.schema_identity().find("fixed-pivot-delta-v1"), std::string::npos);
     EXPECT_NE(one_moment.schema_identity().find("fixed-pivot-two-center-v1"), std::string::npos);
+    EXPECT_NE(one_moment.schema_identity().find("sbm-layout-v1"), std::string::npos);
+    EXPECT_EQ(one_moment.schema_identity().find("M2R"), std::string::npos);
+    EXPECT_EQ(one_moment.schema_identity().find("m2r"), std::string::npos);
+    EXPECT_EQ(one_moment.schema_identity().find("M2-R"), std::string::npos);
     EXPECT_NE(two_moment.schema_identity().find("interval-2m-v1"), std::string::npos);
     EXPECT_NE(two_moment.schema_identity().find("mean-delta-2m-v1"), std::string::npos);
     EXPECT_NE(two_moment.schema_identity().find("actual-mass-interval-v1"), std::string::npos);
     EXPECT_NE(one_moment.inspection().find("reconstruction=fixed-pivot-delta-v1"), std::string::npos);
 
     const std::string persisted = erf_sbm::restart_schema(one_moment);
-    EXPECT_NE(persisted.find("ERF-SBM-RESTART-M2R-v1"), std::string::npos);
+    EXPECT_NE(persisted.find("ERF-SBM-RESTART-v1"), std::string::npos);
+    EXPECT_EQ(persisted.find("M2R"), std::string::npos);
+    EXPECT_EQ(persisted.find("m2r"), std::string::npos);
+    EXPECT_EQ(persisted.find("M2-R"), std::string::npos);
     EXPECT_EQ(persisted.find("population=0:representation="), std::string::npos);
     const auto layout_representation = persisted.find(":representation=");
     ASSERT_NE(layout_representation, std::string::npos);
