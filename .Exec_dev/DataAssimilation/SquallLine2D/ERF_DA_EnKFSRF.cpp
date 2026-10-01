@@ -333,7 +333,6 @@ ERF::PerformDataAssimilation(int da_iter)
         MultiFab mf_ens_pert;
         update_ensemble(da_iter, Nens, last_pf_name, varnames, xf_bar, T_mat, n, mf_ens_pert);
 
-        // Create output directory
         const std::string member_prefix = "member_";
         std::string member_dir = member_prefix + amrex::Concatenate("", n, 2);
         std::string outfile = member_dir + "/" + "plt_ens_update";
