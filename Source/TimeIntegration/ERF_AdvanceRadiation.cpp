@@ -411,7 +411,8 @@ void ERF::advance_radiation (int lev,
         // every step, and the land model -- which runs after the dycore -- always sees this
         // step's radiation. The destinations are LSM data, which the LSM checkpoints; a
         // restarted run refills them here before its first land step.
-        if (m_SurfaceModel && solverChoice.rad_feeds_lsm() && two_stream_rad.supplies_land_forcing(lev)) {
+        // supplies_land_forcing(lev) is what init_stuff set from rad_feeds_lsm(): one test.
+        if (m_SurfaceModel && two_stream_rad.supplies_land_forcing(lev)) {
             two_stream_rad.write_land_forcing(lev,
                 m_SurfaceModel->get_radiation_output_field(lev, "sw_flux_dn"),
                 m_SurfaceModel->get_radiation_output_field(lev, "lw_flux_dn"),

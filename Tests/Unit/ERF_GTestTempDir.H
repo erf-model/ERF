@@ -9,8 +9,10 @@
 #include <AMReX_ParallelDescriptor.H>
 
 /**
- * @brief A scratch path under the system temporary directory that belongs to this test
- * process alone, with the same name on every rank of it.
+ * @brief A fresh scratch path under the system temporary directory, drawn anew on every
+ * call (two calls with the same stem give two different paths), and the same on every
+ * rank of the calling process. Store the result; do not call again expecting the same
+ * directory.
  *
  * ctest -j runs several test processes at once -- each discovered test, and
  * erf_unit_tests_shuffle_repeat, which runs all of them again -- and two build trees

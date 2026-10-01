@@ -1497,9 +1497,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                  TwoStream_ColumnHeating_TwoLevel.i
                  "with erf.land_surface_model = NOAHMP is supported on a single level only"
                  "erf.land_surface_model=NOAHMP")
-endif()
 
-if(ERF_ENABLE_MPI AND NOT WIN32)
   # A shallow nest -- a fine level that stops below the domain top -- has no complete
   # column, so the sweep cannot run on it. That is a supported configuration, not an
   # error: advance_radiation interpolates the level's heating rates and fluxes from its

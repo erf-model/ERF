@@ -937,6 +937,9 @@ void two_stream_land_forcing (int i, int j, int kmin,
  * interface (the array must extend one cell above the column); component 0 is the
  * upward SW, 1 the downward SW (direct plus diffuse), 2 the upward LW and 3 the
  * downward LW [W/m^2]
+ * @param[out] cos_zenith_out Optional: the cosine of the solar zenith angle this column
+ * was swept with (two_stream_cos_zenith, before any flooring), so a caller that needs the
+ * sun the sweep used reads it rather than evaluating it again
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void vertical_two_stream_sweep (
@@ -968,7 +971,8 @@ void vertical_two_stream_sweep (
     bool has_latlon = false,
     const amrex::Array4<const amrex::Real>* lat_arr = nullptr,
     const amrex::Array4<const amrex::Real>* lon_arr = nullptr,
-    const amrex::Array4<amrex::Real>* rad_flux_out = nullptr)
+    const amrex::Array4<amrex::Real>* rad_flux_out = nullptr,
+    amrex::Real* cos_zenith_out = nullptr)
 {
     // Grid bounds: kmin is the surface layer, kmax the top layer.
     const int kmin = bx.smallEnd(2);
@@ -1029,6 +1033,7 @@ void vertical_two_stream_sweep (
     }
 
     const amrex::Real cos_zenith = two_stream_cos_zenith(i, j, rad_choice, has_latlon, lat_arr, lon_arr);
+    if (cos_zenith_out != nullptr) { *cos_zenith_out = cos_zenith; }
 
     // Top-of-atmosphere irradiance of this call (fixed, or 1360.9 W/m^2
     // times the Earth-Sun distance factor of the date; set by the driver).

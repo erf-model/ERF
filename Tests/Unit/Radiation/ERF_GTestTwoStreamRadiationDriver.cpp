@@ -160,7 +160,7 @@ struct LandForcingResult
     amrex::Real lsm_sw_dn = 0.0, lsm_lw_dn = 0.0, lsm_coszen = 0.0;
 };
 
-LandForcingResult run_land_forcing (bool supply)
+LandForcingResult run_land_forcing (bool supply, amrex::Real cloud_fraction)
 {
     using namespace amrex;
 
@@ -177,8 +177,11 @@ LandForcingResult run_land_forcing (bool supply)
     state.setVal(Real(1.0), Rho_comp, 1);
     state.setVal(getThgivenRandT(Real(1.0), Real(290.0), RdoCp), RhoTheta_comp, 1);
 
-    // Both bands on, an absorbing and scattering atmosphere, and a cloudy fraction, so
-    // the surface SW differs from the top and the fluxes are a clear/cloudy blend.
+    // Both bands on, an absorbing and scattering atmosphere, and a cloud layer over the
+    // middle two of the four 1 km layers (centres at 1.5 and 2.5 km). With a cloud
+    // fraction the surface fluxes are then a real clear/cloudy blend: the cloudy column
+    // differs from the clear one, which the test checks, so storing the forcing before
+    // the blend would be caught.
     RadChoice rad;
     rad.enabled = true;
     rad.sw_enabled = true;
@@ -188,7 +191,11 @@ LandForcingResult run_land_forcing (bool supply)
     rad.rad_t_sfc = Real(300.0);
     rad.tau_per_layer = Real(0.1);
     rad.single_scattering_albedo = Real(0.5);
-    rad.cloud_fraction = Real(0.4);
+    rad.tau_profile_type = TauProfileType::CloudLayer;
+    rad.cloud_base_height_m = Real(1000.0);
+    rad.cloud_top_height_m = Real(3000.0);
+    rad.cloud_tau_per_layer = Real(2.0);
+    rad.cloud_fraction = cloud_fraction;
 
     TwoStreamRadiation radiation;
     radiation.resize(1);
@@ -245,11 +252,15 @@ LandForcingResult run_land_forcing (bool supply)
 // model's field unchanged. Without the request nothing is allocated.
 TEST(TwoStreamRadiationDriver, SuppliesLandForcingFromTheSweep)
 {
-    const LandForcingResult off = run_land_forcing(false);
+    const LandForcingResult off = run_land_forcing(false, amrex::Real(0.4));
     EXPECT_FALSE(off.supplied);
 
-    const LandForcingResult on = run_land_forcing(true);
+    const LandForcingResult on = run_land_forcing(true, amrex::Real(0.4));
     ASSERT_TRUE(on.supplied);
+    // The cloud must matter at the surface, or the blend could not be told apart.
+    const LandForcingResult clear = run_land_forcing(true, amrex::Real(0.0));
+    EXPECT_LT(on.rad_sw_dn_sfc, amrex::Real(0.99) * clear.rad_sw_dn_sfc);
+    EXPECT_NE(on.rad_lw_dn_sfc, clear.rad_lw_dn_sfc);
     EXPECT_GT(on.rad_sw_dn_sfc, amrex::Real(0.0));
     EXPECT_LT(on.rad_sw_dn_sfc, on.rad_sw_dn_toa);  // attenuated: the surface, not the top
     EXPECT_GT(on.rad_lw_dn_sfc, amrex::Real(0.0));
