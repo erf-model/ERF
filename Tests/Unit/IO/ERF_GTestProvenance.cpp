@@ -1,4 +1,5 @@
 #include "ERF_Provenance.H"
+#include "../ERF_GTestTempDir.H"
 
 #include <gtest/gtest.h>
 
@@ -319,7 +320,7 @@ TEST(ERFProvenance, CRLFAndEqualsInPath)
 TEST(ERFProvenance, FileReadStatuses)
 {
     // Motivation: File-level restart metadata failures must return structured nonfatal statuses without relying on an abort or death test.
-    const auto directory = std::filesystem::temp_directory_path() / "erf-provenance-file-test";
+    const auto directory = erf_gtest_temp_path("erf-provenance-file-test");
     std::filesystem::remove_all(directory);
     std::filesystem::create_directories(directory);
     const auto path = directory / "job_info";

@@ -18,6 +18,7 @@
 #include <gtest/gtest.h>
 
 #include "ERF_SurfaceModel.H"
+#include "../ERF_GTestTempDir.H"
 
 namespace {
 
@@ -568,7 +569,7 @@ TEST(SurfaceModel, RadiationOutputsResolveAndDistributeCanonicalMappings)
 TEST(SurfaceModel, CheckpointRoundTripPreservesSyntheticState)
 {
     const std::filesystem::path checkpoint =
-        std::filesystem::temp_directory_path() / "erf_surface_model_unit_checkpoint";
+        erf_gtest_temp_path("erf_surface_model_unit_checkpoint");
     struct CheckpointCleanup {
         std::filesystem::path path;
         ~CheckpointCleanup() { std::filesystem::remove_all(path); }
