@@ -639,10 +639,11 @@ function(add_test_at_rest_terrain_outflow TEST_NAME PLTFILE TOLERANCE GRADP_TOLE
 endfunction(add_test_at_rest_terrain_outflow)
 
 # Field-bounds test: run one deck and require the extrema of a plotfile variable to stay
-# within [LO, HI]. InflowThetaDensity: an x inflow with xlo.density below the interior
-# density and theta from a dirichlet_file must keep a 300 K box at 300 K; the primitive
-# Dirichlet value is multiplied by the ghost density the face prescribes, not by the
-# interior density (which scaled the inflow theta by rho_interior / rho_in).
+# within [LO, HI]. The three inflow cases keep a 300 K box at 300 K: a primitive theta from
+# a dirichlet_file is multiplied by the ghost density the face prescribes on an Inflow face
+# (InflowThetaDensity) and on an inflow_outflow face (InflowOutflowThetaFile), and only the
+# face that read the file uses it (InflowThetaFileOtherFace, a second inflow face with its
+# own density and theta).
 function(add_test_field_bounds TEST_NAME PLTFILE VARIABLE LO HI)
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
@@ -1031,6 +1032,8 @@ set_tests_properties(SHOC_Unstable_Cloud_SatAdj_vs_NoCond
 if(NOT WIN32)
 add_test_at_rest_terrain_outflow(AtRestTerrainOutflow "plt00400" 1.0e-8 0.1)
 add_test_field_bounds(InflowThetaDensity "plt00010" theta 299.999 300.001)
+add_test_field_bounds(InflowOutflowThetaFile "plt00010" theta 299.999 300.001)
+add_test_field_bounds(InflowThetaFileOtherFace "plt00010" theta 299.999 300.001)
 endif()
 endif()
 

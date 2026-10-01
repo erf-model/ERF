@@ -1,8 +1,7 @@
-# A uniform 300 K box with an x inflow whose density (xlo.density = 0.95) differs from the
-# interior's (prob.rho_0 = 1.0) and whose theta comes from a dirichlet_file (300 K at every
-# height, read as a primitive; no xlo.theta, which the file overrides). The ghost rho*theta
-# must be the ghost density times 300 K; with the interior density instead, the inflow theta
-# the scheme sees is 300 * 1.0 / 0.95 = 316 K. The test requires theta to stay 300 K.
+# InflowThetaDensity with xlo.type = inflow_outflow: on an ext_dir_upwind face a primitive
+# theta from the dirichlet_file must still be multiplied by the ghost density. Assigned to
+# RhoTheta directly it is an effective theta of 300 / 0.95 = 316 K. The test requires theta
+# to stay 300 K.
 erf.prob_name = "ABL"
 max_step = 10
 amrex.fpe_trap_invalid = 1
@@ -12,7 +11,7 @@ geometry.prob_extent =   500     500    500
 amr.n_cell           =    32      32     32
 geometry.is_periodic = 0 1 0
 
-xlo.type = "Inflow"
+xlo.type = "inflow_outflow"
 xlo.density = 0.95
 xlo.dirichlet_file = "inflow_file"
 xhi.type = "Outflow"

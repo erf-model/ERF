@@ -1,8 +1,7 @@
-# A uniform 300 K box with an x inflow whose density (xlo.density = 0.95) differs from the
-# interior's (prob.rho_0 = 1.0) and whose theta comes from a dirichlet_file (300 K at every
-# height, read as a primitive; no xlo.theta, which the file overrides). The ghost rho*theta
-# must be the ghost density times 300 K; with the interior density instead, the inflow theta
-# the scheme sees is 300 * 1.0 / 0.95 = 316 K. The test requires theta to stay 300 K.
+# A theta file on xlo and a second inflow face, zlo, with its own density and theta and no
+# file. Only xlo may use the file: zlo's rho*theta is its own 0.95 * 300. Typing zlo's
+# RhoTheta from whether any face read a file left it ext_dir_prim with the negative
+# placeholder value, a negative ghost rho*theta. The test requires theta to stay 300 K.
 erf.prob_name = "ABL"
 max_step = 10
 amrex.fpe_trap_invalid = 1
@@ -16,7 +15,10 @@ xlo.type = "Inflow"
 xlo.density = 0.95
 xlo.dirichlet_file = "inflow_file"
 xhi.type = "Outflow"
-zlo.type = "SlipWall"
+zlo.type = "Inflow"
+zlo.velocity = 0. 0. 0.
+zlo.density  = 0.95
+zlo.theta    = 300.
 zhi.type = "SlipWall"
 
 erf.fixed_dt = 0.1

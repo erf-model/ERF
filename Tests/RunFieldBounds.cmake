@@ -23,6 +23,9 @@ erf_mpi_launcher_command(_launch_one
     PREFLAGS "${MPIEXEC_PREFLAGS}"
     CONTEXT "RunFieldBounds.cmake")
 
+# a plotfile left by an earlier run must not satisfy the check
+file(REMOVE_RECURSE "${WORKING_DIRECTORY}/${PLTFILE}")
+
 execute_process(
     COMMAND ${_launch} ${TEST_EXE} ${INPUT}
     WORKING_DIRECTORY ${WORKING_DIRECTORY}
