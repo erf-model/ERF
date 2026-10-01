@@ -1,7 +1,61 @@
 #include <ERF_SEBTurbulentFlux.H>
 #include <ERF_Plotfile2DFill.H>
+#include <ERF_Constants.H>
+
+#include <AMReX_Gpu.H>
 
 using namespace amrex;
+
+namespace {
+
+// Overwrite the valid cells of dst where src (plus add, when given) holds a valid
+// land-surface value with scale * src + add; leave the others as they are.
+void
+overwrite_valid_land_surface_cells (MultiFab& dst,
+                                    const MultiFab& src,
+                                    Real scale,
+                                    const MultiFab* add)
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        src.boxArray().size() == dst.boxArray().size() &&
+        src.DistributionMap() == dst.DistributionMap() &&
+        (add == nullptr || (add->boxArray().size() == dst.boxArray().size() &&
+                            add->DistributionMap() == dst.DistributionMap())),
+        "SEB land-surface fill: the land-surface fields and the SEB field are laid out differently");
+    const bool has_add = (add != nullptr);
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(dst, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        const auto dst_arr = dst.array(mfi);
+        const auto src_arr = src.const_array(mfi);
+        const auto add_arr = has_add ? add->const_array(mfi) : Array4<const Real>{};
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const Real value = src_arr(i, j, k);
+            const Real extra = has_add ? add_arr(i, j, k) : Real(0.0);
+            if (is_valid_lsm_value(value) && is_valid_lsm_value(extra)) {
+                dst_arr(i, j, k) = scale * value + extra;
+            }
+        });
+    }
+}
+
+} // namespace
+
+void
+fill_seb_field_from_land_surface (MultiFab& seb_field,
+                                  const MultiFab* field,
+                                  Real fallback,
+                                  Real scale,
+                                  const MultiFab* add_field)
+{
+    seb_field.setVal(fallback);
+    if (field != nullptr) {
+        overwrite_valid_land_surface_cells(seb_field, *field, scale, add_field);
+    }
+}
 
 SEBFluxOrigin
 fill_seb_turbulent_flux (MultiFab& seb_flux,
@@ -12,14 +66,11 @@ fill_seb_turbulent_flux (MultiFab& seb_flux,
                          SEBTurbulentFluxSource source,
                          Real fallback)
 {
-    const SEBFluxOrigin origin = select_seb_flux_origin(land_surface_field != nullptr,
-                                                        source,
-                                                        surface_layer_flux != nullptr);
-    switch (origin) {
-    case SEBFluxOrigin::LandSurface:
-        MultiFab::Copy(seb_flux, *land_surface_field, 0, 0, 1, 0);
-        break;
-    case SEBFluxOrigin::SurfaceLayer:
+    // The sources below the land-surface field fill every cell first; then the cells
+    // where the land model has a valid value take it.
+    const SEBFluxOrigin below = select_seb_flux_origin(false, source,
+                                                       surface_layer_flux != nullptr);
+    if (below == SEBFluxOrigin::SurfaceLayer) {
         // The 2D-output conversions, so the balance's H and LE are exactly the
         // sensible_heat_flux and latent_heat_flux a plotfile reports.
         if (kind == SEBTurbulentFlux::Sensible) {
@@ -29,10 +80,12 @@ fill_seb_turbulent_flux (MultiFab& seb_flux,
             plotfile2d::fill_latent_heat_flux_from_klevel_or_missing(
                 seb_flux, 0, surface_layer_flux, surface_k, fallback);
         }
-        break;
-    case SEBFluxOrigin::Default:
+    } else {
         seb_flux.setVal(fallback);
-        break;
     }
-    return origin;
+    if (land_surface_field != nullptr) {
+        overwrite_valid_land_surface_cells(seb_flux, *land_surface_field, Real(1.0), nullptr);
+    }
+    return select_seb_flux_origin(land_surface_field != nullptr, source,
+                                  surface_layer_flux != nullptr);
 }
