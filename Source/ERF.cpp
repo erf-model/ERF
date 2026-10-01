@@ -708,7 +708,6 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
 
         int levc=finest_level;
 
-        HurricaneEyeTracker(solverChoice);
 
         MultiFab& U_new = vars_new[levc][Vars::xvel];
         MultiFab& V_new = vars_new[levc][Vars::yvel];
@@ -716,6 +715,8 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
 
         MultiFab mf_cc_vel(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(0,0,0));
         average_face_to_cellcenter(mf_cc_vel,0,{AMREX_D_DECL(&U_new,&V_new,&W_new)},0);
+
+        HurricaneEyeTracker(solverChoice, mf_cc_vel);
 
         HurricaneMaxVelTracker(geom[levc],
                                mf_cc_vel,
@@ -1456,10 +1457,17 @@ ERF::InitData_post ()
                 if (idx >= 0) { m_SurfaceModel->register_radiation_input(input.first, {idx, -1}); }
             }
             if (solverChoice.rad_feeds_lsm()) {
-                const amrex::Vector<std::string> rad_output_names = {
-                    "cos_zenith_angle", "sw_flux_dn", "sw_flux_dn_dir_vis",
-                    "sw_flux_dn_dir_nir", "sw_flux_dn_dif_vis", "sw_flux_dn_dif_nir",
-                    "lw_flux_dn"};
+                // RRTMGP writes all seven. The two-stream model is broadband and writes
+                // the three Noah-MP integrates on (TwoStreamRadiation::write_land_forcing);
+                // registering the spectral split as well would publish outputs that nothing
+                // ever fills.
+                const amrex::Vector<std::string> rad_output_names =
+                    (solverChoice.rad_type == RadiationType::TwoStream)
+                    ? amrex::Vector<std::string>{"cos_zenith_angle", "sw_flux_dn", "lw_flux_dn"}
+                    : amrex::Vector<std::string>{
+                          "cos_zenith_angle", "sw_flux_dn", "sw_flux_dn_dir_vis",
+                          "sw_flux_dn_dir_nir", "sw_flux_dn_dif_vis", "sw_flux_dn_dif_nir",
+                          "lw_flux_dn"};
                 for (const auto& output_name : rad_output_names) {
                     const int idx = lsm.Get_DataIdx(0, output_name);
                     if (idx >= 0) { m_SurfaceModel->register_radiation_output(output_name, {idx, -1}); }

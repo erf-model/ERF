@@ -812,6 +812,62 @@ void diagnose_layer_optics (
 }
 
 /**
+ * @brief Cosine of the solar zenith angle over column (i,j) for one call.
+ *
+ * The fixed value of erf.fixed_solar_zenith_angle, or the sun's position over
+ * this column at the calendar time of the call, with the same formula RRTMGP
+ * uses (orbital_cos_zenith without the interval average). The latitude and
+ * longitude are the column's own where the grid carries them, else the
+ * erf.rad_cons_lat/lon constants. Negative when the sun is below the horizon.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real two_stream_cos_zenith (int i, int j,
+                                   const TwoStreamParams& rad_choice,
+                                   bool has_latlon,
+                                   const amrex::Array4<const amrex::Real>* lat_arr,
+                                   const amrex::Array4<const amrex::Real>* lon_arr)
+{
+    if (rad_choice.solar_dynamic) {
+        const amrex::Real lat_rad = (has_latlon && lat_arr != nullptr && lat_arr->contains(i, j, 0))
+                                        ? (*lat_arr)(i, j, 0) * PI / 180.0 : rad_choice.lat_cons_rad;
+        const amrex::Real lon_rad = (has_latlon && lon_arr != nullptr && lon_arr->contains(i, j, 0))
+                                        ? (*lon_arr)(i, j, 0) * PI / 180.0 : rad_choice.lon_cons_rad;
+        return static_cast<amrex::Real>(
+            orbital_cos_zenith_instant(rad_choice.calday, lat_rad, lon_rad, rad_choice.declin));
+    }
+    return rad_choice.cos_zenith_fixed;
+}
+
+/**
+ * @brief The radiative forcing a land-surface model integrates on, for column (i,j).
+ *
+ * Reads the interface fluxes a sweep wrote in RRTMGP's level layout (see
+ * vertical_two_stream_sweep): the surface is the lower interface of the bottom
+ * layer, index @p kmin. What a land model wants there is the *downwelling*
+ * flux -- it applies its own albedo and emissivity -- not the net flux the
+ * surface energy balance uses:
+ *  - @p sw_dn: total downwelling shortwave, direct plus diffuse (component 1);
+ *  - @p lw_dn: downwelling longwave (component 3);
+ *  - @p coszen: cosine of the solar zenith angle, floored at zero, since a
+ *    sun below the horizon delivers nothing and a land model reads a negative
+ *    value as a (meaningless) grazing angle.
+ * Call it after any clear/cloudy blending of @p rad_flux, so the fields match
+ * the fluxes that heat the atmosphere.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void two_stream_land_forcing (int i, int j, int kmin,
+                              const amrex::Array4<const amrex::Real>& rad_flux,
+                              amrex::Real cos_zenith,
+                              amrex::Real& sw_dn,
+                              amrex::Real& lw_dn,
+                              amrex::Real& coszen)
+{
+    sw_dn  = rad_flux(i, j, kmin, 1);
+    lw_dn  = rad_flux(i, j, kmin, 3);
+    coszen = (cos_zenith > amrex::Real(0.0)) ? cos_zenith : amrex::Real(0.0);
+}
+
+/**
  * @brief GPU-safe per-column vertical integration kernel for two-stream
  * radiation, computing either the clear-sky or cloudy-column fluxes and
  * per-level heating rates, depending on the `cloudy` flag.
@@ -881,6 +937,9 @@ void diagnose_layer_optics (
  * interface (the array must extend one cell above the column); component 0 is the
  * upward SW, 1 the downward SW (direct plus diffuse), 2 the upward LW and 3 the
  * downward LW [W/m^2]
+ * @param[out] cos_zenith_out Optional: the cosine of the solar zenith angle this column
+ * was swept with (two_stream_cos_zenith, before any flooring), so a caller that needs the
+ * sun the sweep used reads it rather than evaluating it again
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void vertical_two_stream_sweep (
@@ -912,7 +971,8 @@ void vertical_two_stream_sweep (
     bool has_latlon = false,
     const amrex::Array4<const amrex::Real>* lat_arr = nullptr,
     const amrex::Array4<const amrex::Real>* lon_arr = nullptr,
-    const amrex::Array4<amrex::Real>* rad_flux_out = nullptr)
+    const amrex::Array4<amrex::Real>* rad_flux_out = nullptr,
+    amrex::Real* cos_zenith_out = nullptr)
 {
     // Grid bounds: kmin is the surface layer, kmax the top layer.
     const int kmin = bx.smallEnd(2);
@@ -972,23 +1032,8 @@ void vertical_two_stream_sweep (
         }
     }
 
-    // Cosine of the solar zenith angle: the fixed value of
-    // erf.fixed_solar_zenith_angle, or the sun's position over this column at
-    // the calendar time of the call, with the same formula RRTMGP uses
-    // (orbital_cos_zenith without the interval average). The latitude and
-    // longitude are the column's own where the grid carries them, else the
-    // erf.rad_cons_lat/lon constants.
-    amrex::Real cos_zenith;
-    if (rad_choice.solar_dynamic) {
-        const amrex::Real lat_rad = (has_latlon && lat_arr != nullptr && lat_arr->contains(i, j, 0))
-                                        ? (*lat_arr)(i, j, 0) * PI / 180.0 : rad_choice.lat_cons_rad;
-        const amrex::Real lon_rad = (has_latlon && lon_arr != nullptr && lon_arr->contains(i, j, 0))
-                                        ? (*lon_arr)(i, j, 0) * PI / 180.0 : rad_choice.lon_cons_rad;
-        cos_zenith = static_cast<amrex::Real>(
-            orbital_cos_zenith_instant(rad_choice.calday, lat_rad, lon_rad, rad_choice.declin));
-    } else {
-        cos_zenith = rad_choice.cos_zenith_fixed;
-    }
+    const amrex::Real cos_zenith = two_stream_cos_zenith(i, j, rad_choice, has_latlon, lat_arr, lon_arr);
+    if (cos_zenith_out != nullptr) { *cos_zenith_out = cos_zenith; }
 
     // Top-of-atmosphere irradiance of this call (fixed, or 1360.9 W/m^2
     // times the Earth-Sun distance factor of the date; set by the driver).

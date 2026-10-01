@@ -1,0 +1,82 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+# Regression motivation:
+# The two-stream radiation model supplying Noah-MP's radiative forcing, on the idealized
+# case of inputs_noahmp_ideal (same land setup, same atmosphere), in daylight. Like that
+# case it needs ERF_ENABLE_NOAHMP, which needs a parallel NetCDF build; see README.md.
+#
+# What it guards:
+#
+# 1. The coupling. erf.radiation_model = TwoStream writes the downwelling shortwave
+#    (SWDOWN), downwelling longwave (GLW) and cosine of the solar zenith angle (COSZEN)
+#    at the surface into Noah-MP's inputs every step. Without it Noah-MP runs on zero
+#    radiation, as inputs_noahmp_ideal does: no absorbed shortwave, and a surface that
+#    cools from 300 K to about 252 K under a 0 K sky.
+#
+# 2. The outputs. Here the absorbed shortwave (sav, sag) is nonzero and the skin warms
+#    instead; README.md has the numbers and Noah-MP's energy budget from lnd00002.
+#
+# 3. The fields themselves. plt2d00002 carries what Noah-MP was handed (sw_flux_dn,
+#    lw_flux_dn, cos_zenith_angle), so the reference comparison sees them directly; a
+#    run without the coupling writes -999 there.
+#
+# The site is the setup file's (40 N, 100 W) and the time 18:00 UTC, about 11:20 local
+# solar time, so the sun is well up (cos zenith 0.908). The two-stream optical depths are
+# set for this 1 km column rather than left at their defaults (0.05 and 1.0 per layer, 1.6
+# and 32 over 32 layers, a whole atmosphere's worth each): 0.1 in total for the shortwave
+# and 1.6 for the longwave. That gives Noah-MP 1075 W/m^2 of shortwave and 354 W/m^2 of
+# longwave, and the skin warms from 300 K to 309.9 K in its one land hour.
+
+max_step = 2
+stop_time = 100.0
+
+amrex.fpe_trap_invalid = 0
+
+geometry.prob_extent = 1000 1000 1000
+amr.n_cell           = 4 4 32
+geometry.is_periodic = 1 1 0
+amr.max_level = 0
+
+# Noah-MP applies its fluxes to the atmosphere through the surface layer, which in
+# turn needs a diffusive closure.
+zlo.type = "surface_layer"
+zhi.type = "SlipWall"
+erf.most.z0   = 0.1
+# Above the first cell centre (dz = 31.25 m, so 15.6 m); MOSTAverage requires it.
+erf.most.zref = 20.0
+
+erf.fixed_dt = 1.0
+erf.v = 1
+
+erf.prob_name = "ABL"
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "input_sounding"
+
+erf.use_gravity = true
+erf.les_type = "Smagorinsky"
+erf.Cs = 0.16
+erf.pbl_type = "None"
+erf.molec_diff_type = "None"
+
+start_datetime = "2024-08-05 18:00:00"
+erf.rad_cons_lat = 40.0
+erf.rad_cons_lon = -100.0
+
+# The two-stream model feeds Noah-MP (single level only).
+erf.radiation_model = "TwoStream"
+erf.rad_t_sfc = 300.0
+erf.radiation.tau_per_layer    = 0.003125
+erf.radiation.tau_lw_per_layer = 0.05
+
+erf.land_surface_model = "NOAHMP"
+
+erf.check_int = -1
+# The atmosphere at the last step (plt00002), for the reference comparison.
+erf.plot_file_1 = plt
+erf.plot_int_1 = 2
+erf.plot_vars_1 = density x_velocity y_velocity z_velocity pressure temp theta qsrc_sw qsrc_lw
+
+# Noah-MP's own outputs.
+erf.plot2d_file_1 = plt2d
+erf.plot2d_int_1 = 2
+erf.plot2d_vars_1 = t_sfc sav sag sensible_heat_flux grdflx fira sw_flux_dn lw_flux_dn cos_zenith_angle

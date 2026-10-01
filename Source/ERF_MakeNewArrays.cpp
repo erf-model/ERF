@@ -547,7 +547,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     if (solverChoice.rad_type == RadiationType::TwoStream)
     {
         two_stream_rad.define_level(lev, solverChoice.radChoice, solverChoice.rdOcp, ba2d[lev], dm,
-                                    ba, geom[lev].Domain());
+                                    ba, geom[lev].Domain(), solverChoice.rad_feeds_lsm());
     }
 
     //*********************************************************
