@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 
 #include "ERF_LandSurface.H"
+#include "../../ERF_GTestTempDir.H"
 #include "ERF_SLM.H"
 
 namespace {
@@ -1009,7 +1010,7 @@ TEST_F(SLMInterfaceTest, RemakePreservesProcessedState)
 TEST_F(SLMInterfaceTest, CheckpointWritesAndReadsSyntheticState)
 {
     const std::filesystem::path checkpoint =
-        std::filesystem::temp_directory_path() / "erf_slm_unit_checkpoint";
+        erf_gtest_temp_path("erf_slm_unit_checkpoint");
     std::filesystem::remove_all(checkpoint);
     std::filesystem::create_directories(checkpoint / "Level_0");
 
@@ -1036,7 +1037,7 @@ TEST_F(SLMInterfaceTest, CheckpointWritesAndReadsSyntheticState)
 TEST_F(SLMInterfaceTest, ReadsDirectSLMCheckpointIntoFreshSLM)
 {
     const std::filesystem::path checkpoint =
-        std::filesystem::temp_directory_path() / "erf_slm_unit_checkpoint_fresh";
+        erf_gtest_temp_path("erf_slm_unit_checkpoint_fresh");
     std::filesystem::remove_all(checkpoint);
     std::filesystem::create_directories(checkpoint / "Level_0");
 
