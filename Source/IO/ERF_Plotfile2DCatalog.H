@@ -30,6 +30,8 @@ enum class DiagnosticID
     OLR,
     SebTsfc,
     SebQsfc,
+    SebHfx,
+    SebLh,
     SensFlux,
     LatenFlux,
     SurfPres,
