@@ -2,27 +2,31 @@ name: Linux GCC NetCDF RRTMGP
 
 on:
   push:
+    branches: [development]
   pull_request:
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 concurrency:
   group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-linux-gcc-rrtmgp
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
   library:
-    # The closed event exists only to cancel in-progress runs via concurrency.
-    if: github.event.action != 'closed'
-    name: GNU@9.3 C++17 Release - NetCDF ${{matrix.netcdf}} - Particles ${{matrix.particles}} - RRTMGP ${{matrix.rrtmgp}}
+    name: GNU@9.3 C++17 - NetCDF ${{matrix.netcdf}} - Particles ${{matrix.particles}} - RRTMGP ${{matrix.rrtmgp}}
     runs-on: ubuntu-22.04
+    timeout-minutes: 180
     permissions:
       contents: read
       packages: write
     # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
     strategy:
       matrix:
-        particles: [OFF, ON]
+        # This workflow exercises the NetCDF and RRTMGP combinations, which
+        # are orthogonal to particles -- crossing the axis doubled the matrix
+        # for no added coverage of either. Particles OFF is still built by
+        # ci, gcc and windows-mpi.
+        particles: [ON]
         netcdf: [OFF, ON]
         rrtmgp: [OFF, ON]
         exclude:
@@ -88,7 +92,8 @@ jobs:
         cmake \
           -B${ERF_DIR}/build \
           -DCMAKE_INSTALL_PREFIX:PATH=${ERF_DIR}/install \
-          -DCMAKE_BUILD_TYPE:STRING=Debug \
+          -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
+          -DAMReX_ASSERTIONS:BOOL=ON \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
@@ -122,11 +127,11 @@ jobs:
 
     - name: Report
       run: |
-        grep -Ei "warning:|error:" ${ERF_DIR}/../build-output.txt \
+        grep -Ei "warning:|error:" ${ERF_DIR}/build-output.txt \
           | grep -Ev "Submodules/(amrex|googletest)" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
-          | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${ERF_DIR}/../build-output-warnings.txt
-        cat ${ERF_DIR}/../build-output-warnings.txt
-        export return=$(tail -n 1 ${ERF_DIR}/../build-output-warnings.txt | awk '{print $2}')
+          | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${ERF_DIR}/build-output-warnings.txt
+        cat ${ERF_DIR}/build-output-warnings.txt
+        export return=$(tail -n 1 ${ERF_DIR}/build-output-warnings.txt | awk '{print $2}')
         exit ${return}
 
     - name: Check Unit Test Registration
@@ -149,3 +154,15 @@ jobs:
       run: |
         ctest -L regression -VV
       working-directory: ${{ github.workspace }}/erf_clone/build
+
+    # A test that dies on a signal (for example SIGILL from amrex.fpe_trap_invalid)
+    # writes Backtrace.<rank> into its run directory; the log only says "See
+    # Backtrace.0 file for details", so keep those files when a step has failed.
+    - name: Upload backtraces from failed tests
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: backtraces-gcc-rrtmgp-netcdf-${{matrix.netcdf}}-rrtmgp-${{matrix.rrtmgp}}
+        path: ${{ github.workspace }}/erf_clone/build/Tests/**/Backtrace.*
+        if-no-files-found: ignore
+        retention-days: 14

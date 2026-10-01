@@ -249,12 +249,89 @@ is enough to satisfy this. The model aborts with a message naming this input if 
 vertically decomposed grid. The horizontal decomposition is unconstrained, and the results do not
 depend on it or on the ``fabarray.mfiter_tile_size`` tiling.
 
+On a refined run a level is free to cover only part of the column, and that is supported: a
+level whose grids do not reach the domain top or bottom is a *nested patch*, and rather than
+sweeping it ERF interpolates its heating rates and fluxes from its parent -- the same route
+RRTMGP takes (``is_nested_patch``). Nothing needs to be set for this.
+
+The requirement is per box, not per level: the sweep needs a whole column inside one box. Several
+layouts fail it -- a level that stops short of the domain top, a level tagged at different heights
+in different horizontal regions (surface convection in one place, cloud tops in another), or grids
+decomposed in the vertical -- and above level 0 they all take the same route, interpolation from
+the parent. None of them is an error.
+
+Level 0 is the exception, because it has no parent. It always covers the domain, so a box there
+that does not span :math:`z` is decomposed in the vertical, and that is refused at start-up.
+ERF's default ``amr.no_box_split_dir = 2`` already forbids that decomposition, so the refusal is
+a backstop rather than something a normal deck meets.
+
+If you would rather a refinement patch be solved on its own than interpolated, setting
+
+.. code-block:: none
+
+   amr.refine_whole_domain_dir = 2
+
+makes AMReX cluster the tagged cells in the horizontal only and emit refinement boxes that span
+the whole domain in :math:`z`, so every level carries complete columns and every level runs its
+own sweep. A refinement box given explicitly through ``erf.boxN.in_box_lo``/``in_box_hi`` spans
+:math:`z` already when the :math:`z` extent is omitted, since the two-value form defaults to the
+full domain.
+
+Multiple Levels
+--------------------------------------
+
+Every level that carries complete columns runs its own column sweep over its own state, terrain
+and surface properties, and writes its own heating rates into ``qheating_rates[lev]``; a nested
+patch is interpolated from its parent instead. The RhoTheta source applies them at every level. There is no coarse-fine treatment of the radiative fluxes and none is needed in the
+usual sense -- radiation is a source term, not a conserved flux that is refluxed -- but two
+consequences follow and are worth stating plainly:
+
+- **A lateral seam.** Across the edge of a patch, the coarse and the fine solution of the same
+  physical column differ slightly, because they are computed on different grids. For a smooth
+  broadband two-stream model the difference is small, but nothing smooths it. Under
+  ``erf.coupling_type = TwoWay`` (the default) coarse cells underneath a patch have their state
+  replaced by the fine solution at the end of each step (``AverageDown``), so the discrepancy
+  does not accumulate there; under ``OneWay`` there is no such replacement and it does.
+- **No feedback upward.** The fine level's own structure does not influence the coarse level's
+  radiation.
+
+A subcycled fine level calls radiation once per level step, so it runs ``nsubsteps[lev]`` times
+as often as its parent -- twice as often for a refinement ratio of two. This matches the RRTMGP
+path and is physically correct, since the heating is recomputed from the current old state each
+time; there is no call-interval input to reduce it.
+
+The surface energy balance runs on every level. Each level carries its own force-restore
+surface state, evolves it from the fluxes its own sweep computes, and checkpoints it, and the
+diagnostic SEB residual is reported per level. Because the prognostic surface temperature *is*
+the longwave boundary condition, the levels must not be allowed to hold different temperatures
+for one physical surface, so ERF keeps them consistent in three places:
+
+- **A new level starts from its parent.** ``t_sfc`` and ``q_sfc`` are interpolated from the
+  coarse level when a level is created, so a fine level begins from the surface its parent has
+  already reached rather than from ``erf.rad_t_sfc``.
+- **Fine levels are averaged down.** After the finer levels advance, their surface state is
+  averaged onto the coarse level, exactly as the atmospheric state is. This runs under
+  ``erf.coupling_type = TwoWay``; with ``OneWay`` the levels are left to evolve independently,
+  which is what that option asks for everywhere else as well.
+  A level that cannot sweep is skipped: one whose boxes do not span the domain in
+  :math:`z` takes its radiation fields from its parent and never advances a surface state
+  of its own, so averaging its copy down would overwrite the coarse surface underneath the
+  patch with the value it was created with.
+- **A regrid keeps what the surface had reached.** Rebuilding a level reallocates its surface
+  fields, so the pre-regrid values are copied back onto the new grids, with cells the new grids
+  added filled from the parent.
+
+The surface temperature a fine level sees is therefore its parent's wherever the fine level has
+not yet changed it, which is a real limitation: refining does not by itself give the surface
+more structure than the coarse grid resolved. What refinement does give is a surface that
+responds to the fine level's own radiative fluxes.
+
 Limitations
 --------------------------------------
 
-- **Single level.** The sweep has no coarse-fine treatment of the fluxes, and a fine-level box
-  never holds a whole column of its level, so ``erf.radiation_model = TwoStream`` requires
-  ``amr.max_level = 0``. The run stops at start-up with a message saying so.
+- **Refined runs.** Multiple levels are supported; see `Multiple Levels`_ above for the grid
+  requirement, the lateral coarse-fine seam, the absence of feedback from fine to coarse, the
+  subcycled call cadence, and how the surface energy balance is kept consistent between levels.
 - **Sun and site.** The sun, the site and the surface temperature come from the inputs the
   RRTMGP interface reads (``erf.fixed_solar_zenith_angle``, ``erf.fixed_total_solar_irradiance``,
   ``erf.rad_t_sfc``, ``erf.rad_cons_lat``/``lon``, ``erf.rad_orbital_*``, ``start_datetime``),
@@ -276,7 +353,11 @@ Limitations
 - **Diagnostics file.** The diagnostics are off by default. Setting
   ``erf.radiation.diag_enable = true`` writes ``radiation_diag.dat``
   (``erf.radiation.diag_file``) in the run directory, with a ``pre_dycore`` and a
-  ``post_dycore`` row per step. The file is appended to rather than truncated, as ERF's other
+  ``post_dycore`` row per step for every level that sweeps. Each of them appends to the one
+  file and the last column, ``level``, tells the rows apart. A level interpolated from its
+  parent contributes no rows at all -- it runs no sweep, so it has no fluxes of its own to
+  report -- so on a refined run the rows present are those of the sweeping levels, not one
+  set per level in the hierarchy. The file is appended to rather than truncated, as ERF's other
   data logs are, so a rerun in the same directory extends the previous run's rows.
 
 Surface Energy Balance
@@ -349,12 +430,19 @@ In discretized form:
 
 After the update, :math:`q_s` is clamped to [``seb_prognostic_q_min``, ``seb_prognostic_q_max``].
 
-Noah-MP Precedence and Double-Counting Safeguard
+External Surface-Temperature Provider Ownership
 -------------------------------------------------
 
-When Noah-MP is active at a particular level, the SEB prognostic update is automatically skipped at that level,
-and Noah-MP's own surface prognostics (which include soil heat conduction and explicit soil moisture layers)
-are used instead. This prevents double-counting of surface energy and moisture evolution.
+TwoStream advances its prognostic surface state only when TwoStream owns the longwave surface-temperature
+boundary. If an authoritative external or LSM surface-temperature provider owns that boundary at a level, the
+TwoStream prognostic update is skipped there, preventing an unused shadow state from being evolved alongside
+the provider. Noah-MP's ``t_sfc`` field and SLM's ``tsurf`` field supplied through the canonical SurfaceModel
+radiation input are examples of external providers. The simplified prognostic state does not override either
+provider.
+
+The per-column temperature resolver retains its existing fallback order: valid external/LSM absolute
+temperature, valid prognostic SEB absolute temperature when offered, valid SurfaceLayer potential temperature
+converted to absolute temperature, then the scalar ``erf.rad_t_sfc`` fallback.
 
 Cloud Fraction Diagnosis
 --------------------------------

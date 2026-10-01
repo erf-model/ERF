@@ -12,6 +12,9 @@
 #include <AMReX_REAL.H>
 #include <AMReX_Vector.H>
 
+// invert_latlon_offset, used to place stations given by latitude/longitude
+#include "ERF_LatLonMap.H"
+
 //
 // Station time-series output.
 //
@@ -44,33 +47,6 @@
 // 'theta_z100m'; those are not accepted here, since a station asks for the 3D
 // variable and a height directly.
 //
-
-//
-// Invert the latitude/longitude map locally.  Given the difference between the
-// requested lat/lon and the lat/lon of a grid point, and the gradients of
-// latitude and longitude with respect to the two horizontal index directions at
-// that point, return the offset in cells from the grid point to the request.
-//
-// The map is smooth over a cell, so one linear solve places the station to well
-// under a cell width, whatever the projection.  Returns false when the two
-// gradients are parallel and the map is therefore not locally invertible.
-//
-inline bool
-invert_latlon_offset (amrex::Real dlat, amrex::Real dlon,
-                      amrex::Real dlat_di, amrex::Real dlon_di,
-                      amrex::Real dlat_dj, amrex::Real dlon_dj,
-                      amrex::Real& di, amrex::Real& dj)
-{
-    const amrex::Real scale = std::max(std::max(std::abs(dlat_di), std::abs(dlon_di)),
-                                       std::max(std::abs(dlat_dj), std::abs(dlon_dj)));
-    const amrex::Real det = dlat_di*dlon_dj - dlat_dj*dlon_di;
-    if (scale <= amrex::Real(0.0) || std::abs(det) <= amrex::Real(1.0e-12)*scale*scale) {
-        return false;
-    }
-    di = ( dlat*dlon_dj - dlon*dlat_dj) / det;
-    dj = (-dlat*dlon_di + dlon*dlat_di) / det;
-    return true;
-}
 
 struct StationVar
 {

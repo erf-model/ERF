@@ -21,22 +21,74 @@ Building and Running with Noah-MP
 ---------------------------------
 To build ERF with Noah-MP support, the ``NetCDF``, ``NetCDF Fortran``, and ``HDF5`` libraries are
 required. Furthermore, ``ERF_ENABLE_NOAHMP=ON`` must be specified with CMake builds or ``USE_NOAHMP=TRUE``
-and ``USE_NETCDF=TRUE`` must be specified with GNU Make. Once an executable has been generated, the
+and ``USE_NETCDF=TRUE`` must be specified with GNU Make.
+
+NetCDF must be built with **parallel I/O**: ERF's NetCDF layer includes ``netcdf_par.h``, which
+only a parallel build of ``netcdf-c`` (over an MPI-enabled HDF5) installs. ``nc-config
+--has-parallel`` should report ``yes``. A serial NetCDF, such as the default Homebrew package,
+fails to compile with ``'netcdf_par.h' file not found``.
+
+Once an executable has been generated, the
 inputs file for the simulation must specify Noah-MP as the land surface model type:
 
 .. code-block:: bash
 
     erf.land_surface_model = "NOAHMP"
 
-Currently, Noah-MP may only be utilized for simulations that are initialized from a WRF input file
-(``erf.init_type = "WRFInput"``). Additionally, two files are required to be in the run directory
-for Noah-MP initialization: ``namelist.erf`` and ``NoahmpTable.TBL``. Sample files are provided for
-the :download:`namelist.erf <namelist.erf>` and :download:`NoahmpTable.TBL <NoahmpTable.TBL>`.
+Noah-MP runs WRF's driver, and that driver reads three files from the run directory:
+
+- ``namelist.erf`` -- the driver's physics options and timestep, and the name of its land setup
+  file (``ERF_SETUP_FILE_01`` for level 0, ``ERF_SETUP_FILE_02`` and ``_03`` for levels 1 and 2;
+  there is no fourth). A sample is provided: :download:`namelist.erf <namelist.erf>`.
+- ``NoahmpTable.TBL`` -- the parameter table (:download:`NoahmpTable.TBL <NoahmpTable.TBL>`).
+- the **land setup file** itself, a wrfinput-format NetCDF file carrying the WRF grid attributes
+  and the land-surface fields (vegetation and soil type, soil temperature and moisture, and so
+  on).
+
+The land state comes from that setup file whatever ERF's own ``erf.init_type`` is, so the
+atmosphere need not come from WRF: a run initialized from ``erf.init_type = "input_sounding"``
+can use Noah-MP as long as a setup file is supplied. For an idealized case a small synthetic
+setup file can be written as CDL text and turned into NetCDF with ``ncgen -o wrfinput_d01
+<file>.cdl``; it needs the WRF global attributes and the land fields Noah-MP reads.
+
+ERF checks for all three files before the driver runs and names the one that is missing. It does
+so because the driver reports its own errors by writing to standard output and then stopping,
+and that line is usually lost, leaving only ``Noah-MP fatal error``. If ERF cannot find the
+``ERF_SETUP_FILE_0N`` entry for a level in ``namelist.erf`` it only warns, since the driver is the
+authority on what the namelist says; it stops only when the entry names a file that does not
+exist. It also stops, naming the entry, if ``namelist.erf`` still sets ``ZLVL``: the driver
+no longer accepts it, since ERF now passes the reference height for every column. A problem *inside* one of the files (a malformed namelist entry, for example -- every
+``*_TIMESTEP`` and ``*_OPTION`` is an integer) still reaches the driver's generic message.
+
+Several other conditions are reported at start-up or on the first land step:
+
+- **Radiation.** Noah-MP integrates on the downwelling shortwave, downwelling longwave and solar
+  zenith angle a radiation model writes for it, and only ``erf.radiation_model = "RRTMGP"`` does
+  so. Under any other choice (including none) those inputs are replaced with zero, so the land
+  surface receives no radiative forcing, and ERF warns once at start-up and once when it first
+  sees them missing. Zero longwave is a 0 K sky, so the surface cools quickly: on a small
+  idealized grassland patch the skin temperature falls from 300 K to about 252 K in one land
+  hour. With
+  RRTMGP, inputs still missing on the first land step mean the coupling did not reach that level
+  (RRTMGP does not solve on a fine level that is a nested patch), and ERF stops with a message
+  instead of running on zero.
+- **Surface layer.** The land model's fluxes reach the atmosphere only through the surface layer,
+  so a ``surface_layer`` boundary is needed (``zlo.type = "surface_layer"``); without one ERF warns
+  that the fluxes will not be applied. The surface layer in turn needs a diffusive closure.
+- **Timestep.** See below.
+- **Fortran STOP.** Noah-MP's own physics checks end the run with a Fortran ``STOP``, which exits
+  with status 0. ERF reports any exit that happens while the run is still in progress as a
+  failure, whatever status was requested, so a stopped run is not mistaken for a successful one.
+  This applies to every ERF run, not only those using Noah-MP.
 
 To improve computational efficiency, the Noah-MP timestep, specified via ``NOAH_TIMESTEP``
 in the **namelist.erf** file, may be set larger than the ERF timestep to allow subcycling
 in time. For example, if an 4s timestep is utilized for ERF and a 40s timestep is utilized for
 Noah-MP, then Noah-MP will be updated every 10 steps.
+
+The reverse is not allowed. Noah-MP advances at most one ``NOAH_TIMESTEP`` per ERF step, so an
+ERF timestep longer than ``NOAH_TIMESTEP`` would leave the land surface falling further behind the
+atmosphere every step. ERF stops with a message if the ERF timestep exceeds it.
 
 The latest completed exchange supplies the provider inventory used by 2D
 output. The transfer layer converts native Noah-MP specific humidity to dry-air

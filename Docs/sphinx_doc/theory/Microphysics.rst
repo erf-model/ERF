@@ -10,8 +10,17 @@
 Microphysics model
 ====================
 
-Model overview and transported quantities in ERF
-(note: ``Q1`` and ``Q2`` are the mixing ratios of water vapor and cloud water for bulk models. For the Super-Droplet Method, ``Q1`` is water vapor and ``Q2`` is liquid cloud water)
+Model overview and moisture-state quantities in ERF.
+
+For the Eulerian bulk schemes, ``Q1`` is water vapor and ``Q2`` is generally
+cloud liquid water. Additional ``Q`` components depend on the selected
+microphysics scheme. The Super-Droplet Method retains Eulerian moisture fields
+for coupling while representing its particle population separately.
+
+For ``SBM``, ``Q1`` is water vapor, while ``Q2`` and ``Q3`` are cloud- and
+rain-water compatibility fields projected from the authoritative spectral
+liquid-water distribution. They are not independent condensed-water
+prognostic variables. See :ref:`sec:SpectralBinMicrophysics`.
 
 +--------------------+-------------------------+-------------+-------------+-----------------+-------------+
 | Model              | Name in ERF             | ``Q3``      | ``Q4``      | ``Q5``          | ``Q6``      |
@@ -50,9 +59,23 @@ Model overview and transported quantities in ERF
 | Predicted Particle | ``P3``                  | :math:`q_i` | :math:`q_r` | :math:`q_{rim}` | --          |
 | Properties         |                         |             |             |                 |             |
 +--------------------+-------------------------+-------------+-------------+-----------------+-------------+
+| Spectral-bin       | ``SBM``                 | :math:`q_r` | --          | --              | --          |
+| infrastructure     |                         |             |             |                 |             |
+| fixture            |                         |             |             |                 |             |
++--------------------+-------------------------+-------------+-------------+-----------------+-------------+
 | Super-Droplet      | ``SuperDroplets``       | :math:`q_i` | :math:`q_r` | :math:`q_s`     | :math:`q_g` |
 | Method (SDM)       |                         |             |             |                 |             |
 +--------------------+-------------------------+-------------+-------------+-----------------+-------------+
+
+
+.. warning::
+
+   ``SBM`` is currently a bounded zero-transport infrastructure fixture, not
+   yet a production spectral-bin cloud-microphysics option. It stores and
+   validates a liquid spectral distribution and projects that distribution to
+   bulk ``qc`` and ``qr``, but spectral transport and cloud microphysical
+   processes are not yet enabled. See
+   :ref:`sec:SpectralBinMicrophysics` for the current supported configuration.
 
 .. note::
 

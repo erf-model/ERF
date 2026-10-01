@@ -399,6 +399,29 @@ ERF::FillPlot2DVars (int lev,
         mf_comp++;
     } // OLR
 
+    // The two-stream simplified surface energy balance carries its own
+    // prognostic surface state, distinct from the Noah-MP "t_sfc" above and
+    // from the surface layer's "t_surf".  Both accessors return nullptr
+    // unless the two-stream solver is active with seb_enable, in which case
+    // the component is filled with -999.
+    if (containerHasElement(plot_var_names, "seb_t_sfc")) {
+        plotfile2d::fill_component_from_klevel_or_value(
+            mf_dst, mf_comp,
+            (solverChoice.rad_type == RadiationType::TwoStream) ? two_stream_rad.seb_t_sfc(lev)
+                                                                : nullptr,
+            0, -999);
+        mf_comp++;
+    } // seb_t_sfc
+
+    if (containerHasElement(plot_var_names, "seb_q_sfc")) {
+        plotfile2d::fill_component_from_klevel_or_value(
+            mf_dst, mf_comp,
+            (solverChoice.rad_type == RadiationType::TwoStream) ? two_stream_rad.seb_q_sfc(lev)
+                                                                : nullptr,
+            0, -999);
+        mf_comp++;
+    } // seb_q_sfc
+
     if (containerHasElement(plot_var_names, "sens_flux")) {
         plotfile2d::fill_component_from_klevel_or_value(
             mf_dst, mf_comp, sens_flux_source, klo, -999);

@@ -480,11 +480,14 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
 
     // NOTE: These temporaries keep us from overwriting the lev==0 wrf data that is
     //       stored for the BDY operations.
-    MultiFab* mf_C1H;
-    MultiFab* mf_C2H;
-    MultiFab* mf_RDNW;
-    MultiFab* mf_MUB;
-    MultiFab* mf_PHB;
+    // Each is set when the matching variable is read below; the code that uses
+    // them is guarded by the flag that the read sets, so start them at null
+    // rather than leaving them indeterminate.
+    MultiFab* mf_C1H  = nullptr;
+    MultiFab* mf_C2H  = nullptr;
+    MultiFab* mf_RDNW = nullptr;
+    MultiFab* mf_MUB  = nullptr;
+    MultiFab* mf_PHB  = nullptr;
     MultiFab  C1H_tmp;
     MultiFab  C2H_tmp;
     MultiFab  RDNW_tmp;
@@ -807,14 +810,11 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             {
                 for ( MFIter mfi(lev_new[Vars::cons], false); mfi.isValid(); ++mfi )
                 {
-                    FArrayBox* cur_fab;
-                    if (var_name == "U") {
-                      cur_fab  = &lev_new[Vars::xvel][mfi];
-                    } else if (var_name == "V") {
-                      cur_fab  = &lev_new[Vars::yvel][mfi];
-                    } else if (var_name == "W") {
-                      cur_fab  = &lev_new[Vars::zvel][mfi];
-                    }
+                    // The enclosing test admits only U, V and W, so the last
+                    // case is W and cur_fab is always set.
+                    FArrayBox* cur_fab = (var_name == "U") ? &lev_new[Vars::xvel][mfi] :
+                                         (var_name == "V") ? &lev_new[Vars::yvel][mfi] :
+                                                             &lev_new[Vars::zvel][mfi];
 
                     if (success) {
                         cur_fab->template copy<RunOn::Device>(var_fab, 0, 0, 1);
@@ -1187,36 +1187,36 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
               auto &lsm_wrfmap = lsm.Get_WRFInputNames();
               for (auto &var : lsm_wrfmap) {
                   if (var_name == var.first) {
-                      bool is_3d = var_fab.box().length(2) > 1;
+                      bool is_3d = var_fab_from_file.box().length(2) > 1;
                       amrex::Print() << "   Reading " << ((is_3d) ? "3D" : "2D") << " LSM variable '" << var.first << "' (" << var.second << ")" << std::endl;
                       int lsm_idx = lsm.Get_DataIdx(lev, var.second);
                       AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lsm_idx != -1, "LSM variable mapping invalid!");
                       AMREX_ALWAYS_ASSERT(lsm_data[lev][lsm_idx]);
 
                       int lsm_nsoil = lsm.Get_Lsm_Geom(lev).Domain().length(2);
-                      amrex::Print() << " LSM NZ = " << lsm_nsoil << " WRFINPUT NZ = " << var_fab.box().length(2) << std::endl;
+                      amrex::Print() << " LSM NZ = " << lsm_nsoil << " WRFINPUT NZ = " << var_fab_from_file.box().length(2) << std::endl;
                       if (is_3d) {
-                        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lsm_nsoil == var_fab.box().length(2), "Number of soil layers must match!");
+                        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lsm_nsoil == var_fab_from_file.box().length(2), "Number of soil layers must match!");
                       }
 
                       // check for special case of single column data (such as soil thickness ZS, DZS)
                       //  the single column is duplicated across all grid points
-                      bool is_column = var_fab.box().length(0) == 1 && var_fab.box().length(1) == 1;
+                      bool is_column = var_fab_from_file.box().length(0) == 1 && var_fab_from_file.box().length(1) == 1;
 
                       for ( MFIter mfi(*lsm_data[lev][lsm_idx], TilingIfNotGPU()); mfi.isValid(); ++mfi ) {
                           Box gtbx = mfi.tilebox();
                           int lsm_khi = gtbx.bigEnd(2);
-                          gtbx.setRange(2, 0, var_fab.box().length(2));
+                          gtbx.setRange(2, 0, var_fab_from_file.box().length(2));
                           const Array4<      Real>& dst_arr = lsm_data[lev][lsm_idx]->array(mfi);
-                          const Array4<const Real>& src_arr = var_fab.const_array();
+                          const Array4<const Real>& src_arr = var_fab_from_file.const_array();
                           ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                           {
                               int li = amrex::min(amrex::max(i, i_lo), i_hi);
                               int lj = amrex::min(amrex::max(j, j_lo), j_hi);
                               if (is_column) {
                                 // single column src input is copied to all i,j in dst
-                                li = 0;
-                                lj = 0;
+                                li = i_lo;
+                                lj = j_lo;
                               }
                               // Note: LSM z levels are at negative k below surface
                               //  map [0, nsoil-1] to [-1, -nsoil]
@@ -1375,6 +1375,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
     // Compute min and max of terrain
     // **************************************************************************
     if (compute_terrain_here) {
+        // compute_terrain_here is only left true when PHB was read, which is
+        // what sets mf_PHB; everything below dereferences it.
+        AMREX_ALWAYS_ASSERT(mf_PHB != nullptr);
         if (lev == 0) {
             AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
             z_top = compute_terrain_top_and_bottom(mf_PH, *mf_PHB, geom[lev].Domain());
@@ -1556,6 +1559,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
     //       ERF's grid already, after this function returns.
     // **************************************************************************
     if (compute_terrain_here && read_atmos_state) {
+        // Set together with compute_terrain_here when PHB was read; the remap
+        // below dereferences it.
+        AMREX_ALWAYS_ASSERT(mf_PHB != nullptr);
 
         // **************************************************************************
         // NOTE: When keeping the WRF grid, we really only need to interpolate

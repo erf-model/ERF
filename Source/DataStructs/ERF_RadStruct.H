@@ -611,8 +611,7 @@ public:
   /**
    * @brief Read radiation options from the input parameter database.
    *
-   * @param[in] lev AMR level index.
-   * @param[in] max_level Maximum AMR level configured for the run.
+   * @param[in] two_stream_selected Whether the two-stream solver is the selected model.
    * @param[in] pp_prefix ParmParse prefix for the ERF input namespace (e.g., "erf").
    *
    * Queries:
@@ -724,19 +723,18 @@ public:
     }
   }
 
-  void init_params(bool two_stream_selected, int max_level, std::string pp_prefix)
+  void init_params(bool two_stream_selected, std::string pp_prefix)
   {
     amrex::ParmParse pp(pp_prefix);
     enabled = two_stream_selected;
 
-    // The column sweep needs every box to hold the whole atmospheric column
-    // of its level, which fine-level boxes never do; there is no coarse-fine
-    // treatment of the fluxes yet either. Stop here with the reason rather
-    // than at the first fine-level radiation call.
-    if (enabled && max_level > 0) {
-      amrex::Abort("erf.radiation_model = TwoStream runs on a single level; "
-                   "set amr.max_level = 0 or select another radiation model.");
-    }
+    // A refined hierarchy is supported: every level runs its own column sweep
+    // and writes its own heating rates. The one requirement is that each
+    // level's grids span that level's domain in z, because the sweep imposes
+    // top-of-atmosphere and surface boundary conditions at the ends of a box.
+    // That is checked where the grids exist, not here: ERF_RefineBox.cpp for
+    // an explicit erf.boxN refinement box, and TwoStreamRadiation::define_level
+    // for every path including tagged refinement and regrid.
 
     // Only query sub-options if the two-stream model is selected
     if (enabled) {
@@ -1101,6 +1099,7 @@ public:
           seb_prognostic_q_min = seb_prognostic_q_max;
           seb_prognostic_q_max = tmp;
       }
+
   }
 
 }

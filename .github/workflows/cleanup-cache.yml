@@ -1,15 +1,29 @@
 name: CleanUpCache
 
+# Previously this fired off six different workflows on every commit. All six runs shared a
+# single concurrency group, so with cancel-in-progress they mostly killed each other: over a
+# representative 20-hour window this workflow was 156 of 500 total runs and 129 of those were
+# cancelled. Pruning stale ccache entries is not correctness-critical and does not need to
+# happen six times per commit, so it now runs once after Linux GCC plus nightly.
 on:
   workflow_run:
-    workflows: [ERF CI, ERF CUDA CI, ERF CI (hip), ERF CI (sycl), Linux GCC, MacOS]
+    workflows: [Linux GCC]
     types:
       - completed
+  schedule:
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+# Keyed on branch only, not branch+sha, so back-to-back pushes coalesce instead of racing.
+concurrency:
+  group: cleanup-${{ github.event.workflow_run.head_branch || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   CleanUpCcacheCache:
-    name: Clean Up Ccache Cache for ${{ github.event.workflow_run.name }}
+    name: Clean Up Ccache Cache
     runs-on: ubuntu-22.04
+    timeout-minutes: 15
     permissions:
       actions: write
       contents: read
@@ -24,10 +38,8 @@ jobs:
           REPO=${{ github.repository }}
 
           # push or pull_request or schedule or ...
-          EVENT=${{ github.event.workflow_run.event }}
-
-          # Triggering workflow run name (e.g., LinuxClang)
-          WORKFLOW_NAME="${{ github.event.workflow_run.name }}"
+          EVENT="${{ github.event.workflow_run.event }}"
+          HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
 
           # For debugging, cat ${GITHUB_EVENT_PATH} to see the payload.
 
@@ -36,8 +48,11 @@ jobs:
             pr_number=$(gh pr list --search $pr_head_sha --json number --jq '.[0].number')
             echo "Clean up cache for PR ${pr_number}"
             BRANCH=refs/pull/${pr_number}/merge
+          elif [[ -n $HEAD_BRANCH ]]; then
+            BRANCH=refs/heads/${HEAD_BRANCH}
           else
-            BRANCH=refs/heads/${{ github.event.workflow_run.head_branch }}
+            # schedule / workflow_dispatch: no workflow_run context to inherit
+            BRANCH=refs/heads/development
           fi
 
           # Setting this to not fail the workflow while deleting cache keys.
@@ -46,9 +61,9 @@ jobs:
           # In our cache keys, substring after `-git-` is git hash, substring
           # before that is a unique id for jobs (e.g., `ccache-LinuxClang-configure-2d`).
           # The goal is to keep the last used key of each job and delete all others.
-
-          # something like ccache-LinuxClang-
-          keyprefix="ccache-${WORKFLOW_NAME}-"
+          # This used to filter on the triggering workflow's own name; now that a single
+          # run does the pruning it must sweep every workflow's keys.
+          keyprefix="ccache-"
 
           cached_jobs=$(gh actions-cache list -L 100 -R $REPO -B $BRANCH --key "$keyprefix" | awk -F '-git-' '{print $1}' | sort | uniq)
 

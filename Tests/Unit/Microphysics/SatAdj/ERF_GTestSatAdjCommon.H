@@ -520,7 +520,7 @@ CellState make_satadj_kessler_active_cell_state (const int i,
 // than physically valid SatAdj behavior.
 inline void fill_satadj_active_conserved_state (amrex::MultiFab& cons)
 {
-    CellState evap_then_recond;
+    CellState evap_then_recond{};
     const bool found = find_evaporation_then_recondensation_state(evap_then_recond);
     AMREX_ALWAYS_ASSERT(found);
 
@@ -827,7 +827,7 @@ inline void compare_public_flow_to_scalar_reference (const amrex::MultiFab& init
 inline void fill_conserved_state_portable (amrex::MultiFab& cons,
                                            const bool include_all_satadj_branches)
 {
-    CellState evap_then_recond;
+    CellState evap_then_recond{};
     const bool found = find_evaporation_then_recondensation_state(evap_then_recond);
     AMREX_ALWAYS_ASSERT(found);
 
@@ -894,7 +894,7 @@ inline void fill_conserved_state_portable (amrex::MultiFab& cons)
 // MultiFab conservation test measures only phase-change conservation.
 inline void fill_conserved_state_conservation_portable (amrex::MultiFab& cons)
 {
-    CellState evap_then_recond;
+    CellState evap_then_recond{};
     const bool found = find_evaporation_then_recondensation_state(evap_then_recond);
     AMREX_ALWAYS_ASSERT(found);
 

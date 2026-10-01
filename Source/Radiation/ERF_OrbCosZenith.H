@@ -386,7 +386,7 @@ orbital_params (int& iyear_AD,
                 fvelp = zero;
             } else if (sinsum < zero) {
                 fvelp = amrex::Real(1.5)*PI;
-            } else if (sinsum > zero) {
+            } else {
                 fvelp = myhalf*PI;
             }
         } else if (cossum < zero) {

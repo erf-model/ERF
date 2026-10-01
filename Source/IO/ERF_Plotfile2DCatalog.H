@@ -28,6 +28,8 @@ enum class DiagnosticID
     QSurf,
     Z0,
     OLR,
+    SebTsfc,
+    SebQsfc,
     SensFlux,
     LatenFlux,
     SurfPres,

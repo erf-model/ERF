@@ -105,6 +105,9 @@ void ERF::advance_dycore (int level,
     const bool use_nudging = solverChoice.nudging_from_input_sounding;
     const bool has_moisture = (solverChoice.moisture_type != MoistureType::None);
     const bool use_lsf = solverChoice.large_scale_forcing;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        solverChoice.moisture_type != MoistureType::SBM || (!use_lsf && !use_nudging),
+        "SBM zero-transport fixture does not support large-scale subsidence or sounding nudging");
 
     const BoxArray& ba            = state_old[IntVars::cons].boxArray();
     const BoxArray& ba_z          = zvel_old.boxArray();
@@ -267,22 +270,26 @@ void ERF::advance_dycore (int level,
     if (use_lsf) {
         lsf_data[level]->setVal(0.0);
 
+        // The forcing profiles interpolated to this level's cell centres, so that index k
+        // below is this level's cell k
+        const LargeScaleForcingData& lsf_lev = lsf_at_level(level);
+
         int itime_curr = 0;
         int itime_next = 0;
         amrex::Real coeff_curr = 1.0;
         amrex::Real coeff_next = 0.0;
 
-        lsf.get_forcing_time_coeffs(old_time, itime_curr, itime_next, coeff_curr, coeff_next);
+        lsf_lev.get_forcing_time_coeffs(old_time, itime_curr, itime_next, coeff_curr, coeff_next);
 
         // ttend, qtend, wsub = lsf
         // ug0, vg0 = lsf - avg u,v
 
-        const Real* theta_lsf_n   = lsf.t_int_lsf_d[itime_curr].dataPtr();
-        const Real* theta_lsf_np1 = lsf.t_int_lsf_d[itime_next].dataPtr();
-        const Real* qv_lsf_n   = lsf.q_int_lsf_d[itime_curr].dataPtr();
-        const Real* qv_lsf_np1 = lsf.q_int_lsf_d[itime_next].dataPtr();
-        const Real* w_lsf_n   = lsf.w_int_lsf_d[itime_curr].dataPtr();
-        const Real* w_lsf_np1 = lsf.w_int_lsf_d[itime_next].dataPtr();
+        const Real* theta_lsf_n   = lsf_lev.t_int_lsf_d[itime_curr].dataPtr();
+        const Real* theta_lsf_np1 = lsf_lev.t_int_lsf_d[itime_next].dataPtr();
+        const Real* qv_lsf_n   = lsf_lev.q_int_lsf_d[itime_curr].dataPtr();
+        const Real* qv_lsf_np1 = lsf_lev.q_int_lsf_d[itime_next].dataPtr();
+        const Real* w_lsf_n   = lsf_lev.w_int_lsf_d[itime_curr].dataPtr();
+        const Real* w_lsf_np1 = lsf_lev.w_int_lsf_d[itime_next].dataPtr();
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -359,30 +366,34 @@ void ERF::advance_dycore (int level,
     if (use_nudging) {
         nudge_data[level]->setVal(0.0);
 
+        // The sounding sampled at this level's cell centres, so that index k below is this
+        // level's cell k (the level-0 profile indexed by a fine k is the wrong height)
+        const InputSoundingData& snd = sounding_at_level(level);
+
         int itime_n    = 0;
         int itime_np1  = 0;
         Real coeff_n   = Real(1.0);
         Real coeff_np1 = Real(0.0);
-        Real tau_inv = Real(1.0) / input_sounding_data.tau_nudging;
+        Real tau_inv = Real(1.0) / snd.tau_nudging;
 
-        int n_sounding_times = input_sounding_data.input_sounding_time.size();
+        int n_sounding_times = snd.input_sounding_time.size();
 
         for (int nt = 1; nt < n_sounding_times; nt++) {
-            if (old_time > input_sounding_data.input_sounding_time[nt]) itime_n = nt;
+            if (old_time > snd.input_sounding_time[nt]) itime_n = nt;
         }
         if (itime_n == n_sounding_times-1) {
             itime_np1 = itime_n;
         } else {
             itime_np1 = itime_n+1;
-            coeff_np1 = (old_time                                           - input_sounding_data.input_sounding_time[itime_n]) /
-                        (input_sounding_data.input_sounding_time[itime_np1] - input_sounding_data.input_sounding_time[itime_n]);
+            coeff_np1 = (old_time                                           - snd.input_sounding_time[itime_n]) /
+                        (snd.input_sounding_time[itime_np1] - snd.input_sounding_time[itime_n]);
             coeff_n   = Real(1.0) - coeff_np1;
         }
 
-        const Real* theta_inp_sound_n   = input_sounding_data.theta_inp_sound_d[itime_n].dataPtr() + 1;
-        const Real* theta_inp_sound_np1 = input_sounding_data.theta_inp_sound_d[itime_np1].dataPtr() + 1;
-        const Real* qv_inp_sound_n   = input_sounding_data.qv_inp_sound_d[itime_n].dataPtr() + 1;
-        const Real* qv_inp_sound_np1 = input_sounding_data.qv_inp_sound_d[itime_np1].dataPtr() + 1;
+        const Real* theta_inp_sound_n   = snd.theta_inp_sound_d[itime_n].dataPtr() + 1;
+        const Real* theta_inp_sound_np1 = snd.theta_inp_sound_d[itime_np1].dataPtr() + 1;
+        const Real* qv_inp_sound_n   = snd.qv_inp_sound_d[itime_n].dataPtr() + 1;
+        const Real* qv_inp_sound_np1 = snd.qv_inp_sound_d[itime_np1].dataPtr() + 1;
 
         const int n  = RhoTheta_comp;
         const int nq  = RhoQ1_comp;
@@ -449,25 +460,26 @@ void ERF::advance_dycore (int level,
                 Real uv_coeff_n = coeff_n;
                 Real uv_coeff_np1 = coeff_np1;
                 Real tau = tau_inv;
-                Real* u_nudge_n, *u_nudge_np1, *v_nudge_n, *v_nudge_np1;
+                const Real *u_nudge_n, *u_nudge_np1, *v_nudge_n, *v_nudge_np1;
                 if (!use_lsf)
                 {
-                    u_nudge_n = input_sounding_data.U_inp_sound_d[itime_n].dataPtr() + 1;
-                    u_nudge_np1 = input_sounding_data.U_inp_sound_d[itime_np1].dataPtr() + 1;
-                    v_nudge_n  = input_sounding_data.V_inp_sound_d[itime_n].dataPtr() + 1;
-                    v_nudge_np1 = input_sounding_data.V_inp_sound_d[itime_np1].dataPtr() + 1;
+                    u_nudge_n = snd.U_inp_sound_d[itime_n].dataPtr() + 1;
+                    u_nudge_np1 = snd.U_inp_sound_d[itime_np1].dataPtr() + 1;
+                    v_nudge_n  = snd.V_inp_sound_d[itime_n].dataPtr() + 1;
+                    v_nudge_np1 = snd.V_inp_sound_d[itime_np1].dataPtr() + 1;
                 } else {
                     int itime_curr = 0;
                     int itime_next = 0;
                     uv_coeff_n = 1.0;
                     uv_coeff_np1 = 0.0;
-                    tau = 1.0 / lsf.tau_lsf; // only applies to u,v LSF nudging
+                    const LargeScaleForcingData& lsf_uv = lsf_at_level(level);
+                    tau = 1.0 / lsf_uv.tau_lsf; // only applies to u,v LSF nudging
 
-                    lsf.get_forcing_time_coeffs(old_time, itime_curr, itime_next, uv_coeff_n, uv_coeff_np1);
-                    u_nudge_n   = lsf.u_int_lsf_d[itime_curr].dataPtr();
-                    u_nudge_np1 = lsf.u_int_lsf_d[itime_next].dataPtr();
-                    v_nudge_n   = lsf.v_int_lsf_d[itime_curr].dataPtr();
-                    v_nudge_np1 = lsf.v_int_lsf_d[itime_next].dataPtr();
+                    lsf_uv.get_forcing_time_coeffs(old_time, itime_curr, itime_next, uv_coeff_n, uv_coeff_np1);
+                    u_nudge_n   = lsf_uv.u_int_lsf_d[itime_curr].dataPtr();
+                    u_nudge_np1 = lsf_uv.u_int_lsf_d[itime_next].dataPtr();
+                    v_nudge_n   = lsf_uv.v_int_lsf_d[itime_curr].dataPtr();
+                    v_nudge_np1 = lsf_uv.v_int_lsf_d[itime_next].dataPtr();
                 }
 
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept

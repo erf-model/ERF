@@ -100,6 +100,12 @@ make_terrain_fitted_coords (int lev, const amrex::Geometry& geom,
                             FineTerrain fine_terrain = FineTerrain::None,
                             amrex::MultiFab const* z_phys_interp = nullptr);
 
+/** Verify that a fitted mesh is horizontally flat and follows z_levels_h. */
+void
+validate_flat_terrain (int lev,
+                       const amrex::MultiFab& z_phys_nd,
+                       const amrex::Vector<amrex::Real>& z_levels_h);
+
 /**
  * Initialize the terrain grid mapping.
  *
@@ -286,7 +292,7 @@ Compute_h_zeta_AtIface (const int &i, const int &j, const int &k,
  * @param[in] z_nd Nodal physical height field.
  * @return Xi metric term.
  */
-AMREX_GPU_DEVICE
+AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 Compute_h_xi_AtIface (const int &i, const int &j, const int &k,
@@ -379,7 +385,7 @@ Compute_h_xi_AtJface (const int &i, const int &j, const int &k,
  * @param[in] z_nd Nodal physical height field.
  * @return Eta metric term.
  */
-AMREX_GPU_DEVICE
+AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 Compute_h_eta_AtJface (const int &i, const int &j, const int &k,
@@ -403,7 +409,7 @@ Compute_h_eta_AtJface (const int &i, const int &j, const int &k,
  * @param[in] z_nd Nodal physical height field.
  * @return Zeta metric term.
  */
-AMREX_GPU_DEVICE
+AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 Compute_h_zeta_AtKface (const int &i, const int &j, const int &k,
@@ -427,7 +433,7 @@ Compute_h_zeta_AtKface (const int &i, const int &j, const int &k,
  * @param[in] z_nd Nodal physical height field.
  * @return Xi metric term.
  */
-AMREX_GPU_DEVICE
+AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 Compute_h_xi_AtKface (const int &i, const int &j, const int &k,
@@ -450,7 +456,7 @@ Compute_h_xi_AtKface (const int &i, const int &j, const int &k,
  * @param[in] z_nd Nodal physical height field.
  * @return Eta metric term.
  */
-AMREX_GPU_DEVICE
+AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 Compute_h_eta_AtKface (const int &i, const int &j, const int &k,
@@ -723,7 +729,7 @@ Compute_Z_AtCellCenter (const int &i, const int &j, const int &k,
  * @param[in] z_nd Nodal physical height field.
  * @return Physical height at W-face.
  */
-AMREX_GPU_DEVICE
+AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 Compute_Z_AtWFace (const int &i, const int &j, const int &k,
