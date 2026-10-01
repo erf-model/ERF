@@ -441,6 +441,28 @@ public:
     //! Fill a newly built level's two-stream SEB state from its parent
     void fill_seb_from_coarse (int lev);
 
+    //! With erf.radiation.seb_surface_layer_uses_skin, hand the two-stream surface energy
+    //! balance's skin temperature of level lev to the zlo surface layer before it
+    //! computes its fluxes
+    void set_surface_layer_skin (int lev);
+
+    //! Start-up checks of erf.radiation.seb_surface_layer_uses_skin against the surface
+    //! layer and land model
+    void check_surface_layer_skin ();
+
+    //! The zlo surface layer's applied heat and moisture fluxes for the two-stream
+    //! surface energy balance's H and LE, or nullptr where it applies none
+    void seb_surface_layer_fluxes (int lev,
+                                   const amrex::MultiFab*& sens_flux,
+                                   const amrex::MultiFab*& laten_flux) const;
+
+    //! The conservative surface heat and moisture fluxes (z faces) applied to level
+    //! lev, or nullptr where there is none. The sensible_heat_flux/latent_heat_flux
+    //! 2D outputs and the two-stream surface energy balance both read them here.
+    void surface_flux_sources (int lev,
+                               const amrex::MultiFab*& sens_flux,
+                               const amrex::MultiFab*& laten_flux) const;
+
     // Called after every level 0 timestep
     void post_timestep (int nstep, double time, double dt_lev);
 

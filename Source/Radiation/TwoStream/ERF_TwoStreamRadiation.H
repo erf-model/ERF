@@ -109,6 +109,13 @@ public:
      * @param t_surf     the surface layer's surface temperature, or nullptr;
      *                   used as the longwave boundary condition where no
      *                   land-surface field exists, as RRTMGP does
+     * @param sfc_sens_flux the conservative heat flux (rho w'theta', z faces)
+     *                   the zlo surface layer applies to this level, or
+     *                   nullptr when it applies none; the surface energy
+     *                   balance's H where no land-surface model supplies one
+     *                   (see ERF_SEBTurbulentFlux.H)
+     * @param sfc_laten_flux the moisture flux (rho w'qv', z faces) likewise,
+     *                   for LE; nullptr without a moisture model
      * @param lat_m      per-column latitude [degrees], or nullptr (then
      *                   erf.rad_cons_lat); only the WRF/metgrid inits fill it
      * @param lon_m      per-column longitude [degrees], likewise
@@ -134,6 +141,8 @@ public:
                   amrex::MultiFab* qheating,
                   amrex::MultiFab* rad_fluxes,
                   const amrex::MultiFab* t_surf,
+                  const amrex::MultiFab* sfc_sens_flux,
+                  const amrex::MultiFab* sfc_laten_flux,
                   const amrex::MultiFab* lat_m,
                   const amrex::MultiFab* lon_m,
                   double epoch_time,
@@ -154,6 +163,18 @@ public:
     }
     [[nodiscard]] amrex::MultiFab* seb_q_sfc (int lev) {
         return (active() && m_rad->seb_enable && lev < m_q_sfc.size()) ? m_q_sfc[lev].get() : nullptr;
+    }
+
+    /**
+     * @brief The sensible and latent heat fluxes [W/m^2] the surface energy balance
+     * of one level last used, or nullptr when the SEB is off or the level has not
+     * been built. Read-only: for output.
+     */
+    [[nodiscard]] const amrex::MultiFab* seb_hfx (int lev) const {
+        return (active() && m_rad->seb_enable && lev < m_hfx_sfc.size()) ? m_hfx_sfc[lev].get() : nullptr;
+    }
+    [[nodiscard]] const amrex::MultiFab* seb_lh (int lev) const {
+        return (active() && m_rad->seb_enable && lev < m_lh_sfc.size()) ? m_lh_sfc[lev].get() : nullptr;
     }
 
     /** @brief True when the force-restore state is being evolved and so needs transferring. */

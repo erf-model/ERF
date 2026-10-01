@@ -165,6 +165,10 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamKernels.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamColumn.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamRadiationDriver.cpp
+    # Motivation: the surface energy balance must take H and LE from a land
+    # model, else from the surface layer's applied flux in W/m^2, else from
+    # the scalar defaults; LE stays at its default without a moisture model.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestSEBTurbulentFlux.cpp
     # Motivation: RRTMGP consumes absolute surface temperature; a
     # SurfaceLayer fallback must convert theta at the physical surface
     # pressure diagnosed from the lowest atmospheric cell,

@@ -61,6 +61,12 @@ SurfaceLayer::update_fluxes (const int& lev,
         get_lsm_tsurf(lev);
     }
 
+    // An external skin temperature (the two-stream surface energy balance's) owns
+    // the land surface temperature; last, so it replaces what was written above.
+    if (zlo && lev < static_cast<int>(m_skin_tsurf_lev.size()) && m_skin_tsurf_lev[lev]) {
+        fill_tsurf_with_skin_temperature(lev, cons_in, z_phys_nd);
+    }
+
     // Update qsurf with qsat over sea
     if (use_moisture) {
         fill_qsurf_with_qsat(lev, cons_in, z_phys_nd);
@@ -2294,6 +2300,95 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
     if (conversion_failed_host != 0) {
         amrex::Abort("SurfaceLayer fill_tsurf_with_coupled_sst: failed to convert the authoritative "
                      "coupled sea-surface temperature to potential temperature.");
+    }
+}
+
+/**
+ * Overwrite the land surface temperature with an external absolute skin
+ * temperature, converted to potential temperature at the surface pressure.
+ *
+ * @param[in] lev       Current level
+ * @param[in] cons_in   Conserved state (surface pressure from the lowest cell)
+ * @param[in] z_phys_nd Nodal heights, or nullptr on a flat mesh
+ */
+void
+SurfaceLayer::fill_tsurf_with_skin_temperature (const int& lev,
+                                                const MultiFab& cons_in,
+                                                const std::unique_ptr<MultiFab>& z_phys_nd)
+{
+    const MultiFab& skin = *m_skin_tsurf_lev[lev];
+    // Indexed with the MFIter of t_surf, so the layouts must agree: both are the
+    // level's grids flattened to the surface for planar terrain.
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        skin.boxArray() == t_surf[lev]->boxArray() &&
+        skin.DistributionMap() == t_surf[lev]->DistributionMap(),
+        "Skin temperature layout does not match the surface-layer layout.");
+
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+    const Real dz = m_geom[lev].CellSize(2);
+    const bool moist = use_moisture;
+    const Real rdOcp = m_rdOcp;
+    amrex::Gpu::DeviceScalar<int> d_conversion_failed(0);
+    int* conversion_failed = d_conversion_failed.dataPtr();
+
+    for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
+    {
+        Box gtbx = mfi.growntilebox();
+        if (gtbx.smallEnd(2) != klo ||
+            !m_planar_bndry[lev].is_surface_copy(mfi.index())) {
+            continue;
+        }
+        gtbx &= t_surf[lev]->fabbox(mfi.index());
+        if (gtbx.isEmpty()) { continue; }
+
+        // The skin is written on valid cells only, so the halo takes the nearest
+        // valid column; fill_planar_boundary in update_fluxes then fills the
+        // interior and periodic ghosts.
+        const Box vbx = mfi.validbox();
+        const int i_lo = vbx.smallEnd(0); const int i_hi = vbx.bigEnd(0);
+        const int j_lo = vbx.smallEnd(1); const int j_hi = vbx.bigEnd(1);
+
+        auto t_surf_arr = t_surf[lev]->array(mfi);
+        auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
+                                                  Array4<int> {};
+        const auto skin_arr = skin.const_array(mfi);
+        const auto cons_arr = cons_in.const_array(mfi);
+        const auto z_arr    = (z_phys_nd) ? z_phys_nd->const_array(mfi) :
+                                            Array4<const Real> {};
+
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            const int li = amrex::min(amrex::max(i, i_lo), i_hi);
+            const int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+            const int is_land = (lmask_arr) ? lmask_arr(li,lj,0) : 1;
+            if (!is_land) { return; }
+
+            const Real rho = cons_arr(li,lj,klo,Rho_comp);
+            const Real rho_theta = cons_arr(li,lj,klo,RhoTheta_comp);
+            const Real qv = moist ? cons_arr(li,lj,klo,RhoQ1_comp) / rho : Real(0.0);
+            const Real delta_z = z_arr
+                ? Compute_Z_AtCellCenter(li,lj,klo,z_arr) -
+                  Compute_Z_AtWFace(li,lj,klo,z_arr)
+                : myhalf*dz;
+            const Real pressure = erf_surface_temperature::pressure_at_boundary_from_cell(
+                rho, rho_theta, qv, delta_z);
+            Real theta = t_surf_arr(i,j,k);
+            if (amrex::Math::isfinite(qv) &&
+                erf_surface_temperature::temperature_to_theta(
+                    skin_arr(li,lj,k), pressure, rdOcp, theta)) {
+                t_surf_arr(i,j,k) = theta;
+            } else {
+                amrex::Gpu::Atomic::Max(conversion_failed, 1);
+            }
+        });
+    }
+    amrex::Gpu::streamSynchronize();
+    int conversion_failed_host = d_conversion_failed.dataValue();
+    amrex::ParallelDescriptor::ReduceIntMax(conversion_failed_host);
+    if (conversion_failed_host != 0) {
+        amrex::Abort("SurfaceLayer fill_tsurf_with_skin_temperature: failed to convert the "
+                     "skin temperature to potential temperature (non-finite or non-positive "
+                     "skin temperature, density or pressure).");
     }
 }
 

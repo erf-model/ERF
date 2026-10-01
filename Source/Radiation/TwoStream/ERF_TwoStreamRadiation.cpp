@@ -9,6 +9,7 @@
 #include <ERF_PrognosticCloudFraction.H>
 #include <ERF_AerosolOpticalDepth.H>
 #include <ERF_SimplifiedSEB.H>
+#include <ERF_SEBTurbulentFlux.H>
 #include <ERF_OrbCosZenith.H>
 #include <AMReX_Print.H>
 #include <AMReX_ParallelDescriptor.H>
@@ -114,18 +115,25 @@ void set_solar_state (TwoStreamParams& p, const RadChoice& rc,
 
 
 namespace {
+// The LSM field of the given name on this level, or nullptr when the LSM has
+// none.
+const MultiFab* lsm_field(LandSurface& lsm, int lev, const char* field_name)
+{
+    std::string varname(field_name);
+    const int lsm_idx = lsm.Get_DataIdx(lev, varname);
+    return (lsm_idx >= 0) ? lsm.Get_Data_Ptr(lev, lsm_idx) : nullptr;
+}
+
+bool lsm_has_field(LandSurface& lsm, int lev, const char* field_name)
+{
+    return lsm_field(lsm, lev, field_name) != nullptr;
+}
+
 // Fill a 2D surface-energy-balance field from the LSM field of the given
 // name, scaled by `scale` (Noah-MP's fira is positive upward, the SEB wants
 // absorbed fluxes positive), plus an optional second field added on top
 // (Noah-MP splits absorbed shortwave into sav and sag). Falls back to the
 // scalar default when the LSM does not expose the field.
-bool lsm_has_field(LandSurface& lsm, int lev, const char* field_name)
-{
-    std::string varname(field_name);
-    const int lsm_idx = lsm.Get_DataIdx(lev, varname);
-    return (lsm_idx >= 0) && (lsm.Get_Data_Ptr(lev, lsm_idx) != nullptr);
-}
-
 void fill_or_copy_seb_field(
     MultiFab* seb_mf,
     LandSurface& lsm,
@@ -345,6 +353,8 @@ TwoStreamRadiation::advance (int lev,
                              MultiFab* qheating,
                             MultiFab* rad_fluxes,
                             const MultiFab* t_surf,
+                            const MultiFab* sfc_sens_flux,
+                            const MultiFab* sfc_laten_flux,
                             const MultiFab* lat_m,
                             const MultiFab* lon_m,
                             double epoch_time,
@@ -589,11 +599,25 @@ TwoStreamRadiation::advance (int lev,
                 fill_or_copy_seb_field(m_lw_flux_sfc[lev].get(), lsm, lev, "fira",
                                        rad_choice.seb_lw_flux_default, -1.0);
             }
-            // The LSM data lists carry no sensible or latent heat flux under
-            // these names, so H and LE come from the scalar defaults unless a
-            // model exposes them; G is Noah-MP's grdflx when present.
-            fill_or_copy_seb_field(m_hfx_sfc[lev].get(), lsm, lev, "hfx", rad_choice.seb_hfx_default);
-            fill_or_copy_seb_field(m_lh_sfc[lev].get(), lsm, lev, "lh", rad_choice.seb_lh_default);
+            // H and LE: a land-surface field of that name, else the flux the
+            // surface layer applies to the air (so the ground loses what the air
+            // receives), else the scalar defaults; see ERF_SEBTurbulentFlux.H.
+            // No land model exposes "hfx" or "lh" today, so without one the
+            // surface layer is the source. G is Noah-MP's grdflx when present.
+            //
+            // At the post-dycore call, the one the force-restore update uses, the
+            // surface layer's flux is the one it applied during this step. At the
+            // pre-dycore call it is the previous step's, which only the residual
+            // diagnostic reads.
+            const int surface_k = geom.Domain().smallEnd(2);
+            fill_seb_turbulent_flux(*m_hfx_sfc[lev], SEBTurbulentFlux::Sensible,
+                                    lsm_field(lsm, lev, "hfx"), sfc_sens_flux, surface_k,
+                                    rad_choice.seb_turbulent_flux_source,
+                                    rad_choice.seb_hfx_default);
+            fill_seb_turbulent_flux(*m_lh_sfc[lev], SEBTurbulentFlux::Latent,
+                                    lsm_field(lsm, lev, "lh"), sfc_laten_flux, surface_k,
+                                    rad_choice.seb_turbulent_flux_source,
+                                    rad_choice.seb_lh_default);
             fill_or_copy_seb_field(m_grdflx_sfc[lev].get(), lsm, lev, "grdflx", rad_choice.seb_grdflx_default);
 
             // Gate q_sfc fill on prognostic mode: same reasoning as t_sfc.

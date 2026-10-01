@@ -138,6 +138,7 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
 #else
             double elapsed_time_since_start_low = time;
 #endif
+            if (static_cast<int>(ori) == Orientation::zlo()) { set_surface_layer_skin(lev); }
             m_SurfaceLayer[ori]->update_fluxes(lev, time, elapsed_time_since_start_low,
                                                S_old, z_phys_nd[lev], walldist[lev]);
         }
@@ -476,6 +477,11 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
         const MultiFab* t_surf = (m_SurfaceLayer[Orientation::zlo()])
                                ? m_SurfaceLayer[Orientation::zlo()]->get_t_surf(lev)
                                : nullptr;
+        // The fluxes the surface layer applied to the air during this step: the
+        // H and LE the force-restore update removes from the ground.
+        const MultiFab* sfc_sens_flux = nullptr;
+        const MultiFab* sfc_laten_flux = nullptr;
+        seb_surface_layer_fluxes(lev, sfc_sens_flux, sfc_laten_flux);
         Vector<const MultiFab*> radiation_inputs(6, nullptr);
         const bool noahmp_active = solverChoice.lsm_type == LandSurfaceType::NOAHMP;
         if (m_SurfaceModel) {
@@ -485,7 +491,7 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                                vars_old[lev][Vars::cons], z_phys_nd[lev].get(), geom[lev],
                                lsm, radiation_inputs, noahmp_active,
                                qheating_rates[lev].get(), rad_fluxes[lev].get(),
-                               t_surf, lat_ptr, lon_ptr,
+                               t_surf, sfc_sens_flux, sfc_laten_flux, lat_ptr, lon_ptr,
                                time + dt_lev + start_time, use_datetime);
     }
     if (solverChoice.compute_mean_vars) {

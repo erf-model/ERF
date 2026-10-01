@@ -367,9 +367,49 @@ The net surface shortwave and longwave fluxes come from the land-surface model w
 them (Noah-MP's absorbed shortwave ``sav + sag`` and, with the sign flipped to absorbed, its net
 longwave ``fira``); otherwise, with ``erf.radiation.seb_use_radiation_fluxes = true``, from the
 two-stream sweep's own surface fluxes in every column; otherwise from the scalar
-``seb_sw_flux_default`` and ``seb_lw_flux_default``. The sensible, latent and ground heat fluxes
-and the deep-soil reservoir values are the scalar defaults unless the land-surface model exposes
-them by name (``grdflx`` for the ground heat flux).
+``seb_sw_flux_default`` and ``seb_lw_flux_default``.
+
+The sensible heat flux :math:`H` and latent heat flux :math:`\text{LE}` come, in order of
+precedence, from a land-surface model field of that name (``hfx``, ``lh``; no land model exposes
+one today); otherwise, with ``erf.radiation.seb_turbulent_flux_source = surface_layer`` (the
+default), from the fluxes the ``zlo`` surface layer applies to the air,
+
+.. math::
+
+   H = c_p \, \overline{\rho w'\theta'}\big|_{\text{sfc}}, \qquad
+   \text{LE} = L_v \, \overline{\rho w' q_v'}\big|_{\text{sfc}},
+
+positive away from the surface -- the same conversion as the ``sensible_heat_flux`` and
+``latent_heat_flux`` 2D outputs, so the ground loses exactly what those report the air gaining;
+otherwise from the scalar ``seb_hfx_default`` and ``seb_lh_default``. The latter apply with
+``seb_turbulent_flux_source = defaults``, without a ``zlo`` surface layer, on EB terrain (where the
+surface layer's flux goes to the embedded boundary instead), when the surface layer applies no flux
+(no diffusion and no turbulence closure), and for :math:`\text{LE}` without a moisture model. The fluxes the balance used are written as the ``seb_hfx`` and ``seb_lh`` 2D
+plotfile variables.
+
+By default the surface layer computes these fluxes from its own surface temperature and moisture
+(``erf.most.surf_temp`` and the like), so the coupling runs one way: the balance loses what the
+surface layer puts into the air, but the flux does not respond to :math:`T_s`. With
+``erf.radiation.seb_surface_layer_uses_skin = true`` it runs both ways. Before it computes its
+fluxes each step, the surface layer sets its land surface temperature to the skin the balance
+reached at the end of the previous step, as a potential temperature,
+
+.. math::
+
+   \theta_s = T_s \left( \frac{p_0}{p_{\text{sfc}}} \right)^{R_d/c_p},
+
+with the surface pressure :math:`p_{\text{sfc}}` diagnosed from the lowest cell (the conversion
+coupled sea-surface temperatures use). A warmer skin then gives a larger :math:`H`, which the
+balance removes. The surface moisture stays the surface layer's own: the balance's :math:`q_s` is a
+soil-water store, not a surface specific humidity. The option needs the prognostic balance,
+``seb_turbulent_flux_source = surface_layer``, a ``zlo`` surface layer in surface-temperature mode
+(``erf.most.surf_temp`` given, no ``erf.most.surf_heating_rate``) on planar terrain, and no
+land-surface or surface model; ERF stops at start-up otherwise. On a level that takes its
+radiation from its parent (a nested patch that does not span the column), no skin evolves, and
+the surface layer keeps its own temperature there.
+
+The ground heat flux :math:`G` and the deep-soil reservoir values are the scalar defaults unless
+the land-surface model exposes them by name (``grdflx`` for the ground heat flux).
 
 The surface energy balance residual is defined as the net radiative flux minus the turbulent and
 ground heat fluxes:
@@ -408,6 +448,10 @@ In discretized form (Euler forward step), the update is:
    T_s^{n+1} = T_s^n + \Delta t \left[ \frac{R_{\text{net}} - H - \text{LE} - G}{C_s} - \left( \frac{2\pi}{\tau} \right) (T_s^n - T_{\text{deep}}) \right]
 
 After the update, :math:`T_s` is clamped to physically reasonable bounds [``seb_prognostic_t_min_k``, ``seb_prognostic_t_max_k``].
+
+In the force-restore method the restoring term is the heat conducted into the soil, so it already
+plays the part of :math:`G`. Leave ``seb_grdflx_default`` at 0 with the prognostic mode: a nonzero
+value removes that heat a second time, and ERF prints a warning when it is set.
 
 Surface Moisture Evolution
 ---------------------------
