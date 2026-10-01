@@ -1,4 +1,4 @@
-# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+stop_time  = 60000
 
 # PROBLEM PARAMETERS (optional)
 erf.prob_name        = WPS
@@ -6,11 +6,13 @@ prob.KE_0            = 0.4 # [m2/s2]
 prob.KE_decay_height = 250. # [m]
 prob.KE_decay_order  = 3
 
-
 # PROBLEM SIZE & GEOMETRY
 erf.prob_lo          = 0.0 0.0 0.0
-erf.prob_hi          = 50000 20000 9000.
-erf.n_cell           = 50    20   48
+#erf.prob_hi          = 50000 20000 9000.
+#erf.n_cell           = 50    20   48
+
+erf.prob_hi          = 50000 5000 9000.
+erf.n_cell           = 50    5   48
 
 amr.blocking_factor_x = 1
 amr.blocking_factor_y = 1
@@ -37,28 +39,23 @@ erf.most.surf_moist = .00802
 erf.most.z0         = 0.1
 erf.most.zref       = 10.0
 
-
 # TIME STEP CONTROL
 erf.substepping_type   = Implicit
-erf.fixed_dt           = 6.0
+erf.fixed_dt           = 3.0
 erf.fixed_mri_dt_ratio = 6
 
-
 # DIAGNOSTICS & VERBOSITY
-erf.sum_interval   = 1200    # timesteps between computing mass
+erf.sum_interval   = 1000    # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp
 amr.v              = 1       # verbosity in Amr.cpp
-
 
 # REFINEMENT / REGRIDDING
 amr.max_level       = 0       # maximum level number allowed
 
-
 # PLOTFILES
 erf.plot_file_1     = plt
-erf.plot_int_1      = 500
+erf.plot_int_1      = 2000
 erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure temp theta pres_hse z_phys Kmv Khv KE qv
-
 
 # SOLVER CHOICE
 erf.use_gravity = true
