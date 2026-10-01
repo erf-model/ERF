@@ -242,3 +242,15 @@ and to the corners, and it reduces to the plain copy -- bit for bit -- wherever 
 heights agree.  That covers every constant-:math:`\Delta z` mesh and any terrain that is
 flat where it meets the boundary, so runs that were not affected by the height offset in
 the first place are unchanged.
+
+When terrain is built from a WRF input or metgrid file, the heights the file supplies live
+at w-faces, while ERF stores terrain at nodes. The nodal heights are obtained by inverting
+the four-node averaging operator **exactly**, so that the average of the four nodes around
+each w-face reproduces the file's w-face height to round-off; the cell-centered heights,
+each being the average of the two w-faces that bracket it, then agree with the source as
+well. That operator is a tensor product of two one-dimensional two-point averages and is
+surjective, so an exact solution always exists; the remaining freedom is a sawtooth, which
+is fixed by minimizing the first-difference energy along each line. Should the exact
+heights fall outside the range of the source data, which very rough terrain can force, ERF
+warns and falls back to a regularized least-squares fit that stays bounded but no longer
+reproduces the source exactly.

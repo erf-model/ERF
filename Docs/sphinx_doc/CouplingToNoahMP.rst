@@ -63,15 +63,17 @@ no longer accepts it, since ERF now passes the reference height for every column
 Several other conditions are reported at start-up or on the first land step:
 
 - **Radiation.** Noah-MP integrates on the downwelling shortwave, downwelling longwave and solar
-  zenith angle a radiation model writes for it, and only ``erf.radiation_model = "RRTMGP"`` does
-  so. Under any other choice (including none) those inputs are replaced with zero, so the land
-  surface receives no radiative forcing, and ERF warns once at start-up and once when it first
-  sees them missing. Zero longwave is a 0 K sky, so the surface cools quickly: on a small
-  idealized grassland patch the skin temperature falls from 300 K to about 252 K in one land
-  hour. With
-  RRTMGP, inputs still missing on the first land step mean the coupling did not reach that level
-  (RRTMGP does not solve on a fine level that is a nested patch), and ERF stops with a message
-  instead of running on zero.
+  zenith angle a radiation model writes for it. ``erf.radiation_model = "RRTMGP"`` and
+  ``erf.radiation_model = "TwoStream"`` do so; the two-stream model writes the broadband
+  downwelling fluxes at the surface and the cosine of the zenith angle every step, on a single
+  level only (a two-stream run with Noah-MP and ``amr.max_level > 0`` stops at start-up; see
+  :ref:`sec:TwoStreamLandForcing`). Under any other choice (including none) those inputs are replaced
+  with zero, so the land surface receives no radiative forcing, and ERF warns once at start-up
+  and once when it first sees them missing. Zero longwave is a 0 K sky, so the surface cools
+  quickly: on a small idealized grassland patch the skin temperature falls from 300 K to about
+  252 K in one land hour. With RRTMGP or TwoStream, inputs still missing on the first land step
+  mean the coupling did not reach that level (RRTMGP does not solve on a fine level that is a
+  nested patch), and ERF stops with a message instead of running on zero.
 - **Surface layer.** The land model's fluxes reach the atmosphere only through the surface layer,
   so a ``surface_layer`` boundary is needed (``zlo.type = "surface_layer"``); without one ERF warns
   that the fluxes will not be applied. The surface layer in turn needs a diffusive closure.
