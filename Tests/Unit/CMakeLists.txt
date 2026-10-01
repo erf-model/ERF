@@ -165,6 +165,10 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamKernels.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamColumn.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamRadiationDriver.cpp
+    # Motivation: the forcing the two-stream model hands Noah-MP must be the
+    # downwelling SW and LW at the surface interface and a zenith cosine floored
+    # at zero, copied into the land model's k = 0 plane and nowhere else.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamLandForcing.cpp
     # Motivation: RRTMGP consumes absolute surface temperature; a
     # SurfaceLayer fallback must convert theta at the physical surface
     # pressure diagnosed from the lowest atmospheric cell,

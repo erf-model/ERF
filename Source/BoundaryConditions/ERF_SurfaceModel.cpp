@@ -408,6 +408,14 @@ const Vector<MultiFab*> SurfaceModel::get_radiation_output_fields(int lev)
     return rad_output_fields[lev];
 }
 
+MultiFab* SurfaceModel::get_radiation_output_field(int lev, const std::string& name)
+{
+    const auto it = std::find(rad_output_names.begin(), rad_output_names.end(), name);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(it != rad_output_names.end(),
+                                     "Unknown canonical radiation output: " + name);
+    return get_radiation_output_fields(lev)[static_cast<int>(it - rad_output_names.begin())];
+}
+
 void SurfaceModel::validate_radiation_output_layout(int lev, const MultiFab* mf) const
 {
     if (mf == nullptr) { return; }
