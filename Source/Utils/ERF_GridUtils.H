@@ -197,7 +197,9 @@ struct GeometricStretch
  *
  * A dz0 at or above the uniform spacing z_top/nz cannot be stretched to fit, since the
  * thicknesses only grow: that case returns the uniform grid with uniform = true, rather
- * than a factor below one that would thin the layers aloft.
+ * than a factor below one that would thin the layers aloft.  A single layer is the same
+ * situation for a different reason -- the sum of one layer is dz0 whatever the factor is,
+ * so S has no root and its derivative is identically zero -- and is answered the same way.
  *
  * @param[in] dz0   requested thickness of the first layer
  * @param[in] z_top depth of the column to be filled
@@ -220,8 +222,9 @@ geometric_stretch (amrex::Real dz0,
     }
 
     // Default to the uniform grid, which is also the answer whenever the requested first
-    // layer is already at least as thick as the uniform spacing.
-    if (dz0 >= z_top/Nz) {
+    // layer is already at least as thick as the uniform spacing, and the only grid there
+    // is when the column holds a single layer.
+    if (nz == 1 || dz0 >= z_top/Nz) {
         gs.dz0       = z_top/Nz;
         gs.ratio     = amrex::Real(1.0);
         gs.residual  = amrex::Real(0.0);

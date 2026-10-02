@@ -253,3 +253,158 @@ TEST(UniformGridInterpolation, FloatQuantizedNonExactEndpointsAreClamped)
     EXPECT_FALSE(erf_grid_utils::uniform_interpolation_stencil(
         outside, origin, spacing, point_count).inside);
 }
+
+// ---------------------------------------------------------------------------
+// Geometric vertical stretch
+//
+// This is the construction ERF uses when the first layer thickness and the
+// domain height are the knowns -- an idealized case, or a wrfinput level whose
+// grids do not reach the domain top -- so the properties worth pinning are the
+// ones a mesh has to have: it closes on z_top, it starts at the requested dz0,
+// and it is monotone.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// The same tolerance init_from_wrfinput passes, so these tests exercise the
+// solve at the precision the solver is actually used at.
+#ifdef AMREX_USE_FLOAT
+constexpr amrex::Real stretch_tol = amrex::Real(1.e-4);
+#else
+constexpr amrex::Real stretch_tol = amrex::Real(1.e-8);
+#endif
+
+amrex::Real
+roundoff_allowance (amrex::Real scale, amrex::Real layers)
+{
+    return amrex::Real(16.0) * layers *
+           std::numeric_limits<amrex::Real>::epsilon() * std::abs(scale);
+}
+
+} // namespace
+
+// Motivation: the whole point of the solve is that the layers add up to the
+// domain height, so a factor that does not close the column is a broken mesh.
+TEST(GeometricStretch, ClosesOnTheDomainTop)
+{
+    const amrex::Real z_top = amrex::Real(16500.0);
+    const amrex::Real dz0   = amrex::Real(19.57);
+    const int         nz    = 176;
+
+    const auto gs = erf_grid_utils::geometric_stretch(dz0, z_top, nz, stretch_tol);
+
+    EXPECT_TRUE(gs.converged);
+    EXPECT_FALSE(gs.uniform);
+    EXPECT_EQ(gs.dz0, dz0);
+    EXPECT_GT(gs.ratio, amrex::Real(1.0));
+    EXPECT_LE(std::abs(gs.residual), stretch_tol);
+}
+
+// Motivation: make_terrain_fitted_coords drapes this array over the terrain, so
+// it has to be strictly increasing, start one dz0 above zero and end exactly on
+// z_top -- the caller asserts the last of those.
+TEST(GeometricStretch, BuildsAMonotoneArrayThatEndsOnZTop)
+{
+    const amrex::Real z_top = amrex::Real(16500.0);
+    const amrex::Real dz0   = amrex::Real(19.57);
+    const int         nz    = 176;
+
+    amrex::Vector<amrex::Real> zlevels(nz+1);
+    const auto gs = erf_grid_utils::build_geometric_zlevels(zlevels, dz0, z_top, stretch_tol);
+
+    ASSERT_TRUE(gs.converged);
+    EXPECT_EQ(zlevels[0], amrex::Real(0.0));
+    EXPECT_EQ(zlevels[nz], z_top);
+    EXPECT_EQ(zlevels[1] - zlevels[0], dz0);
+
+    for (int k(1); k<=nz; ++k) {
+        EXPECT_GT(zlevels[k], zlevels[k-1]) << "at k = " << k;
+    }
+
+    // Every interior layer is the previous one times the factor.  The top layer
+    // is excluded because build_geometric_zlevels assigns z_top there exactly
+    // rather than by accumulation.
+    const amrex::Real allowance = roundoff_allowance(z_top, amrex::Real(nz));
+    for (int k(2); k<nz; ++k) {
+        const amrex::Real dz_prev = zlevels[k-1] - zlevels[k-2];
+        const amrex::Real dz_this = zlevels[k  ] - zlevels[k-1];
+        EXPECT_NEAR(dz_this, dz_prev*gs.ratio, allowance) << "at k = " << k;
+    }
+}
+
+// Motivation: the thicknesses only ever grow, so a dz0 at or above the uniform
+// spacing cannot be stretched to fit.  Returning a factor below one would thin
+// the layers aloft, which is the opposite of what a stretched mesh is for; the
+// uniform grid is the honest answer and the flag says so.
+TEST(GeometricStretch, FallsBackToUniformWhenDz0IsTooThick)
+{
+    const amrex::Real z_top = amrex::Real(16500.0);
+    const int         nz    = 176;
+    const amrex::Real dz_unif = z_top / static_cast<amrex::Real>(nz);
+
+    for (const amrex::Real dz0 : {dz_unif, amrex::Real(2.0)*dz_unif}) {
+        const auto gs = erf_grid_utils::geometric_stretch(dz0, z_top, nz, stretch_tol);
+        EXPECT_TRUE(gs.uniform);
+        EXPECT_TRUE(gs.converged);
+        EXPECT_EQ(gs.ratio, amrex::Real(1.0));
+        EXPECT_EQ(gs.dz0, dz_unif);
+    }
+
+    amrex::Vector<amrex::Real> zlevels(nz+1);
+    erf_grid_utils::build_geometric_zlevels(zlevels, amrex::Real(500.0), z_top, stretch_tol);
+    const amrex::Real allowance = roundoff_allowance(z_top, amrex::Real(nz));
+    for (int k(1); k<=nz-1; ++k) {
+        EXPECT_NEAR(zlevels[k] - zlevels[k-1], dz_unif, allowance) << "at k = " << k;
+    }
+    EXPECT_EQ(zlevels[nz], z_top);
+}
+
+// Motivation: a finer first layer needs a larger factor to cover the same
+// domain with the same number of layers, and the solve has to track that rather
+// than sitting at its 1.03 starting guess.
+TEST(GeometricStretch, AFinerFirstLayerNeedsAStrongerStretch)
+{
+    const amrex::Real z_top = amrex::Real(16500.0);
+    const int         nz    = 176;
+
+    const auto coarse = erf_grid_utils::geometric_stretch(amrex::Real(40.0), z_top, nz, stretch_tol);
+    const auto fine   = erf_grid_utils::geometric_stretch(amrex::Real(5.0),  z_top, nz, stretch_tol);
+
+    ASSERT_TRUE(coarse.converged);
+    ASSERT_TRUE(fine.converged);
+    EXPECT_GT(fine.ratio, coarse.ratio);
+}
+
+// Motivation: the caller aborts on !converged, so a degenerate request has to
+// report failure rather than hand back the default-constructed factor as if it
+// had been solved for.
+TEST(GeometricStretch, ReportsFailureOnDegenerateRequests)
+{
+    const amrex::Real z_top = amrex::Real(16500.0);
+
+    EXPECT_FALSE(erf_grid_utils::geometric_stretch(
+        amrex::Real(-1.0), z_top, 176, stretch_tol).converged);
+    EXPECT_FALSE(erf_grid_utils::geometric_stretch(
+        amrex::Real(0.0), z_top, 176, stretch_tol).converged);
+    EXPECT_FALSE(erf_grid_utils::geometric_stretch(
+        amrex::Real(19.57), amrex::Real(0.0), 176, stretch_tol).converged);
+    EXPECT_FALSE(erf_grid_utils::geometric_stretch(
+        amrex::Real(19.57), z_top, 0, stretch_tol).converged);
+}
+
+// Motivation: a single-layer column is the degenerate end of the uniform
+// branch, and it must not divide by a zero stretch denominator on the way.
+TEST(GeometricStretch, HandlesASingleLayer)
+{
+    const amrex::Real z_top = amrex::Real(1000.0);
+
+    const auto gs = erf_grid_utils::geometric_stretch(amrex::Real(10.0), z_top, 1, stretch_tol);
+    EXPECT_TRUE(gs.uniform);
+    EXPECT_TRUE(gs.converged);
+    EXPECT_EQ(gs.dz0, z_top);
+
+    amrex::Vector<amrex::Real> zlevels(2);
+    erf_grid_utils::build_geometric_zlevels(zlevels, amrex::Real(10.0), z_top, stretch_tol);
+    EXPECT_EQ(zlevels[0], amrex::Real(0.0));
+    EXPECT_EQ(zlevels[1], z_top);
+}
