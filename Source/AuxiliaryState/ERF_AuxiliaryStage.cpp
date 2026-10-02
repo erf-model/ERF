@@ -22,7 +22,7 @@ bool finite_nonnegative (const double value) noexcept
 }
 
 bool valid_const_view (const ConstTimedFieldView& view,
-                      const double expected_time) noexcept
+                       const double expected_time) noexcept
 {
     return view.field != nullptr && view.component >= 0 &&
            view.component < view.field->nComp() &&
@@ -62,10 +62,10 @@ const char* HostIntegratorName (const HostIntegrator method) noexcept
 }
 
 bool MakeAuxiliaryStageRecipe (const HostIntegrator method,
-                              const int stage,
-                              const double host_stage_interval,
-                              AuxiliaryStageRecipe& recipe,
-                              std::string& diagnostic)
+                               const int stage,
+                               const double host_stage_interval,
+                               AuxiliaryStageRecipe& recipe,
+                               std::string& diagnostic)
 {
     diagnostic.clear();
     recipe = {};
@@ -105,11 +105,11 @@ bool MakeAuxiliaryStageRecipe (const HostIntegrator method,
 }
 
 bool BuildAuxiliaryIntensiveState (const ConstTimedFieldView& state_input,
-                                  const ConstTimedFieldView& rho_input,
-                                  const double input_time,
-                                  amrex::MultiFab& intensive,
-                                  const AuxiliaryFieldValidationPolicy validation,
-                                  std::string& diagnostic)
+                                   const ConstTimedFieldView& rho_input,
+                                   const double input_time,
+                                   amrex::MultiFab& intensive,
+                                   const AuxiliaryFieldValidationPolicy validation,
+                                   std::string& diagnostic)
 {
     diagnostic.clear();
     if (!std::isfinite(input_time) ||
@@ -161,9 +161,9 @@ bool AuxiliaryStageTargetIsDisjoint (const AuxiliaryStageContext& context)
 }
 
 void ApplyAuxiliaryMappedStage (const AuxiliaryStageContext& context,
-                               const MappedFaceFluxRate& rate,
-                               const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dx_inv,
-                               const int rate_component)
+                                const MappedFaceFluxRate& rate,
+                                const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dx_inv,
+                                const int rate_component)
 {
     AMREX_ALWAYS_ASSERT(context.level >= 0 && context.stage >= 0);
     AMREX_ALWAYS_ASSERT(std::isfinite(context.step_old_time));
@@ -258,11 +258,11 @@ void CompletedStepFluxLedger::define (const amrex::BoxArray& cell_ba,
 }
 
 bool CompletedStepFluxLedger::accept_stage (const HostIntegrator method,
-                                           const int stage,
-                                           const double step_old_time,
-                                           const AuxiliaryStageRecipe& recipe,
-                                           const MappedFaceFluxRate& rate,
-                                           std::string& diagnostic)
+                                            const int stage,
+                                            const double step_old_time,
+                                            const AuxiliaryStageRecipe& recipe,
+                                            const MappedFaceFluxRate& rate,
+                                            std::string& diagnostic)
 {
     diagnostic.clear();
     if (!is_defined() || !rate.is_defined() || rate.nComp() != m_integral.nComp()) {

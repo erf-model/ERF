@@ -41,10 +41,10 @@ BulkProjection SBMBulkProjection::apply (const std::vector<amrex::Real>& auxilia
 }
 
 void SBMBulkProjection::apply_to_core (const amrex::Box& box,
-                                      const amrex::Array4<const amrex::Real>& auxiliary,
-                                      const amrex::Array4<amrex::Real>& core,
-                                      const int qc_component,
-                                      const int qr_component) const
+                                       const amrex::Array4<const amrex::Real>& auxiliary,
+                                       const amrex::Array4<amrex::Real>& core,
+                                       const int qc_component,
+                                       const int qr_component) const
 {
     const int cloud_offset = m_cloud_offset;
     const int cloud_count = m_cloud_count;

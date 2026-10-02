@@ -22,7 +22,7 @@ class AuxiliaryStateLayout {
 public:
     AuxiliaryStateLayout () = default;
     AuxiliaryStateLayout (std::string schema_id,
-                         std::vector<ComponentDescriptor> components)
+                          std::vector<ComponentDescriptor> components)
         : m_schema_id(std::move(schema_id)), m_components(std::move(components)) {}
 
     [[nodiscard]] const std::string& schema_id () const noexcept { return m_schema_id; }

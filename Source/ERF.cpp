@@ -4096,7 +4096,7 @@ ERF::Define_ERFFillPatchers (int lev)
 
 bool
 ERF::writeNow (double cur_time, const int nstep, const int plot_int, const double plot_per,
-              const double dt_0, double& next_file_time)
+               const double dt_0, double& next_file_time)
 {
     bool write_now = false;
 

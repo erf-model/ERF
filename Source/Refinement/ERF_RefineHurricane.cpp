@@ -15,7 +15,7 @@ using namespace amrex;
  */
 void
 tag_on_distance_from_eye (const Geometry& cgeom, TagBoxArray* tags,
-                         const Real eye_x, const Real eye_y, const Real rad_tag);
+                          const Real eye_x, const Real eye_y, const Real rad_tag);
 
 /**
  * Locate the initial position of the hurricane eye.
@@ -29,9 +29,9 @@ tag_on_distance_from_eye (const Geometry& cgeom, TagBoxArray* tags,
  */
 bool
 ERF::FindInitialEye (int levc,
-                    const MultiFab& mf_cc_vel,
-                    const Real velmag_threshold,
-                    Real& eye_x, Real& eye_y)
+                     const MultiFab& mf_cc_vel,
+                     const Real velmag_threshold,
+                     Real& eye_x, Real& eye_y)
 {
     const auto dx = geom[levc].CellSizeArray();
     const auto prob_lo = geom[levc].ProbLoArray();
@@ -109,7 +109,7 @@ ERF::FindInitialEye (int levc,
  */
 void
 tag_on_distance_from_eye (const Geometry& cgeom, TagBoxArray* tags,
-                         const Real eye_x, const Real eye_y, const Real rad_tag)
+                          const Real eye_x, const Real eye_y, const Real rad_tag)
 {
     const auto dx      = cgeom.CellSizeArray();
     const auto prob_lo = cgeom.ProbLoArray();
@@ -145,10 +145,10 @@ tag_on_distance_from_eye (const Geometry& cgeom, TagBoxArray* tags,
  */
 void
 ERF::HurricaneTracker (int levc,
-                      double time,
-                      const MultiFab& mf_cc_vel,
-                      const Real velmag_threshold,
-                      TagBoxArray* tags)
+                       double time,
+                       const MultiFab& mf_cc_vel,
+                       const Real velmag_threshold,
+                       TagBoxArray* tags)
 {
     bool is_found;
 

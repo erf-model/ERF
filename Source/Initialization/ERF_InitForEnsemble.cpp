@@ -31,7 +31,7 @@ perturb_scale =
  */
 void
 ERF::create_random_perturbations (const int lev,
-                                 MultiFab& mf_cc_pert)
+                                  MultiFab& mf_cc_pert)
 {
     const MultiFab& src = vars_new[lev][Vars::cons];
 
@@ -214,7 +214,7 @@ ERF::apply_gaussian_smoothing_to_perturbations (const int lev, MultiFab& mf_cc_p
  * @param mf_cc Cell-centered MultiFab whose ghost cells are filled in place
  */
 void ApplyNeumannBCs (const Geometry& geom,
-                     MultiFab& mf_cc)
+                      MultiFab& mf_cc)
 {
 
      // -------------------------------------------------
@@ -688,8 +688,8 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
  */
 void
 AddPertToBckgnd (MultiFab& mf_cc_fine,
-                const MultiFab& mf_cc_pert,
-                const Real& ens_pert_amplitude)
+                 const MultiFab& mf_cc_pert,
+                 const Real& ens_pert_amplitude)
 {
     const int ncomp = mf_cc_fine.nComp();
 

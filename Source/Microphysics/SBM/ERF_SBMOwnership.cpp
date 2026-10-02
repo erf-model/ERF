@@ -26,7 +26,7 @@ bool host_write_allowed (const bool sbm_active, const int component) noexcept
 }
 
 bool host_write_range_allowed (const bool sbm_active, const int start_component,
-                              const int num_components) noexcept
+                               const int num_components) noexcept
 {
     if (start_component < 0 || num_components <= 0 ||
         num_components > std::numeric_limits<int>::max() - start_component) {
@@ -45,7 +45,7 @@ void require_host_write_allowed (const bool sbm_active, const int component,
 }
 
 void require_host_write_range_allowed (const bool sbm_active, const int start_component,
-                                      const int num_components, const HostWritePath path)
+                                       const int num_components, const HostWritePath path)
 {
     if (!host_write_range_allowed(sbm_active, start_component, num_components)) {
         const std::string range = num_components > 0 && start_component >= 0 &&

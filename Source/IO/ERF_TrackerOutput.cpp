@@ -95,7 +95,7 @@ ERF::MakeFilename_EyeTracker_minpressure (int nstep) {
 
 void
 ERF::WriteVTKPolyline (const std::string& filename,
-                      Vector<std::array<Real, 2>>& points_xy)
+                       Vector<std::array<Real, 2>>& points_xy)
 {
     std::ofstream vtkfile(filename);
     if (!vtkfile.is_open()) {

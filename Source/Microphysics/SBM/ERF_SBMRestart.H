@@ -14,7 +14,7 @@ namespace erf_sbm {
 
 /** Compare persisted and expected schemas byte-for-byte. */
 [[nodiscard]] bool restart_schema_matches (const SBMLayout& layout,
-                                          const std::string& persisted);
+                                           const std::string& persisted);
 
 /** Validate every valid-cell value against the layout's runtime constraints. */
 [[nodiscard]] bool authoritative_state_admissible (

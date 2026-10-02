@@ -47,7 +47,7 @@ erf_sbm::SBMLayout make_sbm_layout (const SolverChoice& choice)
 }
 
 void validate_sbm_zero_transport_fixture (const SolverChoice& choice,
-                                         const int max_level)
+                                          const int max_level)
 {
     if (choice.moisture_type != MoistureType::SBM) return;
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.sbm_zero_transport_fixture,
@@ -94,7 +94,7 @@ void validate_sbm_zero_transport_fixture (const SolverChoice& choice,
 }
 
 void validate_auxiliary_inert_tracer_fixture (const SolverChoice& choice,
-                                             const int max_level)
+                                              const int max_level)
 {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.moisture_type == MoistureType::None,
         "M2 auxiliary inert tracer fixture requires moisture_model=None");

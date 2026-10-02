@@ -99,8 +99,8 @@ struct TestGrid {
 };
 
 void fill_rate (MappedFaceFluxRate& rate, const Box& domain,
-               const int comp, const bool periodic = false,
-               const Real factor = Real(1.0))
+                const int comp, const bool periodic = false,
+                const Real factor = Real(1.0))
 {
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
         auto& face = rate.dir(dir);
@@ -142,7 +142,7 @@ void fill_constant_rate (MappedFaceFluxRate& rate, const Real value)
 }
 
 void fill_componentwise_constant_rate (MappedFaceFluxRate& rate,
-                                      const std::array<Real, 3>& values)
+                                       const std::array<Real, 3>& values)
 {
     AMREX_ALWAYS_ASSERT(rate.nComp() == static_cast<int>(values.size()));
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
@@ -154,8 +154,8 @@ void fill_componentwise_constant_rate (MappedFaceFluxRate& rate,
 }
 
 Real max_face_component_error (const IntegratedMappedFaceFlux& flux,
-                              const int component,
-                              const Real expected)
+                               const int component,
+                               const Real expected)
 {
     Real maximum = Real(0.0);
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
@@ -189,7 +189,7 @@ void fill_diffusion_raw (MultiFab& face, const int dir, const int comp)
 }
 
 Real max_component_difference (const MultiFab& a, const int acomp,
-                              const MultiFab& b, const int bcomp)
+                               const MultiFab& b, const int bcomp)
 {
     MultiFab difference(a.boxArray(), a.DistributionMap(), 1, 0);
     for (amrex::MFIter mfi(a); mfi.isValid(); ++mfi) {
@@ -205,8 +205,8 @@ Real max_component_difference (const MultiFab& a, const int acomp,
 }
 
 Real mapped_diffusion_parity (const char kind,
-                             Real* raw_vertical_difference = nullptr,
-                             Real* omitted_cross_difference = nullptr)
+                              Real* raw_vertical_difference = nullptr,
+                              Real* omitted_cross_difference = nullptr)
 {
     TestGrid g;
     g.build_measure();

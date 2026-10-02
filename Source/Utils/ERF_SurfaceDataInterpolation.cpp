@@ -24,8 +24,8 @@ namespace fs = std::filesystem;
  */
 void
 ERF::FillSurfaceStateMultiFabs (const int lev,
-                               const std::string& filename,
-                               Vector<MultiFab>& surface_state)
+                                const std::string& filename,
+                                Vector<MultiFab>& surface_state)
 {
        // Open the binary file in input mode
     std::ifstream infile(filename, std::ios::binary);
@@ -155,9 +155,9 @@ ERF::FillSurfaceStateMultiFabs (const int lev,
  */
 void
 ERF::SurfaceDataInterpolation (const int lev,
-                              const double time,
-                              amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z_phys_nd,
-                              bool regrid_forces_file_read)
+                               const double time,
+                               amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z_phys_nd,
+                               bool regrid_forces_file_read)
 {
 
     static amrex::Vector<double> next_read_forecast_time;

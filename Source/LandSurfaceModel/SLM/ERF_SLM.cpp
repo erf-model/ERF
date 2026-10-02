@@ -4666,7 +4666,7 @@ amrex::Real SLM::fh_calc (const amrex::Real &t, const amrex::Real &mps, const am
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
 SLM::linear_interp (const amrex::Real t0, const amrex::Real t1, const amrex::Real t,
-                   const amrex::Real x, const amrex::Real y)
+                    const amrex::Real x, const amrex::Real y)
 {
   // returns a value that is linearly interpolated between x and y at time t. x
   // is at t=t0, y is at t=t1.
@@ -4845,7 +4845,7 @@ SLM::set_precip_input (const amrex::MultiFab* precip_in)
 
 void
 SLM::set_terrain_inputs (const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& sst_in,
-                        const amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_in)
+                         const amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_in)
 {
     if (!first_step)
     {
@@ -5099,9 +5099,9 @@ void SLM::writeSLM_Data (const PlotFileType plotfile_type, const amrex::Real cur
 // ----------------------------------------------------------------------
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void SLM::snow_age_noahmp (amrex::Real dt, amrex::Real tg, amrex::Real sneqvo, amrex::Real sneqv,
-                          amrex::Real tau0, amrex::Real grain_growth, amrex::Real extra_growth,
-                          amrex::Real dirt_soot, amrex::Real swemx,
-                          amrex::Real& tauss, amrex::Real& fage)
+                           amrex::Real tau0, amrex::Real grain_growth, amrex::Real extra_growth,
+                           amrex::Real dirt_soot, amrex::Real swemx,
+                           amrex::Real& tauss, amrex::Real& fage)
 {
     //input
     //  DT        !main time step (s)
@@ -5152,10 +5152,10 @@ void SLM::snow_age_noahmp (amrex::Real dt, amrex::Real tg, amrex::Real sneqvo, a
 // --------------------------------------------------------------------------------------------------
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void SLM::snowalb_bats_noahmp (int /*nband*/, amrex::Real /*fsno*/, amrex::Real cosz, amrex::Real fage,
-                              amrex::Real bats_cosz, amrex::Real bats_vis_new, amrex::Real bats_nir_new,
-                              amrex::Real bats_vis_age, amrex::Real bats_nir_age,
-                              amrex::Real bats_vis_dir, amrex::Real bats_nir_dir,
-                              amrex::Real* albsnd, amrex::Real* albsni)
+                               amrex::Real bats_cosz, amrex::Real bats_vis_new, amrex::Real bats_nir_new,
+                               amrex::Real bats_vis_age, amrex::Real bats_nir_age,
+                               amrex::Real bats_vis_dir, amrex::Real bats_nir_dir,
+                               amrex::Real* albsnd, amrex::Real* albsni)
 {
     // --------------------------------------------------------------------------------------------------
     // input
@@ -5207,10 +5207,10 @@ void SLM::snowalb_bats_noahmp (int /*nband*/, amrex::Real /*fsno*/, amrex::Real 
 // --------------------------------------------------------------------------------------------------
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void SLM::groundalb_noahmp (int /*nsoil*/, int nband, int /*ice*/, int ist, amrex::Real fsno,
-                           const amrex::Real* smc, const amrex::Real* albsnd, const amrex::Real* albsni,
-                           amrex::Real cosz, amrex::Real tg,
-                           const amrex::Real* albsat, const amrex::Real* albdry, const amrex::Real* alblak,
-                           amrex::Real* albgrd, amrex::Real* albgri)
+                            const amrex::Real* smc, const amrex::Real* albsnd, const amrex::Real* albsni,
+                            amrex::Real cosz, amrex::Real tg,
+                            const amrex::Real* albsat, const amrex::Real* albdry, const amrex::Real* alblak,
+                            amrex::Real* albgrd, amrex::Real* albgri)
 {
     // --------------------------------------------------------------------------------------------------
     //input
@@ -5269,14 +5269,14 @@ void SLM::groundalb_noahmp (int /*nsoil*/, int nband, int /*ice*/, int ist, amre
 // --------------------------------------------------------------------------------------------------
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void SLM::twostream_noahmp (int ib, int ic, int /*vegtyp*/, amrex::Real cosz, amrex::Real vai,
-                           amrex::Real fwet, amrex::Real t, const amrex::Real* albgrd, const amrex::Real* albgri,
-                           const amrex::Real* rho, const amrex::Real* tau, amrex::Real fveg, int /*ist*/,
-                           amrex::Real xl, amrex::Real omegas_param, amrex::Real betads, amrex::Real betais,
-                           int opt_rad, amrex::Real rc, amrex::Real hvt, amrex::Real hvb, amrex::Real /*den*/,
-                           amrex::Real* fab, amrex::Real* fre, amrex::Real* ftd, amrex::Real* fti,
-                           amrex::Real& gdir, amrex::Real* frev, amrex::Real* freg,
-                           amrex::Real& bgap, amrex::Real& wgap,
-                           amrex::Real& xl_out, amrex::Real& chil_out, amrex::Real& phi1_out, amrex::Real& phi2_out)
+                            amrex::Real fwet, amrex::Real t, const amrex::Real* albgrd, const amrex::Real* albgri,
+                            const amrex::Real* rho, const amrex::Real* tau, amrex::Real fveg, int /*ist*/,
+                            amrex::Real xl, amrex::Real omegas_param, amrex::Real betads, amrex::Real betais,
+                            int opt_rad, amrex::Real rc, amrex::Real hvt, amrex::Real hvb, amrex::Real /*den*/,
+                            amrex::Real* fab, amrex::Real* fre, amrex::Real* ftd, amrex::Real* fti,
+                            amrex::Real& gdir, amrex::Real* frev, amrex::Real* freg,
+                            amrex::Real& bgap, amrex::Real& wgap,
+                            amrex::Real& xl_out, amrex::Real& chil_out, amrex::Real& phi1_out, amrex::Real& phi2_out)
 {
     // --------------------------------------------------------------------------------------------------
     // input
@@ -5506,13 +5506,13 @@ void SLM::twostream_noahmp (int ib, int ic, int /*vegtyp*/, amrex::Real cosz, am
 // --------------------------------------------------------------------------------------------------
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void SLM::surrad_noahmp (amrex::Real mpe, amrex::Real fsun, amrex::Real fsha, amrex::Real elai, amrex::Real vai,
-                        amrex::Real laisun, amrex::Real laisha, const amrex::Real* solad, const amrex::Real* solai,
-                        const amrex::Real* fabd, const amrex::Real* fabi, const amrex::Real* ftdd,
-                        const amrex::Real* ftid, const amrex::Real* ftii, const amrex::Real* albgrd,
-                        const amrex::Real* albgri, const amrex::Real* albd, const amrex::Real* albi,
-                        const amrex::Real* frevd, const amrex::Real* frevi, const amrex::Real* fregd, const amrex::Real* fregi,
-                        amrex::Real& parsun, amrex::Real& parsha, amrex::Real& sav, amrex::Real& sag,
-                        amrex::Real& fsa, amrex::Real& fsr, amrex::Real& fsrv, amrex::Real& fsrg)
+                         amrex::Real laisun, amrex::Real laisha, const amrex::Real* solad, const amrex::Real* solai,
+                         const amrex::Real* fabd, const amrex::Real* fabi, const amrex::Real* ftdd,
+                         const amrex::Real* ftid, const amrex::Real* ftii, const amrex::Real* albgrd,
+                         const amrex::Real* albgri, const amrex::Real* albd, const amrex::Real* albi,
+                         const amrex::Real* frevd, const amrex::Real* frevi, const amrex::Real* fregd, const amrex::Real* fregi,
+                         amrex::Real& parsun, amrex::Real& parsha, amrex::Real& sav, amrex::Real& sag,
+                         amrex::Real& fsa, amrex::Real& fsr, amrex::Real& fsrv, amrex::Real& fsrg)
 {
     // --------------------------------------------------------------------------------------------------
     // input

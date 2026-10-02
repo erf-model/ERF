@@ -71,10 +71,10 @@ void AuxiliaryInertTracer::define (const int level,
 }
 
 bool AuxiliaryInertTracer::rebuild_static_measure (const int level,
-                                                  const amrex::MultiFab& detJ,
-                                                  const amrex::MultiFab& mx,
-                                                  const amrex::MultiFab& my,
-                                                  std::string& diagnostic)
+                                                   const amrex::MultiFab& detJ,
+                                                   const amrex::MultiFab& mx,
+                                                   const amrex::MultiFab& my,
+                                                   std::string& diagnostic)
 {
     diagnostic.clear();
     if (level < 0 || level >= static_cast<int>(m_levels.size()) ||

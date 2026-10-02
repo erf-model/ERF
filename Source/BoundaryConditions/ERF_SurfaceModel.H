@@ -58,11 +58,11 @@ public:
      * @param lmask_lev Land-mask data for each level.
      */
     explicit SurfaceModel (int nlevs,
-                          const amrex::Vector<amrex::BoxArray> &ba,
-                          const amrex::Vector<amrex::Geometry> &geom,
-                          const amrex::Vector<amrex::DistributionMapping> &dm,
-                          const SolverChoice &/*solverChoice*/,
-                          amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>>& /*lmask_lev*/)
+                           const amrex::Vector<amrex::BoxArray> &ba,
+                           const amrex::Vector<amrex::Geometry> &geom,
+                           const amrex::Vector<amrex::DistributionMapping> &dm,
+                           const SolverChoice &/*solverChoice*/,
+                           amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>>& /*lmask_lev*/)
         : m_nlevs(nlevs), m_ba(ba), m_geom(geom), m_dmap(dm) {
 
         u_star.resize(m_nlevs);
@@ -349,7 +349,7 @@ public:
      * @param type Whether the fluxes belong to the land or urban model.
      */
     void set_model_fluxes (const int lev, const amrex::Vector<amrex::MultiFab*> model_fluxes,
-                          const amrex::Vector<std::string>& flux_names, SurfaceModelType type)
+                           const amrex::Vector<std::string>& flux_names, SurfaceModelType type)
     {
         amrex::Vector<amrex::MultiFab*>* model_data = nullptr;
         amrex::Vector<std::string>* model_names = nullptr;
@@ -451,9 +451,9 @@ public:
      * @param urban_weighted Destination for weighted urban data.
      */
     void apply_weight_average (int lev, const amrex::MultiFab *lsm_data,
-                              amrex::MultiFab *lsm_weighted,
-                              const amrex::MultiFab *urban_data,
-                              amrex::MultiFab *urban_weighted);
+                               amrex::MultiFab *lsm_weighted,
+                               const amrex::MultiFab *urban_data,
+                               amrex::MultiFab *urban_weighted);
 
     /**
      * @brief Computes land and urban weights and applies them to registered fields.
@@ -462,7 +462,7 @@ public:
      * @param urban_frac Urban fraction used to compute the weights.
      */
     void calculate_weight_average (int lev, amrex::MultiFab* const urban_frac,
-                                  bool update_derived = true);
+                                   bool update_derived = true);
 
     /**
      * @brief Returns whether the interface exports fluxes rather than MOST variables.
@@ -681,7 +681,7 @@ public:
      * @param urban_mf Urban-model field pointer, or nullptr.
      */
     void set_field_map_pointers (const std::string& name, int lev,
-                                amrex::MultiFab* lsm_mf, amrex::MultiFab* urban_mf);
+                                 amrex::MultiFab* lsm_mf, amrex::MultiFab* urban_mf);
 
     /**
      * @brief Registers a canonical radiation input mapping.
@@ -689,7 +689,7 @@ public:
      * @param lsm_urb_map Pair of land and urban model field indices.
      */
     void register_radiation_input (const std::string& name,
-                                  const std::pair<int, int>& lsm_urb_map);
+                                   const std::pair<int, int>& lsm_urb_map);
 
     /**
      * @brief Registers canonical radiation input mappings.
@@ -704,7 +704,7 @@ public:
      * @param lsm_urb_map Pair of land and urban model field indices.
      */
     void register_radiation_output (const std::string& name,
-                                   const std::pair<int, int>& lsm_urb_map);
+                                    const std::pair<int, int>& lsm_urb_map);
 
     /**
      * @brief Registers canonical radiation output mappings.
@@ -911,7 +911,7 @@ public:
      * @return True when the field is part of a registered mapping.
      */
     bool is_field_mapped (int lev, SurfaceModelType type, int field_idx,
-                         const amrex::MultiFab* mf) const;
+                          const amrex::MultiFab* mf) const;
 
     /**
      * @brief Writes a weighted copy of a model field.
@@ -921,7 +921,7 @@ public:
      * @param type Provider type owning the source field.
      */
     void weight_model_field (int lev, const amrex::MultiFab* source,
-                            amrex::MultiFab* weighted, SurfaceModelType type);
+                             amrex::MultiFab* weighted, SurfaceModelType type);
 
 private:
 

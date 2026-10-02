@@ -20,7 +20,7 @@ Box read_subdomain_from_metgrid (int lev, const std::string& fname, int& ratio, 
  */
 void
 tag_on_distance_from_eye (const Geometry& cgeom, TagBoxArray* tags,
-                         const Real eye_x, const Real eye_y, const Real rad_tag);
+                          const Real eye_x, const Real eye_y, const Real rad_tag);
 
 /**
  * Function to tag cells for refinement -- this overrides the pure virtual function in AmrCore

@@ -31,7 +31,7 @@ void require_host_write_allowed (bool sbm_active, int component, HostWritePath p
 
 /** Fail closed when any component in a native writer's range is owned by SBM. */
 void require_host_write_range_allowed (bool sbm_active, int start_component,
-                                      int num_components, HostWritePath path);
+                                       int num_components, HostWritePath path);
 
 } // namespace erf_sbm
 

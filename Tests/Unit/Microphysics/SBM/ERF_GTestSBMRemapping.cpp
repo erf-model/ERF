@@ -50,7 +50,7 @@ erf_sbm::SpectralPopulationSpec make_population (
 }
 
 erf_sbm::AttachedPropertyDescriptor make_property (const std::string& name,
-                                                  const int population_id)
+                                                   const int population_id)
 {
     erf_sbm::AttachedPropertyDescriptor property;
     property.name = name;

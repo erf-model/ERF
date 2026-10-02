@@ -57,7 +57,7 @@ std::string SpectralGrid::identity () const
 }
 
 bool SpectralGrid::two_moment_realizable (const amrex::Real C, const amrex::Real M,
-                                         const amrex::Real lower, const amrex::Real upper) noexcept
+                                          const amrex::Real lower, const amrex::Real upper) noexcept
 {
     EndpointTransform result;
     return try_two_moment_to_endpoints(C, M, lower, upper, result);
@@ -65,7 +65,7 @@ bool SpectralGrid::two_moment_realizable (const amrex::Real C, const amrex::Real
 
 EndpointTransform
 SpectralGrid::two_moment_to_endpoints (const amrex::Real C, const amrex::Real M,
-                                      const amrex::Real lower, const amrex::Real upper)
+                                       const amrex::Real lower, const amrex::Real upper)
 {
     EndpointTransform result;
     if (!try_two_moment_to_endpoints(C, M, lower, upper, result)) {
@@ -76,7 +76,7 @@ SpectralGrid::two_moment_to_endpoints (const amrex::Real C, const amrex::Real M,
 
 std::pair<amrex::Real, amrex::Real>
 SpectralGrid::endpoints_to_two_moment (const amrex::Real L, const amrex::Real H,
-                                      const amrex::Real lower, const amrex::Real upper)
+                                       const amrex::Real lower, const amrex::Real upper)
 {
     amrex::Real C = amrex::Real(0.0);
     amrex::Real M = amrex::Real(0.0);

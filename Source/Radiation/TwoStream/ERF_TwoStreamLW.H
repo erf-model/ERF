@@ -154,7 +154,7 @@ compute_lw_transmit (amrex::Real tau_lw)
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
 compute_lw_flux_up (amrex::Real F_up_below, amrex::Real T_layer,
-                   amrex::Real sigma, amrex::Real tau_lw)
+                    amrex::Real sigma, amrex::Real tau_lw)
 {
   amrex::Real transmit = compute_lw_transmit(tau_lw);
   amrex::Real absorb = 1.0 - transmit;
@@ -186,7 +186,7 @@ compute_lw_flux_up (amrex::Real F_up_below, amrex::Real T_layer,
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
 compute_lw_flux_down (amrex::Real F_down_above, amrex::Real T_layer,
-                     amrex::Real sigma, amrex::Real tau_lw)
+                      amrex::Real sigma, amrex::Real tau_lw)
 {
   amrex::Real transmit = compute_lw_transmit(tau_lw);
   amrex::Real absorb = 1.0 - transmit;
@@ -234,7 +234,7 @@ compute_lw_flux_down (amrex::Real F_down_above, amrex::Real T_layer,
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
 compute_lw_heating_rate (amrex::Real F_net_top, amrex::Real F_net_bot,
-                        amrex::Real dz, amrex::Real rho, amrex::Real cp)
+                         amrex::Real dz, amrex::Real rho, amrex::Real cp)
 {
   if (dz <= 0.0 || rho <= 0.0 || cp <= 0.0) {
     return 0.0;

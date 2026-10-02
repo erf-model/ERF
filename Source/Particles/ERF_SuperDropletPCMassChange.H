@@ -191,7 +191,7 @@ namespace SDMassChangeUtils_LV
                             RT&             a_res_norm_a,   /*!< absolute norm at exit */
                             RT&             a_res_norm_r    /*!< relative norm at exit */,
                             bool&           a_converged     /*!< convergence status at exit */
-                         ) const
+                          ) const
         {
             a_converged = false;
             RT res_norm0 = RT(0.0);

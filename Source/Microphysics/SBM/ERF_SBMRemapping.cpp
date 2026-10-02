@@ -38,8 +38,8 @@ PopulationRemapView population_remap_view (const SBMLayout& layout,
 
 PacketApplicationResult
 apply_packet_routing (const SBMLayout& layout, const PacketRoutingPlan& plan,
-                     const std::vector<amrex::Real>& property_packet_amounts,
-                     std::vector<amrex::Real>& candidate_state)
+                      const std::vector<amrex::Real>& property_packet_amounts,
+                      std::vector<amrex::Real>& candidate_state)
 {
     PacketApplicationResult result;
     result.status = plan.status;
@@ -70,8 +70,8 @@ apply_packet_routing (const SBMLayout& layout, const PacketRoutingPlan& plan,
 
 ReconstructionStatus
 reconstruct_bin (const SBMLayout& layout, const int population_id, const int bin,
-                const std::vector<amrex::Real>& persisted_state,
-                ReconstructionDelta& reconstruction)
+                 const std::vector<amrex::Real>& persisted_state,
+                 ReconstructionDelta& reconstruction)
 {
     const auto population = population_remap_view(layout, population_id);
     std::vector<amrex::Real> properties(
@@ -96,8 +96,8 @@ reconstruct_bin (const SBMLayout& layout, const int population_id, const int bin
 }
 
 bool integrate_interval (const ReconstructionDelta& reconstruction,
-                        const amrex::Real lower, const amrex::Real upper,
-                        const bool include_upper, IntegratedMoments& integral)
+                         const amrex::Real lower, const amrex::Real upper,
+                         const bool include_upper, IntegratedMoments& integral)
 {
     std::vector<amrex::Real> properties(reconstruction.property_per_particle.size(),
                                         amrex::Real(0.0));
@@ -123,8 +123,8 @@ bool integrate_interval (const ReconstructionDelta& reconstruction,
 }
 
 bool project_reconstruction_bin (const SBMLayout& layout,
-                                const ReconstructionDelta& reconstruction,
-                                std::vector<amrex::Real>& candidate_state)
+                                 const ReconstructionDelta& reconstruction,
+                                 std::vector<amrex::Real>& candidate_state)
 {
     const auto population = population_remap_view(layout, reconstruction.population_id);
     ReconstructionDeltaView view;

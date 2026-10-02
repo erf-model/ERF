@@ -11,12 +11,12 @@ using namespace amrex;
 
 double
 read_times_from_erfbdy (const std::string& bdy_file_name,
-                       int& ntimes,
-                       int& nvars,
-                       int& real_width,
-                       Vector<double>& bdy_times,
-                       double& start_bdy_time,
-                       double& final_bdy_time)
+                        int& ntimes,
+                        int& nvars,
+                        int& real_width,
+                        Vector<double>& bdy_times,
+                        double& start_bdy_time,
+                        double& final_bdy_time)
 {
     std::string HeaderFileName = bdy_file_name + "/Header";
 
@@ -66,12 +66,12 @@ read_times_from_erfbdy (const std::string& bdy_file_name,
 
 void
 read_from_erfbdy (int itime,
-                 const std::string& bdy_file_name,
-                 Vector<Vector<FArrayBox>>& bdy_data_xlo,
-                 Vector<Vector<FArrayBox>>& bdy_data_xhi,
-                 Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                 Vector<Vector<FArrayBox>>& bdy_data_yhi,
-                 int nvars, int /*real_width*/)
+                  const std::string& bdy_file_name,
+                  Vector<Vector<FArrayBox>>& bdy_data_xlo,
+                  Vector<Vector<FArrayBox>>& bdy_data_xhi,
+                  Vector<Vector<FArrayBox>>& bdy_data_ylo,
+                  Vector<Vector<FArrayBox>>& bdy_data_yhi,
+                  int nvars, int /*real_width*/)
 {
     Print() << "Reading ERF boundary data for time index " << itime << std::endl;
     std::string time_dir = bdy_file_name + "/Time_" + Concatenate("", itime, 6);

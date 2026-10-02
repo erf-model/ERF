@@ -353,8 +353,8 @@ void SuperDropletPC::cloudRainDensity (MultiFab& a_mf, const MultiFab& a_z_phys_
  *  - Total: all ice particles
  */
 void SuperDropletPC::iceCategoryDensity (MultiFab& a_mf, const MultiFab& a_z_phys_nd,
-                                        int a_lev, IceCategory a_category,
-                                        const Real a_mrime_frac, const int a_comp) const
+                                         int a_lev, IceCategory a_category,
+                                         const Real a_mrime_frac, const int a_comp) const
 {
     BL_PROFILE("SuperDropletPC::iceCategoryDensity()");
 
@@ -400,7 +400,7 @@ void SuperDropletPC::iceCategoryDensity (MultiFab& a_mf, const MultiFab& a_z_phy
 
 /*! Computes the ice mass density of the particles over a mesh */
 void SuperDropletPC::iceDensity (MultiFab& a_mf, const MultiFab& a_z_phys_nd,
-                                int a_lev, const Real a_mrime_frac, const int a_comp) const
+                                 int a_lev, const Real a_mrime_frac, const int a_comp) const
 {
     BL_PROFILE("SuperDropletPC::iceDensity()");
     iceCategoryDensity(a_mf, a_z_phys_nd, a_lev, IceCategory::Ice, a_mrime_frac, a_comp);
@@ -408,7 +408,7 @@ void SuperDropletPC::iceDensity (MultiFab& a_mf, const MultiFab& a_z_phys_nd,
 
 /*! Computes the snow mass density of the particles over a mesh */
 void SuperDropletPC::snowDensity (MultiFab& a_mf, const MultiFab& a_z_phys_nd,
-                                 int a_lev, const Real a_mrime_frac, const int a_comp) const
+                                  int a_lev, const Real a_mrime_frac, const int a_comp) const
 {
     BL_PROFILE("SuperDropletPC::snowDensity()");
     iceCategoryDensity(a_mf, a_z_phys_nd, a_lev, IceCategory::Snow, a_mrime_frac, a_comp);
@@ -416,7 +416,7 @@ void SuperDropletPC::snowDensity (MultiFab& a_mf, const MultiFab& a_z_phys_nd,
 
 /*! Computes the graupel mass density of the particles over a mesh */
 void SuperDropletPC::graupelDensity (MultiFab& a_mf, const MultiFab& a_z_phys_nd,
-                                    int a_lev, const Real a_mrime_frac, const int a_comp) const
+                                     int a_lev, const Real a_mrime_frac, const int a_comp) const
 {
     BL_PROFILE("SuperDropletPC::graupelDensity()");
     iceCategoryDensity(a_mf, a_z_phys_nd, a_lev, IceCategory::Graupel, a_mrime_frac, a_comp);
@@ -424,7 +424,7 @@ void SuperDropletPC::graupelDensity (MultiFab& a_mf, const MultiFab& a_z_phys_nd
 
 /*! Computes the total frozen water mass density of the particles over a mesh */
 void SuperDropletPC::totalIceDensity (MultiFab& a_mf, const MultiFab& a_z_phys_nd,
-                                     int a_lev, const int a_comp) const
+                                      int a_lev, const int a_comp) const
 {
     BL_PROFILE("SuperDropletPC::totalIceDensity()");
     iceCategoryDensity(a_mf, a_z_phys_nd, a_lev, IceCategory::Total, 0.0, a_comp);

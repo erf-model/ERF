@@ -20,8 +20,8 @@ bool SBMStateManager::is_defined (const int lev) const
 }
 
 void SBMStateManager::define (const int lev, const amrex::BoxArray& grids,
-                             const amrex::DistributionMapping& mapping,
-                             const int ngrow)
+                              const amrex::DistributionMapping& mapping,
+                              const int ngrow)
 {
     if (lev < 0 || lev >= nlevels()) throw std::out_of_range("SBM level is outside the manager");
     if (ngrow < 0) throw std::invalid_argument("SBM ghost width cannot be negative");

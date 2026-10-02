@@ -406,8 +406,8 @@ public:
     }
 
     void set_LSM_terrain_inputs (const int& lev,
-                                const amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>& sst_in,
-                                const amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>>& lmask_in)
+                                 const amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>& sst_in,
+                                 const amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>>& lmask_in)
     {
         m_lsm_model[lev]->set_terrain_inputs(sst_in[lev], lmask_in[lev]);
     }

@@ -82,18 +82,18 @@ static ParticleReal coalescence_rate ( const RandomEngine& a_rnd_eng, /*!< rando
  */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 static void coal_update_attribs (const int a_i, /*!< index of particle */
-                                const int a_j, /*!< index of coalescence partner */
-                                const int* const a_prey, /*!< prey/predator */
-                                const ParticleReal* const a_gamma, /*!< coalescence rate */
-                                const ParticleReal* const a_rmndr, /*!< coalescence remainder*/
-                                ParticleReal* const a_mass, /*!< mass */
-                                ParticleReal* const a_radius, /*!< radius */
-                                ParticleReal* const a_Tfz, /*!< freezing temperature */
-                                ParticleReal* const a_mult, /*!< multiplicity */
-                                const int a_n_sp, /*!< number of species */
-                                const SDSpeciesMassArr& a_sp_m, /*!< species masses*/
-                                const int a_n_ae, /*!< number of aerosols */
-                                const SDAerosolMassArr& a_ae_m /*!< aerosol masses*/)
+                                 const int a_j, /*!< index of coalescence partner */
+                                 const int* const a_prey, /*!< prey/predator */
+                                 const ParticleReal* const a_gamma, /*!< coalescence rate */
+                                 const ParticleReal* const a_rmndr, /*!< coalescence remainder*/
+                                 ParticleReal* const a_mass, /*!< mass */
+                                 ParticleReal* const a_radius, /*!< radius */
+                                 ParticleReal* const a_Tfz, /*!< freezing temperature */
+                                 ParticleReal* const a_mult, /*!< multiplicity */
+                                 const int a_n_sp, /*!< number of species */
+                                 const SDSpeciesMassArr& a_sp_m, /*!< species masses*/
+                                 const int a_n_ae, /*!< number of aerosols */
+                                 const SDAerosolMassArr& a_ae_m /*!< aerosol masses*/)
 {
     int i = a_i;
     int j = a_j;
@@ -131,23 +131,23 @@ static void coal_update_attribs (const int a_i, /*!< index of particle */
 /*! \brief Binary aggregation between two superdroplets */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 static void aggr_update_attribs (const int a_i, /*!< index of particle */
-                                const int a_j, /*!< index of coalescence partner */
-                                const int a_sp_idx_i, /*!< species index of ice */
-                                const Real a_rho_ice, /*!< true ice density */
-                                const Real a_rho_min, /*!< minimum ice density */
-                                const int* const a_prey, /*!< prey/predator */
-                                const ParticleReal* const a_gamma, /*!< coalescence rate */
-                                const ParticleReal* const a_rmndr, /*!< coalescence remainder*/
-                                ParticleReal* const a_Tfz, /*!< freezing temperature */
-                                ParticleReal* const a_a, /*!< equatorial radius */
-                                ParticleReal* const a_c, /*!< polar radius */
-                                ParticleReal* const a_mrime, /*!< rime mass */
-                                ParticleReal* const a_nmono, /*!< number of monomers */
-                                ParticleReal* const a_mult, /*!< multiplicity */
-                                const int a_n_sp, /*!< number of species */
-                                const SDSpeciesMassArr& a_sp_m, /*!< species masses*/
-                                const int a_n_ae, /*!< number of aerosols */
-                                const SDAerosolMassArr& a_ae_m /*!< aerosol masses*/)
+                                 const int a_j, /*!< index of coalescence partner */
+                                 const int a_sp_idx_i, /*!< species index of ice */
+                                 const Real a_rho_ice, /*!< true ice density */
+                                 const Real a_rho_min, /*!< minimum ice density */
+                                 const int* const a_prey, /*!< prey/predator */
+                                 const ParticleReal* const a_gamma, /*!< coalescence rate */
+                                 const ParticleReal* const a_rmndr, /*!< coalescence remainder*/
+                                 ParticleReal* const a_Tfz, /*!< freezing temperature */
+                                 ParticleReal* const a_a, /*!< equatorial radius */
+                                 ParticleReal* const a_c, /*!< polar radius */
+                                 ParticleReal* const a_mrime, /*!< rime mass */
+                                 ParticleReal* const a_nmono, /*!< number of monomers */
+                                 ParticleReal* const a_mult, /*!< multiplicity */
+                                 const int a_n_sp, /*!< number of species */
+                                 const SDSpeciesMassArr& a_sp_m, /*!< species masses*/
+                                 const int a_n_ae, /*!< number of aerosols */
+                                 const SDAerosolMassArr& a_ae_m /*!< aerosol masses*/)
 {
     AMREX_ALWAYS_ASSERT(a_gamma[a_i] == a_gamma[a_j]);
     AMREX_ALWAYS_ASSERT(a_rmndr[a_i] >= ParticleReal(zero));
@@ -236,35 +236,35 @@ static void aggr_update_attribs (const int a_i, /*!< index of particle */
 /*! \brief Binary riming between a water droplet and an ice particle */
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 static void rime_update_attribs (const int a_i, /*!< index of particle */
-                                const int a_j, /*!< index of coalescence partner */
-                                const int a_sp_idx_w, /*!< species index of water */
-                                const int a_sp_idx_i, /*!< species index of ice */
-                                const Real a_rho_water, /*!< water density */
-                                const Real a_rho_ice, /*!< true ice density */
-                                const int* const a_prey, /*!< prey/predator */
-                                const ParticleReal* const a_gamma, /*!< coalescence rate */
-                                const ParticleReal* const a_rmndr, /*!< coalescence remainder*/
-                                const SDPhase a_phase_i, /*!< phase of particle i */
-                                const SDPhase a_phase_j, /*!< phase of particle j (partner) */
-                                const GpuArray<ParticleReal*,AMREX_SPACEDIM>& /*a_vel*/, /*!< velocity */
-                                ParticleReal* const a_vterm, /*!< terminal velocity */
-                                ParticleReal* const a_radius, /*!< radius */
-                                ParticleReal* const a_Tfz, /*!< freezing temperature */
-                                ParticleReal* const a_a, /*!< equatorial radius */
-                                ParticleReal* const a_c, /*!< polar radius */
-                                ParticleReal* const a_mrime, /*!< rime mass */
-                                ParticleReal* const a_nmono, /*!< number of monomers */
-                                ParticleReal* const a_mult, /*!< multiplicity */
-                                const ParticleReal a_T, /*!< temperature */
-                                const ParticleReal a_rhom, /*!< moist density */
-                                const ParticleReal a_P, /*!< pressure */
-                                const ParticleReal a_qv, /*!< qv */
-                                const ParticleReal a_D, /*!< diffusivity coeff */
-                                const dMdt<ParticleReal>& a_dmdt, /*!< mass change utilities */
-                                const int a_n_sp, /*!< number of species */
-                                const SDSpeciesMassArr& a_sp_m, /*!< species masses*/
-                                const int a_n_ae, /*!< number of aerosols */
-                                const SDAerosolMassArr& a_ae_m /*!< aerosol masses*/)
+                                 const int a_j, /*!< index of coalescence partner */
+                                 const int a_sp_idx_w, /*!< species index of water */
+                                 const int a_sp_idx_i, /*!< species index of ice */
+                                 const Real a_rho_water, /*!< water density */
+                                 const Real a_rho_ice, /*!< true ice density */
+                                 const int* const a_prey, /*!< prey/predator */
+                                 const ParticleReal* const a_gamma, /*!< coalescence rate */
+                                 const ParticleReal* const a_rmndr, /*!< coalescence remainder*/
+                                 const SDPhase a_phase_i, /*!< phase of particle i */
+                                 const SDPhase a_phase_j, /*!< phase of particle j (partner) */
+                                 const GpuArray<ParticleReal*,AMREX_SPACEDIM>& /*a_vel*/, /*!< velocity */
+                                 ParticleReal* const a_vterm, /*!< terminal velocity */
+                                 ParticleReal* const a_radius, /*!< radius */
+                                 ParticleReal* const a_Tfz, /*!< freezing temperature */
+                                 ParticleReal* const a_a, /*!< equatorial radius */
+                                 ParticleReal* const a_c, /*!< polar radius */
+                                 ParticleReal* const a_mrime, /*!< rime mass */
+                                 ParticleReal* const a_nmono, /*!< number of monomers */
+                                 ParticleReal* const a_mult, /*!< multiplicity */
+                                 const ParticleReal a_T, /*!< temperature */
+                                 const ParticleReal a_rhom, /*!< moist density */
+                                 const ParticleReal a_P, /*!< pressure */
+                                 const ParticleReal a_qv, /*!< qv */
+                                 const ParticleReal a_D, /*!< diffusivity coeff */
+                                 const dMdt<ParticleReal>& a_dmdt, /*!< mass change utilities */
+                                 const int a_n_sp, /*!< number of species */
+                                 const SDSpeciesMassArr& a_sp_m, /*!< species masses*/
+                                 const int a_n_ae, /*!< number of aerosols */
+                                 const SDAerosolMassArr& a_ae_m /*!< aerosol masses*/)
 {
     AMREX_ALWAYS_ASSERT(a_gamma[a_i] == a_gamma[a_j]);
     AMREX_ALWAYS_ASSERT(a_rmndr[a_i] >= ParticleReal(0.0));

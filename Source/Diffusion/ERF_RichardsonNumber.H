@@ -80,8 +80,8 @@ AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 bool
 IsSaturated (int i, int j, int k,
-            const amrex::Array4<const amrex::Real>& cell_data,
-            int qc_index)
+             const amrex::Array4<const amrex::Real>& cell_data,
+             int qc_index)
 {
     if (qc_index >= 0) {
         amrex::Real rho = cell_data(i, j, k, Rho_comp);
@@ -128,10 +128,10 @@ AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 ComputeN2 (int i, int j, int k,
-          amrex::Real dzInv,
-          amrex::Real const_grav,
-          const amrex::Array4<const amrex::Real>& cell_data,
-          const MoistureComponentIndices& moisture_indices)
+           amrex::Real dzInv,
+           amrex::Real const_grav,
+           const amrex::Array4<const amrex::Real>& cell_data,
+           const MoistureComponentIndices& moisture_indices)
 {
     const int rho_comp       = Rho_comp;
     const int rhoTheta_comp  = RhoTheta_comp;
@@ -298,9 +298,9 @@ AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 ComputeVerticalShear2 (int i, int j, int k,
-                      amrex::Real dzInv,
-                      const amrex::Array4<const amrex::Real>& u,
-                      const amrex::Array4<const amrex::Real>& v)
+                       amrex::Real dzInv,
+                       const amrex::Array4<const amrex::Real>& u,
+                       const amrex::Array4<const amrex::Real>& v)
 {
     amrex::Real u_c_km1 = myhalf * (u(i, j, k-1) + u(i+1, j, k-1));
     amrex::Real u_c_kp1 = myhalf * (u(i, j, k+1) + u(i+1, j, k+1));

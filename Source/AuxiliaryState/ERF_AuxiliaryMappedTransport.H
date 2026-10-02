@@ -26,9 +26,9 @@ public:
     MappedFaceField& operator= (MappedFaceField&&) noexcept = default;
 
     void define (const amrex::BoxArray& cell_ba,
-                const amrex::DistributionMapping& dm,
-                const int ncomp,
-                const int ngrow = 0)
+                 const amrex::DistributionMapping& dm,
+                 const int ncomp,
+                 const int ngrow = 0)
     {
         AMREX_ALWAYS_ASSERT(ncomp > 0);
         AMREX_ALWAYS_ASSERT(ngrow >= 0);
@@ -77,8 +77,8 @@ bool SameCellLayout (const amrex::MultiFab& lhs, const amrex::MultiFab& rhs);
 /** Check directional face staggering and ownership against a cell layout. */
 template <typename Tag>
 bool MappedFaceLayoutMatchesCellLayout (const MappedFaceField<Tag>& faces,
-                                       const amrex::BoxArray& cell_ba,
-                                       const amrex::DistributionMapping& dm)
+                                        const amrex::BoxArray& cell_ba,
+                                        const amrex::DistributionMapping& dm)
 {
     if (!faces.is_defined()) { return false; }
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
@@ -94,7 +94,7 @@ bool MappedFaceLayoutMatchesCellLayout (const MappedFaceField<Tag>& faces,
 
 template <typename Tag>
 bool MappedFaceLayoutMatchesCellLayout (const MappedFaceField<Tag>& faces,
-                                       const amrex::MultiFab& cell)
+                                        const amrex::MultiFab& cell)
 {
     return MappedFaceLayoutMatchesCellLayout(faces, cell.boxArray(), cell.DistributionMap());
 }
@@ -102,7 +102,7 @@ bool MappedFaceLayoutMatchesCellLayout (const MappedFaceField<Tag>& faces,
 /** Check that two semantically tagged face fields have identical face layouts. */
 template <typename LhsTag, typename RhsTag>
 bool SameMappedFaceLayout (const MappedFaceField<LhsTag>& lhs,
-                          const MappedFaceField<RhsTag>& rhs)
+                           const MappedFaceField<RhsTag>& rhs)
 {
     if (!lhs.is_defined() || !rhs.is_defined()) { return false; }
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
@@ -117,14 +117,14 @@ bool SameMappedFaceLayout (const MappedFaceField<LhsTag>& lhs,
 /** Computational-coordinate divergence only: no metric or physical face area. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
 ComputationalMappedDivergence (const amrex::Real fx_hi,
-                              const amrex::Real fx_lo,
-                              const amrex::Real fy_hi,
-                              const amrex::Real fy_lo,
-                              const amrex::Real fz_hi,
-                              const amrex::Real fz_lo,
-                              const amrex::Real dx_inv,
-                              const amrex::Real dy_inv,
-                              const amrex::Real dzeta_inv) noexcept
+                               const amrex::Real fx_lo,
+                               const amrex::Real fy_hi,
+                               const amrex::Real fy_lo,
+                               const amrex::Real fz_hi,
+                               const amrex::Real fz_lo,
+                               const amrex::Real dx_inv,
+                               const amrex::Real dy_inv,
+                               const amrex::Real dzeta_inv) noexcept
 {
     return (fx_hi - fx_lo) * dx_inv +
            (fy_hi - fy_lo) * dy_inv +
@@ -133,20 +133,20 @@ ComputationalMappedDivergence (const amrex::Real fx_hi,
 
 /** Build omega=detJ/(mx*my), returning false and a diagnostic on invalid cells. */
 bool BuildMappedCellMeasure (amrex::MultiFab& omega,
-                            const amrex::MultiFab& detJ,
-                            const amrex::MultiFab& mx,
-                            const amrex::MultiFab& my,
-                            std::string& diagnostic);
+                             const amrex::MultiFab& detJ,
+                             const amrex::MultiFab& mx,
+                             const amrex::MultiFab& my,
+                             std::string& diagnostic);
 
 /** Check that a selected cell-centered component is finite and strictly positive. */
 bool ValidatePositiveFiniteComponent (const amrex::MultiFab& field,
-                                     int component,
-                                     std::string& diagnostic);
+                                      int component,
+                                      std::string& diagnostic);
 
 /** Check that a selected cell-centered component is finite. */
 bool ValidateFiniteComponent (const amrex::MultiFab& field,
-                             int component,
-                             std::string& diagnostic);
+                              int component,
+                              std::string& diagnostic);
 
 /**
  * Apply -D_xi(flux)/omega into one selected output component.  The supplied

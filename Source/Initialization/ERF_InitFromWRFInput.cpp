@@ -74,8 +74,8 @@ bool CheckForDensity (const std::string& fname)
  */
 Box
 read_subdomain_from_wrfinput (int /*lev*/,
-                             const std::string& fname,
-                             int& ratio);
+                              const std::string& fname,
+                              int& ratio);
 
 /**
  * Compute the top height of the domain from WRF geopotential data.

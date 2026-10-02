@@ -72,7 +72,7 @@ struct CENTERED2
     AMREX_FORCE_INLINE
     amrex::Real
     Evaluate (const amrex::Real& s,
-             const amrex::Real& sm1) const
+              const amrex::Real& sm1) const
     {
         // Averages and diffs
         amrex::Real a1 = (s   + sm1);

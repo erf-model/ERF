@@ -305,43 +305,43 @@ public:
     std::string MakeFilename_EyeTracker_maxvel (int nstep);
     std::string MakeFilename_EyeTracker_minpressure (int nstep);
     void WriteVTKPolyline (const std::string& filename,
-                          amrex::Vector<std::array<amrex::Real, 2>>& points_xy);
+                           amrex::Vector<std::array<amrex::Real, 2>>& points_xy);
 
     void WriteLinePlot (const std::string& filename,
-                       amrex::Vector<std::array<amrex::Real, 2>>& points_xy);
+                        amrex::Vector<std::array<amrex::Real, 2>>& points_xy);
 
     void HurricaneEyeTracker (const SolverChoice& solverChoice,
-                             const amrex::MultiFab& mf_cc_vel);
+                              const amrex::MultiFab& mf_cc_vel);
 
     void HurricaneEyeTrackerInitial (const SolverChoice& sc,
-                                    const amrex::Geometry& geom,
-                                    const amrex::Vector<amrex::MultiFab>& S_data,
-                                    const amrex::Real& hurricane_eye_latitude,
-                                    const amrex::Real& hurricane_eye_longitude);
+                                     const amrex::Geometry& geom,
+                                     const amrex::Vector<amrex::MultiFab>& S_data,
+                                     const amrex::Real& hurricane_eye_latitude,
+                                     const amrex::Real& hurricane_eye_longitude);
 
     void HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
-                                       const amrex::Geometry& geom,
-                                       const amrex::MultiFab& mf_cc_vel,
-                                       const amrex::Vector<amrex::MultiFab>& S_data);
+                                        const amrex::Geometry& geom,
+                                        const amrex::MultiFab& mf_cc_vel,
+                                        const amrex::Vector<amrex::MultiFab>& S_data);
 
     void ComputeGlobalMinLocation (const SolverChoice& sc,
-                                  const amrex::Geometry& geom,
-                                  const amrex::Vector<amrex::MultiFab>& S_data,
-                                  amrex::Real* d_val_min_ptr,
-                                  int* d_i_min_ptr,
-                                  int* d_j_min_ptr,
-                                  amrex::Real& global_val_min,
-                                  int& global_i_min,
-                                  int& global_j_min);
+                                   const amrex::Geometry& geom,
+                                   const amrex::Vector<amrex::MultiFab>& S_data,
+                                   amrex::Real* d_val_min_ptr,
+                                   int* d_i_min_ptr,
+                                   int* d_j_min_ptr,
+                                   amrex::Real& global_val_min,
+                                   int& global_i_min,
+                                   int& global_j_min);
 
     void HurricaneMaxVelTracker (const amrex::Geometry& geom,
-                                const amrex::MultiFab& mf_cc_vel,
-                                const double& time);
+                                 const amrex::MultiFab& mf_cc_vel,
+                                 const double& time);
 
     void HurricaneMinPressureTracker (MoistureType moisture_type,
-                                     const amrex::Geometry& geom,
-                                     const amrex::MultiFab& mf_cons_var,
-                                     const double& time);
+                                      const amrex::Geometry& geom,
+                                      const amrex::MultiFab& mf_cons_var,
+                                      const double& time);
 
     void HurricaneTrackerCircle ();
 
@@ -554,11 +554,11 @@ public:
                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_q2fx3, amrex::Gpu::HostVector<amrex::Real>& h_avg_diss);
 
     void derive_forcing_profiles_stag (amrex::Gpu::HostVector<amrex::Real>& h_avg_ttend,  amrex::Gpu::HostVector<amrex::Real>& h_avg_qtend,
-                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_wsub,   amrex::Gpu::HostVector<amrex::Real>& h_avg_thtend,
-                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_qhtend, amrex::Gpu::HostVector<amrex::Real>& h_avg_tvtend,
-                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_qvtend, amrex::Gpu::HostVector<amrex::Real>& h_avg_qcvtend,
-                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_tnudge, amrex::Gpu::HostVector<amrex::Real>& h_avg_qnudge,
-                                      amrex::Gpu::HostVector<amrex::Real>& h_avg_unudge, amrex::Gpu::HostVector<amrex::Real>& h_avg_vnudge);
+                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_wsub,   amrex::Gpu::HostVector<amrex::Real>& h_avg_thtend,
+                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_qhtend, amrex::Gpu::HostVector<amrex::Real>& h_avg_tvtend,
+                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_qvtend, amrex::Gpu::HostVector<amrex::Real>& h_avg_qcvtend,
+                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_tnudge, amrex::Gpu::HostVector<amrex::Real>& h_avg_qnudge,
+                                       amrex::Gpu::HostVector<amrex::Real>& h_avg_unudge, amrex::Gpu::HostVector<amrex::Real>& h_avg_vnudge);
 
     // Perform the volume-weighted sum
     amrex::Real
@@ -828,24 +828,24 @@ public:
     void init_thin_body (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
 
     void FillForecastStateMultiFabs (const int lev,
-                                    const std::string& filename,
-                                    const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-                                    amrex::Vector<amrex::Vector<amrex::MultiFab>>& forecast_state);
+                                     const std::string& filename,
+                                     const std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+                                     amrex::Vector<amrex::Vector<amrex::MultiFab>>& forecast_state);
 
     void FillSurfaceStateMultiFabs (const int lev,
-                                   const std::string& filename,
-                                   amrex::Vector<amrex::MultiFab>& surface_state);
+                                    const std::string& filename,
+                                    amrex::Vector<amrex::MultiFab>& surface_state);
 
 
     void WeatherDataInterpolation (const int nlevs,
-                                  const double time,
-                                  amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
-                                  bool regrid_forces_file_read);
+                                   const double time,
+                                   amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
+                                   bool regrid_forces_file_read);
 
     void SurfaceDataInterpolation (const int nlevs,
-                                  const double time,
-                                  amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
-                                  bool regrid_forces_file_read);
+                                   const double time,
+                                   amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd,
+                                   bool regrid_forces_file_read);
 
     void create_background_state_for_ensemble (int lev,
                                                amrex::MultiFab& mf_cc_pert,

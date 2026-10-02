@@ -46,8 +46,8 @@ struct EndpointTransform {
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool try_two_moment_to_endpoints (const amrex::Real C, const amrex::Real M,
-                                 const amrex::Real lower, const amrex::Real upper,
-                                 EndpointTransform& result) noexcept
+                                  const amrex::Real lower, const amrex::Real upper,
+                                  EndpointTransform& result) noexcept
 {
     if (!amrex::Math::isfinite(C) || !amrex::Math::isfinite(M) || !amrex::Math::isfinite(lower) ||
         !amrex::Math::isfinite(upper) || lower < amrex::Real(0.0) ||
@@ -87,8 +87,8 @@ bool try_two_moment_to_endpoints (const amrex::Real C, const amrex::Real M,
 /** Allocation-free canonical inverse transform for host and device callers. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool try_endpoints_to_two_moment (const amrex::Real L, const amrex::Real H,
-                                 const amrex::Real lower, const amrex::Real upper,
-                                 amrex::Real& C, amrex::Real& M) noexcept
+                                  const amrex::Real lower, const amrex::Real upper,
+                                  amrex::Real& C, amrex::Real& M) noexcept
 {
     if (!amrex::Math::isfinite(L) || !amrex::Math::isfinite(H) || !amrex::Math::isfinite(lower) ||
         !amrex::Math::isfinite(upper) || L < amrex::Real(0.0) || H < amrex::Real(0.0) ||
@@ -128,10 +128,10 @@ public:
                                                      amrex::Real lower, amrex::Real upper) noexcept;
     [[nodiscard]] static EndpointTransform
     two_moment_to_endpoints (amrex::Real C, amrex::Real M,
-                            amrex::Real lower, amrex::Real upper);
+                             amrex::Real lower, amrex::Real upper);
     [[nodiscard]] static std::pair<amrex::Real, amrex::Real>
     endpoints_to_two_moment (amrex::Real L, amrex::Real H,
-                            amrex::Real lower, amrex::Real upper);
+                             amrex::Real lower, amrex::Real upper);
 
 private:
     SpectralGridSpec m_spec;

@@ -9,11 +9,11 @@ using namespace amrex;
 
 void
 WDM6::Init (const MultiFab& cons_in,
-           const BoxArray&,
-           const Geometry& geom,
-           const Real& dt_advance,
-           std::unique_ptr<MultiFab>& z_phys_nd,
-           std::unique_ptr<MultiFab>& detJ_cc)
+            const BoxArray&,
+            const Geometry& geom,
+            const Real& dt_advance,
+            std::unique_ptr<MultiFab>& z_phys_nd,
+            std::unique_ptr<MultiFab>& detJ_cc)
 {
     dt = dt_advance;
     m_geom = geom;
@@ -89,7 +89,7 @@ WDM6::Copy_State_to_Micro (const MultiFab& cons_in)
 
 void
 WDM6::Copy_State_to_Micro (const MultiFab& cons_in,
-                          const MultiFab* base_state)
+                           const MultiFab* base_state)
 {
     assert_base_state_available(base_state);
     const bool use_anelastic_reference_pressure =

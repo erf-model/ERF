@@ -676,8 +676,8 @@ ERF::HurricaneEyeTracker (const SolverChoice& sc,
  */
 void
 ERF::HurricaneMaxVelTracker (const Geometry& lev_geom,
-                            const MultiFab& mf_cc_vel,
-                            const double& time)
+                             const MultiFab& mf_cc_vel,
+                             const double& time)
 {
     const int ncomp = AMREX_SPACEDIM;
 

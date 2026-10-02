@@ -38,10 +38,10 @@ bool SameCellLayout (const amrex::MultiFab& lhs, const amrex::MultiFab& rhs)
 }
 
 bool BuildMappedCellMeasure (amrex::MultiFab& omega,
-                            const amrex::MultiFab& detJ,
-                            const amrex::MultiFab& mx,
-                            const amrex::MultiFab& my,
-                            std::string& diagnostic)
+                             const amrex::MultiFab& detJ,
+                             const amrex::MultiFab& mx,
+                             const amrex::MultiFab& my,
+                             std::string& diagnostic)
 {
     diagnostic.clear();
     if (omega.nComp() != 1 || detJ.nComp() < 1 || mx.nComp() < 1 || my.nComp() < 1 ||
@@ -86,8 +86,8 @@ bool BuildMappedCellMeasure (amrex::MultiFab& omega,
 }
 
 bool ValidatePositiveFiniteComponent (const amrex::MultiFab& field,
-                                     const int component,
-                                     std::string& diagnostic)
+                                      const int component,
+                                      std::string& diagnostic)
 {
     diagnostic.clear();
     if (component < 0 || component >= field.nComp()) {
@@ -114,8 +114,8 @@ bool ValidatePositiveFiniteComponent (const amrex::MultiFab& field,
 }
 
 bool ValidateFiniteComponent (const amrex::MultiFab& field,
-                             const int component,
-                             std::string& diagnostic)
+                              const int component,
+                              std::string& diagnostic)
 {
     diagnostic.clear();
     if (component < 0 || component >= field.nComp()) {

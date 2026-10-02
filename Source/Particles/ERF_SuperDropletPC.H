@@ -109,7 +109,7 @@ class SuperDropletPC : public ERFPC
         /*! \brief Setup species and aerosol mass pointers from SOA */
         template<typename SOAType>
         void setupMassPointers (SOAType& soa, SDPCDefn::SDSpeciesMassArr& sp_mass_ptrs,
-                               SDPCDefn::SDAerosolMassArr& ae_mass_ptrs) const
+                                SDPCDefn::SDAerosolMassArr& ae_mass_ptrs) const
         {
             for (int i = 0; i < m_num_species; i++) {
                 sp_mass_ptrs[i] = soa.GetRealData(idx_s(i, m_num_aerosols, m_num_species)).data();

@@ -8,7 +8,7 @@ using namespace amrex;
 #ifdef ERF_USE_NETCDF
 void
 SLM::writeSLM_NetCDF (const MultiFab& mf, const Vector<std::string>& varnames, const amrex::Real cur_time,
-                     const std::string plot_prefix, const int /*level_step*/)
+                      const std::string plot_prefix, const int /*level_step*/)
 {
     std::string plotfilename = plot_prefix + ".nc";
 
@@ -169,7 +169,7 @@ SLM::writeNCHeader (ncutils::NCFile &nc_file, const amrex::Geometry &geom)
 }
 
 void SLM::writeMFtoNC (ncutils::NCFile &nc_file, const MultiFab* mf,
-                      const std::string name, Real cur_time, bool write_ghost)
+                       const std::string name, Real cur_time, bool write_ghost)
 {
     IntVect ngrow = mf->nGrowVect();
 
@@ -359,9 +359,9 @@ void SLM::writeMFtoNC (ncutils::NCFile &nc_file, const MultiFab* mf,
 
 void
 SLM::writeMFVecToNC (ncutils::NCFile& /*nc_file*/,
-                    const Vector<const MultiFab*>& /*mf_vec*/,
-                    const Vector<std::string>& /*mf_names*/,
-                    const Geometry& /*geom*/) const
+                     const Vector<const MultiFab*>& /*mf_vec*/,
+                     const Vector<std::string>& /*mf_names*/,
+                     const Geometry& /*geom*/) const
 {
     // Helper function to write a vector of MF to a NetCDF file
     // it is assumed that all MFs in mf_vec share geom

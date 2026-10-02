@@ -21,7 +21,7 @@ public:
     [[nodiscard]] bool is_defined (int lev) const;
 
     void define (int lev, const amrex::BoxArray& grids,
-                const amrex::DistributionMapping& mapping, int ngrow = 0);
+                 const amrex::DistributionMapping& mapping, int ngrow = 0);
     void destroy (int lev);
 
     [[nodiscard]] amrex::MultiFab& state (int lev);
@@ -29,7 +29,7 @@ public:
 
     /** One-way projection from the spectrum into ERF's compact qc and qr lanes. */
     void project_to_core (int lev, amrex::MultiFab& core,
-                         int qc_component, int qr_component) const;
+                          int qc_component, int qr_component) const;
 
 private:
     SBMLayout m_layout;

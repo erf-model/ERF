@@ -981,7 +981,7 @@ public:
    * @param[in,out] cons_in conserved state used by the surface-parameter computation
    */
   void compute_sfc_params_from_lsm_fluxes (const int& lev,
-                                          amrex::MultiFab& cons_in);
+                                           amrex::MultiFab& cons_in);
 
   /**
    * Fill surface temperature from available SST and TSK data.

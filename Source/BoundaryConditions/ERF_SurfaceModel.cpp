@@ -10,9 +10,9 @@
 using namespace amrex;
 
 void SurfaceModel::apply_weight_average (int lev, const amrex::MultiFab *lsm_data,
-                                        amrex::MultiFab *lsm_weighted,
-                                        const amrex::MultiFab *urban_data,
-                                        amrex::MultiFab *urban_weighted)
+                                         amrex::MultiFab *lsm_weighted,
+                                         const amrex::MultiFab *urban_data,
+                                         amrex::MultiFab *urban_weighted)
 {
     bool valid_land = (lsm_data != nullptr);
     bool valid_urban = (urban_data != nullptr);
@@ -41,8 +41,8 @@ void SurfaceModel::apply_weight_average (int lev, const amrex::MultiFab *lsm_dat
 }
 
 void SurfaceModel::weight_model_field (int lev, const amrex::MultiFab* source,
-                                      amrex::MultiFab* weighted,
-                                      SurfaceModelType type)
+                                       amrex::MultiFab* weighted,
+                                       SurfaceModelType type)
 {
     AMREX_ASSERT(source != nullptr);
     AMREX_ASSERT(weighted != nullptr);
@@ -69,7 +69,7 @@ void SurfaceModel::weight_model_field (int lev, const amrex::MultiFab* source,
 
 
 void SurfaceModel::calculate_weight_average (int lev, amrex::MultiFab* const urban_frac,
-                                            bool update_derived)
+                                             bool update_derived)
 {
     m_last_urban_frac[lev] = urban_frac;
     const SurfaceProviderMode mode = m_provider_mode[lev];
@@ -307,7 +307,7 @@ void SurfaceModel::calculate_weight_average (int lev, amrex::MultiFab* const urb
 }
 
 void SurfaceModel::register_radiation_input (const std::string& name,
-                                            const std::pair<int, int>& map)
+                                             const std::pair<int, int>& map)
 {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(map.first == -1 && map.second == -1),
                                      "A radiation input must have a provider mapping");
@@ -338,7 +338,7 @@ void SurfaceModel::register_radiation_inputs (
 }
 
 void SurfaceModel::register_radiation_output (const std::string& name,
-                                             const std::pair<int, int>& map)
+                                              const std::pair<int, int>& map)
 {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(map.first == -1 && map.second == -1),
                                      "A radiation output must have a provider mapping");
@@ -490,7 +490,7 @@ void SurfaceModel::distribute_radiation_output (int lev, int output_index)
 }
 
 bool SurfaceModel::is_field_mapped (int lev, SurfaceModelType type, int field_idx,
-                                   const amrex::MultiFab* mf) const
+                                    const amrex::MultiFab* mf) const
 {
     for (const auto& entry : fieldmap) {
         const Field& field = entry.second;
@@ -617,8 +617,8 @@ void SurfaceModel::register_field_map (std::string name, amrex::Vector<amrex::Mu
 }
 
 void SurfaceModel::set_field_map_pointers (const std::string& name, int lev,
-                                          amrex::MultiFab* lsm_mf,
-                                          amrex::MultiFab* urban_mf)
+                                           amrex::MultiFab* lsm_mf,
+                                           amrex::MultiFab* urban_mf)
 {
     auto field_it = fieldmap.find(name);
     AMREX_ALWAYS_ASSERT(field_it != fieldmap.end());

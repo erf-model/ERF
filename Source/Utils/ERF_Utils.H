@@ -144,7 +144,7 @@ void MomentumToVelocity (amrex::MultiFab& xvel_out,
                          const amrex::Box& domain,
                          const amrex::Vector<amrex::BCRec>& domain_bcs_type_h,
                          const amrex::MultiFab* c_vfrac = nullptr // optional
-                        );
+                         );
 
 /*
  * Convert velocity to momentum by multiplying by density averaged onto faces
@@ -162,7 +162,7 @@ void VelocityToMomentum (const amrex::MultiFab& xvel_in,
                          const amrex::Box& domain,
                          const amrex::Vector<amrex::BCRec>& domain_bcs_type_h,
                          const amrex::MultiFab* c_vfrac = nullptr // optional
-                        );
+                         );
 
 /*
  * Convert (den_div u) to (den_mlt u) by multiplying by (den_mlt/den_div)
@@ -751,9 +751,9 @@ AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 quad_interp_1d (amrex::Real z,
-               amrex::Real z0, amrex::Real p0,
-               amrex::Real z1, amrex::Real p1,
-               amrex::Real z2, amrex::Real p2)
+                amrex::Real z0, amrex::Real p0,
+                amrex::Real z1, amrex::Real p1,
+                amrex::Real z2, amrex::Real p2)
 {
     return p0 * ( (z - z1) * (z - z2) ) / ( (z0 - z1) * (z0 - z2) )
          + p1 * ( (z - z0) * (z - z2) ) / ( (z1 - z0) * (z1 - z2) )

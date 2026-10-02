@@ -215,8 +215,8 @@ public:
      */
     void
     interp_forcing (const amrex::GeometryData &geom,
-                   const amrex::Vector<amrex::Real>& zlevels_stag,
-                   const InputSoundingData &sounding)
+                    const amrex::Vector<amrex::Real>& zlevels_stag,
+                    const InputSoundingData &sounding)
     {
         const int klo = 0;
         const int khi = geom.Domain().bigEnd()[AMREX_SPACEDIM-1];
@@ -333,10 +333,10 @@ public:
      */
     void
     get_forcing_time_coeffs (const amrex::Real& time,
-                            int& curr,
-                            int& next,
-                            amrex::Real& coeff_curr,
-                            amrex::Real& coeff_next) const
+                             int& curr,
+                             int& next,
+                             amrex::Real& coeff_curr,
+                             amrex::Real& coeff_next) const
     {
         // helper function to get the current time indices of forcing data to use and
         // coefficients based on the current simulation time.

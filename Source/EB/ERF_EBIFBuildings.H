@@ -57,10 +57,10 @@ public:
      * 4. Stores interpolation data for operator() calls
      */
     BuildingsIF (std::string const& stl_file,
-                amrex::Real scale,
-                amrex::Array<amrex::Real, 3> const& center,
-                int reverse_normal,
-                amrex::Geometry const& geom)
+                 amrex::Real scale,
+                 amrex::Array<amrex::Real, 3> const& center,
+                 int reverse_normal,
+                 amrex::Geometry const& geom)
         : m_geom(geom)
     {
         using namespace amrex;

@@ -478,7 +478,7 @@ public:
 
     void
     set_terrain_inputs (const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& sst_in,
-                       const amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_in) override;
+                        const amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_in) override;
 
     int Lsm_Type () override
     {
@@ -538,57 +538,57 @@ public:
     void radiation_noahmp (const amrex::MFIter &mfi);
 
     void albedo_noahmp (const amrex::MFIter &mfi, int i, int j,
-                       amrex::Real dt, amrex::Real cosz, amrex::Real snowh, amrex::Real fsno,
-                       amrex::Real fwet, amrex::Real sneqvo, amrex::Real sneqv, amrex::Real qsnow,
-                       amrex::Real tg, amrex::Real tv, amrex::Real elai, amrex::Real esai,
-                       const amrex::Real* smc, int nsoil, amrex::Real fveg,
-                       amrex::Real& albold, amrex::Real& tauss,
-                       amrex::Real* albgrd, amrex::Real* albgri, amrex::Real* albd, amrex::Real* albi,
-                       amrex::Real* fabd, amrex::Real* fabi, amrex::Real* ftdd, amrex::Real* ftid, amrex::Real* ftii,
-                       amrex::Real& fsun, amrex::Real* frevd, amrex::Real* frevi,
-                       amrex::Real* fregd, amrex::Real* fregi, amrex::Real& bgap, amrex::Real& wgap,
-                       amrex::Real* albsnd, amrex::Real* albsni);
+                        amrex::Real dt, amrex::Real cosz, amrex::Real snowh, amrex::Real fsno,
+                        amrex::Real fwet, amrex::Real sneqvo, amrex::Real sneqv, amrex::Real qsnow,
+                        amrex::Real tg, amrex::Real tv, amrex::Real elai, amrex::Real esai,
+                        const amrex::Real* smc, int nsoil, amrex::Real fveg,
+                        amrex::Real& albold, amrex::Real& tauss,
+                        amrex::Real* albgrd, amrex::Real* albgri, amrex::Real* albd, amrex::Real* albi,
+                        amrex::Real* fabd, amrex::Real* fabi, amrex::Real* ftdd, amrex::Real* ftid, amrex::Real* ftii,
+                        amrex::Real& fsun, amrex::Real* frevd, amrex::Real* frevi,
+                        amrex::Real* fregd, amrex::Real* fregi, amrex::Real& bgap, amrex::Real& wgap,
+                        amrex::Real* albsnd, amrex::Real* albsni);
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static void surrad_noahmp (amrex::Real mpe, amrex::Real fsun, amrex::Real fsha, amrex::Real elai, amrex::Real vai,
-                              amrex::Real laisun, amrex::Real laisha, const amrex::Real* solad, const amrex::Real* solai,
-                              const amrex::Real* fabd, const amrex::Real* fabi, const amrex::Real* ftdd,
-                              const amrex::Real* ftid, const amrex::Real* ftii, const amrex::Real* albgrd,
-                              const amrex::Real* albgri, const amrex::Real* albd, const amrex::Real* albi,
-                              const amrex::Real* frevd, const amrex::Real* frevi, const amrex::Real* fregd, const amrex::Real* fregi,
-                              amrex::Real& parsun, amrex::Real& parsha, amrex::Real& sav, amrex::Real& sag,
-                              amrex::Real& fsa, amrex::Real& fsr, amrex::Real& fsrv, amrex::Real& fsrg);
+                               amrex::Real laisun, amrex::Real laisha, const amrex::Real* solad, const amrex::Real* solai,
+                               const amrex::Real* fabd, const amrex::Real* fabi, const amrex::Real* ftdd,
+                               const amrex::Real* ftid, const amrex::Real* ftii, const amrex::Real* albgrd,
+                               const amrex::Real* albgri, const amrex::Real* albd, const amrex::Real* albi,
+                               const amrex::Real* frevd, const amrex::Real* frevi, const amrex::Real* fregd, const amrex::Real* fregi,
+                               amrex::Real& parsun, amrex::Real& parsha, amrex::Real& sav, amrex::Real& sag,
+                               amrex::Real& fsa, amrex::Real& fsr, amrex::Real& fsrv, amrex::Real& fsrg);
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static void snow_age_noahmp (amrex::Real dt, amrex::Real tg, amrex::Real sneqvo, amrex::Real sneqv,
-                                amrex::Real tau0, amrex::Real grain_growth, amrex::Real extra_growth,
-                                amrex::Real dirt_soot, amrex::Real swemx,
-                                amrex::Real& tauss, amrex::Real& fage);
+                                 amrex::Real tau0, amrex::Real grain_growth, amrex::Real extra_growth,
+                                 amrex::Real dirt_soot, amrex::Real swemx,
+                                 amrex::Real& tauss, amrex::Real& fage);
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static void snowalb_bats_noahmp (int nband, amrex::Real fsno, amrex::Real cosz, amrex::Real fage,
-                                    amrex::Real bats_cosz, amrex::Real bats_vis_new, amrex::Real bats_nir_new,
-                                    amrex::Real bats_vis_age, amrex::Real bats_nir_age,
-                                    amrex::Real bats_vis_dir, amrex::Real bats_nir_dir,
-                                    amrex::Real* albsnd, amrex::Real* albsni);
+                                     amrex::Real bats_cosz, amrex::Real bats_vis_new, amrex::Real bats_nir_new,
+                                     amrex::Real bats_vis_age, amrex::Real bats_nir_age,
+                                     amrex::Real bats_vis_dir, amrex::Real bats_nir_dir,
+                                     amrex::Real* albsnd, amrex::Real* albsni);
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static void groundalb_noahmp (int nsoil, int nband, int ice, int ist, amrex::Real fsno,
-                                 const amrex::Real* smc, const amrex::Real* albsnd, const amrex::Real* albsni,
-                                 amrex::Real cosz, amrex::Real tg,
-                                 const amrex::Real* albsat, const amrex::Real* albdry, const amrex::Real* alblak,
-                                 amrex::Real* albgrd, amrex::Real* albgri);
+                                  const amrex::Real* smc, const amrex::Real* albsnd, const amrex::Real* albsni,
+                                  amrex::Real cosz, amrex::Real tg,
+                                  const amrex::Real* albsat, const amrex::Real* albdry, const amrex::Real* alblak,
+                                  amrex::Real* albgrd, amrex::Real* albgri);
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static void twostream_noahmp (int ib, int ic, int vegtyp, amrex::Real cosz, amrex::Real vai,
-                                 amrex::Real fwet, amrex::Real t, const amrex::Real* albgrd, const amrex::Real* albgri,
-                                 const amrex::Real* rho, const amrex::Real* tau, amrex::Real fveg, int ist,
-                                 amrex::Real xl, amrex::Real omegas_param, amrex::Real betads, amrex::Real betais,
-                                 int opt_rad, amrex::Real rc, amrex::Real hvt, amrex::Real hvb, amrex::Real den,
-                                 amrex::Real* fab, amrex::Real* fre, amrex::Real* ftd, amrex::Real* fti,
-                                 amrex::Real& gdir, amrex::Real* frev, amrex::Real* freg,
-                                 amrex::Real& bgap, amrex::Real& wgap,
-                                 amrex::Real& xl_out, amrex::Real& chil_out, amrex::Real& phi1_out, amrex::Real& phi2_out);
+                                  amrex::Real fwet, amrex::Real t, const amrex::Real* albgrd, const amrex::Real* albgri,
+                                  const amrex::Real* rho, const amrex::Real* tau, amrex::Real fveg, int ist,
+                                  amrex::Real xl, amrex::Real omegas_param, amrex::Real betads, amrex::Real betais,
+                                  int opt_rad, amrex::Real rc, amrex::Real hvt, amrex::Real hvb, amrex::Real den,
+                                  amrex::Real* fab, amrex::Real* fre, amrex::Real* ftd, amrex::Real* fti,
+                                  amrex::Real& gdir, amrex::Real* frev, amrex::Real* freg,
+                                  amrex::Real& bgap, amrex::Real& wgap,
+                                  amrex::Real& xl_out, amrex::Real& chil_out, amrex::Real& phi1_out, amrex::Real& phi2_out);
 
     void transfer_coeff (const amrex::MFIter &mfi);
 
@@ -606,26 +606,26 @@ public:
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real fh_calc (const amrex::Real &t, const amrex::Real &mps,
-                               const amrex::Real &sw, const amrex::Real &B);
+                                const amrex::Real &sw, const amrex::Real &B);
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     static amrex::Real linear_interp (const amrex::Real t0, const amrex::Real t1,
-                                     const amrex::Real t, const amrex::Real x,
-                                     const amrex::Real y);
+                                      const amrex::Real t, const amrex::Real x,
+                                      const amrex::Real y);
 
 #ifdef ERF_USE_NETCDF
     void writeSLM_NetCDF (const amrex::MultiFab& mf, const amrex::Vector<std::string>& varnames,
-                         const amrex::Real cur_time, const std::string plot_prefix, const int level_step);
+                          const amrex::Real cur_time, const std::string plot_prefix, const int level_step);
 
     void writeNCHeader (ncutils::NCFile &nc_file, const amrex::Geometry &geom);
 
     void writeMFtoNC (ncutils::NCFile &nc_file, const amrex::MultiFab* mf,
-                     const std::string name, amrex::Real cur_time, bool write_ghost = false);
+                      const std::string name, amrex::Real cur_time, bool write_ghost = false);
 
     void writeMFVecToNC (ncutils::NCFile &nc_file,
-                        const amrex::Vector<const amrex::MultiFab*> &mf_vec,
-                        const amrex::Vector<std::string> &mf_names,
-                        const amrex::Geometry& geom) const;
+                         const amrex::Vector<const amrex::MultiFab*> &mf_vec,
+                         const amrex::Vector<std::string> &mf_names,
+                         const amrex::Geometry& geom) const;
 #endif
 
     void set_dt (const amrex::Real &dt) {

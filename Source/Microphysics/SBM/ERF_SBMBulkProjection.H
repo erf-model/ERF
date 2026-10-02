@@ -21,9 +21,9 @@ public:
 
     [[nodiscard]] BulkProjection apply (const std::vector<amrex::Real>& auxiliary) const;
     void apply_to_core (const amrex::Box& box,
-                       const amrex::Array4<const amrex::Real>& auxiliary,
-                       const amrex::Array4<amrex::Real>& core,
-                       int qc_component, int qr_component) const;
+                        const amrex::Array4<const amrex::Real>& auxiliary,
+                        const amrex::Array4<amrex::Real>& core,
+                        int qc_component, int qr_component) const;
 
     [[nodiscard]] int cloud_offset () const noexcept { return m_cloud_offset; }
     [[nodiscard]] int cloud_count () const noexcept { return m_cloud_count; }

@@ -12,7 +12,7 @@ namespace erf_sbm {
 namespace {
 
 void add_constraint (ConstraintGroup& group, std::string id,
-                    std::initializer_list<ConstraintTerm> terms)
+                     std::initializer_list<ConstraintTerm> terms)
 {
     group.constraints.push_back({std::move(id), std::vector<ConstraintTerm>(terms)});
 }
@@ -28,7 +28,7 @@ bool ConstraintGroup::contains (const int component) const noexcept
 }
 
 amrex::Real ConstraintGroup::evaluate (const LinearConstraint& constraint,
-                                      const std::vector<amrex::Real>& state) const
+                                       const std::vector<amrex::Real>& state) const
 {
     amrex::Real result = amrex::Real(0.0);
     for (const auto& term : constraint.terms) {
@@ -41,8 +41,8 @@ amrex::Real ConstraintGroup::evaluate (const LinearConstraint& constraint,
 }
 
 bool ConstraintGroup::admissible (const std::vector<amrex::Real>& state,
-                                 amrex::Real* minimum_margin,
-                                 std::string* failed_constraint) const
+                                  amrex::Real* minimum_margin,
+                                  std::string* failed_constraint) const
 {
     amrex::Real minimum = std::numeric_limits<amrex::Real>::infinity();
     for (const auto& constraint : constraints) {
@@ -278,22 +278,22 @@ make_constraint_closure_chunks (const SBMLayout& layout, const int max_groups)
 }
 
 EndpointTransform transform_two_moment (const amrex::Real C, const amrex::Real M,
-                                       const amrex::Real lower, const amrex::Real upper)
+                                        const amrex::Real lower, const amrex::Real upper)
 {
     return SpectralGrid::two_moment_to_endpoints(C, M, lower, upper);
 }
 
 std::pair<amrex::Real, amrex::Real> inverse_two_moment (const amrex::Real L, const amrex::Real H,
-                                                       const amrex::Real lower, const amrex::Real upper)
+                                                        const amrex::Real lower, const amrex::Real upper)
 {
     return SpectralGrid::endpoints_to_two_moment(L, H, lower, upper);
 }
 
 bool property_support_is_admissible (const amrex::Real property,
-                                    const amrex::Real carrier_number,
-                                    const amrex::Real lower,
-                                    const amrex::Real upper,
-                                    const amrex::Real tolerance) noexcept
+                                     const amrex::Real carrier_number,
+                                     const amrex::Real lower,
+                                     const amrex::Real upper,
+                                     const amrex::Real tolerance) noexcept
 {
     if (!finite(property) || !finite(carrier_number) || !finite(lower) || !finite(upper) ||
         carrier_number < amrex::Real(0.0) || lower < amrex::Real(0.0) || upper < lower) return false;

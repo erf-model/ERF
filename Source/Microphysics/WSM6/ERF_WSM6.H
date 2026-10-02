@@ -160,21 +160,21 @@ public:
     static constexpr amrex::Real alpha_wsm6 = amrex::Real(0.12);
 
     void Init (const amrex::MultiFab& cons_in,
-              const amrex::BoxArray& grids,
-              const amrex::Geometry& geom,
-              const amrex::Real& dt_advance,
-              std::unique_ptr<amrex::MultiFab>& z_phys_nd,
-              std::unique_ptr<amrex::MultiFab>& detJ_cc) override;
+               const amrex::BoxArray& grids,
+               const amrex::Geometry& geom,
+               const amrex::Real& dt_advance,
+               std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+               std::unique_ptr<amrex::MultiFab>& detJ_cc) override;
 
     void Set_dzmin (const amrex::Real dz_min) override { m_dzmin = dz_min; }
 
     void Copy_State_to_Micro (const amrex::MultiFab& cons_in) override;
     void Copy_State_to_Micro (const amrex::MultiFab& cons_in,
-                             const amrex::MultiFab* base_state);
+                              const amrex::MultiFab* base_state);
     void Copy_Micro_to_State (amrex::MultiFab& cons_in) override;
 
     void Update_Micro_Vars (amrex::MultiFab& cons_in,
-                           const amrex::MultiFab* base_state) override;
+                            const amrex::MultiFab* base_state) override;
 
     void Update_Micro_Vars (amrex::MultiFab& cons_in) override
     {
@@ -182,13 +182,13 @@ public:
     }
 
     void Update_State_Vars (amrex::MultiFab& cons_in,
-                           const amrex::MultiFab& /*z_phys_nd*/) override
+                            const amrex::MultiFab& /*z_phys_nd*/) override
     {
         Copy_Micro_to_State(cons_in);
     }
 
     void Advance (const amrex::Real& dt_advance,
-                 const SolverChoice& solverChoice) override;
+                  const SolverChoice& solverChoice) override;
 
     amrex::MultiFab* Qmoist_Ptr (const int& varIdx) override
     {
@@ -201,8 +201,8 @@ public:
     int Qstate_Moist_NumConc_Size () override { return n_qstate_moist_numconc_size; }
 
     void Qmoist_Restart_Vars (const SolverChoice&,
-                             std::vector<int>& a_idx,
-                             std::vector<std::string>& a_names) const override
+                              std::vector<int>& a_idx,
+                              std::vector<std::string>& a_names) const override
     {
         a_idx = {0, 1, 2};
         a_names = {"RainAccum", "SnowAccum", "GraupAccum"};

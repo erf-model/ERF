@@ -18,9 +18,9 @@ namespace fs = std::filesystem;
 enum class MultiFabType { CC, NC };
 
 void PlotMultiFab (const MultiFab& mf,
-                  const Geometry& geom_mf,
-                  const std::string plotfilename,
-                  MultiFabType mftype)
+                   const Geometry& geom_mf,
+                   const std::string plotfilename,
+                   MultiFabType mftype)
 {
 
     Vector<std::string> varnames = {
@@ -70,9 +70,9 @@ void PlotMultiFab (const MultiFab& mf,
  */
 void
 ERF::FillForecastStateMultiFabs (const int lev,
-                                const std::string& filename,
-                                const std::unique_ptr<MultiFab>& a_z_phys_nd,
-                                Vector<Vector<MultiFab>>& forecast_state)
+                                 const std::string& filename,
+                                 const std::unique_ptr<MultiFab>& a_z_phys_nd,
+                                 Vector<Vector<MultiFab>>& forecast_state)
 {
 
     Vector<Real> latvec_h, lonvec_h, xvec_h, yvec_h, zvec_h;
@@ -372,9 +372,9 @@ ERF::FillForecastStateMultiFabs (const int lev,
  */
 void
 ERF::WeatherDataInterpolation (const int lev,
-                              const double time,
-                              amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z_phys_nd,
-                              bool regrid_forces_file_read)
+                               const double time,
+                               amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z_phys_nd,
+                               bool regrid_forces_file_read)
 {
 
     static amrex::Vector<double> next_read_forecast_time;
