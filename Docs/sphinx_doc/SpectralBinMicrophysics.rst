@@ -17,29 +17,28 @@ Lagrangian computational particles that move through the Eulerian model grid.
 The purpose of spectral-bin microphysics is ultimately to resolve the
 hydrometeor size distribution and its evolution through physical processes
 rather than representing cloud and precipitation only through a few bulk
-categories. The current ERF SBM runtime establishes the state, configuration,
-ownership, projection, and restart infrastructure needed for that capability.
-ERF also contains a generic mapped transport substrate for prognostic states
-stored outside the core conserved-state array; its conservation, geometry,
-and time-integration contracts are documented in :ref:`AuxiliaryState`. At
-present that substrate is exercised with a test-only non-SBM inert tracer and
-is not yet connected to the SBM spectral state.
+categories. The current ERF SBM runtime provides a bounded M3 resolved-
+advection capability together with the state, ownership, projection, restart,
+and mapped auxiliary-transport infrastructure needed for later warm
+microphysics. The generic mapped transport substrate is documented in
+:ref:`AuxiliaryState`; the SBM liquid spectrum now uses that substrate for
+resolved M3 advection.
 
 .. warning::
 
-   The current ``SBM`` option is an infrastructure qualification mode, not yet
-   a production cloud-microphysics scheme.
+   The current ``SBM`` option is an M3 transport-qualification capability, not
+   yet a production warm-cloud or warm-rain microphysics scheme.
 
-   ERF currently stores and validates a liquid spectral distribution and keeps
-   the conventional bulk cloud- and rain-water fields consistent with that
-   distribution. The spectral state is intentionally not advected, diffused,
-   sedimented, or modified by cloud microphysical processes.
+   The liquid spectrum is the authoritative condensed-water state and is
+   advected using ERF's host dry-air carrier, native high-order reconstruction,
+   mapped atomic-group FCT acceptance, and fixed projections to conventional
+   cloud- and rain-water fields.
 
-   Spectral advection, turbulent or molecular diffusion, condensation and
-   evaporation, aerosol activation, aerosol evolution, collision-coalescence,
-   sedimentation, precipitation, AMR spectral transport, and physical
-   spectral boundary conditions are not yet available through
-   ``erf.moisture_model = SBM``.
+   M3 does not yet provide particle diffusion or LES mixing,
+   condensation/evaporation, aerosol activation or evolution,
+   collision-coalescence, sedimentation, precipitation, AMR spectral
+   synchronization/reflux, or the full nonperiodic spectral-boundary
+   lifecycle. Moving terrain and embedded boundaries also remain unsupported.
 
    Unsupported configurations are rejected rather than silently reverting to
    bulk-water transport.
@@ -495,12 +494,16 @@ Projected ``qc`` and ``qr`` remain fixed diagnostics of the accepted liquid
 spectrum. They are refreshed from the spectrum and do not receive an
 independent liquid advection, diffusion, clipping, or microphysical update.
 
-The current M3 qualification is deliberately bounded. It covers single-level
-advection on the supported static non-EB mapped transport operators. Diffusion
-and LES particle mixing, AMR synchronization and reflux, full nonperiodic
-lifecycle support, condensation/evaporation, activation, collision-coalescence,
-sedimentation, and precipitation remain later milestones. Moving terrain and
-embedded boundaries are not enabled by M3.
+The current M3 qualification is deliberately bounded. End-to-end ERF evidence
+covers single-level, triply periodic advection on constant and stretched-z
+grids, plus a one-step static Cos4Hill terrain-fitted case whose terrain is flat
+at the periodic boundaries. Direct transport tests also exercise nontrivial
+fluxes with a synthetic static mapped measure. These cases do not establish a
+general nonperiodic terrain-boundary profile. Diffusion and LES particle
+mixing, AMR synchronization and reflux, full nonperiodic lifecycle support,
+condensation/evaporation, activation, collision-coalescence, sedimentation, and
+precipitation remain later milestones. Moving terrain and embedded boundaries
+are not enabled by M3.
 
 The high-order M3 transport identity is ``EndpointNumberWENOZ3``; it is not
 currently a user-selectable SBM reconstruction policy. See
@@ -692,9 +695,10 @@ The current configuration requires:
 * a three-dimensional ERF build;
 * one AMR level, ``amr.max_level = 0``;
 * periodic boundaries in all three directions;
-* static ``ConstantDz``, ``StretchedDz``, or static terrain-fitted geometry;
+* static non-EB geometry; end-to-end evidence covers ``ConstantDz``,
+  ``StretchedDz``, and the triply periodic static ``Cos4Hill`` fitted-mesh
+  smoke profile, with terrain flat at the periodic boundaries;
 * no moving terrain, embedded boundaries, or immersed buildings;
-* no immersed buildings;
 * ``substepping_type = None``;
 * no molecular scalar diffusion;
 * no turbulent scalar diffusion or PBL/SHOC transport acting on moisture;

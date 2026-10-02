@@ -3,6 +3,7 @@
 
 #include "ERF_SBMStateManager.H"
 #include "ERF_SBMConstraintGroups.H"
+#include "ERF_SBMAdvectionBoundary.H"
 #include "AuxiliaryState/ERF_AuxiliaryStage.H"
 
 #include <AMReX_Geometry.H>
@@ -38,6 +39,30 @@ class SBMTransport
                                  const amrex::MultiFab& mx,
                                  const amrex::MultiFab& my,
                                  std::string& diagnostic);
+
+    /**
+     * ERF slow-RHS seam. The conserved-state views are ordered as the
+     * old-step anchor, the actual host predictor/input, and the target being
+     * written. Keep this forwarding point shared by the ERF call site and
+     * seam-level tests so density-time pairing cannot drift silently.
+     */
+    void advance_stage_from_host (int level,
+                                  erf_auxiliary::HostIntegrator method,
+                                  int stage,
+                                  double step_old_time,
+                                  double input_time,
+                                  double target_time,
+                                  double host_stage_interval,
+                                  SBMStateManager& state_manager,
+                                  const amrex::MultiFab& S_old_cons,
+                                  const amrex::MultiFab& S_new_cons,
+                                  amrex::MultiFab& S_data_cons,
+                                  const amrex::MultiFab& avg_xmom,
+                                  const amrex::MultiFab& avg_ymom,
+                                  const amrex::MultiFab& avg_zmom,
+                                  const amrex::Geometry& geometry,
+                                  int qc_component,
+                                  int qr_component);
 
     void advance_stage (int level,
                         erf_auxiliary::HostIntegrator method,

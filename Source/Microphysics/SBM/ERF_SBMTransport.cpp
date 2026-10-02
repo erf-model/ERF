@@ -495,6 +495,27 @@ SBMTransport::rebuild_static_measure (const int level,
 }
 
 void
+SBMTransport::advance_stage_from_host (
+    const int level, const erf_auxiliary::HostIntegrator method,
+    const int stage, const double step_old_time, const double input_time,
+    const double target_time, const double host_stage_interval,
+    SBMStateManager& state_manager, const MultiFab& S_old_cons,
+    const MultiFab& S_new_cons, MultiFab& S_data_cons,
+    const MultiFab& avg_xmom, const MultiFab& avg_ymom,
+    const MultiFab& avg_zmom, const amrex::Geometry& geometry,
+    const int qc_component, const int qr_component)
+{
+    // Preserve ERF's semantic state roles at the integration boundary:
+    // S_old anchors the step, S_new is the stage predictor, and S_data is the
+    // target. In particular, do not substitute S_data for the predictor
+    // density used to form the high-order intensive spectrum.
+    advance_stage(level, method, stage, step_old_time, input_time, target_time,
+                  host_stage_interval, state_manager, S_old_cons, S_new_cons,
+                  S_data_cons, avg_xmom, avg_ymom, avg_zmom, geometry,
+                  qc_component, qr_component);
+}
+
+void
 SBMTransport::advance_stage (const int level,
                              const erf_auxiliary::HostIntegrator method,
                              const int stage,

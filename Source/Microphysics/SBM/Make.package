@@ -19,3 +19,4 @@ CEXE_headers += ERF_SBMCanonicalIdentity.H
 CEXE_headers += ERF_SBMRepresentation.H
 CEXE_headers += ERF_SBMRemapping.H
 CEXE_headers += ERF_SBMTransport.H
+CEXE_headers += ERF_SBMAdvectionBoundary.H

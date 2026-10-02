@@ -307,10 +307,13 @@ void erf_slow_rhs_post (int level, int finest_level,
             (solverChoice.anelastic_type[level] == AnelasticType::RK2 ?
                 erf_auxiliary::HostIntegrator::AnelasticHeun :
                 erf_auxiliary::HostIntegrator::AnelasticMidPoint);
-        sbm_transport->advance_stage(
+        const MultiFab& stage_cons_anchor = S_old[IntVars::cons];
+        const MultiFab& stage_cons_input = S_new[IntVars::cons];
+        MultiFab& stage_cons_target = S_data[IntVars::cons];
+        sbm_transport->advance_stage_from_host(
             level, method, nrk, step_old_time, input_time, target_time, dt_d,
-            *sbm_state_manager, S_old[IntVars::cons], S_data[IntVars::cons],
-            S_data[IntVars::cons], avg_xmom, avg_ymom, avg_zmom, geom,
+            *sbm_state_manager, stage_cons_anchor, stage_cons_input,
+            stage_cons_target, avg_xmom, avg_ymom, avg_zmom, geom,
             solverChoice.moisture_indices.qc, solverChoice.moisture_indices.qr);
     }
 

@@ -56,16 +56,32 @@ function(assert_checkpoint checkpoint)
   if(_spectrum_found EQUAL -1)
     message(FATAL_ERROR "SBM checkpoint spectrum differs from the manufactured state: ${_checkpoint_dir}")
   endif()
+  if(DEFINED EXPECTED_SPECTRUM_MAX_VALUES)
+    string(FIND "${_spectrum_header}" "${EXPECTED_SPECTRUM_MAX_VALUES}" _spectrum_max_found)
+    if(_spectrum_max_found EQUAL -1)
+      message(FATAL_ERROR "SBM checkpoint spectrum maximum differs from the expected transport result: ${_checkpoint_dir}")
+    endif()
+  endif()
 
   file(READ "${_checkpoint_dir}/Level_0/Cell_H" _cell_header)
   string(FIND "${_cell_header}" "${EXPECTED_CORE_VALUES}" _projection_found)
   if(_projection_found EQUAL -1)
     message(FATAL_ERROR "SBM compact qc/qr checkpoint values do not match the fixed projection: ${_checkpoint_dir}")
   endif()
+  if(DEFINED EXPECTED_CORE_MAX_VALUES)
+    string(FIND "${_cell_header}" "${EXPECTED_CORE_MAX_VALUES}" _projection_max_found)
+    if(_projection_max_found EQUAL -1)
+      message(FATAL_ERROR "SBM compact qc/qr maximum differs from the fixed projection: ${_checkpoint_dir}")
+    endif()
+  endif()
 endfunction()
 
 run_erf("Initial SBM M3 run")
 assert_checkpoint("sbm_smoke_chk00001")
+
+if(DEFINED SKIP_RESTART AND SKIP_RESTART)
+  return()
+endif()
 
 run_erf("Exact-schema SBM M3 restart"
   "erf.restart=${_run_dir}/sbm_smoke_chk00001"
