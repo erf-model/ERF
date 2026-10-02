@@ -771,7 +771,7 @@ ERF::create_background_state_for_ensemble (int lev,
 
 
     Vector<std::string> varnames = {"density","theta", "x_velocity","y_velocity","z_velocity", "qv", "qc", "qrain"};
-    WriteSingleLevelPlotfile("1_plt_final_interp", mf_cc_fine, varnames, geom_fine, zero, 0);
+    //WriteSingleLevelPlotfile("1_plt_final_interp", mf_cc_fine, varnames, geom_fine, zero, 0);
 
     ApplyNeumannBCs(geom_fine, mf_cc_fine);
      // Add pertubrations stored in the "pert" variables in the function arguments

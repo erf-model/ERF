@@ -269,7 +269,7 @@ LandForcingResult run_land_forcing (bool supply, amrex::Real cloud_fraction)
     MultiFab qheating(ba, dm, 2, 0);
     const BoxArray flux_ba = convert(ba, IntVect(0, 0, 1));
     MultiFab rad_fluxes(flux_ba, dm, 4, 0);
-    const Vector<const MultiFab*> radiation_inputs;
+    const Vector<const MultiFab*> radiation_inputs {};
 
     radiation.advance(0, 1, Real(0.0), Real(10.0), "pre_dycore",
                       state, nullptr, geom, lsm, radiation_inputs, false,
@@ -366,7 +366,7 @@ std::pair<amrex::Real, amrex::Real> land_forcing_before_a_sweep ()
     LandSurface lsm;
     lsm.ReSize(2);
     lsm.SetModel<NullSurf>();
-    const Vector<const MultiFab*> radiation_inputs;
+    const Vector<const MultiFab*> radiation_inputs {};
     radiation.advance(1, 1, Real(0.0), Real(10.0), "pre_dycore",
                       state1, nullptr, geom1, lsm, radiation_inputs, false,
                       nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,

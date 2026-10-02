@@ -132,12 +132,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // *******************************************************************************************
     init_stuff(lev, ba, dm, lev_new, lev_old, base_state[lev], z_phys_nd[lev]);
     if (auxiliary_inert_tracer) {
-        AMREX_ALWAYS_ASSERT(detJ_cc[lev] != nullptr);
-        AMREX_ALWAYS_ASSERT(mapfac[lev][MapFacType::m_x] != nullptr);
-        AMREX_ALWAYS_ASSERT(mapfac[lev][MapFacType::m_y] != nullptr);
-        auxiliary_inert_tracer->define(lev, ba, dm, *detJ_cc[lev],
-                                       *mapfac[lev][MapFacType::m_x],
-                                       *mapfac[lev][MapFacType::m_y]);
+        auxiliary_inert_tracer->define(lev, ba, dm);
     }
     if (sbm_state_manager) {
         sbm_state_manager->define(lev, ba, dm);
@@ -308,6 +303,15 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // Initialize the non-cons auxiliary tracer only after the host atmospheric
     // density has been initialized from the selected problem configuration.
     if (auxiliary_inert_tracer) {
+        AMREX_ALWAYS_ASSERT(detJ_cc[lev] != nullptr);
+        AMREX_ALWAYS_ASSERT(mapfac[lev][MapFacType::m_x] != nullptr);
+        AMREX_ALWAYS_ASSERT(mapfac[lev][MapFacType::m_y] != nullptr);
+        std::string measure_diagnostic;
+        if (!auxiliary_inert_tracer->rebuild_static_measure(
+                lev, *detJ_cc[lev], *mapfac[lev][MapFacType::m_x],
+                *mapfac[lev][MapFacType::m_y], measure_diagnostic)) {
+            amrex::Abort("M2 auxiliary inert tracer static measure: " + measure_diagnostic);
+        }
         auxiliary_inert_tracer->initialize(lev, lev_new[Vars::cons], geom[lev]);
     }
 

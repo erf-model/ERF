@@ -73,6 +73,10 @@ struct PopulationLayout {
     int mass_offset{0};
     int number_offset{-1};
     int component_count{0};
+    // Component starts for this population's attached fields, in descriptor
+    // order. Filled once by SBMLayout and exposed through non-owning device
+    // views; the vector is immutable for the layout lifetime.
+    std::vector<int> property_component_offsets;
 };
 
 struct SBMLayoutSpec {

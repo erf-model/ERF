@@ -71,6 +71,49 @@ private:
 using MappedFaceFluxRate = MappedFaceField<MappedFaceFluxRateTag>;
 using IntegratedMappedFaceFlux = MappedFaceField<IntegratedMappedFaceFluxTag>;
 
+/** Exact cell-centered BoxArray and DistributionMapping identity. */
+bool SameCellLayout(const amrex::MultiFab& lhs, const amrex::MultiFab& rhs);
+
+/** Check directional face staggering and ownership against a cell layout. */
+template <typename Tag>
+bool MappedFaceLayoutMatchesCellLayout(const MappedFaceField<Tag>& faces,
+                                       const amrex::BoxArray& cell_ba,
+                                       const amrex::DistributionMapping& dm)
+{
+    if (!faces.is_defined()) { return false; }
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        const auto& face = faces.dir(dir);
+        if (face.boxArray() !=
+                amrex::convert(cell_ba, amrex::IntVect::TheDimensionVector(dir)) ||
+            face.DistributionMap() != dm) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <typename Tag>
+bool MappedFaceLayoutMatchesCellLayout(const MappedFaceField<Tag>& faces,
+                                       const amrex::MultiFab& cell)
+{
+    return MappedFaceLayoutMatchesCellLayout(faces, cell.boxArray(), cell.DistributionMap());
+}
+
+/** Check that two semantically tagged face fields have identical face layouts. */
+template <typename LhsTag, typename RhsTag>
+bool SameMappedFaceLayout(const MappedFaceField<LhsTag>& lhs,
+                          const MappedFaceField<RhsTag>& rhs)
+{
+    if (!lhs.is_defined() || !rhs.is_defined()) { return false; }
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        if (lhs.dir(dir).boxArray() != rhs.dir(dir).boxArray() ||
+            lhs.dir(dir).DistributionMap() != rhs.dir(dir).DistributionMap()) {
+            return false;
+        }
+    }
+    return true;
+}
+
 /** Computational-coordinate divergence only: no metric or physical face area. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
 ComputationalMappedDivergence(const amrex::Real fx_hi,
@@ -123,6 +166,8 @@ void ApplyMappedFluxTendency(
     AMREX_ALWAYS_ASSERT(flux_comp >= 0 && flux_comp < flux.nComp());
     AMREX_ALWAYS_ASSERT(omega_comp >= 0 && omega_comp < omega.nComp());
     AMREX_ALWAYS_ASSERT(tendency_comp >= 0 && tendency_comp < tendency.nComp());
+    AMREX_ALWAYS_ASSERT(SameCellLayout(omega, tendency));
+    AMREX_ALWAYS_ASSERT(MappedFaceLayoutMatchesCellLayout(flux, tendency));
 
     for (amrex::MFIter mfi(tendency, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const amrex::Box bx = mfi.tilebox();
