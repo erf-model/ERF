@@ -402,7 +402,7 @@ ApplySurfaceLayerGradientsPBL (const PBLSurfaceLayerGradient& sl,
                                amrex::Real& dudz,
                                amrex::Real& dvdz)
 {
-    const similarity_funs sfuns;
+    const similarity_funs sfuns{};
     const amrex::Real inv_kappa_z = one / (KAPPA * sl.zval);
     dudz     = sl.u_star  * sfuns.calc_phi_m(sl.zeta) * inv_kappa_z;
     dvdz     = zero;
@@ -525,7 +525,7 @@ ComputeQKESourceTerms (int i, int j, int k,
         }
 
         // phi_m, the companion of the psi_m that SurfaceLayer uses
-        const similarity_funs sfuns;
+        const similarity_funs sfuns{};
         const amrex::Real phi_m = sfuns.calc_phi_m(zeta);
 
         // ---- Production terms, at the cell center ----
