@@ -118,14 +118,14 @@ void set_solar_state (TwoStreamParams& p, const RadChoice& rc,
 namespace {
 // The LSM field of the given name on this level, or nullptr when the LSM has
 // none.
-const MultiFab* lsm_field(LandSurface& lsm, int lev, const char* field_name)
+const MultiFab* lsm_field (LandSurface& lsm, int lev, const char* field_name)
 {
     std::string varname(field_name);
     const int lsm_idx = lsm.Get_DataIdx(lev, varname);
     return (lsm_idx >= 0) ? lsm.Get_Data_Ptr(lev, lsm_idx) : nullptr;
 }
 
-bool lsm_has_field(LandSurface& lsm, int lev, const char* field_name)
+bool lsm_has_field (LandSurface& lsm, int lev, const char* field_name)
 {
     return lsm_field(lsm, lev, field_name) != nullptr;
 }
@@ -133,9 +133,11 @@ bool lsm_has_field(LandSurface& lsm, int lev, const char* field_name)
 // Fill a 2D surface-energy-balance field from the LSM field of the given
 // name, scaled by `scale` (Noah-MP's fira is positive upward, the SEB wants
 // absorbed fluxes positive), plus an optional second field added on top
-// (Noah-MP splits absorbed shortwave into sav and sag). Falls back to the
-// scalar default when the LSM does not expose the field.
-void fill_or_copy_seb_field(
+// (Noah-MP splits absorbed shortwave into sav and sag). Cell by cell: where the
+// LSM holds no valid value -- the lsm_undefined placeholder Noah-MP leaves over
+// water and sea ice, and everywhere before its first step -- and where the LSM
+// does not expose the field at all, the scalar default stands.
+void fill_or_copy_seb_field (
     MultiFab* seb_mf,
     LandSurface& lsm,
     int lev,
@@ -145,27 +147,18 @@ void fill_or_copy_seb_field(
     const char* add_field_name = nullptr)
 {
     if (seb_mf == nullptr) return;
-
-    std::string varname(field_name);
-    int lsm_idx = lsm.Get_DataIdx(lev, varname);
-    if (lsm_idx >= 0) {
-        if (MultiFab* lsm_ptr = lsm.Get_Data_Ptr(lev, lsm_idx)) {
-            MultiFab::Copy(*seb_mf, *lsm_ptr, 0, 0, 1, 0);
-            if (scale != 1.0) seb_mf->mult(scale, 0, 1, 0);
-            if (add_field_name != nullptr) {
-                std::string addname(add_field_name);
-                int add_idx = lsm.Get_DataIdx(lev, addname);
-                if (add_idx >= 0) {
-                    if (MultiFab* add_ptr = lsm.Get_Data_Ptr(lev, add_idx)) {
-                        MultiFab::Add(*seb_mf, *add_ptr, 0, 0, 1, 0);
-                    }
-                }
-            }
-            return;
-        }
-    }
-    seb_mf->setVal(fallback_value);
+    const MultiFab* field = lsm_field(lsm, lev, field_name);
+    const MultiFab* add_field = (add_field_name != nullptr)
+                              ? lsm_field(lsm, lev, add_field_name) : nullptr;
+    fill_seb_field_from_land_surface(*seb_mf, field, fallback_value, scale, add_field);
 }
+
+// The land-surface model's broadband shortwave albedo. The two-stream model has one
+// shortwave band, so it takes Noah-MP's total surface albedo (ALBEDO = reflected over
+// incident shortwave), which makes the shortwave it reflects at the ground the shortwave
+// Noah-MP reflects. sfc_alb_dir_vis, the visible direct-beam albedo, is one of RRTMGP's
+// four bands and can be several times smaller than the broadband value over vegetation.
+constexpr const char* lsm_broadband_albedo_name = "albedo";
 }
 
 /**
@@ -407,14 +400,14 @@ TwoStreamRadiation::advance (int lev,
                              const Vector<const MultiFab*>& radiation_inputs,
                              bool noahmp_active,
                              MultiFab* qheating,
-                            MultiFab* rad_fluxes,
-                            const MultiFab* t_surf,
-                            const MultiFab* sfc_sens_flux,
-                            const MultiFab* sfc_laten_flux,
-                            const MultiFab* lat_m,
-                            const MultiFab* lon_m,
-                            double epoch_time,
-                            bool have_datetime)
+                             MultiFab* rad_fluxes,
+                             const MultiFab* t_surf,
+                             const MultiFab* sfc_sens_flux,
+                             const MultiFab* sfc_laten_flux,
+                             const MultiFab* lat_m,
+                             const MultiFab* lon_m,
+                             double epoch_time,
+                             bool have_datetime)
 {
     BL_PROFILE("TwoStreamRadiation::advance()");
 
@@ -640,7 +633,7 @@ TwoStreamRadiation::advance (int lev,
                                       !(noahmp_active && lsm_has_field(lsm, lev, "fira"));
 
         if (seb_active) {
-            fill_or_copy_seb_field(m_alb_sw[lev].get(), lsm, lev, "sfc_alb_dir_vis", rad_choice.surface_albedo_sw);
+            fill_or_copy_seb_field(m_alb_sw[lev].get(), lsm, lev, lsm_broadband_albedo_name, rad_choice.surface_albedo_sw);
             fill_or_copy_seb_field(m_emiss_lw[lev].get(), lsm, lev, "sfc_emis", rad_choice.surface_emissivity_lw);
 
             // In prognostic mode, do not seed this state from an LSM field.
@@ -740,22 +733,26 @@ TwoStreamRadiation::advance (int lev,
             // 2. Otherwise, use standalone fallback MultiFabs (allocated and constant-filled from RadChoice scalars)
             // The resolve_surface_*() helpers implement the full precedence chain with finite guards
 
-            // SW albedo: Try LSM field "sfc_alb_dir_vis" (simplified: broadband approx from vis-direct only;
-            // future work: full 4-band vis/nir dir/dif support is planned).
+            // SW albedo. With Noah-MP, its broadband albedo (see lsm_broadband_albedo_name)
+            // comes first: the canonical SurfaceModel input radiation_inputs[2] is the
+            // visible direct-beam band of RRTMGP's four (Noah-MP's sfc_alb_dir_vis), not a
+            // broadband value. Otherwise that canonical input (SLM), then the standalone
+            // field. resolve_surface_albedo_sw takes the value per column where it is in
+            // [0, 1] and otherwise the erf.radiation.surface_albedo_sw default, so the
+            // lsm_undefined placeholder over water, before the first land step and at
+            // night (Noah-MP has no albedo without sunlight) falls back to the default.
             bool has_hetero_alb_sw = false;
             Array4<const amrex::Real> hetero_alb_sw_arr;
             {
-                std::string varname_alb = "sfc_alb_dir_vis";
-                int lsm_idx = noahmp_active ? lsm.Get_DataIdx(lev, varname_alb) : -1;
-                if (radiation_inputs.size() > 2 && radiation_inputs[2]) {
+                const MultiFab* lsm_albedo = noahmp_active
+                                           ? lsm_field(lsm, lev, lsm_broadband_albedo_name)
+                                           : nullptr;
+                if (lsm_albedo != nullptr) {
+                    hetero_alb_sw_arr = lsm_albedo->const_array(mfi);
+                    has_hetero_alb_sw = true;
+                } else if (radiation_inputs.size() > 2 && radiation_inputs[2]) {
                     hetero_alb_sw_arr = radiation_inputs[2]->const_array(mfi);
                     has_hetero_alb_sw = true;
-                } else if (lsm_idx >= 0) {
-                    auto lsm_ptr = lsm.Get_Data_Ptr(lev, lsm_idx);
-                    if (lsm_ptr) {
-                        hetero_alb_sw_arr = lsm_ptr->const_array(mfi);
-                        has_hetero_alb_sw = true;
-                    }
                 } else if (m_alb_sw[lev]) {
                     hetero_alb_sw_arr = m_alb_sw[lev]->const_array(mfi);
                     has_hetero_alb_sw = true;

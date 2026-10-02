@@ -137,7 +137,7 @@ class NullSurf {
 
     virtual
     std::unordered_map<std::string, std::string>&
-    Lsm_WRFInputNames() { return wrfinput_map; }
+    Lsm_WRFInputNames () { return wrfinput_map; }
 
     virtual
     void

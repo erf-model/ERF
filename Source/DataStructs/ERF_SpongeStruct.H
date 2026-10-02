@@ -25,7 +25,7 @@ struct SpongeChoice {
      * @brief Read sponge-layer options from the input parameter database.
      * @param pp_prefix ParmParse prefix for the ERF input namespace.
      */
-    void init_params(std::string pp_prefix)
+    void init_params (std::string pp_prefix)
     {
         amrex::ParmParse pp(pp_prefix);
 
@@ -82,7 +82,7 @@ struct SpongeChoice {
     /**
      * @brief Print the configured sponge-layer options.
      */
-    void display()
+    void display ()
     {
         amrex::Print() << "Sponge choices: " << std::endl;
     }

@@ -304,6 +304,12 @@ endfunction(add_test_two_stream_radiation)
 # surface layer and from the scalar defaults, and check the balance removed the surface
 # layer's fluxes from the ground (Tests/check_two_stream_seb_flux_source.py).
 function(add_test_two_stream_seb_flux_source TEST_NAME)
+    set(oneValueArgs "CHECKER_OPTIONS" "DT")
+    cmake_parse_arguments(ADD_TEST_SEBFS "" "${oneValueArgs}" "" ${ARGN})
+    set(_sebfs_dt "1.0")
+    if(DEFINED ADD_TEST_SEBFS_DT AND NOT "${ADD_TEST_SEBFS_DT}" STREQUAL "")
+        set(_sebfs_dt "${ADD_TEST_SEBFS_DT}")
+    endif()
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
@@ -319,8 +325,9 @@ function(add_test_two_stream_seb_flux_source TEST_NAME)
         "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
         "-DCHECKER=${TWO_STREAM_SEB_FLUX_SOURCE_CHECKER}"
         "-DSTEPS=10"
-        "-DDT=1.0"
+        "-DDT=${_sebfs_dt}"
         "-DHEAT_CAPACITY=2.0e4"
+        "-DCHECKER_OPTIONS=${ADD_TEST_SEBFS_CHECKER_OPTIONS}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunTwoStreamSEBFluxSource.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -1663,6 +1670,13 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   # of W/m^2, and the two skins agree.
   if(ERF_TEST_PYTHON)
     add_test_two_stream_seb_flux_source(TwoStream_SEBSurfaceLayerFluxes)
+    # The same on two levels over a ridge, level 1 created at step 7 over the middle half:
+    # every level and column checked, with per-column surface-layer fluxes (H spread
+    # across the coarse columns at least 0.5 W/m^2, so the columns are told apart). No
+    # subcycling, so a 0.5 s step keeps the fine level's acoustic substeps stable.
+    add_test_two_stream_seb_flux_source(TwoStream_SEBSurfaceLayerFluxesMultiLevel
+                                        DT 0.5
+                                        CHECKER_OPTIONS "--multilevel --min-spread 0.5")
   endif()
 
   # With seb_turbulent_flux_source = surface_layer (the default) the balance takes H from

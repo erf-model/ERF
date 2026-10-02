@@ -175,7 +175,7 @@ ConvertForProjection (const MultiFab& den_div, const MultiFab& den_mlt,
     } // end MFIter
 }
 
-void compute_influx_outflux(
+void compute_influx_outflux (
     Array<MultiFab*, AMREX_SPACEDIM>& vels_vec,
     Array<MultiFab*, AMREX_SPACEDIM>& area_vec,
     const Geometry& geom,
@@ -264,7 +264,7 @@ void compute_influx_outflux(
     ParallelDescriptor::ReduceRealSum(outflux);
 }
 
-void correct_outflow(
+void correct_outflow (
     const Geometry& geom_lev,
     Array<MultiFab*, AMREX_SPACEDIM>& vels_vec,
     const Box& domain,

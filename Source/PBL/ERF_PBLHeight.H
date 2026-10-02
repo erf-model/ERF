@@ -23,12 +23,12 @@ struct MYNNPBLH {
      */
     AMREX_GPU_HOST
     AMREX_FORCE_INLINE
-    void compute_pblh(const amrex::Geometry& geom,
-                      const amrex::MultiFab* z_phys_cc,
-                      amrex::MultiFab* pblh,
-                      const amrex::MultiFab& cons,
-                      const amrex::iMultiFab* lmask,
-                      const MoistureComponentIndices& moisture_indices) const
+    void compute_pblh (const amrex::Geometry& geom,
+                       const amrex::MultiFab* z_phys_cc,
+                       amrex::MultiFab* pblh,
+                       const amrex::MultiFab& cons,
+                       const amrex::iMultiFab* lmask,
+                       const MoistureComponentIndices& moisture_indices) const
     {
 #if 0
         // NOTE: Cannot use ReduceToPlane because it clips the box to the

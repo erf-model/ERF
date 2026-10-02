@@ -310,7 +310,7 @@ void TerrainPoisson::precond (MultiFab& lhs, MultiFab const& rhs)
     }
 }
 
-void TerrainPoisson::setToZero(MultiFab& v)
+void TerrainPoisson::setToZero (MultiFab& v)
 {
     v.setVal(0);
 }

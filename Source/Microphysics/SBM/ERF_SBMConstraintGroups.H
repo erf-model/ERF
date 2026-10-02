@@ -38,12 +38,12 @@ struct ConstraintGroup {
     std::vector<int> attached_property_indices;
     std::vector<LinearConstraint> constraints;
 
-    [[nodiscard]] bool contains(const int component) const noexcept;
-    [[nodiscard]] amrex::Real evaluate(const LinearConstraint& constraint,
+    [[nodiscard]] bool contains (const int component) const noexcept;
+    [[nodiscard]] amrex::Real evaluate (const LinearConstraint& constraint,
                                         const std::vector<amrex::Real>& state) const;
-    [[nodiscard]] bool admissible(const std::vector<amrex::Real>& state,
-                                  amrex::Real* minimum_margin = nullptr,
-                                  std::string* failed_constraint = nullptr) const;
+    [[nodiscard]] bool admissible (const std::vector<amrex::Real>& state,
+                                   amrex::Real* minimum_margin = nullptr,
+                                   std::string* failed_constraint = nullptr) const;
 };
 
 /**
@@ -67,9 +67,9 @@ struct FlattenedConstraintSet {
 
 /** Evaluate a validated flattened constraint in host or device code. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real evaluate_constraint_descriptor(const ConstraintDescriptor& constraint,
-                                           const ConstraintTerm* terms,
-                                           const amrex::Real* state) noexcept
+amrex::Real evaluate_constraint_descriptor (const ConstraintDescriptor& constraint,
+                                            const ConstraintTerm* terms,
+                                            const amrex::Real* state) noexcept
 {
     amrex::Real result = amrex::Real(0.0);
     for (int i = 0; i < constraint.term_count; ++i) {
@@ -97,19 +97,19 @@ struct AttachedPropertySupportDescriptor {
 
 /** Build deterministic groups from the immutable runtime layout. */
 [[nodiscard]] std::vector<ConstraintGroup>
-make_constraint_groups(const SBMLayout& layout);
+make_constraint_groups (const SBMLayout& layout);
 
 /** Flatten complete semantic groups into bounded device descriptors. */
 [[nodiscard]] FlattenedConstraintSet
-make_constraint_descriptors(const SBMLayout& layout);
+make_constraint_descriptors (const SBMLayout& layout);
 
 /** Flatten arbitrary semantic groups through the production sparse format. */
 [[nodiscard]] FlattenedConstraintSet
-flatten_constraint_groups(const std::vector<ConstraintGroup>& groups,
-                          int state_components);
+flatten_constraint_groups (const std::vector<ConstraintGroup>& groups,
+                           int state_components);
 
 [[nodiscard]] std::vector<AttachedPropertySupportDescriptor>
-make_attached_property_support_descriptors(const SBMLayout& layout);
+make_attached_property_support_descriptors (const SBMLayout& layout);
 
 /**
  * A production scratch chunk is a sequence of complete constraint groups.
@@ -122,25 +122,25 @@ struct ConstraintClosureChunk {
 };
 
 [[nodiscard]] std::vector<ConstraintClosureChunk>
-make_constraint_closure_chunks(const SBMLayout& layout, int max_groups);
+make_constraint_closure_chunks (const SBMLayout& layout, int max_groups);
 
 /**
  * Compatibility entry point delegating to the canonical grid-layer transform.
  */
 [[nodiscard]] EndpointTransform
-transform_two_moment(amrex::Real C, amrex::Real M,
-                     amrex::Real lower, amrex::Real upper);
+transform_two_moment (amrex::Real C, amrex::Real M,
+                      amrex::Real lower, amrex::Real upper);
 
 /** Inverse transform with finite-state and nonnegative-endpoint checks. */
 [[nodiscard]] std::pair<amrex::Real, amrex::Real>
-inverse_two_moment(amrex::Real L, amrex::Real H,
-                   amrex::Real lower, amrex::Real upper);
+inverse_two_moment (amrex::Real L, amrex::Real H,
+                    amrex::Real lower, amrex::Real upper);
 
 /** Host reference for the finite property-support constraints. */
 [[nodiscard]] bool
-property_support_is_admissible(amrex::Real property, amrex::Real carrier_number,
-                               amrex::Real lower, amrex::Real upper,
-                               amrex::Real tolerance = 0.0) noexcept;
+property_support_is_admissible (amrex::Real property, amrex::Real carrier_number,
+                                amrex::Real lower, amrex::Real upper,
+                                amrex::Real tolerance = 0.0) noexcept;
 
 } // namespace erf_sbm
 

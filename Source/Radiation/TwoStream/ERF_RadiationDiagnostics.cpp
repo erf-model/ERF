@@ -9,16 +9,16 @@
  * @brief Implementation of RadiationDiagnostics CSV logger and debug output.
  */
 
-RadiationDiagnostics::RadiationDiagnostics(int verbosity,
-                                           const std::string& diag_file,
-                                           int amr_level,
-                                           bool diag_enable,
-                                           bool diag_stdout_enable,
-                                           bool diag_tagged_enable,
-                                           bool diag_regtest_line_enable,
-                                           bool diag_csv_enable,
-                                           const std::string& diag_callsite_mode,
-                                           amrex::Real diag_dedup_tol)
+RadiationDiagnostics::RadiationDiagnostics (int verbosity,
+                                            const std::string& diag_file,
+                                            int amr_level,
+                                            bool diag_enable,
+                                            bool diag_stdout_enable,
+                                            bool diag_tagged_enable,
+                                            bool diag_regtest_line_enable,
+                                            bool diag_csv_enable,
+                                            const std::string& diag_callsite_mode,
+                                            amrex::Real diag_dedup_tol)
   : m_verbosity(verbosity), m_diag_file(diag_file), m_amr_level(amr_level),
     m_diag_enable(diag_enable), m_diag_stdout_enable(diag_stdout_enable),
     m_diag_tagged_enable(diag_tagged_enable),
@@ -30,13 +30,13 @@ RadiationDiagnostics::RadiationDiagnostics(int verbosity,
   // write_header_if_needed() is called on first append()
 }
 
-RadiationDiagnostics::~RadiationDiagnostics()
+RadiationDiagnostics::~RadiationDiagnostics ()
 {
   // Destructor: nothing special needed
   // File handles are closed by ofstream RAII
 }
 
-void RadiationDiagnostics::write_header_if_needed()
+void RadiationDiagnostics::write_header_if_needed ()
 {
   if (m_header_written || !m_diag_csv_enable || !m_diag_enable) {
     return;
@@ -76,16 +76,16 @@ void RadiationDiagnostics::write_header_if_needed()
   m_header_written = true;
 }
 
-void RadiationDiagnostics::append(int step, amrex::Real time, const std::string& call_site,
-                                  amrex::Real SW_surface, amrex::Real SW_TOA, amrex::Real SW_up_TOA,
-                                  amrex::Real LW_net_surface, amrex::Real LW_up_TOA,
-                                  amrex::Real heating_rate_max,
-                                  amrex::Real seb_residual_mean,
-                                  amrex::Real seb_residual_max,
-                                  amrex::Real t_s_mean,
-                                  amrex::Real t_s_max,
-                                  amrex::Real q_s_mean,
-                                  amrex::Real q_s_max)
+void RadiationDiagnostics::append (int step, amrex::Real time, const std::string& call_site,
+                                   amrex::Real SW_surface, amrex::Real SW_TOA, amrex::Real SW_up_TOA,
+                                   amrex::Real LW_net_surface, amrex::Real LW_up_TOA,
+                                   amrex::Real heating_rate_max,
+                                   amrex::Real seb_residual_mean,
+                                   amrex::Real seb_residual_max,
+                                   amrex::Real t_s_mean,
+                                   amrex::Real t_s_max,
+                                   amrex::Real q_s_mean,
+                                   amrex::Real q_s_max)
 {
   // Master enable gate
   if (!m_diag_enable) {

@@ -2832,7 +2832,7 @@ SurfaceLayer::read_custom_roughness (const int& lev,
  * @return Vector containing each column in the file as a vector
  */
 amrex::Vector<amrex::Vector<amrex::Real>>
-SurfaceLayer::read_cols(const std::string &fname, const int skip_nlines)
+SurfaceLayer::read_cols (const std::string &fname, const int skip_nlines)
 {
     std::ifstream ifs(fname);
     if (!ifs.is_open())

@@ -41,7 +41,7 @@ struct PopulationRemapView {
 
 /** Host adapter building a stable view into the immutable SBMLayout. */
 [[nodiscard]] PopulationRemapView
-population_remap_view(const SBMLayout& layout, int population_id) noexcept;
+population_remap_view (const SBMLayout& layout, int population_id) noexcept;
 
 /**
  * Constant-time structural/context checks for already qualified immutable
@@ -49,7 +49,7 @@ population_remap_view(const SBMLayout& layout, int population_id) noexcept;
  * full validator below once before using a raw view in the remapping cores.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool valid_population_remap_context(const PopulationRemapView& population) noexcept
+bool valid_population_remap_context (const PopulationRemapView& population) noexcept
 {
     if (population.population_id < 0 ||
         population.coordinate_kind != CoordinateKind::Mass ||
@@ -79,7 +79,7 @@ bool valid_population_remap_context(const PopulationRemapView& population) noexc
 
 /** Full O(nbins + properties^2) validator for untrusted/arbitrary views. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool valid_population_remap_view(const PopulationRemapView& population) noexcept
+bool valid_population_remap_view (const PopulationRemapView& population) noexcept
 {
     if (!valid_population_remap_context(population)) return false;
     for (int edge = 0; edge <= population.nbins; ++edge) {
@@ -123,8 +123,8 @@ bool valid_population_remap_view(const PopulationRemapView& population) noexcept
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool same_population_context(const PopulationRemapView& left,
-                             const PopulationRemapView& right) noexcept
+bool same_population_context (const PopulationRemapView& left,
+                              const PopulationRemapView& right) noexcept
 {
     return left.population_id == right.population_id &&
            left.moment_mode == right.moment_mode &&
@@ -161,14 +161,14 @@ enum class ProductStatus { Ok, Underflow, Invalid };
 enum class QuotientStatus { Ok, Underflow, Invalid };
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool finite_nonnegative(const amrex::Real value) noexcept
+bool finite_nonnegative (const amrex::Real value) noexcept
 {
     return amrex::Math::isfinite(value) && value >= amrex::Real(0.0);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-ProductStatus checked_product(const amrex::Real left, const amrex::Real right,
-                              amrex::Real& result) noexcept
+ProductStatus checked_product (const amrex::Real left, const amrex::Real right,
+                               amrex::Real& result) noexcept
 {
     if (!finite_nonnegative(left) || !finite_nonnegative(right)) return ProductStatus::Invalid;
     result = left * right;
@@ -179,9 +179,9 @@ ProductStatus checked_product(const amrex::Real left, const amrex::Real right,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-QuotientStatus checked_quotient(const amrex::Real numerator,
-                                const amrex::Real denominator,
-                                amrex::Real& result) noexcept
+QuotientStatus checked_quotient (const amrex::Real numerator,
+                                 const amrex::Real denominator,
+                                 amrex::Real& result) noexcept
 {
     if (!finite_nonnegative(numerator) || !amrex::Math::isfinite(denominator) ||
         !(denominator > amrex::Real(0.0))) return QuotientStatus::Invalid;
@@ -194,21 +194,21 @@ QuotientStatus checked_quotient(const amrex::Real numerator,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool finite_product(const amrex::Real left, const amrex::Real right,
-                    amrex::Real& result) noexcept
+bool finite_product (const amrex::Real left, const amrex::Real right,
+                     amrex::Real& result) noexcept
 {
     return checked_product(left, right, result) == ProductStatus::Ok;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-RemapStatus remap_product_status(const ProductStatus status) noexcept
+RemapStatus remap_product_status (const ProductStatus status) noexcept
 {
     return status == ProductStatus::Underflow ? RemapStatus::NumericalUnderflow :
            status == ProductStatus::Ok ? RemapStatus::Ok : RemapStatus::Invalid;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-RemapStatus remap_quotient_status(const QuotientStatus status) noexcept
+RemapStatus remap_quotient_status (const QuotientStatus status) noexcept
 {
     return status == QuotientStatus::Underflow ? RemapStatus::NumericalUnderflow :
            status == QuotientStatus::Ok ? RemapStatus::Ok : RemapStatus::Invalid;
@@ -216,8 +216,8 @@ RemapStatus remap_quotient_status(const QuotientStatus status) noexcept
 
 /** Accept at most four representable steps outward from a global endpoint. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool within_boundary_roundoff(const amrex::Real value, const amrex::Real endpoint,
-                              const bool lower_boundary) noexcept
+bool within_boundary_roundoff (const amrex::Real value, const amrex::Real endpoint,
+                               const bool lower_boundary) noexcept
 {
     const amrex::Real direction = lower_boundary ?
         -std::numeric_limits<amrex::Real>::infinity() :
@@ -231,8 +231,8 @@ bool within_boundary_roundoff(const amrex::Real value, const amrex::Real endpoin
 
 /** Validate a route against its local claimed bin(s), without searching. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool route_plan_is_consistent(const PopulationRemapView& population,
-                              const PacketRoutingPlan& plan) noexcept
+bool route_plan_is_consistent (const PopulationRemapView& population,
+                               const PacketRoutingPlan& plan) noexcept
 {
     if (!valid_population_remap_context(population) ||
         !same_population_context(population, plan.population) ||
@@ -341,9 +341,9 @@ bool route_plan_is_consistent(const PopulationRemapView& population,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool canonical_two_moment_moments(const PopulationRemapView& population,
-                                  const int bin, const amrex::Real number,
-                                  const amrex::Real mass) noexcept
+bool canonical_two_moment_moments (const PopulationRemapView& population,
+                                   const int bin, const amrex::Real number,
+                                   const amrex::Real mass) noexcept
 {
     if (!valid_population_remap_context(population) ||
         population.moment_mode != MomentMode::TwoMoment || bin < 0 || bin >= population.nbins ||
@@ -360,9 +360,9 @@ bool canonical_two_moment_moments(const PopulationRemapView& population,
 
 /** Strict persisted-state test shared by reconstruction, restart, and fixtures. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool canonical_two_moment_bin_state(const PopulationRemapView& population,
-                                    const int bin, const amrex::Real* state,
-                                    const int state_count) noexcept
+bool canonical_two_moment_bin_state (const PopulationRemapView& population,
+                                     const int bin, const amrex::Real* state,
+                                     const int state_count) noexcept
 {
     if (!valid_population_remap_context(population) || state == nullptr ||
         state_count != population.state_components || bin < 0 || bin >= population.nbins ||
@@ -389,9 +389,9 @@ bool canonical_two_moment_bin_state(const PopulationRemapView& population,
 
 /** Strict persisted-state test for a one-moment bin and its attached inventories. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool canonical_one_moment_bin_state(const PopulationRemapView& population,
-                                    const int bin, const amrex::Real* state,
-                                    const int state_count) noexcept
+bool canonical_one_moment_bin_state (const PopulationRemapView& population,
+                                     const int bin, const amrex::Real* state,
+                                     const int state_count) noexcept
 {
     if (!valid_population_remap_context(population) || state == nullptr ||
         state_count != population.state_components || bin < 0 || bin >= population.nbins ||
@@ -419,9 +419,9 @@ bool canonical_one_moment_bin_state(const PopulationRemapView& population,
 
 /** Shared admission rule for every persisted bin accepted by reconstruction. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool canonical_persisted_bin_state(const PopulationRemapView& population,
-                                   const int bin, const amrex::Real* state,
-                                   const int state_count) noexcept
+bool canonical_persisted_bin_state (const PopulationRemapView& population,
+                                    const int bin, const amrex::Real* state,
+                                    const int state_count) noexcept
 {
     return population.moment_mode == MomentMode::OneMoment ?
         canonical_one_moment_bin_state(population, bin, state, state_count) :
@@ -440,9 +440,9 @@ bool canonical_persisted_bin_state(const PopulationRemapView& population,
  * logarithmic interval search.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-PacketRoutingPlan plan_packet_routing(const PopulationRemapView population,
-                                      const amrex::Real packet_number,
-                                      const amrex::Real particle_mass) noexcept
+PacketRoutingPlan plan_packet_routing (const PopulationRemapView population,
+                                       const amrex::Real packet_number,
+                                       const amrex::Real particle_mass) noexcept
 {
     PacketRoutingPlan plan;
     plan.population = population;
@@ -573,7 +573,7 @@ struct PacketApplicationCoreResult {
  * property/state storage supplied by the caller must not overlap.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-PacketApplicationCoreResult apply_packet_routing_core(
+PacketApplicationCoreResult apply_packet_routing_core (
     const PopulationRemapView population, const PacketRoutingPlan plan,
     const amrex::Real* property_packet_amounts, const int property_count,
     amrex::Real* residual_properties, const int residual_capacity,
@@ -831,7 +831,7 @@ struct ReconstructionDeltaView {
 };
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-ReconstructionStatus reconstruct_bin_core(
+ReconstructionStatus reconstruct_bin_core (
     const PopulationRemapView population, const int bin,
     const amrex::Real* persisted_state, const int state_count,
     amrex::Real* property_per_particle, const int property_capacity,
@@ -923,11 +923,11 @@ struct IntegratedMomentsCoreResult {
 
 /** Integrate one reconstructed delta over [lower, upper), optionally including upper. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool integrate_interval_core(const ReconstructionDeltaView reconstruction,
-                             const amrex::Real lower, const amrex::Real upper,
-                             const bool include_upper, amrex::Real* attached_properties,
-                             const int property_capacity,
-                             IntegratedMomentsCoreResult& integral) noexcept
+bool integrate_interval_core (const ReconstructionDeltaView reconstruction,
+                              const amrex::Real lower, const amrex::Real upper,
+                              const bool include_upper, amrex::Real* attached_properties,
+                              const int property_capacity,
+                              IntegratedMomentsCoreResult& integral) noexcept
 {
     if (!amrex::Math::isfinite(lower) || !amrex::Math::isfinite(upper) || !(lower < upper) ||
         !remap_detail::finite_nonnegative(reconstruction.number) ||
@@ -979,10 +979,10 @@ bool integrate_interval_core(const ReconstructionDeltaView reconstruction,
 
 /** Project one reconstructed bin into caller-owned state after full validation. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool project_reconstruction_bin_core(const PopulationRemapView population,
-                                     const ReconstructionDeltaView reconstruction,
-                                     amrex::Real* candidate_state,
-                                     const int state_count) noexcept
+bool project_reconstruction_bin_core (const PopulationRemapView population,
+                                      const ReconstructionDeltaView reconstruction,
+                                      amrex::Real* candidate_state,
+                                      const int state_count) noexcept
 {
     if (!valid_population_remap_context(population) ||
         !same_population_context(population, reconstruction.population) ||
@@ -1058,9 +1058,9 @@ struct PacketApplicationResult {
 };
 
 [[nodiscard]] PacketApplicationResult
-apply_packet_routing(const SBMLayout& layout, const PacketRoutingPlan& plan,
-                     const std::vector<amrex::Real>& property_packet_amounts,
-                     std::vector<amrex::Real>& candidate_state);
+apply_packet_routing (const SBMLayout& layout, const PacketRoutingPlan& plan,
+                      const std::vector<amrex::Real>& property_packet_amounts,
+                      std::vector<amrex::Real>& candidate_state);
 
 struct ReconstructionDelta {
     int population_id{-1};
@@ -1073,9 +1073,9 @@ struct ReconstructionDelta {
 };
 
 [[nodiscard]] ReconstructionStatus
-reconstruct_bin(const SBMLayout& layout, int population_id, int bin,
-                const std::vector<amrex::Real>& persisted_state,
-                ReconstructionDelta& reconstruction);
+reconstruct_bin (const SBMLayout& layout, int population_id, int bin,
+                 const std::vector<amrex::Real>& persisted_state,
+                 ReconstructionDelta& reconstruction);
 
 struct IntegratedMoments {
     amrex::Real number{0.0};
@@ -1084,14 +1084,14 @@ struct IntegratedMoments {
 };
 
 [[nodiscard]] bool
-integrate_interval(const ReconstructionDelta& reconstruction,
-                   amrex::Real lower, amrex::Real upper, bool include_upper,
-                   IntegratedMoments& integral);
+integrate_interval (const ReconstructionDelta& reconstruction,
+                    amrex::Real lower, amrex::Real upper, bool include_upper,
+                    IntegratedMoments& integral);
 
 [[nodiscard]] bool
-project_reconstruction_bin(const SBMLayout& layout,
-                           const ReconstructionDelta& reconstruction,
-                           std::vector<amrex::Real>& candidate_state);
+project_reconstruction_bin (const SBMLayout& layout,
+                            const ReconstructionDelta& reconstruction,
+                            std::vector<amrex::Real>& candidate_state);
 
 } // namespace erf_sbm
 

@@ -109,7 +109,7 @@ static_assert(std::is_trivially_copyable_v<ScalarDiffusionFluxPolicy>);
  */
 template <bool MultiplyMolecularByDensity, bool AddTurbulence>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
-ScalarDiffusionFaceCoefficient(
+ScalarDiffusionFaceCoefficient (
   const amrex::Array4<const amrex::Real>& rho,
   const int rho_comp,
   const amrex::Array4<const amrex::Real>& mu_turb,
@@ -141,7 +141,7 @@ struct StretchedDiffusionBoundaryWeights
 };
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE StretchedDiffusionBoundaryWeights
-StretchedDiffusionDirichletWeights(
+StretchedDiffusionDirichletWeights (
   const amrex::Real dz_near, const amrex::Real dz_next) noexcept
 {
   const amrex::Real f = dz_next / dz_near + amrex::Real(2.0);
@@ -160,7 +160,7 @@ StretchedDiffusionDirichletWeights(
  */
 template <int Direction>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
-ScalarDiffusionFlux_N(
+ScalarDiffusionFlux_N (
   const amrex::Array4<const amrex::Real>& scalar,
   const int scalar_comp,
   const int i,
@@ -234,7 +234,7 @@ ScalarDiffusionFlux_N(
 /** Existing S-grid vertical-center gradient, including boundary and tile-edge
  * spacing. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
-StretchedScalarGradient(
+StretchedScalarGradient (
   const amrex::Array4<const amrex::Real>& scalar,
   const int scalar_comp,
   const int i,
@@ -273,7 +273,7 @@ StretchedScalarGradient(
  * adjustment kernel. */
 template <int Direction>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
-ScalarDiffusionFlux_S_Horizontal(
+ScalarDiffusionFlux_S_Horizontal (
   const amrex::Array4<const amrex::Real>& scalar,
   const int scalar_comp,
   const int i,
@@ -293,7 +293,7 @@ ScalarDiffusionFlux_S_Horizontal(
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
-ScalarDiffusionFlux_Tx(
+ScalarDiffusionFlux_Tx (
   const amrex::Real coeff,
   const amrex::Real face_map,
   const amrex::Real grad_xi,
@@ -304,7 +304,7 @@ ScalarDiffusionFlux_Tx(
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
-ScalarDiffusionFlux_Ty(
+ScalarDiffusionFlux_Ty (
   const amrex::Real coeff,
   const amrex::Real face_map,
   const amrex::Real grad_eta,
@@ -321,7 +321,7 @@ ScalarDiffusionFlux_Ty(
  * this geometry primitive.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
-TerrainScalarDiffusionFluxAtIFace(
+TerrainScalarDiffusionFluxAtIFace (
   const amrex::Array4<const amrex::Real>& scalar,
   const int scalar_comp,
   const amrex::Real coeff,
@@ -351,7 +351,7 @@ TerrainScalarDiffusionFluxAtIFace(
 
 /** Terrain y-face raw diffusion flux, including ERF's y-face map factor. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
-TerrainScalarDiffusionFluxAtJFace(
+TerrainScalarDiffusionFluxAtJFace (
   const amrex::Array4<const amrex::Real>& scalar,
   const int scalar_comp,
   const amrex::Real coeff,
@@ -385,7 +385,7 @@ TerrainScalarDiffusionFluxAtJFace(
  * remains separate boundary policy.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
-TerrainScalarDiffusionFluxAtKFace(
+TerrainScalarDiffusionFluxAtKFace (
   const amrex::Array4<const amrex::Real>& scalar,
   const int scalar_comp,
   const amrex::Real coeff,
@@ -440,7 +440,7 @@ TerrainScalarDiffusionFluxAtKFace(
  * F_z - m_x h_xi Fbar_x - m_y h_eta Fbar_y; T_z=G_z/(m_x m_y).
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
-TerrainDiffusionGz(
+TerrainDiffusionGz (
   const amrex::Real raw_Fz,
   const amrex::Real mx,
   const amrex::Real h_xi,
@@ -453,7 +453,7 @@ TerrainDiffusionGz(
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
-TerrainDiffusionMappedTx(
+TerrainDiffusionMappedTx (
   const amrex::Real raw_Fx,
   const amrex::Real h_zeta,
   const amrex::Real my) noexcept
@@ -462,7 +462,7 @@ TerrainDiffusionMappedTx(
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
-TerrainDiffusionMappedTy(
+TerrainDiffusionMappedTy (
   const amrex::Real raw_Fy,
   const amrex::Real h_zeta,
   const amrex::Real mx) noexcept
@@ -476,7 +476,7 @@ TerrainDiffusionMappedTy(
  * measure; callers must not apply that measure again in the divergence.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
-ScalarDiffusionMappedHorizontalTransfer(
+ScalarDiffusionMappedHorizontalTransfer (
   const amrex::Real raw_flux,
   const amrex::Real face_area) noexcept
 {
@@ -485,7 +485,7 @@ ScalarDiffusionMappedHorizontalTransfer(
 
 /** Convert a raw vertical diffusion flux to the mapped face-transfer space. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
-ScalarDiffusionMappedVerticalTransfer(
+ScalarDiffusionMappedVerticalTransfer (
   const amrex::Real raw_flux,
   const amrex::Real mx,
   const amrex::Real my) noexcept
@@ -499,7 +499,7 @@ ScalarDiffusionMappedVerticalTransfer(
  * terrain cross terms; native divergence consumes G_z directly.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
-TerrainScalarDiffusionGzAtKFace(
+TerrainScalarDiffusionGzAtKFace (
   const int i,
   const int j,
   const int kface,
@@ -571,7 +571,7 @@ TerrainScalarDiffusionGzAtKFace(
  * uses one-sided extrapolation and needs no out-of-domain z layer.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
-TerrainScalarDiffusionMappedTransferAtKFace(
+TerrainScalarDiffusionMappedTransferAtKFace (
   const int i,
   const int j,
   const int kface,
@@ -600,7 +600,7 @@ TerrainScalarDiffusionMappedTransferAtKFace(
  * subtracts this value from the existing RHS.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
-ScalarDiffusionMappedFluxDivergence(
+ScalarDiffusionMappedFluxDivergence (
   const amrex::Real fx_hi,
   const amrex::Real fx_lo,
   const amrex::Real fy_hi,
@@ -624,7 +624,7 @@ ScalarDiffusionMappedFluxDivergence(
 
 /** Native terrain divergence in the legacy arithmetic association. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
-TerrainDiffusionDivergence_T(
+TerrainDiffusionDivergence_T (
   const amrex::Real mapped_Fx_hi,
   const amrex::Real mapped_Fx_lo,
   const amrex::Real mapped_Fy_hi,
@@ -652,7 +652,7 @@ TerrainDiffusionDivergence_T(
  */
 template <bool MultiplyMolecularByDensity, bool AddTurbulence>
 inline void
-BuildScalarDiffusionFluxes_N_Impl(
+BuildScalarDiffusionFluxes_N_Impl (
   const amrex::Box& bx,
   const amrex::Box& domain,
   const ScalarDiffusionFieldViews& field,
@@ -809,7 +809,7 @@ BuildScalarDiffusionFluxes_N_Impl(
 
 /** Build all native N-grid face fluxes for any intensive scalar field. */
 inline void
-BuildScalarDiffusionFluxes_N(
+BuildScalarDiffusionFluxes_N (
   const amrex::Box& bx,
   const amrex::Box& domain,
   const ScalarDiffusionFieldViews& field,
@@ -848,7 +848,7 @@ BuildScalarDiffusionFluxes_N(
 
 template <bool MultiplyMolecularByDensity, bool AddTurbulence>
 inline void
-BuildScalarDiffusionFluxes_S_Impl(
+BuildScalarDiffusionFluxes_S_Impl (
   const amrex::Box& bx,
   const amrex::Box& domain,
   const ScalarDiffusionFieldViews& field,
@@ -959,7 +959,7 @@ BuildScalarDiffusionFluxes_S_Impl(
 
 /** Build and map-adjust all native S-grid face fluxes for an intensive field. */
 inline void
-BuildScalarDiffusionFluxes_S(
+BuildScalarDiffusionFluxes_S (
   const amrex::Box& bx,
   const amrex::Box& domain,
   const ScalarDiffusionFieldViews& field,
@@ -1000,7 +1000,7 @@ BuildScalarDiffusionFluxes_S(
 
 template <bool MultiplyMolecularByDensity, bool AddTurbulence>
 inline void
-BuildScalarDiffusionFluxes_T_Impl(
+BuildScalarDiffusionFluxes_T_Impl (
   const amrex::Box& bx,
   const amrex::Box& domain,
   const ScalarDiffusionFieldViews& field,
@@ -1117,7 +1117,7 @@ BuildScalarDiffusionFluxes_T_Impl(
 /** Build all native terrain-grid face fluxes, including the grown horizontal
  * face regions needed by the mapped z-face transfer. */
 inline void
-BuildScalarDiffusionFluxes_T(
+BuildScalarDiffusionFluxes_T (
   const amrex::Box& bx,
   const amrex::Box& domain,
   const ScalarDiffusionFieldViews& field,
@@ -1159,7 +1159,7 @@ BuildScalarDiffusionFluxes_T(
  * the cell-centered horizontal map-factor product.
  */
 inline void
-BuildScalarDiffusionMappedTransfers_N(
+BuildScalarDiffusionMappedTransfers_N (
   const amrex::Box& bx,
   const amrex::Array4<const amrex::Real>& raw_x,
   const int raw_x_comp,
@@ -1205,7 +1205,7 @@ BuildScalarDiffusionMappedTransfers_N(
  * computational z spacing are supplied separately to the mapped divergence.
  */
 inline void
-BuildScalarDiffusionMappedTransfers_S(
+BuildScalarDiffusionMappedTransfers_S (
   const amrex::Box& bx,
   const amrex::Array4<const amrex::Real>& raw_x,
   const int raw_x_comp,
@@ -1266,7 +1266,7 @@ BuildScalarDiffusionMappedTransfers_S(
  * already provide this z coverage.
  */
 inline void
-BuildScalarDiffusionMappedTransfers_T(
+BuildScalarDiffusionMappedTransfers_T (
   const amrex::Box& bx,
   const amrex::Box& domain,
   const amrex::Array4<const amrex::Real>& raw_x,
@@ -1325,7 +1325,7 @@ BuildScalarDiffusionMappedTransfers_T(
  * zeroes such cells.
  */
 inline void
-ApplyScalarMappedFluxDivergence(
+ApplyScalarMappedFluxDivergence (
   const amrex::Box& bx,
   const amrex::Array4<const amrex::Real>& mapped_x,
   const int mapped_x_comp,
@@ -1360,7 +1360,7 @@ ApplyScalarMappedFluxDivergence(
 
 /** Apply native terrain diffusion in one kernel, mapping each face inline. */
 inline void
-ApplyScalarDiffusionMappedDivergence_T(
+ApplyScalarDiffusionMappedDivergence_T (
   const amrex::Box& bx,
   const amrex::Box& domain,
   const ScalarDiffusionFieldViews& field,
@@ -1417,7 +1417,7 @@ ApplyScalarDiffusionMappedDivergence_T(
  * component. Face scratch is component-selected independently in each view.
  */
 inline void
-ApplyScalarDiffusionFluxDivergence_N(
+ApplyScalarDiffusionFluxDivergence_N (
   const amrex::Box& bx,
   const amrex::Array4<const amrex::Real>& xflux,
   const amrex::Array4<const amrex::Real>& yflux,
@@ -1446,7 +1446,7 @@ ApplyScalarDiffusionFluxDivergence_N(
 /** S-grid conservative divergence; vertical cell width is the receiver's dz[k].
  */
 inline void
-ApplyScalarDiffusionFluxDivergence_S(
+ApplyScalarDiffusionFluxDivergence_S (
   const amrex::Box& bx,
   const amrex::Array4<const amrex::Real>& xflux,
   const amrex::Array4<const amrex::Real>& yflux,
@@ -1475,7 +1475,7 @@ ApplyScalarDiffusionFluxDivergence_S(
 
 /** Scale only raw F_z for the explicit integration fraction. */
 inline void
-ScaleScalarDiffusionVerticalFlux(
+ScaleScalarDiffusionVerticalFlux (
   const amrex::Box& zbx,
   const amrex::Array4<amrex::Real>& raw_Fz,
   const int flux_comp,

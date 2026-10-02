@@ -6,22 +6,22 @@
 
 namespace erf_sbm {
 
-SBMStateManager::SBMStateManager(SBMLayout layout, const int nlevels)
+SBMStateManager::SBMStateManager (SBMLayout layout, const int nlevels)
     : m_layout(std::move(layout)), m_projection(m_layout)
 {
     if (nlevels <= 0) throw std::invalid_argument("SBM state manager needs at least one level");
     m_state.resize(static_cast<std::size_t>(nlevels));
 }
 
-bool SBMStateManager::is_defined(const int lev) const
+bool SBMStateManager::is_defined (const int lev) const
 {
     if (lev < 0 || lev >= nlevels()) throw std::out_of_range("SBM level is outside the manager");
     return static_cast<bool>(m_state[static_cast<std::size_t>(lev)]);
 }
 
-void SBMStateManager::define(const int lev, const amrex::BoxArray& grids,
-                             const amrex::DistributionMapping& mapping,
-                             const int ngrow)
+void SBMStateManager::define (const int lev, const amrex::BoxArray& grids,
+                              const amrex::DistributionMapping& mapping,
+                              const int ngrow)
 {
     if (lev < 0 || lev >= nlevels()) throw std::out_of_range("SBM level is outside the manager");
     if (ngrow < 0) throw std::invalid_argument("SBM ghost width cannot be negative");
@@ -32,25 +32,25 @@ void SBMStateManager::define(const int lev, const amrex::BoxArray& grids,
     level_state->setVal(amrex::Real(0.0));
 }
 
-void SBMStateManager::destroy(const int lev)
+void SBMStateManager::destroy (const int lev)
 {
     if (lev < 0 || lev >= nlevels()) throw std::out_of_range("SBM level is outside the manager");
     m_state[static_cast<std::size_t>(lev)].reset();
 }
 
-amrex::MultiFab& SBMStateManager::state(const int lev)
+amrex::MultiFab& SBMStateManager::state (const int lev)
 {
     if (!is_defined(lev)) throw std::logic_error("SBM level state is not defined");
     return *m_state[static_cast<std::size_t>(lev)];
 }
 
-const amrex::MultiFab& SBMStateManager::state(const int lev) const
+const amrex::MultiFab& SBMStateManager::state (const int lev) const
 {
     if (!is_defined(lev)) throw std::logic_error("SBM level state is not defined");
     return *m_state[static_cast<std::size_t>(lev)];
 }
 
-void SBMStateManager::project_to_core(const int lev, amrex::MultiFab& core,
+void SBMStateManager::project_to_core (const int lev, amrex::MultiFab& core,
                                      const int qc_component,
                                      const int qr_component) const
 {

@@ -42,15 +42,15 @@ public:
     // Return the pointer to PlaneVectors that have the tendency
     amrex::Vector<std::unique_ptr<PlaneVector>>& get_tendency (const double& time);
 
-    [[nodiscard]] double tinterp() const { return m_tinterp; }
+    [[nodiscard]] double tinterp () const { return m_tinterp; }
 
-    [[nodiscard]] int ingested_velocity() const {return is_velocity_read;}
-    [[nodiscard]] int ingested_theta()    const {return (is_temperature_read || is_theta_read);}
-    [[nodiscard]] int ingested_density()  const {return is_density_read;}
-    [[nodiscard]] int ingested_scalar()   const {return is_scalar_read;}
-    [[nodiscard]] int ingested_q1()       const {return is_q1_read;}
-    [[nodiscard]] int ingested_q2()       const {return is_q2_read;}
-    [[nodiscard]] int ingested_KE()       const {return is_KE_read;}
+    [[nodiscard]] int ingested_velocity () const {return is_velocity_read;}
+    [[nodiscard]] int ingested_theta ()    const {return (is_temperature_read || is_theta_read);}
+    [[nodiscard]] int ingested_density ()  const {return is_density_read;}
+    [[nodiscard]] int ingested_scalar ()   const {return is_scalar_read;}
+    [[nodiscard]] int ingested_q1 ()       const {return is_q1_read;}
+    [[nodiscard]] int ingested_q2 ()       const {return is_q2_read;}
+    [[nodiscard]] int ingested_KE ()       const {return is_KE_read;}
 
 private:
 

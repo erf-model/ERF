@@ -57,6 +57,9 @@ function(run_leg dir source)
     endif()
 endfunction()
 
+# Extra checker arguments, e.g. --multilevel for a refined deck.
+separate_arguments(checker_options UNIX_COMMAND "${CHECKER_OPTIONS}")
+
 run_leg("${SL_DIR}" surface_layer)
 run_leg("${DEF_DIR}" defaults)
 run_leg("${TWO_DIR}" surface_layer erf.radiation.seb_surface_layer_uses_skin=true)
@@ -68,6 +71,7 @@ execute_process(
             --defaults-dir "${DEF_DIR}"
             --two-way-dir "${TWO_DIR}"
             --steps ${STEPS} --dt ${DT} --heat-capacity ${HEAT_CAPACITY}
+            ${checker_options}
     WORKING_DIRECTORY "${WORKING_DIRECTORY}"
     OUTPUT_FILE "${WORKING_DIRECTORY}/checker.log"
     ERROR_FILE "${WORKING_DIRECTORY}/checker.log"

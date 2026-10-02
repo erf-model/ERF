@@ -45,9 +45,9 @@ struct EndpointTransform {
  * unrealizable.  The throwing host API below delegates to this function.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool try_two_moment_to_endpoints(const amrex::Real C, const amrex::Real M,
-                                 const amrex::Real lower, const amrex::Real upper,
-                                 EndpointTransform& result) noexcept
+bool try_two_moment_to_endpoints (const amrex::Real C, const amrex::Real M,
+                                  const amrex::Real lower, const amrex::Real upper,
+                                  EndpointTransform& result) noexcept
 {
     if (!amrex::Math::isfinite(C) || !amrex::Math::isfinite(M) || !amrex::Math::isfinite(lower) ||
         !amrex::Math::isfinite(upper) || lower < amrex::Real(0.0) ||
@@ -86,9 +86,9 @@ bool try_two_moment_to_endpoints(const amrex::Real C, const amrex::Real M,
 
 /** Allocation-free canonical inverse transform for host and device callers. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool try_endpoints_to_two_moment(const amrex::Real L, const amrex::Real H,
-                                 const amrex::Real lower, const amrex::Real upper,
-                                 amrex::Real& C, amrex::Real& M) noexcept
+bool try_endpoints_to_two_moment (const amrex::Real L, const amrex::Real H,
+                                  const amrex::Real lower, const amrex::Real upper,
+                                  amrex::Real& C, amrex::Real& M) noexcept
 {
     if (!amrex::Math::isfinite(L) || !amrex::Math::isfinite(H) || !amrex::Math::isfinite(lower) ||
         !amrex::Math::isfinite(upper) || L < amrex::Real(0.0) || H < amrex::Real(0.0) ||
@@ -109,29 +109,29 @@ bool try_endpoints_to_two_moment(const amrex::Real L, const amrex::Real H,
 /** Runtime-sized, immutable-after-construction spectral grid. */
 class SpectralGrid {
 public:
-    static GridValidation validate(const SpectralGridSpec& spec);
+    static GridValidation validate (const SpectralGridSpec& spec);
 
-    explicit SpectralGrid(SpectralGridSpec spec);
+    explicit SpectralGrid (SpectralGridSpec spec);
 
-    [[nodiscard]] CoordinateKind coordinate_kind() const noexcept { return m_spec.coordinate_kind; }
-    [[nodiscard]] const std::string& coordinate_units() const noexcept { return m_spec.coordinate_units; }
-    [[nodiscard]] const std::vector<amrex::Real>& edges() const noexcept { return m_spec.edges; }
-    [[nodiscard]] const std::vector<amrex::Real>& pivots() const noexcept { return m_spec.pivots; }
-    [[nodiscard]] int nbins() const noexcept { return static_cast<int>(m_spec.edges.size()) - 1; }
+    [[nodiscard]] CoordinateKind coordinate_kind () const noexcept { return m_spec.coordinate_kind; }
+    [[nodiscard]] const std::string& coordinate_units () const noexcept { return m_spec.coordinate_units; }
+    [[nodiscard]] const std::vector<amrex::Real>& edges () const noexcept { return m_spec.edges; }
+    [[nodiscard]] const std::vector<amrex::Real>& pivots () const noexcept { return m_spec.pivots; }
+    [[nodiscard]] int nbins () const noexcept { return static_cast<int>(m_spec.edges.size()) - 1; }
 
-    [[nodiscard]] amrex::Real pivot(const int bin) const { return m_spec.pivots.at(static_cast<std::size_t>(bin)); }
-    [[nodiscard]] std::string identity() const;
+    [[nodiscard]] amrex::Real pivot (const int bin) const { return m_spec.pivots.at(static_cast<std::size_t>(bin)); }
+    [[nodiscard]] std::string identity () const;
 
     // For a two-moment endpoint representation, L/H are number-equivalent
     // endpoint masses and C/M are count and first-moment densities.
-    [[nodiscard]] static bool two_moment_realizable(amrex::Real C, amrex::Real M,
+    [[nodiscard]] static bool two_moment_realizable (amrex::Real C, amrex::Real M,
                                                      amrex::Real lower, amrex::Real upper) noexcept;
     [[nodiscard]] static EndpointTransform
-    two_moment_to_endpoints(amrex::Real C, amrex::Real M,
-                            amrex::Real lower, amrex::Real upper);
+    two_moment_to_endpoints (amrex::Real C, amrex::Real M,
+                             amrex::Real lower, amrex::Real upper);
     [[nodiscard]] static std::pair<amrex::Real, amrex::Real>
-    endpoints_to_two_moment(amrex::Real L, amrex::Real H,
-                            amrex::Real lower, amrex::Real upper);
+    endpoints_to_two_moment (amrex::Real L, amrex::Real H,
+                             amrex::Real lower, amrex::Real upper);
 
 private:
     SpectralGridSpec m_spec;

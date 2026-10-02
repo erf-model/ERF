@@ -564,7 +564,7 @@ if(ERF_ENABLE_FCOMPARE AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC OR ERF_EN
 
                 if(OTHER_RESULT EQUAL 0 AND NOT "${OTHER_LIBS}" STREQUAL "${CRAY_LIBS_RAW}")
                     message(STATUS "${COMPILER_NAME} compiler libs differ from CXX (using CXX libs only)")
-            	    message(VERBOSE "${COMPILER_NAME} compiler returns different libs than CXX:\n  CXX: ${CRAY_LIBS_RAW}\n  ${COMPILER_NAME}: ${OTHER_LIBS}\n  Using only CXX libs - build may fail if language-specific libs needed")
+                    message(VERBOSE "${COMPILER_NAME} compiler returns different libs than CXX:\n  CXX: ${CRAY_LIBS_RAW}\n  ${COMPILER_NAME}: ${OTHER_LIBS}\n  Using only CXX libs - build may fail if language-specific libs needed")
                 endif()
             endif()
         endforeach()
@@ -574,13 +574,13 @@ if(ERF_ENABLE_FCOMPARE AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC OR ERF_EN
         string(REGEX REPLACE ",--no-as-needed" "" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
         string(REGEX REPLACE ",-l" " -l" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
 
-	# Strip GPU-related flags that Kokkos/AMReX already handle
-	string(REGEX REPLACE "--offload-arch=[^ ]* *" "" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
-	string(REGEX REPLACE "--hip-link *" "" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
-	string(REGEX REPLACE "-fgpu-rdc *" "" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
-	string(REGEX REPLACE "-xhip *" "" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
+        # Strip GPU-related flags that Kokkos/AMReX already handle
+        string(REGEX REPLACE "--offload-arch=[^ ]* *" "" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
+        string(REGEX REPLACE "--hip-link *" "" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
+        string(REGEX REPLACE "-fgpu-rdc *" "" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
+        string(REGEX REPLACE "-xhip *" "" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
 
-	message(VERBOSE "Adding: -Wl,--no-as-needed + cleaned libs")
+        message(VERBOSE "Adding: -Wl,--no-as-needed + cleaned libs")
         message(DEBUG "Cleaned libs: ${CRAY_LIBS_CLEAN}")
 
         # Check if Fix 2 already applied

@@ -8,7 +8,7 @@
 namespace erf_auxiliary {
 namespace {
 
-bool same_horizontal_layout(const amrex::MultiFab& cell_field,
+bool same_horizontal_layout (const amrex::MultiFab& cell_field,
                            const amrex::MultiFab& map_field)
 {
     if (cell_field.DistributionMap() != map_field.DistributionMap() ||
@@ -31,17 +31,17 @@ bool same_horizontal_layout(const amrex::MultiFab& cell_field,
 
 } // namespace
 
-bool SameCellLayout(const amrex::MultiFab& lhs, const amrex::MultiFab& rhs)
+bool SameCellLayout (const amrex::MultiFab& lhs, const amrex::MultiFab& rhs)
 {
     return lhs.boxArray() == rhs.boxArray() &&
            lhs.DistributionMap() == rhs.DistributionMap();
 }
 
-bool BuildMappedCellMeasure(amrex::MultiFab& omega,
-                            const amrex::MultiFab& detJ,
-                            const amrex::MultiFab& mx,
-                            const amrex::MultiFab& my,
-                            std::string& diagnostic)
+bool BuildMappedCellMeasure (amrex::MultiFab& omega,
+                             const amrex::MultiFab& detJ,
+                             const amrex::MultiFab& mx,
+                             const amrex::MultiFab& my,
+                             std::string& diagnostic)
 {
     diagnostic.clear();
     if (omega.nComp() != 1 || detJ.nComp() < 1 || mx.nComp() < 1 || my.nComp() < 1 ||
@@ -85,9 +85,9 @@ bool BuildMappedCellMeasure(amrex::MultiFab& omega,
     return true;
 }
 
-bool ValidatePositiveFiniteComponent(const amrex::MultiFab& field,
-                                     const int component,
-                                     std::string& diagnostic)
+bool ValidatePositiveFiniteComponent (const amrex::MultiFab& field,
+                                      const int component,
+                                      std::string& diagnostic)
 {
     diagnostic.clear();
     if (component < 0 || component >= field.nComp()) {
@@ -113,9 +113,9 @@ bool ValidatePositiveFiniteComponent(const amrex::MultiFab& field,
     return true;
 }
 
-bool ValidateFiniteComponent(const amrex::MultiFab& field,
-                             const int component,
-                             std::string& diagnostic)
+bool ValidateFiniteComponent (const amrex::MultiFab& field,
+                              const int component,
+                              std::string& diagnostic)
 {
     diagnostic.clear();
     if (component < 0 || component >= field.nComp()) {
@@ -140,7 +140,7 @@ bool ValidateFiniteComponent(const amrex::MultiFab& field,
     return true;
 }
 
-amrex::Real MaxFaceFieldDifference(const MappedFaceFluxRate& lhs,
+amrex::Real MaxFaceFieldDifference (const MappedFaceFluxRate& lhs,
                                   const int lhs_comp,
                                   const MappedFaceFluxRate& rhs,
                                   const int rhs_comp)
@@ -169,7 +169,7 @@ amrex::Real MaxFaceFieldDifference(const MappedFaceFluxRate& lhs,
     return maximum;
 }
 
-void AccumulateIntegratedFaceFlux(IntegratedMappedFaceFlux& ledger,
+void AccumulateIntegratedFaceFlux (IntegratedMappedFaceFlux& ledger,
                                  const MappedFaceFluxRate& rate,
                                  const amrex::Real weight)
 {

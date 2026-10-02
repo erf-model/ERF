@@ -13,7 +13,7 @@ struct RepresentationIdentity {
 };
 
 [[nodiscard]] constexpr RepresentationIdentity
-representation_identity(const MomentMode mode) noexcept
+representation_identity (const MomentMode mode) noexcept
 {
     switch (mode) {
     case MomentMode::OneMoment:

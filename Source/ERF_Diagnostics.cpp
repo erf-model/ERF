@@ -11,7 +11,7 @@
 using namespace amrex;
 
 void
-ERF::compute_max_pressure_gradient_diagnostic(int lev)
+ERF::compute_max_pressure_gradient_diagnostic (int lev)
 {
     // We don't require HSE when anelastic because the pressure gradient
     //    is computed from the Poisson solve

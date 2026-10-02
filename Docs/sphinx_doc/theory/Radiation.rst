@@ -523,6 +523,23 @@ The two-stream model is broadband, so the visible / near-infrared direct / diffu
 RRTMGP also provides is not written; Noah-MP does not read it. SLM does, so the two-stream model
 does not feed SLM.
 
+In the other direction the sweep reads Noah-MP's surface: its broadband ``albedo``
+(reflected over incident shortwave, so the shortwave the sweep reflects at the ground is the
+shortwave Noah-MP reflects -- not ``sfc_alb_dir_vis``, the visible direct-beam band of the four
+RRTMGP takes, which over vegetation is several times smaller), its emissivity ``sfc_emis`` and
+its skin temperature ``t_sfc``. Each is taken column by column where Noah-MP holds a value.
+Noah-MP leaves its undefined placeholder over open water and sea ice, in the albedo at night, and
+everywhere before its first step, which runs after the first radiation call; those columns take
+``erf.radiation.surface_albedo_sw``, ``erf.radiation.surface_emissivity_lw`` and the
+surface-layer or ``erf.rad_t_sfc`` temperature. With ``erf.radiation.seb_enable`` the balance's
+inputs from Noah-MP (the absorbed shortwave ``sav + sag``, the net longwave ``-fira``, the ground
+flux ``grdflx`` and the 2 m humidity) follow the same rule and fall back to the ``seb_*_default``
+constants, so a column Noah-MP did not compute no longer carries the placeholder into the
+balance. Noah-MP exposes no ``hfx`` or ``lh`` field, but over land the surface layer applies
+Noah-MP's fluxes (it takes :math:`u_*` and :math:`\theta_*` from them), so with the default
+``seb_turbulent_flux_source = surface_layer`` the balance removes Noah-MP's :math:`H` and
+:math:`\text{LE}` over land and the surface layer's own over water.
+
 The coupling is single-level: ``erf.radiation_model = TwoStream`` with Noah-MP and
 ``amr.max_level > 0`` stops at start-up. Without a land model, or with SLM, the two-stream model
 stores nothing extra and its results are unchanged. The case
