@@ -19,16 +19,16 @@ struct IntegratedMappedFaceFluxTag {};
 template <typename Tag>
 class MappedFaceField {
 public:
-    MappedFaceField() = default;
-    MappedFaceField(const MappedFaceField&) = delete;
-    MappedFaceField& operator=(const MappedFaceField&) = delete;
-    MappedFaceField(MappedFaceField&&) noexcept = default;
-    MappedFaceField& operator=(MappedFaceField&&) noexcept = default;
+    MappedFaceField () = default;
+    MappedFaceField (const MappedFaceField&) = delete;
+    MappedFaceField& operator= (const MappedFaceField&) = delete;
+    MappedFaceField (MappedFaceField&&) noexcept = default;
+    MappedFaceField& operator= (MappedFaceField&&) noexcept = default;
 
-    void define(const amrex::BoxArray& cell_ba,
-                const amrex::DistributionMapping& dm,
-                const int ncomp,
-                const int ngrow = 0)
+    void define (const amrex::BoxArray& cell_ba,
+                 const amrex::DistributionMapping& dm,
+                 const int ncomp,
+                 const int ngrow = 0)
     {
         AMREX_ALWAYS_ASSERT(ncomp > 0);
         AMREX_ALWAYS_ASSERT(ngrow >= 0);
@@ -40,24 +40,24 @@ public:
         }
     }
 
-    [[nodiscard]] bool is_defined() const noexcept { return m_ncomp > 0; }
-    [[nodiscard]] int nComp() const noexcept { return m_ncomp; }
+    [[nodiscard]] bool is_defined () const noexcept { return m_ncomp > 0; }
+    [[nodiscard]] int nComp () const noexcept { return m_ncomp; }
 
-    amrex::MultiFab& dir(const int direction)
+    amrex::MultiFab& dir (const int direction)
     {
         AMREX_ALWAYS_ASSERT(direction >= 0 && direction < AMREX_SPACEDIM);
         AMREX_ALWAYS_ASSERT(m_faces[static_cast<std::size_t>(direction)] != nullptr);
         return *m_faces[static_cast<std::size_t>(direction)];
     }
 
-    const amrex::MultiFab& dir(const int direction) const
+    const amrex::MultiFab& dir (const int direction) const
     {
         AMREX_ALWAYS_ASSERT(direction >= 0 && direction < AMREX_SPACEDIM);
         AMREX_ALWAYS_ASSERT(m_faces[static_cast<std::size_t>(direction)] != nullptr);
         return *m_faces[static_cast<std::size_t>(direction)];
     }
 
-    void setVal(const amrex::Real value)
+    void setVal (const amrex::Real value)
     {
         AMREX_ALWAYS_ASSERT(is_defined());
         for (auto& face : m_faces) { face->setVal(value); }
@@ -71,17 +71,60 @@ private:
 using MappedFaceFluxRate = MappedFaceField<MappedFaceFluxRateTag>;
 using IntegratedMappedFaceFlux = MappedFaceField<IntegratedMappedFaceFluxTag>;
 
+/** Exact cell-centered BoxArray and DistributionMapping identity. */
+bool SameCellLayout (const amrex::MultiFab& lhs, const amrex::MultiFab& rhs);
+
+/** Check directional face staggering and ownership against a cell layout. */
+template <typename Tag>
+bool MappedFaceLayoutMatchesCellLayout (const MappedFaceField<Tag>& faces,
+                                        const amrex::BoxArray& cell_ba,
+                                        const amrex::DistributionMapping& dm)
+{
+    if (!faces.is_defined()) { return false; }
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        const auto& face = faces.dir(dir);
+        if (face.boxArray() !=
+                amrex::convert(cell_ba, amrex::IntVect::TheDimensionVector(dir)) ||
+            face.DistributionMap() != dm) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <typename Tag>
+bool MappedFaceLayoutMatchesCellLayout (const MappedFaceField<Tag>& faces,
+                                        const amrex::MultiFab& cell)
+{
+    return MappedFaceLayoutMatchesCellLayout(faces, cell.boxArray(), cell.DistributionMap());
+}
+
+/** Check that two semantically tagged face fields have identical face layouts. */
+template <typename LhsTag, typename RhsTag>
+bool SameMappedFaceLayout (const MappedFaceField<LhsTag>& lhs,
+                           const MappedFaceField<RhsTag>& rhs)
+{
+    if (!lhs.is_defined() || !rhs.is_defined()) { return false; }
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        if (lhs.dir(dir).boxArray() != rhs.dir(dir).boxArray() ||
+            lhs.dir(dir).DistributionMap() != rhs.dir(dir).DistributionMap()) {
+            return false;
+        }
+    }
+    return true;
+}
+
 /** Computational-coordinate divergence only: no metric or physical face area. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
-ComputationalMappedDivergence(const amrex::Real fx_hi,
-                              const amrex::Real fx_lo,
-                              const amrex::Real fy_hi,
-                              const amrex::Real fy_lo,
-                              const amrex::Real fz_hi,
-                              const amrex::Real fz_lo,
-                              const amrex::Real dx_inv,
-                              const amrex::Real dy_inv,
-                              const amrex::Real dzeta_inv) noexcept
+ComputationalMappedDivergence (const amrex::Real fx_hi,
+                               const amrex::Real fx_lo,
+                               const amrex::Real fy_hi,
+                               const amrex::Real fy_lo,
+                               const amrex::Real fz_hi,
+                               const amrex::Real fz_lo,
+                               const amrex::Real dx_inv,
+                               const amrex::Real dy_inv,
+                               const amrex::Real dzeta_inv) noexcept
 {
     return (fx_hi - fx_lo) * dx_inv +
            (fy_hi - fy_lo) * dy_inv +
@@ -89,28 +132,28 @@ ComputationalMappedDivergence(const amrex::Real fx_hi,
 }
 
 /** Build omega=detJ/(mx*my), returning false and a diagnostic on invalid cells. */
-bool BuildMappedCellMeasure(amrex::MultiFab& omega,
-                            const amrex::MultiFab& detJ,
-                            const amrex::MultiFab& mx,
-                            const amrex::MultiFab& my,
-                            std::string& diagnostic);
+bool BuildMappedCellMeasure (amrex::MultiFab& omega,
+                             const amrex::MultiFab& detJ,
+                             const amrex::MultiFab& mx,
+                             const amrex::MultiFab& my,
+                             std::string& diagnostic);
 
 /** Check that a selected cell-centered component is finite and strictly positive. */
-bool ValidatePositiveFiniteComponent(const amrex::MultiFab& field,
-                                     int component,
-                                     std::string& diagnostic);
+bool ValidatePositiveFiniteComponent (const amrex::MultiFab& field,
+                                      int component,
+                                      std::string& diagnostic);
 
 /** Check that a selected cell-centered component is finite. */
-bool ValidateFiniteComponent(const amrex::MultiFab& field,
-                             int component,
-                             std::string& diagnostic);
+bool ValidateFiniteComponent (const amrex::MultiFab& field,
+                              int component,
+                              std::string& diagnostic);
 
 /**
  * Apply -D_xi(flux)/omega into one selected output component.  The supplied
  * face values are already in ERF's mapped coordinate convention.
  */
 template <typename Tag>
-void ApplyMappedFluxTendency(
+void ApplyMappedFluxTendency (
     const MappedFaceField<Tag>& flux,
     const int flux_comp,
     const amrex::MultiFab& omega,
@@ -123,6 +166,8 @@ void ApplyMappedFluxTendency(
     AMREX_ALWAYS_ASSERT(flux_comp >= 0 && flux_comp < flux.nComp());
     AMREX_ALWAYS_ASSERT(omega_comp >= 0 && omega_comp < omega.nComp());
     AMREX_ALWAYS_ASSERT(tendency_comp >= 0 && tendency_comp < tendency.nComp());
+    AMREX_ALWAYS_ASSERT(SameCellLayout(omega, tendency));
+    AMREX_ALWAYS_ASSERT(MappedFaceLayoutMatchesCellLayout(flux, tendency));
 
     for (amrex::MFIter mfi(tendency, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const amrex::Box bx = mfi.tilebox();
@@ -147,13 +192,13 @@ void ApplyMappedFluxTendency(
 }
 
 /** Return the max absolute difference between two component-selected face fields. */
-amrex::Real MaxFaceFieldDifference(const MappedFaceFluxRate& lhs,
+amrex::Real MaxFaceFieldDifference (const MappedFaceFluxRate& lhs,
                                   int lhs_comp,
                                   const MappedFaceFluxRate& rhs,
                                   int rhs_comp);
 
 /** Scale every component and direction of a flux rate into an integrated ledger. */
-void AccumulateIntegratedFaceFlux(IntegratedMappedFaceFlux& ledger,
+void AccumulateIntegratedFaceFlux (IntegratedMappedFaceFlux& ledger,
                                  const MappedFaceFluxRate& rate,
                                  amrex::Real weight);
 

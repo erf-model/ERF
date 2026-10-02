@@ -22,7 +22,7 @@
 
 using namespace amrex;
 
-eb_::~eb_()
+eb_::~eb_ ()
 {
     // if (m_factory) { m_factory.reset(nullptr); }
 }
@@ -35,10 +35,10 @@ eb_::eb_ ( )
 
 void
 eb_::make_all_factories ([[maybe_unused]] int level,
-                        Geometry            const& a_geom,
-                        BoxArray            const& ba,
-                        DistributionMapping const& dm,
-                        EB2::Level const& a_eb_level)
+                         Geometry            const& a_geom,
+                         BoxArray            const& ba,
+                         DistributionMapping const& dm,
+                         EB2::Level const& a_eb_level)
 {
     Print() << "making EB factory\n";
     m_factory = std::make_unique<EBFArrayBoxFactory>(a_eb_level, a_geom, ba, dm,

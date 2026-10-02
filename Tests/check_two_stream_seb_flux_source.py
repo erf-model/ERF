@@ -30,8 +30,16 @@ asserts:
    rho g dz/2 with rho from the ideal gas law at T_s, which leaves an error
    well under --theta-rtol.
 
-The deck is horizontally uniform, so one slice through the domain from
-amrex_fextract carries the whole field.
+With --multilevel the same checks run on every level of every plotfile, column
+by column along a slice in x through the middle row of level 0 in y (on a finer
+level, the first fine row inside that coarse row; a level that covers only part
+of the slice reports its own columns, and one that covers none of it fails), and
+check 3 is skipped:
+under a finer level the coarse skin is the average of the fine one, so a coarse
+column's skin no longer follows its own fluxes alone. Check 5 then also skips a
+level at the step it is created, which has no skin of its own from the step before.
+Without --multilevel the deck is horizontally uniform and one slice carries the
+whole field.
 """
 
 import argparse
@@ -45,9 +53,38 @@ CP = 1004.5         # specific heat of dry air [J/kg/K]
 GRAV = 9.81         # [m/s^2]
 
 
-def extract(fextract, plotfile, variable, out_path):
-    """Run amrex_fextract along x on level 0 and return the values."""
-    cmd = [fextract, '-d', '0', '-v', variable, '-c', '0', '-f', '0',
+class CheckError(Exception):
+    """A condition that fails the check (reported as FAIL, not as a traceback)."""
+
+
+def plotfile_geometry(plotfile):
+    """(prob_lo_x, [dx of each level], [refinement ratio of each level]) from a native
+    plotfile's Header."""
+    with open(os.path.join(plotfile, 'Header')) as handle:
+        lines = [line.strip() for line in handle]
+    base = 2 + int(lines[1])          # version, ncomp, then the ncomp names
+    finest = int(lines[base + 2])     # dim, time, finest level
+    prob_lo_x = float(lines[base + 3].split()[0])
+    ratios = [int(r) for r in lines[base + 5].split()] if finest > 0 else []
+    dx = [float(lines[base + 8 + lev].split()[0]) for lev in range(finest + 1)]
+    return prob_lo_x, dx, ratios
+
+
+def extract(fextract, plotfile, variable, out_path, level=0):
+    """[(x, value)] of the cells of one level along an x slice.
+
+    amrex_fextract fixes the slice's transverse index on its coarse level and scales
+    it by the refinement ratio only from there, so -c L -f L would read fine row
+    j = jloc (the coarse middle-row index taken as a fine index), a different row on
+    every level. Slice from level 0 instead, which reports the uncovered cells of the
+    coarser levels as well, and keep the rows at this level's cell centres: with even
+    refinement ratios no coarser cell centre is one.
+    """
+    prob_lo_x, dx, ratios = plotfile_geometry(plotfile)
+    if any(r % 2 for r in ratios[:level]):
+        raise CheckError(f"{plotfile}: refinement ratios {ratios[:level]} below level {level} "
+                         f"include an odd one, so its cells cannot be told from coarser ones")
+    cmd = [fextract, '-d', '0', '-v', variable, '-c', '0', '-f', str(level),
            '-e', '-s', out_path, plotfile]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
@@ -63,10 +100,23 @@ def extract(fextract, plotfile, variable, out_path):
             fields = line.split()
             if len(fields) < 2:
                 raise ValueError(f"{out_path}: expected 'x value', got {line!r}")
-            values.append(float(fields[1]))
+            values.append((float(fields[0]), float(fields[1])))
+    if level > 0:
+        def on_level(x):
+            offset = (x - prob_lo_x) / dx[level] - 0.5
+            return abs(offset - round(offset)) < 1.0e-6
+        values = [(x, v) for x, v in values if on_level(x)]
     if not values:
-        raise ValueError(f"{out_path}: no data rows")
+        raise CheckError(f"{plotfile} level {level}: no {variable} cells on the slice")
     return values
+
+
+def finest_level(plotfile):
+    """The finest level recorded in a native plotfile's Header."""
+    with open(os.path.join(plotfile, 'Header')) as handle:
+        lines = [line.strip() for line in handle]
+    ncomp = int(lines[1])
+    return int(lines[2 + ncomp + 2])
 
 
 def mean(values):
@@ -101,16 +151,31 @@ def main():
     parser.add_argument('--budget-rtol', type=float, default=0.05)
     parser.add_argument('--theta-rtol', type=float, default=1.0e-4,
                         help='relative tolerance of the two-way surface temperature')
+    parser.add_argument('--multilevel', action='store_true',
+                        help='check every level column by column; skip the budget check')
+    parser.add_argument('--min-spread', type=float, default=0.0,
+                        help='with --multilevel, smallest acceptable max - min of H over '
+                             'the coarse columns [W/m^2]: a uniform field would not tell '
+                             'columns apart')
     args = parser.parse_args()
 
     scratch = os.path.join(args.surface_layer_dir, 'flux_source_slices')
     os.makedirs(scratch, exist_ok=True)
 
-    def field(directory, step, name):
-        plotfile = os.path.join(directory, f"{args.prefix}{step:0{args.digits}d}")
+    def plotfile(directory, step):
+        return os.path.join(directory, f"{args.prefix}{step:0{args.digits}d}")
+
+    def levels(directory, step):
+        return range(finest_level(plotfile(directory, step)) + 1) if args.multilevel else [0]
+
+    def column_field(directory, step, name, level=0):
+        """[(x, value)] of one variable on one level."""
         tag = os.path.basename(os.path.normpath(directory))
-        return extract(args.fextract, plotfile, name,
-                       os.path.join(scratch, f"{tag}_{step}_{name}.dat"))
+        return extract(args.fextract, plotfile(directory, step), name,
+                       os.path.join(scratch, f"{tag}_{step}_{level}_{name}.dat"), level)
+
+    def field(directory, step, name, level=0):
+        return [v for _, v in column_field(directory, step, name, level)]
 
     failures = []
 
@@ -118,26 +183,34 @@ def main():
         """Assertions 1 and 3 for one leg; returns nothing, appends failures."""
         removed = 0.0  # sum of dt (H + LE) over the steps, per unit area [J/m^2]
         for step in range(1, args.steps + 1):
-            for seb_name, sl_name in (('seb_hfx', 'sensible_heat_flux'),
-                                      ('seb_lh', 'latent_heat_flux')):
-                seb = field(directory, step, seb_name)
-                sl = field(directory, step, sl_name)
-                if len(seb) != len(sl):
-                    failures.append(f"{label} step {step}: {seb_name} and {sl_name} "
-                                    f"have different lengths")
-                    continue
-                scale = max(abs(v) for v in sl)
-                if scale < args.min_flux:
-                    failures.append(f"{label} step {step}: |{sl_name}| peaks at {scale:.3e} "
-                                    f"W/m^2, below {args.min_flux}; the comparison would be "
-                                    f"trivial")
-                err = max(abs(a - b) for a, b in zip(seb, sl))
-                if err > args.rtol * max(scale, 1.0):
-                    failures.append(f"{label} step {step}: {seb_name} differs from {sl_name} "
-                                    f"by {err:.3e} W/m^2 "
-                                    f"(tolerance {args.rtol * max(scale, 1.0):.3e})")
+            for level in levels(directory, step):
+                where = f"{label} step {step} level {level}"
+                for seb_name, sl_name in (('seb_hfx', 'sensible_heat_flux'),
+                                          ('seb_lh', 'latent_heat_flux')):
+                    seb = field(directory, step, seb_name, level)
+                    sl = field(directory, step, sl_name, level)
+                    if len(seb) != len(sl):
+                        failures.append(f"{where}: {seb_name} and {sl_name} have different lengths")
+                        continue
+                    scale = max(abs(v) for v in sl)
+                    if scale < args.min_flux:
+                        failures.append(f"{where}: |{sl_name}| peaks at {scale:.3e} W/m^2, below "
+                                        f"{args.min_flux}; the comparison would be trivial")
+                    err = max(abs(a - b) for a, b in zip(seb, sl))
+                    if err > args.rtol * max(scale, 1.0):
+                        failures.append(f"{where}: {seb_name} differs from {sl_name} by {err:.3e} "
+                                        f"W/m^2 (tolerance {args.rtol * max(scale, 1.0):.3e})")
+                if args.multilevel and level == 0 and args.min_spread > 0.0:
+                    h = field(directory, step, 'sensible_heat_flux', 0)
+                    if max(h) - min(h) < args.min_spread:
+                        failures.append(f"{where}: H spans only {max(h) - min(h):.3e} W/m^2 over "
+                                        f"the columns, below {args.min_spread}; the columns are "
+                                        f"not told apart")
             removed += args.dt * (mean(field(directory, step, 'seb_hfx')) +
                                   mean(field(directory, step, 'seb_lh')))
+
+        if args.multilevel:
+            return
 
         t_leg = mean(field(directory, args.steps, 'seb_t_sfc'))
         t_def = mean(field(args.defaults_dir, args.steps, 'seb_t_sfc'))
@@ -159,43 +232,62 @@ def main():
 
     # 2: the defaults leg keeps the constants
     for step in range(1, args.steps + 1):
-        for name, default in (('seb_hfx', args.hfx_default), ('seb_lh', args.lh_default)):
-            worst = max(abs(v - default) for v in field(args.defaults_dir, step, name))
-            if worst > 1.0e-12 * max(abs(default), 1.0):
-                failures.append(f"defaults step {step}: {name} is not the default {default} "
-                                f"(off by {worst:.3e})")
+        for level in levels(args.defaults_dir, step):
+            for name, default in (('seb_hfx', args.hfx_default), ('seb_lh', args.lh_default)):
+                worst = max(abs(v - default) for v in field(args.defaults_dir, step, name, level))
+                if worst > 1.0e-12 * max(abs(default), 1.0):
+                    failures.append(f"defaults step {step} level {level}: {name} is not the "
+                                    f"default {default} (off by {worst:.3e})")
 
     # 4: without the two-way option the surface layer keeps its own temperature
     for step in range(1, args.steps + 1):
-        worst = max(abs(v - args.most_surf_temp)
-                    for v in field(args.surface_layer_dir, step, 't_surf'))
-        if worst > 1.0e-10 * args.most_surf_temp:
-            failures.append(f"one-way step {step}: t_surf moved off erf.most.surf_temp = "
-                            f"{args.most_surf_temp} (by {worst:.3e} K)")
+        for level in levels(args.surface_layer_dir, step):
+            worst = max(abs(v - args.most_surf_temp)
+                        for v in field(args.surface_layer_dir, step, 't_surf', level))
+            if worst > 1.0e-10 * args.most_surf_temp:
+                failures.append(f"one-way step {step} level {level}: t_surf moved off "
+                                f"erf.most.surf_temp = {args.most_surf_temp} (by {worst:.3e} K)")
 
     if args.two_way_dir:
         # 1 and 3, two-way
         check_fluxes_and_budget(args.two_way_dir, 'two-way')
 
         # 5: t_surf(n) is the skin of step n-1 as a potential temperature
+        # Counted per level and step: a level whose columns all went unpaired must
+        # fail on its own, not hide behind the comparisons of another level.
         kappa = RD / CP
         worst_rel = 0.0
+        compared = {}
         for step in range(2, args.steps + 1):
-            t_surf = mean(field(args.two_way_dir, step, 't_surf'))
-            t_skin = mean(field(args.two_way_dir, step - 1, 'seb_t_sfc'))
-            p_cc = mean(field(args.two_way_dir, step - 1, 'surf_pres'))
-            rho = p_cc / (RD * t_skin)
-            p_sfc = p_cc + rho * GRAV * 0.5 * args.dz
-            theta = t_skin * (P0 / p_sfc) ** kappa
-            rel = abs(t_surf - theta) / theta
-            worst_rel = max(worst_rel, rel)
-            if rel > args.theta_rtol:
-                failures.append(f"two-way step {step}: t_surf {t_surf:.6f} K is not the step "
-                                f"{step - 1} skin {t_skin:.6f} K as potential temperature "
-                                f"{theta:.6f} K (relative error {rel:.3e}, tolerance "
-                                f"{args.theta_rtol})")
-        print(f"two-way: t_surf follows the previous step's skin as potential temperature, "
-              f"worst relative error {worst_rel:.3e}")
+            for level in levels(args.two_way_dir, step):
+                if level not in levels(args.two_way_dir, step - 1):
+                    continue  # created this step: no skin of its own from the step before
+                t_surf = dict(column_field(args.two_way_dir, step, 't_surf', level))
+                t_skin = dict(column_field(args.two_way_dir, step - 1, 'seb_t_sfc', level))
+                p_cc = dict(column_field(args.two_way_dir, step - 1, 'surf_pres', level))
+                paired = [x for x in sorted(t_surf) if x in t_skin and x in p_cc]
+                if not paired:
+                    failures.append(f"two-way step {step} level {level}: none of its "
+                                    f"{len(t_surf)} columns has a skin from step {step - 1} "
+                                    f"to compare with")
+                compared[level] = compared.get(level, 0) + len(paired)
+                for x in paired:
+                    rho = p_cc[x] / (RD * t_skin[x])
+                    p_sfc = p_cc[x] + rho * GRAV * 0.5 * args.dz
+                    theta = t_skin[x] * (P0 / p_sfc) ** kappa
+                    rel = abs(t_surf[x] - theta) / theta
+                    worst_rel = max(worst_rel, rel)
+                    if rel > args.theta_rtol:
+                        failures.append(f"two-way step {step} level {level} x {x:g}: t_surf "
+                                        f"{t_surf[x]:.6f} K is not the step {step - 1} skin "
+                                        f"{t_skin[x]:.6f} K as potential temperature {theta:.6f} K "
+                                        f"(relative error {rel:.3e}, tolerance {args.theta_rtol})")
+        if not compared:
+            failures.append("two-way: no level had a skin from the step before to compare with")
+        per_level = ', '.join(f"level {lev}: {n}" for lev, n in sorted(compared.items()))
+        print(f"two-way: t_surf follows the previous step's skin as potential temperature "
+              f"in {sum(compared.values())} column comparisons ({per_level}), worst relative "
+              f"error {worst_rel:.3e}")
 
     if failures:
         for message in failures:
@@ -207,4 +299,8 @@ def main():
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except CheckError as error:
+        print(f"FAIL: {error}")
+        sys.exit(1)

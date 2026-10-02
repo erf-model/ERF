@@ -60,7 +60,7 @@ constexpr int kFluxComp = 3;
 constexpr int kRhsComp = 5;
 
 Real
-tolerance(Real scale = Real(1.0))
+tolerance (Real scale = Real(1.0))
 {
   return Real(96.0) * std::numeric_limits<Real>::epsilon() *
          std::max(Real(1.0), std::abs(scale));
@@ -71,27 +71,27 @@ tolerance(Real scale = Real(1.0))
 // analytic RHS comparisons accumulate about 290 eps, so keep 384 eps
 // of headroom here while the pointwise primitive checks retain 96 eps.
 Real
-integrated_terrain_tolerance(Real scale = Real(1.0))
+integrated_terrain_tolerance (Real scale = Real(1.0))
 {
   return Real(384.0) * std::numeric_limits<Real>::epsilon() *
          std::max(Real(1.0), std::abs(scale));
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real
-chi(int i, int j, int k) noexcept
+chi (int i, int j, int k) noexcept
 {
   return Real(0.7) + Real(0.13) * i - Real(0.09) * j + Real(0.11) * k +
          Real(0.017) * i * j - Real(0.012) * i * k + Real(0.023) * j * k;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real
-rho_value(int i, int j, int k) noexcept
+rho_value (int i, int j, int k) noexcept
 {
   return Real(1.1) + Real(0.03) * i + Real(0.02) * j + Real(0.01) * k;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real
-mu_value(int comp, int i, int j, int k) noexcept
+mu_value (int comp, int i, int j, int k) noexcept
 {
   const Real base = comp == EddyDiff::Theta_h    ? Real(0.17)
                     : comp == EddyDiff::Scalar_h ? Real(0.31)
@@ -104,7 +104,7 @@ mu_value(int comp, int i, int j, int k) noexcept
 }
 
 void
-copy_to_host(const FArrayBox& src, FArrayBox& dst)
+copy_to_host (const FArrayBox& src, FArrayBox& dst)
 {
   Gpu::copy(
     Gpu::deviceToHost, src.dataPtr(0), src.dataPtr(0) + src.size(),
@@ -113,14 +113,14 @@ copy_to_host(const FArrayBox& src, FArrayBox& dst)
 }
 
 Box
-grow_box(Box box, const int n)
+grow_box (Box box, const int n)
 {
   box.grow(n);
   return box;
 }
 
 Box
-terrain_node_box(const Box& cells)
+terrain_node_box (const Box& cells)
 {
   Box nodes = surroundingNodes(cells, 2);
   nodes.grow(0, 1);
@@ -147,7 +147,7 @@ struct NativeTerrainScalarCase
   GpuArray<Real, AMREX_SPACEDIM> gravity{
     {Real(0.0), Real(0.0), Real(-9.81)}};
 
-  NativeTerrainScalarCase(
+  NativeTerrainScalarCase (
     const Real a_in,
     const Real b_in,
     const Real c_in,
@@ -251,7 +251,7 @@ struct NativeTerrainScalarCase
     solver.turbChoice[0].use_kturb = false;
   }
 
-  void initialize_fields()
+  void initialize_fields ()
   {
     const int scalar_comp = qty_comp - 1;
     auto cons = conserved.array();
@@ -283,7 +283,7 @@ struct NativeTerrainScalarCase
     Gpu::streamSynchronize();
   }
 
-  void run(const Real implicit_fac)
+  void run (const Real implicit_fac)
   {
     rhs.setVal<RunOn::Device>(Real(0.0));
     xflux.setVal<RunOn::Device>(Real(-91.0));
@@ -319,7 +319,7 @@ struct NativeTerrainScalarCase
 
 template <bool MultiplyMolecularByDensity, bool AddTurbulence>
 void
-build_n_and_check(
+build_n_and_check (
   const Box& bx,
   const FArrayBox& scalar,
   const FArrayBox& rho,
@@ -510,7 +510,7 @@ build_n_and_check(
 }
 
 void
-initialize_n_case(
+initialize_n_case (
   FArrayBox& scalar,
   FArrayBox& rho,
   FArrayBox& mu,
@@ -596,7 +596,7 @@ initialize_n_case(
 }
 
 void
-fill_ones(FArrayBox& fab)
+fill_ones (FArrayBox& fab)
 {
   auto a = fab.array();
   ParallelFor(

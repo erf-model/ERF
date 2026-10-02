@@ -33,7 +33,7 @@ using namespace erf_auxiliary;
 
 static_assert(!std::is_same_v<MappedFaceFluxRate, IntegratedMappedFaceFlux>);
 
-Geometry make_geometry(const Box& domain, const bool periodic = true)
+Geometry make_geometry (const Box& domain, const bool periodic = true)
 {
     const amrex::RealBox real_box({0.0, 0.0, 0.0}, {1.0, 1.0, 1.0});
     const int is_periodic[AMREX_SPACEDIM] = {
@@ -41,7 +41,7 @@ Geometry make_geometry(const Box& domain, const bool periodic = true)
     return Geometry(domain, &real_box, amrex::CoordSys::cartesian, is_periodic);
 }
 
-BoxArray project_to_xy(const BoxArray& cell_ba)
+BoxArray project_to_xy (const BoxArray& cell_ba)
 {
     amrex::BoxList boxes = cell_ba.boxList();
     for (auto& box : boxes) { box.setRange(2, 0); }
@@ -59,7 +59,7 @@ struct TestGrid {
     MultiFab my;
     MultiFab omega;
 
-    explicit TestGrid(const int nx = 4, const int ny = 3, const int nz = 2)
+    explicit TestGrid (const int nx = 4, const int ny = 3, const int nz = 2)
         : domain(IntVect(0, 0, 0), IntVect(nx - 1, ny - 1, nz - 1)),
           geom(make_geometry(domain)),
           ba(domain), map_ba(project_to_xy(ba)), dm(ba),
@@ -69,7 +69,7 @@ struct TestGrid {
         fill_metrics();
     }
 
-    void fill_metrics()
+    void fill_metrics ()
     {
         for (amrex::MFIter mfi(detj); mfi.isValid(); ++mfi) {
             const Box bx = mfi.validbox();
@@ -89,7 +89,7 @@ struct TestGrid {
         }
     }
 
-    bool build_measure()
+    bool build_measure ()
     {
         std::string diagnostic;
         const bool ok = BuildMappedCellMeasure(omega, detj, mx, my, diagnostic);
@@ -98,9 +98,9 @@ struct TestGrid {
     }
 };
 
-void fill_rate(MappedFaceFluxRate& rate, const Box& domain,
-               const int comp, const bool periodic = false,
-               const Real factor = Real(1.0))
+void fill_rate (MappedFaceFluxRate& rate, const Box& domain,
+                const int comp, const bool periodic = false,
+                const Real factor = Real(1.0))
 {
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
         auto& face = rate.dir(dir);
@@ -126,7 +126,7 @@ void fill_rate(MappedFaceFluxRate& rate, const Box& domain,
     }
 }
 
-void fill_constant_rate(MappedFaceFluxRate& rate, const Real value)
+void fill_constant_rate (MappedFaceFluxRate& rate, const Real value)
 {
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
         auto& face = rate.dir(dir);
@@ -141,8 +141,8 @@ void fill_constant_rate(MappedFaceFluxRate& rate, const Real value)
     }
 }
 
-void fill_componentwise_constant_rate(MappedFaceFluxRate& rate,
-                                      const std::array<Real, 3>& values)
+void fill_componentwise_constant_rate (MappedFaceFluxRate& rate,
+                                       const std::array<Real, 3>& values)
 {
     AMREX_ALWAYS_ASSERT(rate.nComp() == static_cast<int>(values.size()));
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
@@ -153,9 +153,9 @@ void fill_componentwise_constant_rate(MappedFaceFluxRate& rate,
     }
 }
 
-Real max_face_component_error(const IntegratedMappedFaceFlux& flux,
-                              const int component,
-                              const Real expected)
+Real max_face_component_error (const IntegratedMappedFaceFlux& flux,
+                               const int component,
+                               const Real expected)
 {
     Real maximum = Real(0.0);
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
@@ -174,7 +174,7 @@ Real max_face_component_error(const IntegratedMappedFaceFlux& flux,
     return maximum;
 }
 
-void fill_diffusion_raw(MultiFab& face, const int dir, const int comp)
+void fill_diffusion_raw (MultiFab& face, const int dir, const int comp)
 {
     for (amrex::MFIter mfi(face); mfi.isValid(); ++mfi) {
         const Box bx = mfi.validbox();
@@ -188,8 +188,8 @@ void fill_diffusion_raw(MultiFab& face, const int dir, const int comp)
     }
 }
 
-Real max_component_difference(const MultiFab& a, const int acomp,
-                              const MultiFab& b, const int bcomp)
+Real max_component_difference (const MultiFab& a, const int acomp,
+                               const MultiFab& b, const int bcomp)
 {
     MultiFab difference(a.boxArray(), a.DistributionMap(), 1, 0);
     for (amrex::MFIter mfi(a); mfi.isValid(); ++mfi) {
@@ -204,9 +204,9 @@ Real max_component_difference(const MultiFab& a, const int acomp,
     return difference.norm0(0);
 }
 
-Real mapped_diffusion_parity(const char kind,
-                             Real* raw_vertical_difference = nullptr,
-                             Real* omitted_cross_difference = nullptr)
+Real mapped_diffusion_parity (const char kind,
+                              Real* raw_vertical_difference = nullptr,
+                              Real* omitted_cross_difference = nullptr)
 {
     TestGrid g;
     g.build_measure();
@@ -328,7 +328,7 @@ Real mapped_diffusion_parity(const char kind,
     return max_component_difference(native, rhs_comp, generic, rhs_comp);
 }
 
-void run_auxiliary_mapped_transport_MappedMeasureIsExplicitAndRejectsInvalidMetrics()
+void run_auxiliary_mapped_transport_MappedMeasureIsExplicitAndRejectsInvalidMetrics ()
 {
     TestGrid g;
     std::string diagnostic;
@@ -347,6 +347,42 @@ void run_auxiliary_mapped_transport_MappedMeasureIsExplicitAndRejectsInvalidMetr
     EXPECT_LT(max_component_difference(g.omega, 0, expected, 0), Real(32.0) *
               std::numeric_limits<Real>::epsilon());
 
+    AuxiliaryInertTracer tracer(1);
+    tracer.define(0, g.ba, g.dm);
+    EXPECT_FALSE(tracer.measure_is_ready(0));
+    ASSERT_TRUE(tracer.rebuild_static_measure(0, g.detj, g.mx, g.my, diagnostic))
+        << diagnostic;
+    EXPECT_TRUE(tracer.measure_is_ready(0));
+    EXPECT_LT(max_component_difference(tracer.static_measure(0), 0, expected, 0),
+              Real(32.0) * std::numeric_limits<Real>::epsilon());
+
+    MultiFab previous_measure(g.ba, g.dm, 1, 0);
+    MultiFab::Copy(previous_measure, tracer.static_measure(0), 0, 0, 1, 0);
+    g.detj.mult(Real(1.23), 0, 1, 0);
+    g.mx.mult(Real(0.91), 0, 1, 0);
+    g.my.mult(Real(1.07), 0, 1, 0);
+    ASSERT_TRUE(tracer.rebuild_static_measure(0, g.detj, g.mx, g.my, diagnostic))
+        << diagnostic;
+    MultiFab rebuilt_expected(g.ba, g.dm, 1, 0);
+    for (amrex::MFIter mfi(rebuilt_expected); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.validbox();
+        const auto d = g.detj.const_array(mfi);
+        const auto x = g.mx.const_array(mfi);
+        const auto y = g.my.const_array(mfi);
+        const auto e = rebuilt_expected.array(mfi);
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            e(i, j, k, 0) = d(i, j, k, 0) / (x(i, j, 0) * y(i, j, 0));
+        });
+    }
+    EXPECT_LT(max_component_difference(tracer.static_measure(0), 0, rebuilt_expected, 0),
+              Real(32.0) * std::numeric_limits<Real>::epsilon());
+    EXPECT_GT(max_component_difference(tracer.static_measure(0), 0, previous_measure, 0),
+              Real(1.0e-3));
+
+    g.detj.setVal(Real(0.0));
+    EXPECT_FALSE(tracer.rebuild_static_measure(0, g.detj, g.mx, g.my, diagnostic));
+    EXPECT_FALSE(tracer.measure_is_ready(0));
+
     for (int bad_kind = 0; bad_kind < 8; ++bad_kind) {
         g.detj.setVal(Real(1.2)); g.mx.setVal(Real(1.1)); g.my.setVal(Real(0.9));
         if (bad_kind == 0) g.detj.setVal(std::numeric_limits<Real>::quiet_NaN());
@@ -362,7 +398,51 @@ void run_auxiliary_mapped_transport_MappedMeasureIsExplicitAndRejectsInvalidMetr
     }
 }
 
-void run_auxiliary_mapped_transport_FluxRateAndIntegratedFluxHaveDistinctLayoutsAndTypes()
+void run_auxiliary_mapped_transport_SharedLayoutPredicatesRejectIncompatibleLayouts ()
+{
+    TestGrid g;
+    MultiFab compressed(g.map_ba, g.dm, 1, 0);
+    EXPECT_FALSE(SameCellLayout(compressed, g.omega));
+
+    MappedFaceFluxRate rate;
+    rate.define(g.ba, g.dm, 1, 0);
+    EXPECT_TRUE(MappedFaceLayoutMatchesCellLayout(rate, g.omega));
+    EXPECT_FALSE(MappedFaceLayoutMatchesCellLayout(rate, compressed));
+
+    Box shifted_domain = g.domain;
+    shifted_domain.shift(0, 17);
+    const BoxArray shifted_ba(shifted_domain);
+    const DistributionMapping shifted_dm(shifted_ba);
+    MappedFaceFluxRate shifted_rate;
+    shifted_rate.define(shifted_ba, shifted_dm, 1, 0);
+    EXPECT_FALSE(MappedFaceLayoutMatchesCellLayout(shifted_rate, g.omega));
+    EXPECT_FALSE(SameMappedFaceLayout(rate, shifted_rate));
+}
+
+void run_auxiliary_mapped_transport_LedgerRejectsMismatchedFaceLayout ()
+{
+    TestGrid g;
+    CompletedStepFluxLedger ledger;
+    ledger.define(g.ba, g.dm);
+
+    Box shifted_domain = g.domain;
+    shifted_domain.shift(1, 13);
+    const BoxArray shifted_ba(shifted_domain);
+    const DistributionMapping shifted_dm(shifted_ba);
+    MappedFaceFluxRate mismatched_rate;
+    mismatched_rate.define(shifted_ba, shifted_dm, 1, 0);
+    AuxiliaryStageRecipe recipe;
+    std::string diagnostic;
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::CompressibleRK3, 0,
+                                         0.25, recipe, diagnostic)) << diagnostic;
+    EXPECT_FALSE(ledger.accept_stage(HostIntegrator::CompressibleRK3, 0, 0.0,
+                                     recipe, mismatched_rate, diagnostic));
+    EXPECT_FALSE(diagnostic.empty());
+    EXPECT_FALSE(ledger.step_active());
+    EXPECT_EQ(ledger.next_stage(), 0);
+}
+
+void run_auxiliary_mapped_transport_FluxRateAndIntegratedFluxHaveDistinctLayoutsAndTypes ()
 {
     TestGrid g;
     MappedFaceFluxRate rate;
@@ -382,7 +462,7 @@ void run_auxiliary_mapped_transport_FluxRateAndIntegratedFluxHaveDistinctLayouts
     }
 }
 
-void run_auxiliary_mapped_transport_ComputationalMappedDivergenceMatchesIndependentArithmetic()
+void run_auxiliary_mapped_transport_ComputationalMappedDivergenceMatchesIndependentArithmetic ()
 {
     TestGrid g;
     ASSERT_TRUE(g.build_measure());
@@ -416,7 +496,7 @@ void run_auxiliary_mapped_transport_ComputationalMappedDivergenceMatchesIndepend
                      Real(5.0) * Real(0.5) + Real(4.0) * Real(0.25) + Real(8.0) * Real(2.0));
 }
 
-void run_auxiliary_mapped_transport_PeriodicArbitraryMappedFluxTelescopes()
+void run_auxiliary_mapped_transport_PeriodicArbitraryMappedFluxTelescopes ()
 {
     TestGrid g;
     ASSERT_TRUE(g.build_measure());
@@ -454,7 +534,7 @@ void run_auxiliary_mapped_transport_PeriodicArbitraryMappedFluxTelescopes()
                 std::max(Real(1.0), amrex::Math::abs(h0.sum(0))));
 }
 
-void run_auxiliary_mapped_transport_NativeScalarAdvectionParityAndMetricNegativeControls()
+void run_auxiliary_mapped_transport_NativeScalarAdvectionParityAndMetricNegativeControls ()
 {
     TestGrid g;
     ASSERT_TRUE(g.build_measure());
@@ -508,17 +588,17 @@ void run_auxiliary_mapped_transport_NativeScalarAdvectionParityAndMetricNegative
                    << " doubled_map_factor=" << doubled_map_discrepancy << std::endl;
 }
 
-void run_auxiliary_mapped_transport_CanonicalNGridDiffusionTransferParity()
+void run_auxiliary_mapped_transport_CanonicalNGridDiffusionTransferParity ()
 {
     EXPECT_LT(mapped_diffusion_parity('N'), Real(64.0) * std::numeric_limits<Real>::epsilon());
 }
 
-void run_auxiliary_mapped_transport_CanonicalStretchedGridDiffusionTransferParity()
+void run_auxiliary_mapped_transport_CanonicalStretchedGridDiffusionTransferParity ()
 {
     EXPECT_LT(mapped_diffusion_parity('S'), Real(64.0) * std::numeric_limits<Real>::epsilon());
 }
 
-void run_auxiliary_mapped_transport_CanonicalStaticTerrainParityAndMetricNegativeControls()
+void run_auxiliary_mapped_transport_CanonicalStaticTerrainParityAndMetricNegativeControls ()
 {
     Real raw_fz_discrepancy = 0.0;
     Real missing_cross_discrepancy = 0.0;
@@ -534,7 +614,7 @@ void run_auxiliary_mapped_transport_CanonicalStaticTerrainParityAndMetricNegativ
                    << std::endl;
 }
 
-void run_auxiliary_mapped_transport_CompressibleRK3RecipeUsesAuditedStageCoefficients()
+void run_auxiliary_mapped_transport_CompressibleRK3RecipeUsesAuditedStageCoefficients ()
 {
     constexpr double dt = 0.37;
     const double trial[] = {dt / 3.0, dt / 2.0, dt};
@@ -554,7 +634,7 @@ void run_auxiliary_mapped_transport_CompressibleRK3RecipeUsesAuditedStageCoeffic
     }
 }
 
-void run_auxiliary_mapped_transport_HeunRecipeSeparatesTrialAndWeightedFaceTime()
+void run_auxiliary_mapped_transport_HeunRecipeSeparatesTrialAndWeightedFaceTime ()
 {
     constexpr double dt = 0.61;
     AuxiliaryStageRecipe recipe;
@@ -577,13 +657,13 @@ void run_auxiliary_mapped_transport_HeunRecipeSeparatesTrialAndWeightedFaceTime(
     EXPECT_NE(recipe.limiter_trial_interval, recipe.face_rate_time_coefficient);
 }
 
-void run_auxiliary_mapped_transport_TimedInputViewsBuildIntensiveStateFromRhoInput()
+void run_auxiliary_mapped_transport_TimedInputViewsBuildIntensiveStateFromRhoInput ()
 {
     TestGrid g;
     MultiFab u(g.ba, g.dm, 3, 0), rho_anchor(g.ba, g.dm, 3, 0);
     MultiFab rho_input(g.ba, g.dm, 3, 0), rho_target(g.ba, g.dm, 3, 0);
-    MultiFab intensive(g.ba, g.dm, 1, 1), wrong(g.ba, g.dm, 1, 0);
-    constexpr Real k = Real(0.27);
+    MultiFab intensive(g.ba, g.dm, 1, 1), fast(g.ba, g.dm, 1, 1);
+    MultiFab wrong(g.ba, g.dm, 1, 0), expected(g.ba, g.dm, 1, 0);
     for (amrex::MFIter mfi(u); mfi.isValid(); ++mfi) {
         const Box bx = mfi.validbox();
         const auto ua = u.array(mfi);
@@ -597,34 +677,55 @@ void run_auxiliary_mapped_transport_TimedInputViewsBuildIntensiveStateFromRhoInp
             ra(i, j, kidx, 0) = a;
             ri(i, j, kidx, 0) = in;
             rt(i, j, kidx, 0) = target;
-            ua(i, j, kidx, 0) = k * in;
-            ua(i, j, kidx, 1) = Real(120.0) + k * target;
-            ua(i, j, kidx, 2) = Real(-31.0) + k * a;
+            ua(i, j, kidx, 0) = Real(0.2) + Real(0.07) * i +
+                                Real(0.03) * j + Real(0.02) * kidx;
+            ua(i, j, kidx, 1) = Real(120.0) + target;
+            ua(i, j, kidx, 2) = Real(-31.0) + a;
         });
     }
     std::string diagnostic;
     ASSERT_TRUE(BuildAuxiliaryIntensiveState(
-        {&u, 0, 1.25}, {&rho_input, 0, 1.25}, 1.25, intensive, diagnostic)) << diagnostic;
-    for (amrex::MFIter mfi(wrong); mfi.isValid(); ++mfi) {
+        {&u, 0, 1.25}, {&rho_input, 0, 1.25}, 1.25, intensive,
+        AuxiliaryFieldValidationPolicy::Global, diagnostic)) << diagnostic;
+    ASSERT_TRUE(BuildAuxiliaryIntensiveState(
+        {&u, 0, 1.25}, {&rho_input, 0, 1.25}, 1.25, fast,
+        AuxiliaryFieldValidationPolicy::AssumeValid, diagnostic)) << diagnostic;
+    for (amrex::MFIter mfi(expected); mfi.isValid(); ++mfi) {
         const Box bx = mfi.validbox();
         const auto state = u.const_array(mfi);
-        const auto rho = rho_target.const_array(mfi);
-        const auto out = wrong.array(mfi);
+        const auto rho_in = rho_input.const_array(mfi);
+        const auto rho_wrong = rho_target.const_array(mfi);
+        const auto out = expected.array(mfi);
+        const auto w = wrong.array(mfi);
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int kidx) noexcept {
-            out(i, j, kidx, 0) = state(i, j, kidx, 0) / rho(i, j, kidx, 0);
+            out(i, j, kidx, 0) = state(i, j, kidx, 0) / rho_in(i, j, kidx, 0);
+            w(i, j, kidx, 0) = state(i, j, kidx, 0) / rho_wrong(i, j, kidx, 0);
         });
     }
-    MultiFab expected(g.ba, g.dm, 1, 0);
-    expected.setVal(k);
     EXPECT_LT(max_component_difference(intensive, 0, expected, 0),
+              Real(32.0) * std::numeric_limits<Real>::epsilon());
+    EXPECT_LT(max_component_difference(fast, 0, expected, 0),
+              Real(32.0) * std::numeric_limits<Real>::epsilon());
+    EXPECT_LT(max_component_difference(intensive, 0, fast, 0),
               Real(32.0) * std::numeric_limits<Real>::epsilon());
     EXPECT_GT(max_component_difference(intensive, 0, wrong, 0), Real(0.05));
 
     EXPECT_FALSE(BuildAuxiliaryIntensiveState(
-        {&u, 0, 0.0}, {&rho_input, 0, 1.0}, 1.0, intensive, diagnostic));
+        {&u, 0, 0.0}, {&rho_input, 0, 1.0}, 1.0, intensive,
+        AuxiliaryFieldValidationPolicy::Global, diagnostic));
+    const std::array<Real, 3> invalid_density{
+        Real(0.0), std::numeric_limits<Real>::quiet_NaN(),
+        std::numeric_limits<Real>::infinity()};
+    for (const Real invalid : invalid_density) {
+        rho_input.setVal(Real(1.0));
+        rho_input.setVal(invalid, 0, 1, 0);
+        EXPECT_FALSE(BuildAuxiliaryIntensiveState(
+            {&u, 0, 1.25}, {&rho_input, 0, 1.25}, 1.25, intensive,
+            AuxiliaryFieldValidationPolicy::Global, diagnostic)) << diagnostic;
+    }
 }
 
-void run_auxiliary_mapped_transport_ConstantConstituentRatioSurvivesVariableDensityStages()
+void run_auxiliary_mapped_transport_ConstantConstituentRatioSurvivesVariableDensityStages ()
 {
     auto run = [](const HostIntegrator method) {
         TestGrid g;
@@ -671,7 +772,9 @@ void run_auxiliary_mapped_transport_ConstantConstituentRatioSurvivesVariableDens
             amrex::MultiFab::Copy(avg_z, carrier.dir(2), 0, 0, 1, 0);
             if (!BuildAuxiliaryIntensiveState({&u_input, 0, input_time},
                                               {&rho_input, 0, input_time},
-                                              input_time, intensive, diagnostic)) {
+                                              input_time, intensive,
+                                              AuxiliaryFieldValidationPolicy::Global,
+                                              diagnostic)) {
                 ADD_FAILURE() << diagnostic;
                 return;
             }
@@ -741,7 +844,7 @@ void run_auxiliary_mapped_transport_ConstantConstituentRatioSurvivesVariableDens
     run(HostIntegrator::AnelasticHeun);
 }
 
-void run_auxiliary_mapped_transport_CompletedLedgerUsesExactHostTemporalWeights()
+void run_auxiliary_mapped_transport_CompletedLedgerUsesExactHostTemporalWeights ()
 {
     TestGrid g;
     constexpr double dt = 0.41;
@@ -795,7 +898,7 @@ void run_auxiliary_mapped_transport_CompletedLedgerUsesExactHostTemporalWeights(
     EXPECT_GT(amrex::Math::abs(heun_expected - Real(dt) * Real(11.0)), Real(0.1));
 }
 
-void run_auxiliary_mapped_transport_CompletedLedgerAccumulatesEveryComponent()
+void run_auxiliary_mapped_transport_CompletedLedgerAccumulatesEveryComponent ()
 {
     TestGrid g;
     constexpr int ncomp = 3;
@@ -858,7 +961,34 @@ void run_auxiliary_mapped_transport_CompletedLedgerAccumulatesEveryComponent()
     }
 }
 
-void run_auxiliary_mapped_transport_ZeroRateStillAppliesHostAnchorInputRecurrence()
+void run_auxiliary_mapped_transport_StageTargetMustBeDisjoint ()
+{
+    TestGrid g;
+    MultiFab anchor(g.ba, g.dm, 1, 0);
+    MultiFab input(g.ba, g.dm, 1, 0);
+    MultiFab target(g.ba, g.dm, 1, 0);
+    AuxiliaryStageContext context;
+    context.state_anchor = {&anchor, 0, 0.0};
+    context.state_input = {&input, 0, 1.0};
+    context.state_target = {&target, 0, 1.0};
+    EXPECT_TRUE(AuxiliaryStageTargetIsDisjoint(context));
+
+    context.state_target.field = &input;
+    EXPECT_FALSE(AuxiliaryStageTargetIsDisjoint(context));
+    context.state_target.field = &anchor;
+    EXPECT_FALSE(AuxiliaryStageTargetIsDisjoint(context));
+
+    MultiFab input_alias(input, amrex::make_alias, 0, 1);
+    context.state_target.field = &input_alias;
+    EXPECT_FALSE(AuxiliaryStageTargetIsDisjoint(context));
+
+    // Read-only anchor and input views may intentionally alias.
+    context.state_input.field = &anchor;
+    context.state_target.field = &target;
+    EXPECT_TRUE(AuxiliaryStageTargetIsDisjoint(context));
+}
+
+void run_auxiliary_mapped_transport_ZeroRateStillAppliesHostAnchorInputRecurrence ()
 {
     TestGrid g;
     MappedFaceFluxRate zero_rate;
@@ -938,7 +1068,7 @@ void run_auxiliary_mapped_transport_ZeroRateStillAppliesHostAnchorInputRecurrenc
               Real(32.0) * std::numeric_limits<Real>::epsilon());
 }
 
-void run_auxiliary_mapped_transport_StageSequenceFailsClosed()
+void run_auxiliary_mapped_transport_StageSequenceFailsClosed ()
 {
     TestGrid g;
     MappedFaceFluxRate rate;
@@ -1004,6 +1134,14 @@ TEST(AuxiliaryMappedTransport, MappedMeasureIsExplicitAndRejectsInvalidMetrics)
 {
     run_auxiliary_mapped_transport_MappedMeasureIsExplicitAndRejectsInvalidMetrics();
 }
+TEST(AuxiliaryMappedTransport, SharedLayoutPredicatesRejectIncompatibleLayouts)
+{
+    run_auxiliary_mapped_transport_SharedLayoutPredicatesRejectIncompatibleLayouts();
+}
+TEST(AuxiliaryMappedTransport, LedgerRejectsMismatchedFaceLayout)
+{
+    run_auxiliary_mapped_transport_LedgerRejectsMismatchedFaceLayout();
+}
 TEST(AuxiliaryMappedTransport, FluxRateAndIntegratedFluxHaveDistinctLayoutsAndTypes)
 {
     run_auxiliary_mapped_transport_FluxRateAndIntegratedFluxHaveDistinctLayoutsAndTypes();
@@ -1055,6 +1193,10 @@ TEST(AuxiliaryMappedTransport, CompletedLedgerUsesExactHostTemporalWeights)
 TEST(AuxiliaryMappedTransport, CompletedLedgerAccumulatesEveryComponent)
 {
     run_auxiliary_mapped_transport_CompletedLedgerAccumulatesEveryComponent();
+}
+TEST(AuxiliaryMappedTransport, StageTargetMustBeDisjoint)
+{
+    run_auxiliary_mapped_transport_StageTargetMustBeDisjoint();
 }
 TEST(AuxiliaryMappedTransport, ZeroRateStillAppliesHostAnchorInputRecurrence)
 {

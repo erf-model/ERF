@@ -168,7 +168,7 @@ MaterialProperties::MaterialProperties ( const MaterialProperties& a_matprop )
 }
 
 AMREX_GPU_HOST_DEVICE
-void MaterialProperties::setProperties_H2O()
+void MaterialProperties::setProperties_H2O ()
 {
     m_density = rhor; // ERF_Constants.H
 
@@ -189,7 +189,7 @@ void MaterialProperties::setProperties_H2O()
 }
 
 AMREX_GPU_HOST_DEVICE
-void MaterialProperties::setProperties_ice()
+void MaterialProperties::setProperties_ice ()
 {
     m_density = amrex::Real(916.80); // kg m^{-3}
 
@@ -209,19 +209,19 @@ void MaterialProperties::setProperties_ice()
 }
 
 AMREX_GPU_HOST_DEVICE
-void MaterialProperties::setProperties_water()
+void MaterialProperties::setProperties_water ()
 {
     setProperties_H2O();
 }
 
 AMREX_GPU_HOST_DEVICE
-void MaterialProperties::setProperties_agua()
+void MaterialProperties::setProperties_agua ()
 {
     setProperties_H2O();
 }
 
 AMREX_GPU_HOST_DEVICE
-void MaterialProperties::setProperties_NaCl()
+void MaterialProperties::setProperties_NaCl ()
 {
     m_density = Real(2170.0);
 
@@ -233,7 +233,7 @@ void MaterialProperties::setProperties_NaCl()
 }
 
 AMREX_GPU_HOST_DEVICE
-void MaterialProperties::setProperties_NH42SO4()
+void MaterialProperties::setProperties_NH42SO4 ()
 {
     m_density = Real(1770.0);
 
@@ -245,7 +245,7 @@ void MaterialProperties::setProperties_NH42SO4()
 }
 
 AMREX_GPU_HOST_DEVICE
-void MaterialProperties::setProperties_NH4HSO4()
+void MaterialProperties::setProperties_NH4HSO4 ()
 {
     m_density = Real(1780.0);
 
@@ -257,7 +257,7 @@ void MaterialProperties::setProperties_NH4HSO4()
 }
 
 AMREX_GPU_HOST_DEVICE
-void MaterialProperties::setProperties_soil()
+void MaterialProperties::setProperties_soil ()
 {
     m_density = Real(1220.0); // loose dry dirt
 

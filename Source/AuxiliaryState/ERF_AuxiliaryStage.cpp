@@ -1,11 +1,12 @@
 #include "ERF_AuxiliaryStage.H"
 
 #include <cmath>
+#include <cstdint>
 
 namespace erf_auxiliary {
 namespace {
 
-int stage_count(const HostIntegrator method) noexcept
+int stage_count (const HostIntegrator method) noexcept
 {
     switch (method) {
     case HostIntegrator::CompressibleRK3: return 3;
@@ -15,27 +16,42 @@ int stage_count(const HostIntegrator method) noexcept
     return 0;
 }
 
-bool finite_nonnegative(const double value) noexcept
+bool finite_nonnegative (const double value) noexcept
 {
     return std::isfinite(value) && value >= 0.0;
 }
 
-bool valid_const_view(const ConstTimedFieldView& view,
-                      const double expected_time) noexcept
+bool valid_const_view (const ConstTimedFieldView& view,
+                       const double expected_time) noexcept
 {
     return view.field != nullptr && view.component >= 0 &&
            view.component < view.field->nComp() &&
            std::isfinite(view.time) && view.time == expected_time;
 }
 
-bool same_layout(const amrex::MultiFab& a, const amrex::MultiFab& b)
+bool storage_overlaps (const amrex::MultiFab& lhs, const amrex::MultiFab& rhs)
 {
-    return a.boxArray() == b.boxArray() && a.DistributionMap() == b.DistributionMap();
+    if (&lhs == &rhs) { return true; }
+    if (!SameCellLayout(lhs, rhs)) { return false; }
+    for (amrex::MFIter mfi(lhs); mfi.isValid(); ++mfi) {
+        const auto& lhs_fab = lhs[mfi];
+        const auto& rhs_fab = rhs[mfi];
+        const auto lhs_begin = reinterpret_cast<std::uintptr_t>(lhs_fab.dataPtr());
+        const auto rhs_begin = reinterpret_cast<std::uintptr_t>(rhs_fab.dataPtr());
+        const auto lhs_size = static_cast<std::uintptr_t>(lhs_fab.box().numPts()) *
+                              static_cast<std::uintptr_t>(lhs_fab.nComp()) * sizeof(amrex::Real);
+        const auto rhs_size = static_cast<std::uintptr_t>(rhs_fab.box().numPts()) *
+                              static_cast<std::uintptr_t>(rhs_fab.nComp()) * sizeof(amrex::Real);
+        if (lhs_begin < rhs_begin + rhs_size && rhs_begin < lhs_begin + lhs_size) {
+            return true;
+        }
+    }
+    return false;
 }
 
 } // namespace
 
-const char* HostIntegratorName(const HostIntegrator method) noexcept
+const char* HostIntegratorName (const HostIntegrator method) noexcept
 {
     switch (method) {
     case HostIntegrator::CompressibleRK3: return "CompressibleRK3";
@@ -45,11 +61,11 @@ const char* HostIntegratorName(const HostIntegrator method) noexcept
     return "Unknown";
 }
 
-bool MakeAuxiliaryStageRecipe(const HostIntegrator method,
-                              const int stage,
-                              const double host_stage_interval,
-                              AuxiliaryStageRecipe& recipe,
-                              std::string& diagnostic)
+bool MakeAuxiliaryStageRecipe (const HostIntegrator method,
+                               const int stage,
+                               const double host_stage_interval,
+                               AuxiliaryStageRecipe& recipe,
+                               std::string& diagnostic)
 {
     diagnostic.clear();
     recipe = {};
@@ -68,17 +84,9 @@ bool MakeAuxiliaryStageRecipe(const HostIntegrator method,
 
     if (method == HostIntegrator::CompressibleRK3) {
         recipe.anchor_weight = 1.0;
-        if (stage == 0) {
-            recipe.limiter_trial_interval = host_stage_interval;
-            recipe.face_rate_time_coefficient = host_stage_interval;
-        } else if (stage == 1) {
-            recipe.limiter_trial_interval = host_stage_interval;
-            recipe.face_rate_time_coefficient = host_stage_interval;
-        } else {
-            recipe.limiter_trial_interval = host_stage_interval;
-            recipe.face_rate_time_coefficient = host_stage_interval;
-            recipe.completed_ledger_time = host_stage_interval;
-        }
+        recipe.limiter_trial_interval = host_stage_interval;
+        recipe.face_rate_time_coefficient = host_stage_interval;
+        if (stage == 2) { recipe.completed_ledger_time = host_stage_interval; }
     } else if (method == HostIntegrator::AnelasticHeun) {
         if (stage == 0) {
             recipe.anchor_weight = 1.0;
@@ -96,11 +104,12 @@ bool MakeAuxiliaryStageRecipe(const HostIntegrator method,
     return true;
 }
 
-bool BuildAuxiliaryIntensiveState(const ConstTimedFieldView& state_input,
-                                  const ConstTimedFieldView& rho_input,
-                                  const double input_time,
-                                  amrex::MultiFab& intensive,
-                                  std::string& diagnostic)
+bool BuildAuxiliaryIntensiveState (const ConstTimedFieldView& state_input,
+                                   const ConstTimedFieldView& rho_input,
+                                   const double input_time,
+                                   amrex::MultiFab& intensive,
+                                   const AuxiliaryFieldValidationPolicy validation,
+                                   std::string& diagnostic)
 {
     diagnostic.clear();
     if (!std::isfinite(input_time) ||
@@ -109,13 +118,18 @@ bool BuildAuxiliaryIntensiveState(const ConstTimedFieldView& state_input,
         diagnostic = "auxiliary intensive state requires state and density views at input_time";
         return false;
     }
-    if (!same_layout(intensive, *state_input.field) ||
-        !same_layout(intensive, *rho_input.field) ||
+    if (!SameCellLayout(intensive, *state_input.field) ||
+        !SameCellLayout(intensive, *rho_input.field) ||
         intensive.nComp() < 1) {
         diagnostic = "auxiliary intensive state fields must share a cell layout";
         return false;
     }
-    if (!ValidatePositiveFiniteComponent(*rho_input.field, rho_input.component, diagnostic)) {
+    if (validation == AuxiliaryFieldValidationPolicy::Global) {
+        if (!ValidatePositiveFiniteComponent(*rho_input.field, rho_input.component, diagnostic)) {
+            return false;
+        }
+    } else if (validation != AuxiliaryFieldValidationPolicy::AssumeValid) {
+        diagnostic = "auxiliary intensive state received an unknown validation policy";
         return false;
     }
     for (amrex::MFIter mfi(intensive, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -129,16 +143,27 @@ bool BuildAuxiliaryIntensiveState(const ConstTimedFieldView& state_input,
             out(i, j, k, 0) = state(i, j, k, state_comp) / rho(i, j, k, rho_comp);
         });
     }
-    if (!ValidateFiniteComponent(intensive, 0, diagnostic)) {
-        return false;
+    if (validation == AuxiliaryFieldValidationPolicy::Global) {
+        if (!ValidateFiniteComponent(intensive, 0, diagnostic)) {
+            return false;
+        }
     }
     return true;
 }
 
-void ApplyAuxiliaryMappedStage(const AuxiliaryStageContext& context,
-                               const MappedFaceFluxRate& rate,
-                               const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dx_inv,
-                               const int rate_component)
+bool AuxiliaryStageTargetIsDisjoint (const AuxiliaryStageContext& context)
+{
+    return context.state_target.field != nullptr &&
+           (context.state_anchor.field == nullptr ||
+            !storage_overlaps(*context.state_target.field, *context.state_anchor.field)) &&
+           (context.state_input.field == nullptr ||
+            !storage_overlaps(*context.state_target.field, *context.state_input.field));
+}
+
+void ApplyAuxiliaryMappedStage (const AuxiliaryStageContext& context,
+                                const MappedFaceFluxRate& rate,
+                                const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dx_inv,
+                                const int rate_component)
 {
     AMREX_ALWAYS_ASSERT(context.level >= 0 && context.stage >= 0);
     AMREX_ALWAYS_ASSERT(std::isfinite(context.step_old_time));
@@ -161,6 +186,7 @@ void ApplyAuxiliaryMappedStage(const AuxiliaryStageContext& context,
                         context.carrier.z != nullptr);
     AMREX_ALWAYS_ASSERT(rate.is_defined() && rate_component >= 0 &&
                         rate_component < rate.nComp());
+    AMREX_ALWAYS_ASSERT(AuxiliaryStageTargetIsDisjoint(context));
 
     const auto& target = *context.state_target.field;
     const auto& anchor = *context.state_anchor.field;
@@ -168,11 +194,15 @@ void ApplyAuxiliaryMappedStage(const AuxiliaryStageContext& context,
     const auto& omega_anchor = *context.measure_anchor.field;
     const auto& omega_input = *context.measure_input.field;
     const auto& omega_target = *context.measure_target.field;
-    AMREX_ALWAYS_ASSERT(same_layout(target, anchor));
-    AMREX_ALWAYS_ASSERT(same_layout(target, input));
-    AMREX_ALWAYS_ASSERT(same_layout(target, omega_anchor));
-    AMREX_ALWAYS_ASSERT(same_layout(target, omega_input));
-    AMREX_ALWAYS_ASSERT(same_layout(target, omega_target));
+    AMREX_ALWAYS_ASSERT(SameCellLayout(target, anchor));
+    AMREX_ALWAYS_ASSERT(SameCellLayout(target, input));
+    AMREX_ALWAYS_ASSERT(SameCellLayout(target, *context.rho_anchor.field));
+    AMREX_ALWAYS_ASSERT(SameCellLayout(target, *context.rho_input.field));
+    AMREX_ALWAYS_ASSERT(SameCellLayout(target, *context.rho_target.field));
+    AMREX_ALWAYS_ASSERT(SameCellLayout(target, omega_anchor));
+    AMREX_ALWAYS_ASSERT(SameCellLayout(target, omega_input));
+    AMREX_ALWAYS_ASSERT(SameCellLayout(target, omega_target));
+    AMREX_ALWAYS_ASSERT(MappedFaceLayoutMatchesCellLayout(rate, target));
 
     const amrex::Real anchor_weight = static_cast<amrex::Real>(context.recurrence.anchor_weight);
     const amrex::Real input_weight = static_cast<amrex::Real>(context.recurrence.input_weight);
@@ -215,7 +245,7 @@ void ApplyAuxiliaryMappedStage(const AuxiliaryStageContext& context,
     }
 }
 
-void CompletedStepFluxLedger::define(const amrex::BoxArray& cell_ba,
+void CompletedStepFluxLedger::define (const amrex::BoxArray& cell_ba,
                                     const amrex::DistributionMapping& dm,
                                     const int ncomp)
 {
@@ -227,16 +257,20 @@ void CompletedStepFluxLedger::define(const amrex::BoxArray& cell_ba,
     m_step_old_time = 0.0;
 }
 
-bool CompletedStepFluxLedger::accept_stage(const HostIntegrator method,
-                                           const int stage,
-                                           const double step_old_time,
-                                           const AuxiliaryStageRecipe& recipe,
-                                           const MappedFaceFluxRate& rate,
-                                           std::string& diagnostic)
+bool CompletedStepFluxLedger::accept_stage (const HostIntegrator method,
+                                            const int stage,
+                                            const double step_old_time,
+                                            const AuxiliaryStageRecipe& recipe,
+                                            const MappedFaceFluxRate& rate,
+                                            std::string& diagnostic)
 {
     diagnostic.clear();
     if (!is_defined() || !rate.is_defined() || rate.nComp() != m_integral.nComp()) {
         diagnostic = "completed-step ledger and face-rate layouts are not defined compatibly";
+        return false;
+    }
+    if (!SameMappedFaceLayout(m_integral, rate)) {
+        diagnostic = "completed-step ledger and face-rate BoxArray/DistributionMapping do not match";
         return false;
     }
     if (method == HostIntegrator::AnelasticMidPoint) {

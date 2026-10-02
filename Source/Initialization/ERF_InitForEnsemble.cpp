@@ -30,8 +30,8 @@ perturb_scale =
  * @param mf_cc_pert MultiFab filled with random perturbation components
  */
 void
-ERF::create_random_perturbations(const int lev,
-                                 MultiFab& mf_cc_pert)
+ERF::create_random_perturbations (const int lev,
+                                  MultiFab& mf_cc_pert)
 {
     const MultiFab& src = vars_new[lev][Vars::cons];
 
@@ -61,7 +61,7 @@ ERF::create_random_perturbations(const int lev,
  *
  * @param mf_cc_pert MultiFab whose components are normalized in place
  */
-void NormalizeMultiFabRMS_PerComponent(MultiFab& mf_cc_pert)
+void NormalizeMultiFabRMS_PerComponent (MultiFab& mf_cc_pert)
 {
     const int ncomp = mf_cc_pert.nComp();
 
@@ -114,7 +114,7 @@ void NormalizeMultiFabRMS_PerComponent(MultiFab& mf_cc_pert)
  */
 
 void
-ERF::apply_gaussian_smoothing_to_perturbations(const int lev, MultiFab& mf_cc_pert)
+ERF::apply_gaussian_smoothing_to_perturbations (const int lev, MultiFab& mf_cc_pert)
 {
     const Geometry& gm = geom[lev];
     const Real dx = gm.CellSize(0);
@@ -213,8 +213,8 @@ ERF::apply_gaussian_smoothing_to_perturbations(const int lev, MultiFab& mf_cc_pe
  * @param geom Geometry defining domain bounds and periodicity
  * @param mf_cc Cell-centered MultiFab whose ghost cells are filled in place
  */
-void ApplyNeumannBCs(const Geometry& geom,
-                     MultiFab& mf_cc)
+void ApplyNeumannBCs (const Geometry& geom,
+                      MultiFab& mf_cc)
 {
 
      // -------------------------------------------------
@@ -289,7 +289,7 @@ void ApplyNeumannBCs(const Geometry& geom,
  * @param data_qrain Rain water values read from the file
  */
 void
-ReadCustomDataFile(const std::string& filename_custom,
+ReadCustomDataFile (const std::string& filename_custom,
                         int& nx, int& ny, int& nz,
                         int& ng, int& ncomp,
                         std::array<Real,3>& problo_ext,
@@ -393,7 +393,7 @@ AMREX_FORCE_INLINE
  * @param ny Number of cells in the y-direction
  * @return Flattened index into a row-major 3D array
  */
-int idx(int i, int j, int k, int nx, int ny)
+int idx (int i, int j, int k, int nx, int ny)
 {
     return i + nx * (j + ny * k);
 }
@@ -415,7 +415,7 @@ AMREX_FORCE_INLINE
  * @param nz Number of cells in the z-direction
  * @return Interpolated scalar value
  */
-Real interp_trilinear(
+Real interp_trilinear (
     const Real* f,      // <-- raw pointer
     int i, int j, int k,
     Real tx, Real ty, Real tz,
@@ -465,7 +465,7 @@ Real interp_trilinear(
  * @param geom_fine Geometry of the fine grid
  */
 void
-InterpolateToFineMF(
+InterpolateToFineMF (
     const Vector<Real>& data_rho,
     const Vector<Real>& data_theta,
     const Vector<Real>& data_xvel,
@@ -687,9 +687,9 @@ MakeFinalMultiFabs (const MultiFab& mf_cc_fine,
  * @param ens_pert_amplitude Relative perturbation amplitude
  */
 void
-AddPertToBckgnd(MultiFab& mf_cc_fine,
-                const MultiFab& mf_cc_pert,
-                const Real& ens_pert_amplitude)
+AddPertToBckgnd (MultiFab& mf_cc_fine,
+                 const MultiFab& mf_cc_pert,
+                 const Real& ens_pert_amplitude)
 {
     const int ncomp = mf_cc_fine.nComp();
 
@@ -771,7 +771,7 @@ ERF::create_background_state_for_ensemble (int lev,
 
 
     Vector<std::string> varnames = {"density","theta", "x_velocity","y_velocity","z_velocity", "qv", "qc", "qrain"};
-    WriteSingleLevelPlotfile("1_plt_final_interp", mf_cc_fine, varnames, geom_fine, zero, 0);
+    //WriteSingleLevelPlotfile("1_plt_final_interp", mf_cc_fine, varnames, geom_fine, zero, 0);
 
     ApplyNeumannBCs(geom_fine, mf_cc_fine);
      // Add pertubrations stored in the "pert" variables in the function arguments

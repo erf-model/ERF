@@ -8,7 +8,7 @@ using namespace amrex;
  * @param[out] bins Vector of BoxArrays containing the grouped subdomains.
  */
 void
-ERF::make_subdomains(const BoxList& bl, Vector<BoxArray>& bins)
+ERF::make_subdomains (const BoxList& bl, Vector<BoxArray>& bins)
 {
     Vector<BoxList> bins_bl;
 

@@ -23,9 +23,9 @@ namespace fs = std::filesystem;
  * @param[out] surface_state MultiFabs to be filled with interpolated surface data.
  */
 void
-ERF::FillSurfaceStateMultiFabs(const int lev,
-                               const std::string& filename,
-                               Vector<MultiFab>& surface_state)
+ERF::FillSurfaceStateMultiFabs (const int lev,
+                                const std::string& filename,
+                                Vector<MultiFab>& surface_state)
 {
        // Open the binary file in input mode
     std::ifstream infile(filename, std::ios::binary);
@@ -154,10 +154,10 @@ ERF::FillSurfaceStateMultiFabs(const int lev,
  * @param[in] regrid_forces_file_read Flag indicating if a regrid requires a file read.
  */
 void
-ERF::SurfaceDataInterpolation(const int lev,
-                              const double time,
-                              amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z_phys_nd,
-                              bool regrid_forces_file_read)
+ERF::SurfaceDataInterpolation (const int lev,
+                               const double time,
+                               amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z_phys_nd,
+                               bool regrid_forces_file_read)
 {
 
     static amrex::Vector<double> next_read_forecast_time;

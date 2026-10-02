@@ -547,7 +547,7 @@ int NCGroup::num_attributes () const
     return nattrs;
 }
 
-int NCGroup::num_variables() const
+int NCGroup::num_variables () const
 {
     int nvars;
     check_nc_error(nc_inq(ncid, nullptr, &nvars, nullptr, nullptr));
@@ -645,7 +645,7 @@ void NCGroup::get_attr (const std::string& name, std::vector<float>& values) con
         nc_get_att_float(ncid, NC_GLOBAL, name.data(), values.data()));
 }
 
-void NCGroup::get_attr(const std::string& name, std::vector<int>& values) const
+void NCGroup::get_attr (const std::string& name, std::vector<int>& values) const
 {
     size_t lenp;
     check_nc_error(nc_inq_attlen(ncid, NC_GLOBAL, name.data(), &lenp));

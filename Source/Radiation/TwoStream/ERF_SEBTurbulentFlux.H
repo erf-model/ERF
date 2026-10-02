@@ -11,8 +11,10 @@
  * temperature. Unless the two are the same flux the ground never loses what the
  * air gains, so by default the balance takes the surface layer's flux.
  *
- * Precedence, per field and per level:
- *   1. a land-surface model field of that name ("hfx" or "lh");
+ * Precedence, per field, per level and per cell:
+ *   1. a land-surface model field of that name ("hfx" or "lh") where it holds a
+ *      valid value (is_valid_lsm_value: finite and below the lsm_undefined
+ *      placeholder a land model leaves in cells it does not process);
  *   2. the surface layer's applied flux, with seb_turbulent_flux_source =
  *      surface_layer and the flux field allocated: a zlo surface layer with any
  *      diffusion or closure, not on EB terrain; the latent flux only with a
@@ -60,20 +62,22 @@ select_seb_flux_origin (bool land_surface_field_present,
 /**
  * @brief Fill the SEB's H or LE [W/m^2] on the valid cells of seb_flux.
  *
- * Only the valid cells are written in the land-surface and surface-layer cases
- * (the default case sets the halo too): the force-restore update, the residual
- * diagnostic and the seb_hfx/seb_lh outputs all read valid cells only, so the
- * halo is never consumed. A consumer that needs it must fill it first.
+ * The selected values go to the valid cells; the halo always holds the fallback.
+ * The force-restore update, the residual diagnostic and the seb_hfx/seb_lh outputs
+ * read valid cells only. A consumer that needs neighbouring values in the halo must
+ * fill it first (FillBoundary).
  *
  * @param[out] seb_flux           2D SEB field (k = 0), laid out like the level's state
  * @param[in]  kind               sensible or latent
- * @param[in]  land_surface_field land-surface field of that name, or nullptr
+ * @param[in]  land_surface_field land-surface field of that name, or nullptr; cells
+ *                                holding no valid value take the next source
  * @param[in]  surface_layer_flux conservative z-face flux the surface layer applies
  *                                (rho w'theta' or rho w'qv'), or nullptr
  * @param[in]  surface_k          z index of the surface face in surface_layer_flux
  * @param[in]  source             erf.radiation.seb_turbulent_flux_source
  * @param[in]  fallback           the scalar default [W/m^2]
- * @return the source the field was filled from
+ * @return the highest-precedence source the field was filled from (cells of a
+ *         land-surface field without a valid value take the next one)
  */
 SEBFluxOrigin
 fill_seb_turbulent_flux (amrex::MultiFab& seb_flux,
@@ -83,5 +87,33 @@ fill_seb_turbulent_flux (amrex::MultiFab& seb_flux,
                          int surface_k,
                          SEBTurbulentFluxSource source,
                          amrex::Real fallback);
+
+
+/**
+ * @brief Fill one 2D surface-energy-balance input from land-surface model fields,
+ *        cell by cell.
+ *
+ * Each valid cell of seb_field is set to scale * field + add_field where both
+ * values are valid land-surface values (is_valid_lsm_value), and to fallback
+ * elsewhere. A land model leaves the lsm_undefined placeholder in cells it does
+ * not process (Noah-MP: open water and sea ice) and everywhere before its first
+ * step, which runs after the first radiation call; those cells take the scalar
+ * default rather than the placeholder. The halo always holds the fallback; only
+ * valid cells take land-surface values.
+ *
+ * @param[out] seb_field 2D SEB field (k = 0), laid out like the land-surface fields
+ * @param[in]  field     land-surface field, or nullptr
+ * @param[in]  fallback  the scalar default
+ * @param[in]  scale     factor on field (Noah-MP's fira is positive upward; the
+ *                       balance wants the absorbed flux, so -1)
+ * @param[in]  add_field second land-surface field added on top, or nullptr
+ *                       (Noah-MP splits the absorbed shortwave into sav and sag)
+ */
+void
+fill_seb_field_from_land_surface (amrex::MultiFab& seb_field,
+                                  const amrex::MultiFab* field,
+                                  amrex::Real fallback,
+                                  amrex::Real scale = amrex::Real(1.0),
+                                  const amrex::MultiFab* add_field = nullptr);
 
 #endif

@@ -53,21 +53,21 @@ public:
      * @param lhs Destination for the operator result
      * @param rhs Input vector with ghost cells available for boundary fills
      */
-    void apply(amrex::MultiFab& lhs, amrex::MultiFab const& rhs);
+    void apply (amrex::MultiFab& lhs, amrex::MultiFab const& rhs);
 
     /**
      * Fill ghost cells according to the configured Poisson boundary conditions.
      *
      * @param phi Field whose ghost cells are updated
      */
-    void apply_bcs(amrex::MultiFab& phi);
+    void apply_bcs (amrex::MultiFab& phi);
 
     /**
      * Enable or disable the FFT preconditioner.
      *
      * @param precond_flag True to use the FFT preconditioner
      */
-    void usePrecond(bool precond_flag);
+    void usePrecond (bool precond_flag);
 
     /**
      * Compute face-centered terrain Poisson fluxes from a solution field.
@@ -75,7 +75,7 @@ public:
      * @param phi Solution field used to compute gradients
      * @param fluxes Face-centered fluxes to fill
      */
-    void getFluxes(amrex::MultiFab& phi, amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
+    void getFluxes (amrex::MultiFab& phi, amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
 
     /**
      * Copy one vector into another.
@@ -83,7 +83,7 @@ public:
      * @param lhs Destination vector
      * @param rhs Source vector
      */
-    void assign(amrex::MultiFab& lhs, amrex::MultiFab const& rhs);
+    void assign (amrex::MultiFab& lhs, amrex::MultiFab const& rhs);
 
     /**
      * Scale a vector in place.
@@ -91,7 +91,7 @@ public:
      * @param lhs Vector to scale
      * @param fac Multiplicative scale factor
      */
-    void scale(amrex::MultiFab& lhs, amrex::Real fac);
+    void scale (amrex::MultiFab& lhs, amrex::Real fac);
 
     /**
      * Compute the vector dot product.
@@ -100,7 +100,7 @@ public:
      * @param v2 Second input vector
      * @return Dot product of v1 and v2
      */
-    amrex::Real dotProduct(amrex::MultiFab const& v1, amrex::MultiFab const& v2);
+    amrex::Real dotProduct (amrex::MultiFab const& v1, amrex::MultiFab const& v2);
 
     /**
      * Add a scaled vector into another vector.
@@ -109,7 +109,7 @@ public:
      * @param rhs Source vector
      * @param a Scale factor applied to rhs
      */
-    void increment(amrex::MultiFab& lhs, amrex::MultiFab const& rhs, amrex::Real a);
+    void increment (amrex::MultiFab& lhs, amrex::MultiFab const& rhs, amrex::Real a);
 
     /**
      * Compute a linear combination of two source vectors.
@@ -120,7 +120,7 @@ public:
      * @param b Scale factor applied to rhs_b
      * @param rhs_b Second source vector
      */
-    void linComb(amrex::MultiFab& lhs, amrex::Real a, amrex::MultiFab const& rhs_a,
+    void linComb (amrex::MultiFab& lhs, amrex::Real a, amrex::MultiFab const& rhs_a,
                  amrex::Real b, amrex::MultiFab const& rhs_b);
 
     /**
@@ -128,14 +128,14 @@ public:
      *
      * @return Newly allocated right-hand-side vector
      */
-    amrex::MultiFab makeVecRHS();
+    amrex::MultiFab makeVecRHS ();
 
     /**
      * Allocate a vector with the solution ghost-cell layout.
      *
      * @return Newly allocated solution vector
      */
-    amrex::MultiFab makeVecLHS();
+    amrex::MultiFab makeVecLHS ();
 
     /**
      * Compute the L2 norm of a vector.
@@ -143,7 +143,7 @@ public:
      * @param v Input vector
      * @return L2 norm of v
      */
-    amrex::Real norm2(amrex::MultiFab const& v);
+    amrex::Real norm2 (amrex::MultiFab const& v);
 
     /**
      * Apply the configured preconditioner.
@@ -151,14 +151,14 @@ public:
      * @param lhs Destination for the preconditioned result
      * @param rhs Input vector to precondition
      */
-    void precond(amrex::MultiFab& lhs, amrex::MultiFab const& rhs);
+    void precond (amrex::MultiFab& lhs, amrex::MultiFab const& rhs);
 
     /**
      * Set a vector to zero.
      *
      * @param v Vector to zero
      */
-    void setToZero(amrex::MultiFab& v);
+    void setToZero (amrex::MultiFab& v);
 
 private:
     bool m_use_precond = false;

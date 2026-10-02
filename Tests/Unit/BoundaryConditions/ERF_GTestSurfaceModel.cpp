@@ -37,7 +37,7 @@ struct SurfaceModelFixture {
     SolverChoice solver_choice{};
     std::unique_ptr<SurfaceModel> model;
 
-    explicit SurfaceModelFixture(const int nlevels = 1)
+    explicit SurfaceModelFixture (const int nlevels = 1)
     {
         amrex::RealBox real_box({AMREX_D_DECL(0.0, 0.0, 0.0)},
                                 {AMREX_D_DECL(2.0, 2.0, 4.0)});

@@ -115,10 +115,10 @@ redistribute_term ( int ncomp,
 
 //! \cond
 // Explicit template instantiations for the types we use
-template void redistribute_term(int, const Geometry&, MultiFab&, MultiFab&,
+template void redistribute_term (int, const Geometry&, MultiFab&, MultiFab&,
                                 MultiFab const&, EBFArrayBoxFactory const&,
                                 BCRec const*, double, int const);
-template void redistribute_term(int, const Geometry&, MultiFab&, MultiFab&,
+template void redistribute_term (int, const Geometry&, MultiFab&, MultiFab&,
                                 MultiFab const&, eb_aux_ const&,
                                 BCRec const*, double, int const);
 //! \endcond

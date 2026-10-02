@@ -82,7 +82,7 @@ canonicalize_metgrid_missing_values (const std::string& fname,
 } // namespace
 
 Box
-read_subdomain_from_metgrid(int /*lev*/, const std::string& fname, int& ratio, int& klo, int& khi)
+read_subdomain_from_metgrid (int /*lev*/, const std::string& fname, int& ratio, int& klo, int& khi)
 {
     int is, js;
     int nx, ny, nz;
