@@ -394,6 +394,7 @@ ComputeVerticalShear2 (int i, int j, int k,
  * @param[in] dzInv inverse vertical grid spacing
  * @param[in] u face-centered x-velocity
  * @param[in] v face-centered y-velocity
+ * @param[out] shear_is_valid whether the required shear stencil is available
  * @return vertical shear squared
  */
 AMREX_GPU_DEVICE
@@ -405,8 +406,10 @@ ComputeVerticalShear2_EB (int i, int j, int k,
                       const amrex::Array4<const amrex::Real>& v_vfrac,
                       amrex::Real dzInv,
                       const amrex::Array4<const amrex::Real>& u,
-                      const amrex::Array4<const amrex::Real>& v)
+                      const amrex::Array4<const amrex::Real>& v,
+                      bool& shear_is_valid)
 {
+    shear_is_valid = true;
     amrex::Real du_dz, dv_dz;
     amrex::Real f0, f1, fsum;
 
@@ -427,6 +430,7 @@ ComputeVerticalShear2_EB (int i, int j, int k,
     if (c_cflag(i,j,k+1).isCovered()) {
 
         if (c_cflag(i,j,k-1).isCovered()) {
+            shear_is_valid = false;
             return zero;
         }
 
@@ -437,6 +441,7 @@ ComputeVerticalShear2_EB (int i, int j, int k,
         f1 = u_vfrac(i+1, j, k-1);
         fsum = f0 + f1;
         if (fsum <= zero) {
+            shear_is_valid = false;
             return zero;
         }
         c_km1 = ((f0 > zero ? f0 * u(i,   j, k-1) : zero) +
@@ -463,6 +468,7 @@ ComputeVerticalShear2_EB (int i, int j, int k,
         f1 = v_vfrac(i, j+1, k-1);
         fsum = f0 + f1;
         if (fsum <= zero) {
+            shear_is_valid = false;
             return zero;
         }
         c_km1 = ((f0 > zero ? f0 * v(i, j,   k-1) : zero) +
@@ -494,6 +500,7 @@ ComputeVerticalShear2_EB (int i, int j, int k,
         f1 = u_vfrac(i+1, j, k+1);
         fsum = f0 + f1;
         if (fsum <= zero) {
+            shear_is_valid = false;
             return zero;
         }
         c_kp1 = ((f0 > zero ? f0 * u(i,   j, k+1) : zero) +
@@ -520,6 +527,7 @@ ComputeVerticalShear2_EB (int i, int j, int k,
         f1 = v_vfrac(i, j+1, k+1);
         fsum = f0 + f1;
         if (fsum <= zero) {
+            shear_is_valid = false;
             return zero;
         }
         c_kp1 = ((f0 > zero ? f0 * v(i, j,   k+1) : zero) +

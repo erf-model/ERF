@@ -448,15 +448,18 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
                     if (l_use_Ri_corr && l_has_xvel && l_has_yvel) {
                         Real N2 = zero;
                         Real S2_vert = zero;
+                        bool shear_is_valid = true;
                         if (c_cflag(i,j,k).isRegular()) {
                             N2 = ComputeN2(i, j, k, dzInv, l_abs_g, cell_data, moisture_indices);
                             S2_vert = ComputeVerticalShear2(i, j, k, dzInv, u_arr, v_arr);
                         } else if (c_cflag(i,j,k).isSingleValued()) {
                             N2 = ComputeN2_EB(i, j, k, c_cflag, dzInv, l_abs_g, cell_data, moisture_indices);
-                            S2_vert = ComputeVerticalShear2_EB(i, j, k, c_cflag, u_vfrac, v_vfrac, dzInv, u_arr, v_arr);
+                            S2_vert = ComputeVerticalShear2_EB(i, j, k, c_cflag, u_vfrac, v_vfrac, dzInv, u_arr, v_arr, shear_is_valid);
                         }
-                        Real Ri = ComputeRichardson(N2, S2_vert);
-                        stability_factor = StabilityFunction(Ri, l_Ri_crit);
+                        if (shear_is_valid) {
+                            Real Ri = ComputeRichardson(N2, S2_vert);
+                            stability_factor = StabilityFunction(Ri, l_Ri_crit);
+                        }
                     }
 
                     if (isotropic) {
