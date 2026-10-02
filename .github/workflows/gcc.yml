@@ -134,10 +134,12 @@ jobs:
         ctest -L shoc --output-on-failure --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build
 
-    - name: Run SINGLE SBM Remapping Tests
+    - name: Run SINGLE SBM Contract Tests
       if: matrix.mesh_precision == 'SINGLE' && matrix.particles == 'ON' && matrix.particles_precision == 'SINGLE'
       run: |
-        Tests/Unit/erf_unit_tests --gtest_filter='SBMRemapping.*'
+        ctest -R '^(SBMRemapping|SBMFoundation)\.' \
+              --output-on-failure \
+              --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build
 
     - name: Run Parallel Tests

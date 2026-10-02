@@ -451,11 +451,12 @@ liquid bin. Residual number and attached inventory are returned to the caller
 for process-level handling; the reference remapper itself does not create or
 modify an aerosol population.
 
-A separate fail-closed numerical-range status is used when a mathematically
-positive required deposited or reconstructed quantity underflows to exactly
-zero in the active floating-point precision. Such a condition is not
+A mathematically positive required quantity that underflows to exactly zero in
+the active floating-point precision is rejected fail-closed rather than
 reinterpreted as physical evaporation, residual material, or an empty
-population. Packet application remains atomic.
+population. Packet routing and application report this case as
+``NumericalUnderflow``; reconstruction and projection reject it through their
+existing invalid/failure returns. Packet application remains atomic.
 
 Restart and scientific identity
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
