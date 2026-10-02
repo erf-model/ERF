@@ -116,6 +116,12 @@ TEST(InputsName, AFileMayOverrideWhatItIncludedEarlier)
     EXPECT_TRUE(has_duplicates(d.write("twice", "FILE = " + d.path("base.inputs") + "\nmax_step = 5\nmax_step = 6\n")));
     // a second include that sets the key again is not an override
     EXPECT_TRUE(has_duplicates(d.write("sibling", "FILE = " + d.path("mid.inputs") + "\nFILE = " + d.path("base.inputs") + "\n")));
+    // nor is one whose first setting lies deeper, on another branch: the deck includes A (which
+    // includes B, setting the key) and then C, a sibling of A, sets it again
+    d.write("B.inputs", "erf.moisture_model = SAM\n");
+    d.write("A.inputs", "FILE = " + d.path("B.inputs") + "\n");
+    d.write("C.inputs", "erf.moisture_model = WDM6\n");
+    EXPECT_TRUE(has_duplicates(d.write("branches", "FILE = " + d.path("A.inputs") + "\nFILE = " + d.path("C.inputs") + "\n")));
 }
 
 TEST(InputsName, UnsetIsADirectiveThatDropsKeys)
@@ -169,6 +175,10 @@ TEST(InputsName, AnIncludeLoopIsFoundWhateverTheSpelling)
     EXPECT_NE(scan("self").error.find("includes itself"), std::string::npos);
     EXPECT_NE(scan("a").error.find("includes itself"), std::string::npos);
     EXPECT_NE(scan("direct").error.find("includes itself"), std::string::npos);
+    // an error deep in the includes leaves no include open: the state can scan again
+    auto state = scan("a");
+    EXPECT_TRUE(state.includes.empty());
+    EXPECT_TRUE(state.open_files.empty());
 }
 
 TEST(InputsName, TheInputsFilePrefixIsUsedForEveryFile)

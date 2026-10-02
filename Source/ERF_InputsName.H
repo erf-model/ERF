@@ -219,7 +219,8 @@ namespace erf_inputs_detail
             // ParmParse reads it into a clean table scope.
             if (def == amrex::ParmParse::FileKeyword && vals.size() == 1) {
                 scan_inputs(vals.front(), state);
-                if (!state.error.empty()) { return; }
+                // stop, closing this file's include on the way out
+                if (!state.error.empty()) { break; }
                 continue;
             }
 
