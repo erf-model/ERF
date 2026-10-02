@@ -13,7 +13,6 @@ ERF depends on the following external libraries:
 * **AMReX** - Adaptive mesh refinement framework (required, provided as submodule)
 * **RTE-RRTMGP** - Radiation model from E3SM (optional, provided as submodule)
 * **SHOC** - Simplified Higher-Order Closure turbulence and cloud macrophysics from E3SM (optional, requires extra setup)
-* **P3** - Microphysics scheme from E3SM (optional, requires extra setup)
 * **NetCDF** - I/O library for reading WRF inputs and writing plotfiles (optional, system-provided)
 * **HDF5** - Parallel I/O backend for NetCDF (optional, system-provided)
 
@@ -23,7 +22,7 @@ ERF uses the AMReX framework. The default method uses an internal AMReX submodul
 
 **Submodule Management**
 
-AMReX, EKAT, NOAH-MP, and RTE-RRTMGP are available as submodules in the ERF repository. SHOC and P3 require additional setup steps (see :ref:`sec:build:systems`). Kokkos is accessed as a submodule within EKAT.
+AMReX, EKAT, NOAH-MP, and RTE-RRTMGP are available as submodules in the ERF repository. SHOC requires additional setup steps (see :ref:`sec:build:systems`). Kokkos is accessed as a submodule within EKAT.
 
 **Dependency Relationships**
 
@@ -41,7 +40,6 @@ Physics packages have specific dependency requirements:
        // Physics packages
        RRTMGP [label="RRTMGP\n(Radiation)", fillcolor=lightcoral];
        SHOC [label="SHOC\n(Turbulence)", fillcolor=lightcoral];
-       P3 [label="P3\n(Microphysics)", fillcolor=lightcoral];
 
        // Dependencies
        NetCDF [fillcolor=lightblue];
@@ -57,13 +55,10 @@ Physics packages have specific dependency requirements:
        SHOC -> Kokkos [label="auto-enabled"];
        SHOC -> MPI [label="required*"];
 
-       P3 -> Kokkos [label="auto-enabled"];
-       P3 -> MPI [label="required*"];
-
        NetCDF -> HDF5 [style=dashed, label="parallel I/O"];
 
        // Layout
-       {rank=same; RRTMGP SHOC P3}
+       {rank=same; RRTMGP SHOC}
        {rank=same; NetCDF Kokkos MPI}
        {rank=min; HDF5}
    }
@@ -71,7 +66,7 @@ Physics packages have specific dependency requirements:
 .. note::
    MPI is required by EKAT (which provides Kokkos). CMake enforces this; GNU Make assumes it's set.
 
-Enabling RRTMGP, SHOC, or P3 automatically enables EKAT, which provides the Kokkos performance portability framework. The build system enforces these prerequisites:
+Enabling RRTMGP or SHOC automatically enables EKAT, which provides the Kokkos performance portability framework. The build system enforces these prerequisites:
 
 * EKAT requires MPI to be enabled
 * RRTMGP requires both NetCDF and MPI to be enabled
