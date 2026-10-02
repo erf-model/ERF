@@ -30,6 +30,22 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
     const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
 
+    //
+    // An ext_dir_upwind face decides inflow against the face velocity, but the box we
+    // loop over does not always have a face velocity at every one of its cells: the
+    // state carries one more lateral ghost than the velocities do (ngrow_state =
+    // ComputeGhostCells()+1 against ngrow_vels = ComputeGhostCells()), and a velocity
+    // box is nodal in its own direction where the array being read is cell centered.
+    // Either way the outermost ghost cells have no velocity of their own, so sample
+    // the nearest one that exists. Cells already inside the velocity array are
+    // unaffected; only that outermost layer changes, and it previously read out of
+    // bounds.
+    //
+    const auto& xvel_lo = lbound(xvel_arr);
+    const auto& xvel_hi = ubound(xvel_arr);
+    const auto& yvel_lo = lbound(yvel_arr);
+    const auto& yvel_hi = ubound(yvel_arr);
+
     // xlo: ori = 0
     // ylo: ori = 1
     // zlo: ori = 2
@@ -74,6 +90,34 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
     bool is_periodic_in_x = geomdata.isPeriodic(0);
     bool is_periodic_in_y = geomdata.isPeriodic(1);
 
+    // The density a ghost cell on each face carries after this fill: the prescribed inflow
+    // density where Rho itself is ext_dir or ext_dir_upwind on that face (<face>.density was
+    // given), otherwise
+    // the first interior cell's. A primitive Dirichlet value (ext_dir_prim, e.g. theta from a
+    // dirichlet_file) must be multiplied by that density, not by the interior density alone:
+    // otherwise the ghost holds rho_interior * theta over a ghost density rho_in, and the
+    // primitive theta the scheme sees is scaled by rho_interior / rho_in.
+    // Only the faces that read a theta file use th_bc_data, in the form they read it in
+    // (one profile in z, so the lateral faces only); see ERF::m_th_file_face
+    const GpuArray<int,AMREX_SPACEDIM*2> th_file = m_th_file_face;
+    GpuArray<int,6>  rho_is_extdir;
+    GpuArray<Real,6> rho_extdir_val;
+    for (int ori = 0; ori < 2*AMREX_SPACEDIM; ori++) {
+        const int dir  = ori % AMREX_SPACEDIM;
+        const bool low = (ori < AMREX_SPACEDIM);
+        const int rho_type = low ? m_domain_bcs_type[BCVars::Rho_bc_comp].lo(dir)
+                                 : m_domain_bcs_type[BCVars::Rho_bc_comp].hi(dir);
+        const Real rho_val = m_bc_extdir_vals[BCVars::Rho_bc_comp][ori];
+        // ext_dir_upwind: the ghost takes rho_in where the face flows in, which is the only
+        // place a Dirichlet theta is applied on such a face
+        rho_is_extdir[ori]  = ((rho_type == ERFBCType::ext_dir || rho_type == ERFBCType::ext_dir_upwind)
+                               && rho_val > zero) ? 1 : 0;
+        rho_extdir_val[ori] = rho_val;
+    }
+    // Not covered: a density ingested from boundary planes (Rho typed ext_dir_ingested) varies
+    // over the face, so a primitive theta file on that face is still converted with the first
+    // interior cell's density below; the planes then carry the matching theta in practice.
+
     // First do all ext_dir bcs
     if (!is_periodic_in_x)
     {
@@ -97,16 +141,22 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                 int l_bc_type = bc_ptr[n].lo(0);
 
                 if ( (l_bc_type == ERFBCType::ext_dir) ||
-                     (l_bc_type == ERFBCType::ext_dir_upwind && xvel_arr(dom_lo.x,j,k) >= zero) )
+                     (l_bc_type == ERFBCType::ext_dir_upwind && xvel_arr(dom_lo.x,Clamp(j,xvel_lo.y,xvel_hi.y),Clamp(k,xvel_lo.z,xvel_hi.z)) >= zero) )
                 {
-                    if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
-                        dest_arr(i,j,k,dest_comp) = th_bc_ptr[k_profile];
+                    if ((dest_comp == RhoTheta_comp) && th_bc_ptr && th_file[0] != 0) {
+                        // a theta profile reaches ext_dir only as rho*theta (th_file 1) or on an
+                        // ext_dir_upwind face, which has no primitive variant (th_file 2):
+                        // convert the latter with the ghost density here
+                        const Real rho_th = (th_file[0] == 2)
+                                          ? (rho_is_extdir[0] ? rho_extdir_val[0] : dest_arr(dom_lo.x,j,k,Rho_comp))
+                                          : Real(1.0);
+                        dest_arr(i,j,k,dest_comp) = rho_th * th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][0];
                     }
                 } else if (l_bc_type == ERFBCType::ext_dir_prim) {
-                    Real rho = dest_arr(dom_lo.x,j,k,Rho_comp);
-                    if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
+                    Real rho = rho_is_extdir[0] ? rho_extdir_val[0] : dest_arr(dom_lo.x,j,k,Rho_comp);
+                    if ((dest_comp == RhoTheta_comp) && th_bc_ptr && th_file[0] == 2) {
                         dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][0];
@@ -123,16 +173,22 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                 int h_bc_type = bc_ptr[n].hi(0);
 
                 if ( (h_bc_type == ERFBCType::ext_dir) ||
-                     (h_bc_type == ERFBCType::ext_dir_upwind && xvel_arr(dom_hi.x+1,j,k) <= zero) )
+                     (h_bc_type == ERFBCType::ext_dir_upwind && xvel_arr(dom_hi.x+1,Clamp(j,xvel_lo.y,xvel_hi.y),Clamp(k,xvel_lo.z,xvel_hi.z)) <= zero) )
                 {
-                    if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
-                        dest_arr(i,j,k,dest_comp) = th_bc_ptr[k_profile];
+                    if ((dest_comp == RhoTheta_comp) && th_bc_ptr && th_file[3] != 0) {
+                        // a theta profile reaches ext_dir only as rho*theta (th_file 1) or on an
+                        // ext_dir_upwind face, which has no primitive variant (th_file 2):
+                        // convert the latter with the ghost density here
+                        const Real rho_th = (th_file[3] == 2)
+                                          ? (rho_is_extdir[3] ? rho_extdir_val[3] : dest_arr(dom_hi.x,j,k,Rho_comp))
+                                          : Real(1.0);
+                        dest_arr(i,j,k,dest_comp) = rho_th * th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][3];
                     }
                 } else if (h_bc_type == ERFBCType::ext_dir_prim) {
-                    Real rho = dest_arr(dom_hi.x,j,k,Rho_comp);
-                    if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
+                    Real rho = rho_is_extdir[3] ? rho_extdir_val[3] : dest_arr(dom_hi.x,j,k,Rho_comp);
+                    if ((dest_comp == RhoTheta_comp) && th_bc_ptr && th_file[3] == 2) {
                         dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][3];
@@ -164,16 +220,22 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                 if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
                 int l_bc_type = bc_ptr[n].lo(1);
                 if ( (l_bc_type == ERFBCType::ext_dir) ||
-                     (l_bc_type == ERFBCType::ext_dir_upwind && yvel_arr(i,dom_lo.y,k) >= zero) )
+                     (l_bc_type == ERFBCType::ext_dir_upwind && yvel_arr(Clamp(i,yvel_lo.x,yvel_hi.x),dom_lo.y,Clamp(k,yvel_lo.z,yvel_hi.z)) >= zero) )
                 {
-                    if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
-                        dest_arr(i,j,k,dest_comp) = th_bc_ptr[k_profile];
+                    if ((dest_comp == RhoTheta_comp) && th_bc_ptr && th_file[1] != 0) {
+                        // a theta profile reaches ext_dir only as rho*theta (th_file 1) or on an
+                        // ext_dir_upwind face, which has no primitive variant (th_file 2):
+                        // convert the latter with the ghost density here
+                        const Real rho_th = (th_file[1] == 2)
+                                          ? (rho_is_extdir[1] ? rho_extdir_val[1] : dest_arr(i,dom_lo.y,k,Rho_comp))
+                                          : Real(1.0);
+                        dest_arr(i,j,k,dest_comp) = rho_th * th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][1];
                     }
                 } else if (l_bc_type == ERFBCType::ext_dir_prim) {
-                    Real rho = dest_arr(i,dom_lo.y,k,Rho_comp);
-                    if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
+                    Real rho = rho_is_extdir[1] ? rho_extdir_val[1] : dest_arr(i,dom_lo.y,k,Rho_comp);
+                    if ((dest_comp == RhoTheta_comp) && th_bc_ptr && th_file[1] == 2) {
                         dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][1];
@@ -189,16 +251,22 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                 if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
                 int h_bc_type = bc_ptr[n].hi(1);
                 if ( (h_bc_type == ERFBCType::ext_dir) ||
-                     (h_bc_type == ERFBCType::ext_dir_upwind && yvel_arr(i,dom_hi.y+1,k) <= zero) )
+                     (h_bc_type == ERFBCType::ext_dir_upwind && yvel_arr(Clamp(i,yvel_lo.x,yvel_hi.x),dom_hi.y+1,Clamp(k,yvel_lo.z,yvel_hi.z)) <= zero) )
                 {
-                    if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
-                        dest_arr(i,j,k,dest_comp) = th_bc_ptr[k_profile];
+                    if ((dest_comp == RhoTheta_comp) && th_bc_ptr && th_file[4] != 0) {
+                        // a theta profile reaches ext_dir only as rho*theta (th_file 1) or on an
+                        // ext_dir_upwind face, which has no primitive variant (th_file 2):
+                        // convert the latter with the ghost density here
+                        const Real rho_th = (th_file[4] == 2)
+                                          ? (rho_is_extdir[4] ? rho_extdir_val[4] : dest_arr(i,dom_hi.y,k,Rho_comp))
+                                          : Real(1.0);
+                        dest_arr(i,j,k,dest_comp) = rho_th * th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = l_bc_extdir_vals_d[bc_comp][4];
                     }
                 } else if (h_bc_type == ERFBCType::ext_dir_prim) {
-                    Real rho = dest_arr(i,dom_hi.y,k,Rho_comp);
-                    if ((dest_comp == RhoTheta_comp) && th_bc_ptr) {
+                    Real rho = rho_is_extdir[4] ? rho_extdir_val[4] : dest_arr(i,dom_hi.y,k,Rho_comp);
+                    if ((dest_comp == RhoTheta_comp) && th_bc_ptr && th_file[4] == 2) {
                         dest_arr(i,j,k,dest_comp) = rho * th_bc_ptr[k_profile];
                     } else {
                         dest_arr(i,j,k,dest_comp) = rho * l_bc_extdir_vals_d[bc_comp][4];

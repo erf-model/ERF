@@ -11,24 +11,24 @@ namespace erf_sbm {
 
 namespace {
 
-void add_constraint(ConstraintGroup& group, std::string id,
-                    std::initializer_list<ConstraintTerm> terms)
+void add_constraint (ConstraintGroup& group, std::string id,
+                     std::initializer_list<ConstraintTerm> terms)
 {
     group.constraints.push_back({std::move(id), std::vector<ConstraintTerm>(terms)});
 }
 
-bool finite(const amrex::Real x) noexcept { return std::isfinite(x); }
+bool finite (const amrex::Real x) noexcept { return std::isfinite(x); }
 
 } // namespace
 
-bool ConstraintGroup::contains(const int component) const noexcept
+bool ConstraintGroup::contains (const int component) const noexcept
 {
     for (const int member : members) if (member == component) return true;
     return false;
 }
 
-amrex::Real ConstraintGroup::evaluate(const LinearConstraint& constraint,
-                                      const std::vector<amrex::Real>& state) const
+amrex::Real ConstraintGroup::evaluate (const LinearConstraint& constraint,
+                                       const std::vector<amrex::Real>& state) const
 {
     amrex::Real result = amrex::Real(0.0);
     for (const auto& term : constraint.terms) {
@@ -40,9 +40,9 @@ amrex::Real ConstraintGroup::evaluate(const LinearConstraint& constraint,
     return result;
 }
 
-bool ConstraintGroup::admissible(const std::vector<amrex::Real>& state,
-                                 amrex::Real* minimum_margin,
-                                 std::string* failed_constraint) const
+bool ConstraintGroup::admissible (const std::vector<amrex::Real>& state,
+                                  amrex::Real* minimum_margin,
+                                  std::string* failed_constraint) const
 {
     amrex::Real minimum = std::numeric_limits<amrex::Real>::infinity();
     for (const auto& constraint : constraints) {
@@ -74,7 +74,7 @@ bool ConstraintGroup::admissible(const std::vector<amrex::Real>& state,
     return true;
 }
 
-std::vector<ConstraintGroup> make_constraint_groups(const SBMLayout& layout)
+std::vector<ConstraintGroup> make_constraint_groups (const SBMLayout& layout)
 {
     std::vector<ConstraintGroup> groups;
     for (const auto& population : layout.populations()) {
@@ -164,17 +164,23 @@ std::vector<ConstraintGroup> make_constraint_groups(const SBMLayout& layout)
     return groups;
 }
 
-std::vector<ConstraintDescriptor> make_constraint_descriptors(const SBMLayout& layout)
+FlattenedConstraintSet flatten_constraint_groups (const std::vector<ConstraintGroup>& groups,
+                                                  const int state_components)
 {
-    const auto groups = make_constraint_groups(layout);
-    std::vector<ConstraintDescriptor> descriptors;
+    if (state_components < 0) {
+        throw std::invalid_argument("SBM production constraints require a nonnegative state size");
+    }
+    FlattenedConstraintSet flattened;
     for (std::size_t gi = 0; gi < groups.size(); ++gi) {
         const auto& group = groups[gi];
         for (std::size_t ci = 0; ci < group.constraints.size(); ++ci) {
             const auto& constraint = group.constraints[ci];
-            if (constraint.terms.empty() || constraint.terms.size() > 2) {
+            if (constraint.terms.empty() ||
+                constraint.terms.size() > static_cast<std::size_t>(std::numeric_limits<int>::max()) ||
+                flattened.terms.size() > static_cast<std::size_t>(std::numeric_limits<int>::max()) -
+                    constraint.terms.size()) {
                 throw std::invalid_argument(
-                    "SBM production constraints must have one or two linear terms: " +
+                    "SBM production constraints require a nonempty representable sparse term range: " +
                     constraint.semantic_id);
             }
             ConstraintDescriptor descriptor;
@@ -182,21 +188,30 @@ std::vector<ConstraintDescriptor> make_constraint_descriptors(const SBMLayout& l
             descriptor.population_id = group.population_id;
             descriptor.bin = group.bin;
             descriptor.constraint_index = static_cast<int>(ci);
+            descriptor.term_offset = static_cast<int>(flattened.terms.size());
             descriptor.term_count = static_cast<int>(constraint.terms.size());
-            descriptor.component0 = constraint.terms[0].component;
-            descriptor.coefficient0 = constraint.terms[0].coefficient;
-            if (constraint.terms.size() == 2) {
-                descriptor.component1 = constraint.terms[1].component;
-                descriptor.coefficient1 = constraint.terms[1].coefficient;
+            for (const auto& term : constraint.terms) {
+                if (term.component < 0 || term.component >= state_components ||
+                    !finite(term.coefficient)) {
+                    throw std::invalid_argument(
+                        "SBM production constraint has an invalid sparse term: " +
+                        constraint.semantic_id);
+                }
+                flattened.terms.push_back(term);
             }
-            descriptors.push_back(descriptor);
+            flattened.constraints.push_back(descriptor);
         }
     }
-    return descriptors;
+    return flattened;
+}
+
+FlattenedConstraintSet make_constraint_descriptors (const SBMLayout& layout)
+{
+    return flatten_constraint_groups(make_constraint_groups(layout), layout.ncomp());
 }
 
 std::vector<AttachedPropertySupportDescriptor>
-make_attached_property_support_descriptors(const SBMLayout& layout)
+make_attached_property_support_descriptors (const SBMLayout& layout)
 {
     std::vector<AttachedPropertySupportDescriptor> result;
     const auto groups = make_constraint_groups(layout);
@@ -239,7 +254,7 @@ make_attached_property_support_descriptors(const SBMLayout& layout)
 }
 
 std::vector<ConstraintClosureChunk>
-make_constraint_closure_chunks(const SBMLayout& layout, const int max_groups)
+make_constraint_closure_chunks (const SBMLayout& layout, const int max_groups)
 {
     if (max_groups <= 0) {
         throw std::invalid_argument("SBM scratch chunk size must be a positive number of complete groups");
@@ -262,49 +277,23 @@ make_constraint_closure_chunks(const SBMLayout& layout, const int max_groups)
     return chunks;
 }
 
-EndpointTransform transform_two_moment(const amrex::Real C, const amrex::Real M,
-                                       const amrex::Real lower, const amrex::Real upper)
+EndpointTransform transform_two_moment (const amrex::Real C, const amrex::Real M,
+                                        const amrex::Real lower, const amrex::Real upper)
 {
-    if (!finite(C) || !finite(M) || !finite(lower) || !finite(upper) || !(lower < upper)) {
-        throw std::invalid_argument("two-moment transform requires finite edges and strict lower < upper");
-    }
-    if (C < amrex::Real(0.0)) throw std::invalid_argument("two-moment count is negative");
-    const amrex::Real scale = std::abs(M) + std::abs(lower * C) + std::abs(upper * C);
-    const amrex::Real tolerance = amrex::Real(128.0) *
-        std::numeric_limits<amrex::Real>::epsilon() * scale;
-    const amrex::Real low_numerator = std::fma(upper, C, -M);
-    const amrex::Real high_numerator = std::fma(-lower, C, M);
-    if (low_numerator < -tolerance || high_numerator < -tolerance) {
-        throw std::invalid_argument("materially non-realizable two-moment state");
-    }
-    if (C == amrex::Real(0.0)) {
-        if (std::abs(M) > tolerance) throw std::invalid_argument("zero-number state carries mass");
-        return {amrex::Real(0.0), amrex::Real(0.0), tolerance, std::abs(M) > amrex::Real(0.0)};
-    }
-    const amrex::Real denominator = upper - lower;
-    amrex::Real L = low_numerator / denominator;
-    amrex::Real H = high_numerator / denominator;
-    bool normalized = false;
-    if (L < amrex::Real(0.0)) { L = amrex::Real(0.0); normalized = true; }
-    if (H < amrex::Real(0.0)) { H = amrex::Real(0.0); normalized = true; }
-    return {L, H, tolerance / denominator, normalized};
+    return SpectralGrid::two_moment_to_endpoints(C, M, lower, upper);
 }
 
-std::pair<amrex::Real, amrex::Real> inverse_two_moment(const amrex::Real L, const amrex::Real H,
-                                                       const amrex::Real lower, const amrex::Real upper)
+std::pair<amrex::Real, amrex::Real> inverse_two_moment (const amrex::Real L, const amrex::Real H,
+                                                        const amrex::Real lower, const amrex::Real upper)
 {
-    if (!finite(L) || !finite(H) || !finite(lower) || !finite(upper) || !(lower < upper) ||
-        L < amrex::Real(0.0) || H < amrex::Real(0.0)) {
-        throw std::invalid_argument("invalid endpoint transport state");
-    }
-    return {L + H, std::fma(lower, L, upper * H)};
+    return SpectralGrid::endpoints_to_two_moment(L, H, lower, upper);
 }
 
-bool property_support_is_admissible(const amrex::Real property,
-                                    const amrex::Real carrier_number,
-                                    const amrex::Real lower,
-                                    const amrex::Real upper,
-                                    const amrex::Real tolerance) noexcept
+bool property_support_is_admissible (const amrex::Real property,
+                                     const amrex::Real carrier_number,
+                                     const amrex::Real lower,
+                                     const amrex::Real upper,
+                                     const amrex::Real tolerance) noexcept
 {
     if (!finite(property) || !finite(carrier_number) || !finite(lower) || !finite(upper) ||
         carrier_number < amrex::Real(0.0) || lower < amrex::Real(0.0) || upper < lower) return false;

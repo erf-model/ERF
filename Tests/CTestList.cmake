@@ -300,6 +300,44 @@ function(add_test_two_stream_radiation TEST_NAME PLTFILE)
         ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
 endfunction(add_test_two_stream_radiation)
 
+# Run a two-stream deck with the surface energy balance's H and LE taken from the
+# surface layer and from the scalar defaults, and check the balance removed the surface
+# layer's fluxes from the ground (Tests/check_two_stream_seb_flux_source.py).
+function(add_test_two_stream_seb_flux_source TEST_NAME)
+    set(oneValueArgs "CHECKER_OPTIONS" "DT")
+    cmake_parse_arguments(ADD_TEST_SEBFS "" "${oneValueArgs}" "" ${ARGN})
+    set(_sebfs_dt "1.0")
+    if(DEFINED ADD_TEST_SEBFS_DT AND NOT "${ADD_TEST_SEBFS_DT}" STREQUAL "")
+        set(_sebfs_dt "${ADD_TEST_SEBFS_DT}")
+    endif()
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DFEXTRACT=${FEXTRACT_EXE}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${TWO_STREAM_SEB_FLUX_SOURCE_CHECKER}"
+        "-DSTEPS=10"
+        "-DDT=${_sebfs_dt}"
+        "-DHEAT_CAPACITY=2.0e4"
+        "-DCHECKER_OPTIONS=${ADD_TEST_SEBFS_CHECKER_OPTIONS}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunTwoStreamSEBFluxSource.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;radiation"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/surface_layer/simulation.log;${CURRENT_TEST_BINARY_DIR}/defaults/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_way/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+endfunction(add_test_two_stream_seb_flux_source)
+
 function(add_test_cloud_chamber_parity TEST_NAME)
     set(TEST_FILES_DIR "CloudChamber_SatAdj")
     if (ARGC GREATER 1)
@@ -606,6 +644,38 @@ function(add_test_at_rest_terrain_outflow TEST_NAME PLTFILE TOLERANCE GRADP_TOLE
         LABELS "regression"
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/symmetry/simulation.log;${CURRENT_TEST_BINARY_DIR}/outflow/simulation.log;${CURRENT_TEST_BINARY_DIR}/at_rest.log")
 endfunction(add_test_at_rest_terrain_outflow)
+
+# Field-bounds test: run one deck and require the extrema of a plotfile variable to stay
+# within [LO, HI]. The three inflow cases keep a 300 K box at 300 K: a primitive theta from
+# a dirichlet_file is multiplied by the ghost density the face prescribes on an Inflow face
+# (InflowThetaDensity) and on an inflow_outflow face (InflowOutflowThetaFile), and only the
+# face that read the file uses it (InflowThetaFileOtherFace, a second inflow face with its
+# own density and theta).
+function(add_test_field_bounds TEST_NAME PLTFILE VARIABLE LO HI)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DFEXTREMA=${FEXTREMA_EXE}"
+        "-DPLTFILE=${PLTFILE}"
+        "-DVARIABLE=${VARIABLE}"
+        "-DLO=${LO}"
+        "-DHI=${HI}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunFieldBounds.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 600
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/simulation.log")
+endfunction(add_test_field_bounds)
 
 # Positive startup regression for the retained legacy theta/qv parser path.
 # This intentionally has no physical-temperature or physical-wall keys.
@@ -968,6 +1038,9 @@ set_tests_properties(SHOC_Unstable_Cloud_SatAdj_vs_NoCond
 # execute_process needs mpiexec, and does not expand the executable globs used on Windows
 if(NOT WIN32)
 add_test_at_rest_terrain_outflow(AtRestTerrainOutflow "plt00400" 1.0e-8 0.1)
+add_test_field_bounds(InflowThetaDensity "plt00010" theta 299.999 300.001)
+add_test_field_bounds(InflowOutflowThetaFile "plt00010" theta 299.999 300.001)
+add_test_field_bounds(InflowThetaFileOtherFace "plt00010" theta 299.999 300.001)
 endif()
 endif()
 
@@ -1488,6 +1561,16 @@ function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME
 endfunction(add_test_abort)
 
 if(ERF_ENABLE_MPI AND NOT WIN32)
+  # The two-stream model supplies Noah-MP's radiative forcing on a single level only, so
+  # a refined run with the pair must stop at start-up rather than run unverified. The
+  # check sits in SolverChoice::init_params, ahead of anything that needs the Noah-MP
+  # build, so it runs in every build: the two-level two-stream deck with Noah-MP selected.
+  add_test_abort(TwoStream_NoahMP_MultiLevelAbort
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_ColumnHeating_TwoLevel
+                 TwoStream_ColumnHeating_TwoLevel.i
+                 "with erf.land_surface_model = NOAHMP is supported on a single level only"
+                 "erf.land_surface_model=NOAHMP")
+
   # A shallow nest -- a fine level that stops below the domain top -- has no complete
   # column, so the sweep cannot run on it. That is a supported configuration, not an
   # error: advance_radiation interpolates the level's heating rates and fluxes from its
@@ -1575,6 +1658,36 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   # PLT2DFILE the check would pass on a surface temperature that reset to its default.
   add_test_restart_parity(TwoStream_PrognosticSEB_Restart TwoStream_PrognosticSEBRestart 3 6
                           PLT2DFILE "plt2d00006")
+
+  # The prognostic surface energy balance must remove from the ground the sensible and
+  # latent heat the surface layer puts into the air. The deck runs twice, with
+  # erf.radiation.seb_turbulent_flux_source = surface_layer and = defaults; the checker
+  # asserts the balance's seb_hfx/seb_lh equal the surface layer's sensible_heat_flux/
+  # latent_heat_flux at every step (to 1e-10 relative, with |H| and |LE| above 1 W/m^2),
+  # that the defaults leg keeps the constants, and that the skin ends cooler by
+  # sum(dt (H + LE)) / C_s to 5 %. With the balance reading the defaults in both legs
+  # (the behaviour before this test) seb_hfx is 0 against a sensible_heat_flux of tens
+  # of W/m^2, and the two skins agree.
+  if(ERF_TEST_PYTHON)
+    add_test_two_stream_seb_flux_source(TwoStream_SEBSurfaceLayerFluxes)
+    # The same on two levels over a ridge, level 1 created at step 7 over the middle half:
+    # every level and column checked, with per-column surface-layer fluxes (H spread
+    # across the coarse columns at least 0.5 W/m^2, so the columns are told apart). No
+    # subcycling, so a 0.5 s step keeps the fine level's acoustic substeps stable.
+    add_test_two_stream_seb_flux_source(TwoStream_SEBSurfaceLayerFluxesMultiLevel
+                                        DT 0.5
+                                        CHECKER_OPTIONS "--multilevel --min-spread 0.5")
+  endif()
+
+  # With seb_turbulent_flux_source = surface_layer (the default) the balance takes H from
+  # the surface layer wherever its flux field exists -- including an adiabatic surface layer,
+  # whose flux is zero -- so a nonzero erf.radiation.seb_hfx_default in the deck is not used.
+  # That must be said at start-up rather than happen silently. One step of the deck above.
+  add_test_abort(TwoStream_SEBDefaultReplacedWarning
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_hfx_default = 10 is not used"
+                 "erf.radiation.seb_hfx_default=10")
 endif()
 add_test_plotfile_header(Plotfile3D_TwoStreamHeatingSelection "" "erf_exec" "plt00000")
 

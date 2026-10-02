@@ -434,13 +434,14 @@ NOAHMP::Advance_With_State (const int& lev,
         // arrive, and reserve the abort for the case that is certainly broken.
         //
         // What a missing input means depends on the radiation model. RRTMGP writes these
-        // fields, so with RRTMGP an input still missing on a run started from scratch is a
-        // coupling that never reaches this level, and running on zero would be a 0 K sky
-        // (on an idealized grassland patch t_sfc falls about 48 K in one land hour):
-        // abort. On a restarted run, warn and integrate on zero until the next RRTMGP
-        // update fills the fields. Any other radiation model does not write them, the
-        // start-up warning in SolverChoice::init_params has already said so, and zero is
-        // the intended fallback: say it once more here, at the level concerned.
+        // fields, and so does TwoStream (every step, for Noah-MP), so with either an input
+        // still missing on a run started from scratch is a coupling that never reaches this
+        // level, and running on zero would be a 0 K sky (on an idealized grassland patch
+        // t_sfc falls about 48 K in one land hour): abort. On a restarted run, warn and
+        // integrate on zero until the next radiation update fills the fields. Any other
+        // radiation model does not write them, the start-up warning in
+        // SolverChoice::init_params has already said so, and zero is the intended
+        // fallback: say it once more here, at the level concerned.
         if (!m_checked_radiation_inputs) {
             const std::pair<int, const char*> rad_inputs[] = {
                 {LsmData_NOAHMP::sw_flux_dn,       "downwelling shortwave (SWDOWN)"},
@@ -463,10 +464,11 @@ NOAHMP::Advance_With_State (const int& lev,
             } else if (m_radiation_feeds_lsm) {
                 if (m_first_advance_nstep == 0) {
                     amrex::Abort("Noah-MP at level " + std::to_string(lev) + " found no valid "
-                                 + invalid + " although erf.radiation_model = RRTMGP, which "
-                                 "should supply them before the first land step. Check that "
-                                 "RRTMGP updates at all (erf.rad_freq_in_steps > 0) and that "
-                                 "the RRTMGP -> land coupling reaches this level; running on "
+                                 + invalid + " although erf.radiation_model = "
+                                 + m_radiation_model_name + ", which should supply them before "
+                                 "the first land step. Check that the radiation model updates "
+                                 "at all (for RRTMGP, erf.rad_freq_in_steps > 0) and that its "
+                                 "coupling to the land model reaches this level; running on "
                                  "zero radiation would be a 0 K sky.");
                 }
                 if (!m_warned_radiation_inputs) {
@@ -474,10 +476,10 @@ NOAHMP::Advance_With_State (const int& lev,
                     amrex::Print() << "WARNING: Noah-MP at level " << lev << " found no valid "
                                    << invalid << " on its first land step after a restart or "
                                       "regrid and is using zero in its place until the next "
-                                      "RRTMGP update writes them (every erf.rad_freq_in_steps "
-                                      "steps). This warning is printed once; the run aborts "
-                                      "only when the inputs are already missing on a run "
-                                      "started from scratch.\n";
+                                   << m_radiation_model_name << " update writes them (for "
+                                      "RRTMGP, every erf.rad_freq_in_steps steps). This warning "
+                                      "is printed once; the run aborts only when the inputs are "
+                                      "already missing on a run started from scratch.\n";
                 }
             } else {
                 m_checked_radiation_inputs = true;

@@ -7,9 +7,9 @@ extern "C" {
 
 // Phase-1 C bindings for WSM6 Fortran bridge.
 // These keep scope to required single-moment arguments only.
-void mp_wsm6_init_c(double den0, double denr, double dens, double cl, double cpv, int hail_opt);
+void mp_wsm6_init_c (double den0, double denr, double dens, double cl, double cpv, int hail_opt);
 
-void mp_wsm6_run_c(
+void mp_wsm6_run_c (
     double* t,
     double* qv, double* qc, double* qi, double* qr, double* qs, double* qg,
     double* den, double* p, double* delz,

@@ -22,7 +22,7 @@ struct AdvChoice {
      * @brief Read advection options from the input parameter database.
      * @param pp_prefix ParmParse prefix for the ERF input namespace.
      */
-    void init_params(std::string pp_prefix)
+    void init_params (std::string pp_prefix)
     {
         amrex::ParmParse pp(pp_prefix);
 
@@ -240,7 +240,7 @@ struct AdvChoice {
      * @brief Print the configured advection choices.
      * @param pp_prefix ParmParse prefix used to recover input strings for display.
      */
-    void display(std::string& pp_prefix)
+    void display (std::string& pp_prefix)
     {
         amrex::Print() << "Advection Choices: " << std::endl;
 
@@ -404,7 +404,7 @@ struct AdvChoice {
      * @brief Check whether the selected momentum WENO schemes are compatible with embedded boundaries.
      * @param use_embedded_boundary Whether the run uses embedded-boundary terrain.
      */
-    void validate_weno_momentum_compatibility(bool use_embedded_boundary)
+    void validate_weno_momentum_compatibility (bool use_embedded_boundary)
     {
         // Check if any WENO momentum advection is being used
         bool using_weno_momentum =

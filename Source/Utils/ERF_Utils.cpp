@@ -10,7 +10,7 @@ using namespace amrex;
  * @param[in] ng Number of ghost cells
  */
 void
-cons_to_prim(const MultiFab& cons_state, MultiFab& S_prim, int ng)
+cons_to_prim (const MultiFab& cons_state, MultiFab& S_prim, int ng)
 {
     BL_PROFILE("cons_to_prim()");
 
@@ -105,7 +105,7 @@ fill_wall_dist_ghost_cells (MultiFab& wdist, const Geometry& geom)
  * @param[in] n_qstate_into_total Number of moisture components to include in the total
  */
 void
-make_qt(const MultiFab& cons_state, MultiFab& qt, int n_qstate_into_total)
+make_qt (const MultiFab& cons_state, MultiFab& qt, int n_qstate_into_total)
 {
     BL_PROFILE("make_qt()");
 

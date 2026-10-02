@@ -442,7 +442,7 @@ public:
     }
 
     std::unordered_map<std::string, std::string>&
-    Lsm_WRFInputNames() override {
+    Lsm_WRFInputNames () override {
         return SLM::wrfinput_map;
     }
 
@@ -474,170 +474,170 @@ public:
     }
 
     void
-    set_precip_input(const amrex::MultiFab* precip_in) override;
+    set_precip_input (const amrex::MultiFab* precip_in) override;
 
     void
-    set_terrain_inputs(const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& sst_in,
-                       const amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_in) override;
+    set_terrain_inputs (const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& sst_in,
+                        const amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_in) override;
 
-    int Lsm_Type() override
+    int Lsm_Type () override
     {
         return LSM_Type::SLM;
     }
 
-    void writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real cur_time, const std::string plot_prefix, const int level_step, const int lev, const int finest_lev, amrex::MultiFab &fab, amrex::Geometry &geom, amrex::Vector<std::string> &varnames);
+    void writeSLM_Data (const PlotFileType plotfile_type, const amrex::Real cur_time, const std::string plot_prefix, const int level_step, const int lev, const int finest_lev, amrex::MultiFab &fab, amrex::Geometry &geom, amrex::Vector<std::string> &varnames);
 
-    void init_from_inputs();
+    void init_from_inputs ();
 
-    void slm_init();
+    void slm_init ();
 
-    void init_layer_depths();
+    void init_layer_depths ();
 
-    void init_soil_vars();
+    void init_soil_vars ();
 
-    void init_landtype();
+    void init_landtype ();
 
-    void init_soil_tw();
+    void init_soil_tw ();
 
-    void init_slm_vars();
+    void init_slm_vars ();
 
     /**
      * Initializes local SLM fields from WRFInput data.
      */
-    void init_wrfinput_vars();
+    void init_wrfinput_vars ();
 
     /**
      * Initializes diagnostics and radiation coupling fields from the SLM state.
      */
-    void initialize_surface_outputs();
+    void initialize_surface_outputs ();
 
     /**
      * Rebuilds restart fields that can be derived from the checkpoint state.
      */
-    void rebuild_restart_fields();
+    void rebuild_restart_fields ();
 
-    SLMParameterTable ReadParameterFile(const std::string &filename, amrex::Vector<std::string> &veg_categories, amrex::Vector<std::string> &soil_categories);
+    SLMParameterTable ReadParameterFile (const std::string &filename, amrex::Vector<std::string> &veg_categories, amrex::Vector<std::string> &soil_categories);
 
     /**
      * Validates the selected Noah-MP parameter blocks before copying them to the device.
      */
-    void validate_parameter_tables();
+    void validate_parameter_tables ();
 
-    void init_from_params();
+    void init_from_params ();
 
     /**
      * Loads built-in Noah-MP radiation lookup values for idealized SLM cases.
      */
-    void load_builtin_radiation_parameters();
+    void load_builtin_radiation_parameters ();
 
-    void UpdateLAI(const amrex::MFIter &mfi);
+    void UpdateLAI (const amrex::MFIter &mfi);
 
-    void UpdateLAIParameters(const amrex::MFIter &mfi);
+    void UpdateLAIParameters (const amrex::MFIter &mfi);
 
     // NOAHMP radiation functions
-    void radiation_noahmp(const amrex::MFIter &mfi);
+    void radiation_noahmp (const amrex::MFIter &mfi);
 
-    void albedo_noahmp(const amrex::MFIter &mfi, int i, int j,
-                       amrex::Real dt, amrex::Real cosz, amrex::Real snowh, amrex::Real fsno,
-                       amrex::Real fwet, amrex::Real sneqvo, amrex::Real sneqv, amrex::Real qsnow,
-                       amrex::Real tg, amrex::Real tv, amrex::Real elai, amrex::Real esai,
-                       const amrex::Real* smc, int nsoil, amrex::Real fveg,
-                       amrex::Real& albold, amrex::Real& tauss,
-                       amrex::Real* albgrd, amrex::Real* albgri, amrex::Real* albd, amrex::Real* albi,
-                       amrex::Real* fabd, amrex::Real* fabi, amrex::Real* ftdd, amrex::Real* ftid, amrex::Real* ftii,
-                       amrex::Real& fsun, amrex::Real* frevd, amrex::Real* frevi,
-                       amrex::Real* fregd, amrex::Real* fregi, amrex::Real& bgap, amrex::Real& wgap,
-                       amrex::Real* albsnd, amrex::Real* albsni);
-
-    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    static void surrad_noahmp(amrex::Real mpe, amrex::Real fsun, amrex::Real fsha, amrex::Real elai, amrex::Real vai,
-                              amrex::Real laisun, amrex::Real laisha, const amrex::Real* solad, const amrex::Real* solai,
-                              const amrex::Real* fabd, const amrex::Real* fabi, const amrex::Real* ftdd,
-                              const amrex::Real* ftid, const amrex::Real* ftii, const amrex::Real* albgrd,
-                              const amrex::Real* albgri, const amrex::Real* albd, const amrex::Real* albi,
-                              const amrex::Real* frevd, const amrex::Real* frevi, const amrex::Real* fregd, const amrex::Real* fregi,
-                              amrex::Real& parsun, amrex::Real& parsha, amrex::Real& sav, amrex::Real& sag,
-                              amrex::Real& fsa, amrex::Real& fsr, amrex::Real& fsrv, amrex::Real& fsrg);
+    void albedo_noahmp (const amrex::MFIter &mfi, int i, int j,
+                        amrex::Real dt, amrex::Real cosz, amrex::Real snowh, amrex::Real fsno,
+                        amrex::Real fwet, amrex::Real sneqvo, amrex::Real sneqv, amrex::Real qsnow,
+                        amrex::Real tg, amrex::Real tv, amrex::Real elai, amrex::Real esai,
+                        const amrex::Real* smc, int nsoil, amrex::Real fveg,
+                        amrex::Real& albold, amrex::Real& tauss,
+                        amrex::Real* albgrd, amrex::Real* albgri, amrex::Real* albd, amrex::Real* albi,
+                        amrex::Real* fabd, amrex::Real* fabi, amrex::Real* ftdd, amrex::Real* ftid, amrex::Real* ftii,
+                        amrex::Real& fsun, amrex::Real* frevd, amrex::Real* frevi,
+                        amrex::Real* fregd, amrex::Real* fregi, amrex::Real& bgap, amrex::Real& wgap,
+                        amrex::Real* albsnd, amrex::Real* albsni);
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    static void snow_age_noahmp(amrex::Real dt, amrex::Real tg, amrex::Real sneqvo, amrex::Real sneqv,
-                                amrex::Real tau0, amrex::Real grain_growth, amrex::Real extra_growth,
-                                amrex::Real dirt_soot, amrex::Real swemx,
-                                amrex::Real& tauss, amrex::Real& fage);
+    static void surrad_noahmp (amrex::Real mpe, amrex::Real fsun, amrex::Real fsha, amrex::Real elai, amrex::Real vai,
+                               amrex::Real laisun, amrex::Real laisha, const amrex::Real* solad, const amrex::Real* solai,
+                               const amrex::Real* fabd, const amrex::Real* fabi, const amrex::Real* ftdd,
+                               const amrex::Real* ftid, const amrex::Real* ftii, const amrex::Real* albgrd,
+                               const amrex::Real* albgri, const amrex::Real* albd, const amrex::Real* albi,
+                               const amrex::Real* frevd, const amrex::Real* frevi, const amrex::Real* fregd, const amrex::Real* fregi,
+                               amrex::Real& parsun, amrex::Real& parsha, amrex::Real& sav, amrex::Real& sag,
+                               amrex::Real& fsa, amrex::Real& fsr, amrex::Real& fsrv, amrex::Real& fsrg);
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    static void snowalb_bats_noahmp(int nband, amrex::Real fsno, amrex::Real cosz, amrex::Real fage,
-                                    amrex::Real bats_cosz, amrex::Real bats_vis_new, amrex::Real bats_nir_new,
-                                    amrex::Real bats_vis_age, amrex::Real bats_nir_age,
-                                    amrex::Real bats_vis_dir, amrex::Real bats_nir_dir,
-                                    amrex::Real* albsnd, amrex::Real* albsni);
+    static void snow_age_noahmp (amrex::Real dt, amrex::Real tg, amrex::Real sneqvo, amrex::Real sneqv,
+                                 amrex::Real tau0, amrex::Real grain_growth, amrex::Real extra_growth,
+                                 amrex::Real dirt_soot, amrex::Real swemx,
+                                 amrex::Real& tauss, amrex::Real& fage);
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    static void groundalb_noahmp(int nsoil, int nband, int ice, int ist, amrex::Real fsno,
-                                 const amrex::Real* smc, const amrex::Real* albsnd, const amrex::Real* albsni,
-                                 amrex::Real cosz, amrex::Real tg,
-                                 const amrex::Real* albsat, const amrex::Real* albdry, const amrex::Real* alblak,
-                                 amrex::Real* albgrd, amrex::Real* albgri);
+    static void snowalb_bats_noahmp (int nband, amrex::Real fsno, amrex::Real cosz, amrex::Real fage,
+                                     amrex::Real bats_cosz, amrex::Real bats_vis_new, amrex::Real bats_nir_new,
+                                     amrex::Real bats_vis_age, amrex::Real bats_nir_age,
+                                     amrex::Real bats_vis_dir, amrex::Real bats_nir_dir,
+                                     amrex::Real* albsnd, amrex::Real* albsni);
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    static void twostream_noahmp(int ib, int ic, int vegtyp, amrex::Real cosz, amrex::Real vai,
-                                 amrex::Real fwet, amrex::Real t, const amrex::Real* albgrd, const amrex::Real* albgri,
-                                 const amrex::Real* rho, const amrex::Real* tau, amrex::Real fveg, int ist,
-                                 amrex::Real xl, amrex::Real omegas_param, amrex::Real betads, amrex::Real betais,
-                                 int opt_rad, amrex::Real rc, amrex::Real hvt, amrex::Real hvb, amrex::Real den,
-                                 amrex::Real* fab, amrex::Real* fre, amrex::Real* ftd, amrex::Real* fti,
-                                 amrex::Real& gdir, amrex::Real* frev, amrex::Real* freg,
-                                 amrex::Real& bgap, amrex::Real& wgap,
-                                 amrex::Real& xl_out, amrex::Real& chil_out, amrex::Real& phi1_out, amrex::Real& phi2_out);
-
-    void transfer_coeff(const amrex::MFIter &mfi);
-
-    void resistances(const amrex::MFIter &mfi);
-
-    void fluxes_canopy(const amrex::MFIter &mfi);
-
-    void solve_ground_skin_temperature(const amrex::MFIter &mfi);
-
-    void soil_water(const amrex::MFIter &mfi);
-
-    void soil_temperature(const amrex::MFIter &mfi);
-
-    void soil_nudging(const amrex::MFIter &mfi3d);
+    static void groundalb_noahmp (int nsoil, int nband, int ice, int ist, amrex::Real fsno,
+                                  const amrex::Real* smc, const amrex::Real* albsnd, const amrex::Real* albsni,
+                                  amrex::Real cosz, amrex::Real tg,
+                                  const amrex::Real* albsat, const amrex::Real* albdry, const amrex::Real* alblak,
+                                  amrex::Real* albgrd, amrex::Real* albgri);
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    static amrex::Real fh_calc(const amrex::Real &t, const amrex::Real &mps,
-                               const amrex::Real &sw, const amrex::Real &B);
+    static void twostream_noahmp (int ib, int ic, int vegtyp, amrex::Real cosz, amrex::Real vai,
+                                  amrex::Real fwet, amrex::Real t, const amrex::Real* albgrd, const amrex::Real* albgri,
+                                  const amrex::Real* rho, const amrex::Real* tau, amrex::Real fveg, int ist,
+                                  amrex::Real xl, amrex::Real omegas_param, amrex::Real betads, amrex::Real betais,
+                                  int opt_rad, amrex::Real rc, amrex::Real hvt, amrex::Real hvb, amrex::Real den,
+                                  amrex::Real* fab, amrex::Real* fre, amrex::Real* ftd, amrex::Real* fti,
+                                  amrex::Real& gdir, amrex::Real* frev, amrex::Real* freg,
+                                  amrex::Real& bgap, amrex::Real& wgap,
+                                  amrex::Real& xl_out, amrex::Real& chil_out, amrex::Real& phi1_out, amrex::Real& phi2_out);
+
+    void transfer_coeff (const amrex::MFIter &mfi);
+
+    void resistances (const amrex::MFIter &mfi);
+
+    void fluxes_canopy (const amrex::MFIter &mfi);
+
+    void solve_ground_skin_temperature (const amrex::MFIter &mfi);
+
+    void soil_water (const amrex::MFIter &mfi);
+
+    void soil_temperature (const amrex::MFIter &mfi);
+
+    void soil_nudging (const amrex::MFIter &mfi3d);
 
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    static amrex::Real linear_interp(const amrex::Real t0, const amrex::Real t1,
-                                     const amrex::Real t, const amrex::Real x,
-                                     const amrex::Real y);
+    static amrex::Real fh_calc (const amrex::Real &t, const amrex::Real &mps,
+                                const amrex::Real &sw, const amrex::Real &B);
+
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    static amrex::Real linear_interp (const amrex::Real t0, const amrex::Real t1,
+                                      const amrex::Real t, const amrex::Real x,
+                                      const amrex::Real y);
 
 #ifdef ERF_USE_NETCDF
-    void writeSLM_NetCDF(const amrex::MultiFab& mf, const amrex::Vector<std::string>& varnames,
-                         const amrex::Real cur_time, const std::string plot_prefix, const int level_step);
+    void writeSLM_NetCDF (const amrex::MultiFab& mf, const amrex::Vector<std::string>& varnames,
+                          const amrex::Real cur_time, const std::string plot_prefix, const int level_step);
 
-    void writeNCHeader(ncutils::NCFile &nc_file, const amrex::Geometry &geom);
+    void writeNCHeader (ncutils::NCFile &nc_file, const amrex::Geometry &geom);
 
-    void writeMFtoNC(ncutils::NCFile &nc_file, const amrex::MultiFab* mf,
-                     const std::string name, amrex::Real cur_time, bool write_ghost = false);
+    void writeMFtoNC (ncutils::NCFile &nc_file, const amrex::MultiFab* mf,
+                      const std::string name, amrex::Real cur_time, bool write_ghost = false);
 
-    void writeMFVecToNC(ncutils::NCFile &nc_file,
-                        const amrex::Vector<const amrex::MultiFab*> &mf_vec,
-                        const amrex::Vector<std::string> &mf_names,
-                        const amrex::Geometry& geom) const;
+    void writeMFVecToNC (ncutils::NCFile &nc_file,
+                         const amrex::Vector<const amrex::MultiFab*> &mf_vec,
+                         const amrex::Vector<std::string> &mf_names,
+                         const amrex::Geometry& geom) const;
 #endif
 
-    void set_dt(const amrex::Real &dt) {
+    void set_dt (const amrex::Real &dt) {
         m_dt = dt;
     }
 
-    const amrex::Vector<const amrex::MultiFab*> &export_to_RRTMGP()
+    const amrex::Vector<const amrex::MultiFab*> &export_to_RRTMGP ()
     {
         return slm_to_rad_vars;
     }
 
-    std::unordered_map<std::string, std::string>& get_rad_output_map()
+    std::unordered_map<std::string, std::string>& get_rad_output_map ()
     {
         return rad_output_map;
     }
@@ -646,19 +646,19 @@ public:
     //  -- taken from ERF_Checkpoint
     static void GotoNextLine (std::istream& is);
 
-    void WriteCheckpoint(const int &lev, const std::string &checkpointname) const override;
+    void WriteCheckpoint (const int &lev, const std::string &checkpointname) const override;
 
-    void ReadCheckpoint(const int &lev, const std::string &checkpointname) override;
+    void ReadCheckpoint (const int &lev, const std::string &checkpointname) override;
 
     /**
      * Initializes the canopy-adjusted reference height on the current grid.
      */
-    void initialize_zrefxy();
+    void initialize_zrefxy ();
 
     /**
      * Rebuilds SLM-local fields after transferring an evolved state.
      */
-    void initialize_processed_state(const bool preserve_checkpoint_fields = false);
+    void initialize_processed_state (const bool preserve_checkpoint_fields = false);
 
 private:
     // number of lsm variables (theta)

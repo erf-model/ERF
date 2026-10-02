@@ -10,6 +10,8 @@
 #include "ERF_Constants.H"
 #include "AMReX_buildInfo.H"
 #include "ERF_SBMConstraintGroups.H"
+#include "ERF_SBMFixtureValidation.H"
+#include "ERF_SBMRemapping.H"
 #include "ERF_SBMStateManager.H"
 
 #include <algorithm>
@@ -18,7 +20,7 @@
 
 namespace {
 
-erf_sbm::SBMLayout make_sbm_layout(const SolverChoice& choice)
+erf_sbm::SBMLayout make_sbm_layout (const SolverChoice& choice)
 {
     erf_sbm::SpectralGridSpec grid;
     grid.coordinate_kind = erf_sbm::CoordinateKind::Mass;
@@ -44,8 +46,8 @@ erf_sbm::SBMLayout make_sbm_layout(const SolverChoice& choice)
     return erf_sbm::SBMLayout(std::move(spec));
 }
 
-void validate_sbm_zero_transport_fixture(const SolverChoice& choice,
-                                         const int max_level)
+void validate_sbm_zero_transport_fixture (const SolverChoice& choice,
+                                          const int max_level)
 {
     if (choice.moisture_type != MoistureType::SBM) return;
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.sbm_zero_transport_fixture,
@@ -91,8 +93,8 @@ void validate_sbm_zero_transport_fixture(const SolverChoice& choice,
         "SBM zero-transport fixture rejects problem-specific liquid forcing and custom initial perturbations");
 }
 
-void validate_auxiliary_inert_tracer_fixture(const SolverChoice& choice,
-                                             const int max_level)
+void validate_auxiliary_inert_tracer_fixture (const SolverChoice& choice,
+                                              const int max_level)
 {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.moisture_type == MoistureType::None,
         "M2 auxiliary inert tracer fixture requires moisture_model=None");
@@ -267,6 +269,17 @@ ERF::ERF_shared ()
         if (!solverChoice.sbm_fixture_initial_state.empty()) {
             std::copy(solverChoice.sbm_fixture_initial_state.begin(),
                       solverChoice.sbm_fixture_initial_state.end(), candidate.begin());
+        }
+        const auto fixture_canonicality =
+            erf_sbm::validate_fixture_initial_state_canonicality(layout, candidate);
+        if (!fixture_canonicality.canonical) {
+            const char* representation =
+                fixture_canonicality.moment_mode == erf_sbm::MomentMode::OneMoment ?
+                "one-moment" : "two-moment";
+            amrex::Error("SBM fixture initial state is not canonical for selected spectral "
+                         "representation: population=" +
+                std::to_string(fixture_canonicality.population_id) + " representation=" +
+                representation + " bin=" + std::to_string(fixture_canonicality.bin));
         }
         for (const auto& group : erf_sbm::make_constraint_groups(layout)) {
             amrex::Real margin = amrex::Real(0.0);

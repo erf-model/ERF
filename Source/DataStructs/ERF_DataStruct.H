@@ -319,7 +319,7 @@ struct MoistureComponentIndices {
     /**
      * @brief Construct an empty map, i.e. a dry run.
      */
-    MoistureComponentIndices() = default;
+    MoistureComponentIndices () = default;
 
     /**
      * @brief Build the complete index map -- conserved-state components and
@@ -1322,17 +1322,33 @@ struct SolverChoice {
         radChoice.init_params(rad_type == RadiationType::TwoStream, pp_prefix);
 
         // Noah-MP integrates on the downwelling shortwave, downwelling longwave and solar
-        // zenith angle a radiation model writes into it. Only RRTMGP registers those
-        // outputs with the land model (rad_feeds_lsm, ERF::init_stuff), so under any other
-        // choice they are never written and Noah-MP runs with no radiative forcing at all
-        // -- the inputs it reads fall back to zero. That is a legitimate thing to want in a
-        // test, and rarely what anyone running a land model means, so say it at start-up.
+        // zenith angle a radiation model writes into it. Only RRTMGP and TwoStream register
+        // those outputs with the land model (rad_feeds_lsm, ERF::init_stuff), so under any
+        // other choice they are never written and Noah-MP runs with no radiative forcing at
+        // all -- the inputs it reads fall back to zero. That is a legitimate thing to want
+        // in a test, and rarely what anyone running a land model means, so say it at
+        // start-up.
         if (lsm_type == LandSurfaceType::NOAHMP && !rad_feeds_lsm()) {
             amrex::Print() << "WARNING: erf.land_surface_model = NOAHMP with erf.radiation_model = "
                            << amrex::getEnumNameString(rad_type)
-                           << ": only RRTMGP supplies the downwelling shortwave, downwelling "
-                              "longwave and solar zenith angle Noah-MP needs. Noah-MP will run "
-                              "with no radiative forcing (zero SWDOWN, GLW and COSZEN).\n";
+                           << ": only RRTMGP and TwoStream supply the downwelling shortwave, "
+                              "downwelling longwave and solar zenith angle Noah-MP needs. Noah-MP "
+                              "will run with no radiative forcing (zero SWDOWN, GLW and COSZEN).\n";
+        }
+
+        // The two-stream -> Noah-MP forcing is built and tested on a single level. A refined
+        // run reaches a fine level's Noah-MP inputs by three different routes -- a fine
+        // level that sweeps its own columns, a nested patch interpolated from its parent,
+        // a level created mid-run -- and none of them has been verified. Refuse the
+        // combination rather than run it unverified.
+        if (lsm_type == LandSurfaceType::NOAHMP && rad_type == RadiationType::TwoStream &&
+            max_level > 0)
+        {
+            amrex::Abort("erf.radiation_model = TwoStream with erf.land_surface_model = NOAHMP "
+                         "is supported on a single level only (amr.max_level = " +
+                         std::to_string(max_level) + "): the two-stream model does not yet "
+                         "supply Noah-MP's radiative forcing on refined levels. Set "
+                         "amr.max_level = 0, or use erf.radiation_model = RRTMGP.");
         }
 
         vert_implicit_fac.resize(max_level+1);
@@ -2398,14 +2414,19 @@ struct SolverChoice {
         return (rad_type == RadiationType::RRTMGP) || (rad_type == RadiationType::Simple);
     }
 
-    /** @brief True for the radiation models whose outputs feed the land model
-     *  (downwelling shortwave, downwelling longwave, solar zenith angle). Only
-     *  RRTMGP registers those outputs (ERF::init_stuff) and only RRTMGP's are
-     *  gated into lsm_output_ptrs (ERF::advance_radiation); every site that
-     *  encodes that rule must use this predicate so wiring another model in
-     *  (e.g. Simple, which already runs through the interface) is one edit. */
+    /** @brief True when the radiation model's outputs feed the land model
+     *  (downwelling shortwave, downwelling longwave, solar zenith angle). RRTMGP
+     *  writes them for any land model through lsm_output_ptrs; the two-stream
+     *  model writes the broadband three for Noah-MP only
+     *  (TwoStreamRadiation::write_land_forcing), since SLM wants the visible /
+     *  near-infrared direct / diffuse split it does not compute. Both register
+     *  the outputs in ERF::init_stuff and write them in ERF::advance_radiation;
+     *  every site that encodes that rule must use this predicate so wiring
+     *  another model in (e.g. Simple, which already runs through the interface)
+     *  is one edit. */
     [[nodiscard]] bool rad_feeds_lsm () const {
-        return (rad_type == RadiationType::RRTMGP);
+        return (rad_type == RadiationType::RRTMGP) ||
+               (rad_type == RadiationType::TwoStream && lsm_type == LandSurfaceType::NOAHMP);
     }
 
     // Does an external ocean coupler supply SST? See the query in init_params.

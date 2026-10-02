@@ -152,6 +152,48 @@ ERF::setPlotVariables2D (const std::string& pp_plot_var_names, Vector<std::strin
 }
 
 //
+// The conservative surface heat and moisture fluxes (z faces; the surface is the
+// domain's lowest k) applied to level lev: the SFS fluxes, or native SHOC's
+// snapshots of them where SHOC consumed and cleared those. nullptr where a field
+// does not exist (the moisture flux without a moisture model, both without
+// diffusion or a closure).
+//
+// Native SHOC state_update clears the host SFS arrays after consuming them. Use
+// SHOC's preserved snapshots only for flux components whose corresponding host
+// SFS field existed; otherwise keep the source null so the 2D writer emits the
+// documented -999 missing value.
+//
+// The sensible_heat_flux/latent_heat_flux outputs and the two-stream surface
+// energy balance (TwoStreamRadiation::advance) both take their fluxes from here,
+// so the balance removes from the ground exactly what the outputs report.
+//
+void
+ERF::surface_flux_sources (int lev,
+                           const MultiFab*& sens_flux,
+                           const MultiFab*& laten_flux) const
+{
+    sens_flux = SFS_hfx3_lev[lev].get();
+    laten_flux = SFS_q1fx3_lev[lev].get();
+    const ShocDriver* native_shoc = native_shoc_driver[lev].get();
+    const bool native_shoc_owns_scalar_fluxes =
+        native_shoc && native_shoc->owns_scalar_surface_fluxes();
+    const bool native_shoc_has_consumed_flux_diagnostics =
+        native_shoc && native_shoc->has_consumed_surface_flux_diagnostics();
+    if (plotfile2d::use_native_shoc_consumed_flux_source(
+            native_shoc_owns_scalar_fluxes,
+            native_shoc_has_consumed_flux_diagnostics,
+            SFS_hfx3_lev[lev] != nullptr)) {
+        sens_flux = &native_shoc->consumed_sens_flux_diagnostics();
+    }
+    if (plotfile2d::use_native_shoc_consumed_flux_source(
+            native_shoc_owns_scalar_fluxes,
+            native_shoc_has_consumed_flux_diagnostics,
+            SFS_q1fx3_lev[lev] != nullptr)) {
+        laten_flux = &native_shoc->consumed_laten_flux_diagnostics();
+    }
+}
+
+//
 // Fill one level of a destination MultiFab with the named 2D diagnostics, in
 // the order given by output_descriptors.  mf_dst must be laid out on
 // ba2d[lev]/dmap[lev] and have ncomp_mf components.
@@ -185,35 +227,16 @@ ERF::FillPlot2DVars (int lev,
     int khi = geom[lev].Domain().bigEnd(2);
 
     const MultiFab* pblh_source = nullptr;
-    const MultiFab* sens_flux_source = SFS_hfx3_lev[lev].get();
-    const MultiFab* laten_flux_source = SFS_q1fx3_lev[lev].get();
+    const MultiFab* sens_flux_source = nullptr;
+    const MultiFab* laten_flux_source = nullptr;
+    surface_flux_sources(lev, sens_flux_source, laten_flux_source);
     const MultiFab* shoc_ustar_source = nullptr;
     const MultiFab* shoc_olen_source = nullptr;
     const MultiFab* shoc_wthv_source = nullptr;
     const ShocDriver* native_shoc = native_shoc_driver[lev].get();
     SurfaceLayer* surf_layer = m_SurfaceLayer[Orientation(Direction::z,Orientation::low)].get();
-    const bool native_shoc_owns_scalar_fluxes =
-        native_shoc && native_shoc->owns_scalar_surface_fluxes();
-    const bool native_shoc_has_consumed_flux_diagnostics =
-        native_shoc && native_shoc->has_consumed_surface_flux_diagnostics();
     if (native_shoc && native_shoc->has_native_diagnostics()) {
         pblh_source = &native_shoc->pblh_diagnostics();
-    }
-    // Native SHOC state_update clears the host SFS arrays after consuming
-    // them. Use SHOC's preserved snapshots only for flux components whose
-    // corresponding host SFS field existed; otherwise keep the source null
-    // so the 2D writer emits the documented -999 missing value.
-    if (plotfile2d::use_native_shoc_consumed_flux_source(
-            native_shoc_owns_scalar_fluxes,
-            native_shoc_has_consumed_flux_diagnostics,
-            SFS_hfx3_lev[lev] != nullptr)) {
-        sens_flux_source = &native_shoc->consumed_sens_flux_diagnostics();
-    }
-    if (plotfile2d::use_native_shoc_consumed_flux_source(
-            native_shoc_owns_scalar_fluxes,
-            native_shoc_has_consumed_flux_diagnostics,
-            SFS_q1fx3_lev[lev] != nullptr)) {
-        laten_flux_source = &native_shoc->consumed_laten_flux_diagnostics();
     }
     if (native_shoc && native_shoc->has_native_diagnostics()) {
         shoc_ustar_source = &native_shoc->shoc_ustar_diagnostics();
@@ -421,6 +444,27 @@ ERF::FillPlot2DVars (int lev,
             0, -999);
         mf_comp++;
     } // seb_q_sfc
+
+    // The turbulent fluxes the surface energy balance used at its last update:
+    // with erf.radiation.seb_turbulent_flux_source = surface_layer these are the
+    // sensible_heat_flux and latent_heat_flux below, cell for cell.
+    if (containerHasElement(plot_var_names, "seb_hfx")) {
+        plotfile2d::fill_component_from_klevel_or_value(
+            mf_dst, mf_comp,
+            (solverChoice.rad_type == RadiationType::TwoStream) ? two_stream_rad.seb_hfx(lev)
+                                                                : nullptr,
+            0, -999);
+        mf_comp++;
+    } // seb_hfx
+
+    if (containerHasElement(plot_var_names, "seb_lh")) {
+        plotfile2d::fill_component_from_klevel_or_value(
+            mf_dst, mf_comp,
+            (solverChoice.rad_type == RadiationType::TwoStream) ? two_stream_rad.seb_lh(lev)
+                                                                : nullptr,
+            0, -999);
+        mf_comp++;
+    } // seb_lh
 
     if (containerHasElement(plot_var_names, "sens_flux")) {
         plotfile2d::fill_component_from_klevel_or_value(

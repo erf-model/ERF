@@ -83,3 +83,53 @@ at the first land step, and passes zero for all three. In the output:
 A run that stops before `plt00002` and `plt2d00002` are written has failed, whatever its
 exit status. Noah-MP's own physics checks end with a Fortran `STOP`, which ERF reports as a
 failure.
+
+## With two-stream radiation: `inputs_noahmp_twostream`
+
+The same land setup and atmosphere, with `erf.radiation_model = TwoStream` supplying
+Noah-MP's radiative forcing. The time is 18:00 UTC on 2024-08-05 at the setup file's site
+(`erf.rad_cons_lat = 40`, `erf.rad_cons_lon = -100`), about 11:20 local solar time, so the
+sun is well up. The two-stream optical depths are set for this 1 km column (0.1 in total for
+the shortwave, 1.6 for the longwave) rather than left at their whole-atmosphere defaults.
+It runs in place like the case above:
+
+```
+mpiexec -n 1 /path/to/erf_exec inputs_noahmp_twostream
+```
+
+Every step the two-stream model writes the downwelling shortwave and longwave at the surface
+and the cosine of the solar zenith angle into Noah-MP's inputs. `plt2d00002` carries them
+as `sw_flux_dn`, `lw_flux_dn` and `cos_zenith_angle` (a run without the coupling writes
+`-999` there), next to Noah-MP's outputs:
+
+| Field in `plt2d00002` | Value |
+| --- | --- |
+| `cos_zenith_angle` | 0.9077 |
+| `sw_flux_dn` (SWDOWN) | 1075.4 W/m² |
+| `lw_flux_dn` (GLW) | 354.4 W/m² |
+| `t_sfc` | 309.857 K (252.306 K without radiation) |
+| `sav` + `sag` | 441.7 + 417.4 W/m² (0 without radiation) |
+
+The surface now warms instead of cooling, and Noah-MP's land output `lnd00002/Level_0.nc`
+closes its energy budget (positive away from the surface, except the absorbed shortwave):
+
+| Term | W/m² |
+| --- | --- |
+| absorbed shortwave, `FSAXY` (= `SAVXY` + `SAGXY`) | 859.18 |
+| net longwave, `FIRAXY` | 167.21 |
+| sensible heat, `HFX` | 249.38 |
+| latent heat, `LH` | 147.97 |
+| ground heat flux into the soil, `GRDFLX` | 294.63 |
+| residual, `FSAXY` − (`FIRAXY` + `HFX` + `LH` + `GRDFLX`) | −0.012 |
+
+The residual is the same size as in the case without radiation (0.016 W/m²).
+
+In the other direction the two-stream model takes Noah-MP's broadband `albedo` (0.201 here)
+as its surface albedo, so it reflects the shortwave Noah-MP reflects: with
+`erf.radiation.diag_csv_enable = true` the radiation CSV reports `SW_surface` = 859.19 W/m²
+absorbed at the ground at step 1, Noah-MP's `sav` + `sag` = 859.18 W/m². (The visible
+direct-beam albedo `sfc_alb_dir_vis`, 0.067, which it used before, left 1003.10 W/m².) At
+step 0 Noah-MP has not run yet and its fields hold the undefined placeholder, so the sweep
+uses `erf.radiation.surface_albedo_sw`. The numbers
+are identical on 1 and 4 ranks. The two-stream coupling to Noah-MP is single-level:
+`amr.max_level > 0` stops at start-up.
