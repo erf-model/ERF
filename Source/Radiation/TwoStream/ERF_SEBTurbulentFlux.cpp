@@ -16,10 +16,12 @@ overwrite_valid_land_surface_cells (MultiFab& dst,
                                     Real scale,
                                     const MultiFab* add)
 {
+    // The kernel reads src and add through dst's MFIter, so the boxes themselves (and
+    // their index type), not only their number, must agree.
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        src.boxArray().size() == dst.boxArray().size() &&
+        src.boxArray() == dst.boxArray() &&
         src.DistributionMap() == dst.DistributionMap() &&
-        (add == nullptr || (add->boxArray().size() == dst.boxArray().size() &&
+        (add == nullptr || (add->boxArray() == dst.boxArray() &&
                             add->DistributionMap() == dst.DistributionMap())),
         "SEB land-surface fill: the land-surface fields and the SEB field are laid out differently");
     const bool has_add = (add != nullptr);
@@ -66,8 +68,10 @@ fill_seb_turbulent_flux (MultiFab& seb_flux,
                          SEBTurbulentFluxSource source,
                          Real fallback)
 {
-    // The sources below the land-surface field fill every cell first; then the cells
-    // where the land model has a valid value take it.
+    // The fallback fills every cell, halo included; the surface layer's flux then
+    // overwrites the valid cells when it is the source, and the land model's valid
+    // values overwrite those in turn.
+    seb_flux.setVal(fallback);
     const SEBFluxOrigin below = select_seb_flux_origin(false, source,
                                                        surface_layer_flux != nullptr);
     if (below == SEBFluxOrigin::SurfaceLayer) {
@@ -80,8 +84,6 @@ fill_seb_turbulent_flux (MultiFab& seb_flux,
             plotfile2d::fill_latent_heat_flux_from_klevel_or_missing(
                 seb_flux, 0, surface_layer_flux, surface_k, fallback);
         }
-    } else {
-        seb_flux.setVal(fallback);
     }
     if (land_surface_field != nullptr) {
         overwrite_valid_land_surface_cells(seb_flux, *land_surface_field, Real(1.0), nullptr);

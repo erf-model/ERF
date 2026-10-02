@@ -10,7 +10,7 @@
 # from the wrong column or level shows. Level 1 covers the middle half of the
 # domain in x, spans z (amr.refine_whole_domain_dir = 2, which the MRF column
 # scheme needs), and is created by the regrid at the start of step 7, the first
-# step that starts after erf.patch.start_time (dt = 0.5 s, set by the CTest runner).
+# step that starts after erf.patch.start_time (erf.fixed_dt = 0.5 s).
 #
 # check_two_stream_seb_flux_source.py --multilevel asserts, on every level and
 # every step, that seb_hfx / seb_lh equal sensible_heat_flux / latent_heat_flux
@@ -37,7 +37,7 @@ erf.most.surf_moist = 0.0095   # moister than the air: LE > 0
 zhi.type = "SlipWall"
 zhi.theta_grad = 0.003
 
-erf.fixed_dt = 1.0
+erf.fixed_dt = 0.5     # the CTest runner passes the same value (DT 0.5)
 erf.v = 0
 amr.v = 0
 amr.max_level = 1

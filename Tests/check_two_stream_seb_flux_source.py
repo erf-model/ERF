@@ -31,8 +31,10 @@ asserts:
    well under --theta-rtol.
 
 With --multilevel the same checks run on every level of every plotfile, column
-by column along a slice in x through the middle of the domain in y (a level that
-covers only part of the slice reports its own columns), and check 3 is skipped:
+by column along a slice in x through the middle row of level 0 in y (on a finer
+level, the first fine row inside that coarse row; a level that covers only part
+of the slice reports its own columns, and one that covers none of it fails), and
+check 3 is skipped:
 under a finer level the coarse skin is the average of the fine one, so a coarse
 column's skin no longer follows its own fluxes alone. Check 5 then also skips a
 level at the step it is created, which has no skin of its own from the step before.
@@ -51,9 +53,38 @@ CP = 1004.5         # specific heat of dry air [J/kg/K]
 GRAV = 9.81         # [m/s^2]
 
 
+class CheckError(Exception):
+    """A condition that fails the check (reported as FAIL, not as a traceback)."""
+
+
+def plotfile_geometry(plotfile):
+    """(prob_lo_x, [dx of each level], [refinement ratio of each level]) from a native
+    plotfile's Header."""
+    with open(os.path.join(plotfile, 'Header')) as handle:
+        lines = [line.strip() for line in handle]
+    base = 2 + int(lines[1])          # version, ncomp, then the ncomp names
+    finest = int(lines[base + 2])     # dim, time, finest level
+    prob_lo_x = float(lines[base + 3].split()[0])
+    ratios = [int(r) for r in lines[base + 5].split()] if finest > 0 else []
+    dx = [float(lines[base + 8 + lev].split()[0]) for lev in range(finest + 1)]
+    return prob_lo_x, dx, ratios
+
+
 def extract(fextract, plotfile, variable, out_path, level=0):
-    """Run amrex_fextract along x on one level; return [(x, value)] for its cells."""
-    cmd = [fextract, '-d', '0', '-v', variable, '-c', str(level), '-f', str(level),
+    """[(x, value)] of the cells of one level along an x slice.
+
+    amrex_fextract fixes the slice's transverse index on its coarse level and scales
+    it by the refinement ratio only from there, so -c L -f L would read fine row
+    j = jloc (the coarse middle-row index taken as a fine index), a different row on
+    every level. Slice from level 0 instead, which reports the uncovered cells of the
+    coarser levels as well, and keep the rows at this level's cell centres: with even
+    refinement ratios no coarser cell centre is one.
+    """
+    prob_lo_x, dx, ratios = plotfile_geometry(plotfile)
+    if any(r % 2 for r in ratios[:level]):
+        raise CheckError(f"{plotfile}: refinement ratios {ratios[:level]} below level {level} "
+                         f"include an odd one, so its cells cannot be told from coarser ones")
+    cmd = [fextract, '-d', '0', '-v', variable, '-c', '0', '-f', str(level),
            '-e', '-s', out_path, plotfile]
     proc = subprocess.run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
@@ -70,8 +101,13 @@ def extract(fextract, plotfile, variable, out_path, level=0):
             if len(fields) < 2:
                 raise ValueError(f"{out_path}: expected 'x value', got {line!r}")
             values.append((float(fields[0]), float(fields[1])))
+    if level > 0:
+        def on_level(x):
+            offset = (x - prob_lo_x) / dx[level] - 0.5
+            return abs(offset - round(offset)) < 1.0e-6
+        values = [(x, v) for x, v in values if on_level(x)]
     if not values:
-        raise ValueError(f"{out_path}: no data rows")
+        raise CheckError(f"{plotfile} level {level}: no {variable} cells on the slice")
     return values
 
 
@@ -217,9 +253,11 @@ def main():
         check_fluxes_and_budget(args.two_way_dir, 'two-way')
 
         # 5: t_surf(n) is the skin of step n-1 as a potential temperature
+        # Counted per level and step: a level whose columns all went unpaired must
+        # fail on its own, not hide behind the comparisons of another level.
         kappa = RD / CP
         worst_rel = 0.0
-        compared = 0
+        compared = {}
         for step in range(2, args.steps + 1):
             for level in levels(args.two_way_dir, step):
                 if level not in levels(args.two_way_dir, step - 1):
@@ -227,24 +265,29 @@ def main():
                 t_surf = dict(column_field(args.two_way_dir, step, 't_surf', level))
                 t_skin = dict(column_field(args.two_way_dir, step - 1, 'seb_t_sfc', level))
                 p_cc = dict(column_field(args.two_way_dir, step - 1, 'surf_pres', level))
-                for x in sorted(t_surf):
-                    if x not in t_skin or x not in p_cc:
-                        continue
+                paired = [x for x in sorted(t_surf) if x in t_skin and x in p_cc]
+                if not paired:
+                    failures.append(f"two-way step {step} level {level}: none of its "
+                                    f"{len(t_surf)} columns has a skin from step {step - 1} "
+                                    f"to compare with")
+                compared[level] = compared.get(level, 0) + len(paired)
+                for x in paired:
                     rho = p_cc[x] / (RD * t_skin[x])
                     p_sfc = p_cc[x] + rho * GRAV * 0.5 * args.dz
                     theta = t_skin[x] * (P0 / p_sfc) ** kappa
                     rel = abs(t_surf[x] - theta) / theta
                     worst_rel = max(worst_rel, rel)
-                    compared += 1
                     if rel > args.theta_rtol:
                         failures.append(f"two-way step {step} level {level} x {x:g}: t_surf "
                                         f"{t_surf[x]:.6f} K is not the step {step - 1} skin "
                                         f"{t_skin[x]:.6f} K as potential temperature {theta:.6f} K "
                                         f"(relative error {rel:.3e}, tolerance {args.theta_rtol})")
-        if compared == 0:
-            failures.append("two-way: no column had a skin from the step before to compare with")
+        if not compared:
+            failures.append("two-way: no level had a skin from the step before to compare with")
+        per_level = ', '.join(f"level {lev}: {n}" for lev, n in sorted(compared.items()))
         print(f"two-way: t_surf follows the previous step's skin as potential temperature "
-              f"in {compared} column comparisons, worst relative error {worst_rel:.3e}")
+              f"in {sum(compared.values())} column comparisons ({per_level}), worst relative "
+              f"error {worst_rel:.3e}")
 
     if failures:
         for message in failures:
@@ -256,4 +299,8 @@ def main():
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except CheckError as error:
+        print(f"FAIL: {error}")
+        sys.exit(1)

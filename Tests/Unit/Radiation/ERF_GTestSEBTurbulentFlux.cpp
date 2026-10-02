@@ -107,17 +107,17 @@ std::unique_ptr<amrex::MultiFab> make_lsm_field (const Layout& l, Real offset, i
 
 // Over the valid cells of every rank: the largest error against the expected
 // land-surface fill, and the number of cells that hold `fallback`.
-struct LandFillCheck { Real max_error; long fallback_cells; };
+struct LandFillCheck { Real max_error; amrex::Long fallback_cells; };
 
 LandFillCheck check_land_fill (const amrex::MultiFab& seb, Real scale, Real off_a, int skip_a,
                                bool with_b, Real off_b, int skip_b, Real fallback)
 {
     amrex::ReduceOps<amrex::ReduceOpMax, amrex::ReduceOpSum> reduce_op;
-    amrex::ReduceData<Real, long> reduce_data(reduce_op);
+    amrex::ReduceData<Real, amrex::Long> reduce_data(reduce_op);
     for (amrex::MFIter mfi(seb); mfi.isValid(); ++mfi) {
         const auto arr = seb.const_array(mfi);
         reduce_op.eval(mfi.validbox(), reduce_data,
-            [=] AMREX_GPU_DEVICE (int i, int j, int) -> amrex::GpuTuple<Real, long> {
+            [=] AMREX_GPU_DEVICE (int i, int j, int) -> amrex::GpuTuple<Real, amrex::Long> {
                 const bool valid = lsm_column_processed(i, j, skip_a) &&
                                    (!with_b || lsm_column_processed(i, j, skip_b));
                 const Real expected = valid ? scale * lsm_value(i, j, off_a) +
@@ -128,7 +128,7 @@ LandFillCheck check_land_fill (const amrex::MultiFab& seb, Real scale, Real off_
     }
     auto result = reduce_data.value();
     Real err = amrex::get<0>(result);
-    long n = amrex::get<1>(result);
+    amrex::Long n = amrex::get<1>(result);
     amrex::ParallelDescriptor::ReduceRealMax(err);
     amrex::ParallelDescriptor::ReduceLongSum(n);
     return {err, n};
@@ -164,6 +164,26 @@ Real max_deviation_with_halo (const amrex::MultiFab& mf, Real value)
         const auto arr = mf.const_array(mfi);
         reduce_op.eval(mfi.fabbox(), reduce_data,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) -> amrex::GpuTuple<Real> {
+                return {std::abs(arr(i, j, k) - value)};
+            });
+    }
+    Real err = amrex::get<0>(reduce_data.value());
+    amrex::ParallelDescriptor::ReduceRealMax(err);
+    return err;
+}
+
+// Largest |mf - value| over the halo cells only (every cell of each fab outside its
+// valid box), on every rank.
+Real max_halo_deviation (const amrex::MultiFab& mf, Real value)
+{
+    amrex::ReduceOps<amrex::ReduceOpMax> reduce_op;
+    amrex::ReduceData<Real> reduce_data(reduce_op);
+    for (amrex::MFIter mfi(mf); mfi.isValid(); ++mfi) {
+        const auto arr = mf.const_array(mfi);
+        const amrex::Box valid = mfi.validbox();
+        reduce_op.eval(mfi.fabbox(), reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) -> amrex::GpuTuple<Real> {
+                if (valid.contains(i, j, k)) { return {Real(0.0)}; }
                 return {std::abs(arr(i, j, k) - value)};
             });
     }
@@ -326,4 +346,31 @@ TEST(SEBTurbulentFlux, UndefinedLandCellsFallToTheSurfaceLayer)
                                                 SEBTurbulentFluxSource::SurfaceLayer, Real(7.0));
     EXPECT_EQ(origin, SEBFluxOrigin::LandSurface);
     EXPECT_LT(max_error_land_over_surface_layer(seb, Real(80.0)), tol * Cp_d);
+}
+
+// The documented halo contract: whatever the source, the halo holds the fallback and
+// only valid cells take the selected values. Before, the surface-layer case left the
+// halo as it was and the other cases set it, so the contract held in some cases only.
+TEST(SEBTurbulentFlux, HaloHoldsTheFallbackInEveryCase)
+{
+    using S = SEBTurbulentFluxSource;
+    const Layout l = make_layout();
+    auto sl = make_surface_layer_flux(l);
+    auto land_h = make_lsm_field(l, Real(80.0), 0);
+    const Real fallback = Real(7.0);
+    for (const amrex::MultiFab* land : {static_cast<const amrex::MultiFab*>(nullptr),
+                                        static_cast<const amrex::MultiFab*>(land_h.get())}) {
+        for (const S source : {S::SurfaceLayer, S::Defaults}) {
+            amrex::MultiFab seb(l.ba2d, l.dm, 1, amrex::IntVect(1, 1, 0));
+            seb.setVal(Real(-12345.0));
+            fill_seb_turbulent_flux(seb, SEBTurbulentFlux::Sensible, land, sl.get(), 0, source, fallback);
+            EXPECT_EQ(max_halo_deviation(seb, fallback), Real(0.0))
+                << "land field " << (land != nullptr) << ", source " << static_cast<int>(source);
+        }
+    }
+
+    amrex::MultiFab seb(l.ba2d, l.dm, 1, amrex::IntVect(1, 1, 0));
+    seb.setVal(Real(-12345.0));
+    fill_seb_field_from_land_surface(seb, land_h.get(), Real(0.3));
+    EXPECT_EQ(max_halo_deviation(seb, Real(0.3)), Real(0.0));
 }

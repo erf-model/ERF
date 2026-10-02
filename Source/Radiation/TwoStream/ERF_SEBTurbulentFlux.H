@@ -62,10 +62,10 @@ select_seb_flux_origin (bool land_surface_field_present,
 /**
  * @brief Fill the SEB's H or LE [W/m^2] on the valid cells of seb_flux.
  *
- * Only the valid cells are written in the land-surface and surface-layer cases
- * (the default case sets the halo too): the force-restore update, the residual
- * diagnostic and the seb_hfx/seb_lh outputs all read valid cells only, so the
- * halo is never consumed. A consumer that needs it must fill it first.
+ * The selected values go to the valid cells; the halo always holds the fallback.
+ * The force-restore update, the residual diagnostic and the seb_hfx/seb_lh outputs
+ * read valid cells only. A consumer that needs neighbouring values in the halo must
+ * fill it first (FillBoundary).
  *
  * @param[out] seb_flux           2D SEB field (k = 0), laid out like the level's state
  * @param[in]  kind               sensible or latent
@@ -98,8 +98,8 @@ fill_seb_turbulent_flux (amrex::MultiFab& seb_flux,
  * elsewhere. A land model leaves the lsm_undefined placeholder in cells it does
  * not process (Noah-MP: open water and sea ice) and everywhere before its first
  * step, which runs after the first radiation call; those cells take the scalar
- * default rather than the placeholder. Without a field the whole of seb_field,
- * halo included, is the fallback.
+ * default rather than the placeholder. The halo always holds the fallback; only
+ * valid cells take land-surface values.
  *
  * @param[out] seb_field 2D SEB field (k = 0), laid out like the land-surface fields
  * @param[in]  field     land-surface field, or nullptr
