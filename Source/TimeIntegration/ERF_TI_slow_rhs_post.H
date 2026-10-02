@@ -156,6 +156,10 @@
             }
         } // EB
 
+        // Limit KE and Q now that the explicit update, implicit diffusion and
+        //    redistribution have all been applied
+        #include "ERF_ScalarLimitPost.H"
+
         // Apply boundary conditions on all the state variables that have been updated
         // in both the fast and slow integrators
         apply_bcs(S_new, new_stage_time, S_new[IntVars::cons].nGrow(), S_new[IntVars::xmom].nGrow(),
