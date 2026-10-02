@@ -9,6 +9,7 @@
 #include "ERF_ProbCommon.H"
 #include "ERF_DataStruct.H"
 #include "ERF_TerrainMetrics.H"
+#include "ERF_GridUtils.H"
 
 #include "ERF_ReadFromWRFInput.H"
 #include "ERF_ReadFromWRFBdy.H"
@@ -318,19 +319,32 @@ namespace {
  * want in its mesh.  The mean over the domain is smooth in k, so taking it keeps the file's
  * vertical *distribution* while discarding its horizontal *raggedness*.
  *
- * mf_PH and mf_PHB are z-face MultiFabs whose valid boxes share faces with their vertical
- * neighbors, so the sum is accumulated over the cells each box bounds rather than over its faces,
- * which tile the domain exactly.
+ * The average is over the columns this level actually has, not over the columns the domain
+ * would have.  A level whose grids cover only part of the domain -- a nest, which is exactly
+ * the lev > 0 wrfinput case -- would otherwise have every thickness scaled down by the
+ * fraction of the domain it covers, which is not a vertical grid at all.  Averaging over the
+ * nest's own columns instead gives the nest's own vertical distribution, which is the right
+ * profile for the nest's own mesh.
  *
- * @param[in] mf_PH  perturbation geopotential on z-faces
- * @param[in] mf_PHB base-state geopotential on z-faces
- * @param[in] geom   geometry of the level
+ * ncol_min is how many columns the thinnest-sampled layer saw.  A nest that stops below the
+ * domain top leaves the layers above it with no columns whatsoever, and ncol_min is zero:
+ * there is no profile to be had there and the caller has to build the grid another way.
+ *
+ * mf_PH and mf_PHB are z-face MultiFabs whose valid boxes share faces with their vertical
+ * neighbors, so the sum is accumulated over the cells each box bounds rather than over its
+ * faces, which tile the domain exactly.
+ *
+ * @param[in]  mf_PH    perturbation geopotential on z-faces
+ * @param[in]  mf_PHB   base-state geopotential on z-faces
+ * @param[in]  geom     geometry of the level
+ * @param[out] ncol_min fewest columns any one layer was averaged over
  * @return mean thickness of each of the domain's layers, length Domain().length(2)
  */
 amrex::Vector<amrex::Real>
 wrf_mean_layer_thickness (const MultiFab& mf_PH,
                           const MultiFab& mf_PHB,
-                          const Geometry& geom)
+                          const Geometry& geom,
+                          Long& ncol_min)
 {
     const Box& domain = geom.Domain();
     const int  klo    = domain.smallEnd(2);
@@ -339,11 +353,19 @@ wrf_mean_layer_thickness (const MultiFab& mf_PH,
     Gpu::DeviceVector<Real> d_sum(nlay, zero);
     Real* dptr = d_sum.dataPtr();
 
+    Vector<Long> ncol(nlay, 0);
+
     for (MFIter mfi(mf_PH); mfi.isValid(); ++mfi)
     {
         Box bx = mfi.validbox();
         bx.setBig(2, bx.bigEnd(2)-1);   // the cells this z-face box bounds
         if (!bx.ok()) { continue; }
+
+        // Count the columns this box contributes to each of the layers it spans.  Boxes
+        // stacked in z share an (i,j) footprint, so the count has to be per layer: for any
+        // one layer exactly one box of each vertical stack contributes.
+        const Long nxy = static_cast<Long>(bx.length(0)) * static_cast<Long>(bx.length(1));
+        for (int k(bx.smallEnd(2)); k<=bx.bigEnd(2); ++k) { ncol[k-klo] += nxy; }
 
         const Array4<const Real>&  ph_arr = mf_PH.const_array(mfi);
         const Array4<const Real>& phb_arr = mf_PHB.const_array(mfi);
@@ -359,9 +381,13 @@ wrf_mean_layer_thickness (const MultiFab& mf_PH,
     Vector<Real> prof(nlay);
     Gpu::copy(Gpu::deviceToHost, d_sum.begin(), d_sum.end(), prof.begin());
     ParallelDescriptor::ReduceRealSum(prof.dataPtr(), nlay);
+    ParallelDescriptor::ReduceLongSum(ncol.dataPtr(), nlay);
 
-    const Real ncol = static_cast<Real>(domain.length(0)) * static_cast<Real>(domain.length(1));
-    for (int k(0); k<nlay; ++k) { prof[k] /= ncol; }
+    ncol_min = std::numeric_limits<Long>::max();
+    for (int k(0); k<nlay; ++k) {
+        ncol_min = std::min(ncol_min, ncol[k]);
+        prof[k]  = (ncol[k] > 0) ? prof[k] / static_cast<Real>(ncol[k]) : zero;
+    }
 
     return prof;
 }
@@ -1437,99 +1463,145 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
 #else
             const Real tol = Real(1.e-8);
 #endif
-            //
-            // Build the one-dimensional profile that make_terrain_fitted_coords drapes over the
-            //    terrain, from the file's own domain-mean layer thicknesses rescaled to reach
-            //    z_top.  It stays a single 1-D array, so the mesh is exactly as smooth in the
-            //    horizontal as it was before; what changes is the vertical distribution.
-            //
-            // The previous construction anchored dz0 to the *maximum* over columns of the file's
-            //    first layer thickness and then applied one geometric stretch.  A wrfinput first
-            //    layer is deliberately thicker than the layers just above it -- 17.78 m over
-            //    9.09 m in the domain mean on the WPS test case -- so anchoring to it and only
-            //    growing made every ERF layer through the boundary layer about 2.2x thicker than
-            //    the file's, discarding over half the vertical resolution the file provided
-            //    exactly where an atmospheric model wants it, while ending up finer than the file
-            //    aloft.  A single geometric stretch cannot do better: the file's own stretch
-            //    ratio rises to ~1.031 in mid-troposphere and relaxes to ~1.004 near the top,
-            //    which one constant factor cannot represent.
-            //
-            Vector<Real> dz_prof = wrf_mean_layer_thickness(mf_PH, *mf_PHB, geom[lev]);
             const int nlay = static_cast<int>(zlevels_stag[lev].size()) - 1;
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(static_cast<int>(dz_prof.size()) == nlay,
-                "The mean layer-thickness profile does not match the number of ERF layers");
-
-            Real dz_tot = zero;
-            for (int k(0); k<nlay; ++k) {
-                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dz_prof[k] > zero,
-                    "Non-positive mean layer thickness in the wrfinput vertical grid");
-                dz_tot += dz_prof[k];
-            }
 
             //
-            // z_top and the mean depth of the file's column are not the same number, so the
-            //    profile has to be stretched to fit.  Absorb that difference ALOFT rather than
-            //    spreading it uniformly, so the near-surface layers keep the thicknesses the file
-            //    actually has: the weight w(k) = 1 + a*s(k) is unity at the surface and grows
-            //    linearly with the height fraction s, chosen so the column closes exactly.
+            // Two constructions are available, chosen by erf.wrfinput_zlevels_from_file.
             //
-            // This leaves the profile as smooth as the file's own.  w multiplies the stretch
-            //    ratio by w(k+1)/w(k), and since s advances by at most dz_top/depth ~ 0.012 per
-            //    layer the perturbation is order a*ds ~ 1e-3, far below the ratio's own variation.
+            // The default takes the file's own domain-mean layer thicknesses and rescales them
+            //    to reach z_top.  The alternative, which is what ERF did before and what
+            //    erf_grid_utils::geometric_stretch still provides for the idealized case in
+            //    which dz0 and the domain height are what is known a priori, anchors dz0 to the
+            //    *maximum* over columns of the file's first layer thickness and applies one
+            //    geometric stretch.  A wrfinput first layer is deliberately thicker than the
+            //    layers just above it -- 17.78 m over 9.09 m in the domain mean on the WPS test
+            //    case -- so anchoring to it and only growing makes every ERF layer through the
+            //    boundary layer about 2.2x thicker than the file's, discarding over half the
+            //    vertical resolution the file provided exactly where an atmospheric model wants
+            //    it, while ending up finer than the file aloft.  A single geometric stretch
+            //    cannot do better: the file's own stretch ratio rises to ~1.031 in
+            //    mid-troposphere and relaxes to ~1.004 near the top, which one constant factor
+            //    cannot represent.
             //
-            Vector<Real> sfrac(nlay, zero);
-            {
-                Real c = zero;
-                for (int k(0); k<nlay; ++k) { sfrac[k] = c/dz_tot; c += dz_prof[k]; }
-            }
-            Real wsum = zero;
-            for (int k(0); k<nlay; ++k) { wsum += sfrac[k]*dz_prof[k]; }
+            // Either way the result is a single 1-D array draped by make_terrain_fitted_coords,
+            //    so the mesh is exactly as smooth in the horizontal as it has always been; what
+            //    the default changes is the vertical distribution.
+            //
+            bool use_file_profile = solverChoice.wrfinput_zlevels_from_file;
 
-            Real a_ramp = (wsum > zero) ? (z_top - dz_tot)/wsum : zero;
+            Vector<Real> dz_prof;
+            if (use_file_profile) {
+                Long ncol_min = 0;
+                dz_prof = wrf_mean_layer_thickness(mf_PH, *mf_PHB, geom[lev], ncol_min);
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(static_cast<int>(dz_prof.size()) == nlay,
+                    "The mean layer-thickness profile does not match the number of ERF layers");
 
-            // The weight has to stay positive.  It is smallest at the top, where s is largest,
-            //    so this only bites when z_top is far below the file's own column depth.
-            if (one + a_ramp*sfrac[nlay-1] < Real(0.1)) {
-                Print() << "WARNING: z_top (" << z_top << " m) is far below the mean depth of the "
-                           "wrfinput column (" << dz_tot << " m); the profile cannot be closed by "
-                           "stretching aloft alone, so it is rescaled uniformly instead and the "
-                           "near-surface layers will not match the file.\n";
-                a_ramp = zero;
-            }
-            const Real zscale = (a_ramp == zero) ? z_top/dz_tot : one;
+                const Long ncol_domain = static_cast<Long>(geom[lev].Domain().length(0)) *
+                                         static_cast<Long>(geom[lev].Domain().length(1));
 
-            zlevels_stag[lev][0] = zero;
-            for (int k(1); k<=nlay; ++k) {
-                const Real w = zscale * (one + a_ramp*sfrac[k-1]);
-                zlevels_stag[lev][k] = zlevels_stag[lev][k-1] + w*dz_prof[k-1];
+                // A nest that stops below the domain top has no columns at all in the layers
+                //    above it, so there is no profile to build a grid from up there and this
+                //    level falls back to geometric stretching, which needs only its own dz0.
+                if (ncol_min == 0) {
+                    Print() << "NOTE: the grids at level " << lev << " do not reach the top of the "
+                               "domain, so the file's layer-thickness profile is undefined over "
+                               "part of the column; building this level's vertical grid by "
+                               "geometric stretching instead.\n";
+                    use_file_profile = false;
+                } else if (ncol_min < ncol_domain) {
+                    Print() << "NOTE: the grids at level " << lev << " cover " << ncol_min << " of "
+                            << ncol_domain << " columns, so this level's layer-thickness profile is "
+                               "the mean over its own region rather than over the whole domain.\n";
+                }
             }
-            zlevels_stag[lev][nlay] = z_top;
 
-            // Report the grid that was actually built, and how smooth it is.  The mean over the
-            //    domain is smooth in k even though individual columns are not, so a ratio far
-            //    from 1 above the surface layer would mean this file is unlike the ones this has
-            //    been exercised on and the mesh deserves a look.
-            Real r_min = std::numeric_limits<Real>::max();
-            Real r_max = std::numeric_limits<Real>::lowest();
-            for (int k(1); k<nlay-1; ++k) {
-                const Real r = (zlevels_stag[lev][k+2] - zlevels_stag[lev][k+1])
-                             / (zlevels_stag[lev][k+1] - zlevels_stag[lev][k  ]);
-                r_min = std::min(r_min,r);  r_max = std::max(r_max,r);
-            }
-            const Real built_dz0 = zlevels_stag[lev][1]      - zlevels_stag[lev][0];
-            const Real built_dzt = zlevels_stag[lev][nlay]   - zlevels_stag[lev][nlay-1];
-            Print() << "Building an ERF grid from the mean wrfinput layer profile: dz0 "
-                    << built_dz0 << " m (file's own " << dz_prof[0] << " m), dz_top "
-                    << built_dzt << " m (file's own " << dz_prof[nlay-1] << " m)\n";
-            Print() << "    the " << (z_top - dz_tot) << " m by which z_top exceeds the file's mean"
-                    << " column depth is absorbed aloft: layers are stretched by 0% at the surface"
-                    << " and " << Real(100)*a_ramp*sfrac[nlay-1] << "% at the top\n";
-            Print() << "    layer-to-layer stretch ratio above the surface layer is in ["
-                    << r_min << ", " << r_max << "]"
-                    << "    (thickest first layer over the domain was " << dz0_max << " m)\n";
-            if (r_min < Real(0.5) || r_max > Real(2.0)) {
-                Print() << "WARNING: the mean vertical profile of this file is not smooth in k "
-                           "(stretch ratio outside [0.5, 2]); the ERF mesh inherits that.\n";
+            if (use_file_profile) {
+                Real dz_tot = zero;
+                for (int k(0); k<nlay; ++k) {
+                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dz_prof[k] > zero,
+                        "Non-positive mean layer thickness in the wrfinput vertical grid");
+                    dz_tot += dz_prof[k];
+                }
+
+                //
+                // z_top and the mean depth of the file's column are not the same number, so the
+                //    profile has to be stretched to fit.  Absorb that difference ALOFT rather than
+                //    spreading it uniformly, so the near-surface layers keep the thicknesses the file
+                //    actually has: the weight w(k) = 1 + a*s(k) is unity at the surface and grows
+                //    linearly with the height fraction s, chosen so the column closes exactly.
+                //
+                // This leaves the profile as smooth as the file's own.  w multiplies the stretch
+                //    ratio by w(k+1)/w(k), and since s advances by at most dz_top/depth ~ 0.012 per
+                //    layer the perturbation is order a*ds ~ 1e-3, far below the ratio's own variation.
+                //
+                Vector<Real> sfrac(nlay, zero);
+                {
+                    Real c = zero;
+                    for (int k(0); k<nlay; ++k) { sfrac[k] = c/dz_tot; c += dz_prof[k]; }
+                }
+                Real wsum = zero;
+                for (int k(0); k<nlay; ++k) { wsum += sfrac[k]*dz_prof[k]; }
+
+                Real a_ramp = (wsum > zero) ? (z_top - dz_tot)/wsum : zero;
+
+                // The weight has to stay positive.  It is smallest at the top, where s is largest,
+                //    so this only bites when z_top is far below the file's own column depth.
+                if (one + a_ramp*sfrac[nlay-1] < Real(0.1)) {
+                    Print() << "WARNING: z_top (" << z_top << " m) is far below the mean depth of the "
+                               "wrfinput column (" << dz_tot << " m); the profile cannot be closed by "
+                               "stretching aloft alone, so it is rescaled uniformly instead and the "
+                               "near-surface layers will not match the file.\n";
+                    a_ramp = zero;
+                }
+                const Real zscale = (a_ramp == zero) ? z_top/dz_tot : one;
+
+                zlevels_stag[lev][0] = zero;
+                for (int k(1); k<=nlay; ++k) {
+                    const Real w = zscale * (one + a_ramp*sfrac[k-1]);
+                    zlevels_stag[lev][k] = zlevels_stag[lev][k-1] + w*dz_prof[k-1];
+                }
+                zlevels_stag[lev][nlay] = z_top;
+
+                // Report the grid that was actually built, and how smooth it is.  The mean over the
+                //    domain is smooth in k even though individual columns are not, so a ratio far
+                //    from 1 above the surface layer would mean this file is unlike the ones this has
+                //    been exercised on and the mesh deserves a look.
+                Real r_min = std::numeric_limits<Real>::max();
+                Real r_max = std::numeric_limits<Real>::lowest();
+                for (int k(1); k<nlay-1; ++k) {
+                    const Real r = (zlevels_stag[lev][k+2] - zlevels_stag[lev][k+1])
+                                 / (zlevels_stag[lev][k+1] - zlevels_stag[lev][k  ]);
+                    r_min = std::min(r_min,r);  r_max = std::max(r_max,r);
+                }
+                const Real built_dz0 = zlevels_stag[lev][1]      - zlevels_stag[lev][0];
+                const Real built_dzt = zlevels_stag[lev][nlay]   - zlevels_stag[lev][nlay-1];
+                Print() << "Building an ERF grid from the mean wrfinput layer profile: dz0 "
+                        << built_dz0 << " m (file's own " << dz_prof[0] << " m), dz_top "
+                        << built_dzt << " m (file's own " << dz_prof[nlay-1] << " m)\n";
+                Print() << "    the " << (z_top - dz_tot) << " m by which z_top exceeds the file's mean"
+                        << " column depth is absorbed aloft: layers are stretched by 0% at the surface"
+                        << " and " << Real(100)*a_ramp*sfrac[nlay-1] << "% at the top\n";
+                Print() << "    layer-to-layer stretch ratio above the surface layer is in ["
+                        << r_min << ", " << r_max << "]"
+                        << "    (thickest first layer over the domain was " << dz0_max << " m)\n";
+                if (r_min < Real(0.5) || r_max > Real(2.0)) {
+                    Print() << "WARNING: the mean vertical profile of this file is not smooth in k "
+                               "(stretch ratio outside [0.5, 2]); the ERF mesh inherits that.\n";
+                }
+
+            } else {
+                //
+                // Solve for the geometric stretch factor that fills the domain with nlay layers
+                //    whose first is dz0_max thick.  The solve lives in Source/Utils so that an
+                //    idealized case, where dz0 and the domain height are the knowns, can use it
+                //    without going through the wrfinput path.
+                //
+                const erf_grid_utils::GeometricStretch gs =
+                    erf_grid_utils::build_geometric_zlevels(zlevels_stag[lev], dz0_max, z_top, tol);
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(gs.converged,
+                    "Newton iterations to determine the grid stretching factor failed!\n");
+                Print() << "Building an ERF grid with dz0: " << gs.dz0 <<
+                    " and stretching factor: " << gs.ratio << "\n";
             }
 
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(std::fabs(zlevels_stag[lev].back() - z_top) <= tol,
