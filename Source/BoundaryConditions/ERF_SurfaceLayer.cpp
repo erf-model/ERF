@@ -2465,6 +2465,17 @@ SurfaceLayer::compute_pblh (const int& lev,
     }
     const PBLHColumns& cols = m_pblh_columns[lev];
 
+    // A refined level whose grids end below the top of the domain in some column cannot see the
+    // top of a boundary layer deeper than its grids: the estimator would return a height capped
+    // by them.  Such a level takes the PBL height of the next coarser level, which has already
+    // been updated (levels are updated coarse to fine), at each of its columns.  A refined level
+    // that spans the full height diagnoses its own.
+    if (lev > 0 && !cols.full_height && m_face.coordDir() == 2 && m_face.isLow() &&
+        m_terrain_type != TerrainType::EB) {
+        fill_pblh_from_coarser(lev);
+        return;
+    }
+
     if (!cols.needed) {
         est.compute_pblh(m_geom[lev], z_phys_cc, pblh[lev].get(), cons, lmask, moisture_indices);
         return;
@@ -2566,8 +2577,15 @@ SurfaceLayer::define_pblh_columns (const int& lev,
     cols.dm = dm;
 
     const int k_ground = m_geom[lev].Domain().smallEnd(2);
+    const int k_top    = m_geom[lev].Domain().bigEnd(2);
     for (int ib = 0; ib < ba.size(); ++ib) {
         if (ba[ib].smallEnd(2) != k_ground) { cols.needed = true; }
+    }
+
+    // The runs of cells in z, each as one box
+    const BoxArray ba_joined = join_boxes_stacked_in_z(ba);
+    for (int ib = 0; ib < ba_joined.size(); ++ib) {
+        if (ba_joined[ib].smallEnd(2) != k_ground || ba_joined[ib].bigEnd(2) != k_top) { cols.full_height = false; }
     }
     if (!cols.needed) { return; }
 
@@ -2580,10 +2598,9 @@ SurfaceLayer::define_pblh_columns (const int& lev,
               "(amr.max_grid_size_z) and refined regions that reach the ground.");
     }
 
-    // The runs of cells in z, each as one box; those that start at the ground are the columns.
-    // A column goes to the rank that owns its lowest corner cell, which keeps most of the
-    // copies to and from the columns on the rank.
-    const BoxArray ba_joined = join_boxes_stacked_in_z(ba);
+    // Those of the runs of cells in z that start at the ground are the columns.  A column goes
+    // to the rank that owns its lowest corner cell, which keeps most of the copies to and from
+    // the columns on the rank.
     BoxList bl_col(IndexType::TheCellType());
     BoxList bl_col2d(IndexType::TheCellType());
     Vector<int> pmap;
@@ -2609,6 +2626,54 @@ SurfaceLayer::define_pblh_columns (const int& lev,
     // compute_pblh builds on the columns are temporaries.
     cols.hold_col.define(cols.ba_col, cols.dm_col, 1, 0, MFInfo().SetAlloc(false));
     cols.hold_col2d.define(cols.ba_col2d, cols.dm_col, 1, 0, MFInfo().SetAlloc(false));
+}
+
+/**
+ * Set the PBL height of a refined level from the next coarser level: each column of this
+ * level takes the height of the coarse column that holds it.  Used for a level whose grids end
+ * below the top of the domain, which cannot diagnose a boundary layer deeper than its grids.
+ *
+ * @param[in] lev Current level (> 0)
+ */
+void
+SurfaceLayer::fill_pblh_from_coarser (const int& lev)
+{
+    AMREX_ALWAYS_ASSERT(lev > 0 && pblh[lev] && pblh[lev-1]);
+    const Geometry& geom_f = m_geom[lev];
+    const Geometry& geom_c = m_geom[lev-1];
+    const IntVect rr(AMREX_D_DECL(static_cast<int>(std::lround(geom_c.CellSize(0) / geom_f.CellSize(0))),
+                                  static_cast<int>(std::lround(geom_c.CellSize(1) / geom_f.CellSize(1))),
+                                  1));
+
+    MultiFab& fine = *pblh[lev];
+    const MultiFab& crse = *pblh[lev-1];
+
+    // The coarse heights over the boxes of this level, with enough ghost cells to cover theirs.
+    // Ghost cells go first, then the valid cells, so every cell the coarse level owns comes
+    // from the box that owns it.
+    const IntVect ng_f = fine.nGrowVect();
+    const IntVect ng_c(AMREX_D_DECL((ng_f[0] + rr[0] - 1) / rr[0], (ng_f[1] + rr[1] - 1) / rr[1], ng_f[2]));
+    MultiFab crse_on_fine(amrex::coarsen(fine.boxArray(), rr), fine.DistributionMap(), 1, ng_c);
+    crse_on_fine.setVal(zero);
+    for (const IntVect& ng_src : {crse.nGrowVect(), IntVect(0)}) {
+        crse_on_fine.ParallelCopy(crse, 0, 0, 1, elemwiseMin(ng_src, ng_c), ng_c, geom_c.periodicity());
+    }
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(fine, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.growntilebox();
+        const Array4<Real> f = fine.array(mfi);
+        const Array4<Real const> c = crse_on_fine.const_array(mfi);
+        const int rx = rr[0];
+        const int ry = rr[1];
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            f(i,j,k) = c(amrex::coarsen(i,rx), amrex::coarsen(j,ry), k);
+        });
+    }
+    fill_planar_boundary(lev, fine);
 }
 
 /**

@@ -1083,6 +1083,15 @@ public:
                     const MoistureComponentIndices& moisture_indices);
 
   /**
+   * Set the PBL height of a refined level whose grids end below the top of the domain from
+   * the next coarser level, column by column (see compute_pblh).  Public because it launches
+   * a device lambda.
+   *
+   * @param[in] lev Current level (> 0)
+   */
+  void fill_pblh_from_coarser (const int& lev);
+
+  /**
    * Compute planetary-boundary-layer height with the selected estimator.
    *
    * @param[in]     lev              level index
@@ -1635,6 +1644,7 @@ private:
       amrex::BoxArray ba;                 // Grids the columns were built for ...
       amrex::DistributionMapping dm;      // ... and their ranks
       bool needed = false;                // Whether some box does not start at the ground
+      bool full_height = true;            // Whether every column reaches the top of the domain
       amrex::BoxArray ba_col;             // The columns; empty on a level entirely aloft
       amrex::BoxArray ba_col2d;           // Their ground plane
       amrex::DistributionMapping dm_col;

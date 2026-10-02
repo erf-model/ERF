@@ -110,7 +110,10 @@ length of the surface layer. ERF caps it harmonically at
 or, with :cpp:`erf.rans_lscale_from_pblh = true`, at
 :math:`\kappa \times 0.1 z_i` from the surface layer's boundary-layer height
 diagnostic (``erf.most.pblh_calc = MYNN25``), clamped between
-``erf.rans_lscale_min`` and ``erf.max_geom_lscale``.
+``erf.rans_lscale_min`` and ``erf.max_geom_lscale``. On a refined region
+that ends below the top of the domain, :math:`z_i` is the height diagnosed
+on the next coarser level, so the cap does not depend on the height of the
+refined region.
 
 Stratification shortens or lengthens :math:`l` through the buoyancy
 frequency :math:`N^2 = (g/\theta_0) \, \partial \theta / \partial z`. In stable
