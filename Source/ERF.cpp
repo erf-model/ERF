@@ -1769,6 +1769,21 @@ ERF::InitData_post ()
             m_SurfaceLayer[ori]->set_surface_layer_faces(surface_layer_faces);
             m_SurfaceLayer[ori]->set_coupled_sst_active(solverChoice.use_coupled_sst &&
                                                         static_cast<int>(ori) == Orientation::zlo());
+
+            // The custom and rico flux types prescribe the fluxes (or the bulk transfer
+            // coefficients) directly: u*, T* and q* are not MOST scales and no Obukhov
+            // length is computed. PBL schemes that build near-surface gradients from u*
+            // and L assume MOST consistency, so they cannot be used with these types.
+            if (m_SurfaceLayer[ori]->flux_type == SurfaceLayer::FluxCalcType::CUSTOM ||
+                m_SurfaceLayer[ori]->flux_type == SurfaceLayer::FluxCalcType::RICO) {
+                for (const auto& tc : solverChoice.turbChoice) {
+                    if (tc.pbl_type != PBLType::None && !tc.uses_shoc_family()) {
+                        Abort("erf.pbl_type = " + std::string(amrex::getEnumNameString(tc.pbl_type)) +
+                              " requires a MOST-consistent u* and Obukhov length;"
+                              " it cannot be combined with surface_layer.flux_type = custom or rico");
+                    }
+                }
+            }
             // This call will allocate the arrays at each level. If we regrid later, either changing
             // the number of levels or just the grids at each existing level, we will call an update routine
             // to redefine the internal arrays in m_SurfaceLayer.

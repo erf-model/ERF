@@ -21,7 +21,6 @@
     [[maybe_unused]] bool l_implicit_diss = turbChoice.use_keqn && turbChoice.implicit_tke_dissipation;
     [[maybe_unused]] bool l_use_mynn = turbChoice.use_pbl_tke;
 
-    // used by ERF_AddTKESources.H
     // Clamp the divisor to the smallest normal Real before the select: an optimised
     //   build if-converts the select into an unconditional 1/theta_ref (also when
     //   the select is on the divisor), which trips fpe_trap_zero with the default

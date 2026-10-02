@@ -536,10 +536,8 @@ ComputeQKESourceTerms (int i, int j, int k,
         const amrex::Real t23_c = fourth * ( tau23(i,j  ,k) + tau23(i,j  ,k+1)
                                            + tau23(i,j+1,k) + tau23(i,j+1,k+1) );
 
-        // Cell-centered virtual heat flux. NOTE: RhoQ1 is diffused after RhoKE in
-        // erf_slow_rhs_post, so the k+1 moisture face lags this stage by one; the
-        // moisture term is a small correction to the buoyancy flux, and the klo
-        // face it is averaged with is current.
+        // Cell-centered virtual heat flux. Both faces are from this stage: the
+        // QKE sources are added after RhoQ1 is diffused (see AddTurbKESources).
         amrex::Real hfxv_c = myhalf * ( hfx_z(i,j,k) + hfx_z(i,j,k+1) ) * (one + epsv*qv);
         if (qfx1_z) {
             hfxv_c += epsv * theta * myhalf * ( qfx1_z(i,j,k) + qfx1_z(i,j,k+1) );

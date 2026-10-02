@@ -5,6 +5,7 @@
 #include <ERF_EBAdvection.H>
 #include <ERF_EBRedistribute.H>
 #include "Diffusion/ERF_CloudChamberWallFlux.H"
+#include "Diffusion/ERF_TurbKESources.H"
 #include "Prob/ERF_CloudChamberBudget.H"
 #include "ERF_SBMOwnership.H"
 #include "AuxiliaryState/ERF_AuxiliaryInertTracer.H"
@@ -459,7 +460,7 @@ void erf_slow_rhs_post (int level, int finest_level,
         Array4<Real> hfx_EB{};
 
         // The surface-layer stresses on the zlo face, consumed by the MYNN QKE
-        // source at k = klo (see ERF_AddQKESources.H)
+        // source at k = klo (see ERF_TurbKESources.H)
         Array4<const Real> tau13, tau23;
 
         if (l_use_diff) {
@@ -582,8 +583,6 @@ void erf_slow_rhs_post (int level, int finest_level,
                         l_vert_implicit_fac = solverChoice.vert_implicit_fac[level][nrk];
                     }
 
-                    const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
-
                     // Only the physical chamber needs separate qv/qc calls:
                     // its wall correction must be applied to distinct flux
                     // components.  Generic moisture models retain the
@@ -609,28 +608,28 @@ void erf_slow_rhs_post (int level, int finest_level,
                         const Array4<Real> diffusion_z = dflux_z->array(mfi, flux_comp);
 
                     if (solverChoice.mesh_type == MeshType::StretchedDz) {
-                        DiffusionSrcForState_S(tbx, domain, diffusion_start, diffusion_num, u, v,
+                        DiffusionSrcForState_S(tbx, domain, diffusion_start, diffusion_num,
                                                new_cons, cur_prim, cell_rhs,
                                                diffusion_x, diffusion_y, diffusion_z,
-                                               stretched_dz_d, dxInv, SmnSmn_a,
+                                               stretched_dz_d, dxInv,
                                                mf_mx, mf_ux, mf_vx,
                                                mf_my, mf_uy, mf_vy,
-                                               hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
-                                               tau13, tau23,
+                                               hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z,
                                                mu_turb, solverChoice, level,
-                                               tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
+                                               bc_ptr_d,
+                                               l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
                     } else if (l_use_terrain) {
-                        DiffusionSrcForState_T(tbx, domain, diffusion_start, diffusion_num, l_rotate, u, v,
+                        DiffusionSrcForState_T(tbx, domain, diffusion_start, diffusion_num, l_rotate,
                                                new_cons, cur_prim, cell_rhs,
                                                diffusion_x, diffusion_y, diffusion_z,
                                                z_nd, z_cc, ax_arr, ay_arr, az_arr,
-                                               detJ_arr, dxInv, SmnSmn_a,
+                                               detJ_arr, dxInv,
                                                mf_mx, mf_ux, mf_vx,
                                                mf_my, mf_uy, mf_vy,
-                                               hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
-                                               tau13, tau23,
+                                               hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z,
                                                mu_turb, solverChoice, level,
-                                               tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
+                                               bc_ptr_d,
+                                               l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
                     } else if (l_use_eb) {
                         DiffusionSrcForState_EB(tbx, domain, diffusion_start, diffusion_num, u, v,
                                                 new_cons, cur_prim, cell_rhs,
@@ -644,13 +643,13 @@ void erf_slow_rhs_post (int level, int finest_level,
                     } else {
                         DiffusionSrcForState_N(tbx, domain, diffusion_start, diffusion_num, u, v,
                                                new_cons, cur_prim, cell_rhs,
-                                               diffusion_x, diffusion_y, diffusion_z, dxInv, SmnSmn_a,
+                                               diffusion_x, diffusion_y, diffusion_z, dxInv,
                                                mf_mx, mf_ux, mf_vx,
                                                mf_my, mf_uy, mf_vy,
-                                               hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
-                                               tau13, tau23,
+                                               hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z,
                                                mu_turb, solverChoice, level,
-                                               tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
+                                               bc_ptr_d,
+                                               l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
                     }
                     if (use_physical_chamber_wall_flux) {
                         // Apply the physical wall correction immediately to
@@ -669,10 +668,39 @@ void erf_slow_rhs_post (int level, int finest_level,
                     }
                     }
                 } // use_diff
-
-
             } // valid slow var
         } // loop ivar
+
+        // **************************************************************************
+        // TKE / QKE production and dissipation. These consume the face fluxes of
+        // this stage's scalar diffusion (theta in erf_slow_rhs_pre, qv above), so
+        // they are added only once every scalar has been diffused.
+        // **************************************************************************
+        if (l_use_diff && is_valid_slow_var[RhoKE_comp])
+        {
+            const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
+
+            if (solverChoice.mesh_type == MeshType::StretchedDz) {
+                const PBLDerivativeDzInv_S pbl_dz_inv{stretched_dz_d.data(),
+                                                      domain.smallEnd(2), domain.bigEnd(2)};
+                AddTurbKESources(tbx, domain, u, v, new_cons, cur_prim, cell_rhs,
+                                 SmnSmn_a, hfx_z, q1fx_z, diss, tau13, tau23, mu_turb,
+                                 solverChoice, level, tm_arr, grav_gpu, bc_ptr_d,
+                                 l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, pbl_dz_inv);
+            } else if (l_use_terrain) {
+                const PBLDerivativeDzInv_T pbl_dz_inv{z_cc};
+                AddTurbKESources(tbx, domain, u, v, new_cons, cur_prim, cell_rhs,
+                                 SmnSmn_a, hfx_z, q1fx_z, diss, tau13, tau23, mu_turb,
+                                 solverChoice, level, tm_arr, grav_gpu, bc_ptr_d,
+                                 l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, pbl_dz_inv);
+            } else if (!l_use_eb) {
+                const PBLDerivativeDzInv_N pbl_dz_inv{dxInv[2]};
+                AddTurbKESources(tbx, domain, u, v, new_cons, cur_prim, cell_rhs,
+                                 SmnSmn_a, hfx_z, q1fx_z, diss, tau13, tau23, mu_turb,
+                                 solverChoice, level, tm_arr, grav_gpu, bc_ptr_d,
+                                 l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, pbl_dz_inv);
+            }
+        }
 
 #ifdef ERF_USE_EAMXX_SHOC
         if (tc.uses_eamxx_shoc() && eamxx_shoc_lev) {

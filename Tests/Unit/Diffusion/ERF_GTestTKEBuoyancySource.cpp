@@ -3,6 +3,7 @@
 #include <AMReX_Reduce.H>
 
 #include <ERF_Diffusion.H>
+#include <ERF_TurbKESources.H>
 #include <ERF_SurfaceLayer.H>
 
 #include <gtest/gtest.h>
@@ -218,23 +219,29 @@ BuoyancyResult run_column (Real implicit_fac, Real c, bool with_sfc = false, Rea
         set_bottom_face(qfx1_z, -K * qb);
     }
 
-    // theta and k in one call, as in erf_slow_rhs_pre / post; then qv
+    // theta and k, then qv, then the k sources, as in erf_slow_rhs_pre / post
     DiffusionSrcForState_N(
         domain, domain, RhoTheta_comp, 2,
         xvel[0].const_array(), yvel[0].const_array(), cell_data[0].const_array(), cell_prim[0].const_array(),
         cell_rhs[0].array(), xflux[0].array(), yflux[0].array(), zflux[0].array(), dx_inv,
-        smn[0].const_array(), mf_mx[0].const_array(), mf_ux[0].const_array(), mf_vx[0].const_array(),
+        mf_mx[0].const_array(), mf_ux[0].const_array(), mf_vx[0].const_array(),
         mf_my[0].const_array(), mf_uy[0].const_array(), mf_vy[0].const_array(), hfx_x_arr, hfx_y_arr, hfx_z_arr,
-        qfx1_x_arr, qfx1_y_arr, qfx1_z_arr, qfx2_arr, diss_arr, Array4<const Real>{}, Array4<const Real>{}, mu_turb[0].const_array(), solver_choice, 0,
-        tm_arr, grav, bcs_d.data(), with_sfc, surf_layer, implicit_fac);
+        qfx1_x_arr, qfx1_y_arr, qfx1_z_arr, qfx2_arr, mu_turb[0].const_array(), solver_choice, 0,
+        bcs_d.data(), with_sfc, surf_layer, implicit_fac);
     DiffusionSrcForState_N(
         domain, domain, RhoQ1_comp, 1,
         xvel[0].const_array(), yvel[0].const_array(), cell_data[0].const_array(), cell_prim[0].const_array(),
         cell_rhs[0].array(), xflux[0].array(), yflux[0].array(), zflux[0].array(), dx_inv,
-        smn[0].const_array(), mf_mx[0].const_array(), mf_ux[0].const_array(), mf_vx[0].const_array(),
+        mf_mx[0].const_array(), mf_ux[0].const_array(), mf_vx[0].const_array(),
         mf_my[0].const_array(), mf_uy[0].const_array(), mf_vy[0].const_array(), hfx_x_arr, hfx_y_arr, hfx_z_arr,
-        qfx1_x_arr, qfx1_y_arr, qfx1_z_arr, qfx2_arr, diss_arr, Array4<const Real>{}, Array4<const Real>{}, mu_turb[0].const_array(), solver_choice, 0,
-        tm_arr, grav, bcs_d.data(), with_sfc, surf_layer, implicit_fac);
+        qfx1_x_arr, qfx1_y_arr, qfx1_z_arr, qfx2_arr, mu_turb[0].const_array(), solver_choice, 0,
+        bcs_d.data(), with_sfc, surf_layer, implicit_fac);
+    AddTurbKESources(
+        domain, domain,
+        xvel[0].const_array(), yvel[0].const_array(), cell_data[0].const_array(), cell_prim[0].const_array(),
+        cell_rhs[0].array(), smn[0].const_array(), hfx_z_arr, qfx1_z_arr, diss_arr,
+        Array4<const Real>{}, Array4<const Real>{}, mu_turb[0].const_array(), solver_choice, 0,
+        tm_arr, grav, bcs_d.data(), with_sfc, surf_layer, PBLDerivativeDzInv_N{dx_inv[2]});
     Gpu::streamSynchronize();
 
     // Every face k = 0..12 and every cell k = 0..11: with first-order extrapolation at the domain
