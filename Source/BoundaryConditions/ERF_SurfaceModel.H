@@ -57,12 +57,12 @@ public:
      * @param solverChoice ERF solver configuration.
      * @param lmask_lev Land-mask data for each level.
      */
-    explicit SurfaceModel(int nlevs,
-                          const amrex::Vector<amrex::BoxArray> &ba,
-                          const amrex::Vector<amrex::Geometry> &geom,
-                          const amrex::Vector<amrex::DistributionMapping> &dm,
-                          const SolverChoice &/*solverChoice*/,
-                          amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>>& /*lmask_lev*/)
+    explicit SurfaceModel (int nlevs,
+                           const amrex::Vector<amrex::BoxArray> &ba,
+                           const amrex::Vector<amrex::Geometry> &geom,
+                           const amrex::Vector<amrex::DistributionMapping> &dm,
+                           const SolverChoice &/*solverChoice*/,
+                           amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>>& /*lmask_lev*/)
         : m_nlevs(nlevs), m_ba(ba), m_geom(geom), m_dmap(dm) {
 
         u_star.resize(m_nlevs);
@@ -109,7 +109,7 @@ public:
      * @param domain_bcs_type Boundary conditions for interpolation.
      * @param refRatio Refinement ratios between adjacent levels.
      */
-    void initialize_for_level(int lev, const amrex::BoxArray &ba, const amrex::Geometry &geom, const amrex::DistributionMapping &dm, const amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_lev, const amrex::Vector <amrex::BCRec> &domain_bcs_type, const amrex::Vector<amrex::IntVect> &refRatio)
+    void initialize_for_level (int lev, const amrex::BoxArray &ba, const amrex::Geometry &geom, const amrex::DistributionMapping &dm, const amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_lev, const amrex::Vector <amrex::BCRec> &domain_bcs_type, const amrex::Vector<amrex::IntVect> &refRatio)
     {
         if (lev >= m_nlevs) {
             m_nlevs = lev+1;
@@ -284,7 +284,7 @@ public:
      * @param data_names Names corresponding to @p model_data.
      * @param type Whether the data belong to the land or urban model.
      */
-    void set_model_data(const int lev, const amrex::Vector<amrex::MultiFab*> model_data, const amrex::Vector<std::string>& data_names, SurfaceModelType type)
+    void set_model_data (const int lev, const amrex::Vector<amrex::MultiFab*> model_data, const amrex::Vector<std::string>& data_names, SurfaceModelType type)
     {
         if (type == SurfaceModelType::LAND) {
             lsm_data_lev[lev].resize(model_data.size());
@@ -348,8 +348,8 @@ public:
      * @param flux_names Names corresponding to @p model_fluxes.
      * @param type Whether the fluxes belong to the land or urban model.
      */
-    void set_model_fluxes(const int lev, const amrex::Vector<amrex::MultiFab*> model_fluxes,
-                          const amrex::Vector<std::string>& flux_names, SurfaceModelType type)
+    void set_model_fluxes (const int lev, const amrex::Vector<amrex::MultiFab*> model_fluxes,
+                           const amrex::Vector<std::string>& flux_names, SurfaceModelType type)
     {
         amrex::Vector<amrex::MultiFab*>* model_data = nullptr;
         amrex::Vector<std::string>* model_names = nullptr;
@@ -393,7 +393,7 @@ public:
      * @param field_indices Indices of the fields to average.
      * @param use_fluxes Whether the selected fields are fluxes.
      */
-    void set_model_fields(SurfaceModelType type, const amrex::Vector<int> &field_indices, const bool use_fluxes = true)
+    void set_model_fields (SurfaceModelType type, const amrex::Vector<int> &field_indices, const bool use_fluxes = true)
     {
         const int nfields = static_cast<int>(field_indices.size());
         if (!use_fluxes) {
@@ -450,10 +450,10 @@ public:
      * @param urban_data Urban-model source data to weight.
      * @param urban_weighted Destination for weighted urban data.
      */
-    void apply_weight_average(int lev, const amrex::MultiFab *lsm_data,
-                              amrex::MultiFab *lsm_weighted,
-                              const amrex::MultiFab *urban_data,
-                              amrex::MultiFab *urban_weighted);
+    void apply_weight_average (int lev, const amrex::MultiFab *lsm_data,
+                               amrex::MultiFab *lsm_weighted,
+                               const amrex::MultiFab *urban_data,
+                               amrex::MultiFab *urban_weighted);
 
     /**
      * @brief Computes land and urban weights and applies them to registered fields.
@@ -461,19 +461,19 @@ public:
      * @param lev AMR level to update.
      * @param urban_frac Urban fraction used to compute the weights.
      */
-    void calculate_weight_average(int lev, amrex::MultiFab* const urban_frac,
-                                  bool update_derived = true);
+    void calculate_weight_average (int lev, amrex::MultiFab* const urban_frac,
+                                   bool update_derived = true);
 
     /**
      * @brief Returns whether the interface exports fluxes rather than MOST variables.
      * @return True when weighted outputs are fluxes.
      */
-    bool are_fluxes() { return m_export_fluxes; }
+    bool are_fluxes () { return m_export_fluxes; }
 
     /**
      * @brief Enables and materializes the surface outputs consumed by ERF.
      */
-    void request_surface_outputs(const bool persistent = true)
+    void request_surface_outputs (const bool persistent = true)
     {
         m_surface_outputs_enabled = m_surface_outputs_enabled || persistent;
         for (int lev = 0; lev < m_nlevs; ++lev) {
@@ -485,7 +485,7 @@ public:
     /**
      * @brief Enables blended surface outputs needed by the SurfaceLayer.
      */
-    void request_surface_layer_outputs()
+    void request_surface_layer_outputs ()
     {
         m_surface_layer_outputs_enabled = true;
         for (int lev = 0; lev < m_nlevs; ++lev) {
@@ -499,21 +499,21 @@ public:
     /**
      * @brief Marks the registered surface fields as filled by an actual model advance.
      */
-    void mark_fields_valid() { m_fields_are_valid = true; }
+    void mark_fields_valid () { m_fields_are_valid = true; }
 
     /**
      * @brief Returns whether the surface models have advanced at least once.
      * @return False until the first advance, while the registered fields still hold their
      *         initial values rather than anything the models computed.
      */
-    bool fields_are_valid() const { return m_fields_are_valid; }
+    bool fields_are_valid () const { return m_fields_are_valid; }
 
     /**
      * @brief Returns the weighted horizontal momentum output for a level.
      * @param lev AMR level to query.
      * @return Pointer to the weighted u-star or momentum-flux field.
      */
-    amrex::MultiFab* get_ustar(const int& lev) {
+    amrex::MultiFab* get_ustar (const int& lev) {
         return u_star[lev].get();
     }
 
@@ -522,7 +522,7 @@ public:
      * @param lev AMR level to query.
      * @return Pointer to the weighted t-star or heat-flux field.
      */
-    amrex::MultiFab* get_tstar(const int& lev) {
+    amrex::MultiFab* get_tstar (const int& lev) {
         return t_star[lev].get();
     }
 
@@ -531,7 +531,7 @@ public:
      * @param lev AMR level to query.
      * @return Pointer to the weighted q-star or vapor-flux field.
      */
-    amrex::MultiFab* get_qstar(const int& lev) {
+    amrex::MultiFab* get_qstar (const int& lev) {
         return q_star[lev].get();
     }
 
@@ -540,7 +540,7 @@ public:
      * @param lev AMR level to query.
      * @return Pointer to the weighted surface-temperature field.
      */
-    amrex::MultiFab* get_tsurf(const int& lev) {
+    amrex::MultiFab* get_tsurf (const int& lev) {
         return t_surf[lev].get();
     }
 
@@ -550,7 +550,7 @@ public:
      * @param mfi Tile whose flux arrays are requested.
      * @return Read-only flux views selected for the level's provider mode.
      */
-    SurfaceFluxView get_surface_flux_view(const int lev, const amrex::MFIter& mfi) const
+    SurfaceFluxView get_surface_flux_view (const int lev, const amrex::MFIter& mfi) const
     {
         AMREX_ALWAYS_ASSERT(m_export_fluxes);
 
@@ -592,7 +592,7 @@ public:
      * @param field_idx Provider field index.
      * @return Weighted field or the source field for a single provider, or nullptr if it has not been selected.
      */
-    const amrex::MultiFab* get_weighted_model_data(const int lev,
+    const amrex::MultiFab* get_weighted_model_data (const int lev,
                                                     SurfaceModelType type,
                                                     const int field_idx) const {
         const SurfaceProviderMode mode = m_provider_mode[lev];
@@ -636,7 +636,7 @@ public:
      * @param lev AMR level to query.
      * @return Pointer to the weighting-factor field.
      */
-    amrex::MultiFab* get_wavg_factors(const int &lev) {
+    amrex::MultiFab* get_wavg_factors (const int &lev) {
         ensure_weight_factors(lev);
         return wavg[lev].get();
     }
@@ -644,7 +644,7 @@ public:
     /**
      * @brief Activates all registered mapped fields for an output consumer.
      */
-    void activate_all_field_maps(const bool persistent = true);
+    void activate_all_field_maps (const bool persistent = true);
 
     /**
      * @brief Writes registered surface-model fields to plotfile output.
@@ -654,7 +654,7 @@ public:
      * @param level_steps Number of steps represented at each level.
      * @param ref_ratio Refinement ratios between adjacent levels.
      */
-    void write_output(const int &finest_lev, const amrex::Real &time, const std::string &plot_prefix, const amrex::Vector<int> &level_steps, const amrex::Vector<amrex::IntVect> &ref_ratio);
+    void write_output (const int &finest_lev, const amrex::Real &time, const std::string &plot_prefix, const amrex::Vector<int> &level_steps, const amrex::Vector<amrex::IntVect> &ref_ratio);
 
     /**
      * @brief Registers a field map using land and urban field indices.
@@ -662,7 +662,7 @@ public:
      * @param lsm_urb_map Pair of land and urban field indices.
      * @param fill_boundary Whether to fill mapped-field boundaries.
      */
-    void register_field_map(std::string name, const std::pair<int, int> &lsm_urb_map, bool fill_boundary=false);
+    void register_field_map (std::string name, const std::pair<int, int> &lsm_urb_map, bool fill_boundary=false);
 
     /**
      * @brief Registers a field map using per-level land and urban pointers.
@@ -671,7 +671,7 @@ public:
      * @param urb_lev_mf Urban-model fields, indexed by AMR level.
      * @param fill_boundary Whether to fill mapped-field boundaries.
      */
-    void register_field_map(std::string name, amrex::Vector<amrex::MultiFab*> &lsm_lev_mf, amrex::Vector<amrex::MultiFab*> &urb_lev_mf, bool fill_boundary=false);
+    void register_field_map (std::string name, amrex::Vector<amrex::MultiFab*> &lsm_lev_mf, amrex::Vector<amrex::MultiFab*> &urb_lev_mf, bool fill_boundary=false);
 
     /**
      * @brief Updates a pointer-based field mapping for one level.
@@ -680,22 +680,22 @@ public:
      * @param lsm_mf Land-model field pointer, or nullptr.
      * @param urban_mf Urban-model field pointer, or nullptr.
      */
-    void set_field_map_pointers(const std::string& name, int lev,
-                                amrex::MultiFab* lsm_mf, amrex::MultiFab* urban_mf);
+    void set_field_map_pointers (const std::string& name, int lev,
+                                 amrex::MultiFab* lsm_mf, amrex::MultiFab* urban_mf);
 
     /**
      * @brief Registers a canonical radiation input mapping.
      * @param name Canonical radiation input name.
      * @param lsm_urb_map Pair of land and urban model field indices.
      */
-    void register_radiation_input(const std::string& name,
-                                  const std::pair<int, int>& lsm_urb_map);
+    void register_radiation_input (const std::string& name,
+                                   const std::pair<int, int>& lsm_urb_map);
 
     /**
      * @brief Registers canonical radiation input mappings.
      * @param input_map Canonical names mapped to land and urban indices.
      */
-    void register_radiation_inputs(
+    void register_radiation_inputs (
         const std::unordered_map<std::string, std::pair<int, int>>& input_map);
 
     /**
@@ -703,14 +703,14 @@ public:
      * @param name Canonical radiation output name.
      * @param lsm_urb_map Pair of land and urban model field indices.
      */
-    void register_radiation_output(const std::string& name,
-                                   const std::pair<int, int>& lsm_urb_map);
+    void register_radiation_output (const std::string& name,
+                                    const std::pair<int, int>& lsm_urb_map);
 
     /**
      * @brief Registers canonical radiation output mappings.
      * @param output_map Canonical names mapped to land and urban indices.
      */
-    void register_radiation_outputs(
+    void register_radiation_outputs (
         const std::unordered_map<std::string, std::pair<int, int>>& output_map);
 
     /**
@@ -719,7 +719,7 @@ public:
      * @param lev AMR level to query.
      * @return Pointer to the registered field, or nullptr if it is unknown.
      */
-    amrex::MultiFab* get_field(const std::string &name, int lev = 0) {
+    amrex::MultiFab* get_field (const std::string &name, int lev = 0) {
         if (auto field = fieldmap.find(name); field != fieldmap.end()) {
             activate_field_map(name);
             return fields[field->second.mf_ind][lev].get();
@@ -738,7 +738,7 @@ public:
      * @param lev AMR level to query.
      * @return Radiation fields in the order expected by RRTMGP.
      */
-    const amrex::Vector<const amrex::MultiFab*> get_radiation_fields(int lev = 0) {
+    const amrex::Vector<const amrex::MultiFab*> get_radiation_fields (int lev = 0) {
         // check if we need to build the radiation list (for first time step,)
         if (rad_fields[lev].size() == 0) {
             build_radiation_fieldlist(lev);
@@ -751,20 +751,28 @@ public:
      * @param lev AMR level to query.
      * @return One destination per canonical radiation output.
      */
-    const amrex::Vector<amrex::MultiFab*> get_radiation_output_fields(int lev = 0);
+    const amrex::Vector<amrex::MultiFab*> get_radiation_output_fields (int lev = 0);
+
+    /**
+     * @brief Returns the destination of one canonical radiation output by name.
+     * @param lev AMR level to query.
+     * @param name Canonical radiation output name (aborts on an unknown name).
+     * @return The registered destination, or nullptr when none is registered.
+     */
+    amrex::MultiFab* get_radiation_output_field (int lev, const std::string& name);
 
     /**
      * @brief Distributes updated canonical radiation outputs to other providers.
      * @param lev AMR level to update.
      */
-    void distribute_radiation_outputs(int lev);
+    void distribute_radiation_outputs (int lev);
 
     /**
      * @brief Distributes one updated canonical radiation output to other providers.
      * @param lev AMR level to update.
      * @param output_index Index in the canonical radiation output list.
      */
-    void distribute_radiation_output(int lev, int output_index);
+    void distribute_radiation_output (int lev, int output_index);
 
     /**
      * @brief Advances an input stream to the next line.
@@ -779,33 +787,33 @@ public:
      * @brief Writes surface-model state to a checkpoint file.
      * @param checkpointname Checkpoint file name.
      */
-    void WriteCheckpoint(const std::string &checkpointname);
+    void WriteCheckpoint (const std::string &checkpointname);
 
     /**
      * @brief Restores surface-model state from a checkpoint file.
      * @param checkpointname Checkpoint file name.
      */
-    void ReadCheckpoint(const std::string &checkpointname);
+    void ReadCheckpoint (const std::string &checkpointname);
 
     /**
      * @brief Validates the layout contract for a canonical radiation output.
      * @param lev AMR level associated with the destination.
      * @param mf Radiation output destination to validate.
      */
-    void validate_radiation_output_layout(int lev, const amrex::MultiFab* mf) const;
+    void validate_radiation_output_layout (int lev, const amrex::MultiFab* mf) const;
 
     /**
      * @brief Computes simple land and urban weights from the urban fraction.
      * @param lev AMR level to update.
      * @param urban_frac Urban fraction used to compute the weights.
      */
-    void calculate_simple_average(int lev, amrex::MultiFab* const urban_frac);
+    void calculate_simple_average (int lev, amrex::MultiFab* const urban_frac);
 
     /**
      * @brief Builds the ordered radiation-field list for one AMR level.
      * @param lev AMR level to update.
      */
-    void build_radiation_fieldlist(int lev) {
+    void build_radiation_fieldlist (int lev) {
         amrex::Print() << "  --- building radiation field list" << std::endl;
 
         // loop over fields and check against names of radiation variables
@@ -881,18 +889,18 @@ public:
      * @param lev AMR level to update.
      * @param urban_frac Urban fraction used to compute the weights.
      */
-    void weight_average_fields(int lev, amrex::MultiFab* const /*urban_frac*/);
+    void weight_average_fields (int lev, amrex::MultiFab* const /*urban_frac*/);
 
     /**
      * @brief Activates a mapped field and allocates its storage on all levels.
      * @param name Common mapped field name.
      */
-    void activate_field_map(const std::string& name, const bool persistent = true);
+    void activate_field_map (const std::string& name, const bool persistent = true);
 
     /**
      * @brief Disables and releases mapped fields used only by the last output.
      */
-    void deactivate_transient_field_maps();
+    void deactivate_transient_field_maps ();
 
     /**
      * @brief Checks whether a model field participates in a registered mapping.
@@ -902,8 +910,8 @@ public:
      * @param mf Field pointer to test.
      * @return True when the field is part of a registered mapping.
      */
-    bool is_field_mapped(int lev, SurfaceModelType type, int field_idx,
-                         const amrex::MultiFab* mf) const;
+    bool is_field_mapped (int lev, SurfaceModelType type, int field_idx,
+                          const amrex::MultiFab* mf) const;
 
     /**
      * @brief Writes a weighted copy of a model field.
@@ -912,8 +920,8 @@ public:
      * @param weighted SurfaceModel-owned destination field.
      * @param type Provider type owning the source field.
      */
-    void weight_model_field(int lev, const amrex::MultiFab* source,
-                            amrex::MultiFab* weighted, SurfaceModelType type);
+    void weight_model_field (int lev, const amrex::MultiFab* source,
+                             amrex::MultiFab* weighted, SurfaceModelType type);
 
 private:
 
@@ -921,7 +929,7 @@ private:
      * @brief Updates the provider mode after model data are registered.
      * @param lev AMR level whose provider mode should be updated.
      */
-    void update_provider_mode(const int lev)
+    void update_provider_mode (const int lev)
     {
         const bool has_land = !lsm_data_lev[lev].empty();
         const bool has_urban = !urban_data_lev[lev].empty();
@@ -947,7 +955,7 @@ private:
      * @brief Creates weighting factors when an external caller requests them.
      * @param lev AMR level whose weighting factors should be materialized.
      */
-    void ensure_weight_factors(const int lev)
+    void ensure_weight_factors (const int lev)
     {
         if (wavg[lev] != nullptr) { return; }
 
@@ -964,7 +972,7 @@ private:
      * @brief Allocates surface-output fields for one level.
      * @param lev AMR level whose outputs should be materialized.
      */
-    void ensure_surface_outputs(const int lev)
+    void ensure_surface_outputs (const int lev)
     {
         if (u_star[lev] != nullptr) { return; }
 
@@ -982,7 +990,7 @@ private:
     /**
      * @brief Releases surface outputs that have no persistent consumer.
      */
-    void release_transient_surface_outputs()
+    void release_transient_surface_outputs ()
     {
         if (m_surface_outputs_enabled) { return; }
         for (int lev = 0; lev < m_nlevs; ++lev) {

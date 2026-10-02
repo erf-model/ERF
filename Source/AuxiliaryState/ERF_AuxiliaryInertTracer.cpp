@@ -10,11 +10,13 @@
 #include <cmath>
 #include <limits>
 #include <sstream>
+#include <utility>
 
 namespace erf_auxiliary {
 
 struct AuxiliaryInertTracer::LevelStorage {
     amrex::MultiFab state;
+    amrex::MultiFab target;
     amrex::MultiFab anchor;
     amrex::MultiFab intensive;
     amrex::MultiFab measure;
@@ -22,18 +24,19 @@ struct AuxiliaryInertTracer::LevelStorage {
     MappedFaceFluxRate previous_rate;
     CompletedStepFluxLedger ledger;
     bool have_previous_rate{false};
+    bool measure_ready{false};
     amrex::Real max_stage_rate_delta{0.0};
 };
 
-AuxiliaryInertTracer::~AuxiliaryInertTracer() = default;
+AuxiliaryInertTracer::~AuxiliaryInertTracer () = default;
 
-AuxiliaryInertTracer::AuxiliaryInertTracer(const int number_of_levels)
+AuxiliaryInertTracer::AuxiliaryInertTracer (const int number_of_levels)
     : m_levels(static_cast<std::size_t>(number_of_levels))
 {
     AMREX_ALWAYS_ASSERT(number_of_levels > 0);
 }
 
-const AuxiliaryStateLayout& AuxiliaryInertTracer::layout()
+const AuxiliaryStateLayout& AuxiliaryInertTracer::layout ()
 {
     static const AuxiliaryStateLayout value(
         "erf-auxiliary-inert-tracer-m2-v1",
@@ -41,18 +44,16 @@ const AuxiliaryStateLayout& AuxiliaryInertTracer::layout()
     return value;
 }
 
-void AuxiliaryInertTracer::define(const int level,
+void AuxiliaryInertTracer::define (const int level,
                                  const amrex::BoxArray& cell_ba,
-                                 const amrex::DistributionMapping& dm,
-                                 const amrex::MultiFab& detJ,
-                                 const amrex::MultiFab& mx,
-                                 const amrex::MultiFab& my)
+                                 const amrex::DistributionMapping& dm)
 {
     AMREX_ALWAYS_ASSERT(level >= 0 && level < static_cast<int>(m_levels.size()));
     AMREX_ALWAYS_ASSERT(level == 0);
     AMREX_ALWAYS_ASSERT(m_levels[static_cast<std::size_t>(level)] == nullptr);
     auto data = std::make_unique<LevelStorage>();
     data->state.define(cell_ba, dm, 1, 0);
+    data->target.define(cell_ba, dm, 1, 0);
     data->anchor.define(cell_ba, dm, 1, 0);
     data->intensive.define(cell_ba, dm, 1, 1);
     data->measure.define(cell_ba, dm, 1, 0);
@@ -60,24 +61,44 @@ void AuxiliaryInertTracer::define(const int level,
     data->previous_rate.define(cell_ba, dm, 1, 0);
     data->ledger.define(cell_ba, dm, 1);
     data->state.setVal(amrex::Real(0.0));
+    data->target.setVal(amrex::Real(0.0));
     data->anchor.setVal(amrex::Real(0.0));
     data->intensive.setVal(amrex::Real(0.0));
     data->rate.setVal(amrex::Real(0.0));
     data->previous_rate.setVal(amrex::Real(0.0));
 
-    std::string diagnostic;
-    if (!BuildMappedCellMeasure(data->measure, detJ, mx, my, diagnostic)) {
-        amrex::Abort("M2 auxiliary inert tracer: " + diagnostic);
-    }
     m_levels[static_cast<std::size_t>(level)] = std::move(data);
 }
 
-void AuxiliaryInertTracer::initialize(const int level,
+bool AuxiliaryInertTracer::rebuild_static_measure (const int level,
+                                                   const amrex::MultiFab& detJ,
+                                                   const amrex::MultiFab& mx,
+                                                   const amrex::MultiFab& my,
+                                                   std::string& diagnostic)
+{
+    diagnostic.clear();
+    if (level < 0 || level >= static_cast<int>(m_levels.size()) ||
+        m_levels[static_cast<std::size_t>(level)] == nullptr) {
+        diagnostic = "static mapped measure requires a defined auxiliary level";
+        return false;
+    }
+    auto& data = *m_levels[static_cast<std::size_t>(level)];
+    data.measure_ready = false;
+    if (!BuildMappedCellMeasure(data.measure, detJ, mx, my, diagnostic)) {
+        return false;
+    }
+    data.measure_ready = true;
+    return true;
+}
+
+void AuxiliaryInertTracer::initialize (const int level,
                                      const amrex::MultiFab& conserved,
                                      const amrex::Geometry& geometry)
 {
     AMREX_ALWAYS_ASSERT(is_defined(level));
     auto& data = *m_levels[static_cast<std::size_t>(level)];
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(data.measure_ready,
+        "M2 auxiliary inert tracer cannot initialize before its static measure is built");
     std::string diagnostic;
     if (!ValidatePositiveFiniteComponent(conserved, Rho_comp, diagnostic)) {
         amrex::Abort("M2 auxiliary inert tracer initialization: " + diagnostic);
@@ -112,7 +133,7 @@ void AuxiliaryInertTracer::initialize(const int level,
                    << " components=" << layout().ncomp() << std::endl;
 }
 
-void AuxiliaryInertTracer::advance_stage(
+void AuxiliaryInertTracer::advance_stage (
     const int level,
     const HostIntegrator method,
     const int stage,
@@ -131,6 +152,8 @@ void AuxiliaryInertTracer::advance_stage(
 {
     AMREX_ALWAYS_ASSERT(is_defined(level));
     auto& data = *m_levels[static_cast<std::size_t>(level)];
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(data.measure_ready,
+        "M2 auxiliary inert tracer cannot advance before its static measure is built");
     AuxiliaryStageRecipe recipe;
     std::string diagnostic;
     if (!MakeAuxiliaryStageRecipe(method, stage, host_stage_interval, recipe, diagnostic)) {
@@ -163,7 +186,9 @@ void AuxiliaryInertTracer::advance_stage(
     const ConstTimedFieldView state_input{&data.state, 0, input_time};
     const ConstTimedFieldView rho_input{&conserved_input, Rho_comp, input_time};
     if (!BuildAuxiliaryIntensiveState(state_input, rho_input, input_time,
-                                      data.intensive, diagnostic)) {
+                                      data.intensive,
+                                      AuxiliaryFieldValidationPolicy::Global,
+                                      diagnostic)) {
         amrex::Abort("M2 auxiliary inert tracer intensive state: " + diagnostic);
     }
     data.intensive.FillBoundary(geometry.periodicity());
@@ -183,6 +208,8 @@ void AuxiliaryInertTracer::advance_stage(
             advection.dryscal_horiz_upw_frac, advection.dryscal_vert_upw_frac);
     }
 
+    // These full-domain reductions are qualification-only diagnostics for this
+    // test fixture, not part of the reusable transport operator path.
     const amrex::Real carrier_max = amrex::max(
         amrex::max(avg_xmom.norm0(0), avg_ymom.norm0(0)), avg_zmom.norm0(0));
     const amrex::Real rate_max = amrex::max(
@@ -210,24 +237,31 @@ void AuxiliaryInertTracer::advance_stage(
     context.recurrence = recipe;
     context.state_anchor = {&data.anchor, 0, step_old_time};
     context.state_input = {&data.state, 0, input_time};
-    context.state_target = {&data.state, 0, target_time};
+    context.state_target = {&data.target, 0, target_time};
     context.rho_anchor = {&conserved_anchor, Rho_comp, step_old_time};
     context.rho_input = {&conserved_input, Rho_comp, input_time};
     context.rho_target = {&conserved_target, Rho_comp, target_time};
     context.measure_anchor = {&data.measure, 0, step_old_time};
     context.measure_input = {&data.measure, 0, input_time};
     context.measure_target = {&data.measure, 0, target_time};
+    // This proof consumer is qualified only for a time-invariant mapped
+    // measure. Its three semantic measure views intentionally reference the
+    // same field. A moving-mesh consumer must supply distinct anchor/input/
+    // target measures and is outside this fixture's supported envelope.
     context.carrier = {&avg_xmom, &avg_ymom, &avg_zmom};
     ApplyAuxiliaryMappedStage(context, data.rate, geometry.InvCellSizeArray(), 0);
+
+    if (!ValidateFiniteComponent(data.target, 0, diagnostic)) {
+        amrex::Abort("M2 auxiliary inert tracer produced a nonfinite state: " + diagnostic);
+    }
+    // All reads from the old active state have completed. Promote the result
+    // only after the stage kernel and qualification check have succeeded.
+    std::swap(data.state, data.target);
 
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
         amrex::MultiFab::Copy(data.previous_rate.dir(dir), data.rate.dir(dir), 0, 0, 1, 0);
     }
     data.have_previous_rate = true;
-
-    if (!ValidateFiniteComponent(data.state, 0, diagnostic)) {
-        amrex::Abort("M2 auxiliary inert tracer produced a nonfinite state: " + diagnostic);
-    }
 
     amrex::Print() << "AUX_M2_STAGE method=" << HostIntegratorName(method)
                    << " stage=" << stage
@@ -297,19 +331,30 @@ void AuxiliaryInertTracer::advance_stage(
     }
 }
 
-void AuxiliaryInertTracer::destroy(const int level)
+void AuxiliaryInertTracer::destroy (const int level)
 {
     AMREX_ALWAYS_ASSERT(level >= 0 && level < static_cast<int>(m_levels.size()));
     m_levels[static_cast<std::size_t>(level)].reset();
 }
 
-bool AuxiliaryInertTracer::is_defined(const int level) const
+bool AuxiliaryInertTracer::is_defined (const int level) const
 {
     return level >= 0 && level < static_cast<int>(m_levels.size()) &&
            m_levels[static_cast<std::size_t>(level)] != nullptr;
 }
 
-const amrex::MultiFab& AuxiliaryInertTracer::state(const int level) const
+bool AuxiliaryInertTracer::measure_is_ready (const int level) const
+{
+    return is_defined(level) && m_levels[static_cast<std::size_t>(level)]->measure_ready;
+}
+
+const amrex::MultiFab& AuxiliaryInertTracer::static_measure (const int level) const
+{
+    AMREX_ALWAYS_ASSERT(measure_is_ready(level));
+    return m_levels[static_cast<std::size_t>(level)]->measure;
+}
+
+const amrex::MultiFab& AuxiliaryInertTracer::state (const int level) const
 {
     AMREX_ALWAYS_ASSERT(is_defined(level));
     return m_levels[static_cast<std::size_t>(level)]->state;

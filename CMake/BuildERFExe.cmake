@@ -540,6 +540,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Microphysics/SBM/ERF_SBMStateManager.cpp
        ${SRC_DIR}/Microphysics/SBM/ERF_SBMOwnership.cpp
        ${SRC_DIR}/Microphysics/SBM/ERF_SBMRestart.cpp
+       ${SRC_DIR}/Microphysics/SBM/ERF_SBMRemapping.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistAdvance.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistInit.cpp
        ${SRC_DIR}/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistPhaseChange.cpp
@@ -553,6 +554,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/PBL/ERF_ComputeDiffusivityYSUNew.cpp
        ${SRC_DIR}/Radiation/TwoStream/ERF_RadiationDiagnostics.cpp
        ${SRC_DIR}/Radiation/TwoStream/ERF_TwoStreamRadiation.cpp
+       ${SRC_DIR}/Radiation/TwoStream/ERF_SEBTurbulentFlux.cpp
        ${SRC_DIR}/Refinement/ERF_Tagging.cpp
        ${SRC_DIR}/Refinement/ERF_RefineBox.cpp
        ${SRC_DIR}/Refinement/ERF_RefineHurricane.cpp

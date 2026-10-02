@@ -13,10 +13,10 @@
 #endif
 
 namespace amrex {
-const char* buildInfoGetBuildDate();
-const char* buildInfoGetComp();
-const char* buildInfoGetGitHash(int i);
-const char* buildInfoGetCompVersion();
+const char* buildInfoGetBuildDate ();
+const char* buildInfoGetComp ();
+const char* buildInfoGetGitHash (int i);
+const char* buildInfoGetCompVersion ();
 } // namespace amrex
 
 //namespace ERF::io {

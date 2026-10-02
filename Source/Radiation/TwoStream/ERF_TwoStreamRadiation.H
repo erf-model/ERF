@@ -28,11 +28,13 @@
  *
  * Lifecycle:
  *  - resize(nlevs) once at construction (before the inputs are read);
- *  - define_level(lev, radChoice, rdOcp, ba2d, dm, ba, domain) whenever a level is
- *    (re)built;
+ *  - define_level(lev, radChoice, rdOcp, ba2d, dm, ba, domain, supply_land_forcing)
+ *    whenever a level is (re)built;
  *  - advance(...) twice per step: "pre_dycore" runs the column sweep on the
  *    old state and writes the heating rates, "post_dycore" reuses that
  *    sweep's flux diagnostics and advances the SEB state by dt_step;
+ *  - write_land_forcing(...) after a sweep, when a land-surface model integrates
+ *    on the radiation this model computes (see supply_land_forcing);
  *  - write_checkpoint / read_checkpoint for the prognostic surface state.
  *
  * The heating-rate MultiFab itself stays in ERF, since RRTMGP writes the
@@ -75,6 +77,10 @@ public:
      * @param dm         distribution mapping shared with the level's state
      * @param ba         the level's 3D BoxArray, checked for the z span
      * @param domain     the level's domain Box
+     * @param supply_land_forcing allocate the downwelling SW, downwelling LW and
+     *                   cos(zenith) fields the sweep fills for a land-surface model
+     *                   (SolverChoice::rad_feeds_lsm()); off, the sweep does no
+     *                   extra work and the fields do not exist
      */
     void define_level (int lev,
                        const RadChoice& rad_choice,
@@ -82,7 +88,8 @@ public:
                        const amrex::BoxArray& ba2d,
                        const amrex::DistributionMapping& dm,
                        const amrex::BoxArray& ba,
-                       const amrex::Box& domain);
+                       const amrex::Box& domain,
+                       bool supply_land_forcing = false);
 
     /**
      * @brief One radiation call at one level.
@@ -109,6 +116,13 @@ public:
      * @param t_surf     the surface layer's surface temperature, or nullptr;
      *                   used as the longwave boundary condition where no
      *                   land-surface field exists, as RRTMGP does
+     * @param sfc_sens_flux the conservative heat flux (rho w'theta', z faces)
+     *                   the zlo surface layer applies to this level, or
+     *                   nullptr when it applies none; the surface energy
+     *                   balance's H where no land-surface model supplies one
+     *                   (see ERF_SEBTurbulentFlux.H)
+     * @param sfc_laten_flux the moisture flux (rho w'qv', z faces) likewise,
+     *                   for LE; nullptr without a moisture model
      * @param lat_m      per-column latitude [degrees], or nullptr (then
      *                   erf.rad_cons_lat); only the WRF/metgrid inits fill it
      * @param lon_m      per-column longitude [degrees], likewise
@@ -134,6 +148,8 @@ public:
                   amrex::MultiFab* qheating,
                   amrex::MultiFab* rad_fluxes,
                   const amrex::MultiFab* t_surf,
+                  const amrex::MultiFab* sfc_sens_flux,
+                  const amrex::MultiFab* sfc_laten_flux,
                   const amrex::MultiFab* lat_m,
                   const amrex::MultiFab* lon_m,
                   double epoch_time,
@@ -156,10 +172,56 @@ public:
         return (active() && m_rad->seb_enable && lev < m_q_sfc.size()) ? m_q_sfc[lev].get() : nullptr;
     }
 
+    /**
+     * @brief The sensible and latent heat fluxes [W/m^2] the surface energy balance
+     * of one level last used, or nullptr when the SEB is off or the level has not
+     * been built. Read-only: for output.
+     */
+    [[nodiscard]] const amrex::MultiFab* seb_hfx (int lev) const {
+        return (active() && m_rad->seb_enable && lev < m_hfx_sfc.size()) ? m_hfx_sfc[lev].get() : nullptr;
+    }
+    [[nodiscard]] const amrex::MultiFab* seb_lh (int lev) const {
+        return (active() && m_rad->seb_enable && lev < m_lh_sfc.size()) ? m_lh_sfc[lev].get() : nullptr;
+    }
+
     /** @brief True when the force-restore state is being evolved and so needs transferring. */
     [[nodiscard]] bool seb_prognostic_active () const {
         return active() && m_rad->seb_enable && m_rad->seb_prognostic_enable;
     }
+
+    /** @brief True when define_level allocated the land-model forcing fields on @p lev. */
+    [[nodiscard]] bool supplies_land_forcing (int lev) const noexcept {
+        return lev >= 0 && lev < static_cast<int>(m_sw_dn_sfc.size()) && m_sw_dn_sfc[lev] != nullptr;
+    }
+
+    /**
+     * @brief The surface forcing of the last sweep on @p lev (2D: i,j), or nullptr when
+     * the level does not supply it: total downwelling shortwave [W/m^2], downwelling
+     * longwave [W/m^2] and the cosine of the solar zenith angle floored at zero [1].
+     * lsm_undefined until a sweep has run on the level, so a copy made before one is
+     * caught by the land model's missing-input check instead of reading as zero.
+     */
+    [[nodiscard]] const amrex::MultiFab* land_forcing_sw_dn (int lev) const noexcept {
+        return supplies_land_forcing(lev) ? m_sw_dn_sfc[lev].get() : nullptr;
+    }
+    [[nodiscard]] const amrex::MultiFab* land_forcing_lw_dn (int lev) const noexcept {
+        return supplies_land_forcing(lev) ? m_lw_dn_sfc[lev].get() : nullptr;
+    }
+    [[nodiscard]] const amrex::MultiFab* land_forcing_cos_zenith (int lev) const noexcept {
+        return supplies_land_forcing(lev) ? m_cos_zenith[lev].get() : nullptr;
+    }
+
+    /**
+     * @brief Copy the surface forcing of the last sweep on @p lev into a land-surface
+     * model's radiation inputs (SurfaceModel's "sw_flux_dn", "lw_flux_dn" and
+     * "cos_zenith_angle" outputs). A null destination is skipped. Each destination
+     * must lie on this level's horizontal grids; see copy_surface_plane. Before the
+     * level's first sweep this copies the lsm_undefined sentinel, not zero.
+     */
+    void write_land_forcing (int lev,
+                             amrex::MultiFab* sw_flux_dn,
+                             amrex::MultiFab* lw_flux_dn,
+                             amrex::MultiFab* cos_zenith_angle) const;
 
     /** @brief Write the prognostic surface state of one level (SEB on). */
     void write_checkpoint (int lev, const std::string& checkpointname) const;
@@ -224,7 +286,28 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_t_deep;      // deep-soil temperature [K]
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_q_deep;      // deep-soil moisture [kg/kg]
 
+    // What the sweep hands to a land-surface model (2D: i,j), allocated when
+    // define_level is asked to supply it. These are the DOWNWELLING fluxes, as opposed to
+    // the net fluxes above that the SEB consumes: a land model applies its own albedo
+    // and emissivity, so they cannot be recovered from the net fields.
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_sw_dn_sfc;   // downwelling shortwave at the surface [W/m^2]
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_lw_dn_sfc;   // downwelling longwave at the surface [W/m^2]
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_cos_zenith;  // cosine of the solar zenith angle, >= 0 [1]
+
     amrex::Vector<FluxDiag> m_flux_diag;
 };
+
+/**
+ * @brief Copy a 2D field (k = 0 only) into the k = 0 plane of a surface-model field.
+ *
+ * Surface-model fields keep their surface values in the k = 0 plane, which may lie in
+ * the field's z ghost region (SLM stores soil layers at k < 0), and carry x/y ghost cells
+ * the source need not have. Only the i,j extent of each destination VALID box is
+ * written, so ghost columns and every other k are left alone. The two fields must share
+ * a horizontal layout: the destination's boxes flattened to k = 0 equal the source's,
+ * on the same DistributionMapping -- which holds for ERF's ba2d and a land model's
+ * data built from the same level grids, and is asserted rather than assumed.
+ */
+void copy_surface_plane (const amrex::MultiFab& src2d, amrex::MultiFab& dst);
 
 #endif // ERF_TWO_STREAM_RADIATION_H_

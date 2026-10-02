@@ -20,7 +20,8 @@ using namespace amrex;
  *   shortwave and longwave model that computes heating rates from the
  *   old-state atmosphere (t^n) with clear-sky and cloudy column algorithms.
  *   The heating rates go into qheating_rates[lev], a 2-component MultiFab
- *   holding shortwave and longwave.
+ *   holding shortwave and longwave. With Noah-MP it also writes the land
+ *   model's radiative forcing (SWDOWN, GLW, COSZEN), as RRTMGP does.
  *
  * **Source-term application**
  *
@@ -393,6 +394,9 @@ void ERF::advance_radiation (int lev,
         const MultiFab* t_surf = (m_SurfaceLayer[Orientation::zlo()])
                                ? m_SurfaceLayer[Orientation::zlo()]->get_t_surf(lev)
                                : nullptr;
+        const MultiFab* sfc_sens_flux = nullptr;
+        const MultiFab* sfc_laten_flux = nullptr;
+        seb_surface_layer_fluxes(lev, sfc_sens_flux, sfc_laten_flux);
         Vector<const MultiFab*> radiation_inputs(6, nullptr);
         bool noahmp_active = solverChoice.lsm_type == LandSurfaceType::NOAHMP;
         if (m_SurfaceModel) {
@@ -402,8 +406,22 @@ void ERF::advance_radiation (int lev,
                                vars_old[lev][Vars::cons], z_phys_nd[lev].get(), geom[lev],
                                lsm, radiation_inputs, noahmp_active,
                                qheating_rates[lev].get(), rad_fluxes[lev].get(),
-                               t_surf, lat_ptr, lon_ptr,
+                               t_surf, sfc_sens_flux, sfc_laten_flux, lat_ptr, lon_ptr,
                                t_old[lev] + start_time, use_datetime);
+
+        // Hand the land-surface model the surface forcing of this sweep, as RRTMGP does
+        // through lsm_output_ptrs. The two-stream model sweeps on every step, so this is
+        // every step, and the land model -- which runs after the dycore -- always sees this
+        // step's radiation. The destinations are LSM data, which the LSM checkpoints; a
+        // restarted run refills them here before its first land step.
+        // supplies_land_forcing(lev) is what init_stuff set from rad_feeds_lsm(): one test.
+        if (m_SurfaceModel && two_stream_rad.supplies_land_forcing(lev)) {
+            two_stream_rad.write_land_forcing(lev,
+                m_SurfaceModel->get_radiation_output_field(lev, "sw_flux_dn"),
+                m_SurfaceModel->get_radiation_output_field(lev, "lw_flux_dn"),
+                m_SurfaceModel->get_radiation_output_field(lev, "cos_zenith_angle"));
+            m_SurfaceModel->distribute_radiation_outputs(lev);
+        }
 
         // Fill this level's halo so a finer level can interpolate from it. The
         // InterpFromCoarseLevel overload above reads the coarse source's ghost cells, not

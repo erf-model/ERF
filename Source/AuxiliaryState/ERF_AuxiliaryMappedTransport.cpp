@@ -8,12 +8,7 @@
 namespace erf_auxiliary {
 namespace {
 
-bool same_cell_layout(const amrex::MultiFab& a, const amrex::MultiFab& b)
-{
-    return a.boxArray() == b.boxArray() && a.DistributionMap() == b.DistributionMap();
-}
-
-bool same_horizontal_layout(const amrex::MultiFab& cell_field,
+bool same_horizontal_layout (const amrex::MultiFab& cell_field,
                            const amrex::MultiFab& map_field)
 {
     if (cell_field.DistributionMap() != map_field.DistributionMap() ||
@@ -36,15 +31,21 @@ bool same_horizontal_layout(const amrex::MultiFab& cell_field,
 
 } // namespace
 
-bool BuildMappedCellMeasure(amrex::MultiFab& omega,
-                            const amrex::MultiFab& detJ,
-                            const amrex::MultiFab& mx,
-                            const amrex::MultiFab& my,
-                            std::string& diagnostic)
+bool SameCellLayout (const amrex::MultiFab& lhs, const amrex::MultiFab& rhs)
+{
+    return lhs.boxArray() == rhs.boxArray() &&
+           lhs.DistributionMap() == rhs.DistributionMap();
+}
+
+bool BuildMappedCellMeasure (amrex::MultiFab& omega,
+                             const amrex::MultiFab& detJ,
+                             const amrex::MultiFab& mx,
+                             const amrex::MultiFab& my,
+                             std::string& diagnostic)
 {
     diagnostic.clear();
     if (omega.nComp() != 1 || detJ.nComp() < 1 || mx.nComp() < 1 || my.nComp() < 1 ||
-        !same_cell_layout(omega, detJ) || !same_horizontal_layout(omega, mx) ||
+        !SameCellLayout(omega, detJ) || !same_horizontal_layout(omega, mx) ||
         !same_horizontal_layout(omega, my) ||
         mx.boxArray() != my.boxArray() || mx.DistributionMap() != my.DistributionMap()) {
         diagnostic = "mapped measure requires a cell-centered Jacobian, matching horizontal map-factor layouts, and one output component";
@@ -84,9 +85,9 @@ bool BuildMappedCellMeasure(amrex::MultiFab& omega,
     return true;
 }
 
-bool ValidatePositiveFiniteComponent(const amrex::MultiFab& field,
-                                     const int component,
-                                     std::string& diagnostic)
+bool ValidatePositiveFiniteComponent (const amrex::MultiFab& field,
+                                      const int component,
+                                      std::string& diagnostic)
 {
     diagnostic.clear();
     if (component < 0 || component >= field.nComp()) {
@@ -112,9 +113,9 @@ bool ValidatePositiveFiniteComponent(const amrex::MultiFab& field,
     return true;
 }
 
-bool ValidateFiniteComponent(const amrex::MultiFab& field,
-                             const int component,
-                             std::string& diagnostic)
+bool ValidateFiniteComponent (const amrex::MultiFab& field,
+                              const int component,
+                              std::string& diagnostic)
 {
     diagnostic.clear();
     if (component < 0 || component >= field.nComp()) {
@@ -139,7 +140,7 @@ bool ValidateFiniteComponent(const amrex::MultiFab& field,
     return true;
 }
 
-amrex::Real MaxFaceFieldDifference(const MappedFaceFluxRate& lhs,
+amrex::Real MaxFaceFieldDifference (const MappedFaceFluxRate& lhs,
                                   const int lhs_comp,
                                   const MappedFaceFluxRate& rhs,
                                   const int rhs_comp)
@@ -147,12 +148,11 @@ amrex::Real MaxFaceFieldDifference(const MappedFaceFluxRate& lhs,
     AMREX_ALWAYS_ASSERT(lhs.is_defined() && rhs.is_defined());
     AMREX_ALWAYS_ASSERT(lhs_comp >= 0 && lhs_comp < lhs.nComp());
     AMREX_ALWAYS_ASSERT(rhs_comp >= 0 && rhs_comp < rhs.nComp());
+    AMREX_ALWAYS_ASSERT(SameMappedFaceLayout(lhs, rhs));
     amrex::Real maximum = amrex::Real(0.0);
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
         const auto& a = lhs.dir(dir);
         const auto& b = rhs.dir(dir);
-        AMREX_ALWAYS_ASSERT(a.boxArray() == b.boxArray());
-        AMREX_ALWAYS_ASSERT(a.DistributionMap() == b.DistributionMap());
         amrex::MultiFab difference(a.boxArray(), a.DistributionMap(), 1, 0);
         for (amrex::MFIter mfi(difference, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             const amrex::Box bx = mfi.tilebox();
@@ -169,12 +169,13 @@ amrex::Real MaxFaceFieldDifference(const MappedFaceFluxRate& lhs,
     return maximum;
 }
 
-void AccumulateIntegratedFaceFlux(IntegratedMappedFaceFlux& ledger,
+void AccumulateIntegratedFaceFlux (IntegratedMappedFaceFlux& ledger,
                                  const MappedFaceFluxRate& rate,
                                  const amrex::Real weight)
 {
     AMREX_ALWAYS_ASSERT(ledger.is_defined() && rate.is_defined());
     AMREX_ALWAYS_ASSERT(ledger.nComp() == rate.nComp());
+    AMREX_ALWAYS_ASSERT(SameMappedFaceLayout(ledger, rate));
     AMREX_ALWAYS_ASSERT(std::isfinite(weight) && weight >= amrex::Real(0.0));
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
         amrex::MultiFab::Saxpy(ledger.dir(dir), weight, rate.dir(dir),

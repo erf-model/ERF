@@ -266,14 +266,14 @@ class polygon_ {
      * \brief Print polygon vertices with a face identifier.
      * \param a_id Face identifier used in the diagnostic output.
      */
-    void debug( int const a_id ) {
+    void debug ( int const a_id ) {
       amrex::Print() << "EBPolygon: id = " << a_id << ", m_num_vertices = " << m_num_vertices << '\n';
       for (int i(0); i<m_num_vertices; ++i) {
         amrex::Print() << "EBPolygon: v" << i << ":  " << m_vertices[i] << '\n';
       }
     }
     //! Print polygon vertices without a face identifier.
-    void debug() {
+    void debug () {
       debug(-1);
     }
 

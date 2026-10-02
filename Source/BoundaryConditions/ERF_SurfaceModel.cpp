@@ -9,10 +9,10 @@
 
 using namespace amrex;
 
-void SurfaceModel::apply_weight_average(int lev, const amrex::MultiFab *lsm_data,
-                                        amrex::MultiFab *lsm_weighted,
-                                        const amrex::MultiFab *urban_data,
-                                        amrex::MultiFab *urban_weighted)
+void SurfaceModel::apply_weight_average (int lev, const amrex::MultiFab *lsm_data,
+                                         amrex::MultiFab *lsm_weighted,
+                                         const amrex::MultiFab *urban_data,
+                                         amrex::MultiFab *urban_weighted)
 {
     bool valid_land = (lsm_data != nullptr);
     bool valid_urban = (urban_data != nullptr);
@@ -40,9 +40,9 @@ void SurfaceModel::apply_weight_average(int lev, const amrex::MultiFab *lsm_data
     }
 }
 
-void SurfaceModel::weight_model_field(int lev, const amrex::MultiFab* source,
-                                      amrex::MultiFab* weighted,
-                                      SurfaceModelType type)
+void SurfaceModel::weight_model_field (int lev, const amrex::MultiFab* source,
+                                       amrex::MultiFab* weighted,
+                                       SurfaceModelType type)
 {
     AMREX_ASSERT(source != nullptr);
     AMREX_ASSERT(weighted != nullptr);
@@ -68,8 +68,8 @@ void SurfaceModel::weight_model_field(int lev, const amrex::MultiFab* source,
 }
 
 
-void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urban_frac,
-                                            bool update_derived)
+void SurfaceModel::calculate_weight_average (int lev, amrex::MultiFab* const urban_frac,
+                                             bool update_derived)
 {
     m_last_urban_frac[lev] = urban_frac;
     const SurfaceProviderMode mode = m_provider_mode[lev];
@@ -306,8 +306,8 @@ void SurfaceModel::calculate_weight_average(int lev, amrex::MultiFab* const urba
     }
 }
 
-void SurfaceModel::register_radiation_input(const std::string& name,
-                                            const std::pair<int, int>& map)
+void SurfaceModel::register_radiation_input (const std::string& name,
+                                             const std::pair<int, int>& map)
 {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(map.first == -1 && map.second == -1),
                                      "A radiation input must have a provider mapping");
@@ -329,7 +329,7 @@ void SurfaceModel::register_radiation_input(const std::string& name,
     for (auto& fields_at_level : rad_fields) { fields_at_level.clear(); }
 }
 
-void SurfaceModel::register_radiation_inputs(
+void SurfaceModel::register_radiation_inputs (
     const std::unordered_map<std::string, std::pair<int, int>>& input_map)
 {
     for (const auto& entry : input_map) {
@@ -337,8 +337,8 @@ void SurfaceModel::register_radiation_inputs(
     }
 }
 
-void SurfaceModel::register_radiation_output(const std::string& name,
-                                             const std::pair<int, int>& map)
+void SurfaceModel::register_radiation_output (const std::string& name,
+                                              const std::pair<int, int>& map)
 {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(map.first == -1 && map.second == -1),
                                      "A radiation output must have a provider mapping");
@@ -367,7 +367,7 @@ void SurfaceModel::register_radiation_output(const std::string& name,
     for (auto& fields_at_level : rad_output_fields) { fields_at_level.clear(); }
 }
 
-void SurfaceModel::register_radiation_outputs(
+void SurfaceModel::register_radiation_outputs (
     const std::unordered_map<std::string, std::pair<int, int>>& output_map)
 {
     for (const auto& entry : output_map) {
@@ -375,7 +375,7 @@ void SurfaceModel::register_radiation_outputs(
     }
 }
 
-const Vector<MultiFab*> SurfaceModel::get_radiation_output_fields(int lev)
+const Vector<MultiFab*> SurfaceModel::get_radiation_output_fields (int lev)
 {
     if (!rad_output_fields[lev].empty()) { return rad_output_fields[lev]; }
     rad_output_fields[lev].resize(rad_output_names.size(), nullptr);
@@ -408,7 +408,15 @@ const Vector<MultiFab*> SurfaceModel::get_radiation_output_fields(int lev)
     return rad_output_fields[lev];
 }
 
-void SurfaceModel::validate_radiation_output_layout(int lev, const MultiFab* mf) const
+MultiFab* SurfaceModel::get_radiation_output_field (int lev, const std::string& name)
+{
+    const auto it = std::find(rad_output_names.begin(), rad_output_names.end(), name);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(it != rad_output_names.end(),
+                                     "Unknown canonical radiation output: " + name);
+    return get_radiation_output_fields(lev)[static_cast<int>(it - rad_output_names.begin())];
+}
+
+void SurfaceModel::validate_radiation_output_layout (int lev, const MultiFab* mf) const
 {
     if (mf == nullptr) { return; }
     BoxList horizontal_boxes = mf->boxArray().boxList();
@@ -428,14 +436,14 @@ void SurfaceModel::validate_radiation_output_layout(int lev, const MultiFab* mf)
         "Radiation output destination must match the level horizontal layout");
 }
 
-void SurfaceModel::distribute_radiation_outputs(int lev)
+void SurfaceModel::distribute_radiation_outputs (int lev)
 {
     for (int i = 0; i < static_cast<int>(rad_output_names.size()); ++i) {
         distribute_radiation_output(lev, i);
     }
 }
 
-void SurfaceModel::distribute_radiation_output(int lev, int output_index)
+void SurfaceModel::distribute_radiation_output (int lev, int output_index)
 {
     AMREX_ALWAYS_ASSERT(output_index >= 0 &&
                         output_index < static_cast<int>(rad_output_names.size()));
@@ -481,8 +489,8 @@ void SurfaceModel::distribute_radiation_output(int lev, int output_index)
     }
 }
 
-bool SurfaceModel::is_field_mapped(int lev, SurfaceModelType type, int field_idx,
-                                   const amrex::MultiFab* mf) const
+bool SurfaceModel::is_field_mapped (int lev, SurfaceModelType type, int field_idx,
+                                    const amrex::MultiFab* mf) const
 {
     for (const auto& entry : fieldmap) {
         const Field& field = entry.second;
@@ -516,7 +524,7 @@ bool SurfaceModel::is_field_mapped(int lev, SurfaceModelType type, int field_idx
     return false;
 }
 
-void SurfaceModel::calculate_simple_average(int lev, amrex::MultiFab* const urban_frac)
+void SurfaceModel::calculate_simple_average (int lev, amrex::MultiFab* const urban_frac)
 {
     const SurfaceProviderMode mode = m_provider_mode[lev];
 
@@ -554,7 +562,7 @@ void SurfaceModel::calculate_simple_average(int lev, amrex::MultiFab* const urba
     m_weights_updated = true;
 }
 
-void SurfaceModel::register_field_map(std::string name, const std::pair<int, int> &lsm_urb_map, bool fill_boundary)
+void SurfaceModel::register_field_map (std::string name, const std::pair<int, int> &lsm_urb_map, bool fill_boundary)
 {
     amrex::Print() << " adding mapping between LSM<->Urban fields <"<<lsm_urb_map.first << "," << lsm_urb_map.second << "> to common surface name " << name << std::endl;
 
@@ -579,7 +587,7 @@ void SurfaceModel::register_field_map(std::string name, const std::pair<int, int
     }
 }
 
-void SurfaceModel::register_field_map(std::string name, amrex::Vector<amrex::MultiFab*> &lsm_lev_mf, amrex::Vector<amrex::MultiFab*> &urb_lev_mf, bool fill_boundary)
+void SurfaceModel::register_field_map (std::string name, amrex::Vector<amrex::MultiFab*> &lsm_lev_mf, amrex::Vector<amrex::MultiFab*> &urb_lev_mf, bool fill_boundary)
 {
     // Register a field using explicit data pointers, rather than indices into lsm_data and urban_data
     AMREX_ALWAYS_ASSERT(lsm_lev_mf.size() > 0);
@@ -608,9 +616,9 @@ void SurfaceModel::register_field_map(std::string name, amrex::Vector<amrex::Mul
     }
 }
 
-void SurfaceModel::set_field_map_pointers(const std::string& name, int lev,
-                                          amrex::MultiFab* lsm_mf,
-                                          amrex::MultiFab* urban_mf)
+void SurfaceModel::set_field_map_pointers (const std::string& name, int lev,
+                                           amrex::MultiFab* lsm_mf,
+                                           amrex::MultiFab* urban_mf)
 {
     auto field_it = fieldmap.find(name);
     AMREX_ALWAYS_ASSERT(field_it != fieldmap.end());
@@ -626,7 +634,7 @@ void SurfaceModel::set_field_map_pointers(const std::string& name, int lev,
     field.urb_ptr[lev] = urban_mf;
 }
 
-void SurfaceModel::activate_field_map(const std::string& name, const bool persistent)
+void SurfaceModel::activate_field_map (const std::string& name, const bool persistent)
 {
     auto field_it = fieldmap.find(name);
     if (field_it == fieldmap.end()) { return; }
@@ -648,14 +656,14 @@ void SurfaceModel::activate_field_map(const std::string& name, const bool persis
     }
 }
 
-void SurfaceModel::activate_all_field_maps(const bool persistent)
+void SurfaceModel::activate_all_field_maps (const bool persistent)
 {
     for (const auto& entry : fieldmap) {
         activate_field_map(entry.first, persistent);
     }
 }
 
-void SurfaceModel::deactivate_transient_field_maps()
+void SurfaceModel::deactivate_transient_field_maps ()
 {
     for (auto& entry : fieldmap) {
         Field& field = entry.second;
@@ -668,7 +676,7 @@ void SurfaceModel::deactivate_transient_field_maps()
     }
 }
 
-void SurfaceModel::weight_average_fields(int lev, amrex::MultiFab* const /*urban_frac*/)
+void SurfaceModel::weight_average_fields (int lev, amrex::MultiFab* const /*urban_frac*/)
 {
     const SurfaceProviderMode mode = m_provider_mode[lev];
     const bool use_land = mode == SurfaceProviderMode::LandOnly ||
@@ -747,7 +755,7 @@ void SurfaceModel::weight_average_fields(int lev, amrex::MultiFab* const /*urban
 }
 
 
-void SurfaceModel::write_output(const int &finest_lev, const amrex::Real &time, const std::string &plot_prefix, const amrex::Vector<int> &level_steps, const amrex::Vector<amrex::IntVect> &ref_ratio)
+void SurfaceModel::write_output (const int &finest_lev, const amrex::Real &time, const std::string &plot_prefix, const amrex::Vector<int> &level_steps, const amrex::Vector<amrex::IntVect> &ref_ratio)
 {
     request_surface_outputs(false);
     activate_all_field_maps(false);
@@ -819,7 +827,7 @@ SurfaceModel::GotoNextLine (std::istream& is)
     is.ignore(bl_ignore_max, '\n');
 }
 
-void SurfaceModel::WriteCheckpoint(const std::string &checkpointname)
+void SurfaceModel::WriteCheckpoint (const std::string &checkpointname)
 {
     request_surface_outputs(false);
     activate_all_field_maps(false);
@@ -936,7 +944,7 @@ void SurfaceModel::WriteCheckpoint(const std::string &checkpointname)
     amrex::Print() << "    SurfaceModel Checkpoint write time = " << check_end << " seconds." << '\n';
 }
 
-void SurfaceModel::ReadCheckpoint(const std::string &checkpointname)
+void SurfaceModel::ReadCheckpoint (const std::string &checkpointname)
 {
     request_surface_outputs(false);
     activate_all_field_maps(false);

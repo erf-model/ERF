@@ -27,12 +27,12 @@ struct ProjectionValidation {
 /** Generic, fixed-range projection metadata. */
 class AuxiliaryProjection {
 public:
-    AuxiliaryProjection() = default;
-    explicit AuxiliaryProjection(std::vector<ProjectionRule> rules)
+    AuxiliaryProjection () = default;
+    explicit AuxiliaryProjection (std::vector<ProjectionRule> rules)
         : m_rules(std::move(rules)) {}
 
-    [[nodiscard]] const std::vector<ProjectionRule>& rules() const noexcept { return m_rules; }
-    [[nodiscard]] ProjectionValidation validate(const int source_components) const;
+    [[nodiscard]] const std::vector<ProjectionRule>& rules () const noexcept { return m_rules; }
+    [[nodiscard]] ProjectionValidation validate (const int source_components) const;
 
 private:
     std::vector<ProjectionRule> m_rules;

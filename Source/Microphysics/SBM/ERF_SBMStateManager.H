@@ -14,22 +14,22 @@ namespace erf_sbm {
 /** Owns the authoritative, runtime-sized spectral state, one MultiFab per level. */
 class SBMStateManager {
 public:
-    SBMStateManager(SBMLayout layout, int nlevels);
+    SBMStateManager (SBMLayout layout, int nlevels);
 
-    [[nodiscard]] const SBMLayout& layout() const noexcept { return m_layout; }
-    [[nodiscard]] int nlevels() const noexcept { return static_cast<int>(m_state.size()); }
-    [[nodiscard]] bool is_defined(int lev) const;
+    [[nodiscard]] const SBMLayout& layout () const noexcept { return m_layout; }
+    [[nodiscard]] int nlevels () const noexcept { return static_cast<int>(m_state.size()); }
+    [[nodiscard]] bool is_defined (int lev) const;
 
-    void define(int lev, const amrex::BoxArray& grids,
-                const amrex::DistributionMapping& mapping, int ngrow = 0);
-    void destroy(int lev);
+    void define (int lev, const amrex::BoxArray& grids,
+                 const amrex::DistributionMapping& mapping, int ngrow = 0);
+    void destroy (int lev);
 
-    [[nodiscard]] amrex::MultiFab& state(int lev);
-    [[nodiscard]] const amrex::MultiFab& state(int lev) const;
+    [[nodiscard]] amrex::MultiFab& state (int lev);
+    [[nodiscard]] const amrex::MultiFab& state (int lev) const;
 
     /** One-way projection from the spectrum into ERF's compact qc and qr lanes. */
-    void project_to_core(int lev, amrex::MultiFab& core,
-                         int qc_component, int qr_component) const;
+    void project_to_core (int lev, amrex::MultiFab& core,
+                          int qc_component, int qr_component) const;
 
 private:
     SBMLayout m_layout;

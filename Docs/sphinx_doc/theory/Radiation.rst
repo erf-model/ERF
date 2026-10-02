@@ -332,6 +332,8 @@ Limitations
 - **Refined runs.** Multiple levels are supported; see `Multiple Levels`_ above for the grid
   requirement, the lateral coarse-fine seam, the absence of feedback from fine to coarse, the
   subcycled call cadence, and how the surface energy balance is kept consistent between levels.
+  The one exception is a run with Noah-MP, which is single-level for now; see
+  `Radiative Forcing of a Land-Surface Model`_.
 - **Sun and site.** The sun, the site and the surface temperature come from the inputs the
   RRTMGP interface reads (``erf.fixed_solar_zenith_angle``, ``erf.fixed_total_solar_irradiance``,
   ``erf.rad_t_sfc``, ``erf.rad_cons_lat``/``lon``, ``erf.rad_orbital_*``, ``start_datetime``),
@@ -367,9 +369,56 @@ The net surface shortwave and longwave fluxes come from the land-surface model w
 them (Noah-MP's absorbed shortwave ``sav + sag`` and, with the sign flipped to absorbed, its net
 longwave ``fira``); otherwise, with ``erf.radiation.seb_use_radiation_fluxes = true``, from the
 two-stream sweep's own surface fluxes in every column; otherwise from the scalar
-``seb_sw_flux_default`` and ``seb_lw_flux_default``. The sensible, latent and ground heat fluxes
-and the deep-soil reservoir values are the scalar defaults unless the land-surface model exposes
-them by name (``grdflx`` for the ground heat flux).
+``seb_sw_flux_default`` and ``seb_lw_flux_default``.
+
+The sensible heat flux :math:`H` and latent heat flux :math:`\text{LE}` come, in order of
+precedence, from a land-surface model field of that name (``hfx``, ``lh``; no land model exposes
+one today); otherwise, with ``erf.radiation.seb_turbulent_flux_source = surface_layer`` (the
+default), from the fluxes the ``zlo`` surface layer applies to the air,
+
+.. math::
+
+   H = c_p \, \overline{\rho w'\theta'}\big|_{\text{sfc}}, \qquad
+   \text{LE} = L_v \, \overline{\rho w' q_v'}\big|_{\text{sfc}},
+
+positive away from the surface -- the same conversion as the ``sensible_heat_flux`` and
+``latent_heat_flux`` 2D outputs, so the ground loses exactly what those report the air gaining;
+otherwise from the scalar ``seb_hfx_default`` and ``seb_lh_default``. The surface layer is the
+source wherever its flux field exists, that is with any diffusion or turbulence closure; the
+defaults apply with ``seb_turbulent_flux_source = defaults``, without a ``zlo`` surface layer, on EB
+terrain (where the surface layer's flux goes to the embedded boundary instead), without diffusion
+or a closure, and for :math:`\text{LE}` without a moisture model. An adiabatic surface layer
+(``erf.most.surf_temp_flux = 0``) has the field and a zero flux, so :math:`H = 0` there rather than
+``seb_hfx_default``; ERF warns at start-up when a nonzero default is replaced this way. With
+``erf.use_rotate_surface_flux`` the surface layer splits its flux over the three faces of the lowest
+cell, and the balance, like the 2D outputs, removes only the vertical-face part, :math:`\cos`
+of the slope times :math:`H` and :math:`\text{LE}`; ERF warns at start-up. The fluxes the balance used are written as the ``seb_hfx`` and ``seb_lh`` 2D
+plotfile variables.
+
+By default the surface layer computes these fluxes from its own surface temperature and moisture
+(``erf.most.surf_temp`` and the like), so the coupling runs one way: the balance loses what the
+surface layer puts into the air, but the flux does not respond to :math:`T_s`. With
+``erf.radiation.seb_surface_layer_uses_skin = true`` it runs both ways. Before it computes its
+fluxes each step, the surface layer sets its land surface temperature to the skin the balance
+reached at the end of the previous step, as a potential temperature,
+
+.. math::
+
+   \theta_s = T_s \left( \frac{p_0}{p_{\text{sfc}}} \right)^{R_d/c_p},
+
+with the surface pressure :math:`p_{\text{sfc}}` diagnosed from the lowest cell (the conversion
+coupled sea-surface temperatures use). A warmer skin then gives a larger :math:`H`, which the
+balance removes. The surface moisture stays the surface layer's own: the balance's :math:`q_s` is a
+soil-water store, not a surface specific humidity. The option needs the prognostic balance,
+``seb_turbulent_flux_source = surface_layer``, a ``zlo`` surface layer in surface-temperature mode
+(``erf.most.surf_temp`` given, no ``erf.most.surf_heating_rate``), no EB terrain, no
+``erf.use_rotate_surface_flux``, and no land-surface or surface model; ERF stops at start-up
+otherwise. On a level that takes its
+radiation from its parent (a nested patch that does not span the column), no skin evolves, and
+the surface layer keeps its own temperature there.
+
+The ground heat flux :math:`G` and the deep-soil reservoir values are the scalar defaults unless
+the land-surface model exposes them by name (``grdflx`` for the ground heat flux).
 
 The surface energy balance residual is defined as the net radiative flux minus the turbulent and
 ground heat fluxes:
@@ -409,6 +458,10 @@ In discretized form (Euler forward step), the update is:
 
 After the update, :math:`T_s` is clamped to physically reasonable bounds [``seb_prognostic_t_min_k``, ``seb_prognostic_t_max_k``].
 
+In the force-restore method the restoring term is the heat conducted into the soil, so it already
+plays the part of :math:`G`. Leave ``seb_grdflx_default`` at 0 with the prognostic mode: a nonzero
+value removes that heat a second time, and ERF prints a warning when it is set.
+
 Surface Moisture Evolution
 ---------------------------
 
@@ -443,6 +496,54 @@ provider.
 The per-column temperature resolver retains its existing fallback order: valid external/LSM absolute
 temperature, valid prognostic SEB absolute temperature when offered, valid SurfaceLayer potential temperature
 converted to absolute temperature, then the scalar ``erf.rad_t_sfc`` fallback.
+
+.. _sec:TwoStreamLandForcing:
+
+Radiative Forcing of a Land-Surface Model
+-------------------------------------------------
+
+With ``erf.land_surface_model = NOAHMP`` the two-stream model supplies the radiation Noah-MP
+integrates on, as RRTMGP does. After each column sweep it stores, per column,
+
+- ``SWDOWN``: the total downwelling shortwave at the surface, direct plus diffuse [W/m^2] --
+  the incident flux, not the net, since Noah-MP applies its own albedo;
+- ``GLW``: the downwelling longwave at the surface [W/m^2];
+- ``COSZEN``: the cosine of the solar zenith angle of that sweep, floored at zero.
+
+The fluxes are the surface-interface values of ``rad_fluxes`` (components 1 and 3 at the lowest
+interface), after any clear/cloudy blending, so they are the same fluxes that heat the
+atmosphere. They are copied into Noah-MP's ``sw_flux_dn``, ``lw_flux_dn`` and
+``cos_zenith_angle`` fields every step, since the sweep runs every step; the land model runs
+after the dycore and so always sees the current step's radiation. Those fields are part of the
+land model's checkpointed data, and a restarted run refills them before its first land step.
+Until a sweep has run on a level the stored fields hold the land model's undefined sentinel
+rather than zero, so a copy made before one is caught by Noah-MP's missing-input check
+instead of being taken as a dark, 0 K sky.
+The two-stream model is broadband, so the visible / near-infrared direct / diffuse split that
+RRTMGP also provides is not written; Noah-MP does not read it. SLM does, so the two-stream model
+does not feed SLM.
+
+In the other direction the sweep reads Noah-MP's surface: its broadband ``albedo``
+(reflected over incident shortwave, so the shortwave the sweep reflects at the ground is the
+shortwave Noah-MP reflects -- not ``sfc_alb_dir_vis``, the visible direct-beam band of the four
+RRTMGP takes, which over vegetation is several times smaller), its emissivity ``sfc_emis`` and
+its skin temperature ``t_sfc``. Each is taken column by column where Noah-MP holds a value.
+Noah-MP leaves its undefined placeholder over open water and sea ice, in the albedo at night, and
+everywhere before its first step, which runs after the first radiation call; those columns take
+``erf.radiation.surface_albedo_sw``, ``erf.radiation.surface_emissivity_lw`` and the
+surface-layer or ``erf.rad_t_sfc`` temperature. With ``erf.radiation.seb_enable`` the balance's
+inputs from Noah-MP (the absorbed shortwave ``sav + sag``, the net longwave ``-fira``, the ground
+flux ``grdflx`` and the 2 m humidity) follow the same rule and fall back to the ``seb_*_default``
+constants, so a column Noah-MP did not compute no longer carries the placeholder into the
+balance. Noah-MP exposes no ``hfx`` or ``lh`` field, but over land the surface layer applies
+Noah-MP's fluxes (it takes :math:`u_*` and :math:`\theta_*` from them), so with the default
+``seb_turbulent_flux_source = surface_layer`` the balance removes Noah-MP's :math:`H` and
+:math:`\text{LE}` over land and the surface layer's own over water.
+
+The coupling is single-level: ``erf.radiation_model = TwoStream`` with Noah-MP and
+``amr.max_level > 0`` stops at start-up. Without a land model, or with SLM, the two-stream model
+stores nothing extra and its results are unchanged. The case
+``Exec/RegTests/NoahMP_Ideal/inputs_noahmp_twostream`` exercises the coupling.
 
 Cloud Fraction Diagnosis
 --------------------------------

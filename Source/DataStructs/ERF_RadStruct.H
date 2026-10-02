@@ -53,6 +53,18 @@ AMREX_ENUM(AerosolProfileType, Constant, Exponential, Table);
 AMREX_ENUM(TauModel, PerLayer, Mass);
 
 /**
+ * @brief Where the simplified surface energy balance takes its sensible (H) and
+ * latent (LE) heat fluxes from when no land-surface model supplies them.
+ *
+ * - SurfaceLayer: the fluxes the lower surface layer applies to the air, in
+ *   W/m^2 (the same conversion as the sensible_heat_flux / latent_heat_flux 2D
+ *   outputs), so the ground loses what the air receives. Used only where a zlo
+ *   surface layer exists and applies a flux; otherwise the scalar defaults.
+ * - Defaults: the constants seb_hfx_default and seb_lh_default everywhere.
+ */
+AMREX_ENUM(SEBTurbulentFluxSource, SurfaceLayer, Defaults);
+
+/**
  * @brief Container holding radiation-related choices and parameters.
  *
  * Manages the runtime selection and configuration of radiation solvers.
@@ -381,6 +393,22 @@ public:
   amrex::Real seb_lw_flux_default = 0.0;
 
   /**
+   * @brief Source of the SEB's sensible and latent heat fluxes when no
+   * land-surface model supplies them: "surface_layer" (default) or "defaults".
+   * See SEBTurbulentFluxSource.
+   */
+  SEBTurbulentFluxSource seb_turbulent_flux_source = SEBTurbulentFluxSource::SurfaceLayer;
+
+  /**
+   * @brief Two-way coupling with the zlo surface layer: the surface layer takes
+   * its land surface temperature from the SEB's prognostic skin temperature T_s
+   * (converted to potential temperature), so its sensible heat flux responds to
+   * T_s. Requires seb_prognostic_enable and seb_turbulent_flux_source =
+   * surface_layer. Default false: the surface layer keeps its own temperature.
+   */
+  bool seb_surface_layer_uses_skin = false;
+
+  /**
    * @brief Fallback SEB sensible heat flux [W/m^2].
    */
   amrex::Real seb_hfx_default = 0.0;
@@ -391,7 +419,9 @@ public:
   amrex::Real seb_lh_default = 0.0;
 
   /**
-   * @brief Fallback SEB ground heat flux [W/m^2].
+   * @brief Fallback SEB ground heat flux [W/m^2]. The force-restore restoring
+   * term already represents the flux into the soil, so a nonzero value with
+   * seb_prognostic_enable counts that flux twice.
    */
   amrex::Real seb_grdflx_default = 0.0;
 
@@ -668,6 +698,8 @@ public:
    * - erf.radiation.seb_enable (bool, optional, default false)
    * - erf.radiation.seb_sw_flux_default (real, optional, default 0.0)
    * - erf.radiation.seb_lw_flux_default (real, optional, default 0.0)
+   * - erf.radiation.seb_turbulent_flux_source (string "surface_layer"|"defaults", optional, default "surface_layer")
+   * - erf.radiation.seb_surface_layer_uses_skin (bool, optional, default false)
    * - erf.radiation.seb_hfx_default (real, optional, default 0.0)
    * - erf.radiation.seb_lh_default (real, optional, default 0.0)
    * - erf.radiation.seb_grdflx_default (real, optional, default 0.0)
@@ -723,7 +755,7 @@ public:
     }
   }
 
-  void init_params(bool two_stream_selected, std::string pp_prefix)
+  void init_params (bool two_stream_selected, std::string pp_prefix)
   {
     amrex::ParmParse pp(pp_prefix);
     enabled = two_stream_selected;
@@ -1009,6 +1041,19 @@ public:
       pp.query("radiation.seb_use_radiation_fluxes", seb_use_radiation_fluxes);
       pp.query("radiation.seb_sw_flux_default", seb_sw_flux_default);
       pp.query("radiation.seb_lw_flux_default", seb_lw_flux_default);
+      // Through the AMREX_ENUM, case-insensitive and ignoring underscores, so
+      // surface_layer, SurfaceLayer and surfacelayer all select SurfaceLayer. The
+      // parser throws on any other value; turn that into an abort naming the input.
+      try {
+          pp.query_enum_sloppy("radiation.seb_turbulent_flux_source",
+                               seb_turbulent_flux_source, "_");
+      } catch (...) {
+          std::string value;
+          pp.query("radiation.seb_turbulent_flux_source", value);
+          amrex::Abort("erf.radiation.seb_turbulent_flux_source must be surface_layer "
+                       "or defaults, not '" + value + "'");
+      }
+      pp.query("radiation.seb_surface_layer_uses_skin", seb_surface_layer_uses_skin);
       pp.query("radiation.seb_hfx_default", seb_hfx_default);
       pp.query("radiation.seb_lh_default", seb_lh_default);
       pp.query("radiation.seb_grdflx_default", seb_grdflx_default);
@@ -1065,6 +1110,32 @@ public:
       seb_q_sfc_default = amrex::max(amrex::Real(0.0), amrex::min(amrex::Real(1.0), seb_q_sfc_default));
       seb_q_deep_default = amrex::max(amrex::Real(0.0), amrex::min(amrex::Real(1.0), seb_q_deep_default));
 
+      // Two-way coupling needs a skin that evolves, and a balance that removes the
+      // flux the surface layer computes from it.
+      if (seb_surface_layer_uses_skin) {
+          if (!seb_prognostic_enable) {
+              amrex::Abort("erf.radiation.seb_surface_layer_uses_skin = true needs "
+                           "erf.radiation.seb_prognostic_enable = true: without it the "
+                           "skin temperature does not evolve");
+          }
+          if (seb_turbulent_flux_source != SEBTurbulentFluxSource::SurfaceLayer) {
+              amrex::Abort("erf.radiation.seb_surface_layer_uses_skin = true needs "
+                           "erf.radiation.seb_turbulent_flux_source = surface_layer: the "
+                           "balance must remove the heat flux the surface layer computes "
+                           "from the skin");
+          }
+      }
+
+      // The restoring term -(2 pi / tau)(T_s - T_deep) of the force-restore update
+      // is the ground heat flux, so a ground flux in the balance as well removes
+      // that heat twice.
+      if (seb_prognostic_enable && seb_grdflx_default != 0.0 &&
+          amrex::ParallelDescriptor::IOProcessor()) {
+          amrex::Print() << "WARNING: erf.radiation.seb_grdflx_default = " << seb_grdflx_default
+                         << " with seb_prognostic_enable: the force-restore term already "
+                            "carries the ground heat flux, so this counts it twice.\n";
+      }
+
 
       // Validate the prognostic parameters
       if (!std::isfinite(seb_surface_heat_capacity) || seb_surface_heat_capacity <= 0.0) {
@@ -1109,7 +1180,7 @@ public:
    *
    * @return true when erf.radiation_model = TwoStream.
    */
-  [[nodiscard]] bool uses_two_stream_radiation() const noexcept
+  [[nodiscard]] bool uses_two_stream_radiation () const noexcept
   {
     return enabled;
   }

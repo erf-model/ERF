@@ -12,10 +12,10 @@
 #include <ERF_TerrainConversion.H>
 
 template<typename ValueFunc>
-void ERFPC::ERFPCParticleToMesh(amrex::MultiFab& a_mf,
-                                const amrex::MultiFab& a_z_phys_nd,
-                                int a_lev, int a_comp,
-                                ValueFunc&& value_func) const
+void ERFPC::ERFPCParticleToMesh (amrex::MultiFab& a_mf,
+                                 const amrex::MultiFab& a_z_phys_nd,
+                                 int a_lev, int a_comp,
+                                 ValueFunc&& value_func) const
 {
     using namespace amrex;
 

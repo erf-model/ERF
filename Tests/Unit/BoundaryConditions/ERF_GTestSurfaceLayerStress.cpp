@@ -50,7 +50,7 @@ set_single_value (MultiFab& mf, const Box& box, Real value)
 }
 
 void
-expect_result(
+expect_result (
   const surface_layer_stress::FaceStressResult& result,
   Real expected_face,
   Real expected_low,
