@@ -8,6 +8,7 @@
 #include <AMReX_Geometry.H>
 
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace erf_auxiliary {
@@ -24,10 +25,14 @@ public:
 
     void define (int level,
                 const amrex::BoxArray& cell_ba,
-                const amrex::DistributionMapping& dm,
-                const amrex::MultiFab& detJ,
-                const amrex::MultiFab& mx,
-                const amrex::MultiFab& my);
+                const amrex::DistributionMapping& dm);
+
+    /** Build or refresh this proof consumer's time-independent mapped measure. */
+    bool rebuild_static_measure(int level,
+                                const amrex::MultiFab& detJ,
+                                const amrex::MultiFab& mx,
+                                const amrex::MultiFab& my,
+                                std::string& diagnostic);
 
     void initialize (int level,
                     const amrex::MultiFab& conserved,
@@ -49,9 +54,12 @@ public:
                        const AdvChoice& advection,
                        const amrex::Geometry& geometry);
 
-    void destroy (int level);
-    [[nodiscard]] bool is_defined (int level) const;
-    [[nodiscard]] const amrex::MultiFab& state (int level) const;
+    void destroy(int level);
+    [[nodiscard]] bool is_defined(int level) const;
+    [[nodiscard]] bool measure_is_ready(int level) const;
+    /** Test-only inspection of the proof consumer's stored static measure. */
+    [[nodiscard]] const amrex::MultiFab& static_measure(int level) const;
+    [[nodiscard]] const amrex::MultiFab& state(int level) const;
 
 private:
     struct LevelStorage;

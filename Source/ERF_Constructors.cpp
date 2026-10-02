@@ -10,6 +10,8 @@
 #include "ERF_Constants.H"
 #include "AMReX_buildInfo.H"
 #include "ERF_SBMConstraintGroups.H"
+#include "ERF_SBMFixtureValidation.H"
+#include "ERF_SBMRemapping.H"
 #include "ERF_SBMStateManager.H"
 
 #include <algorithm>
@@ -267,6 +269,17 @@ ERF::ERF_shared ()
         if (!solverChoice.sbm_fixture_initial_state.empty()) {
             std::copy(solverChoice.sbm_fixture_initial_state.begin(),
                       solverChoice.sbm_fixture_initial_state.end(), candidate.begin());
+        }
+        const auto fixture_canonicality =
+            erf_sbm::validate_fixture_initial_state_canonicality(layout, candidate);
+        if (!fixture_canonicality.canonical) {
+            const char* representation =
+                fixture_canonicality.moment_mode == erf_sbm::MomentMode::OneMoment ?
+                "one-moment" : "two-moment";
+            amrex::Error("SBM fixture initial state is not canonical for selected spectral "
+                         "representation: population=" +
+                std::to_string(fixture_canonicality.population_id) + " representation=" +
+                representation + " bin=" + std::to_string(fixture_canonicality.bin));
         }
         for (const auto& group : erf_sbm::make_constraint_groups(layout)) {
             amrex::Real margin = amrex::Real(0.0);

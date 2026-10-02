@@ -1242,7 +1242,7 @@ private:
     amrex::Vector<amrex::TableData<amrex::Real, 1>> t_plane_avg;   // RhoTheta planar average per level
 
     // Function to read and populate above vectors (if input file exists)
-    void init_Dirichlet_bc_data (const std::string input_file);
+    bool init_Dirichlet_bc_data (const std::string input_file);
 
     // Read the file passed to amr.restart and use it as an initial condition for
     // the current simulation. Supports a different number of components and
@@ -1536,6 +1536,9 @@ private:
 
     // Per-face flag: non-reflecting inflow (extrapolate RhoTheta instead of prescribing)
     amrex::Array<bool, AMREX_SPACEDIM*2> m_bc_nonreflecting = {{false}};
+    // Per face: whether its Dirichlet theta comes from a dirichlet_file, and in which form
+    // (0: not from a file, 1: the file holds rho*theta, 2: the file holds theta)
+    amrex::Array<int, AMREX_SPACEDIM*2> m_th_file_face = {{0}};
 
     // These are the "physical" boundary condition types (e.g. "inflow")
     amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> phys_bc_type;
