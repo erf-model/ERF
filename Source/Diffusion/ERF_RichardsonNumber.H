@@ -414,9 +414,7 @@ ComputeVerticalShear2_EB (int i, int j, int k,
 
     if (c_cflag(i,j,k+1).isCovered()) {
 
-        // Check if k-1 is also covered (vertically isolated cell)
         if (c_cflag(i,j,k-1).isCovered()) {
-            // No valid vertical neighbors - disable Richardson correction
             return zero;
         }
 
@@ -427,15 +425,12 @@ ComputeVerticalShear2_EB (int i, int j, int k,
         f1 = u_vfrac(i+1, j, k-1);
         fsum = f0 + f1;
         if (fsum <= zero) {
-            // k-1 face is fully covered - no valid data
             return zero;
         }
         c_km1 = ((f0 > zero ? f0 * u(i,   j, k-1) : zero) +
                  (f1 > zero ? f1 * u(i+1, j, k-1) : zero)) / fsum;
 
-        // Check if k-2 is covered
         if (c_cflag(i,j,k-2).isCovered()) {
-            // Fall back to first-order difference
             du_dz = (u_c - c_km1) * dzInv;
         } else {
             // u, k-2
@@ -443,7 +438,6 @@ ComputeVerticalShear2_EB (int i, int j, int k,
             f1 = u_vfrac(i+1, j, k-2);
             fsum = f0 + f1;
             if (fsum <= zero) {
-                // k-2 face is fully covered - fall back to first-order
                 du_dz = (u_c - c_km1) * dzInv;
             } else {
                 c_km2 = ((f0 > zero ? f0 * u(i,   j, k-2) : zero) +
@@ -457,15 +451,12 @@ ComputeVerticalShear2_EB (int i, int j, int k,
         f1 = v_vfrac(i, j+1, k-1);
         fsum = f0 + f1;
         if (fsum <= zero) {
-            // k-1 face is fully covered - no valid data
             return zero;
         }
         c_km1 = ((f0 > zero ? f0 * v(i, j,   k-1) : zero) +
                  (f1 > zero ? f1 * v(i, j+1, k-1) : zero)) / fsum;
 
-        // Check if k-2 is covered
         if (c_cflag(i,j,k-2).isCovered()) {
-            // Fall back to first-order difference
             dv_dz = (v_c - c_km1) * dzInv;
         } else {
             // v, k-2
@@ -473,7 +464,6 @@ ComputeVerticalShear2_EB (int i, int j, int k,
             f1 = v_vfrac(i, j+1, k-2);
             fsum = f0 + f1;
             if (fsum <= zero) {
-                // k-2 face is fully covered - fall back to first-order
                 dv_dz = (v_c - c_km1) * dzInv;
             } else {
                 c_km2 = ((f0 > zero ? f0 * v(i, j,   k-2) : zero) +
@@ -484,9 +474,7 @@ ComputeVerticalShear2_EB (int i, int j, int k,
 
     } else if (c_cflag(i,j,k-1).isCovered()) {
 
-        // Check if k+1 is also covered (vertically isolated cell)
         if (c_cflag(i,j,k+1).isCovered()) {
-            // No valid vertical neighbors - disable Richardson correction
             return zero;
         }
 
@@ -497,15 +485,12 @@ ComputeVerticalShear2_EB (int i, int j, int k,
         f1 = u_vfrac(i+1, j, k+1);
         fsum = f0 + f1;
         if (fsum <= zero) {
-            // k+1 face is fully covered - no valid data
             return zero;
         }
         c_kp1 = ((f0 > zero ? f0 * u(i,   j, k+1) : zero) +
                  (f1 > zero ? f1 * u(i+1, j, k+1) : zero)) / fsum;
 
-        // Check if k+2 is covered
         if (c_cflag(i,j,k+2).isCovered()) {
-            // Fall back to first-order difference
             du_dz = (c_kp1 - u_c) * dzInv;
         } else {
             // u, k+2
@@ -513,7 +498,6 @@ ComputeVerticalShear2_EB (int i, int j, int k,
             f1 = u_vfrac(i+1, j, k+2);
             fsum = f0 + f1;
             if (fsum <= zero) {
-                // k+2 face is fully covered - fall back to first-order
                 du_dz = (c_kp1 - u_c) * dzInv;
             } else {
                 c_kp2 = ((f0 > zero ? f0 * u(i,   j, k+2) : zero) +
@@ -527,15 +511,12 @@ ComputeVerticalShear2_EB (int i, int j, int k,
         f1 = v_vfrac(i, j+1, k+1);
         fsum = f0 + f1;
         if (fsum <= zero) {
-            // k+1 face is fully covered - no valid data
             return zero;
         }
         c_kp1 = ((f0 > zero ? f0 * v(i, j,   k+1) : zero) +
                  (f1 > zero ? f1 * v(i, j+1, k+1) : zero)) / fsum;
 
-        // Check if k+2 is covered
         if (c_cflag(i,j,k+2).isCovered()) {
-            // Fall back to first-order difference
             dv_dz = (c_kp1 - v_c) * dzInv;
         } else {
             // v, k+2
@@ -543,7 +524,6 @@ ComputeVerticalShear2_EB (int i, int j, int k,
             f1 = v_vfrac(i, j+1, k+2);
             fsum = f0 + f1;
             if (fsum <= zero) {
-                // k+2 face is fully covered - fall back to first-order
                 dv_dz = (c_kp1 - v_c) * dzInv;
             } else {
                 c_kp2 = ((f0 > zero ? f0 * v(i, j,   k+2) : zero) +
