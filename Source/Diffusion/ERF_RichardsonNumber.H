@@ -208,58 +208,112 @@ ComputeN2_EB (int i, int j, int k,
     amrex::Real inv_theta;
     amrex::Real dtheta_dz;
 
-    bool is_covered_kp1 = c_cflag(i,j,k+1).isCovered();
-    bool is_covered_km1 = c_cflag(i,j,k-1).isCovered();
+    const bool is_covered_kp1 = c_cflag(i,j,k+1).isCovered();
+    const bool is_covered_km1 = c_cflag(i,j,k-1).isCovered();
 
     if (saturated && qc_index >= 0) {
-        amrex::Real theta_l    = GetThetal(i, j, k  , cell_data, moisture_indices);
-        amrex::Real theta_l_kp1= GetThetal(i, j, k+1, cell_data, moisture_indices);
-        amrex::Real theta_l_km1= GetThetal(i, j, k-1, cell_data, moisture_indices);
+
+        const amrex::Real theta_l = GetThetal(i, j, k  , cell_data, moisture_indices);
 
         inv_theta = one / theta_l;
 
         if (is_covered_kp1) {
-            amrex::Real theta_l_km2= GetThetal(i, j, k-2, cell_data, moisture_indices);
-            dtheta_dz = (three*theta_l - four*theta_l_km1 + theta_l_km2) * myhalf * dzInv;
+
+            const amrex::Real theta_l_km1 = GetThetal(i, j, k-1, cell_data, moisture_indices);
+
+            if (c_cflag(i,j,k-2).isCovered()) {
+                dtheta_dz = (theta_l - theta_l_km1) * dzInv;
+            } else {
+                const amrex::Real theta_l_km2 = GetThetal(i, j, k-2, cell_data, moisture_indices);
+                dtheta_dz = (three*theta_l - four*theta_l_km1 + theta_l_km2) * myhalf * dzInv;
+            }
+
         } else if (is_covered_km1) {
-            amrex::Real theta_l_kp2= GetThetal(i, j, k+2, cell_data, moisture_indices);
-            dtheta_dz = (-theta_l_kp2 + four*theta_l_kp1 - three*theta_l) * myhalf * dzInv;
+
+            const amrex::Real theta_l_kp1 = GetThetal(i, j, k+1, cell_data, moisture_indices);
+
+            if (c_cflag(i,j,k+2).isCovered()) {
+                dtheta_dz = (theta_l_kp1 - theta_l) * dzInv;
+            } else {
+                const amrex::Real theta_l_kp2 = GetThetal(i, j, k+2, cell_data, moisture_indices);
+                dtheta_dz = (-theta_l_kp2 + four*theta_l_kp1 - three*theta_l) * myhalf * dzInv;
+            }
+
         } else {
-            dtheta_dz = myhalf * (theta_l_kp1 - theta_l_km1) * dzInv;
+
+            const amrex::Real theta_l_kp1 = GetThetal(i, j, k+1, cell_data, moisture_indices);
+            const amrex::Real theta_l_km1 = GetThetal(i, j, k-1, cell_data, moisture_indices);            
+            dtheta_dz = (theta_l_kp1 - theta_l_km1) * myhalf * dzInv;
         }
 
     } else if (qv_index >= 0) {
-        amrex::Real theta_v    = GetThetav(i, j, k  , cell_data, moisture_indices);
-        amrex::Real theta_v_kp1= GetThetav(i, j, k+1, cell_data, moisture_indices);
-        amrex::Real theta_v_km1= GetThetav(i, j, k-1, cell_data, moisture_indices);
+
+        const amrex::Real theta_v = GetThetav(i, j, k, cell_data, moisture_indices);
 
         inv_theta = one / theta_v;
 
         if (is_covered_kp1) {
-            amrex::Real theta_v_km2= GetThetav(i, j, k-2, cell_data, moisture_indices);
-            dtheta_dz = (three*theta_v - four*theta_v_km1 + theta_v_km2) * myhalf * dzInv;
+
+            const amrex::Real theta_v_km1 = GetThetav(i, j, k-1, cell_data, moisture_indices);
+
+            if (c_cflag(i,j,k-2).isCovered()) {
+                dtheta_dz = (theta_v - theta_v_km1) * dzInv;
+            } else {
+                const amrex::Real theta_v_km2 = GetThetav(i, j, k-2, cell_data, moisture_indices);
+                dtheta_dz = (three*theta_v - four*theta_v_km1 + theta_v_km2) * myhalf * dzInv;
+            }
+
         } else if (is_covered_km1) {
-            amrex::Real theta_v_kp2= GetThetav(i, j, k+2, cell_data, moisture_indices);
-            dtheta_dz = (-theta_v_kp2 + four*theta_v_kp1 - three*theta_v) * myhalf * dzInv;
+
+            const amrex::Real theta_v_kp1 = GetThetav(i, j, k+1, cell_data, moisture_indices);
+
+            if (c_cflag(i,j,k+2).isCovered()) {
+                dtheta_dz = (theta_v_kp1 - theta_v) * dzInv;
+            } else {
+                const amrex::Real theta_v_kp2 = GetThetav(i, j, k+2, cell_data, moisture_indices);
+                dtheta_dz = (-theta_v_kp2 + four*theta_v_kp1 - three*theta_v) * myhalf * dzInv;
+            }
+
         } else {
-            dtheta_dz = myhalf * (theta_v_kp1 - theta_v_km1) * dzInv;
+
+            const amrex::Real theta_v_kp1 = GetThetav(i, j, k+1, cell_data, moisture_indices);
+            const amrex::Real theta_v_km1 = GetThetav(i, j, k-1, cell_data, moisture_indices);
+            dtheta_dz = (theta_v_kp1 - theta_v_km1) * myhalf * dzInv;
         }
 
     } else {
-        amrex::Real theta = cell_data(i, j, k, rhoTheta_comp) / rho;
-        amrex::Real theta_kp1 = cell_data(i, j, k+1, rhoTheta_comp) / cell_data(i, j, k+1, rho_comp);
-        amrex::Real theta_km1 = cell_data(i, j, k-1, rhoTheta_comp) / cell_data(i, j, k-1, rho_comp);
+
+        const amrex::Real theta = cell_data(i, j, k, rhoTheta_comp) / rho;
 
         inv_theta = one / theta;
 
         if (is_covered_kp1) {
-            amrex::Real theta_km2 = cell_data(i, j, k-2, rhoTheta_comp) / cell_data(i, j, k-2, rho_comp);
-            dtheta_dz = (three*theta - four*theta_km1 + theta_km2) * myhalf * dzInv;
+
+            const amrex::Real theta_km1 = cell_data(i, j, k-1, rhoTheta_comp) / cell_data(i, j, k-1, rho_comp);
+
+            if (c_cflag(i,j,k-2).isCovered()) {
+                dtheta_dz = (theta - theta_km1) * dzInv;
+            } else {
+                const amrex::Real theta_km2 = cell_data(i, j, k-2, rhoTheta_comp) / cell_data(i, j, k-2, rho_comp);
+                dtheta_dz = (three*theta - four*theta_km1 + theta_km2) * myhalf * dzInv;
+            }
+
         } else if (is_covered_km1) {
-            amrex::Real theta_kp2 = cell_data(i, j, k+2, rhoTheta_comp) / cell_data(i, j, k+2, rho_comp);
-            dtheta_dz = (-theta_kp2 + four*theta_kp1 - three*theta) * myhalf * dzInv;
+
+            const amrex::Real theta_kp1 = cell_data(i, j, k+1, rhoTheta_comp) / cell_data(i, j, k+1, rho_comp);
+
+            if (c_cflag(i,j,k+2).isCovered()) {
+                dtheta_dz = (theta_kp1 - theta) * dzInv;
+            } else {
+                const amrex::Real theta_kp2 = cell_data(i, j, k+2, rhoTheta_comp) / cell_data(i, j, k+2, rho_comp);
+                dtheta_dz = (-theta_kp2 + four*theta_kp1 - three*theta) * myhalf * dzInv;
+            }
+
         } else {
-            dtheta_dz = myhalf * (theta_kp1 - theta_km1) * dzInv;
+
+            const amrex::Real theta_kp1 = cell_data(i, j, k+1, rhoTheta_comp) / cell_data(i, j, k+1, rho_comp);
+            const amrex::Real theta_km1 = cell_data(i, j, k-1, rhoTheta_comp) / cell_data(i, j, k-1, rho_comp);
+            dtheta_dz = (theta_kp1 - theta_km1) * myhalf * dzInv;
         }
     }
 
