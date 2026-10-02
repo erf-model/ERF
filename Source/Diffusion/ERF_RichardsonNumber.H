@@ -242,7 +242,7 @@ ComputeN2_EB (int i, int j, int k,
         } else {
 
             const amrex::Real theta_l_kp1 = GetThetal(i, j, k+1, cell_data, moisture_indices);
-            const amrex::Real theta_l_km1 = GetThetal(i, j, k-1, cell_data, moisture_indices);            
+            const amrex::Real theta_l_km1 = GetThetal(i, j, k-1, cell_data, moisture_indices);
             dtheta_dz = (theta_l_kp1 - theta_l_km1) * myhalf * dzInv;
         }
 
@@ -401,14 +401,14 @@ ComputeVerticalShear2_EB (int i, int j, int k,
     f0 = u_vfrac(i,   j, k);
     f1 = u_vfrac(i+1, j, k);
     fsum = f0 + f1;
-    const amrex::Real u_c = (fsum > zero) ? 
+    const amrex::Real u_c = (fsum > zero) ?
                         ((f0 > zero ? f0 * u(i,   j, k) : zero) +
                         (f1 > zero ? f1 * u(i+1, j, k) : zero)) / fsum : zero;
 
     f0 = v_vfrac(i, j,   k);
     f1 = v_vfrac(i, j+1, k);
     fsum = f0 + f1;
-    const amrex::Real v_c = (fsum > zero) ? 
+    const amrex::Real v_c = (fsum > zero) ?
                         ((f0 > zero ? f0 * v(i, j,   k) : zero) +
                         (f1 > zero ? f1 * v(i, j+1, k) : zero)) / fsum : zero;
 
@@ -493,7 +493,7 @@ ComputeVerticalShear2_EB (int i, int j, int k,
         dv_dz = (-c_kp2 + four * c_kp1 - three * v_c) * myhalf * dzInv;
 
     } else {
-        
+
         amrex::Real c_km1, c_kp1;
 
         // u, k-1
