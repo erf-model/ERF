@@ -1041,6 +1041,16 @@ add_test_at_rest_terrain_outflow(AtRestTerrainOutflow "plt00400" 1.0e-8 0.1)
 add_test_field_bounds(InflowThetaDensity "plt00010" theta 299.999 300.001)
 add_test_field_bounds(InflowOutflowThetaFile "plt00010" theta 299.999 300.001)
 add_test_field_bounds(InflowThetaFileOtherFace "plt00010" theta 299.999 300.001)
+# A refined patch below the inversion takes the coarse level's PBL height (~513 m), not its own
+add_test_field_bounds(PBLH_FinePatch "plt2d00004" pblh 450.0 600.0)
+# A refined patch aloft (256-768 m) has no column at the ground: it takes level 0's height (~461 m), not zero
+add_test_field_bounds(PBLH_PatchAloft "plt2d00004" pblh 400.0 600.0)
+# The same patch on one box and on 8 x 8 columns: the coarse heights the patch takes, and the
+# length cap and eddy viscosity they set, must not depend on the decomposition
+add_test_box_parity(PBLH_FinePatch_BoxParity PBLH_FinePatch "plt00004"
+    COMMON_OPTIONS "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/PBLH_FinePatch_BoxParity/sounding_inversion"
+    REFERENCE_OPTIONS "amr.max_grid_size=1024"
+    SPLIT_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64")
 endif()
 endif()
 
