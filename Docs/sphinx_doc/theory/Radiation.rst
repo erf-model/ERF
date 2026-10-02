@@ -540,8 +540,11 @@ Noah-MP's fluxes (it takes :math:`u_*` and :math:`\theta_*` from them), so with 
 ``seb_turbulent_flux_source = surface_layer`` the balance removes Noah-MP's :math:`H` and
 :math:`\text{LE}` over land and the surface layer's own over water.
 
-The coupling is single-level: ``erf.radiation_model = TwoStream`` with Noah-MP and
-``amr.max_level > 0`` stops at start-up. Without a land model, or with SLM, the two-stream model
+On a refined run every level hands its own Noah-MP its forcing. A level whose boxes span the
+domain in z writes the fluxes of its own sweep. A nested patch, which does not sweep, takes
+its parent's, interpolated (piecewise constant) with the rest of its radiation fields. A
+finer level runs Noah-MP on that forcing only if it has a land setup file of its own; otherwise
+it takes its land state from level 0 (see :doc:`../CouplingToNoahMP`). Without a land model, or with SLM, the two-stream model
 stores nothing extra and its results are unchanged. The case
 ``Exec/RegTests/NoahMP_Ideal/inputs_noahmp_twostream`` exercises the coupling.
 

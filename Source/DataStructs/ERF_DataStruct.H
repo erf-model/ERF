@@ -1336,21 +1336,6 @@ struct SolverChoice {
                               "will run with no radiative forcing (zero SWDOWN, GLW and COSZEN).\n";
         }
 
-        // The two-stream -> Noah-MP forcing is built and tested on a single level. A refined
-        // run reaches a fine level's Noah-MP inputs by three different routes -- a fine
-        // level that sweeps its own columns, a nested patch interpolated from its parent,
-        // a level created mid-run -- and none of them has been verified. Refuse the
-        // combination rather than run it unverified.
-        if (lsm_type == LandSurfaceType::NOAHMP && rad_type == RadiationType::TwoStream &&
-            max_level > 0)
-        {
-            amrex::Abort("erf.radiation_model = TwoStream with erf.land_surface_model = NOAHMP "
-                         "is supported on a single level only (amr.max_level = " +
-                         std::to_string(max_level) + "): the two-stream model does not yet "
-                         "supply Noah-MP's radiative forcing on refined levels. Set "
-                         "amr.max_level = 0, or use erf.radiation_model = RRTMGP.");
-        }
-
         vert_implicit_fac.resize(max_level+1);
         for (int lev = 0; lev <= max_level; lev++) {
             vert_implicit_fac[lev].resize(3);

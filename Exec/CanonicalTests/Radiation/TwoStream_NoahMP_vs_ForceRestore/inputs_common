@@ -1,0 +1,72 @@
+# Settings shared by inputs_noahmp and inputs_force_restore, which differ only in the
+# surface model (see README.md). Times are UTC; 15:00 UTC is about 08:20 local solar time
+# at 100 W.
+erf.prob_name = "ABL"
+
+stop_time = 21600.0            # six hours, to about 14:20 local solar time
+max_step  = 100000
+amrex.fpe_trap_invalid = 0
+
+# 4 km tall: the mixed layer grows past 1.5 km by early afternoon, and the boundary-layer
+# height diagnostic needs the inversion above it inside the domain.
+geometry.prob_extent = 2000 2000 4000
+amr.n_cell           = 8 8 64
+geometry.is_periodic = 1 1 0
+
+# Level 1 over the middle 4 x 4 of level 0, refined by 2 in x and y, spanning z so that it
+# sweeps its own columns. It stays fixed for the whole run.
+amr.max_level = 1
+amr.ref_ratio_vect = 2 2 1
+amr.n_error_buf = 0
+amr.blocking_factor = 2
+amr.max_grid_size = 64
+amr.refine_whole_domain_dir = 2
+erf.refinement_indicators = centre
+erf.centre.max_level = 1
+erf.centre.in_box_lo = 500.0 500.0
+erf.centre.in_box_hi = 1500.0 1500.0
+
+# The time step follows the CFL condition on every level (level 1 takes two substeps per
+# level-0 step). A fixed 2 s step puts level 1 at its limit and blows up within ten steps.
+erf.cfl = 0.5
+erf.v = 0
+amr.v = 0
+
+zlo.type = "surface_layer"
+zhi.type = "SlipWall"
+erf.most.z0   = 0.1
+erf.most.zref = 40.0           # above the first cell centre (31.25 m)
+erf.most.pblh_calc = "MYNN25"  # boundary-layer height for the pblh output (MRF does not set it)
+
+erf.init_type = "input_sounding"
+erf.sounding_type = Ideal
+erf.input_sounding_file = "input_sounding"
+erf.use_gravity = true
+erf.moisture_model = "Kessler_NoRain"
+erf.les_type = "None"
+erf.pbl_type = "MRF"
+erf.molec_diff_type = "None"
+
+erf.use_coriolis = true
+erf.latitude = 40.0
+erf.abl_driver_type = "GeostrophicWind"
+erf.abl_geo_wind = 5.0 0.0 0.0
+
+start_datetime = "2024-08-05 15:00:00"
+erf.rad_cons_lat = 40.0
+erf.rad_cons_lon = -100.0
+
+erf.radiation_model = "TwoStream"
+erf.rad_t_sfc = 300.0
+erf.radiation.tau_per_layer    = 0.003125
+erf.radiation.tau_lw_per_layer = 0.05
+erf.radiation.diag_enable = true
+erf.radiation.diag_csv_enable = true
+erf.radiation.diag_stdout_enable = false
+erf.radiation.diag_callsite_mode = pre_only
+
+erf.check_int = -1
+erf.plot_file_1 = plt
+erf.plot_int_1 = -1
+erf.plot2d_file_1 = plt2d
+erf.plot2d_per_1 = 600.0       # every 10 minutes of simulated time
