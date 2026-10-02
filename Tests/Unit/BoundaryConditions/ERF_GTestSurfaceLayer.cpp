@@ -10,6 +10,7 @@
 #include <gtest/gtest.h>
 
 #include "../ERF_GTestAssertions.H"
+#include "../ERF_GTestTempDir.H"
 
 #include <algorithm>
 #include <array>
@@ -908,8 +909,8 @@ TEST(SurfaceLayer, PotentialTemperatureLsmFieldRemainsUnchanged)
 TEST(SurfaceLayer, TextSstIsConvertedToPotentialTemperature)
 {
     const std::string prefix = "unit_surface_layer_text_sst";
-    const auto file = std::filesystem::current_path() /
-        ("erf_surface_layer_text_sst_" + std::to_string(sizeof(Real)) + ".txt");
+    const auto file = std::filesystem::path(
+        erf_gtest_temp_path("erf_surface_layer_text_sst_" + std::to_string(sizeof(Real))).string() + ".txt");
     ScopedTestFile cleanup(file);
     {
         std::ofstream out(file);
@@ -946,8 +947,8 @@ TEST(SurfaceLayer, TextSstIsConvertedToPotentialTemperature)
 TEST(SurfaceLayer, DryTextSstDoesNotReadMoistureComponent)
 {
     const std::string prefix = "unit_surface_layer_dry_text_sst";
-    const auto file = std::filesystem::current_path() /
-        ("erf_surface_layer_dry_text_sst_" + std::to_string(sizeof(Real)) + ".txt");
+    const auto file = std::filesystem::path(
+        erf_gtest_temp_path("erf_surface_layer_dry_text_sst_" + std::to_string(sizeof(Real))).string() + ".txt");
     ScopedTestFile cleanup(file);
     {
         std::ofstream out(file);
@@ -1164,8 +1165,8 @@ TEST(SurfaceLayer, CoupledSstWithoutCoverageMaskLeavesFallbackUnchanged)
 TEST(SurfaceLayer, ConfiguredRdOcpControlsTextSstConversion)
 {
     const std::string prefix = "unit_surface_layer_text_sst_custom_rdOcp";
-    const auto file = std::filesystem::current_path() /
-        ("erf_surface_layer_text_sst_custom_rdOcp_" + std::to_string(sizeof(Real)) + ".txt");
+    const auto file = std::filesystem::path(
+        erf_gtest_temp_path("erf_surface_layer_text_sst_custom_rdOcp_" + std::to_string(sizeof(Real))).string() + ".txt");
     ScopedTestFile cleanup(file);
     {
         std::ofstream out(file);
