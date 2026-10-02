@@ -22,7 +22,6 @@
             const int  l_klo         = fine_geom.Domain().smallEnd(2);
 
             const Real l_tke_floor = l_tc.tke_floor;
-            const Real l_eps       = std::numeric_limits<Real>::epsilon();
 
             // Every state component from RhoQ1_comp to the end of the state.  With SBM
             // only the host-owned qv is limited; the projected liquid lanes are owned by
@@ -48,7 +47,7 @@
                         ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                         {
                             if (skip_klo && k == l_klo) { return; }
-                            const Real ke_floor = (l_tke_floor > zero) ? cons(i,j,k,Rho_comp) * l_tke_floor : l_eps;
+                            const Real ke_floor = cons(i,j,k,Rho_comp) * l_tke_floor;
                             cons(i,j,k,RhoKE_comp) = amrex::max(cons(i,j,k,RhoKE_comp), ke_floor);
                         });
                     }

@@ -436,7 +436,7 @@ public:
             amrex::Error("erf.Rt_min must be > -3.6 for the k-eqn RANS (stability functions have poles near -3.61)");
         }
     }
-    if (tke_floor < 0) { amrex::Error("erf.tke_floor must be >= 0"); }
+    if (tke_floor < zero) { amrex::Error("erf.tke_floor must be >= 0"); }
 
     // Common inputs (LES or RANS)
     if (!query_one_or_per_level(pp, "sigma_k", sigma_k, lev, max_level) && rans_type == RANSType::kEqn) {
