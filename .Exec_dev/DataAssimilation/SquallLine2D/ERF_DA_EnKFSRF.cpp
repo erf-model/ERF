@@ -93,9 +93,9 @@ WriteUpdatedEnsembleToERFClassData (const MultiFab& mf_cc_fine,
             Real tmp_qrain = mf_cc_fine_arr(i,j,k,7);
             cons_pert_arr(i,j,k,Rho_comp)      = tmp_rho;
             cons_pert_arr(i,j,k,RhoTheta_comp) = tmp_rho*tmp_theta;
-            if (n_qstate_moist > 0) cons_pert_arr(i,j,k,RhoQ1_comp)    = tmp_rho*tmp_qv;
-            if (n_qstate_moist > 1) cons_pert_arr(i,j,k,RhoQ2_comp)    = tmp_rho*tmp_qc;
-            if (n_qstate_moist > 2) cons_pert_arr(i,j,k,RhoQ3_comp)    = tmp_rho*tmp_qrain;
+            if (n_qstate_moist > 0) cons_pert_arr(i,j,k,RhoQ1_comp)    = std::max(tmp_rho*tmp_qv,0.0_rt);
+            if (n_qstate_moist > 1) cons_pert_arr(i,j,k,RhoQ2_comp)    = std::max(tmp_rho*tmp_qc,0.0_rt);
+            if (n_qstate_moist > 2) cons_pert_arr(i,j,k,RhoQ3_comp)    = std::max(tmp_rho*tmp_qrain,0.0_rt);
         });
     }
 
@@ -121,7 +121,7 @@ WriteUpdatedEnsembleToERFClassData (const MultiFab& mf_cc_fine,
 
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            vface(i,j,k) = myhalf * (cc(i,j-1,k,3) + cc(i,j,k,3));
+            vface(i,j,k) = 0.0;//myhalf * (cc(i,j-1,k,3) + cc(i,j,k,3));
         });
     }
 
@@ -333,12 +333,38 @@ ERF::PerformDataAssimilation(int da_iter)
         MultiFab mf_ens_pert;
         update_ensemble(da_iter, Nens, last_pf_name, varnames, xf_bar, T_mat, n, mf_ens_pert);
 
+        const std::string member_prefix = "member_";
+        std::string member_dir = member_prefix + amrex::Concatenate("", n, 2);
+        std::string outfile = member_dir + "/" + "plt_ens_update";
+
+        std::string pltname5 = MakeFullPath(outfile, da_iter);
+
+        Print() << "pltname5 is " << pltname5 << std::endl;
+
+        WriteSingleLevelPlotfile(pltname5,
+                            mf_ens_pert,
+                            varnames,
+                            geom[0],
+                            0.0,   // time
+                            0);    // level*/
+
         // Update the ensemble
         MultiFab mf_ens_updated;
         add_multifabs(mf_ens_pert, xf_bar_updated, mf_ens_updated);
 
+        MultiFab mf_ens_updated_ng(mf_ens_updated.boxArray(),
+                                   mf_ens_updated.DistributionMap(),
+                                   mf_ens_updated.nComp(),
+                                    1);
+
+        mf_ens_updated_ng.ParallelCopy(mf_ens_updated,
+                                       0,  // src component
+                                       0,  // dst component
+                                       mf_ens_updated.nComp());
+
         // Apply Neumann boundary condition to the updated ensembles
-        ApplyNeumannBCsToEnsembles(geom[0], mf_ens_updated);
+        ApplyNeumannBCsToEnsembles(geom[0], mf_ens_updated_ng);
+
         bool use_moisture = (solverChoice.moisture_type != MoistureType::None);
         int n_qstate_moist = 0;
         if (use_moisture) {
@@ -361,7 +387,7 @@ ERF::PerformDataAssimilation(int da_iter)
         auto& lev_new = vars_new[0];
 
         // Copy the cell centered ensemble multifab to the ERF class data structures
-        WriteUpdatedEnsembleToERFClassData(mf_ens_updated,
+        WriteUpdatedEnsembleToERFClassData(mf_ens_updated_ng,
                                            lev_new[Vars::cons],
                                            lev_new[Vars::xvel],
                                            lev_new[Vars::yvel],
