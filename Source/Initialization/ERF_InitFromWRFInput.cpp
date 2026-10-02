@@ -9,6 +9,7 @@
 #include "ERF_ProbCommon.H"
 #include "ERF_DataStruct.H"
 #include "ERF_TerrainMetrics.H"
+#include "ERF_GridUtils.H"
 
 #include "ERF_ReadFromWRFInput.H"
 #include "ERF_ReadFromWRFBdy.H"
@@ -305,6 +306,93 @@ read_base_state_params_from_wrfinput (const std::string& fname,
     ParallelDescriptor::Bcast(&TLP_STRAT,1,ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::Bcast(&P_STRAT,1,ParallelDescriptor::IOProcessorNumber());
 }
+
+namespace {
+
+/**
+ * @brief Domain-mean layer thickness of the file's vertical grid, level by level.
+ *
+ * The returned profile is what the ERF vertical grid is built from.  Averaging over the
+ * horizontal is the point, not an approximation: a wrfinput column's layer thicknesses vary by
+ * tens of percent from column to column aloft -- 63% at k = 100 on the WPS test case -- because
+ * the coordinate is pressure-based, and that horizontal raggedness is exactly what ERF does not
+ * want in its mesh.  The mean over the domain is smooth in k, so taking it keeps the file's
+ * vertical *distribution* while discarding its horizontal *raggedness*.
+ *
+ * The average is over the columns this level actually has, not over the columns the domain
+ * would have.  A level whose grids cover only part of the domain -- a nest, which is exactly
+ * the lev > 0 wrfinput case -- would otherwise have every thickness scaled down by the
+ * fraction of the domain it covers, which is not a vertical grid at all.  Averaging over the
+ * nest's own columns instead gives the nest's own vertical distribution, which is the right
+ * profile for the nest's own mesh.
+ *
+ * ncol_min is how many columns the thinnest-sampled layer saw.  A nest that stops below the
+ * domain top leaves the layers above it with no columns whatsoever, and ncol_min is zero:
+ * there is no profile to be had there and the caller has to build the grid another way.
+ *
+ * mf_PH and mf_PHB are z-face MultiFabs whose valid boxes share faces with their vertical
+ * neighbors, so the sum is accumulated over the cells each box bounds rather than over its
+ * faces, which tile the domain exactly.
+ *
+ * @param[in]  mf_PH    perturbation geopotential on z-faces
+ * @param[in]  mf_PHB   base-state geopotential on z-faces
+ * @param[in]  geom     geometry of the level
+ * @param[out] ncol_min fewest columns any one layer was averaged over
+ * @return mean thickness of each of the domain's layers, length Domain().length(2)
+ */
+amrex::Vector<amrex::Real>
+wrf_mean_layer_thickness (const MultiFab& mf_PH,
+                          const MultiFab& mf_PHB,
+                          const Geometry& geom,
+                          Long& ncol_min)
+{
+    const Box& domain = geom.Domain();
+    const int  klo    = domain.smallEnd(2);
+    const int  nlay   = domain.length(2);
+
+    Gpu::DeviceVector<Real> d_sum(nlay, zero);
+    Real* dptr = d_sum.dataPtr();
+
+    Vector<Long> ncol(nlay, 0);
+
+    for (MFIter mfi(mf_PH); mfi.isValid(); ++mfi)
+    {
+        Box bx = mfi.validbox();
+        bx.setBig(2, bx.bigEnd(2)-1);   // the cells this z-face box bounds
+        if (!bx.ok()) { continue; }
+
+        // Count the columns this box contributes to each of the layers it spans.  Boxes
+        // stacked in z share an (i,j) footprint, so the count has to be per layer: for any
+        // one layer exactly one box of each vertical stack contributes.
+        const Long nxy = static_cast<Long>(bx.length(0)) * static_cast<Long>(bx.length(1));
+        for (int k(bx.smallEnd(2)); k<=bx.bigEnd(2); ++k) { ncol[k-klo] += nxy; }
+
+        const Array4<const Real>&  ph_arr = mf_PH.const_array(mfi);
+        const Array4<const Real>& phb_arr = mf_PHB.const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const Real dz = ( (ph_arr(i,j,k+1) + phb_arr(i,j,k+1))
+                            - (ph_arr(i,j,k  ) + phb_arr(i,j,k  )) ) / CONST_GRAV;
+            Gpu::Atomic::AddNoRet(&dptr[k-klo], dz);
+        });
+    }
+    Gpu::streamSynchronize();
+
+    Vector<Real> prof(nlay);
+    Gpu::copy(Gpu::deviceToHost, d_sum.begin(), d_sum.end(), prof.begin());
+    ParallelDescriptor::ReduceRealSum(prof.dataPtr(), nlay);
+    ParallelDescriptor::ReduceLongSum(ncol.dataPtr(), nlay);
+
+    ncol_min = std::numeric_limits<Long>::max();
+    for (int k(0); k<nlay; ++k) {
+        ncol_min = std::min(ncol_min, ncol[k]);
+        prof[k]  = (ncol[k] > 0) ? prof[k] / static_cast<Real>(ncol[k]) : zero;
+    }
+
+    return prof;
+}
+
+} // namespace
 
 /**
  * ERF function that initializes data from a WRF dataset
@@ -1375,39 +1463,158 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
 #else
             const Real tol = Real(1.e-8);
 #endif
-            Real SFact = Real(1.03);
-            Real Nz = static_cast<Real>(zlevels_stag[lev].size() - 1);
+            const int nlay = static_cast<int>(zlevels_stag[lev].size()) - 1;
 
-            // Default to uniform grid or solve for a stretched grid
-            if (dz0_max >= z_top/Nz) {
-                SFact   = one;
-                dz0_max = z_top/Nz;
-            } else {
-                int max_iter = 50;
-                int iter     = 0;
-                Real F       = dz0_max * ( (std::pow(SFact,Nz) - one) / (SFact - one) ) - z_top;
-                while (std::fabs(F)>tol && iter<max_iter) {
-                    Real dFdSF = dz0_max * ( Nz * std::pow(SFact,Nz-one) * (SFact - one)
-                                           - std::pow(SFact,Nz) + one ) /
-                                           std::pow(SFact-one,two);
-                    SFact     -= F/dFdSF;
-                    SFact      = std::max(one+tol,SFact);
-                    F          = dz0_max * ( (std::pow(SFact,Nz) - one) / (SFact - one) ) - z_top;
-                    ++iter;
+            //
+            // Two constructions are available, chosen by erf.wrfinput_zlevels_from_file.
+            //
+            // The default takes the file's own domain-mean layer thicknesses and rescales them
+            //    to reach z_top.  The alternative, which is what ERF did before and what
+            //    erf_grid_utils::geometric_stretch still provides for the idealized case in
+            //    which dz0 and the domain height are what is known a priori, anchors dz0 to the
+            //    *maximum* over columns of the file's first layer thickness and applies one
+            //    geometric stretch.  A wrfinput first layer is deliberately thicker than the
+            //    layers just above it -- 17.78 m over 9.09 m in the domain mean on the WPS test
+            //    case -- so anchoring to it and only growing makes every ERF layer through the
+            //    boundary layer about 2.2x thicker than the file's, discarding over half the
+            //    vertical resolution the file provided exactly where an atmospheric model wants
+            //    it, while ending up finer than the file aloft.  A single geometric stretch
+            //    cannot do better: the file's own stretch ratio rises to ~1.031 in
+            //    mid-troposphere and relaxes to ~1.004 near the top, which one constant factor
+            //    cannot represent.
+            //
+            // Either way the result is a single 1-D array draped by make_terrain_fitted_coords,
+            //    so the mesh is exactly as smooth in the horizontal as it has always been; what
+            //    the default changes is the vertical distribution.
+            //
+            bool use_file_profile = solverChoice.wrfinput_zlevels_from_file;
+
+            Vector<Real> dz_prof;
+            if (use_file_profile) {
+                Long ncol_min = 0;
+                dz_prof = wrf_mean_layer_thickness(mf_PH, *mf_PHB, geom[lev], ncol_min);
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(static_cast<int>(dz_prof.size()) == nlay,
+                    "The mean layer-thickness profile does not match the number of ERF layers");
+
+                const Long ncol_domain = static_cast<Long>(geom[lev].Domain().length(0)) *
+                                         static_cast<Long>(geom[lev].Domain().length(1));
+
+                // A nest that stops below the domain top has no columns at all in the layers
+                //    above it, so there is no profile to build a grid from up there and this
+                //    level falls back to geometric stretching, which needs only its own dz0.
+                if (ncol_min == 0) {
+                    Print() << "NOTE: the grids at level " << lev << " do not reach the top of the "
+                               "domain, so the file's layer-thickness profile is undefined over "
+                               "part of the column; building this level's vertical grid by "
+                               "geometric stretching instead.\n";
+                    use_file_profile = false;
+                } else if (ncol_min < ncol_domain) {
+                    Print() << "NOTE: the grids at level " << lev << " cover " << ncol_min << " of "
+                            << ncol_domain << " columns, so this level's layer-thickness profile is "
+                               "the mean over its own region rather than over the whole domain.\n";
                 }
-                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(std::fabs(F) <= tol,
-                                                 "Newton iterations to determine the grid stretching factor failed!\n");
             }
 
-            // Build the zlevels
-            Print() << "Building an ERF grid with dz0: " << dz0_max <<
-                " and stretching factor: " << SFact << "\n";
-            Real dz = dz0_max;
-            zlevels_stag[lev][0] = zero;
-            for (int k(1); k<zlevels_stag[lev].size(); ++k) {
-                zlevels_stag[lev][k] = zlevels_stag[lev][k-1] + dz;
-                dz *= SFact;
+            if (use_file_profile) {
+                Real dz_tot = zero;
+                for (int k(0); k<nlay; ++k) {
+                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dz_prof[k] > zero,
+                        "Non-positive mean layer thickness in the wrfinput vertical grid");
+                    dz_tot += dz_prof[k];
+                }
+
+                //
+                // z_top and the mean depth of the file's column are not the same number, so the
+                //    profile has to be stretched to fit.  Absorb that difference ALOFT rather than
+                //    spreading it uniformly, so the near-surface layers keep the thicknesses the file
+                //    actually has: the weight w(k) = 1 + a*s(k) is unity at the surface and grows
+                //    linearly with the height fraction s, chosen so the column closes exactly.
+                //
+                // This leaves the profile as smooth as the file's own.  w multiplies the stretch
+                //    ratio by w(k+1)/w(k), and since s advances by at most dz_top/depth ~ 0.012 per
+                //    layer the perturbation is order a*ds ~ 1e-3, far below the ratio's own variation.
+                //
+                Vector<Real> sfrac(nlay, zero);
+                {
+                    Real c = zero;
+                    for (int k(0); k<nlay; ++k) { sfrac[k] = c/dz_tot; c += dz_prof[k]; }
+                }
+                Real wsum = zero;
+                for (int k(0); k<nlay; ++k) { wsum += sfrac[k]*dz_prof[k]; }
+
+                Real a_ramp     = (wsum > zero) ? (z_top - dz_tot)/wsum : zero;
+                bool ramp_closes = true;
+
+                // The weight has to stay positive.  It is smallest at the top, where s is largest,
+                //    so this only bites when z_top is far below the file's own column depth.
+                if (one + a_ramp*sfrac[nlay-1] < Real(0.1)) {
+                    Print() << "WARNING: z_top (" << z_top << " m) is far below the mean depth of the "
+                               "wrfinput column (" << dz_tot << " m); the profile cannot be closed by "
+                               "stretching aloft alone, so it is rescaled uniformly instead and the "
+                               "near-surface layers will not match the file.\n";
+                    a_ramp      = zero;
+                    ramp_closes = false;
+                }
+                const Real zscale = ramp_closes ? one : z_top/dz_tot;
+
+                zlevels_stag[lev][0] = zero;
+                for (int k(1); k<=nlay; ++k) {
+                    const Real w = zscale * (one + a_ramp*sfrac[k-1]);
+                    zlevels_stag[lev][k] = zlevels_stag[lev][k-1] + w*dz_prof[k-1];
+                }
+                zlevels_stag[lev][nlay] = z_top;
+
+                // Report the grid that was actually built, and how smooth it is.  The mean over the
+                //    domain is smooth in k even though individual columns are not, so a ratio far
+                //    from 1 above the surface layer would mean this file is unlike the ones this has
+                //    been exercised on and the mesh deserves a look.
+                // A column of fewer than three layers has no ratio above the surface layer
+                //    to report, so leave the range at unity rather than printing the
+                //    sentinels the loop would otherwise leave behind.
+                Real r_min = one;
+                Real r_max = one;
+                for (int k(1); k<nlay-1; ++k) {
+                    const Real r = (zlevels_stag[lev][k+2] - zlevels_stag[lev][k+1])
+                                 / (zlevels_stag[lev][k+1] - zlevels_stag[lev][k  ]);
+                    if (k == 1) {
+                        r_min = r;
+                        r_max = r;
+                    } else {
+                        r_min = std::min(r_min,r);
+                        r_max = std::max(r_max,r);
+                    }
+                }
+                const Real built_dz0 = zlevels_stag[lev][1]      - zlevels_stag[lev][0];
+                const Real built_dzt = zlevels_stag[lev][nlay]   - zlevels_stag[lev][nlay-1];
+                Print() << "Building an ERF grid from the mean wrfinput layer profile: dz0 "
+                        << built_dz0 << " m (file's own " << dz_prof[0] << " m), dz_top "
+                        << built_dzt << " m (file's own " << dz_prof[nlay-1] << " m)\n";
+                Print() << "    the " << (z_top - dz_tot) << " m by which z_top exceeds the file's mean"
+                        << " column depth is absorbed aloft: layers are stretched by 0% at the surface"
+                        << " and " << Real(100)*a_ramp*sfrac[nlay-1] << "% at the top\n";
+                Print() << "    layer-to-layer stretch ratio above the surface layer is in ["
+                        << r_min << ", " << r_max << "]"
+                        << "    (thickest first layer over the domain was " << dz0_max << " m)\n";
+                if (r_min < Real(0.5) || r_max > Real(2.0)) {
+                    Print() << "WARNING: the mean vertical profile of this file is not smooth in k "
+                               "(stretch ratio outside [0.5, 2]); the ERF mesh inherits that.\n";
+                }
+
+            } else {
+                //
+                // Solve for the geometric stretch factor that fills the domain with nlay layers
+                //    whose first is dz0_max thick.  The solve lives in Source/Utils so that an
+                //    idealized case, where dz0 and the domain height are the knowns, can use it
+                //    without going through the wrfinput path.
+                //
+                const erf_grid_utils::GeometricStretch gs =
+                    erf_grid_utils::build_geometric_zlevels(zlevels_stag[lev], dz0_max, z_top, tol);
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(gs.converged,
+                    "Newton iterations to determine the grid stretching factor failed!\n");
+                Print() << "Building an ERF grid with dz0: " << gs.dz0 <<
+                    " and stretching factor: " << gs.ratio << "\n";
             }
+
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(std::fabs(zlevels_stag[lev].back() - z_top) <= tol,
                 "Top of zlevels_stag does not match z_top!\n");
 
@@ -1522,8 +1729,24 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
         MultiFab::Copy(xvel_tmp, lev_new[Vars::xvel], 0, 0, 1    , 0);
         MultiFab::Copy(yvel_tmp, lev_new[Vars::yvel], 0, 0, 1    , 0);
 
+        //
+        // The cell-centered remap below only assigns a value when it finds a wrfinput
+        //    interval bracketing the destination height.  A cell whose z_cc falls outside
+        //    the source column keeps whatever the read left there, which is WRF's value at
+        //    the same *index* rather than at the same height.  Record where that happens:
+        //      1  below the source column, in the bottom plane (expected: ERF's lowest
+        //         z_cc sits below WRF's first mass level, half a layer above the terrain)
+        //      3  below the source column, above the bottom plane (not expected)
+        //      2  above the source column
+        //      4  outside the source column with fewer than two source levels in the box,
+        //         so not even extrapolated (not expected)
+        //
+        MultiFab remap_flag(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(), 1, 0);
+        remap_flag.setVal(0.);
+
         for (MFIter mfi(lev_new[Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             const Box& bx  = mfi.tilebox();
+            const Array4<Real>& remap_flag_arr = remap_flag.array(mfi);
             const Box& bxx = mfi.tilebox(IntVect(1,0,0));
             const Box& bxy = mfi.tilebox(IntVect(0,1,0));
 
@@ -1564,6 +1787,10 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                     ( ph_arr(i,j,kstart  ) + phb_arr(i,j,kstart  ) +
                       ph_arr(i,j,kstart+1) + phb_arr(i,j,kstart+1)) / CONST_GRAV;
 
+                // The loop below walks z_lo_src up the column, so keep the bottom of the
+                //    source column now; it is what tells the end policy which end it is at.
+                const Real z_first = z_lo_src;
+
                 bool found = false;
                 int kend   = kstart;
                 for (int lk(kstart+1); lk<=khi_src; ++lk) {
@@ -1589,6 +1816,70 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                         Real cons_lo = cons_tmp_arr(i,j,kstart,icons);
                         cons_arr(i,j,k,icons) = ( cons_hi - cons_lo ) * dz_rat + cons_lo;
                     }
+                } else {
+                    //
+                    // The destination height lies outside the wrfinput column.  Extrapolate
+                    //    from the two nearest source levels rather than leaving the cell
+                    //    holding whatever the read put at this index, which belongs to a
+                    //    different height entirely.
+                    //
+                    // What gets extrapolated are the PRIMITIVES, not the conserved products.
+                    //    theta rises smoothly through the stratosphere and is well fitted by a
+                    //    straight line, whereas rho*theta carries the density's exponential
+                    //    decay and is not.  Every other primitive is held at the nearest source
+                    //    level: moisture up there is ~0 and its vertical gradient is noise, so a
+                    //    linear fit manufactures negatives more readily than it captures
+                    //    structure, and a zeroth-order hold preserves the sign of whatever it
+                    //    copies without needing a clamp.
+                    //
+                    // Density is extrapolated linearly, which is accurate to a few tenths of a
+                    //    percent over the ~250 m involved at the top of this grid, and is in any
+                    //    case only a seed: rebalance_columns re-derives rho from theta and a
+                    //    marched pressure, which is what makes these cells hydrostatic.  That
+                    //    delegation is why erf.rebalance_wrf_input = false warns below.
+                    //
+                    const bool below = (z_dst < z_first);
+
+                    // Two nearest source levels, and which of them is nearest to z_dst
+                    const int ks = (below) ? klo        : khi_src - 1;
+                    const int ke = (below) ? klo + 1    : khi_src;
+                    const int kn = (below) ? ks         : ke;
+
+                    if (ke > ks && ks >= klo && ke <= khi_src) {
+                        remap_flag_arr(i,j,k) = (below) ? ((k == klo) ? one : three) : two;
+
+                        const Real z_s = Real(0.5) * ( ph_arr(i,j,ks  ) + phb_arr(i,j,ks  ) +
+                                                       ph_arr(i,j,ks+1) + phb_arr(i,j,ks+1) ) / CONST_GRAV;
+                        const Real z_e = Real(0.5) * ( ph_arr(i,j,ke  ) + phb_arr(i,j,ke  ) +
+                                                       ph_arr(i,j,ke+1) + phb_arr(i,j,ke+1) ) / CONST_GRAV;
+                        const Real dz_rat = (z_dst - z_s) / (z_e - z_s);
+
+                        const Real rho_s = cons_tmp_arr(i,j,ks,Rho_comp);
+                        const Real rho_e = cons_tmp_arr(i,j,ke,Rho_comp);
+                        const Real rho_n = cons_tmp_arr(i,j,kn,Rho_comp);
+
+                        // Linear in rho, floored well below either source value so that a long
+                        //    extrapolation can never drive it non-positive.
+                        Real rho_x = (rho_e - rho_s) * dz_rat + rho_s;
+                        rho_x = amrex::max(rho_x, Real(0.1) * amrex::min(rho_s, rho_e));
+                        cons_arr(i,j,k,Rho_comp) = rho_x;
+
+                        // Linear in theta
+                        const Real th_s = cons_tmp_arr(i,j,ks,RhoTheta_comp) / rho_s;
+                        const Real th_e = cons_tmp_arr(i,j,ke,RhoTheta_comp) / rho_e;
+                        cons_arr(i,j,k,RhoTheta_comp) = rho_x * ((th_e - th_s) * dz_rat + th_s);
+
+                        // Zeroth order in every other primitive
+                        for (int icons(RhoTheta_comp+1); icons<ncons; ++icons) {
+                            cons_arr(i,j,k,icons) = rho_x * (cons_tmp_arr(i,j,kn,icons) / rho_n);
+                        }
+                    } else {
+                        // This box holds fewer than two source levels, so there is nothing
+                        //    to extrapolate from and the cell keeps whatever the read left.
+                        //    Flag it separately rather than counting it as extrapolated,
+                        //    which would report work that did not happen.
+                        remap_flag_arr(i,j,k) = four;
+                    }
                 }
             });
 
@@ -1607,6 +1898,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                       ph_arr(ii ,j,kstart+1) + phb_arr(ii ,j,kstart+1) +
                       ph_arr(iim,j,kstart  ) + phb_arr(iim,j,kstart  ) +
                       ph_arr(iim,j,kstart+1) + phb_arr(iim,j,kstart+1) ) / CONST_GRAV;
+
+                const Real z_first = z_lo_src;
 
                 bool found = false;
                 int kend   = kstart;
@@ -1635,6 +1928,22 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                     Real xvel_hi = xvel_tmp_arr(i,j,kend  );
                     Real xvel_lo = xvel_tmp_arr(i,j,kstart);
                     xvel_arr(i,j,k) = ( xvel_hi - xvel_lo ) * dz_rat + xvel_lo;
+                } else {
+                    //
+                    // Outside the source column, hold the nearest source level -- the same
+                    //    end policy the cell-centered remap above applies to every primitive
+                    //    but theta.  Theta is extrapolated there because it is smooth and
+                    //    nearly linear through the stratosphere; a wind component is neither,
+                    //    so a linear fit off the end of the column is as likely to invent
+                    //    shear as to capture it, and a hold cannot.
+                    //
+                    // Leaving this to the implicit behavior of the read would be *almost* the
+                    //    same thing -- at k = klo and at the top of the column the value left
+                    //    at this index happens to be the nearest level -- but only almost, and
+                    //    only by coincidence of the indexing.  Say what is meant instead.
+                    //
+                    xvel_arr(i,j,k) = (z_dst < z_first) ? xvel_tmp_arr(i,j,klo)
+                                                        : xvel_tmp_arr(i,j,khi_src);
                 }
             });
 
@@ -1652,6 +1961,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                       ph_arr(i,jj ,kstart+1) + phb_arr(i,jj ,kstart+1) +
                       ph_arr(i,jjm,kstart  ) + phb_arr(i,jjm,kstart  ) +
                       ph_arr(i,jjm,kstart+1) + phb_arr(i,jjm,kstart+1) ) / CONST_GRAV;
+
+                const Real z_first = z_lo_src;
 
                 bool found = false;
                 int kend   = kstart;
@@ -1680,10 +1991,80 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                     Real yvel_hi = yvel_tmp_arr(i,j,kend  );
                     Real yvel_lo = yvel_tmp_arr(i,j,kstart);
                     yvel_arr(i,j,k) = ( yvel_hi - yvel_lo ) * dz_rat + yvel_lo;
+                } else {
+                    // Outside the source column: hold the nearest source level, as xvel does
+                    //    above and as the cell-centered remap does for every primitive but
+                    //    theta.
+                    yvel_arr(i,j,k) = (z_dst < z_first) ? yvel_tmp_arr(i,j,klo)
+                                                        : yvel_tmp_arr(i,j,khi_src);
                 }
             });
 
         } // mfi
+
+        if (verbose > 0) {
+            auto count_flag = [&] (Real target) -> Real {
+                return ReduceSum(remap_flag, 0,
+                    [=] AMREX_GPU_HOST_DEVICE (Box const& tbx, Array4<Real const> const& f) -> Real
+                    {
+                        Real sum = zero;
+                        amrex::Loop(tbx, [=,&sum] (int i, int j, int k) noexcept
+                        {
+                            if (f(i,j,k) == target) { sum += one; }
+                        });
+                        return sum;
+                    });
+            };
+            Real n_below_klo = count_flag(one);
+            Real n_above     = count_flag(two);
+            Real n_below_int = count_flag(three);
+            Real n_unhandled = count_flag(four);
+            ParallelDescriptor::ReduceRealSum(n_below_klo);
+            ParallelDescriptor::ReduceRealSum(n_above);
+            ParallelDescriptor::ReduceRealSum(n_below_int);
+            ParallelDescriptor::ReduceRealSum(n_unhandled);
+
+            const Real n_tot = static_cast<Real>(geom[lev].Domain().numPts());
+            const Real n_pln = static_cast<Real>(geom[lev].Domain().length(0)) *
+                               static_cast<Real>(geom[lev].Domain().length(1));
+
+            Print() << " " << std::endl;
+            Print() << "Cells whose height lies outside the wrfinput column, and are"
+                    << " therefore extrapolated rather than interpolated:" << std::endl;
+            Print() << "  below the source column, bottom plane : " << n_below_klo
+                    << " of " << n_pln << " (" << Real(100)*n_below_klo/n_pln << "% of that plane)"
+                    << std::endl;
+            Print() << "  below the source column, interior     : " << n_below_int << std::endl;
+            Print() << "  above the source column               : " << n_above << std::endl;
+            const Real n_extrap = n_below_klo + n_below_int + n_above;
+            Print() << "  total                                 : " << n_extrap
+                    << " of " << n_tot << std::endl;
+            Print() << "  (these are extrapolated from the two nearest source levels; theta"
+                    << " linearly, every other primitive held)" << std::endl;
+
+            if (n_unhandled > zero) {
+                Print() << " " << std::endl;
+                Print() << "WARNING: " << n_unhandled << " cells lie outside the wrfinput column "
+                           "in a box that holds fewer than two source levels, so there was "
+                           "nothing to extrapolate from and they keep the value the read left "
+                           "at their index, which belongs to a different height.  This is not "
+                           "expected; it means a grid is only one cell deep in z.\n";
+            }
+
+            if (n_extrap > zero && !solverChoice.rebalance_wrf_input) {
+                Print() << " " << std::endl;
+                Print() << "WARNING: " << n_extrap << " cells lie outside the wrfinput column and "
+                           "have had their density extrapolated linearly, on the understanding "
+                           "that rebalance_columns would re-derive it from theta and a marched "
+                           "pressure.\n";
+                Print() << "         erf.rebalance_wrf_input is false, so that will not happen "
+                           "and those cells are left in whatever hydrostatic state the linear "
+                           "extrapolation produced.  Set erf.rebalance_wrf_input = true, or "
+                           "expect the initial state to be out of hydrostatic balance near the "
+                           "top and bottom of the column.\n";
+            }
+            Print() << " " << std::endl;
+        }
     }
 
     // **************************************************************************

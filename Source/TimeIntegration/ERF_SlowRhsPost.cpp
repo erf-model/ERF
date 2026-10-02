@@ -148,7 +148,6 @@ void erf_slow_rhs_post (int level, int finest_level,
     // i.e. Cmu0^3 sqrt(k_old) / L; the source skips the explicit sink and the
     // update divides by (1 + dt c).
     const bool l_implicit_diss  = ( tc.use_keqn && tc.implicit_tke_dissipation );
-    const Real l_tke_floor      = tc.tke_floor;
     const bool l_advect_KE      = ( tc.use_tke && tc.advect_tke );
     const bool l_use_diff       = ((dc.molec_diff_type != MolecDiffType::None) ||
                                    (tc.les_type        !=       LESType::None) ||
@@ -684,8 +683,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                 if (ivar == RhoQ1_comp) {
                     num_comp = n_qstate_total;
                     if (sbm_active) {
-                        // The host update applies source terms and positivity
-                        // clipping.  Keep both projected liquid lanes out of
+                        // The host update applies source terms (positivity
+                        // clipping is applied afterward in ERF_ScalarLimitPost.H
+                        // with the same restriction).  Keep both projected liquid lanes out of
                         // that write path; they are refreshed from the spectrum
                         // after the no-op microphysics handoff.
                         num_comp = 1;
@@ -704,12 +704,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                         cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
                         Real temp_val = detJ_arr(i,j,k) * old_cons(i,j,k,n) + dt * detJ_arr(i,j,k) * cell_rhs(i,j,k,n);
                         cur_cons(i,j,k,n) = temp_val / detJ_new_arr(i,j,k);
-                        if (ivar == RhoKE_comp) {
-                            if (l_implicit_diss) {
-                                cur_cons(i,j,k,n) /= (one + dt * diss(i,j,k) / amrex::max(old_cons(i,j,k,n), eps));
-                            }
-                            const Real ke_floor = (l_tke_floor > zero) ? cur_cons(i,j,k,Rho_comp) * l_tke_floor : eps;
-                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), ke_floor);
+                        if (ivar == RhoKE_comp && l_implicit_diss) {
+                            cur_cons(i,j,k,n) /= (one + dt * diss(i,j,k) / amrex::max(old_cons(i,j,k,n), eps));
                         }
                     });
 
@@ -728,15 +724,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                         // Add the time-averaged RHS to the old state
                         cur_cons(i,j,k,n) = old_cons(i,j,k,n) + myhalf * (dt_times_old_cell_rhs + dt * cell_rhs(i,j,k,n));
 
-                        if (ivar == RhoKE_comp) {
-                            if (l_implicit_diss) {
-                                // stage 1 of the trapezoidal update: half the step is implicit
-                                cur_cons(i,j,k,n) /= (one + myhalf * dt * diss(i,j,k) / amrex::max(old_cons(i,j,k,n), eps));
-                            }
-                            const Real ke_floor = (l_tke_floor > zero) ? cur_cons(i,j,k,Rho_comp) * l_tke_floor : eps;
-                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), ke_floor);
-                        } else if (ivar >= RhoQ1_comp) {
-                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), amrex::Real(0));
+                        if (ivar == RhoKE_comp && l_implicit_diss) {
+                            // stage 1 of the trapezoidal update: half the step is implicit
+                            cur_cons(i,j,k,n) /= (one + myhalf * dt * diss(i,j,k) / amrex::max(old_cons(i,j,k,n), eps));
                         }
                     });
 
@@ -749,14 +739,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                         const int n = start_comp + nn;
                         cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
                         cur_cons(i,j,k,n) = old_cons(i,j,k,n) + dt * cell_rhs(i,j,k,n);
-                        if (ivar == RhoKE_comp) {
-                            if (l_implicit_diss) {
-                                cur_cons(i,j,k,n) /= (one + dt * diss(i,j,k) / amrex::max(old_cons(i,j,k,n), eps));
-                            }
-                            const Real ke_floor = (l_tke_floor > zero) ? cur_cons(i,j,k,Rho_comp) * l_tke_floor : eps;
-                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), ke_floor);
-                        } else if (ivar >= RhoQ1_comp) {
-                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), amrex::Real(0));
+                        if (ivar == RhoKE_comp && l_implicit_diss) {
+                            cur_cons(i,j,k,n) /= (one + dt * diss(i,j,k) / amrex::max(old_cons(i,j,k,n), eps));
                         }
                     });
 

@@ -988,6 +988,10 @@ struct SolverChoice {
         // Average the input z-face heights onto the nodes, or reconstruct our own
         pp.queryAdd("avg_grid_faces_to_nodes",avg_grid_faces_to_nodes);
 
+        // Build the ERF vertical grid from the file's own mean layer-thickness profile,
+        // or from a single geometric stretch anchored on the file's first layer?
+        pp.queryAdd("wrfinput_zlevels_from_file",wrfinput_zlevels_from_file);
+
         // Catch the old name for the flag above so the error says what to do
         // rather than silently ignoring the setting.
         if (pp.contains("use_wrf_height_grid")) {
@@ -2456,6 +2460,13 @@ struct SolverChoice {
 
     // Average the input z-face heights onto the nodes rather than reconstructing them?
     bool avg_grid_faces_to_nodes {false};
+
+    // When the ERF mesh is reconstructed rather than taken from the file
+    // (avg_grid_faces_to_nodes = false), build zlevels_stag from the domain-mean
+    // layer-thickness profile of the wrfinput file.  Set false to recover the older
+    // construction: a single geometric stretch whose first layer is the thickest first
+    // layer in the file and whose ratio is solved for so the column reaches z_top.
+    bool wrfinput_zlevels_from_file {true};
 
     // Interpolate atmospheric state from coarse when creating finer level at later time?
     bool interp_atmos_from_coarse {false};
