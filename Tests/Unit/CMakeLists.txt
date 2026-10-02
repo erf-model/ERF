@@ -218,6 +218,7 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Kessler/ERF_GTestKesslerPhysicalProperties.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Morrison/ERF_GTestMorrisonPhysicalProperties.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMFoundation.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMRemapping.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/SLM/ERF_GTestSLMInterface.cpp
 )
 if(ERF_DIM STREQUAL "3")
@@ -339,7 +340,7 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
   endfunction()
 
   add_sbm_expected_failure_test(SBM_Unrealizable_2M_Init inputs_unrealizable_2m
-    "SBM fixture initial state is unrealizable.*failed_constraint=endpoint_low")
+    "SBM fixture initial state is not canonical for selected spectral representation: population=0 representation=two-moment bin=0")
   add_sbm_expected_failure_test(SBM_Nonzero_Carrier inputs_zero_transport
     "SBM zero-transport fixture requires exactly zero carrier momentum"
     "-DOVERRIDE=erf.sbm_test_carrier_momentum_fault=true")
@@ -367,7 +368,7 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
       -DTEST_HELPER=$<TARGET_FILE:erf_sbm_checkpoint_corruptor>
       -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_zero_transport_2m
       -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
-      "-DEXPECTED_DIAGNOSTIC=SBM authoritative restart state is inadmissible.*level=0.*population=0.*bin=0.*constraint=endpoint_low"
+      "-DEXPECTED_DIAGNOSTIC=SBM authoritative restart state is inadmissible.*level=0.*population=0.*bin=0.*constraint=canonical-two-moment-bin-state"
       -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunAuthoritativeRestartFailure.cmake)
   set_tests_properties(SBM_Inadmissible_2M_Restart PROPERTIES
     LABELS "integration;sbm;negative"
