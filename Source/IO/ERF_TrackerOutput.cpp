@@ -11,7 +11,7 @@ namespace fs = std::filesystem;
 using namespace amrex;
 
 std::string
-ERF::MakeVTKFilename(int nstep) {
+ERF::MakeVTKFilename (int nstep) {
     // Ensure output directory exists
     const std::string dir = "Output_StormTracker";
     if (!fs::exists(dir)) {
@@ -24,7 +24,7 @@ ERF::MakeVTKFilename(int nstep) {
 }
 
 std::string
-ERF::MakeVTKFilename_TrackerCircle(int nstep) {
+ERF::MakeVTKFilename_TrackerCircle (int nstep) {
     // Ensure output directory exists
     const std::string dir = "Output_StormTracker/tracker_circle";
     if (!fs::exists(dir)) {
@@ -38,7 +38,7 @@ ERF::MakeVTKFilename_TrackerCircle(int nstep) {
 }
 
 std::string
-ERF::MakeVTKFilename_EyeTracker_xy(int nstep) {
+ERF::MakeVTKFilename_EyeTracker_xy (int nstep) {
     // Ensure output directory exists
     const std::string dir = "Output_StormTracker/xy";
     if (!fs::exists(dir)) {
@@ -52,7 +52,7 @@ ERF::MakeVTKFilename_EyeTracker_xy(int nstep) {
 }
 
 std::string
-ERF::MakeFilename_EyeTracker_latlon(int nstep) {
+ERF::MakeFilename_EyeTracker_latlon (int nstep) {
     // Ensure output directory exists
     const std::string dir = "Output_StormTracker/latlon";
     if (!fs::exists(dir)) {
@@ -66,7 +66,7 @@ ERF::MakeFilename_EyeTracker_latlon(int nstep) {
 }
 
 std::string
-ERF::MakeFilename_EyeTracker_maxvel(int nstep) {
+ERF::MakeFilename_EyeTracker_maxvel (int nstep) {
     // Ensure output directory exists
     const std::string dir = "Output_StormTracker/maxvel";
     if (!fs::exists(dir)) {
@@ -80,7 +80,7 @@ ERF::MakeFilename_EyeTracker_maxvel(int nstep) {
 }
 
 std::string
-ERF::MakeFilename_EyeTracker_minpressure(int nstep) {
+ERF::MakeFilename_EyeTracker_minpressure (int nstep) {
     // Ensure output directory exists
     const std::string dir = "Output_StormTracker/minpressure";
     if (!fs::exists(dir)) {
@@ -94,8 +94,8 @@ ERF::MakeFilename_EyeTracker_minpressure(int nstep) {
 }
 
 void
-ERF::WriteVTKPolyline(const std::string& filename,
-                      Vector<std::array<Real, 2>>& points_xy)
+ERF::WriteVTKPolyline (const std::string& filename,
+                       Vector<std::array<Real, 2>>& points_xy)
 {
     std::ofstream vtkfile(filename);
     if (!vtkfile.is_open()) {

@@ -90,7 +90,7 @@ constexpr amrex::Real stefan_boltzmann = amrex::Real(5.670374419e-8);
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
-compute_thermal_intensity(amrex::Real T, amrex::Real sigma)
+compute_thermal_intensity (amrex::Real T, amrex::Real sigma)
 {
   if (T <= 0.0) {
     return 0.0;
@@ -121,7 +121,7 @@ compute_thermal_intensity(amrex::Real T, amrex::Real sigma)
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
-compute_lw_transmit(amrex::Real tau_lw)
+compute_lw_transmit (amrex::Real tau_lw)
 {
   if (tau_lw < 0.0) {
     return 1.0;  // Unphysical, but defensive
@@ -153,8 +153,8 @@ compute_lw_transmit(amrex::Real tau_lw)
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
-compute_lw_flux_up(amrex::Real F_up_below, amrex::Real T_layer,
-                   amrex::Real sigma, amrex::Real tau_lw)
+compute_lw_flux_up (amrex::Real F_up_below, amrex::Real T_layer,
+                    amrex::Real sigma, amrex::Real tau_lw)
 {
   amrex::Real transmit = compute_lw_transmit(tau_lw);
   amrex::Real absorb = 1.0 - transmit;
@@ -185,8 +185,8 @@ compute_lw_flux_up(amrex::Real F_up_below, amrex::Real T_layer,
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
-compute_lw_flux_down(amrex::Real F_down_above, amrex::Real T_layer,
-                     amrex::Real sigma, amrex::Real tau_lw)
+compute_lw_flux_down (amrex::Real F_down_above, amrex::Real T_layer,
+                      amrex::Real sigma, amrex::Real tau_lw)
 {
   amrex::Real transmit = compute_lw_transmit(tau_lw);
   amrex::Real absorb = 1.0 - transmit;
@@ -233,8 +233,8 @@ compute_lw_flux_down(amrex::Real F_down_above, amrex::Real T_layer,
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
-compute_lw_heating_rate(amrex::Real F_net_top, amrex::Real F_net_bot,
-                        amrex::Real dz, amrex::Real rho, amrex::Real cp)
+compute_lw_heating_rate (amrex::Real F_net_top, amrex::Real F_net_bot,
+                         amrex::Real dz, amrex::Real rho, amrex::Real cp)
 {
   if (dz <= 0.0 || rho <= 0.0 || cp <= 0.0) {
     return 0.0;

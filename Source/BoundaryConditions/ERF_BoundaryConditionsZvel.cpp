@@ -35,6 +35,22 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
     const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
 
+    //
+    // An ext_dir_upwind face decides inflow against the face velocity, but the box we
+    // loop over does not always have a face velocity at every one of its cells: the
+    // state carries one more lateral ghost than the velocities do (ngrow_state =
+    // ComputeGhostCells()+1 against ngrow_vels = ComputeGhostCells()), and a velocity
+    // box is nodal in its own direction where the array being read is cell centered.
+    // Either way the outermost ghost cells have no velocity of their own, so sample
+    // the nearest one that exists. Cells already inside the velocity array are
+    // unaffected; only that outermost layer changes, and it previously read out of
+    // bounds.
+    //
+    const auto& xvel_lo = lbound(xvel_arr);
+    const auto& xvel_hi = ubound(xvel_arr);
+    const auto& yvel_lo = lbound(yvel_arr);
+    const auto& yvel_hi = ubound(yvel_arr);
+
     // Based on BCRec for the domain, we need to make BCRec for this Box
     // bccomp is used as starting index for m_domain_bcs_type
     //      0 is used as starting index for bcrs
@@ -77,7 +93,7 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 int iflip = dom_lo.x - 1 - i;
                 if ( (bc_ptr_w[0].lo(0) == ERFBCType::ext_dir) ||
-                     (bc_ptr_w[0].lo(0) == ERFBCType::ext_dir_upwind && xvel_arr(dom_lo.x,j,k) >= zero) )
+                     (bc_ptr_w[0].lo(0) == ERFBCType::ext_dir_upwind && xvel_arr(dom_lo.x,Clamp(j,xvel_lo.y,xvel_hi.y),Clamp(k,xvel_lo.z,xvel_hi.z)) >= zero) )
                 {
                     dest_arr(i,j,k) = (zvel_bc_ptr) ? zvel_bc_ptr[k] : l_bc_extdir_vals_d[0][0];
                     if (l_use_terrain_fitted_coords) {
@@ -98,7 +114,7 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 int iflip = 2*dom_hi.x + 1 - i;
                 if ( (bc_ptr_w[0].hi(0) == ERFBCType::ext_dir) ||
-                     (bc_ptr_w[0].hi(0) == ERFBCType::ext_dir_upwind && xvel_arr(dom_hi.x+1,j,k) <= zero) )
+                     (bc_ptr_w[0].hi(0) == ERFBCType::ext_dir_upwind && xvel_arr(dom_hi.x+1,Clamp(j,xvel_lo.y,xvel_hi.y),Clamp(k,xvel_lo.z,xvel_hi.z)) <= zero) )
                 {
                     dest_arr(i,j,k) = (zvel_bc_ptr) ? zvel_bc_ptr[k] : l_bc_extdir_vals_d[0][3];
                     if (l_use_terrain_fitted_coords) {
@@ -129,7 +145,7 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 int jflip = dom_lo.y - 1 - j;
                 if ( (bc_ptr_w[0].lo(1) == ERFBCType::ext_dir) ||
-                     (bc_ptr_w[0].lo(1) == ERFBCType::ext_dir_upwind && yvel_arr(i,dom_lo.y,k) >= zero) )
+                     (bc_ptr_w[0].lo(1) == ERFBCType::ext_dir_upwind && yvel_arr(Clamp(i,yvel_lo.x,yvel_hi.x),dom_lo.y,Clamp(k,yvel_lo.z,yvel_hi.z)) >= zero) )
                 {
                     dest_arr(i,j,k) = (zvel_bc_ptr) ? zvel_bc_ptr[k] : l_bc_extdir_vals_d[0][1];
                     if (l_use_terrain_fitted_coords) {
@@ -150,7 +166,7 @@ void ERFPhysBCFunct_w::impose_lateral_zvel_bcs (const Array4<Real      >& dest_a
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 int jflip =  2*dom_hi.y + 1 - j;
                 if ( (bc_ptr_w[0].hi(1) == ERFBCType::ext_dir) ||
-                     (bc_ptr_w[0].hi(1) == ERFBCType::ext_dir_upwind && yvel_arr(i,dom_hi.y+1,k) <= zero) )
+                     (bc_ptr_w[0].hi(1) == ERFBCType::ext_dir_upwind && yvel_arr(Clamp(i,yvel_lo.x,yvel_hi.x),dom_hi.y+1,Clamp(k,yvel_lo.z,yvel_hi.z)) <= zero) )
                 {
                     dest_arr(i,j,k) = (zvel_bc_ptr) ? zvel_bc_ptr[k] : l_bc_extdir_vals_d[0][4];
                     if (l_use_terrain_fitted_coords) {

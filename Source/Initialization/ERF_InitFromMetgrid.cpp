@@ -24,7 +24,7 @@ using namespace amrex;
  * @return Epoch time read from the first metgrid file
  */
 double
-read_start_time_from_metgrid(int lev, const std::string& fname)
+read_start_time_from_metgrid (int lev, const std::string& fname)
 {
     double NC_epochTime = 0.0;
     const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";

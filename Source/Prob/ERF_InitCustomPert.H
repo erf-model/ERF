@@ -28,7 +28,7 @@ void init_custom_pert_vels (
 AMREX_GPU_DEVICE
 static
 amrex::Real
-erf_vortex_Gaussian(
+erf_vortex_Gaussian (
   amrex::Real x,  amrex::Real y,
   amrex::Real xc, amrex::Real yc,
   amrex::Real R,  amrex::Real beta,

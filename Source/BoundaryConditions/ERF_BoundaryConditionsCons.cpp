@@ -30,6 +30,22 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
     const auto& dom_lo = lbound(domain);
     const auto& dom_hi = ubound(domain);
 
+    //
+    // An ext_dir_upwind face decides inflow against the face velocity, but the box we
+    // loop over does not always have a face velocity at every one of its cells: the
+    // state carries one more lateral ghost than the velocities do (ngrow_state =
+    // ComputeGhostCells()+1 against ngrow_vels = ComputeGhostCells()), and a velocity
+    // box is nodal in its own direction where the array being read is cell centered.
+    // Either way the outermost ghost cells have no velocity of their own, so sample
+    // the nearest one that exists. Cells already inside the velocity array are
+    // unaffected; only that outermost layer changes, and it previously read out of
+    // bounds.
+    //
+    const auto& xvel_lo = lbound(xvel_arr);
+    const auto& xvel_hi = ubound(xvel_arr);
+    const auto& yvel_lo = lbound(yvel_arr);
+    const auto& yvel_hi = ubound(yvel_arr);
+
     // xlo: ori = 0
     // ylo: ori = 1
     // zlo: ori = 2
@@ -125,7 +141,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                 int l_bc_type = bc_ptr[n].lo(0);
 
                 if ( (l_bc_type == ERFBCType::ext_dir) ||
-                     (l_bc_type == ERFBCType::ext_dir_upwind && xvel_arr(dom_lo.x,j,k) >= zero) )
+                     (l_bc_type == ERFBCType::ext_dir_upwind && xvel_arr(dom_lo.x,Clamp(j,xvel_lo.y,xvel_hi.y),Clamp(k,xvel_lo.z,xvel_hi.z)) >= zero) )
                 {
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr && th_file[0] != 0) {
                         // a theta profile reaches ext_dir only as rho*theta (th_file 1) or on an
@@ -157,7 +173,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                 int h_bc_type = bc_ptr[n].hi(0);
 
                 if ( (h_bc_type == ERFBCType::ext_dir) ||
-                     (h_bc_type == ERFBCType::ext_dir_upwind && xvel_arr(dom_hi.x+1,j,k) <= zero) )
+                     (h_bc_type == ERFBCType::ext_dir_upwind && xvel_arr(dom_hi.x+1,Clamp(j,xvel_lo.y,xvel_hi.y),Clamp(k,xvel_lo.z,xvel_hi.z)) <= zero) )
                 {
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr && th_file[3] != 0) {
                         // a theta profile reaches ext_dir only as rho*theta (th_file 1) or on an
@@ -204,7 +220,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                 if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
                 int l_bc_type = bc_ptr[n].lo(1);
                 if ( (l_bc_type == ERFBCType::ext_dir) ||
-                     (l_bc_type == ERFBCType::ext_dir_upwind && yvel_arr(i,dom_lo.y,k) >= zero) )
+                     (l_bc_type == ERFBCType::ext_dir_upwind && yvel_arr(Clamp(i,yvel_lo.x,yvel_hi.x),dom_lo.y,Clamp(k,yvel_lo.z,yvel_hi.z)) >= zero) )
                 {
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr && th_file[1] != 0) {
                         // a theta profile reaches ext_dir only as rho*theta (th_file 1) or on an
@@ -235,7 +251,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
                 if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
                 int h_bc_type = bc_ptr[n].hi(1);
                 if ( (h_bc_type == ERFBCType::ext_dir) ||
-                     (h_bc_type == ERFBCType::ext_dir_upwind && yvel_arr(i,dom_hi.y+1,k) <= zero) )
+                     (h_bc_type == ERFBCType::ext_dir_upwind && yvel_arr(Clamp(i,yvel_lo.x,yvel_hi.x),dom_hi.y+1,Clamp(k,yvel_lo.z,yvel_hi.z)) <= zero) )
                 {
                     if ((dest_comp == RhoTheta_comp) && th_bc_ptr && th_file[4] != 0) {
                         // a theta profile reaches ext_dir only as rho*theta (th_file 1) or on an

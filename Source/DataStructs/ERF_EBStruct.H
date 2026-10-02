@@ -39,7 +39,7 @@ struct EBChoice {
      * @brief Read embedded-boundary options from the input parameter database.
      * @param pp_prefix ParmParse prefix for the ERF input namespace.
      */
-    void init_params(std::string pp_prefix)
+    void init_params (std::string pp_prefix)
     {
         amrex::ParmParse pp(pp_prefix);
 
@@ -60,7 +60,7 @@ struct EBChoice {
     /**
      * @brief Print the configured embedded-boundary options.
      */
-    void display()
+    void display ()
     {
         amrex::Print() << "EB choices: " << std::endl;
         if (eb_boundary_type == EBBoundaryType::SlipWall) {

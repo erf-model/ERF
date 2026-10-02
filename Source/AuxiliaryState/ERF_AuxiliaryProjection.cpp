@@ -4,7 +4,7 @@
 
 namespace erf_auxiliary {
 
-ProjectionValidation AuxiliaryProjection::validate(const int source_components) const
+ProjectionValidation AuxiliaryProjection::validate (const int source_components) const
 {
     if (source_components < 0) return {false, "negative auxiliary component count"};
     std::set<std::string> targets;
