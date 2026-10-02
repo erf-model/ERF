@@ -28,7 +28,7 @@ public:
                 const amrex::DistributionMapping& dm);
 
     /** Build or refresh this proof consumer's time-independent mapped measure. */
-    bool rebuild_static_measure(int level,
+    bool rebuild_static_measure (int level,
                                 const amrex::MultiFab& detJ,
                                 const amrex::MultiFab& mx,
                                 const amrex::MultiFab& my,
@@ -54,12 +54,12 @@ public:
                        const AdvChoice& advection,
                        const amrex::Geometry& geometry);
 
-    void destroy(int level);
-    [[nodiscard]] bool is_defined(int level) const;
-    [[nodiscard]] bool measure_is_ready(int level) const;
+    void destroy (int level);
+    [[nodiscard]] bool is_defined (int level) const;
+    [[nodiscard]] bool measure_is_ready (int level) const;
     /** Test-only inspection of the proof consumer's stored static measure. */
-    [[nodiscard]] const amrex::MultiFab& static_measure(int level) const;
-    [[nodiscard]] const amrex::MultiFab& state(int level) const;
+    [[nodiscard]] const amrex::MultiFab& static_measure (int level) const;
+    [[nodiscard]] const amrex::MultiFab& state (int level) const;
 
 private:
     struct LevelStorage;

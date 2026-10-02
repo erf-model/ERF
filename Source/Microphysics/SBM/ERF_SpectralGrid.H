@@ -127,7 +127,7 @@ public:
     [[nodiscard]] static bool two_moment_realizable (amrex::Real C, amrex::Real M,
                                                      amrex::Real lower, amrex::Real upper) noexcept;
     [[nodiscard]] static EndpointTransform
-    two_moment_to_endpoints(amrex::Real C, amrex::Real M,
+    two_moment_to_endpoints (amrex::Real C, amrex::Real M,
                             amrex::Real lower, amrex::Real upper);
     [[nodiscard]] static std::pair<amrex::Real, amrex::Real>
     endpoints_to_two_moment (amrex::Real L, amrex::Real H,

@@ -32,7 +32,7 @@ using amrex::DistributionMapping;
 using amrex::MultiFab;
 using amrex::Real;
 
-erf_sbm::SpectralGridSpec make_grid(const int nbins, const Real edge_scale = Real(1.0))
+erf_sbm::SpectralGridSpec make_grid (const int nbins, const Real edge_scale = Real(1.0))
 {
     erf_sbm::SpectralGridSpec grid;
     grid.coordinate_kind = erf_sbm::CoordinateKind::Mass;
@@ -49,7 +49,7 @@ erf_sbm::SpectralGridSpec make_grid(const int nbins, const Real edge_scale = Rea
     return grid;
 }
 
-erf_sbm::SpectralPopulationSpec make_population(
+erf_sbm::SpectralPopulationSpec make_population (
     const int population_id, const int nbins,
     const erf_sbm::MomentMode moment = erf_sbm::MomentMode::OneMoment,
     const Real edge_scale = Real(1.0))
@@ -64,7 +64,7 @@ erf_sbm::SpectralPopulationSpec make_population(
     return population;
 }
 
-erf_sbm::AttachedPropertyDescriptor make_property(const std::string& name,
+erf_sbm::AttachedPropertyDescriptor make_property (const std::string& name,
                                                   const int carrier_population)
 {
     erf_sbm::AttachedPropertyDescriptor property;
@@ -80,7 +80,7 @@ erf_sbm::AttachedPropertyDescriptor make_property(const std::string& name,
     return property;
 }
 
-erf_sbm::SBMLayout make_layout(
+erf_sbm::SBMLayout make_layout (
     const int nbins = 4,
     const erf_sbm::MomentMode moment = erf_sbm::MomentMode::OneMoment,
     const int split = -1,
@@ -94,19 +94,19 @@ erf_sbm::SBMLayout make_layout(
     return erf_sbm::SBMLayout(std::move(spec));
 }
 
-BoxArray make_boxes()
+BoxArray make_boxes ()
 {
     return BoxArray(Box(amrex::IntVect(0), amrex::IntVect(1)));
 }
 
-Real max_component_norm(const MultiFab& mf, const int ncomp)
+Real max_component_norm (const MultiFab& mf, const int ncomp)
 {
     Real result = Real(0.0);
     for (int comp = 0; comp < ncomp; ++comp) result = std::max(result, mf.norm0(comp));
     return result;
 }
 
-Real first_valid_value(const MultiFab& mf, const int component)
+Real first_valid_value (const MultiFab& mf, const int component)
 {
     amrex::MFIter mfi(mf);
     if (mfi.isValid()) {

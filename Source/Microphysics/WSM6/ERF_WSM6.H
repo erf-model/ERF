@@ -122,8 +122,8 @@ class WSM6 : public NullMoist {
     using FabPtr = std::shared_ptr<amrex::MultiFab>;
 
 public:
-    WSM6() {}
-    virtual ~WSM6() = default;
+    WSM6 () {}
+    virtual ~WSM6 () = default;
 
     void Define (SolverChoice& sc) override
     {

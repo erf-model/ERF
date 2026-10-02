@@ -21,7 +21,7 @@ struct FixtureInitialStateCanonicality {
  * seam so unit tests can exercise the exact candidate-layout check.
  */
 inline FixtureInitialStateCanonicality
-validate_fixture_initial_state_canonicality(
+validate_fixture_initial_state_canonicality (
     const SBMLayout& layout, const std::vector<amrex::Real>& state) noexcept
 {
     FixtureInitialStateCanonicality result;

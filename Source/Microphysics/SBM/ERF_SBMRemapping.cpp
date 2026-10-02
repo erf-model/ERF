@@ -5,7 +5,7 @@
 
 namespace erf_sbm {
 
-PopulationRemapView population_remap_view(const SBMLayout& layout,
+PopulationRemapView population_remap_view (const SBMLayout& layout,
                                          const int population_id) noexcept
 {
     const auto& populations = layout.populations();
@@ -37,7 +37,7 @@ PopulationRemapView population_remap_view(const SBMLayout& layout,
 }
 
 PacketApplicationResult
-apply_packet_routing(const SBMLayout& layout, const PacketRoutingPlan& plan,
+apply_packet_routing (const SBMLayout& layout, const PacketRoutingPlan& plan,
                      const std::vector<amrex::Real>& property_packet_amounts,
                      std::vector<amrex::Real>& candidate_state)
 {
@@ -69,7 +69,7 @@ apply_packet_routing(const SBMLayout& layout, const PacketRoutingPlan& plan,
 }
 
 ReconstructionStatus
-reconstruct_bin(const SBMLayout& layout, const int population_id, const int bin,
+reconstruct_bin (const SBMLayout& layout, const int population_id, const int bin,
                 const std::vector<amrex::Real>& persisted_state,
                 ReconstructionDelta& reconstruction)
 {
@@ -95,7 +95,7 @@ reconstruct_bin(const SBMLayout& layout, const int population_id, const int bin,
     return status;
 }
 
-bool integrate_interval(const ReconstructionDelta& reconstruction,
+bool integrate_interval (const ReconstructionDelta& reconstruction,
                         const amrex::Real lower, const amrex::Real upper,
                         const bool include_upper, IntegratedMoments& integral)
 {
@@ -122,7 +122,7 @@ bool integrate_interval(const ReconstructionDelta& reconstruction,
     return true;
 }
 
-bool project_reconstruction_bin(const SBMLayout& layout,
+bool project_reconstruction_bin (const SBMLayout& layout,
                                 const ReconstructionDelta& reconstruction,
                                 std::vector<amrex::Real>& candidate_state)
 {

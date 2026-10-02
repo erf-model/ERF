@@ -34,7 +34,7 @@ erf_sbm::SpectralGridSpec make_grid(std::vector<Real> edges,
     return grid;
 }
 
-erf_sbm::SpectralPopulationSpec make_population(
+erf_sbm::SpectralPopulationSpec make_population (
     const int id, const erf_sbm::MomentMode mode,
     std::vector<Real> edges = {Real(0.5), Real(1.5), Real(2.5)},
     std::vector<Real> pivots = {Real(1.0), Real(2.0)},
@@ -49,7 +49,7 @@ erf_sbm::SpectralPopulationSpec make_population(
     return population;
 }
 
-erf_sbm::AttachedPropertyDescriptor make_property(const std::string& name,
+erf_sbm::AttachedPropertyDescriptor make_property (const std::string& name,
                                                   const int population_id)
 {
     erf_sbm::AttachedPropertyDescriptor property;
@@ -61,7 +61,7 @@ erf_sbm::AttachedPropertyDescriptor make_property(const std::string& name,
     return property;
 }
 
-erf_sbm::SBMLayout make_layout(
+erf_sbm::SBMLayout make_layout (
     const erf_sbm::MomentMode mode,
     std::vector<erf_sbm::AttachedPropertyDescriptor> properties = {})
 {
@@ -72,7 +72,7 @@ erf_sbm::SBMLayout make_layout(
     return erf_sbm::SBMLayout(std::move(spec));
 }
 
-const erf_sbm::PopulationLayout& population(const erf_sbm::SBMLayout& layout,
+const erf_sbm::PopulationLayout& population (const erf_sbm::SBMLayout& layout,
                                            const int id)
 {
     const auto found = std::find_if(layout.populations().begin(), layout.populations().end(),
@@ -81,7 +81,7 @@ const erf_sbm::PopulationLayout& population(const erf_sbm::SBMLayout& layout,
     return *found;
 }
 
-void expect_close(const Real actual, const Real expected, const Real scale = Real(1.0))
+void expect_close (const Real actual, const Real expected, const Real scale = Real(1.0))
 {
     EXPECT_NEAR(actual, expected,
                 Real(32.0) * std::numeric_limits<Real>::epsilon() *
