@@ -219,9 +219,7 @@ ComputeN2_EB (int i, int j, int k,
 
         if (is_covered_kp1) {
 
-            // Check if k-1 is also covered (vertically isolated cell)
             if (is_covered_km1) {
-                // No valid vertical neighbors - return zero N2
                 return zero;
             }
 
@@ -260,9 +258,7 @@ ComputeN2_EB (int i, int j, int k,
 
         if (is_covered_kp1) {
 
-            // Check if k-1 is also covered (vertically isolated cell)
             if (is_covered_km1) {
-                // No valid vertical neighbors - return zero N2
                 return zero;
             }
 
@@ -301,9 +297,7 @@ ComputeN2_EB (int i, int j, int k,
 
         if (is_covered_kp1) {
 
-            // Check if k-1 is also covered (vertically isolated cell)
             if (is_covered_km1) {
-                // No valid vertical neighbors - return zero N2
                 return zero;
             }
 
