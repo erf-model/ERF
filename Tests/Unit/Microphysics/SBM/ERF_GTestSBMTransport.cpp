@@ -276,7 +276,7 @@ historical_p2_weno_z3_face (const Real qm2, const Real qm1, const Real q,
     return (w0 * q0 + w1 * q1) / (w0 + w1);
 }
 
-Real
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real
 historical_p2_weno_face (const amrex::Array4<const Real>& values,
                          const int i, const int j, const int k,
                          const int component, const int dir,
