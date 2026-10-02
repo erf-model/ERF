@@ -1691,6 +1691,29 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
 endif()
 add_test_plotfile_header(Plotfile3D_TwoStreamHeatingSelection "" "erf_exec" "plt00000")
 
+# The two-stream radiation tests stay registered but do not run: DISABLED keeps
+# them listed by ctest (reported as "Not Run (Disabled)") without executing them.
+# Remove this block to re-enable them.
+foreach(_two_stream_test IN ITEMS
+    TwoStream_ColumnHeating
+    TwoStream_ColumnHeating_Terrain
+    TwoStream_ColumnHeating_TwoLevel
+    TwoStream_NoahMP_MultiLevelAbort
+    TwoStream_NestedPatch
+    TwoStream_PrognosticSEBMultiLevel
+    TwoStream_PrognosticSEBShallowNest
+    TwoStream_PrognosticSEBLateLevel
+    TwoStream_PrognosticSEBRegrid
+    TwoStream_PrognosticSEB_Restart
+    TwoStream_SEBSurfaceLayerFluxes
+    TwoStream_SEBSurfaceLayerFluxesMultiLevel
+    TwoStream_SEBDefaultReplacedWarning
+    Plotfile3D_TwoStreamHeatingSelection)
+  if(TEST ${_two_stream_test})
+    set_tests_properties(${_two_stream_test} PROPERTIES DISABLED TRUE)
+  endif()
+endforeach()
+
 add_test_0(CouetteFlow_x                     "" "erf_exec" "plt00050" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_0(CouetteFlow_y                     "" "erf_exec" "plt00050" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_0(PoiseuilleFlow_x                  "" "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")

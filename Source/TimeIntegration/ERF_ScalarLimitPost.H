@@ -54,10 +54,10 @@
                     }
 
                     if (l_limit_Q) {
-                        ParallelFor(tbx, l_nq, [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept
+                        ParallelFor(tbx, l_nq, [=,zero_d=zero] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept
                         {
                             const int n = RhoQ1_comp + nn;
-                            cons(i,j,k,n) = amrex::max(cons(i,j,k,n), zero);
+                            cons(i,j,k,n) = amrex::max(cons(i,j,k,n), zero_d);
                         });
                     }
                 } // mfi
