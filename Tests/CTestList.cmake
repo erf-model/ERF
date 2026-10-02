@@ -638,6 +638,38 @@ function(add_test_at_rest_terrain_outflow TEST_NAME PLTFILE TOLERANCE GRADP_TOLE
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/symmetry/simulation.log;${CURRENT_TEST_BINARY_DIR}/outflow/simulation.log;${CURRENT_TEST_BINARY_DIR}/at_rest.log")
 endfunction(add_test_at_rest_terrain_outflow)
 
+# Field-bounds test: run one deck and require the extrema of a plotfile variable to stay
+# within [LO, HI]. The three inflow cases keep a 300 K box at 300 K: a primitive theta from
+# a dirichlet_file is multiplied by the ghost density the face prescribes on an Inflow face
+# (InflowThetaDensity) and on an inflow_outflow face (InflowOutflowThetaFile), and only the
+# face that read the file uses it (InflowThetaFileOtherFace, a second inflow face with its
+# own density and theta).
+function(add_test_field_bounds TEST_NAME PLTFILE VARIABLE LO HI)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DFEXTREMA=${FEXTREMA_EXE}"
+        "-DPLTFILE=${PLTFILE}"
+        "-DVARIABLE=${VARIABLE}"
+        "-DLO=${LO}"
+        "-DHI=${HI}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunFieldBounds.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 600
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/simulation.log")
+endfunction(add_test_field_bounds)
+
 # Positive startup regression for the retained legacy theta/qv parser path.
 # This intentionally has no physical-temperature or physical-wall keys.
 function(add_test_cloud_chamber_legacy_config TEST_NAME)
@@ -999,6 +1031,9 @@ set_tests_properties(SHOC_Unstable_Cloud_SatAdj_vs_NoCond
 # execute_process needs mpiexec, and does not expand the executable globs used on Windows
 if(NOT WIN32)
 add_test_at_rest_terrain_outflow(AtRestTerrainOutflow "plt00400" 1.0e-8 0.1)
+add_test_field_bounds(InflowThetaDensity "plt00010" theta 299.999 300.001)
+add_test_field_bounds(InflowOutflowThetaFile "plt00010" theta 299.999 300.001)
+add_test_field_bounds(InflowThetaFileOtherFace "plt00010" theta 299.999 300.001)
 endif()
 endif()
 
