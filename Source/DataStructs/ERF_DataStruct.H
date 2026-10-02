@@ -723,12 +723,12 @@ struct SolverChoice {
 
         pp.query_enum_case_insensitive("moisture_model",moisture_type);
 
-        // Test-only M1 failure injections. They remain disabled unless an
+        // Test-only SBM failure injections. They remain disabled unless an
         // integration test explicitly enables the corresponding option.
         pp.queryAdd("sbm_test_native_qc_write_fault", sbm_test_native_qc_write_fault);
-        pp.queryAdd("sbm_test_carrier_momentum_fault", sbm_test_carrier_momentum_fault);
+        pp.queryAdd("sbm_test_donor_cfl_fault", sbm_test_donor_cfl_fault);
         if (moisture_type != MoistureType::SBM &&
-            (sbm_test_native_qc_write_fault || sbm_test_carrier_momentum_fault)) {
+            (sbm_test_native_qc_write_fault || sbm_test_donor_cfl_fault)) {
             amrex::Error("SBM test fault-injection options require moisture_model=SBM");
         }
 
@@ -740,7 +740,13 @@ struct SolverChoice {
         moisture_indices = MoistureComponentIndices::from_moisture_model(moisture_type);
 
         if (moisture_type == MoistureType::SBM) {
-            pp.queryAdd("sbm_zero_transport_fixture", sbm_zero_transport_fixture);
+            if (pp.contains("sbm_zero_transport_fixture")) {
+                bool legacy_zero_transport = false;
+                pp.get("sbm_zero_transport_fixture", legacy_zero_transport);
+                if (legacy_zero_transport) {
+                    amrex::Error("erf.sbm_zero_transport_fixture=true is obsolete; M3 advances the mapped spectral state, so remove this option");
+                }
+            }
             pp.queryAdd("sbm_nbins", sbm_nbins);
             pp.queryAdd("sbm_moment_mode", sbm_moment_mode);
             pp.queryAdd("sbm_cloud_rain_split", sbm_cloud_rain_split);
@@ -748,9 +754,6 @@ struct SolverChoice {
             pp.queryarr("sbm_pivots", sbm_pivots);
             pp.queryarr("sbm_fixture_initial_state", sbm_fixture_initial_state);
 
-            if (!sbm_zero_transport_fixture) {
-                amrex::Error("moisture_model=SBM requires erf.sbm_zero_transport_fixture=true; production spectral transport is not implemented");
-            }
             if (sbm_nbins < 2 || (sbm_moment_mode != 1 && sbm_moment_mode != 2)) {
                 amrex::Error("SBM requires sbm_nbins >= 2 and sbm_moment_mode equal to 1 or 2");
             }
@@ -1928,7 +1931,7 @@ struct SolverChoice {
         } else if (moisture_type == MoistureType::MoistNoCondensation) {
             amrex::Print() << "Moisture Model: MoistNoCondensation" << std::endl;
         } else if (moisture_type == MoistureType::SBM) {
-            amrex::Print() << "Moisture Model: SBM zero-transport fixture" << std::endl;
+            amrex::Print() << "Moisture Model: SBM mapped spectral advection (M3)" << std::endl;
         } else {
             amrex::Print() << "Moisture Model: None" << std::endl;
         }
@@ -2395,9 +2398,11 @@ struct SolverChoice {
     int sbm_nbins{4};
     int sbm_moment_mode{1};
     int sbm_cloud_rain_split{-1};
+    // Retained only so old source code may inspect this deprecated input.
+    // The parser rejects an explicitly true legacy setting above.
     bool sbm_zero_transport_fixture{false};
     bool sbm_test_native_qc_write_fault{false};
-    bool sbm_test_carrier_momentum_fault{false};
+    bool sbm_test_donor_cfl_fault{false};
     amrex::Vector<amrex::Real> sbm_edges;
     amrex::Vector<amrex::Real> sbm_pivots;
     amrex::Vector<amrex::Real> sbm_fixture_initial_state;

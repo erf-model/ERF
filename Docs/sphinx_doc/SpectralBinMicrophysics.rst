@@ -473,38 +473,39 @@ microphysics options. Restart comparison is exact, and ERF does not
 automatically convert a checkpoint to a different representation or remapping
 policy.
 
-The contracts described here provide reference within-bin reconstruction and
-spectral-coordinate packet projection only. The current SBM runtime still
-performs no spectral advection, condensation or evaporation, aerosol
-activation, aerosol evolution, collision-coalescence, sedimentation, or
-precipitation.
+The representation, transport, and projection policies are versioned parts of
+the exact restart identity. Older zero-transport schemas are rejected instead
+of being interpreted as M3.
 
 Auxiliary prognostic-state transport
 ------------------------------------
 
-The SBM spectral state is stored outside ERF's core conserved-state array.
-Its physical-space transport is therefore intended to use ERF's generic
-auxiliary-state transport substrate rather than introducing a second
-SBM-specific carrier, mapped-geometry convention, or time integrator. See
-:ref:`AuxiliaryState` for the generic conservation equations, host-stage
-semantics, completed-step flux ledger, verification evidence, and current
-qualification envelope.
+The SBM liquid spectrum is the authoritative liquid-water state. In the M3
+capability, that spectrum is advanced in physical space by ERF's generic mapped
+auxiliary-state transport infrastructure using the host dry-air carrier mass
+flux.
 
-At the present revision the SBM spectral state is **not** advanced through
-that transport substrate. ``erf.moisture_model = SBM`` therefore remains the
-bounded zero-transport infrastructure configuration described below. The
-non-SBM inert tracer used to qualify the generic substrate is a test fixture,
-not an SBM transport implementation and not a user-selectable tracer package.
+The low-order candidate is conservative donor transport. The high-order
+candidate uses ERF's native WENO-Z3 reconstruction. Two-moment liquid bins are
+reconstructed in endpoint-number coordinates before their face rates are
+transformed back to physical mass and number. A shared atomic-group FCT
+limiter constrains mass, number, and attached extensive properties together.
 
-The auxiliary-state layer addresses physical-space transport between
-atmospheric grid cells. It does not define SBM representation or redistribution
-in particle-mass space. The fixed-pivot and interval remapping contracts
-above are separate spectral-coordinate operations. Likewise, the generic
-transport substrate does not by itself provide SBM realizability-preserving
-limiting, sedimentation, aerosol activation, collision-coalescence, or other
-cloud microphysical processes. Those capabilities require their own scientific
-and numerical qualification before the current SBM zero-transport restriction
-can be relaxed.
+Projected ``qc`` and ``qr`` remain fixed diagnostics of the accepted liquid
+spectrum. They are refreshed from the spectrum and do not receive an
+independent liquid advection, diffusion, clipping, or microphysical update.
+
+The current M3 qualification is deliberately bounded. It covers single-level
+advection on the supported static non-EB mapped transport operators. Diffusion
+and LES particle mixing, AMR synchronization and reflux, full nonperiodic
+lifecycle support, condensation/evaporation, activation, collision-coalescence,
+sedimentation, and precipitation remain later milestones. Moving terrain and
+embedded boundaries are not enabled by M3.
+
+The high-order M3 transport identity is ``EndpointNumberWENOZ3``; it is not
+currently a user-selectable SBM reconstruction policy. See
+:ref:`AuxiliaryState` for the generic mapped conservation and host-stage
+substrate.
 
 SBM runtime inputs
 ------------------
@@ -514,19 +515,13 @@ The following inputs use the ``erf.`` prefix.
 ``erf.moisture_model``
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Select the current SBM infrastructure with
+Select the bounded M3 SBM advection capability with
 
 ::
 
    erf.moisture_model = SBM
 
-At the present revision this also requires
-
-::
-
-   erf.sbm_zero_transport_fixture = true
-
-because production spectral transport has not yet been implemented.
+New SBM advection inputs should omit the pre-M3 zero-transport option.
 
 ``erf.sbm_zero_transport_fixture``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -535,11 +530,10 @@ because production spectral transport has not yet been implemented.
 
 **Default:** ``false``
 
-This option must currently be ``true`` when ``erf.moisture_model = SBM``.
-
-It identifies the deliberately bounded zero-transport SBM configuration. It
-should not be interpreted as a physical switch that turns transport off in an
-otherwise complete spectral-bin microphysics scheme.
+This option was the explicit qualification switch used by the pre-M3
+infrastructure-only implementation. M3 no longer uses a zero-transport runtime
+mode. New SBM advection cases should omit this option. An explicitly true
+legacy value is rejected rather than silently changing its meaning.
 
 ``erf.sbm_nbins``
 ~~~~~~~~~~~~~~~~~
@@ -690,19 +684,16 @@ also satisfy the per-bin realizability condition described above.
 Current execution restrictions
 ------------------------------
 
-The current SBM mode remains intentionally limited so that state ownership,
-projection, initialization, and restart can be tested without ambiguity from
-an incomplete spectral transport implementation. The generic auxiliary-state
-transport foundation described above does not yet change the supported SBM
-runtime envelope.
+The current SBM M3 mode is intentionally bounded to the following runtime
+envelope:
 
 The current configuration requires:
 
 * a three-dimensional ERF build;
 * one AMR level, ``amr.max_level = 0``;
 * periodic boundaries in all three directions;
-* ``mesh_type = ConstantDz``;
-* no terrain-fitted or embedded-boundary geometry;
+* static ``ConstantDz``, ``StretchedDz``, or static terrain-fitted geometry;
+* no moving terrain, embedded boundaries, or immersed buildings;
 * no immersed buildings;
 * ``substepping_type = None``;
 * no molecular scalar diffusion;
@@ -718,19 +709,20 @@ The current configuration requires:
 * no problem setup that introduces problem-specific liquid forcing or custom
   perturbations.
 
-For the present fixture, ``erf.prob_name`` must therefore be either unset
-(``Undefined`` internally) or
+The resolved host dry-air carrier may be nonzero. SBM transport uses that
+carrier directly and checks the donor outgoing-demand condition at each host
+stage. For example, the native scalar-advection velocity initializer can be
+used in a periodic M3 case with:
 
-::
+.. code-block:: text
 
-   erf.prob_name = "SBM zero-transport fixture"
+   erf.prob_name = "Scalar Advection/Diffusion"
+   prob.U_0 = 0.8
+   prob.V_0 = 0.6
+   prob.W_0 = 0.4
 
-In addition, the resolved carrier momentum presented to scalar advection must
-remain exactly zero. A nonzero resolved flow causes ERF to stop rather than
-leave the spectral state behind while transporting only its bulk projection.
-
-These restrictions make the present capability suitable for infrastructure
-qualification, not for a moving or evolving cloud simulation.
+M3 implements advection only; it does not yet couple spectral transport to
+cloud microphysical source processes.
 
 One-moment example
 ------------------
@@ -740,11 +732,10 @@ test:
 
 .. code-block:: text
 
-   erf.prob_name = "SBM zero-transport fixture"
+   erf.prob_name = "Scalar Advection/Diffusion"
    erf.init_type = Uniform
 
    erf.moisture_model = SBM
-   erf.sbm_zero_transport_fixture = true
    erf.sbm_nbins = 4
    erf.sbm_cloud_rain_split = 2
    erf.sbm_fixture_initial_state = 1.e-6 2.e-6 3.e-6 4.e-6
@@ -759,14 +750,18 @@ test:
    amr.max_level = 0
    geometry.is_periodic = 1 1 1
 
+   prob.U_0 = 0.8
+   prob.V_0 = 0.6
+   prob.W_0 = 0.4
+
 The four initial-state values are the density-weighted liquid-water masses in
 the four bins, in :math:`\mathrm{kg\,m^{-3}}`.
 
 With ``erf.sbm_cloud_rain_split = 2``, the first two bins contribute to cloud
 water and the last two bins contribute to rain water.
 
-This example is a qualification fixture and should not be interpreted as a
-recommended atmospheric size distribution.
+The spatially uniform initial spectrum exercises the host carrier path but is
+not a recommended atmospheric size distribution.
 
 Two-moment example
 ------------------
@@ -775,11 +770,10 @@ The two-moment integration fixture uses:
 
 .. code-block:: text
 
-   erf.prob_name = "SBM zero-transport fixture"
+   erf.prob_name = "Scalar Advection/Diffusion"
    erf.init_type = Uniform
 
    erf.moisture_model = SBM
-   erf.sbm_zero_transport_fixture = true
    erf.sbm_nbins = 4
    erf.sbm_moment_mode = 2
    erf.sbm_cloud_rain_split = 2
@@ -789,6 +783,10 @@ The two-moment integration fixture uses:
    erf.sbm_fixture_initial_state = \
        1.5e-6 6.0e-6 1.8e-5 4.8e-5 \
        1.0e12 2.0e12 3.0e12 4.0e12
+
+   prob.U_0 = 0.8
+   prob.V_0 = 0.6
+   prob.W_0 = 0.4
 
 The first four initial-state values are the bin liquid-water mass densities
 :math:`M_i` in :math:`\mathrm{kg\,m^{-3}}`. The final four are the bin

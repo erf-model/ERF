@@ -4,6 +4,7 @@
 #include "ERF_SBMLayout.H"
 
 #include <AMReX_Algorithm.H>
+#include <AMReX_Array4.H>
 #include <AMReX_GpuQualifiers.H>
 #include <AMReX_Math.H>
 #include <AMReX_REAL.H>
@@ -358,13 +359,28 @@ bool canonical_two_moment_moments (const PopulationRemapView& population,
            (mean < upper || (bin == population.nbins - 1 && mean <= upper));
 }
 
+/** A component accessor for a cell in a component-major Array4. */
+struct RemapCellStateView {
+    amrex::Array4<const amrex::Real> values;
+    int i{0};
+    int j{0};
+    int k{0};
+
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::Real operator[] (const int component) const noexcept
+    {
+        return values(i, j, k, component);
+    }
+};
+
 /** Strict persisted-state test shared by reconstruction, restart, and fixtures. */
+template <typename StateView>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool canonical_two_moment_bin_state (const PopulationRemapView& population,
-                                     const int bin, const amrex::Real* state,
-                                     const int state_count) noexcept
+bool canonical_two_moment_bin_state_view (const PopulationRemapView& population,
+                                          const int bin, const StateView& state,
+                                          const int state_count) noexcept
 {
-    if (!valid_population_remap_context(population) || state == nullptr ||
+    if (!valid_population_remap_context(population) ||
         state_count != population.state_components || bin < 0 || bin >= population.nbins ||
         population.moment_mode != MomentMode::TwoMoment) return false;
     const amrex::Real mass = state[population.mass_offset + bin];
@@ -387,13 +403,32 @@ bool canonical_two_moment_bin_state (const PopulationRemapView& population,
     return true;
 }
 
-/** Strict persisted-state test for a one-moment bin and its attached inventories. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-bool canonical_one_moment_bin_state (const PopulationRemapView& population,
+bool canonical_two_moment_bin_state (const PopulationRemapView& population,
                                      const int bin, const amrex::Real* state,
                                      const int state_count) noexcept
 {
-    if (!valid_population_remap_context(population) || state == nullptr ||
+    if (state == nullptr) return false;
+    return canonical_two_moment_bin_state_view(population, bin, state, state_count);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool canonical_two_moment_bin_state (const PopulationRemapView& population,
+                                     const int bin,
+                                     const RemapCellStateView& state,
+                                     const int state_count) noexcept
+{
+    return canonical_two_moment_bin_state_view(population, bin, state, state_count);
+}
+
+/** Strict persisted-state test for a one-moment bin and its attached inventories. */
+template <typename StateView>
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool canonical_one_moment_bin_state_view (const PopulationRemapView& population,
+                                          const int bin, const StateView& state,
+                                          const int state_count) noexcept
+{
+    if (!valid_population_remap_context(population) ||
         state_count != population.state_components || bin < 0 || bin >= population.nbins ||
         population.moment_mode != MomentMode::OneMoment) return false;
     const amrex::Real mass = state[population.mass_offset + bin];
@@ -417,10 +452,39 @@ bool canonical_one_moment_bin_state (const PopulationRemapView& population,
     return true;
 }
 
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool canonical_one_moment_bin_state (const PopulationRemapView& population,
+                                     const int bin, const amrex::Real* state,
+                                     const int state_count) noexcept
+{
+    if (state == nullptr) return false;
+    return canonical_one_moment_bin_state_view(population, bin, state, state_count);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool canonical_one_moment_bin_state (const PopulationRemapView& population,
+                                     const int bin,
+                                     const RemapCellStateView& state,
+                                     const int state_count) noexcept
+{
+    return canonical_one_moment_bin_state_view(population, bin, state, state_count);
+}
+
 /** Shared admission rule for every persisted bin accepted by reconstruction. */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool canonical_persisted_bin_state (const PopulationRemapView& population,
                                     const int bin, const amrex::Real* state,
+                                    const int state_count) noexcept
+{
+    return population.moment_mode == MomentMode::OneMoment ?
+        canonical_one_moment_bin_state(population, bin, state, state_count) :
+        canonical_two_moment_bin_state(population, bin, state, state_count);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool canonical_persisted_bin_state (const PopulationRemapView& population,
+                                    const int bin,
+                                    const RemapCellStateView& state,
                                     const int state_count) noexcept
 {
     return population.moment_mode == MomentMode::OneMoment ?

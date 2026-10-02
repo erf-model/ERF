@@ -889,7 +889,7 @@ ERF::ReadCheckpointFile ()
         ParallelDescriptor::ReadAndBcastFile(schema_file, schema_chars);
         const std::string persisted_schema(schema_chars.dataPtr());
         if (!erf_sbm::restart_schema_matches(sbm_state_manager->layout(), persisted_schema)) {
-            Abort("SBM restart schema does not exactly match the active spectral layout and M1 fixture identity");
+            Abort("SBM restart schema does not exactly match the active spectral layout and M3 transport identity");
         }
     }
 

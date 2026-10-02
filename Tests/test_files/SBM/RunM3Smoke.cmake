@@ -2,7 +2,7 @@ if(NOT DEFINED ERF_EXECUTABLE OR NOT EXISTS "${ERF_EXECUTABLE}")
   message(FATAL_ERROR "ERF_EXECUTABLE must name a built erf_exec")
 endif()
 if(NOT DEFINED INPUT_FILE OR NOT EXISTS "${INPUT_FILE}")
-  message(FATAL_ERROR "INPUT_FILE must name the SBM zero-transport input deck")
+  message(FATAL_ERROR "INPUT_FILE must name an SBM M3 periodic input deck")
 endif()
 if(NOT DEFINED TEST_ROOT)
   message(FATAL_ERROR "TEST_ROOT must name an isolated test output directory")
@@ -17,7 +17,7 @@ if(NOT DEFINED EXPECTED_CORE_VALUES)
 endif()
 
 string(RANDOM LENGTH 12 ALPHABET 0123456789abcdef _run_id)
-set(_run_dir "${TEST_ROOT}/sbm_zero_transport_${_run_id}")
+set(_run_dir "${TEST_ROOT}/sbm_m3_${_run_id}")
 file(MAKE_DIRECTORY "${_run_dir}")
 
 function(run_erf description)
@@ -45,8 +45,10 @@ function(assert_checkpoint checkpoint)
   endforeach()
 
   file(READ "${_checkpoint_dir}/SBM_Schema" _schema)
-  if(NOT _schema MATCHES "transport=zero-transport-fixture-v1")
-    message(FATAL_ERROR "Checkpoint has the wrong SBM fixture schema: ${_schema}")
+  if(NOT _schema MATCHES "constraint-policy=linear-groups-plus-canonical-persisted-v1" OR
+     NOT _schema MATCHES "transport=sbm-m3-mapped-group-fct-v1" OR
+     NOT _schema MATCHES "high-order=endpoint-number-wenoz3-v1")
+    message(FATAL_ERROR "Checkpoint has the wrong SBM M3 schema: ${_schema}")
   endif()
 
   file(READ "${_checkpoint_dir}/Level_0/SBMSpectrum_H" _spectrum_header)
@@ -62,10 +64,10 @@ function(assert_checkpoint checkpoint)
   endif()
 endfunction()
 
-run_erf("Initial zero-transport run")
+run_erf("Initial SBM M3 run")
 assert_checkpoint("sbm_smoke_chk00001")
 
-run_erf("Exact-schema SBM restart"
+run_erf("Exact-schema SBM M3 restart"
   "erf.restart=${_run_dir}/sbm_smoke_chk00001"
   "erf.check_file=sbm_restart_chk"
   "erf.plot_int_1=-1"

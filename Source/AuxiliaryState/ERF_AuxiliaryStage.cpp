@@ -83,17 +83,20 @@ bool MakeAuxiliaryStageRecipe (const HostIntegrator method,
     }
 
     if (method == HostIntegrator::CompressibleRK3) {
+        recipe.limiter_trial_base = LimiterTrialBase::Anchor;
         recipe.anchor_weight = 1.0;
         recipe.limiter_trial_interval = host_stage_interval;
         recipe.face_rate_time_coefficient = host_stage_interval;
         if (stage == 2) { recipe.completed_ledger_time = host_stage_interval; }
     } else if (method == HostIntegrator::AnelasticHeun) {
         if (stage == 0) {
+            recipe.limiter_trial_base = LimiterTrialBase::Anchor;
             recipe.anchor_weight = 1.0;
             recipe.limiter_trial_interval = host_stage_interval;
             recipe.face_rate_time_coefficient = host_stage_interval;
             recipe.completed_ledger_time = 0.5 * host_stage_interval;
         } else {
+            recipe.limiter_trial_base = LimiterTrialBase::Input;
             recipe.anchor_weight = 0.5;
             recipe.input_weight = 0.5;
             recipe.limiter_trial_interval = host_stage_interval;

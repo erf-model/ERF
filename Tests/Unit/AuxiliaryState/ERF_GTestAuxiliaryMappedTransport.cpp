@@ -628,6 +628,7 @@ void run_auxiliary_mapped_transport_CompressibleRK3RecipeUsesAuditedStageCoeffic
             << diagnostic;
         EXPECT_DOUBLE_EQ(recipe.anchor_weight, 1.0);
         EXPECT_DOUBLE_EQ(recipe.input_weight, 0.0);
+        EXPECT_EQ(recipe.limiter_trial_base, LimiterTrialBase::Anchor);
         EXPECT_DOUBLE_EQ(recipe.limiter_trial_interval, trial[stage]);
         EXPECT_DOUBLE_EQ(recipe.face_rate_time_coefficient, face[stage]);
         EXPECT_DOUBLE_EQ(recipe.completed_ledger_time, ledger[stage]);
@@ -643,6 +644,7 @@ void run_auxiliary_mapped_transport_HeunRecipeSeparatesTrialAndWeightedFaceTime 
                                          recipe, diagnostic)) << diagnostic;
     EXPECT_DOUBLE_EQ(recipe.anchor_weight, 1.0);
     EXPECT_DOUBLE_EQ(recipe.input_weight, 0.0);
+    EXPECT_EQ(recipe.limiter_trial_base, LimiterTrialBase::Anchor);
     EXPECT_DOUBLE_EQ(recipe.limiter_trial_interval, dt);
     EXPECT_DOUBLE_EQ(recipe.face_rate_time_coefficient, dt);
     EXPECT_DOUBLE_EQ(recipe.completed_ledger_time, 0.5 * dt);
@@ -651,6 +653,7 @@ void run_auxiliary_mapped_transport_HeunRecipeSeparatesTrialAndWeightedFaceTime 
                                          recipe, diagnostic)) << diagnostic;
     EXPECT_DOUBLE_EQ(recipe.anchor_weight, 0.5);
     EXPECT_DOUBLE_EQ(recipe.input_weight, 0.5);
+    EXPECT_EQ(recipe.limiter_trial_base, LimiterTrialBase::Input);
     EXPECT_DOUBLE_EQ(recipe.limiter_trial_interval, dt);
     EXPECT_DOUBLE_EQ(recipe.face_rate_time_coefficient, 0.5 * dt);
     EXPECT_DOUBLE_EQ(recipe.completed_ledger_time, 0.5 * dt);
