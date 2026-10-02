@@ -1542,7 +1542,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                 Real wsum = zero;
                 for (int k(0); k<nlay; ++k) { wsum += sfrac[k]*dz_prof[k]; }
 
-                Real a_ramp = (wsum > zero) ? (z_top - dz_tot)/wsum : zero;
+                Real a_ramp     = (wsum > zero) ? (z_top - dz_tot)/wsum : zero;
+                bool ramp_closes = true;
 
                 // The weight has to stay positive.  It is smallest at the top, where s is largest,
                 //    so this only bites when z_top is far below the file's own column depth.
@@ -1551,9 +1552,10 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                                "wrfinput column (" << dz_tot << " m); the profile cannot be closed by "
                                "stretching aloft alone, so it is rescaled uniformly instead and the "
                                "near-surface layers will not match the file.\n";
-                    a_ramp = zero;
+                    a_ramp      = zero;
+                    ramp_closes = false;
                 }
-                const Real zscale = (a_ramp == zero) ? z_top/dz_tot : one;
+                const Real zscale = ramp_closes ? one : z_top/dz_tot;
 
                 zlevels_stag[lev][0] = zero;
                 for (int k(1); k<=nlay; ++k) {
@@ -1566,12 +1568,21 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                 //    domain is smooth in k even though individual columns are not, so a ratio far
                 //    from 1 above the surface layer would mean this file is unlike the ones this has
                 //    been exercised on and the mesh deserves a look.
-                Real r_min = std::numeric_limits<Real>::max();
-                Real r_max = std::numeric_limits<Real>::lowest();
+                // A column of fewer than three layers has no ratio above the surface layer
+                //    to report, so leave the range at unity rather than printing the
+                //    sentinels the loop would otherwise leave behind.
+                Real r_min = one;
+                Real r_max = one;
                 for (int k(1); k<nlay-1; ++k) {
                     const Real r = (zlevels_stag[lev][k+2] - zlevels_stag[lev][k+1])
                                  / (zlevels_stag[lev][k+1] - zlevels_stag[lev][k  ]);
-                    r_min = std::min(r_min,r);  r_max = std::max(r_max,r);
+                    if (k == 1) {
+                        r_min = r;
+                        r_max = r;
+                    } else {
+                        r_min = std::min(r_min,r);
+                        r_max = std::max(r_max,r);
+                    }
                 }
                 const Real built_dz0 = zlevels_stag[lev][1]      - zlevels_stag[lev][0];
                 const Real built_dzt = zlevels_stag[lev][nlay]   - zlevels_stag[lev][nlay-1];
@@ -1727,6 +1738,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
         //         z_cc sits below WRF's first mass level, half a layer above the terrain)
         //      3  below the source column, above the bottom plane (not expected)
         //      2  above the source column
+        //      4  outside the source column with fewer than two source levels in the box,
+        //         so not even extrapolated (not expected)
         //
         MultiFab remap_flag(lev_new[Vars::cons].boxArray(), lev_new[Vars::cons].DistributionMap(), 1, 0);
         remap_flag.setVal(0.);
@@ -1773,6 +1786,10 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                 Real z_lo_src = Real(0.5) *
                     ( ph_arr(i,j,kstart  ) + phb_arr(i,j,kstart  ) +
                       ph_arr(i,j,kstart+1) + phb_arr(i,j,kstart+1)) / CONST_GRAV;
+
+                // The loop below walks z_lo_src up the column, so keep the bottom of the
+                //    source column now; it is what tells the end policy which end it is at.
+                const Real z_first = z_lo_src;
 
                 bool found = false;
                 int kend   = kstart;
@@ -1821,12 +1838,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                     //    marched pressure, which is what makes these cells hydrostatic.  That
                     //    delegation is why erf.rebalance_wrf_input = false warns below.
                     //
-                    const Real z_first = Real(0.5) *
-                        ( ph_arr(i,j,klo  ) + phb_arr(i,j,klo  ) +
-                          ph_arr(i,j,klo+1) + phb_arr(i,j,klo+1)) / CONST_GRAV;
                     const bool below = (z_dst < z_first);
-
-                    remap_flag_arr(i,j,k) = (below) ? ((k == klo) ? one : three) : two;
 
                     // Two nearest source levels, and which of them is nearest to z_dst
                     const int ks = (below) ? klo        : khi_src - 1;
@@ -1834,6 +1846,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                     const int kn = (below) ? ks         : ke;
 
                     if (ke > ks && ks >= klo && ke <= khi_src) {
+                        remap_flag_arr(i,j,k) = (below) ? ((k == klo) ? one : three) : two;
+
                         const Real z_s = Real(0.5) * ( ph_arr(i,j,ks  ) + phb_arr(i,j,ks  ) +
                                                        ph_arr(i,j,ks+1) + phb_arr(i,j,ks+1) ) / CONST_GRAV;
                         const Real z_e = Real(0.5) * ( ph_arr(i,j,ke  ) + phb_arr(i,j,ke  ) +
@@ -1859,6 +1873,12 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                         for (int icons(RhoTheta_comp+1); icons<ncons; ++icons) {
                             cons_arr(i,j,k,icons) = rho_x * (cons_tmp_arr(i,j,kn,icons) / rho_n);
                         }
+                    } else {
+                        // This box holds fewer than two source levels, so there is nothing
+                        //    to extrapolate from and the cell keeps whatever the read left.
+                        //    Flag it separately rather than counting it as extrapolated,
+                        //    which would report work that did not happen.
+                        remap_flag_arr(i,j,k) = four;
                     }
                 }
             });
@@ -1878,6 +1898,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                       ph_arr(ii ,j,kstart+1) + phb_arr(ii ,j,kstart+1) +
                       ph_arr(iim,j,kstart  ) + phb_arr(iim,j,kstart  ) +
                       ph_arr(iim,j,kstart+1) + phb_arr(iim,j,kstart+1) ) / CONST_GRAV;
+
+                const Real z_first = z_lo_src;
 
                 bool found = false;
                 int kend   = kstart;
@@ -1906,6 +1928,22 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                     Real xvel_hi = xvel_tmp_arr(i,j,kend  );
                     Real xvel_lo = xvel_tmp_arr(i,j,kstart);
                     xvel_arr(i,j,k) = ( xvel_hi - xvel_lo ) * dz_rat + xvel_lo;
+                } else {
+                    //
+                    // Outside the source column, hold the nearest source level -- the same
+                    //    end policy the cell-centered remap above applies to every primitive
+                    //    but theta.  Theta is extrapolated there because it is smooth and
+                    //    nearly linear through the stratosphere; a wind component is neither,
+                    //    so a linear fit off the end of the column is as likely to invent
+                    //    shear as to capture it, and a hold cannot.
+                    //
+                    // Leaving this to the implicit behavior of the read would be *almost* the
+                    //    same thing -- at k = klo and at the top of the column the value left
+                    //    at this index happens to be the nearest level -- but only almost, and
+                    //    only by coincidence of the indexing.  Say what is meant instead.
+                    //
+                    xvel_arr(i,j,k) = (z_dst < z_first) ? xvel_tmp_arr(i,j,klo)
+                                                        : xvel_tmp_arr(i,j,khi_src);
                 }
             });
 
@@ -1923,6 +1961,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                       ph_arr(i,jj ,kstart+1) + phb_arr(i,jj ,kstart+1) +
                       ph_arr(i,jjm,kstart  ) + phb_arr(i,jjm,kstart  ) +
                       ph_arr(i,jjm,kstart+1) + phb_arr(i,jjm,kstart+1) ) / CONST_GRAV;
+
+                const Real z_first = z_lo_src;
 
                 bool found = false;
                 int kend   = kstart;
@@ -1951,6 +1991,12 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                     Real yvel_hi = yvel_tmp_arr(i,j,kend  );
                     Real yvel_lo = yvel_tmp_arr(i,j,kstart);
                     yvel_arr(i,j,k) = ( yvel_hi - yvel_lo ) * dz_rat + yvel_lo;
+                } else {
+                    // Outside the source column: hold the nearest source level, as xvel does
+                    //    above and as the cell-centered remap does for every primitive but
+                    //    theta.
+                    yvel_arr(i,j,k) = (z_dst < z_first) ? yvel_tmp_arr(i,j,klo)
+                                                        : yvel_tmp_arr(i,j,khi_src);
                 }
             });
 
@@ -1972,9 +2018,11 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             Real n_below_klo = count_flag(one);
             Real n_above     = count_flag(two);
             Real n_below_int = count_flag(three);
+            Real n_unhandled = count_flag(four);
             ParallelDescriptor::ReduceRealSum(n_below_klo);
             ParallelDescriptor::ReduceRealSum(n_above);
             ParallelDescriptor::ReduceRealSum(n_below_int);
+            ParallelDescriptor::ReduceRealSum(n_unhandled);
 
             const Real n_tot = static_cast<Real>(geom[lev].Domain().numPts());
             const Real n_pln = static_cast<Real>(geom[lev].Domain().length(0)) *
@@ -1993,6 +2041,15 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                     << " of " << n_tot << std::endl;
             Print() << "  (these are extrapolated from the two nearest source levels; theta"
                     << " linearly, every other primitive held)" << std::endl;
+
+            if (n_unhandled > zero) {
+                Print() << " " << std::endl;
+                Print() << "WARNING: " << n_unhandled << " cells lie outside the wrfinput column "
+                           "in a box that holds fewer than two source levels, so there was "
+                           "nothing to extrapolate from and they keep the value the read left "
+                           "at their index, which belongs to a different height.  This is not "
+                           "expected; it means a grid is only one cell deep in z.\n";
+            }
 
             if (n_extrap > zero && !solverChoice.rebalance_wrf_input) {
                 Print() << " " << std::endl;
