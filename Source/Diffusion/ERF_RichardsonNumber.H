@@ -219,6 +219,12 @@ ComputeN2_EB (int i, int j, int k,
 
         if (is_covered_kp1) {
 
+            // Check if k-1 is also covered (vertically isolated cell)
+            if (is_covered_km1) {
+                // No valid vertical neighbors - return zero N2
+                return zero;
+            }
+
             const amrex::Real theta_l_km1 = GetThetal(i, j, k-1, cell_data, moisture_indices);
 
             if (c_cflag(i,j,k-2).isCovered()) {
@@ -254,6 +260,12 @@ ComputeN2_EB (int i, int j, int k,
 
         if (is_covered_kp1) {
 
+            // Check if k-1 is also covered (vertically isolated cell)
+            if (is_covered_km1) {
+                // No valid vertical neighbors - return zero N2
+                return zero;
+            }
+
             const amrex::Real theta_v_km1 = GetThetav(i, j, k-1, cell_data, moisture_indices);
 
             if (c_cflag(i,j,k-2).isCovered()) {
@@ -288,6 +300,12 @@ ComputeN2_EB (int i, int j, int k,
         inv_theta = one / theta;
 
         if (is_covered_kp1) {
+
+            // Check if k-1 is also covered (vertically isolated cell)
+            if (is_covered_km1) {
+                // No valid vertical neighbors - return zero N2
+                return zero;
+            }
 
             const amrex::Real theta_km1 = cell_data(i, j, k-1, rhoTheta_comp) / cell_data(i, j, k-1, rho_comp);
 
@@ -474,10 +492,7 @@ ComputeVerticalShear2_EB (int i, int j, int k,
 
     } else if (c_cflag(i,j,k-1).isCovered()) {
 
-        if (c_cflag(i,j,k+1).isCovered()) {
-            return zero;
-        }
-
+        // Note: k+1 is guaranteed not covered (outer if-else structure)
         amrex::Real c_kp1, c_kp2;
 
         // u, k+1
