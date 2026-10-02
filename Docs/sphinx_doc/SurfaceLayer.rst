@@ -269,10 +269,13 @@ name a PBL height scheme; leaving it at its default of ``none`` is an error, sin
 boundary layer depth would ever be diagnosed.
 
 On a refined level, the ``MYNN25`` diagnostic runs on the level's own columns only when its
-grids reach the top of the domain in every column. A refined region that ends lower (a patch
-near the ground, say) cannot see the top of a boundary layer deeper than itself, so it takes
-the PBL height of the next coarser level at each of its columns instead (with EB terrain
-every level still diagnoses its own).
+grids run from the ground to the top of the domain in every column. A refined region that
+ends lower (a patch near the ground, say) cannot see the top of a boundary layer deeper than
+itself, and one that does not reach the ground (a region aloft) has no column to scan, so
+either takes the PBL height of the next coarser level at each of its columns instead: each
+fine column gets the height of the coarse column that holds it. With subcycling that is the
+coarse height of the start of the coarse step. With EB terrain every level still diagnoses
+its own.
 
 The subgrid velocity scale
 :math:`V_{sg}` handles weak large-scale flow that is underresolved (Mahrt & Sun

@@ -2465,11 +2465,14 @@ SurfaceLayer::compute_pblh (const int& lev,
     }
     const PBLHColumns& cols = m_pblh_columns[lev];
 
-    // A refined level whose grids end below the top of the domain in some column cannot see the
-    // top of a boundary layer deeper than its grids: the estimator would return a height capped
-    // by them.  Such a level takes the PBL height of the next coarser level, which has already
-    // been updated (levels are updated coarse to fine), at each of its columns.  A refined level
-    // that spans the full height diagnoses its own.
+    // A refined level whose grids do not run from the ground to the top of the domain in every
+    // column cannot diagnose the boundary layer there: a level that ends below the top would
+    // return a height capped by its grids, and a level that does not reach the ground has no
+    // column to scan (it was left at zero).  Such a level takes the PBL height of the next
+    // coarser level at each of its columns.  Levels are updated coarse to fine, so that height
+    // is the one set at the start of the enclosing coarse step: with subcycling, the later fine
+    // substeps read a coarse height up to one coarse step old.  A refined level that spans the
+    // full height diagnoses its own.
     if (lev > 0 && !cols.full_height && m_face.coordDir() == 2 && m_face.isLow() &&
         m_terrain_type != TerrainType::EB) {
         fill_pblh_from_coarser(lev);
@@ -2630,8 +2633,8 @@ SurfaceLayer::define_pblh_columns (const int& lev,
 
 /**
  * Set the PBL height of a refined level from the next coarser level: each column of this
- * level takes the height of the coarse column that holds it.  Used for a level whose grids end
- * below the top of the domain, which cannot diagnose a boundary layer deeper than its grids.
+ * level takes the height of the coarse column that holds it.  Used for a level whose grids do
+ * not run from the ground to the top of the domain in every column (see compute_pblh).
  *
  * @param[in] lev Current level (> 0)
  */
@@ -2648,6 +2651,12 @@ SurfaceLayer::fill_pblh_from_coarser (const int& lev)
     MultiFab& fine = *pblh[lev];
     const MultiFab& crse = *pblh[lev-1];
 
+    // Each fine column takes the height of the coarse column that holds it (injection, no
+    // interpolation): the fine height is then exactly the coarse diagnostic, and independent of
+    // the decomposition, at the price of being constant over each block of rr x rr fine columns.
+    // The coarse level's own height varies at that resolution too.  Interpolating would read
+    // the coarse ghost cells outside a non-periodic domain, which hold no diagnosed height.
+    //
     // The coarse heights over the boxes of this level, with enough ghost cells to cover theirs.
     // Ghost cells go first, then the valid cells, so every cell the coarse level owns comes
     // from the box that owns it.
