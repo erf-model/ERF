@@ -18,6 +18,7 @@
 #include <gtest/gtest.h>
 
 #include "ERF_SurfaceModel.H"
+#include "../ERF_GTestTempDir.H"
 
 namespace {
 
@@ -36,7 +37,7 @@ struct SurfaceModelFixture {
     SolverChoice solver_choice{};
     std::unique_ptr<SurfaceModel> model;
 
-    explicit SurfaceModelFixture(const int nlevels = 1)
+    explicit SurfaceModelFixture (const int nlevels = 1)
     {
         amrex::RealBox real_box({AMREX_D_DECL(0.0, 0.0, 0.0)},
                                 {AMREX_D_DECL(2.0, 2.0, 4.0)});
@@ -568,7 +569,7 @@ TEST(SurfaceModel, RadiationOutputsResolveAndDistributeCanonicalMappings)
 TEST(SurfaceModel, CheckpointRoundTripPreservesSyntheticState)
 {
     const std::filesystem::path checkpoint =
-        std::filesystem::temp_directory_path() / "erf_surface_model_unit_checkpoint";
+        erf_gtest_temp_path("erf_surface_model_unit_checkpoint");
     struct CheckpointCleanup {
         std::filesystem::path path;
         ~CheckpointCleanup() { std::filesystem::remove_all(path); }

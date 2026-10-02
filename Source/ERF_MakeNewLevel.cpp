@@ -132,12 +132,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // *******************************************************************************************
     init_stuff(lev, ba, dm, lev_new, lev_old, base_state[lev], z_phys_nd[lev]);
     if (auxiliary_inert_tracer) {
-        AMREX_ALWAYS_ASSERT(detJ_cc[lev] != nullptr);
-        AMREX_ALWAYS_ASSERT(mapfac[lev][MapFacType::m_x] != nullptr);
-        AMREX_ALWAYS_ASSERT(mapfac[lev][MapFacType::m_y] != nullptr);
-        auxiliary_inert_tracer->define(lev, ba, dm, *detJ_cc[lev],
-                                       *mapfac[lev][MapFacType::m_x],
-                                       *mapfac[lev][MapFacType::m_y]);
+        auxiliary_inert_tracer->define(lev, ba, dm);
     }
     if (sbm_state_manager) {
         sbm_state_manager->define(lev, ba, dm);
@@ -308,6 +303,15 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     // Initialize the non-cons auxiliary tracer only after the host atmospheric
     // density has been initialized from the selected problem configuration.
     if (auxiliary_inert_tracer) {
+        AMREX_ALWAYS_ASSERT(detJ_cc[lev] != nullptr);
+        AMREX_ALWAYS_ASSERT(mapfac[lev][MapFacType::m_x] != nullptr);
+        AMREX_ALWAYS_ASSERT(mapfac[lev][MapFacType::m_y] != nullptr);
+        std::string measure_diagnostic;
+        if (!auxiliary_inert_tracer->rebuild_static_measure(
+                lev, *detJ_cc[lev], *mapfac[lev][MapFacType::m_x],
+                *mapfac[lev][MapFacType::m_y], measure_diagnostic)) {
+            amrex::Abort("M2 auxiliary inert tracer static measure: " + measure_diagnostic);
+        }
         auxiliary_inert_tracer->initialize(lev, lev_new[Vars::cons], geom[lev]);
     }
 
@@ -621,6 +625,23 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         }
         init_zphys(lev, time);
         update_terrain_arrays(lev);
+
+        // The telescoping detJ average-down above (after the first
+        // init_zphys/update_terrain_arrays call) ran before this level's terrain was
+        // read from its file, when detJ_cc[lev] still held the init_stuff placeholder
+        // of one -- so it stamped 1.0 into the coarse detJ under this level's
+        // footprint. Repeat it now that the real fine detJ exists: AverageDownTo
+        // weights (rho S) by detJ_cc before averaging and divides by the coarse detJ
+        // afterwards, so a coarse detJ that is not the average of the fine one
+        // (let alone a placeholder ~9x too large) scales every covered coarse cell
+        // wrongly on the first two-level step.
+        if ( (SolverChoice::mesh_type != MeshType::ConstantDz) &&
+             (solverChoice.coupling_type == CouplingType::TwoWay) ) {
+            for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
+                average_down(*detJ_cc[crse_lev+1], *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
+            }
+        }
+
         make_physbcs(lev);
 
         dz_min[lev] = (*detJ_cc[lev]).min(0) * geom[lev].CellSize(2);

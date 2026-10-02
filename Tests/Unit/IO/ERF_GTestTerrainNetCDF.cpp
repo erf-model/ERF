@@ -18,22 +18,49 @@
 #include "ERF_NCInterface.H"
 #include "ERF_MetgridUtils.H"
 #include "ERF_ProbCommon.H"
+#include "../ERF_GTestTempDir.H"
 
 namespace {
 
-constexpr const char* terrain_filename = "erf_unit_terrain_endpoints.nc";
-constexpr const char* terrain_time_filename = "erf_unit_terrain_time.nc";
-constexpr const char* terrain_wps_filename = "erf_unit_terrain_geo_em.nc";
-constexpr const char* metgrid_filename_0 = "erf_unit_metgrid_surface_0.nc";
-constexpr const char* metgrid_filename_1 = "erf_unit_metgrid_surface_1.nc";
-constexpr const char* metgrid_missing_psfc_filename = "erf_unit_metgrid_surface_missing_psfc.nc";
-constexpr const char* metgrid_fill_psfc_filename = "erf_unit_metgrid_surface_fill_psfc.nc";
-constexpr const char* metgrid_missing_value_psfc_filename =
-    "erf_unit_metgrid_surface_missing_value_psfc.nc";
-constexpr const char* metgrid_profile_sentinel_filename =
-    "erf_unit_metgrid_profile_sentinel.nc";
-constexpr const char* metgrid_profile_default_fill_filename =
-    "erf_unit_metgrid_profile_default_fill.nc";
+// Scratch files, one set per test process. ctest -j runs the serial and the 2-rank
+// instance of these tests, and erf_unit_tests_shuffle_repeat, at the same time; fixed
+// names in the working directory let one process rewrite or remove a file another is
+// still reading (seen as an intermittent MetgridNetCDF.*.np2 failure). The paths come
+// from erf_gtest_temp_path, which broadcasts from the I/O rank, so scratch_files() is
+// collective: each test calls it on every rank before any I/O-rank-only writer does.
+struct ScratchFiles
+{
+    std::string terrain_filename;
+    std::string terrain_time_filename;
+    std::string terrain_wps_filename;
+    std::string metgrid_filename_0;
+    std::string metgrid_filename_1;
+    std::string metgrid_missing_psfc_filename;
+    std::string metgrid_fill_psfc_filename;
+    std::string metgrid_missing_value_psfc_filename;
+    std::string metgrid_profile_sentinel_filename;
+    std::string metgrid_profile_default_fill_filename;
+};
+
+const ScratchFiles&
+scratch_files ()
+{
+    static const ScratchFiles files = [] {
+        ScratchFiles f;
+        f.terrain_filename = (erf_gtest_temp_path("erf_unit_terrain_endpoints").string() + ".nc");
+        f.terrain_time_filename = (erf_gtest_temp_path("erf_unit_terrain_time").string() + ".nc");
+        f.terrain_wps_filename = (erf_gtest_temp_path("erf_unit_terrain_geo_em").string() + ".nc");
+        f.metgrid_filename_0 = (erf_gtest_temp_path("erf_unit_metgrid_surface_0").string() + ".nc");
+        f.metgrid_filename_1 = (erf_gtest_temp_path("erf_unit_metgrid_surface_1").string() + ".nc");
+        f.metgrid_missing_psfc_filename = (erf_gtest_temp_path("erf_unit_metgrid_surface_missing_psfc").string() + ".nc");
+        f.metgrid_fill_psfc_filename = (erf_gtest_temp_path("erf_unit_metgrid_surface_fill_psfc").string() + ".nc");
+        f.metgrid_missing_value_psfc_filename = (erf_gtest_temp_path("erf_unit_metgrid_surface_missing_value_psfc").string() + ".nc");
+        f.metgrid_profile_sentinel_filename = (erf_gtest_temp_path("erf_unit_metgrid_profile_sentinel").string() + ".nc");
+        f.metgrid_profile_default_fill_filename = (erf_gtest_temp_path("erf_unit_metgrid_profile_default_fill").string() + ".nc");
+        return f;
+    }();
+    return files;
+}
 
 void
 write_terrain_file ()
@@ -42,7 +69,7 @@ write_terrain_file ()
         return;
     }
 
-    auto file = ncutils::NCFile::create(terrain_filename, NC_CLOBBER | NC_NETCDF4);
+    auto file = ncutils::NCFile::create(scratch_files().terrain_filename.c_str(), NC_CLOBBER | NC_NETCDF4);
     file.enter_def_mode();
     file.def_dim("x", 3);
     file.def_dim("y", 3);
@@ -70,7 +97,7 @@ write_wps_terrain_file ()
         return;
     }
 
-    auto file = ncutils::NCFile::create(terrain_wps_filename, NC_CLOBBER | NC_NETCDF4);
+    auto file = ncutils::NCFile::create(scratch_files().terrain_wps_filename.c_str(), NC_CLOBBER | NC_NETCDF4);
     file.enter_def_mode();
     file.def_dim("west_east", 2);
     file.def_dim("south_north", 2);
@@ -127,7 +154,7 @@ write_time_leading_terrain_file ()
         return;
     }
 
-    auto file = ncutils::NCFile::create(terrain_time_filename, NC_CLOBBER | NC_NETCDF4);
+    auto file = ncutils::NCFile::create(scratch_files().terrain_time_filename.c_str(), NC_CLOBBER | NC_NETCDF4);
     file.enter_def_mode();
     file.def_dim("x", 3);
     file.def_dim("y", 3);
@@ -356,31 +383,33 @@ read_terrain_samples (const char* filename, int horizontal_cells)
 // disabled and produces the documented zero value.
 TEST(TerrainNetCDF, PreservesUpperRowColumnAndCornerWithoutExtrapolation)
 {
+    scratch_files();  // collective: before any I/O-rank-only writer
     write_terrain_file();
     amrex::ParallelDescriptor::Barrier();
 
-    const auto endpoint_samples = read_terrain_samples(terrain_filename, 2);
+    const auto endpoint_samples = read_terrain_samples(scratch_files().terrain_filename.c_str(), 2);
     EXPECT_EQ(endpoint_samples.lower_corner, amrex::Real(1.0));
     EXPECT_EQ(endpoint_samples.x_upper, amrex::Real(3.0));
     EXPECT_EQ(endpoint_samples.y_upper, amrex::Real(7.0));
     EXPECT_EQ(endpoint_samples.upper_corner, amrex::Real(9.0));
 
-    const auto outside_samples = read_terrain_samples(terrain_filename, 3);
+    const auto outside_samples = read_terrain_samples(scratch_files().terrain_filename.c_str(), 3);
     EXPECT_EQ(outside_samples.upper_corner, amrex::Real(9.0));
     EXPECT_EQ(outside_samples.outside_corner, amrex::Real(0.0));
 
     amrex::ParallelDescriptor::Barrier();
     if (amrex::ParallelDescriptor::IOProcessor()) {
-        std::remove(terrain_filename);
+        std::remove(scratch_files().terrain_filename.c_str());
     }
 }
 
 TEST(TerrainNetCDF, ReadsFirstRecordOfExplicitTimeLeadingField)
 {
+    scratch_files();  // collective: before any I/O-rank-only writer
     write_time_leading_terrain_file();
     amrex::ParallelDescriptor::Barrier();
 
-    const auto samples = read_terrain_samples(terrain_time_filename, 2);
+    const auto samples = read_terrain_samples(scratch_files().terrain_time_filename.c_str(), 2);
     EXPECT_EQ(samples.lower_corner, amrex::Real(1.0));
     EXPECT_EQ(samples.x_upper, amrex::Real(3.0));
     EXPECT_EQ(samples.y_upper, amrex::Real(7.0));
@@ -388,16 +417,17 @@ TEST(TerrainNetCDF, ReadsFirstRecordOfExplicitTimeLeadingField)
 
     amrex::ParallelDescriptor::Barrier();
     if (amrex::ParallelDescriptor::IOProcessor()) {
-        std::remove(terrain_time_filename);
+        std::remove(scratch_files().terrain_time_filename.c_str());
     }
 }
 
 TEST(TerrainNetCDF, ReadsGenuineWpsGeoEmMassField)
 {
+    scratch_files();  // collective: before any I/O-rank-only writer
     write_wps_terrain_file();
     amrex::ParallelDescriptor::Barrier();
 
-    const auto samples = read_terrain_samples(terrain_wps_filename, 2);
+    const auto samples = read_terrain_samples(scratch_files().terrain_wps_filename.c_str(), 2);
     EXPECT_EQ(samples.lower_corner, amrex::Real(1.0));
     EXPECT_EQ(samples.interior, amrex::Real(2.5));
     EXPECT_EQ(samples.bottom_edge, amrex::Real(1.5));
@@ -410,7 +440,7 @@ TEST(TerrainNetCDF, ReadsGenuineWpsGeoEmMassField)
 
     amrex::ParallelDescriptor::Barrier();
     if (amrex::ParallelDescriptor::IOProcessor()) {
-        std::remove(terrain_wps_filename);
+        std::remove(scratch_files().terrain_wps_filename.c_str());
     }
 }
 
@@ -420,9 +450,10 @@ TEST(TerrainNetCDF, ReadsGenuineWpsGeoEmMassField)
 // and different PSFC must produce different potential temperatures.
 TEST(MetgridNetCDF, ReadsSurfacePressureForEveryForcingTime)
 {
-    write_metgrid_surface_file(metgrid_filename_0, 100000.0,
+    scratch_files();  // collective: before any I/O-rank-only writer
+    write_metgrid_surface_file(scratch_files().metgrid_filename_0.c_str(), 100000.0,
                                 "2010-01-01_00:00:00");
-    write_metgrid_surface_file(metgrid_filename_1, 90000.0,
+    write_metgrid_surface_file(scratch_files().metgrid_filename_1.c_str(), 90000.0,
                                 "2010-01-01_01:00:00");
     amrex::ParallelDescriptor::Barrier();
 
@@ -440,7 +471,7 @@ TEST(MetgridNetCDF, ReadsSurfacePressureForEveryForcingTime)
     int nc_nx = 0, nc_ny = 0;
     amrex::Real nc_dx = 0.0, nc_dy = 0.0;
 
-    read_from_metgrid(0, 0, domain, metgrid_filename_0,
+    read_from_metgrid(0, 0, domain, scratch_files().metgrid_filename_0.c_str(),
                       date_time, epoch_time, flag_psfc, flag_msf,
                       flag_sst, flag_tsk, flag_lmask, nc_nx, nc_ny,
                       nc_dx, nc_dy, xvel, yvel, temp, rhum, pres, ght,
@@ -459,7 +490,7 @@ TEST(MetgridNetCDF, ReadsSurfacePressureForEveryForcingTime)
     const amrex::Real psfc_0 = psfc_host_0.const_array()(0, 0, 0);
     const amrex::Real sst_0 = sst_host_0.const_array()(0, 0, 0);
 
-    read_from_metgrid(0, 1, domain, metgrid_filename_1,
+    read_from_metgrid(0, 1, domain, scratch_files().metgrid_filename_1.c_str(),
                       date_time, epoch_time, flag_psfc, flag_msf,
                       flag_sst, flag_tsk, flag_lmask, nc_nx, nc_ny,
                       nc_dx, nc_dy, xvel, yvel, temp, rhum, pres, ght,
@@ -490,8 +521,8 @@ TEST(MetgridNetCDF, ReadsSurfacePressureForEveryForcingTime)
 
     amrex::ParallelDescriptor::Barrier();
     if (amrex::ParallelDescriptor::IOProcessor()) {
-        std::remove(metgrid_filename_0);
-        std::remove(metgrid_filename_1);
+        std::remove(scratch_files().metgrid_filename_0.c_str());
+        std::remove(scratch_files().metgrid_filename_1.c_str());
     }
 }
 
@@ -696,7 +727,8 @@ TEST(MetgridNetCDF, SurfaceTemperatureNormalizationUsesPressurePolicy)
 // current SST record is still made available to initialization.
 TEST(MetgridNetCDF, AcceptsSurfaceTemperatureWithoutSurfacePressure)
 {
-    write_metgrid_surface_file(metgrid_missing_psfc_filename, 0.0,
+    scratch_files();  // collective: before any I/O-rank-only writer
+    write_metgrid_surface_file(scratch_files().metgrid_missing_psfc_filename.c_str(), 0.0,
                                "2010-01-01_00:00:00", false, true, 100.0);
     amrex::ParallelDescriptor::Barrier();
 
@@ -714,7 +746,7 @@ TEST(MetgridNetCDF, AcceptsSurfaceTemperatureWithoutSurfacePressure)
     int nc_nx = 0, nc_ny = 0;
     amrex::Real nc_dx = 0.0, nc_dy = 0.0;
 
-    read_from_metgrid(0, 0, domain, metgrid_missing_psfc_filename,
+    read_from_metgrid(0, 0, domain, scratch_files().metgrid_missing_psfc_filename.c_str(),
                       date_time, epoch_time, flag_psfc, flag_msf,
                       flag_sst, flag_tsk, flag_lmask, nc_nx, nc_ny,
                       nc_dx, nc_dy, xvel, yvel, temp, rhum, pres, ght,
@@ -729,7 +761,7 @@ TEST(MetgridNetCDF, AcceptsSurfaceTemperatureWithoutSurfacePressure)
 
     amrex::ParallelDescriptor::Barrier();
     if (amrex::ParallelDescriptor::IOProcessor()) {
-        std::remove(metgrid_missing_psfc_filename);
+        std::remove(scratch_files().metgrid_missing_psfc_filename.c_str());
     }
 }
 
@@ -739,11 +771,12 @@ TEST(MetgridNetCDF, AcceptsSurfaceTemperatureWithoutSurfacePressure)
 // than silently selecting the analytic missing-variable fallback.
 TEST(MetgridNetCDF, CanonicalizesDeclaredAndDefaultPsfcFillValues)
 {
-    write_metgrid_surface_file(metgrid_fill_psfc_filename,
+    scratch_files();  // collective: before any I/O-rank-only writer
+    write_metgrid_surface_file(scratch_files().metgrid_fill_psfc_filename.c_str(),
                                static_cast<amrex::Real>(NC_FILL_DOUBLE),
                                "2010-01-01_00:00:00", true, false, 0.0,
                                false, false, true);
-    write_metgrid_surface_file(metgrid_missing_value_psfc_filename,
+    write_metgrid_surface_file(scratch_files().metgrid_missing_value_psfc_filename.c_str(),
                                amrex::Real(123456.0),
                                "2010-01-01_00:00:00", true, false, 0.0,
                                false, true, true);
@@ -780,20 +813,21 @@ TEST(MetgridNetCDF, CanonicalizesDeclaredAndDefaultPsfcFillValues)
         return host.const_array()(0, 0, 0);
     };
 
-    EXPECT_FALSE(std::isfinite(read_psfc(metgrid_fill_psfc_filename)));
-    EXPECT_FALSE(std::isfinite(read_psfc(metgrid_missing_value_psfc_filename)));
+    EXPECT_FALSE(std::isfinite(read_psfc(scratch_files().metgrid_fill_psfc_filename.c_str())));
+    EXPECT_FALSE(std::isfinite(read_psfc(scratch_files().metgrid_missing_value_psfc_filename.c_str())));
 
     amrex::ParallelDescriptor::Barrier();
     if (amrex::ParallelDescriptor::IOProcessor()) {
-        std::remove(metgrid_fill_psfc_filename);
-        std::remove(metgrid_missing_value_psfc_filename);
+        std::remove(scratch_files().metgrid_fill_psfc_filename.c_str());
+        std::remove(scratch_files().metgrid_missing_value_psfc_filename.c_str());
     }
 }
 
 TEST(MetgridNetCDF, CanonicalizesTemperatureAndPressureFillValues)
 {
-    write_metgrid_profile_sentinel_file(metgrid_profile_sentinel_filename, true);
-    write_metgrid_profile_sentinel_file(metgrid_profile_default_fill_filename, false);
+    scratch_files();  // collective: before any I/O-rank-only writer
+    write_metgrid_profile_sentinel_file(scratch_files().metgrid_profile_sentinel_filename.c_str(), true);
+    write_metgrid_profile_sentinel_file(scratch_files().metgrid_profile_default_fill_filename.c_str(), false);
     amrex::ParallelDescriptor::Barrier();
 
     const amrex::Box domain(amrex::IntVect(0, 0, 0), amrex::IntVect(0, 0, 1));
@@ -819,13 +853,13 @@ TEST(MetgridNetCDF, CanonicalizesTemperatureAndPressureFillValues)
         EXPECT_FALSE(std::isfinite(pres_host.const_array()(0, 0, 1)));
     };
 
-    check_file(metgrid_profile_sentinel_filename);
-    check_file(metgrid_profile_default_fill_filename);
+    check_file(scratch_files().metgrid_profile_sentinel_filename.c_str());
+    check_file(scratch_files().metgrid_profile_default_fill_filename.c_str());
 
     amrex::ParallelDescriptor::Barrier();
     if (amrex::ParallelDescriptor::IOProcessor()) {
-        std::remove(metgrid_profile_sentinel_filename);
-        std::remove(metgrid_profile_default_fill_filename);
+        std::remove(scratch_files().metgrid_profile_sentinel_filename.c_str());
+        std::remove(scratch_files().metgrid_profile_default_fill_filename.c_str());
     }
 }
 

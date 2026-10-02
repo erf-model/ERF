@@ -6,7 +6,7 @@
 using namespace amrex;
 
 void
-WDM6::Copy_Micro_to_State(MultiFab& cons)
+WDM6::Copy_Micro_to_State (MultiFab& cons)
 {
     // Conservative update of all fields
     for (MFIter mfi(cons, TilingIfNotGPU()); mfi.isValid(); ++mfi)

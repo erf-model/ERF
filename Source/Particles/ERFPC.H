@@ -175,7 +175,7 @@ class ERFPC : public amrex::ParticleContainer<  0,                              
                                    const int&, const int& a_comp = 0) const;
 
         /*! Compute mesh variable from particles */
-        virtual void computeMeshVar(    const std::string&      a_var_name,
+        virtual void computeMeshVar (    const std::string&      a_var_name,
                                         amrex::MultiFab&        a_mf,
                                         const amrex::MultiFab&  a_z_phys_nd,
                                         const int               a_lev) const
@@ -210,10 +210,10 @@ class ERFPC : public amrex::ParticleContainer<  0,                              
          * to deposit (e.g. mass, number, flux). Implementation in ERFPCParticleToMesh.H.
          */
         template<typename ValueFunc>
-        void ERFPCParticleToMesh(amrex::MultiFab& a_mf,
-                                 const amrex::MultiFab& a_z_phys_nd,
-                                 int a_lev, int a_comp,
-                                 ValueFunc&& value_func) const;
+        void ERFPCParticleToMesh (amrex::MultiFab& a_mf,
+                                  const amrex::MultiFab& a_z_phys_nd,
+                                  int a_lev, int a_comp,
+                                  ValueFunc&& value_func) const;
 
         /*! Default particle initialization */
         void initializeParticlesUniformDistributionInBox (const std::unique_ptr<amrex::MultiFab>& a_ptr,

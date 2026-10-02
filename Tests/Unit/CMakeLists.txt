@@ -165,6 +165,14 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamKernels.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamColumn.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamRadiationDriver.cpp
+    # Motivation: the surface energy balance must take H and LE from a land
+    # model, else from the surface layer's applied flux in W/m^2, else from
+    # the scalar defaults; LE stays at its default without a moisture model.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestSEBTurbulentFlux.cpp
+    # Motivation: the forcing the two-stream model hands Noah-MP must be the
+    # downwelling SW and LW at the surface interface and a zenith cosine floored
+    # at zero, copied into the land model's k = 0 plane and nowhere else.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamLandForcing.cpp
     # Motivation: RRTMGP consumes absolute surface temperature; a
     # SurfaceLayer fallback must convert theta at the physical surface
     # pressure diagnosed from the lowest atmospheric cell,
@@ -210,6 +218,7 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Kessler/ERF_GTestKesslerPhysicalProperties.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Morrison/ERF_GTestMorrisonPhysicalProperties.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMFoundation.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMRemapping.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/SLM/ERF_GTestSLMInterface.cpp
 )
 if(ERF_DIM STREQUAL "3")
@@ -331,7 +340,7 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
   endfunction()
 
   add_sbm_expected_failure_test(SBM_Unrealizable_2M_Init inputs_unrealizable_2m
-    "SBM fixture initial state is unrealizable.*failed_constraint=endpoint_low")
+    "SBM fixture initial state is not canonical for selected spectral representation: population=0 representation=two-moment bin=0")
   add_sbm_expected_failure_test(SBM_Nonzero_Carrier inputs_zero_transport
     "SBM zero-transport fixture requires exactly zero carrier momentum"
     "-DOVERRIDE=erf.sbm_test_carrier_momentum_fault=true")
@@ -359,7 +368,7 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
       -DTEST_HELPER=$<TARGET_FILE:erf_sbm_checkpoint_corruptor>
       -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_zero_transport_2m
       -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
-      "-DEXPECTED_DIAGNOSTIC=SBM authoritative restart state is inadmissible.*level=0.*population=0.*bin=0.*constraint=endpoint_low"
+      "-DEXPECTED_DIAGNOSTIC=SBM authoritative restart state is inadmissible.*level=0.*population=0.*bin=0.*constraint=canonical-two-moment-bin-state"
       -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunAuthoritativeRestartFailure.cmake)
   set_tests_properties(SBM_Inadmissible_2M_Restart PROPERTIES
     LABELS "integration;sbm;negative"

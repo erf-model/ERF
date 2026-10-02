@@ -8,6 +8,7 @@
 
 #include "ERF_SBMConstraintGroups.H"
 #include "ERF_SBMBulkProjection.H"
+#include "ERF_SBMFixtureValidation.H"
 #include "ERF_SBMOwnership.H"
 #include "ERF_SBMRestart.H"
 #include "ERF_SBMStateManager.H"
@@ -31,7 +32,7 @@ using amrex::DistributionMapping;
 using amrex::MultiFab;
 using amrex::Real;
 
-erf_sbm::SpectralGridSpec make_grid(const int nbins, const Real edge_scale = Real(1.0))
+erf_sbm::SpectralGridSpec make_grid (const int nbins, const Real edge_scale = Real(1.0))
 {
     erf_sbm::SpectralGridSpec grid;
     grid.coordinate_kind = erf_sbm::CoordinateKind::Mass;
@@ -48,7 +49,7 @@ erf_sbm::SpectralGridSpec make_grid(const int nbins, const Real edge_scale = Rea
     return grid;
 }
 
-erf_sbm::SpectralPopulationSpec make_population(
+erf_sbm::SpectralPopulationSpec make_population (
     const int population_id, const int nbins,
     const erf_sbm::MomentMode moment = erf_sbm::MomentMode::OneMoment,
     const Real edge_scale = Real(1.0))
@@ -63,8 +64,8 @@ erf_sbm::SpectralPopulationSpec make_population(
     return population;
 }
 
-erf_sbm::AttachedPropertyDescriptor make_property(const std::string& name,
-                                                  const int carrier_population)
+erf_sbm::AttachedPropertyDescriptor make_property (const std::string& name,
+                                                   const int carrier_population)
 {
     erf_sbm::AttachedPropertyDescriptor property;
     property.name = name;
@@ -79,7 +80,7 @@ erf_sbm::AttachedPropertyDescriptor make_property(const std::string& name,
     return property;
 }
 
-erf_sbm::SBMLayout make_layout(
+erf_sbm::SBMLayout make_layout (
     const int nbins = 4,
     const erf_sbm::MomentMode moment = erf_sbm::MomentMode::OneMoment,
     const int split = -1,
@@ -93,19 +94,19 @@ erf_sbm::SBMLayout make_layout(
     return erf_sbm::SBMLayout(std::move(spec));
 }
 
-BoxArray make_boxes()
+BoxArray make_boxes ()
 {
     return BoxArray(Box(amrex::IntVect(0), amrex::IntVect(1)));
 }
 
-Real max_component_norm(const MultiFab& mf, const int ncomp)
+Real max_component_norm (const MultiFab& mf, const int ncomp)
 {
     Real result = Real(0.0);
     for (int comp = 0; comp < ncomp; ++comp) result = std::max(result, mf.norm0(comp));
     return result;
 }
 
-Real first_valid_value(const MultiFab& mf, const int component)
+Real first_valid_value (const MultiFab& mf, const int component)
 {
     amrex::MFIter mfi(mf);
     if (mfi.isValid()) {
@@ -166,6 +167,50 @@ TEST(SBMFoundation, ConstraintGroupsAreAtomicAndRuntimeSized)
     EXPECT_TRUE(synthetic.admissible({Real(1.0), Real(2.0), Real(1.0)}, &margin));
     EXPECT_DOUBLE_EQ(margin, Real(4.0));
     EXPECT_FALSE(synthetic.admissible({Real(0.0), Real(0.0), Real(1.0)}));
+}
+
+TEST(SBMFoundation, FixtureInitialStateCanonicalityCoversOneMoment)
+{
+    const auto layout = make_layout(4, erf_sbm::MomentMode::OneMoment);
+    const auto& population = layout.populations().front();
+    constexpr int bin = 1;
+    const Real tiny = std::numeric_limits<Real>::denorm_min();
+    ASSERT_GT(tiny, Real(0.0));
+    ASSERT_GT(population.grid.pivot(bin), Real(2.0));
+    ASSERT_EQ(tiny / population.grid.pivot(bin), Real(0.0));
+
+    std::vector<Real> candidate(static_cast<std::size_t>(layout.ncomp()), Real(0.0));
+    candidate[static_cast<std::size_t>(population.mass_offset + bin)] = tiny;
+    for (const auto& group : erf_sbm::make_constraint_groups(layout)) {
+        EXPECT_TRUE(group.admissible(candidate));
+    }
+
+    // The audited two-moment-only startup loop skips this 1M population, so
+    // it accepts the candidate after the generic linear constraints above.
+    bool legacy_two_moment_dispatch_accepts = true;
+    for (const auto& current_population : layout.populations()) {
+        if (current_population.moment_mode != erf_sbm::MomentMode::TwoMoment) continue;
+        const auto view = erf_sbm::population_remap_view(
+            layout, current_population.population_id);
+        for (int current_bin = 0; current_bin < current_population.grid.nbins(); ++current_bin) {
+            legacy_two_moment_dispatch_accepts = legacy_two_moment_dispatch_accepts &&
+                erf_sbm::remap_detail::canonical_two_moment_bin_state(
+                    view, current_bin, candidate.data(), static_cast<int>(candidate.size()));
+        }
+    }
+    EXPECT_TRUE(legacy_two_moment_dispatch_accepts);
+
+    const auto rejected = erf_sbm::validate_fixture_initial_state_canonicality(
+        layout, candidate);
+    EXPECT_FALSE(rejected.canonical);
+    EXPECT_EQ(rejected.population_id, population.population_id);
+    EXPECT_EQ(rejected.bin, bin);
+    EXPECT_EQ(rejected.moment_mode, erf_sbm::MomentMode::OneMoment);
+
+    std::vector<Real> valid_candidate(static_cast<std::size_t>(layout.ncomp()), Real(1.0e-6));
+    const auto accepted = erf_sbm::validate_fixture_initial_state_canonicality(
+        layout, valid_candidate);
+    EXPECT_TRUE(accepted.canonical);
 }
 
 TEST(SBMFoundation, FixedBulkProjectionIsLinearAndNonMutating)
@@ -298,30 +343,82 @@ TEST(SBMFoundation, AuthoritativeRestartValidationUsesRuntimeConstraintGroups)
     EXPECT_TRUE(erf_sbm::authoritative_state_admissible(
         two_moment, two_moment_layout, 0, &diagnostic)) << "lower endpoint: " << diagnostic;
     two_moment.setVal(Real(2.0), mass, 1, 0);
-    EXPECT_TRUE(erf_sbm::authoritative_state_admissible(
-        two_moment, two_moment_layout, 0, &diagnostic)) << "upper endpoint: " << diagnostic;
+    EXPECT_FALSE(erf_sbm::authoritative_state_admissible(
+        two_moment, two_moment_layout, 0, &diagnostic));
+    EXPECT_NE(diagnostic.find("constraint=canonical-two-moment-bin-state"), std::string::npos);
 
+    two_moment.setVal(Real(0.0));
+    two_moment.setVal(Real(2.0), mass + 1, 1, 0);
+    two_moment.setVal(Real(1.0), number + 1, 1, 0);
+    EXPECT_TRUE(erf_sbm::authoritative_state_admissible(
+        two_moment, two_moment_layout, 0, &diagnostic)) << "upper-owned shared edge: " << diagnostic;
+
+    two_moment.setVal(Real(0.0));
+    two_moment.setVal(Real(5.0), mass + 3, 1, 0);
+    two_moment.setVal(Real(1.0), number + 3, 1, 0);
+    EXPECT_TRUE(erf_sbm::authoritative_state_admissible(
+        two_moment, two_moment_layout, 0, &diagnostic)) << "global top endpoint: " << diagnostic;
+
+    two_moment.setVal(Real(0.0));
+    two_moment.setVal(Real(1.0), number, 1, 0);
     two_moment.setVal(Real(0.9), mass, 1, 0);
     EXPECT_FALSE(erf_sbm::authoritative_state_admissible(
         two_moment, two_moment_layout, 0, &diagnostic));
-    EXPECT_NE(diagnostic.find("constraint=endpoint_high"), std::string::npos);
+    EXPECT_NE(diagnostic.find("constraint=canonical-two-moment-bin-state"), std::string::npos);
 
+    two_moment.setVal(Real(0.0), mass, 1, 0);
     two_moment.setVal(Real(2.1), mass, 1, 0);
     EXPECT_FALSE(erf_sbm::authoritative_state_admissible(
         two_moment, two_moment_layout, 0, &diagnostic));
-    EXPECT_NE(diagnostic.find("constraint=endpoint_low"), std::string::npos);
+    EXPECT_NE(diagnostic.find("constraint=canonical-two-moment-bin-state"), std::string::npos);
 
     two_moment.setVal(Real(1.5), mass, 1, 0);
     two_moment.setVal(Real(0.0), number, 1, 0);
     EXPECT_FALSE(erf_sbm::authoritative_state_admissible(
         two_moment, two_moment_layout, 0, &diagnostic));
-    EXPECT_NE(diagnostic.find("constraint=endpoint_low"), std::string::npos);
+    EXPECT_NE(diagnostic.find("constraint=canonical-two-moment-bin-state"), std::string::npos);
 
     two_moment.setVal(Real(0.0));
     EXPECT_TRUE(erf_sbm::authoritative_state_admissible(
         two_moment, two_moment_layout, 0, &diagnostic)) << "all-zero state: " << diagnostic;
 
-    two_moment.setVal(std::numeric_limits<Real>::quiet_NaN(), mass, 1, 0);
+    auto property_layout_spec = erf_sbm::SBMLayoutSpec{};
+    auto attached_population = make_population(0, 4, erf_sbm::MomentMode::TwoMoment);
+    property_layout_spec.populations.push_back(std::move(attached_population));
+    property_layout_spec.liquid_projection = {0, 2};
+    property_layout_spec.attached_properties = {make_property("coating", 0)};
+    const erf_sbm::SBMLayout property_layout(std::move(property_layout_spec));
+    MultiFab property_state(boxes, mapping, property_layout.ncomp(), 0);
+    property_state.setVal(Real(0.0));
+    const int property_mass = property_layout.populations()[0].mass_offset;
+    const int property_number = property_layout.populations()[0].number_offset;
+    const int coating = property_layout.property_offset(0);
+    const Real tiny = std::numeric_limits<Real>::denorm_min();
+    ASSERT_GT(tiny, Real(0.0));
+    property_state.setVal(Real(2.0), property_mass, 1, 0);
+    property_state.setVal(Real(2.0), property_number, 1, 0);
+    property_state.setVal(tiny, coating, 1, 0);
+    ASSERT_EQ(tiny / first_valid_value(property_state, property_number), Real(0.0));
+   EXPECT_FALSE(erf_sbm::authoritative_state_admissible(
+       property_state, property_layout, 0, &diagnostic));
+   EXPECT_NE(diagnostic.find("constraint=canonical-two-moment-bin-state"), std::string::npos);
+
+    auto one_property_spec = erf_sbm::SBMLayoutSpec{};
+    auto one_property_population = make_population(0, 4, erf_sbm::MomentMode::OneMoment);
+    one_property_spec.populations.push_back(std::move(one_property_population));
+    one_property_spec.liquid_projection = {0, 2};
+    one_property_spec.attached_properties = {make_property("coating", 0)};
+    const erf_sbm::SBMLayout one_property_layout(std::move(one_property_spec));
+    MultiFab one_property_state(boxes, mapping, one_property_layout.ncomp(), 0);
+    one_property_state.setVal(Real(0.0));
+    one_property_state.setVal(Real(6.0),
+        one_property_layout.populations()[0].mass_offset, 1, 0);
+    one_property_state.setVal(tiny, one_property_layout.property_offset(0), 1, 0);
+    EXPECT_FALSE(erf_sbm::authoritative_state_admissible(
+        one_property_state, one_property_layout, 0, &diagnostic));
+    EXPECT_NE(diagnostic.find("constraint=canonical-one-moment-bin-state"), std::string::npos);
+
+   two_moment.setVal(std::numeric_limits<Real>::quiet_NaN(), mass, 1, 0);
     EXPECT_FALSE(erf_sbm::authoritative_state_admissible(
         two_moment, two_moment_layout, 0, &diagnostic));
     EXPECT_NE(diagnostic.find("constraint=finite"), std::string::npos);
@@ -331,6 +428,23 @@ TEST(SBMFoundation, AuthoritativeRestartValidationUsesRuntimeConstraintGroups)
     EXPECT_FALSE(erf_sbm::authoritative_state_admissible(
         two_moment, two_moment_layout, 0, &diagnostic));
     EXPECT_NE(diagnostic.find("constraint=finite"), std::string::npos);
+
+    auto zero_lower_population = make_population(0, 2, erf_sbm::MomentMode::TwoMoment);
+    zero_lower_population.grid.edges = {Real(0.0), Real(1.0), Real(2.0)};
+    zero_lower_population.grid.pivots = {Real(0.5), Real(1.5)};
+    erf_sbm::SBMLayoutSpec zero_lower_spec;
+    zero_lower_spec.populations.push_back(std::move(zero_lower_population));
+    zero_lower_spec.liquid_projection = {0, 1};
+    const erf_sbm::SBMLayout zero_lower_layout(std::move(zero_lower_spec));
+    MultiFab zero_lower(boxes, mapping, zero_lower_layout.ncomp(), 0);
+    zero_lower.setVal(Real(0.0));
+    zero_lower.setVal(Real(1.0), zero_lower_layout.populations()[0].number_offset, 1, 0);
+    EXPECT_FALSE(erf_sbm::authoritative_state_admissible(
+        zero_lower, zero_lower_layout, 0, &diagnostic));
+    EXPECT_NE(diagnostic.find("constraint=canonical-two-moment-bin-state"), std::string::npos);
+    zero_lower.setVal(std::numeric_limits<Real>::epsilon(), 0, 1, 0);
+    EXPECT_TRUE(erf_sbm::authoritative_state_admissible(
+        zero_lower, zero_lower_layout, 0, &diagnostic)) << diagnostic;
 }
 
 TEST(SBMFoundation, ZeroAndNonzeroFixtureStatesRemainIdentityAndProject)

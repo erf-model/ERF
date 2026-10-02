@@ -78,7 +78,7 @@ int main(int argc, char** argv)
         spectrum.setVal(amrex::Real(1.0e10), number, 1, 0);
         require(!erf_sbm::authoritative_state_admissible(spectrum, layout, 0, &diagnostic),
                 "corrupted number moment remained admissible");
-        require(diagnostic.find("constraint=endpoint_low") != std::string::npos,
+        require(diagnostic.find("constraint=canonical-two-moment-bin-state") != std::string::npos,
                 "number corruption did not violate the expected upper endpoint: " + diagnostic);
         require(erf_sbm::restart_projection_matches(
                     spectrum, core, projection, RhoQ2_comp, RhoQ3_comp),
@@ -91,7 +91,7 @@ int main(int argc, char** argv)
         amrex::VisMF::Read(reread, spectrum_prefix);
         require(!erf_sbm::authoritative_state_admissible(reread, layout, 0, &diagnostic),
                 "written number corruption was not preserved: " + diagnostic);
-        require(diagnostic.find("constraint=endpoint_low") != std::string::npos,
+        require(diagnostic.find("constraint=canonical-two-moment-bin-state") != std::string::npos,
                 "written corruption failed for an unexpected constraint: " + diagnostic);
         require(erf_sbm::restart_projection_matches(
                     reread, core, projection, RhoQ2_comp, RhoQ3_comp),

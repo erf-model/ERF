@@ -1,0 +1,193 @@
+name: CancelStaleCI
+
+# Cancels CI that nobody is waiting for any more.
+#
+# GitHub does not stop a PR's builds when it is merged, and it does not stop
+# the previous commit's builds when a new one arrives. The concurrency groups
+# are supposed to handle the second case, but they cannot do it under load:
+# a run that is still "pending" has not had its jobs evaluated yet, so it
+# never applies its concurrency group. Exactly when the queue is long enough
+# to matter, the run that is meant to cancel its predecessor is itself stuck
+# behind it. The erf-model org is capped at 20 concurrent jobs, so this is
+# the normal case rather than the rare one.
+#
+# Cancelling over the API needs a single runner slot and does not have that
+# problem.
+#
+# The cancellation rule is monotonic: an event may only cancel runs created
+# BEFORE it, never after. So under a backed-up queue the canceller for an
+# older commit can leave stale work behind for the next canceller, but it can
+# never kill a newer commit's CI. Everything here runs with fork-supplied
+# values (branch names in particular can contain shell metacharacters), so
+# the logic lives in github-script where the payload is data, not shell text.
+
+on:
+  workflow_run:
+    # "requested" fires when the beacon run is *created*, so this workflow
+    # queues immediately instead of waiting for the noop beacon to win a
+    # runner slot first -- under saturation that would be two trips through
+    # the queue. It also does not fire on manual re-runs of old beacons.
+    workflows: [PostPR, PRSync]
+    types:
+      - requested
+
+jobs:
+  CancelStaleCI:
+    name: Cancel stale CI runs
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    permissions:
+      actions: write
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Cancel runs this PR no longer needs
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const trigger = context.payload.workflow_run;
+            const isClose = trigger.name === 'PostPR';
+
+            if (!trigger.head_repository) {
+              // The fork can be deleted between the event and this run; with
+              // no way to pin the runs to a source repo, cancel nothing.
+              core.warning('Triggering run has no head repository; not cancelling anything.');
+              return;
+            }
+
+            const sourceRepoId = trigger.head_repository.id;
+            const sourceOwner  = trigger.head_repository.owner.login;
+            const branch       = trigger.head_branch;
+            const triggerSha   = trigger.head_sha;
+            const cutoff       = new Date(trigger.created_at);
+
+            if (isClose) {
+              // A close event can be arbitrarily stale by the time it gets a
+              // runner: the PR may have been reopened, or the fork branch
+              // reused for a new PR. Re-read the PR state now and stand down
+              // if anything from this fork+branch is open again. (The
+              // monotonic cutoff below already protects a genuinely new PR's
+              // runs, but not a reopened PR's still-queued original runs.)
+              const prs = await github.paginate(github.rest.pulls.list, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                head: `${sourceOwner}:${branch}`,
+                per_page: 100,
+              });
+              if (prs.some(pr => pr.head.repo && pr.head.repo.id === sourceRepoId)) {
+                core.info(`A PR from ${sourceOwner}:${branch} is open again; not cancelling anything.`);
+                return;
+              }
+              core.info(`PR closed -- cancelling unfinished runs for ${sourceOwner}:${branch} older than this event`);
+            } else {
+              core.info(`New commit ${triggerSha} on ${sourceOwner}:${branch} -- cancelling older unfinished runs`);
+            }
+
+            // Only these may ever be cancelled. The beacons (PostPR, PRSync)
+            // are deliberately absent -- stale ones are 15-second noops --
+            // and so is everything else: this mechanism must not be able to
+            // touch deployment, cache-maintenance, or manually dispatched
+            // runs. A new CI workflow must be added here to be covered.
+            const allowedPaths = new Set([
+              '.github/workflows/ci.yml',
+              '.github/workflows/codespell.yml',
+              '.github/workflows/cuda-ci.yml',
+              '.github/workflows/docs.yml',
+              '.github/workflows/gcc-rrtmgp.yml',
+              '.github/workflows/gcc.yml',
+              '.github/workflows/hip.yml',
+              '.github/workflows/macos.yml',
+              '.github/workflows/style.yml',
+              '.github/workflows/sycl.yml',
+              '.github/workflows/windows-mpi.yml',
+              '.github/workflows/windows.yml',
+            ]);
+
+            // The branch parameter filters on head_branch only, so two forks
+            // with the same branch name -- or a fork branch named
+            // "development" colliding with push runs on the real development
+            // -- land in the same listing. The head_repository.id and event
+            // checks below are what actually scope this to the one PR.
+            const runs = await github.paginate(github.rest.actions.listWorkflowRunsForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              branch,
+              per_page: 100,
+            });
+
+            const stale = runs.filter(run =>
+              run.event === 'pull_request'
+              && run.head_repository && run.head_repository.id === sourceRepoId
+              && run.head_branch === branch
+              && allowedPaths.has(run.path)
+              && run.status !== 'completed'
+              && new Date(run.created_at) <= cutoff
+              && (isClose || run.head_sha !== triggerSha)
+            );
+
+            if (stale.length === 0) {
+              core.info('Nothing to cancel.');
+              return;
+            }
+
+            let failures = 0;
+            const cancelled = [];
+            for (const run of stale) {
+              try {
+                await github.rest.actions.cancelWorkflowRun({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  run_id: run.id,
+                });
+                core.info(`Cancelled run ${run.id} (${run.path} @ ${run.head_sha})`);
+                cancelled.push(run);
+              } catch (error) {
+                // 409: the run reached a terminal state on its own between
+                // the listing and the cancel. Anything else is a real
+                // problem and must fail visibly, not no-op green.
+                if (error.status === 409) {
+                  core.info(`Run ${run.id} already finished`);
+                } else {
+                  core.warning(`Could not cancel run ${run.id}: ${error.message}`);
+                  failures++;
+                }
+              }
+            }
+
+            // A cancel is only a request: a run whose jobs have not been
+            // evaluated yet (deeply queued under org saturation) can accept
+            // the cancel and then sit in "queued" indefinitely. Give the
+            // normal path a minute, then force-cancel whatever is left.
+            if (cancelled.length > 0) {
+              await new Promise(resolve => setTimeout(resolve, 60000));
+              for (const run of cancelled) {
+                try {
+                  const { data: current } = await github.rest.actions.getWorkflowRun({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    run_id: run.id,
+                  });
+                  if (current.status === 'completed') {
+                    continue;
+                  }
+                  await github.request('POST /repos/{owner}/{repo}/actions/runs/{run_id}/force-cancel', {
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    run_id: run.id,
+                  });
+                  core.info(`Force-cancelled run ${run.id} (${run.path})`);
+                } catch (error) {
+                  if (error.status === 409) {
+                    core.info(`Run ${run.id} finished before force-cancel`);
+                  } else {
+                    core.warning(`Could not force-cancel run ${run.id}: ${error.message}`);
+                    failures++;
+                  }
+                }
+              }
+            }
+
+            if (failures > 0) {
+              core.setFailed(`${failures} run(s) could not be cancelled`);
+            }

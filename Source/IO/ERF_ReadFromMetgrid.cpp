@@ -28,7 +28,7 @@ canonicalize_metgrid_missing_values (const std::string& fname,
         auto ncf = ncutils::NCFile::open(fname, NC_NOWRITE);
         if (ncf.has_var(variable_name)) {
             const auto variable = ncf.var(variable_name);
-            for (const std::string& attr_name : {"_FillValue", "missing_value"}) {
+            for (const char* attr_name : {"_FillValue", "missing_value"}) {
                 if (!variable.has_attr(attr_name)) { continue; }
                 std::vector<double> values;
                 variable.get_attr(attr_name, values);
@@ -82,7 +82,7 @@ canonicalize_metgrid_missing_values (const std::string& fname,
 } // namespace
 
 Box
-read_subdomain_from_metgrid(int /*lev*/, const std::string& fname, int& ratio, int& klo, int& khi)
+read_subdomain_from_metgrid (int /*lev*/, const std::string& fname, int& ratio, int& klo, int& khi)
 {
     int is, js;
     int nx, ny, nz;

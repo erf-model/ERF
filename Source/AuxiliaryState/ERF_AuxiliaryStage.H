@@ -39,6 +39,18 @@ struct AuxiliaryStageRecipe {
     double completed_ledger_time{0.0};
 };
 
+enum class AuxiliaryFieldValidationPolicy {
+    /** Perform global positive-density and finite-result validation. */
+    Global,
+    /**
+     * Skip global checks. The caller guarantees every input state value is
+     * finite, density is finite and strictly positive, and each state/density
+     * quotient is finite and representable in amrex::Real. No global
+     * reduction is performed by this policy.
+     */
+    AssumeValid
+};
+
 /** Semantic host and state views at the pre-overwrite slow-RHS post seam. */
 struct AuxiliaryStageContext {
     HostIntegrator method{HostIntegrator::CompressibleRK3};
@@ -67,50 +79,54 @@ struct AuxiliaryStageContext {
 };
 
 /** Return the explicit ERF recurrence recipe for one supported host stage. */
-bool MakeAuxiliaryStageRecipe(HostIntegrator method,
-                              int stage,
-                              double host_stage_interval,
-                              AuxiliaryStageRecipe& recipe,
-                              std::string& diagnostic);
+bool MakeAuxiliaryStageRecipe (HostIntegrator method,
+                               int stage,
+                               double host_stage_interval,
+                               AuxiliaryStageRecipe& recipe,
+                               std::string& diagnostic);
 
 /** Form z=U_input/rho_input from the explicit input-time views. */
-bool BuildAuxiliaryIntensiveState(const ConstTimedFieldView& state_input,
-                                  const ConstTimedFieldView& rho_input,
-                                  double input_time,
-                                  amrex::MultiFab& intensive,
-                                  std::string& diagnostic);
+bool BuildAuxiliaryIntensiveState (const ConstTimedFieldView& state_input,
+                                   const ConstTimedFieldView& rho_input,
+                                   double input_time,
+                                   amrex::MultiFab& intensive,
+                                   AuxiliaryFieldValidationPolicy validation,
+                                   std::string& diagnostic);
 
-const char* HostIntegratorName(HostIntegrator method) noexcept;
+const char* HostIntegratorName (HostIntegrator method) noexcept;
 
 /** Apply H_target = a H_anchor + b H_input - c D_xi(F_rate). */
-void ApplyAuxiliaryMappedStage(const AuxiliaryStageContext& context,
-                               const MappedFaceFluxRate& rate,
-                               const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dx_inv,
-                               int rate_component = 0);
+void ApplyAuxiliaryMappedStage (const AuxiliaryStageContext& context,
+                                const MappedFaceFluxRate& rate,
+                                const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dx_inv,
+                                int rate_component = 0);
+
+/** Whether the mutable stage target is a distinct MultiFab from both inputs. */
+bool AuxiliaryStageTargetIsDisjoint (const AuxiliaryStageContext& context);
 
 /** Completed-step time integral of accepted mapped face rates and stage order. */
 class CompletedStepFluxLedger {
 public:
-    CompletedStepFluxLedger() = default;
-    CompletedStepFluxLedger(const CompletedStepFluxLedger&) = delete;
-    CompletedStepFluxLedger& operator=(const CompletedStepFluxLedger&) = delete;
+    CompletedStepFluxLedger () = default;
+    CompletedStepFluxLedger (const CompletedStepFluxLedger&) = delete;
+    CompletedStepFluxLedger& operator= (const CompletedStepFluxLedger&) = delete;
 
-    void define(const amrex::BoxArray& cell_ba,
-                const amrex::DistributionMapping& dm,
-                int ncomp = 1);
+    void define (const amrex::BoxArray& cell_ba,
+                 const amrex::DistributionMapping& dm,
+                 int ncomp = 1);
 
-    bool accept_stage(HostIntegrator method,
-                      int stage,
-                      double step_old_time,
-                      const AuxiliaryStageRecipe& recipe,
-                      const MappedFaceFluxRate& rate,
-                      std::string& diagnostic);
+    bool accept_stage (HostIntegrator method,
+                       int stage,
+                       double step_old_time,
+                       const AuxiliaryStageRecipe& recipe,
+                       const MappedFaceFluxRate& rate,
+                       std::string& diagnostic);
 
-    [[nodiscard]] bool is_defined() const noexcept { return m_integral.is_defined(); }
-    [[nodiscard]] bool step_active() const noexcept { return m_step_active; }
-    [[nodiscard]] bool step_complete() const noexcept { return m_step_complete; }
-    [[nodiscard]] int next_stage() const noexcept { return m_next_stage; }
-    [[nodiscard]] const IntegratedMappedFaceFlux& integrated_flux() const noexcept {
+    [[nodiscard]] bool is_defined () const noexcept { return m_integral.is_defined(); }
+    [[nodiscard]] bool step_active () const noexcept { return m_step_active; }
+    [[nodiscard]] bool step_complete () const noexcept { return m_step_complete; }
+    [[nodiscard]] int next_stage () const noexcept { return m_next_stage; }
+    [[nodiscard]] const IntegratedMappedFaceFlux& integrated_flux () const noexcept {
         return m_integral;
     }
 

@@ -1,4 +1,5 @@
 #include <cmath>
+#include <filesystem>
 #include <fstream>
 #include <limits>
 #include <sstream>
@@ -22,6 +23,7 @@
 #include "ERF_ObsNudging.H"
 #include "ERF_ObsNudgingKernel.H"
 #include "ERF_ObsNudgingSeries.H"
+#include "../ERF_GTestTempDir.H"
 
 // Observation nudging: the station file, the profiles it gives at a moment of
 // the run, the tendency at a point, where the tendency lands on the staggered
@@ -467,8 +469,12 @@ const char* profile_file =
 
 TEST(ObsNudgingSources, LandOnEveryFaceOverFlatGround)
 {
-    write_file("erf_unit_obs_nudging_flat.txt", profile_file);
-    set_inputs("erf_unit_obs_nudging_flat.txt", Real(1.0e8), Real(25.0), Real(10.0));
+    // Per-process scratch name (see ERF_GTestTempDir.H): ctest -j runs this test and
+    // erf_unit_tests_shuffle_repeat at once, and a fixed name in the working directory
+    // let one rewrite the file the other was reading. Made on every rank.
+    const std::string scratch_file = (erf_gtest_temp_path("erf_unit_obs_nudging_flat").string() + ".txt");
+    write_file(scratch_file, profile_file);
+    set_inputs(scratch_file, Real(1.0e8), Real(25.0), Real(10.0));
 
     ObsNudging nudging(TerrainType::None, nullptr, false, 0.0);
     Grid g;
@@ -501,15 +507,21 @@ TEST(ObsNudgingSources, LandOnEveryFaceOverFlatGround)
     }
     // w on the top of the domain is set by the boundary condition
     EXPECT_EQ(a_w(3,3,8), Real(0.0));
+    amrex::ParallelDescriptor::Barrier();
+    if (amrex::ParallelDescriptor::IOProcessor()) { std::filesystem::remove(scratch_file); }
 }
 
 TEST(ObsNudgingSources, SitOnTheStaggeredPositions)
 {
+    // Per-process scratch name (see ERF_GTestTempDir.H): ctest -j runs this test and
+    // erf_unit_tests_shuffle_repeat at once, and a fixed name in the working directory
+    // let one rewrite the file the other was reading. Made on every rank.
+    const std::string scratch_file = (erf_gtest_temp_path("erf_unit_obs_nudging_faces").string() + ".txt");
     // A station 100 m wide at (400, 400): each component's weight depends on
     // where its face is, u at (i dx, (j+1/2) dy), v at ((i+1/2) dx, j dy), w and
     // theta at the cell centre column
-    write_file("erf_unit_obs_nudging_faces.txt", profile_file);
-    set_inputs("erf_unit_obs_nudging_faces.txt", Real(100.0), Real(25.0), Real(10.0));
+    write_file(scratch_file, profile_file);
+    set_inputs(scratch_file, Real(100.0), Real(25.0), Real(10.0));
 
     ObsNudging nudging(TerrainType::None, nullptr, false, 0.0);
     Grid g;
@@ -531,16 +543,22 @@ TEST(ObsNudgingSources, SitOnTheStaggeredPositions)
     // w face and cell (3,3): x = 350, y = 350
     EXPECT_NEAR(g.sw.const_array(0)(3,3,2), Real(0.1)*w(Real(50.0), Real(50.0)), ftol);
     EXPECT_NEAR(g.scc.const_array(0)(3,3,2,RhoTheta_comp), Real(0.2)*w(Real(50.0), Real(50.0)), ftol);
+    amrex::ParallelDescriptor::Barrier();
+    if (amrex::ParallelDescriptor::IOProcessor()) { std::filesystem::remove(scratch_file); }
 }
 
 TEST(ObsNudgingSources, MeasureHeightsFromTheBottomOfAFittedMesh)
 {
+    // Per-process scratch name (see ERF_GTestTempDir.H): ctest -j runs this test and
+    // erf_unit_tests_shuffle_repeat at once, and a fixed name in the working directory
+    // let one rewrite the file the other was reading. Made on every rank.
+    const std::string scratch_file = (erf_gtest_temp_path("erf_unit_obs_nudging_fitted").string() + ".txt");
     // A profile only between 0 and 50 m above the ground, which slopes up in x
     // (h = 20 + 0.1 x), and a vertical radius of 5 m: cells whose centre is
     // more than a few radii above 50 m above the ground are not nudged
-    write_file("erf_unit_obs_nudging_fitted.txt",
+    write_file(scratch_file,
                "time z u v\n0 0 2 0\n0 50 2 0\n");
-    set_inputs("erf_unit_obs_nudging_fitted.txt", Real(1.0e8), Real(5.0), Real(10.0));
+    set_inputs(scratch_file, Real(1.0e8), Real(5.0), Real(10.0));
 
     ObsNudging nudging(TerrainType::StaticFittedMesh, nullptr, false, 0.0);
     Grid g;
@@ -568,12 +586,18 @@ TEST(ObsNudgingSources, MeasureHeightsFromTheBottomOfAFittedMesh)
             EXPECT_NEAR(a_u(i,4,k), expected, Real(1.0e-6)) << "i " << i << " k " << k << " ground " << ground;
         }
     }
+    amrex::ParallelDescriptor::Barrier();
+    if (amrex::ParallelDescriptor::IOProcessor()) { std::filesystem::remove(scratch_file); }
 }
 
 TEST(ObsNudgingSources, SkipCellsInsideImmersedTerrain)
 {
-    write_file("erf_unit_obs_nudging_blank.txt", profile_file);
-    set_inputs("erf_unit_obs_nudging_blank.txt", Real(1.0e8), Real(25.0), Real(10.0));
+    // Per-process scratch name (see ERF_GTestTempDir.H): ctest -j runs this test and
+    // erf_unit_tests_shuffle_repeat at once, and a fixed name in the working directory
+    // let one rewrite the file the other was reading. Made on every rank.
+    const std::string scratch_file = (erf_gtest_temp_path("erf_unit_obs_nudging_blank").string() + ".txt");
+    write_file(scratch_file, profile_file);
+    set_inputs(scratch_file, Real(1.0e8), Real(25.0), Real(10.0));
 
     ObsNudging nudging(TerrainType::None, nullptr, false, 0.0);
     Grid g;
@@ -599,14 +623,20 @@ TEST(ObsNudgingSources, SkipCellsInsideImmersedTerrain)
     EXPECT_NEAR(a_u(3,3,3), full, Real(1.0e-6));
     EXPECT_EQ(a_t(3,3,1,RhoTheta_comp), Real(0.0));
     EXPECT_NEAR(a_t(3,3,3,RhoTheta_comp), Real(2.0)*Real(1.0)/Real(10.0), Real(1.0e-6));
+    amrex::ParallelDescriptor::Barrier();
+    if (amrex::ParallelDescriptor::IOProcessor()) { std::filesystem::remove(scratch_file); }
 }
 
 TEST(ObsNudgingSources, FollowTheFileInTime)
 {
+    // Per-process scratch name (see ERF_GTestTempDir.H): ctest -j runs this test and
+    // erf_unit_tests_shuffle_repeat at once, and a fixed name in the working directory
+    // let one rewrite the file the other was reading. Made on every rank.
+    const std::string scratch_file = (erf_gtest_temp_path("erf_unit_obs_nudging_time").string() + ".txt");
     // Elapsed time: the target at t = 30 is a third of the way from 2 to 5
-    write_file("erf_unit_obs_nudging_time.txt",
+    write_file(scratch_file,
                "time z u v\n0 0 2 0\n0 400 2 0\n90 0 5 0\n90 400 5 0\n");
-    set_inputs("erf_unit_obs_nudging_time.txt", Real(1.0e8), Real(25.0), Real(10.0));
+    set_inputs(scratch_file, Real(1.0e8), Real(25.0), Real(10.0));
 
     ObsNudging nudging(TerrainType::None, nullptr, false, 0.0);
     Grid g;
@@ -623,4 +653,6 @@ TEST(ObsNudgingSources, FollowTheFileInTime)
                                  g.su, g.sv, g.sw, nullptr, nullptr, nullptr, nullptr);
     amrex::Gpu::streamSynchronize();
     EXPECT_EQ(g.su.const_array(0)(3,3,3), Real(0.0));
+    amrex::ParallelDescriptor::Barrier();
+    if (amrex::ParallelDescriptor::IOProcessor()) { std::filesystem::remove(scratch_file); }
 }

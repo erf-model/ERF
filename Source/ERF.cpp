@@ -236,7 +236,7 @@ ERF::Evolve ()
 }
 
 void
-ERF::WriteAtIntermediateTime(int step, double cur_time)
+ERF::WriteAtIntermediateTime (int step, double cur_time)
 {
     int plotfiles_3d_written = 0;
     bool interval_diagnostic_consumed = false;
@@ -293,7 +293,7 @@ ERF::WriteAtIntermediateTime(int step, double cur_time)
 }
 
 void
-ERF::WriteAtFinalTime()
+ERF::WriteAtFinalTime ()
 {
     // Write plotfiles at final time
     int plotfiles_3d_written = 0;
@@ -394,6 +394,122 @@ ERF::rad_level_needs_interpolation (int lev) const
     return false;
 }
 
+// Two-way coupling of the two-stream surface energy balance with the zlo surface layer
+// (erf.radiation.seb_surface_layer_uses_skin): the surface layer takes its land surface
+// temperature from the balance's skin temperature, so the heat flux it applies -- and the
+// balance removes -- responds to the skin. Called before every update_fluxes on the zlo
+// face, and it sets the pointer every time, since RemakeLevel reallocates the skin field.
+//
+// A level that takes its radiation from its parent never evolves a skin of its own (see
+// rad_level_needs_interpolation), so its surface layer keeps its own temperature there.
+// That is warned once per level each time a level stops coupling, so a regrid that turns
+// another level into a nested patch is reported too.
+void
+ERF::set_surface_layer_skin (int lev)
+{
+    SurfaceLayer* surface_layer = m_SurfaceLayer[Orientation::zlo()].get();
+    if (!surface_layer) { return; }
+    if (solverChoice.rad_type != RadiationType::TwoStream ||
+        !solverChoice.radChoice.seb_surface_layer_uses_skin) {
+        surface_layer->set_skin_temperature(lev, nullptr);
+        return;
+    }
+    // The initial update_fluxes runs inside InitData_post, before InitData's own call.
+    if (!m_seb_surface_layer_checked) { check_seb_surface_layer(); }
+    if (lev >= static_cast<int>(m_skin_uncoupled_warned.size())) {
+        m_skin_uncoupled_warned.resize(lev + 1, 0);
+    }
+    if (rad_level_needs_interpolation(lev)) {
+        if (!m_skin_uncoupled_warned[lev]) {
+            Print() << "WARNING: erf.radiation.seb_surface_layer_uses_skin: level " << lev
+                    << " takes its radiation from its parent and evolves no skin temperature, "
+                       "so its surface layer keeps its own surface temperature.\n";
+            m_skin_uncoupled_warned[lev] = 1;
+        }
+        surface_layer->set_skin_temperature(lev, nullptr);
+        return;
+    }
+    m_skin_uncoupled_warned[lev] = 0;
+    surface_layer->set_skin_temperature(lev, two_stream_rad.seb_t_sfc(lev));
+}
+
+// Start-up checks of the two-stream balance's coupling with the zlo surface layer, run
+// once: from InitData, from scratch and on restart alike (which is what catches a two-way
+// run with no zlo surface layer, where set_surface_layer_skin is never called), or from
+// the first set_surface_layer_skin, since the initial update_fluxes runs inside
+// InitData_post. RadChoice::init_params has already checked the radiation inputs.
+void
+ERF::check_seb_surface_layer ()
+{
+    m_seb_surface_layer_checked = true;
+    const RadChoice& rc = solverChoice.radChoice;
+    if (solverChoice.rad_type != RadiationType::TwoStream || !rc.seb_enable) { return; }
+    SurfaceLayer* surface_layer = m_SurfaceLayer[Orientation::zlo()].get();
+
+    // The balance takes H and LE from the surface layer wherever it has a flux field,
+    // which it has with any diffusion or closure -- an adiabatic surface layer included,
+    // whose flux is zero. A nonzero scalar default is then not used; say so, since the
+    // deck setting it most likely relied on it.
+    if (rc.seb_turbulent_flux_source == SEBTurbulentFluxSource::SurfaceLayer) {
+        const MultiFab* sens = nullptr;
+        const MultiFab* laten = nullptr;
+        seb_surface_layer_fluxes(0, sens, laten);
+        if (sens && rc.seb_hfx_default != 0.0) {
+            Print() << "WARNING: erf.radiation.seb_hfx_default = " << rc.seb_hfx_default
+                    << " is not used: the surface energy balance takes H from the zlo surface "
+                       "layer's applied flux (erf.radiation.seb_turbulent_flux_source = "
+                       "surface_layer). Set seb_turbulent_flux_source = defaults to use it.\n";
+        }
+        if (laten && rc.seb_lh_default != 0.0) {
+            Print() << "WARNING: erf.radiation.seb_lh_default = " << rc.seb_lh_default
+                    << " is not used: the surface energy balance takes LE from the zlo surface "
+                       "layer's applied flux (erf.radiation.seb_turbulent_flux_source = "
+                       "surface_layer). Set seb_turbulent_flux_source = defaults to use it.\n";
+        }
+        // Rotated with the terrain slope, the surface flux is split over hfx1/hfx2/hfx3;
+        // the balance (like sensible_heat_flux) reads the vertical face only.
+        if (sens && surface_layer->rotates_surface_fluxes()) {
+            Print() << "WARNING: erf.use_rotate_surface_flux: the surface energy balance removes "
+                       "only the vertical-face part of the surface layer's flux, cos(slope) of "
+                       "H and LE, as the sensible_heat_flux and latent_heat_flux outputs report.\n";
+        }
+    }
+
+    if (!rc.seb_surface_layer_uses_skin) { return; }
+    if (!surface_layer) {
+        Abort("erf.radiation.seb_surface_layer_uses_skin = true needs zlo.type = surface_layer");
+    }
+    const std::string conflict = surface_layer->skin_temperature_conflict();
+    if (!conflict.empty()) {
+        Abort("erf.radiation.seb_surface_layer_uses_skin = true cannot be used: " + conflict);
+    }
+    if (solverChoice.lsm_type != LandSurfaceType::None || m_SurfaceModel) {
+        Abort("erf.radiation.seb_surface_layer_uses_skin = true cannot be used with a land-surface "
+              "or surface model: it owns the surface temperature, and the two-stream balance "
+              "does not advance its skin then");
+    }
+}
+
+// The fluxes the zlo surface layer applies to the air of level lev, for the two-stream
+// surface energy balance's H and LE where no land-surface model supplies them (see
+// ERF_SEBTurbulentFlux.H): the same fields the sensible_heat_flux and latent_heat_flux 2D
+// outputs report. nullptr, and so the scalar defaults, without a zlo surface layer, and on
+// EB terrain, where the surface layer writes its heat flux to hfx3_EB instead and the
+// SFS field would read as a zero flux.
+void
+ERF::seb_surface_layer_fluxes (int lev,
+                               const MultiFab*& sens_flux,
+                               const MultiFab*& laten_flux) const
+{
+    sens_flux = nullptr;
+    laten_flux = nullptr;
+    if (!m_SurfaceLayer[Orientation::zlo()] ||
+        solverChoice.terrain_type == TerrainType::EB) {
+        return;
+    }
+    surface_flux_sources(lev, sens_flux, laten_flux);
+}
+
 // Give a newly built level its surface-energy-balance state.
 //
 // define_level allocates t_sfc and q_sfc filled with the erf.radiation.seb_* scalar
@@ -426,7 +542,16 @@ ERF::fill_seb_from_coarse (int lev)
         // biased toward the scalar. Extend the surface outward by clamping into the valid
         // region first -- the same zeroth-order extension init_from_wrfinput gives the
         // fields whose halos this interpolater is documented to require.
+        //
+        // Only across a NON-periodic face. Across a periodic one FillBoundary has already
+        // put the periodic image there, and InterpFromCoarseLevel's ParallelCopy reads
+        // that cell twice -- from this halo and from the periodic image of the valid cell
+        // it mirrors. Clamping it would make the two sources disagree, and ParallelCopy
+        // does not say which one wins: the answer then depended on the box layout, and a
+        // level created mid-run came out different on 1 and 2 ranks.
         crse->FillBoundary(geom[lev-1].periodicity());
+        const bool clamp_x = !geom[lev-1].isPeriodic(0);
+        const bool clamp_y = !geom[lev-1].isPeriodic(1);
         for (MFIter mfi(*crse, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             const Box& gbx = mfi.growntilebox();
             const Array4<Real>& a = crse->array(mfi);
@@ -434,8 +559,8 @@ ERF::fill_seb_from_coarse (int lev)
             const auto dhi = ubound(crse_dom);
             ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                const int ic = amrex::max(dlo.x, amrex::min(dhi.x, i));
-                const int jc = amrex::max(dlo.y, amrex::min(dhi.y, j));
+                const int ic = clamp_x ? amrex::max(dlo.x, amrex::min(dhi.x, i)) : i;
+                const int jc = clamp_y ? amrex::max(dlo.y, amrex::min(dhi.y, j)) : j;
                 if (ic != i || jc != j) { a(i,j,k) = a(ic,jc,k); }
             });
         }
@@ -699,7 +824,6 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
 
         int levc=finest_level;
 
-        HurricaneEyeTracker(solverChoice);
 
         MultiFab& U_new = vars_new[levc][Vars::xvel];
         MultiFab& V_new = vars_new[levc][Vars::yvel];
@@ -707,6 +831,8 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
 
         MultiFab mf_cc_vel(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(0,0,0));
         average_face_to_cellcenter(mf_cc_vel,0,{AMREX_D_DECL(&U_new,&V_new,&W_new)},0);
+
+        HurricaneEyeTracker(solverChoice, mf_cc_vel);
 
         HurricaneMaxVelTracker(geom[levc],
                                mf_cc_vel,
@@ -741,6 +867,7 @@ ERF::InitData ()
     BL_PROFILE_VAR("ERF::InitData()", InitData);
     InitData_pre();
     InitData_post();
+    if (!m_seb_surface_layer_checked) { check_seb_surface_layer(); }
     BL_PROFILE_VAR_STOP(InitData);
 }
 // This is called from main.cpp and handles all initialization, whether from start or restart
@@ -1423,7 +1550,7 @@ ERF::InitData_post ()
             m_SurfaceModel->register_radiation_input("albedo_nir", {lsm.Get_DataIdx(0, "alb_nir_sfc"), -1});
             m_SurfaceModel->register_radiation_input("albedo_vis_diff", {lsm.Get_DataIdx(0, "alb_vis_sfc_diff"), -1});
             m_SurfaceModel->register_radiation_input("albedo_nir_diff", {lsm.Get_DataIdx(0, "alb_nir_sfc_diff"), -1});
-            if (solverChoice.rad_type == RadiationType::RRTMGP) {
+            if (solverChoice.rad_feeds_lsm()) {
                 const amrex::Vector<std::string> rad_output_names = {
                     "cos_zenith_angle", "sw_flux_dn", "sw_flux_dn_dir_vis",
                     "sw_flux_dn_dir_nir", "sw_flux_dn_dif_vis", "sw_flux_dn_dif_nir",
@@ -1446,11 +1573,18 @@ ERF::InitData_post ()
                 const int idx = lsm.Get_DataIdx(0, input.second);
                 if (idx >= 0) { m_SurfaceModel->register_radiation_input(input.first, {idx, -1}); }
             }
-            if (solverChoice.rad_type == RadiationType::RRTMGP) {
-                const amrex::Vector<std::string> rad_output_names = {
-                    "cos_zenith_angle", "sw_flux_dn", "sw_flux_dn_dir_vis",
-                    "sw_flux_dn_dir_nir", "sw_flux_dn_dif_vis", "sw_flux_dn_dif_nir",
-                    "lw_flux_dn"};
+            if (solverChoice.rad_feeds_lsm()) {
+                // RRTMGP writes all seven. The two-stream model is broadband and writes
+                // the three Noah-MP integrates on (TwoStreamRadiation::write_land_forcing);
+                // registering the spectral split as well would publish outputs that nothing
+                // ever fills.
+                const amrex::Vector<std::string> rad_output_names =
+                    (solverChoice.rad_type == RadiationType::TwoStream)
+                    ? amrex::Vector<std::string>{"cos_zenith_angle", "sw_flux_dn", "lw_flux_dn"}
+                    : amrex::Vector<std::string>{
+                          "cos_zenith_angle", "sw_flux_dn", "sw_flux_dn_dir_vis",
+                          "sw_flux_dn_dir_nir", "sw_flux_dn_dif_vis", "sw_flux_dn_dif_nir",
+                          "lw_flux_dn"};
                 for (const auto& output_name : rad_output_names) {
                     const int idx = lsm.Get_DataIdx(0, output_name);
                     if (idx >= 0) { m_SurfaceModel->register_radiation_output(output_name, {idx, -1}); }
@@ -1575,14 +1709,19 @@ ERF::InitData_post ()
         }
     }
 
+    bool any_surface_layer = false;
     for (OrientationIter oit; oit; ++oit) {
         Orientation ori = oit();
         if (phys_bc_type[ori] == ERF_BC::surface_layer) {
+            any_surface_layer = true;
             bool has_diff = ( (solverChoice.diffChoice.molec_diff_type != MolecDiffType::None) ||
                               (solverChoice.turbChoice[0].les_type  != LESType::None)          ||
                               (solverChoice.turbChoice[0].rans_type != RANSType::None)         ||
                               (solverChoice.turbChoice[0].pbl_type  != PBLType::None) );
-            AMREX_ALWAYS_ASSERT(has_diff);
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(has_diff,
+                "A surface_layer boundary applies its fluxes through the diffusion operator, so it "
+                "needs a diffusive closure: set erf.molec_diff_type, erf.les_type, erf.rans_type "
+                "or erf.pbl_type.");
 
             bool rotate = solverChoice.use_rotate_surface_flux;
             if (rotate) {
@@ -1698,6 +1837,7 @@ ERF::InitData_post ()
 #else
                     double elapsed_time_since_start_low = t_new[lev] + start_time;
 #endif
+                    if (static_cast<int>(ori) == Orientation::zlo()) { set_surface_layer_skin(lev); }
                     m_SurfaceLayer[ori]->update_fluxes(lev, t_new[lev], elapsed_time_since_start_low,
                                                        vars_new[lev][Vars::cons],
                                                        z_phys_nd[lev],
@@ -1724,6 +1864,19 @@ ERF::InitData_post ()
             m_SurfaceLayer[ori] = nullptr;
         }
     } // end if (phys_bc_type[Orientation(Direction::z,Orientation::low)] == ERF_BC::surface_layer)
+
+    // A land-surface model hands its fluxes to the atmosphere only through the surface
+    // layer (make_SurfaceLayer_at_level is the one consumer of lsm_flux). Without a
+    // surface_layer boundary the land model still runs and still computes fluxes, but
+    // nothing applies them: the atmosphere never sees the land surface.
+    if (solverChoice.lsm_type != LandSurfaceType::None && !any_surface_layer) {
+        amrex::Print() << "WARNING: erf.land_surface_model = "
+                       << amrex::getEnumNameString(solverChoice.lsm_type)
+                       << " but no boundary is a surface_layer. The land model's heat, "
+                          "moisture and momentum fluxes reach the atmosphere only through "
+                          "the surface layer, so they will not be applied; set "
+                          "zlo.type = \"surface_layer\".\n";
+    }
 
     if (!restart_chkfile.empty()) {
         // All active faces now exist, so restore every surface-layer field once.
@@ -2664,7 +2817,7 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
 
 #ifdef ERF_USE_WINDFARM
 void
-ERF::initializeWindFarm(const int& a_nlevsmax/*!< number of AMR levels */ )
+ERF::initializeWindFarm (const int& a_nlevsmax/*!< number of AMR levels */ )
 {
     windfarm = std::make_unique<WindFarm>(a_nlevsmax, solverChoice.windfarm_type);
 }
@@ -3405,9 +3558,8 @@ ERF::ReadParameters ()
                 start_datetime += ":00"; // add seconds
             }
             if (start_datetime.length() != 19) {
-                Print() << "Got start_datetime = \"" << start_datetime
-                    << "\", format should be " << datetime_format << std::endl;
-                exit(0);
+                Abort("Got start_datetime = \"" + start_datetime +
+                      "\", format should be " + datetime_format);
             }
             start_time = static_cast<double>(getEpochTime(start_datetime, datetime_format));
 
@@ -3470,13 +3622,12 @@ ERF::ReadParameters ()
                 stop_datetime += ":00"; // add seconds
             }
             if (stop_datetime.length() != 19) {
-                Print() << "Got stop_datetime = \"" << stop_datetime
-                    << "\", format should be " << datetime_format << std::endl;
-                exit(0);
+                Abort("Got stop_datetime = \"" + stop_datetime +
+                      "\", format should be " + datetime_format);
             }
 
             stop_time = static_cast<double>(getEpochTime(stop_datetime, datetime_format));
-            Print() << "Stop  datetime : " << start_datetime << std::endl;
+            Print() << "Stop  datetime : " << stop_datetime << std::endl;
 
         } else {
 
@@ -3944,8 +4095,8 @@ ERF::Define_ERFFillPatchers (int lev)
 }
 
 bool
-ERF::writeNow(double cur_time, const int nstep, const int plot_int, const double plot_per,
-              const double dt_0, double& next_file_time)
+ERF::writeNow (double cur_time, const int nstep, const int plot_int, const double plot_per,
+               const double dt_0, double& next_file_time)
 {
     bool write_now = false;
 
@@ -4032,34 +4183,22 @@ ERF::check_state_for_nans (MultiFab const& S)
 }
 
 void
-ERF::check_vels_for_nans(MultiFab const& xvel, MultiFab const& yvel, MultiFab const& zvel)
+ERF::check_vels_for_nans (MultiFab const& xvel, MultiFab const& yvel, MultiFab const& zvel)
 {
     //
     // Test at the end of every full timestep whether the solution data contains NaNs
     //
-    bool any_have_nans = false;
-    if (xvel.contains_nan(0,1,0))
-    {
-        amrex::Print() << "x-velocity contains NaNs " << '\n';
-        any_have_nans = true;
-    }
-    if (yvel.contains_nan(0,1,0))
-    {
-        amrex::Print() << "y-velocity contains NaNs" << '\n';
-        any_have_nans = true;
-    }
-    if (zvel.contains_nan(0,1,0))
-    {
-        amrex::Print() << "z-velocity contains NaNs" << '\n';
-        any_have_nans = true;
-    }
-    if (any_have_nans) {
-        exit(0);
+    std::string have_nans;
+    if (xvel.contains_nan(0,1,0)) { have_nans += " x-velocity"; }
+    if (yvel.contains_nan(0,1,0)) { have_nans += " y-velocity"; }
+    if (zvel.contains_nan(0,1,0)) { have_nans += " z-velocity"; }
+    if (!have_nans.empty()) {
+        amrex::Abort("NaNs found in" + have_nans);
     }
 }
 
 void
-ERF::check_for_low_temp(amrex::MultiFab& S)
+ERF::check_for_low_temp (amrex::MultiFab& S)
 {
     // *****************************************************************************
     // Test for low temp (low is defined as beyond the microphysics range of validity)
@@ -4094,7 +4233,7 @@ ERF::check_for_low_temp(amrex::MultiFab& S)
 }
 
 void
-ERF::check_for_negative_theta(amrex::MultiFab& S)
+ERF::check_for_negative_theta (amrex::MultiFab& S)
 {
     // *****************************************************************************
     // Test for negative (rho theta)
@@ -4132,7 +4271,7 @@ ERF::check_for_negative_theta(amrex::MultiFab& S)
 
 
 void
-ERF::check_mesh_type(int lev)
+ERF::check_mesh_type (int lev)
 {
    if (SolverChoice::mesh_type == MeshType::VariableDz) {
        MultiFab z_slab(convert(ba2d[lev],IntVect(1,1,1)),dmap[lev],1,0);

@@ -2544,6 +2544,12 @@ the one file corresponds to time = 0.0.   If the final time supplied in
 in ``input_*_sounding_*_file`` will be used for all times later than the final value in
 in ``input_*_sounding_*_time``.
 
+Every level samples the input sounding at its own cell centres, for the initial state and base
+state and for nudging, just as a single-level run at that resolution does; the large-scale forcing
+profiles are likewise interpolated to each level's own cell centres. A fine cell below the first
+level-0 cell centre therefore starts from the sounding's air values there, not from a blend with
+the surface line of the file (which, with ``erf.most.surf_temp``, holds the surface temperature).
+
 .. _inputs-obs-nudging:
 
 Nudging towards Observations
@@ -2899,11 +2905,15 @@ List of Parameters
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.bndry_output_box_hi**           | Upper-right (x,y) of output box                          | 2 Reals            | None             |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.bndry_output_var_names**        | Variables to write                                       | List of strings    | All              |
+| **erf.bndry_output_var_names**        | Variables to write; any of velocity, density,            | List of strings    | None (no         |
+|                                       | temperature, theta, scalar, qv, qc and ke. An unknown    |                    | variables)       |
+|                                       | name aborts at the first write                           |                    |                  |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.bndry_file**                    | Input boundary-plane directory                           | String             | None             |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.bndry_input_var_names**         | Variables to read                                        | List of strings    | All              |
+| **erf.bndry_input_var_names**         | Variables to read; any of velocity, density,             | List of strings    | None (no         |
+|                                       | temperature, theta, scalar, qv, qc and ke. An unknown    |                    | variables)       |
+|                                       | name aborts at start-up                                  |                    |                  |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.in_rad**                        | width, in cells, of the region inside the domain         | Integer >= 0       | 1                |
 |                                       | boundary from which the boundary planes are written and  |                    |                  |
@@ -4129,6 +4139,14 @@ from its parent and never evolves a surface of its own. A fine level therefore s
 surface rather than resolving more surface structure than the coarse grid did. The fields are
 written with the 2D plotfile variables ``seb_t_sfc`` and ``seb_q_sfc``.
 
+The balance removes the sensible and latent heat fluxes the ``zlo`` surface layer puts into the
+air (``erf.radiation.seb_turbulent_flux_source = surface_layer``, the default), where no
+land-surface model supplies them; ``seb_turbulent_flux_source = defaults`` uses the constants
+``seb_hfx_default`` and ``seb_lh_default`` instead. The fluxes it used are written as ``seb_hfx``
+and ``seb_lh``. With ``erf.radiation.seb_surface_layer_uses_skin = true`` the coupling runs both
+ways: the surface layer also takes its land surface temperature from the balance's skin, so the
+heat flux it computes responds to the skin.
+
 
 
 Two-Stream Radiation Model Parameters
@@ -4285,20 +4303,50 @@ atmospheric cell), ``start_datetime`` and the
 | **erf.radiation.seb_use_radiation_fluxes**         | Take the SEB net surface SW and LW fluxes from the         | Boolean            | false            |
 |                                                    | two-stream sweep where the LSM does not supply them        |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_turbulent_flux_source**        | Source of the SEB sensible (H) and latent (LE) heat        | surface_layer,     | surface_layer    |
+|                                                    | fluxes where no land-surface model supplies them:          | defaults           |                  |
+|                                                    | ``surface_layer`` takes the fluxes the zlo surface layer   | (case-insensitive, |                  |
+|                                                    | applies to the air (as ``sensible_heat_flux`` and          | underscores        |                  |
+|                                                    | ``latent_heat_flux``), so the ground loses what the air    | ignored)           |                  |
+|                                                    | gains; ``defaults`` takes seb_hfx_default and              |                    |                  |
+|                                                    | seb_lh_default. ``surface_layer`` uses the surface         |                    |                  |
+|                                                    | layer whenever its flux field exists: a zlo surface        |                    |                  |
+|                                                    | layer with any diffusion or closure, not on EB terrain,    |                    |                  |
+|                                                    | and for LE a moisture model. An adiabatic surface layer    |                    |                  |
+|                                                    | has a zero flux, so H = 0 there; ERF warns when a          |                    |                  |
+|                                                    | nonzero default is replaced. With                          |                    |                  |
+|                                                    | erf.use_rotate_surface_flux only the vertical-face part    |                    |                  |
+|                                                    | (cos(slope) of the flux) is removed, with a warning        |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_surface_layer_uses_skin**      | Two-way coupling: the zlo surface layer takes its land     | Boolean            | false            |
+|                                                    | surface temperature from the SEB skin T_s (as a            |                    |                  |
+|                                                    | potential temperature), so its heat flux responds to       |                    |                  |
+|                                                    | T_s. Needs seb_prognostic_enable,                          |                    |                  |
+|                                                    | seb_turbulent_flux_source = surface_layer and a surface    |                    |                  |
+|                                                    | layer in surface-temperature mode (erf.most.surf_temp,     |                    |                  |
+|                                                    | no surf_heating_rate), not on EB terrain, without          |                    |                  |
+|                                                    | erf.use_rotate_surface_flux, with no land or surface       |                    |                  |
+|                                                    | model; each is checked at start-up                         |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_diagnostic_enable**            | Enable diagnostic SEB residual computation                 | Boolean            | false            |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_prognostic_enable**            | Enable prognostic SEB surface T_s and q_s evolution        | Boolean            | false            |
-|                                                    | single level only; refused with amr.max_level > 0          |                    |                  |
+|                                                    | (force-restore); runs on every level                       |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_sw_flux_default**              | Fallback SEB net shortwave flux [W/m²]                     | Real               | 0.0              |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_lw_flux_default**              | Fallback SEB net longwave flux [W/m²]                      | Real               | 0.0              |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_hfx_default**                  | Fallback SEB sensible heat flux [W/m²]                     | Real               | 0.0              |
+| **erf.radiation.seb_hfx_default**                  | Fallback SEB sensible heat flux [W/m²]; see                | Real               | 0.0              |
+|                                                    | seb_turbulent_flux_source                                  |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_lh_default**                   | Fallback SEB latent heat flux [W/m²]                       | Real               | 0.0              |
+| **erf.radiation.seb_lh_default**                   | Fallback SEB latent heat flux [W/m²]; see                  | Real               | 0.0              |
+|                                                    | seb_turbulent_flux_source                                  |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_grdflx_default**               | Fallback SEB ground heat flux [W/m²]                       | Real               | 0.0              |
+| **erf.radiation.seb_grdflx_default**               | Fallback SEB ground heat flux [W/m²]. With                 | Real               | 0.0              |
+|                                                    | seb_prognostic_enable leave it at 0: the force-restore     |                    |                  |
+|                                                    | restoring term already carries the ground heat flux,       |                    |                  |
+|                                                    | so a nonzero value counts it twice (a warning says so)     |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_q_sfc_default**                | Fallback SEB surface moisture [kg/kg]                      | Real [0,1]         | 0.0              |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
@@ -4653,6 +4701,8 @@ List of Parameters
 | Parameter                   | Definition                | Acceptable Values | Default    |
 +=============================+===========================+===================+============+
 | **erf.check_for_nans**      | Test solution for NaNs    |  int              | 0          |
+|                             | and abort if any are      |                   |            |
+|                             | found                     |                   |            |
 +-----------------------------+---------------------------+-------------------+------------+
 | **amrex.fpe_trap_invalid**  | Raise errors for NaNs     |  0 / 1            | 0          |
 +-----------------------------+---------------------------+-------------------+------------+

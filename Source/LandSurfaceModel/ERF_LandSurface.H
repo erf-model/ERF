@@ -115,7 +115,7 @@ public:
     }
 
     void
-    Plot(const int& lev, const int& nstep)
+    Plot (const int& lev, const int& nstep)
     {
         m_lsm_model[lev]->Plot_Landfile(nstep);
     }
@@ -302,7 +302,7 @@ public:
     Get_LSM_Update_Status (const int& lev) { return m_lsm_model[lev]->Get_Update_Status(); }
 
     std::unordered_map<std::string,std::string>&
-    Get_WRFInputNames() { return m_lsm_model[0]->Lsm_WRFInputNames(); }
+    Get_WRFInputNames () { return m_lsm_model[0]->Lsm_WRFInputNames(); }
 
     // Scalar LSM step counter (e.g., NoahMP itimestep) for checkpoint/restart.
     int
@@ -405,24 +405,24 @@ public:
         m_lsm_model[lev]->set_precip_input(precip_in);
     }
 
-    void set_LSM_terrain_inputs(const int& lev,
-                                const amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>& sst_in,
-                                const amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>>& lmask_in)
+    void set_LSM_terrain_inputs (const int& lev,
+                                 const amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>& sst_in,
+                                 const amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>>& lmask_in)
     {
         m_lsm_model[lev]->set_terrain_inputs(sst_in[lev], lmask_in[lev]);
     }
 
     template<class SurfModelType>
-    SurfModelType* get_model_lev(const int &lev) {
+    SurfModelType* get_model_lev (const int &lev) {
         return static_cast<SurfModelType*>(m_lsm_model[lev].get());
     }
 
-    void WriteCheckpoint(const int &lev, const std::string &checkpointname) const
+    void WriteCheckpoint (const int &lev, const std::string &checkpointname) const
     {
         m_lsm_model[lev]->WriteCheckpoint(lev, checkpointname);
     }
 
-    void ReadCheckpoint(const int &lev, const std::string &checkpointname)
+    void ReadCheckpoint (const int &lev, const std::string &checkpointname)
     {
         m_lsm_model[lev]->ReadCheckpoint(lev, checkpointname);
     }
@@ -458,7 +458,7 @@ private:
 
 #ifdef ERF_USE_NETCDF
     // Whether we have already told the user that LSM plotfiles fall back to the AMReX format
-    [[maybe_unused]] bool m_warned_nc_lsm_plot = false;
+    bool m_warned_nc_lsm_plot = false;
 #endif
 };
 #endif

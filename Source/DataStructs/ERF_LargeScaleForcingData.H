@@ -45,7 +45,7 @@ public:
      * @param str Input line to inspect.
      * @return Number of columns in the line.
      */
-    int get_columns_in_str(std::string &str)
+    int get_columns_in_str (std::string &str)
     {
         std::istringstream iss(str);
         std::string tmp;
@@ -61,7 +61,7 @@ public:
     /**
      * @brief Read the forcing file and cache the raw time slices on host.
      */
-    void read_forcing_file()
+    void read_forcing_file ()
     {
         amrex::Print() << "  Opening LSF file '" << lsf_file << "'" << std::endl;
         std::ifstream ifs(lsf_file);
@@ -214,9 +214,9 @@ public:
      * @param sounding Input sounding data used when the forcing file is on pressure levels.
      */
     void
-    interp_forcing(const amrex::GeometryData &geom,
-                   const amrex::Vector<amrex::Real>& zlevels_stag,
-                   const InputSoundingData &sounding)
+    interp_forcing (const amrex::GeometryData &geom,
+                    const amrex::Vector<amrex::Real>& zlevels_stag,
+                    const InputSoundingData &sounding)
     {
         const int klo = 0;
         const int khi = geom.Domain().bigEnd()[AMREX_SPACEDIM-1];
@@ -228,6 +228,12 @@ public:
         const amrex::Real ztop = (use_terrain) ? zlevels_stag[khi+1] : geom.ProbHi(AMREX_SPACEDIM-1);
 
         AMREX_ALWAYS_ASSERT(num_times == static_cast<int>(times_lsf.size()));
+        // On pressure levels, cell k is placed by the sounding's hydrostatic pressure at its
+        // centre, pm_integ[k+1] (pm_integ[0] is the surface), so the sounding must be sampled
+        // on this same grid and integrated (sounding_type Ideal or Isentropic)
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(use_z_grid || static_cast<int>(sounding.pm_integ.size()) >= Nz+1,
+            "a large-scale forcing file on pressure levels needs the input sounding integrated "
+            "hydrostatically on the same grid (erf.sounding_type = Ideal or Isentropic)");
 
         z_int_lsf.resize(num_times);
         t_int_lsf.resize(num_times);
@@ -264,13 +270,13 @@ public:
                     //   p-grid mode: cell p >= forcing p (p decreases with lk)
                     bool in_bracket = use_z_grid
                         ? (z_int_lsf[itime][k] <= z_lsf[itime][lk])
-                        : (sounding.pm_integ[k] >= p_lsf[itime][lk]);
+                        : (sounding.pm_integ[k+1] >= p_lsf[itime][lk]);
 
                     if (in_bracket)
                     {
                         // Interpolation coordinate: z or p depending on mode
                         const auto& coord_lsf = use_z_grid ? z_lsf[itime] : p_lsf[itime];
-                        amrex::Real coord_k = use_z_grid ? z_int_lsf[itime][k] : sounding.pm_integ[k];
+                        amrex::Real coord_k = use_z_grid ? z_int_lsf[itime][k] : sounding.pm_integ[k+1];
                         amrex::Real coef = (coord_k - coord_lsf[lk - 1]) / (coord_lsf[lk] - coord_lsf[lk - 1]);
 
                         t_int_lsf[itime][k] = t_lsf[itime][lk - 1] + (t_lsf[itime][lk] - t_lsf[itime][lk-1])*coef;
@@ -326,11 +332,11 @@ public:
      * @param coeff_next Interpolation weight for the upper time slice.
      */
     void
-    get_forcing_time_coeffs(const amrex::Real& time,
-                            int& curr,
-                            int& next,
-                            amrex::Real& coeff_curr,
-                            amrex::Real& coeff_next)
+    get_forcing_time_coeffs (const amrex::Real& time,
+                             int& curr,
+                             int& next,
+                             amrex::Real& coeff_curr,
+                             amrex::Real& coeff_next) const
     {
         // helper function to get the current time indices of forcing data to use and
         // coefficients based on the current simulation time.

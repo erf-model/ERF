@@ -205,7 +205,7 @@ function(add_test_two_stream_radiation TEST_NAME PLTFILE)
     # CHECK_LEVELS is multi-value: as a one-value arg CMake's list semantics
     # split "0;1" into two arguments and only the first was ever seen, so the
     # fine level went unchecked and the test passed vacuously.
-    set(multiValueArgs "CHECK_LEVELS" "DIAG_LEVELS")
+    set(multiValueArgs "CHECK_LEVELS" "DIAG_LEVELS" "SEB_CREATED_FROM" "SEB_REGRIDDED_FROM")
     cmake_parse_arguments(ADD_TEST_TSR "" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
     # Join with a comma, not a semicolon: a semicolon inside a -D argument is
     # split again when the COMMAND is built. The runner splits on the comma.
@@ -242,6 +242,27 @@ function(add_test_two_stream_radiation TEST_NAME PLTFILE)
     if(DEFINED ADD_TEST_TSR_SEB_EVOLVED_FROM AND NOT "${ADD_TEST_TSR_SEB_EVOLVED_FROM}" STREQUAL "")
         set(tsr_seb_evolved "${ADD_TEST_TSR_SEB_EVOLVED_FROM}")
     endif()
+    # A level created mid-run: the three 2D plotfiles (initial, and the last two before
+    # the level existed) the checker extrapolates the parent's surface from. Joined with a
+    # comma for the same reason as CHECK_LEVELS.
+    set(tsr_seb_created "")
+    if(DEFINED ADD_TEST_TSR_SEB_CREATED_FROM)
+        set(tsr_seb_created_paths "")
+        foreach(created_plt ${ADD_TEST_TSR_SEB_CREATED_FROM})
+            list(APPEND tsr_seb_created_paths "${CURRENT_TEST_BINARY_DIR}/${created_plt}")
+        endforeach()
+        string(JOIN "," tsr_seb_created ${tsr_seb_created_paths})
+    endif()
+    # A regrid that moves an existing fine level: the same three plotfiles, with the fine
+    # level present in the last two on the grids the regrid replaces.
+    set(tsr_seb_regridded "")
+    if(DEFINED ADD_TEST_TSR_SEB_REGRIDDED_FROM)
+        set(tsr_seb_regridded_paths "")
+        foreach(regridded_plt ${ADD_TEST_TSR_SEB_REGRIDDED_FROM})
+            list(APPEND tsr_seb_regridded_paths "${CURRENT_TEST_BINARY_DIR}/${regridded_plt}")
+        endforeach()
+        string(JOIN "," tsr_seb_regridded ${tsr_seb_regridded_paths})
+    endif()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i")
     set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
@@ -264,6 +285,8 @@ function(add_test_two_stream_radiation TEST_NAME PLTFILE)
         "-DSEB_PARITY_PLOTFILE=${tsr_seb_parity}"
         "-DSEB_PARITY_TOL=${tsr_seb_tol}"
         "-DSEB_EVOLVED_FROM=${tsr_seb_evolved}"
+        "-DSEB_CREATED_FROM=${tsr_seb_created}"
+        "-DSEB_REGRIDDED_FROM=${tsr_seb_regridded}"
         "-DSEB_PARITY_CHECKER=${TWO_STREAM_SEB_PARITY_CHECKER}"
         "-DFEXTRACT=${FEXTRACT_EXE}"
         "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
@@ -276,6 +299,44 @@ function(add_test_two_stream_radiation TEST_NAME PLTFILE)
         LABELS "regression;radiation"
         ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
 endfunction(add_test_two_stream_radiation)
+
+# Run a two-stream deck with the surface energy balance's H and LE taken from the
+# surface layer and from the scalar defaults, and check the balance removed the surface
+# layer's fluxes from the ground (Tests/check_two_stream_seb_flux_source.py).
+function(add_test_two_stream_seb_flux_source TEST_NAME)
+    set(oneValueArgs "CHECKER_OPTIONS" "DT")
+    cmake_parse_arguments(ADD_TEST_SEBFS "" "${oneValueArgs}" "" ${ARGN})
+    set(_sebfs_dt "1.0")
+    if(DEFINED ADD_TEST_SEBFS_DT AND NOT "${ADD_TEST_SEBFS_DT}" STREQUAL "")
+        set(_sebfs_dt "${ADD_TEST_SEBFS_DT}")
+    endif()
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DFEXTRACT=${FEXTRACT_EXE}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${TWO_STREAM_SEB_FLUX_SOURCE_CHECKER}"
+        "-DSTEPS=10"
+        "-DDT=${_sebfs_dt}"
+        "-DHEAT_CAPACITY=2.0e4"
+        "-DCHECKER_OPTIONS=${ADD_TEST_SEBFS_CHECKER_OPTIONS}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunTwoStreamSEBFluxSource.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;radiation"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/surface_layer/simulation.log;${CURRENT_TEST_BINARY_DIR}/defaults/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_way/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+endfunction(add_test_two_stream_seb_flux_source)
 
 function(add_test_cloud_chamber_parity TEST_NAME)
     set(TEST_FILES_DIR "CloudChamber_SatAdj")
@@ -418,6 +479,23 @@ set_tests_properties(ResolveExecutable_SelfTest
     TIMEOUT 60
     PROCESSORS 1
     LABELS "unit")
+
+# The nightly case Exec/RegTests/NoahMP_Ideal keeps a copy of Noah-MP's parameter table so it
+# runs in place; fail as soon as that copy stops matching the submodule, so the nightly
+# reference never silently tests stale parameters. A file comparison: no Noah-MP build needed.
+# Registered only when the submodule is checked out, which every CI job does.
+set(ERF_NOAHMP_TABLE "${PROJECT_SOURCE_DIR}/Submodules/Noah-MP/parameters/NoahmpTable.TBL")
+if(EXISTS "${ERF_NOAHMP_TABLE}")
+  add_test(NoahMP_Ideal_TableMatchesSubmodule ${CMAKE_COMMAND}
+      "-DSUBMODULE_TABLE=${ERF_NOAHMP_TABLE}"
+      "-DCOPY_TABLE=${PROJECT_SOURCE_DIR}/Exec/RegTests/NoahMP_Ideal/NoahmpTable.TBL"
+      -P ${PROJECT_SOURCE_DIR}/Tests/CheckNoahmpTableCopy.cmake)
+  set_tests_properties(NoahMP_Ideal_TableMatchesSubmodule
+      PROPERTIES
+      TIMEOUT 60
+      PROCESSORS 1
+      LABELS "unit;noahmp")
+endif()
 
 # Restart parity: run one deck straight, then to a checkpoint and on from it, and
 # require the plotfile at the end to be identical (no gold file). Every run has a
@@ -566,6 +644,38 @@ function(add_test_at_rest_terrain_outflow TEST_NAME PLTFILE TOLERANCE GRADP_TOLE
         LABELS "regression"
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/symmetry/simulation.log;${CURRENT_TEST_BINARY_DIR}/outflow/simulation.log;${CURRENT_TEST_BINARY_DIR}/at_rest.log")
 endfunction(add_test_at_rest_terrain_outflow)
+
+# Field-bounds test: run one deck and require the extrema of a plotfile variable to stay
+# within [LO, HI]. The three inflow cases keep a 300 K box at 300 K: a primitive theta from
+# a dirichlet_file is multiplied by the ghost density the face prescribes on an Inflow face
+# (InflowThetaDensity) and on an inflow_outflow face (InflowOutflowThetaFile), and only the
+# face that read the file uses it (InflowThetaFileOtherFace, a second inflow face with its
+# own density and theta).
+function(add_test_field_bounds TEST_NAME PLTFILE VARIABLE LO HI)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DFEXTREMA=${FEXTREMA_EXE}"
+        "-DPLTFILE=${PLTFILE}"
+        "-DVARIABLE=${VARIABLE}"
+        "-DLO=${LO}"
+        "-DHI=${HI}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunFieldBounds.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 600
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/simulation.log")
+endfunction(add_test_field_bounds)
 
 # Positive startup regression for the retained legacy theta/qv parser path.
 # This intentionally has no physical-temperature or physical-wall keys.
@@ -928,6 +1038,9 @@ set_tests_properties(SHOC_Unstable_Cloud_SatAdj_vs_NoCond
 # execute_process needs mpiexec, and does not expand the executable globs used on Windows
 if(NOT WIN32)
 add_test_at_rest_terrain_outflow(AtRestTerrainOutflow "plt00400" 1.0e-8 0.1)
+add_test_field_bounds(InflowThetaDensity "plt00010" theta 299.999 300.001)
+add_test_field_bounds(InflowOutflowThetaFile "plt00010" theta 299.999 300.001)
+add_test_field_bounds(InflowThetaFileOtherFace "plt00010" theta 299.999 300.001)
 endif()
 endif()
 
@@ -1448,6 +1561,16 @@ function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME
 endfunction(add_test_abort)
 
 if(ERF_ENABLE_MPI AND NOT WIN32)
+  # The two-stream model supplies Noah-MP's radiative forcing on a single level only, so
+  # a refined run with the pair must stop at start-up rather than run unverified. The
+  # check sits in SolverChoice::init_params, ahead of anything that needs the Noah-MP
+  # build, so it runs in every build: the two-level two-stream deck with Noah-MP selected.
+  add_test_abort(TwoStream_NoahMP_MultiLevelAbort
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_ColumnHeating_TwoLevel
+                 TwoStream_ColumnHeating_TwoLevel.i
+                 "with erf.land_surface_model = NOAHMP is supported on a single level only"
+                 "erf.land_surface_model=NOAHMP")
+
   # A shallow nest -- a fine level that stops below the domain top -- has no complete
   # column, so the sweep cannot run on it. That is a supported configuration, not an
   # error: advance_radiation interpolates the level's heating rates and fluxes from its
@@ -1491,6 +1614,42 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                                   SEB_EVOLVED_FROM "300.0")
   endif()
 
+  # A level created MID-RUN must start from the surface its parent has reached.
+  # TwoStream_PrognosticSEBMultiLevel cannot see that: its fine level exists from t = 0, when
+  # both levels are uniform at erf.rad_t_sfc and interpolating from the parent is a no-op.
+  # Here the tagging switches on only after level 0 has run alone for 10 steps, so the regrid
+  # at step 11 builds level 1 over a surface that has drifted ~0.08 K. The checker asserts
+  # level 1 averages to the parent's surface extrapolated one step on, to a quarter of one
+  # step's change; without ERF::fill_seb_from_coarse at level creation it misses by the whole
+  # drift (7.9e-2 against a 2.0e-3 tolerance, where the transfer gives 7.9e-5).
+  #
+  # The runner's 1-rank vs 2-rank comparison matters here too: it is what showed the
+  # interpolation reading a periodic halo that fill_seb_from_coarse had clamped, which left
+  # the new level's edge columns dependent on the box layout.
+  if(ERF_TEST_PYTHON)
+    add_test_two_stream_radiation(TwoStream_PrognosticSEBLateLevel "plt00011"
+                                  CHECK_LEVELS 0 1
+                                  SEB_PARITY_PLOTFILE "plt2d00011"
+                                  SEB_CREATED_FROM "plt2d00000" "plt2d00009" "plt2d00010")
+  endif()
+
+  # A regrid that MOVES an existing fine level must keep the surface it has evolved. The
+  # cases above tag a fixed region, so the fine BoxArray never changes and RemakeLevel never
+  # runs. Here the refinement box moves at step 11, keeping fine x-cells 4-7, adding 8-11 and
+  # dropping 0-3. The checker asserts the kept cells carry on from the fine surface (block
+  # means and sub-coarse deviations, each extrapolated one step) and the added cells start
+  # from the parent. Each piece of RemakeLevel's restore fails its own assertion when
+  # removed: the whole block (means off by 7.9e-2 against 2.0e-3), only the copy of the
+  # retained values (deviations off by 2.2e-4 against 3.8e-5), only the interpolation from
+  # the parent (added cells off by 7.9e-2 against 2.0e-3). The correct run sits at 7e-6,
+  # 3e-6 and 4e-5.
+  if(ERF_TEST_PYTHON)
+    add_test_two_stream_radiation(TwoStream_PrognosticSEBRegrid "plt00011"
+                                  CHECK_LEVELS 0 1
+                                  SEB_PARITY_PLOTFILE "plt2d00011"
+                                  SEB_REGRIDDED_FROM "plt2d00000" "plt2d00009" "plt2d00010")
+  endif()
+
   # The force-restore surface state is checkpointed per level. A level whose copy is
   # never written, or is written and never read back, restarts from the erf.rad_t_sfc
   # scalar instead of the surface the run had reached -- and nothing in the 3D plotfile
@@ -1499,6 +1658,36 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   # PLT2DFILE the check would pass on a surface temperature that reset to its default.
   add_test_restart_parity(TwoStream_PrognosticSEB_Restart TwoStream_PrognosticSEBRestart 3 6
                           PLT2DFILE "plt2d00006")
+
+  # The prognostic surface energy balance must remove from the ground the sensible and
+  # latent heat the surface layer puts into the air. The deck runs twice, with
+  # erf.radiation.seb_turbulent_flux_source = surface_layer and = defaults; the checker
+  # asserts the balance's seb_hfx/seb_lh equal the surface layer's sensible_heat_flux/
+  # latent_heat_flux at every step (to 1e-10 relative, with |H| and |LE| above 1 W/m^2),
+  # that the defaults leg keeps the constants, and that the skin ends cooler by
+  # sum(dt (H + LE)) / C_s to 5 %. With the balance reading the defaults in both legs
+  # (the behaviour before this test) seb_hfx is 0 against a sensible_heat_flux of tens
+  # of W/m^2, and the two skins agree.
+  if(ERF_TEST_PYTHON)
+    add_test_two_stream_seb_flux_source(TwoStream_SEBSurfaceLayerFluxes)
+    # The same on two levels over a ridge, level 1 created at step 7 over the middle half:
+    # every level and column checked, with per-column surface-layer fluxes (H spread
+    # across the coarse columns at least 0.5 W/m^2, so the columns are told apart). No
+    # subcycling, so a 0.5 s step keeps the fine level's acoustic substeps stable.
+    add_test_two_stream_seb_flux_source(TwoStream_SEBSurfaceLayerFluxesMultiLevel
+                                        DT 0.5
+                                        CHECKER_OPTIONS "--multilevel --min-spread 0.5")
+  endif()
+
+  # With seb_turbulent_flux_source = surface_layer (the default) the balance takes H from
+  # the surface layer wherever its flux field exists -- including an adiabatic surface layer,
+  # whose flux is zero -- so a nonzero erf.radiation.seb_hfx_default in the deck is not used.
+  # That must be said at start-up rather than happen silently. One step of the deck above.
+  add_test_abort(TwoStream_SEBDefaultReplacedWarning
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_hfx_default = 10 is not used"
+                 "erf.radiation.seb_hfx_default=10")
 endif()
 add_test_plotfile_header(Plotfile3D_TwoStreamHeatingSelection "" "erf_exec" "plt00000")
 
@@ -1913,6 +2102,37 @@ add_test_option_parity(StationSampling_AnswerParity_MOST ABL_MOST "plt00010"
     OFF_OPTIONS "erf.do_station_sampling=false"
     ON_OPTIONS  "erf.station_names=T erf.station_sampling_interval=1 erf.T.field=theta magvel vorticity_z pressure u_star t_star erf.T.x=500 erf.T.y=500 erf.T.height_agl=8.0 100.0"
     REQUIRE_ON_FILE "Output_Stations/T.dat")
+
+#=============================================================================
+# Input sounding on refined levels (#4143): each level samples the sounding, and
+# the large-scale forcing profiles, at its own cell centres
+#=============================================================================
+# The two sounding files differ only in their surface line, which lies below every cell
+# centre, so the initial states must be identical on both levels.
+add_test_option_parity(InputSounding_FineLevelInit InputSoundingFineLevels "plt00000"
+    OFF_OPTIONS "erf.input_sounding_file=../input_sounding_sfc300"
+    ON_OPTIONS  "erf.input_sounding_file=../input_sounding_sfc303")
+
+# Nudging towards the sounding the run started from adds exactly zero on every level:
+# theta here (the wind is not nudged, since the sheared wind is advected by the w that the
+# theta profile sets going) ...
+add_test_option_parity(InputSounding_FineLevelNudging InputSoundingFineLevels "plt00001"
+    COMMON_OPTIONS "max_step=1 erf.nudging_u=false"
+    OFF_OPTIONS "erf.nudging_from_input_sounding=false"
+    ON_OPTIONS  "erf.nudging_from_input_sounding=true erf.tau_nudging=0.5")
+
+# ... and u, v through the momentum sources, over a constant theta so that nothing moves.
+add_test_option_parity(InputSounding_FineLevelWindNudging InputSoundingFineLevels "plt00001"
+    COMMON_OPTIONS "max_step=1 erf.input_sounding_file=../input_sounding_wind"
+    OFF_OPTIONS "erf.nudging_from_input_sounding=false"
+    ON_OPTIONS  "erf.nudging_from_input_sounding=true erf.tau_nudging=0.5")
+
+# Large-scale forcing that relaxes the wind towards the sounding's own wind, with no
+# tendencies or subsidence, adds exactly zero on every level, refined in z included.
+add_test_option_parity(InputSounding_FineLevelLSF InputSoundingFineLevels "plt00001"
+    COMMON_OPTIONS "max_step=1 erf.input_sounding_file=../input_sounding_wind"
+    OFF_OPTIONS "erf.large_scale_forcing=false"
+    ON_OPTIONS  "erf.nudging_from_input_sounding=true erf.large_scale_forcing=true erf.large_scale_forcing_file=../lsf_zero_tendency erf.forcing_timescale=0.5")
 
 #=============================================================================
 # Terrain: decomposition and station output over a hill

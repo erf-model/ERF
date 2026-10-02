@@ -4,7 +4,7 @@ on:
   push:
     branches: [development]
   pull_request:
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened]
 
 concurrency:
   group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-linux-gcc
@@ -12,8 +12,6 @@ concurrency:
 
 jobs:
   library:
-    # The closed event exists only to cancel in-progress runs via concurrency.
-    if: github.event.action != 'closed'
     name: GNU@9.3 C++17 - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     runs-on: ubuntu-22.04
     timeout-minutes: 120
@@ -127,14 +125,21 @@ jobs:
         ctest -L auxiliary --output-on-failure --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build
 
-    # Keep the existing DOUBLE unit/regression coverage and add one focused
-    # SINGLE SHOC runtime job.  This exercises the precision-aware SHOC gold and
-    # unit oracles in CI without repeating the full SHOC suite in the DOUBLE
-    # build.
+    # Keep the existing DOUBLE unit/regression coverage and add focused SINGLE
+    # SHOC and SBM remapping runtime checks without repeating the full unit
+    # suite in the SINGLE build.
     - name: Run SINGLE SHOC Tests
       if: matrix.mesh_precision == 'SINGLE' && matrix.particles == 'ON' && matrix.particles_precision == 'SINGLE'
       run: |
         ctest -L shoc --output-on-failure --no-tests=error
+      working-directory: ${{runner.workspace}}/ERF/build
+
+    - name: Run SINGLE SBM Contract Tests
+      if: matrix.mesh_precision == 'SINGLE' && matrix.particles == 'ON' && matrix.particles_precision == 'SINGLE'
+      run: |
+        ctest -R '^(SBMRemapping|SBMFoundation)\.' \
+              --output-on-failure \
+              --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build
 
     - name: Run Parallel Tests
@@ -160,6 +165,18 @@ jobs:
         ctest -L smoke --output-on-failure --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build
 
+    # A test that dies on a signal (for example SIGILL from amrex.fpe_trap_invalid)
+    # writes Backtrace.<rank> into its run directory; the log only says "See
+    # Backtrace.0 file for details", so keep those files when a step has failed.
+    - name: Upload backtraces from failed tests
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: backtraces-gcc-mesh-${{matrix.mesh_precision}}-particles-${{matrix.particles}}-${{matrix.particles_precision}}
+        path: ${{runner.workspace}}/ERF/build/Tests/**/Backtrace.*
+        if-no-files-found: ignore
+        retention-days: 14
+
   # Single stable required status check. Branch protection previously pinned the
   # individual matrix job names ("GNU@9.3 C++17 Release - Particles OFF"), which silently
   # stopped matching when the matrix gained its Mesh/precision axes -- leaving every PR
@@ -167,7 +184,7 @@ jobs:
   # the matrix can be reshaped without touching branch protection again.
   ci-required:
     name: ci-required
-    if: always() && github.event.action != 'closed'
+    if: always()
     needs: [library]
     runs-on: ubuntu-22.04
     timeout-minutes: 5

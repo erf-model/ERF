@@ -71,9 +71,12 @@ public:
 
     // Set thermo and grid properties
     void
-    Define (SolverChoice& /*sc*/) override
+    Define (SolverChoice& sc) override
     {
-        // Parse solver constants from sc here if needed.
+        // Whether the configured radiation model writes Noah-MP's radiation inputs
+        // (SWDOWN, GLW, COSZEN); see the first-land-step check in Advance_With_State.
+        m_radiation_feeds_lsm = sc.rad_feeds_lsm();
+        m_radiation_model_name = amrex::getEnumNameString(sc.rad_type);
     }
 
     // Initialize data structures
@@ -359,8 +362,6 @@ private:
     // domain bc types
     amrex::Vector<amrex::BCRec> m_domain_bcs_type;
 
-    // timestep
-    amrex::Real m_dt;
 
     // Authoritative NoahMP substep counter, kept on the class so the firing decision
     // is identical on every rank (including land-free ranks with empty noahmpio_vect).
@@ -420,5 +421,32 @@ private:
 
     // Do we have a nc init file?
     bool m_has_nc_file = false;
+
+    // Set once a land step has seen valid radiation inputs (or warned that a model
+    // that never writes them is in use), so the check in Advance_With_State (a global
+    // reduction) stops running. Reset by Init: a rebuilt level (regrid, including the
+    // one a restart can trigger) re-installs the lsm_undefined sentinel, so a verdict
+    // from before the wipe no longer holds.
+    bool m_checked_radiation_inputs = false;
+
+    // Set when the missing-radiation-inputs warning for a restarted/rebuilt level has
+    // been printed, so re-checking on later land steps does not repeat it.
+    bool m_warned_radiation_inputs = false;
+
+    // The ERF step of the first Advance_With_State call since this level was last
+    // (re)built: 0 only on a run started from scratch, positive after a restart or a
+    // mid-run regrid (Init resets it to -1 when it re-installs the sentinel).
+    // Distinguishes "RRTMGP has certainly computed since the fields were initialized"
+    // (a fresh run computes radiation on step 0, before any land step) from "RRTMGP
+    // may not have recomputed yet" (after a restart or regrid it recomputes only on
+    // its rad_freq_in_steps schedule). Set by Advance_With_State.
+    int m_first_advance_nstep = -1;
+
+    // True when the configured radiation model writes the radiation inputs (RRTMGP, or
+    // TwoStream), so an input still missing on the first land step is a broken coupling,
+    // not a configuration without radiation. Set in Define, with the model's name for the
+    // messages.
+    bool m_radiation_feeds_lsm = false;
+    std::string m_radiation_model_name;
 };
 #endif

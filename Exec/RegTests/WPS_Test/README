@@ -2,6 +2,18 @@ This problem setup is to test the ability of ERF to correctly use files created
 by the WRF Preprocessing System (WPS) to initialize the problem and provide
 time-dependent boundary conditions.
 
+The inputs_wps_ml_interp case covers the surface-only initialization path
+(erf.interp_atmos_from_coarse, issue #4060): level 1 is created part-way
+through the run from a wrfinput_d02 whose start time is later than
+wrfinput_d01's, reading only the surface and SLM fields from the file and
+interpolating the atmospheric state from level 0. It runs on the same
+summer dataset as inputs_slm_rrtmgp (SLM requires the radiation model, and
+its canopy scheme cannot run a below-freezing dataset) and needs: those
+wrfinput_d01/wrfbdy_d01 files; a wrfinput_d02 with parent_grid_ratio = 3
+and a start time 25 s after d01's; NoahmpTable.TBL; and the four
+rrtmgp-*.nc files named in the inputs (see below). Build with
+USE_RRTMGP=TRUE. Pick max_step so the run crosses the d02 start time.
+
 The inputs_noahmp_rrtmgp case employs the Noah-MP land surface model
 and RRTMGP radiation model. A namelist file, Noah-MP table file, and radiation data files
 are needed for this case;

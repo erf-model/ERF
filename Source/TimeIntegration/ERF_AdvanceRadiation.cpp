@@ -20,7 +20,8 @@ using namespace amrex;
  *   shortwave and longwave model that computes heating rates from the
  *   old-state atmosphere (t^n) with clear-sky and cloudy column algorithms.
  *   The heating rates go into qheating_rates[lev], a 2-component MultiFab
- *   holding shortwave and longwave.
+ *   holding shortwave and longwave. With Noah-MP it also writes the land
+ *   model's radiative forcing (SWDOWN, GLW, COSZEN), as RRTMGP does.
  *
  * **Source-term application**
  *
@@ -222,7 +223,7 @@ void ERF::advance_radiation (int lev,
             }
         }
 
-        if (m_SurfaceModel && solverChoice.rad_type == RadiationType::RRTMGP) {
+        if (m_SurfaceModel && solverChoice.rad_feeds_lsm()) {
             const auto fine_outputs = m_SurfaceModel->get_radiation_output_fields(lev);
             const auto coarse_outputs = m_SurfaceModel->get_radiation_output_fields(lev-1);
             const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
@@ -237,13 +238,22 @@ void ERF::advance_radiation (int lev,
                     MultiFab fine_surface(BoxArray(std::move(fine_boxes)),
                                           fine_outputs[i]->DistributionMap(), 1, 0);
 
-                    // Radiation output fields are surface-slab fields even when stored in 3-D.
+                    // Radiation output fields are surface-slab fields even when stored in 3-D,
+                    // and the surface plane k = 0 may sit in the field's z GHOST region (SLM
+                    // stores soil layers at k < 0 and exchanges surface values at k = 0; see
+                    // SurfaceModel::validate_radiation_output_layout). The copies must pair
+                    // regions of identical size: the surface MultiFabs' valid boxes are the
+                    // output fields' VALID boxes flattened to k = 0 (above), so take the i,j
+                    // extent from the valid box -- a slab of the fab's own box also carries
+                    // the ghost cells in x and y and is larger than the paired valid box.
                     for (MFIter mfi(coarse_surface); mfi.isValid(); ++mfi) {
-                        const Box& source_box = (*coarse_outputs[i])[mfi.index()].box();
+                        const Box source_valid = coarse_outputs[i]->boxArray()[mfi.index()];
+                        const Box& source_fab_box = (*coarse_outputs[i])[mfi.index()].box();
                         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-                            source_box.smallEnd(2) <= 0 && source_box.bigEnd(2) >= 0,
-                            "Radiation output destination must contain the k=0 surface plane");
-                        const Box source_slab = makeSlab(source_box, 2, 0);
+                            source_fab_box.smallEnd(2) <= 0 && source_fab_box.bigEnd(2) >= 0,
+                            "Radiation output source must contain the k=0 surface plane in "
+                            "its valid or ghost region");
+                        const Box source_slab = makeSlab(source_valid, 2, 0);
                         coarse_surface[mfi].template copy<RunOn::Device>(
                             (*coarse_outputs[i])[mfi.index()], source_slab, 0, mfi.validbox(), 0, 1);
                     }
@@ -254,11 +264,13 @@ void ERF::advance_radiation (int lev,
                                           domain_bcs_type, BCVars::cons_bc);
 
                     for (MFIter mfi(fine_surface); mfi.isValid(); ++mfi) {
-                        const Box& destination_box = (*fine_outputs[i])[mfi.index()].box();
+                        const Box destination_valid = fine_outputs[i]->boxArray()[mfi.index()];
+                        const Box& destination_fab_box = (*fine_outputs[i])[mfi.index()].box();
                         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-                            destination_box.smallEnd(2) <= 0 && destination_box.bigEnd(2) >= 0,
-                            "Radiation output destination must contain the k=0 surface plane");
-                        const Box destination_slab = makeSlab(destination_box, 2, 0);
+                            destination_fab_box.smallEnd(2) <= 0 && destination_fab_box.bigEnd(2) >= 0,
+                            "Radiation output destination must contain the k=0 surface plane in "
+                            "its valid or ghost region");
+                        const Box destination_slab = makeSlab(destination_valid, 2, 0);
                         (*fine_outputs[i])[mfi.index()].template copy<RunOn::Device>(
                             fine_surface[mfi], mfi.validbox(), 0, destination_slab, 0, 1);
                     }
@@ -316,7 +328,7 @@ void ERF::advance_radiation (int lev,
 
         if (m_SurfaceModel) {
             lsm_input_ptrs = m_SurfaceModel->get_radiation_fields(lev);
-            if (solverChoice.rad_type == RadiationType::RRTMGP) {
+            if (solverChoice.rad_feeds_lsm()) {
                 lsm_output_ptrs = m_SurfaceModel->get_radiation_output_fields(lev);
             }
         }
@@ -382,6 +394,9 @@ void ERF::advance_radiation (int lev,
         const MultiFab* t_surf = (m_SurfaceLayer[Orientation::zlo()])
                                ? m_SurfaceLayer[Orientation::zlo()]->get_t_surf(lev)
                                : nullptr;
+        const MultiFab* sfc_sens_flux = nullptr;
+        const MultiFab* sfc_laten_flux = nullptr;
+        seb_surface_layer_fluxes(lev, sfc_sens_flux, sfc_laten_flux);
         Vector<const MultiFab*> radiation_inputs(6, nullptr);
         bool noahmp_active = solverChoice.lsm_type == LandSurfaceType::NOAHMP;
         if (m_SurfaceModel) {
@@ -391,8 +406,22 @@ void ERF::advance_radiation (int lev,
                                vars_old[lev][Vars::cons], z_phys_nd[lev].get(), geom[lev],
                                lsm, radiation_inputs, noahmp_active,
                                qheating_rates[lev].get(), rad_fluxes[lev].get(),
-                               t_surf, lat_ptr, lon_ptr,
+                               t_surf, sfc_sens_flux, sfc_laten_flux, lat_ptr, lon_ptr,
                                t_old[lev] + start_time, use_datetime);
+
+        // Hand the land-surface model the surface forcing of this sweep, as RRTMGP does
+        // through lsm_output_ptrs. The two-stream model sweeps on every step, so this is
+        // every step, and the land model -- which runs after the dycore -- always sees this
+        // step's radiation. The destinations are LSM data, which the LSM checkpoints; a
+        // restarted run refills them here before its first land step.
+        // supplies_land_forcing(lev) is what init_stuff set from rad_feeds_lsm(): one test.
+        if (m_SurfaceModel && two_stream_rad.supplies_land_forcing(lev)) {
+            two_stream_rad.write_land_forcing(lev,
+                m_SurfaceModel->get_radiation_output_field(lev, "sw_flux_dn"),
+                m_SurfaceModel->get_radiation_output_field(lev, "lw_flux_dn"),
+                m_SurfaceModel->get_radiation_output_field(lev, "cos_zenith_angle"));
+            m_SurfaceModel->distribute_radiation_outputs(lev);
+        }
 
         // Fill this level's halo so a finer level can interpolate from it. The
         // InterpFromCoarseLevel overload above reads the coarse source's ghost cells, not

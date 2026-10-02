@@ -176,12 +176,28 @@ if(DEFINED SEB_PARITY_PLOTFILE AND NOT "${SEB_PARITY_PLOTFILE}" STREQUAL "")
     if(NOT "${SEB_EVOLVED_FROM}" STREQUAL "")
         set(seb_evolved_arg --evolved-from ${SEB_EVOLVED_FROM})
     endif()
+    set(seb_created_arg "")
+    set(seb_fail_message "the coarse surface state is not the average of the fine one, so "
+                         "the levels disagree about the ground they share")
+    if(DEFINED SEB_CREATED_FROM AND NOT "${SEB_CREATED_FROM}" STREQUAL "")
+        set(seb_created_arg --created-from ${SEB_CREATED_FROM})
+        set(seb_fail_message "a fine level created mid-run did not start from the surface "
+                             "its parent had reached")
+    endif()
+    set(seb_regridded_arg "")
+    if(DEFINED SEB_REGRIDDED_FROM AND NOT "${SEB_REGRIDDED_FROM}" STREQUAL "")
+        set(seb_regridded_arg --regridded-from ${SEB_REGRIDDED_FROM})
+        set(seb_fail_message "a regrid that moved the fine level did not keep its surface "
+                             "state, or did not start the newly covered cells from the parent")
+    endif()
     execute_process(
         COMMAND ${PYTHON_EXE} ${SEB_PARITY_CHECKER}
                 --plotfile ${SEB_PARITY_PLOTFILE}
                 --fextract ${FEXTRACT}
                 --tol ${SEB_PARITY_TOL}
                 ${seb_evolved_arg}
+                ${seb_created_arg}
+                ${seb_regridded_arg}
         WORKING_DIRECTORY "${WORKING_DIRECTORY}"
         OUTPUT_FILE "${seb_parity_log}"
         ERROR_FILE "${seb_parity_log}"
@@ -193,8 +209,7 @@ if(DEFINED SEB_PARITY_PLOTFILE AND NOT "${SEB_PARITY_PLOTFILE}" STREQUAL "")
     # a parity failure would send the reader after the wrong defect.
     if(seb_parity_result EQUAL 1)
         message(FATAL_ERROR
-            "TwoStream prognostic SEB parity check failed: the coarse surface state is not "
-            "the average of the fine one, so the levels disagree about the ground they share")
+            "TwoStream prognostic SEB parity check failed: " ${seb_fail_message})
     elseif(NOT seb_parity_result EQUAL 0)
         message(FATAL_ERROR
             "TwoStream prognostic SEB parity check could not run (${seb_parity_result}); see "
