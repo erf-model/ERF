@@ -7,6 +7,7 @@
 #include <sstream>
 #include <string>
 
+#include <AMReX.H>
 #include <AMReX_GpuQualifiers.H>
 #include <AMReX_Math.H>
 #include <AMReX_REAL.H>
@@ -273,6 +274,9 @@ build_geometric_zlevels (amrex::Vector<amrex::Real>& zlevels,
                          amrex::Real tol)
 {
     const int nz = static_cast<int>(zlevels.size()) - 1;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nz >= 1,
+        "build_geometric_zlevels needs a zlevels array of at least two entries");
+
     const GeometricStretch gs = geometric_stretch(dz0, z_top, nz, tol);
 
     amrex::Real dz = gs.dz0;
