@@ -1,4 +1,4 @@
-max_step = 50000
+stop_time  = 60000
 
 # PROBLEM PARAMETERS (optional)
 erf.prob_name        = WPS
@@ -41,7 +41,7 @@ erf.most.zref       = 10.0
 
 # TIME STEP CONTROL
 erf.substepping_type   = Implicit
-erf.fixed_dt           = 6.0
+erf.fixed_dt           = 3.0
 erf.fixed_mri_dt_ratio = 6
 
 # DIAGNOSTICS & VERBOSITY
@@ -58,13 +58,6 @@ erf.plot_int_1      = 2000
 erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure temp theta pres_hse z_phys Kmv Khv KE qv
 
 # SOLVER CHOICE
-erf.dycore_horiz_adv_type    = Upwind_3rd
-erf.dycore_vert_adv_type     = Upwind_3rd
-erf.dryscal_horiz_adv_type   = Upwind_3rd_SL
-erf.dryscal_vert_adv_type    = Upwind_3rd_SL
-erf.moistscal_horiz_adv_type = Upwind_3rd_SL
-erf.moistscal_vert_adv_type  = Upwind_3rd_SL
-
 erf.use_gravity = true
 
 erf.les_type          = None
