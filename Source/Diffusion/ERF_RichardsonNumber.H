@@ -414,45 +414,81 @@ ComputeVerticalShear2_EB (int i, int j, int k,
 
     if (c_cflag(i,j,k+1).isCovered()) {
 
+        // Check if k-1 is also covered (vertically isolated cell)
+        if (c_cflag(i,j,k-1).isCovered()) {
+            // No valid vertical neighbors - disable Richardson correction
+            return zero;
+        }
+
         amrex::Real c_km1, c_km2;
 
         // u, k-1
         f0 = u_vfrac(i,   j, k-1);
         f1 = u_vfrac(i+1, j, k-1);
         fsum = f0 + f1;
-        c_km1 = (fsum > zero) ?
-            ((f0 > zero ? f0 * u(i,   j, k-1) : zero) +
-            (f1 > zero ? f1 * u(i+1, j, k-1) : zero)) / fsum : zero;
+        if (fsum <= zero) {
+            // k-1 face is fully covered - no valid data
+            return zero;
+        }
+        c_km1 = ((f0 > zero ? f0 * u(i,   j, k-1) : zero) +
+                 (f1 > zero ? f1 * u(i+1, j, k-1) : zero)) / fsum;
 
-        // u, k-2
-        f0 = u_vfrac(i,   j, k-2);
-        f1 = u_vfrac(i+1, j, k-2);
-        fsum = f0 + f1;
-        c_km2 = (fsum > zero) ?
-            ((f0 > zero ? f0 * u(i,   j, k-2) : zero) +
-            (f1 > zero ? f1 * u(i+1, j, k-2) : zero)) / fsum : zero;
-
-        du_dz = (three * u_c - four * c_km1 + c_km2) * myhalf * dzInv;
+        // Check if k-2 is covered
+        if (c_cflag(i,j,k-2).isCovered()) {
+            // Fall back to first-order difference
+            du_dz = (u_c - c_km1) * dzInv;
+        } else {
+            // u, k-2
+            f0 = u_vfrac(i,   j, k-2);
+            f1 = u_vfrac(i+1, j, k-2);
+            fsum = f0 + f1;
+            if (fsum <= zero) {
+                // k-2 face is fully covered - fall back to first-order
+                du_dz = (u_c - c_km1) * dzInv;
+            } else {
+                c_km2 = ((f0 > zero ? f0 * u(i,   j, k-2) : zero) +
+                         (f1 > zero ? f1 * u(i+1, j, k-2) : zero)) / fsum;
+                du_dz = (three * u_c - four * c_km1 + c_km2) * myhalf * dzInv;
+            }
+        }
 
         // v, k-1
         f0 = v_vfrac(i, j,   k-1);
         f1 = v_vfrac(i, j+1, k-1);
         fsum = f0 + f1;
-        c_km1 = (fsum > zero) ?
-            ((f0 > zero ? f0 * v(i, j,   k-1) : zero) +
-            (f1 > zero ? f1 * v(i, j+1, k-1) : zero)) / fsum : zero;
+        if (fsum <= zero) {
+            // k-1 face is fully covered - no valid data
+            return zero;
+        }
+        c_km1 = ((f0 > zero ? f0 * v(i, j,   k-1) : zero) +
+                 (f1 > zero ? f1 * v(i, j+1, k-1) : zero)) / fsum;
 
-        // v, k-2
-        f0 = v_vfrac(i, j,   k-2);
-        f1 = v_vfrac(i, j+1, k-2);
-        fsum = f0 + f1;
-        c_km2 = (fsum > zero) ?
-            ((f0 > zero ? f0 * v(i, j,   k-2) : zero) +
-            (f1 > zero ? f1 * v(i, j+1, k-2) : zero)) / fsum : zero;
-
-        dv_dz = (three * v_c - four * c_km1 + c_km2) * myhalf * dzInv;
+        // Check if k-2 is covered
+        if (c_cflag(i,j,k-2).isCovered()) {
+            // Fall back to first-order difference
+            dv_dz = (v_c - c_km1) * dzInv;
+        } else {
+            // v, k-2
+            f0 = v_vfrac(i, j,   k-2);
+            f1 = v_vfrac(i, j+1, k-2);
+            fsum = f0 + f1;
+            if (fsum <= zero) {
+                // k-2 face is fully covered - fall back to first-order
+                dv_dz = (v_c - c_km1) * dzInv;
+            } else {
+                c_km2 = ((f0 > zero ? f0 * v(i, j,   k-2) : zero) +
+                         (f1 > zero ? f1 * v(i, j+1, k-2) : zero)) / fsum;
+                dv_dz = (three * v_c - four * c_km1 + c_km2) * myhalf * dzInv;
+            }
+        }
 
     } else if (c_cflag(i,j,k-1).isCovered()) {
+
+        // Check if k+1 is also covered (vertically isolated cell)
+        if (c_cflag(i,j,k+1).isCovered()) {
+            // No valid vertical neighbors - disable Richardson correction
+            return zero;
+        }
 
         amrex::Real c_kp1, c_kp2;
 
@@ -460,37 +496,61 @@ ComputeVerticalShear2_EB (int i, int j, int k,
         f0 = u_vfrac(i,   j, k+1);
         f1 = u_vfrac(i+1, j, k+1);
         fsum = f0 + f1;
-        c_kp1 = (fsum > zero) ?
-            ((f0 > zero ? f0 * u(i,   j, k+1) : zero) +
-            (f1 > zero ? f1 * u(i+1, j, k+1) : zero)) / fsum : zero;
+        if (fsum <= zero) {
+            // k+1 face is fully covered - no valid data
+            return zero;
+        }
+        c_kp1 = ((f0 > zero ? f0 * u(i,   j, k+1) : zero) +
+                 (f1 > zero ? f1 * u(i+1, j, k+1) : zero)) / fsum;
 
-        // u, k+2
-        f0 = u_vfrac(i,   j, k+2);
-        f1 = u_vfrac(i+1, j, k+2);
-        fsum = f0 + f1;
-        c_kp2 = (fsum > zero) ?
-            ((f0 > zero ? f0 * u(i,   j, k+2) : zero) +
-            (f1 > zero ? f1 * u(i+1, j, k+2) : zero)) / fsum : zero;
-
-        du_dz = (-c_kp2 + four * c_kp1 - three * u_c) * myhalf * dzInv;
+        // Check if k+2 is covered
+        if (c_cflag(i,j,k+2).isCovered()) {
+            // Fall back to first-order difference
+            du_dz = (c_kp1 - u_c) * dzInv;
+        } else {
+            // u, k+2
+            f0 = u_vfrac(i,   j, k+2);
+            f1 = u_vfrac(i+1, j, k+2);
+            fsum = f0 + f1;
+            if (fsum <= zero) {
+                // k+2 face is fully covered - fall back to first-order
+                du_dz = (c_kp1 - u_c) * dzInv;
+            } else {
+                c_kp2 = ((f0 > zero ? f0 * u(i,   j, k+2) : zero) +
+                         (f1 > zero ? f1 * u(i+1, j, k+2) : zero)) / fsum;
+                du_dz = (-c_kp2 + four * c_kp1 - three * u_c) * myhalf * dzInv;
+            }
+        }
 
         // v, k+1
         f0 = v_vfrac(i, j,   k+1);
         f1 = v_vfrac(i, j+1, k+1);
         fsum = f0 + f1;
-        c_kp1 = (fsum > zero) ?
-            ((f0 > zero ? f0 * v(i, j,   k+1) : zero) +
-            (f1 > zero ? f1 * v(i, j+1, k+1) : zero)) / fsum : zero;
+        if (fsum <= zero) {
+            // k+1 face is fully covered - no valid data
+            return zero;
+        }
+        c_kp1 = ((f0 > zero ? f0 * v(i, j,   k+1) : zero) +
+                 (f1 > zero ? f1 * v(i, j+1, k+1) : zero)) / fsum;
 
-        // v, k+2
-        f0 = v_vfrac(i, j,   k+2);
-        f1 = v_vfrac(i, j+1, k+2);
-        fsum = f0 + f1;
-        c_kp2 = (fsum > zero) ?
-            ((f0 > zero ? f0 * v(i, j,   k+2) : zero) +
-            (f1 > zero ? f1 * v(i, j+1, k+2) : zero)) / fsum : zero;
-
-        dv_dz = (-c_kp2 + four * c_kp1 - three * v_c) * myhalf * dzInv;
+        // Check if k+2 is covered
+        if (c_cflag(i,j,k+2).isCovered()) {
+            // Fall back to first-order difference
+            dv_dz = (c_kp1 - v_c) * dzInv;
+        } else {
+            // v, k+2
+            f0 = v_vfrac(i, j,   k+2);
+            f1 = v_vfrac(i, j+1, k+2);
+            fsum = f0 + f1;
+            if (fsum <= zero) {
+                // k+2 face is fully covered - fall back to first-order
+                dv_dz = (c_kp1 - v_c) * dzInv;
+            } else {
+                c_kp2 = ((f0 > zero ? f0 * v(i, j,   k+2) : zero) +
+                         (f1 > zero ? f1 * v(i, j+1, k+2) : zero)) / fsum;
+                dv_dz = (-c_kp2 + four * c_kp1 - three * v_c) * myhalf * dzInv;
+            }
+        }
 
     } else {
 
