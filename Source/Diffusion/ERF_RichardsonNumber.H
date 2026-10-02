@@ -344,10 +344,6 @@ ComputeVerticalShear2_EB(int i, int j, int k,
     amrex::Real du_dz, dv_dz;
     amrex::Real f0, f1, fsum;
 
-    if (i==86 && j==50 && k==1) {
-        amrex::Print()<<"SK: ComputeVerticalShear2_EB ("<<i<<", "<<j<<", "<<k<<") (1)\n";
-    }
-
     f0 = u_vfrac(i,   j, k);
     f1 = u_vfrac(i+1, j, k);
     fsum = f0 + f1;
@@ -355,20 +351,12 @@ ComputeVerticalShear2_EB(int i, int j, int k,
                         ((f0 > zero ? f0 * u(i,   j, k) : zero) +
                         (f1 > zero ? f1 * u(i+1, j, k) : zero)) / fsum : zero;
 
-    if (i==86 && j==50 && k==1) {
-        amrex::Print()<<"SK: ComputeVerticalShear2_EB ("<<i<<", "<<j<<", "<<k<<") (2)\n";
-    }
-
     f0 = v_vfrac(i, j,   k);
     f1 = v_vfrac(i, j+1, k);
     fsum = f0 + f1;
     const amrex::Real v_c = (fsum > zero) ? 
                         ((f0 > zero ? f0 * v(i, j,   k) : zero) +
                         (f1 > zero ? f1 * v(i, j+1, k) : zero)) / fsum : zero;
-    
-    if (i==86 && j==50 && k==1) {
-        amrex::Print()<<"SK: ComputeVerticalShear2_EB ("<<i<<", "<<j<<", "<<k<<") (3)\n";
-    }
 
     if (c_cflag(i,j,k+1).isCovered()) {
 
@@ -489,10 +477,6 @@ ComputeVerticalShear2_EB(int i, int j, int k,
             (f1 > zero ? f1 * v(i, j+1, k+1) : zero)) / fsum : zero;
 
         dv_dz = myhalf * (c_kp1 - c_km1) * dzInv;
-    }
-
-    if (i==86 && j==50 && k==1) {
-        amrex::Print()<<"SK: ComputeVerticalShear2_EB ("<<i<<", "<<j<<", "<<k<<") (4)\n";
     }
 
     amrex::Real S2_vert = du_dz * du_dz + dv_dz * dv_dz;
