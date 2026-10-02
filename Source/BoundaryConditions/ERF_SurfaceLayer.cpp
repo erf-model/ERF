@@ -2654,12 +2654,17 @@ SurfaceLayer::fill_pblh_from_coarser (const int& lev)
     // Each fine column takes the height of the coarse column that holds it (injection, no
     // interpolation): the fine height is then exactly the coarse diagnostic, and independent of
     // the decomposition, at the price of being constant over each block of rr x rr fine columns.
-    // The coarse level's own height varies at that resolution too.  Interpolating would read
-    // the coarse ghost cells outside a non-periodic domain, which hold no diagnosed height.
+    // The coarse level's own height varies at that resolution too.  Interpolating would reach
+    // further into the coarse halo than these planar fields hold: a bilinear stencil for a fine
+    // ghost cell at a non-periodic domain boundary wants a second coarse cell outside the
+    // domain, and pblh carries one ghost cell.  A smooth cap would need a wider halo there, or
+    // a one-sided stencil.
     //
     // The coarse heights over the boxes of this level, with enough ghost cells to cover theirs.
     // Ghost cells go first, then the valid cells, so every cell the coarse level owns comes
-    // from the box that owns it.
+    // from the box that owns it.  The estimator writes pblh over its grown box (it clips only
+    // in z), so the coarse ghost cells the first copy reads hold a diagnosed height, outside a
+    // non-periodic domain too.
     const IntVect ng_f = fine.nGrowVect();
     const IntVect ng_c(AMREX_D_DECL((ng_f[0] + rr[0] - 1) / rr[0], (ng_f[1] + rr[1] - 1) / rr[1], ng_f[2]));
     MultiFab crse_on_fine(amrex::coarsen(fine.boxArray(), rr), fine.DistributionMap(), 1, ng_c);
