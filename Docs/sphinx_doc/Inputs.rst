@@ -12,6 +12,10 @@ Inputs
 The ERF executable reads run-time information from an inputs file which you name on the command line.
 This section describes the inputs which can be specified either in the inputs file or on the command line.
 A value specified on the command line will override a value specified in the inputs file.
+An inputs file may include others with ``FILE = <name>`` lines (the name is opened as written,
+relative to the directory ERF runs in), for instance to share one set of settings between two
+decks. Every input is set in one place: ERF refuses to start when a key appears twice anywhere in
+the inputs file and the files it includes, and names both places.
 
 Inputs with the ``prob.`` prefix are not listed here: they are read by the
 individual problem setups rather than by ERF itself, so the same name means
