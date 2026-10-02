@@ -19,7 +19,7 @@
 
 namespace erf_sbm {
 
-std::string restart_schema(const SBMLayout& layout)
+std::string restart_schema (const SBMLayout& layout)
 {
     std::ostringstream schema;
     schema << "ERF-SBM-RESTART-v1\n"
@@ -30,15 +30,15 @@ std::string restart_schema(const SBMLayout& layout)
     return schema.str();
 }
 
-bool restart_schema_matches(const SBMLayout& layout, const std::string& persisted)
+bool restart_schema_matches (const SBMLayout& layout, const std::string& persisted)
 {
     return restart_schema(layout) == persisted;
 }
 
-bool authoritative_state_admissible(const amrex::MultiFab& spectrum,
-                                    const SBMLayout& layout,
-                                    const int level,
-                                    std::string* diagnostic)
+bool authoritative_state_admissible (const amrex::MultiFab& spectrum,
+                                     const SBMLayout& layout,
+                                     const int level,
+                                     std::string* diagnostic)
 {
     auto reject = [diagnostic](std::string message) {
         if (diagnostic) *diagnostic = std::move(message);
@@ -179,11 +179,11 @@ bool authoritative_state_admissible(const amrex::MultiFab& spectrum,
     return true;
 }
 
-bool restart_projection_matches(const amrex::MultiFab& spectrum,
-                                const amrex::MultiFab& persisted_core,
-                                const SBMBulkProjection& projection,
-                                const int qc_component, const int qr_component,
-                                const amrex::Real tolerance_scale)
+bool restart_projection_matches (const amrex::MultiFab& spectrum,
+                                 const amrex::MultiFab& persisted_core,
+                                 const SBMBulkProjection& projection,
+                                 const int qc_component, const int qr_component,
+                                 const amrex::Real tolerance_scale)
 {
     if (spectrum.boxArray() != persisted_core.boxArray() ||
         spectrum.DistributionMap() != persisted_core.DistributionMap() ||

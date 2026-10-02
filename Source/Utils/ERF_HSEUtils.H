@@ -477,8 +477,8 @@ Real vapor_mixing_ratio (const Real p_b, const Real T_b, const Real RH, const bo
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
-Real compute_F_for_temp_in_zone(const Real T_b, const Real p_b, const Real q_t, const Real eq_pot_temp,
-                                const bool use_empirical, const int which_zone, const Real scaled_height)
+Real compute_F_for_temp_in_zone (const Real T_b, const Real p_b, const Real q_t, const Real eq_pot_temp,
+                                 const bool use_empirical, const int which_zone, const Real scaled_height)
 {
     Real fac = Cp_d + Cp_l*q_t;
     Real RH  = compute_relative_humidity(p_b, T_b, use_empirical, which_zone, scaled_height);
@@ -674,12 +674,12 @@ Real compute_p_k_in_zone (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
 void
-init_isentropic_hse_no_terrain(Real *theta, Real* r, Real* p, Real *q_v,
-                               const Real& dz, const int& khi, const Real q_t,
-                               const Real eq_pot_temp, const bool use_empirical,
-                               const bool T_from_theta = false,
-                               const Real z_tr_1 = -one, const Real z_tr_2 = -one,
-                               const Real theta_0 = amrex::Real(300), const Real theta_tr = amrex::Real(300), const Real T_tr = amrex::Real(300))
+init_isentropic_hse_no_terrain (Real *theta, Real* r, Real* p, Real *q_v,
+                                const Real& dz, const int& khi, const Real q_t,
+                                const Real eq_pot_temp, const bool use_empirical,
+                                const bool T_from_theta = false,
+                                const Real z_tr_1 = -one, const Real z_tr_2 = -one,
+                                const Real theta_0 = amrex::Real(300), const Real theta_tr = amrex::Real(300), const Real T_tr = amrex::Real(300))
 {
     // theta_0, theta_tr and T_tr are used only when T_from_theta is set. Their
     // defaults are still physical temperatures: compute_theta is inlined into

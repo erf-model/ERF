@@ -22,7 +22,7 @@ struct NativeScalarDiffusionPolicy
 
 /** Resolve conserved-state identity to ERF's native coefficient category. */
 inline NativeScalarDiffusionPolicy
-ResolveNativeScalarDiffusionPolicy(const int qty_comp, const DiffChoice& choice)
+ResolveNativeScalarDiffusionPolicy (const int qty_comp, const DiffChoice& choice)
 {
   NativeScalarDiffusionPolicy policy;
   policy.scalar_comp = qty_comp - 1;

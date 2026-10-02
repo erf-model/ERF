@@ -236,7 +236,7 @@ ERF::Evolve ()
 }
 
 void
-ERF::WriteAtIntermediateTime(int step, double cur_time)
+ERF::WriteAtIntermediateTime (int step, double cur_time)
 {
     int plotfiles_3d_written = 0;
     bool interval_diagnostic_consumed = false;
@@ -293,7 +293,7 @@ ERF::WriteAtIntermediateTime(int step, double cur_time)
 }
 
 void
-ERF::WriteAtFinalTime()
+ERF::WriteAtFinalTime ()
 {
     // Write plotfiles at final time
     int plotfiles_3d_written = 0;
@@ -2817,7 +2817,7 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
 
 #ifdef ERF_USE_WINDFARM
 void
-ERF::initializeWindFarm(const int& a_nlevsmax/*!< number of AMR levels */ )
+ERF::initializeWindFarm (const int& a_nlevsmax/*!< number of AMR levels */ )
 {
     windfarm = std::make_unique<WindFarm>(a_nlevsmax, solverChoice.windfarm_type);
 }
@@ -4095,8 +4095,8 @@ ERF::Define_ERFFillPatchers (int lev)
 }
 
 bool
-ERF::writeNow(double cur_time, const int nstep, const int plot_int, const double plot_per,
-              const double dt_0, double& next_file_time)
+ERF::writeNow (double cur_time, const int nstep, const int plot_int, const double plot_per,
+               const double dt_0, double& next_file_time)
 {
     bool write_now = false;
 
@@ -4183,7 +4183,7 @@ ERF::check_state_for_nans (MultiFab const& S)
 }
 
 void
-ERF::check_vels_for_nans(MultiFab const& xvel, MultiFab const& yvel, MultiFab const& zvel)
+ERF::check_vels_for_nans (MultiFab const& xvel, MultiFab const& yvel, MultiFab const& zvel)
 {
     //
     // Test at the end of every full timestep whether the solution data contains NaNs
@@ -4198,7 +4198,7 @@ ERF::check_vels_for_nans(MultiFab const& xvel, MultiFab const& yvel, MultiFab co
 }
 
 void
-ERF::check_for_low_temp(amrex::MultiFab& S)
+ERF::check_for_low_temp (amrex::MultiFab& S)
 {
     // *****************************************************************************
     // Test for low temp (low is defined as beyond the microphysics range of validity)
@@ -4233,7 +4233,7 @@ ERF::check_for_low_temp(amrex::MultiFab& S)
 }
 
 void
-ERF::check_for_negative_theta(amrex::MultiFab& S)
+ERF::check_for_negative_theta (amrex::MultiFab& S)
 {
     // *****************************************************************************
     // Test for negative (rho theta)
@@ -4271,7 +4271,7 @@ ERF::check_for_negative_theta(amrex::MultiFab& S)
 
 
 void
-ERF::check_mesh_type(int lev)
+ERF::check_mesh_type (int lev)
 {
    if (SolverChoice::mesh_type == MeshType::VariableDz) {
        MultiFab z_slab(convert(ba2d[lev],IntVect(1,1,1)),dmap[lev],1,0);

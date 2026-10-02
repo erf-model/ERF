@@ -6,7 +6,7 @@
 namespace erf_auxiliary {
 namespace {
 
-int stage_count(const HostIntegrator method) noexcept
+int stage_count (const HostIntegrator method) noexcept
 {
     switch (method) {
     case HostIntegrator::CompressibleRK3: return 3;
@@ -16,20 +16,20 @@ int stage_count(const HostIntegrator method) noexcept
     return 0;
 }
 
-bool finite_nonnegative(const double value) noexcept
+bool finite_nonnegative (const double value) noexcept
 {
     return std::isfinite(value) && value >= 0.0;
 }
 
-bool valid_const_view(const ConstTimedFieldView& view,
-                      const double expected_time) noexcept
+bool valid_const_view (const ConstTimedFieldView& view,
+                       const double expected_time) noexcept
 {
     return view.field != nullptr && view.component >= 0 &&
            view.component < view.field->nComp() &&
            std::isfinite(view.time) && view.time == expected_time;
 }
 
-bool storage_overlaps(const amrex::MultiFab& lhs, const amrex::MultiFab& rhs)
+bool storage_overlaps (const amrex::MultiFab& lhs, const amrex::MultiFab& rhs)
 {
     if (&lhs == &rhs) { return true; }
     if (!SameCellLayout(lhs, rhs)) { return false; }
@@ -51,7 +51,7 @@ bool storage_overlaps(const amrex::MultiFab& lhs, const amrex::MultiFab& rhs)
 
 } // namespace
 
-const char* HostIntegratorName(const HostIntegrator method) noexcept
+const char* HostIntegratorName (const HostIntegrator method) noexcept
 {
     switch (method) {
     case HostIntegrator::CompressibleRK3: return "CompressibleRK3";
@@ -61,11 +61,11 @@ const char* HostIntegratorName(const HostIntegrator method) noexcept
     return "Unknown";
 }
 
-bool MakeAuxiliaryStageRecipe(const HostIntegrator method,
-                              const int stage,
-                              const double host_stage_interval,
-                              AuxiliaryStageRecipe& recipe,
-                              std::string& diagnostic)
+bool MakeAuxiliaryStageRecipe (const HostIntegrator method,
+                               const int stage,
+                               const double host_stage_interval,
+                               AuxiliaryStageRecipe& recipe,
+                               std::string& diagnostic)
 {
     diagnostic.clear();
     recipe = {};
@@ -104,12 +104,12 @@ bool MakeAuxiliaryStageRecipe(const HostIntegrator method,
     return true;
 }
 
-bool BuildAuxiliaryIntensiveState(const ConstTimedFieldView& state_input,
-                                  const ConstTimedFieldView& rho_input,
-                                  const double input_time,
-                                  amrex::MultiFab& intensive,
-                                  const AuxiliaryFieldValidationPolicy validation,
-                                  std::string& diagnostic)
+bool BuildAuxiliaryIntensiveState (const ConstTimedFieldView& state_input,
+                                   const ConstTimedFieldView& rho_input,
+                                   const double input_time,
+                                   amrex::MultiFab& intensive,
+                                   const AuxiliaryFieldValidationPolicy validation,
+                                   std::string& diagnostic)
 {
     diagnostic.clear();
     if (!std::isfinite(input_time) ||
@@ -151,7 +151,7 @@ bool BuildAuxiliaryIntensiveState(const ConstTimedFieldView& state_input,
     return true;
 }
 
-bool AuxiliaryStageTargetIsDisjoint(const AuxiliaryStageContext& context)
+bool AuxiliaryStageTargetIsDisjoint (const AuxiliaryStageContext& context)
 {
     return context.state_target.field != nullptr &&
            (context.state_anchor.field == nullptr ||
@@ -160,10 +160,10 @@ bool AuxiliaryStageTargetIsDisjoint(const AuxiliaryStageContext& context)
             !storage_overlaps(*context.state_target.field, *context.state_input.field));
 }
 
-void ApplyAuxiliaryMappedStage(const AuxiliaryStageContext& context,
-                               const MappedFaceFluxRate& rate,
-                               const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dx_inv,
-                               const int rate_component)
+void ApplyAuxiliaryMappedStage (const AuxiliaryStageContext& context,
+                                const MappedFaceFluxRate& rate,
+                                const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dx_inv,
+                                const int rate_component)
 {
     AMREX_ALWAYS_ASSERT(context.level >= 0 && context.stage >= 0);
     AMREX_ALWAYS_ASSERT(std::isfinite(context.step_old_time));
@@ -245,7 +245,7 @@ void ApplyAuxiliaryMappedStage(const AuxiliaryStageContext& context,
     }
 }
 
-void CompletedStepFluxLedger::define(const amrex::BoxArray& cell_ba,
+void CompletedStepFluxLedger::define (const amrex::BoxArray& cell_ba,
                                     const amrex::DistributionMapping& dm,
                                     const int ncomp)
 {
@@ -257,12 +257,12 @@ void CompletedStepFluxLedger::define(const amrex::BoxArray& cell_ba,
     m_step_old_time = 0.0;
 }
 
-bool CompletedStepFluxLedger::accept_stage(const HostIntegrator method,
-                                           const int stage,
-                                           const double step_old_time,
-                                           const AuxiliaryStageRecipe& recipe,
-                                           const MappedFaceFluxRate& rate,
-                                           std::string& diagnostic)
+bool CompletedStepFluxLedger::accept_stage (const HostIntegrator method,
+                                            const int stage,
+                                            const double step_old_time,
+                                            const AuxiliaryStageRecipe& recipe,
+                                            const MappedFaceFluxRate& rate,
+                                            std::string& diagnostic)
 {
     diagnostic.clear();
     if (!is_defined() || !rate.is_defined() || rate.nComp() != m_integral.nComp()) {

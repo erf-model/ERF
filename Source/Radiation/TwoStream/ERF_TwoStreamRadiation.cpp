@@ -118,14 +118,14 @@ void set_solar_state (TwoStreamParams& p, const RadChoice& rc,
 namespace {
 // The LSM field of the given name on this level, or nullptr when the LSM has
 // none.
-const MultiFab* lsm_field(LandSurface& lsm, int lev, const char* field_name)
+const MultiFab* lsm_field (LandSurface& lsm, int lev, const char* field_name)
 {
     std::string varname(field_name);
     const int lsm_idx = lsm.Get_DataIdx(lev, varname);
     return (lsm_idx >= 0) ? lsm.Get_Data_Ptr(lev, lsm_idx) : nullptr;
 }
 
-bool lsm_has_field(LandSurface& lsm, int lev, const char* field_name)
+bool lsm_has_field (LandSurface& lsm, int lev, const char* field_name)
 {
     return lsm_field(lsm, lev, field_name) != nullptr;
 }
@@ -135,7 +135,7 @@ bool lsm_has_field(LandSurface& lsm, int lev, const char* field_name)
 // absorbed fluxes positive), plus an optional second field added on top
 // (Noah-MP splits absorbed shortwave into sav and sag). Falls back to the
 // scalar default when the LSM does not expose the field.
-void fill_or_copy_seb_field(
+void fill_or_copy_seb_field (
     MultiFab* seb_mf,
     LandSurface& lsm,
     int lev,
@@ -407,14 +407,14 @@ TwoStreamRadiation::advance (int lev,
                              const Vector<const MultiFab*>& radiation_inputs,
                              bool noahmp_active,
                              MultiFab* qheating,
-                            MultiFab* rad_fluxes,
-                            const MultiFab* t_surf,
-                            const MultiFab* sfc_sens_flux,
-                            const MultiFab* sfc_laten_flux,
-                            const MultiFab* lat_m,
-                            const MultiFab* lon_m,
-                            double epoch_time,
-                            bool have_datetime)
+                             MultiFab* rad_fluxes,
+                             const MultiFab* t_surf,
+                             const MultiFab* sfc_sens_flux,
+                             const MultiFab* sfc_laten_flux,
+                             const MultiFab* lat_m,
+                             const MultiFab* lon_m,
+                             double epoch_time,
+                             bool have_datetime)
 {
     BL_PROFILE("TwoStreamRadiation::advance()");
 

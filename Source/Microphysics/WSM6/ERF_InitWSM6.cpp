@@ -8,12 +8,12 @@
 using namespace amrex;
 
 void
-WSM6::Init(const MultiFab& cons_in,
-           const BoxArray&,
-           const Geometry& geom,
-           const Real& dt_advance,
-           std::unique_ptr<MultiFab>& z_phys_nd,
-           std::unique_ptr<MultiFab>& detJ_cc)
+WSM6::Init (const MultiFab& cons_in,
+            const BoxArray&,
+            const Geometry& geom,
+            const Real& dt_advance,
+            std::unique_ptr<MultiFab>& z_phys_nd,
+            std::unique_ptr<MultiFab>& detJ_cc)
 {
     dt = dt_advance;
     m_geom = geom;
@@ -46,14 +46,14 @@ WSM6::Init(const MultiFab& cons_in,
 }
 
 void
-WSM6::Copy_State_to_Micro(const MultiFab& cons_in)
+WSM6::Copy_State_to_Micro (const MultiFab& cons_in)
 {
     Copy_State_to_Micro(cons_in, nullptr);
 }
 
 void
-WSM6::Copy_State_to_Micro(const MultiFab& cons_in,
-                          const MultiFab* base_state)
+WSM6::Copy_State_to_Micro (const MultiFab& cons_in,
+                           const MultiFab* base_state)
 {
     assert_base_state_available(base_state);
     const bool use_anelastic_reference_pressure =
@@ -87,14 +87,14 @@ WSM6::Copy_State_to_Micro(const MultiFab& cons_in,
 }
 
 void
-WSM6::Update_Micro_Vars(MultiFab& cons_in,
-                        const MultiFab* base_state)
+WSM6::Update_Micro_Vars (MultiFab& cons_in,
+                         const MultiFab* base_state)
 {
     Copy_State_to_Micro(cons_in, base_state);
 }
 
 void
-WSM6::initialize_coeffs()
+WSM6::initialize_coeffs ()
 {
     using amrex::Real;
 

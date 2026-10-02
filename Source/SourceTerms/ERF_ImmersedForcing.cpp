@@ -23,7 +23,7 @@ using namespace amrex;
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
-compute_if_most_target_vel(
+compute_if_most_target_vel (
     const amrex::Real u1_2r,
     const amrex::Real u2_2r,
     const amrex::Real delta,
@@ -947,17 +947,17 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
  * Apply terrain immersed forcing to scalars (Rho, RhoTheta)
  */
 void ImmersedForcingTerrain_Scalar (const Box& bx,
-                                   const Array4<const Real>& u,
-                                   const Array4<const Real>& v,
-                                   const Array4<const Real>& cell_data,
-                                   const Array4<const Real>& t_blank_arr,
-                                   const Array4<const Real>& z_cc_arr,
-                                   const Array4<      Real>& cell_src,
-                                   const Geometry& geom,
-                                   const SolverChoice& solverChoice,
-                                   const Table1D<Real>& r_avg,
-                                   const Table1D<Real>& t_avg,
-                                   const Real time)
+                                    const Array4<const Real>& u,
+                                    const Array4<const Real>& v,
+                                    const Array4<const Real>& cell_data,
+                                    const Array4<const Real>& t_blank_arr,
+                                    const Array4<const Real>& z_cc_arr,
+                                    const Array4<      Real>& cell_src,
+                                    const Geometry& geom,
+                                    const SolverChoice& solverChoice,
+                                    const Table1D<Real>& r_avg,
+                                    const Table1D<Real>& t_avg,
+                                    const Real time)
 {
     // geometric properties
     const Real* dx_arr = geom.CellSize();
@@ -1082,18 +1082,18 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
  * Apply buildings immersed forcing to scalars (Rho, RhoTheta)
  */
 void ImmersedForcingBuildings_Scalar (const Box& bx,
-                                     const Array4<const Real>& u,
-                                     const Array4<const Real>& v,
-                                     const Array4<const Real>& w,
-                                     const Array4<const Real>& cell_data,
-                                     const Array4<const Real>& t_blank_arr,
-                                     const Array4<const Real>& z_cc_arr,
-                                     const Array4<      Real>& cell_src,
-                                     const Geometry& geom,
-                                     const SolverChoice& solverChoice,
-                                     const Table1D<Real>& r_avg,
-                                     const Table1D<Real>& t_avg,
-                                     const Real time)
+                                      const Array4<const Real>& u,
+                                      const Array4<const Real>& v,
+                                      const Array4<const Real>& w,
+                                      const Array4<const Real>& cell_data,
+                                      const Array4<const Real>& t_blank_arr,
+                                      const Array4<const Real>& z_cc_arr,
+                                      const Array4<      Real>& cell_src,
+                                      const Geometry& geom,
+                                      const SolverChoice& solverChoice,
+                                      const Table1D<Real>& r_avg,
+                                      const Table1D<Real>& t_avg,
+                                      const Real time)
 {
     // geometric properties
     const Real* dx_arr = geom.CellSize();

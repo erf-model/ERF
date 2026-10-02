@@ -33,7 +33,7 @@
  * @return Relative humidity [0, 1]
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real compute_relative_humidity(amrex::Real qv, amrex::Real T, amrex::Real P)
+amrex::Real compute_relative_humidity (amrex::Real qv, amrex::Real T, amrex::Real P)
 {
     // Guard against invalid inputs
     if (T <= 0.0 || P <= 0.0 || qv < 0.0 || !amrex::Math::isfinite(qv) ||
@@ -95,7 +95,7 @@ amrex::Real compute_relative_humidity(amrex::Real qv, amrex::Real T, amrex::Real
  * @note Output is always in [0, 1], finite, and safe for further use.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real diagnose_cloud_fraction_from_rh_qc(
+amrex::Real diagnose_cloud_fraction_from_rh_qc (
     amrex::Real rh, amrex::Real qc,
     amrex::Real rh_min, amrex::Real rh_max,
     amrex::Real qc_scale)

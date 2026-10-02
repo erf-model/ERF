@@ -61,7 +61,7 @@
  *         Returns 0.0 if any input is non-finite (NaN or Inf)
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real diagnose_seb_residual(amrex::Real sw_net,
+amrex::Real diagnose_seb_residual (amrex::Real sw_net,
                                    amrex::Real lw_net,
                                    amrex::Real hfx,
                                    amrex::Real lh,
@@ -107,7 +107,7 @@ amrex::Real diagnose_seb_residual(amrex::Real sw_net,
  *         Returns 0.0 if any input is non-finite or any parameter is non-positive
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real prognostic_dTs_dt(amrex::Real seb_residual,
+amrex::Real prognostic_dTs_dt (amrex::Real seb_residual,
                                amrex::Real t_s,
                                amrex::Real t_deep,
                                amrex::Real c_s,
@@ -161,7 +161,7 @@ amrex::Real prognostic_dTs_dt(amrex::Real seb_residual,
  *         Returns 0.0 if any input is non-finite or any parameter is non-positive
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real prognostic_dqs_dt(amrex::Real le,
+amrex::Real prognostic_dqs_dt (amrex::Real le,
                                amrex::Real q_s,
                                amrex::Real q_deep,
                                amrex::Real d_s,
