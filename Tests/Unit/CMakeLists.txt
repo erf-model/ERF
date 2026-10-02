@@ -184,6 +184,9 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestStationSampler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestProvenance.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestCheckpoint.cpp
+    # Motivation: a deck may include several files with FILE = <name>; the duplicate-input check
+    # must not refuse it.
+    ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestInputsName.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestEpochTime.cpp
     # Motivation: a station placed by latitude/longitude must land where the
     # lat/lon arrays put it on a rotated grid and on a grid across 180 degrees.
