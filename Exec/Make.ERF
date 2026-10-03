@@ -695,7 +695,18 @@ ifeq ($(USE_ML_UPHYS_DIAGNOSTICS), TRUE)
   DEFINES += -DERF_USE_ML_UPHYS_DIAGNOSTICS
 endif
 
-CEXE_sources += AMReX_buildInfo.cpp
+# The generated build info is per configuration, not per source tree: the
+# recorded compiler and link flags differ between configurations, and object
+# trees are already keyed by optionsSuffix. A single shared AMReX_buildInfo.cpp
+# would therefore stamp whichever configuration regenerated it last onto every
+# other configuration's executable. The name has to stay a bare filename in this
+# directory so that the pattern rule in Make.rules can resolve it: make searches
+# VPATH for the plain name, and when the file does not exist yet it falls back to
+# looking for an explicit rule with exactly that target.
+ERF_BUILDINFO_SRC := AMReX_buildInfo.$(optionsSuffix).cpp
+ERF_BUILDINFO_OBJ := $(objEXETempDir)/$(ERF_BUILDINFO_SRC:%.cpp=%.o)
+
+CEXE_sources += $(ERF_BUILDINFO_SRC)
 CEXE_headers += $(AMREX_HOME)/Tools/C_scripts/AMReX_buildInfo.H
 INCLUDE_LOCATIONS += $(AMREX_HOME)/Tools/C_scripts
 
@@ -763,8 +774,9 @@ all: $(ERF_PREBUILD_TARGETS) $(executable)
 # deleting the file from a build target instead -- a bare `make` builds
 # $(executable), not `all`, because Make.rules is included above and defines the
 # default goal, so that cleanup would never run.
-AMReX_buildInfo.cpp: $(filter-out %AMReX_buildInfo.o,$(objForExecs))
+$(ERF_BUILDINFO_SRC): $(filter-out $(ERF_BUILDINFO_OBJ),$(objForExecs))
 	$(AMREX_HOME)/Tools/C_scripts/makebuildinfo_C.py \
+          --output_dir $(objEXETempDir) \
           --amrex_home "$(AMREX_HOME)" \
           --COMP "$(COMP)" --COMP_VERSION "$(COMP_VERSION)" \
           --CXX_comp_name "$(CXX)" \
@@ -774,9 +786,10 @@ AMReX_buildInfo.cpp: $(filter-out %AMReX_buildInfo.o,$(objForExecs))
           --MODULES "$(MNAMES)" \
           --GIT "$(ERF_HOME) $(AMREX_HOME)" \
           --GIT_STYLE "--always --dirty"
+	$(SILENT) mv $(objEXETempDir)/AMReX_buildInfo.cpp $@
 
 clean::
-	$(SILENT) $(RM) AMReX_buildInfo.cpp
+	$(SILENT) $(RM) $(ERF_BUILDINFO_SRC)
 ifeq ($(USE_NOAHMP), TRUE)
 	$(MAKE) -C $(NOAHMP_HOME)/drivers/erf -f Makefile clean_noahmp
 endif
