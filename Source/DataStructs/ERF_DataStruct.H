@@ -1198,6 +1198,9 @@ struct SolverChoice {
         {
             amrex::Error("Can only specify one of init_surf_temp, surf_temp_flux, or Olen");
         }
+        if (if_Olen_in == zero) {
+            amrex::Abort("erf.if_Olen = 0 is not an Obukhov length: give a nonzero length [m] (a large |L| is near neutral)");
+        }
 
         // Flag to do MOST rotations with terrain
         pp.queryAdd("use_rotate_surface_flux",use_rotate_surface_flux);

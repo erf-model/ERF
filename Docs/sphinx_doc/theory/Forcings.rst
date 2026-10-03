@@ -269,6 +269,15 @@ The temperature forcing is then formulated as follows:
     F_{\rho\theta} = -C_{d,s} \beta_r \left(\sqrt[3]{\Delta x_1 \Delta x_2 \Delta x_3}\right)^{-1} |U_s| (\rho \theta_{target} - \rho\theta)
 
 The target temperature :math:`\theta_{target}`` is straightforward when using a surface temperature and heating rate; when specifying a surface flux or Obukhov length, the target temperature is determined using MOST.
+
+The stability estimate of the wall law is bounded as on flat ground (:ref:`sec:surface_layer`).
+The friction velocity that sets the Obukhov length, and the heat transfer of the temperature forcing, use the tangential
+wind one cell from the wall floored at 0.1 m/s, and the Obukhov length is held at
+:math:`|L| \ge 1.5\,\Delta / 100`, so that :math:`|\zeta| = |z/L| \le 100` at both heights the law uses
+(:math:`0.5\,\Delta` and :math:`1.5\,\Delta`, with :math:`\Delta` the cell size normal to the wall).
+Without these bounds a calm cell gives :math:`u_* = 0`, :math:`L = 0` and an infinite :math:`\zeta`.
+The velocity target itself uses the actual wind, so the floor does not push a calm cell.
+Above the floor and inside the bound the results are unchanged.
 The following inputs are available when representing terrain using immersed forcing:
 
 ::
