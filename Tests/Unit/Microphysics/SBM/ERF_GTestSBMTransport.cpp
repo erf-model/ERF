@@ -90,6 +90,7 @@ struct RunOptions
     double dt{0.01};
     bool smooth_profile{false};
     bool complex_profile{false};
+    bool adversarial_one_moment_profile{false};
     bool multidirectional_carrier{false};
     bool compare_native_candidate{false};
     bool compare_direct_moment_candidate{false};
@@ -566,6 +567,8 @@ run_transport (const RunOptions& options)
         const bool has_property = options.attached_property;
         const bool smooth_profile = options.smooth_profile;
         const bool complex_profile = options.complex_profile;
+        const bool adversarial_one_moment_profile =
+            options.adversarial_one_moment_profile;
         const bool noncanonical_shared_edge = options.noncanonical_shared_edge;
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j,
                                                     int k) noexcept {
@@ -633,9 +636,25 @@ run_transport (const RunOptions& options)
                     state(i, j, k, property0 + 1) = density * n1 * ratio;
                 }
             } else {
+                const int profile_cell = i % 8;
+                // At CFL 0.88, this asymmetric positive stencil triggers
+                // WENO overshoot without a roundoff-sensitive FCT result.
+                Real adversarial_m0 = Real(1.0e-5);
+                if (profile_cell == 1 || profile_cell == 4 ||
+                    profile_cell == 7) {
+                    adversarial_m0 = Real(5.0e-5);
+                } else if (profile_cell == 2 || profile_cell == 6) {
+                    adversarial_m0 = Real(5.0e-4);
+                } else if (profile_cell == 3) {
+                    adversarial_m0 = Real(1.0e-3);
+                } else if (profile_cell == 5) {
+                    adversarial_m0 = Real(1.0e-4);
+                }
                 const Real m0 =
-                    scale *
-                    (discontinuity && high_cell ? Real(0.04) : Real(0.001));
+                    adversarial_one_moment_profile
+                        ? adversarial_m0
+                        : scale * (discontinuity && high_cell ? Real(0.04)
+                                                              : Real(0.001));
                 const Real smooth_m0 =
                     Real(0.02) +
                     Real(0.005) * amrex::Math::sinpi(Real(2.0) * phase);
@@ -681,6 +700,27 @@ run_transport (const RunOptions& options)
         native_candidate = make_native_candidate(
             layout, initial, conserved_input, avg_xmom, avg_ymom, avg_zmom,
             transport.static_measure(0), geom, dt);
+    }
+    if (options.adversarial_one_moment_profile) {
+        if (options.mode != erf_sbm::MomentMode::OneMoment ||
+            !native_candidate) {
+            ADD_FAILURE() << "the adversarial 1M fixture requires an "
+                             "independent native candidate";
+            return {};
+        }
+        if (!erf_sbm::authoritative_state_admissible(initial, layout, 0,
+                                                      &diagnostic)) {
+            ADD_FAILURE() << "adversarial initial state is inadmissible: "
+                          << diagnostic;
+            return {};
+        }
+        const Real native_min = native_candidate->min(mass0);
+        const Real native_scale = std::max(
+            native_candidate->norm0(), std::numeric_limits<Real>::min());
+        // Require a physical positivity violation with a large roundoff margin.
+        EXPECT_LT(native_min, -Real(1.0e-6) * native_scale)
+            << "unrestricted native WENO candidate did not materially violate "
+               "1M positivity";
     }
     if (options.compare_direct_moment_candidate) {
         direct_moment_candidate = make_native_candidate(
@@ -751,7 +791,14 @@ run_transport (const RunOptions& options)
         MultiFab candidate_error(ba, dm, layout.ncomp(), 0);
         MultiFab::Copy(candidate_error, final_state, 0, 0, layout.ncomp(), 0);
         candidate_error.minus(*native_candidate, 0, layout.ncomp(), 0);
-        if (options.expect_limiter_active) {
+        if (options.adversarial_one_moment_profile) {
+            EXPECT_GT(candidate_error.norm0(),
+                      Real(1.0e-6) *
+                          std::max(native_candidate->norm0(),
+                                   std::numeric_limits<Real>::min()))
+                << "accepted transport should materially correct the "
+                   "inadmissible native candidate";
+        } else if (options.expect_limiter_active) {
             EXPECT_GT(candidate_error.norm0(),
                       Real(0.25) * std::numeric_limits<Real>::epsilon() *
                           std::max(native_candidate->norm0(),
@@ -1073,11 +1120,10 @@ TEST(SBMTransport, ActiveLimiterRestrictsNativeWENOZ3Proposal)
 {
     RunOptions options;
     options.mode = erf_sbm::MomentMode::OneMoment;
-    options.discontinuity = true;
+    options.adversarial_one_moment_profile = true;
     options.carrier_x = Real(0.2);
-    options.dt = 0.6;
+    options.dt = 0.55;
     options.compare_native_candidate = true;
-    options.expect_limiter_active = true;
     run_transport(options);
 }
 
