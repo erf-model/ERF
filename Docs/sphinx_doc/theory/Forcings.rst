@@ -277,7 +277,9 @@ wind one cell from the wall floored at 0.1 m/s, and the Obukhov length is held a
 (:math:`0.5\,\Delta` and :math:`1.5\,\Delta`, with :math:`\Delta` the cell size normal to the wall).
 Without these bounds a calm cell gives :math:`u_* = 0`, :math:`L = 0` and an infinite :math:`\zeta`.
 The velocity target itself uses the actual wind, so the floor does not push a calm cell.
-Above the floor and inside the bound the results are unchanged.
+In the temperature forcing, :math:`\psi_h` at each height is capped at :math:`0.9 \ln(z/z_0)`, as in
+WRF's revised surface layer, so strongly unstable air still carries heat between the wall and the
+cell above (a cap of :math:`\ln(z/z_0)` itself would flatten the profile and stop the transfer).
 The following inputs are available when representing terrain using immersed forcing:
 
 ::

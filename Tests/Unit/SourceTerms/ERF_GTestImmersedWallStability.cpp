@@ -1,9 +1,10 @@
 // Contract of the immersed-forcing wall law's stability bounds (erf-model/ERF#4016): the friction
 // velocity behind the Obukhov length uses the wind floored at 0.1 m/s, and the Obukhov length is
-// held at |L| >= 1.5 dz / 100, as the flat-ground surface layer does. A calm cell above the wall
-// used to give u* = 0, L = 0 and zeta = z / 0; under a cooling flux zeta = +inf, psi_m = -inf and
-// the momentum and temperature targets became 0 * inf = NaN. Above the floor and inside the
-// bound, nothing changes.
+// held at |L| >= 1.5 dz / 100, as the flat-ground surface layer does; psi_h is capped at
+// 0.9 ln(z / z0), as WRF's revised surface layer caps it. A calm cell above the wall used to give
+// u* = 0, L = 0 and zeta = z / 0; under a cooling flux zeta = +inf, psi_m = -inf and the momentum
+// and temperature targets became 0 * inf = NaN. Above the floor, inside the bound and below the
+// cap, nothing changes.
 
 #include <cmath>
 #include <limits>
@@ -54,6 +55,16 @@ TEST(ImmersedWallStability, ObukhovLengthIsBoundedWithItsSign)
     // inside the bound the length is untouched, bit for bit
     for (Real L : {Lmin, -Lmin, Real(0.5), Real(-0.5), Real(150.0), Real(-186.0), Real(1.e30)}) {
         EXPECT_EQ(ib_stability::bounded_obukhov_length(L, z), L);
+    }
+}
+
+TEST(ImmersedWallStability, PsiHCapIsWrfs)
+{
+    // 0.9 ln(z / z0), so ln(z / z0) - psi_h >= 0.1 ln(z / z0) > 0 for z > z0
+    for (Real z : {Real(5.0), Real(15.0)}) {
+        const Real cap = ib_stability::psi_h_cap(z, Real(0.1));
+        EXPECT_NEAR(cap, Real(0.9) * std::log(z / Real(0.1)), Real(1.e-5) * cap);
+        EXPECT_GT(std::log(z / Real(0.1)) - cap, Real(0.0));
     }
 }
 
@@ -149,13 +160,11 @@ TEST(ImmersedWallStability, CalmTerrainHeatFluxTargetIsFinite)
                                       amrex::Array4<const Real>{}, col.src.array(), col.geom, sc,
                                       amrex::Table1D<Real>{}, amrex::Table1D<Real>{}, Real(0.0));
         EXPECT_TRUE(col.all_finite(2)) << "rho theta, tflux = " << tflux;
-        // Under cooling the wall cell is forced: the floored wind carries the prescribed flux (a
-        // source of about 1e-2 here; without the floor u* = 0 and the source is round-off, theta =
-        // rho theta / rho being inexact). Under heating zeta reaches -33 and the cap
-        // psi_h <= log(z / z0) makes the target the temperature above, so only finiteness is asked.
+        // and the wall cell is forced: the floored wind carries the prescribed flux. Without the
+        // floor u* = 0 and the source is round-off (theta = rho theta / rho is inexact). Under
+        // heating zeta reaches -33 and psi_h passes ln(z / z0): a cap of ln(z / z0) itself would
+        // flatten the profile and stop the transfer, the 0.9 ln(z / z0) cap keeps it.
         amrex::Gpu::streamSynchronize();
-        if (tflux < Real(0.0)) {
-            EXPECT_GT(std::abs(col.src.const_array()(1, 1, 1, RhoTheta_comp)), Real(1.e-6)) << "tflux = " << tflux;
-        }
+        EXPECT_GT(std::abs(col.src.const_array()(1, 1, 1, RhoTheta_comp)), Real(1.e-6)) << "tflux = " << tflux;
     }
 }

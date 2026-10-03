@@ -1044,8 +1044,8 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
                 // prevent some unphysical math
                 if (!(ustar > zero && !std::isnan(ustar))) { ustar = zero; }
                 if (!(ustar < two && !std::isnan(ustar))) { ustar = two; }
-                if (psi_h_neighbor > std::log(Real(1.5) * dx_z / z0)) { psi_h_neighbor = std::log(Real(1.5) * dx_z / z0); }
-                if (psi_h > std::log(myhalf * dx_z / z0)) { psi_h = std::log(myhalf * dx_z / z0); }
+                psi_h_neighbor = amrex::min(psi_h_neighbor, ib_stability::psi_h_cap(Real(1.5) * dx_z, z0));
+                psi_h = amrex::min(psi_h, ib_stability::psi_h_cap(myhalf * dx_z, z0));
 
                 // We do not know the actual temperature so use cell above
                 const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);
@@ -1066,8 +1066,8 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
 
                 // similarity functions
                 const Real psi_m          = sfuns.calc_psi_m(zeta);
-                const Real psi_h          = sfuns.calc_psi_h(zeta);
-                const Real psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
+                const Real psi_h          = amrex::min(sfuns.calc_psi_h(zeta), ib_stability::psi_h_cap(myhalf * dx_z, z0));
+                const Real psi_h_neighbor = amrex::min(sfuns.calc_psi_h(zeta_neighbor), ib_stability::psi_h_cap(Real(1.5) * dx_z, z0));
                 const Real ustar = h_windspeed2r * kappa / (std::log((Real(1.5)) * dx_z / z0) - psi_m);
 
                 // We do not know the actual temperature so use cell above
@@ -1238,8 +1238,8 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
                 // prevent some unphysical math
                 if (!(ustar > zero && !std::isnan(ustar))) { ustar = zero; }
                 if (!(ustar < 2.0  && !std::isnan(ustar))) { ustar = 2.0; }
-                if (psi_h_neighbor > std::log(1.5 * dx_z / z0)) { psi_h_neighbor = std::log(1.5 * dx_z / z0); }
-                if (psi_h > std::log(myhalf * dx_z / z0)) { psi_h = std::log(myhalf * dx_z / z0); }
+                psi_h_neighbor = amrex::min(psi_h_neighbor, ib_stability::psi_h_cap(Real(1.5) * dx_z, z0));
+                psi_h = amrex::min(psi_h, ib_stability::psi_h_cap(myhalf * dx_z, z0));
 
                 // We do not know the actual temperature so use cell above
                 const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);
@@ -1330,8 +1330,8 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
                 // prevent some unphysical math
                 if (!(ustar > zero && !std::isnan(ustar))) { ustar = zero; }
                 if (!(ustar < 2.0  && !std::isnan(ustar))) { ustar = 2.0; }
-                if (psi_h_neighbor > std::log(1.5 * delta / z0)) { psi_h_neighbor = std::log(1.5 * delta / z0); }
-                if (psi_h > std::log(myhalf * delta / z0)) { psi_h = std::log(myhalf * delta / z0); }
+                psi_h_neighbor = amrex::min(psi_h_neighbor, ib_stability::psi_h_cap(Real(1.5) * delta, z0));
+                psi_h = amrex::min(psi_h, ib_stability::psi_h_cap(myhalf * delta, z0));
 
                 // We do not know the actual temperature so use cell above
                 const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);
