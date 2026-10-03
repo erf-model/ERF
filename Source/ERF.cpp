@@ -1189,7 +1189,7 @@ ERF::InitData_post ()
             rhotheta_src[lev]->setVal(0.);
             prob->update_rhotheta_sources(t_new[0],
                                           rhotheta_src[lev].get(),
-                                          geom[lev], z_phys_cc[lev]);
+                                          geom[lev], z_phys_cc[lev], zlevels_stag[lev]);
         }
     }
 
@@ -1209,7 +1209,7 @@ ERF::InitData_post ()
                 prob->update_geostrophic_profile(t_new[0],
                                                  h_u_geos[lev], d_u_geos[lev],
                                                  h_v_geos[lev], d_v_geos[lev],
-                                                 geom[lev], z_phys_cc[lev]);
+                                                 geom[lev], z_phys_cc[lev], zlevels_stag[lev]);
             } else {
                 if (SolverChoice::mesh_type == MeshType::VariableDz) {
                     amrex::Print() << "Note: 1-D geostrophic wind profile input is not defined for real terrain" << std::endl;
@@ -1241,7 +1241,7 @@ ERF::InitData_post ()
             rhoqt_src[lev]->setVal(0.);
             prob->update_rhoqt_sources(t_new[0],
                                        rhoqt_src[lev].get(),
-                                       geom[lev], z_phys_cc[lev]);
+                                       geom[lev], z_phys_cc[lev], zlevels_stag[lev]);
         }
     }
 
@@ -1255,7 +1255,7 @@ ERF::InitData_post ()
             d_w_subsid[lev].resize(domlen, 0.0_rt);
             prob->update_w_subsidence(t_new[0],
                                       h_w_subsid[lev], d_w_subsid[lev], base_state[lev],
-                                      geom[lev], z_phys_nd[lev]);
+                                      geom[lev], z_phys_nd[lev], zlevels_stag[lev]);
         }
     }
 

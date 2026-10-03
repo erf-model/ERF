@@ -1071,6 +1071,8 @@ add_test_at_rest_terrain_outflow(AtRestTerrainOutflow "plt00400" 1.0e-8 0.1)
 add_test_field_bounds(InflowThetaDensity "plt00010" theta 299.999 300.001)
 add_test_field_bounds(InflowOutflowThetaFile "plt00010" theta 299.999 300.001)
 add_test_field_bounds(InflowThetaFileOtherFace "plt00010" theta 299.999 300.001)
+# Input sponge with a refined patch that does not reach the domain top: ran outside the patch's boxes at start-up
+add_test_field_bounds(InputSponge_FinePatch "plt00004" x_velocity 5.9 8.5)
 # A refined patch below the inversion takes the coarse level's PBL height (~513 m), not its own
 add_test_field_bounds(PBLH_FinePatch "plt2d00004" pblh 450.0 600.0)
 # A refined patch aloft (256-768 m) has no column at the ground: it takes level 0's height (~461 m), not zero
