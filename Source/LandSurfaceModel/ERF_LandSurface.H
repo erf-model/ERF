@@ -301,6 +301,13 @@ public:
     bool
     Get_LSM_Update_Status (const int& lev) { return m_lsm_model[lev]->Get_Update_Status(); }
 
+    [[nodiscard]] bool
+    Runs_Own_Land_Driver (const int& lev) const
+    {
+        return lev >= 0 && lev < static_cast<int>(m_lsm_model.size()) && m_lsm_model[lev] &&
+               m_lsm_model[lev]->Runs_Own_Land_Driver();
+    }
+
     std::unordered_map<std::string,std::string>&
     Get_WRFInputNames () { return m_lsm_model[0]->Lsm_WRFInputNames(); }
 

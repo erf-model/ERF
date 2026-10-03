@@ -51,6 +51,31 @@ can use Noah-MP as long as a setup file is supplied. For an idealized case a sma
 setup file can be written as CDL text and turned into NetCDF with ``ncgen -o wrfinput_d01
 <file>.cdl``; it needs the WRF global attributes and the land fields Noah-MP reads.
 
+On a refined run, level 0 always runs the land model. A finer level runs it only if it has a
+land setup file of its own; otherwise it takes its land state from level 0, interpolated, every
+step, and the radiation written to its own inputs goes unused. Which levels have a file:
+
+- a run initialized from WRF or metgrid files: a level with ``erf.nc_init_file_<lev>``, which also
+  supplies that level's atmosphere;
+- any other run (``input_sounding``, a custom problem): a level for which ``namelist.erf`` names
+  ``ERF_SETUP_FILE_02`` (level 1) or ``ERF_SETUP_FILE_03`` (level 2).
+
+ERF prints which applies to each finer level at start-up. A nested setup file covers that level's
+refined region, on its cells: the WRF global attributes ``I_PARENT_START`` and
+``J_PARENT_START`` give the parent cell (1-based) its first cell lies in, and
+``PARENT_GRID_RATIO`` the refinement ratio, which must match the run's. A level that runs the
+land model on its own file keeps its soil state on its grids, so ERF stops if a regrid would
+rebuild them: keep that level's refinement region fixed.
+
+The nested file must agree with its parent about which cells are land. ERF does not read that
+file itself: outside a run initialized from WRF or metgrid files a finer level has no
+``erf.nc_init_file_<lev>``, so its land mask, land type and soil type are interpolated from
+level 0 (``Interp2DArrays``) while Noah-MP integrates on the surface its own setup file
+describes. The two are not reconciled, and nothing checks them. A cell the nested file marks
+as water (``XLAND = 2``) inside a land parent therefore gives Noah-MP a water column while the
+surface layer, which reads the interpolated mask to pick the roughness and the land or water
+flux branch, still treats it as land.
+
 ERF checks for all three files before the driver runs and names the one that is missing. It does
 so because the driver reports its own errors by writing to standard output and then stopping,
 and that line is usually lost, leaving only ``Noah-MP fatal error``. If ERF cannot find the
@@ -65,9 +90,8 @@ Several other conditions are reported at start-up or on the first land step:
 - **Radiation.** Noah-MP integrates on the downwelling shortwave, downwelling longwave and solar
   zenith angle a radiation model writes for it. ``erf.radiation_model = "RRTMGP"`` and
   ``erf.radiation_model = "TwoStream"`` do so; the two-stream model writes the broadband
-  downwelling fluxes at the surface and the cosine of the zenith angle every step, on a single
-  level only (a two-stream run with Noah-MP and ``amr.max_level > 0`` stops at start-up; see
-  :ref:`sec:TwoStreamLandForcing`). Under any other choice (including none) those inputs are replaced
+  downwelling fluxes at the surface and the cosine of the zenith angle every step, on every level
+  (see :ref:`sec:TwoStreamLandForcing`). Under any other choice (including none) those inputs are replaced
   with zero, so the land surface receives no radiative forcing, and ERF warns once at start-up
   and once when it first sees them missing. Zero longwave is a 0 K sky, so the surface cools
   quickly: on a small idealized grassland patch the skin temperature falls from 300 K to about
