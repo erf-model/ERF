@@ -47,7 +47,7 @@ ComputeTurbulentViscosity (double dt,
 /** Compute LES turbulent viscosity and dissipation.
  *
  * No subgrid heat flux is stored: Hfx3 is z-nodal and the theta diffusion of each RK stage
- * writes its face fluxes there (ERF_ComputeTurbulentViscosity.cpp, ERF_AddTKESources.H).
+ * writes its face fluxes there (ERF_ComputeTurbulentViscosity.cpp, ERF_TurbKESources.H).
  */
 void
 ComputeTurbulentViscosityLES (amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,

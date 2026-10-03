@@ -79,7 +79,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
             //       and the theta diffusion of every RK stage overwrites all z-faces (the
             //       surface layer the bottom face) before anything reads them, so the value
             //       written here was both misplaced and unused.  The TKE buoyancy source
-            //       reads the face fluxes of that diffusion (ERF_AddTKESources.H).
+            //       reads the face fluxes of that diffusion (ERF_TurbKESources.H).
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
             const Array4<Real const >& cell_data = cons_in.array(mfi);
             Array4<Real const> tau11 = Tau_lev[TauType::tau11]->array(mfi);
@@ -183,7 +183,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
             //       and the theta diffusion of every RK stage overwrites all z-faces (the
             //       surface layer the bottom face) before anything reads them, so the value
             //       written here was both misplaced and unused.  The TKE buoyancy source
-            //       reads the face fluxes of that diffusion (ERF_AddTKESources.H).
+            //       reads the face fluxes of that diffusion (ERF_TurbKESources.H).
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
             const Array4<Real>& diss    = Diss.array(mfi);
 
@@ -648,7 +648,7 @@ void ComputeTurbulentViscosityRANS (int level,
             //       and the theta diffusion of every RK stage overwrites all z-faces (the
             //       surface layer the bottom face) before anything reads them, so the value
             //       written here was both misplaced and unused.  The TKE buoyancy source
-            //       reads the face fluxes of that diffusion (ERF_AddTKESources.H).
+            //       reads the face fluxes of that diffusion (ERF_TurbKESources.H).
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
             const Array4<Real>& diss    = Diss.array(mfi);
 
