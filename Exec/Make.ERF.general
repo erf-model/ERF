@@ -43,9 +43,6 @@ endif
 ifeq ($(USE_EAMXX_SHOC), TRUE)
   override USE_KOKKOS = TRUE
 endif
-ifeq ($(USE_P3), TRUE)
-  override USE_KOKKOS = TRUE
-endif
 
 ifeq ($(USE_SHOC), TRUE)
 $(warning USE_SHOC=TRUE is deprecated; use USE_EAMXX_SHOC=TRUE)
@@ -483,44 +480,6 @@ ifeq ($(USE_EAMXX_SHOC), TRUE)
 
     # Other things we get from eamxx
     VPATH_LOCATIONS   += $(EAMXX_HOME)/physics/share
-    INCLUDE_LOCATIONS += $(EAMXX_HOME)
-    INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics
-    INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics/share
-endif
-
-# If using P3, compile relevant source and headers
-ifeq ($(USE_P3), TRUE)
-
-    DEFINES += -DERF_USE_P3
-    DEFINES += -DP3_ENABLE_KOKKOS
-    DEFINES += -DEKAT_ENABLE_MPI
-
-    # Location of EKAT include and library
-    DEFINES   += -DERF_USE_KOKKOS
-    INCLUDE_LOCATIONS += $(EKAT_HOME)/include
-    INCLUDE_LOCATIONS += $(EKAT_HOME)/include/ekat
-    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/kokkos
-    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/pack
-    INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/algorithm
-    LIBRARY_LOCATIONS += $(EKAT_LIB_DIR)
-    LIBRARIES += -lekat_core -lspdlog
-
-    # This directory holds the ERF-P3 interface routines
-    ERF_P3_DIR = $(ERF_SOURCE_DIR)/PhysicsInterfaces/P3
-    include $(ERF_P3_DIR)/Make.package
-    VPATH_LOCATIONS   += $(ERF_P3_DIR)
-    INCLUDE_LOCATIONS += $(ERF_P3_DIR)
-
-    # This directory holds the P3 source itself
-    P3_HOME = $(EAMXX_HOME)/physics/p3
-    VPATH_LOCATIONS   += $(P3_HOME)/disp
-    VPATH_LOCATIONS   += $(P3_HOME)/eti
-    VPATH_LOCATIONS   += $(P3_HOME)/impl
-    INCLUDE_LOCATIONS += $(P3_HOME)/disp
-    INCLUDE_LOCATIONS += $(P3_HOME)/eti
-    INCLUDE_LOCATIONS += $(P3_HOME)/impl
-
-    # Other things we get from eamxx
     INCLUDE_LOCATIONS += $(EAMXX_HOME)
     INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics
     INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics/share
