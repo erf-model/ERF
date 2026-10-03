@@ -1811,7 +1811,8 @@ private:
 
     // Options for ERF boundary files for real simulations.
     bool        write_erfbdy{false};   // User-settable: write erfbdy during initialization
-    bool        use_erfbdy{false};     // Internal: set during init or restart
+    bool        use_erfbdy{false};     // User-settable for wrfinput: read erfbdy instead of
+                                       //    nc_bdy_file.  Set internally for metgrid and on restart.
     std::string erfbdy_file{"erfbdy"}; // User-settable: erfbdy file name
     int         nvars_erfbdy{0};       // Internal: number of variables in erfbdy
 

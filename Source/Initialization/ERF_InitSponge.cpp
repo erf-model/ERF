@@ -84,7 +84,10 @@ ERF::setSpongeRefFromSounding (bool restarting)
         if (z_phys_cc[lev]) {
             // use_terrain=1
             // calculate the damping strength based on the max height at each k
-            reduce_to_max_per_height(zcc, z_phys_cc[lev]);
+            // A k that no grid of this level holds (a refined region that does not reach the
+            // top) has no cells to damp; it gets the nominal height, so its profile entry is
+            // still a value of the input sponge
+            reduce_to_max_per_height(zcc, z_phys_cc[lev], zlevels_stag[lev]);
         } else {
             const auto *const prob_lo = geom[lev].ProbLo();
             const auto *const dx = geom[lev].CellSize();

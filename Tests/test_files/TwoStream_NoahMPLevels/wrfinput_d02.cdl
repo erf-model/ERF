@@ -1,0 +1,144 @@
+// The level-1 land setup file of the TwoStream_NoahMPLevels tests, a nested wrfinput for
+// Noah-MP (ERF_SETUP_FILE_02 in namelist.erf). The level-0 file is
+// Exec/RegTests/NoahMP_Ideal/wrfinput_d01 (wrfinput_ideal.cdl there): a 4 x 4 grassland
+// patch at 250 m. This one covers that grid's middle 2 x 2 cells, refined by 2: 4 x 4 cells
+// of 125 m whose first lies in parent cell (2, 2), 1-based -- I_PARENT_START,
+// J_PARENT_START and PARENT_GRID_RATIO, which the driver reads to place it. Its land is
+// barren (IVGTYP 16, MODIFIED_IGBP_MODIS_NOAH; sparse vegetation, VEGFRA 5 %, LAI 0.2) on
+// sandy loam (ISLTYP 3), so the fine level's albedo and absorbed shortwave differ from
+// the grassland underneath: a fine level that took its land state from level 0 instead
+// would not show it. Everything else is the level-0 file's. Regenerate with
+//   ncgen -o wrfinput_d02 wrfinput_d02.cdl
+netcdf wrfinput_d02 {
+dimensions:
+    Time = UNLIMITED ;
+    DateStrLen = 19 ;
+    west_east = 4 ;
+    south_north = 4 ;
+    soil_layers_stag = 4 ;
+variables:
+    char Times(Time, DateStrLen) ;
+    float XLAT(Time, south_north, west_east) ; XLAT:units = "degree_north" ;
+    float XLONG(Time, south_north, west_east) ; XLONG:units = "degree_east" ;
+    float XLAND(Time, south_north, west_east) ; XLAND:units = "1" ;
+    int IVGTYP(Time, south_north, west_east) ;
+    int ISLTYP(Time, south_north, west_east) ;
+    float TSK(Time, south_north, west_east) ; TSK:units = "K" ;
+    float TMN(Time, south_north, west_east) ; TMN:units = "K" ;
+    float HGT(Time, south_north, west_east) ; HGT:units = "m" ;
+    float SEAICE(Time, south_north, west_east) ; SEAICE:units = "1" ;
+    float SNOW(Time, south_north, west_east) ; SNOW:units = "kg m-2" ;
+    float SNOWH(Time, south_north, west_east) ; SNOWH:units = "m" ;
+    float SNOWC(Time, south_north, west_east) ; SNOWC:units = "1" ;
+    float CANWAT(Time, south_north, west_east) ; CANWAT:units = "kg m-2" ;
+    float VEGFRA(Time, south_north, west_east) ; VEGFRA:units = "1" ;
+    float SHDMAX(Time, south_north, west_east) ; SHDMAX:units = "1" ;
+    float SHDMIN(Time, south_north, west_east) ; SHDMIN:units = "1" ;
+    float LAI(Time, south_north, west_east) ; LAI:units = "m2 m-2" ;
+    float MAPFAC_MX(Time, south_north, west_east) ; MAPFAC_MX:units = "1" ;
+    float MAPFAC_MY(Time, south_north, west_east) ; MAPFAC_MY:units = "1" ;
+    float TSLB(Time, soil_layers_stag, south_north, west_east) ; TSLB:units = "K" ;
+    float SMOIS(Time, soil_layers_stag, south_north, west_east) ; SMOIS:units = "m3 m-3" ;
+    float DZS(Time, soil_layers_stag) ; DZS:units = "m" ;
+
+// global attributes:
+    :TITLE = "SYNTHETIC IDEAL NESTED WRFINPUT FOR THE TWO-STREAM NOAH-MP LEVEL TESTS" ;
+    :SIMULATION_START_DATE = "2024-08-05_12:00:00" ;
+    :WEST-EAST_GRID_DIMENSION = 5 ;
+    :SOUTH-NORTH_GRID_DIMENSION = 5 ;
+    :BOTTOM-TOP_GRID_DIMENSION = 2 ;
+    :DX = 125.f ;
+    :DY = 125.f ;
+    :GRID_ID = 2 ;
+    :grid_id = 2 ;
+    :PARENT_GRID_RATIO = 2 ;
+    :I_PARENT_START = 2 ;
+    :J_PARENT_START = 2 ;
+    :MAP_PROJ = 0 ;
+    :MMINLU = "MODIFIED_IGBP_MODIS_NOAH" ;
+    :ISWATER = 17 ;
+    :ISLAKE = 21 ;
+    :ISICE = 15 ;
+    :ISURBAN = 13 ;
+    :TRUELAT1 = 30.f ;
+    :TRUELAT2 = 60.f ;
+    :STAND_LON = -100.f ;
+data:
+    Times = "2024-08-05_12:00:00" ;
+    XLAT =
+      40.0, 40.0, 40.0, 40.0, 40.0, 40.0, 40.0, 40.0,
+      40.0, 40.0, 40.0, 40.0, 40.0, 40.0, 40.0, 40.0 ;
+    XLONG =
+      -100.0, -100.0, -100.0, -100.0, -100.0, -100.0, -100.0, -100.0,
+      -100.0, -100.0, -100.0, -100.0, -100.0, -100.0, -100.0, -100.0 ;
+    XLAND =
+      1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+      1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0 ;
+    IVGTYP =
+      16, 16, 16, 16, 16, 16, 16, 16,
+      16, 16, 16, 16, 16, 16, 16, 16 ;
+    ISLTYP =
+      3, 3, 3, 3, 3, 3, 3, 3,
+      3, 3, 3, 3, 3, 3, 3, 3 ;
+    TSK =
+      300.0, 300.0, 300.0, 300.0, 300.0, 300.0, 300.0, 300.0,
+      300.0, 300.0, 300.0, 300.0, 300.0, 300.0, 300.0, 300.0 ;
+    TMN =
+      287.0, 287.0, 287.0, 287.0, 287.0, 287.0, 287.0, 287.0,
+      287.0, 287.0, 287.0, 287.0, 287.0, 287.0, 287.0, 287.0 ;
+    HGT =
+      0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ;
+    SEAICE =
+      0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ;
+    SNOW =
+      0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ;
+    SNOWH =
+      0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ;
+    SNOWC =
+      0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ;
+    CANWAT =
+      0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+      0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ;
+    VEGFRA =
+      5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0,
+      5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0 ;
+    SHDMAX =
+      10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0,
+      10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0 ;
+    SHDMIN =
+      1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+      1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0 ;
+    LAI =
+      0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
+      0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2 ;
+    MAPFAC_MX =
+      1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+      1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0 ;
+    MAPFAC_MY =
+      1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+      1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0 ;
+    TSLB =
+      290.0, 290.0, 290.0, 290.0, 290.0, 290.0, 290.0, 290.0,
+      290.0, 290.0, 290.0, 290.0, 290.0, 290.0, 290.0, 290.0,
+      290.0, 290.0, 290.0, 290.0, 290.0, 290.0, 290.0, 290.0,
+      290.0, 290.0, 290.0, 290.0, 290.0, 290.0, 290.0, 290.0,
+      290.0, 290.0, 290.0, 290.0, 290.0, 290.0, 290.0, 290.0,
+      290.0, 290.0, 290.0, 290.0, 290.0, 290.0, 290.0, 290.0,
+      290.0, 290.0, 290.0, 290.0, 290.0, 290.0, 290.0, 290.0,
+      290.0, 290.0, 290.0, 290.0, 290.0, 290.0, 290.0, 290.0 ;
+    SMOIS =
+      0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25,
+      0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25,
+      0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25,
+      0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25,
+      0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25,
+      0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25,
+      0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25,
+      0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25 ;
+    DZS = 0.1, 0.3, 0.6, 1.0 ;
+}

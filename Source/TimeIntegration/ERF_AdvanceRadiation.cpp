@@ -291,9 +291,10 @@ void ERF::advance_radiation (int lev,
     //
     // This sits ahead of the model dispatch because the flag is set for whichever model is
     // running (ERF_MakeNewLevel.cpp) and the reason for honouring it is a property of the
-    // state, not of the model.  Skipping the pre-dycore sweep costs the two-stream model
-    // nothing else: the flag is only ever set for lev > 0, and the surface energy balance
-    // that the post-dycore call advances runs on level 0 alone.
+    // state, not of the model.  For the two-stream model, the post-dycore call that still
+    // follows holds back the prognostic surface energy balance on such a level until its
+    // first sweep (TwoStreamRadiation::advance), since the balance takes its surface
+    // radiation from the sweep.
     //
     // The flag is set by whichever routine built the level and is cleared here as soon as
     // it has been acted on, so exactly one step is skipped per level creation.  Levels

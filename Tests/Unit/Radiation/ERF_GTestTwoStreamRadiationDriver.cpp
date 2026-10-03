@@ -152,7 +152,96 @@ DriverResult run_driver (bool external_temperature_provider,
             radiation.seb_hfx(0)->min(0), radiation.seb_lh(0)->min(0)};
 }
 
+// The force-restore skin after one post-dycore call on a fresh level whose surface
+// radiation comes from the sweep (seb_use_radiation_fluxes), with or without the
+// pre-dycore sweep of that step before it. The SW default is a large +200 W/m^2 and the
+// SW band is off, so a skin that advanced on the defaults warms by 10 K while one that
+// advanced on the sweep's (longwave-only) fluxes cools.
+amrex::Real force_restore_skin_after_post_dycore (bool sweep_first)
+{
+    using namespace amrex;
+
+    const Box domain(IntVect(0, 0, 0), IntVect(0, 0, 3));
+    const RealBox real_box({0.0, 0.0, 0.0}, {100.0, 100.0, 400.0});
+    const int is_periodic[3] = {1, 1, 0};
+    const Geometry geom(domain, &real_box, 0, is_periodic);
+    const BoxArray ba(domain);
+    const DistributionMapping dm(ba);
+
+    MultiFab state(ba, dm, RhoQ2_comp + 1, 0);
+    state.setVal(Real(0.0));
+    state.setVal(Real(1.0), Rho_comp, 1);
+    state.setVal(getThgivenRandT(Real(1.0), Real(290.0), RdoCp), RhoTheta_comp, 1);
+
+    RadChoice rad;
+    rad.enabled = true;
+    rad.sw_enabled = false;
+    rad.lw_enabled = true;
+    rad.fixed_solar_zenith_angle = Real(0.5);
+    rad.fixed_total_solar_irradiance = Real(1360.9);
+    rad.rad_t_sfc = Real(300.0);
+    rad.surface_emissivity_lw = Real(1.0);
+    rad.seb_enable = true;
+    rad.seb_use_radiation_fluxes = true;
+    rad.seb_prognostic_enable = true;
+    rad.seb_sw_flux_default = Real(200.0);
+    rad.seb_lw_flux_default = Real(0.0);
+    rad.seb_hfx_default = Real(0.0);
+    rad.seb_lh_default = Real(0.0);
+    rad.seb_grdflx_default = Real(0.0);
+    rad.seb_t_deep_default = Real(300.0);
+    rad.seb_surface_heat_capacity = Real(20000.0);
+    rad.seb_turbulent_flux_source = SEBTurbulentFluxSource::Defaults;
+
+    TwoStreamRadiation radiation;
+    radiation.resize(1);
+    radiation.define_level(0, rad, RdoCp, collapse_z(ba), dm, ba, domain);
+
+    LandSurface lsm;
+    lsm.ReSize(1);
+    lsm.SetModel<NullSurf>();
+
+    MultiFab qheating(ba, dm, 2, 0);
+    MultiFab rad_fluxes(convert(ba, IntVect(0, 0, 1)), dm, 4, 0);
+    const Vector<const MultiFab*> radiation_inputs {};
+
+    if (sweep_first) {
+        radiation.advance(0, 1, Real(0.0), Real(1000.0), "pre_dycore",
+                          state, nullptr, geom, lsm, radiation_inputs, false,
+                          &qheating, &rad_fluxes, nullptr, nullptr, nullptr, nullptr, nullptr,
+                          0.0, false);
+    }
+    radiation.advance(0, 1, Real(1000.0), Real(1000.0), "post_dycore",
+                      state, nullptr, geom, lsm, radiation_inputs, false,
+                      nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+                      0.0, false);
+
+    const MultiFab* t_sfc = radiation.prognostic_surface_temperature_state(0);
+    AMREX_ALWAYS_ASSERT(t_sfc != nullptr);
+    return t_sfc->min(0);
+}
+
 } // namespace
+
+// The first step of a level built by interp_atmos_from_coarse: ERF::advance_radiation
+// skips the level's pre-dycore sweep, but the post-dycore call still arrives. The
+// force-restore balance, which takes its surface radiation from the sweep, must not
+// advance the skin on the values define_level left there (the scalar defaults).
+TEST(TwoStreamRadiationDriver, ForceRestoreWaitsForTheLevelsFirstSweep)
+{
+    using amrex::Real;
+    const Real initial = Real(300.0);
+
+    const Real without_sweep = force_restore_skin_after_post_dycore(false);
+    EXPECT_EQ(without_sweep, initial)
+        << "the skin advanced before the level's first sweep (on the defaults: +10 K)";
+
+    // Once the level has swept, the balance advances on the sweep's fluxes: longwave only,
+    // a 300 K surface under 290 K air, so it cools.
+    const Real with_sweep = force_restore_skin_after_post_dycore(true);
+    EXPECT_LT(with_sweep, initial);
+    EXPECT_GT(with_sweep, initial - Real(5.0));
+}
 
 // This exercises TwoStreamRadiation::advance rather than only the per-column
 // resolver: the canonical provider must remain the LW boundary, and ownership

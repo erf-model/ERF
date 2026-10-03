@@ -1884,7 +1884,7 @@ ERF::ReadCheckpointFile ()
 
             int ntimes_erfbdy;
             Vector<double> bdy_times;
-            bdy_time_interval = read_times_from_erfbdy(erfbdy_file,
+            bdy_time_interval = read_times_from_erfbdy(erfbdy_file, geom[0].Domain(),
                                                        ntimes_erfbdy, nvars_erfbdy, real_width,
                                                        bdy_times, start_bdy_time, final_bdy_time);
 

@@ -686,26 +686,26 @@ void ERF::advance_dycore (int level,
     if (solverChoice.custom_rhotheta_forcing) {
         prob->update_rhotheta_sources(old_time,
                                       rhotheta_src_ptr,
-                                      fine_geom, z_phys_cc[level]);
+                                      fine_geom, z_phys_cc[level], zlevels_stag[level]);
     }
 
     if (solverChoice.custom_moisture_forcing) {
         prob->update_rhoqt_sources(old_time,
                                    rhoqt_src_ptr,
-                                   fine_geom, z_phys_cc[level]);
+                                   fine_geom, z_phys_cc[level], zlevels_stag[level]);
     }
 
     if (solverChoice.custom_geostrophic_profile) {
         prob->update_geostrophic_profile(old_time,
                                    h_u_geos[level], d_u_geos[level],
                                    h_v_geos[level], d_v_geos[level],
-                                   fine_geom, z_phys_cc[level]);
+                                   fine_geom, z_phys_cc[level], zlevels_stag[level]);
     }
 
     if (solverChoice.custom_w_subsidence) {
         prob->update_w_subsidence(old_time,
                                   h_w_subsid[level], d_w_subsid[level],base_state[level],
-                                  fine_geom, z_phys_nd[level]);
+                                  fine_geom, z_phys_nd[level], zlevels_stag[level]);
     }
 
     // ***********************************************************************************************

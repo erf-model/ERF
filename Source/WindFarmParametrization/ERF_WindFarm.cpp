@@ -114,7 +114,16 @@ WindFarm::init_windfarm_lat_lon (const std::string windfarm_loc_table,
 
     if (valid_fname_USGS) {
         std::ifstream file_usgs(fname_usgs);
+        if (!file_usgs.is_open()) {
+            amrex::Error("Could not open the file " + fname_usgs + " specified by the inputs file entry"
+                         " erf.terrain_file_name_USGS. Either correct the entry or remove it, in which"
+                         " case the reference point is taken from the turbine locations.");
+        }
         file_usgs >> lon_ref >> lat_ref;
+        if (file_usgs.fail()) {
+            amrex::Error("Could not read the reference longitude and latitude from the first line of "
+                         + fname_usgs + ", specified by the inputs file entry erf.terrain_file_name_USGS.");
+        }
         file_usgs.close();
         lon_ref = lon_ref*M_PI/Real(180.0);
         lat_ref = lat_ref*M_PI/Real(180.0);
@@ -393,9 +402,12 @@ WindFarm::read_windfarm_airfoil_tables (const std::string windfarm_airfoil_table
     for (const auto& filePath : files) {
         std::ifstream filename(filePath.c_str());
 
+        // Every file in this directory is one blade section, and the sections are
+        // filled in sorted order, so one that cannot be read cannot be skipped over:
+        // doing so would shift every later section into the wrong slot.
         if (!filename.is_open()) {
-            std::cerr << "Failed to open file: " << filePath << std::endl;
-            continue;  // Move on to the next file
+            Abort("Could not open the airfoil section file " + filePath + " found in the directory " +
+                  windfarm_airfoil_tables + ". Exiting...");
         }
 
            std::cout << "Reading file: " << filePath << std::endl;

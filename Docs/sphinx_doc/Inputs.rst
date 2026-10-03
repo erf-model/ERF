@@ -1079,8 +1079,13 @@ Boundary Files
 | Parameter            | Definition                   | Acceptable Values | Default              |
 +======================+==============================+===================+======================+
 | **erf.write_erfbdy** | Write AMReX-native format    | Boolean           | true for non-restart |
-|                      | boundary file for real-data  |                   | real data cases,     |
+|                      | boundary file for real-data  |                   | metgrid cases,       |
 |                      | cases only                   |                   | otherwise false      |
++----------------------+------------------------------+-------------------+----------------------+
+| **erf.use_erfbdy**   | Read the boundary data from  | Boolean           | false                |
+|                      | the erfbdy file instead of   |                   |                      |
+|                      | from nc_bdy_file; applies to |                   |                      |
+|                      | the wrfinput pathway only    |                   |                      |
 +----------------------+------------------------------+-------------------+----------------------+
 | **erf.erfbdy_file**  | Name of the boundary file    | String            | "erfbdy"             |
 +----------------------+------------------------------+-------------------+----------------------+
