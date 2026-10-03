@@ -448,14 +448,24 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
                     if (l_use_Ri_corr && l_has_xvel && l_has_yvel) {
                         Real N2 = zero;
                         Real S2_vert = zero;
-                        bool shear_is_valid = true;
+                        // Covered and multi-valued cells fall through both branches below
+                        // with no shear computed, so start from "not valid" and let the
+                        // branch that does the work say otherwise.
+                        bool shear_is_valid = false;
                         if (c_cflag(i,j,k).isRegular()) {
                             N2 = ComputeN2(i, j, k, dzInv, l_abs_g, cell_data, moisture_indices);
                             S2_vert = ComputeVerticalShear2(i, j, k, dzInv, u_arr, v_arr);
+                            shear_is_valid = true;
                         } else if (c_cflag(i,j,k).isSingleValued()) {
                             N2 = ComputeN2_EB(i, j, k, c_cflag, dzInv, l_abs_g, cell_data, moisture_indices);
                             S2_vert = ComputeVerticalShear2_EB(i, j, k, c_cflag, u_vfrac, v_vfrac, dzInv, u_arr, v_arr, shear_is_valid);
                         }
+                        // When the EB geometry leaves no usable shear stencil we keep
+                        // stability_factor = 1, i.e. no stratification damping: without a
+                        // trustworthy gradient we would rather leave the Smagorinsky
+                        // viscosity alone than suppress it on the strength of a Ri we do
+                        // not believe. This is a deliberate choice -- damping to 0 instead
+                        // would be just as defensible -- so change it knowingly.
                         if (shear_is_valid) {
                             Real Ri = ComputeRichardson(N2, S2_vert);
                             stability_factor = StabilityFunction(Ri, l_Ri_crit);

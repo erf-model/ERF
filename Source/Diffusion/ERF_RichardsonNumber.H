@@ -409,206 +409,84 @@ ComputeVerticalShear2_EB (int i, int j, int k,
                       const amrex::Array4<const amrex::Real>& v,
                       bool& shear_is_valid)
 {
-    shear_is_valid = true;
+    // Volume-fraction weighted reconstruction of a velocity component at the
+    // centre of cell (ii,jj,kk) from the two staggered faces that bracket it in
+    // the (di,dj) direction. Returns false when neither face carries any volume,
+    // in which case there is no cell-centred value to be had.
+    auto cell_avg = [=] (const amrex::Array4<const amrex::Real>& vfrac,
+                         const amrex::Array4<const amrex::Real>& vel,
+                         int ii, int jj, int kk, int di, int dj,
+                         amrex::Real& q) -> bool
+    {
+        const amrex::Real f0   = vfrac(ii,    jj,    kk);
+        const amrex::Real f1   = vfrac(ii+di, jj+dj, kk);
+        const amrex::Real fsum = f0 + f1;
+        if (fsum <= zero) { return false; }
+        q = ((f0 > zero ? f0 * vel(ii,    jj,    kk) : zero) +
+             (f1 > zero ? f1 * vel(ii+di, jj+dj, kk) : zero)) / fsum;
+        return true;
+    };
+
+    // Vertical derivative of one velocity component at cell (i,j,k), using the
+    // best stencil the EB geometry leaves available: centred when both k-1 and
+    // k+1 are usable, otherwise one-sided towards whichever neighbour is (second
+    // order when k-2 / k+2 is usable as well). Returns false only when no stencil
+    // at all can be formed, so a single unusable neighbour degrades the order of
+    // accuracy rather than discarding the correction.
+    auto vert_deriv = [=] (const amrex::Array4<const amrex::Real>& vfrac,
+                           const amrex::Array4<const amrex::Real>& vel,
+                           int di, int dj, amrex::Real& dq_dz) -> bool
+    {
+        amrex::Real c_km1 = zero, c_kp1 = zero;
+        const bool have_km1 = !c_cflag(i,j,k-1).isCovered() &&
+                              cell_avg(vfrac, vel, i, j, k-1, di, dj, c_km1);
+        const bool have_kp1 = !c_cflag(i,j,k+1).isCovered() &&
+                              cell_avg(vfrac, vel, i, j, k+1, di, dj, c_kp1);
+
+        // The centred difference never reads the centre cell, so it stays valid
+        // even when the centre cell's own faces carry no volume.
+        if (have_km1 && have_kp1) {
+            dq_dz = myhalf * (c_kp1 - c_km1) * dzInv;
+            return true;
+        }
+
+        // Every remaining stencil is one-sided, and those do need the centre cell.
+        amrex::Real c_c;
+        if (!cell_avg(vfrac, vel, i, j, k, di, dj, c_c)) { return false; }
+
+        if (have_km1) {
+            amrex::Real c_km2;
+            if (!c_cflag(i,j,k-2).isCovered() &&
+                cell_avg(vfrac, vel, i, j, k-2, di, dj, c_km2)) {
+                dq_dz = (three * c_c - four * c_km1 + c_km2) * myhalf * dzInv;
+            } else {
+                dq_dz = (c_c - c_km1) * dzInv;
+            }
+            return true;
+        }
+
+        if (have_kp1) {
+            amrex::Real c_kp2;
+            if (!c_cflag(i,j,k+2).isCovered() &&
+                cell_avg(vfrac, vel, i, j, k+2, di, dj, c_kp2)) {
+                dq_dz = (-c_kp2 + four * c_kp1 - three * c_c) * myhalf * dzInv;
+            } else {
+                dq_dz = (c_kp1 - c_c) * dzInv;
+            }
+            return true;
+        }
+
+        // Both vertical neighbours are unusable: no stencil exists at all.
+        return false;
+    };
+
     amrex::Real du_dz, dv_dz;
-    amrex::Real f0, f1, fsum;
-
-    // u, k (centre cell)
-    f0 = u_vfrac(i,   j, k);
-    f1 = u_vfrac(i+1, j, k);
-    fsum = f0 + f1;
-    if (fsum <= zero) {
+    if (!vert_deriv(u_vfrac, u, 1, 0, du_dz) ||
+        !vert_deriv(v_vfrac, v, 0, 1, dv_dz)) {
         shear_is_valid = false;
         return zero;
     }
-    const amrex::Real u_c = ((f0 > zero ? f0 * u(i,   j, k) : zero) +
-                             (f1 > zero ? f1 * u(i+1, j, k) : zero)) / fsum;
-
-    // v, k (centre cell)
-    f0 = v_vfrac(i, j,   k);
-    f1 = v_vfrac(i, j+1, k);
-    fsum = f0 + f1;
-    if (fsum <= zero) {
-        shear_is_valid = false;
-        return zero;
-    }
-    const amrex::Real v_c = ((f0 > zero ? f0 * v(i, j,   k) : zero) +
-                             (f1 > zero ? f1 * v(i, j+1, k) : zero)) / fsum;
-
-    if (c_cflag(i,j,k+1).isCovered()) {
-
-        if (c_cflag(i,j,k-1).isCovered()) {
-            shear_is_valid = false;
-            return zero;
-        }
-
-        amrex::Real c_km1, c_km2;
-
-        // u, k-1
-        f0 = u_vfrac(i,   j, k-1);
-        f1 = u_vfrac(i+1, j, k-1);
-        fsum = f0 + f1;
-        if (fsum <= zero) {
-            shear_is_valid = false;
-            return zero;
-        }
-        c_km1 = ((f0 > zero ? f0 * u(i,   j, k-1) : zero) +
-                 (f1 > zero ? f1 * u(i+1, j, k-1) : zero)) / fsum;
-
-        if (c_cflag(i,j,k-2).isCovered()) {
-            du_dz = (u_c - c_km1) * dzInv;
-        } else {
-            // u, k-2
-            f0 = u_vfrac(i,   j, k-2);
-            f1 = u_vfrac(i+1, j, k-2);
-            fsum = f0 + f1;
-            if (fsum <= zero) {
-                du_dz = (u_c - c_km1) * dzInv;
-            } else {
-                c_km2 = ((f0 > zero ? f0 * u(i,   j, k-2) : zero) +
-                         (f1 > zero ? f1 * u(i+1, j, k-2) : zero)) / fsum;
-                du_dz = (three * u_c - four * c_km1 + c_km2) * myhalf * dzInv;
-            }
-        }
-
-        // v, k-1
-        f0 = v_vfrac(i, j,   k-1);
-        f1 = v_vfrac(i, j+1, k-1);
-        fsum = f0 + f1;
-        if (fsum <= zero) {
-            shear_is_valid = false;
-            return zero;
-        }
-        c_km1 = ((f0 > zero ? f0 * v(i, j,   k-1) : zero) +
-                 (f1 > zero ? f1 * v(i, j+1, k-1) : zero)) / fsum;
-
-        if (c_cflag(i,j,k-2).isCovered()) {
-            dv_dz = (v_c - c_km1) * dzInv;
-        } else {
-            // v, k-2
-            f0 = v_vfrac(i, j,   k-2);
-            f1 = v_vfrac(i, j+1, k-2);
-            fsum = f0 + f1;
-            if (fsum <= zero) {
-                dv_dz = (v_c - c_km1) * dzInv;
-            } else {
-                c_km2 = ((f0 > zero ? f0 * v(i, j,   k-2) : zero) +
-                         (f1 > zero ? f1 * v(i, j+1, k-2) : zero)) / fsum;
-                dv_dz = (three * v_c - four * c_km1 + c_km2) * myhalf * dzInv;
-            }
-        }
-
-    } else if (c_cflag(i,j,k-1).isCovered()) {
-
-        // Note: k+1 is guaranteed not covered (outer if-else structure)
-        amrex::Real c_kp1, c_kp2;
-
-        // u, k+1
-        f0 = u_vfrac(i,   j, k+1);
-        f1 = u_vfrac(i+1, j, k+1);
-        fsum = f0 + f1;
-        if (fsum <= zero) {
-            shear_is_valid = false;
-            return zero;
-        }
-        c_kp1 = ((f0 > zero ? f0 * u(i,   j, k+1) : zero) +
-                 (f1 > zero ? f1 * u(i+1, j, k+1) : zero)) / fsum;
-
-        if (c_cflag(i,j,k+2).isCovered()) {
-            du_dz = (c_kp1 - u_c) * dzInv;
-        } else {
-            // u, k+2
-            f0 = u_vfrac(i,   j, k+2);
-            f1 = u_vfrac(i+1, j, k+2);
-            fsum = f0 + f1;
-            if (fsum <= zero) {
-                du_dz = (c_kp1 - u_c) * dzInv;
-            } else {
-                c_kp2 = ((f0 > zero ? f0 * u(i,   j, k+2) : zero) +
-                         (f1 > zero ? f1 * u(i+1, j, k+2) : zero)) / fsum;
-                du_dz = (-c_kp2 + four * c_kp1 - three * u_c) * myhalf * dzInv;
-            }
-        }
-
-        // v, k+1
-        f0 = v_vfrac(i, j,   k+1);
-        f1 = v_vfrac(i, j+1, k+1);
-        fsum = f0 + f1;
-        if (fsum <= zero) {
-            shear_is_valid = false;
-            return zero;
-        }
-        c_kp1 = ((f0 > zero ? f0 * v(i, j,   k+1) : zero) +
-                 (f1 > zero ? f1 * v(i, j+1, k+1) : zero)) / fsum;
-
-        if (c_cflag(i,j,k+2).isCovered()) {
-            dv_dz = (c_kp1 - v_c) * dzInv;
-        } else {
-            // v, k+2
-            f0 = v_vfrac(i, j,   k+2);
-            f1 = v_vfrac(i, j+1, k+2);
-            fsum = f0 + f1;
-            if (fsum <= zero) {
-                dv_dz = (c_kp1 - v_c) * dzInv;
-            } else {
-                c_kp2 = ((f0 > zero ? f0 * v(i, j,   k+2) : zero) +
-                         (f1 > zero ? f1 * v(i, j+1, k+2) : zero)) / fsum;
-                dv_dz = (-c_kp2 + four * c_kp1 - three * v_c) * myhalf * dzInv;
-            }
-        }
-
-    } else {
-
-        amrex::Real c_km1, c_kp1;
-
-        // u, k-1
-        f0 = u_vfrac(i,   j, k-1);
-        f1 = u_vfrac(i+1, j, k-1);
-        fsum = f0 + f1;
-        if (fsum <= zero) {
-            shear_is_valid = false;
-            return zero;
-        }
-        c_km1 = ((f0 > zero ? f0 * u(i,   j, k-1) : zero) +
-                 (f1 > zero ? f1 * u(i+1, j, k-1) : zero)) / fsum;
-
-        // u, k+1
-        f0 = u_vfrac(i,   j, k+1);
-        f1 = u_vfrac(i+1, j, k+1);
-        fsum = f0 + f1;
-        if (fsum <= zero) {
-            shear_is_valid = false;
-            return zero;
-        }
-        c_kp1 = ((f0 > zero ? f0 * u(i,   j, k+1) : zero) +
-                 (f1 > zero ? f1 * u(i+1, j, k+1) : zero)) / fsum;
-
-        du_dz = myhalf * (c_kp1 - c_km1) * dzInv;
-
-        // v, k-1
-        f0 = v_vfrac(i, j,   k-1);
-        f1 = v_vfrac(i, j+1, k-1);
-        fsum = f0 + f1;
-        if (fsum <= zero) {
-            shear_is_valid = false;
-            return zero;
-        }
-        c_km1 = ((f0 > zero ? f0 * v(i, j,   k-1) : zero) +
-                 (f1 > zero ? f1 * v(i, j+1, k-1) : zero)) / fsum;
-
-        // v, k+1
-        f0 = v_vfrac(i, j,   k+1);
-        f1 = v_vfrac(i, j+1, k+1);
-        fsum = f0 + f1;
-        if (fsum <= zero) {
-            shear_is_valid = false;
-            return zero;
-        }
-        c_kp1 = ((f0 > zero ? f0 * v(i, j,   k+1) : zero) +
-                 (f1 > zero ? f1 * v(i, j+1, k+1) : zero)) / fsum;
-
-        dv_dz = myhalf * (c_kp1 - c_km1) * dzInv;
-    }
+    shear_is_valid = true;
 
     amrex::Real S2_vert = du_dz * du_dz + dv_dz * dv_dz;
 
