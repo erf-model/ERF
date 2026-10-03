@@ -1,8 +1,52 @@
 AMREX_HOME ?= $(ERF_HOME)/Submodules/AMReX
-EKAT_HOME  ?= $(ERF_HOME)/Submodules/ekat/build/install
+
+ERF_ABS_HOME := $(abspath $(ERF_HOME))
+
+# EKAT/Kokkos policy:
+# - If EKAT_HOME is not supplied by the including GNUmakefile, the environment,
+#   or the command line, assume ERF should use the bundled EKAT submodule and
+#   build/install it under Submodules/ekat/build/install when Kokkos is needed.
+# - If EKAT_HOME is supplied, assume it points at a usable EKAT/Kokkos install
+#   and do not rebuild it unless BUILD_EKAT=TRUE is explicitly requested.
+# - EKAT_INSTALL_LIBDIR defaults to lib, but can be set to lib64 or another
+#   install libdir on systems with a different CMake layout.
+DEFAULT_EKAT_HOME := $(ERF_ABS_HOME)/Submodules/ekat/build/install
+
+ifeq ($(origin EKAT_HOME), undefined)
+  EKAT_HOME := $(DEFAULT_EKAT_HOME)
+  BUILD_EKAT ?= TRUE
+else
+  BUILD_EKAT ?= FALSE
+endif
+
+EKAT_SOURCE_DIR ?= $(ERF_ABS_HOME)/Submodules/ekat
+EKAT_BUILD_DIR  ?= $(EKAT_SOURCE_DIR)/build
+EKAT_INSTALL_PREFIX := $(abspath $(EKAT_HOME))
+EKAT_INSTALL_LIBDIR ?= lib
+EKAT_LIB_DIR ?= $(EKAT_INSTALL_PREFIX)/$(EKAT_INSTALL_LIBDIR)
 EAMXX_HOME ?= $(ERF_HOME)/external/E3SM/components/eamxx/src
 
 USE_EAMXX_SHOC  ?= $(USE_SHOC)
+
+# Normalize feature dependencies before Make.defs and Make.package includes.
+# GNUmakefile remains the user-facing switchboard; this block only enforces
+# dependencies that are required by selected features. The overrides are
+# intentional so contradictory command-line settings such as
+# USE_RRTMGP=TRUE USE_KOKKOS=FALSE do not create an inconsistent build graph.
+#
+# Noah-MP and RRTMGP are independent, matching the CMake options: Noah-MP needs
+# only NetCDF, and runs against whichever radiation model is selected, either
+# RRTMGP or the two-stream scheme.
+ifeq ($(USE_NOAHMP), TRUE)
+  override USE_NETCDF = TRUE
+endif
+ifeq ($(USE_RRTMGP), TRUE)
+  override USE_KOKKOS = TRUE
+  override USE_NETCDF = TRUE
+endif
+ifeq ($(USE_EAMXX_SHOC), TRUE)
+  override USE_KOKKOS = TRUE
+endif
 
 ifeq ($(USE_SHOC), TRUE)
 $(warning USE_SHOC=TRUE is deprecated; use USE_EAMXX_SHOC=TRUE)
@@ -75,8 +119,11 @@ endif
 ifeq ($(USE_FFT), TRUE)
   USERSuffix := $(USERSuffix).FFT
 endif
-ifeq ($(USE_RADIATION), TRUE)
-  USERSuffix := $(USERSuffix).RAD
+ifeq ($(USE_NOAHMP), TRUE)
+  USERSuffix := $(USERSuffix).NMP
+endif
+ifeq ($(USE_RRTMGP), TRUE)
+  USERSuffix := $(USERSuffix).RRTMGP
 endif
 
 ERF_SOURCE_DIR = $(ERF_HOME)/Source
@@ -108,6 +155,16 @@ ERF_INIT_DIR = $(ERF_SOURCE_DIR)/Initialization
 include $(ERF_INIT_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_INIT_DIR)
 INCLUDE_LOCATIONS += $(ERF_INIT_DIR)
+
+ERF_IBSEB_DIR = $(ERF_SOURCE_DIR)/ImmersedBoundarySEB
+include $(ERF_IBSEB_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_IBSEB_DIR)
+INCLUDE_LOCATIONS += $(ERF_IBSEB_DIR)
+
+ERF_OBSNUDGING_DIR = $(ERF_SOURCE_DIR)/ObsNudging
+include $(ERF_OBSNUDGING_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_OBSNUDGING_DIR)
+INCLUDE_LOCATIONS += $(ERF_OBSNUDGING_DIR)
 
 ERF_DATA_DIR = $(ERF_SOURCE_DIR)/DataStructs
 include $(ERF_DATA_DIR)/Make.package
@@ -160,16 +217,6 @@ include $(ERF_SRCTERMS_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_SRCTERMS_DIR)
 INCLUDE_LOCATIONS += $(ERF_SRCTERMS_DIR)
 
-ERF_IBSEB_DIR = $(ERF_SOURCE_DIR)/ImmersedBoundarySEB
-include $(ERF_IBSEB_DIR)/Make.package
-VPATH_LOCATIONS   += $(ERF_IBSEB_DIR)
-INCLUDE_LOCATIONS += $(ERF_IBSEB_DIR)
-
-ERF_OBSNUDGING_DIR = $(ERF_SOURCE_DIR)/ObsNudging
-include $(ERF_OBSNUDGING_DIR)/Make.package
-VPATH_LOCATIONS   += $(ERF_OBSNUDGING_DIR)
-INCLUDE_LOCATIONS += $(ERF_OBSNUDGING_DIR)
-
 ERF_TIMEINT_DIR = $(ERF_SOURCE_DIR)/TimeIntegration
 include $(ERF_TIMEINT_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_TIMEINT_DIR)
@@ -184,11 +231,6 @@ ERF_DIAGNOSTICS_DIR = $(ERF_SOURCE_DIR)/Diagnostics
 include $(ERF_DIAGNOSTICS_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_DIAGNOSTICS_DIR)
 INCLUDE_LOCATIONS += $(ERF_DIAGNOSTICS_DIR)
-
-ERF_RADIATION_DIR = $(ERF_SOURCE_DIR)/Radiation/TwoStream
-include $(ERF_RADIATION_DIR)/Make.package
-VPATH_LOCATIONS   += $(ERF_RADIATION_DIR)
-INCLUDE_LOCATIONS += $(ERF_RADIATION_DIR)
 
 ERF_MOISTURE_DIR = $(ERF_SOURCE_DIR)/Microphysics
 include $(ERF_MOISTURE_DIR)/Make.package
@@ -344,69 +386,65 @@ INCLUDE_LOCATIONS += $(ERF_MATPROP_DIR)
 
 # If using Noah-MP model, then compile relevant source and headers
 ifeq ($(USE_NOAHMP), TRUE)
-  ifneq ($(USE_NETCDF), TRUE)
-    $(error USE_NETCDF must be true for using NOAH-MP interface)
+  DEFINES   += -DERF_USE_NOAHMP
+
+  ifneq ($(PRECISION),FLOAT)
+    DEFINES               += -DDOUBLE_PREC
+    NOAHMP_PRECISION_FLAG := -DDOUBLE_PREC
   else
-    DEFINES   += -DERF_USE_NOAHMP
-
-    ifneq ($(PRECISION),FLOAT)
-      DEFINES               += -DDOUBLE_PREC
-      NOAHMP_PRECISION_FLAG := -DDOUBLE_PREC
-    else
-      NOAHMP_PRECISION_FLAG :=
-    endif
-
-    # pkg-config wrappers for the netCDF probes. Environment is set inline on the
-    # command because GNU Make < 4.4 does not pass `export`ed variables to $(shell).
-    ERF_PKG_CONFIG := $(if $(MPICH_DIR),PKG_CONFIG_PATH="$(MPICH_DIR)/lib/pkgconfig:$$PKG_CONFIG_PATH") pkg-config
-
-    # Keep system -I dirs for the Fortran probe: gfortran does not search
-    # /usr/include for .mod files, so a dropped -I/usr/include loses netcdf.mod.
-    ERF_PKG_CONFIG_F := PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1 $(ERF_PKG_CONFIG)
-
-    # Try netcdf-fortran => netcdf-fortran_parallel. The Fortran include flags are
-    # captured in NETCDF_FORTRAN_CFLAGS rather than appended straight to `includes`
-    # so that the Noah-MP sub-make (below) can be handed the very same flags. If the
-    # Noah-MP Fortran sources are compiled against a different netCDF-Fortran install
-    # than the one we link against, the mangled module symbols still resolve and the
-    # link succeeds -- but the procedure signatures disagree, and calls arrive with
-    # their arguments (including the hidden character lengths) in the wrong slots.
-    ifeq ($(shell $(ERF_PKG_CONFIG_F) --exists netcdf-fortran 2>/dev/null; echo $$?),0)
-      NETCDF_FORTRAN_PKG := netcdf-fortran
-    else ifeq ($(shell $(ERF_PKG_CONFIG_F) --exists netcdf-fortran_parallel 2>/dev/null; echo $$?),0)
-      NETCDF_FORTRAN_PKG := netcdf-fortran_parallel
-    else
-      $(error NetCDF Fortran not found. Tried netcdf-fortran and netcdf-fortran_parallel; set PKG_CONFIG_PATH to the directory holding netcdf-fortran.pc)
-    endif
-
-    NETCDF_FORTRAN_CFLAGS := $(shell $(ERF_PKG_CONFIG_F) --cflags $(NETCDF_FORTRAN_PKG))
-    LIBRARIES             += $(shell $(ERF_PKG_CONFIG) --libs $(NETCDF_FORTRAN_PKG))
-
-    includes += $(NETCDF_FORTRAN_CFLAGS)
-
-    # Hand the sub-make exactly what pkg-config told us, even when that is the empty
-    # string: pkg-config omits include directories the compiler already searches, so
-    # an install under /usr legitimately yields no -I flags. Passing an empty
-    # NETCDF_INCFLAGS= is the correct answer there -- leaving the override off would
-    # let the sub-make fall back to whichever nf-config happens to be first on PATH,
-    # which is the mixed-install mismatch we are trying to prevent. We only get here
-    # if one of the two pkg-config probes above succeeded.
-    NOAHMP_SUBMAKE_NETCDF := NETCDF_INCFLAGS="$(NETCDF_FORTRAN_CFLAGS)"
-
-    NOAHMP_HOME ?= $(ERF_HOME)/Submodules/Noah-MP
-
-    VPATH_LOCATIONS   += $(NOAHMP_HOME)/drivers/erf
-    INCLUDE_LOCATIONS += $(NOAHMP_HOME)/drivers/erf
-    INCLUDE_LOCATIONS += $(NOAHMP_HOME)/drivers/erf/include
-
-    ERF_LSM_NOAHMP_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel/Noah-MP
-    include $(ERF_LSM_NOAHMP_DIR)/Make.package
-    VPATH_LOCATIONS   += $(ERF_LSM_NOAHMP_DIR)
-    INCLUDE_LOCATIONS += $(ERF_LSM_NOAHMP_DIR)
-
-    LIBRARY_LOCATIONS += $(NOAHMP_HOME)/drivers/erf/lib
-    LIBRARIES += -lnoahmp -lgfortran -lquadmath -lnetcdff
+    NOAHMP_PRECISION_FLAG :=
   endif
+
+  # pkg-config wrappers for the netCDF probes. Environment is set inline on the
+  # command because GNU Make < 4.4 does not pass `export`ed variables to $(shell).
+  ERF_PKG_CONFIG := $(if $(MPICH_DIR),PKG_CONFIG_PATH="$(MPICH_DIR)/lib/pkgconfig:$$PKG_CONFIG_PATH") pkg-config
+
+  # Keep system -I dirs for the Fortran probe: gfortran does not search
+  # /usr/include for .mod files, so a dropped -I/usr/include loses netcdf.mod.
+  ERF_PKG_CONFIG_F := PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1 $(ERF_PKG_CONFIG)
+
+  # Try netcdf-fortran => netcdf-fortran_parallel. The Fortran include flags are
+  # captured in NETCDF_FORTRAN_CFLAGS rather than appended straight to `includes`
+  # so that the Noah-MP sub-make (below) can be handed the very same flags. If the
+  # Noah-MP Fortran sources are compiled against a different netCDF-Fortran install
+  # than the one we link against, the mangled module symbols still resolve and the
+  # link succeeds -- but the procedure signatures disagree, and calls arrive with
+  # their arguments (including the hidden character lengths) in the wrong slots.
+  ifeq ($(shell $(ERF_PKG_CONFIG_F) --exists netcdf-fortran 2>/dev/null; echo $$?),0)
+    NETCDF_FORTRAN_PKG := netcdf-fortran
+  else ifeq ($(shell $(ERF_PKG_CONFIG_F) --exists netcdf-fortran_parallel 2>/dev/null; echo $$?),0)
+    NETCDF_FORTRAN_PKG := netcdf-fortran_parallel
+  else
+    $(error NetCDF Fortran not found. Tried netcdf-fortran and netcdf-fortran_parallel; set PKG_CONFIG_PATH to the directory holding netcdf-fortran.pc)
+  endif
+
+  NETCDF_FORTRAN_CFLAGS := $(shell $(ERF_PKG_CONFIG_F) --cflags $(NETCDF_FORTRAN_PKG))
+  LIBRARIES             += $(shell $(ERF_PKG_CONFIG) --libs $(NETCDF_FORTRAN_PKG))
+
+  includes += $(NETCDF_FORTRAN_CFLAGS)
+
+  # Hand the sub-make exactly what pkg-config told us, even when that is the empty
+  # string: pkg-config omits include directories the compiler already searches, so
+  # an install under /usr legitimately yields no -I flags. Passing an empty
+  # NETCDF_INCFLAGS= is the correct answer there -- leaving the override off would
+  # let the sub-make fall back to whichever nf-config happens to be first on PATH,
+  # which is the mixed-install mismatch we are trying to prevent. We only get here
+  # if one of the two pkg-config probes above succeeded.
+  NOAHMP_SUBMAKE_NETCDF := NETCDF_INCFLAGS="$(NETCDF_FORTRAN_CFLAGS)"
+
+  NOAHMP_HOME ?= $(ERF_HOME)/Submodules/Noah-MP
+
+  VPATH_LOCATIONS   += $(NOAHMP_HOME)/drivers/erf
+  INCLUDE_LOCATIONS += $(NOAHMP_HOME)/drivers/erf
+  INCLUDE_LOCATIONS += $(NOAHMP_HOME)/drivers/erf/include
+
+  ERF_LSM_NOAHMP_DIR = $(ERF_SOURCE_DIR)/LandSurfaceModel/Noah-MP
+  include $(ERF_LSM_NOAHMP_DIR)/Make.package
+  VPATH_LOCATIONS   += $(ERF_LSM_NOAHMP_DIR)
+  INCLUDE_LOCATIONS += $(ERF_LSM_NOAHMP_DIR)
+
+  LIBRARY_LOCATIONS += $(NOAHMP_HOME)/drivers/erf/lib
+  LIBRARIES += -lnoahmp -lgfortran -lquadmath -lnetcdff
 endif
 
 ERF_RAD_DIR = $(ERF_SOURCE_DIR)/Radiation
@@ -419,48 +457,49 @@ include $(ERF_RAD_RRTMGP_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_RAD_RRTMGP_DIR)
 INCLUDE_LOCATIONS += $(ERF_RAD_RRTMGP_DIR)
 
+ERF_RAD_SIMPLE_DIR = $(ERF_SOURCE_DIR)/Radiation/Simple
+include $(ERF_RAD_SIMPLE_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_RAD_SIMPLE_DIR)
+INCLUDE_LOCATIONS += $(ERF_RAD_SIMPLE_DIR)
+
+ERF_RADIATION_DIR = $(ERF_SOURCE_DIR)/Radiation/TwoStream
+include $(ERF_RADIATION_DIR)/Make.package
+VPATH_LOCATIONS   += $(ERF_RADIATION_DIR)
+INCLUDE_LOCATIONS += $(ERF_RADIATION_DIR)
+
 # If using RRTMGP Radiation, compile relevant source and headers
 ifeq ($(USE_RRTMGP), TRUE)
 
-  USE_KOKKOS = TRUE
-  USE_NETCDF = TRUE
+  DEFINES += -DERF_USE_RRTMGP
+  DEFINES += -DRRTMGP_ENABLE_KOKKOS
 
-  ifneq ($(USE_NETCDF), TRUE)
-    $(error USE_NETCDF must be true for using RRTMGP interface)
-  else
-    DEFINES += -DERF_USE_RRTMGP
-    DEFINES += -DRRTMGP_ENABLE_KOKKOS
+  RRTMGP_HOME       ?= $(ERF_HOME)/Submodules/RRTMGP
 
-    RRTMGP_HOME       ?= $(ERF_HOME)/Submodules/RRTMGP
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rrtmgp
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rte
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rte/kernels
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/examples
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/examples/all-sky
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/extensions/fluxes_byband
+  VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/extensions/cloud_optics
 
-    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/
-    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rrtmgp
-    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
-    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rte
-    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/rte/kernels
-    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/examples
-    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/examples/all-sky
-    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/extensions/fluxes_byband
-    VPATH_LOCATIONS   += $(RRTMGP_HOME)/cpp/extensions/cloud_optics
-
-    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/
-    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp
-    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
-    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rte
-    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rte/kernels
-    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/examples
-    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/examples/all-sky
-    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/extensions/fluxes_byband
-    INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/extensions/cloud_optics
-  endif
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rrtmgp/kernels
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rte
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/rte/kernels
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/examples
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/examples/all-sky
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/extensions/fluxes_byband
+  INCLUDE_LOCATIONS += $(RRTMGP_HOME)/cpp/extensions/cloud_optics
 endif
 
 DEFINES += -DERF_HAS_SHOC_FAMILY
 
 # If using EAMxx SHOC, compile relevant source and headers
 ifeq ($(USE_EAMXX_SHOC), TRUE)
-
-    USE_KOKKOS = TRUE
 
     DEFINES += -DERF_USE_KOKKOS
     DEFINES += -DERF_USE_EAMXX_SHOC
@@ -474,7 +513,7 @@ ifeq ($(USE_EAMXX_SHOC), TRUE)
     INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/kokkos
     INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/pack
     INCLUDE_LOCATIONS += $(ERF_HOME)/Submodules/ekat/src/algorithm
-    LIBRARY_LOCATIONS += $(EKAT_HOME)/lib
+    LIBRARY_LOCATIONS += $(EKAT_LIB_DIR)
     LIBRARIES += -lekat_core -lspdlog
 
     # This directory holds the ERF-SHOC interface routines
@@ -498,11 +537,6 @@ ifeq ($(USE_EAMXX_SHOC), TRUE)
     INCLUDE_LOCATIONS += $(EAMXX_HOME)/physics/share
 endif
 
-ERF_RAD_SIMPLE_DIR = $(ERF_SOURCE_DIR)/Radiation/Simple
-include $(ERF_RAD_SIMPLE_DIR)/Make.package
-VPATH_LOCATIONS   += $(ERF_RAD_SIMPLE_DIR)
-INCLUDE_LOCATIONS += $(ERF_RAD_SIMPLE_DIR)
-
 # ---- LAPACK support ----
 USE_LAPACK ?= FALSE
 
@@ -521,7 +555,6 @@ ifeq ($(USE_LAPACK), TRUE)
 
 endif
 # ------------------------
-
 
 
 include $(AMREX_HOME)/Src/Base/Make.package
@@ -562,10 +595,62 @@ endif
 
 # NOTE: EKAT provides KOKKOS
 ifeq ($(USE_KOKKOS), TRUE)
+  # Assumes Kokkos comes from the EKAT install selected above. Some platforms
+  # do not need or provide libdl; set KOKKOS_EXTRA_LIBS= in that case.
+  KOKKOS_EXTRA_LIBS ?= -ldl
   DEFINES   += -DERF_USE_KOKKOS
   INCLUDE_LOCATIONS += $(EKAT_HOME)/include/kokkos
-  LIBRARY_LOCATIONS += $(EKAT_HOME)/lib
-  LIBRARIES += -lkokkoscore -ldl
+  LIBRARY_LOCATIONS += $(EKAT_LIB_DIR)
+  LIBRARIES += -lkokkoscore $(KOKKOS_EXTRA_LIBS)
+endif
+
+ifeq ($(USE_KOKKOS), TRUE)
+# When using CUDA, employ the KOKKOS nvcc wrapper (nvcc isn't GCC-compatible)
+EKAT_CXX := $(CXX)
+ifeq ($(USE_CUDA), TRUE)
+    EKAT_CXX := $(EKAT_SOURCE_DIR)/extern/kokkos/bin/nvcc_wrapper
+endif
+
+# These defaults build the subset of EKAT/Kokkos needed by ERF. Backend choices
+# mirror the AMReX-style USE_OMP/USE_CUDA/USE_HIP/USE_SYCL switches from the
+# including GNUmakefile. Use EKAT_EXTRA_CMAKE_FLAGS for compiler, architecture,
+# or site-specific CMake options that are not represented here.
+EKAT_CMAKE_FLAGS := \
+  -D CMAKE_BUILD_TYPE:STRING=Release \
+  -D CMAKE_CXX_COMPILER:STRING="$(EKAT_CXX)" \
+  -D CMAKE_CXX_STANDARD:STRING=17 \
+  -D CMAKE_INSTALL_PREFIX:PATH="$(EKAT_INSTALL_PREFIX)" \
+  -D CMAKE_INSTALL_LIBDIR:PATH="$(EKAT_INSTALL_LIBDIR)" \
+  -D CMAKE_DISABLE_FIND_PACKAGE_spdlog:BOOL=TRUE \
+  -D EKAT_ENABLE_MPI:BOOL=ON \
+  -D EKAT_ENABLE_FORTRAN:BOOL=OFF \
+  -D EKAT_ENABLE_TESTS:BOOL=OFF \
+  -D EKAT_ENABLE_KOKKOS:BOOL=ON \
+  -D EKAT_ENABLE_LOGGING:BOOL=ON \
+  -D Kokkos_ENABLE_DEPRECATED_CODE:BOOL=OFF \
+  -D Kokkos_ENABLE_EXPLICIT_INSTANTIATION:BOOL=OFF \
+  -D Kokkos_ENABLE_SERIAL:BOOL=ON
+ifeq ($(USE_OMP), TRUE)
+  EKAT_CMAKE_FLAGS += -D Kokkos_ENABLE_OPENMP:BOOL=ON
+endif
+ifeq ($(USE_CUDA), TRUE)
+  EKAT_CMAKE_FLAGS += \
+    -D Kokkos_ENABLE_CUDA:BOOL=ON \
+    -D Kokkos_ENABLE_CUDA_LAMBDA:BOOL=ON \
+    -D Kokkos_ENABLE_CUDA_RELOCATABLE_DEVICE_CODE:BOOL=ON
+endif
+ifeq ($(USE_HIP), TRUE)
+  EKAT_CMAKE_FLAGS += \
+    -D Kokkos_ENABLE_HIP:BOOL=ON \
+    -D Kokkos_ENABLE_HIP_LAMBDA:BOOL=ON \
+    -D Kokkos_ENABLE_HIP_RELOCATABLE_DEVICE_CODE:BOOL=ON
+endif
+ifeq ($(USE_SYCL), TRUE)
+  EKAT_CMAKE_FLAGS += \
+    -D Kokkos_ENABLE_SYCL:BOOL=ON \
+    -D Kokkos_ENABLE_SYCL_LAMBDA:BOOL=ON
+endif
+EKAT_CMAKE_FLAGS += $(EKAT_EXTRA_CMAKE_FLAGS)
 endif
 
 # Turn on NetCDF macro define
@@ -616,25 +701,69 @@ INCLUDE_LOCATIONS += $(AMREX_HOME)/Tools/C_scripts
 
 include $(AMREX_HOME)/Tools/GNUMake/Make.rules
 
+# Prebuild targets are feature-gated. In particular, all should not build EKAT
+# unless GNUmakefile selected a Kokkos-using feature, directly or indirectly.
+ERF_PREBUILD_TARGETS :=
+
+.PHONY: build_ekat build_noahmp
+
+ifeq ($(USE_KOKKOS), TRUE)
+ERF_PREBUILD_TARGETS += build_ekat
+
+build_ekat:
+ifeq ($(BUILD_EKAT), TRUE)
+	@# Existence check accepts static or shared Kokkos libraries.
+	@if [ ! -f "$(EKAT_INSTALL_PREFIX)/include/kokkos/Kokkos_Core.hpp" ] || ! ls "$(EKAT_LIB_DIR)"/libkokkoscore.* >/dev/null 2>&1; then \
+	  echo "Building EKAT/Kokkos in $(EKAT_BUILD_DIR)"; \
+	  cmake -S "$(EKAT_SOURCE_DIR)" -B "$(EKAT_BUILD_DIR)" $(EKAT_CMAKE_FLAGS) || exit $$?; \
+	  cmake --build "$(EKAT_BUILD_DIR)" --target install --parallel || exit $$?; \
+	fi
+else
+	@# EKAT_HOME was supplied externally unless BUILD_EKAT=TRUE was requested.
+	@if [ ! -f "$(EKAT_INSTALL_PREFIX)/include/kokkos/Kokkos_Core.hpp" ] || ! ls "$(EKAT_LIB_DIR)"/libkokkoscore.* >/dev/null 2>&1; then \
+	  echo "EKAT/Kokkos install not found under EKAT_HOME=$(EKAT_HOME)"; \
+	  echo "Set BUILD_EKAT=TRUE to build the bundled EKAT install, or set EKAT_HOME to a valid install."; \
+	  exit 1; \
+	fi
+endif
+else
+build_ekat:
+endif
+
+ifeq ($(USE_NOAHMP), TRUE)
+ERF_PREBUILD_TARGETS += build_noahmp
+
 # NOTE: the Noah-MP object rules depend only on their sources and .d files, not on
 # these flags, so changing NETCDF_INCFLAGS (e.g. by pointing PKG_CONFIG_PATH at a
 # different netCDF-Fortran) does not by itself trigger a recompile. Run
 # `make realclean`, or clean $(NOAHMP_HOME)/drivers/erf, when switching installs.
 build_noahmp:
-ifeq ($(USE_NOAHMP), TRUE)
 	$(MAKE) -C $(NOAHMP_HOME)/drivers/erf -f Makefile all_noahmp NOAHMP_PRECISION_FLAG="$(NOAHMP_PRECISION_FLAG)" $(NOAHMP_SUBMAKE_NETCDF)
 
 # Build Noah-MP (codegen + libnoahmp.a) before any ERF object; -j ignores the
-# `all` prereq order, so an order-only (|) dep is needed to enforce it.
+# all prereq order, so an order-only dependency is needed to enforce it.
 
 $(objForExecs): | build_noahmp
+else
+build_noahmp:
 endif
 
-all: build_noahmp $(executable)
-	(SILENT) $(RM) AMReX_buildInfo.cpp
+ifeq ($(USE_KOKKOS), TRUE)
+$(objForExecs): | build_ekat
+endif
+
+all: $(ERF_PREBUILD_TARGETS) $(executable)
 	@echo SUCCESS
 
-AMReX_buildInfo.cpp:
+# The build info compiled into the executable (git hashes, build date, compiler
+# flags) is reported at startup and recorded in plotfile/checkpoint job_info, so
+# it has to describe the binary that is actually being linked. Depending on every
+# other object regenerates it exactly when the binary changes: a no-op build
+# leaves it alone, and any recompile refreshes it before the link. Do not rely on
+# deleting the file from a build target instead -- a bare `make` builds
+# $(executable), not `all`, because Make.rules is included above and defines the
+# default goal, so that cleanup would never run.
+AMReX_buildInfo.cpp: $(filter-out %AMReX_buildInfo.o,$(objForExecs))
 	$(AMREX_HOME)/Tools/C_scripts/makebuildinfo_C.py \
           --amrex_home "$(AMREX_HOME)" \
           --COMP "$(COMP)" --COMP_VERSION "$(COMP_VERSION)" \
@@ -650,4 +779,7 @@ clean::
 	$(SILENT) $(RM) AMReX_buildInfo.cpp
 ifeq ($(USE_NOAHMP), TRUE)
 	$(MAKE) -C $(NOAHMP_HOME)/drivers/erf -f Makefile clean_noahmp
+endif
+ifeq ($(USE_KOKKOS), TRUE)
+	rm -rf $(EKAT_BUILD_DIR)
 endif

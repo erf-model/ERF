@@ -8,9 +8,13 @@
 #include <AMReX_Vector.H>
 
 // Read metadata and time values from erfbdy Header.
+// The domain box stored in the header must match the domain of the run that is
+// reading the file; this is how we catch an erfbdy file left behind by a run with
+// a different domain.
 // Returns bdy_time_interval.
 double
 read_times_from_erfbdy (const std::string& bdy_file_name,
+                        const amrex::Box& domain,
                         int& ntimes,
                         int& nvars,
                         int& real_width,
