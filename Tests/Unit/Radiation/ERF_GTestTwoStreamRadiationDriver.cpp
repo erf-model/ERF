@@ -203,7 +203,7 @@ amrex::Real force_restore_skin_after_post_dycore (bool sweep_first)
 
     MultiFab qheating(ba, dm, 2, 0);
     MultiFab rad_fluxes(convert(ba, IntVect(0, 0, 1)), dm, 4, 0);
-    const Vector<const MultiFab*> radiation_inputs;
+    const Vector<const MultiFab*> radiation_inputs {};
 
     if (sweep_first) {
         radiation.advance(0, 1, Real(0.0), Real(1000.0), "pre_dycore",
