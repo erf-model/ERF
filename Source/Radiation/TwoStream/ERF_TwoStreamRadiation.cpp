@@ -1146,8 +1146,17 @@ TwoStreamRadiation::advance (int lev,
         //  Prognostic SEB surface temperature and moisture evolution
         // Only advance the force-restore state when TwoStream owns the
         // surface-temperature boundary at this level.
+        //
+        // With the surface radiation taken from the sweep, also wait for this level's
+        // first sweep. Until then m_sw_flux_sfc / m_lw_flux_sfc hold what define_level
+        // left, and advancing on them would apply the scalar defaults for that step. That
+        // is the first step of a level built by interp_atmos_from_coarse, whose pre-dycore
+        // sweep ERF::advance_radiation skips (the level's state is not yet consistent),
+        // while this post-dycore call still arrives.
+        const bool seb_radiation_ready = m_flux_diag[lev].valid ||
+                                         !(sw_flux_from_rad || lw_flux_from_rad);
         if (rad_choice.seb_prognostic_enable && seb_active &&
-            call_site == "post_dycore") {
+            call_site == "post_dycore" && seb_radiation_ready) {
             if (!has_external_surface_temperature) {
                 // No external provider owns the boundary; advance TwoStream's state.
 

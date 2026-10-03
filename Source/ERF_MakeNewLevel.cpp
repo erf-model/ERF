@@ -1339,17 +1339,29 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // then indexed with an MFIter over the new grids -- an out-of-bounds device read on the
     // level's first step after the regrid.
     //
-    // At lev > 0 this is cheap and lossless: NOAHMP::Advance calls interp_from_lev0 every
-    // step, so a fine level carries no prognostic state of its own.  At level 0 the state
-    // lives in the per-box Fortran NoahmpIO_type objects, which Init() rebuilds from the land
-    // file and for which no redistribution onto a new decomposition exists -- so refuse
-    // rather than silently cold-start the soil column.  (Level 0 is only ever remade from
-    // ERF::restart, not from regrid, which starts at lbase+1.)
+    // At lev > 0 this is cheap and lossless when the level takes its land state from level 0:
+    // NOAHMP::Advance calls interp_from_lev0 every step, so such a level carries no
+    // prognostic state of its own.  A level that runs the driver on a land setup file of its
+    // own (level 0 always; a finer level with erf.nc_init_file_<lev>, or in an idealized run
+    // with ERF_SETUP_FILE_0<lev+1> in namelist.erf) keeps its state in the per-box Fortran
+    // NoahmpIO_type objects, for which no redistribution onto a new decomposition exists.
+    // At level 0 Init() would rebuild them from the land file, silently cold-starting the
+    // soil column.  At a finer level the driver's block array cannot even be reallocated
+    // (NoahmpIO_vector::resize stops with the generic "Noah-MP fatal error", its reason on
+    // standard error).  Refuse in both cases, naming the cause.  (Level 0 is only ever
+    // remade from ERF::restart, not from regrid, which starts at lbase+1.)
     // ********************************************************************************************
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         !((lev == 0) && (solverChoice.lsm_type == LandSurfaceType::NOAHMP)),
         "RemakeLevel at level 0 would cold-start the Noah-MP soil state: "
         "NoahmpIO_type redistribution onto a new DistributionMapping is not implemented");
+    if (lev > 0 && solverChoice.lsm_type == LandSurfaceType::NOAHMP && lsm.Runs_Own_Land_Driver(lev)) {
+        Abort("Regridding level " + std::to_string(lev) + " would rebuild its Noah-MP land "
+              "state: the level runs the land model on a setup file of its own, and "
+              "NoahmpIO_type redistribution onto new grids is not implemented. Keep that "
+              "level's grids fixed (a refinement box that does not move, or erf.regrid_int "
+              "< 0), or drop its setup file so it takes its land state from level 0.");
+    }
 
     // Rebuild SLM arrays after the atmospheric arrays have been remade. The SLM transfer
     // path preserves its existing state while rebuilding fields on the new grids; ERF's

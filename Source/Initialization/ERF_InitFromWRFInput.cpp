@@ -2133,9 +2133,16 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             amrex::Error("NetCDF boundary file name must be provided via input");
         }
 
-        // Check for erfbdy file.
+        // The wrfbdy file named in the inputs file is authoritative on this pathway, so an
+        // erfbdy file is read only if the user has explicitly asked for one with
+        // erf.use_erfbdy.  If it was asked for but isn't there we simply read wrfbdy, which
+        // gives the same boundary data; the erfbdy file is only a faster way to get it.
         std::string erfbdy_header = erfbdy_file + "/Header";
-        use_erfbdy = FileSystem::Exists(erfbdy_header);
+        if (use_erfbdy && !FileSystem::Exists(erfbdy_header)) {
+            Print() << "erf.use_erfbdy is true but there is no file " << erfbdy_header
+                    << " -- reading the boundary data from " << nc_bdy_file << " instead" << std::endl;
+            use_erfbdy = false;
+        }
         const bool separate_hydrometeors = solverChoice.use_wrf_bdy_qc_qi &&
             wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices);
         if (write_erfbdy) {
@@ -2158,7 +2165,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             // Read metadata and times from erfbdy.
             int ntimes_erfbdy;
             Vector<double> bdy_times;
-            bdy_time_interval = read_times_from_erfbdy(erfbdy_file,
+            bdy_time_interval = read_times_from_erfbdy(erfbdy_file, geom[lev].Domain(),
                                                        ntimes_erfbdy, nvars_erfbdy, real_width,
                                                        bdy_times, start_bdy_time, final_bdy_time);
 
