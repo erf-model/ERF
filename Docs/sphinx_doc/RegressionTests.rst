@@ -581,6 +581,51 @@ Problem Location: `Exec/CanonicalTests/Canonical_RANS`_
 
 .. _`Exec/CanonicalTests/Canonical_RANS`: https://github.com/erf-model/ERF/tree/development/Exec/CanonicalTests/Canonical_RANS
 
+Terrain projection solvers
+--------------------------
+``TerrainSolver_Hill2D`` and ``TerrainSolver_Hill3D`` (label ``terrain-solver``) run
+the ridge and the radial hill of the RANS suite for 50 steps with each solver the
+anelastic projection offers on a terrain-fitted mesh (``erf.terrain_poisson_solver``:
+``gmres_fft``, ``mlmg``, ``gmres_mlmg``) and compare the plotfiles with fcompare
+(``Tests/RunTerrainSolverParity.cmake``, no gold file).  The solvers solve the same
+discrete system, and the test converges them to 1e-10 relative / 1e-12 absolute
+(``erf.poisson_reltol`` / ``erf.poisson_abstol``) so that the plotfiles differ only
+by the solver tolerance: the velocities, potential temperature and turbulent kinetic
+energy after 50 steps agree to 4e-9 relative, against a comparison tolerance of 1e-7
+relative and 1e-9 absolute.  The eddy viscosities and the turbulence length scale,
+which amplify any difference through the closure (1e-4 relative at the default
+1e-8 tolerance), are left out of the plotfile.  Mutation check: a 0.1 % error in the
+x metric of the multigrid operator moves the velocities by 3e-4 relative after 50
+steps, three orders of magnitude above the tolerance, and the test fails.
+Each leg's log must carry the banner the
+solver prints with ``erf.mg_v = 1``, so a leg whose option was ignored fails
+instead of trivially matching.  Without FFT the multigrid solver is the reference
+and the comparison is against ``gmres_mlmg`` only.
+
+``TerrainMLMG_LShape`` and ``TerrainMLMG_LShape_GMRES`` run a two-level version of
+the radial hill whose refined level is an L-shaped union of two boxes (the regridder
+is told to keep the shape: ``amr.grid_eff = 1``, ``amr.n_error_buf = 0``), with the
+multigrid solver and with the multigrid-preconditioned GMRES, and require every
+projection on the refined level to have converged.  The refined level has Neumann
+faces all round, so ERF subtracts the compatibility constant from the right-hand side
+before the solve and a converged solve leaves exactly that constant as the divergence
+after the velocity correction; ``Tests/check_terrain_multilevel.py`` requires the two
+to agree to 1e-6 of the divergence before the solve, with the solvers run to 1e-14
+absolute (``Tests/RunTerrainMultiLevel.cmake`` reads the ``erf.mg_v = 1`` reports;
+registered when CMake finds a Python 3 interpreter).  The first version of the
+operator mirrored the ghost cells across the union boundary like the GMRES operator
+does at a Neumann wall; on sloping terrain that leaves the cross-term part of the
+flux, the all-Neumann problem on the union is then inconsistent and no solver
+converges on it, which this test showed.  The correction flux through coarse/fine
+faces is now set to zero exactly.  ``TerrainMLMG_LShape_FFTAbort``
+runs the same deck with ``gmres_fft`` and passes only when the run stops with the
+message that the union of boxes must be rectangular (or, without FFT, that the FFT
+build is needed).
+
+Test Location: `Tests/test_files/TerrainMLMG_LShape`_
+
+.. _`Tests/test_files/TerrainMLMG_LShape`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/TerrainMLMG_LShape
+
 Restart parity
 --------------
 ``MoistBubble_Kessler_Restart`` (MPI builds, not Windows) runs the moist bubble

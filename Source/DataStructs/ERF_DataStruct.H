@@ -104,6 +104,13 @@ AMREX_ENUM(MeshType,
 );
 
 /**
+ * @brief Linear solver for the anelastic projection on a terrain-fitted mesh.
+ */
+AMREX_ENUM(TerrainPoissonSolver,
+    gmres_fft, mlmg, gmres_mlmg
+);
+
+/**
  * @brief Terrain and immersed-boundary representation.
  */
 AMREX_ENUM(TerrainType,
@@ -1124,6 +1131,22 @@ struct SolverChoice {
         poisson_abstol = amrex::max(poisson_abstol,amrex::Real(1e-6));
         poisson_reltol = amrex::max(poisson_reltol,amrex::Real(1e-6));
 #endif
+        // Solver for the projection on a terrain-fitted mesh: the FFT-preconditioned
+        // GMRES (default), geometric multigrid on the full terrain stencil, or GMRES
+        // with multigrid V-cycles as the preconditioner
+        pp.query_enum_case_insensitive("terrain_poisson_solver", terrain_poisson_solver);
+        if (terrain_poisson_solver != TerrainPoissonSolver::gmres_fft &&
+            (mesh_type != MeshType::VariableDz || terrain_type == TerrainType::EB)) {
+            amrex::Warning("erf.terrain_poisson_solver is read only for the projection on a terrain-fitted mesh (not flat, stretched or EB); the setting has no effect here");
+        }
+        pp.queryAdd("terrain_mlmg_max_iter", terrain_mlmg_max_iter);
+        if (terrain_mlmg_max_iter <= 0) {
+            amrex::Error("erf.terrain_mlmg_max_iter must be a positive integer");
+        }
+        pp.queryAdd("terrain_mlmg_precond_iters", terrain_mlmg_precond_iters);
+        if (terrain_mlmg_precond_iters <= 0) {
+            amrex::Error("erf.terrain_mlmg_precond_iters must be a positive integer");
+        }
         for (int lev = 0; lev <= max_level; lev++) {
             if (anelastic[lev] != 0)
             {
@@ -2160,6 +2183,10 @@ struct SolverChoice {
 
     int         ncorr               = 1;
     std::string wall_dist_type      = "poisson";
+
+    TerrainPoissonSolver terrain_poisson_solver = TerrainPoissonSolver::gmres_fft;
+    int terrain_mlmg_max_iter       = 100;
+    int terrain_mlmg_precond_iters  = 1;
 #ifdef AMREX_USE_FLOAT
     amrex::Real poisson_abstol      = amrex::Real(1e-6);
     amrex::Real poisson_reltol      = amrex::Real(1e-6);

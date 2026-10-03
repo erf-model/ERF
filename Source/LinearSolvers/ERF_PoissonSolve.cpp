@@ -680,9 +680,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
 
         if (solverChoice.terrain_type != TerrainType::EB) {
 
-#ifdef ERF_USE_FFT
         Box my_region(subdomains[lev][isub].minimalBox());
-#endif
 
         // ****************************************************************************
         // No terrain or grid stretching
@@ -720,16 +718,24 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         // General terrain
         // ****************************************************************************
         else if (solverChoice.mesh_type == MeshType::VariableDz) {
+            if (solverChoice.terrain_poisson_solver == TerrainPoissonSolver::gmres_fft) {
 #ifdef ERF_USE_FFT
-            bool boxes_make_rectangle = (my_region.numPts() == subdomains[lev][isub].numPts());
-            if (!boxes_make_rectangle) {
-                amrex::Abort("FFT preconditioner for GMRES won't work unless the union of boxes is rectangular");
-            } else {
-                solve_with_gmres(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0], ax_sub, ay_sub, az_sub, dJ_sub, znd_sub);
-            }
+                bool boxes_make_rectangle = (my_region.numPts() == subdomains[lev][isub].numPts());
+                if (!boxes_make_rectangle) {
+                    amrex::Abort("FFT preconditioner for GMRES won't work unless the union of boxes is rectangular; set erf.terrain_poisson_solver = mlmg or gmres_mlmg");
+                } else {
+                    solve_with_gmres(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0], ax_sub, ay_sub, az_sub, dJ_sub, znd_sub);
+                }
 #else
-            amrex::Abort("Rebuild with USE_FFT = TRUE so you can use the FFT preconditioner for GMRES");
+                amrex::Abort("Rebuild with USE_FFT = TRUE so you can use the FFT preconditioner for GMRES, or set erf.terrain_poisson_solver = mlmg or gmres_mlmg");
 #endif
+            } else {
+                // Multigrid on the full terrain stencil, alone or as the GMRES preconditioner;
+                // the union of boxes need not be rectangular
+                bool use_gmres = (solverChoice.terrain_poisson_solver == TerrainPoissonSolver::gmres_mlmg);
+                solve_with_terrain_mlmg(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0],
+                                        ax_sub, ay_sub, az_sub, dJ_sub, znd_sub, use_gmres);
+            }
 
             //
             // Restore ax,ay,ax to their original definitions

@@ -11,6 +11,8 @@
  * Compute the x-face terrain Poisson flux.
  *
  * @tparam T Real-valued array and spacing type
+ * @tparam XT Cell-centered accessor type: amrex::Array4<T const> or any
+ *            type with a Real operator()(int,int,int) const
  * @param i x-index of the x-face
  * @param j y-index of the x-face
  * @param k z-index of the x-face
@@ -19,10 +21,10 @@
  * @param dxinv Inverse x grid spacing
  * @return x-face flux for the terrain Poisson operator
  */
-template <typename T>
+template <typename T, typename XT>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 T terrpoisson_flux_x (int i, int j, int k,
-                      amrex::Array4<T const> const& sol,
+                      XT const& sol,
                       amrex::Array4<T const> const& zp,
                       T dxinv) noexcept
 {
@@ -62,6 +64,8 @@ T terrpoisson_flux_x (int i, int j, int k,
  * Compute the y-face terrain Poisson flux.
  *
  * @tparam T Real-valued array and spacing type
+ * @tparam XT Cell-centered accessor type: amrex::Array4<T const> or any
+ *            type with a Real operator()(int,int,int) const
  * @param i x-index of the y-face
  * @param j y-index of the y-face
  * @param k z-index of the y-face
@@ -70,10 +74,10 @@ T terrpoisson_flux_x (int i, int j, int k,
  * @param dyinv Inverse y grid spacing
  * @return y-face flux for the terrain Poisson operator
  */
-template <typename T>
+template <typename T, typename XT>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 T terrpoisson_flux_y (int i, int j, int k,
-                      amrex::Array4<T const> const& sol,
+                      XT const& sol,
                       amrex::Array4<T const> const& zp,
                       T dyinv) noexcept
 {
@@ -111,6 +115,8 @@ T terrpoisson_flux_y (int i, int j, int k,
  * Compute the z-face terrain Poisson flux.
  *
  * @tparam T Real-valued array and spacing type
+ * @tparam XT Cell-centered accessor type: amrex::Array4<T const> or any
+ *            type with a Real operator()(int,int,int) const
  * @param i x-index of the z-face
  * @param j y-index of the z-face
  * @param k z-index of the z-face
@@ -120,10 +126,10 @@ T terrpoisson_flux_y (int i, int j, int k,
  * @param dyinv Inverse y grid spacing
  * @return z-face flux for the terrain Poisson operator
  */
-template <typename T>
+template <typename T, typename XT>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 T terrpoisson_flux_z (int i, int j, int k,
-                      amrex::Array4<T const> const& sol,
+                      XT const& sol,
                       amrex::Array4<T const> const& zp,
                       T dxinv, T dyinv) noexcept
 {
@@ -200,6 +206,8 @@ T terrpoisson_flux_z (int i, int j, int k,
  * - compare with terrpoisson_flux_z
  *
  * @tparam T Real-valued array and spacing type
+ * @tparam XT Cell-centered accessor type: amrex::Array4<T const> or any
+ *            type with a Real operator()(int,int,int) const
  * @param i x-index of the z-face
  * @param j y-index of the z-face
  * @param k z-index of the z-face
@@ -209,10 +217,10 @@ T terrpoisson_flux_z (int i, int j, int k,
  * @param dyinv Inverse y grid spacing
  * @return z-face flux with a low-z Dirichlet value
  */
-template <typename T>
+template <typename T, typename XT>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 T terrpoisson_flux_zlo_dir (int i, int j, int k,
-                            amrex::Array4<T const> const& sol,
+                            XT const& sol,
                             amrex::Array4<T const> const& zp,
                             T dxinv, T dyinv) noexcept
 {
@@ -275,13 +283,14 @@ T terrpoisson_flux_zlo_dir (int i, int j, int k,
 }
 
 /**
- * Apply the terrain Poisson matrix to a cell-centered field.
+ * Apply the terrain Poisson matrix to a cell-centered field at one cell.
  *
  * @tparam T Real-valued array and spacing type
+ * @tparam XT Cell-centered accessor type: amrex::Array4<T const> or any
+ *            type with a Real operator()(int,int,int) const
  * @param i x-index of the cell
  * @param j y-index of the cell
  * @param k z-index of the cell
- * @param y Destination operator result
  * @param x Source solution field
  * @param ax Terrain metric coefficient on x-faces
  * @param ay Terrain metric coefficient on y-faces
@@ -291,17 +300,18 @@ T terrpoisson_flux_zlo_dir (int i, int j, int k,
  * @param dxinv Inverse x grid spacing
  * @param dyinv Inverse y grid spacing
  * @param dzinv Inverse z grid spacing
+ * @return Value of the operator applied to x at cell (i,j,k)
  */
-template <typename T>
+template <typename T, typename XT>
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
-                        amrex::Array4<T const> const& x,
-                        amrex::Array4<T const> const& ax,
-                        amrex::Array4<T const> const& ay,
-                        amrex::Array4<T const> const& az,
-                        amrex::Array4<T const> const& dJ,
-                        amrex::Array4<T const> const& zp,
-                        T dxinv, T dyinv, T dzinv) noexcept
+T terrpoisson_adotx_value (int i, int j, int k,
+                           XT const& x,
+                           amrex::Array4<T const> const& ax,
+                           amrex::Array4<T const> const& ay,
+                           amrex::Array4<T const> const& az,
+                           amrex::Array4<T const> const& dJ,
+                           amrex::Array4<T const> const& zp,
+                           T dxinv, T dyinv, T dzinv) noexcept
 {
     using amrex::Real;
     Real h_xi, h_eta, h_zeta;
@@ -493,9 +503,47 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
     // *********************************************************
     if (k == 0) pz_lo = zero;
 
-    y(i,j,k) =  (ax(i+1,j,k)*px_hi - ax(i,j,k)*px_lo) * dxinv
-               +(ay(i,j+1,k)*py_hi - ay(i,j,k)*py_lo) * dyinv
-               +(az(i,j,k+1)*pz_hi - az(i,j,k)*pz_lo) * dzinv;
-    y(i,j,k) /=  dJ(i,j,k);
+    Real y =  (ax(i+1,j,k)*px_hi - ax(i,j,k)*px_lo) * dxinv
+             +(ay(i,j+1,k)*py_hi - ay(i,j,k)*py_lo) * dyinv
+             +(az(i,j,k+1)*pz_hi - az(i,j,k)*pz_lo) * dzinv;
+    y /=  dJ(i,j,k);
+    return y;
+}
+
+/**
+ * Apply the terrain Poisson matrix to a cell-centered field and store the result.
+ *
+ * Same stencil as terrpoisson_adotx_value; kept so that existing callers can write
+ * directly into a destination array.
+ *
+ * @tparam T Real-valued array and spacing type
+ * @tparam XT Cell-centered accessor type: amrex::Array4<T const> or any
+ *            type with a Real operator()(int,int,int) const
+ * @param i x-index of the cell
+ * @param j y-index of the cell
+ * @param k z-index of the cell
+ * @param y Destination operator result
+ * @param x Source solution field
+ * @param ax Terrain metric coefficient on x-faces
+ * @param ay Terrain metric coefficient on y-faces
+ * @param az Terrain metric coefficient on z-faces
+ * @param dJ Cell-centered Jacobian determinant
+ * @param zp Node-centered physical height field
+ * @param dxinv Inverse x grid spacing
+ * @param dyinv Inverse y grid spacing
+ * @param dzinv Inverse z grid spacing
+ */
+template <typename T, typename XT>
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
+                        XT const& x,
+                        amrex::Array4<T const> const& ax,
+                        amrex::Array4<T const> const& ay,
+                        amrex::Array4<T const> const& az,
+                        amrex::Array4<T const> const& dJ,
+                        amrex::Array4<T const> const& zp,
+                        T dxinv, T dyinv, T dzinv) noexcept
+{
+    y(i,j,k) = terrpoisson_adotx_value(i, j, k, x, ax, ay, az, dJ, zp, dxinv, dyinv, dzinv);
 }
 #endif

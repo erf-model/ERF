@@ -4,17 +4,26 @@
 #ifndef ERF_TERRAIN_POISSON_H_
 #define ERF_TERRAIN_POISSON_H_
 
+#include <functional>
+#include <memory>
+
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_BCRec.H>
 
-#ifdef ERF_USE_FFT
-
 #include "ERF_TerrainPoisson_3D_K.H"
+#include "ERF_SolverUtils.H"
+
+#ifdef ERF_USE_FFT
 #include <AMReX_FFT_Poisson.H>
+#endif
 
 /**
  * Matrix-vector interface for the terrain Poisson operator used by GMRES.
+ *
+ * The preconditioner is either the hybrid FFT solve of the flat problem (FFT
+ * builds) or any function set with setPrecondFunction, for example a fixed number
+ * of multigrid V-cycles of MLTerrainPoisson.
  */
 class TerrainPoisson
 {
@@ -22,10 +31,14 @@ public:
 
     using RT = amrex::Real;
 
+    //! Preconditioner call: lhs = P^{-1} rhs
+    using PrecondFn = std::function<void(amrex::MultiFab&, amrex::MultiFab const&)>;
+
     /**
      * Construct a terrain Poisson operator and its FFT preconditioner metadata.
      *
      * @param geom Geometry for the subdomain being solved
+     * @param lev_geom Geometry of the level, used to determine the boundary conditions
      * @param ba BoxArray for operator and vector allocation
      * @param dm DistributionMapping for operator and vector allocation
      * @param domain_bcs_type Domain boundary-condition names
@@ -36,6 +49,7 @@ public:
      * @param dJ Cell-centered Jacobian determinant
      * @param z_phys_nd Node-centered physical height field
      * @param use_real_bcs Whether real lateral boundary conditions are active
+     * @param build_fft_precond Whether to set up the FFT preconditioner (FFT builds only)
      */
     TerrainPoisson (amrex::Geometry const& geom, amrex::Geometry const& lev_geom,
                     amrex::BoxArray const& ba,
@@ -45,7 +59,8 @@ public:
                     const amrex::MultiFab& ax, const amrex::MultiFab& ay,
                     const amrex::MultiFab& az, const amrex::MultiFab& dJ,
                     amrex::MultiFab const* z_phys_nd,
-                    bool use_real_bcs);
+                    bool use_real_bcs,
+                    bool build_fft_precond = true);
 
     /**
      * Apply the terrain Poisson operator.
@@ -63,11 +78,25 @@ public:
     void apply_bcs (amrex::MultiFab& phi);
 
     /**
-     * Enable or disable the FFT preconditioner.
+     * Enable or disable the preconditioner.
      *
-     * @param precond_flag True to use the FFT preconditioner
+     * @param precond_flag True to use the preconditioner
      */
     void usePrecond (bool precond_flag);
+
+    /**
+     * Replace the FFT preconditioner by a user-supplied one.
+     *
+     * @param fn Function computing lhs = P^{-1} rhs; lhs has one ghost cell, rhs none
+     */
+    void setPrecondFunction (PrecondFn fn);
+
+    /**
+     * Boundary types of the operator on the solve box (periodic, even or odd per side).
+     *
+     * @return Low/high pair in each direction
+     */
+    const amrex::Array<std::pair<TerrainBC,TerrainBC>,AMREX_SPACEDIM>& boundaryTypes () const { return m_bc; }
 
     /**
      * Compute face-centered terrain Poisson fluxes from a solution field.
@@ -173,9 +202,13 @@ private:
     const amrex::MultiFab& m_dJ;
     const amrex::MultiFab* m_zphys;
 
+    amrex::Array<std::pair<TerrainBC,TerrainBC>,AMREX_SPACEDIM> m_bc;
+
+    PrecondFn m_precond_fn;
+
+#ifdef ERF_USE_FFT
     std::unique_ptr<amrex::FFT::PoissonHybrid<amrex::MultiFab>> m_2D_fft_precond;
-    amrex::Array<std::pair<amrex::FFT::Boundary,amrex::FFT::Boundary>,AMREX_SPACEDIM> bc_fft;
+#endif
 };
 
-#endif
 #endif

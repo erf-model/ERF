@@ -66,6 +66,10 @@ void ERF::solve_with_gmres (int lev, const Box& subdomain, MultiFab& rhs, MultiF
         my_geom.define(subdomain, rb, coord_sys, is_per);
     }
 
+    if (mg_verbose > 0) {
+        amrex::Print() << "Solving the terrain Poisson equation with FFT-preconditioned GMRES" << std::endl;
+    }
+
     amrex::GMRES<MultiFab, TerrainPoisson> gmsolver;
 
     TerrainPoisson tp(my_geom, Geom(lev), rhs.boxArray(), rhs.DistributionMap(), domain_bc_type,

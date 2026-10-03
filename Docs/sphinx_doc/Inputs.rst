@@ -914,6 +914,17 @@ List of Parameters
 | **erf.poisson_reltol**               | relative tolerance for the Poisson solve; raised to      | Real > 0           | 1.e-8             |
 |                                      | 1.e-6 in single precision builds                         |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.terrain_poisson_solver**       | solver for the projection on a terrain-fitted mesh:      | gmres_fft, mlmg,   | gmres_fft         |
+|                                      | the FFT-preconditioned GMRES (FFT builds), geometric     | gmres_mlmg         |                   |
+|                                      | multigrid on the full terrain stencil, or GMRES with     |                    |                   |
+|                                      | multigrid V-cycles as the preconditioner                 |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.terrain_mlmg_max_iter**        | maximum number of multigrid iterations when the          | Integer > 0        | 100               |
+|                                      | terrain solver is mlmg                                   |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.terrain_mlmg_precond_iters**   | multigrid V-cycles per GMRES iteration when the terrain  | Integer > 0        | 1                 |
+|                                      | solver is gmres_mlmg                                     |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 
 Notes
 -----------------

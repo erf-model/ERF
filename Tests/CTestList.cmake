@@ -2014,6 +2014,189 @@ if(ERF_ENABLE_FFT)
 endif()
 
 #=============================================================================
+# Projection solvers on terrain-fitted meshes
+#
+# The anelastic projection on a terrain-fitted mesh can use the FFT-preconditioned
+# GMRES (erf.terrain_poisson_solver = gmres_fft, FFT builds), geometric multigrid on
+# the full terrain stencil (mlmg) or GMRES with multigrid V-cycles as the
+# preconditioner (gmres_mlmg).  All three solve the same discrete system to the
+# same tolerance, so a run must give the same plotfile up to the solver tolerance:
+# Tests/RunTerrainSolverParity.cmake runs the reference solver and each other one
+# and compares the plotfiles with fcompare.  Every leg's log must carry the
+# solver's own banner, so a leg whose option was ignored fails rather than
+# trivially matching.  Without FFT the multigrid solver is the reference.
+#=============================================================================
+function(add_test_terrain_solver_parity TEST_NAME CASE_DIR INPUT_FILE NSTEPS)
+    set(oneValueArgs "COMMON_OPTIONS" "REL_TOL" "ABS_TOL" "RUN_TIMEOUT")
+    cmake_parse_arguments(ADD_TEST_TSP "" "${oneValueArgs}" "" ${ARGN})
+
+    set(_rans_root ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS)
+    set(CURRENT_TEST_SOURCE_DIR ${_rans_root}/${CASE_DIR})
+    set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
+    file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
+    file(GLOB TEST_FILES "${CURRENT_TEST_SOURCE_DIR}/*")
+    file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+
+    if(ERF_ENABLE_MPI)
+        set(NP ${ERF_TEST_NRANKS})
+    else()
+        set(NP 1)
+    endif()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(_run_timeout 900)
+    if(DEFINED ADD_TEST_TSP_RUN_TIMEOUT)
+        set(_run_timeout "${ADD_TEST_TSP_RUN_TIMEOUT}")
+    endif()
+    math(EXPR _ctest_timeout "3 * ${_run_timeout} + 600")
+
+    # plotfile names carry the step number padded to five digits
+    set(_step "0000${NSTEPS}")
+    string(LENGTH "${_step}" _len)
+    math(EXPR _start "${_len} - 5")
+    string(SUBSTRING "${_step}" ${_start} 5 _step)
+
+    set(_common "max_step=${NSTEPS} erf.plot_int_1=${NSTEPS} erf.check_int=-1 erf.mg_v=1 ${ADD_TEST_TSP_COMMON_OPTIONS}")
+    set(_mlmg_banner "Solving the terrain Poisson equation with MLTerrainPoisson multigrid")
+    set(_gmres_mlmg_banner "Solving the terrain Poisson equation with GMRES preconditioned by MLTerrainPoisson V-cycles")
+    set(_gmres_fft_banner "Solving the terrain Poisson equation with FFT-preconditioned GMRES")
+    if(ERF_ENABLE_FFT)
+        set(_ref_options "erf.terrain_poisson_solver=gmres_fft")
+        set(_ref_require "${_gmres_fft_banner}")
+        set(_leg_options "erf.terrain_poisson_solver=mlmg|erf.terrain_poisson_solver=gmres_mlmg")
+        set(_leg_require "${_mlmg_banner}|${_gmres_mlmg_banner}")
+    else()
+        set(_ref_options "erf.terrain_poisson_solver=mlmg")
+        set(_ref_require "${_mlmg_banner}")
+        set(_leg_options "erf.terrain_poisson_solver=gmres_mlmg")
+        set(_leg_require "${_gmres_mlmg_banner}")
+    endif()
+
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${INPUT_FILE}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DFCOMPARE=${FCOMPARE_EXE}"
+        "-DPLTFILE=plt${_step}"
+        "-DRUN_TIMEOUT=${_run_timeout}"
+        "-DCOMMON_OPTIONS=${_common}"
+        "-DREF_OPTIONS=${_ref_options}"
+        "-DREF_REQUIRE=${_ref_require}"
+        "-DLEG_OPTIONS=${_leg_options}"
+        "-DLEG_REQUIRE=${_leg_require}"
+        "-DREL_TOL=${ADD_TEST_TSP_REL_TOL}"
+        "-DABS_TOL=${ADD_TEST_TSP_ABS_TOL}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunTerrainSolverParity.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT ${_ctest_timeout}
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;terrain-solver"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/solver_ref/simulation.log;${CURRENT_TEST_BINARY_DIR}/solver_leg0/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity_leg0.log")
+endfunction(add_test_terrain_solver_parity)
+
+# The ridge and the radial hill of the RANS suite, 50 steps each, with the solvers
+# converged to 1e-10 relative / 1e-12 absolute so that the plotfiles differ only by
+# the solver tolerance: measured 4e-9 relative at most on the velocities, theta and
+# KE after 50 steps (the eddy viscosities and the turbulence length, which amplify
+# any difference through the closure, are left out of the plotfile).  A solver that
+# dropped the metric cross terms differs at the 1e-3 level on the hill.  See
+# Docs/sphinx_doc/RegressionTests.rst.
+# A 0.1 % error in the x metric of the multigrid operator moves the hill velocities by
+# 2e-4 relative after 50 steps, three orders above the tolerance (mutation check).
+# Script-driven (cmake -P) tests: MPI builds, not Windows, like the other -P tests.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+    set(_tsp_common "erf.poisson_abstol=1e-12 erf.poisson_reltol=1e-10 erf.plot_vars_1=density x_velocity y_velocity z_velocity theta KE")
+    add_test_terrain_solver_parity(TerrainSolver_Hill2D Neutral_Hill_2D inputs_hill   50 COMMON_OPTIONS "${_tsp_common}" REL_TOL 1.e-7 ABS_TOL 1.e-9)
+    add_test_terrain_solver_parity(TerrainSolver_Hill3D Neutral_Hill_3D inputs_hill3d 50 COMMON_OPTIONS "${_tsp_common}" REL_TOL 1.e-7 ABS_TOL 1.e-9)
+endif()
+
+#=============================================================================
+# A refined level whose boxes form an L: the FFT preconditioner needs a rectangular
+# union of boxes on each level and stops, the multigrid terrain solver runs and
+# every projection on the refined level converges.  The fine-level problem has
+# Neumann faces all round, so ERF subtracts the compatibility constant from the
+# right-hand side and the divergence left after the correction is that constant;
+# Tests/check_terrain_multilevel.py requires the two to agree to the solver
+# tolerance (Tests/RunTerrainMultiLevel.cmake reads the erf.mg_v = 1 reports).
+#=============================================================================
+function(add_test_terrain_multilevel TEST_NAME TEST_FILES_DIR INPUT_FILE RUNTIME_OPTIONS LEVEL MIN_SOLVES TOL)
+    set(CURRENT_TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/test_files/${TEST_FILES_DIR})
+    set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
+    file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
+    file(GLOB TEST_FILES "${CURRENT_TEST_SOURCE_DIR}/*")
+    file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+
+    if(ERF_ENABLE_MPI)
+        set(NP ${ERF_TEST_NRANKS})
+    else()
+        set(NP 1)
+    endif()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${INPUT_FILE}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DRUN_TIMEOUT=600"
+        "-DRUNTIME_OPTIONS=${RUNTIME_OPTIONS}"
+        "-DLEVEL=${LEVEL}"
+        "-DMIN_SOLVES=${MIN_SOLVES}"
+        "-DTOL=${TOL}"
+        "-DPYTHON_EXECUTABLE=${ERF_RANS_PYTHON}"
+        "-DCHECK_SCRIPT=${PROJECT_SOURCE_DIR}/Tests/check_terrain_multilevel.py"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunTerrainMultiLevel.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;terrain-solver"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/run/simulation.log")
+endfunction(add_test_terrain_multilevel)
+
+if(Python3_Interpreter_FOUND)
+    # The checker's own verdict: a synthetic log with a converged projection (divergence left
+    # equal to the subtracted constant) passes, one left 1e-3 off fails, and a log without the
+    # level's reports fails.  Pure Python, no ERF run, hence the "unit" label.
+    add_test(TerrainMultiLevelCheck_SelfTest ${ERF_RANS_PYTHON}
+        ${PROJECT_SOURCE_DIR}/Tests/check_terrain_multilevel.py --self-test)
+    set_tests_properties(TerrainMultiLevelCheck_SelfTest
+        PROPERTIES
+        TIMEOUT 60
+        PROCESSORS 1
+        LABELS "unit;terrain-solver")
+
+    if(ERF_ENABLE_MPI AND NOT WIN32)
+        # The divergence on the refined level is small (1e-6), so the solve is run to a tight
+        # absolute tolerance for the check to be meaningful
+        set(_lshape_opts "max_step=10 erf.poisson_abstol=1e-14 erf.poisson_reltol=1e-10 erf.mg_v=1")
+        add_test_terrain_multilevel(TerrainMLMG_LShape TerrainMLMG_LShape TerrainMLMG_LShape.i
+            "${_lshape_opts} erf.terrain_poisson_solver=mlmg" 1 10 1.e-6)
+        add_test_terrain_multilevel(TerrainMLMG_LShape_GMRES TerrainMLMG_LShape TerrainMLMG_LShape.i
+            "${_lshape_opts} erf.terrain_poisson_solver=gmres_mlmg" 1 10 1.e-6)
+    endif()
+endif()
+# The same deck with the FFT-preconditioned GMRES stops at the first projection of
+# the refined level (or, without FFT, at start-up asking for the FFT build)
+add_test_abort(TerrainMLMG_LShape_FFTAbort
+               ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TerrainMLMG_LShape
+               TerrainMLMG_LShape.i
+               "unless the union of boxes is rectangular|Rebuild with USE_FFT = TRUE"
+               "erf.terrain_poisson_solver=gmres_fft")
+
+#=============================================================================
 # MOST reference height on flat stretched meshes
 #
 # run_most_zref.py runs one flat stretched column through the terrain-fitted,
