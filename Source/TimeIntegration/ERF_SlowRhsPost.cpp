@@ -424,10 +424,9 @@ void erf_slow_rhs_post (int level, int finest_level,
         ParallelFor(tbx, ncomp_slow[IntVars::cons],
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
             const int n = scomp_slow[IntVars::cons] + nn;
-            if (erf_sbm::copy_host_slow_component(
-                    n, copy_sbm_active, copy_sbm_qc, copy_sbm_qr)) {
-                cur_cons(i,j,k,n) = new_cons(i,j,k,n);
-            }
+            erf_sbm::copy_host_slow_component(
+                cur_cons, new_cons, i, j, k, n, copy_sbm_active,
+                copy_sbm_qc, copy_sbm_qr);
         });
 
         // **************************************************************************

@@ -1100,12 +1100,18 @@ TEST(SBMTransport, HostSlowCopyPreservesAcceptedLiquidProjection)
         0.0, 0.0, 0.1, 0.1, state_manager, anchor, predictor, target,
         avg_xmom, avg_ymom, avg_zmom, geom, qc, qr);
 
-    // This is the same per-component ownership predicate used by the host
-    // predictor-to-current copy immediately after advance_stage_from_host.
-    for (int component = RhoQ1_comp; component < target.nComp(); ++component) {
-        if (erf_sbm::copy_host_slow_component(component, true, qc, qr)) {
-            MultiFab::Copy(target, predictor, component, component, 1, 0);
-        }
+    // Exercise the production-used component copy operation immediately after
+    // the host stage transaction, before any later end-of-step projection.
+    for (amrex::MFIter mfi(target, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.tilebox();
+        const auto current = target.array(mfi);
+        const auto source = predictor.const_array(mfi);
+        amrex::ParallelFor(bx, target.nComp() - 2,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k, int nn) noexcept {
+                const int component = 2 + nn;
+                erf_sbm::copy_host_slow_component(
+                    current, source, i, j, k, component, true, qc, qr);
+            });
     }
     EXPECT_EQ(target.min(RhoQ1_comp), Real(0.03));
     EXPECT_EQ(target.min(unrelated), Real(17.0));
@@ -1116,10 +1122,17 @@ TEST(SBMTransport, HostSlowCopyPreservesAcceptedLiquidProjection)
     // the compact liquid indices.
     MultiFab non_sbm_target(ba, dm, 8, 0);
     MultiFab::Copy(non_sbm_target, anchor, 0, 0, 8, 0);
-    for (int component = RhoQ1_comp; component < non_sbm_target.nComp(); ++component) {
-        if (erf_sbm::copy_host_slow_component(component, false, qc, qr)) {
-            MultiFab::Copy(non_sbm_target, predictor, component, component, 1, 0);
-        }
+    for (amrex::MFIter mfi(non_sbm_target, amrex::TilingIfNotGPU());
+         mfi.isValid(); ++mfi) {
+        const Box bx = mfi.tilebox();
+        const auto current = non_sbm_target.array(mfi);
+        const auto source = predictor.const_array(mfi);
+        amrex::ParallelFor(bx, non_sbm_target.nComp() - 2,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k, int nn) noexcept {
+                const int component = 2 + nn;
+                erf_sbm::copy_host_slow_component(
+                    current, source, i, j, k, component, false, qc, qr);
+            });
     }
     EXPECT_EQ(non_sbm_target.min(qc), Real(11.0));
     EXPECT_EQ(non_sbm_target.min(qr), Real(13.0));
