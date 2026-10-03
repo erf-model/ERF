@@ -2793,6 +2793,10 @@ SurfaceLayer::read_custom_roughness (const int& lev,
         if (ParallelDescriptor::IOProcessor()) {
             Print()<<"Reading MOST roughness file at level " << lev << " : " << fname << std::endl;
             std::ifstream file(fname);
+            if (!file.is_open()) {
+                Abort("Could not open the MOST roughness file \"" + fname + "\" given as "
+                      "erf.most.roughness_file_name -- please check the file name in the inputs file");
+            }
             Real value1,value2,value3;
             while(file>>value1>>value2>>value3){
                 m_x.push_back(value1);
@@ -2803,6 +2807,10 @@ SurfaceLayer::read_custom_roughness (const int& lev,
 
             AMREX_ALWAYS_ASSERT(m_x.size() == m_y.size());
             AMREX_ALWAYS_ASSERT(m_x.size() == m_z0.size());
+
+            if (m_x.empty()) {
+                Abort("The MOST roughness file \"" + fname + "\" holds no (x, y, z0) triples");
+            }
         }
 
         // Broadcast the whole domain to every rank
@@ -2818,6 +2826,18 @@ SurfaceLayer::read_custom_roughness (const int& lev,
         ParallelDescriptor::Bcast(m_x.data() , nnode, ioproc);
         ParallelDescriptor::Bcast(m_y.data() , nnode, ioproc);
         ParallelDescriptor::Bcast(m_z0.data(), nnode, ioproc);
+
+        // The loop below indexes the file's values as nodes of this level's grid, so a file
+        // holding fewer values than the grid has nodes would be read past its end
+        {
+            const Box& dom = m_geom[lev].Domain();
+            const int nnode_needed = dom.bigEnd(0) + dom.bigEnd(1) * (dom.length(0)+1) + 1;
+            if (nnode < nnode_needed) {
+                Abort("The MOST roughness file \"" + fname + "\" holds " + std::to_string(nnode) +
+                      " values but the grid at level " + std::to_string(lev) + " needs at least " +
+                      std::to_string(nnode_needed) + " -- is this file written for this grid?");
+            }
+        }
 
         // Copy data to the GPU
         Gpu::DeviceVector<Real> d_x(nnode),d_y(nnode),d_z0(nnode);

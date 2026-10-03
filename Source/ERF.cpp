@@ -12,6 +12,7 @@
 #include "ERF_EOS.H"
 #include "ERF.H"
 #include "AMReX_buildInfo.H"
+#include "AMReX_FileSystem.H"
 #include "AMReX_Random.H"
 #include "AMReX_WriteEBSurface.H"
 
@@ -3274,6 +3275,7 @@ ERF::ReadParameters ()
         //       solverChoice.init_type, which is not known until init_params() runs
         //       below, so it is parsed further down once that default has been chosen.
         pp.queryAdd("erfbdy_file",              erfbdy_file);
+        pp.queryAdd("use_erfbdy",               use_erfbdy);
 
         // Set default to FullState for now ... later we will try Perturbation
         interpolation_type = StateInterpType::FullState;
@@ -3539,7 +3541,11 @@ ERF::ReadParameters ()
     // Set a default value for write_erfbdy following these rules.
     // Prioritize write_erfbdy provided by user.
     // write_erfbdy must be false for restarts.
-    // write_erfbdy defaults to true for clean starts of the metgrid or wrfinput pathways.
+    // write_erfbdy defaults to true for clean starts of the metgrid pathway, which
+    //     requires the erfbdy file in order to restart.
+    // write_erfbdy defaults to false for the wrfinput pathway, which reads the boundary
+    //     data from the wrfbdy file named in the inputs file as the data are needed, and
+    //     which stores the boundary data in the checkpoint file when it writes one.
     //
     // The context-dependent default is chosen FIRST and the user's value is parsed on
     // top of it, so that "did the user set this" never has to be asked.  It must not be
@@ -3551,8 +3557,7 @@ ERF::ReadParameters ()
     {
         ParmParse pp_erfbdy(pp_prefix);
         const bool is_restart = !restart_chkfile.empty();
-        if (!is_restart &&
-            ((solverChoice.init_type == InitType::Metgrid) || (solverChoice.init_type == InitType::WRFInput))) {
+        if (!is_restart && (solverChoice.init_type == InitType::Metgrid)) {
             write_erfbdy = true;
         }
 
@@ -3768,7 +3773,29 @@ ERF::ReadParameters ()
         for (int j = 0; j < num_files; j++) {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!nc_init_file[0][j].empty(), "Valid file name must be present at level 0 for init type WRFInput, Metgrid or NCFile.");
         } //j
+
+        // Fail here, rather than inside the NetCDF calls, if any of the files we have been
+        // given don't actually exist -- this way the user is told which name is at fault
+        for (int lev = 0; lev < static_cast<int>(nc_init_file.size()); lev++) {
+            for (int j = 0; j < static_cast<int>(nc_init_file[lev].size()); j++) {
+                const std::string& fname = nc_init_file[lev][j];
+                if (!fname.empty() && !FileSystem::Exists(fname)) {
+                    Abort("Could not find the file \"" + fname + "\" given as erf.nc_init_file_" +
+                          std::to_string(lev) + " (entry " + std::to_string(j) + ")");
+                }
+            } // j
+        } // lev
     } // InitType
+
+    // Same check for the lateral (wrfbdy) and lower (wrflow) boundary files, which are
+    // used whenever a name has been given for them
+    if (!nc_bdy_file.empty() && !FileSystem::Exists(nc_bdy_file)) {
+        Abort("Could not find the file \"" + nc_bdy_file + "\" given as erf.nc_bdy_file");
+    }
+
+    if (!nc_low_file.empty() && !FileSystem::Exists(nc_low_file)) {
+        Abort("Could not find the file \"" + nc_low_file + "\" given as erf.nc_low_file");
+    }
 
     // What type of land surface model to use
     // NOTE: Must be checked after init_params
