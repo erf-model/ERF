@@ -413,19 +413,27 @@ ComputeVerticalShear2_EB (int i, int j, int k,
     amrex::Real du_dz, dv_dz;
     amrex::Real f0, f1, fsum;
 
+    // u, k (centre cell)
     f0 = u_vfrac(i,   j, k);
     f1 = u_vfrac(i+1, j, k);
     fsum = f0 + f1;
-    const amrex::Real u_c = (fsum > zero) ?
-                        ((f0 > zero ? f0 * u(i,   j, k) : zero) +
-                        (f1 > zero ? f1 * u(i+1, j, k) : zero)) / fsum : zero;
+    if (fsum <= zero) {
+        shear_is_valid = false;
+        return zero;
+    }
+    const amrex::Real u_c = ((f0 > zero ? f0 * u(i,   j, k) : zero) +
+                             (f1 > zero ? f1 * u(i+1, j, k) : zero)) / fsum;
 
+    // v, k (centre cell)
     f0 = v_vfrac(i, j,   k);
     f1 = v_vfrac(i, j+1, k);
     fsum = f0 + f1;
-    const amrex::Real v_c = (fsum > zero) ?
-                        ((f0 > zero ? f0 * v(i, j,   k) : zero) +
-                        (f1 > zero ? f1 * v(i, j+1, k) : zero)) / fsum : zero;
+    if (fsum <= zero) {
+        shear_is_valid = false;
+        return zero;
+    }
+    const amrex::Real v_c = ((f0 > zero ? f0 * v(i, j,   k) : zero) +
+                             (f1 > zero ? f1 * v(i, j+1, k) : zero)) / fsum;
 
     if (c_cflag(i,j,k+1).isCovered()) {
 
@@ -557,17 +565,23 @@ ComputeVerticalShear2_EB (int i, int j, int k,
         f0 = u_vfrac(i,   j, k-1);
         f1 = u_vfrac(i+1, j, k-1);
         fsum = f0 + f1;
-        c_km1 = (fsum > zero) ?
-            ((f0 > zero ? f0 * u(i,   j, k-1) : zero) +
-            (f1 > zero ? f1 * u(i+1, j, k-1) : zero)) / fsum : zero;
+        if (fsum <= zero) {
+            shear_is_valid = false;
+            return zero;
+        }
+        c_km1 = ((f0 > zero ? f0 * u(i,   j, k-1) : zero) +
+                 (f1 > zero ? f1 * u(i+1, j, k-1) : zero)) / fsum;
 
         // u, k+1
         f0 = u_vfrac(i,   j, k+1);
         f1 = u_vfrac(i+1, j, k+1);
         fsum = f0 + f1;
-        c_kp1 = (fsum > zero) ?
-            ((f0 > zero ? f0 * u(i,   j, k+1) : zero) +
-            (f1 > zero ? f1 * u(i+1, j, k+1) : zero)) / fsum : zero;
+        if (fsum <= zero) {
+            shear_is_valid = false;
+            return zero;
+        }
+        c_kp1 = ((f0 > zero ? f0 * u(i,   j, k+1) : zero) +
+                 (f1 > zero ? f1 * u(i+1, j, k+1) : zero)) / fsum;
 
         du_dz = myhalf * (c_kp1 - c_km1) * dzInv;
 
@@ -575,17 +589,23 @@ ComputeVerticalShear2_EB (int i, int j, int k,
         f0 = v_vfrac(i, j,   k-1);
         f1 = v_vfrac(i, j+1, k-1);
         fsum = f0 + f1;
-        c_km1 = (fsum > zero) ?
-            ((f0 > zero ? f0 * v(i, j,   k-1) : zero) +
-            (f1 > zero ? f1 * v(i, j+1, k-1) : zero)) / fsum : zero;
+        if (fsum <= zero) {
+            shear_is_valid = false;
+            return zero;
+        }
+        c_km1 = ((f0 > zero ? f0 * v(i, j,   k-1) : zero) +
+                 (f1 > zero ? f1 * v(i, j+1, k-1) : zero)) / fsum;
 
         // v, k+1
         f0 = v_vfrac(i, j,   k+1);
         f1 = v_vfrac(i, j+1, k+1);
         fsum = f0 + f1;
-        c_kp1 = (fsum > zero) ?
-            ((f0 > zero ? f0 * v(i, j,   k+1) : zero) +
-            (f1 > zero ? f1 * v(i, j+1, k+1) : zero)) / fsum : zero;
+        if (fsum <= zero) {
+            shear_is_valid = false;
+            return zero;
+        }
+        c_kp1 = ((f0 > zero ? f0 * v(i, j,   k+1) : zero) +
+                 (f1 > zero ? f1 * v(i, j+1, k+1) : zero)) / fsum;
 
         dv_dz = myhalf * (c_kp1 - c_km1) * dzInv;
     }
