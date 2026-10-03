@@ -190,10 +190,16 @@ def main():
     if args.leg == 'interp':
         for name in ('t_sfc', 'sav', 'sag', 'albedo'):
             coarse, fine = field(name, 0), field(name, 1)
-            worst = max(abs(v - coarse[parent_x(x, prob_lo_x, dx[0])]) for x, v in fine.items())
+            worst = 0.0
+            for x, v in fine.items():
+                parent = coarse.get(parent_x(x, prob_lo_x, dx[0]))
+                if parent is None:
+                    failures.append(f"interp: no level-0 {name} in the parent cell of x {x:g}")
+                    continue
+                worst = max(worst, abs(v - parent))
             print(f"interp: level-1 {name} vs level 0 in the parent cell, worst difference "
                   f"{worst:.3e} over {len(fine)} cells")
-            if worst > 1.0e-10 * max(abs(v) for v in coarse.values()):
+            if worst > 1.0e-10 * max((abs(v) for v in coarse.values()), default=0.0):
                 failures.append(f"interp: level-1 {name} is not level 0's (worst difference "
                                 f"{worst:.3e})")
 

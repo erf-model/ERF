@@ -332,8 +332,9 @@ Limitations
 - **Refined runs.** Multiple levels are supported; see `Multiple Levels`_ above for the grid
   requirement, the lateral coarse-fine seam, the absence of feedback from fine to coarse, the
   subcycled call cadence, and how the surface energy balance is kept consistent between levels.
-  The one exception is a run with Noah-MP, which is single-level for now; see
-  `Radiative Forcing of a Land-Surface Model`_.
+  A run with Noah-MP is refined as well: every level hands its own Noah-MP its forcing, and a
+  finer level runs the land model on a land setup file of its own, or else takes its land state
+  from level 0; see `Radiative Forcing of a Land-Surface Model`_.
 - **Sun and site.** The sun, the site and the surface temperature come from the inputs the
   RRTMGP interface reads (``erf.fixed_solar_zenith_angle``, ``erf.fixed_total_solar_irradiance``,
   ``erf.rad_t_sfc``, ``erf.rad_cons_lat``/``lon``, ``erf.rad_orbital_*``, ``start_datetime``),

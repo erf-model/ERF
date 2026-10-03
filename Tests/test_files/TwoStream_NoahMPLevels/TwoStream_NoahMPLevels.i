@@ -13,7 +13,7 @@
 #   nested  the same land, but the level stops below the domain top, so it does not
 #           sweep: its radiation, Noah-MP's forcing included, comes from level 0;
 #   interp  no ERF_SETUP_FILE_02: level 1 takes its land state from level 0;
-#   regrid  the refined region moves at t = 1.5 s; a level that runs Noah-MP on its own
+#   regrid  the refined region moves at t = 0.5 s; a level that runs Noah-MP on its own
 #           land file cannot be rebuilt, so the run must stop.
 #
 # check_two_stream_noahmp_levels.py asserts what each must show; see its docstring.

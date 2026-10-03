@@ -67,6 +67,15 @@ refined region, on its cells: the WRF global attributes ``I_PARENT_START`` and
 land model on its own file keeps its soil state on its grids, so ERF stops if a regrid would
 rebuild them: keep that level's refinement region fixed.
 
+The nested file must agree with its parent about which cells are land. ERF does not read that
+file itself: outside a run initialized from WRF or metgrid files a finer level has no
+``erf.nc_init_file_<lev>``, so its land mask, land type and soil type are interpolated from
+level 0 (``Interp2DArrays``) while Noah-MP integrates on the surface its own setup file
+describes. The two are not reconciled, and nothing checks them. A cell the nested file marks
+as water (``XLAND = 2``) inside a land parent therefore gives Noah-MP a water column while the
+surface layer, which reads the interpolated mask to pick the roughness and the land or water
+flux branch, still treats it as land.
+
 ERF checks for all three files before the driver runs and names the one that is missing. It does
 so because the driver reports its own errors by writing to standard output and then stopping,
 and that line is usually lost, leaving only ``Noah-MP fatal error``. If ERF cannot find the

@@ -1734,7 +1734,7 @@ foreach(_two_stream_test IN ITEMS
     TwoStream_ColumnHeating
     TwoStream_ColumnHeating_Terrain
     TwoStream_ColumnHeating_TwoLevel
-    TwoStream_NoahMP_MultiLevelAbort
+    TwoStream_NoahMPLevels
     TwoStream_NestedPatch
     TwoStream_PrognosticSEBMultiLevel
     TwoStream_PrognosticSEBShallowNest
