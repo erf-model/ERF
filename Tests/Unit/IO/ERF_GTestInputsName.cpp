@@ -192,7 +192,10 @@ TEST(InputsName, TheInputsFilePrefixIsUsedForEveryFile)
     set_prefix(nullptr);
     EXPECT_EQ(state.error, "");
     EXPECT_EQ(state.seen.count("erf.fixed_dt"), 1u);
-    EXPECT_EQ(state.seen.at("erf.fixed_dt").file, d.path("flow.inputs"));
+    // compared as paths: ParmParse joins the prefix and the name with '/', and the scratch
+    // directory uses the native separator, a backslash on Windows
+    const std::string& file = state.seen.at("erf.fixed_dt").file;
+    EXPECT_TRUE(std::filesystem::path(file) == d.dir / "flow.inputs") << file;
 }
 
 TEST(InputsName, TablesAndPreprocessorRegionsAreReadAsParmParseDoes)
