@@ -79,7 +79,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
             //       and the theta diffusion of every RK stage overwrites all z-faces (the
             //       surface layer the bottom face) before anything reads them, so the value
             //       written here was both misplaced and unused.  The TKE buoyancy source
-            //       reads the face fluxes of that diffusion (ERF_AddTKESources.H).
+            //       reads the face fluxes of that diffusion (ERF_TurbKESources.H).
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
             const Array4<Real const >& cell_data = cons_in.array(mfi);
             Array4<Real const> tau11 = Tau_lev[TauType::tau11]->array(mfi);
@@ -183,7 +183,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
             //       and the theta diffusion of every RK stage overwrites all z-faces (the
             //       surface layer the bottom face) before anything reads them, so the value
             //       written here was both misplaced and unused.  The TKE buoyancy source
-            //       reads the face fluxes of that diffusion (ERF_AddTKESources.H).
+            //       reads the face fluxes of that diffusion (ERF_TurbKESources.H).
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
             const Array4<Real>& diss    = Diss.array(mfi);
 
@@ -448,15 +448,28 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
                     if (l_use_Ri_corr && l_has_xvel && l_has_yvel) {
                         Real N2 = zero;
                         Real S2_vert = zero;
+                        // Covered and multi-valued cells fall through both branches below
+                        // with no shear computed, so start from "not valid" and let the
+                        // branch that does the work say otherwise.
+                        bool shear_is_valid = false;
                         if (c_cflag(i,j,k).isRegular()) {
                             N2 = ComputeN2(i, j, k, dzInv, l_abs_g, cell_data, moisture_indices);
                             S2_vert = ComputeVerticalShear2(i, j, k, dzInv, u_arr, v_arr);
+                            shear_is_valid = true;
                         } else if (c_cflag(i,j,k).isSingleValued()) {
                             N2 = ComputeN2_EB(i, j, k, c_cflag, dzInv, l_abs_g, cell_data, moisture_indices);
-                            S2_vert = ComputeVerticalShear2_EB(i, j, k, c_cflag, u_vfrac, v_vfrac, dzInv, u_arr, v_arr);
+                            S2_vert = ComputeVerticalShear2_EB(i, j, k, c_cflag, u_vfrac, v_vfrac, dzInv, u_arr, v_arr, shear_is_valid);
                         }
-                        Real Ri = ComputeRichardson(N2, S2_vert);
-                        stability_factor = StabilityFunction(Ri, l_Ri_crit);
+                        // When the EB geometry leaves no usable shear stencil we keep
+                        // stability_factor = 1, i.e. no stratification damping: without a
+                        // trustworthy gradient we would rather leave the Smagorinsky
+                        // viscosity alone than suppress it on the strength of a Ri we do
+                        // not believe. This is a deliberate choice -- damping to 0 instead
+                        // would be just as defensible -- so change it knowingly.
+                        if (shear_is_valid) {
+                            Real Ri = ComputeRichardson(N2, S2_vert);
+                            stability_factor = StabilityFunction(Ri, l_Ri_crit);
+                        }
                     }
 
                     if (isotropic) {
@@ -648,7 +661,7 @@ void ComputeTurbulentViscosityRANS (int level,
             //       and the theta diffusion of every RK stage overwrites all z-faces (the
             //       surface layer the bottom face) before anything reads them, so the value
             //       written here was both misplaced and unused.  The TKE buoyancy source
-            //       reads the face fluxes of that diffusion (ERF_AddTKESources.H).
+            //       reads the face fluxes of that diffusion (ERF_TurbKESources.H).
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
             const Array4<Real>& diss    = Diss.array(mfi);
 

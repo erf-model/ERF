@@ -87,10 +87,6 @@
 #include "ERF_ShocDriver.H"
 #include "AuxiliaryState/ERF_AuxiliaryInertTracer.H"
 
-#ifdef ERF_USE_P3
-#include "ERF_P3Interface.H"
-#endif
-
 #include <iostream>
 
 #ifdef AMREX_LAZY
@@ -676,13 +672,6 @@ public:
                                          amrex::MultiFab* eddyDiffs,
                                          amrex::MultiFab* z_phys_nd,
                                          const double& dt_advance);
-
-#ifdef ERF_USE_P3
-    void compute_p3_tendencies (int lev,
-                                amrex::MultiFab& cons_in,
-                                amrex::MultiFab& source,
-                                const double& dt_advance);
-#endif
 
     void build_fine_mask (int lev, amrex::MultiFab& fine_mask);
 
@@ -1413,10 +1402,6 @@ private:
 #endif
 
     amrex::Vector<std::unique_ptr<ShocDriver>> native_shoc_driver; // Native SHOC model at each level
-
-#ifdef ERF_USE_P3
-    amrex::Vector<std::unique_ptr<P3Interface>> p3_interface; // P3 model at each level
-#endif
 
     bool plot_rad = false;
     int rad_datalog_int = -1;

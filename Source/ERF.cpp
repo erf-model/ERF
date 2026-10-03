@@ -1769,6 +1769,7 @@ ERF::InitData_post ()
             m_SurfaceLayer[ori]->set_surface_layer_faces(surface_layer_faces);
             m_SurfaceLayer[ori]->set_coupled_sst_active(solverChoice.use_coupled_sst &&
                                                         static_cast<int>(ori) == Orientation::zlo());
+
             // This call will allocate the arrays at each level. If we regrid later, either changing
             // the number of levels or just the grids at each existing level, we will call an update routine
             // to redefine the internal arrays in m_SurfaceLayer.
@@ -1782,6 +1783,24 @@ ERF::InitData_post ()
                                                                 Hwave[lev].get(),Lwave[lev].get(),eddyDiffs_lev[lev].get(),
                                                                 lsm_data[lev], lsm_data_name, lsm_flux[lev], lsm_flux_name,
                                                                 sst_lev[lev], tsk_lev[lev], lmask_lev[lev]);
+            }
+
+            // The custom and rico flux types prescribe u*, T* and q* directly: these are
+            // not MOST scales and no Obukhov length is computed, so olen keeps its initial
+            // bogus value. PBL schemes that build near-surface gradients from u* and L
+            // assume MOST consistency, so they cannot be used with these types.
+            // Note: this check must come after make_SurfaceLayer_at_level(), which is where
+            // most.use_sfc_fluxes promotes flux_type to CUSTOM.
+            if (m_SurfaceLayer[ori]->flux_type == SurfaceLayer::FluxCalcType::CUSTOM ||
+                m_SurfaceLayer[ori]->flux_type == SurfaceLayer::FluxCalcType::RICO) {
+                for (const auto& tc : solverChoice.turbChoice) {
+                    if (tc.pbl_type != PBLType::None && !tc.uses_shoc_family()) {
+                        Abort("erf.pbl_type = " + std::string(amrex::getEnumNameString(tc.pbl_type)) +
+                              " requires a MOST-consistent u* and Obukhov length;"
+                              " it cannot be combined with surface_layer.flux_type = custom or rico"
+                              " (note that most.use_sfc_fluxes selects the custom flux type)");
+                    }
+                }
             }
 
             // If initializing from an input_sounding, make sure the surface layer

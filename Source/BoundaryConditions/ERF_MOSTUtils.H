@@ -128,6 +128,56 @@ struct similarity_funs
         }
     }
 
+    //
+    // Gradient (phi) functions
+    //
+    /**
+     * Compute the Businger-Dyer momentum gradient function.
+     *
+     * This is the exact companion of calc_psi_m: the two are tied by
+     * psi_m(zeta) = int_0^zeta (1 - phi_m(x))/x dx, so differentiating the MOST
+     * wind profile u(z) = (u_star/kappa)[ln(z/z0) - psi_m(z/L)] gives
+     * du/dz = u_* phi_m(zeta) / (kappa z).
+     *
+     * NOTE: the surface_temp* flux calculators use the Jimenez psi pair
+     *       (calc_psi_m2/calc_psi_h2) rather than this one; their companions are
+     *       not implemented yet, so a prescribed-surface-temperature run gets the
+     *       Businger-Dyer gradient here.
+     *
+     * @param[in] zeta stability coordinate z/L
+     */
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
+    amrex::Real
+    calc_phi_m (amrex::Real zeta) const
+    {
+        if (zeta > 0) {
+            return one + beta_m * zeta;
+        } else {
+            return one / std::sqrt(std::sqrt(one - gamma_m * zeta));
+        }
+    }
+
+    /**
+     * Compute the Businger-Dyer heat gradient function, the exact companion of
+     * calc_psi_h: dtheta/dz = theta_* phi_h(zeta) / (kappa z).
+     *
+     * See the note in calc_phi_m about the Jimenez pair.
+     *
+     * @param[in] zeta stability coordinate z/L
+     */
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
+    amrex::Real
+    calc_phi_h (amrex::Real zeta) const
+    {
+        if (zeta > 0) {
+            return one + beta_h * zeta;
+        } else {
+            return one / std::sqrt(one - gamma_h * zeta);
+        }
+    }
+
 private:
     amrex::Real beta_m{amrex::Real(5.0)};         ///< Constants from Dyer, BLM, 1974
     amrex::Real beta_h{amrex::Real(5.0)};         ///< https://doi.org/amrex::Real(10.1007)/BF00240838

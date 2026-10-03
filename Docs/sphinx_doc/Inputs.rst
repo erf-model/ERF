@@ -3051,6 +3051,15 @@ List of Parameters
 |                                   | nodes rather than reconstructing nodal heights whose     |                              |                    |
 |                                   | four-node average reproduces them                        |                              |                    |
 +-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
+| **erf.wrfinput_zlevels_from_file**| build the vertical grid from the domain-mean layer       | Boolean                      | true               |
+|                                   | thickness profile of the ``wrfinput`` file, rescaled to  |                              |                    |
+|                                   | reach the domain top.  If false, build it instead by     |                              |                    |
+|                                   | solving for the geometric stretch factor that fills the  |                              |                    |
+|                                   | domain starting from the thickest first layer in the     |                              |                    |
+|                                   | file.  Used only when ``avg_grid_faces_to_nodes`` is     |                              |                    |
+|                                   | false; a level whose grids do not reach the domain top   |                              |                    |
+|                                   | falls back to the geometric construction                 |                              |                    |
++-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
 | **erf.rebalance_wrf_input**       | rebalance (hydrostatically re-integrate) the state read  | Boolean                      | true               |
 |                                   | from ``wrfinput`` and ``wrfbdy``.  Forced to true if     |                              |                    |
 |                                   | ``avg_grid_faces_to_nodes`` is false                     |                              |                    |
@@ -5007,7 +5016,7 @@ Initialization, Terrain and Vertical Mesh
   ``erf.initial_dz``, ``erf.terrain_z_levels``, ``erf.zsurface``
 * :ref:`Initialization <inputs-initialization>` -- ``erf.avg_grid_faces_to_nodes``,
   ``erf.init_type``, ``erf.nc_bdy_file``, ``erf.rebalance_wrf_input``,
-  ``erf.sounding_type``, ``erf.use_real_bcs``
+  ``erf.sounding_type``, ``erf.use_real_bcs``, ``erf.wrfinput_zlevels_from_file``
 * :ref:`Terrain <inputs-terrain>` -- ``erf.buildings_type``, ``erf.flat_terrain``,
   ``erf.terrain_type``
 

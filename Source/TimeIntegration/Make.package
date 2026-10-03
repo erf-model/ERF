@@ -16,6 +16,7 @@ CEXE_sources += ERF_Substep_MT.cpp
 
 CEXE_headers += ERF_ImplicitPre.H
 CEXE_headers += ERF_ImplicitPost.H
+CEXE_headers += ERF_ScalarLimitPost.H
 
 CEXE_headers += ERF_TI_slow_rhs_pre.H
 CEXE_headers += ERF_TI_slow_rhs_post.H
