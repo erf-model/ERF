@@ -221,6 +221,10 @@ endfunction()
 run_erf("Initial SBM M3 run")
 assert_checkpoint("sbm_smoke_chk00001")
 
+if(DEFINED EXPECT_SECOND_CHECKPOINT AND EXPECT_SECOND_CHECKPOINT)
+  assert_checkpoint("sbm_smoke_chk00002")
+endif()
+
 if(DEFINED SKIP_RESTART AND SKIP_RESTART)
   return()
 endif()

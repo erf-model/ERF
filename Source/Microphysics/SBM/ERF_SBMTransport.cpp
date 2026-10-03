@@ -658,20 +658,15 @@ SBMTransport::advance_stage (const int level,
         const auto rho = trial_conserved.const_array(mfi);
         const auto omega = data.measure.const_array(mfi);
         const auto out = data.outgoing_demand.array(mfi);
-        const Real dx = inv_dx[0], dy = inv_dx[1], dz = inv_dx[2];
+        const auto dx_inv = inv_dx;
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j,
                                                     int k) noexcept {
-            const Real outward = (amrex::max(fx(i + 1, j, k, 0), Real(0.0)) +
-                                  amrex::max(-fx(i, j, k, 0), Real(0.0))) *
-                                     dx +
-                                 (amrex::max(fy(i, j + 1, k, 0), Real(0.0)) +
-                                  amrex::max(-fy(i, j, k, 0), Real(0.0))) *
-                                     dy +
-                                 (amrex::max(fz(i, j, k + 1, 0), Real(0.0)) +
-                                  amrex::max(-fz(i, j, k, 0), Real(0.0))) *
-                                     dz;
-            const Real denominator = omega(i, j, k, 0) * rho(i, j, k, Rho_comp);
-            out(i, j, k, 0) = tau * outward / denominator;
+            out(i, j, k, 0) = tau *
+                erf_auxiliary::MappedOutgoingDemandRate(
+                    fx(i + 1, j, k, 0), fx(i, j, k, 0),
+                    fy(i, j + 1, k, 0), fy(i, j, k, 0),
+                    fz(i, j, k + 1, 0), fz(i, j, k, 0),
+                    omega(i, j, k, 0), rho(i, j, k, Rho_comp), dx_inv);
         });
     }
     const Real max_outgoing = data.outgoing_demand.max(0);

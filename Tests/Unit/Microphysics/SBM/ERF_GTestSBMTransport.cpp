@@ -13,6 +13,7 @@
 #include "ERF_SBMRemapping.H"
 #include "ERF_SBMConstraintGroups.H"
 #include "ERF_SBMRestart.H"
+#include "ERF_SBMStageOwnership.H"
 #include "ERF_SBMStateManager.H"
 #include "ERF_SBMTransport.H"
 
@@ -1037,6 +1038,107 @@ TEST(SBMTransport, ERFHostSeamUsesPredictorDensityForCompressibleStage)
     options.rho_input_slope = Real(0.1);
     options.rho_target_slope = Real(0.55);
     run_transport(options);
+}
+
+TEST(SBMTransport, HostSlowCopyPreservesAcceptedLiquidProjection)
+{
+    const Box domain(IntVect(0, 0, 0), IntVect(3, 3, 3));
+    const amrex::RealBox physical({0.0, 0.0, 0.0}, {1.0, 1.0, 1.0});
+    const int periodic[AMREX_SPACEDIM] = {1, 1, 1};
+    const Geometry geom(domain, &physical, amrex::CoordSys::cartesian,
+                        periodic);
+    const BoxArray ba(domain);
+    const DistributionMapping dm(ba);
+    const auto layout = make_layout(erf_sbm::MomentMode::OneMoment);
+    erf_sbm::SBMStateManager state_manager(layout, 1);
+    state_manager.define(0, ba, dm);
+    erf_sbm::SBMTransport transport(layout, 1);
+    transport.define(0, ba, dm);
+
+    MultiFab detj(ba, dm, 1, 0);
+    const auto map_ba = project_to_xy(ba);
+    MultiFab mx(map_ba, dm, 1, 0);
+    MultiFab my(map_ba, dm, 1, 0);
+    detj.setVal(Real(1.0));
+    mx.setVal(Real(1.0));
+    my.setVal(Real(1.0));
+    std::string diagnostic;
+    ASSERT_TRUE(transport.rebuild_static_measure(0, detj, mx, my, diagnostic))
+        << diagnostic;
+
+    constexpr int qc = 5;
+    constexpr int qr = 6;
+    constexpr int unrelated = 7;
+    MultiFab anchor(ba, dm, 8, 0);
+    MultiFab predictor(ba, dm, 8, 0);
+    MultiFab target(ba, dm, 8, 0);
+    anchor.setVal(Real(0.0));
+    anchor.setVal(Real(1.0), Rho_comp, 1, 0);
+    anchor.setVal(Real(300.0), RhoTheta_comp, 1, 0);
+    anchor.setVal(Real(0.01), RhoQ1_comp, 1, 0);
+    MultiFab::Copy(predictor, anchor, 0, 0, 8, 0);
+    MultiFab::Copy(target, anchor, 0, 0, 8, 0);
+    predictor.setVal(Real(0.03), RhoQ1_comp, 1, 0);
+    predictor.setVal(Real(11.0), qc, 1, 0);
+    predictor.setVal(Real(13.0), qr, 1, 0);
+    predictor.setVal(Real(17.0), unrelated, 1, 0);
+
+    auto& spectrum = state_manager.state(0);
+    spectrum.setVal(Real(0.0));
+    const auto& population = layout.populations().front();
+    spectrum.setVal(Real(0.12), population.mass_offset, 1, 0);
+    spectrum.setVal(Real(0.34), population.mass_offset + 1, 1, 0);
+
+    MultiFab avg_xmom(convert(ba, IntVect::TheDimensionVector(0)), dm, 1, 0);
+    MultiFab avg_ymom(convert(ba, IntVect::TheDimensionVector(1)), dm, 1, 0);
+    MultiFab avg_zmom(convert(ba, IntVect::TheDimensionVector(2)), dm, 1, 0);
+    avg_xmom.setVal(Real(0.0));
+    avg_ymom.setVal(Real(0.0));
+    avg_zmom.setVal(Real(0.0));
+    transport.advance_stage_from_host(
+        0, erf_auxiliary::HostIntegrator::CompressibleRK3, 0,
+        0.0, 0.0, 0.1, 0.1, state_manager, anchor, predictor, target,
+        avg_xmom, avg_ymom, avg_zmom, geom, qc, qr);
+
+    // This is the same per-component ownership predicate used by the host
+    // predictor-to-current copy immediately after advance_stage_from_host.
+    for (int component = RhoQ1_comp; component < target.nComp(); ++component) {
+        if (erf_sbm::copy_host_slow_component(component, true, qc, qr)) {
+            MultiFab::Copy(target, predictor, component, component, 1, 0);
+        }
+    }
+    EXPECT_EQ(target.min(RhoQ1_comp), Real(0.03));
+    EXPECT_EQ(target.min(unrelated), Real(17.0));
+    EXPECT_EQ(target.min(qc), Real(0.12));
+    EXPECT_EQ(target.min(qr), Real(0.34));
+
+    // A non-SBM host copy continues to own every slow component, including
+    // the compact liquid indices.
+    MultiFab non_sbm_target(ba, dm, 8, 0);
+    MultiFab::Copy(non_sbm_target, anchor, 0, 0, 8, 0);
+    for (int component = RhoQ1_comp; component < non_sbm_target.nComp(); ++component) {
+        if (erf_sbm::copy_host_slow_component(component, false, qc, qr)) {
+            MultiFab::Copy(non_sbm_target, predictor, component, component, 1, 0);
+        }
+    }
+    EXPECT_EQ(non_sbm_target.min(qc), Real(11.0));
+    EXPECT_EQ(non_sbm_target.min(qr), Real(13.0));
+    EXPECT_EQ(non_sbm_target.min(RhoQ1_comp), Real(0.03));
+
+    MultiFab projection_error(ba, dm, 2, 0);
+    for (amrex::MFIter mfi(projection_error); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.validbox();
+        const auto accepted = spectrum.const_array(mfi);
+        const auto core = target.const_array(mfi);
+        const auto error = projection_error.array(mfi);
+        const int mass_offset = population.mass_offset;
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            error(i, j, k, 0) = core(i, j, k, qc) - accepted(i, j, k, mass_offset);
+            error(i, j, k, 1) = core(i, j, k, qr) - accepted(i, j, k, mass_offset + 1);
+        });
+    }
+    EXPECT_EQ(projection_error.norm0(0), Real(0.0));
+    EXPECT_EQ(projection_error.norm0(1), Real(0.0));
 }
 
 TEST(SBMTransport, AttachedPropertiesStayInTheirAtomicSupportGroup)

@@ -348,6 +348,22 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
   add_sbm_expected_failure_test(SBM_M3_Donor_CFL inputs_zero_carrier
     "SBM M3 donor outgoing-demand condition failed"
     "-DOVERRIDE=erf.sbm_test_donor_cfl_fault=true")
+  add_test(NAME SBM_M3_Adaptive_Anelastic_Donor_CFL
+    COMMAND ${CMAKE_COMMAND}
+      -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+      -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_adaptive_anelastic_donor
+      -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+      -DEXPECT_SECOND_CHECKPOINT=true
+      -DSKIP_RESTART=true
+      -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3Smoke.cmake)
+  set_tests_properties(SBM_M3_Adaptive_Anelastic_Donor_CFL PROPERTIES
+    LABELS "integration;sbm"
+    RUN_SERIAL TRUE
+    TIMEOUT 120)
+  add_sbm_expected_failure_test(SBM_M3_Fixed_Unsafe_Donor_DT
+    inputs_adaptive_anelastic_donor
+    "SBM M3 fixed timestep exceeds donor positivity limit"
+    "-DOVERRIDE=erf.fixed_dt=0.2")
   add_sbm_expected_failure_test(SBM_M3_Reject_Legacy_Zero_Transport inputs_zero_carrier
     "erf.sbm_zero_transport_fixture=true is obsolete"
     "-DOVERRIDE=erf.sbm_zero_transport_fixture=true")

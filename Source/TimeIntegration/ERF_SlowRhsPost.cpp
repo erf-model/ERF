@@ -8,6 +8,7 @@
 #include "Diffusion/ERF_TurbKESources.H"
 #include "Prob/ERF_CloudChamberBudget.H"
 #include "ERF_SBMOwnership.H"
+#include "ERF_SBMStageOwnership.H"
 #include "ERF_SBMStateManager.H"
 #include "ERF_SBMTransport.H"
 #include "AuxiliaryState/ERF_AuxiliaryInertTracer.H"
@@ -413,6 +414,9 @@ void erf_slow_rhs_post (int level, int finest_level,
         int nsv = S_old[IntVars::cons].nComp() - 2;
         const GpuArray<int, IntVars::NumTypes> scomp_slow = {  2,0,0,0};
         const GpuArray<int, IntVars::NumTypes> ncomp_slow = {nsv,0,0,0};
+        const bool copy_sbm_active = sbm_active;
+        const int copy_sbm_qc = solverChoice.moisture_indices.qc;
+        const int copy_sbm_qr = solverChoice.moisture_indices.qr;
 
         // **************************************************************************
         // Note that here we do copy only the "slow" variables, not (rho) or (rho theta)
@@ -420,7 +424,10 @@ void erf_slow_rhs_post (int level, int finest_level,
         ParallelFor(tbx, ncomp_slow[IntVars::cons],
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
             const int n = scomp_slow[IntVars::cons] + nn;
-            cur_cons(i,j,k,n) = new_cons(i,j,k,n);
+            if (erf_sbm::copy_host_slow_component(
+                    n, copy_sbm_active, copy_sbm_qc, copy_sbm_qr)) {
+                cur_cons(i,j,k,n) = new_cons(i,j,k,n);
+            }
         });
 
         // **************************************************************************

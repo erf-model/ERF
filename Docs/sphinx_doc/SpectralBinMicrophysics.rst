@@ -725,6 +725,13 @@ used in a periodic M3 case with:
    prob.V_0 = 0.6
    prob.W_0 = 0.4
 
+Adaptive ERF timestep selection also applies the SBM donor-outflow restriction
+using the current mapped dry-air carrier. A user-specified fixed timestep that
+exceeds the current hard donor-positivity limit is rejected rather than
+silently subcycling the spectrum. The exact stage-time outgoing-demand check
+remains active as a fail-closed guard because the carrier used by a later host
+stage may differ from the pre-step estimate.
+
 M3 implements advection only; it does not yet couple spectral transport to
 cloud microphysical source processes.
 
