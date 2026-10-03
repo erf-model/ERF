@@ -45,8 +45,4 @@ Blocs := .
 
 ERF_HOME := ..
 ERF_PROBLEM_DIR = $(ERF_HOME)/Exec
-ifeq ($(USE_RRTMGP), TRUE)
-include $(ERF_HOME)/Exec/Make.ERF.general
-else
 include $(ERF_HOME)/Exec/Make.ERF
-endif
