@@ -1147,6 +1147,10 @@ struct SolverChoice {
         if (terrain_mlmg_precond_iters <= 0) {
             amrex::Error("erf.terrain_mlmg_precond_iters must be a positive integer");
         }
+        pp.queryAdd("terrain_mlmg_smooth_sweeps", terrain_mlmg_smooth_sweeps);
+        if (terrain_mlmg_smooth_sweeps <= 0) {
+            amrex::Error("erf.terrain_mlmg_smooth_sweeps must be a positive integer");
+        }
         for (int lev = 0; lev <= max_level; lev++) {
             if (anelastic[lev] != 0)
             {
@@ -2187,6 +2191,7 @@ struct SolverChoice {
     TerrainPoissonSolver terrain_poisson_solver = TerrainPoissonSolver::gmres_fft;
     int terrain_mlmg_max_iter       = 100;
     int terrain_mlmg_precond_iters  = 1;
+    int terrain_mlmg_smooth_sweeps  = 2;
 #ifdef AMREX_USE_FLOAT
     amrex::Real poisson_abstol      = amrex::Real(1e-6);
     amrex::Real poisson_reltol      = amrex::Real(1e-6);

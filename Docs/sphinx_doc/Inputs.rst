@@ -925,6 +925,9 @@ List of Parameters
 | **erf.terrain_mlmg_precond_iters**   | multigrid V-cycles per GMRES iteration when the terrain  | Integer > 0        | 1                 |
 |                                      | solver is gmres_mlmg                                     |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.terrain_mlmg_smooth_sweeps**   | smoothing sweeps before and after the coarse correction  | Integer > 0        | 2                 |
+|                                      | in each multigrid V-cycle (mlmg and gmres_mlmg)          |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 
 Notes
 -----------------

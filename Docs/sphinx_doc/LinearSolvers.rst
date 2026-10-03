@@ -89,7 +89,9 @@ below stalled at a relative residual of 1e-5 that way).  When the level's boxes 
 domain in some direction, the solve is therefore re-gridded onto boxes whose extents are multiples of the full
 coarsening ratio, the metrics and right-hand side are copied over and the solution and fluxes copied back; the
 operator does not depend on the layout, so only the solver's round-off changes.  ``erf.mg_v = 1`` reports when this
-happens.
+happens.  The operator, with its coarse metrics, ghost source maps and column coefficients, is built once per level
+and layout and kept between projections of a static terrain (it is rebuilt when the level is remade, and never kept
+for a moving terrain).
 
 **Cost.**  Measured on one node (two MPI ranks, Release build, tolerances 1e-8), per projection: on the 2D
 Witch-of-Agnesi ridge of the RANS suite (128 x 64 cells) the FFT-preconditioned GMRES takes 7 iterations,
@@ -98,11 +100,17 @@ on a 2D ridge of slope 0.63 at 4 m (600 x 224 cells, Inflow/Outflow, terrain smo
 7 V-cycles and 13 preconditioned GMRES iterations, at 52 s, 95 s and 140 s for 100 steps; on Askervein
 (300 x 300 x 18 cells, stretched) 7 GMRES iterations against 14 V-cycles and 43 preconditioned GMRES iterations, at
 46 s, 390 s and 780 s for 20 steps.
-The multigrid takes fewer iterations but each V-cycle costs more than an FFT solve, its setup (coarse metrics, ghost
-maps, column coefficients) is rebuilt at every projection, and a domain whose extents have few factors of two
-(300 = 4 x 75, 18 = 2 x 9) gives a shallow hierarchy with a large bottom problem.  The FFT-preconditioned GMRES
-therefore stays the default; the multigrid options are for builds without FFT, for refined levels whose boxes do not
-form a rectangle, and as a reference solver.
+The multigrid takes fewer iterations but each V-cycle costs about nine applications of the 15-point stencil (the
+column relaxation re-evaluates the operator in every sweep: 60 % of the solve time on the ridge, the operator
+applications of the bottom solve another 25 %), while the FFT preconditioner is nearly exact for a terrain-following
+mesh and needs some twenty applications in all; on the ridge a projection costs 0.11 s with the FFT, 0.31 s with the
+multigrid and 0.64 s with the multigrid-preconditioned GMRES.  Keeping the operator between projections changes none of
+this (its setup was below 5 % of the time), and one smoothing sweep instead of two needs twice the cycles and is slower.
+A domain whose extents have few factors of two (300 = 4 x 75, 18 = 2 x 9) also gives a shallow hierarchy with a large
+bottom problem.  The FFT-preconditioned GMRES therefore stays the default; the multigrid options are for builds without
+FFT, for refined levels whose boxes do not form a rectangle, and as a reference solver.  Precomputing the metric
+coefficients of the stencil per level (instead of recomputing the node differences and their ratios in every
+evaluation) is the remaining lever and would roughly halve the smoother cost.
 
 A one-cell-wide lateral direction is hidden from the multigrid as in the flat solve; such a direction must be
 periodic or Neumann.  Embedded-boundary terrain is solved with the EB multigrid solver and does not use this operator.

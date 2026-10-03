@@ -122,6 +122,9 @@ AMREX_ENUM(StateInterpType,
  * Main class in ERF code, instantiated from main.cpp
 */
 
+//! One cached terrain multigrid operator with its MLMG and re-gridded metrics (see ERF_SolveWithTerrainMLMG.cpp)
+struct TerrainMLMGCache;
+
 class ERF
     : public amrex::AmrCore
 {
@@ -1466,6 +1469,10 @@ private:
 
     // Data structures for terrain-fitted coordinates
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd;
+
+    //! Terrain multigrid operators kept between projections, per level and per solve layout
+    //! (ERF_SolveWithTerrainMLMG.cpp); cleared with the level
+    amrex::Vector<amrex::Vector<std::shared_ptr<TerrainMLMGCache>>> terrain_mlmg_cache;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_cc;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc;

@@ -27,6 +27,8 @@ using namespace amrex;
 void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
                                    const DistributionMapping& dm_in)
 {
+    terrain_mlmg_cache[lev].clear();
+
     if (auxiliary_inert_tracer) {
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(restart_chkfile.empty(),
             "M2 auxiliary inert tracer fixture does not support checkpoint/restart");
@@ -396,6 +398,9 @@ void
 ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
                              const DistributionMapping& dm)
 {
+    // The grids change, so the cached terrain multigrid operators are stale
+    terrain_mlmg_cache[lev].clear();
+
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!auxiliary_inert_tracer,
         "M2 auxiliary inert tracer fixture does not support coarse-to-fine initialization");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!sbm_state_manager,
@@ -820,6 +825,9 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
 void
 ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapping& dm)
 {
+    // The grids change, so the cached terrain multigrid operators are stale
+    terrain_mlmg_cache[lev].clear();
+
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!auxiliary_inert_tracer,
         "M2 auxiliary inert tracer fixture does not support regrid/remake");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!sbm_state_manager,
@@ -1454,6 +1462,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 void
 ERF::ClearLevel (int lev)
 {
+    terrain_mlmg_cache[lev].clear();
     if (auxiliary_inert_tracer && auxiliary_inert_tracer->is_defined(lev)) {
         auxiliary_inert_tracer->destroy(lev);
     }
