@@ -40,10 +40,6 @@ ERF integrates external libraries for core functionality and advanced physics:
      - Optional EAMxx SHOC turbulence and cloud macrophysics
      - Optional
      - ``-DERF_ENABLE_EAMXX_SHOC=ON`` / ``USE_EAMXX_SHOC=TRUE``
-   * - **P3**
-     - Microphysics (:ref:`Microphysics`)
-     - Optional
-     - ``-DERF_ENABLE_P3=ON`` / ``USE_P3=TRUE``
    * - **RRTMGP**
      - Radiation model
      - Optional
@@ -329,41 +325,6 @@ Select EAMxx SHOC at runtime:
 .. code-block:: text
 
    erf.pbl_type = EAMXX_SHOC
-
-P3 (Microphysics)
-~~~~~~~~~~~~~~~~~
-
-P3 (Predicted Particle Properties) provides microphysics modeling from E3SM. For theory details, see :ref:`Microphysics` documentation.
-
-**Prerequisites:**
-
-.. code-block:: bash
-
-   # Initialize E3SM submodules (same as EAMxx SHOC)
-   export ERF_DIR=/path/to/ERF
-   source $ERF_DIR/Build/GNU_Ekat/eamxx_clone.sh
-
-**Configuration:**
-
-.. tab-set::
-
-   .. tab-item:: CMake
-
-      .. code-block:: bash
-
-         cmake -DERF_ENABLE_P3=ON \
-               -DERF_ENABLE_MPI=ON \
-               ..
-
-   .. tab-item:: GNU Make
-
-      .. code-block:: bash
-
-         source Build/GNU_Ekat/ekat_build_commands.sh
-         make USE_P3=TRUE USE_MPI=TRUE
-
-.. note::
-   P3 requires MPI and automatically enables EKAT (provides Kokkos).
 
 RRTMGP (Radiation)
 ~~~~~~~~~~~~~~~~~~
