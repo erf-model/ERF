@@ -190,12 +190,14 @@ public:
      * @param[out] rhotheta_source  forcing profile
      * @param[in]  geom             container for geometric information
      * @param[in]  z_phys_cc        height coordinate at cell centers
+     * @param[in]  zlevels_stag     nominal heights of the z faces of this level
     */
     virtual void
     update_rhotheta_sources (const double& /*time*/,
                              amrex::MultiFab* src,
                              const amrex::Geometry& /*geom*/,
-                             std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
+                             std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/,
+                             const amrex::Vector<amrex::Real>& /*zlevels_stag*/)
     {
         if (src->empty()) return;
 
@@ -222,12 +224,14 @@ public:
      * @param[out] rhoqt_source     moisture forcing profile
      * @param[in]  geom             container for geometric information
      * @param[in]  z_phys_cc        height coordinate at cell centers
+     * @param[in]  zlevels_stag     nominal heights of the z faces of this level
     */
     virtual void
     update_rhoqt_sources (const double& /*time*/,
                              amrex::MultiFab* qsrc,
                              const amrex::Geometry& /*geom*/,
-                             std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
+                             std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/,
+                             const amrex::Vector<amrex::Real>& /*zlevels_stag*/)
     {
         if (qsrc->empty()) return;
 
@@ -257,6 +261,7 @@ public:
      * @param[out] wbar             w vel forcing profile
      * @param[in]  geom             container for geometric information
      * @param[in]  z_phys_cc        height coordinate at cell centers
+     * @param[in]  zlevels_stag     nominal heights of the z faces of this level
     */
     virtual void
     update_w_subsidence (const double& /*time*/,
@@ -264,7 +269,8 @@ public:
                          amrex::Gpu::DeviceVector<amrex::Real>& d_wbar,
                          const amrex::MultiFab& /*state*/,
                          const amrex::Geometry& geom,
-                         std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
+                         std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/,
+                         const amrex::Vector<amrex::Real>& /*zlevels_stag*/)
     {
         if (wbar.empty()) return;
 
@@ -292,6 +298,7 @@ public:
      * @param[out] v_geos           geostrophic wind profile
      * @param[in]  geom             container for geometric information
      * @param[in]  z_phys_cc        height coordinate at cell centers
+     * @param[in]  zlevels_stag     nominal heights of the z faces of this level
     */
     virtual void
     update_geostrophic_profile (const double& /*time*/,
@@ -300,7 +307,8 @@ public:
                          amrex::Vector<amrex::Real>& v_geos,
                          amrex::Gpu::DeviceVector<amrex::Real>& d_v_geos,
                          const amrex::Geometry& geom,
-                         std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
+                         std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/,
+                         const amrex::Vector<amrex::Real>& /*zlevels_stag*/)
     {
         if (u_geos.empty()) return;
 

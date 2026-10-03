@@ -491,7 +491,6 @@ if(ERF_ENABLE_MPI)
       ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestTerrainFineColumns.cpp
       # The boxes are spread over the ranks, so a k may be held by another rank only
       ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestReduceToMaxPerHeight.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestProvenanceParallel.cpp
   )
   if(ERF_ENABLE_NETCDF)
     # The terrain reader opens the fixture only on the I/O rank and then
