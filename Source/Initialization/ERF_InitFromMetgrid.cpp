@@ -768,7 +768,7 @@ ERF::init_from_metgrid (int lev)
 
             int ntimes_erfbdy;
             Vector<double> bdy_times_erfbdy;
-            bdy_time_interval = read_times_from_erfbdy(erfbdy_file,
+            bdy_time_interval = read_times_from_erfbdy(erfbdy_file, geom[lev].Domain(),
                                                        ntimes_erfbdy, nvars_erfbdy, real_width,
                                                        bdy_times_erfbdy, start_bdy_time, final_bdy_time);
 
