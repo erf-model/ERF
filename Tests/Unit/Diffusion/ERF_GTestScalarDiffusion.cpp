@@ -299,18 +299,17 @@ struct NativeTerrainScalarCase
     auto qfx1_y_arr = qfx1_y.array();
     auto qfx1_z_arr = qfx1_z.array();
     auto qfx2_z_arr = qfx2_z.array();
-    auto diss_arr = diss.array();
     DiffusionSrcForState_T(
-      bx, domain, qty_comp, 1, false, u.const_array(), v.const_array(),
+      bx, domain, qty_comp, 1, false,
       conserved.const_array(), primitive.const_array(), rhs.array(),
       xflux.array(), yflux.array(), zflux.array(), z_nd.const_array(),
       z_cc.const_array(), ax.const_array(), ay.const_array(), ax.const_array(),
-      detj.const_array(), inv, smn.const_array(), mf_mx.const_array(),
+      detj.const_array(), inv, mf_mx.const_array(),
       mf_ux.const_array(), mf_vx.const_array(), mf_my.const_array(),
       mf_uy.const_array(), mf_vy.const_array(), hfx_x_arr, hfx_y_arr,
-      hfx_z_arr, qfx1_x_arr, qfx1_y_arr, qfx1_z_arr, qfx2_z_arr, diss_arr,
+      hfx_z_arr, qfx1_x_arr, qfx1_y_arr, qfx1_z_arr, qfx2_z_arr,
       mu.const_array(), solver, 0,
-      tm.const_array(), gravity, bcs_device.data(), false, surface,
+      bcs_device.data(), false, surface,
       implicit_fac);
     Gpu::streamSynchronize();
   }
@@ -755,8 +754,6 @@ ERF_GPU_TEST(
   solver.turbChoice.resize(1);
   solver.turbChoice[0].use_kturb = true;
   const GpuArray<Real, AMREX_SPACEDIM> inv{{Real(1.0), Real(1.0), Real(1.0)}};
-  const GpuArray<Real, AMREX_SPACEDIM> gravity{
-    {Real(0.0), Real(0.0), Real(-9.81)}};
   const int q_comps[] = {RhoQ11_comp + 1, RhoQ11_comp + 4};
 
   for (const int qty_comp : q_comps) {
@@ -777,16 +774,15 @@ ERF_GPU_TEST(
     auto qfx1_y_arr = qfx1_y.array();
     auto qfx1_z_arr = qfx1_z.array();
     auto qfx2_z_arr = qfx2_z.array();
-    auto diss_arr = diss.array();
     DiffusionSrcForState_N(
       bx, domain, qty_comp, 1, u.const_array(), v.const_array(),
       conserved.const_array(), primitive.const_array(), rhs.array(),
-      xflux.array(), yflux.array(), zflux.array(), inv, smn.const_array(),
+      xflux.array(), yflux.array(), zflux.array(), inv,
       mf_mx.const_array(), mf_ux.const_array(), mf_vx.const_array(),
       mf_my.const_array(), mf_uy.const_array(), mf_vy.const_array(),
       hfx_x_arr, hfx_y_arr, hfx_z_arr, qfx1_x_arr, qfx1_y_arr, qfx1_z_arr,
-      qfx2_z_arr, diss_arr,
-      mu.const_array(), solver, 0, tm.const_array(), gravity,
+      qfx2_z_arr,
+      mu.const_array(), solver, 0,
       bcs_device.data(), false, surface, Real(0.0));
     Gpu::streamSynchronize();
 
@@ -1097,9 +1093,6 @@ ERF_GPU_TEST(ScalarDiffusionPrimitives, NativeAdaptersMatchExplicitPrimitives)
        hfx_z_arr = hfx_z.array();
   auto qfx1_x_arr = qfx1_x.array(), qfx1_y_arr = qfx1_y.array(),
        qfx1_z_arr = qfx1_z.array(), qfx2_z_arr = qfx2_z.array();
-  auto diss_arr = diss.array();
-  const GpuArray<Real, AMREX_SPACEDIM> gravity{
-    {Real(0.0), Real(0.0), Real(-9.81)}};
   const bool rotate = false, use_surface_layer = false;
 
   auto compare = [&]() {
@@ -1159,12 +1152,12 @@ ERF_GPU_TEST(ScalarDiffusionPrimitives, NativeAdaptersMatchExplicitPrimitives)
   DiffusionSrcForState_N(
     cells, cells, RhoScalar_comp, 1, u.const_array(), v.const_array(), cell,
     prim4, rhs.array(), xflux.array(), yflux.array(), zflux.array(), inv,
-    smn.const_array(), mf_mx.const_array(), mf_ux.const_array(),
+    mf_mx.const_array(), mf_ux.const_array(),
     mf_vx.const_array(), mf_my.const_array(), mf_uy.const_array(),
     mf_vy.const_array(), hfx_x_arr, hfx_y_arr, hfx_z_arr, qfx1_x_arr,
-    qfx1_y_arr, qfx1_z_arr, qfx2_z_arr, diss_arr, mu4, solver, 0,
-    tm.const_array(), gravity, bcs_device.data(), use_surface_layer, surface,
-    Real(0.0));
+    qfx1_y_arr, qfx1_z_arr, qfx2_z_arr,
+    mu4, solver, 0, bcs_device.data(),
+    use_surface_layer, surface, Real(0.0));
   compare();
 
   reset_rhs();
@@ -1172,27 +1165,27 @@ ERF_GPU_TEST(ScalarDiffusionPrimitives, NativeAdaptersMatchExplicitPrimitives)
   Gpu::DeviceVector<Real> dz(6);
   Gpu::copy(Gpu::hostToDevice, dz_host.begin(), dz_host.end(), dz.begin());
   DiffusionSrcForState_S(
-    cells, cells, RhoScalar_comp, 1, u.const_array(), v.const_array(), cell,
+    cells, cells, RhoScalar_comp, 1, cell,
     prim4, rhs.array(), xflux.array(), yflux.array(), zflux.array(), dz, inv,
-    smn.const_array(), mf_mx.const_array(), mf_ux.const_array(),
+    mf_mx.const_array(), mf_ux.const_array(),
     mf_vx.const_array(), mf_my.const_array(), mf_uy.const_array(),
     mf_vy.const_array(), hfx_x_arr, hfx_y_arr, hfx_z_arr, qfx1_x_arr,
-    qfx1_y_arr, qfx1_z_arr, qfx2_z_arr, diss_arr, mu4, solver, 0,
-    tm.const_array(), gravity, bcs_device.data(), use_surface_layer, surface,
-    Real(0.0));
+    qfx1_y_arr, qfx1_z_arr, qfx2_z_arr,
+    mu4, solver, 0, bcs_device.data(),
+    use_surface_layer, surface, Real(0.0));
   compare();
 
   reset_rhs();
   DiffusionSrcForState_T(
-    cells, cells, RhoScalar_comp, 1, rotate, u.const_array(), v.const_array(),
+    cells, cells, RhoScalar_comp, 1, rotate,
     cell, prim4, rhs.array(), xflux.array(), yflux.array(), zflux.array(),
     z_nd.const_array(), z_cc.const_array(), ax.const_array(), ay.const_array(),
-    ax.const_array(), detj.const_array(), inv, smn.const_array(),
+    ax.const_array(), detj.const_array(), inv,
     mf_mx.const_array(), mf_ux.const_array(), mf_vx.const_array(),
     mf_my.const_array(), mf_uy.const_array(), mf_vy.const_array(), hfx_x_arr,
     hfx_y_arr, hfx_z_arr, qfx1_x_arr, qfx1_y_arr, qfx1_z_arr, qfx2_z_arr,
-    diss_arr, mu4, solver, 0, tm.const_array(), gravity, bcs_device.data(),
-    use_surface_layer, surface, Real(0.0));
+    mu4, solver, 0, bcs_device.data(), use_surface_layer, surface,
+    Real(0.0));
   compare();
 }
 
