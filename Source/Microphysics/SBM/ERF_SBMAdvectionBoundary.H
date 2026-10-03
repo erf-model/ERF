@@ -19,6 +19,7 @@ enum class AdvectionFaceAction : int {
     ZeroNormalFlux,
     InteriorDonor,
     ExplicitSpectralInflow,
+    RejectInwardOutflow,
     RejectMissingInflowState,
     RejectIncompleteInflowState
 };
@@ -42,7 +43,8 @@ struct AdvectionFacePolicy {
 
     [[nodiscard]] constexpr bool accepted () const noexcept
     {
-        return action != AdvectionFaceAction::RejectMissingInflowState &&
+        return action != AdvectionFaceAction::RejectInwardOutflow &&
+               action != AdvectionFaceAction::RejectMissingInflowState &&
                action != AdvectionFaceAction::RejectIncompleteInflowState;
     }
 };
@@ -72,7 +74,13 @@ make_advection_face_policy (const AdvectionFacePolicyInput& input) noexcept
                 input.high_order_stencil_available};
     }
 
-    // Negative outward carrier is inflow, including at a nominal outflow face.
+    // Reverse flow contradicts a face declared as advective outflow. External
+    // spectral data must not silently change that declared boundary policy.
+    if (input.kind == AdvectionFaceKind::AdvectiveOutflow) {
+        return {Action::RejectInwardOutflow, false, false, false};
+    }
+
+    // The remaining negative-carrier boundary category is prescribed inflow.
     // A complete explicit atomic-group spectrum is required; qc/qr cannot
     // supply missing bin or attached-property composition.
     if (!input.explicit_spectral_state_present) {

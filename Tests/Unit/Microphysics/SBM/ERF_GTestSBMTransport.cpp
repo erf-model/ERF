@@ -1306,6 +1306,15 @@ TEST(SBMTransport, PhysicalAdvectionFacePolicyIsFailClosedAndAtomic)
     EXPECT_EQ(wall.action, AdvectionFaceAction::ZeroNormalFlux);
     EXPECT_FALSE(wall.use_interior_donor);
     EXPECT_FALSE(wall.use_explicit_spectral_state);
+    EXPECT_FALSE(wall.use_high_order_candidate);
+
+    const auto zero_carrier = make_advection_face_policy(
+        {AdvectionFaceKind::AdvectiveOutflow, Real(0.0), true, true, true});
+    EXPECT_EQ(zero_carrier.action, AdvectionFaceAction::ZeroNormalFlux);
+    EXPECT_TRUE(zero_carrier.accepted());
+    EXPECT_FALSE(zero_carrier.use_interior_donor);
+    EXPECT_FALSE(zero_carrier.use_explicit_spectral_state);
+    EXPECT_FALSE(zero_carrier.use_high_order_candidate);
 
     const auto outward = make_advection_face_policy(
         {AdvectionFaceKind::AdvectiveOutflow, Real(0.4), false, false, true});
@@ -1316,14 +1325,35 @@ TEST(SBMTransport, PhysicalAdvectionFacePolicyIsFailClosedAndAtomic)
     const auto inward_outflow = make_advection_face_policy(
         {AdvectionFaceKind::AdvectiveOutflow, Real(-0.2), false, false, false});
     EXPECT_EQ(inward_outflow.action,
-              AdvectionFaceAction::RejectMissingInflowState);
+              AdvectionFaceAction::RejectInwardOutflow);
     EXPECT_FALSE(inward_outflow.accepted());
+    EXPECT_FALSE(inward_outflow.use_interior_donor);
+    EXPECT_FALSE(inward_outflow.use_explicit_spectral_state);
+    EXPECT_FALSE(inward_outflow.use_high_order_candidate);
+
+    const auto inward_outflow_with_complete_state = make_advection_face_policy(
+        {AdvectionFaceKind::AdvectiveOutflow, Real(-0.2), true, true, true});
+    EXPECT_EQ(inward_outflow_with_complete_state.action,
+              AdvectionFaceAction::RejectInwardOutflow);
+    EXPECT_FALSE(inward_outflow_with_complete_state.accepted());
+    EXPECT_FALSE(inward_outflow_with_complete_state.use_interior_donor);
+    EXPECT_FALSE(inward_outflow_with_complete_state.use_explicit_spectral_state);
+    EXPECT_FALSE(inward_outflow_with_complete_state.use_high_order_candidate);
 
     const auto prescribed = make_advection_face_policy(
         {AdvectionFaceKind::PrescribedInflow, Real(-0.2), true, true, true});
     EXPECT_EQ(prescribed.action, AdvectionFaceAction::ExplicitSpectralInflow);
     EXPECT_TRUE(prescribed.use_explicit_spectral_state);
     EXPECT_TRUE(prescribed.use_high_order_candidate);
+
+    const auto missing_prescribed_state = make_advection_face_policy(
+        {AdvectionFaceKind::PrescribedInflow, Real(-0.2), false, false, true});
+    EXPECT_EQ(missing_prescribed_state.action,
+              AdvectionFaceAction::RejectMissingInflowState);
+    EXPECT_FALSE(missing_prescribed_state.accepted());
+    EXPECT_FALSE(missing_prescribed_state.use_interior_donor);
+    EXPECT_FALSE(missing_prescribed_state.use_explicit_spectral_state);
+    EXPECT_FALSE(missing_prescribed_state.use_high_order_candidate);
 
     const auto incomplete_group = make_advection_face_policy(
         {AdvectionFaceKind::PrescribedInflow, Real(-0.2), true, false, true});
