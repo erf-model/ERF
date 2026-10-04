@@ -18,7 +18,8 @@
  * - The Obukhov length is held at |L| >= z_ref / 100, so |zeta| <= 100 as on flat ground
  *   (ERF_MOSTStress.H).
  * - psi_m and psi_h are capped at erf.if_psi_cap_factor ln(z / z0) (default 0.9, WRF's cap in
- *   sf_sfclayrev); 1 is a cap of ln(z / z0).
+ *   sf_sfclayrev), in the targets and, for psi_m, in the friction velocity as WRF does; 1 is a cap
+ *   of ln(z / z0) in the targets and none in the friction velocity.
  */
 namespace ib_stability
 {
@@ -64,6 +65,20 @@ namespace ib_stability
     amrex::Real capped_psi (amrex::Real psi, amrex::Real z, amrex::Real z0, amrex::Real factor) noexcept
     {
         return amrex::min(psi, psi_cap(z, z0, factor));
+    }
+
+    /**
+     * psi_m in the friction velocity u* = U kappa / (ln(z / z0) - psi_m) at height z: held at or
+     * below factor ln(z / z0), as WRF caps PSIM before it forms UST, so the denominator stays at
+     * least (1 - factor) ln(z / z0) > 0 and strongly unstable air keeps a positive u*. Uncapped for
+     * factor = 1 (a cap of ln(z / z0) would zero the denominator) and for z <= z0, where the log law
+     * does not hold; there the wall law's u* clamp handles a denominator of either sign.
+     */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::Real psi_m_for_ustar (amrex::Real psi_m, amrex::Real z, amrex::Real z0, amrex::Real factor) noexcept
+    {
+        const amrex::Real ln = std::log(z / z0);
+        return (factor < amrex::Real(1.0) && ln > amrex::Real(0.0)) ? amrex::min(psi_m, factor * ln) : psi_m;
     }
 
     /**

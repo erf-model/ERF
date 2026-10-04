@@ -3426,10 +3426,12 @@ selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 |                                   | (Obukhov length) and its heat transfer; 0 leaves the     |                    |                  |
 |                                   | wind as it is                                            |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.if_psi_cap_factor**         | cap on the wall law's :math:`\psi_m` (velocity target)   | 0 < Real <= 1      | 0.9              |
-|                                   | and :math:`\psi_h` (surface-flux temperature target) as  |                    |                  |
-|                                   | a fraction of :math:`\ln(z/z_0)`, as in WRF's revised    |                    |                  |
-|                                   | surface layer; 1 caps them at :math:`\ln(z/z_0)`         |                    |                  |
+| **erf.if_psi_cap_factor**         | cap on the wall law's :math:`\psi_m` (velocity target    | 0 < Real <= 1      | 0.9              |
+|                                   | and, before it forms :math:`u_*`, friction velocity) and |                    |                  |
+|                                   | :math:`\psi_h` (surface-flux temperature target) as a    |                    |                  |
+|                                   | fraction of :math:`\ln(z/z_0)`, as in WRF's revised      |                    |                  |
+|                                   | surface layer; 1 caps the targets at :math:`\ln(z/z_0)`  |                    |                  |
+|                                   | and leaves :math:`u_*` uncapped                          |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_damp_alpha**             | damping coefficient used in the immersed forcing wall    | Real               | 0.5              |
 |                                   | model                                                    |                    |                  |

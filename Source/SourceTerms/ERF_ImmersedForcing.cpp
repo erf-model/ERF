@@ -59,7 +59,7 @@ compute_if_most_target_vel (
         psi_m          = sfuns.calc_psi_m(zeta);
         psi_h          = sfuns.calc_psi_h(zeta);
     }
-    ustar = tang_windspeed2r * KAPPA / (std::log(1.5 * delta / z0) - psi_m);
+    ustar = tang_windspeed2r * KAPPA / (std::log(1.5 * delta / z0) - ib_stability::psi_m_for_ustar(psi_m, Real(1.5) * delta, z0, psi_cap_factor));
 
     // prevent some unphysical math
     ustar = ib_stability::clamped_ustar(ustar);
@@ -165,7 +165,7 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
             // similarity functions
             psi_m          = sfuns.calc_psi_m(zeta);
             psi_h          = sfuns.calc_psi_h(zeta);
-            ustar = h_windspeed2r * kappa / (std::log(Real(1.5) * dx_z / z0) - psi_m);
+            ustar = h_windspeed2r * kappa / (std::log(Real(1.5) * dx_z / z0) - ib_stability::psi_m_for_ustar(psi_m, Real(1.5) * dx_z, z0, psi_cap_factor));
 
             // prevent some unphysical math
             ustar = ib_stability::clamped_ustar(ustar);
@@ -279,7 +279,7 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
             // similarity functions
             psi_m          = sfuns.calc_psi_m(zeta);
             psi_h          = sfuns.calc_psi_h(zeta);
-            ustar = h_windspeed2r * kappa / (std::log(Real(1.5) * dx_z / z0) - psi_m);
+            ustar = h_windspeed2r * kappa / (std::log(Real(1.5) * dx_z / z0) - ib_stability::psi_m_for_ustar(psi_m, Real(1.5) * dx_z, z0, psi_cap_factor));
 
             // prevent some unphysical math
             ustar = ib_stability::clamped_ustar(ustar);
@@ -1050,7 +1050,7 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
                 psi_m          = sfuns.calc_psi_m(zeta);
                 psi_h          = sfuns.calc_psi_h(zeta);
                 psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
-                ustar = h_windspeed2r * kappa / (std::log((Real(1.5)) * dx_z / z0) - psi_m);
+                ustar = h_windspeed2r * kappa / (std::log((Real(1.5)) * dx_z / z0) - ib_stability::psi_m_for_ustar(psi_m, Real(1.5) * dx_z, z0, psi_cap_factor));
 
                 // prevent some unphysical math
                 ustar = ib_stability::clamped_ustar(ustar);
@@ -1079,7 +1079,7 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
                 const Real psi_h          = sfuns.calc_psi_h(zeta);
                 const Real psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
                 // psi_m at 0.5 dz against ln(1.5 dz / z0) can cancel: the same guard as the other branches
-                const Real ustar = ib_stability::clamped_ustar(h_windspeed2r * kappa / (std::log((Real(1.5)) * dx_z / z0) - psi_m));
+                const Real ustar = ib_stability::clamped_ustar(h_windspeed2r * kappa / (std::log((Real(1.5)) * dx_z / z0) - ib_stability::psi_m_for_ustar(psi_m, Real(1.5) * dx_z, z0, psi_cap_factor)));
 
                 // We do not know the actual temperature so use cell above
                 const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);
@@ -1245,7 +1245,7 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
                     psi_m          = sfuns.calc_psi_m(zeta);
                     psi_h          = sfuns.calc_psi_h(zeta);
                     psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
-                    ustar = h_windspeed2r * kappa / (std::log((1.5) * dx_z / z0) - psi_m);
+                    ustar = h_windspeed2r * kappa / (std::log((1.5) * dx_z / z0) - ib_stability::psi_m_for_ustar(psi_m, Real(1.5) * dx_z, z0, psi_cap_factor));
                 }
 
                 // prevent some unphysical math
@@ -1336,7 +1336,7 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
                     psi_m          = sfuns.calc_psi_m(zeta);
                     psi_h          = sfuns.calc_psi_h(zeta);
                     psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
-                    ustar = tan_wspd * kappa / (std::log((1.5) * delta / z0) - psi_m);
+                    ustar = tan_wspd * kappa / (std::log((1.5) * delta / z0) - ib_stability::psi_m_for_ustar(psi_m, Real(1.5) * delta, z0, psi_cap_factor));
                 }
 
                 // prevent some unphysical math

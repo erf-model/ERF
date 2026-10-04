@@ -279,16 +279,21 @@ revised surface layer:
   at both heights the law uses (:math:`0.5\,\Delta` and :math:`1.5\,\Delta`, with :math:`\Delta` the cell
   size normal to the wall);
 - :math:`\psi_m` in the velocity target and :math:`\psi_h` in the temperature forcing (surface flux) are
-  capped at ``erf.if_psi_cap_factor`` :math:`\ln(z/z_0)` (0.9), and never above :math:`\ln(z/z_0)`.
+  capped at ``erf.if_psi_cap_factor`` :math:`\ln(z/z_0)` (0.9), and never above :math:`\ln(z/z_0)`;
+- :math:`\psi_m` in the friction velocity :math:`u_* = \kappa U / (\ln(1.5\,\Delta/z_0) - \psi_m)` is capped
+  the same way before :math:`u_*` is formed, as WRF caps it, so the denominator stays at least
+  :math:`(1 - f)\ln(1.5\,\Delta/z_0) > 0` (for :math:`1.5\,\Delta > z_0` and :math:`f < 1`).
 
 Without the first two a calm cell gives :math:`u_* = 0`, :math:`L = 0` and an infinite :math:`\zeta`.
 The velocity target itself uses the actual wind, so the floor does not push a calm cell.
 A cap of :math:`\ln(z/z_0)` makes the velocity target zero and the temperature target the value of the cell
 above whenever it binds, which strongly unstable air does; a factor below 1 keeps
 :math:`\ln(z/z_0) - \psi \ge (1 - f)\ln(z/z_0)` for :math:`z > z_0`.
+Without the cap before :math:`u_*`, a :math:`\psi_m` above :math:`\ln(1.5\,\Delta/z_0)` turns the denominator
+negative and the wall law's guard sets :math:`u_* = 0`, with the same result.
 With a prescribed Obukhov length (``erf.if_Olen``) the temperature target is not capped.
-``erf.if_stability_wind_floor = 0`` and ``erf.if_psi_cap_factor = 1`` give the wall law without the floor
-and with caps of :math:`\ln(z/z_0)`.
+``erf.if_stability_wind_floor = 0`` and ``erf.if_psi_cap_factor = 1`` give the wall law without the floor,
+with caps of :math:`\ln(z/z_0)` in the targets and no cap before :math:`u_*`.
 The following inputs are available when representing terrain using immersed forcing:
 
 ::

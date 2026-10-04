@@ -2,7 +2,8 @@
 // velocity behind the Obukhov length uses the wind floored at erf.if_stability_wind_floor (0.1 m/s),
 // and the Obukhov length is held at |L| >= 1.5 dz / 100, as the flat-ground surface layer does;
 // psi_m and psi_h are capped at erf.if_psi_cap_factor ln(z / z0) (0.9), as WRF's revised surface
-// layer caps them, and never above ln(z / z0); u* stays within [0, 2] m/s on every branch. A calm
+// layer caps them, and never above ln(z / z0), psi_m also before it forms u*; u* stays within
+// [0, 2] m/s on every branch. A calm
 // cell above the wall used to give u* = 0, L = 0 and zeta = z / 0; under a cooling flux
 // zeta = +inf, psi_m = -inf and the momentum and temperature targets became 0 * inf = NaN. Above
 // the floor, inside the bound and below the cap, nothing changes; a floor of 0 and a factor of 1
@@ -86,6 +87,22 @@ TEST(ImmersedWallStability, PsiCapIsWrfsAndNeverLooserThanTheLog)
         EXPECT_EQ(ib_stability::psi_cap(z, Real(1.0), f), ln);
         EXPECT_LE(ib_stability::psi_cap(z, Real(1.0), f), f * ln);
     }
+}
+
+TEST(ImmersedWallStability, PsiMIsCappedBeforeItFormsUstar)
+{
+    const Real z0 = Real(0.5);
+    const Real z = Real(15.0);
+    const Real ln = std::log(z / z0);
+    // factor < 1, z > z0: the denominator ln(z / z0) - psi_m stays at least (1 - f) ln(z / z0)
+    const Real capped = ib_stability::psi_m_for_ustar(Real(3.9), z, z0, Real(0.9));
+    EXPECT_NEAR(capped, Real(0.9) * ln, Real(1.e-5));
+    EXPECT_GE(ln - capped, Real(0.1) * ln * (Real(1.0) - Real(1.e-5)));
+    // below the cap, untouched
+    EXPECT_EQ(ib_stability::psi_m_for_ustar(Real(1.0), z, z0, Real(0.9)), Real(1.0));
+    // factor 1 and z <= z0: no cap on the u* side (development's law)
+    EXPECT_EQ(ib_stability::psi_m_for_ustar(Real(3.9), z, z0, Real(1.0)), Real(3.9));
+    EXPECT_EQ(ib_stability::psi_m_for_ustar(Real(3.9), Real(0.4), z0, Real(0.9)), Real(3.9));
 }
 
 TEST(ImmersedWallStability, FrictionVelocityIsClamped)
@@ -211,31 +228,36 @@ TEST(ImmersedWallStability, PrescribedObukhovLengthKeepsUstarBounded)
     const Real rho = Real(1.2);
     const Real drag = Real(5.0) / dz;  // if_Cd_scalar / (dx dy dz)^(1/3), dx = dy = dz
     similarity_funs sfuns;
-    int n_bounded = 0;
-    for (int n = 0; n <= 400; ++n) {
-        const Real L = Real(-0.25) + Real(0.13) * Real(n) / Real(400);
-        CalmTerrainColumn col;
-        col.u.setVal<amrex::RunOn::Host>(5.0);
-        SolverChoice sc = col.choice(Real(1.e-8));
-        sc.if_z0 = z0;
-        sc.if_Olen_in = L;
-        ImmersedForcingTerrain_Scalar(col.bx, col.u.const_array(), col.v.const_array(),
-                                      col.cell.const_array(), col.blank.const_array(),
-                                      amrex::Array4<const Real>{}, col.src.array(), col.geom, sc,
-                                      amrex::Table1D<Real>{}, amrex::Table1D<Real>{}, Real(0.0));
-        ASSERT_TRUE(col.all_finite(col.bx, 2)) << "L = " << L;
-        // |source| <= drag rho |theta*| / kappa |bracket| with theta* = theta u*^2 / (kappa g L), u* <= 2
-        const Real Lb = ib_stability::bounded_obukhov_length(L, Real(1.5) * dz);
-        const Real tstar_max = theta * Real(4.0) / (KAPPA * CONST_GRAV * std::abs(Lb));
-        const Real bracket = std::abs((std::log(Real(0.5) * dz / z0) - sfuns.calc_psi_h(Real(0.5) * dz / Lb))
-                                    - (std::log(Real(1.5) * dz / z0) - sfuns.calc_psi_h(Real(1.5) * dz / Lb)));
-        const Real bound = drag * rho * tstar_max / KAPPA * bracket;
-        const Real src = std::abs(col.src.const_array()(1, 1, 1, RhoTheta_comp));
-        EXPECT_LE(src, bound * Real(1.001)) << "L = " << L;
-        if (src > Real(0.999) * bound) { ++n_bounded; }
+    // with a factor of 1 psi_m is not capped before u* and the denominator cancels; with 0.9 it is
+    // held at 0.1 ln 30 and u* still reaches the clamp
+    for (Real factor : {Real(1.0), Real(0.9)}) {
+        int n_bounded = 0;
+        for (int n = 0; n <= 400; ++n) {
+            const Real L = Real(-0.25) + Real(0.13) * Real(n) / Real(400);
+            CalmTerrainColumn col;
+            col.u.setVal<amrex::RunOn::Host>(5.0);
+            SolverChoice sc = col.choice(Real(1.e-8));
+            sc.if_z0 = z0;
+            sc.if_Olen_in = L;
+            sc.if_psi_cap_factor = factor;
+            ImmersedForcingTerrain_Scalar(col.bx, col.u.const_array(), col.v.const_array(),
+                                          col.cell.const_array(), col.blank.const_array(),
+                                          amrex::Array4<const Real>{}, col.src.array(), col.geom, sc,
+                                          amrex::Table1D<Real>{}, amrex::Table1D<Real>{}, Real(0.0));
+            ASSERT_TRUE(col.all_finite(col.bx, 2)) << "L = " << L << ", factor " << factor;
+            // |source| <= drag rho |theta*| / kappa |bracket| with theta* = theta u*^2 / (kappa g L), u* <= 2
+            const Real Lb = ib_stability::bounded_obukhov_length(L, Real(1.5) * dz);
+            const Real tstar_max = theta * Real(4.0) / (KAPPA * CONST_GRAV * std::abs(Lb));
+            const Real bracket = std::abs((std::log(Real(0.5) * dz / z0) - sfuns.calc_psi_h(Real(0.5) * dz / Lb))
+                                        - (std::log(Real(1.5) * dz / z0) - sfuns.calc_psi_h(Real(1.5) * dz / Lb)));
+            const Real bound = drag * rho * tstar_max / KAPPA * bracket;
+            const Real src = std::abs(col.src.const_array()(1, 1, 1, RhoTheta_comp));
+            EXPECT_LE(src, bound * Real(1.001)) << "L = " << L << ", factor " << factor;
+            if (src > Real(0.999) * bound) { ++n_bounded; }
+        }
+        // and the sweep does reach u* at the clamp
+        EXPECT_GT(n_bounded, 0) << "factor " << factor;
     }
-    // and the sweep does reach the cancellation: some L has u* at the clamp
-    EXPECT_GT(n_bounded, 0);
 }
 
 TEST(ImmersedWallStability, PsiMCapKeepsAVelocityTargetInUnstableAir)
@@ -264,4 +286,50 @@ TEST(ImmersedWallStability, PsiMCapKeepsAVelocityTargetInUnstableAir)
     // both pull the face toward a target below 1 m/s; the target is zero only with the ln cap
     EXPECT_LT(src[1], Real(0.0));
     EXPECT_GT(src[0], src[1]) << "0.9 cap " << src[0] << ", ln cap " << src[1];
+}
+
+TEST(ImmersedWallStability, PsiMCapBeforeUstarKeepsTheWallLawInStrongInstability)
+{
+    // z0 = 0.5 m on 10 m cells and 1 m/s wind: psi_m passes ln(1.5 dz / z0) = ln 30, the u*
+    // denominator turns negative and the u* clamp sets u* = 0. With a factor of 1 (no cap before
+    // u*) the velocity target is zero and the wall cell gets no heat; the 0.9 cap before u*, as WRF
+    // caps PSIM before UST, keeps u* > 0 and both targets.
+    Real xsrc[2] = {0.0, 0.0};
+    Real tsrc[2] = {0.0, 0.0};
+    const Real factors[2] = {Real(0.9), Real(1.0)};
+    for (int n = 0; n < 2; ++n) {
+        {   // momentum: 0.5 K m/s heating, L about -0.25 m, zeta at 1.5 dz about -60
+            CalmTerrainColumn col;
+            col.u.setVal<amrex::RunOn::Host>(1.0);
+            SolverChoice sc = col.choice(Real(0.5));
+            sc.if_z0 = Real(0.5);
+            sc.if_psi_cap_factor = factors[n];
+            const amrex::Box xbx = amrex::surroundingNodes(col.bx, 0);
+            ImmersedForcingTerrain_Xmom(xbx, col.u.const_array(), col.v.const_array(), col.w.const_array(),
+                                        col.cell.const_array(), col.blank.const_array(),
+                                        amrex::Array4<const Real>{}, amrex::Array4<const Real>{},
+                                        col.src.array(), col.geom, sc, Real(1.0));
+            ASSERT_TRUE(col.all_finite(xbx, 1));
+            xsrc[n] = col.src.const_array()(1, 1, 1, 0);
+        }
+        {   // heat: 2 K m/s heating, L at its bound -0.15 m, zeta at 0.5 dz about -33
+            CalmTerrainColumn col;
+            col.u.setVal<amrex::RunOn::Host>(1.0);
+            SolverChoice sc = col.choice(Real(2.0));
+            sc.if_z0 = Real(0.5);
+            sc.if_psi_cap_factor = factors[n];
+            ImmersedForcingTerrain_Scalar(col.bx, col.u.const_array(), col.v.const_array(),
+                                          col.cell.const_array(), col.blank.const_array(),
+                                          amrex::Array4<const Real>{}, col.src.array(), col.geom, sc,
+                                          amrex::Table1D<Real>{}, amrex::Table1D<Real>{}, Real(0.0));
+            ASSERT_TRUE(col.all_finite(col.bx, 2));
+            tsrc[n] = col.src.const_array()(1, 1, 1, RhoTheta_comp);
+        }
+    }
+    // factor 1: zero velocity target (u = 1 m/s relaxed to rest) and no heat (round-off only)
+    EXPECT_LT(xsrc[1], Real(0.0));
+    EXPECT_LT(std::abs(tsrc[1]), Real(1.e-9));
+    // factor 0.9: a positive target, so a weaker pull, and a heated wall cell
+    EXPECT_GT(xsrc[0], xsrc[1]) << "0.9 " << xsrc[0] << ", 1 " << xsrc[1];
+    EXPECT_GT(std::abs(tsrc[0]), Real(1.e-6)) << "0.9 " << tsrc[0] << ", 1 " << tsrc[1];
 }
