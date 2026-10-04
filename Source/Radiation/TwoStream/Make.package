@@ -11,3 +11,5 @@ CEXE_headers += ERF_PrognosticCloudFraction.H
 CEXE_headers += ERF_AerosolOpticalDepth.H
 CEXE_headers += ERF_SimplifiedSEB.H
 CEXE_headers += ERF_SEBTurbulentFlux.H
+CEXE_headers += ERF_NoahMPSoilTable.H
+CEXE_headers += ERF_NoahMPVegetationTable.H

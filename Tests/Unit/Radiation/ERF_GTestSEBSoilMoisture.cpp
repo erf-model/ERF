@@ -1,0 +1,192 @@
+#include <cmath>
+#include <limits>
+
+#include <gtest/gtest.h>
+
+#include <ERF_NoahMPSoilTable.H>
+#include <ERF_SimplifiedSEB.H>
+#include <ERF_SurfaceMoisture.H>
+#include <ERF_NoahMPVegetationTable.H>
+
+// The pieces of erf.radiation.seb_surface_layer_uses_moisture: the soil-water factor of
+// the force-restore surface, the surface mixing ratio the surface layer takes from beta,
+// Noah-MP's soil and vegetation tables (wilting point, field capacity, Jarvis parameters,
+// monthly leaf area index), the Jarvis canopy and Sakaguchi-Zeng soil resistances, the
+// aerodynamic resistance and the two-source beta built from them, the vapour-deficit factor,
+// and the surface heat capacity derived from the soil.
+
+namespace {
+using amrex::Real;
+constexpr Real tol = sizeof(Real) == 8 ? Real(1.0e-14) : Real(1.0e-6);
+}
+
+TEST(SEBSoilMoisture, AvailabilityIsLinearBetweenWiltingPointAndFieldCapacity)
+{
+    const Real wilt = Real(0.12);
+    const Real fc = Real(0.387);
+    EXPECT_EQ(seb_moisture_availability(Real(0.05), wilt, fc), Real(0.0));
+    EXPECT_EQ(seb_moisture_availability(wilt, wilt, fc), Real(0.0));
+    EXPECT_NEAR(seb_moisture_availability(Real(0.25), wilt, fc),
+                (Real(0.25) - wilt) / (fc - wilt), tol);
+    EXPECT_EQ(seb_moisture_availability(fc, wilt, fc), Real(1.0));
+    EXPECT_EQ(seb_moisture_availability(Real(0.45), wilt, fc), Real(1.0));
+}
+
+TEST(SEBSoilMoisture, AvailabilityIsZeroForInvalidInputs)
+{
+    // No range between wilting point and field capacity, or a non-finite water content:
+    // the surface does not evaporate rather than evaporating at an undefined rate.
+    EXPECT_EQ(seb_moisture_availability(Real(0.3), Real(0.2), Real(0.2)), Real(0.0));
+    EXPECT_EQ(seb_moisture_availability(Real(0.3), Real(0.3), Real(0.2)), Real(0.0));
+    EXPECT_EQ(seb_moisture_availability(std::numeric_limits<Real>::quiet_NaN(),
+                                        Real(0.1), Real(0.3)), Real(0.0));
+}
+
+TEST(SEBSoilMoisture, SurfaceMixingRatioBlendsSaturationAndAir)
+{
+    const Real q_sat = Real(0.030);
+    const Real q_air = Real(0.010);
+    // beta = 1: saturated surface; beta = 0: the air's own, so no moisture flux.
+    EXPECT_EQ(erf_surface_moisture::surface_mixing_ratio(Real(1.0), q_sat, q_air), q_sat);
+    EXPECT_EQ(erf_surface_moisture::surface_mixing_ratio(Real(0.0), q_sat, q_air), q_air);
+    // The flux, proportional to q_surface - q_air, is beta times the potential one.
+    const Real beta = Real(0.4);
+    const Real q_surface = erf_surface_moisture::surface_mixing_ratio(beta, q_sat, q_air);
+    EXPECT_NEAR(q_surface - q_air, beta * (q_sat - q_air), tol);
+    // Out-of-range beta is clamped.
+    EXPECT_EQ(erf_surface_moisture::surface_mixing_ratio(Real(1.5), q_sat, q_air), q_sat);
+    EXPECT_EQ(erf_surface_moisture::surface_mixing_ratio(Real(-0.5), q_sat, q_air), q_air);
+}
+
+TEST(SEBSoilMoisture, NoahMPSoilTableLookup)
+{
+    // Silty clay loam (STAS 8), as NoahmpTable.TBL has it.
+    const NoahMPSoilParams* silty_clay_loam = noahmp_soil_params(8);
+    ASSERT_NE(silty_clay_loam, nullptr);
+    EXPECT_EQ(silty_clay_loam->smc_wilt, Real(0.120));
+    EXPECT_EQ(silty_clay_loam->smc_ref, Real(0.387));
+    EXPECT_EQ(silty_clay_loam->smc_max, Real(0.464));
+    // Categories are numbered from 1, and there are 19.
+    EXPECT_NE(noahmp_soil_params(1), nullptr);
+    EXPECT_NE(noahmp_soil_params(19), nullptr);
+    EXPECT_EQ(noahmp_soil_params(0), nullptr);
+    EXPECT_EQ(noahmp_soil_params(20), nullptr);
+    // Every land category has a field capacity above its wilting point; water does not.
+    for (int category = 1; category <= noahmp_num_soil_categories; ++category) {
+        const NoahMPSoilParams* soil = noahmp_soil_params(category);
+        if (category == 14) {
+            EXPECT_FALSE(soil->smc_ref > soil->smc_wilt);
+        } else {
+            EXPECT_GT(soil->smc_ref, soil->smc_wilt) << "category " << category;
+        }
+    }
+}
+
+TEST(SEBSoilMoisture, CanopyResistanceFollowsJarvis)
+{
+    // Noah-MP's grassland (MODIS 10): RS 40 s/m, RGL 100 W/m^2, TOPT 298 K, RSMAX 5000 s/m.
+    const NoahMPVegetationParams* grass = noahmp_vegetation_params(10);
+    ASSERT_NE(grass, nullptr);
+    const Real lai = Real(2.0);
+    const Real sw = Real(800.0);
+    const Real r = seb_canopy_resistance_without_vpd(grass->rs_min, grass->rs_max, grass->rgl,
+                                                     grass->t_opt, lai, sw, grass->t_opt, Real(1.0));
+    // At TOPT and a wet soil only the radiation factor acts.
+    const Real f = Real(0.55) * Real(2.0) * sw / (grass->rgl * lai);
+    const Real f_sw = (f + grass->rs_min / grass->rs_max) / (Real(1.0) + f);
+    EXPECT_NEAR(r, grass->rs_min / (lai * f_sw), tol * r);
+    // Darker, hotter (or colder) and drier all raise it.
+    EXPECT_GT(seb_canopy_resistance_without_vpd(grass->rs_min, grass->rs_max, grass->rgl,
+                                                grass->t_opt, lai, Real(100.0), grass->t_opt, Real(1.0)), r);
+    EXPECT_GT(seb_canopy_resistance_without_vpd(grass->rs_min, grass->rs_max, grass->rgl,
+                                                grass->t_opt, lai, sw, grass->t_opt + Real(10.0), Real(1.0)), r);
+    EXPECT_GT(seb_canopy_resistance_without_vpd(grass->rs_min, grass->rs_max, grass->rgl,
+                                                grass->t_opt, lai, sw, grass->t_opt, Real(0.5)), r);
+    // No leaves: no transpiration.
+    EXPECT_EQ(seb_canopy_resistance_without_vpd(grass->rs_min, grass->rs_max, grass->rgl,
+                                                grass->t_opt, Real(0.0), sw, grass->t_opt, Real(1.0)),
+              Real(1.0e6));
+}
+
+TEST(SEBSoilMoisture, SoilResistanceFollowsSakaguchiZeng)
+{
+    // Silty clay loam at 0.25 m^3/m^3 in a 0.1 m top layer, by Noah-MP's formula.
+    const NoahMPSoilParams* soil = noahmp_soil_params(8);
+    const Real theta = Real(0.25);
+    const Real r = seb_soil_evaporation_resistance(theta, soil->smc_max, soil->smc_wilt, soil->bb,
+                                                   Real(0.1), noahmp_soil_resistance_exponent);
+    const double d_dry = 0.1 * (std::exp(std::pow(1.0 - 0.25 / 0.464, 5.0)) - 1.0) / (2.71828 - 1.0);
+    const double diff = 2.2e-5 * 0.464 * 0.464 * std::pow(1.0 - 0.120 / 0.464, 2.0 + 3.0 / 8.72);
+    EXPECT_NEAR(r, Real(d_dry / diff), Real(1.0e-6) * r);
+    // A drier top layer resists more; a saturated one not at all.
+    EXPECT_GT(seb_soil_evaporation_resistance(Real(0.15), soil->smc_max, soil->smc_wilt, soil->bb,
+                                              Real(0.1), noahmp_soil_resistance_exponent), r);
+    EXPECT_EQ(seb_soil_evaporation_resistance(soil->smc_max, soil->smc_max, soil->smc_wilt, soil->bb,
+                                              Real(0.1), noahmp_soil_resistance_exponent), Real(0.0));
+    EXPECT_EQ(seb_soil_evaporation_resistance(Real(0.005), soil->smc_max, soil->smc_wilt, soil->bb,
+                                              Real(0.1), noahmp_soil_resistance_exponent), Real(1.0e6));
+}
+
+TEST(SEBSoilMoisture, TwoSourceAvailabilityAndVapourDeficit)
+{
+    using namespace erf_surface_moisture;
+    // No surface resistance: potential evaporation.
+    EXPECT_NEAR(two_source_availability(Real(50.0), Real(0.0), Real(0.0), Real(0.7)), Real(1.0), tol);
+    // A canopy resistance four times the aerodynamic one gives 1/5 over the vegetated part.
+    EXPECT_NEAR(two_source_availability(Real(50.0), Real(200.0), Real(1.0e6), Real(1.0)),
+                Real(0.2), Real(1.0e-6));
+    // The bare part weighs by 1 - f_veg.
+    const Real b = two_source_availability(Real(50.0), Real(200.0), Real(450.0), Real(0.8));
+    EXPECT_NEAR(b, Real(0.8) * Real(0.2) + Real(0.2) * Real(0.1), tol);
+    // The vapour-deficit factor: 1 with no deficit, smaller with one, floored at 0.01.
+    EXPECT_EQ(vapour_deficit_factor(Real(36.35), Real(0.010), Real(0.012)), Real(1.0));
+    EXPECT_NEAR(vapour_deficit_factor(Real(36.35), Real(0.020), Real(0.010)),
+                Real(1.0) / (Real(1.0) + Real(0.3635)), tol);
+    EXPECT_EQ(vapour_deficit_factor(Real(1.0e6), Real(0.020), Real(0.010)), Real(0.01));
+    // Neutral aerodynamic resistance: ln(z/z0) / (kappa u*).
+    EXPECT_NEAR(aerodynamic_resistance(Real(10.0), Real(0.1), Real(0.0), Real(0.41), Real(0.3)),
+                std::log(Real(100.0)) / (Real(0.41) * Real(0.3)), tol * Real(100.0));
+}
+
+TEST(SEBSoilMoisture, LeafAreaIndexInterpolatesTheMonthsAsNoahMP)
+{
+    const NoahMPVegetationParams* grass = noahmp_vegetation_params(10);
+    // 2024-08-05, day 218 of 366: month index 7.148, between July (3.5) and August (1.5).
+    const Real month = Real(12.0) * Real(218.0) / Real(366.0);
+    const Real w_jul = Real(7.5) - month;
+    EXPECT_NEAR(noahmp_leaf_area_index(*grass, Real(218.0), Real(366.0), false),
+                w_jul * grass->lai[6] + (Real(1.0) - w_jul) * grass->lai[7], tol * Real(10.0));
+    // Mid-month gives that month's value; early January wraps from December.
+    EXPECT_NEAR(noahmp_leaf_area_index(*grass, Real(365.0) / Real(24.0), Real(365.0), false),
+                grass->lai[0], tol * Real(10.0));
+    const Real jan1 = noahmp_leaf_area_index(*grass, Real(1.0), Real(365.0), false);
+    EXPECT_GT(jan1, std::min(grass->lai[11], grass->lai[0]) - tol);
+    EXPECT_LT(jan1, std::max(grass->lai[11], grass->lai[0]) + tol);
+}
+
+TEST(SEBSoilMoisture, ForceRestoreHeatCapacityFromNoahMPSoil)
+{
+    // Silty clay loam at 0.25 m^3/m^3, by Noah-MP's formulas, worked by hand.
+    const NoahMPSoilParams* soil = noahmp_soil_params(8);
+    const Real c = seb_soil_heat_capacity(Real(0.25), soil->smc_max, noahmp_soil_heat_capacity);
+    EXPECT_NEAR(c, Real(0.25 * 4.188e6 + (1.0 - 0.464) * 2.0e6 + (0.464 - 0.25) * 1004.64),
+                Real(1.0e-6) * c);
+    const double lambda_solid = std::pow(7.7, 0.1) * std::pow(2.0, 0.9);
+    const double lambda_sat = std::pow(lambda_solid, 1.0 - 0.464) * std::pow(0.57, 0.464);
+    const double gamma = (1.0 - 0.464) * 2700.0;
+    const double lambda_dry = (0.135 * gamma + 64.7) / (2700.0 - 0.947 * gamma);
+    const double kersten = std::log10(0.25 / 0.464) + 1.0;
+    const Real lambda = seb_soil_thermal_conductivity(Real(0.25), soil->smc_max, soil->quartz);
+    EXPECT_NEAR(lambda, Real(kersten * (lambda_sat - lambda_dry) + lambda_dry), Real(1.0e-5) * lambda);
+    // The force-restore capacity: sqrt(lambda c tau / pi) / 2, about 1.2e5 J/m^2/K here.
+    const Real c_s = seb_force_restore_heat_capacity(lambda, c, Real(86400.0));
+    EXPECT_NEAR(c_s, Real(0.5 * std::sqrt(double(lambda) * double(c) * 86400.0 / 3.141592653589793)),
+                Real(1.0e-5) * c_s);
+    EXPECT_GT(c_s, Real(1.0e5));
+    EXPECT_LT(c_s, Real(1.3e5));
+    // A wetter soil holds more heat and conducts better.
+    EXPECT_GT(seb_force_restore_heat_capacity(
+                  seb_soil_thermal_conductivity(Real(0.4), soil->smc_max, soil->quartz),
+                  seb_soil_heat_capacity(Real(0.4), soil->smc_max, noahmp_soil_heat_capacity),
+                  Real(86400.0)), c_s);
+}

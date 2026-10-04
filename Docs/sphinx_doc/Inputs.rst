@@ -4344,6 +4344,57 @@ atmospheric cell), ``start_datetime`` and the
 |                                                    | erf.use_rotate_surface_flux, with no land or surface       |                    |                  |
 |                                                    | model; each is checked at start-up                         |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_surface_layer_uses_moisture**  | Two-way coupling of moisture as well: the zlo surface      | Boolean            | false            |
+|                                                    | layer takes its land surface mixing ratio as beta          |                    |                  |
+|                                                    | q_sat(T_s) + (1 - beta) q_air, so it evaporates at beta    |                    |                  |
+|                                                    | times the potential rate, and the balance drains its soil  |                    |                  |
+|                                                    | water q_s by the LE it removes. beta is the soil-water     |                    |                  |
+|                                                    | factor, linear from seb_soil_moisture_wilt to              |                    |                  |
+|                                                    | seb_soil_moisture_fc, or with seb_vegetation_type the      |                    |                  |
+|                                                    | canopy and soil resistances in series with the aerodynamic |                    |                  |
+|                                                    | one. Needs seb_surface_layer_uses_skin, a moisture model   |                    |                  |
+|                                                    | and erf.most.surf_moist; each is checked at start-up       |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_soil_moisture_wilt**           | Wilting point [m³/m³]: at or below it the soil-water       | Real, 0 <= wilt <  | 0.066 (Noah-MP   |
+|                                                    | factor is 0, so no evaporation without seb_vegetation_type | fc                 | loam)            |
+|                                                    | and no transpiration with one. Used only with              |                    |                  |
+|                                                    | seb_surface_layer_uses_moisture; giving it otherwise stops |                    |                  |
+|                                                    | at start-up                                                |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_soil_moisture_fc**             | Field capacity [m³/m³]: at or above it the soil-water      | Real, wilt < fc <= | 0.329 (Noah-MP   |
+|                                                    | factor is 1 (potential evaporation without                 | 1                  | loam)            |
+|                                                    | seb_vegetation_type). Used only with                       |                    |                  |
+|                                                    | seb_surface_layer_uses_moisture; giving it otherwise stops |                    |                  |
+|                                                    | at start-up                                                |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_soil_type**                    | Noah-MP soil category (STAS, as in NoahmpTable.TBL;        | Integer 1-19, 0 =  | 0                |
+|                                                    | ERF_NoahMPSoilTable.H). Sets the wilting point and field   | unset              |                  |
+|                                                    | capacity (WLTSMC, REFSMC; giving either of those as well   |                    |                  |
+|                                                    | stops at start-up), seb_surface_heat_capacity from the     |                    |                  |
+|                                                    | soil's heat capacity and conductivity at seb_q_sfc_default |                    |                  |
+|                                                    | unless that is given, with seb_vegetation_type the bare-   |                    |                  |
+|                                                    | soil resistance, and with seb_surface_layer_uses_skin the  |                    |                  |
+|                                                    | surface layer's land roughness, f_veg Z0MVT + (1 - f_veg)  |                    |                  |
+|                                                    | Z0SOIL, unless erf.most.z0 is given. Not 14 (water)        |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_vegetation_type**              | Noah-MP land-use category (modified IGBP MODIS;            | Integer 1-20, 0 =  | 0                |
+|                                                    | ERF_NoahMPVegetationTable.H). The vegetated fraction       | unset              |                  |
+|                                                    | transpires through Noah's big-leaf Jarvis canopy           |                    |                  |
+|                                                    | resistance on Noah-MP's RS, RGL, HS, TOPT, RSMAX and the   |                    |                  |
+|                                                    | leaf area index; the rest evaporates through Noah-MP's     |                    |                  |
+|                                                    | bare-soil resistance. Needs                                |                    |                  |
+|                                                    | seb_surface_layer_uses_moisture and seb_soil_type          |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_vegetation_fraction**          | Vegetated fraction of the surface. Used only with          | Real [0,1]         | 1.0              |
+|                                                    | seb_vegetation_type; giving it otherwise stops at start-up |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
+| **erf.radiation.seb_leaf_area_index**              | Leaf area index [m²/m²] of the vegetation, fixed for the   | Real >= 0          | from the table   |
+|                                                    | run. Default: the category's monthly values interpolated   |                    |                  |
+|                                                    | to start_datetime as Noah-MP does (shifted half a year     |                    |                  |
+|                                                    | when erf.rad_cons_lat < 0); without start_datetime it must |                    |                  |
+|                                                    | be given. Used only with seb_vegetation_type; giving it    |                    |                  |
+|                                                    | otherwise stops at start-up                                |                    |                  |
++----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_diagnostic_enable**            | Enable diagnostic SEB residual computation                 | Boolean            | false            |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_prognostic_enable**            | Enable prognostic SEB surface T_s and q_s evolution        | Boolean            | false            |
@@ -4364,13 +4415,19 @@ atmospheric cell), ``start_datetime`` and the
 |                                                    | restoring term already carries the ground heat flux,       |                    |                  |
 |                                                    | so a nonzero value counts it twice (a warning says so)     |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_q_sfc_default**                | Fallback SEB surface moisture [kg/kg]                      | Real [0,1]         | 0.0              |
+| **erf.radiation.seb_q_sfc_default**                | Fallback SEB surface moisture, and the prognostic q_s's    | Real [0,1]         | 0.0              |
+|                                                    | initial value: with seb_prognostic_enable a volumetric     |                    |                  |
+|                                                    | soil water content [m³/m³] of the top                      |                    |                  |
+|                                                    | seb_moisture_layer_depth_m                                 |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_t_deep_default**               | Fallback SEB deep soil temperature [K]                     | Real               | 300.0            |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_q_deep_default**               | Fallback SEB deep soil moisture [kg/kg]                    | Real [0,1]         | 0.0              |
+| **erf.radiation.seb_q_deep_default**               | Deep soil moisture q_s restores to, in q_s's units         | Real [0,1]         | 0.0              |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_surface_heat_capacity**        | Effective surface heat capacity [J/(m²·K)]                 | Real               | 2.0e4            |
+| **erf.radiation.seb_surface_heat_capacity**        | Effective surface heat capacity [J/(m²·K)]. With           | Real               | 2.0e4            |
+|                                                    | seb_soil_type and not given: sqrt(lambda c tau / pi) / 2   |                    |                  |
+|                                                    | of the soil's conductivity and heat capacity at            |                    |                  |
+|                                                    | seb_q_sfc_default over seb_restore_timescale_s (Deardorff) |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_restore_timescale_s**          | Force-restore timescale for surface temperature [s]        | Real               | 86400.0 (1 day)  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
@@ -4382,9 +4439,11 @@ atmospheric cell), ``start_datetime`` and the
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_prognostic_t_max_k**           | Maximum clamping bound for prognostic surface T [K]        | Real               | 340.0            |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_prognostic_q_min**             | Minimum clamping bound for prognostic surface q [kg/kg]    | Real [0,1]         | 0.0              |
+| **erf.radiation.seb_prognostic_q_min**             | Minimum clamping bound for prognostic surface moisture q_s | Real [0,1]         | 0.0              |
+|                                                    | (m³/m³ with seb_prognostic_enable)                         |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_prognostic_q_max**             | Maximum clamping bound for prognostic surface q [kg/kg]    | Real [0,1]         | 1.0              |
+| **erf.radiation.seb_prognostic_q_max**             | Maximum clamping bound for prognostic surface moisture q_s | Real [0,1]         | 1.0              |
+|                                                    | (m³/m³ with seb_prognostic_enable)                         |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **Diagnostics Control Parameters**                 |                                                            |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+

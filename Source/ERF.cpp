@@ -413,6 +413,7 @@ ERF::set_surface_layer_skin (int lev)
     if (solverChoice.rad_type != RadiationType::TwoStream ||
         !solverChoice.radChoice.seb_surface_layer_uses_skin) {
         surface_layer->set_skin_temperature(lev, nullptr);
+        surface_layer->set_skin_moisture(lev, nullptr);
         return;
     }
     // The initial update_fluxes runs inside InitData_post, before InitData's own call.
@@ -428,10 +429,19 @@ ERF::set_surface_layer_skin (int lev)
             m_skin_uncoupled_warned[lev] = 1;
         }
         surface_layer->set_skin_temperature(lev, nullptr);
+        surface_layer->set_skin_moisture(lev, nullptr);
         return;
     }
     m_skin_uncoupled_warned[lev] = 0;
     surface_layer->set_skin_temperature(lev, two_stream_rad.seb_t_sfc(lev));
+    // With erf.radiation.seb_surface_layer_uses_moisture, also what the surface's mixing
+    // ratio is formed from: the balance's current soil water and, with a vegetation type,
+    // its canopy and soil resistances (nullptr when off).
+    const RadChoice& rc = solverChoice.radChoice;
+    const NoahMPVegetationParams* veg = (rc.seb_vegetation_type != 0)
+                                      ? noahmp_vegetation_params(rc.seb_vegetation_type) : nullptr;
+    surface_layer->set_skin_moisture(lev, two_stream_rad.seb_surface_moisture(lev),
+                                     veg != nullptr, veg ? veg->hs : Real(0.0));
 }
 
 // Start-up checks of the two-stream balance's coupling with the zlo surface layer, run
@@ -483,6 +493,13 @@ ERF::check_seb_surface_layer ()
     const std::string conflict = surface_layer->skin_temperature_conflict();
     if (!conflict.empty()) {
         Abort("erf.radiation.seb_surface_layer_uses_skin = true cannot be used: " + conflict);
+    }
+    if (rc.seb_surface_layer_uses_moisture) {
+        const std::string moisture_conflict = surface_layer->skin_moisture_conflict();
+        if (!moisture_conflict.empty()) {
+            Abort("erf.radiation.seb_surface_layer_uses_moisture = true cannot be used: " +
+                  moisture_conflict);
+        }
     }
     if (solverChoice.lsm_type != LandSurfaceType::None || m_SurfaceModel) {
         Abort("erf.radiation.seb_surface_layer_uses_skin = true cannot be used with a land-surface "
@@ -1768,6 +1785,21 @@ ERF::InitData_post ()
                                                                  (static_cast<int>(ori) == Orientation::zlo())
                                                                      ? m_SurfaceModel.get() : nullptr);
             m_SurfaceLayer[ori]->set_surface_layer_faces(surface_layer_faces);
+            // The two-stream balance's land roughness (Noah-MP's tables), where erf.most.z0
+            // is not given; before the levels below take z0.
+            if (static_cast<int>(ori) == Orientation::zlo() &&
+                solverChoice.rad_type == RadiationType::TwoStream &&
+                solverChoice.radChoice.seb_land_roughness > 0.0) {
+                const Real z0 = solverChoice.radChoice.seb_land_roughness;
+                const bool taken = m_SurfaceLayer[ori]->set_default_roughness(z0);
+                Print() << "NOTE: the zlo surface layer's land roughness is "
+                        << m_SurfaceLayer[ori]->roughness() << " m"
+                        << (taken ? ", from Noah-MP's tables for the surface energy balance's "
+                                    "soil and vegetation"
+                                  : " as given (erf.most.z0); Noah-MP's tables for the surface "
+                                    "energy balance's soil and vegetation give " + std::to_string(z0))
+                        << ".\n";
+            }
             m_SurfaceLayer[ori]->set_coupled_sst_active(solverChoice.use_coupled_sst &&
                                                         static_cast<int>(ori) == Orientation::zlo());
 

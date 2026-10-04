@@ -172,6 +172,10 @@ target_sources(${erf_exe_name}
     # model, else from the surface layer's applied flux in W/m^2, else from
     # the scalar defaults; LE stays at its default without a moisture model.
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestSEBTurbulentFlux.cpp
+    # Motivation: with the moisture coupling, the force-restore surface evaporates at
+    # beta times the potential rate, beta linear between Noah-MP's wilting point and
+    # field capacity for the soil category, so it dries as its water content falls.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestSEBSoilMoisture.cpp
     # Motivation: the forcing the two-stream model hands Noah-MP must be the
     # downwelling SW and LW at the surface interface and a zenith cosine floored
     # at zero, copied into the land model's k = 0 plane and nowhere else.
