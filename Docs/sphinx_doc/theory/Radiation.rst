@@ -450,8 +450,11 @@ table and a CTest checks the copy against ``Submodules/Noah-MP/parameters/Noahmp
 
 With ``erf.radiation.seb_vegetation_type`` as well (a Noah-MP MODIS land-use category,
 ``ERF_NoahMPVegetationTable.H``), :math:`\beta` comes from resistances in series with the
-aerodynamic one, :math:`r_a = (\ln(z_\text{ref}/z_0) - \psi_h)/(\kappa u_*)` from the surface
-layer's last :math:`u_*` and Obukhov length:
+aerodynamic one. That one is the resistance of the surface layer's own moisture flux (its
+surface-temperature kernel),
+:math:`r_a = \max(\ln(z_\text{ref}/z_0) - \psi_h, 1)/(\kappa u_*)`, with Jimenez's
+:math:`\psi_h` at the layer's last :math:`u_*` and Obukhov length (neutral before the first
+flux):
 
 .. math::
 
@@ -460,8 +463,9 @@ layer's last :math:`u_*` and Obukhov length:
 The vegetated fraction ``seb_vegetation_fraction`` :math:`f_\text{veg}` transpires through Noah's
 big-leaf Jarvis canopy resistance (Chen et al. 1996) on the parameters and floors of Noah-MP's
 canopy-resistance option 2, with the category's leaf area index (``seb_leaf_area_index``; by
-default the table's monthly values interpolated to ``start_datetime`` as Noah-MP does, shifted
-half a year when ``erf.rad_cons_lat`` < 0):
+default the table's monthly values interpolated to ``start_datetime`` as Noah-MP does, with the
+day of the year counted from 0 at 00:00 on 1 January and shifted half a year when
+``erf.rad_cons_lat`` < 0):
 
 .. math::
 
@@ -484,9 +488,17 @@ dries: :math:`r_\text{soil} = d_\text{dry}/D` with
 With the skin coupling and a soil type, the surface layer's land roughness length, unless
 ``erf.most.z0`` is given, is Noah-MP's too: :math:`f_\text{veg}\, z_{0,\text{veg}} + (1 - f_\text{veg})\, z_{0,\text{soil}}`
 with the land-use category's Z0MVT and Noah-MP's bare-soil Z0SOIL (0.002 m), :math:`f_\text{veg} = 0`
-without a vegetation type. Over bare soil this matters as much as the moisture: with the
-surface layer's default 0.1 m the surface sheds its heat far more easily than Noah-MP's bare
-soil does.
+without a vegetation type.
+
+Noah-MP itself hands the atmosphere Z0MVT for a vegetated column and Z0SOIL for a bare one.
+The balance has a single surface for both parts, so it weights the two by the vegetated
+fraction instead. The run's ``job_info`` records the value used as ``erf.most.z0``.
+
+Categories 15, 16 and 17 (snow and ice, barren, water) have no vegetation in the table
+(Z0MVT = 0) and stop at start-up. Bare land leaves the vegetation type at 0.
+
+Over bare soil the roughness matters as much as the moisture: with the surface layer's
+default 0.1 m, the surface sheds its heat far more easily than Noah-MP's bare soil does.
 
 With a soil type the surface heat capacity :math:`C_s`, unless given, is that of the layer the
 restore period's temperature wave reaches (Deardorff 1978),

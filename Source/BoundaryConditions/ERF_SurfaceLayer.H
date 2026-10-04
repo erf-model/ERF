@@ -1393,12 +1393,21 @@ public:
   /**
    * The land roughness length [m] to use when erf.most.z0 is not given (the two-stream
    * balance's, from Noah-MP's tables). Call before the levels are made, which set z0 from
-   * it. Returns whether it was taken: an erf.most.z0 given in the inputs stands.
+   * it.
+   *
+   * Taking it also replaces the erf.most.z0 entry that the constructor's queryAdd put in
+   * the ParmParse table. job_info (ParmParse::dumpTable) then records the roughness the
+   * run used.
+   *
+   * @return whether the roughness was taken: an erf.most.z0 given in the inputs stands.
    */
   bool set_default_roughness (amrex::Real z0)
   {
       if (m_z0_given) { return false; }
       z0_const = z0;
+      amrex::ParmParse pp(m_pp_prefix);
+      pp.remove("most.z0");
+      pp.add("most.z0", z0_const);
       return true;
   }
 

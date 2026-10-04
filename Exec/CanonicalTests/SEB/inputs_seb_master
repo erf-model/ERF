@@ -61,12 +61,12 @@ erf.radiation.seb_diagnostic_enable   = false   # Compute and report the residua
 erf.radiation.seb_prognostic_enable   = false   # Evolve T_s and q_s by force-restore on every level (also turns on the two above, with a NOTE). Not with a land model that supplies the surface temperature. Bool. Default false.
 erf.rad_t_sfc                         = 300.0   # Initial skin temperature T_s [K] (and the radiation's surface temperature without another source). Required by the two-stream model, > 0.
 erf.radiation.seb_t_deep_default      = 300.0   # Deep temperature T_deep [K] the skin restores to. > 0. Default 300.
-erf.radiation.seb_surface_heat_capacity = 2.0e4 # Surface heat capacity C_s [J/m2/K], > 0 (reset to the default otherwise). With seb_soil_type and not given: derived from the soil (section 5). Default 2.0e4.
-erf.radiation.seb_restore_timescale_s = 86400.0 # Restore period tau [s], > 0. Default 86400 (a day).
+erf.radiation.seb_surface_heat_capacity = 2.0e4 # Surface heat capacity C_s [J/m2/K], > 0 (stops at start-up otherwise). With seb_soil_type and not given: derived from the soil (section 5). Default 2.0e4.
+erf.radiation.seb_restore_timescale_s = 86400.0 # Restore period tau [s], > 0 (stops at start-up otherwise). Default 86400 (a day).
 erf.radiation.seb_q_sfc_default       = 0.0     # Initial q_s: with the prognostic balance a volumetric water content [m3/m3]. Clamped to [0, 1]. Default 0.
 erf.radiation.seb_q_deep_default      = 0.0     # q_deep q_s restores to, same units. Clamped to [0, 1]. Default 0.
-erf.radiation.seb_moisture_layer_depth_m = 0.1  # Depth d_s [m] of the soil layer q_s describes, > 0. Default 0.1.
-erf.radiation.seb_moisture_restore_timescale_s = 86400.0  # Restore period tau_q [s] of q_s, > 0. Default 86400.
+erf.radiation.seb_moisture_layer_depth_m = 0.1  # Depth d_s [m] of the soil layer q_s describes, > 0 (stops at start-up otherwise). Default 0.1.
+erf.radiation.seb_moisture_restore_timescale_s = 86400.0  # Restore period tau_q [s] of q_s, > 0 (stops at start-up otherwise). Default 86400.
 erf.radiation.seb_prognostic_t_min_k  = 200.0   # Lower clamp of T_s after each update [K]. Default 200.
 erf.radiation.seb_prognostic_t_max_k  = 340.0   # Upper clamp of T_s [K]. Default 340.
 erf.radiation.seb_prognostic_q_min    = 0.0     # Lower clamp of q_s, in [0, 1]. Default 0.
@@ -116,7 +116,7 @@ erf.radiation.seb_soil_type           = 0       # A Noah-MP soil category, 1-19 
 # area index, the net shortwave the balance holds over (1 - albedo), T_s, the vapour
 # deficit and beta_soil; and Noah-MP's bare-soil resistance r_soil (option 1, Sakaguchi and
 # Zeng) on seb_soil_type.
-erf.radiation.seb_vegetation_type     = 0       # A Noah-MP land-use category, 1-20 (modified IGBP MODIS), or 0 for beta_soil alone. Default 0.
+erf.radiation.seb_vegetation_type     = 0       # A Noah-MP land-use category, 1-20 except 15-17 (snow and ice, barren, water: no vegetation; stops at start-up) (modified IGBP MODIS), or 0 for beta_soil alone. Default 0.
 erf.radiation.seb_vegetation_fraction = 1.0     # Vegetated fraction f_veg, in [0, 1]. Only with seb_vegetation_type (stops at start-up otherwise). Default 1.
 erf.radiation.seb_leaf_area_index     = 2.0     # Leaf area index [m2/m2], >= 0, fixed for the run; only with seb_vegetation_type (stops at start-up otherwise). Default: the category's monthly LAI interpolated to start_datetime as Noah-MP does, shifted half a year when erf.rad_cons_lat < 0 (a NOTE prints it); without start_datetime it must be given.
 #   MODIS categories: 1 evergreen needleleaf forest, 2 evergreen broadleaf forest,

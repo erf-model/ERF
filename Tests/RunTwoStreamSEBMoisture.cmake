@@ -4,7 +4,9 @@
 # 0.387), three times: the soil at the wilting point (dry), at field capacity (wet) and in
 # between (mid); and a fourth (veg) like mid with Noah-MP's grassland on 80 % of the surface
 # (seb_vegetation_type = 10, LAI 2), so that canopy and soil resistances set the
-# availability; then check with check_two_stream_seb_moisture.py.
+# availability; and a one-step fifth (tables) like veg from a copy of the deck without
+# erf.most.z0, so that the surface layer takes its land roughness from Noah-MP's tables and
+# job_info must record that value; then check with check_two_stream_seb_moisture.py.
 # -DX= defines X as empty, so test for a value, not for DEFINED
 include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/ResolveExecutable.cmake")
@@ -31,6 +33,8 @@ erf_mpi_launcher_command(launch
     CONTEXT "RunTwoStreamSEBMoisture.cmake")
 
 get_filename_component(input_dir "${INPUT}" DIRECTORY)
+# run_leg reads the deck from leg_input (the caller's, at the call).
+set(leg_input "${INPUT}")
 
 function(run_leg name q_s)
     # Extra inputs after q_s.
@@ -39,7 +43,7 @@ function(run_leg name q_s)
     file(MAKE_DIRECTORY "${dir}")
     file(COPY "${input_dir}/input_sounding" DESTINATION "${dir}")
     execute_process(
-        COMMAND ${launch} ${TEST_EXE} ${INPUT}
+        COMMAND ${launch} ${TEST_EXE} ${leg_input}
                 max_step=${STEPS} erf.fixed_dt=${DT}
                 erf.radiation.seb_surface_layer_uses_skin=true
                 erf.radiation.seb_surface_layer_uses_moisture=true
@@ -64,10 +68,22 @@ run_leg(mid 0.25)
 run_leg(veg 0.25 erf.radiation.seb_vegetation_type=10 erf.radiation.seb_vegetation_fraction=0.8
         erf.radiation.seb_leaf_area_index=2.0)
 
+# The deck without its erf.most.z0 line: the tables' 0.8 x 0.12 + 0.2 x 0.002 = 0.0964 m.
+file(READ "${INPUT}" deck)
+string(REGEX REPLACE "\nerf\\.most\\.z0[ \t]*=[^\n]*" "\n" deck_no_z0 "${deck}")
+if(deck_no_z0 STREQUAL deck)
+    message(FATAL_ERROR "RunTwoStreamSEBMoisture.cmake: no erf.most.z0 line to remove in ${INPUT}")
+endif()
+set(leg_input "${WORKING_DIRECTORY}/deck_without_z0.i")
+file(WRITE "${leg_input}" "${deck_no_z0}")
+run_leg(tables 0.25 erf.radiation.seb_vegetation_type=10 erf.radiation.seb_vegetation_fraction=0.8
+        erf.radiation.seb_leaf_area_index=2.0 max_step=1)
+
 execute_process(
     COMMAND "${PYTHON_EXE}" "${CHECKER}" --fextract "${FEXTRACT}"
             --dry-dir "${WORKING_DIRECTORY}/dry" --wet-dir "${WORKING_DIRECTORY}/wet"
             --mid-dir "${WORKING_DIRECTORY}/mid" --veg-dir "${WORKING_DIRECTORY}/veg"
+            --tables-dir "${WORKING_DIRECTORY}/tables" --tables-z0 0.0964 --given-z0 0.1
             --mid-q 0.25 --wilt 0.120 --fc 0.387
             --steps ${STEPS} --dt ${DT}
     WORKING_DIRECTORY "${WORKING_DIRECTORY}"

@@ -1786,7 +1786,8 @@ ERF::InitData_post ()
                                                                      ? m_SurfaceModel.get() : nullptr);
             m_SurfaceLayer[ori]->set_surface_layer_faces(surface_layer_faces);
             // The two-stream balance's land roughness (Noah-MP's tables), where erf.most.z0
-            // is not given; before the levels below take z0.
+            // is not given; before the levels below take z0. seb_land_roughness is -1 when
+            // it is not derived, and positive when it is (RadChoice::init_params).
             if (static_cast<int>(ori) == Orientation::zlo() &&
                 solverChoice.rad_type == RadiationType::TwoStream &&
                 solverChoice.radChoice.seb_land_roughness > 0.0) {

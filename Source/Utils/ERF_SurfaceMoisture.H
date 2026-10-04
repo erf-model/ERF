@@ -4,6 +4,8 @@
 #include <AMReX_Math.H>
 #include <AMReX_Algorithm.H>
 
+#include <ERF_MOSTUtils.H>
+
 #include <cmath>
 
 /**
@@ -66,9 +68,12 @@ vapour_deficit_factor (const amrex::Real hs,
 
 /**
  * Aerodynamic resistance to the moisture flux between the surface and the reference
- * height [s/m], (ln(z_ref / z0) - psi_h) / (kappa u*): the form of the surface layer's
- * moisture flux, which uses z0 for heat and moisture too. u* is floored at 1e-3 m/s and
- * the resistance at 1 s/m.
+ * height [s/m]: max(ln(z_ref / z0) - psi_h, 1) / (kappa u*).
+ *
+ * This is the limited CmPsih of the surface layer's surface_temp kernel
+ * (ERF_MOSTStress.H), which uses z0 for heat and moisture too. Its q* is
+ * kappa (q_air - q_surf) / CmPsih, so the flux is u* q* = (q_air - q_surf) / r_a.
+ * u* is floored at 1e-3 m/s.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
@@ -78,8 +83,44 @@ aerodynamic_resistance (const amrex::Real z_ref,
                         const amrex::Real kappa,
                         const amrex::Real u_star)
 {
-    const amrex::Real r = (std::log(z_ref / z0) - psi_h) / (kappa * amrex::max(u_star, amrex::Real(1.0e-3)));
-    return amrex::max(amrex::Real(1.0), r);
+    const amrex::Real cm_psi_h = amrex::max(std::log(z_ref / z0) - psi_h, amrex::Real(1.0));
+    return cm_psi_h / (kappa * amrex::max(u_star, amrex::Real(1.0e-3)));
+}
+
+/**
+ * The aerodynamic resistance [s/m] the surface layer's moisture flux sees over a land
+ * column whose skin temperature the two-stream balance gives it.
+ *
+ * Skin coupling needs erf.most.surf_temp, so that flux comes from the surface_temp
+ * kernel. Its stability function is Jimenez's psi_h2 at z_ref / L (calc_psi_h2), not
+ * Businger-Dyer's psi_h, and it is limited as in aerodynamic_resistance.
+ *
+ * The resistance uses the last u* and Obukhov length L. Before the first flux, u* is
+ * @p unset or non-finite, and a neutral first guess is used:
+ * u* = kappa max(U, U_min) / max(ln(z_ref / z0), 1), with psi_h2 = 0.
+ * An unset, non-finite or zero L also gives psi_h2 = 0.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real
+surface_layer_aerodynamic_resistance (const similarity_funs& sfuns,
+                                      const amrex::Real z_ref,
+                                      const amrex::Real z0,
+                                      const amrex::Real u_star,
+                                      const amrex::Real olen,
+                                      const amrex::Real wind,
+                                      const amrex::Real wind_min,
+                                      const amrex::Real kappa,
+                                      const amrex::Real unset)
+{
+    amrex::Real ustar = u_star;
+    amrex::Real psi_h = amrex::Real(0.0);
+    if (ustar == unset || !amrex::Math::isfinite(ustar)) {
+        ustar = kappa * amrex::max(wind, wind_min) /
+                amrex::max(std::log(z_ref / z0), amrex::Real(1.0));
+    } else if (olen != unset && amrex::Math::isfinite(olen) && olen != amrex::Real(0.0)) {
+        psi_h = sfuns.calc_psi_h2(z_ref / olen);
+    }
+    return aerodynamic_resistance(z_ref, z0, psi_h, kappa, ustar);
 }
 
 /**

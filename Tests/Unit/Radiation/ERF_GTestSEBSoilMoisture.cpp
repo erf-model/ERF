@@ -151,7 +151,8 @@ TEST(SEBSoilMoisture, TwoSourceAvailabilityAndVapourDeficit)
 TEST(SEBSoilMoisture, LeafAreaIndexInterpolatesTheMonthsAsNoahMP)
 {
     const NoahMPVegetationParams* grass = noahmp_vegetation_params(10);
-    // 2024-08-05, day 218 of 366: month index 7.148, between July (3.5) and August (1.5).
+    // Day 218 of 366 (6 August of a leap year, counted from 0): month index 7.148, between
+    // July (3.5) and August (1.5).
     const Real month = Real(12.0) * Real(218.0) / Real(366.0);
     const Real w_jul = Real(7.5) - month;
     EXPECT_NEAR(noahmp_leaf_area_index(*grass, Real(218.0), Real(366.0), false),
@@ -189,4 +190,86 @@ TEST(SEBSoilMoisture, ForceRestoreHeatCapacityFromNoahMPSoil)
                   seb_soil_thermal_conductivity(Real(0.4), soil->smc_max, soil->quartz),
                   seb_soil_heat_capacity(Real(0.4), soil->smc_max, noahmp_soil_heat_capacity),
                   Real(86400.0)), c_s);
+}
+
+TEST(SEBSoilMoisture, AerodynamicResistanceIsTheSurfaceLayersLimitedCmPsih)
+{
+    using namespace erf_surface_moisture;
+    const Real kappa = Real(0.41);
+    const Real z_ref = Real(10.0);
+    const Real z0 = Real(0.1);
+    const Real c = std::log(z_ref / z0);
+    // ln(z/z0) - psi_h below 1 is limited to 1, as the surface_temp kernel's CmPsih.
+    EXPECT_NEAR(aerodynamic_resistance(z_ref, z0, Real(5.0), kappa, Real(0.3)),
+                Real(1.0) / (kappa * Real(0.3)), Real(1.0e-5) * Real(1.0) / (kappa * Real(0.3)));
+
+    // Unstable air (z/L = -5): Jimenez's psi_h2, the kernel's, not Businger-Dyer's psi_h.
+    const similarity_funs sfuns;
+    const Real unset = Real(1.0e34);
+    const Real olen = Real(-2.0);
+    const Real r = surface_layer_aerodynamic_resistance(sfuns, z_ref, z0, Real(0.3), olen,
+                                                        Real(5.0), Real(0.1), kappa, unset);
+    const Real r_jimenez = amrex::max(c - sfuns.calc_psi_h2(z_ref / olen), Real(1.0)) /
+                           (kappa * Real(0.3));
+    const Real r_businger = amrex::max(c - sfuns.calc_psi_h(z_ref / olen), Real(1.0)) /
+                            (kappa * Real(0.3));
+    EXPECT_NEAR(r, r_jimenez, Real(1.0e-5) * r_jimenez);
+    // The two forms differ by more than 5 % here, so the check above tells them apart.
+    EXPECT_GT(std::abs(r_jimenez - r_businger), Real(0.05) * r_jimenez);
+
+    // Before the first flux (u* unset): neutral, u* = kappa U / max(ln(z/z0), 1).
+    const Real u_neutral = kappa * Real(5.0) / c;
+    EXPECT_NEAR(surface_layer_aerodynamic_resistance(sfuns, z_ref, z0, unset, unset,
+                                                     Real(5.0), Real(0.1), kappa, unset),
+                c / (kappa * u_neutral), Real(1.0e-5) * c / (kappa * u_neutral));
+    // An unset Obukhov length with a valid u*: neutral psi.
+    EXPECT_NEAR(surface_layer_aerodynamic_resistance(sfuns, z_ref, z0, Real(0.3), unset,
+                                                     Real(5.0), Real(0.1), kappa, unset),
+                c / (kappa * Real(0.3)), Real(1.0e-5) * c / (kappa * Real(0.3)));
+}
+
+TEST(SEBSoilMoisture, DayOfYearCountsFromZeroAsNoahMP)
+{
+    Real day = Real(-1.0);
+    Real days = Real(0.0);
+    // PhenologyMainMod: 0 <= day < days in the year, 0 at 00:00 on 1 January.
+    ASSERT_TRUE(noahmp_day_of_year("2024-01-01 00:00:00", day, days));
+    EXPECT_EQ(day, Real(0.0));
+    EXPECT_EQ(days, Real(366.0));
+    ASSERT_TRUE(noahmp_day_of_year("2024-03-01", day, days));
+    EXPECT_EQ(day, Real(60.0));
+    ASSERT_TRUE(noahmp_day_of_year("2023-12-31 12:00:00", day, days));
+    EXPECT_NEAR(day, Real(364.5), tol * Real(1000.0));
+    EXPECT_EQ(days, Real(365.0));
+    // The start of the comparison case: 2024-08-05 15:00 UTC.
+    ASSERT_TRUE(noahmp_day_of_year("2024-08-05 15:00:00", day, days));
+    EXPECT_NEAR(day, Real(217.625), tol * Real(1000.0));
+    // Grassland LAI there: month index 12 * 217.625 / 366, between July and August.
+    const NoahMPVegetationParams* grass = noahmp_vegetation_params(10);
+    const Real w_jul = Real(7.5) - Real(12.0) * Real(217.625) / Real(366.0);
+    EXPECT_NEAR(noahmp_leaf_area_index(*grass, day, days, false),
+                w_jul * grass->lai[6] + (Real(1.0) - w_jul) * grass->lai[7], tol * Real(1000.0));
+    // Dates that are not dates.
+    EXPECT_FALSE(noahmp_day_of_year("2023-02-29", day, days));
+    EXPECT_FALSE(noahmp_day_of_year("2024-13-01", day, days));
+    EXPECT_FALSE(noahmp_day_of_year("2024-04-31 00:00:00", day, days));
+    EXPECT_FALSE(noahmp_day_of_year("2024-08-05 24:00:00", day, days));
+    EXPECT_FALSE(noahmp_day_of_year("August 5", day, days));
+}
+
+TEST(SEBSoilMoisture, UnvegetatedCategoriesHaveNoRoughness)
+{
+    // Snow and ice, barren and water: Z0MVT = 0 and no leaf area all year, which is why
+    // erf.radiation.seb_vegetation_type stops at start-up on them.
+    for (int category : {15, 16, 17}) {
+        const NoahMPVegetationParams* veg = noahmp_vegetation_params(category);
+        ASSERT_NE(veg, nullptr);
+        EXPECT_EQ(veg->z0, Real(0.0)) << "category " << category;
+        for (int m = 0; m < 12; ++m) { EXPECT_EQ(veg->lai[m], Real(0.0)) << "category " << category; }
+    }
+    // Every other category has a positive roughness.
+    for (int category = 1; category <= 20; ++category) {
+        if (category >= 15 && category <= 17) { continue; }
+        EXPECT_GT(noahmp_vegetation_params(category)->z0, Real(0.0)) << "category " << category;
+    }
 }

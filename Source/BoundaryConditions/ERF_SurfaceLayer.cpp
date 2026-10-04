@@ -2511,22 +2511,11 @@ SurfaceLayer::fill_qsurf_with_skin_moisture (const int& lev,
 
             Real beta = moist_arr(li,lj,k,SoilFactor);
             if (use_resistances) {
-                // The aerodynamic resistance the moisture flux will see: the last u* and
-                // Obukhov length, or neutral before the first flux.
-                const Real zref = zref_arr(li,lj,k);
-                const Real z0 = z0_arr(li,lj,k);
-                Real ustar = ustar_arr(li,lj,k);
-                Real psi_h = Real(0.0);
-                if (ustar == bogus_large_value || !amrex::Math::isfinite(ustar)) {
-                    ustar = KAPPA * amrex::max(umm_arr(li,lj,k), wsmin) / std::log(zref / z0);
-                } else {
-                    const Real olen_v = olen_arr(li,lj,k);
-                    if (olen_v != bogus_large_value && amrex::Math::isfinite(olen_v) &&
-                        olen_v != Real(0.0)) {
-                        psi_h = sfuns.calc_psi_h(zref / olen_v);
-                    }
-                }
-                const Real r_a = aerodynamic_resistance(zref, z0, psi_h, KAPPA, ustar);
+                // The aerodynamic resistance the moisture flux will see (the surface_temp
+                // kernel's): the last u* and Obukhov length, or neutral before the first flux.
+                const Real r_a = surface_layer_aerodynamic_resistance(
+                    sfuns, zref_arr(li,lj,k), z0_arr(li,lj,k), ustar_arr(li,lj,k),
+                    olen_arr(li,lj,k), umm_arr(li,lj,k), wsmin, KAPPA, bogus_large_value);
                 const Real r_c = moist_arr(li,lj,k,CanopyResistanceWithoutVPD) /
                                  vapour_deficit_factor(hs, q_sat, q_air);
                 beta = two_source_availability(r_a, r_c, moist_arr(li,lj,k,SoilResistance),

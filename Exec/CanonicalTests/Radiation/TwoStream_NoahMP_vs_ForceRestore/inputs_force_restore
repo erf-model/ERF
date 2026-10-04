@@ -15,7 +15,7 @@ erf.radiation.seb_q_deep_default = 0.25
 # option 4 takes SHDMAX, 80 % in the land file). beta then comes from Noah's big-leaf Jarvis
 # canopy resistance on Noah-MP's parameters for the vegetated part -- the soil-water factor
 # enters it -- and from Noah-MP's bare-soil resistance for the rest, each in series with
-# the aerodynamic resistance. The leaf area index is the table's for the start date (2.2 on
-# 5 August), as Noah-MP takes it, and the land roughness 0.8 x 0.12 + 0.2 x 0.002 m.
+# the aerodynamic resistance. The leaf area index is the table's for the start (2.23 at 15:00
+# UTC on 5 August), as Noah-MP takes it, and the land roughness 0.8 x 0.12 + 0.2 x 0.002 m.
 erf.radiation.seb_vegetation_type = 10
 erf.radiation.seb_vegetation_fraction = 0.8

@@ -15,6 +15,9 @@
 
 #include <AMReX_REAL.H>
 
+#include <cstdio>
+#include <string>
+
 /** One land-use category's parameters, named as in NoahmpTable.TBL. */
 struct NoahMPVegetationParams
 {
@@ -110,6 +113,43 @@ noahmp_leaf_area_index (const NoahMPVegetationParams& params, amrex::Real day,
     if (m1 < 1)  { m1 = 12; }
     if (m2 > 12) { m2 = 1; }
     return w1 * params.lai[m1 - 1] + w2 * params.lai[m2 - 1];
+}
+
+/**
+ * @brief The day of the year, as Noah-MP counts it, of a date "YYYY-MM-DD[ HH:MM[:SS]]"
+ * (ERF's start_datetime).
+ *
+ * The day is Noah-MP's DayJulianInYear, which PhenologyMainMod takes as
+ * 0 <= day < days_in_year. It is 0 at 00:00 on 1 January, and the time of day is added
+ * as a fraction. @p days_in_year is 365 or 366.
+ *
+ * @return false when the date cannot be read, the month is outside 1-12, the day is
+ * outside the month, or the time is outside 00:00:00-23:59:60.
+ */
+[[nodiscard]] inline bool
+noahmp_day_of_year (const std::string& datetime, amrex::Real& day,
+                    amrex::Real& days_in_year)
+{
+    int year = 0, month = 0, mday = 0, hour = 0, minute = 0;
+    double second = 0.0;
+    const int n = std::sscanf(datetime.c_str(), "%d-%d-%d %d:%d:%lf",
+                              &year, &month, &mday, &hour, &minute, &second);
+    if (n < 3 || month < 1 || month > 12) { return false; }
+    if (n < 4) { hour = 0; }
+    if (n < 5) { minute = 0; }
+    if (n < 6) { second = 0.0; }
+    const bool leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+    const int month_days[12] = {31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    if (mday < 1 || mday > month_days[month - 1] || hour < 0 || hour > 23 ||
+        minute < 0 || minute > 59 || second < 0.0 || second > 60.0) {
+        return false;
+    }
+    int whole = mday - 1;
+    for (int m = 0; m < month - 1; ++m) { whole += month_days[m]; }
+    day = static_cast<amrex::Real>(whole) +
+          static_cast<amrex::Real>((hour * 3600.0 + minute * 60.0 + second) / 86400.0);
+    days_in_year = leap ? amrex::Real(366) : amrex::Real(365);
+    return true;
 }
 
 #endif

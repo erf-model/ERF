@@ -5,9 +5,9 @@ With erf.radiation.seb_surface_layer_uses_moisture the surface layer takes its l
 mixing ratio as beta * q_sat(T_s, p_s) + (1 - beta) * q_air, with
 beta = clamp((q_s - wilt) / (fc - wilt), 0, 1) from the balance's soil water q_s, and the
 balance drains q_s by the latent heat flux it removes. Given the 2D plotfiles (one per step)
-of four runs -- three whose soil starts and restores at the wilting point (dry), at field
-capacity (wet) and in between (mid), and a fourth (veg) on mid's soil under vegetation --
-this asserts:
+of five runs -- three whose soil starts and restores at the wilting point (dry), at field
+capacity (wet) and in between (mid), a fourth (veg) on mid's soil under vegetation, and a
+one-step fifth (tables) like veg without erf.most.z0 -- this asserts:
 
 1. dry: beta = 0, so the latent heat flux is zero at every step, while
 2. wet: the latent heat flux is not small, so 1 is not 0 == 0;
@@ -24,6 +24,9 @@ this asserts:
 5. veg (mid's soil under Noah-MP's grassland, seb_vegetation_type): the canopy and soil
    resistances lower LE below mid's, which has the soil-water factor alone, but not to
    zero, at every step; and the water budget and drying of 4 hold.
+6. job_info records the roughness each run used: the tables' value in the tables run
+   (Noah-MP's Z0MVT and Z0SOIL by the vegetated fraction), the deck's erf.most.z0 in veg,
+   each as the only erf.most.z0 entry.
 """
 
 import argparse
@@ -64,6 +67,12 @@ def main():
     parser.add_argument('--wet-dir', required=True)
     parser.add_argument('--mid-dir', required=True)
     parser.add_argument('--veg-dir', required=True)
+    parser.add_argument('--tables-dir', required=True,
+                        help='run without erf.most.z0 (roughness from the tables)')
+    parser.add_argument('--tables-z0', type=float, required=True,
+                        help="the tables' land roughness for the tables run [m]")
+    parser.add_argument('--given-z0', type=float, required=True,
+                        help="the deck's erf.most.z0 [m], which the veg run keeps")
     parser.add_argument('--mid-q', type=float, required=True, help='q_s and q_deep of the mid run')
     parser.add_argument('--wilt', type=float, required=True)
     parser.add_argument('--fc', type=float, required=True)
@@ -156,6 +165,27 @@ def main():
                             f"{le_mid[n]:.4f}")
             break
     check_budget(args.veg_dir, 'veg')
+
+    # 6
+    def recorded_z0(directory):
+        path = os.path.join(directory, 'plt2d00000', 'job_info')
+        values = []
+        with open(path) as handle:
+            for line in handle:
+                fields = line.split('=')
+                if len(fields) == 2 and fields[0].strip() == 'erf.most.z0':
+                    values.append(float(fields[1].split()[0]))
+        if len(values) != 1:
+            raise CheckError(f"{path}: {len(values)} erf.most.z0 entries, expected one")
+        return values[0]
+
+    for label, directory, expected in (('tables', args.tables_dir, args.tables_z0),
+                                       ('veg', args.veg_dir, args.given_z0)):
+        z0 = recorded_z0(directory)
+        print(f"{label}: job_info erf.most.z0 = {z0} (expected {expected})")
+        if abs(z0 - expected) > 1.0e-6 * expected:
+            failures.append(f"{label}: job_info records erf.most.z0 = {z0}, but the run used "
+                            f"{expected}")
 
     if failures:
         for message in failures:

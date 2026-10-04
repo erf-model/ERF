@@ -454,8 +454,9 @@ public:
   int seb_soil_type = 0;
 
   /**
-   * @brief Noah-MP land-use category (modified IGBP MODIS, 1-20, as in NoahmpTable.TBL; see
-   * ERF_NoahMPVegetationTable.H) of the vegetated fraction. With it, the surface's moisture
+   * @brief Noah-MP land-use category (modified IGBP MODIS, 1-20 except the unvegetated 15,
+   * 16 and 17, as in NoahmpTable.TBL; see ERF_NoahMPVegetationTable.H) of the vegetated
+   * fraction. With it, the surface's moisture
    * availability comes from a canopy resistance (Jarvis, Noah-MP's parameters RS, RGL, HS,
    * TOPT, RSMAX) for the vegetated fraction and a bare-soil resistance (Noah-MP's
    * Sakaguchi-Zeng form, on seb_soil_type) for the rest, each in series with the
@@ -473,8 +474,8 @@ public:
   /**
    * @brief Leaf area index [m^2/m^2] of the vegetated fraction (seb_vegetation_type;
    * giving it otherwise stops at start-up). Default: the land-use category's monthly
-   * values interpolated to the run's start date (start_datetime), as Noah-MP does with its
-   * table LAI, shifted half a year when erf.rad_cons_lat < 0 (one latitude for the domain,
+   * values interpolated to the run's start date and time (start_datetime), as Noah-MP does
+   * with its table LAI (noahmp_day_of_year: day 0 at 00:00 on 1 January), shifted half a year when erf.rad_cons_lat < 0 (one latitude for the domain,
    * where Noah-MP uses each column's); fixed for the run.
    */
   amrex::Real seb_leaf_area_index = -1.0;
@@ -550,7 +551,7 @@ public:
    * it is derived from Noah-MP's soil instead (seb_force_restore_heat_capacity of the
    * soil's heat capacity and conductivity at seb_q_sfc_default, over
    * seb_restore_timescale_s) unless it is given explicitly.
-   * Only used when seb_prognostic_enable=true. Validated > 0 in init_params().
+   * Only used when seb_prognostic_enable=true. Must be > 0: init_params() stops otherwise.
    */
   amrex::Real seb_surface_heat_capacity = 2.0e4;
 
@@ -558,7 +559,7 @@ public:
    * @brief Force-restore timescale for surface temperature [s].
    * Relaxation time constant toward T_deep in prognostic T_s equation.
    * Default 86400.0 s (1 day) provides weak damping on diurnal timescales.
-   * Only used when seb_prognostic_enable=true. Validated > 0 in init_params().
+   * Only used when seb_prognostic_enable=true. Must be > 0: init_params() stops otherwise.
    */
   amrex::Real seb_restore_timescale_s = 86400.0;
 
@@ -566,7 +567,7 @@ public:
    * @brief Effective surface moisture layer depth [m].
    * Used in force-restore prognostic q_s equation: dq_s/dt = -(LE/(L_v*rho_w*d_s)) - (1/tau_q)*(q_s - q_deep).
    * Default 0.1 m represents a thin surface-active moisture layer.
-   * Only used when seb_prognostic_enable=true. Validated > 0 in init_params().
+   * Only used when seb_prognostic_enable=true. Must be > 0: init_params() stops otherwise.
    */
   amrex::Real seb_moisture_layer_depth_m = 0.1;
 
@@ -574,7 +575,7 @@ public:
    * @brief Force-restore timescale for surface moisture [s].
    * Relaxation time constant toward q_deep in prognostic q_s equation.
    * Default 86400.0 s (1 day) provides weak damping on diurnal timescales.
-   * Only used when seb_prognostic_enable=true. Validated > 0 in init_params().
+   * Only used when seb_prognostic_enable=true. Must be > 0: init_params() stops otherwise.
    */
   amrex::Real seb_moisture_restore_timescale_s = 86400.0;
 
@@ -791,7 +792,7 @@ public:
    * - erf.radiation.seb_soil_moisture_wilt (real, optional, default 0.066, 0 <= wilt < fc)
    * - erf.radiation.seb_soil_moisture_fc (real, optional, default 0.329, wilt < fc <= 1)
    * - erf.radiation.seb_soil_type (int, optional, default 0 = unset; 1-19, a Noah-MP STAS soil category)
-   * - erf.radiation.seb_vegetation_type (int, optional, default 0 = unset; 1-20, a Noah-MP MODIS land-use category)
+   * - erf.radiation.seb_vegetation_type (int, optional, default 0 = unset; 1-20 except 15-17 (no vegetation), a Noah-MP MODIS land-use category)
    * - erf.radiation.seb_vegetation_fraction (real, optional, default 1, in [0, 1])
    * - erf.radiation.seb_leaf_area_index (real, optional, default from the table at the start date, >= 0)
    * - erf.radiation.seb_hfx_default (real, optional, default 0.0)
@@ -802,10 +803,10 @@ public:
    * - erf.radiation.seb_q_deep_default (real, optional, default 0.0)
    * - erf.radiation.seb_diagnostic_enable (bool, optional, default false)
    * - erf.radiation.seb_prognostic_enable (bool, optional, default false)
-   * - erf.radiation.seb_surface_heat_capacity (real, optional, default 2.0e4, validated > 0)
-   * - erf.radiation.seb_restore_timescale_s (real, optional, default 86400.0, validated > 0)
-   * - erf.radiation.seb_moisture_layer_depth_m (real, optional, default 0.1, validated > 0)
-   * - erf.radiation.seb_moisture_restore_timescale_s (real, optional, default 86400.0, validated > 0)
+   * - erf.radiation.seb_surface_heat_capacity (real, optional, default 2.0e4, > 0, stops at start-up otherwise)
+   * - erf.radiation.seb_restore_timescale_s (real, optional, default 86400.0, > 0, stops at start-up otherwise)
+   * - erf.radiation.seb_moisture_layer_depth_m (real, optional, default 0.1, > 0, stops at start-up otherwise)
+   * - erf.radiation.seb_moisture_restore_timescale_s (real, optional, default 86400.0, > 0, stops at start-up otherwise)
    * - erf.radiation.seb_prognostic_t_min_k (real, optional, default 200.0)
    * - erf.radiation.seb_prognostic_t_max_k (real, optional, default 340.0)
    * - erf.radiation.seb_prognostic_q_min (real, optional, default 0.0, clamped to [0, 1])
@@ -1178,6 +1179,14 @@ public:
                            " is not a Noah-MP MODIS land-use category (1-20; see "
                            "ERF_NoahMPVegetationTable.H)");
           }
+          // Snow and ice (15), barren (16) and water (17) have no vegetation in the table
+          // (Z0MVT = 0, LAI 0 all year): Noah-MP treats such a surface as bare ground.
+          if (!(veg->z0 > 0.0)) {
+              amrex::Abort("erf.radiation.seb_vegetation_type = " + std::to_string(seb_vegetation_type) +
+                           " has no vegetation in Noah-MP's table (Z0MVT = 0, LAI 0 all year). "
+                           "For bare land leave seb_vegetation_type at 0: the soil's resistance "
+                           "and roughness (Z0SOIL) then apply.");
+          }
           if (!seb_surface_layer_uses_moisture || seb_soil_type == 0) {
               amrex::Abort("erf.radiation.seb_vegetation_type needs "
                            "erf.radiation.seb_surface_layer_uses_moisture = true and "
@@ -1195,27 +1204,23 @@ public:
                                std::to_string(seb_leaf_area_index));
               }
           } else {
-              // The table's monthly LAI at the start date, as Noah-MP interpolates it.
+              // The table's monthly LAI at the start date and time, as Noah-MP interpolates it
+              // (its day of the year counts from 0 at 00:00 on 1 January).
               std::string start;
               amrex::ParmParse pp_top;
-              int year = 0, month = 0, day = 0;
+              amrex::Real day = 0.0, days_in_year = 0.0;
               if (!pp_top.query("start_datetime", start) ||
-                  std::sscanf(start.c_str(), "%d-%d-%d", &year, &month, &day) != 3 ||
-                  month < 1 || month > 12 || day < 1 || day > 31) {
+                  !noahmp_day_of_year(start, day, days_in_year)) {
                   amrex::Abort("erf.radiation.seb_vegetation_type: give "
-                               "erf.radiation.seb_leaf_area_index, or start_datetime "
-                               "(YYYY-MM-DD ...) so that it can be taken from the table");
+                               "erf.radiation.seb_leaf_area_index, or a valid start_datetime "
+                               "(YYYY-MM-DD HH:MM:SS) so that it can be taken from the table");
               }
-              const bool leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
-              const int cum[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
-              const int doy = cum[month - 1] + day + ((leap && month > 2) ? 1 : 0);
-              seb_leaf_area_index = noahmp_leaf_area_index(*veg, amrex::Real(doy),
-                                                           leap ? amrex::Real(366) : amrex::Real(365),
+              seb_leaf_area_index = noahmp_leaf_area_index(*veg, day, days_in_year,
                                                            rad_cons_lat < 0.0);
               if (amrex::ParallelDescriptor::IOProcessor()) {
                   amrex::Print() << "NOTE: erf.radiation.seb_leaf_area_index = "
                                  << seb_leaf_area_index << ", Noah-MP's table value for land-use "
-                                    "category " << seb_vegetation_type << " on " << start.substr(0, 10)
+                                    "category " << seb_vegetation_type << " at " << start
                                  << ", fixed for the run.\n";
               }
           }
@@ -1351,19 +1356,18 @@ public:
       }
 
 
-      // Validate the prognostic parameters
-      if (!std::isfinite(seb_surface_heat_capacity) || seb_surface_heat_capacity <= 0.0) {
-          seb_surface_heat_capacity = 2.0e4;  // Reset to default
-      }
-      if (!std::isfinite(seb_restore_timescale_s) || seb_restore_timescale_s <= 0.0) {
-          seb_restore_timescale_s = 86400.0;  // Reset to default
-      }
-      if (!std::isfinite(seb_moisture_layer_depth_m) || seb_moisture_layer_depth_m <= 0.0) {
-          seb_moisture_layer_depth_m = 0.1;  // Reset to default
-      }
-      if (!std::isfinite(seb_moisture_restore_timescale_s) || seb_moisture_restore_timescale_s <= 0.0) {
-          seb_moisture_restore_timescale_s = 86400.0;  // Reset to default
-      }
+      // Validate the prognostic parameters: each must be positive and finite when given
+      // (the defaults are), so a typo stops here rather than running on another value.
+      auto require_positive = [] (const char* name, amrex::Real value) {
+          if (!(std::isfinite(value) && value > 0.0)) {
+              amrex::Abort(std::string("erf.radiation.") + name + " must be > 0; got " +
+                           std::to_string(value));
+          }
+      };
+      require_positive("seb_surface_heat_capacity", seb_surface_heat_capacity);
+      require_positive("seb_restore_timescale_s", seb_restore_timescale_s);
+      require_positive("seb_moisture_layer_depth_m", seb_moisture_layer_depth_m);
+      require_positive("seb_moisture_restore_timescale_s", seb_moisture_restore_timescale_s);
 
       // With a Noah-MP soil, the surface heat capacity of that soil at its initial water
       // content: the layer the restore period's temperature wave reaches.
@@ -1374,6 +1378,9 @@ public:
           const amrex::Real f_veg = veg ? seb_vegetation_fraction : amrex::Real(0.0);
           seb_land_roughness = f_veg * (veg ? veg->z0 : amrex::Real(0.0)) +
                                (amrex::Real(1.0) - f_veg) * noahmp_soil_roughness;
+          // At least min(Z0MVT, Z0SOIL) > 0: the categories with Z0MVT = 0 stop above.
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(seb_land_roughness > 0.0,
+              "erf.radiation.seb_*: the land roughness from Noah-MP's tables is not positive");
       }
 
       // A value given explicitly stands.

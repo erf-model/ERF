@@ -3,6 +3,8 @@
 #
 #   ./run_comparison.sh /path/to/erf_exec [nranks] [--barren]
 #
+# --barren may come anywhere among the arguments; nranks defaults to 4.
+#
 # --barren runs the dry-surface variant: bare land (Noah-MP land-use 16, no vegetation) on the
 # same soil at its wilting point, so that neither surface evaporates.
 #
@@ -12,9 +14,23 @@
 # comparison.png there.
 set -euo pipefail
 
-exe=${1:?usage: $0 /path/to/erf_exec [nranks] [--barren]}
-nranks=${2:-4}
-barren=${3:-}
+usage="usage: $0 /path/to/erf_exec [nranks] [--barren] (--barren may come anywhere)"
+# --barren is a flag in any position; the rest are the executable and the rank count.
+barren=""
+args=()
+for arg in "$@"; do
+    case "$arg" in
+        --barren) barren="--barren" ;;
+        -*) echo "unknown option $arg; $usage"; exit 1 ;;
+        *) args+=("$arg") ;;
+    esac
+done
+[ "${#args[@]}" -ge 1 ] && [ "${#args[@]}" -le 2 ] || { echo "$usage"; exit 1; }
+exe=${args[0]}
+nranks=${args[1]:-4}
+case "$nranks" in
+    ''|*[!0-9]*|0) echo "nranks must be a positive integer, got '$nranks'; $usage"; exit 1 ;;
+esac
 here=$(cd "$(dirname "$0")" && pwd)
 erf_home=$(cd "$here/../../../.." && pwd)
 table="$erf_home/Submodules/Noah-MP/parameters/NoahmpTable.TBL"

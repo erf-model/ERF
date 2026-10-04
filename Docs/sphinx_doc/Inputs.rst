@@ -4377,13 +4377,16 @@ atmospheric cell), ``start_datetime`` and the
 |                                                    | surface layer's land roughness, f_veg Z0MVT + (1 - f_veg)  |                    |                  |
 |                                                    | Z0SOIL, unless erf.most.z0 is given. Not 14 (water)        |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_vegetation_type**              | Noah-MP land-use category (modified IGBP MODIS;            | Integer 1-20, 0 =  | 0                |
-|                                                    | ERF_NoahMPVegetationTable.H). The vegetated fraction       | unset              |                  |
-|                                                    | transpires through Noah's big-leaf Jarvis canopy           |                    |                  |
+| **erf.radiation.seb_vegetation_type**              | Noah-MP land-use category (modified IGBP MODIS;            | Integer 1-20 but   | 0                |
+|                                                    | ERF_NoahMPVegetationTable.H). The vegetated fraction       | not 15-17, 0 =     |                  |
+|                                                    | transpires through Noah's big-leaf Jarvis canopy           | unset              |                  |
 |                                                    | resistance on Noah-MP's RS, RGL, HS, TOPT, RSMAX and the   |                    |                  |
 |                                                    | leaf area index; the rest evaporates through Noah-MP's     |                    |                  |
 |                                                    | bare-soil resistance. Needs                                |                    |                  |
-|                                                    | seb_surface_layer_uses_moisture and seb_soil_type          |                    |                  |
+|                                                    | seb_surface_layer_uses_moisture and seb_soil_type. 15, 16  |                    |                  |
+|                                                    | and 17 (snow and ice, barren, water) have no vegetation    |                    |                  |
+|                                                    | in the table and stop at start-up: leave it at 0 for bare  |                    |                  |
+|                                                    | land                                                       |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_vegetation_fraction**          | Vegetated fraction of the surface. Used only with          | Real [0,1]         | 1.0              |
 |                                                    | seb_vegetation_type; giving it otherwise stops at start-up |                    |                  |
@@ -4424,16 +4427,19 @@ atmospheric cell), ``start_datetime`` and the
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_q_deep_default**               | Deep soil moisture q_s restores to, in q_s's units         | Real [0,1]         | 0.0              |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_surface_heat_capacity**        | Effective surface heat capacity [J/(m²·K)]. With           | Real               | 2.0e4            |
-|                                                    | seb_soil_type and not given: sqrt(lambda c tau / pi) / 2   |                    |                  |
+| **erf.radiation.seb_surface_heat_capacity**        | Effective surface heat capacity [J/(m²·K)]. With           | Real > 0; stops at | 2.0e4            |
+|                                                    | seb_soil_type and not given: sqrt(lambda c tau / pi) / 2   | at start-up if not |                  |
 |                                                    | of the soil's conductivity and heat capacity at            |                    |                  |
 |                                                    | seb_q_sfc_default over seb_restore_timescale_s (Deardorff) |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_restore_timescale_s**          | Force-restore timescale for surface temperature [s]        | Real               | 86400.0 (1 day)  |
+| **erf.radiation.seb_restore_timescale_s**          | Force-restore timescale for surface temperature [s]        | Real > 0; stops at | 86400.0 (1 day)  |
+|                                                    |                                                            | at start-up if not |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_moisture_layer_depth_m**       | Effective surface moisture layer depth [m]                 | Real               | 0.1              |
+| **erf.radiation.seb_moisture_layer_depth_m**       | Effective surface moisture layer depth [m]                 | Real > 0; stops at | 0.1              |
+|                                                    |                                                            | at start-up if not |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_moisture_restore_timescale_s** | Force-restore timescale for surface moisture [s]           | Real               | 86400.0 (1 day)  |
+| **erf.radiation.seb_moisture_restore_timescale_s** | Force-restore timescale for surface moisture [s]           | Real > 0; stops at | 86400.0 (1 day)  |
+|                                                    |                                                            | at start-up if not |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_prognostic_t_min_k**           | Minimum clamping bound for prognostic surface T [K]        | Real               | 200.0            |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+

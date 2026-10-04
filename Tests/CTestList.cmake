@@ -369,9 +369,10 @@ function(add_test_two_stream_noahmp_levels TEST_NAME)
 endfunction(add_test_two_stream_noahmp_levels)
 
 # The two-stream balance's skin and soil moisture both coupled to the surface layer, on the
-# deck of TwoStream_SEBSurfaceLayerFluxes in four legs: Noah-MP's silty clay loam at the
+# deck of TwoStream_SEBSurfaceLayerFluxes in five legs: Noah-MP's silty clay loam at the
 # wilting point, at field capacity and in between, and the in-between soil under grassland
-# (seb_vegetation_type, so the canopy and soil resistances act)
+# (seb_vegetation_type, so the canopy and soil resistances act); plus a one-step leg without
+# erf.most.z0, whose job_info must record the tables' roughness
 # (Tests/RunTwoStreamSEBMoisture.cmake, Tests/check_two_stream_seb_moisture.py).
 function(add_test_two_stream_seb_moisture TEST_NAME)
     set(TEST_FILES_DIR "TwoStream_SEBSurfaceLayerFluxes")
@@ -398,7 +399,7 @@ function(add_test_two_stream_seb_moisture TEST_NAME)
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression;radiation"
-        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/dry/simulation.log;${CURRENT_TEST_BINARY_DIR}/wet/simulation.log;${CURRENT_TEST_BINARY_DIR}/mid/simulation.log;${CURRENT_TEST_BINARY_DIR}/veg/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/dry/simulation.log;${CURRENT_TEST_BINARY_DIR}/wet/simulation.log;${CURRENT_TEST_BINARY_DIR}/mid/simulation.log;${CURRENT_TEST_BINARY_DIR}/veg/simulation.log;${CURRENT_TEST_BINARY_DIR}/tables/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
 endfunction(add_test_two_stream_seb_moisture)
 
 function(add_test_cloud_chamber_parity TEST_NAME)
