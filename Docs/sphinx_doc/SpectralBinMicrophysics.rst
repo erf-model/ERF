@@ -710,8 +710,10 @@ The current configuration requires:
 * no sounding nudging;
 * no custom moisture forcing;
 * no real-data lateral boundary forcing; and
-* no problem setup that introduces problem-specific liquid forcing or custom
-  perturbations.
+* only the qualified problem setups accepted by the M3 runtime guard: the
+  default/undefined setup, ``SBM M3 periodic advection``, and
+  ``Scalar Advection/Diffusion``; other problem-specific initialization or
+  forcing is rejected.
 
 The resolved host dry-air carrier may be nonzero. SBM transport uses that
 carrier directly and checks the donor outgoing-demand condition at each host

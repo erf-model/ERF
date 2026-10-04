@@ -316,7 +316,10 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         }
         auxiliary_inert_tracer->initialize(lev, lev_new[Vars::cons], geom[lev]);
     }
-    if (sbm_transport) {
+    // Checkpoint geometry is restored after this level-creation routine. Leave
+    // the restart measure unready until ReadCheckpointFile rebuilds it from
+    // the restored geometry and terrain metrics.
+    if (sbm_transport && restart_chkfile.empty()) {
         AMREX_ALWAYS_ASSERT(detJ_cc[lev] != nullptr);
         AMREX_ALWAYS_ASSERT(mapfac[lev][MapFacType::m_x] != nullptr);
         AMREX_ALWAYS_ASSERT(mapfac[lev][MapFacType::m_y] != nullptr);

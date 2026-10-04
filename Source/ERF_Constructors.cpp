@@ -99,7 +99,8 @@ void validate_sbm_m3_advection (const SolverChoice& choice,
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         problem_name_ci == "undefined" || problem_name_ci == "sbm m3 periodic advection" ||
         problem_name_ci == "scalar advection/diffusion",
-        "SBM M3 rejects problem-specific liquid forcing and custom initial perturbations");
+        "SBM M3 supports only the qualified Undefined, SBM M3 periodic advection, "
+        "or Scalar Advection/Diffusion problem setups");
 }
 
 void validate_auxiliary_inert_tracer_fixture (const SolverChoice& choice,

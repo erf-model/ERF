@@ -1047,7 +1047,8 @@ SBMTransport::advance_stage (const int level,
             // two-component fixed liquid projection ledger.
             const auto& projection_spec = m_layout.liquid_projection();
             if (group.population_id == projection_spec.population_id) {
-                const int mass_component = group.members.front();
+                const int mass_component =
+                    m_layout.mass_offset(group.population_id) + group.bin;
                 const int local_mass =
                     global_to_local[static_cast<std::size_t>(mass_component)];
                 const int projected_component =

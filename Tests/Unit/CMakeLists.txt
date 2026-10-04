@@ -368,6 +368,23 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     inputs_adaptive_anelastic_donor
     "SBM M3 fixed timestep exceeds donor positivity limit"
     "-DOVERRIDE=erf.fixed_dt=0.2")
+
+  add_test(NAME SBM_M3_Adaptive_Anelastic_Stretched_Donor_CFL
+    COMMAND ${CMAKE_COMMAND}
+      -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+      -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_adaptive_anelastic_stretched_donor
+      -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+      -DEXPECT_SECOND_CHECKPOINT=true
+      -DSKIP_RESTART=true
+      -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3Smoke.cmake)
+  set_tests_properties(SBM_M3_Adaptive_Anelastic_Stretched_Donor_CFL PROPERTIES
+    LABELS "integration;sbm"
+    RUN_SERIAL TRUE
+    TIMEOUT 120)
+  add_sbm_expected_failure_test(SBM_M3_Fixed_Unsafe_Anelastic_Stretched_Donor_DT
+    inputs_adaptive_anelastic_stretched_donor
+    "SBM M3 fixed timestep exceeds donor positivity limit"
+    "-DOVERRIDE=erf.fixed_dt=0.05")
   add_sbm_expected_failure_test(SBM_M3_Reject_Legacy_Zero_Transport inputs_zero_carrier
     "erf.sbm_zero_transport_fixture=true is obsolete"
     "-DOVERRIDE=erf.sbm_zero_transport_fixture=true")
@@ -419,6 +436,27 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     LABELS "integration;sbm"
     RUN_SERIAL TRUE
     TIMEOUT 120)
+
+  if(AMReX_PRECISION STREQUAL "DOUBLE" AND
+     NOT ERF_ENABLE_CUDA AND NOT ERF_ENABLE_HIP AND NOT ERF_ENABLE_SYCL)
+    add_executable(erf_sbm_checkpoint_compare
+      ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_SBMCheckpointCompare.cpp)
+    target_link_libraries(erf_sbm_checkpoint_compare PRIVATE AMReX::amrex)
+    target_include_directories(erf_sbm_checkpoint_compare PRIVATE ${PROJECT_SOURCE_DIR}/Source)
+    target_compile_features(erf_sbm_checkpoint_compare PRIVATE cxx_std_17)
+
+    add_test(NAME SBM_M3_StaticTerrain_Restart_Equivalence
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+        -DCOMPARE_EXECUTABLE=$<TARGET_FILE:erf_sbm_checkpoint_compare>
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_periodic_static_terrain
+        -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+        -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3RestartEquivalence.cmake)
+    set_tests_properties(SBM_M3_StaticTerrain_Restart_Equivalence PROPERTIES
+      LABELS "integration;sbm"
+      RUN_SERIAL TRUE
+      TIMEOUT 180)
+  endif()
 
   foreach(_mode IN ITEMS 1m 2m)
     set(_advection_expected_values)

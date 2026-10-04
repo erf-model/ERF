@@ -9,6 +9,7 @@
 #include "Diffusion/ERF_CloudChamberWallFlux.H"
 #include "TimeIntegration/ERF_CloudChamberWallDtGuard.H"
 #include "AuxiliaryState/ERF_AuxiliaryMappedTransport.H"
+#include "Microphysics/SBM/ERF_SBMTransport.H"
 
 #include <limits>
 #include <sstream>
@@ -396,7 +397,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
         rho_v.FillBoundary(geom[level].periodicity());
         rho_w.FillBoundary(geom[level].periodicity());
 
-        MultiFab omega(zface_ba, cell_dm, 1, 0);
+        MultiFab sbm_vertical_carrier(zface_ba, cell_dm, 1, 0);
         const bool terrain_fitted =
             solverChoice.mesh_type == MeshType::VariableDz;
         const int zlo = geom[level].Domain().smallEnd(2);
@@ -405,7 +406,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
         const MultiFab& z_nd = *z_phys_nd[level];
         const MultiFab& mf_ux = *mapfac[level][MapFacType::u_x];
         const MultiFab& mf_vy = *mapfac[level][MapFacType::v_y];
-        for (MFIter mfi(omega, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        for (MFIter mfi(sbm_vertical_carrier, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
             const Box bx = mfi.tilebox();
             const auto ru = rho_u.const_array(mfi);
             const auto rv = rho_v.const_array(mfi);
@@ -413,7 +414,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
             const auto ux = mf_ux.const_array(mfi);
             const auto vy = mf_vy.const_array(mfi);
             const auto z = z_nd.const_array(mfi);
-            const auto out = omega.array(mfi);
+            const auto out = sbm_vertical_carrier.array(mfi);
             const bool fitted = terrain_fitted;
             const int bottom = zlo;
             const int top = zhi + 1;
@@ -435,25 +436,32 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
         erf_auxiliary::MappedFaceFluxRate mapped_carrier;
         mapped_carrier.define(cell_ba, cell_dm, 1, 0);
         std::string sbm_diagnostic;
-        const bool carrier_ok =
-            erf_auxiliary::BuildMappedDryAirCarrierFluxRate(
-                mapped_carrier, rho_u, rho_v, omega,
-                *ax[level], *ay[level], *az[level],
-                *mapfac[level][MapFacType::u_y],
-                *mapfac[level][MapFacType::v_x],
-                *mapfac[level][MapFacType::m_x],
-                *mapfac[level][MapFacType::m_y], sbm_diagnostic);
-        if (!carrier_ok) {
-            Abort("SBM M3 current mapped carrier: " + sbm_diagnostic);
+        if (l_anelastic) {
+            // Anelastic momentum fields are already the host dry-air carrier
+            // used by the stage transport. Applying mapped area metrics here
+            // would count terrain geometry a second time in the CFL estimate.
+            MultiFab::Copy(mapped_carrier.dir(0), rho_u, 0, 0, 1, 0);
+            MultiFab::Copy(mapped_carrier.dir(1), rho_v, 0, 0, 1, 0);
+            MultiFab::Copy(mapped_carrier.dir(2), sbm_vertical_carrier, 0, 0, 1, 0);
+        } else {
+            const bool carrier_ok =
+                erf_auxiliary::BuildMappedDryAirCarrierFluxRate(
+                    mapped_carrier, rho_u, rho_v, sbm_vertical_carrier,
+                    *ax[level], *ay[level], *az[level],
+                    *mapfac[level][MapFacType::u_y],
+                    *mapfac[level][MapFacType::v_x],
+                    *mapfac[level][MapFacType::m_x],
+                    *mapfac[level][MapFacType::m_y], sbm_diagnostic);
+            if (!carrier_ok) {
+                Abort("SBM M3 current mapped carrier: " + sbm_diagnostic);
+            }
         }
 
-        MultiFab measure(cell_ba, cell_dm, 1, 0);
-        const bool measure_ok = erf_auxiliary::BuildMappedCellMeasure(
-            measure, *detJ_cc[level], *mapfac[level][MapFacType::m_x],
-            *mapfac[level][MapFacType::m_y], sbm_diagnostic);
-        if (!measure_ok) {
-            Abort("SBM M3 current mapped measure: " + sbm_diagnostic);
+        if (sbm_transport == nullptr || !sbm_transport->is_defined(level) ||
+            !sbm_transport->measure_is_ready(level)) {
+            Abort("SBM M3 donor timestep estimate requires a ready static measure");
         }
+        const MultiFab& measure = sbm_transport->static_measure(level);
 
         Real max_sbm_outgoing_rate = Real(0.0);
         const bool rate_ok = erf_auxiliary::ComputeMaxMappedOutgoingRate(
