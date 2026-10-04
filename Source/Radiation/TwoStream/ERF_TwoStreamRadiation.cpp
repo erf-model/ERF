@@ -10,6 +10,7 @@
 #include <ERF_PrognosticCloudFraction.H>
 #include <ERF_AerosolOpticalDepth.H>
 #include <ERF_SimplifiedSEB.H>
+#include <ERF_SurfaceMoisture.H>
 #include <ERF_SEBTurbulentFlux.H>
 #include <ERF_OrbCosZenith.H>
 #include <AMReX_Print.H>
@@ -220,6 +221,7 @@ TwoStreamRadiation::resize (int nlevs_max)
     m_q_sfc.resize(nlevs_max);
     m_t_deep.resize(nlevs_max);
     m_q_deep.resize(nlevs_max);
+    m_moisture.resize(nlevs_max);
     m_flux_diag.resize(nlevs_max);
     m_diag.resize(nlevs_max);
 }
@@ -292,6 +294,13 @@ TwoStreamRadiation::define_level (int lev,
         m_q_sfc[lev]->setVal(rad_choice.seb_q_sfc_default);
         m_t_deep[lev]->setVal(rad_choice.seb_t_deep_default);
         m_q_deep[lev]->setVal(rad_choice.seb_q_deep_default);
+        if (rad_choice.seb_surface_layer_uses_moisture) {
+            m_moisture[lev] = std::make_unique<MultiFab>(ba2d, dm,
+                                                         erf_surface_moisture::NumComponents, ng_sfc);
+            m_moisture[lev]->setVal(0.0);
+        } else {
+            m_moisture[lev].reset();
+        }
     }
 
     // The land-model forcing (see the members). It holds the lsm_undefined sentinel until a
@@ -331,6 +340,74 @@ copy_surface_plane (const MultiFab& src2d, MultiFab& dst)
         const Box plane = makeSlab(mfi.validbox(), 2, 0);
         dst[mfi].template copy<RunOn::Device>(src2d[mfi], plane, 0, plane, 0, 1);
     }
+}
+
+const MultiFab*
+TwoStreamRadiation::seb_surface_moisture (int lev)
+{
+    if (!active() || !m_rad->seb_enable || !m_rad->seb_surface_layer_uses_moisture ||
+        lev >= static_cast<int>(m_moisture.size()) || !m_moisture[lev] || !m_q_sfc[lev]) {
+        return nullptr;
+    }
+    using namespace erf_surface_moisture;
+    const Real q_wilt = m_rad->seb_soil_moisture_wilt;
+    const Real q_fc = m_rad->seb_soil_moisture_fc;
+
+    // With a vegetation type: Noah-MP's canopy parameters, and the soil's for the bare-soil
+    // resistance of the top seb_moisture_layer_depth_m (RadChoice::init_params checked both
+    // categories).
+    const NoahMPVegetationParams* veg = (m_rad->seb_vegetation_type != 0)
+                                      ? noahmp_vegetation_params(m_rad->seb_vegetation_type) : nullptr;
+    const NoahMPSoilParams* soil = (m_rad->seb_soil_type != 0)
+                                 ? noahmp_soil_params(m_rad->seb_soil_type) : nullptr;
+    const bool vegetated = (veg != nullptr && soil != nullptr);
+    const Real f_veg = vegetated ? m_rad->seb_vegetation_fraction : Real(0.0);
+    const Real lai = m_rad->seb_leaf_area_index;
+    const Real rs_min = vegetated ? veg->rs_min : Real(0.0);
+    const Real rs_max = vegetated ? veg->rs_max : Real(0.0);
+    const Real rgl = vegetated ? veg->rgl : Real(0.0);
+    const Real t_opt = vegetated ? veg->t_opt : Real(0.0);
+    const Real smc_max = vegetated ? soil->smc_max : Real(0.0);
+    const Real bb = vegetated ? soil->bb : Real(0.0);
+    const Real d1 = m_rad->seb_moisture_layer_depth_m;
+    const Real resistance_exponent = noahmp_soil_resistance_exponent;
+
+    MultiFab& out = *m_moisture[lev];
+    const MultiFab& q_s = *m_q_sfc[lev];
+    const MultiFab& t_s = *m_t_sfc[lev];
+    // The shortwave down at the surface, from the net the balance holds and the albedo.
+    const MultiFab* sw_net = m_sw_flux_sfc[lev].get();
+    const MultiFab* albedo = m_alb_sw[lev].get();
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(out, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        const auto out_arr = out.array(mfi);
+        const auto q_arr = q_s.const_array(mfi);
+        const auto t_arr = t_s.const_array(mfi);
+        const auto sw_arr = (vegetated && sw_net) ? sw_net->const_array(mfi) : Array4<const Real>{};
+        const auto alb_arr = (vegetated && albedo) ? albedo->const_array(mfi) : Array4<const Real>{};
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const Real soil_factor = seb_moisture_availability(q_arr(i, j, k), q_wilt, q_fc);
+            out_arr(i, j, k, SoilFactor) = soil_factor;
+            out_arr(i, j, k, VegetationFraction) = f_veg;
+            Real r_c = Real(1.0e6);
+            Real r_soil = Real(1.0e6);
+            if (vegetated) {
+                const Real a = (alb_arr) ? alb_arr(i, j, k) : Real(0.0);
+                const Real sw_down = (sw_arr && a < Real(1.0)) ? sw_arr(i, j, k) / (Real(1.0) - a) : Real(0.0);
+                r_c = seb_canopy_resistance_without_vpd(rs_min, rs_max, rgl, t_opt, lai, sw_down,
+                                                        t_arr(i, j, k), soil_factor);
+                r_soil = seb_soil_evaporation_resistance(q_arr(i, j, k), smc_max, q_wilt, bb, d1,
+                                                         resistance_exponent);
+            }
+            out_arr(i, j, k, CanopyResistanceWithoutVPD) = r_c;
+            out_arr(i, j, k, SoilResistance) = r_soil;
+        });
+    }
+    return m_moisture[lev].get();
 }
 
 void

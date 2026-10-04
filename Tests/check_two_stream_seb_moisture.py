@@ -1,0 +1,174 @@
+#!/usr/bin/env python3
+"""Check the moisture coupling of the two-stream surface energy balance with the surface layer.
+
+With erf.radiation.seb_surface_layer_uses_moisture the surface layer takes its land surface
+mixing ratio as beta * q_sat(T_s, p_s) + (1 - beta) * q_air, with
+beta = clamp((q_s - wilt) / (fc - wilt), 0, 1) from the balance's soil water q_s, and the
+balance drains q_s by the latent heat flux it removes. Given the 2D plotfiles (one per step)
+of four runs -- three whose soil starts and restores at the wilting point (dry), at field
+capacity (wet) and in between (mid), and a fourth (veg) on mid's soil under vegetation --
+this asserts:
+
+1. dry: beta = 0, so the latent heat flux is zero at every step, while
+2. wet: the latent heat flux is not small, so 1 is not 0 == 0;
+3. step 1, when the three runs differ only in beta (same air, same skin):
+   q_surf(wet) - q_surf(dry) is not small (the saturated surface is moister than the air),
+   q_surf(mid) - q_surf(dry) = beta(mid) * (q_surf(wet) - q_surf(dry)) to round-off -- the
+   linear blend with the dry run's q_surf as the air's -- and LE(mid) lies between LE(dry)
+   and LE(wet). (LE itself is not exactly beta times the wet value: the moisture flux enters
+   the surface layer's stability through the virtual heat flux.)
+4. mid, every step n >= 2: the balance's water content follows its budget,
+   q_s(n) = q_s(n-1) - dt * LE(n) / (L_v rho_w d_s) - dt * (q_s(n-1) - q_deep) / tau_q,
+   with LE(n) the latent heat flux it removed (seb_lh): the water the air gains leaves the
+   soil; and the soil has dried from step 1 to the last;
+5. veg (mid's soil under Noah-MP's grassland, seb_vegetation_type): the canopy and soil
+   resistances lower LE below mid's, which has the soil-water factor alone, but not to
+   zero, at every step; and the water budget and drying of 4 hold.
+"""
+
+import argparse
+import os
+import subprocess
+import sys
+
+L_V = 2.5e6       # latent heat of vaporization [J/kg] (ERF_Constants.H)
+RHO_W = 1000.0    # density of water [kg/m^3] (rhor, ERF_MicrophysicsConstants.H)
+
+
+class CheckError(Exception):
+    """A condition that fails the check (reported as FAIL, not as a traceback)."""
+
+
+def mean_value(fextract, plotfile, variable, out_path):
+    cmd = [fextract, '-d', '0', '-v', variable, '-e', '-s', out_path, plotfile]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise CheckError(f"amrex_fextract failed on {plotfile} {variable} "
+                         f"(exit {proc.returncode}): {proc.stdout}{proc.stderr}")
+    values = []
+    with open(out_path) as handle:
+        for line in handle:
+            fields = line.split()
+            if fields and not fields[0].startswith('#'):
+                values.append(float(fields[1]))
+    if not values:
+        raise CheckError(f"{plotfile}: no {variable} cells on the slice")
+    return sum(values) / len(values)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--fextract', required=True)
+    parser.add_argument('--dry-dir', required=True)
+    parser.add_argument('--wet-dir', required=True)
+    parser.add_argument('--mid-dir', required=True)
+    parser.add_argument('--veg-dir', required=True)
+    parser.add_argument('--mid-q', type=float, required=True, help='q_s and q_deep of the mid run')
+    parser.add_argument('--wilt', type=float, required=True)
+    parser.add_argument('--fc', type=float, required=True)
+    parser.add_argument('--steps', type=int, required=True)
+    parser.add_argument('--dt', type=float, required=True)
+    parser.add_argument('--depth', type=float, default=0.1, help='seb_moisture_layer_depth_m')
+    parser.add_argument('--tau-q', type=float, default=86400.0,
+                        help='seb_moisture_restore_timescale_s')
+    parser.add_argument('--min-le', type=float, default=1.0,
+                        help='smallest acceptable LE of the wet run [W/m^2]')
+    parser.add_argument('--mix-rtol', type=float, default=1.0e-10,
+                        help='relative tolerance of the surface mixing ratio relation')
+    parser.add_argument('--budget-atol', type=float, default=1.0e-12,
+                        help='water-content budget tolerance per step [m^3/m^3]')
+    args = parser.parse_args()
+
+    failures = []
+
+    def series(directory, variable):
+        scratch = os.path.join(directory, 'moisture_slices')
+        os.makedirs(scratch, exist_ok=True)
+        return [mean_value(args.fextract, os.path.join(directory, f"plt2d{step:05d}"), variable,
+                           os.path.join(scratch, f"{variable}_{step}.dat"))
+                for step in range(0, args.steps + 1)]
+
+    # 1 and 2
+    le_dry = series(args.dry_dir, 'latent_heat_flux')
+    le_wet = series(args.wet_dir, 'latent_heat_flux')
+    worst_dry = max(abs(v) for v in le_dry[1:])
+    print(f"dry: largest |LE| over the steps {worst_dry:.3e} W/m^2")
+    if worst_dry > 1.0e-6:
+        failures.append(f"dry: LE reaches {worst_dry:.3e} W/m^2; at the wilting point the "
+                        f"surface mixing ratio is the air's and LE must be zero")
+    print(f"wet: LE at step 1 {le_wet[1]:.4f} W/m^2")
+    if not le_wet[1] > args.min_le:
+        failures.append(f"wet: LE at step 1 is {le_wet[1]:.3e} W/m^2, not above {args.min_le}; "
+                        f"the dry check would be trivial")
+
+    # 3
+    beta_mid = min(1.0, max(0.0, (args.mid_q - args.wilt) / (args.fc - args.wilt)))
+    q_dry = series(args.dry_dir, 'q_surf')[1]
+    q_wet = series(args.wet_dir, 'q_surf')[1]
+    q_mid = series(args.mid_dir, 'q_surf')[1]
+    print(f"step 1 q_surf: dry {q_dry:.8f} (the air's), mid {q_mid:.8f}, wet {q_wet:.8f} kg/kg; "
+          f"beta(mid) = {beta_mid:.4f}")
+    if not q_wet - q_dry > 1.0e-4:
+        failures.append(f"q_surf(wet) - q_surf(dry) is {q_wet - q_dry:.3e} kg/kg; the "
+                        f"saturated surface must be moister than the air for check 3 to mean "
+                        f"anything")
+    else:
+        expected = beta_mid * (q_wet - q_dry)
+        error = abs((q_mid - q_dry) - expected)
+        print(f"mid: q_surf(mid) - q_surf(dry) = {q_mid - q_dry:.8e}, beta * (wet - dry) = "
+              f"{expected:.8e}")
+        if error > args.mix_rtol * abs(expected):
+            failures.append(f"mid: q_surf(mid) - q_surf(dry) = {q_mid - q_dry:.8e} is not "
+                            f"beta * (q_surf(wet) - q_surf(dry)) = {expected:.8e}")
+    le_mid = series(args.mid_dir, 'latent_heat_flux')
+    print(f"step 1 LE: dry {le_dry[1]:.4f}, mid {le_mid[1]:.4f}, wet {le_wet[1]:.4f} W/m^2")
+    if not le_dry[1] < le_mid[1] < le_wet[1]:
+        failures.append("step 1: LE(mid) does not lie between LE(dry) and LE(wet)")
+
+    # 4 (and the budget of 5)
+    def check_budget(directory, label):
+        q_s = series(directory, 'seb_q_sfc')
+        seb_lh = series(directory, 'seb_lh')
+        worst = 0.0
+        for n in range(2, args.steps + 1):
+            expected = (q_s[n - 1] - args.dt * seb_lh[n] / (L_V * RHO_W * args.depth)
+                        - args.dt * (q_s[n - 1] - args.mid_q) / args.tau_q)
+            worst = max(worst, abs(q_s[n] - expected))
+        print(f"{label}: soil water {q_s[1]:.8f} -> {q_s[args.steps]:.8f} m^3/m^3 over steps "
+              f"1-{args.steps}; worst budget error {worst:.3e}")
+        if worst > args.budget_atol:
+            failures.append(f"{label}: the soil water does not follow its budget (worst error "
+                            f"{worst:.3e}, tolerance {args.budget_atol})")
+        if not q_s[1] - q_s[args.steps] > 0.0:
+            failures.append(f"{label}: the soil did not dry ({q_s[1]} -> {q_s[args.steps]})")
+
+    check_budget(args.mid_dir, 'mid')
+
+    # 5
+    le_veg = series(args.veg_dir, 'latent_heat_flux')
+    print(f"veg: LE at step 1 {le_veg[1]:.4f} W/m^2 (mid {le_mid[1]:.4f}); ratio over the steps "
+          f"{min(v / m for v, m in zip(le_veg[1:], le_mid[1:])):.4f}-"
+          f"{max(v / m for v, m in zip(le_veg[1:], le_mid[1:])):.4f}")
+    for n in range(1, args.steps + 1):
+        if not 0.0 < le_veg[n] < le_mid[n]:
+            failures.append(f"veg step {n}: LE {le_veg[n]:.4f} W/m^2 is not between 0 and mid's "
+                            f"{le_mid[n]:.4f}")
+            break
+    check_budget(args.veg_dir, 'veg')
+
+    if failures:
+        for message in failures:
+            print(f"FAIL: {message}")
+        return 1
+    print("PASS: the surface evaporates at beta times the potential rate and the soil "
+          "loses the water the air gains")
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except CheckError as error:
+        print(f"FAIL: {error}")
+        sys.exit(1)

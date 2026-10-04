@@ -1,7 +1,9 @@
 ! Noah-MP driver options for TwoStream_NoahMP_vs_ForceRestore: those of
 ! Exec/RegTests/NoahMP_Ideal/namelist.erf, with a land setup file for each level
-! (make_land_files.py) and a 60 s land step, so that the land model follows the six-hour
-! day as closely as the force-restore balance does (that one steps with ERF).
+! (make_land_files.py), a 60 s land step, so that the land model follows the six-hour day as
+! closely as the force-restore balance does (that one steps with ERF), and Jarvis stomata
+! (CANOPY_STOMATAL_RESISTANCE_OPTION = 2), the canopy resistance the balance uses; Noah-MP's
+! default Ball-Berry (1) transpires much less here (README.md).
 &NOAHLSM_OFFLINE
 
  ERF_SETUP_FILE_01 = "wrfinput_d01"
@@ -12,7 +14,7 @@
  SPINUP_LOOPS = 0
 
  DYNAMIC_VEG_OPTION                = 4
- CANOPY_STOMATAL_RESISTANCE_OPTION = 1
+ CANOPY_STOMATAL_RESISTANCE_OPTION = 2
  BTR_OPTION                        = 1
  SURFACE_RUNOFF_OPTION             = 3
  SUBSURFACE_RUNOFF_OPTION          = 3

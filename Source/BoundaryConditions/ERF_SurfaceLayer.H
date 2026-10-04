@@ -120,6 +120,7 @@ public:
 
       // Get roughness
       amrex::ParmParse pp(a_pp_prefix);
+      m_z0_given = pp.contains("most.z0");
       pp.queryAdd("most.z0", z0_const);
 
       // Specify how to compute the flux
@@ -1034,6 +1035,25 @@ public:
                                          const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
   /**
+   * Overwrite the land surface mixing ratio with that of a surface of moisture
+   * availability beta at the external skin temperature:
+   * beta * q_sat(T_skin, p_s) + (1 - beta) * q_air (erf_surface_moisture::
+   * surface_mixing_ratio), q_air the reference-height mixing ratio the flux uses, so that
+   * the moisture flux is beta times the potential one. beta is the soil-water factor of
+   * set_skin_moisture, or, with resistances, erf_surface_moisture::two_source_availability
+   * of the aerodynamic resistance (from the last u* and Obukhov length; neutral before the
+   * first flux), the canopy resistance with its vapour-deficit factor, and the soil
+   * resistance. Needs set_skin_temperature and the averages of this step.
+   *
+   * @param[in] lev       level index
+   * @param[in] cons_in   conserved state (surface pressure and q_air from the lowest cell)
+   * @param[in] z_phys_nd nodal heights, or nullptr on a flat mesh
+   */
+  void fill_qsurf_with_skin_moisture (const int& lev,
+                                      const amrex::MultiFab& cons_in,
+                                      const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+
+  /**
    * Fill surface moisture from saturation specific humidity.
    *
    * @param[in] lev       level index
@@ -1328,6 +1348,64 @@ public:
   }
 
   /**
+   * Take the land surface mixing ratio of level lev from the skin set by
+   * set_skin_temperature (fill_qsurf_with_skin_moisture), or stop doing so (nullptr).
+   * The owner keeps the field alive and resets the pointer whenever it reallocates it.
+   *
+   * @param[in] lev             level index
+   * @param[in] moisture        per-column field in the components of
+   *                            erf_surface_moisture::Component, on the surface-layer layout
+   * @param[in] use_resistances form beta from the canopy and soil resistances, not the
+   *                            soil-water factor alone
+   * @param[in] hs              the canopy's vapour-deficit parameter [1/(kg/kg)]
+   */
+  void set_skin_moisture (const int& lev, const amrex::MultiFab* moisture,
+                          bool use_resistances = false, amrex::Real hs = amrex::Real(0))
+  {
+      if (lev >= static_cast<int>(m_skin_moisture_lev.size())) {
+          m_skin_moisture_lev.resize(lev + 1, nullptr);
+      }
+      m_skin_moisture_lev[lev] = moisture;
+      m_skin_moisture_resistances = use_resistances;
+      m_skin_moisture_hs = hs;
+  }
+
+  /**
+   * Why this surface layer cannot take its surface mixing ratio from the skin
+   * (set_skin_moisture), or an empty string when it can: everything
+   * skin_temperature_conflict asks, plus a moisture model and a moisture flux computed
+   * from a surface mixing ratio (erf.most.surf_moist given).
+   */
+  [[nodiscard]] std::string skin_moisture_conflict () const
+  {
+      const std::string temperature = skin_temperature_conflict();
+      if (!temperature.empty()) { return temperature; }
+      if (!use_moisture) {
+          return "the run has no moisture model";
+      }
+      if (moist_type != MoistCalcType::SURFACE_MOISTURE) {
+          return "the surface layer does not compute its moisture flux from a surface "
+                 "mixing ratio (set erf.most.surf_moist, not a flux)";
+      }
+      return "";
+  }
+
+  /**
+   * The land roughness length [m] to use when erf.most.z0 is not given (the two-stream
+   * balance's, from Noah-MP's tables). Call before the levels are made, which set z0 from
+   * it. Returns whether it was taken: an erf.most.z0 given in the inputs stands.
+   */
+  bool set_default_roughness (amrex::Real z0)
+  {
+      if (m_z0_given) { return false; }
+      z0_const = z0;
+      return true;
+  }
+
+  /** The constant roughness length [m] the levels take. */
+  [[nodiscard]] amrex::Real roughness () const { return z0_const; }
+
+  /**
    * Return whether prescribed surface fluxes are active.
    */
   bool use_sfc_fluxes () const { return m_use_sfc_fluxes; }
@@ -1563,6 +1641,8 @@ private:
 
   bool m_include_wstar = false;
   amrex::Real z0_const{amrex::Real(0.1)};
+  // erf.most.z0 was given (set_default_roughness then leaves z0_const alone).
+  bool m_z0_given{false};
   amrex::Real default_land_surf_temp{amrex::Real(300.)};
   // Negative sentinels: a surface temperature is absolute and a surface moisture is a
   // mixing ratio, so neither can legitimately be negative.  The constructor probes
@@ -1675,6 +1755,10 @@ private:
   // External absolute skin temperature per level (set_skin_temperature), owned
   // by the caller; nullptr where none is supplied.
   amrex::Vector<const amrex::MultiFab*> m_skin_tsurf_lev;
+  // What that skin hands over for its surface mixing ratio, per level (set_skin_moisture).
+  amrex::Vector<const amrex::MultiFab*> m_skin_moisture_lev;
+  bool m_skin_moisture_resistances{false};
+  amrex::Real m_skin_moisture_hs{0};
   amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_lsm_data_lev;
   amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_lsm_flux_lev;
   amrex::Vector<std::string> m_lsm_data_name;

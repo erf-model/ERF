@@ -184,6 +184,20 @@ public:
         return (active() && m_rad->seb_enable && lev < m_lh_sfc.size()) ? m_lh_sfc[lev].get() : nullptr;
     }
 
+    /**
+     * @brief What level lev's surface hands the surface layer for its surface mixing ratio
+     * (erf.radiation.seb_surface_layer_uses_moisture), per column, in the components of
+     * erf_surface_moisture::Component: the soil-water factor (seb_moisture_availability
+     * of the current q_s) and, with erf.radiation.seb_vegetation_type, the vegetated
+     * fraction, the canopy resistance without its vapour-deficit factor (from the net
+     * shortwave the balance holds divided by (1 - surface albedo) -- the sweep's with
+     * seb_use_radiation_fluxes, seb_sw_flux_default otherwise -- and the skin temperature)
+     * and the bare-soil resistance. nullptr
+     * when the option is off or the level has not been built. Recomputed on every call,
+     * on the valid cells; the halo is not filled.
+     */
+    [[nodiscard]] const amrex::MultiFab* seb_surface_moisture (int lev);
+
     /** @brief True when the force-restore state is being evolved and so needs transferring. */
     [[nodiscard]] bool seb_prognostic_active () const {
         return active() && m_rad->seb_enable && m_rad->seb_prognostic_enable;
@@ -282,9 +296,10 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_hfx_sfc;     // sensible heat flux [W/m^2]
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_lh_sfc;      // latent heat flux [W/m^2]
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_grdflx_sfc;  // ground heat flux [W/m^2]
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_q_sfc;       // surface moisture [kg/kg], prognostic
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_q_sfc;       // surface moisture, prognostic (see RadChoice::seb_q_sfc_default)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_t_deep;      // deep-soil temperature [K]
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_q_deep;      // deep-soil moisture [kg/kg]
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_q_deep;      // deep-soil moisture q_s restores to
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_moisture;    // seb_surface_moisture (seb_surface_layer_uses_moisture)
 
     // What the sweep hands to a land-surface model (2D: i,j), allocated when
     // define_level is asked to supply it. These are the DOWNWELLING fluxes, as opposed to
