@@ -3390,9 +3390,10 @@ selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 | **erf.if_surf_heating_rate**      | rate of change [K/hr] of the immersed surface            | Real               | 0.0              |
 |                                   | temperature (converted internally to K/s)                |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.if_Olen**                   | Obukhov length [m] imposed at immersed surfaces; only    | Real               | 1.e-8            |
+| **erf.if_Olen**                   | Obukhov length [m] imposed at immersed surfaces; only    | Real != 0          | 1.e-8            |
 |                                   | one of ``if_surf_temp_flux``, ``if_init_surf_temp`` and  |                    |                  |
-|                                   | ``if_Olen`` may be set                                   |                    |                  |
+|                                   | ``if_Olen`` may be set; the wall law holds               |                    |                  |
+|                                   | :math:`|L| \ge 0.015\,\Delta` (:math:`|z/L| \le 100`)    |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_use_most**               | use the Monin-Obukhov similarity theory wall model at    | Boolean            | false            |
 |                                   | immersed surfaces                                        |                    |                  |
@@ -3416,8 +3417,21 @@ selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 |                                   | forcing similarity functions; use with caution for       |                    |                  |
 |                                   | horizontal walls                                         |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.if_ws_floor**               | lower bound [m/s] on the wind speed used by the immersed | Real > 0           | 0.001            |
-|                                   | forcing wall model                                       |                    |                  |
+| **erf.if_ws_floor**               | lower bound [m/s] on the wind speed in the limit on the  | Real > 0           | 0.001            |
+|                                   | per-step change of the building wall-law forcing; the    |                    |                  |
+|                                   | stability estimate uses its own floor of 0.1 m/s         |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_stability_wind_floor**   | lower bound [m/s] on the tangential wind behind the      | Real >= 0          | 0.1              |
+|                                   | friction velocity of the wall law's stability estimate   |                    |                  |
+|                                   | (Obukhov length) and its heat transfer; 0 leaves the     |                    |                  |
+|                                   | wind as it is                                            |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_psi_cap_factor**         | cap on the wall law's :math:`\psi_m` (velocity target    | 0 < Real <= 1      | 0.9              |
+|                                   | and, before it forms :math:`u_*`, friction velocity) and |                    |                  |
+|                                   | :math:`\psi_h` (surface-flux temperature target) as a    |                    |                  |
+|                                   | fraction of :math:`\ln(z/z_0)`, as in WRF's revised      |                    |                  |
+|                                   | surface layer; 1 caps the targets at :math:`\ln(z/z_0)`  |                    |                  |
+|                                   | and leaves :math:`u_*` uncapped                          |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_damp_alpha**             | damping coefficient used in the immersed forcing wall    | Real               | 0.5              |
 |                                   | model                                                    |                    |                  |
