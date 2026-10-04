@@ -1171,9 +1171,11 @@ TEST(SBMTransport, CompleteGroupChunkPoliciesAreInvariant)
     one_group_options.mode = erf_sbm::MomentMode::TwoMoment;
     one_group_options.discontinuity = true;
     one_group_options.attached_property = true;
+    one_group_options.complex_profile = true;
     one_group_options.carrier_x = Real(0.2);
+    one_group_options.multidirectional_carrier = true;
     one_group_options.max_groups_per_chunk = 1;
-    one_group_options.dt = 0.6;
+    one_group_options.dt = 0.3;
     RunOptions many_groups_options = one_group_options;
     many_groups_options.max_groups_per_chunk = 16;
     const auto one_group = run_transport(one_group_options);

@@ -2387,9 +2387,6 @@ struct SolverChoice {
     int sbm_nbins{4};
     int sbm_moment_mode{1};
     int sbm_cloud_rain_split{-1};
-    // Retained only so old source code may inspect this deprecated input.
-    // The parser rejects an explicitly true legacy setting above.
-    bool sbm_zero_transport_fixture{false};
     bool sbm_test_native_qc_write_fault{false};
     bool sbm_test_donor_cfl_fault{false};
     amrex::Vector<amrex::Real> sbm_edges;

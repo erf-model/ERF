@@ -36,6 +36,7 @@ struct DeviceGroupInfo
     int chunk_index{0};
     int local_group_index{0};
     int ratio_count{0};
+    int ratio_offset{0};
 };
 
 struct LocalPropertySupport
@@ -160,13 +161,16 @@ consider_donor_ratio (const Array4<const Real>& field,
     const Real carrier = field(i, j, k, support.carrier_global);
     const Real property = field(i, j, k, support.property_global);
     if (!amrex::Math::isfinite(carrier) || !amrex::Math::isfinite(property) ||
-        carrier < Real(0.0) || property < Real(0.0))
+        carrier < Real(0.0) || property < Real(0.0)) {
         return;
-    if (carrier == Real(0.0))
+    }
+    if (carrier == Real(0.0)) {
         return;
+    }
     const Real ratio = property / carrier;
-    if (!amrex::Math::isfinite(ratio) || ratio < Real(0.0))
+    if (!amrex::Math::isfinite(ratio) || ratio < Real(0.0)) {
         return;
+    }
     lower = found == 0 ? ratio : amrex::min(lower, ratio);
     upper = found == 0 ? ratio : amrex::max(upper, ratio);
     found = 1;
@@ -260,6 +264,7 @@ SBMTransport::SBMTransport (const SBMLayout& layout,
     for (std::size_t chunk_index = 0; chunk_index < m_chunks.size();
          ++chunk_index) {
         const auto& chunk = m_chunks[chunk_index];
+        int chunk_ratio_components = 0;
         std::vector<int> global_to_local(
             static_cast<std::size_t>(m_layout.ncomp()), -1);
         for (std::size_t local = 0; local < chunk.components.size(); ++local) {
@@ -284,8 +289,9 @@ SBMTransport::SBMTransport (const SBMLayout& layout,
             device_group.local_group_index = static_cast<int>(local_group);
 
             for (const auto& descriptor : m_flat_constraints.constraints) {
-                if (descriptor.group_index != group_index)
+                if (descriptor.group_index != group_index) {
                     continue;
+                }
                 ConstraintDescriptor local_descriptor = descriptor;
                 local_descriptor.term_offset =
                     static_cast<int>(local_terms.size());
@@ -310,8 +316,9 @@ SBMTransport::SBMTransport (const SBMLayout& layout,
             }
 
             for (const auto& support : m_property_support) {
-                if (support.group_index != group_index)
+                if (support.group_index != group_index) {
                     continue;
+                }
                 LocalPropertySupport local_support;
                 local_support.property_global = support.property_component;
                 local_support.carrier_global = support.carrier_component;
@@ -335,6 +342,12 @@ SBMTransport::SBMTransport (const SBMLayout& layout,
             }
             device_group.ratio_count = device_group.linear_constraint_count +
                                        2 * device_group.support_count;
+            device_group.ratio_offset = chunk_ratio_components;
+            AMREX_ALWAYS_ASSERT(device_group.ratio_count >= 0);
+            AMREX_ALWAYS_ASSERT(
+                device_group.ratio_count <=
+                std::numeric_limits<int>::max() - chunk_ratio_components);
+            chunk_ratio_components += device_group.ratio_count;
             m_max_constraints_per_group[static_cast<std::size_t>(group_index)] =
                 device_group.ratio_count;
         }
@@ -436,15 +449,17 @@ SBMTransport::define (const int level,
                         level < static_cast<int>(m_levels.size()));
     AMREX_ALWAYS_ASSERT(m_levels[static_cast<std::size_t>(level)] == nullptr);
     int max_chunk_components = 0;
-    int max_group_constraints = 1;
+    int max_chunk_ratio_components = 0;
     for (const auto& chunk : m_chunks) {
         max_chunk_components = std::max(
             max_chunk_components, static_cast<int>(chunk.components.size()));
+        int chunk_ratio_components = 0;
         for (const int group : chunk.group_indices) {
-            max_group_constraints = std::max(
-                max_group_constraints,
-                m_max_constraints_per_group[static_cast<std::size_t>(group)]);
+            chunk_ratio_components +=
+                m_max_constraints_per_group[static_cast<std::size_t>(group)];
         }
+        max_chunk_ratio_components =
+            std::max(max_chunk_ratio_components, chunk_ratio_components);
     }
     auto data = std::make_unique<LevelStorage>();
     const int ncomp = m_layout.ncomp();
@@ -455,7 +470,8 @@ SBMTransport::define (const int level,
     data->base_intensive.define(cell_ba, dm, ncomp, 2);
     data->anchor_intensive.define(cell_ba, dm, ncomp, 2);
     data->low_trial_h.define(cell_ba, dm, max_chunk_components, 0);
-    data->cell_ratios.define(cell_ba, dm, max_group_constraints, 1);
+    data->cell_ratios.define(cell_ba, dm,
+                             std::max(1, max_chunk_ratio_components), 1);
     data->invalid.define(cell_ba, dm, 1, 0);
     data->outgoing_demand.define(cell_ba, dm, 1, 0);
     data->measure.define(cell_ba, dm, 1, 0);
@@ -618,8 +634,9 @@ SBMTransport::advance_stage (const int level,
                 int cell_invalid = 0;
                 for (int p = 0; p < population_count; ++p) {
                     const auto& pop = endpoint_populations[p];
-                    if (pop.moment_mode != MomentMode::TwoMoment)
+                    if (pop.moment_mode != MomentMode::TwoMoment) {
                         continue;
+                    }
                     for (int bin = 0; bin < pop.nbins; ++bin) {
                         const int mass_comp = pop.mass_offset + bin;
                         const int number_comp = pop.number_offset + bin;
@@ -765,8 +782,9 @@ SBMTransport::advance_stage (const int level,
         // Invert endpoint face rates into physical water-mass and number
         // rates before the one common group limiter is applied.
         for (const auto& population : m_layout.populations()) {
-            if (population.moment_mode != MomentMode::TwoMoment)
+            if (population.moment_mode != MomentMode::TwoMoment) {
                 continue;
+            }
             for (int bin = 0; bin < population.grid.nbins(); ++bin) {
                 const int mass_global = population.mass_offset + bin;
                 const int number_global = population.number_offset + bin;
@@ -774,8 +792,9 @@ SBMTransport::advance_stage (const int level,
                     global_to_local[static_cast<std::size_t>(mass_global)];
                 const int number_local =
                     global_to_local[static_cast<std::size_t>(number_global)];
-                if (mass_local < 0 || number_local < 0)
+                if (mass_local < 0 || number_local < 0) {
                     continue;
+                }
                 const Real lower =
                     population.grid.edges()[static_cast<std::size_t>(bin)];
                 const Real upper =
@@ -801,10 +820,18 @@ SBMTransport::advance_stage (const int level,
         }
 
         data.invalid.setVal(Real(0.0));
+        data.cell_ratios.setVal(Real(0.0));
         for (const int group_index : chunk.group_indices) {
             const auto& group = m_groups[static_cast<std::size_t>(group_index)];
             const auto& group_device =
                 device.host_groups[static_cast<std::size_t>(group_index)];
+            AMREX_ALWAYS_ASSERT(group_device.ratio_offset >= 0);
+            AMREX_ALWAYS_ASSERT(group_device.ratio_count >= 0);
+            AMREX_ALWAYS_ASSERT(
+                group_device.ratio_offset <= data.cell_ratios.nComp());
+            AMREX_ALWAYS_ASSERT(
+                group_device.ratio_count <=
+                data.cell_ratios.nComp() - group_device.ratio_offset);
 
             // Form the complete donor low-order trial H^L for this atomic
             // group from the semantic limiter-trial base.
@@ -845,7 +872,6 @@ SBMTransport::advance_stage (const int level,
             const ConstraintTerm* local_terms = device.local_terms.data();
             const LocalPropertySupport* local_supports =
                 device.local_supports.data();
-            data.cell_ratios.setVal(Real(0.0));
             for (amrex::MFIter mfi(data.cell_ratios, amrex::TilingIfNotGPU());
                  mfi.isValid(); ++mfi) {
                 const amrex::Box bx = mfi.tilebox();
@@ -871,6 +897,7 @@ SBMTransport::advance_stage (const int level,
                 const int linear_count = group_device.linear_constraint_count;
                 const int supports_begin = group_device.supports_begin;
                 const int support_count = group_device.support_count;
+                const int ratio_offset = group_device.ratio_offset;
                 const Real roundoff =
                     Real(128.0) * std::numeric_limits<Real>::epsilon();
                 amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j,
@@ -904,9 +931,10 @@ SBMTransport::advance_stage (const int level,
                             margin < -roundoff * scale) {
                             bad = 1;
                         }
-                        ratios(i, j, k, ci) = adverse > Real(0.0)
-                                                  ? clamp_unit(margin / adverse)
-                                                  : Real(1.0);
+                        ratios(i, j, k, ratio_offset + ci) =
+                            adverse > Real(0.0)
+                                ? clamp_unit(margin / adverse)
+                                : Real(1.0);
                     }
 
                     for (int si = 0; si < support_count; ++si) {
@@ -970,18 +998,39 @@ SBMTransport::advance_stage (const int level,
                                 bad = 1;
                             }
                             const int ratio_component =
-                                linear_count + 2 * si + side;
+                                ratio_offset + linear_count + 2 * si + side;
                             ratios(i, j, k, ratio_component) =
                                 adverse > Real(0.0)
                                     ? clamp_unit(margin / adverse)
                                     : Real(1.0);
                         }
                     }
-                    if (bad != 0)
+                    if (bad != 0) {
                         invalid(i, j, k, 0) = Real(1.0);
+                    }
                 });
             }
-            data.cell_ratios.FillBoundary(geometry.periodicity());
+        }
+
+        // Every complete group has now written its own ratio components.
+        // Exchange the chunk's ratio halo once before any group reads it.
+        data.cell_ratios.FillBoundary(geometry.periodicity());
+        if (data.invalid.max(0) != Real(0.0)) {
+            amrex::Abort("SBM M3 donor low-order trial violates a linear or "
+                         "attached-property constraint");
+        }
+
+        for (const int group_index : chunk.group_indices) {
+            const auto& group = m_groups[static_cast<std::size_t>(group_index)];
+            const auto& group_device =
+                device.host_groups[static_cast<std::size_t>(group_index)];
+            AMREX_ALWAYS_ASSERT(group_device.ratio_offset >= 0);
+            AMREX_ALWAYS_ASSERT(group_device.ratio_count >= 0);
+            AMREX_ALWAYS_ASSERT(
+                group_device.ratio_offset <= data.cell_ratios.nComp());
+            AMREX_ALWAYS_ASSERT(
+                group_device.ratio_count <=
+                data.cell_ratios.nComp() - group_device.ratio_offset);
 
             // Each face/group lambda is the minimum budget from both
             // adjacent cells and every constraint in the complete group.
@@ -993,20 +1042,24 @@ SBMTransport::advance_stage (const int level,
                     const auto ratios = data.cell_ratios.const_array(mfi);
                     const auto lambda = lambda_field.array(mfi);
                     const int ratio_count = group_device.ratio_count;
+                    const int ratio_offset = group_device.ratio_offset;
                     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(
                                                int i, int j, int k) noexcept {
                         int li = i, lj = j, lk = k;
-                        if (dir == 0)
+                        if (dir == 0) {
                             --li;
-                        else if (dir == 1)
+                        } else if (dir == 1) {
                             --lj;
-                        else
+                        } else {
                             --lk;
+                        }
                         Real accepted = Real(1.0);
                         for (int c = 0; c < ratio_count; ++c) {
                             accepted =
-                                amrex::min(accepted, ratios(li, lj, lk, c));
-                            accepted = amrex::min(accepted, ratios(i, j, k, c));
+                                amrex::min(accepted,
+                                           ratios(li, lj, lk, ratio_offset + c));
+                            accepted = amrex::min(
+                                accepted, ratios(i, j, k, ratio_offset + c));
                         }
                         lambda(i, j, k, 0) = clamp_unit(accepted);
                     });
@@ -1061,11 +1114,6 @@ SBMTransport::advance_stage (const int level,
             }
         }
 
-        if (data.invalid.max(0) != Real(0.0)) {
-            amrex::Abort("SBM M3 donor low-order trial violates a linear or "
-                         "attached-property constraint");
-        }
-
         // Apply the ERF stage recurrence component by component while using
         // this bounded complete-group chunk's accepted face rates.
         for (std::size_t local = 0; local < chunk.components.size(); ++local) {
@@ -1116,8 +1164,9 @@ SBMTransport::advance_stage (const int level,
                                                     int k) noexcept {
             int bad = 0;
             for (int component = 0; component < state_components; ++component) {
-                if (!amrex::Math::isfinite(candidate(i, j, k, component)))
+                if (!amrex::Math::isfinite(candidate(i, j, k, component))) {
                     bad = 1;
+                }
             }
             const Real roundoff =
                 Real(128.0) * std::numeric_limits<Real>::epsilon();
@@ -1154,8 +1203,9 @@ SBMTransport::advance_stage (const int level,
         const bool host_admissible = erf_sbm::authoritative_state_admissible(
             data.target, m_layout, level, &reason);
         amrex::ignore_unused(host_admissible);
-        if (reason.empty())
+        if (reason.empty()) {
             reason = "candidate failed device linear/canonical admission";
+        }
         amrex::Abort("SBM M3 candidate rejected before commit: " + reason);
     }
 
@@ -1193,27 +1243,31 @@ SBMTransport::is_defined (const int level) const
 bool
 SBMTransport::measure_is_ready (const int level) const
 {
-    if (!is_defined(level))
+    if (!is_defined(level)) {
         return false;
+    }
     return m_levels[static_cast<std::size_t>(level)]->measure_ready;
 }
 
 const MultiFab&
 SBMTransport::static_measure (const int level) const
 {
-    if (!is_defined(level))
+    if (!is_defined(level)) {
         throw std::logic_error("SBM transport level is not defined");
+    }
     const auto& data = *m_levels[static_cast<std::size_t>(level)];
-    if (!data.measure_ready)
+    if (!data.measure_ready) {
         throw std::logic_error("SBM static measure is not ready");
+    }
     return data.measure;
 }
 
 const erf_auxiliary::CompletedStepFluxLedger&
 SBMTransport::projected_ledger (const int level) const
 {
-    if (!is_defined(level))
+    if (!is_defined(level)) {
         throw std::logic_error("SBM transport level is not defined");
+    }
     return m_levels[static_cast<std::size_t>(level)]->projected_ledger;
 }
 
