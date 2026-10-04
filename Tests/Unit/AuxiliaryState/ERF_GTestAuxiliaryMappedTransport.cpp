@@ -1389,22 +1389,31 @@ void run_native_mapped_carrier_sloping_terrain_counterexample_test ()
     const BoxArray xb = amrex::convert(g.ba, IntVect::TheDimensionVector(0));
     const BoxArray yb = amrex::convert(g.ba, IntVect::TheDimensionVector(1));
     const BoxArray zb = amrex::convert(g.ba, IntVect::TheDimensionVector(2));
-    MultiFab rho_u(xb, g.dm, 1, 0), rho_v(yb, g.dm, 1, 0);
+    MultiFab rho_u(xb, g.dm, 1, 2), rho_v(yb, g.dm, 1, 2);
     MultiFab rho_w(zb, g.dm, 1, 0);
-    rho_u.setVal(Real(0.5));
-    rho_v.setVal(Real(0.3));
+    rho_u.setVal(Real(0.5), 0, 1, 2);
+    rho_v.setVal(Real(0.3), 0, 1, 2);
     rho_w.setVal(Real(0.45));
+    const int top = g.geom.Domain().bigEnd(2) + 1;
+    for (amrex::MFIter mfi(rho_w); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.tilebox();
+        const auto w = rho_w.array(mfi);
+        amrex::ParallelFor(
+            bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                if (k == top) { w(i, j, k, 0) = Real(0.01); }
+            });
+    }
 
     MultiFab mf_ux(project_to_xy(xb), g.dm, 1, 0);
     MultiFab mf_vy(project_to_xy(yb), g.dm, 1, 0);
     mf_ux.setVal(Real(1.0));
     mf_vy.setVal(Real(1.0));
-    MultiFab z_nd(amrex::convert(g.ba, IntVect::TheNodeVector()), g.dm, 1, 0);
+    MultiFab z_nd(amrex::convert(g.ba, IntVect::TheNodeVector()), g.dm, 1, 2);
     constexpr Real slope_x = Real(0.5);
     constexpr Real slope_y = Real(0.4);
     const auto dx = g.geom.CellSizeArray();
     for (amrex::MFIter mfi(z_nd); mfi.isValid(); ++mfi) {
-        const Box bx = mfi.validbox();
+        const Box bx = mfi.fabbox();
         const auto z = z_nd.array(mfi);
         const auto cell_size = dx;
         amrex::ParallelFor(
@@ -1420,6 +1429,8 @@ void run_native_mapped_carrier_sloping_terrain_counterexample_test ()
     std::string diagnostic;
     ASSERT_TRUE(CopyNativeMappedDryAirCarrierFluxRate(
         native_rate, rho_u, rho_v, rho_w, diagnostic)) << diagnostic;
+    EXPECT_NEAR(rho_w.min(0), Real(0.01), Real(1.0e-6));
+    EXPECT_NEAR(rho_w.max(0), Real(0.45), Real(1.0e-6));
     EXPECT_EQ(max_component_difference(native_rate.dir(0), 0, rho_u, 0),
               Real(0.0));
     EXPECT_EQ(max_component_difference(native_rate.dir(1), 0, rho_v, 0),
@@ -1461,51 +1472,81 @@ void run_native_mapped_carrier_sloping_terrain_counterexample_test ()
     EXPECT_GT(amrex::Math::abs(rho_w.const_array(0)(i, j, k, 0) - omega),
               Real(0.2));
 
-    MappedFaceFluxRate omega_mutation_rate;
-    omega_mutation_rate.define(g.ba, g.dm, 1, 0);
-    MultiFab::Copy(omega_mutation_rate.dir(0), rho_u, 0, 0, 1, 0);
-    MultiFab::Copy(omega_mutation_rate.dir(1), rho_v, 0, 0, 1, 0);
-    omega_mutation_rate.dir(2).setVal(omega);
+    // Negative control: reproduce the fitted-terrain carrier construction
+    // from 0045b83acef6e7f5d8c711c7ebba8b2d0cca80de. That implementation kept
+    // the native carrier at the top face, zeroed the bottom face, and used
+    // OmegaFromW on every interior face.
+    MappedFaceFluxRate historical_rate;
+    historical_rate.define(g.ba, g.dm, 1, 0);
+    MultiFab::Copy(historical_rate.dir(0), rho_u, 0, 0, 1, 0);
+    MultiFab::Copy(historical_rate.dir(1), rho_v, 0, 0, 1, 0);
+    const int bottom = g.geom.Domain().smallEnd(2);
+    for (amrex::MFIter mfi(historical_rate.dir(2)); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.tilebox();
+        const auto rw = rho_w.const_array(mfi);
+        const auto ru = rho_u.const_array(mfi);
+        const auto rv = rho_v.const_array(mfi);
+        const auto ux = mf_ux.const_array(mfi);
+        const auto vy = mf_vy.const_array(mfi);
+        const auto z = z_nd.const_array(mfi);
+        const auto out = historical_rate.dir(2).array(mfi);
+        amrex::ParallelFor(
+            bx, [=] AMREX_GPU_DEVICE(int ii, int jj, int kk) noexcept {
+                if (kk == bottom) {
+                    out(ii, jj, kk, 0) = Real(0.0);
+                } else if (kk == top) {
+                    out(ii, jj, kk, 0) = rw(ii, jj, kk, 0);
+                } else {
+                    int oi = ii;
+                    int oj = jj;
+                    int ok = kk;
+                    out(ii, jj, kk, 0) = OmegaFromW(
+                        oi, oj, ok, rw(oi, oj, ok, 0), ru, rv, ux, vy, z,
+                        inv_dx);
+                }
+            });
+    }
     EXPECT_GT(max_component_difference(native_rate.dir(2), 0,
-                                       omega_mutation_rate.dir(2), 0),
+                                       historical_rate.dir(2), 0),
               Real(0.2));
 
     MultiFab density(g.ba, g.dm, 1, 0);
     density.setVal(Real(1.0));
     Real native_max_rate = Real(0.0);
-    Real omega_max_rate = Real(0.0);
+    Real historical_max_rate = Real(0.0);
     ASSERT_TRUE(ComputeMaxMappedOutgoingRate(
         native_rate, g.omega, density, 0, inv_dx, native_max_rate,
         diagnostic)) << diagnostic;
     ASSERT_TRUE(ComputeMaxMappedOutgoingRate(
-        omega_mutation_rate, g.omega, density, 0, inv_dx, omega_max_rate,
+        historical_rate, g.omega, density, 0, inv_dx, historical_max_rate,
         diagnostic)) << diagnostic;
     ASSERT_TRUE(std::isfinite(native_max_rate));
-    ASSERT_TRUE(std::isfinite(omega_max_rate));
+    ASSERT_TRUE(std::isfinite(historical_max_rate));
     ASSERT_GT(native_max_rate, Real(0.0));
-    ASSERT_GT(omega_max_rate, Real(0.0));
+    ASSERT_GT(historical_max_rate, Real(0.0));
     EXPECT_NEAR(native_max_rate, Real(10.0), Real(1.0e-5));
-    EXPECT_NEAR(omega_max_rate, Real(7.04), Real(1.0e-5));
-    EXPECT_GT(amrex::Math::abs(native_max_rate - omega_max_rate) /
-                  amrex::max(native_max_rate, omega_max_rate),
+    EXPECT_NEAR(historical_max_rate, Real(7.04), Real(1.0e-5));
+    EXPECT_GT(amrex::Math::abs(native_max_rate - historical_max_rate) /
+                  amrex::max(native_max_rate, historical_max_rate),
               Real(0.1));
 
     double native_hard_limit = 0.0;
-    double omega_hard_limit = 0.0;
+    double historical_hard_limit = 0.0;
     EXPECT_FALSE(FixedDtExceedsMappedDonorLimit(
         1.0e-12, native_max_rate, native_hard_limit));
     EXPECT_FALSE(FixedDtExceedsMappedDonorLimit(
-        1.0e-12, omega_max_rate, omega_hard_limit));
-    ASSERT_NE(native_hard_limit, omega_hard_limit);
+        1.0e-12, historical_max_rate, historical_hard_limit));
+    ASSERT_NE(native_hard_limit, historical_hard_limit);
     EXPECT_NEAR(native_hard_limit, 0.1, 1.0e-5);
-    EXPECT_NEAR(omega_hard_limit, 1.0 / 7.04, 1.0e-5);
+    EXPECT_NEAR(historical_hard_limit, 1.0 / 7.04, 1.0e-5);
     const double between_limits =
-        0.5 * (native_hard_limit + omega_hard_limit);
+        0.5 * (native_hard_limit + historical_hard_limit);
     const bool native_unsafe = FixedDtExceedsMappedDonorLimit(
         between_limits, native_max_rate, native_hard_limit);
-    const bool omega_unsafe = FixedDtExceedsMappedDonorLimit(
-        between_limits, omega_max_rate, omega_hard_limit);
-    EXPECT_NE(native_unsafe, omega_unsafe);
+    const bool historical_unsafe = FixedDtExceedsMappedDonorLimit(
+        between_limits, historical_max_rate, historical_hard_limit);
+    EXPECT_TRUE(native_unsafe);
+    EXPECT_FALSE(historical_unsafe);
 
     MultiFab wrong_layout(yb, g.dm, 1, 0);
     EXPECT_FALSE(CopyNativeMappedDryAirCarrierFluxRate(

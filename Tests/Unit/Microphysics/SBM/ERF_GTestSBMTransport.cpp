@@ -19,8 +19,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
+#include <iostream>
 #include <limits>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -1001,6 +1004,277 @@ run_transport (const RunOptions& options)
             fingerprints.sum(layout.ncomp() + component));
     }
     return summary;
+}
+
+struct SmoothTranslationErrors
+{
+    int nz;
+    Real mass_l1;
+    Real number_l1;
+};
+
+void
+run_smooth_vertical_mapped_density_weighted_translation_test (
+    std::vector<SmoothTranslationErrors>& measurements)
+{
+    constexpr int nx = 4;
+    constexpr int ny = 4;
+    constexpr Real carrier = Real(0.2);
+    constexpr double final_time = 0.25;
+    constexpr Real lower_edge = Real(0.1);
+    constexpr Real upper_edge = Real(0.5);
+    const auto layout = make_layout(erf_sbm::MomentMode::TwoMoment);
+    const auto& population = layout.populations().front();
+    const int mass_component = population.mass_offset;
+    const int number_component = population.number_offset;
+
+    for (const int nz : {16, 32, 64}) {
+        const Box domain(IntVect(0, 0, 0), IntVect(nx - 1, ny - 1, nz - 1));
+        const amrex::RealBox physical({0.0, 0.0, 0.0}, {1.0, 1.0, 1.0});
+        const int periodic[AMREX_SPACEDIM] = {1, 1, 1};
+        const Geometry geom(domain, &physical, amrex::CoordSys::cartesian,
+                            periodic);
+        const BoxArray ba(domain);
+        const DistributionMapping dm(ba);
+
+        erf_sbm::SBMStateManager state_manager(layout, 1);
+        state_manager.define(0, ba, dm);
+        erf_sbm::SBMTransport transport(layout, 1);
+        transport.define(0, ba, dm);
+
+        const auto map_ba = project_to_xy(ba);
+        MultiFab detj(ba, dm, 1, 0);
+        MultiFab mx(map_ba, dm, 1, 0);
+        MultiFab my(map_ba, dm, 1, 0);
+        for (amrex::MFIter mfi(detj); mfi.isValid(); ++mfi) {
+            const Box bx = mfi.validbox();
+            const auto det = detj.array(mfi);
+            amrex::ParallelFor(
+                bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    const Real zeta = (static_cast<Real>(k) + Real(0.5)) /
+                                     static_cast<Real>(nz);
+                    det(i, j, k, 0) =
+                        Real(1.0) + Real(0.15) *
+                                       amrex::Math::sinpi(Real(2.0) * zeta);
+                });
+        }
+        mx.setVal(Real(1.0));
+        my.setVal(Real(1.0));
+        std::string diagnostic;
+        ASSERT_TRUE(transport.rebuild_static_measure(0, detj, mx, my,
+                                                      diagnostic))
+            << diagnostic;
+        const MultiFab& measure = transport.static_measure(0);
+        EXPECT_LT(measure.min(0), Real(1.0));
+        EXPECT_GT(measure.max(0), Real(1.0));
+
+        MultiFab conserved_anchor(ba, dm, 3, 0);
+        MultiFab conserved_input(ba, dm, 3, 0);
+        MultiFab conserved_target(ba, dm, 3, 0);
+        conserved_anchor.setVal(Real(0.0));
+        for (amrex::MFIter mfi(conserved_anchor); mfi.isValid(); ++mfi) {
+            const Box bx = mfi.validbox();
+            const auto omega = measure.const_array(mfi);
+            const auto conserved = conserved_anchor.array(mfi);
+            amrex::ParallelFor(
+                bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    conserved(i, j, k, Rho_comp) =
+                        Real(1.0) / omega(i, j, k, 0);
+                });
+        }
+        MultiFab::Copy(conserved_input, conserved_anchor, 0, 0, 3, 0);
+        MultiFab::Copy(conserved_target, conserved_anchor, 0, 0, 3, 0);
+
+        auto& spectrum = state_manager.state(0);
+        spectrum.setVal(Real(0.0));
+        for (amrex::MFIter mfi(spectrum); mfi.isValid(); ++mfi) {
+            const Box bx = mfi.validbox();
+            const auto rho = conserved_anchor.const_array(mfi);
+            const auto state = spectrum.array(mfi);
+            amrex::ParallelFor(
+                bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    const Real zeta = (static_cast<Real>(k) + Real(0.5)) /
+                                     static_cast<Real>(nz);
+                    const Real blo = Real(1.0) +
+                                     Real(0.10) *
+                                         amrex::Math::sinpi(Real(2.0) * zeta);
+                    const Real bhi = Real(0.8) +
+                                     Real(0.08) *
+                                         amrex::Math::cospi(Real(2.0) * zeta);
+                    const Real density = rho(i, j, k, Rho_comp);
+                    const Real number = blo + bhi;
+                    const Real mass = lower_edge * blo + upper_edge * bhi;
+                    state(i, j, k, mass_component) = density * mass;
+                    state(i, j, k, number_component) = density * number;
+                });
+        }
+        ASSERT_TRUE(erf_sbm::authoritative_state_admissible(
+            spectrum, layout, 0, &diagnostic)) << diagnostic;
+
+        MultiFab avg_xmom(amrex::convert(
+                              ba, IntVect::TheDimensionVector(0)),
+                          dm, 1, 0);
+        MultiFab avg_ymom(amrex::convert(
+                              ba, IntVect::TheDimensionVector(1)),
+                          dm, 1, 0);
+        MultiFab avg_zmom(amrex::convert(
+                              ba, IntVect::TheDimensionVector(2)),
+                          dm, 1, 0);
+        avg_xmom.setVal(Real(0.0));
+        avg_ymom.setVal(Real(0.0));
+        avg_zmom.setVal(carrier);
+
+        MultiFab initial(ba, dm, layout.ncomp(), 0);
+        MultiFab::Copy(initial, spectrum, 0, 0, layout.ncomp(), 0);
+        const Real initial_mass_inventory =
+            mapped_inventory(initial, measure, mass_component);
+        const Real initial_number_inventory =
+            mapped_inventory(initial, measure, number_component);
+
+        const double dt = 1.0 / static_cast<double>(nz);
+        const int step_count = nz / 4;
+        for (int step = 0; step < step_count; ++step) {
+            const double step_old_time = static_cast<double>(step) * dt;
+            const double stage1_time = step_old_time + dt / 3.0;
+            const double stage2_time = step_old_time + dt / 2.0;
+            const double step_new_time = step_old_time + dt;
+            transport.advance_stage_from_host(
+                0, erf_auxiliary::HostIntegrator::CompressibleRK3, 0,
+                step_old_time, step_old_time, stage1_time,
+                stage1_time - step_old_time, state_manager, conserved_anchor,
+                conserved_input, conserved_target, avg_xmom, avg_ymom,
+                avg_zmom, geom, 1, 2);
+            transport.advance_stage_from_host(
+                0, erf_auxiliary::HostIntegrator::CompressibleRK3, 1,
+                step_old_time, stage1_time, stage2_time,
+                stage2_time - step_old_time, state_manager, conserved_anchor,
+                conserved_input, conserved_target, avg_xmom, avg_ymom,
+                avg_zmom, geom, 1, 2);
+            transport.advance_stage_from_host(
+                0, erf_auxiliary::HostIntegrator::CompressibleRK3, 2,
+                step_old_time, stage2_time, step_new_time,
+                step_new_time - step_old_time, state_manager, conserved_anchor,
+                conserved_input, conserved_target, avg_xmom, avg_ymom,
+                avg_zmom, geom, 1, 2);
+        }
+
+        const auto& final_state = state_manager.state(0);
+        ASSERT_TRUE(erf_sbm::authoritative_state_admissible(
+            final_state, layout, 0, &diagnostic)) << diagnostic;
+        EXPECT_TRUE(transport.projected_ledger(0).step_complete());
+
+        const Real final_mass_inventory =
+            mapped_inventory(final_state, measure, mass_component);
+        const Real final_number_inventory =
+            mapped_inventory(final_state, measure, number_component);
+        const Real epsilon = std::numeric_limits<Real>::epsilon();
+        EXPECT_NEAR(final_mass_inventory, initial_mass_inventory,
+                    Real(128.0) * epsilon *
+                        std::max(std::abs(initial_mass_inventory),
+                                 std::numeric_limits<Real>::min()));
+        EXPECT_NEAR(final_number_inventory, initial_number_inventory,
+                    Real(128.0) * epsilon *
+                        std::max(std::abs(initial_number_inventory),
+                                 std::numeric_limits<Real>::min()));
+
+        MultiFab error(ba, dm, 2, 0);
+        for (amrex::MFIter mfi(error); mfi.isValid(); ++mfi) {
+            const Box bx = mfi.validbox();
+            const auto omega = measure.const_array(mfi);
+            const auto state = final_state.const_array(mfi);
+            const auto out = error.array(mfi);
+            amrex::ParallelFor(
+                bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    const Real zeta = (static_cast<Real>(k) + Real(0.5)) /
+                                     static_cast<Real>(nz);
+                    Real translated = zeta - carrier *
+                                                static_cast<Real>(final_time);
+                    if (translated < Real(0.0)) { translated += Real(1.0); }
+                    const Real blo = Real(1.0) +
+                                     Real(0.10) * amrex::Math::sinpi(
+                                                      Real(2.0) * translated);
+                    const Real bhi = Real(0.8) +
+                                     Real(0.08) * amrex::Math::cospi(
+                                                      Real(2.0) * translated);
+                    const Real exact_number = blo + bhi;
+                    const Real exact_mass =
+                        lower_edge * blo + upper_edge * bhi;
+                    out(i, j, k, 0) = amrex::Math::abs(
+                        omega(i, j, k, 0) * state(i, j, k, mass_component) -
+                        exact_mass);
+                    out(i, j, k, 1) = amrex::Math::abs(
+                        omega(i, j, k, 0) * state(i, j, k, number_component) -
+                        exact_number);
+                });
+        }
+        const Real cell_count = static_cast<Real>(domain.numPts());
+        measurements.push_back(
+            {nz, error.sum(0) / cell_count, error.sum(1) / cell_count});
+    }
+}
+
+TEST(SBMTransport, SmoothVerticalMappedDensityWeightedTranslationConverges)
+{
+#if defined(AMREX_USE_FLOAT)
+    GTEST_SKIP() << "Observed smooth-transport order is qualified in DOUBLE; "
+                    "SINGLE remains covered by the functional, realizability, "
+                    "and parity tests.";
+#else
+    std::vector<SmoothTranslationErrors> measurements;
+    run_smooth_vertical_mapped_density_weighted_translation_test(
+        measurements);
+    ASSERT_EQ(measurements.size(), 3U);
+    ASSERT_EQ(measurements[0].nz, 16);
+    ASSERT_EQ(measurements[1].nz, 32);
+    ASSERT_EQ(measurements[2].nz, 64);
+
+    const double mass16 = static_cast<double>(measurements[0].mass_l1);
+    const double mass32 = static_cast<double>(measurements[1].mass_l1);
+    const double mass64 = static_cast<double>(measurements[2].mass_l1);
+    const double number16 = static_cast<double>(measurements[0].number_l1);
+    const double number32 = static_cast<double>(measurements[1].number_l1);
+    const double number64 = static_cast<double>(measurements[2].number_l1);
+    const auto observed_order = [](const double coarse, const double fine) {
+        return coarse > 0.0 && fine > 0.0
+                   ? std::log(coarse / fine) / std::log(2.0)
+                   : -std::numeric_limits<double>::infinity();
+    };
+    const double mass_order_16_32 = observed_order(mass16, mass32);
+    const double mass_order_32_64 = observed_order(mass32, mass64);
+    const double number_order_16_32 = observed_order(number16, number32);
+    const double number_order_32_64 = observed_order(number32, number64);
+
+    std::cout << std::setprecision(12)
+              << "SBM smooth mapped/density-weighted errors (N, mass L1, "
+                 "number L1):\n";
+    for (const auto& result : measurements) {
+        std::cout << result.nz << ", " << result.mass_l1 << ", "
+                  << result.number_l1 << '\n';
+    }
+    std::cout << "observed orders (mass 16-32, 32-64; number 16-32, 32-64): "
+              << mass_order_16_32 << ", " << mass_order_32_64 << "; "
+              << number_order_16_32 << ", " << number_order_32_64 << '\n';
+
+    std::ostringstream mass_report;
+    mass_report << std::setprecision(12)
+                << "mass L1 errors [N=16,32,64] = [" << mass16 << ", "
+                << mass32 << ", " << mass64 << "], observed orders = ["
+                << mass_order_16_32 << ", " << mass_order_32_64 << ']';
+    std::ostringstream number_report;
+    number_report << std::setprecision(12)
+                  << "number L1 errors [N=16,32,64] = [" << number16 << ", "
+                  << number32 << ", " << number64 << "], observed orders = ["
+                  << number_order_16_32 << ", " << number_order_32_64 << ']';
+
+    EXPECT_GT(mass16, mass32) << mass_report.str();
+    EXPECT_GT(mass32, mass64) << mass_report.str();
+    EXPECT_GT(number16, number32) << number_report.str();
+    EXPECT_GT(number32, number64) << number_report.str();
+    EXPECT_GE(mass_order_16_32, 2.3) << mass_report.str();
+    EXPECT_GE(mass_order_32_64, 2.3) << mass_report.str();
+    EXPECT_GE(number_order_16_32, 2.3) << number_report.str();
+    EXPECT_GE(number_order_32_64, 2.3) << number_report.str();
+#endif
 }
 
 TEST(SBMTransport, ZeroCarrierIdentityOneAndTwoMoment)

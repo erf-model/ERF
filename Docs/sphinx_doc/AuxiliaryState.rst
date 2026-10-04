@@ -11,10 +11,13 @@ those parts of the dynamical core.
 
 .. note::
 
-   The auxiliary-state layer is currently an implementation interface, not a
-   user-selectable generic tracer package. Its live ERF consumer is a
-   test-only inert tracer used to qualify the coupling described on this page.
-   The spectral-bin microphysics state is not yet advanced through this path.
+   The auxiliary-state layer is an implementation interface, not a
+   user-selectable generic tracer package. Its qualification consumer remains
+   a test-only inert tracer. The M3 spectral-bin microphysics transport is now
+   also a live consumer of the same mapped-measure, semantic-stage, host-carrier,
+   mapped-divergence, and completed-step-ledger contracts. SBM supplies its own
+   spectral semantics, grouped acceptance, canonical-state checks, projection,
+   restart, and boundary policy.
 
 Why auxiliary state exists
 --------------------------
@@ -428,10 +431,17 @@ Relationship to spectral-bin microphysics
 -----------------------------------------
 
 The SBM spectral state is separately owned outside ERF's core conserved-state
-array and is expected to use this auxiliary transport substrate for its
-physical-space transport. At the present revision that connection has not yet
-been made: ``erf.moisture_model = SBM`` remains a bounded zero-transport
-infrastructure configuration.
+array. In M3, ``SBMTransport`` uses the generic mapped auxiliary-state contracts
+for its static mapped measure, host-stage timing, dry-air carrier, mapped
+conservative update, and completed-step accounting while retaining ownership of
+spectral coordinates and grouped realizability. The inert tracer remains a
+small proof consumer of the generic coupling, but it is no longer the only live
+consumer.
+
+The generic substrate does not itself provide a complete multilevel lifecycle
+for SBM. The current M3 SBM execution remains single-level and triply periodic;
+spectral FillPatch/prolongation, restriction, reflux, remake/regrid, multilevel
+restart, and the operational nonperiodic boundary lifecycle remain M4 work.
 
 The auxiliary layer addresses transport between atmospheric grid cells. It
 does not define how an SBM particle distribution is represented or remapped in

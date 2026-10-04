@@ -505,10 +505,103 @@ condensation/evaporation, activation, collision-coalescence, sedimentation, and
 precipitation remain later milestones. Moving terrain and embedded boundaries
 are not enabled by M3.
 
+M3 closeout and M4 entry gate
+-----------------------------
+
+M3 closes the single-level, advection-only spectral transport problem inside
+its explicitly qualified execution envelope. In particular, M3 provides
+ERF-native dry-air-carrier advection, mapped conservative state updates,
+endpoint-coordinate high-order reconstruction for two-moment bins, grouped
+FCT acceptance, canonical final-state admission, fixed cloud/rain projection,
+restart for the qualified single-level state, and explicit failure outside the
+supported runtime envelope.
+
+M3 completion does not imply multilevel spectral state management, AMR
+FillPatch, restriction, reflux, remake/regrid, or an operational nonperiodic
+spectral-boundary lifecycle. The face-level physical-boundary policy defined in
+M3 is a contract for that later lifecycle rather than evidence that the
+nonperiodic execution path already exists.
+
+Before M4 implementation begins, the following contracts must be explicit and
+independently testable:
+
+#. **Persistent spectral time views.** Each AMR level must expose the
+   authoritative spectral time views and timestamps required by ERF FillPatch
+   and regridding. Whenever an intensive quantity
+   :math:`z_a=U_a/\rho_d` is formed, the spectral state and dry-air density must
+   come from the same temporal view.
+
+#. **Mapped conservative AMR state.** Restriction and reflux are defined for
+   :math:`H_a=\omega U_a`. Carrier-relative prolongation must use the matching
+   density/geometry time view and must conserve the parent mapped inventory
+   when the fine state is recomposed.
+
+#. **Accepted spectral completed-step transfer.** Reflux must consume the
+   time-integrated accepted spectral face transfer
+
+   .. math::
+
+      \mathcal I_a
+      =
+      \int_{t^n}^{t^{n+1}}
+      \widetilde F^{accepted}_a\,dt
+
+   for every authoritative spectral component. The current two-component
+   projected cloud/rain ledger is not a substitute for the accepted spectral
+   transfer. M4 may retain a complete spectral ledger or stream accepted
+   component chunks into a proven flux-register adapter, but it must not
+   reconstruct this transfer from final cell states, the unrestricted native
+   high-order proposal, or projected ``qc``/``qr``.
+
+#. **Flux-register convention proof.** Before using ERF's AMR flux register,
+   M4 must establish its sign, mapped metric/area convention, fine/coarse
+   scaling, and completed-step time weighting against the accepted spectral
+   transfer. Wrong metric factors and wrong stage/substep coefficients are
+   required negative controls.
+
+#. **Transactional synchronization.** Restriction, prolongation, and reflux
+   may produce a candidate authoritative spectrum only. The synchronized state
+   must satisfy the declared linear group constraints and the complete
+   canonical persisted-state contract before it is committed. ``qc`` and
+   ``qr`` are regenerated only after the authoritative spectral transaction is
+   accepted.
+
+#. **Lifecycle and physical boundaries.** M4 must define coarse-to-fine level
+   creation, remake/regrid, multilevel restart, impermeable-wall transfer,
+   outward outflow, and prescribed spectral inflow with complete atomic-group
+   composition and accepted-transfer accounting. Unsupported or incomplete
+   lifecycle/boundary state fails before mutating the authoritative spectrum.
+
+These items are M4 entry requirements, not current M3 capabilities.
+
 The high-order M3 transport identity is ``EndpointNumberWENOZ3``; it is not
 currently a user-selectable SBM reconstruction policy. See
 :ref:`AuxiliaryState` for the generic mapped conservation and host-stage
 substrate.
+
+For the current implementation, ``EndpointNumberWENOZ3`` has a specific
+numerical meaning:
+
+* every transported component first uses the intensive dry-air coordinate
+  :math:`z_a=U_a/\rho_d` formed with the density from the same host stage;
+* each two-moment mass/number pair is transformed to endpoint-number
+  coordinates before high-order reconstruction and converted back to physical
+  mass and number face rates before grouped FCT;
+* one-moment components and attached extensive properties remain in their
+  physical intensive coordinates;
+* no per-component rescaling or normalization is applied before WENO-Z3;
+* reconstruction uses ERF's native ``AdvType::Weno_3Z`` / ``WENO_Z3`` stencil.
+  At this revision its linear weights are :math:`1/3` and :math:`2/3`, with a
+  fixed epsilon of ``1.e-12`` in ``AMREX_USE_FLOAT`` builds and ``1.e-40``
+  otherwise; and
+* the current M3 end-to-end execution is periodic, so a physical-boundary
+  high-order fallback is not exercised by the runtime capability. The declared
+  spectral boundary policy permits the admissible donor proposal when a later
+  physical-boundary high-order stencil is not qualified.
+
+Changing the reconstruction basis, component normalization, WENO epsilon or
+stencil, or physical-boundary fallback is a numerical-method change requiring
+new qualification; it is not a formatting-only cleanup.
 
 SBM runtime inputs
 ------------------
@@ -714,6 +807,14 @@ The current configuration requires:
   default/undefined setup, ``SBM M3 periodic advection``, and
   ``Scalar Advection/Diffusion``; other problem-specific initialization or
   forcing is rejected.
+
+Anelastic M3 execution is qualified only for the current non-fitted-terrain
+cases, including the existing constant- and stretched-z tests.
+``StaticFittedMesh`` with ``VariableDz`` is explicitly rejected for anelastic
+M3 because ERF's fitted-terrain anelastic projection requires a nonperiodic
+vertical boundary while the M3 spectral lifecycle remains restricted to
+triply periodic domains. This is a lifecycle/support-envelope restriction, not
+a different spectral carrier convention.
 
 The resolved host dry-air carrier may be nonzero. SBM transport uses that
 carrier directly and checks the donor outgoing-demand condition at each host
