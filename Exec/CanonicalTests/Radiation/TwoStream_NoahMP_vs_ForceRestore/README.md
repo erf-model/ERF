@@ -24,7 +24,7 @@ The two cases differ only in the surface:
 |---|---|---|
 | Surface model | Noah-MP on both levels | force-restore balance on both levels |
 | Land | grassland (MODIS 10) on 80 % of the surface (`SHDMAX`), silty clay loam (STAS 8), 290 K soil at 0.25 m3/m3; level 1 has its own land setup file | the same, from Noah-MP's tables: `seb_soil_type = 8`, `seb_vegetation_type = 10`, `seb_vegetation_fraction = 0.8`, soil water 0.25 in the top 0.1 m |
-| Canopy | Jarvis stomata (`CANOPY_STOMATAL_RESISTANCE_OPTION = 2`) | Noah's big-leaf Jarvis resistance on Noah-MP's option-2 parameters (RS, RGL, HS, TOPT, RSMAX), LAI 2.2 (the table's for 5 August); Noah-MP itself applies them per sunlit and shaded leaf |
+| Canopy | Jarvis stomata (`CANOPY_STOMATAL_RESISTANCE_OPTION = 2`) | Noah's big-leaf Jarvis resistance on Noah-MP's option-2 parameters (RS, RGL, HS, TOPT, RSMAX), LAI 2.23 (the table's at 15:00 UTC on 5 August, day 217.625 counted from 0 as Noah-MP does); Noah-MP itself applies them per sunlit and shaded leaf |
 | Bare soil | Noah-MP's soil resistance (option 1) | the same resistance |
 | Evaporation | Noah-MP's | the surface layer's, from beta q_sat(T_s) + (1 - beta) q_air (`seb_surface_layer_uses_moisture`); the balance drains its soil water by it |
 | Roughness | Noah-MP's own (it supplies u*, theta*, q*) | 0.0964 m, 0.8 Z0MVT + 0.2 Z0SOIL from the tables |
@@ -66,11 +66,11 @@ vs force-restore:
 | Grassland | 18:50 UTC (3.8 h, Noah-MP's peak H) | 21:00 UTC (6 h) |
 |---|---|---|
 | Absorbed shortwave [W/m²] | 780.6 vs 771.5 | 633.7 vs 636.8 |
-| Net longwave, down [W/m²] | -92.7 vs -82.5 | -89.0 vs -80.5 |
+| Net longwave, down [W/m²] | -92.7 vs -82.2 | -89.0 vs -80.3 |
 | Skin temperature [K] | 307.8 vs 306.1 | 308.0 vs 306.6 |
-| H [W/m²] | 115.9 vs 130.1 | 79.4 vs 78.0 |
-| LE [W/m²] | 377.9 vs 395.7 | 348.9 vs 353.9 |
-| PBL height [m] | 958 vs 945 | 1152 vs 1159 |
+| H [W/m²] | 115.9 vs 128.5 | 79.4 vs 77.4 |
+| LE [W/m²] | 377.9 vs 397.9 | 348.9 vs 354.7 |
+| PBL height [m] | 958 vs 943 | 1152 vs 1156 |
 
 | Barren | 19:10 UTC (4.2 h, Noah-MP's peak H) | 21:00 UTC (6 h) |
 |---|---|---|
@@ -99,8 +99,12 @@ Noah-MP's default stomata, Ball-Berry (`CANOPY_STOMATAL_RESISTANCE_OPTION = 1`),
 much less here: at 3.8 h, LE 166.5 and H 282.5 W/m² with a skin of 313.4 K. The balance has
 the Jarvis form only, which is why this case runs Noah-MP with option 2.
 
+ERF's Noah-MP driver counts the day of the year from 1 where Noah-MP's phenology counts from 0
+(erf-model/ERF#4199), so its table LAI here is that of a day later than the balance's: 2.16
+against 2.23 at the start.
+
 Within each model, level 1 tracks level 0 (the land is uniform). On grass the two differ by
-at most 5 W/m² in H and LE and 0.2 K in the skin. On bare soil the skins stay within 0.5 K,
+at most about 5 W/m² in H and LE and 0.2 K in the skin. On bare soil the skins stay within 0.5 K,
 but H differs by up to 9 W/m² (Noah-MP) and 44 W/m² (force-restore) at moments in the
 afternoon; by the end of the run every difference is under 5 W/m², so the levels do not
 drift apart.
