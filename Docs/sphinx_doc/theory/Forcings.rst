@@ -270,16 +270,25 @@ The temperature forcing is then formulated as follows:
 
 The target temperature :math:`\theta_{target}`` is straightforward when using a surface temperature and heating rate; when specifying a surface flux or Obukhov length, the target temperature is determined using MOST.
 
-The stability estimate of the wall law is bounded as on flat ground (:ref:`sec:surface_layer`).
-The friction velocity that sets the Obukhov length, and the heat transfer of the temperature forcing, use the tangential
-wind one cell from the wall floored at 0.1 m/s, and the Obukhov length is held at
-:math:`|L| \ge 1.5\,\Delta / 100`, so that :math:`|\zeta| = |z/L| \le 100` at both heights the law uses
-(:math:`0.5\,\Delta` and :math:`1.5\,\Delta`, with :math:`\Delta` the cell size normal to the wall).
-Without these bounds a calm cell gives :math:`u_* = 0`, :math:`L = 0` and an infinite :math:`\zeta`.
+The stability estimate of the wall law is bounded as on flat ground (:ref:`sec:surface_layer`) and in WRF's
+revised surface layer:
+
+- the friction velocity that sets the Obukhov length, and the heat transfer of the temperature forcing, use
+  the tangential wind one cell from the wall floored at ``erf.if_stability_wind_floor`` (0.1 m/s);
+- the Obukhov length is held at :math:`|L| \ge 1.5\,\Delta / 100`, so that :math:`|\zeta| = |z/L| \le 100`
+  at both heights the law uses (:math:`0.5\,\Delta` and :math:`1.5\,\Delta`, with :math:`\Delta` the cell
+  size normal to the wall);
+- :math:`\psi_m` in the velocity target and :math:`\psi_h` in the temperature forcing (surface flux) are
+  capped at ``erf.if_psi_cap_factor`` :math:`\ln(z/z_0)` (0.9), and never above :math:`\ln(z/z_0)`.
+
+Without the first two a calm cell gives :math:`u_* = 0`, :math:`L = 0` and an infinite :math:`\zeta`.
 The velocity target itself uses the actual wind, so the floor does not push a calm cell.
-In the temperature forcing, :math:`\psi_h` at each height is capped at :math:`0.9 \ln(z/z_0)`, as in
-WRF's revised surface layer, so strongly unstable air still carries heat between the wall and the
-cell above (a cap of :math:`\ln(z/z_0)` itself would flatten the profile and stop the transfer).
+A cap of :math:`\ln(z/z_0)` makes the velocity target zero and the temperature target the value of the cell
+above whenever it binds, which strongly unstable air does; a factor below 1 keeps
+:math:`\ln(z/z_0) - \psi \ge (1 - f)\ln(z/z_0)` for :math:`z > z_0`.
+With a prescribed Obukhov length (``erf.if_Olen``) the temperature target is not capped.
+``erf.if_stability_wind_floor = 0`` and ``erf.if_psi_cap_factor = 1`` give the wall law without the floor
+and with caps of :math:`\ln(z/z_0)`.
 The following inputs are available when representing terrain using immersed forcing:
 
 ::

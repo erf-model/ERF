@@ -3421,6 +3421,16 @@ selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 |                                   | per-step change of the building wall-law forcing; the    |                    |                  |
 |                                   | stability estimate uses its own floor of 0.1 m/s         |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_stability_wind_floor**   | lower bound [m/s] on the tangential wind behind the      | Real >= 0          | 0.1              |
+|                                   | friction velocity of the wall law's stability estimate   |                    |                  |
+|                                   | (Obukhov length) and its heat transfer; 0 leaves the     |                    |                  |
+|                                   | wind as it is                                            |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_psi_cap_factor**         | cap on the wall law's :math:`\psi_m` (velocity target)   | 0 < Real <= 1      | 0.9              |
+|                                   | and :math:`\psi_h` (surface-flux temperature target) as  |                    |                  |
+|                                   | a fraction of :math:`\ln(z/z_0)`, as in WRF's revised    |                    |                  |
+|                                   | surface layer; 1 caps them at :math:`\ln(z/z_0)`         |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_damp_alpha**             | damping coefficient used in the immersed forcing wall    | Real               | 0.5              |
 |                                   | model                                                    |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+

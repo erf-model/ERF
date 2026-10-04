@@ -1191,6 +1191,16 @@ struct SolverChoice {
         pp.queryAdd("if_stability_correction",if_stability_correction);
         pp.queryAdd("if_ws_floor",if_ws_floor);
         pp.queryAdd("if_damp_alpha",if_damp_alpha);
+        // Bounds on the stability estimate of the wall law (erf-model/ERF#4016): the wind floor
+        // behind its friction velocity, and the cap on psi_m and psi_h as a fraction of ln(z/z0)
+        pp.queryAdd("if_stability_wind_floor",if_stability_wind_floor);
+        pp.queryAdd("if_psi_cap_factor",if_psi_cap_factor);
+        if (!(if_stability_wind_floor >= zero)) {
+            amrex::Abort("erf.if_stability_wind_floor must be >= 0 [m/s] (0 leaves the wind as it is)");
+        }
+        if (!(if_psi_cap_factor > zero && if_psi_cap_factor <= one)) {
+            amrex::Abort("erf.if_psi_cap_factor must be in (0, 1] (1 caps psi at ln(z/z0))");
+        }
 
         if ((if_init_surf_temp > zero        && if_surf_temp_flux != amrex::Real(1e-8)) ||
             (if_init_surf_temp > zero        && if_Olen_in        != amrex::Real(1e-8)) ||
@@ -2194,6 +2204,8 @@ struct SolverChoice {
     bool        if_stability_correction  = false;
     amrex::Real if_ws_floor              = 0.001;  // [m/s]
     amrex::Real if_damp_alpha            = 0.5;    // [-]
+    amrex::Real if_stability_wind_floor  = amrex::Real(0.1);  // [m/s]
+    amrex::Real if_psi_cap_factor        = amrex::Real(0.9);  // [-]
 
     // This defaults to true but can be set to false for moving terrain cases only
     bool        use_lagged_delta_rt   = true;
@@ -2635,9 +2647,13 @@ struct SolverChoice {
  * @var SolverChoice::if_stability_correction
  * @brief Whether immersed-forcing stability corrections are enabled.
  * @var SolverChoice::if_ws_floor
- * @brief Wind-speed floor for immersed-forcing MOST [m/s].
+ * @brief Wind-speed floor [m/s] in the per-step change limit of the building wall-law forcing.
  * @var SolverChoice::if_damp_alpha
  * @brief Immersed-forcing damping coefficient.
+ * @var SolverChoice::if_stability_wind_floor
+ * @brief Wind-speed floor [m/s] behind the friction velocity of the wall law's stability estimate.
+ * @var SolverChoice::if_psi_cap_factor
+ * @brief Cap on the wall law's psi_m and psi_h as a fraction of ln(z/z0).
  * @var SolverChoice::use_lagged_delta_rt
  * @brief Whether to use lagged delta terms for moving terrain.
  * @var SolverChoice::rebalance_wrf_input
