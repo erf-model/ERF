@@ -404,9 +404,10 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
             // Projection restores rho0*w before the anelastic stage seam, so
             // the donor estimate must use the same three momentum carriers.
             // Terrain Omega is only an internal projection representation.
-            MultiFab::Copy(mapped_carrier.dir(0), rho_u, 0, 0, 1, 0);
-            MultiFab::Copy(mapped_carrier.dir(1), rho_v, 0, 0, 1, 0);
-            MultiFab::Copy(mapped_carrier.dir(2), rho_w, 0, 0, 1, 0);
+            if (!erf_auxiliary::CopyNativeMappedDryAirCarrierFluxRate(
+                    mapped_carrier, rho_u, rho_v, rho_w, sbm_diagnostic)) {
+                amrex::Abort("SBM anelastic native carrier: " + sbm_diagnostic);
+            }
         } else {
             MultiFab sbm_vertical_carrier(zface_ba, cell_dm, 1, 0);
             const bool terrain_fitted =

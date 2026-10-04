@@ -55,6 +55,18 @@ void validate_sbm_m3_advection (const SolverChoice& choice,
         "SBM M3 mapped advection requires three dimensions");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(max_level == 0,
         "SBM M3 mapped advection supports one AMR level only");
+    const bool anelastic = !choice.anelastic.empty() && choice.anelastic[0] != 0;
+    // Grid stretching may set StaticFittedMesh as a label while retaining
+    // StretchedDz; only VariableDz selects the fitted-terrain projection.
+    const bool fitted_terrain_mesh =
+        choice.terrain_type == TerrainType::StaticFittedMesh &&
+        choice.mesh_type == MeshType::VariableDz;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        !(anelastic && fitted_terrain_mesh),
+        "SBM M3 does not currently support anelastic StaticFittedMesh: the "
+        "fitted-terrain anelastic projection requires a nonperiodic vertical "
+        "boundary while the M3 spectral lifecycle remains restricted to "
+        "periodic domains");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.terrain_type == TerrainType::None ||
                                      choice.terrain_type == TerrainType::StaticFittedMesh,
         "SBM M3 requires static non-EB geometry; moving terrain and embedded boundaries are unsupported");

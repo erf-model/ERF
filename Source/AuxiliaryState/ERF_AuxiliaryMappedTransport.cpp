@@ -176,6 +176,45 @@ bool BuildMappedDryAirCarrierFluxRate (
     return true;
 }
 
+bool CopyNativeMappedDryAirCarrierFluxRate (
+    MappedFaceFluxRate& rate,
+    const amrex::MultiFab& rho_u,
+    const amrex::MultiFab& rho_v,
+    const amrex::MultiFab& rho_w,
+    std::string& diagnostic)
+{
+    diagnostic.clear();
+    if (AMREX_SPACEDIM != 3 || !rate.is_defined() || rate.nComp() != 1 ||
+        rho_u.nComp() < 1 || rho_v.nComp() < 1 || rho_w.nComp() < 1) {
+        diagnostic = "native mapped dry-air carrier requires three dimensions, "
+                     "one output component, and one component per input face";
+        return false;
+    }
+
+    const amrex::MultiFab* input_faces[3] = {&rho_u, &rho_v, &rho_w};
+    for (int dir = 0; dir < 3; ++dir) {
+        const auto& output = rate.dir(dir);
+        const auto& input = *input_faces[dir];
+        if (output.boxArray() != input.boxArray() ||
+            output.DistributionMap() != input.DistributionMap()) {
+            diagnostic = "native mapped dry-air carrier input must match the "
+                         "output's x/y/z face staggering and distribution map";
+            return false;
+        }
+    }
+
+    for (int dir = 0; dir < 3; ++dir) {
+        amrex::MultiFab::Copy(rate.dir(dir), *input_faces[dir], 0, 0, 1, 0);
+    }
+    if (!rate.dir(0).is_finite(0, 1, 0) ||
+        !rate.dir(1).is_finite(0, 1, 0) ||
+        !rate.dir(2).is_finite(0, 1, 0)) {
+        diagnostic = "native mapped dry-air carrier face values are nonfinite";
+        return false;
+    }
+    return true;
+}
+
 bool ComputeMaxMappedOutgoingRate (
     const MappedFaceFluxRate& rate,
     const amrex::MultiFab& measure,

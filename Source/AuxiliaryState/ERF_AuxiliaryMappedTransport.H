@@ -168,6 +168,14 @@ bool BuildMappedDryAirCarrierFluxRate (
     const amrex::MultiFab& my,
     std::string& diagnostic);
 
+/** Copy face fields that are already in ERF's native mapped carrier convention. */
+bool CopyNativeMappedDryAirCarrierFluxRate (
+    MappedFaceFluxRate& rate,
+    const amrex::MultiFab& rho_u,
+    const amrex::MultiFab& rho_v,
+    const amrex::MultiFab& rho_w,
+    std::string& diagnostic);
+
 /** Reduce the largest mapped donor outgoing rate over a cell-centered domain. */
 bool ComputeMaxMappedOutgoingRate (
     const MappedFaceFluxRate& rate,
