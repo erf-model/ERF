@@ -1201,6 +1201,16 @@ struct SolverChoice {
         if (!(if_psi_cap_factor > zero && if_psi_cap_factor <= one)) {
             amrex::Abort("erf.if_psi_cap_factor must be in (0, 1] (1 caps psi at ln(z/z0))");
         }
+        // The defaults change answers where the bounds bind (light wind, strongly unstable air);
+        // say so where the wall law's stability estimate is in use
+        if ((terrain_type == TerrainType::ImmersedForcing || buildings_type == BuildingsType::ImmersedForcing) &&
+            (if_use_most || if_surf_temp_flux != amrex::Real(1e-8)) &&
+            (if_psi_cap_factor < one || if_stability_wind_floor > zero))
+        {
+            amrex::Print() << "Immersed wall law: erf.if_psi_cap_factor = " << if_psi_cap_factor
+                           << ", erf.if_stability_wind_floor = " << if_stability_wind_floor
+                           << " m/s (WRF-style bounds); 1 and 0 give the law of ERF before these inputs\n";
+        }
 
         if ((if_init_surf_temp > zero        && if_surf_temp_flux != amrex::Real(1e-8)) ||
             (if_init_surf_temp > zero        && if_Olen_in        != amrex::Real(1e-8)) ||

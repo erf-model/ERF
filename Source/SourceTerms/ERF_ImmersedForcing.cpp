@@ -20,6 +20,8 @@ using namespace amrex;
  * @param[in] tflux_in Surface heat flux.
  * @param[in] Olen_in Obukhov length.
  * @param[in] stability_correction Whether to apply stability corrections.
+ * @param[in] wind_floor Wind-speed floor [m/s] behind the friction velocity of the stability estimate (erf.if_stability_wind_floor).
+ * @param[in] psi_cap_factor Cap on psi_m as a fraction of ln(z/z0) (erf.if_psi_cap_factor).
  * @return Target velocity component.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -44,14 +46,14 @@ compute_if_most_target_vel (
     Real psi_h                  = zero;
     Real tang_windspeed2r       = std::sqrt(u1_2r * u1_2r + u2_2r * u2_2r);
 
-    // The stability estimate uses the wind floored at wind_floor and an Obukhov length bounded so
-    // that |zeta| <= ib_stability::zeta_max(), as on flat ground; the target below uses the
-    // actual wind
+    // The stability estimate uses the wind floored at wind_floor, a derived Obukhov length bounded
+    // so that |zeta| <= ib_stability::zeta_max() as on flat ground, and a prescribed one as given
+    // with its zeta held there; the target below uses the actual wind
     Real ustar = ib_stability::floored_wind(tang_windspeed2r, wind_floor) * KAPPA / (std::log(1.5 * delta / z0) - psi_m);
     Real tflux = (tflux_in != Real(1.e-8)) ? tflux_in : -(theta_face - theta_surf) * ustar * KAPPA / (std::log(1.5 * delta / z0) - psi_h);
-    Real Olen  = ib_stability::bounded_obukhov_length((Olen_in != Real(1.e-8))  ? Olen_in  : -ustar * ustar * ustar * theta_face / (KAPPA * CONST_GRAV * tflux + tiny),
-                                                      1.5 * delta);
-    Real zeta  = 1.5 * delta / Olen;
+    Real Olen  = (Olen_in != Real(1.e-8)) ? Olen_in
+               : ib_stability::bounded_obukhov_length(-ustar * ustar * ustar * theta_face / (KAPPA * CONST_GRAV * tflux + tiny), Real(1.5) * delta);
+    Real zeta  = ib_stability::bounded_zeta(Real(1.5) * delta, Olen);
 
     // similarity functions
     similarity_funs sfuns;
@@ -153,14 +155,14 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
 
             Real psi_m = zero;
             Real psi_h = zero;
-            // The stability estimate uses the wind floored at erf.if_stability_wind_floor and an
-            // Obukhov length bounded so that |zeta| <= ib_stability::zeta_max(), as on flat ground;
-            // the target below uses the actual wind
+            // The stability estimate uses the wind floored at erf.if_stability_wind_floor, a derived
+            // Obukhov length bounded so that |zeta| <= ib_stability::zeta_max() as on flat ground,
+            // and a prescribed one as given with its zeta held there; the target uses the actual wind
             Real ustar = ib_stability::floored_wind(h_windspeed2r, stab_wind_floor) * kappa / (std::log(Real(1.5) * dx_z / z0) - psi_m); // calculated from bottom of cell. Maintains flexibility for different Vf values
             Real tflux = (tflux_in != Real(1e-8)) ? tflux_in : -(theta_xface - theta_surf) * ustar * kappa / (std::log(Real(1.5) * dx_z / z0) - psi_h);
-            Real Olen  = ib_stability::bounded_obukhov_length((Olen_in  != Real(1e-8)) ? Olen_in  : -ustar * ustar * ustar * theta_xface / (kappa * ggg * tflux + tiny),
-                                                              Real(1.5) * dx_z);
-            Real zeta  = Real(1.5) * dx_z / Olen;
+            Real Olen  = (Olen_in  != Real(1e-8)) ? Olen_in
+                       : ib_stability::bounded_obukhov_length(-ustar * ustar * ustar * theta_xface / (kappa * ggg * tflux + tiny), Real(1.5) * dx_z);
+            Real zeta  = ib_stability::bounded_zeta(Real(1.5) * dx_z, Olen);
 
             // similarity functions
             psi_m          = sfuns.calc_psi_m(zeta);
@@ -267,14 +269,14 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
 
             Real psi_m = zero;
             Real psi_h = zero;
-            // The stability estimate uses the wind floored at erf.if_stability_wind_floor and an
-            // Obukhov length bounded so that |zeta| <= ib_stability::zeta_max(), as on flat ground;
-            // the target below uses the actual wind
+            // The stability estimate uses the wind floored at erf.if_stability_wind_floor, a derived
+            // Obukhov length bounded so that |zeta| <= ib_stability::zeta_max() as on flat ground,
+            // and a prescribed one as given with its zeta held there; the target uses the actual wind
             Real ustar = ib_stability::floored_wind(h_windspeed2r, stab_wind_floor) * kappa / (std::log(Real(1.5) * dx_z / z0) - psi_m); // calculated from bottom of cell. Maintains flexibility for different Vf values
             Real tflux = (tflux_in != Real(1e-8)) ? tflux_in : -(theta_yface - theta_surf) * ustar * kappa / (std::log(Real(1.5) * dx_z / z0) - psi_h);
-            Real Olen  = ib_stability::bounded_obukhov_length((Olen_in  != Real(1e-8)) ? Olen_in  : -ustar * ustar * ustar * theta_yface / (kappa * ggg * tflux + tiny),
-                                                              Real(1.5) * dx_z);
-            Real zeta  = Real(1.5) * dx_z / Olen;
+            Real Olen  = (Olen_in  != Real(1e-8)) ? Olen_in
+                       : ib_stability::bounded_obukhov_length(-ustar * ustar * ustar * theta_yface / (kappa * ggg * tflux + tiny), Real(1.5) * dx_z);
+            Real zeta  = ib_stability::bounded_zeta(Real(1.5) * dx_z, Olen);
 
             // similarity functions
             psi_m          = sfuns.calc_psi_m(zeta);
@@ -1043,8 +1045,8 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
                 Real ustar = h_windspeed2r * kappa / (std::log((Real(1.5)) * dx_z / z0) - psi_m);
                 const Real Olen  = ib_stability::bounded_obukhov_length(-ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny),
                                                                         Real(1.5) * dx_z);
-                const Real zeta          = (myhalf) * dx_z / Olen;
-                const Real zeta_neighbor = (Real(1.5)) * dx_z / Olen;
+                const Real zeta          = ib_stability::bounded_zeta(myhalf * dx_z, Olen);
+                const Real zeta_neighbor = ib_stability::bounded_zeta(Real(1.5) * dx_z, Olen);
 
                 // similarity functions
                 psi_m          = sfuns.calc_psi_m(zeta);
@@ -1070,9 +1072,10 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
         // OBUKHOV LENGTH
         if (Olen_in != Real(1e-8)){
             if (t_blank > 0 && (t_blank_above == zero)) { // force to MOST value
-                const Real Olen  = ib_stability::bounded_obukhov_length(Olen_in, Real(1.5) * dx_z);
-                const Real zeta          = (myhalf) * dx_z / Olen;
-                const Real zeta_neighbor = (Real(1.5)) * dx_z / Olen;
+                // the prescribed length as given, with its zeta held within +-zeta_max()
+                const Real Olen  = Olen_in;
+                const Real zeta          = ib_stability::bounded_zeta(myhalf * dx_z, Olen);
+                const Real zeta_neighbor = ib_stability::bounded_zeta(Real(1.5) * dx_z, Olen);
 
                 // similarity functions
                 const Real psi_m          = sfuns.calc_psi_m(zeta);
@@ -1233,13 +1236,13 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
                 Real psi_h           = zero;
                 Real psi_h_neighbor  = zero;
                 Real ustar           = h_windspeed2r * kappa / (std::log((1.5) * dx_z / z0) - psi_m);
-                Real Olen            = ib_stability::bounded_obukhov_length((Olen_in  != Real(1e-8)) ? Olen_in  : -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny),
-                                                                            Real(1.5) * dx_z);
+                Real Olen            = (Olen_in  != Real(1e-8)) ? Olen_in
+                                     : ib_stability::bounded_obukhov_length(-ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny), Real(1.5) * dx_z);
 
                 for (int iter = 0; iter < 2; ++iter) {
                     if (iter > 0) { Olen  = ib_stability::bounded_obukhov_length(-ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny), Real(1.5) * dx_z); }
-                    Real zeta          = (myhalf) * dx_z / Olen;
-                    Real zeta_neighbor = (1.5)    * dx_z / Olen;
+                    Real zeta          = ib_stability::bounded_zeta(myhalf * dx_z, Olen);
+                    Real zeta_neighbor = ib_stability::bounded_zeta(Real(1.5) * dx_z, Olen);
 
                     // similarity functions
                     psi_m          = sfuns.calc_psi_m(zeta);
@@ -1324,13 +1327,13 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
                 Real psi_h           = zero;
                 Real psi_h_neighbor  = zero;
                 Real ustar           = tan_wspd * kappa / (std::log(1.5 * delta / z0) - psi_m);
-                Real Olen            = ib_stability::bounded_obukhov_length((Olen_in  != Real(1e-8)) ? Olen_in  : -ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny),
-                                                                            Real(1.5) * delta);
+                Real Olen            = (Olen_in  != Real(1e-8)) ? Olen_in
+                                     : ib_stability::bounded_obukhov_length(-ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny), Real(1.5) * delta);
 
                 for (int iter = 0; iter < 2; ++iter) {
                     if (iter > 0) { Olen  = ib_stability::bounded_obukhov_length(-ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny), Real(1.5) * delta); }
-                    Real zeta          = (myhalf) * delta / Olen;
-                    Real zeta_neighbor = (1.5)    * delta / Olen;
+                    Real zeta          = ib_stability::bounded_zeta(myhalf * delta, Olen);
+                    Real zeta_neighbor = ib_stability::bounded_zeta(Real(1.5) * delta, Olen);
 
                     // similarity functions
                     psi_m          = sfuns.calc_psi_m(zeta);

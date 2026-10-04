@@ -15,8 +15,10 @@
  * - The wind behind the friction velocity of the stability estimate is floored at
  *   erf.if_stability_wind_floor (default 0.1 m/s, the flat-ground surface layer's WSMIN in
  *   ERF_MOSTStress.H and WRF's floor); 0 leaves the wind as it is.
- * - The Obukhov length is held at |L| >= z_ref / 100, so |zeta| <= 100 as on flat ground
- *   (ERF_MOSTStress.H).
+ * - An Obukhov length derived from u* and the heat flux is held at |L| >= z_ref / 100, and every
+ *   zeta = z / L at |zeta| <= 100, as on flat ground (ERF_MOSTStress.H). A prescribed
+ *   erf.if_Olen is used as given: only its zeta is held, so one input means one L on every face
+ *   and at every height.
  * - psi_m and psi_h are capped at erf.if_psi_cap_factor ln(z / z0) (default 0.9, WRF's cap in
  *   sf_sfclayrev), in the targets and, for psi_m, in the friction velocity as WRF does; 1 is a cap
  *   of ln(z / z0) in the targets and none in the friction velocity.
@@ -35,14 +37,27 @@ namespace ib_stability
     }
 
     /**
-     * The Obukhov length with |L| no smaller than z_ref / zeta_max(), so that z / L lies within
-     * +-zeta_max() for every z <= z_ref. The sign is kept: L = -0 is the unstable bound and
-     * L = +0 the stable one. Unchanged, bit for bit, when |L| >= z_ref / zeta_max().
+     * An Obukhov length derived from u* and the heat flux, with |L| no smaller than
+     * z_ref / zeta_max(), so that z / L lies within +-zeta_max() for every z <= z_ref and the
+     * zero L of a zero u* is never divided by. The sign is kept: L = -0 is the unstable bound and
+     * L = +0 the stable one. Unchanged, bit for bit, when |L| >= z_ref / zeta_max(). Not for a
+     * prescribed L, whose bound would then depend on the local cell size; see bounded_zeta.
      */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real bounded_obukhov_length (amrex::Real Olen, amrex::Real z_ref) noexcept
     {
         return std::copysign(amrex::max(std::abs(Olen), z_ref / zeta_max()), Olen);
+    }
+
+    /**
+     * zeta = z / L held within +-zeta_max(), for an L that is not zero (a prescribed erf.if_Olen,
+     * which start-up refuses at 0, or one from bounded_obukhov_length). Unchanged, bit for bit,
+     * when |z / L| <= zeta_max().
+     */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::Real bounded_zeta (amrex::Real z, amrex::Real Olen) noexcept
+    {
+        return amrex::max(-zeta_max(), amrex::min(z / Olen, zeta_max()));
     }
 
     /**

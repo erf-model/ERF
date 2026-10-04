@@ -3392,8 +3392,8 @@ selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_Olen**                   | Obukhov length [m] imposed at immersed surfaces; only    | Real != 0          | 1.e-8            |
 |                                   | one of ``if_surf_temp_flux``, ``if_init_surf_temp`` and  |                    |                  |
-|                                   | ``if_Olen`` may be set; the wall law holds               |                    |                  |
-|                                   | :math:`|L| \ge 0.015\,\Delta` (:math:`|z/L| \le 100`)    |                    |                  |
+|                                   | ``if_Olen`` may be set; used as given, the wall law      |                    |                  |
+|                                   | holds :math:`|z/L| \le 100`                              |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_use_most**               | use the Monin-Obukhov similarity theory wall model at    | Boolean            | false            |
 |                                   | immersed surfaces                                        |                    |                  |

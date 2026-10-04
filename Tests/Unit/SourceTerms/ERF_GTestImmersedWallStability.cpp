@@ -1,6 +1,7 @@
 // Contract of the immersed-forcing wall law's stability bounds (erf-model/ERF#4016): the friction
 // velocity behind the Obukhov length uses the wind floored at erf.if_stability_wind_floor (0.1 m/s),
-// and the Obukhov length is held at |L| >= 1.5 dz / 100, as the flat-ground surface layer does;
+// a derived Obukhov length is held at |L| >= 1.5 dz / 100 and every zeta at |zeta| <= 100, as the
+// flat-ground surface layer does (a prescribed erf.if_Olen is used as given);
 // psi_m and psi_h are capped at erf.if_psi_cap_factor ln(z / z0) (0.9), as WRF's revised surface
 // layer caps them, and never above ln(z / z0), psi_m also before it forms u*; u* stays within
 // [0, 2] m/s on every branch. A calm
@@ -64,6 +65,18 @@ TEST(ImmersedWallStability, ObukhovLengthIsBoundedWithItsSign)
     // inside the bound the length is untouched, bit for bit
     for (Real L : {Lmin, -Lmin, Real(0.5), Real(-0.5), Real(150.0), Real(-186.0), Real(1.e30)}) {
         EXPECT_EQ(ib_stability::bounded_obukhov_length(L, z), L);
+    }
+}
+
+TEST(ImmersedWallStability, ZetaIsBounded)
+{
+    const Real zmax = ib_stability::zeta_max();
+    EXPECT_EQ(ib_stability::bounded_zeta(Real(5.0), Real(-0.01)), -zmax);
+    EXPECT_EQ(ib_stability::bounded_zeta(Real(5.0), Real(0.01)), zmax);
+    EXPECT_EQ(ib_stability::bounded_zeta(Real(5.0), Real(1.e-30)), zmax);
+    // inside the bound, z / L bit for bit
+    for (Real L : {Real(-0.2), Real(0.5), Real(-186.0), Real(1.e30)}) {
+        EXPECT_EQ(ib_stability::bounded_zeta(Real(5.0), L), Real(5.0) / L);
     }
 }
 
@@ -246,10 +259,10 @@ TEST(ImmersedWallStability, PrescribedObukhovLengthKeepsUstarBounded)
                                           amrex::Table1D<Real>{}, amrex::Table1D<Real>{}, Real(0.0));
             ASSERT_TRUE(col.all_finite(col.bx, 2)) << "L = " << L << ", factor " << factor;
             // |source| <= drag rho |theta*| / kappa |bracket| with theta* = theta u*^2 / (kappa g L), u* <= 2
-            const Real Lb = ib_stability::bounded_obukhov_length(L, Real(1.5) * dz);
-            const Real tstar_max = theta * Real(4.0) / (KAPPA * CONST_GRAV * std::abs(Lb));
-            const Real bracket = std::abs((std::log(Real(0.5) * dz / z0) - sfuns.calc_psi_h(Real(0.5) * dz / Lb))
-                                        - (std::log(Real(1.5) * dz / z0) - sfuns.calc_psi_h(Real(1.5) * dz / Lb)));
+            // the prescribed length as given, its zeta held within +-100
+            const Real tstar_max = theta * Real(4.0) / (KAPPA * CONST_GRAV * std::abs(L));
+            const Real bracket = std::abs((std::log(Real(0.5) * dz / z0) - sfuns.calc_psi_h(ib_stability::bounded_zeta(Real(0.5) * dz, L)))
+                                        - (std::log(Real(1.5) * dz / z0) - sfuns.calc_psi_h(ib_stability::bounded_zeta(Real(1.5) * dz, L))));
             const Real bound = drag * rho * tstar_max / KAPPA * bracket;
             const Real src = std::abs(col.src.const_array()(1, 1, 1, RhoTheta_comp));
             EXPECT_LE(src, bound * Real(1.001)) << "L = " << L << ", factor " << factor;
@@ -332,4 +345,27 @@ TEST(ImmersedWallStability, PsiMCapBeforeUstarKeepsTheWallLawInStrongInstability
     // factor 0.9: a positive target, so a weaker pull, and a heated wall cell
     EXPECT_GT(xsrc[0], xsrc[1]) << "0.9 " << xsrc[0] << ", 1 " << xsrc[1];
     EXPECT_GT(std::abs(tsrc[0]), Real(1.e-6)) << "0.9 " << tsrc[0] << ", 1 " << tsrc[1];
+}
+
+TEST(ImmersedWallStability, PrescribedObukhovLengthIsUsedAsGiven)
+{
+    // A prescribed erf.if_Olen is not clamped to 1.5 dz / 100 (a bound that moves with the local
+    // cell size); only its zeta is held within +-100. On 10 m cells that bound is 0.15 m, so
+    // L = -0.12 and -0.14 m would both run as -0.15 m if the length were clamped; used as given,
+    // zeta at 0.5 dz (-42 and -36) and theta* differ, and so does the wall-cell heat source.
+    Real src[2] = {0.0, 0.0};
+    const Real lengths[2] = {Real(-0.12), Real(-0.14)};
+    for (int n = 0; n < 2; ++n) {
+        CalmTerrainColumn col;
+        col.u.setVal<amrex::RunOn::Host>(5.0);
+        SolverChoice sc = col.choice(Real(1.e-8));
+        sc.if_Olen_in = lengths[n];
+        ImmersedForcingTerrain_Scalar(col.bx, col.u.const_array(), col.v.const_array(),
+                                      col.cell.const_array(), col.blank.const_array(),
+                                      amrex::Array4<const Real>{}, col.src.array(), col.geom, sc,
+                                      amrex::Table1D<Real>{}, amrex::Table1D<Real>{}, Real(0.0));
+        ASSERT_TRUE(col.all_finite(col.bx, 2));
+        src[n] = col.src.const_array()(1, 1, 1, RhoTheta_comp);
+    }
+    EXPECT_NE(src[0], src[1]) << "L = -0.12: " << src[0] << ", L = -0.14: " << src[1];
 }

@@ -275,9 +275,11 @@ revised surface layer:
 
 - the friction velocity that sets the Obukhov length, and the heat transfer of the temperature forcing, use
   the tangential wind one cell from the wall floored at ``erf.if_stability_wind_floor`` (0.1 m/s);
-- the Obukhov length is held at :math:`|L| \ge 1.5\,\Delta / 100`, so that :math:`|\zeta| = |z/L| \le 100`
-  at both heights the law uses (:math:`0.5\,\Delta` and :math:`1.5\,\Delta`, with :math:`\Delta` the cell
-  size normal to the wall);
+- an Obukhov length derived from :math:`u_*` and the heat flux is held at :math:`|L| \ge 1.5\,\Delta / 100`,
+  and every :math:`\zeta = z/L` at :math:`|\zeta| \le 100`, at both heights the law uses (:math:`0.5\,\Delta`
+  and :math:`1.5\,\Delta`, with :math:`\Delta` the cell size normal to the wall); a prescribed
+  ``erf.if_Olen`` is used as given, with only its :math:`\zeta` held, so the same length applies on every
+  face and at every height;
 - :math:`\psi_m` in the velocity target and :math:`\psi_h` in the temperature forcing (surface flux) are
   capped at ``erf.if_psi_cap_factor`` :math:`\ln(z/z_0)` (0.9), and never above :math:`\ln(z/z_0)`;
 - :math:`\psi_m` in the friction velocity :math:`u_* = \kappa U / (\ln(1.5\,\Delta/z_0) - \psi_m)` is capped
@@ -293,7 +295,13 @@ Without the cap before :math:`u_*`, a :math:`\psi_m` above :math:`\ln(1.5\,\Delt
 negative and the wall law's guard sets :math:`u_* = 0`, with the same result.
 With a prescribed Obukhov length (``erf.if_Olen``) the temperature target is not capped.
 ``erf.if_stability_wind_floor = 0`` and ``erf.if_psi_cap_factor = 1`` give the wall law without the floor,
-with caps of :math:`\ln(z/z_0)` in the targets and no cap before :math:`u_*`.
+with caps of :math:`\ln(z/z_0)` in the targets and no cap before :math:`u_*`: the law of ERF before these
+inputs were added.
+The defaults (0.1 m/s and 0.9) change answers where they bind, also where the earlier law was finite: the
+cap before :math:`u_*` engages once :math:`\ln(1.5\,\Delta/z_0) - \psi_m` falls below
+:math:`0.1\ln(1.5\,\Delta/z_0)`, and the floor in cells with less than 0.1 m/s of tangential wind.
+ERF prints both values at start-up when the wall law's stability estimate is in use.
+
 The following inputs are available when representing terrain using immersed forcing:
 
 ::
