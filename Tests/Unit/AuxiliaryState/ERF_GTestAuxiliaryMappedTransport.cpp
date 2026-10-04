@@ -1430,15 +1430,33 @@ void run_native_mapped_carrier_sloping_terrain_counterexample_test ()
     const int i = 3;
     const int j = 3;
     const int k = 3;
-    int oi = i;
-    int oj = j;
-    int ok = k;
     const auto inv_dx = g.geom.InvCellSizeArray();
-    const Real omega = OmegaFromW(
-        oi, oj, ok, rho_w.const_array(0)(i, j, k, 0),
-        rho_u.const_array(0), rho_v.const_array(0),
-        mf_ux.const_array(0), mf_vy.const_array(0), z_nd.const_array(0),
-        inv_dx);
+    MultiFab omega_result(g.ba, g.dm, 1, 0);
+    omega_result.setVal(Real(0.0));
+    const IntVect omega_cell(i, j, k);
+    // OmegaFromW is device-only; evaluate it on the execution backend.
+    for (amrex::MFIter mfi(omega_result); mfi.isValid(); ++mfi) {
+        if (mfi.validbox().contains(omega_cell)) {
+            const Box point_box(omega_cell, omega_cell);
+            const auto result = omega_result.array(mfi);
+            const auto w = rho_w.const_array(mfi);
+            const auto u = rho_u.const_array(mfi);
+            const auto v = rho_v.const_array(mfi);
+            const auto map_u = mf_ux.const_array(mfi);
+            const auto map_v = mf_vy.const_array(mfi);
+            const auto z = z_nd.const_array(mfi);
+            amrex::ParallelFor(
+                point_box, [=] AMREX_GPU_DEVICE(int ii, int jj, int kk) noexcept {
+                    int oi = ii;
+                    int oj = jj;
+                    int ok = kk;
+                    result(ii, jj, kk, 0) = OmegaFromW(
+                        oi, oj, ok, w(oi, oj, ok, 0), u, v, map_u, map_v, z,
+                        inv_dx);
+                });
+        }
+    }
+    const Real omega = omega_result.sum(0);
     EXPECT_NEAR(omega, Real(0.08), Real(1.0e-5));
     EXPECT_GT(amrex::Math::abs(rho_w.const_array(0)(i, j, k, 0) - omega),
               Real(0.2));
