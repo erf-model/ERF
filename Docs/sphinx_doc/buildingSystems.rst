@@ -249,7 +249,9 @@ Set build variables in the ``GNUmakefile``:
         - TRUE/FALSE
 
    .. note::
-      **At most one of USE_OMP, USE_CUDA, USE_HIP, USE_SYCL should be TRUE.**
+      **At most one of USE_OMP, USE_CUDA, USE_HIP, USE_SYCL may be TRUE.**
+      Setting more than one is rejected by the build with an error naming the
+      backends that were selected, rather than silently configuring one of them.
 
    For additional compiler options, see the `AMReX documentation <https://amrex-codes.github.io/amrex/docs_html/BuildingAMReX.html>`_.
 
@@ -612,7 +614,9 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
      - Path string
 
 .. note::
-   **At most one of ERF_ENABLE_OPENMP, ERF_ENABLE_CUDA, ERF_ENABLE_HIP, ERF_ENABLE_SYCL should be ON.**
+   **At most one of ERF_ENABLE_OPENMP, ERF_ENABLE_CUDA, ERF_ENABLE_HIP, ERF_ENABLE_SYCL may be ON.**
+   Setting more than one is rejected at configure time with an error naming the
+   backends that were selected, rather than silently configuring one of them.
 
 .. dropdown:: Feature Dependencies
    :icon: checklist
