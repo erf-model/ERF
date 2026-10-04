@@ -167,6 +167,25 @@ option(ERF_ENABLE_HIP  "Enable HIP" OFF)
 option(ERF_ENABLE_SYCL "Enable SYCL" OFF)
 option(ERF_ENABLE_NVHPC "Enable NVHPC" OFF)
 
+# ERF builds for at most one parallel backend at a time. Mirror the GNU Make
+# guard in Exec/Make.ERF and reject a multi-backend selection here rather than
+# configuring it.
+set(ERF_BACKENDS_ENABLED "")
+foreach(_erf_backend OPENMP CUDA HIP SYCL)
+  if (ERF_ENABLE_${_erf_backend})
+    list(APPEND ERF_BACKENDS_ENABLED "ERF_ENABLE_${_erf_backend}")
+  endif()
+endforeach()
+list(LENGTH ERF_BACKENDS_ENABLED _erf_num_backends)
+if (_erf_num_backends GREATER 1)
+  string(REPLACE ";" ", " _erf_backend_list "${ERF_BACKENDS_ENABLED}")
+  message(FATAL_ERROR
+    "At most one of ERF_ENABLE_OPENMP, ERF_ENABLE_CUDA, ERF_ENABLE_HIP, ERF_ENABLE_SYCL may be ON; got ${_erf_backend_list}")
+endif()
+unset(_erf_backend)
+unset(_erf_num_backends)
+unset(_erf_backend_list)
+
 #Options for NOAH-MP
 option(ERF_ENABLE_NOAHMP "Enable Noah-MP" OFF)
 
