@@ -3851,10 +3851,10 @@ particle support is enabled, the Lagrangian Super-Droplet Method. ERF also
 contains the developing Eulerian spectral-bin capability selected with
 ``erf.moisture_model = SBM``.
 
-The current ``SBM`` option is restricted to its zero-transport infrastructure
-fixture; it is not yet a production spectral-bin cloud-microphysics scheme.
-See :ref:`sec:SpectralBinMicrophysics` for its state representation,
-configuration, and current limitations.
+The current ``SBM`` option provides bounded M3 mapped spectral advection, not a
+complete warm-cloud microphysics scheme. See
+:ref:`sec:SpectralBinMicrophysics` for its state representation, configuration,
+and current limitations.
 
 The following run-time options control the moisture model.
 
@@ -3910,8 +3910,8 @@ SBM inputs
 ----------
 
 The inputs below are read only when ``erf.moisture_model = SBM``. The current
-SBM implementation is the bounded zero-transport infrastructure described in
-:ref:`sec:SpectralBinMicrophysics`.
+SBM implementation provides bounded M3 mapped spectral advection as described
+in :ref:`sec:SpectralBinMicrophysics`.
 
 .. list-table::
    :header-rows: 1
@@ -3922,10 +3922,9 @@ SBM implementation is the bounded zero-transport infrastructure described in
      - Acceptable values
      - Default
    * - ``erf.sbm_zero_transport_fixture``
-     - Enables the current bounded SBM infrastructure fixture. This must
-       currently be true whenever ``erf.moisture_model = SBM``; production
-       spectral transport is not yet implemented.
-     - Boolean; currently ``true`` is required for SBM
+     - Deprecated pre-M3 qualification switch. New M3 inputs omit it; an
+       explicitly true value is rejected as obsolete.
+     - Boolean; true rejected, omit for M3
      - ``false``
    * - ``erf.sbm_nbins``
      - Number of liquid spectral bins when explicit ``sbm_edges`` are not

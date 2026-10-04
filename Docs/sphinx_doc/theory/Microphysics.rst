@@ -57,8 +57,7 @@ prognostic variables. See :ref:`sec:SpectralBinMicrophysics`.
 | 6-class            |                         |             |             |                 |             |
 +--------------------+-------------------------+-------------+-------------+-----------------+-------------+
 | Spectral-bin       | ``SBM``                 | :math:`q_r` | --          | --              | --          |
-| infrastructure     |                         |             |             |                 |             |
-| fixture            |                         |             |             |                 |             |
+| advection          |                         |             |             |                 |             |
 +--------------------+-------------------------+-------------+-------------+-----------------+-------------+
 | Super-Droplet      | ``SuperDroplets``       | :math:`q_i` | :math:`q_r` | :math:`q_s`     | :math:`q_g` |
 | Method (SDM)       |                         |             |             |                 |             |
@@ -67,12 +66,13 @@ prognostic variables. See :ref:`sec:SpectralBinMicrophysics`.
 
 .. warning::
 
-   ``SBM`` is currently a bounded zero-transport infrastructure fixture, not
-   yet a production spectral-bin cloud-microphysics option. It stores and
-   validates a liquid spectral distribution and projects that distribution to
-   bulk ``qc`` and ``qr``, but spectral transport and cloud microphysical
-   processes are not yet enabled. See
-   :ref:`sec:SpectralBinMicrophysics` for the current supported configuration.
+   ``SBM`` currently provides the bounded M3 advection capability, not a
+   complete warm-cloud microphysics scheme. The authoritative liquid spectrum
+   is advected with ERF's mapped dry-air carrier and projected to ``qc``/``qr``,
+   but diffusional growth, activation, aerosol evolution,
+   collision-coalescence, sedimentation/precipitation, AMR transport lifecycle,
+   and other later-phase physics are not yet enabled. See
+   :ref:`sec:SpectralBinMicrophysics` for the supported configuration.
 
 .. note::
 

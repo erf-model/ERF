@@ -16,6 +16,7 @@
 #include "ERF_Utils.H"
 #include "ERF_ProbCommon.H"
 #include "ERF_SBMStateManager.H"
+#include "ERF_SBMTransport.H"
 
 using namespace amrex;
 
@@ -40,8 +41,7 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     if (sbm_state_manager) {
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(geom[lev].isPeriodic(dir),
-                "SBM zero-transport fixture requires triply periodic geometry; "
-                "spectral physical boundary filling is not implemented at M1");
+                "SBM M3 currently requires triply periodic geometry; spectral physical boundary filling is not implemented");
         }
     }
     //
@@ -140,6 +140,8 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             sbm_state_manager->state(lev).setVal(
                 solverChoice.sbm_fixture_initial_state[static_cast<std::size_t>(comp)], comp, 1, 0);
         }
+        AMREX_ALWAYS_ASSERT(sbm_transport != nullptr);
+        sbm_transport->define(lev, ba, dm);
     }
 
     // define_level (inside init_stuff) filled the two-stream SEB state with the scalar
@@ -314,6 +316,20 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         }
         auxiliary_inert_tracer->initialize(lev, lev_new[Vars::cons], geom[lev]);
     }
+    // Checkpoint geometry is restored after this level-creation routine. Leave
+    // the restart measure unready until ReadCheckpointFile rebuilds it from
+    // the restored geometry and terrain metrics.
+    if (sbm_transport && restart_chkfile.empty()) {
+        AMREX_ALWAYS_ASSERT(detJ_cc[lev] != nullptr);
+        AMREX_ALWAYS_ASSERT(mapfac[lev][MapFacType::m_x] != nullptr);
+        AMREX_ALWAYS_ASSERT(mapfac[lev][MapFacType::m_y] != nullptr);
+        std::string measure_diagnostic;
+        if (!sbm_transport->rebuild_static_measure(
+                lev, *detJ_cc[lev], *mapfac[lev][MapFacType::m_x],
+                *mapfac[lev][MapFacType::m_y], measure_diagnostic)) {
+            amrex::Abort("SBM M3 static mapped measure: " + measure_diagnostic);
+        }
+    }
 
      // Read in tables needed for windfarm simulations
     // fill in Nturb multifab - number of turbines in each mesh cell
@@ -399,7 +415,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!auxiliary_inert_tracer,
         "M2 auxiliary inert tracer fixture does not support coarse-to-fine initialization");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!sbm_state_manager,
-        "SBM M1 zero-transport fixture does not support coarse-to-fine auxiliary initialization");
+        "SBM M3 does not support coarse-to-fine spectral initialization");
     //
     // Note that "time" here is elapsed time
     //
@@ -823,7 +839,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!auxiliary_inert_tracer,
         "M2 auxiliary inert tracer fixture does not support regrid/remake");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!sbm_state_manager,
-        "SBM M1 zero-transport fixture does not support regridding or auxiliary remap");
+        "SBM M3 does not support regridding or spectral remap");
     //
     // Note that "time" here is elapsed time
     //
@@ -1471,6 +1487,9 @@ ERF::ClearLevel (int lev)
     }
     if (sbm_state_manager && sbm_state_manager->is_defined(lev)) {
         sbm_state_manager->destroy(lev);
+    }
+    if (sbm_transport && sbm_transport->is_defined(lev)) {
+        sbm_transport->destroy(lev);
     }
     for (int var_idx = 0; var_idx < Vars::NumTypes; ++var_idx) {
         vars_new[lev][var_idx].clear();
