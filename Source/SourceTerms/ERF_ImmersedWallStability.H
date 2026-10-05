@@ -6,6 +6,7 @@
 #include <AMReX_REAL.H>
 
 #include <cmath>
+#include <limits>
 
 /**
  * Bounds on the stability estimate of the immersed-forcing wall law. Without them a zero
@@ -94,6 +95,18 @@ namespace ib_stability
     {
         const amrex::Real ln = std::log(z / z0);
         return (factor < amrex::Real(1.0) && ln > amrex::Real(0.0)) ? amrex::min(psi_m, factor * ln) : psi_m;
+    }
+
+    /**
+     * The temperature scale of a prescribed surface heat flux q [K m/s]: theta* = -q / u*, with
+     * the u* the wall law uses (0 for u* = 0, where no transfer is resolved). Written so that
+     * u* = 0 never divides: u*^2 + DBL_MIN (FLT_MIN) leaves -q / u* unchanged to rounding for any
+     * u* the clamp lets through.
+     */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::Real thetastar_from_flux (amrex::Real q, amrex::Real ustar) noexcept
+    {
+        return -q * ustar / (ustar * ustar + std::numeric_limits<amrex::Real>::min());
     }
 
     /**

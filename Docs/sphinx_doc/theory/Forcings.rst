@@ -294,13 +294,22 @@ above whenever it binds, which strongly unstable air does; a factor below 1 keep
 Without the cap before :math:`u_*`, a :math:`\psi_m` above :math:`\ln(1.5\,\Delta/z_0)` turns the denominator
 negative and the wall law's guard sets :math:`u_* = 0`, with the same result.
 With a prescribed Obukhov length (``erf.if_Olen``) the temperature target is not capped.
-``erf.if_stability_wind_floor = 0`` and ``erf.if_psi_cap_factor = 1`` give the wall law without the floor,
-with caps of :math:`\ln(z/z_0)` in the targets and no cap before :math:`u_*`: the law of ERF before these
-inputs were added.
+``erf.if_stability_wind_floor = 0`` and ``erf.if_psi_cap_factor = 1`` turn off the floor and the caps (caps of
+:math:`\ln(z/z_0)` in the targets, none before :math:`u_*`).
 The defaults (0.1 m/s and 0.9) change answers where they bind, also where the earlier law was finite: the
 cap before :math:`u_*` engages once :math:`\ln(1.5\,\Delta/z_0) - \psi_m` falls below
 :math:`0.1\ln(1.5\,\Delta/z_0)`, and the floor in cells with less than 0.1 m/s of tangential wind.
 ERF prints both values at start-up when the wall law's stability estimate is in use.
+
+Three changes have no switch, so ERF's results differ from earlier versions also with 0 and 1:
+
+- the bounds on a derived :math:`L` and on every :math:`\zeta` (they bind where the earlier law divided by
+  zero or returned NaN, or for :math:`|\zeta| > 100`, including a prescribed :math:`|L| < 0.015\,\Delta`);
+- with a prescribed surface flux :math:`q` on immersed terrain, :math:`\theta_* = -q/u_*` with the :math:`u_*`
+  the law uses (:math:`\theta_* = 0` for :math:`u_* = 0`); the earlier law formed :math:`\theta_*` from an Obukhov length
+  built with the neutral :math:`u_*`, which misstated the flux by the factor :math:`(u_*/u_{*,\mathrm{neutral}})^3`;
+- with a prescribed ``erf.if_Olen``, :math:`u_*` is held in :math:`[0, 2]` m/s as in the other branches, so a
+  :math:`u_*` that would be negative turns the heat forcing off.
 
 The following inputs are available when representing terrain using immersed forcing:
 

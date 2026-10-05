@@ -185,6 +185,33 @@ struct CalmTerrainColumn {
     }
 };
 
+// The terrain scalar kernel's flux-branch source at the wall cell of the column above, worked out
+// step by step: u = U at the cell above, theta = 300 K everywhere, dz = 10 m, Cd_scalar = 5,
+// a prescribed flux q, and theta* = -q / u* with the u* the wall law forms.
+Real calm_column_heat_source (Real U, Real q, Real z0, Real factor)
+{
+    const Real dz = Real(10.0);
+    const Real theta = Real(300.0);
+    const Real rho = Real(1.2);
+    const Real drag = Real(5.0) / dz;
+    similarity_funs sfuns;
+    const Real ln1 = std::log(Real(0.5) * dz / z0);
+    const Real ln2 = std::log(Real(1.5) * dz / z0);
+    const Real speed = ib_stability::floored_wind(U, Real(0.1));
+    const Real ustar0 = speed * KAPPA / ln2;
+    const Real L = ib_stability::bounded_obukhov_length(
+        -ustar0 * ustar0 * ustar0 * theta / (KAPPA * CONST_GRAV * q + std::numeric_limits<Real>::epsilon()), Real(1.5) * dz);
+    const Real zeta1 = ib_stability::bounded_zeta(Real(0.5) * dz, L);
+    const Real zeta2 = ib_stability::bounded_zeta(Real(1.5) * dz, L);
+    const Real psi_m = sfuns.calc_psi_m(zeta1);
+    const Real ustar = ib_stability::clamped_ustar(speed * KAPPA / (ln2 - ib_stability::psi_m_for_ustar(psi_m, Real(1.5) * dz, z0, factor)));
+    const Real psi_h1 = ib_stability::capped_psi(sfuns.calc_psi_h(zeta1), Real(0.5) * dz, z0, factor);
+    const Real psi_h2 = ib_stability::capped_psi(sfuns.calc_psi_h(zeta2), Real(1.5) * dz, z0, factor);
+    const Real thetastar = -q / ustar;
+    const Real dT = thetastar / KAPPA * ((ln1 - psi_h1) - (ln2 - psi_h2));
+    return drag * rho * dT;
+}
+
 } // namespace
 
 TEST(ImmersedWallStability, CalmTerrainMomentumTargetIsFinite)
@@ -245,6 +272,7 @@ TEST(ImmersedWallStability, PrescribedObukhovLengthKeepsUstarBounded)
     // held at 0.1 ln 30 and u* still reaches the clamp
     for (Real factor : {Real(1.0), Real(0.9)}) {
         int n_bounded = 0;
+        int n_off = 0;
         for (int n = 0; n <= 400; ++n) {
             const Real L = Real(-0.25) + Real(0.13) * Real(n) / Real(400);
             CalmTerrainColumn col;
@@ -267,9 +295,18 @@ TEST(ImmersedWallStability, PrescribedObukhovLengthKeepsUstarBounded)
             const Real src = std::abs(col.src.const_array()(1, 1, 1, RhoTheta_comp));
             EXPECT_LE(src, bound * Real(1.001)) << "L = " << L << ", factor " << factor;
             if (src > Real(0.999) * bound) { ++n_bounded; }
+            if (src < Real(1.e-9)) { ++n_off; }
         }
         // and the sweep does reach u* at the clamp
         EXPECT_GT(n_bounded, 0) << "factor " << factor;
+        // Past the cancellation (psi_m > ln 30) the u* denominator is negative: with factor 1 the
+        // clamp sets u* = 0 and the heat forcing is off (development squared the negative u*);
+        // with 0.9 psi_m is capped before u* and the forcing never switches off.
+        if (factor == Real(1.0)) {
+            EXPECT_GT(n_off, 0);
+        } else {
+            EXPECT_EQ(n_off, 0);
+        }
     }
 }
 
@@ -342,9 +379,14 @@ TEST(ImmersedWallStability, PsiMCapBeforeUstarKeepsTheWallLawInStrongInstability
     // factor 1: zero velocity target (u = 1 m/s relaxed to rest) and no heat (round-off only)
     EXPECT_LT(xsrc[1], Real(0.0));
     EXPECT_LT(std::abs(tsrc[1]), Real(1.e-9));
-    // factor 0.9: a positive target, so a weaker pull, and a heated wall cell
+    // factor 0.9: a positive target, so a weaker pull
     EXPECT_GT(xsrc[0], xsrc[1]) << "0.9 " << xsrc[0] << ", 1 " << xsrc[1];
-    EXPECT_GT(std::abs(tsrc[0]), Real(1.e-6)) << "0.9 " << tsrc[0] << ", 1 " << tsrc[1];
+    // and the wall cell heated by the prescribed flux, at its own size: theta* = -q / u*, not
+    // theta u*^2 / (kappa g L) with L from the neutral u* (which is (u* / u*_neutral)^3 too large
+    // here, a target near +194 K)
+    const Real expected = calm_column_heat_source(Real(1.0), Real(2.0), Real(0.5), Real(0.9));
+    EXPECT_NEAR(tsrc[0], expected, Real(1.e-9) * std::abs(expected)) << "0.9 " << tsrc[0];
+    EXPECT_LT(std::abs(expected), Real(0.5) * Real(1.2) * Real(20.0)) << "target more than 20 K from the air";
 }
 
 TEST(ImmersedWallStability, PrescribedObukhovLengthIsUsedAsGiven)

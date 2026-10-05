@@ -1059,8 +1059,12 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
                 psi_h_neighbor = ib_stability::capped_psi(psi_h_neighbor, Real(1.5) * dx_z, z0, psi_cap_factor);
                 psi_h = ib_stability::capped_psi(psi_h, myhalf * dx_z, z0, psi_cap_factor);
 
+                // theta* of the prescribed flux with the corrected u*. L above was formed from the
+                // neutral u* and is not recomputed, so theta u*^2 / (kappa g L) misstated the flux
+                // by (u* / u*_neutral)^3.
+                const Real thetastar    = ib_stability::thetastar_from_flux(tflux, ustar);
+
                 // We do not know the actual temperature so use cell above
-                const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);
                 const Real surf_temp    = theta_neighbor - thetastar / kappa * (std::log((Real(1.5)) * dx_z / z0) - psi_h_neighbor);
                 const Real tTarget      = surf_temp + thetastar / kappa * (std::log((myhalf) * dx_z / z0) - psi_h);
 
@@ -1081,7 +1085,11 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
                 const Real psi_m          = sfuns.calc_psi_m(zeta);
                 const Real psi_h          = sfuns.calc_psi_h(zeta);
                 const Real psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
-                // psi_m at 0.5 dz against ln(1.5 dz / z0) can cancel: the same guard as the other branches
+                // psi_m at 0.5 dz against ln(1.5 dz / z0) can cancel. u* is held in [0, 2] m/s as on the
+                // other branches; this changes answers where it binds: a negative u* (psi_m past
+                // ln(1.5 dz / z0), possible with erf.if_psi_cap_factor = 1 or 1.5 dz <= z0) now turns
+                // the heat forcing off (theta* = 0, the target is the cell above), where development
+                // used the square of the negative u*, and u* > 2 m/s is held at 2.
                 const Real ustar = ib_stability::clamped_ustar(h_windspeed2r * kappa / (std::log((Real(1.5)) * dx_z / z0) - ib_stability::psi_m_for_ustar(psi_m, Real(1.5) * dx_z, z0, psi_cap_factor)));
 
                 // We do not know the actual temperature so use cell above
