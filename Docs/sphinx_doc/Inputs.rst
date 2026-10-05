@@ -3421,17 +3421,17 @@ selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 |                                   | per-step change of the building wall-law forcing; the    |                    |                  |
 |                                   | stability estimate uses its own floor of 0.1 m/s         |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.if_stability_wind_floor**   | lower bound [m/s] on the tangential wind behind the      | Real >= 0          | 0.1              |
+| **erf.if_stability_wind_floor**   | lower bound [m/s] on the tangential wind behind the      | Real >= 0          | 0                |
 |                                   | friction velocity of the wall law's stability estimate   |                    |                  |
-|                                   | (Obukhov length) and its heat transfer; 0 leaves the     |                    |                  |
-|                                   | wind as it is                                            |                    |                  |
+|                                   | (Obukhov length) and its heat transfer; WRF and the      |                    |                  |
+|                                   | flat-ground surface layer use 0.1; 0 leaves the wind as  |                    |                  |
+|                                   | it is                                                    |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.if_psi_cap_factor**         | cap on the wall law's :math:`\psi_m` (velocity target    | 0 < Real <= 1      | 0.9              |
-|                                   | and, before it forms :math:`u_*`, friction velocity) and |                    |                  |
-|                                   | :math:`\psi_h` (surface-flux temperature target) as a    |                    |                  |
-|                                   | fraction of :math:`\ln(z/z_0)`, as in WRF's revised      |                    |                  |
-|                                   | surface layer; 1 caps the targets at :math:`\ln(z/z_0)`  |                    |                  |
-|                                   | and leaves :math:`u_*` uncapped                          |                    |                  |
+| **erf.if_psi_cap_factor**         | cap on :math:`\psi_m` in the wall law's velocity target  | 0 < Real <= 1      | 1                |
+|                                   | and, before it forms :math:`u_*`, in its friction        |                    |                  |
+|                                   | velocity, as a fraction of :math:`\ln(z/z_0)`; WRF uses  |                    |                  |
+|                                   | 0.9; 1 caps the target at :math:`\ln(z/z_0)` and         |                    |                  |
+|                                   | leaves :math:`u_*` uncapped                              |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_damp_alpha**             | damping coefficient used in the immersed forcing wall    | Real               | 0.5              |
 |                                   | model                                                    |                    |                  |

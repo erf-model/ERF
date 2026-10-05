@@ -6,23 +6,26 @@
 #include <AMReX_REAL.H>
 
 #include <cmath>
-#include <limits>
 
 /**
  * Bounds on the stability estimate of the immersed-forcing wall law. Without them a zero
  * tangential wind one cell from the wall gives u* = 0, an Obukhov length of zero and zeta = z/0
  * (erf-model/ERF#4016).
  *
- * - The wind behind the friction velocity of the stability estimate is floored at
- *   erf.if_stability_wind_floor (default 0.1 m/s, the flat-ground surface layer's WSMIN in
- *   ERF_MOSTStress.H and WRF's floor); 0 leaves the wind as it is.
+ * Always on:
  * - An Obukhov length derived from u* and the heat flux is held at |L| >= z_ref / 100, and every
  *   zeta = z / L at |zeta| <= 100, as on flat ground (ERF_MOSTStress.H). A prescribed
  *   erf.if_Olen is used as given: only its zeta is held, so one input means one L on every face
  *   and at every height.
- * - psi_m and psi_h are capped at erf.if_psi_cap_factor ln(z / z0) (default 0.9, WRF's cap in
- *   sf_sfclayrev), in the targets and, for psi_m, in the friction velocity as WRF does; 1 is a cap
- *   of ln(z / z0) in the targets and none in the friction velocity.
+ *
+ * Opt-in (WRF's revised surface layer, sf_sfclayrev):
+ * - erf.if_stability_wind_floor (default 0, WRF and the flat-ground WSMIN use 0.1 m/s) floors the
+ *   wind behind the friction velocity of the stability estimate.
+ * - erf.if_psi_cap_factor (default 1, WRF uses 0.9) caps psi_m at factor ln(z / z0) in the
+ *   velocity target and before it forms the friction velocity of the momentum law. The
+ *   temperature forcing keeps caps of ln(z / z0): its surface-flux branch forms theta* from an
+ *   Obukhov length that is not consistent with u*, which those caps keep from reaching the target
+ *   in strongly unstable air.
  */
 namespace ib_stability
 {
@@ -53,12 +56,13 @@ namespace ib_stability
     /**
      * zeta = z / L held within +-zeta_max(), for an L that is not zero (a prescribed erf.if_Olen,
      * which start-up refuses at 0, or one from bounded_obukhov_length). Unchanged, bit for bit,
-     * when |z / L| <= zeta_max().
+     * when |z / L| <= zeta_max(); a NaN stays NaN.
      */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
     amrex::Real bounded_zeta (amrex::Real z, amrex::Real Olen) noexcept
     {
-        return amrex::max(-zeta_max(), amrex::min(z / Olen, zeta_max()));
+        // z / L first in both, so a NaN propagates instead of becoming a bound
+        return amrex::min(amrex::max(z / Olen, -zeta_max()), zeta_max());
     }
 
     /**
@@ -95,18 +99,6 @@ namespace ib_stability
     {
         const amrex::Real ln = std::log(z / z0);
         return (factor < amrex::Real(1.0) && ln > amrex::Real(0.0)) ? amrex::min(psi_m, factor * ln) : psi_m;
-    }
-
-    /**
-     * The temperature scale of a prescribed surface heat flux q [K m/s]: theta* = -q / u*, with
-     * the u* the wall law uses (0 for u* = 0, where no transfer is resolved). Written so that
-     * u* = 0 never divides: u*^2 + DBL_MIN (FLT_MIN) leaves -q / u* unchanged to rounding for any
-     * u* the clamp lets through.
-     */
-    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    amrex::Real thetastar_from_flux (amrex::Real q, amrex::Real ustar) noexcept
-    {
-        return -q * ustar / (ustar * ustar + std::numeric_limits<amrex::Real>::min());
     }
 
     /**

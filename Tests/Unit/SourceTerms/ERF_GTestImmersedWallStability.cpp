@@ -1,14 +1,12 @@
-// Contract of the immersed-forcing wall law's stability bounds (erf-model/ERF#4016): the friction
-// velocity behind the Obukhov length uses the wind floored at erf.if_stability_wind_floor (0.1 m/s),
-// a derived Obukhov length is held at |L| >= 1.5 dz / 100 and every zeta at |zeta| <= 100, as the
-// flat-ground surface layer does (a prescribed erf.if_Olen is used as given);
-// psi_m and psi_h are capped at erf.if_psi_cap_factor ln(z / z0) (0.9), as WRF's revised surface
-// layer caps them, and never above ln(z / z0), psi_m also before it forms u*; u* stays within
-// [0, 2] m/s on every branch. A calm
-// cell above the wall used to give u* = 0, L = 0 and zeta = z / 0; under a cooling flux
-// zeta = +inf, psi_m = -inf and the momentum and temperature targets became 0 * inf = NaN. Above
-// the floor, inside the bound and below the cap, nothing changes; a floor of 0 and a factor of 1
-// are the law without them.
+// Contract of the immersed-forcing wall law's stability bounds (erf-model/ERF#4016). Always on: a
+// derived Obukhov length is held at |L| >= 1.5 dz / 100 and every zeta at |zeta| <= 100, as the
+// flat-ground surface layer does (a prescribed erf.if_Olen is used as given), and u* stays within
+// [0, 2] m/s on every branch. A calm cell above the wall used to give u* = 0, L = 0 and zeta = z / 0;
+// under a cooling flux zeta = +inf, psi_m = -inf and the momentum and temperature targets became
+// 0 * inf = NaN. Opt-in, as in WRF's revised surface layer: erf.if_stability_wind_floor (default 0)
+// floors the wind of the stability estimate, and erf.if_psi_cap_factor (default 1) caps psi_m in the
+// momentum law at factor ln(z / z0), also before it forms u*. The temperature forcing keeps caps of
+// ln(z / z0) (erf-model/ERF#4206). Inside the bounds and with the defaults, nothing changes.
 
 #include <cmath>
 #include <limits>
@@ -29,11 +27,11 @@
 
 using amrex::Real;
 
-TEST(ImmersedWallStability, WindFloorDefaultsToTheFlatGroundOne)
+TEST(ImmersedWallStability, WindFloorIsOffByDefaultAndFloorsWhenSet)
 {
     const SolverChoice sc{};
-    EXPECT_EQ(sc.if_stability_wind_floor, Real(0.1));
-    const Real f = sc.if_stability_wind_floor;
+    EXPECT_EQ(sc.if_stability_wind_floor, Real(0.0));
+    const Real f = Real(0.1);  // WRF's and the flat-ground surface layer's floor
     EXPECT_EQ(ib_stability::floored_wind(Real(0.0), f), Real(0.1));
     EXPECT_EQ(ib_stability::floored_wind(Real(0.05), f), Real(0.1));
     // above the floor the speed is untouched, bit for bit, and a floor of 0 never changes it
@@ -78,13 +76,15 @@ TEST(ImmersedWallStability, ZetaIsBounded)
     for (Real L : {Real(-0.2), Real(0.5), Real(-186.0), Real(1.e30)}) {
         EXPECT_EQ(ib_stability::bounded_zeta(Real(5.0), L), Real(5.0) / L);
     }
+    // a NaN stays NaN rather than becoming a bound
+    EXPECT_TRUE(std::isnan(ib_stability::bounded_zeta(Real(5.0), std::numeric_limits<Real>::quiet_NaN())));
 }
 
 TEST(ImmersedWallStability, PsiCapIsWrfsAndNeverLooserThanTheLog)
 {
     const SolverChoice sc{};
-    EXPECT_EQ(sc.if_psi_cap_factor, Real(0.9));
-    const Real f = sc.if_psi_cap_factor;
+    EXPECT_EQ(sc.if_psi_cap_factor, Real(1.0));  // off by default
+    const Real f = Real(0.9);                    // WRF's factor
     // z > z0: f ln(z / z0), so ln(z / z0) - psi >= (1 - f) ln(z / z0) > 0
     for (Real z : {Real(5.0), Real(15.0)}) {
         const Real ln = std::log(z / Real(0.1));
@@ -185,38 +185,12 @@ struct CalmTerrainColumn {
     }
 };
 
-// The terrain scalar kernel's flux-branch source at the wall cell of the column above, worked out
-// step by step: u = U at the cell above, theta = 300 K everywhere, dz = 10 m, Cd_scalar = 5,
-// a prescribed flux q, and theta* = -q / u* with the u* the wall law forms.
-Real calm_column_heat_source (Real U, Real q, Real z0, Real factor)
-{
-    const Real dz = Real(10.0);
-    const Real theta = Real(300.0);
-    const Real rho = Real(1.2);
-    const Real drag = Real(5.0) / dz;
-    similarity_funs sfuns;
-    const Real ln1 = std::log(Real(0.5) * dz / z0);
-    const Real ln2 = std::log(Real(1.5) * dz / z0);
-    const Real speed = ib_stability::floored_wind(U, Real(0.1));
-    const Real ustar0 = speed * KAPPA / ln2;
-    const Real L = ib_stability::bounded_obukhov_length(
-        -ustar0 * ustar0 * ustar0 * theta / (KAPPA * CONST_GRAV * q + std::numeric_limits<Real>::epsilon()), Real(1.5) * dz);
-    const Real zeta1 = ib_stability::bounded_zeta(Real(0.5) * dz, L);
-    const Real zeta2 = ib_stability::bounded_zeta(Real(1.5) * dz, L);
-    const Real psi_m = sfuns.calc_psi_m(zeta1);
-    const Real ustar = ib_stability::clamped_ustar(speed * KAPPA / (ln2 - ib_stability::psi_m_for_ustar(psi_m, Real(1.5) * dz, z0, factor)));
-    const Real psi_h1 = ib_stability::capped_psi(sfuns.calc_psi_h(zeta1), Real(0.5) * dz, z0, factor);
-    const Real psi_h2 = ib_stability::capped_psi(sfuns.calc_psi_h(zeta2), Real(1.5) * dz, z0, factor);
-    const Real thetastar = -q / ustar;
-    const Real dT = thetastar / KAPPA * ((ln1 - psi_h1) - (ln2 - psi_h2));
-    return drag * rho * dT;
-}
-
 } // namespace
 
 TEST(ImmersedWallStability, CalmTerrainMomentumTargetIsFinite)
 {
-    // cooling (stable: zeta = +inf on development) and heating (unstable: zeta = -inf)
+    // cooling (stable: zeta = +inf on development) and heating (unstable: zeta = -inf), with the
+    // default inputs: the bounds on L and zeta alone keep the target finite
     for (Real tflux : {Real(-0.05), Real(0.05)}) {
         CalmTerrainColumn col;
         const SolverChoice sc = col.choice(tflux);
@@ -240,6 +214,7 @@ TEST(ImmersedWallStability, CalmTerrainMomentumTargetIsFinite)
 
 TEST(ImmersedWallStability, CalmTerrainHeatFluxTargetIsFinite)
 {
+    // default inputs: finite under cooling and heating (development returned 0 / 0)
     for (Real tflux : {Real(-0.05), Real(0.05)}) {
         CalmTerrainColumn col;
         const SolverChoice sc = col.choice(tflux);
@@ -248,13 +223,23 @@ TEST(ImmersedWallStability, CalmTerrainHeatFluxTargetIsFinite)
                                       amrex::Array4<const Real>{}, col.src.array(), col.geom, sc,
                                       amrex::Table1D<Real>{}, amrex::Table1D<Real>{}, Real(0.0));
         EXPECT_TRUE(col.all_finite(col.bx, 2)) << "rho theta, tflux = " << tflux;
-        // and the wall cell is forced: the floored wind carries the prescribed flux. Without the
-        // floor u* = 0 and the source is round-off (theta = rho theta / rho is inexact). Under
-        // heating zeta reaches -33 and psi_h passes ln(z / z0): a cap of ln(z / z0) itself would
-        // flatten the profile and stop the transfer, the 0.9 ln(z / z0) cap keeps it.
-        amrex::Gpu::streamSynchronize();
-        EXPECT_GT(std::abs(col.src.const_array()(1, 1, 1, RhoTheta_comp)), Real(1.e-6)) << "tflux = " << tflux;
     }
+    // With the 0.1 m/s floor the cooling flux is carried by the calm cell, at a sane size: the
+    // target stays within 20 K of the air above (theta* = -q / u* with this L, the formula of
+    // 41e39f9c4, put it about 1.7e5 K away)
+    CalmTerrainColumn col;
+    SolverChoice sc = col.choice(Real(-0.05));
+    sc.if_stability_wind_floor = Real(0.1);
+    ImmersedForcingTerrain_Scalar(col.bx, col.u.const_array(), col.v.const_array(),
+                                  col.cell.const_array(), col.blank.const_array(),
+                                  amrex::Array4<const Real>{}, col.src.array(), col.geom, sc,
+                                  amrex::Table1D<Real>{}, amrex::Table1D<Real>{}, Real(0.0));
+    ASSERT_TRUE(col.all_finite(col.bx, 2));
+    amrex::Gpu::streamSynchronize();
+    const Real src = col.src.const_array()(1, 1, 1, RhoTheta_comp);
+    const Real drag_rho = Real(5.0) / Real(10.0) * Real(1.2);
+    EXPECT_GT(std::abs(src), Real(1.e-6));
+    EXPECT_LT(std::abs(src) / drag_rho, Real(20.0)) << "target " << src / drag_rho << " K from the air";
 }
 
 TEST(ImmersedWallStability, PrescribedObukhovLengthKeepsUstarBounded)
@@ -268,8 +253,8 @@ TEST(ImmersedWallStability, PrescribedObukhovLengthKeepsUstarBounded)
     const Real rho = Real(1.2);
     const Real drag = Real(5.0) / dz;  // if_Cd_scalar / (dx dy dz)^(1/3), dx = dy = dz
     similarity_funs sfuns;
-    // with a factor of 1 psi_m is not capped before u* and the denominator cancels; with 0.9 it is
-    // held at 0.1 ln 30 and u* still reaches the clamp
+    // erf.if_psi_cap_factor does not reach the temperature forcing, so both factors give the
+    // same sweep
     for (Real factor : {Real(1.0), Real(0.9)}) {
         int n_bounded = 0;
         int n_off = 0;
@@ -299,14 +284,9 @@ TEST(ImmersedWallStability, PrescribedObukhovLengthKeepsUstarBounded)
         }
         // and the sweep does reach u* at the clamp
         EXPECT_GT(n_bounded, 0) << "factor " << factor;
-        // Past the cancellation (psi_m > ln 30) the u* denominator is negative: with factor 1 the
-        // clamp sets u* = 0 and the heat forcing is off (development squared the negative u*);
-        // with 0.9 psi_m is capped before u* and the forcing never switches off.
-        if (factor == Real(1.0)) {
-            EXPECT_GT(n_off, 0);
-        } else {
-            EXPECT_EQ(n_off, 0);
-        }
+        // Past the cancellation (psi_m > ln 30) the u* denominator is negative: the clamp sets
+        // u* = 0 and the heat forcing is off (development squared the negative u*)
+        EXPECT_GT(n_off, 0) << "factor " << factor;
     }
 }
 
@@ -342,8 +322,9 @@ TEST(ImmersedWallStability, PsiMCapBeforeUstarKeepsTheWallLawInStrongInstability
 {
     // z0 = 0.5 m on 10 m cells and 1 m/s wind: psi_m passes ln(1.5 dz / z0) = ln 30, the u*
     // denominator turns negative and the u* clamp sets u* = 0. With a factor of 1 (no cap before
-    // u*) the velocity target is zero and the wall cell gets no heat; the 0.9 cap before u*, as WRF
-    // caps PSIM before UST, keeps u* > 0 and both targets.
+    // u*) the velocity target is zero; the 0.9 cap before u*, as WRF caps PSIM before UST, keeps
+    // u* > 0 and the target. The temperature forcing does not take the factor (erf-model/ERF#4206):
+    // its source is the same at both.
     Real xsrc[2] = {0.0, 0.0};
     Real tsrc[2] = {0.0, 0.0};
     const Real factors[2] = {Real(0.9), Real(1.0)};
@@ -376,17 +357,12 @@ TEST(ImmersedWallStability, PsiMCapBeforeUstarKeepsTheWallLawInStrongInstability
             tsrc[n] = col.src.const_array()(1, 1, 1, RhoTheta_comp);
         }
     }
-    // factor 1: zero velocity target (u = 1 m/s relaxed to rest) and no heat (round-off only)
+    // factor 1: zero velocity target (u = 1 m/s relaxed to rest)
     EXPECT_LT(xsrc[1], Real(0.0));
-    EXPECT_LT(std::abs(tsrc[1]), Real(1.e-9));
     // factor 0.9: a positive target, so a weaker pull
     EXPECT_GT(xsrc[0], xsrc[1]) << "0.9 " << xsrc[0] << ", 1 " << xsrc[1];
-    // and the wall cell heated by the prescribed flux, at its own size: theta* = -q / u*, not
-    // theta u*^2 / (kappa g L) with L from the neutral u* (which is (u* / u*_neutral)^3 too large
-    // here, a target near +194 K)
-    const Real expected = calm_column_heat_source(Real(1.0), Real(2.0), Real(0.5), Real(0.9));
-    EXPECT_NEAR(tsrc[0], expected, Real(1.e-9) * std::abs(expected)) << "0.9 " << tsrc[0];
-    EXPECT_LT(std::abs(expected), Real(0.5) * Real(1.2) * Real(20.0)) << "target more than 20 K from the air";
+    // the temperature forcing is development's at both factors, bit for bit
+    EXPECT_EQ(tsrc[0], tsrc[1]) << "0.9 " << tsrc[0] << ", 1 " << tsrc[1];
 }
 
 TEST(ImmersedWallStability, PrescribedObukhovLengthIsUsedAsGiven)

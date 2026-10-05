@@ -1191,8 +1191,9 @@ struct SolverChoice {
         pp.queryAdd("if_stability_correction",if_stability_correction);
         pp.queryAdd("if_ws_floor",if_ws_floor);
         pp.queryAdd("if_damp_alpha",if_damp_alpha);
-        // Bounds on the stability estimate of the wall law (erf-model/ERF#4016): the wind floor
-        // behind its friction velocity, and the cap on psi_m and psi_h as a fraction of ln(z/z0)
+        // Opt-in WRF-style bounds on the wall law (erf-model/ERF#4016): the wind floor behind the
+        // friction velocity of its stability estimate, and the cap on psi_m in the momentum law as
+        // a fraction of ln(z/z0); 0 and 1 (the defaults) turn them off
         pp.queryAdd("if_stability_wind_floor",if_stability_wind_floor);
         pp.queryAdd("if_psi_cap_factor",if_psi_cap_factor);
         if (!(if_stability_wind_floor >= zero)) {
@@ -1201,15 +1202,14 @@ struct SolverChoice {
         if (!(if_psi_cap_factor > zero && if_psi_cap_factor <= one)) {
             amrex::Abort("erf.if_psi_cap_factor must be in (0, 1] (1 caps psi at ln(z/z0))");
         }
-        // The defaults change answers where the bounds bind (light wind, strongly unstable air);
-        // say so where the wall law's stability estimate is in use
+        // Say so when a bound is set and the wall law's stability estimate is in use
         if ((terrain_type == TerrainType::ImmersedForcing || buildings_type == BuildingsType::ImmersedForcing) &&
             (if_use_most || if_surf_temp_flux != amrex::Real(1e-8) || if_Olen_in != amrex::Real(1e-8)) &&
             (if_psi_cap_factor < one || if_stability_wind_floor > zero))
         {
             amrex::Print() << "Immersed wall law: erf.if_psi_cap_factor = " << if_psi_cap_factor
                            << ", erf.if_stability_wind_floor = " << if_stability_wind_floor
-                           << " m/s (WRF-style bounds; 1 and 0 turn them off)\n";
+                           << " m/s (WRF-style bounds; the defaults 1 and 0 turn them off)\n";
         }
 
         if ((if_init_surf_temp > zero        && if_surf_temp_flux != amrex::Real(1e-8)) ||
@@ -2214,8 +2214,8 @@ struct SolverChoice {
     bool        if_stability_correction  = false;
     amrex::Real if_ws_floor              = 0.001;  // [m/s]
     amrex::Real if_damp_alpha            = 0.5;    // [-]
-    amrex::Real if_stability_wind_floor  = amrex::Real(0.1);  // [m/s]
-    amrex::Real if_psi_cap_factor        = amrex::Real(0.9);  // [-]
+    amrex::Real if_stability_wind_floor  = amrex::Real(0.0);  // [m/s]
+    amrex::Real if_psi_cap_factor        = amrex::Real(1.0);  // [-]
 
     // This defaults to true but can be set to false for moving terrain cases only
     bool        use_lagged_delta_rt   = true;
@@ -2661,9 +2661,9 @@ struct SolverChoice {
  * @var SolverChoice::if_damp_alpha
  * @brief Immersed-forcing damping coefficient.
  * @var SolverChoice::if_stability_wind_floor
- * @brief Wind-speed floor [m/s] behind the friction velocity of the wall law's stability estimate.
+ * @brief Wind-speed floor [m/s] behind the friction velocity of the wall law's stability estimate (0: none).
  * @var SolverChoice::if_psi_cap_factor
- * @brief Cap on the wall law's psi_m and psi_h as a fraction of ln(z/z0).
+ * @brief Cap on psi_m in the immersed momentum wall law as a fraction of ln(z/z0) (1: none).
  * @var SolverChoice::use_lagged_delta_rt
  * @brief Whether to use lagged delta terms for moving terrain.
  * @var SolverChoice::rebalance_wrf_input
