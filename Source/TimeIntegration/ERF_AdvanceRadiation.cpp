@@ -334,9 +334,18 @@ void ERF::advance_radiation (int lev,
             }
         }
 
-        // Force radiation update to sync with lsm?
-        bool lsm_updated = (lev==0 && max_level>0) ? lsm.Get_LSM_Update_Status(lev) : false;
-
+        // NOTE: this used to force a radiation update whenever the land surface model
+        // had updated, via
+        //     (lev==0 && max_level>0) ? lsm.Get_LSM_Update_Status(lev) : false
+        // which did not do what it reads as.  SLM and Noah-MP set their update status
+        // true at the end of every Advance and clear it only at the start of the next
+        // one, and advance_radiation runs before advance_lsm within a step, so from
+        // here it read true on every step after the first.  The effect was that
+        // erf.rad_freq_in_steps was silently ignored -- radiation ran every step --
+        // whenever a run had max_level > 0 and an active LSM, and obeyed otherwise.
+        // Nothing is lost by dropping it: running radiation every step is exactly
+        // erf.rad_freq_in_steps = 1, which a user can ask for directly.
+        //
         // Enter radiation class driver
         double time_for_rad = t_old[lev] + start_time;
         rad[lev]->Run(lev, istep[lev], time_for_rad, dt_advance,
@@ -345,7 +354,7 @@ void ERF::advance_radiation (int lev,
                       lsm_input_ptrs, lsm_output_ptrs,
                       qheating_rates[lev].get(), rad_fluxes[lev].get(),
                       z_phys_nd[lev].get()     , lat_ptr, lon_ptr,
-                      lsm_updated, solar_declin, calday);
+                      false, solar_declin, calday);
 
         if (m_SurfaceModel && rad[lev]->radiation_updated()) {
             m_SurfaceModel->distribute_radiation_outputs(lev);
