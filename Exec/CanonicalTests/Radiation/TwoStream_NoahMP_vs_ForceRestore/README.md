@@ -40,10 +40,16 @@ in level 0 with the WRF attributes `I_PARENT_START = J_PARENT_START = 3` and
 
 The **barren** variant (`run_comparison.sh ... --barren`) puts bare land (MODIS 16, no
 vegetation) on the same soil at its wilting point (0.12 m3/m3) under both models, so that
-neither evaporates and what remains is the dry energy balance. The force-restore case then
-has no vegetation type (its roughness is Z0SOIL, 0.002 m), and takes the albedo and
-emissivity Noah-MP gives this soil (0.197 and 0.97); its deck is `inputs_force_restore_barren`.
-Both force-restore decks read the settings they share from `inputs_force_restore_common`.
+little evaporates and what remains is mostly the dry energy balance. The force-restore case
+then has no vegetation type: its bare soil evaporates through Noah-MP's soil resistance,
+its roughness is Z0SOIL (0.002 m), and it takes the albedo and emissivity Noah-MP gives this
+soil (0.197 and 0.97). Its deck is `inputs_force_restore_barren`.
+
+The **moist barren** variant (`--barren-moist`) is the same bare land at 0.25 m3/m3, where
+the soil resistance sets the evaporation of both models. Noah-MP's bare-soil albedo falls
+with the top layer's water content, by 0.40 x 0.13 here (`GroundAlbedoMod`), so the deck
+`inputs_force_restore_barren_moist` takes 0.145. The force-restore decks read the settings
+they share from `inputs_force_restore_common`.
 
 ## Running it
 
@@ -51,10 +57,10 @@ Needs an executable built with `-DERF_ENABLE_NOAHMP=ON` (and so a parallel NetCD
 on the `PATH`, and Python 3 with numpy, matplotlib and yt:
 
 ```
-./run_comparison.sh /path/to/erf_exec [nranks] [--barren]
+./run_comparison.sh /path/to/erf_exec [nranks] [--barren | --barren-moist]
 ```
 
-It writes the land files, runs both cases under `runs/` (`runs_barren/`), and calls
+It writes the land files, runs both cases under `runs/` (`runs_barren/`, `runs_barren_moist/`), and calls
 `compare.py`, which writes `comparison.csv` (level means every 10 minutes) and
 `comparison.png` there.
 
@@ -85,19 +91,34 @@ On both surfaces the force-restore balance comes within about 2 K of Noah-MP's s
 of its H and LE, and 5 % of its boundary-layer depth. Two choices decide that, and both now
 come from Noah-MP's tables:
 
-- **The evaporation.** Without the moisture coupling the balance's surface evaporates from a
-  fixed mixing ratio (ERF requires `erf.most.surf_moist` to equal the sounding's surface
-  value) and so behaves as a wet surface: at 3.8 h, LE 322 against Noah-MP's 166 W/m²
-  (Ball-Berry) and a skin 9 K cooler. The soil-water factor alone makes it worse (LE 474): it
-  scales evaporation from q_sat at the skin, which is well above the fixed value. The canopy
-  and bare-soil resistances bring it to Noah-MP's.
+- **The evaporation.** The tables above compare against Noah-MP with Jarvis stomata
+  (`CANOPY_STOMATAL_RESISTANCE_OPTION = 2`), the form the balance has. Noah-MP's default,
+  Ball-Berry (option 1), transpires much less on this day. The grass LE at 3.8 h, against
+  each reference:
+
+  | Grass LE at 3.8 h [W/m²] | |
+  |---|---|
+  | Force-restore, no moisture coupling (fixed surface mixing ratio)* | 322 |
+  | Force-restore, soil-water factor alone* | 474 |
+  | Force-restore, resistances (this case) | 398 |
+  | Noah-MP, Jarvis (option 2, this case) | 378 |
+  | Noah-MP, Ball-Berry (option 1, the default) | 166.5 |
+
+  \* From runs made while the coupling was developed, with the 0.1 m roughness of the earlier
+  decks.
+
+  Without the coupling, ERF requires `erf.most.surf_moist` to equal the sounding's surface
+  value, so the surface evaporates from a fixed mixing ratio. The soil-water factor alone
+  scales the evaporation from q_sat at the skin, which is well above that fixed value. The
+  canopy and bare-soil resistances bring the balance within about 5 % of Noah-MP with the same
+  stomata. Against default Noah-MP (Ball-Berry: LE 166.5, H 282.5 W/m² and a skin of
+  313.4 K) its LE is still 2.4 times higher. The agreement is with Noah-MP using the same
+  canopy model, not with every Noah-MP configuration.
 - **The roughness.** Over bare soil, with the 0.1 m of the earlier decks, the balance's
   surface sheds its heat far more easily than Noah-MP's 0.002 m soil: a skin 10.7 K cooler and
   30 % more H at the peak. With the tables' roughness the difference is 2 K and 6 %.
 
-Noah-MP's default stomata, Ball-Berry (`CANOPY_STOMATAL_RESISTANCE_OPTION = 1`), transpire
-much less here: at 3.8 h, LE 166.5 and H 282.5 W/m² with a skin of 313.4 K. The balance has
-the Jarvis form only, which is why this case runs Noah-MP with option 2.
+The balance has the Jarvis form only, which is why this case runs Noah-MP with option 2.
 
 ERF's Noah-MP driver counts the day of the year from 1 where Noah-MP's phenology counts from 0
 (erf-model/ERF#4199), so its table LAI here is that of a day later than the balance's: 2.16

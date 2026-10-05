@@ -141,8 +141,8 @@ erf.radiation.seb_surface_layer_uses_skin = false  # Two-way: the zlo surface la
 erf.radiation.seb_surface_layer_uses_moisture = false  # Two-way moisture: the surface layer's land mixing ratio is beta q_sat(T_s) + (1 - beta) q_air from the soil water q_s. Needs seb_surface_layer_uses_skin, a moisture model, erf.most.surf_moist. Default: false
 erf.radiation.seb_soil_moisture_wilt  = 0.066    # Wilting point [m3/m3] of beta, 0 <= wilt < fc. Only with seb_surface_layer_uses_moisture (stops at start-up otherwise). Default: 0.066 (Noah-MP loam)
 erf.radiation.seb_soil_moisture_fc    = 0.329    # Field capacity [m3/m3] of beta, wilt < fc <= 1. Only with seb_surface_layer_uses_moisture (stops at start-up otherwise). Default: 0.329 (Noah-MP loam)
-erf.radiation.seb_soil_type           = 0        # Noah-MP soil category 1-19 (not 14): wilt and fc, C_s unless given, the bare-soil resistance (with seb_vegetation_type) and the surface layer's roughness (with the skin coupling, unless erf.most.z0 is given) from NoahmpTable.TBL. Default: 0 (unset)
-erf.radiation.seb_vegetation_type     = 0        # Noah-MP MODIS land-use category 1-20, not 15-17 (no vegetation; stops at start-up): Jarvis canopy and bare-soil resistances set beta. Needs seb_surface_layer_uses_moisture and seb_soil_type. Default: 0 (unset)
+erf.radiation.seb_soil_type           = 0        # Noah-MP soil category 1-19 (not 14): wilt and fc, C_s unless given, the bare-soil resistance (vegetation or not) and the surface layer's roughness (with the skin coupling, unless erf.most.z0 is given) from NoahmpTable.TBL. Default: 0 (unset)
+erf.radiation.seb_vegetation_type     = 0        # Noah-MP MODIS land-use category 1-20, not 15-17 (no vegetation; stops at start-up): Jarvis canopy resistance on its fraction (the bare-soil resistance on the rest). Needs seb_surface_layer_uses_moisture and seb_soil_type. Default: 0 (unset)
 erf.radiation.seb_vegetation_fraction = 1.0      # Vegetated fraction [0, 1]. Only with seb_vegetation_type (stops at start-up otherwise). Default: 1.0
 erf.radiation.seb_leaf_area_index     = 2.0      # Leaf area index [m2/m2] >= 0. Only with seb_vegetation_type (stops at start-up otherwise). Default: the table's at start_datetime
 # All SEB inputs, with their equations and couplings: Exec/CanonicalTests/SEB/inputs_seb_master
@@ -151,7 +151,7 @@ erf.radiation.seb_lh_default        = 0.0      # Fallback latent heat flux [W/m^
 erf.radiation.seb_grdflx_default    = 0.0      # Fallback ground heat flux [W/m^2], used when no LSM field is available. Keep 0 with seb_prognostic_enable: the force-restore term already carries it. Default: 0.0
 erf.radiation.seb_q_sfc_default     = 0.0      # Fallback surface moisture and initial prognostic q_s (a volumetric soil water content [m3/m3] with seb_prognostic_enable). Default: 0.0
 erf.radiation.seb_t_deep_default    = 300.0    # Fallback deep-soil temperature [K] (force-restore reservoir target). Default: 300.0
-erf.radiation.seb_q_deep_default    = 0.0      # Deep-soil moisture q_s restores to, in q_s's units. Default: 0.0
+erf.radiation.seb_q_deep_default    = 0.0      # Deep-soil moisture q_s restores to, in q_s's units. Default: 0.0 (a NOTE flags a value below the wilting point with the moisture coupling)
 
 # ==============================================================================
 # SECTION 9: SEB diagnostic mode

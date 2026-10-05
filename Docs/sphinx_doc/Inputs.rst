@@ -4350,32 +4350,34 @@ atmospheric cell), ``start_datetime`` and the
 |                                                    | times the potential rate, and the balance drains its soil  |                    |                  |
 |                                                    | water q_s by the LE it removes. beta is the soil-water     |                    |                  |
 |                                                    | factor, linear from seb_soil_moisture_wilt to              |                    |                  |
-|                                                    | seb_soil_moisture_fc, or with seb_vegetation_type the      |                    |                  |
-|                                                    | canopy and soil resistances in series with the aerodynamic |                    |                  |
-|                                                    | one. Needs seb_surface_layer_uses_skin, a moisture model   |                    |                  |
-|                                                    | and erf.most.surf_moist; each is checked at start-up       |                    |                  |
+|                                                    | seb_soil_moisture_fc, or with seb_soil_type Noah-MP's      |                    |                  |
+|                                                    | bare-soil resistance (and with seb_vegetation_type the     |                    |                  |
+|                                                    | canopy's too) in series with the aerodynamic one. Needs    |                    |                  |
+|                                                    | seb_surface_layer_uses_skin, a moisture model and          |                    |                  |
+|                                                    | erf.most.surf_moist; each is checked at start-up           |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_soil_moisture_wilt**           | Wilting point [m³/m³]: at or below it the soil-water       | Real, 0 <= wilt <  | 0.066 (Noah-MP   |
-|                                                    | factor is 0, so no evaporation without seb_vegetation_type | fc                 | loam)            |
-|                                                    | and no transpiration with one. Used only with              |                    |                  |
+|                                                    | factor is 0, so no transpiration and, without              | fc                 | loam)            |
+|                                                    | seb_soil_type, no evaporation (the bare-soil resistance of |                    |                  |
+|                                                    | a soil type stays finite there). Used only with            |                    |                  |
 |                                                    | seb_surface_layer_uses_moisture; giving it otherwise stops |                    |                  |
 |                                                    | at start-up                                                |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_soil_moisture_fc**             | Field capacity [m³/m³]: at or above it the soil-water      | Real, wilt < fc <= | 0.329 (Noah-MP   |
-|                                                    | factor is 1 (potential evaporation without                 | 1                  | loam)            |
-|                                                    | seb_vegetation_type). Used only with                       |                    |                  |
-|                                                    | seb_surface_layer_uses_moisture; giving it otherwise stops |                    |                  |
-|                                                    | at start-up                                                |                    |                  |
+|                                                    | factor is 1 (potential evaporation without seb_soil_type). | 1                  | loam)            |
+|                                                    | Used only with seb_surface_layer_uses_moisture; giving it  |                    |                  |
+|                                                    | otherwise stops at start-up                                |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_soil_type**                    | Noah-MP soil category (STAS, as in NoahmpTable.TBL;        | Integer 1-19, 0 =  | 0                |
 |                                                    | ERF_NoahMPSoilTable.H). Sets the wilting point and field   | unset              |                  |
 |                                                    | capacity (WLTSMC, REFSMC; giving either of those as well   |                    |                  |
 |                                                    | stops at start-up), seb_surface_heat_capacity from the     |                    |                  |
 |                                                    | soil's heat capacity and conductivity at seb_q_sfc_default |                    |                  |
-|                                                    | unless that is given, with seb_vegetation_type the bare-   |                    |                  |
-|                                                    | soil resistance, and with seb_surface_layer_uses_skin the  |                    |                  |
-|                                                    | surface layer's land roughness, f_veg Z0MVT + (1 - f_veg)  |                    |                  |
-|                                                    | Z0SOIL, unless erf.most.z0 is given. Not 14 (water)        |                    |                  |
+|                                                    | unless that is given, with seb_surface_layer_uses_moisture |                    |                  |
+|                                                    | the bare-soil resistance (vegetation or not), and with     |                    |                  |
+|                                                    | seb_surface_layer_uses_skin the surface layer's land       |                    |                  |
+|                                                    | roughness, f_veg Z0MVT + (1 - f_veg) Z0SOIL, unless        |                    |                  |
+|                                                    | erf.most.z0 is given. Not 14 (water)                       |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_vegetation_type**              | Noah-MP land-use category (modified IGBP MODIS;            | Integer 1-20 but   | 0                |
 |                                                    | ERF_NoahMPVegetationTable.H). The vegetated fraction       | not 15-17, 0 =     |                  |
@@ -4425,7 +4427,10 @@ atmospheric cell), ``start_datetime`` and the
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_t_deep_default**               | Fallback SEB deep soil temperature [K]                     | Real               | 300.0            |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
-| **erf.radiation.seb_q_deep_default**               | Deep soil moisture q_s restores to, in q_s's units         | Real [0,1]         | 0.0              |
+| **erf.radiation.seb_q_deep_default**               | Deep soil moisture q_s restores to, in q_s's units. With   | Real [0,1]         | 0.0              |
+|                                                    | seb_surface_layer_uses_moisture a NOTE at start-up flags a |                    |                  |
+|                                                    | value below the wilting point (the default 0 dries the     |                    |                  |
+|                                                    | soil over seb_moisture_restore_timescale_s)                |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_surface_heat_capacity**        | Effective surface heat capacity [J/(m²·K)]. With           | Real > 0; stops at | 2.0e4            |
 |                                                    | seb_soil_type and not given: sqrt(lambda c tau / pi) / 2   | at start-up if not |                  |

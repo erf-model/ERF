@@ -188,11 +188,12 @@ public:
      * @brief What level lev's surface hands the surface layer for its surface mixing ratio
      * (erf.radiation.seb_surface_layer_uses_moisture), per column, in the components of
      * erf_surface_moisture::Component: the soil-water factor (seb_moisture_availability
-     * of the current q_s) and, with erf.radiation.seb_vegetation_type, the vegetated
-     * fraction, the canopy resistance without its vapour-deficit factor (from the net
-     * shortwave the balance holds divided by (1 - surface albedo) -- the sweep's with
-     * seb_use_radiation_fluxes, seb_sw_flux_default otherwise -- and the skin temperature)
-     * and the bare-soil resistance. nullptr
+     * of the current q_s); with erf.radiation.seb_soil_type, the bare-soil resistance; and
+     * with erf.radiation.seb_vegetation_type as well, the vegetated fraction and the canopy
+     * resistance without its vapour-deficit factor (from the net shortwave the balance
+     * holds divided by (1 - surface albedo) -- the sweep's with seb_use_radiation_fluxes,
+     * seb_sw_flux_default otherwise -- and the skin temperature). Absent pieces are a
+     * fraction of 0 and resistances of 1e6 s/m. nullptr
      * when the option is off or the level has not been built. Recomputed on every call,
      * on the valid cells; the halo is not filled.
      */

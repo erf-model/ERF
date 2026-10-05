@@ -13,9 +13,10 @@ case's grids:
 
 With --barren the land is instead bare (IVGTYP 16, barren or sparsely vegetated; no
 vegetation, no leaves) on the same soil at its wilting point (0.12 m3/m3), for the
-dry-surface variant of the comparison (README.md).
+dry-surface variant of the comparison (README.md). --smois sets the soil water instead
+(0.25 for the moist bare variant).
 
-Usage: python3 make_land_files.py [--ncgen PATH] [--barren]
+Usage: python3 make_land_files.py [--ncgen PATH] [--barren] [--smois Q]
 """
 import argparse
 import subprocess
@@ -68,11 +69,18 @@ def main():
     parser.add_argument('--ncgen', default='ncgen')
     parser.add_argument('--barren', action='store_true',
                         help='bare land on the same soil at its wilting point')
+    parser.add_argument('--smois', type=float, default=None,
+                        help='soil water content of every layer [m3/m3] (default: 0.25, or '
+                             '0.12 with --barren)')
     args = parser.parse_args()
     overrides = {}
     if args.barren:
         overrides = {'IVGTYP': '16', 'VEGFRA': '0.0', 'SHDMAX': '0.0', 'SHDMIN': '0.0',
                      'LAI': '0.0', 'SMOIS': '0.12'}
+    if args.smois is not None:
+        if not 0.0 < args.smois < 1.0:
+            parser.error(f'--smois must be in (0, 1), got {args.smois}')
+        overrides['SMOIS'] = repr(args.smois)
     for name, n, dx, grid_id, ratio, start in (('wrfinput_d01', 8, 250.0, 1, 1, 1),
                                                ('wrfinput_d02', 8, 125.0, 2, 2, 3)):
         with open(f'{name}.cdl', 'w') as handle:

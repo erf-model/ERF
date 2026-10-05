@@ -369,10 +369,11 @@ function(add_test_two_stream_noahmp_levels TEST_NAME)
 endfunction(add_test_two_stream_noahmp_levels)
 
 # The two-stream balance's skin and soil moisture both coupled to the surface layer, on the
-# deck of TwoStream_SEBSurfaceLayerFluxes in five legs: Noah-MP's silty clay loam at the
-# wilting point, at field capacity and in between, and the in-between soil under grassland
-# (seb_vegetation_type, so the canopy and soil resistances act); plus a one-step leg without
-# erf.most.z0, whose job_info must record the tables' roughness
+# deck of TwoStream_SEBSurfaceLayerFluxes in seven legs: the linear soil-water factor at the
+# wilting point, at field capacity and in between; that soil as a Noah-MP soil type, bare
+# (the soil resistance) and with grassland at fraction 0 (which must match bare); under
+# grassland (canopy and soil resistances); and a one-step leg without erf.most.z0, whose
+# job_info must record the tables' roughness
 # (Tests/RunTwoStreamSEBMoisture.cmake, Tests/check_two_stream_seb_moisture.py).
 function(add_test_two_stream_seb_moisture TEST_NAME)
     set(TEST_FILES_DIR "TwoStream_SEBSurfaceLayerFluxes")
@@ -399,7 +400,7 @@ function(add_test_two_stream_seb_moisture TEST_NAME)
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression;radiation"
-        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/dry/simulation.log;${CURRENT_TEST_BINARY_DIR}/wet/simulation.log;${CURRENT_TEST_BINARY_DIR}/mid/simulation.log;${CURRENT_TEST_BINARY_DIR}/veg/simulation.log;${CURRENT_TEST_BINARY_DIR}/tables/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/dry/simulation.log;${CURRENT_TEST_BINARY_DIR}/wet/simulation.log;${CURRENT_TEST_BINARY_DIR}/mid/simulation.log;${CURRENT_TEST_BINARY_DIR}/veg/simulation.log;${CURRENT_TEST_BINARY_DIR}/bare/simulation.log;${CURRENT_TEST_BINARY_DIR}/bare_f0/simulation.log;${CURRENT_TEST_BINARY_DIR}/tables/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
 endfunction(add_test_two_stream_seb_moisture)
 
 function(add_test_cloud_chamber_parity TEST_NAME)
@@ -1799,7 +1800,8 @@ add_test_plotfile_header(Plotfile3D_TwoStreamHeatingSelection "" "erf_exec" "plt
 
 # The two-stream radiation tests stay registered but do not run: DISABLED keeps
 # them listed by ctest (reported as "Not Run (Disabled)") without executing them.
-# Remove this block to re-enable them.
+# Remove this block to re-enable them. TwoStream_SEBSoilMoisture is not on the list:
+# its seven legs of 10 steps on a 4 x 4 x 16 grid take about a minute in Debug.
 foreach(_two_stream_test IN ITEMS
     TwoStream_ColumnHeating
     TwoStream_ColumnHeating_Terrain
@@ -1814,7 +1816,6 @@ foreach(_two_stream_test IN ITEMS
     TwoStream_SEBSurfaceLayerFluxes
     TwoStream_SEBSurfaceLayerFluxesMultiLevel
     TwoStream_SEBDefaultReplacedWarning
-    TwoStream_SEBSoilMoisture
     Plotfile3D_TwoStreamHeatingSelection)
   if(TEST ${_two_stream_test})
     set_tests_properties(${_two_stream_test} PROPERTIES DISABLED TRUE)

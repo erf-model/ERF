@@ -353,22 +353,24 @@ TwoStreamRadiation::seb_surface_moisture (int lev)
     const Real q_wilt = m_rad->seb_soil_moisture_wilt;
     const Real q_fc = m_rad->seb_soil_moisture_fc;
 
-    // With a vegetation type: Noah-MP's canopy parameters, and the soil's for the bare-soil
-    // resistance of the top seb_moisture_layer_depth_m (RadChoice::init_params checked both
-    // categories).
+    // With a soil type: the soil's parameters for the bare-soil resistance of the top
+    // seb_moisture_layer_depth_m, vegetation or not. With a vegetation type as well (which
+    // needs a soil type): Noah-MP's canopy parameters. RadChoice::init_params checked both
+    // categories.
     const NoahMPVegetationParams* veg = (m_rad->seb_vegetation_type != 0)
                                       ? noahmp_vegetation_params(m_rad->seb_vegetation_type) : nullptr;
     const NoahMPSoilParams* soil = (m_rad->seb_soil_type != 0)
                                  ? noahmp_soil_params(m_rad->seb_soil_type) : nullptr;
-    const bool vegetated = (veg != nullptr && soil != nullptr);
+    const bool has_soil = (soil != nullptr);
+    const bool vegetated = (veg != nullptr && has_soil);
     const Real f_veg = vegetated ? m_rad->seb_vegetation_fraction : Real(0.0);
     const Real lai = m_rad->seb_leaf_area_index;
     const Real rs_min = vegetated ? veg->rs_min : Real(0.0);
     const Real rs_max = vegetated ? veg->rs_max : Real(0.0);
     const Real rgl = vegetated ? veg->rgl : Real(0.0);
     const Real t_opt = vegetated ? veg->t_opt : Real(0.0);
-    const Real smc_max = vegetated ? soil->smc_max : Real(0.0);
-    const Real bb = vegetated ? soil->bb : Real(0.0);
+    const Real smc_max = has_soil ? soil->smc_max : Real(0.0);
+    const Real bb = has_soil ? soil->bb : Real(0.0);
     const Real d1 = m_rad->seb_moisture_layer_depth_m;
     const Real resistance_exponent = noahmp_soil_resistance_exponent;
 
@@ -400,6 +402,8 @@ TwoStreamRadiation::seb_surface_moisture (int lev)
                 const Real sw_down = (sw_arr && a < Real(1.0)) ? sw_arr(i, j, k) / (Real(1.0) - a) : Real(0.0);
                 r_c = seb_canopy_resistance_without_vpd(rs_min, rs_max, rgl, t_opt, lai, sw_down,
                                                         t_arr(i, j, k), soil_factor);
+            }
+            if (has_soil) {
                 r_soil = seb_soil_evaporation_resistance(q_arr(i, j, k), smc_max, q_wilt, bb, d1,
                                                          resistance_exponent);
             }

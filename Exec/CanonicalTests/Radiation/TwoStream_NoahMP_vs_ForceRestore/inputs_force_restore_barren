@@ -1,7 +1,8 @@
 # Case 2 on bare land (run_comparison.sh --barren): the force-restore balance
-# (inputs_force_restore_common) on the soil at its wilting point and no vegetation, so the
-# soil-water factor -- beta here -- is zero and the surface does not evaporate; the land
-# roughness is Noah-MP's bare soil (Z0SOIL, 0.002 m).
+# (inputs_force_restore_common) on the soil at its wilting point and no vegetation. beta is
+# the bare-soil resistance's, r_a / (r_a + r_soil): small at the wilting point, so the
+# surface evaporates only slowly. The land roughness is Noah-MP's bare soil (Z0SOIL,
+# 0.002 m).
 FILE = inputs_force_restore_common
 
 # The albedo and emissivity Noah-MP gives this bare, dry soil (0.197 and 0.97 through the day).

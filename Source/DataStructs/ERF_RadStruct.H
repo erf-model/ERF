@@ -418,8 +418,9 @@ public:
    * beta * q_sat(T_s, p_s) + (1 - beta) * q_air, so its moisture flux is beta times the
    * potential one and dries as the balance's q_s does. beta is the soil-water factor
    * clamp((q_s - seb_soil_moisture_wilt) / (seb_soil_moisture_fc - seb_soil_moisture_wilt),
-   * 0, 1), or, with seb_vegetation_type, the canopy and soil resistances in series with the
-   * aerodynamic one (erf_surface_moisture::two_source_availability). q_s is then the
+   * 0, 1), or, with seb_soil_type, Noah-MP's bare-soil resistance (and with
+   * seb_vegetation_type the canopy's too) in series with the aerodynamic one
+   * (erf_surface_moisture::two_source_availability). q_s is then the
    * volumetric water content [m^3/m^3] of the top seb_moisture_layer_depth_m of soil.
    * Requires seb_surface_layer_uses_skin. Default false: the surface layer keeps its own
    * surface moisture (erf.most.surf_moist).
@@ -427,16 +428,17 @@ public:
   bool seb_surface_layer_uses_moisture = false;
 
   /**
-   * @brief Wilting point [m^3/m^3]: at or below it the soil-water factor is 0, so the surface
-   * does not evaporate without seb_vegetation_type and does not transpire with one
+   * @brief Wilting point [m^3/m^3]: at or below it the soil-water factor is 0, so the
+   * vegetation does not transpire and, without seb_soil_type (whose bare-soil resistance
+   * stays finite there), the surface does not evaporate
    * (seb_surface_layer_uses_moisture; giving it otherwise stops at start-up). Default
    * 0.066, Noah-MP's loam (WLTSMC, STAS soil type 6).
    */
   amrex::Real seb_soil_moisture_wilt = 0.066;
 
   /**
-   * @brief Field capacity [m^3/m^3]: at or above it the soil-water factor is 1, so the surface
-   * evaporates at the potential rate without seb_vegetation_type
+   * @brief Field capacity [m^3/m^3]: at or above it the soil-water factor is 1, so without
+   * seb_soil_type the surface evaporates at the potential rate
    * (seb_surface_layer_uses_moisture; giving it otherwise stops at start-up). Default
    * 0.329, Noah-MP's loam (REFSMC, STAS soil type 6).
    */
@@ -447,8 +449,9 @@ public:
    * ERF_NoahMPSoilTable.H). The balance takes its wilting point (WLTSMC) and field
    * capacity (REFSMC) -- giving either seb_soil_moisture_wilt or seb_soil_moisture_fc as
    * well is an error --, the surface heat capacity of the soil unless
-   * seb_surface_heat_capacity is given, with seb_vegetation_type the bare-soil resistance,
-   * and with seb_surface_layer_uses_skin the surface layer's land roughness unless
+   * seb_surface_heat_capacity is given, with seb_surface_layer_uses_moisture the bare-soil
+   * resistance (vegetation or not), and with seb_surface_layer_uses_skin the surface
+   * layer's land roughness unless
    * erf.most.z0 is given. 0 (the default): none of these.
    */
   int seb_soil_type = 0;
@@ -461,7 +464,7 @@ public:
    * TOPT, RSMAX) for the vegetated fraction and a bare-soil resistance (Noah-MP's
    * Sakaguchi-Zeng form, on seb_soil_type) for the rest, each in series with the
    * aerodynamic one. Needs seb_surface_layer_uses_moisture and seb_soil_type. 0 (the
-   * default): the soil-water factor alone.
+   * default): bare soil, the soil's resistance alone (f_veg = 0).
    */
   int seb_vegetation_type = 0;
 
@@ -1339,9 +1342,24 @@ public:
                                 "starts at or below the wilting point (seb_q_sfc_default = "
                              << seb_q_sfc_default << ", seb_soil_moisture_wilt = "
                              << seb_soil_moisture_wilt << "), so its soil-water factor is zero: "
-                                "no transpiration, and without seb_vegetation_type no evaporation "
-                                "at all. Set seb_q_sfc_default (and seb_q_deep_default, which q_s "
+                             << (seb_soil_type != 0
+                                 ? "no transpiration; the bare soil still evaporates, slowly, "
+                                   "through Noah-MP's soil resistance."
+                                 : "no evaporation at all.")
+                             << " Set seb_q_sfc_default (and seb_q_deep_default, which q_s "
                                 "restores to) to the soil's water content if that is not meant.\n";
+          }
+          // q_s restores toward q_deep, which defaults to 0: a forgotten q_deep dries the soil
+          // over seb_moisture_restore_timescale_s.
+          if (seb_q_deep_default < seb_soil_moisture_wilt &&
+              amrex::ParallelDescriptor::IOProcessor()) {
+              amrex::Print() << "NOTE: erf.radiation.seb_surface_layer_uses_moisture: "
+                                "seb_q_deep_default = " << seb_q_deep_default
+                             << " is below the wilting point (" << seb_soil_moisture_wilt
+                             << "), and q_s restores toward it over seb_moisture_restore_timescale_s"
+                                " (" << seb_moisture_restore_timescale_s << " s), drying the soil."
+                                " Set seb_q_deep_default to the deep soil's water content if that "
+                                "is not meant.\n";
           }
       }
 

@@ -1355,9 +1355,12 @@ public:
    * @param[in] lev             level index
    * @param[in] moisture        per-column field in the components of
    *                            erf_surface_moisture::Component, on the surface-layer layout
-   * @param[in] use_resistances form beta from the canopy and soil resistances, not the
-   *                            soil-water factor alone
-   * @param[in] hs              the canopy's vapour-deficit parameter [1/(kg/kg)]
+   * @param[in] use_resistances form beta from the soil resistance and, where the
+   *                            field's VegetationFraction is positive, the canopy's
+   *                            (two_source_availability), not the soil-water factor alone:
+   *                            the two-stream balance passes true whenever it has a soil type
+   * @param[in] hs              the canopy's vapour-deficit parameter [1/(kg/kg)]; 0 without
+   *                            vegetation
    */
   void set_skin_moisture (const int& lev, const amrex::MultiFab* moisture,
                           bool use_resistances = false, amrex::Real hs = amrex::Real(0))

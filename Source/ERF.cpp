@@ -435,13 +435,13 @@ ERF::set_surface_layer_skin (int lev)
     m_skin_uncoupled_warned[lev] = 0;
     surface_layer->set_skin_temperature(lev, two_stream_rad.seb_t_sfc(lev));
     // With erf.radiation.seb_surface_layer_uses_moisture, also what the surface's mixing
-    // ratio is formed from: the balance's current soil water and, with a vegetation type,
-    // its canopy and soil resistances (nullptr when off).
+    // ratio is formed from: the balance's current soil water and, with a soil type, the
+    // soil's resistance (and with a vegetation type the canopy's too); nullptr when off.
     const RadChoice& rc = solverChoice.radChoice;
     const NoahMPVegetationParams* veg = (rc.seb_vegetation_type != 0)
                                       ? noahmp_vegetation_params(rc.seb_vegetation_type) : nullptr;
     surface_layer->set_skin_moisture(lev, two_stream_rad.seb_surface_moisture(lev),
-                                     veg != nullptr, veg ? veg->hs : Real(0.0));
+                                     rc.seb_soil_type != 0, veg ? veg->hs : Real(0.0));
 }
 
 // Start-up checks of the two-stream balance's coupling with the zlo surface layer, run

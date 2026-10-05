@@ -436,7 +436,7 @@ surface layer takes its land surface mixing ratio from that soil water,
 
 with :math:`q_\text{air}` the mixing ratio at its reference height, so its moisture flux is
 :math:`\beta` times the potential one and the soil loses the water the air gains. Without a
-vegetation type :math:`\beta` is the soil-water factor
+soil type :math:`\beta` is the soil-water factor
 
 .. math::
 
@@ -448,8 +448,7 @@ with the wilting point and field capacity ``seb_soil_moisture_wilt`` and ``seb_s
 and REFSMC of the STAS dataset; ``Source/Radiation/TwoStream/ERF_NoahMPSoilTable.H`` copies the
 table and a CTest checks the copy against ``Submodules/Noah-MP/parameters/NoahmpTable.TBL``).
 
-With ``erf.radiation.seb_vegetation_type`` as well (a Noah-MP MODIS land-use category,
-``ERF_NoahMPVegetationTable.H``), :math:`\beta` comes from resistances in series with the
+With a soil type, :math:`\beta` comes instead from resistances in series with the
 aerodynamic one. That one is the resistance of the surface layer's own moisture flux (its
 surface-temperature kernel),
 :math:`r_a = \max(\ln(z_\text{ref}/z_0) - \psi_h, 1)/(\kappa u_*)`, with Jimenez's
@@ -458,9 +457,13 @@ flux):
 
 .. math::
 
-   \beta = f_\text{veg} \frac{r_a}{r_a + r_c} + (1 - f_\text{veg}) \frac{r_a}{r_a + r_\text{soil}}.
+   \beta = f_\text{veg} \frac{r_a}{r_a + r_c} + (1 - f_\text{veg}) \frac{r_a}{r_a + r_\text{soil}},
 
-The vegetated fraction ``seb_vegetation_fraction`` :math:`f_\text{veg}` transpires through Noah's
+with :math:`f_\text{veg} = 0` without a vegetation type, so bare soil and a vegetation type with
+``seb_vegetation_fraction = 0`` give the same :math:`\beta`. With
+``erf.radiation.seb_vegetation_type`` (a Noah-MP MODIS land-use category,
+``ERF_NoahMPVegetationTable.H``), the vegetated fraction ``seb_vegetation_fraction``
+:math:`f_\text{veg}` transpires through Noah's
 big-leaf Jarvis canopy resistance (Chen et al. 1996) on the parameters and floors of Noah-MP's
 canopy-resistance option 2, with the category's leaf area index (``seb_leaf_area_index``; by
 default the table's monthly values interpolated to ``start_datetime`` as Noah-MP does, with the
@@ -479,20 +482,33 @@ with :math:`SW_\downarrow` the net shortwave the balance holds divided by
 :math:`1 - \alpha` (the sweep's with ``seb_use_radiation_fluxes``). :math:`r_c` is capped at
 :math:`10^6` s/m. Noah-MP applies the same factors per sunlit and shaded leaf, with absorbed PAR,
 the canopy temperature and canopy-air humidity and a root-zone soil-water factor, so the two
-agree in form, not in every detail. The bare fraction evaporates through Noah-MP's
-soil resistance (ground-evaporation option 1, Sakaguchi and Zeng), which grows as the top soil
-dries: :math:`r_\text{soil} = d_\text{dry}/D` with
+agree in form, not in every detail. The bare soil (the whole surface without a vegetation type)
+evaporates through Noah-MP's soil resistance (ground-evaporation option 1, Sakaguchi and Zeng),
+which grows as the top soil dries: :math:`r_\text{soil} = d_\text{dry}/D` with
 :math:`d_\text{dry} = d_s (e^{(1 - q_s/\theta_\text{sat})^5} - 1)/(e - 1)` and
 :math:`D = 2.2\times10^{-5}\, \theta_\text{sat}^2 (1 - \theta_\text{wilt}/\theta_\text{sat})^{2 + 3/b}`.
+Unlike :math:`\beta_\text{soil}`, :math:`r_\text{soil}` stays finite at the wilting point, so
+bare soil keeps evaporating slowly below it (not at all below :math:`q_s = 0.01`, as in Noah-MP).
+
+*Limitation:* :math:`q_s` is a single top layer. The canopy's soil-water factor and all of LE,
+transpiration included, act on it, where Noah-MP draws transpiration from the root zone
+(BTRAN). Over a few hours this hardly matters: at LE = 350 W/m\ :sup:`2` and
+:math:`d_s` = 0.1 m the layer loses about 0.005 m\ :sup:`3`/m\ :sup:`3` per hour. Over several
+days, though, the canopy shuts down as the top layer dries, even over a wet root zone.
+:math:`q_s` also restores toward ``seb_q_deep_default``, which defaults to 0; ERF prints a
+NOTE at start-up when it is below the wilting point.
 
 With the skin coupling and a soil type, the surface layer's land roughness length, unless
-``erf.most.z0`` is given, is Noah-MP's too: :math:`f_\text{veg}\, z_{0,\text{veg}} + (1 - f_\text{veg})\, z_{0,\text{soil}}`
+``erf.most.z0`` is given, comes from Noah-MP's tables: :math:`f_\text{veg}\, z_{0,\text{veg}} + (1 - f_\text{veg})\, z_{0,\text{soil}}`
 with the land-use category's Z0MVT and Noah-MP's bare-soil Z0SOIL (0.002 m), :math:`f_\text{veg} = 0`
 without a vegetation type.
 
 Noah-MP itself hands the atmosphere Z0MVT for a vegetated column and Z0SOIL for a bare one.
 The balance has a single surface for both parts, so it weights the two by the vegetated
-fraction instead. The run's ``job_info`` records the value used as ``erf.most.z0``.
+fraction instead. The run's ``job_info`` records the value used as ``erf.most.z0``. Heat and
+moisture use the same :math:`z_0` as momentum (the surface layer's kernel has no separate
+:math:`z_{0h}`), where Noah-MP's bare-ground exchange takes a smaller thermal roughness
+(Chen-Zilitinkevich): a further difference over bare soil.
 
 Categories 15, 16 and 17 (snow and ice, barren, water) have no vegetation in the table
 (Z0MVT = 0) and stop at start-up. Bare land leaves the vegetation type at 0.

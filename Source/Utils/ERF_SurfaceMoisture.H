@@ -12,16 +12,18 @@
  * Pieces of the surface layer's land surface mixing ratio when the two-stream balance
  * supplies the surface's moisture (erf.radiation.seb_surface_layer_uses_moisture): the
  * surface evaporates at beta times the potential rate, and its mixing ratio is
- * beta * q_sat + (1 - beta) * q_air. With a vegetation type, beta comes from the
- * resistances of a canopy and of bare soil in series with the aerodynamic one.
+ * beta * q_sat + (1 - beta) * q_air. With a soil type, beta comes from the resistance of
+ * bare soil (and with a vegetation type that of a canopy too) in series with the
+ * aerodynamic one; without, it is the soil-water factor.
  */
 namespace erf_surface_moisture {
 
 /**
  * Components of the per-column field the balance hands the surface layer
- * (TwoStreamRadiation::seb_surface_moisture): the soil-water factor beta in [0, 1], and,
- * with a vegetation type, the vegetated fraction, the canopy resistance without its
- * vapour-deficit factor [s/m] and the bare-soil resistance [s/m].
+ * (TwoStreamRadiation::seb_surface_moisture): the soil-water factor beta in [0, 1]; with a
+ * soil type, the bare-soil resistance [s/m]; with a vegetation type as well, the vegetated
+ * fraction and the canopy resistance without its vapour-deficit factor [s/m]. Absent
+ * pieces are a fraction of 0 and resistances of 1e6 s/m.
  */
 enum Component : int {
     SoilFactor = 0,

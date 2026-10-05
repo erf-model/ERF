@@ -1,12 +1,18 @@
 # Run the TwoStream_SEBSurfaceLayerFluxes deck with the balance's skin and moisture both
 # coupled to the surface layer (seb_surface_layer_uses_skin, seb_surface_layer_uses_moisture)
-# on Noah-MP's silty clay loam (seb_soil_type = 8: wilting point 0.120, field capacity
-# 0.387), three times: the soil at the wilting point (dry), at field capacity (wet) and in
-# between (mid); and a fourth (veg) like mid with Noah-MP's grassland on 80 % of the surface
-# (seb_vegetation_type = 10, LAI 2), so that canopy and soil resistances set the
-# availability; and a one-step fifth (tables) like veg from a copy of the deck without
-# erf.most.z0, so that the surface layer takes its land roughness from Noah-MP's tables and
-# job_info must record that value; then check with check_two_stream_seb_moisture.py.
+# and check the legs with check_two_stream_seb_moisture.py:
+#   dry, wet, mid  the linear soil-water factor alone (wilting point 0.120 and field
+#                  capacity 0.387 given, no soil type), the soil at the wilting point, at
+#                  field capacity and in between;
+#   bare           mid's soil as Noah-MP's silty clay loam (seb_soil_type = 8, the same
+#                  wilting point and field capacity), so its bare-soil resistance sets beta;
+#   bare_f0        bare with grassland at a vegetated fraction of 0, which must give bare's
+#                  beta exactly;
+#   veg            bare with Noah-MP's grassland on 80 % of the surface
+#                  (seb_vegetation_type = 10, LAI 2), canopy and soil resistances;
+#   tables         veg for one step from a copy of the deck without erf.most.z0, so that the
+#                  surface layer takes its land roughness from Noah-MP's tables and job_info
+#                  must record that value.
 # -DX= defines X as empty, so test for a value, not for DEFINED
 include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/ResolveExecutable.cmake")
@@ -47,7 +53,6 @@ function(run_leg name q_s)
                 max_step=${STEPS} erf.fixed_dt=${DT}
                 erf.radiation.seb_surface_layer_uses_skin=true
                 erf.radiation.seb_surface_layer_uses_moisture=true
-                erf.radiation.seb_soil_type=8
                 erf.radiation.seb_q_sfc_default=${q_s}
                 erf.radiation.seb_q_deep_default=${q_s}
                 "erf.plot2d_vars_1=seb_t_sfc seb_q_sfc seb_lh latent_heat_flux q_surf"
@@ -62,10 +67,15 @@ function(run_leg name q_s)
     endif()
 endfunction()
 
-run_leg(dry 0.120)
-run_leg(wet 0.387)
-run_leg(mid 0.25)
-run_leg(veg 0.25 erf.radiation.seb_vegetation_type=10 erf.radiation.seb_vegetation_fraction=0.8
+set(linear erf.radiation.seb_soil_moisture_wilt=0.120 erf.radiation.seb_soil_moisture_fc=0.387)
+set(soil erf.radiation.seb_soil_type=8)
+run_leg(dry 0.120 ${linear})
+run_leg(wet 0.387 ${linear})
+run_leg(mid 0.25 ${linear})
+run_leg(bare 0.25 ${soil})
+run_leg(bare_f0 0.25 ${soil} erf.radiation.seb_vegetation_type=10
+        erf.radiation.seb_vegetation_fraction=0.0 erf.radiation.seb_leaf_area_index=2.0)
+run_leg(veg 0.25 ${soil} erf.radiation.seb_vegetation_type=10 erf.radiation.seb_vegetation_fraction=0.8
         erf.radiation.seb_leaf_area_index=2.0)
 
 # The deck without its erf.most.z0 line: the tables' 0.8 x 0.12 + 0.2 x 0.002 = 0.0964 m.
@@ -76,13 +86,14 @@ if(deck_no_z0 STREQUAL deck)
 endif()
 set(leg_input "${WORKING_DIRECTORY}/deck_without_z0.i")
 file(WRITE "${leg_input}" "${deck_no_z0}")
-run_leg(tables 0.25 erf.radiation.seb_vegetation_type=10 erf.radiation.seb_vegetation_fraction=0.8
-        erf.radiation.seb_leaf_area_index=2.0 max_step=1)
+run_leg(tables 0.25 ${soil} erf.radiation.seb_vegetation_type=10
+        erf.radiation.seb_vegetation_fraction=0.8 erf.radiation.seb_leaf_area_index=2.0 max_step=1)
 
 execute_process(
     COMMAND "${PYTHON_EXE}" "${CHECKER}" --fextract "${FEXTRACT}"
             --dry-dir "${WORKING_DIRECTORY}/dry" --wet-dir "${WORKING_DIRECTORY}/wet"
             --mid-dir "${WORKING_DIRECTORY}/mid" --veg-dir "${WORKING_DIRECTORY}/veg"
+            --bare-dir "${WORKING_DIRECTORY}/bare" --bare-f0-dir "${WORKING_DIRECTORY}/bare_f0"
             --tables-dir "${WORKING_DIRECTORY}/tables" --tables-z0 0.0964 --given-z0 0.1
             --mid-q 0.25 --wilt 0.120 --fc 0.387
             --steps ${STEPS} --dt ${DT}

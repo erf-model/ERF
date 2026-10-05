@@ -4,10 +4,13 @@
 With erf.radiation.seb_surface_layer_uses_moisture the surface layer takes its land surface
 mixing ratio as beta * q_sat(T_s, p_s) + (1 - beta) * q_air, with
 beta = clamp((q_s - wilt) / (fc - wilt), 0, 1) from the balance's soil water q_s, and the
-balance drains q_s by the latent heat flux it removes. Given the 2D plotfiles (one per step)
-of five runs -- three whose soil starts and restores at the wilting point (dry), at field
-capacity (wet) and in between (mid), a fourth (veg) on mid's soil under vegetation, and a
-one-step fifth (tables) like veg without erf.most.z0 -- this asserts:
+balance drains q_s by the latent heat flux it removes. With a soil type, beta comes instead
+from Noah-MP's bare-soil resistance (and a canopy's with a vegetation type) in series with the
+aerodynamic one. Given the 2D plotfiles (one per step) of seven runs this asserts the
+following. The runs are: three on the linear factor alone whose soil starts and restores at
+the wilting point (dry), at field capacity (wet) and in between (mid); mid's soil as a Noah-MP
+soil type (bare); bare with a vegetation type at fraction 0 (bare_f0); bare under vegetation
+(veg); and a one-step veg without erf.most.z0 (tables).
 
 1. dry: beta = 0, so the latent heat flux is zero at every step, while
 2. wet: the latent heat flux is not small, so 1 is not 0 == 0;
@@ -21,10 +24,14 @@ one-step fifth (tables) like veg without erf.most.z0 -- this asserts:
    q_s(n) = q_s(n-1) - dt * LE(n) / (L_v rho_w d_s) - dt * (q_s(n-1) - q_deep) / tau_q,
    with LE(n) the latent heat flux it removed (seb_lh): the water the air gains leaves the
    soil; and the soil has dried from step 1 to the last;
-5. veg (mid's soil under Noah-MP's grassland, seb_vegetation_type): the canopy and soil
+5. veg (bare's soil under Noah-MP's grassland, seb_vegetation_type): the canopy and soil
    resistances lower LE below mid's, which has the soil-water factor alone, but not to
    zero, at every step; and the water budget and drying of 4 hold.
-6. job_info records the roughness each run used: the tables' value in the tables run
+6. bare: the soil resistance lowers LE below mid's linear factor at the same water content,
+   but not to zero, at every step; and the water budget and drying of 4 hold;
+7. bare_f0 = bare: a vegetation type at fraction 0 gives bare soil's q_surf and LE at every
+   step, to round-off (the model is continuous as the vegetated fraction goes to 0);
+8. job_info records the roughness each run used: the tables' value in the tables run
    (Noah-MP's Z0MVT and Z0SOIL by the vegetated fraction), the deck's erf.most.z0 in veg,
    each as the only erf.most.z0 entry.
 """
@@ -67,6 +74,11 @@ def main():
     parser.add_argument('--wet-dir', required=True)
     parser.add_argument('--mid-dir', required=True)
     parser.add_argument('--veg-dir', required=True)
+    parser.add_argument('--bare-dir', required=True, help='soil type, no vegetation')
+    parser.add_argument('--bare-f0-dir', required=True,
+                        help='soil type and a vegetation type at fraction 0')
+    parser.add_argument('--continuity-rtol', type=float, default=1.0e-12,
+                        help='relative tolerance of bare_f0 = bare')
     parser.add_argument('--tables-dir', required=True,
                         help='run without erf.most.z0 (roughness from the tables)')
     parser.add_argument('--tables-z0', type=float, required=True,
@@ -167,6 +179,29 @@ def main():
     check_budget(args.veg_dir, 'veg')
 
     # 6
+    le_bare = series(args.bare_dir, 'latent_heat_flux')
+    print(f"bare: LE at step 1 {le_bare[1]:.4f} W/m^2 (mid, linear factor, {le_mid[1]:.4f})")
+    for n in range(1, args.steps + 1):
+        if not 0.0 < le_bare[n] < le_mid[n]:
+            failures.append(f"bare step {n}: LE {le_bare[n]:.4f} W/m^2 is not between 0 and the "
+                            f"linear factor's {le_mid[n]:.4f}: the soil resistance is not used")
+            break
+    check_budget(args.bare_dir, 'bare')
+
+    # 7
+    worst = 0.0
+    for variable in ('q_surf', 'latent_heat_flux'):
+        a = series(args.bare_dir, variable)
+        b = series(args.bare_f0_dir, variable)
+        for n in range(1, args.steps + 1):
+            scale = max(abs(a[n]), 1.0e-30)
+            worst = max(worst, abs(a[n] - b[n]) / scale)
+    print(f"bare_f0 vs bare: worst relative difference of q_surf and LE {worst:.3e}")
+    if worst > args.continuity_rtol:
+        failures.append(f"bare_f0 differs from bare by {worst:.3e} (relative): a vegetation type "
+                        f"at fraction 0 must give bare soil's beta")
+
+    # 8
     def recorded_z0(directory):
         path = os.path.join(directory, 'plt2d00000', 'job_info')
         values = []
