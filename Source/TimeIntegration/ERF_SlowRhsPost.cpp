@@ -322,8 +322,17 @@ void erf_slow_rhs_post (int level, int finest_level,
           physbnd_mask.BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
       }
 
-      for (MFIter mfi(S_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-
+      // NOTE: this loop must NOT be tiled.  It both reads and writes S_new[cons]:
+      //   - the diffusion and PBL source routines below read new_cons with stencils
+      //     that reach outside the box they are given (AddTurbKESources, for instance,
+      //     forms a vertical theta_v gradient from k-1 and k+1);
+      //   - "rhs_post_9" near the end of the loop writes new_cons = cur_cons over tbx.
+      //
+      // The better fix is to split this into two passes -- all the reads, then all the
+      // writes -- which would let tiling come back.  Until then, do not restore
+      // TilingIfNotGPU() here without also moving the new_cons writes out.
+      for (MFIter mfi(S_data[IntVars::cons],false); mfi.isValid(); ++mfi)
+      {
         Box tbx  = mfi.tilebox();
 
         // *************************************************************************
