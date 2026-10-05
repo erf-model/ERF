@@ -1008,6 +1008,7 @@ run_transport (const RunOptions& options)
     return summary;
 }
 
+#if !defined(AMREX_USE_FLOAT)
 struct SmoothTranslationErrors
 {
     int nz;
@@ -1216,10 +1217,8 @@ run_smooth_vertical_mapped_density_weighted_translation_test (
             const auto state = final_state.const_array(mfi);
             const auto native = native_reference.const_array(mfi);
             const auto out = error.array(mfi);
-            const Real cell_width = Real(1.0) / static_cast<Real>(nz);
             const Real translated_distance =
                 carrier * static_cast<Real>(final_time);
-            const Real pi = amrex::Math::pi<Real>();
             amrex::ParallelFor(
                 bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                     const Real left = static_cast<Real>(k) * cell_width -
@@ -1307,6 +1306,8 @@ run_smooth_vertical_mapped_density_weighted_translation_test (
                                 max_number_difference});
     }
 }
+
+#endif
 
 TEST(SBMTransport, SmoothVerticalMappedDensityWeightedTranslationConverges)
 {
