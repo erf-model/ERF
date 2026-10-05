@@ -145,6 +145,21 @@ inline bool anelastic_superdroplets_configuration_invalid (
 }
 
 /**
+ * @brief Whether a requested erf.fixed_density = 0 is ignored at a level.
+ *
+ * The anelastic equations hold the density at its base-state value, so
+ * fixed_density is forced to 1 at every anelastic level and a request for 0
+ * there cannot be honored.
+ */
+inline bool anelastic_fixed_density_request_ignored (
+    const bool anelastic,
+    const bool fixed_density_given,
+    const int fixed_density_requested) noexcept
+{
+    return anelastic && fixed_density_given && fixed_density_requested == 0;
+}
+
+/**
  * @brief Wind-farm model.
  */
 AMREX_ENUM(WindFarmType,
@@ -1036,12 +1051,23 @@ struct SolverChoice {
         read_int_string(max_level, "fixed_density", fixed_density, 0);
         read_int_string(max_level, "project_initial_velocity", project_initial_velocity, 0);
 
+        // The anelastic equations hold the density at its base-state value, so
+        // fixed_density is forced to 1 at every anelastic level; a user value of 0
+        // there is ignored, and we say so rather than drop it silently.
+        const bool fixed_density_given = (pp.countval("fixed_density") > 0);
+
         bool any_anelastic = false;
         bool any_compress  = false;
         for (int i = 0; i <= max_level; ++i) {
             if (anelastic[i] == 1) {
+                if (anelastic_fixed_density_request_ignored(true, fixed_density_given,
+                                                            fixed_density[i])) {
+                    amrex::Print() << "WARNING: erf.fixed_density = 0 is ignored at level " << i
+                                   << " because erf.anelastic = 1 there; the anelastic equations"
+                                   << " always hold the density fixed in time." << std::endl;
+                }
                 project_initial_velocity[i] = 1;
-                fixed_density[i]            = 1; // We default to true but are allowed to override below
+                fixed_density[i]            = 1; // Always fixed when anelastic
                 buoyancy_type[i]            = 3; // (This isn't actually used when anelastic is set)
                 any_anelastic               = true;
             } else {
@@ -2542,7 +2568,7 @@ struct SolverChoice {
  * @var SolverChoice::anelastic_type
  * @brief Per-level two-stage scheme used by the anelastic integrator.
  * @var SolverChoice::fixed_density
- * @brief Per-level flag selecting fixed-density treatment.
+ * @brief Per-level flag selecting fixed-density treatment; always 1 at an anelastic level.
  * @var SolverChoice::project_initial_velocity
  * @brief Per-level flag for projecting the initial velocity.
  * @var SolverChoice::buoyancy_type

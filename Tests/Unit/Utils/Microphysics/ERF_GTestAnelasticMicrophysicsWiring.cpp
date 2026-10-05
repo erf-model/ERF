@@ -658,3 +658,14 @@ TEST(AnelasticMicrophysicsWiring, SuperDropletsAnelasticConfigurationIsInvalid)
     EXPECT_FALSE(anelastic_superdroplets_configuration_invalid(
         MoistureType::SAM, true));
 }
+
+// Motivation: fixed_density is forced to 1 at an anelastic level, so only an
+// explicit request for 0 there is reported as ignored; the default value of 0
+// and compressible levels must stay silent.
+TEST(AnelasticMicrophysicsWiring, FixedDensityZeroRequestIsIgnoredOnlyWhenAnelastic)
+{
+    EXPECT_TRUE(anelastic_fixed_density_request_ignored(true, true, 0));
+    EXPECT_FALSE(anelastic_fixed_density_request_ignored(true, false, 0));
+    EXPECT_FALSE(anelastic_fixed_density_request_ignored(true, true, 1));
+    EXPECT_FALSE(anelastic_fixed_density_request_ignored(false, true, 0));
+}
