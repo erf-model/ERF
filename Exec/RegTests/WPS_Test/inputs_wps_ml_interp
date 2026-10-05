@@ -103,11 +103,6 @@ erf.nc_init_file_0 = "wrfinput_d01"
 erf.nc_init_file_1 = "wrfinput_d02"
 erf.nc_bdy_file    = "wrfbdy_d01"
 
-# Distinct cache name: ERF prefers an existing erfbdy cache over reading
-# nc_bdy_file, and the default name ("erfbdy") is shared by every deck run in
-# the same directory -- a cache left by a different-domain run breaks the read.
-erf.erfbdy_file    = "erfbdy_wps_ml_interp"
-
 erf.avg_grid_faces_to_nodes  = false
 erf.terrain_smoothing        = 1
 # Required for wrfinput initialization on a level > 0 with terrain_smoothing = 1

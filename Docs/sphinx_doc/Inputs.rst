@@ -4037,7 +4037,7 @@ List of Parameters
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.rad_freq_in_steps**             | Radiation update frequency (steps)                       | Integer >= 1       | 1                                  |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
-| **erf.rad_ncol_chunk**                | Columns per RRTMGP kernel launch. Controls peak GPU      | Integer >= 1       | 5000. Lower values reduce peak GPU |
+| **erf.rad_ncol_chunk**                | Columns per RRTMGP kernel launch. Controls peak GPU      | Integer >= 1       | 1024. Lower values reduce peak GPU |
 |                                       | memory by processing radiation in batches of this size.  |                    | memory; higher values reduce       |
 |                                       |                                                          |                    | kernel launch overhead.            |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
