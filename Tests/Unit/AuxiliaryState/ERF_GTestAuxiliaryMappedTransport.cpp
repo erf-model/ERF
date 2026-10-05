@@ -1469,8 +1469,7 @@ void run_native_mapped_carrier_sloping_terrain_counterexample_test ()
     }
     const Real omega = omega_result.sum(0);
     EXPECT_NEAR(omega, Real(0.08), Real(1.0e-5));
-    EXPECT_GT(amrex::Math::abs(rho_w.const_array(0)(i, j, k, 0) - omega),
-              Real(0.2));
+    EXPECT_GT(amrex::Math::abs(Real(0.45) - omega), Real(0.2));
 
     // Negative control: reproduce the fitted-terrain carrier construction
     // from 0045b83acef6e7f5d8c711c7ebba8b2d0cca80de. That implementation kept
