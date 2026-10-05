@@ -9,10 +9,11 @@
 #include <ERF_NoahMPVegetationTable.H>
 
 // The pieces of erf.radiation.seb_surface_layer_uses_moisture: the soil-water factor of
-// the force-restore surface, the surface mixing ratio the surface layer takes from beta,
+// the force-restore surface, the surface mixing ratio the surface layer takes from beta or
+// from the two source fluxes (with the bare soil's pore-air humidity),
 // Noah-MP's soil and vegetation tables (wilting point, field capacity, Jarvis parameters,
 // monthly leaf area index), the Jarvis canopy and Sakaguchi-Zeng soil resistances, the
-// aerodynamic resistance and the two-source beta built from them, the vapour-deficit factor,
+// aerodynamic resistance, the vapour-deficit factor,
 // and the surface heat capacity derived from the soil.
 
 namespace {
@@ -127,17 +128,30 @@ TEST(SEBSoilMoisture, SoilResistanceFollowsSakaguchiZeng)
                                               Real(0.1), noahmp_soil_resistance_exponent), Real(1.0e6));
 }
 
-TEST(SEBSoilMoisture, TwoSourceAvailabilityAndVapourDeficit)
+TEST(SEBSoilMoisture, TwoSourceSurfaceMixingRatioAndVapourDeficit)
 {
     using namespace erf_surface_moisture;
-    // No surface resistance: potential evaporation.
-    EXPECT_NEAR(two_source_availability(Real(50.0), Real(0.0), Real(0.0), Real(0.7)), Real(1.0), tol);
-    // A canopy resistance four times the aerodynamic one gives 1/5 over the vegetated part.
-    EXPECT_NEAR(two_source_availability(Real(50.0), Real(200.0), Real(1.0e6), Real(1.0)),
-                Real(0.2), Real(1.0e-6));
-    // The bare part weighs by 1 - f_veg.
-    const Real b = two_source_availability(Real(50.0), Real(200.0), Real(450.0), Real(0.8));
-    EXPECT_NEAR(b, Real(0.8) * Real(0.2) + Real(0.2) * Real(0.1), tol);
+    const Real q_sat = Real(0.020);
+    const Real q_air = Real(0.008);
+    // No surface resistance and moist pores: the saturated surface.
+    EXPECT_NEAR(two_source_surface_mixing_ratio(Real(50.0), Real(0.0), Real(0.0), Real(0.7),
+                                                q_sat, Real(1.0), q_air), q_sat, tol);
+    // A canopy resistance four times the aerodynamic one gives 1/5 of the potential flux.
+    EXPECT_NEAR(two_source_surface_mixing_ratio(Real(50.0), Real(200.0), Real(1.0e6), Real(1.0),
+                                                q_sat, Real(1.0), q_air),
+                q_air + Real(0.2) * (q_sat - q_air), Real(1.0e-6));
+    // With moist pores (RH = 1) it is beta q_sat + (1 - beta) q_air, beta weighted by f_veg.
+    const Real beta = Real(0.8) * Real(0.2) + Real(0.2) * Real(0.1);
+    EXPECT_NEAR(two_source_surface_mixing_ratio(Real(50.0), Real(200.0), Real(450.0), Real(0.8),
+                                                q_sat, Real(1.0), q_air),
+                surface_mixing_ratio(beta, q_sat, q_air), tol);
+    // The bare part evaporates from RH q_sat: with RH q_sat below the air's, the surface
+    // mixing ratio falls below q_air (the soil takes up vapour), as in Noah-MP.
+    EXPECT_LT(two_source_surface_mixing_ratio(Real(50.0), Real(1.0e6), Real(450.0), Real(0.0),
+                                              q_sat, Real(0.2), q_air), q_air);
+    EXPECT_NEAR(two_source_surface_mixing_ratio(Real(50.0), Real(1.0e6), Real(450.0), Real(0.0),
+                                                q_sat, Real(0.2), q_air),
+                q_air + Real(0.1) * (Real(0.2) * q_sat - q_air), tol);
     // The vapour-deficit factor: 1 with no deficit, smaller with one, floored at 0.01.
     EXPECT_EQ(vapour_deficit_factor(Real(36.35), Real(0.010), Real(0.012)), Real(1.0));
     EXPECT_NEAR(vapour_deficit_factor(Real(36.35), Real(0.020), Real(0.010)),
@@ -272,4 +286,32 @@ TEST(SEBSoilMoisture, UnvegetatedCategoriesHaveNoRoughness)
         if (category >= 15 && category <= 17) { continue; }
         EXPECT_GT(noahmp_vegetation_params(category)->z0, Real(0.0)) << "category " << category;
     }
+}
+
+TEST(SEBSoilMoisture, BareSoilAtTheWiltingPointDoesNotEvaporate)
+{
+    using namespace erf_surface_moisture;
+    // Noah-MP's pore-air humidity exp(psi g / (R_v T)), psi = -psi_sat (theta/theta_sat)^-b.
+    const NoahMPSoilParams* soil = noahmp_soil_params(8);
+    const Real t = Real(325.0);
+    const double psi = -double(soil->psi_sat) *
+                       std::pow(double(soil->smc_wilt) / double(soil->smc_max), -double(soil->bb));
+    const Real rh_wilt = seb_soil_surface_relative_humidity(soil->smc_wilt, soil->smc_max,
+                                                            soil->psi_sat, soil->bb, t);
+    EXPECT_NEAR(rh_wilt, Real(std::exp(psi * 9.80616 / (461.269 * 325.0))), Real(1.0e-4) * rh_wilt);
+    EXPECT_GT(rh_wilt, Real(0.003));   // about 0.005 for silty clay loam at 325 K
+    EXPECT_LT(rh_wilt, Real(0.007));
+    // Moist soil: the pores are nearly saturated.
+    EXPECT_GT(seb_soil_surface_relative_humidity(Real(0.25), soil->smc_max, soil->psi_sat,
+                                                 soil->bb, t), Real(0.98));
+    // Invalid inputs give no reduction.
+    EXPECT_EQ(seb_soil_surface_relative_humidity(Real(0.25), soil->smc_max, soil->psi_sat,
+                                                 soil->bb, Real(0.0)), Real(1.0));
+    // At the wilting point on a hot afternoon (q_sat(325 K) about 0.1 kg/kg, air 8 g/kg),
+    // bare soil does not evaporate: q_surf <= q_air, so LE <= 0, as Noah-MP gives.
+    const Real r_soil = seb_soil_evaporation_resistance(soil->smc_wilt, soil->smc_max, soil->smc_wilt,
+                                                        soil->bb, Real(0.1),
+                                                        noahmp_soil_resistance_exponent);
+    EXPECT_LE(two_source_surface_mixing_ratio(Real(40.0), Real(1.0e6), r_soil, Real(0.0),
+                                              Real(0.1), rh_wilt, Real(0.008)), Real(0.008));
 }

@@ -2509,7 +2509,7 @@ SurfaceLayer::fill_qsurf_with_skin_moisture (const int& lev,
             Real q_sat = Real(0.0);
             erf_qsatw(t_skin, pressure * Real(0.01), q_sat);
 
-            Real beta = moist_arr(li,lj,k,SoilFactor);
+            Real q_surf_value = Real(0.0);
             if (use_resistances) {
                 // The aerodynamic resistance the moisture flux will see (the surface_temp
                 // kernel's): the last u* and Obukhov length, or neutral before the first flux.
@@ -2518,14 +2518,18 @@ SurfaceLayer::fill_qsurf_with_skin_moisture (const int& lev,
                     olen_arr(li,lj,k), umm_arr(li,lj,k), wsmin, KAPPA, bogus_large_value);
                 const Real r_c = moist_arr(li,lj,k,CanopyResistanceWithoutVPD) /
                                  vapour_deficit_factor(hs, q_sat, q_air);
-                beta = two_source_availability(r_a, r_c, moist_arr(li,lj,k,SoilResistance),
-                                               moist_arr(li,lj,k,VegetationFraction));
+                q_surf_value = two_source_surface_mixing_ratio(
+                    r_a, r_c, moist_arr(li,lj,k,SoilResistance),
+                    moist_arr(li,lj,k,VegetationFraction), q_sat,
+                    moist_arr(li,lj,k,GroundRelativeHumidity), q_air);
+            } else {
+                q_surf_value = surface_mixing_ratio(moist_arr(li,lj,k,SoilFactor), q_sat, q_air);
             }
-            if (!amrex::Math::isfinite(beta)) {
+            if (!amrex::Math::isfinite(q_surf_value)) {
                 amrex::Gpu::Atomic::Max(failed, 1);
                 return;
             }
-            q_surf_arr(i,j,k) = surface_mixing_ratio(beta, q_sat, q_air);
+            q_surf_arr(i,j,k) = q_surf_value;
         });
     }
     amrex::Gpu::streamSynchronize();
@@ -2533,7 +2537,7 @@ SurfaceLayer::fill_qsurf_with_skin_moisture (const int& lev,
     amrex::ParallelDescriptor::ReduceIntMax(failed_host);
     if (failed_host != 0) {
         amrex::Abort("SurfaceLayer fill_qsurf_with_skin_moisture: non-finite water vapour or "
-                     "moisture availability, an invalid skin temperature or surface pressure, or "
+                     "surface mixing ratio, an invalid skin temperature or surface pressure, or "
                      "a state without water vapour.");
     }
 }

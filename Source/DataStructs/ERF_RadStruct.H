@@ -414,13 +414,15 @@ public:
 
   /**
    * @brief Two-way coupling of moisture as well: the surface layer takes its land surface
-   * mixing ratio from the balance's surface water, as
-   * beta * q_sat(T_s, p_s) + (1 - beta) * q_air, so its moisture flux is beta times the
-   * potential one and dries as the balance's q_s does. beta is the soil-water factor
+   * mixing ratio from the balance's surface water, so its moisture flux follows the soil
+   * and dries as the balance's q_s does. Without seb_soil_type it is
+   * beta * q_sat(T_s, p_s) + (1 - beta) * q_air with beta the soil-water factor
    * clamp((q_s - seb_soil_moisture_wilt) / (seb_soil_moisture_fc - seb_soil_moisture_wilt),
-   * 0, 1), or, with seb_soil_type, Noah-MP's bare-soil resistance (and with
-   * seb_vegetation_type the canopy's too) in series with the aerodynamic one
-   * (erf_surface_moisture::two_source_availability). q_s is then the
+   * 0, 1). With seb_soil_type, the bare soil evaporates from its pore air (Noah-MP's
+   * relative humidity exp(psi g / (R_v T_s)) times q_sat) through Noah-MP's bare-soil
+   * resistance, and with seb_vegetation_type the canopy transpires through its own, each in
+   * series with the aerodynamic one (erf_surface_moisture::two_source_surface_mixing_ratio).
+   * q_s is then the
    * volumetric water content [m^3/m^3] of the top seb_moisture_layer_depth_m of soil.
    * Requires seb_surface_layer_uses_skin. Default false: the surface layer keeps its own
    * surface moisture (erf.most.surf_moist).
@@ -429,8 +431,8 @@ public:
 
   /**
    * @brief Wilting point [m^3/m^3]: at or below it the soil-water factor is 0, so the
-   * vegetation does not transpire and, without seb_soil_type (whose bare-soil resistance
-   * stays finite there), the surface does not evaporate
+   * vegetation does not transpire and, without seb_soil_type, the surface does not
+   * evaporate (with one, the bare soil's nearly dry pore air keeps it near zero)
    * (seb_surface_layer_uses_moisture; giving it otherwise stops at start-up). Default
    * 0.066, Noah-MP's loam (WLTSMC, STAS soil type 6).
    */
@@ -1343,8 +1345,9 @@ public:
                              << seb_q_sfc_default << ", seb_soil_moisture_wilt = "
                              << seb_soil_moisture_wilt << "), so its soil-water factor is zero: "
                              << (seb_soil_type != 0
-                                 ? "no transpiration; the bare soil still evaporates, slowly, "
-                                   "through Noah-MP's soil resistance."
+                                 ? "no transpiration, and the bare soil's pore air is nearly "
+                                   "dry (Noah-MP's relative humidity exp(psi g / (R_v T))), so it "
+                                   "hardly evaporates and may take up vapour."
                                  : "no evaporation at all.")
                              << " Set seb_q_sfc_default (and seb_q_deep_default, which q_s "
                                 "restores to) to the soil's water content if that is not meant.\n";

@@ -1035,15 +1035,15 @@ public:
                                          const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
   /**
-   * Overwrite the land surface mixing ratio with that of a surface of moisture
-   * availability beta at the external skin temperature:
-   * beta * q_sat(T_skin, p_s) + (1 - beta) * q_air (erf_surface_moisture::
-   * surface_mixing_ratio), q_air the reference-height mixing ratio the flux uses, so that
-   * the moisture flux is beta times the potential one. beta is the soil-water factor of
-   * set_skin_moisture, or, with resistances, erf_surface_moisture::two_source_availability
-   * of the aerodynamic resistance (from the last u* and Obukhov length; neutral before the
-   * first flux), the canopy resistance with its vapour-deficit factor, and the soil
-   * resistance. Needs set_skin_temperature and the averages of this step.
+   * Overwrite the land surface mixing ratio from the external skin temperature and the
+   * moisture field of set_skin_moisture, with q_air the reference-height mixing ratio the
+   * flux uses. Without resistances: beta * q_sat(T_skin, p_s) + (1 - beta) * q_air
+   * (erf_surface_moisture::surface_mixing_ratio) with beta the soil-water factor, so the
+   * moisture flux is beta times the potential one. With resistances:
+   * erf_surface_moisture::two_source_surface_mixing_ratio of the aerodynamic resistance
+   * (from the last u* and Obukhov length; neutral before the first flux), the canopy
+   * resistance with its vapour-deficit factor, the soil resistance and the soil pore air's
+   * relative humidity. Needs set_skin_temperature and the averages of this step.
    *
    * @param[in] lev       level index
    * @param[in] cons_in   conserved state (surface pressure and q_air from the lowest cell)
@@ -1355,9 +1355,10 @@ public:
    * @param[in] lev             level index
    * @param[in] moisture        per-column field in the components of
    *                            erf_surface_moisture::Component, on the surface-layer layout
-   * @param[in] use_resistances form beta from the soil resistance and, where the
-   *                            field's VegetationFraction is positive, the canopy's
-   *                            (two_source_availability), not the soil-water factor alone:
+   * @param[in] use_resistances form q_surf from the soil resistance and pore humidity and,
+   *                            where the field's VegetationFraction is positive, the
+   *                            canopy's (two_source_surface_mixing_ratio), not from the
+   *                            soil-water factor alone:
    *                            the two-stream balance passes true whenever it has a soil type
    * @param[in] hs              the canopy's vapour-deficit parameter [1/(kg/kg)]; 0 without
    *                            vegetation

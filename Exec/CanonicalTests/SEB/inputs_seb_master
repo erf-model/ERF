@@ -86,7 +86,7 @@ erf.radiation.surface_emissivity_lw   = 0.99    # Longwave emissivity, clamped t
 # surface model; ERF checks each at start-up. A level that takes its radiation from its
 # parent (a nested patch) is not coupled, with a warning.
 erf.radiation.seb_surface_layer_uses_skin = false      # The surface layer takes its land surface temperature from T_s (as a potential temperature at the surface pressure). Bool. Default false.
-erf.radiation.seb_surface_layer_uses_moisture = false  # ... and its land surface mixing ratio, beta q_sat(T_s) + (1 - beta) q_air, from the soil water q_s (sections 5, 6); the balance drains q_s by the LE it removes. Needs seb_surface_layer_uses_skin, a moisture model and erf.most.surf_moist. Bool. Default false.
+erf.radiation.seb_surface_layer_uses_moisture = false  # ... and its land surface mixing ratio from the soil water q_s: beta q_sat(T_s) + (1 - beta) q_air, or with seb_soil_type the two source fluxes of section 6; the balance drains q_s by the LE it removes. Needs seb_surface_layer_uses_skin, a moisture model and erf.most.surf_moist. Bool. Default false.
 
 zlo.type           = "surface_layer"
 erf.most.z0        = 0.1       # [m] Roughness length. With the skin coupling and seb_soil_type, when not given: f_veg Z0MVT + (1 - f_veg) Z0SOIL from Noah-MP's tables (section 6; a NOTE prints the value used).
@@ -112,13 +112,16 @@ erf.radiation.seb_soil_type           = 0       # A Noah-MP soil category, 1-19 
 # ==============================================================================
 # 6. Resistances (seb_surface_layer_uses_moisture with seb_soil_type) and vegetation
 # ==============================================================================
-# beta = f_veg r_a/(r_a + r_c) + (1 - f_veg) r_a/(r_a + r_soil), f_veg = 0 without a
+# q_surf = q_air + r_a [ f_veg (q_sat - q_air)/(r_a + r_c)
+#                        + (1 - f_veg) (RH_g q_sat - q_air)/(r_a + r_soil) ], f_veg = 0 without a
 # vegetation type, with the aerodynamic resistance r_a of the surface layer's moisture flux
 # (Jimenez psi_h, limited as its kernel); Noah's big-leaf Jarvis canopy resistance r_c on the
 # parameters of Noah-MP's option 2 (RS, RGL, HS, TOPT, RSMAX of the category), the leaf
 # area index, the net shortwave the balance holds over (1 - albedo), T_s, the vapour
 # deficit and beta_soil; and Noah-MP's bare-soil resistance r_soil (option 1, Sakaguchi and
-# Zeng) on seb_soil_type, finite at the wilting point (bare soil keeps evaporating slowly).
+# Zeng) on seb_soil_type, with the pore air's relative humidity RH_g = exp(psi g / (R_v T_s)),
+# psi = -SATPSI (q_s / theta_sat)^-b: near 0 at the wilting point, where the bare soil does
+# not evaporate (it may take up vapour).
 # q_s is one top layer: transpiration drains it too, where Noah-MP uses the root zone.
 erf.radiation.seb_vegetation_type     = 0       # A Noah-MP land-use category, 1-20 except 15-17 (snow and ice, barren, water: no vegetation; stops at start-up) (modified IGBP MODIS), or 0 for bare soil (f_veg = 0). Default 0.
 erf.radiation.seb_vegetation_fraction = 1.0     # Vegetated fraction f_veg, in [0, 1]. Only with seb_vegetation_type (stops at start-up otherwise). Default 1.

@@ -39,16 +39,18 @@ in level 0 with the WRF attributes `I_PARENT_START = J_PARENT_START = 3` and
 `PARENT_GRID_RATIO = 2`.
 
 The **barren** variant (`run_comparison.sh ... --barren`) puts bare land (MODIS 16, no
-vegetation) on the same soil at its wilting point (0.12 m3/m3) under both models, so that
-little evaporates and what remains is mostly the dry energy balance. The force-restore case
-then has no vegetation type: its bare soil evaporates through Noah-MP's soil resistance,
-its roughness is Z0SOIL (0.002 m), and it takes the albedo and emissivity Noah-MP gives this
-soil (0.197 and 0.97). Its deck is `inputs_force_restore_barren`.
+vegetation) on the same soil at its wilting point (0.12 m3/m3) under both models. The pore
+air there is nearly dry (relative humidity about 0.005), so neither evaporates and what
+remains is the dry energy balance. The force-restore case has no vegetation type: its bare
+soil evaporates from its pore air through Noah-MP's soil resistance, its roughness is Z0SOIL
+(0.002 m), and it takes the albedo and emissivity Noah-MP gives this soil (0.197 and 0.97).
+Its deck is `inputs_force_restore_barren`.
 
 The **moist barren** variant (`--barren-moist`) is the same bare land at 0.25 m3/m3, where
-the soil resistance sets the evaporation of both models. Noah-MP's bare-soil albedo falls
-with the top layer's water content, by 0.40 x 0.13 here (`GroundAlbedoMod`), so the deck
-`inputs_force_restore_barren_moist` takes 0.145. The force-restore decks read the settings
+the pore air is nearly saturated and the soil resistance sets the evaporation of both models. Noah-MP's bare-soil albedo falls
+with the top layer's water content (`GroundAlbedoMod`): 0.145 rising to 0.151 through the day
+here as the top soil dries, so the deck `inputs_force_restore_barren_moist` takes the
+shortwave-weighted 0.148. The force-restore decks read the settings
 they share from `inputs_force_restore_common`.
 
 ## Running it

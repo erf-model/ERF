@@ -16,7 +16,8 @@
  * The residual diagnosis below, the force-restore tendencies of the skin temperature and
  * soil water (prognostic_dTs_dt, prognostic_dqs_dt), the soil's moisture availability
  * (seb_moisture_availability), the canopy and bare-soil resistances to evaporation
- * (seb_canopy_resistance_without_vpd, seb_soil_evaporation_resistance), and the soil's
+ * (seb_canopy_resistance_without_vpd, seb_soil_evaporation_resistance), the relative
+ * humidity of bare soil's pore air (seb_soil_surface_relative_humidity), and the soil's
  * thermal properties (seb_soil_heat_capacity, seb_soil_thermal_conductivity,
  * seb_force_restore_heat_capacity).
  *
@@ -299,6 +300,31 @@ amrex::Real seb_soil_evaporation_resistance (amrex::Real theta, amrex::Real thet
     const amrex::Real diffusivity = amrex::Real(2.2e-5) * theta_sat * theta_sat *
         std::pow(amrex::Real(1.0) - theta_wilt / theta_sat, amrex::Real(2.0) + amrex::Real(3.0) / b);
     return amrex::min(no_evaporation, d_dry / diffusivity);
+}
+
+/**
+ * @brief Relative humidity of the air in the top soil's pores, Noah-MP's for bare ground
+ * (ResistanceGroundEvaporationMod), so that bare soil evaporates from RH * q_sat(T):
+ *
+ *   psi = -psi_sat (max(0.01, theta) / theta_sat)^(-b),
+ *   RH  = exp(psi g / (R_v T)),
+ *
+ * with Noah-MP's g = 9.80616 m/s^2 and R_v = 461.269 J/kg/K. Near 1 in moist soil, and
+ * near 0 at the wilting point (about 0.005 for silty clay loam at 325 K). Returns 1
+ * (no reduction) for a non-finite or non-positive parameter or temperature.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real seb_soil_surface_relative_humidity (amrex::Real theta, amrex::Real theta_sat,
+                                                amrex::Real psi_sat, amrex::Real b,
+                                                amrex::Real t_ground)
+{
+    if (!amrex::Math::isfinite(theta) || !amrex::Math::isfinite(t_ground) ||
+        !(theta_sat > amrex::Real(0.0)) || !(psi_sat > amrex::Real(0.0)) ||
+        !(b > amrex::Real(0.0)) || !(t_ground > amrex::Real(0.0))) {
+        return amrex::Real(1.0);
+    }
+    const amrex::Real psi = -psi_sat * std::pow(amrex::max(amrex::Real(0.01), theta) / theta_sat, -b);
+    return std::exp(psi * amrex::Real(9.80616) / (amrex::Real(461.269) * t_ground));
 }
 
 /**

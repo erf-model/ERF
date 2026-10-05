@@ -448,19 +448,23 @@ with the wilting point and field capacity ``seb_soil_moisture_wilt`` and ``seb_s
 and REFSMC of the STAS dataset; ``Source/Radiation/TwoStream/ERF_NoahMPSoilTable.H`` copies the
 table and a CTest checks the copy against ``Submodules/Noah-MP/parameters/NoahmpTable.TBL``).
 
-With a soil type, :math:`\beta` comes instead from resistances in series with the
-aerodynamic one. That one is the resistance of the surface layer's own moisture flux (its
-surface-temperature kernel),
+With a soil type, the surface mixing ratio comes instead from two source fluxes, each through
+a resistance in series with the aerodynamic one. That one is the resistance of the surface
+layer's own moisture flux (its surface-temperature kernel),
 :math:`r_a = \max(\ln(z_\text{ref}/z_0) - \psi_h, 1)/(\kappa u_*)`, with Jimenez's
 :math:`\psi_h` at the layer's last :math:`u_*` and Obukhov length (neutral before the first
 flux):
 
 .. math::
 
-   \beta = f_\text{veg} \frac{r_a}{r_a + r_c} + (1 - f_\text{veg}) \frac{r_a}{r_a + r_\text{soil}},
+   q_\text{surf} = q_\text{air} + r_a \left[ f_\text{veg} \frac{q_\text{sat} - q_\text{air}}{r_a + r_c}
+     + (1 - f_\text{veg}) \frac{\text{RH}_g\, q_\text{sat} - q_\text{air}}{r_a + r_\text{soil}} \right],
 
-with :math:`f_\text{veg} = 0` without a vegetation type, so bare soil and a vegetation type with
-``seb_vegetation_fraction = 0`` give the same :math:`\beta`. With
+so that the surface layer's flux :math:`(q_\text{surf} - q_\text{air})/r_a` is the sum of the
+canopy's and the bare soil's. :math:`f_\text{veg} = 0` without a vegetation type, so bare soil and
+a vegetation type with ``seb_vegetation_fraction = 0`` give the same :math:`q_\text{surf}`. With
+:math:`\text{RH}_g = 1` it is :math:`\beta q_\text{sat} + (1 - \beta) q_\text{air}` with
+:math:`\beta = f_\text{veg} r_a/(r_a + r_c) + (1 - f_\text{veg}) r_a/(r_a + r_\text{soil})`. With
 ``erf.radiation.seb_vegetation_type`` (a Noah-MP MODIS land-use category,
 ``ERF_NoahMPVegetationTable.H``), the vegetated fraction ``seb_vegetation_fraction``
 :math:`f_\text{veg}` transpires through Noah's
@@ -487,8 +491,17 @@ evaporates through Noah-MP's soil resistance (ground-evaporation option 1, Sakag
 which grows as the top soil dries: :math:`r_\text{soil} = d_\text{dry}/D` with
 :math:`d_\text{dry} = d_s (e^{(1 - q_s/\theta_\text{sat})^5} - 1)/(e - 1)` and
 :math:`D = 2.2\times10^{-5}\, \theta_\text{sat}^2 (1 - \theta_\text{wilt}/\theta_\text{sat})^{2 + 3/b}`.
-Unlike :math:`\beta_\text{soil}`, :math:`r_\text{soil}` stays finite at the wilting point, so
-bare soil keeps evaporating slowly below it (not at all below :math:`q_s = 0.01`, as in Noah-MP).
+It evaporates from the air in its pores, at Noah-MP's relative humidity
+
+.. math::
+
+   \text{RH}_g = \exp\left(\frac{\psi g}{R_v T_s}\right), \quad
+   \psi = -\psi_\text{sat} \left(\frac{\max(0.01, q_s)}{\theta_\text{sat}}\right)^{-b},
+
+with the soil's saturated matric potential :math:`\psi_\text{sat}` (SATPSI) and Noah-MP's
+:math:`g` and :math:`R_v`. :math:`\text{RH}_g` is near 1 in moist soil and near 0 at the wilting
+point (about 0.005 for silty clay loam at 325 K), so bare soil there hardly evaporates and,
+when :math:`\text{RH}_g q_\text{sat} < q_\text{air}`, takes up vapour (LE < 0), as in Noah-MP.
 
 *Limitation:* :math:`q_s` is a single top layer. The canopy's soil-water factor and all of LE,
 transpiration included, act on it, where Noah-MP draws transpiration from the root zone

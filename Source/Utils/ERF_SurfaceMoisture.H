@@ -12,24 +12,28 @@
  * Pieces of the surface layer's land surface mixing ratio when the two-stream balance
  * supplies the surface's moisture (erf.radiation.seb_surface_layer_uses_moisture): the
  * surface evaporates at beta times the potential rate, and its mixing ratio is
- * beta * q_sat + (1 - beta) * q_air. With a soil type, beta comes from the resistance of
- * bare soil (and with a vegetation type that of a canopy too) in series with the
- * aerodynamic one; without, it is the soil-water factor.
+ * beta * q_sat + (1 - beta) * q_air. Without a soil type, beta is the soil-water factor.
+ * With one, the surface mixing ratio comes from two source fluxes instead
+ * (two_source_surface_mixing_ratio): bare soil evaporates from its pore air (RH q_sat)
+ * through its resistance, and with a vegetation type a canopy transpires from q_sat
+ * through its own, each in series with the aerodynamic resistance.
  */
 namespace erf_surface_moisture {
 
 /**
  * Components of the per-column field the balance hands the surface layer
  * (TwoStreamRadiation::seb_surface_moisture): the soil-water factor beta in [0, 1]; with a
- * soil type, the bare-soil resistance [s/m]; with a vegetation type as well, the vegetated
- * fraction and the canopy resistance without its vapour-deficit factor [s/m]. Absent
- * pieces are a fraction of 0 and resistances of 1e6 s/m.
+ * soil type, the bare-soil resistance [s/m] and the relative humidity of the bare soil's
+ * pore air; with a vegetation type as well, the vegetated fraction and the canopy
+ * resistance without its vapour-deficit factor [s/m]. Absent pieces are a fraction of 0,
+ * resistances of 1e6 s/m and a relative humidity of 1.
  */
 enum Component : int {
     SoilFactor = 0,
     VegetationFraction,
     CanopyResistanceWithoutVPD,
     SoilResistance,
+    GroundRelativeHumidity,
     NumComponents
 };
 
@@ -126,20 +130,33 @@ surface_layer_aerodynamic_resistance (const similarity_funs& sfuns,
 }
 
 /**
- * Moisture availability of a surface whose vegetated fraction f_veg transpires through a
- * canopy resistance r_c and whose bare fraction evaporates through a soil resistance
- * r_soil, each in series with the aerodynamic resistance r_a:
- * f_veg r_a / (r_a + r_c) + (1 - f_veg) r_a / (r_a + r_soil).
+ * Surface mixing ratio [kg/kg] of a surface whose vegetated fraction f_veg transpires
+ * through a canopy resistance r_c from q_sat, and whose bare fraction evaporates through
+ * a soil resistance r_soil from its pore air, rh_ground * q_sat (Noah-MP's bare ground),
+ * each in series with the aerodynamic resistance r_a:
+ *
+ *   q_surf = q_air + r_a [ f_veg (q_sat - q_air) / (r_a + r_c)
+ *                          + (1 - f_veg) (rh_ground q_sat - q_air) / (r_a + r_soil) ],
+ *
+ * so that the surface layer's flux (q_surf - q_air) / r_a is the sum of the two. With
+ * rh_ground = 1 it is beta q_sat + (1 - beta) q_air with
+ * beta = f_veg r_a/(r_a + r_c) + (1 - f_veg) r_a/(r_a + r_soil). Over dry soil q_surf can
+ * fall below q_air: the soil then takes up water vapour, as in Noah-MP.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
-two_source_availability (const amrex::Real r_a,
-                         const amrex::Real r_c,
-                         const amrex::Real r_soil,
-                         const amrex::Real f_veg)
+two_source_surface_mixing_ratio (const amrex::Real r_a,
+                                 const amrex::Real r_c,
+                                 const amrex::Real r_soil,
+                                 const amrex::Real f_veg,
+                                 const amrex::Real q_sat,
+                                 const amrex::Real rh_ground,
+                                 const amrex::Real q_air)
 {
     const amrex::Real f = amrex::max(amrex::Real(0.0), amrex::min(amrex::Real(1.0), f_veg));
-    return f * r_a / (r_a + r_c) + (amrex::Real(1.0) - f) * r_a / (r_a + r_soil);
+    const amrex::Real rh = amrex::max(amrex::Real(0.0), amrex::min(amrex::Real(1.0), rh_ground));
+    return q_air + r_a * (f * (q_sat - q_air) / (r_a + r_c) +
+                          (amrex::Real(1.0) - f) * (rh * q_sat - q_air) / (r_a + r_soil));
 }
 
 } // namespace erf_surface_moisture

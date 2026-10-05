@@ -371,6 +371,7 @@ TwoStreamRadiation::seb_surface_moisture (int lev)
     const Real t_opt = vegetated ? veg->t_opt : Real(0.0);
     const Real smc_max = has_soil ? soil->smc_max : Real(0.0);
     const Real bb = has_soil ? soil->bb : Real(0.0);
+    const Real psi_sat = has_soil ? soil->psi_sat : Real(0.0);
     const Real d1 = m_rad->seb_moisture_layer_depth_m;
     const Real resistance_exponent = noahmp_soil_resistance_exponent;
 
@@ -403,12 +404,16 @@ TwoStreamRadiation::seb_surface_moisture (int lev)
                 r_c = seb_canopy_resistance_without_vpd(rs_min, rs_max, rgl, t_opt, lai, sw_down,
                                                         t_arr(i, j, k), soil_factor);
             }
+            Real rh_ground = Real(1.0);
             if (has_soil) {
                 r_soil = seb_soil_evaporation_resistance(q_arr(i, j, k), smc_max, q_wilt, bb, d1,
                                                          resistance_exponent);
+                rh_ground = seb_soil_surface_relative_humidity(q_arr(i, j, k), smc_max, psi_sat,
+                                                               bb, t_arr(i, j, k));
             }
             out_arr(i, j, k, CanopyResistanceWithoutVPD) = r_c;
             out_arr(i, j, k, SoilResistance) = r_soil;
+            out_arr(i, j, k, GroundRelativeHumidity) = rh_ground;
         });
     }
     return m_moisture[lev].get();

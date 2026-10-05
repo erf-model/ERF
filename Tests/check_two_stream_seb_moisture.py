@@ -6,11 +6,13 @@ mixing ratio as beta * q_sat(T_s, p_s) + (1 - beta) * q_air, with
 beta = clamp((q_s - wilt) / (fc - wilt), 0, 1) from the balance's soil water q_s, and the
 balance drains q_s by the latent heat flux it removes. With a soil type, beta comes instead
 from Noah-MP's bare-soil resistance (and a canopy's with a vegetation type) in series with the
-aerodynamic one. Given the 2D plotfiles (one per step) of seven runs this asserts the
+aerodynamic one, the bare soil evaporating from its pore air (Noah-MP's relative humidity
+times q_sat). Given the 2D plotfiles (one per step) of eight runs this asserts the
 following. The runs are: three on the linear factor alone whose soil starts and restores at
 the wilting point (dry), at field capacity (wet) and in between (mid); mid's soil as a Noah-MP
-soil type (bare); bare with a vegetation type at fraction 0 (bare_f0); bare under vegetation
-(veg); and a one-step veg without erf.most.z0 (tables).
+soil type (bare); bare with a vegetation type at fraction 0 (bare_f0); bare at the wilting
+point (bare_dry); bare under vegetation (veg); and a one-step veg without erf.most.z0
+(tables).
 
 1. dry: beta = 0, so the latent heat flux is zero at every step, while
 2. wet: the latent heat flux is not small, so 1 is not 0 == 0;
@@ -33,7 +35,9 @@ soil type (bare); bare with a vegetation type at fraction 0 (bare_f0); bare unde
    step, to round-off (the model is continuous as the vegetated fraction goes to 0);
 8. job_info records the roughness each run used: the tables' value in the tables run
    (Noah-MP's Z0MVT and Z0SOIL by the vegetated fraction), the deck's erf.most.z0 in veg,
-   each as the only erf.most.z0 entry.
+   each as the only erf.most.z0 entry;
+9. bare_dry: at the wilting point the pore air is nearly dry, so the bare soil does not
+   evaporate: LE <= 0 at every step (Noah-MP gives about -4 W/m^2 there).
 """
 
 import argparse
@@ -77,6 +81,8 @@ def main():
     parser.add_argument('--bare-dir', required=True, help='soil type, no vegetation')
     parser.add_argument('--bare-f0-dir', required=True,
                         help='soil type and a vegetation type at fraction 0')
+    parser.add_argument('--bare-dry-dir', required=True,
+                        help='soil type at the wilting point, no vegetation')
     parser.add_argument('--continuity-rtol', type=float, default=1.0e-12,
                         help='relative tolerance of bare_f0 = bare')
     parser.add_argument('--tables-dir', required=True,
@@ -148,23 +154,23 @@ def main():
         failures.append("step 1: LE(mid) does not lie between LE(dry) and LE(wet)")
 
     # 4 (and the budget of 5)
-    def check_budget(directory, label):
+    def check_budget(directory, label, q_deep, expect_drying=True):
         q_s = series(directory, 'seb_q_sfc')
         seb_lh = series(directory, 'seb_lh')
         worst = 0.0
         for n in range(2, args.steps + 1):
             expected = (q_s[n - 1] - args.dt * seb_lh[n] / (L_V * RHO_W * args.depth)
-                        - args.dt * (q_s[n - 1] - args.mid_q) / args.tau_q)
+                        - args.dt * (q_s[n - 1] - q_deep) / args.tau_q)
             worst = max(worst, abs(q_s[n] - expected))
         print(f"{label}: soil water {q_s[1]:.8f} -> {q_s[args.steps]:.8f} m^3/m^3 over steps "
               f"1-{args.steps}; worst budget error {worst:.3e}")
         if worst > args.budget_atol:
             failures.append(f"{label}: the soil water does not follow its budget (worst error "
                             f"{worst:.3e}, tolerance {args.budget_atol})")
-        if not q_s[1] - q_s[args.steps] > 0.0:
+        if expect_drying and not q_s[1] - q_s[args.steps] > 0.0:
             failures.append(f"{label}: the soil did not dry ({q_s[1]} -> {q_s[args.steps]})")
 
-    check_budget(args.mid_dir, 'mid')
+    check_budget(args.mid_dir, 'mid', args.mid_q)
 
     # 5
     le_veg = series(args.veg_dir, 'latent_heat_flux')
@@ -176,7 +182,7 @@ def main():
             failures.append(f"veg step {n}: LE {le_veg[n]:.4f} W/m^2 is not between 0 and mid's "
                             f"{le_mid[n]:.4f}")
             break
-    check_budget(args.veg_dir, 'veg')
+    check_budget(args.veg_dir, 'veg', args.mid_q)
 
     # 6
     le_bare = series(args.bare_dir, 'latent_heat_flux')
@@ -186,7 +192,7 @@ def main():
             failures.append(f"bare step {n}: LE {le_bare[n]:.4f} W/m^2 is not between 0 and the "
                             f"linear factor's {le_mid[n]:.4f}: the soil resistance is not used")
             break
-    check_budget(args.bare_dir, 'bare')
+    check_budget(args.bare_dir, 'bare', args.mid_q)
 
     # 7
     worst = 0.0
@@ -200,6 +206,15 @@ def main():
     if worst > args.continuity_rtol:
         failures.append(f"bare_f0 differs from bare by {worst:.3e} (relative): a vegetation type "
                         f"at fraction 0 must give bare soil's beta")
+
+    # 9
+    le_bare_dry = series(args.bare_dry_dir, 'latent_heat_flux')
+    worst_dry = max(le_bare_dry[1:])
+    print(f"bare_dry: largest LE over the steps {worst_dry:.4f} W/m^2")
+    if worst_dry > 0.0:
+        failures.append(f"bare_dry: LE reaches {worst_dry:.4f} W/m^2; bare soil at the wilting "
+                        f"point must not evaporate (its pore air is nearly dry)")
+    check_budget(args.bare_dry_dir, 'bare_dry', args.wilt, expect_drying=False)
 
     # 8
     def recorded_z0(directory):

@@ -17,11 +17,11 @@ erf.radiation.seb_t_deep_default = 290.0
 erf.radiation.diag_file = "radiation_diag_force_restore.csv"
 
 # The soil moisture as well: the surface layer takes its surface mixing ratio from the
-# balance's soil water, beta * q_sat(T_s) + (1 - beta) * q_air, and the balance drains that
-# water by the latent heat it removes. The soil is Noah-MP's silty clay loam (soil category
-# 8, Noah-MP's land here): its bare-soil resistance (Sakaguchi-Zeng) sets beta on the bare
-# part, and its wilting point and field capacity the soil-water factor in the canopy
-# resistance; the water content is that of its top 0.1 m.
+# balance's soil water, and the balance drains that water by the latent heat it removes.
+# The soil is Noah-MP's silty clay loam (soil category 8, Noah-MP's land here): its bare part
+# evaporates from its pore air (Noah-MP's relative humidity times q_sat) through its
+# Sakaguchi-Zeng resistance, and its wilting point and field capacity set the soil-water
+# factor in the canopy resistance; the water content is that of its top 0.1 m.
 erf.radiation.seb_surface_layer_uses_moisture = true
 erf.radiation.seb_soil_type = 8
 erf.radiation.seb_moisture_layer_depth_m = 0.1

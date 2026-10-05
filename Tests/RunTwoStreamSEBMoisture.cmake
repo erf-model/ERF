@@ -7,7 +7,9 @@
 #   bare           mid's soil as Noah-MP's silty clay loam (seb_soil_type = 8, the same
 #                  wilting point and field capacity), so its bare-soil resistance sets beta;
 #   bare_f0        bare with grassland at a vegetated fraction of 0, which must give bare's
-#                  beta exactly;
+#                  surface mixing ratio exactly;
+#   bare_dry       bare at the wilting point, where the pore air is nearly dry and the soil
+#                  must not evaporate (LE <= 0, as in Noah-MP);
 #   veg            bare with Noah-MP's grassland on 80 % of the surface
 #                  (seb_vegetation_type = 10, LAI 2), canopy and soil resistances;
 #   tables         veg for one step from a copy of the deck without erf.most.z0, so that the
@@ -73,6 +75,7 @@ run_leg(dry 0.120 ${linear})
 run_leg(wet 0.387 ${linear})
 run_leg(mid 0.25 ${linear})
 run_leg(bare 0.25 ${soil})
+run_leg(bare_dry 0.120 ${soil})
 run_leg(bare_f0 0.25 ${soil} erf.radiation.seb_vegetation_type=10
         erf.radiation.seb_vegetation_fraction=0.0 erf.radiation.seb_leaf_area_index=2.0)
 run_leg(veg 0.25 ${soil} erf.radiation.seb_vegetation_type=10 erf.radiation.seb_vegetation_fraction=0.8
@@ -94,6 +97,7 @@ execute_process(
             --dry-dir "${WORKING_DIRECTORY}/dry" --wet-dir "${WORKING_DIRECTORY}/wet"
             --mid-dir "${WORKING_DIRECTORY}/mid" --veg-dir "${WORKING_DIRECTORY}/veg"
             --bare-dir "${WORKING_DIRECTORY}/bare" --bare-f0-dir "${WORKING_DIRECTORY}/bare_f0"
+            --bare-dry-dir "${WORKING_DIRECTORY}/bare_dry"
             --tables-dir "${WORKING_DIRECTORY}/tables" --tables-z0 0.0964 --given-z0 0.1
             --mid-q 0.25 --wilt 0.120 --fc 0.387
             --steps ${STEPS} --dt ${DT}
