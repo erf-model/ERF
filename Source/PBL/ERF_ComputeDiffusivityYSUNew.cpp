@@ -464,8 +464,9 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             // WRF bl_ysu.F90 lines 651-662: zol1 = max(br*fm*fm/fh, rimin)
             // Approximate: zol1 = z1 / L_obuk
             Real obuk_val = ol_eff_arr(i, j, 0);
-            if (std::abs(obuk_val) < amrex::Real(1.0e-10))
+            if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
                 obuk_val = (obuk_val >= zero) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
+            }
             const Real zl1 = (use_terrain_fitted_coords)
                            ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_nd_arr)
                            : (ksrf + myhalf) * dz;
