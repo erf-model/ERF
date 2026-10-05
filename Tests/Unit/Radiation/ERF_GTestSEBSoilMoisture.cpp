@@ -204,7 +204,7 @@ TEST(SEBSoilMoisture, AerodynamicResistanceIsTheSurfaceLayersLimitedCmPsih)
                 Real(1.0) / (kappa * Real(0.3)), Real(1.0e-5) * Real(1.0) / (kappa * Real(0.3)));
 
     // Unstable air (z/L = -5): Jimenez's psi_h2, the kernel's, not Businger-Dyer's psi_h.
-    const similarity_funs sfuns;
+    const similarity_funs sfuns{};
     const Real unset = Real(1.0e34);
     const Real olen = Real(-2.0);
     const Real r = surface_layer_aerodynamic_resistance(sfuns, z_ref, z0, Real(0.3), olen,

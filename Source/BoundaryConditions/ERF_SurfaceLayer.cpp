@@ -2444,7 +2444,7 @@ SurfaceLayer::fill_qsurf_with_skin_moisture (const int& lev,
     const auto *const qvm_ptr  = m_ma.get_average(lev, 4); // reference-height mixing ratio
     const auto *const umm_ptr  = m_ma.get_average(lev, 6); // horizontal velocity magnitude
     const auto *const zref_ptr = m_ma.get_zref(lev);       // reference height
-    const similarity_funs sfuns;
+    const similarity_funs sfuns{};
     constexpr Real wsmin = Real(0.1); // the minimum wind speed the flux kernels use (WSMIN)
     amrex::Gpu::DeviceScalar<int> d_failed(0);
     int* failed = d_failed.dataPtr();
