@@ -5,6 +5,7 @@ on:
     branches: [development]
   pull_request:
     types: [opened, synchronize, reopened]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-macos
@@ -41,13 +42,16 @@ jobs:
     - name: Install Dependencies
       run: Submodules/AMReX/.github/workflows/dependencies/dependencies_mac.sh
 
-    - name: Set Up Cache
-      uses: actions/cache@v6
+    # One cache per matrix variant, written only by the default branch. PRs
+    # restore the newest default-branch cache for their variant and recompile
+    # only what they change; they never save.
+    - name: Restore Cache
+      uses: actions/cache/restore@v6
       with:
         path: ~/Library/Caches/ccache
-        key: ccache-${{ github.workflow }}-${{ github.job }}-git-${{ github.sha }}
+        key: ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.mesh_precision }}-git-${{ github.sha }}
         restore-keys: |
-             ccache-${{ github.workflow }}-${{ github.job }}-git-
+             ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.mesh_precision }}-git-
 
     - name: Configure Project and Generate Build System
       run: |
@@ -74,7 +78,7 @@ jobs:
       run: |
         export CCACHE_COMPRESS=1
         export CCACHE_COMPRESSLEVEL=10
-        export CCACHE_MAXSIZE=250M
+        export CCACHE_MAXSIZE=350M
         export CCACHE_SLOPPINESS=time_macros
         ccache -z
 
@@ -83,6 +87,13 @@ jobs:
 
         du -hs ~/Library/Caches/ccache
         ccache -s
+
+    - name: Save Cache
+      if: always() && github.ref_name == github.event.repository.default_branch
+      uses: actions/cache/save@v6
+      with:
+        path: ~/Library/Caches/ccache
+        key: ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.mesh_precision }}-git-${{ github.sha }}
 
     - name: Report
       run: |
