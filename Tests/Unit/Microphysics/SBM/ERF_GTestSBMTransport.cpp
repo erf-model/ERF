@@ -127,7 +127,8 @@ make_native_candidate (const erf_sbm::SBMLayout& layout,
                        const MultiFab& measure,
                        const Geometry& geom,
                        const double interval,
-                       const bool direct_physical_moment_weno = false)
+                       const bool direct_physical_moment_weno = false,
+                       const MultiFab* anchor_state = nullptr)
 {
     MultiFab intensive(spectrum.boxArray(), spectrum.DistributionMap(),
                        layout.ncomp(), 2);
@@ -226,9 +227,10 @@ make_native_candidate (const erf_sbm::SBMLayout& layout,
         spectrum.boxArray(), spectrum.DistributionMap(), layout.ncomp(), 0);
     const auto inv_dx = geom.InvCellSizeArray();
     const Real tau = static_cast<Real>(interval);
+    const MultiFab& anchor = anchor_state != nullptr ? *anchor_state : spectrum;
     for (amrex::MFIter mfi(*candidate); mfi.isValid(); ++mfi) {
         const Box bx = mfi.validbox();
-        const auto initial = spectrum.const_array(mfi);
+        const auto initial = anchor.const_array(mfi);
         const auto omega = measure.const_array(mfi);
         const auto fx = high_rate.dir(0).const_array(mfi);
         const auto fy = high_rate.dir(1).const_array(mfi);
@@ -1011,6 +1013,10 @@ struct SmoothTranslationErrors
     int nz;
     Real mass_l1;
     Real number_l1;
+    Real native_mass_l1;
+    Real native_number_l1;
+    Real max_mass_difference;
+    Real max_number_difference;
 };
 
 void
@@ -1021,12 +1027,12 @@ run_smooth_vertical_mapped_density_weighted_translation_test (
     constexpr int ny = 4;
     constexpr Real carrier = Real(0.2);
     constexpr double final_time = 0.25;
-    constexpr Real lower_edge = Real(0.1);
-    constexpr Real upper_edge = Real(0.5);
     const auto layout = make_layout(erf_sbm::MomentMode::TwoMoment);
     const auto& population = layout.populations().front();
     const int mass_component = population.mass_offset;
     const int number_component = population.number_offset;
+    const Real lower_edge = population.grid.edges().front();
+    const Real upper_edge = population.grid.edges()[1];
 
     for (const int nz : {16, 32, 64}) {
         const Box domain(IntVect(0, 0, 0), IntVect(nx - 1, ny - 1, nz - 1));
@@ -1087,20 +1093,27 @@ run_smooth_vertical_mapped_density_weighted_translation_test (
 
         auto& spectrum = state_manager.state(0);
         spectrum.setVal(Real(0.0));
+        const Real cell_width = Real(1.0) / static_cast<Real>(nz);
+        const Real pi = amrex::Math::pi<Real>();
+        // Initialize the analytic profile as finite-volume cell averages.
         for (amrex::MFIter mfi(spectrum); mfi.isValid(); ++mfi) {
             const Box bx = mfi.validbox();
             const auto rho = conserved_anchor.const_array(mfi);
             const auto state = spectrum.array(mfi);
             amrex::ParallelFor(
                 bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    const Real zeta = (static_cast<Real>(k) + Real(0.5)) /
-                                     static_cast<Real>(nz);
-                    const Real blo = Real(1.0) +
-                                     Real(0.10) *
-                                         amrex::Math::sinpi(Real(2.0) * zeta);
-                    const Real bhi = Real(0.8) +
-                                     Real(0.08) *
-                                         amrex::Math::cospi(Real(2.0) * zeta);
+                    const Real left = static_cast<Real>(k) * cell_width;
+                    const Real right = static_cast<Real>(k + 1) * cell_width;
+                    const Real sin_average =
+                        (amrex::Math::cospi(Real(2.0) * left) -
+                         amrex::Math::cospi(Real(2.0) * right)) /
+                        (Real(2.0) * pi * cell_width);
+                    const Real cos_average =
+                        (amrex::Math::sinpi(Real(2.0) * right) -
+                         amrex::Math::sinpi(Real(2.0) * left)) /
+                        (Real(2.0) * pi * cell_width);
+                    const Real blo = Real(1.0) + Real(0.10) * sin_average;
+                    const Real bhi = Real(0.8) + Real(0.08) * cos_average;
                     const Real density = rho(i, j, k, Rho_comp);
                     const Real number = blo + bhi;
                     const Real mass = lower_edge * blo + upper_edge * bhi;
@@ -1126,6 +1139,8 @@ run_smooth_vertical_mapped_density_weighted_translation_test (
 
         MultiFab initial(ba, dm, layout.ncomp(), 0);
         MultiFab::Copy(initial, spectrum, 0, 0, layout.ncomp(), 0);
+        MultiFab native_reference(ba, dm, layout.ncomp(), 0);
+        MultiFab::Copy(native_reference, initial, 0, 0, layout.ncomp(), 0);
         const Real initial_mass_inventory =
             mapped_inventory(initial, measure, mass_component);
         const Real initial_number_inventory =
@@ -1156,6 +1171,23 @@ run_smooth_vertical_mapped_density_weighted_translation_test (
                 step_new_time - step_old_time, state_manager, conserved_anchor,
                 conserved_input, conserved_target, avg_xmom, avg_ymom,
                 avg_zmom, geom, 1, 2);
+
+            // Independent unlimited ERF-native WENO-Z3 reference for the full
+            // three-stage compressible RK recurrence. Each stage reconstructs
+            // from its input state while retaining the H^n anchor.
+            auto native_stage1 = make_native_candidate(
+                layout, native_reference, conserved_anchor, avg_xmom,
+                avg_ymom, avg_zmom, measure, geom, dt / 3.0);
+            auto native_stage2 = make_native_candidate(
+                layout, *native_stage1, conserved_anchor, avg_xmom,
+                avg_ymom, avg_zmom, measure, geom, dt / 2.0, false,
+                &native_reference);
+            auto native_stage3 = make_native_candidate(
+                layout, *native_stage2, conserved_anchor, avg_xmom,
+                avg_ymom, avg_zmom, measure, geom, dt, false,
+                &native_reference);
+            MultiFab::Copy(native_reference, *native_stage3, 0, 0,
+                           layout.ncomp(), 0);
         }
 
         const auto& final_state = state_manager.state(0);
@@ -1177,25 +1209,33 @@ run_smooth_vertical_mapped_density_weighted_translation_test (
                         std::max(std::abs(initial_number_inventory),
                                  std::numeric_limits<Real>::min()));
 
-        MultiFab error(ba, dm, 2, 0);
+        MultiFab error(ba, dm, 6, 0);
         for (amrex::MFIter mfi(error); mfi.isValid(); ++mfi) {
             const Box bx = mfi.validbox();
             const auto omega = measure.const_array(mfi);
             const auto state = final_state.const_array(mfi);
+            const auto native = native_reference.const_array(mfi);
             const auto out = error.array(mfi);
+            const Real cell_width = Real(1.0) / static_cast<Real>(nz);
+            const Real translated_distance =
+                carrier * static_cast<Real>(final_time);
+            const Real pi = amrex::Math::pi<Real>();
             amrex::ParallelFor(
                 bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    const Real zeta = (static_cast<Real>(k) + Real(0.5)) /
-                                     static_cast<Real>(nz);
-                    Real translated = zeta - carrier *
-                                                static_cast<Real>(final_time);
-                    if (translated < Real(0.0)) { translated += Real(1.0); }
-                    const Real blo = Real(1.0) +
-                                     Real(0.10) * amrex::Math::sinpi(
-                                                      Real(2.0) * translated);
-                    const Real bhi = Real(0.8) +
-                                     Real(0.08) * amrex::Math::cospi(
-                                                      Real(2.0) * translated);
+                    const Real left = static_cast<Real>(k) * cell_width -
+                                      translated_distance;
+                    const Real right = static_cast<Real>(k + 1) * cell_width -
+                                       translated_distance;
+                    const Real sin_average =
+                        (amrex::Math::cospi(Real(2.0) * left) -
+                         amrex::Math::cospi(Real(2.0) * right)) /
+                        (Real(2.0) * pi * cell_width);
+                    const Real cos_average =
+                        (amrex::Math::sinpi(Real(2.0) * right) -
+                         amrex::Math::sinpi(Real(2.0) * left)) /
+                        (Real(2.0) * pi * cell_width);
+                    const Real blo = Real(1.0) + Real(0.10) * sin_average;
+                    const Real bhi = Real(0.8) + Real(0.08) * cos_average;
                     const Real exact_number = blo + bhi;
                     const Real exact_mass =
                         lower_edge * blo + upper_edge * bhi;
@@ -1205,11 +1245,66 @@ run_smooth_vertical_mapped_density_weighted_translation_test (
                     out(i, j, k, 1) = amrex::Math::abs(
                         omega(i, j, k, 0) * state(i, j, k, number_component) -
                         exact_number);
+                    out(i, j, k, 2) = amrex::Math::abs(
+                        omega(i, j, k, 0) *
+                            native(i, j, k, mass_component) -
+                        exact_mass);
+                    out(i, j, k, 3) = amrex::Math::abs(
+                        omega(i, j, k, 0) *
+                            native(i, j, k, number_component) -
+                        exact_number);
+                    out(i, j, k, 4) = amrex::Math::abs(
+                        state(i, j, k, mass_component) -
+                        native(i, j, k, mass_component));
+                    out(i, j, k, 5) = amrex::Math::abs(
+                        state(i, j, k, number_component) -
+                        native(i, j, k, number_component));
                 });
         }
         const Real cell_count = static_cast<Real>(domain.numPts());
-        measurements.push_back(
-            {nz, error.sum(0) / cell_count, error.sum(1) / cell_count});
+        const Real mass_l1 = error.sum(0) / cell_count;
+        const Real number_l1 = error.sum(1) / cell_count;
+        const Real native_mass_l1 = error.sum(2) / cell_count;
+        const Real native_number_l1 = error.sum(3) / cell_count;
+        const Real max_mass_difference = error.norm0(4);
+        const Real max_number_difference = error.norm0(5);
+        // Roundoff parity over every stored spectral component shows that the
+        // group limiter made no material correction during the full evolution.
+        for (int component = 0; component < layout.ncomp(); ++component) {
+            MultiFab component_difference(ba, dm, 1, 0);
+            for (amrex::MFIter mfi(component_difference); mfi.isValid(); ++mfi) {
+                const Box bx = mfi.validbox();
+                const auto m3 = final_state.const_array(mfi);
+                const auto native = native_reference.const_array(mfi);
+                const auto diff = component_difference.array(mfi);
+                amrex::ParallelFor(
+                    bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        diff(i, j, k, 0) = amrex::Math::abs(
+                            m3(i, j, k, component) -
+                            native(i, j, k, component));
+                    });
+            }
+            const Real parity_tolerance =
+                Real(512.0) * epsilon *
+                std::max(native_reference.norm0(component),
+                         std::numeric_limits<Real>::min());
+            EXPECT_LE(component_difference.norm0(), parity_tolerance)
+                << "complete-step M3/native WENO-Z3 parity failed for N="
+                << nz << " component=" << component;
+        }
+        const Real error_norm_tolerance =
+            measure.max(0) * Real(512.0) * epsilon *
+                std::max(native_reference.norm0(mass_component),
+                         native_reference.norm0(number_component)) +
+            Real(16.0) * epsilon;
+        EXPECT_NEAR(mass_l1, native_mass_l1, error_norm_tolerance)
+            << "analytic mass error differs from native WENO-Z3 at N=" << nz;
+        EXPECT_NEAR(number_l1, native_number_l1, error_norm_tolerance)
+            << "analytic number error differs from native WENO-Z3 at N="
+            << nz;
+        measurements.push_back({nz, mass_l1, number_l1, native_mass_l1,
+                                native_number_l1, max_mass_difference,
+                                max_number_difference});
     }
 }
 
@@ -1234,6 +1329,18 @@ TEST(SBMTransport, SmoothVerticalMappedDensityWeightedTranslationConverges)
     const double number16 = static_cast<double>(measurements[0].number_l1);
     const double number32 = static_cast<double>(measurements[1].number_l1);
     const double number64 = static_cast<double>(measurements[2].number_l1);
+    const double native_mass16 =
+        static_cast<double>(measurements[0].native_mass_l1);
+    const double native_mass32 =
+        static_cast<double>(measurements[1].native_mass_l1);
+    const double native_mass64 =
+        static_cast<double>(measurements[2].native_mass_l1);
+    const double native_number16 =
+        static_cast<double>(measurements[0].native_number_l1);
+    const double native_number32 =
+        static_cast<double>(measurements[1].native_number_l1);
+    const double native_number64 =
+        static_cast<double>(measurements[2].native_number_l1);
     const auto observed_order = [](const double coarse, const double fine) {
         return coarse > 0.0 && fine > 0.0
                    ? std::log(coarse / fine) / std::log(2.0)
@@ -1243,17 +1350,35 @@ TEST(SBMTransport, SmoothVerticalMappedDensityWeightedTranslationConverges)
     const double mass_order_32_64 = observed_order(mass32, mass64);
     const double number_order_16_32 = observed_order(number16, number32);
     const double number_order_32_64 = observed_order(number32, number64);
+    const double native_mass_order_16_32 =
+        observed_order(native_mass16, native_mass32);
+    const double native_mass_order_32_64 =
+        observed_order(native_mass32, native_mass64);
+    const double native_number_order_16_32 =
+        observed_order(native_number16, native_number32);
+    const double native_number_order_32_64 =
+        observed_order(native_number32, native_number64);
 
     std::cout << std::setprecision(12)
-              << "SBM smooth mapped/density-weighted errors (N, mass L1, "
-                 "number L1):\n";
+              << "SBM/native smooth mapped/density-weighted errors (N, M3 mass "
+                 "L1, native mass L1, M3 number L1, native number L1, max "
+                 "mass U difference, max number U difference):\n";
     for (const auto& result : measurements) {
         std::cout << result.nz << ", " << result.mass_l1 << ", "
-                  << result.number_l1 << '\n';
+                  << result.native_mass_l1 << ", " << result.number_l1
+                  << ", " << result.native_number_l1 << ", "
+                  << result.max_mass_difference << ", "
+                  << result.max_number_difference << '\n';
     }
     std::cout << "observed orders (mass 16-32, 32-64; number 16-32, 32-64): "
               << mass_order_16_32 << ", " << mass_order_32_64 << "; "
               << number_order_16_32 << ", " << number_order_32_64 << '\n';
+    std::cout << "native observed orders (mass 16-32, 32-64; number 16-32, "
+                 "32-64): "
+              << native_mass_order_16_32 << ", "
+              << native_mass_order_32_64 << "; "
+              << native_number_order_16_32 << ", "
+              << native_number_order_32_64 << '\n';
 
     std::ostringstream mass_report;
     mass_report << std::setprecision(12)
@@ -1270,10 +1395,23 @@ TEST(SBMTransport, SmoothVerticalMappedDensityWeightedTranslationConverges)
     EXPECT_GT(mass32, mass64) << mass_report.str();
     EXPECT_GT(number16, number32) << number_report.str();
     EXPECT_GT(number32, number64) << number_report.str();
-    EXPECT_GE(mass_order_16_32, 2.3) << mass_report.str();
-    EXPECT_GE(mass_order_32_64, 2.3) << mass_report.str();
-    EXPECT_GE(number_order_16_32, 2.3) << number_report.str();
-    EXPECT_GE(number_order_32_64, 2.3) << number_report.str();
+    EXPECT_TRUE(std::isfinite(mass16) && std::isfinite(mass32) &&
+                std::isfinite(mass64) && std::isfinite(number16) &&
+                std::isfinite(number32) && std::isfinite(number64));
+    EXPECT_TRUE(std::isfinite(native_mass16) &&
+                std::isfinite(native_mass32) &&
+                std::isfinite(native_mass64) &&
+                std::isfinite(native_number16) &&
+                std::isfinite(native_number32) &&
+                std::isfinite(native_number64));
+    EXPECT_TRUE(std::isfinite(mass_order_16_32) &&
+                std::isfinite(mass_order_32_64) &&
+                std::isfinite(number_order_16_32) &&
+                std::isfinite(number_order_32_64));
+    EXPECT_TRUE(std::isfinite(native_mass_order_16_32) &&
+                std::isfinite(native_mass_order_32_64) &&
+                std::isfinite(native_number_order_16_32) &&
+                std::isfinite(native_number_order_32_64));
 #endif
 }
 

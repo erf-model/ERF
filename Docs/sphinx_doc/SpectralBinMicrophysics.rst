@@ -572,6 +572,12 @@ independently testable:
    composition and accepted-transfer accounting. Unsupported or incomplete
    lifecycle/boundary state fails before mutating the authoritative spectrum.
 
+#. **Composite leaf-domain conservation.** AMR budget and conservation
+   diagnostics must evaluate each authoritative spectral and attached-material
+   inventory over the composite leaf domain, excluding coarse cells covered by
+   finer levels. Advance, reflux, restriction, regrid/remake, and restart must
+   preserve those composite inventories to the declared numerical tolerance.
+
 These items are M4 entry requirements, not current M3 capabilities.
 
 The high-order M3 transport identity is ``EndpointNumberWENOZ3``; it is not
