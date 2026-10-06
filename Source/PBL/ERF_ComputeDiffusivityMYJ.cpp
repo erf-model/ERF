@@ -339,7 +339,7 @@ ComputeDiffusivityMYJ (double dt,
                     Real RHSP1=(ARHS*ELOQ51+BRHS*ELOQ31+CRHS*ELOQ11)*RDEN1*RDEN1;
 
                     Real DTTURBL = static_cast<Real>(dt);
-                    Real ELOQ12=std::max(ELOQ11+(DLOQ1-ELOQ11)*exp(RHSP1*DTTURBL),EPS1);
+                    Real ELOQ12 = amrex::max(ELOQ11+(DLOQ1-ELOQ11)*exp(RHSP1*DTTURBL),EPS1);
 
                     Real ELOQ22=ELOQ12*ELOQ12;
                     Real ELOQ32=ELOQ22*ELOQ12;
@@ -351,7 +351,7 @@ ComputeDiffusivityMYJ (double dt,
                     Real RHSP2= (ARHS*ELOQ52+BRHS*ELOQ32+CRHS*ELOQ12)*RDEN2*RDEN2;
                     Real RHST2=RHS2/RHSP2;
 
-                    Real ELOQ13=std::max(ELOQ12-RHST2+(RHST2+DLOQ1-ELOQ12)*exp(RHSP2*DTTURBL),EPS1);
+                    Real ELOQ13 = amrex::max(ELOQ12-RHST2+(RHST2+DLOQ1-ELOQ12)*exp(RHSP2*DTTURBL),EPS1);
 
                     Real ELOQN=ELOQ13;
                     if (ELOQN>EPS1) {
