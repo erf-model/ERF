@@ -6,7 +6,8 @@
 // 0 * inf = NaN. Opt-in, as in WRF's revised surface layer: erf.if_stability_wind_floor (default 0)
 // floors the wind of the stability estimate, and erf.if_psi_cap_factor (default 1) caps psi_m in the
 // momentum law at factor ln(z / z0), also before it forms u*. The temperature forcing keeps caps of
-// ln(z / z0) (erf-model/ERF#4206). Inside the bounds and with the defaults, nothing changes.
+// ln(z / z0) (legacy law kept as it is, erf-model/ERF#4134). Inside the bounds and with the defaults,
+// nothing changes.
 
 #include <cmath>
 #include <limits>
@@ -323,7 +324,7 @@ TEST(ImmersedWallStability, PsiMCapBeforeUstarKeepsTheWallLawInStrongInstability
     // z0 = 0.5 m on 10 m cells and 1 m/s wind: psi_m passes ln(1.5 dz / z0) = ln 30, the u*
     // denominator turns negative and the u* clamp sets u* = 0. With a factor of 1 (no cap before
     // u*) the velocity target is zero; the 0.9 cap before u*, as WRF caps PSIM before UST, keeps
-    // u* > 0 and the target. The temperature forcing does not take the factor (erf-model/ERF#4206):
+    // u* > 0 and the target. The temperature forcing does not take the factor (erf-model/ERF#4134):
     // its source is the same at both.
     Real xsrc[2] = {0.0, 0.0};
     Real tsrc[2] = {0.0, 0.0};

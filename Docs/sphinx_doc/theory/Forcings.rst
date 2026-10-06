@@ -296,7 +296,9 @@ Two bounds of WRF's revised surface layer are available as options, both off by 
 
 The temperature forcing keeps caps of :math:`\ln(z/z_0)` on :math:`\psi_h`: its surface-flux branch forms
 :math:`\theta_*` from an Obukhov length that is not consistent with :math:`u_*`, which those caps keep from
-reaching the target in strongly unstable air (`erf-model/ERF#4206 <https://github.com/erf-model/ERF/issues/4206>`_).
+reaching the target in strongly unstable air. The legacy law is kept as it is; the fraction-stress law of
+`erf-model/ERF#4134 <https://github.com/erf-model/ERF/issues/4134>`_ forms :math:`u_*`, :math:`\theta_*` and
+:math:`L` consistently.
 ERF prints both values at start-up when an option is set and the wall law's stability estimate is in use.
 
 The following inputs are available when representing terrain using immersed forcing:

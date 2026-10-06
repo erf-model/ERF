@@ -1056,7 +1056,8 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
                 // prevent some unphysical math
                 ustar = ib_stability::clamped_ustar(ustar);
                 // caps of ln(z / z0): erf.if_psi_cap_factor stays off the temperature forcing, whose
-                // theta* is not consistent with u* (erf-model/ERF#4206)
+                // theta* comes from an L not made consistent with u* (the legacy law, kept as it is;
+                // the fraction-stress law of erf-model/ERF#4134 forms them consistently)
                 psi_h_neighbor = ib_stability::capped_psi(psi_h_neighbor, Real(1.5) * dx_z, z0, one);
                 psi_h = ib_stability::capped_psi(psi_h, myhalf * dx_z, z0, one);
 
@@ -1258,7 +1259,8 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
                 // prevent some unphysical math
                 ustar = ib_stability::clamped_ustar(ustar);
                 // caps of ln(z / z0): erf.if_psi_cap_factor stays off the temperature forcing, whose
-                // theta* is not consistent with u* (erf-model/ERF#4206)
+                // theta* comes from an L not made consistent with u* (the legacy law, kept as it is;
+                // the fraction-stress law of erf-model/ERF#4134 forms them consistently)
                 psi_h_neighbor = ib_stability::capped_psi(psi_h_neighbor, Real(1.5) * dx_z, z0, one);
                 psi_h = ib_stability::capped_psi(psi_h, myhalf * dx_z, z0, one);
 
@@ -1350,7 +1352,7 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
 
                 // prevent some unphysical math
                 ustar = ib_stability::clamped_ustar(ustar);
-                // caps of ln(z / z0), as above (erf-model/ERF#4206)
+                // caps of ln(z / z0), as above (erf-model/ERF#4134)
                 psi_h_neighbor = ib_stability::capped_psi(psi_h_neighbor, Real(1.5) * delta, z0, one);
                 psi_h = ib_stability::capped_psi(psi_h, myhalf * delta, z0, one);
 
