@@ -803,6 +803,9 @@ public:
 
     // Immersed-boundary surface energy balance (Source/ImmersedBoundarySEB)
     void init_ibseb ();
+    void ibseb_check_refined_levels () const;
+    void ibseb_check_sun_matches_two_stream () const;
+    void ibseb_set_two_stream_sun (int lev, amrex::Real time);
     void ibseb_write_checkpoint (const std::string& checkpointname, int lev) const;
     void ibseb_report (int nstep, amrex::Real time);
     amrex::Real ibseb_bulk_richardson_height (int lev, const amrex::MultiFab& cons,
@@ -1468,6 +1471,7 @@ private:
     // Immersed-boundary surface energy balance: inputs and one face set per level
     IBSEBParams ibseb_params;
     amrex::Vector<std::unique_ptr<IBFaceSet>> m_ibseb;
+    TwoStreamRadiation::OrbitalCache ibseb_orbit;   ///< Orbit of the year for erf.ibseb.sun_mode = two_stream
 
     // Data structures for terrain immersed forcing
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking;

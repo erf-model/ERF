@@ -83,7 +83,9 @@ public:
      * fab (a pinned copy on GPU builds), the valid cells are scanned, and the
      * arrays are uploaded to the device at the end. Must be called after the
      * blanking has been built and its ghost cells filled, since the solid
-     * neighbour of a fluid cell on a box edge lives in a ghost cell.
+     * neighbour of a fluid cell on a box edge lives in a ghost cell. Stops
+     * when a solid cell outside the level's grids neighbours a cell of the
+     * level, fluid or solid: a building across the edge of a refined level.
      *
      * @param blanking Cell-centred blanking of the level (needs at least one
      *                 ghost cell, filled).
@@ -91,6 +93,45 @@ public:
      *                 domain and periodicity for the neighbour tests.
      */
     void build (const amrex::MultiFab& blanking, const amrex::Geometry& geom);
+
+    /**
+     * Add the buildings this refined level does not hold to the column map of
+     * its ray cast, from the map of the level below.
+     *
+     * build() takes the map from the level's own cells, so on a refined level
+     * that covers part of the domain the rays of the shortwave and the view
+     * fractions would pass through every building outside it. Every column of
+     * the coarser map whose top cell this level's grids do not cover
+     * (ERF::ibseb_check_refined_levels() has made sure a building is wholly
+     * inside or wholly outside) is copied onto the ratio x ratio columns of
+     * this level beneath it, at the same height, and the map grows to the
+     * bounding box of both. Only the ray cast reads the result: the building
+     * ids, the face heights of the wall function and the reports keep the
+     * level's own buildings. Call after build() and before
+     * compute_view_fractions(); the coarser set must have had its own call
+     * already, so buildings outside several levels pass down the hierarchy.
+     *
+     * @param coarser   Face set of the level below.
+     * @param ratio     Refinement ratio from the level below to this one.
+     * @param grids_crse This level's grids coarsened by ``ratio``.
+     */
+    void add_outside_occluders (const IBFaceSet& coarser, const amrex::IntVect& ratio,
+                                const amrex::BoxArray& grids_crse);
+
+    /**
+     * Give the sun of the next compute_shortwave() with
+     * ``erf.ibseb.sun_mode = two_stream``: the two-stream radiation's
+     * declination and hour angle at that time, its site latitude and its
+     * top-of-atmosphere irradiance (the date's distance factor included).
+     * ERF::ibseb_set_two_stream_sun() calls it before every call; the call
+     * uses it up, so a shortwave without a fresh sun stops rather than reusing
+     * an old one.
+     */
+    void set_two_stream_sun (amrex::Real declination, amrex::Real hour_angle,
+                             amrex::Real latitude_deg, amrex::Real toa_irradiance)
+    {
+        m_ts_sun = {true, declination, hour_angle, latitude_deg, toa_irradiance};
+    }
 
     /** Number of faces owned by this rank (not the global count; see report()). */
     int n_faces () const { return m_nface; }
@@ -243,7 +284,8 @@ public:
      * Fills d_shadow, d_SW_direct_in, d_SW_diffuse_in and d_SW_abs; stores
      * the sun vector and irradiances for the reports.
      * @param time Simulation time [s]; with sun_mode = solar it is added to
-     *             time_zero_utc_s.
+     *             time_zero_utc_s (with sun_mode = two_stream the sun comes
+     *             from set_two_stream_sun()).
      */
     void compute_shortwave (amrex::Real time);
 
@@ -307,7 +349,12 @@ public:
      * largest balance residual, and the sun of the step (zenith, azimuth,
      * direct-normal and diffuse irradiance). All numbers are reduced over the
      * ranks; the file is written by the I/O rank only, with a header only
-     * when the file does not exist yet, so a restarted run appends.
+     * when the file does not exist yet, so a restarted run appends. Every
+     * level appends to the same file, its rows marked by the level column.
+     * With ``erf.ibseb.dump_faces_file`` the rows come with a face dump,
+     * dump_faces() to ``<prefix>[.levN][.stepNNNNNN].rank<N>.csv``: a refined
+     * level N adds ``.levN`` so it does not overwrite the level below, and
+     * ``erf.ibseb.dump_faces_tag_step`` the step.
      *
      * @param time      Simulation time [s] written to the rows.
      * @param step      Step number written to the rows.
@@ -426,6 +473,7 @@ private:
 
     // Geometry kept for the ray cast and the reports.
     int  m_nx = 0, m_ny = 0;                   ///< Columns of the domain
+    amrex::IntVect m_dom_lo{AMREX_D_DECL(0, 0, 0)}; ///< Low corner of the level's domain
     amrex::Real m_x_lo = 0.0, m_y_lo = 0.0;    ///< Domain origin [m]
     amrex::Real m_dx[3] = {0.0, 0.0, 0.0};     ///< Cell sizes [m]
     bool m_per_x = false, m_per_y = false;     ///< Periodicity in x and y
@@ -433,6 +481,9 @@ private:
     amrex::Real m_z_ground = 0.0;              ///< Ground height [m] (flat, the domain bottom)
     amrex::Real m_max_path = 0.0;              ///< Ray path cap [m]
     SunState m_sun;
+    /// The two-stream sun of the next compute_shortwave() (sun_mode = two_stream).
+    struct TwoStreamSun { bool set = false; amrex::Real decl = 0.0, hour_angle = 0.0, lat_deg = 0.0, S0 = 0.0; };
+    TwoStreamSun m_ts_sun;
     double m_cost_s = 0.0;        ///< Wall-clock seconds spent in the per-step update on this rank
     amrex::Long m_cost_n = 0;     ///< Number of per-step updates timed
     double m_init_cost_s = 0.0;   ///< Wall-clock seconds of build() and compute_view_fractions()

@@ -26,6 +26,8 @@ Use these cases as the primary index for manual verification, regression mainten
 | [`TwoStream_SEB_MultiFabInfra/`](TwoStream_SEB_MultiFabInfra/) | Validates allocation and population of simplified surface energy balance support fields. | SEB infrastructure enabled; surface-property defaults or LSM passthrough available. |
 | [`TwoStream_SEB_Diagnostic/`](TwoStream_SEB_Diagnostic/) | Computes and reports diagnostic surface energy balance residuals without prognostic feedback. | SEB infrastructure enabled; diagnostic mode active for feature-on case. |
 | [`TwoStream_SEB_Prognostic/`](TwoStream_SEB_Prognostic/) | Advances prognostic surface temperature and moisture with limiter/clamp safeguards. | SEB infrastructure and prognostic mode enabled in the input variant. |
+| [`TwoStream_NoahMP_vs_ForceRestore/`](TwoStream_NoahMP_vs_ForceRestore/) | Noah-MP and the force-restore balance under the two-stream radiation on the same two-level grid. | Noah-MP build (parallel NetCDF) for the Noah-MP case; Python with numpy, matplotlib and yt. |
+| [`TwoStream_IBSEB_RandomBuildings/`](TwoStream_IBSEB_RandomBuildings/) | The force-restore ground and the immersed-boundary balance on a seeded random building set, on two levels, under one sun. | Python with numpy for `make_buildings.py` and the checker. |
 
 ## Shared Resources
 

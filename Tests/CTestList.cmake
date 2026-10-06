@@ -2185,6 +2185,81 @@ add_test_most_zref(MOST_Zref_Stretched)
 # Immersed-boundary surface energy balance on the faces of a height-map cube
 # (prognostic skin, slab conduction, heat flux into the air), 40 steps.
 add_test_r(IBSEB_Cube                        ""  "erf_exec" "plt00040")
+
+# The balance on two levels (Tests/RunIBSEBRefinedLevels.cmake): a cube on level 1 and a
+# tower outside it, whose shadow the cube's level-1 faces must find through level 0's
+# column map; the level-1 face dumps, and the refinement-box script's verdicts on the
+# deck's box and on one cut through the cube. Then the start-up aborts: a refined level
+# whose edge cuts a building (one level 0 resolves, and one only level 1 does), the faces on their own sun under the two-stream radiation
+# (sun_mode = solar, or a fixed two-stream sun the faces do not share), and
+# sun_mode = two_stream without it (Tests/test_files/IBSEB_TwoStreamSun runs as given).
+function(add_test_ibseb_refined_levels TEST_NAME)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${CMAKE_CURRENT_SOURCE_DIR}/check_ibseb_refined_levels.py"
+        "-DBOX_SCRIPT=${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/SEB/ibseb_refinement_box.py"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunIBSEBRefinedLevels.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/cube_only/simulation.log;${CURRENT_TEST_BINARY_DIR}/both/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+endfunction(add_test_ibseb_refined_levels)
+
+if(ERF_ENABLE_MPI AND NOT WIN32)
+  if(NOT "${ERF_TEST_PYTHON}" STREQUAL "")
+    add_test_ibseb_refined_levels(IBSEB_RefinedLevels)
+  endif()
+  add_test_abort(IBSEB_RefinedLevelCutsBuilding
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_RefinedLevels
+                 IBSEB_RefinedLevels.i
+                 "lie on the edge of level 1"
+                 "erf.city.in_box_lo=160.0 180.0")
+  # A 4 m block across level 1's edge that only level 1 resolves (5 m cells there, 10 m
+  # below): the level-0 check cannot see it, IBFaceSet::build() must.
+  add_test_abort(IBSEB_RefinedLevelCutsLowBuilding
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_RefinedLevels
+                 IBSEB_RefinedLevels.i
+                 "cells next to solid cells outside its grids"
+                 "amr.ref_ratio_vect=2 2 2 erf.buildings_file_name=cube_and_low_block_10m.txt")
+  add_test_abort(IBSEB_TwoStreamSunSolar
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamSun
+                 IBSEB_TwoStreamSun.i
+                 "the faces need erf.ibseb.sun_mode = two_stream"
+                 "erf.ibseb.sun_mode=solar")
+  add_test_abort(IBSEB_TwoStreamSunWithoutTwoStream
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamSun
+                 IBSEB_TwoStreamSun.i
+                 "sun_mode = two_stream needs erf.radiation_model = TwoStream"
+                 "erf.radiation_model=None")
+  add_test_abort(IBSEB_TwoStreamSunNoDate
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamSun
+                 IBSEB_TwoStreamSunNoDate.i
+                 "sun_mode = two_stream: the two-stream sun follows the calendar and no start date"
+                 "")
+  add_test_abort(IBSEB_TwoStreamSunSolarInputs
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamSun
+                 IBSEB_TwoStreamSun.i
+                 "latitude_deg is not used with erf.ibseb.sun_mode = two_stream"
+                 "erf.ibseb.latitude_deg=40.0")
+  add_test_abort(IBSEB_TwoStreamSunFixed
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamSun
+                 IBSEB_TwoStreamSun.i
+                 "the two-stream sun is fixed"
+                 "erf.fixed_solar_zenith_angle=0.5")
+endif()
 add_test_r(PBL_IBAware_MRF_Smoothing         ""  "erf_exec" "plt00010")
 
 #=============================================================================

@@ -1,0 +1,3 @@
+# Written by make_buildings.py --seed 7 --n 8; do not edit by hand.
+erf.buildings_file_name = buildings.txt
+erf.ibseb.material_by_building = 3 3 2 2 1 3 3 2

@@ -3477,13 +3477,19 @@ column would be taken for a building), a uniform vertical grid (no
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.dump_faces_file**     | prefix of a per-rank CSV of every face (geometry, view   | String             | ""                     |
 |                                   | fractions, shadow, shortwave, skin temperature), written |                    |                        |
-|                                   | at every report; empty disables                          |                    |                        |
+|                                   | at every report; a refined level N adds ``.levN`` to the |                    |                        |
+|                                   | prefix; empty disables                                   |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.radiation**           | source of the downwelling radiation                      | "prescribed"       | "prescribed"           |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.sun_mode**            | ``fixed``: the sun stays at the given zenith and azimuth | "fixed", "solar"   | "fixed"                |
-|                                   | with the given irradiances; ``solar``: sun and clear-sky |                    |                        |
-|                                   | irradiances from the site and time                       |                    |                        |
+| **erf.ibseb.sun_mode**            | ``fixed``: the sun stays at the given zenith and azimuth | "fixed", "solar",  | "fixed"                |
+|                                   | with the given irradiances; ``solar``: sun and clear-sky | "two_stream"       |                        |
+|                                   | irradiances from the site and time; ``two_stream``: the  |                    |                        |
+|                                   | sun of erf.radiation_model = TwoStream (start_datetime,  |                    |                        |
+|                                   | erf.rad_cons_lat / lon, its top-of-atmosphere            |                    |                        |
+|                                   | irradiance) with the clear-sky irradiances, required     |                    |                        |
+|                                   | with the two-stream calendar sun; the solar site, day,   |                    |                        |
+|                                   | time and solar constant must not be given with it        |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.sun_zenith_deg**      | fixed sun: zenith angle [deg]                            | Real in [0, 180]   | 45.0                   |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+

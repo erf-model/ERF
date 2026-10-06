@@ -30,7 +30,7 @@ struct IBSEBParams
     std::string csv_file      = "ibseb_buildings.csv"; ///< Per-building report
     int         csv_int       = 100;                   ///< Steps between report rows; <= 0 disables
     bool        debug         = false;                 ///< [IBSEB DEBUG] prints: set description at build, per-step summary, per-building rows
-    std::string dump_faces_file;                       ///< Per-rank face dump at report time (empty = off)
+    std::string dump_faces_file;                       ///< Per-rank face dump at report time (empty = off); a refined level N adds ".levN"
     bool        dump_faces_tag_step = false;           ///< Name each dump by its step (keeps every one) instead of overwriting
 
     // ---- Radiation provider ------------------------------------------------
@@ -43,6 +43,10 @@ struct IBSEBParams
     // direct-normal and diffuse irradiances given below (analytic tests).
     // "solar": sun from the site and time; irradiances from the clear-sky
     // formulas.
+    // "two_stream": the sun of the two-stream radiation (erf.radiation_model =
+    // TwoStream following start_datetime): its declination, hour angle (no
+    // equation of time), site (erf.rad_cons_lat / lon) and top-of-atmosphere
+    // irradiance; the clear-sky formulas of "solar" then give the irradiances.
     std::string sun_mode      = "fixed";
     amrex::Real sun_zenith_deg    = 45.0;   ///< fixed: zenith angle [deg]
     amrex::Real sun_azimuth_deg   = 180.0;  ///< fixed: azimuth clockwise from north [deg]; 180 = sun in the south
@@ -209,8 +213,18 @@ struct IBSEBParams
             if (radiation != "prescribed") {
                 amrex::Abort("erf.ibseb.radiation: only \"prescribed\" is available in this build");
             }
-            if (sun_mode != "fixed" && sun_mode != "solar") {
-                amrex::Abort("erf.ibseb.sun_mode must be \"fixed\" or \"solar\"");
+            if (sun_mode != "fixed" && sun_mode != "solar" && sun_mode != "two_stream") {
+                amrex::Abort("erf.ibseb.sun_mode must be \"fixed\", \"solar\" or \"two_stream\"");
+            }
+            // The two-stream sun brings its own site, date and irradiance.
+            if (sun_mode == "two_stream") {
+                for (const char* k : {"latitude_deg", "longitude_deg", "day_of_year", "time_zero_utc_s", "solar_constant"}) {
+                    if (pp.contains(k)) {
+                        amrex::Abort(std::string("erf.ibseb.") + k + " is not used with erf.ibseb.sun_mode = two_stream:"
+                                     " the faces take the two-stream sun (start_datetime, erf.rad_cons_lat / lon,"
+                                     " erf.fixed_total_solar_irradiance); remove it");
+                    }
+                }
             }
             if (sun_zenith_deg < 0.0 || sun_zenith_deg > 180.0) { amrex::Abort("erf.ibseb.sun_zenith_deg must be in [0, 180]"); }
             if (latitude_deg < -90.0 || latitude_deg > 90.0) { amrex::Abort("erf.ibseb.latitude_deg must be in [-90, 90]"); }
