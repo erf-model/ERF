@@ -223,22 +223,16 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
             const Real rho = cell_data(i,j,k,Rho_comp);
             const Real met_h_zeta = use_terrain_fitted_coords ? Compute_h_zeta_AtCellCenter(i,j,k,dxInv,z_nd_arr) : one;
             const Real dz_terrain = met_h_zeta/dz_inv;
-            const Real l_min  = Real(1.0e-10); // same floor on |L| as MRF and YSUNew
-            const Real l_obuk = std::copysign(std::max(std::fabs(l_obuk_arr(i,j,0)),l_min),l_obuk_arr(i,j,0));
+            const Real small  = Real(1.0e-10); // floor on |L| (same as MRF and YSUNew) and on phi_term
+            const Real l_obuk = std::copysign(std::max(std::fabs(l_obuk_arr(i,j,0)),small),l_obuk_arr(i,j,0));
             if (k < pbli_arr(i,j,0)) {
                 // -- Compute diffusion coefficients within PBL
                 constexpr Real zfacmin = Real(1e-8); // value from WRF
-                constexpr Real phifac  = Real(8.0); // value from H10 and WRF
-                constexpr Real wstar3  = Real(0.);  // only nonzero for unstable
                 constexpr Real pfac    = Real(2.);  // profile exponent
-                const Real zfac = std::min(std::max(amrex::Real(1) - zval / pblh_arr(i,j,0), zfacmin ), amrex::Real(1));
-                // Not including YSU top down PBL term (not in H10, added to WRF later)
-                const Real ust3 = u_star_arr(i,j,0) * u_star_arr(i,j,0) * u_star_arr(i,j,0);
-                Real wscalek = ust3 + phifac * KAPPA * wstar3 * (amrex::Real(1) - zfac);
-                wscalek = std::pow(wscalek, amrex::Real(1.0/3.0));
+                const Real zfac = std::min(std::max(amrex::Real(1) - zval / pblh_arr(i,j,0), zfacmin), amrex::Real(1));
                 // stable only
-                const Real phi_term = amrex::Real(1) + amrex::Real(5) * zval / l_obuk; // phi_term appears in WRF but not papers
-                wscalek = std::max(u_star_arr(i,j,0) / phi_term, Real(0.001)); // Real(0.001) limit appears in WRF but not papers
+                const Real phi_term = std::max(amrex::Real(1) + amrex::Real(5) * zval / l_obuk, small); // phi_term appears in WRF but not papers
+                const Real wscalek = std::max(u_star_arr(i,j,0) / phi_term, Real(0.001)); // Real(0.001) limit appears in WRF but not papers
                 K_turb(i,j,k,EddyDiff::Mom_v)   = rho * wscalek * KAPPA * zval * std::pow(zfac, pfac);
                 K_turb(i,j,k,EddyDiff::Theta_v) = K_turb(i,j,k,EddyDiff::Mom_v);
             } else {
