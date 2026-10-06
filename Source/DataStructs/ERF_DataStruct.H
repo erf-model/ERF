@@ -1033,15 +1033,24 @@ struct SolverChoice {
         // *******************************************************************************
 
         read_int_string(max_level, "anelastic", anelastic, 0);
-        read_int_string(max_level, "fixed_density", fixed_density, 0);
+        const bool fixed_density_given =
+            read_int_string(max_level, "fixed_density", fixed_density, 0);
         read_int_string(max_level, "project_initial_velocity", project_initial_velocity, 0);
 
+        // The anelastic equations hold the density at its base-state value, so
+        // fixed_density is forced to 1 at every anelastic level; a user value of 0
+        // there is ignored, and we say so rather than drop it silently.
         bool any_anelastic = false;
         bool any_compress  = false;
         for (int i = 0; i <= max_level; ++i) {
             if (anelastic[i] == 1) {
+                if (fixed_density_given && fixed_density[i] == 0) {
+                    amrex::Print() << "WARNING: erf.fixed_density = 0 is ignored at level " << i
+                                   << " because erf.anelastic = 1 there; the anelastic equations"
+                                   << " always hold the density fixed in time." << std::endl;
+                }
                 project_initial_velocity[i] = 1;
-                fixed_density[i]            = 1; // We default to true but are allowed to override below
+                fixed_density[i]            = 1; // Always fixed when anelastic
                 buoyancy_type[i]            = 3; // (This isn't actually used when anelastic is set)
                 any_anelastic               = true;
             } else {
@@ -2079,8 +2088,9 @@ struct SolverChoice {
      * @param string_to_read ParmParse key to read.
      * @param vec_to_fill Destination vector with one entry per level.
      * @param default_int Default value used when the key is absent.
+     * @return True if the key was present in the inputs.
      */
-    void read_int_string (int max_level, const char* string_to_read,
+    bool read_int_string (int max_level, const char* string_to_read,
                           amrex::Vector<int>& vec_to_fill, int default_int)
     {
         amrex::ParmParse pp("erf");
@@ -2100,6 +2110,7 @@ struct SolverChoice {
         } else {
             for (int i = 0; i <= max_level; ++i) vec_to_fill[i] = temp[i];
         }
+        return (nvals > 0);
     }
 
     inline static
@@ -2568,7 +2579,7 @@ struct SolverChoice {
  * @var SolverChoice::anelastic_type
  * @brief Per-level two-stage scheme used by the anelastic integrator.
  * @var SolverChoice::fixed_density
- * @brief Per-level flag selecting fixed-density treatment.
+ * @brief Per-level flag selecting fixed-density treatment; always 1 at an anelastic level.
  * @var SolverChoice::project_initial_velocity
  * @brief Per-level flag for projecting the initial velocity.
  * @var SolverChoice::buoyancy_type

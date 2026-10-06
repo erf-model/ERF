@@ -48,8 +48,9 @@ Governing Equations
 | **erf.mg_v**                    | verbosity of the multigrid solver if used the Poisson    | Integer >= 0       | 0                |
 |                                 | equations                                                |                    |                  |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.fixed_density**           | if 1, hold the density fixed in time (per-level)         | 0, 1               | 0 (1 if          |
-|                                 |                                                          |                    | anelastic)       |
+| **erf.fixed_density**           | if 1, hold the density fixed in time (per-level).        | 0, 1               | 0 (1 if          |
+|                                 | Always 1 at a level where ``anelastic`` = 1; a value of  |                    | anelastic)       |
+|                                 | 0 given there is ignored with a warning                  |                    |                  |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.c_p**                     | specific heat at constant pressure for dry air           | Real > 0           | 1004.5           |
 |                                 | [J/(kg-K)]                                               |                    |                  |
