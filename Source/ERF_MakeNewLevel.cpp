@@ -936,7 +936,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // init_stuff rebuilds the flux register on the lev-1 / lev interface, but the one on the
     // lev / lev+1 interface also holds this level's grids. AmrCore::regrid remakes lev+1 after
     // lev and rebuilds it there, but a direct call (e.g. the level-0 regrid in restart) does not.
-    if (lev < finest_level) {
+    if (lev < finest_level && !grids[lev+1].empty()) {
         make_flux_register(lev+1);
     }
 
