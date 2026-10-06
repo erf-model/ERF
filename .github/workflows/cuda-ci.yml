@@ -53,9 +53,7 @@ jobs:
         run: Submodules/AMReX/.github/workflows/dependencies/dependencies_nvcc.sh ${{matrix.cuda_ver}}
       - name: Install CCache
         run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
-      # One cache per matrix variant, written only by the default branch. PRs
-      # restore the newest default-branch cache for their variant and recompile
-      # only what they change; they never save.
+      # ccache per matrix variant, written only from development; see ci.yml for how it works.
       - name: Restore Cache
         uses: actions/cache/restore@v6
         with:
