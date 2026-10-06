@@ -396,8 +396,8 @@ TwoStreamRadiation::seb_surface_moisture (int lev)
             const Real soil_factor = seb_moisture_availability(q_arr(i, j, k), q_wilt, q_fc);
             out_arr(i, j, k, SoilFactor) = soil_factor;
             out_arr(i, j, k, VegetationFraction) = f_veg;
-            Real r_c = Real(1.0e6);
-            Real r_soil = Real(1.0e6);
+            Real r_c = no_flux_resistance;
+            Real r_soil = no_flux_resistance;
             if (vegetated) {
                 const Real a = (alb_arr) ? alb_arr(i, j, k) : Real(0.0);
                 const Real sw_down = (sw_arr && a < Real(1.0)) ? sw_arr(i, j, k) / (Real(1.0) - a) : Real(0.0);

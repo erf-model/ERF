@@ -802,7 +802,7 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
                                        const MultiFab* z_phys)
 {
     if (flux_type == FluxCalcType::MOENG) {
-        amrex::Real wsmin = 0.1; // TODO: change for different faces
+        amrex::Real wsmin = most_min_wind_speed; // TODO: change for different faces
         const Box& domain = m_geom[lev].Domain();
         moeng_flux flux_comp(wsmin, m_face.isLow(),
                              domain.smallEnd(2), domain.bigEnd(2));
@@ -2439,13 +2439,13 @@ SurfaceLayer::fill_qsurf_with_skin_moisture (const int& lev,
     const int klo = m_geom[lev].Domain().smallEnd(2);
     const Real dz = m_geom[lev].CellSize(2);
     const bool have_rho_qv = cons_in.nComp() > RhoQ1_comp;
-    const bool use_resistances = m_skin_moisture_resistances;
-    const Real hs = m_skin_moisture_hs;
+    const bool use_resistances = m_skin_moisture_resistances_lev[lev] != 0;
+    const Real hs = m_skin_moisture_hs_lev[lev];
     const auto *const qvm_ptr  = m_ma.get_average(lev, 4); // reference-height mixing ratio
     const auto *const umm_ptr  = m_ma.get_average(lev, 6); // horizontal velocity magnitude
     const auto *const zref_ptr = m_ma.get_zref(lev);       // reference height
     const similarity_funs sfuns{};
-    constexpr Real wsmin = Real(0.1); // the minimum wind speed the flux kernels use (WSMIN)
+    constexpr Real wsmin = most_min_wind_speed; // the flux kernels' WSMIN
     amrex::Gpu::DeviceScalar<int> d_failed(0);
     int* failed = d_failed.dataPtr();
 
@@ -2513,11 +2513,15 @@ SurfaceLayer::fill_qsurf_with_skin_moisture (const int& lev,
             if (use_resistances) {
                 // The aerodynamic resistance the moisture flux will see (the surface_temp
                 // kernel's): the last u* and Obukhov length, or neutral before the first flux.
+                // That neutral guess takes the plane-averaged wind, not the w*-enhanced wind
+                // the kernel uses with include_wstar, so on the first step of such a run in
+                // light wind it is not the kernel's r_a; it is only a first guess, and from
+                // then on u* carries the enhancement.
                 const Real r_a = surface_layer_aerodynamic_resistance(
                     sfuns, zref_arr(li,lj,k), z0_arr(li,lj,k), ustar_arr(li,lj,k),
                     olen_arr(li,lj,k), umm_arr(li,lj,k), wsmin, KAPPA, bogus_large_value);
-                const Real r_c = moist_arr(li,lj,k,CanopyResistanceWithoutVPD) /
-                                 vapour_deficit_factor(hs, q_sat, q_air);
+                const Real r_c = canopy_resistance(
+                    moist_arr(li,lj,k,CanopyResistanceWithoutVPD), hs, q_sat, q_air);
                 q_surf_value = two_source_surface_mixing_ratio(
                     r_a, r_c, moist_arr(li,lj,k,SoilResistance),
                     moist_arr(li,lj,k,VegetationFraction), q_sat,

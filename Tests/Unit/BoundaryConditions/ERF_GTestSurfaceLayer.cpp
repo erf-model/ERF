@@ -5,6 +5,7 @@
 #include "AMReX_Reduce.H"
 
 #include "ERF_SurfaceLayer.H"
+#include "ERF_SurfaceMoisture.H"
 #include "ERF_GTestSurfaceLayerCommon.H"
 
 #include <gtest/gtest.h>
@@ -709,6 +710,56 @@ TEST(SurfaceLayer, QsurfMatchesReferenceOnSelectedFace)
         EXPECT_GT(selected_count, 0);
     }
     pp.remove("most.roughness_type_sea");
+}
+
+// Motivation: how the skin's surface mixing ratio is formed (the resistances or the
+// soil-water factor alone) belongs to each level. The two-stream coupling clears a level
+// it cannot couple with set_skin_moisture(lev, nullptr); doing that to another level
+// between this level's set_skin_moisture and its flux must not switch this level to the
+// soil-water factor.
+TEST(SurfaceLayer, SkinMoistureFormIsPerLevel)
+{
+    using namespace erf_surface_moisture;
+    const std::string prefix = "unit_surface_layer_skin_moisture_per_level";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(make_qsurf_geometry(), true);
+    auto layer = fields.prepare_layer(face, active_faces({face}), prefix, true, false);
+    constexpr Real q_air = Real(0.005);
+    fields.set_surface_cell_pressure(Real(1.0e5), q_air);
+
+    MultiFab* qsurf = layer->get_q_surf(0);
+    MultiFab skin(qsurf->boxArray(), qsurf->DistributionMap(), 1, qsurf->nGrowVect());
+    skin.setVal(Real(300.0));
+    // A saturated soil factor (1), but bare soil behind a no-flux resistance: the
+    // resistance form gives q_air, the soil-water factor q_sat.
+    MultiFab moisture(qsurf->boxArray(), qsurf->DistributionMap(), NumComponents,
+                      qsurf->nGrowVect());
+    moisture.setVal(Real(1.0), SoilFactor, 1);
+    moisture.setVal(Real(0.0), VegetationFraction, 1);
+    moisture.setVal(no_flux_resistance, CanopyResistanceWithoutVPD, 1);
+    moisture.setVal(no_flux_resistance, SoilResistance, 1);
+    moisture.setVal(Real(1.0), GroundRelativeHumidity, 1);
+    layer->get_mac_avg_ptr(0, 4)->setVal(q_air);      // reference-height mixing ratio
+    layer->get_mac_avg_ptr(0, 6)->setVal(Real(5.0));  // wind speed
+    layer->get_u_star(0)->setVal(Real(0.3));
+    layer->get_olen(0)->setVal(Real(1.0e30));
+    std::unique_ptr<MultiFab> z_phys_nd;
+
+    layer->set_skin_temperature(0, &skin);
+    layer->set_skin_moisture(0, &moisture, true, Real(0.0));
+    layer->set_skin_moisture(1, nullptr);
+    qsurf->setVal(Real(-1.0));
+    layer->fill_qsurf_with_skin_moisture(0, fields.cons, z_phys_nd);
+    const Real q_resistances = qsurf->max(0);
+    EXPECT_GE(q_resistances, q_air);
+    EXPECT_LT(q_resistances, q_air + Real(1.0e-4));
+
+    // The same field through the soil-water factor: q_sat, far from q_air.
+    layer->set_skin_moisture(0, &moisture, false);
+    qsurf->setVal(Real(-1.0));
+    layer->fill_qsurf_with_skin_moisture(0, fields.cons, z_phys_nd);
+    EXPECT_GT(qsurf->max(0), Real(0.02));
 }
 
 // Motivation: a terrain-following z-high boundary must use the local upper

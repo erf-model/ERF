@@ -7,6 +7,13 @@
 #include "ERF_Wstar.H"
 
 /**
+ * Minimum wind speed [m/s] of the surface-layer flux kernels below (their WSMIN), and of
+ * the resistance the two-stream skin moisture forms in
+ * SurfaceLayer::fill_qsurf_with_skin_moisture to invert the surface_temp kernel's flux.
+ */
+inline constexpr amrex::Real most_min_wind_speed = amrex::Real(0.1);
+
+/**
  * Adiabatic with constant roughness
  */
 struct adiabatic
@@ -177,7 +184,7 @@ private:
 #else
     const amrex::Real tol_z = amrex::Real(1.0e-10);
 #endif
-    const amrex::Real WSMIN = amrex::Real(0.1); // minimum wind speed
+    const amrex::Real WSMIN = most_min_wind_speed; // minimum wind speed
 };
 
 
@@ -279,7 +286,7 @@ private:
 #else
     const amrex::Real tol_z = amrex::Real(1.0e-10);
 #endif
-    const amrex::Real WSMIN = amrex::Real(0.1); // minimum wind speed
+    const amrex::Real WSMIN = most_min_wind_speed; // minimum wind speed
 };
 
 
@@ -378,7 +385,7 @@ private:
 #else
     const amrex::Real tol_z = amrex::Real(1.0e-10);
 #endif
-    const amrex::Real WSMIN = amrex::Real(0.1); // minimum wind speed
+    const amrex::Real WSMIN = most_min_wind_speed; // minimum wind speed
 };
 
 
@@ -483,7 +490,7 @@ private:
 #else
     const amrex::Real eps = amrex::Real(1e-15);
 #endif
-    const amrex::Real WSMIN  = amrex::Real(0.1); // minimum wind speed
+    const amrex::Real WSMIN  = most_min_wind_speed; // minimum wind speed
 };
 
 
@@ -628,7 +635,7 @@ private:
     bool spec_qflux;
     similarity_funs sfuns;
     const amrex::Real tol = amrex::Real(1.0e-5);
-    const amrex::Real WSMIN = amrex::Real(0.1); // minimum wind speed
+    const amrex::Real WSMIN = most_min_wind_speed; // minimum wind speed
     const amrex::Real USTARMIN = amrex::Real(0.001); // minimum friction velocity
     const amrex::Real alpha = amrex::Real(0.5); // under-relaxation factor for umm/u* iteration
 };
@@ -768,7 +775,7 @@ private:
     bool spec_qflux;
     similarity_funs sfuns;
     const amrex::Real tol = amrex::Real(1.0e-5);
-    const amrex::Real WSMIN = amrex::Real(0.1); // minimum wind speed
+    const amrex::Real WSMIN = most_min_wind_speed; // minimum wind speed
 };
 
 
@@ -898,7 +905,7 @@ private:
     bool spec_qflux;
     similarity_funs sfuns;
     const amrex::Real tol = amrex::Real(1.0e-5);
-    const amrex::Real WSMIN = amrex::Real(0.1); // minimum wind speed
+    const amrex::Real WSMIN = most_min_wind_speed; // minimum wind speed
 };
 
 
@@ -1025,7 +1032,7 @@ private:
     bool spec_qflux;
     similarity_funs sfuns;
     const amrex::Real tol = amrex::Real(1.0e-5);
-    const amrex::Real WSMIN = amrex::Real(0.1); // minimum wind speed
+    const amrex::Real WSMIN = most_min_wind_speed; // minimum wind speed
 };
 
 
@@ -1158,7 +1165,7 @@ private:
 #else
     const amrex::Real eps = amrex::Real(1e-15);
 #endif
-    const amrex::Real WSMIN  = amrex::Real(0.1); // minimum wind speed
+    const amrex::Real WSMIN  = most_min_wind_speed; // minimum wind speed
 };
 
 
@@ -1340,7 +1347,7 @@ private:
 
     const amrex::Real tol   = amrex::Real(1.0e-3);
     const amrex::Real alpha = myhalf;
-    const amrex::Real WSMIN = amrex::Real(0.1); // minimum wind speed
+    const amrex::Real WSMIN = most_min_wind_speed; // minimum wind speed
 };
 
 
@@ -1532,7 +1539,7 @@ private:
     const amrex::Real tol_z = amrex::Real(1.0e-10);
 #endif
     const amrex::Real alpha = myhalf;
-    const amrex::Real WSMIN = amrex::Real(0.1); // minimum wind speed
+    const amrex::Real WSMIN = most_min_wind_speed; // minimum wind speed
 };
 
 
@@ -1716,7 +1723,7 @@ private:
     const amrex::Real tol_z = amrex::Real(1.0e-10);
 #endif
     const amrex::Real alpha = myhalf;
-    const amrex::Real WSMIN = amrex::Real(0.1); // minimum wind speed
+    const amrex::Real WSMIN = most_min_wind_speed; // minimum wind speed
 };
 
 
@@ -1897,7 +1904,7 @@ private:
     const amrex::Real tol_z = amrex::Real(1.0e-10);
 #endif
     const amrex::Real alpha = myhalf;
-    const amrex::Real WSMIN = amrex::Real(0.1); // minimum wind speed
+    const amrex::Real WSMIN = most_min_wind_speed; // minimum wind speed
 };
 
 
@@ -2081,7 +2088,7 @@ private:
     const amrex::Real eps   = amrex::Real(1e-15);
 #endif
     const amrex::Real alpha = myhalf;
-    const amrex::Real WSMIN = amrex::Real(0.1); // minimum wind speed
+    const amrex::Real WSMIN = most_min_wind_speed; // minimum wind speed
 };
 
 
@@ -2403,7 +2410,7 @@ private:
     const amrex::Real eps = amrex::Real(1e-15);
 #endif
     bool is_low = true; // whether this is on the low or hi side face
-    amrex::Real   WSMIN = amrex::Real(0.1); // minimum wind speed
+    amrex::Real   WSMIN = most_min_wind_speed; // minimum wind speed
     int m_zlo = 0;
     int m_zhi = 0;
 };

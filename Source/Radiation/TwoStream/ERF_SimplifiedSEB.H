@@ -247,7 +247,8 @@ amrex::Real seb_moisture_availability (amrex::Real q_s,
  * are floored at 1e-4 as in Noah-MP, F_soil at 1e-6 (Noah-MP's MinThr).
  *
  * @return r_c * F_vpd [s/m], capped at 1e6 (no transpiration), which is also the value
- *         without leaves or for a non-finite input
+ *         without leaves or for a non-finite input. The surface layer divides by F_vpd
+ *         and caps the result at 1e6 again (erf_surface_moisture::canopy_resistance).
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real seb_canopy_resistance_without_vpd (amrex::Real rs_min, amrex::Real rs_max,

@@ -26,7 +26,7 @@ namespace erf_surface_moisture {
  * soil type, the bare-soil resistance [s/m] and the relative humidity of the bare soil's
  * pore air; with a vegetation type as well, the vegetated fraction and the canopy
  * resistance without its vapour-deficit factor [s/m]. Absent pieces are a fraction of 0,
- * resistances of 1e6 s/m and a relative humidity of 1.
+ * resistances of no_flux_resistance (1e6 s/m) and a relative humidity of 1.
  */
 enum Component : int {
     SoilFactor = 0,
@@ -70,6 +70,34 @@ vapour_deficit_factor (const amrex::Real hs,
 {
     const amrex::Real deficit = amrex::max(amrex::Real(0.0), q_sat - q_air);
     return amrex::max(amrex::Real(0.01), amrex::Real(1.0) / (amrex::Real(1.0) + hs * deficit));
+}
+
+/**
+ * The largest resistance [s/m]: a canopy or soil at this resistance does not transpire or
+ * evaporate. Noah-MP has no such cap; it keeps the resistances finite.
+ */
+inline constexpr amrex::Real no_flux_resistance = amrex::Real(1.0e6);
+
+/**
+ * The canopy resistance the surface layer uses [s/m]: the balance's resistance without the
+ * vapour-deficit factor (TwoStream's seb_canopy_resistance_without_vpd) divided by that
+ * factor, capped at no_flux_resistance after the divide (the factor alone can raise it
+ * 100-fold).
+ *
+ * @param[in] r_c_without_vpd canopy resistance without the vapour-deficit factor [s/m]
+ * @param[in] hs              the canopy's vapour-deficit parameter [1/(kg/kg)]
+ * @param[in] q_sat           saturation mixing ratio at the surface temperature [kg/kg]
+ * @param[in] q_air           mixing ratio of the air at the reference height [kg/kg]
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real
+canopy_resistance (const amrex::Real r_c_without_vpd,
+                   const amrex::Real hs,
+                   const amrex::Real q_sat,
+                   const amrex::Real q_air)
+{
+    return amrex::min(no_flux_resistance,
+                      r_c_without_vpd / vapour_deficit_factor(hs, q_sat, q_air));
 }
 
 /**

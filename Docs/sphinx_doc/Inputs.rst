@@ -4453,18 +4453,18 @@ atmospheric cell), ``start_datetime`` and the
 |                                                    | soil over seb_moisture_restore_timescale_s)                |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_surface_heat_capacity**        | Effective surface heat capacity [J/(m²·K)]. With           | Real > 0; stops at | 2.0e4            |
-|                                                    | seb_soil_type and not given: sqrt(lambda c tau / pi) / 2   | at start-up if not |                  |
+|                                                    | seb_soil_type and not given: sqrt(lambda c tau / pi) / 2   | start-up if not    |                  |
 |                                                    | of the soil's conductivity and heat capacity at            |                    |                  |
 |                                                    | seb_q_sfc_default over seb_restore_timescale_s (Deardorff) |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_restore_timescale_s**          | Force-restore timescale for surface temperature [s]        | Real > 0; stops at | 86400.0 (1 day)  |
-|                                                    |                                                            | at start-up if not |                  |
+|                                                    |                                                            | start-up if not    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_moisture_layer_depth_m**       | Effective surface moisture layer depth [m]                 | Real > 0; stops at | 0.1              |
-|                                                    |                                                            | at start-up if not |                  |
+|                                                    |                                                            | start-up if not    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_moisture_restore_timescale_s** | Force-restore timescale for surface moisture [s]           | Real > 0; stops at | 86400.0 (1 day)  |
-|                                                    |                                                            | at start-up if not |                  |
+|                                                    |                                                            | start-up if not    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.seb_prognostic_t_min_k**           | Minimum clamping bound for prognostic surface T [K]        | Real               | 200.0            |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+

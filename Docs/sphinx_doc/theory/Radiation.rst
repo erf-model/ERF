@@ -484,9 +484,9 @@ day of the year counted from 0 at 00:00 on 1 January and shifted half a year whe
 
 with :math:`SW_\downarrow` the net shortwave the balance holds divided by
 :math:`1 - \alpha` (the sweep's with ``seb_use_radiation_fluxes``). :math:`r_c` is capped at
-:math:`10^6` s/m. Noah-MP applies the same factors per sunlit and shaded leaf, with absorbed PAR,
-the canopy temperature and canopy-air humidity and a root-zone soil-water factor, so the two
-agree in form, not in every detail. The bare soil (the whole surface without a vegetation type)
+:math:`10^6` s/m after the vapour-deficit factor. Noah-MP applies the same factors per sunlit
+and shaded leaf, with absorbed PAR, the canopy temperature and canopy-air humidity and a
+root-zone soil-water factor, so the two agree in form, not in every detail. The bare soil (the whole surface without a vegetation type)
 evaporates through Noah-MP's soil resistance (ground-evaporation option 1, Sakaguchi and Zeng),
 which grows as the top soil dries: :math:`r_\text{soil} = d_\text{dry}/D` with
 :math:`d_\text{dry} = d_s (e^{(1 - q_s/\theta_\text{sat})^5} - 1)/(e - 1)` and

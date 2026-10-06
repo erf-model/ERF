@@ -1368,10 +1368,12 @@ public:
   {
       if (lev >= static_cast<int>(m_skin_moisture_lev.size())) {
           m_skin_moisture_lev.resize(lev + 1, nullptr);
+          m_skin_moisture_resistances_lev.resize(lev + 1, 0);
+          m_skin_moisture_hs_lev.resize(lev + 1, amrex::Real(0));
       }
       m_skin_moisture_lev[lev] = moisture;
-      m_skin_moisture_resistances = use_resistances;
-      m_skin_moisture_hs = hs;
+      m_skin_moisture_resistances_lev[lev] = use_resistances ? 1 : 0;
+      m_skin_moisture_hs_lev[lev] = hs;
   }
 
   /**
@@ -1768,10 +1770,11 @@ private:
   // External absolute skin temperature per level (set_skin_temperature), owned
   // by the caller; nullptr where none is supplied.
   amrex::Vector<const amrex::MultiFab*> m_skin_tsurf_lev;
-  // What that skin hands over for its surface mixing ratio, per level (set_skin_moisture).
+  // What that skin hands over for its surface mixing ratio, with how to form it from that
+  // field, per level (set_skin_moisture), so setting one level never changes another's.
   amrex::Vector<const amrex::MultiFab*> m_skin_moisture_lev;
-  bool m_skin_moisture_resistances{false};
-  amrex::Real m_skin_moisture_hs{0};
+  amrex::Vector<int> m_skin_moisture_resistances_lev;
+  amrex::Vector<amrex::Real> m_skin_moisture_hs_lev;
   amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_lsm_data_lev;
   amrex::Vector<amrex::Vector<amrex::MultiFab*>>  m_lsm_flux_lev;
   amrex::Vector<std::string> m_lsm_data_name;

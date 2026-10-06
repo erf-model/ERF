@@ -157,6 +157,12 @@ TEST(SEBSoilMoisture, TwoSourceSurfaceMixingRatioAndVapourDeficit)
     EXPECT_NEAR(vapour_deficit_factor(Real(36.35), Real(0.020), Real(0.010)),
                 Real(1.0) / (Real(1.0) + Real(0.3635)), tol);
     EXPECT_EQ(vapour_deficit_factor(Real(1.0e6), Real(0.020), Real(0.010)), Real(0.01));
+    // The canopy resistance divides by that factor and is capped after the divide, so a
+    // resistance below the cap cannot exceed it once the factor is applied.
+    EXPECT_NEAR(canopy_resistance(Real(200.0), Real(36.35), Real(0.020), Real(0.010)),
+                Real(200.0) * (Real(1.0) + Real(0.3635)), tol * Real(1000.0));
+    EXPECT_EQ(canopy_resistance(Real(2.0e4), Real(1.0e6), Real(0.020), Real(0.010)),
+              no_flux_resistance);
     // Neutral aerodynamic resistance: ln(z/z0) / (kappa u*).
     EXPECT_NEAR(aerodynamic_resistance(Real(10.0), Real(0.1), Real(0.0), Real(0.41), Real(0.3)),
                 std::log(Real(100.0)) / (Real(0.41) * Real(0.3)), tol * Real(100.0));
