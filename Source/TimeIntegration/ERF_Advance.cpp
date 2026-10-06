@@ -171,7 +171,7 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
             m_SurfaceLayer[Orientation::zlo()]->impose_SurfaceLayer_bcs(lev, mfs, Tau[lev],
                                                                         SFS_hfx1_lev[lev].get() , SFS_hfx2_lev[lev].get() , SFS_hfx3_lev[lev].get(),
                                                                         SFS_q1fx1_lev[lev].get(), SFS_q1fx2_lev[lev].get(), SFS_q1fx3_lev[lev].get(),
-                                                                        z_phys_nd[lev].get());
+                                                                        z_phys_nd[lev].get(), &mfvec_surface_fluxes[lev]);
         }
 
         // Apply SHOC before the dycore so it sees a coherent state.
