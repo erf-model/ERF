@@ -38,6 +38,8 @@ using amrex::IntVect;
 using amrex::MultiFab;
 using amrex::Real;
 
+constexpr int transport_nx = 8;
+
 erf_sbm::SBMLayout
 make_layout (const erf_sbm::MomentMode mode, const bool with_property = false)
 {
@@ -509,7 +511,7 @@ minimum_normalized_upper_gap (const MultiFab& state,
 RunSummary
 run_transport (const RunOptions& options)
 {
-    constexpr int nx = 8;
+    constexpr int nx = transport_nx;
     constexpr int ny = 4;
     constexpr int nz = 4;
     const Box domain(IntVect(0, 0, 0), IntVect(nx - 1, ny - 1, nz - 1));
@@ -787,14 +789,19 @@ run_transport (const RunOptions& options)
     avg_ymom.setVal(options.multidirectional_carrier ? Real(0.11) : Real(0.0));
     avg_zmom.setVal(options.multidirectional_carrier ? Real(0.09) : Real(0.0));
 
+    // In the full-RK3 path, dt is the completed physical-step interval;
+    // each stage below supplies ERF's own stage interval and times.
     const double dt = options.dt;
+    const double stage0_interval =
+        options.advance_all_rk3_stages ? dt / 3.0 : dt;
+    const double stage0_target_time = stage0_interval;
     std::unique_ptr<MultiFab> native_candidate;
     std::unique_ptr<MultiFab> direct_moment_candidate;
     std::unique_ptr<MultiFab> historical_candidate;
     if (options.compare_native_candidate) {
         native_candidate = make_native_candidate(
             layout, initial, conserved_input, avg_xmom, avg_ymom, avg_zmom,
-            transport.static_measure(0), geom, dt);
+            transport.static_measure(0), geom, stage0_interval);
     }
     Real native_candidate_interior_upper_gap_fraction =
         std::numeric_limits<Real>::max();
@@ -838,8 +845,9 @@ run_transport (const RunOptions& options)
         0,
         options.anelastic_heun ? erf_auxiliary::HostIntegrator::AnelasticHeun
                                : erf_auxiliary::HostIntegrator::CompressibleRK3,
-        0, 0.0, 0.0, dt, dt, state_manager, conserved_anchor, conserved_input,
-        conserved_target, avg_xmom, avg_ymom, avg_zmom, geom, 1, 2);
+        0, 0.0, 0.0, stage0_target_time, stage0_interval, state_manager,
+        conserved_anchor, conserved_input, conserved_target, avg_xmom,
+        avg_ymom, avg_zmom, geom, 1, 2);
 
     const auto& final_state = state_manager.state(0);
     if (!erf_sbm::authoritative_state_admissible(final_state, layout, 0,
@@ -938,7 +946,8 @@ run_transport (const RunOptions& options)
         if (options.distinct_density_roles) {
             auto wrong_target_candidate = make_native_candidate(
                 layout, initial, conserved_target, avg_xmom, avg_ymom,
-                avg_zmom, transport.static_measure(0), geom, dt);
+                avg_zmom, transport.static_measure(0), geom,
+                stage0_interval);
             MultiFab wrong_density_difference(ba, dm, layout.ncomp(), 0);
             MultiFab::Copy(wrong_density_difference, *native_candidate, 0, 0,
                            layout.ncomp(), 0);
@@ -1026,13 +1035,14 @@ run_transport (const RunOptions& options)
         for (int step = 0; step < options.completed_steps; ++step) {
             const double step_old_time = static_cast<double>(step) * dt;
             const double step_new_time = step_old_time + dt;
+            const double stage0_time = step_old_time + dt / 3.0;
+            const double stage1_time = step_old_time + dt / 2.0;
             if (step > 0) {
                 transport.advance_stage_from_host(
                     0, erf_auxiliary::HostIntegrator::CompressibleRK3, 0,
-                    step_old_time, step_old_time, step_new_time, dt,
+                    step_old_time, step_old_time, stage0_time, dt / 3.0,
                     state_manager, conserved_anchor, conserved_input,
-                    conserved_target, avg_xmom, avg_ymom, avg_zmom, geom, 1,
-                    2);
+                    conserved_target, avg_xmom, avg_ymom, avg_zmom, geom, 1, 2);
             }
             if (step == 0 && options.amplify_corrector_input) {
                 for (amrex::MFIter mfi(spectrum); mfi.isValid(); ++mfi) {
@@ -1049,12 +1059,12 @@ run_transport (const RunOptions& options)
             }
             transport.advance_stage_from_host(
                 0, erf_auxiliary::HostIntegrator::CompressibleRK3, 1,
-                step_old_time, step_new_time, step_new_time, dt, state_manager,
-                conserved_anchor, conserved_input, conserved_target, avg_xmom,
-                avg_ymom, avg_zmom, geom, 1, 2);
+                step_old_time, stage0_time, stage1_time, dt / 2.0,
+                state_manager, conserved_anchor, conserved_input,
+                conserved_target, avg_xmom, avg_ymom, avg_zmom, geom, 1, 2);
             transport.advance_stage_from_host(
                 0, erf_auxiliary::HostIntegrator::CompressibleRK3, 2,
-                step_old_time, step_new_time, step_new_time, dt, state_manager,
+                step_old_time, stage1_time, step_new_time, dt, state_manager,
                 conserved_anchor, conserved_input, conserved_target, avg_xmom,
                 avg_ymom, avg_zmom, geom, 1, 2);
             EXPECT_TRUE(transport.projected_ledger(0).step_complete());
@@ -1838,7 +1848,7 @@ TEST(SBMTransport, TwoMomentAtomicGroupLimiterRestrictsNativeProposal)
 
 TEST(SBMTransport, InteriorTwoMomentCanonicalReserveLimitsClosedEdgeSaturation)
 {
-    constexpr Real cells_per_unit_length = Real(8.0);
+    constexpr Real cells_per_unit_length = static_cast<Real>(transport_nx);
     constexpr int seed = 2;
     constexpr Real carrier = Real(0.2);
     constexpr Real timestep = Real(0.55);
@@ -1846,10 +1856,12 @@ TEST(SBMTransport, InteriorTwoMomentCanonicalReserveLimitsClosedEdgeSaturation)
     ASSERT_LT(courant, Real(1.0));
     // With constant density and unit mapped measure, donor low order is a
     // convex combination of positive endpoint counts and remains canonical.
-    for (int i = 0; i < 8; ++i) {
+    for (int i = 0; i < transport_nx; ++i) {
         const Real current = canonical_upper_edge_probe_low_endpoint(i, seed);
-        const Real donor =
-            canonical_upper_edge_probe_low_endpoint(i - 1, seed);
+        // The +x upwind donor wraps from cell zero to the final periodic cell.
+        const int donor_index = (i + transport_nx - 1) % transport_nx;
+        const Real donor = canonical_upper_edge_probe_low_endpoint(donor_index,
+                                                                   seed);
         const Real donor_low = (Real(1.0) - courant) * current +
                                courant * donor;
         EXPECT_GT(donor_low, Real(0.0)) << "cell=" << i;
