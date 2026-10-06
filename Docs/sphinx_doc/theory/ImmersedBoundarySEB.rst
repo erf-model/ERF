@@ -451,9 +451,11 @@ columns pass through the buildings.
 
 Inputs that go by building, :cpp:`erf.ibseb.material_by_building`, follow
 level 0's numbering on every level: a refined level finds each of its
-buildings in level 0 through the building's tallest column, so a building
-outside it, or two that level 0 merges into one, do not shift the materials.
-A building only a refined level resolves takes :cpp:`erf.ibseb.material_default`.
+buildings in level 0 by a vote of its columns, each naming the level-0
+building under it, so a building outside the refined level, or two that
+level 0 merges into one, do not shift the materials. A building only a
+refined level resolves takes :cpp:`erf.ibseb.material_default`, with a
+warning at start-up.
 The per-building report carries each level's own number and, in
 ``building_level0``, level 0's.
 

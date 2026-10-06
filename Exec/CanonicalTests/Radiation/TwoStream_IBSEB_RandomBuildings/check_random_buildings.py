@@ -271,6 +271,27 @@ def main():
           f"{plts[-1]}: open ground {g1:.2f} K in the refined area (level 1) and {g_out:.2f} K outside it (level 0); "
           f"the footprints and their surroundings, left out, {under:.2f} K on level 1{flux}")
 
+    # Not a check: where each building's absorbed shortwave comes from at the
+    # last dump, on both levels, the numbers the README's reading rests on.
+    print("  breakdown at the last face dump (level 0 / level 1): roof share of the face area, "
+          "absorbed SW on roofs and on walls [W/m2], sunlit share of the wall area")
+    last = {0: read_dump("faces/set", s0[-1]), 1: read_dump("faces/set.lev1", s1[-1])}
+    for b in range(1, nb + 1):
+        cols = []
+        for L in (0, 1):
+            d = last[L]
+            m = d["bid"] == b
+            roof, wall = m & (d["dir"] == 2), m & (d["dir"] != 2)
+            a = d["area_m2"]
+            share = a[roof].sum() / a[m].sum()
+            sw_r = (d["SW_abs"][roof] * a[roof]).sum() / a[roof].sum()
+            sw_w = (d["SW_abs"][wall] * a[wall]).sum() / a[wall].sum()
+            lit_w = (a[wall] * (d["SW_direct_in"][wall] > 0)).sum() / a[wall].sum()
+            cols.append((share, sw_r, sw_w, lit_w))
+        print(f"    building {b}: roof share {cols[0][0]:.2f} / {cols[1][0]:.2f}, "
+              f"roof SW {cols[0][1]:.0f} / {cols[1][1]:.0f}, wall SW {cols[0][2]:.0f} / {cols[1][2]:.0f}, "
+              f"sunlit walls {cols[0][3]:.2f} / {cols[1][3]:.2f}")
+
     print("ALL PASS" if nfail == 0 else f"{nfail} FAILED")
     return nfail
 

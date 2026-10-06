@@ -141,9 +141,11 @@ public:
      * buildings: a building outside the refined level, or two that level 0
      * merges into one. Inputs that go by building (erf.ibseb.material_by_building)
      * and the report's ``building_level0`` column use level 0's numbering, so
-     * every building of this level is looked up, by its tallest column, in the
-     * labels of the level below and through that level's own map in level 0's.
-     * A building only this level resolves maps to 0 (the default material).
+     * every building of this level is looked up in the labels of the level
+     * below, and through that level's own map in level 0's: each of its
+     * columns votes with the id under it and the majority wins. A building
+     * only this level resolves maps to 0 (the default material), with a
+     * warning.
      * Call after build() of both levels; the level below keeps its labels until
      * release_labels().
      *
@@ -151,6 +153,9 @@ public:
      * @param ratio   Refinement ratio from the level below to this one.
      */
     void map_buildings_to_level0 (const IBFaceSet& coarser, const amrex::IntVect& ratio);
+
+    /** Level 0's number for building ``b`` of this level (1-based; 0 for one only this level resolves). */
+    int building_level0 (int b) const { return m_to_lev0.at(b); }
 
     /** Free the column labels once the level above has been mapped (map_buildings_to_level0()). */
     void release_labels () { std::vector<int>().swap(m_lab); }
@@ -494,10 +499,10 @@ private:
     std::vector<amrex::Long> m_bld_ncol;
     std::vector<int>  m_bld_ilo, m_bld_ihi, m_bld_jlo, m_bld_jhi;
     // Level-0 numbering (map_buildings_to_level0()): the level-0 id of each
-    // building of this level (identity on level 0), each building's tallest
-    // column (0-based domain column), and the column labels over the level's
-    // own built bounding box, kept until the level above has been mapped.
-    std::vector<int>  m_to_lev0, m_bld_rep_i, m_bld_rep_j;
+    // building of this level (identity on level 0), and the column labels over
+    // the level's own built bounding box, kept until the level above has been
+    // mapped.
+    std::vector<int>  m_to_lev0;
     std::vector<int>  m_lab;
     int m_lab_i0 = 0, m_lab_j0 = 0, m_lab_nx = 0, m_lab_ny = 0;
 

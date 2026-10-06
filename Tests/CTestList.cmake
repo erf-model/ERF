@@ -2260,6 +2260,13 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                  IBSEB_RefinedLevels.i
                  "cell faces against solid cells outside its grids"
                  "amr.ref_ratio_vect=2 2 2 erf.buildings_file_name=cube_and_low_block_10m.txt")
+  # A report file from an earlier version (20 columns, no building_level0): a restart
+  # appending to it must stop rather than write rows its header does not describe.
+  add_test_abort(IBSEB_ReportOldColumns
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_RefinedLevels
+                 IBSEB_RefinedLevels.i
+                 "has another set of columns than this version writes"
+                 "erf.ibseb.csv_file=old_ibseb_buildings.csv")
   add_test_abort(IBSEB_TwoStreamSunSolar
                  ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamSun
                  IBSEB_TwoStreamSun.i

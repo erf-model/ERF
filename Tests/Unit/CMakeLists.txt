@@ -160,6 +160,10 @@ target_sources(${erf_exe_name}
     # Motivation: a calm cell above an immersed wall gave the wall law u* = 0, an Obukhov length
     # of zero and z / 0 (erf-model/ERF#4016); the stability estimate is now bounded as on flat ground.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestImmersedWallStability.cpp
+    # Motivation: a refined level's buildings must keep level 0's numbers for the
+    # materials by building, even when its tallest column is a spire level 0
+    # leaves fluid, or the level holds only some of the buildings.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBLevelNumbering.cpp
     # Motivation: observation nudging must read a station file exactly, relax
     # to the closed-form target with the right weight, sigma band and rate cap,
     # and put its sources on the right faces over flat, fitted and immersed

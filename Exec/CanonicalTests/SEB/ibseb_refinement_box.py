@@ -42,7 +42,8 @@ two values, or three that cover it). A proposed box has its edges on
 multiples of amr.blocking_factor fine cells, so the grids ERF builds are
 exactly the box; a box given off those blocks is judged as the grids AMReX
 grows it to. The deck must carry amr.n_error_buf = 0 (ERF stops on an
-explicit box otherwise), which the script checks.
+explicit box otherwise): checking a deck's boxes stops without it, and a
+proposal says so and prints the line.
 """
 import argparse
 import bisect
@@ -105,21 +106,32 @@ def read_map(path):
     return x, y, z
 
 
-def interp1(xs, ys, v):
-    """Linear interpolation of ys(xs) at v, held at the end values outside (as numpy.interp)."""
-    if v <= xs[0]:
-        return ys[0]
-    if v >= xs[-1]:
-        return ys[-1]
-    k = bisect.bisect_right(xs, v) - 1
-    w = (v - xs[k]) / (xs[k + 1] - xs[k])
-    return (1.0 - w) * ys[k] + w * ys[k + 1]
+def brackets(nodes, targets):
+    """For each target, the node index k and weight w with value (1 - w) f[k] + w f[k + 1],
+    held at the end values outside the nodes (as numpy.interp)."""
+    if len(nodes) == 1:
+        return [(0, 0.0)] * len(targets)
+    out = []
+    for v in targets:
+        if v <= nodes[0]:
+            out.append((0, 0.0))
+        elif v >= nodes[-1]:
+            out.append((len(nodes) - 2, 1.0))
+        else:
+            k = bisect.bisect_right(nodes, v) - 1
+            out.append((k, (v - nodes[k]) / (nodes[k + 1] - nodes[k])))
+    return out
 
 
 def interp_map(x, y, z, xs, ys):
-    """Bilinear interpolation of the map at the nodes xs (x) and ys (y)."""
-    zy = [[interp1(y, z[i], v) for v in ys] for i in range(len(x))]     # map x nodes, target y nodes
-    return [[interp1(x, [zy[i][j] for i in range(len(x))], u) for j in range(len(ys))] for u in xs]
+    """Bilinear interpolation of the map at the nodes xs (x) and ys (y): along y for
+    every map row first, then along x, each bracket found once."""
+    by, bx = brackets(y, ys), brackets(x, xs)
+    single_y = len(y) == 1
+    zy = [[row[k] if single_y else (1.0 - w) * row[k] + w * row[k + 1] for k, w in by] for row in z]
+    if len(x) == 1:
+        return [list(zy[0]) for _ in xs]
+    return [[(1.0 - w) * p + w * q for p, q in zip(zy[k], zy[k + 1])] for k, w in bx]
 
 
 # ---------------------------------------------------------------------------
@@ -170,8 +182,21 @@ def label(built, per_x, per_y):
     return lab, n
 
 
+_COLUMNS = {}
+
+
 def columns_of(lab, b):
-    return [(i, j) for i in range(len(lab)) for j in range(len(lab[0])) if lab[i][j] == b]
+    """Columns of building b, from one pass over the labels per label map (cached):
+    the scans below ask for every building at every growth step."""
+    key = id(lab)
+    if key not in _COLUMNS:
+        by_label = {}
+        for i, row in enumerate(lab):
+            for j, v in enumerate(row):
+                if v:
+                    by_label.setdefault(v, []).append((i, j))
+        _COLUMNS[key] = by_label
+    return _COLUMNS[key].get(b, [])
 
 
 def margin_cells(lab, b, per_x, per_y):
@@ -275,9 +300,8 @@ def main():
         print(f"  building {b}: x {plo[0] + min(ii) * dxc[0]:g}-{plo[0] + (max(ii) + 1) * dxc[0]:g} m, "
               f"y {plo[1] + min(jj) * dxc[1]:g}-{plo[1] + (max(jj) + 1) * dxc[1]:g} m, "
               f"up to {max(top[i][j] for i, j in cols):g} m (coarse extent, ramps included)")
-    if nerr != 0:
-        raise SystemExit(f"amr.n_error_buf = {nerr}{' (the AMReX default)' if 'amr.n_error_buf' not in keys else ''}: "
-                         "ERF stops when a box is set explicitly with n_error_buf > 0; set amr.n_error_buf = 0")
+    nerr_note = (f"amr.n_error_buf = {nerr}{' (the AMReX default)' if 'amr.n_error_buf' not in keys else ''}: "
+                 "ERF stops when a box is set explicitly with n_error_buf > 0; set amr.n_error_buf = 0")
 
     def to_index(lo, hi):
         """Coarse index box of the grids a real in_box becomes (n_error_buf is 0, checked above)."""
@@ -347,6 +371,8 @@ def main():
         report([box], f"proposed box ({a.fit}{f', {a.margin} coarse cells of padding' if a.fit == 'relaxed' else ''})")
         lo = (plo[0] + box[0] * dxc[0], plo[1] + box[2] * dxc[1])
         hi = (plo[0] + (box[1] + 1) * dxc[0], plo[1] + (box[3] + 1) * dxc[1])
+        if nerr != 0:
+            print(f"note: {nerr_note} (the lines below do)")
         print(f"\n# refined level for erf.ibseb (ibseb_refinement_box.py --fit {a.fit})")
         print(f"amr.max_level = 1\namr.n_error_buf = 0\namr.refine_whole_domain_dir = 2")
         print(f"erf.refinement_indicators = {a.name}")
@@ -354,6 +380,9 @@ def main():
         print(f"erf.{a.name}.in_box_lo = {lo[0]:g} {lo[1]:g}")
         print(f"erf.{a.name}.in_box_hi = {hi[0]:g} {hi[1]:g}")
     else:
+        # Checking the deck's own boxes: ERF would stop on them as they stand.
+        if nerr != 0:
+            raise SystemExit(nerr_note)
         names = keys.get("erf.refinement_indicators", [])
         boxes = [n for n in names if f"erf.{n}.in_box_lo" in keys]
         if max_level < 1 or not boxes:

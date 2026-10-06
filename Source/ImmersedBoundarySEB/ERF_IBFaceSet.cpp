@@ -20,6 +20,7 @@
 #include <sstream>
 #include <algorithm>
 #include <limits>
+#include <map>
 #include <AMReX_ParallelReduce.H>
 
 using namespace amrex;
@@ -415,22 +416,8 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
             m_bld_jlo[b] = std::min(m_bld_jlo[b], gj); m_bld_jhi[b] = std::max(m_bld_jhi[b], gj);
         }
     }
-    // Each building's tallest column (0-based domain column), by which a
-    // refined level finds the building in the level below
-    // (map_buildings_to_level0()); the labels are kept until then.
-    m_bld_rep_i.assign(m_nbld + 1, -1); m_bld_rep_j.assign(m_nbld + 1, -1);
-    {
-        std::vector<int> best(m_nbld + 1, -1);
-        for (int ci = 0; ci < bw; ++ci) {
-            for (int cj = 0; cj < bh; ++cj) {
-                const size_t p = static_cast<size_t>(ci) * bh + cj;
-                const int b = label[p];
-                if (b == 0 || coltop_k[p] <= best[b]) { continue; }
-                best[b] = coltop_k[p];
-                m_bld_rep_i[b] = ci + m_col_i0; m_bld_rep_j[b] = cj + m_col_j0;
-            }
-        }
-    }
+    // The column labels, by which a refined level finds its buildings in the
+    // level below (map_buildings_to_level0()), are kept until then.
     m_lab_i0 = m_col_i0; m_lab_j0 = m_col_j0; m_lab_nx = bw; m_lab_ny = bh;
     m_lab.swap(label);
     m_to_lev0.resize(m_nbld + 1);
@@ -558,7 +545,9 @@ IBFaceSet::add_outside_occluders (const IBFaceSet& coarser, const IntVect& ratio
             if (grids_crse.contains(top_cell)) { continue; }
             // The same height here: the top is kc + 1 cells of the level below up.
             const Real h = (kc + 1) * dz_c;
-            const int kt = static_cast<int>(std::ceil(h / dz_f - Real(1.e-6))) - 1;
+            // h / dz_f is a whole number of cells (the ratio times kc + 1);
+            // rounding keeps it so whatever the precision of the division.
+            const int kt = static_cast<int>(std::lround(h / dz_f)) - 1;
             outside.push_back({gi * ratio[0], gj * ratio[1], kt});
             bi0 = std::min(bi0, gi * ratio[0]); bi1 = std::max(bi1, (gi + 1) * ratio[0] - 1);
             bj0 = std::min(bj0, gj * ratio[1]); bj1 = std::max(bj1, (gj + 1) * ratio[1] - 1);
@@ -593,23 +582,51 @@ IBFaceSet::add_outside_occluders (const IBFaceSet& coarser, const IntVect& ratio
 
 /**
  * Map this level's buildings to level 0's numbering through the labels of
- * the level below (see the header): the tallest column of a building is
- * solid on every coarser level that resolves the building at all, so the
- * coarse column under it carries the coarse id.
+ * the level below (see the header). Every column of a building votes with
+ * the level-0 id of the coarse column under it (through the level below's own
+ * map), unlabelled coarse columns abstaining, and the most frequent id wins
+ * (the lowest on a tie). No single column is trusted: the coarse blanking is
+ * a volume average, so a column the coarse level leaves unlabelled (a spire
+ * alone in its coarse cell) cannot unmap a building the level below
+ * resolves through its other columns. A building none of whose columns lies
+ * under a labelled coarse column is one only this level resolves; it maps to
+ * 0, and a warning names it when the level below has buildings at all.
  */
 void
 IBFaceSet::map_buildings_to_level0 (const IBFaceSet& coarser, const IntVect& ratio)
 {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(coarser.m_lab.size() == static_cast<size_t>(coarser.m_lab_nx) * coarser.m_lab_ny,
                                      "erf.ibseb: the level below released its labels before this level was mapped");
-    for (int b = 1; b <= m_nbld; ++b) {
-        const int ci = m_bld_rep_i[b] / ratio[0] - coarser.m_lab_i0;
-        const int cj = m_bld_rep_j[b] / ratio[1] - coarser.m_lab_j0;
-        int bc = 0;
-        if (ci >= 0 && ci < coarser.m_lab_nx && cj >= 0 && cj < coarser.m_lab_ny) {
-            bc = coarser.m_lab[static_cast<size_t>(ci) * coarser.m_lab_ny + cj];
+    std::vector<std::map<int, Long>> votes(m_nbld + 1);
+    for (int ci = 0; ci < m_lab_nx; ++ci) {
+        for (int cj = 0; cj < m_lab_ny; ++cj) {
+            const int b = m_lab[static_cast<size_t>(ci) * m_lab_ny + cj];
+            if (b == 0) { continue; }
+            const int cc = (ci + m_lab_i0) / ratio[0] - coarser.m_lab_i0;
+            const int cd = (cj + m_lab_j0) / ratio[1] - coarser.m_lab_j0;
+            if (cc < 0 || cc >= coarser.m_lab_nx || cd < 0 || cd >= coarser.m_lab_ny) { continue; }
+            const int bc = coarser.m_lab[static_cast<size_t>(cc) * coarser.m_lab_ny + cd];
+            if (bc > 0 && coarser.m_to_lev0[bc] > 0) { ++votes[b][coarser.m_to_lev0[bc]]; }
         }
-        m_to_lev0[b] = (bc > 0) ? coarser.m_to_lev0[bc] : 0;
+    }
+    std::vector<int> unmapped;
+    for (int b = 1; b <= m_nbld; ++b) {
+        int best = 0;
+        Long n_best = 0;
+        for (const auto& [id, n] : votes[b]) {     // ascending id: the lowest wins a tie
+            if (n > n_best) { best = id; n_best = n; }
+        }
+        m_to_lev0[b] = best;
+        if (best == 0) { unmapped.push_back(b); }
+    }
+    if (!unmapped.empty() && coarser.m_nbld > 0) {
+        std::ostringstream os;
+        os << "erf.ibseb: level " << m_lev << " has " << unmapped.size()
+           << " building(s) that no labelled column of the level below lies under (level " << m_lev << " number";
+        for (int b : unmapped) { os << " " << b; }
+        os << "); they take erf.ibseb.material_default and building_level0 = 0 in the report";
+        // Every rank holds the same labels and reaches the same verdict.
+        if (ParallelDescriptor::IOProcessor()) { Warning(os.str().c_str()); }
     }
     if (m_params.debug) {
         Print() << "[IBSEB DEBUG] lev=" << m_lev << " buildings as level 0 numbers them:";
@@ -1512,17 +1529,27 @@ IBFaceSet::report (Real time, int step, bool write_csv) const
     }
 
     if (!write_csv || !ParallelDescriptor::IOProcessor()) { return; }
+    const std::string header =
+        "time_s,step,level,building,n_faces,area_m2,T_skin_mean_K,SW_abs_mean_Wm2,shadow_frac,LW_net_mean_Wm2,H_mean_Wm2,"
+        "G_mean_Wm2,Q_ext_mean_Wm2,T_skin_min_K,T_skin_max_K,resid_max_Wm2,"
+        "sun_zenith_deg,sun_azimuth_deg,dni_Wm2,diffuse_h_Wm2,building_level0";
     bool need_header = true;
     {
-        std::ifstream probe(m_params.csv_file, std::ios::ate);
-        if (probe.good() && probe.tellg() > 0) { need_header = false; }
+        // A restarted run appends; a file another version of the report wrote
+        // (other columns) would take rows its header does not describe.
+        std::ifstream probe(m_params.csv_file);
+        std::string first;
+        if (probe.good() && std::getline(probe, first)) {
+            if (!first.empty() && first.back() == '\r') { first.pop_back(); }
+            if (first != header) {
+                Abort("erf.ibseb: " + m_params.csv_file + " has another set of columns than this version writes ("
+                      + first.substr(0, 60) + "...); move it aside or set erf.ibseb.csv_file to a new name");
+            }
+            need_header = false;
+        }
     }
     std::ofstream csv(m_params.csv_file, std::ios::app);
-    if (need_header) {
-        csv << "time_s,step,level,building,n_faces,area_m2,T_skin_mean_K,SW_abs_mean_Wm2,shadow_frac,LW_net_mean_Wm2,H_mean_Wm2,"
-               "G_mean_Wm2,Q_ext_mean_Wm2,T_skin_min_K,T_skin_max_K,resid_max_Wm2,"
-               "sun_zenith_deg,sun_azimuth_deg,dni_Wm2,diffuse_h_Wm2,building_level0\n";
-    }
+    if (need_header) { csv << header << "\n"; }
     for (int b = 1; b <= m_nbld; ++b) {
         const Real tmean = (m_bld_area[b] > 0.0) ? bsum[b] / m_bld_area[b] : Real(0.0);
         const Real swm   = (m_bld_area[b] > 0.0) ? bsw[b]  / m_bld_area[b] : Real(0.0);
