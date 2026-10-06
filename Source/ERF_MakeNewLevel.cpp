@@ -933,6 +933,13 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // *******************************************************************************************
     init_stuff(lev, ba, dm, temp_lev_new, temp_lev_old, temp_base_state, temp_zphys_nd);
 
+    // init_stuff rebuilds the flux register on the lev-1 / lev interface, but the one on the
+    // lev / lev+1 interface also holds this level's grids. AmrCore::regrid remakes lev+1 after
+    // lev and rebuilds it there, but a direct call (e.g. the level-0 regrid in restart) does not.
+    if (lev < finest_level) {
+        make_flux_register(lev+1);
+    }
+
     //
     // Restore the map factors onto the new grids.  At lev > 0 we interpolate from the parent
     // first so that cells the new grids added -- which the pre-regrid arrays never covered --
@@ -1513,10 +1520,8 @@ ERF::ClearLevel (int lev)
     physbcs_w[lev].reset();
     physbcs_base[lev].reset();
 
-    // Clears the flux register array (only allocated for TwoWay coupling)
-    if (advflux_reg[lev]) {
-        advflux_reg[lev]->reset();
-    }
+    // Frees the flux register (only allocated for TwoWay coupling)
+    advflux_reg[lev].reset();
 
     // Clears the 2D arrays
     if (sst_lev[lev][0]) {
