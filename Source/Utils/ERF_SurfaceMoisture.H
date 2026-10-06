@@ -96,8 +96,10 @@ canopy_resistance (const amrex::Real r_c_without_vpd,
                    const amrex::Real q_sat,
                    const amrex::Real q_air)
 {
-    return amrex::min(no_flux_resistance,
-                      r_c_without_vpd / vapour_deficit_factor(hs, q_sat, q_air));
+    // A local copy: amrex::min takes references, which CUDA cannot bind to
+    // a namespace constexpr in device code
+    const amrex::Real r_max = no_flux_resistance;
+    return amrex::min(r_max, r_c_without_vpd / vapour_deficit_factor(hs, q_sat, q_air));
 }
 
 /**
