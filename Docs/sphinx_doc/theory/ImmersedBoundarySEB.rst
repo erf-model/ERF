@@ -409,16 +409,18 @@ YLO YHI`` it proposes a box and prints the deck lines; ``--fit tight`` asks
 for the smallest box the check accepts, ``--fit relaxed`` for one padded by
 ``--margin`` coarse cells (3 by default), which keeps the edge of the
 refined level, where the coarse level fills the fine one, away from the
-buildings and the flow around them. Its model of the coarse footprint is
-conservative, so a box it accepts passes the start-up check. It handles a
-level-1 box spanning the depth; the deck should set
-:cpp:`amr.n_error_buf = 0` so the grids are the box.
+buildings and the flow around them. It judges the grids AMReX builds from
+the box (grown to whole :cpp:`amr.blocking_factor` blocks), and its model of
+the coarse footprint is conservative, so a box it accepts passes the start-up
+check. It handles a level-1 box spanning the depth, and stops unless the deck
+sets :cpp:`amr.n_error_buf = 0` (ERF stops on an explicit box otherwise).
 
 With :cpp:`erf.radiation_model = TwoStream` the faces must see the sun the
 two-stream columns see. The prescribed provider's own sun (``solar``) is
 Spencer's, with the equation of time; the radiation models' orbital
-formula has none, so the two sit 1 to 4 degrees apart in hour angle through
-the year whatever the inputs. :cpp:`erf.ibseb.sun_mode = two_stream` gives the
+formula has none, so the two sit up to about 4 degrees apart in hour angle
+through the year whatever the inputs (1.5 degrees on 5 August).
+:cpp:`erf.ibseb.sun_mode = two_stream` gives the
 faces the two-stream sun itself: the declination and the Earth-Sun distance
 factor of :cpp:`start_datetime` from the routine the sweep uses
 (``two_stream_sun_date``), the hour angle of the same formula at
@@ -430,9 +432,30 @@ two-stream sun following the calendar the faces must use ``two_stream``; with
 it fixed at :cpp:`erf.fixed_solar_zenith_angle` (a cosine, with no azimuth)
 :cpp:`erf.ibseb.sun_mode = fixed` at the same zenith; ERF stops at start-up
 otherwise, and on ``two_stream`` without the two-stream radiation or on a
-grid that carries a latitude and longitude per column. The two-stream ground
-balance still covers the building footprints and the two-stream columns pass
-through the buildings.
+grid that carries a latitude and longitude per column (in a NetCDF build,
+where the columns follow it). With the two-stream shortwave off only a
+``two_stream`` request is checked. RRTMGP places its sun by the same orbital
+formula and is not checked: the faces' ``solar`` sun sits as far off it.
+
+What ``two_stream`` shares is the sun's position and its top-of-atmosphere
+irradiance. The atmosphere the faces' beam crosses is still the prescribed
+clear-sky one, :cpp:`erf.ibseb.sw_transmission` and
+:cpp:`erf.ibseb.sw_diffuse_coeff`, and the faces' ground longwave still uses
+:cpp:`erf.ibseb.T_ground`, not the two-stream ground balance. For the clear
+two-stream column (single-scattering albedo 0, no diffuse light) with total
+shortwave optical depth :math:`\tau`, :cpp:`erf.ibseb.sw_transmission =
+exp(-tau)` and :cpp:`erf.ibseb.sw_diffuse_coeff = 0` give the faces the
+column's own direct beam, as the canonical case below does. The two-stream
+ground balance also covers the building footprints, and the two-stream
+columns pass through the buildings.
+
+Inputs that go by building, :cpp:`erf.ibseb.material_by_building`, follow
+level 0's numbering on every level: a refined level finds each of its
+buildings in level 0 through the building's tallest column, so a building
+outside it, or two that level 0 merges into one, do not shift the materials.
+A building only a refined level resolves takes :cpp:`erf.ibseb.material_default`.
+The per-building report carries each level's own number and, in
+``building_level0``, level 0's.
 
 ``Tests/test_files/IBSEB_RefinedLevels`` (CTest ``IBSEB_RefinedLevels``)
 puts a cube on level 1 and a tower outside it under a low eastern sun and

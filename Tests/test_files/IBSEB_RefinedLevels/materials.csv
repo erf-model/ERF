@@ -1,0 +1,4 @@
+mat_id,name,albedo,emissivity,k_therm_W_per_mK,rho_cp_J_per_m3K,thickness_m,description
+1,concrete,0.25,0.92,1.5,2.0e6,0.30,cast concrete wall or roof
+2,brick,0.30,0.90,0.8,1.6e6,0.25,brick masonry
+3,timber,0.40,0.90,0.15,6.0e5,0.15,timber frame with cladding

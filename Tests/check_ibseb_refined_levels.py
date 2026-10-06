@@ -23,6 +23,11 @@ Asserts, each naming the defect it guards:
      deck's 16 x 8), the difference the coarser tower makes: level 0 resolves
      it at 20 m with a ramp cell on every side, which catches a few more rays.
      Without the coarse column map the cube's faces lose 19 rays to the sky.
+  6. with --tower (level 1 around the tower only, erf.ibseb.material_by_building
+     = 1 2): the tower, building 2 on level 0 and building 1 on level 1, has
+     material 2 on both levels and the cube material 1 on level 0, and the
+     report gives level 1's building 1 as level 0's building 2 (each level
+     numbers its own buildings; the materials go by level 0's numbers).
 """
 import argparse
 import glob
@@ -54,6 +59,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--both", required=True)
     ap.add_argument("--one", required=True)
+    ap.add_argument("--tower", help="run with level 1 around the tower and a material per building")
     a = ap.parse_args()
     ok = True
 
@@ -92,6 +98,24 @@ def main():
     nrays = 16 * 8
     check("5. view fractions within 5 of the 128 rays", worst <= 5.0 / nrays + 1e-12,
           f"largest difference {worst:.4f} = {worst * nrays:.0f} rays")
+    if a.tower:
+        t1 = load(a.tower + "/faces/set.lev1.rank*.csv")
+        t0 = load(a.tower + "/faces/set.rank*.csv")
+        rows = []
+        with open(a.tower + "/ibseb_buildings.csv") as f:
+            hdr = f.readline().strip().split(",")
+            rows = [dict(zip(hdr, line.strip().split(","))) for line in f if line.strip()]
+        if t1 is None or t0 is None or not rows:
+            check("6. materials follow level 0's numbering", False, "missing dumps or report")
+        else:
+            m1 = sorted({int(v) for v in t1["mat"]})
+            m0_tower = sorted({int(t0["mat"][n]) for n in range(len(t0["bid"])) if int(t0["bid"][n]) == 2})
+            m0_cube = sorted({int(t0["mat"][n]) for n in range(len(t0["bid"])) if int(t0["bid"][n]) == 1})
+            lev0_of_1 = sorted({r.get("building_level0") for r in rows if r["level"] == "1" and r["building"] == "1"})
+            check("6. materials follow level 0's numbering",
+                  int(max(t1["bid"])) == 1 and m1 == [2] and m0_tower == [2] and m0_cube == [1] and lev0_of_1 == ["2"],
+                  f"level 1: {int(max(t1['bid']))} building, materials {m1}; level 0: tower {m0_tower}, cube {m0_cube}; "
+                  f"level 1's building 1 is level 0's {lev0_of_1}")
     print("ALL PASS" if ok else "FAILED")
     return 0 if ok else 1
 

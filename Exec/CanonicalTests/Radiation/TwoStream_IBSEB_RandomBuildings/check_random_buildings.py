@@ -15,7 +15,8 @@ checks.
      the ids follow the same scan order;
   2. the balance closes on every building and level all morning (residual
      below 1e-3 W/m2);
-  3. the faces see the two-stream sun: the top-of-atmosphere irradiance the
+  3. the faces see the two-stream sun, east of the meridian all morning
+     (azimuth in (0, 180) degrees, so a mirrored sun fails): the top-of-atmosphere irradiance the
      faces' direct beam implies (dni / tau^(1/cos z)) equals the two-stream
      sweep's SW_TOA / cos z, to 1e-5. A CSV row is stamped with the end of its
      step and carries the sun the step used, from its start, so the sweep's
@@ -33,9 +34,12 @@ checks.
      over, which adds most to the smallest buildings;
   7. the ground heats outside the buildings: over the refined area, away from
      the building footprints and the cell around them, the force-restore skin
-     ends above 300 K on both levels and the two levels' means agree within
-     1 K. The two-stream ground balance still covers the footprints; they are
-     left out here and reported separately.
+     of level 1 ends above 300 K, and so does level 0's outside the refined
+     area. The two means are reported, not compared: under the refined area
+     level 0 holds level 1's average (the average down), and the open ground
+     outside it differs by the buildings' influence. The two-stream ground
+     balance still covers the footprints; they are left out here and reported
+     separately with their sensible heat flux.
 """
 import glob
 import os
@@ -191,8 +195,10 @@ def main():
         s0_cols = rtoa[k[0]] / z
         rel.append(abs(s0_faces / s0_cols - 1.0))
     rel = np.array(rel)
-    check("3. the faces see the two-stream sun", len(rel) > 2 and rel.max() < 1e-5,
-          f"{len(rel)} common times, largest relative difference {rel.max() if len(rel) else float('nan'):.1e}")
+    az = c["sun_azimuth_deg"][first]
+    check("3. the faces see the two-stream sun", len(rel) > 2 and rel.max() < 1e-5 and np.all((az > 0.0) & (az < 180.0)),
+          f"{len(rel)} common times, largest relative difference {rel.max() if len(rel) else float('nan'):.1e}; "
+          f"azimuth {az.min():.1f}-{az.max():.1f} deg")
 
     # 4. the sun climbs, the shadows shorten
     zen = c["sun_zenith_deg"][first]
@@ -253,12 +259,17 @@ def main():
     on0 = np.zeros_like(ko0)
     for i0, j0, arr in levels[1]:
         on0[i0 // 2:(i0 + arr.shape[1]) // 2, j0 // 2:(j0 + arr.shape[2]) // 2] = True
-    g1, g0 = f1[on1 & ~ko1].mean(), f0[on0 & ~ko0].mean()
+    g1, g_out = f1[on1 & ~ko1].mean(), f0[~on0].mean()
     under = f1[on1 & ko1].mean()
-    check("7. the ground heats away from the buildings, alike on both levels",
-          g0 > 300.0 and g1 > 300.0 and abs(g1 - g0) <= 1.0,
-          f"{plts[-1]}: open ground {g0:.2f} K (level 0) and {g1:.2f} K (level 1); "
-          f"the footprints and their surroundings, left out, {under:.2f} K on level 1")
+    hf = names.index("seb_hfx") if "seb_hfx" in names else None
+    flux = ""
+    if hf is not None:
+        h1 = level_field(levels[1], hf, (2 * nx0, 2 * ny0))
+        flux = f"; sensible heat flux {np.nanmean(h1[on1 & ~ko1]):.0f} W/m2 there, {np.nanmean(h1[on1 & ko1]):.0f} W/m2 under and around the buildings"
+    check("7. the open ground heats",
+          g1 > 300.0 and g_out > 300.0,
+          f"{plts[-1]}: open ground {g1:.2f} K in the refined area (level 1) and {g_out:.2f} K outside it (level 0); "
+          f"the footprints and their surroundings, left out, {under:.2f} K on level 1{flux}")
 
     print("ALL PASS" if nfail == 0 else f"{nfail} FAILED")
     return nfail

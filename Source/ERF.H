@@ -1472,6 +1472,7 @@ private:
     IBSEBParams ibseb_params;
     amrex::Vector<std::unique_ptr<IBFaceSet>> m_ibseb;
     TwoStreamRadiation::OrbitalCache ibseb_orbit;   ///< Orbit of the year for erf.ibseb.sun_mode = two_stream
+    amrex::Real ibseb_z_i_level0 = 0.0;             ///< Level 0's bulk-Richardson depth of its current step, for the refined levels
 
     // Data structures for terrain immersed forcing
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking;

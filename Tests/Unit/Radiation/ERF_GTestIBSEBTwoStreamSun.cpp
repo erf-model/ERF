@@ -80,8 +80,8 @@ TEST(IBSEBTwoStreamSun, HourAngleAndAzimuthFollowLocalSolarTime)
 // The date the faces and the columns share: 2024-08-05 15:00 UTC (a leap year)
 // is calendar day 218.625, the declination is early August's +16.7 degrees,
 // and the distance factor is below one (the Earth is near aphelion in July).
-// Fixing the orbit by the erf.rad_orbital_* overrides changes the declination
-// and is used as given.
+// The orbit is cached by year (the erf.rad_orbital_* overrides, which the
+// shared routine passes on, are not exercised here).
 TEST(IBSEBTwoStreamSun, SharedSunDateOfStartDatetime)
 {
     RadChoice rc;

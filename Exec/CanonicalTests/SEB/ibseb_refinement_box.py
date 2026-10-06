@@ -39,8 +39,10 @@ onto its edge. In check mode (no --all or --region) --fit is not used.
 Only refinement in x and y by a static box is handled (level 1 boxes; the
 deck's other levels are not checked), spanning the whole depth (in_box with
 two values, or three that cover it). A proposed box has its edges on
-multiples of amr.blocking_factor fine cells and the deck should carry
-amr.n_error_buf = 0, so the grids ERF builds are exactly the box.
+multiples of amr.blocking_factor fine cells, so the grids ERF builds are
+exactly the box; a box given off those blocks is judged as the grids AMReX
+grows it to. The deck must carry amr.n_error_buf = 0 (ERF stops on an
+explicit box otherwise), which the script checks.
 """
 import argparse
 import bisect
@@ -274,11 +276,11 @@ def main():
               f"y {plo[1] + min(jj) * dxc[1]:g}-{plo[1] + (max(jj) + 1) * dxc[1]:g} m, "
               f"up to {max(top[i][j] for i, j in cols):g} m (coarse extent, ramps included)")
     if nerr != 0:
-        print(f"note: amr.n_error_buf = {nerr} grows the refined grids by {nerr} coarse cells beyond in_box; "
-              "set it to 0 so the grids are the box")
+        raise SystemExit(f"amr.n_error_buf = {nerr}{' (the AMReX default)' if 'amr.n_error_buf' not in keys else ''}: "
+                         "ERF stops when a box is set explicitly with n_error_buf > 0; set amr.n_error_buf = 0")
 
     def to_index(lo, hi):
-        """Coarse index box of a real box, as ERF's in_box becomes grids (n_error_buf 0)."""
+        """Coarse index box of the grids a real in_box becomes (n_error_buf is 0, checked above)."""
         # Clamped to the domain laterally first, as ERF_RefineBox.cpp does.
         lo = [max(lo[0], plo[0]), max(lo[1], plo[1])]
         hi = [min(hi[0], plo[0] + ext[0]), min(hi[1], plo[1] + ext[1])]
@@ -286,10 +288,14 @@ def main():
             raise SystemExit(f"the box {lo} - {hi} m is empty inside the domain")
         ilo = int((lo[0] - plo[0]) / dxf[0]); ihi = int((hi[0] - plo[0]) / dxf[0] - 1)
         jlo = int((lo[1] - plo[1]) / dxf[1]); jhi = int((hi[1] - plo[1]) / dxf[1] - 1)
-        # snapped to the refinement ratio (ERF_RefineBox.cpp), then to coarse columns
-        ilo -= ilo % rr[0]; jlo -= jlo % rr[1]
-        ihi = ihi + (rr[0] - 1 - ihi % rr[0]); jhi = jhi + (rr[1] - 1 - jhi % rr[1])
-        box = [ilo // rr[0] - nerr, ihi // rr[0] + nerr, jlo // rr[1] - nerr, jhi // rr[1] + nerr]
+        # Snapped to the refinement ratio (ERF_RefineBox.cpp), then grown to
+        # whole blocks of amr.blocking_factor fine cells, as AMReX makes the
+        # grids, then to coarse columns.
+        for m in (rr[0], bf):
+            ilo -= ilo % m; ihi = ihi + (m - 1 - ihi % m)
+        for m in (rr[1], bf):
+            jlo -= jlo % m; jhi = jhi + (m - 1 - jhi % m)
+        box = [ilo // rr[0], ihi // rr[0], jlo // rr[1], jhi // rr[1]]
         return [max(box[0], 0), min(box[1], ncell[0] - 1), max(box[2], 0), min(box[3], ncell[1] - 1)]
 
     def report(boxes, title):
@@ -366,7 +372,7 @@ def main():
                 d = 0 if "x" in nm else 1
                 if abs(((v - plo[d]) / step[d]) - round((v - plo[d]) / step[d])) > 1e-6:
                     print(f"note: erf.{n}.{nm} = {v:g} is not on a whole block of {step[d]:g} m; "
-                          "the grids may come out larger than the box")
+                          "the grids grow to the blocks, and those grids are what is judged")
             ibox[n] = to_index(lo, hi)
         # Level 1 is the union of the boxes: a building two boxes cover together is inside it.
         bad = report(list(ibox.values()), "level 1 (" + ", ".join(f"erf.{n}" for n in ibox) + ")")

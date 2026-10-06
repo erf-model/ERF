@@ -3511,10 +3511,11 @@ column would be taken for a building), a uniform vertical grid (no
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.solar_constant**      | solar: solar constant [W/m2]                             | Real > 0           | 1361.0                 |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.sw_transmission**     | solar: bulk clear-sky transmission of the Bird form      | Real in (0, 1]     | 0.7                    |
+| **erf.ibseb.sw_transmission**     | solar, two_stream: bulk clear-sky transmission of the    | Real in (0, 1]     | 0.7                    |
+|                                   | Bird form                                                |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.sw_diffuse_coeff**    | solar: share of the attenuated beam that arrives as      | Real in [0, 1]     | 0.5                    |
-|                                   | diffuse light                                            |                    |                        |
+| **erf.ibseb.sw_diffuse_coeff**    | solar, two_stream: share of the attenuated beam that     | Real in [0, 1]     | 0.5                    |
+|                                   | arrives as diffuse light                                 |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.albedo**              | shortwave albedo of the faces (uniform until the         | Real in [0, 1]     | 0.3                    |
 |                                   | material library)                                        |                    |                        |
@@ -3558,7 +3559,8 @@ column would be taken for a building), a uniform vertical grid (no
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.material_default**    | material id of every building not listed below           | Integer            | 1                      |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.material_by_building**| one material id per building, in building order          | Integers           | none                   |
+| **erf.ibseb.material_by_building**| one material id per building, in level 0's building      | Integers           | none                   |
+|                                   | order (every level maps its buildings to level 0's)      |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.k_therm**             | uniform slab conductivity [W/m/K]                        | Real > 0           | 1.0                    |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+

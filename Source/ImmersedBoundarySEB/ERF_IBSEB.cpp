@@ -83,7 +83,11 @@ ERF::init_ibseb ()
         if (lev > 0) {
             m_ibseb[lev]->add_outside_occluders(*m_ibseb[lev-1], ref_ratio[lev-1],
                                                 amrex::coarsen(grids[lev], ref_ratio[lev-1]));
+            m_ibseb[lev]->map_buildings_to_level0(*m_ibseb[lev-1], ref_ratio[lev-1]);
+            m_ibseb[lev-1]->release_labels();
         }
+        // No level above to map: the labels are no longer needed.
+        if (lev == finest_level) { m_ibseb[lev]->release_labels(); }
         std::unique_ptr<MultiFab> restored;
         if (!restart_chkfile.empty()) {
             const std::string name = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "IBSEBState");
@@ -222,14 +226,16 @@ ERF::ibseb_check_refined_levels () const
  * Called by init_ibseb(). The prescribed provider places the faces' sun, and
  * nothing ties its own solar formulas (Spencer's, with the equation of time)
  * to the orbital formula of the radiation models (no equation of time), which
- * are 1 to 4 degrees apart in hour angle through the year. So with
+ * are up to about 4 degrees apart in hour angle through the year. So with
  * erf.radiation_model = TwoStream following start_datetime the faces must take
  * the two-stream sun, erf.ibseb.sun_mode = two_stream (ibseb_set_two_stream_sun()),
  * and with the two-stream sun fixed at erf.fixed_solar_zenith_angle (a cosine,
  * no azimuth) erf.ibseb.sun_mode = fixed at the same zenith. The two-stream sun
  * needs the start date and one site (erf.rad_cons_lat / lon): a grid with
- * per-column latitude and longitude, which the columns would follow, is not
- * supported. sun_mode = two_stream without the two-stream radiation stops too.
+ * per-column latitude and longitude, which the columns follow in a NetCDF
+ * build, is not supported. sun_mode = two_stream without the two-stream
+ * radiation stops too. With the two-stream shortwave off there is no column
+ * sun to match, and only a two_stream request is checked.
  */
 void
 ERF::ibseb_check_sun_matches_two_stream () const
@@ -243,7 +249,10 @@ ERF::ibseb_check_sun_matches_two_stream () const
         return;
     }
     const RadChoice& rc = solverChoice.radChoice;
-    if (rc.fixed_solar_zenith_angle > 0.0) {
+    // Without two-stream shortwave there is no column sun to match; the faces
+    // may still take its calendar sun, which needs the date checked below.
+    if (!rc.sw_enabled && p.sun_mode != "two_stream") { return; }
+    if (rc.sw_enabled && rc.fixed_solar_zenith_angle > 0.0) {
         const Real mu_faces = std::cos(p.sun_zenith_deg * PI / Real(180.0));
         if (p.sun_mode != "fixed" || std::abs(mu_faces - rc.fixed_solar_zenith_angle) > Real(1.e-5)) {
             Abort("erf.ibseb: the two-stream sun is fixed at erf.fixed_solar_zenith_angle = "
@@ -257,14 +266,20 @@ ERF::ibseb_check_sun_matches_two_stream () const
     }
     if (p.sun_mode != "two_stream") {
         Abort("erf.ibseb: the two-stream sun follows start_datetime, so the faces need erf.ibseb.sun_mode = two_stream"
-              " (the two-stream sun has no equation of time, so even a matching sun_mode = solar would sit 1 to 4"
-              " degrees off it); the deck has sun_mode = " + p.sun_mode);
+              " (the two-stream sun has no equation of time, so even a matching sun_mode = solar would sit up to about"
+              " 4 degrees off it); the deck has sun_mode = " + p.sun_mode);
     }
     if (!use_datetime) {
         Abort("erf.ibseb.sun_mode = two_stream: the two-stream sun follows the calendar and no start date is known;"
               " set start_datetime = \"YYYY-MM-DD HH:MM:SS\" (UTC)");
     }
+    // The sweep follows per-column latitude and longitude only in a NetCDF
+    // build (advance_radiation passes lat_m / lon_m there and null otherwise).
+#ifdef ERF_USE_NETCDF
     const bool has_latlon = !lat_m.empty() && lat_m[0] && !lon_m.empty() && lon_m[0];
+#else
+    const bool has_latlon = false;
+#endif
     if (has_latlon) {
         Abort("erf.ibseb.sun_mode = two_stream takes one site, erf.rad_cons_lat / lon, but this grid carries a"
               " latitude and longitude per column, which the two-stream columns follow instead");
@@ -350,15 +365,16 @@ ERF::ibseb_advance (int lev, Real time, Real dt_lev, const MultiFab& cons,
         // comes from level 0's profile, which spans the domain, where a
         // refined level's plane average covers only its patch and, on a
         // level that stops below the top, reads its last height above it.
-        // Level 0 uses the state it is handed; a refined level, stepping
-        // inside level 0's step, the latest level-0 state.
+        // Level 0 computes it from the state at the start of its step and
+        // keeps it; a refined level, stepping inside that step, reuses it
+        // rather than reading level 0's state at the step's end.
         if (ibseb_params.z_i_mode == "fixed") {
             z_i_bulk = ibseb_params.z_i;
         } else if (lev == 0) {
             z_i_bulk = ibseb_bulk_richardson_height(0, cons, xvel, yvel);
+            ibseb_z_i_level0 = z_i_bulk;
         } else {
-            z_i_bulk = ibseb_bulk_richardson_height(0, vars_new[0][Vars::cons],
-                                                    vars_new[0][Vars::xvel], vars_new[0][Vars::yvel]);
+            z_i_bulk = ibseb_z_i_level0;
         }
         if (ibseb_params.debug) {
             Print() << "[IBSEB DEBUG] lev=" << lev << " mixed-layer depth for w*: " << z_i_bulk << " m ("
@@ -434,8 +450,8 @@ ERF::ibseb_report (int nstep, Real time)
  * face velocities, uniform vertical spacing assumed as elsewhere in the
  * balance; called once per step and level when the convective velocity
  * scale is on and z_i is not fixed, also as the fallback of the pblh mode,
- * always on level 0 (whose profile spans the domain) for the faces of every
- * level.
+ * on level 0 only (whose profile spans the domain), at the start of its
+ * step; the faces of the refined levels take that value.
  *
  * @param[in] lev   AMR level whose horizontal-mean profile is taken.
  * @param[in] cons  Conserved state of the level; the ``Rho_comp`` and

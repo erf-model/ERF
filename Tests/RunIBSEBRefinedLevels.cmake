@@ -1,9 +1,10 @@
 # Run Tests/test_files/IBSEB_RefinedLevels twice to its step-0 report -- with level 1
-# holding the cube only (the deck's box) and holding the cube and the tower -- and a third
-# time two steps with level 1 holding no building, and check
+# holding the cube only (the deck's box) and holding the cube and the tower -- then with
+# level 1 around the tower only and a material per building, and two steps with level 1
+# holding no building, and check
 # with check_ibseb_refined_levels.py that the cube's faces on level 1 see the tower
 # through level 0's column map: the same shadow on every face and view fractions within
-# 0.02 (IBFaceSet::add_outside_occluders()). Before running, the deck's box is checked
+# 5 of the 128 hemisphere rays (IBFaceSet::add_outside_occluders()). Before running, the deck's box is checked
 # with Exec/CanonicalTests/SEB/ibseb_refinement_box.py, the script users make such boxes
 # with: it must accept it and two boxes that split the cube between them, reject a box
 # whose edge cuts the cube or a 4 m block only level 1 resolves, and stop on a proposal
@@ -104,6 +105,14 @@ endfunction()
 
 run_leg("${ONE_DIR}")
 run_leg("${BOTH_DIR}" "erf.city.in_box_hi=360.0 300.0")
+# Level 1 around the tower only, with a material per building: the tower is building 2 on
+# level 0 and building 1 on level 1, and must keep level 0's material for building 2.
+set(TOWER_DIR "${WORKING_DIRECTORY}/tower")
+file(REMOVE_RECURSE "${TOWER_DIR}")
+file(MAKE_DIRECTORY "${TOWER_DIR}/faces")
+file(COPY "${input_dir}/materials.csv" DESTINATION "${TOWER_DIR}")
+run_leg("${TOWER_DIR}" "erf.city.in_box_lo=220.0 180.0" "erf.city.in_box_hi=340.0 300.0"
+        "erf.ibseb.material_file=materials.csv" "erf.ibseb.material_by_building=1 2")
 # A refined level that holds no building, with the debug summaries on (its means had
 # divided by a face count of zero).
 set(EMPTY_DIR "${WORKING_DIRECTORY}/empty")
@@ -113,7 +122,7 @@ run_leg("${EMPTY_DIR}" "erf.city.in_box_lo=320.0 60.0" "erf.city.in_box_hi=420.0
         "max_step=2" "erf.ibseb.debug=true")
 
 execute_process(
-    COMMAND "${PYTHON_EXE}" "${CHECKER}" --both "${BOTH_DIR}" --one "${ONE_DIR}"
+    COMMAND "${PYTHON_EXE}" "${CHECKER}" --both "${BOTH_DIR}" --one "${ONE_DIR}" --tower "${TOWER_DIR}"
     WORKING_DIRECTORY "${WORKING_DIRECTORY}"
     OUTPUT_FILE "${WORKING_DIRECTORY}/checker.log"
     ERROR_FILE "${WORKING_DIRECTORY}/checker.log"

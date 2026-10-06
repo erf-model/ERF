@@ -1,9 +1,10 @@
 # The face balance under the two-stream radiation: the 40 m cube of
 # Tests/test_files/IBSEB_Cube with erf.radiation_model = TwoStream following the
 # calendar, and the faces on the two-stream sun (erf.ibseb.sun_mode = two_stream),
-# which ERF::ibseb_check_sun_matches_two_stream() requires. The abort tests break
-# that on the command line (erf.ibseb.sun_mode = solar, a fixed two-stream sun,
-# no two-stream radiation).
+# which ERF::ibseb_check_sun_matches_two_stream() requires. IBSEB_TwoStreamSunRun
+# runs it and compares the faces' sun with the sweep's diagnostics; the abort
+# tests break it on the command line (erf.ibseb.sun_mode = solar, a fixed
+# two-stream sun, no two-stream radiation).
 stop_time = 100000.0
 max_step  = 1
 amrex.fpe_trap_invalid = 1
@@ -66,3 +67,10 @@ start_datetime = "2024-08-05 15:00:00"
 erf.rad_cons_lat = 40.0
 erf.rad_cons_lon = -100.0
 erf.ibseb.sun_mode = "two_stream"
+erf.ibseb.sw_transmission = 0.8
+erf.radiation.diag_enable = true
+erf.radiation.diag_csv_enable = true
+erf.radiation.diag_stdout_enable = false
+erf.radiation.diag_callsite_mode = pre_only
+erf.radiation.diag_file = "radiation_diag.csv"
+erf.ibseb.csv_file = "ibseb_buildings.csv"

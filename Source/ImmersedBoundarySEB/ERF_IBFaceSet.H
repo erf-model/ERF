@@ -133,6 +133,28 @@ public:
         m_ts_sun = {true, declination, hour_angle, latitude_deg, toa_irradiance};
     }
 
+    /**
+     * Number this refined level's buildings as level 0 numbers them.
+     *
+     * Each level labels its buildings from its own cells, so the ids of a
+     * refined level differ from level 0's wherever the levels see different
+     * buildings: a building outside the refined level, or two that level 0
+     * merges into one. Inputs that go by building (erf.ibseb.material_by_building)
+     * and the report's ``building_level0`` column use level 0's numbering, so
+     * every building of this level is looked up, by its tallest column, in the
+     * labels of the level below and through that level's own map in level 0's.
+     * A building only this level resolves maps to 0 (the default material).
+     * Call after build() of both levels; the level below keeps its labels until
+     * release_labels().
+     *
+     * @param coarser Face set of the level below, already mapped.
+     * @param ratio   Refinement ratio from the level below to this one.
+     */
+    void map_buildings_to_level0 (const IBFaceSet& coarser, const amrex::IntVect& ratio);
+
+    /** Free the column labels once the level above has been mapped (map_buildings_to_level0()). */
+    void release_labels () { std::vector<int>().swap(m_lab); }
+
     /** Number of faces owned by this rank (not the global count; see report()). */
     int n_faces () const { return m_nface; }
     /** Number of buildings of the level, the same on every rank. */
@@ -471,6 +493,13 @@ private:
     // Footprint of each building (global): columns, and bounding box in cell indices.
     std::vector<amrex::Long> m_bld_ncol;
     std::vector<int>  m_bld_ilo, m_bld_ihi, m_bld_jlo, m_bld_jhi;
+    // Level-0 numbering (map_buildings_to_level0()): the level-0 id of each
+    // building of this level (identity on level 0), each building's tallest
+    // column (0-based domain column), and the column labels over the level's
+    // own built bounding box, kept until the level above has been mapped.
+    std::vector<int>  m_to_lev0, m_bld_rep_i, m_bld_rep_j;
+    std::vector<int>  m_lab;
+    int m_lab_i0 = 0, m_lab_j0 = 0, m_lab_nx = 0, m_lab_ny = 0;
 
     // Geometry kept for the ray cast and the reports.
     int  m_nx = 0, m_ny = 0;                   ///< Columns of the domain

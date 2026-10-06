@@ -57,8 +57,8 @@ struct IBSEBParams
     amrex::Real day_of_year       = 172.0;  ///< solar: day of year
     amrex::Real time_zero_utc_s   = 12.0 * 3600.0; ///< solar: seconds after 00:00 UTC at simulation time zero (the sun follows UTC and the longitude)
     amrex::Real solar_constant    = 1361.0; ///< solar: [W/m2]
-    amrex::Real sw_transmission   = 0.7;    ///< solar: bulk clear-sky transmission (Bird)
-    amrex::Real sw_diffuse_coeff  = 0.5;    ///< solar: share of the attenuated beam that arrives as diffuse light
+    amrex::Real sw_transmission   = 0.7;    ///< solar, two_stream: bulk clear-sky transmission (Bird)
+    amrex::Real sw_diffuse_coeff  = 0.5;    ///< solar, two_stream: share of the attenuated beam that arrives as diffuse light
     // Optical properties, uniform unless the material library below overrides them.
     amrex::Real albedo            = 0.3;    ///< Face shortwave albedo
     amrex::Real albedo_ground     = 0.2;    ///< Ground albedo for the reflected diffuse term
@@ -97,8 +97,9 @@ struct IBSEBParams
     // slab's conductivity, heat capacity and thickness, and the face's albedo
     // and emissivity, come from the material library (SLUCM schema) when
     // material_file is given: material_default for every building, or one
-    // id per building in material_by_building (indexed by building id from
-    // 1). Without a file the uniform values below apply to every face.
+    // id per building in material_by_building (indexed by level 0's building
+    // id from 1; every level maps its buildings to level 0's). Without a file
+    // the uniform values below apply to every face.
     std::string material_file;
     int         material_default   = 1;
     std::vector<int> material_by_building;
@@ -216,9 +217,10 @@ struct IBSEBParams
             if (sun_mode != "fixed" && sun_mode != "solar" && sun_mode != "two_stream") {
                 amrex::Abort("erf.ibseb.sun_mode must be \"fixed\", \"solar\" or \"two_stream\"");
             }
-            // The two-stream sun brings its own site, date and irradiance.
+            // The two-stream sun brings its own position, site, date and irradiance.
             if (sun_mode == "two_stream") {
-                for (const char* k : {"latitude_deg", "longitude_deg", "day_of_year", "time_zero_utc_s", "solar_constant"}) {
+                for (const char* k : {"latitude_deg", "longitude_deg", "day_of_year", "time_zero_utc_s", "solar_constant",
+                                      "sun_zenith_deg", "sun_azimuth_deg", "sw_direct_normal", "sw_diffuse"}) {
                     if (pp.contains(k)) {
                         amrex::Abort(std::string("erf.ibseb.") + k + " is not used with erf.ibseb.sun_mode = two_stream:"
                                      " the faces take the two-stream sun (start_datetime, erf.rad_cons_lat / lon,"
