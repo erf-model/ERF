@@ -670,6 +670,8 @@ ERF::ERF_shared ()
     surface_state_1.resize(nlevs_max);
     surface_state_2.resize(nlevs_max);
     surface_state_interp.resize(nlevs_max);
+
+    mfvec_surface_fluxes.resize(nlevs_max);
 }
 
 ERF::~ERF () = default;

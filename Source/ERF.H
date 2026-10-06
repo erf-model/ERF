@@ -294,6 +294,8 @@ public:
 
     amrex::Vector<amrex::Vector<amrex::MultiFab>> bckgnd_state;
 
+    amrex::Vector<amrex::MultiFab> mfvec_surface_fluxes;
+
     std::string MakeVTKFilename (int nstep);
     std::string MakeVTKFilename_TrackerCircle (int nstep);
     std::string MakeVTKFilename_EyeTracker_xy (int nstep);

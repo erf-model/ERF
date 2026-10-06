@@ -96,6 +96,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        MultiFab* Q1fx1, MultiFab* Q1fx2,
                        MultiFab* Q1fx3, MultiFab* Q2fx3,
                        MultiFab* /*Diss*/,
+                       MultiFab* mf_surface_fluxes, 
                        MultiFab* Hfx3_EB,
                        const Geometry geom,
                        const SolverChoice& solverChoice,
@@ -266,7 +267,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                         SurfLayer[ori]->impose_SurfaceLayer_bcs(level, mfs, Tau_lev,
                                                                             Hfx1, Hfx2, Hfx3,
                                                                             Q1fx1, Q1fx2, Q1fx3,
-                                                                            &z_phys_nd);
+                                                                            &z_phys_nd,
+                                                                            mf_surface_fluxes);
                     }
                 }
 

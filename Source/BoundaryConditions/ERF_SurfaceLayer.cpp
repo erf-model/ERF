@@ -789,7 +789,8 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
                                        MultiFab* xqv_flux,
                                        MultiFab* yqv_flux,
                                        MultiFab* zqv_flux,
-                                       const MultiFab* z_phys)
+                                       const MultiFab* z_phys,
+                                       MultiFab* mf_surface_fluxes)
 {
     if (flux_type == FluxCalcType::MOENG) {
         amrex::Real wsmin = 0.1; // TODO: change for different faces
@@ -799,32 +800,32 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
         compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
                                  xqv_flux, yqv_flux, zqv_flux,
-                                 z_phys, flux_comp);
+                                 z_phys, flux_comp, mf_surface_fluxes);
     } else if (flux_type == FluxCalcType::ROTATE) {
         rotate_flux flux_comp;
         compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
                                  xqv_flux, yqv_flux, zqv_flux,
-                                 z_phys, flux_comp);
+                                 z_phys, flux_comp, mf_surface_fluxes);
     } else if (flux_type == FluxCalcType::RICO) {
         rico_flux flux_comp(rico_theta_z0, rico_qsat_z0);
         compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
                                  xqv_flux, yqv_flux, zqv_flux,
-                                 z_phys, flux_comp);
+                                 z_phys, flux_comp, mf_surface_fluxes);
     } else if (flux_type == FluxCalcType::BULK_COEFF) {
         bulk_coeff_flux flux_comp(m_Cd, m_Ch, m_Cq);
         compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
                                  xqv_flux, yqv_flux, zqv_flux,
-                                 z_phys, flux_comp);
+                                 z_phys, flux_comp, mf_surface_fluxes);
     } else if (flux_type == FluxCalcType::CUSTOM) {
         const bool fluxes_include_rho = specified_rho_surf || m_use_sfc_fluxes;
         custom_flux flux_comp(fluxes_include_rho);
         compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
                                  xqv_flux, yqv_flux, zqv_flux,
-                                 z_phys, flux_comp);
+                                 z_phys, flux_comp, mf_surface_fluxes);
     } else {
         amrex::Abort("Unknown surface layer flux calculation type");
     }
@@ -892,7 +893,8 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                         MultiFab* yqv_flux,
                                         MultiFab* zqv_flux,
                                         const MultiFab* z_phys,
-                                        const FluxCalc& flux_comp)
+                                        const FluxCalc& flux_comp,
+                                        MultiFab* mf_surface_fluxes)
 {
     bool rotate = m_rotate;
 
@@ -1089,6 +1091,8 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         //============================================================================
         const bool is_low_face = m_face.isLow();
 
+        auto surface_flux_arr = mf_surface_fluxes->array(mfi);
+
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             // Valid theta flux from LSM and over land. The LSM writes the
@@ -1114,6 +1118,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 // Doing so flips a sentinel (water/unprocessed) cell to "valid LSM"
                 // on the next step, so a MOST-derived value is re-read as an LSM flux
                 // Only Noah-MP should populate the LSM cache.
+                surface_flux_arr(i,j,0,0) = Tflux;
             }
 
             if (soil_t_flux_arr && is_land == 1) {
