@@ -1035,6 +1035,8 @@ private:
 
     void update_diffusive_arrays (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
 
+    void make_flux_register (int lev);
+
     void Construct_ERFFillPatchers (int lev);
 
     void Define_ERFFillPatchers (int lev);
@@ -1499,7 +1501,7 @@ private:
     bool finished_wave = false;
 
     // array of flux registers
-    amrex::Vector<amrex::YAFluxRegister*> advflux_reg;
+    amrex::Vector<std::unique_ptr<amrex::YAFluxRegister>> advflux_reg;
 
     // A BCRec is essentially a 2*DIM integer array storing the boundary
     // condition type at each lo/hi walls in each direction. We have one BCRec
@@ -2019,7 +2021,7 @@ private:
     AMREX_FORCE_INLINE
     amrex::YAFluxRegister* getAdvFluxReg (int lev)
     {
-        return advflux_reg[lev];
+        return advflux_reg[lev].get();
     }
 
     AMREX_FORCE_INLINE

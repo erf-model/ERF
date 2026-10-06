@@ -964,14 +964,14 @@ void erf_slow_rhs_pre (int level, int finest_level,
             int strt_comp_reflux = (l_fixed_rho) ? 1 : 0;
             int  num_comp_reflux = 1;
             if (level < finest_level) {
-                fr_as_crse->CrseAdd(mfi,
-                    {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
-                    dx, static_cast<Real>(dt), strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
+                fr_as_crse->CrseAdd(mfi, {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
+                                    dx, static_cast<Real>(dt), strt_comp_reflux, strt_comp_reflux,
+                                    num_comp_reflux, RunOn::Device);
             }
             if (level > 0) {
-                fr_as_fine->FineAdd(mfi,
-                    {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
-                    dx, static_cast<Real>(dt), strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
+                fr_as_fine->FineAdd(mfi, {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
+                                    dx, static_cast<Real>(dt), strt_comp_reflux, strt_comp_reflux,
+                                    num_comp_reflux, RunOn::Device);
             }
 
         } // two-way coupling
