@@ -4284,7 +4284,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
 
                 // Not multiplying by dz: its constant and would fall out when we divide qint0/qint1 anyway
 
-                const Real Zval = gdata.ProbLo(2) + (k + myhalf)*gdata.CellSize(2);
+                const Real Zval = (k + myhalf)*gdata.CellSize(2);
                 Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k));
                 Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k));
             });
@@ -4338,7 +4338,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
             }
 
             Real l_obukhov;
-            if (std::abs(surface_heat_flux) > eps) {
+            if (std::abs(surface_heat_flux) > eps && u_star_arr(i,j,0) > eps) {
                 l_obukhov = -( theta0 * u_star_arr(i,j,0)*u_star_arr(i,j,0)*u_star_arr(i,j,0) )
                            / ( d_kappa * d_gravity * surface_heat_flux );
             } else {
@@ -4347,8 +4347,9 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
 
             // Surface-layer length scale (NN09, Eqn. 53)
             AMREX_ASSERT(l_obukhov != 0);
-            const Real zval = use_terrain_fitted_coords ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr)
-                                          : gdata.ProbLo(2) + (k + myhalf)*gdata.CellSize(2);
+            const Real zval = use_terrain_fitted_coords
+                            ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr)
+                            : (k + myhalf)*gdata.CellSize(2);
             const Real zeta = zval/l_obukhov;
             Real l_S;
             if (zeta >= one) {
