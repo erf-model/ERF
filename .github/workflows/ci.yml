@@ -1,7 +1,8 @@
 name: ERF CI
 
+# The pipeline runs when a PR is opened/reopened against development and when merged into development
+# Cache is populated when merged into development
 on:
-  # The push run on development is what writes the ccache that PRs restore.
   push:
     branches: [development]
     paths-ignore:
@@ -14,6 +15,8 @@ on:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
 
+# If a new push is made to an open PR, new run will cancel the previous one in the PR.
+# New merges into development get into the queue and are never cancelled.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
@@ -59,9 +62,11 @@ jobs:
     - name: Install CCache
       run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
 
-    # One cache per matrix variant, written only by the default branch. PRs
-    # restore the newest default-branch cache for their variant and recompile
-    # only what they change; they never save.
+    # Separate cache per matrix build configuration
+    # Only changes are recompiled from latest development CI run
+    # Looks for cache of exact commit, if not found then cache of latest commit in development branch
+    # PRs restore from cache but do not save to cache
+    # Only merges into development (and manual runs on development) save to cache
     - name: Restore Cache
       uses: actions/cache/restore@v6
       with:
