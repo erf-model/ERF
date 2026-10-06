@@ -283,7 +283,8 @@ public:
                                               hurricane_eye_track_latlon,
                                               hurricane_maxvel_vs_time,
                                               hurricane_minpressure_vs_time,
-                                              hurricane_tracker_circle;
+                                              hurricane_tracker_circle,
+                                              hurricane_surface_fluxes_vs_time;
     amrex::Vector<amrex::MultiFab> weather_forecast_data_1, weather_forecast_data_2;
     amrex::Vector<amrex::Vector<amrex::MultiFab>> forecast_state_1,
                                                   forecast_state_2,
@@ -315,12 +316,16 @@ public:
                                      const amrex::Geometry& geom,
                                      const amrex::Vector<amrex::MultiFab>& S_data,
                                      const amrex::Real& hurricane_eye_latitude,
-                                     const amrex::Real& hurricane_eye_longitude);
+                                     const amrex::Real& hurricane_eye_longitude,
+                                     int& hurricane_eye_i_glob,
+                                     int& hurricane_eye_j_glob);
 
     void HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
                                         const amrex::Geometry& geom,
                                         const amrex::MultiFab& mf_cc_vel,
-                                        const amrex::Vector<amrex::MultiFab>& S_data);
+                                        const amrex::Vector<amrex::MultiFab>& S_data,
+                                        int& hurricane_eye_i_glob,
+                                        int& hurricane_eye_j_glob);
 
     void ComputeGlobalMinLocation (const SolverChoice& sc,
                                    const amrex::Geometry& geom,
@@ -340,6 +345,11 @@ public:
                                       const amrex::Geometry& geom,
                                       const amrex::MultiFab& mf_cons_var,
                                       const double& time);
+
+    void HurricaneSurfaceFluxesTracker (const amrex::Geometry& lev_geom,
+                                        const int& hurricane_eye_i_glob,
+                                        const int& hurricane_eye_j_glob,
+                                        const amrex::Real time);
 
     void HurricaneTrackerCircle ();
 
