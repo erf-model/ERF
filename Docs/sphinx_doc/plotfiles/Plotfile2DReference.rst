@@ -133,9 +133,9 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - Prognostic surface temperature from the two-stream simplified surface energy balance
    * - ``seb_q_sfc``
      - ``Radiation``
-     - ``kg/kg``
+     - ``1``
      - ``FillMinus999WhenUnavailable``
-     - Prognostic surface specific humidity from the two-stream simplified surface energy balance
+     - Surface moisture of the two-stream surface energy balance: the soil water content (m3/m3) with seb_prognostic_enable, a land model's 2 m mixing ratio (kg/kg) with one
    * - ``seb_hfx``
      - ``Radiation``
      - ``W/m^2``

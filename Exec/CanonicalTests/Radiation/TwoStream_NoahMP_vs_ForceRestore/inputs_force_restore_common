@@ -1,0 +1,36 @@
+# The force-restore case's settings shared by its grassland deck (inputs_force_restore) and
+# its barren deck (inputs_force_restore_barren): the two-stream force-restore surface energy
+# balance on both levels, coupled both ways with the surface layer. The balance takes H and
+# LE from the surface layer, and the surface layer takes its surface temperature and mixing
+# ratio from the balance's skin and soil water (see README.md).
+FILE = inputs_common
+
+erf.radiation.seb_prognostic_enable = true
+# The net shortwave and longwave at the ground from the sweep (the default is the
+# seb_*_flux_default constants).
+erf.radiation.seb_use_radiation_fluxes = true
+erf.radiation.seb_turbulent_flux_source = surface_layer
+erf.radiation.seb_surface_layer_uses_skin = true
+# The soil's temperature in Noah-MP's land file. The surface heat capacity comes from the
+# soil (seb_soil_type below), at the water content each deck sets.
+erf.radiation.seb_t_deep_default = 290.0
+erf.radiation.diag_file = "radiation_diag_force_restore.csv"
+
+# The soil moisture as well: the surface layer takes its surface mixing ratio from the
+# balance's soil water, and the balance drains that water by the latent heat it removes.
+# The soil is Noah-MP's silty clay loam (soil category 8, Noah-MP's land here): its bare part
+# evaporates from its pore air (Noah-MP's relative humidity times q_sat) through its
+# Sakaguchi-Zeng resistance, and its wilting point and field capacity set the soil-water
+# factor in the canopy resistance; the water content is that of its top 0.1 m.
+erf.radiation.seb_surface_layer_uses_moisture = true
+erf.radiation.seb_soil_type = 8
+erf.radiation.seb_moisture_layer_depth_m = 0.1
+
+# The surface layer computes its heat flux from a surface temperature (the skin) and its
+# moisture flux from a surface mixing ratio; the balance replaces both over land. ERF
+# requires most.surf_moist to equal the sounding's surface value. Its land roughness comes
+# from Noah-MP's tables (erf.most.z0 is not given).
+erf.most.surf_temp  = 300.0
+erf.most.surf_moist = 0.014
+
+erf.plot2d_vars_1 = seb_t_sfc seb_q_sfc seb_hfx seb_lh sensible_heat_flux latent_heat_flux t_surf q_surf pblh

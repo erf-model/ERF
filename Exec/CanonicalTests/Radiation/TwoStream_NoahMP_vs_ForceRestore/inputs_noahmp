@@ -4,6 +4,9 @@
 FILE = inputs_common
 
 erf.land_surface_model = "NOAHMP"
+# Noah-MP computes the surface stress, H and LE with its own roughness, and the surface
+# layer takes u*, theta* and q* from them after the first step, so erf.most.z0 does not
+# matter here; the force-restore case takes its roughness from Noah-MP's tables.
 erf.radiation.seb_diagnostic_enable = true
 erf.radiation.diag_file = "radiation_diag_noahmp.csv"
 
