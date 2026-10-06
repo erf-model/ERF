@@ -1370,6 +1370,8 @@ void run_mapped_donor_rate_metric_oracle_test ()
 void run_mapped_donor_fixed_dt_bound_test ()
 {
     double hard_limit = 0.0;
+    EXPECT_FALSE(FixedDtExceedsMappedDonorLimit(-1.0, Real(10.0), hard_limit));
+    EXPECT_DOUBLE_EQ(hard_limit, 0.1);
     EXPECT_FALSE(FixedDtExceedsMappedDonorLimit(0.1, Real(10.0), hard_limit));
     EXPECT_DOUBLE_EQ(hard_limit, 0.1);
     EXPECT_TRUE(FixedDtExceedsMappedDonorLimit(0.2, Real(10.0), hard_limit));

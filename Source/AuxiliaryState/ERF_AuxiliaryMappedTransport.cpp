@@ -270,6 +270,10 @@ bool FixedDtExceedsMappedDonorLimit (const double fixed_dt,
                                      double& hard_limit) noexcept
 {
     hard_limit = std::numeric_limits<double>::infinity();
+    if (std::isfinite(max_outgoing_rate) &&
+        max_outgoing_rate > amrex::Real(0.0)) {
+        hard_limit = 1.0 / static_cast<double>(max_outgoing_rate);
+    }
     if (max_outgoing_rate == amrex::Real(0.0) || fixed_dt <= 0.0)
         return false;
     if (!std::isfinite(fixed_dt) ||
@@ -279,7 +283,6 @@ bool FixedDtExceedsMappedDonorLimit (const double fixed_dt,
         return true;
     }
 
-    hard_limit = 1.0 / static_cast<double>(max_outgoing_rate);
     if (!std::isfinite(hard_limit)) return false;
     const double scale = std::max(std::abs(fixed_dt), std::abs(hard_limit));
     const double tolerance = 64.0 *

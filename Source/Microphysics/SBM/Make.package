@@ -20,3 +20,4 @@ CEXE_headers += ERF_SBMRepresentation.H
 CEXE_headers += ERF_SBMRemapping.H
 CEXE_headers += ERF_SBMTransport.H
 CEXE_headers += ERF_SBMAdvectionBoundary.H
+CEXE_headers += ERF_SBMStageOwnership.H
