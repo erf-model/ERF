@@ -65,6 +65,17 @@ ERF::volWgtSumMF (int lev,
     } // mfi
 
     if (lev < finest_level && finemask) {
+        // fine_mask[lev+1] lives on grids[lev] but is only rebuilt when level lev+1 is made,
+        // so any path that changes grids[lev] alone leaves it stale: RemakeLevel(0) on restart,
+        // and AmrMesh's iterate_grids pass, which remakes a level from scratch without
+        // remaking the unchanged level above it.  Rebuild it here if it no longer matches.
+        if (!fine_mask[lev+1] ||
+            fine_mask[lev+1]->boxArray()        != tmp.boxArray() ||
+            fine_mask[lev+1]->DistributionMap() != tmp.DistributionMap())
+        {
+            fine_mask[lev+1] = std::make_unique<MultiFab>(tmp.boxArray(), tmp.DistributionMap(), 1, 0);
+            build_fine_mask(lev+1, *fine_mask[lev+1]);
+        }
         MultiFab::Multiply(tmp, *fine_mask[lev+1].get(), 0, 0, 1, 0);
     }
 

@@ -35,14 +35,14 @@ ERF::sum_integrated_quantities (double time)
     bool local = true;
 
     auto& mfx0 = *mapfac[0][MapFacType::m_x];
-    auto& mfy0 = *mapfac[0][MapFacType::m_x];
+    auto& mfy0 = *mapfac[0][MapFacType::m_y];
     auto&  dJ0 = *detJ_cc[0];
 
     mass_sl = volWgtSumMF(0,vars_new[0][Vars::cons],Rho_comp,dJ0,mfx0,mfy0,false,local);
 
     for (int lev = 0; lev <= finest_level; lev++) {
         auto& mfx = *mapfac[lev][MapFacType::m_x];
-        auto& mfy = *mapfac[lev][MapFacType::m_x];
+        auto& mfy = *mapfac[lev][MapFacType::m_y];
         auto&  dJ = *detJ_cc[lev];
         mass_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],Rho_comp,dJ,mfx,mfy,true);
     }
@@ -59,7 +59,7 @@ ERF::sum_integrated_quantities (double time)
 
     for (int lev = 0; lev <= finest_level; lev++) {
         auto& mfx = *mapfac[lev][MapFacType::m_x];
-        auto& mfy = *mapfac[lev][MapFacType::m_x];
+        auto& mfy = *mapfac[lev][MapFacType::m_y];
         auto&  dJ = *detJ_cc[lev];
         rhth_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons], RhoTheta_comp,dJ,mfx,mfy,true);
         scal_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoScalar_comp,dJ,mfx,mfy,true);
@@ -185,7 +185,7 @@ ERF::sum_derived_quantities (double time)
     AMREX_ALWAYS_ASSERT(lev == 0);
 
     auto& mfx0 = *mapfac[0][MapFacType::m_x];
-    auto& mfy0 = *mapfac[0][MapFacType::m_x];
+    auto& mfy0 = *mapfac[0][MapFacType::m_y];
     auto&  dJ0 = *detJ_cc[0];
 
     // ************************************************************************
@@ -322,7 +322,7 @@ ERF::sum_energy_quantities (double time)
     int lev = 0;
 
     auto& mfx0 = *mapfac[0][MapFacType::m_x];
-    auto& mfy0 = *mapfac[0][MapFacType::m_x];
+    auto& mfy0 = *mapfac[0][MapFacType::m_y];
     auto&  dJ0 = *detJ_cc[0];
 
     AMREX_ALWAYS_ASSERT(lev == 0);
