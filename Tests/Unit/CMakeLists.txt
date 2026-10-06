@@ -157,6 +157,9 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSeaLevelPressure.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestCanopyBiophysics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestForestDrag.cpp
+    # Motivation: a calm cell above an immersed wall gave the wall law u* = 0, an Obukhov length
+    # of zero and z / 0 (erf-model/ERF#4016); the stability estimate is now bounded as on flat ground.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestImmersedWallStability.cpp
     # Motivation: observation nudging must read a station file exactly, relax
     # to the closed-form target with the right weight, sigma band and rate cap,
     # and put its sources on the right faces over flat, fitted and immersed
@@ -172,6 +175,10 @@ target_sources(${erf_exe_name}
     # model, else from the surface layer's applied flux in W/m^2, else from
     # the scalar defaults; LE stays at its default without a moisture model.
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestSEBTurbulentFlux.cpp
+    # Motivation: with the moisture coupling, the force-restore surface evaporates at
+    # beta times the potential rate, beta linear between Noah-MP's wilting point and
+    # field capacity for the soil category, so it dries as its water content falls.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestSEBSoilMoisture.cpp
     # Motivation: the forcing the two-stream model hands Noah-MP must be the
     # downwelling SW and LW at the surface interface and a zenith cosine floored
     # at zero, copied into the land model's k = 0 plane and nowhere else.

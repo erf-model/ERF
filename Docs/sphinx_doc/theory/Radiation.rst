@@ -409,14 +409,132 @@ reached at the end of the previous step, as a potential temperature,
 
 with the surface pressure :math:`p_{\text{sfc}}` diagnosed from the lowest cell (the conversion
 coupled sea-surface temperatures use). A warmer skin then gives a larger :math:`H`, which the
-balance removes. The surface moisture stays the surface layer's own: the balance's :math:`q_s` is a
-soil-water store, not a surface specific humidity. The option needs the prognostic balance,
+balance removes. The surface moisture stays the surface layer's own unless
+``erf.radiation.seb_surface_layer_uses_moisture`` is also set (below). The option needs the prognostic balance,
 ``seb_turbulent_flux_source = surface_layer``, a ``zlo`` surface layer in surface-temperature mode
 (``erf.most.surf_temp`` given, no ``erf.most.surf_heating_rate``), no EB terrain, no
 ``erf.use_rotate_surface_flux``, and no land-surface or surface model; ERF stops at start-up
 otherwise. On a level that takes its
 radiation from its parent (a nested patch that does not span the column), no skin evolves, and
 the surface layer keeps its own temperature there.
+
+**Soil moisture.** With the prognostic balance, :math:`q_s` is the volumetric water content
+[m\ :sup:`3`/m\ :sup:`3`] of the top ``seb_moisture_layer_depth_m`` :math:`d_s` of soil: the latent
+heat flux drains it, and it restores to ``seb_q_deep_default`` over
+``seb_moisture_restore_timescale_s`` :math:`\tau_q`,
+
+.. math::
+
+   \frac{dq_s}{dt} = -\frac{\text{LE}}{L_v \rho_w d_s} - \frac{q_s - q_\text{deep}}{\tau_q}.
+
+With ``erf.radiation.seb_surface_layer_uses_moisture = true`` (which needs the skin coupling) the
+surface layer takes its land surface mixing ratio from that soil water,
+
+.. math::
+
+   q_\text{surf} = \beta\, q_\text{sat}(T_s, p_\text{sfc}) + (1 - \beta)\, q_\text{air},
+
+with :math:`q_\text{air}` the mixing ratio at its reference height, so its moisture flux is
+:math:`\beta` times the potential one and the soil loses the water the air gains. Without a
+soil type :math:`\beta` is the soil-water factor
+
+.. math::
+
+   \beta_\text{soil} = \min\left(1, \max\left(0,
+       \frac{q_s - \theta_\text{wilt}}{\theta_\text{fc} - \theta_\text{wilt}}\right)\right),
+
+with the wilting point and field capacity ``seb_soil_moisture_wilt`` and ``seb_soil_moisture_fc``.
+``erf.radiation.seb_soil_type`` takes both from Noah-MP's soil table for that category (WLTSMC
+and REFSMC of the STAS dataset; ``Source/Radiation/TwoStream/ERF_NoahMPSoilTable.H`` copies the
+table and a CTest checks the copy against ``Submodules/Noah-MP/parameters/NoahmpTable.TBL``).
+
+With a soil type, the surface mixing ratio comes instead from two source fluxes, each through
+a resistance in series with the aerodynamic one. That one is the resistance of the surface
+layer's own moisture flux (its surface-temperature kernel),
+:math:`r_a = \max(\ln(z_\text{ref}/z_0) - \psi_h, 1)/(\kappa u_*)`, with Jimenez's
+:math:`\psi_h` at the layer's last :math:`u_*` and Obukhov length (neutral before the first
+flux):
+
+.. math::
+
+   q_\text{surf} = q_\text{air} + r_a \left[ f_\text{veg} \frac{q_\text{sat} - q_\text{air}}{r_a + r_c}
+     + (1 - f_\text{veg}) \frac{\text{RH}_g\, q_\text{sat} - q_\text{air}}{r_a + r_\text{soil}} \right],
+
+so that the surface layer's flux :math:`(q_\text{surf} - q_\text{air})/r_a` is the sum of the
+canopy's and the bare soil's. :math:`f_\text{veg} = 0` without a vegetation type, so bare soil and
+a vegetation type with ``seb_vegetation_fraction = 0`` give the same :math:`q_\text{surf}`. With
+:math:`\text{RH}_g = 1` it is :math:`\beta q_\text{sat} + (1 - \beta) q_\text{air}` with
+:math:`\beta = f_\text{veg} r_a/(r_a + r_c) + (1 - f_\text{veg}) r_a/(r_a + r_\text{soil})`. With
+``erf.radiation.seb_vegetation_type`` (a Noah-MP MODIS land-use category,
+``ERF_NoahMPVegetationTable.H``), the vegetated fraction ``seb_vegetation_fraction``
+:math:`f_\text{veg}` transpires through Noah's
+big-leaf Jarvis canopy resistance (Chen et al. 1996) on the parameters and floors of Noah-MP's
+canopy-resistance option 2, with the category's leaf area index (``seb_leaf_area_index``; by
+default the table's monthly values interpolated to ``start_datetime`` as Noah-MP does, with the
+day of the year counted from 0 at 00:00 on 1 January and shifted half a year when
+``erf.rad_cons_lat`` < 0):
+
+.. math::
+
+   r_c = \frac{R_{s,\min}}{\text{LAI}\, F_{sw} F_T F_\text{vpd} \beta_\text{soil}}, \quad
+   F_{sw} = \frac{f + R_{s,\min}/R_{s,\max}}{1 + f}, \quad f = \frac{1.1\, SW_\downarrow}{R_{gl}\,\text{LAI}},
+
+   F_T = 1 - 0.0016\, (T_\text{opt} - T_s)^2, \quad
+   F_\text{vpd} = \frac{1}{1 + h_s \max(0, q_\text{sat} - q_\text{air})},
+
+with :math:`SW_\downarrow` the net shortwave the balance holds divided by
+:math:`1 - \alpha` (the sweep's with ``seb_use_radiation_fluxes``). :math:`r_c` is capped at
+:math:`10^6` s/m after the vapour-deficit factor. Noah-MP applies the same factors per sunlit
+and shaded leaf, with absorbed PAR, the canopy temperature and canopy-air humidity and a
+root-zone soil-water factor, so the two agree in form, not in every detail. The bare soil (the whole surface without a vegetation type)
+evaporates through Noah-MP's soil resistance (ground-evaporation option 1, Sakaguchi and Zeng),
+which grows as the top soil dries: :math:`r_\text{soil} = d_\text{dry}/D` with
+:math:`d_\text{dry} = d_s (e^{(1 - q_s/\theta_\text{sat})^5} - 1)/(e - 1)` and
+:math:`D = 2.2\times10^{-5}\, \theta_\text{sat}^2 (1 - \theta_\text{wilt}/\theta_\text{sat})^{2 + 3/b}`.
+It evaporates from the air in its pores, at Noah-MP's relative humidity
+
+.. math::
+
+   \text{RH}_g = \exp\left(\frac{\psi g}{R_v T_s}\right), \quad
+   \psi = -\psi_\text{sat} \left(\frac{\max(0.01, q_s)}{\theta_\text{sat}}\right)^{-b},
+
+with the soil's saturated matric potential :math:`\psi_\text{sat}` (SATPSI) and Noah-MP's
+:math:`g` and :math:`R_v`. :math:`\text{RH}_g` is near 1 in moist soil and near 0 at the wilting
+point (about 0.005 for silty clay loam at 325 K), so bare soil there hardly evaporates and,
+when :math:`\text{RH}_g q_\text{sat} < q_\text{air}`, takes up vapour (LE < 0), as in Noah-MP.
+
+*Limitation:* :math:`q_s` is a single top layer. The canopy's soil-water factor and all of LE,
+transpiration included, act on it, where Noah-MP draws transpiration from the root zone
+(BTRAN). Over a few hours this hardly matters: at LE = 350 W/m\ :sup:`2` and
+:math:`d_s` = 0.1 m the layer loses about 0.005 m\ :sup:`3`/m\ :sup:`3` per hour. Over several
+days, though, the canopy shuts down as the top layer dries, even over a wet root zone.
+:math:`q_s` also restores toward ``seb_q_deep_default``, which defaults to 0; ERF prints a
+NOTE at start-up when it is below the wilting point.
+
+With the skin coupling and a soil type, the surface layer's land roughness length, unless
+``erf.most.z0`` is given, comes from Noah-MP's tables: :math:`f_\text{veg}\, z_{0,\text{veg}} + (1 - f_\text{veg})\, z_{0,\text{soil}}`
+with the land-use category's Z0MVT and Noah-MP's bare-soil Z0SOIL (0.002 m), :math:`f_\text{veg} = 0`
+without a vegetation type.
+
+Noah-MP itself hands the atmosphere Z0MVT for a vegetated column and Z0SOIL for a bare one.
+The balance has a single surface for both parts, so it weights the two by the vegetated
+fraction instead. The run's ``job_info`` records the value used as ``erf.most.z0``. Heat and
+moisture use the same :math:`z_0` as momentum (the surface layer's kernel has no separate
+:math:`z_{0h}`), where Noah-MP's bare-ground exchange takes a smaller thermal roughness
+(Chen-Zilitinkevich): a further difference over bare soil.
+
+Categories 15, 16 and 17 (snow and ice, barren, water) have no vegetation in the table
+(Z0MVT = 0) and stop at start-up. Bare land leaves the vegetation type at 0.
+
+Over bare soil the roughness matters as much as the moisture: with the surface layer's
+default 0.1 m, the surface sheds its heat far more easily than Noah-MP's bare soil does.
+
+With a soil type the surface heat capacity :math:`C_s`, unless given, is that of the layer the
+restore period's temperature wave reaches (Deardorff 1978),
+:math:`C_s = \tfrac12 \sqrt{\lambda c\, \tau / \pi}`, with the soil's volumetric heat capacity
+:math:`c` and Noah-MP's (Johansen) thermal conductivity :math:`\lambda` at ``seb_q_sfc_default``.
+``Exec/CanonicalTests/Radiation/TwoStream_NoahMP_vs_ForceRestore`` compares the balance with
+Noah-MP on the same grid, atmosphere and land.
 
 The ground heat flux :math:`G` and the deep-soil reservoir values are the scalar defaults unless
 the land-surface model exposes them by name (``grdflx`` for the ground heat flux).
