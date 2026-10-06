@@ -17,9 +17,11 @@ checks.
      below 1e-3 W/m2);
   3. the faces see the two-stream sun: the top-of-atmosphere irradiance the
      faces' direct beam implies (dni / tau^(1/cos z)) equals the two-stream
-     sweep's SW_TOA / cos z at every common time, to 1e-4. The faces' own
-     prescribed sun (sun_mode = solar, with the equation of time) misses by
-     more than 1 % at 08:20;
+     sweep's SW_TOA / cos z, to 1e-5. A CSV row is stamped with the end of its
+     step and carries the sun the step used, from its start, so the sweep's
+     row one step (erf.fixed_dt) earlier is the one compared: the same sun
+     one step late already misses by up to 7e-5, and the faces' own prescribed
+     sun (sun_mode = solar, with the equation of time) by 2.4 % at 08:20;
   4. the sun climbs: the zenith falls through the run and the buildings'
      mean shadow fraction ends below where it starts, on both levels;
   5. the buildings warm: every building's mean skin temperature ends above
@@ -139,13 +141,18 @@ def main():
     nb = len(bld["building"])
     c = read_csv("ibseb_buildings.csv")
     lev = c["level"].astype(int)
-    tau = None
+    tau, dt = None, None
     with open("inputs") as f:
         for line in f:
             m = re.match(r"\s*erf\.ibseb\.sw_transmission\s*=\s*(\S+)", line)
             if m:
                 tau = float(m.group(1))
+            m = re.match(r"\s*erf\.fixed_dt\s*=\s*(\S+)", line)
+            if m:
+                dt = float(m.group(1))
     tau = 0.7 if tau is None else tau          # IBSEBParams default
+    if dt is None:
+        raise SystemExit("inputs: erf.fixed_dt is not set; check 3 needs the level-0 step")
 
     # 1. buildings on both levels, numbered alike
     s0, s1 = dump_steps("faces/set"), dump_steps("faces/set.lev1")
@@ -175,14 +182,16 @@ def main():
     dni = c["dni_Wm2"][first]
     rel = []
     for t, z, q in zip(ct, cz, dni):
-        k = np.nonzero(np.abs(rt - t) < 1e-6)[0]
+        # A CSV row carries the time at the end of its step and the sun the
+        # step used, placed at the step's start: compare there.
+        k = np.nonzero(np.abs(rt - (t - dt)) < 1e-6)[0]
         if len(k) == 0 or z <= 0.05:
             continue
         s0_faces = q / tau ** (1.0 / z)
         s0_cols = rtoa[k[0]] / z
         rel.append(abs(s0_faces / s0_cols - 1.0))
     rel = np.array(rel)
-    check("3. the faces see the two-stream sun", len(rel) > 2 and rel.max() < 1e-4,
+    check("3. the faces see the two-stream sun", len(rel) > 2 and rel.max() < 1e-5,
           f"{len(rel)} common times, largest relative difference {rel.max() if len(rel) else float('nan'):.1e}")
 
     # 4. the sun climbs, the shadows shorten

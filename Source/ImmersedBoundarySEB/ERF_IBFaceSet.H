@@ -346,8 +346,9 @@ public:
      * buildings, the total face area and the range of the skin temperature;
      * the CSV rows carry per building the face count, the area, the
      * area-weighted mean fluxes and skin temperature with its range, the
-     * largest balance residual, and the sun of the step (zenith, azimuth,
-     * direct-normal and diffuse irradiance). All numbers are reduced over the
+     * largest balance residual, and the sun the step used, from its start
+     * (zenith, azimuth, direct-normal and diffuse irradiance), on a row
+     * stamped with the time at the end of the step. All numbers are reduced over the
      * ranks; the file is written by the I/O rank only, with a header only
      * when the file does not exist yet, so a restarted run appends. Every
      * level appends to the same file, its rows marked by the level column.

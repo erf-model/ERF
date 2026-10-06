@@ -5,13 +5,16 @@
 
 Writes, in the run directory:
   random_buildings_map.png     the last 2D plotfile seen from above: the
-                               force-restore skin of level 1 over the refined
-                               area and of level 0 around it, the building
+                               force-restore skin of the open ground, level 1
+                               over the refined area and level 0 around it
+                               (grey under and around the buildings), the building
                                footprints, the level-1 box, and the roofs
                                coloured by their skin temperature;
   random_buildings_tskin.png   the mean skin temperature of every building on
                                both levels against time, the open ground's
-                               force-restore skin, and the sun's zenith;
+                               force-restore skin over the refined area (from
+                               the 2D plotfiles, footprints left out), and the
+                               sun's zenith;
   random_buildings_theta.png   potential temperature 15 m above the ground on
                                level 1 at the last 3D plotfile, buildings
                                masked, with the wind.
@@ -66,6 +69,13 @@ def read_plotfile(path):
     return names, levels, dxs
 
 
+def plotfile_time(path):
+    """Simulation time [s] in an AMReX plotfile's Header."""
+    with open(os.path.join(path, "Header")) as f:
+        lines = f.read().split("\n")
+    return float(lines[2 + int(lines[1]) + 1])
+
+
 def assemble(boxes, comp, shape, k=None):
     """One component on the level's index space (a k slice, or k = 0 for a 2D file), NaN outside its boxes."""
     f = np.full(shape, np.nan)
@@ -89,6 +99,15 @@ def main():
     c = read_csv("ibseb_buildings.csv")
     L = 640.0
 
+    def keep_out(shape, dxl, g=40.0):
+        """Columns within g of a footprint: the buildings, their ramp cells and the cell around them."""
+        x = (np.arange(shape[0]) + 0.5) * dxl[0]; y = (np.arange(shape[1]) + 0.5) * dxl[1]
+        ko = np.zeros(shape, dtype=bool)
+        for b in range(nb):
+            ko |= np.outer((x > bld["x_lo_m"][b] - g) & (x < bld["x_hi_m"][b] + g),
+                           (y > bld["y_lo_m"][b] - g) & (y < bld["y_hi_m"][b] + g))
+        return ko
+
     # ---- map --------------------------------------------------------------
     p2 = sorted(glob.glob("plt2d*"), key=numeric)[-1]
     names, levels, dxs = read_plotfile(p2)
@@ -97,10 +116,15 @@ def main():
     f0 = assemble(levels[0], k, n0)
     f1 = assemble(levels[1], k, (2 * n0[0], 2 * n0[1]))
     fig, ax = plt.subplots(figsize=(7.5, 6.5))
-    vmin, vmax = np.nanmin(f0), np.nanmax(f0)
-    ax.imshow(f0.T, origin="lower", extent=(0, L, 0, L), cmap="inferno", vmin=vmin, vmax=vmax)
+    # The two-stream ground balance also covers the footprints, which run much
+    # hotter; blank them and their surroundings and scale to the open ground.
+    f0[keep_out(f0.shape, dxs[0])] = np.nan
+    f1[keep_out(f1.shape, dxs[1])] = np.nan
+    vmin, vmax = np.nanmin(np.concatenate([f0.ravel(), f1.ravel()])), np.nanmax(np.concatenate([f0.ravel(), f1.ravel()]))
+    ax.set_facecolor("0.85")
+    ax.imshow(np.ma.masked_invalid(f0).T, origin="lower", extent=(0, L, 0, L), cmap="inferno", vmin=vmin, vmax=vmax)
     im = ax.imshow(np.ma.masked_invalid(f1).T, origin="lower", extent=(0, L, 0, L), cmap="inferno", vmin=vmin, vmax=vmax)
-    fig.colorbar(im, ax=ax, label="force-restore skin [K]", shrink=0.8)
+    fig.colorbar(im, ax=ax, label="force-restore skin, open ground [K]", shrink=0.8)
     lo1 = min(lo[0] for lo, _ in levels[1]) * dxs[1][0]; hi1 = max(lo[0] + a.shape[1] for lo, a in levels[1]) * dxs[1][0]
     lo1y = min(lo[1] for lo, _ in levels[1]) * dxs[1][1]; hi1y = max(lo[1] + a.shape[2] for lo, a in levels[1]) * dxs[1][1]
     ax.add_patch(Rectangle((lo1, lo1y), hi1 - lo1, hi1y - lo1y, fill=False, ec="cyan", lw=1.5, ls="--", label="level 1"))
@@ -128,11 +152,26 @@ def main():
             m = (lev == L_) & (c["building"] == b)
             axs[0].plot(c["time_s"][m] / 3600.0, c["T_skin_mean_K"][m], ls, color=cmap((b - 1) % 10),
                         label=f"{b} ({bld['height_m'][b - 1]:g} m)" if L_ == 1 else None)
-    r = read_csv("radiation_diag.csv")
-    for L_, ls in ((0, "--"), (1, "-")):
-        m = r["level"] == L_
-        axs[0].plot(r["time"][m] / 3600.0, r["T_s_mean"][m], ls, color="k", lw=2,
-                    label="ground (level mean)" if L_ == 1 else None)
+    # The open ground's force-restore skin over level 1's area, away from the
+    # footprints and the cell around them, from the 2D plotfiles.
+    tg, g0, g1 = [], [], []
+    for p2d in sorted(glob.glob("plt2d*"), key=numeric):
+        nm, lv, dx2 = read_plotfile(p2d)
+        if len(lv) < 2:
+            continue
+        kk = nm.index("seb_t_sfc")
+        n0_ = (int(round(L / dx2[0][0])), int(round(L / dx2[0][1])))
+        a0 = assemble(lv[0], kk, n0_)
+        a1 = assemble(lv[1], kk, (2 * n0_[0], 2 * n0_[1]))
+        on1 = ~np.isnan(a1)
+        on0 = np.zeros(n0_, dtype=bool)
+        for lo, arr in lv[1]:
+            on0[lo[0] // 2:(lo[0] + arr.shape[1]) // 2, lo[1] // 2:(lo[1] + arr.shape[2]) // 2] = True
+        means = [f[on & ~keep_out(f.shape, dxl)].mean() for f, on, dxl in ((a0, on0, dx2[0]), (a1, on1, dx2[1]))]
+        tg.append(plotfile_time(p2d)); g0.append(means[0]); g1.append(means[1])
+    tg = np.array(tg)
+    axs[0].plot(tg / 3600.0, g0, "--", color="k", lw=2)
+    axs[0].plot(tg / 3600.0, g1, "-", color="k", lw=2, label="open ground")
     axs[0].set_ylabel("mean skin temperature [K]")
     axs[0].legend(fontsize=7, ncol=3, title="building (height); solid level 1, dashed level 0", title_fontsize=7)
     first = (lev == 0) & (c["building"] == 1)
