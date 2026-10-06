@@ -1079,15 +1079,14 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
                 const Real zeta          = ib_stability::bounded_zeta(myhalf * dx_z, Olen);
                 const Real zeta_neighbor = ib_stability::bounded_zeta(Real(1.5) * dx_z, Olen);
 
-                // similarity functions
+                // similarity functions; psi_h capped at ln(z / z0) as on the other temperature branches
                 const Real psi_m          = sfuns.calc_psi_m(zeta);
-                const Real psi_h          = sfuns.calc_psi_h(zeta);
-                const Real psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
-                // psi_m at 0.5 dz against ln(1.5 dz / z0) can cancel. u* is held in [0, 2] m/s as on the
-                // other branches; this changes answers where it binds: a negative u* (psi_m past
-                // ln(1.5 dz / z0)) now turns the heat forcing off (theta* = 0, the target is the cell
-                // above), where development used the square of the negative u*, and u* > 2 m/s is
-                // held at 2.
+                const Real psi_h          = ib_stability::capped_psi(sfuns.calc_psi_h(zeta), myhalf * dx_z, z0, one);
+                const Real psi_h_neighbor = ib_stability::capped_psi(sfuns.calc_psi_h(zeta_neighbor), Real(1.5) * dx_z, z0, one);
+                // psi_m at 0.5 dz against ln(1.5 dz / z0) can cancel; u* is held in [0, 2] m/s as on the
+                // other branches. In unstable air psi_h >= psi_m and psi_h grows with |zeta|, so wherever
+                // psi_m reaches ln(1.5 dz / z0) both psi_h caps above bind, the two log brackets close
+                // and the target is the cell above whatever u* is: the clamp only guards the arithmetic.
                 const Real ustar = ib_stability::clamped_ustar(h_windspeed2r * kappa / (std::log((Real(1.5)) * dx_z / z0) - psi_m));
 
                 // We do not know the actual temperature so use cell above
@@ -1158,7 +1157,6 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
     const Real tflux              = solverChoice.if_surf_temp_flux;
     const Real init_surf_temp     = solverChoice.if_init_surf_temp;
     const Real surf_heating_rate  = solverChoice.if_surf_heating_rate;
-    const Real Olen_in            = solverChoice.if_Olen_in;
     const Real stab_wind_floor    = solverChoice.if_stability_wind_floor;
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -1241,8 +1239,8 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
                 Real psi_h           = zero;
                 Real psi_h_neighbor  = zero;
                 Real ustar           = h_windspeed2r * kappa / (std::log((1.5) * dx_z / z0) - psi_m);
-                Real Olen            = (Olen_in  != Real(1e-8)) ? Olen_in
-                                     : ib_stability::bounded_obukhov_length(-ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny), Real(1.5) * dx_z);
+                // (start-up refuses erf.if_Olen with a surface flux, so L always comes from the flux here)
+                Real Olen            = ib_stability::bounded_obukhov_length(-ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny), Real(1.5) * dx_z);
 
                 for (int iter = 0; iter < 2; ++iter) {
                     if (iter > 0) { Olen  = ib_stability::bounded_obukhov_length(-ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny), Real(1.5) * dx_z); }
@@ -1335,8 +1333,7 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
                 Real psi_h           = zero;
                 Real psi_h_neighbor  = zero;
                 Real ustar           = tan_wspd * kappa / (std::log(1.5 * delta / z0) - psi_m);
-                Real Olen            = (Olen_in  != Real(1e-8)) ? Olen_in
-                                     : ib_stability::bounded_obukhov_length(-ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny), Real(1.5) * delta);
+                Real Olen            = ib_stability::bounded_obukhov_length(-ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny), Real(1.5) * delta);
 
                 for (int iter = 0; iter < 2; ++iter) {
                     if (iter > 0) { Olen  = ib_stability::bounded_obukhov_length(-ustar * ustar * ustar * theta / (kappa * ggg * tflux + tiny), Real(1.5) * delta); }

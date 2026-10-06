@@ -1218,7 +1218,8 @@ struct SolverChoice {
         {
             amrex::Error("Can only specify one of init_surf_temp, surf_temp_flux, or Olen");
         }
-        if (if_Olen_in == zero) {
+        if (if_Olen_in == zero &&
+            (terrain_type == TerrainType::ImmersedForcing || buildings_type == BuildingsType::ImmersedForcing)) {
             amrex::Abort("erf.if_Olen = 0 is not an Obukhov length: give a nonzero length [m] (a large |L| is near neutral)");
         }
 

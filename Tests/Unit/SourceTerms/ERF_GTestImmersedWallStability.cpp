@@ -243,51 +243,27 @@ TEST(ImmersedWallStability, CalmTerrainHeatFluxTargetIsFinite)
     EXPECT_LT(std::abs(src) / drag_rho, Real(20.0)) << "target " << src / drag_rho << " K from the air";
 }
 
-TEST(ImmersedWallStability, PrescribedObukhovLengthKeepsUstarBounded)
+TEST(ImmersedWallStability, PrescribedObukhovLengthAcrossTheUstarCancellation)
 {
-    // erf.if_Olen with z0 = 0.5 m on 10 m cells: psi_m at 0.5 dz crosses ln(1.5 dz / z0) = ln 30
-    // near L = -0.167 m, where the denominator of u* cancels. Sweeping L across it, every source
-    // stays finite and no larger than u* = 2 m/s allows.
-    const Real z0 = Real(0.5);
-    const Real dz = Real(10.0);
-    const Real theta = Real(300.0);
-    const Real rho = Real(1.2);
-    const Real drag = Real(5.0) / dz;  // if_Cd_scalar / (dx dy dz)^(1/3), dx = dy = dz
-    similarity_funs sfuns;
-    // erf.if_psi_cap_factor does not reach the temperature forcing, so both factors give the
-    // same sweep
-    for (Real factor : {Real(1.0), Real(0.9)}) {
-        int n_bounded = 0;
-        int n_off = 0;
-        for (int n = 0; n <= 400; ++n) {
-            const Real L = Real(-0.25) + Real(0.13) * Real(n) / Real(400);
-            CalmTerrainColumn col;
-            col.u.setVal<amrex::RunOn::Host>(5.0);
-            SolverChoice sc = col.choice(Real(1.e-8));
-            sc.if_z0 = z0;
-            sc.if_Olen_in = L;
-            sc.if_psi_cap_factor = factor;
-            ImmersedForcingTerrain_Scalar(col.bx, col.u.const_array(), col.v.const_array(),
-                                          col.cell.const_array(), col.blank.const_array(),
-                                          amrex::Array4<const Real>{}, col.src.array(), col.geom, sc,
-                                          amrex::Table1D<Real>{}, amrex::Table1D<Real>{}, Real(0.0));
-            ASSERT_TRUE(col.all_finite(col.bx, 2)) << "L = " << L << ", factor " << factor;
-            // |source| <= drag rho |theta*| / kappa |bracket| with theta* = theta u*^2 / (kappa g L), u* <= 2
-            // the prescribed length as given, its zeta held within +-100
-            const Real tstar_max = theta * Real(4.0) / (KAPPA * CONST_GRAV * std::abs(L));
-            const Real bracket = std::abs((std::log(Real(0.5) * dz / z0) - sfuns.calc_psi_h(ib_stability::bounded_zeta(Real(0.5) * dz, L)))
-                                        - (std::log(Real(1.5) * dz / z0) - sfuns.calc_psi_h(ib_stability::bounded_zeta(Real(1.5) * dz, L))));
-            const Real bound = drag * rho * tstar_max / KAPPA * bracket;
-            const Real src = std::abs(col.src.const_array()(1, 1, 1, RhoTheta_comp));
-            EXPECT_LE(src, bound * Real(1.001)) << "L = " << L << ", factor " << factor;
-            if (src > Real(0.999) * bound) { ++n_bounded; }
-            if (src < Real(1.e-9)) { ++n_off; }
-        }
-        // and the sweep does reach u* at the clamp
-        EXPECT_GT(n_bounded, 0) << "factor " << factor;
-        // Past the cancellation (psi_m > ln 30) the u* denominator is negative: the clamp sets
-        // u* = 0 and the heat forcing is off (development squared the negative u*)
-        EXPECT_GT(n_off, 0) << "factor " << factor;
+    // erf.if_Olen with z0 = 0.5 m on 10 m cells, 5 m/s: psi_m at 0.5 dz crosses ln(1.5 dz / z0) = ln 30
+    // near L = -0.167 m, where the u* denominator cancels and then turns negative (u* clamped to
+    // [0, 2] m/s). Across the sweep both psi_h caps bind (psi_h >= psi_m in unstable air), so the
+    // log brackets close and the target is the air above: every source is finite and round-off.
+    // Without the caps the target was up to 160 K above the air (u* at the clamp, theta* ~ -1.5e3 K).
+    for (int n = 0; n <= 400; ++n) {
+        const Real L = Real(-0.25) + Real(0.13) * Real(n) / Real(400);
+        CalmTerrainColumn col;
+        col.u.setVal<amrex::RunOn::Host>(5.0);
+        SolverChoice sc = col.choice(Real(1.e-8));
+        sc.if_z0 = Real(0.5);
+        sc.if_Olen_in = L;
+        ImmersedForcingTerrain_Scalar(col.bx, col.u.const_array(), col.v.const_array(),
+                                      col.cell.const_array(), col.blank.const_array(),
+                                      amrex::Array4<const Real>{}, col.src.array(), col.geom, sc,
+                                      amrex::Table1D<Real>{}, amrex::Table1D<Real>{}, Real(0.0));
+        ASSERT_TRUE(col.all_finite(col.bx, 2)) << "L = " << L;
+        amrex::Gpu::streamSynchronize();
+        EXPECT_LT(std::abs(col.src.const_array()(1, 1, 1, RhoTheta_comp)), Real(1.e-9)) << "L = " << L;
     }
 }
 
@@ -370,10 +346,11 @@ TEST(ImmersedWallStability, PrescribedObukhovLengthIsUsedAsGiven)
 {
     // A prescribed erf.if_Olen is not clamped to 1.5 dz / 100 (a bound that moves with the local
     // cell size); only its zeta is held within +-100. On 10 m cells that bound is 0.15 m, so
-    // L = -0.12 and -0.14 m would both run as -0.15 m if the length were clamped; used as given,
-    // zeta at 0.5 dz (-42 and -36) and theta* differ, and so does the wall-cell heat source.
+    // L = 0.12 and 0.14 m would both run as 0.15 m if the length were clamped; used as given,
+    // zeta at 0.5 dz (42 and 36) and theta* differ, and so does the wall-cell heat source. (Stable
+    // lengths: the psi_h caps never bind there; unstable ones this short close both brackets.)
     Real src[2] = {0.0, 0.0};
-    const Real lengths[2] = {Real(-0.12), Real(-0.14)};
+    const Real lengths[2] = {Real(0.12), Real(0.14)};
     for (int n = 0; n < 2; ++n) {
         CalmTerrainColumn col;
         col.u.setVal<amrex::RunOn::Host>(5.0);
@@ -386,5 +363,29 @@ TEST(ImmersedWallStability, PrescribedObukhovLengthIsUsedAsGiven)
         ASSERT_TRUE(col.all_finite(col.bx, 2));
         src[n] = col.src.const_array()(1, 1, 1, RhoTheta_comp);
     }
-    EXPECT_NE(src[0], src[1]) << "L = -0.12: " << src[0] << ", L = -0.14: " << src[1];
+    EXPECT_GT(std::abs(src[0]), Real(1.e-6)) << "L = 0.12: " << src[0];
+    EXPECT_NE(src[0], src[1]) << "L = 0.12: " << src[0] << ", L = 0.14: " << src[1];
+}
+
+TEST(ImmersedWallStability, PrescribedObukhovLengthTargetStaysNearTheAir)
+{
+    // erf.if_Olen = -0.2 m, z0 = 0.5 m, 10 m cells, 5 m/s: u* reaches the 2 m/s clamp and
+    // theta* = theta u*^2 / (kappa g L) is about -1.5e3 K. With psi_h left uncapped
+    // (psi_h = 4.7 and 5.8 against ln 10 and ln 30) the target was 160 K above the air; with the
+    // ln(z / z0) caps of the other temperature branches both log brackets close and the target is
+    // the air above.
+    CalmTerrainColumn col;
+    col.u.setVal<amrex::RunOn::Host>(5.0);
+    SolverChoice sc = col.choice(Real(1.e-8));
+    sc.if_z0 = Real(0.5);
+    sc.if_Olen_in = Real(-0.2);
+    ImmersedForcingTerrain_Scalar(col.bx, col.u.const_array(), col.v.const_array(),
+                                  col.cell.const_array(), col.blank.const_array(),
+                                  amrex::Array4<const Real>{}, col.src.array(), col.geom, sc,
+                                  amrex::Table1D<Real>{}, amrex::Table1D<Real>{}, Real(0.0));
+    ASSERT_TRUE(col.all_finite(col.bx, 2));
+    amrex::Gpu::streamSynchronize();
+    const Real drag_rho = Real(5.0) / Real(10.0) * Real(1.2);
+    const Real dT = col.src.const_array()(1, 1, 1, RhoTheta_comp) / drag_rho;
+    EXPECT_LT(std::abs(dT), Real(1.0)) << "target " << dT << " K from the air";
 }

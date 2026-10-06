@@ -3390,11 +3390,12 @@ selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 | **erf.if_surf_heating_rate**      | rate of change [K/hr] of the immersed surface            | Real               | 0.0              |
 |                                   | temperature (converted internally to K/s)                |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.if_Olen**                   | Obukhov length [m] imposed at immersed surfaces; only    | Real != 0          | 1.e-8            |
-|                                   | one of ``if_surf_temp_flux``, ``if_init_surf_temp`` and  |                    |                  |
+| **erf.if_Olen**                   | Obukhov length [m] imposed at immersed terrain; only one | Real != 0          | 1.e-8            |
+|                                   | of ``if_surf_temp_flux``, ``if_init_surf_temp`` and      |                    |                  |
 |                                   | ``if_Olen`` may be set; used as given, the wall law      |                    |                  |
 |                                   | holds :math:`|z/L| \le 100` (both heights clamp for      |                    |                  |
-|                                   | :math:`|L| < 0.005\,\Delta`)                             |                    |                  |
+|                                   | :math:`|L| < 0.005\,\Delta`); immersed buildings get no  |                    |                  |
+|                                   | temperature forcing from it                              |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_use_most**               | use the Monin-Obukhov similarity theory wall model at    | Boolean            | false            |
 |                                   | immersed surfaces                                        |                    |                  |
