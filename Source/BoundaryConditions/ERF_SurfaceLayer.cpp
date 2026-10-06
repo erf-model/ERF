@@ -4,6 +4,7 @@
 #include "ERF_Constants.H"
 #include "ERF_SurfaceLayerStress.H"
 #include "ERF_SurfaceTemperature.H"
+#include "ERF_SurfaceMoisture.H"
 #include "ERF_TerrainMetrics.H"
 
 using namespace amrex;
@@ -77,6 +78,15 @@ SurfaceLayer::update_fluxes (const int& lev,
 
     // Compute plane averages for all vars (regardless of flux type)
     m_ma.compute_averages(lev);
+
+    // The skin's surface mixing ratio over land (the two-stream balance's), relative to the
+    // reference-height mixing ratio just averaged, which the moisture flux then uses.
+    if (zlo && use_moisture &&
+        lev < static_cast<int>(m_skin_tsurf_lev.size()) && m_skin_tsurf_lev[lev] &&
+        lev < static_cast<int>(m_skin_moisture_lev.size()) && m_skin_moisture_lev[lev]) {
+        fill_qsurf_with_skin_moisture(lev, cons_in, z_phys_nd);
+        fill_planar_boundary(lev, *q_surf[lev]);
+    }
 
     // NOTE: Do iterations to seed variables on the first step (LSM called post step)
     //       as well as compute values where invalid LSM fluxes may reside
@@ -792,7 +802,7 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
                                        const MultiFab* z_phys)
 {
     if (flux_type == FluxCalcType::MOENG) {
-        amrex::Real wsmin = 0.1; // TODO: change for different faces
+        amrex::Real wsmin = most_min_wind_speed; // TODO: change for different faces
         const Box& domain = m_geom[lev].Domain();
         moeng_flux flux_comp(wsmin, m_face.isLow(),
                              domain.smallEnd(2), domain.bigEnd(2));
@@ -2397,6 +2407,142 @@ SurfaceLayer::fill_tsurf_with_skin_temperature (const int& lev,
                      "skin temperature to potential temperature (non-finite or non-positive "
                      "skin temperature, density or pressure, or a moist state without "
                      "water vapour).");
+    }
+}
+
+/**
+ * Overwrite the land surface mixing ratio with that of a surface of moisture availability
+ * beta at the external skin temperature (see the declaration). Like the skin temperature,
+ * written on the land cells of the surface slab, the halo taking the nearest valid column.
+ *
+ * @param[in] lev       Current level
+ * @param[in] cons_in   Conserved state (surface pressure and q_air from the lowest cell)
+ * @param[in] z_phys_nd Nodal heights, or nullptr on a flat mesh
+ */
+void
+SurfaceLayer::fill_qsurf_with_skin_moisture (const int& lev,
+                                             const MultiFab& cons_in,
+                                             const std::unique_ptr<MultiFab>& z_phys_nd)
+{
+    using namespace erf_surface_moisture;
+    const MultiFab& skin = *m_skin_tsurf_lev[lev];
+    const MultiFab& moisture = *m_skin_moisture_lev[lev];
+    // Indexed with the MFIter of q_surf, so the layouts must agree.
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        skin.boxArray() == q_surf[lev]->boxArray() &&
+        skin.DistributionMap() == q_surf[lev]->DistributionMap() &&
+        moisture.boxArray() == q_surf[lev]->boxArray() &&
+        moisture.DistributionMap() == q_surf[lev]->DistributionMap() &&
+        moisture.nComp() >= NumComponents,
+        "Skin temperature or moisture layout does not match the surface-layer layout.");
+
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+    const Real dz = m_geom[lev].CellSize(2);
+    const bool have_rho_qv = cons_in.nComp() > RhoQ1_comp;
+    const bool use_resistances = m_skin_moisture_resistances_lev[lev] != 0;
+    const Real hs = m_skin_moisture_hs_lev[lev];
+    const auto *const qvm_ptr  = m_ma.get_average(lev, 4); // reference-height mixing ratio
+    const auto *const umm_ptr  = m_ma.get_average(lev, 6); // horizontal velocity magnitude
+    const auto *const zref_ptr = m_ma.get_zref(lev);       // reference height
+    const similarity_funs sfuns{};
+    constexpr Real wsmin = most_min_wind_speed; // the flux kernels' WSMIN
+    amrex::Gpu::DeviceScalar<int> d_failed(0);
+    int* failed = d_failed.dataPtr();
+
+    for (MFIter mfi(*q_surf[lev]); mfi.isValid(); ++mfi)
+    {
+        Box gtbx = mfi.growntilebox();
+        if (gtbx.smallEnd(2) != klo ||
+            !m_planar_bndry[lev].is_surface_copy(mfi.index())) {
+            continue;
+        }
+        gtbx &= q_surf[lev]->fabbox(mfi.index());
+        if (gtbx.isEmpty()) { continue; }
+
+        const Box vbx = mfi.validbox();
+        const int i_lo = vbx.smallEnd(0); const int i_hi = vbx.bigEnd(0);
+        const int j_lo = vbx.smallEnd(1); const int j_hi = vbx.bigEnd(1);
+
+        auto q_surf_arr = q_surf[lev]->array(mfi);
+        auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
+                                                  Array4<int> {};
+        const auto skin_arr = skin.const_array(mfi);
+        const auto moist_arr = moisture.const_array(mfi);
+        const auto cons_arr = cons_in.const_array(mfi);
+        const auto z_arr    = (z_phys_nd) ? z_phys_nd->const_array(mfi) :
+                                            Array4<const Real> {};
+        const auto qvm_arr  = qvm_ptr->const_array(mfi);
+        const auto umm_arr  = umm_ptr->const_array(mfi);
+        const auto zref_arr = zref_ptr->const_array(mfi);
+        const auto z0_arr   = z_0[lev].const_array(mfi);
+        const auto ustar_arr = u_star[lev]->const_array(mfi);
+        const auto olen_arr = olen[lev]->const_array(mfi);
+
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            const int li = amrex::min(amrex::max(i, i_lo), i_hi);
+            const int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+            const int is_land = (lmask_arr) ? lmask_arr(li,lj,0) : 1;
+            if (!is_land) { return; }
+            if (!have_rho_qv) {
+                amrex::Gpu::Atomic::Max(failed, 1);
+                return;
+            }
+
+            // Surface pressure from the lowest cell, as for the skin temperature.
+            const Real rho = cons_arr(li,lj,klo,Rho_comp);
+            const Real qv_cell = cons_arr(li,lj,klo,RhoQ1_comp) / rho;
+            const Real delta_z = z_arr
+                ? Compute_Z_AtCellCenter(li,lj,klo,z_arr) -
+                  Compute_Z_AtWFace(li,lj,klo,z_arr)
+                : myhalf*dz;
+            const Real pressure = erf_surface_temperature::pressure_at_boundary_from_cell(
+                rho, cons_arr(li,lj,klo,RhoTheta_comp), qv_cell, delta_z);
+            const Real t_skin = skin_arr(li,lj,k);
+            const Real q_air = qvm_arr(li,lj,k);
+            if (!amrex::Math::isfinite(qv_cell) || !amrex::Math::isfinite(q_air) ||
+                !erf_surface_temperature::valid_pressure(pressure) ||
+                !erf_surface_temperature::valid_temperature(t_skin)) {
+                amrex::Gpu::Atomic::Max(failed, 1);
+                return;
+            }
+            Real q_sat = Real(0.0);
+            erf_qsatw(t_skin, pressure * Real(0.01), q_sat);
+
+            Real q_surf_value = Real(0.0);
+            if (use_resistances) {
+                // The aerodynamic resistance the moisture flux will see (the surface_temp
+                // kernel's): the last u* and Obukhov length, or neutral before the first flux.
+                // That neutral guess takes the plane-averaged wind, not the w*-enhanced wind
+                // the kernel uses with include_wstar, so on the first step of such a run in
+                // light wind it is not the kernel's r_a; it is only a first guess, and from
+                // then on u* carries the enhancement.
+                const Real r_a = surface_layer_aerodynamic_resistance(
+                    sfuns, zref_arr(li,lj,k), z0_arr(li,lj,k), ustar_arr(li,lj,k),
+                    olen_arr(li,lj,k), umm_arr(li,lj,k), wsmin, KAPPA, bogus_large_value);
+                const Real r_c = canopy_resistance(
+                    moist_arr(li,lj,k,CanopyResistanceWithoutVPD), hs, q_sat, q_air);
+                q_surf_value = two_source_surface_mixing_ratio(
+                    r_a, r_c, moist_arr(li,lj,k,SoilResistance),
+                    moist_arr(li,lj,k,VegetationFraction), q_sat,
+                    moist_arr(li,lj,k,GroundRelativeHumidity), q_air);
+            } else {
+                q_surf_value = surface_mixing_ratio(moist_arr(li,lj,k,SoilFactor), q_sat, q_air);
+            }
+            if (!amrex::Math::isfinite(q_surf_value)) {
+                amrex::Gpu::Atomic::Max(failed, 1);
+                return;
+            }
+            q_surf_arr(i,j,k) = q_surf_value;
+        });
+    }
+    amrex::Gpu::streamSynchronize();
+    int failed_host = d_failed.dataValue();
+    amrex::ParallelDescriptor::ReduceIntMax(failed_host);
+    if (failed_host != 0) {
+        amrex::Abort("SurfaceLayer fill_qsurf_with_skin_moisture: non-finite water vapour or "
+                     "surface mixing ratio, an invalid skin temperature or surface pressure, or "
+                     "a state without water vapour.");
     }
 }
 

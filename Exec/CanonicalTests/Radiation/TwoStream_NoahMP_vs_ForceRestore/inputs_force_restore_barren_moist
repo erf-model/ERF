@@ -1,0 +1,12 @@
+# Case 2 on moist bare land (run_comparison.sh --barren-moist): the barren deck with the soil at
+# 0.25 m3/m3, where the pore air is nearly saturated and Noah-MP's bare-soil resistance
+# (Sakaguchi-Zeng) sets the evaporation of both models.
+FILE = inputs_force_restore_barren
+
+# Noah-MP's bare-soil albedo falls by 0.40 x the top layer's water content (GroundAlbedoMod),
+# down to the saturated value: 0.145 at 15:00 UTC rising to 0.151 at 21:00 here as the top
+# soil dries, 0.148 weighted by the shortwave. Its emissivity stays 0.97.
+erf.radiation.surface_albedo_sw = 0.148
+
+erf.radiation.seb_q_sfc_default = 0.25
+erf.radiation.seb_q_deep_default = 0.25

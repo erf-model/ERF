@@ -39,6 +39,8 @@ if(ERF_ENABLE_TESTS)
       "${CMAKE_CURRENT_SOURCE_DIR}/check_two_stream_seb_parity.py")
   set(TWO_STREAM_SEB_FLUX_SOURCE_CHECKER
       "${CMAKE_CURRENT_SOURCE_DIR}/check_two_stream_seb_flux_source.py")
+  set(TWO_STREAM_SEB_MOISTURE_CHECKER
+      "${CMAKE_CURRENT_SOURCE_DIR}/check_two_stream_seb_moisture.py")
   set(TWO_STREAM_NOAHMP_LEVELS_CHECKER
       "${CMAKE_CURRENT_SOURCE_DIR}/check_two_stream_noahmp_levels.py")
   if(Python3_Interpreter_FOUND)

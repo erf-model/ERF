@@ -138,12 +138,20 @@ erf.radiation.seb_sw_flux_default   = 0.0      # Fallback net SW flux at surface
 erf.radiation.seb_lw_flux_default   = 0.0      # Fallback net LW flux at surface [W/m^2], used when no LSM field is available. Default: 0.0
 erf.radiation.seb_turbulent_flux_source = surface_layer  # SEB H and LE where no LSM field exists: surface_layer (the fluxes the zlo surface layer applies to the air) or defaults (the two constants below). Default: surface_layer
 erf.radiation.seb_surface_layer_uses_skin = false  # Two-way: the zlo surface layer takes its land surface temperature from the SEB skin T_s. Needs seb_prognostic_enable, seb_turbulent_flux_source = surface_layer, erf.most.surf_temp. Default: false
+erf.radiation.seb_surface_layer_uses_moisture = false  # Two-way moisture: the surface layer's land mixing ratio follows the soil water q_s (beta q_sat(T_s) + (1 - beta) q_air, or with seb_soil_type the canopy and bare-soil fluxes, the soil's from its pore-air humidity). Needs seb_surface_layer_uses_skin, a moisture model, erf.most.surf_moist. Default: false
+erf.radiation.seb_soil_moisture_wilt  = 0.066    # Wilting point [m3/m3] of beta, 0 <= wilt < fc. Only with seb_surface_layer_uses_moisture (stops at start-up otherwise). Default: 0.066 (Noah-MP loam)
+erf.radiation.seb_soil_moisture_fc    = 0.329    # Field capacity [m3/m3] of beta, wilt < fc <= 1. Only with seb_surface_layer_uses_moisture (stops at start-up otherwise). Default: 0.329 (Noah-MP loam)
+erf.radiation.seb_soil_type           = 0        # Noah-MP soil category 1-19 (not 14): wilt and fc, C_s unless given, the bare-soil resistance (vegetation or not) and the surface layer's roughness (with the skin coupling, unless erf.most.z0 is given) from NoahmpTable.TBL. Default: 0 (unset)
+erf.radiation.seb_vegetation_type     = 0        # Noah-MP MODIS land-use category 1-20, not 15-17 (no vegetation; stops at start-up): Jarvis canopy resistance on its fraction (the bare-soil resistance on the rest). Needs seb_surface_layer_uses_moisture and seb_soil_type. Default: 0 (unset)
+erf.radiation.seb_vegetation_fraction = 1.0      # Vegetated fraction [0, 1]. Only with seb_vegetation_type (stops at start-up otherwise). Default: 1.0
+erf.radiation.seb_leaf_area_index     = 2.0      # Leaf area index [m2/m2] >= 0. Only with seb_vegetation_type (stops at start-up otherwise). Default: the table's at start_datetime
+# All SEB inputs, with their equations and couplings: Exec/CanonicalTests/SEB/inputs_seb_master
 erf.radiation.seb_hfx_default       = 0.0      # Fallback sensible heat flux [W/m^2], used with seb_turbulent_flux_source = defaults or where no surface-layer flux exists. Default: 0.0
 erf.radiation.seb_lh_default        = 0.0      # Fallback latent heat flux [W/m^2], used with seb_turbulent_flux_source = defaults, or without a surface-layer flux or moisture model. Default: 0.0
 erf.radiation.seb_grdflx_default    = 0.0      # Fallback ground heat flux [W/m^2], used when no LSM field is available. Keep 0 with seb_prognostic_enable: the force-restore term already carries it. Default: 0.0
-erf.radiation.seb_q_sfc_default     = 0.0      # Fallback surface moisture [kg/kg], used when no LSM field is available. Default: 0.0
+erf.radiation.seb_q_sfc_default     = 0.0      # Fallback surface moisture and initial prognostic q_s (a volumetric soil water content [m3/m3] with seb_prognostic_enable). Default: 0.0
 erf.radiation.seb_t_deep_default    = 300.0    # Fallback deep-soil temperature [K] (force-restore reservoir target). Default: 300.0
-erf.radiation.seb_q_deep_default    = 0.0      # Fallback deep-soil moisture [kg/kg] (force-restore reservoir target). Default: 0.0
+erf.radiation.seb_q_deep_default    = 0.0      # Deep-soil moisture q_s restores to, in q_s's units. Default: 0.0 (a NOTE flags a value below the wilting point with the moisture coupling)
 
 # ==============================================================================
 # SECTION 9: SEB diagnostic mode
@@ -158,14 +166,14 @@ erf.radiation.seb_diagnostic_enable = false   # Enable diagnostic SEB residual c
 #             Only active where Noah-MP is NOT driving surface fields at that level.
 # ==============================================================================
 erf.radiation.seb_prognostic_enable             = false     # Enable prognostic T_s/q_s force-restore evolution. Requires seb_enable & seb_diagnostic_enable=true (auto-enabled if needed). Bool. Default: false
-erf.radiation.seb_surface_heat_capacity         = 2.0e4      # Effective surface heat capacity C_s [J/(m^2*K)]. Must be > 0. Default: 2.0e4
-erf.radiation.seb_restore_timescale_s           = 86400.0    # Force-restore timescale tau for T_s toward T_deep [s]. Must be > 0. Default: 86400.0 (1 day)
-erf.radiation.seb_moisture_layer_depth_m        = 0.1        # Effective surface moisture layer depth d_s [m]. Must be > 0. Default: 0.1
-erf.radiation.seb_moisture_restore_timescale_s  = 86400.0    # Force-restore timescale tau_q for q_s toward q_deep [s]. Must be > 0. Default: 86400.0 (1 day)
+erf.radiation.seb_surface_heat_capacity         = 2.0e4      # Effective surface heat capacity C_s [J/(m^2*K)]. Must be > 0 (stops at start-up otherwise). Default: 2.0e4, or from seb_soil_type when not given
+erf.radiation.seb_restore_timescale_s           = 86400.0    # Force-restore timescale tau for T_s toward T_deep [s]. Must be > 0 (stops at start-up otherwise). Default: 86400.0 (1 day)
+erf.radiation.seb_moisture_layer_depth_m        = 0.1        # Effective surface moisture layer depth d_s [m]. Must be > 0 (stops at start-up otherwise). Default: 0.1
+erf.radiation.seb_moisture_restore_timescale_s  = 86400.0    # Force-restore timescale tau_q for q_s toward q_deep [s]. Must be > 0 (stops at start-up otherwise). Default: 86400.0 (1 day)
 erf.radiation.seb_prognostic_t_min_k            = 200.0      # Lower clamp bound for prognostic T_s after each update [K]. Default: 200.0
 erf.radiation.seb_prognostic_t_max_k            = 340.0      # Upper clamp bound for prognostic T_s after each update [K]. Default: 340.0
-erf.radiation.seb_prognostic_q_min              = 0.0        # Lower clamp bound for prognostic q_s after each update [kg/kg]. Default: 0.0
-erf.radiation.seb_prognostic_q_max              = 1.0        # Upper clamp bound for prognostic q_s after each update [kg/kg]. Default: 1.0
+erf.radiation.seb_prognostic_q_min              = 0.0        # Lower clamp bound for prognostic q_s after each update (q_s's units). Default: 0.0
+erf.radiation.seb_prognostic_q_max              = 1.0        # Upper clamp bound for prognostic q_s after each update (q_s's units). Default: 1.0
 
 #------------------------------------------------------------------------------
 # End of two-stream radiation parameter reference.

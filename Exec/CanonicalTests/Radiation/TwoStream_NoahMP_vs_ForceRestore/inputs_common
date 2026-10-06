@@ -34,7 +34,6 @@ amr.v = 0
 
 zlo.type = "surface_layer"
 zhi.type = "SlipWall"
-erf.most.z0   = 0.1
 erf.most.zref = 40.0           # above the first cell centre (31.25 m)
 erf.most.pblh_calc = "MYNN25"  # boundary-layer height for the pblh output (MRF does not set it)
 

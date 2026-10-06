@@ -1,0 +1,149 @@
+#------------------------------------------------------------------------------
+# inputs_seb_master
+#
+# PURPOSE:
+#   A COMPLETE REFERENCE of every input of the two-stream radiation model's surface
+#   energy balance (SEB) -- the ground under the atmosphere, erf.radiation.seb_* -- and of
+#   the inputs outside that prefix it reads or couples to. Each line gives the default,
+#   the units, the valid range and what the input controls.
+#
+#   This file is NOT a runnable case: it has no grid, problem or time-stepping setup, and
+#   several of the settings below exclude each other. Copy the lines you need into a full
+#   inputs file. Runnable examples:
+#     Exec/CanonicalTests/Radiation/TwoStream_SEB_Diagnostic      the residual diagnostic
+#     Exec/CanonicalTests/Radiation/TwoStream_SEB_Prognostic      force-restore, one way
+#     Exec/CanonicalTests/Radiation/TwoStream_NoahMP_vs_ForceRestore
+#                                       force-restore coupled both ways (skin and soil
+#                                       moisture, Noah-MP's soil and vegetation) against
+#                                       Noah-MP on two levels
+#     Tests/test_files/TwoStream_SEBSurfaceLayerFluxes             the CTests' deck
+#
+#   The building-face energy balance of the immersed-boundary buildings (erf.ibseb.*) is a
+#   different model; the cases in this folder (Exec/CanonicalTests/SEB/*) exercise it, and
+#   its inputs are listed in Source/ImmersedBoundarySEB/ERF_IBSEBParams.H.
+#
+#   Names, types and defaults were checked against:
+#     - Source/DataStructs/ERF_RadStruct.H              (RadChoice, init_params)
+#     - Source/Radiation/TwoStream/ERF_TwoStreamRadiation.cpp
+#     - Source/Radiation/TwoStream/ERF_SimplifiedSEB.H  (the force-restore equations)
+#     - Source/BoundaryConditions/ERF_SurfaceLayer.H    (the coupling with the surface layer)
+#   Docs: Docs/sphinx_doc/theory/Radiation.rst (equations), Docs/sphinx_doc/Inputs.rst (table).
+#
+#   The balance:
+#     residual  R = SW_net + LW_net - H - LE - G
+#     skin      dT_s/dt = R / C_s - (2 pi / tau) (T_s - T_deep)
+#     moisture  dq_s/dt = -LE / (L_v rho_w d_s) - (q_s - q_deep) / tau_q
+#   (prognostic mode; q_s is then a volumetric soil water content [m3/m3] of the top d_s)
+#------------------------------------------------------------------------------
+
+erf.radiation_model = "TwoStream"            # The balance belongs to the two-stream model. Required.
+
+# ==============================================================================
+# 1. Infrastructure and fallbacks
+# ==============================================================================
+erf.radiation.seb_enable              = false   # Allocate the SEB fields. Bool. Default false. Turned on by seb_diagnostic_enable or seb_prognostic_enable.
+erf.radiation.seb_use_radiation_fluxes = false  # Net SW and LW at the ground from the sweep (where a land model does not supply them); otherwise the two defaults below. Bool. Default false. Set it for a prognostic run driven by the radiation.
+erf.radiation.seb_sw_flux_default     = 0.0     # Net shortwave at the ground [W/m2] without the above. Clamped to [-2000, 2000]. Default 0.
+erf.radiation.seb_lw_flux_default     = 0.0     # Net longwave at the ground [W/m2], positive into the ground, without the above. Clamped to [-2000, 2000]. Default 0.
+erf.radiation.seb_grdflx_default      = 0.0     # Ground heat flux G [W/m2]. Keep 0 with seb_prognostic_enable: the restoring term already carries G (a warning says so). Default 0.
+
+# ==============================================================================
+# 2. Turbulent fluxes H and LE
+# ==============================================================================
+erf.radiation.seb_turbulent_flux_source = surface_layer   # surface_layer: the fluxes the zlo surface layer applies to the air (as the sensible_heat_flux and latent_heat_flux 2D outputs), so the ground loses what the air gains; defaults: the two constants below. Case and underscores ignored. Default surface_layer.
+erf.radiation.seb_hfx_default         = 0.0     # Sensible heat flux H [W/m2] with seb_turbulent_flux_source = defaults, or without a surface-layer flux. Default 0.
+erf.radiation.seb_lh_default          = 0.0     # Latent heat flux LE [W/m2], likewise, and without a moisture model. Default 0.
+
+# ==============================================================================
+# 3. Diagnostic and prognostic modes
+# ==============================================================================
+erf.radiation.seb_diagnostic_enable   = false   # Compute and report the residual R (radiation CSV columns SEB_residual_mean/max). Bool. Default false.
+erf.radiation.seb_prognostic_enable   = false   # Evolve T_s and q_s by force-restore on every level (also turns on the two above, with a NOTE). Not with a land model that supplies the surface temperature. Bool. Default false.
+erf.rad_t_sfc                         = 300.0   # Initial skin temperature T_s [K] (and the radiation's surface temperature without another source). Required by the two-stream model, > 0.
+erf.radiation.seb_t_deep_default      = 300.0   # Deep temperature T_deep [K] the skin restores to. > 0. Default 300.
+erf.radiation.seb_surface_heat_capacity = 2.0e4 # Surface heat capacity C_s [J/m2/K], > 0 (stops at start-up otherwise). With seb_soil_type and not given: derived from the soil (section 5). Default 2.0e4.
+erf.radiation.seb_restore_timescale_s = 86400.0 # Restore period tau [s], > 0 (stops at start-up otherwise). Default 86400 (a day).
+erf.radiation.seb_q_sfc_default       = 0.0     # Initial q_s: with the prognostic balance a volumetric water content [m3/m3]. Clamped to [0, 1]. Default 0.
+erf.radiation.seb_q_deep_default      = 0.0     # q_deep q_s restores to, same units. Clamped to [0, 1]. Default 0 (with the moisture coupling a NOTE flags a value below the wilting point: it dries the soil).
+erf.radiation.seb_moisture_layer_depth_m = 0.1  # Depth d_s [m] of the soil layer q_s describes, > 0 (stops at start-up otherwise). Default 0.1.
+erf.radiation.seb_moisture_restore_timescale_s = 86400.0  # Restore period tau_q [s] of q_s, > 0 (stops at start-up otherwise). Default 86400.
+erf.radiation.seb_prognostic_t_min_k  = 200.0   # Lower clamp of T_s after each update [K]. Default 200.
+erf.radiation.seb_prognostic_t_max_k  = 340.0   # Upper clamp of T_s [K]. Default 340.
+erf.radiation.seb_prognostic_q_min    = 0.0     # Lower clamp of q_s, in [0, 1]. Default 0.
+erf.radiation.seb_prognostic_q_max    = 1.0     # Upper clamp of q_s, in [0, 1]. Default 1.
+
+# Surface properties the balance and the sweep share (a land model's values take precedence):
+erf.radiation.surface_albedo_sw       = 0.3     # Shortwave albedo, in [0, 1]. Default 0.3.
+erf.radiation.surface_albedo_sw_diffuse = -1.0  # Albedo of diffuse shortwave; < 0 uses surface_albedo_sw. Default -1.
+erf.radiation.surface_emissivity_lw   = 0.99    # Longwave emissivity, clamped to [0, 1]. Default 0.99.
+
+# ==============================================================================
+# 4. Two-way coupling with the zlo surface layer
+# ==============================================================================
+# Both options need seb_prognostic_enable, seb_turbulent_flux_source = surface_layer, a zlo
+# surface layer in surface-temperature mode (erf.most.surf_temp given, no
+# erf.most.surf_heating_rate), no EB terrain, no erf.use_rotate_surface_flux and no land or
+# surface model; ERF checks each at start-up. A level that takes its radiation from its
+# parent (a nested patch) is not coupled, with a warning.
+erf.radiation.seb_surface_layer_uses_skin = false      # The surface layer takes its land surface temperature from T_s (as a potential temperature at the surface pressure). Bool. Default false.
+erf.radiation.seb_surface_layer_uses_moisture = false  # ... and its land surface mixing ratio from the soil water q_s: beta q_sat(T_s) + (1 - beta) q_air, or with seb_soil_type the two source fluxes of section 6; the balance drains q_s by the LE it removes. Needs seb_surface_layer_uses_skin, a moisture model and erf.most.surf_moist. Bool. Default false.
+
+zlo.type           = "surface_layer"
+erf.most.z0        = 0.1       # [m] Roughness length. With the skin coupling and seb_soil_type, when not given: f_veg Z0MVT + (1 - f_veg) Z0SOIL from Noah-MP's tables (section 6; a NOTE prints the value used).
+erf.most.surf_temp = 300.0     # [K] Surface-temperature mode; with the skin coupling only the initial value and the value over water. Must equal the sounding's surface theta.
+erf.most.surf_moist = 0.010    # [kg/kg] Surface-moisture mode; with the moisture coupling only the initial value and the value over water (qsat there). Must equal the sounding's surface qv.
+
+# ==============================================================================
+# 5. Soil (seb_surface_layer_uses_moisture)
+# ==============================================================================
+# beta_soil = clamp((q_s - wilt) / (fc - wilt), 0, 1). Without seb_soil_type it is beta: the
+# surface evaporates at the potential rate at or above field capacity and not at all at or
+# below the wilting point. With seb_soil_type, beta comes from the resistances of section 6
+# instead (vegetation or not), and beta_soil enters only the canopy resistance.
+erf.radiation.seb_soil_moisture_wilt  = 0.066   # Wilting point [m3/m3], 0 <= wilt < fc; beta_soil = 0 at or below it. Only with seb_surface_layer_uses_moisture (stops at start-up otherwise). Default 0.066 (Noah-MP's loam).
+erf.radiation.seb_soil_moisture_fc    = 0.329   # Field capacity [m3/m3], wilt < fc <= 1; beta_soil = 1 at or above it. Only with seb_surface_layer_uses_moisture (stops at start-up otherwise). Default 0.329 (Noah-MP's loam).
+erf.radiation.seb_soil_type           = 0       # A Noah-MP soil category, 1-19 (STAS, NoahmpTable.TBL; not 14, water), or 0. Sets wilt and fc to the category's WLTSMC and REFSMC (giving those as well stops at start-up), and C_s = sqrt(lambda c tau / pi) / 2 from the category's heat capacity and Johansen conductivity at seb_q_sfc_default unless seb_surface_heat_capacity is given (a NOTE prints both). Default 0.
+#   STAS categories: 1 sand, 2 loamy sand, 3 sandy loam, 4 silt loam, 5 silt, 6 loam,
+#   7 sandy clay loam, 8 silty clay loam, 9 clay loam, 10 sandy clay, 11 silty clay,
+#   12 clay, 13 organic material, 14 water, 15 bedrock, 16 land ice, 17 playa, 18 lava,
+#   19 white sand. Values: Source/Radiation/TwoStream/ERF_NoahMPSoilTable.H, with Noah-MP's
+#   bare-soil roughness Z0SOIL = 0.002 m and soil heat capacity CSOIL_DATA.
+
+# ==============================================================================
+# 6. Resistances (seb_surface_layer_uses_moisture with seb_soil_type) and vegetation
+# ==============================================================================
+# q_surf = q_air + r_a [ f_veg (q_sat - q_air)/(r_a + r_c)
+#                        + (1 - f_veg) (RH_g q_sat - q_air)/(r_a + r_soil) ], f_veg = 0 without a
+# vegetation type, with the aerodynamic resistance r_a of the surface layer's moisture flux
+# (Jimenez psi_h, limited as its kernel); Noah's big-leaf Jarvis canopy resistance r_c on the
+# parameters of Noah-MP's option 2 (RS, RGL, HS, TOPT, RSMAX of the category), the leaf
+# area index, the net shortwave the balance holds over (1 - albedo), T_s, the vapour
+# deficit and beta_soil; and Noah-MP's bare-soil resistance r_soil (option 1, Sakaguchi and
+# Zeng) on seb_soil_type, with the pore air's relative humidity RH_g = exp(psi g / (R_v T_s)),
+# psi = -SATPSI (q_s / theta_sat)^-b: near 0 at the wilting point, where the bare soil does
+# not evaporate (it may take up vapour).
+# q_s is one top layer: transpiration drains it too, where Noah-MP uses the root zone.
+erf.radiation.seb_vegetation_type     = 0       # A Noah-MP land-use category, 1-20 except 15-17 (snow and ice, barren, water: no vegetation; stops at start-up) (modified IGBP MODIS), or 0 for bare soil (f_veg = 0). Default 0.
+erf.radiation.seb_vegetation_fraction = 1.0     # Vegetated fraction f_veg, in [0, 1]. Only with seb_vegetation_type (stops at start-up otherwise). Default 1.
+erf.radiation.seb_leaf_area_index     = 2.0     # Leaf area index [m2/m2], >= 0, fixed for the run; only with seb_vegetation_type (stops at start-up otherwise). Default: the category's monthly LAI interpolated to start_datetime as Noah-MP does, shifted half a year when erf.rad_cons_lat < 0 (a NOTE prints it); without start_datetime it must be given.
+#   MODIS categories: 1 evergreen needleleaf forest, 2 evergreen broadleaf forest,
+#   3 deciduous needleleaf forest, 4 deciduous broadleaf forest, 5 mixed forests,
+#   6 closed shrublands, 7 open shrublands, 8 woody savannas, 9 savannas, 10 grasslands,
+#   11 permanent wetlands, 12 croplands, 13 urban, 14 cropland/natural mosaic,
+#   15 snow and ice, 16 barren, 17 water, 18 wooded tundra, 19 mixed tundra,
+#   20 barren tundra. Values (RS, RGL, HS, TOPT, RSMAX, roughness Z0MVT, monthly LAI):
+#   Source/Radiation/TwoStream/ERF_NoahMPVegetationTable.H.
+
+# ==============================================================================
+# 7. Outputs
+# ==============================================================================
+erf.plot2d_vars_1 = seb_t_sfc seb_q_sfc seb_hfx seb_lh t_surf q_surf sensible_heat_flux latent_heat_flux
+#   seb_t_sfc, seb_q_sfc  the balance's T_s [K] and q_s
+#   seb_hfx, seb_lh       the H and LE [W/m2] the balance removed
+#   t_surf, q_surf        the surface layer's surface potential temperature and mixing ratio
+#   sensible_heat_flux, latent_heat_flux   what the surface layer applies to the air [W/m2]
+erf.radiation.diag_enable     = true            # Write the radiation CSV (domain means per level and call):
+erf.radiation.diag_csv_enable = true            #   SW_surface, LW_net_surface (up - down), SEB_residual_mean/max, T_s_mean/max, q_s_mean/max.
+erf.radiation.diag_file       = "radiation_diag.dat"
+# The balance's T_s and q_s are checkpointed (TwoStream_TSfc, TwoStream_QSfc) and averaged
+# down from finer levels that sweep their own columns.
