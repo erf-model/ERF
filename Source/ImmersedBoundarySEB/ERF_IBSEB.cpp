@@ -208,9 +208,10 @@ ERF::ibseb_check_refined_levels () const
                   + std::to_string(lev-1) + where.str() + " lie on the edge of level " + std::to_string(lev)
                   + " or within one level-" + std::to_string(lev-1) + " cell of it. Each level builds its"
                     " faces from its own cells, so a building must lie wholly inside a refined level, with at"
-                    " least one cell of the level below around it, or wholly outside it. Make the refined box with"
-                    " Exec/CanonicalTests/SEB/ibseb_refinement_box.py, which checks a deck's erf.<name>.in_box_lo /"
-                    " in_box_hi against its height map and proposes one that no building crosses.");
+                    " least one cell of the level below around it, or wholly outside it. To fix the refined box, run"
+                    " `python3 Exec/CanonicalTests/SEB/ibseb_refinement_box.py <inputs>`: it checks the deck's"
+                    " erf.<name>.in_box_lo / in_box_hi against the height map and prints a box that no building"
+                    " crosses (or `... <inputs> --all --fit tight|relaxed` for a box around every building).");
         }
     }
 }

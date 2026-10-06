@@ -244,9 +244,10 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
             os << "erf.ibseb: level " << m_lev << " has " << n_out_all
                << " cells next to solid cells outside its grids";
             if (n_outside > 0) { os << " (the first on this rank at cell " << first_outside << ")"; }
-            os << ": a building crosses the edge of the refined level. Make the refined box with"
-                  " Exec/CanonicalTests/SEB/ibseb_refinement_box.py, which keeps every building wholly inside"
-                  " or wholly outside it.";
+            os << ": a building crosses the edge of the refined level. To fix the refined box, run"
+                  " `python3 Exec/CanonicalTests/SEB/ibseb_refinement_box.py <inputs>`: it checks the deck's"
+                  " erf.<name>.in_box_lo / in_box_hi against the height map and prints a box that no building"
+                  " crosses (or `... <inputs> --all --fit tight|relaxed` for a box around every building).";
             Abort(os.str());
         }
     }
