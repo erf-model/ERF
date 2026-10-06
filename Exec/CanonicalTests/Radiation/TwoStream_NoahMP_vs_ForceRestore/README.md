@@ -73,24 +73,41 @@ vs force-restore:
 
 | Grassland | 18:50 UTC (3.8 h, Noah-MP's peak H) | 21:00 UTC (6 h) |
 |---|---|---|
-| Absorbed shortwave [W/m²] | 780.6 vs 771.5 | 633.7 vs 636.8 |
-| Net longwave, down [W/m²] | -92.7 vs -82.2 | -89.0 vs -80.3 |
+| Absorbed shortwave [W/m²] | 780.6 vs 771.6 | 633.7 vs 636.8 |
+| Net longwave, down [W/m²] | -92.7 vs -82.2 | -89.0 vs -80.4 |
 | Skin temperature [K] | 307.8 vs 306.1 | 308.0 vs 306.6 |
-| H [W/m²] | 115.9 vs 128.5 | 79.4 vs 77.4 |
-| LE [W/m²] | 377.9 vs 397.9 | 348.9 vs 354.7 |
-| PBL height [m] | 958 vs 943 | 1152 vs 1156 |
+| H [W/m²] | 115.9 vs 128.7 | 79.4 vs 77.5 |
+| LE [W/m²] | 377.9 vs 397.7 | 348.9 vs 354.4 |
+| PBL height [m] | 958 vs 944 | 1152 vs 1156 |
 
 | Barren | 19:10 UTC (4.2 h, Noah-MP's peak H) | 21:00 UTC (6 h) |
 |---|---|---|
 | Absorbed shortwave [W/m²] | 779.0 vs 778.4 | 647.4 vs 647.3 |
-| Net longwave, down [W/m²] | -208.7 vs -196.3 | -196.5 vs -185.9 |
-| Skin temperature [K] | 326.6 vs 324.6 | 326.4 vs 324.6 |
-| H [W/m²] | 364.0 vs 343.2 | 308.8 vs 288.4 |
-| LE [W/m²] | -4.1 vs 0.0 | -3.8 vs 0.0 |
-| PBL height [m] | 1477 vs 1401 | 1809 vs 1720 |
+| Net longwave, down [W/m²] | -208.7 vs -197.0 | -196.5 vs -186.4 |
+| Skin temperature [K] | 326.6 vs 324.7 | 326.4 vs 324.7 |
+| H [W/m²] | 364.0 vs 345.1 | 308.8 vs 293.0 |
+| LE [W/m²] | -4.1 vs -3.4 | -3.8 vs -3.2 |
+| PBL height [m] | 1477 vs 1406 | 1809 vs 1713 |
 
-On both surfaces the force-restore balance comes within about 2 K of Noah-MP's skin, 10-15 %
-of its H and LE, and 5 % of its boundary-layer depth. Two choices decide that, and both now
+At the wilting point both bare soils take up a little vapour (LE of -3 to -4 W/m²): the
+pore air is nearly dry (relative humidity about 0.005), so the bare-soil evaporation follows
+Noah-MP's pore-air humidity, not only its resistance.
+
+| Moist barren | 19:10 UTC (4.2 h, Noah-MP's peak H) | 21:00 UTC (6 h) |
+|---|---|---|
+| Absorbed shortwave [W/m²] | 825.1 vs 825.9 | 684.4 vs 686.8 |
+| Net longwave, down [W/m²] | -157.8 vs -146.4 | -150.1 vs -138.9 |
+| Skin temperature [K] | 318.7 vs 316.9 | 318.7 vs 316.7 |
+| H [W/m²] | 233.5 vs 212.3 | 195.4 vs 174.0 |
+| LE [W/m²] | 205.0 vs 205.9 | 182.9 vs 184.8 |
+| PBL height [m] | 1201 vs 1165 | 1494 vs 1410 |
+
+At 0.25 m3/m3 the pore air is nearly saturated and the bare-soil resistances set the
+evaporation: the two LE agree within 1 %. The force-restore skin is 2 K cooler and its H
+about 10 % lower, as on the other surfaces.
+
+On all three surfaces the force-restore balance comes within about 2 K of Noah-MP's skin,
+10-15 % of its H and LE, and about 5 % of its boundary-layer depth. Two choices decide that, and both now
 come from Noah-MP's tables:
 
 - **The evaporation.** The tables above compare against Noah-MP with Jarvis stomata
@@ -118,7 +135,7 @@ come from Noah-MP's tables:
   canopy model, not with every Noah-MP configuration.
 - **The roughness.** Over bare soil, with the 0.1 m of the earlier decks, the balance's
   surface sheds its heat far more easily than Noah-MP's 0.002 m soil: a skin 10.7 K cooler and
-  30 % more H at the peak. With the tables' roughness the difference is 2 K and 6 %.
+  30 % more H at the peak. With the tables' roughness the difference is about 2 K and 5 %.
 
 The balance has the Jarvis form only, which is why this case runs Noah-MP with option 2.
 
@@ -128,6 +145,7 @@ against 2.23 at the start.
 
 Within each model, level 1 tracks level 0 (the land is uniform). On grass the two differ by
 at most about 5 W/m² in H and LE and 0.2 K in the skin. On bare soil the skins stay within 0.5 K,
-but H differs by up to 9 W/m² (Noah-MP) and 44 W/m² (force-restore) at moments in the
+but H differs by up to 9 W/m² (Noah-MP) and 36 W/m² (force-restore) at moments in the
 afternoon; by the end of the run every difference is under 5 W/m², so the levels do not
-drift apart.
+drift apart. On moist bare soil Noah-MP's levels differ by up to 14 W/m² in H (8 W/m² at the
+end) and the force-restore levels by under 4 W/m².
