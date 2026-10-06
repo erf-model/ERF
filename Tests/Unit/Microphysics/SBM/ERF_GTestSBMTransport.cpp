@@ -95,6 +95,8 @@ struct RunOptions
     bool smooth_profile{false};
     bool complex_profile{false};
     bool adversarial_one_moment_profile{false};
+    bool canonical_upper_edge_profile{false};
+    int canonical_upper_edge_seed{0};
     bool multidirectional_carrier{false};
     bool compare_native_candidate{false};
     bool compare_direct_moment_candidate{false};
@@ -103,6 +105,7 @@ struct RunOptions
     bool anelastic_heun{false};
     bool mapped_geometry{false};
     bool advance_all_rk3_stages{false};
+    int completed_steps{1};
     bool amplify_corrector_input{false};
     bool distinct_density_roles{false};
     Real rho_anchor_slope{Real(0.0)};
@@ -115,7 +118,35 @@ struct RunSummary
     std::vector<Real> inventory;
     std::vector<Real> weighted_inventory;
     std::vector<Real> squared_inventory;
+    Real minimum_interior_upper_gap_fraction{std::numeric_limits<Real>::max()};
+    Real minimum_interior_number{std::numeric_limits<Real>::max()};
+    Real native_candidate_interior_upper_gap_fraction{
+        std::numeric_limits<Real>::max()};
 };
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real
+canonical_upper_edge_probe_low_endpoint (const int index,
+                                         const int seed) noexcept
+{
+    const unsigned int hash =
+        (static_cast<unsigned int>(index + 1) * 1664525u) +
+        (static_cast<unsigned int>(seed + 1) * 1013904223u);
+    const int level = static_cast<int>((hash >> 16) & 7u);
+    int multiplier = 1;
+    switch (level) {
+    case 0: multiplier = 1; break;
+    case 1: multiplier = 2; break;
+    case 2: multiplier = 4; break;
+    case 3: multiplier = 8; break;
+    case 4: multiplier = 16; break;
+    case 5: multiplier = 32; break;
+    case 6: multiplier = 64; break;
+    default: multiplier = 128; break;
+    }
+    const Real eta =
+        Real(128.0) * std::numeric_limits<Real>::epsilon();
+    return Real(3.0) * eta * Real(0.01) * static_cast<Real>(multiplier);
+}
 
 std::unique_ptr<MultiFab>
 make_native_candidate (const erf_sbm::SBMLayout& layout,
@@ -453,6 +484,28 @@ mapped_inventory (const MultiFab& state,
     return product.sum(0);
 }
 
+Real
+minimum_normalized_upper_gap (const MultiFab& state,
+                              const int mass_component,
+                              const int number_component,
+                              const Real upper_edge)
+{
+    MultiFab gap(state.boxArray(), state.DistributionMap(), 1, 0);
+    for (amrex::MFIter mfi(gap); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.validbox();
+        const auto values = state.const_array(mfi);
+        const auto out = gap.array(mfi);
+        amrex::ParallelFor(
+            bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                const Real mass = values(i, j, k, mass_component);
+                const Real number = values(i, j, k, number_component);
+                out(i, j, k, 0) =
+                    (upper_edge * number - mass) / (upper_edge * number + mass);
+            });
+    }
+    return gap.min(0);
+}
+
 RunSummary
 run_transport (const RunOptions& options)
 {
@@ -561,6 +614,8 @@ run_transport (const RunOptions& options)
     const int mass1 = mass0 + 1;
     const int number0 = population.number_offset;
     const int number1 = number0 < 0 ? -1 : number0 + 1;
+    const Real lower_edge0 = population.grid.edges()[0];
+    const Real upper_edge0 = population.grid.edges()[1];
     const int property0 = options.attached_property
                               ? state_manager.layout().property_offset(0)
                               : -1;
@@ -575,6 +630,10 @@ run_transport (const RunOptions& options)
         const bool complex_profile = options.complex_profile;
         const bool adversarial_one_moment_profile =
             options.adversarial_one_moment_profile;
+        const bool canonical_upper_edge_profile =
+            options.canonical_upper_edge_profile;
+        const int canonical_upper_edge_seed =
+            options.canonical_upper_edge_seed;
         const bool noncanonical_shared_edge = options.noncanonical_shared_edge;
         amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j,
                                                     int k) noexcept {
@@ -589,6 +648,29 @@ run_transport (const RunOptions& options)
                     const Real number = Real(0.01);
                     state(i, j, k, mass0) = density * Real(0.5) * number;
                     state(i, j, k, number0) = density * number;
+                    return;
+                }
+                if (canonical_upper_edge_profile) {
+                    const Real low_endpoint =
+                        canonical_upper_edge_probe_low_endpoint(
+                            i, canonical_upper_edge_seed);
+                    const Real high_endpoint = Real(0.01);
+                    const Real number_bin0 = low_endpoint + high_endpoint;
+                    const Real mass_bin0 = lower_edge0 * low_endpoint +
+                                           upper_edge0 * high_endpoint;
+                    const Real number_bin1 = Real(0.02);
+                    const Real mass_bin1 =
+                        Real(0.75) * number_bin1;
+                    state(i, j, k, mass0) = density * mass_bin0;
+                    state(i, j, k, number0) = density * number_bin0;
+                    state(i, j, k, mass1) = density * mass_bin1;
+                    state(i, j, k, number1) = density * number_bin1;
+                    if (has_property) {
+                        state(i, j, k, property0) =
+                            density * number_bin0 * Real(0.25);
+                        state(i, j, k, property0 + 1) =
+                            density * number_bin1 * Real(0.25);
+                    }
                     return;
                 }
                 const Real n0 =
@@ -687,6 +769,13 @@ run_transport (const RunOptions& options)
     }
     MultiFab initial(ba, dm, layout.ncomp(), 0);
     MultiFab::Copy(initial, spectrum, 0, 0, layout.ncomp(), 0);
+    if (options.canonical_upper_edge_profile &&
+        !erf_sbm::authoritative_state_admissible(initial, layout, 0,
+                                                  &diagnostic)) {
+        ADD_FAILURE() << "canonical edge probe starts inadmissible: "
+                      << diagnostic;
+        return {};
+    }
 
     MultiFab avg_xmom(amrex::convert(ba, IntVect::TheDimensionVector(0)), dm, 1,
                       0);
@@ -706,6 +795,13 @@ run_transport (const RunOptions& options)
         native_candidate = make_native_candidate(
             layout, initial, conserved_input, avg_xmom, avg_ymom, avg_zmom,
             transport.static_measure(0), geom, dt);
+    }
+    Real native_candidate_interior_upper_gap_fraction =
+        std::numeric_limits<Real>::max();
+    if (options.canonical_upper_edge_profile && native_candidate) {
+        native_candidate_interior_upper_gap_fraction =
+            minimum_normalized_upper_gap(*native_candidate, mass0, number0,
+                                         upper_edge0);
     }
     if (options.adversarial_one_moment_profile) {
         if (options.mode != erf_sbm::MomentMode::OneMoment ||
@@ -750,6 +846,30 @@ run_transport (const RunOptions& options)
                                                  &diagnostic)) {
         ADD_FAILURE() << diagnostic;
         return {};
+    }
+    Real minimum_interior_upper_gap_fraction =
+        std::numeric_limits<Real>::max();
+    Real minimum_interior_number = std::numeric_limits<Real>::max();
+    if (options.canonical_upper_edge_profile) {
+        MultiFab canonical_metrics(ba, dm, 2, 0);
+        for (amrex::MFIter mfi(canonical_metrics); mfi.isValid(); ++mfi) {
+            const Box bx = mfi.validbox();
+            const auto state = final_state.const_array(mfi);
+            const auto metrics = canonical_metrics.array(mfi);
+            const Real upper = upper_edge0;
+            const int mass_component = mass0;
+            const int number_component = number0;
+            amrex::ParallelFor(
+                bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    const Real mass = state(i, j, k, mass_component);
+                    const Real number = state(i, j, k, number_component);
+                    const Real scale = upper * number + mass;
+                    metrics(i, j, k, 0) = (upper * number - mass) / scale;
+                    metrics(i, j, k, 1) = number;
+                });
+        }
+        minimum_interior_upper_gap_fraction = canonical_metrics.min(0);
+        minimum_interior_number = canonical_metrics.min(1);
     }
     EXPECT_TRUE(transport.projected_ledger(0).step_active());
     EXPECT_EQ(transport.projected_ledger(0).next_stage(), 1);
@@ -899,28 +1019,60 @@ run_transport (const RunOptions& options)
     }
 
     if (options.advance_all_rk3_stages) {
-        if (options.amplify_corrector_input) {
-            for (amrex::MFIter mfi(spectrum); mfi.isValid(); ++mfi) {
-                const Box bx = mfi.validbox();
-                const auto state = spectrum.array(mfi);
-                const int ncomp = layout.ncomp();
-                amrex::ParallelFor(
-                    bx, ncomp,
-                    [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
-                        state(i, j, k, n) *= Real(10.0);
-                    });
+        if (options.completed_steps < 1) {
+            ADD_FAILURE() << "RK3 transport test requires at least one step";
+            return {};
+        }
+        for (int step = 0; step < options.completed_steps; ++step) {
+            const double step_old_time = static_cast<double>(step) * dt;
+            const double step_new_time = step_old_time + dt;
+            if (step > 0) {
+                transport.advance_stage_from_host(
+                    0, erf_auxiliary::HostIntegrator::CompressibleRK3, 0,
+                    step_old_time, step_old_time, step_new_time, dt,
+                    state_manager, conserved_anchor, conserved_input,
+                    conserved_target, avg_xmom, avg_ymom, avg_zmom, geom, 1,
+                    2);
+            }
+            if (step == 0 && options.amplify_corrector_input) {
+                for (amrex::MFIter mfi(spectrum); mfi.isValid(); ++mfi) {
+                    const Box bx = mfi.validbox();
+                    const auto state = spectrum.array(mfi);
+                    const int ncomp = layout.ncomp();
+                    amrex::ParallelFor(
+                        bx, ncomp,
+                        [=] AMREX_GPU_DEVICE(int i, int j, int k,
+                                             int n) noexcept {
+                            state(i, j, k, n) *= Real(10.0);
+                        });
+                }
+            }
+            transport.advance_stage_from_host(
+                0, erf_auxiliary::HostIntegrator::CompressibleRK3, 1,
+                step_old_time, step_new_time, step_new_time, dt, state_manager,
+                conserved_anchor, conserved_input, conserved_target, avg_xmom,
+                avg_ymom, avg_zmom, geom, 1, 2);
+            transport.advance_stage_from_host(
+                0, erf_auxiliary::HostIntegrator::CompressibleRK3, 2,
+                step_old_time, step_new_time, step_new_time, dt, state_manager,
+                conserved_anchor, conserved_input, conserved_target, avg_xmom,
+                avg_ymom, avg_zmom, geom, 1, 2);
+            EXPECT_TRUE(transport.projected_ledger(0).step_complete());
+            EXPECT_EQ(transport.projected_ledger(0).next_stage(), 3);
+            EXPECT_TRUE(spectrum.is_finite(0, spectrum.nComp(), 0));
+            diagnostic.clear();
+            EXPECT_TRUE(erf_sbm::authoritative_state_admissible(
+                spectrum, layout, 0, &diagnostic))
+                << "after completed step " << step << ": " << diagnostic;
+            for (int component = 0; component < layout.ncomp(); ++component) {
+                EXPECT_NEAR(spectrum.sum(component), initial.sum(component),
+                            Real(512.0) *
+                                std::numeric_limits<Real>::epsilon() *
+                                std::max(std::abs(initial.sum(component)),
+                                         std::numeric_limits<Real>::min()))
+                    << "component=" << component << " step=" << step;
             }
         }
-        transport.advance_stage_from_host(
-            0, erf_auxiliary::HostIntegrator::CompressibleRK3, 1, 0.0, dt, dt,
-            dt, state_manager, conserved_anchor, conserved_input,
-            conserved_target, avg_xmom, avg_ymom, avg_zmom, geom, 1, 2);
-        transport.advance_stage_from_host(
-            0, erf_auxiliary::HostIntegrator::CompressibleRK3, 2, 0.0, dt, dt,
-            dt, state_manager, conserved_anchor, conserved_input,
-            conserved_target, avg_xmom, avg_ymom, avg_zmom, geom, 1, 2);
-        EXPECT_TRUE(transport.projected_ledger(0).step_complete());
-        EXPECT_EQ(transport.projected_ledger(0).next_stage(), 3);
     }
 
     MultiFab expected_core(ba, dm, 3, 0);
@@ -999,6 +1151,11 @@ run_transport (const RunOptions& options)
             });
     }
     RunSummary summary;
+    summary.minimum_interior_upper_gap_fraction =
+        minimum_interior_upper_gap_fraction;
+    summary.minimum_interior_number = minimum_interior_number;
+    summary.native_candidate_interior_upper_gap_fraction =
+        native_candidate_interior_upper_gap_fraction;
     for (int component = 0; component < layout.ncomp(); ++component) {
         summary.inventory.push_back(final_state.sum(component));
         summary.weighted_inventory.push_back(fingerprints.sum(component));
@@ -1588,13 +1745,15 @@ TEST(SBMTransport, CompleteGroupChunkPoliciesAreInvariant)
 {
     RunOptions one_group_options;
     one_group_options.mode = erf_sbm::MomentMode::TwoMoment;
-    one_group_options.discontinuity = true;
+    one_group_options.canonical_upper_edge_profile = true;
+    one_group_options.canonical_upper_edge_seed = 2;
     one_group_options.attached_property = true;
-    one_group_options.complex_profile = true;
     one_group_options.carrier_x = Real(0.2);
     one_group_options.multidirectional_carrier = true;
     one_group_options.max_groups_per_chunk = 1;
     one_group_options.dt = 0.3;
+    one_group_options.compare_native_candidate = true;
+    one_group_options.expect_limiter_active = true;
     RunOptions many_groups_options = one_group_options;
     many_groups_options.max_groups_per_chunk = 16;
     const auto one_group = run_transport(one_group_options);
@@ -1677,6 +1836,60 @@ TEST(SBMTransport, TwoMomentAtomicGroupLimiterRestrictsNativeProposal)
     run_transport(options);
 }
 
+TEST(SBMTransport, InteriorTwoMomentCanonicalReserveLimitsClosedEdgeSaturation)
+{
+    constexpr Real cells_per_unit_length = Real(8.0);
+    constexpr int seed = 2;
+    constexpr Real carrier = Real(0.2);
+    constexpr Real timestep = Real(0.55);
+    const Real courant = carrier * timestep * cells_per_unit_length;
+    ASSERT_LT(courant, Real(1.0));
+    // With constant density and unit mapped measure, donor low order is a
+    // convex combination of positive endpoint counts and remains canonical.
+    for (int i = 0; i < 8; ++i) {
+        const Real current = canonical_upper_edge_probe_low_endpoint(i, seed);
+        const Real donor =
+            canonical_upper_edge_probe_low_endpoint(i - 1, seed);
+        const Real donor_low = (Real(1.0) - courant) * current +
+                               courant * donor;
+        EXPECT_GT(donor_low, Real(0.0)) << "cell=" << i;
+    }
+
+    RunOptions options;
+    options.mode = erf_sbm::MomentMode::TwoMoment;
+    options.canonical_upper_edge_profile = true;
+    options.canonical_upper_edge_seed = seed;
+    options.attached_property = true;
+    options.carrier_x = carrier;
+    options.dt = timestep;
+    options.compare_native_candidate = true;
+    options.expect_limiter_active = true;
+    const auto summary = run_transport(options);
+    const Real eta =
+        Real(128.0) * std::numeric_limits<Real>::epsilon();
+    EXPECT_LT(summary.native_candidate_interior_upper_gap_fraction, Real(0.0));
+    EXPECT_GT(summary.minimum_interior_number, Real(0.0));
+    EXPECT_GT(summary.minimum_interior_upper_gap_fraction, Real(0.0));
+    EXPECT_GE(summary.minimum_interior_upper_gap_fraction, eta * Real(0.5));
+}
+
+TEST(SBMTransport, RepeatedNonuniformTwoMomentTransportStaysCanonical)
+{
+    RunOptions options;
+    options.mode = erf_sbm::MomentMode::TwoMoment;
+    options.canonical_upper_edge_profile = true;
+    options.canonical_upper_edge_seed = 2;
+    options.attached_property = true;
+    options.carrier_x = Real(0.2);
+    options.dt = 0.15;
+    options.advance_all_rk3_stages = true;
+    options.completed_steps = 3;
+    options.max_groups_per_chunk = 1;
+    options.expect_limiter_active = true;
+    options.compare_native_candidate = true;
+    run_transport(options);
+}
+
 TEST(SBMTransport, HeunLimiterUsesFullDtTrialWhenActive)
 {
     RunOptions options;
@@ -1708,6 +1921,44 @@ TEST(SBMTransport, CanonicalGateRejectsClosedLinearSharedEdge)
         candidate, layout, 0, &diagnostic));
     EXPECT_NE(diagnostic.find("constraint=canonical-two-moment-bin-state"),
               std::string::npos);
+}
+
+TEST(SBMTransport, CanonicalAdmissionAllowsFinalGlobalUpperEdge)
+{
+    const auto layout = make_layout(erf_sbm::MomentMode::TwoMoment);
+    const Box domain(IntVect(0, 0, 0), IntVect(0, 0, 0));
+    const BoxArray ba(domain);
+    const DistributionMapping dm(ba);
+    MultiFab candidate(ba, dm, layout.ncomp(), 0);
+    candidate.setVal(Real(0.0));
+    const auto& population = layout.populations().front();
+    const Real number = Real(0.01);
+    candidate.setVal(number, population.number_offset + 1, 1, 0);
+    candidate.setVal(population.grid.edges().back() * number,
+                     population.mass_offset + 1, 1, 0);
+    std::string diagnostic;
+    EXPECT_TRUE(erf_sbm::authoritative_state_admissible(
+        candidate, layout, 0, &diagnostic))
+        << diagnostic;
+}
+
+TEST(SBMTransport, CanonicalAdmissionAllowsInteriorLowerEdge)
+{
+    const auto layout = make_layout(erf_sbm::MomentMode::TwoMoment);
+    const Box domain(IntVect(0, 0, 0), IntVect(0, 0, 0));
+    const BoxArray ba(domain);
+    const DistributionMapping dm(ba);
+    MultiFab candidate(ba, dm, layout.ncomp(), 0);
+    candidate.setVal(Real(0.0));
+    const auto& population = layout.populations().front();
+    const Real number = Real(0.01);
+    candidate.setVal(number, population.number_offset, 1, 0);
+    candidate.setVal(population.grid.edges().front() * number,
+                     population.mass_offset, 1, 0);
+    std::string diagnostic;
+    EXPECT_TRUE(erf_sbm::authoritative_state_admissible(
+        candidate, layout, 0, &diagnostic))
+        << diagnostic;
 }
 
 TEST(SBMTransport, PhysicalAdvectionFacePolicyIsFailClosedAndAtomic)

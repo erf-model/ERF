@@ -37,6 +37,11 @@ struct DeviceGroupInfo
     int local_group_index{0};
     int ratio_count{0};
     int ratio_offset{0};
+    int canonical_reserve{0};
+    int canonical_mass_local{-1};
+    int canonical_number_local{-1};
+    Real canonical_mass_coefficient{Real(0.0)};
+    Real canonical_number_coefficient{Real(0.0)};
 };
 
 struct LocalPropertySupport
@@ -117,6 +122,35 @@ face_correction (const erf_sbm::ConstraintDescriptor& descriptor,
                               low[dir](fi, fj, fk, term.component),
                           g_flux);
     }
+    const Real outward_sign = side > 0 ? Real(1.0) : Real(-1.0);
+    return -outward_sign * tau * dx_inv[dir] * g_flux;
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real
+canonical_reserve_face_correction (const int mass_component,
+                                   const int number_component,
+                                   const Real mass_coefficient,
+                                   const Real number_coefficient,
+                                   const FaceArraySet& low,
+                                   const FaceArraySet& high,
+                                   const int i,
+                                   const int j,
+                                   const int k,
+                                   const int dir,
+                                   const int side,
+                                   const Real tau,
+                                   const GpuArray<Real, AMREX_SPACEDIM>& dx_inv)
+    noexcept
+{
+    const int fi = i + (dir == 0 && side > 0 ? 1 : 0);
+    const int fj = j + (dir == 1 && side > 0 ? 1 : 0);
+    const int fk = k + (dir == 2 && side > 0 ? 1 : 0);
+    const Real dmass = high[dir](fi, fj, fk, mass_component) -
+                       low[dir](fi, fj, fk, mass_component);
+    const Real dnumber = high[dir](fi, fj, fk, number_component) -
+                         low[dir](fi, fj, fk, number_component);
+    const Real g_flux = std::fma(mass_coefficient, dmass,
+                                number_coefficient * dnumber);
     const Real outward_sign = side > 0 ? Real(1.0) : Real(-1.0);
     return -outward_sign * tau * dx_inv[dir] * g_flux;
 }
@@ -274,6 +308,8 @@ SBMTransport::SBMTransport (const SBMLayout& layout,
         for (std::size_t local_group = 0;
              local_group < chunk.group_indices.size(); ++local_group) {
             const int group_index = chunk.group_indices[local_group];
+            const auto& group =
+                m_groups[static_cast<std::size_t>(group_index)];
             group_chunk[static_cast<std::size_t>(group_index)] =
                 static_cast<int>(chunk_index);
             group_local[static_cast<std::size_t>(group_index)] =
@@ -340,8 +376,49 @@ SBMTransport::SBMTransport (const SBMLayout& layout,
                 local_supports.push_back(local_support);
                 ++device_group.support_count;
             }
+            // Keep the strict persisted upper edge open during transport by
+            // reserving eta of the endpoint_low margin for interior 2M bins.
+            if (group.moment_mode == MomentMode::TwoMoment) {
+                const auto population = std::find_if(
+                    m_layout.populations().begin(), m_layout.populations().end(),
+                    [&group](const PopulationLayout& candidate) {
+                        return candidate.population_id == group.population_id;
+                    });
+                if (population == m_layout.populations().end()) {
+                    throw std::logic_error(
+                        "SBM transport group has no matching population layout");
+                }
+                if (group.bin < population->grid.nbins() - 1) {
+                    const int mass_global = population->mass_offset + group.bin;
+                    const int number_global =
+                        population->number_offset + group.bin;
+                    device_group.canonical_mass_local =
+                        global_to_local[static_cast<std::size_t>(mass_global)];
+                    device_group.canonical_number_local =
+                        global_to_local[static_cast<std::size_t>(number_global)];
+                    if (device_group.canonical_mass_local < 0 ||
+                        device_group.canonical_number_local < 0) {
+                        throw std::logic_error(
+                            "SBM closure chunk split an interior two-moment "
+                            "canonical-reserve group");
+                    }
+                    const Real lower = population->grid.edges()[
+                        static_cast<std::size_t>(group.bin)];
+                    const Real upper = population->grid.edges()[
+                        static_cast<std::size_t>(group.bin + 1)];
+                    const Real width = upper - lower;
+                    const Real eta =
+                        Real(128.0) * std::numeric_limits<Real>::epsilon();
+                    device_group.canonical_mass_coefficient =
+                        -(Real(1.0) + eta) / width;
+                    device_group.canonical_number_coefficient =
+                        (Real(1.0) - eta) * upper / width;
+                    device_group.canonical_reserve = 1;
+                }
+            }
             device_group.ratio_count = device_group.linear_constraint_count +
-                                       2 * device_group.support_count;
+                                       2 * device_group.support_count +
+                                       device_group.canonical_reserve;
             device_group.ratio_offset = chunk_ratio_components;
             AMREX_ALWAYS_ASSERT(device_group.ratio_count >= 0);
             AMREX_ALWAYS_ASSERT(
@@ -898,6 +975,16 @@ SBMTransport::advance_stage (const int level,
                 const int supports_begin = group_device.supports_begin;
                 const int support_count = group_device.support_count;
                 const int ratio_offset = group_device.ratio_offset;
+                const int canonical_reserve =
+                    group_device.canonical_reserve;
+                const int canonical_mass_local =
+                    group_device.canonical_mass_local;
+                const int canonical_number_local =
+                    group_device.canonical_number_local;
+                const Real canonical_mass_coefficient =
+                    group_device.canonical_mass_coefficient;
+                const Real canonical_number_coefficient =
+                    group_device.canonical_number_coefficient;
                 const Real roundoff =
                     Real(128.0) * std::numeric_limits<Real>::epsilon();
                 amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j,
@@ -1005,6 +1092,50 @@ SBMTransport::advance_stage (const int level,
                                     : Real(1.0);
                         }
                     }
+
+                    if (canonical_reserve != 0) {
+                        // This transport-only reserve joins the existing
+                        // closed FCT ratios; final canonical admission stays
+                        // the authoritative persisted-state check.
+                        const Real reserve = std::fma(
+                            canonical_mass_coefficient,
+                            hlow(i, j, k, canonical_mass_local),
+                            canonical_number_coefficient *
+                                hlow(i, j, k, canonical_number_local));
+                        Real adverse = Real(0.0);
+                        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+                            const Real left_delta =
+                                canonical_reserve_face_correction(
+                                    canonical_mass_local,
+                                    canonical_number_local,
+                                    canonical_mass_coefficient,
+                                    canonical_number_coefficient, low_faces,
+                                    high_faces, i, j, k, dir, -1, tau, dx);
+                            const Real right_delta =
+                                canonical_reserve_face_correction(
+                                    canonical_mass_local,
+                                    canonical_number_local,
+                                    canonical_mass_coefficient,
+                                    canonical_number_coefficient, low_faces,
+                                    high_faces, i, j, k, dir, 1, tau, dx);
+                            adverse += amrex::max(Real(0.0), -left_delta) +
+                                       amrex::max(Real(0.0), -right_delta);
+                        }
+                        const int ratio_component =
+                            ratio_offset + linear_count + 2 * support_count;
+                        if (!amrex::Math::isfinite(reserve) ||
+                            !amrex::Math::isfinite(adverse)) {
+                            bad = 1;
+                            ratios(i, j, k, ratio_component) = Real(0.0);
+                        } else if (reserve <= Real(0.0)) {
+                            ratios(i, j, k, ratio_component) = Real(0.0);
+                        } else if (adverse <= Real(0.0)) {
+                            ratios(i, j, k, ratio_component) = Real(1.0);
+                        } else {
+                            ratios(i, j, k, ratio_component) =
+                                clamp_unit(reserve / adverse);
+                        }
+                    }
                     if (bad != 0) {
                         invalid(i, j, k, 0) = Real(1.0);
                     }
@@ -1017,7 +1148,7 @@ SBMTransport::advance_stage (const int level,
         data.cell_ratios.FillBoundary(geometry.periodicity());
         if (data.invalid.max(0) != Real(0.0)) {
             amrex::Abort("SBM M3 donor low-order trial violates a linear or "
-                         "attached-property constraint");
+                         "attached-property/canonical-reserve constraint");
         }
 
         for (const int group_index : chunk.group_indices) {
