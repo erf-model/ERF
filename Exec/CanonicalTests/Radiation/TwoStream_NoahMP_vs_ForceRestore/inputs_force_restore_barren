@@ -1,0 +1,14 @@
+# Case 2 on bare land (run_comparison.sh --barren): the force-restore balance
+# (inputs_force_restore_common) on the soil at its wilting point and no vegetation. The pore
+# air there is nearly dry (relative humidity about 0.005), so the bare soil does not
+# evaporate and may take up vapour, as in Noah-MP. The land roughness is Noah-MP's bare soil
+# (Z0SOIL, 0.002 m).
+FILE = inputs_force_restore_common
+
+# The albedo and emissivity Noah-MP gives this bare, dry soil (0.197 and 0.97 through the day).
+erf.radiation.surface_albedo_sw = 0.197
+erf.radiation.surface_emissivity_lw = 0.97
+
+# The wilting point of the silty clay loam (surface heat capacity about 8.1e4 J/m2/K).
+erf.radiation.seb_q_sfc_default = 0.12
+erf.radiation.seb_q_deep_default = 0.12

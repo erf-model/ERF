@@ -1,28 +1,21 @@
-# Case 2: the two-stream force-restore surface energy balance on both levels, coupled both
-# ways with the surface layer: the balance takes H and LE from the surface layer, and the
-# surface layer takes its surface temperature from the balance's skin. The surface
-# properties are matched to the Noah-MP grassland of case 1 (see README.md).
-FILE = inputs_common
+# Case 2 on grassland: the force-restore balance (inputs_force_restore_common) on the land of
+# case 1, from Noah-MP's tables.
+FILE = inputs_force_restore_common
 
-erf.radiation.seb_prognostic_enable = true
-# The net shortwave and longwave at the ground from the sweep (the default is the
-# seb_*_flux_default constants).
-erf.radiation.seb_use_radiation_fluxes = true
-erf.radiation.seb_turbulent_flux_source = surface_layer
-erf.radiation.seb_surface_layer_uses_skin = true
 # Noah-MP's grass here: emissivity 0.994; albedo 0.229 at 15:10 UTC falling to 0.201 at
 # 18:00 as the sun rises. The balance takes one value; 0.21 is about the day's mean.
 erf.radiation.surface_albedo_sw = 0.21
 erf.radiation.surface_emissivity_lw = 0.994
-erf.radiation.seb_t_deep_default = 290.0
-erf.radiation.seb_surface_heat_capacity = 2.0e5
-erf.radiation.diag_file = "radiation_diag_force_restore.csv"
 
-# The surface layer computes its heat flux from a surface temperature (the skin), and its
-# moisture flux from a fixed surface mixing ratio: the force-restore balance has no soil
-# water, so the surface stays as moist as the sounding's surface value (ERF requires the two
-# to match), and LE is set by how fast the air above it dries.
-erf.most.surf_temp  = 300.0
-erf.most.surf_moist = 0.014
+# Noah-MP's soil holds 0.25 m3/m3 here (surface heat capacity about 1.16e5 J/m2/K).
+erf.radiation.seb_q_sfc_default = 0.25
+erf.radiation.seb_q_deep_default = 0.25
 
-erf.plot2d_vars_1 = seb_t_sfc seb_q_sfc seb_hfx seb_lh sensible_heat_flux latent_heat_flux t_surf pblh
+# Grassland (MODIS land-use category 10) on 80 % of the surface (Noah-MP's dynamic-vegetation
+# option 4 takes SHDMAX, 80 % in the land file). beta then comes from Noah's big-leaf Jarvis
+# canopy resistance on Noah-MP's parameters for the vegetated part -- the soil-water factor
+# enters it -- and from Noah-MP's bare-soil resistance for the rest, each in series with
+# the aerodynamic resistance. The leaf area index is the table's for the start (2.23 at 15:00
+# UTC on 5 August), as Noah-MP takes it, and the land roughness 0.8 x 0.12 + 0.2 x 0.002 m.
+erf.radiation.seb_vegetation_type = 10
+erf.radiation.seb_vegetation_fraction = 0.8
