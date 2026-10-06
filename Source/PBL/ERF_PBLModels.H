@@ -550,7 +550,7 @@ ComputeQKESourceTerms (int i, int j, int k,
         // (kappa z_1) when the stress does not turn across the cell.
         if (tau_s > eps) {
             const amrex::Real tau_proj = (t13_c*t13_s + t23_c*t23_s) / tau_s;
-            source_term += tau_proj * ustar * phi_m / (KAPPA * z1);
+            source_term += std::max(tau_proj,amrex::Real(0.)) * ustar * phi_m / (KAPPA * z1);
         }
 
         // Buoyancy production, which needs no gradient at all
