@@ -303,6 +303,8 @@ public:
     std::string MakeFilename_EyeTracker_latlon (int nstep);
     std::string MakeFilename_EyeTracker_maxvel (int nstep);
     std::string MakeFilename_EyeTracker_minpressure (int nstep);
+    std::string MakeFilename_EyeTracker_surface_fluxes (int nstep);
+
     void WriteVTKPolyline (const std::string& filename,
                            amrex::Vector<std::array<amrex::Real, 2>>& points_xy);
 
@@ -310,7 +312,9 @@ public:
                         amrex::Vector<std::array<amrex::Real, 2>>& points_xy);
 
     void HurricaneEyeTracker (const SolverChoice& solverChoice,
-                              const amrex::MultiFab& mf_cc_vel);
+                              const amrex::MultiFab& mf_cc_vel,
+                              int& hurricane_eye_i_glob,
+                              int& hurricane_eye_j_glob);
 
     void HurricaneEyeTrackerInitial (const SolverChoice& sc,
                                      const amrex::Geometry& geom,

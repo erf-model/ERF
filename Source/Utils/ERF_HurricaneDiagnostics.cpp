@@ -355,8 +355,6 @@ ERF::HurricaneEyeTrackerInitial (const SolverChoice& sc,
     ComputeGlobalMinLocation(sc, lev_geom, S_data,
                              d_val_min_ptr, d_i_min_ptr, d_j_min_ptr,
                              global_val_min, hurricane_eye_i_glob, hurricane_eye_j_glob);
-
-
 }
 
 /**
@@ -823,24 +821,31 @@ ERF::HurricaneSurfaceFluxesTracker (const Geometry& lev_geom,
         hurricane_surface_fluxes_vs_time.push_back(
             {time, eye_surface_flux});
     }
+    const auto& last = hurricane_surface_fluxes_vs_time.back();
+
+    Print() << "Last entry: "
+               << last[0] << " " << last[1] << "\n";
 }
 
 /**
  * Wrapper to track the hurricane eye position over time.
  *
  * @param[in] sc Solver choices
+ * @param[in] mf_cc_vel The celle centered velocity mutlifab
+ * @param[in] hurricane_eye_i_glob Global i index of the hurricane eye
+ * @param[in] hurricane_eye_j_glob Global j index of the hurricane eye
  */
 void
 ERF::HurricaneEyeTracker (const SolverChoice& sc,
-                          const MultiFab& mf_cc_vel)
+                          const MultiFab& mf_cc_vel,
+                          int& hurricane_eye_i_glob,
+                          int& hurricane_eye_j_glob)
 {
     static bool is_start = true;
     int levc=finest_level;
 
     const Real hurricane_eye_latitude  = sc.hurricane_eye_latitude;
     const Real hurricane_eye_longitude = sc.hurricane_eye_longitude;
-
-    int hurricane_eye_i_glob, hurricane_eye_j_glob;
 
     if(is_start and restart_chkfile.empty()){
         HurricaneEyeTrackerInitial(sc, geom[levc],
