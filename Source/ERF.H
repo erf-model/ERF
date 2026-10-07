@@ -595,6 +595,13 @@ public:
     // compute dt from CFL considerations
     double estTimeStep (int lev, long& dt_fast_ratio) const;
 
+    // largest explicit eddy-diffusion rates (1/s) on level lev, momentum and scalars, for the
+    // diffusive time-step check (erf.diffusive_dt_check / erf.diffusive_dt_limit)
+    void ComputeDiffusiveRates (int lev, amrex::Real& rate_mom, amrex::Real& rate_scal) const;
+
+    // print the largest terrain slope factor alpha = h dx/dz on level lev when K_h and K_v can differ
+    void ReportTerrainSlopeFactor (int lev) const;
+
 #ifdef ERF_USE_WW3_COUPLING
     //amrex::Print() <<  " About to call send_to_ww3 from ERF.H" << std::endl;
     void send_to_ww3 (int lev);
@@ -1594,6 +1601,18 @@ private:
     static amrex::Real change_max;
     static double dt_max_initial;
     static double dt_max;
+
+    // Explicit eddy-diffusion time-step check (opt-in): warn when dt * rate exceeds
+    // diffusive_cfl (diffusive_dt_check) and optionally limit an adaptive dt to it
+    static bool diffusive_dt_check;
+    static bool diffusive_dt_limit;
+    static amrex::Real diffusive_cfl;
+    // true until the first ComputeDt of this run has finished (restart hold of the limit)
+    bool diffusive_first_call = true;
+    // largest Fourier number already reported per level (warnings repeat only when it grows)
+    amrex::Vector<amrex::Real> diffusive_fourier_warned;
+    // grids on which the terrain slope factor was last reported, per level
+    amrex::Vector<amrex::BoxArray> slope_report_grids;
 
     // Fixed dt at each level (only used if positive)
     amrex::Vector<double> fixed_dt;

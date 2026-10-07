@@ -5,6 +5,7 @@
 #include <ERF_Utils.H>
 #include <ERF_TimestepUtils.H>
 #include <ERF_TerrainMetrics.H>
+#include "Diffusion/ERF_TerrainDiffusionLimits.H"
 #include <ERF.H>
 #include "Diffusion/ERF_CloudChamberWallFlux.H"
 #include "TimeIntegration/ERF_CloudChamberWallDtGuard.H"
@@ -25,9 +26,44 @@ ERF::ComputeDt (int step, double cur_time_d)
 {
     Vector<double> dt_tmp(finest_level+1);
 
+    // Explicit eddy-diffusion rates per level (1/s), from the diffusivities of the last step
+    const bool do_diffusive_check = (diffusive_dt_check || diffusive_dt_limit);
+    Vector<Real> rate_mom (finest_level+1, zero);
+    Vector<Real> rate_scal(finest_level+1, zero);
+
+    if (static_cast<int>(slope_report_grids.size()) < finest_level+1) {
+        slope_report_grids.resize(finest_level+1);
+    }
+
     for (int lev = 0; lev <= finest_level; ++lev)
     {
+        // Report the terrain slope factor once for every new set of grids on this level
+        if (slope_report_grids[lev] != grids[lev]) {
+            ReportTerrainSlopeFactor(lev);
+            slope_report_grids[lev] = grids[lev];
+        }
+
         dt_tmp[lev] = estTimeStep(lev, dt_mri_ratio[lev]);
+
+        if (do_diffusive_check) {
+            ComputeDiffusiveRates(lev, rate_mom[lev], rate_scal[lev]);
+            const Real rate = amrex::max(rate_mom[lev], rate_scal[lev]);
+            if (diffusive_dt_limit && fixed_dt[lev] <= zero) {
+                if (rate > zero) {
+                    const double dt_diff = static_cast<double>(diffusive_cfl) / static_cast<double>(rate);
+                    if (verbose) {
+                        Print() << "Diffusive dt at level " << lev << ":  " << dt_diff
+                                << " (erf.diffusive_cfl = " << diffusive_cfl << ")" << std::endl;
+                    }
+                    dt_tmp[lev] = std::min(dt_tmp[lev], dt_diff);
+                } else if (diffusive_first_call && !restart_chkfile.empty() && istep[lev] > 0) {
+                    // The eddy diffusivities are not checkpointed, so on the first step after a
+                    // restart they are not known yet: do not let dt grow past the checkpointed
+                    // step (which the limit bounded if the run that wrote it used the limit).
+                    dt_tmp[lev] = std::min(dt_tmp[lev], dt[lev]);
+                }
+            }
+        }
     }
 
     ParallelDescriptor::ReduceRealMin(&dt_tmp[0], dt_tmp.size());
@@ -60,6 +96,214 @@ ERF::ComputeDt (int step, double cur_time_d)
     dt[0] = dt_0;
     for (int lev = 1; lev <= finest_level; ++lev) {
         dt[lev] = dt[lev-1] / nsubsteps[lev];
+    }
+
+    diffusive_first_call = false;
+
+    // Warn when the step just chosen exceeds the explicit diffusive limit.  The warning repeats
+    // on a level only when the Fourier number has grown by half since it was last reported.
+    if (diffusive_dt_check) {
+        if (static_cast<int>(diffusive_fourier_warned.size()) < finest_level+1) {
+            diffusive_fourier_warned.resize(finest_level+1, zero);
+        }
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            const Real F_mom  = static_cast<Real>(dt[lev]) * rate_mom[lev];
+            const Real F_scal = static_cast<Real>(dt[lev]) * rate_scal[lev];
+            const Real F      = amrex::max(F_mom, F_scal);
+            if (verbose > 1) {
+                Print() << "Diffusive Fourier number at level " << lev << ": " << F
+                        << " (momentum " << F_mom << ", scalars " << F_scal << ")" << std::endl;
+            }
+            if (F > diffusive_cfl && F > Real(1.5) * diffusive_fourier_warned[lev]) {
+                Print() << "WARNING: explicit eddy diffusion at level " << lev
+                        << " has Fourier number dt * rate = " << F
+                        << " (momentum " << F_mom << ", scalars " << F_scal
+                        << ") > erf.diffusive_cfl = " << diffusive_cfl
+                        << " with dt = " << dt[lev] << ".\n"
+                        << "         The rate is a conservative estimate of the horizontal, terrain-metric and"
+                        << " explicit vertical eddy diffusion; the run may go unstable.  Consider"
+                        << " erf.diffusive_dt_limit = true (adaptive dt), a smaller erf.fixed_dt, or for"
+                        << " Smagorinsky2D erf.smag2d_slope_limiter / erf.smag2d_kh_cap."
+                        << "  Repeated only if it grows by half." << std::endl;
+                diffusive_fourier_warned[lev] = F;
+            }
+        }
+    }
+}
+
+/**
+ * Largest explicit eddy-diffusion rates on a level, for the diffusive time-step check: the
+ * maximum over valid cells of MomentumDiffusiveRate and ScalarDiffusiveRate
+ * (ERF_TerrainDiffusionLimits.H), built from the eddy diffusivities of the last step (zero
+ * before the first step and on the first step after a restart, since they are not
+ * checkpointed; a regrid happens before the advance that recomputes them).  Molecular
+ * diffusion is not included.
+ *
+ * @param[in]  lev       level
+ * @param[out] rate_mom  momentum rate (1/s), Mom_h and Mom_v
+ * @param[out] rate_scal scalar rate (1/s): the largest over theta, and moisture, turbulent
+ *                       kinetic energy and the advected scalar where they are carried
+ */
+void
+ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
+{
+    rate_mom  = zero;
+    rate_scal = zero;
+    if (!eddyDiffs_lev[lev]) { return; }
+
+    const auto dxinv       = geom[lev].InvCellSizeArray();
+    const bool variable_dz = (SolverChoice::mesh_type != MeshType::ConstantDz);
+
+    // Explicit fraction of the vertical diffusion (ExplicitVerticalFraction): 0 where the
+    // partly implicit stages are A-stable for it, 1 otherwise.  Compressible levels use the
+    // three-stage scheme (stage steps dt/3, dt/2, dt); anelastic MidPoint is two stages
+    // (dt/2, dt); anelastic RK2 turns the implicit solve off (its factors are zero).
+    const auto& fac = solverChoice.vert_implicit_fac[lev];
+    Vector<Real> stage_frac;
+    if (solverChoice.anelastic[lev] &&
+        solverChoice.anelastic_type[lev] == AnelasticType::MidPoint) {
+        stage_frac = {myhalf, one};
+    } else {
+        stage_frac = {third, myhalf, one};
+    }
+    const Real e_uv = ExplicitVerticalFraction(stage_frac, fac, solverChoice.implicit_momentum_diffusion);
+#ifdef ERF_IMPLICIT_W
+    const Real e_w  = e_uv;
+#else
+    const Real e_w  = one;  // w's vertical diffusion is always explicit in this build
+#endif
+    const Real e_th = ExplicitVerticalFraction(stage_frac, fac, solverChoice.implicit_thermal_diffusion);
+    const Real e_ke = ExplicitVerticalFraction(stage_frac, fac, solverChoice.implicit_ke_diffusion);
+    // The implicit solve treats only the first moisture variable (qv); any other moist species
+    // shares the Q diffusivities and diffuses explicitly, and so do the advected scalars.
+    // "Only qv" is read from the condensate indices: every scheme that carries number or bin
+    // variables also carries qc.
+    const auto& mi = solverChoice.moisture_indices;
+    const bool only_qv = (mi.qc < 0 && mi.qi < 0 && mi.qr < 0 && mi.qs < 0 && mi.qg < 0);
+    const Real e_q  = only_qv ? ExplicitVerticalFraction(stage_frac, fac, solverChoice.implicit_moisture_diffusion)
+                              : one;
+    const bool has_q      = (solverChoice.moisture_type != MoistureType::None);
+    const bool has_ke     = solverChoice.turbChoice[lev].use_tke;
+    const bool has_scalar = solverChoice.transport_scalar;
+
+    const MultiFab& K = *eddyDiffs_lev[lev];
+    const MultiFab& S = vars_new[lev][Vars::cons];
+
+    ReduceOps<ReduceOpMax, ReduceOpMax> reduce_op;
+    ReduceData<Real, Real> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+
+    for (MFIter mfi(S, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.tilebox();
+        const Array4<const Real> s_arr = S.const_array(mfi);
+        const Array4<const Real> k_arr = K.const_array(mfi);
+        const Array4<const Real> z_nd  = z_phys_nd[lev]->const_array(mfi);
+        const Array4<const Real> mf_mx = mapfac[lev][MapFacType::m_x]->const_array(mfi);
+        const Array4<const Real> mf_my = mapfac[lev][MapFacType::m_y]->const_array(mfi);
+
+        reduce_op.eval(bx, reduce_data, [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+        {
+            const Real ax = mf_mx(i,j,0) * dxinv[0];
+            const Real ay = mf_my(i,j,0) * dxinv[1];
+            Real dzinv = dxinv[2];
+            Real h2    = zero;
+            if (variable_dz) {
+                const TerrainCellDrops d = ComputeTerrainCellDrops(i,j,k,z_nd);
+                dzinv = one / d.dz;
+                const Real hx = ax * d.dx_drop;
+                const Real hy = ay * d.dy_drop;
+                h2 = hx*hx + hy*hy;
+            }
+            // Covered or empty cells (rho <= 0) contribute nothing; the divisor stays finite.
+            const Real rho  = s_arr(i,j,k,Rho_comp);
+            const Real keep = (rho > zero) ? one : zero;
+            const Real rdiv = (rho > zero) ? rho : one;
+            const Real a2 = ax*ax;
+            const Real b2 = ay*ay;
+            const Real dzinv2 = dzinv*dzinv;
+            const Real rm = MomentumDiffusiveRate(rdiv, k_arr(i,j,k,EddyDiff::Mom_h),
+                                                  k_arr(i,j,k,EddyDiff::Mom_v),
+                                                  a2, b2, h2, dzinv2, e_uv, e_w);
+            // Scalars: theta, and moisture and TKE where they are carried
+            Real rs = ScalarDiffusiveRate(rdiv, k_arr(i,j,k,EddyDiff::Theta_h),
+                                          k_arr(i,j,k,EddyDiff::Theta_v), a2, b2, h2, dzinv2, e_th);
+            if (has_q) {
+                rs = amrex::max(rs, ScalarDiffusiveRate(rdiv, k_arr(i,j,k,EddyDiff::Q_h),
+                                                        k_arr(i,j,k,EddyDiff::Q_v), a2, b2, h2, dzinv2, e_q));
+            }
+            if (has_ke) {
+                rs = amrex::max(rs, ScalarDiffusiveRate(rdiv, k_arr(i,j,k,EddyDiff::KE_h),
+                                                        k_arr(i,j,k,EddyDiff::KE_v), a2, b2, h2, dzinv2, e_ke));
+            }
+            if (has_scalar) {
+                rs = amrex::max(rs, ScalarDiffusiveRate(rdiv, k_arr(i,j,k,EddyDiff::Scalar_h),
+                                                        k_arr(i,j,k,EddyDiff::Scalar_v), a2, b2, h2, dzinv2, one));
+            }
+            return {keep * rm, keep * rs};
+        });
+    }
+
+    ReduceTuple hv = reduce_data.value(reduce_op);
+    rate_mom  = amrex::get<0>(hv);
+    rate_scal = amrex::get<1>(hv);
+    ParallelDescriptor::ReduceRealMax(rate_mom);
+    ParallelDescriptor::ReduceRealMax(rate_scal);
+}
+
+/**
+ * Print the largest terrain slope factor alpha = h dx/dz (TerrainSlopeFactor) on a level, and
+ * how many cells have alpha > 1, when the mesh is terrain-fitted and the closure lets K_h and
+ * K_v differ: there the explicit terrain-metric diffusion K_h h^2 d2/dz2 limits the time step.
+ *
+ * @param[in] lev level
+ */
+void
+ERF::ReportTerrainSlopeFactor (int lev) const
+{
+    const bool fitted = (solverChoice.terrain_type == TerrainType::StaticFittedMesh ||
+                         solverChoice.terrain_type == TerrainType::MovingFittedMesh);
+    const TurbChoice& tc = solverChoice.turbChoice[lev];
+    if (!fitted || !tc.use_kturb || !tc.kh_kv_can_differ()) { return; }
+
+    const MultiFab& S = vars_new[lev][Vars::cons];
+
+    ReduceOps<ReduceOpMax, ReduceOpSum> reduce_op;
+    ReduceData<Real, Long> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+
+    for (MFIter mfi(S, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.tilebox();
+        const Array4<const Real> z_nd = z_phys_nd[lev]->const_array(mfi);
+        reduce_op.eval(bx, reduce_data, [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+        {
+            const Real alpha = TerrainSlopeFactor(ComputeTerrainCellDrops(i,j,k,z_nd));
+            return {alpha, (alpha > one) ? Long(1) : Long(0)};
+        });
+    }
+
+    ReduceTuple hv = reduce_data.value(reduce_op);
+    Real alpha_max = amrex::get<0>(hv);
+    Long n_steep   = amrex::get<1>(hv);
+    ParallelDescriptor::ReduceRealMax(alpha_max);
+    ParallelDescriptor::ReduceLongSum(n_steep);
+
+    Print() << "Terrain slope factor alpha = h dx/dz at level " << lev << ": max " << alpha_max
+            << ", alpha > 1 in " << n_steep << " of " << grids[lev].numPts() << " cells" << std::endl;
+    if (alpha_max > one) {
+        Print() << "    the explicit terrain-metric diffusion K h^2 d2/dz2 limits dt to about"
+                << " dz^2 / (4 K_m h^2) for momentum and dz^2 / (2 K_s h^2) for scalars";
+        if (tc.les_type == LESType::Smagorinsky && tc.smag2d) {
+            Print() << ",\n    i.e. 1 / (4 Cs^2 |S| alpha^2) and Pr_t / (2 Cs^2 |S| alpha^2) for Smagorinsky2D"
+                    << " without the WRF slope limiter (";
+            if (tc.smag2d_slope_limiter) {
+                Print() << "on here: K_h is divided by alpha or alpha^2)";
+            } else {
+                Print() << "off here)";
+            }
+        }
+        Print() << std::endl;
     }
 }
 
