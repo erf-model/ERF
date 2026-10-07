@@ -4,6 +4,7 @@
 #include "ERF_AuxiliaryMappedTransport.H"
 
 #include <string>
+#include <vector>
 
 namespace erf_auxiliary {
 
@@ -129,6 +130,22 @@ public:
                        const MappedFaceFluxRate& rate,
                        std::string& diagnostic);
 
+    /** Begin one host stage; chunk accumulation does not advance stage order. */
+    bool begin_stage (HostIntegrator method,
+                      int stage,
+                      double step_old_time,
+                      const AuxiliaryStageRecipe& recipe,
+                      std::string& diagnostic);
+
+    /** Add one accepted source component to its global ledger component. */
+    bool accumulate_stage_component (const MappedFaceFluxRate& rate,
+                                     int source_component,
+                                     int ledger_component,
+                                     std::string& diagnostic);
+
+    /** Finish an open stage only after every destination component arrived. */
+    bool finish_stage (std::string& diagnostic);
+
     [[nodiscard]] bool is_defined () const noexcept { return m_integral.is_defined(); }
     [[nodiscard]] bool step_active () const noexcept { return m_step_active; }
     [[nodiscard]] bool step_complete () const noexcept { return m_step_complete; }
@@ -141,9 +158,13 @@ private:
     IntegratedMappedFaceFlux m_integral;
     bool m_step_active{false};
     bool m_step_complete{false};
+    bool m_stage_open{false};
     HostIntegrator m_method{HostIntegrator::CompressibleRK3};
     int m_next_stage{0};
+    int m_open_stage{-1};
+    amrex::Real m_open_stage_weight{0.0};
     double m_step_old_time{0.0};
+    std::vector<unsigned char> m_stage_components_seen;
 };
 
 } // namespace erf_auxiliary

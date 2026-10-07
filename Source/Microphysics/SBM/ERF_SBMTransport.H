@@ -88,6 +88,8 @@ class SBMTransport
     [[nodiscard]] const amrex::MultiFab& static_measure (int level) const;
     [[nodiscard]] const erf_auxiliary::CompletedStepFluxLedger&
     projected_ledger (int level) const;
+    /** Authoritative all-component accepted transfer, defined for AMR-capable instances only. */
+    [[nodiscard]] const erf_auxiliary::CompletedStepFluxLedger& completed_spectral_ledger (int level) const;
 
   private:
     struct LevelStorage;

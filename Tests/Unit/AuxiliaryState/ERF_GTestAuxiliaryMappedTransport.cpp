@@ -965,6 +965,68 @@ void run_auxiliary_mapped_transport_CompletedLedgerAccumulatesEveryComponent ()
     }
 }
 
+void run_auxiliary_mapped_transport_CompletedLedgerScattersChunkComponentsOncePerStage ()
+{
+    TestGrid g;
+    constexpr int ncomp = 3;
+    constexpr double dt = 0.2;
+    MappedFaceFluxRate rate;
+    rate.define(g.ba, g.dm, ncomp, 0);
+    CompletedStepFluxLedger ledger;
+    ledger.define(g.ba, g.dm, ncomp);
+    AuxiliaryStageRecipe recipe;
+    std::string diagnostic;
+
+    fill_componentwise_constant_rate(rate, {Real(3.0), Real(5.0), Real(7.0)});
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 0,
+                                         dt, recipe, diagnostic)) << diagnostic;
+    ASSERT_TRUE(ledger.begin_stage(HostIntegrator::AnelasticHeun, 0, 0.0,
+                                   recipe, diagnostic)) << diagnostic;
+    ASSERT_TRUE(ledger.accumulate_stage_component(rate, 0, 2, diagnostic)) << diagnostic;
+    ASSERT_TRUE(ledger.accumulate_stage_component(rate, 1, 0, diagnostic)) << diagnostic;
+    ASSERT_TRUE(ledger.accumulate_stage_component(rate, 2, 1, diagnostic)) << diagnostic;
+    EXPECT_FALSE(ledger.step_complete());
+    EXPECT_EQ(ledger.next_stage(), 0);
+    ASSERT_TRUE(ledger.finish_stage(diagnostic)) << diagnostic;
+    EXPECT_EQ(ledger.next_stage(), 1);
+
+    fill_componentwise_constant_rate(rate, {Real(10.0), Real(20.0), Real(4.0)});
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 1,
+                                         dt, recipe, diagnostic)) << diagnostic;
+    ASSERT_TRUE(ledger.begin_stage(HostIntegrator::AnelasticHeun, 1, 0.0,
+                                   recipe, diagnostic)) << diagnostic;
+    ASSERT_TRUE(ledger.accumulate_stage_component(rate, 2, 0, diagnostic)) << diagnostic;
+    ASSERT_TRUE(ledger.accumulate_stage_component(rate, 0, 1, diagnostic)) << diagnostic;
+    ASSERT_TRUE(ledger.accumulate_stage_component(rate, 1, 2, diagnostic)) << diagnostic;
+    ASSERT_TRUE(ledger.finish_stage(diagnostic)) << diagnostic;
+    ASSERT_TRUE(ledger.step_complete());
+
+    const Real half_dt = Real(0.5 * dt);
+    const std::array<Real, ncomp> expected{
+        half_dt * Real(5.0 + 4.0),
+        half_dt * Real(7.0 + 10.0),
+        half_dt * Real(3.0 + 20.0)};
+    for (int comp = 0; comp < ncomp; ++comp) {
+        EXPECT_NEAR(max_face_component_error(ledger.integrated_flux(), comp,
+                                             expected[static_cast<std::size_t>(comp)]),
+                    Real(0.0), Real(32.0) * std::numeric_limits<Real>::epsilon());
+    }
+
+    CompletedStepFluxLedger incomplete;
+    incomplete.define(g.ba, g.dm, ncomp);
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 0,
+                                         dt, recipe, diagnostic));
+    ASSERT_TRUE(incomplete.begin_stage(HostIntegrator::AnelasticHeun, 0, 0.0,
+                                       recipe, diagnostic)) << diagnostic;
+    ASSERT_TRUE(incomplete.accumulate_stage_component(rate, 0, 1, diagnostic)) << diagnostic;
+    EXPECT_FALSE(incomplete.accumulate_stage_component(rate, 2, 1, diagnostic));
+    EXPECT_NE(diagnostic.find("duplicate"), std::string::npos);
+    EXPECT_FALSE(incomplete.finish_stage(diagnostic));
+    EXPECT_NE(diagnostic.find("omitted destination component"), std::string::npos);
+    EXPECT_FALSE(incomplete.step_complete());
+    EXPECT_EQ(incomplete.next_stage(), 0);
+}
+
 void run_auxiliary_mapped_transport_StageTargetMustBeDisjoint ()
 {
     TestGrid g;
@@ -1197,6 +1259,10 @@ TEST(AuxiliaryMappedTransport, CompletedLedgerUsesExactHostTemporalWeights)
 TEST(AuxiliaryMappedTransport, CompletedLedgerAccumulatesEveryComponent)
 {
     run_auxiliary_mapped_transport_CompletedLedgerAccumulatesEveryComponent();
+}
+TEST(AuxiliaryMappedTransport, CompletedLedgerScattersChunkComponentsOncePerStage)
+{
+    run_auxiliary_mapped_transport_CompletedLedgerScattersChunkComponentsOncePerStage();
 }
 TEST(AuxiliaryMappedTransport, StageTargetMustBeDisjoint)
 {

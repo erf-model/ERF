@@ -1,5 +1,6 @@
 #include "ERF_AuxiliaryStage.H"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 
@@ -256,8 +257,12 @@ void CompletedStepFluxLedger::define (const amrex::BoxArray& cell_ba,
     m_integral.setVal(amrex::Real(0.0));
     m_step_active = false;
     m_step_complete = false;
+    m_stage_open = false;
     m_next_stage = 0;
+    m_open_stage = -1;
+    m_open_stage_weight = amrex::Real(0.0);
     m_step_old_time = 0.0;
+    m_stage_components_seen.assign(static_cast<std::size_t>(ncomp), 0);
 }
 
 bool CompletedStepFluxLedger::accept_stage (const HostIntegrator method,
@@ -267,13 +272,36 @@ bool CompletedStepFluxLedger::accept_stage (const HostIntegrator method,
                                             const MappedFaceFluxRate& rate,
                                             std::string& diagnostic)
 {
-    diagnostic.clear();
     if (!is_defined() || !rate.is_defined() || rate.nComp() != m_integral.nComp()) {
+        diagnostic.clear();
         diagnostic = "completed-step ledger and face-rate layouts are not defined compatibly";
         return false;
     }
     if (!SameMappedFaceLayout(m_integral, rate)) {
+        diagnostic.clear();
         diagnostic = "completed-step ledger and face-rate BoxArray/DistributionMapping do not match";
+        return false;
+    }
+    if (!begin_stage(method, stage, step_old_time, recipe, diagnostic)) {
+        return false;
+    }
+    for (int component = 0; component < rate.nComp(); ++component) {
+        if (!accumulate_stage_component(rate, component, component, diagnostic)) {
+            return false;
+        }
+    }
+    return finish_stage(diagnostic);
+}
+
+bool CompletedStepFluxLedger::begin_stage (const HostIntegrator method,
+                                           const int stage,
+                                           const double step_old_time,
+                                           const AuxiliaryStageRecipe& recipe,
+                                           std::string& diagnostic)
+{
+    diagnostic.clear();
+    if (!is_defined()) {
+        diagnostic = "completed-step ledger storage is not defined";
         return false;
     }
     if (method == HostIntegrator::AnelasticMidPoint) {
@@ -291,6 +319,16 @@ bool CompletedStepFluxLedger::accept_stage (const HostIntegrator method,
         !std::isfinite(recipe.face_rate_time_coefficient) || recipe.face_rate_time_coefficient <= 0.0 ||
         !finite_nonnegative(recipe.completed_ledger_time)) {
         diagnostic = "completed-step ledger received an invalid temporal coefficient";
+        return false;
+    }
+    const amrex::Real stage_weight =
+        static_cast<amrex::Real>(recipe.completed_ledger_time);
+    if (!amrex::Math::isfinite(stage_weight) || stage_weight < amrex::Real(0.0)) {
+        diagnostic = "completed-step ledger weight is not representable in amrex::Real";
+        return false;
+    }
+    if (m_stage_open) {
+        diagnostic = "a completed-step ledger stage transaction is already open";
         return false;
     }
 
@@ -319,16 +357,71 @@ bool CompletedStepFluxLedger::accept_stage (const HostIntegrator method,
             return false;
         }
     }
-
     if (stage != m_next_stage) {
         diagnostic = "duplicate, skipped, or out-of-order auxiliary stage";
         return false;
     }
 
-    AccumulateIntegratedFaceFlux(m_integral, rate,
-        static_cast<amrex::Real>(recipe.completed_ledger_time));
+    std::fill(m_stage_components_seen.begin(), m_stage_components_seen.end(), 0);
+    m_stage_open = true;
+    m_open_stage = stage;
+    m_open_stage_weight = stage_weight;
+    return true;
+}
+
+bool CompletedStepFluxLedger::accumulate_stage_component (
+    const MappedFaceFluxRate& rate, const int source_component,
+    const int ledger_component, std::string& diagnostic)
+{
+    diagnostic.clear();
+    if (!m_stage_open || !m_step_active || m_open_stage != m_next_stage) {
+        diagnostic = "spectral component accumulation requires an open host stage";
+        return false;
+    }
+    if (!rate.is_defined() || !SameMappedFaceLayout(m_integral, rate)) {
+        diagnostic = "completed-step ledger and chunk face-rate layouts do not match";
+        return false;
+    }
+    if (source_component < 0 || source_component >= rate.nComp() ||
+        ledger_component < 0 || ledger_component >= m_integral.nComp()) {
+        diagnostic = "completed-step chunk component is outside its source or destination";
+        return false;
+    }
+    auto& seen = m_stage_components_seen[static_cast<std::size_t>(ledger_component)];
+    if (seen != 0) {
+        diagnostic = "completed-step stage contains a duplicate destination component";
+        return false;
+    }
+
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        amrex::MultiFab::Saxpy(m_integral.dir(dir), m_open_stage_weight,
+                               rate.dir(dir), source_component,
+                               ledger_component, 1, 0);
+    }
+    seen = 1;
+    return true;
+}
+
+bool CompletedStepFluxLedger::finish_stage (std::string& diagnostic)
+{
+    diagnostic.clear();
+    if (!m_stage_open || !m_step_active || m_open_stage != m_next_stage) {
+        diagnostic = "completed-step stage finish requires an open host stage";
+        return false;
+    }
+    for (std::size_t component = 0; component < m_stage_components_seen.size(); ++component) {
+        if (m_stage_components_seen[component] == 0) {
+            diagnostic = "completed-step stage omitted destination component " +
+                         std::to_string(component);
+            return false;
+        }
+    }
+
+    m_stage_open = false;
+    m_open_stage = -1;
+    m_open_stage_weight = amrex::Real(0.0);
     ++m_next_stage;
-    if (m_next_stage == stage_count(method)) {
+    if (m_next_stage == stage_count(m_method)) {
         m_step_active = false;
         m_step_complete = true;
     }

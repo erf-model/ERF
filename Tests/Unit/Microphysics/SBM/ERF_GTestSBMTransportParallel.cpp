@@ -75,7 +75,7 @@ run_decomposition (const int max_grid_size,
     auto layout = make_parallel_layout(mode);
 
     erf_sbm::SBMStateManager manager(layout, 1);
-    manager.define(0, ba, dm);
+    manager.define(0, ba, dm, 0.0);
     erf_sbm::SBMTransport transport(manager.layout(), 1, 1);
     transport.define(0, ba, dm);
 
@@ -100,7 +100,7 @@ run_decomposition (const int max_grid_size,
     MultiFab::Copy(conserved_input, conserved_anchor, 0, 0, 3, 0);
     MultiFab::Copy(conserved_target, conserved_anchor, 0, 0, 3, 0);
 
-    auto& spectrum = manager.state(0);
+    auto& spectrum = manager.new_state_for_initialization(0);
     spectrum.setVal(Real(0.0));
     const auto& population = manager.layout().populations().front();
     for (amrex::MFIter mfi(spectrum); mfi.isValid(); ++mfi) {
@@ -150,13 +150,17 @@ run_decomposition (const int max_grid_size,
                                                           : Real(0.0));
 
     const double dt = mode == erf_sbm::MomentMode::TwoMoment ? 0.25 : 0.01;
+    if (!manager.begin_step(0, 0.0, diagnostic)) {
+        ADD_FAILURE() << diagnostic;
+        return {};
+    }
     transport.advance_stage_from_host(
         0, erf_auxiliary::HostIntegrator::CompressibleRK3,
                             0, 0.0, 0.0, dt, dt, manager, conserved_anchor,
                             conserved_input, conserved_target, avg_xmom,
                             avg_ymom, avg_zmom, geom, 1, 2);
 
-    const auto& accepted = manager.state(0);
+    const auto& accepted = manager.new_state(0);
     MultiFab signatures(ba, dm, 2 * layout.ncomp(), 0);
     for (amrex::MFIter mfi(accepted); mfi.isValid(); ++mfi) {
         const Box bx = mfi.validbox();
