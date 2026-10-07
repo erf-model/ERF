@@ -23,6 +23,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     strategy:
+      fail-fast: false
       matrix:
         # GPU builds cover the particle-enabled configuration only. The
         # particles-OFF variant costs a second long GPU compile for solver

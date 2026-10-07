@@ -18,6 +18,7 @@ jobs:
     timeout-minutes: 120
     # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
     strategy:
+      fail-fast: false
       matrix:
         # Only the particle-enabled configuration is built here; the
         # particles-OFF variant duplicates its solver coverage. Particles OFF
