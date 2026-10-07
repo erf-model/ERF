@@ -798,17 +798,14 @@ ERF::HurricaneSurfaceFluxesTracker (const Geometry& lev_geom,
 {
     const int levc = finest_level;
 
-    // 2D surface flux MultiFab.
-    // Component 1 = latent heat flux.
     const MultiFab& surface_fluxes = mfvec_surface_fluxes[levc];
 
-    // AMReX is compiled in 3D, so the 2D surface is at k = 0.
     const IntVect eye_iv(hurricane_eye_i_glob,
                          hurricane_eye_j_glob,
                          0);
 
-    Real eye_surface_flux = 0.0;
-    bool found_eye = false;
+    // Each rank starts with an invalid value.
+    Real eye_surface_flux_local = -bogus_large_value;
 
     for (MFIter mfi(surface_fluxes, TilingIfNotGPU());
          mfi.isValid();
@@ -816,14 +813,12 @@ ERF::HurricaneSurfaceFluxesTracker (const Geometry& lev_geom,
     {
         const Box& box = mfi.validbox();
 
-        // Find the MPI rank/FAB that owns the hurricane-eye cell.
         if (!box.contains(eye_iv))
             continue;
 
         const Array4<const Real> flux = surface_fluxes.const_array(mfi);
 
-        // Device scalar containing the flux at the eye.
-        Gpu::DeviceVector<Real> d_flux(1);
+        Gpu::DeviceVector<Real> d_flux(1, -bogus_large_value);
         Real* d_flux_ptr = d_flux.data();
 
         ParallelFor(
@@ -835,26 +830,33 @@ ERF::HurricaneSurfaceFluxesTracker (const Geometry& lev_geom,
 
         Gpu::synchronize();
 
-        // Copy the single value from device to host.
         Gpu::copy(Gpu::deviceToHost,
                   d_flux.begin(),
                   d_flux.end(),
-                  &eye_surface_flux);
+                  &eye_surface_flux_local);
 
-        found_eye = true;
         break;
     }
 
-    // Only the MPI rank owning the hurricane-eye cell records the value.
-    if (found_eye)
-    {
-        hurricane_surface_fluxes_vs_time.push_back(
-            {time, eye_surface_flux});
-    }
+    // Get the eye flux on every MPI rank.
+    Real eye_surface_flux_global = eye_surface_flux_local;
+
+#ifdef AMREX_USE_MPI
+    amrex::ParallelDescriptor::ReduceRealMax(eye_surface_flux_global);
+#endif
+
+    // Now every rank, including rank 0, has the same value.
+    hurricane_surface_fluxes_vs_time.push_back(
+        {time, eye_surface_flux_global});
+
     const auto& last = hurricane_surface_fluxes_vs_time.back();
 
-    Print() << "Last entry: "
-               << last[0] << " " << last[1] << "\n";
+    if (amrex::ParallelDescriptor::IOProcessor())
+    {
+        Print() << "Last entry: "
+                << last[0] << " "
+                << last[1] << "\n";
+    }
 }
 
 /**

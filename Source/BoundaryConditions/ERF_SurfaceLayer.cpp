@@ -1117,8 +1117,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 // LSM flux MultiFabs store kinematic fluxes for MOST parameter
                 // updates. The applied hfx array stores the conservative RHS flux.
                 Tflux = cons_arr(i,j,k,Rho_comp) * t_flux_arr(i,j,0);
+                surface_flux_arr(i,j,0,0) = Tflux;
             } else if (is_land == 2) { // no temperature flux within buildings
                 Tflux = zero;
+                surface_flux_arr(i,j,0,0) = Tflux;
             } else {
                 Tflux = flux_comp.compute_t_flux(i, j, k, dir,
                                                  cons_arr, velx_arr, vely_arr, velz_arr,
@@ -1187,8 +1189,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                     // LSM flux MultiFabs store kinematic fluxes for MOST parameter
                     // updates. The applied qfx array stores the conservative RHS flux.
                     Qflux = cons_arr(i,j,k,Rho_comp) * q_flux_arr(i,j,0);
+                    surface_flux_arr(i,j,0,1) = Qflux;
                 } else if (is_land == 2) { // no moisture flux within buildings
                     Qflux = zero;
+                    surface_flux_arr(i,j,0,1) = Qflux;
                 } else {
                     Qflux = flux_comp.compute_q_flux(i, j, k, dir,
                                                      cons_arr, velx_arr, vely_arr, velz_arr,
@@ -1196,6 +1200,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                                      q_star_arr, q_surf_arr);
                     // NOTE: no writeback into lsm_q_flux_arr -- see the matching
                     // t_flux note above.
+                    surface_flux_arr(i,j,0,1) = Qflux;
                 }
 
                 // Do scalar flux rotations?
