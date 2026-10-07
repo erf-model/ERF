@@ -105,7 +105,7 @@ class MultiBlockContainer;
 // Describes one component of a 2D plotfile; defined in
 // IO/ERF_Plotfile2DSampledLevel.H, which ERF.H does not need to include.
 namespace plotfile2d { struct Plotfile2DOutputDescriptor; }
-namespace erf_sbm { class SBMStateManager; }
+namespace erf_sbm { class SBMStateManager; class SBMTransport; }
 
 /**
  * Enum of possible interpolation types between coarse/fine
@@ -1352,6 +1352,9 @@ private:
 
     std::unique_ptr<Microphysics> micro;
     std::unique_ptr<erf_sbm::SBMStateManager> sbm_state_manager;
+    // Declared after the state manager so its non-owning layout reference is
+    // destroyed before the authoritative SBM owner.
+    std::unique_ptr<erf_sbm::SBMTransport> sbm_transport;
     std::unique_ptr<erf_auxiliary::AuxiliaryInertTracer> auxiliary_inert_tracer;
     std::unique_ptr<CloudChamberBudget> cloud_chamber_budget;
     erf_cloud_chamber::Config cloud_chamber_config;
