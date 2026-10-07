@@ -141,4 +141,4 @@ erf.check_int  = -1
 erf.plot_file_1 = plt
 erf.plot_int_1  = 1
 
-erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta temp qv qc z_phys
+erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta temp qv qc z_phys KE Kmh Kmv

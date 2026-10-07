@@ -19,6 +19,7 @@
 #include "ERF_CheckpointSurfaceTemperature.H"
 #include "ERF_SBMStateManager.H"
 #include "ERF_SBMRestart.H"
+#include "ERF_SBMTransport.H"
 
 using namespace amrex;
 
@@ -889,7 +890,7 @@ ERF::ReadCheckpointFile ()
         ParallelDescriptor::ReadAndBcastFile(schema_file, schema_chars);
         const std::string persisted_schema(schema_chars.dataPtr());
         if (!erf_sbm::restart_schema_matches(sbm_state_manager->layout(), persisted_schema)) {
-            Abort("SBM restart schema does not exactly match the active spectral layout and M1 fixture identity");
+            Abort("SBM restart schema does not exactly match the active spectral layout and M3 transport identity");
         }
     }
 
@@ -1362,6 +1363,22 @@ ERF::ReadCheckpointFile ()
                 check_mesh_type(lev);
             }
 #endif
+        }
+
+        // Level creation may initially see placeholder metric fields. Rebuild
+        // M3's cached cell measure only after this level's
+        // checkpoint geometry and terrain arrays have been restored.
+        if (sbm_transport) {
+            AMREX_ALWAYS_ASSERT(sbm_transport->is_defined(lev));
+            AMREX_ALWAYS_ASSERT(detJ_cc[lev] != nullptr);
+            AMREX_ALWAYS_ASSERT(mapfac[lev][MapFacType::m_x] != nullptr);
+            AMREX_ALWAYS_ASSERT(mapfac[lev][MapFacType::m_y] != nullptr);
+            std::string diagnostic;
+            if (!sbm_transport->rebuild_static_measure(
+                    lev, *detJ_cc[lev], *mapfac[lev][MapFacType::m_x],
+                    *mapfac[lev][MapFacType::m_y], diagnostic)) {
+                amrex::Abort("SBM M3 restart mapped measure: " + diagnostic);
+            }
         }
 
         // The min dz the microphysics sizes its sedimentation substeps with, for

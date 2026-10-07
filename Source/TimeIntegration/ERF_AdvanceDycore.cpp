@@ -108,7 +108,7 @@ void ERF::advance_dycore (int level,
     const bool use_lsf = solverChoice.large_scale_forcing;
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         solverChoice.moisture_type != MoistureType::SBM || (!use_lsf && !use_nudging),
-        "SBM zero-transport fixture does not support large-scale subsidence or sounding nudging");
+        "SBM M3 does not support large-scale subsidence or sounding nudging");
 
     const BoxArray& ba            = state_old[IntVars::cons].boxArray();
     const BoxArray& ba_z          = zvel_old.boxArray();

@@ -76,6 +76,10 @@ jobs:
              ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.particles }}-git-
 
     - name: Configure CMake
+      # Ubuntu's MPICH wrapper advertises -flto=auto -ffat-lto-objects, and FindMPI
+      # would put them on every target: fat objects double the ccache and every
+      # link re-optimises the whole program (~20 min even on a full cache hit).
+      # FindMPI keeps a non-empty user value, so override the wrapper's flags.
       run: |
         cmake \
           -B${{runner.workspace}}/ERF/build-${{matrix.os}} \
@@ -85,6 +89,8 @@ jobs:
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
+          -DMPI_CXX_COMPILE_OPTIONS=-fno-lto \
+          -DMPI_CXX_LINK_FLAGS=-fno-lto \
           -DERF_PARALLEL_TEST_ALLOW_OVERSUBSCRIBE:BOOL=ON \
           '-DERF_PARALLEL_TEST_NRANKS:STRING=${{env.ERF_PARALLEL_TEST_NRANKS}}' \
           -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \

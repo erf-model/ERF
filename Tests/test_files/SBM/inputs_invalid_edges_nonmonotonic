@@ -1,7 +1,6 @@
-erf.prob_name = "SBM zero-transport fixture"
+erf.prob_name = "SBM M3 periodic advection"
 erf.init_type = Uniform
 erf.moisture_model = SBM
-erf.sbm_zero_transport_fixture = true
 erf.sbm_nbins = 4
 erf.sbm_edges = 1.e-18 2.e-18 4.e-18 3.e-18 8.e-18
 erf.sbm_cloud_rain_split = 2
