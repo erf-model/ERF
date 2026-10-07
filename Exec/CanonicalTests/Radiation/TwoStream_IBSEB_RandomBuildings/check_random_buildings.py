@@ -27,11 +27,13 @@ checks.
      mean shadow fraction ends below where it starts, on both levels;
   5. the buildings warm: every building's mean skin temperature ends above
      the 300 K it started at, on both levels;
-  6. the two levels agree: each building's final mean skin temperature
-     within 3 K between the levels (the refined level resolves the rims and
-     the air next to the walls better). The face areas are reported, not
-     checked: on level 0 a building also fills the cell its roof ramps down
-     over, which adds most to the smallest buildings;
+  6. the two levels agree on what both resolve alike: at the last common face
+     dump, each building's top roof (its highest upward faces) within 0.5 K
+     and its walls within 1 K between the levels, area-weighted mean skin.
+     The whole-building means are reported, not checked: each level steps a
+     building's edge down over one of its cells, as upward ledges (one 10 m
+     ledge 20 m wide on level 0; 10 m wide ledges 10 m to 30 m up on
+     level 1 in this case), and those ledges differ in area, height and shade;
   7. the ground heats outside the buildings: over the refined area, away from
      the building footprints and the cell around them, the force-restore skin
      of level 1 ends above 300 K, and so does level 0's outside the refined
@@ -221,20 +223,38 @@ def main():
         det.append(f"level {L} final means {c['T_skin_mean_K'][m].min():.1f}-{c['T_skin_mean_K'][m].max():.1f} K")
     check("5. every building warms", ok, ", ".join(det))
 
-    # 6. the levels agree
-    tend = min(c["time_s"][lev == 0].max(), c["time_s"][lev == 1].max())
-    darea, dT = [], []
+    # 6. the levels agree on the top roofs and the walls
+    common = sorted(set(s0) & set(s1))
+    last = {0: read_dump("faces/set", common[-1]), 1: read_dump("faces/set.lev1", common[-1])}
+
+    def parts(d, b):
+        """Area-weighted mean skin [K] and area [m2] of a building's top roof, ledges and walls."""
+        m = d["bid"] == b
+        up = m & (d["dir"] == 2)
+        if not up.any():
+            return None
+        top = d["z_m"][up].max()
+        a, out = d["area_m2"], {}
+        for name, sel in (("roof", up & (d["z_m"] == top)), ("ledge", up & (d["z_m"] < top)), ("wall", m & (d["dir"] != 2))):
+            out[name] = ((d["T_skin"][sel] * a[sel]).sum() / a[sel].sum() if a[sel].sum() > 0 else np.nan, a[sel].sum())
+        out["all"] = ((d["T_skin"][m] * a[m]).sum() / a[m].sum(), a[m].sum())
+        return out
+
+    d_roof, d_wall, d_all = [], [], []
     for b in range(1, nb + 1):
-        m0 = (lev == 0) & (c["building"] == b) & (c["time_s"] == tend)
-        m1 = (lev == 1) & (c["building"] == b) & (c["time_s"] == tend)
-        if not m0.any() or not m1.any():
-            darea.append(np.inf); dT.append(np.inf)    # a building missing on a level: check 1's failure, reported here too
+        p0, p1 = parts(last[0], b), parts(last[1], b)
+        if p0 is None or p1 is None:
+            d_roof.append(np.inf); d_wall.append(np.inf); d_all.append(np.inf)   # check 1's failure, reported here too
             continue
-        darea.append(abs(c["area_m2"][m1][0] / c["area_m2"][m0][0] - 1.0))
-        dT.append(c["T_skin_mean_K"][m1][0] - c["T_skin_mean_K"][m0][0])
-    darea, dT = np.array(darea), np.array(dT)
-    check("6. the two levels agree on every building", np.abs(dT).max() <= 3.0,
-          f"final skin level 1 - level 0 from {dT.min():+.2f} to {dT.max():+.2f} K; face areas differ by up to {100 * darea.max():.0f} %")
+        d_roof.append(p1["roof"][0] - p0["roof"][0])
+        d_wall.append(p1["wall"][0] - p0["wall"][0])
+        d_all.append(p1["all"][0] - p0["all"][0])
+    d_roof, d_wall, d_all = np.array(d_roof), np.array(d_wall), np.array(d_all)
+    check("6. the two levels agree on the top roofs and the walls",
+          np.abs(d_roof).max() <= 0.5 and np.abs(d_wall).max() <= 1.0,
+          f"step {common[-1]}, level 1 - level 0: top roofs {d_roof.min():+.2f} to {d_roof.max():+.2f} K, "
+          f"walls {d_wall.min():+.2f} to {d_wall.max():+.2f} K; whole buildings, with the ledges, "
+          f"{d_all.min():+.2f} to {d_all.max():+.2f} K")
 
     # 7. the ground away from the buildings
     plts = sorted(glob.glob("plt2d*"), key=lambda s: int(re.sub(r"\D", "", s)))
@@ -271,26 +291,30 @@ def main():
           f"{plts[-1]}: open ground {g1:.2f} K in the refined area (level 1) and {g_out:.2f} K outside it (level 0); "
           f"the footprints and their surroundings, left out, {under:.2f} K on level 1{flux}")
 
-    # Not a check: where each building's absorbed shortwave comes from at the
-    # last dump, on both levels, the numbers the README's reading rests on.
-    print("  breakdown at the last face dump (level 0 / level 1): roof share of the face area, "
-          "absorbed SW on roofs and on walls [W/m2], sunlit share of the wall area")
-    last = {0: read_dump("faces/set", s0[-1]), 1: read_dump("faces/set.lev1", s1[-1])}
+    # Not a check: each building's parts at the last common dump, on both
+    # levels, the numbers the README's reading rests on.
+    print(f"  breakdown at step {common[-1]} (level 0 / level 1): area [m2], absorbed SW [W/m2] and mean skin [K] "
+          "of the top roof, the ledges and the walls")
     for b in range(1, nb + 1):
         cols = []
         for L in (0, 1):
             d = last[L]
             m = d["bid"] == b
-            roof, wall = m & (d["dir"] == 2), m & (d["dir"] != 2)
+            up = m & (d["dir"] == 2)
+            top = d["z_m"][up].max()
             a = d["area_m2"]
-            share = a[roof].sum() / a[m].sum()
-            sw_r = (d["SW_abs"][roof] * a[roof]).sum() / a[roof].sum()
-            sw_w = (d["SW_abs"][wall] * a[wall]).sum() / a[wall].sum()
-            lit_w = (a[wall] * (d["SW_direct_in"][wall] > 0)).sum() / a[wall].sum()
-            cols.append((share, sw_r, sw_w, lit_w))
-        print(f"    building {b}: roof share {cols[0][0]:.2f} / {cols[1][0]:.2f}, "
-              f"roof SW {cols[0][1]:.0f} / {cols[1][1]:.0f}, wall SW {cols[0][2]:.0f} / {cols[1][2]:.0f}, "
-              f"sunlit walls {cols[0][3]:.2f} / {cols[1][3]:.2f}")
+            row = []
+            for sel in (up & (d["z_m"] == top), up & (d["z_m"] < top), m & (d["dir"] != 2)):
+                A = a[sel].sum()
+                sw = (d["SW_abs"][sel] * a[sel]).sum() / A if A > 0 else 0.0
+                tk = (d["T_skin"][sel] * a[sel]).sum() / A if A > 0 else 0.0
+                row.append((A, sw, tk))
+            cols.append(row)
+        txt = []
+        for n, name in enumerate(("roof", "ledges", "walls")):
+            (A0, w0, t0), (A1, w1, t1) = cols[0][n], cols[1][n]
+            txt.append(f"{name} {A0:.0f}/{A1:.0f} m2 {w0:.0f}/{w1:.0f} W/m2 {t0:.1f}/{t1:.1f} K" if A0 + A1 > 0 else f"{name} none")
+        print(f"    building {b}: " + "; ".join(txt))
 
     print("ALL PASS" if nfail == 0 else f"{nfail} FAILED")
     return nfail
