@@ -157,6 +157,10 @@ target_sources(${erf_exe_name}
     # stresses of the zeta-face flux and take the cell-centred du/dz from the cell's own faces
     # (erf-model/ERF#4214), so the operator is exact for bilinear fields and dissipates energy.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestTerrainStress.cpp
+    # Motivation: erf.implicit_terrain_metric must put K_h times the terrain-metric factor into
+    # the implicit vertical solves on the interior faces and take the same compact term out of
+    # the explicit fluxes, and nothing on the bottom and top faces.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestTerrainImplicitMetric.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSurfaceFluxDiagnostics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSeaLevelPressure.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestCanopyBiophysics.cpp

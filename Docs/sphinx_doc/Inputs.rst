@@ -876,6 +876,13 @@ List of Parameters
 |                                      | (and tau33 if built with ``ERF_IMPLICIT_W``) used to     |                    |                   |
 |                                      | correct the momenta                                      |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.implicit_terrain_metric**      | on a terrain-fitted mesh, also solve the compact         | Boolean; needs     | false             |
+|                                      | terrain-metric part of the vertical diffusion,           | vert_implicit_fac  |                   |
+|                                      | K_h M d2/dz2, in each implicit solve (u, v, theta, KE,   | > 0 in every stage |                   |
+|                                      | qv), and take it out of the explicit fluxes; M is the    |                    |                   |
+|                                      | weighted sum of the squared slopes times map factors     |                    |                   |
+|                                      | (see the notes below)                                    |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.cfl**                          | CFL number used to compute level 0 dt                    | Real > 0 and <= 1  | 0.8               |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.substepping_cfl**              | CFL number used to compute the number of substeps        | Real > 0 and <= 1  | 1.0               |
@@ -937,6 +944,30 @@ Notes
      (equivalently **erf.vert_implicit = false**), turn off
      **erf.implicit_thermal_diffusion** and **erf.implicit_momentum_diffusion**, or choose
      grids that are not split in z.
+
+-  | On a terrain-fitted mesh the flux through a terrain-following face projects the horizontal
+     fluxes onto the face normal, which adds a vertical diffusion with coefficient
+     K_h M to it, where M is a weighted sum of the squared terrain slopes times map factors:
+     2 h_xi^2 + h_eta^2 for u, h_xi^2 + 2 h_eta^2 for v, and h_xi^2 + h_eta^2 for the scalars
+     (see :ref:`terrain-momentum-stresses`).  The implicit solves
+     treat only K_v, so for K_h M much larger than K_v -- steep slopes with
+     **erf.les_type = Smagorinsky2D** or anisotropic mixing on a coarse grid -- this explicit
+     term, whose rate grows as K_h M / Delta z^2, can limit the time step.  With
+     **erf.implicit_terrain_metric = true** the
+     implicit solves also take K_h M d2/dz2 on the faces inside the domain, and the explicit
+     fluxes give up the same term evaluated at the state they see.  The answer changes by the
+     time discretization of that term (as for the K_v part).  The difference between the averaged
+     explicit and the compact implicit forms stays explicit; it is small for smooth fields on
+     smooth terrain, but not at the grid scale, where the averaged form does not see a 2 Delta z
+     wave at all.  It applies to the quantities that have an implicit solve (w keeps its metric
+     term explicit) and needs that solve in every Runge-Kutta stage: it aborts on a mesh that
+     is not terrain-fitted, and unless **erf.vert_implicit_fac** is positive in all three
+     stages at every level (use 1 1 1).  In a stage without the implicit solve the whole
+     averaged metric term is explicit for that stage: with the default 1 1 0 the option gained
+     little on a steep 3 km ridge, and with anelastic MidPoint (which solves in its first stage
+     only) it ran worse than without it, while with 1 1 1 it recovered the time step of a run
+     without LES.  Anelastic runs therefore cannot use it.  It is off by
+     default, so existing answers do not change.
 
 -  | The implicit acoustic substepping is subject to the same requirement, and for the
      same reason: its vertical solve is one tridiagonal system per column.  Rather than

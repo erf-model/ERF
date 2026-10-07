@@ -1504,6 +1504,11 @@ struct SolverChoice {
         // If true (default), include implicit contributions in tau13, tau23,
         pp.queryAdd("implicit_momentum_diffusion", implicit_momentum_diffusion);
 
+        // If true (default false), also solve the compact terrain-metric part of the vertical
+        // diffusion, K_h M d2/dz2 (ERF_TerrainImplicitMetric.H), implicitly (terrain-fitted
+        // meshes only)
+        pp.queryAdd("implicit_terrain_metric", implicit_terrain_metric);
+
         // The default is true (i.e. that it happens before the acoustic substepping).
         pp.queryAdd("implicit_before_substep", implicit_before_substep);
         for (int lev = 0; lev <= max_level; lev++) {
@@ -1855,6 +1860,42 @@ struct SolverChoice {
             }
         }
 
+        // The implicit terrain metric is a change to the vertical implicit solves on a
+        // terrain-fitted mesh; refuse it where it could not do anything.  This comes after
+        // every block that can turn the implicit solve off.
+        if (implicit_terrain_metric) {
+            if (mesh_type != MeshType::VariableDz) {
+                amrex::Abort("erf.implicit_terrain_metric = true requires a terrain-fitted mesh with "
+                             "non-flat terrain (erf.terrain_type = StaticFittedMesh or MovingFittedMesh); "
+                             "on a flat or a purely stretched mesh there are no terrain-metric terms");
+            }
+            // In a stage without the implicit solve the whole averaged metric term is explicit
+            // for that stage.  On the steep ridge test the option gained little with 1 1 0
+            // and ran worse than without it with anelastic MidPoint (15 s instead of 30 s),
+            // while 1 1 1 recovered the full time step.  So every stage must solve implicitly.
+            for (int lev = 0; lev <= max_level; lev++) {
+                for (int i = 0; i < 3; ++i) {
+                    if (vert_implicit_fac[lev][i] <= zero) {
+                        amrex::Abort("erf.implicit_terrain_metric = true needs the vertical implicit solve "
+                                     "in every Runge-Kutta stage at every level, but erf.vert_implicit_fac "
+                                     "is not positive in stage " + std::to_string(i+1) + " at level " +
+                                     std::to_string(lev) + ".  Set erf.vert_implicit_fac = 1 1 1; the "
+                                     "option cannot be used where the implicit solve is turned off "
+                                     "(erf.vert_implicit = false, every erf.implicit_*_diffusion = false, "
+                                     "no molecular or turbulent diffusion, or anelastic, which solves in "
+                                     "its first stage only or not at all)");
+                    }
+                }
+            }
+            // The momentum solves carry most of the stiffness; with them explicit the option
+            // treats only the scalar metric terms implicitly
+            if (!implicit_momentum_diffusion) {
+                amrex::Print() << "WARNING: erf.implicit_terrain_metric = true with "
+                               << "erf.implicit_momentum_diffusion = false: the momentum terrain-metric "
+                               << "terms stay explicit; only the scalars are treated implicitly" << std::endl;
+            }
+        }
+
         // Countergradient validation: ensure required implicit diffusion is enabled
         for (int lev = 0; lev <= max_level; lev++) {
             if (turbChoice[lev].enable_mrf_countergradient) {
@@ -1921,6 +1962,9 @@ struct SolverChoice {
 #ifdef ERF_IMPLICIT_W
                 amrex::Print() << ", including w";
 #endif
+                if (implicit_terrain_metric) {
+                    amrex::Print() << "; terrain metric implicit";
+                }
                 amrex::Print() << ")";
             }
         }
@@ -2184,6 +2228,9 @@ struct SolverChoice {
     bool implicit_ke_diffusion       = true;
     bool implicit_momentum_diffusion = true;
     bool implicit_before_substep     = true;
+    // On a terrain-fitted mesh, also treat the compact terrain-metric part of the vertical
+    // diffusion (K_h M d2/dz2, ERF_TerrainImplicitMetric.H) implicitly, in every implicit solve
+    bool implicit_terrain_metric     = false;
 
     int         ncorr               = 1;
     std::string wall_dist_type      = "poisson";
@@ -2604,6 +2651,8 @@ struct SolverChoice {
  * @brief Whether implicit vertical momentum diffusion is included.
  * @var SolverChoice::implicit_before_substep
  * @brief Whether implicit diffusion is applied before acoustic substepping.
+ * @var SolverChoice::implicit_terrain_metric
+ * @brief Whether the compact terrain-metric part of the vertical diffusion is solved implicitly.
  * @var SolverChoice::ncorr
  * @brief Number of projection correction iterations.
  * @var SolverChoice::poisson_abstol

@@ -3,8 +3,50 @@
 #include "ERF_SolveTridiag.H"
 #include "ERF_GetRhoAlpha.H"
 #include "ERF_GetRhoAlphaForFaces.H"
+#include "ERF_TerrainImplicitMetric.H"
+#include "ERF_NativeScalarDiffusion.H"
 
 using namespace amrex;
+
+namespace {
+/**
+ * erf.implicit_terrain_metric: K_h*M_s (ERF_TerrainImplicitMetric.H) at the lower (face k)
+ * and upper (face k+1) z-faces of cell k, with K_h formed as getRhoAlpha forms K_v but
+ * from the horizontal eddy diffusivity.  Zero on the bottom and top faces of the domain.
+ * DiffusionSrcForState_T subtracts the same compact term explicitly on the same faces.
+ */
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+void
+TerrainMetricScalarCoeffs (int i, int j, int k, int dom_klo, int dom_khi,
+                           Real& metric_lo, Real& metric_hi,
+                           const Array4<const Real>& cell_data,
+                           const Array4<const Real>& mu_turb,
+                           const Real alpha_mol, const int eddy_h_comp,
+                           bool l_consA, bool l_turb,
+                           const Array4<const Real>& z_nd,
+                           const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
+                           const Array4<const Real>& mf_mx,
+                           const Array4<const Real>& mf_my) noexcept
+{
+    metric_lo = zero;
+    metric_hi = zero;
+    const Real mx = mf_mx(i,j,0);
+    const Real my = mf_my(i,j,0);
+    for (int side = 0; side < 2; ++side) {
+        const int kf = k + side;
+        if (!TerrainMetricImplicitFace(kf, dom_klo, dom_khi)) { continue; }
+        Real kh = (l_consA) ? myhalf * (cell_data(i,j,kf,Rho_comp) + cell_data(i,j,kf-1,Rho_comp)) * alpha_mol
+                            : alpha_mol;
+        if (l_turb) {
+            kh += myhalf * (mu_turb(i,j,kf,eddy_h_comp) + mu_turb(i,j,kf-1,eddy_h_comp));
+        }
+        const Real h_xi  = Compute_h_xi_AtKface (i,j,kf,cellSizeInv,z_nd);
+        const Real h_eta = Compute_h_eta_AtKface(i,j,kf,cellSizeInv,z_nd);
+        const Real metric = kh * TerrainMetricScalarFactor(h_xi, h_eta, mx, my);
+        if (side == 0) { metric_lo = metric; } else { metric_hi = metric; }
+    }
+}
+} // namespace
 
 /**
  * Function for computing the implicit contribution to the vertical diffusion
@@ -27,6 +69,10 @@ using namespace amrex;
  * @param[in   ] use_SurfLayer whether we have turned on subgrid diffusion
  * @param[in   ] implicit_fac if 1 then fully implicit; if 0 then fully explicit
  * @param[in   ] use_mrf_countergradient whether to include MRF countergradient correction
+ * @param[in   ] mf_mx x map factor at cell centers
+ * @param[in   ] mf_my y map factor at cell centers
+ * @param[in   ] implicit_metric erf.implicit_terrain_metric: add the compact terrain-metric
+ *               coefficient K_h*M_s on the interior faces
  */
 void
 ImplicitDiffForStateLU_T (const Box& bx,
@@ -45,7 +91,10 @@ ImplicitDiffForStateLU_T (const Box& bx,
                           const BCRec* bc_ptr,
                           const bool use_SurfLayer,
                           const Real implicit_fac,
-                          const bool use_mrf_countergradient)
+                          const bool use_mrf_countergradient,
+                          const Array4<const Real>& mf_mx,
+                          const Array4<const Real>& mf_my,
+                          const bool implicit_metric)
 {
     BL_PROFILE_VAR("ImplicitDiffForState_T()",ImplicitDiffForState_T);
 
@@ -56,6 +105,13 @@ ImplicitDiffForStateLU_T (const Box& bx,
     const int qty_index  = n;
     const int prim_index = qty_index - 1;
     const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
+
+    // erf.implicit_terrain_metric: the horizontal eddy diffusivity of this quantity, from the
+    // selector the explicit fluxes use, so that the two sides cannot drift apart
+    const int eddy_h_comp =
+        ResolveNativeScalarDiffusionPolicy(qty_index, solverChoice.diffChoice).coefficients.eddy_h_comp;
+    const int dom_klo = domain.smallEnd(2);
+    const int dom_khi = domain.bigEnd(2);
 
     // Box bounds
     int ilo = bx.smallEnd(0);
@@ -132,15 +188,23 @@ ImplicitDiffForStateLU_T (const Box& bx,
                 getRhoAlpha(i, j, klo, rhoAlpha_lo, rhoAlpha_hi,
                             cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
                             prim_index, prim_scal_index, l_consA, l_turb);
+                Real metric_lo = zero, metric_hi = zero;
+                if (implicit_metric) {
+                    const Real alpha_mol = (l_consA && l_turb) ? d_alpha_eff[prim_scal_index]
+                                                               : d_alpha_eff[prim_index];
+                    TerrainMetricScalarCoeffs(i, j, klo, dom_klo, dom_khi, metric_lo, metric_hi,
+                                              cell_data, mu_turb, alpha_mol, eddy_h_comp,
+                                              l_consA, l_turb, z_nd, cellSizeInv, mf_mx, mf_my);
+                }
 
                 met_h_zeta_hi = Compute_h_zeta_AtKface(i,j,klo+1,cellSizeInv,z_nd);
 
                 a_tmp      = zero;
                 if (!at_zlo) {
                     met_h_zeta_lo = Compute_h_zeta_AtKface(i,j,klo,cellSizeInv,z_nd);
-                    a_tmp         = -Fact * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
+                    a_tmp         = -Fact * (rhoAlpha_lo + metric_lo) * dz_inv / met_h_zeta_lo;
                 }
-                c_tmp      = (pin_klo) ? zero : -Fact * rhoAlpha_hi * dz_inv / met_h_zeta_hi;
+                c_tmp      = (pin_klo) ? zero : -Fact * (rhoAlpha_hi + metric_hi) * dz_inv / met_h_zeta_hi;
                 b_tmp      = detJ(i,j,klo) * cell_data(i,j,klo,Rho_comp) - a_tmp - c_tmp;
                 inv_b2_tmp = one;
 
@@ -181,12 +245,20 @@ ImplicitDiffForStateLU_T (const Box& bx,
                 getRhoAlpha(i, j, k, rhoAlpha_lo, rhoAlpha_hi,
                             cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
                             prim_index, prim_scal_index, l_consA, l_turb);
+                Real metric_lo = zero, metric_hi = zero;
+                if (implicit_metric) {
+                    const Real alpha_mol = (l_consA && l_turb) ? d_alpha_eff[prim_scal_index]
+                                                               : d_alpha_eff[prim_index];
+                    TerrainMetricScalarCoeffs(i, j, k, dom_klo, dom_khi, metric_lo, metric_hi,
+                                              cell_data, mu_turb, alpha_mol, eddy_h_comp,
+                                              l_consA, l_turb, z_nd, cellSizeInv, mf_mx, mf_my);
+                }
 
                 met_h_zeta_lo = Compute_h_zeta_AtKface(i,j,k  ,cellSizeInv,z_nd);
                 met_h_zeta_hi = Compute_h_zeta_AtKface(i,j,k+1,cellSizeInv,z_nd);
 
-                a_tmp      = -Fact * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
-                c_tmp      = -Fact * rhoAlpha_hi * dz_inv / met_h_zeta_hi;
+                a_tmp      = -Fact * (rhoAlpha_lo + metric_lo) * dz_inv / met_h_zeta_lo;
+                c_tmp      = -Fact * (rhoAlpha_hi + metric_hi) * dz_inv / met_h_zeta_hi;
                 b_tmp      = detJ(i,j,k) * cell_data(i,j,k,Rho_comp) - a_tmp - c_tmp;
                 inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,k-1));
 
@@ -220,15 +292,23 @@ ImplicitDiffForStateLU_T (const Box& bx,
                 getRhoAlpha(i, j, khi, rhoAlpha_lo, rhoAlpha_hi,
                             cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
                             prim_index, prim_scal_index, l_consA, l_turb);
+                Real metric_lo = zero, metric_hi = zero;
+                if (implicit_metric) {
+                    const Real alpha_mol = (l_consA && l_turb) ? d_alpha_eff[prim_scal_index]
+                                                               : d_alpha_eff[prim_index];
+                    TerrainMetricScalarCoeffs(i, j, khi, dom_klo, dom_khi, metric_lo, metric_hi,
+                                              cell_data, mu_turb, alpha_mol, eddy_h_comp,
+                                              l_consA, l_turb, z_nd, cellSizeInv, mf_mx, mf_my);
+                }
 
                 // Lower-face metric shared with row khi-1.
                 met_h_zeta_lo = Compute_h_zeta_AtKface(i,j,khi  ,cellSizeInv,z_nd);
 
-                a_tmp      = -Fact * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
+                a_tmp      = -Fact * (rhoAlpha_lo + metric_lo) * dz_inv / met_h_zeta_lo;
                 c_tmp      = zero;
                 if (!at_zhi) {
                     met_h_zeta_hi = Compute_h_zeta_AtKface(i,j,khi+1,cellSizeInv,z_nd);
-                    c_tmp         = -Fact * rhoAlpha_hi * dz_inv / met_h_zeta_hi;
+                    c_tmp         = -Fact * (rhoAlpha_hi + metric_hi) * dz_inv / met_h_zeta_hi;
                 }
                 b_tmp      = detJ(i,j,khi) * cell_data(i,j,khi,Rho_comp) - a_tmp - c_tmp;
                 inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,khi-1));
@@ -273,6 +353,55 @@ ImplicitDiffForStateLU_T (const Box& bx,
 #endif
 }
 
+namespace {
+/**
+ * erf.implicit_terrain_metric: K_h*M (ERF_TerrainImplicitMetric.H) at the lower (face k) and
+ * upper (face k+1) z-faces of row k of the u (stagdir 0) or v (stagdir 1) column at (i,j),
+ * in the units of getRhoAlphaForFaces.  Zero on the bottom and top faces of the domain,
+ * which carry the boundary condition, and for w, whose metric term stays explicit.  The
+ * stress kernels put the same compact term into tau13i/tau23i on the same faces.
+ */
+template <int stagdir>
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+void
+TerrainMetricMomCoeffs (int i, int j, int k, int dom_klo, int dom_khi,
+                        Real& metric_lo, Real& metric_hi,
+                        const Array4<const Real>& cell_data,
+                        const Array4<const Real>& mu_turb,
+                        const Real mu_eff, bool l_consA, bool l_turb,
+                        const Array4<const Real>& z_nd,
+                        const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
+                        const Array4<const Real>& mf_x,
+                        const Array4<const Real>& mf_y) noexcept
+{
+    metric_lo = zero;
+    metric_hi = zero;
+    if (stagdir == 2) { return; }
+
+    constexpr int ioff = (stagdir == 0) ? 1 : 0;
+    constexpr int joff = (stagdir == 1) ? 1 : 0;
+    Real kh_lo, kh_hi;
+    getRhoAlphaForFaces(i, j, k, ioff, joff, kh_lo, kh_hi,
+                        cell_data, mu_turb, mu_eff, l_consA, l_turb, EddyDiff::Mom_h);
+    const Real mx = mf_x(i,j,0);
+    const Real my = mf_y(i,j,0);
+    if (TerrainMetricImplicitFace(k, dom_klo, dom_khi)) {
+        const Real h_xi  = (stagdir == 0) ? Compute_h_xi_AtEdgeCenterJ (i,j,k,cellSizeInv,z_nd)
+                                          : Compute_h_xi_AtEdgeCenterI (i,j,k,cellSizeInv,z_nd);
+        const Real h_eta = (stagdir == 0) ? Compute_h_eta_AtEdgeCenterJ(i,j,k,cellSizeInv,z_nd)
+                                          : Compute_h_eta_AtEdgeCenterI(i,j,k,cellSizeInv,z_nd);
+        metric_lo = kh_lo * TerrainMetricMomFactor(stagdir, h_xi, h_eta, mx, my);
+    }
+    if (TerrainMetricImplicitFace(k+1, dom_klo, dom_khi)) {
+        const Real h_xi  = (stagdir == 0) ? Compute_h_xi_AtEdgeCenterJ (i,j,k+1,cellSizeInv,z_nd)
+                                          : Compute_h_xi_AtEdgeCenterI (i,j,k+1,cellSizeInv,z_nd);
+        const Real h_eta = (stagdir == 0) ? Compute_h_eta_AtEdgeCenterJ(i,j,k+1,cellSizeInv,z_nd)
+                                          : Compute_h_eta_AtEdgeCenterI(i,j,k+1,cellSizeInv,z_nd);
+        metric_hi = kh_hi * TerrainMetricMomFactor(stagdir, h_xi, h_eta, mx, my);
+    }
+}
+} // namespace
+
 /**
  * Function for computing the implicit contribution to the vertical diffusion
  * of momentum, over terrain.
@@ -297,6 +426,10 @@ ImplicitDiffForStateLU_T (const Box& bx,
  * @param[in   ] use_SurfLayer whether we have turned on subgrid diffusion
  * @param[in   ] implicit_fac if 1 then fully implicit; if 0 then fully explicit
  * @param[in   ] use_ysu_mom_countergradient whether to include YSU momentum countergradient correction
+ * @param[in   ] mf_x x map factor at the faces of this component (u: mf_ux, v: mf_vx)
+ * @param[in   ] mf_y y map factor at the faces of this component (u: mf_uy, v: mf_vy)
+ * @param[in   ] implicit_metric erf.implicit_terrain_metric: add the compact terrain-metric
+ *               coefficient K_h*M on the interior faces (u and v only)
  */
 template <int stagdir>
 void
@@ -317,7 +450,10 @@ ImplicitDiffForMomLU_T (const Box& bx,
                         const BCRec* bc_ptr,
                         const bool use_SurfLayer,
                         const Real implicit_fac,
-                        const bool use_ysu_mom_countergradient)
+                        const bool use_ysu_mom_countergradient,
+                        const Array4<const Real>& mf_x,
+                        const Array4<const Real>& mf_y,
+                        const bool implicit_metric)
 {
     BL_PROFILE_VAR("ImplicitDiffForMom_T()",ImplicitDiffForMom_T);
 
@@ -462,6 +598,12 @@ ImplicitDiffForMomLU_T (const Box& bx,
               getRhoAlphaForFaces(i, j, klo, ioff, joff, rhoAlpha_lo, rhoAlpha_hi,
                                   cell_data, mu_turb, mu_eff,
                                   l_consA, l_turb);
+              Real metric_lo = zero, metric_hi = zero;
+              if (implicit_metric) {
+                  TerrainMetricMomCoeffs<stagdir>(i, j, klo, dom_klo, dom_khi, metric_lo, metric_hi,
+                                                  cell_data, mu_turb, mu_eff, l_consA, l_turb,
+                                                  z_nd, cellSizeInv, mf_x, mf_y);
+              }
 
               met_h_zeta_lo = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,klo  ,cellSizeInv,z_nd)
                                        + Compute_h_zeta_AtKface(i-ioff,j-joff,klo  ,cellSizeInv,z_nd) );
@@ -469,7 +611,7 @@ ImplicitDiffForMomLU_T (const Box& bx,
                                        + Compute_h_zeta_AtKface(i-ioff,j-joff,klo+1,cellSizeInv,z_nd) );
 
               a_tmp = zero;
-              c_tmp = -Fact * gfac * rhoAlpha_hi * dz_inv / met_h_zeta_hi;
+              c_tmp = -Fact * gfac * (rhoAlpha_hi + metric_hi) * dz_inv / met_h_zeta_hi;
 
               RHS_a(i,j,klo) = detJface * face_data(i,j,klo); // NOTE: this is momenta; solution is velocity
 
@@ -478,7 +620,7 @@ ImplicitDiffForMomLU_T (const Box& bx,
               if (klo != dom_klo) {
                   // Coarse/fine (or grid) boundary: close the system with the known face value
                   // below instead of imposing a physical BC at an interior height
-                  a_tmp = -Fact * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
+                  a_tmp = -Fact * (rhoAlpha_lo + metric_lo) * dz_inv / met_h_zeta_lo;
                   RHS_a(i,j,klo) += Fact * gfac * (tau_corr(i,j,klo+1) - tau_corr(i,j,klo));
                   const Real rho_below = myhalf * ( cell_data(i     ,j     ,klo-1,Rho_comp)
                                                   + cell_data(i-ioff,j-joff,klo-1,Rho_comp) );
@@ -537,14 +679,20 @@ ImplicitDiffForMomLU_T (const Box& bx,
               getRhoAlphaForFaces(i, j, k, ioff, joff, rhoAlpha_lo, rhoAlpha_hi,
                                   cell_data, mu_turb, mu_eff,
                                   l_consA, l_turb);
+              Real metric_lo = zero, metric_hi = zero;
+              if (implicit_metric) {
+                  TerrainMetricMomCoeffs<stagdir>(i, j, k, dom_klo, dom_khi, metric_lo, metric_hi,
+                                                  cell_data, mu_turb, mu_eff, l_consA, l_turb,
+                                                  z_nd, cellSizeInv, mf_x, mf_y);
+              }
 
               met_h_zeta_lo = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,k  ,cellSizeInv,z_nd)
                                        + Compute_h_zeta_AtKface(i-ioff,j-joff,k  ,cellSizeInv,z_nd) );
               met_h_zeta_hi = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,k+1,cellSizeInv,z_nd)
                                        + Compute_h_zeta_AtKface(i-ioff,j-joff,k+1,cellSizeInv,z_nd) );
 
-              a_tmp      = -Fact * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
-              c_tmp      = -Fact * rhoAlpha_hi * dz_inv / met_h_zeta_hi;
+              a_tmp      = -Fact * (rhoAlpha_lo + metric_lo) * dz_inv / met_h_zeta_lo;
+              c_tmp      = -Fact * (rhoAlpha_hi + metric_hi) * dz_inv / met_h_zeta_hi;
               b_tmp      = detJface * rhoface - a_tmp - c_tmp;
               inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,k-1));
 
@@ -575,13 +723,19 @@ ImplicitDiffForMomLU_T (const Box& bx,
               getRhoAlphaForFaces(i, j, khi, ioff, joff, rhoAlpha_lo, rhoAlpha_hi,
                                   cell_data, mu_turb, mu_eff,
                                   l_consA, l_turb);
+              Real metric_lo = zero, metric_hi = zero;
+              if (implicit_metric) {
+                  TerrainMetricMomCoeffs<stagdir>(i, j, khi, dom_klo, dom_khi, metric_lo, metric_hi,
+                                                  cell_data, mu_turb, mu_eff, l_consA, l_turb,
+                                                  z_nd, cellSizeInv, mf_x, mf_y);
+              }
 
               met_h_zeta_lo = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,khi  ,cellSizeInv,z_nd)
                                        + Compute_h_zeta_AtKface(i-ioff,j-joff,khi  ,cellSizeInv,z_nd) );
               met_h_zeta_hi = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,khi+1,cellSizeInv,z_nd)
                                        + Compute_h_zeta_AtKface(i-ioff,j-joff,khi+1,cellSizeInv,z_nd) );
 
-              a_tmp = -Fact * gfac * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
+              a_tmp = -Fact * gfac * (rhoAlpha_lo + metric_lo) * dz_inv / met_h_zeta_lo;
               c_tmp = zero;
 
               RHS_a(i,j,khi)  = detJface * face_data(i,j,khi); // NOTE: this is momenta; solution is velocity
@@ -592,7 +746,7 @@ ImplicitDiffForMomLU_T (const Box& bx,
               if (khi != dom_khi) {
                   // Coarse/fine (or grid) boundary: close the system with the known face value
                   // above instead of imposing a physical BC at an interior height
-                  c_tmp = -Fact * rhoAlpha_hi * dz_inv / met_h_zeta_hi;
+                  c_tmp = -Fact * (rhoAlpha_hi + metric_hi) * dz_inv / met_h_zeta_hi;
                   const Real rho_above = myhalf * ( cell_data(i     ,j     ,khi+1,Rho_comp)
                                                   + cell_data(i-ioff,j-joff,khi+1,Rho_comp) );
                   RHS_a(i,j,khi) -= c_tmp * (face_data(i,j,khi+1) / rho_above);
@@ -657,6 +811,9 @@ ImplicitDiffForMomLU_T (const Box& bx,
         const BCRec*, \
         const bool, \
         const Real, \
+        const bool, \
+        const Array4<const Real>&, \
+        const Array4<const Real>&, \
         const bool);
 INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU(0)
 INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU(1)

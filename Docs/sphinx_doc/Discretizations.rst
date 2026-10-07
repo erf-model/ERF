@@ -878,6 +878,23 @@ slope. Through the
 strain rate it also changes the Smagorinsky eddy viscosities and the shear production of the TKE
 closures.
 
+The projected horizontal stresses contain :math:`h_\xi\,\partial u/\partial z` and
+:math:`h_\eta\,\partial u/\partial z`, so the :math:`\zeta` flux of :math:`u` holds a vertical
+diffusion :math:`-K_h M_u\, \partial u / \partial z` with :math:`M_u = 2(h_\xi m_x)^2 + (h_\eta m_y)^2`
+(:math:`M_v = (h_\xi m_x)^2 + 2(h_\eta m_y)^2` for :math:`v`, and
+:math:`M = (h_\xi m_x)^2 + (h_\eta m_y)^2` for the scalars). The vertical implicit solve treats
+only :math:`K_v`, so this term is explicit and limits the time step on steep slopes when
+:math:`K_h M \gg K_v`. With ``erf.implicit_terrain_metric = true`` its compact form
+:math:`K_h M (\phi_k - \phi_{k-1})/\Delta z` is added to the coefficients of the implicit solve on
+every face inside the domain and subtracted from the explicit flux on the same faces
+(``ERF_TerrainImplicitMetric.H``); the explicit operator keeps the averaged form, so only the
+difference between the two stays explicit. That difference is small for smooth fields on a uniform
+slope, but not where the slope or the viscosity changes from cell to cell, and not at the grid scale:
+the averaged form does not see a :math:`2\Delta z` wave, so there the explicit part is the whole
+compact term with the opposite sign, cancelled within the stage by the implicit solve. The option
+therefore needs the implicit solve in every Runge-Kutta stage (``erf.vert_implicit_fac`` positive in
+all three); in a stage without it the whole averaged metric term is explicit.
+
 Energy Conservation- Subgrid heat flux
 --------------------------------------
 

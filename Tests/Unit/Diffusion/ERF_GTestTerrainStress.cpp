@@ -71,6 +71,7 @@ struct TerrainStressCase
   FArrayBox mf;  // all map factors = 1
   FArrayBox s11, s22, s33, s12, s21, s13, s31, s23, s32;
   FArrayBox rhs_u, rhs_v, rhs_w;
+  FArrayBox s13i, s23i, s33i;  // the parts of tau13/tau23/tau33 the implicit solve takes
   std::vector<BCRec> bcs;
 
   TerrainStressCase (int nx_, int ny_, int nz_, Real dx_, Real dy_, Real dz_,
@@ -104,6 +105,7 @@ struct TerrainStressCase
     s13.resize(tbxxz, 1); s31.resize(tbxxz, 1);
     s23.resize(tbxyz, 1); s32.resize(tbxyz, 1);
     rhs_u.resize(ubx, 1); rhs_v.resize(vbx, 1); rhs_w.resize(wbx, 1);
+    s13i.resize(tbxxz, 1); s23i.resize(tbxyz, 1); s33i.resize(bxcc, 1);
 
     // Periodic-type (interior) x/y and first-order extrapolation in z: no Dirichlet
     // stencils, so every strain comes from the generic interior kernels.
@@ -203,7 +205,7 @@ struct TerrainStressCase
   }
 
   // Strain -> stress (-> momentum RHS), with the boxes erf_make_tau_terms uses
-  void compute (bool with_rhs)
+  void compute (bool with_rhs, bool implicit_metric = false)
   {
     GpuArray<Real, AMREX_SPACEDIM> dxInv{Real(1.0)/dx, Real(1.0)/dy, Real(1.0)/dz};
     auto ua = u.const_array(), va = v.const_array(), wa = w.const_array();
@@ -211,13 +213,13 @@ struct TerrainStressCase
     auto a11 = s11.array(), a22 = s22.array(), a33 = s33.array();
     auto a12 = s12.array(), a21 = s21.array(), a13 = s13.array(), a31 = s31.array();
     auto a23 = s23.array(), a32 = s32.array();
-    Array4<Real> no_corr{};
+    Array4<Real> c13 = s13i.array(), c23 = s23i.array(), c33 = s33i.array();
 
     Box cc = bxcc, xy = tbxxy, xz = tbxxz, yz = tbxyz;
     ComputeStrain_T(cc, xy, xz, yz, domain, ua, va, wa,
                     a11, a22, a33, a12, a21, a13, a31, a23, a32,
                     znd, dJ, dxInv, mfa, mfa, mfa, mfa, mfa, mfa, bcs.data(),
-                    no_corr, no_corr);
+                    c13, c23);
 
     // Remove the halo for the off-diagonal stresses, as erf_make_tau_terms does
     xy.grow(IntVect(-1,-1,0)); xz.grow(IntVect(-1,-1,0)); yz.grow(IntVect(-1,-1,0));
@@ -225,7 +227,7 @@ struct TerrainStressCase
     ComputeStressVarVisc_T(cc, xy, xz, yz, Real(0.0), mu_turb.const_array(), no_cell_data,
                            a11, a22, a33, a12, a21, a13, a31, a23, a32,
                            er_fab.const_array(), znd, dJ, dxInv,
-                           mfa, mfa, mfa, mfa, mfa, mfa, no_corr, no_corr, no_corr);
+                           mfa, mfa, mfa, mfa, mfa, mfa, c13, c23, c33, implicit_metric);
 
     if (with_rhs) {
       rhs_u.setVal<RunOn::Device>(Real(0.0));
@@ -240,6 +242,29 @@ struct TerrainStressCase
                          dJ, no_stretched_dz, dxInv, mfa, mfa, mfa, mfa, mfa, mfa,
                          false, true);
     }
+    Gpu::streamSynchronize();
+  }
+
+  // Strain -> constant-viscosity stress (ComputeStressConsVisc_T, molecular viscosity only)
+  void compute_cons (Real mu_eff, bool implicit_metric)
+  {
+    GpuArray<Real, AMREX_SPACEDIM> dxInv{Real(1.0)/dx, Real(1.0)/dy, Real(1.0)/dz};
+    auto ua = u.const_array(), va = v.const_array(), wa = w.const_array();
+    auto znd = z_nd.const_array(), dJ = detJ.const_array(), mfa = mf.const_array();
+    auto a11 = s11.array(), a22 = s22.array(), a33 = s33.array();
+    auto a12 = s12.array(), a21 = s21.array(), a13 = s13.array(), a31 = s31.array();
+    auto a23 = s23.array(), a32 = s32.array();
+    Array4<Real> c13 = s13i.array(), c23 = s23i.array(), c33 = s33i.array();
+    Box cc = bxcc, xy = tbxxy, xz = tbxxz, yz = tbxyz;
+    ComputeStrain_T(cc, xy, xz, yz, domain, ua, va, wa,
+                    a11, a22, a33, a12, a21, a13, a31, a23, a32,
+                    znd, dJ, dxInv, mfa, mfa, mfa, mfa, mfa, mfa, bcs.data(), c13, c23);
+    xy.grow(IntVect(-1,-1,0)); xz.grow(IntVect(-1,-1,0)); yz.grow(IntVect(-1,-1,0));
+    Array4<const Real> no_cell_data{};
+    ComputeStressConsVisc_T(cc, xy, xz, yz, mu_eff, no_cell_data,
+                            a11, a22, a33, a12, a21, a13, a31, a23, a32,
+                            er_fab.const_array(), znd, dJ, dxInv,
+                            mfa, mfa, mfa, mfa, mfa, mfa, c13, c23, c33, implicit_metric);
     Gpu::streamSynchronize();
   }
 
@@ -450,5 +475,69 @@ TEST(TerrainStress, VariableKOperatorDissipatesEnergyOnSlopes)
     const Real rate  = c.energy_rate();
     const Real scale = c.dissipation_scale();
     EXPECT_LT(rate, tol_for_scale(scale)) << "checkerboard K_h: energy grows, rate/scale = " << rate/scale;
+  }
+}
+
+// Motivation (erf.implicit_terrain_metric): the part of tau13/tau23 the implicit solve removes
+// and re-solves (tau13i/tau23i) must also hold the compact metric term K_h M du/dz, with
+// M_u = 2 h_xi^2 + h_eta^2 and M_v = h_xi^2 + 2 h_eta^2, on the interior faces -- the faces
+// the solve gives that coefficient -- and only the K_v part on the bottom and top faces.
+// With the option off it is the K_v part everywhere, as before.
+TEST(TerrainStress, ImplicitPartHoldsTheMetricTermOnInteriorFaces)
+{
+  const Real sx = Real(0.3), sy = Real(-0.2), Kh = Real(40.0), Kv = Real(1.5), er = Real(3.e-3);
+  const Exact ex{bilinear_coeffs, sx, sy, er};
+  const Real Mu = Real(2.0)*sx*sx + sy*sy, Mv = sx*sx + Real(2.0)*sy*sy;
+  for (const bool metric : {false, true}) {
+    TerrainStressCase c(6, 5, 8, Real(200.0), Real(150.0), Real(50.0), sx, sy, Kh, Kv, er);
+    c.init();
+    c.set_bilinear(bilinear_coeffs);
+    c.compute(false, metric);
+    FArrayBox h13(c.s13i.box(), 1, The_Pinned_Arena()), h23(c.s23i.box(), 1, The_Pinned_Arena());
+    copy_to_host(c.s13i, h13); copy_to_host(c.s23i, h23);
+    const auto t13 = h13.const_array(), t23 = h23.const_array();
+    LoopOnCpu(convert(c.valid, IntVect(1,0,1)), [&] (int i, int j, int k) {
+      const bool interior = (k > 0 && k < c.nz);
+      const Real K = Kv + ((metric && interior) ? Kh*Mu : Real(0.0));
+      EXPECT_NEAR(t13(i,j,k), -K*Real(2.0)*ex.S13(Real(i)*c.dx), tol_for_scale(Real(1.0)))
+        << "metric " << metric << " tau13i at " << i << " " << j << " " << k;
+    });
+    LoopOnCpu(convert(c.valid, IntVect(0,1,1)), [&] (int i, int j, int k) {
+      const bool interior = (k > 0 && k < c.nz);
+      const Real K = Kv + ((metric && interior) ? Kh*Mv : Real(0.0));
+      EXPECT_NEAR(t23(i,j,k), -K*Real(2.0)*ex.S23(Real(j)*c.dy), tol_for_scale(Real(1.0)))
+        << "metric " << metric << " tau23i at " << i << " " << j << " " << k;
+    });
+  }
+}
+
+// Motivation (erf.implicit_terrain_metric): with only a molecular viscosity the stress goes
+// through ComputeStressConsVisc_T, and the implicit solve then adds mu (1 + M) on the interior
+// faces, so its tau13i/tau23i must hold the same metric term there.
+TEST(TerrainStress, ConstantViscosityImplicitPartHoldsTheMetricTerm)
+{
+  const Real sx = Real(0.3), sy = Real(-0.2), mu_eff = Real(3.0), er = Real(3.e-3);
+  const Exact ex{bilinear_coeffs, sx, sy, er};
+  const Real Mu = Real(2.0)*sx*sx + sy*sy, Mv = sx*sx + Real(2.0)*sy*sy;
+  for (const bool metric : {false, true}) {
+    TerrainStressCase c(6, 5, 8, Real(200.0), Real(150.0), Real(50.0), sx, sy, Real(0.0), Real(0.0), er);
+    c.init();
+    c.set_bilinear(bilinear_coeffs);
+    c.compute_cons(mu_eff, metric);
+    FArrayBox h13(c.s13i.box(), 1, The_Pinned_Arena()), h23(c.s23i.box(), 1, The_Pinned_Arena());
+    copy_to_host(c.s13i, h13); copy_to_host(c.s23i, h23);
+    const auto t13 = h13.const_array(), t23 = h23.const_array();
+    LoopOnCpu(convert(c.valid, IntVect(1,0,1)), [&] (int i, int j, int k) {
+      const bool interior = (k > 0 && k < c.nz);
+      const Real f = Real(1.0) + ((metric && interior) ? Mu : Real(0.0));
+      EXPECT_NEAR(t13(i,j,k), -mu_eff*f*ex.S13(Real(i)*c.dx), tol_for_scale(Real(1.0)))
+        << "metric " << metric << " tau13i at " << i << " " << j << " " << k;
+    });
+    LoopOnCpu(convert(c.valid, IntVect(0,1,1)), [&] (int i, int j, int k) {
+      const bool interior = (k > 0 && k < c.nz);
+      const Real f = Real(1.0) + ((metric && interior) ? Mv : Real(0.0));
+      EXPECT_NEAR(t23(i,j,k), -mu_eff*f*ex.S23(Real(j)*c.dy), tol_for_scale(Real(1.0)))
+        << "metric " << metric << " tau23i at " << i << " " << j << " " << k;
+    });
   }
 }

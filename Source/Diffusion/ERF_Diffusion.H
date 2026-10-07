@@ -309,7 +309,8 @@ void ComputeStressConsVisc_T (amrex::Box bxcc,
                               const amrex::Array4<const amrex::Real>& mf_vy,
                               amrex::Array4<amrex::Real>& tau13i,
                               amrex::Array4<amrex::Real>& tau23i,
-                              amrex::Array4<amrex::Real>& tau33i);
+                              amrex::Array4<amrex::Real>& tau33i,
+                              const bool implicit_metric);
 
 /** \brief Compute embedded-boundary stress components for variable viscosity. */
 void ComputeStressVarVisc_EB (amrex::Box bxcc,
@@ -401,7 +402,8 @@ void ComputeStressVarVisc_T (amrex::Box bxcc,
                              const amrex::Array4<const amrex::Real>& mf_vy,
                              amrex::Array4<amrex::Real>& tau13i,
                              amrex::Array4<amrex::Real>& tau23i,
-                             amrex::Array4<amrex::Real>& tau33i);
+                             amrex::Array4<amrex::Real>& tau33i,
+                             const bool implicit_metric);
 
 /** \brief Compute embedded-boundary strain-rate components. */
 void ComputeStrain_EB (const amrex::MFIter& mfi,
@@ -545,7 +547,10 @@ void ImplicitDiffForStateLU_T (const amrex::Box& bx,
                                const amrex::BCRec* bc_ptr,
                                const bool use_SurfLayer,
                                const amrex::Real implicit_fac,
-                               const bool use_mrf_countergradient = false);
+                               const bool use_mrf_countergradient = false,
+                               const amrex::Array4<const amrex::Real>& mf_mx = {},
+                               const amrex::Array4<const amrex::Real>& mf_my = {},
+                               const bool implicit_metric = false);
 
 /**
  * \brief Apply implicit vertical momentum diffusion on a uniform grid without terrain.
@@ -610,5 +615,8 @@ void ImplicitDiffForMomLU_T (const amrex::Box& bx,
                              const amrex::BCRec* bc_ptr,
                              const bool use_SurfLayer,
                              const amrex::Real implicit_fac,
-                             const bool use_ysu_mom_countergradient);
+                             const bool use_ysu_mom_countergradient,
+                             const amrex::Array4<const amrex::Real>& mf_x,
+                             const amrex::Array4<const amrex::Real>& mf_y,
+                             const bool implicit_metric);
 #endif

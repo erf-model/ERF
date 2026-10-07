@@ -524,8 +524,10 @@ endfunction(add_test_option_parity)
 # Stable flow over a steep ridge with Smagorinsky2D + MRF (Tests/test_files/Terrain_Stress_Ridge,
 # erf-model/ERF#4214), driven by Tests/RunTerrainStressRidge.cmake.  MODE "survive" runs OPTIONS
 # and requires a finished, bounded run; CONTROL_OPTIONS, when given, must start and then fail.
+# MODE "agree" runs ON_OPTIONS and OFF_OPTIONS, which must agree within RTOL/ATOL and differ.
 function(add_test_terrain_stress_ridge TEST_NAME MODE PLTFILE)
-    set(oneValueArgs "OPTIONS" "CONTROL_OPTIONS" "WMAX" "RUN_TIMEOUT")
+    set(oneValueArgs "OPTIONS" "CONTROL_OPTIONS" "WMAX" "RUN_TIMEOUT" "ON_OPTIONS" "OFF_OPTIONS"
+                     "RTOL" "ATOL")
     cmake_parse_arguments(ADD_TEST_TSR "" "${oneValueArgs}" "" ${ARGN})
     set(TEST_FILES_DIR Terrain_Stress_Ridge)
     setup_test()
@@ -554,6 +556,10 @@ function(add_test_terrain_stress_ridge TEST_NAME MODE PLTFILE)
         "-DCONTROL_OPTIONS=${ADD_TEST_TSR_CONTROL_OPTIONS}"
         "-DWMAX=${ADD_TEST_TSR_WMAX}"
         "-DRUN_TIMEOUT=${_run_timeout}"
+        "-DON_OPTIONS=${ADD_TEST_TSR_ON_OPTIONS}"
+        "-DOFF_OPTIONS=${ADD_TEST_TSR_OFF_OPTIONS}"
+        "-DRTOL=${ADD_TEST_TSR_RTOL}"
+        "-DATOL=${ADD_TEST_TSR_ATOL}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunTerrainStressRidge.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -561,7 +567,7 @@ function(add_test_terrain_stress_ridge TEST_NAME MODE PLTFILE)
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression"
-        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/survive/simulation.log;${CURRENT_TEST_BINARY_DIR}/control/simulation.log")
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/survive/simulation.log;${CURRENT_TEST_BINARY_DIR}/control/simulation.log;${CURRENT_TEST_BINARY_DIR}/option_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/option_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/agree.log")
 endfunction(add_test_terrain_stress_ridge)
 
 # The numeric log comparison add_test_box_parity's DATALOG relies on: a comparator that
@@ -2724,6 +2730,46 @@ add_test_terrain_stress_ridge(TerrainStress_Ridge_AnelasticMidPoint survive "plt
     OPTIONS "erf.anelastic=1 erf.use_fft=true erf.anelastic_type=MidPoint erf.fixed_dt=25 max_step=864 erf.plot_int_1=864"
     WMAX 5
     RUN_TIMEOUT 1800)
+endif()
+
+# erf.implicit_terrain_metric (opt-in) puts the compact K_h * M * d2/dz2 metric term into the
+# implicit vertical solves.  Measured on this deck (Release, 2 ranks, 6 h): with
+# erf.vert_implicit_fac = 1 1 1 the run without the option is stable to 25 s and fails from
+# 30 s; with it, to 70 s, failing at 75 s (as a run without LES does).  The test runs the option
+# at 50 s for 60 steps (fixed_mri_dt_ratio 30, as in the scans), well inside both edges, and the
+# control without it at 50 s must fail (it does at step 2).
+add_test_terrain_stress_ridge(TerrainStress_Ridge_ImplicitMetric survive "plt00060"
+    OPTIONS "erf.implicit_terrain_metric=true erf.vert_implicit_fac=1 1 1 erf.fixed_dt=50 erf.fixed_mri_dt_ratio=30 max_step=60 erf.plot_int_1=60"
+    CONTROL_OPTIONS "erf.vert_implicit_fac=1 1 1 erf.fixed_dt=50 erf.fixed_mri_dt_ratio=30 max_step=60 erf.plot_int_1=60"
+    WMAX 15)
+# At a small time step the option changes only the time discretization of the metric term: after
+# 60 steps of 5 s, u and w differ by about 5e-4 and Kmh by 0.6 % (relative), and the two runs
+# must still differ.  A split that removed one form and added another would differ by O(1).
+# Double precision only: y_velocity is round-off (1e-13 here), which in single precision is far
+# above ATOL in both runs and would make the comparison meaningless.
+if(ERF_PRECISION STREQUAL "DOUBLE")
+add_test_terrain_stress_ridge(TerrainStress_Ridge_ImplicitMetricAgree agree "plt00060"
+    ON_OPTIONS "erf.implicit_terrain_metric=true erf.vert_implicit_fac=1 1 1 erf.fixed_dt=5 erf.fixed_mri_dt_ratio=4 max_step=60 erf.plot_int_1=60"
+    OFF_OPTIONS "erf.vert_implicit_fac=1 1 1 erf.fixed_dt=5 erf.fixed_mri_dt_ratio=4 max_step=60 erf.plot_int_1=60"
+    RTOL 0.01
+    ATOL 1.e-9)
+endif()
+
+# erf.implicit_terrain_metric is checked at start-up and aborts naming itself.  add_test_abort
+# runs through `sh -c ... | tee`, so these sit under the same guard as its other uses.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+set(_tsr_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/Terrain_Stress_Ridge)
+add_test_abort(TerrainStress_Abort_MetricWithoutTerrain ${_tsr_dir} Terrain_Stress_Ridge.i
+               "erf.implicit_terrain_metric = true requires a terrain-fitted mesh"
+               "erf.terrain_type=None erf.grid_stretching_ratio=0 prob.custom_terrain_type=None erf.implicit_terrain_metric=true erf.vert_implicit_fac=1 1 1")
+add_test_abort(TerrainStress_Abort_MetricExplicitStage ${_tsr_dir} Terrain_Stress_Ridge.i
+               "erf.vert_implicit_fac is not positive in stage 3 at level 0"
+               "erf.implicit_terrain_metric=true")
+if(ERF_ENABLE_FFT)
+add_test_abort(TerrainStress_Abort_MetricAnelasticMidPoint ${_tsr_dir} Terrain_Stress_Ridge.i
+               "erf.vert_implicit_fac is not positive in stage 2 at level 0"
+               "erf.anelastic=1 erf.use_fft=true erf.anelastic_type=MidPoint erf.implicit_terrain_metric=true erf.vert_implicit_fac=1 1 1")
+endif()
 endif()
 
 #=============================================================================

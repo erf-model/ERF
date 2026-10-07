@@ -8,6 +8,12 @@
 #   with those instead, and that run must start and then fail before it writes PLTFILE: the
 #   control shows that the test sits where the setting under test matters.  A control that
 #   survives means the test no longer tests anything, and fails the test.
+#
+# MODE = agree
+#   Runs the deck with ON_OPTIONS and with OFF_OPTIONS (both must finish) and compares the two
+#   plotfiles.  They must agree within RTOL (relative) or ATOL (absolute), which bounds a split
+#   that changes the answer by more than its time discretization, and must differ at zero
+#   tolerance, which shows the option is active (a misspelled option would pass agreement).
 include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/ResolveExecutable.cmake")
 
@@ -131,6 +137,42 @@ if(MODE STREQUAL "survive")
         set(control_note "the control failed after ${n_control} steps")
     endif()
     message(STATUS "RunTerrainStressRidge survive: w in ${w_range}; ${control_note}")
+
+elseif(MODE STREQUAL "agree")
+    foreach(arg ON_OPTIONS OFF_OPTIONS RTOL ATOL)
+        if("${${arg}}" STREQUAL "")
+            message(FATAL_ERROR "RunTerrainStressRidge.cmake: ${arg} must be given for MODE = agree")
+        endif()
+    endforeach()
+    if("${ON_OPTIONS}" STREQUAL "${OFF_OPTIONS}")
+        message(FATAL_ERROR "RunTerrainStressRidge.cmake: ON_OPTIONS and OFF_OPTIONS are the same, so the comparison would be trivial")
+    endif()
+    separate_arguments(on_options  UNIX_COMMAND "${ON_OPTIONS}")
+    separate_arguments(off_options UNIX_COMMAND "${OFF_OPTIONS}")
+    set(on_dir  "${WORKING_DIRECTORY}/option_on")
+    set(off_dir "${WORKING_DIRECTORY}/option_off")
+    run_leg("${on_dir}"  ${on_options})
+    run_leg("${off_dir}" ${off_options})
+
+    execute_process(
+        COMMAND ${launch_one} ${FCOMPARE} --abort_if_not_all_found --rel_tol ${RTOL} --abs_tol ${ATOL}
+                ${on_dir}/${PLTFILE} ${off_dir}/${PLTFILE}
+        OUTPUT_FILE "${WORKING_DIRECTORY}/agree.log"
+        ERROR_FILE "${WORKING_DIRECTORY}/agree.log"
+        RESULT_VARIABLE agree_result)
+    if(NOT agree_result EQUAL 0)
+        message(FATAL_ERROR "RunTerrainStressRidge.cmake: the two runs differ by more than rel ${RTOL} / abs ${ATOL} (see agree.log)")
+    endif()
+    execute_process(
+        COMMAND ${launch_one} ${FCOMPARE} --abort_if_not_all_found --rel_tol 0 --abs_tol 0
+                ${on_dir}/${PLTFILE} ${off_dir}/${PLTFILE}
+        OUTPUT_FILE "${WORKING_DIRECTORY}/identical.log"
+        ERROR_FILE "${WORKING_DIRECTORY}/identical.log"
+        RESULT_VARIABLE identical_result)
+    if(identical_result EQUAL 0)
+        message(FATAL_ERROR "RunTerrainStressRidge.cmake: the two runs are identical, so the option did nothing (see identical.log)")
+    endif()
+    message(STATUS "RunTerrainStressRidge agree: the runs differ, within rel ${RTOL} / abs ${ATOL}")
 
 else()
     message(FATAL_ERROR "RunTerrainStressRidge.cmake: unknown MODE ${MODE}")

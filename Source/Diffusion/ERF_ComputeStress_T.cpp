@@ -1,5 +1,6 @@
 #include <ERF_Diffusion.H>
 #include <ERF_TerrainMetrics.H>
+#include <ERF_TerrainImplicitMetric.H>
 
 using namespace amrex;
 
@@ -34,6 +35,8 @@ using namespace amrex;
  * @param[in,out] tau13i contribution to stress from du/dz
  * @param[in,out] tau23i contribution to stress from dv/dz
  * @param[in,out] tau33i contribution to stress from dw/dz
+ * @param[in]  implicit_metric erf.implicit_terrain_metric: tau13i/tau23i also hold the compact
+ *             terrain-metric term on the interior faces (see ERF_TerrainImplicitMetric.H)
  */
 void
 ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
@@ -54,7 +57,8 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                          const Array4<const Real>& mf_vy,
                          Array4<Real>& tau13i,
                          Array4<Real>& tau23i,
-                         Array4<Real>& tau33i)
+                         Array4<Real>& tau33i,
+                         const bool implicit_metric)
 {
     // NOTE: mu_eff includes factor of 2
 
@@ -283,7 +287,13 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         tau13(i,j,k) -= met_h_xi*mfx*tau11bar + met_h_eta*mfy*tau12bar;
         tau13(i,j,k) *= -mu_tot;
-        if (tau13i) tau13i(i,j,k) *= -mu_tot;
+        if (tau13i) {
+            // erf.implicit_terrain_metric: the implicit solve also takes the compact
+            // K_h*M*d/dz metric term on these interior faces, so tau13i holds it too
+            const Real metric = (implicit_metric) ?
+                TerrainMetricMomFactor(0, met_h_xi, met_h_eta, mfx, mfy) : zero;
+            tau13i(i,j,k) *= -(mu_tot + mu_tot*metric);
+        }
 
         tau31(i,j,k) *= -mu_tot*met_h_zeta/mfy;
     },
@@ -306,7 +316,13 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         tau23(i,j,k) -= met_h_xi*mfx*tau21bar + met_h_eta*mfy*tau22bar;
         tau23(i,j,k) *= -mu_tot;
-        if (tau23i) tau23i(i,j,k) *= -mu_tot;
+        if (tau23i) {
+            // erf.implicit_terrain_metric: the implicit solve also takes the compact
+            // K_h*M*d/dz metric term on these interior faces, so tau23i holds it too
+            const Real metric = (implicit_metric) ?
+                TerrainMetricMomFactor(1, met_h_xi, met_h_eta, mfx, mfy) : zero;
+            tau23i(i,j,k) *= -(mu_tot + mu_tot*metric);
+        }
 
         tau32(i,j,k) *= -mu_tot*met_h_zeta/mfx;
     });
@@ -372,6 +388,8 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
  * @param[in,out] tau13i contribution to stress from du/dz
  * @param[in,out] tau23i contribution to stress from dv/dz
  * @param[in,out] tau33i contribution to stress from dw/dz
+ * @param[in]  implicit_metric erf.implicit_terrain_metric: tau13i/tau23i also hold the compact
+ *             terrain-metric term on the interior faces (see ERF_TerrainImplicitMetric.H)
  *
  * NOTE: The zeta-face stresses tau13/tau23 are the terrain-normal combination
  *       tau_i3 - h_xi*tau_i1 - h_eta*tau_i2. tau_i3 is a vertical stress and takes K_v
@@ -405,7 +423,8 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         const Array4<const Real>& mf_vy,
                         Array4<Real>& tau13i,
                         Array4<Real>& tau23i,
-                        Array4<Real>& tau33i)
+                        Array4<Real>& tau33i,
+                        const bool implicit_metric)
 {
     // NOTE: mu_eff includes factor of 2
 
@@ -687,7 +706,19 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         // K_v on S13; the projected horizontal stresses carry K_h (see the NOTE above)
         tau13(i,j,k) *= -mu_tot;
         tau13(i,j,k) += met_h_xi*mfx*tau11bar + met_h_eta*mfy*tau12bar;
-        if (tau13i) tau13i(i,j,k) *= -mu_tot;
+        if (tau13i) {
+            // erf.implicit_terrain_metric: the implicit solve also takes the compact
+            // K_h*M*d/dz metric term on these interior faces, with K_h averaged to the edge
+            // as getRhoAlphaForFaces averages it there, so tau13i holds it too
+            Real metric_coef = zero;
+            if (implicit_metric) {
+                Real mu_h_bar = fourth * ( mu_turb(i-1, j  , k  , EddyDiff::Mom_h) + mu_turb(i  , j  , k  , EddyDiff::Mom_h)
+                                         + mu_turb(i-1, j  , k-1, EddyDiff::Mom_h) + mu_turb(i  , j  , k-1, EddyDiff::Mom_h) );
+                metric_coef = (rhoAlpha_bar + two*mu_h_bar)
+                            * TerrainMetricMomFactor(0, met_h_xi, met_h_eta, mfx, mfy);
+            }
+            tau13i(i,j,k) *= -(mu_tot + metric_coef);
+        }
 
         tau31(i,j,k) *= -mu_tot*met_h_zeta/mfy;
     },
@@ -715,7 +746,19 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         // K_v on S23; the projected horizontal stresses carry K_h (see the NOTE above)
         tau23(i,j,k) *= -mu_tot;
         tau23(i,j,k) += met_h_xi*mfx*tau21bar + met_h_eta*mfy*tau22bar;
-        if (tau23i) tau23i(i,j,k) *= -mu_tot;
+        if (tau23i) {
+            // erf.implicit_terrain_metric: the implicit solve also takes the compact
+            // K_h*M*d/dz metric term on these interior faces, with K_h averaged to the edge
+            // as getRhoAlphaForFaces averages it there, so tau23i holds it too
+            Real metric_coef = zero;
+            if (implicit_metric) {
+                Real mu_h_bar = fourth * ( mu_turb(i  , j-1, k  , EddyDiff::Mom_h) + mu_turb(i  , j  , k  , EddyDiff::Mom_h)
+                                         + mu_turb(i  , j-1, k-1, EddyDiff::Mom_h) + mu_turb(i  , j  , k-1, EddyDiff::Mom_h) );
+                metric_coef = (rhoAlpha_bar + two*mu_h_bar)
+                            * TerrainMetricMomFactor(1, met_h_xi, met_h_eta, mfx, mfy);
+            }
+            tau23i(i,j,k) *= -(mu_tot + metric_coef);
+        }
 
         tau32(i,j,k) *= -mu_tot*met_h_zeta/mfx;
     });
