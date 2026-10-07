@@ -73,7 +73,8 @@
                           fr_as_crse, fr_as_fine,
                           m_r2d, &base_state[level],
                           cloud_chamber_config.active ? &cloud_chamber_config : nullptr,
-                          cloud_chamber_budget.get(), auxiliary_inert_tracer.get());
+                          cloud_chamber_budget.get(), auxiliary_inert_tracer.get(),
+                          sbm_state_manager.get(), sbm_transport.get());
 
         // Implicit diffusion of moisture
         #include "ERF_ImplicitPost.H"

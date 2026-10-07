@@ -24,9 +24,10 @@ std::string restart_schema (const SBMLayout& layout)
     std::ostringstream schema;
     schema << "ERF-SBM-RESTART-v1\n"
            << "layout=" << layout.schema_identity() << '\n'
-           << "constraint-policy=nonnegative-bin-mass-and-moments-v1\n"
+           << "constraint-policy=linear-groups-plus-canonical-persisted-v1\n"
            << "projection=liquid-mass-sum-to-qc-qr-v1\n"
-           << "transport=zero-transport-fixture-v1\n";
+           << "transport=sbm-m3-mapped-group-fct-v1\n"
+           << "high-order=endpoint-number-wenoz3-v1\n";
     return schema.str();
 }
 

@@ -2,10 +2,17 @@
 #include "ERF_Constants.H"
 
 #include <ERF_EOS.H>
+#include <ERF_Utils.H>
 #include <ERF_TimestepUtils.H>
+#include <ERF_TerrainMetrics.H>
 #include <ERF.H>
 #include "Diffusion/ERF_CloudChamberWallFlux.H"
 #include "TimeIntegration/ERF_CloudChamberWallDtGuard.H"
+#include "AuxiliaryState/ERF_AuxiliaryMappedTransport.H"
+#include "Microphysics/SBM/ERF_SBMTransport.H"
+
+#include <limits>
+#include <sstream>
 
 using namespace amrex;
 
@@ -357,6 +364,141 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
     if (estdt_lowM_inv_T > zero) { estdt_lowM_T = cfl / estdt_lowM_inv_T; }
     if (estdt_lowM_inv_N > zero) { estdt_lowM_N = cfl / estdt_lowM_inv_N; }
+
+    // The host estimator uses a directional maximum, whereas M3's donor
+    // positivity condition is based on the sum of all mapped outgoing faces.
+    // Rebuild the current-time dry-air carrier with the same momentum and
+    // static-terrain conventions as AdvectionSrcForRho.
+    if (solverChoice.moisture_type == MoistureType::SBM) {
+        const BoxArray& cell_ba = S_new.boxArray();
+        const DistributionMapping& cell_dm = S_new.DistributionMap();
+        const BoxArray xface_ba = convert(
+            cell_ba, IntVect::TheDimensionVector(0));
+        const BoxArray yface_ba = convert(
+            cell_ba, IntVect::TheDimensionVector(1));
+        const BoxArray zface_ba = convert(
+            cell_ba, IntVect::TheDimensionVector(2));
+
+        MultiFab rho_u(xface_ba, cell_dm, 1, 2);
+        MultiFab rho_v(yface_ba, cell_dm, 1, 2);
+        MultiFab rho_w(zface_ba, cell_dm, 1, 2);
+        rho_u.setVal(Real(0.0));
+        rho_v.setVal(Real(0.0));
+        rho_w.setVal(Real(0.0));
+
+        const IntVect valid_faces(0);
+        const auto& current_u = vars_new[level][Vars::xvel];
+        const auto& current_v = vars_new[level][Vars::yvel];
+        const auto& current_w = vars_new[level][Vars::zvel];
+        VelocityToMomentum(current_u, valid_faces, current_v, valid_faces,
+                           current_w, valid_faces, S_new, rho_u, rho_v, rho_w,
+                           geom[level].Domain(), domain_bcs_type, nullptr);
+        rho_u.FillBoundary(geom[level].periodicity());
+        rho_v.FillBoundary(geom[level].periodicity());
+        rho_w.FillBoundary(geom[level].periodicity());
+
+        erf_auxiliary::MappedFaceFluxRate mapped_carrier;
+        mapped_carrier.define(cell_ba, cell_dm, 1, 0);
+        std::string sbm_diagnostic;
+        if (l_anelastic) {
+            // Projection restores rho0*w before the anelastic stage seam, so
+            // the donor estimate must use the same three momentum carriers.
+            // Terrain Omega is only an internal projection representation.
+            if (!erf_auxiliary::CopyNativeMappedDryAirCarrierFluxRate(
+                    mapped_carrier, rho_u, rho_v, rho_w, sbm_diagnostic)) {
+                amrex::Abort("SBM anelastic native carrier: " + sbm_diagnostic);
+            }
+        } else {
+            MultiFab sbm_vertical_carrier(zface_ba, cell_dm, 1, 0);
+            const bool terrain_fitted =
+                solverChoice.mesh_type == MeshType::VariableDz;
+            const int zlo = geom[level].Domain().smallEnd(2);
+            const int zhi = geom[level].Domain().bigEnd(2);
+            const auto inv_dx = geom[level].InvCellSizeArray();
+            const MultiFab& z_nd = *z_phys_nd[level];
+            const MultiFab& mf_ux = *mapfac[level][MapFacType::u_x];
+            const MultiFab& mf_vy = *mapfac[level][MapFacType::v_y];
+            for (MFIter mfi(sbm_vertical_carrier, TilingIfNotGPU());
+                 mfi.isValid(); ++mfi) {
+                const Box bx = mfi.tilebox();
+                const auto ru = rho_u.const_array(mfi);
+                const auto rv = rho_v.const_array(mfi);
+                const auto rw = rho_w.const_array(mfi);
+                const auto ux = mf_ux.const_array(mfi);
+                const auto vy = mf_vy.const_array(mfi);
+                const auto z = z_nd.const_array(mfi);
+                const auto out = sbm_vertical_carrier.array(mfi);
+                const bool fitted = terrain_fitted;
+                const int bottom = zlo;
+                const int top = zhi + 1;
+                const auto dx = inv_dx;
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    if (!fitted) {
+                        out(i, j, k, 0) = rw(i, j, k, 0);
+                    } else if (k == bottom) {
+                        out(i, j, k, 0) = Real(0.0);
+                    } else if (k == top) {
+                        out(i, j, k, 0) = rw(i, j, k, 0);
+                    } else {
+                        out(i, j, k, 0) = OmegaFromW(i, j, k, rw(i, j, k, 0),
+                                                      ru, rv, ux, vy, z, dx);
+                    }
+                });
+            }
+            const bool carrier_ok =
+                erf_auxiliary::BuildMappedDryAirCarrierFluxRate(
+                    mapped_carrier, rho_u, rho_v, sbm_vertical_carrier,
+                    *ax[level], *ay[level], *az[level],
+                    *mapfac[level][MapFacType::u_y],
+                    *mapfac[level][MapFacType::v_x],
+                    *mapfac[level][MapFacType::m_x],
+                    *mapfac[level][MapFacType::m_y], sbm_diagnostic);
+            if (!carrier_ok) {
+                Abort("SBM M3 current mapped carrier: " + sbm_diagnostic);
+            }
+        }
+
+        if (sbm_transport == nullptr || !sbm_transport->is_defined(level) ||
+            !sbm_transport->measure_is_ready(level)) {
+            Abort("SBM M3 donor timestep estimate requires a ready static measure");
+        }
+        const MultiFab& measure = sbm_transport->static_measure(level);
+
+        Real max_sbm_outgoing_rate = Real(0.0);
+        const bool rate_ok = erf_auxiliary::ComputeMaxMappedOutgoingRate(
+            mapped_carrier, measure, S_new, Rho_comp, dxinv,
+            max_sbm_outgoing_rate, sbm_diagnostic);
+        if (!rate_ok) {
+            Abort("SBM M3 current donor-rate estimate: " + sbm_diagnostic);
+        }
+        if (max_sbm_outgoing_rate > Real(0.0)) {
+            const double adaptive_sbm_dt =
+                static_cast<double>(amrex::min(cfl, Real(1.0)) /
+                                    max_sbm_outgoing_rate);
+            estdt_comp_T = std::min(estdt_comp_T, adaptive_sbm_dt);
+            estdt_comp_N = std::min(estdt_comp_N, adaptive_sbm_dt);
+            estdt_lowM_T = std::min(estdt_lowM_T, adaptive_sbm_dt);
+            estdt_lowM_N = std::min(estdt_lowM_N, adaptive_sbm_dt);
+
+            double hard_sbm_dt = std::numeric_limits<double>::infinity();
+            if (erf_auxiliary::FixedDtExceedsMappedDonorLimit(
+                    static_cast<double>(fixed_dt[level]),
+                    max_sbm_outgoing_rate, hard_sbm_dt)) {
+                std::ostringstream message;
+                message.precision(17);
+                message << "SBM M3 fixed timestep exceeds donor positivity "
+                           "limit: fixed_dt=" << fixed_dt[level]
+                        << " hard_limit=" << hard_sbm_dt
+                        << " max_outgoing_rate=" << max_sbm_outgoing_rate;
+                Abort(message.str());
+            }
+            if (verbose) {
+                Print() << "SBM mapped donor dt at level " << level << ": "
+                        << adaptive_sbm_dt << " (hard fixed-dt limit "
+                        << hard_sbm_dt << ")" << std::endl;
+            }
+        }
+    }
 
      Real max_wall_rate = Real(0.0);
      Real estdt_wall = bogus_large_value;
