@@ -484,6 +484,7 @@ ERF::ReadStormTrackerRestart ()
     hurricane_eye_track_latlon.clear();
     hurricane_maxvel_vs_time.clear();
     hurricane_minpressure_vs_time.clear();
+    hurricane_surface_fluxes_vs_time.clear();
 
     const fs::path base_dir("Output_StormTracker");
 
@@ -632,6 +633,35 @@ ERF::ReadStormTrackerRestart ()
                 Real x, y, z;
                 ifs >> x >> y >> z;
                 hurricane_eye_track_xy.push_back({x, y});
+            }
+        }
+    }
+
+    //==========================================================
+    // Read surface fluxes tracker file
+    //==========================================================
+
+    {
+        fs::path file = last_file(base_dir / "surface_fluxes");
+
+        if (!file.empty())
+        {
+            std::ifstream ifs(file);
+
+            if (!ifs.is_open()) {
+                Abort("Could not open " + file.string());
+            }
+
+            std::string line;
+
+            // Skip the header line.
+            std::getline(ifs, line);
+
+            amrex::Real val1, val2;
+
+            while (ifs >> val1 >> val2)
+            {
+                hurricane_surface_fluxes_vs_time.push_back({val1, val2});
             }
         }
     }
