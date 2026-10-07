@@ -795,6 +795,89 @@ W Momentum - subfilter stress divergence
    \tau_{33,k - \frac{1}{2}} = -K_{i,j, k - 1}                        \ S_{33,k - \frac{1}{2}}
    \end{array}
 
+.. _terrain-momentum-stresses:
+
+Momentum stresses on terrain-fitted meshes
+------------------------------------------
+
+On a terrain-fitted mesh (``ComputeStrain_T`` and ``ComputeStressVarVisc_T``), the strains are
+taken along the coordinate surfaces with the chain rule. For example,
+
+.. math::
+
+   S_{11} = m_x \left( \frac{\partial u}{\partial \xi} - h_\xi \frac{\partial u}{\partial z} \right),
+
+where :math:`h_\xi = \partial z / \partial \xi` and :math:`h_\eta = \partial z / \partial \eta` are the
+terrain slopes. The cell-centred :math:`\partial u / \partial z` in :math:`S_{11}` is the average
+over the four :math:`x`-:math:`z` edges of the cell, so it uses the cell's own faces
+:math:`i` and :math:`i+1`; :math:`\partial v / \partial z` in :math:`S_{22}` likewise uses the faces
+:math:`j` and :math:`j+1`.
+
+The flux through a :math:`\zeta` face is the stress projected onto the face normal. With
+:math:`\nu_v` and :math:`\nu_h` the vertical and horizontal eddy viscosities as the code stores
+them (``EddyDiff::Mom_v`` and ``EddyDiff::Mom_h``, density-weighted, each with the molecular
+viscosity added) and the stress :math:`\tau_{ij} = -2\nu S_{ij}`,
+
+.. math::
+
+   \tau_{\zeta,1} = -2\left[ \nu_v\, S_{13}
+                     - \left( h_\xi m_x \overline{\nu_h S_{11}} + h_\eta m_y \overline{\nu_h S_{12}} \right) \right],
+   \qquad
+   \tau_{\zeta,2} = -2\left[ \nu_v\, S_{23}
+                     - \left( h_\xi m_x \overline{\nu_h S_{21}} + h_\eta m_y \overline{\nu_h S_{22}} \right) \right].
+
+:math:`\nu_v` is averaged to the edge from the four cells around it. The overbars average the
+horizontal stresses where they are formed -- :math:`\nu_h S_{11}` and :math:`\nu_h S_{22}` at the four
+cells, :math:`\nu_h S_{12}` at the four :math:`x`-:math:`y` edges, with :math:`\nu_h` averaged to those
+edges as for :math:`\tau_{12}` -- just as the scalars average their horizontal fluxes in
+:math:`G_\zeta` above. :math:`S_{11}`, :math:`S_{12}` and :math:`S_{22}` are horizontal strains, so
+their projections take :math:`\nu_h`. In ERF's symmetric stress tensor :math:`S_{31}` and
+:math:`S_{32}` are vertical stresses, so the :math:`w` equation's :math:`\zeta` flux projects them
+with :math:`\nu_v` (WRF uses the horizontal viscosity for the horizontal flux of :math:`w`).
+
+For the strain part of the stress (without the :math:`-\tfrac{1}{3}` expansion-rate term) on a
+uniform slope, with uniform vertical spacing and constant map factors, and away from the extrapolated
+bottom and top planes, this makes the discrete operator dissipative for any
+:math:`\nu_h, \nu_v \ge 0`: summation by parts gives a kinetic-energy rate of
+:math:`-2\left[ \sum \nu_h (S_{11}^2 + S_{22}^2 + 2S_{12}^2) + \sum \nu_v (\ldots) \right] \le 0`,
+because averaging :math:`\nu_h S_{11}` to the edges is the transpose of the four-edge average in its
+:math:`\partial u / \partial z`. Multiplying an edge-averaged :math:`\nu_h` by the averaged strain
+instead is not: where :math:`\nu_h` changes from cell to cell, a grid-scale oblique wave can gain
+energy (``Tests/Unit/Diffusion/ERF_GTestTerrainStress.cpp`` has such a case). The expansion-rate
+term is outside this argument: with :math:`\nu_h \ne \nu_v` the deviatoric stresses are not
+dissipative even in the continuum.
+
+Before erf-model/ERF#4214 the projected terms took :math:`\nu_v`. For :math:`u` alone the rate was
+then the quadratic form
+:math:`2\nu_h a^2 - 2(\nu_h+\nu_v) h_\xi a b + \nu_v (1 + 2h_\xi^2) b^2` in
+:math:`a = \partial u/\partial \xi` and :math:`b = \partial u/\partial z`. That form is indefinite when
+:math:`(\nu_h+\nu_v)^2 h_\xi^2 > 2\nu_h\nu_v(1+2h_\xi^2)`, which for :math:`\nu_h \gg \nu_v` and
+:math:`h_\xi^2 \ll 1` is :math:`\nu_h h_\xi^2 > 2 \nu_v`, and which holds for any slope when
+:math:`\nu_h = 0`. Oblique short waves were then amplified at a rate that does not depend on the
+time step.
+
+Runs on a flat terrain-fitted mesh are unchanged bit for bit. On a sloped mesh the answers of runs
+with :math:`\nu_h \ne \nu_v` change most:
+
+- ``erf.les_type = Smagorinsky2D``;
+- Smagorinsky or Deardorff with ``erf.mix_isotropic = false``;
+- any LES closure combined with a PBL scheme, which sets :math:`\nu_v` only;
+- a PBL scheme without an LES closure. No PBL scheme sets :math:`\nu_h`, so it is the molecular
+  viscosity alone (usually zero) and the projected horizontal stresses drop out, as in WRF with a
+  PBL scheme, where the PBL mixes only in the vertical.
+
+Runs with :math:`\nu_h = \nu_v` (isotropic Smagorinsky or Deardorff, the k-equation closures)
+change less, where the viscosity varies between neighbouring cells, because the average of
+:math:`\nu S` differs from the product of the averages. Runs with only a molecular viscosity
+(``ComputeStressConsVisc_T``) change only through the :math:`\partial u / \partial z` correction. The
+:math:`\partial u / \partial z` correction (also erf-model/ERF#4214) changes every run on a sloped
+mesh where :math:`\partial u / \partial z` varies along :math:`x` (or :math:`\partial v / \partial z`
+along :math:`y`), by what was a first-order error of about
+:math:`\Delta x\, h_\xi\, \partial^2 u/\partial x \partial z` in :math:`S_{11}`, which grows with the
+slope. Through the
+strain rate it also changes the Smagorinsky eddy viscosities and the shear production of the TKE
+closures.
+
 Energy Conservation- Subgrid heat flux
 --------------------------------------
 

@@ -153,6 +153,10 @@ target_sources(${erf_exe_name}
     # Motivation: the k-eqn RANS closure (AL01) must keep its stability
     # functions finite and its length-scale limits exact for any Rt.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestRANSClosure.cpp
+    # Motivation: terrain-fitted momentum diffusion must apply K_h to the projected horizontal
+    # stresses of the zeta-face flux and take the cell-centred du/dz from the cell's own faces
+    # (erf-model/ERF#4214), so the operator is exact for bilinear fields and dissipates energy.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestTerrainStress.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSurfaceFluxDiagnostics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSeaLevelPressure.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestCanopyBiophysics.cpp

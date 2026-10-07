@@ -521,6 +521,49 @@ function(add_test_option_parity TEST_NAME TEST_FILES_DIR PLTFILE)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/option_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/option_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
 endfunction(add_test_option_parity)
 
+# Stable flow over a steep ridge with Smagorinsky2D + MRF (Tests/test_files/Terrain_Stress_Ridge,
+# erf-model/ERF#4214), driven by Tests/RunTerrainStressRidge.cmake.  MODE "survive" runs OPTIONS
+# and requires a finished, bounded run; CONTROL_OPTIONS, when given, must start and then fail.
+function(add_test_terrain_stress_ridge TEST_NAME MODE PLTFILE)
+    set(oneValueArgs "OPTIONS" "CONTROL_OPTIONS" "WMAX" "RUN_TIMEOUT")
+    cmake_parse_arguments(ADD_TEST_TSR "" "${oneValueArgs}" "" ${ARGN})
+    set(TEST_FILES_DIR Terrain_Stress_Ridge)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(_run_timeout 1200)
+    if(NOT "${ADD_TEST_TSR_RUN_TIMEOUT}" STREQUAL "")
+        set(_run_timeout "${ADD_TEST_TSR_RUN_TIMEOUT}")
+    endif()
+    math(EXPR _ctest_timeout "2 * ${_run_timeout} + 600")
+
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMODE=${MODE}"
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/Terrain_Stress_Ridge.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DFCOMPARE=${FCOMPARE_EXE}"
+        "-DFEXTREMA=${FEXTREMA_EXE}"
+        "-DPLTFILE=${PLTFILE}"
+        "-DOPTIONS=${ADD_TEST_TSR_OPTIONS}"
+        "-DCONTROL_OPTIONS=${ADD_TEST_TSR_CONTROL_OPTIONS}"
+        "-DWMAX=${ADD_TEST_TSR_WMAX}"
+        "-DRUN_TIMEOUT=${_run_timeout}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunTerrainStressRidge.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT ${_ctest_timeout}
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/survive/simulation.log;${CURRENT_TEST_BINARY_DIR}/control/simulation.log")
+endfunction(add_test_terrain_stress_ridge)
+
 # The numeric log comparison add_test_box_parity's DATALOG relies on: a comparator that
 # accepts everything passes every test that uses it, so it needs its own test.  Pure CMake,
 # no ERF run, hence the "unit" label.
@@ -2664,6 +2707,24 @@ add_test_restart_parity(ObsNudging_Hill_Restart ObsNudging_Hill 10 20
     COMMON_OPTIONS "${_obs_files}"
     DATALOG "Output_Stations/mast.dat"
     DATALOG_SIGDIGITS 10)
+
+#=============================================================================
+# Terrain-fitted momentum stresses (erf-model/ERF#4214)
+#=============================================================================
+# Steep ridge (h dx/dz about 20 in the first cells), 3 km grid, Smagorinsky2D + MRF.  With the
+# projected horizontal stresses on K_v, as before #4214, anelastic runs on this deck fail late
+# at every time step tried, from 5 s up: the anti-diffusion does not depend on dt.  With K_h on
+# them the anelastic MidPoint run is stable to 30 s and fails at 45 s.  The test runs 864 steps
+# of 25 s (6 h) and must stay bounded; measured with erf_exec (Release, 2 ranks), the K_v form
+# fails it at step 620 (and at step 517 at 30 s, where the K_v form with only the du/dz fix
+# fails at step 705).  Anelastic on a stretched terrain-fitted mesh needs the FFT preconditioner,
+# so CI's GitHub jobs (no FFT) do not run this test; the gtests cover the kernels there.
+if(ERF_ENABLE_FFT)
+add_test_terrain_stress_ridge(TerrainStress_Ridge_AnelasticMidPoint survive "plt00864"
+    OPTIONS "erf.anelastic=1 erf.use_fft=true erf.anelastic_type=MidPoint erf.fixed_dt=25 max_step=864 erf.plot_int_1=864"
+    WMAX 5
+    RUN_TIMEOUT 1800)
+endif()
 
 #=============================================================================
 # Performance tests

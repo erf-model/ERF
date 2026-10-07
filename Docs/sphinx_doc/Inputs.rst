@@ -2032,6 +2032,14 @@ If we set ``erf.molec_diff_type`` to ``ConstantAlpha``, then
 Parameters for LES can either be set with one value that applies across all levels, or set with a number of values
 equal to the number of levels, allowing unique values of the parameter to be set for each level.
 
+On a terrain-fitted mesh the momentum flux through a terrain-following (:math:`\zeta`) face combines
+the vertical stress, which takes the vertical eddy viscosity (``Kmv``), with the horizontal stresses
+projected onto the face, which take the horizontal eddy viscosity (``Kmh``); see
+:ref:`terrain-momentum-stresses`. Answers therefore depend on both whenever they differ: with
+``erf.les_type = Smagorinsky2D``, with ``erf.mix_isotropic = false``, and with a PBL scheme. No PBL
+scheme sets ``Kmh``, so with a PBL scheme and no LES closure the projected horizontal stresses
+carry only the molecular viscosity.
+
 .. _inputs-pbl-scheme:
 
 PBL Scheme
