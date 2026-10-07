@@ -64,6 +64,7 @@ jobs:
       - name: Show disk space
         run: df -h
       - name: Configure and build
+        shell: bash
         run: |
           export CCACHE_COMPRESS=1
           export CCACHE_COMPRESSLEVEL=10
@@ -103,10 +104,20 @@ jobs:
           key: ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.mesh_precision }}-git-${{ github.sha }}
 
       - name: Report
+        if: always()
+        shell: bash
         run: |
-          grep -Ei "warning:|warning #|error:|error #" ${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output.txt \
-            | grep -Ev "Submodules/(amrex|googletest)" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
-            | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output-warnings.txt
-          cat ${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output-warnings.txt
-          export return=$(tail -n 1 ${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output-warnings.txt | awk '{print $2}')
-          exit ${return}
+          build_log="${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output.txt"
+          diagnostics="${{runner.workspace}}/build-${{matrix.cuda_pkg}}-diagnostics.txt"
+          grep -Ei "warning:|warning #|error:|error #" "$build_log" \
+            | grep -Ev "Submodules/(amrex|googletest)" \
+            | grep -Ev "lto-wrapper: warning:" \
+            | sort -fu > "$diagnostics" || true
+          cat "$diagnostics"
+          warning_count=$(grep -Eic "warning:|warning #" "$diagnostics" || true)
+          error_count=$(grep -Eic "error:|error #" "$diagnostics" || true)
+          echo "Warnings: ${warning_count:-0}"
+          echo "Errors: ${error_count:-0}"
+          if [ "${warning_count:-0}" -ne 0 ] || [ "${error_count:-0}" -ne 0 ]; then
+            exit 1
+          fi

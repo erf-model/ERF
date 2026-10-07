@@ -6,6 +6,7 @@
 #include "ERF_ScalarDiffusion.H"
 #include "ERF_AdvectionSrcForScalars.H"
 #include "ERF_IndexDefines.H"
+#include "ERF_TerrainMetrics.H"
 
 #include <AMReX_Gpu.H>
 #include <AMReX_Math.H>
@@ -628,6 +629,7 @@ void run_auxiliary_mapped_transport_CompressibleRK3RecipeUsesAuditedStageCoeffic
             << diagnostic;
         EXPECT_DOUBLE_EQ(recipe.anchor_weight, 1.0);
         EXPECT_DOUBLE_EQ(recipe.input_weight, 0.0);
+        EXPECT_EQ(recipe.limiter_trial_base, LimiterTrialBase::Anchor);
         EXPECT_DOUBLE_EQ(recipe.limiter_trial_interval, trial[stage]);
         EXPECT_DOUBLE_EQ(recipe.face_rate_time_coefficient, face[stage]);
         EXPECT_DOUBLE_EQ(recipe.completed_ledger_time, ledger[stage]);
@@ -643,6 +645,7 @@ void run_auxiliary_mapped_transport_HeunRecipeSeparatesTrialAndWeightedFaceTime 
                                          recipe, diagnostic)) << diagnostic;
     EXPECT_DOUBLE_EQ(recipe.anchor_weight, 1.0);
     EXPECT_DOUBLE_EQ(recipe.input_weight, 0.0);
+    EXPECT_EQ(recipe.limiter_trial_base, LimiterTrialBase::Anchor);
     EXPECT_DOUBLE_EQ(recipe.limiter_trial_interval, dt);
     EXPECT_DOUBLE_EQ(recipe.face_rate_time_coefficient, dt);
     EXPECT_DOUBLE_EQ(recipe.completed_ledger_time, 0.5 * dt);
@@ -651,6 +654,7 @@ void run_auxiliary_mapped_transport_HeunRecipeSeparatesTrialAndWeightedFaceTime 
                                          recipe, diagnostic)) << diagnostic;
     EXPECT_DOUBLE_EQ(recipe.anchor_weight, 0.5);
     EXPECT_DOUBLE_EQ(recipe.input_weight, 0.5);
+    EXPECT_EQ(recipe.limiter_trial_base, LimiterTrialBase::Input);
     EXPECT_DOUBLE_EQ(recipe.limiter_trial_interval, dt);
     EXPECT_DOUBLE_EQ(recipe.face_rate_time_coefficient, 0.5 * dt);
     EXPECT_DOUBLE_EQ(recipe.completed_ledger_time, 0.5 * dt);
@@ -1205,6 +1209,372 @@ TEST(AuxiliaryMappedTransport, ZeroRateStillAppliesHostAnchorInputRecurrence)
 TEST(AuxiliaryMappedTransport, StageSequenceFailsClosed)
 {
     run_auxiliary_mapped_transport_StageSequenceFailsClosed();
+}
+
+void run_mapped_donor_rate_cartesian_sum_test ()
+{
+    TestGrid g;
+    g.detj.setVal(Real(1.0));
+    g.mx.setVal(Real(1.0));
+    g.my.setVal(Real(1.0));
+    ASSERT_TRUE(g.build_measure());
+
+    const BoxArray xb = amrex::convert(g.ba, IntVect::TheDimensionVector(0));
+    const BoxArray yb = amrex::convert(g.ba, IntVect::TheDimensionVector(1));
+    const BoxArray zb = amrex::convert(g.ba, IntVect::TheDimensionVector(2));
+    MultiFab rho_u(xb, g.dm, 1, 0), rho_v(yb, g.dm, 1, 0);
+    MultiFab omega(zb, g.dm, 1, 0);
+    MultiFab ax(xb, g.dm, 1, 0), ay(yb, g.dm, 1, 0), az(zb, g.dm, 1, 0);
+    MultiFab mf_uy(project_to_xy(xb), g.dm, 1, 0);
+    MultiFab mf_vx(project_to_xy(yb), g.dm, 1, 0);
+    ax.setVal(Real(1.0)); ay.setVal(Real(1.0)); az.setVal(Real(1.0));
+    mf_uy.setVal(Real(1.0)); mf_vx.setVal(Real(1.0));
+    const auto dx_inv = g.geom.InvCellSizeArray();
+    rho_u.setVal(Real(1.0) / dx_inv[0]);
+    rho_v.setVal(Real(1.0) / dx_inv[1]);
+    omega.setVal(Real(1.0) / dx_inv[2]);
+    MultiFab density(g.ba, g.dm, 1, 0);
+    density.setVal(Real(1.0));
+
+    MappedFaceFluxRate rate;
+    rate.define(g.ba, g.dm, 1, 0);
+    std::string diagnostic;
+    ASSERT_TRUE(BuildMappedDryAirCarrierFluxRate(
+        rate, rho_u, rho_v, omega, ax, ay, az, mf_uy, mf_vx, g.mx, g.my,
+        diagnostic)) << diagnostic;
+    Real max_rate = Real(0.0);
+    ASSERT_TRUE(ComputeMaxMappedOutgoingRate(rate, g.omega, density, 0,
+                                              dx_inv, max_rate, diagnostic))
+        << diagnostic;
+
+    // Each positive direction contributes one unit of outgoing rate.  The
+    // host directional-max estimator would return 1, while donor demand sums
+    // the three mapped directions and must return 3.
+    EXPECT_NEAR(max_rate, Real(3.0), Real(32.0) *
+                                      std::numeric_limits<Real>::epsilon());
+}
+
+void run_mapped_donor_rate_metric_oracle_test ()
+{
+    TestGrid g;
+    ASSERT_TRUE(g.build_measure());
+    const BoxArray xb = amrex::convert(g.ba, IntVect::TheDimensionVector(0));
+    const BoxArray yb = amrex::convert(g.ba, IntVect::TheDimensionVector(1));
+    const BoxArray zb = amrex::convert(g.ba, IntVect::TheDimensionVector(2));
+    MultiFab rho_u(xb, g.dm, 1, 0), rho_v(yb, g.dm, 1, 0);
+    MultiFab omega(zb, g.dm, 1, 0);
+    MultiFab ax(xb, g.dm, 1, 0), ay(yb, g.dm, 1, 0), az(zb, g.dm, 1, 0);
+    MultiFab mf_uy(project_to_xy(xb), g.dm, 1, 0);
+    MultiFab mf_vx(project_to_xy(yb), g.dm, 1, 0);
+    MultiFab density(g.ba, g.dm, 1, 0);
+    for (amrex::MFIter mfi(rho_u); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.validbox();
+        const auto ru = rho_u.array(mfi);
+        const auto area = ax.array(mfi);
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            ru(i,j,k,0) = Real(0.3) + Real(0.02)*i + Real(0.01)*j + Real(0.005)*k;
+            area(i,j,k,0) = Real(0.7) + Real(0.01)*i + Real(0.02)*k;
+        });
+    }
+    for (amrex::MFIter mfi(rho_v); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.validbox();
+        const auto rv = rho_v.array(mfi);
+        const auto area = ay.array(mfi);
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            rv(i,j,k,0) = Real(-0.25) + Real(0.01)*j + Real(0.02)*k;
+            area(i,j,k,0) = Real(0.8) + Real(0.02)*i + Real(0.01)*j;
+        });
+    }
+    for (amrex::MFIter mfi(omega); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.validbox();
+        const auto o = omega.array(mfi);
+        const auto area = az.array(mfi);
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            o(i,j,k,0) = Real(0.15) + Real(0.03)*i - Real(0.02)*j + Real(0.01)*k;
+            area(i,j,k,0) = Real(0.9) + Real(0.01)*i + Real(0.02)*j;
+        });
+    }
+    for (amrex::MFIter mfi(mf_uy); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.validbox();
+        const auto m = mf_uy.array(mfi);
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
+            m(i,j,0,0) = Real(1.2) + Real(0.03)*j;
+        });
+    }
+    for (amrex::MFIter mfi(mf_vx); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.validbox();
+        const auto m = mf_vx.array(mfi);
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
+            m(i,j,0,0) = Real(1.4) + Real(0.02)*i;
+        });
+    }
+    for (amrex::MFIter mfi(density); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.validbox();
+        const auto rho = density.array(mfi);
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            rho(i,j,k,0) = Real(1.1) + Real(0.05)*i + Real(0.03)*j + Real(0.02)*k;
+        });
+    }
+
+    MappedFaceFluxRate rate;
+    rate.define(g.ba, g.dm, 1, 0);
+    std::string diagnostic;
+    ASSERT_TRUE(BuildMappedDryAirCarrierFluxRate(
+        rate, rho_u, rho_v, omega, ax, ay, az, mf_uy, mf_vx, g.mx, g.my,
+        diagnostic)) << diagnostic;
+    const auto dx_inv = g.geom.InvCellSizeArray();
+    Real max_rate = Real(0.0);
+    ASSERT_TRUE(ComputeMaxMappedOutgoingRate(rate, g.omega, density, 0,
+                                              dx_inv, max_rate, diagnostic))
+        << diagnostic;
+
+    // Independent host oracle evaluates the face mapping, mapped volume,
+    // density denominator, and directional outgoing sum from their formulas.
+    Real expected = Real(0.0);
+    for (int k = g.domain.smallEnd(2); k <= g.domain.bigEnd(2); ++k) {
+        for (int j = g.domain.smallEnd(1); j <= g.domain.bigEnd(1); ++j) {
+            for (int i = g.domain.smallEnd(0); i <= g.domain.bigEnd(0); ++i) {
+                auto fx = [=](int fi) {
+                    return (Real(0.7) + Real(0.01)*fi + Real(0.02)*k) *
+                           (Real(0.3) + Real(0.02)*fi + Real(0.01)*j + Real(0.005)*k) /
+                           (Real(1.2) + Real(0.03)*j);
+                };
+                auto fy = [=](int fj) {
+                    return (Real(0.8) + Real(0.02)*i + Real(0.01)*fj) *
+                           (Real(-0.25) + Real(0.01)*fj + Real(0.02)*k) /
+                           (Real(1.4) + Real(0.02)*i);
+                };
+                auto fz = [=](int fk) {
+                    return (Real(0.9) + Real(0.01)*i + Real(0.02)*j) *
+                           (Real(0.15) + Real(0.03)*i - Real(0.02)*j + Real(0.01)*fk) /
+                           ((Real(1.17) + Real(0.023)*i) *
+                            (Real(0.83) + Real(0.017)*j + Real(0.006)*i));
+                };
+                const Real measure =
+                    (Real(1.31) + Real(0.037)*i + Real(0.019)*j + Real(0.011)*k) /
+                    ((Real(1.17) + Real(0.023)*i) *
+                     (Real(0.83) + Real(0.017)*j + Real(0.006)*i));
+                const Real rho = Real(1.1) + Real(0.05)*i + Real(0.03)*j + Real(0.02)*k;
+                const Real outward =
+                    (std::max(fx(i+1), Real(0.0)) + std::max(-fx(i), Real(0.0))) * dx_inv[0] +
+                    (std::max(fy(j+1), Real(0.0)) + std::max(-fy(j), Real(0.0))) * dx_inv[1] +
+                    (std::max(fz(k+1), Real(0.0)) + std::max(-fz(k), Real(0.0))) * dx_inv[2];
+                expected = std::max(expected, outward / (measure * rho));
+            }
+        }
+    }
+    EXPECT_NEAR(max_rate, expected, Real(128.0) *
+                                   std::numeric_limits<Real>::epsilon() * expected);
+}
+
+void run_mapped_donor_fixed_dt_bound_test ()
+{
+    double hard_limit = 0.0;
+    EXPECT_FALSE(FixedDtExceedsMappedDonorLimit(-1.0, Real(10.0), hard_limit));
+    EXPECT_DOUBLE_EQ(hard_limit, 0.1);
+    EXPECT_FALSE(FixedDtExceedsMappedDonorLimit(0.1, Real(10.0), hard_limit));
+    EXPECT_DOUBLE_EQ(hard_limit, 0.1);
+    EXPECT_TRUE(FixedDtExceedsMappedDonorLimit(0.2, Real(10.0), hard_limit));
+    EXPECT_DOUBLE_EQ(hard_limit, 0.1);
+    EXPECT_FALSE(FixedDtExceedsMappedDonorLimit(0.2, Real(0.0), hard_limit));
+    EXPECT_TRUE(std::isinf(hard_limit));
+}
+
+void run_native_mapped_carrier_sloping_terrain_counterexample_test ()
+{
+    TestGrid g(8, 8, 8);
+    g.detj.setVal(Real(1.0));
+    g.mx.setVal(Real(1.0));
+    g.my.setVal(Real(1.0));
+    ASSERT_TRUE(g.build_measure());
+
+    const BoxArray xb = amrex::convert(g.ba, IntVect::TheDimensionVector(0));
+    const BoxArray yb = amrex::convert(g.ba, IntVect::TheDimensionVector(1));
+    const BoxArray zb = amrex::convert(g.ba, IntVect::TheDimensionVector(2));
+    MultiFab rho_u(xb, g.dm, 1, 2), rho_v(yb, g.dm, 1, 2);
+    MultiFab rho_w(zb, g.dm, 1, 0);
+    rho_u.setVal(Real(0.5), 0, 1, 2);
+    rho_v.setVal(Real(0.3), 0, 1, 2);
+    rho_w.setVal(Real(0.45));
+    const int top = g.geom.Domain().bigEnd(2) + 1;
+    for (amrex::MFIter mfi(rho_w); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.tilebox();
+        const auto w = rho_w.array(mfi);
+        amrex::ParallelFor(
+            bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                if (k == top) { w(i, j, k, 0) = Real(0.01); }
+            });
+    }
+
+    MultiFab mf_ux(project_to_xy(xb), g.dm, 1, 0);
+    MultiFab mf_vy(project_to_xy(yb), g.dm, 1, 0);
+    mf_ux.setVal(Real(1.0));
+    mf_vy.setVal(Real(1.0));
+    MultiFab z_nd(amrex::convert(g.ba, IntVect::TheNodeVector()), g.dm, 1, 2);
+    constexpr Real slope_x = Real(0.5);
+    constexpr Real slope_y = Real(0.4);
+    const auto dx = g.geom.CellSizeArray();
+    for (amrex::MFIter mfi(z_nd); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.fabbox();
+        const auto z = z_nd.array(mfi);
+        const auto cell_size = dx;
+        amrex::ParallelFor(
+            bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                z(i, j, k, 0) = Real(k) * cell_size[2] +
+                    slope_x * Real(i) * cell_size[0] +
+                    slope_y * Real(j) * cell_size[1];
+            });
+    }
+
+    MappedFaceFluxRate native_rate;
+    native_rate.define(g.ba, g.dm, 1, 0);
+    std::string diagnostic;
+    ASSERT_TRUE(CopyNativeMappedDryAirCarrierFluxRate(
+        native_rate, rho_u, rho_v, rho_w, diagnostic)) << diagnostic;
+    EXPECT_NEAR(rho_w.min(0), Real(0.01), Real(1.0e-6));
+    EXPECT_NEAR(rho_w.max(0), Real(0.45), Real(1.0e-6));
+    EXPECT_EQ(max_component_difference(native_rate.dir(0), 0, rho_u, 0),
+              Real(0.0));
+    EXPECT_EQ(max_component_difference(native_rate.dir(1), 0, rho_v, 0),
+              Real(0.0));
+    EXPECT_EQ(max_component_difference(native_rate.dir(2), 0, rho_w, 0),
+              Real(0.0));
+
+    const int i = 3;
+    const int j = 3;
+    const int k = 3;
+    const auto inv_dx = g.geom.InvCellSizeArray();
+    MultiFab omega_result(g.ba, g.dm, 1, 0);
+    omega_result.setVal(Real(0.0));
+    const IntVect omega_cell(i, j, k);
+    // OmegaFromW is device-only; evaluate it on the execution backend.
+    for (amrex::MFIter mfi(omega_result); mfi.isValid(); ++mfi) {
+        if (mfi.validbox().contains(omega_cell)) {
+            const Box point_box(omega_cell, omega_cell);
+            const auto result = omega_result.array(mfi);
+            const auto w = rho_w.const_array(mfi);
+            const auto u = rho_u.const_array(mfi);
+            const auto v = rho_v.const_array(mfi);
+            const auto map_u = mf_ux.const_array(mfi);
+            const auto map_v = mf_vy.const_array(mfi);
+            const auto z = z_nd.const_array(mfi);
+            amrex::ParallelFor(
+                point_box, [=] AMREX_GPU_DEVICE(int ii, int jj, int kk) noexcept {
+                    int oi = ii;
+                    int oj = jj;
+                    int ok = kk;
+                    result(ii, jj, kk, 0) = OmegaFromW(
+                        oi, oj, ok, w(oi, oj, ok, 0), u, v, map_u, map_v, z,
+                        inv_dx);
+                });
+        }
+    }
+    const Real omega = omega_result.sum(0);
+    EXPECT_NEAR(omega, Real(0.08), Real(1.0e-5));
+    EXPECT_GT(amrex::Math::abs(Real(0.45) - omega), Real(0.2));
+
+    // Negative control: reproduce the fitted-terrain carrier construction
+    // from 0045b83acef6e7f5d8c711c7ebba8b2d0cca80de. That implementation kept
+    // the native carrier at the top face, zeroed the bottom face, and used
+    // OmegaFromW on every interior face.
+    MappedFaceFluxRate historical_rate;
+    historical_rate.define(g.ba, g.dm, 1, 0);
+    MultiFab::Copy(historical_rate.dir(0), rho_u, 0, 0, 1, 0);
+    MultiFab::Copy(historical_rate.dir(1), rho_v, 0, 0, 1, 0);
+    const int bottom = g.geom.Domain().smallEnd(2);
+    for (amrex::MFIter mfi(historical_rate.dir(2)); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.tilebox();
+        const auto rw = rho_w.const_array(mfi);
+        const auto ru = rho_u.const_array(mfi);
+        const auto rv = rho_v.const_array(mfi);
+        const auto ux = mf_ux.const_array(mfi);
+        const auto vy = mf_vy.const_array(mfi);
+        const auto z = z_nd.const_array(mfi);
+        const auto out = historical_rate.dir(2).array(mfi);
+        amrex::ParallelFor(
+            bx, [=] AMREX_GPU_DEVICE(int ii, int jj, int kk) noexcept {
+                if (kk == bottom) {
+                    out(ii, jj, kk, 0) = Real(0.0);
+                } else if (kk == top) {
+                    out(ii, jj, kk, 0) = rw(ii, jj, kk, 0);
+                } else {
+                    int oi = ii;
+                    int oj = jj;
+                    int ok = kk;
+                    out(ii, jj, kk, 0) = OmegaFromW(
+                        oi, oj, ok, rw(oi, oj, ok, 0), ru, rv, ux, vy, z,
+                        inv_dx);
+                }
+            });
+    }
+    EXPECT_GT(max_component_difference(native_rate.dir(2), 0,
+                                       historical_rate.dir(2), 0),
+              Real(0.2));
+
+    MultiFab density(g.ba, g.dm, 1, 0);
+    density.setVal(Real(1.0));
+    Real native_max_rate = Real(0.0);
+    Real historical_max_rate = Real(0.0);
+    ASSERT_TRUE(ComputeMaxMappedOutgoingRate(
+        native_rate, g.omega, density, 0, inv_dx, native_max_rate,
+        diagnostic)) << diagnostic;
+    ASSERT_TRUE(ComputeMaxMappedOutgoingRate(
+        historical_rate, g.omega, density, 0, inv_dx, historical_max_rate,
+        diagnostic)) << diagnostic;
+    ASSERT_TRUE(std::isfinite(native_max_rate));
+    ASSERT_TRUE(std::isfinite(historical_max_rate));
+    ASSERT_GT(native_max_rate, Real(0.0));
+    ASSERT_GT(historical_max_rate, Real(0.0));
+    EXPECT_NEAR(native_max_rate, Real(10.0), Real(1.0e-5));
+    EXPECT_NEAR(historical_max_rate, Real(7.04), Real(1.0e-5));
+    EXPECT_GT(amrex::Math::abs(native_max_rate - historical_max_rate) /
+                  amrex::max(native_max_rate, historical_max_rate),
+              Real(0.1));
+
+    double native_hard_limit = 0.0;
+    double historical_hard_limit = 0.0;
+    EXPECT_FALSE(FixedDtExceedsMappedDonorLimit(
+        1.0e-12, native_max_rate, native_hard_limit));
+    EXPECT_FALSE(FixedDtExceedsMappedDonorLimit(
+        1.0e-12, historical_max_rate, historical_hard_limit));
+    ASSERT_NE(native_hard_limit, historical_hard_limit);
+    EXPECT_NEAR(native_hard_limit, 0.1, 1.0e-5);
+    EXPECT_NEAR(historical_hard_limit, 1.0 / 7.04, 1.0e-5);
+    const double between_limits =
+        0.5 * (native_hard_limit + historical_hard_limit);
+    const bool native_unsafe = FixedDtExceedsMappedDonorLimit(
+        between_limits, native_max_rate, native_hard_limit);
+    const bool historical_unsafe = FixedDtExceedsMappedDonorLimit(
+        between_limits, historical_max_rate, historical_hard_limit);
+    EXPECT_TRUE(native_unsafe);
+    EXPECT_FALSE(historical_unsafe);
+
+    MultiFab wrong_layout(yb, g.dm, 1, 0);
+    EXPECT_FALSE(CopyNativeMappedDryAirCarrierFluxRate(
+        native_rate, rho_u, rho_v, wrong_layout, diagnostic));
+    EXPECT_FALSE(diagnostic.empty());
+
+    rho_u.setVal(std::numeric_limits<Real>::quiet_NaN());
+    EXPECT_FALSE(CopyNativeMappedDryAirCarrierFluxRate(
+        native_rate, rho_u, rho_v, rho_w, diagnostic));
+    EXPECT_NE(diagnostic.find("nonfinite"), std::string::npos);
+}
+
+TEST(AuxiliaryMappedTransport, MappedDonorRateSumsCartesianDirections)
+{
+    run_mapped_donor_rate_cartesian_sum_test();
+}
+TEST(AuxiliaryMappedTransport, MappedDonorRateMatchesMappedMetricOracle)
+{
+    run_mapped_donor_rate_metric_oracle_test();
+}
+TEST(AuxiliaryMappedTransport, FixedDtUsesHardMappedDonorLimit)
+{
+    run_mapped_donor_fixed_dt_bound_test();
+}
+TEST(AuxiliaryMappedTransport, NativeCarrierPreservesRhoWOnSlopingTerrain)
+{
+    run_native_mapped_carrier_sloping_terrain_counterexample_test();
 }
 
 } // namespace

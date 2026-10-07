@@ -8,6 +8,9 @@
 #include "Diffusion/ERF_TurbKESources.H"
 #include "Prob/ERF_CloudChamberBudget.H"
 #include "ERF_SBMOwnership.H"
+#include "ERF_SBMStageOwnership.H"
+#include "ERF_SBMStateManager.H"
+#include "ERF_SBMTransport.H"
 #include "AuxiliaryState/ERF_AuxiliaryInertTracer.H"
 
 using namespace amrex;
@@ -108,7 +111,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                         const MultiFab* cloud_chamber_base_state,
                         const erf_cloud_chamber::Config* cloud_chamber_config,
                         CloudChamberBudget* cloud_budget,
-                        erf_auxiliary::AuxiliaryInertTracer* auxiliary_inert_tracer)
+                        erf_auxiliary::AuxiliaryInertTracer* auxiliary_inert_tracer,
+                        erf_sbm::SBMStateManager* sbm_state_manager,
+                        erf_sbm::SBMTransport* sbm_transport)
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 
@@ -279,16 +284,6 @@ void erf_slow_rhs_post (int level, int finest_level,
         MultiFab::Copy(avg_zmom, S_data[IntVars::zmom], 0, 0, 1, 0);
     }
 
-    if (sbm_active && solverChoice.sbm_test_carrier_momentum_fault) {
-        // Deliberate test-only mutation at the actual carrier guard seam.
-        avg_xmom.setVal(Real(1.0));
-    }
-    if (sbm_active && (avg_xmom.norm0() != Real(0.0) ||
-                       avg_ymom.norm0() != Real(0.0) ||
-                       avg_zmom.norm0() != Real(0.0))) {
-        amrex::Abort("SBM zero-transport fixture requires exactly zero carrier momentum before scalar advection");
-    }
-
     // M2 proof consumer: run after the stage carrier is final and before the
     // caller copies S_data over S_new, preserving the predictor density view.
     if (auxiliary_inert_tracer != nullptr) {
@@ -300,6 +295,30 @@ void erf_slow_rhs_post (int level, int finest_level,
             level, method, nrk, step_old_time, input_time, target_time, dt_d,
             S_old[IntVars::cons], S_new[IntVars::cons], S_data[IntVars::cons],
             avg_xmom, avg_ymom, avg_zmom, solverChoice.advChoice, geom);
+    }
+
+    // M3 advances the authoritative spectrum after the host carrier has been
+    // finalized and before the caller commits this stage's S_data into S_new.
+    // The compact qc/qr lanes are refreshed as a projection of the accepted
+    // spectrum at the same semantic target time.
+    if (sbm_active) {
+        AMREX_ALWAYS_ASSERT(sbm_state_manager != nullptr && sbm_transport != nullptr);
+        if (solverChoice.sbm_test_donor_cfl_fault) {
+            // Force an outgoing-demand violation at the production donor CFL gate.
+            avg_xmom.setVal(Real(1.0e8));
+        }
+        const auto method = !l_anelastic ? erf_auxiliary::HostIntegrator::CompressibleRK3 :
+            (solverChoice.anelastic_type[level] == AnelasticType::RK2 ?
+                erf_auxiliary::HostIntegrator::AnelasticHeun :
+                erf_auxiliary::HostIntegrator::AnelasticMidPoint);
+        const MultiFab& stage_cons_anchor = S_old[IntVars::cons];
+        const MultiFab& stage_cons_input = S_new[IntVars::cons];
+        MultiFab& stage_cons_target = S_data[IntVars::cons];
+        sbm_transport->advance_stage_from_host(
+            level, method, nrk, step_old_time, input_time, target_time, dt_d,
+            *sbm_state_manager, stage_cons_anchor, stage_cons_input,
+            stage_cons_target, avg_xmom, avg_ymom, avg_zmom, geom,
+            solverChoice.moisture_indices.qc, solverChoice.moisture_indices.qr);
     }
 
     // *************************************************************************
@@ -404,6 +423,9 @@ void erf_slow_rhs_post (int level, int finest_level,
         int nsv = S_old[IntVars::cons].nComp() - 2;
         const GpuArray<int, IntVars::NumTypes> scomp_slow = {  2,0,0,0};
         const GpuArray<int, IntVars::NumTypes> ncomp_slow = {nsv,0,0,0};
+        const bool copy_sbm_active = sbm_active;
+        const int copy_sbm_qc = solverChoice.moisture_indices.qc;
+        const int copy_sbm_qr = solverChoice.moisture_indices.qr;
 
         // **************************************************************************
         // Note that here we do copy only the "slow" variables, not (rho) or (rho theta)
@@ -411,7 +433,9 @@ void erf_slow_rhs_post (int level, int finest_level,
         ParallelFor(tbx, ncomp_slow[IntVars::cons],
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
             const int n = scomp_slow[IntVars::cons] + nn;
-            cur_cons(i,j,k,n) = new_cons(i,j,k,n);
+            erf_sbm::copy_host_slow_component(
+                cur_cons, new_cons, i, j, k, n, copy_sbm_active,
+                copy_sbm_qc, copy_sbm_qr);
         });
 
         // **************************************************************************

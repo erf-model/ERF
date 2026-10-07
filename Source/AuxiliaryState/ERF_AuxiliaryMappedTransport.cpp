@@ -3,7 +3,9 @@
 #include <AMReX_Math.H>
 #include <AMReX_ParallelDescriptor.H>
 
+#include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace erf_auxiliary {
 namespace {
@@ -83,6 +85,210 @@ bool BuildMappedCellMeasure (amrex::MultiFab& omega,
         return false;
     }
     return true;
+}
+
+bool BuildMappedDryAirCarrierFluxRate (
+    MappedFaceFluxRate& rate,
+    const amrex::MultiFab& rho_u,
+    const amrex::MultiFab& rho_v,
+    const amrex::MultiFab& omega,
+    const amrex::MultiFab& ax,
+    const amrex::MultiFab& ay,
+    const amrex::MultiFab& az,
+    const amrex::MultiFab& mf_uy,
+    const amrex::MultiFab& mf_vx,
+    const amrex::MultiFab& mx,
+    const amrex::MultiFab& my,
+    std::string& diagnostic)
+{
+    diagnostic.clear();
+    if (!rate.is_defined() || rate.nComp() != 1 || rho_u.nComp() < 1 ||
+        rho_v.nComp() < 1 || omega.nComp() < 1 || ax.nComp() < 1 ||
+        ay.nComp() < 1 || az.nComp() < 1 || mf_uy.nComp() < 1 ||
+        mf_vx.nComp() < 1 || mx.nComp() < 1 || my.nComp() < 1 ||
+        rho_u.boxArray() != rate.dir(0).boxArray() ||
+        rho_u.DistributionMap() != rate.dir(0).DistributionMap() ||
+        ax.boxArray() != rate.dir(0).boxArray() ||
+        ax.DistributionMap() != rate.dir(0).DistributionMap() ||
+        rho_v.boxArray() != rate.dir(1).boxArray() ||
+        rho_v.DistributionMap() != rate.dir(1).DistributionMap() ||
+        ay.boxArray() != rate.dir(1).boxArray() ||
+        ay.DistributionMap() != rate.dir(1).DistributionMap() ||
+        omega.boxArray() != rate.dir(2).boxArray() ||
+        omega.DistributionMap() != rate.dir(2).DistributionMap() ||
+        az.boxArray() != rate.dir(2).boxArray() ||
+        az.DistributionMap() != rate.dir(2).DistributionMap() ||
+        !same_horizontal_layout(rate.dir(0), mf_uy) ||
+        !same_horizontal_layout(rate.dir(1), mf_vx) ||
+        mx.boxArray() != my.boxArray() ||
+        mx.DistributionMap() != my.DistributionMap() ||
+        !same_horizontal_layout(rate.dir(2), mx) ||
+        !same_horizontal_layout(rate.dir(2), my)) {
+        diagnostic = "mapped dry-air carrier rates require matching staggered momentum, area, map-factor, and output layouts";
+        return false;
+    }
+
+    for (amrex::MFIter mfi(rate.dir(0), amrex::TilingIfNotGPU());
+         mfi.isValid(); ++mfi) {
+        const amrex::Box bx = mfi.tilebox();
+        const auto momentum = rho_u.const_array(mfi);
+        const auto area = ax.const_array(mfi);
+        const auto map = mf_uy.const_array(mfi);
+        const auto out = rate.dir(0).array(mfi);
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            out(i, j, k, 0) = area(i, j, k, 0) * momentum(i, j, k, 0) /
+                              map(i, j, 0, 0);
+        });
+    }
+    for (amrex::MFIter mfi(rate.dir(1), amrex::TilingIfNotGPU());
+         mfi.isValid(); ++mfi) {
+        const amrex::Box bx = mfi.tilebox();
+        const auto momentum = rho_v.const_array(mfi);
+        const auto area = ay.const_array(mfi);
+        const auto map = mf_vx.const_array(mfi);
+        const auto out = rate.dir(1).array(mfi);
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            out(i, j, k, 0) = area(i, j, k, 0) * momentum(i, j, k, 0) /
+                              map(i, j, 0, 0);
+        });
+    }
+    for (amrex::MFIter mfi(rate.dir(2), amrex::TilingIfNotGPU());
+         mfi.isValid(); ++mfi) {
+        const amrex::Box bx = mfi.tilebox();
+        const auto contravariant_momentum = omega.const_array(mfi);
+        const auto area = az.const_array(mfi);
+        const auto map_x = mx.const_array(mfi);
+        const auto map_y = my.const_array(mfi);
+        const auto out = rate.dir(2).array(mfi);
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            out(i, j, k, 0) = area(i, j, k, 0) *
+                              contravariant_momentum(i, j, k, 0) /
+                              (map_x(i, j, 0, 0) * map_y(i, j, 0, 0));
+        });
+    }
+
+    if (!rate.dir(0).is_finite(0, 1, 0) ||
+        !rate.dir(1).is_finite(0, 1, 0) ||
+        !rate.dir(2).is_finite(0, 1, 0)) {
+        diagnostic = "mapped dry-air carrier face rates are nonfinite";
+        return false;
+    }
+    return true;
+}
+
+bool CopyNativeMappedDryAirCarrierFluxRate (
+    MappedFaceFluxRate& rate,
+    const amrex::MultiFab& rho_u,
+    const amrex::MultiFab& rho_v,
+    const amrex::MultiFab& rho_w,
+    std::string& diagnostic)
+{
+    diagnostic.clear();
+    if (AMREX_SPACEDIM != 3 || !rate.is_defined() || rate.nComp() != 1 ||
+        rho_u.nComp() < 1 || rho_v.nComp() < 1 || rho_w.nComp() < 1) {
+        diagnostic = "native mapped dry-air carrier requires three dimensions, "
+                     "one output component, and one component per input face";
+        return false;
+    }
+
+    const amrex::MultiFab* input_faces[3] = {&rho_u, &rho_v, &rho_w};
+    for (int dir = 0; dir < 3; ++dir) {
+        const auto& output = rate.dir(dir);
+        const auto& input = *input_faces[dir];
+        if (output.boxArray() != input.boxArray() ||
+            output.DistributionMap() != input.DistributionMap()) {
+            diagnostic = "native mapped dry-air carrier input must match the "
+                         "output's x/y/z face staggering and distribution map";
+            return false;
+        }
+    }
+
+    for (int dir = 0; dir < 3; ++dir) {
+        amrex::MultiFab::Copy(rate.dir(dir), *input_faces[dir], 0, 0, 1, 0);
+    }
+    if (!rate.dir(0).is_finite(0, 1, 0) ||
+        !rate.dir(1).is_finite(0, 1, 0) ||
+        !rate.dir(2).is_finite(0, 1, 0)) {
+        diagnostic = "native mapped dry-air carrier face values are nonfinite";
+        return false;
+    }
+    return true;
+}
+
+bool ComputeMaxMappedOutgoingRate (
+    const MappedFaceFluxRate& rate,
+    const amrex::MultiFab& measure,
+    const amrex::MultiFab& conserved,
+    const int density_component,
+    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dx_inv,
+    amrex::Real& max_rate,
+    std::string& diagnostic)
+{
+    diagnostic.clear();
+    max_rate = amrex::Real(0.0);
+    if (!rate.is_defined() || rate.nComp() != 1 ||
+        !MappedFaceLayoutMatchesCellLayout(rate, measure) ||
+        !SameCellLayout(measure, conserved) || measure.nComp() < 1) {
+        diagnostic = "mapped donor-rate reduction received incompatible cell or face layouts";
+        return false;
+    }
+    if (!ValidatePositiveFiniteComponent(measure, 0, diagnostic)) return false;
+    if (!ValidatePositiveFiniteComponent(conserved, density_component,
+                                         diagnostic)) return false;
+
+    amrex::MultiFab cell_rate(measure.boxArray(), measure.DistributionMap(), 1,
+                              0);
+    for (amrex::MFIter mfi(cell_rate, amrex::TilingIfNotGPU()); mfi.isValid();
+         ++mfi) {
+        const amrex::Box bx = mfi.tilebox();
+        const auto fx = rate.dir(0).const_array(mfi);
+        const auto fy = rate.dir(1).const_array(mfi);
+        const auto fz = rate.dir(2).const_array(mfi);
+        const auto omega = measure.const_array(mfi);
+        const auto rho = conserved.const_array(mfi);
+        const auto out = cell_rate.array(mfi);
+        const int rho_comp = density_component;
+        const auto inv = dx_inv;
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            out(i, j, k, 0) = MappedOutgoingDemandRate(
+                fx(i + 1, j, k, 0), fx(i, j, k, 0),
+                fy(i, j + 1, k, 0), fy(i, j, k, 0),
+                fz(i, j, k + 1, 0), fz(i, j, k, 0),
+                omega(i, j, k, 0), rho(i, j, k, rho_comp), inv);
+        });
+    }
+    max_rate = cell_rate.max(0);
+    if (!std::isfinite(max_rate) || max_rate < amrex::Real(0.0)) {
+        diagnostic = "mapped donor outgoing-rate maximum is nonfinite or negative";
+        return false;
+    }
+    return true;
+}
+
+bool FixedDtExceedsMappedDonorLimit (const double fixed_dt,
+                                     const amrex::Real max_outgoing_rate,
+                                     double& hard_limit) noexcept
+{
+    hard_limit = std::numeric_limits<double>::infinity();
+    if (std::isfinite(max_outgoing_rate) &&
+        max_outgoing_rate > amrex::Real(0.0)) {
+        hard_limit = 1.0 / static_cast<double>(max_outgoing_rate);
+    }
+    if (max_outgoing_rate == amrex::Real(0.0) || fixed_dt <= 0.0)
+        return false;
+    if (!std::isfinite(fixed_dt) ||
+        !std::isfinite(max_outgoing_rate) ||
+        max_outgoing_rate < amrex::Real(0.0)) {
+        hard_limit = 0.0;
+        return true;
+    }
+
+    if (!std::isfinite(hard_limit)) return false;
+    const double scale = std::max(std::abs(fixed_dt), std::abs(hard_limit));
+    const double tolerance = 64.0 *
+        static_cast<double>(std::numeric_limits<amrex::Real>::epsilon()) *
+        scale;
+    return fixed_dt - hard_limit > tolerance;
 }
 
 bool ValidatePositiveFiniteComponent (const amrex::MultiFab& field,
