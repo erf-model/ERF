@@ -108,6 +108,7 @@ struct RunOptions
     bool anelastic_heun{false};
     bool mapped_geometry{false};
     bool advance_all_rk3_stages{false};
+    bool verify_spectral_ledger_identity{false};
     int completed_steps{1};
     bool amplify_corrector_input{false};
     bool distinct_density_roles{false};
@@ -125,6 +126,7 @@ struct RunSummary
     Real minimum_interior_number{std::numeric_limits<Real>::max()};
     Real native_candidate_interior_upper_gap_fraction{
         std::numeric_limits<Real>::max()};
+    std::vector<Real> spectral_ledger_relative_errors;
 };
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real
@@ -526,7 +528,8 @@ run_transport (const RunOptions& options)
 
     erf_sbm::SBMStateManager state_manager(layout, 1);
     state_manager.define(0, ba, dm, 0.0);
-    erf_sbm::SBMTransport transport(state_manager.layout(), 1,
+    erf_sbm::SBMTransport transport(state_manager.layout(),
+                                    options.verify_spectral_ledger_identity ? 2 : 1,
                                     options.max_groups_per_chunk);
     transport.define(0, ba, dm);
 
@@ -1097,6 +1100,57 @@ run_transport (const RunOptions& options)
     }
 
     const auto& current_spectrum = state_manager.new_state(0);
+    std::vector<Real> spectral_ledger_relative_errors;
+    if (options.verify_spectral_ledger_identity) {
+        if (!options.advance_all_rk3_stages || options.completed_steps != 1) {
+            ADD_FAILURE() << "completed spectral-ledger identity requires one full RK3 step";
+            return {};
+        }
+        const auto& ledger = transport.completed_spectral_ledger(0);
+        if (!ledger.step_complete()) {
+            ADD_FAILURE() << "completed spectral ledger did not finish the RK3 step";
+            return {};
+        }
+        MultiFab identity_error(ba, dm, layout.ncomp(), 0);
+        const auto& integrated_flux = ledger.integrated_flux();
+        const auto& omega_field = transport.static_measure(0);
+        const auto inv_dx = geom.InvCellSizeArray();
+        for (amrex::MFIter mfi(identity_error, amrex::TilingIfNotGPU());
+             mfi.isValid(); ++mfi) {
+            const Box bx = mfi.tilebox();
+            const auto old_state = initial.const_array(mfi);
+            const auto new_state = current_spectrum.const_array(mfi);
+            const auto omega = omega_field.const_array(mfi);
+            const auto fx = integrated_flux.dir(0).const_array(mfi);
+            const auto fy = integrated_flux.dir(1).const_array(mfi);
+            const auto fz = integrated_flux.dir(2).const_array(mfi);
+            const auto error = identity_error.array(mfi);
+            const int ncomp = layout.ncomp();
+            amrex::ParallelFor(
+                bx, ncomp,
+                [=] AMREX_GPU_DEVICE(int i, int j, int k,
+                                     int component) noexcept {
+                    const Real divergence =
+                        erf_auxiliary::ComputationalMappedDivergence(
+                            fx(i + 1, j, k, component), fx(i, j, k, component),
+                            fy(i, j + 1, k, component), fy(i, j, k, component),
+                            fz(i, j, k + 1, component), fz(i, j, k, component),
+                            inv_dx[0], inv_dx[1], inv_dx[2]);
+                    const Real predicted =
+                        (omega(i, j, k, 0) * old_state(i, j, k, component) -
+                         divergence) / omega(i, j, k, 0);
+                    error(i, j, k, component) = amrex::Math::abs(
+                        predicted - new_state(i, j, k, component));
+                });
+        }
+        for (int component = 0; component < layout.ncomp(); ++component) {
+            const Real scale = std::max(
+                {initial.norm0(component), current_spectrum.norm0(component),
+                 std::numeric_limits<Real>::min()});
+            spectral_ledger_relative_errors.push_back(
+                identity_error.norm0(component) / scale);
+        }
+    }
 
     MultiFab expected_core(ba, dm, 3, 0);
     MultiFab::Copy(expected_core, conserved_target, 0, 0, 3, 0);
@@ -1179,6 +1233,8 @@ run_transport (const RunOptions& options)
     summary.minimum_interior_number = minimum_interior_number;
     summary.native_candidate_interior_upper_gap_fraction =
         native_candidate_interior_upper_gap_fraction;
+    summary.spectral_ledger_relative_errors =
+        std::move(spectral_ledger_relative_errors);
     for (int component = 0; component < layout.ncomp(); ++component) {
         summary.inventory.push_back(current_spectrum.sum(component));
         summary.weighted_inventory.push_back(fingerprints.sum(component));
@@ -1759,7 +1815,10 @@ struct SpectralLedgerResult {
     std::array<long, AMREX_SPACEDIM> face_counts{};
 };
 
-SpectralLedgerResult run_full_spectral_ledger (const int max_groups_per_chunk)
+SpectralLedgerResult run_full_spectral_ledger (
+    const int max_groups_per_chunk,
+    const erf_sbm::MomentMode mode = erf_sbm::MomentMode::TwoMoment,
+    const bool with_property = true)
 {
     const Box domain(IntVect(0, 0, 0), IntVect(3, 3, 3));
     const amrex::RealBox physical({0.0, 0.0, 0.0}, {1.0, 1.0, 1.0});
@@ -1767,7 +1826,7 @@ SpectralLedgerResult run_full_spectral_ledger (const int max_groups_per_chunk)
     const Geometry geom(domain, &physical, amrex::CoordSys::cartesian, periodic);
     const BoxArray ba(domain);
     const DistributionMapping dm(ba);
-    const auto layout = make_layout(erf_sbm::MomentMode::TwoMoment, true);
+    const auto layout = make_layout(mode, with_property);
     erf_sbm::SBMStateManager manager(layout, 1);
     manager.define(0, ba, dm, 0.0);
     erf_sbm::SBMTransport transport(layout, 2, max_groups_per_chunk);
@@ -1796,10 +1855,14 @@ SpectralLedgerResult run_full_spectral_ledger (const int max_groups_per_chunk)
     const auto& population = layout.populations().front();
     auto& initial = manager.new_state_for_initialization(0);
     initial.setVal(Real(0.0));
-    initial.setVal(Real(0.6), population.number_offset, 2, 0);
     initial.setVal(Real(0.18), population.mass_offset, 1, 0);
     initial.setVal(Real(0.45), population.mass_offset + 1, 1, 0);
-    initial.setVal(Real(0.15), layout.property_offset(0), 2, 0);
+    if (mode == erf_sbm::MomentMode::TwoMoment) {
+        initial.setVal(Real(0.6), population.number_offset, 2, 0);
+        if (with_property) {
+            initial.setVal(Real(0.15), layout.property_offset(0), 2, 0);
+        }
+    }
 
     MultiFab avg_xmom(amrex::convert(ba, IntVect::TheDimensionVector(0)), dm, 1, 0);
     MultiFab avg_ymom(amrex::convert(ba, IntVect::TheDimensionVector(1)), dm, 1, 0);
@@ -1895,6 +1958,51 @@ TEST(SBMTransport, AMRCapableCompletedLedgerRetainsEveryAcceptedComponent)
     EXPECT_EQ(small_chunks.face_counts[0], 80);
     EXPECT_EQ(small_chunks.face_counts[1], 80);
     EXPECT_EQ(small_chunks.face_counts[2], 80);
+
+    const auto one_moment_small = run_full_spectral_ledger(
+        1, erf_sbm::MomentMode::OneMoment, false);
+    const auto one_moment_large = run_full_spectral_ledger(
+        16, erf_sbm::MomentMode::OneMoment, false);
+    ASSERT_EQ(one_moment_small.spectrum.size(), one_moment_large.spectrum.size());
+    for (std::size_t component = 0;
+         component < one_moment_small.spectrum.size(); ++component) {
+        EXPECT_NEAR(one_moment_small.spectrum[component],
+                    one_moment_large.spectrum[component],
+                    Real(128.0) * std::numeric_limits<Real>::epsilon());
+    }
+    ASSERT_EQ(one_moment_small.projected.size(), one_moment_large.projected.size());
+    for (std::size_t component = 0;
+         component < one_moment_small.projected.size(); ++component) {
+        EXPECT_NEAR(one_moment_small.projected[component],
+                    one_moment_large.projected[component],
+                    Real(128.0) * std::numeric_limits<Real>::epsilon());
+    }
+}
+
+TEST(SBMTransport, LimiterActiveCompletedSpectralLedgerReconstructsAcceptedUpdate)
+{
+    RunOptions options;
+    options.mode = erf_sbm::MomentMode::TwoMoment;
+    options.canonical_upper_edge_profile = true;
+    options.canonical_upper_edge_seed = 2;
+    options.attached_property = true;
+    options.carrier_x = Real(0.2);
+    options.dt = 0.55;
+    options.advance_all_rk3_stages = true;
+    options.expect_limiter_active = true;
+    options.compare_native_candidate = true;
+    options.verify_spectral_ledger_identity = true;
+
+    const auto summary = run_transport(options);
+    const auto layout = make_layout(options.mode, options.attached_property);
+    ASSERT_EQ(summary.spectral_ledger_relative_errors.size(),
+              static_cast<std::size_t>(layout.ncomp()));
+    for (std::size_t component = 0;
+         component < summary.spectral_ledger_relative_errors.size(); ++component) {
+        EXPECT_LE(summary.spectral_ledger_relative_errors[component],
+                  Real(512.0) * std::numeric_limits<Real>::epsilon())
+            << "accepted-ledger component=" << component;
+    }
 }
 
 TEST(SBMTransport, HostSlowCopyPreservesAcceptedLiquidProjection)

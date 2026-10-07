@@ -7,6 +7,7 @@
 #include <AMReX_FillPatchUtil.H>
 #include <AMReX_MFIter.H>
 #include <AMReX_MultiFabUtil.H>
+#include <AMReX_ParallelDescriptor.H>
 
 #include <cmath>
 #include <cstdint>
@@ -19,10 +20,28 @@ namespace {
 using amrex::MultiFab;
 using amrex::Real;
 
-bool validate_view (const SBMAMRStateView& view, const SBMLayout& layout,
-                    const int level, const char* label,
-                    const bool validate_spectrum, std::string& diagnostic)
+bool collective_all_true (const bool local_ok,
+                          const std::string& local_diagnostic,
+                          const char* remote_failure_message,
+                          std::string& diagnostic)
 {
+    int any_bad = local_ok ? 0 : 1;
+    amrex::ParallelDescriptor::ReduceIntMax(any_bad);
+    if (any_bad == 0) {
+        diagnostic.clear();
+        return true;
+    }
+    diagnostic = local_ok || local_diagnostic.empty()
+                     ? remote_failure_message
+                     : local_diagnostic;
+    return false;
+}
+
+bool validate_view_structure (const SBMAMRStateView& view,
+                              const SBMLayout& layout, const char* label,
+                              std::string& diagnostic)
+{
+    diagnostic.clear();
     if (view.spectrum == nullptr || view.dry_air_density == nullptr ||
         view.mapped_measure == nullptr) {
         diagnostic = std::string(label) + " SBM transfer tuple is incomplete";
@@ -48,22 +67,42 @@ bool validate_view (const SBMAMRStateView& view, const SBMLayout& layout,
                      " spectrum, density, and measure have incompatible component or cell layouts";
         return false;
     }
-    if (!erf_auxiliary::ValidatePositiveFiniteComponent(
-            *view.dry_air_density, view.density_component, diagnostic)) {
-        diagnostic = std::string(label) + " dry-air density: " + diagnostic;
+    return true;
+}
+
+bool validate_view_carriers (const SBMAMRStateView& view, const char* label,
+                             std::string& diagnostic)
+{
+    std::string density_diagnostic;
+    std::string measure_diagnostic;
+    // Both checks contain AMReX reductions. Run them in the same order on all
+    // ranks instead of short-circuiting after a rank-local result.
+    const bool density_ok = erf_auxiliary::ValidatePositiveFiniteComponent(
+        *view.dry_air_density, view.density_component, density_diagnostic);
+    const bool measure_ok = erf_auxiliary::ValidatePositiveFiniteComponent(
+        *view.mapped_measure, view.measure_component, measure_diagnostic);
+    if (!density_ok) {
+        diagnostic = std::string(label) + " dry-air density: " + density_diagnostic;
         return false;
     }
-    if (!erf_auxiliary::ValidatePositiveFiniteComponent(
-            *view.mapped_measure, view.measure_component, diagnostic)) {
-        diagnostic = std::string(label) + " mapped measure: " + diagnostic;
+    if (!measure_ok) {
+        diagnostic = std::string(label) + " mapped measure: " + measure_diagnostic;
         return false;
     }
-    if (validate_spectrum &&
-        !authoritative_state_admissible(*view.spectrum, layout, level,
+    diagnostic.clear();
+    return true;
+}
+
+bool validate_view_spectrum (const SBMAMRStateView& view,
+                             const SBMLayout& layout, const int level,
+                             const char* label, std::string& diagnostic)
+{
+    if (!authoritative_state_admissible(*view.spectrum, layout, level,
                                         &diagnostic)) {
         diagnostic = std::string(label) + " authoritative spectrum: " + diagnostic;
         return false;
     }
+    diagnostic.clear();
     return true;
 }
 
@@ -276,19 +315,71 @@ bool RestrictMappedSpectrum (const SBMLayout& layout,
 {
     diagnostic.clear();
     if (!valid_ratio(ratio, diagnostic)) return false;
-    if (!validate_view(fine, layout, coarse_level + 1, "fine", true, diagnostic) ||
-        !validate_view(coarse, layout, coarse_level, "coarse", true, diagnostic)) {
+    if (coarse_level < 0) {
+        diagnostic = "restriction coarse level must be nonnegative";
         return false;
     }
-    if (fine.spectrum_time != coarse.spectrum_time) {
-        diagnostic = "restriction requires fine and coarse state tuples at the same semantic time";
+
+    std::string fine_structure_diagnostic;
+    std::string coarse_structure_diagnostic;
+    const bool fine_structure_ok = validate_view_structure(
+        fine, layout, "fine", fine_structure_diagnostic);
+    const bool coarse_structure_ok = validate_view_structure(
+        coarse, layout, "coarse", coarse_structure_diagnostic);
+    const bool same_time = fine.spectrum_time == coarse.spectrum_time;
+    const bool local_structure_ok = fine_structure_ok && coarse_structure_ok &&
+                                    same_time;
+    const std::string structure_diagnostic =
+        !fine_structure_ok ? fine_structure_diagnostic
+        : !coarse_structure_ok ? coarse_structure_diagnostic
+        : !same_time ? "restriction requires fine and coarse state tuples at the same semantic time"
+                     : std::string{};
+    if (!collective_all_true(
+            local_structure_ok, structure_diagnostic,
+            "SBM restriction input tuple is invalid on another MPI rank",
+            diagnostic)) {
         return false;
     }
-    if (coarse_level < 0 || coarse_candidate.nComp() != layout.ncomp() ||
-        !erf_auxiliary::SameCellLayout(coarse_candidate, *coarse.spectrum) ||
-        !candidate_is_separate(coarse_candidate, fine) ||
-        !candidate_is_separate(coarse_candidate, coarse)) {
-        diagnostic = "restriction candidate must be a separate coarse field with the SBM layout";
+
+    const bool candidate_layout_ok =
+        coarse_candidate.nComp() == layout.ncomp() &&
+        erf_auxiliary::SameCellLayout(coarse_candidate, *coarse.spectrum);
+    const bool separate_from_fine = candidate_is_separate(coarse_candidate, fine);
+    const bool separate_from_coarse = candidate_is_separate(coarse_candidate, coarse);
+    const bool local_candidate_ok = candidate_layout_ok && separate_from_fine &&
+                                    separate_from_coarse;
+    if (!collective_all_true(
+            local_candidate_ok,
+            "restriction candidate must be separate from both input tuples and match the coarse SBM layout",
+            "SBM restriction candidate aliases an input on another MPI rank",
+            diagnostic)) {
+        return false;
+    }
+
+    std::string fine_carrier_diagnostic;
+    std::string coarse_carrier_diagnostic;
+    const bool fine_carriers_ok = validate_view_carriers(
+        fine, "fine", fine_carrier_diagnostic);
+    const bool coarse_carriers_ok = validate_view_carriers(
+        coarse, "coarse", coarse_carrier_diagnostic);
+    std::string fine_spectrum_diagnostic;
+    std::string coarse_spectrum_diagnostic;
+    const bool fine_spectrum_ok = validate_view_spectrum(
+        fine, layout, coarse_level + 1, "fine", fine_spectrum_diagnostic);
+    const bool coarse_spectrum_ok = validate_view_spectrum(
+        coarse, layout, coarse_level, "coarse", coarse_spectrum_diagnostic);
+    const bool local_sources_ok = fine_carriers_ok && coarse_carriers_ok &&
+                                  fine_spectrum_ok && coarse_spectrum_ok;
+    const std::string source_diagnostic =
+        !fine_carriers_ok ? fine_carrier_diagnostic
+        : !coarse_carriers_ok ? coarse_carrier_diagnostic
+        : !fine_spectrum_ok ? fine_spectrum_diagnostic
+        : !coarse_spectrum_ok ? coarse_spectrum_diagnostic
+                              : std::string{};
+    if (!collective_all_true(
+            local_sources_ok, source_diagnostic,
+            "SBM restriction source is inadmissible on another MPI rank",
+            diagnostic)) {
         return false;
     }
 
@@ -296,10 +387,19 @@ bool RestrictMappedSpectrum (const SBMLayout& layout,
                     layout.ncomp(), 0);
     MultiFab coarse_h(coarse.spectrum->boxArray(), coarse.spectrum->DistributionMap(),
                       layout.ncomp(), 0);
-    if (!form_mapped_state(*fine.spectrum, *fine.mapped_measure,
-                           fine.measure_component, fine_h, diagnostic) ||
-        !form_mapped_state(*coarse.spectrum, *coarse.mapped_measure,
-                           coarse.measure_component, coarse_h, diagnostic)) {
+    std::string fine_mapped_diagnostic;
+    std::string coarse_mapped_diagnostic;
+    const bool fine_mapped_ok = form_mapped_state(
+        *fine.spectrum, *fine.mapped_measure, fine.measure_component,
+        fine_h, fine_mapped_diagnostic);
+    const bool coarse_mapped_ok = form_mapped_state(
+        *coarse.spectrum, *coarse.mapped_measure, coarse.measure_component,
+        coarse_h, coarse_mapped_diagnostic);
+    if (!collective_all_true(
+            fine_mapped_ok && coarse_mapped_ok,
+            !fine_mapped_ok ? fine_mapped_diagnostic : coarse_mapped_diagnostic,
+            "SBM restriction mapped-state formation failed on another MPI rank",
+            diagnostic)) {
         return false;
     }
 
@@ -307,14 +407,23 @@ bool RestrictMappedSpectrum (const SBMLayout& layout,
     // fine boxes retain their original values. average_down touches only the
     // covered coarse region.
     amrex::average_down(fine_h, coarse_h, 0, layout.ncomp(), ratio);
-    if (!divide_mapped_state(coarse_h, *coarse.mapped_measure,
-                             coarse.measure_component, coarse_candidate,
-                             diagnostic)) {
-        return false;
-    }
-    if (!authoritative_state_admissible(coarse_candidate, layout, coarse_level,
-                                        &diagnostic)) {
-        diagnostic = "restricted SBM candidate is inadmissible: " + diagnostic;
+    const bool divided_ok = divide_mapped_state(
+        coarse_h, *coarse.mapped_measure, coarse.measure_component,
+        coarse_candidate, diagnostic);
+    std::string candidate_admission_diagnostic;
+    const bool candidate_admissible = authoritative_state_admissible(
+        coarse_candidate, layout, coarse_level, &candidate_admission_diagnostic);
+    const bool local_candidate_admissible = divided_ok && candidate_admissible;
+    const std::string candidate_diagnostic =
+        !divided_ok ? diagnostic
+                    : !candidate_admissible
+                          ? "restricted SBM candidate is inadmissible: " +
+                                candidate_admission_diagnostic
+                          : std::string{};
+    if (!collective_all_true(
+            local_candidate_admissible, candidate_diagnostic,
+            "restricted SBM candidate is inadmissible on another MPI rank",
+            diagnostic)) {
         return false;
     }
     return true;
@@ -331,43 +440,98 @@ bool ProlongCarrierRelativeSpectrum (const SBMLayout& layout,
                                      std::string& diagnostic)
 {
     diagnostic.clear();
+    if (fine_level <= 0) {
+        diagnostic = "prolongation fine level must be greater than zero";
+        return false;
+    }
     if (!valid_ratio(ratio, diagnostic)) return false;
-    if (!validate_view(coarse, layout, fine_level - 1, "coarse", true, diagnostic) ||
-        !validate_view(fine_target, layout, fine_level, "fine target", false, diagnostic)) {
+
+    std::string coarse_structure_diagnostic;
+    std::string fine_structure_diagnostic;
+    const bool coarse_structure_ok = validate_view_structure(
+        coarse, layout, "coarse", coarse_structure_diagnostic);
+    const bool fine_structure_ok = validate_view_structure(
+        fine_target, layout, "fine target", fine_structure_diagnostic);
+    const bool same_time = coarse.spectrum_time == fine_target.spectrum_time;
+    const bool local_structure_ok = coarse_structure_ok && fine_structure_ok &&
+                                    same_time;
+    const std::string structure_diagnostic =
+        !coarse_structure_ok ? coarse_structure_diagnostic
+        : !fine_structure_ok ? fine_structure_diagnostic
+        : !same_time ? "prolongation requires same-time source and target tuples"
+                     : std::string{};
+    if (!collective_all_true(
+            local_structure_ok, structure_diagnostic,
+            "SBM prolongation input tuple is invalid on another MPI rank",
+            diagnostic)) {
         return false;
     }
-    if (fine_level <= 0 || coarse.spectrum_time != fine_target.spectrum_time) {
-        diagnostic = "prolongation requires a valid fine level and same-time source/target tuples";
-        return false;
-    }
-    if (fine_candidate.nComp() != layout.ncomp() ||
-        !erf_auxiliary::SameCellLayout(fine_candidate, *fine_target.spectrum) ||
-        !candidate_is_separate(fine_candidate, coarse) ||
-        !candidate_is_separate(fine_candidate, fine_target)) {
-        diagnostic = "prolongation candidate must be a separate fine field with the SBM layout";
-        return false;
-    }
+
+    const bool candidate_layout_ok =
+        fine_candidate.nComp() == layout.ncomp() &&
+        erf_auxiliary::SameCellLayout(fine_candidate, *fine_target.spectrum);
+    const bool separate_from_coarse = candidate_is_separate(fine_candidate, coarse);
+    const bool separate_from_fine_target =
+        candidate_is_separate(fine_candidate, fine_target);
+    bool local_candidate_ok = candidate_layout_ok && separate_from_coarse &&
+                              separate_from_fine_target;
+    std::string local_candidate_diagnostic =
+        "prolongation candidate must be separate from both input tuples and match the fine SBM layout";
     for (int direction = 0; direction < AMREX_SPACEDIM; ++direction) {
         if (!coarse_geometry.isPeriodic(direction) ||
             !fine_geometry.isPeriodic(direction) ||
             coarse_geometry.isPeriodic(direction) != fine_geometry.isPeriodic(direction)) {
-            diagnostic = "M4a carrier-relative prolongation requires matching periodic geometry";
-            return false;
+            local_candidate_ok = false;
+            local_candidate_diagnostic =
+                "M4a carrier-relative prolongation requires matching periodic geometry";
         }
     }
     amrex::Box refined_coarse_domain = coarse_geometry.Domain();
     refined_coarse_domain.refine(ratio);
     if (refined_coarse_domain != fine_geometry.Domain()) {
-        diagnostic = "prolongation refinement ratio does not map the coarse domain to the fine domain";
+        local_candidate_ok = false;
+        local_candidate_diagnostic =
+            "prolongation refinement ratio does not map the coarse domain to the fine domain";
+    }
+    if (!collective_all_true(
+            local_candidate_ok, local_candidate_diagnostic,
+            "SBM prolongation candidate or geometry is invalid on another MPI rank",
+            diagnostic)) {
+        return false;
+    }
+
+    std::string coarse_carrier_diagnostic;
+    std::string fine_carrier_diagnostic;
+    const bool coarse_carriers_ok = validate_view_carriers(
+        coarse, "coarse", coarse_carrier_diagnostic);
+    const bool fine_carriers_ok = validate_view_carriers(
+        fine_target, "fine target", fine_carrier_diagnostic);
+    std::string coarse_spectrum_diagnostic;
+    const bool coarse_spectrum_ok = validate_view_spectrum(
+        coarse, layout, fine_level - 1, "coarse", coarse_spectrum_diagnostic);
+    const bool local_sources_ok = coarse_carriers_ok && fine_carriers_ok &&
+                                  coarse_spectrum_ok;
+    const std::string source_diagnostic =
+        !coarse_carriers_ok ? coarse_carrier_diagnostic
+        : !fine_carriers_ok ? fine_carrier_diagnostic
+        : !coarse_spectrum_ok ? coarse_spectrum_diagnostic
+                              : std::string{};
+    if (!collective_all_true(
+            local_sources_ok, source_diagnostic,
+            "SBM prolongation source is inadmissible on another MPI rank",
+            diagnostic)) {
         return false;
     }
 
     MultiFab coarse_z(coarse.spectrum->boxArray(),
                       coarse.spectrum->DistributionMap(), layout.ncomp(), 0);
-    if (!form_carrier_relative_state(*coarse.spectrum,
-                                     *coarse.dry_air_density,
-                                     coarse.density_component, coarse_z,
-                                     diagnostic)) {
+    const bool coarse_z_ok = form_carrier_relative_state(
+        *coarse.spectrum, *coarse.dry_air_density,
+        coarse.density_component, coarse_z, diagnostic);
+    if (!collective_all_true(
+            coarse_z_ok, diagnostic,
+            "forming coarse carrier-relative SBM state failed on another MPI rank",
+            diagnostic)) {
         return false;
     }
 
@@ -381,15 +545,25 @@ bool ProlongCarrierRelativeSpectrum (const SBMLayout& layout,
         no_physical_boundary, 0, no_physical_boundary, 0, ratio,
         &amrex::pc_interp, bcs, 0);
 
-    if (!reconstruct_carrier_relative_state(
-            fine_z, *fine_target.dry_air_density,
-            fine_target.density_component, *fine_target.mapped_measure,
-            fine_target.measure_component, fine_candidate, diagnostic)) {
-        return false;
-    }
-    if (!authoritative_state_admissible(fine_candidate, layout, fine_level,
-                                        &diagnostic)) {
-        diagnostic = "prolonged SBM candidate is inadmissible: " + diagnostic;
+    const bool reconstructed_ok = reconstruct_carrier_relative_state(
+        fine_z, *fine_target.dry_air_density, fine_target.density_component,
+        *fine_target.mapped_measure, fine_target.measure_component,
+        fine_candidate, diagnostic);
+    std::string candidate_admission_diagnostic;
+    const bool candidate_admissible = authoritative_state_admissible(
+        fine_candidate, layout, fine_level, &candidate_admission_diagnostic);
+    const bool local_candidate_admissible = reconstructed_ok &&
+                                            candidate_admissible;
+    const std::string candidate_diagnostic =
+        !reconstructed_ok ? diagnostic
+                          : !candidate_admissible
+                                ? "prolonged SBM candidate is inadmissible: " +
+                                      candidate_admission_diagnostic
+                                : std::string{};
+    if (!collective_all_true(
+            local_candidate_admissible, candidate_diagnostic,
+            "prolonged SBM candidate is inadmissible on another MPI rank",
+            diagnostic)) {
         return false;
     }
     return true;

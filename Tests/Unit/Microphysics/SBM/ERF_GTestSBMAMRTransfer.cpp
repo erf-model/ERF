@@ -324,15 +324,26 @@ TEST(SBMAMRTransfer, RestrictionAveragesMappedAmountAndPreservesUncoveredState)
     MultiFab difference(coarse_ba, coarse_dm, layout.ncomp(), 0);
     MultiFab::Copy(difference, candidate, 0, 0, ncomp, 0);
     MultiFab::Subtract(difference, expected, 0, 0, ncomp, 0);
-    EXPECT_LE(difference.norm0(), Real(64.0) * std::numeric_limits<Real>::epsilon());
+    for (int component = 0; component < ncomp; ++component) {
+        EXPECT_LE(difference.norm0(component),
+                  Real(64.0) * std::numeric_limits<Real>::epsilon())
+            << "component=" << component;
+    }
 
     MultiFab arithmetic_difference(coarse_ba, coarse_dm, layout.ncomp(), 0);
     MultiFab::Copy(arithmetic_difference, candidate, 0, 0, ncomp, 0);
     MultiFab::Subtract(arithmetic_difference, arithmetic_u, 0, 0, ncomp, 0);
-    EXPECT_GT(arithmetic_difference.norm0(), Real(1.0e-3));
+    for (int component = 0; component < ncomp; ++component) {
+        EXPECT_GT(arithmetic_difference.norm0(component),
+                  Real(1.0e-3) * candidate.norm0(component))
+            << "component=" << component;
+    }
 
     MultiFab::Subtract(fine_state, fine_before, 0, 0, ncomp, 0);
-    EXPECT_EQ(fine_state.norm0(), Real(0.0));
+    for (int component = 0; component < ncomp; ++component) {
+        EXPECT_EQ(fine_state.norm0(component), Real(0.0))
+            << "component=" << component;
+    }
 
     // A noncanonical fine source fails before any candidate can be committed.
     MultiFab invalid_fine(fine_ba, fine_dm, ncomp, 0);
@@ -342,7 +353,10 @@ TEST(SBMAMRTransfer, RestrictionAveragesMappedAmountAndPreservesUncoveredState)
     auto invalid_view = timed_view(invalid_fine, fine_rho, fine_omega, 0.5);
     EXPECT_FALSE(erf_sbm::RestrictMappedSpectrum(
         layout, invalid_view, coarse_view, ratio, 0, candidate, diagnostic));
-    EXPECT_DOUBLE_EQ(candidate.norm0(), Real(123.0));
+    for (int component = 0; component < ncomp; ++component) {
+        EXPECT_DOUBLE_EQ(candidate.norm0(component), Real(123.0))
+            << "component=" << component;
+    }
 }
 
 TEST(SBMAMRTransfer, ProlongationUsesSameTimePiecewiseConstantCarrierRatio)
@@ -401,7 +415,11 @@ TEST(SBMAMRTransfer, ProlongationUsesSameTimePiecewiseConstantCarrierRatio)
     MultiFab difference(fine_ba, fine_dm, ncomp, 0);
     MultiFab::Copy(difference, candidate, 0, 0, ncomp, 0);
     MultiFab::Subtract(difference, expected, 0, 0, ncomp, 0);
-    EXPECT_LE(difference.norm0(), Real(64.0) * std::numeric_limits<Real>::epsilon());
+    for (int component = 0; component < ncomp; ++component) {
+        EXPECT_LE(difference.norm0(component),
+                  Real(64.0) * std::numeric_limits<Real>::epsilon())
+            << "component=" << component;
+    }
 
     // Every child carries the parent dry-air-relative state, including the
     // 2M mass/number means and attached material ratios.
@@ -435,7 +453,10 @@ TEST(SBMAMRTransfer, ProlongationUsesSameTimePiecewiseConstantCarrierRatio)
                        : Real(0.0));
         });
     }
-    EXPECT_LE(ratio_error.norm0(), Real(64.0) * std::numeric_limits<Real>::epsilon());
+    EXPECT_LE(ratio_error.norm0(0),
+              Real(64.0) * std::numeric_limits<Real>::epsilon());
+    EXPECT_LE(ratio_error.norm0(1),
+              Real(64.0) * std::numeric_limits<Real>::epsilon());
 
     // Compare mapped inventories over the refined patch.  Fine cell volumes
     // are 1/8 of coarse computational volumes at this refinement ratio.
@@ -480,8 +501,21 @@ TEST(SBMAMRTransfer, ProlongationUsesSameTimePiecewiseConstantCarrierRatio)
     EXPECT_FALSE(erf_sbm::ProlongCarrierRelativeSpectrum(
         layout, coarse_view, stale_fine_view, cgeom, fgeom, IntVect(2), 1,
         candidate, diagnostic));
-    EXPECT_DOUBLE_EQ(candidate.norm0(), Real(77.0));
+    for (int component = 0; component < ncomp; ++component) {
+        EXPECT_DOUBLE_EQ(candidate.norm0(component), Real(77.0))
+            << "component=" << component;
+    }
     EXPECT_NE(diagnostic.find("times do not match"), std::string::npos);
+
+    candidate.setVal(Real(77.0));
+    EXPECT_FALSE(erf_sbm::ProlongCarrierRelativeSpectrum(
+        layout, coarse_view, fine_view, cgeom, fgeom, IntVect(2), 0,
+        candidate, diagnostic));
+    EXPECT_NE(diagnostic.find("fine level"), std::string::npos);
+    for (int component = 0; component < ncomp; ++component) {
+        EXPECT_DOUBLE_EQ(candidate.norm0(component), Real(77.0))
+            << "component=" << component;
+    }
 
     auto incomplete_view = fine_view;
     incomplete_view.dry_air_density = nullptr;
@@ -489,6 +523,10 @@ TEST(SBMAMRTransfer, ProlongationUsesSameTimePiecewiseConstantCarrierRatio)
         layout, coarse_view, incomplete_view, cgeom, fgeom, IntVect(2), 1,
         candidate, diagnostic));
     EXPECT_NE(diagnostic.find("incomplete"), std::string::npos);
+    for (int component = 0; component < ncomp; ++component) {
+        EXPECT_DOUBLE_EQ(candidate.norm0(component), Real(77.0))
+            << "component=" << component;
+    }
 
     // Exact same-time views also work at a later semantic time after the
     // carrier and conservative spectrum are both changed consistently.
@@ -502,7 +540,11 @@ TEST(SBMAMRTransfer, ProlongationUsesSameTimePiecewiseConstantCarrierRatio)
         candidate, diagnostic)) << diagnostic;
     candidate.mult(Real(0.5), 0, ncomp, 0);
     MultiFab::Subtract(candidate, expected, 0, 0, ncomp, 0);
-    EXPECT_LE(candidate.norm0(), Real(64.0) * std::numeric_limits<Real>::epsilon());
+    for (int component = 0; component < ncomp; ++component) {
+        EXPECT_LE(candidate.norm0(component),
+                  Real(64.0) * std::numeric_limits<Real>::epsilon())
+            << "component=" << component;
+    }
 }
 
 TEST(SBMAMRTransfer, ProlongationRejectsQuotientAndProductUnderflow)
