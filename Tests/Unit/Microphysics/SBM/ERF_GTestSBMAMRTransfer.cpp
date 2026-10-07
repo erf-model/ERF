@@ -354,7 +354,9 @@ TEST(SBMAMRTransfer, RestrictionAveragesMappedAmountAndPreservesUncoveredState)
     EXPECT_FALSE(erf_sbm::RestrictMappedSpectrum(
         layout, invalid_view, coarse_view, ratio, 0, candidate, diagnostic));
     for (int component = 0; component < ncomp; ++component) {
-        EXPECT_DOUBLE_EQ(candidate.norm0(component), Real(123.0))
+        EXPECT_DOUBLE_EQ(candidate.min(component), Real(123.0))
+            << "component=" << component;
+        EXPECT_DOUBLE_EQ(candidate.max(component), Real(123.0))
             << "component=" << component;
     }
 }
@@ -502,7 +504,9 @@ TEST(SBMAMRTransfer, ProlongationUsesSameTimePiecewiseConstantCarrierRatio)
         layout, coarse_view, stale_fine_view, cgeom, fgeom, IntVect(2), 1,
         candidate, diagnostic));
     for (int component = 0; component < ncomp; ++component) {
-        EXPECT_DOUBLE_EQ(candidate.norm0(component), Real(77.0))
+        EXPECT_DOUBLE_EQ(candidate.min(component), Real(77.0))
+            << "component=" << component;
+        EXPECT_DOUBLE_EQ(candidate.max(component), Real(77.0))
             << "component=" << component;
     }
     EXPECT_NE(diagnostic.find("times do not match"), std::string::npos);
@@ -513,7 +517,9 @@ TEST(SBMAMRTransfer, ProlongationUsesSameTimePiecewiseConstantCarrierRatio)
         candidate, diagnostic));
     EXPECT_NE(diagnostic.find("fine level"), std::string::npos);
     for (int component = 0; component < ncomp; ++component) {
-        EXPECT_DOUBLE_EQ(candidate.norm0(component), Real(77.0))
+        EXPECT_DOUBLE_EQ(candidate.min(component), Real(77.0))
+            << "component=" << component;
+        EXPECT_DOUBLE_EQ(candidate.max(component), Real(77.0))
             << "component=" << component;
     }
 
@@ -524,7 +530,9 @@ TEST(SBMAMRTransfer, ProlongationUsesSameTimePiecewiseConstantCarrierRatio)
         candidate, diagnostic));
     EXPECT_NE(diagnostic.find("incomplete"), std::string::npos);
     for (int component = 0; component < ncomp; ++component) {
-        EXPECT_DOUBLE_EQ(candidate.norm0(component), Real(77.0))
+        EXPECT_DOUBLE_EQ(candidate.min(component), Real(77.0))
+            << "component=" << component;
+        EXPECT_DOUBLE_EQ(candidate.max(component), Real(77.0))
             << "component=" << component;
     }
 

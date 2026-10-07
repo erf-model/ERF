@@ -429,7 +429,9 @@ TEST(SBMAMRTransferParallel, RankLocalInvalidSpectrumFailsCollectively)
     EXPECT_EQ(minimum_accepted, 0) << diagnostic;
     EXPECT_EQ(maximum_accepted, 0) << diagnostic;
     for (int component = 0; component < layout.ncomp(); ++component) {
-        EXPECT_DOUBLE_EQ(candidate.norm0(component), Real(123.0))
+        EXPECT_DOUBLE_EQ(candidate.min(component), Real(123.0))
+            << "candidate component=" << component;
+        EXPECT_DOUBLE_EQ(candidate.max(component), Real(123.0))
             << "candidate component=" << component;
     }
 }
