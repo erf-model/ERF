@@ -21,6 +21,7 @@ jobs:
       packages: write
     # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
     strategy:
+      fail-fast: false
       matrix:
         # This workflow exercises the NetCDF and RRTMGP combinations, which
         # are orthogonal to particles -- crossing the axis doubled the matrix

@@ -23,6 +23,7 @@ jobs:
     timeout-minutes: 120
     name: CUDA v${{matrix.cuda_ver}} - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
     strategy:
+      fail-fast: false
       matrix:
         cuda_pkg: [12-2]
         # GPU builds cover the particle-enabled configuration only. The
