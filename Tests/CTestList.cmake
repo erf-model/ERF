@@ -521,6 +521,48 @@ function(add_test_option_parity TEST_NAME TEST_FILES_DIR PLTFILE)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/option_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/option_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
 endfunction(add_test_option_parity)
 
+# Stable flow over a steep ridge with Smagorinsky2D (Tests/test_files/Smag2D_Ridge), driven by
+# Tests/RunSmag2DRidge.cmake in one of three modes: "steep" (the WRF slope limiter at a time
+# step the unlimited closure does not survive), "check" (the diffusive time-step warning fires
+# and leaves the answer unchanged) and "limit" (erf.diffusive_dt_limit sets and bounds dt).
+function(add_test_smag2d_ridge TEST_NAME MODE PLTFILE)
+    set(oneValueArgs "OPTIONS" "CONTROL_OPTIONS" "ALPHA_MIN" "WMAX" "DIFFUSIVE_CFL"
+                     "REF_DIFFUSIVE_DT_LO" "REF_DIFFUSIVE_DT_HI")
+    cmake_parse_arguments(ADD_TEST_SR "" "${oneValueArgs}" "" ${ARGN})
+    set(TEST_FILES_DIR Smag2D_Ridge)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMODE=${MODE}"
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/Smag2D_Ridge.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DFCOMPARE=${FCOMPARE_EXE}"
+        "-DFEXTREMA=${FEXTREMA_EXE}"
+        "-DPLTFILE=${PLTFILE}"
+        "-DOPTIONS=${ADD_TEST_SR_OPTIONS}"
+        "-DCONTROL_OPTIONS=${ADD_TEST_SR_CONTROL_OPTIONS}"
+        "-DALPHA_MIN=${ADD_TEST_SR_ALPHA_MIN}"
+        "-DWMAX=${ADD_TEST_SR_WMAX}"
+        "-DDIFFUSIVE_CFL=${ADD_TEST_SR_DIFFUSIVE_CFL}"
+        "-DREF_DIFFUSIVE_DT_LO=${ADD_TEST_SR_REF_DIFFUSIVE_DT_LO}"
+        "-DREF_DIFFUSIVE_DT_HI=${ADD_TEST_SR_REF_DIFFUSIVE_DT_HI}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunSmag2DRidge.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 2400
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/steep/simulation.log;${CURRENT_TEST_BINARY_DIR}/control/simulation.log;${CURRENT_TEST_BINARY_DIR}/check_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/check_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log;${CURRENT_TEST_BINARY_DIR}/limit/simulation.log")
+endfunction(add_test_smag2d_ridge)
+
 # The numeric log comparison add_test_box_parity's DATALOG relies on: a comparator that
 # accepts everything passes every test that uses it, so it needs its own test.  Pure CMake,
 # no ERF run, hence the "unit" label.
@@ -2301,6 +2343,37 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                  "the two-stream sun is fixed"
                  "erf.fixed_solar_zenith_angle=0.5")
 endif()
+
+# The cube through a checkpoint at step 17, to step 40. A restart rebuilds the
+# immersed forcing's blanking rather than reading it back; it rebuilt it without
+# clearing the almost-fluid cells (eb2.small_volfrac), so the restarted run forced
+# cells the straight run leaves alone (2e-4 in terrain_IB_mask, 6e-5 m/s in u, 8e-6 K
+# in the face skin temperatures). The deck plots no velocities, so they are added
+# here. Each test launches the deck three times, so both pass a RUN_TIMEOUT: 600 s
+# is the whole budget of the single 40-step IBSEB_Cube run (and half of what the
+# two-level IBSEB_RefinedLevels test gets for two runs of two steps, the view
+# factors being what costs), and the default watchdog would cut the legs off
+# looking like a parity failure rather than a timeout.
+# IBSEB_RefinedLevels_Restart does the same on the two levels of the
+# IBSEB_RefinedLevels deck (a cube on level 1, a tower outside it); its face dumps go
+# to a plain file name, since the deck's faces/ directory does not exist in the
+# runner's legs. It compares to 1e-8 relative, not zero: the restart leg writes a
+# plotfile at the restart step and the straight leg does not, and on two levels
+# writing a plotfile changes the solution at round-off (issue 4224; 5e-15 relative in theta
+# without buildings, 1.7e-10 relative in w here by step 20); with the plotfiles at
+# the same steps in all legs the restart is bit-exact. terrain_IB_mask still shows
+# the uncleared blanking (2.6e-3); 1e-8 relative is about 3e-6 K on the skin temperatures.
+# The runner is a cmake -P script (MPI, not Windows).
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_parity(IBSEB_Cube_Restart IBSEB_Cube 17 40
+    COMMON_OPTIONS "erf.plot_vars_1=density x_velocity y_velocity z_velocity theta terrain_IB_mask ibseb_nfaces ibseb_tskin ibseb_sw_abs ibseb_lw_net ibseb_H ibseb_G"
+    RUN_TIMEOUT 900
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(IBSEB_RefinedLevels_Restart IBSEB_RefinedLevels 7 20
+    COMMON_OPTIONS "erf.ibseb.dump_faces_file=faces_set erf.plot_vars_1=density x_velocity y_velocity z_velocity theta terrain_IB_mask ibseb_nfaces ibseb_tskin ibseb_sw_abs ibseb_lw_net ibseb_H ibseb_G"
+    RUN_TIMEOUT 1200
+    FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "0.0")
+endif()
 add_test_r(PBL_IBAware_MRF_Smoothing         ""  "erf_exec" "plt00010")
 
 #=============================================================================
@@ -2487,6 +2560,24 @@ add_test_station_series(StationSampling_ImmersedTerrain TerrainHill single
     RUNTIME_OPTIONS "amr.max_level=0 erf.terrain_type=ImmersedForcing erf.immersed_forcing_substep=true eb2.small_volfrac=0.005 erf.station_names=mast mastabs erf.mastabs.field=x_velocity y_velocity theta erf.mastabs.x=700.0 erf.mastabs.y=400.0 erf.mastabs.height_abs=93.08"
     CHECKS "equal a=@RUN@/Output_Stations/mast.dat:2 b=@RUN@/Output_Stations/mastabs.dat:2 tol=0.005|equal a=@RUN@/Output_Stations/mast.dat:4 b=@RUN@/Output_Stations/mastabs.dat:4 tol=0.001")
 
+# The same hill as immersed-forcing terrain through a checkpoint at step 7, to step
+# 20, on one level and on the deck's two. A restart rebuilt the blanking without
+# clearing the almost-fluid cells of the hill's tails (eb2.small_volfrac), so the
+# wall law acted there after the restart only: 0.2 m/s in u at step 20 on one level.
+# The one-level leg compares at zero tolerance. The two-level one compares to 1e-8
+# relative, for the same reason as IBSEB_RefinedLevels_Restart above: the restart leg
+# writes a plotfile at the restart step and the straight leg does not, and on two
+# levels writing a plotfile moves the solution at round-off (issue 4224).
+# The runner is a cmake -P script (MPI, not Windows).
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_parity(ImmersedTerrain_Hill_Restart TerrainHill 7 20
+    COMMON_OPTIONS "amr.max_level=0 erf.terrain_type=ImmersedForcing erf.immersed_forcing_substep=true eb2.small_volfrac=0.005 erf.plot_vars_1=density x_velocity y_velocity z_velocity theta terrain_IB_mask"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(ImmersedTerrain_Hill_TwoLevel_Restart TerrainHill 7 20
+    COMMON_OPTIONS "erf.terrain_type=ImmersedForcing erf.immersed_forcing_substep=true eb2.small_volfrac=0.005 erf.plot_vars_1=density x_velocity y_velocity z_velocity theta terrain_IB_mask"
+    FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "0.0")
+endif()
+
 # The same for terrain carried by an embedded boundary: the mesh is flat there
 # too, so the ground under the station is the surface the EB was built from and
 # not the bottom of the mesh.  The hill is 50 m up at the station, so 40 m above
@@ -2615,6 +2706,65 @@ add_test_restart_parity(ObsNudging_Hill_Restart ObsNudging_Hill 10 20
     COMMON_OPTIONS "${_obs_files}"
     DATALOG "Output_Stations/mast.dat"
     DATALOG_SIGDIGITS 10)
+
+#=============================================================================
+# Smagorinsky2D on terrain: WRF smag2d_km limits and the diffusive time-step check
+#=============================================================================
+# Steep ridge (alpha about 19.5 in the first cells), 3 km grid, Smagorinsky2D + MRF, no numerical
+# diffusion.  Measured with erf_exec (Release, 2 ranks, 6 simulated hours per run): the unlimited
+# closure survives dt = 45 s and fails from 46 s; with erf.smag2d_slope_limiter it survives to
+# 70 s and fails at 75 s, the same edge as with no LES at all.  The test runs the limiter at
+# 65 s, and the control (no limiter) at 65 s must fail (it does at step 2).
+add_test_smag2d_ridge(Smag2D_Ridge_SteepLimiter steep "plt00060"
+    OPTIONS "erf.smag2d_slope_limiter=true erf.fixed_dt=65 erf.fixed_mri_dt_ratio=40 max_step=60 erf.plot_int_1=60"
+    CONTROL_OPTIONS "erf.fixed_dt=65 erf.fixed_mri_dt_ratio=40 max_step=60 erf.plot_int_1=60"
+    ALPHA_MIN 15
+    WMAX 15)
+# The opt-in diffusive check warns on this deck and leaves the answer unchanged, with an
+# adaptive dt so that a check that moved dt would show.
+add_test_smag2d_ridge(Smag2D_Ridge_DiffusiveCheck check "plt00010"
+    OPTIONS "erf.fixed_dt=-1 max_step=10 erf.plot_int_1=10"
+    DIFFUSIVE_CFL 0.3)
+# erf.diffusive_dt_limit sets an adaptive dt and is never exceeded; the first diffusive dt
+# (3.6881 s in the reference run, Release, 1 and 2 ranks) must match to 2 %.
+add_test_smag2d_ridge(Smag2D_Ridge_DiffusiveLimit limit "plt00010"
+    OPTIONS "erf.fixed_dt=-1 max_step=10 erf.plot_int_1=10"
+    DIFFUSIVE_CFL 0.2
+    REF_DIFFUSIVE_DT_LO 3.6143
+    REF_DIFFUSIVE_DT_HI 3.7619)
+
+# Each new input is checked at start-up and aborts naming itself.  add_test_abort runs through
+# `sh -c ... | tee`, so these sit under the same guard as its other use.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+set(_smag2d_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/Smag2D_Ridge)
+add_test_abort(Smag2D_Abort_SlopeWithout2D ${_smag2d_dir} Smag2D_Ridge.i
+               "apply only to erf.les_type = Smagorinsky2D"
+               "erf.les_type=Smagorinsky erf.Cs=0.1 erf.pbl_type=None erf.smag2d_slope_limiter=true")
+add_test_abort(Smag2D_Abort_CapWithout2D ${_smag2d_dir} Smag2D_Ridge.i
+               "apply only to erf.les_type = Smagorinsky2D"
+               "erf.les_type=None erf.smag2d_kh_cap=10")
+add_test_abort(Smag2D_Abort_CapNegative ${_smag2d_dir} Smag2D_Ridge.i
+               "erf.smag2d_kh_cap must be >= 0"
+               "erf.smag2d_kh_cap=-1")
+add_test_abort(Smag2D_Abort_SlopeWithoutTerrain ${_smag2d_dir} Smag2D_Ridge.i
+               "erf.smag2d_slope_limiter requires erf.terrain_type"
+               "erf.terrain_type=None erf.grid_stretching_ratio=0 prob.custom_terrain_type=None erf.smag2d_slope_limiter=true")
+add_test_abort(Smag2D_Abort_CapWithEB ${CMAKE_CURRENT_SOURCE_DIR}/test_files/HillEB HillEB.i
+               "erf.smag2d_kh_cap is not supported with erf.terrain_type = EB"
+               "erf.les_type=Smagorinsky2D erf.Cs=0.1 erf.smag2d_kh_cap=10")
+add_test_abort(DiffusiveDt_Abort_CflRange ${_smag2d_dir} Smag2D_Ridge.i
+               "erf.diffusive_cfl must be in"
+               "erf.diffusive_cfl=1.5")
+add_test_abort(DiffusiveDt_Abort_CflUnused ${_smag2d_dir} Smag2D_Ridge.i
+               "erf.diffusive_cfl is used only with"
+               "erf.diffusive_dt_check=false erf.diffusive_cfl=0.3")
+add_test_abort(DiffusiveDt_Abort_LimitFixedDt ${_smag2d_dir} Smag2D_Ridge.i
+               "erf.diffusive_dt_limit = true cannot change erf.fixed_dt"
+               "erf.diffusive_dt_limit=true")
+add_test_abort(DiffusiveDt_Abort_LimitNoClosure ${_smag2d_dir} Smag2D_Ridge.i
+               "erf.diffusive_dt_limit = true needs an eddy-diffusivity closure"
+               "erf.diffusive_dt_limit=true erf.fixed_dt=-1 erf.les_type=None erf.pbl_type=None")
+endif()
 
 #=============================================================================
 # Performance tests

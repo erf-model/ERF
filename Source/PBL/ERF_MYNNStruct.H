@@ -65,9 +65,6 @@ struct MYNNLevel25 {
     amrex::Real SQmax = SQfac * SHmax;
 
     MYNNConfigType config;
-
-    // Calculate eddy diffusivity for moisture variables
-    bool diffuse_moistvars = false;
 };
 
 /**

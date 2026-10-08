@@ -898,6 +898,17 @@ List of Parameters
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.change_max**                   | factor by which dt can grow in subsequent steps          | Real >= 1          | 1.1               |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.diffusive_dt_check**           | warn when dt times the largest explicit eddy-diffusion   | Boolean            | false             |
+|                                      | rate exceeds erf.diffusive_cfl (see Notes); does not     |                    |                   |
+|                                      | change dt or the answer                                  |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.diffusive_dt_limit**           | also limit an adaptive dt to erf.diffusive_cfl divided   | Boolean            | false             |
+|                                      | by that rate; aborts with erf.fixed_dt or without an     |                    |                   |
+|                                      | eddy-diffusivity closure                                 |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.diffusive_cfl**                | diffusive Fourier number used by the check and the       | Real > 0 and <= 1  | 0.5               |
+|                                      | limit; aborts if given with both off                     |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.dt_max**                       | maximum adaptive timestep allowed by time stepping       | Real > 0           | 1e9               |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.dt_max_initial**               | maximum initial timestep                                 | Real > 0           | 1.0               |
@@ -962,6 +973,75 @@ Notes
      as for the momenta.  For **u** and **v** the column of faces along a grid seam is solved over the
      range covered by both of the cell columns adjacent to it, so the two grids sharing that
      seam obtain the same answer.
+
+-  | With an eddy-diffusivity closure, **erf.diffusive_dt_check** estimates on every level, at
+     the start of every coarse step, the largest explicit eddy-diffusion rate over the cells, from
+     the eddy diffusivities of the previous step.  Those are zero before the first step and on
+     the first step after a restart (they are not checkpointed); molecular diffusion is not
+     included.  For momentum the rate is the largest of the u, v and w rows,
+     :math:`\mu_h (2a+b) + e_{uv}\mu_v/\Delta z^2`, :math:`\mu_h (a+2b) + e_{uv}\mu_v/\Delta z^2`
+     and :math:`\mu_v (a+b) + 2 e_w \mu_v/\Delta z^2` (the horizontal diffusion of w uses
+     :math:`\mu_v`: :math:`\tau_{31}` and :math:`\tau_{32}` carry the same edge-averaged
+     :math:`\mu_v` as :math:`\tau_{13}` and :math:`\tau_{23}`); each row also counts the explicit u-w
+     and v-w cross derivatives, :math:`\mu_v\sqrt{a c}` and :math:`\mu_v\sqrt{b c}` with
+     :math:`c = 1/\Delta z^2` (added to the w row for both directions), which exceed the
+     vertical term where :math:`\Delta z > \Delta x/m`; plus
+     :math:`2 \max(\mu_h,\mu_v) h^2/\Delta z^2`, all divided by :math:`\rho`; for theta,
+     turbulent kinetic energy, moisture and the advected scalar (where carried) it is
+     :math:`[K_h (a+b) + K_h h^2/\Delta z^2 + e K_v/\Delta z^2]/\rho`, with
+     :math:`a = (m_x/\Delta x)^2`, :math:`b = (m_y/\Delta y)^2`, :math:`h` the physical terrain
+     slope of the cell (zero without terrain) and :math:`\Delta z` the cell thickness.  Each
+     diffusivity is the largest over the cell and its 26 neighbours, and :math:`\rho` the smallest,
+     whatever face or edge averages the stencils use.  With the coefficients frozen this is a
+     Gershgorin bound on the centred interior stencil of the scalar operator (the higher-order
+     one-sided gradients used next to Dirichlet boundaries are not covered: their row is up to
+     about 4/3 larger, so there the rate can be low by that factor); for momentum it is a bound
+     for uniform coefficients when :math:`\mu_h = \mu_v` and an estimate otherwise (the operator
+     is then not symmetric), and the terrain cross terms make both estimates.  The
+     terrain-metric term :math:`K h^2 \partial^2/\partial z^2` is not in the implicit solve.  For
+     momentum it is an upper bound: the projected terrain stresses carry :math:`\mu_v` today
+     (see ERF issue #4214) and would carry :math:`\mu_h` once that is changed.
+     :math:`e` is 0 when the implicit vertical solve is shown to keep every stage of that
+     component's vertical diffusion bounded (no stage amplifies a mode), and 1 otherwise.
+     This is decided analytically: with the three-stage scheme (stages from the old state with
+     steps dt/3, dt/2 and dt) every stage is bounded when **erf.vert_implicit_fac** has
+     :math:`f_1 \ge 1/2` and :math:`f_2 = 1`, whatever :math:`f_3`, and with the anelastic
+     MidPoint scheme when :math:`f_1 = 1`.  Every other pattern, including factors outside
+     [0, 1], counts as explicit; some of those are in fact bounded, so the rule is sufficient,
+     not necessary.  So the
+     default ``1 1 0`` (Crank-Nicolson for the vertical diffusion) and ``1 1 1`` (backward
+     Euler) give :math:`e = 0`, and ``0 0 0``, anelastic RK2 (no implicit solve), ``1 0 0``,
+     ``0 0 1`` or ``0.995 0.1 0.0666`` (whose last stage amplifies by 1.0008) give :math:`e = 1`.
+     The vertical diffusion of w is explicit (:math:`e_w = 1`) unless ERF is built with
+     ``ERF_IMPLICIT_W``; only the first moisture variable is in the implicit solve, so the
+     moisture term has :math:`e = 1` when other moist species are carried, and the advected
+     scalar always does.  If dt times this rate
+     exceeds **erf.diffusive_cfl** a warning is printed, repeated on a level only when the
+     Fourier number has grown by half.  The default 0.5 is the forward-Euler bound; the
+     three-stage scheme is stable to about 0.63 for a pure diffusion.  With
+     **erf.diffusive_dt_limit** = true an adaptive dt is also limited to **erf.diffusive_cfl**
+     divided by the rate (printed with **erf.v** >= 1 when it applies); on the first step
+     after a restart, when the rate is not known, dt is held at the checkpointed step
+     instead (which the limit bounded only if the run that wrote it used the limit).  The
+     limit changes the answer; the check alone does not.  With
+     **erf.diffusive_dt_check** = true and **erf.v** >= 2 the Fourier number of every step is
+     printed.  The check is a safeguard rather than a stability guarantee: it is conservative
+     and can flag runs that stay stable, so a warning is a prompt to look, not a prediction of
+     failure, and it does not account for the
+     anti-diffusion of the terrain stress reported in ERF issue #4214 (where, for
+     :math:`K_h \gg K_v`, :math:`K_h h^2 > 2 K_v (1 + 2h^2)` on steep slopes).  Cells
+     inside immersed-forcing solids count like fluid cells, and the cut-cell stiffening of EB
+     is not included.
+
+-  | When **erf.diffusive_dt_check**, **erf.diffusive_dt_limit** or a Smagorinsky2D limit
+     (**erf.smag2d_slope_limiter**, **erf.smag2d_kh_cap**) is on, on a terrain-fitted mesh where
+     the horizontal and vertical eddy viscosities can differ (Smagorinsky2D, Smagorinsky or
+     Deardorff with **erf.mix_isotropic** = false, or any PBL scheme), the largest slope factor
+     :math:`\alpha = h \Delta x/\Delta z` of each level and the number of cells with
+     :math:`\alpha > 1` are printed whenever a level has a new set of grids (at initialisation,
+     on the first step after a restart, and at the coarse step after a regrid), and with
+     **erf.terrain_type** = MovingFittedMesh also whenever the largest :math:`\alpha` changes by
+     more than 1 %.  Without those options nothing is computed or printed.
 
 -  | The time step controls work somewhat differently depending on whether one is using
      acoustic substepping in time; this is determined by the value of **substepping_type**.
@@ -1914,6 +1994,7 @@ List of Parameters
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.les_type**                       | Using an LES model, and if so, which type?               | "None",            | "None"           |
 |                                        |                                                          | "Smagorinsky",     |                  |
+|                                        |                                                          | "Smagorinsky2D",   |                  |
 |                                        |                                                          | "Deardorff"        |                  |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.rans_type**                      | Using a RANS model, and if so, which type?               | "None" or "kEqn"   | "None"           |
@@ -1925,6 +2006,18 @@ List of Parameters
 | **erf.dynamic_viscosity**              | Viscous coeff. if DNS                                    | Real               | 0.0              |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.Cs**                             | Constant Smagorinsky coeff.                              | Real               | 0.0              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.smag2d_slope_limiter**           | Smagorinsky2D on a terrain-fitted mesh: divide K_h by    | Boolean            | false            |
+|                                        | the slope factor alpha or alpha^2 as WRF's smag2d_km     |                    |                  |
+|                                        | does (see below). Per level; a single value applies at   |                    |                  |
+|                                        | the Smagorinsky2D levels. Aborts if no level uses        |                    |                  |
+|                                        | Smagorinsky2D, if a per-level list turns it on at        |                    |                  |
+|                                        | another level, or without a terrain-fitted mesh          |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.smag2d_kh_cap**                  | Smagorinsky2D: cap K_h <= smag2d_kh_cap * Delta_h with   | Real >= 0 [m/s]    | 0                |
+|                                        | Delta_h = sqrt(dx dy)/m (WRF: 10 m/s); 0 means no cap.   |                    |                  |
+|                                        | Per level, like erf.smag2d_slope_limiter; aborts if      |                    |                  |
+|                                        | negative or with EB                                      |                    |                  |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.use_moist_Ri_correction**        | Apply moist Richardson number limiter to the Smagorinsky | Boolean            | false            |
 |                                        | model                                                    |                    |                  |
@@ -1942,7 +2035,7 @@ List of Parameters
 |                                        | stable stratficiation; constant if > 0, otherwise the    |                    |                  |
 |                                        | instantaneous local value is used                        |                    |                  |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Pr_t**                           | Turbulent Prandtl Number                                 | Real               | 1.0              |
+| **erf.Pr_t**                           | Turbulent Prandtl Number                                 | Real               | 1/3              |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.Sc_t**                           | Turbulent Schmidt Number                                 | Real               | 1.0              |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -2037,6 +2130,80 @@ If we set ``erf.molec_diff_type`` to ``ConstantAlpha``, then
 Parameters for LES can either be set with one value that applies across all levels, or set with a number of values
 equal to the number of levels, allowing unique values of the parameter to be set for each level.
 
+.. _inputs-smag2d-wrf-limits:
+
+Smagorinsky2D limits on terrain-fitted meshes
+---------------------------------------------
+
+With ``erf.les_type = Smagorinsky2D`` the horizontal eddy viscosity is
+:math:`K_h = C_s^2 \Delta_h^2 |D_h|`, with :math:`\Delta_h = \sqrt{\Delta x \Delta y}/m` and the
+horizontal deformation :math:`|D_h| = \sqrt{(u_x - v_y)^2 + (u_y + v_x)^2}`.  On a terrain-fitted mesh
+the horizontal stresses along the coordinate surfaces carry a metric term of size
+:math:`K_h h^2 \partial^2/\partial z^2`, where :math:`h` is the coordinate slope.  It is explicit,
+and where the terrain drops by several cell thicknesses across one cell it is much stiffer than the
+horizontal diffusion itself.  Two opt-in limits taken from WRF's ``smag2d_km``
+(``dyn_em/module_diffusion_em.F``, ``km_opt = 4``) bound it:
+
+- ``erf.smag2d_kh_cap`` = :math:`c` caps :math:`K_h \le c \Delta_h` (WRF uses :math:`c` = 10 m/s,
+  always on there);
+
+- ``erf.smag2d_slope_limiter`` = true divides :math:`K_h` by the slope factor of the cell,
+
+  .. math::
+
+     \alpha = \max\left(\frac{\sqrt{\delta_x^2 + \delta_y^2}}{\Delta z}, 1\right), \qquad
+     K_h \leftarrow \begin{cases} K_h/\alpha^2 & |D_h| > \max(10/\Delta_h, 10^{-3}) \\
+                                   K_h/\alpha   & \text{otherwise,} \end{cases}
+
+  where :math:`\delta_x` and :math:`\delta_y` are the terrain drops across the cell (the mean of the
+  absolute height differences on its four cell edges in that direction) and :math:`\Delta z` is the
+  cell thickness, so that :math:`\alpha = h \Delta x/\Delta z`.  This is WRF's ``diff_opt = 2``
+  limiter ("JB August 2014"), applied after the cap, as there.
+
+The scalar diffusivities are formed from the limited :math:`K_h` (:math:`K_\theta = K_h/Pr_t`), as WRF
+recomputes ``xkhh``.  ERF's :math:`|D_h|` has the same definition as WRF's ``sqrt(def2)``.  ERF differs
+from WRF in these details:
+
+- the vertical viscosity :math:`K_v` (from the PBL scheme, or without one :math:`C_s^2 \Delta z^2 |D_h|`
+  times the Richardson-number factor) is not limited.  WRF sets ``xkmv = xkmh`` after limiting and uses it for the horizontal diffusion of
+  w; ERF has no such coefficient (its terrain stresses on w and the projected stresses use
+  :math:`K_v`, see #4214), so on steep slopes the momentum diffusion keeps its :math:`K_v` part;
+- on a terrain-fitted mesh ERF's strain carries the one-cell offset in the
+  :math:`\partial u/\partial z` cross term reported in #4214, which enters :math:`K_h` and the
+  :math:`|D_h|` threshold;
+- the terrain heights are nodal, so the drops are taken on the cell edges rather than from
+  :math:`z_x` at the cell faces, and :math:`\alpha` carries no map factor (WRF multiplies the drop by
+  :math:`1/m_x`), so that it is exactly :math:`h \Delta x/\Delta z` with physical spacings; the two
+  agree where the map factor is 1;
+- :math:`\Delta_h` uses ERF's map factors at the cell's low x- and y-faces (as ERF's Smagorinsky
+  closure always has), WRF's ``mlen_h`` the mass-point factors;
+- WRF sets the slopes to zero on specified, open and nested lateral boundaries and skips their
+  outermost columns; ERF limits every cell;
+- WRF uses :math:`K_h/Pr` for every scalar; ERF forms the moisture and advected-scalar
+  diffusivities with ``erf.Sc_t`` (default 1) instead, as it always has.
+
+The limiter reduces :math:`K_h h^2/K_v`, the quantity that decides whether the terrain stress of
+issue #4214 dissipates, by :math:`\alpha^2` or :math:`\alpha`, but it does not make that operator
+dissipative in general.  For the x-component on a slope :math:`h`, the stress of #4214 stops being
+dissipative when :math:`(K_h + K_v)^2 h^2 > 2 K_h K_v (1 + 2h^2)`, which for :math:`K_h \gg K_v`
+reduces to :math:`K_h h^2 > 2 K_v (1 + 2h^2)`, i.e. :math:`K_h h^2 > 2 K_v` on gentle slopes.  In the :math:`\alpha^2` branch the limited :math:`K_h h^2` is
+about :math:`C_s^2 \Delta z^2 |D_h|`.  Without a PBL scheme and without the Richardson-number
+correction that is :math:`K_v`, which keeps the stress dissipative for slopes below about 1.55
+(:math:`h^2 < 1 + \sqrt{2}`); but ``erf.use_Ri_correction``
+(on by default) multiplies :math:`K_v` by a stability factor at most 1, so in stable layers, with a
+PBL scheme (whose :math:`K_v` can be much smaller) or in the :math:`\alpha` branch, the condition
+can still be met.
+The fix of #4214 itself is a separate change.
+
+Both limits change the physics: they reduce the horizontal mixing on slopes (by :math:`\alpha^2`, up to
+two orders of magnitude on a 3 km grid with 50 m cells over steep terrain) and wherever the cap binds.
+They are off by default, and existing inputs give identical answers.  They are implemented for
+Smagorinsky2D only, as in WRF; the anisotropic Smagorinsky and Deardorff closures
+(``erf.mix_isotropic = false``) are not limited.  A single value of either input applies at the
+levels that use Smagorinsky2D; the code aborts if no level does, or if a per-level list turns a limit
+on at a level that does not.  See also ``erf.diffusive_dt_check`` in the time-step section, which reports the
+explicit diffusive limit these terms impose.
+
 .. _inputs-pbl-scheme:
 
 PBL Scheme
@@ -2083,9 +2250,6 @@ List of Parameters
 | **erf.pbl_mynn_C5**                      | MYNN Constant C5                                         | Real               | 0.2              |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_mynn_SQfactor**                | MYNN ratio of stability functions SQ / SM                | Real               | 3.0              |
-+------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.pbl_mynn_diffuse_moistvars**       | Diffuse moisture variables using modeled eddy            | Boolean            | false            |
-|                                          | diffusivity                                              |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.advect_QKE**                       | Include advection terms in QKE eqn                       | Boolean            | true             |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+

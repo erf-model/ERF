@@ -28,4 +28,5 @@ CEXE_headers += ERF_Diffusion.H
 CEXE_headers += ERF_ScalarDiffusion.H
 CEXE_headers += ERF_NativeScalarDiffusion.H
 CEXE_headers += ERF_EddyViscosity.H
+CEXE_headers += ERF_TerrainDiffusionLimits.H
 CEXE_headers += ERF_TurbKESources.H

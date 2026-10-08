@@ -1362,6 +1362,31 @@ struct SolverChoice {
             turbChoice[lev].init_params(lev,max_level,pp_prefix);
         }
 
+        // WRF's Smagorinsky-2D slope limiter divides K_h by the terrain slope factor of the
+        // mesh, which is 1 everywhere without a terrain-fitted mesh; and the EB closure
+        // (ComputeTurbulentViscosityLES_EB) applies neither limit.
+        bool smag2d_requested = false;
+        bool smag2d_somewhere = false;
+        for (int lev = 0; lev <= max_level; lev++) {
+            smag2d_requested = smag2d_requested || turbChoice[lev].smag2d_limits_requested;
+            smag2d_somewhere = smag2d_somewhere || turbChoice[lev].smag2d;
+        }
+        if (smag2d_requested && !smag2d_somewhere) {
+            amrex::Error("erf.smag2d_slope_limiter and erf.smag2d_kh_cap apply only to "
+                         "erf.les_type = Smagorinsky2D, which no level uses");
+        }
+        for (int lev = 0; lev <= max_level; lev++) {
+            const bool fitted = (terrain_type == TerrainType::StaticFittedMesh ||
+                                 terrain_type == TerrainType::MovingFittedMesh);
+            if (turbChoice[lev].smag2d_slope_limiter && !fitted) {
+                amrex::Error("erf.smag2d_slope_limiter requires erf.terrain_type = StaticFittedMesh "
+                             "or MovingFittedMesh");
+            }
+            if (turbChoice[lev].smag2d_kh_cap > zero && terrain_type == TerrainType::EB) {
+                amrex::Error("erf.smag2d_kh_cap is not supported with erf.terrain_type = EB");
+            }
+        }
+
         // erf.radiation_model = TwoStream selects the two-stream model; its
         // erf.radiation.* sub-options are read only then.
         radChoice.init_params(rad_type == RadiationType::TwoStream, pp_prefix);

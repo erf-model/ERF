@@ -197,9 +197,14 @@ public:
         pbl_mynn_level2.init_coeffs(
           pbl_mynn.A1, pbl_mynn.A2, pbl_mynn.B1, pbl_mynn.B2, pbl_mynn.C1,
           pbl_mynn.C2, pbl_mynn.C3, pbl_mynn.C4, pbl_mynn.C5);
-        query_one_or_per_level(
-          pp, "pbl_mynn_diffuse_moistvars", pbl_mynn.diffuse_moistvars, lev,
-          max_level);
+        // Moisture is now always diffused by MYNN, as it is by every other
+        // PBL scheme; catch the retired flag rather than ignoring it silently.
+        if (pp.contains("pbl_mynn_diffuse_moistvars")) {
+            amrex::Abort("erf.pbl_mynn_diffuse_moistvars has been removed. "
+                         "MYNN always diffuses the moisture variables now, as "
+                         "MYJ, YSU, MRF and SHOC always have; there is no "
+                         "longer a way to turn it off.");
+        }
         query_one_or_per_level(
           pp, "pbl_mynn_SMmin", pbl_mynn.SMmin, lev, max_level);
         query_one_or_per_level(
@@ -474,6 +479,28 @@ public:
         mix_isotropic = false;
       }
     }
+
+    // Opt-in limits of WRF's Smagorinsky-2D closure (dyn_em/module_diffusion_em.F, smag2d_km):
+    // the slope limiter, which divides K_h by alpha or alpha^2 on terrain-fitted meshes, and the
+    // cap K_h <= smag2d_kh_cap * Delta_h (WRF: 10 m/s).  Both are off by default.  The mesh check
+    // for the slope limiter is in SolverChoice::init_params, where the terrain type is known.
+    query_one_or_per_level(pp, "smag2d_slope_limiter", smag2d_slope_limiter, lev, max_level);
+    query_one_or_per_level(pp, "smag2d_kh_cap", smag2d_kh_cap, lev, max_level);
+    if (!(smag2d_kh_cap >= zero)) {
+      amrex::Error("erf.smag2d_kh_cap must be >= 0 (0 = no cap; WRF uses 10 m/s)");
+    }
+    smag2d_limits_requested = (smag2d_slope_limiter || smag2d_kh_cap > zero);
+    if (!smag2d) {
+      // A single value applies to every level; it is meant for the levels that run
+      // Smagorinsky2D (SolverChoice aborts if none does).  A per-level list must not
+      // switch the limits on at a level that does not.
+      if (pp.countval("smag2d_slope_limiter") == 1) { smag2d_slope_limiter = false; }
+      if (pp.countval("smag2d_kh_cap") == 1)        { smag2d_kh_cap = zero; }
+      if (smag2d_slope_limiter || smag2d_kh_cap > zero) {
+        amrex::Error("erf.smag2d_slope_limiter and erf.smag2d_kh_cap apply only to "
+                     "erf.les_type = Smagorinsky2D (level " + std::to_string(lev) + ")");
+      }
+    }
   }
 
   /**
@@ -517,6 +544,14 @@ public:
       if (use_Ri_correction) {
         amrex::Print() << "    Smagorinsky uses Richardson number correction with Ri_crit = "
                        << Ri_crit << std::endl;
+      }
+      if (smag2d) {
+        amrex::Print() << "    WRF slope limiter       : " << smag2d_slope_limiter << std::endl;
+        if (smag2d_kh_cap > zero) {
+          amrex::Print() << "    K_h cap                 : " << smag2d_kh_cap << " * Delta_h" << std::endl;
+        } else {
+          amrex::Print() << "    K_h cap                 : none" << std::endl;
+        }
       }
     } else if (les_type == LESType::Deardorff) {
       amrex::Print() << "    Using Deardorff LES model at level " << lev << std::endl;
@@ -722,6 +757,13 @@ public:
   // Smagorinsky
   amrex::Real Cs = zero;
   bool smag2d = false;
+  // WRF smag2d_km limits (opt-in): slope limiter K_h /= alpha or alpha^2 on terrain-fitted
+  // meshes, and the cap K_h <= smag2d_kh_cap * Delta_h (m/s; 0 = no cap)
+  bool smag2d_slope_limiter = false;
+  amrex::Real smag2d_kh_cap = zero;
+  // whether either limit was given as on for this level, before a single value is
+  // dropped at a level without Smagorinsky2D
+  bool smag2d_limits_requested = false;
 
   // Deardorff
   amrex::Real Ce = amrex::Real(0.93);
@@ -803,6 +845,18 @@ public:
   bool uses_shoc_family () const noexcept
   {
       return uses_eamxx_shoc() || uses_native_shoc();
+  }
+
+  /**
+   * @brief Query whether the horizontal and vertical eddy viscosities can differ on this level.
+   * @return True for Smagorinsky-2D, anisotropic Smagorinsky or Deardorff, and any PBL scheme
+   *         (which sets the vertical diffusivities on its own).
+   */
+  bool kh_kv_can_differ () const noexcept
+  {
+      return ( (les_type == LESType::Smagorinsky && (smag2d || !mix_isotropic)) ||
+               (les_type == LESType::Deardorff   && !mix_isotropic) ||
+               (pbl_type != PBLType::None) );
   }
 
   /**
@@ -942,6 +996,12 @@ public:
  * @brief Smagorinsky model coefficient.
  * @var TurbChoice::smag2d
  * @brief Whether the 2-D Smagorinsky formulation is used.
+ * @var TurbChoice::smag2d_slope_limiter
+ * @brief Apply WRF's Smagorinsky-2D slope limiter (K_h / alpha or / alpha^2) on terrain-fitted meshes.
+ * @var TurbChoice::smag2d_kh_cap
+ * @brief Cap K_h <= smag2d_kh_cap * Delta_h for Smagorinsky-2D (m/s); 0 means no cap.
+ * @var TurbChoice::smag2d_limits_requested
+ * @brief Whether either Smagorinsky-2D limit was given as on for this level.
  * @var TurbChoice::Ce
  * @brief Deardorff dissipation coefficient.
  * @var TurbChoice::Ce_wall

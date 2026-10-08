@@ -27,8 +27,7 @@ qext: the closure checks on the external-flux run, the flux on every face
 solar: from the periodic dumps, the east wall warms before the roof and
   the west wall, and every face stays within the bounds.
 restart: the last dump (step 200, t = 100 s) after a restart at step 100 against the
-  straight run: geometry exact, skin and slab to 1e-3 K (the atmosphere of
-  the immersed forcing is not bit-exact through a restart, see SlabConduction).
+  straight run: geometry, skin, slab and the face fluxes exact.
 """
 import sys, glob, re, argparse
 import numpy as np
@@ -201,9 +200,9 @@ def main():
         ok = report("same faces", len(a["i"]) == len(b["i"]) and all(np.array_equal(a[c], b[c]) for c in ("i", "j", "k", "dir", "side", "bid", "area_m2")), f"{len(a['i'])} faces")
         eT = np.abs(a["T_skin"] - b["T_skin"]).max()
         eS = np.abs(slab_layers(a) - slab_layers(b)).max()
-        ok &= report("skin and slab after the restart", eT < 1e-3 and eS < 1e-3, f"max |dT_skin| {eT:.1e} K, max |dT_slab| {eS:.1e} K")
+        ok &= report("skin and slab after the restart", eT == 0.0 and eS == 0.0, f"max |dT_skin| {eT:.1e} K, max |dT_slab| {eS:.1e} K")
         for c in ("H", "G", "LW_net", "SW_abs"):
-            e = np.abs(a[c] - b[c]).max(); ok &= report(f"{c} after the restart", e < 1e-2 * max(1.0, np.abs(a[c]).max()), f"max diff {e:.1e} W/m2")
+            e = np.abs(a[c] - b[c]).max(); ok &= report(f"{c} after the restart", e == 0.0, f"max diff {e:.1e} W/m2")
     else:
         sys.exit("unknown mode")
     print(f"{mode}: {'PASS' if ok else 'FAIL'}")
