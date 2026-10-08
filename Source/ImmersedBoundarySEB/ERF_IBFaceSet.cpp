@@ -602,8 +602,12 @@ IBFaceSet::map_buildings_to_level0 (const IBFaceSet& coarser, const IntVect& rat
         for (int cj = 0; cj < m_lab_ny; ++cj) {
             const int b = m_lab[static_cast<size_t>(ci) * m_lab_ny + cj];
             if (b == 0) { continue; }
-            const int cc = (ci + m_lab_i0) / ratio[0] - coarser.m_lab_i0;
-            const int cd = (cj + m_lab_j0) / ratio[1] - coarser.m_lab_j0;
+            // amrex::coarsen, not a division: the column indices here are cell
+            // indices of the level, and integer division truncates towards zero,
+            // which would send a negative index to the coarse column above the
+            // one that covers it.
+            const int cc = amrex::coarsen(ci + m_lab_i0, ratio[0]) - coarser.m_lab_i0;
+            const int cd = amrex::coarsen(cj + m_lab_j0, ratio[1]) - coarser.m_lab_j0;
             if (cc < 0 || cc >= coarser.m_lab_nx || cd < 0 || cd >= coarser.m_lab_ny) { continue; }
             const int bc = coarser.m_lab[static_cast<size_t>(cc) * coarser.m_lab_ny + cd];
             if (bc > 0 && coarser.m_to_lev0[bc] > 0) { ++votes[b][coarser.m_to_lev0[bc]]; }
