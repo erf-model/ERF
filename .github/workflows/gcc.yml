@@ -108,7 +108,8 @@ jobs:
         exit ${return}
 
     - name: GNUmake Compile and Link
-      if: matrix.particles == 'OFF' && matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
+      # Merge tier only: a second, uncached full compile that checks the Makefile build, not the code.
+      if: github.event_name != 'pull_request' && matrix.particles == 'OFF' && matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
         make -C Exec -j2 USE_NETCDF=FALSE USE_PARTICLES=FALSE
 
