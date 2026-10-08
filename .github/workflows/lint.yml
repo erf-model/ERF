@@ -33,7 +33,12 @@ jobs:
         run: |
           bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) "${ACTIONLINT_VERSION}"
       - name: actionlint
-        run: ./actionlint -color
+        env:
+          # SC2086 (unquoted expansions) at info level is noise in these scripts.
+          SHELLCHECK_OPTS: -S warning
+        # runner.workspace is real (used throughout AMReX and ERF) but absent from
+        # actionlint's model of the runner context.
+        run: ./actionlint -color -ignore 'property "workspace" is not defined in object type'
 
   shellcheck:
     runs-on: ubuntu-22.04
