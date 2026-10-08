@@ -38,16 +38,27 @@
     eddy_diff_idz[PrimKE_comp]     = EddyDiff::KE_v;
     eddy_diff_idz[PrimScalar_comp] = EddyDiff::Scalar_v;
 
+    // Horizontal eddy diffusivity component, in the same categories.  Over terrain
+    //   the vertical operator also carries K_h times the slope factor.
+    Vector<int> eddy_diff_idh(NPRIMVAR_max, EddyDiff::Q_h);
+    eddy_diff_idh[PrimTheta_comp]  = EddyDiff::Theta_h;
+    eddy_diff_idh[PrimKE_comp]     = EddyDiff::KE_h;
+    eddy_diff_idh[PrimScalar_comp] = EddyDiff::Scalar_h;
+
     // Device vectors
     Gpu::AsyncVector<Real> alpha_eff_d;
     Gpu::AsyncVector<int>  eddy_diff_idz_d;
+    Gpu::AsyncVector<int>  eddy_diff_idh_d;
     alpha_eff_d.resize(alpha_eff.size());
     eddy_diff_idz_d.resize(eddy_diff_idz.size());
+    eddy_diff_idh_d.resize(eddy_diff_idh.size());
 
     Gpu::copy(Gpu::hostToDevice, alpha_eff.begin()    , alpha_eff.end()    , alpha_eff_d.begin());
     Gpu::copy(Gpu::hostToDevice, eddy_diff_idz.begin(), eddy_diff_idz.end(), eddy_diff_idz_d.begin());
+    Gpu::copy(Gpu::hostToDevice, eddy_diff_idh.begin(), eddy_diff_idh.end(), eddy_diff_idh_d.begin());
 
     // Capture pointers for device code
     [[maybe_unused]] Real* d_alpha_eff     = alpha_eff_d.data();
     [[maybe_unused]] int*  d_eddy_diff_idz = eddy_diff_idz_d.data();
+    [[maybe_unused]] int*  d_eddy_diff_idh = eddy_diff_idh_d.data();
 /** \endcond */

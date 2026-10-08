@@ -1486,4 +1486,89 @@ ScaleScalarDiffusionVerticalFlux (
   });
 }
 
+/**
+ * Terrain version of ScaleScalarDiffusionVerticalFlux.  The implicit solve
+ * (ImplicitDiffForStateLU_T) takes the whole second vertical derivative,
+ * -(K_v + K_h M) dphi/dz with M = s_x^2 + s_y^2 (Compute_TerrainScalarVertDiffFac),
+ * on every face it owns; the K_h M part otherwise enters G_z through the
+ * horizontal fluxes.  So besides scaling raw F_z, add back the implicit fraction
+ * of -K_h M dphi/dz, with the solver's face coefficient and compact stencil, so
+ * that G_z keeps only the explicit fraction of it.  The physical bottom and top
+ * faces are left to the boundary conditions, as in the solve.
+ */
+template <bool MultiplyMolecularByDensity, bool AddTurbulence>
+inline void
+ScaleScalarDiffusionVerticalFlux_T_Impl (
+  const amrex::Box& bx,
+  const amrex::Box& domain,
+  const ScalarDiffusionFieldViews& field,
+  const ScalarDiffusionCoefficients& coefficients,
+  const amrex::Array4<const amrex::Real>& z_nd,
+  const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+  const amrex::Array4<const amrex::Real>& mf_mx,
+  const amrex::Array4<const amrex::Real>& mf_my,
+  const amrex::Real explicit_fac)
+{
+  using namespace amrex;
+  const Box zbx = surroundingNodes(bx, 2);
+  const int dom_klo = domain.smallEnd(2);
+  const int dom_khi = domain.bigEnd(2) + 1;
+  const Real implicit_fac = Real(1.0) - explicit_fac;
+  const auto scalar = field.scalar;
+  const int scalar_comp = field.scalar_comp;
+  const auto density = field.density;
+  const int rho_comp = field.rho_comp;
+  const auto mu_turb = field.mu_turb;
+  const auto zflux = field.zflux;
+  const int flux_comp = field.flux_comp;
+
+  ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    zflux(i, j, k, flux_comp) *= explicit_fac;
+    if (k == dom_klo || k == dom_khi) return;
+
+    const Real coeff_h = ScalarDiffusionFaceCoefficient<
+      MultiplyMolecularByDensity, AddTurbulence>(
+      density, rho_comp, mu_turb, coefficients, i, j, k, 0, 0, 1,
+      coefficients.eddy_h_comp);
+    const Real met_fac =
+      Compute_TerrainScalarVertDiffFac(i, j, k, cellSizeInv, z_nd, mf_mx, mf_my);
+    const Real h_zeta = Compute_h_zeta_AtKface(i, j, k, cellSizeInv, z_nd);
+    const Real grad_z = (cellSizeInv[2] / h_zeta) *
+                        (scalar(i, j, k, scalar_comp) - scalar(i, j, k - 1, scalar_comp));
+    zflux(i, j, k, flux_comp) += implicit_fac * coeff_h * met_fac * grad_z;
+  });
+}
+
+inline void
+ScaleScalarDiffusionVerticalFlux_T (
+  const amrex::Box& bx,
+  const amrex::Box& domain,
+  const ScalarDiffusionFieldViews& field,
+  const ScalarDiffusionFluxPolicy& policy,
+  const amrex::Array4<const amrex::Real>& z_nd,
+  const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+  const amrex::Array4<const amrex::Real>& mf_mx,
+  const amrex::Array4<const amrex::Real>& mf_my,
+  const amrex::Real explicit_fac)
+{
+  if (explicit_fac == amrex::Real(1.0)) return;
+  const auto mode = policy.coefficient_mode;
+  const auto& c = policy.coefficients;
+  if (mode.molecular_is_kinematic) {
+    if (mode.add_turbulence) {
+      ScaleScalarDiffusionVerticalFlux_T_Impl<true, true>(
+        bx, domain, field, c, z_nd, cellSizeInv, mf_mx, mf_my, explicit_fac);
+    } else {
+      ScaleScalarDiffusionVerticalFlux_T_Impl<true, false>(
+        bx, domain, field, c, z_nd, cellSizeInv, mf_mx, mf_my, explicit_fac);
+    }
+  } else if (mode.add_turbulence) {
+    ScaleScalarDiffusionVerticalFlux_T_Impl<false, true>(
+      bx, domain, field, c, z_nd, cellSizeInv, mf_mx, mf_my, explicit_fac);
+  } else {
+    ScaleScalarDiffusionVerticalFlux_T_Impl<false, false>(
+      bx, domain, field, c, z_nd, cellSizeInv, mf_mx, mf_my, explicit_fac);
+  }
+}
+
 #endif // ERF_SCALAR_DIFFUSION_H_

@@ -695,6 +695,76 @@ Compute_h_eta_AtEdgeCenterI (const int &i, const int &j, const int &k,
     return met_h_eta;
 }
 
+/**
+ * Slope factor M on the horizontal diffusivity in the second vertical derivative of u
+ * (stagdir 0, at the xz-edge (i,j,k)) or v (stagdir 1, at the yz-edge (i,j,k)) of the
+ * terrain stress.  Projecting the stress, the zeta-flux of u is
+ * tau13 - s_x tau11 - s_y tau12 with s = m h the physical slopes, and its du/dz part is
+ * -(mu_v + mu_h M) du/dz:
+ *   M_u = (4/3) s_x^2 + s_y^2,   M_v = s_x^2 + (4/3) s_y^2.
+ * The 4/3 is tau11 (tau22) with the du/dz (dv/dz) the expansion rate carries through Omega.
+ *
+ * @param[in] i x-index
+ * @param[in] j y-index
+ * @param[in] k z-index
+ * @param[in] cellSizeInv Inverse cell spacing.
+ * @param[in] z_nd Nodal physical height field.
+ * @param[in] mf_x x map factor on the faces of the velocity component
+ * @param[in] mf_y y map factor on the faces of the velocity component
+ * @return Slope factor M.
+ */
+template <int stagdir>
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+Compute_TerrainVertDiffFac (const int &i, const int &j, const int &k,
+                            const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                            const amrex::Array4<const amrex::Real>& z_nd,
+                            const amrex::Array4<const amrex::Real>& mf_x,
+                            const amrex::Array4<const amrex::Real>& mf_y)
+{
+    static_assert(stagdir == 0 || stagdir == 1, "Slope factor is for u and v only");
+    constexpr amrex::Real four_thirds = four/three;
+    if constexpr (stagdir == 0) {
+        amrex::Real s_x = mf_x(i,j,0) * Compute_h_xi_AtEdgeCenterJ (i,j,k,cellSizeInv,z_nd);
+        amrex::Real s_y = mf_y(i,j,0) * Compute_h_eta_AtEdgeCenterJ(i,j,k,cellSizeInv,z_nd);
+        return four_thirds*s_x*s_x + s_y*s_y;
+    } else {
+        amrex::Real s_x = mf_x(i,j,0) * Compute_h_xi_AtEdgeCenterI (i,j,k,cellSizeInv,z_nd);
+        amrex::Real s_y = mf_y(i,j,0) * Compute_h_eta_AtEdgeCenterI(i,j,k,cellSizeInv,z_nd);
+        return s_x*s_x + four_thirds*s_y*s_y;
+    }
+}
+
+/**
+ * Slope factor M on the horizontal diffusivity in the second vertical derivative of a
+ * scalar at the k-face (i,j,k) over terrain.  The vertical transfer is
+ * G_z = F_z - s_x Fbar_x - s_y Fbar_y (TerrainDiffusionGz) with s = m h the physical
+ * slopes, and its dphi/dz part is -(K_v + K_h M) dphi/dz with M = s_x^2 + s_y^2.
+ *
+ * @param[in] i x-index
+ * @param[in] j y-index
+ * @param[in] k z-index
+ * @param[in] cellSizeInv Inverse cell spacing.
+ * @param[in] z_nd Nodal physical height field.
+ * @param[in] mf_mx x map factor at cell centers
+ * @param[in] mf_my y map factor at cell centers
+ * @return Slope factor M.
+ */
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+Compute_TerrainScalarVertDiffFac (const int &i, const int &j, const int &k,
+                                  const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                                  const amrex::Array4<const amrex::Real>& z_nd,
+                                  const amrex::Array4<const amrex::Real>& mf_mx,
+                                  const amrex::Array4<const amrex::Real>& mf_my)
+{
+    amrex::Real s_x = mf_mx(i,j,0) * Compute_h_xi_AtKface (i,j,k,cellSizeInv,z_nd);
+    amrex::Real s_y = mf_my(i,j,0) * Compute_h_eta_AtKface(i,j,k,cellSizeInv,z_nd);
+    return s_x*s_x + s_y*s_y;
+}
+
 // Relative height above terrain surface at cell center from z_nd (nodal absolute height)
 /**
  * Compute the physical height at the cell center.

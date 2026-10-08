@@ -139,10 +139,9 @@ Smag2DLimitedViscosity (amrex::Real nu, amrex::Real strain, amrex::Real DeltaH,
  * vertical term (dx = 100 m, dz = 500 m: five times).  (The expansion
  * rate in tau11 also couples u to dw/dz, with mu_h; that is covered by "an estimate when
  * mu_h != mu_v" below.)  The metric term is an upper bound: the
- * projected stresses of the terrain stress (ComputeStressVarVisc_T) carry mu_v today (ERF
- * issue #4214) and would carry mu_h once that is changed, hence mu_p = max(mu_h, mu_v);
- * with mu_v there, the K_h part of that coupling enters only through the mixed xi-zeta
- * terms, so the bound can overstate that coupling by about alpha / 2 on steep slopes.
+ * terrain stress (ComputeStressVarVisc_T) forms the stress before projecting it (ERF
+ * issue #4214), so the projected terms carry mu_h through tau11, tau12 and tau22 and
+ * mu_v through tau31, tau32; hence mu_p = max(mu_h, mu_v).
  *
  * Scalar: K_h (a + b) + K_h h^2 / dz^2 + e K_v / dz^2; the K_h h^2 part
  * (TerrainDiffusionGz) is explicit.
