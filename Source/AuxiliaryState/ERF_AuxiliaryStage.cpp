@@ -265,6 +265,33 @@ void CompletedStepFluxLedger::define (const amrex::BoxArray& cell_ba,
     m_open_stage_weight = amrex::Real(0.0);
     m_step_old_time = 0.0;
     m_stage_components_seen.assign(static_cast<std::size_t>(ncomp), 0);
+    m_stage_failure_diagnostic.clear();
+}
+
+void CompletedStepFluxLedger::latch_stage_failure (
+    const std::string& diagnostic)
+{
+    if (m_stage_failure_diagnostic.empty()) {
+        m_stage_failure_diagnostic = diagnostic.empty()
+                                         ? "completed-step ledger stage operation failed"
+                                         : diagnostic;
+    }
+}
+
+void CompletedStepFluxLedger::discard_step ()
+{
+    if (m_integral.is_defined()) {
+        m_integral.setVal(amrex::Real(0.0));
+    }
+    m_step_active = false;
+    m_step_complete = false;
+    m_stage_open = false;
+    m_next_stage = 0;
+    m_open_stage = -1;
+    m_open_stage_weight = amrex::Real(0.0);
+    m_step_old_time = 0.0;
+    std::fill(m_stage_components_seen.begin(), m_stage_components_seen.end(), 0);
+    m_stage_failure_diagnostic.clear();
 }
 
 bool CompletedStepFluxLedger::accept_stage (const HostIntegrator method,
@@ -274,25 +301,30 @@ bool CompletedStepFluxLedger::accept_stage (const HostIntegrator method,
                                             const MappedFaceFluxRate& rate,
                                             std::string& diagnostic)
 {
+    diagnostic.clear();
+    bool local_stage_ok = true;
     if (!is_defined() || !rate.is_defined() || rate.nComp() != m_integral.nComp()) {
-        diagnostic.clear();
         diagnostic = "completed-step ledger and face-rate layouts are not defined compatibly";
-        return false;
-    }
-    if (!SameMappedFaceLayout(m_integral, rate)) {
-        diagnostic.clear();
+        latch_stage_failure(diagnostic);
+        local_stage_ok = false;
+    } else if (!SameMappedFaceLayout(m_integral, rate)) {
         diagnostic = "completed-step ledger and face-rate BoxArray/DistributionMapping do not match";
-        return false;
+        latch_stage_failure(diagnostic);
+        local_stage_ok = false;
     }
-    if (!begin_stage(method, stage, step_old_time, recipe, diagnostic)) {
-        return false;
+    if (local_stage_ok) {
+        local_stage_ok = begin_stage(method, stage, step_old_time, recipe, diagnostic);
     }
-    for (int component = 0; component < rate.nComp(); ++component) {
-        if (!accumulate_stage_component(rate, component, component, diagnostic)) {
-            return false;
+    if (local_stage_ok) {
+        for (int component = 0; component < rate.nComp(); ++component) {
+            if (!accumulate_stage_component(rate, component, component, diagnostic)) {
+                local_stage_ok = false;
+                break;
+            }
         }
     }
-    return finish_stage(diagnostic);
+    const bool accepted = finish_stage(diagnostic);
+    return local_stage_ok && accepted;
 }
 
 bool CompletedStepFluxLedger::begin_stage (const HostIntegrator method,
@@ -302,16 +334,23 @@ bool CompletedStepFluxLedger::begin_stage (const HostIntegrator method,
                                            std::string& diagnostic)
 {
     diagnostic.clear();
+    if (!m_stage_failure_diagnostic.empty()) {
+        diagnostic = m_stage_failure_diagnostic;
+        return false;
+    }
     if (!is_defined()) {
         diagnostic = "completed-step ledger storage is not defined";
+        latch_stage_failure(diagnostic);
         return false;
     }
     if (method == HostIntegrator::AnelasticMidPoint) {
         diagnostic = "AnelasticMidPoint completed-step ledger is not qualified by M2";
+        latch_stage_failure(diagnostic);
         return false;
     }
     if (stage < 0 || stage >= stage_count(method)) {
         diagnostic = "stage index is outside the completed-step ledger sequence";
+        latch_stage_failure(diagnostic);
         return false;
     }
     if (!std::isfinite(step_old_time) ||
@@ -321,22 +360,26 @@ bool CompletedStepFluxLedger::begin_stage (const HostIntegrator method,
         !std::isfinite(recipe.face_rate_time_coefficient) || recipe.face_rate_time_coefficient <= 0.0 ||
         !finite_nonnegative(recipe.completed_ledger_time)) {
         diagnostic = "completed-step ledger received an invalid temporal coefficient";
+        latch_stage_failure(diagnostic);
         return false;
     }
     const amrex::Real stage_weight =
         static_cast<amrex::Real>(recipe.completed_ledger_time);
     if (!amrex::Math::isfinite(stage_weight) || stage_weight < amrex::Real(0.0)) {
         diagnostic = "completed-step ledger weight is not representable in amrex::Real";
+        latch_stage_failure(diagnostic);
         return false;
     }
     if (m_stage_open) {
         diagnostic = "a completed-step ledger stage transaction is already open";
+        latch_stage_failure(diagnostic);
         return false;
     }
 
     if (stage == 0) {
         if (m_step_active) {
             diagnostic = "stage 0 arrived while the previous auxiliary step was unfinished";
+            latch_stage_failure(diagnostic);
             return false;
         }
         m_integral.setVal(amrex::Real(0.0));
@@ -348,19 +391,23 @@ bool CompletedStepFluxLedger::begin_stage (const HostIntegrator method,
     } else {
         if (!m_step_active) {
             diagnostic = "auxiliary stage arrived before stage 0";
+            latch_stage_failure(diagnostic);
             return false;
         }
         if (method != m_method) {
             diagnostic = "host integrator changed during an auxiliary timestep";
+            latch_stage_failure(diagnostic);
             return false;
         }
         if (step_old_time != m_step_old_time) {
             diagnostic = "step-old time changed during an auxiliary timestep";
+            latch_stage_failure(diagnostic);
             return false;
         }
     }
     if (stage != m_next_stage) {
         diagnostic = "duplicate, skipped, or out-of-order auxiliary stage";
+        latch_stage_failure(diagnostic);
         return false;
     }
 
@@ -376,23 +423,27 @@ bool CompletedStepFluxLedger::accumulate_stage_component (
     const int ledger_component, std::string& diagnostic)
 {
     diagnostic.clear();
+    const auto fail = [this, &diagnostic] () {
+        latch_stage_failure(diagnostic);
+        return false;
+    };
     if (!m_stage_open || !m_step_active || m_open_stage != m_next_stage) {
         diagnostic = "spectral component accumulation requires an open host stage";
-        return false;
+        return fail();
     }
     if (!rate.is_defined() || !SameMappedFaceLayout(m_integral, rate)) {
         diagnostic = "completed-step ledger and chunk face-rate layouts do not match";
-        return false;
+        return fail();
     }
     if (source_component < 0 || source_component >= rate.nComp() ||
         ledger_component < 0 || ledger_component >= m_integral.nComp()) {
         diagnostic = "completed-step chunk component is outside its source or destination";
-        return false;
+        return fail();
     }
     auto& seen = m_stage_components_seen[static_cast<std::size_t>(ledger_component)];
     if (seen != 0) {
         diagnostic = "completed-step stage contains a duplicate destination component";
-        return false;
+        return fail();
     }
 
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
@@ -407,10 +458,14 @@ bool CompletedStepFluxLedger::accumulate_stage_component (
 bool CompletedStepFluxLedger::finish_stage (std::string& diagnostic)
 {
     diagnostic.clear();
+    if (!m_stage_failure_diagnostic.empty()) {
+        diagnostic = m_stage_failure_diagnostic;
+    }
     const bool local_stage_valid =
-        m_stage_open && m_step_active && m_open_stage == m_next_stage &&
+        m_stage_failure_diagnostic.empty() && m_stage_open && m_step_active &&
+        m_open_stage == m_next_stage &&
         m_open_stage >= 0 && m_open_stage < stage_count(m_method);
-    if (!local_stage_valid) {
+    if (!local_stage_valid && diagnostic.empty()) {
         diagnostic = "completed-step stage finish requires an open host stage";
     }
 
@@ -442,39 +497,33 @@ bool CompletedStepFluxLedger::finish_stage (std::string& diagnostic)
             break;
         }
     }
-    int minimum_stage_code = local_stage_code;
-    int maximum_stage_code = local_stage_code;
-    amrex::ParallelDescriptor::ReduceIntMin(minimum_stage_code);
-    amrex::ParallelDescriptor::ReduceIntMax(maximum_stage_code);
-    if (minimum_stage_code == 0 || minimum_stage_code != maximum_stage_code) {
-        if (diagnostic.empty()) {
-            diagnostic =
-                minimum_stage_code == 0
-                    ? "completed-step stage is invalid or incomplete on "
-                      "another MPI rank"
-                    : "completed-step stage identity differs across MPI ranks";
-        }
-        return false;
-    }
-
-    const bool completes_step = m_next_stage + 1 == stage_count(m_method);
+    const bool completes_step = local_stage_code != 0 &&
+                                m_next_stage + 1 == stage_count(m_method);
+    bool locally_finite = true;
     if (completes_step) {
-        bool locally_finite = true;
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
             locally_finite =
                 m_integral.dir(dir).is_finite(0, m_integral.nComp(), 0, true) &&
                 locally_finite;
         }
-        int any_nonfinite = locally_finite ? 0 : 1;
-        amrex::ParallelDescriptor::ReduceIntMax(any_nonfinite);
-        if (any_nonfinite != 0) {
-            diagnostic =
-                locally_finite
-                    ? "completed-step integrated face transfer is nonfinite on "
-                      "another MPI rank"
-                    : "completed-step integrated face transfer is nonfinite";
-            return false;
+    }
+    int vote[3] = {local_stage_code, -local_stage_code,
+                   locally_finite ? 0 : -1};
+    amrex::ParallelDescriptor::ReduceIntMin(vote, 3);
+    const bool stage_agreed = vote[0] != 0 && vote[0] == -vote[1];
+    const bool globally_finite = vote[2] == 0;
+    if (!stage_agreed || !globally_finite) {
+        if (!stage_agreed && diagnostic.empty()) {
+            diagnostic = vote[0] == 0
+                             ? "completed-step stage is invalid or incomplete on another MPI rank"
+                             : "completed-step stage identity differs across MPI ranks";
+        } else if (stage_agreed && !globally_finite && diagnostic.empty()) {
+            diagnostic = locally_finite
+                             ? "completed-step integrated face transfer is nonfinite on another MPI rank"
+                             : "completed-step integrated face transfer is nonfinite";
         }
+        discard_step();
+        return false;
     }
 
     m_stage_open = false;
@@ -485,6 +534,7 @@ bool CompletedStepFluxLedger::finish_stage (std::string& diagnostic)
         m_step_active = false;
         m_step_complete = true;
     }
+    m_stage_failure_diagnostic.clear();
     return true;
 }
 

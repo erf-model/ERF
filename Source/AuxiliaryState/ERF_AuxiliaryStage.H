@@ -123,6 +123,12 @@ public:
                  const amrex::DistributionMapping& dm,
                  int ncomp = 1);
 
+    /**
+     * Collective convenience wrapper. Every participating rank must call it
+     * for the same logical stage; local preflight or accumulation failures
+     * still enter finish_stage. Consumers may interpret integrated_flux() as
+     * a completed accepted transfer only when step_complete() is true.
+     */
     bool accept_stage (HostIntegrator method,
                        int stage,
                        double step_old_time,
@@ -144,12 +150,13 @@ public:
                                      std::string& diagnostic);
 
     /**
-     * MPI collective contract: every rank must call this for the same logical
-     * host stage, including when local component accumulation is incomplete.
-     * Stage validity, component completeness, and method/stage identity are
-     * admitted collectively before final-step finiteness validation or stage
-     * completion. Earlier ledger-operation failures must be handled coherently
-     * by the caller; this function cannot protect ranks that do not enter it.
+     * MPI-collective stage admission. All participating ranks must enter this
+     * method for the same logical host stage, including after a local component
+     * failure. Incomplete, invalid, mismatched, or nonfinite stages invalidate
+     * the entire in-progress completed-step record on every rank: no partial
+     * integrated face transfer remains available, and the caller must restore a
+     * coherent host step before beginning a new stage 0. A rank that never
+     * enters the collective cannot be protected by this method.
      */
     bool finish_stage (std::string& diagnostic);
 
@@ -162,6 +169,9 @@ public:
     }
 
 private:
+    void latch_stage_failure (const std::string& diagnostic);
+    void discard_step ();
+
     IntegratedMappedFaceFlux m_integral;
     bool m_step_active{false};
     bool m_step_complete{false};
@@ -172,6 +182,7 @@ private:
     amrex::Real m_open_stage_weight{0.0};
     double m_step_old_time{0.0};
     std::vector<unsigned char> m_stage_components_seen;
+    std::string m_stage_failure_diagnostic;
 };
 
 } // namespace erf_auxiliary

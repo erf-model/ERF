@@ -1022,9 +1022,42 @@ void run_auxiliary_mapped_transport_CompletedLedgerScattersChunkComponentsOncePe
     EXPECT_FALSE(incomplete.accumulate_stage_component(rate, 2, 1, diagnostic));
     EXPECT_NE(diagnostic.find("duplicate"), std::string::npos);
     EXPECT_FALSE(incomplete.finish_stage(diagnostic));
-    EXPECT_NE(diagnostic.find("omitted destination component"), std::string::npos);
+    EXPECT_NE(diagnostic.find("duplicate"), std::string::npos);
     EXPECT_FALSE(incomplete.step_complete());
+    EXPECT_FALSE(incomplete.step_active());
     EXPECT_EQ(incomplete.next_stage(), 0);
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        for (int component = 0; component < ncomp; ++component) {
+            EXPECT_EQ(incomplete.integrated_flux().dir(dir).norm0(component),
+                      Real(0.0));
+        }
+    }
+
+    CompletedStepFluxLedger duplicate_after_complete;
+    duplicate_after_complete.define(g.ba, g.dm, ncomp);
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 0,
+                                         dt, recipe, diagnostic));
+    ASSERT_TRUE(duplicate_after_complete.begin_stage(
+        HostIntegrator::AnelasticHeun, 0, 0.0, recipe, diagnostic))
+        << diagnostic;
+    for (int component = 0; component < ncomp; ++component) {
+        ASSERT_TRUE(duplicate_after_complete.accumulate_stage_component(
+            rate, component, component, diagnostic)) << diagnostic;
+    }
+    EXPECT_FALSE(duplicate_after_complete.accumulate_stage_component(
+        rate, 0, 0, diagnostic));
+    EXPECT_NE(diagnostic.find("duplicate"), std::string::npos) << diagnostic;
+    EXPECT_FALSE(duplicate_after_complete.finish_stage(diagnostic));
+    EXPECT_NE(diagnostic.find("duplicate"), std::string::npos) << diagnostic;
+    EXPECT_FALSE(duplicate_after_complete.step_active());
+    EXPECT_FALSE(duplicate_after_complete.step_complete());
+    EXPECT_EQ(duplicate_after_complete.next_stage(), 0);
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        for (int component = 0; component < ncomp; ++component) {
+            EXPECT_EQ(duplicate_after_complete.integrated_flux().dir(dir).norm0(component),
+                      Real(0.0));
+        }
+    }
 }
 
 void run_auxiliary_mapped_transport_StageTargetMustBeDisjoint ()
@@ -1292,7 +1325,12 @@ TEST(AuxiliaryMappedTransport,
                                        recipe, rate, diagnostic));
     EXPECT_NE(diagnostic.find("nonfinite"), std::string::npos) << diagnostic;
     EXPECT_FALSE(overflow.step_complete());
-    EXPECT_FALSE(overflow.integrated_flux().dir(0).is_finite(0, 1, 0));
+    EXPECT_FALSE(overflow.step_active());
+    EXPECT_EQ(overflow.next_stage(), 0);
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        EXPECT_TRUE(overflow.integrated_flux().dir(dir).is_finite(0, 1, 0));
+        EXPECT_EQ(overflow.integrated_flux().dir(dir).norm0(0), Real(0.0));
+    }
 
     CompletedStepFluxLedger finite_control;
     finite_control.define(g.ba, g.dm);

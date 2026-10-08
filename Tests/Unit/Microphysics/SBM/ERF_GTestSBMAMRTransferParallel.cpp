@@ -359,6 +359,78 @@ TEST(SBMAMRTransferParallel, DecompositionInvariantRestrictionAndProlongation)
     }
 }
 
+TEST(SBMAMRTransferParallel,
+     RankLocalInvalidRestrictionAndProlongationPreflightRejectCollectively)
+{
+    if (amrex::ParallelDescriptor::NProcs() < 2) {
+        GTEST_SKIP() << "rank-local transfer preflight qualification requires "
+                        "at least two MPI ranks";
+    }
+
+    Box coarse_domain(IntVect(0), IntVect(7));
+    Box fine_domain = coarse_domain;
+    fine_domain.refine(IntVect(2));
+    const Geometry coarse_geometry = make_geometry(coarse_domain);
+    const Geometry fine_geometry = make_geometry(fine_domain);
+    const BoxArray coarse_boxes(coarse_domain);
+    const BoxArray fine_boxes(fine_domain);
+    const DistributionMapping coarse_mapping = shifted_mapping(coarse_boxes, 0);
+    const DistributionMapping fine_mapping = shifted_mapping(fine_boxes, 0);
+    const auto layout = make_transfer_layout();
+
+    MultiFab coarse_density(coarse_boxes, coarse_mapping, 1, 0);
+    MultiFab coarse_measure(coarse_boxes, coarse_mapping, 1, 0);
+    MultiFab fine_density(fine_boxes, fine_mapping, 1, 0);
+    MultiFab fine_measure(fine_boxes, fine_mapping, 1, 0);
+    fill_carriers(coarse_density, coarse_measure);
+    fill_carriers(fine_density, fine_measure);
+    MultiFab coarse_state(coarse_boxes, coarse_mapping, layout.ncomp(), 0);
+    MultiFab fine_state(fine_boxes, fine_mapping, layout.ncomp(), 0);
+    MultiFab fine_target_state(fine_boxes, fine_mapping, layout.ncomp(), 0);
+    fill_spectrum(coarse_state, coarse_density, layout);
+    fill_spectrum(fine_state, fine_density, layout);
+    fine_target_state.setVal(Real(0.0));
+    const auto coarse_view =
+        timed_view(coarse_state, coarse_density, coarse_measure, 0.5);
+    const auto fine_view =
+        timed_view(fine_state, fine_density, fine_measure, 0.5);
+    const auto fine_target_view = timed_view(
+        fine_target_state, fine_density, fine_measure, 0.5);
+
+    const int rank = amrex::ParallelDescriptor::MyProc();
+    const IntVect restriction_ratio = rank == 1 ? IntVect(0) : IntVect(2);
+    MultiFab coarse_candidate(coarse_boxes, coarse_mapping, layout.ncomp(), 0);
+    coarse_candidate.setVal(Real(123.0));
+    std::string diagnostic;
+    const bool restriction_accepted = erf_sbm::RestrictMappedSpectrum(
+        layout, fine_view, coarse_view, restriction_ratio, 0,
+        coarse_candidate, diagnostic);
+    EXPECT_FALSE(restriction_accepted) << diagnostic;
+    EXPECT_NE(diagnostic.find(rank == 1 ? "positive" : "another MPI rank"),
+              std::string::npos)
+        << diagnostic;
+    for (int component = 0; component < layout.ncomp(); ++component) {
+        EXPECT_DOUBLE_EQ(coarse_candidate.min(component), Real(123.0));
+        EXPECT_DOUBLE_EQ(coarse_candidate.max(component), Real(123.0));
+    }
+
+    MultiFab fine_candidate(fine_boxes, fine_mapping, layout.ncomp(), 0);
+    fine_candidate.setVal(Real(-321.0));
+    const int fine_level = rank == 1 ? 0 : 1;
+    diagnostic.clear();
+    const bool prolongation_accepted = erf_sbm::ProlongCarrierRelativeSpectrum(
+        layout, coarse_view, fine_target_view, coarse_geometry, fine_geometry,
+        IntVect(2), fine_level, fine_candidate, diagnostic);
+    EXPECT_FALSE(prolongation_accepted) << diagnostic;
+    EXPECT_NE(diagnostic.find(rank == 1 ? "fine level" : "another MPI rank"),
+              std::string::npos)
+        << diagnostic;
+    for (int component = 0; component < layout.ncomp(); ++component) {
+        EXPECT_DOUBLE_EQ(fine_candidate.min(component), Real(-321.0));
+        EXPECT_DOUBLE_EQ(fine_candidate.max(component), Real(-321.0));
+    }
+}
+
 TEST(SBMAMRTransferParallel, RankLocalInvalidSpectrumFailsCollectively)
 {
     if (amrex::ParallelDescriptor::NProcs() < 2) {

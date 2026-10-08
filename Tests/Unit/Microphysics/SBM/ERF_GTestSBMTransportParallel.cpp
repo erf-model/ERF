@@ -220,10 +220,43 @@ struct CompletedLedgerParallelFixture
           mapping(completed_ledger_mapping(boxes))
     {
         rate.define(boxes, mapping, 2, 0);
-        rate.setVal(Real(0.0));
+        rate.setVal(Real(1.0));
         ledger.define(boxes, mapping, 2);
     }
 };
+
+void expect_discarded_ledger (
+    const erf_auxiliary::CompletedStepFluxLedger& ledger)
+{
+    EXPECT_FALSE(ledger.step_complete());
+    EXPECT_FALSE(ledger.step_active());
+    EXPECT_EQ(ledger.next_stage(), 0);
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        for (int component = 0; component < ledger.integrated_flux().nComp();
+             ++component) {
+            EXPECT_EQ(ledger.integrated_flux().dir(dir).norm0(component),
+                      Real(0.0))
+                << "direction=" << dir << " component=" << component;
+        }
+    }
+}
+
+bool accumulate_ledger_components (CompletedLedgerParallelFixture& fixture,
+                                   std::string& diagnostic);
+
+bool restart_heun_stage_zero (CompletedLedgerParallelFixture& fixture,
+                              const double dt, std::string& diagnostic)
+{
+    erf_auxiliary::AuxiliaryStageRecipe recipe;
+    const auto method = erf_auxiliary::HostIntegrator::AnelasticHeun;
+    if (!erf_auxiliary::MakeAuxiliaryStageRecipe(method, 0, dt, recipe,
+                                                diagnostic) ||
+        !fixture.ledger.begin_stage(method, 0, 0.0, recipe, diagnostic) ||
+        !accumulate_ledger_components(fixture, diagnostic)) {
+        return false;
+    }
+    return fixture.ledger.finish_stage(diagnostic);
+}
 
 bool
 accumulate_ledger_components (CompletedLedgerParallelFixture& fixture,
@@ -308,6 +341,7 @@ TEST(SBMTransportParallel, RankLocalIncompleteLedgerStageFailsCollectively)
     EXPECT_TRUE(stage0_begun) << diagnostic;
     EXPECT_TRUE(stage0_components_ok) << diagnostic;
     EXPECT_TRUE(stage0_finished) << diagnostic;
+    EXPECT_GT(fixture.ledger.integrated_flux().dir(0).norm0(0), Real(0.0));
 
     diagnostic.clear();
     const bool final_recipe_ok = erf_auxiliary::MakeAuxiliaryStageRecipe(
@@ -337,15 +371,19 @@ TEST(SBMTransportParallel, RankLocalIncompleteLedgerStageFailsCollectively)
         EXPECT_NE(diagnostic.find("another MPI rank"), std::string::npos)
             << diagnostic;
     }
-    EXPECT_FALSE(fixture.ledger.step_complete());
-    EXPECT_TRUE(fixture.ledger.step_active());
+    expect_discarded_ledger(fixture.ledger);
 
     int minimum_next_stage = fixture.ledger.next_stage();
     int maximum_next_stage = minimum_next_stage;
     amrex::ParallelDescriptor::ReduceIntMin(minimum_next_stage);
     amrex::ParallelDescriptor::ReduceIntMax(maximum_next_stage);
-    EXPECT_EQ(minimum_next_stage, 1);
-    EXPECT_EQ(maximum_next_stage, 1);
+    EXPECT_EQ(minimum_next_stage, 0);
+    EXPECT_EQ(maximum_next_stage, 0);
+    EXPECT_TRUE(restart_heun_stage_zero(fixture, dt, diagnostic)) << diagnostic;
+    EXPECT_TRUE(fixture.ledger.step_active());
+    EXPECT_FALSE(fixture.ledger.step_complete());
+    EXPECT_EQ(fixture.ledger.next_stage(), 1);
+    EXPECT_GT(fixture.ledger.integrated_flux().dir(0).norm0(0), Real(0.0));
 }
 
 TEST(SBMTransportParallel, RankLocalClosedLedgerStageFailsCollectively)
@@ -371,6 +409,7 @@ TEST(SBMTransportParallel, RankLocalClosedLedgerStageFailsCollectively)
     EXPECT_TRUE(begun) << diagnostic;
     EXPECT_TRUE(components_ok) << diagnostic;
     EXPECT_TRUE(stage0_finished) << diagnostic;
+    EXPECT_GT(fixture.ledger.integrated_flux().dir(0).norm0(0), Real(0.0));
 
     diagnostic.clear();
     recipe_ok = erf_auxiliary::MakeAuxiliaryStageRecipe(method, 1, dt, recipe,
@@ -396,14 +435,16 @@ TEST(SBMTransportParallel, RankLocalClosedLedgerStageFailsCollectively)
         EXPECT_NE(diagnostic.find("another MPI rank"), std::string::npos)
             << diagnostic;
     }
-    EXPECT_FALSE(fixture.ledger.step_complete());
-    EXPECT_TRUE(fixture.ledger.step_active());
+    expect_discarded_ledger(fixture.ledger);
     int minimum_next_stage = fixture.ledger.next_stage();
     int maximum_next_stage = minimum_next_stage;
     amrex::ParallelDescriptor::ReduceIntMin(minimum_next_stage);
     amrex::ParallelDescriptor::ReduceIntMax(maximum_next_stage);
-    EXPECT_EQ(minimum_next_stage, 1);
-    EXPECT_EQ(maximum_next_stage, 1);
+    EXPECT_EQ(minimum_next_stage, 0);
+    EXPECT_EQ(maximum_next_stage, 0);
+    EXPECT_TRUE(restart_heun_stage_zero(fixture, dt, diagnostic)) << diagnostic;
+    EXPECT_TRUE(fixture.ledger.step_active());
+    EXPECT_EQ(fixture.ledger.next_stage(), 1);
 }
 
 TEST(SBMTransportParallel, DifferentLedgerStageIdentitiesFailCollectively)
@@ -426,6 +467,7 @@ TEST(SBMTransportParallel, DifferentLedgerStageIdentitiesFailCollectively)
                                         method, 0, 0.0, recipe, diagnostic);
     const bool components_ok =
         accumulate_ledger_components(fixture, diagnostic);
+    EXPECT_GT(fixture.ledger.integrated_flux().dir(0).norm0(0), Real(0.0));
     const bool accepted = fixture.ledger.finish_stage(diagnostic);
 
     EXPECT_TRUE(recipe_ok) << diagnostic;
@@ -435,14 +477,86 @@ TEST(SBMTransportParallel, DifferentLedgerStageIdentitiesFailCollectively)
     EXPECT_NE(diagnostic.find("stage identity differs across MPI ranks"),
               std::string::npos)
         << diagnostic;
-    EXPECT_FALSE(fixture.ledger.step_complete());
-    EXPECT_TRUE(fixture.ledger.step_active());
+    expect_discarded_ledger(fixture.ledger);
     int minimum_next_stage = fixture.ledger.next_stage();
     int maximum_next_stage = minimum_next_stage;
     amrex::ParallelDescriptor::ReduceIntMin(minimum_next_stage);
     amrex::ParallelDescriptor::ReduceIntMax(maximum_next_stage);
     EXPECT_EQ(minimum_next_stage, 0);
     EXPECT_EQ(maximum_next_stage, 0);
+    EXPECT_TRUE(restart_heun_stage_zero(fixture, dt, diagnostic)) << diagnostic;
+    EXPECT_TRUE(fixture.ledger.step_active());
+    EXPECT_EQ(fixture.ledger.next_stage(), 1);
+}
+
+TEST(SBMTransportParallel,
+     AcceptStageRankLocalUndefinedRateRejectsCollectively)
+{
+    if (amrex::ParallelDescriptor::NProcs() < 2) {
+        GTEST_SKIP() << "collective accept_stage qualification requires at least "
+                        "two MPI ranks";
+    }
+
+    CompletedLedgerParallelFixture fixture;
+    erf_auxiliary::MappedFaceFluxRate undefined_rate;
+    erf_auxiliary::AuxiliaryStageRecipe recipe;
+    std::string diagnostic;
+    constexpr double dt = 2.0;
+    const auto method = erf_auxiliary::HostIntegrator::AnelasticHeun;
+    ASSERT_TRUE(erf_auxiliary::MakeAuxiliaryStageRecipe(
+        method, 0, dt, recipe, diagnostic)) << diagnostic;
+    const auto& local_rate = amrex::ParallelDescriptor::MyProc() == 1
+                                 ? undefined_rate
+                                 : fixture.rate;
+    const bool accepted = fixture.ledger.accept_stage(
+        method, 0, 0.0, recipe, local_rate, diagnostic);
+    EXPECT_FALSE(accepted);
+    if (amrex::ParallelDescriptor::MyProc() == 1) {
+        EXPECT_NE(diagnostic.find("not defined compatibly"), std::string::npos)
+            << diagnostic;
+    } else {
+        EXPECT_NE(diagnostic.find("another MPI rank"), std::string::npos)
+            << diagnostic;
+    }
+    expect_discarded_ledger(fixture.ledger);
+    EXPECT_TRUE(restart_heun_stage_zero(fixture, dt, diagnostic)) << diagnostic;
+}
+
+TEST(SBMTransportParallel,
+     AcceptStageRankLocalBeginErrorDiscardsStepCollectively)
+{
+    if (amrex::ParallelDescriptor::NProcs() < 2) {
+        GTEST_SKIP() << "collective accept_stage qualification requires at least "
+                        "two MPI ranks";
+    }
+
+    CompletedLedgerParallelFixture fixture;
+    erf_auxiliary::AuxiliaryStageRecipe recipe;
+    std::string diagnostic;
+    constexpr double dt = 2.0;
+    const auto method = erf_auxiliary::HostIntegrator::AnelasticHeun;
+    ASSERT_TRUE(erf_auxiliary::MakeAuxiliaryStageRecipe(
+        method, 0, dt, recipe, diagnostic)) << diagnostic;
+    ASSERT_TRUE(fixture.ledger.accept_stage(method, 0, 0.0, recipe,
+                                            fixture.rate, diagnostic))
+        << diagnostic;
+
+    ASSERT_TRUE(erf_auxiliary::MakeAuxiliaryStageRecipe(
+        method, 1, dt, recipe, diagnostic)) << diagnostic;
+    const double step_old_time =
+        amrex::ParallelDescriptor::MyProc() == 1 ? 1.0 : 0.0;
+    const bool accepted = fixture.ledger.accept_stage(
+        method, 1, step_old_time, recipe, fixture.rate, diagnostic);
+    EXPECT_FALSE(accepted);
+    if (amrex::ParallelDescriptor::MyProc() == 1) {
+        EXPECT_NE(diagnostic.find("step-old time changed"), std::string::npos)
+            << diagnostic;
+    } else {
+        EXPECT_NE(diagnostic.find("another MPI rank"), std::string::npos)
+            << diagnostic;
+    }
+    expect_discarded_ledger(fixture.ledger);
+    EXPECT_TRUE(restart_heun_stage_zero(fixture, dt, diagnostic)) << diagnostic;
 }
 
 TEST(SBMTransportParallel, NonfiniteCompletedLedgerRejectedCollectively)
@@ -508,12 +622,12 @@ TEST(SBMTransportParallel, NonfiniteCompletedLedgerRejectedCollectively)
     EXPECT_EQ(maximum_accepted, 0) << diagnostic;
     EXPECT_NE(diagnostic.find("nonfinite"), std::string::npos) << diagnostic;
     EXPECT_FALSE(ledger.step_complete());
-
-    int locally_nonfinite =
-        ledger.integrated_flux().dir(0).is_finite(0, 1, 0, true) ? 0 : 1;
-    int nonfinite_ranks = locally_nonfinite;
-    amrex::ParallelDescriptor::ReduceIntSum(nonfinite_ranks);
-    EXPECT_EQ(nonfinite_ranks, 1);
+    EXPECT_FALSE(ledger.step_active());
+    EXPECT_EQ(ledger.next_stage(), 0);
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        EXPECT_TRUE(ledger.integrated_flux().dir(dir).is_finite(0, 1, 0, true));
+        EXPECT_EQ(ledger.integrated_flux().dir(dir).norm0(0), Real(0.0));
+    }
 }
 
 } // namespace

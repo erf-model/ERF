@@ -225,6 +225,19 @@ erf_sbm::SBMAMRStateView timed_view (const MultiFab& spectrum,
     return {&spectrum, time, &density, 0, time, &measure, 0, time};
 }
 
+void expect_same_values (const MultiFab& actual, const MultiFab& expected)
+{
+    ASSERT_EQ(actual.nComp(), expected.nComp());
+    MultiFab difference(actual.boxArray(), actual.DistributionMap(),
+                        actual.nComp(), 0);
+    MultiFab::Copy(difference, actual, 0, 0, actual.nComp(), 0);
+    MultiFab::Subtract(difference, expected, 0, 0, actual.nComp(), 0);
+    for (int component = 0; component < actual.nComp(); ++component) {
+        EXPECT_EQ(difference.norm0(component), Real(0.0))
+            << "component=" << component;
+    }
+}
+
 Geometry make_geometry (const Box& domain)
 {
     const amrex::RealBox physical({0.0, 0.0, 0.0}, {1.0, 1.0, 1.0});
@@ -776,6 +789,49 @@ TEST(SBMAMRTransfer, ProlongationRejectsQuotientAndProductUnderflow)
         layout, coarse_view, fine_view, cgeom, fgeom, IntVect(2), 1,
         candidate, diagnostic));
     EXPECT_NE(diagnostic.find("underflowed"), std::string::npos);
+}
+
+TEST(SBMAMRTransfer, RestrictionRejectsNoncoarsenableFineBoxesBeforeAverage)
+{
+    const auto layout = make_transfer_layout();
+    const Box coarse_domain(IntVect(0), IntVect(2));
+    const Box fine_domain(IntVect(0), IntVect(7));
+    const BoxArray coarse_ba(coarse_domain);
+    const BoxArray fine_ba(fine_domain);
+    const DistributionMapping coarse_dm(coarse_ba);
+    const DistributionMapping fine_dm(fine_ba);
+    const IntVect ratio(3);
+    ASSERT_FALSE(fine_ba.coarsenable(ratio));
+
+    MultiFab coarse_rho(coarse_ba, coarse_dm, 1, 0);
+    MultiFab coarse_omega(coarse_ba, coarse_dm, 1, 0);
+    MultiFab fine_rho(fine_ba, fine_dm, 1, 0);
+    MultiFab fine_omega(fine_ba, fine_dm, 1, 0);
+    fill_carriers(coarse_rho, coarse_omega, true);
+    fill_carriers(fine_rho, fine_omega, false);
+    MultiFab coarse_state(coarse_ba, coarse_dm, layout.ncomp(), 0);
+    MultiFab fine_state(fine_ba, fine_dm, layout.ncomp(), 0);
+    fill_spectrum(coarse_state, coarse_rho, layout);
+    fill_spectrum(fine_state, fine_rho, layout);
+    MultiFab coarse_before(coarse_ba, coarse_dm, layout.ncomp(), 0);
+    MultiFab fine_before(fine_ba, fine_dm, layout.ncomp(), 0);
+    MultiFab::Copy(coarse_before, coarse_state, 0, 0, layout.ncomp(), 0);
+    MultiFab::Copy(fine_before, fine_state, 0, 0, layout.ncomp(), 0);
+
+    MultiFab candidate(coarse_ba, coarse_dm, layout.ncomp(), 0);
+    MultiFab candidate_before(coarse_ba, coarse_dm, layout.ncomp(), 0);
+    candidate.setVal(Real(-23.0));
+    MultiFab::Copy(candidate_before, candidate, 0, 0, layout.ncomp(), 0);
+    const auto fine_view = timed_view(fine_state, fine_rho, fine_omega, 0.3);
+    const auto coarse_view =
+        timed_view(coarse_state, coarse_rho, coarse_omega, 0.3);
+    std::string diagnostic;
+    EXPECT_FALSE(erf_sbm::RestrictMappedSpectrum(
+        layout, fine_view, coarse_view, ratio, 0, candidate, diagnostic));
+    EXPECT_NE(diagnostic.find("coarsenable"), std::string::npos) << diagnostic;
+    expect_same_values(candidate, candidate_before);
+    expect_same_values(coarse_state, coarse_before);
+    expect_same_values(fine_state, fine_before);
 }
 
 } // namespace

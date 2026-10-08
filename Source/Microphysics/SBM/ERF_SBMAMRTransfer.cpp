@@ -323,12 +323,9 @@ bool RestrictMappedSpectrum (const SBMLayout& layout,
                              std::string& diagnostic)
 {
     diagnostic.clear();
-    if (!valid_ratio(ratio, diagnostic)) return false;
-    if (coarse_level < 0) {
-        diagnostic = "restriction coarse level must be nonnegative";
-        return false;
-    }
-
+    std::string ratio_diagnostic;
+    const bool ratio_ok = valid_ratio(ratio, ratio_diagnostic);
+    const bool level_ok = coarse_level >= 0;
     std::string fine_structure_diagnostic;
     std::string coarse_structure_diagnostic;
     const bool fine_structure_ok = validate_view_structure(
@@ -336,12 +333,22 @@ bool RestrictMappedSpectrum (const SBMLayout& layout,
     const bool coarse_structure_ok = validate_view_structure(
         coarse, layout, "coarse", coarse_structure_diagnostic);
     const bool same_time = fine.spectrum_time == coarse.spectrum_time;
-    const bool local_structure_ok = fine_structure_ok && coarse_structure_ok &&
-                                    same_time;
+    // average_down requires complete fine children. Do not query coarsenability
+    // until the ratio is positive and the fine spectrum pointer is valid.
+    const bool fine_boxes_coarsenable =
+        ratio_ok && fine_structure_ok &&
+        fine.spectrum->boxArray().coarsenable(ratio);
+    const bool local_structure_ok = ratio_ok && level_ok && fine_structure_ok &&
+                                    coarse_structure_ok && same_time &&
+                                    fine_boxes_coarsenable;
     const std::string structure_diagnostic =
-        !fine_structure_ok ? fine_structure_diagnostic
+        !ratio_ok ? ratio_diagnostic
+        : !level_ok ? "restriction coarse level must be nonnegative"
+        : !fine_structure_ok ? fine_structure_diagnostic
         : !coarse_structure_ok ? coarse_structure_diagnostic
         : !same_time ? "restriction requires fine and coarse state tuples at the same semantic time"
+        : !fine_boxes_coarsenable
+              ? "restriction fine BoxArray is not coarsenable by the refinement ratio; fine boxes must align to complete coarse cells"
                      : std::string{};
     if (!collective_all_true(
             local_structure_ok, structure_diagnostic,
@@ -514,11 +521,9 @@ bool ProlongCarrierRelativeSpectrum (const SBMLayout& layout,
                                      std::string& diagnostic)
 {
     diagnostic.clear();
-    if (fine_level <= 0) {
-        diagnostic = "prolongation fine level must be greater than zero";
-        return false;
-    }
-    if (!valid_ratio(ratio, diagnostic)) return false;
+    std::string ratio_diagnostic;
+    const bool ratio_ok = valid_ratio(ratio, ratio_diagnostic);
+    const bool level_ok = fine_level > 0;
 
     std::string coarse_structure_diagnostic;
     std::string fine_structure_diagnostic;
@@ -527,10 +532,12 @@ bool ProlongCarrierRelativeSpectrum (const SBMLayout& layout,
     const bool fine_structure_ok = validate_view_structure(
         fine_target, layout, "fine target", fine_structure_diagnostic);
     const bool same_time = coarse.spectrum_time == fine_target.spectrum_time;
-    const bool local_structure_ok = coarse_structure_ok && fine_structure_ok &&
-                                    same_time;
+    const bool local_structure_ok = ratio_ok && level_ok && coarse_structure_ok &&
+                                    fine_structure_ok && same_time;
     const std::string structure_diagnostic =
-        !coarse_structure_ok ? coarse_structure_diagnostic
+        !ratio_ok ? ratio_diagnostic
+        : !level_ok ? "prolongation fine level must be greater than zero"
+        : !coarse_structure_ok ? coarse_structure_diagnostic
         : !fine_structure_ok ? fine_structure_diagnostic
         : !same_time ? "prolongation requires same-time source and target tuples"
                      : std::string{};
