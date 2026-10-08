@@ -680,6 +680,62 @@ function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/straight/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/checkpoint.log;${CURRENT_TEST_BINARY_DIR}/restart/restart.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
 endfunction(add_test_restart_parity)
 
+# Restart abort: run a deck to a checkpoint, restart from it, and require the restart to stop
+# with EXPECTED_MESSAGE. For guards that only a restart can reach, which add_test_abort cannot
+# test because it runs a single leg and no checkpoint exists yet.  CHK_NRANKS and
+# RESTART_NRANKS are separate so a test can reproduce a restart on more ranks than the
+# checkpoint was written with, which is its own code path.
+function(add_test_restart_abort TEST_NAME TEST_FILES_DIR STEP_CHK EXPECTED_MESSAGE)
+    set(oneValueArgs "COMMON_OPTIONS" "RESTART_OPTIONS" "CHK_NRANKS" "RESTART_NRANKS" "RUN_TIMEOUT")
+    cmake_parse_arguments(ADD_TEST_RA "" "${oneValueArgs}" "" ${ARGN})
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(_chk_nranks "${NP}")
+    set(_restart_nranks "${NP}")
+    if(NOT "${ADD_TEST_RA_CHK_NRANKS}" STREQUAL "")
+        set(_chk_nranks "${ADD_TEST_RA_CHK_NRANKS}")
+    endif()
+    if(NOT "${ADD_TEST_RA_RESTART_NRANKS}" STREQUAL "")
+        set(_restart_nranks "${ADD_TEST_RA_RESTART_NRANKS}")
+    endif()
+    set(_run_timeout 600)
+    set(_ctest_timeout 600)
+    if(DEFINED ADD_TEST_RA_RUN_TIMEOUT)
+        set(_run_timeout "${ADD_TEST_RA_RUN_TIMEOUT}")
+        math(EXPR _ctest_timeout "2 * ${_run_timeout} + 600")
+    endif()
+    # The watchdog has to cover both legs, and the processor reservation the wider leg.
+    set(_procs "${_chk_nranks}")
+    if(_restart_nranks GREATER _procs)
+        set(_procs "${_restart_nranks}")
+    endif()
+
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DCHK_NRANKS=${_chk_nranks}"
+        "-DRESTART_NRANKS=${_restart_nranks}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DSTEP_CHK=${STEP_CHK}"
+        "-DEXPECTED_MESSAGE=${EXPECTED_MESSAGE}"
+        "-DRUN_TIMEOUT=${_run_timeout}"
+        "-DCOMMON_OPTIONS=${ADD_TEST_RA_COMMON_OPTIONS}"
+        "-DRESTART_OPTIONS=${ADD_TEST_RA_RESTART_OPTIONS}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunRestartAbort.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT ${_ctest_timeout}
+        PROCESSORS ${_procs}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;restart-parity"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/run/checkpoint.log;${CURRENT_TEST_BINARY_DIR}/run/restart.log")
+endfunction(add_test_restart_abort)
+
 # Tiling parity: run one deck with MFIter tiling on and off and require identical
 # 3D and 2D plotfiles (no gold file). Catches kernels that loop over the valid box
 # while indexing per-tile work arrays. VARYING_3D / VARYING_2D list fields (space
@@ -2606,6 +2662,27 @@ add_test_restart_parity(TerrainHill_RegridOnRestart_Fitted TerrainHill 7 20
     COMMON_OPTIONS  "amr.max_level=0"
     RESTART_OPTIONS "erf.regrid_level_0_on_restart=1 amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64"
     ALLOW_DIFF_GRIDS FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+endif()
+
+# The other half of the level-0 regrid story. RemakeLevel(0) rebuilds the level from
+# init_stuff, which knows nothing about the checkpoint, so state the checkpoint alone carries
+# and RemakeLevel does not explicitly retain comes back as a plausible default -- silently, for
+# almost all of it. ERF::restart refuses rather than continue from the wrong state (issue
+# 4225); these assert it refuses and says what would have been lost.
+#
+# Two legs, because the guard is reached two ways. The first names the flag, so the message
+# offers dropping it. The second sets nothing: the checkpoint is written on one rank and the
+# restart runs on two, so grids[0].size() < NProcs() forces the regrid on its own. That second
+# path is the one users hit without asking, and it was silent before.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_abort(TerrainHill_RegridOnRestart_RefusesStateLoss TerrainHill 4
+    "velocity time averages"
+    COMMON_OPTIONS  "amr.max_level=0 erf.terrain_type=None erf.time_avg_vel=true"
+    RESTART_OPTIONS "erf.regrid_level_0_on_restart=1 amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64")
+add_test_restart_abort(TerrainHill_RegridOnRestart_RefusesOnMoreRanks TerrainHill 4
+    "microphysics accumulators"
+    COMMON_OPTIONS "amr.max_level=0 erf.terrain_type=None erf.moisture_model=Kessler"
+    CHK_NRANKS 1 RESTART_NRANKS 2)
 endif()
 
 # The same for terrain carried by an embedded boundary: the mesh is flat there
