@@ -1639,6 +1639,14 @@ endif()
 # that break a start-up requirement, and pass when the run stops with
 # EXPECTED_MESSAGE in its output. The run is meant to abort, so its exit status is
 # dropped by the pipe into tee (a ';' here would split the CMake command list).
+#
+# amrex.call_addr2line = 0 because the abort is the point of the test: AMReX's
+# SIGABRT handler runs addr2line once per stack frame, and on a build with
+# debug info that is about 55 s per test -- far longer than the run itself
+# (measured: the abort message and "See Backtrace.0 file for details" 56 s
+# apart in CI). Backtrace.0 is still written, with raw addresses, for a test
+# that stops somewhere unexpected; `addr2line -Cpfie <exe> <address>` resolves
+# them by hand.
 function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME_OPTIONS)
     set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
     file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
@@ -1654,7 +1662,7 @@ function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME
     resolve_test_exe("" "erf_exec" TEST_EXE)
 
     set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
-    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${INPUT_FILE} max_step=1 erf.plot_int_1=-1 erf.plot_int_2=-1 erf.check_int=-1 ${RUNTIME_OPTIONS} 2>&1 | tee ${test_log}")
+    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${INPUT_FILE} max_step=1 erf.plot_int_1=-1 erf.plot_int_2=-1 erf.check_int=-1 amrex.call_addr2line=0 ${RUNTIME_OPTIONS} 2>&1 | tee ${test_log}")
 
     add_test(${TEST_NAME} ${test_command})
     set_tests_properties(${TEST_NAME}
