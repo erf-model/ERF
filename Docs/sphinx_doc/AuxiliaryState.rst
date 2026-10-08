@@ -438,10 +438,14 @@ spectral coordinates and grouped realizability. The inert tracer remains a
 small proof consumer of the generic coupling, but it is no longer the only live
 consumer.
 
-The generic substrate does not itself provide a complete multilevel lifecycle
-for SBM. The current M3 SBM execution remains single-level and triply periodic;
-spectral FillPatch/prolongation, restriction, reflux, remake/regrid, multilevel
-restart, and the operational nonperiodic boundary lifecycle remain M4 work.
+The generic substrate does not itself provide the complete multilevel SBM
+lifecycle. M4a now adds independently tested, SBM-specific operators for
+conservative mapped restriction and dry-air-relative prolongation, explicit
+old/new spectral time views, and an all-component accepted-transfer interface.
+These are foundations for subsequent hierarchy integration, not an enabled
+multilevel simulation capability. Current SBM execution remains single-level
+and triply periodic; operational spectral FillPatch, reflux, regrid/remake,
+multilevel restart, and nonperiodic spectral boundaries remain later M4 work.
 
 The auxiliary layer addresses transport between atmospheric grid cells. It
 does not define how an SBM particle distribution is represented or remapped in

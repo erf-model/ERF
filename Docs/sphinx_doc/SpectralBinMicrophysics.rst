@@ -14,15 +14,16 @@ bin-resolved distribution. This is also different from the
 :ref:`sec:SuperDroplets` method, where the condensed phase is represented by
 Lagrangian computational particles that move through the Eulerian model grid.
 
-The purpose of spectral-bin microphysics is ultimately to resolve the
-hydrometeor size distribution and its evolution through physical processes
-rather than representing cloud and precipitation only through a few bulk
-categories. The current ERF SBM runtime provides a bounded M3 resolved-
-advection capability together with the state, ownership, projection, restart,
-and mapped auxiliary-transport infrastructure needed for later warm
-microphysics. The generic mapped transport substrate is documented in
-:ref:`AuxiliaryState`; the SBM liquid spectrum now uses that substrate for
-resolved M3 advection.
+A complete spectral-bin microphysics model can explicitly represent the
+particle-size distributions of aerosols and hydrometeors and how those
+distributions evolve through physical processes. ERF's currently exposed
+``SBM`` option is narrower: it predicts a bin-resolved liquid-water
+distribution and advances it by resolved atmospheric advection on one grid
+level. M4a adds independently tested time-state management and coarse/fine
+spectral transfer operators for future mesh-refined simulations. These
+foundations do not yet enable multilevel SBM execution, aerosol evolution,
+or cloud-process microphysics. See :ref:`AuxiliaryState` for ERF's reusable
+mapped-transport interface.
 
 .. warning::
 
@@ -505,8 +506,109 @@ condensation/evaporation, activation, collision-coalescence, sedimentation, and
 precipitation remain later milestones. Moving terrain and embedded boundaries
 are not enabled by M3.
 
-M3 closeout and M4 entry gate
------------------------------
+Preparing the liquid spectrum for nested atmospheric grids (M4a)
+----------------------------------------------------------------
+
+Atmospheric simulations may use locally refined meshes around clouds,
+convective updrafts, or sharp moisture gradients. For spectral-bin
+microphysics, a change in atmospheric grid resolution must transfer the
+liquid-water and droplet-number inventories represented by each
+**spectral bin**. Transferring only bulk cloud-water and rain-water amounts would not
+preserve the underlying particle-size distribution: many different spectra
+can have the same bulk mixing ratios.
+
+M4a establishes and independently tests the state and transfer operations
+needed for a future multilevel SBM simulation:
+
+* **Time-matched spectral states.** The bin-resolved distribution has explicit
+  previous and updated time views that follow ERF's atmospheric time advance.
+  A quantity expressed per unit dry-air mass is formed using dry-air density
+  from the matching time view, not from a different model stage.
+
+* **Conservative coarse-grid averaging.** For spectral component :math:`a`,
+  let :math:`U_a` be the stored density-weighted amount. Depending on the
+  component, this represents liquid-water mass per unit volume, droplet
+  number per unit volume, or an attached extensive inventory. ERF's mapped
+  conservative amount is
+
+  .. math::
+
+     H_a = \omega U_a, \qquad
+     \omega = \frac{\det J}{m_x m_y},
+
+  where :math:`\det J` is the terrain-coordinate Jacobian and :math:`m_x`
+  and :math:`m_y` are the horizontal map factors. For a coarse cell :math:`c`
+  completely covered by fine cells :math:`j`, restriction uses
+
+  .. math::
+
+     H_{a,c} = \frac{1}{N_c}\sum_{j\in\mathcal{C}(c)} H_{a,j},
+     \qquad
+     U_{a,c} = \frac{H_{a,c}}{\omega_c},
+
+  where :math:`\mathcal{C}(c)` contains the :math:`N_c` fine children of
+  cell :math:`c`. This preserves the represented mapped inventory to
+  floating-point accuracy. Coarse cells outside the fine-covered region
+  retain their previous spectral values exactly.
+
+* **Carrier-relative fine-grid transfer.** M4a forms the amount of each
+  component per unit mass of dry air,
+
+  .. math::
+
+     z_a = \frac{U_a}{\rho_d},
+
+  where :math:`\rho_d` is dry-air density. The fine-grid value is obtained
+  through piecewise-constant interpolation of :math:`z_a` followed by
+  reconstruction with the **fine-grid density at the same semantic time**:
+
+  .. math::
+
+     U_{a,\mathrm{fine}}
+     = \rho_{d,\mathrm{fine}}\,
+       z_{a,\mathrm{parent\ coarse}}.
+
+  Refining the atmospheric mesh thereby transfers a bin's dry-air-relative
+  abundance without treating the change in spatial resolution as a physical
+  droplet-growth, evaporation, or collision process.
+
+* **Accepted spectral face transfers.** M4a defines and tests a completed-step
+  transport record for every spectral component,
+
+  .. math::
+
+     \mathcal{I}_{a,f}
+     = \int_{t^n}^{t^{n+1}}
+       \widetilde{F}_{a,f}^{\mathrm{accepted}}(t)\,dt,
+
+  where :math:`\widetilde{F}_{a,f}^{\mathrm{accepted}}` is the accepted
+  mapped transport rate through face :math:`f`. The record uses the rates
+  accepted after the coupled transport limiter, not an unrestricted
+  high-order proposal or the two bulk cloud/rain sums. It provides the
+  information needed for conservative coarse/fine flux correction in a
+  subsequent AMR implementation.
+
+* **Physical and numerical admissibility.** A transferred candidate spectrum
+  must still satisfy the declared mass, number, attached-property, and
+  spectral-bin ownership constraints. Invalid or numerically
+  unrepresentable candidates are rejected rather than repaired by clipping
+  or silent redistribution.
+
+.. important::
+
+   **M4a provides tested numerical foundations, not an enabled AMR mode.**
+   Although ERF supports adaptive mesh refinement
+   for other atmospheric quantities, runs using ``erf.moisture_model = SBM``
+   still require ``amr.max_level = 0`` and periodic boundaries in all three
+   directions. Operational coarse/fine time interpolation, flux correction
+   (reflux), regridding, and multilevel SBM restart require later M4
+   integration and qualification. M4a introduces no new SBM user input
+   parameters and no condensation/evaporation, aerosol activation or
+   evolution, collision-coalescence, sedimentation, or precipitation physics.
+   The currently exposed spectral population remains liquid water.
+
+From single-level transport to operational AMR
+----------------------------------------------
 
 M3 closes the single-level, advection-only spectral transport problem inside
 its explicitly qualified execution envelope. In particular, M3 provides
@@ -522,8 +624,10 @@ spectral-boundary lifecycle. The face-level physical-boundary policy defined in
 M3 is a contract for that later lifecycle rather than evidence that the
 nonperiodic execution path already exists.
 
-Before M4 implementation begins, the following contracts must be explicit and
-independently testable:
+The following scientific and numerical contracts are needed for the complete
+multilevel SBM lifecycle. M4a now establishes and independently tests the
+state-time and conservative transfer foundations, but the remaining
+integration steps are not yet operational:
 
 #. **Persistent spectral time views.** Each AMR level must expose the
    authoritative spectral time views and timestamps required by ERF FillPatch
@@ -578,7 +682,11 @@ independently testable:
    finer levels. Advance, reflux, restriction, regrid/remake, and restart must
    preserve those composite inventories to the declared numerical tolerance.
 
-These items are M4 entry requirements, not current M3 capabilities.
+These are requirements for the full multilevel SBM lifecycle, not a list of
+runtime features currently available. M4a provides the first state/time and
+transfer foundations; coupling them to ERF's operational hierarchy, including
+reflux, regridding, multilevel restart, and physical boundaries, remains
+subject to later M4 qualification.
 
 The high-order M3 transport identity is ``EndpointNumberWENOZ3``; it is not
 currently a user-selectable SBM reconstruction policy. See
@@ -786,8 +894,9 @@ also satisfy the per-bin realizability condition described above.
 Current execution restrictions
 ------------------------------
 
-The current SBM M3 mode is intentionally bounded to the following runtime
-envelope:
+The operational SBM advection capability remains single-level despite the
+independently tested M4a mesh-transfer foundations. It is bounded by the
+following runtime envelope:
 
 The current configuration requires:
 
