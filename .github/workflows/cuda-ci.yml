@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-cuda-ci
+  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || github.sha }}-cuda-ci
   cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
@@ -94,7 +94,9 @@ jobs:
           cmake --build build-${{matrix.cuda_pkg}} --parallel $(nproc) \
           2>&1 | tee -a ${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output.txt;
 
-          ccache -s
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          ccache -s | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
           du -hs ~/.cache/ccache
 
       - name: Save Cache
