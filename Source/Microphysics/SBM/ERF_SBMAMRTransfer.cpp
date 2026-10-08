@@ -150,9 +150,14 @@ bool form_mapped_state (const MultiFab& spectrum, const MultiFab& measure,
     return true;
 }
 
-bool divide_mapped_state (const MultiFab& mapped, const MultiFab& measure,
-                         const int measure_component, MultiFab& candidate,
-                         std::string& diagnostic)
+bool
+divide_mapped_state (const MultiFab& mapped,
+                     const MultiFab& measure,
+                     const int measure_component,
+                     const MultiFab& covered_coarse,
+                     const int coverage_component,
+                     MultiFab& candidate,
+                     std::string& diagnostic)
 {
     MultiFab invalid(mapped.boxArray(), mapped.DistributionMap(), 1, 0);
     invalid.setVal(Real(0.0));
@@ -161,17 +166,21 @@ bool divide_mapped_state (const MultiFab& mapped, const MultiFab& measure,
         const amrex::Box box = mfi.tilebox();
         const auto amount = mapped.const_array(mfi);
         const auto omega = measure.const_array(mfi);
+        const auto coverage = covered_coarse.const_array(mfi);
         const auto output = candidate.array(mfi);
         const auto bad = invalid.array(mfi);
         amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int cell_bad = 0;
-            const Real scale = omega(i, j, k, measure_component);
-            for (int component = 0; component < ncomp; ++component) {
-                Real value = Real(0.0);
-                const auto status = remap_detail::checked_quotient(
-                    amount(i, j, k, component), scale, value);
-                output(i, j, k, component) = value;
-                if (status != remap_detail::QuotientStatus::Ok) cell_bad = 1;
+            if (coverage(i, j, k, coverage_component) > Real(0.0)) {
+                const Real scale = omega(i, j, k, measure_component);
+                for (int component = 0; component < ncomp; ++component) {
+                    Real value = Real(0.0);
+                    const auto status = remap_detail::checked_quotient(
+                        amount(i, j, k, component), scale, value);
+                    output(i, j, k, component) = value;
+                    if (status != remap_detail::QuotientStatus::Ok)
+                        cell_bad = 1;
+                }
             }
             bad(i, j, k, 0) = static_cast<Real>(cell_bad);
         });
@@ -387,29 +396,94 @@ bool RestrictMappedSpectrum (const SBMLayout& layout,
                     layout.ncomp(), 0);
     MultiFab coarse_h(coarse.spectrum->boxArray(), coarse.spectrum->DistributionMap(),
                       layout.ncomp(), 0);
+    const int coverage_component = layout.ncomp();
+    const int ncomp = layout.ncomp();
+    MultiFab fine_support(fine.spectrum->boxArray(),
+                          fine.spectrum->DistributionMap(), layout.ncomp() + 1,
+                          0);
+    MultiFab coarse_support(coarse.spectrum->boxArray(),
+                            coarse.spectrum->DistributionMap(),
+                            layout.ncomp() + 1, 0);
     std::string fine_mapped_diagnostic;
-    std::string coarse_mapped_diagnostic;
     const bool fine_mapped_ok = form_mapped_state(
-        *fine.spectrum, *fine.mapped_measure, fine.measure_component,
-        fine_h, fine_mapped_diagnostic);
-    const bool coarse_mapped_ok = form_mapped_state(
-        *coarse.spectrum, *coarse.mapped_measure, coarse.measure_component,
-        coarse_h, coarse_mapped_diagnostic);
+        *fine.spectrum, *fine.mapped_measure, fine.measure_component, fine_h,
+        fine_mapped_diagnostic);
     if (!collective_all_true(
-            fine_mapped_ok && coarse_mapped_ok,
-            !fine_mapped_ok ? fine_mapped_diagnostic : coarse_mapped_diagnostic,
+            fine_mapped_ok, fine_mapped_diagnostic,
             "SBM restriction mapped-state formation failed on another MPI rank",
             diagnostic)) {
         return false;
     }
 
-    // Coarse H starts from the existing coarse state so cells not covered by
-    // fine boxes retain their original values. average_down touches only the
-    // covered coarse region.
+    fine_support.setVal(Real(0.0));
+    for (amrex::MFIter mfi(fine_h, amrex::TilingIfNotGPU()); mfi.isValid();
+         ++mfi) {
+        const amrex::Box box = mfi.tilebox();
+        const auto mapped = fine_h.const_array(mfi);
+        const auto support = fine_support.array(mfi);
+        amrex::ParallelFor(
+            box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                for (int component = 0; component < ncomp; ++component) {
+                    support(i, j, k, component) =
+                        mapped(i, j, k, component) > Real(0.0) ? Real(1.0)
+                                                               : Real(0.0);
+                }
+                support(i, j, k, coverage_component) = Real(1.0);
+            });
+    }
+
+    // Both averages use the same fine coverage. The extra support components
+    // remember whether any child had positive mapped inventory, even if the
+    // inventory average itself rounds to zero.
+    coarse_h.setVal(Real(0.0));
+    coarse_support.setVal(Real(0.0));
     amrex::average_down(fine_h, coarse_h, 0, layout.ncomp(), ratio);
+    amrex::average_down(fine_support, coarse_support, 0, layout.ncomp() + 1,
+                        ratio);
+
+    MultiFab lost_positive_support(coarse_h.boxArray(),
+                                   coarse_h.DistributionMap(), 1, 0);
+    lost_positive_support.setVal(Real(0.0));
+    for (amrex::MFIter mfi(coarse_h, amrex::TilingIfNotGPU()); mfi.isValid();
+         ++mfi) {
+        const amrex::Box box = mfi.tilebox();
+        const auto mapped = coarse_h.const_array(mfi);
+        const auto support = coarse_support.const_array(mfi);
+        const auto bad = lost_positive_support.array(mfi);
+        amrex::ParallelFor(
+            box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                int cell_bad = 0;
+                if (support(i, j, k, coverage_component) > Real(0.0)) {
+                    for (int component = 0; component < ncomp; ++component) {
+                        if (support(i, j, k, component) > Real(0.0) &&
+                            mapped(i, j, k, component) == Real(0.0)) {
+                            cell_bad = 1;
+                        }
+                    }
+                }
+                bad(i, j, k, 0) = static_cast<Real>(cell_bad);
+            });
+    }
+    // The nonnegative bad mask has max zero when clear; an empty rank's local
+    // MultiFab maximum is negative, so both cases satisfy this predicate.
+    const bool local_support_preserved =
+        lost_positive_support.max(0, 0, true) <= Real(0.0);
+    if (!collective_all_true(local_support_preserved,
+                             "restriction averaging underflow erased positive "
+                             "mapped support to zero",
+                             "restriction averaging underflow erased positive "
+                             "mapped support on another MPI rank",
+                             diagnostic)) {
+        return false;
+    }
+
+    // Start from an exact copy. Only cells represented by fine coverage are
+    // reconstructed below, so uncovered coarse values never take an
+    // unnecessary multiply/divide round trip.
+    MultiFab::Copy(coarse_candidate, *coarse.spectrum, 0, 0, layout.ncomp(), 0);
     const bool divided_ok = divide_mapped_state(
         coarse_h, *coarse.mapped_measure, coarse.measure_component,
-        coarse_candidate, diagnostic);
+        coarse_support, coverage_component, coarse_candidate, diagnostic);
     std::string candidate_admission_diagnostic;
     const bool candidate_admissible = authoritative_state_admissible(
         coarse_candidate, layout, coarse_level, &candidate_admission_diagnostic);

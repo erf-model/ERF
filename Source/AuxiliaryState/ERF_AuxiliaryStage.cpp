@@ -1,5 +1,7 @@
 #include "ERF_AuxiliaryStage.H"
 
+#include <AMReX_ParallelDescriptor.H>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -417,11 +419,31 @@ bool CompletedStepFluxLedger::finish_stage (std::string& diagnostic)
         }
     }
 
+    const bool completes_step = m_next_stage + 1 == stage_count(m_method);
+    if (completes_step) {
+        bool locally_finite = true;
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            locally_finite =
+                m_integral.dir(dir).is_finite(0, m_integral.nComp(), 0, true) &&
+                locally_finite;
+        }
+        int any_nonfinite = locally_finite ? 0 : 1;
+        amrex::ParallelDescriptor::ReduceIntMax(any_nonfinite);
+        if (any_nonfinite != 0) {
+            diagnostic =
+                locally_finite
+                    ? "completed-step integrated face transfer is nonfinite on "
+                      "another MPI rank"
+                    : "completed-step integrated face transfer is nonfinite";
+            return false;
+        }
+    }
+
     m_stage_open = false;
     m_open_stage = -1;
     m_open_stage_weight = amrex::Real(0.0);
     ++m_next_stage;
-    if (m_next_stage == stage_count(m_method)) {
+    if (completes_step) {
         m_step_active = false;
         m_step_complete = true;
     }

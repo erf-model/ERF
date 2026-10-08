@@ -1264,6 +1264,61 @@ TEST(AuxiliaryMappedTransport, CompletedLedgerScattersChunkComponentsOncePerStag
 {
     run_auxiliary_mapped_transport_CompletedLedgerScattersChunkComponentsOncePerStage();
 }
+TEST(AuxiliaryMappedTransport,
+     CompletedLedgerRejectsNonfiniteIntegratedTransfer)
+{
+    TestGrid g;
+    constexpr double dt = 4.0;
+    MappedFaceFluxRate rate;
+    rate.define(g.ba, g.dm, 1, 0);
+    CompletedStepFluxLedger overflow;
+    overflow.define(g.ba, g.dm);
+    AuxiliaryStageRecipe recipe;
+    std::string diagnostic;
+
+    rate.setVal(Real(0.0));
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 0, dt,
+                                         recipe, diagnostic))
+        << diagnostic;
+    ASSERT_TRUE(overflow.accept_stage(HostIntegrator::AnelasticHeun, 0, 0.0,
+                                      recipe, rate, diagnostic))
+        << diagnostic;
+    rate.setVal(std::numeric_limits<Real>::max());
+    ASSERT_TRUE(rate.dir(0).is_finite(0, 1, 0));
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 1, dt,
+                                         recipe, diagnostic))
+        << diagnostic;
+    EXPECT_FALSE(overflow.accept_stage(HostIntegrator::AnelasticHeun, 1, 0.0,
+                                       recipe, rate, diagnostic));
+    EXPECT_NE(diagnostic.find("nonfinite"), std::string::npos) << diagnostic;
+    EXPECT_FALSE(overflow.step_complete());
+    EXPECT_FALSE(overflow.integrated_flux().dir(0).is_finite(0, 1, 0));
+
+    CompletedStepFluxLedger finite_control;
+    finite_control.define(g.ba, g.dm);
+    rate.setVal(Real(0.0));
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 0, dt,
+                                         recipe, diagnostic))
+        << diagnostic;
+    ASSERT_TRUE(finite_control.accept_stage(HostIntegrator::AnelasticHeun, 0,
+                                            0.0, recipe, rate, diagnostic))
+        << diagnostic;
+    const Real finite_rate = std::numeric_limits<Real>::max() / Real(4.0);
+    rate.setVal(finite_rate);
+    ASSERT_TRUE(rate.dir(0).is_finite(0, 1, 0));
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 1, dt,
+                                         recipe, diagnostic))
+        << diagnostic;
+    ASSERT_TRUE(finite_control.accept_stage(HostIntegrator::AnelasticHeun, 1,
+                                            0.0, recipe, rate, diagnostic))
+        << diagnostic;
+    ASSERT_TRUE(finite_control.step_complete());
+    const Real expected = Real(2.0) * finite_rate;
+    EXPECT_TRUE(finite_control.integrated_flux().dir(0).is_finite(0, 1, 0));
+    EXPECT_NEAR(
+        max_face_component_error(finite_control.integrated_flux(), 0, expected),
+        Real(0.0), Real(0.0));
+}
 TEST(AuxiliaryMappedTransport, StageTargetMustBeDisjoint)
 {
     run_auxiliary_mapped_transport_StageTargetMustBeDisjoint();

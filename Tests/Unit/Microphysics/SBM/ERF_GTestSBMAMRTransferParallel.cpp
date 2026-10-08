@@ -435,3 +435,104 @@ TEST(SBMAMRTransferParallel, RankLocalInvalidSpectrumFailsCollectively)
             << "candidate component=" << component;
     }
 }
+
+TEST(SBMAMRTransferParallel, RankLocalPositiveAverageUnderflowFailsCollectively)
+{
+    if (amrex::ParallelDescriptor::NProcs() < 2) {
+        GTEST_SKIP() << "collective averaging-underflow qualification requires "
+                        "at least two MPI ranks";
+    }
+
+    Box coarse_domain(IntVect(0), IntVect(3));
+    Box fine_domain = coarse_domain;
+    fine_domain.refine(IntVect(2));
+    BoxArray coarse_boxes(coarse_domain);
+    BoxArray fine_boxes(fine_domain);
+    coarse_boxes.maxSize(2);
+    fine_boxes.maxSize(2);
+    const DistributionMapping coarse_mapping = shifted_mapping(coarse_boxes, 0);
+    const DistributionMapping fine_mapping = shifted_mapping(fine_boxes, 0);
+    const auto layout = make_transfer_layout();
+
+    MultiFab coarse_density(coarse_boxes, coarse_mapping, 1, 0);
+    MultiFab coarse_measure(coarse_boxes, coarse_mapping, 1, 0);
+    MultiFab fine_density(fine_boxes, fine_mapping, 1, 0);
+    MultiFab fine_measure(fine_boxes, fine_mapping, 1, 0);
+    coarse_density.setVal(Real(1.0));
+    coarse_measure.setVal(Real(1.0));
+    fine_density.setVal(Real(1.0));
+    fine_measure.setVal(Real(1.0));
+    MultiFab coarse_state(coarse_boxes, coarse_mapping, layout.ncomp(), 0);
+    MultiFab fine_state(fine_boxes, fine_mapping, layout.ncomp(), 0);
+    coarse_state.setVal(Real(0.0));
+    fine_state.setVal(Real(0.0));
+
+    const Real smallest = std::numeric_limits<Real>::denorm_min();
+    ASSERT_GT(smallest, Real(0.0));
+    ASSERT_EQ(smallest / Real(8.0), Real(0.0));
+    int invalid_box = -1;
+    for (int box = 0; box < fine_boxes.size(); ++box) {
+        if (fine_mapping[box] == 1) {
+            invalid_box = box;
+            break;
+        }
+    }
+    ASSERT_GE(invalid_box, 0);
+    const Box invalid_region = fine_boxes[invalid_box];
+    const IntVect invalid_cell = invalid_region.smallEnd();
+    const int component = layout.populations()[0].mass_offset;
+    int local_wrote_invalid = 0;
+    for (amrex::MFIter mfi(fine_state, amrex::TilingIfNotGPU()); mfi.isValid();
+         ++mfi) {
+        if (mfi.index() != invalid_box)
+            continue;
+        local_wrote_invalid = 1;
+        const Box cell(invalid_cell, invalid_cell);
+        const auto state = fine_state.array(mfi);
+        amrex::ParallelFor(cell,
+                           [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                               state(i, j, k, component) = smallest;
+                           });
+    }
+    amrex::ParallelDescriptor::ReduceIntSum(local_wrote_invalid);
+    EXPECT_EQ(local_wrote_invalid, 1);
+    std::string diagnostic;
+    ASSERT_TRUE(erf_sbm::authoritative_state_admissible(fine_state, layout, 1,
+                                                        &diagnostic))
+        << diagnostic;
+
+    MultiFab fine_before(fine_boxes, fine_mapping, layout.ncomp(), 0);
+    MultiFab coarse_before(coarse_boxes, coarse_mapping, layout.ncomp(), 0);
+    MultiFab::Copy(fine_before, fine_state, 0, 0, layout.ncomp(), 0);
+    MultiFab::Copy(coarse_before, coarse_state, 0, 0, layout.ncomp(), 0);
+    MultiFab candidate(coarse_boxes, coarse_mapping, layout.ncomp(), 0);
+    candidate.setVal(Real(31.0));
+    const auto fine_view =
+        timed_view(fine_state, fine_density, fine_measure, 0.25);
+    const auto coarse_view =
+        timed_view(coarse_state, coarse_density, coarse_measure, 0.25);
+    const bool accepted = erf_sbm::RestrictMappedSpectrum(
+        layout, fine_view, coarse_view, IntVect(2), 0, candidate, diagnostic);
+    int minimum_accepted = accepted ? 1 : 0;
+    int maximum_accepted = minimum_accepted;
+    amrex::ParallelDescriptor::ReduceIntMin(minimum_accepted);
+    amrex::ParallelDescriptor::ReduceIntMax(maximum_accepted);
+    EXPECT_EQ(minimum_accepted, 0) << diagnostic;
+    EXPECT_EQ(maximum_accepted, 0) << diagnostic;
+    EXPECT_NE(diagnostic.find("positive"), std::string::npos) << diagnostic;
+
+    MultiFab fine_source_error(fine_boxes, fine_mapping, layout.ncomp(), 0);
+    MultiFab coarse_source_error(coarse_boxes, coarse_mapping, layout.ncomp(),
+                                 0);
+    MultiFab::Copy(fine_source_error, fine_state, 0, 0, layout.ncomp(), 0);
+    MultiFab::Subtract(fine_source_error, fine_before, 0, 0, layout.ncomp(), 0);
+    MultiFab::Copy(coarse_source_error, coarse_state, 0, 0, layout.ncomp(), 0);
+    MultiFab::Subtract(coarse_source_error, coarse_before, 0, 0, layout.ncomp(),
+                       0);
+    for (int comp = 0; comp < layout.ncomp(); ++comp) {
+        EXPECT_EQ(fine_source_error.norm0(comp), Real(0.0))
+            << "fine component=" << comp;
+        EXPECT_EQ(coarse_source_error.norm0(comp), Real(0.0))
+            << "coarse component=" << comp;
+    }
+}

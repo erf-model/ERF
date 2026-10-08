@@ -4,7 +4,10 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_MFIter.H>
 #include <AMReX_MultiFab.H>
+#include <AMReX_ParallelDescriptor.H>
+#include <AMReX_Vector.H>
 
+#include "AuxiliaryState/ERF_AuxiliaryStage.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_SBMStateManager.H"
 #include "ERF_SBMTransport.H"
@@ -211,6 +214,86 @@ TEST(SBMTransportParallel, TwoMomentEndpointGroupLimiterDecompositionInvariant)
                         std::max(std::abs(one_box[i]),
                                  std::numeric_limits<Real>::min()));
     }
+}
+
+TEST(SBMTransportParallel, NonfiniteCompletedLedgerRejectedCollectively)
+{
+    if (amrex::ParallelDescriptor::NProcs() < 2) {
+        GTEST_SKIP() << "collective completed-ledger qualification requires at "
+                        "least two MPI ranks";
+    }
+
+    Box domain(IntVect(0), IntVect(7));
+    BoxArray boxes(domain);
+    boxes.maxSize(2);
+    amrex::Vector<int> owners(static_cast<std::size_t>(boxes.size()));
+    for (int box = 0; box < boxes.size(); ++box) {
+        owners[box] = box % amrex::ParallelDescriptor::NProcs();
+    }
+    DistributionMapping mapping(std::move(owners));
+
+    erf_auxiliary::MappedFaceFluxRate rate;
+    rate.define(boxes, mapping, 1, 0);
+    erf_auxiliary::CompletedStepFluxLedger ledger;
+    ledger.define(boxes, mapping);
+    erf_auxiliary::AuxiliaryStageRecipe recipe;
+    std::string diagnostic;
+    constexpr double dt = 4.0;
+
+    rate.setVal(Real(0.0));
+    ASSERT_TRUE(erf_auxiliary::MakeAuxiliaryStageRecipe(
+        erf_auxiliary::HostIntegrator::AnelasticHeun, 0, dt, recipe,
+        diagnostic))
+        << diagnostic;
+    ASSERT_TRUE(
+        ledger.accept_stage(erf_auxiliary::HostIntegrator::AnelasticHeun, 0,
+                            0.0, recipe, rate, diagnostic))
+        << diagnostic;
+
+    int overflow_box = -1;
+    for (int box = 0; box < boxes.size(); ++box) {
+        if (box % amrex::ParallelDescriptor::NProcs() == 1) {
+            overflow_box = box;
+            break;
+        }
+    }
+    ASSERT_GE(overflow_box, 0);
+    const Box overflow_cells = boxes[overflow_box];
+    const IntVect overflow_face = overflow_cells.smallEnd();
+    const Box face_cell(overflow_face, overflow_face);
+    for (amrex::MFIter mfi(rate.dir(0), amrex::TilingIfNotGPU()); mfi.isValid();
+         ++mfi) {
+        if (mfi.index() != overflow_box)
+            continue;
+        const auto face = rate.dir(0).array(mfi);
+        amrex::ParallelFor(
+            face_cell, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                face(i, j, k, 0) = std::numeric_limits<Real>::max();
+            });
+    }
+    ASSERT_TRUE(rate.dir(0).is_finite(0, 1, 0));
+    ASSERT_TRUE(erf_auxiliary::MakeAuxiliaryStageRecipe(
+        erf_auxiliary::HostIntegrator::AnelasticHeun, 1, dt, recipe,
+        diagnostic))
+        << diagnostic;
+    const bool accepted =
+        ledger.accept_stage(erf_auxiliary::HostIntegrator::AnelasticHeun, 1,
+                            0.0, recipe, rate, diagnostic);
+
+    int minimum_accepted = accepted ? 1 : 0;
+    int maximum_accepted = minimum_accepted;
+    amrex::ParallelDescriptor::ReduceIntMin(minimum_accepted);
+    amrex::ParallelDescriptor::ReduceIntMax(maximum_accepted);
+    EXPECT_EQ(minimum_accepted, 0) << diagnostic;
+    EXPECT_EQ(maximum_accepted, 0) << diagnostic;
+    EXPECT_NE(diagnostic.find("nonfinite"), std::string::npos) << diagnostic;
+    EXPECT_FALSE(ledger.step_complete());
+
+    int locally_nonfinite =
+        ledger.integrated_flux().dir(0).is_finite(0, 1, 0, true) ? 0 : 1;
+    int nonfinite_ranks = locally_nonfinite;
+    amrex::ParallelDescriptor::ReduceIntSum(nonfinite_ranks);
+    EXPECT_EQ(nonfinite_ranks, 1);
 }
 
 } // namespace

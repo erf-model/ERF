@@ -260,6 +260,8 @@ TEST(SBMAMRTransfer, RestrictionAveragesMappedAmountAndPreservesUncoveredState)
     MultiFab fine_state(fine_ba, fine_dm, layout.ncomp(), 0);
     fill_spectrum(coarse_state, coarse_rho, layout);
     fill_spectrum(fine_state, fine_rho, layout);
+    MultiFab coarse_before(coarse_ba, coarse_dm, layout.ncomp(), 0);
+    MultiFab::Copy(coarse_before, coarse_state, 0, 0, layout.ncomp(), 0);
     MultiFab fine_before(fine_ba, fine_dm, layout.ncomp(), 0);
     MultiFab::Copy(fine_before, fine_state, 0, 0, layout.ncomp(), 0);
     MultiFab candidate(coarse_ba, coarse_dm, layout.ncomp(), 0);
@@ -270,6 +272,38 @@ TEST(SBMAMRTransfer, RestrictionAveragesMappedAmountAndPreservesUncoveredState)
     auto fine_view = timed_view(fine_state, fine_rho, fine_omega, 0.5);
     auto coarse_view = timed_view(coarse_state, coarse_rho, coarse_omega, 0.5);
     std::string diagnostic;
+
+    ASSERT_TRUE(erf_sbm::authoritative_state_admissible(coarse_state, layout, 0,
+                                                        &diagnostic))
+        << diagnostic;
+    MultiFab uncovered_roundtrip_change(coarse_ba, coarse_dm, 1, 0);
+    uncovered_roundtrip_change.setVal(Real(0.0));
+    for (amrex::MFIter mfi(coarse_state, amrex::TilingIfNotGPU());
+         mfi.isValid(); ++mfi) {
+        const Box box = mfi.tilebox();
+        const auto state = coarse_state.const_array(mfi);
+        const auto omega = coarse_omega.const_array(mfi);
+        const auto changed = uncovered_roundtrip_change.array(mfi);
+        const int ncomp = layout.ncomp();
+        amrex::ParallelFor(
+            box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                const bool covered =
+                    i >= 1 && i <= 2 && j >= 1 && j <= 2 && k >= 1 && k <= 2;
+                int found_change = 0;
+                if (!covered) {
+                    const Real measure = omega(i, j, k, 0);
+                    for (int component = 0; component < ncomp; ++component) {
+                        const Real value = state(i, j, k, component);
+                        if ((measure * value) / measure != value)
+                            found_change = 1;
+                    }
+                }
+                changed(i, j, k, 0) = static_cast<Real>(found_change);
+            });
+    }
+    ASSERT_EQ(uncovered_roundtrip_change.max(0), Real(1.0))
+        << "fixture must distinguish the old uncovered H round trip";
+
     ASSERT_TRUE(erf_sbm::RestrictMappedSpectrum(
         layout, fine_view, coarse_view, ratio, 0, candidate, diagnostic)) << diagnostic;
     ASSERT_TRUE(erf_sbm::authoritative_state_admissible(
@@ -330,6 +364,36 @@ TEST(SBMAMRTransfer, RestrictionAveragesMappedAmountAndPreservesUncoveredState)
             << "component=" << component;
     }
 
+    MultiFab uncovered_error(coarse_ba, coarse_dm, ncomp, 0);
+    MultiFab coarse_source_error(coarse_ba, coarse_dm, ncomp, 0);
+    for (amrex::MFIter mfi(candidate, amrex::TilingIfNotGPU()); mfi.isValid();
+         ++mfi) {
+        const Box box = mfi.tilebox();
+        const auto actual = candidate.const_array(mfi);
+        const auto original = coarse_before.const_array(mfi);
+        const auto source = coarse_state.const_array(mfi);
+        const auto uncovered = uncovered_error.array(mfi);
+        const auto source_error = coarse_source_error.array(mfi);
+        amrex::ParallelFor(
+            box, ncomp,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k, int component) noexcept {
+                const bool covered =
+                    i >= 1 && i <= 2 && j >= 1 && j <= 2 && k >= 1 && k <= 2;
+                uncovered(i, j, k, component) =
+                    covered ? Real(0.0)
+                            : amrex::Math::abs(actual(i, j, k, component) -
+                                               original(i, j, k, component));
+                source_error(i, j, k, component) = amrex::Math::abs(
+                    source(i, j, k, component) - original(i, j, k, component));
+            });
+    }
+    for (int component = 0; component < ncomp; ++component) {
+        EXPECT_EQ(uncovered_error.norm0(component), Real(0.0))
+            << "uncovered component=" << component;
+        EXPECT_EQ(coarse_source_error.norm0(component), Real(0.0))
+            << "coarse source component=" << component;
+    }
+
     MultiFab arithmetic_difference(coarse_ba, coarse_dm, layout.ncomp(), 0);
     MultiFab::Copy(arithmetic_difference, candidate, 0, 0, ncomp, 0);
     MultiFab::Subtract(arithmetic_difference, arithmetic_u, 0, 0, ncomp, 0);
@@ -358,6 +422,114 @@ TEST(SBMAMRTransfer, RestrictionAveragesMappedAmountAndPreservesUncoveredState)
             << "component=" << component;
         EXPECT_DOUBLE_EQ(candidate.max(component), Real(123.0))
             << "component=" << component;
+    }
+}
+
+TEST(SBMAMRTransfer, RestrictionRejectsPositiveMappedAverageUnderflow)
+{
+    const auto layout = make_transfer_layout();
+    const BoxArray coarse_ba(coarse_domain());
+    const DistributionMapping coarse_dm(coarse_ba);
+    const Box fine_box(IntVect(0, 0, 0), IntVect(1, 1, 1));
+    const BoxArray fine_ba(fine_box);
+    const DistributionMapping fine_dm(fine_ba);
+    MultiFab coarse_rho(coarse_ba, coarse_dm, 1, 0);
+    MultiFab coarse_omega(coarse_ba, coarse_dm, 1, 0);
+    MultiFab fine_rho(fine_ba, fine_dm, 1, 0);
+    MultiFab fine_omega(fine_ba, fine_dm, 1, 0);
+    coarse_rho.setVal(Real(1.0));
+    coarse_omega.setVal(Real(1.0));
+    fine_rho.setVal(Real(1.0));
+    fine_omega.setVal(Real(1.0));
+
+    MultiFab coarse_state(coarse_ba, coarse_dm, layout.ncomp(), 0);
+    MultiFab fine_state(fine_ba, fine_dm, layout.ncomp(), 0);
+    MultiFab candidate(coarse_ba, coarse_dm, layout.ncomp(), 0);
+    coarse_state.setVal(Real(0.0));
+    fine_state.setVal(Real(0.0));
+    candidate.setVal(Real(29.0));
+    const int component = layout.populations()[0].mass_offset;
+    const Real smallest = std::numeric_limits<Real>::denorm_min();
+    ASSERT_GT(smallest, Real(0.0));
+    ASSERT_EQ(smallest / Real(8.0), Real(0.0))
+        << "the selected precision must round this one-child average to zero";
+
+    const auto set_one_child = [&fine_state, component] (const Real amount) {
+        fine_state.setVal(Real(0.0));
+        for (amrex::MFIter mfi(fine_state, amrex::TilingIfNotGPU());
+             mfi.isValid(); ++mfi) {
+            const Box valid_box = mfi.validbox();
+            const IntVect first_cell = valid_box.smallEnd();
+            const Box cell(first_cell, first_cell);
+            const auto state = fine_state.array(mfi);
+            amrex::ParallelFor(
+                cell, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    state(i, j, k, component) = amount;
+                });
+        }
+    };
+
+    set_one_child(smallest);
+    std::string diagnostic;
+    ASSERT_TRUE(fine_state.is_finite(0, layout.ncomp(), 0));
+    ASSERT_TRUE(erf_sbm::authoritative_state_admissible(fine_state, layout, 1,
+                                                        &diagnostic))
+        << diagnostic;
+    MultiFab fine_before(fine_ba, fine_dm, layout.ncomp(), 0);
+    MultiFab coarse_before(coarse_ba, coarse_dm, layout.ncomp(), 0);
+    MultiFab::Copy(fine_before, fine_state, 0, 0, layout.ncomp(), 0);
+    MultiFab::Copy(coarse_before, coarse_state, 0, 0, layout.ncomp(), 0);
+
+    const auto fine_view = timed_view(fine_state, fine_rho, fine_omega, 0.0);
+    const auto coarse_view =
+        timed_view(coarse_state, coarse_rho, coarse_omega, 0.0);
+    EXPECT_FALSE(erf_sbm::RestrictMappedSpectrum(
+        layout, fine_view, coarse_view, IntVect(2), 0, candidate, diagnostic));
+    EXPECT_NE(diagnostic.find("underflow"), std::string::npos) << diagnostic;
+
+    MultiFab fine_source_error(fine_ba, fine_dm, layout.ncomp(), 0);
+    MultiFab coarse_source_error(coarse_ba, coarse_dm, layout.ncomp(), 0);
+    MultiFab::Copy(fine_source_error, fine_state, 0, 0, layout.ncomp(), 0);
+    MultiFab::Subtract(fine_source_error, fine_before, 0, 0, layout.ncomp(), 0);
+    MultiFab::Copy(coarse_source_error, coarse_state, 0, 0, layout.ncomp(), 0);
+    MultiFab::Subtract(coarse_source_error, coarse_before, 0, 0, layout.ncomp(),
+                       0);
+    for (int comp = 0; comp < layout.ncomp(); ++comp) {
+        EXPECT_EQ(fine_source_error.norm0(comp), Real(0.0))
+            << "fine component=" << comp;
+        EXPECT_EQ(coarse_source_error.norm0(comp), Real(0.0))
+            << "coarse component=" << comp;
+    }
+
+    // Eight subnormal units average to one representable subnormal unit.
+    const Real representable_amount = Real(8.0) * smallest;
+    ASSERT_GT(representable_amount, smallest);
+    set_one_child(representable_amount);
+    ASSERT_TRUE(erf_sbm::authoritative_state_admissible(fine_state, layout, 1,
+                                                        &diagnostic))
+        << diagnostic;
+    EXPECT_TRUE(erf_sbm::RestrictMappedSpectrum(
+        layout, fine_view, coarse_view, IntVect(2), 0, candidate, diagnostic))
+        << diagnostic;
+    MultiFab expected(coarse_ba, coarse_dm, layout.ncomp(), 0);
+    expected.setVal(Real(0.0));
+    for (amrex::MFIter mfi(expected, amrex::TilingIfNotGPU()); mfi.isValid();
+         ++mfi) {
+        const IntVect coarse_cell(0, 0, 0);
+        const Box cell(coarse_cell, coarse_cell);
+        const auto state = expected.array(mfi);
+        amrex::ParallelFor(cell,
+                           [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                               state(i, j, k, component) = smallest;
+                           });
+    }
+    MultiFab positive_control_error(coarse_ba, coarse_dm, layout.ncomp(), 0);
+    MultiFab::Copy(positive_control_error, candidate, 0, 0, layout.ncomp(), 0);
+    MultiFab::Subtract(positive_control_error, expected, 0, 0, layout.ncomp(),
+                       0);
+    for (int comp = 0; comp < layout.ncomp(); ++comp) {
+        EXPECT_EQ(positive_control_error.norm0(comp), Real(0.0))
+            << "positive-control component=" << comp;
     }
 }
 
