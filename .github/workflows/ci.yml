@@ -106,6 +106,7 @@ jobs:
         export CCACHE_COMPRESSLEVEL=10
         export CCACHE_MAXSIZE=600M
         ccache -z
+        build_start=$(date +%s)
 
         cmake \
           --build ${{runner.workspace}}/ERF/build-${{matrix.os}} \
@@ -113,6 +114,10 @@ jobs:
           2>&1 | tee -a ${{runner.workspace}}/build-output.txt;
 
         echo '```' >> "$GITHUB_STEP_SUMMARY"
+        # Keep only what this build used: ccache touches an object on every hit, so
+        # anything older than the build is stale. Without this the cache fills with
+        # objects from superseded commits, hits its cap, and evicts live objects.
+        ccache --evict-older-than "$(( $(date +%s) - build_start + 120 ))s"
         ccache -s | tee -a "$GITHUB_STEP_SUMMARY"
         echo '```' >> "$GITHUB_STEP_SUMMARY"
         du -hs ~/.cache/ccache
