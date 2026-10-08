@@ -128,15 +128,15 @@ Smag2DLimitedViscosity (amrex::Real nu, amrex::Real strain, amrex::Real DeltaH,
  * Runge-Kutta scheme's real-axis bound is about 2.5 / 4 = 0.63).
  *
  * Momentum: the largest of the three component rows,
- *   u: mu_h (2 a + b) + e_uv mu_v / dz^2 + (1 - e_uv) mu_v sqrt(a c)
- *   v: mu_h (a + 2 b) + e_uv mu_v / dz^2 + (1 - e_uv) mu_v sqrt(b c)
- *   w: mu_v (a + b)   + 2 e_w mu_v / dz^2 + (1 - e_w) mu_v (sqrt(a c) + sqrt(b c)),
+ *   u: mu_h (2 a + b) + e_uv mu_v / dz^2 + mu_v sqrt(a c)
+ *   v: mu_h (a + 2 b) + e_uv mu_v / dz^2 + mu_v sqrt(b c)
+ *   w: mu_v (a + b)   + 2 e_w mu_v / dz^2 + mu_v (sqrt(a c) + sqrt(b c)),
  * with c = 1/dz^2, plus 2 mu_p h^2 / dz^2 for the terrain-metric part.  The horizontal
  * diffusion of w uses mu_v: tau31 and tau32 carry the same edge-averaged mu_v as tau13 and
  * tau23.  The sqrt terms are the u-w and v-w cross derivatives (dw/dx in tau13, du/dz in
- * tau31, ...), which stay explicit when the implicit solve takes the second vertical
- * derivative; they are counted when that solve removes the vertical term, whose size covers
- * them otherwise when dz <= dx/m, and at any aspect ratio when mu_h = mu_v.  (The expansion
+ * tau31, ...), which stay explicit whether or not the implicit solve takes the second
+ * vertical derivative; they are always counted, since with dz > dx/m they exceed the
+ * vertical term (dx = 100 m, dz = 500 m: five times).  (The expansion
  * rate in tau11 also couples u to dw/dz, with mu_h; that is covered by "an estimate when
  * mu_h != mu_v" below.)  The metric term is an upper bound: the
  * projected stresses of the terrain stress (ComputeStressVarVisc_T) carry mu_v today (ERF
@@ -165,9 +165,9 @@ MomentumDiffusiveRate (amrex::Real rho, amrex::Real mu_h, amrex::Real mu_v,
 {
     const amrex::Real xa   = std::sqrt(a * dzinv2);
     const amrex::Real xb   = std::sqrt(b * dzinv2);
-    const amrex::Real r_u  = mu_h * (two*a + b) + e_uv * mu_v * dzinv2 + (one - e_uv) * mu_v * xa;
-    const amrex::Real r_v  = mu_h * (a + two*b) + e_uv * mu_v * dzinv2 + (one - e_uv) * mu_v * xb;
-    const amrex::Real r_w  = mu_v * (a + b)     + two * e_w * mu_v * dzinv2 + (one - e_w) * mu_v * (xa + xb);
+    const amrex::Real r_u  = mu_h * (two*a + b) + e_uv * mu_v * dzinv2 + mu_v * xa;
+    const amrex::Real r_v  = mu_h * (a + two*b) + e_uv * mu_v * dzinv2 + mu_v * xb;
+    const amrex::Real r_w  = mu_v * (a + b)     + two * e_w * mu_v * dzinv2 + mu_v * (xa + xb);
     const amrex::Real r_uv = (r_u > r_v) ? r_u : r_v;
     const amrex::Real row  = (r_uv > r_w) ? r_uv : r_w;
     const amrex::Real mu_p = (mu_h > mu_v) ? mu_h : mu_v;
@@ -306,6 +306,27 @@ CellDiffusiveRates (int i, int j, int k,
                                                 a2, b2, h2, dzinv2, one));
     }
     rate_scal = rs;
+}
+
+/**
+ * Whether the terrain slope-factor report is evaluated this coarse step: always on a new set
+ * of grids, and every step on a moving terrain (MovingFittedMesh), where alpha changes with time.
+ */
+inline bool
+SlopeReportEvaluate (bool new_grids, bool moving_terrain)
+{
+    return new_grids || moving_terrain;
+}
+
+/**
+ * Whether an evaluated slope-factor report is printed: always when forced (new grids),
+ * otherwise only if the largest alpha moved by more than 1 % from the last printed value.
+ * alpha >= 1 by construction, so the relative test never fires on changes below 0.01.
+ */
+inline bool
+SlopeReportPrint (bool force, amrex::Real alpha_max, amrex::Real alpha_last)
+{
+    return force || std::abs(alpha_max - alpha_last) > amrex::Real(0.01) * alpha_last;
 }
 
 /**

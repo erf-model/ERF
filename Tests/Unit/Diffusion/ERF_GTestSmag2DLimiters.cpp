@@ -178,19 +178,28 @@ TEST(Smag2DLimiters, CapActiveInactiveAndOrder)
 TEST(Smag2DLimiters, DiffusiveRatesHandValues)
 {
     // rho = 1, dx = dy = 1 km (a = b = 1e-6), slope 0.1 (h^2 = 0.01), dz = 50 m (1/dz^2 = 4e-4).
-    // Momentum rows: u = mu_h (2a + b) + e_uv mu_v/dz^2, v likewise, w = mu_v (a + b) +
-    // 2 e_w mu_v/dz^2, plus the metric term 2 max(mu_h, mu_v) h^2/dz^2.
+    // Momentum rows: u = mu_h (2a + b) + e_uv mu_v/dz^2 + mu_v sqrt(a c), v likewise, w =
+    // mu_v (a + b) + 2 e_w mu_v/dz^2 + mu_v (sqrt(a c) + sqrt(b c)), plus the metric term
+    // 2 max(mu_h, mu_v) h^2/dz^2.
     const Real a = Real(1e-6), b = Real(1e-6), h2 = Real(0.01), dzinv2 = Real(4e-4);
-    // mu_h = 100, mu_v = 10, all explicit: u = 3e-4 + 4e-3, w = 2e-5 + 8e-3 (largest),
-    // metric 2 * 100 * 0.01 * 4e-4 = 8e-4 -> 8.82e-3
+    // The cross derivatives sqrt(a c) = 2e-5 are always counted (mu_v times 2e-5 per direction).
+    // mu_h = 100, mu_v = 10, all explicit: u = 3e-4 + 4e-3 + 2e-4, w = 2e-5 + 8e-3 + 4e-4
+    // (largest), metric 2 * 100 * 0.01 * 4e-4 = 8e-4 -> 9.22e-3
     EXPECT_NEAR(MomentumDiffusiveRate(Real(1), Real(100), Real(10), a, b, h2, dzinv2, Real(1), Real(1)),
-                Real(8.82e-3), Real(8.82e-3)*rel_tol());
+                Real(9.22e-3), Real(9.22e-3)*rel_tol());
     // u, v vertical implicit, w explicit (e_uv = 0, e_w = 1): the w row still sets it
     EXPECT_NEAR(MomentumDiffusiveRate(Real(1), Real(100), Real(10), a, b, h2, dzinv2, Real(0), Real(1)),
-                Real(8.82e-3), Real(8.82e-3)*rel_tol());
-    // w implicit, u explicit (e_uv = 1, e_w = 0): u = 4.3e-3 > w = 2e-5 + 4e-4 -> 5.1e-3
+                Real(9.22e-3), Real(9.22e-3)*rel_tol());
+    // w implicit, u explicit (e_uv = 1, e_w = 0): u = 4.5e-3 > w = 2e-5 + 4e-4 -> 5.3e-3
     EXPECT_NEAR(MomentumDiffusiveRate(Real(1), Real(100), Real(10), a, b, h2, dzinv2, Real(1), Real(0)),
-                Real(5.1e-3), Real(5.1e-3)*rel_tol());
+                Real(5.3e-3), Real(5.3e-3)*rel_tol());
+    // A thick cell with the vertical part explicit (review case: PBL only, dx = 100 m, dz = 500 m):
+    // the cross derivative mu_v / (dx dz) = 2e-5 mu_v is five times the vertical term
+    // mu_v / dz^2 = 4e-6 mu_v.  u = 10 (4e-6 + 2e-5) = 2.4e-4; w = 10 (2e-4 + 8e-6 + 4e-5) =
+    // 2.48e-3 sets the rate (2.08e-3 if the cross derivatives were dropped)
+    EXPECT_NEAR(MomentumDiffusiveRate(Real(1), Real(0), Real(10), Real(1e-4), Real(1e-4), Real(0),
+                                      Real(4e-6), Real(1), Real(1)),
+                Real(2.48e-3), Real(2.48e-3)*rel_tol());
     // All vertical implicit: the explicit cross derivatives count, sqrt(a c) = 2e-5:
     // u = 3e-4 + 10 * 2e-5 = 5e-4, w = 2e-5 + 10 * 4e-5 = 4.2e-4; 5e-4 + metric 8e-4 = 1.3e-3;
     // rho = 2 halves it
@@ -471,6 +480,23 @@ double max_stage_amplification (const std::vector<double>& c, const std::vector<
 }
 
 } // namespace
+
+TEST(Smag2DLimiters, SlopeReportOnNewGridsAndMovingTerrain)
+{
+    // evaluated on new grids, and every step on a moving terrain; not otherwise
+    EXPECT_TRUE (SlopeReportEvaluate(true,  false));
+    EXPECT_TRUE (SlopeReportEvaluate(false, true));
+    EXPECT_FALSE(SlopeReportEvaluate(false, false));
+    // printed when forced, or when alpha moved by more than 1 % since the last print
+    EXPECT_TRUE (SlopeReportPrint(true,  Real(1.5),    Real(1.5)));
+    EXPECT_FALSE(SlopeReportPrint(false, Real(1.5),    Real(1.5)));
+    EXPECT_FALSE(SlopeReportPrint(false, Real(1.5149), Real(1.5)));
+    EXPECT_TRUE (SlopeReportPrint(false, Real(1.5151), Real(1.5)));
+    EXPECT_TRUE (SlopeReportPrint(false, Real(1.4849), Real(1.5)));
+    EXPECT_FALSE(SlopeReportPrint(false, Real(1.0099), Real(1)));   // alpha >= 1: floor 0.01
+    EXPECT_TRUE (SlopeReportPrint(false, Real(1.0101), Real(1)));
+    EXPECT_TRUE (SlopeReportPrint(false, Real(1),      Real(0)));   // nothing printed yet
+}
 
 TEST(Smag2DLimiters, ExplicitVerticalFractionFromStability)
 {

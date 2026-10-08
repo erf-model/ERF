@@ -2677,12 +2677,12 @@ add_test_smag2d_ridge(Smag2D_Ridge_DiffusiveCheck check "plt00010"
     OPTIONS "erf.fixed_dt=-1 max_step=10 erf.plot_int_1=10"
     DIFFUSIVE_CFL 0.3)
 # erf.diffusive_dt_limit sets an adaptive dt and is never exceeded; the first diffusive dt
-# (3.7385 s in the reference run, Release and Debug, 1 and 2 ranks) must match to 2 %.
+# (3.6881 s in the reference run, Release, 1 and 2 ranks) must match to 2 %.
 add_test_smag2d_ridge(Smag2D_Ridge_DiffusiveLimit limit "plt00010"
     OPTIONS "erf.fixed_dt=-1 max_step=10 erf.plot_int_1=10"
     DIFFUSIVE_CFL 0.2
-    REF_DIFFUSIVE_DT_LO 3.6638
-    REF_DIFFUSIVE_DT_HI 3.8133)
+    REF_DIFFUSIVE_DT_LO 3.6143
+    REF_DIFFUSIVE_DT_HI 3.7619)
 
 # Each new input is checked at start-up and aborts naming itself.  add_test_abort runs through
 # `sh -c ... | tee`, so these sit under the same guard as its other use.

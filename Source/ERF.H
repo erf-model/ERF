@@ -599,8 +599,9 @@ public:
     // diffusive time-step check (erf.diffusive_dt_check / erf.diffusive_dt_limit)
     void ComputeDiffusiveRates (int lev, amrex::Real& rate_mom, amrex::Real& rate_scal) const;
 
-    // print the largest terrain slope factor alpha = h dx/dz on level lev when K_h and K_v can differ
-    void ReportTerrainSlopeFactor (int lev) const;
+    // print the largest terrain slope factor alpha = h dx/dz on level lev: always when force is
+    // true (new grids), otherwise only if it changed by more than 1 % since the last report
+    void ReportTerrainSlopeFactor (int lev, bool force);
 
 #ifdef ERF_USE_WW3_COUPLING
     //amrex::Print() <<  " About to call send_to_ww3 from ERF.H" << std::endl;
@@ -1616,8 +1617,9 @@ private:
     bool diffusive_first_call = true;
     // largest Fourier number already reported per level (warnings repeat only when it grows)
     amrex::Vector<amrex::Real> diffusive_fourier_warned;
-    // grids on which the terrain slope factor was last reported, per level
+    // grids on which, and value at which, the terrain slope factor was last reported, per level
     amrex::Vector<amrex::BoxArray> slope_report_grids;
+    amrex::Vector<amrex::Real> slope_report_alpha;
 
     // Fixed dt at each level (only used if positive)
     amrex::Vector<double> fixed_dt;

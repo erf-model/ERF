@@ -14,7 +14,8 @@
 #   Runs the deck twice with the unlimited closure: once with erf.diffusive_dt_check on and a
 #   small erf.diffusive_cfl, whose log must hold the diffusive Fourier-number warning, and once
 #   with the check off, whose log must not.  The two plotfiles must be identical at zero
-#   tolerance: the check is a diagnostic and must not change the answer.
+#   tolerance: the check is a diagnostic and must not change the answer.  The terrain
+#   slope-factor report must appear in the first log and not in the second.
 #
 # MODE = limit
 #   Runs the deck with an adaptive time step and erf.diffusive_dt_limit = true.  Every step
@@ -167,6 +168,18 @@ elseif(MODE STREQUAL "check")
     endif()
     if(NOT off_warn STREQUAL "")
         message(FATAL_ERROR "RunSmag2DRidge.cmake: the diffusive check warned with erf.diffusive_dt_check = false")
+    endif()
+    # The terrain slope-factor report belongs to the new options: present with the check on,
+    # absent (nothing computed or printed) when the check, the limit and the Smagorinsky2D
+    # limits are all off
+    set(report "Terrain slope factor alpha = h dx/dz at level 0")
+    file(STRINGS "${on_dir}/simulation.log"  on_report  REGEX "${report}")
+    file(STRINGS "${off_dir}/simulation.log" off_report REGEX "${report}")
+    if(on_report STREQUAL "")
+        message(FATAL_ERROR "RunSmag2DRidge.cmake: no terrain slope-factor report with erf.diffusive_dt_check = true")
+    endif()
+    if(NOT off_report STREQUAL "")
+        message(FATAL_ERROR "RunSmag2DRidge.cmake: the terrain slope-factor report printed with every new option off")
     endif()
     execute_process(
         COMMAND ${launch_one} ${FCOMPARE} --abort_if_not_all_found --rel_tol 0 --abs_tol 0

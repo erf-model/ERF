@@ -977,10 +977,10 @@ Notes
      :math:`\mu_h (2a+b) + e_{uv}\mu_v/\Delta z^2`, :math:`\mu_h (a+2b) + e_{uv}\mu_v/\Delta z^2`
      and :math:`\mu_v (a+b) + 2 e_w \mu_v/\Delta z^2` (the horizontal diffusion of w uses
      :math:`\mu_v`: :math:`\tau_{31}` and :math:`\tau_{32}` carry the same edge-averaged
-     :math:`\mu_v` as :math:`\tau_{13}` and :math:`\tau_{23}`); where the implicit solve removes
-     the vertical term (:math:`e = 0`) the explicit u-w and v-w cross derivatives are counted
-     instead, :math:`\mu_v\sqrt{a c}` and :math:`\mu_v\sqrt{b c}` with :math:`c = 1/\Delta z^2`;
-     plus
+     :math:`\mu_v` as :math:`\tau_{13}` and :math:`\tau_{23}`); each row also counts the explicit u-w
+     and v-w cross derivatives, :math:`\mu_v\sqrt{a c}` and :math:`\mu_v\sqrt{b c}` with
+     :math:`c = 1/\Delta z^2` (added to the w row for both directions), which exceed the
+     vertical term where :math:`\Delta z > \Delta x/m`; plus
      :math:`2 \max(\mu_h,\mu_v) h^2/\Delta z^2`, all divided by :math:`\rho`; for theta,
      turbulent kinetic energy, moisture and the advected scalar (where carried) it is
      :math:`[K_h (a+b) + K_h h^2/\Delta z^2 + e K_v/\Delta z^2]/\rho`, with
@@ -1028,10 +1028,15 @@ Notes
      inside immersed-forcing solids count like fluid cells, and the cut-cell stiffening of EB
      is not included.
 
--  | On a terrain-fitted mesh where the horizontal and vertical eddy viscosities can differ
-     (Smagorinsky2D, Smagorinsky or Deardorff with **erf.mix_isotropic** = false, or any PBL
-     scheme), the largest slope factor :math:`\alpha = h \Delta x/\Delta z` of each level and the
-     number of cells with :math:`\alpha > 1` are printed at start-up and after every regrid.
+-  | When **erf.diffusive_dt_check**, **erf.diffusive_dt_limit** or a Smagorinsky2D limit
+     (**erf.smag2d_slope_limiter**, **erf.smag2d_kh_cap**) is on, on a terrain-fitted mesh where
+     the horizontal and vertical eddy viscosities can differ (Smagorinsky2D, Smagorinsky or
+     Deardorff with **erf.mix_isotropic** = false, or any PBL scheme), the largest slope factor
+     :math:`\alpha = h \Delta x/\Delta z` of each level and the number of cells with
+     :math:`\alpha > 1` are printed whenever a level has a new set of grids (at initialisation,
+     on the first step after a restart, and at the coarse step after a regrid), and with
+     **erf.terrain_type** = MovingFittedMesh also whenever the largest :math:`\alpha` changes by
+     more than 1 %.  Without those options nothing is computed or printed.
 
 -  | The time step controls work somewhat differently depending on whether one is using
      acoustic substepping in time; this is determined by the value of **substepping_type**.

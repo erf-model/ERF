@@ -31,16 +31,30 @@ ERF::ComputeDt (int step, double cur_time_d)
     Vector<Real> rate_mom (finest_level+1, zero);
     Vector<Real> rate_scal(finest_level+1, zero);
 
-    if (static_cast<int>(slope_report_grids.size()) < finest_level+1) {
-        slope_report_grids.resize(finest_level+1);
-    }
+    // Track exactly the current levels, so a level removed and later re-created is reported again
+    slope_report_grids.resize(finest_level+1);
+    slope_report_alpha.resize(finest_level+1, zero);
+
+    const bool fitted = (solverChoice.terrain_type == TerrainType::StaticFittedMesh ||
+                         solverChoice.terrain_type == TerrainType::MovingFittedMesh);
+    const bool moving = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
 
     for (int lev = 0; lev <= finest_level; ++lev)
     {
-        // Report the terrain slope factor once for every new set of grids on this level
-        if (slope_report_grids[lev] != grids[lev]) {
-            ReportTerrainSlopeFactor(lev);
-            slope_report_grids[lev] = grids[lev];
+        // The terrain slope factor is reported only when one of the options it informs is on:
+        // the diffusive check or limit, or a Smagorinsky2D limit at this level.  It is printed
+        // whenever a level has a new set of grids (at initialisation, on the first step after a
+        // restart, and on the coarse step after a regrid), and on a moving terrain also whenever
+        // its largest value changes by more than 1 %.
+        const TurbChoice& tc = solverChoice.turbChoice[lev];
+        const bool slope_report = fitted && tc.use_kturb && tc.kh_kv_can_differ() &&
+            (do_diffusive_check || tc.smag2d_slope_limiter || tc.smag2d_kh_cap > zero);
+        if (slope_report) {
+            const bool new_grids = (slope_report_grids[lev] != grids[lev]);
+            if (SlopeReportEvaluate(new_grids, moving)) {
+                ReportTerrainSlopeFactor(lev, new_grids);
+                slope_report_grids[lev] = grids[lev];
+            }
         }
 
         dt_tmp[lev] = estTimeStep(lev, dt_mri_ratio[lev]);
@@ -220,18 +234,18 @@ ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
 
 /**
  * Print the largest terrain slope factor alpha = h dx/dz (TerrainSlopeFactor) on a level, and
- * how many cells have alpha > 1, when the mesh is terrain-fitted and the closure lets K_h and
- * K_v differ: there the explicit terrain-metric diffusion K_h h^2 d2/dz2 limits the time step.
+ * how many cells have alpha > 1.  ComputeDt calls it on terrain-fitted meshes where the closure
+ * lets K_h and K_v differ (the explicit terrain-metric diffusion K_h h^2 d2/dz2 then limits the
+ * time step), only when the diffusive check or limit or a Smagorinsky2D limit is on.
  *
- * @param[in] lev level
+ * @param[in] lev   level
+ * @param[in] force print even if the largest alpha is within 1 % of the last report (new grids)
  */
 void
-ERF::ReportTerrainSlopeFactor (int lev) const
+ERF::ReportTerrainSlopeFactor (int lev, bool force)
 {
-    const bool fitted = (solverChoice.terrain_type == TerrainType::StaticFittedMesh ||
-                         solverChoice.terrain_type == TerrainType::MovingFittedMesh);
+    AMREX_ALWAYS_ASSERT(z_phys_nd[lev]);
     const TurbChoice& tc = solverChoice.turbChoice[lev];
-    if (!fitted || !tc.use_kturb || !tc.kh_kv_can_differ()) { return; }
 
     const MultiFab& S = vars_new[lev][Vars::cons];
 
@@ -254,7 +268,10 @@ ERF::ReportTerrainSlopeFactor (int lev) const
     Real alpha_max = amrex::get<0>(hv);
     Long n_steep   = amrex::get<1>(hv);
     ParallelDescriptor::ReduceRealMax(alpha_max);
-    ParallelDescriptor::ReduceLongSum(n_steep);
+
+    if (!SlopeReportPrint(force, alpha_max, slope_report_alpha[lev])) { return; }
+    ParallelDescriptor::ReduceLongSum(n_steep);   // needed only for the printed line
+    slope_report_alpha[lev] = alpha_max;
 
     Print() << "Terrain slope factor alpha = h dx/dz at level " << lev << ": max " << alpha_max
             << ", alpha > 1 in " << n_steep << " of " << grids[lev].numPts() << " cells" << std::endl;
