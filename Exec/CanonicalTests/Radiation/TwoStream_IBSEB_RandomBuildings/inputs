@@ -2,8 +2,8 @@
 # immersed-boundary balance on a seeded random set of buildings, on two levels
 # (see README.md). The ground takes the two-stream fluxes through the
 # force-restore balance, coupled both ways with the surface layer, as in
-# ../TwoStream_NoahMP_vs_ForceRestore (case 2); the building faces take the
-# prescribed clear-sky provider under the same sun. Level 1 refines the built
+# ../TwoStream_NoahMP_vs_ForceRestore (case 2); the building faces take their
+# radiation from the same two-stream columns. Level 1 refines the built
 # area by 2 in x and y over the whole depth and stays fixed for the run.
 #
 #   python3 make_buildings.py              # writes buildings.txt, buildings.csv, inputs_buildings
@@ -113,11 +113,6 @@ erf.ibseb.T_skin_init = 300.0
 erf.ibseb.T_interior = 295.0
 erf.ibseb.n_slab_layers = 10
 erf.ibseb.material_file = "materials.csv"
-erf.ibseb.albedo_ground = 0.21
-erf.ibseb.emissivity_ground = 0.994
-# The faces' ground longwave takes this constant, not the two-stream ground
-# balance's skin (which warms to about 310 K by 11:20 local).
-erf.ibseb.T_ground = 300.0
 erf.ibseb.z0_wall = 0.01
 erf.ibseb.z0h_wall = 0.001
 erf.ibseb.view_n_az = 16
@@ -125,16 +120,14 @@ erf.ibseb.view_n_el = 8
 erf.ibseb.stability_correction = true
 erf.ibseb.convective_velocity = "deardorff"
 erf.ibseb.z_i_mode = "bulk_ri"
-# The faces take the two-stream sun (start_datetime, erf.rad_cons_lat / lon):
-# the same position the columns see, and its top-of-atmosphere irradiance.
+# The faces take the two-stream sun (start_datetime, erf.rad_cons_lat / lon),
+# the same position the columns see, and their radiation from the two-stream
+# columns, each face from the column of its fluid cell at its own height: the
+# beam, the diffuse light and the longwave down there, and the shortwave and
+# longwave up of the force-restore ground (erf.ibseb.lw_mode = two_stream is the
+# default with this provider).
 erf.ibseb.sun_mode = "two_stream"
-# The clear two-stream column (single-scattering albedo 0) has total shortwave
-# optical depth 100 x 0.002 = 0.2 and no diffuse light: the faces' clear-sky
-# beam crosses the same atmosphere with transmission exp(-0.2) and no diffuse.
-erf.ibseb.sw_transmission = 0.8187307531
-erf.ibseb.sw_diffuse_coeff = 0.0
-erf.ibseb.lw_mode = "gray"
-erf.ibseb.sky_emissivity = 0.83
+erf.ibseb.radiation = "two_stream"
 
 erf.check_file = chk
 erf.check_int = -1

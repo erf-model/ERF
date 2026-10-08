@@ -6,9 +6,11 @@
 #include <AMReX_DistributionMapping.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_GpuContainers.H>
+#include <cmath>
 #include <vector>
 #include "ERF_IBSEBParams.H"
 #include "ERF_IBSEBMaterials.H"
+#include <ERF_TwoStreamCanopyForcing.H>
 
 /**
  * \file ERF_IBFaceSet.H
@@ -216,14 +218,19 @@ public:
 
     /**
      * Longwave of the current step. Incoming on a face:
-     * ``f_sky LW_sky + f_ground eps_g sigma T_g^4 + f_bldg sigma T_skin^4``,
+     * ``f_sky LW_sky + f_ground LW_ground + f_bldg sigma T_skin^4``,
      * the sky term fixed or gray (``sky_emissivity sigma T_air^4`` with the
-     * air temperature of the face's fluid cell), the building term the
-     * isothermal-surroundings approximation. Net:
-     * ``eps (LW_in - sigma T_skin^4)``, positive into the face.
-     * @param cons Conserved state of the level, for the air temperature.
+     * air temperature of the face's fluid cell) with the ground term
+     * ``eps_g sigma T_g^4``, or with ``lw_mode = two_stream`` the longwave
+     * down at the face's height and up at the ground of the face's column
+     * (``canopy``); the building term is the isothermal-surroundings
+     * approximation. Net: ``eps (LW_in - sigma T_skin^4)``, positive into the face.
+     * @param cons   Conserved state of the level, for the air temperature.
+     * @param canopy With ``lw_mode = two_stream``, this step's two-stream view of the
+     *               level (ERF_TwoStreamCanopyForcing.H), or an empty one before the
+     *               first sweep, when the incoming and net longwave are zero.
      */
-    void compute_longwave (const amrex::MultiFab& cons);
+    void compute_longwave (const amrex::MultiFab& cons, const TwoStreamCanopyView& canopy = TwoStreamCanopyView{});
 
     /**
      * Assign every face its material properties: from the material
@@ -303,18 +310,51 @@ public:
                                   const amrex::Geometry& geom, amrex::Real c_p, amrex::Real rdOcp) const;
 
     /**
-     * Shortwave of the current step: sun position and irradiances
-     * from the prescribed provider, then per face the direct beam on the
-     * face (zero when the ray toward the sun hits a building), the diffuse
-     * light through the view fractions, and the absorbed sum.
+     * Shortwave of the current step: the sun's position (sun_mode), the
+     * irradiances of the prescribed provider or, with ``radiation =
+     * two_stream``, those of the face's own column at its height (``canopy``),
+     * then per face
+     * the direct beam on the face (zero when the ray toward the sun hits a
+     * building), the diffuse light through the view fractions, and the
+     * absorbed sum.
      *
      * Fills d_shadow, d_SW_direct_in, d_SW_diffuse_in and d_SW_abs; stores
-     * the sun vector and irradiances for the reports.
-     * @param time Simulation time [s]; with sun_mode = solar it is added to
-     *             time_zero_utc_s (with sun_mode = two_stream the sun comes
-     *             from set_two_stream_sun()).
+     * the sun vector and irradiances for the reports (with two_stream the
+     * means over all the level's faces of the direct-normal and diffuse
+     * irradiance each takes, written to every row of the level).
+     * @param time   Simulation time [s]; with sun_mode = solar it is added to
+     *               time_zero_utc_s (with sun_mode = two_stream the sun comes
+     *               from set_two_stream_sun()).
+     * @param canopy With ``radiation = two_stream``, this step's two-stream view of
+     *               the level (see compute_longwave()), or an empty one before the
+     *               first sweep, when every face gets no shortwave.
      */
-    void compute_shortwave (amrex::Real time);
+    void compute_shortwave (amrex::Real time, const TwoStreamCanopyView& canopy = TwoStreamCanopyView{});
+
+    /**
+     * The interface of the level's vertical grid at the top of the tallest
+     * column of its ray cast (its own buildings and, on a refined level, those
+     * outside it), counted from the domain bottom; 0 without buildings. The
+     * two-stream canopy forcing holds the interfaces up to there, which the
+     * faces' heights never exceed (radiation = two_stream).
+     */
+    int canopy_top_interface () const {
+        return static_cast<int>(std::lround((m_col_top_max - m_z_ground) / m_dx[2]));
+    }
+
+    /**
+     * Stop unless the fields of ``canopy`` (this level's two-stream view) lie on
+     * the columns of ``cons``, with the same distribution: the two-stream kernels
+     * read the column of a face from the fabs with the local index of the face's
+     * own fab.
+     */
+    void check_canopy_layout (const amrex::MultiFab& cons, const TwoStreamCanopyView& canopy) const;
+
+    // The two-stream branches of compute_shortwave() (once the sun is placed) and
+    // compute_longwave(). Public only because a CUDA extended lambda cannot sit in
+    // a private member function; call the two functions above instead.
+    void compute_shortwave_two_stream (const TwoStreamCanopyView& canopy);
+    void compute_longwave_two_stream (const amrex::MultiFab& cons, const TwoStreamCanopyView& canopy);
 
     /**
      * Scatter one per-face array into a cell-centred field as the mean over

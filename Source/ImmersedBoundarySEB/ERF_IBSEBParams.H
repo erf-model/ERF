@@ -36,11 +36,17 @@ struct IBSEBParams
     // ---- Radiation provider ------------------------------------------------
     // Where the downwelling shortwave and longwave come from.
     // "prescribed" is built in: clear-sky formulas with a fixed or computed
-    // sun. "two_stream" is reserved for the column fluxes of the TwoStream
-    // radiation model (erf.radiation_model = TwoStream), not wired yet.
+    // sun. "two_stream": the column fluxes of the TwoStream radiation model
+    // (erf.radiation_model = TwoStream) of each face's own column at the face's
+    // height (ERF_TwoStreamCanopyForcing.H): the direct beam (as a direct-normal
+    // irradiance, the beam over the cosine of the zenith angle), the diffuse
+    // light from the sky and the light the ground reflects; and the longwave
+    // with lw_mode = two_stream, its default there. The sun's position still
+    // comes from sun_mode.
     std::string radiation     = "prescribed";
-    // "fixed": the sun stays at sun_zenith_deg / sun_azimuth_deg with the
-    // direct-normal and diffuse irradiances given below (analytic tests).
+    // "fixed": the sun stays at sun_zenith_deg / sun_azimuth_deg; with the
+    // prescribed provider, with the direct-normal and diffuse irradiances given
+    // below (analytic tests).
     // "solar": sun from the site and time; irradiances from the clear-sky
     // formulas.
     // "two_stream": the sun of the two-stream radiation (erf.radiation_model =
@@ -72,7 +78,12 @@ struct IBSEBParams
     int         view_n_el         = 8;
     // Downwelling longwave from the sky: "fixed" uses lw_down as given,
     // "gray" uses sky_emissivity x sigma x T_air^4 with the air temperature
-    // of the face's fluid cell.
+    // of the face's fluid cell; with both the ground term is
+    // emissivity_ground x sigma x T_ground^4. "two_stream" (radiation =
+    // two_stream only, and its default) takes the sky term from the column's
+    // longwave down at the face's height and the ground term from its
+    // longwave up at the ground (the ground's emission and its reflection of
+    // the sky).
     std::string lw_mode           = "gray";
     amrex::Real lw_down           = 300.0;  ///< fixed: sky longwave [W/m2]
     amrex::Real sky_emissivity    = 0.83;   ///< gray: effective clear-sky emissivity
@@ -211,8 +222,22 @@ struct IBSEBParams
         pp.query("ri_crit",             ri_crit);
         pp.query("obukhov_relax",       obukhov_relax);
         if (enable) {
-            if (radiation != "prescribed") {
-                amrex::Abort("erf.ibseb.radiation: only \"prescribed\" is available in this build");
+            if (radiation != "prescribed" && radiation != "two_stream") {
+                amrex::Abort("erf.ibseb.radiation must be \"prescribed\" or \"two_stream\"");
+            }
+            // The column's longwave goes with its shortwave unless the deck says otherwise.
+            if (radiation == "two_stream" && !pp.contains("lw_mode")) { lw_mode = "two_stream"; }
+            // The columns bring the irradiances and the ground's reflection; the
+            // clear-sky formulas and the uniform ground albedo are not used.
+            if (radiation == "two_stream") {
+                for (const char* k : {"sw_direct_normal", "sw_diffuse", "sw_transmission", "sw_diffuse_coeff",
+                                      "solar_constant", "albedo_ground"}) {
+                    if (pp.contains(k)) {
+                        amrex::Abort(std::string("erf.ibseb.") + k + " is not used with erf.ibseb.radiation = two_stream:"
+                                     " the faces take the two-stream columns' irradiances and the ground's reflection;"
+                                     " remove it");
+                    }
+                }
             }
             if (sun_mode != "fixed" && sun_mode != "solar" && sun_mode != "two_stream") {
                 amrex::Abort("erf.ibseb.sun_mode must be \"fixed\", \"solar\" or \"two_stream\"");
@@ -247,7 +272,21 @@ struct IBSEBParams
                 amrex::Abort("erf.ibseb emissivities must be in (0, 1]");
             }
             if (view_n_az < 1 || view_n_el < 1) { amrex::Abort("erf.ibseb.view_n_az and view_n_el must be >= 1"); }
-            if (lw_mode != "fixed" && lw_mode != "gray") { amrex::Abort("erf.ibseb.lw_mode must be \"fixed\" or \"gray\""); }
+            if (lw_mode != "fixed" && lw_mode != "gray" && lw_mode != "two_stream") {
+                amrex::Abort("erf.ibseb.lw_mode must be \"fixed\", \"gray\" or \"two_stream\"");
+            }
+            if (lw_mode == "two_stream" && radiation != "two_stream") {
+                amrex::Abort("erf.ibseb.lw_mode = two_stream needs erf.ibseb.radiation = two_stream");
+            }
+            if (lw_mode == "two_stream") {
+                for (const char* k : {"lw_down", "sky_emissivity", "T_ground", "emissivity_ground"}) {
+                    if (pp.contains(k)) {
+                        amrex::Abort(std::string("erf.ibseb.") + k + " is not used with erf.ibseb.lw_mode = two_stream:"
+                                     " the faces take the two-stream columns' longwave down and the ground's longwave up;"
+                                     " remove it");
+                    }
+                }
+            }
             if (lw_down < 0.0 || T_ground <= 0.0) { amrex::Abort("erf.ibseb.lw_down must be >= 0 and T_ground > 0"); }
             if (z0_wall <= 0.0 || z0h_wall <= 0.0) { amrex::Abort("erf.ibseb.z0_wall and z0h_wall must be positive [m]"); }
             if (k_therm <= 0.0 || rho_cp <= 0.0 || thickness <= 0.0) { amrex::Abort("erf.ibseb.k_therm, rho_cp and thickness must be positive"); }

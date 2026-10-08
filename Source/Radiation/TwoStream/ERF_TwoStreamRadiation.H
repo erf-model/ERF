@@ -14,6 +14,7 @@
 #include <ERF_RadStruct.H>
 #include <ERF_LandSurface.H>
 #include <ERF_RadiationDiagnostics.H>
+#include <ERF_TwoStreamCanopyForcing.H>
 
 /**
  * @brief The two-stream radiation model (erf.radiation_model = TwoStream).
@@ -35,6 +36,9 @@
  *    sweep's flux diagnostics and advances the SEB state by dt_step;
  *  - write_land_forcing(...) after a sweep, when a land-surface model integrates
  *    on the radiation this model computes (see supply_land_forcing);
+ *  - supply_canopy_forcing(...) once, when the building faces of the
+ *    immersed-boundary balance take their radiation from the sweep
+ *    (erf.ibseb.radiation = two_stream), and canopy_forcing(...) after each sweep;
  *  - write_checkpoint / read_checkpoint for the prognostic surface state.
  *
  * The heating-rate MultiFab itself stays in ERF, since RRTMGP writes the
@@ -239,6 +243,43 @@ public:
                              amrex::MultiFab* lw_flux_dn,
                              amrex::MultiFab* cos_zenith_angle) const;
 
+    /**
+     * @brief Have every later sweep on @p lev write what the building faces need
+     * besides the interface fluxes (erf.ibseb.radiation = two_stream;
+     * ERF_TwoStreamCanopyForcing.H): the direct beam on a horizontal surface at the
+     * interfaces 0 .. @p m_top of each column, counted from the surface, and the
+     * cosine of the zenith. Allocates one field on the level's horizontal grids given
+     * those interfaces in z and one 2D field. Call after define_level(); a later
+     * define_level() of the level (a regrid) drops the request.
+     *
+     * @param lev   level, which must have been defined; its sweep asserts that the
+     *              columns reach @p m_top
+     * @param m_top highest interface the faces read, the top of the tallest building,
+     *              in [0, number of cells in z]
+     */
+    void supply_canopy_forcing (int lev, int m_top);
+
+    /** @brief True when supply_canopy_forcing() was called for @p lev since its last define_level(). */
+    [[nodiscard]] bool supplies_canopy_forcing (int lev) const noexcept {
+        return lev >= 0 && lev < static_cast<int>(m_canopy.size()) && m_canopy[lev] != nullptr;
+    }
+
+    /**
+     * @brief The beam and the cosine of the zenith of @p lev as the sweep of step
+     * @p nstep wrote them (the view's fluxes are left for the caller, who owns
+     * rad_fluxes), or an empty view when the level does not supply them or has not
+     * swept at that step: the faces must not take a previous step's radiation, nor
+     * the zeros of a level whose radiation came from its parent.
+     */
+    [[nodiscard]] TwoStreamCanopyView canopy_forcing (int lev, int nstep) const noexcept {
+        TwoStreamCanopyView v;
+        if (supplies_canopy_forcing(lev) && m_canopy_step[lev] == nstep) {
+            v.beam = m_canopy[lev].get();
+            v.cos_zenith = m_canopy_cosz[lev].get();
+        }
+        return v;
+    }
+
     /** @brief Write the prognostic surface state of one level (SEB on). */
     void write_checkpoint (int lev, const std::string& checkpointname) const;
 
@@ -310,6 +351,14 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_sw_dn_sfc;   // downwelling shortwave at the surface [W/m^2]
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_lw_dn_sfc;   // downwelling longwave at the surface [W/m^2]
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_cos_zenith;  // cosine of the solar zenith angle, >= 0 [1]
+
+    // The canopy forcing of the building faces (see supply_canopy_forcing), its top
+    // interface counted from the surface, and the step of the sweep that last wrote it
+    // (-1 before any).
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_canopy;       // the beam, interfaces 0 .. m_top
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_canopy_cosz;  // cos z, floored at zero (2D)
+    amrex::Vector<int> m_canopy_m;
+    amrex::Vector<int> m_canopy_step;
 
     amrex::Vector<FluxDiag> m_flux_diag;
 };

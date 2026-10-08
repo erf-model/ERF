@@ -77,7 +77,10 @@ equation of time, hour angle, zenith and azimuth by the Spencer series, the
 direct beam by the Bird transmission :math:`S_0 E_0 \tau^{1/\cos z}` and the
 diffuse light as a fraction :math:`k_d` of what the beam lost on the way
 down. The sun vector points from a surface toward the sun, with the azimuth
-clockwise from north, so east is :math:`+x` and north :math:`+y`.
+clockwise from north, so east is :math:`+x` and north :math:`+y`. The
+``two_stream`` provider takes the irradiances from the columns of the
+two-stream radiation instead (`Radiation from the two-stream columns`_ below);
+the sun vector still comes from :cpp:`erf.ibseb.sun_mode`.
 
 On a face with outward normal :math:`\mathbf{n}` the direct beam is
 :math:`I_{dn}\, \max(0, \mathbf{n}\cdot\mathbf{s})` unless the face is in
@@ -94,10 +97,11 @@ replication is still proportional to the built area rather than to this
 rank's share of it, which is the limit to watch on a city-scale deck; the
 walk itself is already bounded, since a rising ray stops once it passes the
 tallest column and a descending one stops at the ground, so a ray reaches no
-further than the tallest building divided by the tangent of its elevation. The diffuse light on a face is the sky view fraction
+further than the tallest building divided by the tangent of its elevation. With the
+prescribed provider the diffuse light on a face is the sky view fraction
 times the horizontal diffuse plus the ground view fraction times the ground
 albedo times the total horizontal irradiance, with the fractions from the
-hemisphere sampling below. The absorbed shortwave is one minus the face
+hemisphere sampling below (the ``two_stream`` provider's terms are below). The absorbed shortwave is one minus the face
 albedo times the sum.
 
 View fractions and longwave
@@ -132,6 +136,8 @@ and the walls it sees exchange no net longwave. There are no face-to-face
 view factors and no radiosity; the fractions are stored so a radiosity pass
 can be added later without touching the balance. The net longwave,
 :math:`\varepsilon (LW_{in} - \sigma T_s^4)`, is positive into the face.
+With :cpp:`erf.ibseb.lw_mode = two_stream` the sky and ground terms come
+from the two-stream columns instead (`Radiation from the two-stream columns`_).
 
 ``Exec/CanonicalTests/SEB/Longwave`` checks the fractions of every
 face against an independent hemisphere sampling, their closure and the
@@ -437,17 +443,19 @@ where the columns follow it). With the two-stream shortwave off only a
 ``two_stream`` request is checked. RRTMGP places its sun by the same orbital
 formula and is not checked: the faces' ``solar`` sun sits as far off it.
 
-What ``two_stream`` shares is the sun's position and its top-of-atmosphere
-irradiance. The atmosphere the faces' beam crosses is still the prescribed
+What ``sun_mode = two_stream`` shares is the sun's position and its top-of-atmosphere
+irradiance. With the prescribed provider the atmosphere the faces' beam crosses is still the
 clear-sky one, :cpp:`erf.ibseb.sw_transmission` and
 :cpp:`erf.ibseb.sw_diffuse_coeff`, and the faces' ground longwave still uses
 :cpp:`erf.ibseb.T_ground`, not the two-stream ground balance. For the clear
 two-stream column (single-scattering albedo 0, no diffuse light) with total
 shortwave optical depth :math:`\tau`, :cpp:`erf.ibseb.sw_transmission =
 exp(-tau)` and :cpp:`erf.ibseb.sw_diffuse_coeff = 0` give the faces the
-column's own direct beam, as the canonical case below does. The two-stream
+column's own beam at the ground. The two-stream
 ground balance also covers the building footprints, and the two-stream
-columns pass through the buildings.
+columns pass through the buildings. The ``two_stream`` provider
+(`Radiation from the two-stream columns`_) takes the column's own beam, diffuse
+light and ground directly.
 
 Inputs that go by building, :cpp:`erf.ibseb.material_by_building`, follow
 level 0's numbering on every level: a refined level finds each of its
@@ -469,6 +477,104 @@ verdicts; ``IBSEB_RefinedLevelCutsBuilding``,
 ``IBSEB_TwoStreamSunSolarInputs`` and ``IBSEB_TwoStreamSunWithoutTwoStream`` check the
 start-up stops, and the unit tests ``IBSEBTwoStreamSun.*`` that the faces'
 two-stream zenith is the columns' at every hour.
+
+Radiation from the two-stream columns
+-------------------------------------
+
+With :cpp:`erf.ibseb.radiation = two_stream` (which needs
+:cpp:`erf.radiation_model = TwoStream` with its shortwave on) the faces take
+their radiation from the two-stream sweep of their own level, column by column,
+rather than from the clear-sky formulas. At start-up each level asks the
+two-stream model to write, at every sweep, a field over its columns (the canopy
+forcing, ``Source/Radiation/TwoStream/ERF_TwoStreamCanopyForcing.H``): at every
+interface from the ground up to the top of the tallest building of the level's
+ray cast (its own buildings and, on a refined level, those outside it), the
+direct beam on a horizontal surface :math:`F_{dir}`, the diffuse shortwave down
+(the total down less the direct beam) and the longwave down; at the ground, the
+shortwave and the longwave up; and the cosine of the zenith angle the sweep used.
+Everything is taken after the sweep's clear/cloudy blend. A face reads the column
+of its fluid cell at its own height, a roof at the interface it lies on and a wall
+at the mean of the two interfaces of its cell:
+
+.. math::
+
+   I_{dn} = F_{dir}(z_f) / \cos z, \qquad
+   SW_{dif} = f_{sky}\, F^{\downarrow}_{dif}(z_f) + f_{ground}\, F^{\uparrow}_{SW,g}, \qquad
+   LW_{in} = f_{sky}\, F^{\downarrow}_{LW}(z_f) + f_{ground}\, F^{\uparrow}_{LW,g}
+           + f_{bldg}\, \sigma T_s^4 ,
+
+with the direct beam on the face :math:`I_{dn} \max(0, \mathbf{n}\cdot\mathbf{s})`
+outside the shadow as before. The buildings are height maps, so no building
+stands above a face in its own column: the downwelling fluxes the column carries
+at the face's height are the light and the sky that reach it, whatever the
+column does below, where it passes through the buildings. The ground terms are
+the column's upwelling fluxes at the ground, so the ground's albedo, emissivity
+and temperature are the column's (the two-stream surface balance, a land model or
+:cpp:`erf.rad_t_sfc`), and the ground's reflection of the sky longwave is
+included. :cpp:`erf.ibseb.albedo_ground` is therefore not used with this
+provider, nor :cpp:`erf.ibseb.T_ground` and :cpp:`erf.ibseb.emissivity_ground`
+with :cpp:`erf.ibseb.lw_mode = two_stream`, the default under it, which takes
+the longwave from the columns and needs the two-stream longwave on; ``gray`` and
+``fixed`` remain available and use them. The sun's position still comes from
+:cpp:`erf.ibseb.sun_mode` (``two_stream`` with the calendar sun, ``fixed`` at
+:cpp:`erf.fixed_solar_zenith_angle`, as above), and the faces check, column by
+column, that their cosine of the zenith is the sweep's to 1e-4 (1e-3 in single
+precision). The report's direct-normal and diffuse irradiance are the means over
+all of the level's faces of what each takes, written to every row of the level.
+
+What the faces receive is the two-stream model's column, with its limits: it has
+no longwave coming in at the top of the domain, and with the default per-layer
+optical depths (:cpp:`erf.radiation.tau_per_layer`,
+:cpp:`erf.radiation.tau_lw_per_layer`) the attenuation above a face depends on
+the number of layers above it, so on the domain's depth and, on a level refined
+in z, on the refinement (the columns' own heating rates share that). The
+mass-based optics (:cpp:`erf.radiation.tau_model = mass`,
+:cpp:`erf.radiation.lw_mass_absorption_enable`) do not; ERF warns at start-up
+when the provider runs on the per-layer ones.
+
+The faces must see the sweep of the same step. With this provider the balance
+runs in :cpp:`ERF::Advance` after the radiation rather than at the start of the
+step, on the state at the start of the step that the sweep sees: after any
+direct inflow perturbation, and with the ground surface layer's Obukhov length
+and boundary-layer height of this step's update rather than the previous step's,
+which the prescribed provider's call at the start of the step reads. So with
+:cpp:`erf.ibseb.stability_correction` or :cpp:`erf.ibseb.convective_velocity`
+on, or an inflow perturbation, the two providers differ in more than the
+radiation, even under the same sky. The canopy
+forcing carries the step of the sweep that wrote it, and a level asking for a
+step that did not sweep stops. So every level must sweep its own columns: ERF
+stops at start-up when a refined level does not span the domain in z (its
+radiation is interpolated from the level below). The initial report, before the
+first sweep, carries no shortwave on the faces (nor longwave with ``lw_mode =
+two_stream``); on a restart it is printed but neither appended to the report
+file nor dumped, since the run before reported that step with its radiation.
+The plotfile written at the start of a run, or of a restart, shows no radiation
+on the faces for the same reason (a restart says so).
+
+The sweep keeps two fields for the faces besides the interface fluxes ERF
+already holds: the beam at the interfaces up to the top of the tallest building,
+over every column of the level, and the cosine of the zenith. The diffuse light,
+the longwave and the ground's fluxes are read from the interface fluxes.
+
+The two-stream ground balance still covers the building footprints, and the
+ground's upwelling fluxes beside a building are those of open ground.
+
+``Tests/test_files/IBSEB_TwoStreamProvider`` (CTest ``IBSEB_TwoStreamProvider``)
+runs the cube of ``IBSEB_Cube`` on the two-stream columns under a transparent
+sky and checks every face's shortwave and longwave against the prescribed
+provider set to the same sky (direct-normal irradiance :math:`S_0`, no diffuse
+light, no sky longwave, the column's ground), at two steps and across a restart;
+under an absorbing sky, the beam on every sunlit face against
+:math:`\exp(-\tau (n_z - m)/\cos z)` at its own sample :math:`m` and the
+ground's reflection against :math:`\exp(-\tau n_z/\cos z)`, on one level and
+on both levels of ``IBSEB_RefinedLevels``; and at night, with a tower beside the
+cube, no shortwave and less sky longwave on the higher roof, with the
+floating-point traps on. ``IBSEB_TwoStreamProviderWithoutTwoStream``,
+``IBSEB_TwoStreamProviderShortwaveOff``, ``IBSEB_TwoStreamProviderLongwaveOff``,
+``IBSEB_TwoStreamProviderLwMode``, ``IBSEB_TwoStreamProviderPrescribedInputs``,
+``IBSEB_TwoStreamProviderLwInputs`` and ``IBSEB_TwoStreamProviderShallowLevel``
+check the start-up stops, and the unit tests ``TwoStreamCanopyForcing.*`` the
+field the sweep writes and the faces' sample rule.
 
 Canonical case: a building set
 ------------------------------
