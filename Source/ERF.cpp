@@ -985,7 +985,8 @@ ERF::InitData_post ()
                  (solverChoice.vert_implicit_fac[lev][1] > 0) ||
                  (solverChoice.vert_implicit_fac[lev][2] > 0) )
             {
-                Warning("Doing implicit solve for u, v, and w with terrain at level " << lev << " -- this has not been tested");
+                Warning("Doing implicit solve for u, v, and w with terrain at level " + std::to_string(lev) +
+                        " -- this has not been tested");
             }
         }
     }

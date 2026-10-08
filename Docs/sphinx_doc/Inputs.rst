@@ -973,12 +973,24 @@ Notes
      the start of every coarse step, the largest explicit eddy-diffusion rate over the cells, from
      the eddy diffusivities of the previous step.  Those are zero before the first step and on
      the first step after a restart (they are not checkpointed); molecular diffusion is not
-     included.  For momentum the rate is
-     :math:`[\mu_h \max(2a+b, a+2b) + 2 \max(\mu_h,\mu_v) h^2/\Delta z^2 + \max(e_{uv}, 2 e_w) \mu_v/\Delta z^2]/\rho`
-     and for theta, turbulent kinetic energy, moisture and the advected scalar (where carried)
+     included.  For momentum the rate is the largest of the u, v and w rows,
+     :math:`\mu_h (2a+b) + e_{uv}\mu_v/\Delta z^2`, :math:`\mu_h (a+2b) + e_{uv}\mu_v/\Delta z^2`
+     and :math:`\mu_v (a+b) + 2 e_w \mu_v/\Delta z^2` (the horizontal diffusion of w uses
+     :math:`\mu_v`: :math:`\tau_{31}` and :math:`\tau_{32}` carry the same edge-averaged
+     :math:`\mu_v` as :math:`\tau_{13}` and :math:`\tau_{23}`); where the implicit solve removes
+     the vertical term (:math:`e = 0`) the explicit u-w and v-w cross derivatives are counted
+     instead, :math:`\mu_v\sqrt{a c}` and :math:`\mu_v\sqrt{b c}` with :math:`c = 1/\Delta z^2`;
+     plus
+     :math:`2 \max(\mu_h,\mu_v) h^2/\Delta z^2`, all divided by :math:`\rho`; for theta,
+     turbulent kinetic energy, moisture and the advected scalar (where carried) it is
      :math:`[K_h (a+b) + K_h h^2/\Delta z^2 + e K_v/\Delta z^2]/\rho`, with
      :math:`a = (m_x/\Delta x)^2`, :math:`b = (m_y/\Delta y)^2`, :math:`h` the physical terrain
-     slope of the cell (zero without terrain) and :math:`\Delta z` the cell thickness.  The
+     slope of the cell (zero without terrain) and :math:`\Delta z` the cell thickness.  Each
+     diffusivity is the largest over the cell and its 26 neighbours, and :math:`\rho` the smallest,
+     whatever face or edge averages the stencils use.  With the coefficients frozen this is a
+     Gershgorin bound on the Cartesian part of the scalar operator; for momentum it is a bound
+     for uniform coefficients when :math:`\mu_h = \mu_v` and an estimate otherwise (the operator
+     is then not symmetric), and the terrain cross terms make both estimates.  The
      terrain-metric term :math:`K h^2 \partial^2/\partial z^2` is not in the implicit solve.  For
      momentum it is an upper bound: the projected terrain stresses carry :math:`\mu_v` today
      (see ERF issue #4214) and would carry :math:`\mu_h` once that is changed.
@@ -1003,8 +1015,9 @@ Notes
      instead (which the limit bounded only if the run that wrote it used the limit).  The
      limit changes the answer; the check alone does not.  With
      **erf.diffusive_dt_check** = true and **erf.v** >= 2 the Fourier number of every step is
-     printed.  The estimate is conservative and can flag runs that stay stable, so a warning
-     is a prompt to look, not a prediction of failure; it does not account for the
+     printed.  The check is a safeguard rather than a stability guarantee: it is conservative
+     and can flag runs that stay stable, so a warning is a prompt to look, not a prediction of
+     failure, and it does not account for the
      anti-diffusion of the terrain stress reported in ERF issue #4214 (where
      :math:`K_h h^2 > 2 K_v` on steep slopes).  Cells
      inside immersed-forcing solids count like fluid cells, and the cut-cell stiffening of EB
@@ -2136,8 +2149,8 @@ The scalar diffusivities are formed from the limited :math:`K_h` (:math:`K_\thet
 recomputes ``xkhh``.  ERF's :math:`|D_h|` has the same definition as WRF's ``sqrt(def2)``.  ERF differs
 from WRF in these details:
 
-- the vertical viscosity :math:`K_v` (from the PBL scheme, or :math:`C_s^2 \Delta z^2 |D_h|` without one)
-  is not limited.  WRF sets ``xkmv = xkmh`` after limiting and uses it for the horizontal diffusion of
+- the vertical viscosity :math:`K_v` (from the PBL scheme, or without one :math:`C_s^2 \Delta z^2 |D_h|`
+  times the Richardson-number factor) is not limited.  WRF sets ``xkmv = xkmh`` after limiting and uses it for the horizontal diffusion of
   w; ERF has no such coefficient (its terrain stresses on w and the projected stresses use
   :math:`K_v`, see #4214), so on steep slopes the momentum diffusion keeps its :math:`K_v` part;
 - on a terrain-fitted mesh ERF's strain carries the one-cell offset in the
@@ -2153,6 +2166,16 @@ from WRF in these details:
   outermost columns; ERF limits every cell;
 - WRF uses :math:`K_h/Pr` for every scalar; ERF forms the moisture and advected-scalar
   diffusivities with ``erf.Sc_t`` (default 1) instead, as it always has.
+
+The limiter reduces :math:`K_h h^2/K_v`, the quantity that decides whether the terrain stress of
+issue #4214 dissipates, by :math:`\alpha^2` or :math:`\alpha`, but it does not make that operator
+dissipative in general.  In the :math:`\alpha^2` branch the limited :math:`K_h h^2` is about
+:math:`C_s^2 \Delta z^2 |D_h|`.  Without a PBL scheme and without the Richardson-number correction
+that is :math:`K_v`, below the threshold :math:`2 K_v`; but ``erf.use_Ri_correction`` (on by default)
+multiplies :math:`K_v` by a stability factor at most 1, so in stable layers, with a PBL scheme (whose
+:math:`K_v` can be much smaller) or in the :math:`\alpha` branch, :math:`K_h h^2` can still exceed
+:math:`2 K_v`.
+The fix of #4214 itself is a separate change.
 
 Both limits change the physics: they reduce the horizontal mixing on slopes (by :math:`\alpha^2`, up to
 two orders of magnitude on a 3 km grid with 50 m cells over steep terrain) and wherever the cap binds.

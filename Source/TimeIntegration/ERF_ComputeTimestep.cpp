@@ -133,8 +133,9 @@ ERF::ComputeDt (int step, double cur_time_d)
 
 /**
  * Largest explicit eddy-diffusion rates on a level, for the diffusive time-step check: the
- * maximum over valid cells of MomentumDiffusiveRate and ScalarDiffusiveRate
- * (ERF_TerrainDiffusionLimits.H), built from the eddy diffusivities of the last step (zero
+ * maximum over valid cells of CellDiffusiveRates (ERF_TerrainDiffusionLimits.H), which takes
+ * the largest diffusivities and the smallest density over each cell's 3x3x3 neighbourhood,
+ * built from the eddy diffusivities of the last step (zero
  * before the first step and on the first step after a restart, since they are not
  * checkpointed; a regrid happens before the advance that recomputes them).  Molecular
  * diffusion is not included.
@@ -182,12 +183,17 @@ ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
     const bool only_qv = (mi.qc < 0 && mi.qi < 0 && mi.qr < 0 && mi.qs < 0 && mi.qg < 0);
     const Real e_q  = only_qv ? ExplicitVerticalFraction(stage_frac, fac, solverChoice.implicit_moisture_diffusion)
                               : one;
-    const bool has_q      = (solverChoice.moisture_type != MoistureType::None);
-    const bool has_ke     = solverChoice.turbChoice[lev].use_tke;
-    const bool has_scalar = solverChoice.transport_scalar;
+    DiffusiveRateSettings set;
+    set.variable_dz = variable_dz;
+    set.has_q       = (solverChoice.moisture_type != MoistureType::None);
+    set.has_ke      = solverChoice.turbChoice[lev].use_tke;
+    set.has_scalar  = solverChoice.transport_scalar;
+    set.e_uv = e_uv; set.e_w = e_w; set.e_th = e_th; set.e_q = e_q; set.e_ke = e_ke;
 
     const MultiFab& K = *eddyDiffs_lev[lev];
     const MultiFab& S = vars_new[lev][Vars::cons];
+    // CellDiffusiveRates reads the 3x3x3 neighbourhood of each valid cell
+    AMREX_ALWAYS_ASSERT(K.nGrowVect().min() >= 1 && S.nGrowVect().min() >= 1);
 
     ReduceOps<ReduceOpMax, ReduceOpMax> reduce_op;
     ReduceData<Real, Real> reduce_data(reduce_op);
@@ -204,43 +210,9 @@ ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
 
         reduce_op.eval(bx, reduce_data, [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
         {
-            const Real ax = mf_mx(i,j,0) * dxinv[0];
-            const Real ay = mf_my(i,j,0) * dxinv[1];
-            Real dzinv = dxinv[2];
-            Real h2    = zero;
-            if (variable_dz) {
-                const TerrainCellDrops d = ComputeTerrainCellDrops(i,j,k,z_nd);
-                dzinv = one / d.dz;
-                const Real hx = ax * d.dx_drop;
-                const Real hy = ay * d.dy_drop;
-                h2 = hx*hx + hy*hy;
-            }
-            // Covered or empty cells (rho <= 0) contribute nothing; the divisor stays finite.
-            const Real rho  = s_arr(i,j,k,Rho_comp);
-            const Real keep = (rho > zero) ? one : zero;
-            const Real rdiv = (rho > zero) ? rho : one;
-            const Real a2 = ax*ax;
-            const Real b2 = ay*ay;
-            const Real dzinv2 = dzinv*dzinv;
-            const Real rm = MomentumDiffusiveRate(rdiv, k_arr(i,j,k,EddyDiff::Mom_h),
-                                                  k_arr(i,j,k,EddyDiff::Mom_v),
-                                                  a2, b2, h2, dzinv2, e_uv, e_w);
-            // Scalars: theta, and moisture and TKE where they are carried
-            Real rs = ScalarDiffusiveRate(rdiv, k_arr(i,j,k,EddyDiff::Theta_h),
-                                          k_arr(i,j,k,EddyDiff::Theta_v), a2, b2, h2, dzinv2, e_th);
-            if (has_q) {
-                rs = amrex::max(rs, ScalarDiffusiveRate(rdiv, k_arr(i,j,k,EddyDiff::Q_h),
-                                                        k_arr(i,j,k,EddyDiff::Q_v), a2, b2, h2, dzinv2, e_q));
-            }
-            if (has_ke) {
-                rs = amrex::max(rs, ScalarDiffusiveRate(rdiv, k_arr(i,j,k,EddyDiff::KE_h),
-                                                        k_arr(i,j,k,EddyDiff::KE_v), a2, b2, h2, dzinv2, e_ke));
-            }
-            if (has_scalar) {
-                rs = amrex::max(rs, ScalarDiffusiveRate(rdiv, k_arr(i,j,k,EddyDiff::Scalar_h),
-                                                        k_arr(i,j,k,EddyDiff::Scalar_v), a2, b2, h2, dzinv2, one));
-            }
-            return {keep * rm, keep * rs};
+            Real rm = zero, rs = zero;
+            CellDiffusiveRates(i, j, k, s_arr, k_arr, z_nd, mf_mx(i,j,0), mf_my(i,j,0), dxinv, set, rm, rs);
+            return {rm, rs};
         });
     }
 

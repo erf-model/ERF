@@ -7,10 +7,12 @@
 #include <AMReX_Extension.H>
 #include <AMReX_GpuQualifiers.H>
 #include <AMReX_Algorithm.H>
+#include <AMReX_Array.H>
 #include <AMReX_Math.H>
 #include <AMReX_REAL.H>
 
 #include "ERF_NumericalConstants.H"
+#include "ERF_IndexDefines.H"
 
 #include <cmath>
 
@@ -125,14 +127,22 @@ Smag2DLimitedViscosity (amrex::Real nu, amrex::Real strain, amrex::Real DeltaH,
  * dt * rate <= Fourier limit (1/2 for forward Euler in 3-D; the three-stage
  * Runge-Kutta scheme's real-axis bound is about 2.5 / 4 = 0.63).
  *
- * Momentum: mu_h * max(2 a + b, a + 2 b) for the horizontal stresses
- * (tau11 = 2 mu S11), 2 mu_p h^2 / dz^2 for the terrain-metric part, and
- * max(e_uv, 2 e_w) mu_v / dz^2 for the vertical part (tau33 = 2 mu S33).  The
- * metric term is an upper bound: the projected stresses of the terrain stress
- * (ComputeStressVarVisc_T) carry mu_v today (ERF issue #4214) and would carry
- * mu_h once that is changed, hence mu_p = max(mu_h, mu_v); with mu_v there, the
- * K_h part of that coupling enters only through the mixed xi-zeta terms, so
- * the bound can overstate that coupling by about alpha / 2 on steep slopes.
+ * Momentum: the largest of the three component rows,
+ *   u: mu_h (2 a + b) + e_uv mu_v / dz^2 + (1 - e_uv) mu_v sqrt(a c)
+ *   v: mu_h (a + 2 b) + e_uv mu_v / dz^2 + (1 - e_uv) mu_v sqrt(b c)
+ *   w: mu_v (a + b)   + 2 e_w mu_v / dz^2 + (1 - e_w) mu_v (sqrt(a c) + sqrt(b c)),
+ * with c = 1/dz^2, plus 2 mu_p h^2 / dz^2 for the terrain-metric part.  The horizontal
+ * diffusion of w uses mu_v: tau31 and tau32 carry the same edge-averaged mu_v as tau13 and
+ * tau23.  The sqrt terms are the u-w and v-w cross derivatives (dw/dx in tau13, du/dz in
+ * tau31, ...), which stay explicit when the implicit solve takes the second vertical
+ * derivative; they are counted when that solve removes the vertical term, whose size covers
+ * them otherwise when dz <= dx/m, and at any aspect ratio when mu_h = mu_v.  (The expansion
+ * rate in tau11 also couples u to dw/dz, with mu_h; that is covered by "an estimate when
+ * mu_h != mu_v" below.)  The metric term is an upper bound: the
+ * projected stresses of the terrain stress (ComputeStressVarVisc_T) carry mu_v today (ERF
+ * issue #4214) and would carry mu_h once that is changed, hence mu_p = max(mu_h, mu_v);
+ * with mu_v there, the K_h part of that coupling enters only through the mixed xi-zeta
+ * terms, so the bound can overstate that coupling by about alpha / 2 on steep slopes.
  *
  * Scalar: K_h (a + b) + K_h h^2 / dz^2 + e K_v / dz^2; the K_h h^2 part
  * (TerrainDiffusionGz) is explicit.
@@ -142,6 +152,9 @@ Smag2DLimitedViscosity (amrex::Real nu, amrex::Real strain, amrex::Real DeltaH,
  * terrain pass h2 = 0.  e is the explicit fraction of the vertical diffusion
  * (ExplicitVerticalFraction): 0 when the implicit solve makes it A-stable,
  * 1 otherwise.  All diffusivities are dynamic (rho * nu); rates are in 1/s.
+ * The caller passes the largest diffusivities and the smallest density around the
+ * cell (NeighbourhoodMax, NeighbourhoodMinPositive), which bounds the row whatever
+ * face or edge averaging the operator uses.
  */
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
@@ -150,10 +163,60 @@ MomentumDiffusiveRate (amrex::Real rho, amrex::Real mu_h, amrex::Real mu_v,
                        amrex::Real a, amrex::Real b, amrex::Real h2, amrex::Real dzinv2,
                        amrex::Real e_uv, amrex::Real e_w) noexcept
 {
-    const amrex::Real horiz = (a > b) ? (two*a + b) : (a + two*b);
-    const amrex::Real mu_p  = (mu_h > mu_v) ? mu_h : mu_v;
-    const amrex::Real vert  = (e_uv > two*e_w) ? e_uv : two*e_w;
-    return ( mu_h * horiz + two * mu_p * h2 * dzinv2 + vert * mu_v * dzinv2 ) / rho;
+    const amrex::Real xa   = std::sqrt(a * dzinv2);
+    const amrex::Real xb   = std::sqrt(b * dzinv2);
+    const amrex::Real r_u  = mu_h * (two*a + b) + e_uv * mu_v * dzinv2 + (one - e_uv) * mu_v * xa;
+    const amrex::Real r_v  = mu_h * (a + two*b) + e_uv * mu_v * dzinv2 + (one - e_uv) * mu_v * xb;
+    const amrex::Real r_w  = mu_v * (a + b)     + two * e_w * mu_v * dzinv2 + (one - e_w) * mu_v * (xa + xb);
+    const amrex::Real r_uv = (r_u > r_v) ? r_u : r_v;
+    const amrex::Real row  = (r_uv > r_w) ? r_uv : r_w;
+    const amrex::Real mu_p = (mu_h > mu_v) ? mu_h : mu_v;
+    return ( row + two * mu_p * h2 * dzinv2 ) / rho;
+}
+
+/**
+ * Largest value of component n over cell (i,j,k) and its 26 neighbours.  The diffusion
+ * operators average the cell diffusivities to faces and edges, so a row of the operator
+ * never carries more than this.  With NeighbourhoodMinPositive for the density and the
+ * coefficients frozen, the scalar rate is a Gershgorin bound on the Cartesian part of the
+ * operator; for momentum it is a bound for uniform coefficients when mu_h = mu_v (tight on
+ * cubic cells) and an estimate otherwise, since the operator is then not symmetric.
+ * Needs one ghost cell.
+ */
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+NeighbourhoodMax (int i, int j, int k, int n, const amrex::Array4<const amrex::Real>& a) noexcept
+{
+    amrex::Real m = a(i,j,k,n);
+    for (int kk = -1; kk <= 1; ++kk) {
+    for (int jj = -1; jj <= 1; ++jj) {
+    for (int ii = -1; ii <= 1; ++ii) {
+        const amrex::Real v = a(i+ii,j+jj,k+kk,n);
+        m = (v > m) ? v : m;
+    }}}
+    return m;
+}
+
+/**
+ * Smallest positive value of component n over cell (i,j,k) and its 26 neighbours; ghost
+ * cells that hold no density (<= 0) are skipped.  Returns `fallback` if none is positive.
+ */
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+NeighbourhoodMinPositive (int i, int j, int k, int n, const amrex::Array4<const amrex::Real>& a,
+                          amrex::Real fallback) noexcept
+{
+    amrex::Real m = fallback;
+    bool found = false;
+    for (int kk = -1; kk <= 1; ++kk) {
+    for (int jj = -1; jj <= 1; ++jj) {
+    for (int ii = -1; ii <= 1; ++ii) {
+        const amrex::Real v = a(i+ii,j+jj,k+kk,n);
+        if (v > zero && (!found || v < m)) { m = v; found = true; }
+    }}}
+    return m;
 }
 
 /** Scalar counterpart of MomentumDiffusiveRate (see there). */
@@ -167,6 +230,81 @@ ScalarDiffusiveRate (amrex::Real rho, amrex::Real K_h, amrex::Real K_v,
     return ( K_h * (a + b) + K_h * h2 * dzinv2 + e_vert * K_v * dzinv2 ) / rho;
 }
 
+/** Which components carry diffusion, and their explicit vertical fractions, for CellDiffusiveRates. */
+struct DiffusiveRateSettings
+{
+    bool variable_dz = false;  // terrain-fitted or stretched mesh: dz and slope from z_nd
+    bool has_q       = false;  // moisture carried
+    bool has_ke      = false;  // turbulent kinetic energy carried
+    bool has_scalar  = false;  // advected scalar carried
+    amrex::Real e_uv = one, e_w = one, e_th = one, e_q = one, e_ke = one;
+};
+
+/**
+ * Explicit eddy-diffusion rates of cell (i,j,k), momentum and scalars (1/s), as the
+ * diffusive time-step check reduces them: MomentumDiffusiveRate and ScalarDiffusiveRate with
+ * the largest diffusivities and the smallest positive density over the cell and its 26
+ * neighbours.  Both are zero in a cell without density (covered).
+ *
+ * @param[in]  s_arr  conserved state (Rho_comp), one ghost cell
+ * @param[in]  k_arr  eddy diffusivities (EddyDiff components), one ghost cell
+ * @param[in]  z_nd   nodal heights (read only when set.variable_dz)
+ * @param[in]  mf_mx, mf_my map factors of the cell
+ * @param[in]  dxinv  inverse cell sizes
+ */
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+void
+CellDiffusiveRates (int i, int j, int k,
+                    const amrex::Array4<const amrex::Real>& s_arr,
+                    const amrex::Array4<const amrex::Real>& k_arr,
+                    const amrex::Array4<const amrex::Real>& z_nd,
+                    amrex::Real mf_mx, amrex::Real mf_my,
+                    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxinv,
+                    const DiffusiveRateSettings& set,
+                    amrex::Real& rate_mom, amrex::Real& rate_scal) noexcept
+{
+    const amrex::Real ax = mf_mx * dxinv[0];
+    const amrex::Real ay = mf_my * dxinv[1];
+    amrex::Real dzinv = dxinv[2];
+    amrex::Real h2    = zero;
+    if (set.variable_dz) {
+        const TerrainCellDrops d = ComputeTerrainCellDrops(i,j,k,z_nd);
+        dzinv = one / d.dz;
+        const amrex::Real hx = ax * d.dx_drop;
+        const amrex::Real hy = ay * d.dy_drop;
+        h2 = hx*hx + hy*hy;
+    }
+    const amrex::Real rho = s_arr(i,j,k,Rho_comp);
+    if (!(rho > zero)) { rate_mom = zero; rate_scal = zero; return; }
+    const amrex::Real rdiv   = NeighbourhoodMinPositive(i,j,k,Rho_comp,s_arr,rho);
+    const amrex::Real a2     = ax*ax;
+    const amrex::Real b2     = ay*ay;
+    const amrex::Real dzinv2 = dzinv*dzinv;
+    rate_mom = MomentumDiffusiveRate(rdiv, NeighbourhoodMax(i,j,k,EddyDiff::Mom_h,k_arr),
+                                     NeighbourhoodMax(i,j,k,EddyDiff::Mom_v,k_arr),
+                                     a2, b2, h2, dzinv2, set.e_uv, set.e_w);
+    amrex::Real rs = ScalarDiffusiveRate(rdiv, NeighbourhoodMax(i,j,k,EddyDiff::Theta_h,k_arr),
+                                         NeighbourhoodMax(i,j,k,EddyDiff::Theta_v,k_arr),
+                                         a2, b2, h2, dzinv2, set.e_th);
+    if (set.has_q) {
+        rs = amrex::max(rs, ScalarDiffusiveRate(rdiv, NeighbourhoodMax(i,j,k,EddyDiff::Q_h,k_arr),
+                                                NeighbourhoodMax(i,j,k,EddyDiff::Q_v,k_arr),
+                                                a2, b2, h2, dzinv2, set.e_q));
+    }
+    if (set.has_ke) {
+        rs = amrex::max(rs, ScalarDiffusiveRate(rdiv, NeighbourhoodMax(i,j,k,EddyDiff::KE_h,k_arr),
+                                                NeighbourhoodMax(i,j,k,EddyDiff::KE_v,k_arr),
+                                                a2, b2, h2, dzinv2, set.e_ke));
+    }
+    if (set.has_scalar) {
+        rs = amrex::max(rs, ScalarDiffusiveRate(rdiv, NeighbourhoodMax(i,j,k,EddyDiff::Scalar_h,k_arr),
+                                                NeighbourhoodMax(i,j,k,EddyDiff::Scalar_v,k_arr),
+                                                a2, b2, h2, dzinv2, one));
+    }
+    rate_scal = rs;
+}
+
 /**
  * Explicit fraction of the vertical diffusion for the diffusive time-step check: 0 if the
  * partly implicit Runge-Kutta scheme is A-stable for the vertical diffusion, 1 otherwise.
@@ -175,7 +313,7 @@ ScalarDiffusiveRate (amrex::Real rho, amrex::Real K_h, amrex::Real K_v,
  * the previous stage's state and its implicit part f_k on its own, so for dS/dt = lambda S,
  * z = lambda dt,  S_k = (1 + (1 - f_k) c_k z S_{k-1}) / (1 - f_k c_k z),  S_0 = 1, and the
  * amplification factor is the last S_k.  The vertical diffusion is treated as implicit
- * (e = 0) when |S_k| <= 1 at every stage for z in [-1e8, -1e-4]: each stage's state feeds
+ * (e = 0) when |S_k| <= 1 at every stage for z in [-1e12, -1e-6]: each stage's state feeds
  * the next stage's explicit terms, so an intermediate stage that amplifies a mode is not
  * acceptable even if the last one damps it.  With ERF's three-stage scheme (c = 1/3, 1/2, 1)
  * the default erf.vert_implicit_fac = 1 1 0 gives G = (1 + z/2) / (1 - z/2) (Crank-Nicolson)
@@ -192,8 +330,10 @@ ExplicitVerticalFraction (const V& stage_frac, const V& fac, bool implicit)
 {
     const int nstages = static_cast<int>(stage_frac.size());
     if (!implicit || static_cast<int>(fac.size()) < nstages) { return one; }
-    for (int n = 0; n <= 120; ++n) {
-        const double z = -std::pow(10.0, -4.0 + 0.1*n);
+    // Sampled at 20 points per decade over z in [-1e12, -1e-6]: S_k is a rational function
+    // of low degree in z, so in practice this finds every stage's extremum on the negative axis.
+    for (int n = 0; n <= 360; ++n) {
+        const double z = -std::pow(10.0, -6.0 + 0.05*n);
         double S = 1.0;
         for (int k = 0; k < nstages; ++k) {
             const double f = amrex::min(amrex::max(static_cast<double>(fac[k]), 0.0), 1.0);
