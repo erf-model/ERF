@@ -894,6 +894,10 @@ the averaged form does not see a :math:`2\Delta z` wave, so there the explicit p
 compact term with the opposite sign, cancelled within the stage by the implicit solve. The option
 therefore needs the implicit solve in every Runge-Kutta stage (``erf.vert_implicit_fac`` positive in
 all three); in a stage without it the whole averaged metric term is explicit.
+The WRF-based alternative, ``erf.smag2d_slope_limiter`` (:ref:`inputs-smag2d-wrf-limits`),
+reduces :math:`K_h` on slopes instead of solving the term implicitly. With the option on, the
+diffusive time-step check (``erf.diffusive_dt_check``) counts the :math:`K_h` metric term with the
+explicit fraction of the vertical diffusion.
 
 Energy Conservation- Subgrid heat flux
 --------------------------------------

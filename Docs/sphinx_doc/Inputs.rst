@@ -1024,9 +1024,14 @@ Notes
      about 4/3 larger, so there the rate can be low by that factor); for momentum it is a bound
      for uniform coefficients when :math:`\mu_h = \mu_v` and an estimate otherwise (the operator
      is then not symmetric), and the terrain cross terms make both estimates.  The
-     terrain-metric term :math:`K h^2 \partial^2/\partial z^2` is not in the implicit solve.  For
-     momentum it is an upper bound: the projected terrain stresses carry :math:`\mu_v` today
-     (see ERF issue #4214) and would carry :math:`\mu_h` once that is changed.
+     terrain-metric term :math:`K h^2 \partial^2/\partial z^2` is explicit unless
+     **erf.implicit_terrain_metric** = true.  For momentum it is an upper bound: the projected
+     horizontal stresses of u and v carry :math:`\mu_h` and those of w :math:`\mu_v` (see
+     :ref:`terrain-momentum-stresses`).  With **erf.implicit_terrain_metric** = true the compact
+     form of the :math:`K_h` part is in the implicit solve for u, v, theta, turbulent kinetic
+     energy and the first moisture variable, so for those components it counts with their
+     :math:`e` (below), as the vertical term does; the difference between the averaged and the
+     compact forms stays explicit and is not counted, so the rate is then an estimate.
      :math:`e` is 0 when the implicit vertical solve is shown to keep every stage of that
      component's vertical diffusion bounded (no stage amplifies a mode), and 1 otherwise.
      This is decided analytically: with the three-stage scheme (stages from the old state with
@@ -1053,9 +1058,7 @@ Notes
      **erf.diffusive_dt_check** = true and **erf.v** >= 2 the Fourier number of every step is
      printed.  The check is a safeguard rather than a stability guarantee: it is conservative
      and can flag runs that stay stable, so a warning is a prompt to look, not a prediction of
-     failure, and it does not account for the
-     anti-diffusion of the terrain stress reported in ERF issue #4214 (where, for
-     :math:`K_h \gg K_v`, :math:`K_h h^2 > 2 K_v (1 + 2h^2)` on steep slopes).  Cells
+     failure.  Cells
      inside immersed-forcing solids count like fluid cells, and the cut-cell stiffening of EB
      is not included.
 
@@ -2173,10 +2176,12 @@ With ``erf.les_type = Smagorinsky2D`` the horizontal eddy viscosity is
 :math:`K_h = C_s^2 \Delta_h^2 |D_h|`, with :math:`\Delta_h = \sqrt{\Delta x \Delta y}/m` and the
 horizontal deformation :math:`|D_h| = \sqrt{(u_x - v_y)^2 + (u_y + v_x)^2}`.  On a terrain-fitted mesh
 the horizontal stresses along the coordinate surfaces carry a metric term of size
-:math:`K_h h^2 \partial^2/\partial z^2`, where :math:`h` is the coordinate slope.  It is explicit,
-and where the terrain drops by several cell thicknesses across one cell it is much stiffer than the
-horizontal diffusion itself.  Two opt-in limits taken from WRF's ``smag2d_km``
-(``dyn_em/module_diffusion_em.F``, ``km_opt = 4``) bound it:
+:math:`K_h h^2 \partial^2/\partial z^2`, where :math:`h` is the coordinate slope.  It is explicit
+(unless ``erf.implicit_terrain_metric`` = true, which solves its compact form implicitly while
+keeping :math:`K_h`; see :ref:`terrain-momentum-stresses`), and where the terrain drops by several
+cell thicknesses across one cell it is much stiffer than the horizontal diffusion itself.  Two
+opt-in limits taken from WRF's ``smag2d_km`` (``dyn_em/module_diffusion_em.F``, ``km_opt = 4``)
+bound it instead:
 
 - ``erf.smag2d_kh_cap`` = :math:`c` caps :math:`K_h \le c \Delta_h` (WRF uses :math:`c` = 10 m/s,
   always on there);
@@ -2200,11 +2205,9 @@ from WRF in these details:
 
 - the vertical viscosity :math:`K_v` (from the PBL scheme, or without one :math:`C_s^2 \Delta z^2 |D_h|`
   times the Richardson-number factor) is not limited.  WRF sets ``xkmv = xkmh`` after limiting and uses it for the horizontal diffusion of
-  w; ERF has no such coefficient (its terrain stresses on w and the projected stresses use
-  :math:`K_v`, see #4214), so on steep slopes the momentum diffusion keeps its :math:`K_v` part;
-- on a terrain-fitted mesh ERF's strain carries the one-cell offset in the
-  :math:`\partial u/\partial z` cross term reported in #4214, which enters :math:`K_h` and the
-  :math:`|D_h|` threshold;
+  w; ERF has no such coefficient (its stresses on w use :math:`K_v`, while the projected horizontal
+  stresses of u and v use the limited :math:`K_h`), so on steep slopes the momentum diffusion
+  keeps its :math:`K_v` part;
 - the terrain heights are nodal, so the drops are taken on the cell edges rather than from
   :math:`z_x` at the cell faces, and :math:`\alpha` carries no map factor (WRF multiplies the drop by
   :math:`1/m_x`), so that it is exactly :math:`h \Delta x/\Delta z` with physical spacings; the two
@@ -2216,18 +2219,9 @@ from WRF in these details:
 - WRF uses :math:`K_h/Pr` for every scalar; ERF forms the moisture and advected-scalar
   diffusivities with ``erf.Sc_t`` (default 1) instead, as it always has.
 
-The limiter reduces :math:`K_h h^2/K_v`, the quantity that decides whether the terrain stress of
-issue #4214 dissipates, by :math:`\alpha^2` or :math:`\alpha`, but it does not make that operator
-dissipative in general.  For the x-component on a slope :math:`h`, the stress of #4214 stops being
-dissipative when :math:`(K_h + K_v)^2 h^2 > 2 K_h K_v (1 + 2h^2)`, which for :math:`K_h \gg K_v`
-reduces to :math:`K_h h^2 > 2 K_v (1 + 2h^2)`, i.e. :math:`K_h h^2 > 2 K_v` on gentle slopes.  In the :math:`\alpha^2` branch the limited :math:`K_h h^2` is
-about :math:`C_s^2 \Delta z^2 |D_h|`.  Without a PBL scheme and without the Richardson-number
-correction that is :math:`K_v`, which keeps the stress dissipative for slopes below about 1.55
-(:math:`h^2 < 1 + \sqrt{2}`); but ``erf.use_Ri_correction``
-(on by default) multiplies :math:`K_v` by a stability factor at most 1, so in stable layers, with a
-PBL scheme (whose :math:`K_v` can be much smaller) or in the :math:`\alpha` branch, the condition
-can still be met.
-The fix of #4214 itself is a separate change.
+The momentum stresses on terrain-fitted meshes (:ref:`terrain-momentum-stresses`) dissipate for any
+:math:`K_h` and :math:`K_v` on a uniform slope, so the limits are not needed for that; they bound
+the stiffness of the explicit metric term and match WRF's mixing on slopes.
 
 Both limits change the physics: they reduce the horizontal mixing on slopes (by :math:`\alpha^2`, up to
 two orders of magnitude on a 3 km grid with 50 m cells over steep terrain) and wherever the cap binds.

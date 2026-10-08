@@ -7,6 +7,7 @@
 #include <ERF_Diffusion.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_ScalarDiffusion.H>
+#include <ERF_TerrainDiffusionLimits.H>
 #include <ERF_TerrainImplicitMetric.H>
 
 #include <gtest/gtest.h>
@@ -330,4 +331,76 @@ TEST(TerrainImplicitMetric, ExplicitSplitRemovesTheCompactTerm)
     EXPECT_NEAR(ha(1,0,k), expected, tol_for_scale(Real(1.0))) << "face " << k;
   }
   EXPECT_GT(std::abs(ha(1,0,NZ/2)), Real(0.1));
+}
+
+// The diffusive time-step check (erf.diffusive_dt_check) counts the K_h metric term
+// K_h h^2 d2/dz2 as explicit.  With erf.implicit_terrain_metric its compact form is in the
+// implicit solve, so the term must count with the component's explicit fraction e, exactly as
+// the vertical term does; without the option, or with e = 1, the rates must not change.
+TEST(TerrainImplicitMetric, DiffusiveRateWeightsTheMetricTermByTheExplicitFraction)
+{
+  // rho = 1, dx = dy = 1 km (a = b = 1e-6), h^2 = 0.01, dz = 50 m (1/dz^2 = 4e-4)
+  const Real a = Real(1.e-6), h2 = Real(0.01), dzinv2 = Real(4.e-4);
+  // mu_h = 100, mu_v = 10, vertical parts implicit: rows u = 5e-4, w = 4.2e-4 (see
+  // Smag2DLimiters.DiffusiveRatesHandValues).  Metric explicit: 2 * 100 * 0.01 * 4e-4 = 8e-4
+  // -> 1.3e-3.  Metric implicit: only w's mu_v part, 2 * 10 * 0.01 * 4e-4 = 8e-5 -> 5.8e-4.
+  EXPECT_NEAR(MomentumDiffusiveRate(one, Real(100), Real(10), a, a, h2, dzinv2, zero, zero),
+              Real(1.3e-3), tol_for_scale(Real(1.3e-3)));
+  EXPECT_NEAR(MomentumDiffusiveRate(one, Real(100), Real(10), a, a, h2, dzinv2, zero, zero, zero),
+              Real(5.8e-4), tol_for_scale(Real(5.8e-4)));
+  // Scalar K_h = 300, K_v = 30, e = 0: 300 * 2e-6 + 300 * 0.01 * 4e-4 = 1.8e-3, and without the
+  // metric term 6e-4
+  EXPECT_NEAR(ScalarDiffusiveRate(one, Real(300), Real(30), a, a, h2, dzinv2, zero),
+              Real(1.8e-3), tol_for_scale(Real(1.8e-3)));
+  EXPECT_NEAR(ScalarDiffusiveRate(one, Real(300), Real(30), a, a, h2, dzinv2, zero, zero),
+              Real(6.e-4), tol_for_scale(Real(6.e-4)));
+
+  // CellDiffusiveRates on a cell tilted in x (slope 0.2, so h^2 = 0.04), with K_h >> K_v
+  const int nk = EddyDiff::NumDiffs;
+  std::vector<Real> rho(27, one), K(27*static_cast<std::size_t>(nk), one);
+  for (int c = 0; c < nk; ++c) {
+    const bool horiz = (c == EddyDiff::Mom_h || c == EddyDiff::Theta_h || c == EddyDiff::KE_h ||
+                        c == EddyDiff::Q_h || c == EddyDiff::Scalar_h);
+    for (int n = 0; n < 27; ++n) { K[static_cast<std::size_t>(n + 27*c)] = horiz ? Real(200) : Real(2); }
+  }
+  std::vector<Real> z(64);
+  for (int kk = 0; kk < 4; ++kk) { for (int jj = 0; jj < 4; ++jj) { for (int ii = 0; ii < 4; ++ii) {
+    z[ii + 4*jj + 16*kk] = Real(0.2) * Real(1000) * Real(ii - 1) + Real(50) * Real(kk - 1);
+  }}}
+  const Dim3 lo{-1,-1,-1};
+  const Array4<const Real> sa(rho.data(), lo, Dim3{2,2,2}, 1);
+  const Array4<const Real> ka(K.data(),   lo, Dim3{2,2,2}, nk);
+  const Array4<const Real> za(z.data(),   lo, Dim3{3,3,3}, 1);
+  const GpuArray<Real,AMREX_SPACEDIM> dxinv{Real(1.e-3), Real(1.e-3), Real(1)/Real(50)};
+  const Real hc2 = Real(0.04), dz2 = Real(1)/Real(2500);
+
+  DiffusiveRateSettings set;
+  set.variable_dz = true; set.has_q = true; set.has_ke = true; set.has_scalar = true;
+  set.e_uv = zero; set.e_w = one; set.e_th = zero; set.e_q = zero; set.e_ke = zero;
+  Real rm_off, rs_off, rm_on, rs_on;
+  CellDiffusiveRates(0, 0, 0, sa, ka, za, one, one, dxinv, set, rm_off, rs_off);
+  set.implicit_metric = true;
+  CellDiffusiveRates(0, 0, 0, sa, ka, za, one, one, dxinv, set, rm_on, rs_on);
+  EXPECT_NEAR(rm_off, MomentumDiffusiveRate(one, Real(200), Real(2), a, a, hc2, dz2, zero, one),
+              tol_for_scale(rm_off));
+  EXPECT_NEAR(rm_on,  MomentumDiffusiveRate(one, Real(200), Real(2), a, a, hc2, dz2, zero, one, zero),
+              tol_for_scale(rm_on));
+  EXPECT_LT(rm_on, Real(0.5) * rm_off);
+  // the advected scalar is never in the implicit solve, so it keeps its metric term and sets
+  // the scalar rate; with it off, theta's rate (metric dropped) is left
+  EXPECT_NEAR(rs_on, ScalarDiffusiveRate(one, Real(200), Real(2), a, a, hc2, dz2, one),
+              tol_for_scale(rs_on));
+  set.has_scalar = false;
+  CellDiffusiveRates(0, 0, 0, sa, ka, za, one, one, dxinv, set, rm_on, rs_on);
+  EXPECT_NEAR(rs_on, ScalarDiffusiveRate(one, Real(200), Real(2), a, a, hc2, dz2, zero, zero),
+              tol_for_scale(rs_on));
+  // with the option on but the vertical parts explicit (e = 1) nothing changes
+  set.has_scalar = true;
+  set.e_uv = one; set.e_th = one; set.e_q = one; set.e_ke = one;
+  Real rm_e1_on, rs_e1_on, rm_e1_off, rs_e1_off;
+  CellDiffusiveRates(0, 0, 0, sa, ka, za, one, one, dxinv, set, rm_e1_on, rs_e1_on);
+  set.implicit_metric = false;
+  CellDiffusiveRates(0, 0, 0, sa, ka, za, one, one, dxinv, set, rm_e1_off, rs_e1_off);
+  EXPECT_EQ(rm_e1_on, rm_e1_off);
+  EXPECT_EQ(rs_e1_on, rs_e1_off);
 }
