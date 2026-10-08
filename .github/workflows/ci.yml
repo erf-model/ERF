@@ -30,6 +30,10 @@ jobs:
     env:
       ERF_PARALLEL_TEST_NRANKS: '1;2;4'
     strategy:
+      # Let every variant finish. Cancelling the siblings of a failed job saves
+      # a few test minutes but leaves their caches stale and hides whether the
+      # failure is specific to one variant.
+      fail-fast: false
       matrix:
         os: [ubuntu-22.04]
         particles: [OFF, ON]
