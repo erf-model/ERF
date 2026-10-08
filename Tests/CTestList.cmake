@@ -2307,7 +2307,12 @@ endif()
 # clearing the almost-fluid cells (eb2.small_volfrac), so the restarted run forced
 # cells the straight run leaves alone (2e-4 in terrain_IB_mask, 6e-5 m/s in u, 8e-6 K
 # in the face skin temperatures). The deck plots no velocities, so they are added
-# here. IBSEB_RefinedLevels_Restart does the same on the two levels of the
+# here. Each test launches the deck three times, so both pass a RUN_TIMEOUT: 600 s
+# is the whole budget of the single 40-step IBSEB_Cube run (and half of what the
+# two-level IBSEB_RefinedLevels test gets for two runs of two steps, the view
+# factors being what costs), and the default watchdog would cut the legs off
+# looking like a parity failure rather than a timeout.
+# IBSEB_RefinedLevels_Restart does the same on the two levels of the
 # IBSEB_RefinedLevels deck (a cube on level 1, a tower outside it); its face dumps go
 # to a plain file name, since the deck's faces/ directory does not exist in the
 # runner's legs. It compares to 1e-8 relative, not zero: the restart leg writes a
@@ -2320,9 +2325,11 @@ endif()
 if(ERF_ENABLE_MPI AND NOT WIN32)
 add_test_restart_parity(IBSEB_Cube_Restart IBSEB_Cube 17 40
     COMMON_OPTIONS "erf.plot_vars_1=density x_velocity y_velocity z_velocity theta terrain_IB_mask ibseb_nfaces ibseb_tskin ibseb_sw_abs ibseb_lw_net ibseb_H ibseb_G"
+    RUN_TIMEOUT 900
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 add_test_restart_parity(IBSEB_RefinedLevels_Restart IBSEB_RefinedLevels 7 20
     COMMON_OPTIONS "erf.ibseb.dump_faces_file=faces_set erf.plot_vars_1=density x_velocity y_velocity z_velocity theta terrain_IB_mask ibseb_nfaces ibseb_tskin ibseb_sw_abs ibseb_lw_net ibseb_H ibseb_G"
+    RUN_TIMEOUT 1200
     FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "0.0")
 endif()
 add_test_r(PBL_IBAware_MRF_Smoothing         ""  "erf_exec" "plt00010")
@@ -2515,6 +2522,10 @@ add_test_station_series(StationSampling_ImmersedTerrain TerrainHill single
 # 20, on one level and on the deck's two. A restart rebuilt the blanking without
 # clearing the almost-fluid cells of the hill's tails (eb2.small_volfrac), so the
 # wall law acted there after the restart only: 0.2 m/s in u at step 20 on one level.
+# The one-level leg compares at zero tolerance. The two-level one compares to 1e-8
+# relative, for the same reason as IBSEB_RefinedLevels_Restart above: the restart leg
+# writes a plotfile at the restart step and the straight leg does not, and on two
+# levels writing a plotfile moves the solution at round-off (issue 4224).
 # The runner is a cmake -P script (MPI, not Windows).
 if(ERF_ENABLE_MPI AND NOT WIN32)
 add_test_restart_parity(ImmersedTerrain_Hill_Restart TerrainHill 7 20
@@ -2522,7 +2533,7 @@ add_test_restart_parity(ImmersedTerrain_Hill_Restart TerrainHill 7 20
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 add_test_restart_parity(ImmersedTerrain_Hill_TwoLevel_Restart TerrainHill 7 20
     COMMON_OPTIONS "erf.terrain_type=ImmersedForcing erf.immersed_forcing_substep=true eb2.small_volfrac=0.005 erf.plot_vars_1=density x_velocity y_velocity z_velocity theta terrain_IB_mask"
-    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+    FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "0.0")
 endif()
 
 # The same for terrain carried by an embedded boundary: the mesh is flat there
