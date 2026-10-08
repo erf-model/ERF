@@ -1,0 +1,21 @@
+# Case 2 on grassland: the force-restore balance (inputs_force_restore_common) on the land of
+# case 1, from Noah-MP's tables.
+FILE = inputs_force_restore_common
+
+# Noah-MP's grass here: emissivity 0.994; albedo 0.229 at 15:10 UTC falling to 0.201 at
+# 18:00 as the sun rises. The balance takes one value; 0.21 is about the day's mean.
+erf.radiation.surface_albedo_sw = 0.21
+erf.radiation.surface_emissivity_lw = 0.994
+
+# Noah-MP's soil holds 0.25 m3/m3 here (surface heat capacity about 1.16e5 J/m2/K).
+erf.radiation.seb_q_sfc_default = 0.25
+erf.radiation.seb_q_deep_default = 0.25
+
+# Grassland (MODIS land-use category 10) on 80 % of the surface (Noah-MP's dynamic-vegetation
+# option 4 takes SHDMAX, 80 % in the land file). beta then comes from Noah's big-leaf Jarvis
+# canopy resistance on Noah-MP's parameters for the vegetated part -- the soil-water factor
+# enters it -- and from Noah-MP's bare-soil resistance for the rest, each in series with
+# the aerodynamic resistance. The leaf area index is the table's for the start (2.23 at 15:00
+# UTC on 5 August), as Noah-MP takes it, and the land roughness 0.8 x 0.12 + 0.2 x 0.002 m.
+erf.radiation.seb_vegetation_type = 10
+erf.radiation.seb_vegetation_fraction = 0.8

@@ -62,6 +62,7 @@
                           terrain_blank_xface, terrain_blank_yface, terrain_blank_zface,
                           SmnSmn, eddyDiffs,
                           Hfx1, Hfx2, Hfx3, Q1fx1, Q1fx2, Q1fx3, Q2fx3, Diss,
+                          Tau[level][TauType::tau13].get(), Tau[level][TauType::tau23].get(),
                           fine_geom, solverChoice, m_SurfaceLayer, domain_bcs_type_d, domain_bcs_type,
                           z_phys_nd[level], z_phys_cc[level], ax[level], ay[level], az[level],
                           detJ_cc[level], new_detJ, stretched_dz_d[level], mapfac[level], get_eb(level),
@@ -72,7 +73,8 @@
                           fr_as_crse, fr_as_fine,
                           m_r2d, &base_state[level],
                           cloud_chamber_config.active ? &cloud_chamber_config : nullptr,
-                          cloud_chamber_budget.get(), auxiliary_inert_tracer.get());
+                          cloud_chamber_budget.get(), auxiliary_inert_tracer.get(),
+                          sbm_state_manager.get(), sbm_transport.get());
 
         // Implicit diffusion of moisture
         #include "ERF_ImplicitPost.H"
@@ -154,6 +156,10 @@
                 }
             }
         } // EB
+
+        // Limit KE and Q now that the explicit update, implicit diffusion and
+        //    redistribution have all been applied
+        #include "ERF_ScalarLimitPost.H"
 
         // Apply boundary conditions on all the state variables that have been updated
         // in both the fast and slow integrators

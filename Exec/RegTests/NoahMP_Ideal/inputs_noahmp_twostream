@@ -62,7 +62,7 @@ start_datetime = "2024-08-05 18:00:00"
 erf.rad_cons_lat = 40.0
 erf.rad_cons_lon = -100.0
 
-# The two-stream model feeds Noah-MP (single level only).
+# The two-stream model feeds Noah-MP.
 erf.radiation_model = "TwoStream"
 erf.rad_t_sfc = 300.0
 erf.radiation.tau_per_layer    = 0.003125

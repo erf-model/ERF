@@ -12,6 +12,7 @@
 #include <ERF_EBRedistribute.H>
 #include <ERF_PlaneAverage.H>
 #include <ERF_CanopyBiophysics.H>
+#include <ERF_SBMOwnership.H>
 
 using namespace amrex;
 
@@ -107,7 +108,7 @@ void ERF::advance_dycore (int level,
     const bool use_lsf = solverChoice.large_scale_forcing;
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         solverChoice.moisture_type != MoistureType::SBM || (!use_lsf && !use_nudging),
-        "SBM zero-transport fixture does not support large-scale subsidence or sounding nudging");
+        "SBM M3 does not support large-scale subsidence or sounding nudging");
 
     const BoxArray& ba            = state_old[IntVars::cons].boxArray();
     const BoxArray& ba_z          = zvel_old.boxArray();
@@ -685,26 +686,26 @@ void ERF::advance_dycore (int level,
     if (solverChoice.custom_rhotheta_forcing) {
         prob->update_rhotheta_sources(old_time,
                                       rhotheta_src_ptr,
-                                      fine_geom, z_phys_cc[level]);
+                                      fine_geom, z_phys_cc[level], zlevels_stag[level]);
     }
 
     if (solverChoice.custom_moisture_forcing) {
         prob->update_rhoqt_sources(old_time,
                                    rhoqt_src_ptr,
-                                   fine_geom, z_phys_cc[level]);
+                                   fine_geom, z_phys_cc[level], zlevels_stag[level]);
     }
 
     if (solverChoice.custom_geostrophic_profile) {
         prob->update_geostrophic_profile(old_time,
                                    h_u_geos[level], d_u_geos[level],
                                    h_v_geos[level], d_v_geos[level],
-                                   fine_geom, z_phys_cc[level]);
+                                   fine_geom, z_phys_cc[level], zlevels_stag[level]);
     }
 
     if (solverChoice.custom_w_subsidence) {
         prob->update_w_subsidence(old_time,
                                   h_w_subsid[level], d_w_subsid[level],base_state[level],
-                                  fine_geom, z_phys_nd[level]);
+                                  fine_geom, z_phys_nd[level], zlevels_stag[level]);
     }
 
     // ***********************************************************************************************

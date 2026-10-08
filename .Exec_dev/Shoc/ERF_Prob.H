@@ -56,7 +56,8 @@ public:
         amrex::Gpu::DeviceVector<amrex::Real>& d_wbar,
         const amrex::MultiFab& /*state*/,
         const amrex::Geometry& geom,
-        std::unique_ptr<amrex::MultiFab>& z_phys_nd) override;
+        std::unique_ptr<amrex::MultiFab>& z_phys_nd,
+        const amrex::Vector<amrex::Real>& zlevels_stag) override;
 
 protected:
 

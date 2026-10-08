@@ -16,6 +16,7 @@ endif
 
 CEXE_headers += ERF_NumericalDiffusion.H
 CEXE_headers += ERF_ImmersedForcing.H
+CEXE_headers += ERF_ImmersedWallStability.H
 CEXE_headers += ERF_SrcHeaders.H
 CEXE_headers += ERF_BuoyancyUtils.H
 CEXE_headers += ERF_ForestDrag.H

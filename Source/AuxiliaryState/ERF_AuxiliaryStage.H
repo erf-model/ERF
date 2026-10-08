@@ -13,6 +13,12 @@ enum class HostIntegrator {
     AnelasticMidPoint
 };
 
+/** State view that bounds the low-order limiter trial for this host stage. */
+enum class LimiterTrialBase {
+    Anchor,
+    Input
+};
+
 struct ConstTimedFieldView {
     const amrex::MultiFab* field{nullptr};
     int component{-1};
@@ -32,6 +38,7 @@ struct HostCarrierFluxView {
 };
 
 struct AuxiliaryStageRecipe {
+    LimiterTrialBase limiter_trial_base{LimiterTrialBase::Anchor};
     double anchor_weight{0.0};
     double input_weight{0.0};
     double limiter_trial_interval{0.0};

@@ -338,6 +338,72 @@ function(add_test_two_stream_seb_flux_source TEST_NAME)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/surface_layer/simulation.log;${CURRENT_TEST_BINARY_DIR}/defaults/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_way/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
 endfunction(add_test_two_stream_seb_flux_source)
 
+# Two-stream radiation feeding Noah-MP on two levels: a fine level that runs Noah-MP on its
+# own nested land file and sweeps its own columns, the same land under a nested patch that
+# takes its radiation from level 0, a fine level without a land file, and a regrid that must
+# stop (Tests/RunTwoStreamNoahMPLevels.cmake, Tests/check_two_stream_noahmp_levels.py).
+function(add_test_two_stream_noahmp_levels TEST_NAME)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DLAND_DIR=${PROJECT_SOURCE_DIR}/Exec/RegTests/NoahMP_Ideal"
+        "-DFEXTRACT=${FEXTRACT_EXE}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${TWO_STREAM_NOAHMP_LEVELS_CHECKER}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunTwoStreamNoahMPLevels.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;radiation;noahmp"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/own/simulation.log;${CURRENT_TEST_BINARY_DIR}/own/checker.log;${CURRENT_TEST_BINARY_DIR}/nested/simulation.log;${CURRENT_TEST_BINARY_DIR}/nested/checker.log;${CURRENT_TEST_BINARY_DIR}/interp/simulation.log;${CURRENT_TEST_BINARY_DIR}/interp/checker.log;${CURRENT_TEST_BINARY_DIR}/regrid/simulation.log")
+endfunction(add_test_two_stream_noahmp_levels)
+
+# The two-stream balance's skin and soil moisture both coupled to the surface layer, on the
+# deck of TwoStream_SEBSurfaceLayerFluxes in eight legs: the linear soil-water factor at the
+# wilting point, at field capacity and in between; that soil as a Noah-MP soil type, bare
+# (the soil resistance and pore humidity), with grassland at fraction 0 (which must match
+# bare) and bare at the wilting point (which must not evaporate); under
+# grassland (canopy and soil resistances); and a one-step leg without erf.most.z0, whose
+# job_info must record the tables' roughness
+# (Tests/RunTwoStreamSEBMoisture.cmake, Tests/check_two_stream_seb_moisture.py).
+function(add_test_two_stream_seb_moisture TEST_NAME)
+    set(TEST_FILES_DIR "TwoStream_SEBSurfaceLayerFluxes")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/TwoStream_SEBSurfaceLayerFluxes.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DFEXTRACT=${FEXTRACT_EXE}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${TWO_STREAM_SEB_MOISTURE_CHECKER}"
+        "-DSTEPS=10"
+        "-DDT=1.0"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunTwoStreamSEBMoisture.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;radiation"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/dry/simulation.log;${CURRENT_TEST_BINARY_DIR}/wet/simulation.log;${CURRENT_TEST_BINARY_DIR}/mid/simulation.log;${CURRENT_TEST_BINARY_DIR}/veg/simulation.log;${CURRENT_TEST_BINARY_DIR}/bare/simulation.log;${CURRENT_TEST_BINARY_DIR}/bare_f0/simulation.log;${CURRENT_TEST_BINARY_DIR}/bare_dry/simulation.log;${CURRENT_TEST_BINARY_DIR}/tables/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+endfunction(add_test_two_stream_seb_moisture)
+
 function(add_test_cloud_chamber_parity TEST_NAME)
     set(TEST_FILES_DIR "CloudChamber_SatAdj")
     if (ARGC GREATER 1)
@@ -495,6 +561,21 @@ if(EXISTS "${ERF_NOAHMP_TABLE}")
       TIMEOUT 60
       PROCESSORS 1
       LABELS "unit;noahmp")
+
+  # The two-stream balance's copies of Noah-MP's soil and vegetation parameters
+  # (erf.radiation.seb_soil_type, seb_vegetation_type) against the same table. Plain Python, no ERF run: every build with the submodule has it.
+  if(ERF_TEST_PYTHON)
+    add_test(NAME NoahMPSoilTable_MatchesSubmodule
+        COMMAND ${ERF_TEST_PYTHON} ${PROJECT_SOURCE_DIR}/Tests/check_noahmp_soil_table.py
+                --table ${ERF_NOAHMP_TABLE}
+                --header ${PROJECT_SOURCE_DIR}/Source/Radiation/TwoStream/ERF_NoahMPSoilTable.H
+                --vegetation-header ${PROJECT_SOURCE_DIR}/Source/Radiation/TwoStream/ERF_NoahMPVegetationTable.H)
+    set_tests_properties(NoahMPSoilTable_MatchesSubmodule
+        PROPERTIES
+        TIMEOUT 60
+        PROCESSORS 1
+        LABELS "unit;radiation")
+  endif()
 endif()
 
 # Restart parity: run one deck straight, then to a checkpoint and on from it, and
@@ -1041,6 +1122,18 @@ add_test_at_rest_terrain_outflow(AtRestTerrainOutflow "plt00400" 1.0e-8 0.1)
 add_test_field_bounds(InflowThetaDensity "plt00010" theta 299.999 300.001)
 add_test_field_bounds(InflowOutflowThetaFile "plt00010" theta 299.999 300.001)
 add_test_field_bounds(InflowThetaFileOtherFace "plt00010" theta 299.999 300.001)
+# Input sponge with a refined patch that does not reach the domain top: ran outside the patch's boxes at start-up
+add_test_field_bounds(InputSponge_FinePatch "plt00004" x_velocity 5.9 8.5)
+# A refined patch below the inversion takes the coarse level's PBL height (~513 m), not its own
+add_test_field_bounds(PBLH_FinePatch "plt2d00004" pblh 450.0 600.0)
+# A refined patch aloft (256-768 m) has no column at the ground: it takes level 0's height (~461 m), not zero
+add_test_field_bounds(PBLH_PatchAloft "plt2d00004" pblh 400.0 600.0)
+# The same patch on one box and on 8 x 8 columns: the coarse heights the patch takes, and the
+# length cap and eddy viscosity they set, must not depend on the decomposition
+add_test_box_parity(PBLH_FinePatch_BoxParity PBLH_FinePatch "plt00004"
+    COMMON_OPTIONS "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/PBLH_FinePatch_BoxParity/sounding_inversion"
+    REFERENCE_OPTIONS "amr.max_grid_size=1024"
+    SPLIT_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64")
 endif()
 endif()
 
@@ -1443,6 +1536,21 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_tiling_parity(ABL_YSU_Tiling      ABL_MRF_Tiling "00010" "00010"
       RUNTIME_OPTIONS "erf.pbl_type=YSU erf.most.pblh_calc=YSU erf.most.surf_temp_flux=-0.02 'erf.plot2d_vars_1=u_star t_star Olen'"
       VARYING_3D "Lturb Kmv" VARYING_2D "u_star")
+  # MYNN25 carries a prognostic TKE, and its source terms read the stage state with a
+  # VERTICAL stencil: AddTurbKESources forms d(theta_v)/dz from k-1 and k+1 while
+  # erf_slow_rhs_post writes that same state (new_cons = cur_cons) later in the same
+  # MFIter iteration.  Tiled, a tile's write landed before the next tile's read, so a
+  # cell beside a tile boundary saw the updated state on one side and the stage-entry
+  # state on the other and the answer depended on fabarray.mfiter_tile_size.  The
+  # harness tiles 1024000 8 8, which splits in z -- the direction this stencil reaches.
+  # The Closure_BoxParity entry for MYNN25 below does not cover it: that one splits
+  # 8 8 1024, so it tiles in x and y only and a k+-1 hazard is invisible to it.
+  # KE is added to the 3D plotfile because it is the field that breaks first: it moved
+  # by ~2e-3 relative after a single step, which the MYNN length scales then amplified
+  # into Kmv/Khv and from there into the solution.
+  add_test_tiling_parity(ABL_MYNN25_Tiling   ABL_MRF_Tiling "00010" "00010"
+      RUNTIME_OPTIONS "erf.pbl_type=MYNN25 erf.most.pblh_calc=MYNN25 'erf.plot_vars_1=density x_velocity y_velocity z_velocity pressure theta Kmv Khv Lturb KE'"
+      VARYING_3D "Lturb Kmv KE" VARYING_2D "pblh u_star")
   # The PBLH smoothing stencil reads a column its own tile does not own, so it
   # needs its own coverage: with the stencil reading off the end of the array the
   # MRF deck differed by 24.5 m in Lturb (12%) between the tiled and untiled runs.
@@ -1531,6 +1639,14 @@ endif()
 # that break a start-up requirement, and pass when the run stops with
 # EXPECTED_MESSAGE in its output. The run is meant to abort, so its exit status is
 # dropped by the pipe into tee (a ';' here would split the CMake command list).
+#
+# amrex.call_addr2line = 0 because the abort is the point of the test: AMReX's
+# SIGABRT handler runs addr2line once per stack frame, and on a build with
+# debug info that is about 55 s per test -- far longer than the run itself
+# (measured: the abort message and "See Backtrace.0 file for details" 56 s
+# apart in CI). Backtrace.0 is still written, with raw addresses, for a test
+# that stops somewhere unexpected; `addr2line -Cpfie <exe> <address>` resolves
+# them by hand.
 function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME_OPTIONS)
     set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
     file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
@@ -1546,7 +1662,7 @@ function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME
     resolve_test_exe("" "erf_exec" TEST_EXE)
 
     set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
-    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${INPUT_FILE} max_step=1 erf.plot_int_1=-1 erf.plot_int_2=-1 erf.check_int=-1 ${RUNTIME_OPTIONS} 2>&1 | tee ${test_log}")
+    set(test_command sh -c "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${INPUT_FILE} max_step=1 erf.plot_int_1=-1 erf.plot_int_2=-1 erf.check_int=-1 amrex.call_addr2line=0 ${RUNTIME_OPTIONS} 2>&1 | tee ${test_log}")
 
     add_test(${TEST_NAME} ${test_command})
     set_tests_properties(${TEST_NAME}
@@ -1561,16 +1677,6 @@ function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME
 endfunction(add_test_abort)
 
 if(ERF_ENABLE_MPI AND NOT WIN32)
-  # The two-stream model supplies Noah-MP's radiative forcing on a single level only, so
-  # a refined run with the pair must stop at start-up rather than run unverified. The
-  # check sits in SolverChoice::init_params, ahead of anything that needs the Noah-MP
-  # build, so it runs in every build: the two-level two-stream deck with Noah-MP selected.
-  add_test_abort(TwoStream_NoahMP_MultiLevelAbort
-                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_ColumnHeating_TwoLevel
-                 TwoStream_ColumnHeating_TwoLevel.i
-                 "with erf.land_surface_model = NOAHMP is supported on a single level only"
-                 "erf.land_surface_model=NOAHMP")
-
   # A shallow nest -- a fine level that stops below the domain top -- has no complete
   # column, so the sweep cannot run on it. That is a supported configuration, not an
   # error: advance_radiation interpolates the level's heating rates and fluxes from its
@@ -1677,6 +1783,16 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     add_test_two_stream_seb_flux_source(TwoStream_SEBSurfaceLayerFluxesMultiLevel
                                         DT 0.5
                                         CHECKER_OPTIONS "--multilevel --min-spread 0.5")
+    # The same deck with the soil moisture coupled as well: the surface mixing ratio blends
+    # q_sat and the air's by beta, vegetation lowers the evaporation, and the balance's soil
+    # loses the water the air gains.
+    add_test_two_stream_seb_moisture(TwoStream_SEBSoilMoisture)
+  endif()
+
+  # Two-stream radiation feeding Noah-MP on two levels (see the function above). Noah-MP
+  # needs a parallel NetCDF build, which no CI job has, so this runs where one exists.
+  if(ERF_ENABLE_NOAHMP AND ERF_TEST_PYTHON)
+    add_test_two_stream_noahmp_levels(TwoStream_NoahMPLevels)
   endif()
 
   # With seb_turbulent_flux_source = surface_layer (the default) the balance takes H from
@@ -1690,6 +1806,30 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                  "erf.radiation.seb_hfx_default=10")
 endif()
 add_test_plotfile_header(Plotfile3D_TwoStreamHeatingSelection "" "erf_exec" "plt00000")
+
+# The two-stream radiation tests stay registered but do not run: DISABLED keeps
+# them listed by ctest (reported as "Not Run (Disabled)") without executing them.
+# Remove this block to re-enable them. TwoStream_SEBSoilMoisture is not on the list:
+# its eight legs of 10 steps on a 4 x 4 x 16 grid take about a minute in Debug.
+foreach(_two_stream_test IN ITEMS
+    TwoStream_ColumnHeating
+    TwoStream_ColumnHeating_Terrain
+    TwoStream_ColumnHeating_TwoLevel
+    TwoStream_NoahMPLevels
+    TwoStream_NestedPatch
+    TwoStream_PrognosticSEBMultiLevel
+    TwoStream_PrognosticSEBShallowNest
+    TwoStream_PrognosticSEBLateLevel
+    TwoStream_PrognosticSEBRegrid
+    TwoStream_PrognosticSEB_Restart
+    TwoStream_SEBSurfaceLayerFluxes
+    TwoStream_SEBSurfaceLayerFluxesMultiLevel
+    TwoStream_SEBDefaultReplacedWarning
+    Plotfile3D_TwoStreamHeatingSelection)
+  if(TEST ${_two_stream_test})
+    set_tests_properties(${_two_stream_test} PROPERTIES DISABLED TRUE)
+  endif()
+endforeach()
 
 add_test_0(CouetteFlow_x                     "" "erf_exec" "plt00050" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_0(CouetteFlow_y                     "" "erf_exec" "plt00050" RUNTIME_OPTIONS "erf.vert_implicit=false ")
@@ -2053,6 +2193,114 @@ add_test_most_zref(MOST_Zref_Stretched)
 # Immersed-boundary surface energy balance on the faces of a height-map cube
 # (prognostic skin, slab conduction, heat flux into the air), 40 steps.
 add_test_r(IBSEB_Cube                        ""  "erf_exec" "plt00040")
+
+# The balance on two levels (Tests/RunIBSEBRefinedLevels.cmake): a cube on level 1 and a
+# tower outside it, whose shadow the cube's level-1 faces must find through level 0's
+# column map; the level-1 face dumps, and the refinement-box script's verdicts on the
+# deck's box and on one cut through the cube. Then the start-up aborts: a refined level
+# whose edge cuts a building (one level 0 resolves, and one only level 1 does), the faces on their own sun under the two-stream radiation
+# (sun_mode = solar, or a fixed two-stream sun the faces do not share), and
+# sun_mode = two_stream without it; IBSEB_TwoStreamSunRun runs that deck and checks the sun.
+function(add_test_ibseb_refined_levels TEST_NAME)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${CMAKE_CURRENT_SOURCE_DIR}/check_ibseb_refined_levels.py"
+        "-DBOX_SCRIPT=${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/SEB/ibseb_refinement_box.py"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunIBSEBRefinedLevels.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/cube_only/simulation.log;${CURRENT_TEST_BINARY_DIR}/both/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+endfunction(add_test_ibseb_refined_levels)
+
+# The faces on the two-stream sun in a run (Tests/RunIBSEBTwoStreamSun.cmake).
+function(add_test_ibseb_two_stream_sun TEST_NAME TEST_FILES_DIR)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${CMAKE_CURRENT_SOURCE_DIR}/check_ibseb_two_stream_sun.py"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunIBSEBTwoStreamSun.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/run/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+endfunction(add_test_ibseb_two_stream_sun)
+
+if(ERF_ENABLE_MPI AND NOT WIN32)
+  if(NOT "${ERF_TEST_PYTHON}" STREQUAL "")
+    add_test_ibseb_refined_levels(IBSEB_RefinedLevels)
+    add_test_ibseb_two_stream_sun(IBSEB_TwoStreamSunRun IBSEB_TwoStreamSun)
+  endif()
+  add_test_abort(IBSEB_RefinedLevelCutsBuilding
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_RefinedLevels
+                 IBSEB_RefinedLevels.i
+                 "lie on the edge of level 1"
+                 "erf.city.in_box_lo=160.0 180.0")
+  # A 4 m block across level 1's edge that only level 1 resolves (5 m cells there, 10 m
+  # below): the level-0 check cannot see it, IBFaceSet::build() must.
+  add_test_abort(IBSEB_RefinedLevelCutsLowBuilding
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_RefinedLevels
+                 IBSEB_RefinedLevels.i
+                 "cell faces against solid cells outside its grids"
+                 "amr.ref_ratio_vect=2 2 2 erf.buildings_file_name=cube_and_low_block_10m.txt")
+  # A report file from an earlier version (20 columns, no building_level0): a restart
+  # appending to it must stop rather than write rows its header does not describe.
+  add_test_abort(IBSEB_ReportOldColumns
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_RefinedLevels
+                 IBSEB_RefinedLevels.i
+                 "has another set of columns than this version writes"
+                 "erf.ibseb.csv_file=old_ibseb_buildings.csv")
+  add_test_abort(IBSEB_TwoStreamSunSolar
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamSun
+                 IBSEB_TwoStreamSun.i
+                 "the faces need erf.ibseb.sun_mode = two_stream"
+                 "erf.ibseb.sun_mode=solar")
+  add_test_abort(IBSEB_TwoStreamSunWithoutTwoStream
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamSun
+                 IBSEB_TwoStreamSun.i
+                 "sun_mode = two_stream needs erf.radiation_model = TwoStream"
+                 "erf.radiation_model=None")
+  add_test_abort(IBSEB_TwoStreamSunNoDate
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamSun
+                 IBSEB_TwoStreamSunNoDate.i
+                 "sun_mode = two_stream: the two-stream sun follows the calendar and no start date"
+                 "")
+  add_test_abort(IBSEB_TwoStreamSunSolarInputs
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamSun
+                 IBSEB_TwoStreamSun.i
+                 "latitude_deg is not used with erf.ibseb.sun_mode = two_stream"
+                 "erf.ibseb.latitude_deg=40.0")
+  add_test_abort(IBSEB_TwoStreamSunFixed
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamSun
+                 IBSEB_TwoStreamSun.i
+                 "the two-stream sun is fixed"
+                 "erf.fixed_solar_zenith_angle=0.5")
+endif()
 add_test_r(PBL_IBAware_MRF_Smoothing         ""  "erf_exec" "plt00010")
 
 #=============================================================================

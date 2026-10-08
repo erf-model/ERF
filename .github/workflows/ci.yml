@@ -1,20 +1,25 @@
 name: ERF CI
 
+# The pipeline runs when a PR is opened/reopened against development and when merged into development
+# Cache is populated when merged into development
 on:
-#  push:
-#    # branches: [development]
-#    paths-ignore:
-#      - Docs/**
-#      - README.rst
-#      - license.txt
+  push:
+    branches: [development]
+    paths-ignore:
+      - Docs/**
+      - README.rst
+      - license.txt
 
   pull_request:
     branches: [development]
     types: [opened, synchronize, reopened]
+  workflow_dispatch:
 
+# If a new push is made to an open PR, new run will cancel the previous one in the PR.
+# New merges into development get into the queue and are never cancelled.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
 
@@ -25,6 +30,10 @@ jobs:
     env:
       ERF_PARALLEL_TEST_NRANKS: '1;2;4'
     strategy:
+      # Let every variant finish. Cancelling the siblings of a failed job saves
+      # a few test minutes but leaves their caches stale and hides whether the
+      # failure is specific to one variant.
+      fail-fast: false
       matrix:
         os: [ubuntu-22.04]
         particles: [OFF, ON]
@@ -57,15 +66,24 @@ jobs:
     - name: Install CCache
       run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
 
-    - name: Set Up Cache
-      uses: actions/cache@v6
+    # Separate cache per matrix build configuration
+    # Only changes are recompiled from latest development CI run
+    # Looks for cache of exact commit, if not found then cache of latest commit in development branch
+    # PRs restore from cache but do not save to cache
+    # Only merges into development (and manual runs on development) save to cache
+    - name: Restore Cache
+      uses: actions/cache/restore@v6
       with:
         path: ~/.cache/ccache
-        key: ccache-${{ github.workflow }}-${{ github.job }}-git-${{ github.sha }}
+        key: ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.particles }}-git-${{ github.sha }}
         restore-keys: |
-             ccache-${{ github.workflow }}-${{ github.job }}-git-
+             ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.particles }}-git-
 
     - name: Configure CMake
+      # Ubuntu's MPICH wrapper advertises -flto=auto -ffat-lto-objects, and FindMPI
+      # would put them on every target: fat objects double the ccache and every
+      # link re-optimises the whole program (~20 min even on a full cache hit).
+      # FindMPI keeps a non-empty user value, so override the wrapper's flags.
       run: |
         cmake \
           -B${{runner.workspace}}/ERF/build-${{matrix.os}} \
@@ -75,6 +93,8 @@ jobs:
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
+          -DMPI_CXX_COMPILE_OPTIONS=-fno-lto \
+          -DMPI_CXX_LINK_FLAGS=-fno-lto \
           -DERF_PARALLEL_TEST_ALLOW_OVERSUBSCRIBE:BOOL=ON \
           '-DERF_PARALLEL_TEST_NRANKS:STRING=${{env.ERF_PARALLEL_TEST_NRANKS}}' \
           -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
@@ -99,6 +119,13 @@ jobs:
 
         ccache -s
         du -hs ~/.cache/ccache
+
+    - name: Save Cache
+      if: always() && github.ref_name == github.event.repository.default_branch
+      uses: actions/cache/save@v6
+      with:
+        path: ~/.cache/ccache
+        key: ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.particles }}-git-${{ github.sha }}
 
     - name: Report
       run: |

@@ -184,6 +184,22 @@ public:
         return (active() && m_rad->seb_enable && lev < m_lh_sfc.size()) ? m_lh_sfc[lev].get() : nullptr;
     }
 
+    /**
+     * @brief What level lev's surface hands the surface layer for its surface mixing ratio
+     * (erf.radiation.seb_surface_layer_uses_moisture), per column, in the components of
+     * erf_surface_moisture::Component: the soil-water factor (seb_moisture_availability
+     * of the current q_s); with erf.radiation.seb_soil_type, the bare-soil resistance and
+     * the relative humidity of its pore air at the skin temperature; and
+     * with erf.radiation.seb_vegetation_type as well, the vegetated fraction and the canopy
+     * resistance without its vapour-deficit factor (from the net shortwave the balance
+     * holds divided by (1 - surface albedo) -- the sweep's with seb_use_radiation_fluxes,
+     * seb_sw_flux_default otherwise -- and the skin temperature). Absent pieces are a
+     * fraction of 0 and resistances of 1e6 s/m. nullptr
+     * when the option is off or the level has not been built. Recomputed on every call,
+     * on the valid cells; the halo is not filled.
+     */
+    [[nodiscard]] const amrex::MultiFab* seb_surface_moisture (int lev);
+
     /** @brief True when the force-restore state is being evolved and so needs transferring. */
     [[nodiscard]] bool seb_prognostic_active () const {
         return active() && m_rad->seb_enable && m_rad->seb_prognostic_enable;
@@ -232,7 +248,7 @@ public:
     // Orbital elements of the current year (Berger 1978, or the erf.rad_orbital_*
     // overrides), computed once per year rather than every step, and the
     // one-time note about an unscaled irradiance. Public so the file-local
-    // solar-state helper can fill it.
+    // solar-state helper and two_stream_sun_date() can fill it.
     struct OrbitalCache {
         int year = -9999;
         double eccen = 0.0;
@@ -282,9 +298,10 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_hfx_sfc;     // sensible heat flux [W/m^2]
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_lh_sfc;      // latent heat flux [W/m^2]
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_grdflx_sfc;  // ground heat flux [W/m^2]
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_q_sfc;       // surface moisture [kg/kg], prognostic
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_q_sfc;       // surface moisture, prognostic (see RadChoice::seb_q_sfc_default)
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_t_deep;      // deep-soil temperature [K]
-    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_q_deep;      // deep-soil moisture [kg/kg]
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_q_deep;      // deep-soil moisture q_s restores to
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> m_moisture;    // seb_surface_moisture (seb_surface_layer_uses_moisture)
 
     // What the sweep hands to a land-surface model (2D: i,j), allocated when
     // define_level is asked to supply it. These are the DOWNWELLING fluxes, as opposed to
@@ -309,5 +326,27 @@ private:
  * data built from the same level grids, and is asserted rather than assumed.
  */
 void copy_surface_plane (const amrex::MultiFab& src2d, amrex::MultiFab& dst);
+
+/** @brief RRTMGP's reference total solar irradiance [W/m^2], scaled by the date's Earth-Sun distance factor. */
+inline constexpr amrex::Real two_stream_tsi_reference = 1360.9;
+
+/** @brief The calendar sun of the two-stream model at one time (see two_stream_sun_date()). */
+struct TwoStreamSunDate {
+    double calday = 1.0;   ///< Day of the year (1 = 1 January), UTC time of day as the fraction
+    double declin = 0.0;   ///< Solar declination [rad]
+    double eccf   = 1.0;   ///< Earth-Sun distance factor (d0/d)^2
+};
+
+/**
+ * @brief The calendar sun of the two-stream model at a UTC epoch time (start_time + t).
+ *
+ * The date as the RRTMGP interface forms it, the orbit of the year (or the
+ * erf.rad_orbital_* overrides) cached in @p orbit, and the declination and distance
+ * factor of ERF_OrbCosZenith.H. The two-stream sweep places its sun from this, with the
+ * column's position, and so does the immersed-boundary balance with
+ * erf.ibseb.sun_mode = two_stream.
+ */
+TwoStreamSunDate two_stream_sun_date (const RadChoice& rc, TwoStreamRadiation::OrbitalCache& orbit,
+                                      double epoch_time);
 
 #endif // ERF_TWO_STREAM_RADIATION_H_

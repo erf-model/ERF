@@ -87,10 +87,6 @@
 #include "ERF_ShocDriver.H"
 #include "AuxiliaryState/ERF_AuxiliaryInertTracer.H"
 
-#ifdef ERF_USE_P3
-#include "ERF_P3Interface.H"
-#endif
-
 #include <iostream>
 
 #ifdef AMREX_LAZY
@@ -109,7 +105,7 @@ class MultiBlockContainer;
 // Describes one component of a 2D plotfile; defined in
 // IO/ERF_Plotfile2DSampledLevel.H, which ERF.H does not need to include.
 namespace plotfile2d { struct Plotfile2DOutputDescriptor; }
-namespace erf_sbm { class SBMStateManager; }
+namespace erf_sbm { class SBMStateManager; class SBMTransport; }
 
 /**
  * Enum of possible interpolation types between coarse/fine
@@ -677,13 +673,6 @@ public:
                                          amrex::MultiFab* z_phys_nd,
                                          const double& dt_advance);
 
-#ifdef ERF_USE_P3
-    void compute_p3_tendencies (int lev,
-                                amrex::MultiFab& cons_in,
-                                amrex::MultiFab& source,
-                                const double& dt_advance);
-#endif
-
     void build_fine_mask (int lev, amrex::MultiFab& fine_mask);
 
     void MakeHorizontalAverages ();
@@ -814,6 +803,9 @@ public:
 
     // Immersed-boundary surface energy balance (Source/ImmersedBoundarySEB)
     void init_ibseb ();
+    void ibseb_check_refined_levels () const;
+    void ibseb_check_sun_matches_two_stream () const;
+    void ibseb_set_two_stream_sun (int lev, amrex::Real time);
     void ibseb_write_checkpoint (const std::string& checkpointname, int lev) const;
     void ibseb_report (int nstep, amrex::Real time);
     amrex::Real ibseb_bulk_richardson_height (int lev, const amrex::MultiFab& cons,
@@ -1045,6 +1037,8 @@ private:
     void AverageDown ();
 
     void update_diffusive_arrays (int lev, const amrex::BoxArray& ba, const amrex::DistributionMapping& dm);
+
+    void make_flux_register (int lev);
 
     void Construct_ERFFillPatchers (int lev);
 
@@ -1349,6 +1343,9 @@ private:
 
     std::unique_ptr<Microphysics> micro;
     std::unique_ptr<erf_sbm::SBMStateManager> sbm_state_manager;
+    // Declared after the state manager so its non-owning layout reference is
+    // destroyed before the authoritative SBM owner.
+    std::unique_ptr<erf_sbm::SBMTransport> sbm_transport;
     std::unique_ptr<erf_auxiliary::AuxiliaryInertTracer> auxiliary_inert_tracer;
     std::unique_ptr<CloudChamberBudget> cloud_chamber_budget;
     erf_cloud_chamber::Config cloud_chamber_config;
@@ -1410,10 +1407,6 @@ private:
 #endif
 
     amrex::Vector<std::unique_ptr<ShocDriver>> native_shoc_driver; // Native SHOC model at each level
-
-#ifdef ERF_USE_P3
-    amrex::Vector<std::unique_ptr<P3Interface>> p3_interface; // P3 model at each level
-#endif
 
     bool plot_rad = false;
     int rad_datalog_int = -1;
@@ -1481,6 +1474,8 @@ private:
     // Immersed-boundary surface energy balance: inputs and one face set per level
     IBSEBParams ibseb_params;
     amrex::Vector<std::unique_ptr<IBFaceSet>> m_ibseb;
+    TwoStreamRadiation::OrbitalCache ibseb_orbit;   ///< Orbit of the year for erf.ibseb.sun_mode = two_stream
+    amrex::Real ibseb_z_i_level0 = 0.0;             ///< Level 0's bulk-Richardson depth of its current step, for the refined levels
 
     // Data structures for terrain immersed forcing
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking;
@@ -1511,7 +1506,7 @@ private:
     bool finished_wave = false;
 
     // array of flux registers
-    amrex::Vector<amrex::YAFluxRegister*> advflux_reg;
+    amrex::Vector<std::unique_ptr<amrex::YAFluxRegister>> advflux_reg;
 
     // A BCRec is essentially a 2*DIM integer array storing the boundary
     // condition type at each lo/hi walls in each direction. We have one BCRec
@@ -1823,7 +1818,8 @@ private:
 
     // Options for ERF boundary files for real simulations.
     bool        write_erfbdy{false};   // User-settable: write erfbdy during initialization
-    bool        use_erfbdy{false};     // Internal: set during init or restart
+    bool        use_erfbdy{false};     // User-settable for wrfinput: read erfbdy instead of
+                                       //    nc_bdy_file.  Set internally for metgrid and on restart.
     std::string erfbdy_file{"erfbdy"}; // User-settable: erfbdy file name
     int         nvars_erfbdy{0};       // Internal: number of variables in erfbdy
 
@@ -2030,7 +2026,7 @@ private:
     AMREX_FORCE_INLINE
     amrex::YAFluxRegister* getAdvFluxReg (int lev)
     {
-        return advflux_reg[lev];
+        return advflux_reg[lev].get();
     }
 
     AMREX_FORCE_INLINE

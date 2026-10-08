@@ -131,6 +131,66 @@ ComputationalMappedDivergence (const amrex::Real fx_hi,
            (fz_hi - fz_lo) * dzeta_inv;
 }
 
+/** Outgoing donor rate for one cell in mapped coordinates. */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real
+MappedOutgoingDemandRate (const amrex::Real fx_hi,
+                          const amrex::Real fx_lo,
+                          const amrex::Real fy_hi,
+                          const amrex::Real fy_lo,
+                          const amrex::Real fz_hi,
+                          const amrex::Real fz_lo,
+                          const amrex::Real measure,
+                          const amrex::Real density,
+                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dx_inv) noexcept
+{
+    const amrex::Real outward =
+        (amrex::max(fx_hi, amrex::Real(0.0)) +
+         amrex::max(-fx_lo, amrex::Real(0.0))) * dx_inv[0] +
+        (amrex::max(fy_hi, amrex::Real(0.0)) +
+         amrex::max(-fy_lo, amrex::Real(0.0))) * dx_inv[1] +
+        (amrex::max(fz_hi, amrex::Real(0.0)) +
+         amrex::max(-fz_lo, amrex::Real(0.0))) * dx_inv[2];
+    return outward / (measure * density);
+}
+
+/** Build the production mapped dry-air face rates from face momentum and metrics. */
+bool BuildMappedDryAirCarrierFluxRate (
+    MappedFaceFluxRate& rate,
+    const amrex::MultiFab& rho_u,
+    const amrex::MultiFab& rho_v,
+    const amrex::MultiFab& omega,
+    const amrex::MultiFab& ax,
+    const amrex::MultiFab& ay,
+    const amrex::MultiFab& az,
+    const amrex::MultiFab& mf_uy,
+    const amrex::MultiFab& mf_vx,
+    const amrex::MultiFab& mx,
+    const amrex::MultiFab& my,
+    std::string& diagnostic);
+
+/** Copy face fields that are already in ERF's native mapped carrier convention. */
+bool CopyNativeMappedDryAirCarrierFluxRate (
+    MappedFaceFluxRate& rate,
+    const amrex::MultiFab& rho_u,
+    const amrex::MultiFab& rho_v,
+    const amrex::MultiFab& rho_w,
+    std::string& diagnostic);
+
+/** Reduce the largest mapped donor outgoing rate over a cell-centered domain. */
+bool ComputeMaxMappedOutgoingRate (
+    const MappedFaceFluxRate& rate,
+    const amrex::MultiFab& measure,
+    const amrex::MultiFab& conserved,
+    int density_component,
+    const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dx_inv,
+    amrex::Real& max_rate,
+    std::string& diagnostic);
+
+/** Test a fixed interval against the hard mapped donor-positivity bound. */
+bool FixedDtExceedsMappedDonorLimit (double fixed_dt,
+                                     amrex::Real max_outgoing_rate,
+                                     double& hard_limit) noexcept;
+
 /** Build omega=detJ/(mx*my), returning false and a diagnostic on invalid cells. */
 bool BuildMappedCellMeasure (amrex::MultiFab& omega,
                              const amrex::MultiFab& detJ,

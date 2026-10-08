@@ -295,7 +295,17 @@ ERF Boundary Data Files
 
 For real lateral boundary conditions, ``init_type`` of ``metgrid`` or ``wrfinput``, ERF can
 write lateral boundary data to an AMReX-native file during initialization. The file name is
-configurable with ``erf.erfbdy_file`` (default ``"erfbdy"``). Use of the the erfbdy file is
-mandatory for ``init_type`` of ``metgrid``, but can be optionally disabled for ``init_type``
-of ``wrfinput`` with ``erf.write_erfbdy = false`` so that the boundary data is processed
-as-needed during time integration.
+configurable with ``erf.erfbdy_file`` (default ``"erfbdy"``).
+
+Use of the erfbdy file is mandatory for ``init_type`` of ``metgrid``, which is why
+``erf.write_erfbdy`` defaults to true there.
+
+For ``init_type`` of ``wrfinput`` the boundary data are read from the ``erf.nc_bdy_file``
+named in the inputs file as they are needed during time integration, and an erfbdy file is
+neither written nor read unless it is asked for: set ``erf.write_erfbdy = true`` to write
+one during initialization, and ``erf.use_erfbdy = true`` on a later run to read the boundary
+data from it rather than from ``erf.nc_bdy_file``.
+
+An erfbdy file records the domain it was built for, and ERF aborts if that does not match
+the domain of the run reading it. ERF does not, however, verify which wrfbdy file the
+boundary data came from, so an erfbdy file must be rewritten if ``erf.nc_bdy_file`` changes.

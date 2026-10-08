@@ -5,8 +5,12 @@
 #include <ERF_EBAdvection.H>
 #include <ERF_EBRedistribute.H>
 #include "Diffusion/ERF_CloudChamberWallFlux.H"
+#include "Diffusion/ERF_TurbKESources.H"
 #include "Prob/ERF_CloudChamberBudget.H"
 #include "ERF_SBMOwnership.H"
+#include "ERF_SBMStageOwnership.H"
+#include "ERF_SBMStateManager.H"
+#include "ERF_SBMTransport.H"
 #include "AuxiliaryState/ERF_AuxiliaryInertTracer.H"
 
 using namespace amrex;
@@ -35,6 +39,8 @@ using namespace amrex;
  * @param[in   ] eddyDiffs diffusion coefficients for LES turbulence models
  * @param[in   ] Hfx3 heat flux in z-dir
  * @param[in   ] Diss dissipation of turbulent kinetic energy
+ * @param[in   ] Tau13 rho<u'w'>, carrying the surface-layer stress on the zlo face
+ * @param[in   ] Tau23 rho<v'w'>, carrying the surface-layer stress on the zlo face
  * @param[in   ] geom   Container for geometric information
  * @param[in   ] solverChoice  Container for solver parameters
  * @param[in   ] SurfLayer  Pointer to SurfaceLayer class for Monin-Obukhov Similarity Theory boundary condition
@@ -79,6 +85,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                         MultiFab* Q1fx1, MultiFab* Q1fx2,
                         MultiFab* Q1fx3, MultiFab* Q2fx3,
                         MultiFab* Diss,
+                        MultiFab* Tau13, MultiFab* Tau23,
                         const Geometry geom,
                         const SolverChoice& solverChoice,
                         const Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer,
@@ -104,7 +111,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                         const MultiFab* cloud_chamber_base_state,
                         const erf_cloud_chamber::Config* cloud_chamber_config,
                         CloudChamberBudget* cloud_budget,
-                        erf_auxiliary::AuxiliaryInertTracer* auxiliary_inert_tracer)
+                        erf_auxiliary::AuxiliaryInertTracer* auxiliary_inert_tracer,
+                        erf_sbm::SBMStateManager* sbm_state_manager,
+                        erf_sbm::SBMTransport* sbm_transport)
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 
@@ -148,7 +157,6 @@ void erf_slow_rhs_post (int level, int finest_level,
     // i.e. Cmu0^3 sqrt(k_old) / L; the source skips the explicit sink and the
     // update divides by (1 + dt c).
     const bool l_implicit_diss  = ( tc.use_keqn && tc.implicit_tke_dissipation );
-    const Real l_tke_floor      = tc.tke_floor;
     const bool l_advect_KE      = ( tc.use_tke && tc.advect_tke );
     const bool l_use_diff       = ((dc.molec_diff_type != MolecDiffType::None) ||
                                    (tc.les_type        !=       LESType::None) ||
@@ -276,16 +284,6 @@ void erf_slow_rhs_post (int level, int finest_level,
         MultiFab::Copy(avg_zmom, S_data[IntVars::zmom], 0, 0, 1, 0);
     }
 
-    if (sbm_active && solverChoice.sbm_test_carrier_momentum_fault) {
-        // Deliberate test-only mutation at the actual carrier guard seam.
-        avg_xmom.setVal(Real(1.0));
-    }
-    if (sbm_active && (avg_xmom.norm0() != Real(0.0) ||
-                       avg_ymom.norm0() != Real(0.0) ||
-                       avg_zmom.norm0() != Real(0.0))) {
-        amrex::Abort("SBM zero-transport fixture requires exactly zero carrier momentum before scalar advection");
-    }
-
     // M2 proof consumer: run after the stage carrier is final and before the
     // caller copies S_data over S_new, preserving the predictor density view.
     if (auxiliary_inert_tracer != nullptr) {
@@ -297,6 +295,30 @@ void erf_slow_rhs_post (int level, int finest_level,
             level, method, nrk, step_old_time, input_time, target_time, dt_d,
             S_old[IntVars::cons], S_new[IntVars::cons], S_data[IntVars::cons],
             avg_xmom, avg_ymom, avg_zmom, solverChoice.advChoice, geom);
+    }
+
+    // M3 advances the authoritative spectrum after the host carrier has been
+    // finalized and before the caller commits this stage's S_data into S_new.
+    // The compact qc/qr lanes are refreshed as a projection of the accepted
+    // spectrum at the same semantic target time.
+    if (sbm_active) {
+        AMREX_ALWAYS_ASSERT(sbm_state_manager != nullptr && sbm_transport != nullptr);
+        if (solverChoice.sbm_test_donor_cfl_fault) {
+            // Force an outgoing-demand violation at the production donor CFL gate.
+            avg_xmom.setVal(Real(1.0e8));
+        }
+        const auto method = !l_anelastic ? erf_auxiliary::HostIntegrator::CompressibleRK3 :
+            (solverChoice.anelastic_type[level] == AnelasticType::RK2 ?
+                erf_auxiliary::HostIntegrator::AnelasticHeun :
+                erf_auxiliary::HostIntegrator::AnelasticMidPoint);
+        const MultiFab& stage_cons_anchor = S_old[IntVars::cons];
+        const MultiFab& stage_cons_input = S_new[IntVars::cons];
+        MultiFab& stage_cons_target = S_data[IntVars::cons];
+        sbm_transport->advance_stage_from_host(
+            level, method, nrk, step_old_time, input_time, target_time, dt_d,
+            *sbm_state_manager, stage_cons_anchor, stage_cons_input,
+            stage_cons_target, avg_xmom, avg_ymom, avg_zmom, geom,
+            solverChoice.moisture_indices.qc, solverChoice.moisture_indices.qr);
     }
 
     // *************************************************************************
@@ -319,8 +341,17 @@ void erf_slow_rhs_post (int level, int finest_level,
           physbnd_mask.BuildMask(geom.Domain(), geom.periodicity(), 1, 1, 0, 1);
       }
 
-      for (MFIter mfi(S_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-
+      // NOTE: this loop must NOT be tiled.  It both reads and writes S_new[cons]:
+      //   - the diffusion and PBL source routines below read new_cons with stencils
+      //     that reach outside the box they are given (AddTurbKESources, for instance,
+      //     forms a vertical theta_v gradient from k-1 and k+1);
+      //   - "rhs_post_9" near the end of the loop writes new_cons = cur_cons over tbx.
+      //
+      // The better fix is to split this into two passes -- all the reads, then all the
+      // writes -- which would let tiling come back.  Until then, do not restore
+      // TilingIfNotGPU() here without also moving the new_cons writes out.
+      for (MFIter mfi(S_data[IntVars::cons],false); mfi.isValid(); ++mfi)
+      {
         Box tbx  = mfi.tilebox();
 
         // *************************************************************************
@@ -392,6 +423,9 @@ void erf_slow_rhs_post (int level, int finest_level,
         int nsv = S_old[IntVars::cons].nComp() - 2;
         const GpuArray<int, IntVars::NumTypes> scomp_slow = {  2,0,0,0};
         const GpuArray<int, IntVars::NumTypes> ncomp_slow = {nsv,0,0,0};
+        const bool copy_sbm_active = sbm_active;
+        const int copy_sbm_qc = solverChoice.moisture_indices.qc;
+        const int copy_sbm_qr = solverChoice.moisture_indices.qr;
 
         // **************************************************************************
         // Note that here we do copy only the "slow" variables, not (rho) or (rho theta)
@@ -399,7 +433,9 @@ void erf_slow_rhs_post (int level, int finest_level,
         ParallelFor(tbx, ncomp_slow[IntVars::cons],
         [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) {
             const int n = scomp_slow[IntVars::cons] + nn;
-            cur_cons(i,j,k,n) = new_cons(i,j,k,n);
+            erf_sbm::copy_host_slow_component(
+                cur_cons, new_cons, i, j, k, n, copy_sbm_active,
+                copy_sbm_qc, copy_sbm_qr);
         });
 
         // **************************************************************************
@@ -455,7 +491,13 @@ void erf_slow_rhs_post (int level, int finest_level,
         Array4<Real> q1fx_x, q1fx_y, q1fx_z, q2fx_z;
         Array4<Real> hfx_EB{};
 
+        // The surface-layer stresses on the zlo face, consumed by the MYNN QKE
+        // source at k = klo (see ERF_TurbKESources.H)
+        Array4<const Real> tau13, tau23;
+
         if (l_use_diff) {
+            if (Tau13) { tau13 = Tau13->const_array(mfi); }
+            if (Tau23) { tau23 = Tau23->const_array(mfi); }
             diffflux_x = dflux_x->array(mfi);
             diffflux_y = dflux_y->array(mfi);
             diffflux_z = dflux_z->array(mfi);
@@ -573,8 +615,6 @@ void erf_slow_rhs_post (int level, int finest_level,
                         l_vert_implicit_fac = solverChoice.vert_implicit_fac[level][nrk];
                     }
 
-                    const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
-
                     // Only the physical chamber needs separate qv/qc calls:
                     // its wall correction must be applied to distinct flux
                     // components.  Generic moisture models retain the
@@ -600,26 +640,28 @@ void erf_slow_rhs_post (int level, int finest_level,
                         const Array4<Real> diffusion_z = dflux_z->array(mfi, flux_comp);
 
                     if (solverChoice.mesh_type == MeshType::StretchedDz) {
-                        DiffusionSrcForState_S(tbx, domain, diffusion_start, diffusion_num, u, v,
+                        DiffusionSrcForState_S(tbx, domain, diffusion_start, diffusion_num,
                                                new_cons, cur_prim, cell_rhs,
                                                diffusion_x, diffusion_y, diffusion_z,
-                                               stretched_dz_d, dxInv, SmnSmn_a,
+                                               stretched_dz_d, dxInv,
                                                mf_mx, mf_ux, mf_vx,
                                                mf_my, mf_uy, mf_vy,
-                                               hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
+                                               hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z,
                                                mu_turb, solverChoice, level,
-                                               tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
+                                               bc_ptr_d,
+                                               l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
                     } else if (l_use_terrain) {
-                        DiffusionSrcForState_T(tbx, domain, diffusion_start, diffusion_num, l_rotate, u, v,
+                        DiffusionSrcForState_T(tbx, domain, diffusion_start, diffusion_num, l_rotate,
                                                new_cons, cur_prim, cell_rhs,
                                                diffusion_x, diffusion_y, diffusion_z,
                                                z_nd, z_cc, ax_arr, ay_arr, az_arr,
-                                               detJ_arr, dxInv, SmnSmn_a,
+                                               detJ_arr, dxInv,
                                                mf_mx, mf_ux, mf_vx,
                                                mf_my, mf_uy, mf_vy,
-                                               hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z, diss,
+                                               hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z,
                                                mu_turb, solverChoice, level,
-                                               tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
+                                               bc_ptr_d,
+                                               l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
                     } else if (l_use_eb) {
                         DiffusionSrcForState_EB(tbx, domain, diffusion_start, diffusion_num, u, v,
                                                 new_cons, cur_prim, cell_rhs,
@@ -633,12 +675,13 @@ void erf_slow_rhs_post (int level, int finest_level,
                     } else {
                         DiffusionSrcForState_N(tbx, domain, diffusion_start, diffusion_num, u, v,
                                                new_cons, cur_prim, cell_rhs,
-                                               diffusion_x, diffusion_y, diffusion_z, dxInv, SmnSmn_a,
+                                               diffusion_x, diffusion_y, diffusion_z, dxInv,
                                                mf_mx, mf_ux, mf_vx,
                                                mf_my, mf_uy, mf_vy,
-                                               hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
+                                               hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z,
                                                mu_turb, solverChoice, level,
-                                               tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
+                                               bc_ptr_d,
+                                               l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
                     }
                     if (use_physical_chamber_wall_flux) {
                         // Apply the physical wall correction immediately to
@@ -657,10 +700,39 @@ void erf_slow_rhs_post (int level, int finest_level,
                     }
                     }
                 } // use_diff
-
-
             } // valid slow var
         } // loop ivar
+
+        // **************************************************************************
+        // TKE / QKE production and dissipation. These consume the face fluxes of
+        // this stage's scalar diffusion (theta in erf_slow_rhs_pre, qv above), so
+        // they are added only once every scalar has been diffused.
+        // **************************************************************************
+        if (l_use_diff && is_valid_slow_var[RhoKE_comp])
+        {
+            const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
+
+            if (solverChoice.mesh_type == MeshType::StretchedDz) {
+                const PBLDerivativeDzInv_S pbl_dz_inv{stretched_dz_d.data(),
+                                                      domain.smallEnd(2), domain.bigEnd(2)};
+                AddTurbKESources(tbx, domain, u, v, new_cons, cur_prim, cell_rhs,
+                                 SmnSmn_a, hfx_z, q1fx_z, diss, tau13, tau23, mu_turb,
+                                 solverChoice, level, tm_arr, grav_gpu, bc_ptr_d,
+                                 l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, pbl_dz_inv);
+            } else if (l_use_terrain) {
+                const PBLDerivativeDzInv_T pbl_dz_inv{z_cc};
+                AddTurbKESources(tbx, domain, u, v, new_cons, cur_prim, cell_rhs,
+                                 SmnSmn_a, hfx_z, q1fx_z, diss, tau13, tau23, mu_turb,
+                                 solverChoice, level, tm_arr, grav_gpu, bc_ptr_d,
+                                 l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, pbl_dz_inv);
+            } else if (!l_use_eb) {
+                const PBLDerivativeDzInv_N pbl_dz_inv{dxInv[2]};
+                AddTurbKESources(tbx, domain, u, v, new_cons, cur_prim, cell_rhs,
+                                 SmnSmn_a, hfx_z, q1fx_z, diss, tau13, tau23, mu_turb,
+                                 solverChoice, level, tm_arr, grav_gpu, bc_ptr_d,
+                                 l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, pbl_dz_inv);
+            }
+        }
 
 #ifdef ERF_USE_EAMXX_SHOC
         if (tc.uses_eamxx_shoc() && eamxx_shoc_lev) {
@@ -684,8 +756,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                 if (ivar == RhoQ1_comp) {
                     num_comp = n_qstate_total;
                     if (sbm_active) {
-                        // The host update applies source terms and positivity
-                        // clipping.  Keep both projected liquid lanes out of
+                        // The host update applies source terms (positivity
+                        // clipping is applied afterward in ERF_ScalarLimitPost.H
+                        // with the same restriction).  Keep both projected liquid lanes out of
                         // that write path; they are refreshed from the spectrum
                         // after the no-op microphysics handoff.
                         num_comp = 1;
@@ -704,12 +777,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                         cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
                         Real temp_val = detJ_arr(i,j,k) * old_cons(i,j,k,n) + dt * detJ_arr(i,j,k) * cell_rhs(i,j,k,n);
                         cur_cons(i,j,k,n) = temp_val / detJ_new_arr(i,j,k);
-                        if (ivar == RhoKE_comp) {
-                            if (l_implicit_diss) {
-                                cur_cons(i,j,k,n) /= (one + dt * diss(i,j,k) / amrex::max(old_cons(i,j,k,n), eps));
-                            }
-                            const Real ke_floor = (l_tke_floor > zero) ? cur_cons(i,j,k,Rho_comp) * l_tke_floor : eps;
-                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), ke_floor);
+                        if (ivar == RhoKE_comp && l_implicit_diss) {
+                            cur_cons(i,j,k,n) /= (one + dt * diss(i,j,k) / amrex::max(old_cons(i,j,k,n), eps));
                         }
                     });
 
@@ -728,15 +797,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                         // Add the time-averaged RHS to the old state
                         cur_cons(i,j,k,n) = old_cons(i,j,k,n) + myhalf * (dt_times_old_cell_rhs + dt * cell_rhs(i,j,k,n));
 
-                        if (ivar == RhoKE_comp) {
-                            if (l_implicit_diss) {
-                                // stage 1 of the trapezoidal update: half the step is implicit
-                                cur_cons(i,j,k,n) /= (one + myhalf * dt * diss(i,j,k) / amrex::max(old_cons(i,j,k,n), eps));
-                            }
-                            const Real ke_floor = (l_tke_floor > zero) ? cur_cons(i,j,k,Rho_comp) * l_tke_floor : eps;
-                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), ke_floor);
-                        } else if (ivar >= RhoQ1_comp) {
-                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), amrex::Real(0));
+                        if (ivar == RhoKE_comp && l_implicit_diss) {
+                            // stage 1 of the trapezoidal update: half the step is implicit
+                            cur_cons(i,j,k,n) /= (one + myhalf * dt * diss(i,j,k) / amrex::max(old_cons(i,j,k,n), eps));
                         }
                     });
 
@@ -749,14 +812,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                         const int n = start_comp + nn;
                         cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
                         cur_cons(i,j,k,n) = old_cons(i,j,k,n) + dt * cell_rhs(i,j,k,n);
-                        if (ivar == RhoKE_comp) {
-                            if (l_implicit_diss) {
-                                cur_cons(i,j,k,n) /= (one + dt * diss(i,j,k) / amrex::max(old_cons(i,j,k,n), eps));
-                            }
-                            const Real ke_floor = (l_tke_floor > zero) ? cur_cons(i,j,k,Rho_comp) * l_tke_floor : eps;
-                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), ke_floor);
-                        } else if (ivar >= RhoQ1_comp) {
-                            cur_cons(i,j,k,n) = amrex::max(cur_cons(i,j,k,n), amrex::Real(0));
+                        if (ivar == RhoKE_comp && l_implicit_diss) {
+                            cur_cons(i,j,k,n) /= (one + dt * diss(i,j,k) / amrex::max(old_cons(i,j,k,n), eps));
                         }
                     });
 

@@ -236,6 +236,12 @@ class NullSurf {
     bool
     Get_Update_Status () { return false; }
 
+    // Whether this level integrates a land model of its own from its own setup data, so
+    // that rebuilding the level would restart that state (Noah-MP; see NOAHMP::Init).
+    [[nodiscard]] virtual
+    bool
+    Runs_Own_Land_Driver () const { return false; }
+
     // Scalar LSM step counter (NoahMP itimestep). Persisted in checkpoint so
     // the LSM substepping schedule survives restart. 0 means "uninitialized".
     virtual

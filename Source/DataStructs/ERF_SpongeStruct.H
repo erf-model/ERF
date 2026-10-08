@@ -99,9 +99,10 @@ struct SpongeChoice {
     inline static
     SpongeType sponge_type = SpongeType::Standard;
 
-    amrex::Real xlo_sponge_end, xhi_sponge_start;
-    amrex::Real ylo_sponge_end, yhi_sponge_start;
-    amrex::Real zlo_sponge_end, zhi_sponge_start;
+    // Read only for the sides that are switched on; the defaults keep the others finite
+    amrex::Real xlo_sponge_end = amrex::Real(0.0), xhi_sponge_start = amrex::Real(0.0);
+    amrex::Real ylo_sponge_end = amrex::Real(0.0), yhi_sponge_start = amrex::Real(0.0);
+    amrex::Real zlo_sponge_end = amrex::Real(0.0), zhi_sponge_start = amrex::Real(0.0);
     amrex::Real sponge_density = -one;
     amrex::Real sponge_rhotheta = -one;
     amrex::Real sponge_rhomoist = -one;

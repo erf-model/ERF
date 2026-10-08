@@ -21,6 +21,7 @@ jobs:
       packages: write
     # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
     strategy:
+      fail-fast: false
       matrix:
         # This workflow exercises the NetCDF and RRTMGP combinations, which
         # are orthogonal to particles -- crossing the axis doubled the matrix
@@ -50,13 +51,14 @@ jobs:
     - name: Free up disk space
       uses: ./erf_clone/.github/actions/free-space-ubuntu
 
-    - name: Set Up Cache
-      uses: actions/cache@v6
+    # ccache per matrix variant, written only from development; see ci.yml for how it works.
+    - name: Restore Cache
+      uses: actions/cache/restore@v6
       with:
         path: ~/.cache/ccache
-        key: ccache-${{ github.workflow }}-${{ github.job }}-git-${{ github.sha }}
+        key: ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.netcdf }}-${{ matrix.rrtmgp }}-git-${{ github.sha }}
         restore-keys: |
-             ccache-${{ github.workflow }}-${{ github.job }}-git-
+             ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.netcdf }}-${{ matrix.rrtmgp }}-git-
 
     - name: Setup Spack
       uses: spack/setup-spack@v3
@@ -116,7 +118,7 @@ jobs:
       run: |
         export CCACHE_COMPRESS=1
         export CCACHE_COMPRESSLEVEL=10
-        export CCACHE_MAXSIZE=300M
+        export CCACHE_MAXSIZE=600M
         ccache -z
 
         cmake --build ${ERF_DIR}/build --parallel 2 --verbose \
@@ -124,6 +126,13 @@ jobs:
 
         ccache -s
         du -hs ~/.cache/ccache
+
+    - name: Save Cache
+      if: always() && github.ref_name == github.event.repository.default_branch
+      uses: actions/cache/save@v6
+      with:
+        path: ~/.cache/ccache
+        key: ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.netcdf }}-${{ matrix.rrtmgp }}-git-${{ github.sha }}
 
     - name: Report
       run: |

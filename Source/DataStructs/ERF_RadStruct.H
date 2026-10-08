@@ -11,6 +11,10 @@
 #include <AMReX_Gpu.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_TurbStruct.H>
+#include <ERF_NoahMPSoilTable.H>
+#include <ERF_NoahMPVegetationTable.H>
+#include <ERF_SimplifiedSEB.H>
+#include <cstdio>
 
 /**
  * @file ERF_RadStruct.H
@@ -409,6 +413,88 @@ public:
   bool seb_surface_layer_uses_skin = false;
 
   /**
+   * @brief Two-way coupling of moisture as well: the surface layer takes its land surface
+   * mixing ratio from the balance's surface water, so its moisture flux follows the soil
+   * and dries as the balance's q_s does. Without seb_soil_type it is
+   * beta * q_sat(T_s, p_s) + (1 - beta) * q_air with beta the soil-water factor
+   * clamp((q_s - seb_soil_moisture_wilt) / (seb_soil_moisture_fc - seb_soil_moisture_wilt),
+   * 0, 1). With seb_soil_type, the bare soil evaporates from its pore air (Noah-MP's
+   * relative humidity exp(psi g / (R_v T_s)) times q_sat) through Noah-MP's bare-soil
+   * resistance, and with seb_vegetation_type the canopy transpires through its own, each in
+   * series with the aerodynamic one (erf_surface_moisture::two_source_surface_mixing_ratio).
+   * q_s is then the
+   * volumetric water content [m^3/m^3] of the top seb_moisture_layer_depth_m of soil.
+   * Requires seb_surface_layer_uses_skin. Default false: the surface layer keeps its own
+   * surface moisture (erf.most.surf_moist).
+   */
+  bool seb_surface_layer_uses_moisture = false;
+
+  /**
+   * @brief Wilting point [m^3/m^3]: at or below it the soil-water factor is 0, so the
+   * vegetation does not transpire and, without seb_soil_type, the surface does not
+   * evaporate (with one, the bare soil's nearly dry pore air keeps it near zero)
+   * (seb_surface_layer_uses_moisture; giving it otherwise stops at start-up). Default
+   * 0.066, Noah-MP's loam (WLTSMC, STAS soil type 6).
+   */
+  amrex::Real seb_soil_moisture_wilt = 0.066;
+
+  /**
+   * @brief Field capacity [m^3/m^3]: at or above it the soil-water factor is 1, so without
+   * seb_soil_type the surface evaporates at the potential rate
+   * (seb_surface_layer_uses_moisture; giving it otherwise stops at start-up). Default
+   * 0.329, Noah-MP's loam (REFSMC, STAS soil type 6).
+   */
+  amrex::Real seb_soil_moisture_fc = 0.329;
+
+  /**
+   * @brief Noah-MP soil category (STAS, 1-19, not 14 (water), as in NoahmpTable.TBL; see
+   * ERF_NoahMPSoilTable.H). The balance takes its wilting point (WLTSMC) and field
+   * capacity (REFSMC) -- giving either seb_soil_moisture_wilt or seb_soil_moisture_fc as
+   * well is an error --, the surface heat capacity of the soil unless
+   * seb_surface_heat_capacity is given, with seb_surface_layer_uses_moisture the bare-soil
+   * resistance (vegetation or not), and with seb_surface_layer_uses_skin the surface
+   * layer's land roughness unless
+   * erf.most.z0 is given. 0 (the default): none of these.
+   */
+  int seb_soil_type = 0;
+
+  /**
+   * @brief Noah-MP land-use category (modified IGBP MODIS, 1-20 except the unvegetated 15,
+   * 16 and 17, as in NoahmpTable.TBL; see ERF_NoahMPVegetationTable.H) of the vegetated
+   * fraction. With it, the surface's moisture
+   * availability comes from a canopy resistance (Jarvis, Noah-MP's parameters RS, RGL, HS,
+   * TOPT, RSMAX) for the vegetated fraction and a bare-soil resistance (Noah-MP's
+   * Sakaguchi-Zeng form, on seb_soil_type) for the rest, each in series with the
+   * aerodynamic one. Needs seb_surface_layer_uses_moisture and seb_soil_type. 0 (the
+   * default): bare soil, the soil's resistance alone (f_veg = 0).
+   */
+  int seb_vegetation_type = 0;
+
+  /**
+   * @brief Vegetated fraction of the surface [0, 1] (seb_vegetation_type; giving it otherwise
+   * stops at start-up). Default 1.
+   */
+  amrex::Real seb_vegetation_fraction = 1.0;
+
+  /**
+   * @brief Leaf area index [m^2/m^2] of the vegetated fraction (seb_vegetation_type;
+   * giving it otherwise stops at start-up). Default: the land-use category's monthly
+   * values interpolated to the run's start date and time (start_datetime), as Noah-MP does
+   * with its table LAI (noahmp_day_of_year: day 0 at 00:00 on 1 January), shifted half a year when erf.rad_cons_lat < 0 (one latitude for the domain,
+   * where Noah-MP uses each column's); fixed for the run.
+   */
+  amrex::Real seb_leaf_area_index = -1.0;
+
+  /**
+   * @brief Land roughness length [m] the coupled surface layer takes when erf.most.z0 is
+   * not given (derived, not an input): with seb_surface_layer_uses_skin and seb_soil_type,
+   * f_veg Z0MVT + (1 - f_veg) Z0SOIL from Noah-MP's tables (f_veg = 0 without
+   * seb_vegetation_type); -1 otherwise. ERF::InitData_post hands it to the zlo surface
+   * layer as it builds it (SurfaceLayer::set_default_roughness).
+   */
+  amrex::Real seb_land_roughness = -1.0;
+
+  /**
    * @brief Fallback SEB sensible heat flux [W/m^2].
    */
   amrex::Real seb_hfx_default = 0.0;
@@ -426,7 +512,10 @@ public:
   amrex::Real seb_grdflx_default = 0.0;
 
   /**
-   * @brief Fallback SEB surface moisture [kg/kg].
+   * @brief Fallback SEB surface moisture, and the initial value of the prognostic one.
+   * With seb_prognostic_enable q_s follows prognostic_dqs_dt, a volumetric water content
+   * [m^3/m^3] of the top seb_moisture_layer_depth_m of soil; with a land model that has
+   * one, the balance shows the land model's 2 m mixing ratio [kg/kg] instead.
    */
   amrex::Real seb_q_sfc_default = 0.0;
 
@@ -436,7 +525,8 @@ public:
   amrex::Real seb_t_deep_default = 300.0;
 
   /**
-   * @brief Fallback SEB deep soil moisture [kg/kg].
+   * @brief Deep soil moisture the prognostic q_s restores to, in q_s's units (see
+   * seb_q_sfc_default).
    */
   amrex::Real seb_q_deep_default = 0.0;
 
@@ -462,8 +552,11 @@ public:
   /**
    * @brief Effective surface heat capacity [J/(m^2*K)].
    * Used in force-restore prognostic T_s equation: dT_s/dt = SEB_residual / C_s - (2*pi/tau)*(T_s - T_deep).
-   * Default 2.0e4 J/(m^2*K) represents a thin surface-active layer.
-   * Only used when seb_prognostic_enable=true. Validated > 0 in init_params().
+   * Default 2.0e4 J/(m^2*K) represents a thin surface-active layer. With seb_soil_type
+   * it is derived from Noah-MP's soil instead (seb_force_restore_heat_capacity of the
+   * soil's heat capacity and conductivity at seb_q_sfc_default, over
+   * seb_restore_timescale_s) unless it is given explicitly.
+   * Only used when seb_prognostic_enable=true. Must be > 0: init_params() stops otherwise.
    */
   amrex::Real seb_surface_heat_capacity = 2.0e4;
 
@@ -471,7 +564,7 @@ public:
    * @brief Force-restore timescale for surface temperature [s].
    * Relaxation time constant toward T_deep in prognostic T_s equation.
    * Default 86400.0 s (1 day) provides weak damping on diurnal timescales.
-   * Only used when seb_prognostic_enable=true. Validated > 0 in init_params().
+   * Only used when seb_prognostic_enable=true. Must be > 0: init_params() stops otherwise.
    */
   amrex::Real seb_restore_timescale_s = 86400.0;
 
@@ -479,7 +572,7 @@ public:
    * @brief Effective surface moisture layer depth [m].
    * Used in force-restore prognostic q_s equation: dq_s/dt = -(LE/(L_v*rho_w*d_s)) - (1/tau_q)*(q_s - q_deep).
    * Default 0.1 m represents a thin surface-active moisture layer.
-   * Only used when seb_prognostic_enable=true. Validated > 0 in init_params().
+   * Only used when seb_prognostic_enable=true. Must be > 0: init_params() stops otherwise.
    */
   amrex::Real seb_moisture_layer_depth_m = 0.1;
 
@@ -487,7 +580,7 @@ public:
    * @brief Force-restore timescale for surface moisture [s].
    * Relaxation time constant toward q_deep in prognostic q_s equation.
    * Default 86400.0 s (1 day) provides weak damping on diurnal timescales.
-   * Only used when seb_prognostic_enable=true. Validated > 0 in init_params().
+   * Only used when seb_prognostic_enable=true. Must be > 0: init_params() stops otherwise.
    */
   amrex::Real seb_moisture_restore_timescale_s = 86400.0;
 
@@ -700,6 +793,13 @@ public:
    * - erf.radiation.seb_lw_flux_default (real, optional, default 0.0)
    * - erf.radiation.seb_turbulent_flux_source (string "surface_layer"|"defaults", optional, default "surface_layer")
    * - erf.radiation.seb_surface_layer_uses_skin (bool, optional, default false)
+   * - erf.radiation.seb_surface_layer_uses_moisture (bool, optional, default false)
+   * - erf.radiation.seb_soil_moisture_wilt (real, optional, default 0.066, 0 <= wilt < fc)
+   * - erf.radiation.seb_soil_moisture_fc (real, optional, default 0.329, wilt < fc <= 1)
+   * - erf.radiation.seb_soil_type (int, optional, default 0 = unset; 1-19, a Noah-MP STAS soil category)
+   * - erf.radiation.seb_vegetation_type (int, optional, default 0 = unset; 1-20 except 15-17 (no vegetation), a Noah-MP MODIS land-use category)
+   * - erf.radiation.seb_vegetation_fraction (real, optional, default 1, in [0, 1])
+   * - erf.radiation.seb_leaf_area_index (real, optional, default from the table at the start date, >= 0)
    * - erf.radiation.seb_hfx_default (real, optional, default 0.0)
    * - erf.radiation.seb_lh_default (real, optional, default 0.0)
    * - erf.radiation.seb_grdflx_default (real, optional, default 0.0)
@@ -708,10 +808,10 @@ public:
    * - erf.radiation.seb_q_deep_default (real, optional, default 0.0)
    * - erf.radiation.seb_diagnostic_enable (bool, optional, default false)
    * - erf.radiation.seb_prognostic_enable (bool, optional, default false)
-   * - erf.radiation.seb_surface_heat_capacity (real, optional, default 2.0e4, validated > 0)
-   * - erf.radiation.seb_restore_timescale_s (real, optional, default 86400.0, validated > 0)
-   * - erf.radiation.seb_moisture_layer_depth_m (real, optional, default 0.1, validated > 0)
-   * - erf.radiation.seb_moisture_restore_timescale_s (real, optional, default 86400.0, validated > 0)
+   * - erf.radiation.seb_surface_heat_capacity (real, optional, default 2.0e4, > 0, stops at start-up otherwise)
+   * - erf.radiation.seb_restore_timescale_s (real, optional, default 86400.0, > 0, stops at start-up otherwise)
+   * - erf.radiation.seb_moisture_layer_depth_m (real, optional, default 0.1, > 0, stops at start-up otherwise)
+   * - erf.radiation.seb_moisture_restore_timescale_s (real, optional, default 86400.0, > 0, stops at start-up otherwise)
    * - erf.radiation.seb_prognostic_t_min_k (real, optional, default 200.0)
    * - erf.radiation.seb_prognostic_t_max_k (real, optional, default 340.0)
    * - erf.radiation.seb_prognostic_q_min (real, optional, default 0.0, clamped to [0, 1])
@@ -1054,6 +1154,82 @@ public:
                        "or defaults, not '" + value + "'");
       }
       pp.query("radiation.seb_surface_layer_uses_skin", seb_surface_layer_uses_skin);
+      pp.query("radiation.seb_surface_layer_uses_moisture", seb_surface_layer_uses_moisture);
+      pp.query("radiation.seb_soil_moisture_wilt", seb_soil_moisture_wilt);
+      pp.query("radiation.seb_soil_moisture_fc", seb_soil_moisture_fc);
+      pp.query("radiation.seb_soil_type", seb_soil_type);
+      if (seb_soil_type != 0) {
+          if (pp.contains("radiation.seb_soil_moisture_wilt") ||
+              pp.contains("radiation.seb_soil_moisture_fc")) {
+              amrex::Abort("erf.radiation.seb_soil_type sets the wilting point and field "
+                           "capacity from Noah-MP's soil table; do not also give "
+                           "seb_soil_moisture_wilt or seb_soil_moisture_fc");
+          }
+          const NoahMPSoilParams* soil = noahmp_soil_params(seb_soil_type);
+          if (soil == nullptr || !(soil->smc_ref > soil->smc_wilt)) {
+              amrex::Abort("erf.radiation.seb_soil_type = " + std::to_string(seb_soil_type) +
+                           " is not a Noah-MP soil category with a field capacity above its "
+                           "wilting point (1-19, not 14, water; see ERF_NoahMPSoilTable.H)");
+          }
+          seb_soil_moisture_wilt = soil->smc_wilt;
+          seb_soil_moisture_fc = soil->smc_ref;
+      }
+      pp.query("radiation.seb_vegetation_type", seb_vegetation_type);
+      pp.query("radiation.seb_vegetation_fraction", seb_vegetation_fraction);
+      pp.query("radiation.seb_leaf_area_index", seb_leaf_area_index);
+      if (seb_vegetation_type != 0) {
+          const NoahMPVegetationParams* veg = noahmp_vegetation_params(seb_vegetation_type);
+          if (veg == nullptr) {
+              amrex::Abort("erf.radiation.seb_vegetation_type = " + std::to_string(seb_vegetation_type) +
+                           " is not a Noah-MP MODIS land-use category (1-20; see "
+                           "ERF_NoahMPVegetationTable.H)");
+          }
+          // Snow and ice (15), barren (16) and water (17) have no vegetation in the table
+          // (Z0MVT = 0, LAI 0 all year): Noah-MP treats such a surface as bare ground.
+          if (!(veg->z0 > 0.0)) {
+              amrex::Abort("erf.radiation.seb_vegetation_type = " + std::to_string(seb_vegetation_type) +
+                           " has no vegetation in Noah-MP's table (Z0MVT = 0, LAI 0 all year). "
+                           "For bare land leave seb_vegetation_type at 0: the soil's resistance "
+                           "and roughness (Z0SOIL) then apply.");
+          }
+          if (!seb_surface_layer_uses_moisture || seb_soil_type == 0) {
+              amrex::Abort("erf.radiation.seb_vegetation_type needs "
+                           "erf.radiation.seb_surface_layer_uses_moisture = true and "
+                           "erf.radiation.seb_soil_type (the bare-soil resistance uses the "
+                           "soil's porosity and Clapp-Hornberger b)");
+          }
+          if (!(std::isfinite(seb_vegetation_fraction) && seb_vegetation_fraction >= 0.0 &&
+                seb_vegetation_fraction <= 1.0)) {
+              amrex::Abort("erf.radiation.seb_vegetation_fraction must be in [0, 1]; got " +
+                           std::to_string(seb_vegetation_fraction));
+          }
+          if (pp.contains("radiation.seb_leaf_area_index")) {
+              if (!(std::isfinite(seb_leaf_area_index) && seb_leaf_area_index >= 0.0)) {
+                  amrex::Abort("erf.radiation.seb_leaf_area_index must be >= 0; got " +
+                               std::to_string(seb_leaf_area_index));
+              }
+          } else {
+              // The table's monthly LAI at the start date and time, as Noah-MP interpolates it
+              // (its day of the year counts from 0 at 00:00 on 1 January).
+              std::string start;
+              amrex::ParmParse pp_top;
+              amrex::Real day = 0.0, days_in_year = 0.0;
+              if (!pp_top.query("start_datetime", start) ||
+                  !noahmp_day_of_year(start, day, days_in_year)) {
+                  amrex::Abort("erf.radiation.seb_vegetation_type: give "
+                               "erf.radiation.seb_leaf_area_index, or a valid start_datetime "
+                               "(YYYY-MM-DD HH:MM:SS) so that it can be taken from the table");
+              }
+              seb_leaf_area_index = noahmp_leaf_area_index(*veg, day, days_in_year,
+                                                           rad_cons_lat < 0.0);
+              if (amrex::ParallelDescriptor::IOProcessor()) {
+                  amrex::Print() << "NOTE: erf.radiation.seb_leaf_area_index = "
+                                 << seb_leaf_area_index << ", Noah-MP's table value for land-use "
+                                    "category " << seb_vegetation_type << " at " << start
+                                 << ", fixed for the run.\n";
+              }
+          }
+      }
       pp.query("radiation.seb_hfx_default", seb_hfx_default);
       pp.query("radiation.seb_lh_default", seb_lh_default);
       pp.query("radiation.seb_grdflx_default", seb_grdflx_default);
@@ -1126,6 +1302,70 @@ public:
           }
       }
 
+      // Moisture coupling: the surface mixing ratio is q_sat at the skin temperature, so
+      // it needs the skin coupling; and beta needs a wilting point below field capacity.
+      // The wilting point and field capacity: checked whenever they are given or used.
+      if (seb_surface_layer_uses_moisture || pp.contains("radiation.seb_soil_moisture_wilt") ||
+          pp.contains("radiation.seb_soil_moisture_fc")) {
+          if (!(std::isfinite(seb_soil_moisture_wilt) && std::isfinite(seb_soil_moisture_fc) &&
+                seb_soil_moisture_wilt >= 0.0 && seb_soil_moisture_wilt < seb_soil_moisture_fc &&
+                seb_soil_moisture_fc <= 1.0)) {
+              amrex::Abort("erf.radiation.seb_soil_moisture_wilt and seb_soil_moisture_fc must "
+                           "satisfy 0 <= wilt < fc <= 1 (volumetric water contents); got wilt = " +
+                           std::to_string(seb_soil_moisture_wilt) + ", fc = " +
+                           std::to_string(seb_soil_moisture_fc));
+          }
+      }
+      // Inputs that only the moisture coupling or a vegetation type use: say so rather than
+      // ignore them.
+      if (!seb_surface_layer_uses_moisture &&
+          (pp.contains("radiation.seb_soil_moisture_wilt") ||
+           pp.contains("radiation.seb_soil_moisture_fc"))) {
+          amrex::Abort("erf.radiation.seb_soil_moisture_wilt and seb_soil_moisture_fc are used "
+                       "only with erf.radiation.seb_surface_layer_uses_moisture = true");
+      }
+      if (seb_vegetation_type == 0 &&
+          (pp.contains("radiation.seb_vegetation_fraction") ||
+           pp.contains("radiation.seb_leaf_area_index"))) {
+          amrex::Abort("erf.radiation.seb_vegetation_fraction and seb_leaf_area_index are used "
+                       "only with erf.radiation.seb_vegetation_type");
+      }
+
+      if (seb_surface_layer_uses_moisture) {
+          if (!seb_surface_layer_uses_skin) {
+              amrex::Abort("erf.radiation.seb_surface_layer_uses_moisture = true needs "
+                           "erf.radiation.seb_surface_layer_uses_skin = true: the surface "
+                           "mixing ratio is the saturation value at the balance's skin "
+                           "temperature");
+          }
+          if (seb_q_sfc_default <= seb_soil_moisture_wilt &&
+              amrex::ParallelDescriptor::IOProcessor()) {
+              amrex::Print() << "NOTE: erf.radiation.seb_surface_layer_uses_moisture: the soil "
+                                "starts at or below the wilting point (seb_q_sfc_default = "
+                             << seb_q_sfc_default << ", seb_soil_moisture_wilt = "
+                             << seb_soil_moisture_wilt << "), so its soil-water factor is zero: "
+                             << (seb_soil_type != 0
+                                 ? "no transpiration, and the bare soil's pore air is nearly "
+                                   "dry (Noah-MP's relative humidity exp(psi g / (R_v T))), so it "
+                                   "hardly evaporates and may take up vapour."
+                                 : "no evaporation at all.")
+                             << " Set seb_q_sfc_default (and seb_q_deep_default, which q_s "
+                                "restores to) to the soil's water content if that is not meant.\n";
+          }
+          // q_s restores toward q_deep, which defaults to 0: a forgotten q_deep dries the soil
+          // over seb_moisture_restore_timescale_s.
+          if (seb_q_deep_default < seb_soil_moisture_wilt &&
+              amrex::ParallelDescriptor::IOProcessor()) {
+              amrex::Print() << "NOTE: erf.radiation.seb_surface_layer_uses_moisture: "
+                                "seb_q_deep_default = " << seb_q_deep_default
+                             << " is below the wilting point (" << seb_soil_moisture_wilt
+                             << "), and q_s restores toward it over seb_moisture_restore_timescale_s"
+                                " (" << seb_moisture_restore_timescale_s << " s), drying the soil."
+                                " Set seb_q_deep_default to the deep soil's water content if that "
+                                "is not meant.\n";
+          }
+      }
+
       // The restoring term -(2 pi / tau)(T_s - T_deep) of the force-restore update
       // is the ground heat flux, so a ground flux in the balance as well removes
       // that heat twice.
@@ -1137,18 +1377,53 @@ public:
       }
 
 
-      // Validate the prognostic parameters
-      if (!std::isfinite(seb_surface_heat_capacity) || seb_surface_heat_capacity <= 0.0) {
-          seb_surface_heat_capacity = 2.0e4;  // Reset to default
+      // Validate the prognostic parameters: each must be positive and finite when given
+      // (the defaults are), so a typo stops here rather than running on another value.
+      auto require_positive = [] (const char* name, amrex::Real value) {
+          if (!(std::isfinite(value) && value > 0.0)) {
+              amrex::Abort(std::string("erf.radiation.") + name + " must be > 0; got " +
+                           std::to_string(value));
+          }
+      };
+      require_positive("seb_surface_heat_capacity", seb_surface_heat_capacity);
+      require_positive("seb_restore_timescale_s", seb_restore_timescale_s);
+      require_positive("seb_moisture_layer_depth_m", seb_moisture_layer_depth_m);
+      require_positive("seb_moisture_restore_timescale_s", seb_moisture_restore_timescale_s);
+
+      // With a Noah-MP soil, the surface heat capacity of that soil at its initial water
+      // content: the layer the restore period's temperature wave reaches.
+      // The coupled surface layer's land roughness, from the same tables.
+      if (seb_surface_layer_uses_skin && seb_soil_type != 0) {
+          const NoahMPVegetationParams* veg = (seb_vegetation_type != 0)
+                                            ? noahmp_vegetation_params(seb_vegetation_type) : nullptr;
+          const amrex::Real f_veg = veg ? seb_vegetation_fraction : amrex::Real(0.0);
+          seb_land_roughness = f_veg * (veg ? veg->z0 : amrex::Real(0.0)) +
+                               (amrex::Real(1.0) - f_veg) * noahmp_soil_roughness;
+          // At least min(Z0MVT, Z0SOIL) > 0: the categories with Z0MVT = 0 stop above.
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(seb_land_roughness > 0.0,
+              "erf.radiation.seb_*: the land roughness from Noah-MP's tables is not positive");
       }
-      if (!std::isfinite(seb_restore_timescale_s) || seb_restore_timescale_s <= 0.0) {
-          seb_restore_timescale_s = 86400.0;  // Reset to default
-      }
-      if (!std::isfinite(seb_moisture_layer_depth_m) || seb_moisture_layer_depth_m <= 0.0) {
-          seb_moisture_layer_depth_m = 0.1;  // Reset to default
-      }
-      if (!std::isfinite(seb_moisture_restore_timescale_s) || seb_moisture_restore_timescale_s <= 0.0) {
-          seb_moisture_restore_timescale_s = 86400.0;  // Reset to default
+
+      // A value given explicitly stands.
+      if (seb_prognostic_enable && seb_soil_type != 0) {
+          const NoahMPSoilParams* soil = noahmp_soil_params(seb_soil_type);
+          const amrex::Real theta = amrex::min(seb_q_sfc_default, soil->smc_max);
+          const amrex::Real c = seb_soil_heat_capacity(theta, soil->smc_max, noahmp_soil_heat_capacity);
+          const amrex::Real lambda = seb_soil_thermal_conductivity(theta, soil->smc_max, soil->quartz);
+          const amrex::Real derived = seb_force_restore_heat_capacity(lambda, c, seb_restore_timescale_s);
+          const bool given = pp.contains("radiation.seb_surface_heat_capacity");
+          if (!given) { seb_surface_heat_capacity = derived; }
+          if (amrex::ParallelDescriptor::IOProcessor()) {
+              amrex::Print() << "NOTE: erf.radiation.seb_surface_heat_capacity = "
+                             << seb_surface_heat_capacity << " J/m^2/K"
+                             << (given ? " as given; Noah-MP soil category " :
+                                         ", from Noah-MP soil category ")
+                             << seb_soil_type << " at a water content of " << theta
+                             << " (heat capacity " << c << " J/m^3/K, conductivity " << lambda
+                             << " W/m/K) over " << seb_restore_timescale_s << " s"
+                             << (given ? " gives " + std::to_string(derived) : std::string())
+                             << ".\n";
+          }
       }
 
       // Clamp temperature bounds

@@ -56,12 +56,8 @@ prognostic variables. See :ref:`sec:SpectralBinMicrophysics`.
 | WRF Double Moment  | ``WDM6``                | :math:`q_i` | :math:`q_r` | :math:`q_s`     | :math:`q_g` |
 | 6-class            |                         |             |             |                 |             |
 +--------------------+-------------------------+-------------+-------------+-----------------+-------------+
-| Predicted Particle | ``P3``                  | :math:`q_i` | :math:`q_r` | :math:`q_{rim}` | --          |
-| Properties         |                         |             |             |                 |             |
-+--------------------+-------------------------+-------------+-------------+-----------------+-------------+
 | Spectral-bin       | ``SBM``                 | :math:`q_r` | --          | --              | --          |
-| infrastructure     |                         |             |             |                 |             |
-| fixture            |                         |             |             |                 |             |
+| advection          |                         |             |             |                 |             |
 +--------------------+-------------------------+-------------+-------------+-----------------+-------------+
 | Super-Droplet      | ``SuperDroplets``       | :math:`q_i` | :math:`q_r` | :math:`q_s`     | :math:`q_g` |
 | Method (SDM)       |                         |             |             |                 |             |
@@ -70,12 +66,13 @@ prognostic variables. See :ref:`sec:SpectralBinMicrophysics`.
 
 .. warning::
 
-   ``SBM`` is currently a bounded zero-transport infrastructure fixture, not
-   yet a production spectral-bin cloud-microphysics option. It stores and
-   validates a liquid spectral distribution and projects that distribution to
-   bulk ``qc`` and ``qr``, but spectral transport and cloud microphysical
-   processes are not yet enabled. See
-   :ref:`sec:SpectralBinMicrophysics` for the current supported configuration.
+   ``SBM`` currently provides the bounded M3 advection capability, not a
+   complete warm-cloud microphysics scheme. The authoritative liquid spectrum
+   is advected with ERF's mapped dry-air carrier and projected to ``qc``/``qr``,
+   but diffusional growth, activation, aerosol evolution,
+   collision-coalescence, sedimentation/precipitation, AMR transport lifecycle,
+   and other later-phase physics are not yet enabled. See
+   :ref:`sec:SpectralBinMicrophysics` for the supported configuration.
 
 .. note::
 
@@ -738,25 +735,6 @@ that water vapor, :math:`q_{v}`, will impact pressure, through the EOS, and
 buoyancy but will not introduce thermal sources due to conversion to and from
 cloud water. Consequently, this moisture model only transports :math:`q_{v}`.
 
-
-Predicted Particle Properties (P3) Microphysics Model
-------------------------------------------------------
-
-The P3 microphysics scheme uses a fundamentally different approach than traditional bulk schemes.
-Rather than using fixed hydrometeor categories (ice, snow, graupel), P3 predicts evolving ice particle
-properties, allowing continuous transitions from unrimed ice to heavily rimed particles.
-
-P3 transports water vapor (:math:`q_v`), cloud water (:math:`q_c`), rain (:math:`q_r`), total ice mass
-(:math:`q_i`), and rime mass (:math:`q_{rim}`). Additional prognostic variables include ice number
-concentration and rime volume.
-
-The scheme represents physical processes including vapor deposition/sublimation, riming, aggregation,
-melting, and sedimentation. Particle properties evolve continuously based on environmental conditions
-and microphysical processes.
-
-.. P3 requires ``USE_P3=TRUE`` at build time and interfaces with E3SM's P3 implementation.
-
-For details, see Morrison and Milbrandt (2015, *J. Atmos. Sci.*, 72, 287–311).
 
 Super-Droplet Method (SDM) Microphysics Model
 ----------------------------------------------

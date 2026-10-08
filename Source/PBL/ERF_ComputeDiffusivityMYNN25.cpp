@@ -110,7 +110,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
 
                 // Not multiplying by dz: it's constant and would fall out when we divide qint0/qint1 anyway
 
-                const Real Zval = gdata.ProbLo(2) + (k + myhalf)*gdata.CellSize(2);
+                const Real Zval = (k + myhalf)*gdata.CellSize(2);
                 Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k));
                 Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k));
             });
@@ -164,7 +164,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             }
 
             Real l_obukhov;
-            if (std::abs(surface_heat_flux) > eps) {
+            if (std::abs(surface_heat_flux) > eps && u_star_arr(i,j,0) > eps) {
                 l_obukhov = -( theta0 * u_star_arr(i,j,0)*u_star_arr(i,j,0)*u_star_arr(i,j,0) )
                            / ( d_kappa * d_gravity * surface_heat_flux );
             } else {
@@ -174,7 +174,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
             // Surface-layer length scale (NN09, Eqn. 53)
             AMREX_ASSERT(l_obukhov != 0);
             const Real zval = use_terrain_fitted_coords ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr) :
-                                                          gdata.ProbLo(2) + (k + myhalf)*gdata.CellSize(2);
+                                                          (k + myhalf)*gdata.CellSize(2);
             const Real zeta = zval/l_obukhov;
             Real l_S;
             if (zeta >= one) {
@@ -183,6 +183,27 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                 l_S = KAPPA*zval/(one + Real(2.7) * zeta);
             } else {
                 l_S = KAPPA*zval*std::pow(one - Real(100.0) * zeta, Real(0.2));
+            }
+
+            // At the first cell center the vertical gradients computed above are
+            // built from the foextrap (cons) and hoextrap (velocity) ghost values
+            // that zlo.type = surface_layer installs, and those carry no surface
+            // information: the potential-temperature gradient comes out half the
+            // one-sided value and the velocity gradient has no dependence on the
+            // friction velocity at all (ERF #4037). Replace them with the MOST
+            // profile gradients that the surface layer is imposing on this cell,
+            //   |dU/dz|    = u_*      phi_m(zeta) / (kappa z)
+            //   dthetav/dz = thetav_* phi_h(zeta) / (kappa z)
+            // which is the same profile the stress and heat flux were derived from.
+            if (k == izmin) {
+                PBLSurfaceLayerGradient sl;
+                sl.u_star  = u_star_arr(i,j,0);
+                sl.tstar_v = ComputeVirtualTStarPBL(t_star_arr(i,j,0),
+                                                    (use_moisture) ? q_star_arr(i,j,0) : zero,
+                                                    theta0, qv0, use_moisture);
+                sl.zval    = zval;
+                sl.zeta    = zeta;
+                ApplySurfaceLayerGradientsPBL(sl, dthetavdz, dudz, dvdz);
             }
 
             // ABL-depth length scale (NN09, Eqn. 54)

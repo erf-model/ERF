@@ -5,7 +5,7 @@
 #include "ERF_TurbStruct.H"
 #include "ERF_PBLModels.H"
 
-#include <math.h>
+#include <cmath>
 
 using namespace amrex;
 
@@ -37,10 +37,10 @@ ComputeDiffusivityMYJ (double dt,
                        MultiFab& eddyViscosity,
                        const Geometry& geom,
                        const TurbChoice& /*turbChoice*/,
-                       std::unique_ptr<SurfaceLayer>& /*SurfLayer*/,
+                       std::unique_ptr<SurfaceLayer>& SurfLayer,
                        bool use_terrain_fitted_coords,
-                       bool /*use_moisture*/,
-                       int /*level*/,
+                       bool use_moisture,
+                       int level,
                        const BCRec* bc_ptr,
                        bool /*vert_only*/,
                        const std::unique_ptr<MultiFab>& z_phys_nd,
@@ -164,9 +164,18 @@ ComputeDiffusivityMYJ (double dt,
         int izmin = geom.Domain().smallEnd(2);
         int izmax = geom.Domain().bigEnd(2);
 
-        // Ustar for BC
-        //MultiFab* ustar = SurfLayer->get_u_star(level);
-        //const Array4<Real const>& ustar_arr = ustar->array(mfi);
+        // Surface-layer scales, used to rebuild the gradients in the first cell
+        // above the surface (ERF #4037). MYJ can run without a SurfaceLayer, so
+        // these stay empty when there is none and the resolved stencil is kept.
+        const bool surface_layer_on_zlo = (SurfLayer != nullptr);
+        const auto u_star_arr = (surface_layer_on_zlo) ?
+                                SurfLayer->get_u_star(level)->const_array(mfi) : Array4<const Real>{};
+        const auto t_star_arr = (surface_layer_on_zlo) ?
+                                SurfLayer->get_t_star(level)->const_array(mfi) : Array4<const Real>{};
+        const auto q_star_arr = (surface_layer_on_zlo && use_moisture) ?
+                                SurfLayer->get_q_star(level)->const_array(mfi) : Array4<const Real>{};
+        const auto l_obuk_arr = (surface_layer_on_zlo) ?
+                                SurfLayer->get_olen(level)->const_array(mfi) : Array4<const Real>{};
 
         // Vertical integrals to compute l0
         if (use_terrain_fitted_coords) {
@@ -206,7 +215,7 @@ ComputeDiffusivityMYJ (double dt,
                 // Perform integral over PBL height
                 for (int k(klo); k<=k_arr(i,j,0); ++k) {
                     // Not multiplying by dz: it's constant and would fall out when we divide qint0/qint1 anyway
-                    const Real Zval = gdata.ProbLo(2) + (k + myhalf)*gdata.CellSize(2);
+                    const Real Zval = (k + myhalf)*gdata.CellSize(2);
                     Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k));
                     Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k));
                 }
@@ -234,6 +243,28 @@ ComputeDiffusivityMYJ (double dt,
                                               v_ext_dir_on_zlo, v_ext_dir_on_zhi,
                                               dthetavdz, dudz, dvdz,
                                               moisture_indices);
+
+                // Replace the resolved gradients in the first cell with the MOST
+                // profile gradients; see ApplySurfaceLayerGradientsPBL (ERF #4037)
+                if (surface_layer_on_zlo && k == izmin) {
+                    const Real zval   = use_terrain_fitted_coords ?
+                                        Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr) :
+                                        (k + myhalf)*gdata.CellSize(2);
+                    const Real rho    = cell_data(i,j,k,Rho_comp);
+                    const Real theta  = cell_data(i,j,k,RhoTheta_comp) / rho;
+                    const Real qv     = (moisture_indices.qv >= 0) ?
+                                        cell_data(i,j,k,moisture_indices.qv) / rho : zero;
+                    const Real l_min  = Real(1.0e-10); // same floor on |L| as MRF and YSUNew
+                    const Real l_obuk = std::copysign(std::max(std::fabs(l_obuk_arr(i,j,0)),l_min),l_obuk_arr(i,j,0));
+                    PBLSurfaceLayerGradient sl;
+                    sl.u_star  = u_star_arr(i,j,0);
+                    sl.tstar_v = ComputeVirtualTStarPBL(t_star_arr(i,j,0),
+                                                        (q_star_arr) ? q_star_arr(i,j,0) : zero,
+                                                        theta, qv, use_moisture);
+                    sl.zval    = zval;
+                    sl.zeta    = zval / l_obuk;
+                    ApplySurfaceLayerGradientsPBL(sl, dthetavdz, dudz, dvdz);
+                }
 
                 // Calculate dimensional production terms
                 Real GML = std::max(dudz*dudz + dvdz*dvdz, EPSGM);
@@ -268,7 +299,7 @@ ComputeDiffusivityMYJ (double dt,
                     L = std::min((met_h_zeta/dxInv[2])*ELFC, ELM);
                 } else {
                     const Real zval = use_terrain_fitted_coords ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr)
-                                                                : gdata.ProbLo(2) + (k + myhalf)*gdata.CellSize(2);
+                                                                : (k + myhalf)*gdata.CellSize(2);
                     L = std::min(l0*d_kappa*zval / (d_kappa*zval + l0), ELM);
                 }
 
@@ -308,7 +339,7 @@ ComputeDiffusivityMYJ (double dt,
                     Real RHSP1=(ARHS*ELOQ51+BRHS*ELOQ31+CRHS*ELOQ11)*RDEN1*RDEN1;
 
                     Real DTTURBL = static_cast<Real>(dt);
-                    Real ELOQ12=std::max(ELOQ11+(DLOQ1-ELOQ11)*exp(RHSP1*DTTURBL),EPS1);
+                    Real ELOQ12 = amrex::max(ELOQ11+(DLOQ1-ELOQ11)*std::exp(RHSP1*DTTURBL),EPS1);
 
                     Real ELOQ22=ELOQ12*ELOQ12;
                     Real ELOQ32=ELOQ22*ELOQ12;
@@ -320,7 +351,7 @@ ComputeDiffusivityMYJ (double dt,
                     Real RHSP2= (ARHS*ELOQ52+BRHS*ELOQ32+CRHS*ELOQ12)*RDEN2*RDEN2;
                     Real RHST2=RHS2/RHSP2;
 
-                    Real ELOQ13=std::max(ELOQ12-RHST2+(RHST2+DLOQ1-ELOQ12)*exp(RHSP2*DTTURBL),EPS1);
+                    Real ELOQ13 = amrex::max(ELOQ12-RHST2+(RHST2+DLOQ1-ELOQ12)*std::exp(RHSP2*DTTURBL),EPS1);
 
                     Real ELOQN=ELOQ13;
                     if (ELOQN>EPS1) {
@@ -331,14 +362,17 @@ ComputeDiffusivityMYJ (double dt,
                         qvel(i,j,k) = EPSQ1;
                     }
                 }
-                /*
-                // Boundary condition
-                if (k==klo) {
-                    Real q2 = std::pow(B1,(two/three))*ustar_arr(i,j,k)*ustar_arr(i,j,k);
-                    Real q  = std::max(std::sqrt(q2),EPSQ1);
-                    qvel(i,j,k) = myhalf * (q + qvel(i,j,k));
-                }
-                */
+
+                // NOTE: MYJ in WRF places the TKE at the w-faces and not the CC.
+                //       Therefore, WRF sets the bottom face in accordance with
+                //       the surface layer friction velocity (below). We do not
+                //       do that since TKE lives at CC here.
+                //if (k==klo) {
+                //    Real q2 = std::pow(B1,(two/three))*ustar_arr(i,j,k)*ustar_arr(i,j,k);
+                //    Real q  = std::max(std::sqrt(q2),EPSQ1);
+                //    qvel(i,j,k) = myhalf * (q + qvel(i,j,k));
+                //}
+
                 cell_data(i,j,k,RhoKE_comp) = myhalf*cell_data(i,j,k,Rho_comp)*qvel(i,j,k)*qvel(i,j,k);
 
                 // L^n/Q^n

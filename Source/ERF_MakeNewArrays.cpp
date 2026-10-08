@@ -281,17 +281,7 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // ********************************************************************************************
     // Initialize flux registers whenever we create/re-create a level
     // ********************************************************************************************
-    if (solverChoice.coupling_type == CouplingType::TwoWay) {
-        if (lev == 0) {
-            advflux_reg[0] = nullptr;
-        } else {
-            int ncomp_reflux = vars_new[0][Vars::cons].nComp();
-            advflux_reg[lev] = new YAFluxRegister(ba       , grids[lev-1],
-                                                  dm       ,  dmap[lev-1],
-                                                  geom[lev],  geom[lev-1],
-                                                  ref_ratio[lev-1], lev, ncomp_reflux);
-        }
-    }
+    make_flux_register(lev);
 
     // ********************************************************************************************
     // Define Theta_prim storage if using surface_layer BC
@@ -686,6 +676,22 @@ ERF::define_column_kextent (int lev, const BoxArray& ba, const DistributionMappi
     }
 
     column_kextent[lev]->FillBoundary(geom[lev].periodicity());
+}
+
+// The flux register at lev sits on the lev-1 / lev interface, so it must be rebuilt
+// whenever the grids at either lev or lev-1 change.
+void
+ERF::make_flux_register (int lev)
+{
+    if (solverChoice.coupling_type != CouplingType::TwoWay || lev == 0) {
+        advflux_reg[lev].reset();
+        return;
+    }
+    int ncomp_reflux = vars_new[0][Vars::cons].nComp();
+    advflux_reg[lev] = std::make_unique<YAFluxRegister>(grids[lev], grids[lev-1],
+                                                        dmap[lev] ,  dmap[lev-1],
+                                                        geom[lev] ,  geom[lev-1],
+                                                        ref_ratio[lev-1], lev, ncomp_reflux);
 }
 
 void

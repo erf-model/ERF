@@ -1,0 +1,13 @@
+# Case 1: Noah-MP on both levels (namelist.erf names a land setup file for each), fed by
+# the two-stream radiation of its own level. The diagnostic surface energy balance records
+# the two-stream side of the budget for comparison.
+FILE = inputs_common
+
+erf.land_surface_model = "NOAHMP"
+# Noah-MP computes the surface stress, H and LE with its own roughness, and the surface
+# layer takes u*, theta* and q* from them after the first step, so erf.most.z0 does not
+# matter here; the force-restore case takes its roughness from Noah-MP's tables.
+erf.radiation.seb_diagnostic_enable = true
+erf.radiation.diag_file = "radiation_diag_noahmp.csv"
+
+erf.plot2d_vars_1 = t_sfc sav sag fira grdflx albedo sfc_emis sw_flux_dn lw_flux_dn sensible_heat_flux latent_heat_flux t_surf pblh
