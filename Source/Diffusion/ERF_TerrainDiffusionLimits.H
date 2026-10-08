@@ -150,7 +150,7 @@ Smag2DLimitedViscosity (amrex::Real nu, amrex::Real strain, amrex::Real DeltaH,
  * a = (m_x / dx)^2, b = (m_y / dy)^2 and h^2 = (m_x dx_drop / dx)^2 +
  * (m_y dy_drop / dy)^2 is the squared physical slope; on a mesh without
  * terrain pass h2 = 0.  e is the explicit fraction of the vertical diffusion
- * (ExplicitVerticalFraction): 0 when the implicit solve makes it A-stable,
+ * (ExplicitVerticalFraction): 0 when the implicit solve keeps every stage bounded,
  * 1 otherwise.  All diffusivities are dynamic (rho * nu); rates are in 1/s.
  * The caller passes the largest diffusivities and the smallest density around the
  * cell (NeighbourhoodMax, NeighbourhoodMinPositive), which bounds the row whatever
@@ -178,8 +178,11 @@ MomentumDiffusiveRate (amrex::Real rho, amrex::Real mu_h, amrex::Real mu_v,
  * Largest value of component n over cell (i,j,k) and its 26 neighbours.  The diffusion
  * operators average the cell diffusivities to faces and edges, so a row of the operator
  * never carries more than this.  With NeighbourhoodMinPositive for the density and the
- * coefficients frozen, the scalar rate is a Gershgorin bound on the Cartesian part of the
- * operator; for momentum it is a bound for uniform coefficients when mu_h = mu_v (tight on
+ * coefficients frozen, the scalar rate is a Gershgorin bound on the centred interior stencil
+ * of the Cartesian operator (the higher-order one-sided gradients next to Dirichlet
+ * boundaries, ERF_ScalarDiffusion.H, whose row is about 4/3 larger, are not covered); for
+ * momentum it is a bound for
+ * uniform coefficients when mu_h = mu_v (tight on
  * cubic cells) and an estimate otherwise, since the operator is then not symmetric.
  * Needs one ghost cell.
  */
@@ -306,45 +309,52 @@ CellDiffusiveRates (int i, int j, int k,
 }
 
 /**
- * Explicit fraction of the vertical diffusion for the diffusive time-step check: 0 if the
- * partly implicit Runge-Kutta scheme is A-stable for the vertical diffusion, 1 otherwise.
+ * Explicit fraction of the vertical diffusion for the diffusive time-step check: 0 if every
+ * stage of the partly implicit Runge-Kutta scheme stays bounded for the vertical diffusion,
+ * 1 otherwise (including every pattern for which that has not been shown).
  *
  * Each stage k starts from S^n with stage step c_k dt; its explicit part (1 - f_k) acts on
- * the previous stage's state and its implicit part f_k on its own, so for dS/dt = lambda S,
- * z = lambda dt,  S_k = (1 + (1 - f_k) c_k z S_{k-1}) / (1 - f_k c_k z),  S_0 = 1, and the
- * amplification factor is the last S_k.  The vertical diffusion is treated as implicit
- * (e = 0) when |S_k| <= 1 at every stage for z in [-1e12, -1e-6]: each stage's state feeds
- * the next stage's explicit terms, so an intermediate stage that amplifies a mode is not
- * acceptable even if the last one damps it.  With ERF's three-stage scheme (c = 1/3, 1/2, 1)
- * the default erf.vert_implicit_fac = 1 1 0 gives G = (1 + z/2) / (1 - z/2) (Crank-Nicolson)
- * and 1 1 1 backward Euler, both with bounded stages; the anelastic MidPoint scheme is
- * c = 1/2, 1 with factors 1 0, also Crank-Nicolson.
+ * the previous stage's state and its implicit part f_k on its own, so for dS/dt = lambda S
+ * and y = -lambda dt >= 0,  S_k = (1 - (1 - f_k) c_k y S_{k-1}) / (1 + f_k c_k y),  S_0 = 1.
+ * Each stage's state feeds the next stage's explicit terms, so every |S_k| must stay <= 1,
+ * not only the last.  The result is decided analytically:
  *
- * @param[in] stage_frac c_k of each stage
- * @param[in] fac        implicit factor f_k of each stage (erf.vert_implicit_fac)
- * @param[in] implicit   whether the implicit solve treats this component at all
+ *  - three stages (c = 1/3, 1/2, 1; compressible): bounded for f_1 >= 1/2, f_2 = 1 and any
+ *    f_3 in [0,1].  |S_1| <= 1 iff f_1 >= 1/2: |1 - (1-f) x| <= 1 + (1-f) x <= 1 + f x for
+ *    f >= 1/2, and for f < 1/2, S_1 -> -(1-f)/f < -1 as x -> infinity;
+ *    S_2 = 1 / (1 + y/2); and S_3 = (1 + (f_3 - 1/2) y) / ((1 + y/2)(1 + f_3 y)), whose
+ *    numerator is at most 1 + y/2 in size.  The default 1 1 0 is Crank-Nicolson, 1 1 1
+ *    backward Euler.
+ *  - two stages (c = 1/2, 1; anelastic MidPoint): bounded for f_1 = 1 and any f_2 in [0,1]
+ *    (the same S_3 form); with f_1 < 1 and f_2 = 0, as MidPoint forces, the second stage
+ *    grows without bound.
+ *
+ * Every other pattern returns 1: some are not bounded (0 0 1, 1 0 0, and 0.995 0.1 0.0666,
+ * whose last stage reaches 1.0008 near y = 23.5), and the rest are not shown to be.
+ *
+ * @param[in] nstages  3 for the compressible scheme, 2 for anelastic MidPoint
+ * @param[in] fac      implicit factor f_k of each stage (erf.vert_implicit_fac)
+ * @param[in] implicit whether the implicit solve treats this component at all
  */
 template <typename V>
 amrex::Real
-ExplicitVerticalFraction (const V& stage_frac, const V& fac, bool implicit)
+ExplicitVerticalFraction (int nstages, const V& fac, bool implicit)
 {
-    const int nstages = static_cast<int>(stage_frac.size());
     if (!implicit || static_cast<int>(fac.size()) < nstages) { return one; }
-    // Sampled at 20 points per decade over z in [-1e12, -1e-6]: S_k is a rational function
-    // of low degree in z, so in practice this finds every stage's extremum on the negative axis.
-    for (int n = 0; n <= 360; ++n) {
-        const double z = -std::pow(10.0, -6.0 + 0.05*n);
-        double S = 1.0;
-        for (int k = 0; k < nstages; ++k) {
-            const double f = amrex::min(amrex::max(static_cast<double>(fac[k]), 0.0), 1.0);
-            const double c = static_cast<double>(stage_frac[k]);
-            S = (1.0 + (1.0 - f) * c * z * S) / (1.0 - f * c * z);
-            // every stage, not only the last: each stage's state feeds the explicit terms
-            // (advection, horizontal and metric diffusion, the strain) of the next one
-            if (std::abs(S) > 1.0 + 1.0e-12) { return one; }
-        }
+    // The proof assumes factors in [0,1]; anything else (the inputs are not range-checked,
+    // and 1 1.5 0 amplifies by 4/3) counts as explicit rather than being clamped.
+    for (int k = 0; k < nstages; ++k) {
+        const double fk = static_cast<double>(fac[k]);
+        if (!(fk >= 0.0 && fk <= 1.0)) { return one; }
     }
-    return zero;
+    auto f = [&] (int k) { return static_cast<double>(fac[k]); };
+    if (nstages == 3) {
+        return (f(0) >= 0.5 && f(1) >= 1.0) ? zero : one;
+    }
+    if (nstages == 2) {
+        return (f(0) >= 1.0) ? zero : one;
+    }
+    return one;
 }
 
 #endif

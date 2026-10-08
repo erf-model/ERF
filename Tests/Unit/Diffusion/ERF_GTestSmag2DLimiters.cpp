@@ -5,8 +5,8 @@
 //  * the limited viscosity against hand-computed WRF smag2d_km numbers on both sides of the
 //    deformation threshold max(10/Delta_h, 1e-3), with the cap active and inactive and in WRF's
 //    order (cap, then slope);
-//  * the momentum and scalar diffusive rates against hand-computed values, the A-stability
-//    fraction of the partly implicit stages, and the neighbourhood bound (NeighbourhoodMax,
+//  * the momentum and scalar diffusive rates against hand-computed values, the explicit
+//    fraction of the partly implicit stages (every stage bounded or not), and the neighbourhood bound (NeighbourhoodMax,
 //    NeighbourhoodMinPositive, CellDiffusiveRates) on coefficients that vary between cells;
 //  * ComputeTurbulentViscosityLES on a tilted terrain-fitted mesh: K_h is limited before the
 //    scalar diffusivities are derived from it, K_v is not touched, and the limiter does nothing
@@ -452,31 +452,68 @@ TEST(Smag2DLimiters, RateBoundsTheHorizontalDiffusionOfW)
     EXPECT_GE(Real(4) * rate, std::abs(lambda) * (one - Real(10)*rel_tol()));
 }
 
+namespace {
+
+// Largest |S_k| over every stage of the partly implicit scheme for y = -lambda dt in
+// [1e-6, 1e12], sampled densely (2000 points per decade); independent of the classifier.
+double max_stage_amplification (const std::vector<double>& c, const std::vector<double>& f)
+{
+    double m = 0.0;
+    for (int n = 0; n <= 36000; ++n) {
+        const double y = std::pow(10.0, -6.0 + n * 5.0e-4);
+        double S = 1.0;
+        for (std::size_t k = 0; k < c.size(); ++k) {
+            S = (1.0 - (1.0 - f[k]) * c[k] * y * S) / (1.0 + f[k] * c[k] * y);
+            m = std::max(m, std::abs(S));
+        }
+    }
+    return m;
+}
+
+} // namespace
+
 TEST(Smag2DLimiters, ExplicitVerticalFractionFromStability)
 {
     using V = std::vector<Real>;
-    const V rk3 = {Real(1)/Real(3), Real(0.5), Real(1)};
-    const V mid = {Real(0.5), Real(1)};
-    // ERF's default 1 1 0: stage 2 implicit, stage 3 explicit on its state -> Crank-Nicolson,
-    // A-stable, so no explicit vertical limit
-    EXPECT_EQ(ExplicitVerticalFraction(rk3, V{1, 1, 0}, true), Real(0));
-    EXPECT_EQ(ExplicitVerticalFraction(rk3, V{1, 1, 1}, true), Real(0));
-    EXPECT_EQ(ExplicitVerticalFraction(rk3, V{1, 1, 0.5}, true), Real(0));
-    // an explicit first stage amplifies stiff modes before stage 2 sees them (S1 = 1 + z/3)
-    EXPECT_EQ(ExplicitVerticalFraction(rk3, V{0, 1, 0.5}, true), Real(1));
-    // fully explicit, and partly implicit patterns that are not A-stable
-    EXPECT_EQ(ExplicitVerticalFraction(rk3, V{0, 0, 0}, true), Real(1));
-    EXPECT_EQ(ExplicitVerticalFraction(rk3, V{1, 0, 0}, true), Real(1));
-    EXPECT_EQ(ExplicitVerticalFraction(rk3, V{1, 0, 0.25}, true), Real(1));
-    EXPECT_EQ(ExplicitVerticalFraction(rk3, V{0.5, 0.5, 0.25}, true), Real(1));
-    // only the last stage implicit damps at the end, but stages 1 and 2 amplify (S2 = 58 at
-    // z = -20), and those states feed the explicit terms of the next stage
-    EXPECT_EQ(ExplicitVerticalFraction(rk3, V{0, 0, 1}, true), Real(1));
+    const std::vector<double> rk3{1.0/3.0, 0.5, 1.0}, mid{0.5, 1.0};
+    struct Case { int nst; std::vector<double> f; Real e; };
+    const Case cases[] = {
+        // bounded (e = 0): f1 >= 1/2 with f2 = 1 (any f3); MidPoint with f1 = 1 (any f2)
+        {3, {1, 1, 0}, 0}, {3, {1, 1, 1}, 0}, {3, {1, 1, 0.5}, 0}, {3, {0.5, 1, 0}, 0},
+        {3, {0.5, 1, 1}, 0}, {2, {1, 0, 0}, 0}, {2, {1, 1, 0}, 0},
+        // everything else is explicit (e = 1)
+        {3, {0, 0, 0}, 1}, {3, {1, 0, 0}, 1}, {3, {1, 0, 0.25}, 1}, {3, {0.5, 0.5, 0.25}, 1},
+        {3, {0, 0, 1}, 1}, {3, {0, 1, 0.5}, 1}, {3, {0.49, 1, 0}, 1}, {2, {0, 0, 0}, 1},
+        {2, {0.9, 0, 0}, 1},
+        // a review counterexample: the last stage reaches 1.0008 near y = 23.5, between the
+        // points an earlier sampled classifier looked at
+        {3, {0.995, 0.1, 0.0666}, 1},
+    };
+    for (const auto& c : cases) {
+        V fac(c.f.begin(), c.f.end());
+        EXPECT_EQ(ExplicitVerticalFraction(c.nst, fac, true), c.e)
+            << c.f[0] << " " << c.f[1] << " " << c.f[2];
+        // every pattern classified implicit must have bounded stages
+        if (c.e == Real(0)) {
+            const std::vector<double> ff(c.f.begin(), c.f.begin() + c.nst);
+            EXPECT_LE(max_stage_amplification(c.nst == 3 ? rk3 : mid, ff), 1.0 + 1.0e-12)
+                << c.f[0] << " " << c.f[1] << " " << c.f[2];
+        }
+    }
+    // the counterexample really does exceed 1, and the f1 boundary is tight; the rule is
+    // sufficient, not necessary: 1 0 1 keeps every stage bounded but is classified explicit
+    EXPECT_GT(max_stage_amplification(rk3, {0.995, 0.1, 0.0666}), 1.0005);
+    EXPECT_GT(max_stage_amplification(rk3, {0.49, 1, 0}), 1.01);
+    EXPECT_GT(max_stage_amplification(mid, {0.9, 0}), 2.0);
+    EXPECT_LE(max_stage_amplification(rk3, {1, 0, 1}), 1.0 + 1.0e-12);
+    EXPECT_EQ(ExplicitVerticalFraction(3, V{1, 0, 1}, true), Real(1));
     // the component left out of the implicit solve is explicit whatever the factors
-    EXPECT_EQ(ExplicitVerticalFraction(rk3, V{1, 1, 1}, false), Real(1));
-    // anelastic MidPoint (factors forced to 1 0): implicit midpoint, A-stable
-    EXPECT_EQ(ExplicitVerticalFraction(mid, V{1, 0, 0}, true), Real(0));
-    EXPECT_EQ(ExplicitVerticalFraction(mid, V{0, 0, 0}, true), Real(1));
+    EXPECT_EQ(ExplicitVerticalFraction(3, V{1, 1, 1}, false), Real(1));
+    EXPECT_EQ(ExplicitVerticalFraction(3, V{1, 1}, true), Real(1));   // too few factors
+    // factors outside [0,1] are not clamped into a proven pattern: 1 1.5 0 amplifies by 4/3
+    EXPECT_EQ(ExplicitVerticalFraction(3, V{1, 1.5, 0}, true), Real(1));
+    EXPECT_GT(max_stage_amplification(rk3, {1, 1.5, 0}), 1.3);
+    EXPECT_EQ(ExplicitVerticalFraction(3, V{1, 1, -0.5}, true), Real(1));
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -156,32 +156,27 @@ ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
     const bool variable_dz = (SolverChoice::mesh_type != MeshType::ConstantDz);
 
     // Explicit fraction of the vertical diffusion (ExplicitVerticalFraction): 0 where the
-    // partly implicit stages are A-stable for it, 1 otherwise.  Compressible levels use the
-    // three-stage scheme (stage steps dt/3, dt/2, dt); anelastic MidPoint is two stages
-    // (dt/2, dt); anelastic RK2 turns the implicit solve off (its factors are zero).
+    // partly implicit stages keep it bounded, 1 otherwise.  Compressible levels use the
+    // three-stage scheme; anelastic MidPoint is two stages; anelastic RK2 turns the implicit
+    // solve off (its factors are zero).
     const auto& fac = solverChoice.vert_implicit_fac[lev];
-    Vector<Real> stage_frac;
-    if (solverChoice.anelastic[lev] &&
-        solverChoice.anelastic_type[lev] == AnelasticType::MidPoint) {
-        stage_frac = {myhalf, one};
-    } else {
-        stage_frac = {third, myhalf, one};
-    }
-    const Real e_uv = ExplicitVerticalFraction(stage_frac, fac, solverChoice.implicit_momentum_diffusion);
+    const int nstages = (solverChoice.anelastic[lev] &&
+                         solverChoice.anelastic_type[lev] == AnelasticType::MidPoint) ? 2 : 3;
+    const Real e_uv = ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_momentum_diffusion);
 #ifdef ERF_IMPLICIT_W
     const Real e_w  = e_uv;
 #else
     const Real e_w  = one;  // w's vertical diffusion is always explicit in this build
 #endif
-    const Real e_th = ExplicitVerticalFraction(stage_frac, fac, solverChoice.implicit_thermal_diffusion);
-    const Real e_ke = ExplicitVerticalFraction(stage_frac, fac, solverChoice.implicit_ke_diffusion);
+    const Real e_th = ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_thermal_diffusion);
+    const Real e_ke = ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_ke_diffusion);
     // The implicit solve treats only the first moisture variable (qv); any other moist species
     // shares the Q diffusivities and diffuses explicitly, and so do the advected scalars.
     // "Only qv" is read from the condensate indices: every scheme that carries number or bin
     // variables also carries qc.
     const auto& mi = solverChoice.moisture_indices;
     const bool only_qv = (mi.qc < 0 && mi.qi < 0 && mi.qr < 0 && mi.qs < 0 && mi.qg < 0);
-    const Real e_q  = only_qv ? ExplicitVerticalFraction(stage_frac, fac, solverChoice.implicit_moisture_diffusion)
+    const Real e_q  = only_qv ? ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_moisture_diffusion)
                               : one;
     DiffusiveRateSettings set;
     set.variable_dz = variable_dz;

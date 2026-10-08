@@ -988,20 +988,25 @@ Notes
      slope of the cell (zero without terrain) and :math:`\Delta z` the cell thickness.  Each
      diffusivity is the largest over the cell and its 26 neighbours, and :math:`\rho` the smallest,
      whatever face or edge averages the stencils use.  With the coefficients frozen this is a
-     Gershgorin bound on the Cartesian part of the scalar operator; for momentum it is a bound
+     Gershgorin bound on the centred interior stencil of the scalar operator (the higher-order
+     one-sided gradients used next to Dirichlet boundaries are not covered: their row is up to
+     about 4/3 larger, so there the rate can be low by that factor); for momentum it is a bound
      for uniform coefficients when :math:`\mu_h = \mu_v` and an estimate otherwise (the operator
      is then not symmetric), and the terrain cross terms make both estimates.  The
      terrain-metric term :math:`K h^2 \partial^2/\partial z^2` is not in the implicit solve.  For
      momentum it is an upper bound: the projected terrain stresses carry :math:`\mu_v` today
      (see ERF issue #4214) and would carry :math:`\mu_h` once that is changed.
-     :math:`e` is 0 when the implicit vertical solve keeps every stage of that component's
-     vertical diffusion bounded (no stage amplifies a mode) and 1 otherwise.  With the
-     three-stage scheme the stages start from the old state with steps dt/3, dt/2 and dt, so
-     the default **erf.vert_implicit_fac** = ``1 1 0`` (implicit in stage 2, explicit in stage
-     3 on the stage-2 state) is the Crank-Nicolson method for the vertical diffusion, and
-     :math:`e = 0`; ``1 1 1`` (backward Euler) and the anelastic MidPoint scheme
-     (Crank-Nicolson) also give :math:`e = 0`.  ``0 0 0``, anelastic RK2 (no implicit solve)
-     and patterns with an amplifying stage such as ``1 0 0`` or ``0 0 1`` give :math:`e = 1`.
+     :math:`e` is 0 when the implicit vertical solve is shown to keep every stage of that
+     component's vertical diffusion bounded (no stage amplifies a mode), and 1 otherwise.
+     This is decided analytically: with the three-stage scheme (stages from the old state with
+     steps dt/3, dt/2 and dt) every stage is bounded when **erf.vert_implicit_fac** has
+     :math:`f_1 \ge 1/2` and :math:`f_2 = 1`, whatever :math:`f_3`, and with the anelastic
+     MidPoint scheme when :math:`f_1 = 1`.  Every other pattern, including factors outside
+     [0, 1], counts as explicit; some of those are in fact bounded, so the rule is sufficient,
+     not necessary.  So the
+     default ``1 1 0`` (Crank-Nicolson for the vertical diffusion) and ``1 1 1`` (backward
+     Euler) give :math:`e = 0`, and ``0 0 0``, anelastic RK2 (no implicit solve), ``1 0 0``,
+     ``0 0 1`` or ``0.995 0.1 0.0666`` (whose last stage amplifies by 1.0008) give :math:`e = 1`.
      The vertical diffusion of w is explicit (:math:`e_w = 1`) unless ERF is built with
      ``ERF_IMPLICIT_W``; only the first moisture variable is in the implicit solve, so the
      moisture term has :math:`e = 1` when other moist species are carried, and the advected
@@ -1018,8 +1023,8 @@ Notes
      printed.  The check is a safeguard rather than a stability guarantee: it is conservative
      and can flag runs that stay stable, so a warning is a prompt to look, not a prediction of
      failure, and it does not account for the
-     anti-diffusion of the terrain stress reported in ERF issue #4214 (where
-     :math:`K_h h^2 > 2 K_v` on steep slopes).  Cells
+     anti-diffusion of the terrain stress reported in ERF issue #4214 (where, for
+     :math:`K_h \gg K_v`, :math:`K_h h^2 > 2 K_v (1 + 2h^2)` on steep slopes).  Cells
      inside immersed-forcing solids count like fluid cells, and the cut-cell stiffening of EB
      is not included.
 
@@ -2169,12 +2174,15 @@ from WRF in these details:
 
 The limiter reduces :math:`K_h h^2/K_v`, the quantity that decides whether the terrain stress of
 issue #4214 dissipates, by :math:`\alpha^2` or :math:`\alpha`, but it does not make that operator
-dissipative in general.  In the :math:`\alpha^2` branch the limited :math:`K_h h^2` is about
-:math:`C_s^2 \Delta z^2 |D_h|`.  Without a PBL scheme and without the Richardson-number correction
-that is :math:`K_v`, below the threshold :math:`2 K_v`; but ``erf.use_Ri_correction`` (on by default)
-multiplies :math:`K_v` by a stability factor at most 1, so in stable layers, with a PBL scheme (whose
-:math:`K_v` can be much smaller) or in the :math:`\alpha` branch, :math:`K_h h^2` can still exceed
-:math:`2 K_v`.
+dissipative in general.  For the x-component on a slope :math:`h`, the stress of #4214 stops being
+dissipative when :math:`(K_h + K_v)^2 h^2 > 2 K_h K_v (1 + 2h^2)`, which for :math:`K_h \gg K_v`
+reduces to :math:`K_h h^2 > 2 K_v (1 + 2h^2)`, i.e. :math:`K_h h^2 > 2 K_v` on gentle slopes.  In the :math:`\alpha^2` branch the limited :math:`K_h h^2` is
+about :math:`C_s^2 \Delta z^2 |D_h|`.  Without a PBL scheme and without the Richardson-number
+correction that is :math:`K_v`, which keeps the stress dissipative for slopes below about 1.55
+(:math:`h^2 < 1 + \sqrt{2}`); but ``erf.use_Ri_correction``
+(on by default) multiplies :math:`K_v` by a stability factor at most 1, so in stable layers, with a
+PBL scheme (whose :math:`K_v` can be much smaller) or in the :math:`\alpha` branch, the condition
+can still be met.
 The fix of #4214 itself is a separate change.
 
 Both limits change the physics: they reduce the horizontal mixing on slopes (by :math:`\alpha^2`, up to
