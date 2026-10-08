@@ -292,13 +292,12 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             }
         }
 
-        // We re-create terrain_blanking on restart rather than storing it in the checkpoint
+        // We re-create terrain_blanking on restart rather than storing it in the checkpoint,
+        // exactly as a fresh start makes it (the almost-fluid cells cleared), so the restarted
+        // run forces the same cells
         if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
             solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
-            int ngrow = ComputeGhostCells(solverChoice) + 2;
-            terrain_blanking[lev]->setVal(1.0);
-            MultiFab::Subtract(*terrain_blanking[lev], EBFactory(lev).getVolFrac(), 0, 0, 1, ngrow);
-            terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
+            make_terrain_blanking(lev);
         }
     }
 

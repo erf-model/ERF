@@ -2301,6 +2301,30 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                  "the two-stream sun is fixed"
                  "erf.fixed_solar_zenith_angle=0.5")
 endif()
+
+# The cube through a checkpoint at step 17, to step 40. A restart rebuilds the
+# immersed forcing's blanking rather than reading it back; it rebuilt it without
+# clearing the almost-fluid cells (eb2.small_volfrac), so the restarted run forced
+# cells the straight run leaves alone (2e-4 in terrain_IB_mask, 6e-5 m/s in u, 8e-6 K
+# in the face skin temperatures). The deck plots no velocities, so they are added
+# here. IBSEB_RefinedLevels_Restart does the same on the two levels of the
+# IBSEB_RefinedLevels deck (a cube on level 1, a tower outside it); its face dumps go
+# to a plain file name, since the deck's faces/ directory does not exist in the
+# runner's legs. It compares to 1e-8 relative, not zero: the restart leg writes a
+# plotfile at the restart step and the straight leg does not, and on two levels
+# writing a plotfile changes the solution at round-off (issue 4224; 5e-15 relative in theta
+# without buildings, 1.7e-10 relative in w here by step 20); with the plotfiles at
+# the same steps in all legs the restart is bit-exact. terrain_IB_mask still shows
+# the uncleared blanking (2.6e-3); 1e-8 relative is about 3e-6 K on the skin temperatures.
+# The runner is a cmake -P script (MPI, not Windows).
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_parity(IBSEB_Cube_Restart IBSEB_Cube 17 40
+    COMMON_OPTIONS "erf.plot_vars_1=density x_velocity y_velocity z_velocity theta terrain_IB_mask ibseb_nfaces ibseb_tskin ibseb_sw_abs ibseb_lw_net ibseb_H ibseb_G"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(IBSEB_RefinedLevels_Restart IBSEB_RefinedLevels 7 20
+    COMMON_OPTIONS "erf.ibseb.dump_faces_file=faces_set erf.plot_vars_1=density x_velocity y_velocity z_velocity theta terrain_IB_mask ibseb_nfaces ibseb_tskin ibseb_sw_abs ibseb_lw_net ibseb_H ibseb_G"
+    FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "0.0")
+endif()
 add_test_r(PBL_IBAware_MRF_Smoothing         ""  "erf_exec" "plt00010")
 
 #=============================================================================
@@ -2486,6 +2510,20 @@ add_test_station_series(StationSampling_FittedTerrain TerrainHill single
 add_test_station_series(StationSampling_ImmersedTerrain TerrainHill single
     RUNTIME_OPTIONS "amr.max_level=0 erf.terrain_type=ImmersedForcing erf.immersed_forcing_substep=true eb2.small_volfrac=0.005 erf.station_names=mast mastabs erf.mastabs.field=x_velocity y_velocity theta erf.mastabs.x=700.0 erf.mastabs.y=400.0 erf.mastabs.height_abs=93.08"
     CHECKS "equal a=@RUN@/Output_Stations/mast.dat:2 b=@RUN@/Output_Stations/mastabs.dat:2 tol=0.005|equal a=@RUN@/Output_Stations/mast.dat:4 b=@RUN@/Output_Stations/mastabs.dat:4 tol=0.001")
+
+# The same hill as immersed-forcing terrain through a checkpoint at step 7, to step
+# 20, on one level and on the deck's two. A restart rebuilt the blanking without
+# clearing the almost-fluid cells of the hill's tails (eb2.small_volfrac), so the
+# wall law acted there after the restart only: 0.2 m/s in u at step 20 on one level.
+# The runner is a cmake -P script (MPI, not Windows).
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_parity(ImmersedTerrain_Hill_Restart TerrainHill 7 20
+    COMMON_OPTIONS "amr.max_level=0 erf.terrain_type=ImmersedForcing erf.immersed_forcing_substep=true eb2.small_volfrac=0.005 erf.plot_vars_1=density x_velocity y_velocity z_velocity theta terrain_IB_mask"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(ImmersedTerrain_Hill_TwoLevel_Restart TerrainHill 7 20
+    COMMON_OPTIONS "erf.terrain_type=ImmersedForcing erf.immersed_forcing_substep=true eb2.small_volfrac=0.005 erf.plot_vars_1=density x_velocity y_velocity z_velocity theta terrain_IB_mask"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+endif()
 
 # The same for terrain carried by an embedded boundary: the mesh is flat there
 # too, so the ground under the station is the surface the EB was built from and
