@@ -95,7 +95,13 @@ void compare_checkpoint (const std::string& lhs_path, const std::string& rhs_pat
 
 int main (int argc, char* argv[])
 {
-    amrex::Initialize(argc, argv);
+    // The two arguments are checkpoint directories, not ParmParse input. With
+    // the command line parsed, AMReX takes argv[1] (no "=" in it) for an inputs
+    // file and opens it: a directory opens, its tellg() is LLONG_MAX, and the
+    // read buffer resize throws std::length_error before main's try block, so
+    // the comparison dies with "terminate called ... vector::_M_default_append"
+    // instead of running. An empty ParmParse is still built.
+    amrex::Initialize(argc, argv, false);
     int result = 0;
     try {
         require(argc == 3,
