@@ -64,6 +64,11 @@ Real ERF::change_max     = Real(1.1);
 double ERF::dt_max_initial = static_cast<double>(bogus_large_value);
 double ERF:: dt_max        = 1.0e9;
 
+// Explicit eddy-diffusion time-step check (ERF::ComputeDt)
+bool ERF::diffusive_dt_check = false;
+bool ERF::diffusive_dt_limit = false;
+Real ERF::diffusive_cfl      = myhalf;
+
 int  ERF::fixed_mri_dt_ratio = 0;
 
 // Dictate verbosity in screen output
@@ -980,7 +985,8 @@ ERF::InitData_post ()
                  (solverChoice.vert_implicit_fac[lev][1] > 0) ||
                  (solverChoice.vert_implicit_fac[lev][2] > 0) )
             {
-                Warning("Doing implicit solve for u, v, and w with terrain at level " << lev << " -- this has not been tested");
+                Warning("Doing implicit solve for u, v, and w with terrain at level " + std::to_string(lev) +
+                        " -- this has not been tested");
             }
         }
     }
@@ -3199,6 +3205,19 @@ ERF::ReadParameters ()
         pp.queryAdd("dt_max_initial", dt_max_initial);
         pp.queryAdd("dt_max", dt_max);
 
+        // Explicit eddy-diffusion time-step check
+        const bool diffusive_cfl_given = pp.contains("diffusive_cfl");
+        pp.queryAdd("diffusive_dt_check", diffusive_dt_check);
+        pp.queryAdd("diffusive_dt_limit", diffusive_dt_limit);
+        pp.queryAdd("diffusive_cfl", diffusive_cfl);
+        if (!(diffusive_cfl > zero && diffusive_cfl <= one)) {
+            Abort("erf.diffusive_cfl must be in (0, 1]");
+        }
+        if (diffusive_cfl_given && !diffusive_dt_check && !diffusive_dt_limit) {
+            Abort("erf.diffusive_cfl is used only with erf.diffusive_dt_check = true "
+                  "or erf.diffusive_dt_limit = true");
+        }
+
         fixed_dt.resize(max_level+1,-one);
         fixed_fast_dt.resize(max_level+1,-one);
 
@@ -3862,6 +3881,21 @@ void
 ERF::ParameterSanityChecks ()
 {
     AMREX_ALWAYS_ASSERT(cfl > zero || fixed_dt[0] > zero);
+
+    if (diffusive_dt_limit) {
+        if (fixed_dt[0] > zero) {
+            Abort("erf.diffusive_dt_limit = true cannot change erf.fixed_dt; "
+                  "remove one of them (erf.diffusive_dt_check still reports the Fourier number)");
+        }
+        bool any_kturb = false;
+        for (int lev = 0; lev <= max_level; ++lev) {
+            any_kturb = any_kturb || solverChoice.turbChoice[lev].use_kturb;
+        }
+        if (!any_kturb) {
+            Abort("erf.diffusive_dt_limit = true needs an eddy-diffusivity closure "
+                  "(erf.les_type, erf.rans_type or erf.pbl_type)");
+        }
+    }
 
     // We don't allow use_real_bcs to be true if init_type is not either InitType::WRFInput or InitType::Metgrid
     AMREX_ALWAYS_ASSERT( !solverChoice.use_real_bcs ||

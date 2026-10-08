@@ -521,6 +521,48 @@ function(add_test_option_parity TEST_NAME TEST_FILES_DIR PLTFILE)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/option_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/option_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
 endfunction(add_test_option_parity)
 
+# Stable flow over a steep ridge with Smagorinsky2D (Tests/test_files/Smag2D_Ridge), driven by
+# Tests/RunSmag2DRidge.cmake in one of three modes: "steep" (the WRF slope limiter at a time
+# step the unlimited closure does not survive), "check" (the diffusive time-step warning fires
+# and leaves the answer unchanged) and "limit" (erf.diffusive_dt_limit sets and bounds dt).
+function(add_test_smag2d_ridge TEST_NAME MODE PLTFILE)
+    set(oneValueArgs "OPTIONS" "CONTROL_OPTIONS" "ALPHA_MIN" "WMAX" "DIFFUSIVE_CFL"
+                     "REF_DIFFUSIVE_DT_LO" "REF_DIFFUSIVE_DT_HI")
+    cmake_parse_arguments(ADD_TEST_SR "" "${oneValueArgs}" "" ${ARGN})
+    set(TEST_FILES_DIR Smag2D_Ridge)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMODE=${MODE}"
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/Smag2D_Ridge.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DFCOMPARE=${FCOMPARE_EXE}"
+        "-DFEXTREMA=${FEXTREMA_EXE}"
+        "-DPLTFILE=${PLTFILE}"
+        "-DOPTIONS=${ADD_TEST_SR_OPTIONS}"
+        "-DCONTROL_OPTIONS=${ADD_TEST_SR_CONTROL_OPTIONS}"
+        "-DALPHA_MIN=${ADD_TEST_SR_ALPHA_MIN}"
+        "-DWMAX=${ADD_TEST_SR_WMAX}"
+        "-DDIFFUSIVE_CFL=${ADD_TEST_SR_DIFFUSIVE_CFL}"
+        "-DREF_DIFFUSIVE_DT_LO=${ADD_TEST_SR_REF_DIFFUSIVE_DT_LO}"
+        "-DREF_DIFFUSIVE_DT_HI=${ADD_TEST_SR_REF_DIFFUSIVE_DT_HI}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunSmag2DRidge.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 2400
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/steep/simulation.log;${CURRENT_TEST_BINARY_DIR}/control/simulation.log;${CURRENT_TEST_BINARY_DIR}/check_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/check_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log;${CURRENT_TEST_BINARY_DIR}/limit/simulation.log")
+endfunction(add_test_smag2d_ridge)
+
 # Stable flow over a steep ridge with Smagorinsky2D + MRF (Tests/test_files/Terrain_Stress_Ridge,
 # erf-model/ERF#4214), driven by Tests/RunTerrainStressRidge.cmake.  MODE "survive" runs OPTIONS
 # and requires a finished, bounded run; CONTROL_OPTIONS, when given, must start and then fail.
@@ -2713,6 +2755,65 @@ add_test_restart_parity(ObsNudging_Hill_Restart ObsNudging_Hill 10 20
     COMMON_OPTIONS "${_obs_files}"
     DATALOG "Output_Stations/mast.dat"
     DATALOG_SIGDIGITS 10)
+
+#=============================================================================
+# Smagorinsky2D on terrain: WRF smag2d_km limits and the diffusive time-step check
+#=============================================================================
+# Steep ridge (alpha about 19.5 in the first cells), 3 km grid, Smagorinsky2D + MRF, no numerical
+# diffusion.  Measured with erf_exec (Release, 2 ranks, 6 simulated hours per run): the unlimited
+# closure survives dt = 45 s and fails from 46 s; with erf.smag2d_slope_limiter it survives to
+# 70 s and fails at 75 s, the same edge as with no LES at all.  The test runs the limiter at
+# 65 s, and the control (no limiter) at 65 s must fail (it does at step 2).
+add_test_smag2d_ridge(Smag2D_Ridge_SteepLimiter steep "plt00060"
+    OPTIONS "erf.smag2d_slope_limiter=true erf.fixed_dt=65 erf.fixed_mri_dt_ratio=40 max_step=60 erf.plot_int_1=60"
+    CONTROL_OPTIONS "erf.fixed_dt=65 erf.fixed_mri_dt_ratio=40 max_step=60 erf.plot_int_1=60"
+    ALPHA_MIN 15
+    WMAX 15)
+# The opt-in diffusive check warns on this deck and leaves the answer unchanged, with an
+# adaptive dt so that a check that moved dt would show.
+add_test_smag2d_ridge(Smag2D_Ridge_DiffusiveCheck check "plt00010"
+    OPTIONS "erf.fixed_dt=-1 max_step=10 erf.plot_int_1=10"
+    DIFFUSIVE_CFL 0.3)
+# erf.diffusive_dt_limit sets an adaptive dt and is never exceeded; the first diffusive dt
+# (3.6881 s in the reference run, Release, 1 and 2 ranks) must match to 2 %.
+add_test_smag2d_ridge(Smag2D_Ridge_DiffusiveLimit limit "plt00010"
+    OPTIONS "erf.fixed_dt=-1 max_step=10 erf.plot_int_1=10"
+    DIFFUSIVE_CFL 0.2
+    REF_DIFFUSIVE_DT_LO 3.6143
+    REF_DIFFUSIVE_DT_HI 3.7619)
+
+# Each new input is checked at start-up and aborts naming itself.  add_test_abort runs through
+# `sh -c ... | tee`, so these sit under the same guard as its other use.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+set(_smag2d_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/Smag2D_Ridge)
+add_test_abort(Smag2D_Abort_SlopeWithout2D ${_smag2d_dir} Smag2D_Ridge.i
+               "apply only to erf.les_type = Smagorinsky2D"
+               "erf.les_type=Smagorinsky erf.Cs=0.1 erf.pbl_type=None erf.smag2d_slope_limiter=true")
+add_test_abort(Smag2D_Abort_CapWithout2D ${_smag2d_dir} Smag2D_Ridge.i
+               "apply only to erf.les_type = Smagorinsky2D"
+               "erf.les_type=None erf.smag2d_kh_cap=10")
+add_test_abort(Smag2D_Abort_CapNegative ${_smag2d_dir} Smag2D_Ridge.i
+               "erf.smag2d_kh_cap must be >= 0"
+               "erf.smag2d_kh_cap=-1")
+add_test_abort(Smag2D_Abort_SlopeWithoutTerrain ${_smag2d_dir} Smag2D_Ridge.i
+               "erf.smag2d_slope_limiter requires erf.terrain_type"
+               "erf.terrain_type=None erf.grid_stretching_ratio=0 prob.custom_terrain_type=None erf.smag2d_slope_limiter=true")
+add_test_abort(Smag2D_Abort_CapWithEB ${CMAKE_CURRENT_SOURCE_DIR}/test_files/HillEB HillEB.i
+               "erf.smag2d_kh_cap is not supported with erf.terrain_type = EB"
+               "erf.les_type=Smagorinsky2D erf.Cs=0.1 erf.smag2d_kh_cap=10")
+add_test_abort(DiffusiveDt_Abort_CflRange ${_smag2d_dir} Smag2D_Ridge.i
+               "erf.diffusive_cfl must be in"
+               "erf.diffusive_cfl=1.5")
+add_test_abort(DiffusiveDt_Abort_CflUnused ${_smag2d_dir} Smag2D_Ridge.i
+               "erf.diffusive_cfl is used only with"
+               "erf.diffusive_dt_check=false erf.diffusive_cfl=0.3")
+add_test_abort(DiffusiveDt_Abort_LimitFixedDt ${_smag2d_dir} Smag2D_Ridge.i
+               "erf.diffusive_dt_limit = true cannot change erf.fixed_dt"
+               "erf.diffusive_dt_limit=true")
+add_test_abort(DiffusiveDt_Abort_LimitNoClosure ${_smag2d_dir} Smag2D_Ridge.i
+               "erf.diffusive_dt_limit = true needs an eddy-diffusivity closure"
+               "erf.diffusive_dt_limit=true erf.fixed_dt=-1 erf.les_type=None erf.pbl_type=None")
+endif()
 
 #=============================================================================
 # Terrain-fitted momentum stresses (erf-model/ERF#4214)

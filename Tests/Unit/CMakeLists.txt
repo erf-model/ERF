@@ -161,6 +161,12 @@ target_sources(${erf_exe_name}
     # the implicit vertical solves on the interior faces and take the same compact term out of
     # the explicit fluxes, and nothing on the bottom and top faces.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestTerrainImplicitMetric.cpp
+    # Motivation: the opt-in WRF Smagorinsky-2D limits must reproduce WRF's smag2d_km numbers
+    # (slope factor, deformation threshold, cap and their order), limit K_h before the scalar
+    # diffusivities are derived from it, and the diffusive time-step rates must follow their
+    # documented formulas, with the vertical part dropped only where every implicit stage is
+    # shown to stay bounded.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestSmag2DLimiters.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSurfaceFluxDiagnostics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSeaLevelPressure.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestCanopyBiophysics.cpp
