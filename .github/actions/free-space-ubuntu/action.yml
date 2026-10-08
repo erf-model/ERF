@@ -1,17 +1,36 @@
 name: Free space on Ubuntu VMs
 description: Frees disk space on GitHub Actions Ubuntu VMs
 
+inputs:
+  min-free-gb:
+    description: Skip the cleanup when / already has at least this many GB free
+    required: false
+    default: "40"
+
 runs:
   using: composite
   steps:
-    - id: show-space-initial
-      run: df -h
+    - id: check-space
+      env:
+        MIN_FREE_GB: ${{ inputs.min-free-gb }}
+      run: |
+        df -h
+        free_gb=$(df --output=avail -BG / | tail -n 1 | tr -dc '0-9')
+        if [ "${free_gb}" -ge "${MIN_FREE_GB}" ]; then
+          echo "${free_gb}G free on /, at least ${MIN_FREE_GB}G needed: skipping cleanup"
+          echo "needed=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "${free_gb}G free on /, below ${MIN_FREE_GB}G: cleaning up"
+          echo "needed=true" >> "$GITHUB_OUTPUT"
+        fi
       shell: bash
     - id: list-largest-packages
+      if: steps.check-space.outputs.needed == 'true'
       run: |
         dpkg-query -W --showformat='${Package} ${Installed-Size}\n' | sort -k2 -n -r | awk 'NR <= 20'
       shell: bash
     - id: uninstall-packages
+      if: steps.check-space.outputs.needed == 'true'
       run: |
         sudo apt-get update
         sudo apt-get purge --autoremove -y azure-cli --fix-missing
@@ -29,10 +48,12 @@ runs:
         sudo docker image prune --all --force || true
       shell: bash
     - id: list-largest-packages-remaining
+      if: steps.check-space.outputs.needed == 'true'
       run: |
         dpkg-query -W --showformat='${Package} ${Installed-Size}\n' | sort -k2 -n -r | awk 'NR <= 20'
       shell: bash
     - id: remove-directories
+      if: steps.check-space.outputs.needed == 'true'
       run: |
         sudo rm -rf /opt/ghc
         sudo rm -rf /usr/local/.ghcup
@@ -40,5 +61,6 @@ runs:
         sudo rm -rf /usr/share/dotnet
       shell: bash
     - id: show-space-final
+      if: steps.check-space.outputs.needed == 'true'
       run: df -h
       shell: bash

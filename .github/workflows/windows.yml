@@ -16,6 +16,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 90
     strategy:
+      fail-fast: false
       matrix:
         # Only the particle-enabled configuration is built here; the
         # particles-OFF variant duplicates its solver coverage. Particles OFF
