@@ -8,6 +8,7 @@
 #include "ERF_PBLModels.H"
 #include "ERF_TileNoZ.H"
 #include "ERF_TerrainMetrics.H"
+#include "ERF_TerrainDiffusionLimits.H"
 #include "ERF_MoistUtils.H"
 #include "ERF_RichardsonNumber.H"
 
@@ -60,6 +61,13 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
     {
         Real Cs = turbChoice.Cs;
         bool smag2d = turbChoice.smag2d;
+
+        // Opt-in limits of WRF's smag2d_km on the horizontal viscosity (see
+        // Smag2DLimitedViscosity).  The slope limiter needs the terrain slope, so it acts
+        // on terrain-fitted meshes only; SolverChoice aborts if it is asked for elsewhere.
+        bool l_smag2d_slope = smag2d && turbChoice.smag2d_slope_limiter && use_terrain_fitted_coords;
+        Real l_smag2d_cap   = (smag2d) ? turbChoice.smag2d_kh_cap : zero;
+        bool l_smag2d_limit = l_smag2d_slope || (l_smag2d_cap > zero);
 
         // Define variables required inside device lambdas (scalars only)
         Real l_abs_g = const_grav;
@@ -135,6 +143,17 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
 
                 Real nu_turb_base_h = CsDeltaSqr_h * strain_rate_magnitude;
                 Real nu_turb_base_v = CsDeltaSqr_v * strain_rate_magnitude;
+
+                // WRF smag2d_km limits on K_h only, applied before the scalar diffusivities
+                // (Theta_h, Scalar_h, Q_h) are derived from Mom_h below; Mom_v is unchanged.
+                if (l_smag2d_limit) {
+                    Real alpha = one;
+                    if (l_smag2d_slope) {
+                        alpha = TerrainSlopeFactor(ComputeTerrainCellDrops(i,j,k,z_nd_arr));
+                    }
+                    nu_turb_base_h = Smag2DLimitedViscosity(nu_turb_base_h, strain_rate_magnitude,
+                                                            DeltaH, alpha, l_smag2d_cap, l_smag2d_slope);
+                }
 
                 Real stability_factor = one;
 
