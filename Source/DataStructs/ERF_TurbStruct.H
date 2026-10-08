@@ -403,7 +403,17 @@ public:
     }
 
     // To quantify atmospheric stability for subgrid modeling
+    const bool strat_type_set = (pp.countval("thermal_stratification") > 0);
     query_one_or_per_level(pp, "thermal_stratification", strat_type, lev, max_level);
+    // The PBL schemes have always used theta_v for their buoyancy gradient,
+    // which is the physically right choice there.  Honour an explicit
+    // erf.thermal_stratification everywhere, but when the user has not set it
+    // keep the historical split: theta for the LES closures, theta_v for the
+    // PBL ones.  That way the knob reaches the PBL schemes without silently
+    // changing any existing moist answer.
+    pbl_strat_type = strat_type_set ? strat_type : StratType::thetav;
+    amrex::Print() << "PBL thermal stratification variable: "
+                   << amrex::getEnumNameString(pbl_strat_type) << std::endl;
     if (strat_type == StratType::theta) {
         amrex::Print() << "Thermal stratification based on gradient of potential temperature" << std::endl;
     } else if (strat_type == StratType::thetav) {
@@ -785,6 +795,8 @@ public:
   amrex::Real theta_ref = zero;
   // - how to quantify stratification effects
   StratType strat_type = StratType::theta;
+  // Stratification variable used by the PBL schemes; see init_params.
+  StratType pbl_strat_type = StratType::thetav;
 
   // Anisotropic length scales
   bool mix_isotropic = true;

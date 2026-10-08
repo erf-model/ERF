@@ -2042,8 +2042,11 @@ List of Parameters
 |                                        | Forced to true if any level has ``substepping_type`` =   |                    |                  |
 |                                        | ``None``                                                 |                    |                  |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.thermal_stratification**         | which potential temperature the subgrid model uses to    | theta, thetav,     | theta            |
-|                                        | quantify thermal stratification (per-level)              | thetal             |                  |
+| **erf.thermal_stratification**         | which potential temperature the subgrid model uses to    | theta, thetav,     | theta (LES),     |
+|                                        | quantify thermal stratification (per-level). Applies to  | thetal             | thetav (PBL)     |
+|                                        | both the LES closures and the PBL schemes. When it is    |                    |                  |
+|                                        | not set, the LES closures use theta and the PBL schemes  |                    |                  |
+|                                        | use thetav, which is what each has always used.          |                    |                  |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.mix_isotropic**                  | use an isotropic mixing length (per-level);              | Boolean            | true             |
 |                                        | automatically turned off for 2-D Smagorinsky             |                    |                  |

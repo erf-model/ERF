@@ -44,6 +44,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                        const std::unique_ptr<MultiFab>& z_phys_cc,
                        const MoistureComponentIndices& moisture_indices)
 {
+    const StratType pbl_strat = turbChoice.pbl_strat_type;
     /*
       YSU PBL initially introduced by S.-Y. Hong, Y. Noh, and J. Dudhia, MWR, 2006 [HND06]
 
@@ -246,7 +247,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                                               c_ext_dir_on_zlo, c_ext_dir_on_zhi,
                                               u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                               v_ext_dir_on_zlo, v_ext_dir_on_zhi,
-                                              dthetadz, dudz, dvdz, moisture_indices);
+                                              dthetadz, dudz, dvdz, moisture_indices, pbl_strat);
 
                 // This branch is the free atmosphere above the PBL, so it only
                 // reaches the first cell when the PBL index collapses to it. The
