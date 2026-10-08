@@ -508,13 +508,22 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     // slope with uniform dz that is the transpose of the metric term in S11/S22, which keeps
     // the operator dissipative for any K_h and K_v (see the NOTE above).
     //-----------------------------------------------------------------------------------
-    FArrayBox kh11_fab(bxcc ,1,The_Async_Arena()), kh22_fab(bxcc ,1,The_Async_Arena());
-    FArrayBox kh12_fab(tbxxy,1,The_Async_Arena()), kh21_fab(tbxxy,1,The_Async_Arena());
+    // kh12 is read at (i,j+1) over tbxxz and kh21 at (i+1,j) over tbxyz.  On a tile that is not
+    // the last in x or y the nodal tile box tbxxy stops one node short of those reads, so form
+    // them on the nodes the reads need; the strains are valid there (they are computed on the
+    // halo-grown boxes).
+    Box khxy = tbxxy;
+    khxy.setSmall(0, amrex::min(tbxxz.smallEnd(0), tbxyz.smallEnd(0)));
+    khxy.setSmall(1, amrex::min(tbxxz.smallEnd(1), tbxyz.smallEnd(1)));
+    khxy.setBig  (0, amrex::max(tbxxz.bigEnd(0)  , tbxyz.bigEnd(0)+1));
+    khxy.setBig  (1, amrex::max(tbxxz.bigEnd(1)+1, tbxyz.bigEnd(1)  ));
+    FArrayBox kh11_fab(bxcc,1,The_Async_Arena()), kh22_fab(bxcc,1,The_Async_Arena());
+    FArrayBox kh12_fab(khxy,1,The_Async_Arena()), kh21_fab(khxy,1,The_Async_Arena());
     const Array4<Real> kh11 = kh11_fab.array();
     const Array4<Real> kh22 = kh22_fab.array();
     const Array4<Real> kh12 = kh12_fab.array();
     const Array4<Real> kh21 = kh21_fab.array();
-    ParallelFor(bxcc, tbxxy,
+    ParallelFor(bxcc, khxy,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
         Real mu_h_tot = rhoAlpha(i,j,k) + two*mu_turb(i, j, k, EddyDiff::Mom_h);

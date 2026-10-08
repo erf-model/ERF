@@ -2843,6 +2843,17 @@ add_test_terrain_stress_ridge(TerrainStress_Ridge_ImplicitMetric survive "plt000
     OPTIONS "erf.implicit_terrain_metric=true erf.vert_implicit_fac=1 1 1 erf.fixed_dt=50 erf.fixed_mri_dt_ratio=30 max_step=60 erf.plot_int_1=60"
     CONTROL_OPTIONS "erf.vert_implicit_fac=1 1 1 erf.fixed_dt=50 erf.fixed_mri_dt_ratio=30 max_step=60 erf.plot_int_1=60"
     WMAX 15)
+# A 3-D Witch-of-Agnesi hill (prob.dir = 2, slopes in x and y), 32 x 32 cells in two boxes of 16 in
+# y, so the stress loop runs on several tiles in y (TileNoZ, 8 cells on CPU).  It exercises the
+# S12/S21 projections, which the 2-D ridges leave at zero, and the K_h-weighted stress temporaries
+# across tile edges.  With them sized on the nodal tile box the reads went past the arrays: a Debug
+# build aborts on the bound check, while a Release run depends on stale memory (it failed at step 12
+# in one run and finished in another; TerrainStress.TiledStressesMatchTheWholeBox catches it in
+# both).  Measured (Release, 2 ranks, 6 h): stable to 30 s at the default vert_implicit_fac; the test
+# runs 60 steps of 20 s.
+add_test_terrain_stress_ridge(TerrainStress_Hill3D survive "plt00060"
+    OPTIONS "geometry.prob_extent=96000 96000 12952.825935499923 amr.n_cell=32 32 40 amr.max_grid_size_y=16 prob.dir=2 erf.fixed_dt=20 erf.fixed_mri_dt_ratio=12 max_step=60 erf.plot_int_1=60"
+    WMAX 5)
 # At a small time step the option changes only the time discretization of the metric term: after
 # 60 steps of 5 s, u and w differ by about 5e-4 and Kmh by 0.6 % (relative), and the two runs
 # must still differ.  A split that removed one form and added another would differ by O(1).

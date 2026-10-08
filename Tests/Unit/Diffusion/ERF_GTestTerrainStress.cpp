@@ -245,6 +245,47 @@ struct TerrainStressCase
     Gpu::streamSynchronize();
   }
 
+  // Strain -> stress on one x-y tile, as erf_make_tau_terms does it under tiling: the strains live
+  // in the tile's own arrays on its halo-grown boxes, and a nodal tile box reaches the high
+  // node only on the last tile in that direction.  tau13 and tau23 on the tile's edges are
+  // copied into out13 and out23.
+  void compute_tile (const Box& tile, FArrayBox& out13, FArrayBox& out23)
+  {
+    GpuArray<Real, AMREX_SPACEDIM> dxInv{Real(1.0)/dx, Real(1.0)/dy, Real(1.0)/dz};
+    auto ua = u.const_array(), va = v.const_array(), wa = w.const_array();
+    auto znd = z_nd.const_array(), dJ = detJ.const_array(), mfa = mf.const_array();
+    auto nodal_tile = [&] (const IntVect& typ) {
+      Box b = convert(tile, typ);
+      for (int d = 0; d < 2; ++d) {
+        if (typ[d] == 1 && tile.bigEnd(d) != valid.bigEnd(d)) { b.setBig(d, tile.bigEnd(d)); }
+      }
+      return b;
+    };
+    Box cc = grow(tile, IntVect(1,1,0));
+    Box xy = grow(nodal_tile(IntVect(1,1,0)), IntVect(1,1,0));
+    Box xz = grow(nodal_tile(IntVect(1,0,1)), IntVect(1,1,0));
+    Box yz = grow(nodal_tile(IntVect(0,1,1)), IntVect(1,1,0));
+    FArrayBox t11(cc,1), t22(cc,1), t33(cc,1), t12(xy,1), t21(xy,1);
+    FArrayBox t13(xz,1), t31(xz,1), t23(yz,1), t32(yz,1), i13(xz,1), i23(yz,1), i33(cc,1);
+    auto a11 = t11.array(), a22 = t22.array(), a33 = t33.array(), a12 = t12.array(), a21 = t21.array();
+    auto a13 = t13.array(), a31 = t31.array(), a23 = t23.array(), a32 = t32.array();
+    Array4<Real> c13 = i13.array(), c23 = i23.array(), c33 = i33.array();
+    ComputeStrain_T(cc, xy, xz, yz, domain, ua, va, wa,
+                    a11, a22, a33, a12, a21, a13, a31, a23, a32,
+                    znd, dJ, dxInv, mfa, mfa, mfa, mfa, mfa, mfa, bcs.data(), c13, c23);
+    xy.grow(IntVect(-1,-1,0)); xz.grow(IntVect(-1,-1,0)); yz.grow(IntVect(-1,-1,0));
+    Array4<const Real> no_cell_data{};
+    ComputeStressVarVisc_T(cc, xy, xz, yz, Real(0.0), mu_turb.const_array(), no_cell_data,
+                           a11, a22, a33, a12, a21, a13, a31, a23, a32,
+                           er_fab.const_array(), znd, dJ, dxInv,
+                           mfa, mfa, mfa, mfa, mfa, mfa, c13, c23, c33, false);
+    auto o13 = out13.array(), o23 = out23.array();
+    ParallelFor(xz, yz,
+      [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept { o13(i,j,k) = a13(i,j,k); },
+      [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept { o23(i,j,k) = a23(i,j,k); });
+    Gpu::streamSynchronize();
+  }
+
   // Strain -> constant-viscosity stress (ComputeStressConsVisc_T, molecular viscosity only)
   void compute_cons (Real mu_eff, bool implicit_metric)
   {
@@ -540,4 +581,47 @@ TEST(TerrainStress, ConstantViscosityImplicitPartHoldsTheMetricTerm)
         << "metric " << metric << " tau23i at " << i << " " << j << " " << k;
     });
   }
+}
+
+// Motivation (#4214, found on a 3-D hill): the K_h-weighted stresses are formed in temporaries,
+// and under tiling a nodal tile box stops one node short of the (i,j+1) and (i+1,j) reads of
+// the zeta-edge averages.  Splitting the box into 2 x 2 tiles in x and y must give exactly the
+// tau13 and tau23 of the whole box, with both slopes and a K_h that varies cell by cell.  (The
+// stress loop never tiles in z: erf_make_tau_terms iterates with TileNoZ.)
+TEST(TerrainStress, TiledStressesMatchTheWholeBox)
+{
+  const Real sx = Real(0.3), sy = Real(-0.25), Kh = Real(60.0), Kv = Real(1.5);
+  const Real two_pi = Real(2.0)*Real(3.14159265358979323846);
+  TerrainStressCase c(8, 8, 6, Real(200.0), Real(150.0), Real(50.0), sx, sy, Kh, Kv, Real(0.0));
+  c.init();
+  c.set_variable_kh(1);
+  c.set_compact(two_pi/Real(900.0), two_pi/Real(700.0), two_pi/Real(200.0),
+                Real(1.0), Real(-0.8), Real(0.5), Real(0.4), 0, false, false);
+  c.compute(false);
+  FArrayBox w13(c.s13.box(), 1, The_Pinned_Arena()), w23(c.s23.box(), 1, The_Pinned_Arena());
+  copy_to_host(c.s13, w13); copy_to_host(c.s23, w23);
+
+  FArrayBox t13(c.s13.box(), 1), t23(c.s23.box(), 1);
+  t13.setVal<RunOn::Device>(Real(0.0)); t23.setVal<RunOn::Device>(Real(0.0));
+  for (int jt = 0; jt < 2; ++jt) {
+    for (int it = 0; it < 2; ++it) {
+      const Box tile(IntVect(4*it, 4*jt, 0), IntVect(4*it+3, 4*jt+3, c.nz-1));
+      c.compute_tile(tile, t13, t23);
+    }
+  }
+  FArrayBox h13(t13.box(), 1, The_Pinned_Arena()), h23(t23.box(), 1, The_Pinned_Arena());
+  copy_to_host(t13, h13); copy_to_host(t23, h23);
+  const auto a13 = w13.const_array(), a23 = w23.const_array();
+  const auto b13 = h13.const_array(), b23 = h23.const_array();
+  Real scale = Real(0.0);
+  LoopOnCpu(convert(c.valid, IntVect(1,0,1)), [&] (int i, int j, int k) {
+    scale = std::max(scale, std::abs(a13(i,j,k)));
+  });
+  ASSERT_GT(scale, Real(0.0));
+  LoopOnCpu(convert(c.valid, IntVect(1,0,1)), [&] (int i, int j, int k) {
+    EXPECT_NEAR(b13(i,j,k), a13(i,j,k), tol_for_scale(scale)) << "tau13 at " << i << " " << j << " " << k;
+  });
+  LoopOnCpu(convert(c.valid, IntVect(0,1,1)), [&] (int i, int j, int k) {
+    EXPECT_NEAR(b23(i,j,k), a23(i,j,k), tol_for_scale(scale)) << "tau23 at " << i << " " << j << " " << k;
+  });
 }
