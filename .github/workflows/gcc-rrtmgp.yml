@@ -28,8 +28,10 @@ jobs:
         # for no added coverage of either. Particles OFF is still built by
         # ci, gcc and windows-mpi.
         particles: [ON]
-        netcdf: [OFF, ON]
-        rrtmgp: [OFF, ON]
+        # PR tier: NetCDF+RRTMGP only. The NetCDF-OFF (= gcc.yml + Kokkos) and NetCDF-only
+        # variants build on merge to development.
+        netcdf: ${{ fromJSON(github.event_name == 'pull_request' && '["ON"]' || '["OFF", "ON"]') }}
+        rrtmgp: ${{ fromJSON(github.event_name == 'pull_request' && '["ON"]' || '["OFF", "ON"]') }}
         exclude:
         - rrtmgp: ON
           netcdf: OFF
