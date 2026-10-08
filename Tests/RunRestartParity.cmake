@@ -2,6 +2,7 @@
 # restart from that checkpoint to STEP_END, and require the restarted run's plotfile
 # at STEP_END to equal the straight run's with fcompare. Each leg uses the forwarded
 # RUN_TIMEOUT, and the enclosing CTest timeout is sized separately by the caller.
+# COMMON_OPTIONS goes to all three legs; RESTART_OPTIONS goes to the restart leg only.
 # -DX= defines X as empty, so test for a value, not for DEFINED
 include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/ResolveExecutable.cmake")
@@ -23,6 +24,24 @@ erf_resolve_executable(FCOMPARE "${FCOMPARE}" CONFIG "${CONFIG}"
     CONTEXT "RunRestartParity.cmake: fcompare")
 
 separate_arguments(common_options   UNIX_COMMAND "${COMMON_OPTIONS}")
+#
+# Options for the restart leg only.  COMMON_OPTIONS cannot carry anything that changes the
+# decomposition, because it goes to the straight leg as well -- that would make this a
+# box-parity test instead of a restart-parity one.  Optional, so deliberately not in the
+# required-argument loop above.
+#
+separate_arguments(restart_options  UNIX_COMMAND "${RESTART_OPTIONS}")
+
+#
+# A restart leg that re-makes the level-0 grids writes its plotfile on a different
+# BoxArray, and fcompare refuses to compare those without being told to.  Opt in, so the
+# other restart-parity tests keep failing if their grids ever move -- for them a changed
+# decomposition is a bug, not the point of the test.
+#
+set(fcompare_grids "")
+if(ALLOW_DIFF_GRIDS)
+    set(fcompare_grids "--allow_diff_grids")
+endif()
 
 set(STRAIGHT_DIR "${WORKING_DIRECTORY}/straight")
 set(RESTART_DIR  "${WORKING_DIRECTORY}/restart")
@@ -108,7 +127,7 @@ endif()
 # from the checkpoint to the end
 run_erf("${RESTART_DIR}" "restart.log" ${RUN_TIMEOUT}
         "erf.restart=${CHKFILE}" "max_step=${STEP_END}" "erf.check_int=-1" "erf.plot_int_1=${STEP_END}"
-        ${plot2d_end})
+        ${plot2d_end} ${restart_options})
 
 foreach(dir "${STRAIGHT_DIR}" "${RESTART_DIR}")
     if(NOT EXISTS "${dir}/${PLTFILE}/Header")
@@ -117,7 +136,7 @@ foreach(dir "${STRAIGHT_DIR}" "${RESTART_DIR}")
 endforeach()
 
 execute_process(
-    COMMAND ${launch_one} ${FCOMPARE} --abort_if_not_all_found
+    COMMAND ${launch_one} ${FCOMPARE} --abort_if_not_all_found ${fcompare_grids}
             --rel_tol ${RTOL} --abs_tol ${ATOL}
             ${STRAIGHT_DIR}/${PLTFILE} ${RESTART_DIR}/${PLTFILE}
     WORKING_DIRECTORY "${WORKING_DIRECTORY}"
@@ -138,7 +157,7 @@ if(NOT "${PLT2DFILE}" STREQUAL "")
         endif()
     endforeach()
     execute_process(
-        COMMAND ${launch_one} ${FCOMPARE} --abort_if_not_all_found
+        COMMAND ${launch_one} ${FCOMPARE} --abort_if_not_all_found ${fcompare_grids}
                 --rel_tol ${RTOL} --abs_tol ${ATOL}
                 ${STRAIGHT_DIR}/${PLT2DFILE} ${RESTART_DIR}/${PLT2DFILE}
         WORKING_DIRECTORY "${WORKING_DIRECTORY}"
