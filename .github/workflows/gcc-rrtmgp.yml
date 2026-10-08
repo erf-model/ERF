@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-linux-gcc-rrtmgp
+  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || github.sha }}-linux-gcc-rrtmgp
   cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
@@ -124,7 +124,9 @@ jobs:
         cmake --build ${ERF_DIR}/build --parallel 2 --verbose \
         2>&1 | tee -a ${ERF_DIR}/build-output.txt;
 
-        ccache -s
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
+        ccache -s | tee -a "$GITHUB_STEP_SUMMARY"
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
         du -hs ~/.cache/ccache
 
     - name: Save Cache

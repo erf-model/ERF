@@ -16,9 +16,10 @@ on:
   workflow_dispatch:
 
 # If a new push is made to an open PR, new run will cancel the previous one in the PR.
-# New merges into development get into the queue and are never cancelled.
+# Each merge into development gets its own group (keyed on the commit), so a burst of
+# merges never cancels a still-pending development run: every merge writes its ccache.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || github.sha }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
@@ -117,7 +118,9 @@ jobs:
           --parallel ${{env.NPROCS}} \
           2>&1 | tee -a ${{runner.workspace}}/build-output.txt;
 
-        ccache -s
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
+        ccache -s | tee -a "$GITHUB_STEP_SUMMARY"
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
         du -hs ~/.cache/ccache
 
     - name: Save Cache

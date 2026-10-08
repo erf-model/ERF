@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-sycl
+  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || github.sha }}-sycl
   cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
@@ -98,7 +98,9 @@ jobs:
           -DAMReX_PARALLEL_LINK_JOBS=4
         make -j 4 2>&1 | tee -a ${{runner.workspace}}/build-output.txt;
 
-        ccache -s
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
+        ccache -s | tee -a "$GITHUB_STEP_SUMMARY"
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
         du -hs ~/.cache/ccache
 
     - name: Save Cache

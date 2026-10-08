@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-hip
+  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || github.sha }}-hip
   cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
@@ -124,7 +124,9 @@ jobs:
         # make -j ${{env.NPROCS}};
         make -j 2 2>&1 | tee -a ${{runner.workspace}}/build-${{matrix.os}}-output.txt;
 
-        ccache -s
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
+        ccache -s | tee -a "$GITHUB_STEP_SUMMARY"
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
         du -hs ~/.cache/ccache
 
     - name: Save Cache
