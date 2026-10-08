@@ -14,11 +14,13 @@
 #include <ERF_MOSTStress.H>
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Gpu.H>
+#include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
 #include <algorithm>
 #include <limits>
+#include <map>
 #include <AMReX_ParallelReduce.H>
 
 using namespace amrex;
@@ -77,7 +79,10 @@ void fill (Gpu::DeviceVector<T>& d, size_t n, T value)
  * ghost cell, which is why the blanking must have its ghost cells filled.
  * Neighbours outside the domain in a non-periodic direction are skipped, so
  * a building against a non-periodic boundary has no face there. Solid cells
- * contribute nothing but the column mask used for the building ids.
+ * contribute no face, only the column mask used for the building ids. A
+ * solid neighbour outside the level's grids, of a fluid or a solid cell,
+ * means a building crosses the edge of a refined level; the scan counts them
+ * and stops the run once all ranks have reported.
  *
  * Faces are appended in scan order, which makes them contiguous per fab;
  * m_fab_start records where each fab's faces begin. The per-direction,
@@ -96,6 +101,7 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     const auto plo = geom.ProbLoArray();
     const Real face_area[3] = { dx[1] * dx[2], dx[0] * dx[2], dx[0] * dx[1] };
     m_nx = nx; m_ny = ny;
+    m_dom_lo = domain.smallEnd();
     m_x_lo = plo[0]; m_y_lo = plo[1];
     for (int d = 0; d < 3; ++d) { m_dx[d] = dx[d]; }
     m_per_x = geom.isPeriodic(0); m_per_y = geom.isPeriodic(1);
@@ -112,6 +118,31 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     std::vector<int>  h_i, h_j, h_k, h_dir, h_side, h_nbi, h_nbj, h_slot;
     std::vector<Real> h_area, h_xf, h_yf, h_zf;
     m_domain_cells = domain.numPts();
+    // Solid neighbours outside the level's grids, of a fluid cell (a wall
+    // against the edge) or of a solid one (a building running across the
+    // edge, which a low roof can do with no fluid cell in between): a
+    // building that crosses the edge of a refined level, whose columns there
+    // this level cannot see.
+    const BoxArray& level_ba = blanking.boxArray();
+    Long n_outside = 0;
+    Long first_outside = std::numeric_limits<Long>::max();   // lowest such cell, as a linear domain index
+    auto solid_outside = [&] (const Array4<const Real>& b, const Box& vbox, const Box& fbox, const IntVect& nb) {
+        // A neighbour in the same valid box is in the level (the common case,
+        // and every case on level 0): no lookup.
+        if (vbox.contains(nb) || !fbox.contains(nb) || b(nb) < 0.5) { return false; }
+        IntVect nbw = nb;
+        for (int dp = 0; dp < 2; ++dp) {
+            if (!geom.isPeriodic(dp)) { continue; }
+            const int lo_d = domain.smallEnd(dp), len_d = domain.length(dp);
+            nbw[dp] = lo_d + ((nbw[dp] - lo_d) % len_d + len_d) % len_d;
+        }
+        if (level_ba.contains(nbw)) { return false; }
+        const IntVect r = nbw - domain.smallEnd();
+        first_outside = std::min(first_outside,
+                                 (Long(r[0]) * domain.length(1) + r[1]) * domain.length(2) + r[2]);
+        ++n_outside;
+        return true;
+    };
 
     // Bounding box of the solid columns (global), so the column arrays below
     // cover the built area only: 8 bytes per built column per rank.
@@ -163,6 +194,14 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
             if (b(i, j, k) >= 0.5) {
                 const size_t c = static_cast<size_t>(i - bi0) * bh + (j - bj0);
                 coltop_k[c] = std::max(coltop_k[c], k - domain.smallEnd(2));
+                for (int d = 0; d < 3; ++d) {
+                    for (int s = -1; s <= 1; s += 2) {
+                        IntVect nb(i, j, k);
+                        nb[d] += s;
+                        if (!geom.isPeriodic(d) && !domain.contains(nb)) { continue; }
+                        solid_outside(b, bx, fbox, nb);
+                    }
+                }
                 continue;
             }
             // Slot of each face within its cell's checkpoint record: the
@@ -177,6 +216,7 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
                     if (!fbox.contains(nb)) { continue; }
                     if (!geom.isPeriodic(d) && !domain.contains(nb)) { continue; }
                     if (b(nb) < 0.5) { continue; }
+                    solid_outside(b, bx, fbox, nb);
                     h_i.push_back(i); h_j.push_back(j); h_k.push_back(k);
                     h_dir.push_back(d); h_side.push_back(s);
                     h_slot.push_back(cell_slot++);
@@ -196,6 +236,33 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     }
     m_fab_start.push_back(static_cast<int>(h_i.size()));
     m_nface = static_cast<int>(h_i.size());
+
+    // The column map, the building ids and the ray cast below see only the
+    // level's own cells, so a building must lie wholly inside the level.
+    // ERF::init_ibseb() checks that for the buildings of the level below; this
+    // catches one only the refined level resolves.
+    {
+        Long n_out_all = n_outside;
+        Long first_all = first_outside;
+        ParallelDescriptor::ReduceLongSum(n_out_all);
+        ParallelDescriptor::ReduceLongMin(first_all);
+        if (n_out_all > 0) {
+            const Long nyz = Long(domain.length(1)) * domain.length(2);
+            const int fi = static_cast<int>(first_all / nyz);
+            const int fj = static_cast<int>((first_all / domain.length(2)) % domain.length(1));
+            const int fk = static_cast<int>(first_all % domain.length(2));
+            std::ostringstream os;
+            os << "erf.ibseb: level " << m_lev << " has " << n_out_all
+               << " cell faces against solid cells outside its grids (the first solid one at x = "
+               << plo[0] + (fi + 0.5) * dx[0] << " m, y = " << plo[1] + (fj + 0.5) * dx[1]
+               << " m, z = " << plo[2] + (fk + 0.5) * dx[2] << " m)";
+            os << ": a building crosses the edge of the refined level. To fix the refined box, run"
+                  " `python3 Exec/CanonicalTests/SEB/ibseb_refinement_box.py <inputs>`: it checks the deck's"
+                  " erf.<name>.in_box_lo / in_box_hi against the height map and prints a box that no building"
+                  " crosses (or `... <inputs> --all --fit tight|relaxed` for a box around every building).";
+            Abort(os.str());
+        }
+    }
 
     // Width of the checkpoint record: the largest number of faces on one cell
     // anywhere on the level (see state_ncomp()), reduced so every rank lays
@@ -349,7 +416,13 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
             m_bld_jlo[b] = std::min(m_bld_jlo[b], gj); m_bld_jhi[b] = std::max(m_bld_jhi[b], gj);
         }
     }
-    }   // label and stack, one int per column each, are freed here
+    // The column labels, by which a refined level finds its buildings in the
+    // level below (map_buildings_to_level0()), are kept until then.
+    m_lab_i0 = m_col_i0; m_lab_j0 = m_col_j0; m_lab_nx = bw; m_lab_ny = bh;
+    m_lab.swap(label);
+    m_to_lev0.resize(m_nbld + 1);
+    for (int b = 0; b <= m_nbld; ++b) { m_to_lev0[b] = b; }
+    }   // stack is freed here
     // The column map has done its work too; free it before the per-face
     // device uploads below.
     std::vector<int>().swap(coltop_k);
@@ -431,6 +504,142 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
 }
 
 /**
+ * Copy the coarser level's columns that this level does not cover into the
+ * column map of the ray cast (see the header). The coarser map is copied to
+ * the host, as both maps are replicated on every rank, and the merged map is
+ * uploaded again: one pass over the two built bounding boxes at
+ * initialisation.
+ */
+void
+IBFaceSet::add_outside_occluders (const IBFaceSet& coarser, const IntVect& ratio, const BoxArray& grids_crse)
+{
+    const size_t ncol_c = static_cast<size_t>(coarser.m_col_nx) * coarser.m_col_ny;
+    if (ncol_c == 0) { return; }
+    std::vector<int> top_c(ncol_c);
+    Gpu::copy(Gpu::deviceToHost, coarser.d_col_top.begin(), coarser.d_col_top.end(), top_c.begin());
+    std::vector<int> top_f(static_cast<size_t>(m_col_nx) * m_col_ny);
+    if (!top_f.empty()) {
+        Gpu::copy(Gpu::deviceToHost, d_col_top.begin(), d_col_top.end(), top_f.begin());
+    }
+    const Real dz_c = coarser.m_dx[2], dz_f = m_dx[2];
+
+    // Coarse columns outside this level, as the first of their ratio x ratio
+    // columns here (0-based) and a top index of this level; and the bounding
+    // box of those and of the level's own columns.
+    struct Outside { int i0, j0, kt; };
+    std::vector<Outside> outside;
+    const bool own = (m_col_nx > 0 && m_col_ny > 0);
+    int bi0 = own ? m_col_i0 : std::numeric_limits<int>::max();
+    int bj0 = own ? m_col_j0 : std::numeric_limits<int>::max();
+    int bi1 = own ? m_col_i0 + m_col_nx - 1 : std::numeric_limits<int>::min();
+    int bj1 = own ? m_col_j0 + m_col_ny - 1 : std::numeric_limits<int>::min();
+    for (int ci = 0; ci < coarser.m_col_nx; ++ci) {
+        for (int cj = 0; cj < coarser.m_col_ny; ++cj) {
+            const int kc = top_c[static_cast<size_t>(ci) * coarser.m_col_ny + cj];
+            if (kc < 0) { continue; }
+            const int gi = coarser.m_col_i0 + ci, gj = coarser.m_col_j0 + cj;
+            // A building is wholly inside this level or wholly outside it, so
+            // its top cell decides.
+            const IntVect top_cell(AMREX_D_DECL(gi + coarser.m_dom_lo[0], gj + coarser.m_dom_lo[1],
+                                                kc + coarser.m_dom_lo[2]));
+            if (grids_crse.contains(top_cell)) { continue; }
+            // The same height here: the top is kc + 1 cells of the level below up.
+            const Real h = (kc + 1) * dz_c;
+            // h / dz_f is a whole number of cells (the ratio times kc + 1);
+            // rounding keeps it so whatever the precision of the division.
+            const int kt = static_cast<int>(std::lround(h / dz_f)) - 1;
+            outside.push_back({gi * ratio[0], gj * ratio[1], kt});
+            bi0 = std::min(bi0, gi * ratio[0]); bi1 = std::max(bi1, (gi + 1) * ratio[0] - 1);
+            bj0 = std::min(bj0, gj * ratio[1]); bj1 = std::max(bj1, (gj + 1) * ratio[1] - 1);
+        }
+    }
+    if (outside.empty()) { return; }
+
+    const int nxb = bi1 - bi0 + 1, nyb = bj1 - bj0 + 1;
+    std::vector<int> top(static_cast<size_t>(nxb) * nyb, -1);
+    for (int ci = 0; ci < m_col_nx; ++ci) {
+        for (int cj = 0; cj < m_col_ny; ++cj) {
+            top[static_cast<size_t>(m_col_i0 + ci - bi0) * nyb + (m_col_j0 + cj - bj0)] =
+                top_f[static_cast<size_t>(ci) * m_col_ny + cj];
+        }
+    }
+    for (const auto& o : outside) {
+        for (int a = 0; a < ratio[0]; ++a) {
+            for (int b = 0; b < ratio[1]; ++b) {
+                int& t = top[static_cast<size_t>(o.i0 + a - bi0) * nyb + (o.j0 + b - bj0)];
+                t = std::max(t, o.kt);
+            }
+        }
+        m_col_top_max = std::max(m_col_top_max, Real(m_z_ground + (o.kt + 1.0) * dz_f));
+    }
+    m_col_i0 = bi0; m_col_j0 = bj0; m_col_nx = nxb; m_col_ny = nyb;
+    upload(d_col_top, top);
+    if (m_params.debug) {
+        Print() << "[IBSEB DEBUG] lev=" << m_lev << " ray cast: " << outside.size()
+                << " columns of the level below, outside this level, added as occluders\n";
+    }
+}
+
+/**
+ * Map this level's buildings to level 0's numbering through the labels of
+ * the level below (see the header). Every column of a building votes with
+ * the level-0 id of the coarse column under it (through the level below's own
+ * map), unlabelled coarse columns abstaining, and the most frequent id wins
+ * (the lowest on a tie). No single column is trusted: the coarse blanking is
+ * a volume average, so a column the coarse level leaves unlabelled (a spire
+ * alone in its coarse cell) cannot unmap a building the level below
+ * resolves through its other columns. A building none of whose columns lies
+ * under a labelled coarse column is one only this level resolves; it maps to
+ * 0, and a warning names it when the level below has buildings at all.
+ */
+void
+IBFaceSet::map_buildings_to_level0 (const IBFaceSet& coarser, const IntVect& ratio)
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(coarser.m_lab.size() == static_cast<size_t>(coarser.m_lab_nx) * coarser.m_lab_ny,
+                                     "erf.ibseb: the level below released its labels before this level was mapped");
+    std::vector<std::map<int, Long>> votes(m_nbld + 1);
+    for (int ci = 0; ci < m_lab_nx; ++ci) {
+        for (int cj = 0; cj < m_lab_ny; ++cj) {
+            const int b = m_lab[static_cast<size_t>(ci) * m_lab_ny + cj];
+            if (b == 0) { continue; }
+            // amrex::coarsen, not a division: the column indices here are cell
+            // indices of the level, and integer division truncates towards zero,
+            // which would send a negative index to the coarse column above the
+            // one that covers it.
+            const int cc = amrex::coarsen(ci + m_lab_i0, ratio[0]) - coarser.m_lab_i0;
+            const int cd = amrex::coarsen(cj + m_lab_j0, ratio[1]) - coarser.m_lab_j0;
+            if (cc < 0 || cc >= coarser.m_lab_nx || cd < 0 || cd >= coarser.m_lab_ny) { continue; }
+            const int bc = coarser.m_lab[static_cast<size_t>(cc) * coarser.m_lab_ny + cd];
+            if (bc > 0 && coarser.m_to_lev0[bc] > 0) { ++votes[b][coarser.m_to_lev0[bc]]; }
+        }
+    }
+    std::vector<int> unmapped;
+    for (int b = 1; b <= m_nbld; ++b) {
+        int best = 0;
+        Long n_best = 0;
+        for (const auto& [id, n] : votes[b]) {     // ascending id: the lowest wins a tie
+            if (n > n_best) { best = id; n_best = n; }
+        }
+        m_to_lev0[b] = best;
+        if (best == 0) { unmapped.push_back(b); }
+    }
+    if (!unmapped.empty() && coarser.m_nbld > 0) {
+        std::ostringstream os;
+        os << "erf.ibseb: level " << m_lev << " has " << unmapped.size()
+           << " building(s) that no labelled column of the level below lies under (level " << m_lev << " number";
+        for (int b : unmapped) { os << " " << b; }
+        os << "); they take erf.ibseb.material_default and building_level0 = 0 in the report";
+        // Every rank holds the same labels and reaches the same verdict.
+        if (ParallelDescriptor::IOProcessor()) { Warning(os.str().c_str()); }
+    }
+    if (m_params.debug) {
+        Print() << "[IBSEB DEBUG] lev=" << m_lev << " buildings as level 0 numbers them:";
+        for (int b = 1; b <= m_nbld; ++b) { Print() << " " << b << "->" << m_to_lev0[b]; }
+        Print() << "\n";
+    }
+}
+
+/**
  * Hemisphere sampling for the view fractions. One kernel over the faces,
  * each looping over its rays; the count of rays ending on the sky, the
  * ground and a building over the total gives the three fractions. Roofs
@@ -475,7 +684,8 @@ IBFaceSet::compute_view_fractions ()
         Real s[3] = {0.0, 0.0, 0.0};
         for (int n = 0; n < m_nface; ++n) { s[0] += fs[n]; s[1] += fg[n]; s[2] += fb[n]; }
         ParallelDescriptor::ReduceRealSum(s, 3);
-        const Real nf_all = static_cast<Real>(m_nface_dir[0] + m_nface_dir[1] + m_nface_dir[2]);
+        // A refined level can hold no building at all.
+        const Real nf_all = amrex::max(Real(1.0), static_cast<Real>(m_nface_dir[0] + m_nface_dir[1] + m_nface_dir[2]));
         Print() << "[IBSEB DEBUG] lev=" << m_lev << " view fractions: " << n_az * n_el
                 << " rays per face, mean f_sky=" << s[0] / nf_all << " f_ground=" << s[1] / nf_all
                 << " f_bldg=" << s[2] / nf_all << "\n";
@@ -544,7 +754,9 @@ IBFaceSet::assign_materials ()
     std::vector<int>  h_mat(m_nface);
     std::vector<Real> h_alb(m_nface), h_emi(m_nface), h_k(m_nface), h_rc(m_nface), h_th(m_nface);
     for (int n = 0; n < m_nface; ++n) {
-        const int b = h_b[n];
+        // erf.ibseb.material_by_building follows level 0's numbering; a
+        // building only a refined level resolves (0 here) takes the default.
+        const int b = m_to_lev0[h_b[n]];
         int id = m_params.material_default;
         if (b >= 1 && b <= static_cast<int>(m_params.material_by_building.size())) {
             id = m_params.material_by_building[b - 1];
@@ -841,8 +1053,11 @@ IBFaceSet::add_heat_flux_to_source (MultiFab& source, const MultiFab& cons,
  *
  * With sun_mode = fixed the direct-normal irradiance and the horizontal
  * diffuse are the inputs as given. With sun_mode = solar the sun follows the
- * site and time and the clear-sky formulas give both irradiances; the sun
- * below the horizon gives zero everywhere.
+ * site and time and the clear-sky formulas give both irradiances; with
+ * sun_mode = two_stream the position and the top-of-atmosphere irradiance are
+ * the two-stream radiation's (set_two_stream_sun()) and the same clear-sky
+ * formulas give the irradiances. The sun below the horizon gives zero
+ * everywhere.
  *
  * Diffuse on a face: ``f_sky * diffuse_h + f_ground * albedo_ground *
  * (direct_h + diffuse_h)``, the second term being the ground-reflected part,
@@ -861,6 +1076,20 @@ IBFaceSet::compute_shortwave (Real time)
         const Real cz = std::cos(s.zenith);
         s.dni       = (cz > 0.0) ? m_params.sw_direct_normal : 0.0;
         s.diffuse_h = (cz > 0.0) ? m_params.sw_diffuse : 0.0;
+    } else if (m_params.sun_mode == "two_stream") {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_ts_sun.set,
+            "erf.ibseb.sun_mode = two_stream: the two-stream sun was not given before the shortwave");
+        // Used once: the next shortwave needs the sun of its own time.
+        m_ts_sun.set = false;
+        const Real decl = m_ts_sun.decl;
+        const Real ha   = m_ts_sun.hour_angle;
+        s.zenith  = ibseb::solar_zenith(m_ts_sun.lat_deg, decl, ha);
+        s.azimuth = ibseb::solar_azimuth(m_ts_sun.lat_deg, decl, ha, s.zenith);
+        const Real cz = std::cos(s.zenith);
+        // The irradiance carries the date's distance factor already.
+        s.dni       = ibseb::clear_sky_dni(cz, m_ts_sun.S0, m_params.sw_transmission, Real(1.0));
+        s.diffuse_h = ibseb::clear_sky_diffuse_h(cz, m_ts_sun.S0, m_params.sw_transmission,
+                                                 Real(1.0), m_params.sw_diffuse_coeff);
     } else {
         const Real t_utc = m_params.time_zero_utc_s + time;
         const Real decl  = ibseb::solar_declination(m_params.day_of_year);
@@ -1292,6 +1521,9 @@ IBFaceSet::report (Real time, int step, bool write_csv) const
 
     if (write_csv && !m_params.dump_faces_file.empty()) {
         std::string prefix = m_params.dump_faces_file;
+        // Each level has its own list; a refined level tags its files so it
+        // does not overwrite the dump of the level below.
+        if (m_lev > 0) { prefix += ".lev" + std::to_string(m_lev); }
         if (m_params.dump_faces_tag_step) {
             std::ostringstream os;
             os << prefix << ".step" << std::setw(6) << std::setfill('0') << step;
@@ -1301,17 +1533,27 @@ IBFaceSet::report (Real time, int step, bool write_csv) const
     }
 
     if (!write_csv || !ParallelDescriptor::IOProcessor()) { return; }
+    const std::string header =
+        "time_s,step,level,building,n_faces,area_m2,T_skin_mean_K,SW_abs_mean_Wm2,shadow_frac,LW_net_mean_Wm2,H_mean_Wm2,"
+        "G_mean_Wm2,Q_ext_mean_Wm2,T_skin_min_K,T_skin_max_K,resid_max_Wm2,"
+        "sun_zenith_deg,sun_azimuth_deg,dni_Wm2,diffuse_h_Wm2,building_level0";
     bool need_header = true;
     {
-        std::ifstream probe(m_params.csv_file, std::ios::ate);
-        if (probe.good() && probe.tellg() > 0) { need_header = false; }
+        // A restarted run appends; a file another version of the report wrote
+        // (other columns) would take rows its header does not describe.
+        std::ifstream probe(m_params.csv_file);
+        std::string first;
+        if (probe.good() && std::getline(probe, first)) {
+            if (!first.empty() && first.back() == '\r') { first.pop_back(); }
+            if (first != header) {
+                Abort("erf.ibseb: " + m_params.csv_file + " has another set of columns than this version writes ("
+                      + first.substr(0, 60) + "...); move it aside or set erf.ibseb.csv_file to a new name");
+            }
+            need_header = false;
+        }
     }
     std::ofstream csv(m_params.csv_file, std::ios::app);
-    if (need_header) {
-        csv << "time_s,step,level,building,n_faces,area_m2,T_skin_mean_K,SW_abs_mean_Wm2,shadow_frac,LW_net_mean_Wm2,H_mean_Wm2,"
-               "G_mean_Wm2,Q_ext_mean_Wm2,T_skin_min_K,T_skin_max_K,resid_max_Wm2,"
-               "sun_zenith_deg,sun_azimuth_deg,dni_Wm2,diffuse_h_Wm2\n";
-    }
+    if (need_header) { csv << header << "\n"; }
     for (int b = 1; b <= m_nbld; ++b) {
         const Real tmean = (m_bld_area[b] > 0.0) ? bsum[b] / m_bld_area[b] : Real(0.0);
         const Real swm   = (m_bld_area[b] > 0.0) ? bsw[b]  / m_bld_area[b] : Real(0.0);
@@ -1323,6 +1565,7 @@ IBFaceSet::report (Real time, int step, bool write_csv) const
         csv << std::setprecision(10) << time << "," << step << "," << m_lev << "," << b << ","
             << m_bld_nface[b] << "," << m_bld_area[b] << "," << tmean << "," << swm << "," << shf << "," << lwm << "," << Hm << ","
             << Gm << "," << Qm << "," << btmin[b] << "," << btmax[b] << "," << bres[b] << ","
-            << m_sun.zenith * 180.0 / PI << "," << m_sun.azimuth * 180.0 / PI << "," << m_sun.dni << "," << m_sun.diffuse_h << "\n";
+            << m_sun.zenith * 180.0 / PI << "," << m_sun.azimuth * 180.0 / PI << "," << m_sun.dni << "," << m_sun.diffuse_h << ","
+            << m_to_lev0[b] << "\n";
     }
 }

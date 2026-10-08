@@ -28,7 +28,7 @@ using namespace amrex;
 namespace {
 // RRTMGP's reference total solar irradiance [W/m^2]; the date's Earth-Sun
 // distance factor scales it unless erf.fixed_total_solar_irradiance is set.
-constexpr amrex::Real tsi_reference = 1360.9;
+constexpr amrex::Real tsi_reference = two_stream_tsi_reference;
 
 /**
  * Set the sun of this call from the inputs shared with RRTMGP. A fixed
@@ -37,9 +37,9 @@ constexpr amrex::Real tsi_reference = 1360.9;
  * start date is known and the unscaled reference otherwise. A calendar sun
  * needs the date: it comes from start_datetime (epoch_time = start_time + t,
  * as RRTMGP forms it, in double so a time of day at ~1.7e9 s is resolved) and
- * goes through the same orbital code (orbital_params once per year,
- * orbital_decl per call, both of ERF_OrbCosZenith.H) for the declination and
- * the Earth-Sun distance factor; the column sweep then evaluates the position
+ * goes through the same orbital code (two_stream_sun_date(): orbital_params
+ * once per year, orbital_decl per call, both of ERF_OrbCosZenith.H) for the
+ * declination and the Earth-Sun distance factor; the column sweep then evaluates the position
  * over each column. Without a start date there is no sun to place, so the run
  * stops and says what to set.
  */
@@ -77,6 +77,28 @@ void set_solar_state (TwoStreamParams& p, const RadChoice& rc,
                      "the sun with erf.fixed_solar_zenith_angle (the cosine of the angle).");
     }
 
+    const TwoStreamSunDate sun = two_stream_sun_date(rc, orbit, epoch_time);
+    const double calday = sun.calday, delta = sun.declin, eccf = sun.eccf;
+
+    p.calday = static_cast<amrex::Real>(calday);
+    p.declin = static_cast<amrex::Real>(delta);
+    if (!fixed_tsi) { p.S0 = tsi_reference * static_cast<amrex::Real>(eccf); }
+}
+} // namespace
+
+/**
+ * The calendar sun of the two-stream model at a UTC epoch time: the calendar
+ * day with the time of day as its fraction, the declination and the Earth-Sun
+ * distance factor, from the date as the RRTMGP interface forms it and the
+ * orbital code of ERF_OrbCosZenith.H (orbital_params once per year into
+ * ``orbit``, with the erf.rad_orbital_* overrides passed to it, then
+ * orbital_decl per call). set_solar_state() takes the sun of every sweep from here, and
+ * the immersed-boundary balance its erf.ibseb.sun_mode = two_stream sun, so the
+ * two cannot drift apart.
+ */
+TwoStreamSunDate two_stream_sun_date (const RadChoice& rc, TwoStreamRadiation::OrbitalCache& orbit,
+                                      double epoch_time)
+{
     // Calendar date of this call (UTC), as the RRTMGP interface forms it.
     time_t timestamp = time_t(epoch_time);
     struct tm timeinfo{};
@@ -109,11 +131,12 @@ void set_solar_state (TwoStreamParams& p, const RadChoice& rc,
     double delta = 0.0, eccf = 1.0;
     orbital_decl(calday, eccen, mvelpp, lambm0, obliqr, delta, eccf);
 
-    p.calday = static_cast<amrex::Real>(calday);
-    p.declin = static_cast<amrex::Real>(delta);
-    if (!fixed_tsi) { p.S0 = tsi_reference * static_cast<amrex::Real>(eccf); }
+    TwoStreamSunDate out;
+    out.calday = calday;
+    out.declin = delta;
+    out.eccf   = eccf;
+    return out;
 }
-} // namespace
 
 
 namespace {
