@@ -197,9 +197,14 @@ public:
         pbl_mynn_level2.init_coeffs(
           pbl_mynn.A1, pbl_mynn.A2, pbl_mynn.B1, pbl_mynn.B2, pbl_mynn.C1,
           pbl_mynn.C2, pbl_mynn.C3, pbl_mynn.C4, pbl_mynn.C5);
-        query_one_or_per_level(
-          pp, "pbl_mynn_diffuse_moistvars", pbl_mynn.diffuse_moistvars, lev,
-          max_level);
+        // Moisture is now always diffused by MYNN, as it is by every other
+        // PBL scheme; catch the retired flag rather than ignoring it silently.
+        if (pp.contains("pbl_mynn_diffuse_moistvars")) {
+            amrex::Abort("erf.pbl_mynn_diffuse_moistvars has been removed. "
+                         "MYNN always diffuses the moisture variables now, as "
+                         "MYJ, YSU, MRF and SHOC always have; there is no "
+                         "longer a way to turn it off.");
+        }
         query_one_or_per_level(
           pp, "pbl_mynn_SMmin", pbl_mynn.SMmin, lev, max_level);
         query_one_or_per_level(

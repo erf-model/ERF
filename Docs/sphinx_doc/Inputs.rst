@@ -2079,9 +2079,6 @@ List of Parameters
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_mynn_SQfactor**                | MYNN ratio of stability functions SQ / SM                | Real               | 3.0              |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.pbl_mynn_diffuse_moistvars**       | Diffuse moisture variables using modeled eddy            | Boolean            | false            |
-|                                          | diffusivity                                              |                    |                  |
-+------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.advect_QKE**                       | Include advection terms in QKE eqn                       | Boolean            | true             |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.diffuse_QKE_3D**                   | Include horizontal turb. diffusion terms in QKE eqn.     | Boolean            | false            |
