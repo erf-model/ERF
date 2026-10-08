@@ -190,6 +190,54 @@ run_decomposition (const int max_grid_size,
     return result;
 }
 
+BoxArray
+completed_ledger_boxes ()
+{
+    BoxArray boxes(Box(IntVect(0), IntVect(7)));
+    boxes.maxSize(2);
+    return boxes;
+}
+
+DistributionMapping
+completed_ledger_mapping (const BoxArray& boxes)
+{
+    amrex::Vector<int> owners(static_cast<std::size_t>(boxes.size()));
+    for (int box = 0; box < boxes.size(); ++box) {
+        owners[box] = box % amrex::ParallelDescriptor::NProcs();
+    }
+    return DistributionMapping(std::move(owners));
+}
+
+struct CompletedLedgerParallelFixture
+{
+    BoxArray boxes;
+    DistributionMapping mapping;
+    erf_auxiliary::MappedFaceFluxRate rate;
+    erf_auxiliary::CompletedStepFluxLedger ledger;
+
+    CompletedLedgerParallelFixture ()
+        : boxes(completed_ledger_boxes()),
+          mapping(completed_ledger_mapping(boxes))
+    {
+        rate.define(boxes, mapping, 2, 0);
+        rate.setVal(Real(0.0));
+        ledger.define(boxes, mapping, 2);
+    }
+};
+
+bool
+accumulate_ledger_components (CompletedLedgerParallelFixture& fixture,
+                              std::string& diagnostic)
+{
+    bool complete = true;
+    for (int component = 0; component < 2; ++component) {
+        const bool accumulated = fixture.ledger.accumulate_stage_component(
+            fixture.rate, component, component, diagnostic);
+        complete = accumulated && complete;
+    }
+    return complete;
+}
+
 TEST(SBMTransportParallel, DecompositionInvariant)
 {
     const auto one_box = run_decomposition(16, erf_sbm::MomentMode::OneMoment);
@@ -214,6 +262,168 @@ TEST(SBMTransportParallel, TwoMomentEndpointGroupLimiterDecompositionInvariant)
                         std::max(std::abs(one_box[i]),
                                  std::numeric_limits<Real>::min()));
     }
+}
+
+TEST(SBMTransportParallel, RankLocalIncompleteLedgerStageFailsCollectively)
+{
+    if (amrex::ParallelDescriptor::NProcs() < 2) {
+        GTEST_SKIP() << "collective completed-ledger qualification requires at "
+                        "least two MPI ranks";
+    }
+
+    CompletedLedgerParallelFixture fixture;
+    std::string diagnostic;
+    constexpr double dt = 2.0;
+    erf_auxiliary::AuxiliaryStageRecipe recipe;
+    const auto method = erf_auxiliary::HostIntegrator::AnelasticHeun;
+
+    const bool stage0_recipe_ok = erf_auxiliary::MakeAuxiliaryStageRecipe(
+        method, 0, dt, recipe, diagnostic);
+    const bool stage0_begun =
+        stage0_recipe_ok &&
+        fixture.ledger.begin_stage(method, 0, 0.0, recipe, diagnostic);
+    const bool stage0_components_ok =
+        accumulate_ledger_components(fixture, diagnostic);
+    const bool stage0_finished = fixture.ledger.finish_stage(diagnostic);
+    EXPECT_TRUE(stage0_recipe_ok) << diagnostic;
+    EXPECT_TRUE(stage0_begun) << diagnostic;
+    EXPECT_TRUE(stage0_components_ok) << diagnostic;
+    EXPECT_TRUE(stage0_finished) << diagnostic;
+
+    diagnostic.clear();
+    const bool final_recipe_ok = erf_auxiliary::MakeAuxiliaryStageRecipe(
+        method, 1, dt, recipe, diagnostic);
+    const bool final_stage_begun =
+        final_recipe_ok &&
+        fixture.ledger.begin_stage(method, 1, 0.0, recipe, diagnostic);
+    const bool first_component_ok = fixture.ledger.accumulate_stage_component(
+        fixture.rate, 0, 0, diagnostic);
+    const bool second_component_ok =
+        amrex::ParallelDescriptor::MyProc() == 1
+            ? true
+            : fixture.ledger.accumulate_stage_component(fixture.rate, 1, 1,
+                                                        diagnostic);
+    const bool accepted = fixture.ledger.finish_stage(diagnostic);
+
+    EXPECT_TRUE(final_recipe_ok) << diagnostic;
+    EXPECT_TRUE(final_stage_begun) << diagnostic;
+    EXPECT_TRUE(first_component_ok) << diagnostic;
+    EXPECT_TRUE(second_component_ok) << diagnostic;
+    EXPECT_FALSE(accepted);
+    if (amrex::ParallelDescriptor::MyProc() == 1) {
+        EXPECT_NE(diagnostic.find("omitted destination component 1"),
+                  std::string::npos)
+            << diagnostic;
+    } else {
+        EXPECT_NE(diagnostic.find("another MPI rank"), std::string::npos)
+            << diagnostic;
+    }
+    EXPECT_FALSE(fixture.ledger.step_complete());
+    EXPECT_TRUE(fixture.ledger.step_active());
+
+    int minimum_next_stage = fixture.ledger.next_stage();
+    int maximum_next_stage = minimum_next_stage;
+    amrex::ParallelDescriptor::ReduceIntMin(minimum_next_stage);
+    amrex::ParallelDescriptor::ReduceIntMax(maximum_next_stage);
+    EXPECT_EQ(minimum_next_stage, 1);
+    EXPECT_EQ(maximum_next_stage, 1);
+}
+
+TEST(SBMTransportParallel, RankLocalClosedLedgerStageFailsCollectively)
+{
+    if (amrex::ParallelDescriptor::NProcs() < 2) {
+        GTEST_SKIP() << "collective completed-ledger qualification requires at "
+                        "least two MPI ranks";
+    }
+
+    CompletedLedgerParallelFixture fixture;
+    std::string diagnostic;
+    constexpr double dt = 2.0;
+    const auto method = erf_auxiliary::HostIntegrator::AnelasticHeun;
+    erf_auxiliary::AuxiliaryStageRecipe recipe;
+
+    bool recipe_ok = erf_auxiliary::MakeAuxiliaryStageRecipe(
+        method, 0, dt, recipe, diagnostic);
+    bool begun = recipe_ok &&
+                 fixture.ledger.begin_stage(method, 0, 0.0, recipe, diagnostic);
+    bool components_ok = accumulate_ledger_components(fixture, diagnostic);
+    const bool stage0_finished = fixture.ledger.finish_stage(diagnostic);
+    EXPECT_TRUE(recipe_ok) << diagnostic;
+    EXPECT_TRUE(begun) << diagnostic;
+    EXPECT_TRUE(components_ok) << diagnostic;
+    EXPECT_TRUE(stage0_finished) << diagnostic;
+
+    diagnostic.clear();
+    recipe_ok = erf_auxiliary::MakeAuxiliaryStageRecipe(method, 1, dt, recipe,
+                                                        diagnostic);
+    begun = recipe_ok && amrex::ParallelDescriptor::MyProc() != 1 &&
+            fixture.ledger.begin_stage(method, 1, 0.0, recipe, diagnostic);
+    if (amrex::ParallelDescriptor::MyProc() != 1) {
+        components_ok = accumulate_ledger_components(fixture, diagnostic);
+    } else {
+        components_ok = false;
+    }
+    const bool accepted = fixture.ledger.finish_stage(diagnostic);
+
+    EXPECT_TRUE(recipe_ok) << diagnostic;
+    EXPECT_EQ(begun, amrex::ParallelDescriptor::MyProc() != 1) << diagnostic;
+    EXPECT_EQ(components_ok, amrex::ParallelDescriptor::MyProc() != 1)
+        << diagnostic;
+    EXPECT_FALSE(accepted);
+    if (amrex::ParallelDescriptor::MyProc() == 1) {
+        EXPECT_NE(diagnostic.find("open host stage"), std::string::npos)
+            << diagnostic;
+    } else {
+        EXPECT_NE(diagnostic.find("another MPI rank"), std::string::npos)
+            << diagnostic;
+    }
+    EXPECT_FALSE(fixture.ledger.step_complete());
+    EXPECT_TRUE(fixture.ledger.step_active());
+    int minimum_next_stage = fixture.ledger.next_stage();
+    int maximum_next_stage = minimum_next_stage;
+    amrex::ParallelDescriptor::ReduceIntMin(minimum_next_stage);
+    amrex::ParallelDescriptor::ReduceIntMax(maximum_next_stage);
+    EXPECT_EQ(minimum_next_stage, 1);
+    EXPECT_EQ(maximum_next_stage, 1);
+}
+
+TEST(SBMTransportParallel, DifferentLedgerStageIdentitiesFailCollectively)
+{
+    if (amrex::ParallelDescriptor::NProcs() < 2) {
+        GTEST_SKIP() << "collective completed-ledger qualification requires at "
+                        "least two MPI ranks";
+    }
+
+    CompletedLedgerParallelFixture fixture;
+    std::string diagnostic;
+    constexpr double dt = 2.0;
+    const auto method = amrex::ParallelDescriptor::MyProc() == 1
+                            ? erf_auxiliary::HostIntegrator::AnelasticHeun
+                            : erf_auxiliary::HostIntegrator::CompressibleRK3;
+    erf_auxiliary::AuxiliaryStageRecipe recipe;
+    const bool recipe_ok = erf_auxiliary::MakeAuxiliaryStageRecipe(
+        method, 0, dt, recipe, diagnostic);
+    const bool begun = recipe_ok && fixture.ledger.begin_stage(
+                                        method, 0, 0.0, recipe, diagnostic);
+    const bool components_ok =
+        accumulate_ledger_components(fixture, diagnostic);
+    const bool accepted = fixture.ledger.finish_stage(diagnostic);
+
+    EXPECT_TRUE(recipe_ok) << diagnostic;
+    EXPECT_TRUE(begun) << diagnostic;
+    EXPECT_TRUE(components_ok) << diagnostic;
+    EXPECT_FALSE(accepted);
+    EXPECT_NE(diagnostic.find("stage identity differs across MPI ranks"),
+              std::string::npos)
+        << diagnostic;
+    EXPECT_FALSE(fixture.ledger.step_complete());
+    EXPECT_TRUE(fixture.ledger.step_active());
+    int minimum_next_stage = fixture.ledger.next_stage();
+    int maximum_next_stage = minimum_next_stage;
+    amrex::ParallelDescriptor::ReduceIntMin(minimum_next_stage);
+    amrex::ParallelDescriptor::ReduceIntMax(maximum_next_stage);
+    EXPECT_EQ(minimum_next_stage, 0);
+    EXPECT_EQ(maximum_next_stage, 0);
 }
 
 TEST(SBMTransportParallel, NonfiniteCompletedLedgerRejectedCollectively)

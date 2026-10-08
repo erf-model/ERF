@@ -407,16 +407,54 @@ bool CompletedStepFluxLedger::accumulate_stage_component (
 bool CompletedStepFluxLedger::finish_stage (std::string& diagnostic)
 {
     diagnostic.clear();
-    if (!m_stage_open || !m_step_active || m_open_stage != m_next_stage) {
+    const bool local_stage_valid =
+        m_stage_open && m_step_active && m_open_stage == m_next_stage &&
+        m_open_stage >= 0 && m_open_stage < stage_count(m_method);
+    if (!local_stage_valid) {
         diagnostic = "completed-step stage finish requires an open host stage";
-        return false;
     }
+
+    bool all_components_seen = true;
     for (std::size_t component = 0; component < m_stage_components_seen.size(); ++component) {
         if (m_stage_components_seen[component] == 0) {
-            diagnostic = "completed-step stage omitted destination component " +
-                         std::to_string(component);
-            return false;
+            all_components_seen = false;
+            if (diagnostic.empty()) {
+                diagnostic =
+                    "completed-step stage omitted destination component " +
+                    std::to_string(component);
+            }
         }
+    }
+
+    // Reserve disjoint ranges for each logical host integrator.  A zero code
+    // means that this rank has no locally valid, complete stage transaction.
+    int local_stage_code = 0;
+    if (local_stage_valid && all_components_seen) {
+        switch (m_method) {
+        case HostIntegrator::CompressibleRK3:
+            local_stage_code = 1 + m_open_stage;
+            break;
+        case HostIntegrator::AnelasticHeun:
+            local_stage_code = 4 + m_open_stage;
+            break;
+        case HostIntegrator::AnelasticMidPoint:
+            local_stage_code = 7 + m_open_stage;
+            break;
+        }
+    }
+    int minimum_stage_code = local_stage_code;
+    int maximum_stage_code = local_stage_code;
+    amrex::ParallelDescriptor::ReduceIntMin(minimum_stage_code);
+    amrex::ParallelDescriptor::ReduceIntMax(maximum_stage_code);
+    if (minimum_stage_code == 0 || minimum_stage_code != maximum_stage_code) {
+        if (diagnostic.empty()) {
+            diagnostic =
+                minimum_stage_code == 0
+                    ? "completed-step stage is invalid or incomplete on "
+                      "another MPI rank"
+                    : "completed-step stage identity differs across MPI ranks";
+        }
+        return false;
     }
 
     const bool completes_step = m_next_stage + 1 == stage_count(m_method);

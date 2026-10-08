@@ -143,7 +143,14 @@ public:
                                      int ledger_component,
                                      std::string& diagnostic);
 
-    /** Finish an open stage only after every destination component arrived. */
+    /**
+     * MPI collective contract: every rank must call this for the same logical
+     * host stage, including when local component accumulation is incomplete.
+     * Stage validity, component completeness, and method/stage identity are
+     * admitted collectively before final-step finiteness validation or stage
+     * completion. Earlier ledger-operation failures must be handled coherently
+     * by the caller; this function cannot protect ranks that do not enter it.
+     */
     bool finish_stage (std::string& diagnostic);
 
     [[nodiscard]] bool is_defined () const noexcept { return m_integral.is_defined(); }
