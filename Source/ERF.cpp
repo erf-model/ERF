@@ -1329,10 +1329,15 @@ ERF::InitData_post ()
         // Create the WriteBndryPlanes object so we can handle writing of boundary plane data
         m_w2d = std::make_unique<WriteBndryPlanes>(grids,geom);
 
+        // A restart continues the series the run before it wrote, which holds the plane at or
+        // before the restart step already; the start-up plane is written only into an empty
+        // series (a fresh start, or output switched on at the restart), under the step it is at.
+        bool have_planes = m_w2d->start_series(istep[0], !restart_chkfile.empty());
+
         double tot_time = t_new[0]+start_time;
-        if (tot_time >= bndry_output_planes_start_time) {
+        if (!have_planes && tot_time >= bndry_output_planes_start_time) {
             bool is_moist = (micro->Get_Qstate_Moist_Size() > 0);
-            m_w2d->write_planes(0, tot_time, vars_new, is_moist);
+            m_w2d->write_planes(istep[0], tot_time, vars_new, is_moist);
         }
     }
 

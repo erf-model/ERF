@@ -2,7 +2,12 @@
 # restart from that checkpoint to STEP_END, and require the restarted run's plotfile
 # at STEP_END to equal the straight run's with fcompare. Each leg uses the forwarded
 # RUN_TIMEOUT, and the enclosing CTest timeout is sized separately by the caller.
-# COMMON_OPTIONS goes to all three legs; RESTART_OPTIONS goes to the restart leg only.
+# COMMON_OPTIONS goes to all three legs; RESTART_OPTIONS goes to the restart leg only, and
+# CHK_OPTIONS to the checkpoint leg only. CHK_LEG_END runs the checkpoint leg past STEP_CHK,
+# so the restart replays steps that a run stopped after its last checkpoint has already written.
+# BNDRY_PLANES_DIR compares the boundary-plane series (erf.bndry_output_planes_file) of the two
+# runs from step BNDRY_PLANES_FIRST_STEP on; BNDRY_PLANES_STALE seeds both run directories with
+# the time.dat of an earlier run first.
 # CHK_NRANKS/RESTART_NRANKS let the checkpoint and restart legs run at different widths;
 # REQUIRE_LEVEL0_REMAKE asserts the restart really did re-make the level-0 grids.
 # -DX= defines X as empty, so test for a value, not for DEFINED
@@ -33,6 +38,16 @@ separate_arguments(common_options   UNIX_COMMAND "${COMMON_OPTIONS}")
 # required-argument loop above.
 #
 separate_arguments(restart_options  UNIX_COMMAND "${RESTART_OPTIONS}")
+separate_arguments(chk_options      UNIX_COMMAND "${CHK_OPTIONS}")
+
+# The checkpoint leg stops at STEP_CHK unless CHK_LEG_END says to run it further
+set(_chk_leg_end "${STEP_CHK}")
+if(NOT "${CHK_LEG_END}" STREQUAL "")
+    if(CHK_LEG_END LESS STEP_CHK)
+        message(FATAL_ERROR "RunRestartParity.cmake: CHK_LEG_END (${CHK_LEG_END}) is before STEP_CHK (${STEP_CHK})")
+    endif()
+    set(_chk_leg_end "${CHK_LEG_END}")
+endif()
 
 #
 # A restart leg that re-makes the level-0 grids writes its plotfile on a different
@@ -140,14 +155,25 @@ if(NOT "${PLT2DFILE}" STREQUAL "")
     set(plot2d_off "erf.plot2d_int_1=-1")
 endif()
 
+# BNDRY_PLANES_STALE leaves the series of an earlier, longer run in both run directories, as a
+# rerun in the same directory finds it: a fresh start has to begin a new series, not append to it.
+if(BNDRY_PLANES_STALE)
+    if("${BNDRY_PLANES_DIR}" STREQUAL "")
+        message(FATAL_ERROR "RunRestartParity.cmake: BNDRY_PLANES_STALE needs BNDRY_PLANES_DIR")
+    endif()
+    foreach(dir "${STRAIGHT_DIR}" "${RESTART_DIR}")
+        file(WRITE "${dir}/${BNDRY_PLANES_DIR}/time.dat" "0 0\n10 0.2\n20 0.4\n30 0.6\n")
+    endforeach()
+endif()
+
 # straight to the end, no checkpoint
 run_erf_with("${launch}" "${STRAIGHT_DIR}" "simulation.log" ${RUN_TIMEOUT}
         "max_step=${STEP_END}" "erf.check_int=-1" "erf.plot_int_1=${STEP_END}"
         ${plot2d_end})
-# to the checkpoint step, writing it there
+# to the checkpoint step, writing it there (and on to CHK_LEG_END when that is given)
 run_erf_with("${launch_chk}" "${RESTART_DIR}" "checkpoint.log" ${RUN_TIMEOUT}
-        "max_step=${STEP_CHK}" "erf.check_int=${STEP_CHK}" "erf.plot_int_1=-1"
-        ${plot2d_off})
+        "max_step=${_chk_leg_end}" "erf.check_int=${STEP_CHK}" "erf.plot_int_1=-1"
+        ${plot2d_off} ${chk_options})
 if(NOT EXISTS "${RESTART_DIR}/${CHKFILE}/Header")
     message(FATAL_ERROR "RunRestartParity.cmake: no ${CHKFILE} written by the checkpoint run")
 endif()
@@ -260,4 +286,132 @@ if(NOT "${DATALOG}" STREQUAL "")
                             "and the restarted run: ${log_message}")
     endif()
     message(STATUS "RunRestartParity: ${DATALOG} agrees (${straight_rows} rows)")
+endif()
+
+# Optional: the boundary planes written for a downstream run (erf.output_bndry_planes). The
+# series is a directory of planes, bndry_outputNNNNN, one per output step, and a time.dat that
+# lists "step time" for each; erf.input_bndry_planes reads time.dat and requires both columns to
+# increase. A restart must leave the series as the straight run writes it: the same time.dat
+# rows and the same planes, byte for byte. AMReX renames a plane directory it writes again to
+# <name>.old.<n>, which a restart from an earlier checkpoint does by design, so those are skipped.
+if(NOT "${BNDRY_PLANES_DIR}" STREQUAL "")
+    set(_bp_first 0)
+    if(NOT "${BNDRY_PLANES_FIRST_STEP}" STREQUAL "")
+        set(_bp_first "${BNDRY_PLANES_FIRST_STEP}")
+    endif()
+
+    # The step of a time.dat row or of a plane directory name, without leading zeros
+    function(bp_step_of text out_var)
+        if("${text}" MATCHES "bndry_output([0-9]+)$")
+            set(_digits "${CMAKE_MATCH_1}")
+        elseif("${text}" MATCHES "^[ \t]*([0-9]+)[ \t]")
+            set(_digits "${CMAKE_MATCH_1}")
+        else()
+            message(FATAL_ERROR "RunRestartParity.cmake: cannot read a step from \"${text}\"")
+        endif()
+        string(REGEX REPLACE "^0+([0-9])" "\\1" _step "${_digits}")
+        set(${out_var} "${_step}" PARENT_SCOPE)
+    endfunction()
+
+    foreach(dir "${STRAIGHT_DIR}" "${RESTART_DIR}")
+        if(NOT EXISTS "${dir}/${BNDRY_PLANES_DIR}/time.dat")
+            message(FATAL_ERROR "RunRestartParity.cmake: no ${BNDRY_PLANES_DIR}/time.dat in ${dir}")
+        endif()
+    endforeach()
+
+    # time.dat: the straight run's rows from the first compared step on, against all of the restart's
+    file(STRINGS "${STRAIGHT_DIR}/${BNDRY_PLANES_DIR}/time.dat" _bp_rows)
+    set(_bp_kept "")
+    foreach(_row IN LISTS _bp_rows)
+        bp_step_of("${_row}" _step)
+        if(NOT _step LESS _bp_first)
+            list(APPEND _bp_kept "${_row}")
+        endif()
+    endforeach()
+    list(LENGTH _bp_kept _bp_nrows)
+    if(_bp_nrows LESS 2)
+        message(FATAL_ERROR "RunRestartParity.cmake: the straight run's ${BNDRY_PLANES_DIR}/time.dat has "
+                            "${_bp_nrows} rows from step ${_bp_first} on; the comparison would be trivial")
+    endif()
+    string(JOIN "\n" _bp_text ${_bp_kept})
+    file(WRITE "${WORKING_DIRECTORY}/bndry_time_straight.txt" "${_bp_text}\n")
+    file(READ "${RESTART_DIR}/${BNDRY_PLANES_DIR}/time.dat" _bp_restart_text)
+    file(WRITE "${WORKING_DIRECTORY}/bndry_time_restart.txt" "${_bp_restart_text}")
+
+    # erf.input_bndry_planes stops on a time.dat whose steps or times do not increase
+    foreach(dir "${STRAIGHT_DIR}" "${RESTART_DIR}")
+        file(STRINGS "${dir}/${BNDRY_PLANES_DIR}/time.dat" _rows)
+        set(_prev_step "")
+        set(_prev_time "")
+        foreach(_row IN LISTS _rows)
+            bp_step_of("${_row}" _step)
+            string(REGEX REPLACE "^[ \t]*[0-9]+[ \t]+([^ \t]+).*$" "\\1" _time "${_row}")
+            if(NOT "${_prev_step}" STREQUAL "" AND (NOT _step GREATER _prev_step OR NOT _time GREATER _prev_time))
+                message(FATAL_ERROR "RunRestartParity.cmake: ${dir}/${BNDRY_PLANES_DIR}/time.dat does not increase "
+                                    "at the row \"${_row}\" after step ${_prev_step} at time ${_prev_time}; "
+                                    "erf.input_bndry_planes cannot read it")
+            endif()
+            set(_prev_step "${_step}")
+            set(_prev_time "${_time}")
+        endforeach()
+    endforeach()
+
+    include("${CMAKE_CURRENT_LIST_DIR}/CompareDataLogs.cmake")
+    erf_compare_data_logs("${WORKING_DIRECTORY}/bndry_time_straight.txt"
+                          "${WORKING_DIRECTORY}/bndry_time_restart.txt"
+                          12 2 bp_times_agree bp_times_message)
+    if(NOT bp_times_agree)
+        message(FATAL_ERROR "RunRestartParity.cmake: ${BNDRY_PLANES_DIR}/time.dat differs between the "
+                            "straight run and the restarted run: ${bp_times_message}\n"
+                            "straight (from step ${_bp_first}):\n${_bp_text}\nrestart:\n${_bp_restart_text}")
+    endif()
+
+    # The plane directories: the same set, and the same files with the same bytes in each
+    function(bp_plane_dirs root first out_var)
+        file(GLOB _names RELATIVE "${root}" "${root}/bndry_output*")
+        set(_kept "")
+        foreach(_name IN LISTS _names)
+            if(IS_DIRECTORY "${root}/${_name}" AND NOT _name MATCHES "\\.old\\.")
+                bp_step_of("${_name}" _step)
+                if(NOT _step LESS first)
+                    list(APPEND _kept "${_name}")
+                endif()
+            endif()
+        endforeach()
+        list(SORT _kept)
+        set(${out_var} "${_kept}" PARENT_SCOPE)
+    endfunction()
+    bp_plane_dirs("${STRAIGHT_DIR}/${BNDRY_PLANES_DIR}" ${_bp_first} _bp_straight_dirs)
+    bp_plane_dirs("${RESTART_DIR}/${BNDRY_PLANES_DIR}"  ${_bp_first} _bp_restart_dirs)
+    if(NOT "${_bp_straight_dirs}" STREQUAL "${_bp_restart_dirs}")
+        message(FATAL_ERROR "RunRestartParity.cmake: the plane directories differ from step ${_bp_first} on: "
+                            "straight has ${_bp_straight_dirs}, restart has ${_bp_restart_dirs}")
+    endif()
+    set(_bp_nfiles 0)
+    foreach(_plane IN LISTS _bp_straight_dirs)
+        file(GLOB_RECURSE _s_files RELATIVE "${STRAIGHT_DIR}/${BNDRY_PLANES_DIR}/${_plane}"
+             "${STRAIGHT_DIR}/${BNDRY_PLANES_DIR}/${_plane}/*")
+        file(GLOB_RECURSE _r_files RELATIVE "${RESTART_DIR}/${BNDRY_PLANES_DIR}/${_plane}"
+             "${RESTART_DIR}/${BNDRY_PLANES_DIR}/${_plane}/*")
+        list(SORT _s_files)
+        list(SORT _r_files)
+        if(NOT "${_s_files}" STREQUAL "${_r_files}")
+            message(FATAL_ERROR "RunRestartParity.cmake: ${_plane} holds different files: "
+                                "straight has ${_s_files}, restart has ${_r_files}")
+        endif()
+        foreach(_f IN LISTS _s_files)
+            execute_process(COMMAND ${CMAKE_COMMAND} -E compare_files
+                "${STRAIGHT_DIR}/${BNDRY_PLANES_DIR}/${_plane}/${_f}"
+                "${RESTART_DIR}/${BNDRY_PLANES_DIR}/${_plane}/${_f}"
+                RESULT_VARIABLE _same)
+            if(NOT _same EQUAL 0)
+                message(FATAL_ERROR "RunRestartParity.cmake: ${BNDRY_PLANES_DIR}/${_plane}/${_f} differs "
+                                    "between the straight run and the restarted run")
+            endif()
+            math(EXPR _bp_nfiles "${_bp_nfiles} + 1")
+        endforeach()
+    endforeach()
+    list(LENGTH _bp_straight_dirs _bp_nplanes)
+    message(STATUS "RunRestartParity: ${BNDRY_PLANES_DIR} agrees (${_bp_nrows} time.dat rows, "
+                   "${_bp_nplanes} planes, ${_bp_nfiles} files)")
 endif()

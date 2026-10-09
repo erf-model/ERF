@@ -5,6 +5,9 @@
 #include "AMReX_ParmParse.H"
 #include "AMReX_PlotFileUtil.H"
 #include "AMReX_MultiFabUtil.H"
+#include <fstream>
+#include <sstream>
+#include <string>
 #include "ERF_WriteBndryPlanes.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_Derive.H"
@@ -124,6 +127,74 @@ WriteBndryPlanes::WriteBndryPlanes (Vector<BoxArray>& grids,
         m_var_names.resize(num_vars);
         pp.queryarr("bndry_output_var_names",m_var_names,0,num_vars);
     }
+}
+
+/**
+ * Number of leading rows of time.dat that a run starting at step start_step keeps.
+ *
+ * A restart replays the steps after its checkpoint, so the rows for those steps -- written by a
+ * run that went on past the checkpoint -- are dropped and written again. Rows stop being kept at
+ * the first one whose step does not increase, which only a damaged file has. A fresh start
+ * begins a new series.
+ *
+ * @param steps Step column of time.dat, in file order
+ * @param start_step Step the run starts at
+ * @param restarting Whether the run starts from a checkpoint
+ */
+int WriteBndryPlanes::rows_to_keep (const Vector<int>& steps, const int start_step,
+                                    const bool restarting)
+{
+    if (!restarting) { return 0; }
+    int nkeep = 0;
+    for (int i = 0; i < steps.size(); ++i) {
+        if (steps[i] > start_step || (i > 0 && steps[i] <= steps[i-1])) { break; }
+        ++nkeep;
+    }
+    return nkeep;
+}
+
+/**
+ * Bring time.dat to the state a run starting at step start_step continues from, and say whether
+ * the series already holds a plane. Only the I/O rank touches the file; every rank gets the answer.
+ *
+ * @param start_step Step the run starts at (the restart step, or 0)
+ * @param restarting Whether the run starts from a checkpoint
+ */
+bool WriteBndryPlanes::start_series (const int start_step, const bool restarting)
+{
+    int nkeep = 0;
+    if (ParallelDescriptor::IOProcessor()) {
+        Vector<std::string> rows;
+        Vector<int> steps;
+        std::ifstream in(m_time_file);
+        std::string line;
+        while (std::getline(in, line)) {
+            std::istringstream row(line);
+            int step;
+            double time;
+            if (!(row >> step >> time)) { break; }
+            rows.push_back(line);
+            steps.push_back(step);
+        }
+        in.close();
+
+        nkeep = rows_to_keep(steps, start_step, restarting);
+        if (nkeep < rows.size()) {
+            Print() << "WriteBndryPlanes: keeping " << nkeep << " of the " << rows.size()
+                    << " rows of " << m_time_file
+                    << (restarting ? " up to the restart step " + std::to_string(start_step)
+                                   : std::string(" (a fresh start begins a new series)"))
+                    << std::endl;
+            std::ofstream out(m_time_file, std::ios::out | std::ios::trunc);
+            for (int i = 0; i < nkeep; ++i) {
+                out << rows[i] << '\n';
+            }
+            out.close();
+        }
+    }
+    ParallelDescriptor::Bcast(&nkeep, 1, ParallelDescriptor::IOProcessorNumber(),
+                              ParallelDescriptor::Communicator());
+    return nkeep > 0;
 }
 
 /**

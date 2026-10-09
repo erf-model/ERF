@@ -24,6 +24,17 @@ public:
                        amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new,
                        bool is_moist);
 
+    /** Prepare time.dat for a run that starts at step start_step: a restart keeps the rows the
+     *  run before it wrote up to that step, a fresh start keeps none. Returns whether the series
+     *  holds a plane already, in which case the start-up plane must not be written.
+     */
+    bool start_series (int start_step, bool restarting);
+
+    /** How many leading rows of a time.dat with these steps a run starting at start_step keeps:
+     *  on a restart the increasing rows up to and including start_step, on a fresh start none.
+     */
+    static int rows_to_keep (const amrex::Vector<int>& steps, int start_step, bool restarting);
+
 private:
 
     //! IO output box region

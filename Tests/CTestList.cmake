@@ -634,8 +634,8 @@ endif()
 # REQUIRE_LEVEL0_REMAKE makes a regrid test fail if the restart stopped regridding, which
 # would otherwise leave it silently comparing an ordinary restart and passing.
 function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
-    set(oneValueArgs "COMMON_OPTIONS" "RESTART_OPTIONS" "CHK_NRANKS" "RESTART_NRANKS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT" "DATALOG" "DATALOG_SIGDIGITS" "PLT2DFILE")
-    cmake_parse_arguments(ADD_TEST_RP "ALLOW_DIFF_GRIDS;REQUIRE_LEVEL0_REMAKE" "${oneValueArgs}" "" ${ARGN})
+    set(oneValueArgs "COMMON_OPTIONS" "RESTART_OPTIONS" "CHK_OPTIONS" "CHK_LEG_END" "CHK_NRANKS" "RESTART_NRANKS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT" "DATALOG" "DATALOG_SIGDIGITS" "PLT2DFILE" "BNDRY_PLANES_DIR" "BNDRY_PLANES_FIRST_STEP")
+    cmake_parse_arguments(ADD_TEST_RP "ALLOW_DIFF_GRIDS;REQUIRE_LEVEL0_REMAKE;BNDRY_PLANES_STALE" "${oneValueArgs}" "" ${ARGN})
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
 
@@ -678,6 +678,11 @@ function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
         "-DDATALOG=${ADD_TEST_RP_DATALOG}"
         "-DDATALOG_SIGDIGITS=${ADD_TEST_RP_DATALOG_SIGDIGITS}"
         "-DPLT2DFILE=${ADD_TEST_RP_PLT2DFILE}"
+        "-DCHK_OPTIONS=${ADD_TEST_RP_CHK_OPTIONS}"
+        "-DCHK_LEG_END=${ADD_TEST_RP_CHK_LEG_END}"
+        "-DBNDRY_PLANES_DIR=${ADD_TEST_RP_BNDRY_PLANES_DIR}"
+        "-DBNDRY_PLANES_FIRST_STEP=${ADD_TEST_RP_BNDRY_PLANES_FIRST_STEP}"
+        "-DBNDRY_PLANES_STALE=${ADD_TEST_RP_BNDRY_PLANES_STALE}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunRestartParity.cmake)
     # The reservation has to cover the widest leg, which need not be NP.
     set(_procs "${NP}")
@@ -1701,6 +1706,30 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
 add_test_restart_parity(MoistBubble_Kessler_Restart MoistBubble_Kessler_Restart 4 8
     COMMON_OPTIONS "erf.vert_implicit=false"
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+endif()
+# Boundary-plane output (erf.output_bndry_planes) across a restart: the series in BndryFiles --
+# one plane directory per output step and a time.dat of "step time" rows -- must come out of a
+# run through a checkpoint as it comes out of a straight run, since erf.input_bndry_planes reads
+# it back and stops on a time.dat whose rows do not increase. Each test runs 16^3 ABL to step 8
+# three times, planes every 2 steps. The runner is a cmake -P script (MPI, not Windows).
+#   _Restart: restart from step 4. The start-up write used to run on a restart too, as step 0:
+#             it replaced the step-0 plane with the restart state and appended a "0 t" row.
+#   _Replay:  the run went on to step 8 after its step-3 checkpoint, the restart replays 4-8,
+#             and step 3 is not an output step.
+#   _Enable:  the output is switched on at the restart, so the series starts there.
+#   _Stale:   both run directories already hold the time.dat of an earlier run; a fresh start
+#             begins a new series instead of appending to it.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_parity(ABL_BndryPlanes_Restart ABL_BndryPlanes_Restart 4 8
+    BNDRY_PLANES_DIR "BndryFiles" FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(ABL_BndryPlanes_Replay ABL_BndryPlanes_Restart 3 8
+    CHK_LEG_END 8
+    BNDRY_PLANES_DIR "BndryFiles" FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(ABL_BndryPlanes_Enable ABL_BndryPlanes_Restart 4 8
+    CHK_OPTIONS "erf.output_bndry_planes=0"
+    BNDRY_PLANES_DIR "BndryFiles" BNDRY_PLANES_FIRST_STEP 4 FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(ABL_BndryPlanes_Stale ABL_BndryPlanes_Restart 4 8
+    BNDRY_PLANES_DIR "BndryFiles" BNDRY_PLANES_STALE FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
 add_test_r(SquallLine_2D                     ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(SuperCell_3D                      ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")

@@ -111,6 +111,15 @@ In this case the variables that are
 written are temperature, velocity and density, and they are written every 2 coarse time steps starting at
 :cpp:`bndry_output_start_time` which is 0 in this case.
 
+Within :cpp:`BndryFiles`, each output step writes a folder :cpp:`bndry_outputNNNNN` named by
+its step number and adds a row ``step time`` to the ascii file :cpp:`time.dat`.
+A run restarted from a checkpoint continues the series it finds there. Rows of :cpp:`time.dat`
+for steps after the restart step are dropped, since the restarted run writes those steps
+again, and a plane at the restart step itself is written only when the series holds no plane
+yet, which is the case when the output is switched on at the restart. The series then matches
+the one a run without the restart writes. A run started from scratch begins a new series and
+drops any rows an earlier run left in :cpp:`time.dat`.
+
 We also have the functionality in ERF to read in these types of files;
 for this one would add the following (or similar) line to the inputs file:
 
