@@ -4,6 +4,7 @@
 
 #include <ERF_Diffusion.H>
 #include <ERF_IndexDefines.H>
+#include <ERF_TerrainMetrics.H>
 
 #include <gtest/gtest.h>
 
@@ -197,6 +198,51 @@ struct TerrainStressCase
     ParallelFor(mf.box(), [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
       m(i,j,0) = Real(1.0) + Real(0.2)*std::sin(Real(0.6)*Real(i) + Real(0.4)*Real(j));
     });
+    Gpu::streamSynchronize();
+  }
+
+  // The expansion rate from the velocity, as erf_make_tau_terms forms it on a terrain-fitted
+  // mesh: Omega at the w faces (zero at the bottom), then du/dx + dv/dy + dOmega/dz per cell.
+  void compute_er_from_velocity ()
+  {
+    GpuArray<Real, AMREX_SPACEDIM> dxInv{Real(1.0)/dx, Real(1.0)/dy, Real(1.0)/dz};
+    auto ua = u.const_array(), va = v.const_array(), wa = w.const_array();
+    auto znd = z_nd.const_array(), dJ = detJ.const_array(), mfa = mf.const_array();
+    const Box gbxo = surroundingNodes(bxcc, 2);
+    FArrayBox Omega(gbxo, 1);
+    auto om = Omega.array();
+    ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+      om(i,j,k) = (k == 0) ? Real(0.0) : OmegaFromW(i,j,k,wa(i,j,k),ua,va,mfa,mfa,znd,dxInv);
+    });
+    auto er = er_fab.array();
+    ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+      const Real hu_hi = Compute_h_zeta_AtIface(i+1, j  , k, dxInv, znd);
+      const Real hu_lo = Compute_h_zeta_AtIface(i  , j  , k, dxInv, znd);
+      const Real hv_hi = Compute_h_zeta_AtJface(i  , j+1, k, dxInv, znd);
+      const Real hv_lo = Compute_h_zeta_AtJface(i  , j  , k, dxInv, znd);
+      const Real mfsq = mfa(i,j,0)*mfa(i,j,0);
+      const Real rate = (ua(i+1,j,k)/mfa(i+1,j,0)*hu_hi - ua(i,j,k)/mfa(i,j,0)*hu_lo)*dxInv[0]*mfsq
+                      + (va(i,j+1,k)/mfa(i,j+1,0)*hv_hi - va(i,j,k)/mfa(i,j,0)*hv_lo)*dxInv[1]*mfsq
+                      + (om(i,j,k+1) - om(i,j,k))*dxInv[2];
+      er(i,j,k) = rate / dJ(i,j,k);
+    });
+    Gpu::streamSynchronize();
+  }
+
+  // u (dir 0) or v (dir 1) a quadratic in zeta alone, the other components zero
+  void set_zeta_profile (int dir)
+  {
+    const Real ldz = dz;
+    auto ua = u.array(); auto va = v.array();
+    ParallelFor(u.box(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+      const Real zeta = (Real(k)+Real(0.5))*ldz;
+      ua(i,j,k) = (dir == 0) ? Real(2.0) + Real(3.e-3)*zeta + Real(2.e-6)*zeta*zeta : Real(0.0);
+    });
+    ParallelFor(v.box(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+      const Real zeta = (Real(k)+Real(0.5))*ldz;
+      va(i,j,k) = (dir == 1) ? Real(-1.0) + Real(4.e-3)*zeta - Real(3.e-6)*zeta*zeta : Real(0.0);
+    });
+    w.setVal<RunOn::Device>(Real(0.0));
     Gpu::streamSynchronize();
   }
 
@@ -878,5 +924,39 @@ TEST(TerrainStress, ImplicitSolveRemovesExactlyTheFluxItPutsBack)
                                            << ": one implicit stage moved the state by " << dmax/umax;
     }
    }
+  }
+}
+
+// Motivation (Pressel's review): the implicit part takes K_h M du/dz, with M the du/dz content of
+// the projected stresses, (4/3) s_x^2 + s_y^2 for u.  The 4/3 comes from the expansion rate,
+// which carries -s_x du/dz through Omega.  So with the expansion rate formed from the velocity as
+// the production code forms it, the full explicit tau13 (tau23) on a uniform slope must hold
+// exactly the compact term the implicit part removes, -(K_v + K_h M) du/dz, on the interior faces
+// (the averaged stencils are exact for a quadratic in zeta).  A wrong M -- e.g. 2 s_x^2 + s_y^2,
+// which leaves the expansion rate out -- makes the two differ.
+TEST(TerrainStress, ExplicitZetaFluxHoldsTheCompactMetricTerm)
+{
+  const Real sx = Real(0.3), sy = Real(-0.2), Kh = Real(40.0), Kv = Real(1.5);
+  for (int dir = 0; dir < 2; ++dir) {
+    TerrainStressCase c(8, 8, 10, Real(200.0), Real(150.0), Real(50.0), sx, sy, Kh, Kv, Real(0.0));
+    c.init();
+    c.set_zeta_profile(dir);
+    c.compute_er_from_velocity();
+    c.compute(false, true);
+    const FArrayBox& full = (dir == 0) ? c.s13 : c.s23;
+    const FArrayBox& impl = (dir == 0) ? c.s13i : c.s23i;
+    FArrayBox hf(full.box(), 1, The_Pinned_Arena()), hi(impl.box(), 1, The_Pinned_Arena());
+    copy_to_host(full, hf); copy_to_host(impl, hi);
+    const auto af = hf.const_array(), ai = hi.const_array();
+    const Box edges = (dir == 0) ? convert(c.valid, IntVect(1,0,1)) : convert(c.valid, IntVect(0,1,1));
+    Real scale = Real(0.0), dmax = Real(0.0);
+    LoopOnCpu(edges, [&] (int i, int j, int k) {
+      if (k < 2 || k > c.nz - 2) { return; }  // away from the extrapolated bottom and top planes
+      scale = std::max(scale, std::abs(ai(i,j,k)));
+      dmax  = std::max(dmax, std::abs(af(i,j,k) - ai(i,j,k)));
+    });
+    ASSERT_GT(scale, Real(0.0));
+    EXPECT_LT(dmax, Real(1.e3)*tol_for_scale(scale)) << "dir " << dir
+      << ": explicit zeta flux and its compact implicit part differ by " << dmax/scale;
   }
 }

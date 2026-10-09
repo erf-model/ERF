@@ -1896,8 +1896,9 @@ struct SolverChoice {
             }
             // In a stage without the implicit solve the whole averaged metric term is explicit
             // for that stage.  On the steep ridge test the option gained little with 1 1 0
-            // and ran worse than without it with anelastic MidPoint (15 s instead of 30 s),
-            // while 1 1 1 recovered the full time step.  So every stage must solve implicitly.
+            // and ran worse than without it with anelastic MidPoint (measured before the exact
+            // split: 15 s instead of 30 s), while 1 1 1 recovered the full time step.  The rule
+            // is measured, not derived: every stage must solve implicitly.
             for (int lev = 0; lev <= max_level; lev++) {
                 for (int i = 0; i < 3; ++i) {
                     if (vert_implicit_fac[lev][i] <= zero) {

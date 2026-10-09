@@ -649,9 +649,13 @@ the new one. On the faces inside the domain and at coarse/fine boundaries, the t
 face coefficient and the same :math:`h_\zeta` (the edge value by which the strain kernel divides
 :math:`\partial u/\partial \zeta`). With different values the split would change the operator
 whatever the time step, wherever :math:`h_\zeta` varies non-linearly between neighbouring
-columns, as on curved terrain that decays with height. At a no-slip wall the correction stress
-uses a one-sided three-point :math:`\partial u/\partial z` and the solve the two-point wall
-difference, so the split is not exact there.
+columns, as on curved terrain that decays with height. The split is not exact at a no-slip wall
+(the correction stress uses a one-sided three-point :math:`\partial u/\partial z`, the solve the
+two-point wall difference), for w (implicit only with ``ERF_IMPLICIT_W``), and to first order in
+the density with ``erf.molec_diff_type = ConstantAlpha`` (the solve uses the predicted density).
+With ``erf.implicit_terrain_metric = true`` the explicit numerator of the scalars becomes
+:math:`(1-f)F_z^D + f K_h M\, \partial\phi/\partial z - m_xh_\xi\overline{F_x^D}-m_yh_\eta\overline{F_y^D}`
+on the faces inside the domain.
 
 Heat and moisture diagnostics continue to store the full raw vertical face
 flux independently of this integration fraction. This is an implementation
@@ -865,7 +869,8 @@ four or eight cells' wavelength, in 2-D and 3-D) found:
 
 - with :math:`\nu_h/\nu_v \gtrsim 100`, directions that gain energy; the largest transient growth
   in the cases analysed was 1.9 in amplitude;
-- in every case, every eigenvalue with a negative real part, so no mode grows;
+- in every case, every eigenvalue with a negative real part, so no mode of the semi-discrete
+  operator (without the expansion-rate term) grows;
 - with the projected terms on :math:`\nu_v`, as before #4214, the same terrain had growing modes.
 
 ``TerrainStress.CurvedSlopeOperatorHasNoGrowingMode`` checks this on such terrain.
@@ -911,7 +916,7 @@ diffusion :math:`-K_h M_u\, \partial u / \partial z` with :math:`M_u = \tfrac{4}
 :math:`M = (h_\xi m_x)^2 + (h_\eta m_y)^2` for the scalars). The factor :math:`\tfrac{4}{3}`
 comes from the deviatoric :math:`S_{11} - \tfrac{1}{3}\nabla\cdot\mathbf{u}`: :math:`S_{11}` carries
 :math:`-h_\xi m_x\, \partial u/\partial z`, and the expansion rate carries the same term, so the
-deviator carries :math:`\tfrac{2}{3}` of it (this follows erf-model/ERF#4239). The vertical implicit solve treats
+deviator carries :math:`\tfrac{2}{3}` of it. The vertical implicit solve treats
 only :math:`K_v`, so this term is explicit and limits the time step on steep slopes when
 :math:`K_h M \gg K_v`. With ``erf.implicit_terrain_metric = true`` its compact form
 :math:`K_h M (\phi_k - \phi_{k-1})/\Delta z` is added to the coefficients of the implicit solve on

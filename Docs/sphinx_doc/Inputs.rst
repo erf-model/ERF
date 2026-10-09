@@ -968,19 +968,25 @@ Notes
      says so for a terrain-fitted mesh with an LES closure and an explicit stage).  With
      **erf.implicit_terrain_metric = true** the
      implicit solves also take K_h M d2/dz2 on the faces inside the domain, and the explicit
-     fluxes give up the same term evaluated at the state they see.  The answer changes by the
-     time discretization of that term (as for the K_v part).  The difference between the averaged
+     fluxes give up the same term evaluated at the state they see.  The split converges to the
+     same operator as dt goes to zero (first order), but each stage increment, whatever its
+     source, is smoothed vertically with K_h M, an effect of order dt K_h M k_z^2 that is not small
+     near the time-step edge: on the steep 3 km ridge over 6 h, against a 5 s reference, the
+     option at 70 s was within 1.5 % in u and 7 % in w (the WRF slope limiter at 70 s: 13 % and
+     40 %; without the option at 25 s: 0.5 % and 1.2 %).  The difference between the averaged
      explicit and the compact implicit forms stays explicit; it is small for smooth fields on
      smooth terrain, but not at the grid scale, where the averaged form does not see a 2 Delta z
      wave at all.  It applies to the quantities that have an implicit solve (w keeps its metric
      term explicit) and needs that solve in every Runge-Kutta stage: it aborts on a mesh that
      is not terrain-fitted, and unless **erf.vert_implicit_fac** is positive in all three
      stages at every level (use 1 1 1).  In a stage without the implicit solve the whole
-     averaged metric term is explicit for that stage: with the default 1 1 0 the option gained
-     little on a steep 3 km ridge, and with anelastic MidPoint (which solves in its first stage
-     only) it ran worse than without it, while with 1 1 1 it recovered the time step of a run
-     without LES.  Anelastic runs therefore cannot use it.  It is off by
-     default, so existing answers do not change.
+     averaged metric term is explicit for that stage.  The rule is measured, not derived: with
+     the default 1 1 0 the option gained little on a steep 3 km ridge, and with anelastic
+     MidPoint (which solves in its first stage only) it ran worse than without it, while with
+     1 1 1 it recovered the time step of a run without LES.  Anelastic runs therefore cannot use
+     it.  The option is off by default.  Independently of it, the u and v implicit solves use the
+     same h_zeta as the correction stress they replace, so default implicit runs on curved terrain
+     that decays with height change slightly (see :ref:`terrain-momentum-stresses`).
 
 -  | The implicit acoustic substepping is subject to the same requirement, and for the
      same reason: its vertical solve is one tridiagonal system per column.  Rather than
