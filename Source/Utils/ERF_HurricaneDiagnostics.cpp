@@ -796,6 +796,17 @@ ERF::HurricaneMinPressureTracker (MoistureType moisture_type,
     hurricane_minpressure_vs_time.push_back({static_cast<Real>(time_in_hrs), h_val_min_global});
 }
 
+/**
+ * Compute and track surface fluxes near the hurricane eye.
+ *
+ * @param[in] lev_geom Geometry of the current level
+ * @param[in] hurricane_eye_i_glob Global i-index of the hurricane eye
+ * @param[in] hurricane_eye_j_glob Global j-index of the hurricane eye
+ * @param[in] hurricane_eye_latitude Latitude of the hurricane eye
+ * @param[in] hurricane_eye_longitude Longitude of the hurricane eye
+ * @param[in] time Current simulation time
+ */
+
 void
 ERF::HurricaneSurfaceFluxesTracker (const Geometry& lev_geom,
                                     const int& hurricane_eye_i_glob,
@@ -933,81 +944,6 @@ ERF::HurricaneSurfaceFluxesTracker (const Geometry& lev_geom,
                 << average_flux << "\n";
     }
 }
-
-/*void
-ERF::HurricaneSurfaceFluxesTracker (const Geometry& lev_geom,
-                                    const int& hurricane_eye_i_glob,
-                                    const int& hurricane_eye_j_glob,
-                                    const Real& hurricane_eye_latitude,
-                                    const Real& hurricane_eye_longitude,
-                                    const Real time)
-{
-    const int levc = finest_level;
-
-    const MultiFab& surface_fluxes = mfvec_surface_fluxes[levc];
-
-    const IntVect eye_iv(hurricane_eye_i_glob,
-                         hurricane_eye_j_glob,
-                         0);
-
-    // Each rank starts with an invalid value.
-    Real eye_surface_flux_local = -bogus_large_value;
-
-    for (MFIter mfi(surface_fluxes, TilingIfNotGPU());
-         mfi.isValid();
-         ++mfi)
-    {
-        const Box& box = mfi.validbox();
-
-        if (!box.contains(eye_iv))
-            continue;
-
-        const Array4<const Real> flux = surface_fluxes.const_array(mfi);
-
-        Gpu::DeviceVector<Real> d_flux(1, -bogus_large_value);
-        Real* d_flux_ptr = d_flux.data();
-
-        ParallelFor(
-            Box(eye_iv, eye_iv),
-            [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                d_flux_ptr[0] = flux(i, j, 0, 1);
-                printf("The value inside here is %d %d %0.15g\n", i, j, flux(i, j, 0, 1));
-            });
-
-        Gpu::synchronize();
-
-        Gpu::copy(Gpu::deviceToHost,
-                  d_flux.begin(),
-                  d_flux.end(),
-                  &eye_surface_flux_local);
-
-        break;
-    }
-
-    // Get the eye flux on every MPI rank.
-    Real eye_surface_flux_global = eye_surface_flux_local;
-
-#ifdef AMREX_USE_MPI
-    amrex::ParallelDescriptor::ReduceRealMax(eye_surface_flux_global);
-#endif
-
-    // Now every rank, including rank 0, has the same value.
-    hurricane_surface_fluxes_vs_time.push_back(
-        {time, eye_surface_flux_global});
-
-    const auto& last = hurricane_surface_fluxes_vs_time.back();
-
-    if (amrex::ParallelDescriptor::IOProcessor())
-    {
-        Print() << "Last entry: " << hurricane_eye_i_glob << " "
-                << hurricane_eye_j_glob << " "
-                << last[0] << " "
-                << last[1] << "\n";
-    }
-}*/
-
-
 
 /**
  * Wrapper to track the hurricane eye position over time.
