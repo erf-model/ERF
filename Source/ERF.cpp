@@ -6,6 +6,7 @@
  * Main class in ERF code, instantiated from main.cpp
 */
 
+#include <filesystem>
 #include <memory>
 #include "ERF_Constants.H"
 
@@ -908,6 +909,23 @@ ERF::InitData_pre ()
     // Initialize the start time for our CPU-time tracker
     startCPUTime = ParallelDescriptor::second();
 
+    // A run that wrote its output planes into the folder it reads its input planes from would
+    // drop and replace the very planes it reads
+    if (input_bndry_planes && output_bndry_planes) {
+        ParmParse pp("erf");
+        std::string in_dir, out_dir;
+        pp.query("bndry_file", in_dir);
+        pp.query("bndry_output_planes_file", out_dir);
+        auto folder = [] (const std::string& name) {
+            auto p = std::filesystem::absolute(std::filesystem::path(name)).lexically_normal();
+            return p.has_filename() ? p : p.parent_path();
+        };
+        if (!in_dir.empty() && !out_dir.empty() && folder(in_dir) == folder(out_dir)) {
+            Abort("erf.bndry_file and erf.bndry_output_planes_file name the same folder (" + in_dir +
+                  "); the run would overwrite the boundary planes it reads");
+        }
+    }
+
     // Create the ReadBndryPlanes object so we can read boundary plane data
     // m_r2d is used by init_bcs so we must instantiate this class before
     if (input_bndry_planes) {
@@ -1329,15 +1347,19 @@ ERF::InitData_post ()
         // Create the WriteBndryPlanes object so we can handle writing of boundary plane data
         m_w2d = std::make_unique<WriteBndryPlanes>(grids,geom);
 
-        // A restart continues the series the run before it wrote, which holds the plane at or
-        // before the restart step already; the start-up plane is written only into an empty
-        // series (a fresh start, or output switched on at the restart), under the step it is at.
-        bool have_planes = m_w2d->start_series(istep[0], !restart_chkfile.empty());
+        // A fresh start writes the plane at step 0. A restart continues the series the run
+        // before it wrote and writes the plane at its own step only when the series lacks it
+        // and post_timestep would have written it there, so that the restarted series holds
+        // the planes a run without the restart writes; output switched on at a restart thus
+        // begins at the first output step. The start time is elapsed time, as in post_timestep.
+        const bool restarting = !restart_chkfile.empty();
+        const bool has_start_plane = m_w2d->start_series(istep[0], t_new[0]+start_time, restarting);
+        const bool output_step = !restarting ||
+            is_it_time_for_action(istep[0], t_new[0], dt[0], bndry_output_planes_interval, bndry_output_planes_per);
 
-        double tot_time = t_new[0]+start_time;
-        if (!have_planes && tot_time >= bndry_output_planes_start_time) {
+        if (!has_start_plane && output_step && t_new[0] >= bndry_output_planes_start_time) {
             bool is_moist = (micro->Get_Qstate_Moist_Size() > 0);
-            m_w2d->write_planes(istep[0], tot_time, vars_new, is_moist);
+            m_w2d->write_planes(istep[0], t_new[0]+start_time, vars_new, is_moist);
         }
     }
 
