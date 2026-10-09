@@ -12,7 +12,7 @@
 include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/ResolveExecutable.cmake")
 
-foreach(arg NRANKS TEST_EXE INPUT TWO_LEVEL_INPUT WORKING_DIRECTORY PYTHON_EXE CHECKER PRECISION)
+foreach(arg NRANKS TEST_EXE INPUT TWO_LEVEL_INPUT TWO_LEVEL_FILES WORKING_DIRECTORY PYTHON_EXE CHECKER PRECISION)
     if("${${arg}}" STREQUAL "")
         message(FATAL_ERROR "RunIBSEBTwoStreamProvider.cmake: ${arg} must be given and non-empty")
     endif()
@@ -32,11 +32,13 @@ erf_mpi_launcher_command(launch
     CONTEXT "RunIBSEBTwoStreamProvider.cmake")
 
 get_filename_component(input_dir "${INPUT}" DIRECTORY)
-get_filename_component(two_level_files "${input_dir}/../IBSEB_RefinedLevels" ABSOLUTE)
 
 # Stop with the run's own error lines (an abort message, an assertion), not only its code.
 function(fail_run leg run_dir result)
-    file(STRINGS "${run_dir}/simulation.log" errors REGEX "[Aa]bort|[Ee]rror|[Aa]ssert|[Ee]xception|SIG")
+    set(errors "")
+    if(EXISTS "${run_dir}/simulation.log")
+        file(STRINGS "${run_dir}/simulation.log" errors REGEX "[Aa]bort|[Ee]rror|[Aa]ssert|[Ee]xception|SIG")
+    endif()
     list(JOIN errors "\n" errors)
     message(FATAL_ERROR "RunIBSEBTwoStreamProvider.cmake: the ${leg} run failed (${result}):\n${errors}\n"
                         "(full log: ${run_dir}/simulation.log)")
@@ -51,7 +53,7 @@ function(run_leg leg deck)
         file(MAKE_DIRECTORY "${run_dir}/faces")
     endif()
     file(COPY "${input_dir}/input_sounding" "${input_dir}/cube_40m_10m_32x32.txt"
-              "${input_dir}/cube_and_tower_32x32.txt" "${two_level_files}/cube_and_tower_10m.txt"
+              "${input_dir}/cube_and_tower_32x32.txt" "${TWO_LEVEL_FILES}/cube_and_tower_10m.txt"
          DESTINATION "${run_dir}")
     execute_process(
         COMMAND ${launch} ${TEST_EXE} ${deck} ${R_ARGS}
@@ -82,8 +84,10 @@ run_leg(prescribed ${INPUT} ARGS max_step=2 erf.check_int=1 ${prescribed_args})
 file(RENAME "${WORKING_DIRECTORY}/prescribed/simulation.log" "${WORKING_DIRECTORY}/prescribed/simulation_first.log")
 run_leg(prescribed ${INPUT} KEEP ARGS max_step=2 erf.check_int=-1 erf.restart=chk00001 ${prescribed_args})
 # The absorbing sky: shortwave optical depth 0.02 per layer, no scattering (the default
-# single-scattering albedo is zero), and some longwave depth.
-run_leg(absorbing ${INPUT} ARGS max_step=2 erf.radiation.tau_per_layer=0.02 erf.radiation.tau_lw_per_layer=0.3)
+# single-scattering albedo is zero), some longwave depth, and a ground 10 K warmer than
+# the air, so the longwave coming up changes with height.
+run_leg(absorbing ${INPUT} ARGS max_step=2 erf.radiation.tau_per_layer=0.02 erf.radiation.tau_lw_per_layer=0.3
+        erf.rad_t_sfc=310.0)
 # The same sky, half of its extinction scattering: the beam is the same, and the sky now
 # sends diffuse light.
 run_leg(scattering ${INPUT} ARGS max_step=2 erf.radiation.tau_per_layer=0.02 erf.radiation.tau_lw_per_layer=0.3
@@ -99,12 +103,15 @@ run_leg(two_level_clear ${TWO_LEVEL_INPUT} ARGS max_step=1 erf.radiation.tau_per
 run_leg(two_level_absorbing ${TWO_LEVEL_INPUT} ARGS max_step=1 erf.radiation.tau_per_layer=0.02
         erf.radiation.tau_lw_per_layer=0.3)
 
-# The decks' grids (16 layers on level 0), their suns (cos z), the absorbing legs' depth
-# per layer, and the precision of ERF's Real (the tolerances of the comparisons).
+# The decks' grids (16 layers on level 0, twice as many on level 1 of the two-level deck),
+# their suns (cos z), the top-of-atmosphere irradiance, the ground's albedo, the legs'
+# optical depths per layer, single-scattering albedo and ground temperature and
+# emissivity, and the precision of ERF's Real (the tolerances of the comparisons).
 string(TOLOWER "${PRECISION}" precision)
 execute_process(
     COMMAND "${PYTHON_EXE}" "${CHECKER}" "${WORKING_DIRECTORY}" --nz 16 --cosz 0.766044443118978 --tau 0.02
-            --two-level-cosz 0.3420201433256688 --precision ${precision}
+            --two-level-cosz 0.3420201433256688 --two-level-ref-z 2 --toa 1000 --albedo 0.2 --ssa 0.5
+            --tau-lw 0.3 --ground-temp 310 --ground-emissivity 0.95 --precision ${precision}
     WORKING_DIRECTORY "${WORKING_DIRECTORY}"
     OUTPUT_FILE "${WORKING_DIRECTORY}/checker.log"
     ERROR_FILE "${WORKING_DIRECTORY}/checker.log"

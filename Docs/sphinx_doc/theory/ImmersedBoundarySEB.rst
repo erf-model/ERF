@@ -41,7 +41,9 @@ per direction, the number of buildings, the total area, the skin
 temperature range and the mean fluxes. With
 :cpp:`erf.ibseb.dump_faces_file` every face is written at the same
 interval (one file per rank; :cpp:`erf.ibseb.dump_faces_tag_step` keeps
-every dump), which is what the regtests and the canonical cases read.
+every dump), which is what the regtests and the canonical cases read. A
+restart appends from its next report on: the step it starts from is printed
+but not written to the report file or dumped again.
 
 For output the list is scattered into cell-centred fields: ``ibseb_nfaces``
 and ``ibseb_tskin`` in the plotfile, and ``IBSEBState`` in the checkpoint,
@@ -547,8 +549,14 @@ angle it used. Both are blended between clear and cloudy sky like the fluxes.
 - *A wall's mean of two interfaces* is exact for fluxes that vary linearly across
   the cell. The beam decays exponentially, so the mean overestimates it by about
   :math:`a^2/12`, with :math:`a` the cell's optical depth over :math:`\cos z`:
-  under :math:`10^{-6}` in the canonical case below, 1 % for a cell of optical
-  depth 0.2 with the sun 60 degrees from the zenith.
+  under :math:`10^{-6}` in the case
+  ``Exec/CanonicalTests/Radiation/TwoStream_IBSEB_RandomBuildings``, about 1.3 %
+  for a cell of optical depth 0.2 with the sun 60 degrees from the zenith.
+- *The longwave* is also taken as the same in every direction of each half of the
+  view (isotropic), as the gray two-stream model assumes. A wall looks at the ground
+  and the sky mostly at a slant, through more air than straight up or down, so this
+  overstates its ground longwave a little and understates its sky longwave a little:
+  a few W/m² each for the walls of ``TwoStream_IBSEB_RandomBuildings``.
 - *The sun's position* still comes from :cpp:`erf.ibseb.sun_mode`. Each face
   checks that its cosine of the zenith matches its column's to :math:`10^{-4}`
   (:math:`10^{-3}` in single precision). The direct-normal and diffuse irradiance
@@ -582,10 +590,13 @@ name.
 - *Optical depth per layer.* With the default per-layer optical depths
   (:cpp:`erf.radiation.tau_per_layer`, :cpp:`erf.radiation.tau_lw_per_layer`), the
   dimming above a face counts the layers above it. It therefore depends on the
-  domain's depth and, on a level refined in height, on the refinement, as the
-  model's own heating rates do. The mass-based optics
-  (:cpp:`erf.radiation.tau_model = mass`) do not. ERF warns at start-up when the
-  sky has per-layer depth.
+  domain's depth and, on a level refined in height, on the refinement: a level
+  refined :math:`r` times in height has :math:`r` times the column's optical depth
+  (in the test below, a beam at the ground of 0.15 of the sun's against 0.39 on the
+  coarser level). The model's own heating rates share this. The mass-based optics
+  (:cpp:`erf.radiation.tau_model = mass`) make the clear-sky depth independent of the
+  layers; a cloud layer, the moisture terms and the aerosol stay per layer. ERF
+  warns at start-up whenever some of the sky's depth is set per layer.
 - *No longwave from above the domain.* The two-stream model has none coming in at
   the top.
 - *The ground under and beside the buildings.* The two-stream columns still pass
@@ -593,7 +604,8 @@ name.
   the ground beside a wall is open, sunlit ground, so a wall sees a ground warmer
   than the shaded ground beside it would be. Where the buildings stand, both the
   faces and the ground absorb the same sunlight (about 7 % more than the
-  domain receives in the canonical case below, 22 % within its refined area).
+  domain receives in ``TwoStream_IBSEB_RandomBuildings``, 22 % within its refined
+  area).
 - *Memory and cost.* The kept beam covers every column of the level, up to the
   highest interface a face reads, and is rewritten every step. For
   :math:`1024 \times 1024` columns with 200 m towers on 2 m cells it takes 0.85 GB.
@@ -610,7 +622,11 @@ checks:
   beam down to the ground, then the reflected light back up);
 - the same on two levels, the second refined in height too, with the columns'
   longwave;
-- under a scattering sky, the same beam, and diffuse light on the roofs;
+- under a scattering sky, the same beam, and on every face the diffuse light of
+  the column at its height, against the column solved independently in the
+  checker;
+- with a ground warmer than the air, every face's sky and ground longwave at its
+  height, against a longwave column rebuilt in the checker;
 - at night, with a tower beside the cube and the floating-point traps on, no
   sunlight, and less sky longwave on the higher roof;
 - a restart, with either option, keeps the report and dump of the step it starts

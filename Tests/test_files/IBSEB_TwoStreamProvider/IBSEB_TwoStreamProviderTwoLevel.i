@@ -4,7 +4,9 @@
 # 10 m by 5 m cells, 32 layers against 16), the two-stream radiation, the faces'
 # radiation from its columns (erf.ibseb.radiation = two_stream) and their sky and
 # ground longwave from them too (erf.ibseb.lw_mode = two_stream, the default with that
-# provider). The sun is fixed 70 degrees from the zenith, in the east, for the faces
+# option). Level 1 has twice the layers of level 0, each with the same optical depth,
+# so its columns are twice as deep optically; check_ibseb_two_stream_provider.py is
+# told the refinement ratio in z (--two-level-ref-z 2). The sun is fixed 70 degrees from the zenith, in the east, for the faces
 # and the columns alike. Tests/RunIBSEBTwoStreamProvider.cmake runs it under a
 # transparent and an absorbing sky.
 max_step  = 0

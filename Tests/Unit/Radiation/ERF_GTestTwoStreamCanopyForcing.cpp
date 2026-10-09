@@ -26,8 +26,8 @@
 //   4. the faces get it only for the step of the sweep that wrote it, and a rebuilt
 //      level drops the request;
 //   5. a roof samples the interface at its own height, a wall the mean of its cell's two,
-//      and a face takes the beam over the cosine, the rest of the shortwave down and the
-//      longwave down there, and the ground's upwelling, from its own column.
+//      and a face takes the beam over the cosine, the rest of the shortwave down, and the
+//      longwave down and the shortwave and longwave up there, from its own column.
 
 namespace {
 
@@ -192,7 +192,8 @@ TEST(TwoStreamCanopyForcing, NoBeamWithoutTheShortwave)
 }
 
 // The beam helper itself, on a scratch full of leftovers: nothing with the shortwave off or
-// the sun down, the scratch's beam weighted and added otherwise.
+// the sun down; otherwise the clear evaluation's beam as it is, and the cloudy one blended
+// in with the cloud fraction.
 TEST(TwoStreamCanopyForcing, BeamIgnoresTheScratchWhenDark)
 {
     using namespace amrex;
@@ -203,13 +204,15 @@ TEST(TwoStreamCanopyForcing, BeamIgnoresTheScratchWhenDark)
     out.setVal<RunOn::Host>(Real(-1.0));
     const auto s = scratch.const_array();
     const auto o = out.array();
-    two_stream_canopy_beam(0, 0, 0, 3, s, 1, false, Real(0.5), Real(1.0), true, o);
+    two_stream_canopy_beam(0, 0, 0, 3, s, 1, false, Real(0.5), Real(0.0), false, o);
     for (int m = 0; m <= 3; ++m) { EXPECT_EQ(o(0, 0, m), Real(0.0)); }
-    two_stream_canopy_beam(0, 0, 0, 3, s, 1, true, Real(-0.1), Real(1.0), true, o);
+    two_stream_canopy_beam(0, 0, 0, 3, s, 1, true, Real(-0.1), Real(0.0), false, o);
     for (int m = 0; m <= 3; ++m) { EXPECT_EQ(o(0, 0, m), Real(0.0)); }
+    two_stream_canopy_beam(0, 0, 0, 3, s, 1, true, Real(0.5), Real(0.25), false, o);
+    for (int m = 0; m <= 3; ++m) { EXPECT_EQ(o(0, 0, m), Real(7.0)); }
+    scratch.setVal<RunOn::Host>(Real(3.0));
     two_stream_canopy_beam(0, 0, 0, 3, s, 1, true, Real(0.5), Real(0.25), true, o);
-    two_stream_canopy_beam(0, 0, 0, 3, s, 1, true, Real(0.5), Real(0.5), false, o);
-    for (int m = 0; m <= 3; ++m) { EXPECT_EQ(o(0, 0, m), Real(0.75) * Real(7.0)); }
+    for (int m = 0; m <= 3; ++m) { EXPECT_EQ(o(0, 0, m), Real(0.75) * Real(7.0) + Real(0.25) * Real(3.0)); }
 }
 
 // A roof (z face) samples the interface at its fluid cell's bottom, its own height; a wall

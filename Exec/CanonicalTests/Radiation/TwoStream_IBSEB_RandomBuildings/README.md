@@ -31,8 +31,8 @@ another set. The refined box holds every building with at least one level-0 cell
 - `erf.ibseb.radiation = two_stream`: each face reads the two-stream column next to it, at its own
   height. It takes the direct beam there (divided by cos z, the direct-normal irradiance), the sky's
   diffuse light and longwave coming down, and the light and longwave coming up from the ground.
-- With this sky the beam at height h is S0 cos z exp(-0.002 (100 - h / 10 m) / cos z), with z the
-  zenith angle.
+- With this sky the beam at height h is S0 cos z exp(-0.002 (100 - h / 10 m) / cos z), with S0 the
+  sun's irradiance at the top of the atmosphere and z the zenith angle.
 
 ## Running it
 
@@ -69,10 +69,10 @@ sunlight and skin temperature. The results below rest on those numbers.
 
 ## Results
 
-These numbers come from the run before the last change to the faces (each wall now reads the
-light and longwave coming up from the ground at its own height, not at the ground). That change
-moves the walls' incoming radiation by up to about 4 W/m² on the 60 m walls; a rerun will update
-the tables below.
+These numbers come from the run before the last change to the faces: each wall now reads the
+light and longwave coming up from the ground at its own height, not at the ground. Estimated from
+that run's face dumps, the change lowers the radiation reaching the 60 m towers' walls by about
+2 W/m² on average, and by up to 7–8 W/m² on their top cells. A rerun will update the tables below.
 
 On 4 MPI ranks of a laptop shared with other runs, the 10,800 level-0 steps took about 2 h 30 min.
 The building balance cost 0.25 ms per step on level 0 and 0.11 ms on level 1, on the slowest rank.
@@ -83,7 +83,7 @@ All 7 checks pass:
 |---|---|
 | 1. Buildings | 8 and 8, roof centres on `buildings.csv` |
 | 2. Energy balance | largest residual 3.3e-8 W/m² over 2,896 rows |
-| 3. The sun and the beam | 11,034 sunlit roof faces at 5 heights, largest difference 4.8e-7; no diffuse sky; azimuth 99.5° to 156.6° |
+| 3. The sun and the beam | 11,034 sunlit roof samples (faces × dumps) at 5 heights, largest difference 4.8e-7; no diffuse sky; azimuth 99.5° to 156.6° |
 | 4. The sun climbs | zenith 52.7° to 24.8°; shaded face area 5.3 % to 3.2 % on level 0, 6.5 % to 4.2 % on level 1 |
 | 5. Warming | final means 314.0–321.7 K on level 0, 312.6–319.6 K on level 1 (from 300 K) |
 | 6. Levels agree | level 1 minus level 0: top roofs -0.12 to -0.01 K, walls -0.64 to +0.33 K |
@@ -140,12 +140,13 @@ change to the faces.
 - **Sunlight agrees.** The absorbed sunlight agrees within 1 % on every building (largest 0.92 %).
 - **The buildings end warmer.** On level 0 the buildings end 1.2–4.2 K warmer and their walls
   1.8–5.2 K warmer; on level 1, 1.2–5.0 K and 1.9–5.8 K.
-- **Why: more longwave from the sky and the ground.** At 18:00 UTC the walls take in about 47 W/m²
-  more longwave than with the clear-sky formulas. About 19 W/m² comes from the sky: the column's sky
-  is warmer than the gray sky (an effective emissivity near 0.93, from case 2's longwave optical
-  depth). About 29 W/m² comes from the ground: the walls see open, sunlit ground near 312.7 K,
-  where the clear-sky run had 300 K. The roofs see no ground and take about 40 W/m² more, all from
-  the sky.
+- **Why: more longwave from the sky and the ground.** At 18:00 UTC the walls take in about
+  47 W/m² (level 0) and 51 W/m² (level 1) more longwave than with the clear-sky formulas. On
+  level 0, about 19 W/m² of it comes from the sky, which is warmer in the two-stream column than
+  the gray sky (an effective emissivity near 0.93, from case 2's longwave optical depth). About
+  29 W/m² comes from the ground: the walls see open, sunlit ground near 312.7 K, where the
+  clear-sky run had 300 K. The roofs see no ground and take about 40 W/m² more, all from
+  the sky, on both levels.
 
 ## Plots
 

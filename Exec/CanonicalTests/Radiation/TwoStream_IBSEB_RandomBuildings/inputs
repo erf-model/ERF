@@ -123,9 +123,9 @@ erf.ibseb.z_i_mode = "bulk_ri"
 # The faces take the two-stream sun (start_datetime, erf.rad_cons_lat / lon),
 # the same position the columns see, and their radiation from the two-stream
 # columns, each face from the column of its fluid cell at its own height: the
-# beam, the diffuse light and the longwave down there, and the shortwave and
-# longwave up of the force-restore ground (erf.ibseb.lw_mode = two_stream is the
-# default with this provider).
+# beam, the diffuse light and the longwave coming down there, and the light and
+# longwave coming up from the force-restore ground, seen from there
+# (erf.ibseb.lw_mode = two_stream is the default with this option).
 erf.ibseb.sun_mode = "two_stream"
 erf.ibseb.radiation = "two_stream"
 

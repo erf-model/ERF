@@ -222,7 +222,7 @@ public:
      * the sky term fixed or gray (``sky_emissivity sigma T_air^4`` with the
      * air temperature of the face's fluid cell) with the ground term
      * ``eps_g sigma T_g^4``, or with ``lw_mode = two_stream`` the longwave
-     * down at the face's height and up at the ground of the face's column
+     * down and up at the face's height in the face's column
      * (``canopy``); the building term is the isothermal-surroundings
      * approximation. Net: ``eps (LW_in - sigma T_skin^4)``, positive into the face.
      * @param cons   Conserved state of the level, for the air temperature.

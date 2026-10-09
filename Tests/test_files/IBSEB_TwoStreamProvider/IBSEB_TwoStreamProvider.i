@@ -1,12 +1,13 @@
-# The building faces on the two-stream columns (erf.ibseb.radiation = two_stream): the
-# 40 m cube of Tests/test_files/IBSEB_Cube under the two-stream radiation with a fixed
-# sun (cos z 0.766044443118978, 40 degrees, from the south-south-west for the faces) and
-# a transparent sky (no shortwave or longwave optical depth), the skin held at its
-# initial temperature so each term can be compared. IBSEB_TwoStreamProvider
-# (Tests/RunIBSEBTwoStreamProvider.cmake) runs it as given, again with the prescribed
-# provider set to the same sky (direct-normal irradiance 1000 W/m2, no diffuse light,
-# no sky longwave, the ground's albedo, emissivity and temperature), and again with an
-# absorbing sky, and checks the faces with check_ibseb_two_stream_provider.py.
+# The building faces taking their radiation from the two-stream columns
+# (erf.ibseb.radiation = two_stream): the 40 m cube of Tests/test_files/IBSEB_Cube under
+# the two-stream radiation with a fixed sun (cos z 0.766044443118978, 40 degrees, from the
+# south-south-west for the faces) and a transparent sky (no shortwave or longwave optical
+# depth), the skin held at its initial temperature so each term can be compared.
+# IBSEB_TwoStreamProvider (Tests/RunIBSEBTwoStreamProvider.cmake) runs it as given; again
+# on the faces' own clear-sky radiation (erf.ibseb.radiation = prescribed) set to the same
+# sky (direct-normal irradiance 1000 W/m2, no diffuse light, no sky longwave, the ground's
+# albedo, emissivity and temperature); and with absorbing and scattering skies. It checks
+# the faces with check_ibseb_two_stream_provider.py.
 stop_time = 100000.0
 max_step  = 1
 amrex.fpe_trap_invalid = 1

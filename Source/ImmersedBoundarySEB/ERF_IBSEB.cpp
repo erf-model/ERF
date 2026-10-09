@@ -95,7 +95,15 @@ ERF::init_ibseb ()
         if (lev == finest_level) { m_ibseb[lev]->release_labels(); }
         // The faces take the two-stream columns at their own heights, so from now on
         // every sweep of the level also keeps the direct beam up to the highest interface
-        // a face reads. A level without faces needs none.
+        // a face reads. A level without faces needs none. A level with faces must sweep
+        // its own columns: one whose grids do not span the domain in z takes its
+        // radiation from the level below by interpolation, with no sweep of its own.
+        if (ibseb_params.radiation == "two_stream" && m_ibseb[lev]->has_faces() && rad_level_needs_interpolation(lev)) {
+            Abort("erf.ibseb.radiation = two_stream: the grids of level " + std::to_string(lev) + " do not span the"
+                  " domain in z, so its two-stream radiation comes from level " + std::to_string(lev - 1) + " by"
+                  " interpolation and no column sweep of its own supplies its faces; refine the whole height"
+                  " (amr.refine_whole_domain_dir) or use erf.ibseb.radiation = prescribed");
+        }
         if (ibseb_params.radiation == "two_stream" && m_ibseb[lev]->has_faces()) {
             two_stream_rad.supply_canopy_forcing(lev, m_ibseb[lev]->top_sample_interface());
         }
@@ -154,20 +162,25 @@ ERF::init_ibseb ()
         if (restored) { m_ibseb[lev]->load_state(*restored); }
         const bool restarting = !restart_chkfile.empty();
         // A restart writes a 3D plotfile for its first step (plot_file_on_restart). With
-        // two_stream its face fields have no radiation yet, since no sweep has run. Say so
-        // when that plotfile holds face fields: the run before wrote the same step with
-        // radiation, and AMReX keeps that file, renamed with an .old suffix.
+        // two_stream no sweep has run yet, so the face fields that hold radiation are
+        // empty there: the absorbed shortwave and the shadow, and the net longwave with
+        // lw_mode = two_stream (the skin temperature and fluxes come from the
+        // checkpoint, the face counts and view fractions from the geometry). Say so when
+        // that plotfile holds one of them.
         if (two_stream_faces && restarting && plot_file_on_restart && lev == 0) {
-            auto has_face_fields = [] (const Vector<std::string>& names) {
-                return std::any_of(names.begin(), names.end(),
-                                   [] (const std::string& n) { return n.rfind("ibseb_", 0) == 0; });
+            const bool lw_two_stream = (ibseb_params.lw_mode == "two_stream");
+            auto has_radiation_fields = [lw_two_stream] (const Vector<std::string>& names) {
+                return std::any_of(names.begin(), names.end(), [lw_two_stream] (const std::string& n) {
+                    return n == "ibseb_sw_abs" || n == "ibseb_shadow" || (lw_two_stream && n == "ibseb_lw_net");
+                });
             };
-            const bool plot1 = (m_plot3d_int_1 > 0 || m_plot3d_per_1 > 0.0) && has_face_fields(plot3d_var_names_1);
-            const bool plot2 = (m_plot3d_int_2 > 0 || m_plot3d_per_2 > 0.0) && has_face_fields(plot3d_var_names_2);
+            const bool plot1 = (m_plot3d_int_1 > 0 || m_plot3d_per_1 > 0.0) && has_radiation_fields(plot3d_var_names_1);
+            const bool plot2 = (m_plot3d_int_2 > 0 || m_plot3d_per_2 > 0.0) && has_radiation_fields(plot3d_var_names_2);
             if (plot1 || plot2) {
-                Print() << "[IBSEB] Restart: the plotfile written at this step shows no radiation on the faces"
-                           " (no sweep has run yet). The run before wrote this step with radiation; AMReX"
-                           " keeps that file, renamed with an .old suffix.\n";
+                Print() << "[IBSEB] Restart: the plotfile written at this step shows no "
+                        << (lw_two_stream ? "radiation" : "shortwave") << " on the faces (no sweep has run yet)."
+                           " If the run before wrote a plotfile at this step, AMReX kept it, renamed with an"
+                           " .old suffix.\n";
             }
         }
         // The step a restart starts from was reported, and its faces dumped, by the run
@@ -337,20 +350,22 @@ ERF::ibseb_check_sun_matches_two_stream () const
  * so the radiation model must be the two-stream one with its shortwave on (off,
  * the sweep places no sun, and the cosine it writes is not the faces'), and with
  * its longwave on under lw_mode = two_stream (off, the faces would see a 0 K sky
- * and ground). Every level must sweep its own columns: a refined level whose
- * grids do not span the domain in z takes its radiation from the level below by
- * interpolation (rad_level_needs_interpolation()), with no sweep of its own for
- * the faces. (A level built from the coarse atmosphere also skips its first
- * sweep; that is erf.interp_atmos_from_coarse with a WRF input, which needs a
- * terrain-fitted grid the balance refuses, or a regrid, which it refuses too.)
+ * and ground). Every level with faces must also sweep its own columns; init_ibseb()
+ * checks that once the faces are built (a refined level whose grids do not span
+ * the domain in z takes its radiation from the level below by interpolation,
+ * rad_level_needs_interpolation(), with no sweep of its own). (A level built from
+ * the coarse atmosphere also skips its first sweep; that is
+ * erf.interp_atmos_from_coarse with a WRF input, which needs a terrain-fitted grid
+ * the balance refuses, or a regrid, which it refuses too.)
  *
  * It also warns, without stopping, when the faces' light and sky depend on the
- * number of layers above them. With per-layer optical depths
- * (erf.radiation.tau_model = per_layer, and for the longwave without
- * erf.radiation.lw_mass_absorption_enable) and a sky that has some depth, the
- * attenuation above a face counts the layers. It then changes with the domain's
- * depth and, on a level refined in z, with the refinement, as the columns' own
- * heating rates do. erf.radiation.tau_model = mass makes both bands mass-based.
+ * number of layers above them: whenever some of the sky's optical depth is set
+ * per layer. That is the clear-sky depth with erf.radiation.tau_model = per_layer
+ * (for the longwave, also without erf.radiation.lw_mass_absorption_enable), and,
+ * with either model, a cloud layer that is used, the moisture terms and the
+ * aerosol. The attenuation above a face then counts the layers, so it changes with
+ * the domain's depth and, on a level refined in z, with the refinement, as the
+ * columns' own heating rates do.
  */
 void
 ERF::ibseb_check_two_stream_provider () const
@@ -369,30 +384,28 @@ ERF::ibseb_check_two_stream_provider () const
         Abort("erf.ibseb.lw_mode = two_stream needs the two-stream longwave (erf.radiation.lw_enabled = true);"
               " without it the faces would see no sky or ground longwave. Use erf.ibseb.lw_mode = gray or fixed");
     }
-    // Per-layer depths matter only where the sky has some: a transparent sky is the same
-    // whatever the layer count.
-    const bool per_layer = (rc.tau_model == TauModel::PerLayer);
-    const bool cloud_layer = (rc.tau_profile_type == TauProfileType::CloudLayer);
-    const bool sw_per_layer = per_layer && (rc.tau_per_layer > 0.0 || cloud_layer || rc.tau_sw_dynamic_enable);
-    const bool lw_per_layer = (ibseb_params.lw_mode == "two_stream") && per_layer && !rc.lw_mass_absorption_enable
-                            && (rc.tau_lw_per_layer > 0.0 || cloud_layer || rc.tau_lw_dynamic_enable);
+    // Some of the sky's optical depth is set per layer: the clear-sky depth under
+    // per-layer optics, and with either model a cloud layer that is used (a cloud
+    // fraction above zero), the moisture terms and the aerosol (every profile gives a
+    // depth per layer). A transparent sky is the same whatever the layer count.
+    const bool per_layer   = (rc.tau_model == TauModel::PerLayer);
+    const bool cloud_layer = (rc.tau_profile_type == TauProfileType::CloudLayer)
+                          && (rc.cloud_fraction > 0.0 || rc.cloud_fraction_prog_enable);
+    const bool sw_per_layer = (per_layer && rc.tau_per_layer > 0.0)
+                           || cloud_layer || rc.aerosol_enable || rc.tau_sw_dynamic_enable;
+    const bool lw_per_layer = (ibseb_params.lw_mode == "two_stream")
+                           && ((per_layer && !rc.lw_mass_absorption_enable && rc.tau_lw_per_layer > 0.0)
+                               || cloud_layer || rc.aerosol_enable || rc.tau_lw_dynamic_enable);
     bool z_refined = false;
     for (int lev = 1; lev <= finest_level; ++lev) { z_refined = z_refined || ref_ratio[lev-1][2] > 1; }
     if (sw_per_layer || lw_per_layer) {
         const std::string bands = (sw_per_layer && lw_per_layer) ? "shortwave and longwave"
                                 : (sw_per_layer ? "shortwave" : "longwave");
-        Print() << "WARNING: erf.ibseb.radiation = two_stream with per-layer optical depths (" << bands << "): the"
-                << " light and sky the faces get depend on the number of layers above them, so on the domain's depth"
-                << (z_refined ? " and on the refinement in z, which differs between the levels here" : "")
-                << ". With erf.radiation.tau_model = mass they do not.\n";
-    }
-    for (int lev = 1; lev <= finest_level; ++lev) {
-        if (rad_level_needs_interpolation(lev)) {
-            Abort("erf.ibseb.radiation = two_stream: the grids of level " + std::to_string(lev) + " do not span the"
-                  " domain in z, so its two-stream radiation comes from level " + std::to_string(lev - 1) + " by"
-                  " interpolation and no column sweep of its own supplies its faces; refine the whole height"
-                  " (amr.refine_whole_domain_dir) or use erf.ibseb.radiation = prescribed");
-        }
+        Print() << "WARNING: erf.ibseb.radiation = two_stream with optical depth set per layer (" << bands << "):"
+                << " the light and sky the faces get depend on the number of layers above them, so on the domain's"
+                << " depth" << (z_refined ? " and on the refinement in z, which differs between the levels here" : "")
+                << ". erf.radiation.tau_model = mass makes the clear-sky depth independent of the layers; a cloud"
+                   " layer, the moisture terms and the aerosol stay per layer.\n";
     }
 }
 

@@ -756,8 +756,9 @@ IBFaceSet::compute_longwave (const MultiFab& cons, const TwoStreamCanopyView& ca
  * Longwave of the current step with lw_mode = two_stream: the sky term is the
  * longwave down of the face's column at the face's height (a roof's interface,
  * a wall's mean of its cell's two; two_stream_canopy_sample()), the ground term
- * its longwave up at the ground, so the ground's temperature, emissivity and
- * reflection of the sky are the column's (two_stream_face_sky()). Before the
+ * its longwave up at the same height (the ground seen through the air in between),
+ * so the ground's temperature, emissivity and reflection of the sky are the
+ * column's (two_stream_face_sky()). Before the
  * level's first sweep (an empty ``canopy``, the initial report) the air
  * temperature is read and the incoming and net longwave are zero.
  */
@@ -1265,7 +1266,7 @@ IBFaceSet::compute_shortwave (Real time, const TwoStreamCanopyView& canopy)
  * interface, a wall's mean of its cell's two), the beam over the column's own
  * cosine of the zenith, on the face (shadowed by the same ray cast), the
  * diffuse light of the sky there through f_sky, and the ground's reflection,
- * the column's shortwave up at the ground, through f_ground. One kernel per
+ * the column's shortwave up at the face's height, through f_ground. One kernel per
  * fab, reading the view's fields of the same local index.
  *
  * The faces' sun (sun_mode) and the sweep's are required to be one sun

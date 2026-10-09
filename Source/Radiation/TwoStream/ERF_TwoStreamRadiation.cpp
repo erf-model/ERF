@@ -1108,7 +1108,7 @@ TwoStreamRadiation::advance (int lev,
                     if (supply_canopy) {
                         two_stream_canopy_beam(i, j, bx.smallEnd(2), m_canopy_top, scratch_arr,
                                                TwoStreamScratch::F_DIR, sw_on, cos_zenith_col,
-                                               amrex::Real(1.0) - cloud_fraction, true, canopy_out);
+                                               cloud_fraction, false, canopy_out);
                     }
 
                     amrex::Real max_heating_col = max_heating_clear;
@@ -1154,7 +1154,7 @@ TwoStreamRadiation::advance (int lev,
                         if (supply_canopy) {
                             two_stream_canopy_beam(i, j, bx.smallEnd(2), m_canopy_top, scratch_arr,
                                                    TwoStreamScratch::F_DIR, sw_on, cos_zenith_col,
-                                                   cloud_fraction, false, canopy_out);
+                                                   cloud_fraction, true, canopy_out);
                         }
 
                         // Blend per-level heating rates in place

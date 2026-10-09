@@ -2393,6 +2393,7 @@ function(add_test_ibseb_two_stream_provider TEST_NAME)
         "-DCONFIG=$<CONFIG>"
         "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
         "-DTWO_LEVEL_INPUT=${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider/IBSEB_TwoStreamProviderTwoLevel.i"
+        "-DTWO_LEVEL_FILES=${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_RefinedLevels"
         "-DPRECISION=${ERF_PRECISION}"
         "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
         "-DPYTHON_EXE=${ERF_TEST_PYTHON}"

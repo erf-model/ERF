@@ -82,8 +82,8 @@ struct IBSEBParams
     // emissivity_ground x sigma x T_ground^4. "two_stream" (radiation =
     // two_stream only, and its default) takes the sky term from the column's
     // longwave down at the face's height and the ground term from its
-    // longwave up at the ground (the ground's emission and its reflection of
-    // the sky).
+    // longwave up at the same height (the ground's emission and its reflection
+    // of the sky, seen through the air in between).
     std::string lw_mode           = "gray";
     amrex::Real lw_down           = 300.0;  ///< fixed: sky longwave [W/m2]
     amrex::Real sky_emissivity    = 0.83;   ///< gray: effective clear-sky emissivity

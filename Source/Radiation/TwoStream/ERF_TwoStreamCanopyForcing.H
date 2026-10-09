@@ -47,9 +47,12 @@ struct TwoStreamCanopyView
 };
 
 /**
- * @brief Add w times the direct beam on a horizontal surface at the interfaces
+ * @brief Write the direct beam on a horizontal surface at the interfaces
  * 0 .. m_top of column (i,j), from the scratch of the evaluation that has just
- * run there, into @p beam (w = 1 with @p set for a clear sky).
+ * run there, into @p beam: the clear-sky evaluation's beam as it is, and the
+ * cloudy evaluation's blended in with the cloud fraction, by the same expression
+ * as the fluxes ((1 - f) clear + f cloudy), so the two round alike in single
+ * precision and the shortwave down less the beam is the diffuse light.
  *
  * vertical_two_stream_sweep() keeps the Beer-Lambert beam of every interface in
  * its scratch (TwoStreamScratch::F_DIR), but writes it only when the shortwave is
@@ -57,26 +60,26 @@ struct TwoStreamCanopyView
  * nothing at all, and the beam is zero. Call it right after each evaluation, before
  * the next one overwrites the scratch.
  *
- * @param scratch    the sweep's scratch, as vertical_two_stream_sweep() takes it
- * @param f_dir_comp the scratch component of the beam (TwoStreamScratch::F_DIR)
- * @param kmin       lowest cell of the column (its surface interface)
- * @param m_top      highest interface of the beam field, at most the column's top
- * @param sw_on      whether the sweep ran its shortwave
- * @param cos_zenith cosine of the zenith angle the sweep used (unfloored)
- * @param w          weight of this evaluation (1 clear only; 1 - f and f with a cloud fraction f)
- * @param set        true for the first evaluation (overwrite), false to add
- * @param beam       the beam field (component 0, index k = m)
+ * @param scratch        the sweep's scratch, as vertical_two_stream_sweep() takes it
+ * @param f_dir_comp     the scratch component of the beam (TwoStreamScratch::F_DIR)
+ * @param kmin           lowest cell of the column (its surface interface)
+ * @param m_top          highest interface of the beam field, at most the column's top
+ * @param sw_on          whether the sweep ran its shortwave
+ * @param cos_zenith     cosine of the zenith angle the sweep used (unfloored)
+ * @param cloud_fraction the cloud fraction (used only when @p blend)
+ * @param blend          false for the clear-sky evaluation (overwrite), true for the cloudy one
+ * @param beam           the beam field (component 0, index k = m)
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void two_stream_canopy_beam (int i, int j, int kmin, int m_top,
                              const amrex::Array4<const amrex::Real>& scratch, int f_dir_comp,
-                             bool sw_on, amrex::Real cos_zenith, amrex::Real w, bool set,
+                             bool sw_on, amrex::Real cos_zenith, amrex::Real cloud_fraction, bool blend,
                              const amrex::Array4<amrex::Real>& beam)
 {
     const bool lit = sw_on && (cos_zenith > amrex::Real(0.0));
     for (int m = 0; m <= m_top; ++m) {
-        const amrex::Real b = lit ? w * scratch(i, j, kmin + m, f_dir_comp) : amrex::Real(0.0);
-        beam(i, j, m) = set ? b : beam(i, j, m) + b;
+        const amrex::Real b = lit ? scratch(i, j, kmin + m, f_dir_comp) : amrex::Real(0.0);
+        beam(i, j, m) = blend ? (1.0 - cloud_fraction) * beam(i, j, m) + cloud_fraction * b : b;
     }
 }
 

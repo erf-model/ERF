@@ -3658,7 +3658,9 @@ column would be taken for a building), a uniform vertical grid (no
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.T_interior**          | interior (deep) temperature of the slabs [K]             | Real > 0           | 293.0                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.csv_file**            | per-building report file                                 | String             | "ibseb_buildings.csv"  |
+| **erf.ibseb.csv_file**            | per-building report file; a restart appends from its     | String             | "ibseb_buildings.csv"  |
+|                                   | next report (the step it starts from is not written      |                    |                        |
+|                                   | again)                                                   |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.csv_int**             | steps between report rows; <= 0 disables the report      | Integer            | 100                    |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
