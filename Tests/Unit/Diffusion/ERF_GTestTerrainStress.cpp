@@ -7,6 +7,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cmath>
 #include <vector>
 
@@ -624,4 +625,137 @@ TEST(TerrainStress, TiledStressesMatchTheWholeBox)
   LoopOnCpu(convert(c.valid, IntVect(0,1,1)), [&] (int i, int j, int k) {
     EXPECT_NEAR(b23(i,j,k), a23(i,j,k), tol_for_scale(scale)) << "tau23 at " << i << " " << j << " " << k;
   });
+}
+
+namespace {
+
+// Dense helpers for the operator test below (row-major n x n)
+using Mat = std::vector<double>;
+Mat matmul (const Mat& a, const Mat& b, int n)
+{
+  Mat c(static_cast<std::size_t>(n)*n, 0.0);
+  for (int i = 0; i < n; ++i) {
+    for (int k = 0; k < n; ++k) {
+      const double aik = a[static_cast<std::size_t>(i)*n + k];
+      if (aik == 0.0) { continue; }
+      for (int j = 0; j < n; ++j) { c[static_cast<std::size_t>(i)*n + j] += aik*b[static_cast<std::size_t>(k)*n + j]; }
+    }
+  }
+  return c;
+}
+// exp(M) by scaling and squaring of a Taylor series
+Mat expm (Mat m, int n)
+{
+  double nrm = 0.0;
+  for (int j = 0; j < n; ++j) {
+    double s = 0.0;
+    for (int i = 0; i < n; ++i) { s += std::abs(m[static_cast<std::size_t>(i)*n + j]); }
+    nrm = std::max(nrm, s);
+  }
+  int sq = 0;
+  while (nrm > 0.25) { nrm *= 0.5; ++sq; }
+  const double scale = std::ldexp(1.0, -sq);
+  for (auto& x : m) { x *= scale; }
+  Mat e(static_cast<std::size_t>(n)*n, 0.0), t(e);
+  for (int i = 0; i < n; ++i) { e[static_cast<std::size_t>(i)*n + i] = 1.0; t[static_cast<std::size_t>(i)*n + i] = 1.0; }
+  for (int k = 1; k <= 16; ++k) {
+    t = matmul(t, m, n);
+    for (auto& x : t) { x /= double(k); }
+    for (std::size_t q = 0; q < e.size(); ++q) { e[q] += t[q]; }
+  }
+  for (int s = 0; s < sq; ++s) { e = matmul(e, e, n); }
+  return e;
+}
+// Spectral norm by power iteration on M^T M
+double norm2 (const Mat& m, int n)
+{
+  std::vector<double> x(static_cast<std::size_t>(n), 1.0), y(x);
+  double lam = 0.0;
+  for (int it = 0; it < 200; ++it) {
+    for (int i = 0; i < n; ++i) {
+      double s = 0.0;
+      for (int j = 0; j < n; ++j) { s += m[static_cast<std::size_t>(i)*n + j]*x[static_cast<std::size_t>(j)]; }
+      y[static_cast<std::size_t>(i)] = s;
+    }
+    double nx2 = 0.0;
+    for (int j = 0; j < n; ++j) {
+      double s = 0.0;
+      for (int i = 0; i < n; ++i) { s += m[static_cast<std::size_t>(i)*n + j]*y[static_cast<std::size_t>(i)]; }
+      x[static_cast<std::size_t>(j)] = s; nx2 += s*s;
+    }
+    const double nxx = std::sqrt(nx2);
+    if (!(nxx > 0.0) || !std::isfinite(nxx)) { return nxx; }
+    for (auto& v : x) { v /= nxx; }
+    lam = nxx;
+  }
+  return std::sqrt(lam);
+}
+
+} // namespace
+
+// Motivation (Pressel's review of #4231): on terrain whose slope varies, the transpose argument
+// of the uniform slope no longer holds, and with K_h >> K_v the symmetric part of the operator
+// has directions that gain energy.  What must hold is that no mode grows: the momentum-diffusion
+// operator of the actual kernels, assembled on steep curved terrain (h dx/dz about 20, a
+// four-cell sine) with K_h/K_v = 1000 and K_h alternating cell by cell, must give a bounded
+// transient and decay.  Development's K_v projection has growing modes here (largest real
+// parts of +0.06 to +0.27 1/s in an eigenvalue analysis of such matrices, against decay rates
+// of up to 0.5 1/s).
+TEST(TerrainStress, CurvedSlopeOperatorHasNoGrowingMode)
+{
+  const int nx = 12, ny = 2, nz = 12, m = 2;
+  const Real dx = Real(3000.0), dz = Real(50.0);
+  TerrainStressCase c(nx, ny, nz, dx, dx, dz, Real(0.0), Real(0.0), Real(1.e5), Real(100.0), Real(0.0));
+  c.init();
+  c.set_variable_kh(1);
+  {
+    auto znd = c.z_nd.array();
+    const Real ldx = dx, ldz = dz;
+    ParallelFor(c.z_nd.box(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+      const Real x = Real(i)*ldx;
+      znd(i,j,k) = Real(k)*ldz + Real(800.0)*std::sin(Real(2.0)*Real(3.14159265358979323846)*x/(Real(4.0)*ldx));
+    });
+    Gpu::streamSynchronize();
+  }
+  // y-independent fields on the interior faces, zero within m cells of the x and z ends
+  struct Dof { int c, i, k; };
+  std::vector<Dof> dofs;
+  for (int i = m; i <= nx - m; ++i) { for (int k = m; k < nz - m; ++k) { dofs.push_back({0,i,k}); } }
+  for (int i = m; i <  nx - m; ++i) { for (int k = m; k < nz - m; ++k) { dofs.push_back({1,i,k}); } }
+  for (int i = m; i <  nx - m; ++i) { for (int k = m; k <= nz - m; ++k) { dofs.push_back({2,i,k}); } }
+  const int n = static_cast<int>(dofs.size());
+  Mat A(static_cast<std::size_t>(n)*n, 0.0);
+  FArrayBox hu(c.ubx,1,The_Pinned_Arena()), hv(c.vbx,1,The_Pinned_Arena()), hw(c.wbx,1,The_Pinned_Arena());
+  for (int d = 0; d < n; ++d) {
+    c.u.setVal<RunOn::Device>(Real(0.0)); c.v.setVal<RunOn::Device>(Real(0.0)); c.w.setVal<RunOn::Device>(Real(0.0));
+    FArrayBox& f = (dofs[d].c == 0) ? c.u : (dofs[d].c == 1) ? c.v : c.w;
+    const Box fb = f.box();
+    f.setVal<RunOn::Device>(Real(1.0), Box(IntVect(dofs[d].i, fb.smallEnd(1), dofs[d].k),
+                                           IntVect(dofs[d].i, fb.bigEnd(1),   dofs[d].k), fb.ixType()));
+    c.compute(true);
+    copy_to_host(c.rhs_u, hu); copy_to_host(c.rhs_v, hv); copy_to_host(c.rhs_w, hw);
+    const auto ru = hu.const_array(), rv = hv.const_array(), rw = hw.const_array();
+    for (int r = 0; r < n; ++r) {
+      const auto& q = dofs[r];
+      A[static_cast<std::size_t>(r)*n + d] =
+        double((q.c == 0) ? ru(q.i,0,q.k) : (q.c == 1) ? rv(q.i,0,q.k) : rw(q.i,0,q.k));
+    }
+  }
+  // ||exp(A t)|| at t = t0 * 2^s: bounded transient, then decay
+  double anorm = 0.0;
+  for (double x : A) { anorm = std::max(anorm, std::abs(x)); }
+  ASSERT_GT(anorm, 0.0);
+  const double t0 = 0.01 / (double(n) * anorm);
+  Mat E = A;
+  for (auto& x : E) { x *= t0; }
+  E = expm(E, n);
+  double peak = 0.0, last = 0.0;
+  for (int s = 0; s < 34; ++s) {
+    last = norm2(E, n);
+    ASSERT_TRUE(std::isfinite(last)) << "exp(A t) blew up at t = t0 * 2^" << s;
+    peak = std::max(peak, last);
+    E = matmul(E, E, n);
+  }
+  EXPECT_LT(peak, 3.0) << "transient growth of exp(A t)";
+  EXPECT_LT(last, 1.e-3) << "exp(A t) does not decay";
 }

@@ -506,7 +506,7 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     // edges, with the coefficients the tau11/tau22/tau12 kernels below apply -- and average
     // the stresses to the zeta edges, as the scalar fluxes average K_h*grad.  On a uniform
     // slope with uniform dz that is the transpose of the metric term in S11/S22, which keeps
-    // the operator dissipative for any K_h and K_v (see the NOTE above).
+    // the strain part of the operator dissipative for any K_h and K_v (see the NOTE above).
     //-----------------------------------------------------------------------------------
     // kh12 is read at (i,j+1) over tbxxz and kh21 at (i+1,j) over tbxyz.  On a tile that is not
     // the last in x or y the nodal tile box tbxxy stops one node short of those reads, so form

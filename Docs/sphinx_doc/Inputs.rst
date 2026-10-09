@@ -2219,9 +2219,11 @@ from WRF in these details:
 - WRF uses :math:`K_h/Pr` for every scalar; ERF forms the moisture and advected-scalar
   diffusivities with ``erf.Sc_t`` (default 1) instead, as it always has.
 
-The momentum stresses on terrain-fitted meshes (:ref:`terrain-momentum-stresses`) dissipate for any
-:math:`K_h` and :math:`K_v` on a uniform slope, so the limits are not needed for that; they bound
-the stiffness of the explicit metric term and match WRF's mixing on slopes.
+The strain part of the momentum stresses on terrain-fitted meshes (:ref:`terrain-momentum-stresses`)
+dissipates energy for any :math:`K_h` and :math:`K_v` on a uniform slope. Where the slope varies,
+no mode of it grows, although energy can grow transiently when :math:`K_h \gg K_v`. So the limits
+are not needed for stability of that operator: they bound the stiffness of the explicit metric
+term and match WRF's mixing on slopes.
 
 Both limits change the physics: they reduce the horizontal mixing on slopes (by :math:`\alpha^2`, up to
 two orders of magnitude on a 3 km grid with 50 m cells over steep terrain) and wherever the cap binds.

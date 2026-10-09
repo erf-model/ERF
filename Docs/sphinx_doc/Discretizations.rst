@@ -847,6 +847,17 @@ energy (``Tests/Unit/Diffusion/ERF_GTestTerrainStress.cpp`` has such a case). Th
 term is outside this argument: with :math:`\nu_h \ne \nu_v` the deviatoric stresses are not
 dissipative even in the continuum.
 
+Where the slope varies, the transpose relation is no longer exact, and the operator need not
+dissipate energy. On steep curved terrain (:math:`h \Delta x/\Delta z \approx 20`, a sine of four
+cells' wavelength) an eigenvalue analysis of the assembled momentum operator found:
+
+- with :math:`\nu_h/\nu_v \gtrsim 100`, directions that gain energy, i.e. a transient growth of at
+  most 1.9 in amplitude;
+- at every anisotropy tried, every eigenvalue with a negative real part, so no mode grows;
+- with the projected terms on :math:`\nu_v`, as before #4214, the same terrain had growing modes.
+
+``TerrainStress.CurvedSlopeOperatorHasNoGrowingMode`` checks this on such terrain.
+
 Before erf-model/ERF#4214 the projected terms took :math:`\nu_v`. For :math:`u` alone the rate was
 then the quadratic form
 :math:`2\nu_h a^2 - 2(\nu_h+\nu_v) h_\xi a b + \nu_v (1 + 2h_\xi^2) b^2` in
