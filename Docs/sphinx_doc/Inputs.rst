@@ -959,11 +959,13 @@ Notes
 -  | On a terrain-fitted mesh the flux through a terrain-following face projects the horizontal
      fluxes onto the face normal, which adds a vertical diffusion with coefficient
      K_h M to it, where M is a weighted sum of the squared terrain slopes times map factors:
-     2 h_xi^2 + h_eta^2 for u, h_xi^2 + 2 h_eta^2 for v, and h_xi^2 + h_eta^2 for the scalars
+     (4/3) h_xi^2 + h_eta^2 for u, h_xi^2 + (4/3) h_eta^2 for v (the deviatoric stress keeps
+     2/3 of the slope term in S11 and S22), and h_xi^2 + h_eta^2 for the scalars
      (see :ref:`terrain-momentum-stresses`).  The implicit solves
      treat only K_v, so for K_h M much larger than K_v -- steep slopes with
      **erf.les_type = Smagorinsky2D** or anisotropic mixing on a coarse grid -- this explicit
-     term, whose rate grows as K_h M / Delta z^2, can limit the time step.  With
+     term, whose rate grows as K_h M / Delta z^2, can limit the time step (a note at start-up
+     says so for a terrain-fitted mesh with an LES closure and an explicit stage).  With
      **erf.implicit_terrain_metric = true** the
      implicit solves also take K_h M d2/dz2 on the faces inside the domain, and the explicit
      fluxes give up the same term evaluated at the state they see.  The answer changes by the
@@ -2220,10 +2222,11 @@ from WRF in these details:
   diffusivities with ``erf.Sc_t`` (default 1) instead, as it always has.
 
 The strain part of the momentum stresses on terrain-fitted meshes (:ref:`terrain-momentum-stresses`)
-dissipates energy for any :math:`K_h` and :math:`K_v` on a uniform slope. Where the slope varies,
-no mode of it grows, although energy can grow transiently when :math:`K_h \gg K_v`. So the limits
-are not needed for stability of that operator: they bound the stiffness of the explicit metric
-term and match WRF's mixing on slopes.
+dissipates energy for any :math:`K_h` and :math:`K_v` on a uniform slope with uniform vertical
+spacing. Where the slope varies, energy can grow transiently when :math:`K_h \gg K_v`; in the cases
+analysed there (without the expansion-rate term) no mode grew. So the limits are not needed for
+that operator: they bound the stiffness of the explicit metric term and match WRF's mixing on
+slopes.
 
 Both limits change the physics: they reduce the horizontal mixing on slopes (by :math:`\alpha^2`, up to
 two orders of magnitude on a 3 km grid with 50 m cells over steep terrain) and wherever the cap binds.

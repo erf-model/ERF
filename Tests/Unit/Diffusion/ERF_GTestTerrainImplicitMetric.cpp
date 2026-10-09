@@ -214,17 +214,21 @@ reference_solve (const std::vector<double>& old, double C_interior)
 } // namespace
 
 // Motivation: the factors that multiply K_h are the h*d/dz parts of the projected
-// horizontal fluxes: 2 h_xi^2 + h_eta^2 for u (from h_xi S11 + h_eta S12), h_xi^2 + 2 h_eta^2
-// for v, h_xi^2 + h_eta^2 for scalars, each slope scaled by its map factor; and only the
-// faces strictly inside the domain are split.
+// horizontal fluxes: (4/3) h_xi^2 + h_eta^2 for u (from h_xi (S11 - er/3) + h_eta S12; the
+// expansion rate carries -h_xi du/dz too), h_xi^2 + (4/3) h_eta^2 for v, h_xi^2 + h_eta^2 for
+// scalars, each slope scaled by its map factor; and only the faces strictly inside the domain
+// are split.
 TEST(TerrainImplicitMetric, FactorsAndFacesByHand)
 {
   const Real ax = SX*MX, ay = SY*MY;
-  EXPECT_NEAR(TerrainMetricMomFactor(0, SX, SY, MX, MY), Real(2.0)*ax*ax + ay*ay, tol_for_scale(Real(1.0)));
-  EXPECT_NEAR(TerrainMetricMomFactor(1, SX, SY, MX, MY), ax*ax + Real(2.0)*ay*ay, tol_for_scale(Real(1.0)));
+  const Real four_thirds = Real(4.0)/Real(3.0);
+  EXPECT_NEAR(TerrainMetricMomFactor(0, SX, SY, MX, MY), four_thirds*ax*ax + ay*ay, tol_for_scale(Real(1.0)));
+  EXPECT_NEAR(TerrainMetricMomFactor(1, SX, SY, MX, MY), ax*ax + four_thirds*ay*ay, tol_for_scale(Real(1.0)));
   EXPECT_NEAR(TerrainMetricScalarFactor(SX, SY, MX, MY), ax*ax + ay*ay, tol_for_scale(Real(1.0)));
-  // 0.35*1.1 = 0.385, -0.25*0.9 = -0.225: 2*0.148225 + 0.050625 = 0.347075
-  EXPECT_NEAR(TerrainMetricMomFactor(0, SX, SY, MX, MY), Real(0.347075), tol_for_scale(Real(1.0)));
+  // 0.35*1.1 = 0.385, -0.25*0.9 = -0.225: (4/3)*0.148225 + 0.050625 = 0.2482583...,
+  // and 0.148225 + (4/3)*0.050625 = 0.215725 for v
+  EXPECT_NEAR(TerrainMetricMomFactor(0, SX, SY, MX, MY), Real(0.24825833333333333), tol_for_scale(Real(1.0)));
+  EXPECT_NEAR(TerrainMetricMomFactor(1, SX, SY, MX, MY), Real(0.215725), tol_for_scale(Real(1.0)));
   EXPECT_FALSE(TerrainMetricImplicitFace(0, 0, NZ-1));
   EXPECT_TRUE (TerrainMetricImplicitFace(1, 0, NZ-1));
   EXPECT_TRUE (TerrainMetricImplicitFace(NZ-1, 0, NZ-1));
@@ -286,14 +290,14 @@ TEST(TerrainImplicitMetric, MomentumColumnSolveMatchesTridiagonal)
 }
 
 // Motivation: the v solve (stagdir 1) must use the v weights, K_v + K_h M_v with
-// M_v = (h_xi mx)^2 + 2 (h_eta my)^2, which differ from the u weights on this mesh.
+// M_v = (h_xi mx)^2 + (4/3) (h_eta my)^2, which differ from the u weights on this mesh.
 TEST(TerrainImplicitMetric, VMomentumColumnSolveMatchesTridiagonal)
 {
   std::vector<double> old(NZ);
   for (int k = 0; k < NZ; ++k) { old[k] = double(u0(k)); }
   const double Mv = double(TerrainMetricMomFactor(1, SX, SY, MX, MY));
   const double Mu = double(TerrainMetricMomFactor(0, SX, SY, MX, MY));
-  ASSERT_GT(std::abs(Mu - Mv), 0.05);  // 0.0976 on this mesh
+  ASSERT_GT(std::abs(Mu - Mv), 0.02);  // 0.0325 on this mesh
   for (const bool metric : {false, true}) {
     ColumnCase c;
     c.init();

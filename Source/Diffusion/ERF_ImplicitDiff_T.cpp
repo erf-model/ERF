@@ -400,6 +400,30 @@ TerrainMetricMomCoeffs (int i, int j, int k, int dom_klo, int dom_khi,
         metric_hi = kh_hi * TerrainMetricMomFactor(stagdir, h_xi, h_eta, mx, my);
     }
 }
+
+/**
+ * h_zeta on the z-face k of a u (stagdir 0) or v (stagdir 1) column: the edge value the
+ * strain kernel divides the correction stress tau13i/tau23i by (ComputeStrain_T), so that
+ * the flux the solve removes at the old state and the flux it puts back use the same
+ * stencil.  With a different h_zeta the split leaves the operator changed by
+ * implicit_fac*(L_solve - L_tau_corr) whatever the time step, wherever h_zeta varies along
+ * the column's horizontal neighbours non-linearly (curved, height-decaying terrain).
+ * w (stagdir 2, implicit only with ERF_IMPLICIT_W) keeps the k-face value it used before;
+ * its correction stress tau33i lives at the cells, so the w split is not aligned by this.
+ */
+template <int stagdir>
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+Real
+MomFaceHZeta (int i, int j, int k, int ioff, int joff,
+              const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
+              const Array4<const Real>& z_nd) noexcept
+{
+    amrex::ignore_unused(ioff, joff);
+    if constexpr (stagdir == 0) { return Compute_h_zeta_AtEdgeCenterJ(i,j,k,cellSizeInv,z_nd); }
+    else if constexpr (stagdir == 1) { return Compute_h_zeta_AtEdgeCenterI(i,j,k,cellSizeInv,z_nd); }
+    else { return myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,k,cellSizeInv,z_nd)
+                    + Compute_h_zeta_AtKface(i-ioff,j-joff,k,cellSizeInv,z_nd) ); }
+}
 } // namespace
 
 /**
@@ -605,10 +629,8 @@ ImplicitDiffForMomLU_T (const Box& bx,
                                                   z_nd, cellSizeInv, mf_x, mf_y);
               }
 
-              met_h_zeta_lo = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,klo  ,cellSizeInv,z_nd)
-                                       + Compute_h_zeta_AtKface(i-ioff,j-joff,klo  ,cellSizeInv,z_nd) );
-              met_h_zeta_hi = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,klo+1,cellSizeInv,z_nd)
-                                       + Compute_h_zeta_AtKface(i-ioff,j-joff,klo+1,cellSizeInv,z_nd) );
+              met_h_zeta_lo = MomFaceHZeta<stagdir>(i,j,klo,ioff,joff,cellSizeInv,z_nd);
+              met_h_zeta_hi = MomFaceHZeta<stagdir>(i,j,klo+1,ioff,joff,cellSizeInv,z_nd);
 
               a_tmp = zero;
               c_tmp = -Fact * gfac * (rhoAlpha_hi + metric_hi) * dz_inv / met_h_zeta_hi;
@@ -686,10 +708,8 @@ ImplicitDiffForMomLU_T (const Box& bx,
                                                   z_nd, cellSizeInv, mf_x, mf_y);
               }
 
-              met_h_zeta_lo = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,k  ,cellSizeInv,z_nd)
-                                       + Compute_h_zeta_AtKface(i-ioff,j-joff,k  ,cellSizeInv,z_nd) );
-              met_h_zeta_hi = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,k+1,cellSizeInv,z_nd)
-                                       + Compute_h_zeta_AtKface(i-ioff,j-joff,k+1,cellSizeInv,z_nd) );
+              met_h_zeta_lo = MomFaceHZeta<stagdir>(i,j,k,ioff,joff,cellSizeInv,z_nd);
+              met_h_zeta_hi = MomFaceHZeta<stagdir>(i,j,k+1,ioff,joff,cellSizeInv,z_nd);
 
               a_tmp      = -Fact * (rhoAlpha_lo + metric_lo) * dz_inv / met_h_zeta_lo;
               c_tmp      = -Fact * (rhoAlpha_hi + metric_hi) * dz_inv / met_h_zeta_hi;
@@ -730,10 +750,8 @@ ImplicitDiffForMomLU_T (const Box& bx,
                                                   z_nd, cellSizeInv, mf_x, mf_y);
               }
 
-              met_h_zeta_lo = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,khi  ,cellSizeInv,z_nd)
-                                       + Compute_h_zeta_AtKface(i-ioff,j-joff,khi  ,cellSizeInv,z_nd) );
-              met_h_zeta_hi = myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,khi+1,cellSizeInv,z_nd)
-                                       + Compute_h_zeta_AtKface(i-ioff,j-joff,khi+1,cellSizeInv,z_nd) );
+              met_h_zeta_lo = MomFaceHZeta<stagdir>(i,j,khi,ioff,joff,cellSizeInv,z_nd);
+              met_h_zeta_hi = MomFaceHZeta<stagdir>(i,j,khi+1,ioff,joff,cellSizeInv,z_nd);
 
               a_tmp = -Fact * gfac * (rhoAlpha_lo + metric_lo) * dz_inv / met_h_zeta_lo;
               c_tmp = zero;

@@ -157,6 +157,49 @@ struct TerrainStressCase
     Gpu::streamSynchronize();
   }
 
+  // Curved terrain z = zeta + amp sin(2 pi s/lam) (1 - zeta/H) along s = x (dir 0) or y (dir 1);
+  // H <= 0 means no decay.  detJ is recomputed from the nodal heights (mean of the cell's four
+  // vertical edges).  Kernels live in member functions, not in TEST bodies (nvcc rejects
+  // extended device lambdas in the private TestBody).
+  void set_curved_terrain (int dir, Real amp, Real lam, Real H)
+  {
+    auto znd = z_nd.array();
+    const Real ldx = dx, ldy = dy, ldz = dz;
+    const Real two_pi = Real(2.0)*Real(3.14159265358979323846);
+    ParallelFor(z_nd.box(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+      const Real s = (dir == 0) ? Real(i)*ldx : Real(j)*ldy;
+      const Real zeta = Real(k)*ldz;
+      const Real decay = (H > Real(0.0)) ? (Real(1.0) - zeta/H) : Real(1.0);
+      znd(i,j,k) = zeta + amp*std::sin(two_pi*s/lam)*decay;
+    });
+    auto dJ = detJ.array(); auto zc = z_nd.const_array();
+    const Box zb = z_nd.box();
+    ParallelFor(detJ.box(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+      const int ii = amrex::max(zb.smallEnd(0), amrex::min(i, zb.bigEnd(0)-1));
+      const int jj = amrex::max(zb.smallEnd(1), amrex::min(j, zb.bigEnd(1)-1));
+      const int kk = amrex::max(zb.smallEnd(2), amrex::min(k, zb.bigEnd(2)-1));
+      dJ(i,j,k) = Real(0.25)*( zc(ii,jj,kk+1)-zc(ii,jj,kk) + zc(ii+1,jj,kk+1)-zc(ii+1,jj,kk)
+                             + zc(ii,jj+1,kk+1)-zc(ii,jj+1,kk) + zc(ii+1,jj+1,kk+1)-zc(ii+1,jj+1,kk) ) / ldz;
+    });
+    Gpu::streamSynchronize();
+  }
+
+  // Smoothly non-uniform K_h and K_v (varying in x, y and zeta, so that averages over different
+  // cells differ) and map factors (1 +/- 0.2)
+  void vary_kv_and_map_factors ()
+  {
+    const Real lKh = Kh, lKv = Kv;
+    auto mu = mu_turb.array(); auto m = mf.array();
+    ParallelFor(mu_turb.box(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+      mu(i,j,k,EddyDiff::Mom_h) = lKh * (Real(0.6) + Real(0.4)*std::sin(Real(1.1)*Real(i) + Real(0.3)*Real(j) + Real(0.8)*Real(k)));
+      mu(i,j,k,EddyDiff::Mom_v) = lKv * (Real(0.75) + Real(0.25)*std::sin(Real(0.9)*Real(i) + Real(0.7)*Real(j) + Real(0.5)*Real(k)));
+    });
+    ParallelFor(mf.box(), [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+      m(i,j,0) = Real(1.0) + Real(0.2)*std::sin(Real(0.6)*Real(i) + Real(0.4)*Real(j));
+    });
+    Gpu::streamSynchronize();
+  }
+
   void set_bilinear (const Coeffs& c)
   {
     const Real a0 = c.a[0], a1 = c.a[1], a2 = c.a[2], a3 = c.a[3];
@@ -522,14 +565,14 @@ TEST(TerrainStress, VariableKOperatorDissipatesEnergyOnSlopes)
 
 // Motivation (erf.implicit_terrain_metric): the part of tau13/tau23 the implicit solve removes
 // and re-solves (tau13i/tau23i) must also hold the compact metric term K_h M du/dz, with
-// M_u = 2 h_xi^2 + h_eta^2 and M_v = h_xi^2 + 2 h_eta^2, on the interior faces -- the faces
+// M_u = (4/3) h_xi^2 + h_eta^2 and M_v = h_xi^2 + (4/3) h_eta^2, on the interior faces -- the faces
 // the solve gives that coefficient -- and only the K_v part on the bottom and top faces.
 // With the option off it is the K_v part everywhere, as before.
 TEST(TerrainStress, ImplicitPartHoldsTheMetricTermOnInteriorFaces)
 {
   const Real sx = Real(0.3), sy = Real(-0.2), Kh = Real(40.0), Kv = Real(1.5), er = Real(3.e-3);
   const Exact ex{bilinear_coeffs, sx, sy, er};
-  const Real Mu = Real(2.0)*sx*sx + sy*sy, Mv = sx*sx + Real(2.0)*sy*sy;
+  const Real Mu = Real(4.0)/Real(3.0)*sx*sx + sy*sy, Mv = sx*sx + Real(4.0)/Real(3.0)*sy*sy;
   for (const bool metric : {false, true}) {
     TerrainStressCase c(6, 5, 8, Real(200.0), Real(150.0), Real(50.0), sx, sy, Kh, Kv, er);
     c.init();
@@ -560,7 +603,7 @@ TEST(TerrainStress, ConstantViscosityImplicitPartHoldsTheMetricTerm)
 {
   const Real sx = Real(0.3), sy = Real(-0.2), mu_eff = Real(3.0), er = Real(3.e-3);
   const Exact ex{bilinear_coeffs, sx, sy, er};
-  const Real Mu = Real(2.0)*sx*sx + sy*sy, Mv = sx*sx + Real(2.0)*sy*sy;
+  const Real Mu = Real(4.0)/Real(3.0)*sx*sx + sy*sy, Mv = sx*sx + Real(4.0)/Real(3.0)*sy*sy;
   for (const bool metric : {false, true}) {
     TerrainStressCase c(6, 5, 8, Real(200.0), Real(150.0), Real(50.0), sx, sy, Real(0.0), Real(0.0), er);
     c.init();
@@ -686,7 +729,9 @@ double norm2 (const Mat& m, int n)
     const double nxx = std::sqrt(nx2);
     if (!(nxx > 0.0) || !std::isfinite(nxx)) { return nxx; }
     for (auto& v : x) { v /= nxx; }
+    const bool converged = (it > 5) && (std::abs(nxx - lam) <= 1.e-10 * nxx);
     lam = nxx;
+    if (converged) { break; }
   }
   return std::sqrt(lam);
 }
@@ -696,9 +741,11 @@ double norm2 (const Mat& m, int n)
 // Motivation (Pressel's review of #4231): on terrain whose slope varies, the transpose argument
 // of the uniform slope no longer holds, and with K_h >> K_v the symmetric part of the operator
 // has directions that gain energy.  What must hold is that no mode grows: the momentum-diffusion
-// operator of the actual kernels, assembled on steep curved terrain (h dx/dz about 20, a
-// four-cell sine) with K_h/K_v = 1000 and K_h alternating cell by cell, must give a bounded
-// transient and decay.  Development's K_v projection has growing modes here (largest real
+// operator of the actual kernels, assembled on steep curved terrain (a four-cell sine, largest
+// h dx/dz about 25) with K_h/K_v up to 1000 and K_h alternating cell by cell in x and zeta,
+// must give a bounded transient and decay.  The transient is sampled at t0 * 2^s with the
+// spectral norm from power iteration (a lower bound); the decay is checked with the Frobenius
+// norm, an upper bound.  Development's K_v projection has growing modes here (largest real
 // parts of +0.06 to +0.27 1/s in an eigenvalue analysis of such matrices, against decay rates
 // of up to 0.5 1/s).
 TEST(TerrainStress, CurvedSlopeOperatorHasNoGrowingMode)
@@ -707,16 +754,8 @@ TEST(TerrainStress, CurvedSlopeOperatorHasNoGrowingMode)
   const Real dx = Real(3000.0), dz = Real(50.0);
   TerrainStressCase c(nx, ny, nz, dx, dx, dz, Real(0.0), Real(0.0), Real(1.e5), Real(100.0), Real(0.0));
   c.init();
-  c.set_variable_kh(1);
-  {
-    auto znd = c.z_nd.array();
-    const Real ldx = dx, ldz = dz;
-    ParallelFor(c.z_nd.box(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-      const Real x = Real(i)*ldx;
-      znd(i,j,k) = Real(k)*ldz + Real(800.0)*std::sin(Real(2.0)*Real(3.14159265358979323846)*x/(Real(4.0)*ldx));
-    });
-    Gpu::streamSynchronize();
-  }
+  c.set_variable_kh(2);
+  c.set_curved_terrain(0, Real(800.0), Real(4.0)*dx, Real(0.0));
   // y-independent fields on the interior faces, zero within m cells of the x and z ends
   struct Dof { int c, i, k; };
   std::vector<Dof> dofs;
@@ -749,13 +788,95 @@ TEST(TerrainStress, CurvedSlopeOperatorHasNoGrowingMode)
   Mat E = A;
   for (auto& x : E) { x *= t0; }
   E = expm(E, n);
-  double peak = 0.0, last = 0.0;
+  double peak = 0.0;
   for (int s = 0; s < 34; ++s) {
-    last = norm2(E, n);
-    ASSERT_TRUE(std::isfinite(last)) << "exp(A t) blew up at t = t0 * 2^" << s;
-    peak = std::max(peak, last);
+    const double nrm = norm2(E, n);
+    ASSERT_TRUE(std::isfinite(nrm)) << "exp(A t) blew up at t = t0 * 2^" << s;
+    peak = std::max(peak, nrm);
     E = matmul(E, E, n);
   }
+  double frob = 0.0;
+  for (double x : E) { frob += x*x; }
+  frob = std::sqrt(frob);
   EXPECT_LT(peak, 3.0) << "transient growth of exp(A t)";
-  EXPECT_LT(last, 1.e-3) << "exp(A t) does not decay";
+  EXPECT_LT(frob, 1.e-3) << "exp(A t) does not decay";
+}
+
+// Motivation (#4231 / #4239 reviews): each implicit stage removes implicit_fac times the
+// divergence of tau_corr (tau13i, tau23i from the stress kernels) at the old state and solves
+// the same flux back at the new one.  If the solver's face coefficient differs from the one in
+// tau_corr -- here, h_zeta averaged over the two cell columns instead of the edge value the
+// strain kernel uses -- the split changes the operator whatever the time step.  With the
+// correction taken from the kernels, one stage must therefore return the state unchanged, on
+// curved terrain that decays with height (h_zeta varies non-linearly along the column's
+// neighbours), with and without the terrain-metric term, with K_h, K_v and the map factors
+// varying from cell to cell, and with the column starting at the domain bottom or two cells up
+// (the coarse/fine bottom row).  The ext_dir wall and surface-layer rows are not covered: the
+// wall uses a different stencil on the two sides, and the surface layer prescribes the flux.
+TEST(TerrainStress, ImplicitSolveRemovesExactlyTheFluxItPutsBack)
+{
+  const Real two_pi = Real(2.0)*Real(3.14159265358979323846);
+  for (int dir = 0; dir < 2; ++dir) {
+   for (const int klo : {0, 2}) {
+    for (const bool metric : {false, true}) {
+      const int nx = (dir == 0) ? 12 : 4, ny = (dir == 0) ? 4 : 12, nz = 16;
+      const Real dx = Real(300.0), dz = Real(40.0);
+      TerrainStressCase c(nx, ny, nz, dx, dx, dz, Real(0.0), Real(0.0), Real(40.0), Real(2.0), Real(0.0));
+      c.init();
+      // z = zeta + h (1 - zeta/H), h a sine of eight cells along dir
+      c.set_curved_terrain(dir, Real(200.0), Real(8.0)*dx, Real(1.2)*Real(nz)*dz);
+      c.vary_kv_and_map_factors();
+      // the velocity along dir, varying along dir and in zeta, zero only next to the bottom and top
+      if (dir == 0) {
+        c.set_compact(two_pi/(Real(6.0)*dx), Real(0.0), two_pi/(Real(6.0)*dz), Real(1.0), Real(0.0), Real(0.0), Real(0.3), 1, false, false);
+      } else {
+        c.set_compact(Real(0.0), two_pi/(Real(6.0)*dx), two_pi/(Real(6.0)*dz), Real(0.0), Real(1.0), Real(0.0), Real(0.3), 1, false, false);
+      }
+      c.compute(false, metric);
+
+      FArrayBox cons(grow(c.valid, NG), 2);
+      cons.setVal<RunOn::Device>(Real(1.0));
+      IArrayBox col_kext(grow(c.valid, NG), 2);
+      col_kext.setVal<RunOn::Device>(klo, col_kext.box(), 0, 1);
+      col_kext.setVal<RunOn::Device>(nz-1, col_kext.box(), 1, 1);
+      const FArrayBox& vel = (dir == 0) ? c.u : c.v;
+      FArrayBox mom(vel.box(), 1);
+      mom.copy<RunOn::Device>(vel);
+      SolverChoice solver;
+      solver.diffChoice.molec_diff_type = MolecDiffType::None;
+      solver.diffChoice.dynamic_viscosity = Real(0.0);
+      solver.turbChoice.resize(1);
+      solver.turbChoice[0].use_kturb = true;
+      GpuArray<Real, AMREX_SPACEDIM> dxInv{Real(1.0)/dx, Real(1.0)/dx, Real(1.0)/dz};
+      const Box faces = (dir == 0) ? surroundingNodes(c.valid, 0) : surroundingNodes(c.valid, 1);
+      const Box col(faces.smallEnd(), faces.bigEnd());  // ImplicitDiffForMomLU_T indexes the faces
+      if (dir == 0) {
+        ImplicitDiffForMomLU_T<0>(col, c.domain, 0, double(300.0), col_kext.const_array(),
+                                  cons.const_array(), mom.array(), c.s13i.const_array(), c.s13i.const_array(),
+                                  c.z_nd.const_array(), c.detJ.const_array(), dxInv, c.mu_turb.const_array(),
+                                  solver, c.bcs.data(), false, Real(1.0), false,
+                                  c.mf.const_array(), c.mf.const_array(), metric);
+      } else {
+        ImplicitDiffForMomLU_T<1>(col, c.domain, 0, double(300.0), col_kext.const_array(),
+                                  cons.const_array(), mom.array(), c.s23i.const_array(), c.s23i.const_array(),
+                                  c.z_nd.const_array(), c.detJ.const_array(), dxInv, c.mu_turb.const_array(),
+                                  solver, c.bcs.data(), false, Real(1.0), false,
+                                  c.mf.const_array(), c.mf.const_array(), metric);
+      }
+      Gpu::streamSynchronize();
+      FArrayBox h0(vel.box(), 1, The_Pinned_Arena()), h1(vel.box(), 1, The_Pinned_Arena());
+      copy_to_host(vel, h0); copy_to_host(mom, h1);
+      const auto a0 = h0.const_array(), a1 = h1.const_array();
+      Real umax = Real(0.0), dmax = Real(0.0);
+      LoopOnCpu(faces, [&] (int i, int j, int k) {
+        if (k < klo) { return; }
+        umax = std::max(umax, std::abs(a0(i,j,k)));
+        dmax = std::max(dmax, std::abs(a1(i,j,k) - a0(i,j,k)));
+      });
+      ASSERT_GT(umax, Real(0.5));
+      EXPECT_LT(dmax, tol_for_scale(umax)) << "dir " << dir << " klo " << klo << " metric " << metric
+                                           << ": one implicit stage moved the state by " << dmax/umax;
+    }
+   }
+  }
 }

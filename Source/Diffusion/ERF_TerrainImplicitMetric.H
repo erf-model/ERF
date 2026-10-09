@@ -15,8 +15,9 @@
  * (face differences in zeta) is also put into the implicit vertical solve and
  * subtracted explicitly at the state the explicit terms see, so the stages
  * with an implicit solve treat the K_h * M * d2/dz2 stiffness implicitly.  The
- * explicit remainder (averaged minus compact) is small for smooth fields on a
- * uniform slope; at the grid scale it is the whole compact term with the
+ * factors are the exact du/dz (dphi/dz) content of the projected fluxes, so for
+ * smooth fields on a uniform slope the explicit remainder (averaged minus
+ * compact) is small; at the grid scale it is the whole compact term with the
  * opposite sign, cancelled within the stage by the implicit solve, which is why
  * every stage needs the solve (SolverChoice::check_params).
  *
@@ -26,8 +27,10 @@
 
 /**
  * Momentum: the zeta flux of u holds -0.5 * mu_h_tot * M_u * du/dz with
- * M_u = 2 (h_xi mx)^2 + (h_eta my)^2 (from h_xi S11 and h_eta S12); for v,
- * M_v = (h_xi mx)^2 + 2 (h_eta my)^2 (from h_xi S12 and h_eta S22).
+ * M_u = (4/3) (h_xi mx)^2 + (h_eta my)^2, from h_xi (S11 - er/3) and h_eta S12:
+ * S11 carries -h_xi mx du/dz, and the expansion rate er carries the same term
+ * through Omega, so the deviatoric S11 - er/3 carries -(2/3) h_xi mx du/dz.  For
+ * v, M_v = (h_xi mx)^2 + (4/3) (h_eta my)^2, from h_xi S12 and h_eta (S22 - er/3).
  *
  * @param[in] stagdir 0 for u, 1 for v
  */
@@ -39,8 +42,9 @@ TerrainMetricMomFactor (const int stagdir,
 {
     const amrex::Real ax = h_xi * mx;
     const amrex::Real ay = h_eta * my;
-    return (stagdir == 0) ? amrex::Real(2.0)*ax*ax + ay*ay
-                          : ax*ax + amrex::Real(2.0)*ay*ay;
+    const amrex::Real four_thirds = amrex::Real(4.0) / amrex::Real(3.0);
+    return (stagdir == 0) ? four_thirds*ax*ax + ay*ay
+                          : ax*ax + four_thirds*ay*ay;
 }
 
 /**

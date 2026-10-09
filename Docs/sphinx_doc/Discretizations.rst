@@ -633,7 +633,8 @@ another AMR flux register.
 
 For semi-implicit vertical diffusion, ERF first constructs the full spatial
 diffusion flux. The explicit/implicit split scales only the raw
-:math:`F_z^D` contribution. The terrain cross terms remain explicit, so the
+:math:`F_z^D` contribution. Unless ``erf.implicit_terrain_metric = true`` (see
+:ref:`terrain-momentum-stresses`), the terrain cross terms remain explicit, so the
 explicit transformed numerator is
 
 .. math::
@@ -641,6 +642,16 @@ explicit transformed numerator is
    G_{\zeta,\mathrm{explicit}} =
    (1-f_{\mathrm{implicit}})F_z^D
    -m_xh_\xi\overline{F_x^D}-m_yh_\eta\overline{F_y^D}.
+
+For momentum, each stage removes the implicit fraction of the correction stress
+(:math:`\tau_{13}^i`, :math:`\tau_{23}^i`) at the old state and solves the same flux back at
+the new one. On the faces inside the domain and at coarse/fine boundaries, the two use the same
+face coefficient and the same :math:`h_\zeta` (the edge value by which the strain kernel divides
+:math:`\partial u/\partial \zeta`). With different values the split would change the operator
+whatever the time step, wherever :math:`h_\zeta` varies non-linearly between neighbouring
+columns, as on curved terrain that decays with height. At a no-slip wall the correction stress
+uses a one-sided three-point :math:`\partial u/\partial z` and the solve the two-point wall
+difference, so the split is not exact there.
 
 Heat and moisture diagnostics continue to store the full raw vertical face
 flux independently of this integration fraction. This is an implementation
@@ -848,12 +859,13 @@ term is outside this argument: with :math:`\nu_h \ne \nu_v` the deviatoric stres
 dissipative even in the continuum.
 
 Where the slope varies, the transpose relation is no longer exact, and the operator need not
-dissipate energy. On steep curved terrain (:math:`h \Delta x/\Delta z \approx 20`, a sine of four
-cells' wavelength) an eigenvalue analysis of the assembled momentum operator found:
+dissipate energy. An eigenvalue analysis of the assembled momentum operator, without the
+expansion-rate term, on steep curved terrain (largest :math:`h \Delta x/\Delta z` about 25, a sine of
+four or eight cells' wavelength, in 2-D and 3-D) found:
 
-- with :math:`\nu_h/\nu_v \gtrsim 100`, directions that gain energy, i.e. a transient growth of at
-  most 1.9 in amplitude;
-- at every anisotropy tried, every eigenvalue with a negative real part, so no mode grows;
+- with :math:`\nu_h/\nu_v \gtrsim 100`, directions that gain energy; the largest transient growth
+  in the cases analysed was 1.9 in amplitude;
+- in every case, every eigenvalue with a negative real part, so no mode grows;
 - with the projected terms on :math:`\nu_v`, as before #4214, the same terrain had growing modes.
 
 ``TerrainStress.CurvedSlopeOperatorHasNoGrowingMode`` checks this on such terrain.
@@ -867,7 +879,8 @@ then the quadratic form
 :math:`\nu_h = 0`. Oblique short waves were then amplified at a rate that does not depend on the
 time step.
 
-Runs on a flat terrain-fitted mesh are unchanged bit for bit. On a sloped mesh the answers of runs
+Runs on a flat terrain-fitted mesh are unchanged (bit for bit in the regression suite). On a sloped
+mesh the answers of runs
 with :math:`\nu_h \ne \nu_v` change most:
 
 - ``erf.les_type = Smagorinsky2D``;
@@ -880,7 +893,9 @@ with :math:`\nu_h \ne \nu_v` change most:
 Runs with :math:`\nu_h = \nu_v` (isotropic Smagorinsky or Deardorff, the k-equation closures)
 change less, where the viscosity varies between neighbouring cells, because the average of
 :math:`\nu S` differs from the product of the averages. Runs with only a molecular viscosity
-(``ComputeStressConsVisc_T``) change only through the :math:`\partial u / \partial z` correction. The
+(``ComputeStressConsVisc_T``) change through the :math:`\partial u / \partial z` correction, and
+all three, with the implicit vertical solve on (the default), also through the exact implicit split
+described below, where :math:`h_\zeta` varies non-linearly between columns. The
 :math:`\partial u / \partial z` correction (also erf-model/ERF#4214) changes every run on a sloped
 mesh where :math:`\partial u / \partial z` varies along :math:`x` (or :math:`\partial v / \partial z`
 along :math:`y`), by what was a first-order error of about
@@ -891,9 +906,12 @@ closures.
 
 The projected horizontal stresses contain :math:`h_\xi\,\partial u/\partial z` and
 :math:`h_\eta\,\partial u/\partial z`, so the :math:`\zeta` flux of :math:`u` holds a vertical
-diffusion :math:`-K_h M_u\, \partial u / \partial z` with :math:`M_u = 2(h_\xi m_x)^2 + (h_\eta m_y)^2`
-(:math:`M_v = (h_\xi m_x)^2 + 2(h_\eta m_y)^2` for :math:`v`, and
-:math:`M = (h_\xi m_x)^2 + (h_\eta m_y)^2` for the scalars). The vertical implicit solve treats
+diffusion :math:`-K_h M_u\, \partial u / \partial z` with :math:`M_u = \tfrac{4}{3}(h_\xi m_x)^2 + (h_\eta m_y)^2`
+(:math:`M_v = (h_\xi m_x)^2 + \tfrac{4}{3}(h_\eta m_y)^2` for :math:`v`, and
+:math:`M = (h_\xi m_x)^2 + (h_\eta m_y)^2` for the scalars). The factor :math:`\tfrac{4}{3}`
+comes from the deviatoric :math:`S_{11} - \tfrac{1}{3}\nabla\cdot\mathbf{u}`: :math:`S_{11}` carries
+:math:`-h_\xi m_x\, \partial u/\partial z`, and the expansion rate carries the same term, so the
+deviator carries :math:`\tfrac{2}{3}` of it (this follows erf-model/ERF#4239). The vertical implicit solve treats
 only :math:`K_v`, so this term is explicit and limits the time step on steep slopes when
 :math:`K_h M \gg K_v`. With ``erf.implicit_terrain_metric = true`` its compact form
 :math:`K_h M (\phi_k - \phi_{k-1})/\Delta z` is added to the coefficients of the implicit solve on
@@ -905,6 +923,7 @@ the averaged form does not see a :math:`2\Delta z` wave, so there the explicit p
 compact term with the opposite sign, cancelled within the stage by the implicit solve. The option
 therefore needs the implicit solve in every Runge-Kutta stage (``erf.vert_implicit_fac`` positive in
 all three); in a stage without it the whole averaged metric term is explicit.
+
 The WRF-based alternative, ``erf.smag2d_slope_limiter`` (:ref:`inputs-smag2d-wrf-limits`),
 reduces :math:`K_h` on slopes instead of solving the term implicitly. With the option on, the
 diffusive time-step check (``erf.diffusive_dt_check``) counts the :math:`K_h` metric term with the

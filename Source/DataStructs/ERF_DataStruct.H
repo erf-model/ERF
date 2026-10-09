@@ -1919,6 +1919,28 @@ struct SolverChoice {
                                << "erf.implicit_momentum_diffusion = false: the momentum terrain-metric "
                                << "terms stay explicit; only the scalars are treated implicitly" << std::endl;
             }
+        } else if (mesh_type == MeshType::VariableDz) {
+            // On a terrain-fitted mesh the projected horizontal stresses carry K_h, and their
+            // terrain-metric part K_h h^2 d2/dz2 is explicit in any stage without the implicit
+            // solve.  On steep slopes that limits the time step (steep test ridge: 45 s before
+            // #4214 was fixed, 15 s after, at the default 1 1 0).  Say so once at start-up.
+            bool explicit_stage_with_kh = false;
+            for (int lev = 0; lev <= max_level; lev++) {
+                if (turbChoice[lev].les_type == LESType::None) { continue; }
+                for (int i = 0; i < 3; ++i) {
+                    if (vert_implicit_fac[lev][i] <= zero) { explicit_stage_with_kh = true; }
+                }
+            }
+            if (explicit_stage_with_kh) {
+                amrex::Print() << "NOTE: terrain-fitted mesh with an LES closure (horizontal eddy "
+                               << "viscosity K_h) and an explicit vertical-diffusion stage "
+                               << "(erf.vert_implicit_fac has a zero): the terrain-metric term "
+                               << "K_h h^2 d2/dz2 stays explicit there and limits the time step on "
+                               << "steep slopes.  To relax it, use erf.vert_implicit_fac = 1 1 1 with "
+                               << "erf.implicit_terrain_metric = true, or erf.smag2d_slope_limiter = true "
+                               << "for Smagorinsky2D; erf.diffusive_dt_check reports the limit."
+                               << std::endl;
+            }
         }
 
         // Countergradient validation: ensure required implicit diffusion is enabled

@@ -2821,14 +2821,15 @@ endif()
 # Steep ridge (h dx/dz about 20 in the first cells), 3 km grid, Smagorinsky2D + MRF.  With the
 # projected horizontal stresses on K_v, as before #4214, anelastic runs on this deck fail late
 # at every time step tried, from 5 s up: the anti-diffusion does not depend on dt.  With K_h on
-# them the anelastic MidPoint run is stable to 30 s and fails at 45 s.  The test runs 864 steps
-# of 25 s (6 h) and must stay bounded; measured with erf_exec (Release, 2 ranks), the K_v form
-# fails it at step 620 (and at step 517 at 30 s, where the K_v form with only the du/dz fix
-# fails at step 705).  Anelastic on a stretched terrain-fitted mesh needs the FFT preconditioner,
-# so CI's GitHub jobs (no FFT) do not run this test; the gtests cover the kernels there.
+# them and the implicit split exact (the u/v solves use the correction stress's h_zeta), the
+# anelastic MidPoint run is stable to 20 s and fails at 25 s (step 95).  The test runs 1440
+# steps of 15 s (6 h), a step below that edge, and must stay bounded; measured with erf_exec
+# (Release, 2 ranks), the K_v form fails it at step 1028.  Anelastic on a stretched
+# terrain-fitted mesh needs the FFT preconditioner, so CI's GitHub jobs (no FFT) do not run this
+# test; the gtests cover the kernels there.
 if(ERF_ENABLE_FFT)
-add_test_terrain_stress_ridge(TerrainStress_Ridge_AnelasticMidPoint survive "plt00864"
-    OPTIONS "erf.anelastic=1 erf.use_fft=true erf.anelastic_type=MidPoint erf.fixed_dt=25 max_step=864 erf.plot_int_1=864"
+add_test_terrain_stress_ridge(TerrainStress_Ridge_AnelasticMidPoint survive "plt01440"
+    OPTIONS "erf.anelastic=1 erf.use_fft=true erf.anelastic_type=MidPoint erf.fixed_dt=15 max_step=1440 erf.plot_int_1=1440"
     WMAX 5
     RUN_TIMEOUT 1800)
 endif()
@@ -2843,8 +2844,9 @@ add_test_terrain_stress_ridge(TerrainStress_Ridge_ImplicitMetric survive "plt000
     OPTIONS "erf.implicit_terrain_metric=true erf.vert_implicit_fac=1 1 1 erf.fixed_dt=50 erf.fixed_mri_dt_ratio=30 max_step=60 erf.plot_int_1=60"
     CONTROL_OPTIONS "erf.vert_implicit_fac=1 1 1 erf.fixed_dt=50 erf.fixed_mri_dt_ratio=30 max_step=60 erf.plot_int_1=60"
     WMAX 15)
-# A 3-D Witch-of-Agnesi hill (prob.dir = 2, slopes in x and y), 32 x 32 cells in two boxes of 16 in
-# y, so the stress loop runs on several tiles in y (TileNoZ, 8 cells on CPU).  It exercises the
+# A 3-D Witch-of-Agnesi hill (prob.dir = 2, slopes in x and y), 32 x 32 cells in four 16 x 16 boxes,
+# so the stress loop runs on two tiles in y per box (TileNoZ tiles y by 8 on CPU; x is not tiled,
+# so the x seam is covered by TerrainStress.TiledStressesMatchTheWholeBox only).  It exercises the
 # S12/S21 projections, which the 2-D ridges leave at zero, and the K_h-weighted stress temporaries
 # across tile edges.  With them sized on the nodal tile box the reads went past the arrays: a Debug
 # build aborts on the bound check, while a Release run depends on stale memory (it failed at step 12
@@ -2855,7 +2857,7 @@ add_test_terrain_stress_ridge(TerrainStress_Hill3D survive "plt00060"
     OPTIONS "geometry.prob_extent=96000 96000 12952.825935499923 amr.n_cell=32 32 40 amr.max_grid_size_y=16 prob.dir=2 erf.fixed_dt=20 erf.fixed_mri_dt_ratio=12 max_step=60 erf.plot_int_1=60"
     WMAX 5)
 # At a small time step the option changes only the time discretization of the metric term: after
-# 60 steps of 5 s, u and w differ by about 5e-4 and Kmh by 0.6 % (relative), and the two runs
+# 60 steps of 5 s, u and w differ by about 4e-4 and Kmh by 0.1 % (relative), and the two runs
 # must still differ.  A split that removed one form and added another would differ by O(1).
 # Double precision only: y_velocity is round-off (1e-13 here), which in single precision is far
 # above ATOL in both runs and would make the comparison meaningless.
