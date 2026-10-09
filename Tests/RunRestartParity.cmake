@@ -3,6 +3,8 @@
 # at STEP_END to equal the straight run's with fcompare. Each leg uses the forwarded
 # RUN_TIMEOUT, and the enclosing CTest timeout is sized separately by the caller.
 # COMMON_OPTIONS goes to all three legs; RESTART_OPTIONS goes to the restart leg only.
+# CHK_NRANKS/RESTART_NRANKS let the checkpoint and restart legs run at different widths;
+# REQUIRE_LEVEL0_REMAKE asserts the restart really did re-make the level-0 grids.
 # -DX= defines X as empty, so test for a value, not for DEFINED
 include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/ResolveExecutable.cmake")
@@ -63,10 +65,35 @@ endforeach()
 # MPIEXEC may be a multi-word command such as "flux run"; the helper splits
 # it, validates the program and applies MPIEXEC_PREFLAGS. An empty MPIEXEC
 # yields an empty prefix, so the runs stay serial.
+#
+# The checkpoint leg may run on a different number of ranks from the restart, which is its
+# own code path: ERF::restart re-makes the level-0 grids by itself when the checkpoint has
+# fewer level-0 boxes than there are ranks, so a run continued on more ranks than it was
+# written with takes the regrid branch without anyone asking for it. Default both to NRANKS
+# so every existing caller is unchanged.
+#
+# The STRAIGHT leg runs at the restart's rank count, not the checkpoint's, so that it and the
+# restart share a decomposition and the comparison isolates the restart itself.
+#
+set(_chk_nranks "${NRANKS}")
+set(_restart_nranks "${NRANKS}")
+if(NOT "${CHK_NRANKS}" STREQUAL "")
+    set(_chk_nranks "${CHK_NRANKS}")
+endif()
+if(NOT "${RESTART_NRANKS}" STREQUAL "")
+    set(_restart_nranks "${RESTART_NRANKS}")
+endif()
+
+erf_mpi_launcher_command(launch_chk
+    LAUNCHER "${MPIEXEC}"
+    NUMPROC_FLAG "${MPIEXEC_NUMPROC_FLAG}"
+    NRANKS ${_chk_nranks}
+    PREFLAGS "${MPIEXEC_PREFLAGS}"
+    CONTEXT "RunRestartParity.cmake")
 erf_mpi_launcher_command(launch
     LAUNCHER "${MPIEXEC}"
     NUMPROC_FLAG "${MPIEXEC_NUMPROC_FLAG}"
-    NRANKS ${NRANKS}
+    NRANKS ${_restart_nranks}
     PREFLAGS "${MPIEXEC_PREFLAGS}"
     CONTEXT "RunRestartParity.cmake")
 erf_mpi_launcher_command(launch_one
@@ -89,9 +116,9 @@ padded(${STEP_END} end_step)
 set(PLTFILE "plt${end_step}")
 set(CHKFILE "chk${chk_step}")
 
-function(run_erf dir log timeout_s)
+function(run_erf_with launcher dir log timeout_s)
     execute_process(
-        COMMAND ${launch} ${TEST_EXE} ${INPUT} ${common_options} ${ARGN}
+        COMMAND ${launcher} ${TEST_EXE} ${INPUT} ${common_options} ${ARGN}
         WORKING_DIRECTORY "${dir}"
         OUTPUT_FILE "${dir}/${log}"
         ERROR_FILE "${dir}/${log}"
@@ -114,20 +141,37 @@ if(NOT "${PLT2DFILE}" STREQUAL "")
 endif()
 
 # straight to the end, no checkpoint
-run_erf("${STRAIGHT_DIR}" "simulation.log" ${RUN_TIMEOUT}
+run_erf_with("${launch}" "${STRAIGHT_DIR}" "simulation.log" ${RUN_TIMEOUT}
         "max_step=${STEP_END}" "erf.check_int=-1" "erf.plot_int_1=${STEP_END}"
         ${plot2d_end})
 # to the checkpoint step, writing it there
-run_erf("${RESTART_DIR}" "checkpoint.log" ${RUN_TIMEOUT}
+run_erf_with("${launch_chk}" "${RESTART_DIR}" "checkpoint.log" ${RUN_TIMEOUT}
         "max_step=${STEP_CHK}" "erf.check_int=${STEP_CHK}" "erf.plot_int_1=-1"
         ${plot2d_off})
 if(NOT EXISTS "${RESTART_DIR}/${CHKFILE}/Header")
     message(FATAL_ERROR "RunRestartParity.cmake: no ${CHKFILE} written by the checkpoint run")
 endif()
 # from the checkpoint to the end
-run_erf("${RESTART_DIR}" "restart.log" ${RUN_TIMEOUT}
+run_erf_with("${launch}" "${RESTART_DIR}" "restart.log" ${RUN_TIMEOUT}
         "erf.restart=${CHKFILE}" "max_step=${STEP_END}" "erf.check_int=-1" "erf.plot_int_1=${STEP_END}"
         ${plot2d_end} ${restart_options})
+
+#
+# A regrid test that silently stops regridding still passes, because it then compares an
+# ordinary restart against the straight run and those agree trivially. Require the evidence
+# in the log, so the test keeps testing what its name says. ERF prints this from
+# RemakeLevel under erf.v = 1, which the decks using this option set.
+#
+if(REQUIRE_LEVEL0_REMAKE)
+    file(READ "${RESTART_DIR}/restart.log" _restart_output)
+    if(NOT _restart_output MATCHES "REMAKING WITH NEW BA AT LEVEL 0")
+        message(FATAL_ERROR
+            "RunRestartParity.cmake: the restart leg was expected to re-make the level-0 "
+            "grids, but its log does not say it did. Either the deck no longer reaches that "
+            "branch -- in which case this test is no longer testing a regrid -- or erf.v is "
+            "not 1 and the line was never printed (see restart.log)")
+    endif()
+endif()
 
 foreach(dir "${STRAIGHT_DIR}" "${RESTART_DIR}")
     if(NOT EXISTS "${dir}/${PLTFILE}/Header")
