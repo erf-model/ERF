@@ -206,25 +206,7 @@ while the following tests are run nightly:
 | ScalarAdvecDiffDoubleDen      | 32 32 32    | Periodic | Periodic | SlipWall   | None  | Density = 2                     |
 |                               |             |          |          | SlipWall   |       |                                 |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| ScalarAdvDiffInflowOutflow    | 32 32 32    | Inflow   | Periodic | SlipWall   | None  |                                 |
-|                               |             | Outflow  |          | SlipWall   |       |                                 |
-+-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
 | ScalarAdvecDiffUniformU       | 32 32 32    | Periodic | Periodic | SlipWall   | None  |                                 |
-|                               |             |          |          | SlipWall   |       |                                 |
-+-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| ScalarAdvecUniformU           | 64 64  4    | Periodic | Periodic | SlipWall   | None  |                                 |
-|                               |             |          |          | SlipWall   |       |                                 |
-+-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| ScalarAdvecShearedU           | 64  4 64    | Periodic | Periodic | SlipWall   | None  |                                 |
-|                               |             |          |          | SlipWall   |       |                                 |
-+-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| ScalarAdvecUniformU           | 64 64  4    | Periodic | Periodic | SlipWall   | None  |                                 |
-|                               |             |          |          | SlipWall   |       |                                 |
-+-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| ScalarDiffusion               | 64 64 64    | Periodic | Periodic | SlipWall   | None  |                                 |
-|                               |             |          |          | SlipWall   |       |                                 |
-+-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| ScalarDiffusionSine           | 64 64 4     | Periodic | Periodic | SlipWall   | None  |                                 |
 |                               |             |          |          | SlipWall   |       |                                 |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
 | TaylorGreenAdvecting          | 64 64 64    | Periodic | Periodic | SlipWall   | None  |                                 |
@@ -239,14 +221,23 @@ while the following tests are run nightly:
 | TurbulentInflow_anelastic     | 64 16 32    | Inflow   | Periodic | SurfLay    | None  | LES                             |
 |                               |             | Outflow  |          | SlipWall   |       |                                 |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| WPS_Test_Terrain              | 200 200 176 | wrfbdy   | wrfbdy   | NoSlipWall | None  | init from                       |
-|                               |             | wrfbdy   | wrfbdy   | SlipWall   |       | wrfinput                        |
+| WPS_Test                      | 200 200 176 | wrfbdy   | wrfbdy   | NoSlipWall | None  | init from wrfinput              |
+|                               |             | wrfbdy   | wrfbdy   | SlipWall   |       |                                 |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| WPS_Test_Terrain-OMP          | 200 200 176 | wrfbdy   | wrfbdy   | NoSlipWall | None  | init from                       |
-|                               |             | wrfbdy   | wrfbdy   | SlipWall   |       | wrfinput                        |
+| WPS_Test-OMP                  | 200 200 176 | wrfbdy   | wrfbdy   | NoSlipWall | None  | init from wrfinput              |
+|                               |             | wrfbdy   | wrfbdy   | SlipWall   |       |                                 |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
-| WPS_Test_restart              | 200 200 176 | wrfbdy   | wrfbdy   | NoSlipWall | None  | init from                       |
-|                               |             | wrfbdy   | wrfbdy   | SlipWall   |       | wrfinput                        |
+| WPS_Test_restart              | 200 200 176 | wrfbdy   | wrfbdy   | NoSlipWall | None  | init from wrfinput              |
+|                               |             | wrfbdy   | wrfbdy   | SlipWall   |       |                                 |
++-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
+| WPS_Test-RRTMGP+NOAHMP        | 100 100  79 | wrfbdy   | wrfbdy   | NoSlipWall | None  | init from wrfinput              |
+|                               |             | wrfbdy   | wrfbdy   | SlipWall   |       | uses RRTMGP+NOAHMP              |
++-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
+| WPS_Test-RRTMGP+SLM           | 100 100  79 | wrfbdy   | wrfbdy   | NoSlipWall | None  | init from wrfinput              |
+|                               |             | wrfbdy   | wrfbdy   | SlipWall   |       | uses RRTMGP+SLM                 |
++-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
+| WPS_Test-ML_Interp            | 100 100  79 | wrfbdy   | wrfbdy   | NoSlipWall | None  | init from wrfinput;             |
+|                               |             | wrfbdy   | wrfbdy   | SlipWall   |       | max_level=1                     |
 +-------------------------------+-------------+----------+----------+------------+-------+---------------------------------+
 
 More details about the CI tests are given below.
