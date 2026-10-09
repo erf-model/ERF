@@ -624,6 +624,16 @@ Notes
    **amr.refine_grid_layout_x/_y/_z**; if a per-direction flag is also
    specified it takes precedence in that direction
 
+-  **erf.regrid_level_0_on_restart** re-makes the level-0 grids after the
+   checkpoint has been read.  The same thing happens automatically, without the
+   flag, when the restart runs on more ranks than level 0 has boxes in the
+   checkpoint -- that is, when a run is continued on more ranks than it was
+   written with.  Re-making the level rebuilds it from the same code a fresh
+   start uses, which knows nothing about the checkpoint, so state that only the
+   checkpoint carries would be lost.  ERF stops in that case and names what
+   would have been lost; restart on the number of ranks the checkpoint was
+   written with to keep the level-0 grids as they were.
+
 .. _examples-of-usage-4:
 
 Examples of Usage
@@ -1236,7 +1246,7 @@ List of Parameters
 | **amr.v**                  | verbosity of     | 0 or 1         | 0              |
 |                            | Amr.cpp          |                |                |
 +----------------------------+------------------+----------------+----------------+
-| **erf.v**                  | verbosity of     | 0 or 1         | 0              |
+| **erf.v**                  | verbosity of     | 0, 1 or 2      | 0              |
 |                            | ERF.cpp          |                |                |
 +----------------------------+------------------+----------------+----------------+
 | **erf.sum_interval**       | if               |                |                |
@@ -2042,8 +2052,11 @@ List of Parameters
 |                                        | Forced to true if any level has ``substepping_type`` =   |                    |                  |
 |                                        | ``None``                                                 |                    |                  |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.thermal_stratification**         | which potential temperature the subgrid model uses to    | theta, thetav,     | theta            |
-|                                        | quantify thermal stratification (per-level)              | thetal             |                  |
+| **erf.thermal_stratification**         | which potential temperature the subgrid model uses to    | theta, thetav,     | theta (LES),     |
+|                                        | quantify thermal stratification (per-level). Applies to  | thetal             | thetav (PBL)     |
+|                                        | both the LES closures and the PBL schemes. When it is    |                    |                  |
+|                                        | not set, the LES closures use theta and the PBL schemes  |                    |                  |
+|                                        | use thetav, which is what each has always used.          |                    |                  |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.mix_isotropic**                  | use an isotropic mixing length (per-level);              | Boolean            | true             |
 |                                        | automatically turned off for 2-D Smagorinsky             |                    |                  |
@@ -2245,6 +2258,20 @@ List of Parameters
 | **erf.pbl_mynn_C5**                      | MYNN Constant C5                                         | Real               | 0.2              |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_mynn_SQfactor**                | MYNN ratio of stability functions SQ / SM                | Real               | 3.0              |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mynn_config**                  | Which MYNN variant to use.  NN09 sets Lt_alpha = 0.23    | NN09, Chen2021     | NN09             |
+|                                          | and forms the master length scale as a 1/l sum;          |                    |                  |
+|                                          | Chen2021 sets Lt_alpha = 0.10 and uses a 1/l^2 sum.      |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mynn_Lt_alpha**                | Coefficient on the ABL-depth length scale,               | Real               | from             |
+|                                          | l_T = Lt_alpha <zq>/<q> (NN09 Eqn. 54).  Defaults from   |                    | pbl_mynn_config  |
+|                                          | pbl_mynn_config and may be overridden on its own.        |                    |                  |
+|                                          | Mellor-Yamada 1982 uses 0.1.                             |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mynn_Lt_taper_exp**            | Exponent n in the optional boundary-layer-depth taper    | Real               | 0.0              |
+|                                          | of the ABL length scale, l_T -> l_T (1 - z/h)^n. Zero    |                    |                  |
+|                                          | disables the taper. Requires erf.most.pblh_calc to be    |                    |                  |
+|                                          | set, since it needs a diagnosed PBL height h.            |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.advect_QKE**                       | Include advection terms in QKE eqn                       | Boolean            | true             |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+

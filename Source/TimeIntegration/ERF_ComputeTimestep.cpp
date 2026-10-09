@@ -12,6 +12,7 @@
 #include "AuxiliaryState/ERF_AuxiliaryMappedTransport.H"
 #include "Microphysics/SBM/ERF_SBMTransport.H"
 
+#include <cmath>
 #include <limits>
 #include <sstream>
 
@@ -929,8 +930,44 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
              }
          } else if (fixed_dt[level] > zero) {
              // Max CFL_c = one for substeps by default, but we enforce a min of 4 substeps
-         auto dt_sub_max = (estdt_comp_T * (third/cfl) * sub_cfl);
-             dt_fast_ratio = static_cast<long>( std::max(fixed_dt[level]/static_cast<double>(dt_sub_max), 4.0) );
+             const double dt_sub_max = static_cast<double>(estdt_comp_T * (third/cfl) * sub_cfl);
+             //
+             // Check dt_sub_max BEFORE dividing by it, and the quotient before casting it.
+             // Converting a non-finite or wildly out-of-range double to long is undefined
+             // behaviour and in practice traps, and the division itself raises on a zero
+             // denominator under erf's FPE trapping.  A level handed corrupted state
+             // arrives here with an enormous sound speed, hence a vanishing estdt_comp_T
+             // and a vanishing dt_sub_max; without this the first symptom is a bare signal
+             // inside the time-step estimate rather than a message naming the cause.
+             //
+             auto bad_substep_ratio = [&] (const char* what, double value)
+             {
+                 std::ostringstream message;
+                 message.precision(17);
+                 message << "estTimeStep: cannot form the acoustic substep ratio at level "
+                         << level << ": " << what << " = " << value
+                         << " (fixed_dt=" << fixed_dt[level]
+                         << ", estdt_comp_T=" << estdt_comp_T
+                         << ", cfl=" << cfl << ", substepping_cfl=" << sub_cfl << ")."
+                         << " The compressible time-step estimate came back zero or"
+                            " non-finite, so the state this level was handed is not usable.";
+                 Abort(message.str());
+             };
+
+             //
+             // +inf is deliberately allowed through: an SCM level and a globally empty
+             // level both report an unconstrained acoustic dt on purpose, the quotient
+             // below is then zero, and the ratio correctly floors at the minimum of 4.
+             // Only a zero, negative or NaN denominator is a real failure.
+             //
+             if (std::isnan(dt_sub_max) || (dt_sub_max <= 0.0)) {
+                 bad_substep_ratio("dt_sub_max", dt_sub_max);
+             }
+             const double sub_ratio = std::max(fixed_dt[level]/dt_sub_max, 4.0);
+             if (!std::isfinite(sub_ratio) || (sub_ratio > 1.0e9)) {
+                 bad_substep_ratio("mri_dt_ratio", sub_ratio);
+             }
+             dt_fast_ratio = static_cast<long>( sub_ratio );
          } else {
              // auto dt_sub_max = (estdt_comp_T/cfl * sub_cfl);
              // dt_fast_ratio = static_cast<long>( std::max(estdt_comp_T/dt_sub_max,Real(4.)) );

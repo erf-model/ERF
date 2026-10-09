@@ -1029,6 +1029,14 @@ public:
 
     // One-shot latch so a misconfigured deck says so once rather than every step.
     bool m_warned_coupled_sst_declined = false;
+    // The coupled-SST diagnostics run on the first ApplyOceanSurfaceState call,
+    // then only at erf.v >= 2.
+    bool m_checked_coupled_sst = false;
+    // Out-of-range report: the worst extremes and NaN count already reported;
+    // at erf.v >= 2 it repeats only when a later call is worse. Start at the bounds.
+    amrex::Real m_warned_coupled_sst_min = amrex::Real(260.0);
+    amrex::Real m_warned_coupled_sst_max = amrex::Real(320.0);
+    amrex::Long m_warned_coupled_sst_nan = 0;
 
 private:
 
@@ -1634,6 +1642,46 @@ private:
     // Should we regrid level 0 after restart if Ngrids < Nprocs or
     //    max_grid_size has changed?
     bool regrid_level_0_on_restart = false;
+
+    //
+    // The grids each level's checkpoint was written on, and whether level 0's grids actually
+    // moved when it was read. ReadCheckpointFile decides the level-0 grids before it builds
+    // the levels, so every field is read on the grids in the file and redistributed onto the
+    // grids the run will use; these carry the former. Empty away from a restart.
+    //
+    amrex::Vector<amrex::BoxArray>            ba_chkfile;
+    amrex::Vector<amrex::DistributionMapping> dm_chkfile;
+    bool regrid_level_0_on_restart_in_effect = false;
+
+    //
+    // Read one checkpoint MultiFab and deposit it into dst, which may live on different grids.
+    //
+    // The source is read into an undefined MultiFab, which VisMF::Read then defines on the
+    // BoxArray recorded in the file, so no caller needs to know the checkpoint's grids. Only
+    // the VALID cells of the source are offered by default: a file's ghost cells are not
+    // guaranteed to agree with its valid data, and ParallelCopy intersects the grown source
+    // with the grown destination without any ordering guarantee between overlapping sources,
+    // so offering them can land stale values in valid cells (issue 4225). Pass
+    // src_ghosts = true only for a field whose halo the checkpoint carries deliberately and
+    // whose exterior halo cannot be rebuilt -- the terrain heights are the case that needs it.
+    //
+    void read_checkpoint_mf (amrex::MultiFab& dst,
+                             const std::string& mf_name,
+                             int lev,
+                             int scomp, int dcomp, int ncomp,
+                             const amrex::IntVect& dst_ghosts,
+                             bool src_ghosts = false);
+
+    //
+    // As above, returning false instead of aborting when the file is not there, for fields a
+    // older checkpoint may not carry.
+    //
+    bool read_checkpoint_mf_if_present (amrex::MultiFab& dst,
+                                        const std::string& mf_name,
+                                        int lev,
+                                        int scomp, int dcomp, int ncomp,
+                                        const amrex::IntVect& dst_ghosts,
+                                        bool src_ghosts = false);
 
     // plotfile prefix and frequency
     std::string plot3d_file_1 {"plt_1_"};

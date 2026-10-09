@@ -1,12 +1,39 @@
-max_step = 50000
+# ===========================================================================
+# ERF-only (uncoupled) configuration for the idealized coastal upwelling
+# problem of Perlin, Skyllingstad, Samelson & Barbour, JPO 37, 2081 (2007),
+# hereafter P07.  This reproduces their *uncoupled* control, in which the sea
+# surface temperature seen by the atmosphere is held fixed, and is the case
+# the ERF+REMORA validation section compares against.
+#
+# Run:   mpiexec -n <N> ERF3d.<...>.ex inputs_oneway
+#
+# Everything needed is set here; no command-line overrides are required.
+# See README.md in this directory for the analysis scripts.
+#
+# The problem has no variation in x or y, so the solution is one-dimensional
+# in z.  A 4 x 4 column reproduces the full-width answer to seven significant
+# figures and runs in a few minutes, which is useful for parameter studies:
+#     ... inputs_oneway erf.n_cell="4 4 48" erf.prob_hi="4000 4000 9000."
+# ===========================================================================
+
+# 72 h at dt = 3 s.  NOTE: dt was 6 s in an earlier version of this file; the
+# published comparison was run at 3 s and the sensitivity to dt has not been
+# tested.
+max_step = 86400
 
 # PROBLEM PARAMETERS (optional)
-erf.prob_name        = WPS
+# Perlin07 gives the same initial TKE profile as the WPS problem and, unlike
+# it, dispatches the uniform rhotheta tendency used for the radiative cooling
+# below.
+erf.prob_name        = Perlin07
 prob.KE_0            = 0.4 # [m2/s2]
 prob.KE_decay_height = 250. # [m]
 prob.KE_decay_order  = 3
 
 # PROBLEM SIZE & GEOMETRY
+# P07 use 50 km x 20 km at 1 km resolution.  The alongshore extent is reduced
+# here because the uncoupled problem is alongshore-uniform; use the commented
+# line to match the paper exactly.
 erf.prob_lo          = 0.0 0.0 0.0
 #erf.prob_hi          = 50000 20000 9000.
 #erf.n_cell           = 50    20   48
@@ -30,18 +57,30 @@ zhi.type = "SlipWall"
 zlo.type = "surface_layer"
 erf.surface_layer.flux_type = "bulk_coeff"
 
+# Constant exchange coefficients.  P07 instead use the stability-dependent
+# scheme of Louis (1979); with the values below our surface stress at 72 h is
+# 0.19 N/m2 against their 0.14, and the mixed layer ends ~0.5 K warmer than
+# theirs.  Lowering Ch to 6e-4 halves that warm bias but shallows the boundary
+# layer and degrades the eddy-viscosity comparison, so the values below are
+# retained.  See the validation section of the ERF+REMORA paper.
 erf.most.Cd  = 0.0014 # ustar
 erf.most.Ch  = 0.0012 # theta flux
 erf.most.Cq  = 0.0012 # qv    flux
 
+# NOTE: with erf.is_land = 0 the surface mixing ratio is overwritten every step
+# with the saturation value at the sea surface temperature, so most.surf_moist
+# is the land default only and has no effect here.
 erf.most.surf_temp  = 287.15
 erf.most.surf_moist = .00802
 erf.most.z0         = 0.1
 erf.most.zref       = 10.0
 
+# The MYNN length-scale taper below needs a diagnosed boundary layer height.
+erf.most.pblh_calc  = MYNN25
+
 # TIME STEP CONTROL
 erf.substepping_type   = Implicit
-erf.fixed_dt           = 6.0
+erf.fixed_dt           = 3.0
 erf.fixed_mri_dt_ratio = 6
 
 # DIAGNOSTICS & VERBOSITY
@@ -53,9 +92,11 @@ amr.v              = 1       # verbosity in Amr.cpp
 amr.max_level       = 0       # maximum level number allowed
 
 # PLOTFILES
+# NOTE: "Kmv"/"Khv" are stored as rho*K (kg/m/s); "nut" is the eddy viscosity
+# in m2/s.  Compare "nut" against Fig. 8a of P07, not "Kmv".
 erf.plot_file_1     = plt
-erf.plot_int_1      = 2000
-erf.plot_vars_1     = density x_velocity y_velocity z_velocity pressure temp theta pres_hse z_phys Kmv Khv KE qv
+erf.plot_int_1      = 14400
+erf.plot_vars_1     = density x_velocity y_velocity z_velocity temp theta KE pressure z_phys nut Kmv Khv Lturb pblh qv
 
 # SOLVER CHOICE
 erf.dycore_horiz_adv_type    = Upwind_3rd
@@ -71,9 +112,36 @@ erf.les_type          = None
 erf.molec_diff_type   = None
 erf.pbl_type          = MYNN25
 
+# --- Turbulence closure -----------------------------------------------------
+# Three departures from ERF's MYNN defaults, all needed to reproduce P07.
+#
+# 1. Mellor-Yamada (1982) closure constants rather than Nakanishi-Niino.  This
+#    is the set COAMPS uses: its dissipation is a*e^(3/2)/l with a = 0.17,
+#    equivalent to B1 = 16.6.  C2/C3/C5 are NN09 extensions and are zeroed so
+#    the stability functions reduce to the MY82 form.
+erf.pbl_mynn_A1 = 0.92
+erf.pbl_mynn_A2 = 0.74
+erf.pbl_mynn_B1 = 16.6
+erf.pbl_mynn_B2 = 10.1
+erf.pbl_mynn_C1 = 0.08
+erf.pbl_mynn_C2 = 0.0
+erf.pbl_mynn_C3 = 0.0
+erf.pbl_mynn_C5 = 0.0
+
+# 2. The MY82 coefficient on the ABL-depth length scale l_T, rather than the
+#    Nakanishi-Niino value of 0.23.
+erf.pbl_mynn_Lt_alpha = 0.10
+
+# 3. A boundary-layer-depth taper, l_T -> l_T (1 - z/h)^n.  Without it the
+#    master length scale saturates and stays flat to the inversion, giving a
+#    flat-topped eddy viscosity; P07's falls steeply above ~150 m.  n = 1.35
+#    was calibrated against their Fig. 8a and is not independently derived.
+erf.pbl_mynn_Lt_taper_exp = 1.35
+
 erf.use_coriolis = true
 erf.coriolis_3d = false
 erf.abl_driver_type = "GeostrophicWind"
+# P07 do not state the latitude; the Oregon coast is 43-46 N.
 erf.latitude = 42
 erf.abl_geo_wind = 0.0 -15.0 0.0
 erf.rotational_time_period = 86164.0900027328
@@ -87,9 +155,20 @@ erf.rayleigh_damp_V = true
 erf.rayleigh_damp_W = true
 erf.rayleigh_damp_T = true
 
+# --- Radiative cooling ------------------------------------------------------
+# P07 add a uniform 1 C/day cooling everywhere to stand in for the large-scale
+# subsidence and advection their idealized domain omits.  Without it the mixed
+# layer equilibrates with the fixed sea surface temperature and the surface
+# fluxes shut down.  -1.1574074074e-5 K/s = -1 K/day.
+erf.add_custom_rhotheta_forcing      = true
+erf.custom_forcing_uses_primitive_vars = true
+prob.advection_heating_rate          = -1.1574074074e-5
+
 erf.terrain_type = None
 erf.terrain_z_levels = 0.000000 20.000000 40.599936 61.817805 83.672143 106.182041 129.367164 153.247767 177.844712 203.179487 229.274225 256.151722 283.835459 312.349619 341.719113 371.969599 403.127503 435.220045 468.275261 502.322028 537.390090 573.510082 610.713559 649.033022 688.501947 729.154814 771.027137 814.155497 858.577570 904.332165 951.459251 1000.000000 1048.540749 1108.961213 1184.168798 1277.782458 1394.306840 1539.349044 1719.888436 1944.612489 2224.334823 2572.515549 3005.908967 3545.369770 4216.856567 5052.680999 6093.062558 7388.063932 9000.000000
 
+# Water vapour is carried and supplies a surface latent heat flux, but cloud
+# and rain formation are suppressed, as in P07.
 erf.moisture_model = MoistNoCondensation
 erf.is_land        = 0
 

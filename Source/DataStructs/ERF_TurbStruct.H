@@ -185,6 +185,21 @@ public:
       }
 
       if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
+        query_one_or_per_level(
+          pp, "pbl_mynn_Lt_taper_exp", pbl_mynn.Lt_taper_exp, lev, max_level);
+        if (pbl_mynn.Lt_taper_exp < 0) {
+            amrex::Error("erf.pbl_mynn_Lt_taper_exp must be >= 0 "
+                         "(0 disables the taper)");
+        }
+        // NN09 (the default) uses Lt_alpha = 0.23 and a 1/l sum for the master
+        // length scale; Chen2021 uses Lt_alpha = 0.10 and a 1/l^2 sum.
+        query_one_or_per_level_enum_case_insensitive(
+          pp, "pbl_mynn_config", pbl_mynn.config, lev, max_level);
+        // l_T = Lt_alpha*<zq>/<q> follows the config unless set explicitly.
+        pbl_mynn.Lt_alpha = (pbl_mynn.config == MYNNConfigType::Chen2021)
+                              ? amrex::Real(0.1) : amrex::Real(0.23);
+        query_one_or_per_level(
+          pp, "pbl_mynn_Lt_alpha", pbl_mynn.Lt_alpha, lev, max_level);
         query_one_or_per_level(pp, "pbl_mynn_A1", pbl_mynn.A1, lev, max_level);
         query_one_or_per_level(pp, "pbl_mynn_A2", pbl_mynn.A2, lev, max_level);
         query_one_or_per_level(pp, "pbl_mynn_B1", pbl_mynn.B1, lev, max_level);
@@ -403,7 +418,17 @@ public:
     }
 
     // To quantify atmospheric stability for subgrid modeling
+    const bool strat_type_set = (pp.countval("thermal_stratification") > 0);
     query_one_or_per_level(pp, "thermal_stratification", strat_type, lev, max_level);
+    // The PBL schemes have always used theta_v for their buoyancy gradient,
+    // which is the physically right choice there.  Honour an explicit
+    // erf.thermal_stratification everywhere, but when the user has not set it
+    // keep the historical split: theta for the LES closures, theta_v for the
+    // PBL ones.  That way the knob reaches the PBL schemes without silently
+    // changing any existing moist answer.
+    pbl_strat_type = strat_type_set ? strat_type : StratType::thetav;
+    amrex::Print() << "PBL thermal stratification variable: "
+                   << amrex::getEnumNameString(pbl_strat_type) << std::endl;
     if (strat_type == StratType::theta) {
         amrex::Print() << "Thermal stratification based on gradient of potential temperature" << std::endl;
     } else if (strat_type == StratType::thetav) {
@@ -630,6 +655,11 @@ public:
     }
 
     if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
+      amrex::Print() << "    pbl_mynn_Lt_taper_exp : "
+                     << pbl_mynn.Lt_taper_exp << std::endl;
+      amrex::Print() << "    pbl_mynn_config : "
+                     << amrex::getEnumNameString(pbl_mynn.config) << std::endl;
+      amrex::Print() << "    pbl_mynn_Lt_alpha : " << pbl_mynn.Lt_alpha << std::endl;
       amrex::Print() << "    pbl_mynn_A1 : " << pbl_mynn.A1 << std::endl;
       amrex::Print() << "    pbl_mynn_A2 : " << pbl_mynn.A2 << std::endl;
       amrex::Print() << "    pbl_mynn_B1 : " << pbl_mynn.B1 << std::endl;
@@ -785,6 +815,8 @@ public:
   amrex::Real theta_ref = zero;
   // - how to quantify stratification effects
   StratType strat_type = StratType::theta;
+  // Stratification variable used by the PBL schemes; see init_params.
+  StratType pbl_strat_type = StratType::thetav;
 
   // Anisotropic length scales
   bool mix_isotropic = true;
