@@ -185,6 +185,12 @@ public:
       }
 
       if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
+        query_one_or_per_level(
+          pp, "pbl_mynn_Lt_taper_exp", pbl_mynn.Lt_taper_exp, lev, max_level);
+        if (pbl_mynn.Lt_taper_exp < 0) {
+            amrex::Error("erf.pbl_mynn_Lt_taper_exp must be >= 0 "
+                         "(0 disables the taper)");
+        }
         query_one_or_per_level(pp, "pbl_mynn_A1", pbl_mynn.A1, lev, max_level);
         query_one_or_per_level(pp, "pbl_mynn_A2", pbl_mynn.A2, lev, max_level);
         query_one_or_per_level(pp, "pbl_mynn_B1", pbl_mynn.B1, lev, max_level);
@@ -640,6 +646,8 @@ public:
     }
 
     if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
+      amrex::Print() << "    pbl_mynn_Lt_taper_exp : "
+                     << pbl_mynn.Lt_taper_exp << std::endl;
       amrex::Print() << "    pbl_mynn_A1 : " << pbl_mynn.A1 << std::endl;
       amrex::Print() << "    pbl_mynn_A2 : " << pbl_mynn.A2 << std::endl;
       amrex::Print() << "    pbl_mynn_B1 : " << pbl_mynn.B1 << std::endl;
