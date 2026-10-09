@@ -48,6 +48,7 @@ ComputeDiffusivityMRF (const MultiFab& xvel,
                        const MoistureComponentIndices& moisture_indices,
                        const MultiFab* terrain_blank)
 {
+    const StratType pbl_strat = turbChoice.pbl_strat_type;
     /*
     ============================================================================
     Medium-Range Forecast (MRF) Boundary Layer Parameterization Scheme
@@ -1052,7 +1053,7 @@ if (ng_pblh > 1) {
                 ComputeVerticalDerivativesPBL(i, j, k, uvel, vvel, cell_data, izmin, izmax, pbl_derivative_dz_inv(i,j,k),
                                               c_ext_dir_on_zlo, c_ext_dir_on_zhi, u_ext_dir_on_zlo,
                                               u_ext_dir_on_zhi, v_ext_dir_on_zlo, v_ext_dir_on_zhi, dthetadz,
-                                              dudz, dvdz, moisture_indices);
+                                              dudz, dvdz, moisture_indices, pbl_strat);
 
                 const Real dudz_safe = (k < izmax) ? dudz : Real(0);
                 const Real dvdz_safe = (k < izmax) ? dvdz : Real(0);
