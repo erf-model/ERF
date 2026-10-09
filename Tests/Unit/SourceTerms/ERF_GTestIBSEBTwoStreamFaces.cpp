@@ -18,8 +18,8 @@
 
 // With erf.ibseb.radiation = two_stream every face reads the column of its own fluid cell at
 // its own height (a roof its interface, a wall the mean of its cell's two): the beam over the
-// cosine of the zenith, the shortwave down less the beam, the longwave down there, and the
-// ground's upwelling. Here the beam and the interface fluxes differ in every column and at
+// cosine of the zenith, the shortwave down less the beam, and the longwave down and the
+// shortwave and longwave up there. Here the beam and the interface fluxes differ in every column and at
 // every interface, and the level is split into four boxes, so a face that read another
 // column, another height, another box's fab or the ground for its sky would get another
 // number. The blanking is set by hand (1 solid, 0 fluid), no embedded boundary.
@@ -32,8 +32,8 @@ constexpr amrex::Real kCosZ = 0.766044443118978;   // 40 degrees
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real beam_at (int i, int j, int m) { return amrex::Real(200.0 + 7.0 * i + 3.0 * j + 11.0 * m); }
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real swdn_at (int i, int j, int m) { return beam_at(i, j, m) + amrex::Real(20.0 + i + 2.0 * j + 3.0 * m); }
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real lwdn_at (int i, int j, int m) { return amrex::Real(300.0 + 2.0 * i + 5.0 * j - 4.0 * m); }
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real swup_at (int i, int j) { return amrex::Real(50.0 + i + 0.5 * j); }
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real lwup_at (int i, int j) { return amrex::Real(400.0 + 1.5 * i - j); }
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real swup_at (int i, int j, int m) { return amrex::Real(50.0 + i + 0.5 * j - 2.0 * m); }
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real lwup_at (int i, int j, int m) { return amrex::Real(400.0 + 1.5 * i - j + 6.0 * m); }
 
 struct Cells { int ilo, ihi, jlo, jhi, khi; };
 
@@ -63,9 +63,9 @@ void fill_view (amrex::MultiFab& beam, amrex::MultiFab& cosz, amrex::MultiFab& f
     for (amrex::MFIter mfi(fluxes); mfi.isValid(); ++mfi) {
         auto const& fA = fluxes.array(mfi);
         amrex::ParallelFor(fluxes[mfi].box(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            fA(i, j, k, 0) = swup_at(i, j) + amrex::Real(1000.0) * k;   // only k = 0 is the ground's
+            fA(i, j, k, 0) = swup_at(i, j, k);
             fA(i, j, k, 1) = swdn_at(i, j, k);
-            fA(i, j, k, 2) = lwup_at(i, j) + amrex::Real(1000.0) * k;
+            fA(i, j, k, 2) = lwup_at(i, j, k);
             fA(i, j, k, 3) = lwdn_at(i, j, k);
         });
     }
@@ -110,7 +110,7 @@ TEST(IBSEBTwoStreamFaces, EachFaceReadsItsOwnColumnAtItsHeight)
     faces.build(blank, geom);
     faces.release_labels();
     faces.compute_view_fractions();
-    const int m_top = faces.canopy_top_interface();
+    const int m_top = faces.top_sample_interface();
     ASSERT_EQ(m_top, 5);
 
     // The view as the sweep and ERF lay it out: the beam on the columns with interfaces
@@ -150,12 +150,14 @@ TEST(IBSEBTwoStreamFaces, EachFaceReadsItsOwnColumnAtItsHeight)
         const Real b  = (1.0 - w_up) * beam_at(i[f], j[f], m) + w_up * beam_at(i[f], j[f], mu);
         const Real sd = (1.0 - w_up) * swdn_at(i[f], j[f], m) + w_up * swdn_at(i[f], j[f], mu);
         const Real ld = (1.0 - w_up) * lwdn_at(i[f], j[f], m) + w_up * lwdn_at(i[f], j[f], mu);
+        const Real su = (1.0 - w_up) * swup_at(i[f], j[f], m) + w_up * swup_at(i[f], j[f], mu);
+        const Real lu = (1.0 - w_up) * lwup_at(i[f], j[f], m) + w_up * lwup_at(i[f], j[f], mu);
         Real n[3] = {0.0, 0.0, 0.0};
         n[dir[f]] = -static_cast<Real>(side[f]);
         const Real cosi = n[0] * sun.sx + n[1] * sun.sy + n[2] * sun.sz;
         const Real direct = (cosi > 0.0) ? (b / kCosZ) * cosi * (1.0 - sh[f]) : Real(0.0);
-        const Real diffuse = fs[f] * (sd - b) + fg[f] * swup_at(i[f], j[f]);
-        const Real lw = fs[f] * ld + fg[f] * lwup_at(i[f], j[f]);
+        const Real diffuse = fs[f] * (sd - b) + fg[f] * su;
+        const Real lw = fs[f] * ld + fg[f] * lu;
         EXPECT_NEAR(dirin[f], direct, tol * (std::abs(direct) + 1.0)) << "face " << f << " (" << i[f] << "," << j[f] << "," << k[f] << ") dir " << dir[f];
         EXPECT_NEAR(difin[f], diffuse, tol * (std::abs(diffuse) + 1.0)) << "face " << f;
         EXPECT_NEAR(lwext[f], lw, tol * (std::abs(lw) + 1.0)) << "face " << f;
@@ -170,4 +172,44 @@ TEST(IBSEBTwoStreamFaces, EachFaceReadsItsOwnColumnAtItsHeight)
     EXPECT_GT(n_wall, 10);
     EXPECT_GT(n_lit, 4);
     EXPECT_GT(static_cast<int>(columns.size()), 10);
+}
+
+// The two-stream beam the faces read is kept up to the highest interface a face samples
+// (IBFaceSet::top_sample_interface()). That is a roof's own interface, or a wall's upper one
+// where no roof lies above the wall: a building reaching the domain top has walls in the
+// top cell, which read the top interface. A level with no buildings samples nothing.
+TEST(IBSEBTwoStreamFaces, TopSampleInterface)
+{
+    using namespace amrex;
+    const RealBox rb({0.0, 0.0, 0.0}, {160.0, 160.0, 80.0});
+    const Box dom(IntVect(0, 0, 0), IntVect(7, 7, 7));
+    const Geometry geom(dom, rb, 0, {1, 1, 0});
+    BoxArray ba(dom);
+    ba.maxSize(IntVect(4, 4, 8));
+    const DistributionMapping dm(ba);
+    IBSEBParams params;
+    params.enable = true;
+    params.radiation = "two_stream";
+    params.lw_mode = "two_stream";
+
+    // A tower through the whole depth, no roof: its walls in cell 7 read interface 8.
+    MultiFab blank(ba, dm, 1, 1);
+    fill_blanking(blank, geom, {{2, 3, 3, 4, 7}});
+    IBFaceSet tower(params, 0);
+    tower.build(blank, geom);
+    EXPECT_TRUE(tower.has_faces());
+    EXPECT_EQ(tower.top_sample_interface(), 8);
+
+    // A 30 m block: its roof sits on interface 3, above its walls' upper interface.
+    fill_blanking(blank, geom, {{2, 3, 3, 4, 2}});
+    IBFaceSet block(params, 0);
+    block.build(blank, geom);
+    EXPECT_EQ(block.top_sample_interface(), 3);
+
+    // No buildings.
+    fill_blanking(blank, geom, {});
+    IBFaceSet open(params, 0);
+    open.build(blank, geom);
+    EXPECT_FALSE(open.has_faces());
+    EXPECT_EQ(open.top_sample_interface(), -1);
 }

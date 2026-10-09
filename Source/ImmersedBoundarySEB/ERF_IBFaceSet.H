@@ -332,15 +332,16 @@ public:
     void compute_shortwave (amrex::Real time, const TwoStreamCanopyView& canopy = TwoStreamCanopyView{});
 
     /**
-     * The interface of the level's vertical grid at the top of the tallest
-     * column of its ray cast (its own buildings and, on a refined level, those
-     * outside it), counted from the domain bottom; 0 without buildings. The
-     * two-stream canopy forcing holds the interfaces up to there, which the
-     * faces' heights never exceed (radiation = two_stream).
+     * The highest interface of the level's vertical grid that any of its faces
+     * samples with radiation = two_stream (a roof the bottom of its fluid cell, a
+     * wall the top of its cell too), counted from the domain bottom, over all
+     * ranks; -1 when the level has no faces. The two-stream beam the faces read
+     * holds the interfaces up to there.
      */
-    int canopy_top_interface () const {
-        return static_cast<int>(std::lround((m_col_top_max - m_z_ground) / m_dx[2]));
-    }
+    int top_sample_interface () const { return m_top_sample; }
+
+    /** Whether the level has faces on any rank. */
+    bool has_faces () const { return m_top_sample >= 0; }
 
     /**
      * Stop unless the fields of ``canopy`` (this level's two-stream view) lie on
@@ -527,6 +528,7 @@ private:
     int m_lev   = 0;               ///< AMR level, for reports
     int m_nface = 0;               ///< Faces owned by this rank
     int m_nslots = 0;              ///< Slots per cell of the checkpoint field (largest face count on a cell)
+    int m_top_sample = -1;         ///< Highest interface a face samples, over all ranks (-1: no faces)
     int m_nbld  = 0;               ///< Buildings of the level (global)
     std::vector<int> m_fab_start;  ///< See fab_start()
 

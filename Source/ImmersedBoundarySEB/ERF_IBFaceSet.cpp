@@ -272,6 +272,16 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     for (int n = 0; n < m_nface; ++n) { m_nslots = std::max(m_nslots, h_slot[n] + 1); }
     ParallelDescriptor::ReduceIntMax(m_nslots);
 
+    // The highest interface any face samples (two_stream_canopy_sample(): a roof its
+    // fluid cell's bottom, a wall the top of its cell too), counted from the domain
+    // bottom; -1 when the level has no faces. The two-stream beam the faces read needs
+    // no interface above it.
+    m_top_sample = -1;
+    for (int n = 0; n < m_nface; ++n) {
+        m_top_sample = std::max(m_top_sample, h_k[n] - domain.smallEnd(2) + (h_dir[n] == 2 ? 0 : 1));
+    }
+    ParallelDescriptor::ReduceIntMax(m_top_sample);
+
     // Checkpoint layout: 4 x 4 column blocks clipped to the k-range that owns
     // faces (see state_boxarray()), the same on every rank from a reduced
     // block k-range map; and the transfer layer, this rank's grids cut by
@@ -781,7 +791,7 @@ IBFaceSet::compute_longwave_two_stream (const MultiFab& cons, const TwoStreamCan
             }
             const Real Ts4 = pT[f] * pT[f] * pT[f] * pT[f];
             const TwoStreamFaceSky sky = two_stream_face_sky(pi[f], pj[f], pk[f], k0, pd[f], beam, cosz, flux);
-            const Real lw_ext = pfs[f] * sky.lw_down + pfg[f] * sky.lw_up_g;
+            const Real lw_ext = pfs[f] * sky.lw_down + pfg[f] * sky.lw_up;
             const Real lw_in  = lw_ext + pfb[f] * sigma * Ts4;
             pext[f] = lw_ext;
             pin[f]  = lw_in;
@@ -795,10 +805,10 @@ IBFaceSet::compute_longwave_two_stream (const MultiFab& cons, const TwoStreamCan
  * The fields of a two-stream view must lie on this level's columns, with the
  * level's distribution, so that the fabs of local index n hold the columns of
  * the faces fab_start()[n] .. fab_start()[n+1]-1 own: the interface fluxes on
- * the level's own grids (with the top-of-atmosphere ghost a face on the
- * tallest building of a full-height level may read); the beam on its boxes in x
- * and y with the interfaces from the surface up to at least the top of the
- * tallest building in z; the cosine of the zenith on them flattened.
+ * the level's own grids (with the top-of-atmosphere ghost, which a face whose
+ * cell is the top of the domain reads); the beam on its boxes in x and y with
+ * the interfaces from the surface up to at least top_sample_interface() in z;
+ * the cosine of the zenith on them flattened.
  */
 void
 IBFaceSet::check_canopy_layout (const MultiFab& cons, const TwoStreamCanopyView& canopy) const
@@ -821,7 +831,7 @@ IBFaceSet::check_canopy_layout (const MultiFab& cons, const TwoStreamCanopyView&
             ok = ok && b.smallEnd(d) == ba[n].smallEnd(d) && b.bigEnd(d) == ba[n].bigEnd(d) &&
                        c.smallEnd(d) == ba[n].smallEnd(d) && c.bigEnd(d) == ba[n].bigEnd(d);
         }
-        ok = ok && b.smallEnd(2) == 0 && b.bigEnd(2) >= canopy_top_interface();
+        ok = ok && b.smallEnd(2) == 0 && b.bigEnd(2) >= top_sample_interface();
     }
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ok,
         "erf.ibseb.radiation = two_stream: level " + std::to_string(m_lev) +
@@ -1317,7 +1327,7 @@ IBFaceSet::compute_shortwave_two_stream (const TwoStreamCanopyView& canopy)
             const int f = f0 + m;
             const Real cz = cosz(pi[f], pj[f], 0);
             const TwoStreamFaceSky sky = two_stream_face_sky(pi[f], pj[f], pk[f], k0, pd[f], beam, cosz, flux);
-            const Real dni = sky.dni, dif_h = sky.diffuse, refl = sky.sw_up_g;
+            const Real dni = sky.dni, dif_h = sky.diffuse, refl = sky.sw_up;
             // Outward normal: opposite to the side the solid is on.
             Real n[3] = {0.0, 0.0, 0.0};
             n[pd[f]] = -static_cast<Real>(ps[f]);

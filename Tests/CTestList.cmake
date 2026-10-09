@@ -2371,14 +2371,16 @@ function(add_test_ibseb_two_stream_sun TEST_NAME TEST_FILES_DIR)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/run/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
 endfunction(add_test_ibseb_two_stream_sun)
 
-# The faces on the two-stream columns, erf.ibseb.radiation = two_stream
-# (Tests/RunIBSEBTwoStreamProvider.cmake): the same faces as the prescribed provider under a
-# transparent sky, the beam and the sky longwave at each face's height under an absorbing
-# one, on one level and on two, at night, and across a restart. Then the start-up aborts: no
-# two-stream radiation, its shortwave or (with the two-stream longwave) its longwave off, the
-# two-stream longwave without the two-stream provider, the prescribed provider's inputs
-# given with it, and a refined level that does not span the domain in z (no column sweep of
-# its own).
+# The building faces taking their radiation from the two-stream columns
+# (erf.ibseb.radiation = two_stream; Tests/RunIBSEBTwoStreamProvider.cmake). Under a
+# transparent sky the faces get what the faces' own clear-sky radiation gives for that sky;
+# under an absorbing sky each face gets the exact beam and reflected light at its height, on
+# one level and on two (level 1 refined in z too); a scattering sky adds diffuse light and
+# leaves the beam alone; at night the faces get no sunlight; a restart keeps the reports.
+# Then the start-up aborts: no two-stream radiation, its shortwave off, its longwave off
+# with lw_mode = two_stream, lw_mode = two_stream without the two-stream radiation, inputs
+# of the faces' own clear-sky radiation given with it, and a refined level whose grids do
+# not span the domain in z (it has no column sweep of its own).
 function(add_test_ibseb_two_stream_provider TEST_NAME)
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
@@ -2390,7 +2392,8 @@ function(add_test_ibseb_two_stream_provider TEST_NAME)
         "-DTEST_EXE=${TEST_EXE}"
         "-DCONFIG=$<CONFIG>"
         "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
-        "-DTWO_LEVEL_INPUT=${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_RefinedLevels/IBSEB_RefinedLevels.i"
+        "-DTWO_LEVEL_INPUT=${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider/IBSEB_TwoStreamProviderTwoLevel.i"
+        "-DPRECISION=${ERF_PRECISION}"
         "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
         "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
         "-DCHECKER=${CMAKE_CURRENT_SOURCE_DIR}/check_ibseb_two_stream_provider.py"
@@ -2401,7 +2404,7 @@ function(add_test_ibseb_two_stream_provider TEST_NAME)
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression"
-        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/two_stream/simulation.log;${CURRENT_TEST_BINARY_DIR}/prescribed/simulation.log;${CURRENT_TEST_BINARY_DIR}/absorbing/simulation.log;${CURRENT_TEST_BINARY_DIR}/night/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level_clear/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level_absorbing/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/two_stream/simulation.log;${CURRENT_TEST_BINARY_DIR}/prescribed/simulation.log;${CURRENT_TEST_BINARY_DIR}/absorbing/simulation.log;${CURRENT_TEST_BINARY_DIR}/scattering/simulation.log;${CURRENT_TEST_BINARY_DIR}/night/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level_clear/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level_absorbing/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
 endfunction(add_test_ibseb_two_stream_provider)
 
 if(ERF_ENABLE_MPI AND NOT WIN32)

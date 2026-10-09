@@ -22,15 +22,15 @@
  * asks for them (TwoStreamRadiation::supply_canopy_forcing()) every sweep also
  * writes:
  *  - the direct beam on a horizontal surface at the interfaces m = 0 .. m_top of
- *    every column, counted from the surface, m_top the top of the tallest
- *    building of the level (a field on the level's grids flattened in z and then
+ *    every column, counted from the surface, m_top the highest interface a face
+ *    of the level reads (a field on the level's grids flattened in z and then
  *    given those interfaces, index k = m), blended clear/cloudy like the fluxes;
  *  - the cosine of the zenith angle, floored at zero (a 2D field).
  * A face reads the column of its fluid cell at its own height
- * (two_stream_canopy_sample()): the buildings are height maps, so no building
- * stands above a face in its own column, and the downwelling fluxes the column
- * carries there are the light and the sky that reach it, whatever the column
- * does below, where it passes through the buildings.
+ * (two_stream_canopy_sample()): the downwelling fluxes there are the sun and
+ * the sky that reach it (the buildings are height maps, so no building stands
+ * above a face in its own column), and the upwelling fluxes there are the ground
+ * as seen from that height, through the air in between.
  */
 
 /**
@@ -105,8 +105,8 @@ struct TwoStreamFaceSky
     amrex::Real dni = 0.0;      ///< Direct-normal irradiance at the face's height
     amrex::Real diffuse = 0.0;  ///< Diffuse shortwave down at the face's height
     amrex::Real lw_down = 0.0;  ///< Longwave down at the face's height
-    amrex::Real sw_up_g = 0.0;  ///< Shortwave up at the ground
-    amrex::Real lw_up_g = 0.0;  ///< Longwave up at the ground
+    amrex::Real sw_up = 0.0;  ///< Shortwave up at the face's height (the ground's reflection, seen from there)
+    amrex::Real lw_up = 0.0;  ///< Longwave up at the face's height (the ground's emission and the air's below)
 };
 
 /**
@@ -114,8 +114,8 @@ struct TwoStreamFaceSky
  * takes: at its sample (two_stream_canopy_sample()), the direct-normal
  * irradiance (the beam over the column's cosine of the zenith), the diffuse
  * light (the shortwave down less the beam, floored at zero against round-off on
- * a transparent column) and the longwave down; at the ground (index @p k0 of the
- * fluxes), the shortwave and longwave up.
+ * a transparent column), the longwave down, and the shortwave and longwave up,
+ * which the face takes through its view of the ground.
  *
  * @param beam    beam field (index k = m)
  * @param cosz    cosine of the zenith, floored at zero (2D)
@@ -140,8 +140,8 @@ TwoStreamFaceSky two_stream_face_sky (int i, int j, int k, int k0, int dir,
     s.dni     = (cz > amrex::Real(0.0)) ? beam_h / (cz + std::numeric_limits<amrex::Real>::min()) : amrex::Real(0.0);
     s.diffuse = (sw_dn - beam_h > amrex::Real(0.0)) ? sw_dn - beam_h : amrex::Real(0.0);
     s.lw_down = w_lo * fluxes(i, j, k0 + ms, 3) + w_up * fluxes(i, j, k0 + mu, 3);
-    s.sw_up_g = fluxes(i, j, k0, 0);
-    s.lw_up_g = fluxes(i, j, k0, 2);
+    s.sw_up = w_lo * fluxes(i, j, k0 + ms, 0) + w_up * fluxes(i, j, k0 + mu, 0);
+    s.lw_up = w_lo * fluxes(i, j, k0 + ms, 2) + w_up * fluxes(i, j, k0 + mu, 2);
     return s;
 }
 

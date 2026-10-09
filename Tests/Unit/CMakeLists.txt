@@ -202,8 +202,9 @@ target_sources(${erf_exe_name}
     # at zero, copied into the land model's k = 0 plane and nowhere else.
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamLandForcing.cpp
     # Motivation: the building faces (erf.ibseb.radiation = two_stream) must get the
-    # Beer-Lambert beam and the diffuse light at the top of the buildings, blended
-    # clear/cloudy, no beam with the shortwave off, and only for the step of the sweep.
+    # Beer-Lambert beam at every interface up to the highest one they read, blended
+    # clear/cloudy, no beam with the shortwave off or the sun down, only for the step
+    # of the sweep, and each face its own column's fluxes at its own height.
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamCanopyForcing.cpp
     # Motivation: RRTMGP consumes absolute surface temperature; a
     # SurfaceLayer fallback must convert theta at the physical surface

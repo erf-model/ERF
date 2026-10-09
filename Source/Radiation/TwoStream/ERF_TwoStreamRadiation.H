@@ -254,7 +254,7 @@ public:
      *
      * @param lev   level, which must have been defined; its sweep asserts that the
      *              columns reach @p m_top
-     * @param m_top highest interface the faces read, the top of the tallest building,
+     * @param m_top highest interface the faces read (IBFaceSet::top_sample_interface()),
      *              in [0, number of cells in z]
      */
     void supply_canopy_forcing (int lev, int m_top);

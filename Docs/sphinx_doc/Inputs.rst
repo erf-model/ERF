@@ -3671,13 +3671,15 @@ column would be taken for a building), a uniform vertical grid (no
 |                                   | at every report; a refined level N adds ``.levN`` to the |                    |                        |
 |                                   | prefix; empty disables                                   |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.radiation**           | source of the downwelling radiation: ``prescribed``, the | "prescribed",      | "prescribed"           |
-|                                   | clear-sky formulas and inputs below; ``two_stream``, the | "two_stream"       |                        |
-|                                   | columns of erf.radiation_model = TwoStream (required,    |                    |                        |
-|                                   | shortwave on) at each face's height and at the ground;   |                    |                        |
-|                                   | then sw_direct_normal, sw_diffuse, sw_transmission,      |                    |                        |
-|                                   | sw_diffuse_coeff, solar_constant and albedo_ground must  |                    |                        |
-|                                   | not be given, and every level must span the domain in z  |                    |                        |
+| **erf.ibseb.radiation**           | where the faces' sunlight, sky light and longwave come   | "prescribed",      | "prescribed"           |
+|                                   | from. ``prescribed``: the clear-sky formulas and inputs  | "two_stream"       |                        |
+|                                   | below. ``two_stream``: the two-stream radiation's        |                    |                        |
+|                                   | columns, each face reading the column next to it at its  |                    |                        |
+|                                   | own height; needs erf.radiation_model = TwoStream with   |                    |                        |
+|                                   | its shortwave on, and every level must span the domain   |                    |                        |
+|                                   | in z. Then sw_direct_normal, sw_diffuse,                 |                    |                        |
+|                                   | sw_transmission, sw_diffuse_coeff, solar_constant and    |                    |                        |
+|                                   | albedo_ground must not be given                          |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.sun_mode**            | the sun's position, and with the prescribed provider its | "fixed", "solar",  | "fixed"                |
 |                                   | irradiances: ``fixed``: the given zenith and azimuth     | "two_stream"       |                        |
@@ -3734,13 +3736,14 @@ column would be taken for a building), a uniform vertical grid (no
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.view_n_el**           | elevations of the hemisphere sampling                    | Integer >= 1       | 8                      |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.lw_mode**             | sky longwave: ``fixed`` uses lw_down, ``gray`` uses      | "fixed", "gray",   | "gray"; "two_stream"   |
-|                                   | sky_emissivity sigma T_air^4 with the fluid cell's air   | "two_stream"       | with radiation =       |
-|                                   | temperature; ``two_stream`` (radiation = two_stream      |                    | two_stream             |
-|                                   | only, two-stream longwave on) the column's longwave down |                    |                        |
-|                                   | at the face's height, with its longwave up at the ground |                    |                        |
-|                                   | as the ground term; then lw_down, sky_emissivity,        |                    |                        |
-|                                   | T_ground and emissivity_ground must not be given         |                    |                        |
+| **erf.ibseb.lw_mode**             | sky longwave. ``fixed``: lw_down. ``gray``:              | "fixed", "gray",   | "gray"; "two_stream"   |
+|                                   | sky_emissivity sigma T_air^4, with the air temperature   | "two_stream"       | with radiation =       |
+|                                   | of the face's fluid cell. ``two_stream`` (only with      |                    | two_stream             |
+|                                   | radiation = two_stream, and the two-stream longwave on): |                    |                        |
+|                                   | the column's longwave down and up at the face's height,  |                    |                        |
+|                                   | for the sky and the ground; then lw_down,                |                    |                        |
+|                                   | sky_emissivity, T_ground and emissivity_ground must not  |                    |                        |
+|                                   | be given                                                 |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.lw_down**             | fixed sky longwave [W/m2]; not with lw_mode = two_stream | Real >= 0          | 300.0                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+

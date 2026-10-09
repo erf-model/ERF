@@ -225,10 +225,10 @@ TEST(TwoStreamCanopyForcing, FacesSampleTheirOwnHeight)
     EXPECT_EQ(w_up, amrex::Real(0.5));
 }
 
-// What a face takes from its column, on fields whose every interface differs: the beam over
-// the cosine at its sample, the shortwave down less the beam, the longwave down there (a
-// wall the mean of its cell's two interfaces), the ground's upwelling at the level's bottom
-// (k0 = 2 here, so an index counted from 0 would read the wrong cells), and no beam at night.
+// What a face takes from its column, on fields whose every interface differs: at its sample
+// (a wall the mean of its cell's two interfaces) the beam over the cosine, the shortwave down
+// less the beam, the longwave down and the shortwave and longwave up. The level's bottom is
+// k0 = 2 here, so an index counted from 0 would read the wrong cells. No beam at night.
 TEST(TwoStreamCanopyForcing, FaceSkyFromItsColumn)
 {
     using namespace amrex;
@@ -240,9 +240,9 @@ TEST(TwoStreamCanopyForcing, FaceSkyFromItsColumn)
     const auto bA = beam.array(); const auto fA = flux.array(); const auto cA = cz.array();
     for (int m = 0; m <= 5; ++m) {
         bA(0, 0, m) = Real(100.0 + 10.0 * m);
-        fA(0, 0, k0 + m, 0) = Real(50.0 + m);         // SW up: only k0 is the ground
+        fA(0, 0, k0 + m, 0) = Real(50.0 + m);         // SW up
         fA(0, 0, k0 + m, 1) = Real(130.0 + 13.0 * m);  // SW down: beam + 30 + 3 m
-        fA(0, 0, k0 + m, 2) = Real(400.0 + m);         // LW up: only k0 is the ground
+        fA(0, 0, k0 + m, 2) = Real(400.0 + 2.0 * m);   // LW up
         fA(0, 0, k0 + m, 3) = Real(300.0 - 7.0 * m);   // LW down
     }
     cA(0, 0, 0) = Real(0.5);
@@ -252,14 +252,15 @@ TEST(TwoStreamCanopyForcing, FaceSkyFromItsColumn)
     EXPECT_NEAR(r.dni, Real(130.0 / 0.5), tol * Real(260.0));
     EXPECT_NEAR(r.diffuse, Real(39.0), tol * Real(100.0));
     EXPECT_NEAR(r.lw_down, Real(279.0), tol * Real(300.0));
-    EXPECT_EQ(r.sw_up_g, Real(50.0));
-    EXPECT_EQ(r.lw_up_g, Real(400.0));
+    EXPECT_NEAR(r.sw_up, Real(53.0), tol * Real(100.0));
+    EXPECT_NEAR(r.lw_up, Real(406.0), tol * Real(400.0));
     // A wall in cell k0 + 3: the mean of interfaces 3 and 4.
     TwoStreamFaceSky w = two_stream_face_sky(0, 0, k0 + 3, k0, 0, beam.const_array(), cz.const_array(), flux.const_array());
     EXPECT_NEAR(w.dni, Real(135.0 / 0.5), tol * Real(270.0));
     EXPECT_NEAR(w.diffuse, Real(40.5), tol * Real(100.0));
     EXPECT_NEAR(w.lw_down, Real(275.5), tol * Real(300.0));
-    EXPECT_EQ(w.sw_up_g, Real(50.0));
+    EXPECT_NEAR(w.sw_up, Real(53.5), tol * Real(100.0));
+    EXPECT_NEAR(w.lw_up, Real(407.0), tol * Real(400.0));
     // Night: the cosine floored at zero, no beam, whatever the field holds.
     cA(0, 0, 0) = Real(0.0);
     TwoStreamFaceSky n = two_stream_face_sky(0, 0, k0 + 3, k0, 2, beam.const_array(), cz.const_array(), flux.const_array());
