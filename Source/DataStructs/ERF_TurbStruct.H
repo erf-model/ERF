@@ -191,6 +191,15 @@ public:
             amrex::Error("erf.pbl_mynn_Lt_taper_exp must be >= 0 "
                          "(0 disables the taper)");
         }
+        // NN09 (the default) uses Lt_alpha = 0.23 and a 1/l sum for the master
+        // length scale; Chen2021 uses Lt_alpha = 0.10 and a 1/l^2 sum.
+        query_one_or_per_level_enum_case_insensitive(
+          pp, "pbl_mynn_config", pbl_mynn.config, lev, max_level);
+        // l_T = Lt_alpha*<zq>/<q> follows the config unless set explicitly.
+        pbl_mynn.Lt_alpha = (pbl_mynn.config == MYNNConfigType::Chen2021)
+                              ? amrex::Real(0.1) : amrex::Real(0.23);
+        query_one_or_per_level(
+          pp, "pbl_mynn_Lt_alpha", pbl_mynn.Lt_alpha, lev, max_level);
         query_one_or_per_level(pp, "pbl_mynn_A1", pbl_mynn.A1, lev, max_level);
         query_one_or_per_level(pp, "pbl_mynn_A2", pbl_mynn.A2, lev, max_level);
         query_one_or_per_level(pp, "pbl_mynn_B1", pbl_mynn.B1, lev, max_level);
@@ -648,6 +657,9 @@ public:
     if (pbl_type == PBLType::MYNN25 || pbl_type == PBLType::MYNNEDMF) {
       amrex::Print() << "    pbl_mynn_Lt_taper_exp : "
                      << pbl_mynn.Lt_taper_exp << std::endl;
+      amrex::Print() << "    pbl_mynn_config : "
+                     << amrex::getEnumNameString(pbl_mynn.config) << std::endl;
+      amrex::Print() << "    pbl_mynn_Lt_alpha : " << pbl_mynn.Lt_alpha << std::endl;
       amrex::Print() << "    pbl_mynn_A1 : " << pbl_mynn.A1 << std::endl;
       amrex::Print() << "    pbl_mynn_A2 : " << pbl_mynn.A2 << std::endl;
       amrex::Print() << "    pbl_mynn_B1 : " << pbl_mynn.B1 << std::endl;

@@ -2259,6 +2259,15 @@ List of Parameters
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_mynn_SQfactor**                | MYNN ratio of stability functions SQ / SM                | Real               | 3.0              |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mynn_config**                  | Which MYNN variant to use.  NN09 sets Lt_alpha = 0.23    | NN09, Chen2021     | NN09             |
+|                                          | and forms the master length scale as a 1/l sum;          |                    |                  |
+|                                          | Chen2021 sets Lt_alpha = 0.10 and uses a 1/l^2 sum.      |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mynn_Lt_alpha**                | Coefficient on the ABL-depth length scale,               | Real               | from             |
+|                                          | l_T = Lt_alpha <zq>/<q> (NN09 Eqn. 54).  Defaults from   |                    | pbl_mynn_config  |
+|                                          | pbl_mynn_config and may be overridden on its own.        |                    |                  |
+|                                          | Mellor-Yamada 1982 uses 0.1.                             |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_mynn_Lt_taper_exp**            | Exponent n in the optional boundary-layer-depth taper    | Real               | 0.0              |
 |                                          | of the ABL length scale, l_T -> l_T (1 - z/h)^n. Zero    |                    |                  |
 |                                          | disables the taper. Requires erf.most.pblh_calc to be    |                    |                  |
