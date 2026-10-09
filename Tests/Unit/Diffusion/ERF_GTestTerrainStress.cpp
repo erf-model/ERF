@@ -70,7 +70,8 @@ struct TerrainStressCase
   Box domain;
 
   FArrayBox u, v, w, z_nd, detJ, mu_turb, er_fab;
-  FArrayBox mf;  // all map factors = 1
+  // map factors at the cells (m) and at the u and v faces, x and y components; 1 unless varied
+  FArrayBox mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy;
   FArrayBox s11, s22, s33, s12, s21, s13, s31, s23, s32;
   FArrayBox rhs_u, rhs_v, rhs_w;
   FArrayBox s13i, s23i, s33i;  // the parts of tau13/tau23/tau33 the implicit solve takes
@@ -100,7 +101,9 @@ struct TerrainStressCase
     detJ.resize(grow(valid, NG), 1);
     mu_turb.resize(grow(valid, NG), EddyDiff::NumDiffs);
     er_fab.resize(grow(valid, NG), 1);
-    mf.resize(grow(convert(valid, IntVect(1,1,0)), NG), 1);
+    for (FArrayBox* f : {&mf_mx, &mf_ux, &mf_vx, &mf_my, &mf_uy, &mf_vy}) {
+      f->resize(grow(convert(valid, IntVect(1,1,0)), NG), 1);
+    }
 
     s11.resize(bxcc, 1);  s22.resize(bxcc, 1);  s33.resize(bxcc, 1);
     s12.resize(tbxxy, 1); s21.resize(tbxxy, 1);
@@ -129,7 +132,7 @@ struct TerrainStressCase
       znd(i,j,k) = Real(k)*ldz + lsx*Real(i)*ldx + lsy*Real(j)*ldy;
     });
     detJ.setVal<RunOn::Device>(Real(1.0));  // h_zeta = 1 on a tilted plane
-    mf.setVal<RunOn::Device>(Real(1.0));
+    for (FArrayBox* f : {&mf_mx, &mf_ux, &mf_vx, &mf_my, &mf_uy, &mf_vy}) { f->setVal<RunOn::Device>(Real(1.0)); }
     er_fab.setVal<RunOn::Device>(er);
     mu_turb.setVal<RunOn::Device>(Real(0.0));
     mu_turb.setVal<RunOn::Device>(Kh, mu_turb.box(), EddyDiff::Mom_h, 1);
@@ -186,18 +189,30 @@ struct TerrainStressCase
   }
 
   // Smoothly non-uniform K_h and K_v (varying in x, y and zeta, so that averages over different
-  // cells differ) and map factors (1 +/- 0.2)
+  // cells differ) and map factors: m_x and m_y are different smooth functions of position, each
+  // evaluated where its array lives (cell centre, u face, v face), so that any mix-up between
+  // the six map-factor arrays changes the answer
   void vary_kv_and_map_factors ()
   {
     const Real lKh = Kh, lKv = Kv;
-    auto mu = mu_turb.array(); auto m = mf.array();
+    auto mu = mu_turb.array();
     ParallelFor(mu_turb.box(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
       mu(i,j,k,EddyDiff::Mom_h) = lKh * (Real(0.6) + Real(0.4)*std::sin(Real(1.1)*Real(i) + Real(0.3)*Real(j) + Real(0.8)*Real(k)));
       mu(i,j,k,EddyDiff::Mom_v) = lKv * (Real(0.75) + Real(0.25)*std::sin(Real(0.9)*Real(i) + Real(0.7)*Real(j) + Real(0.5)*Real(k)));
     });
-    ParallelFor(mf.box(), [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
-      m(i,j,0) = Real(1.0) + Real(0.2)*std::sin(Real(0.6)*Real(i) + Real(0.4)*Real(j));
-    });
+    // positions in cell units: cell centre (i+1/2, j+1/2), u face (i, j+1/2), v face (i+1/2, j)
+    const Real ox[3] = {Real(0.5), Real(0.0), Real(0.5)}, oy[3] = {Real(0.5), Real(0.5), Real(0.0)};
+    FArrayBox* fx[3] = {&mf_mx, &mf_ux, &mf_vx};
+    FArrayBox* fy[3] = {&mf_my, &mf_uy, &mf_vy};
+    for (int s = 0; s < 3; ++s) {
+      auto ax = fx[s]->array(); auto ay = fy[s]->array();
+      const Real px = ox[s], py = oy[s];
+      ParallelFor(fx[s]->box(), [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+        const Real X = Real(i) + px, Y = Real(j) + py;
+        ax(i,j,0) = Real(1.0) + Real(0.2)*std::sin(Real(0.6)*X + Real(0.4)*Y);
+        ay(i,j,0) = Real(1.0) - Real(0.15)*std::cos(Real(0.5)*X - Real(0.3)*Y);
+      });
+    }
     Gpu::streamSynchronize();
   }
 
@@ -207,12 +222,14 @@ struct TerrainStressCase
   {
     GpuArray<Real, AMREX_SPACEDIM> dxInv{Real(1.0)/dx, Real(1.0)/dy, Real(1.0)/dz};
     auto ua = u.const_array(), va = v.const_array(), wa = w.const_array();
-    auto znd = z_nd.const_array(), dJ = detJ.const_array(), mfa = mf.const_array();
+    auto znd = z_nd.const_array(), dJ = detJ.const_array();
+    auto mmx = mf_mx.const_array(), mux = mf_ux.const_array(), mvx = mf_vx.const_array();
+    auto mmy = mf_my.const_array(), muy = mf_uy.const_array(), mvy = mf_vy.const_array();
     const Box gbxo = surroundingNodes(bxcc, 2);
     FArrayBox Omega(gbxo, 1);
     auto om = Omega.array();
     ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-      om(i,j,k) = (k == 0) ? Real(0.0) : OmegaFromW(i,j,k,wa(i,j,k),ua,va,mfa,mfa,znd,dxInv);
+      om(i,j,k) = (k == 0) ? Real(0.0) : OmegaFromW(i,j,k,wa(i,j,k),ua,va,mux,mvy,znd,dxInv);
     });
     auto er = er_fab.array();
     ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -220,9 +237,9 @@ struct TerrainStressCase
       const Real hu_lo = Compute_h_zeta_AtIface(i  , j  , k, dxInv, znd);
       const Real hv_hi = Compute_h_zeta_AtJface(i  , j+1, k, dxInv, znd);
       const Real hv_lo = Compute_h_zeta_AtJface(i  , j  , k, dxInv, znd);
-      const Real mfsq = mfa(i,j,0)*mfa(i,j,0);
-      const Real rate = (ua(i+1,j,k)/mfa(i+1,j,0)*hu_hi - ua(i,j,k)/mfa(i,j,0)*hu_lo)*dxInv[0]*mfsq
-                      + (va(i,j+1,k)/mfa(i,j+1,0)*hv_hi - va(i,j,k)/mfa(i,j,0)*hv_lo)*dxInv[1]*mfsq
+      const Real mfsq = mmx(i,j,0)*mmy(i,j,0);
+      const Real rate = (ua(i+1,j,k)/muy(i+1,j,0)*hu_hi - ua(i,j,k)/muy(i,j,0)*hu_lo)*dxInv[0]*mfsq
+                      + (va(i,j+1,k)/mvx(i,j+1,0)*hv_hi - va(i,j,k)/mvx(i,j,0)*hv_lo)*dxInv[1]*mfsq
                       + (om(i,j,k+1) - om(i,j,k))*dxInv[2];
       er(i,j,k) = rate / dJ(i,j,k);
     });
@@ -299,7 +316,9 @@ struct TerrainStressCase
   {
     GpuArray<Real, AMREX_SPACEDIM> dxInv{Real(1.0)/dx, Real(1.0)/dy, Real(1.0)/dz};
     auto ua = u.const_array(), va = v.const_array(), wa = w.const_array();
-    auto znd = z_nd.const_array(), dJ = detJ.const_array(), mfa = mf.const_array();
+    auto znd = z_nd.const_array(), dJ = detJ.const_array();
+    auto mmx = mf_mx.const_array(), mux = mf_ux.const_array(), mvx = mf_vx.const_array();
+    auto mmy = mf_my.const_array(), muy = mf_uy.const_array(), mvy = mf_vy.const_array();
     auto a11 = s11.array(), a22 = s22.array(), a33 = s33.array();
     auto a12 = s12.array(), a21 = s21.array(), a13 = s13.array(), a31 = s31.array();
     auto a23 = s23.array(), a32 = s32.array();
@@ -308,7 +327,7 @@ struct TerrainStressCase
     Box cc = bxcc, xy = tbxxy, xz = tbxxz, yz = tbxyz;
     ComputeStrain_T(cc, xy, xz, yz, domain, ua, va, wa,
                     a11, a22, a33, a12, a21, a13, a31, a23, a32,
-                    znd, dJ, dxInv, mfa, mfa, mfa, mfa, mfa, mfa, bcs.data(),
+                    znd, dJ, dxInv, mmx, mux, mvx, mmy, muy, mvy, bcs.data(),
                     c13, c23);
 
     // Remove the halo for the off-diagonal stresses, as erf_make_tau_terms does
@@ -317,7 +336,7 @@ struct TerrainStressCase
     ComputeStressVarVisc_T(cc, xy, xz, yz, Real(0.0), mu_turb.const_array(), no_cell_data,
                            a11, a22, a33, a12, a21, a13, a31, a23, a32,
                            er_fab.const_array(), znd, dJ, dxInv,
-                           mfa, mfa, mfa, mfa, mfa, mfa, c13, c23, c33, implicit_metric);
+                           mmx, mux, mvx, mmy, muy, mvy, c13, c23, c33, implicit_metric);
 
     if (with_rhs) {
       rhs_u.setVal<RunOn::Device>(Real(0.0));
@@ -329,7 +348,7 @@ struct TerrainStressCase
                          s12.const_array(), s21.const_array(),
                          s13.const_array(), s31.const_array(),
                          s23.const_array(), s32.const_array(),
-                         dJ, no_stretched_dz, dxInv, mfa, mfa, mfa, mfa, mfa, mfa,
+                         dJ, no_stretched_dz, dxInv, mmx, mux, mvx, mmy, muy, mvy,
                          false, true);
     }
     Gpu::streamSynchronize();
@@ -343,7 +362,9 @@ struct TerrainStressCase
   {
     GpuArray<Real, AMREX_SPACEDIM> dxInv{Real(1.0)/dx, Real(1.0)/dy, Real(1.0)/dz};
     auto ua = u.const_array(), va = v.const_array(), wa = w.const_array();
-    auto znd = z_nd.const_array(), dJ = detJ.const_array(), mfa = mf.const_array();
+    auto znd = z_nd.const_array(), dJ = detJ.const_array();
+    auto mmx = mf_mx.const_array(), mux = mf_ux.const_array(), mvx = mf_vx.const_array();
+    auto mmy = mf_my.const_array(), muy = mf_uy.const_array(), mvy = mf_vy.const_array();
     auto nodal_tile = [&] (const IntVect& typ) {
       Box b = convert(tile, typ);
       for (int d = 0; d < 2; ++d) {
@@ -362,17 +383,37 @@ struct TerrainStressCase
     Array4<Real> c13 = i13.array(), c23 = i23.array(), c33 = i33.array();
     ComputeStrain_T(cc, xy, xz, yz, domain, ua, va, wa,
                     a11, a22, a33, a12, a21, a13, a31, a23, a32,
-                    znd, dJ, dxInv, mfa, mfa, mfa, mfa, mfa, mfa, bcs.data(), c13, c23);
+                    znd, dJ, dxInv, mmx, mux, mvx, mmy, muy, mvy, bcs.data(), c13, c23);
     xy.grow(IntVect(-1,-1,0)); xz.grow(IntVect(-1,-1,0)); yz.grow(IntVect(-1,-1,0));
     Array4<const Real> no_cell_data{};
     ComputeStressVarVisc_T(cc, xy, xz, yz, Real(0.0), mu_turb.const_array(), no_cell_data,
                            a11, a22, a33, a12, a21, a13, a31, a23, a32,
                            er_fab.const_array(), znd, dJ, dxInv,
-                           mfa, mfa, mfa, mfa, mfa, mfa, c13, c23, c33, false);
+                           mmx, mux, mvx, mmy, muy, mvy, c13, c23, c33, false);
     auto o13 = out13.array(), o23 = out23.array();
     ParallelFor(xz, yz,
       [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept { o13(i,j,k) = a13(i,j,k); },
       [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept { o23(i,j,k) = a23(i,j,k); });
+    Gpu::streamSynchronize();
+  }
+
+  // Momentum RHS of the implicit part alone: the divergence of tau13i/tau23i that the implicit
+  // vertical solve removes and solves back (call after compute(); the strains are overwritten)
+  void rhs_of_implicit_part ()
+  {
+    GpuArray<Real, AMREX_SPACEDIM> dxInv{Real(1.0)/dx, Real(1.0)/dy, Real(1.0)/dz};
+    auto dJ = detJ.const_array();
+    auto mmx = mf_mx.const_array(), mux = mf_ux.const_array(), mvx = mf_vx.const_array();
+    auto mmy = mf_my.const_array(), muy = mf_uy.const_array(), mvy = mf_vy.const_array();
+    for (FArrayBox* f : {&s11, &s22, &s33, &s12, &s21, &s31, &s32}) { f->setVal<RunOn::Device>(Real(0.0)); }
+    s13.copy<RunOn::Device>(s13i); s23.copy<RunOn::Device>(s23i);
+    rhs_u.setVal<RunOn::Device>(Real(0.0)); rhs_v.setVal<RunOn::Device>(Real(0.0)); rhs_w.setVal<RunOn::Device>(Real(0.0));
+    Gpu::DeviceVector<Real> no_stretched_dz;
+    DiffusionSrcForMom(ubx, vbx, wbx, rhs_u.array(), rhs_v.array(), rhs_w.array(),
+                       s11.const_array(), s22.const_array(), s33.const_array(),
+                       s12.const_array(), s21.const_array(), s13.const_array(), s31.const_array(),
+                       s23.const_array(), s32.const_array(),
+                       dJ, no_stretched_dz, dxInv, mmx, mux, mvx, mmy, muy, mvy, false, true);
     Gpu::streamSynchronize();
   }
 
@@ -381,7 +422,9 @@ struct TerrainStressCase
   {
     GpuArray<Real, AMREX_SPACEDIM> dxInv{Real(1.0)/dx, Real(1.0)/dy, Real(1.0)/dz};
     auto ua = u.const_array(), va = v.const_array(), wa = w.const_array();
-    auto znd = z_nd.const_array(), dJ = detJ.const_array(), mfa = mf.const_array();
+    auto znd = z_nd.const_array(), dJ = detJ.const_array();
+    auto mmx = mf_mx.const_array(), mux = mf_ux.const_array(), mvx = mf_vx.const_array();
+    auto mmy = mf_my.const_array(), muy = mf_uy.const_array(), mvy = mf_vy.const_array();
     auto a11 = s11.array(), a22 = s22.array(), a33 = s33.array();
     auto a12 = s12.array(), a21 = s21.array(), a13 = s13.array(), a31 = s31.array();
     auto a23 = s23.array(), a32 = s32.array();
@@ -389,13 +432,13 @@ struct TerrainStressCase
     Box cc = bxcc, xy = tbxxy, xz = tbxxz, yz = tbxyz;
     ComputeStrain_T(cc, xy, xz, yz, domain, ua, va, wa,
                     a11, a22, a33, a12, a21, a13, a31, a23, a32,
-                    znd, dJ, dxInv, mfa, mfa, mfa, mfa, mfa, mfa, bcs.data(), c13, c23);
+                    znd, dJ, dxInv, mmx, mux, mvx, mmy, muy, mvy, bcs.data(), c13, c23);
     xy.grow(IntVect(-1,-1,0)); xz.grow(IntVect(-1,-1,0)); yz.grow(IntVect(-1,-1,0));
     Array4<const Real> no_cell_data{};
     ComputeStressConsVisc_T(cc, xy, xz, yz, mu_eff, no_cell_data,
                             a11, a22, a33, a12, a21, a13, a31, a23, a32,
                             er_fab.const_array(), znd, dJ, dxInv,
-                            mfa, mfa, mfa, mfa, mfa, mfa, c13, c23, c33, implicit_metric);
+                            mmx, mux, mvx, mmy, muy, mvy, c13, c23, c33, implicit_metric);
     Gpu::streamSynchronize();
   }
 
@@ -901,13 +944,13 @@ TEST(TerrainStress, ImplicitSolveRemovesExactlyTheFluxItPutsBack)
                                   cons.const_array(), mom.array(), c.s13i.const_array(), c.s13i.const_array(),
                                   c.z_nd.const_array(), c.detJ.const_array(), dxInv, c.mu_turb.const_array(),
                                   solver, c.bcs.data(), false, Real(1.0), false,
-                                  c.mf.const_array(), c.mf.const_array(), metric);
+                                  c.mf_ux.const_array(), c.mf_uy.const_array(), metric);
       } else {
         ImplicitDiffForMomLU_T<1>(col, c.domain, 0, double(300.0), col_kext.const_array(),
                                   cons.const_array(), mom.array(), c.s23i.const_array(), c.s23i.const_array(),
                                   c.z_nd.const_array(), c.detJ.const_array(), dxInv, c.mu_turb.const_array(),
                                   solver, c.bcs.data(), false, Real(1.0), false,
-                                  c.mf.const_array(), c.mf.const_array(), metric);
+                                  c.mf_vx.const_array(), c.mf_vy.const_array(), metric);
       }
       Gpu::streamSynchronize();
       FArrayBox h0(vel.box(), 1, The_Pinned_Arena()), h1(vel.box(), 1, The_Pinned_Arena());
@@ -958,5 +1001,136 @@ TEST(TerrainStress, ExplicitZetaFluxHoldsTheCompactMetricTerm)
     ASSERT_GT(scale, Real(0.0));
     EXPECT_LT(dmax, Real(1.e3)*tol_for_scale(scale)) << "dir " << dir
       << ": explicit zeta flux and its compact implicit part differ by " << dmax/scale;
+  }
+}
+
+namespace {
+// Dense LU solve X = M^{-1} B (partial pivoting), row-major n x n
+Mat solve_dense (Mat m, Mat b, int n)
+{
+  std::vector<int> piv(static_cast<std::size_t>(n));
+  for (int c = 0; c < n; ++c) {
+    int pr = c;
+    for (int r = c+1; r < n; ++r) {
+      if (std::abs(m[static_cast<std::size_t>(r)*n+c]) > std::abs(m[static_cast<std::size_t>(pr)*n+c])) { pr = r; }
+    }
+    piv[static_cast<std::size_t>(c)] = pr;
+    if (pr != c) {
+      for (int j = 0; j < n; ++j) {
+        std::swap(m[static_cast<std::size_t>(c)*n+j], m[static_cast<std::size_t>(pr)*n+j]);
+        std::swap(b[static_cast<std::size_t>(c)*n+j], b[static_cast<std::size_t>(pr)*n+j]);
+      }
+    }
+    const double d = m[static_cast<std::size_t>(c)*n+c];
+    for (int r = c+1; r < n; ++r) {
+      const double f = m[static_cast<std::size_t>(r)*n+c] / d;
+      if (f == 0.0) { continue; }
+      for (int j = c; j < n; ++j) { m[static_cast<std::size_t>(r)*n+j] -= f*m[static_cast<std::size_t>(c)*n+j]; }
+      for (int j = 0; j < n; ++j) { b[static_cast<std::size_t>(r)*n+j] -= f*b[static_cast<std::size_t>(c)*n+j]; }
+    }
+  }
+  for (int c = n-1; c >= 0; --c) {
+    const double d = m[static_cast<std::size_t>(c)*n+c];
+    for (int j = 0; j < n; ++j) {
+      double v = b[static_cast<std::size_t>(c)*n+j];
+      for (int k = c+1; k < n; ++k) { v -= m[static_cast<std::size_t>(c)*n+k]*b[static_cast<std::size_t>(k)*n+j]; }
+      b[static_cast<std::size_t>(c)*n+j] = v / d;
+    }
+  }
+  return b;
+}
+// Spectral radius from ||G^(2^s)||^(1/2^s) (Frobenius norm, renormalised each squaring)
+double spectral_radius (Mat g, int n)
+{
+  double logn = 0.0, scale = 1.0;
+  for (int s = 0; s < 40; ++s) {
+    g = matmul(g, g, n);
+    double f = 0.0;
+    for (double x : g) { f += x*x; }
+    f = std::sqrt(f);
+    if (!(f > 0.0) || !std::isfinite(f)) { return f; }
+    for (auto& x : g) { x /= f; }
+    scale *= 2.0;
+    logn = 2.0*logn + std::log(f);
+  }
+  return std::exp(logn / scale);
+}
+} // namespace
+
+// Motivation (Pressel's review): the stability of the split under the full Runge-Kutta stage
+// structure.  Each compressible stage s (dt/3, dt/2, dt, all from u^n) does
+// u_s = (I - f dt_s L)^-1 [u^n + dt_s (A - f L) u_{s-1}], with A the full explicit diffusion
+// operator and L the part the implicit solve takes (the divergence of tau13i/tau23i).  On steep
+// curved terrain with K_h >> K_v the K_h metric term makes the scheme unstable at a large dt
+// when L holds only K_v.  With erf.implicit_terrain_metric and vert_implicit_fac = 1 1 1 the
+// split leaves only the limit of w's vertical diffusion, which stays explicit (without
+// ERF_IMPLICIT_W): the spectral radius must not exceed that of the stages applied to the w rows
+// of A alone (or 1), within 0.1 % for the coupling of w to u and v (3e-5 on this mesh).
+TEST(TerrainStress, ImplicitMetricStagesAreStableOnCurvedTerrain)
+{
+  const int nx = 12, ny = 2, nz = 12, m = 2;
+  const Real dx = Real(3000.0), dz = Real(50.0);
+  TerrainStressCase c(nx, ny, nz, dx, dx, dz, Real(0.0), Real(0.0), Real(4000.0), Real(10.0), Real(0.0));
+  c.init();
+  c.set_curved_terrain(0, Real(1000.0), Real(8.0)*dx, Real(0.0));
+  struct Dof { int c, i, k; };
+  std::vector<Dof> dofs;
+  for (int i = m; i <= nx - m; ++i) { for (int k = m; k < nz - m; ++k) { dofs.push_back({0,i,k}); } }
+  for (int i = m; i <  nx - m; ++i) { for (int k = m; k < nz - m; ++k) { dofs.push_back({1,i,k}); } }
+  for (int i = m; i <  nx - m; ++i) { for (int k = m; k <= nz - m; ++k) { dofs.push_back({2,i,k}); } }
+  const int n = static_cast<int>(dofs.size());
+  Mat A(static_cast<std::size_t>(n)*n, 0.0), Loff(A), Lon(A);
+  FArrayBox hu(c.ubx,1,The_Pinned_Arena()), hv(c.vbx,1,The_Pinned_Arena()), hw(c.wbx,1,The_Pinned_Arena());
+  for (int d = 0; d < n; ++d) {
+    for (int pass = 0; pass < 3; ++pass) {
+      c.u.setVal<RunOn::Device>(Real(0.0)); c.v.setVal<RunOn::Device>(Real(0.0)); c.w.setVal<RunOn::Device>(Real(0.0));
+      FArrayBox& f = (dofs[d].c == 0) ? c.u : (dofs[d].c == 1) ? c.v : c.w;
+      const Box fb = f.box();
+      f.setVal<RunOn::Device>(Real(1.0), Box(IntVect(dofs[d].i, fb.smallEnd(1), dofs[d].k),
+                                             IntVect(dofs[d].i, fb.bigEnd(1),   dofs[d].k), fb.ixType()));
+      c.compute(true, pass == 2);
+      if (pass > 0) { c.rhs_of_implicit_part(); }
+      Mat& M = (pass == 0) ? A : (pass == 1) ? Loff : Lon;
+      copy_to_host(c.rhs_u, hu); copy_to_host(c.rhs_v, hv); copy_to_host(c.rhs_w, hw);
+      const auto ru = hu.const_array(), rv = hv.const_array(), rw = hw.const_array();
+      for (int r = 0; r < n; ++r) {
+        const auto& q = dofs[r];
+        M[static_cast<std::size_t>(r)*n + d] =
+          double((q.c == 0) ? ru(q.i,0,q.k) : (q.c == 1) ? rv(q.i,0,q.k) : rw(q.i,0,q.k));
+      }
+    }
+  }
+  auto amplification = [&] (const Mat& L, double dt) {
+    Mat I(static_cast<std::size_t>(n)*n, 0.0);
+    for (int i = 0; i < n; ++i) { I[static_cast<std::size_t>(i)*n+i] = 1.0; }
+    Mat u = I;
+    for (const double dts : {dt/3.0, dt/2.0, dt}) {
+      Mat AmL(A);
+      for (std::size_t q = 0; q < AmL.size(); ++q) { AmL[q] = dts*(A[q] - L[q]); }
+      Mat rhs = matmul(AmL, u, n);
+      for (std::size_t q = 0; q < rhs.size(); ++q) { rhs[q] += I[q]; }
+      Mat lhs(I);
+      for (std::size_t q = 0; q < lhs.size(); ++q) { lhs[q] -= dts*L[q]; }
+      u = solve_dense(lhs, rhs, n);
+    }
+    return u;
+  };
+  // Without the option the explicit K_h metric term is unstable at 60 s (spectral radius 19 on
+  // this mesh, 2.4 at 30 s)
+  EXPECT_GT(spectral_radius(amplification(Loff, 60.0), n), 1.5);
+  // The stages applied to the w rows alone (u and v rows of A zeroed, no implicit part): w's
+  // explicit vertical diffusion, stable to about 80 s here (2.32 at 100 s, 9.85 at 150 s)
+  Mat Aw(A), Zero(static_cast<std::size_t>(n)*n, 0.0);
+  for (int r = 0; r < n; ++r) {
+    if (dofs[r].c != 2) { for (int q = 0; q < n; ++q) { Aw[static_cast<std::size_t>(r)*n+q] = 0.0; } }
+  }
+  const Mat Afull = A;
+  for (const double dt : {30.0, 60.0, 80.0, 100.0, 150.0}) {
+    A = Aw;
+    const double r_w = spectral_radius(amplification(Zero, dt), n);
+    A = Afull;
+    const double r_on = spectral_radius(amplification(Lon, dt), n);
+    EXPECT_LE(r_on, std::max(1.0, r_w) * (1.0 + 1.e-3)) << "option on, dt " << dt << ": rho " << r_on
+                                                         << " beyond the w limit " << r_w;
   }
 }
