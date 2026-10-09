@@ -2732,6 +2732,34 @@ add_test_restart_parity(TerrainHill_RegridOnRestart_IntervalMeans TerrainHill 7 
     ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "1.0e-12" FCOMPARE_ATOL "1.0e-20")
 endif()
 
+# SLM across a restart. Nothing covered this: the two SLM decks in the tree are gated behind
+# ERF_TEST_ENABLE_EXTRA_LSM_TESTS and need input files this repository does not carry, so an
+# SLM restart was never exercised at all -- which is how the failure reported on issue 4225
+# (SLM stopping on t_canop > tfriz after a restart) got in.
+#
+# PLT2DFILE is plt_lsm_2D, not an erf.plot2d file: SLM keeps prognostic state ERF does not
+# expose through lsm_data -- t_canop, t_skin, t_ground_skin, t_cas, q_cas, mw, mws,
+# wet_canop -- and plt_lsm_2D is the only output that carries it. erf.plot_lsm in the deck
+# writes it alongside plotfile 1, so the runner's existing plot_int_1 cadence drives it. The
+# 3D comparison alone would see the atmosphere and pass while the canopy state silently
+# restarted from its initialization value.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_parity(SLM_Restart SLM_Restart 7 20
+    PLT2DFILE "plt_lsm_2D_00020"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+endif()
+
+# The same deck across a level-0 regrid, which ReadCheckpointFile still refuses: SLM does its
+# own checkpoint I/O and reads onto the grids the run uses, so it cannot yet take grids that
+# moved. Checkpoint on one rank and restart on two to reach the automatic branch without
+# setting anything. When SLM's reader is taught to redistribute, this becomes an
+# add_test_restart_parity case like the one above and the category leaves the guard.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_abort(SLM_RegridOnRestart_Refused SLM_Restart 7
+    "a land-surface model"
+    CHK_NRANKS 1 RESTART_NRANKS 2)
+endif()
+
 # The same for terrain carried by an embedded boundary: the mesh is flat there
 # too, so the ground under the station is the surface the EB was built from and
 # not the bottom of the mesh.  The hill is 50 m up at the station, so 40 m above
