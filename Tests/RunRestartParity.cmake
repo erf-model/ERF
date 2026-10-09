@@ -159,17 +159,17 @@ run_erf_with("${launch}" "${RESTART_DIR}" "restart.log" ${RUN_TIMEOUT}
 #
 # A regrid test that silently stops regridding still passes, because it then compares an
 # ordinary restart against the straight run and those agree trivially. Require the evidence
-# in the log, so the test keeps testing what its name says. ERF prints this from
-# RemakeLevel under erf.v = 1, which the decks using this option set.
+# in the log, so the test keeps testing what its name says. ERF prints this line from
+# ReadCheckpointFile whenever level 0's grids differ from the checkpoint's, regardless of
+# erf.v.
 #
 if(REQUIRE_LEVEL0_REMAKE)
     file(READ "${RESTART_DIR}/restart.log" _restart_output)
-    if(NOT _restart_output MATCHES "REMAKING WITH NEW BA AT LEVEL 0")
+    if(NOT _restart_output MATCHES "reading level 0 onto new grids")
         message(FATAL_ERROR
-            "RunRestartParity.cmake: the restart leg was expected to re-make the level-0 "
-            "grids, but its log does not say it did. Either the deck no longer reaches that "
-            "branch -- in which case this test is no longer testing a regrid -- or erf.v is "
-            "not 1 and the line was never printed (see restart.log)")
+            "RunRestartParity.cmake: the restart leg was expected to read level 0 onto "
+            "new grids, but its log does not say it did, so this test is no longer "
+            "exercising a regrid on restart (see restart.log)")
     endif()
 endif()
 
