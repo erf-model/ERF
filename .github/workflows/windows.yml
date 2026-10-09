@@ -7,7 +7,7 @@ on:
     types: [opened, synchronize, reopened]
 
 concurrency:
-  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-windows
+  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || github.sha }}-windows
   cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
@@ -23,7 +23,8 @@ jobs:
         # is still built by ci, gcc and windows-mpi.
         particles: [ON]
         particles_precision: [DOUBLE, SINGLE]
-        mesh_precision: [DOUBLE, SINGLE]
+        # PR tier: DOUBLE only. SINGLE builds on merge to development (which also writes its ccache).
+        mesh_precision: ${{ fromJSON(github.event_name == 'pull_request' && '["DOUBLE"]' || '["DOUBLE", "SINGLE"]') }}
         exclude:
           # Only matching mesh/particle precisions are tested, i.e. DOUBLE mesh
           # with DOUBLE particles and SINGLE mesh with SINGLE particles.

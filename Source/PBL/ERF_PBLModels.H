@@ -276,6 +276,28 @@ struct PBLDerivativeDzInv
  * @param[out] dvdz computed vertical derivative of y-velocity
  * @param[in] moisture_indices moisture variable component indices
  */
+/**
+ * Thermodynamic variable whose vertical gradient the PBL schemes use for
+ * buoyancy, selected by erf.thermal_stratification.
+ *
+ * @param[in] strat stratification variable to return
+ */
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+GetPBLStratVar (int i, int j, int k,
+                const StratType strat,
+                const amrex::Array4<const amrex::Real>& cell_data,
+                const MoistureComponentIndices& moisture_indices)
+{
+    if (strat == StratType::theta) {
+        return cell_data(i,j,k,RhoTheta_comp) / cell_data(i,j,k,Rho_comp);
+    } else if (strat == StratType::thetal) {
+        return GetThetal(i,j,k,cell_data,moisture_indices);
+    }
+    return GetThetav(i,j,k,cell_data,moisture_indices);
+}
+
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 void
@@ -295,21 +317,22 @@ ComputeVerticalDerivativesPBL (int i, int j, int k,
                                amrex::Real& dthetadz,
                                amrex::Real& dudz,
                                amrex::Real& dvdz,
-                               const MoistureComponentIndices& moisture_indices)
+                               const MoistureComponentIndices& moisture_indices,
+                               const StratType strat = StratType::thetav)
 {
     // ext_dir ghost values hold the value at the physical boundary, which is
     // half a ghost-center spacing from the adjacent cell center. Use a
     // two-point, first-order boundary-to-center difference with inverse
     // distance 2/dz.
     if ( k==izmax && c_ext_dir_on_zhi ) {
-        dthetadz = ( GetThetav(i,j,k+1,cell_data,moisture_indices)
-                    -GetThetav(i,j,k  ,cell_data,moisture_indices) )*dz_inv.dirichlet_hi;
+        dthetadz = ( GetPBLStratVar(i,j,k+1,strat,cell_data,moisture_indices)
+                    -GetPBLStratVar(i,j,k  ,strat,cell_data,moisture_indices) )*dz_inv.dirichlet_hi;
     } else if ( k==izmin && c_ext_dir_on_zlo ) {
-        dthetadz = ( GetThetav(i,j,k  ,cell_data,moisture_indices)
-                    -GetThetav(i,j,k-1,cell_data,moisture_indices) )*dz_inv.dirichlet_lo;
+        dthetadz = ( GetPBLStratVar(i,j,k  ,strat,cell_data,moisture_indices)
+                    -GetPBLStratVar(i,j,k-1,strat,cell_data,moisture_indices) )*dz_inv.dirichlet_lo;
     } else {
-        dthetadz = ( GetThetav(i,j,k+1,cell_data,moisture_indices)
-                    -GetThetav(i,j,k-1,cell_data,moisture_indices) )*dz_inv.interior;
+        dthetadz = ( GetPBLStratVar(i,j,k+1,strat,cell_data,moisture_indices)
+                    -GetPBLStratVar(i,j,k-1,strat,cell_data,moisture_indices) )*dz_inv.interior;
     }
 
     if ( k==izmax && u_ext_dir_on_zhi ) {

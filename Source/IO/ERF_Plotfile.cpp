@@ -1409,12 +1409,36 @@ ERF::FillPlot3DVars (int lev,
         }
         mf_comp ++;
     };
-    // Native SHOC pblh is diagnosed in meters AGL and is copied through
-    // unchanged into the plotfile diagnostic field.
+    // The boundary layer height in meters AGL.  Native SHOC carries its own
+    // column-filled diagnostic; every other scheme gets it from the surface
+    // layer, which diagnoses it whenever erf.most.pblh_calc is set (MYNN25
+    // computes it directly, MRF/YSU/YSUNew write theirs back via set_pblh).
+    // That field is two-dimensional, so broadcast it down each column.
     if (containerHasElement(plot_var_names, "pblh")) {
-        copy_native_shoc_diagnostic(have_native_shoc_diagnostics
-                                    ? &native_shoc_driver[lev]->pblh_diagnostics()
-                                    : nullptr);
+        const auto& surf_lay_zlo = m_SurfaceLayer[Orientation(Direction::z, Orientation::low)];
+        if (have_native_shoc_diagnostics) {
+            copy_native_shoc_diagnostic(&native_shoc_driver[lev]->pblh_diagnostics());
+        } else if (surf_lay_zlo && surf_lay_zlo->computes_pblh()) {
+            const MultiFab* pblh_mf = surf_lay_zlo->get_pblh(lev);
+            const int dcomp = mf_comp;
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+            for (MFIter mfi(mf_dst, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.tilebox();
+                auto       dst = mf_dst.array(mfi);
+                auto const src = pblh_mf->const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    dst(i,j,k,dcomp) = src(i,j,0);
+                });
+            }
+            mf_comp ++;
+        } else {
+            // No PBL height is being diagnosed; keep the -999 sentinel so the
+            // field is not mistaken for a real value.
+            copy_native_shoc_diagnostic(nullptr);
+        }
     }
     if (containerHasElement(plot_var_names, "shoc_cldfrac")) {
         copy_native_shoc_diagnostic(have_native_shoc_diagnostics

@@ -70,7 +70,9 @@ The downwelling radiation reaches the balance through a provider,
 :cpp:`erf.ibseb.radiation`. The built-in ``prescribed`` provider gives the
 direct-normal irradiance, the diffuse irradiance on a horizontal surface and
 the sun vector either as fixed inputs (:cpp:`erf.ibseb.sun_mode = fixed`,
-for analytic tests) or from the site and time (``solar``): declination,
+for analytic tests), from the two-stream radiation's own sun (``two_stream``,
+see `Refined levels`_ below for why it must be used with that model) or from
+the site and time (``solar``): declination,
 equation of time, hour angle, zenith and azimuth by the Spencer series, the
 direct beam by the Bird transmission :math:`S_0 E_0 \tau^{1/\cos z}` and the
 diffuse light as a fraction :math:`k_d` of what the beam lost on the way
@@ -288,7 +290,8 @@ The depth is the mixed layer above a roof, :math:`z_i - z_{face}` floored
 at the building height, and the building height for a wall, the height of
 its natural-convection column. :math:`z_i` follows the diurnal cycle
 rather than a constant: :cpp:`erf.ibseb.z_i_mode = bulk_ri` diagnoses it
-every step on the horizontal-mean profile by the bulk Richardson method
+every step on the horizontal-mean profile of level 0 (for the faces of every
+level) by the bulk Richardson method
 (the first cell centre where :math:`Ri_b` exceeds :cpp:`erf.ibseb.ri_crit`,
 the domain top for a neutral profile), ``pblh`` reads the surface layer's
 own boundary-layer height at the face's column, and ``fixed`` takes
@@ -362,6 +365,110 @@ and the solar mode against the solstice-noon zenith at Boulder. The
 embedded-boundary reader steps each building edge over one cell, so the
 boxes have a full-height core with a half-height rim, which the test
 reads from the face dump rather than assuming.
+
+Refined levels
+--------------
+
+The balance runs on every level of a static hierarchy (regridding,
+:cpp:`erf.regrid_int` > 0, is not supported). Each level builds its own
+face list, building ids, view fractions and ray cast from its own
+blanking, and its faces heat its own cells. Where a refined level covers
+a building, the levels below keep their coarser faces of it, whose balance
+heats cells that the average down then replaces with the refined level's
+values. So the reports carry a ``level`` column, and with
+:cpp:`erf.ibseb.dump_faces_file` a refined level writes its faces to
+``<prefix>.lev<N>...`` beside the coarse level's ``<prefix>...``.
+
+A building must lie wholly inside a refined level, with at least one cell
+of the level below around it, or wholly outside it. A level that covered
+part of a building would give it a partial face list. ERF checks this at
+start-up and stops, naming the first cell that lies on the edge: on the
+level below for the buildings it resolves, and on the refined level itself
+for one only that level resolves (a low block under the coarser cell height),
+including a block that runs across the edge solid against solid. A
+building outside a refined level has its faces only on the levels below,
+and the refined level's rays still find it: its columns are copied from the
+column map of the level below into the refined level's ray cast, so it
+shades the refined faces and enters their view fractions at the coarser
+resolution. The copy takes ratio x ratio entries per coarse column, so the
+refined level's map covers the built area of every level at its own
+resolution, replicated on every rank like the level's own: 4 bytes per
+column, 16 MB per rank for 1024 x 1024 built coarse columns at a ratio of 2. On the coarse level a building can reach one cell beyond its
+footprint, where the embedded boundary ramps from its roof to the ground,
+so a street that carries the edge of a refined level must be four coarse
+cells wide: two ramp cells and the two cells between which the edge falls.
+
+**Make refinement regions for this feature with**
+``Exec/CanonicalTests/SEB/ibseb_refinement_box.py``. Given a deck (it
+follows ``FILE`` includes and reads the height map of
+:cpp:`erf.buildings_file_name`), it checks the refined level that the deck's
+static :cpp:`erf.<name>.in_box_lo` / :cpp:`in_box_hi` boxes make together (a
+building two boxes cover between them is inside) and proposes a grown box
+when a building crosses it. With ``--all`` or ``--region XLO XHI
+YLO YHI`` it proposes a box and prints the deck lines; ``--fit tight`` asks
+for the smallest box the check accepts, ``--fit relaxed`` for one padded by
+``--margin`` coarse cells (3 by default), which keeps the edge of the
+refined level, where the coarse level fills the fine one, away from the
+buildings and the flow around them. It judges the grids AMReX builds from
+the box (grown to whole :cpp:`amr.blocking_factor` blocks), and its model of
+the coarse footprint is conservative, so a box it accepts passes the start-up
+check. It handles a level-1 box spanning the depth, and stops unless the deck
+sets :cpp:`amr.n_error_buf = 0` (ERF stops on an explicit box otherwise).
+
+With :cpp:`erf.radiation_model = TwoStream` the faces must see the sun the
+two-stream columns see. The prescribed provider's own sun (``solar``) is
+Spencer's, with the equation of time; the radiation models' orbital
+formula has none, so the two sit up to about 4 degrees apart in hour angle
+through the year whatever the inputs (1.5 degrees on 5 August).
+:cpp:`erf.ibseb.sun_mode = two_stream` gives the
+faces the two-stream sun itself: the declination and the Earth-Sun distance
+factor of :cpp:`start_datetime` from the routine the sweep uses
+(``two_stream_sun_date``), the hour angle of the same formula at
+:cpp:`erf.rad_cons_lon`, the site latitude :cpp:`erf.rad_cons_lat`, and the
+sweep's top-of-atmosphere irradiance (:cpp:`erf.fixed_total_solar_irradiance`,
+or the reference scaled by the distance factor), from which the clear-sky
+formulas of ``solar`` give the direct and diffuse light. With the
+two-stream sun following the calendar the faces must use ``two_stream``; with
+it fixed at :cpp:`erf.fixed_solar_zenith_angle` (a cosine, with no azimuth)
+:cpp:`erf.ibseb.sun_mode = fixed` at the same zenith; ERF stops at start-up
+otherwise, and on ``two_stream`` without the two-stream radiation or on a
+grid that carries a latitude and longitude per column (in a NetCDF build,
+where the columns follow it). With the two-stream shortwave off only a
+``two_stream`` request is checked. RRTMGP places its sun by the same orbital
+formula and is not checked: the faces' ``solar`` sun sits as far off it.
+
+What ``two_stream`` shares is the sun's position and its top-of-atmosphere
+irradiance. The atmosphere the faces' beam crosses is still the prescribed
+clear-sky one, :cpp:`erf.ibseb.sw_transmission` and
+:cpp:`erf.ibseb.sw_diffuse_coeff`, and the faces' ground longwave still uses
+:cpp:`erf.ibseb.T_ground`, not the two-stream ground balance. For the clear
+two-stream column (single-scattering albedo 0, no diffuse light) with total
+shortwave optical depth :math:`\tau`, :cpp:`erf.ibseb.sw_transmission =
+exp(-tau)` and :cpp:`erf.ibseb.sw_diffuse_coeff = 0` give the faces the
+column's own direct beam, as the canonical case below does. The two-stream
+ground balance also covers the building footprints, and the two-stream
+columns pass through the buildings.
+
+Inputs that go by building, :cpp:`erf.ibseb.material_by_building`, follow
+level 0's numbering on every level: a refined level finds each of its
+buildings in level 0 by a vote of its columns, each naming the level-0
+building under it, so a building outside the refined level, or two that
+level 0 merges into one, do not shift the materials. A building only a
+refined level resolves takes :cpp:`erf.ibseb.material_default`, with a
+warning at start-up.
+The per-building report carries each level's own number and, in
+``building_level0``, level 0's.
+
+``Tests/test_files/IBSEB_RefinedLevels`` (CTest ``IBSEB_RefinedLevels``)
+puts a cube on level 1 and a tower outside it under a low eastern sun and
+checks that the cube's refined faces see the same shadow as when level 1
+holds both, and runs a refined level with no building and the script's
+verdicts; ``IBSEB_RefinedLevelCutsBuilding``,
+``IBSEB_RefinedLevelCutsLowBuilding``, ``IBSEB_TwoStreamSunSolar``,
+``IBSEB_TwoStreamSunFixed``, ``IBSEB_TwoStreamSunNoDate``,
+``IBSEB_TwoStreamSunSolarInputs`` and ``IBSEB_TwoStreamSunWithoutTwoStream`` check the
+start-up stops, and the unit tests ``IBSEBTwoStreamSun.*`` that the faces'
+two-stream zenith is the columns' at every hour.
 
 Canonical case: a building set
 ------------------------------

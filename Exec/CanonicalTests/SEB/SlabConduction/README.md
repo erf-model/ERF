@@ -48,12 +48,11 @@ switched off so only the slab does anything and the runs are cheap.
 3. **Materials by building**: building 1 carries the concrete and building 2
    the timber of the CSV, with all five properties.
 4. **Restart**: the thin deck checkpointed at step 200 and restarted to 400
-   reproduces the straight run's slab, conduction flux and geometry exactly.
-   The atmosphere-derived columns (wind, density, air temperature, sensible
-   flux) are only required to be close, because the immersed-forcing
-   atmosphere of the development branch does not restart bit-for-bit: the
-   wind at the faces differs by about one part in ten thousand after the
-   restart. That is outside the balance and worth a separate look.
+   reproduces the straight run's slab, conduction flux and geometry exactly,
+   and the atmosphere-derived columns (wind, density, air temperature,
+   sensible flux) exactly too. Until October 2026 a restart rebuilt the
+   immersed forcing's blanking without clearing the almost-fluid cells, and
+   those columns differed by 2.5e-5 relative.
 
 ## Reference
 
@@ -70,7 +69,7 @@ switched off so only the slab does anything and the runs are cheap.
   building 2 carries material 2 (albedo 0.4, k 0.15 W/m/K, 0.15 m): PASS
 == slab through a checkpoint (4 ranks)
   slab, G and geometry after restart equal the straight run: PASS (max |diff| 0.0e+00)
-  atmosphere-derived columns close (development IF restart is not bit-exact): PASS (max rel diff 2.5e-05)
+  atmosphere-derived columns equal the straight run: PASS (max rel diff 0.0e+00)
 ALL PASS
 
 ```

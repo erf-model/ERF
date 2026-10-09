@@ -1,0 +1,147 @@
+# Two-stream radiation, the force-restore surface energy balance and the
+# immersed-boundary balance on a seeded random set of buildings, on two levels
+# (see README.md). The ground takes the two-stream fluxes through the
+# force-restore balance, coupled both ways with the surface layer, as in
+# ../TwoStream_NoahMP_vs_ForceRestore (case 2); the building faces take the
+# prescribed clear-sky provider under the same sun. Level 1 refines the built
+# area by 2 in x and y over the whole depth and stays fixed for the run.
+#
+#   python3 make_buildings.py              # writes buildings.txt, buildings.csv, inputs_buildings
+#   mpirun -np 4 erf_exec inputs
+#
+erf.prob_name = "ABL"
+
+stop_time = 10800.0            # three hours, 15:00 to 18:00 UTC (about 08:20 to 11:20 local solar time)
+max_step  = 1000000
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+# 640 m x 640 m x 1 km at 20 m x 20 m x 10 m on level 0. The faces take the
+# level's constant cell sizes, so the vertical grid is uniform.
+geometry.prob_extent = 640 640 1000
+amr.n_cell           = 32  32  100
+geometry.is_periodic = 1 1 0
+amr.max_grid_size_x  = 16
+amr.max_grid_size_y  = 16
+amr.max_grid_size_z  = 100
+
+# Level 1 at 10 m x 10 m x 10 m over 160-480 m in x and y, spanning z so it
+# sweeps its own columns. Every building lies inside it with at least one
+# level-0 cell around it (the balance checks that at start-up); the box passes
+# python3 ../../SEB/ibseb_refinement_box.py inputs.
+amr.max_level = 1
+amr.ref_ratio_vect = 2 2 1
+amr.n_error_buf = 0
+amr.blocking_factor = 2
+amr.refine_whole_domain_dir = 2
+erf.refinement_indicators = city
+erf.city.max_level = 1
+erf.city.in_box_lo = 160.0 160.0
+erf.city.in_box_hi = 480.0 480.0
+
+# Level 0 steps 1 s, level 1 two 0.5 s steps (the building-set case's step at
+# 10 m); the acoustic waves are substepped.
+erf.fixed_dt = 1.0
+erf.substepping_cfl = 0.5
+erf.sum_interval = -1
+erf.v = 0
+amr.v = 0
+
+zlo.type = "surface_layer"
+zhi.type = "SlipWall"
+erf.most.z0 = 0.1
+erf.most.surf_temp = 300.0
+
+erf.init_type = "input_sounding"
+erf.input_sounding_file = "input_sounding"
+erf.use_gravity = true
+erf.molec_diff_type = "None"
+erf.les_type = "Smagorinsky"
+erf.Cs = 0.17
+prob.T_0_Pert_Mag = 0.1
+erf.fix_random_seed = true
+
+erf.use_coriolis = true
+erf.latitude = 40.0
+erf.abl_driver_type = "GeostrophicWind"
+erf.abl_geo_wind = 5.0 0.0 0.0
+
+# The sun of case 2: 2024-08-05 from 15:00 UTC at 40 N, 100 W.
+start_datetime = "2024-08-05 15:00:00"
+erf.rad_cons_lat = 40.0
+erf.rad_cons_lon = -100.0
+
+erf.radiation_model = "TwoStream"
+erf.rad_t_sfc = 300.0
+# Case 2's column optical depths (0.2 shortwave, 3.2 longwave) over 100 layers.
+erf.radiation.tau_per_layer    = 0.002
+erf.radiation.tau_lw_per_layer = 0.032
+erf.radiation.diag_enable = true
+erf.radiation.diag_csv_enable = true
+erf.radiation.diag_stdout_enable = false
+erf.radiation.diag_callsite_mode = pre_only
+erf.radiation.diag_file = "radiation_diag.csv"
+
+# The ground: case 2's force-restore balance, dry. It covers every column,
+# under the buildings too; the checker leaves the footprint columns out.
+erf.radiation.seb_prognostic_enable = true
+erf.radiation.seb_use_radiation_fluxes = true
+erf.radiation.seb_turbulent_flux_source = surface_layer
+erf.radiation.seb_surface_layer_uses_skin = true
+erf.radiation.surface_albedo_sw = 0.21
+erf.radiation.surface_emissivity_lw = 0.994
+erf.radiation.seb_t_deep_default = 290.0
+erf.radiation.seb_surface_heat_capacity = 2.0e5
+
+# The buildings: the height map and erf.ibseb.material_by_building come from
+# make_buildings.py.
+erf.buildings_type = ImmersedForcing
+FILE = inputs_buildings
+erf.immersed_forcing_substep = true
+eb2.small_volfrac = 0.005
+erf.if_use_most = true
+erf.if_z0 = 0.01
+erf.if_snap_partial_cells = true
+
+erf.ibseb.enable = true
+erf.ibseb.prognostic = true
+erf.ibseb.csv_int = 60
+erf.ibseb.csv_file = "ibseb_buildings.csv"
+erf.ibseb.dump_faces_file = "faces/set"
+erf.ibseb.dump_faces_tag_step = true
+erf.ibseb.T_skin_init = 300.0
+erf.ibseb.T_interior = 295.0
+erf.ibseb.n_slab_layers = 10
+erf.ibseb.material_file = "materials.csv"
+erf.ibseb.albedo_ground = 0.21
+erf.ibseb.emissivity_ground = 0.994
+# The faces' ground longwave takes this constant, not the two-stream ground
+# balance's skin (which warms to about 310 K by 11:20 local).
+erf.ibseb.T_ground = 300.0
+erf.ibseb.z0_wall = 0.01
+erf.ibseb.z0h_wall = 0.001
+erf.ibseb.view_n_az = 16
+erf.ibseb.view_n_el = 8
+erf.ibseb.stability_correction = true
+erf.ibseb.convective_velocity = "deardorff"
+erf.ibseb.z_i_mode = "bulk_ri"
+# The faces take the two-stream sun (start_datetime, erf.rad_cons_lat / lon):
+# the same position the columns see, and its top-of-atmosphere irradiance.
+erf.ibseb.sun_mode = "two_stream"
+# The clear two-stream column (single-scattering albedo 0) has total shortwave
+# optical depth 100 x 0.002 = 0.2 and no diffuse light: the faces' clear-sky
+# beam crosses the same atmosphere with transmission exp(-0.2) and no diffuse.
+erf.ibseb.sw_transmission = 0.8187307531
+erf.ibseb.sw_diffuse_coeff = 0.0
+erf.ibseb.lw_mode = "gray"
+erf.ibseb.sky_emissivity = 0.83
+
+erf.check_file = chk
+erf.check_int = -1
+erf.plot_file_1 = plt
+erf.plot_int_1 = -1
+erf.plot_per_1 = 1800.0
+erf.plot_vars_1 = theta temp x_velocity y_velocity z_velocity terrain_IB_mask ibseb_nfaces ibseb_tskin ibseb_sw_abs ibseb_shadow ibseb_H
+erf.plot2d_file_1 = plt2d
+erf.plot2d_per_1 = 600.0
+erf.plot2d_vars_1 = seb_t_sfc seb_hfx sensible_heat_flux t_surf

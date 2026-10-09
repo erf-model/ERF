@@ -153,6 +153,12 @@ target_sources(${erf_exe_name}
     # Motivation: the k-eqn RANS closure (AL01) must keep its stability
     # functions finite and its length-scale limits exact for any Rt.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestRANSClosure.cpp
+    # Motivation: the opt-in WRF Smagorinsky-2D limits must reproduce WRF's smag2d_km numbers
+    # (slope factor, deformation threshold, cap and their order), limit K_h before the scalar
+    # diffusivities are derived from it, and the diffusive time-step rates must follow their
+    # documented formulas, with the vertical part dropped only where every implicit stage is
+    # shown to stay bounded.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestSmag2DLimiters.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSurfaceFluxDiagnostics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSeaLevelPressure.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestCanopyBiophysics.cpp
@@ -160,6 +166,10 @@ target_sources(${erf_exe_name}
     # Motivation: a calm cell above an immersed wall gave the wall law u* = 0, an Obukhov length
     # of zero and z / 0 (erf-model/ERF#4016); the stability estimate is now bounded as on flat ground.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestImmersedWallStability.cpp
+    # Motivation: a refined level's buildings must keep level 0's numbers for the
+    # materials by building, even when its tallest column is a spire level 0
+    # leaves fluid, or the level holds only some of the buildings.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBLevelNumbering.cpp
     # Motivation: observation nudging must read a station file exactly, relax
     # to the closed-form target with the right weight, sigma band and rate cap,
     # and put its sources on the right faces over flat, fitted and immersed
@@ -171,6 +181,10 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamKernels.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamColumn.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamRadiationDriver.cpp
+    # Motivation: with erf.ibseb.sun_mode = two_stream the building faces must
+    # see the two-stream columns' sun: the same zenith, a morning sun in the
+    # east, and the start date read the same way.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestIBSEBTwoStreamSun.cpp
     # Motivation: the surface energy balance must take H and LE from a land
     # model, else from the surface layer's applied flux in W/m^2, else from
     # the scalar defaults; LE stays at its default without a moisture model.

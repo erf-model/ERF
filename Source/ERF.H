@@ -611,6 +611,14 @@ public:
     // compute dt from CFL considerations
     double estTimeStep (int lev, long& dt_fast_ratio) const;
 
+    // largest explicit eddy-diffusion rates (1/s) on level lev, momentum and scalars, for the
+    // diffusive time-step check (erf.diffusive_dt_check / erf.diffusive_dt_limit)
+    void ComputeDiffusiveRates (int lev, amrex::Real& rate_mom, amrex::Real& rate_scal) const;
+
+    // print the largest terrain slope factor alpha = h dx/dz on level lev: always when force is
+    // true (new grids), otherwise only if it changed by more than 1 % since the last report
+    void ReportTerrainSlopeFactor (int lev, bool force);
+
 #ifdef ERF_USE_WW3_COUPLING
     //amrex::Print() <<  " About to call send_to_ww3 from ERF.H" << std::endl;
     void send_to_ww3 (int lev);
@@ -819,6 +827,9 @@ public:
 
     // Immersed-boundary surface energy balance (Source/ImmersedBoundarySEB)
     void init_ibseb ();
+    void ibseb_check_refined_levels () const;
+    void ibseb_check_sun_matches_two_stream () const;
+    void ibseb_set_two_stream_sun (int lev, amrex::Real time);
     void ibseb_write_checkpoint (const std::string& checkpointname, int lev) const;
     void ibseb_report (int nstep, amrex::Real time);
     amrex::Real ibseb_bulk_richardson_height (int lev, const amrex::MultiFab& cons,
@@ -1018,6 +1029,7 @@ public:
     void init_zphys            (int lev, double elapsed_time);
     void remake_zphys          (int lev, amrex::Real time, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
     void update_terrain_arrays (int lev);
+    void make_terrain_blanking (int lev);
 
     bool m_driver_has_atm2ocn_coupling = false;
     bool m_driver_uses_two_way_coupling = false;
@@ -1033,6 +1045,14 @@ public:
 
     // One-shot latch so a misconfigured deck says so once rather than every step.
     bool m_warned_coupled_sst_declined = false;
+    // The coupled-SST diagnostics run on the first ApplyOceanSurfaceState call,
+    // then only at erf.v >= 2.
+    bool m_checked_coupled_sst = false;
+    // Out-of-range report: the worst extremes and NaN count already reported;
+    // at erf.v >= 2 it repeats only when a later call is worse. Start at the bounds.
+    amrex::Real m_warned_coupled_sst_min = amrex::Real(260.0);
+    amrex::Real m_warned_coupled_sst_max = amrex::Real(320.0);
+    amrex::Long m_warned_coupled_sst_nan = 0;
 
 private:
 
@@ -1487,6 +1507,8 @@ private:
     // Immersed-boundary surface energy balance: inputs and one face set per level
     IBSEBParams ibseb_params;
     amrex::Vector<std::unique_ptr<IBFaceSet>> m_ibseb;
+    TwoStreamRadiation::OrbitalCache ibseb_orbit;   ///< Orbit of the year for erf.ibseb.sun_mode = two_stream
+    amrex::Real ibseb_z_i_level0 = 0.0;             ///< Level 0's bulk-Richardson depth of its current step, for the refined levels
 
     // Data structures for terrain immersed forcing
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking;
@@ -1611,6 +1633,19 @@ private:
     static double dt_max_initial;
     static double dt_max;
 
+    // Explicit eddy-diffusion time-step check (opt-in): warn when dt * rate exceeds
+    // diffusive_cfl (diffusive_dt_check) and optionally limit an adaptive dt to it
+    static bool diffusive_dt_check;
+    static bool diffusive_dt_limit;
+    static amrex::Real diffusive_cfl;
+    // true until the first ComputeDt of this run has finished (restart hold of the limit)
+    bool diffusive_first_call = true;
+    // largest Fourier number already reported per level (warnings repeat only when it grows)
+    amrex::Vector<amrex::Real> diffusive_fourier_warned;
+    // grids on which, and value at which, the terrain slope factor was last reported, per level
+    amrex::Vector<amrex::BoxArray> slope_report_grids;
+    amrex::Vector<amrex::Real> slope_report_alpha;
+
     // Fixed dt at each level (only used if positive)
     amrex::Vector<double> fixed_dt;
     amrex::Vector<double> fixed_fast_dt;
@@ -1623,6 +1658,46 @@ private:
     // Should we regrid level 0 after restart if Ngrids < Nprocs or
     //    max_grid_size has changed?
     bool regrid_level_0_on_restart = false;
+
+    //
+    // The grids each level's checkpoint was written on, and whether level 0's grids actually
+    // moved when it was read. ReadCheckpointFile decides the level-0 grids before it builds
+    // the levels, so every field is read on the grids in the file and redistributed onto the
+    // grids the run will use; these carry the former. Empty away from a restart.
+    //
+    amrex::Vector<amrex::BoxArray>            ba_chkfile;
+    amrex::Vector<amrex::DistributionMapping> dm_chkfile;
+    bool regrid_level_0_on_restart_in_effect = false;
+
+    //
+    // Read one checkpoint MultiFab and deposit it into dst, which may live on different grids.
+    //
+    // The source is read into an undefined MultiFab, which VisMF::Read then defines on the
+    // BoxArray recorded in the file, so no caller needs to know the checkpoint's grids. Only
+    // the VALID cells of the source are offered by default: a file's ghost cells are not
+    // guaranteed to agree with its valid data, and ParallelCopy intersects the grown source
+    // with the grown destination without any ordering guarantee between overlapping sources,
+    // so offering them can land stale values in valid cells (issue 4225). Pass
+    // src_ghosts = true only for a field whose halo the checkpoint carries deliberately and
+    // whose exterior halo cannot be rebuilt -- the terrain heights are the case that needs it.
+    //
+    void read_checkpoint_mf (amrex::MultiFab& dst,
+                             const std::string& mf_name,
+                             int lev,
+                             int scomp, int dcomp, int ncomp,
+                             const amrex::IntVect& dst_ghosts,
+                             bool src_ghosts = false);
+
+    //
+    // As above, returning false instead of aborting when the file is not there, for fields a
+    // older checkpoint may not carry.
+    //
+    bool read_checkpoint_mf_if_present (amrex::MultiFab& dst,
+                                        const std::string& mf_name,
+                                        int lev,
+                                        int scomp, int dcomp, int ncomp,
+                                        const amrex::IntVect& dst_ghosts,
+                                        bool src_ghosts = false);
 
     // plotfile prefix and frequency
     std::string plot3d_file_1 {"plt_1_"};

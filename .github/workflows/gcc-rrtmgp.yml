@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref }}-linux-gcc-rrtmgp
+  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || github.sha }}-linux-gcc-rrtmgp
   cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
@@ -28,8 +28,10 @@ jobs:
         # for no added coverage of either. Particles OFF is still built by
         # ci, gcc and windows-mpi.
         particles: [ON]
-        netcdf: [OFF, ON]
-        rrtmgp: [OFF, ON]
+        # PR tier: NetCDF+RRTMGP only. The NetCDF-OFF (= gcc.yml + Kokkos) and NetCDF-only
+        # variants build on merge to development.
+        netcdf: ${{ fromJSON(github.event_name == 'pull_request' && '["ON"]' || '["OFF", "ON"]') }}
+        rrtmgp: ${{ fromJSON(github.event_name == 'pull_request' && '["ON"]' || '["OFF", "ON"]') }}
         exclude:
         - rrtmgp: ON
           netcdf: OFF
@@ -120,11 +122,18 @@ jobs:
         export CCACHE_COMPRESSLEVEL=10
         export CCACHE_MAXSIZE=600M
         ccache -z
+        build_start=$(date +%s)
 
         cmake --build ${ERF_DIR}/build --parallel 2 --verbose \
         2>&1 | tee -a ${ERF_DIR}/build-output.txt;
 
-        ccache -s
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
+        # Keep only what this build used: ccache touches an object on every hit, so
+        # anything older than the build is stale. Without this the cache fills with
+        # objects from superseded commits, hits its cap, and evicts live objects.
+        ccache --evict-older-than "$(( $(date +%s) - build_start + 120 ))s"
+        ccache -s | tee -a "$GITHUB_STEP_SUMMARY"
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
         du -hs ~/.cache/ccache
 
     - name: Save Cache
