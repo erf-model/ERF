@@ -2699,46 +2699,37 @@ add_test_restart_parity(TerrainHill_RestartOnMoreRanks TerrainHill 7 20
     ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
 
-# The other half of the level-0 regrid story. RemakeLevel(0) rebuilds the level from
-# init_stuff, which knows nothing about the checkpoint, so state the checkpoint alone carries
-# and RemakeLevel does not explicitly retain comes back as a plausible default -- silently, for
-# almost all of it. ERF::restart refuses rather than continue from the wrong state (issue
-# 4225); these assert it refuses and says what would have been lost.
-#
-# Two legs, because the guard is reached two ways. The first names the flag, so the message
-# offers dropping it. The second sets nothing: the checkpoint is written on one rank and the
-# restart runs on two, so grids[0].size() < NProcs() forces the regrid on its own. That second
-# path is the one users hit without asking, and it was silent before.
+# The state that only the checkpoint carries. These used to be refused, because the level-0
+# remake rebuilt the level through init_stuff and dropped them; now the checkpoint is read
+# straight onto the new grids, so each is simply required to survive. Three categories the
+# TerrainHill deck can switch on: the microphysics accumulators, the velocity time averages
+# and the interval means. The first runs on the automatic branch -- checkpoint on one rank,
+# restart on two, nothing set -- because that is how a user reaches this without asking.
 if(ERF_ENABLE_MPI AND NOT WIN32)
-add_test_restart_abort(TerrainHill_RegridOnRestart_RefusesStateLoss TerrainHill 4
-    "velocity time averages"
-    COMMON_OPTIONS  "amr.max_level=0 erf.terrain_type=None erf.time_avg_vel=true"
-    RESTART_OPTIONS "erf.regrid_level_0_on_restart=1 amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64")
-add_test_restart_abort(TerrainHill_RegridOnRestart_RefusesOnMoreRanks TerrainHill 4
-    "microphysics accumulators"
-    COMMON_OPTIONS "amr.max_level=0 erf.terrain_type=None erf.moisture_model=Kessler"
-    CHK_NRANKS 1 RESTART_NRANKS 2)
-endif()
-
-# A third category, so the guard's list is exercised by more than the two cases that came
-# with it. Each category the guard names is state the level-0 remake drops, and each is a
-# line item for the fix: when the checkpoint is landed on the new grids instead, these tests
-# become add_test_restart_parity cases (with PLT2DFILE for the surface state) rather than
-# abort cases, and the category leaves the guard.
-#
-# Covered here: the microphysics accumulators, the velocity time averages, the interval
-# means. NOT covered, because this deck cannot reach them and the decks that can are either
-# gated behind ERF_TEST_ENABLE_EXTRA_LSM_TESTS or need input files this suite does not carry:
-# the land-surface state (SLM needs a soil-layer setup; its canopy temperature is the
-# reported failure in issue 4225), sea-surface/skin temperature, latitude/longitude, the
-# urban fraction, the radiative heating rates, the wind-farm arrays (a build with
-# ERF_ENABLE_WINDFARM would stop earlier for want of a turbine table, so the test would not
-# be portable), and the WRF vertical-coordinate arrays. Those need decks of their own.
-if(ERF_ENABLE_MPI AND NOT WIN32)
-add_test_restart_abort(TerrainHill_RegridOnRestart_RefusesIntervalMeans TerrainHill 4
-    "interval means"
-    COMMON_OPTIONS  "amr.max_level=0 erf.terrain_type=None erf.compute_mean_vars=true"
-    RESTART_OPTIONS "erf.regrid_level_0_on_restart=1 amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64")
+# PLT2DFILE because rain_accum is a surface field: the 3D plotfile carries none, so without
+# it this would compare density and velocity -- which the remake never lost -- and pass while
+# the accumulator silently restarted from zero.
+add_test_restart_parity(TerrainHill_RegridOnRestart_Moisture TerrainHill 7 20
+    COMMON_OPTIONS "amr.max_level=0 erf.terrain_type=None erf.moisture_model=Kessler erf.plot2d_vars_1=precip_rain_accum"
+    CHK_NRANKS 1 RESTART_NRANKS 2
+    PLT2DFILE "plt2d_1_00020"
+    ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(TerrainHill_RegridOnRestart_TimeAvg TerrainHill 7 20
+    COMMON_OPTIONS  "amr.max_level=0 erf.terrain_type=None erf.time_avg_vel=true erf.plot_vars_1=density x_velocity y_velocity theta u_t_avg v_t_avg umag_t_avg"
+    RESTART_OPTIONS "erf.regrid_level_0_on_restart=1 amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64"
+    ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+# Not zero tolerance, and not because of the regrid: the interval means are already not
+# restart-exact without one. A plain same-rank restart of this deck reproduces theta_mean to
+# 1 ulp (1.9e-16 relative) and w_mean to 6.5e-23 absolute, on a w_mean that is itself ~1e-21,
+# and the same two numbers appear whether or not level 0 is re-made. Two decompositions run
+# straight through, with no restart at all, agree exactly, so it is the restart and not the
+# decomposition. That is issue 4243; the bound here is set just above what it costs so this
+# test still fails if the means are actually lost, which would be O(1). Put it back to zero
+# when 4243 is fixed.
+add_test_restart_parity(TerrainHill_RegridOnRestart_IntervalMeans TerrainHill 7 20
+    COMMON_OPTIONS  "amr.max_level=0 erf.terrain_type=None erf.compute_mean_vars=true erf.plot_vars_1=density x_velocity theta u_mean v_mean w_mean theta_mean"
+    RESTART_OPTIONS "erf.regrid_level_0_on_restart=1 amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64"
+    ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "1.0e-12" FCOMPARE_ATOL "1.0e-20")
 endif()
 
 # The same for terrain carried by an embedded boundary: the mesh is flat there
