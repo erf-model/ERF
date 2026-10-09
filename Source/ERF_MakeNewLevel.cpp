@@ -1163,15 +1163,44 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
                           {&temp_lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
                            base_state[lev], temp_base_state, false);
     } else {
+        //
+        // The base state may be copied from its halo as well as its valid region: the
+        // checkpoint carries base_state WITH ghost cells and ReadCheckpointFile
+        // FillBoundary's them (Source/IO/ERF_Checkpoint.cpp), so every cell offered here
+        // holds real data.
+        //
         temp_base_state.ParallelCopy(base_state[lev],0,0,base_state[lev].nComp(),
                                      base_state[lev].nGrowVect(),base_state[lev].nGrowVect());
-        temp_lev_new[Vars::cons].ParallelCopy(vars_new[lev][Vars::cons],0,0,ncomp_cons,ngrow_state,ngrow_state);
-        temp_lev_new[Vars::xvel].ParallelCopy(vars_new[lev][Vars::xvel],0,0,         1,ngrow_vels,ngrow_vels);
-        temp_lev_new[Vars::yvel].ParallelCopy(vars_new[lev][Vars::yvel],0,0,         1,ngrow_vels,ngrow_vels);
+
+        //
+        // Valid cells only as the SOURCE for the state, for the same reason as the
+        // prognostic surface fields above, and with a sharper edge: ReadCheckpointFile
+        // reads only the valid region of cons/xvel/yvel/zvel and then deliberately poisons
+        // their halos with bogus_large_value (Source/IO/ERF_Checkpoint.cpp -- the only
+        // setBndry calls on state in the code).  An old box's interior halo overlaps its
+        // neighbour's valid region, and ParallelCopy intersects the GROWN source box with
+        // the grown destination boxes with no exclusion and no ordering guarantee between
+        // overlapping sources.  Offering those halos would therefore land 1e150 in valid
+        // cells of the new grids -- which is how a level-0 regrid on restart used to reach
+        // estTimeStep with a sound speed of ~1e32 and trap on the cast of
+        // fixed_dt/dt_sub_max to long.
+        //
+        // Poison the new halos up front so this keeps exactly the state a restart without
+        // a regrid leaves behind.  Nothing reads them before they are refilled: physbcs_*
+        // runs on all four arrays with do_fb = true once restart() returns (ERF.cpp), and
+        // the FillPatchers follow.
+        //
+        temp_lev_new[Vars::cons].setBndry(bogus_large_value);
+        temp_lev_new[Vars::xvel].setBndry(bogus_large_value);
+        temp_lev_new[Vars::yvel].setBndry(bogus_large_value);
+
+        temp_lev_new[Vars::cons].ParallelCopy(vars_new[lev][Vars::cons],0,0,ncomp_cons,IntVect(0),ngrow_state);
+        temp_lev_new[Vars::xvel].ParallelCopy(vars_new[lev][Vars::xvel],0,0,         1,          0,ngrow_vels);
+        temp_lev_new[Vars::yvel].ParallelCopy(vars_new[lev][Vars::yvel],0,0,         1,          0,ngrow_vels);
 
         temp_lev_new[Vars::zvel].setVal(0.);
         temp_lev_new[Vars::zvel].ParallelCopy(vars_new[lev][Vars::zvel],0,0,         1,
-                                              IntVect(ngrow_vels,ngrow_vels,0),IntVect(ngrow_vels,ngrow_vels,0));
+                                              IntVect(0),IntVect(ngrow_vels,ngrow_vels,0));
     }
 
     // Now swap the pointers since we needed both old and new in the FillPatch

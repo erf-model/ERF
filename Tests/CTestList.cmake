@@ -624,9 +624,13 @@ endif()
 # require the plotfile at the end to be identical (no gold file). Every run has a
 # time limit; the default stays at 600, but an explicit RUN_TIMEOUT is forwarded
 # unchanged to each leg and used to size the outer CTest watchdog.
+# COMMON_OPTIONS reaches all three legs; RESTART_OPTIONS reaches the restart leg alone,
+# which is where anything that changes the decomposition has to go.  ALLOW_DIFF_GRIDS
+# lets fcompare compare plotfiles written on different BoxArrays, which a restart leg
+# that re-makes the level-0 grids needs and no other restart test should want.
 function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
-    set(oneValueArgs "COMMON_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT" "DATALOG" "DATALOG_SIGDIGITS" "PLT2DFILE")
-    cmake_parse_arguments(ADD_TEST_RP "" "${oneValueArgs}" "" ${ARGN})
+    set(oneValueArgs "COMMON_OPTIONS" "RESTART_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT" "DATALOG" "DATALOG_SIGDIGITS" "PLT2DFILE")
+    cmake_parse_arguments(ADD_TEST_RP "ALLOW_DIFF_GRIDS" "${oneValueArgs}" "" ${ARGN})
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
 
@@ -661,6 +665,8 @@ function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
         "-DATOL=${_fcompare_atol}"
         "-DRUN_TIMEOUT=${_run_timeout}"
         "-DCOMMON_OPTIONS=${ADD_TEST_RP_COMMON_OPTIONS}"
+        "-DRESTART_OPTIONS=${ADD_TEST_RP_RESTART_OPTIONS}"
+        "-DALLOW_DIFF_GRIDS=${ADD_TEST_RP_ALLOW_DIFF_GRIDS}"
         "-DDATALOG=${ADD_TEST_RP_DATALOG}"
         "-DDATALOG_SIGDIGITS=${ADD_TEST_RP_DATALOG_SIGDIGITS}"
         "-DPLT2DFILE=${ADD_TEST_RP_PLT2DFILE}"
@@ -2576,6 +2582,30 @@ add_test_restart_parity(ImmersedTerrain_Hill_Restart TerrainHill 7 20
 add_test_restart_parity(ImmersedTerrain_Hill_TwoLevel_Restart TerrainHill 7 20
     COMMON_OPTIONS "erf.terrain_type=ImmersedForcing erf.immersed_forcing_substep=true eb2.small_volfrac=0.005 erf.plot_vars_1=density x_velocity y_velocity z_velocity theta terrain_IB_mask"
     FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "0.0")
+endif()
+
+# A restart that re-makes the level-0 grids (erf.regrid_level_0_on_restart, and the
+# same branch ERF::restart takes on its own when the checkpoint has fewer level-0
+# boxes than there are ranks).  The remake used to copy the old state onto the new
+# grids offering its ghost cells as a source, and ReadCheckpointFile leaves those at
+# bogus_large_value, so valid cells of the new grids came out of the remake holding
+# 1e150 and the first estTimeStep trapped on the cast of fixed_dt/dt_sub_max (issue
+# 4225).  RESTART_OPTIONS, not COMMON_OPTIONS: max_grid_size must move on the restart
+# leg alone, or this becomes a box-parity test.  max_grid_size_z is left spanning the
+# column because the vertical diffusion is implicit and define_column_kextent refuses
+# a split column.  Terrain2Lev_Hill_BoxParity already holds this deck decomposition
+# independent under the same 8/8/64 split; both legs here in fact come out bit-for-bit
+# equal, flat mesh and terrain-fitted alike, so they are held at zero tolerance.
+# ALLOW_DIFF_GRIDS because the restart leg writes its plotfile on the re-made grids.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_parity(TerrainHill_RegridOnRestart TerrainHill 7 20
+    COMMON_OPTIONS  "amr.max_level=0 erf.terrain_type=None"
+    RESTART_OPTIONS "erf.regrid_level_0_on_restart=1 amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64"
+    ALLOW_DIFF_GRIDS FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(TerrainHill_RegridOnRestart_Fitted TerrainHill 7 20
+    COMMON_OPTIONS  "amr.max_level=0"
+    RESTART_OPTIONS "erf.regrid_level_0_on_restart=1 amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64"
+    ALLOW_DIFF_GRIDS FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
 
 # The same for terrain carried by an embedded boundary: the mesh is flat there
