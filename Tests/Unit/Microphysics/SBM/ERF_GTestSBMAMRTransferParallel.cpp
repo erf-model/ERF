@@ -431,7 +431,8 @@ TEST(SBMAMRTransferParallel,
     }
 }
 
-TEST(SBMAMRTransferParallel, RankLocalInvalidSpectrumFailsCollectively)
+namespace {
+void run_rank_local_invalid_spectrum_fails_collectively ()
 {
     if (amrex::ParallelDescriptor::NProcs() < 2) {
         GTEST_SKIP() << "the rank-local invalid-state control requires at least two MPI ranks";
@@ -507,8 +508,15 @@ TEST(SBMAMRTransferParallel, RankLocalInvalidSpectrumFailsCollectively)
             << "candidate component=" << component;
     }
 }
+} // namespace
 
-TEST(SBMAMRTransferParallel, RankLocalPositiveAverageUnderflowFailsCollectively)
+TEST(SBMAMRTransferParallel, RankLocalInvalidSpectrumFailsCollectively)
+{
+    run_rank_local_invalid_spectrum_fails_collectively();
+}
+
+namespace {
+void run_rank_local_positive_average_underflow_fails_collectively ()
 {
     if (amrex::ParallelDescriptor::NProcs() < 2) {
         GTEST_SKIP() << "collective averaging-underflow qualification requires "
@@ -541,7 +549,9 @@ TEST(SBMAMRTransferParallel, RankLocalPositiveAverageUnderflowFailsCollectively)
 
     const Real smallest = std::numeric_limits<Real>::denorm_min();
     ASSERT_GT(smallest, Real(0.0));
-    ASSERT_EQ(smallest / Real(8.0), Real(0.0));
+    volatile Real runtime_smallest = smallest;
+    const Real averaged = static_cast<Real>(runtime_smallest) / Real(8.0);
+    ASSERT_EQ(averaged, Real(0.0));
     int invalid_box = -1;
     for (int box = 0; box < fine_boxes.size(); ++box) {
         if (fine_mapping[box] == 1) {
@@ -607,4 +617,10 @@ TEST(SBMAMRTransferParallel, RankLocalPositiveAverageUnderflowFailsCollectively)
         EXPECT_EQ(coarse_source_error.norm0(comp), Real(0.0))
             << "coarse component=" << comp;
     }
+}
+} // namespace
+
+TEST(SBMAMRTransferParallel, RankLocalPositiveAverageUnderflowFailsCollectively)
+{
+    run_rank_local_positive_average_underflow_fails_collectively();
 }

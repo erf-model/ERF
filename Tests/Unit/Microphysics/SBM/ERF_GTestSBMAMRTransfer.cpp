@@ -255,7 +255,7 @@ Box fine_coverage ()
     return Box(IntVect(2, 2, 2), IntVect(5, 5, 5));
 }
 
-TEST(SBMAMRTransfer, RestrictionAveragesMappedAmountAndPreservesUncoveredState)
+void run_restriction_averages_mapped_amount_and_preserves_uncovered_state ()
 {
     const auto layout = make_transfer_layout();
     const BoxArray coarse_ba(coarse_domain());
@@ -438,7 +438,12 @@ TEST(SBMAMRTransfer, RestrictionAveragesMappedAmountAndPreservesUncoveredState)
     }
 }
 
-TEST(SBMAMRTransfer, RestrictionRejectsPositiveMappedAverageUnderflow)
+TEST(SBMAMRTransfer, RestrictionAveragesMappedAmountAndPreservesUncoveredState)
+{
+    run_restriction_averages_mapped_amount_and_preserves_uncovered_state();
+}
+
+void run_restriction_rejects_positive_mapped_average_underflow ()
 {
     const auto layout = make_transfer_layout();
     const BoxArray coarse_ba(coarse_domain());
@@ -464,7 +469,9 @@ TEST(SBMAMRTransfer, RestrictionRejectsPositiveMappedAverageUnderflow)
     const int component = layout.populations()[0].mass_offset;
     const Real smallest = std::numeric_limits<Real>::denorm_min();
     ASSERT_GT(smallest, Real(0.0));
-    ASSERT_EQ(smallest / Real(8.0), Real(0.0))
+    volatile Real runtime_smallest = smallest;
+    const Real averaged = static_cast<Real>(runtime_smallest) / Real(8.0);
+    ASSERT_EQ(averaged, Real(0.0))
         << "the selected precision must round this one-child average to zero";
 
     const auto set_one_child = [&fine_state, component] (const Real amount) {
@@ -546,7 +553,12 @@ TEST(SBMAMRTransfer, RestrictionRejectsPositiveMappedAverageUnderflow)
     }
 }
 
-TEST(SBMAMRTransfer, ProlongationUsesSameTimePiecewiseConstantCarrierRatio)
+TEST(SBMAMRTransfer, RestrictionRejectsPositiveMappedAverageUnderflow)
+{
+    run_restriction_rejects_positive_mapped_average_underflow();
+}
+
+void run_prolongation_uses_same_time_piecewise_constant_carrier_ratio ()
 {
     const auto layout = make_transfer_layout();
     const Box c_domain = coarse_domain();
@@ -738,6 +750,11 @@ TEST(SBMAMRTransfer, ProlongationUsesSameTimePiecewiseConstantCarrierRatio)
                   Real(64.0) * std::numeric_limits<Real>::epsilon())
             << "component=" << component;
     }
+}
+
+TEST(SBMAMRTransfer, ProlongationUsesSameTimePiecewiseConstantCarrierRatio)
+{
+    run_prolongation_uses_same_time_piecewise_constant_carrier_ratio();
 }
 
 TEST(SBMAMRTransfer, ProlongationRejectsQuotientAndProductUnderflow)
