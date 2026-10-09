@@ -191,6 +191,57 @@ erf_sbm::SBMAMRStateView timed_view (const MultiFab& spectrum,
     return {&spectrum, time, &density, 0, time, &measure, 0, time};
 }
 
+void
+expect_same_values (const MultiFab& actual, const MultiFab& expected)
+{
+    ASSERT_EQ(actual.nComp(), expected.nComp());
+    MultiFab difference(actual.boxArray(), actual.DistributionMap(),
+                        actual.nComp(), 0);
+    MultiFab::Copy(difference, actual, 0, 0, actual.nComp(), 0);
+    MultiFab::Subtract(difference, expected, 0, 0, actual.nComp(), 0);
+    for (int component = 0; component < actual.nComp(); ++component) {
+        EXPECT_EQ(difference.norm0(component), Real(0.0))
+            << "component=" << component;
+    }
+}
+
+void
+expect_near_values (const MultiFab& actual, const MultiFab& expected)
+{
+    ASSERT_EQ(actual.nComp(), expected.nComp());
+    MultiFab difference(actual.boxArray(), actual.DistributionMap(),
+                        actual.nComp(), 0);
+    MultiFab::Copy(difference, actual, 0, 0, actual.nComp(), 0);
+    MultiFab::Subtract(difference, expected, 0, 0, actual.nComp(), 0);
+    for (int component = 0; component < actual.nComp(); ++component) {
+        const Real tolerance = Real(128.0) *
+                               std::numeric_limits<Real>::epsilon() *
+                               std::max(Real(1.0), expected.norm0(component));
+        EXPECT_LE(difference.norm0(component), tolerance)
+            << "component=" << component;
+    }
+}
+
+void
+set_owned_box_values (MultiFab& field,
+                      const DistributionMapping& mapping,
+                      const int owner,
+                      const Real value)
+{
+    for (amrex::MFIter mfi(field, amrex::TilingIfNotGPU()); mfi.isValid();
+         ++mfi) {
+        if (mapping[mfi.index()] != owner) {
+            continue;
+        }
+        const Box box = mfi.tilebox();
+        const auto output = field.array(mfi);
+        amrex::ParallelFor(box,
+                           [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                               output(i, j, k, 0) = value;
+                           });
+    }
+}
+
 bool globally_admissible (const MultiFab& state,
                           const erf_sbm::SBMLayout& layout)
 {
@@ -339,6 +390,274 @@ std::vector<Real> run_transfer_decomposition (const int coarse_max_size,
     return result;
 }
 
+void
+run_empty_ranks_accept_reference_transfers ()
+{
+    if (amrex::ParallelDescriptor::NProcs() < 2) {
+        GTEST_SKIP() << "empty-rank transfer qualification requires at least "
+                        "two MPI ranks";
+    }
+
+    Box coarse_domain(IntVect(0), IntVect(3));
+    Box fine_domain = coarse_domain;
+    fine_domain.refine(IntVect(2));
+    const Geometry coarse_geometry = make_geometry(coarse_domain);
+    const Geometry fine_geometry = make_geometry(fine_domain);
+    const BoxArray coarse_boxes(coarse_domain);
+    const BoxArray fine_boxes(fine_domain);
+    amrex::Vector<int> coarse_owners(1, 0);
+    amrex::Vector<int> fine_owners(1, 0);
+    const DistributionMapping coarse_mapping(std::move(coarse_owners));
+    const DistributionMapping fine_mapping(std::move(fine_owners));
+    const auto layout = make_transfer_layout();
+    constexpr int ratio = 2;
+    const int ncomp = layout.ncomp();
+
+    MultiFab coarse_density(coarse_boxes, coarse_mapping, 1, 0);
+    MultiFab coarse_measure(coarse_boxes, coarse_mapping, 1, 0);
+    MultiFab fine_density(fine_boxes, fine_mapping, 1, 0);
+    MultiFab fine_measure(fine_boxes, fine_mapping, 1, 0);
+    fill_carriers(coarse_density, coarse_measure);
+    fill_carriers(fine_density, fine_measure);
+    MultiFab coarse_state(coarse_boxes, coarse_mapping, ncomp, 0);
+    MultiFab fine_state(fine_boxes, fine_mapping, ncomp, 0);
+    MultiFab fine_target_state(fine_boxes, fine_mapping, ncomp, 0);
+    fill_spectrum(coarse_state, coarse_density, layout);
+    fill_spectrum(fine_state, fine_density, layout);
+    fine_target_state.setVal(Real(0.0));
+
+    const auto coarse_view =
+        timed_view(coarse_state, coarse_density, coarse_measure, 0.5);
+    const auto fine_view =
+        timed_view(fine_state, fine_density, fine_measure, 0.5);
+    MultiFab restricted(coarse_boxes, coarse_mapping, ncomp, 0);
+    MultiFab restricted_reference(coarse_boxes, coarse_mapping, ncomp, 0);
+    std::string diagnostic;
+    ASSERT_TRUE(erf_sbm::RestrictMappedSpectrum(layout, fine_view, coarse_view,
+                                                IntVect(ratio), 0, restricted,
+                                                diagnostic))
+        << diagnostic;
+    const ComponentOffsets offsets = offsets_for(layout);
+    for (amrex::MFIter mfi(restricted_reference, amrex::TilingIfNotGPU());
+         mfi.isValid(); ++mfi) {
+        const Box box = mfi.tilebox();
+        const auto expected = restricted_reference.array(mfi);
+        amrex::ParallelFor(
+            box, ncomp,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k, int component) noexcept {
+                Real mapped_sum = Real(0.0);
+                for (int oz = 0; oz < ratio; ++oz) {
+                    for (int oy = 0; oy < ratio; ++oy) {
+                        for (int ox = 0; ox < ratio; ++ox) {
+                            const int fi = ratio * i + ox;
+                            const int fj = ratio * j + oy;
+                            const int fk = ratio * k + oz;
+                            const Real u =
+                                density_value(fi, fj, fk) *
+                                base_component(component, fi, fj, fk, offsets);
+                            mapped_sum += measure_value(fi, fj, fk) * u;
+                        }
+                    }
+                }
+                expected(i, j, k, component) =
+                    (mapped_sum / Real(8.0)) / measure_value(i, j, k);
+            });
+    }
+    expect_near_values(restricted, restricted_reference);
+
+    const auto fine_target_view =
+        timed_view(fine_target_state, fine_density, fine_measure, 0.5);
+    MultiFab prolonged(fine_boxes, fine_mapping, ncomp, 0);
+    MultiFab prolonged_reference(fine_boxes, fine_mapping, ncomp, 0);
+    ASSERT_TRUE(erf_sbm::ProlongCarrierRelativeSpectrum(
+        layout, coarse_view, fine_target_view, coarse_geometry, fine_geometry,
+        IntVect(ratio), 1, prolonged, diagnostic))
+        << diagnostic;
+    for (amrex::MFIter mfi(prolonged_reference, amrex::TilingIfNotGPU());
+         mfi.isValid(); ++mfi) {
+        const Box box = mfi.tilebox();
+        const auto expected = prolonged_reference.array(mfi);
+        amrex::ParallelFor(
+            box, ncomp,
+            [=] AMREX_GPU_DEVICE(int i, int j, int k, int component) noexcept {
+                expected(i, j, k, component) =
+                    density_value(i, j, k) *
+                    base_component(component, i / ratio, j / ratio, k / ratio,
+                                   offsets);
+            });
+    }
+    expect_near_values(prolonged, prolonged_reference);
+}
+
+void
+run_rank_local_late_restriction_failure_is_atomic ()
+{
+    if (amrex::ParallelDescriptor::NProcs() < 2) {
+        GTEST_SKIP() << "rank-local restriction qualification requires at "
+                        "least two MPI ranks";
+    }
+
+    Box coarse_domain(IntVect(0), IntVect(7));
+    Box fine_domain = coarse_domain;
+    fine_domain.refine(IntVect(2));
+    const BoxArray coarse_boxes(coarse_domain);
+    const BoxArray fine_boxes(fine_domain);
+    BoxArray split_coarse = coarse_boxes;
+    BoxArray split_fine = fine_boxes;
+    split_coarse.maxSize(4);
+    split_fine.maxSize(8);
+    const DistributionMapping coarse_mapping = shifted_mapping(split_coarse, 0);
+    const DistributionMapping fine_mapping = shifted_mapping(split_fine, 0);
+    const auto layout = make_transfer_layout();
+
+    MultiFab coarse_density(split_coarse, coarse_mapping, 1, 0);
+    MultiFab coarse_measure(split_coarse, coarse_mapping, 1, 0);
+    MultiFab fine_density(split_fine, fine_mapping, 1, 0);
+    MultiFab fine_measure(split_fine, fine_mapping, 1, 0);
+    fill_carriers(coarse_density, coarse_measure);
+    fill_carriers(fine_density, fine_measure);
+    MultiFab coarse_state(split_coarse, coarse_mapping, layout.ncomp(), 0);
+    MultiFab fine_state(split_fine, fine_mapping, layout.ncomp(), 0);
+    fill_spectrum(coarse_state, coarse_density, layout);
+    fill_spectrum(fine_state, fine_density, layout);
+    fine_state.mult(Real(1.0e30), 0, layout.ncomp(), 0);
+    set_owned_box_values(coarse_measure, coarse_mapping, 1,
+                         std::numeric_limits<Real>::min());
+
+    MultiFab candidate(split_coarse, coarse_mapping, layout.ncomp(), 0);
+    candidate.setVal(Real(123.0));
+    MultiFab candidate_before(split_coarse, coarse_mapping, layout.ncomp(), 0);
+    MultiFab coarse_state_before(split_coarse, coarse_mapping, layout.ncomp(),
+                                 0);
+    MultiFab fine_state_before(split_fine, fine_mapping, layout.ncomp(), 0);
+    MultiFab coarse_density_before(split_coarse, coarse_mapping, 1, 0);
+    MultiFab coarse_measure_before(split_coarse, coarse_mapping, 1, 0);
+    MultiFab fine_density_before(split_fine, fine_mapping, 1, 0);
+    MultiFab fine_measure_before(split_fine, fine_mapping, 1, 0);
+    MultiFab::Copy(candidate_before, candidate, 0, 0, layout.ncomp(), 0);
+    MultiFab::Copy(coarse_state_before, coarse_state, 0, 0, layout.ncomp(), 0);
+    MultiFab::Copy(fine_state_before, fine_state, 0, 0, layout.ncomp(), 0);
+    MultiFab::Copy(coarse_density_before, coarse_density, 0, 0, 1, 0);
+    MultiFab::Copy(coarse_measure_before, coarse_measure, 0, 0, 1, 0);
+    MultiFab::Copy(fine_density_before, fine_density, 0, 0, 1, 0);
+    MultiFab::Copy(fine_measure_before, fine_measure, 0, 0, 1, 0);
+
+    const auto fine_view =
+        timed_view(fine_state, fine_density, fine_measure, 0.5);
+    const auto coarse_view =
+        timed_view(coarse_state, coarse_density, coarse_measure, 0.5);
+    std::string diagnostic;
+    const bool accepted = erf_sbm::RestrictMappedSpectrum(
+        layout, fine_view, coarse_view, IntVect(2), 0, candidate, diagnostic);
+    EXPECT_FALSE(accepted) << diagnostic;
+    if (amrex::ParallelDescriptor::MyProc() == 1) {
+        EXPECT_NE(diagnostic.find("recovering coarse spectrum"),
+                  std::string::npos)
+            << diagnostic;
+    } else {
+        EXPECT_NE(diagnostic.find("another MPI rank"), std::string::npos)
+            << diagnostic;
+    }
+    expect_same_values(candidate, candidate_before);
+    expect_same_values(coarse_state, coarse_state_before);
+    expect_same_values(fine_state, fine_state_before);
+    expect_same_values(coarse_density, coarse_density_before);
+    expect_same_values(coarse_measure, coarse_measure_before);
+    expect_same_values(fine_density, fine_density_before);
+    expect_same_values(fine_measure, fine_measure_before);
+
+    fill_carriers(coarse_density, coarse_measure);
+    ASSERT_TRUE(erf_sbm::RestrictMappedSpectrum(
+        layout, fine_view, coarse_view, IntVect(2), 0, candidate, diagnostic))
+        << diagnostic;
+}
+
+void
+run_rank_local_late_prolongation_failure_is_atomic ()
+{
+    if (amrex::ParallelDescriptor::NProcs() < 2) {
+        GTEST_SKIP() << "rank-local prolongation qualification requires at "
+                        "least two MPI ranks";
+    }
+
+    Box coarse_domain(IntVect(0), IntVect(7));
+    Box fine_domain = coarse_domain;
+    fine_domain.refine(IntVect(2));
+    const Geometry coarse_geometry = make_geometry(coarse_domain);
+    const Geometry fine_geometry = make_geometry(fine_domain);
+    BoxArray split_coarse(coarse_domain);
+    BoxArray split_fine(fine_domain);
+    split_coarse.maxSize(4);
+    split_fine.maxSize(8);
+    const DistributionMapping coarse_mapping = shifted_mapping(split_coarse, 0);
+    const DistributionMapping fine_mapping = shifted_mapping(split_fine, 0);
+    const auto layout = make_transfer_layout();
+
+    MultiFab coarse_density(split_coarse, coarse_mapping, 1, 0);
+    MultiFab coarse_measure(split_coarse, coarse_mapping, 1, 0);
+    MultiFab fine_density(split_fine, fine_mapping, 1, 0);
+    MultiFab fine_measure(split_fine, fine_mapping, 1, 0);
+    fill_carriers(coarse_density, coarse_measure);
+    fill_carriers(fine_density, fine_measure);
+    MultiFab coarse_state(split_coarse, coarse_mapping, layout.ncomp(), 0);
+    MultiFab fine_target_state(split_fine, fine_mapping, layout.ncomp(), 0);
+    fill_spectrum(coarse_state, coarse_density, layout);
+    coarse_state.mult(Real(100.0), 0, layout.ncomp(), 0);
+    fine_target_state.setVal(Real(0.0));
+    set_owned_box_values(fine_density, fine_mapping, 1,
+                         std::numeric_limits<Real>::max());
+
+    MultiFab candidate(split_fine, fine_mapping, layout.ncomp(), 0);
+    candidate.setVal(Real(-321.0));
+    MultiFab candidate_before(split_fine, fine_mapping, layout.ncomp(), 0);
+    MultiFab coarse_state_before(split_coarse, coarse_mapping, layout.ncomp(),
+                                 0);
+    MultiFab fine_state_before(split_fine, fine_mapping, layout.ncomp(), 0);
+    MultiFab coarse_density_before(split_coarse, coarse_mapping, 1, 0);
+    MultiFab coarse_measure_before(split_coarse, coarse_mapping, 1, 0);
+    MultiFab fine_density_before(split_fine, fine_mapping, 1, 0);
+    MultiFab fine_measure_before(split_fine, fine_mapping, 1, 0);
+    MultiFab::Copy(candidate_before, candidate, 0, 0, layout.ncomp(), 0);
+    MultiFab::Copy(coarse_state_before, coarse_state, 0, 0, layout.ncomp(), 0);
+    MultiFab::Copy(fine_state_before, fine_target_state, 0, 0, layout.ncomp(),
+                   0);
+    MultiFab::Copy(coarse_density_before, coarse_density, 0, 0, 1, 0);
+    MultiFab::Copy(coarse_measure_before, coarse_measure, 0, 0, 1, 0);
+    MultiFab::Copy(fine_density_before, fine_density, 0, 0, 1, 0);
+    MultiFab::Copy(fine_measure_before, fine_measure, 0, 0, 1, 0);
+
+    const auto coarse_view =
+        timed_view(coarse_state, coarse_density, coarse_measure, 0.5);
+    const auto fine_view =
+        timed_view(fine_target_state, fine_density, fine_measure, 0.5);
+    std::string diagnostic;
+    const bool accepted = erf_sbm::ProlongCarrierRelativeSpectrum(
+        layout, coarse_view, fine_view, coarse_geometry, fine_geometry,
+        IntVect(2), 1, candidate, diagnostic);
+    EXPECT_FALSE(accepted) << diagnostic;
+    if (amrex::ParallelDescriptor::MyProc() == 1) {
+        EXPECT_NE(diagnostic.find("reconstructing U=rho_d*z"),
+                  std::string::npos)
+            << diagnostic;
+    } else {
+        EXPECT_NE(diagnostic.find("another MPI rank"), std::string::npos)
+            << diagnostic;
+    }
+    expect_same_values(candidate, candidate_before);
+    expect_same_values(coarse_state, coarse_state_before);
+    expect_same_values(fine_target_state, fine_state_before);
+    expect_same_values(coarse_density, coarse_density_before);
+    expect_same_values(coarse_measure, coarse_measure_before);
+    expect_same_values(fine_density, fine_density_before);
+    expect_same_values(fine_measure, fine_measure_before);
+
+    fill_carriers(fine_density, fine_measure);
+    ASSERT_TRUE(erf_sbm::ProlongCarrierRelativeSpectrum(
+        layout, coarse_view, fine_view, coarse_geometry, fine_geometry,
+        IntVect(2), 1, candidate, diagnostic))
+        << diagnostic;
+}
+
 } // namespace
 
 TEST(SBMAMRTransferParallel, DecompositionInvariantRestrictionAndProlongation)
@@ -357,6 +676,21 @@ TEST(SBMAMRTransferParallel, DecompositionInvariantRestrictionAndProlongation)
                                   std::abs(split_boxes[index])}))
             << "decomposition fingerprint index=" << index;
     }
+}
+
+TEST(SBMAMRTransferParallel, EmptyRanksPreserveValidTransferResults)
+{
+    run_empty_ranks_accept_reference_transfers();
+}
+
+TEST(SBMAMRTransferParallel, RankLocalLateRestrictionFailureIsAtomic)
+{
+    run_rank_local_late_restriction_failure_is_atomic();
+}
+
+TEST(SBMAMRTransferParallel, RankLocalLateProlongationFailureIsAtomic)
+{
+    run_rank_local_late_prolongation_failure_is_atomic();
 }
 
 TEST(SBMAMRTransferParallel,

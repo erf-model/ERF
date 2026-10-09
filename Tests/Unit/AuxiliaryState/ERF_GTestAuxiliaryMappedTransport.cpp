@@ -1060,6 +1060,71 @@ void run_auxiliary_mapped_transport_CompletedLedgerScattersChunkComponentsOncePe
     }
 }
 
+void
+run_auxiliary_mapped_transport_completed_ledger_preserves_idle_rejection ()
+{
+    TestGrid g;
+    constexpr double dt = 0.25;
+    MappedFaceFluxRate rate;
+    rate.define(g.ba, g.dm, 1, 0);
+    CompletedStepFluxLedger ledger;
+    ledger.define(g.ba, g.dm);
+    AuxiliaryStageRecipe recipe;
+    std::string diagnostic;
+
+    fill_constant_rate(rate, Real(2.0));
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 0, dt,
+                                         recipe, diagnostic))
+        << diagnostic;
+    ASSERT_TRUE(ledger.accept_stage(HostIntegrator::AnelasticHeun, 0, 0.0,
+                                    recipe, rate, diagnostic))
+        << diagnostic;
+    fill_constant_rate(rate, Real(6.0));
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 1, dt,
+                                         recipe, diagnostic))
+        << diagnostic;
+    ASSERT_TRUE(ledger.accept_stage(HostIntegrator::AnelasticHeun, 1, 0.0,
+                                    recipe, rate, diagnostic))
+        << diagnostic;
+    ASSERT_TRUE(ledger.step_complete());
+    EXPECT_FALSE(ledger.step_active());
+    const Real expected = Real(0.5 * dt) * Real(2.0 + 6.0);
+    std::array<Real, AMREX_SPACEDIM> completed_integral{};
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        completed_integral[static_cast<std::size_t>(dir)] =
+            ledger.integrated_flux().dir(dir).norm0(0);
+        EXPECT_EQ(completed_integral[static_cast<std::size_t>(dir)], expected);
+    }
+
+    MappedFaceFluxRate invalid_rate;
+    EXPECT_FALSE(ledger.accept_stage(HostIntegrator::AnelasticHeun, 1, 0.0,
+                                     recipe, invalid_rate, diagnostic));
+    EXPECT_NE(diagnostic.find("not defined compatibly"), std::string::npos)
+        << diagnostic;
+    EXPECT_TRUE(ledger.step_complete());
+    EXPECT_FALSE(ledger.step_active());
+    EXPECT_EQ(ledger.next_stage(), 2);
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        EXPECT_EQ(ledger.integrated_flux().dir(dir).norm0(0),
+                  completed_integral[static_cast<std::size_t>(dir)]);
+    }
+
+    // A valid new step invalidates the old completed record as usual.
+    rate.setVal(Real(0.0));
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 0, dt,
+                                         recipe, diagnostic))
+        << diagnostic;
+    ASSERT_TRUE(ledger.accept_stage(HostIntegrator::AnelasticHeun, 0, 0.0,
+                                    recipe, rate, diagnostic))
+        << diagnostic;
+    EXPECT_FALSE(ledger.step_complete());
+    EXPECT_TRUE(ledger.step_active());
+    EXPECT_EQ(ledger.next_stage(), 1);
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        EXPECT_EQ(ledger.integrated_flux().dir(dir).norm0(0), Real(0.0));
+    }
+}
+
 void run_auxiliary_mapped_transport_StageTargetMustBeDisjoint ()
 {
     TestGrid g;
@@ -1296,6 +1361,11 @@ TEST(AuxiliaryMappedTransport, CompletedLedgerAccumulatesEveryComponent)
 TEST(AuxiliaryMappedTransport, CompletedLedgerScattersChunkComponentsOncePerStage)
 {
     run_auxiliary_mapped_transport_CompletedLedgerScattersChunkComponentsOncePerStage();
+}
+TEST(AuxiliaryMappedTransport,
+     CompletedLedgerPreservesCompletedRecordOnIdleRejection)
+{
+    run_auxiliary_mapped_transport_completed_ledger_preserves_idle_rejection();
 }
 TEST(AuxiliaryMappedTransport,
      CompletedLedgerRejectsNonfiniteIntegratedTransfer)

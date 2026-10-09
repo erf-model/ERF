@@ -143,7 +143,8 @@ bool form_mapped_state (const MultiFab& spectrum, const MultiFab& measure,
             bad(i, j, k, 0) = static_cast<Real>(cell_bad);
         });
     }
-    if (invalid.max(0) != Real(0.0)) {
+    const bool locally_valid = invalid.max(0, 0, true) <= Real(0.0);
+    if (!locally_valid) {
         diagnostic = "forming mapped spectral amount H=omega*U overflowed or underflowed";
         return false;
     }
@@ -185,7 +186,8 @@ divide_mapped_state (const MultiFab& mapped,
             bad(i, j, k, 0) = static_cast<Real>(cell_bad);
         });
     }
-    if (invalid.max(0) != Real(0.0)) {
+    const bool locally_valid = invalid.max(0, 0, true) <= Real(0.0);
+    if (!locally_valid) {
         diagnostic = "recovering coarse spectrum U=H/omega overflowed or underflowed";
         return false;
     }
@@ -220,7 +222,8 @@ bool form_carrier_relative_state (const MultiFab& spectrum,
             bad(i, j, k, 0) = static_cast<Real>(cell_bad);
         });
     }
-    if (invalid.max(0) != Real(0.0)) {
+    const bool locally_valid = invalid.max(0, 0, true) <= Real(0.0);
+    if (!locally_valid) {
         diagnostic = "forming carrier-relative spectrum z=U/rho_d overflowed or underflowed";
         return false;
     }
@@ -235,8 +238,6 @@ bool reconstruct_carrier_relative_state (const MultiFab& intensive,
                                          MultiFab& candidate,
                                          std::string& diagnostic)
 {
-    MultiFab mapped(candidate.boxArray(), candidate.DistributionMap(),
-                    candidate.nComp(), 0);
     MultiFab invalid(candidate.boxArray(), candidate.DistributionMap(), 1, 0);
     invalid.setVal(Real(0.0));
     const int ncomp = candidate.nComp();
@@ -246,7 +247,6 @@ bool reconstruct_carrier_relative_state (const MultiFab& intensive,
         const auto rho = density.const_array(mfi);
         const auto omega = measure.const_array(mfi);
         const auto output = candidate.array(mfi);
-        const auto mapped_output = mapped.array(mfi);
         const auto bad = invalid.array(mfi);
         amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int cell_bad = 0;
@@ -260,7 +260,6 @@ bool reconstruct_carrier_relative_state (const MultiFab& intensive,
                 const auto amount_status = remap_detail::checked_product(
                     scale, value, amount);
                 output(i, j, k, component) = value;
-                mapped_output(i, j, k, component) = amount;
                 if (value_status != remap_detail::ProductStatus::Ok ||
                     amount_status != remap_detail::ProductStatus::Ok) {
                     cell_bad = 1;
@@ -269,7 +268,8 @@ bool reconstruct_carrier_relative_state (const MultiFab& intensive,
             bad(i, j, k, 0) = static_cast<Real>(cell_bad);
         });
     }
-    if (invalid.max(0) != Real(0.0)) {
+    const bool locally_valid = invalid.max(0, 0, true) <= Real(0.0);
+    if (!locally_valid) {
         diagnostic = "reconstructing U=rho_d*z or H=omega*U overflowed or underflowed";
         return false;
     }
@@ -484,16 +484,23 @@ bool RestrictMappedSpectrum (const SBMLayout& layout,
         return false;
     }
 
-    // Start from an exact copy. Only cells represented by fine coverage are
-    // reconstructed below, so uncovered coarse values never take an
-    // unnecessary multiply/divide round trip.
-    MultiFab::Copy(coarse_candidate, *coarse.spectrum, 0, 0, layout.ncomp(), 0);
+    // Build the complete candidate independently. Only cells represented by
+    // fine coverage are reconstructed, so uncovered coarse values never take
+    // an unnecessary multiply/divide round trip. The public destination is
+    // untouched until every rank has admitted this scratch result.
+    MultiFab coarse_candidate_scratch(coarse.spectrum->boxArray(),
+                                      coarse.spectrum->DistributionMap(),
+                                      layout.ncomp(), 0);
+    MultiFab::Copy(coarse_candidate_scratch, *coarse.spectrum, 0, 0,
+                   layout.ncomp(), 0);
     const bool divided_ok = divide_mapped_state(
         coarse_h, *coarse.mapped_measure, coarse.measure_component,
-        coarse_support, coverage_component, coarse_candidate, diagnostic);
+        coarse_support, coverage_component, coarse_candidate_scratch,
+        diagnostic);
     std::string candidate_admission_diagnostic;
     const bool candidate_admissible = authoritative_state_admissible(
-        coarse_candidate, layout, coarse_level, &candidate_admission_diagnostic);
+        coarse_candidate_scratch, layout, coarse_level,
+        &candidate_admission_diagnostic);
     const bool local_candidate_admissible = divided_ok && candidate_admissible;
     const std::string candidate_diagnostic =
         !divided_ok ? diagnostic
@@ -507,6 +514,8 @@ bool RestrictMappedSpectrum (const SBMLayout& layout,
             diagnostic)) {
         return false;
     }
+    MultiFab::Copy(coarse_candidate, coarse_candidate_scratch, 0, 0,
+                   layout.ncomp(), 0);
     return true;
 }
 
@@ -558,21 +567,27 @@ bool ProlongCarrierRelativeSpectrum (const SBMLayout& layout,
                               separate_from_fine_target;
     std::string local_candidate_diagnostic =
         "prolongation candidate must be separate from both input tuples and match the fine SBM layout";
-    for (int direction = 0; direction < AMREX_SPACEDIM; ++direction) {
-        if (!coarse_geometry.isPeriodic(direction) ||
-            !fine_geometry.isPeriodic(direction) ||
-            coarse_geometry.isPeriodic(direction) != fine_geometry.isPeriodic(direction)) {
-            local_candidate_ok = false;
-            local_candidate_diagnostic =
-                "M4a carrier-relative prolongation requires matching periodic geometry";
+    if (local_candidate_ok) {
+        for (int direction = 0; direction < AMREX_SPACEDIM; ++direction) {
+            if (!coarse_geometry.isPeriodic(direction) ||
+                !fine_geometry.isPeriodic(direction)) {
+                local_candidate_ok = false;
+                local_candidate_diagnostic =
+                    "M4a carrier-relative prolongation requires periodic "
+                    "geometry";
+                break;
+            }
         }
     }
-    amrex::Box refined_coarse_domain = coarse_geometry.Domain();
-    refined_coarse_domain.refine(ratio);
-    if (refined_coarse_domain != fine_geometry.Domain()) {
-        local_candidate_ok = false;
-        local_candidate_diagnostic =
-            "prolongation refinement ratio does not map the coarse domain to the fine domain";
+    if (local_candidate_ok) {
+        amrex::Box refined_coarse_domain = coarse_geometry.Domain();
+        refined_coarse_domain.refine(ratio);
+        if (refined_coarse_domain != fine_geometry.Domain()) {
+            local_candidate_ok = false;
+            local_candidate_diagnostic =
+                "prolongation refinement ratio does not map the coarse domain "
+                "to the fine domain";
+        }
     }
     if (!collective_all_true(
             local_candidate_ok, local_candidate_diagnostic,
@@ -620,19 +635,31 @@ bool ProlongCarrierRelativeSpectrum (const SBMLayout& layout,
                     fine_target.spectrum->DistributionMap(), layout.ncomp(), 0);
     amrex::PhysBCFunctNoOp no_physical_boundary;
     amrex::Vector<amrex::BCRec> bcs(static_cast<std::size_t>(layout.ncomp()));
+    // PCInterp currently ignores these records under the periodic-only M4a
+    // gate. Keep every face explicit; this is not a nonperiodic BC policy.
+    for (auto& bc : bcs) {
+        for (int direction = 0; direction < AMREX_SPACEDIM; ++direction) {
+            bc.setLo(direction, amrex::BCType::int_dir);
+            bc.setHi(direction, amrex::BCType::int_dir);
+        }
+    }
     amrex::InterpFromCoarseLevel(
         fine_z, amrex::IntVect(0), static_cast<Real>(coarse.spectrum_time),
         coarse_z, 0, 0, layout.ncomp(), coarse_geometry, fine_geometry,
         no_physical_boundary, 0, no_physical_boundary, 0, ratio,
         &amrex::pc_interp, bcs, 0);
 
+    MultiFab fine_candidate_scratch(fine_target.spectrum->boxArray(),
+                                    fine_target.spectrum->DistributionMap(),
+                                    layout.ncomp(), 0);
     const bool reconstructed_ok = reconstruct_carrier_relative_state(
         fine_z, *fine_target.dry_air_density, fine_target.density_component,
         *fine_target.mapped_measure, fine_target.measure_component,
-        fine_candidate, diagnostic);
+        fine_candidate_scratch, diagnostic);
     std::string candidate_admission_diagnostic;
     const bool candidate_admissible = authoritative_state_admissible(
-        fine_candidate, layout, fine_level, &candidate_admission_diagnostic);
+        fine_candidate_scratch, layout, fine_level,
+        &candidate_admission_diagnostic);
     const bool local_candidate_admissible = reconstructed_ok &&
                                             candidate_admissible;
     const std::string candidate_diagnostic =
@@ -647,6 +674,8 @@ bool ProlongCarrierRelativeSpectrum (const SBMLayout& layout,
             diagnostic)) {
         return false;
     }
+    MultiFab::Copy(fine_candidate, fine_candidate_scratch, 0, 0, layout.ncomp(),
+                   0);
     return true;
 }
 

@@ -223,6 +223,8 @@ void AuxiliaryInertTracer::advance_stage (
         MaxFaceFieldDifference(data.rate, 0, data.previous_rate, 0) : amrex::Real(0.0);
     data.max_stage_rate_delta = amrex::max(data.max_stage_rate_delta, stage_rate_delta);
 
+    // accept_stage is MPI-collective: all ranks on this level must enter even
+    // after a local recoverable error; do not add rank-local early returns.
     if (!data.ledger.accept_stage(method, stage, step_old_time, recipe, data.rate, diagnostic)) {
         amrex::Abort("M2 auxiliary inert tracer stage sequence: " + diagnostic);
     }

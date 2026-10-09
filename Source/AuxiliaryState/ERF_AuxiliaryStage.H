@@ -124,10 +124,17 @@ public:
                  int ncomp = 1);
 
     /**
-     * Collective convenience wrapper. Every participating rank must call it
-     * for the same logical stage; local preflight or accumulation failures
-     * still enter finish_stage. Consumers may interpret integrated_flux() as
-     * a completed accepted transfer only when step_complete() is true.
+     * MPI-collective completed-stage admission. All participating ranks must
+     * enter for the same host stage, including after a local recoverable error;
+     * callers must not branch around the call based on rank-local predicates.
+     * Asynchronous rank-local Abort or MPI process failure is outside this
+     * protection. A rejected in-progress transaction discards its partial
+     * accepted transfers everywhere. If every rank instead has a valid
+     * completed prior step and no rank has begun the next step, rejection
+     * leaves that prior completed transfer intact. Starting a valid new step
+     * invalidates the previous completed record. Read a transfer as accepted
+     * only while step_complete() is true; this object does not provide a
+     * retained snapshot.
      */
     bool accept_stage (HostIntegrator method,
                        int stage,
@@ -150,13 +157,14 @@ public:
                                      std::string& diagnostic);
 
     /**
-     * MPI-collective stage admission. All participating ranks must enter this
-     * method for the same logical host stage, including after a local component
-     * failure. Incomplete, invalid, mismatched, or nonfinite stages invalidate
-     * the entire in-progress completed-step record on every rank: no partial
-     * integrated face transfer remains available, and the caller must restore a
-     * coherent host step before beginning a new stage 0. A rank that never
-     * enters the collective cannot be protected by this method.
+     * MPI-collective stage admission. Every rank participating in this level's
+     * call must enter despite local recoverable errors; callers must not branch
+     * around it using rank-local predicates. Incomplete, invalid, mismatched,
+     * or nonfinite in-progress stages invalidate the partial record everywhere.
+     * If all ranks instead have a completed prior step and no active next step,
+     * a rejected idle call preserves that prior record. A valid new stage zero
+     * invalidates it. A rank that never enters, asynchronous Abort, or MPI
+     * process failure is outside this protection.
      */
     bool finish_stage (std::string& diagnostic);
 

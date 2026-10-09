@@ -507,11 +507,14 @@ bool CompletedStepFluxLedger::finish_stage (std::string& diagnostic)
                 locally_finite;
         }
     }
-    int vote[3] = {local_stage_code, -local_stage_code,
-                   locally_finite ? 0 : -1};
-    amrex::ParallelDescriptor::ReduceIntMin(vote, 3);
+    const int prior_complete_and_idle =
+        m_step_complete && !m_step_active && !m_stage_open ? 1 : 0;
+    int vote[4] = {local_stage_code, -local_stage_code, locally_finite ? 0 : -1,
+                   prior_complete_and_idle};
+    amrex::ParallelDescriptor::ReduceIntMin(vote, 4);
     const bool stage_agreed = vote[0] != 0 && vote[0] == -vote[1];
     const bool globally_finite = vote[2] == 0;
+    const bool all_prior_complete_and_idle = vote[3] == 1;
     if (!stage_agreed || !globally_finite) {
         if (!stage_agreed && diagnostic.empty()) {
             diagnostic = vote[0] == 0
@@ -522,7 +525,13 @@ bool CompletedStepFluxLedger::finish_stage (std::string& diagnostic)
                              ? "completed-step integrated face transfer is nonfinite on another MPI rank"
                              : "completed-step integrated face transfer is nonfinite";
         }
-        discard_step();
+        if (all_prior_complete_and_idle) {
+            // Keep the diagnostic for this rejected call, but allow a later
+            // valid stage zero to start a fresh transaction.
+            m_stage_failure_diagnostic.clear();
+        } else {
+            discard_step();
+        }
         return false;
     }
 

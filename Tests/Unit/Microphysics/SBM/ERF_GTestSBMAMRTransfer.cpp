@@ -245,6 +245,18 @@ Geometry make_geometry (const Box& domain)
     return Geometry(domain, &physical, amrex::CoordSys::cartesian, periodic);
 }
 
+Geometry
+make_geometry_with_nonperiodic_direction (const Box& domain,
+                                          const int direction)
+{
+    const amrex::RealBox physical({0.0, 0.0, 0.0}, {1.0, 1.0, 1.0});
+    int periodic[AMREX_SPACEDIM];
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        periodic[dir] = dir == direction ? 0 : 1;
+    }
+    return Geometry(domain, &physical, amrex::CoordSys::cartesian, periodic);
+}
+
 Box coarse_domain ()
 {
     return Box(IntVect(0, 0, 0), IntVect(3, 3, 3));
@@ -441,6 +453,74 @@ void run_restriction_averages_mapped_amount_and_preserves_uncovered_state ()
 TEST(SBMAMRTransfer, RestrictionAveragesMappedAmountAndPreservesUncoveredState)
 {
     run_restriction_averages_mapped_amount_and_preserves_uncovered_state();
+}
+
+void
+run_restriction_late_quotient_failure_is_atomic ()
+{
+    const auto layout = make_transfer_layout();
+    const Box c_domain = coarse_domain();
+    Box f_domain = c_domain;
+    f_domain.refine(IntVect(2));
+    const BoxArray coarse_ba(c_domain);
+    const BoxArray fine_ba(f_domain);
+    const DistributionMapping coarse_dm(coarse_ba);
+    const DistributionMapping fine_dm(fine_ba);
+
+    MultiFab coarse_rho(coarse_ba, coarse_dm, 1, 0);
+    MultiFab coarse_omega(coarse_ba, coarse_dm, 1, 0);
+    MultiFab fine_rho(fine_ba, fine_dm, 1, 0);
+    MultiFab fine_omega(fine_ba, fine_dm, 1, 0);
+    fill_carriers(coarse_rho, coarse_omega, true);
+    fill_carriers(fine_rho, fine_omega, false);
+    coarse_omega.setVal(std::numeric_limits<Real>::min());
+
+    MultiFab coarse_state(coarse_ba, coarse_dm, layout.ncomp(), 0);
+    MultiFab fine_state(fine_ba, fine_dm, layout.ncomp(), 0);
+    fill_spectrum(coarse_state, coarse_rho, layout);
+    fill_spectrum(fine_state, fine_rho, layout);
+    fine_state.mult(Real(1.0e30), 0, layout.ncomp(), 0);
+    std::string diagnostic;
+    ASSERT_TRUE(erf_sbm::authoritative_state_admissible(fine_state, layout, 1,
+                                                        &diagnostic))
+        << diagnostic;
+
+    MultiFab candidate(coarse_ba, coarse_dm, layout.ncomp(), 0);
+    candidate.setVal(Real(41.0));
+    MultiFab candidate_before(coarse_ba, coarse_dm, layout.ncomp(), 0);
+    MultiFab coarse_before(coarse_ba, coarse_dm, layout.ncomp(), 0);
+    MultiFab fine_before(fine_ba, fine_dm, layout.ncomp(), 0);
+    MultiFab coarse_rho_before(coarse_ba, coarse_dm, 1, 0);
+    MultiFab coarse_omega_before(coarse_ba, coarse_dm, 1, 0);
+    MultiFab fine_rho_before(fine_ba, fine_dm, 1, 0);
+    MultiFab fine_omega_before(fine_ba, fine_dm, 1, 0);
+    MultiFab::Copy(candidate_before, candidate, 0, 0, layout.ncomp(), 0);
+    MultiFab::Copy(coarse_before, coarse_state, 0, 0, layout.ncomp(), 0);
+    MultiFab::Copy(fine_before, fine_state, 0, 0, layout.ncomp(), 0);
+    MultiFab::Copy(coarse_rho_before, coarse_rho, 0, 0, 1, 0);
+    MultiFab::Copy(coarse_omega_before, coarse_omega, 0, 0, 1, 0);
+    MultiFab::Copy(fine_rho_before, fine_rho, 0, 0, 1, 0);
+    MultiFab::Copy(fine_omega_before, fine_omega, 0, 0, 1, 0);
+
+    const auto fine_view = timed_view(fine_state, fine_rho, fine_omega, 0.5);
+    const auto coarse_view =
+        timed_view(coarse_state, coarse_rho, coarse_omega, 0.5);
+    EXPECT_FALSE(erf_sbm::RestrictMappedSpectrum(
+        layout, fine_view, coarse_view, IntVect(2), 0, candidate, diagnostic));
+    EXPECT_NE(diagnostic.find("recovering coarse spectrum"), std::string::npos)
+        << diagnostic;
+    expect_same_values(candidate, candidate_before);
+    expect_same_values(coarse_state, coarse_before);
+    expect_same_values(fine_state, fine_before);
+    expect_same_values(coarse_rho, coarse_rho_before);
+    expect_same_values(coarse_omega, coarse_omega_before);
+    expect_same_values(fine_rho, fine_rho_before);
+    expect_same_values(fine_omega, fine_omega_before);
+}
+
+TEST(SBMAMRTransfer, RestrictionLateQuotientFailureIsAtomic)
+{
+    run_restriction_late_quotient_failure_is_atomic();
 }
 
 void run_restriction_rejects_positive_mapped_average_underflow ()
@@ -800,12 +880,52 @@ TEST(SBMAMRTransfer, ProlongationRejectsQuotientAndProductUnderflow)
     coarse_state.mult(tiny_scale, 0, layout.ncomp(), 0);
     fine_rho.setVal(tiny);
     fine_omega.setVal(Real(1.0));
+    candidate.setVal(Real(34.0));
+    MultiFab candidate_before(fine_ba, fine_dm, layout.ncomp(), 0);
+    MultiFab coarse_before(coarse_ba, coarse_dm, layout.ncomp(), 0);
+    MultiFab fine_rho_before(fine_ba, fine_dm, 1, 0);
+    MultiFab fine_omega_before(fine_ba, fine_dm, 1, 0);
+    MultiFab coarse_state_before(coarse_ba, coarse_dm, layout.ncomp(), 0);
+    MultiFab::Copy(candidate_before, candidate, 0, 0, layout.ncomp(), 0);
+    MultiFab::Copy(coarse_before, coarse_state, 0, 0, layout.ncomp(), 0);
+    MultiFab::Copy(fine_rho_before, fine_rho, 0, 0, 1, 0);
+    MultiFab::Copy(fine_omega_before, fine_omega, 0, 0, 1, 0);
+    MultiFab::Copy(coarse_state_before, coarse_state, 0, 0, layout.ncomp(), 0);
     coarse_view = timed_view(coarse_state, coarse_rho, coarse_omega, 0.5);
     fine_view = timed_view(fine_storage, fine_rho, fine_omega, 0.5);
     EXPECT_FALSE(erf_sbm::ProlongCarrierRelativeSpectrum(
         layout, coarse_view, fine_view, cgeom, fgeom, IntVect(2), 1,
         candidate, diagnostic));
     EXPECT_NE(diagnostic.find("underflowed"), std::string::npos);
+    expect_same_values(candidate, candidate_before);
+    expect_same_values(coarse_state, coarse_state_before);
+    expect_same_values(fine_rho, fine_rho_before);
+    expect_same_values(fine_omega, fine_omega_before);
+
+    // A finite but large fine carrier makes rho_f*z overflow only during the
+    // last reconstruction pass, after the old implementation had written the
+    // public destination.
+    coarse_rho.setVal(Real(1.0));
+    fill_spectrum(coarse_state, coarse_rho, layout);
+    coarse_state.mult(Real(1.0e30), 0, layout.ncomp(), 0);
+    fine_rho.setVal(std::numeric_limits<Real>::max());
+    fine_omega.setVal(Real(1.0));
+    candidate.setVal(Real(35.0));
+    MultiFab::Copy(candidate_before, candidate, 0, 0, layout.ncomp(), 0);
+    MultiFab::Copy(coarse_state_before, coarse_state, 0, 0, layout.ncomp(), 0);
+    MultiFab::Copy(fine_rho_before, fine_rho, 0, 0, 1, 0);
+    MultiFab::Copy(fine_omega_before, fine_omega, 0, 0, 1, 0);
+    coarse_view = timed_view(coarse_state, coarse_rho, coarse_omega, 0.5);
+    fine_view = timed_view(fine_storage, fine_rho, fine_omega, 0.5);
+    EXPECT_FALSE(erf_sbm::ProlongCarrierRelativeSpectrum(
+        layout, coarse_view, fine_view, cgeom, fgeom, IntVect(2), 1, candidate,
+        diagnostic));
+    EXPECT_NE(diagnostic.find("overflowed or underflowed"), std::string::npos)
+        << diagnostic;
+    expect_same_values(candidate, candidate_before);
+    expect_same_values(coarse_state, coarse_state_before);
+    expect_same_values(fine_rho, fine_rho_before);
+    expect_same_values(fine_omega, fine_omega_before);
 }
 
 TEST(SBMAMRTransfer, RestrictionRejectsNoncoarsenableFineBoxesBeforeAverage)
@@ -849,6 +969,96 @@ TEST(SBMAMRTransfer, RestrictionRejectsNoncoarsenableFineBoxesBeforeAverage)
     expect_same_values(candidate, candidate_before);
     expect_same_values(coarse_state, coarse_before);
     expect_same_values(fine_state, fine_before);
+}
+
+void
+run_prolongation_diagnostic_precedence ()
+{
+    const auto layout = make_transfer_layout();
+    const Box c_domain = coarse_domain();
+    Box f_domain = c_domain;
+    f_domain.refine(IntVect(2));
+    const BoxArray coarse_ba(c_domain);
+    const BoxArray fine_ba(f_domain);
+    const DistributionMapping coarse_dm(coarse_ba);
+    const DistributionMapping fine_dm(fine_ba);
+    const Geometry cgeom = make_geometry(c_domain);
+    const Geometry nonperiodic_fgeom =
+        make_geometry_with_nonperiodic_direction(f_domain, 0);
+    Box bad_f_domain = f_domain;
+    IntVect bad_hi = bad_f_domain.bigEnd();
+    bad_hi[0] -= 1;
+    bad_f_domain = Box(bad_f_domain.smallEnd(), bad_hi);
+    const Geometry bad_fgeom = make_geometry(bad_f_domain);
+
+    MultiFab coarse_rho(coarse_ba, coarse_dm, 1, 0);
+    MultiFab coarse_omega(coarse_ba, coarse_dm, 1, 0);
+    MultiFab fine_rho(fine_ba, fine_dm, 1, 0);
+    MultiFab fine_omega(fine_ba, fine_dm, 1, 0);
+    fill_carriers(coarse_rho, coarse_omega, true);
+    fill_carriers(fine_rho, fine_omega, false, true);
+    MultiFab coarse_state(coarse_ba, coarse_dm, layout.ncomp(), 0);
+    MultiFab fine_target_state(fine_ba, fine_dm, layout.ncomp(), 0);
+    fill_spectrum(coarse_state, coarse_rho, layout, true);
+    fine_target_state.setVal(Real(0.0));
+    const auto coarse_view =
+        timed_view(coarse_state, coarse_rho, coarse_omega, 0.5);
+    const auto fine_view =
+        timed_view(fine_target_state, fine_rho, fine_omega, 0.5);
+    MultiFab coarse_before(coarse_ba, coarse_dm, layout.ncomp(), 0);
+    MultiFab fine_before(fine_ba, fine_dm, layout.ncomp(), 0);
+    MultiFab coarse_rho_before(coarse_ba, coarse_dm, 1, 0);
+    MultiFab coarse_omega_before(coarse_ba, coarse_dm, 1, 0);
+    MultiFab fine_rho_before(fine_ba, fine_dm, 1, 0);
+    MultiFab fine_omega_before(fine_ba, fine_dm, 1, 0);
+    MultiFab::Copy(coarse_before, coarse_state, 0, 0, layout.ncomp(), 0);
+    MultiFab::Copy(fine_before, fine_target_state, 0, 0, layout.ncomp(), 0);
+    MultiFab::Copy(coarse_rho_before, coarse_rho, 0, 0, 1, 0);
+    MultiFab::Copy(coarse_omega_before, coarse_omega, 0, 0, 1, 0);
+    MultiFab::Copy(fine_rho_before, fine_rho, 0, 0, 1, 0);
+    MultiFab::Copy(fine_omega_before, fine_omega, 0, 0, 1, 0);
+
+    std::string diagnostic;
+    // The earlier alias/layout defect must survive a later geometry failure.
+    EXPECT_FALSE(erf_sbm::ProlongCarrierRelativeSpectrum(
+        layout, coarse_view, fine_view, cgeom, nonperiodic_fgeom, IntVect(2), 1,
+        fine_target_state, diagnostic));
+    EXPECT_NE(diagnostic.find("separate from both input tuples"),
+              std::string::npos)
+        << diagnostic;
+    expect_same_values(fine_target_state, fine_before);
+
+    MultiFab candidate(fine_ba, fine_dm, layout.ncomp(), 0);
+    candidate.setVal(Real(83.0));
+    MultiFab candidate_before(fine_ba, fine_dm, layout.ncomp(), 0);
+    MultiFab::Copy(candidate_before, candidate, 0, 0, layout.ncomp(), 0);
+    EXPECT_FALSE(erf_sbm::ProlongCarrierRelativeSpectrum(
+        layout, coarse_view, fine_view, cgeom, nonperiodic_fgeom, IntVect(2), 1,
+        candidate, diagnostic));
+    EXPECT_NE(diagnostic.find("periodic geometry"), std::string::npos)
+        << diagnostic;
+    expect_same_values(candidate, candidate_before);
+
+    candidate.setVal(Real(84.0));
+    MultiFab::Copy(candidate_before, candidate, 0, 0, layout.ncomp(), 0);
+    EXPECT_FALSE(erf_sbm::ProlongCarrierRelativeSpectrum(
+        layout, coarse_view, fine_view, cgeom, bad_fgeom, IntVect(2), 1,
+        candidate, diagnostic));
+    EXPECT_NE(diagnostic.find("does not map the coarse domain"),
+              std::string::npos)
+        << diagnostic;
+    expect_same_values(candidate, candidate_before);
+    expect_same_values(coarse_state, coarse_before);
+    expect_same_values(fine_target_state, fine_before);
+    expect_same_values(coarse_rho, coarse_rho_before);
+    expect_same_values(coarse_omega, coarse_omega_before);
+    expect_same_values(fine_rho, fine_rho_before);
+    expect_same_values(fine_omega, fine_omega_before);
+}
+
+TEST(SBMAMRTransfer, ProlongationPreservesDiagnosticPrecedence)
+{
+    run_prolongation_diagnostic_precedence();
 }
 
 } // namespace

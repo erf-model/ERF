@@ -559,6 +559,60 @@ TEST(SBMTransportParallel,
     EXPECT_TRUE(restart_heun_stage_zero(fixture, dt, diagnostic)) << diagnostic;
 }
 
+TEST(SBMTransportParallel,
+     CompletedRecordIsDiscardedWhenOnlySomeRanksBeginNextStep)
+{
+    if (amrex::ParallelDescriptor::NProcs() < 2) {
+        GTEST_SKIP() << "mixed-rank next-step qualification requires at least "
+                        "two MPI ranks";
+    }
+
+    CompletedLedgerParallelFixture fixture;
+    erf_auxiliary::AuxiliaryStageRecipe recipe;
+    std::string diagnostic;
+    constexpr double dt = 2.0;
+    const auto method = erf_auxiliary::HostIntegrator::AnelasticHeun;
+    ASSERT_TRUE(erf_auxiliary::MakeAuxiliaryStageRecipe(method, 0, dt, recipe,
+                                                        diagnostic))
+        << diagnostic;
+    ASSERT_TRUE(fixture.ledger.accept_stage(method, 0, 0.0, recipe,
+                                            fixture.rate, diagnostic))
+        << diagnostic;
+    ASSERT_TRUE(erf_auxiliary::MakeAuxiliaryStageRecipe(method, 1, dt, recipe,
+                                                        diagnostic))
+        << diagnostic;
+    ASSERT_TRUE(fixture.ledger.accept_stage(method, 1, 0.0, recipe,
+                                            fixture.rate, diagnostic))
+        << diagnostic;
+    ASSERT_TRUE(fixture.ledger.step_complete());
+    ASSERT_GT(fixture.ledger.integrated_flux().dir(0).norm0(0), Real(0.0));
+
+    // Rank 0 and any ranks above 1 start the new stage zero. Rank 1 rejects
+    // locally before begin_stage; every rank still enters finish_stage.
+    erf_auxiliary::MappedFaceFluxRate undefined_rate;
+    const auto& local_rate = amrex::ParallelDescriptor::MyProc() == 1
+                                 ? undefined_rate
+                                 : fixture.rate;
+    ASSERT_TRUE(erf_auxiliary::MakeAuxiliaryStageRecipe(method, 0, dt, recipe,
+                                                        diagnostic))
+        << diagnostic;
+    const bool accepted = fixture.ledger.accept_stage(method, 0, 0.0, recipe,
+                                                      local_rate, diagnostic);
+    EXPECT_FALSE(accepted);
+    if (amrex::ParallelDescriptor::MyProc() == 1) {
+        EXPECT_NE(diagnostic.find("not defined compatibly"), std::string::npos)
+            << diagnostic;
+    } else {
+        EXPECT_NE(diagnostic.find("another MPI rank"), std::string::npos)
+            << diagnostic;
+    }
+    expect_discarded_ledger(fixture.ledger);
+    EXPECT_TRUE(restart_heun_stage_zero(fixture, dt, diagnostic)) << diagnostic;
+    EXPECT_TRUE(fixture.ledger.step_active());
+    EXPECT_FALSE(fixture.ledger.step_complete());
+    EXPECT_EQ(fixture.ledger.next_stage(), 1);
+}
+
 TEST(SBMTransportParallel, NonfiniteCompletedLedgerRejectedCollectively)
 {
     if (amrex::ParallelDescriptor::NProcs() < 2) {

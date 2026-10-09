@@ -22,7 +22,13 @@ struct SBMAMRStateView {
     double measure_time{0.0};
 };
 
-/** Form a conservative coarse candidate by averaging H=omega*U. */
+/**
+ * Form an H-conservative coarse candidate from matching-time spectral views.
+ * On success, overwrite the destination's valid cells with the complete,
+ * admitted result. On failure (including a rejection on another MPI rank),
+ * leave every destination valid cell and all source views unchanged. This
+ * operator does not itself commit authoritative SBM state.
+ */
 bool RestrictMappedSpectrum (const SBMLayout& layout,
                              const SBMAMRStateView& fine,
                              const SBMAMRStateView& coarse,
@@ -31,7 +37,13 @@ bool RestrictMappedSpectrum (const SBMLayout& layout,
                              amrex::MultiFab& coarse_candidate,
                              std::string& diagnostic);
 
-/** Same-time, piecewise-constant prolongation of z=U/rho_d. */
+/**
+ * Form a same-time piecewise-constant carrier-relative fine candidate. On
+ * success, overwrite the destination's valid cells with the complete, admitted
+ * result. On failure (including a rejection on another MPI rank), leave every
+ * destination valid cell and all source views unchanged. This operator does
+ * not itself commit authoritative SBM state.
+ */
 bool ProlongCarrierRelativeSpectrum (const SBMLayout& layout,
                                      const SBMAMRStateView& coarse,
                                      const SBMAMRStateView& fine_target,

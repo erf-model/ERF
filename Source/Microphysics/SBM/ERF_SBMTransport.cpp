@@ -1381,6 +1381,9 @@ SBMTransport::advance_stage (const int level,
     // Only fully admitted candidates may finish an authoritative spectral
     // ledger stage. Chunk calls above accumulate components without advancing
     // the host stage sequence.
+    // Ledger admission is MPI-collective: every rank on this level must enter
+    // despite local recoverable errors; do not branch around these calls using
+    // rank-local predicates.
     if (data.spectral_ledger.is_defined() &&
         !data.spectral_ledger.finish_stage(diagnostic)) {
         amrex::Abort("SBM M4a spectral face-ledger stage finish: " + diagnostic);
