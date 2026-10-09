@@ -1,7 +1,6 @@
 name: ERF CI
 
-# The pipeline runs when a PR is opened/reopened against development and when merged into development
-# Cache is populated when merged into development
+# MPICH on merge only, not PR
 on:
   push:
     branches: [development]
@@ -9,16 +8,12 @@ on:
       - Docs/**
       - README.rst
       - license.txt
-
-  pull_request:
-    branches: [development]
-    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
-# If a new push is made to an open PR, new run will cancel the previous one in the PR.
-# New merges into development get into the queue and are never cancelled.
+# Each merge into development gets its own group (keyed on the commit), so a burst of
+# merges never cancels a still-pending development run: every merge writes its ccache.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || github.sha }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
@@ -111,13 +106,20 @@ jobs:
         export CCACHE_COMPRESSLEVEL=10
         export CCACHE_MAXSIZE=600M
         ccache -z
+        build_start=$(date +%s)
 
         cmake \
           --build ${{runner.workspace}}/ERF/build-${{matrix.os}} \
           --parallel ${{env.NPROCS}} \
           2>&1 | tee -a ${{runner.workspace}}/build-output.txt;
 
-        ccache -s
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
+        # Keep only what this build used: ccache touches an object on every hit, so
+        # anything older than the build is stale. Without this the cache fills with
+        # objects from superseded commits, hits its cap, and evicts live objects.
+        ccache --evict-older-than "$(( $(date +%s) - build_start + 120 ))s"
+        ccache -s | tee -a "$GITHUB_STEP_SUMMARY"
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
         du -hs ~/.cache/ccache
 
     - name: Save Cache

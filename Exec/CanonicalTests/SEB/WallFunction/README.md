@@ -65,8 +65,8 @@ roofs' L is entirely their own.
    roofs' depth in w* is that minus the 40 m roof.
 
 The Deardorff deck is also run through a checkpoint at step 300 and
-restarted to step 600; the step-599 face dumps must match the straight
-run's to 1e-3 K in the skin and slab and 1 % in the fluxes. The previous
+restarted to step 600; the step-600 face dumps must equal the straight
+run's exactly in the skin, the slab and the fluxes. The previous
 step's sensible flux, which the convective velocity scale reads, is part of
 the checkpointed face state, so the restarted trajectory does not separate.
 

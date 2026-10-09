@@ -66,8 +66,17 @@ struct MYNNLevel25 {
 
     MYNNConfigType config;
 
-    // Calculate eddy diffusivity for moisture variables
-    bool diffuse_moistvars = false;
+    // Optional taper of the ABL-depth length scale toward the top of the
+    // boundary layer: l_T -> l_T * (1 - z/h)^Lt_taper_exp, with h the
+    // diagnosed PBL height.  Zero (the default) disables it and recovers the
+    // untapered NN09 form exactly.
+    //
+    // l_T (NN09 Eqn. 54) is a single number for the whole column, so once
+    // kappa*z exceeds it the master length scale saturates and stays flat all
+    // the way to the inversion.  l_S only grows with height and l_B only bites
+    // once the layer is stably stratified, so in a mixed layer that is neutral
+    // or slightly unstable nothing brings the length scale back down.
+    amrex::Real Lt_taper_exp = amrex::Real(0.0);
 };
 
 /**

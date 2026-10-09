@@ -602,6 +602,41 @@ Test Location: `Tests/test_files/MoistBubble_Kessler_Restart`_
 
 .. _`Tests/test_files/MoistBubble_Kessler_Restart`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/MoistBubble_Kessler_Restart
 
+``IBSEB_Cube_Restart``, ``IBSEB_RefinedLevels_Restart``,
+``ImmersedTerrain_Hill_Restart`` and ``ImmersedTerrain_Hill_TwoLevel_Restart``
+(MPI builds, not Windows) do the same for immersed forcing: the
+``IBSEB_Cube`` deck through a checkpoint at step 17 to step 40, with the
+velocities added to its plotfile; the two-level ``IBSEB_RefinedLevels`` deck
+through step 7 to step 20; and the ``TerrainHill`` deck with
+``erf.terrain_type = ImmersedForcing`` through step 7 to step 20, on one level
+and on the deck's two. All but one compare with zero tolerance.
+``IBSEB_RefinedLevels_Restart`` compares to 1e-8 relative: the restart leg
+writes a plotfile at the restart step and the straight leg does not, and on two
+levels writing a plotfile changes the solution at round-off (erf-model/ERF#4224;
+5e-15 relative in theta without buildings, 1.7e-10 relative in w in this deck by
+step 20); with plotfiles at the same steps in every leg that restart is
+bit-exact too.
+
+A restart rebuilds the immersed blanking (``terrain_IB_mask``) rather than
+reading it from the checkpoint, and ``erf.ibseb`` builds its faces from it.
+Until October 2026 the restart path built it without clearing the almost-fluid
+cells (solid fraction below ``eb2.small_volfrac``) as a fresh start does, so the
+restarted run applied the wall law in cells the straight run leaves alone: 0.2
+m/s in u on one level and 0.85 m/s on the refined level of the hill, and 6e-5
+m/s in u and 8e-6 K in the face skin temperatures of the cube (the faces
+themselves were the same; they take the cells with a blanking of at least 0.5).
+A fresh start, a regrid and a restart now build the blanking with the same
+function, ``ERF::make_terrain_blanking``.
+
+Test Location: `Tests/test_files/IBSEB_Cube`_, `Tests/test_files/IBSEB_RefinedLevels`_,
+`Tests/test_files/TerrainHill`_
+
+.. _`Tests/test_files/IBSEB_Cube`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/IBSEB_Cube
+
+.. _`Tests/test_files/IBSEB_RefinedLevels`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/IBSEB_RefinedLevels
+
+.. _`Tests/test_files/TerrainHill`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/TerrainHill
+
 Closure box, rank and tiling parity
 -----------------------------------
 The ``Closure_BoxParity_*`` tests (MPI builds, not Windows; label ``box-parity``)
