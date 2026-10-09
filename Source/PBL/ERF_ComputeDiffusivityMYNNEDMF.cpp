@@ -4449,7 +4449,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
             // potential temperature.
 
             // NN09 gives the total water content flux; this assumes that
-            // all the species have the same eddy diffusivity. 
+            // all the species have the same eddy diffusivity.
             K_turb(i,j,k,EddyDiff::Q_v) = rho * Lm * qvel(i,j,k) * SH;
 
             K_turb(i,j,k,EddyDiff::Turb_lengthscale) = Lm;
