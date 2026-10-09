@@ -4211,7 +4211,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
     const StratType pbl_strat = turbChoice.pbl_strat_type;
     auto level2   = turbChoice.pbl_mynn_level2;
 
-    Real Lt_alpha = (mynn.config == MYNNConfigType::CHEN2021) ? Real(0.1) : Real(0.23);
+    Real Lt_alpha = mynn.Lt_alpha;
 
     // Dirichlet flags to switch derivative stencil
     bool c_ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc].lo(2) == ERFBCType::ext_dir) );
@@ -4399,7 +4399,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
 
             // Master length scale
             Real Lm;
-            if (mynn.config == MYNNConfigType::CHEN2021) {
+            if (mynn.config == MYNNConfigType::Chen2021) {
                 Lm = std::pow(one/(l_S*l_S) + one/(l_T*l_T) + one/(l_B*l_B), -myhalf);
             } else {
                 // NN09, Eqn 52

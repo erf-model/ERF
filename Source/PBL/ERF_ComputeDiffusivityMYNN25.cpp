@@ -48,7 +48,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
     auto mynn     = turbChoice.pbl_mynn;
     auto level2   = turbChoice.pbl_mynn_level2;
 
-    Real Lt_alpha = (mynn.config == MYNNConfigType::CHEN2021) ? Real(0.1) : Real(0.23);
+    Real Lt_alpha = mynn.Lt_alpha;
 
     // Optional boundary-layer-depth taper of l_T; needs a diagnosed PBL height.
     const bool use_Lt_taper = (mynn.Lt_taper_exp > zero);
@@ -267,7 +267,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
 
             // Master length scale
             Real Lm;
-            if (mynn.config == MYNNConfigType::CHEN2021) {
+            if (mynn.config == MYNNConfigType::Chen2021) {
                 Lm = std::pow(one/(l_S*l_S) + one/(l_T*l_T) + one/(l_B*l_B), -myhalf);
             } else {
                 // NN09, Eqn 52
