@@ -624,6 +624,16 @@ Notes
    **amr.refine_grid_layout_x/_y/_z**; if a per-direction flag is also
    specified it takes precedence in that direction
 
+-  **erf.regrid_level_0_on_restart** re-makes the level-0 grids after the
+   checkpoint has been read.  The same thing happens automatically, without the
+   flag, when the restart runs on more ranks than level 0 has boxes in the
+   checkpoint -- that is, when a run is continued on more ranks than it was
+   written with.  Re-making the level rebuilds it from the same code a fresh
+   start uses, which knows nothing about the checkpoint, so state that only the
+   checkpoint carries would be lost.  ERF stops in that case and names what
+   would have been lost; restart on the number of ranks the checkpoint was
+   written with to keep the level-0 grids as they were.
+
 .. _examples-of-usage-4:
 
 Examples of Usage

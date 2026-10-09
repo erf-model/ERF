@@ -2898,6 +2898,12 @@ ERF::restart ()
     restore_base_state_params_on_restart();
 #endif
 
+    //
+    // Remember whether the user actually asked for this, before the clause below folds in the
+    // automatic case.  The two want different advice when we have to refuse further down.
+    //
+    const bool regrid_level_0_on_restart_requested = regrid_level_0_on_restart;
+
     // Force regrid on level 0 if more procs than boxes are requested
     regrid_level_0_on_restart = ( regrid_level_0_on_restart ||
                                   grids[0].size() < ParallelDescriptor::NProcs() );
@@ -2922,6 +2928,89 @@ ERF::restart ()
         }
 
         if (new_ba != grids[0]) {
+            //
+            // RemakeLevel(0) rebuilds this level from init_stuff, and init_stuff knows nothing
+            // about the checkpoint.  Anything that lives only in the checkpoint and is not in
+            // RemakeLevel's retain-and-restore set therefore comes back as a placeholder -- and
+            // for almost all of it silently, because the field is reset to a plausible default
+            // rather than left empty (issue 4225).  Refuse rather than return a wrong answer,
+            // and name what would have been lost.
+            //
+            // This matters most for the branch taken just above, where nobody asked for a
+            // regrid: that fires on any restart with more ranks than the checkpoint has level-0
+            // boxes, i.e. whenever a run is continued on more ranks than it was written with.
+            //
+            // The real fix is to land the checkpoint on the new grids instead of re-making the
+            // level after the read, at which point this list shrinks to nothing and this check
+            // can go.
+            //
+            Vector<std::string> lost;
+
+            if (solverChoice.lsm_type != LandSurfaceType::None) {
+                lost.push_back("the land-surface state (SLM's canopy/skin/air-space "
+                               "temperatures and its other unmapped fields are re-derived, and "
+                               "any other land model is re-read from its input files)");
+            }
+            if (solverChoice.moisture_type != MoistureType::None) {
+                lost.push_back("the microphysics accumulators (rain_accum and the frozen "
+                               "equivalents restart from zero)");
+            }
+            if (solverChoice.time_avg_vel) {
+                lost.push_back("the velocity time averages (vel_t_avg and t_avg_cnt restart "
+                               "from zero)");
+            }
+            if (solverChoice.compute_mean_vars) {
+                lost.push_back("the interval means (interval_means and t_mean_cnt restart "
+                               "from zero)");
+            }
+            if (lat_m[0] || lon_m[0]) {
+                lost.push_back("the latitude/longitude and Coriolis factor arrays (these are "
+                               "reset to null at level 0, and every consumer then silently "
+                               "takes its no-lat/lon branch)");
+            }
+            if ((!sst_lev[0].empty() && sst_lev[0][0]) ||
+                (!tsk_lev[0].empty() && tsk_lev[0][0])) {
+                lost.push_back("the sea-surface and skin temperatures (reset to null at "
+                               "level 0, and only a wrflowinp file would put them back)");
+            }
+            // urban_lev_active defaults to 1 at every level, so urban_type is the real gate.
+            if (solverChoice.urban_type != UrbanType::None &&
+                solverChoice.urban_enabled_lev[0] == 1) {
+                lost.push_back("the urban fraction (reset to a uniform 1.0, which the urban "
+                               "model then initializes from)");
+            }
+            if (solverChoice.rad_uses_interface() && qheating_rates[0]) {
+                lost.push_back("the radiative heating rates (restart from zero)");
+            }
+            if (solverChoice.windfarm_type != WindFarmType::None) {
+                lost.push_back("the wind-farm arrays (Nturb and the turbine markers are "
+                               "re-allocated without being initialized)");
+            }
+#ifdef ERF_USE_NETCDF
+            if (solverChoice.init_type == InitType::WRFInput && solverChoice.use_real_bcs) {
+                lost.push_back("the WRF vertical-coordinate arrays C1H/C2H/RDNW/MUB/PHB "
+                               "(re-allocated without being initialized)");
+            }
+#endif
+
+            if (!lost.empty()) {
+                std::string msg(
+                    "Restarting with the level-0 grids re-made would discard state that only "
+                    "the checkpoint carries, so this run would continue from the wrong state. "
+                    "What would be lost here:");
+                for (const auto& item : lost) { msg += "\n  - " + item; }
+                msg += "\n\nRestart on the same number of ranks the checkpoint was written "
+                       "with (level 0 then keeps its grids and nothing is re-made)";
+                if (regrid_level_0_on_restart_requested) {
+                    msg += ", or drop erf.regrid_level_0_on_restart";
+                }
+                msg += ". This restriction is temporary -- re-making the level-0 grids on "
+                       "restart is meant to work, and will once the checkpoint is landed on "
+                       "the new grids rather than the level re-made after the read. "
+                       "See ERF issue 4225.";
+                Abort(msg);
+            }
+
             DistributionMapping new_dm(new_ba);
             RemakeLevel(0,static_cast<Real>(t_new[0]),new_ba,new_dm);
         }
