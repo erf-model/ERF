@@ -22,7 +22,10 @@
 max_step = 86400
 
 # PROBLEM PARAMETERS (optional)
-erf.prob_name        = WPS
+# Perlin07 gives the same initial TKE profile as the WPS problem and, unlike
+# it, dispatches the uniform rhotheta tendency used for the radiative cooling
+# below.
+erf.prob_name        = Perlin07
 prob.KE_0            = 0.4 # [m2/s2]
 prob.KE_decay_height = 250. # [m]
 prob.KE_decay_order  = 3

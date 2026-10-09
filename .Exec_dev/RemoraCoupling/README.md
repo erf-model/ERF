@@ -41,6 +41,10 @@ The taper matters most.  Without it the MYNN master length scale saturates once
 eddy viscosity; P07's falls steeply above about 150 m.  **The exponent 1.35 was
 calibrated against their Fig. 8a and is not independently derived.**
 
+`erf.prob_name = Perlin07` selects this case: it sets the same initial TKE
+profile as the `WPS` problem and additionally supplies the uniform potential
+temperature tendency used for the radiative cooling, which `WPS` does not.
+
 Two further points that are easy to get wrong:
 
 * `Kmv` and `Khv` in the plotfile are stored as `rho*K` (kg/m/s).  `nut` is the
