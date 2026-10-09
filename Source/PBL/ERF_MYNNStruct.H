@@ -1,12 +1,16 @@
 #ifndef ERF_MYNN_STRUCT_H_
 #define ERF_MYNN_STRUCT_H_
 
+#include <AMReX_Enum.H>
+
 #include "ERF_Constants.H"
 
-enum struct MYNNConfigType {
-    NN09 = 0, // Nakanishi & Niino 2009, J Met Soc Japan
-    CHEN2021  // Chen & Bryan 2021, JAS
-};
+// NN09     : Nakanishi & Niino 2009, J Met Soc Japan -- Lt_alpha = 0.23
+// Chen2021 : Chen & Bryan 2021, JAS                  -- Lt_alpha = 0.10, and
+//            the master length scale is the inverse-square (rather than
+//            inverse) sum of l_S, l_T and l_B.
+// NN09 must stay first so that the zero value remains the default.
+AMREX_ENUM(MYNNConfigType, NN09, Chen2021);
 
 /**
  * @brief Coefficients and stability functions for the Level 2.5 MYNN closure.
@@ -64,10 +68,25 @@ struct MYNNLevel25 {
     amrex::Real SQmin = zero;
     amrex::Real SQmax = SQfac * SHmax;
 
-    MYNNConfigType config;
+    MYNNConfigType config = MYNNConfigType::NN09;
 
-    // Calculate eddy diffusivity for moisture variables
-    bool diffuse_moistvars = false;
+    // Coefficient on the ABL-depth length scale, l_T = Lt_alpha*<zq>/<q>
+    // (NN09, Eqn. 54).  Set from `config` in TurbChoice::init_params -- 0.23
+    // for NN09, 0.10 for Chen2021 -- and then overridable on its own with
+    // erf.pbl_mynn_Lt_alpha.  Mellor-Yamada 1982, which COAMPS uses, takes 0.1.
+    amrex::Real Lt_alpha = amrex::Real(0.23);
+
+    // Optional taper of the ABL-depth length scale toward the top of the
+    // boundary layer: l_T -> l_T * (1 - z/h)^Lt_taper_exp, with h the
+    // diagnosed PBL height.  Zero (the default) disables it and recovers the
+    // untapered NN09 form exactly.
+    //
+    // l_T (NN09 Eqn. 54) is a single number for the whole column, so once
+    // kappa*z exceeds it the master length scale saturates and stays flat all
+    // the way to the inversion.  l_S only grows with height and l_B only bites
+    // once the layer is stably stratified, so in a mixed layer that is neutral
+    // or slightly unstable nothing brings the length scale back down.
+    amrex::Real Lt_taper_exp = amrex::Real(0.0);
 };
 
 /**

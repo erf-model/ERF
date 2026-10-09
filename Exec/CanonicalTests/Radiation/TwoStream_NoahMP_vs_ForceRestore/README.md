@@ -139,9 +139,9 @@ come from Noah-MP's tables:
 
 The balance has the Jarvis form only, which is why this case runs Noah-MP with option 2.
 
-ERF's Noah-MP driver counts the day of the year from 1 where Noah-MP's phenology counts from 0
-(erf-model/ERF#4199), so its table LAI here is that of a day later than the balance's: 2.16
-against 2.23 at the start.
+Both models now count the day of the year from 0, so they read the same table LAI, 2.23 at the
+start. The driver used to count from 1 and read 2.16 here; the flux and skin differences quoted
+below were measured then, and are expected to shift a little the next time the case is run.
 
 Within each model, level 1 tracks level 0 (the land is uniform). On grass the two differ by
 at most about 5 W/m² in H and LE and 0.2 K in the skin. On bare soil the skins stay within 0.5 K,
