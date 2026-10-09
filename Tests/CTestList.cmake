@@ -673,9 +673,18 @@ endif()
 # require the plotfile at the end to be identical (no gold file). Every run has a
 # time limit; the default stays at 600, but an explicit RUN_TIMEOUT is forwarded
 # unchanged to each leg and used to size the outer CTest watchdog.
+# COMMON_OPTIONS reaches all three legs; RESTART_OPTIONS reaches the restart leg alone,
+# which is where anything that changes the decomposition has to go.  ALLOW_DIFF_GRIDS
+# lets fcompare compare plotfiles written on different BoxArrays, which a restart leg
+# that re-makes the level-0 grids needs and no other restart test should want.
+# CHK_NRANKS/RESTART_NRANKS give the checkpoint and restart legs separate rank counts, for
+# the case of continuing a run on more ranks than it was written with; the straight leg
+# follows the restart's count so the comparison isolates the restart, not the decomposition.
+# REQUIRE_LEVEL0_REMAKE makes a regrid test fail if the restart stopped regridding, which
+# would otherwise leave it silently comparing an ordinary restart and passing.
 function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
-    set(oneValueArgs "COMMON_OPTIONS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT" "DATALOG" "DATALOG_SIGDIGITS" "PLT2DFILE")
-    cmake_parse_arguments(ADD_TEST_RP "" "${oneValueArgs}" "" ${ARGN})
+    set(oneValueArgs "COMMON_OPTIONS" "RESTART_OPTIONS" "CHK_NRANKS" "RESTART_NRANKS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT" "DATALOG" "DATALOG_SIGDIGITS" "PLT2DFILE")
+    cmake_parse_arguments(ADD_TEST_RP "ALLOW_DIFF_GRIDS;REQUIRE_LEVEL0_REMAKE" "${oneValueArgs}" "" ${ARGN})
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
 
@@ -710,18 +719,87 @@ function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
         "-DATOL=${_fcompare_atol}"
         "-DRUN_TIMEOUT=${_run_timeout}"
         "-DCOMMON_OPTIONS=${ADD_TEST_RP_COMMON_OPTIONS}"
+        "-DRESTART_OPTIONS=${ADD_TEST_RP_RESTART_OPTIONS}"
+        "-DALLOW_DIFF_GRIDS=${ADD_TEST_RP_ALLOW_DIFF_GRIDS}"
+        "-DREQUIRE_LEVEL0_REMAKE=${ADD_TEST_RP_REQUIRE_LEVEL0_REMAKE}"
+        "-DCHK_NRANKS=${ADD_TEST_RP_CHK_NRANKS}"
+        "-DRESTART_NRANKS=${ADD_TEST_RP_RESTART_NRANKS}"
         "-DDATALOG=${ADD_TEST_RP_DATALOG}"
         "-DDATALOG_SIGDIGITS=${ADD_TEST_RP_DATALOG_SIGDIGITS}"
         "-DPLT2DFILE=${ADD_TEST_RP_PLT2DFILE}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunRestartParity.cmake)
+    # The reservation has to cover the widest leg, which need not be NP.
+    set(_procs "${NP}")
+    foreach(_n "${ADD_TEST_RP_CHK_NRANKS}" "${ADD_TEST_RP_RESTART_NRANKS}")
+        if(NOT "${_n}" STREQUAL "" AND _n GREATER _procs)
+            set(_procs "${_n}")
+        endif()
+    endforeach()
+
     set_tests_properties(${TEST_NAME}
         PROPERTIES
         TIMEOUT ${_ctest_timeout}
-        PROCESSORS ${NP}
+        PROCESSORS ${_procs}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression;restart-parity"
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/straight/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/checkpoint.log;${CURRENT_TEST_BINARY_DIR}/restart/restart.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
 endfunction(add_test_restart_parity)
+
+# Restart abort: run a deck to a checkpoint, restart from it, and require the restart to stop
+# with EXPECTED_MESSAGE. For guards that only a restart can reach, which add_test_abort cannot
+# test because it runs a single leg and no checkpoint exists yet.  CHK_NRANKS and
+# RESTART_NRANKS are separate so a test can reproduce a restart on more ranks than the
+# checkpoint was written with, which is its own code path.
+function(add_test_restart_abort TEST_NAME TEST_FILES_DIR STEP_CHK EXPECTED_MESSAGE)
+    set(oneValueArgs "COMMON_OPTIONS" "RESTART_OPTIONS" "CHK_NRANKS" "RESTART_NRANKS" "RUN_TIMEOUT")
+    cmake_parse_arguments(ADD_TEST_RA "" "${oneValueArgs}" "" ${ARGN})
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(_chk_nranks "${NP}")
+    set(_restart_nranks "${NP}")
+    if(NOT "${ADD_TEST_RA_CHK_NRANKS}" STREQUAL "")
+        set(_chk_nranks "${ADD_TEST_RA_CHK_NRANKS}")
+    endif()
+    if(NOT "${ADD_TEST_RA_RESTART_NRANKS}" STREQUAL "")
+        set(_restart_nranks "${ADD_TEST_RA_RESTART_NRANKS}")
+    endif()
+    set(_run_timeout 600)
+    set(_ctest_timeout 600)
+    if(DEFINED ADD_TEST_RA_RUN_TIMEOUT)
+        set(_run_timeout "${ADD_TEST_RA_RUN_TIMEOUT}")
+        math(EXPR _ctest_timeout "2 * ${_run_timeout} + 600")
+    endif()
+    # The watchdog has to cover both legs, and the processor reservation the wider leg.
+    set(_procs "${_chk_nranks}")
+    if(_restart_nranks GREATER _procs)
+        set(_procs "${_restart_nranks}")
+    endif()
+
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DCHK_NRANKS=${_chk_nranks}"
+        "-DRESTART_NRANKS=${_restart_nranks}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DSTEP_CHK=${STEP_CHK}"
+        "-DEXPECTED_MESSAGE=${EXPECTED_MESSAGE}"
+        "-DRUN_TIMEOUT=${_run_timeout}"
+        "-DCOMMON_OPTIONS=${ADD_TEST_RA_COMMON_OPTIONS}"
+        "-DRESTART_OPTIONS=${ADD_TEST_RA_RESTART_OPTIONS}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunRestartAbort.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT ${_ctest_timeout}
+        PROCESSORS ${_procs}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;restart-parity"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/run/checkpoint.log;${CURRENT_TEST_BINARY_DIR}/run/restart.log")
+endfunction(add_test_restart_abort)
 
 # Tiling parity: run one deck with MFIter tiling on and off and require identical
 # 3D and 2D plotfiles (no gold file). Catches kernels that loop over the valid box
@@ -2625,6 +2703,110 @@ add_test_restart_parity(ImmersedTerrain_Hill_Restart TerrainHill 7 20
 add_test_restart_parity(ImmersedTerrain_Hill_TwoLevel_Restart TerrainHill 7 20
     COMMON_OPTIONS "erf.terrain_type=ImmersedForcing erf.immersed_forcing_substep=true eb2.small_volfrac=0.005 erf.plot_vars_1=density x_velocity y_velocity z_velocity theta terrain_IB_mask"
     FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "0.0")
+endif()
+
+# A restart that re-makes the level-0 grids (erf.regrid_level_0_on_restart, and the
+# same branch ERF::restart takes on its own when the checkpoint has fewer level-0
+# boxes than there are ranks).  The remake used to copy the old state onto the new
+# grids offering its ghost cells as a source, and ReadCheckpointFile leaves those at
+# bogus_large_value, so valid cells of the new grids came out of the remake holding
+# 1e150 and the first estTimeStep trapped on the cast of fixed_dt/dt_sub_max (issue
+# 4225).  RESTART_OPTIONS, not COMMON_OPTIONS: max_grid_size must move on the restart
+# leg alone, or this becomes a box-parity test.  max_grid_size_z is left spanning the
+# column because the vertical diffusion is implicit and define_column_kextent refuses
+# a split column.  Terrain2Lev_Hill_BoxParity already holds this deck decomposition
+# independent under the same 8/8/64 split; both legs here in fact come out bit-for-bit
+# equal, flat mesh and terrain-fitted alike, so they are held at zero tolerance.
+# ALLOW_DIFF_GRIDS because the restart leg writes its plotfile on the re-made grids.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_parity(TerrainHill_RegridOnRestart TerrainHill 7 20
+    COMMON_OPTIONS  "amr.max_level=0 erf.terrain_type=None"
+    RESTART_OPTIONS "erf.regrid_level_0_on_restart=1 amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64"
+    ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(TerrainHill_RegridOnRestart_Fitted TerrainHill 7 20
+    COMMON_OPTIONS  "amr.max_level=0"
+    RESTART_OPTIONS "erf.regrid_level_0_on_restart=1 amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64"
+    ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+endif()
+
+# The automatic branch, end to end and with nothing set. ERF::restart re-makes the level-0
+# grids on its own when the checkpoint has fewer level-0 boxes than there are ranks, and a
+# fresh start gives level 0 exactly NProcs() boxes, so writing the checkpoint on one rank and
+# restarting on two is enough to take it. That is what a user gets by continuing a run on more
+# ranks than it was written with -- no flag, no warning -- and before #4240 it silently
+# corrupted the state rather than failing. Nothing else covers a rank count that changes
+# across the checkpoint: every other restart test runs all three legs at the same width.
+#
+# The straight leg runs at the restart's rank count, so the comparison isolates the restart
+# rather than the decomposition. This deck carries none of the state the level-0 remake drops,
+# so it is required to be bit-for-bit exact; a deck that does carry such state is refused by
+# the guard instead, which the RefusesOnMoreRanks case below asserts.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_parity(TerrainHill_RestartOnMoreRanks TerrainHill 7 20
+    COMMON_OPTIONS "amr.max_level=0 erf.terrain_type=None"
+    CHK_NRANKS 1 RESTART_NRANKS 2
+    ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+endif()
+
+# The state that only the checkpoint carries. These used to be refused, because the level-0
+# remake rebuilt the level through init_stuff and dropped them; now the checkpoint is read
+# straight onto the new grids, so each is simply required to survive. Three categories the
+# TerrainHill deck can switch on: the microphysics accumulators, the velocity time averages
+# and the interval means. The first runs on the automatic branch -- checkpoint on one rank,
+# restart on two, nothing set -- because that is how a user reaches this without asking.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+# PLT2DFILE because rain_accum is a surface field: the 3D plotfile carries none, so without
+# it this would compare density and velocity -- which the remake never lost -- and pass while
+# the accumulator silently restarted from zero.
+add_test_restart_parity(TerrainHill_RegridOnRestart_Moisture TerrainHill 7 20
+    COMMON_OPTIONS "amr.max_level=0 erf.terrain_type=None erf.moisture_model=Kessler erf.plot2d_vars_1=precip_rain_accum"
+    CHK_NRANKS 1 RESTART_NRANKS 2
+    PLT2DFILE "plt2d_1_00020"
+    ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(TerrainHill_RegridOnRestart_TimeAvg TerrainHill 7 20
+    COMMON_OPTIONS  "amr.max_level=0 erf.terrain_type=None erf.time_avg_vel=true erf.plot_vars_1=density x_velocity y_velocity theta u_t_avg v_t_avg umag_t_avg"
+    RESTART_OPTIONS "erf.regrid_level_0_on_restart=1 amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64"
+    ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+# Not zero tolerance, and not because of the regrid: the interval means are already not
+# restart-exact without one. A plain same-rank restart of this deck reproduces theta_mean to
+# 1 ulp (1.9e-16 relative) and w_mean to 6.5e-23 absolute, on a w_mean that is itself ~1e-21,
+# and the same two numbers appear whether or not level 0 is re-made. Two decompositions run
+# straight through, with no restart at all, agree exactly, so it is the restart and not the
+# decomposition. That is issue 4243; the bound here is set just above what it costs so this
+# test still fails if the means are actually lost, which would be O(1). Put it back to zero
+# when 4243 is fixed.
+add_test_restart_parity(TerrainHill_RegridOnRestart_IntervalMeans TerrainHill 7 20
+    COMMON_OPTIONS  "amr.max_level=0 erf.terrain_type=None erf.compute_mean_vars=true erf.plot_vars_1=density x_velocity theta u_mean v_mean w_mean theta_mean"
+    RESTART_OPTIONS "erf.regrid_level_0_on_restart=1 amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64"
+    ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "1.0e-12" FCOMPARE_ATOL "1.0e-20")
+endif()
+
+# SLM across a restart. Nothing covered this: the two SLM decks in the tree are gated behind
+# ERF_TEST_ENABLE_EXTRA_LSM_TESTS and need input files this repository does not carry, so an
+# SLM restart was never exercised at all -- which is how the failure reported on issue 4225
+# (SLM stopping on t_canop > tfriz after a restart) got in.
+#
+# PLT2DFILE is plt_lsm_2D, not an erf.plot2d file: SLM keeps prognostic state ERF does not
+# expose through lsm_data -- t_canop, t_skin, t_ground_skin, t_cas, q_cas, mw, mws,
+# wet_canop -- and plt_lsm_2D is the only output that carries it. erf.plot_lsm in the deck
+# writes it alongside plotfile 1, so the runner's existing plot_int_1 cadence drives it. The
+# 3D comparison alone would see the atmosphere and pass while the canopy state silently
+# restarted from its initialization value.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_parity(SLM_Restart SLM_Restart 7 20
+    PLT2DFILE "plt_lsm_2D_00020"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+endif()
+
+# The same deck across a level-0 regrid, which ReadCheckpointFile still refuses: SLM does its
+# own checkpoint I/O and reads onto the grids the run uses, so it cannot yet take grids that
+# moved. Checkpoint on one rank and restart on two to reach the automatic branch without
+# setting anything. When SLM's reader is taught to redistribute, this becomes an
+# add_test_restart_parity case like the one above and the category leaves the guard.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_abort(SLM_RegridOnRestart_Refused SLM_Restart 7
+    "a land-surface model"
+    CHK_NRANKS 1 RESTART_NRANKS 2)
 endif()
 
 # The same for terrain carried by an embedded boundary: the mesh is flat there

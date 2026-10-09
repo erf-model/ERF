@@ -44,10 +44,19 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                           const std::unique_ptr<MultiFab>& z_phys_cc,
                           const MoistureComponentIndices& moisture_indices)
 {
+    const StratType pbl_strat = turbChoice.pbl_strat_type;
     auto mynn     = turbChoice.pbl_mynn;
     auto level2   = turbChoice.pbl_mynn_level2;
 
-    Real Lt_alpha = (mynn.config == MYNNConfigType::CHEN2021) ? Real(0.1) : Real(0.23);
+    Real Lt_alpha = mynn.Lt_alpha;
+
+    // Optional boundary-layer-depth taper of l_T; needs a diagnosed PBL height.
+    const bool use_Lt_taper = (mynn.Lt_taper_exp > zero);
+    const Real Lt_taper_exp = mynn.Lt_taper_exp;
+    if (use_Lt_taper && !SurfLayer->computes_pblh()) {
+        Abort("erf.pbl_mynn_Lt_taper_exp > 0 needs a diagnosed PBL height; "
+              "set erf.most.pblh_calc = MYNN25");
+    }
 
     // Dirichlet flags to switch derivative stencil
     bool c_ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc].lo(2) == ERFBCType::ext_dir) );
@@ -135,6 +144,10 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
         const auto& t_star_arr = t_star_mf->const_array(mfi);
         const auto& q_star_arr = (use_moisture) ? q_star_mf->const_array(mfi) : Array4<Real>{};
 
+        const auto& pblh_mf  = SurfLayer->get_pblh(level);
+        const auto  pblh_arr = (use_Lt_taper) ? pblh_mf->const_array(mfi)
+                                              : Array4<const Real>{};
+
         const Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
         const PBLDerivativeDzInv_T pbl_derivative_dz_inv{z_phys_cc->const_array(mfi)};
 
@@ -149,7 +162,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                                           u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                           v_ext_dir_on_zlo, v_ext_dir_on_zhi,
                                           dthetavdz, dudz, dvdz,
-                                          moisture_indices);
+                                          moisture_indices, pbl_strat);
 
             // Spatially varying MOST
             Real theta0 = tm_arr(i,j,0);
@@ -214,14 +227,37 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
                 l_T = std::numeric_limits<Real>::max();
             }
 
+            // l_T is also the ABL-depth scale that the convective branch of
+            // l_B below is built from; keep that one untapered, since there it
+            // stands for the depth of the layer rather than a mixing length.
+            const Real l_T_abl = l_T;
+
+            // Optional taper toward the top of the boundary layer.  The factor
+            // is floored rather than allowed to reach zero so that the 1/l_T
+            // term in the master length scale stays finite.
+            //
+            // NOTE: above z = h the factor clamps at that floor, so the master
+            // length scale is driven to ~0 there.  That is harmless when the
+            // turbulence is confined to the boundary layer, but it would
+            // suppress genuine elevated shear-driven mixing; hence the taper
+            // is opt-in rather than a default.
+            if (use_Lt_taper) {
+                const Real pblh = pblh_arr(i,j,0);
+                if (pblh > zero) {
+                    Real f = one - zval/pblh;
+                    f = (f < Real(1.0e-4)) ? Real(1.0e-4) : f;
+                    l_T *= std::pow(f, Lt_taper_exp);
+                }
+            }
+
             // Buoyancy length scale (NN09, Eqn. 55)
             Real l_B;
             if (dthetavdz > zero) {
                 Real N_brunt_vaisala = std::sqrt(CONST_GRAV/theta0 * dthetavdz);
                 if (zeta < zero) {
-                    Real qc = CONST_GRAV/theta0 * surface_heat_flux * l_T; // velocity scale
+                    Real qc = CONST_GRAV/theta0 * surface_heat_flux * l_T_abl; // velocity scale
                     qc = std::pow(qc,one/three);
-                    l_B = (one + Real(5.0)*std::sqrt(qc/(N_brunt_vaisala * l_T))) * qvel(i,j,k)/N_brunt_vaisala;
+                    l_B = (one + Real(5.0)*std::sqrt(qc/(N_brunt_vaisala * l_T_abl))) * qvel(i,j,k)/N_brunt_vaisala;
                 } else {
                     l_B = qvel(i,j,k) / N_brunt_vaisala;
                 }
@@ -231,7 +267,7 @@ ComputeDiffusivityMYNN25 (const MultiFab& xvel,
 
             // Master length scale
             Real Lm;
-            if (mynn.config == MYNNConfigType::CHEN2021) {
+            if (mynn.config == MYNNConfigType::Chen2021) {
                 Lm = std::pow(one/(l_S*l_S) + one/(l_T*l_T) + one/(l_B*l_B), -myhalf);
             } else {
                 // NN09, Eqn 52
