@@ -1029,6 +1029,14 @@ public:
 
     // One-shot latch so a misconfigured deck says so once rather than every step.
     bool m_warned_coupled_sst_declined = false;
+    // The coupled-SST diagnostics run on the first ApplyOceanSurfaceState call,
+    // then only at erf.v >= 2.
+    bool m_checked_coupled_sst = false;
+    // Out-of-range report: the worst extremes and NaN count already reported;
+    // at erf.v >= 2 it repeats only when a later call is worse. Start at the bounds.
+    amrex::Real m_warned_coupled_sst_min = amrex::Real(260.0);
+    amrex::Real m_warned_coupled_sst_max = amrex::Real(320.0);
+    amrex::Long m_warned_coupled_sst_nan = 0;
 
 private:
 

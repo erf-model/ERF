@@ -871,40 +871,66 @@ ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
             0, m_coupled_sst.get(), m_coupled_sst_valid.get());
     }
 
-    // Report over the covered cells only. The old whole-array min/max was
-    // dominated by the remap's zero fill wherever the ocean grid did not reach,
-    // so the range check could not distinguish "cold ocean" from "no ocean".
-    constexpr amrex::Real cov_min_sentinel = amrex::Real( 1.e30);
-    constexpr amrex::Real cov_max_sentinel = amrex::Real(-1.e30);
+    // Diagnostics only from here on. The driver calls this every ERF substep with
+    // the SST of the last exchange, and REMORA already checks that SST on its wet
+    // cells once per exchange, so run this on the first call and at erf.v >= 2 only.
+    // verbose is a ParmParse value, so every rank returns together.
+    if (m_checked_coupled_sst && verbose < 2) { return; }
+    m_checked_coupled_sst = true;
 
-    amrex::ReduceOps<amrex::ReduceOpSum, amrex::ReduceOpMin, amrex::ReduceOpMax> reduce_ops;
-    amrex::ReduceData<amrex::Long, amrex::Real, amrex::Real> reduce_data(reduce_ops);
-    using ReduceTuple = typename decltype(reduce_data)::Type;
+    // One pass over the covered cells: the driver's flag, ERF water with a wet
+    // ocean donor (it reports the others, and why, when it builds its weights).
+    // Count, min/max, and the cells outside the range, NaN included, with one of
+    // them named: the smallest flat (i,j) index, the same cell under any
+    // decomposition. The range test is !(lo <= v <= hi) because every comparison
+    // with NaN is false, and a min/max reduction cannot be trusted to carry a NaN.
+    // In the driver path this can only fire after REMORA's own wet-cell check
+    // has: the O2A SST is a weighted mean of wet REMORA values.
+    constexpr amrex::Real sst_lo = amrex::Real(260.0);
+    constexpr amrex::Real sst_hi = amrex::Real(320.0);
+    constexpr amrex::Real min_sentinel = std::numeric_limits<amrex::Real>::max();
+    constexpr amrex::Real max_sentinel = std::numeric_limits<amrex::Real>::lowest();
+    constexpr amrex::Long no_cell = std::numeric_limits<amrex::Long>::max();
+    const amrex::Box domain = m_coupled_sst->boxArray().minimalBox();
+    const amrex::Long nx = domain.length(0);
 
+    amrex::ReduceOps<amrex::ReduceOpSum, amrex::ReduceOpSum, amrex::ReduceOpSum,
+                     amrex::ReduceOpMin, amrex::ReduceOpMax, amrex::ReduceOpMin> ops;
+    amrex::ReduceData<amrex::Long, amrex::Long, amrex::Long,
+                      amrex::Real, amrex::Real, amrex::Long> data(ops);
+    using Tuple = typename decltype(data)::Type;
     for (amrex::MFIter mfi(*m_coupled_sst); mfi.isValid(); ++mfi) {
-        const amrex::Box& bx = mfi.validbox();
         const auto sst_arr   = m_coupled_sst->const_array(mfi);
         const auto valid_arr = m_coupled_sst_valid->const_array(mfi);
-        reduce_ops.eval(bx, reduce_data,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+        const auto lo = amrex::lbound(domain);
+        ops.eval(mfi.validbox(), data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) -> Tuple
             {
-                const bool covered = (valid_arr(i,j,k) != 0);
+                const amrex::Real v = sst_arr(i,j,k);
+                const bool covered = valid_arr(i,j,k) != 0;
+                const bool bad = covered && !(v >= sst_lo && v <= sst_hi);
+                const bool nan = covered && (v != v);
+                const amrex::Long flat = amrex::Long(j - lo.y) * nx + amrex::Long(i - lo.x);
                 return { covered ? amrex::Long(1) : amrex::Long(0),
-                         covered ? sst_arr(i,j,k) : cov_min_sentinel,
-                         covered ? sst_arr(i,j,k) : cov_max_sentinel };
+                         bad ? amrex::Long(1) : amrex::Long(0),
+                         nan ? amrex::Long(1) : amrex::Long(0),
+                         covered ? v : min_sentinel,
+                         covered ? v : max_sentinel,
+                         bad ? flat : no_cell };
             });
     }
-
-    auto reduced = reduce_data.value(reduce_ops);
-    amrex::Long n_valid = amrex::get<0>(reduced);
-    amrex::Real cov_min = amrex::get<1>(reduced);
-    amrex::Real cov_max = amrex::get<2>(reduced);
-
-    amrex::ParallelDescriptor::ReduceLongSum(n_valid);
+    auto r = data.value(ops);
+    amrex::Long counts[3] = {amrex::get<0>(r), amrex::get<1>(r), amrex::get<2>(r)};
+    amrex::Real cov_min = amrex::get<3>(r);
+    amrex::Real cov_max = amrex::get<4>(r);
+    amrex::Long first   = amrex::get<5>(r);
+    amrex::ParallelDescriptor::ReduceLongSum(counts, 3);
     amrex::ParallelDescriptor::ReduceRealMin(cov_min);
     amrex::ParallelDescriptor::ReduceRealMax(cov_max);
-
-    const amrex::Long n_total = m_coupled_sst->boxArray().numPts();
+    amrex::ParallelDescriptor::ReduceLongMin(first);
+    const amrex::Long n_valid = counts[0];
+    const amrex::Long n_bad   = counts[1];
+    const amrex::Long n_nan   = counts[2];
 
     if (n_valid == 0) {
         amrex::Print() << "Coupled SST apply at t=" << time
@@ -912,13 +938,31 @@ ERF::ApplyOceanSurfaceState (const amrex::Vector<amrex::MultiFab*>& state,
                        << "SST/TSK data stands everywhere." << std::endl;
         return;
     }
-
     amrex::Print() << "Coupled SST apply at t=" << time
-                   << " s: covered " << n_valid << " of " << n_total
+                   << " s: covered " << n_valid << " of " << m_coupled_sst->boxArray().numPts()
                    << " surface cells, min/max over covered = "
                    << cov_min << " / " << cov_max << " K" << std::endl;
 
-    if (cov_min < amrex::Real(260.0) || cov_max > amrex::Real(320.0)) {
-        amrex::Warning("Coupled SST is outside the expected [260, 320] K range");
+    // Warn the first time, and at erf.v >= 2 again only when it gets worse: a new
+    // extreme past the last one reported, or more NaN cells. All inputs are
+    // reduced, so every rank takes the branch together.
+    const bool worse = cov_min < m_warned_coupled_sst_min || cov_max > m_warned_coupled_sst_max ||
+                       n_nan > m_warned_coupled_sst_nan;
+    if (n_bad > 0 && worse) {
+        m_warned_coupled_sst_min = std::min(m_warned_coupled_sst_min, cov_min);
+        m_warned_coupled_sst_max = std::max(m_warned_coupled_sst_max, cov_max);
+        m_warned_coupled_sst_nan = std::max(m_warned_coupled_sst_nan, n_nan);
+
+        const amrex::IntVect ex(domain.smallEnd(0) + static_cast<int>(first % nx),
+                                domain.smallEnd(1) + static_cast<int>(first / nx), 0);
+        const auto here = amrex::get_cell_data(*m_coupled_sst, ex);  // empty off the owner
+        amrex::Real ex_value = here.empty() ? std::numeric_limits<amrex::Real>::max() : here[0];
+        amrex::ParallelDescriptor::ReduceRealMin(ex_value);
+
+        amrex::Print() << "WARNING: coupled SST at t=" << time << " s outside [" << sst_lo
+                       << ", " << sst_hi << "] K on " << n_bad << " of " << n_valid
+                       << " covered cells (" << n_nan << " NaN; min/max " << cov_min << " / "
+                       << cov_max << " K; e.g. ERF (" << ex[0] << "," << ex[1] << ") = "
+                       << ex_value << " K)." << std::endl;
     }
 }
