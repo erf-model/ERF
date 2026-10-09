@@ -58,6 +58,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                           const MultiFab* qheating_rates,
                           const MultiFab* terrain_blank)
 {
+    const StratType pbl_strat = turbChoice.pbl_strat_type;
     /*
     ============================================================================
     Yonsei University (YSU) Boundary Layer Parameterization Scheme
@@ -1801,7 +1802,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 ComputeVerticalDerivativesPBL(i, j, k, uvel, vvel, cell_data, izmin, izmax, pbl_derivative_dz_inv(i,j,k),
                                               c_ext_dir_on_zlo, c_ext_dir_on_zhi, u_ext_dir_on_zlo,
                                               u_ext_dir_on_zhi, v_ext_dir_on_zlo, v_ext_dir_on_zhi, dthetadz,
-                                              dudz, dvdz, moisture_indices);
+                                              dudz, dvdz, moisture_indices, pbl_strat);
 
                 // This branch is the free atmosphere above the PBL, so it only
                 // reaches the first fluid cell of the column when the PBL index
