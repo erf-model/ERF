@@ -231,7 +231,7 @@ struct TerrainStressCase
     ParallelFor(gbxo, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
       om(i,j,k) = (k == 0) ? Real(0.0) : OmegaFromW(i,j,k,wa(i,j,k),ua,va,mux,mvy,znd,dxInv);
     });
-    auto er = er_fab.array();
+    auto er_arr = er_fab.array();
     ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
       const Real hu_hi = Compute_h_zeta_AtIface(i+1, j  , k, dxInv, znd);
       const Real hu_lo = Compute_h_zeta_AtIface(i  , j  , k, dxInv, znd);
@@ -241,7 +241,7 @@ struct TerrainStressCase
       const Real rate = (ua(i+1,j,k)/muy(i+1,j,0)*hu_hi - ua(i,j,k)/muy(i,j,0)*hu_lo)*dxInv[0]*mfsq
                       + (va(i,j+1,k)/mvx(i,j+1,0)*hv_hi - va(i,j,k)/mvx(i,j,0)*hv_lo)*dxInv[1]*mfsq
                       + (om(i,j,k+1) - om(i,j,k))*dxInv[2];
-      er(i,j,k) = rate / dJ(i,j,k);
+      er_arr(i,j,k) = rate / dJ(i,j,k);
     });
     Gpu::streamSynchronize();
   }
