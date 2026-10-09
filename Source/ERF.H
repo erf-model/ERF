@@ -314,22 +314,26 @@ public:
     void HurricaneEyeTracker (const SolverChoice& solverChoice,
                               const amrex::MultiFab& mf_cc_vel,
                               int& hurricane_eye_i_glob,
-                              int& hurricane_eye_j_glob);
+                              int& hurricane_eye_j_glob,
+                              amrex::Real& hurricane_eye_latitude,
+                              amrex::Real& hurricane_eye_longitude);
 
     void HurricaneEyeTrackerInitial (const SolverChoice& sc,
                                      const amrex::Geometry& geom,
                                      const amrex::Vector<amrex::MultiFab>& S_data,
-                                     const amrex::Real& hurricane_eye_latitude,
-                                     const amrex::Real& hurricane_eye_longitude,
                                      int& hurricane_eye_i_glob,
-                                     int& hurricane_eye_j_glob);
+                                     int& hurricane_eye_j_glob,
+                                     amrex::Real& hurricane_eye_latitude,
+                                     amrex::Real& hurricane_eye_longitude);
 
     void HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
                                         const amrex::Geometry& geom,
                                         const amrex::MultiFab& mf_cc_vel,
                                         const amrex::Vector<amrex::MultiFab>& S_data,
                                         int& hurricane_eye_i_glob,
-                                        int& hurricane_eye_j_glob);
+                                        int& hurricane_eye_j_glob,
+                                        amrex::Real& hurricane_eye_latitude,
+                                        amrex::Real& hurricane_eye_longitude);
 
     void ComputeGlobalMinLocation (const SolverChoice& sc,
                                    const amrex::Geometry& geom,
@@ -339,7 +343,9 @@ public:
                                    int* d_j_min_ptr,
                                    amrex::Real& global_val_min,
                                    int& global_i_min,
-                                   int& global_j_min);
+                                   int& global_j_min,
+                                   amrex::Real& hurricane_eye_latitude,
+                                   amrex::Real& hurricane_eye_longitude);
 
     void HurricaneMaxVelTracker (const amrex::Geometry& geom,
                                  const amrex::MultiFab& mf_cc_vel,
@@ -353,6 +359,8 @@ public:
     void HurricaneSurfaceFluxesTracker (const amrex::Geometry& lev_geom,
                                         const int& hurricane_eye_i_glob,
                                         const int& hurricane_eye_j_glob,
+                                        const amrex::Real& hurricane_eye_latitude,
+                                        const amrex::Real& hurricane_eye_longitude,
                                         const amrex::Real time);
 
     void HurricaneTrackerCircle ();

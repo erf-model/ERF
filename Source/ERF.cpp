@@ -851,7 +851,11 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
         average_face_to_cellcenter(mf_cc_vel,0,{AMREX_D_DECL(&U_new,&V_new,&W_new)},0);
 
         int hurricane_eye_i_glob, hurricane_eye_j_glob;
-        HurricaneEyeTracker(solverChoice, mf_cc_vel, hurricane_eye_i_glob, hurricane_eye_j_glob);
+        Real hurricane_eye_latitude, hurricane_eye_longitude;
+
+        HurricaneEyeTracker(solverChoice, mf_cc_vel,
+                            hurricane_eye_i_glob, hurricane_eye_j_glob,
+                            hurricane_eye_latitude, hurricane_eye_longitude);
 
         HurricaneMaxVelTracker(geom[levc],
                                mf_cc_vel,
@@ -865,6 +869,8 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
         HurricaneSurfaceFluxesTracker(geom[levc],
                                       hurricane_eye_i_glob,
                                       hurricane_eye_j_glob,
+                                      hurricane_eye_latitude,
+                                      hurricane_eye_longitude,
                                       t_new[0]);
 
         std::string filename_tracker = MakeVTKFilename_TrackerCircle(nstep);
@@ -882,6 +888,15 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
             WriteLinePlot(filename_minpressure, hurricane_minpressure_vs_time);
             WriteLinePlot(filename_surface_fluxes, hurricane_surface_fluxes_vs_time);
         }
+        Vector<std::string> var_names = {"sensible_heat_flux", "latent_heat_flux"};
+
+WriteSingleLevelPlotfile(
+    "surface_flux_plot",
+    mfvec_surface_fluxes[levc],
+    var_names,
+    geom[levc],
+    t_new[0],
+    0);
     }
 
 } // post_timestep
