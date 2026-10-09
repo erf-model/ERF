@@ -11,6 +11,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <system_error>
 #include "ERF_WriteBndryPlanes.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_Derive.H"
@@ -204,22 +205,29 @@ bool WriteBndryPlanes::start_series (const int start_step, const double start_ti
             const int nkeep = rows_to_keep(steps, times, start_step, start_time, restarting);
             has_start_plane = (nkeep > 0 && steps[nkeep-1] == start_step) ? 1 : 0;
 
-            if (nkeep < nlines) {
-                if (!restarting) {
-                    Print() << "WriteBndryPlanes: a fresh start begins a new series; dropping the "
-                            << nlines << " rows of " << m_time_file << std::endl;
-                } else if (nkeep < rows.size() && steps[nkeep] <= start_step &&
-                           times[nkeep] <= start_time) {
-                    Warning("WriteBndryPlanes: row " + std::to_string(nkeep+1) + " of " + m_time_file +
-                            " (\"" + rows[nkeep] + "\") does not continue the rows before it: its step "
-                            "or time does not increase, or it is at the restart step at another time. "
-                            "It and the rows after it are dropped. A series that an earlier ERF version "
-                            "wrote across a restart has such a row, and its step-0 plane holds the "
-                            "restart state; write that series again.");
-                } else {
+            // A row whose step or time does not increase, anywhere in the file, or a row at or
+            // before the restart that does not continue the kept rows, cannot come from one run
+            bool broken = false;
+            for (int i = 1; i < rows.size(); ++i) {
+                if (steps[i] <= steps[i-1] || times[i] <= times[i-1]) { broken = true; }
+            }
+            if (restarting && nkeep < rows.size() && steps[nkeep] <= start_step) { broken = true; }
+
+            if (restarting && broken) {
+                Warning("WriteBndryPlanes: " + m_time_file + " does not hold one run's series: a step "
+                        "or time does not increase, or a row at or before the restart step " +
+                        std::to_string(start_step) + " is not at a time of this run. Only its first " +
+                        std::to_string(nkeep) + " rows are kept. A series that an earlier ERF version "
+                        "wrote across a restart has such a row, and its step-0 plane holds the "
+                        "restart state; write that series again.");
+            } else if (nkeep < nlines) {
+                if (restarting) {
                     Print() << "WriteBndryPlanes: keeping " << nkeep << " of the " << nlines
                             << " rows of " << m_time_file << " up to the restart step "
                             << start_step << std::endl;
+                } else {
+                    Print() << "WriteBndryPlanes: a fresh start begins a new series; dropping the "
+                            << nlines << " rows of " << m_time_file << std::endl;
                 }
             }
 
@@ -231,7 +239,14 @@ bool WriteBndryPlanes::start_series (const int start_step, const double start_ti
                 out << rows[i] << '\n';
             }
             out.close();
-            std::filesystem::rename(tmp_file, m_time_file);
+            std::error_code ec;
+            if (out.fail()) {
+                Abort("WriteBndryPlanes: cannot write " + tmp_file);
+            }
+            std::filesystem::rename(tmp_file, m_time_file, ec);
+            if (ec) {
+                Abort("WriteBndryPlanes: cannot replace " + m_time_file + " with " + tmp_file + ": " + ec.message());
+            }
         }
     }
     ParallelDescriptor::Bcast(&has_start_plane, 1, ParallelDescriptor::IOProcessorNumber(),

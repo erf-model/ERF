@@ -1718,7 +1718,7 @@ endif()
 #   _Restart:     restart from step 4, and read the series back. The start-up write used to run
 #                 on a restart too, as step 0: it replaced the step-0 plane with the restart
 #                 state and appended a "0 t" row. The last row before the restart is left
-#                 without its newline, as a run stopped while writing it leaves it.
+#                 without its newline, as a time.dat edited or copied by hand may be.
 #   _Replay:      the run went on to step 8 after its step-3 checkpoint, the restart replays 4-8,
 #                 and step 3 is not an output step.
 #   _Enable:      the output is switched on at the restart, at an output step (4) ...
@@ -1846,12 +1846,14 @@ function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME
 endfunction(add_test_abort)
 
 # Reading and writing boundary planes in one folder would replace the planes being read; the
-# folder names differ only in spelling
-add_test_abort(ABL_BndryPlanes_SameFolder
-               ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ABL_BndryPlanes_Restart
-               ABL_BndryPlanes_Restart.i
-               "name the same folder"
-               "erf.input_bndry_planes=1 erf.bndry_file=./BndryFiles/ erf.bndry_input_var_names=velocity")
+# folder names differ only in spelling. Not on Windows, whose path spelling this does not cover.
+if(NOT WIN32)
+  add_test_abort(ABL_BndryPlanes_SameFolder
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ABL_BndryPlanes_Restart
+                 ABL_BndryPlanes_Restart.i
+                 "name the same folder"
+                 "erf.input_bndry_planes=1 erf.bndry_file=./BndryFiles/ erf.bndry_input_var_names=velocity")
+endif()
 
 if(ERF_ENABLE_MPI AND NOT WIN32)
   # A shallow nest -- a fine level that stops below the domain top -- has no complete

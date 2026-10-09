@@ -3096,8 +3096,8 @@ List of Parameters
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.bndry_output_planes_per**       | Output interval (time)                                   | Real >= 0          | -1.0             |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.bndry_output_start_time**       | Start time for output, in seconds after the start of the | Real >= 0          | 0.0              |
-|                                       | run (not counting start_datetime)                        |                    |                  |
+| **erf.bndry_output_start_time**       | Start time for output, in seconds of elapsed time (the   | Real >= 0          | 0.0              |
+|                                       | run's own start time is not added)                       |                    |                  |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.bndry_output_planes_file**      | Output directory                                         | String             | None             |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------+

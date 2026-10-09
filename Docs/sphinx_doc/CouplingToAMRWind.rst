@@ -112,7 +112,7 @@ written are temperature, velocity and density, and they are written every 2 coar
 :cpp:`bndry_output_start_time` which is 0 in this case.
 
 The start time counts from the start of the run (elapsed simulation time), also when
-the run's clock starts at :cpp:`start_datetime`.
+the run's clock starts at a date (:cpp:`start_datetime`, or the date of a WRF input file).
 
 Within :cpp:`BndryFiles`, each output step writes a folder :cpp:`bndry_outputNNNNN` named by
 its step number and adds a row ``step time`` to the ascii file :cpp:`time.dat`; the time is

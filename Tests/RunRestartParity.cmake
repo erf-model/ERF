@@ -9,7 +9,7 @@
 # runs from step BNDRY_PLANES_FIRST_STEP on; BNDRY_PLANES_STEPS lists the steps the straight run
 # must have written from there; BNDRY_PLANES_STALE seeds both run directories with the time.dat
 # of an earlier run first; BNDRY_PLANES_CUT_NEWLINE removes the newline that ends the checkpoint
-# leg's time.dat, as a run stopped while writing its last row leaves it; BNDRY_PLANES_READ_INPUT
+# leg's time.dat, as a file edited or copied by hand may lack it; BNDRY_PLANES_READ_INPUT
 # names a deck, beside INPUT, that reads the restarted run's series back with erf.input_bndry_planes.
 # CHK_NRANKS/RESTART_NRANKS let the checkpoint and restart legs run at different widths;
 # REQUIRE_LEVEL0_REMAKE asserts the restart really did re-make the level-0 grids.
@@ -304,7 +304,7 @@ endif()
 # series is a directory of planes, bndry_outputNNNNN, one per output step, and a time.dat that
 # lists "step time" for each; erf.input_bndry_planes reads time.dat and requires both columns to
 # increase. A restart must leave the series as the straight run writes it: the same time.dat
-# rows, character for character (the restart's time is the straight run's to the last bit), and
+# rows, line for line as text (the restart's time is the straight run's to the last bit), and
 # the same planes, byte for byte. AMReX renames a plane directory it writes again to
 # <name>.old.<n>, which a restart from an earlier checkpoint does by design, so those are skipped.
 if(NOT "${BNDRY_PLANES_DIR}" STREQUAL "")
@@ -433,6 +433,9 @@ if(NOT "${BNDRY_PLANES_DIR}" STREQUAL "")
     list(GET _bp_straight_dirs -1 _bp_plane_last)
     file(GLOB_RECURSE _bp_data RELATIVE "${STRAIGHT_DIR}/${BNDRY_PLANES_DIR}/${_bp_plane_first}"
          "${STRAIGHT_DIR}/${BNDRY_PLANES_DIR}/${_bp_plane_first}/*_D_*")
+    if("${_bp_data}" STREQUAL "")
+        message(FATAL_ERROR "RunRestartParity.cmake: no plane data files (*_D_*) in ${_bp_plane_first}")
+    endif()
     foreach(_f IN LISTS _bp_data)
         execute_process(COMMAND ${CMAKE_COMMAND} -E compare_files
             "${STRAIGHT_DIR}/${BNDRY_PLANES_DIR}/${_bp_plane_first}/${_f}"
