@@ -4068,10 +4068,11 @@ particle support is enabled, the Lagrangian Super-Droplet Method. ERF also
 contains the developing Eulerian spectral-bin capability selected with
 ``erf.moisture_model = SBM``.
 
-The current ``SBM`` option provides bounded M3 mapped spectral advection, not a
-complete warm-cloud microphysics scheme. See
-:ref:`sec:SpectralBinMicrophysics` for its state representation, configuration,
-and current limitations.
+The current ``SBM`` option transports a liquid-water size distribution by
+resolved advection on one atmospheric grid level. It is not yet a complete
+warm-cloud microphysics scheme and does not support operational multilevel
+spectral transport. See :ref:`sec:SpectralBinMicrophysics` for the spectral
+representation, configuration, and current limitations.
 
 The following run-time options control the moisture model.
 
@@ -4126,9 +4127,10 @@ List of Parameters
 SBM inputs
 ----------
 
-The inputs below are read only when ``erf.moisture_model = SBM``. The current
-SBM implementation provides bounded M3 mapped spectral advection as described
-in :ref:`sec:SpectralBinMicrophysics`.
+The inputs below are read only when ``erf.moisture_model = SBM``. They
+configure the current single-level liquid-spectrum advection capability;
+see :ref:`sec:SpectralBinMicrophysics` for its scientific representation and
+execution restrictions.
 
 .. list-table::
    :header-rows: 1
@@ -4139,9 +4141,9 @@ in :ref:`sec:SpectralBinMicrophysics`.
      - Acceptable values
      - Default
    * - ``erf.sbm_zero_transport_fixture``
-     - Deprecated pre-M3 qualification switch. New M3 inputs omit it; an
-       explicitly true value is rejected as obsolete.
-     - Boolean; true rejected, omit for M3
+     - Obsolete switch from an earlier infrastructure-only test mode.
+       Omit it from new input files; an explicitly true value is rejected.
+     - Boolean; omit or use ``false``
      - ``false``
    * - ``erf.sbm_nbins``
      - Number of liquid spectral bins when explicit ``sbm_edges`` are not

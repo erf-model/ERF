@@ -135,9 +135,12 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
         auxiliary_inert_tracer->define(lev, ba, dm);
     }
     if (sbm_state_manager) {
-        sbm_state_manager->define(lev, ba, dm);
+        const double sbm_initial_time = restart_chkfile.empty()
+                                            ? static_cast<double>(time)
+                                            : t_new[lev];
+        sbm_state_manager->define(lev, ba, dm, sbm_initial_time);
         for (int comp = 0; comp < static_cast<int>(solverChoice.sbm_fixture_initial_state.size()); ++comp) {
-            sbm_state_manager->state(lev).setVal(
+            sbm_state_manager->new_state_for_initialization(lev).setVal(
                 solverChoice.sbm_fixture_initial_state[static_cast<std::size_t>(comp)], comp, 1, 0);
         }
         AMREX_ALWAYS_ASSERT(sbm_transport != nullptr);
