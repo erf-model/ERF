@@ -7,154 +7,200 @@
 .. _Buoyancy:
 
 Buoyancy
-=========
+========
 
-ERF has several options for how to define the buoyancy force. All models may be employed
-with the compressible formulation but those applicable to the anelastic formulation will be
-explicitly stated in the description.
+ERF adds a vertical perturbational gravitational **force density** to the
+face-centered dry-momentum equation. Its SI units are N m\ :sup:`-3`; it
+is not an acceleration until the appropriate inertia is accounted for.
+Gravity is :math:`\boldsymbol{g}=(0,0,g_z)`, where :math:`g_z=-g` and
+:math:`g>0`. Positive :math:`B_z` acts upward.
 
-The buoyancy formulation is selected via the ``erf.buoyancy_type`` parameter. See :ref:`sec:Inputs`
-for available values and defaults.
+The compressible runtime parameter ``erf.buoyancy_type`` accepts 1, 2, 3,
+or 4. In the anelastic formulation ERF chooses a separate dry or moist
+kernel, regardless of the stored numeric selector; the stored value 3 is
+only bookkeeping and there is no selectable type 5. See
+:ref:`sec:Inputs` and :ref:`GoverningEquations`.
 
-Density of the mixture
------------------------
-
-The total density in a cell containing air, water vapor, liquid water and precipitates is given by
-
-.. math::
-    \rho = \frac{m}{V} = \frac{m_a + m_v + m_c + m_p}{V},
-
-where :math:`m_a` is the mass of dry air, :math:`m_v` is the mass of water vapor, :math:`m_c` is the mass of liquid water, and :math:`m_p` is the mass of precipitate.
-From the definitions of the mass mixing ratio (ratio of mass of a component to mass of dry air), we have for any component
-
-.. math::
-    q_i \equiv \frac{m_i}{m_a}.
-
-Using this we can write
-
-.. math::
-    \rho = m_a\frac{(1 + q_v + q_c + q_p)}{V}
-          = \rho_d(1 + q_v + q_c + q_p),
-
-where :math:`\rho_d \equiv \cfrac{m_a}{V}` is the density of dry air.
-
-Type 1: Density Perturbation
------------------------------
-
-One version of the buoyancy force is expressed simply as
-
-.. math::
-     \mathbf{B} = \rho^\prime \mathbf{g}
-
-.. math::
-     \rho^\prime = \rho_{total} - \rho_0
-
-where the total density :math:`\rho_{total} = \rho_d(1 + q_v + q_c + q_p)` is the sum of dry and moist components. The stored base-state density :math:`\rho_0` is the dry density, and the only moisture variable carried in the base state is :math:`q_{v,0}`. Thus the type-1 density perturbation is
-
-.. math::
-     \rho^\prime = \rho_d(1 + q_t) - \rho_0(1 + q_{v,0}),
-
-where :math:`q_t` is the full-state total water mixing ratio. As a check, we observe that :math:`\rho^\prime_0 = 0`, which means that the background state is not buoyant.
-
-This is the default formulation for both dry and certain moist simulations.
-
-Type 2/3: Temperature Perturbation
------------------------------------
-
-**Note:** Types 2 and 3 are implemented identically in the code.
-
-For **dry** simulations, the buoyancy is:
-
-.. math::
-     \mathbf{B} = -\rho_0 \mathbf{g} \frac{T'}{T_0}
-
-For **moist** simulations, this formulation assumes that the horizontal averages of the moisture quantities are negligible:
-
-.. math::
-     \mathbf{B} = \rho^\prime \mathbf{g} \approx -\rho_0 \mathbf{g} \left( \frac{T^\prime}{\overline{T}}
-                 + 0.61 q_v - q_c - q_i - q_p \right)
-
-We note that this version of the buoyancy force matches that given in Marat F. Khairoutdinov and David A. Randall's paper (J. Atm Sciences, 607, 1983)
-if we neglect :math:`\frac{p^\prime}{\bar{p_0}}`.
-
-Type 3 is utilized when the anelastic formulation is employed. A specialized implementation
-based on dry potential temperature perturbations is used in the anelastic case.
-
-Type 4: Potential Temperature Perturbation
+Density, reference state, and water loading
 -------------------------------------------
 
-This expression for buoyancy is from `khairoutdinov2003cloud`_ and `bryan2002benchmark`_.
-
-.. _`khairoutdinov2003cloud`: https://journals.ametsoc.org/view/journals/atsc/60/4/1520-0469_2003_060_0607_crmota_2.0.co_2.xml
-.. _`bryan2002benchmark`: https://journals.ametsoc.org/view/journals/mwre/130/12/1520-0493_2002_130_2917_absfmn_2.0.co_2.xml
-
-For **dry** simulations:
-
-.. math::
-    \mathbf{B} = -\rho_0 \mathbf{g} \frac{\theta'}{\theta_0}
-
-    \begin{equation}
-    \mathbf{B} = \rho'\mathbf{g} \approx -\rho \mathbf{g} \Bigg(\frac{T'}{T} + 0.61 q_v' - q_c - q_p - \frac{p'}{p}\Bigg)
-    \end{equation}
-
-The derivation follows. The total density is given by :math:`\rho = \rho_d(1 + q_v + q_c + q_p)`, which can be written as
+ERF predicts the **dry-air** density :math:`\rho_d` and dry potential
+temperature :math:`\theta_d`. Water mixing ratios are masses per mass of
+dry air. Let :math:`q_v` be water vapor, :math:`q_t` the sum of vapor and
+all condensed and precipitating *water mass* mixing ratios, and
+:math:`q_\ell=q_t-q_v` the total condensate and precipitate. Number
+concentrations do not contribute to :math:`q_t`. The total moist density
+and its hydrostatic reference are
 
 .. math::
 
-    \rho = \frac{p (1 + q_v + q_c + q_p)}{R_dT\Bigg(1 + \cfrac{R_v}{R_d}q_v\Bigg)}
+   \rho_t = \rho_d(1+q_t),\qquad
+   \rho_{t0} = \rho_0(1+q_{v0}),\qquad
+   \frac{dp_0}{dz}=\rho_{t0}g_z,
 
-This can be written using binomial expansion as
+where :math:`\rho_0` is the **dry** base-state density, :math:`q_{v0}`
+is base-state vapor mixing ratio, and the base state has no condensate.
+After subtracting hydrostatic balance, the vertical pressure and gravity
+contribution is :math:`-\partial_z(p-p_0)+B_z`. In the implemented
+dry-momentum source the combined pressure and buoyancy contribution is
+divided by :math:`1+q_{t,\mathrm{face}}`, where :math:`q_{t,\mathrm{face}}`
+is the arithmetic mean of the two adjacent cell values.
 
-.. math::
+Type 1: density perturbation
+----------------------------
 
-    \begin{align*}
-    \rho &= \frac{p}{R_dT} (1 + q_v + q_c + q_p)\Bigg(1 + \frac{R_v}{R_d}q_v\Bigg)^{-1} \\
-    &= \frac{p}{R_dT} (1 + q_v + q_c + q_p)\Bigg(1 - \frac{R_v}{R_d}q_v + O(q_v^2)\Bigg) \\
-    &= \frac{p}{R_dT}\Bigg(1 + q_v + q_c + q_p - \frac{R_v}{R_d}q_v +  \text{H.O.T. such as } O(q_v^2) + O(q_vq_c)\Bigg) \\
-    &\approx \frac{p}{R_dT}\Bigg(1 + q_v + q_c + q_p - \frac{R_v}{R_d}q_v\Bigg)
-    \end{align*}
-
-Taking log on both sides, we get
-
-.. math::
-
-    \log{\rho} = \log{p} - \log{R_d} - \log{T} + \log(1 - 0.61 q_v + q_c + q_p)
-
-Taking derivative gives
+The density-perturbation force density is
 
 .. math::
 
-    \frac{\rho'}{\rho} = \frac{p'}{p} - \frac{T'}{T} + \frac{(-0.61 q_v' + q_c' + q_p')}{(1 - 0.61 q_v + q_c + q_p)}
+   B_z^{(1)} = g_z\left[\rho_d(1+q_t)-\rho_0(1+q_{v0})\right].
 
-Using :math:`- 0.61 q_v + q_c + q_p \ll 1`, we have
+ERF interpolates the bracketed density perturbation from the two adjacent
+cells to an interior vertical-velocity face. This formulation retains
+the full compressible density response, including pressure-related
+density changes through the state and equation of state. It vanishes in
+the neutral moist or dry reference state. Type 1 is the default
+compressible choice and is required by certain moisture-model
+combinations.
 
-.. math::
+Types 2 and 3: temperature-perturbation approximation
+-----------------------------------------------------
 
-    \frac{\rho'}{\rho} = \frac{p'}{p} - \frac{T'}{T} + (-0.61 q_v' + q_c' + q_p')
-
-Since the background values of cloud water and precipitate mass mixing ratios -- :math:`q_c` and :math:`q_p` are zero, we have :math:`q_c' = q_c` and :math:`q_p' = q_p`. Hence, we have
-
-.. math::
-
-    \begin{equation}
-    \rho'\approx -\rho\Bigg(\frac{T'}{T} + 0.61 q_v' - q_c - q_p - \frac{p'}{p}\Bigg),
-    \end{equation}
-
-which gives the final expression for Type 4 moist buoyancy.
-
-Type 5: Anelastic Formulation (Internal Use Only)
---------------------------------------------------
-
-.. note::
-   Type 5 is not user-selectable via ``erf.buoyancy_type``. It describes the specialized
-   buoyancy implementation used internally when the anelastic formulation is enabled.
-
-Utilizing :math:`\theta_d` and neglecting the pressure term in Type 4 leads to:
+**Types 2 and 3 select the same implemented kernel in dry and moist
+compressible configurations.** Define
 
 .. math::
 
-    \begin{equation}
-    \rho'\approx -\rho\left(\frac{\theta_d'}{\theta} + 0.61 q_v' - q_c' - q_p'\right).
-    \end{equation}
+   \epsilon_v = \frac{R_v}{R_d}-1,\qquad
+   \beta_T = \frac{T-T_0}{T_0}
+             +\epsilon_v(q_v-q_{v0})-q_\ell.
 
-This buoyancy model is employed when utilizing the anelastic formulation.
+For dry flow the water terms vanish. The interior-face approximation is
+
+.. math::
+
+   B_z^{(2)}=B_z^{(3)}
+      =-\overline{\rho_0}\,g_z\,\overline{\beta_T},
+
+where each overbar is the arithmetic mean of the two adjacent cells and
+:math:`T_0` is base-state temperature. This is a low-pressure-perturbation
+and dilute-moisture approximation to the full density force, not an exact
+replacement for type 1 in arbitrary compressible states. The moisture
+term uses the vapor perturbation :math:`q_v-q_{v0}` and all
+condensed/precipitating water mass :math:`q_\ell`.
+
+Type 4: potential-temperature-perturbation approximation
+--------------------------------------------------------
+
+Define the dry potential-temperature perturbation
+:math:`\theta_d'=\theta_d-\theta_0` and
+
+.. math::
+
+   \beta_\theta = \frac{\theta_d'}{\theta_0}
+           +\epsilon_v(q_v-q_{v0})-q_\ell.
+
+For an interior non-EB face, type 4 computes
+
+.. math::
+
+   B_z^{(4)}=-\overline{\rho_0}\,g_z\,\overline{\beta_\theta}.
+
+In dry flow the moisture terms vanish. This is a distinct approximation
+from the temperature formulation: it omits the explicit density
+contribution of pressure perturbations and is most appropriate when
+those contributions are negligible.
+
+Relation to the compressible equation of state
+----------------------------------------------
+
+Write :math:`\alpha=R_v/R_d`, and distinguish the constant EOS reference
+pressure :math:`P_{00}=10^5\,\mathrm{Pa}` from the height-dependent
+hydrostatic pressure :math:`p_0(z)`. At the default internally consistent
+thermodynamic constants, :math:`\Gamma=1.4` and
+:math:`\kappa=R_d/C_{p,d}=(\Gamma-1)/\Gamma`, with
+:math:`C_{p,d}=1004.5\,\mathrm{J\,kg^{-1}\,K^{-1}}`. The EOS is
+
+.. math::
+
+   p=P_{00}\left[\frac{R_d\rho_d\theta_d(1+\alpha q_v)}{P_{00}}\right]^\Gamma.
+
+For base and perturbed states satisfying this EOS, the exact density
+ratio is
+
+.. math::
+
+   \frac{\rho_t}{\rho_{t0}}=
+   \left(\frac{p}{p_0}\right)^{1/\Gamma}
+   \frac{\theta_0}{\theta_d}
+   \frac{1+q_t}{1+q_{v0}}
+   \frac{1+\alpha q_{v0}}{1+\alpha q_v}.
+
+Linearizing about the base state, with :math:`\delta q_v=q_v-q_{v0}`,
+gives
+
+.. math::
+
+   \frac{\delta\rho_t}{\rho_{t0}} =
+   \frac{1}{\Gamma}\frac{p'}{p_0}
+   -\frac{\theta_d'}{\theta_0}
+   +\left[\frac{1}{1+q_{v0}}-\frac{\alpha}{1+\alpha q_{v0}}\right]\delta q_v
+   +\frac{q_\ell}{1+q_{v0}}+O(\delta^2).
+
+Neglecting the pressure-density term and taking the dilute-moisture limit
+gives the type-4 expression above. Finite base-state humidity introduces
+additional coefficient differences; the active formula is **not** the
+exact finite-humidity linearization. Types 2 and 3 use :math:`T'/T_0`
+instead of :math:`\theta_d'/\theta_0`; since
+:math:`T'/T_0\simeq\theta_d'/\theta_0+\kappa p'/p_0`, they can differ in
+sign from type 1 for a pressure-only perturbation. These are differences
+in approximate gravitational source terms, not by themselves
+comparisons of the complete momentum equation.
+
+Anelastic buoyancy
+------------------
+
+Anelastic dry flow uses :math:`\rho_d=\rho_0` in the base-density
+approximation and computes
+
+.. math::
+
+   B_{z,\mathrm{dry}}^A =
+   -\overline{\rho_0}g_z
+   \frac{\overline{\theta_d}-\overline{\theta_0}}
+        {\overline{\theta_0}}.
+
+Anelastic moist flow uses the active potential-temperature-perturbation
+kernel
+
+.. math::
+
+   B_{z,\mathrm{moist}}^A =
+   -\overline{\rho_0}g_z\,\overline{\beta_\theta}.
+
+Here the bar on :math:`\beta_\theta` averages cell-wise fractional
+perturbations. The dry and moist paths can differ by a small
+face-interpolation truncation term on a stratified background even in
+the zero-moisture limit. The anelastic pressure-gradient field is
+maintained by the anelastic projection; it is not recomputed from the
+compressible EOS perturbational pressure.
+
+Applicability and references
+----------------------------
+
+Embedded-boundary buoyancy has specialized implementation constraints:
+the established branches are dry anelastic or dry compressible type 1.
+Some moisture models also require compressible type 1. See
+``Source/SourceTerms/ERF_MakeBuoyancy.cpp`` and :ref:`sec:Inputs` for the
+current restrictions. The stored selector in anelastic mode does not
+request a compressible buoyancy kernel.
+
+The temperature and potential-temperature approximations are related to
+formulations discussed by `Khairoutdinov and Randall (2003)
+<khairoutdinov2003cloud>`_, *Journal of the Atmospheric Sciences*, **60**,
+607--625, and `Bryan and Fritsch (2002) <bryan2002benchmark>`_. Their
+applicability is governed by the assumptions stated above, not by an
+assertion that all four input selections are physically interchangeable.
+
+.. _khairoutdinov2003cloud: https://journals.ametsoc.org/view/journals/atsc/60/4/1520-0469_2003_060_0607_crmota_2.0.co_2.xml
+.. _bryan2002benchmark: https://journals.ametsoc.org/view/journals/mwre/130/12/1520-0493_2002_130_2917_absfmn_2.0.co_2.xml
