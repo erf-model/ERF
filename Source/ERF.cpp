@@ -2029,46 +2029,33 @@ ERF::InitData_post ()
     const std::string& pv2d_1 = "plot2d_vars_1"; appendPlotVariables(pv2d_1,plot2d_var_names_1);
     const std::string& pv2d_2 = "plot2d_vars_2"; appendPlotVariables(pv2d_2,plot2d_var_names_2);
 
-    if ( restart_chkfile.empty() && (m_check_int > 0 || m_check_per > zero) )
-    {
-        WriteCheckpointFile();
-        last_check_file_step = 0;
-        if (m_check_per > zero) {last_check_file_time += m_check_per;}
-    }
-
     if ( (restart_chkfile.empty()) ||
          (!restart_chkfile.empty() && plot_file_on_restart) )
     {
-        int plotfiles_3d_written = 0;
-        bool interval_diagnostic_consumed = false;
         if (m_plot3d_int_1 > 0 || m_plot3d_per_1 > zero)
         {
-            const bool wrote_plotfile = Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
-            if (wrote_plotfile) {
-                ++plotfiles_3d_written;
-                interval_diagnostic_consumed = interval_diagnostic_consumed ||
-                    erf_plotfile::plot3d_selection_has_interval_mean_diagnostic(plot3d_var_names_1);
-            }
+            Write3DPlotFile(1,plotfile3d_type_1,plot3d_var_names_1);
             if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 += m_plot3d_per_1;}
             last_plot3d_file_step_1 = istep[0];
         }
         if (m_plot3d_int_2 > 0 || m_plot3d_per_2 > zero)
         {
-            const bool wrote_plotfile = Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
-            if (wrote_plotfile) {
-                ++plotfiles_3d_written;
-                interval_diagnostic_consumed = interval_diagnostic_consumed ||
-                    erf_plotfile::plot3d_selection_has_interval_mean_diagnostic(plot3d_var_names_2);
-            }
+            Write3DPlotFile(2,plotfile3d_type_2,plot3d_var_names_2);
             if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 += m_plot3d_per_2;}
             last_plot3d_file_step_2 = istep[0];
         }
-        // A restart-only plot is observational: it must not consume the
-        // restored interval window before the first post-restart advance.
-        ResetIntervalMeansAfter3DPlotfileBatch(
-            plotfiles_3d_written,
-            erf_interval_means::initialization_plot_consumes_interval(
-                !restart_chkfile.empty(), interval_diagnostic_consumed));
+        // A restart restores a window that must survive untouched: a
+        // restart-only plot is observational and must not consume it before
+        // the first post-restart advance.  A fresh start instead drops its
+        // t=0 sample here whether or not an initial plotfile was written --
+        // that sample is an instantaneous state, not a completed step, and
+        // leaving it in made the first interval depend on the output cadence,
+        // which is what kept the means from being restart-exact (issue 4243).
+        if (erf_interval_means::initialization_clears_interval(
+                !restart_chkfile.empty(), solverChoice.compute_mean_vars,
+                solverChoice.mean_vars_reset_mode)) {
+            ResetIntervalMeans();
+        }
         if (m_plot2d_int_1 > 0 || m_plot2d_per_1 > zero)
         {
             Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
@@ -2088,6 +2075,17 @@ ERF::InitData_post ()
                 if (m_subvol_per[i] > zero) {last_subvol_time[i] += m_subvol_per[i];}
             }
         }
+    }
+
+    // After the plotfiles, as in WriteAtIntermediateTime: an initial checkpoint
+    // has to record the averaging window the run carries into step 1, which is
+    // the one left behind by the block above, not the t=0 sample that only the
+    // initial plotfile reports.
+    if ( restart_chkfile.empty() && (m_check_int > 0 || m_check_per > zero) )
+    {
+        WriteCheckpointFile();
+        last_check_file_step = 0;
+        if (m_check_per > zero) {last_check_file_time += m_check_per;}
     }
 
     // Set these up here because we need to know which MPI rank "cell" is on...

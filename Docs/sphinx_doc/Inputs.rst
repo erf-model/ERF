@@ -1223,6 +1223,14 @@ In ``plotfile`` mode, a reset occurs only after all 3-D streams due at the
 same output event have been written and at least one emitted stream contains
 an interval diagnostic; a density-only stream does not close the shared
 averaging window.
+Also in ``plotfile`` mode, the sample taken at initialization is dropped at the
+end of initialization whether or not an initial plotfile was written, so the
+first interval covers the steps taken since initialization, just as every later
+interval covers the steps since the previous output event. An initial plotfile
+still reports that sample, i.e. the means of the initial state. Dropping it is
+what keeps the averaging window independent of the output cadence, and so makes
+the interval fields exact across a checkpoint/restart. In ``time`` mode the
+initialization sample is part of the configured window and is kept.
 In either mode, regridding a level rebuilds that level's accumulator, so the
 averaging window restarts on the regridded level while the other levels keep
 accumulating. A plotfile written shortly after a regrid can therefore mix
