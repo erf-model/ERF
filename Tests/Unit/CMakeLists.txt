@@ -153,6 +153,14 @@ target_sources(${erf_exe_name}
     # Motivation: the k-eqn RANS closure (AL01) must keep its stability
     # functions finite and its length-scale limits exact for any Rt.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestRANSClosure.cpp
+    # Motivation: terrain-fitted momentum diffusion must apply K_h to the projected horizontal
+    # stresses of the zeta-face flux and take the cell-centred du/dz from the cell's own faces
+    # (erf-model/ERF#4214), so the operator is exact for bilinear fields and dissipates energy.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestTerrainStress.cpp
+    # Motivation: erf.implicit_terrain_metric must put K_h times the terrain-metric factor into
+    # the implicit vertical solves on the interior faces and take the same compact term out of
+    # the explicit fluxes, and nothing on the bottom and top faces.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestTerrainImplicitMetric.cpp
     # Motivation: the opt-in WRF Smagorinsky-2D limits must reproduce WRF's smag2d_km numbers
     # (slope factor, deformation threshold, cap and their order), limit K_h before the scalar
     # diffusivities are derived from it, and the diffusive time-step rates must follow their
@@ -253,7 +261,8 @@ if(ERF_DIM STREQUAL "3")
   # divergence, exact host stage recipes, canonical metric transfers, and ledger.
   target_sources(${erf_exe_name} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/AuxiliaryState/ERF_GTestAuxiliaryMappedTransport.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMTransport.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMTransport.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMAMRTransfer.cpp)
 endif()
 if(ERF_ENABLE_NETCDF)
   target_sources(${erf_exe_name} PRIVATE
@@ -529,6 +538,29 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
       TIMEOUT 120)
   endif()
 endif()
+
+if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
+   ERF_PRECISION STREQUAL "SINGLE" AND NOT AMReX_HDF5 AND
+   NOT ERF_ENABLE_CUDA AND NOT ERF_ENABLE_HIP AND NOT ERF_ENABLE_SYCL)
+  add_executable(erf_sbm_checkpoint_compare
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_SBMCheckpointCompare.cpp)
+  target_link_libraries(erf_sbm_checkpoint_compare PRIVATE AMReX::amrex)
+  target_include_directories(erf_sbm_checkpoint_compare PRIVATE ${PROJECT_SOURCE_DIR}/Source)
+  target_compile_features(erf_sbm_checkpoint_compare PRIVATE cxx_std_17)
+
+  add_test(NAME SBM_FLOAT_FractionalTimeRestart
+    COMMAND ${CMAKE_COMMAND}
+      -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+      -DCOMPARE_EXECUTABLE=$<TARGET_FILE:erf_sbm_checkpoint_compare>
+      -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_periodic_advection_1m
+      -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+      -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunFloatRestartTime.cmake)
+  set_tests_properties(SBM_FLOAT_FractionalTimeRestart PROPERTIES
+    LABELS "integration;sbm;single"
+    RUN_SERIAL TRUE
+    TIMEOUT 180)
+endif()
+
 set_tests_properties(erf_unit_tests_shuffle_repeat
   PROPERTIES
     LABELS "stress"
@@ -610,6 +642,7 @@ if(ERF_ENABLE_MPI)
       ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SatAdj/ERF_GTestSatAdjParallel.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SAM/ERF_GTestSAMParallel.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMTransportParallel.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMAMRTransferParallel.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/Utils/HashRng/ERF_GTestHashRngParallel.cpp
       # Motivation: planar surface-layer fields on a BoxArray split in z hold
       # duplicate 2D boxes, and every copy must be filled from the computed

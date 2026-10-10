@@ -250,6 +250,7 @@ struct SBMTransport::LevelStorage
     erf_auxiliary::MappedFaceFluxRate face_lambda;
     erf_auxiliary::MappedFaceFluxRate projected_rate;
     erf_auxiliary::CompletedStepFluxLedger projected_ledger;
+    erf_auxiliary::CompletedStepFluxLedger spectral_ledger;
     bool measure_ready{false};
 };
 
@@ -558,6 +559,9 @@ SBMTransport::define (const int level,
     data->face_lambda.define(cell_ba, dm, 1, 0);
     data->projected_rate.define(cell_ba, dm, 2, 0);
     data->projected_ledger.define(cell_ba, dm, 2);
+    if (m_levels.size() > 1) {
+        data->spectral_ledger.define(cell_ba, dm, ncomp);
+    }
     data->anchor.setVal(Real(0.0));
     data->target.setVal(Real(0.0));
     data->invalid.setVal(Real(0.0));
@@ -633,19 +637,6 @@ SBMTransport::advance_stage (const int level,
         data.measure_ready,
         "SBM M3 cannot advance before its static mapped measure is built");
     AMREX_ALWAYS_ASSERT(state_manager.is_defined(level));
-    auto& spectrum = state_manager.state(level);
-    AMREX_ALWAYS_ASSERT(spectrum.nComp() == m_layout.ncomp());
-    AMREX_ALWAYS_ASSERT(erf_auxiliary::SameCellLayout(spectrum, data.target));
-    AMREX_ALWAYS_ASSERT(
-        erf_auxiliary::SameCellLayout(spectrum, conserved_anchor));
-    AMREX_ALWAYS_ASSERT(
-        erf_auxiliary::SameCellLayout(spectrum, conserved_input));
-    AMREX_ALWAYS_ASSERT(
-        erf_auxiliary::SameCellLayout(spectrum, conserved_target));
-    AMREX_ALWAYS_ASSERT(erf_auxiliary::SameCellLayout(spectrum, data.measure));
-    AMREX_ALWAYS_ASSERT(conserved_anchor.nComp() > Rho_comp &&
-                        conserved_input.nComp() > Rho_comp &&
-                        conserved_target.nComp() > Rho_comp);
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
         AMREX_ALWAYS_ASSERT(geometry.isPeriodic(dir));
     }
@@ -660,6 +651,37 @@ SBMTransport::advance_stage (const int level,
         !std::isfinite(target_time)) {
         amrex::Abort("SBM M3 received a nonfinite semantic time");
     }
+    if (!state_manager.step_active(level)) {
+        amrex::Abort("SBM M3 stage requires a state-manager begin-step transition at ERF::Advance");
+    }
+    const MultiFab& spectrum = stage == 0
+                                   ? state_manager.old_state(level)
+                                   : state_manager.new_state(level);
+    const double spectrum_time = stage == 0
+                                     ? state_manager.old_time(level)
+                                     : state_manager.new_time(level);
+    const double expected_spectrum_time = stage == 0 ? step_old_time : input_time;
+    if (spectrum_time != expected_spectrum_time || input_time != spectrum_time) {
+        std::ostringstream message;
+        message.precision(17);
+        message << "SBM M3 spectral input time mismatch at level " << level
+                << " stage " << stage << ": expected " << expected_spectrum_time
+                << " and requested input time " << input_time
+                << ", got " << spectrum_time;
+        amrex::Abort(message.str());
+    }
+    AMREX_ALWAYS_ASSERT(spectrum.nComp() == m_layout.ncomp());
+    AMREX_ALWAYS_ASSERT(erf_auxiliary::SameCellLayout(spectrum, data.target));
+    AMREX_ALWAYS_ASSERT(
+        erf_auxiliary::SameCellLayout(spectrum, conserved_anchor));
+    AMREX_ALWAYS_ASSERT(
+        erf_auxiliary::SameCellLayout(spectrum, conserved_input));
+    AMREX_ALWAYS_ASSERT(
+        erf_auxiliary::SameCellLayout(spectrum, conserved_target));
+    AMREX_ALWAYS_ASSERT(erf_auxiliary::SameCellLayout(spectrum, data.measure));
+    AMREX_ALWAYS_ASSERT(conserved_anchor.nComp() > Rho_comp &&
+                        conserved_input.nComp() > Rho_comp &&
+                        conserved_target.nComp() > Rho_comp);
     if (stage == 0) {
         if (data.projected_ledger.step_active()) {
             amrex::Abort("SBM M3 received stage 0 before the previous timestep "
@@ -669,6 +691,11 @@ SBMTransport::advance_stage (const int level,
     } else if (!data.projected_ledger.step_active() ||
                data.projected_ledger.next_stage() != stage) {
         amrex::Abort("SBM M3 stage arrived before stage 0 or out of order");
+    }
+    if (data.spectral_ledger.is_defined() &&
+        !data.spectral_ledger.begin_stage(method, stage, step_old_time,
+                                          recipe, diagnostic)) {
+        amrex::Abort("SBM M4a spectral face-ledger stage sequence: " + diagnostic);
     }
 
     const MultiFab& trial_state =
@@ -1270,6 +1297,17 @@ SBMTransport::advance_stage (const int level,
             erf_auxiliary::ApplyAuxiliaryMappedStage(
                 context, data.accepted_rate, inv_dx, static_cast<int>(local));
         }
+
+        if (data.spectral_ledger.is_defined()) {
+            for (std::size_t local = 0; local < chunk.components.size(); ++local) {
+                if (!data.spectral_ledger.accumulate_stage_component(
+                        data.accepted_rate, static_cast<int>(local),
+                        chunk.components[local], diagnostic)) {
+                    amrex::Abort("SBM M4a spectral chunk-to-ledger mapping: " +
+                                 diagnostic);
+                }
+            }
+        }
     }
 
     // Candidate-wide device admission combines finite-value checking, every
@@ -1340,16 +1378,33 @@ SBMTransport::advance_stage (const int level,
         amrex::Abort("SBM M3 candidate rejected before commit: " + reason);
     }
 
-    // The ledger is deliberately the final fallible operation before the
-    // authoritative copy.  It receives projected accepted face rates only
-    // after all spectral candidate checks have passed.
+    // Only fully admitted candidates may finish an authoritative spectral
+    // ledger stage. Chunk calls above accumulate components without advancing
+    // the host stage sequence.
+    // Ledger admission is MPI-collective: every rank on this level must enter
+    // despite local recoverable errors; do not branch around these calls using
+    // rank-local predicates.
+    if (data.spectral_ledger.is_defined() &&
+        !data.spectral_ledger.finish_stage(diagnostic)) {
+        amrex::Abort("SBM M4a spectral face-ledger stage finish: " + diagnostic);
+    }
+    // Retain the existing two-component projected ledger and its exact host
+    // stage recipe independently of the full spectral integral.
     if (!data.projected_ledger.accept_stage(method, stage, step_old_time,
                                             recipe, data.projected_rate,
                                             diagnostic)) {
         amrex::Abort("SBM M3 projected face-ledger stage sequence: " +
                      diagnostic);
     }
-    MultiFab::Copy(spectrum, data.target, 0, 0, m_layout.ncomp(), 0);
+    MultiFab::Copy(state_manager.new_target_storage(level), data.target, 0, 0,
+                   m_layout.ncomp(), 0);
+    const bool physical_step_complete =
+        (method == erf_auxiliary::HostIntegrator::CompressibleRK3 && stage == 2) ||
+        (method == erf_auxiliary::HostIntegrator::AnelasticHeun && stage == 1);
+    if (!state_manager.accept_stage_target(level, target_time,
+                                          physical_step_complete, diagnostic)) {
+        amrex::Abort("SBM M4a accepted-state lifecycle commit: " + diagnostic);
+    }
     state_manager.project_to_core(level, conserved_target, qc_component,
                                   qr_component);
 }
@@ -1400,6 +1455,24 @@ SBMTransport::projected_ledger (const int level) const
         throw std::logic_error("SBM transport level is not defined");
     }
     return m_levels[static_cast<std::size_t>(level)]->projected_ledger;
+}
+
+const erf_auxiliary::CompletedStepFluxLedger&
+SBMTransport::completed_spectral_ledger (const int level) const
+{
+    if (!is_defined(level)) {
+        throw std::logic_error("SBM transport level is not defined");
+    }
+    const auto& ledger = m_levels[static_cast<std::size_t>(level)]->spectral_ledger;
+    if (!ledger.is_defined()) {
+        throw std::logic_error(
+            "completed spectral transfer is available only on AMR-capable transport instances");
+    }
+    if (!ledger.step_complete()) {
+        throw std::logic_error(
+            "spectral transfer is available only after a complete host step");
+    }
+    return ledger;
 }
 
 } // namespace erf_sbm

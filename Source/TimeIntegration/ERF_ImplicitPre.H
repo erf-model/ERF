@@ -56,6 +56,17 @@
                     const Array4<const Real>& z_nd_arr = z_phys_nd[level]->const_array(mfi);
                     const Array4<const Real>& detJ_arr = detJ_cc[level]->const_array(mfi);
 
+                    // erf.implicit_terrain_metric (terrain-fitted meshes): the map factors the
+                    // terrain-metric coefficient needs at the cells and at the u and v faces
+                    const bool l_implicit_metric = solverChoice.implicit_terrain_metric &&
+                                                   l_use_terrain_fitted_coords;
+                    const Array4<const Real> mf_mx = mapfac[level][MapFacType::m_x]->const_array(mfi);
+                    const Array4<const Real> mf_my = mapfac[level][MapFacType::m_y]->const_array(mfi);
+                    const Array4<const Real> mf_ux = mapfac[level][MapFacType::u_x]->const_array(mfi);
+                    const Array4<const Real> mf_uy = mapfac[level][MapFacType::u_y]->const_array(mfi);
+                    const Array4<const Real> mf_vx = mapfac[level][MapFacType::v_x]->const_array(mfi);
+                    const Array4<const Real> mf_vy = mapfac[level][MapFacType::v_y]->const_array(mfi);
+
                     const Array4<const Real>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
                     // Vertical extent of the grid column over each (i,j), with a one-cell halo
@@ -117,7 +128,8 @@
                                                      z_nd_arr, detJ_arr, dxInv, hfx_z,
                                                      mu_turb, solverChoice,
                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
-                                                     l_use_mrf_cg);
+                                                     l_use_mrf_cg,
+                                                     mf_mx, mf_my, l_implicit_metric);
                         }
                         if (l_do_implicit_mom) {
                             ImplicitDiffForMomLU_T<0>(tbx, fine_geom.Domain(), level, stage_dt,
@@ -126,7 +138,8 @@
                                                       z_nd_arr, detJ_arr, dxInv,
                                                       mu_turb, solverChoice,
                                                       bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
-                                                      l_use_ysu_mom_cg);
+                                                      l_use_ysu_mom_cg,
+                                                      mf_ux, mf_uy, l_implicit_metric);
 
                             ImplicitDiffForMomLU_T<1>(tby, fine_geom.Domain(), level, stage_dt,
                                                       col_kext,
@@ -134,7 +147,8 @@
                                                       z_nd_arr, detJ_arr, dxInv,
                                                       mu_turb, solverChoice,
                                                       bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
-                                                      l_use_ysu_mom_cg);
+                                                      l_use_ysu_mom_cg,
+                                                      mf_vx, mf_vy, l_implicit_metric);
 #ifdef ERF_IMPLICIT_W
                             ImplicitDiffForMomLU_T<2>(tbz, fine_geom.Domain(), level, stage_dt,
                                                       col_kext,
@@ -142,7 +156,8 @@
                                                       z_nd_arr, detJ_arr, dxInv,
                                                       mu_turb, solverChoice,
                                                       bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
-                                                      l_use_ysu_mom_cg);
+                                                      l_use_ysu_mom_cg,
+                                                      mf_mx, mf_my, l_implicit_metric);
 #endif
                         }
                     } else { // no terrain

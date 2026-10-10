@@ -66,13 +66,14 @@ prognostic variables. See :ref:`sec:SpectralBinMicrophysics`.
 
 .. warning::
 
-   ``SBM`` currently provides the bounded M3 advection capability, not a
-   complete warm-cloud microphysics scheme. The authoritative liquid spectrum
-   is advected with ERF's mapped dry-air carrier and projected to ``qc``/``qr``,
-   but diffusional growth, activation, aerosol evolution,
-   collision-coalescence, sedimentation/precipitation, AMR transport lifecycle,
-   and other later-phase physics are not yet enabled. See
-   :ref:`sec:SpectralBinMicrophysics` for the supported configuration.
+   ``SBM`` currently provides resolved liquid-spectrum advection on one
+   atmospheric grid level, not complete warm-cloud microphysics. The
+   authoritative distribution is transported with ERF's dry-air mass flux
+   and projected to ``qc`` and ``qr``. Aerosol activation or evolution,
+   condensational growth, collision-coalescence, sedimentation,
+   precipitation, and operational multilevel spectral transport are not yet
+   available. See :ref:`sec:SpectralBinMicrophysics` for the supported
+   configuration.
 
 .. note::
 

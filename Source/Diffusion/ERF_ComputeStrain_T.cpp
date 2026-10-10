@@ -606,9 +606,9 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
             Real c1   = -(one-f2)*c3;
 
             Real GradUz = myhalf * idz0 * ( (c1 * u(i  ,j,k-1) + c2 * u(i  ,j,k) + c3 * u(i  ,j,k+1))
-                                          + (c1 * u(i-1,j,k-1) + c2 * u(i-1,j,k) + c3 * u(i-1,j,k+1)) );
+                                          + (c1 * u(i+1,j,k-1) + c2 * u(i+1,j,k) + c3 * u(i+1,j,k+1)) );
             Real GradVz = myhalf * idz0 * ( (c1 * v(i,j  ,k-1) + c2 * v(i,j  ,k) + c3 * v(i,j  ,k+1))
-                                          + (c1 * v(i,j-1,k-1) + c2 * v(i,j-1,k) + c3 * v(i,j-1,k+1)) );
+                                          + (c1 * v(i,j+1,k-1) + c2 * v(i,j+1,k) + c3 * v(i,j+1,k+1)) );
 
             Real mfx = mf_mx(i,j,0);
             Real mfy = mf_my(i,j,0);
@@ -761,15 +761,15 @@ ComputeStrain_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Box domain,
         Real idz0 = one / dz0;
 
         Real GradUz = (k == 0) ?
-                            idz0 * ( u(i  ,j  ,k+1) + u(i-1,j  ,k+1)
-                                   - u(i  ,j  ,k  ) - u(i-1,j  ,k  ) ) :
-                   myhalf * idz0 * ( u(i  ,j  ,k+1) + u(i-1,j  ,k+1)
-                                   - u(i  ,j  ,k-1) - u(i-1,j  ,k-1) );
+                            idz0 * ( u(i  ,j  ,k+1) + u(i+1,j  ,k+1)
+                                   - u(i  ,j  ,k  ) - u(i+1,j  ,k  ) ) :
+                   myhalf * idz0 * ( u(i  ,j  ,k+1) + u(i+1,j  ,k+1)
+                                   - u(i  ,j  ,k-1) - u(i+1,j  ,k-1) );
         Real GradVz = (k == 0) ?
-                            idz0 * ( v(i  ,j  ,k+1) + v(i  ,j-1,k+1)
-                                   - v(i  ,j  ,k  ) - v(i  ,j-1,k  ) ) :
-                   myhalf * idz0 * ( v(i  ,j  ,k+1) + v(i  ,j-1,k+1)
-                                   - v(i  ,j  ,k-1) - v(i  ,j-1,k-1) );
+                            idz0 * ( v(i  ,j  ,k+1) + v(i  ,j+1,k+1)
+                                   - v(i  ,j  ,k  ) - v(i  ,j+1,k  ) ) :
+                   myhalf * idz0 * ( v(i  ,j  ,k+1) + v(i  ,j+1,k+1)
+                                   - v(i  ,j  ,k-1) - v(i  ,j+1,k-1) );
 
         Real mfx = mf_mx(i,j,0);
         Real mfy = mf_my(i,j,0);
