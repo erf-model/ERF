@@ -1347,11 +1347,12 @@ ERF::InitData_post ()
         // Create the WriteBndryPlanes object so we can handle writing of boundary plane data
         m_w2d = std::make_unique<WriteBndryPlanes>(grids,geom);
 
-        // A fresh start writes the plane at step 0 when output starts at 0. A restart continues the series the run
-        // before it wrote and writes the plane at its own step only when the series lacks it
-        // and post_timestep would have written it there, so that the restarted series holds
-        // the planes a run without the restart writes; output switched on at a restart thus
-        // begins at the first output step. The start time is elapsed time, as in post_timestep.
+        // A fresh start writes the plane at step 0 when output starts at 0. A restart continues
+        // the series the run before it wrote and writes the plane at its own step only when the
+        // series lacks it and post_timestep would have written it there, so that the restarted
+        // series holds the planes a run without the restart writes; output switched on at a
+        // restart thus begins at the first output step. The start time is elapsed time, as in
+        // post_timestep.
         const bool restarting = !restart_chkfile.empty();
         const bool has_start_plane = m_w2d->start_series(istep[0], t_new[0]+start_time, restarting);
         const bool output_step = !restarting ||
