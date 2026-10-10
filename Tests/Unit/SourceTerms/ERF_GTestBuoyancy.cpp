@@ -305,6 +305,10 @@ amrex::Real type1_oracle (const BuoyancyFixture& fixture,
 }
 
 
+// Motivation: A neutral hydrostatic state with theta = theta_0 must give zero
+// type-4 buoyancy at every interior w-face. The original dispatch bug passed
+// conserved density in place of primitive theta, creating spurious forcing.
+// The unchanged end-face sentinels also protect the physical-face exclusion.
 TEST(ERFBuoyancy, DryCompressibleType4NeutralUsesPrimitiveTheta)
 {
     BuoyancyFixture fixture;
@@ -320,6 +324,11 @@ TEST(ERFBuoyancy, DryCompressibleType4NeutralUsesPrimitiveTheta)
     }
 }
 
+// Motivation: A pressure-only EOS perturbation distinguishes the gravitational
+// sources: density type 1 acts downward, temperature types 2/3 upward, and
+// potential-temperature type 4 gives zero. Warm and cold theta anomalies then
+// check the type-4 face-density scaling and force sign, preventing selector
+// drift or accidental identification of physically different approximations.
 TEST(ERFBuoyancy, DryCompressibleTemperatureSchemesKeepSelectorsAndPressureResponse)
 {
     BuoyancyFixture fixture;
@@ -361,6 +370,10 @@ TEST(ERFBuoyancy, DryCompressibleTemperatureSchemesKeepSelectorsAndPressureRespo
     }
 }
 
+// Motivation: A moist hydrostatic reference with q_v = q_v0 must have zero
+// type-1 density-perturbation force. Adding condensate at unchanged pressure,
+// theta and vapor increases total density and must act downward. The separate
+// EOS/face-average oracle guards water loading, base-state mass, and force sign.
 TEST(ERFBuoyancy, CompressibleMoistDensityReferenceAndCondensateLoading)
 {
     BuoyancyFixture fixture;
@@ -382,6 +395,10 @@ TEST(ERFBuoyancy, CompressibleMoistDensityReferenceAndCondensateLoading)
     }
 }
 
+// Motivation: Compressible selectors 2 and 3 intentionally use the same
+// temperature-based buoyancy kernel, including vapor and condensate terms.
+// Their face forces must agree for the same moist state; this guards dispatch
+// compatibility, not equivalence with the full-density type-1 formulation.
 TEST(ERFBuoyancy, MoistTemperatureSelectorsRemainEquivalent)
 {
     BuoyancyFixture fixture;
@@ -395,6 +412,11 @@ TEST(ERFBuoyancy, MoistTemperatureSelectorsRemainEquivalent)
     }
 }
 
+// Motivation: The moist type-4 approximation is not the exact total-density
+// force at finite base vapor. With a fixed-pressure theta perturbation and no
+// condensate, B_4/B_1 = (1+delta_theta)/(1+q_v0); the dry limit is 1+delta_theta.
+// This guards the implemented finite-humidity behavior against accidental
+// replacement by the EOS density force or an altered moisture coefficient.
 TEST(ERFBuoyancy, MoistType4RetainsFiniteHumidityApproximation)
 {
     BuoyancyFixture fixture;
@@ -419,6 +441,10 @@ TEST(ERFBuoyancy, MoistType4RetainsFiniteHumidityApproximation)
     }
 }
 
+// Motivation: Dry anelastic flow holds rho_d = rho_0 while thermal departures
+// generate buoyancy. Neutral theta = theta_0 must vanish; a uniform warming
+// must give the reference-density-weighted ratio of face-averaged theta values.
+// This protects the active dry anelastic formula and upward-positive sign.
 TEST(ERFBuoyancy, ActiveDryAnelasticUsesFaceRatioAndNeutralReference)
 {
     BuoyancyFixture fixture;
@@ -448,6 +474,11 @@ TEST(ERFBuoyancy, ActiveDryAnelasticUsesFaceRatioAndNeutralReference)
     }
 }
 
+// Motivation: On a stratified reference profile with unequal adjacent theta
+// anomalies, the dry anelastic ratio of face averages differs from the moist
+// anelastic average of cell-wise ratios, even with zero water. The independent
+// nonzero difference oracle detects interchanged averaging order; a uniform
+// anomaly would not distinguish these two discretizations.
 TEST(ERFBuoyancy, StratifiedAnelasticFaceAveragingDistinguishesDryAndMoist)
 {
     constexpr int face = 4;
@@ -497,6 +528,10 @@ TEST(ERFBuoyancy, StratifiedAnelasticFaceAveragingDistinguishesDryAndMoist)
     EXPECT_GT(std::abs(difference_expected), amrex::Real(10.0)*difference_tolerance);
 }
 
+// Motivation: At fixed anelastic dry density, a moist reference must be
+// neutrally buoyant. Added vapor raises the upward force through epsv*(q_v-q_v0),
+// whereas added condensate produces downward mass loading. Face-magnitude
+// oracles protect the reference-vapor subtraction, moisture signs, and scaling.
 TEST(ERFBuoyancy, ActiveMoistAnelasticIsNeutralAndRespondsToVaporAndLoading)
 {
     BuoyancyFixture fixture;
@@ -531,6 +566,11 @@ TEST(ERFBuoyancy, ActiveMoistAnelasticIsNeutralAndRespondsToVaporAndLoading)
     }
 }
 
+// Motivation: The explicit vertical slow-RHS helper must divide pressure and
+// buoyancy together by 1 + the adjacent-cell mean of q_t. Distinct water
+// values and positive/negative forces expose a missing or misapplied divisor;
+// the dry and zero-water paths recover the unweighted numerator. This tests
+// the production-extracted helper, not a full momentum/projection time step.
 TEST(ERFBuoyancy, MoistFaceInertiaWeightsPressureAndBuoyancyTogether)
 {
     BuoyancyFixture fixture;
@@ -563,6 +603,10 @@ TEST(ERFBuoyancy, MoistFaceInertiaWeightsPressureAndBuoyancyTogether)
     expect_near(zero_water, dry_limit);
 }
 
+// Motivation: Disabling gravity must make interior buoyancy exactly zero even
+// with a nonzero potential-temperature perturbation. Physical bottom/top
+// w-faces are deliberately not written by the buoyancy kernel and must retain
+// their sentinels, protecting its vertical face range and boundary exclusion.
 TEST(ERFBuoyancy, ZeroGravityAndPhysicalVerticalFacesAreHandled)
 {
     BuoyancyFixture fixture;
