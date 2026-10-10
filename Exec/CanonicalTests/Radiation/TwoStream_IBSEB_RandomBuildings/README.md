@@ -38,7 +38,7 @@ another set. The refined box holds every building with at least one level-0 cell
 
 ```
 python3 make_buildings.py                # the files are in the directory already; rerun for another set
-mpirun -np 4 erf_exec inputs             # about 2 h 30 min on 4 ranks of a laptop
+mpirun -np 4 erf_exec inputs             # about 2 h 20 min on 4 ranks of a laptop
 python3 check_random_buildings.py        # exit code = number of failed checks
 python3 plot_random_buildings.py         # random_buildings_{map,tskin,theta}.png
 ```
@@ -69,13 +69,8 @@ sunlight and skin temperature. The results below rest on those numbers.
 
 ## Results
 
-These numbers come from the run before the last change to the faces: each wall now reads the
-light and longwave coming up from the ground at its own height, not at the ground. Estimated from
-that run's face dumps, the change lowers the radiation reaching the 60 m towers' walls by about
-2 W/m² on average, and by up to 7–8 W/m² on their top cells. A rerun will update the tables below.
-
-On 4 MPI ranks of a laptop shared with other runs, the 10,800 level-0 steps took about 2 h 30 min.
-The building balance cost 0.25 ms per step on level 0 and 0.11 ms on level 1, on the slowest rank.
+On 4 MPI ranks of a laptop shared with other runs, the 10,800 level-0 steps took about 2 h 20 min.
+The building balance cost 0.21 ms per step on level 0 and 0.11 ms on level 1, on the slowest rank.
 
 All 7 checks pass:
 
@@ -85,9 +80,9 @@ All 7 checks pass:
 | 2. Energy balance | largest residual 3.3e-8 W/m² over 2,896 rows |
 | 3. The sun and the beam | 11,034 sunlit roof samples (faces × dumps) at 5 heights, largest difference 4.8e-7; no diffuse sky; azimuth 99.5° to 156.6° |
 | 4. The sun climbs | zenith 52.7° to 24.8°; shaded face area 5.3 % to 3.2 % on level 0, 6.5 % to 4.2 % on level 1 |
-| 5. Warming | final means 314.0–321.7 K on level 0, 312.6–319.6 K on level 1 (from 300 K) |
-| 6. Levels agree | level 1 minus level 0: top roofs -0.12 to -0.01 K, walls -0.64 to +0.33 K |
-| 7. Open ground | 310.52 K in the refined area (level 1), 310.42 K outside it (level 0) at 18:00 UTC |
+| 5. Warming | final means 313.9–321.4 K on level 0, 312.5–319.1 K on level 1 (from 300 K) |
+| 6. Levels agree | level 1 minus level 0: top roofs -0.07 to +0.11 K, walls -0.69 to +0.28 K |
+| 7. Open ground | 310.59 K in the refined area (level 1), 310.48 K outside it (level 0) at 18:00 UTC |
 
 The sun the faces saw, with the mean direct-normal irradiance over the level-0 faces at their own
 heights:
@@ -96,57 +91,72 @@ heights:
 |---|---|---|---|
 | 15:01 | 52.5° | 99.7° | 958 W/m² |
 | 16:00 | 41.6° | 112.1° | 1017 W/m² |
-| 17:00 | 31.8° | 129.8° | 1050 W/m² |
+| 17:00 | 31.8° | 129.7° | 1050 W/m² |
 | 18:00 | 24.8° | 156.6° | 1065 W/m² |
 
-Each building's parts at 18:00 UTC, level 0 / level 1: the absorbed sunlight and the skin
-temperature of its top roof and of its walls.
+The buildings at 18:00 UTC, level 0 / level 1: mean skin temperature, absorbed sunlight (SW), net
+longwave (LW) and sensible heat flux (H) over all faces.
 
-| Building | Height, material | Top roof: SW [W/m²], skin [K] | Walls: SW [W/m²], skin [K] | Mean skin [K] |
-|---|---|---|---|---|
-| 1 | 60 m, timber | 586 / 586, 324.0 / 324.0 | 122 / 124, 316.5 / 315.9 | 318.1 / 316.4 |
-| 2 | 30 m, timber | 582 / 582, 324.7 / 324.7 | 137 / 142, 318.9 / 319.0 | 321.7 / 319.6 |
-| 3 | 60 m, brick | 683 / 683, 323.1 / 323.0 | 149 / 149, 312.0 / 311.6 | 314.0 / 312.6 |
-| 4 | 20 m, brick | 677 / 677, 323.3 / 323.3 | 163 / 170, 311.5 / 311.8 | 317.3 / 316.8 |
-| 5 | 10 m, concrete | 724 / 724, 321.8 / 321.7 | 172 / 172, 310.5 / 310.8 | 317.7 / 317.5 |
-| 6 | 50 m, timber | 584 / 584, 324.1 / 324.0 | 142 / 146, 317.9 / 317.5 | 318.3 / 318.1 |
-| 7 | 50 m, timber | 584 / 584, 325.5 / 325.5 | 132 / 133, 317.2 / 316.8 | 318.5 / 317.9 |
-| 8 | 20 m, brick | 677 / 677, 323.4 / 323.3 | 155 / 156, 312.3 / 312.6 | 316.8 / 316.3 |
+| Building | Height, material | Mean skin [K] | SW [W/m²] | Net LW [W/m²] | H [W/m²] |
+|---|---|---|---|---|---|
+| 1 | 60 m, timber | 318.1 / 316.5 | 225 / 181 | -76 / -66 | 105 / 81 |
+| 2 | 30 m, timber | 321.4 / 319.1 | 306 / 237 | -93 / -76 | 164 / 119 |
+| 3 | 60 m, brick | 313.9 / 312.5 | 243 / 206 | -51 / -40 | 73 / 60 |
+| 4 | 20 m, brick | 317.6 / 316.9 | 408 / 378 | -86 / -74 | 158 / 140 |
+| 5 | 10 m, concrete | 317.8 / 317.5 | 525 / 509 | -96 / -91 | 175 / 167 |
+| 6 | 50 m, timber | 318.1 / 317.8 | 230 / 221 | -76 / -72 | 118 / 113 |
+| 7 | 50 m, timber | 317.9 / 317.0 | 219 / 204 | -80 / -70 | 106 / 102 |
+| 8 | 20 m, brick | 316.7 / 316.2 | 356 / 330 | -76 / -64 | 139 / 126 |
+
+Each building's top roof and walls at 18:00 UTC, level 0 / level 1: absorbed sunlight and skin
+temperature.
+
+| Building | Top roof: SW [W/m²], skin [K] | Walls: SW [W/m²], skin [K] |
+|---|---|---|
+| 1 | 586 / 586, 324.5 / 324.5 | 121 / 123, 316.4 / 315.9 |
+| 2 | 582 / 582, 323.6 / 323.7 | 137 / 142, 318.5 / 318.5 |
+| 3 | 683 / 683, 323.0 / 322.9 | 149 / 148, 311.9 / 311.4 |
+| 4 | 677 / 677, 323.2 / 323.2 | 163 / 169, 311.7 / 312.0 |
+| 5 | 724 / 724, 321.9 / 321.9 | 172 / 172, 310.5 / 310.7 |
+| 6 | 584 / 584, 323.8 / 323.8 | 142 / 146, 317.7 / 317.1 |
+| 7 | 584 / 584, 324.2 / 324.2 | 131 / 133, 316.6 / 315.9 |
+| 8 | 677 / 677, 322.9 / 322.9 | 155 / 156, 312.3 / 312.5 |
 
 What the numbers show:
 
 - **Roofs absorb four to five times what walls do.** The top roofs absorb 582–724 W/m² at 18:00
-  UTC and the walls 122–172 W/m². Buildings that are mostly roof absorb the most per square metre:
-  the 10 m concrete block (5) about 525 W/m² over all its faces, the 60 m towers (1, 3) 182–243.
+  UTC and the walls 121–172 W/m². Buildings that are mostly roof absorb the most per square metre:
+  the 10 m concrete block (5) 525 W/m² over all its faces, the 60 m towers (1, 3) 181–243.
 - **A roof's sunlight depends on its material and a little on its height.** Timber roofs absorb
   582–586 W/m², brick 677–683 and concrete 724. Higher roofs absorb slightly more, as less
   absorbing air lies above them.
-- **The two levels agree on roofs and walls.** Their skin temperatures agree to 0.12 K on the top
-  roofs and 0.64 K on the walls.
+- **The two levels agree on roofs and walls.** Their skin temperatures agree to 0.11 K on the top
+  roofs and 0.69 K on the walls.
 - **They differ at the buildings' edges.** Each level draws a building's edge as a step one cell
   wide, which faces upward (a ledge). Level 0 has one ledge 20 m wide, level 1 narrower ones at
   several heights. On buildings 1–3 the level-1 ledges absorb 327–395 W/m² against 483–579 on
-  level 0, and run 4–9 K cooler. That makes each building's mean skin 0.2–2.2 K cooler on level 1.
-- **The open ground is the same on both levels:** 310.52 K in the refined area, 310.42 K outside it.
-  Under and beside the footprints the ground runs hotter (312.09 K on level 1), as it still takes
+  level 0, and run 4–9 K cooler. That makes each building's mean skin 0.2–2.4 K cooler on level 1.
+- **The open ground is the same on both levels:** 310.59 K in the refined area, 310.48 K outside it.
+  Under and beside the footprints the ground runs hotter (312.16 K on level 1), as it still takes
   the sun there.
+- **Reading the ground at each wall's own height** (the last change to this option) cools the walls
+  of the 30–60 m buildings by 0.1–0.9 K against a run that read it at the ground, and moves those of
+  the 10–20 m buildings by 0.2 K or less.
 
 ## Compared with the clear-sky faces
 
 The run before this option, with the clear-sky formulas set to match the same beam (a gray sky of
-emissivity 0.83, a fixed 300 K ground), is the reference here. Both runs are from before the last
-change to the faces.
+emissivity 0.83, a fixed 300 K ground), is the reference here.
 
-- **Sunlight agrees.** The absorbed sunlight agrees within 1 % on every building (largest 0.92 %).
-- **The buildings end warmer.** On level 0 the buildings end 1.2–4.2 K warmer and their walls
-  1.8–5.2 K warmer; on level 1, 1.2–5.0 K and 1.9–5.8 K.
-- **Why: more longwave from the sky and the ground.** At 18:00 UTC the walls take in about
-  47 W/m² (level 0) and 51 W/m² (level 1) more longwave than with the clear-sky formulas. On
-  level 0, about 19 W/m² of it comes from the sky, which is warmer in the two-stream column than
-  the gray sky (an effective emissivity near 0.93, from case 2's longwave optical depth). About
-  29 W/m² comes from the ground: the walls see open, sunlit ground near 312.7 K, where the
-  clear-sky run had 300 K. The roofs see no ground and take about 40 W/m² more, all from
-  the sky, on both levels.
+- **Sunlight agrees.** The absorbed sunlight agrees within 1 % on every building (largest 0.81 %).
+- **The buildings end warmer.** On level 0 the buildings end 1.2–3.9 K warmer and their walls
+  1.8–4.9 K warmer; on level 1, 1.3–4.5 K and 1.8–5.3 K.
+- **Why: more longwave from the sky and the ground.** At 18:00 UTC the level-0 walls take in about
+  46 W/m² more longwave than with the clear-sky formulas. About 19 W/m² of it comes from the sky,
+  which is warmer in the two-stream column than the gray sky (an effective emissivity near 0.93,
+  from case 2's longwave optical depth). About 28 W/m² comes from the ground: the walls see open,
+  sunlit ground near 312 K, where the clear-sky run had 300 K. The roofs see no ground and take
+  about 40 W/m² more, all from the sky.
 
 ## Plots
 
