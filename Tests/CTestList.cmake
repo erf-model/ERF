@@ -2767,18 +2767,28 @@ add_test_restart_parity(TerrainHill_RegridOnRestart_TimeAvg TerrainHill 7 20
     COMMON_OPTIONS  "amr.max_level=0 erf.terrain_type=None erf.time_avg_vel=true erf.plot_vars_1=density x_velocity y_velocity theta u_t_avg v_t_avg umag_t_avg"
     RESTART_OPTIONS "erf.regrid_level_0_on_restart=1 amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64"
     ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
-# Not zero tolerance, and not because of the regrid: the interval means are already not
-# restart-exact without one. A plain same-rank restart of this deck reproduces theta_mean to
-# 1 ulp (1.9e-16 relative) and w_mean to 6.5e-23 absolute, on a w_mean that is itself ~1e-21,
-# and the same two numbers appear whether or not level 0 is re-made. Two decompositions run
-# straight through, with no restart at all, agree exactly, so it is the restart and not the
-# decomposition. That is issue 4243; the bound here is set just above what it costs so this
-# test still fails if the means are actually lost, which would be O(1). Put it back to zero
-# when 4243 is fixed.
+# Zero tolerance, like the other two: issue 4243 is fixed. It was not the regrid and not the
+# checkpoint I/O -- a fresh start kept its t=0 sample in the averaging window unless an
+# initial plotfile happened to flush it, so the straight leg (which writes plt00000) and the
+# checkpoint leg (erf.plot_int_1=-1, which does not) normalized by a different number of
+# samples. A fresh start now always drops that sample at the end of initialization, so the
+# window at step 1 no longer depends on the output cadence.
 add_test_restart_parity(TerrainHill_RegridOnRestart_IntervalMeans TerrainHill 7 20
     COMMON_OPTIONS  "amr.max_level=0 erf.terrain_type=None erf.compute_mean_vars=true erf.plot_vars_1=density x_velocity theta u_mean v_mean w_mean theta_mean"
     RESTART_OPTIONS "erf.regrid_level_0_on_restart=1 amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64"
-    ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "1.0e-12" FCOMPARE_ATOL "1.0e-20")
+    ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+endif()
+
+# The same deck with no regrid and no rank change: the plain restart that issue 4243 was
+# actually reported against. The regrid case above would also catch a lost window, but it
+# moves the grids at the same time, so a failure there does not say which half broke. No deck
+# setting erf.compute_mean_vars was registered as a restart-parity case before this, which is
+# why the t=0 sample asymmetry survived in the first place.
+# The runner is a cmake -P script (MPI, not Windows), as for every case above.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_parity(TerrainHill_Restart_IntervalMeans TerrainHill 7 20
+    COMMON_OPTIONS "amr.max_level=0 erf.terrain_type=None erf.compute_mean_vars=true erf.plot_vars_1=density x_velocity theta u_mean v_mean w_mean theta_mean"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
 
 # SLM across a restart. Nothing covered this: the two SLM decks in the tree are gated behind
