@@ -2435,12 +2435,12 @@ endif()
 # IBSEB_RefinedLevels_Restart does the same on the two levels of the
 # IBSEB_RefinedLevels deck (a cube on level 1, a tower outside it); its face dumps go
 # to a plain file name, since the deck's faces/ directory does not exist in the
-# runner's legs. It compares to 1e-8 relative, not zero: the restart leg writes a
-# plotfile at the restart step and the straight leg does not, and on two levels
-# writing a plotfile changes the solution at round-off (issue 4224; 5e-15 relative in theta
-# without buildings, 1.7e-10 relative in w here by step 20); with the plotfiles at
-# the same steps in all legs the restart is bit-exact. terrain_IB_mask still shows
-# the uncleared blanking (2.6e-3); 1e-8 relative is about 3e-6 K on the skin temperatures.
+# runner's legs. It compares at zero tolerance like the one-level case. It used to be
+# held at 1e-8 relative because the restart leg writes a plotfile at the restart step
+# and the straight leg does not, and on two levels that moved the solution at round-off
+# (issue 4224: the coarse/fine momentum conversion read density ghost cells nothing had
+# filled yet, so whichever call last wrote them decided the interface momenta). With
+# that fixed the two legs agree bit for bit, which is what a restart owes.
 # The runner is a cmake -P script (MPI, not Windows).
 if(ERF_ENABLE_MPI AND NOT WIN32)
 add_test_restart_parity(IBSEB_Cube_Restart IBSEB_Cube 17 40
@@ -2450,8 +2450,29 @@ add_test_restart_parity(IBSEB_Cube_Restart IBSEB_Cube 17 40
 add_test_restart_parity(IBSEB_RefinedLevels_Restart IBSEB_RefinedLevels 7 20
     COMMON_OPTIONS "erf.ibseb.dump_faces_file=faces_set erf.plot_vars_1=density x_velocity y_velocity z_velocity theta terrain_IB_mask ibseb_nfaces ibseb_tskin ibseb_sw_abs ibseb_lw_net ibseb_H ibseb_G"
     RUN_TIMEOUT 1200
-    FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "0.0")
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
+
+# Writing a 3D plotfile must not change the solution, which on two levels it did: the
+# momentum conversion at the start of FillPatchFineLevel read the density one cell
+# outside every valid box, and nothing had filled those cells that step, so a run that
+# wrote a plotfile (which fills them) and a run that did not diverged from the next step
+# on (issue 4224). One deck, two plot cadences, compared at zero tolerance -- the same
+# standard the station-sampling parity tests below hold their diagnostic to. The
+# buildings are left on because that is where the signal is largest: before the fix this
+# fails by 2.0e-9 in u on level 0 and 6.0e-9 on level 1 by step 10, against 1.5e-13 with
+# erf.buildings_type=None. REQUIRE_ON_FILE is the plotfile only the dense cadence writes,
+# so a typo in the option cannot leave the two legs identical and pass while testing
+# nothing.
+#
+# The two legs run in subdirectories of the deck's directory, so its input files are
+# one level up, as for the InputSounding parity tests below.
+add_test_option_parity(IBSEB_RefinedLevels_PlotCadenceParity IBSEB_RefinedLevels "plt00010"
+    COMMON_OPTIONS "erf.ibseb.enable=false erf.input_sounding_file=../input_sounding erf.buildings_file_name=../cube_and_tower_10m.txt max_step=10 erf.check_int=-1 erf.plot_vars_1=density x_velocity y_velocity z_velocity theta pressure"
+    OFF_OPTIONS "erf.plot_int_1=10"
+    ON_OPTIONS  "erf.plot_int_1=1"
+    REQUIRE_ON_FILE "plt00005/Header"
+    RUN_TIMEOUT 900)
 add_test_r(PBL_IBAware_MRF_Smoothing         ""  "erf_exec" "plt00010")
 
 #=============================================================================
@@ -2642,10 +2663,10 @@ add_test_station_series(StationSampling_ImmersedTerrain TerrainHill single
 # 20, on one level and on the deck's two. A restart rebuilt the blanking without
 # clearing the almost-fluid cells of the hill's tails (eb2.small_volfrac), so the
 # wall law acted there after the restart only: 0.2 m/s in u at step 20 on one level.
-# The one-level leg compares at zero tolerance. The two-level one compares to 1e-8
-# relative, for the same reason as IBSEB_RefinedLevels_Restart above: the restart leg
-# writes a plotfile at the restart step and the straight leg does not, and on two
-# levels writing a plotfile moves the solution at round-off (issue 4224).
+# Both legs compare at zero tolerance. The two-level one was held at 1e-8 relative for
+# the same reason as IBSEB_RefinedLevels_Restart above -- the restart leg writes a
+# plotfile at the restart step and the straight leg does not, and on two levels that
+# moved the solution at round-off (issue 4224) -- which is fixed.
 # The runner is a cmake -P script (MPI, not Windows).
 if(ERF_ENABLE_MPI AND NOT WIN32)
 add_test_restart_parity(ImmersedTerrain_Hill_Restart TerrainHill 7 20
@@ -2653,7 +2674,7 @@ add_test_restart_parity(ImmersedTerrain_Hill_Restart TerrainHill 7 20
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 add_test_restart_parity(ImmersedTerrain_Hill_TwoLevel_Restart TerrainHill 7 20
     COMMON_OPTIONS "erf.terrain_type=ImmersedForcing erf.immersed_forcing_substep=true eb2.small_volfrac=0.005 erf.plot_vars_1=density x_velocity y_velocity z_velocity theta terrain_IB_mask"
-    FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "0.0")
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
 
 # A restart that re-makes the level-0 grids (erf.regrid_level_0_on_restart, and the

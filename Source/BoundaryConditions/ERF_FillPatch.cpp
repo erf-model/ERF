@@ -39,12 +39,77 @@ ERF::FillPatchFineLevel (int lev, double time_d,
 
     PhysBCFunctNoOp null_bc;
 
+    IntVect ngvect_cons = mfs_vel[Vars::cons]->nGrowVect();
+    IntVect ngvect_vels = mfs_vel[Vars::xvel]->nGrowVect();
+
+    Vector<Real> ftime    = {static_cast<Real>(t_old[lev  ]), static_cast<Real>(t_new[lev  ])};
+    Vector<Real> ctime    = {static_cast<Real>(t_old[lev-1]), static_cast<Real>(t_new[lev-1])};
+
+    amrex::Real small_dt = Real(1.e-8) * (ftime[1] - ftime[0]);
+
+    Vector<MultiFab*> fmf;
+    if ( amrex::almostEqual(time,ftime[0]) || (time-ftime[0]) < small_dt ) {
+        fmf = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::cons]};
+    } else if (amrex::almostEqual(time,ftime[1])) {
+        fmf = {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::cons]};
+    } else {
+        fmf = {&vars_old[lev][Vars::cons], &vars_new[lev][Vars::cons]};
+    }
+    Vector<MultiFab*> cmf = {&vars_old[lev-1][Vars::cons], &vars_new[lev-1][Vars::cons]};
+
     //
     // ***************************************************************************
-    // The first thing we do is interpolate the momenta on the "valid" faces of
-    // the fine grids (where the interface is coarse/fine not fine/fine) -- this
-    // will not be over-written below because the FillPatch operators see these as
-    // valid faces.
+    // The momentum conversion below reads the density on both sides of every face
+    // of the valid box -- one ghost cell in each face-normal direction -- and at
+    // this point in the step nothing has filled those ghost cells yet: they still
+    // hold whatever last wrote them.  That made the interface momenta depend on
+    // the run's output history, because writing a 3D plotfile fills them (it calls
+    // this routine with fillset false), so a run that wrote one got different
+    // momenta on the step that followed than a run that did not, and no two-level
+    // restart could be bit-exact (issue 4224).
+    //
+    // So fill exactly what the conversion reads first, and no more: Rho_comp, one
+    // ghost cell.  The whole conserved state is filled below anyway, so anything
+    // wider would be thrown away.  Perturbational interpolation is not the one
+    // used here, and the density the conversion sees has to be the density the
+    // state ends up with, so that mode fills the conserved state the way it will
+    // be filled below -- at the cost of doing it twice -- rather than taking the
+    // cheap path and being inconsistent with itself.
+    // ***************************************************************************
+    if (fillset && !cons_only) {
+        if (interpolation_type == StateInterpType::Perturbational) {
+            FillPatchFineLevel(lev, time_d, mfs_vel, mfs_mom,
+                               old_base_state, new_base_state,
+                               false /*fillset*/, true /*cons_only*/);
+        } else {
+            const IntVect ng_rho(1,1,1);
+            MultiFab rho_mf(mfs_vel[Vars::cons]->boxArray(),
+                            mfs_vel[Vars::cons]->DistributionMap(), 1, ng_rho);
+            FillPatchTwoLevels(rho_mf, ng_rho, IntVect(0,0,0),
+                               time, cmf, ctime, fmf, ftime,
+                               Rho_comp, 0, 1, geom[lev-1], geom[lev],
+                               refRatio(lev-1), &cell_cons_interp, domain_bcs_type,
+                               BCVars::cons_bc);
+            MultiFab::Copy(*mfs_vel[Vars::cons], rho_mf, 0, Rho_comp, 1, ng_rho);
+            //
+            // FillPatchTwoLevels is told to fill nothing outside the domain, and
+            // MomentumToVelocity does not clamp its z faces to the domain the way
+            // VelocityToMomentum does, so the cells under and over the domain have
+            // to come from the bcs.  The velocities passed here are only read at
+            // the lateral domain faces for ext_dir_upwind, and those are valid
+            // faces whose data is already correct at this point.
+            //
+            (*physbcs_cons[lev])(*mfs_vel[Vars::cons],
+                                 *mfs_vel[Vars::xvel], *mfs_vel[Vars::yvel],
+                                 Rho_comp, 1, ng_rho, time, BCVars::cons_bc, true);
+        }
+    }
+
+    //
+    // ***************************************************************************
+    // We now interpolate the momenta on the "valid" faces of the fine grids (where
+    // the interface is coarse/fine not fine/fine) -- this will not be over-written
+    // below because the FillPatch operators see these as valid faces.
     //
     // Note that we interpolate momentum not velocity, but all the other boundary
     // conditions are imposed on velocity, so we convert to momentum here then
@@ -84,24 +149,6 @@ ERF::FillPatchFineLevel (int lev, double time_d,
                                domain_bcs_type, c_vfrac);
         }
     }
-
-    IntVect ngvect_cons = mfs_vel[Vars::cons]->nGrowVect();
-    IntVect ngvect_vels = mfs_vel[Vars::xvel]->nGrowVect();
-
-    Vector<Real> ftime    = {static_cast<Real>(t_old[lev  ]), static_cast<Real>(t_new[lev  ])};
-    Vector<Real> ctime    = {static_cast<Real>(t_old[lev-1]), static_cast<Real>(t_new[lev-1])};
-
-    amrex::Real small_dt = Real(1.e-8) * (ftime[1] - ftime[0]);
-
-    Vector<MultiFab*> fmf;
-    if ( amrex::almostEqual(time,ftime[0]) || (time-ftime[0]) < small_dt ) {
-        fmf = {&vars_old[lev][Vars::cons], &vars_old[lev][Vars::cons]};
-    } else if (amrex::almostEqual(time,ftime[1])) {
-        fmf = {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::cons]};
-    } else {
-        fmf = {&vars_old[lev][Vars::cons], &vars_new[lev][Vars::cons]};
-    }
-    Vector<MultiFab*> cmf = {&vars_old[lev-1][Vars::cons], &vars_new[lev-1][Vars::cons]};
 
     // We must fill a temporary then copy it back so we don't double add/subtract
     MultiFab mf_c(mfs_vel[Vars::cons]->boxArray(),mfs_vel[Vars::cons]->DistributionMap(),
