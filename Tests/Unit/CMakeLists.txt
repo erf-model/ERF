@@ -153,6 +153,14 @@ target_sources(${erf_exe_name}
     # Motivation: the k-eqn RANS closure (AL01) must keep its stability
     # functions finite and its length-scale limits exact for any Rt.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestRANSClosure.cpp
+    # Motivation: terrain-fitted momentum diffusion must apply K_h to the projected horizontal
+    # stresses of the zeta-face flux and take the cell-centred du/dz from the cell's own faces
+    # (erf-model/ERF#4214), so the operator is exact for bilinear fields and dissipates energy.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestTerrainStress.cpp
+    # Motivation: erf.implicit_terrain_metric must put K_h times the terrain-metric factor into
+    # the implicit vertical solves on the interior faces and take the same compact term out of
+    # the explicit fluxes, and nothing on the bottom and top faces.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestTerrainImplicitMetric.cpp
     # Motivation: the opt-in WRF Smagorinsky-2D limits must reproduce WRF's smag2d_km numbers
     # (slope factor, deformation threshold, cap and their order), limit K_h before the scalar
     # diffusivities are derived from it, and the diffusive time-step rates must follow their
