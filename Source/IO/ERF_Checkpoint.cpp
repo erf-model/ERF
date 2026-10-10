@@ -391,7 +391,7 @@ ERF::WriteCheckpointFile () const
         VisMF::Write(cons, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "Cell"));
 
         if (sbm_state_manager) {
-            VisMF::Write(sbm_state_manager->state(lev),
+            VisMF::Write(sbm_state_manager->new_state(lev),
                          MultiFabFileFullPrefix(lev, checkpointname, "Level_", "SBMSpectrum"));
         }
 
@@ -1390,7 +1390,7 @@ ERF::ReadCheckpointFile ()
             if (!FileExists(spectrum_file + "_H")) {
                 Abort("SBM restart is missing authoritative spectrum for level " + std::to_string(lev));
             }
-            auto& spectrum = sbm_state_manager->state(lev);
+            auto& spectrum = sbm_state_manager->new_state_for_initialization(lev);
             VisMF::Read(spectrum, spectrum_file);
             std::string state_diagnostic;
             if (!erf_sbm::authoritative_state_admissible(

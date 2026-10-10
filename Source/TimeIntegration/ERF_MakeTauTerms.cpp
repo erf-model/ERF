@@ -57,6 +57,9 @@ void erf_make_tau_terms (int level, int nrk,
                                    tc.rans_type == RANSType::kEqn);
 
     const bool do_implicit = (solverChoice.vert_implicit_fac[level][nrk] > 0) && solverChoice.implicit_momentum_diffusion;
+    // erf.implicit_terrain_metric: the implicit solve also takes the compact terrain-metric
+    // term, so the explicit part it removes (Tau_corr) must hold it as well
+    const bool l_implicit_metric = do_implicit && solverChoice.implicit_terrain_metric;
 
     const Box& domain = geom.Domain();
     const int domlo_z = domain.smallEnd(2);
@@ -472,7 +475,8 @@ void erf_make_tau_terms (int level, int nrk,
                                             er_arr, z_nd, detJ_arr, dxInv,
                                             mf_mx, mf_ux, mf_vx,
                                             mf_my, mf_uy, mf_vy,
-                                            s13_corr, s23_corr, s33_corr);
+                                            s13_corr, s23_corr, s33_corr,
+                                            l_implicit_metric);
                 } else {
                     ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            cell_data,
@@ -483,7 +487,8 @@ void erf_make_tau_terms (int level, int nrk,
                                            er_arr, z_nd, detJ_arr, dxInv,
                                            mf_mx, mf_ux, mf_vx,
                                            mf_my, mf_uy, mf_vy,
-                                           s13_corr, s23_corr, s33_corr);
+                                           s13_corr, s23_corr, s33_corr,
+                                           l_implicit_metric);
                 }
 
                 // Remove halo cells from tau_ii but extend across valid_box bdry
