@@ -111,6 +111,22 @@ In this case the variables that are
 written are temperature, velocity and density, and they are written every 2 coarse time steps starting at
 :cpp:`bndry_output_start_time` which is 0 in this case.
 
+The start time counts from the start of the run (elapsed simulation time), also when
+the run's clock starts at a date (:cpp:`start_datetime`, or the date of a WRF input file).
+
+Within :cpp:`BndryFiles`, each output step writes a folder :cpp:`bndry_outputNNNNN` named by
+its step number and adds a row ``step time`` to the ascii file :cpp:`time.dat`; the time is
+that of the run's clock, so it includes :cpp:`start_datetime` when one is given.
+A run restarted from a checkpoint continues the series it finds there. It keeps the rows of
+:cpp:`time.dat` up to the restart step and drops the later ones, which a run that went on past
+the checkpoint wrote and the restarted run writes again; AMReX keeps each plane folder it
+writes again as :cpp:`bndry_outputNNNNN.old.<n>`. The restarted run writes a plane at the
+restart step itself only if the series lacks it and the step is an output step, so that with
+the same inputs and time steps the series comes out as a run without the restart writes it.
+Output switched on at a restart starts at the first output step. A run started from scratch
+begins a new series and drops any rows an earlier run left in :cpp:`time.dat`. A run cannot
+write its output planes into the folder it reads its input planes from.
+
 We also have the functionality in ERF to read in these types of files;
 for this one would add the following (or similar) line to the inputs file:
 
