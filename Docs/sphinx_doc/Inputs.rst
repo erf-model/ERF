@@ -888,6 +888,13 @@ List of Parameters
 |                                      | (and tau33 if built with ``ERF_IMPLICIT_W``) used to     |                    |                   |
 |                                      | correct the momenta                                      |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.implicit_terrain_metric**      | on a terrain-fitted mesh, also solve the compact         | Boolean; needs     | false             |
+|                                      | terrain-metric part of the vertical diffusion,           | vert_implicit_fac  |                   |
+|                                      | K_h M d2/dz2, in each implicit solve (u, v, theta, KE,   | > 0 in every stage |                   |
+|                                      | qv), and take it out of the explicit fluxes; M is the    |                    |                   |
+|                                      | weighted sum of the squared slopes times map factors     |                    |                   |
+|                                      | (see the notes below)                                    |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.cfl**                          | CFL number used to compute level 0 dt                    | Real > 0 and <= 1  | 0.8               |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.substepping_cfl**              | CFL number used to compute the number of substeps        | Real > 0 and <= 1  | 1.0               |
@@ -961,6 +968,38 @@ Notes
      **erf.implicit_thermal_diffusion** and **erf.implicit_momentum_diffusion**, or choose
      grids that are not split in z.
 
+-  | On a terrain-fitted mesh the flux through a terrain-following face projects the horizontal
+     fluxes onto the face normal, which adds a vertical diffusion with coefficient
+     K_h M to it, where M is a weighted sum of the squared terrain slopes times map factors:
+     (4/3) h_xi^2 + h_eta^2 for u, h_xi^2 + (4/3) h_eta^2 for v (the deviatoric stress keeps
+     2/3 of the slope term in S11 and S22), and h_xi^2 + h_eta^2 for the scalars
+     (see :ref:`terrain-momentum-stresses`).  The implicit solves
+     treat only K_v, so for K_h M much larger than K_v -- steep slopes with
+     **erf.les_type = Smagorinsky2D** or anisotropic mixing on a coarse grid -- this explicit
+     term, whose rate grows as K_h M / Delta z^2, can limit the time step (a note at start-up
+     says so for a terrain-fitted mesh with an LES closure and an explicit stage).  With
+     **erf.implicit_terrain_metric = true** the
+     implicit solves also take K_h M d2/dz2 on the faces inside the domain, and the explicit
+     fluxes give up the same term evaluated at the state they see.  The split converges to the
+     same operator as dt goes to zero (first order), but each stage increment, whatever its
+     source, is smoothed vertically with K_h M, an effect of order dt K_h M k_z^2 that is not small
+     near the time-step edge: on the steep 3 km ridge over 6 h, against a 5 s reference, the
+     option at 70 s was within 1.5 % in u and 7 % in w (the WRF slope limiter at 70 s: 13 % and
+     40 %; without the option at 25 s: 0.5 % and 1.2 %).  The difference between the averaged
+     explicit and the compact implicit forms stays explicit; it is small for smooth fields on
+     smooth terrain, but not at the grid scale, where the averaged form does not see a 2 Delta z
+     wave at all.  It applies to the quantities that have an implicit solve (w keeps its metric
+     term explicit) and needs that solve in every Runge-Kutta stage: it aborts on a mesh that
+     is not terrain-fitted, and unless **erf.vert_implicit_fac** is positive in all three
+     stages at every level (use 1 1 1).  In a stage without the implicit solve the whole
+     averaged metric term is explicit for that stage.  The rule is measured, not derived: with
+     the default 1 1 0 the option gained little on a steep 3 km ridge, and with anelastic
+     MidPoint (which solves in its first stage only) it ran worse than without it, while with
+     1 1 1 it recovered the time step of a run without LES.  Anelastic runs therefore cannot use
+     it.  The option is off by default.  Independently of it, the u and v implicit solves use the
+     same h_zeta as the correction stress they replace, so default implicit runs on curved terrain
+     that decays with height change slightly (see :ref:`terrain-momentum-stresses`).
+
 -  | The implicit acoustic substepping is subject to the same requirement, and for the
      same reason: its vertical solve is one tridiagonal system per column.  Rather than
      test the grids after they have been made, ERF refuses at input-parsing time to
@@ -1005,9 +1044,14 @@ Notes
      about 4/3 larger, so there the rate can be low by that factor); for momentum it is a bound
      for uniform coefficients when :math:`\mu_h = \mu_v` and an estimate otherwise (the operator
      is then not symmetric), and the terrain cross terms make both estimates.  The
-     terrain-metric term :math:`K h^2 \partial^2/\partial z^2` is not in the implicit solve.  For
-     momentum it is an upper bound: the projected terrain stresses carry :math:`\mu_v` today
-     (see ERF issue #4214) and would carry :math:`\mu_h` once that is changed.
+     terrain-metric term :math:`K h^2 \partial^2/\partial z^2` is explicit unless
+     **erf.implicit_terrain_metric** = true.  For momentum it is an upper bound: the projected
+     horizontal stresses of u and v carry :math:`\mu_h` and those of w :math:`\mu_v` (see
+     :ref:`terrain-momentum-stresses`).  With **erf.implicit_terrain_metric** = true the compact
+     form of the :math:`K_h` part is in the implicit solve for u, v, theta, turbulent kinetic
+     energy and the first moisture variable, so for those components it counts with their
+     :math:`e` (below), as the vertical term does; the difference between the averaged and the
+     compact forms stays explicit and is not counted, so the rate is then an estimate.
      :math:`e` is 0 when the implicit vertical solve is shown to keep every stage of that
      component's vertical diffusion bounded (no stage amplifies a mode), and 1 otherwise.
      This is decided analytically: with the three-stage scheme (stages from the old state with
@@ -1034,9 +1078,7 @@ Notes
      **erf.diffusive_dt_check** = true and **erf.v** >= 2 the Fourier number of every step is
      printed.  The check is a safeguard rather than a stability guarantee: it is conservative
      and can flag runs that stay stable, so a warning is a prompt to look, not a prediction of
-     failure, and it does not account for the
-     anti-diffusion of the terrain stress reported in ERF issue #4214 (where, for
-     :math:`K_h \gg K_v`, :math:`K_h h^2 > 2 K_v (1 + 2h^2)` on steep slopes).  Cells
+     failure.  Cells
      inside immersed-forcing solids count like fluid cells, and the cut-cell stiffening of EB
      is not included.
 
@@ -2140,6 +2182,14 @@ If we set ``erf.molec_diff_type`` to ``ConstantAlpha``, then
 Parameters for LES can either be set with one value that applies across all levels, or set with a number of values
 equal to the number of levels, allowing unique values of the parameter to be set for each level.
 
+On a terrain-fitted mesh the momentum flux through a terrain-following (:math:`\zeta`) face combines
+the vertical stress, which takes the vertical eddy viscosity (``Kmv``), with the horizontal stresses
+projected onto the face, which take the horizontal eddy viscosity (``Kmh``); see
+:ref:`terrain-momentum-stresses`. Answers therefore depend on both whenever they differ: with
+``erf.les_type = Smagorinsky2D``, with ``erf.mix_isotropic = false``, and with a PBL scheme. No PBL
+scheme sets ``Kmh``, so with a PBL scheme and no LES closure the projected horizontal stresses
+carry only the molecular viscosity.
+
 .. _inputs-smag2d-wrf-limits:
 
 Smagorinsky2D limits on terrain-fitted meshes
@@ -2149,10 +2199,12 @@ With ``erf.les_type = Smagorinsky2D`` the horizontal eddy viscosity is
 :math:`K_h = C_s^2 \Delta_h^2 |D_h|`, with :math:`\Delta_h = \sqrt{\Delta x \Delta y}/m` and the
 horizontal deformation :math:`|D_h| = \sqrt{(u_x - v_y)^2 + (u_y + v_x)^2}`.  On a terrain-fitted mesh
 the horizontal stresses along the coordinate surfaces carry a metric term of size
-:math:`K_h h^2 \partial^2/\partial z^2`, where :math:`h` is the coordinate slope.  It is explicit,
-and where the terrain drops by several cell thicknesses across one cell it is much stiffer than the
-horizontal diffusion itself.  Two opt-in limits taken from WRF's ``smag2d_km``
-(``dyn_em/module_diffusion_em.F``, ``km_opt = 4``) bound it:
+:math:`K_h h^2 \partial^2/\partial z^2`, where :math:`h` is the coordinate slope.  It is explicit
+(unless ``erf.implicit_terrain_metric`` = true, which solves its compact form implicitly while
+keeping :math:`K_h`; see :ref:`terrain-momentum-stresses`), and where the terrain drops by several
+cell thicknesses across one cell it is much stiffer than the horizontal diffusion itself.  Two
+opt-in limits taken from WRF's ``smag2d_km`` (``dyn_em/module_diffusion_em.F``, ``km_opt = 4``)
+bound it instead:
 
 - ``erf.smag2d_kh_cap`` = :math:`c` caps :math:`K_h \le c \Delta_h` (WRF uses :math:`c` = 10 m/s,
   always on there);
@@ -2176,11 +2228,9 @@ from WRF in these details:
 
 - the vertical viscosity :math:`K_v` (from the PBL scheme, or without one :math:`C_s^2 \Delta z^2 |D_h|`
   times the Richardson-number factor) is not limited.  WRF sets ``xkmv = xkmh`` after limiting and uses it for the horizontal diffusion of
-  w; ERF has no such coefficient (its terrain stresses on w and the projected stresses use
-  :math:`K_v`, see #4214), so on steep slopes the momentum diffusion keeps its :math:`K_v` part;
-- on a terrain-fitted mesh ERF's strain carries the one-cell offset in the
-  :math:`\partial u/\partial z` cross term reported in #4214, which enters :math:`K_h` and the
-  :math:`|D_h|` threshold;
+  w; ERF has no such coefficient (its stresses on w use :math:`K_v`, while the projected horizontal
+  stresses of u and v use the limited :math:`K_h`), so on steep slopes the momentum diffusion
+  keeps its :math:`K_v` part;
 - the terrain heights are nodal, so the drops are taken on the cell edges rather than from
   :math:`z_x` at the cell faces, and :math:`\alpha` carries no map factor (WRF multiplies the drop by
   :math:`1/m_x`), so that it is exactly :math:`h \Delta x/\Delta z` with physical spacings; the two
@@ -2192,18 +2242,12 @@ from WRF in these details:
 - WRF uses :math:`K_h/Pr` for every scalar; ERF forms the moisture and advected-scalar
   diffusivities with ``erf.Sc_t`` (default 1) instead, as it always has.
 
-The limiter reduces :math:`K_h h^2/K_v`, the quantity that decides whether the terrain stress of
-issue #4214 dissipates, by :math:`\alpha^2` or :math:`\alpha`, but it does not make that operator
-dissipative in general.  For the x-component on a slope :math:`h`, the stress of #4214 stops being
-dissipative when :math:`(K_h + K_v)^2 h^2 > 2 K_h K_v (1 + 2h^2)`, which for :math:`K_h \gg K_v`
-reduces to :math:`K_h h^2 > 2 K_v (1 + 2h^2)`, i.e. :math:`K_h h^2 > 2 K_v` on gentle slopes.  In the :math:`\alpha^2` branch the limited :math:`K_h h^2` is
-about :math:`C_s^2 \Delta z^2 |D_h|`.  Without a PBL scheme and without the Richardson-number
-correction that is :math:`K_v`, which keeps the stress dissipative for slopes below about 1.55
-(:math:`h^2 < 1 + \sqrt{2}`); but ``erf.use_Ri_correction``
-(on by default) multiplies :math:`K_v` by a stability factor at most 1, so in stable layers, with a
-PBL scheme (whose :math:`K_v` can be much smaller) or in the :math:`\alpha` branch, the condition
-can still be met.
-The fix of #4214 itself is a separate change.
+The strain part of the momentum stresses on terrain-fitted meshes (:ref:`terrain-momentum-stresses`)
+dissipates energy for any :math:`K_h` and :math:`K_v` on a uniform slope with uniform vertical
+spacing. Where the slope varies, energy can grow transiently when :math:`K_h \gg K_v`; in the cases
+analysed there (without the expansion-rate term) no mode grew. So the limits are not needed for
+that operator: they bound the stiffness of the explicit metric term and match WRF's mixing on
+slopes.
 
 Both limits change the physics: they reduce the horizontal mixing on slopes (by :math:`\alpha^2`, up to
 two orders of magnitude on a 3 km grid with 50 m cells over steep terrain) and wherever the cap binds.
@@ -4070,10 +4114,11 @@ particle support is enabled, the Lagrangian Super-Droplet Method. ERF also
 contains the developing Eulerian spectral-bin capability selected with
 ``erf.moisture_model = SBM``.
 
-The current ``SBM`` option provides bounded M3 mapped spectral advection, not a
-complete warm-cloud microphysics scheme. See
-:ref:`sec:SpectralBinMicrophysics` for its state representation, configuration,
-and current limitations.
+The current ``SBM`` option transports a liquid-water size distribution by
+resolved advection on one atmospheric grid level. It is not yet a complete
+warm-cloud microphysics scheme and does not support operational multilevel
+spectral transport. See :ref:`sec:SpectralBinMicrophysics` for the spectral
+representation, configuration, and current limitations.
 
 The following run-time options control the moisture model.
 
@@ -4128,9 +4173,10 @@ List of Parameters
 SBM inputs
 ----------
 
-The inputs below are read only when ``erf.moisture_model = SBM``. The current
-SBM implementation provides bounded M3 mapped spectral advection as described
-in :ref:`sec:SpectralBinMicrophysics`.
+The inputs below are read only when ``erf.moisture_model = SBM``. They
+configure the current single-level liquid-spectrum advection capability;
+see :ref:`sec:SpectralBinMicrophysics` for its scientific representation and
+execution restrictions.
 
 .. list-table::
    :header-rows: 1
@@ -4141,9 +4187,9 @@ in :ref:`sec:SpectralBinMicrophysics`.
      - Acceptable values
      - Default
    * - ``erf.sbm_zero_transport_fixture``
-     - Deprecated pre-M3 qualification switch. New M3 inputs omit it; an
-       explicitly true value is rejected as obsolete.
-     - Boolean; true rejected, omit for M3
+     - Obsolete switch from an earlier infrastructure-only test mode.
+       Omit it from new input files; an explicitly true value is rejected.
+     - Boolean; omit or use ``false``
      - ``false``
    * - ``erf.sbm_nbins``
      - Number of liquid spectral bins when explicit ``sbm_edges`` are not

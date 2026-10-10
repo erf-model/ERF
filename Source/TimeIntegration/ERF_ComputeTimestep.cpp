@@ -138,7 +138,8 @@ ERF::ComputeDt (int step, double cur_time_d)
                         << "         The rate is a conservative estimate of the horizontal, terrain-metric and"
                         << " explicit vertical eddy diffusion; the run may go unstable.  Consider"
                         << " erf.diffusive_dt_limit = true (adaptive dt), a smaller erf.fixed_dt, or for"
-                        << " Smagorinsky2D erf.smag2d_slope_limiter / erf.smag2d_kh_cap."
+                        << " Smagorinsky2D erf.smag2d_slope_limiter / erf.smag2d_kh_cap; on a terrain-fitted"
+                        << " mesh, erf.implicit_terrain_metric = true with erf.vert_implicit_fac = 1 1 1."
                         << "  Repeated only if it grows by half." << std::endl;
                 diffusive_fourier_warned[lev] = F;
             }
@@ -198,6 +199,7 @@ ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
     set.has_q       = (solverChoice.moisture_type != MoistureType::None);
     set.has_ke      = solverChoice.turbChoice[lev].use_tke;
     set.has_scalar  = solverChoice.transport_scalar;
+    set.implicit_metric = solverChoice.implicit_terrain_metric;
     set.e_uv = e_uv; set.e_w = e_w; set.e_th = e_th; set.e_q = e_q; set.e_ke = e_ke;
 
     const MultiFab& K = *eddyDiffs_lev[lev];

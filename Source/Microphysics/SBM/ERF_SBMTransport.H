@@ -17,9 +17,11 @@ namespace erf_sbm {
 /**
  * Bounded mapped advection for the authoritative SBM spectrum.
  *
- * The state manager remains the owner of prognostic state.  This object owns
- * only per-level stage scratch, the static mapped measure, and the compact
- * completed-step qc/qr face ledger.
+ * The state manager remains the owner of prognostic state. This object owns
+ * per-level stage scratch, the static mapped measure, the compact projected
+ * qc/qr completed-step face ledger, and an optional all-component completed
+ * spectral face ledger for AMR-capable instances. Operational AMR execution
+ * remains disabled by the ERF runtime guard.
  */
 class SBMTransport
 {
@@ -88,6 +90,8 @@ class SBMTransport
     [[nodiscard]] const amrex::MultiFab& static_measure (int level) const;
     [[nodiscard]] const erf_auxiliary::CompletedStepFluxLedger&
     projected_ledger (int level) const;
+    /** Authoritative all-component accepted transfer, defined for AMR-capable instances only. */
+    [[nodiscard]] const erf_auxiliary::CompletedStepFluxLedger& completed_spectral_ledger (int level) const;
 
   private:
     struct LevelStorage;
