@@ -15,6 +15,7 @@
 #include "ERF_Constants.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_SrcHeaders.H"
+#include "ERF_SlowRhsPreUtils.H"
 
 namespace {
 
@@ -64,7 +65,7 @@ public:
         eb_factory = std::make_unique<eb_>();
     }
 
-    void fill_state (const StateParameters& parameters)
+    void fill_state (const StateParameters& parameters, bool fixed_density = false)
     {
         auto& cons = conserved[IntVars::cons];
         for (amrex::MFIter mfi(cons); mfi.isValid(); ++mfi) {
@@ -78,6 +79,7 @@ public:
             const auto pressure_factor = parameters.pressure_factor;
             const auto vapor_anomaly = parameters.vapor_anomaly;
             const auto condensate = parameters.condensate;
+            const auto use_fixed_density = fixed_density;
 
             amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 const amrex::Real z = (static_cast<amrex::Real>(k) + amrex::Real(0.5))*kDz;
@@ -92,7 +94,8 @@ public:
                 const amrex::Real qv = qv0 + vapor_anomaly;
                 const amrex::Real theta = theta_factor*theta0;
                 const amrex::Real pressure = pressure_factor*p0;
-                const amrex::Real rho = getRhogivenThetaPress(theta, pressure, RdoCp, qv);
+                const amrex::Real rho = use_fixed_density
+                    ? rho0 : getRhogivenThetaPress(theta, pressure, RdoCp, qv);
                 const amrex::Real qt_value = qv + condensate;
 
                 base(i,j,k,BaseState::r0_comp) = rho0;
@@ -146,6 +149,61 @@ public:
         return std::vector<amrex::Real>(host_values.begin(), host_values.end());
     }
 
+    std::vector<amrex::Real> density_and_base_density () const
+    {
+        const auto& cons = conserved[IntVars::cons];
+        amrex::Gpu::DeviceVector<amrex::Real> device_values(2*kNz);
+        amrex::Gpu::HostVector<amrex::Real> host_values(2*kNz);
+        auto* output = device_values.data();
+        for (amrex::MFIter mfi(cons); mfi.isValid(); ++mfi) {
+            const auto state = cons.const_array(mfi);
+            const auto base = base_state.const_array(mfi);
+            amrex::ParallelFor(domain, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                output[2*k] = state(i,j,k,Rho_comp);
+                output[2*k+1] = base(i,j,k,BaseState::r0_comp);
+            });
+        }
+        amrex::Gpu::streamSynchronize();
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost, device_values.begin(), device_values.end(),
+                         host_values.begin());
+        return std::vector<amrex::Real>(host_values.begin(), host_values.end());
+    }
+
+    amrex::Real run_z_pressure_buoyancy_rhs (int face, amrex::Real qt_lo,
+                                             amrex::Real qt_hi, amrex::Real gpz,
+                                             amrex::Real abl_pressure_grad_z,
+                                             amrex::Real buoyancy_force,
+                                             bool use_moisture)
+    {
+        total_water.setVal(amrex::Real(0.0));
+        const amrex::Box adjacent_cells(amrex::IntVect(0, 0, face-1),
+                                        amrex::IntVect(0, 0, face));
+        for (amrex::MFIter mfi(total_water); mfi.isValid(); ++mfi) {
+            const auto qt = total_water.array(mfi);
+            amrex::ParallelFor(adjacent_cells, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                qt(i,j,k) = (k == face-1) ? qt_lo : qt_hi;
+            });
+        }
+        amrex::Gpu::streamSynchronize();
+
+        amrex::Gpu::DeviceVector<amrex::Real> device_value(1);
+        amrex::Gpu::HostVector<amrex::Real> host_value(1);
+        auto* output = device_value.data();
+        const amrex::Box face_box(amrex::IntVect(0, 0, face),
+                                  amrex::IntVect(0, 0, face));
+        for (amrex::MFIter mfi(total_water); mfi.isValid(); ++mfi) {
+            const auto qt = total_water.const_array(mfi);
+            amrex::ParallelFor(face_box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                output[0] = slow_rhs_pre_z_pressure_buoyancy(
+                    qt, i, j, k, use_moisture, gpz, abl_pressure_grad_z, buoyancy_force);
+            });
+        }
+        amrex::Gpu::streamSynchronize();
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost, device_value.begin(), device_value.end(),
+                         host_value.begin());
+        return host_value[0];
+    }
+
     amrex::Real base_density (int k, amrex::Real qv0) const
     {
         const amrex::Real z = (static_cast<amrex::Real>(k) + amrex::Real(0.5))*kDz;
@@ -186,6 +244,17 @@ public:
 void expect_near (amrex::Real actual, amrex::Real expected)
 {
     EXPECT_LE(std::abs(actual-expected), kAbsTol + kRelTol*std::abs(expected));
+}
+
+void fill_anelastic_state (BuoyancyFixture& fixture, const StateParameters& state)
+{
+    fixture.fill_state(state, true);
+    const auto density = fixture.density_and_base_density();
+    for (int k = 0; k < kNz; ++k) {
+        SCOPED_TRACE("fixed-density anelastic cell k=" + std::to_string(k));
+        expect_near(density[static_cast<std::size_t>(2*k)],
+                    density[static_cast<std::size_t>(2*k+1)]);
+    }
 }
 
 amrex::Real type1_oracle (const BuoyancyFixture& fixture,
@@ -283,11 +352,8 @@ TEST(ERFBuoyancy, CompressibleMoistDensityReferenceAndCondensateLoading)
     const auto buoyant_force = fixture.run(1, 0, MoistureType::Morrison);
     for (int k = 1; k < kNz; ++k) {
         const amrex::Real expected = type1_oracle(fixture, k, loaded);
-        const amrex::Real qt_face = loaded.qv0 + loaded.condensate;
         expect_near(buoyant_force[static_cast<std::size_t>(k)], expected);
         EXPECT_LT(buoyant_force[static_cast<std::size_t>(k)], amrex::Real(0.0));
-        expect_near(buoyant_force[static_cast<std::size_t>(k)]/(amrex::Real(1.0)+qt_face),
-                    expected/(amrex::Real(1.0)+qt_face));
     }
 }
 
@@ -332,14 +398,14 @@ TEST(ERFBuoyancy, ActiveDryAnelasticUsesFaceRatioAndNeutralReference)
 {
     BuoyancyFixture fixture;
     StateParameters state{};
-    fixture.fill_state(state);
+    fill_anelastic_state(fixture, state);
     const auto neutral = fixture.run(3, 1, MoistureType::None);
     for (int k = 1; k < kNz; ++k) {
         expect_near(neutral[static_cast<std::size_t>(k)], amrex::Real(0.0));
     }
 
     state.theta_factor = amrex::Real(1.015);
-    fixture.fill_state(state);
+    fill_anelastic_state(fixture, state);
     const auto warm = fixture.run(3, 1, MoistureType::None);
     for (int k = 1; k < kNz; ++k) {
         const amrex::Real theta_lo = state.theta_factor*fixture.base_theta(k-1, amrex::Real(0.0));
@@ -361,14 +427,14 @@ TEST(ERFBuoyancy, ActiveMoistAnelasticIsNeutralAndRespondsToVaporAndLoading)
 {
     BuoyancyFixture fixture;
     StateParameters state{amrex::Real(0.01)};
-    fixture.fill_state(state);
+    fill_anelastic_state(fixture, state);
     const auto neutral = fixture.run(3, 1, MoistureType::Morrison);
     for (int k = 1; k < kNz; ++k) {
         expect_near(neutral[static_cast<std::size_t>(k)], amrex::Real(0.0));
     }
 
     state.vapor_anomaly = amrex::Real(0.001);
-    fixture.fill_state(state);
+    fill_anelastic_state(fixture, state);
     const auto vapor = fixture.run(3, 1, MoistureType::Morrison);
     for (int k = 1; k < kNz; ++k) {
         const amrex::Real rho0 = amrex::Real(0.5)*(
@@ -380,7 +446,7 @@ TEST(ERFBuoyancy, ActiveMoistAnelasticIsNeutralAndRespondsToVaporAndLoading)
 
     state.vapor_anomaly = amrex::Real(0.0);
     state.condensate = amrex::Real(0.001);
-    fixture.fill_state(state);
+    fill_anelastic_state(fixture, state);
     const auto loaded = fixture.run(3, 1, MoistureType::Morrison);
     for (int k = 1; k < kNz; ++k) {
         const amrex::Real rho0 = amrex::Real(0.5)*(
@@ -388,10 +454,39 @@ TEST(ERFBuoyancy, ActiveMoistAnelasticIsNeutralAndRespondsToVaporAndLoading)
         const amrex::Real expected = -rho0*(-CONST_GRAV)*(-state.condensate);
         expect_near(loaded[static_cast<std::size_t>(k)], expected);
         EXPECT_LT(loaded[static_cast<std::size_t>(k)], amrex::Real(0.0));
-        const amrex::Real qt_face = state.qv0 + state.condensate;
-        expect_near(loaded[static_cast<std::size_t>(k)]/(amrex::Real(1.0)+qt_face),
-                    expected/(amrex::Real(1.0)+qt_face));
     }
+}
+
+TEST(ERFBuoyancy, MoistFaceInertiaWeightsPressureAndBuoyancyTogether)
+{
+    BuoyancyFixture fixture;
+    constexpr int face = 4;
+    const amrex::Real qt_lo = amrex::Real(0.004);
+    const amrex::Real qt_hi = amrex::Real(0.020);
+    const amrex::Real gpz = amrex::Real(3.25);
+    const amrex::Real abl_pressure_grad_z = amrex::Real(-1.75);
+    const amrex::Real qt_face = amrex::Real(0.5)*(qt_lo+qt_hi);
+
+    const auto check_force = [&] (amrex::Real buoyancy_force) {
+        const amrex::Real numerator = -gpz - abl_pressure_grad_z + buoyancy_force;
+        const amrex::Real expected_moist = numerator/(amrex::Real(1.0)+qt_face);
+        const amrex::Real actual_moist = fixture.run_z_pressure_buoyancy_rhs(
+            face, qt_lo, qt_hi, gpz, abl_pressure_grad_z, buoyancy_force, true);
+        expect_near(actual_moist, expected_moist);
+
+        const amrex::Real actual_dry = fixture.run_z_pressure_buoyancy_rhs(
+            face, qt_lo, qt_hi, gpz, abl_pressure_grad_z, buoyancy_force, false);
+        expect_near(actual_dry, numerator);
+    };
+
+    check_force(amrex::Real(2.5));
+    check_force(amrex::Real(-1.25));
+
+    const amrex::Real dry_limit = -gpz - abl_pressure_grad_z;
+    const amrex::Real zero_water = fixture.run_z_pressure_buoyancy_rhs(
+        face, amrex::Real(0.0), amrex::Real(0.0), gpz,
+        abl_pressure_grad_z, amrex::Real(0.0), true);
+    expect_near(zero_water, dry_limit);
 }
 
 TEST(ERFBuoyancy, ZeroGravityAndPhysicalVerticalFacesAreHandled)

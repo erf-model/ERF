@@ -32,35 +32,30 @@ Governing Equations
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
 | Parameter                       | Definition                                               | Acceptable Values  | Default          |
 +=================================+==========================================================+====================+==================+
-| **erf.anelastic**               | if 1, solve the anelastic equations rather than the      | 0, 1               | 0                |
-|                                 | fully compressible equations (per-level). Setting this   |                    |                  |
-|                                 | to 1 also forces ``project_initial_velocity`` = 1 and    |                    |                  |
-|                                 | ``fixed_density`` = 1, ``buoyancy_type`` = 3 and         |                    |                  |
-|                                 | ``substepping_type`` = None. The stored buoyancy value   |                    |                  |
-|                                 | 3 is bookkeeping; anelastic uses its own kernel.         |                    |                  |
+| **erf.anelastic**               | Use anelastic equations at the given AMR levels. Sets    | 0, 1               | 0                |
+|                                 | ``project_initial_velocity=1``, ``fixed_density=1``, and |                    |                  |
+|                                 | ``substepping_type=None``. The stored                    |                    |                  |
+|                                 | ``buoyancy_type=3`` does not select the buoyancy kernel. |                    |                  |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.buoyancy_type**           | Compressible force: 1=density perturbation (default);    | 1, 2, 3, 4         | 1 (3 if          |
-|                                 | 2 and 3 are identical temperature approximations;        |                    | anelastic)       |
-|                                 | 4 is a potential-temperature approximation. Anelastic    |                    |                  |
-|                                 | selects its dry/moist kernel regardless of the stored    |                    |                  |
-|                                 | selector (forced to 3). Moisture and EB restrictions     |                    |                  |
-|                                 | apply. See :ref:`Buoyancy`.                              |                    |                  |
+| **erf.buoyancy_type**           | Compressible choices: 1=full density departure;          | 1, 2, 3, 4         | 1 (3 if          |
+|                                 | 2/3=identical temperature approximations;                |                    | anelastic)       |
+|                                 | 4=potential-temperature approximation. Anelastic uses a  |                    |                  |
+|                                 | separate kernel. See :ref:`Buoyancy`.                    |                    |                  |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.use_fft**                 | use FFT rather than multigrid to solve the the Poisson   | Boolean            | false            |
-|                                 | equations                                                |                    |                  |
+| **erf.use_fft**                 | Use FFT rather than multigrid to solve the Poisson       | Boolean            | false            |
+|                                 | equations, where supported.                              |                    |                  |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.mg_v**                    | verbosity of the multigrid solver if used the Poisson    | Integer >= 0       | 0                |
-|                                 | equations                                                |                    |                  |
+| **erf.mg_v**                    | Multigrid Poisson solver verbosity.                      | Integer >= 0       | 0                |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.fixed_density**           | if 1, hold the density fixed in time (per-level).        | 0, 1               | 0 (1 if          |
-|                                 | Always 1 at a level where ``anelastic`` = 1; a value of  |                    | anelastic)       |
-|                                 | 0 given there is ignored with a warning                  |                    |                  |
+| **erf.fixed_density**           | Hold dry density fixed in time (per level). Always 1 on  | 0, 1               | 0 (1 if          |
+|                                 | anelastic levels. A user value of 0 there is ignored     |                    | anelastic)       |
+|                                 | with a warning.                                          |                    |                  |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.c_p**                     | Runtime dry-air specific heat used by selected           | Real > 0           | 1004.5           |
-|                                 | thermodynamic and forcing calculations [J/(kg K)]. The   |                    |                  |
-|                                 | EOS exponent stays at Gamma=1.4 (reference Cp_d=1004.5); |                    |                  |
-|                                 | nondefault values can make inverse EOS relations         |                    |                  |
-|                                 | inconsistent. See :ref:`GoverningEquations`.             |                    |                  |
+| **erf.c_p**                     | Runtime dry-air heat capacity [J/(kg K)] for selected    | Real > 0           | 1004.5           |
+|                                 | thermodynamics and forcing. It does not change fixed EOS |                    |                  |
+|                                 | exponent Gamma=1.4; nondefault values can make EOS       |                    |                  |
+|                                 | inverse relations inconsistent. See                      |                    |                  |
+|                                 | :ref:`GoverningEquations`.                               |                    |                  |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.gradp_type**              | which horizontal pressure gradient formulation to use    | 0, 1               | 0                |
 |                                 | with terrain-fitted coordinates: 0 for dp/dx with a      |                    |                  |

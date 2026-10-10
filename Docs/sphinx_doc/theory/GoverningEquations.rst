@@ -10,28 +10,29 @@
 Governing Equations
 =============================
 
-ERF can be run in two different modes: in the first, ERF solves the fully compressible fluid equations,
-in the second, ERF solves a modified set of equations which approximates the density field with the
-hydrostatic density and imposes the anelastic constraint on the velocity field.
+ERF solves either the fully compressible or the anelastic equations.
+Both formulations predict velocity, dry potential temperature, and any
+moisture or other scalars. They differ in their treatment of density and
+pressure.
 
-In compressible mode, ERF solves partial differential equations expressing conservation of mass, momentum,
-potential temperature, and scalars (such as moisture variables) subject to an equation of state.
+In **compressible** mode, ERF advances dry-air density
+:math:`\rho_d`, face-centered dry momentum :math:`\rho_d\mathbf{u}`,
+and :math:`\rho_d\theta_d`. Pressure is diagnosed from the prognostic
+thermodynamic state using the equation of state.
 
-In anelastic mode, ERF solves partial differential equations expressing conservation of momentum,
-potential temperature, and scalars (such as moisture variables), as well the anelastic constraint
-on the velocity.
+In **anelastic** mode, ERF holds dry density at the reference value
+:math:`\rho_0(z)` and enforces
+:math:`\nabla\cdot(\rho_0\mathbf{u})=0` with a pressure
+projection. Buoyancy remains a source in vertical momentum, but its
+pressure-gradient term is not recomputed from the compressible equation
+of state.
 
-Below :math:`\rho_d, T, \theta_{d}`, and :math:`p` are the dry-air density, temperature, dry potential temperature,
-and pressure, respectively; these variables are all defined at cell centers.
-:math:`\phi` is an advected scalar, also defined at cell centers.
-:math:`\mathbf{u}` and :math:`(\rho_d \mathbf{u})` are the velocity and momentum, respectively,
-and are defined on faces.
-
-In the compressible moist formulation, the prognostic density is the dry-air
-density :math:`\rho_d`. When total moist density is needed, ERF forms it from
-the dry density and the water mixing ratios. In the EOS utility functions,
-``rho`` denotes :math:`\rho_d`, and ``rhotheta`` denotes
-:math:`\rho_d \theta_d`.
+Here :math:`T`, :math:`\theta_d`, and :math:`p` denote temperature,
+dry potential temperature, and pressure at cell centers, while
+:math:`\mathbf{u}` and dry momentum are represented on cell faces.
+Moisture mixing ratios are defined per unit *dry-air* mass. See
+:ref:`Buoyancy` for the gravitational force and reference-state
+conventions.
 
 Compressible Equations
 ------------------------
@@ -70,13 +71,23 @@ supplemented with the constraint
 .. math::
   \nabla \cdot (\rho_0 \mathbf{u}) = 0
 
-In both momentum equations the upward-positive :math:`B_z` is the
-vertical perturbational gravitational force density defined in
-:ref:`Buoyancy <Buoyancy>`. In the compressible formulation,
-:math:`p'=p-p_0` is computed from the EOS state and hydrostatic base
-pressure. In the anelastic formulation, the pressure-gradient array is
-maintained by projection rather than recomputed from the compressible
-EOS.
+In these momentum equations :math:`B_z` is an upward-positive
+vertical **force density**, with units of :math:`\mathrm{N\,m^{-3}}`.
+The explicit slow-momentum source divides the stored pressure-gradient
+and buoyancy terms by :math:`1+q_t`, with water mixing ratio averaged
+from the two neighboring cells to the face. Anelastic projection also
+adds a separate correction to the momenta; the equation here is a
+continuum summary, not a complete specification of the projection step.
+
+For **compressible** flow the perturbational pressure is
+:math:`p'=p-p_0`, where :math:`p` comes from the equation of state and
+:math:`p_0` is the hydrostatic base-state pressure. For **anelastic**
+flow, the symbol :math:`p'` in the schematic momentum equation denotes
+the pressure-like contribution enforced by projection. Its gradient is
+maintained by the projection solver; it should not be interpreted as
+an independently computed compressible EOS pressure perturbation.
+See :ref:`Buoyancy` for the exact gravitational source definitions and
+face-average conventions.
 
 (Dry and Moist) Scalars
 -----------------------
@@ -144,17 +155,28 @@ Vector rotation of the fluid velocity yields :math:`J  \bar{\mathbf{T}} \mathbf{
 Background (reference) state
 -----------------------------
 
-Pressure and dry-density perturbations are defined with respect to a hydrostatically stratified background state, i.e.
+For compressible flow, reference profiles depend on height and define
+thermodynamic perturbations:
 
 .. math::
-  p = p_{0}(z) + p^\prime  \hspace{24pt} \rho_d = \rho_{0}(z) + \rho_d^\prime
 
-where :math:`\rho_0` is the dry base-state density. For moist simulations,
-the base state carries only the water vapor mixing ratio :math:`q_{v,0}`, so
-the hydrostatic balance uses the total moist base-state density:
+   p=p_0(z)+p',\qquad \rho_d=\rho_0(z)+\rho_d'.
+
+Here :math:`\rho_0` is the **dry** base-state density. In moist flow,
+:math:`q_{v0}` is the base-state water-vapor mixing ratio and the
+reference state contains no condensate. With positive-upward :math:`z`
+and gravity magnitude :math:`g>0`, hydrostatic balance is
 
 .. math::
-  \frac{d p_{0}}{d z} = - \rho_{0}(1 + q_{v,0}) g.
+
+   \frac{dp_0}{dz}=-\rho_0(1+q_{v0})g.
+
+The same reference density and hydrostatic pressure are used by the
+anelastic formulation, which fixes dry density at :math:`\rho_0` and
+obtains its momentum pressure-gradient term from projection. The fixed
+thermodynamic reference pressure :math:`P_{00}=10^5\,\mathrm{Pa}` used in
+potential-temperature and EOS definitions is **not** the varying
+hydrostatic profile :math:`p_0(z)`.
 
 Equation of state (compressible only)
 --------------------------------------
