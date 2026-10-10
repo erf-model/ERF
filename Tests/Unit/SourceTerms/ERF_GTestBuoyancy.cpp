@@ -2,6 +2,7 @@
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include <AMReX_BoxArray.H>
@@ -257,6 +258,30 @@ void fill_anelastic_state (BuoyancyFixture& fixture, const StateParameters& stat
     }
 }
 
+void set_anelastic_face_anomalies (BuoyancyFixture& fixture,
+                                   int face,
+                                   amrex::Real epsilon_lo,
+                                   amrex::Real epsilon_hi)
+{
+    auto& cons = fixture.conserved[IntVars::cons];
+    const amrex::Box adjacent_cells(amrex::IntVect(0, 0, face-1),
+                                    amrex::IntVect(0, 0, face));
+    for (amrex::MFIter mfi(cons); mfi.isValid(); ++mfi) {
+        const auto state = cons.array(mfi);
+        const auto prim = fixture.primitive.array(mfi);
+        const auto base = fixture.base_state.const_array(mfi);
+        amrex::ParallelFor(adjacent_cells,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                const amrex::Real epsilon = (k == face-1) ? epsilon_lo : epsilon_hi;
+                const amrex::Real theta = base(i,j,k,BaseState::th0_comp) *
+                    (amrex::Real(1.0) + epsilon);
+                prim(i,j,k,PrimTheta_comp) = theta;
+                state(i,j,k,RhoTheta_comp) = state(i,j,k,Rho_comp)*theta;
+            });
+    }
+    amrex::Gpu::streamSynchronize();
+}
+
 amrex::Real type1_oracle (const BuoyancyFixture& fixture,
                            int face,
                            const StateParameters& state)
@@ -421,6 +446,55 @@ TEST(ERFBuoyancy, ActiveDryAnelasticUsesFaceRatioAndNeutralReference)
         expect_near(warm[static_cast<std::size_t>(k)], expected);
         EXPECT_GT(warm[static_cast<std::size_t>(k)], amrex::Real(0.0));
     }
+}
+
+TEST(ERFBuoyancy, StratifiedAnelasticFaceAveragingDistinguishesDryAndMoist)
+{
+    constexpr int face = 4;
+    constexpr amrex::Real epsilon_lo = amrex::Real(-0.02);
+    constexpr amrex::Real epsilon_hi = amrex::Real(0.04);
+
+    BuoyancyFixture fixture;
+    const StateParameters neutral{};
+    fill_anelastic_state(fixture, neutral);
+    const auto neutral_dry = fixture.run(3, 1, MoistureType::None);
+    const auto neutral_moist = fixture.run(3, 1, MoistureType::Morrison);
+    expect_near(neutral_dry[static_cast<std::size_t>(face)], amrex::Real(0.0));
+    expect_near(neutral_moist[static_cast<std::size_t>(face)], amrex::Real(0.0));
+
+    set_anelastic_face_anomalies(fixture, face, epsilon_lo, epsilon_hi);
+    const auto density = fixture.density_and_base_density();
+    for (int k = 0; k < kNz; ++k) {
+        SCOPED_TRACE("fixed-density anelastic cell k=" + std::to_string(k));
+        expect_near(density[static_cast<std::size_t>(2*k)],
+                    density[static_cast<std::size_t>(2*k+1)]);
+    }
+
+    const auto dry = fixture.run(3, 1, MoistureType::None);
+    const auto moist = fixture.run(3, 1, MoistureType::Morrison);
+    const amrex::Real theta0_lo = fixture.base_theta(face-1, amrex::Real(0.0));
+    const amrex::Real theta0_hi = fixture.base_theta(face, amrex::Real(0.0));
+    const amrex::Real rho0_face = amrex::Real(0.5)*(
+        fixture.base_density(face-1, amrex::Real(0.0)) +
+        fixture.base_density(face, amrex::Real(0.0)));
+    const amrex::Real gz = -CONST_GRAV;
+    const amrex::Real dry_expected = -rho0_face*gz*
+        (theta0_lo*epsilon_lo + theta0_hi*epsilon_hi)/(theta0_lo+theta0_hi);
+    const amrex::Real moist_expected = -rho0_face*gz*
+        (epsilon_lo+epsilon_hi)/amrex::Real(2.0);
+    const amrex::Real difference_expected = -rho0_face*gz*
+        (theta0_hi-theta0_lo)*(epsilon_hi-epsilon_lo)/
+        (amrex::Real(2.0)*(theta0_hi+theta0_lo));
+
+    expect_near(dry[static_cast<std::size_t>(face)], dry_expected);
+    expect_near(moist[static_cast<std::size_t>(face)], moist_expected);
+    expect_near(dry[static_cast<std::size_t>(face)]-
+                moist[static_cast<std::size_t>(face)], difference_expected);
+    EXPECT_GT(dry[static_cast<std::size_t>(face)], amrex::Real(0.0));
+    EXPECT_GT(moist[static_cast<std::size_t>(face)], amrex::Real(0.0));
+    const amrex::Real difference_tolerance = kAbsTol +
+        kRelTol*std::max(std::abs(dry_expected), std::abs(moist_expected));
+    EXPECT_GT(std::abs(difference_expected), amrex::Real(10.0)*difference_tolerance);
 }
 
 TEST(ERFBuoyancy, ActiveMoistAnelasticIsNeutralAndRespondsToVaporAndLoading)

@@ -146,7 +146,10 @@ reference-state column with :math:`\rho_d=\rho_0` and
 :math:`q_t=q_{v0}` has zero buoyancy. At otherwise fixed dry density,
 adding condensate makes the air heavier and gives a downward contribution.
 The compressible EOS also allows pressure perturbations to modify the
-density, and type 1 retains that contribution.
+density, and type 1 retains that contribution. Here "full" describes
+the density departure in this gravitational source; it does not imply
+that every other term in ERF's momentum equation is an exact
+moist-mixture treatment.
 
 Types 2 and 3: temperature perturbation
 ---------------------------------------
@@ -177,9 +180,13 @@ The three contributions to :math:`\beta_T` have familiar interpretations:
 warmer air favors upward buoyancy, additional water vapor favors upward
 buoyancy through its gas constant, and condensate or precipitation mass
 favors downward buoyancy. In a dry simulation, the water terms are zero.
-This temperature-based expression is a **dilute-moisture,
-small-pressure-perturbation approximation** to the density force, not an
-identity for arbitrary compressible states.
+This temperature-based expression approximates the full density force
+when water mixing ratios are dilute and pressure-induced density
+differences are negligible **compared with the thermal and moisture
+contributions retained by the approximation**. A small value of
+:math:`|p'|/p_0` alone does not guarantee agreement with type 1: for a
+pressure-only perturbation, the two gravitational-source expressions
+differ already at first order.
 
 Type 4: potential-temperature perturbation
 ------------------------------------------
@@ -205,9 +212,13 @@ a negative perturbation gives a downward contribution. As in the
 temperature formulation, moisture enhances buoyancy through vapor
 anomalies and reduces it through condensate loading.
 
-This is an approximation to the full compressible density force. In
-particular, a pressure perturbation at fixed potential temperature has
-no explicit contribution to :math:`\beta_\theta`.
+This is an approximation to the full compressible density force,
+appropriate when the omitted pressure-induced density contribution is
+negligible compared with the retained potential-temperature and moisture
+perturbations, and the dilute-moisture approximation is acceptable.
+In particular, a pressure perturbation at fixed potential temperature
+has no explicit contribution to :math:`\beta_\theta`. Merely reducing
+:math:`|p'|/p_0` does not make this formula identical to type 1.
 
 Anelastic buoyancy
 ------------------

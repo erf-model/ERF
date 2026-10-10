@@ -79,14 +79,32 @@ from the two neighboring cells to the face. Anelastic projection also
 adds a separate correction to the momenta; the equation here is a
 continuum summary, not a complete specification of the projection step.
 
-For **compressible** flow the perturbational pressure is
-:math:`p'=p-p_0`, where :math:`p` comes from the equation of state and
-:math:`p_0` is the hydrostatic base-state pressure. For **anelastic**
-flow, the symbol :math:`p'` in the schematic momentum equation denotes
-the pressure-like contribution enforced by projection. Its gradient is
-maintained by the projection solver; it should not be interpreted as
-an independently computed compressible EOS pressure perturbation.
-See :ref:`Buoyancy` for the exact gravitational source definitions and
+For **compressible** flow, the pressure :math:`p` is diagnosed from the
+prognostic thermodynamic state using the equation of state. The
+perturbational pressure is :math:`p'=p-p_0`, where :math:`p_0(z)` is
+the hydrostatic reference pressure. The momentum equations above show
+the usual perturbational-pressure form.
+
+ERF also offers a choice in the **discrete horizontal pressure gradient**.
+For ``erf.gradp_type = 0``, the default
+``erf.use_pert_pres_gradient = true`` evaluates the horizontal
+gradients from :math:`p'`. Setting
+``erf.use_pert_pres_gradient = false`` instead evaluates them from the
+full EOS pressure :math:`p`, before subtracting :math:`p_0` for the
+vertical pressure gradient. The vertical gradient is evaluated from
+:math:`p'` in both cases. With ``erf.gradp_type = 1``, ERF uses its
+interpolated perturbational-pressure gradient rather than this
+full-pressure option. Because :math:`p_0` depends only on physical
+height, the continuum horizontal derivatives of :math:`p` and
+:math:`p'` agree at fixed height; the discrete choices can nevertheless
+differ on terrain-following grids. See :ref:`sec:Inputs`.
+
+For **anelastic** flow, the :math:`p'` appearing in the schematic
+momentum equation denotes a pressure-like contribution enforced by
+projection. Its gradient is maintained by the projection solver, not
+recomputed as an independently diagnosed compressible EOS pressure
+perturbation. The projection also updates the momenta separately.
+See :ref:`Buoyancy` for the gravitational source definitions and
 face-average conventions.
 
 (Dry and Moist) Scalars
@@ -186,14 +204,24 @@ In the fully compressible formulation, the total pressure is computed as
 .. math::
   p = P_{00} \left( \frac{R_d \rho_d \theta_m}{P_{00}} \right)^\Gamma
 
-where the current EOS uses the fixed exponent :math:`\Gamma=1.4`,
-matched to the reference dry-air heat capacity
-:math:`C_{p,d}=1004.5\,\mathrm{J\,kg^{-1}\,K^{-1}}`, and
+Here :math:`\Gamma=1.4` is the fixed EOS exponent, consistent with
+the reference dry-air heat capacity
+:math:`C_{p,d}=1004.5\,\mathrm{J\,kg^{-1}\,K^{-1}}`.
+For the EOS, define
 
 .. math::
   \theta_m = \theta_d (1 + \frac{R_v}{R_d} q_v)
 
-is the moist potential temperature. This is the only place :math:`\theta_m` is used; we evolve :math:`\theta_d` above. In the above, :math:`R_d` and :math:`P_{00}=1\times10^{5}` Pa are the dry-air gas constant and fixed reference pressure.
+Here :math:`\theta_m` is an algebraic shorthand for the water-vapor
+factor used by the compressible EOS, not a separate prognostic
+thermodynamic variable. In particular, it should not be confused with
+virtual potential temperature, whose moist-air density relation also
+accounts for the mass of condensed water. ERF evolves dry potential
+temperature :math:`\theta_d` through the conserved variable
+:math:`\rho_d\theta_d`. In the equations above, :math:`R_d` is the
+dry-air gas constant and :math:`P_{00}=10^5\,\mathrm{Pa}` is the fixed
+reference pressure; neither should be confused with the varying
+hydrostatic reference pressure :math:`p_0(z)`.
 
 Define
 
