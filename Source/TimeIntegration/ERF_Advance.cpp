@@ -1,6 +1,7 @@
 #include <ERF.H>
 #include "ERF_Constants.H"
 #include <ERF_Utils.H>
+#include "Microphysics/SBM/ERF_SBMStateManager.H"
 
 #ifdef ERF_USE_WINDFARM
 #include <ERF_WindFarm.H>
@@ -24,6 +25,13 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
 
     // We must swap the pointers so the previous step's "new" is now this step's "old"
     std::swap(vars_old[lev], vars_new[lev]);
+
+    if (sbm_state_manager) {
+        std::string diagnostic;
+        if (!sbm_state_manager->begin_step(lev, time, diagnostic)) {
+            Abort("SBM state lifecycle at ERF::Advance: " + diagnostic);
+        }
+    }
 
     // Surface energy balance on the building faces, with the state at the start of the step
     ibseb_advance(lev, time, dt_lev, vars_old[lev][Vars::cons],

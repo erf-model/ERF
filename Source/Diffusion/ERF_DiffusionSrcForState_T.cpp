@@ -150,6 +150,13 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
             ScaleScalarDiffusionVerticalFlux(
                 zbx, zflux, field.flux_comp, explicit_fac);
         }
+        // erf.implicit_terrain_metric: the implicit solve of this quantity also takes the
+        // compact terrain-metric term, so remove that part of it from the explicit flux
+        if (native_policy.scale_raw_vertical_flux && solverChoice.implicit_terrain_metric &&
+            implicit_fac > zero) {
+            SubtractTerrainMetricImplicitPart_T(
+                bx, domain, field, flux_policy, z_nd, cellSizeInv, mf_mx, mf_my, implicit_fac);
+        }
 
         ApplyScalarDiffusionMappedDivergence_T(
             bx, domain, field, z_nd, ax, ay, detJ, cellSizeInv, mf_mx, mf_uy,

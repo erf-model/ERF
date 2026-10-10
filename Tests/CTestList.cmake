@@ -563,6 +563,55 @@ function(add_test_smag2d_ridge TEST_NAME MODE PLTFILE)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/steep/simulation.log;${CURRENT_TEST_BINARY_DIR}/control/simulation.log;${CURRENT_TEST_BINARY_DIR}/check_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/check_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log;${CURRENT_TEST_BINARY_DIR}/limit/simulation.log")
 endfunction(add_test_smag2d_ridge)
 
+# Stable flow over a steep ridge with Smagorinsky2D + MRF (Tests/test_files/Terrain_Stress_Ridge,
+# erf-model/ERF#4214), driven by Tests/RunTerrainStressRidge.cmake.  MODE "survive" runs OPTIONS
+# and requires a finished, bounded run; CONTROL_OPTIONS, when given, must start and then fail.
+# MODE "agree" runs ON_OPTIONS and OFF_OPTIONS, which must agree within RTOL/ATOL and differ.
+function(add_test_terrain_stress_ridge TEST_NAME MODE PLTFILE)
+    set(oneValueArgs "OPTIONS" "CONTROL_OPTIONS" "WMAX" "RUN_TIMEOUT" "ON_OPTIONS" "OFF_OPTIONS"
+                     "RTOL" "ATOL")
+    cmake_parse_arguments(ADD_TEST_TSR "" "${oneValueArgs}" "" ${ARGN})
+    set(TEST_FILES_DIR Terrain_Stress_Ridge)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(_run_timeout 1200)
+    if(NOT "${ADD_TEST_TSR_RUN_TIMEOUT}" STREQUAL "")
+        set(_run_timeout "${ADD_TEST_TSR_RUN_TIMEOUT}")
+    endif()
+    math(EXPR _ctest_timeout "2 * ${_run_timeout} + 600")
+
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMODE=${MODE}"
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/Terrain_Stress_Ridge.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DFCOMPARE=${FCOMPARE_EXE}"
+        "-DFEXTREMA=${FEXTREMA_EXE}"
+        "-DPLTFILE=${PLTFILE}"
+        "-DOPTIONS=${ADD_TEST_TSR_OPTIONS}"
+        "-DCONTROL_OPTIONS=${ADD_TEST_TSR_CONTROL_OPTIONS}"
+        "-DWMAX=${ADD_TEST_TSR_WMAX}"
+        "-DRUN_TIMEOUT=${_run_timeout}"
+        "-DON_OPTIONS=${ADD_TEST_TSR_ON_OPTIONS}"
+        "-DOFF_OPTIONS=${ADD_TEST_TSR_OFF_OPTIONS}"
+        "-DRTOL=${ADD_TEST_TSR_RTOL}"
+        "-DATOL=${ADD_TEST_TSR_ATOL}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunTerrainStressRidge.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT ${_ctest_timeout}
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/survive/simulation.log;${CURRENT_TEST_BINARY_DIR}/control/simulation.log;${CURRENT_TEST_BINARY_DIR}/option_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/option_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/agree.log")
+endfunction(add_test_terrain_stress_ridge)
+
 # The numeric log comparison add_test_box_parity's DATALOG relies on: a comparator that
 # accepts everything passes every test that uses it, so it needs its own test.  Pure CMake,
 # no ERF run, hence the "unit" label.
@@ -2718,18 +2767,28 @@ add_test_restart_parity(TerrainHill_RegridOnRestart_TimeAvg TerrainHill 7 20
     COMMON_OPTIONS  "amr.max_level=0 erf.terrain_type=None erf.time_avg_vel=true erf.plot_vars_1=density x_velocity y_velocity theta u_t_avg v_t_avg umag_t_avg"
     RESTART_OPTIONS "erf.regrid_level_0_on_restart=1 amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64"
     ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
-# Not zero tolerance, and not because of the regrid: the interval means are already not
-# restart-exact without one. A plain same-rank restart of this deck reproduces theta_mean to
-# 1 ulp (1.9e-16 relative) and w_mean to 6.5e-23 absolute, on a w_mean that is itself ~1e-21,
-# and the same two numbers appear whether or not level 0 is re-made. Two decompositions run
-# straight through, with no restart at all, agree exactly, so it is the restart and not the
-# decomposition. That is issue 4243; the bound here is set just above what it costs so this
-# test still fails if the means are actually lost, which would be O(1). Put it back to zero
-# when 4243 is fixed.
+# Zero tolerance, like the other two: issue 4243 is fixed. It was not the regrid and not the
+# checkpoint I/O -- a fresh start kept its t=0 sample in the averaging window unless an
+# initial plotfile happened to flush it, so the straight leg (which writes plt00000) and the
+# checkpoint leg (erf.plot_int_1=-1, which does not) normalized by a different number of
+# samples. A fresh start now always drops that sample at the end of initialization, so the
+# window at step 1 no longer depends on the output cadence.
 add_test_restart_parity(TerrainHill_RegridOnRestart_IntervalMeans TerrainHill 7 20
     COMMON_OPTIONS  "amr.max_level=0 erf.terrain_type=None erf.compute_mean_vars=true erf.plot_vars_1=density x_velocity theta u_mean v_mean w_mean theta_mean"
     RESTART_OPTIONS "erf.regrid_level_0_on_restart=1 amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64"
-    ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "1.0e-12" FCOMPARE_ATOL "1.0e-20")
+    ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+endif()
+
+# The same deck with no regrid and no rank change: the plain restart that issue 4243 was
+# actually reported against. The regrid case above would also catch a lost window, but it
+# moves the grids at the same time, so a failure there does not say which half broke. No deck
+# setting erf.compute_mean_vars was registered as a restart-parity case before this, which is
+# why the t=0 sample asymmetry survived in the first place.
+# The runner is a cmake -P script (MPI, not Windows), as for every case above.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_parity(TerrainHill_Restart_IntervalMeans TerrainHill 7 20
+    COMMON_OPTIONS "amr.max_level=0 erf.terrain_type=None erf.compute_mean_vars=true erf.plot_vars_1=density x_velocity theta u_mean v_mean w_mean theta_mean"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
 
 # SLM across a restart. Nothing covered this: the two SLM decks in the tree are gated behind
@@ -2946,6 +3005,77 @@ add_test_abort(DiffusiveDt_Abort_LimitFixedDt ${_smag2d_dir} Smag2D_Ridge.i
 add_test_abort(DiffusiveDt_Abort_LimitNoClosure ${_smag2d_dir} Smag2D_Ridge.i
                "erf.diffusive_dt_limit = true needs an eddy-diffusivity closure"
                "erf.diffusive_dt_limit=true erf.fixed_dt=-1 erf.les_type=None erf.pbl_type=None")
+endif()
+
+#=============================================================================
+# Terrain-fitted momentum stresses (erf-model/ERF#4214)
+#=============================================================================
+# Steep ridge (h dx/dz about 20 in the first cells), 3 km grid, Smagorinsky2D + MRF.  With the
+# projected horizontal stresses on K_v, as before #4214, anelastic runs on this deck fail late
+# at every time step tried, from 5 s up: the anti-diffusion does not depend on dt.  With K_h on
+# them and the implicit split exact (the u/v solves use the correction stress's h_zeta), the
+# anelastic MidPoint run is stable to 20 s and fails at 25 s (step 95).  The test runs 1440
+# steps of 15 s (6 h), a step below that edge, and must stay bounded; measured with erf_exec
+# (Release, 2 ranks), the K_v form fails it at step 1028.  Anelastic on a stretched
+# terrain-fitted mesh needs the FFT preconditioner, so CI's GitHub jobs (no FFT) do not run this
+# test; the gtests cover the kernels there.
+if(ERF_ENABLE_FFT)
+add_test_terrain_stress_ridge(TerrainStress_Ridge_AnelasticMidPoint survive "plt01440"
+    OPTIONS "erf.anelastic=1 erf.use_fft=true erf.anelastic_type=MidPoint erf.fixed_dt=15 max_step=1440 erf.plot_int_1=1440"
+    WMAX 5
+    RUN_TIMEOUT 1800)
+endif()
+
+# erf.implicit_terrain_metric (opt-in) puts the compact K_h * M * d2/dz2 metric term into the
+# implicit vertical solves.  Measured on this deck (Release, 2 ranks, 6 h): with
+# erf.vert_implicit_fac = 1 1 1 the run without the option is stable to 25 s and fails from
+# 30 s; with it, to 70 s, failing at 75 s (as a run without LES does).  The test runs the option
+# at 50 s for 60 steps (fixed_mri_dt_ratio 30, as in the scans), well inside both edges, and the
+# control without it at 50 s must fail (it does at step 2).
+add_test_terrain_stress_ridge(TerrainStress_Ridge_ImplicitMetric survive "plt00060"
+    OPTIONS "erf.implicit_terrain_metric=true erf.vert_implicit_fac=1 1 1 erf.fixed_dt=50 erf.fixed_mri_dt_ratio=30 max_step=60 erf.plot_int_1=60"
+    CONTROL_OPTIONS "erf.vert_implicit_fac=1 1 1 erf.fixed_dt=50 erf.fixed_mri_dt_ratio=30 max_step=60 erf.plot_int_1=60"
+    WMAX 15)
+# A 3-D Witch-of-Agnesi hill (prob.dir = 2, slopes in x and y), 32 x 32 cells in four 16 x 16 boxes,
+# so the stress loop runs on two tiles in y per box (TileNoZ tiles y by 8 on CPU; x is not tiled,
+# so the x seam is covered by TerrainStress.TiledStressesMatchTheWholeBox only).  It exercises the
+# S12/S21 projections, which the 2-D ridges leave at zero, and the K_h-weighted stress temporaries
+# across tile edges.  With them sized on the nodal tile box the reads went past the arrays: a Debug
+# build aborts on the bound check, while a Release run depends on stale memory (it failed at step 12
+# in one run and finished in another; TerrainStress.TiledStressesMatchTheWholeBox catches it in
+# both).  Measured (Release, 2 ranks, 6 h): stable to 30 s at the default vert_implicit_fac; the test
+# runs 60 steps of 20 s.
+add_test_terrain_stress_ridge(TerrainStress_Hill3D survive "plt00060"
+    OPTIONS "geometry.prob_extent=96000 96000 12952.825935499923 amr.n_cell=32 32 40 amr.max_grid_size_y=16 prob.dir=2 erf.fixed_dt=20 erf.fixed_mri_dt_ratio=12 max_step=60 erf.plot_int_1=60"
+    WMAX 5)
+# At a small time step the option changes only the time discretization of the metric term: after
+# 60 steps of 5 s, u and w differ by about 4e-4 and Kmh by 0.1 % (relative), and the two runs
+# must still differ.  A split that removed one form and added another would differ by O(1).
+# Double precision only: y_velocity is round-off (1e-13 here), which in single precision is far
+# above ATOL in both runs and would make the comparison meaningless.
+if(ERF_PRECISION STREQUAL "DOUBLE")
+add_test_terrain_stress_ridge(TerrainStress_Ridge_ImplicitMetricAgree agree "plt00060"
+    ON_OPTIONS "erf.implicit_terrain_metric=true erf.vert_implicit_fac=1 1 1 erf.fixed_dt=5 erf.fixed_mri_dt_ratio=4 max_step=60 erf.plot_int_1=60"
+    OFF_OPTIONS "erf.vert_implicit_fac=1 1 1 erf.fixed_dt=5 erf.fixed_mri_dt_ratio=4 max_step=60 erf.plot_int_1=60"
+    RTOL 0.01
+    ATOL 1.e-9)
+endif()
+
+# erf.implicit_terrain_metric is checked at start-up and aborts naming itself.  add_test_abort
+# runs through `sh -c ... | tee`, so these sit under the same guard as its other uses.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+set(_tsr_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/Terrain_Stress_Ridge)
+add_test_abort(TerrainStress_Abort_MetricWithoutTerrain ${_tsr_dir} Terrain_Stress_Ridge.i
+               "erf.implicit_terrain_metric = true requires a terrain-fitted mesh"
+               "erf.terrain_type=None erf.grid_stretching_ratio=0 prob.custom_terrain_type=None erf.implicit_terrain_metric=true erf.vert_implicit_fac=1 1 1")
+add_test_abort(TerrainStress_Abort_MetricExplicitStage ${_tsr_dir} Terrain_Stress_Ridge.i
+               "erf.vert_implicit_fac is not positive in stage 3 at level 0"
+               "erf.implicit_terrain_metric=true")
+if(ERF_ENABLE_FFT)
+add_test_abort(TerrainStress_Abort_MetricAnelasticMidPoint ${_tsr_dir} Terrain_Stress_Ridge.i
+               "erf.vert_implicit_fac is not positive in stage 2 at level 0"
+               "erf.anelastic=1 erf.use_fft=true erf.anelastic_type=MidPoint erf.implicit_terrain_metric=true erf.vert_implicit_fac=1 1 1")
+endif()
 endif()
 
 #=============================================================================
