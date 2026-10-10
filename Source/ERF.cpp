@@ -1949,6 +1949,30 @@ ERF::InitData_post ()
             micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons], base);
             micro->FinishInit(lev, vars_new[lev][Vars::cons], z_phys_nd);
         }
+
+        // Lagrangian microphysics with AMR (TwoWay): the per-level init above
+        // leaves the coarse moist state holding its own deposit rather than the
+        // average of the fine one, and the regrid path (ERF_TimeStep.cpp) and
+        // the plotfile path (BuildPlot3DScratch) both restrict it before they
+        // use it.  Doing it here instead means initialization, not an output,
+        // is what hands step 1 a coarse/fine consistent state -- so the initial
+        // checkpoint records the same solution whether or not an initial
+        // plotfile was written.  The restriction is idempotent, so the one in
+        // BuildPlot3DScratch becomes a no-op at t=0.
+        //
+        // Fresh starts only.  A restart has to hand step N+1 exactly the state
+        // the checkpoint holds, which is the state the straight run carried at
+        // step N; applying any extra transform here is what would make the two
+        // legs differ.
+        if (restart_chkfile.empty() &&
+            solverChoice.coupling_type == CouplingType::TwoWay &&
+            Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian &&
+            finest_level >= 1) {
+            micro->AverageDownMicroVars(finest_level);
+            for (int flev = finest_level-1; flev >= 0; --flev) {
+                AverageDownMoistStateTo(flev);
+            }
+        }
     }
 
     // Update LSM with initial condition
@@ -2044,18 +2068,6 @@ ERF::InitData_post ()
             if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 += m_plot3d_per_2;}
             last_plot3d_file_step_2 = istep[0];
         }
-        // A restart restores a window that must survive untouched: a
-        // restart-only plot is observational and must not consume it before
-        // the first post-restart advance.  A fresh start instead drops its
-        // t=0 sample here whether or not an initial plotfile was written --
-        // that sample is an instantaneous state, not a completed step, and
-        // leaving it in made the first interval depend on the output cadence,
-        // which is what kept the means from being restart-exact (issue 4243).
-        if (erf_interval_means::initialization_clears_interval(
-                !restart_chkfile.empty(), solverChoice.compute_mean_vars,
-                solverChoice.mean_vars_reset_mode)) {
-            ResetIntervalMeans();
-        }
         if (m_plot2d_int_1 > 0 || m_plot2d_per_1 > zero)
         {
             Write2DPlotFile(1,plotfile2d_type_1,plot2d_var_names_1);
@@ -2075,6 +2087,23 @@ ERF::InitData_post ()
                 if (m_subvol_per[i] > zero) {last_subvol_time[i] += m_subvol_per[i];}
             }
         }
+    }
+
+    // A restart restores a window that must survive untouched: a restart-only
+    // plot is observational and must not consume it before the first
+    // post-restart advance.  A fresh start instead drops its t=0 sample here
+    // whether or not an initial plotfile was written -- that sample is an
+    // instantaneous state, not a completed step, and leaving it in made the
+    // first interval depend on the output cadence, which is what kept the means
+    // from being restart-exact (issue 4243).
+    //
+    // This sits outside the emission block above on purpose: the invariant is
+    // "a fresh start carries no t=0 sample into step 1", which has nothing to
+    // do with whether that start had anything to write.
+    if (erf_interval_means::initialization_clears_interval(
+            !restart_chkfile.empty(), solverChoice.compute_mean_vars,
+            solverChoice.mean_vars_reset_mode)) {
+        ResetIntervalMeans();
     }
 
     // After the plotfiles, as in WriteAtIntermediateTime: an initial checkpoint
