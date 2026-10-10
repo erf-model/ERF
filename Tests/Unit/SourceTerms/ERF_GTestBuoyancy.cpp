@@ -289,9 +289,7 @@ amrex::Real type1_oracle (const BuoyancyFixture& fixture,
     const amrex::Real gz = -CONST_GRAV;
     const auto cell_perturbation = [&fixture, &state] (int k) {
         const amrex::Real rho0 = fixture.base_density(k, state.qv0);
-        const amrex::Real theta0 = fixture.base_theta(k, state.qv0);
         const amrex::Real qv = state.qv0 + state.vapor_anomaly;
-        const amrex::Real theta = state.theta_factor*theta0;
         // Derive rho/rho0 from the EOS closure: p scales as pressure_factor,
         // theta scales as theta_factor, and water changes the virtual-temperature factor.
         const amrex::Real rho = rho0 *
