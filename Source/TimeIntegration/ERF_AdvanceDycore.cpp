@@ -619,6 +619,7 @@ void ERF::advance_dycore (int level,
     MultiFab* Q1fx3 = SFS_q1fx3_lev[level].get();
     MultiFab* Q2fx3 = SFS_q2fx3_lev[level].get();
     MultiFab* Diss  = SFS_diss_lev[level].get();
+    MultiFab* mf_surface_fluxes = &mfvec_surface_fluxes[level];
 
     MultiFab* Hfx3_EB = nullptr;
     if (solverChoice.terrain_type == TerrainType::EB) {

@@ -855,7 +855,12 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
         MultiFab mf_cc_vel(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(0,0,0));
         average_face_to_cellcenter(mf_cc_vel,0,{AMREX_D_DECL(&U_new,&V_new,&W_new)},0);
 
-        HurricaneEyeTracker(solverChoice, mf_cc_vel);
+        int hurricane_eye_i_glob, hurricane_eye_j_glob;
+        Real hurricane_eye_latitude, hurricane_eye_longitude;
+
+        HurricaneEyeTracker(solverChoice, mf_cc_vel,
+                            hurricane_eye_i_glob, hurricane_eye_j_glob,
+                            hurricane_eye_latitude, hurricane_eye_longitude);
 
         HurricaneMaxVelTracker(geom[levc],
                                mf_cc_vel,
@@ -866,11 +871,19 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
                                     vars_new[levc][Vars::cons],
                                     t_new[0]);
 
+        HurricaneSurfaceFluxesTracker(geom[levc],
+                                      hurricane_eye_i_glob,
+                                      hurricane_eye_j_glob,
+                                      hurricane_eye_latitude,
+                                      hurricane_eye_longitude,
+                                      t_new[0]);
+
         std::string filename_tracker = MakeVTKFilename_TrackerCircle(nstep);
         std::string filename_xy      = MakeVTKFilename_EyeTracker_xy(nstep);
         std::string filename_latlon  = MakeFilename_EyeTracker_latlon(nstep);
         std::string filename_maxvel  = MakeFilename_EyeTracker_maxvel(nstep);
         std::string filename_minpressure  = MakeFilename_EyeTracker_minpressure(nstep);
+        std::string filename_surface_fluxes = MakeFilename_EyeTracker_surface_fluxes(nstep);
 
         if (ParallelDescriptor::IOProcessor()) {
             WriteVTKPolyline(filename_tracker, hurricane_tracker_circle);
@@ -878,7 +891,17 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
             WriteLinePlot(filename_latlon, hurricane_eye_track_latlon);
             WriteLinePlot(filename_maxvel, hurricane_maxvel_vs_time);
             WriteLinePlot(filename_minpressure, hurricane_minpressure_vs_time);
+            WriteLinePlot(filename_surface_fluxes, hurricane_surface_fluxes_vs_time);
         }
+        Vector<std::string> var_names = {"sensible_heat_flux", "latent_heat_flux"};
+
+WriteSingleLevelPlotfile(
+    "surface_flux_plot",
+    mfvec_surface_fluxes[levc],
+    var_names,
+    geom[levc],
+    t_new[0],
+    0);
     }
 
 } // post_timestep
@@ -4333,7 +4356,7 @@ ERF::check_for_low_temp (amrex::MultiFab& S)
 
             if (temp < t_low) {
 #ifdef AMREX_USE_GPU
-                AMREX_DEVICE_PRINTF("Temperature too low in cell: %d %d %d %e \n", i,j,k,temp);
+                //AMREX_DEVICE_PRINTF("Temperature too low in cell: %d %d %d %e \n", i,j,k,temp);
 #else
                 printf("Temperature too low in cell: %d %d %d \n", i,j,k);
                 printf("Based on temp / rhotheta / rho / qv %e %e %e %e \n", temp,rhotheta,rho,qv);
