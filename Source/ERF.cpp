@@ -2772,6 +2772,25 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
         }
     }
 
+    //
+    // What follows fills the HALO of these 2-D fields from the parent.  A level that read
+    // its own init file already has one -- init_from_wrfinput/init_from_metgrid fill the
+    // grown box by clamping the file indices into the valid region -- and that halo is the
+    // level's own data, exactly as its valid cells are, so we must not replace it with the
+    // parent's interpolation.  The same guard is applied to the map factors, the surface
+    // pressure and the land masks at the top of this routine, and for the same reason.
+    //
+    // This is not cosmetic.  MakeNewLevelFromCoarse does NOT call this routine on the
+    // branch that reads an init file, so a level created part-way through a run keeps the
+    // file's halo -- while a restart rebuilds every level through MakeNewLevelFromScratch
+    // and then comes through here, which overwrote the halo the checkpoint had just
+    // restored.  The surface layer reads SST/TSK on grown tileboxes and the momentum
+    // sources read sinPhi/cosPhi past the domain faces, so the restarted run saw different
+    // surface temperatures and Coriolis factors than the run it was continuing -- by 29 K
+    // in TSK on inputs_wps_ml_interp, which is what made KE and Kmv diverge there.
+    //
+    if (has_own_init_file(lev)) { return; }
+
     Real time_for_fp = 0.0; // This is not actually used
     Vector<Real> ftime    = {static_cast<Real>(time_for_fp), static_cast<Real>(time_for_fp)};
     Vector<Real> ctime    = {static_cast<Real>(time_for_fp), static_cast<Real>(time_for_fp)};
