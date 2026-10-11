@@ -1408,6 +1408,16 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             AMREX_ALWAYS_ASSERT(solverChoice.terrain_type == TerrainType::StaticFittedMesh);
             z_top = compute_terrain_top_and_bottom(mf_PH, *mf_PHB, geom[lev].Domain());
         } else {
+            //
+            // z_top comes from level 0's own PH/PHB and is held across the run.  If it is still
+            // zero here then level 0 was never built from a wrfinput file in this process and the
+            // value was not recovered from the checkpoint either; every height below would then be
+            // zero and the grid degenerate, so say so rather than building it.
+            //
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(z_top > zero,
+                "Top of domain from level 0 is not set, so the terrain at this level cannot be "
+                "built; a checkpoint written before z_top was stored cannot create a new level "
+                "from a wrfinput file on restart");
             amrex::Print() << "Warning: using top of domain set at level 0 which is " << z_top << std::endl;
         }
 
