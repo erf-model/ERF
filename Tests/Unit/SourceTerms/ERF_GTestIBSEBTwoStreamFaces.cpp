@@ -17,7 +17,8 @@
 #include "ERF_TwoStreamCanopyForcing.H"
 
 // With erf.ibseb.radiation = two_stream every face reads the column of its own fluid cell at
-// its own height (a roof its interface, a wall the mean of its cell's two): the beam over the
+// its own height (a roof the bottom of its fluid cell, a ceiling under an overhang the top of
+// it, a wall the mean of its cell's two): the beam over the
 // cosine of the zenith, the shortwave down less the beam, and the longwave down and the
 // shortwave and longwave up there. Here the beam and the interface fluxes differ in every column and at
 // every interface, and the level is split into four boxes, so a face that read another
@@ -35,7 +36,7 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real lwdn_at (int i, int j, int 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real swup_at (int i, int j, int m) { return amrex::Real(50.0 + i + 0.5 * j - 2.0 * m); }
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE amrex::Real lwup_at (int i, int j, int m) { return amrex::Real(400.0 + 1.5 * i - j + 6.0 * m); }
 
-struct Cells { int ilo, ihi, jlo, jhi, khi; };
+struct Cells { int ilo, ihi, jlo, jhi, khi; int klo = 0; };
 
 void fill_blanking (amrex::MultiFab& b, const amrex::Geometry& geom, const std::vector<Cells>& solid)
 {
@@ -44,7 +45,7 @@ void fill_blanking (amrex::MultiFab& b, const amrex::Geometry& geom, const std::
         const amrex::Box& bx = mfi.validbox();
         auto const& a = b.array(mfi);
         for (const Cells& s : solid) {
-            const amrex::Box ov = amrex::Box(amrex::IntVect(s.ilo, s.jlo, 0), amrex::IntVect(s.ihi, s.jhi, s.khi)) & bx;
+            const amrex::Box ov = amrex::Box(amrex::IntVect(s.ilo, s.jlo, s.klo), amrex::IntVect(s.ihi, s.jhi, s.khi)) & bx;
             if (ov.isEmpty()) { continue; }
             amrex::ParallelFor(ov, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept { a(i, j, k) = 1.0; });
         }
@@ -94,8 +95,10 @@ TEST(IBSEBTwoStreamFaces, EachFaceReadsItsOwnColumnAtItsHeight)
     const DistributionMapping dm(ba);
 
     MultiFab blank(ba, dm, 1, 1);
-    // A 30 m block over 2 x 3 columns and a 50 m tower on one column.
-    fill_blanking(blank, geom, {{2, 3, 3, 5, 2}, {6, 6, 1, 1, 4}});
+    // A 30 m block over 2 x 3 columns, a 50 m tower on one column, and a slab from 30 m to
+    // 50 m over open air (an overhang, as an STL building can have), whose underside faces
+    // down from the top of the fluid cells below it.
+    fill_blanking(blank, geom, {{2, 3, 3, 5, 2}, {6, 6, 1, 1, 4}, {0, 1, 6, 7, 4, 3}});
 
     IBSEBParams params;
     params.enable = true;
@@ -141,11 +144,11 @@ TEST(IBSEBTwoStreamFaces, EachFaceReadsItsOwnColumnAtItsHeight)
     const auto& sun = faces.sun();
     const Real tol = (sizeof(Real) == 8) ? Real(1.e-12) : Real(1.e-5);
 
-    int n_roof = 0, n_wall = 0, n_lit = 0;
+    int n_roof = 0, n_ceiling = 0, n_wall = 0, n_lit = 0;
     std::vector<int> columns;
     for (int f = 0; f < faces.n_faces(); ++f) {
         const Real w_up = (dir[f] == 2) ? Real(0.0) : Real(0.5);
-        const int m = k[f];
+        const int m = k[f] + ((dir[f] == 2 && side[f] > 0) ? 1 : 0);   // a ceiling: the top of its cell
         const int mu = (dir[f] == 2) ? m : m + 1;
         const Real b  = (1.0 - w_up) * beam_at(i[f], j[f], m) + w_up * beam_at(i[f], j[f], mu);
         const Real sd = (1.0 - w_up) * swdn_at(i[f], j[f], m) + w_up * swdn_at(i[f], j[f], mu);
@@ -161,7 +164,15 @@ TEST(IBSEBTwoStreamFaces, EachFaceReadsItsOwnColumnAtItsHeight)
         EXPECT_NEAR(dirin[f], direct, tol * (std::abs(direct) + 1.0)) << "face " << f << " (" << i[f] << "," << j[f] << "," << k[f] << ") dir " << dir[f];
         EXPECT_NEAR(difin[f], diffuse, tol * (std::abs(diffuse) + 1.0)) << "face " << f;
         EXPECT_NEAR(lwext[f], lw, tol * (std::abs(lw) + 1.0)) << "face " << f;
-        (dir[f] == 2 ? n_roof : n_wall) += 1;
+        (dir[f] == 2 ? (side[f] > 0 ? n_ceiling : n_roof) : n_wall) += 1;
+        // The view-fraction ray cast takes each column as solid up to its top, so a face
+        // under an overhang sees only building: its column's fluxes carry no weight today.
+        // The sample rule above (the top of its cell) is checked directly in
+        // TwoStreamCanopyForcing.FacesSampleTheirOwnHeight and FaceSkyFromItsColumn.
+        if (dir[f] == 2 && side[f] > 0) {
+            EXPECT_EQ(fs[f], Real(0.0)) << "ceiling face " << f;
+            EXPECT_EQ(fg[f], Real(0.0)) << "ceiling face " << f;
+        }
         if (direct > 1.0) { ++n_lit; }
         columns.push_back(i[f] * 8 + j[f]);
     }
@@ -169,6 +180,7 @@ TEST(IBSEBTwoStreamFaces, EachFaceReadsItsOwnColumnAtItsHeight)
     std::sort(columns.begin(), columns.end());
     columns.erase(std::unique(columns.begin(), columns.end()), columns.end());
     EXPECT_GT(n_roof, 6);
+    EXPECT_GE(n_ceiling, 4);
     EXPECT_GT(n_wall, 10);
     EXPECT_GT(n_lit, 4);
     EXPECT_GT(static_cast<int>(columns.size()), 10);

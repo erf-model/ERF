@@ -494,8 +494,9 @@ same sky light and the same warmth from the ground. That is what
 vertical column of cells it finds the sunlight and the longwave going up and down
 at every cell face in the vertical (an *interface*). Each building face (a wall or
 roof cell face) reads the column of the air cell next to it, at its own height
-:math:`z_f`. A roof reads the interface it lies on; a wall the mean of the two
-interfaces of its cell. Using the column's fluxes at that height, a face takes
+:math:`z_f`. A roof, or a ceiling under an overhang, reads the interface it lies
+on; a wall the mean of the two interfaces of its cell. Using the column's fluxes at
+that height, a face takes
 
 .. math::
 
@@ -520,8 +521,11 @@ The symbols are:
 
 Why each term is read at the face's own height:
 
-- *The fluxes going down* there are the sun and the sky that reach the face. The
-  buildings are height maps, so no building stands above a face in its own column.
+- *The fluxes going down* there are the sun and the sky that reach the face. For
+  buildings from a height map, no building stands above a face in its own column.
+  A building from an STL file can overhang. The view fractions and the shadow
+  take each column as solid up to its top, so a face under an overhang sees only
+  building: it gets no sky, ground or direct sun, only the building term.
 - *The fluxes going up* there are the ground as the face sees it, through the air
   in between. The ground's albedo, emissivity and temperature are therefore the
   column's (the two-stream surface balance, a land model or :cpp:`erf.rad_t_sfc`).

@@ -3712,7 +3712,10 @@ column would be taken for a building), a uniform vertical grid (no
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.csv_file**            | per-building report file; a restart appends from its     | String             | "ibseb_buildings.csv"  |
 |                                   | next report (the step it starts from is not written      |                    |                        |
-|                                   | again)                                                   |                    |                        |
+|                                   | again). With radiation = two_stream its dni_Wm2 and      |                    |                        |
+|                                   | diffuse_h_Wm2 columns are the means over the level's     |                    |                        |
+|                                   | faces of what each face takes from its own column, not   |                    |                        |
+|                                   | one sky's irradiance as with radiation = prescribed      |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.csv_int**             | steps between report rows; <= 0 disables the report      | Integer            | 100                    |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+

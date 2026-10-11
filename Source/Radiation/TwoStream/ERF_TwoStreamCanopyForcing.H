@@ -28,9 +28,12 @@
  *  - the cosine of the zenith angle, floored at zero (a 2D field).
  * A face reads the column of its fluid cell at its own height
  * (two_stream_canopy_sample()): the downwelling fluxes there are the sun and
- * the sky that reach it (the buildings are height maps, so no building stands
- * above a face in its own column), and the upwelling fluxes there are the ground
- * as seen from that height, through the air in between.
+ * the sky that reach it (for height-map buildings no building stands above a
+ * face in its own column; a face under the overhang of an STL building sees only
+ * building in IBFaceSet's view fractions, which take each column as solid up to
+ * its top, so its column's fluxes carry no weight), and the
+ * upwelling fluxes there are the ground as seen from that height, through the air
+ * in between.
  */
 
 /**
@@ -84,22 +87,24 @@ void two_stream_canopy_beam (int i, int j, int kmin, int m_top,
 }
 
 /**
- * @brief Sample interface of a face and the weight of the one above: a roof (a
- * z face, which with height-map buildings always has its solid below) takes the
- * interface at its own height, the bottom of its fluid cell (m = k - k0); a wall
- * the mean of the two interfaces of its cell (m and m + 1), its mean height.
+ * @brief Sample interface of a face and the weight of the one above. A z face
+ * takes the interface it lies on: a roof (solid below, side -1) the bottom of its
+ * fluid cell (m = k - k0), a ceiling (solid above, side +1, as under an overhang
+ * of a building from an STL file) the top of it (m = k - k0 + 1). A wall takes the
+ * mean of the two interfaces of its cell (m and m + 1), its mean height.
  *
  * @param k    fluid cell of the face (the level's index)
  * @param k0   the level's domain bottom
  * @param dir  face direction (0 x, 1 y, 2 z)
+ * @param side side of the fluid cell the solid is on (-1 or +1)
  * @param w_up weight of interface m + 1
  * @return the lower sample interface m
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-int two_stream_canopy_sample (int k, int k0, int dir, amrex::Real& w_up)
+int two_stream_canopy_sample (int k, int k0, int dir, int side, amrex::Real& w_up)
 {
     w_up = (dir == 2) ? amrex::Real(0.0) : amrex::Real(0.5);
-    return k - k0;
+    return k - k0 + ((dir == 2 && side > 0) ? 1 : 0);
 }
 
 /** @brief What one face takes from its column (all W/m^2). */
@@ -113,8 +118,8 @@ struct TwoStreamFaceSky
 };
 
 /**
- * @brief The column radiation a face at fluid cell (i,j,k) of direction @p dir
- * takes: at its sample (two_stream_canopy_sample()), the direct-normal
+ * @brief The column radiation a face at fluid cell (i,j,k) of direction @p dir,
+ * with its solid on side @p side, takes: at its sample (two_stream_canopy_sample()), the direct-normal
  * irradiance (the beam over the column's cosine of the zenith), the diffuse
  * light (the shortwave down less the beam, floored at zero against round-off on
  * a transparent column), the longwave down, and the shortwave and longwave up,
@@ -125,13 +130,13 @@ struct TwoStreamFaceSky
  * @param fluxes  interface fluxes in RRTMGP's level layout (absolute k)
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-TwoStreamFaceSky two_stream_face_sky (int i, int j, int k, int k0, int dir,
+TwoStreamFaceSky two_stream_face_sky (int i, int j, int k, int k0, int dir, int side,
                                       const amrex::Array4<const amrex::Real>& beam,
                                       const amrex::Array4<const amrex::Real>& cosz,
                                       const amrex::Array4<const amrex::Real>& fluxes)
 {
     amrex::Real w_up = 0.0;
-    const int ms = two_stream_canopy_sample(k, k0, dir, w_up);
+    const int ms = two_stream_canopy_sample(k, k0, dir, side, w_up);
     const int mu = ms + ((w_up > amrex::Real(0.0)) ? 1 : 0);
     const amrex::Real w_lo = amrex::Real(1.0) - w_up;
     const amrex::Real beam_h = w_lo * beam(i, j, ms) + w_up * beam(i, j, mu);

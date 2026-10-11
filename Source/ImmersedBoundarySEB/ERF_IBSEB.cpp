@@ -104,6 +104,18 @@ ERF::init_ibseb ()
                   " interpolation and no column sweep of its own supplies its faces; refine the whole height"
                   " (amr.refine_whole_domain_dir) or use erf.ibseb.radiation = prescribed");
         }
+        // A level whose atmosphere is to be filled from the level below
+        // (erf.interp_atmos_from_coarse with a WRF input) skips its first sweep, so its faces
+        // would stop at the first step; say so now. (Today that path needs a terrain-fitted
+        // grid, which the balance refuses above; this check keeps the stop at start-up if
+        // that ever changes.)
+        if (ibseb_params.radiation == "two_stream" && m_ibseb[lev]->has_faces()
+            && lev < static_cast<int>(rad_interp_from_coarse_pending.size()) && rad_interp_from_coarse_pending[lev]) {
+            Abort("erf.ibseb.radiation = two_stream: level " + std::to_string(lev) + " takes its atmosphere from"
+                  " level " + std::to_string(lev - 1) + " (erf.interp_atmos_from_coarse), so it skips its first"
+                  " two-stream sweep and its faces would have no radiation at the first step; turn off"
+                  " erf.interp_atmos_from_coarse or use erf.ibseb.radiation = prescribed");
+        }
         if (ibseb_params.radiation == "two_stream" && m_ibseb[lev]->has_faces()) {
             two_stream_rad.supply_canopy_forcing(lev, m_ibseb[lev]->top_sample_interface());
         }

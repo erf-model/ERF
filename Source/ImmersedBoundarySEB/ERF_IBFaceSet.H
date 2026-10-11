@@ -334,7 +334,7 @@ public:
     /**
      * The highest interface of the level's vertical grid that any of its faces
      * samples with radiation = two_stream (a roof the bottom of its fluid cell, a
-     * wall the top of its cell too), counted from the domain bottom, over all
+     * ceiling and a wall the top of its cell too), counted from the domain bottom, over all
      * ranks; -1 when the level has no faces. The two-stream beam the faces read
      * holds the interfaces up to there.
      */

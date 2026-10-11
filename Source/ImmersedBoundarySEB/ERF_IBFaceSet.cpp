@@ -273,12 +273,12 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     ParallelDescriptor::ReduceIntMax(m_nslots);
 
     // The highest interface any face samples (two_stream_canopy_sample(): a roof its
-    // fluid cell's bottom, a wall the top of its cell too), counted from the domain
+    // fluid cell's bottom, a ceiling and a wall the top of its cell too), counted from the domain
     // bottom; -1 when the level has no faces. The two-stream beam the faces read needs
     // no interface above it.
     m_top_sample = -1;
     for (int n = 0; n < m_nface; ++n) {
-        m_top_sample = std::max(m_top_sample, h_k[n] - domain.smallEnd(2) + (h_dir[n] == 2 ? 0 : 1));
+        m_top_sample = std::max(m_top_sample, h_k[n] - domain.smallEnd(2) + ((h_dir[n] != 2 || h_side[n] > 0) ? 1 : 0));
     }
     ParallelDescriptor::ReduceIntMax(m_top_sample);
 
@@ -770,7 +770,7 @@ IBFaceSet::compute_longwave_two_stream (const MultiFab& cons, const TwoStreamCan
     const int   k0    = m_dom_lo[2];
     const Real* peps  = d_emis.data();
     const int*  pi = d_i.data();  const int* pj = d_j.data();  const int* pk = d_k.data();
-    const int*  pd = d_dir.data();
+    const int*  pd = d_dir.data();  const int* ps = d_side.data();
     const Real* pfs = d_f_sky.data(); const Real* pfg = d_f_ground.data(); const Real* pfb = d_f_bldg.data();
     const Real* pT = d_T_skin.data();
     Real* pTa = d_T_air.data(); Real* pin = d_LW_down_in.data(); Real* pnet = d_LW_net.data();
@@ -791,7 +791,7 @@ IBFaceSet::compute_longwave_two_stream (const MultiFab& cons, const TwoStreamCan
                 return;
             }
             const Real Ts4 = pT[f] * pT[f] * pT[f] * pT[f];
-            const TwoStreamFaceSky sky = two_stream_face_sky(pi[f], pj[f], pk[f], k0, pd[f], beam, cosz, flux);
+            const TwoStreamFaceSky sky = two_stream_face_sky(pi[f], pj[f], pk[f], k0, pd[f], ps[f], beam, cosz, flux);
             const Real lw_ext = pfs[f] * sky.lw_down + pfg[f] * sky.lw_up;
             const Real lw_in  = lw_ext + pfb[f] * sigma * Ts4;
             pext[f] = lw_ext;
@@ -809,7 +809,7 @@ IBFaceSet::compute_longwave_two_stream (const MultiFab& cons, const TwoStreamCan
  * the level's own grids (with the top-of-atmosphere ghost, which a face whose
  * cell is the top of the domain reads); the beam on its boxes in x and y with
  * the interfaces from the surface up to at least top_sample_interface() in z;
- * the cosine of the zenith on them flattened.
+ * the cosine of the zenith on them flattened to index 0 in z.
  */
 void
 IBFaceSet::check_canopy_layout (const MultiFab& cons, const TwoStreamCanopyView& canopy) const
@@ -832,7 +832,9 @@ IBFaceSet::check_canopy_layout (const MultiFab& cons, const TwoStreamCanopyView&
             ok = ok && b.smallEnd(d) == ba[n].smallEnd(d) && b.bigEnd(d) == ba[n].bigEnd(d) &&
                        c.smallEnd(d) == ba[n].smallEnd(d) && c.bigEnd(d) == ba[n].bigEnd(d);
         }
-        ok = ok && b.smallEnd(2) == 0 && b.bigEnd(2) >= top_sample_interface();
+        // The kernels read the beam at interfaces 0 .. top_sample_interface() and the
+        // cosine of the zenith at index 0 in z.
+        ok = ok && b.smallEnd(2) == 0 && b.bigEnd(2) >= top_sample_interface() && c.smallEnd(2) == 0;
     }
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ok,
         "erf.ibseb.radiation = two_stream: level " + std::to_string(m_lev) +
@@ -1327,7 +1329,7 @@ IBFaceSet::compute_shortwave_two_stream (const TwoStreamCanopyView& canopy)
         reduce_op.eval(f1 - f0, reduce_data, [=] AMREX_GPU_DEVICE (int m) noexcept -> ReduceTuple {
             const int f = f0 + m;
             const Real cz = cosz(pi[f], pj[f], 0);
-            const TwoStreamFaceSky sky = two_stream_face_sky(pi[f], pj[f], pk[f], k0, pd[f], beam, cosz, flux);
+            const TwoStreamFaceSky sky = two_stream_face_sky(pi[f], pj[f], pk[f], k0, pd[f], ps[f], beam, cosz, flux);
             const Real dni = sky.dni, dif_h = sky.diffuse, refl = sky.sw_up;
             // Outward normal: opposite to the side the solid is on.
             Real n[3] = {0.0, 0.0, 0.0};

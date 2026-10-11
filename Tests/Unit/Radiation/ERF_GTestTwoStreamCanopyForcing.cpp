@@ -220,11 +220,14 @@ TEST(TwoStreamCanopyForcing, BeamIgnoresTheScratchWhenDark)
 TEST(TwoStreamCanopyForcing, FacesSampleTheirOwnHeight)
 {
     amrex::Real w_up = -1.0;
-    EXPECT_EQ(two_stream_canopy_sample(5, 0, 2, w_up), 5);
+    EXPECT_EQ(two_stream_canopy_sample(5, 0, 2, -1, w_up), 5);   // roof: solid below
     EXPECT_EQ(w_up, amrex::Real(0.0));
-    EXPECT_EQ(two_stream_canopy_sample(5, 0, 0, w_up), 5);
+    EXPECT_EQ(two_stream_canopy_sample(5, 0, 2, +1, w_up), 6);   // ceiling: solid above
+    EXPECT_EQ(w_up, amrex::Real(0.0));
+    EXPECT_EQ(two_stream_canopy_sample(5, 0, 0, -1, w_up), 5);
     EXPECT_EQ(w_up, amrex::Real(0.5));
-    EXPECT_EQ(two_stream_canopy_sample(5, 2, 1, w_up), 3);
+    EXPECT_EQ(two_stream_canopy_sample(5, 0, 0, +1, w_up), 5);   // a wall's side does not move it
+    EXPECT_EQ(two_stream_canopy_sample(5, 2, 1, -1, w_up), 3);
     EXPECT_EQ(w_up, amrex::Real(0.5));
 }
 
@@ -251,22 +254,27 @@ TEST(TwoStreamCanopyForcing, FaceSkyFromItsColumn)
     cA(0, 0, 0) = Real(0.5);
     const Real tol = rel_tol();
     // A roof on interface 3 (fluid cell k0 + 3).
-    TwoStreamFaceSky r = two_stream_face_sky(0, 0, k0 + 3, k0, 2, beam.const_array(), cz.const_array(), flux.const_array());
+    TwoStreamFaceSky r = two_stream_face_sky(0, 0, k0 + 3, k0, 2, -1, beam.const_array(), cz.const_array(), flux.const_array());
     EXPECT_NEAR(r.dni, Real(130.0 / 0.5), tol * Real(260.0));
     EXPECT_NEAR(r.diffuse, Real(39.0), tol * Real(100.0));
     EXPECT_NEAR(r.lw_down, Real(279.0), tol * Real(300.0));
     EXPECT_NEAR(r.sw_up, Real(53.0), tol * Real(100.0));
     EXPECT_NEAR(r.lw_up, Real(406.0), tol * Real(400.0));
     // A wall in cell k0 + 3: the mean of interfaces 3 and 4.
-    TwoStreamFaceSky w = two_stream_face_sky(0, 0, k0 + 3, k0, 0, beam.const_array(), cz.const_array(), flux.const_array());
+    TwoStreamFaceSky w = two_stream_face_sky(0, 0, k0 + 3, k0, 0, -1, beam.const_array(), cz.const_array(), flux.const_array());
     EXPECT_NEAR(w.dni, Real(135.0 / 0.5), tol * Real(270.0));
     EXPECT_NEAR(w.diffuse, Real(40.5), tol * Real(100.0));
     EXPECT_NEAR(w.lw_down, Real(275.5), tol * Real(300.0));
     EXPECT_NEAR(w.sw_up, Real(53.5), tol * Real(100.0));
     EXPECT_NEAR(w.lw_up, Real(407.0), tol * Real(400.0));
+    // A ceiling in cell k0 + 3 (solid above): interface 4.
+    TwoStreamFaceSky c = two_stream_face_sky(0, 0, k0 + 3, k0, 2, +1, beam.const_array(), cz.const_array(), flux.const_array());
+    EXPECT_NEAR(c.dni, Real(140.0 / 0.5), tol * Real(280.0));
+    EXPECT_NEAR(c.sw_up, Real(54.0), tol * Real(100.0));
+    EXPECT_NEAR(c.lw_up, Real(408.0), tol * Real(400.0));
     // Night: the cosine floored at zero, no beam, whatever the field holds.
     cA(0, 0, 0) = Real(0.0);
-    TwoStreamFaceSky n = two_stream_face_sky(0, 0, k0 + 3, k0, 2, beam.const_array(), cz.const_array(), flux.const_array());
+    TwoStreamFaceSky n = two_stream_face_sky(0, 0, k0 + 3, k0, 2, -1, beam.const_array(), cz.const_array(), flux.const_array());
     EXPECT_EQ(n.dni, Real(0.0));
 }
 
