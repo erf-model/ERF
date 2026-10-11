@@ -41,7 +41,9 @@ per direction, the number of buildings, the total area, the skin
 temperature range and the mean fluxes. With
 :cpp:`erf.ibseb.dump_faces_file` every face is written at the same
 interval (one file per rank; :cpp:`erf.ibseb.dump_faces_tag_step` keeps
-every dump), which is what the regtests and the canonical cases read.
+every dump), which is what the regtests and the canonical cases read. A
+restart appends from its next report on: the step it starts from is printed
+but not written to the report file or dumped again.
 
 For output the list is scattered into cell-centred fields: ``ibseb_nfaces``
 and ``ibseb_tskin`` in the plotfile, and ``IBSEBState`` in the checkpoint,
@@ -77,7 +79,10 @@ equation of time, hour angle, zenith and azimuth by the Spencer series, the
 direct beam by the Bird transmission :math:`S_0 E_0 \tau^{1/\cos z}` and the
 diffuse light as a fraction :math:`k_d` of what the beam lost on the way
 down. The sun vector points from a surface toward the sun, with the azimuth
-clockwise from north, so east is :math:`+x` and north :math:`+y`.
+clockwise from north, so east is :math:`+x` and north :math:`+y`. The
+``two_stream`` provider takes the irradiances from the columns of the
+two-stream radiation instead (`Radiation from the two-stream columns`_ below);
+the sun vector still comes from :cpp:`erf.ibseb.sun_mode`.
 
 On a face with outward normal :math:`\mathbf{n}` the direct beam is
 :math:`I_{dn}\, \max(0, \mathbf{n}\cdot\mathbf{s})` unless the face is in
@@ -94,10 +99,11 @@ replication is still proportional to the built area rather than to this
 rank's share of it, which is the limit to watch on a city-scale deck; the
 walk itself is already bounded, since a rising ray stops once it passes the
 tallest column and a descending one stops at the ground, so a ray reaches no
-further than the tallest building divided by the tangent of its elevation. The diffuse light on a face is the sky view fraction
+further than the tallest building divided by the tangent of its elevation. With the
+prescribed provider the diffuse light on a face is the sky view fraction
 times the horizontal diffuse plus the ground view fraction times the ground
 albedo times the total horizontal irradiance, with the fractions from the
-hemisphere sampling below. The absorbed shortwave is one minus the face
+hemisphere sampling below (the ``two_stream`` provider's terms are below). The absorbed shortwave is one minus the face
 albedo times the sum.
 
 View fractions and longwave
@@ -132,6 +138,8 @@ and the walls it sees exchange no net longwave. There are no face-to-face
 view factors and no radiosity; the fractions are stored so a radiosity pass
 can be added later without touching the balance. The net longwave,
 :math:`\varepsilon (LW_{in} - \sigma T_s^4)`, is positive into the face.
+With :cpp:`erf.ibseb.lw_mode = two_stream` the sky and ground terms come
+from the two-stream columns instead (`Radiation from the two-stream columns`_).
 
 ``Exec/CanonicalTests/SEB/Longwave`` checks the fractions of every
 face against an independent hemisphere sampling, their closure and the
@@ -437,17 +445,19 @@ where the columns follow it). With the two-stream shortwave off only a
 ``two_stream`` request is checked. RRTMGP places its sun by the same orbital
 formula and is not checked: the faces' ``solar`` sun sits as far off it.
 
-What ``two_stream`` shares is the sun's position and its top-of-atmosphere
-irradiance. The atmosphere the faces' beam crosses is still the prescribed
+What ``sun_mode = two_stream`` shares is the sun's position and its top-of-atmosphere
+irradiance. With the prescribed provider the atmosphere the faces' beam crosses is still the
 clear-sky one, :cpp:`erf.ibseb.sw_transmission` and
 :cpp:`erf.ibseb.sw_diffuse_coeff`, and the faces' ground longwave still uses
 :cpp:`erf.ibseb.T_ground`, not the two-stream ground balance. For the clear
 two-stream column (single-scattering albedo 0, no diffuse light) with total
 shortwave optical depth :math:`\tau`, :cpp:`erf.ibseb.sw_transmission =
 exp(-tau)` and :cpp:`erf.ibseb.sw_diffuse_coeff = 0` give the faces the
-column's own direct beam, as the canonical case below does. The two-stream
+column's own beam at the ground. The two-stream
 ground balance also covers the building footprints, and the two-stream
-columns pass through the buildings.
+columns pass through the buildings. The ``two_stream`` provider
+(`Radiation from the two-stream columns`_) takes the column's own beam, diffuse
+light and ground directly.
 
 Inputs that go by building, :cpp:`erf.ibseb.material_by_building`, follow
 level 0's numbering on every level: a refined level finds each of its
@@ -469,6 +479,171 @@ verdicts; ``IBSEB_RefinedLevelCutsBuilding``,
 ``IBSEB_TwoStreamSunSolarInputs`` and ``IBSEB_TwoStreamSunWithoutTwoStream`` check the
 start-up stops, and the unit tests ``IBSEBTwoStreamSun.*`` that the faces'
 two-stream zenith is the columns' at every hour.
+
+Radiation from the two-stream columns
+-------------------------------------
+
+The clear-sky formulas above give every wall and roof an idealised sky. When ERF
+also computes the radiation of the air with its two-stream model, the buildings
+can instead take the radiation of the air next to them: the same sunlight, the
+same sky light and the same warmth from the ground. That is what
+:cpp:`erf.ibseb.radiation = two_stream` does. It needs
+:cpp:`erf.radiation_model = TwoStream` with its shortwave on.
+
+**What a face reads.** The two-stream model works column by column: for each
+vertical column of cells it finds the sunlight and the longwave going up and down
+at every cell face in the vertical (an *interface*). Each building face (a wall or
+roof cell face) reads the column of the air cell next to it, at its own height
+:math:`z_f`. A roof, or a ceiling under an overhang, reads the interface it lies
+on; a wall the mean of the two interfaces of its cell. Using the column's fluxes at
+that height, a face takes
+
+.. math::
+
+   I_{dn} = F_{dir}(z_f) / \cos z, \qquad
+   SW_{dif} = f_{sky} \left( F^{\downarrow}_{SW}(z_f) - F_{dir}(z_f) \right)
+            + f_{ground}\, F^{\uparrow}_{SW}(z_f), \qquad
+   LW_{in} = f_{sky}\, F^{\downarrow}_{LW}(z_f) + f_{ground}\, F^{\uparrow}_{LW}(z_f)
+           + f_{bldg}\, \sigma T_s^4 .
+
+The symbols are:
+
+- :math:`F_{dir}`: the direct beam on a horizontal surface, that is, the sunlight
+  not scattered on its way down. :math:`I_{dn}` is the same beam per unit area
+  facing the sun (the direct-normal irradiance), and :math:`z` the zenith angle.
+  A face outside the shadow gets :math:`I_{dn} \max(0, \mathbf{n}\cdot\mathbf{s})`,
+  as before.
+- :math:`F^{\downarrow}` and :math:`F^{\uparrow}`: the column's shortwave (SW) and
+  longwave (LW) going down and up. The shortwave going down, less the direct beam,
+  is the diffuse sky light.
+- :math:`f_{sky}`, :math:`f_{ground}`, :math:`f_{bldg}`: the shares of the face's
+  view taken by sky, ground and other buildings, as above.
+
+Why each term is read at the face's own height:
+
+- *The fluxes going down* there are the sun and the sky that reach the face. For
+  buildings from a height map, no building stands above a face in its own column.
+  A building from an STL file can overhang. The view fractions and the shadow
+  take each column as solid up to its top, so a face under an overhang sees only
+  building: it gets no sky, ground or direct sun, only the building term.
+- *The fluxes going up* there are the ground as the face sees it, through the air
+  in between. The ground's albedo, emissivity and temperature are therefore the
+  column's (the two-stream surface balance, a land model or :cpp:`erf.rad_t_sfc`).
+  :cpp:`erf.ibseb.albedo_ground` is not used, nor, with
+  :cpp:`erf.ibseb.lw_mode = two_stream`, :cpp:`erf.ibseb.T_ground` and
+  :cpp:`erf.ibseb.emissivity_ground`. That longwave mode is the default with this
+  option and needs the two-stream longwave on; ``gray`` and ``fixed`` remain
+  available and use those inputs.
+
+**What the two-stream model keeps for the faces.** ERF already keeps the column
+fluxes (``rad_fluxes``). It did not keep the direct beam, which the model computed
+and then discarded. So at start-up each level with faces asks the model to keep,
+at every step (``Source/Radiation/TwoStream/ERF_TwoStreamCanopyForcing.H``), the
+direct beam up to the highest interface a face reads, and the cosine of the zenith
+angle it used. Both are blended between clear and cloudy sky like the fluxes.
+
+**Approximations.** The faces inherit these from the model and from the sampling:
+
+- *The diffuse light* is spread evenly over the sky, as with the clear-sky
+  formulas. The two-stream model has no correction for light scattered forward
+  (no delta scaling), so under a scattering sky
+  (:cpp:`erf.radiation.single_scattering_albedo` above zero) that light counts as
+  diffuse: sunlit faces get a little less than they would, shaded faces a little
+  more.
+- *A wall's mean of two interfaces* is exact for fluxes that vary linearly across
+  the cell. The beam decays exponentially, so the mean overestimates it by about
+  :math:`a^2/12`, with :math:`a` the cell's optical depth over :math:`\cos z`:
+  under :math:`10^{-6}` in the case
+  ``Exec/CanonicalTests/Radiation/TwoStream_IBSEB_RandomBuildings``, about 1.3 %
+  for a cell of optical depth 0.2 with the sun 60 degrees from the zenith.
+- *The longwave* is also taken as the same in every direction of each half of the
+  view (isotropic), as the gray two-stream model assumes. A wall looks at the ground
+  and the sky mostly at a slant, through more air than straight up or down, so this
+  overstates its ground longwave a little and understates its sky longwave a little:
+  a few W/m² each for the walls of ``TwoStream_IBSEB_RandomBuildings``.
+- *The sun's position* still comes from :cpp:`erf.ibseb.sun_mode`. Each face
+  checks that its cosine of the zenith matches its column's to :math:`10^{-4}`
+  (:math:`10^{-3}` in single precision). The direct-normal and diffuse irradiance
+  in the report are means over the level's faces.
+
+**When the faces read it.** With this option :cpp:`ERF::Advance` runs the
+building balance just after the radiation, instead of at the start of the step.
+It still uses the state at the start of the step. Three things follow:
+
+- The faces see this step's radiation. The kept beam carries the step that wrote
+  it, and a level asking for a step that has no radiation stops.
+- Every level must therefore compute its own radiation. ERF stops at start-up when
+  a refined level does not span the domain in height, because such a level takes
+  its radiation from the level below.
+- The faces also see this step's ground surface layer (its Obukhov length and
+  boundary-layer height) and any direct inflow perturbation. So with
+  :cpp:`erf.ibseb.stability_correction`, :cpp:`erf.ibseb.convective_velocity` or an
+  inflow perturbation, the two options differ in more than the radiation, even
+  under the same sky.
+
+**Before the first step's radiation.** The report at the start of a run has no
+sunlight on the faces (and no longwave with ``lw_mode = two_stream``), and neither
+has the plotfile written then. A restart does not report again, nor dump, the step
+it starts from (with either option): the run before did. The plotfile a restart
+writes for that step shows no radiation on the faces. ERF says so when that
+plotfile holds face fields, and AMReX keeps the earlier file under an ``.old``
+name.
+
+**Limits.** These are worth knowing before using the option:
+
+- *Optical depth per layer.* With the default per-layer optical depths
+  (:cpp:`erf.radiation.tau_per_layer`, :cpp:`erf.radiation.tau_lw_per_layer`), the
+  dimming above a face counts the layers above it. It therefore depends on the
+  domain's depth and, on a level refined in height, on the refinement: a level
+  refined :math:`r` times in height has :math:`r` times the column's optical depth
+  (in the test below, a beam at the ground of 0.15 of the sun's against 0.39 on the
+  coarser level). The model's own heating rates share this. The mass-based optics
+  (:cpp:`erf.radiation.tau_model = mass`) make the clear-sky depth independent of the
+  layers; a cloud layer, the moisture terms and the aerosol stay per layer. ERF
+  warns at start-up whenever some of the sky's depth is set per layer.
+- *No longwave from above the domain.* The two-stream model has none coming in at
+  the top.
+- *The ground under and beside the buildings.* The two-stream columns still pass
+  through the buildings. The ground balance covers the building footprints, and
+  the ground beside a wall is open, sunlit ground, so a wall sees a ground warmer
+  than the shaded ground beside it would be. Where the buildings stand, both the
+  faces and the ground absorb the same sunlight (about 7 % more than the
+  domain receives in ``TwoStream_IBSEB_RandomBuildings``, 22 % within its refined
+  area).
+- *Memory and cost.* The kept beam covers every column of the level, up to the
+  highest interface a face reads, and is rewritten every step. For
+  :math:`1024 \times 1024` columns with 200 m towers on 2 m cells it takes 0.85 GB.
+
+**Tests.** ``Tests/test_files/IBSEB_TwoStreamProvider`` (CTest
+``IBSEB_TwoStreamProvider``) runs the cube of ``IBSEB_Cube`` with this option and
+checks:
+
+- under a clear, transparent sky, every face gets the radiation of the clear-sky
+  formulas set to that sky, at two steps and across a restart;
+- under an absorbing sky without scattering, every sunlit face gets the exact beam
+  :math:`\exp(-\tau (n_z - m)/\cos z)` at its own height :math:`m`, and every wall
+  the exact reflected light :math:`\exp(-\tau n_z/\cos z)\, \exp(-2 \tau m)` (the
+  beam down to the ground, then the reflected light back up);
+- the same on two levels, the second refined in height too, with the columns'
+  longwave;
+- under a scattering sky, the same beam, and on every face the diffuse light of
+  the column at its height, against the column solved independently in the
+  checker;
+- with a ground warmer than the air, every face's sky and ground longwave at its
+  height, against a longwave column rebuilt in the checker;
+- at night, with a tower beside the cube and the floating-point traps on, no
+  sunlight, and less sky longwave on the higher roof;
+- a restart, with either option, keeps the report and dump of the step it starts
+  from.
+
+``IBSEB_TwoStreamProviderWithoutTwoStream``,
+``IBSEB_TwoStreamProviderShortwaveOff``, ``IBSEB_TwoStreamProviderLongwaveOff``,
+``IBSEB_TwoStreamProviderLwMode``, ``IBSEB_TwoStreamProviderPrescribedInputs``,
+``IBSEB_TwoStreamProviderLwInputs`` and ``IBSEB_TwoStreamProviderShallowLevel``
+check the start-up stops. The unit tests ``TwoStreamCanopyForcing.*`` check the
+beam the model keeps and how a face picks its height;
+``IBSEBTwoStreamFaces.*`` check that every face of a level split into several
+boxes reads its own column at its own height, and the highest interface kept.
 
 Canonical case: a building set
 ------------------------------

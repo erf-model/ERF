@@ -178,6 +178,10 @@ target_sources(${erf_exe_name}
     # materials by building, even when its tallest column is a spire level 0
     # leaves fluid, or the level holds only some of the buildings.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBLevelNumbering.cpp
+    # Motivation: with erf.ibseb.radiation = two_stream every face must read its own column
+    # at its own height (roof interface, wall mean of its cell's two), on a level of several
+    # boxes whose columns all differ.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBTwoStreamFaces.cpp
     # Motivation: observation nudging must read a station file exactly, relax
     # to the closed-form target with the right weight, sigma band and rate cap,
     # and put its sources on the right faces over flat, fitted and immersed
@@ -205,6 +209,11 @@ target_sources(${erf_exe_name}
     # downwelling SW and LW at the surface interface and a zenith cosine floored
     # at zero, copied into the land model's k = 0 plane and nowhere else.
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamLandForcing.cpp
+    # Motivation: the building faces (erf.ibseb.radiation = two_stream) must get the
+    # Beer-Lambert beam at every interface up to the highest one they read, blended
+    # clear/cloudy, no beam with the shortwave off or the sun down, only for the step
+    # of the sweep, and each face its own column's fluxes at its own height.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamCanopyForcing.cpp
     # Motivation: RRTMGP consumes absolute surface temperature; a
     # SurfaceLayer fallback must convert theta at the physical surface
     # pressure diagnosed from the lowest atmospheric cell,

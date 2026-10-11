@@ -15,16 +15,19 @@ checks.
      the ids follow the same scan order;
   2. the balance closes on every building and level all morning (residual
      below 1e-3 W/m2);
-  3. the faces see the two-stream sun, east of the meridian all morning
-     (azimuth in (0, 180) degrees, so a mirrored sun fails): the top-of-atmosphere irradiance the
-     faces' direct beam implies (dni / tau^(1/cos z)) equals the two-stream
-     sweep's SW_TOA / cos z, to 1e-5. A CSV row is stamped with the end of its
+  3. the faces see the two-stream sun and the columns' beam, east of the meridian all
+     morning (azimuth in (0, 180) degrees, so a mirrored sun fails): the faces take their
+     column's beam at their own height (erf.ibseb.radiation = two_stream), so on every
+     sunlit, unshadowed roof of level 0 at every face dump the top-of-atmosphere irradiance
+     its direct shortwave implies, SW_direct_in / (cos z exp(-tau (nz - k) / cos z)) with tau
+     the shortwave optical depth per layer of the clear, purely absorbing column and k the
+     roof's interface, equals the two-stream sweep's SW_TOA / cos z, to 1e-5, and the
+     diffuse sky is zero. A dump, like a CSV row, is stamped with the end of its
      step and carries the sun the step used, from its start, so the sweep's
-     row one step (erf.fixed_dt) earlier is the one compared: the same sun
-     one step late already misses by up to 7e-5, and the faces' own prescribed
-     sun (sun_mode = solar, with the equation of time) by 2.4 % at 08:20;
+     row one step (erf.fixed_dt) earlier is the one compared;
   4. the sun climbs: the zenith falls through the run and the buildings'
-     mean shadow fraction ends below where it starts, on both levels;
+     mean shadow fraction ends below where it starts (at the first report after the
+     initial one, which comes before any sweep), on both levels;
   5. the buildings warm: every building's mean skin temperature ends above
      the 300 K it started at, on both levels;
   6. the two levels agree on what both resolve alike: at the last common face
@@ -147,18 +150,20 @@ def main():
     nb = len(bld["building"])
     c = read_csv("ibseb_buildings.csv")
     lev = c["level"].astype(int)
-    tau, dt = None, None
+    tau, dt, nz = None, None, None
     with open("inputs") as f:
         for line in f:
-            m = re.match(r"\s*erf\.ibseb\.sw_transmission\s*=\s*(\S+)", line)
+            m = re.match(r"\s*erf\.radiation\.tau_per_layer\s*=\s*(\S+)", line)
             if m:
                 tau = float(m.group(1))
             m = re.match(r"\s*erf\.fixed_dt\s*=\s*(\S+)", line)
             if m:
                 dt = float(m.group(1))
-    tau = 0.7 if tau is None else tau          # IBSEBParams default
-    if dt is None:
-        raise SystemExit("inputs: erf.fixed_dt is not set; check 3 needs the level-0 step")
+            m = re.match(r"\s*amr\.n_cell\s*=\s*\S+\s+\S+\s+(\S+)", line)
+            if m:
+                nz = int(m.group(1))
+    if None in (tau, dt, nz):
+        raise SystemExit("inputs: check 3 needs erf.radiation.tau_per_layer, erf.fixed_dt and amr.n_cell")
 
     # 1. buildings on both levels, numbered alike
     s0, s1 = dump_steps("faces/set"), dump_steps("faces/set.lev1")
@@ -184,22 +189,34 @@ def main():
     r = read_csv("radiation_diag.csv")
     rt = r["time"][r["level"] == 0]; rtoa = r["SW_TOA"][r["level"] == 0]
     first = (lev == 0) & (c["building"] == 1)
-    ct, cz = c["time_s"][first], np.cos(np.radians(c["sun_zenith_deg"][first]))
-    dni = c["dni_Wm2"][first]
-    rel = []
-    for t, z, q in zip(ct, cz, dni):
-        # A CSV row carries the time at the end of its step and the sun the
-        # step used, placed at the step's start: compare there.
-        k = np.nonzero(np.abs(rt - (t - dt)) < 1e-6)[0]
-        if len(k) == 0 or z <= 0.05:
+    dif = c["diffuse_h_Wm2"][first]
+    rel, nroof, heights = [], 0, set()
+    for step in s0:
+        if step == 0:
+            continue                    # the initial report, before any sweep
+        row = np.nonzero(first & (c["step"] == step))[0]
+        if len(row) == 0:
             continue
-        s0_faces = q / tau ** (1.0 / z)
-        s0_cols = rtoa[k[0]] / z
-        rel.append(abs(s0_faces / s0_cols - 1.0))
+        t = c["time_s"][row[0]]
+        z = np.cos(np.radians(c["sun_zenith_deg"][row[0]]))
+        # A dump and a CSV row carry the time at the end of their step and the sun
+        # the step used, placed at the step's start: compare with the sweep there.
+        kk = np.nonzero(np.abs(rt - (t - dt)) < 1e-6)[0]
+        if len(kk) == 0 or z <= 0.05:
+            continue
+        d = read_dump("faces/set", step)
+        roof = (d["dir"] == 2) & (d["shadow"] < 0.5) & (d["SW_direct_in"] > 1.0)
+        s0_cols = rtoa[kk[0]] / z
+        for q, kf in zip(d["SW_direct_in"][roof], d["k"][roof]):
+            rel.append(abs(q / (z * np.exp(-tau * (nz - kf) / z)) / s0_cols - 1.0))
+            heights.add(int(kf))
+        nroof += int(roof.sum())
     rel = np.array(rel)
     az = c["sun_azimuth_deg"][first]
-    check("3. the faces see the two-stream sun", len(rel) > 2 and rel.max() < 1e-5 and np.all((az > 0.0) & (az < 180.0)),
-          f"{len(rel)} common times, largest relative difference {rel.max() if len(rel) else float('nan'):.1e}; "
+    check("3. the faces see the two-stream sun and the columns' beam",
+          len(rel) > 2 and rel.max() < 1e-5 and np.all((az > 0.0) & (az < 180.0)) and np.abs(dif).max() < 1e-6,
+          f"{nroof} sunlit roof faces at {len(heights)} heights over the dumps, largest relative difference "
+          f"{rel.max() if len(rel) else float('nan'):.1e}; diffuse at most {np.abs(dif).max():.1e} W/m2; "
           f"azimuth {az.min():.1f}-{az.max():.1f} deg")
 
     # 4. the sun climbs, the shadows shorten
@@ -209,7 +226,9 @@ def main():
         m = lev == L
         t = c["time_s"][m]
         a = c["area_m2"][m]; sh = c["shadow_frac"][m]
-        t0, t1 = t.min(), t.max()
+        # The first report after the initial one: with erf.ibseb.radiation = two_stream the
+        # initial report comes before any sweep and carries no sun on the faces.
+        t0, t1 = t[t > 0.0].min(), t.max()
         f0 = np.sum((sh * a)[t == t0]) / np.sum(a[t == t0]); f1 = np.sum((sh * a)[t == t1]) / np.sum(a[t == t1])
         ok &= f1 < f0
         det.append(f"level {L} shadow {f0:.3f} -> {f1:.3f}")

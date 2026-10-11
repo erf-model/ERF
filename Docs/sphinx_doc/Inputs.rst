@@ -3710,7 +3710,12 @@ column would be taken for a building), a uniform vertical grid (no
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.T_interior**          | interior (deep) temperature of the slabs [K]             | Real > 0           | 293.0                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.csv_file**            | per-building report file                                 | String             | "ibseb_buildings.csv"  |
+| **erf.ibseb.csv_file**            | per-building report file; a restart appends from its     | String             | "ibseb_buildings.csv"  |
+|                                   | next report (the step it starts from is not written      |                    |                        |
+|                                   | again). With radiation = two_stream its dni_Wm2 and      |                    |                        |
+|                                   | diffuse_h_Wm2 columns are the means over the level's     |                    |                        |
+|                                   | faces of what each face takes from its own column, not   |                    |                        |
+|                                   | one sky's irradiance as with radiation = prescribed      |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.csv_int**             | steps between report rows; <= 0 disables the report      | Integer            | 100                    |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
@@ -3723,26 +3728,37 @@ column would be taken for a building), a uniform vertical grid (no
 |                                   | at every report; a refined level N adds ``.levN`` to the |                    |                        |
 |                                   | prefix; empty disables                                   |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.radiation**           | source of the downwelling radiation                      | "prescribed"       | "prescribed"           |
+| **erf.ibseb.radiation**           | where the faces' sunlight, sky light and longwave come   | "prescribed",      | "prescribed"           |
+|                                   | from. ``prescribed``: the clear-sky formulas and inputs  | "two_stream"       |                        |
+|                                   | below. ``two_stream``: the two-stream radiation's        |                    |                        |
+|                                   | columns, each face reading the column next to it at its  |                    |                        |
+|                                   | own height; needs erf.radiation_model = TwoStream with   |                    |                        |
+|                                   | its shortwave on, and every level must span the domain   |                    |                        |
+|                                   | in z. Then sw_direct_normal, sw_diffuse,                 |                    |                        |
+|                                   | sw_transmission, sw_diffuse_coeff, solar_constant and    |                    |                        |
+|                                   | albedo_ground must not be given                          |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.sun_mode**            | ``fixed``: the sun stays at the given zenith and azimuth | "fixed", "solar",  | "fixed"                |
-|                                   | with the given irradiances; ``solar``: sun and clear-sky | "two_stream"       |                        |
-|                                   | irradiances from the site and time; ``two_stream``: the  |                    |                        |
-|                                   | sun of erf.radiation_model = TwoStream (start_datetime,  |                    |                        |
-|                                   | erf.rad_cons_lat / lon, its top-of-atmosphere            |                    |                        |
-|                                   | irradiance) with the clear-sky irradiances, required     |                    |                        |
-|                                   | with the two-stream calendar sun; the solar site, day,   |                    |                        |
-|                                   | time and solar constant must not be given with it        |                    |                        |
+| **erf.ibseb.sun_mode**            | the sun's position, and with the prescribed provider its | "fixed", "solar",  | "fixed"                |
+|                                   | irradiances: ``fixed``: the given zenith and azimuth     | "two_stream"       |                        |
+|                                   | (prescribed: with the given irradiances); ``solar``: sun |                    |                        |
+|                                   | and clear-sky irradiances from the site and time;        |                    |                        |
+|                                   | ``two_stream``: the sun of erf.radiation_model =         |                    |                        |
+|                                   | TwoStream (start_datetime, erf.rad_cons_lat / lon;       |                    |                        |
+|                                   | prescribed: its top-of-atmosphere irradiance with the    |                    |                        |
+|                                   | clear-sky irradiances), required with the two-stream     |                    |                        |
+|                                   | calendar sun; the solar site, day, time and solar        |                    |                        |
+|                                   | constant must not be given with it                       |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.sun_zenith_deg**      | fixed sun: zenith angle [deg]                            | Real in [0, 180]   | 45.0                   |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.sun_azimuth_deg**     | fixed sun: azimuth clockwise from north [deg]; 90 east,  | Real               | 180.0                  |
 |                                   | 180 south, 270 west                                      |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.sw_direct_normal**    | fixed sun: direct-normal irradiance [W/m2]               | Real >= 0          | 800.0                  |
+| **erf.ibseb.sw_direct_normal**    | fixed sun: direct-normal irradiance [W/m2]; not with     | Real >= 0          | 800.0                  |
+|                                   | radiation = two_stream                                   |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.sw_diffuse**          | fixed sun: diffuse irradiance on a horizontal surface    | Real >= 0          | 100.0                  |
-|                                   | [W/m2]                                                   |                    |                        |
+|                                   | [W/m2]; not with radiation = two_stream                  |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.latitude_deg**        | solar: site latitude, north positive                     | Real in [-90, 90]  | 40.0                   |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
@@ -3752,37 +3768,47 @@ column would be taken for a building), a uniform vertical grid (no
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.time_zero_utc_s**     | solar: seconds after 00:00 UTC at simulation time zero   | Real               | 43200.0                |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.solar_constant**      | solar: solar constant [W/m2]                             | Real > 0           | 1361.0                 |
+| **erf.ibseb.solar_constant**      | solar: solar constant [W/m2]; not with radiation =       | Real > 0           | 1361.0                 |
+|                                   | two_stream                                               |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.sw_transmission**     | solar, two_stream: bulk clear-sky transmission of the    | Real in (0, 1]     | 0.7                    |
-|                                   | Bird form                                                |                    |                        |
+| **erf.ibseb.sw_transmission**     | prescribed provider, sun_mode solar or two_stream: bulk  | Real in (0, 1]     | 0.7                    |
+|                                   | clear-sky transmission of the Bird form                  |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.sw_diffuse_coeff**    | solar, two_stream: share of the attenuated beam that     | Real in [0, 1]     | 0.5                    |
-|                                   | arrives as diffuse light                                 |                    |                        |
+| **erf.ibseb.sw_diffuse_coeff**    | prescribed provider, sun_mode solar or two_stream: share | Real in [0, 1]     | 0.5                    |
+|                                   | of the attenuated beam that arrives as diffuse light     |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.albedo**              | shortwave albedo of the faces (uniform until the         | Real in [0, 1]     | 0.3                    |
 |                                   | material library)                                        |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.albedo_ground**       | ground albedo for the reflected diffuse term             | Real in [0, 1]     | 0.2                    |
+| **erf.ibseb.albedo_ground**       | ground albedo for the reflected diffuse term; not with   | Real in [0, 1]     | 0.2                    |
+|                                   | radiation = two_stream                                   |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.emissivity**          | longwave emissivity of the faces                         | Real in (0, 1]     | 0.9                    |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.emissivity_ground**   | ground emissivity for the ground term                    | Real in (0, 1]     | 0.95                   |
+| **erf.ibseb.emissivity_ground**   | ground emissivity for the ground term; not with lw_mode  | Real in (0, 1]     | 0.95                   |
+|                                   | = two_stream                                             |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.view_n_az**           | azimuths of the hemisphere sampling for the view         | Integer >= 1       | 16                     |
 |                                   | fractions                                                |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.view_n_el**           | elevations of the hemisphere sampling                    | Integer >= 1       | 8                      |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.lw_mode**             | sky longwave: ``fixed`` uses lw_down, ``gray`` uses      | "fixed", "gray"    | "gray"                 |
-|                                   | sky_emissivity sigma T_air^4 with the fluid cell's air   |                    |                        |
-|                                   | temperature                                              |                    |                        |
+| **erf.ibseb.lw_mode**             | sky longwave. ``fixed``: lw_down. ``gray``:              | "fixed", "gray",   | "gray"; "two_stream"   |
+|                                   | sky_emissivity sigma T_air^4, with the air temperature   | "two_stream"       | with radiation =       |
+|                                   | of the face's fluid cell. ``two_stream`` (only with      |                    | two_stream             |
+|                                   | radiation = two_stream, and the two-stream longwave on): |                    |                        |
+|                                   | the column's longwave down and up at the face's height,  |                    |                        |
+|                                   | for the sky and the ground; then lw_down,                |                    |                        |
+|                                   | sky_emissivity, T_ground and emissivity_ground must not  |                    |                        |
+|                                   | be given                                                 |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.lw_down**             | fixed sky longwave [W/m2]                                | Real >= 0          | 300.0                  |
+| **erf.ibseb.lw_down**             | fixed sky longwave [W/m2]; not with lw_mode = two_stream | Real >= 0          | 300.0                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.sky_emissivity**      | gray sky: effective clear-sky emissivity                 | Real in (0, 1]     | 0.83                   |
+| **erf.ibseb.sky_emissivity**      | gray sky: effective clear-sky emissivity; not with       | Real in (0, 1]     | 0.83                   |
+|                                   | lw_mode = two_stream                                     |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.T_ground**            | ground temperature for the ground longwave term [K]      | Real > 0           | 300.0                  |
+| **erf.ibseb.T_ground**            | ground temperature for the ground longwave term [K]; not | Real > 0           | 300.0                  |
+|                                   | with lw_mode = two_stream                                |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.z0_wall**             | momentum roughness length of the faces for the wall      | Real > 0           | 0.01                   |
 |                                   | function [m]                                             |                    |                        |
