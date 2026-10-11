@@ -2439,14 +2439,7 @@ init_base_state_from_wrfinput (const Box& subdomain,
         // run yet -- init_zphys follows init_only on the branch that reads a wrfinput
         // file -- so z_phys_nd still holds its initial poison outside the domain, and
         // make_zcc averages eight of those nodes into each z_phys_cc halo cell.  Across
-        // a non-periodic face FillBoundary cannot replace them, so the halo came back as
-        // z ~ 1e150.  The isothermal branch below then underflows Pd to exactly zero and
-        // getThgivenTandP divides p_0 by it, leaving inf in th_hse and NaN in r_hse --
-        // in precisely the ghost cells the comment above says must be valid, because
-        // read_and_convert_from_wrfbdy -> scale_bdy_normal_by_rho0 reads rho0 one cell
-        // outside the domain.  That is how inputs_wps_ml, whose wrfinput carries
-        // P_STRAT = 0 and so reaches the isothermal branch at the top of its column,
-        // NaN'd in density at the lateral boundary on its second step.
+        // a non-periodic face FillBoundary cannot replace them.
         //
         // Intersecting with the domain keeps the halo cells that lie inside it, which
         // FillBoundary does fill from a neighbouring box, and clamps only the ones
