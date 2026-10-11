@@ -13,9 +13,11 @@
 #include "ERF_ReadBndryPlanes.H"
 
 /**
- * Function for computing the buoyancy term to be used in the evolution
- * equation for the z-component of momentum in the slow integrator.  There
- * are three options for how buoyancy is computed (two are the same in the absence of moisture).
+ * Compute the vertical perturbational gravitational force density [N/m^3]
+ * used by the dry-momentum equation. Compressible selector values 1--4
+ * select density, temperature (2 and 3 are identical), or potential-
+ * temperature formulations. Anelastic flow dispatches to its active dry
+ * or moist kernel independently of the stored selector.
  */
 void make_buoyancy (int level,
                     const amrex::Vector<amrex::MultiFab>& S_data,
