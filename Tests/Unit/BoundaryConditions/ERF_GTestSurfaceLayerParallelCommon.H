@@ -374,7 +374,7 @@ struct SurfaceLayerFields
         Vector<const MultiFab*> const_state{&cons, &xvel, &yvel, &zvel};
         layer.impose_SurfaceLayer_bcs(
             0, const_state, tau, &xheat_flux, &yheat_flux, &zheat_flux,
-            &xqv_flux, &yqv_flux, &zqv_flux, nullptr);
+            &xqv_flux, &yqv_flux, &zqv_flux, nullptr, nullptr);
         Gpu::streamSynchronize();
     }
 
