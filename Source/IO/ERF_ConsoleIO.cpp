@@ -2,10 +2,12 @@
  * \file ERF_ConsoleIO.cpp
  */
 #include <chrono>
+#include <cstring>
 #include <ctime>
 #include "ERF.H"
 #include "AMReX.H"
 #include "AMReX_Vector.H"
+#include "ERF_NoahMPGitHash.H"
 
 #ifdef ERF_USE_NETCDF
 #include "ERF_NCInterface.H"
@@ -96,6 +98,7 @@ void ERF::print_banner (MPI_Comm comm, std::ostream& out)
 
     const char* githash1 = amrex::buildInfoGetGitHash(1);
     const char* githash2 = amrex::buildInfoGetGitHash(2);
+    const char* githash3 = NoahMPGitHash();
 
     // clang-format off
     out << dbl_line
@@ -103,7 +106,14 @@ void ERF::print_banner (MPI_Comm comm, std::ostream& out)
         << std::endl << std::endl
         << "  ERF Git SHA      :: " << githash1 << std::endl
         << "  AMReX Git SHA    :: " << githash2 << std::endl
-        << "  AMReX version    :: " << amrex::Version() << std::endl << std::endl
+        << "  AMReX version    :: " << amrex::Version() << std::endl;
+
+    // Noah-MP is optional, so this line appears only when it is in the build.
+    if (strlen(githash3) > 0) {
+        out << "  Noah-MP Git SHA  :: " << githash3 << std::endl;
+    }
+
+    out << std::endl
         << "  Exec. time       :: " << tstamp
         << "  Build time       :: " << amrex::buildInfoGetBuildDate() << std::endl
         << "  C++ compiler     :: " << amrex::buildInfoGetComp()
