@@ -3347,6 +3347,60 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
         COMMON_OPTIONS "${_tph_snd}"
         FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
   endif()
+  # amrex::MLTerrainPoisson (erf.terrain_poisson_solver = mlmg, gmres_mlmg) needs no FFT, so
+  # these run in every MPI build.  Measured on 2 ranks: level 1 of the hill leaves at most
+  # 1.1e-8 (mlmg) and 1.1e-9 (gmres_mlmg) above the subtracted mean, the walls 1.0e-8 and
+  # 9.6e-10.
+  if(ERF_TEST_PYTHON)
+    foreach(_tp_solver mlmg gmres_mlmg)
+      add_test_terrain_poisson_divergence(TerrainPoisson_TwoLevelHill_${_tp_solver} TerrainPoisson_Hill 1
+          COMMON_OPTIONS "erf.terrain_poisson_solver=${_tp_solver}")
+      add_test_terrain_poisson_divergence(TerrainPoisson_SlopingWalls_${_tp_solver} TerrainPoisson_Hill 0
+          COMMON_OPTIONS "${_tp_walls} erf.terrain_poisson_solver=${_tp_solver}")
+    endforeach()
+  endif()
+  # The multigrid's smoother and bottom solver see the boxes, so two layouts converge to
+  # answers that differ at the solver tolerance (1e-7 relative at the default 1e-8, 1e-12 at
+  # 1e-11).  At the tighter tolerance a defect at a box boundary would stand out.
+  set(_tp_tight "erf.poisson_reltol=1e-11 erf.poisson_abstol=1e-14")
+  set(_tph_snd "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/TerrainPoisson_Hill_BoxParity_MLMG/input_sounding")
+  add_test_box_parity(TerrainPoisson_Hill_BoxParity_MLMG TerrainPoisson_Hill "plt00006"
+      COMMON_OPTIONS "${_tph_snd} ${_tp_tight} erf.terrain_poisson_solver=mlmg"
+      REFERENCE_OPTIONS "amr.max_grid_size=1024"
+      SPLIT_OPTIONS "amr.max_grid_size_x=12 amr.max_grid_size_y=8"
+      FCOMPARE_RTOL "1.0e-9")
+  set(_tph_snd "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/TerrainPoisson_Hill_Restart_MLMG/input_sounding")
+  add_test_restart_parity(TerrainPoisson_Hill_Restart_MLMG TerrainPoisson_Hill 3 6
+      COMMON_OPTIONS "${_tph_snd} erf.terrain_poisson_solver=mlmg"
+      FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+  if(ERF_ENABLE_FFT)
+    # The solvers solve the same equations: FFT-GMRES with the zero-flux operator (one box,
+    # one rank) against MLMG (split boxes, NP ranks), both at the tight tolerance.  Measured:
+    # u, v, w agree to 3e-12 relative on two levels and 1.7e-10 within the walls; the
+    # FFT-GMRES operator before erf-model/ERF#4279 differed from MLMG by 5e-3.
+    set(_tph_snd "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/TerrainPoisson_Hill_SolverAgreement/input_sounding")
+    add_test_box_parity(TerrainPoisson_Hill_SolverAgreement TerrainPoisson_Hill "plt00006"
+        COMMON_OPTIONS "${_tph_snd} ${_tp_tight}"
+        REFERENCE_OPTIONS "amr.max_grid_size=1024 erf.terrain_poisson_solver=gmres_fft"
+        SPLIT_OPTIONS "amr.max_grid_size_x=12 amr.max_grid_size_y=8 erf.terrain_poisson_solver=mlmg"
+        FCOMPARE_RTOL "1.0e-8")
+    set(_tph_snd "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/TerrainPoisson_SlopingWalls_SolverAgreement/input_sounding")
+    add_test_box_parity(TerrainPoisson_SlopingWalls_SolverAgreement TerrainPoisson_Hill "plt00006"
+        COMMON_OPTIONS "${_tph_snd} ${_tp_tight} ${_tp_walls}"
+        REFERENCE_OPTIONS "erf.terrain_poisson_solver=gmres_fft"
+        SPLIT_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_y=8 erf.terrain_poisson_solver=mlmg"
+        FCOMPARE_RTOL "1.0e-8")
+  endif()
+  # An unknown solver stops the run at start-up; MLMG on a region that is not a rectangle (an
+  # L-shaped refined level of two boxes; amr.grid_eff keeps AMReX from filling the corner)
+  # stops at its first solve
+  set(_tph_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TerrainPoisson_Hill)
+  add_test_abort(TerrainPoisson_Abort_UnknownSolver ${_tph_dir} TerrainPoisson_Hill.i
+                 "Unknown enum: fft in AMREX_ENUM.TerrainPoissonSolver"
+                 "erf.terrain_poisson_solver=fft")
+  add_test_abort(TerrainPoisson_Abort_MLMGNotRectangle ${_tph_dir} TerrainPoisson_Hill.i
+                 "erf.terrain_poisson_solver = mlmg or gmres_mlmg needs the boxes of each region of a level to make a rectangle"
+                 "erf.terrain_poisson_solver=mlmg amr.grid_eff=0.99 erf.refinement_indicators=box1 box2 erf.box2.max_level=1 erf.box2.in_box_lo_indices_crse=8 4 0 erf.box2.in_box_hi_indices_crse=11 11 15")
 endif()
 
 #=============================================================================

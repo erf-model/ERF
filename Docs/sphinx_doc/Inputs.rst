@@ -960,6 +960,16 @@ List of Parameters
 | **erf.poisson_reltol**               | relative tolerance for the Poisson solve; raised to      | Real > 0           | 1.e-8             |
 |                                      | 1.e-6 in single precision builds                         |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.terrain_poisson_solver**       | solver for the anelastic projection on a terrain-fitted  | "gmres_fft",       | "gmres_fft"       |
+|                                      | mesh. ``gmres_fft``: GMRES with ERF's terrain operator   | "mlmg",            |                   |
+|                                      | and an FFT preconditioner (needs the FFT build).         | "gmres_mlmg"       |                   |
+|                                      | ``mlmg``: ``amrex::MLTerrainPoisson`` with multigrid,    |                    |                   |
+|                                      | no FFT needed. ``gmres_mlmg``: GMRES with that           |                    |                   |
+|                                      | multigrid as preconditioner. The three solve the same    |                    |                   |
+|                                      | equations and agree to the solver tolerance. Each region |                    |                   |
+|                                      | of a level must be a rectangle. No effect on flat        |                    |                   |
+|                                      | terrain. See :ref:`subsec:TerrainMLMG`.                  |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 
 Notes
 -----------------

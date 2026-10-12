@@ -19,7 +19,8 @@ we perform 2D transforms only in the lateral directions and couple the solution 
 In both these cases we use a 7-point stencil.
 
 To solve the Poisson equation using terrain-fitted coordinates with general terrain,
-we rely on the FFT-preconditioned GMRES solver since the stencil effectively has variable coefficients and requires 19 points.
+we rely by default on the FFT-preconditioned GMRES solver since the stencil effectively has variable coefficients and requires 19 points.
+AMReX's ``MLTerrainPoisson`` multigrid solver can be used instead (see :ref:`subsec:TerrainMLMG`).
 
 .. note::
 
@@ -88,3 +89,34 @@ surfaces to the top, so nothing changes there, but a mesh whose top surface is n
 example one read from a real-data file) changes there too.  Flat terrain does not use
 this operator at all: ERF treats the mesh as stretched and solves with the hybrid FFT
 solver, which this does not change.
+
+.. _subsec:TerrainMLMG:
+
+Multigrid on terrain-fitted meshes
+----------------------------------
+
+``erf.terrain_poisson_solver`` chooses the solver for the projection on a terrain-fitted mesh:
+
+- ``gmres_fft`` (default): GMRES applying ERF's own terrain operator, preconditioned by the
+  hybrid FFT solver of the flat stretched mesh.  It needs the FFT build.
+- ``mlmg``: ``amrex::MLTerrainPoisson`` solved by geometric multigrid.  The operator is the same
+  stencil, with zero flux through every Neumann face, as ERF's own operator has.  The multigrid coarsens only in the horizontal and solves each column exactly,
+  the usual treatment of cells much thinner than they are wide.  It needs no FFT.
+- ``gmres_mlmg``: GMRES with that multigrid as its preconditioner.
+
+ERF hands the operator its own metric terms (face areas, :math:`J` and the node heights) and
+takes its face fluxes back for the momentum correction, so the three solvers solve the same
+equations and agree to the solver tolerance.  As for the FFT solver, each level is solved on
+its own region, whose boxes must make a rectangle; the faces of a refined level's region are
+Neumann faces.  A region one cell wide in :math:`x` or :math:`y` is solved as two-dimensional.
+A refined region that reaches only one end of a periodic direction is solved with a Neumann
+face there by ``mlmg`` and ``gmres_mlmg``; the FFT preconditioner of ``gmres_fft`` does not
+accept that mix of boundary conditions and stops.
+
+When a solve does not reach its tolerance in 100 iterations, ``mlmg`` stops the run, while
+``gmres_fft`` and ``gmres_mlmg`` continue with the last iterate; the divergence printed after
+each solve (``erf.mg_v = 1``) shows how far it got.
+
+``MLTerrainPoisson`` came into AMReX with AMReX-Codes/amrex#6030, and the flux routine ERF
+uses with AMReX-Codes/amrex#6068, so the option needs AMReX ``26.10-67`` (commit 6e4e0f9af) or
+later, as in ERF's AMReX submodule.  A build against an older external AMReX does not compile.
