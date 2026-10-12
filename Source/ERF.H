@@ -356,8 +356,7 @@ public:
                                       const amrex::MultiFab& mf_cons_var,
                                       const double& time);
 
-    void HurricaneSurfaceFluxesTracker (const amrex::Geometry& lev_geom,
-                                        const int& hurricane_eye_i_glob,
+    void HurricaneSurfaceFluxesTracker (const int& hurricane_eye_i_glob,
                                         const int& hurricane_eye_j_glob,
                                         const amrex::Real& hurricane_eye_latitude,
                                         const amrex::Real& hurricane_eye_longitude,

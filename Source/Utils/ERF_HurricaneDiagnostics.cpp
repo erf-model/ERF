@@ -72,6 +72,8 @@ void unpack_ij (const Long idx, const int nx, const Dim3& dlo, int& i, int& j) n
  * @param[out] global_val_min Global minimum value
  * @param[out] global_i_min Global minimum i-index
  * @param[out] global_j_min Global minimum j-index
+ * @param[out] hurricane_eye_latitude Latitude of the hurricane eye
+ * @param[out] hurricane_eye_longitude Longitude of the hurricane eye
  */
 void
 ERF::ComputeGlobalMinLocation (const SolverChoice& sc,
@@ -224,8 +226,8 @@ ERF::HurricaneTrackerCircle ()
  * @param[in] sc Solver choices
  * @param[in] lev_geom Geometry of the current level
  * @param[in] S_data Conservative state data
- * @param[in] hurricane_eye_latitude Target latitude for the eye
- * @param[in] hurricane_eye_longitude Target longitude for the eye
+ * @param[out] hurricane_eye_latitude Target latitude for the eye
+ * @param[out] hurricane_eye_longitude Target longitude for the eye
  */
 void
 ERF::HurricaneEyeTrackerInitial (const SolverChoice& sc,
@@ -367,7 +369,11 @@ ERF::HurricaneEyeTrackerInitial (const SolverChoice& sc,
  * @param[in] lev_geom Geometry of the current level
  * @param[in] S_data Conservative state data
  * @param[in] mf_cc_vel Cell-centered velocity multifabs
- */
+ * @param[out] global_i_min Global minimum i-index
+ * @param[out] global_j_min Global minimum j-index
+ * @param[in] hurricane_eye_latitude Latitude of the hurricane eye
+ * @param[in] hurricane_eye_longitude Longitude of the hurricane eye
+*/
 void
 ERF::HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
                                     const Geometry& lev_geom,
@@ -808,8 +814,7 @@ ERF::HurricaneMinPressureTracker (MoistureType moisture_type,
  */
 
 void
-ERF::HurricaneSurfaceFluxesTracker (const Geometry& lev_geom,
-                                    const int& hurricane_eye_i_glob,
+ERF::HurricaneSurfaceFluxesTracker (const int& hurricane_eye_i_glob,
                                     const int& hurricane_eye_j_glob,
                                     const Real& hurricane_eye_latitude,
                                     const Real& hurricane_eye_longitude,
@@ -952,6 +957,8 @@ ERF::HurricaneSurfaceFluxesTracker (const Geometry& lev_geom,
  * @param[in] mf_cc_vel The celle centered velocity mutlifab
  * @param[in] hurricane_eye_i_glob Global i index of the hurricane eye
  * @param[in] hurricane_eye_j_glob Global j index of the hurricane eye
+ * @param[out] hurricane_eye_latitude Latitude of the hurricane eye
+ * @param[out] hurricane_eye_longitude Longitude of the hurricane eye
  */
 void
 ERF::HurricaneEyeTracker (const SolverChoice& sc,
