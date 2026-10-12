@@ -30,9 +30,10 @@ prob.dir                 = 2
 prob.hmax                = 100.0
 prob.L                   = 300.0
 
-# ANELASTIC, FFT-PRECONDITIONED GMRES PROJECTION
+# ANELASTIC; ON A TERRAIN-FITTED MESH THE PROJECTION IS FFT-PRECONDITIONED GMRES BY DEFAULT
+# (erf.terrain_poisson_solver).  erf.use_fft is not set: it is not read on this mesh, and a
+# build without FFT stops on it at start-up.
 erf.anelastic = 1
-erf.use_fft   = true
 erf.mg_v      = 1
 
 # TIME STEP CONTROL

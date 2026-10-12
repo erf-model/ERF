@@ -659,6 +659,29 @@ Test Location: `Tests/test_files/Closure_BoxParity`_
 
 .. _`Tests/test_files/Closure_BoxParity`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/Closure_BoxParity
 
+Terrain Poisson operator at Neumann faces
+-----------------------------------------
+The ``TerrainPoisson_*`` tests (MPI builds, not Windows) check the anelastic projection on a
+terrain-fitted mesh where the terrain slopes at a Neumann face of the region being solved
+(:ref:`subsec:TerrainNeumannFaces`). The deck is a 100 m hill on 32 x 32 x 16 cells with one
+refined level (ratio 2 2 1) whose four coarse/fine faces lie on the hill's flanks; run on one
+level inside slip walls, the hill's slopes reach the walls instead. ERF prints the divergence
+before and after every solve (``erf.mg_v = 1``), and ``Tests/check_terrain_poisson_divergence.py``
+requires each solve on the checked level to leave no more than the constant that a singular
+solve cannot remove, within the solver tolerance. ``TerrainPoisson_TwoLevelHill`` and
+``TerrainPoisson_SlopingWalls`` run the default operator and then
+``erf.terrain_poisson_neumann = mirror``, which must fail the check: with it the refined level
+leaves up to 1.6e-2 and the walled level up to 7.6e-4, against at most 1e-9 with ``zero_flux``.
+``TerrainPoisson_Hill_BoxParity`` (one box on one rank against split boxes) and
+``TerrainPoisson_Hill_Restart`` check the decomposition and a restart;
+``TerrainPoisson_DivergenceChecker_SelfTest`` feeds the checker made-up logs on both sides of
+its limit; ``TerrainPoisson_Abort_UnknownNeumann`` checks the input. The runs need the FFT
+build; the abort test and the self-test do not.
+
+Test Location: `Tests/test_files/TerrainPoisson_Hill`_
+
+.. _`Tests/test_files/TerrainPoisson_Hill`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/TerrainPoisson_Hill
+
 Station time series
 -------------------
 ``StationSampling_BoxParity`` and ``StationSampling_Restart`` cover the station

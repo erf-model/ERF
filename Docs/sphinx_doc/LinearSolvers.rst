@@ -12,7 +12,7 @@ ERF uses several solver options available through AMReX: geometric multigrid, Fa
 For simulations without terrain-fitted coordinates or grid stretching, one of the FFT options is generally the fastest solver,
 followed by multigrid.  We note that the multigrid solver has the option to "ignore" a coordinate direction
 if the domain is only one cell wide in that direction; this allows for efficient solution of effectively 2D problems.
-Multigrid can also be used when the union of grids at a level is not in itself rectangular; the FFT solvers do not work in that general case.
+Multigrid can also be used when the union of grids at a level is not in itself rectangular (except on terrain-fitted meshes); the FFT solvers do not work in that general case.
 
 For simulations using grid stretching in the vertical but a flat lower boundary, we must use the hybrid FFT solver in which
 we perform 2D transforms only in the lateral directions and couple the solution in the vertical direction with a tridiagonal solve.
@@ -50,9 +50,12 @@ horizontal gradient at constant height,
 with :math:`h_\xi` the slope of the coordinate surface (likewise :math:`F_y`; :math:`F_z`
 holds both cross terms).
 
-Some faces of the region being solved must not let any correction through: the wall and
-inflow faces of the domain, and, on a refined level, the coarse/fine faces, where the fine
-level takes the normal momentum from the level below.  These are the Neumann faces.  With
+Some faces of the region being solved must not let any correction through: on a refined
+level the coarse/fine faces, where the fine level takes the normal momentum from the level
+below, and on any level the faces of the domain that are neither periodic nor Dirichlet
+(``Outflow`` or ``Open``).  Those include walls, inflow, ``InflowOutflow``, ``HO_Outflow``
+and symmetry faces, and, when real-data boundary conditions are used, every lateral face.
+These are the Neumann faces.  With
 ``erf.terrain_poisson_neumann = mirror`` the solution is copied into the ghost cell across
 such a face.  That makes the first term of :math:`F_x` vanish there, but not the second
 wherever the terrain slopes and :math:`\phi` varies in the vertical, so flux crosses the face.
@@ -67,6 +70,8 @@ over sloping terrain drifts.  With ``zero_flux`` (the default) the whole flux th
 Neumann face is zero, the sum vanishes, and the solve converges to its tolerance; the
 projection then leaves the normal momentum on those faces unchanged.
 
-The two settings differ only where the terrain slopes at a Neumann face.  Flat terrain,
-periodic faces and Dirichlet (outflow or open) faces are treated alike, and where the
-terrain is flat at every Neumann face the results agree bit for bit.
+The two settings differ only where the terrain slopes at a Neumann face.  Periodic faces
+and Dirichlet (``Outflow`` or ``Open``) faces are treated alike, and where the terrain is
+exactly flat at every Neumann face the results agree bit for bit.  Flat terrain does not use
+this operator at all: ERF treats the mesh as stretched and solves with the hybrid FFT
+solver, so ``erf.terrain_poisson_neumann`` has no effect there.
