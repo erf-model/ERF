@@ -6,6 +6,7 @@
  * Main class in ERF code, instantiated from main.cpp
 */
 
+#include <filesystem>
 #include <memory>
 #include "ERF_Constants.H"
 
@@ -920,6 +921,31 @@ ERF::InitData_pre ()
     // Initialize the start time for our CPU-time tracker
     startCPUTime = ParallelDescriptor::second();
 
+    // A run that wrote its output planes into the folder it reads its input planes from would
+    // drop and replace the very planes it reads
+    if (input_bndry_planes && output_bndry_planes) {
+        ParmParse pp("erf");
+        std::string in_dir, out_dir;
+        pp.query("bndry_file", in_dir);
+        pp.query("bndry_output_planes_file", out_dir);
+        // Resolve symbolic links where the path exists; a folder not made yet is compared as
+        // spelled. equivalent() also catches two names of one existing folder.
+        auto folder = [] (const std::string& name) {
+            std::error_code ec;
+            const auto abs = std::filesystem::absolute(std::filesystem::path(name), ec);
+            auto p = std::filesystem::weakly_canonical(abs, ec);
+            if (ec) { p = abs.lexically_normal(); }
+            return p.has_filename() ? p : p.parent_path();
+        };
+        std::error_code ec_same;
+        const bool same_folder = !in_dir.empty() && !out_dir.empty() &&
+            (folder(in_dir) == folder(out_dir) || std::filesystem::equivalent(in_dir, out_dir, ec_same));
+        if (same_folder) {
+            Abort("erf.bndry_file and erf.bndry_output_planes_file name the same folder (" + in_dir +
+                  "); the run would overwrite the boundary planes it reads");
+        }
+    }
+
     // Create the ReadBndryPlanes object so we can read boundary plane data
     // m_r2d is used by init_bcs so we must instantiate this class before
     if (input_bndry_planes) {
@@ -1341,10 +1367,20 @@ ERF::InitData_post ()
         // Create the WriteBndryPlanes object so we can handle writing of boundary plane data
         m_w2d = std::make_unique<WriteBndryPlanes>(grids,geom);
 
-        double tot_time = t_new[0]+start_time;
-        if (tot_time >= bndry_output_planes_start_time) {
+        // A fresh start writes the plane at step 0 when output starts at 0. A restart continues
+        // the series the run before it wrote and writes the plane at its own step only when the
+        // series lacks it and post_timestep would have written it there, so that the restarted
+        // series holds the planes a run without the restart writes; output switched on at a
+        // restart thus begins at the first output step. The start time is elapsed time, as in
+        // post_timestep.
+        const bool restarting = !restart_chkfile.empty();
+        const bool has_start_plane = m_w2d->start_series(istep[0], t_new[0]+start_time, restarting);
+        const bool output_step = !restarting ||
+            is_it_time_for_action(istep[0], t_new[0], dt[0], bndry_output_planes_interval, bndry_output_planes_per);
+
+        if (!has_start_plane && output_step && t_new[0] >= bndry_output_planes_start_time) {
             bool is_moist = (micro->Get_Qstate_Moist_Size() > 0);
-            m_w2d->write_planes(0, tot_time, vars_new, is_moist);
+            m_w2d->write_planes(istep[0], t_new[0]+start_time, vars_new, is_moist);
         }
     }
 
@@ -2784,6 +2820,25 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
         }
     }
 
+    //
+    // What follows fills the HALO of these 2-D fields from the parent.  A level that read
+    // its own init file already has one -- init_from_wrfinput/init_from_metgrid fill the
+    // grown box by clamping the file indices into the valid region -- and that halo is the
+    // level's own data, exactly as its valid cells are, so we must not replace it with the
+    // parent's interpolation.  The same guard is applied to the map factors, the surface
+    // pressure and the land masks at the top of this routine, and for the same reason.
+    //
+    // This is not cosmetic.  MakeNewLevelFromCoarse does NOT call this routine on the
+    // branch that reads an init file, so a level created part-way through a run keeps the
+    // file's halo -- while a restart rebuilds every level through MakeNewLevelFromScratch
+    // and then comes through here, which overwrote the halo the checkpoint had just
+    // restored.  The surface layer reads SST/TSK on grown tileboxes and the momentum
+    // sources read sinPhi/cosPhi past the domain faces, so the restarted run saw different
+    // surface temperatures and Coriolis factors than the run it was continuing -- by 29 K
+    // in TSK on inputs_wps_ml_interp, which is what made KE and Kmv diverge there.
+    //
+    if (has_own_init_file(lev)) { return; }
+
     Real time_for_fp = 0.0; // This is not actually used
     Vector<Real> ftime    = {static_cast<Real>(time_for_fp), static_cast<Real>(time_for_fp)};
     Vector<Real> ctime    = {static_cast<Real>(time_for_fp), static_cast<Real>(time_for_fp)};
@@ -3343,6 +3398,26 @@ ERF::ReadParameters ()
         // Set default to FullState for now ... later we will try Perturbation
         interpolation_type = StateInterpType::FullState;
         pp.query_enum_case_insensitive("interpolation_type"  ,interpolation_type);
+
+        //
+        // Perturbational interpolation is only ever reached from FillPatchFineLevel, so
+        // it does nothing at all without refinement.  With refinement it is a mode that
+        // nothing measures: no input file in the repository selects it, so it has no
+        // regression coverage, and what it does is transform the live conserved state in
+        // place -- on both levels, including ghost cells -- and then undo the transform.
+        // Neither (rt/r)*r == rt nor (r - r0) + r0 == r holds in IEEE arithmetic, so every
+        // traversal perturbs the solution it was supposed to leave alone (issue 4257).
+        //
+        // Refuse the combination here, where the message can explain itself, rather than
+        // silently taking that path part-way through a run.  Lift this once the mode has
+        // a deck and a test to hold it.
+        //
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            !(interpolation_type == StateInterpType::Perturbational && max_level > 0),
+            "erf.interpolation_type = Perturbational is not supported with refinement "
+            "(amr.max_level > 0): the mode has no regression coverage and round-trips "
+            "the live state in place on every fill (ERF issue 4257).  Use the default "
+            "FullState, or run with amr.max_level = 0.");
 
         PlotFileType plotfile3d_type_temp = PlotFileType::None;
         pp.query_enum_case_insensitive("plotfile_type"  ,plotfile3d_type_temp);

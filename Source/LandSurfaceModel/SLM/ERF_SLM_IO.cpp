@@ -463,6 +463,18 @@ void SLM::WriteCheckpoint (const int &lev, const std::string &checkpointname) co
         // Write box arrays for SLM
         ba_lsm_2d.writeOn(HeaderFile);
         HeaderFile << '\n';
+
+        //
+        // Where SLM is in its lifecycle.  With a wrfinput run the surface fields and
+        // the canopy-adjusted reference height are not built in Init -- they need the
+        // file, and are deferred to the first Advance -- so a checkpoint written
+        // before any step has been taken holds zrefxy at the scalar slm.zref
+        // placeholder rather than ztop + dz0.  The reader used to declare the model
+        // initialized unconditionally, which is right for every later checkpoint and
+        // wrong for that one.  Written last so a checkpoint from before this simply
+        // ends after the BoxArray and the reader keeps its old default.
+        //
+        HeaderFile << first_step << " " << wrfinput_initialized << "\n";
     }
 
     amrex::ParallelDescriptor::Barrier();
@@ -745,6 +757,20 @@ void SLM::ReadCheckpoint (const int &lev, const std::string &checkpointname)
 
     AMREX_ALWAYS_ASSERT(ba == ba_lsm_2d);
 
+    //
+    // Lifecycle flags, if this checkpoint carries them (see WriteCheckpoint).  The
+    // defaults are what the reader always did: treat the model as initialized.
+    //
+    // NOTE: the BoxArray read above is already followed by its own GotoNextLine, so
+    //       the stream sits at the start of this line -- do not skip another.
+    //
+    int chk_first_step = 0;
+    int chk_wrfinput_initialized = (use_wrfinput) ? 1 : 0;
+    {
+        int a, b;
+        if (is >> a >> b) { chk_first_step = a; chk_wrfinput_initialized = b; }
+    }
+
     const std::string prefix = "SLM_";
 
     // Use distribution map from data vars, since those are already created and loaded by ERF
@@ -942,8 +968,14 @@ void SLM::ReadCheckpoint (const int &lev, const std::string &checkpointname)
         MultiFab::Copy(*(lsm_fab_vars[unmapped_fields[i]]),mf_unmapped,0,0,1,IntVect(1,1,1));
     }
 
-    first_step = false;
-    wrfinput_initialized = use_wrfinput;
+    //
+    // Restore where the model was, rather than asserting it was past its first step.
+    // A checkpoint taken before any step has been advanced leaves first_step set, so
+    // the first Advance after the restart does the deferred wrfinput read and rebuilds
+    // zrefxy -- exactly what the run being continued did at that point.
+    //
+    first_step           = (chk_first_step != 0);
+    wrfinput_initialized = (chk_wrfinput_initialized != 0);
 
     // Initialize common parameters
     init_layer_depths();

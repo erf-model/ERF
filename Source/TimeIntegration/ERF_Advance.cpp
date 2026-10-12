@@ -33,9 +33,12 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
         }
     }
 
-    // Surface energy balance on the building faces, with the state at the start of the step
-    ibseb_advance(lev, time, dt_lev, vars_old[lev][Vars::cons],
-                  vars_old[lev][Vars::xvel], vars_old[lev][Vars::yvel], vars_old[lev][Vars::zvel]);
+    // Surface energy balance on the building faces, with the state at the start of the step.
+    // With the two-stream columns as their radiation it runs after advance_radiation below.
+    if (!ibseb_after_radiation()) {
+        ibseb_advance(lev, time, dt_lev, vars_old[lev][Vars::cons],
+                      vars_old[lev][Vars::xvel], vars_old[lev][Vars::yvel], vars_old[lev][Vars::zvel]);
+    }
 
     MultiFab& S_old = vars_old[lev][Vars::cons];
     MultiFab& S_new = vars_new[lev][Vars::cons];
@@ -168,6 +171,16 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     // Update the radiation sources with the "old" state
     // **************************************************************************************
     advance_radiation(lev, S_old, dt_lev);
+
+    // The building faces on this step's two-stream sweep (erf.ibseb.radiation = two_stream),
+    // with the state at the start of the step that the sweep saw: after any direct inflow
+    // perturbation above, and with the ground surface layer's Obukhov length and boundary-layer
+    // height of this step's update_fluxes (the call at the start of the step sees the previous
+    // step's).
+    if (ibseb_after_radiation()) {
+        ibseb_advance(lev, time, dt_lev, vars_old[lev][Vars::cons],
+                      vars_old[lev][Vars::xvel], vars_old[lev][Vars::yvel], vars_old[lev][Vars::zvel]);
+    }
 
     // **************************************************************************************
     // Update the "old" state using SHOC

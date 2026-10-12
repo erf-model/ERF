@@ -12,9 +12,11 @@
 using namespace amrex;
 
 /**
- * Function for computing the buoyancy term to be used in the evolution
- * equation for the z-component of momentum in the slow integrator.  There
- * are three options for how buoyancy is computed (two are the same in the absence of moisture).
+ * Compute the vertical perturbational gravitational force density [N/m^3]
+ * used by the dry-momentum equation. Compressible selector values 1--4
+ * select density, temperature (2 and 3 are identical), or potential-
+ * temperature formulations. Anelastic flow dispatches to its active dry
+ * or moist kernel independently of the stored selector.
  *
  * @param[in]  lev           level
  * @param[in]  S_data        current solution
@@ -86,7 +88,7 @@ void make_buoyancy (int lev,
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     //
-                    // Return -rho0 g (thetaprime / theta0)
+                    // Return the dry anelastic potential-temperature force density.
                     //
                     buoyancy_fab(i, j, k) = buoyancy_dry_anelastic(i,j,k,grav_gpu[2],
                                                                    r0_arr,th0_arr,cell_data);
@@ -100,13 +102,7 @@ void make_buoyancy (int lev,
                 ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
                     //
-                    // Return -rho0 g (thetaprime / theta0)
-                    //
-                    //buoyancy_fab(i, j, k) = buoyancy_moist_anelastic(i,j,k,grav_gpu[2],RvoRd_d,
-                    //                                                 r0_arr,th0_arr,qv0_arr,cell_data,qt_arr);
-
-                    // NOTE: Using the type 4, which we formally derived.
-                    //       The above has errors and needs rederiving.
+                    // Use the active moist potential-temperature force density.
                     buoyancy_fab(i, j, k) = buoyancy_moist_Thpert(i,j,k,n_qstate,grav_gpu[2],
                                                                   r0_arr,th0_arr,qv0_arr,cell_prim,qt_arr);
                 });
@@ -121,7 +117,7 @@ void make_buoyancy (int lev,
                     ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         //
-                        // Return -rho0 g (thetaprime / theta0)
+                        // Exact density-perturbation force density.
                         //
                         buoyancy_fab(i, j, k) = buoyancy_rhopert(i,j,k,grav_gpu[2],
                                                                  r0_arr,qv0_arr,cell_data,qt_arr);
@@ -129,12 +125,13 @@ void make_buoyancy (int lev,
                 }
                 else if (solverChoice.buoyancy_type[lev] == 2 || solverChoice.buoyancy_type[lev] == 3)
                 {
-                    ParallelFor(tbz, [=,rdOcp_d=solverChoice.rdOcp] AMREX_GPU_DEVICE (int i, int j, int k)
+                    // Legacy selectors 2 and 3 intentionally share this approximation.
+                    ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         //
-                        // Return -rho0 g (Tprime / T0)
+                        // Approximate temperature-perturbation force density.
                         //
-                        buoyancy_fab(i, j, k) = buoyancy_dry_Tpert(i,j,k,grav_gpu[2],rdOcp_d,
+                        buoyancy_fab(i, j, k) = buoyancy_dry_Tpert(i,j,k,grav_gpu[2],
                                                                    r0_arr,p0_arr,th0_arr,cell_data);
                     });
                 }
@@ -143,10 +140,10 @@ void make_buoyancy (int lev,
                     ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
                         //
-                        // Return -rho0 g (Theta_prime / Theta_0)
+                        // Approximate potential-temperature force density.
                         //
                         buoyancy_fab(i, j, k) = buoyancy_dry_Thpert(i,j,k,grav_gpu[2],
-                                                                    r0_arr,th0_arr,cell_data);
+                                                                    r0_arr,th0_arr,cell_prim);
                     });
                 } // buoyancy_type for dry compressible
             }
@@ -173,10 +170,10 @@ void make_buoyancy (int lev,
                 }
                 else if (solverChoice.buoyancy_type[lev] == 2 || solverChoice.buoyancy_type[lev] == 3)
                 {
-
-                    ParallelFor(tbz, [=,RdoCp_d=RdoCp] AMREX_GPU_DEVICE (int i, int j, int k)
+                    // Legacy selectors 2 and 3 intentionally share this approximation.
+                    ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                     {
-                        buoyancy_fab(i, j, k) = buoyancy_moist_Tpert(i,j,k,n_qstate,grav_gpu[2],RdoCp_d,
+                        buoyancy_fab(i, j, k) = buoyancy_moist_Tpert(i,j,k,n_qstate,grav_gpu[2],
                                                                      r0_arr,th0_arr,qv0_arr,p0_arr,
                                                                      cell_prim,cell_data,qt_arr);
                     });

@@ -9,7 +9,8 @@ include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
 # Functions for adding tests / Categories of tests
 #=============================================================================
 function(resolve_test_exe TEST_DIR TEST_EXE OUT_VAR)
-    if(WIN32)
+    get_property(_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+    if(WIN32 AND _multi_config)
         # Multi-config generators place binaries in a config subdir, and which config is
         # built is not known here.  The tests that launch through `sh -c` let the shell
         # expand the wildcard; the ones driven through `cmake -P` call execute_process,
@@ -46,8 +47,10 @@ macro(setup_test)
 
     if(ERF_ENABLE_MPI)
         set(NP ${ERF_TEST_NRANKS})
-        set(MPI_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
-        set(MPI_FCOMP_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
+        # Quoted: these strings are handed to `sh -c`, and MS-MPI lives under
+        # "C:/Program Files/Microsoft MPI/Bin/mpiexec.exe".
+        set(MPI_COMMANDS "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
+        set(MPI_FCOMP_COMMANDS "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
     else()
         set(NP 1)
         unset(MPI_COMMANDS)
@@ -683,8 +686,8 @@ endif()
 # REQUIRE_LEVEL0_REMAKE makes a regrid test fail if the restart stopped regridding, which
 # would otherwise leave it silently comparing an ordinary restart and passing.
 function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
-    set(oneValueArgs "COMMON_OPTIONS" "RESTART_OPTIONS" "CHK_NRANKS" "RESTART_NRANKS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT" "DATALOG" "DATALOG_SIGDIGITS" "PLT2DFILE")
-    cmake_parse_arguments(ADD_TEST_RP "ALLOW_DIFF_GRIDS;REQUIRE_LEVEL0_REMAKE" "${oneValueArgs}" "" ${ARGN})
+    set(oneValueArgs "COMMON_OPTIONS" "RESTART_OPTIONS" "CHK_OPTIONS" "CHK_LEG_END" "CHK_NRANKS" "RESTART_NRANKS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT" "DATALOG" "DATALOG_SIGDIGITS" "PLT2DFILE" "BNDRY_PLANES_DIR" "BNDRY_PLANES_FIRST_STEP" "BNDRY_PLANES_STEPS" "BNDRY_PLANES_READ_INPUT")
+    cmake_parse_arguments(ADD_TEST_RP "ALLOW_DIFF_GRIDS;REQUIRE_LEVEL0_REMAKE;BNDRY_PLANES_STALE;BNDRY_PLANES_CUT_NEWLINE;BNDRY_PLANES_EARLY_STOP" "${oneValueArgs}" "" ${ARGN})
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
 
@@ -727,6 +730,15 @@ function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
         "-DDATALOG=${ADD_TEST_RP_DATALOG}"
         "-DDATALOG_SIGDIGITS=${ADD_TEST_RP_DATALOG_SIGDIGITS}"
         "-DPLT2DFILE=${ADD_TEST_RP_PLT2DFILE}"
+        "-DCHK_OPTIONS=${ADD_TEST_RP_CHK_OPTIONS}"
+        "-DCHK_LEG_END=${ADD_TEST_RP_CHK_LEG_END}"
+        "-DBNDRY_PLANES_DIR=${ADD_TEST_RP_BNDRY_PLANES_DIR}"
+        "-DBNDRY_PLANES_FIRST_STEP=${ADD_TEST_RP_BNDRY_PLANES_FIRST_STEP}"
+        "-DBNDRY_PLANES_STALE=${ADD_TEST_RP_BNDRY_PLANES_STALE}"
+        "-DBNDRY_PLANES_STEPS=${ADD_TEST_RP_BNDRY_PLANES_STEPS}"
+        "-DBNDRY_PLANES_CUT_NEWLINE=${ADD_TEST_RP_BNDRY_PLANES_CUT_NEWLINE}"
+        "-DBNDRY_PLANES_EARLY_STOP=${ADD_TEST_RP_BNDRY_PLANES_EARLY_STOP}"
+        "-DBNDRY_PLANES_READ_INPUT=${ADD_TEST_RP_BNDRY_PLANES_READ_INPUT}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunRestartParity.cmake)
     # The reservation has to cover the widest leg, which need not be NP.
     set(_procs "${NP}")
@@ -1408,10 +1420,11 @@ function(add_test_lsm TEST_NAME TEST_DIR TEST_EXE)
         set(test_labels "regression")
     endif()
 
-    if(WIN32)
+    get_property(_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+    if(WIN32 AND _multi_config)
         set(TEST_EXE "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/*/${TEST_EXE}.exe")
     else()
-        set(TEST_EXE "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/${TEST_EXE}")
+        set(TEST_EXE "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/${TEST_EXE}${CMAKE_EXECUTABLE_SUFFIX}")
     endif()
 
     set(FCOMPARE_TOLERANCE "-r ${ERF_TEST_FCOMPARE_RTOL} --abs_tol ${ERF_TEST_FCOMPARE_ATOL}")
@@ -1751,6 +1764,48 @@ add_test_restart_parity(MoistBubble_Kessler_Restart MoistBubble_Kessler_Restart 
     COMMON_OPTIONS "erf.vert_implicit=false"
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
+# Boundary-plane output (erf.output_bndry_planes) across a restart: the series in BndryFiles --
+# one plane directory per output step and a time.dat of "step time" rows -- must come out of a
+# run through a checkpoint as it comes out of a straight run, since erf.input_bndry_planes reads
+# it back and stops on a time.dat whose rows do not increase. Each test runs 16^3 ABL to step 8
+# three times, planes every 2 steps. The runner is a cmake -P script (MPI, not Windows).
+#   _Restart:     restart from step 4, and read the series back. The start-up write used to run
+#                 on a restart too, as step 0: it replaced the step-0 plane with the restart
+#                 state and appended a "0 t" row. The last row before the restart is left
+#                 without its newline, as a time.dat edited or copied by hand may be.
+#   _Replay:      the run went on to step 8 after its step-3 checkpoint, the restart replays 4-8,
+#                 and step 3 is not an output step. A restart that stops before its first plane
+#                 (here: no step at all) must leave time.dat as it was.
+#   _Enable:      the output is switched on at the restart, at an output step (4) ...
+#   _EnableOff:   ... and between two (3): the series begins at step 4 either way.
+#   _StartTime:   output starts 0.05 s into a run whose clock starts at a calendar date
+#                 (start_datetime); the checkpoint at step 3 comes before any plane, and the run
+#                 went on to step 8 after it: planes at 4, 6, 8 only.
+#   _Stale:       both run directories already hold the time.dat of an earlier run; a fresh start
+#                 begins a new series instead of appending to it.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_parity(ABL_BndryPlanes_Restart ABL_BndryPlanes_Restart 4 8
+    BNDRY_PLANES_DIR "BndryFiles" BNDRY_PLANES_STEPS "0 2 4 6 8" BNDRY_PLANES_CUT_NEWLINE
+    BNDRY_PLANES_READ_INPUT "ABL_BndryPlanes_Read.i"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(ABL_BndryPlanes_Replay ABL_BndryPlanes_Restart 3 8
+    CHK_LEG_END 8 BNDRY_PLANES_EARLY_STOP
+    BNDRY_PLANES_DIR "BndryFiles" BNDRY_PLANES_STEPS "0 2 4 6 8" FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(ABL_BndryPlanes_Enable ABL_BndryPlanes_Restart 4 8
+    CHK_OPTIONS "erf.output_bndry_planes=0"
+    BNDRY_PLANES_DIR "BndryFiles" BNDRY_PLANES_FIRST_STEP 4 BNDRY_PLANES_STEPS "4 6 8"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(ABL_BndryPlanes_EnableOff ABL_BndryPlanes_Restart 3 8
+    CHK_OPTIONS "erf.output_bndry_planes=0"
+    BNDRY_PLANES_DIR "BndryFiles" BNDRY_PLANES_FIRST_STEP 3 BNDRY_PLANES_STEPS "4 6 8"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(ABL_BndryPlanes_StartTime ABL_BndryPlanes_StartTime 3 8
+    CHK_LEG_END 8
+    BNDRY_PLANES_DIR "BndryFiles" BNDRY_PLANES_STEPS "4 6 8" FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(ABL_BndryPlanes_Stale ABL_BndryPlanes_Restart 4 8
+    BNDRY_PLANES_DIR "BndryFiles" BNDRY_PLANES_STALE BNDRY_PLANES_STEPS "0 2 4 6 8"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+endif()
 add_test_r(SquallLine_2D                     ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(SuperCell_3D                      ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 if(ERF_ENABLE_NETCDF)
@@ -1823,7 +1878,7 @@ function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME
     file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
 
     if(ERF_ENABLE_MPI)
-        set(MPI_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
+        set(MPI_COMMANDS "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
     else()
         unset(MPI_COMMANDS)
     endif()
@@ -1844,6 +1899,28 @@ function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME
         ATTACHED_FILES_ON_FAIL "${test_log}"
     )
 endfunction(add_test_abort)
+
+# Reading and writing boundary planes in one folder would replace the planes being read; the
+# folder names differ only in spelling (_SameFolder) or reach it through a symbolic link
+# (_SameFolderLink, link made here at configure time). Not on Windows, whose path spelling and
+# links this does not cover.
+if(NOT WIN32)
+  add_test_abort(ABL_BndryPlanes_SameFolder
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ABL_BndryPlanes_Restart
+                 ABL_BndryPlanes_Restart.i
+                 "name the same folder"
+                 "erf.input_bndry_planes=1 erf.bndry_file=./BndryFiles/ erf.bndry_input_var_names=velocity")
+  add_test_abort(ABL_BndryPlanes_SameFolderLink
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ABL_BndryPlanes_Restart
+                 ABL_BndryPlanes_Restart.i
+                 "name the same folder"
+                 "erf.input_bndry_planes=1 erf.bndry_file=BndryIn erf.bndry_input_var_names=velocity")
+  set(_bp_link_dir "${CMAKE_CURRENT_BINARY_DIR}/test_files/ABL_BndryPlanes_SameFolderLink")
+  file(MAKE_DIRECTORY "${_bp_link_dir}/BndryFiles")
+  if(NOT EXISTS "${_bp_link_dir}/BndryIn")
+    file(CREATE_LINK "BndryFiles" "${_bp_link_dir}/BndryIn" SYMBOLIC)
+  endif()
+endif()
 
 if(ERF_ENABLE_MPI AND NOT WIN32)
   # A shallow nest -- a fine level that stops below the domain top -- has no complete
@@ -2168,7 +2245,7 @@ function(add_test_rans TEST_NAME CASE_DIR INPUT_FILE NSTEPS CHECK_SCRIPT)
         else()
             set(NP ${ADD_TEST_RANS_NRANKS})
         endif()
-        set(MPI_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
+        set(MPI_COMMANDS "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
     else()
         set(NP 1)
         unset(MPI_COMMANDS)
@@ -2231,7 +2308,7 @@ function(add_test_rans_pair TEST_NAME CASE_DIR INPUT_FILE NSTEPS CHECK_SCRIPT)
         else()
             set(NP ${ADD_TEST_RANS_PAIR_NRANKS})
         endif()
-        set(MPI_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
+        set(MPI_COMMANDS "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
     else()
         set(NP 1)
         unset(MPI_COMMANDS)
@@ -2336,7 +2413,7 @@ function(add_test_most_zref TEST_NAME)
 
     # 4x4 columns: one rank
     if(ERF_ENABLE_MPI)
-        set(MPI_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
+        set(MPI_COMMANDS "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
     else()
         unset(MPI_COMMANDS)
     endif()
@@ -2344,7 +2421,7 @@ function(add_test_most_zref TEST_NAME)
     resolve_test_exe("" "erf_exec" TEST_EXE)
 
     set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
-    set(test_command sh -c "rm -f ${CURRENT_TEST_BINARY_DIR}/CHECK_FAILED && ( ${ERF_MOST_ZREF_PYTHON} ${CURRENT_TEST_BINARY_DIR}/run_most_zref.py --exe ${TEST_EXE} --mpi-cmd \"${MPI_COMMANDS}\" --workdir ${CURRENT_TEST_BINARY_DIR}/runs > ${test_log} 2>&1 || touch ${CURRENT_TEST_BINARY_DIR}/CHECK_FAILED ) && cat ${test_log} && test ! -f ${CURRENT_TEST_BINARY_DIR}/CHECK_FAILED")
+    set(test_command sh -c "rm -f ${CURRENT_TEST_BINARY_DIR}/CHECK_FAILED && ( ${ERF_MOST_ZREF_PYTHON} ${CURRENT_TEST_BINARY_DIR}/run_most_zref.py --exe ${TEST_EXE} --mpi-cmd '${MPI_COMMANDS}' --workdir ${CURRENT_TEST_BINARY_DIR}/runs > ${test_log} 2>&1 || touch ${CURRENT_TEST_BINARY_DIR}/CHECK_FAILED ) && cat ${test_log} && test ! -f ${CURRENT_TEST_BINARY_DIR}/CHECK_FAILED")
 
     add_test(${TEST_NAME} ${test_command})
     set_tests_properties(${TEST_NAME}
@@ -2420,11 +2497,84 @@ function(add_test_ibseb_two_stream_sun TEST_NAME TEST_FILES_DIR)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/run/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
 endfunction(add_test_ibseb_two_stream_sun)
 
+# The building faces taking their radiation from the two-stream columns
+# (erf.ibseb.radiation = two_stream; Tests/RunIBSEBTwoStreamProvider.cmake). Under a
+# transparent sky the faces get what the faces' own clear-sky radiation gives for that sky;
+# under an absorbing sky each face gets the exact beam and reflected light at its height, on
+# one level and on two (level 1 refined in z too); a scattering sky adds diffuse light and
+# leaves the beam alone; at night the faces get no sunlight; a restart keeps the reports.
+# Then the start-up aborts: no two-stream radiation, its shortwave off, its longwave off
+# with lw_mode = two_stream, lw_mode = two_stream without the two-stream radiation, inputs
+# of the faces' own clear-sky radiation given with it, and a refined level whose grids do
+# not span the domain in z (it has no column sweep of its own).
+function(add_test_ibseb_two_stream_provider TEST_NAME)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+        "-DTWO_LEVEL_INPUT=${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider/IBSEB_TwoStreamProviderTwoLevel.i"
+        "-DTWO_LEVEL_FILES=${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_RefinedLevels"
+        "-DPRECISION=${ERF_PRECISION}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${CMAKE_CURRENT_SOURCE_DIR}/check_ibseb_two_stream_provider.py"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunIBSEBTwoStreamProvider.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/two_stream/simulation.log;${CURRENT_TEST_BINARY_DIR}/prescribed/simulation.log;${CURRENT_TEST_BINARY_DIR}/absorbing/simulation.log;${CURRENT_TEST_BINARY_DIR}/scattering/simulation.log;${CURRENT_TEST_BINARY_DIR}/night/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level_clear/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level_absorbing/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+endfunction(add_test_ibseb_two_stream_provider)
+
 if(ERF_ENABLE_MPI AND NOT WIN32)
   if(NOT "${ERF_TEST_PYTHON}" STREQUAL "")
     add_test_ibseb_refined_levels(IBSEB_RefinedLevels)
     add_test_ibseb_two_stream_sun(IBSEB_TwoStreamSunRun IBSEB_TwoStreamSun)
+    add_test_ibseb_two_stream_provider(IBSEB_TwoStreamProvider)
   endif()
+  add_test_abort(IBSEB_TwoStreamProviderWithoutTwoStream
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
+                 IBSEB_TwoStreamProvider.i
+                 "erf.ibseb.radiation = two_stream needs erf.radiation_model = TwoStream"
+                 "erf.radiation_model=None")
+  add_test_abort(IBSEB_TwoStreamProviderShortwaveOff
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
+                 IBSEB_TwoStreamProvider.i
+                 "erf.ibseb.radiation = two_stream needs the two-stream shortwave"
+                 "erf.radiation.sw_enabled=false")
+  add_test_abort(IBSEB_TwoStreamProviderLongwaveOff
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
+                 IBSEB_TwoStreamProvider.i
+                 "erf.ibseb.lw_mode = two_stream needs the two-stream longwave"
+                 "erf.radiation.lw_enabled=false")
+  add_test_abort(IBSEB_TwoStreamProviderLwMode
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
+                 IBSEB_TwoStreamProvider.i
+                 "lw_mode = two_stream needs erf.ibseb.radiation = two_stream"
+                 "erf.ibseb.radiation=prescribed erf.ibseb.lw_mode=two_stream")
+  add_test_abort(IBSEB_TwoStreamProviderPrescribedInputs
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
+                 IBSEB_TwoStreamProvider.i
+                 "albedo_ground is not used with erf.ibseb.radiation = two_stream"
+                 "erf.ibseb.albedo_ground=0.2")
+  add_test_abort(IBSEB_TwoStreamProviderLwInputs
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
+                 IBSEB_TwoStreamProvider.i
+                 "T_ground is not used with erf.ibseb.lw_mode = two_stream"
+                 "erf.ibseb.T_ground=300.0")
+  add_test_abort(IBSEB_TwoStreamProviderShallowLevel
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_RefinedLevels
+                 IBSEB_RefinedLevels.i
+                 "grids of level 1 do not span the domain in z"
+                 "erf.radiation_model=TwoStream erf.fixed_solar_zenith_angle=0.3420201433256688 erf.rad_t_sfc=300.0 erf.ibseb.radiation=two_stream amr.refine_whole_domain_dir=-1 erf.city.in_box_lo=100.0 180.0 0.0 erf.city.in_box_hi=220.0 300.0 100.0")
   add_test_abort(IBSEB_RefinedLevelCutsBuilding
                  ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_RefinedLevels
                  IBSEB_RefinedLevels.i
@@ -2484,12 +2634,12 @@ endif()
 # IBSEB_RefinedLevels_Restart does the same on the two levels of the
 # IBSEB_RefinedLevels deck (a cube on level 1, a tower outside it); its face dumps go
 # to a plain file name, since the deck's faces/ directory does not exist in the
-# runner's legs. It compares to 1e-8 relative, not zero: the restart leg writes a
-# plotfile at the restart step and the straight leg does not, and on two levels
-# writing a plotfile changes the solution at round-off (issue 4224; 5e-15 relative in theta
-# without buildings, 1.7e-10 relative in w here by step 20); with the plotfiles at
-# the same steps in all legs the restart is bit-exact. terrain_IB_mask still shows
-# the uncleared blanking (2.6e-3); 1e-8 relative is about 3e-6 K on the skin temperatures.
+# runner's legs. It compares at zero tolerance like the one-level case. It used to be
+# held at 1e-8 relative because the restart leg writes a plotfile at the restart step
+# and the straight leg does not, and on two levels that moved the solution at round-off
+# (issue 4224: the coarse/fine momentum conversion read density ghost cells nothing had
+# filled yet, so whichever call last wrote them decided the interface momenta). With
+# that fixed the two legs agree bit for bit, which is what a restart owes.
 # The runner is a cmake -P script (MPI, not Windows).
 if(ERF_ENABLE_MPI AND NOT WIN32)
 add_test_restart_parity(IBSEB_Cube_Restart IBSEB_Cube 17 40
@@ -2499,8 +2649,29 @@ add_test_restart_parity(IBSEB_Cube_Restart IBSEB_Cube 17 40
 add_test_restart_parity(IBSEB_RefinedLevels_Restart IBSEB_RefinedLevels 7 20
     COMMON_OPTIONS "erf.ibseb.dump_faces_file=faces_set erf.plot_vars_1=density x_velocity y_velocity z_velocity theta terrain_IB_mask ibseb_nfaces ibseb_tskin ibseb_sw_abs ibseb_lw_net ibseb_H ibseb_G"
     RUN_TIMEOUT 1200
-    FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "0.0")
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
+
+# Writing a 3D plotfile must not change the solution, which on two levels it did: the
+# momentum conversion at the start of FillPatchFineLevel read the density one cell
+# outside every valid box, and nothing had filled those cells that step, so a run that
+# wrote a plotfile (which fills them) and a run that did not diverged from the next step
+# on (issue 4224). One deck, two plot cadences, compared at zero tolerance -- the same
+# standard the station-sampling parity tests below hold their diagnostic to. The
+# buildings are left on because that is where the signal is largest: before the fix this
+# fails by 2.0e-9 in u on level 0 and 6.0e-9 on level 1 by step 10, against 1.5e-13 with
+# erf.buildings_type=None. REQUIRE_ON_FILE is the plotfile only the dense cadence writes,
+# so a typo in the option cannot leave the two legs identical and pass while testing
+# nothing.
+#
+# The two legs run in subdirectories of the deck's directory, so its input files are
+# one level up, as for the InputSounding parity tests below.
+add_test_option_parity(IBSEB_RefinedLevels_PlotCadenceParity IBSEB_RefinedLevels "plt00010"
+    COMMON_OPTIONS "erf.ibseb.enable=false erf.input_sounding_file=../input_sounding erf.buildings_file_name=../cube_and_tower_10m.txt max_step=10 erf.check_int=-1 erf.plot_vars_1=density x_velocity y_velocity z_velocity theta pressure"
+    OFF_OPTIONS "erf.plot_int_1=10"
+    ON_OPTIONS  "erf.plot_int_1=1"
+    REQUIRE_ON_FILE "plt00005/Header"
+    RUN_TIMEOUT 900)
 add_test_r(PBL_IBAware_MRF_Smoothing         ""  "erf_exec" "plt00010")
 
 #=============================================================================
@@ -2691,10 +2862,7 @@ add_test_station_series(StationSampling_ImmersedTerrain TerrainHill single
 # 20, on one level and on the deck's two. A restart rebuilt the blanking without
 # clearing the almost-fluid cells of the hill's tails (eb2.small_volfrac), so the
 # wall law acted there after the restart only: 0.2 m/s in u at step 20 on one level.
-# The one-level leg compares at zero tolerance. The two-level one compares to 1e-8
-# relative, for the same reason as IBSEB_RefinedLevels_Restart above: the restart leg
-# writes a plotfile at the restart step and the straight leg does not, and on two
-# levels writing a plotfile moves the solution at round-off (issue 4224).
+# Both legs compare at zero tolerance. 
 # The runner is a cmake -P script (MPI, not Windows).
 if(ERF_ENABLE_MPI AND NOT WIN32)
 add_test_restart_parity(ImmersedTerrain_Hill_Restart TerrainHill 7 20
@@ -2702,7 +2870,7 @@ add_test_restart_parity(ImmersedTerrain_Hill_Restart TerrainHill 7 20
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 add_test_restart_parity(ImmersedTerrain_Hill_TwoLevel_Restart TerrainHill 7 20
     COMMON_OPTIONS "erf.terrain_type=ImmersedForcing erf.immersed_forcing_substep=true eb2.small_volfrac=0.005 erf.plot_vars_1=density x_velocity y_velocity z_velocity theta terrain_IB_mask"
-    FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "0.0")
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
 
 # A restart that re-makes the level-0 grids (erf.regrid_level_0_on_restart, and the

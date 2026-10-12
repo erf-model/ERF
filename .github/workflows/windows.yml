@@ -1,30 +1,33 @@
 name: Windows
 
+# Every Windows build in one place. PR tier: the MPI-off DOUBLE build with its tests.
+# Merge tier adds the MPI-off SINGLE build and three MS-MPI builds; the MS-MPI DOUBLE
+# build with particles runs the tests under mpiexec, and the MS-MPI builds are the
+# downloadable binaries. Built with Ninja and ccache; see the step comments.
 on:
   push:
     branches: [development]
   pull_request:
     types: [opened, synchronize, reopened]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || github.sha }}-windows
   cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
-  WIN32-MSVC10:
-    name: WIN32 MSVC@19.29 - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
+  windows:
+    name: Windows MSVC - MPI ${{ matrix.mpi }} - Mesh ${{ matrix.mesh_precision }} Particles ${{ matrix.particles }} ${{ matrix.particles_precision }}
     runs-on: windows-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
-        # Only the particle-enabled configuration is built here; the
-        # particles-OFF variant duplicates its solver coverage. Particles OFF
-        # is still built by ci, gcc and windows-mpi.
-        particles: [ON]
-        particles_precision: [DOUBLE, SINGLE]
-        # PR tier: DOUBLE only. SINGLE builds on merge to development (which also writes its ccache).
+        # PR tier: MPI off, DOUBLE. Merge to development builds everything (and writes the caches).
+        mpi: ${{ fromJSON(github.event_name == 'pull_request' && '["OFF"]' || '["OFF", "ON"]') }}
         mesh_precision: ${{ fromJSON(github.event_name == 'pull_request' && '["DOUBLE"]' || '["DOUBLE", "SINGLE"]') }}
+        particles: [OFF, ON]
+        particles_precision: [DOUBLE, SINGLE]
         exclude:
           # Only matching mesh/particle precisions are tested, i.e. DOUBLE mesh
           # with DOUBLE particles and SINGLE mesh with SINGLE particles.
@@ -32,6 +35,21 @@ jobs:
             particles_precision: SINGLE
           - mesh_precision: SINGLE
             particles_precision: DOUBLE
+          # SINGLE precision is only exercised in the particle-enabled build.
+          - mesh_precision: SINGLE
+            particles: OFF
+          # The MPI-off build is particles-on only; particles-off is covered by the MPI build.
+          - mpi: OFF
+            particles: OFF
+        include:
+          # The MPI-off build is the test build: debug info and AMReX assertions on.
+          - mpi: OFF
+            build_type: RelWithDebInfo
+            assertions: ON
+          # The MS-MPI builds are what users download: Release, no assertions.
+          - mpi: ON
+            build_type: Release
+            assertions: OFF
 
     steps:
 
@@ -39,31 +57,113 @@ jobs:
       with:
         submodules: true
 
-    - name: Configure Project and Generate Build System
+    # ccache for MSVC. Three things make it work where earlier attempts did not:
+    # the Ninja generator (CMake only honours COMPILER_LAUNCHER for Makefile and
+    # Ninja generators, never for MSBuild), debug info embedded in each object
+    # (/Z7 via CMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded; the default /Zi
+    # writes a shared .pdb that ccache cannot key on), and no /MP (ccache
+    # handles one source per compiler call; Ninja provides the parallelism).
+    - name: Install ccache
+      shell: pwsh
       run: |
-        cmake -S . -B build `
+        Invoke-WebRequest https://github.com/ccache/ccache/releases/download/v4.10.2/ccache-4.10.2-windows-x86_64.zip -OutFile ccache.zip
+        Expand-Archive ccache.zip -DestinationPath $env:RUNNER_TEMP
+        "$env:RUNNER_TEMP\ccache-4.10.2-windows-x86_64" | Out-File -FilePath $env:GITHUB_PATH -Append
+        "CCACHE_DIR=$env:RUNNER_TEMP\ccache" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+    # ccache per matrix variant, written only from development; see ci.yml for how it works.
+    - name: Restore Cache
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ runner.temp }}\ccache
+        key: ccache-${{ github.workflow }}-${{ github.job }}-mpi-${{ matrix.mpi }}-${{ matrix.mesh_precision }}-${{ matrix.particles }}-git-${{ github.sha }}
+        restore-keys: |
+             ccache-${{ github.workflow }}-${{ github.job }}-mpi-${{ matrix.mpi }}-${{ matrix.mesh_precision }}-${{ matrix.particles }}-git-
+
+    # SDK to build against, runtime so mpiexec exists and the tests can run under MPI.
+    - name: Install MS-MPI
+      if: matrix.mpi == 'ON'
+      shell: pwsh
+      run: |
+        curl -L -o msmpisdk.msi https://github.com/microsoft/Microsoft-MPI/releases/download/v10.1.1/msmpisdk.msi
+        curl -L -o msmpisetup.exe https://github.com/microsoft/Microsoft-MPI/releases/download/v10.1.1/msmpisetup.exe
+        msiexec /i msmpisdk.msi /qn /norestart
+        Start-Process -FilePath .\msmpisetup.exe -ArgumentList '-unattend','-force' -Wait
+        "MSMPI_INC=C:\Program Files (x86)\Microsoft SDKs\MPI\Include" | Out-File -FilePath $env:GITHUB_ENV -Append
+        "MSMPI_LIB=C:\Program Files (x86)\Microsoft SDKs\MPI\Lib\x64" | Out-File -FilePath $env:GITHUB_ENV -Append
+        "C:\Program Files\Microsoft MPI\Bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+        & "C:\Program Files\Microsoft MPI\Bin\mpiexec.exe" -help | Select-Object -First 1
+
+    - name: Set up the MSVC environment
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Configure Project and Generate Build System
+      shell: pwsh
+      run: |
+        $mpi_args = @()
+        if ("${{ matrix.mpi }}" -eq "ON") {
+          $mpi_args = @(
+            "-DMPI_CXX_LIB_NAMES=msmpi",
+            "-DMPI_C_LIB_NAMES=msmpi",
+            "-DMPI_msmpi_LIBRARY=$env:MSMPI_LIB\msmpi.lib",
+            "-DMPI_CXX_INCLUDE_DIR=$env:MSMPI_INC",
+            "-DMPI_C_INCLUDE_DIR=$env:MSMPI_INC",
+            "-DMPIEXEC_EXECUTABLE=C:/Program Files/Microsoft MPI/Bin/mpiexec.exe",
+            "-DERF_TEST_NRANKS:STRING=2"
+          )
+        }
+        cmake -S . -B build -G Ninja `
+          -DCMAKE_C_COMPILER=cl `
+          -DCMAKE_CXX_COMPILER=cl `
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache `
+          -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded `
+          -DCMAKE_POLICY_DEFAULT_CMP0141=NEW `
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install `
-          -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo `
-          -DAMReX_ASSERTIONS:BOOL=ON `
+          -DCMAKE_BUILD_TYPE:STRING=${{ matrix.build_type }} `
+          -DAMReX_ASSERTIONS:BOOL=${{ matrix.assertions }} `
           -DERF_DIM:STRING=3 `
-          -DERF_ENABLE_MPI:BOOL=OFF `
-          -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} `
-          -DERF_PRECISION:STRING=${{matrix.mesh_precision}} `
-          -DERF_PARTICLES_PRECISION:STRING=${{matrix.particles_precision}} `
+          -DERF_ENABLE_MPI:BOOL=${{ matrix.mpi }} `
+          -DERF_ENABLE_PARTICLES:BOOL=${{ matrix.particles }} `
+          -DERF_PRECISION:STRING=${{ matrix.mesh_precision }} `
+          -DERF_PARTICLES_PRECISION:STRING=${{ matrix.particles_precision }} `
           -DERF_ENABLE_TESTS:BOOL=ON `
           -DERF_ENABLE_ALL_WARNINGS:BOOL=OFF `
           -DERF_ENABLE_FCOMPARE:BOOL=ON `
-          ${{github.workspace}};
+          @mpi_args `
+          ${{github.workspace}}
+        if ($LASTEXITCODE -ne 0) { throw "configure failed" }
 
     - name: Compile and Link
-      run: |
-        cmake --build build --config RelWithDebInfo --parallel 2 --verbose
-
-    - name: Check Unit Test Registration
-      if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       shell: pwsh
       run: |
-        $out = & "${{runner.workspace}}/ERF/build/Tests/Unit/RelWithDebInfo/erf_unit_tests.exe" --gtest_list_tests
+        $env:CCACHE_COMPRESS = "1"
+        $env:CCACHE_COMPRESSLEVEL = "10"
+        $env:CCACHE_MAXSIZE = "600M"
+        ccache -z
+        $build_start = [int](Get-Date -UFormat %s)
+        cmake --build build --parallel $env:NUMBER_OF_PROCESSORS
+        if ($LASTEXITCODE -ne 0) { throw "build failed" }
+        # Keep only what this build used; see ci.yml.
+        $age = [int](Get-Date -UFormat %s) - $build_start + 120
+        ccache --evict-older-than "${age}s"
+        '```' | Out-File -Append -FilePath $env:GITHUB_STEP_SUMMARY
+        ccache -s | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
+        '```' | Out-File -Append -FilePath $env:GITHUB_STEP_SUMMARY
+
+    - name: Save Cache
+      if: always() && github.ref_name == github.event.repository.default_branch
+      uses: actions/cache/save@v6
+      with:
+        path: ${{ runner.temp }}\ccache
+        key: ccache-${{ github.workflow }}-${{ github.job }}-mpi-${{ matrix.mpi }}-${{ matrix.mesh_precision }}-${{ matrix.particles }}-git-${{ github.sha }}
+
+    # Tests run on the DOUBLE builds with particles: once without MPI (the PR job) and
+    # once under mpiexec with 2 ranks (merge tier).
+    - name: Check Unit Test Registration
+      if: matrix.mesh_precision == 'DOUBLE' && matrix.particles == 'ON'
+      shell: pwsh
+      run: |
+        $out = & "${{runner.workspace}}/ERF/build/Tests/Unit/erf_unit_tests.exe" --gtest_list_tests
         $out
         $outText = $out -join "`n"
         if ($outText -notmatch '(?m)^[A-Za-z0-9_].*\.$') {
@@ -72,19 +172,92 @@ jobs:
       working-directory: ${{runner.workspace}}/ERF/build
 
     - name: CMake Unit Tests
-      if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
+      if: matrix.mesh_precision == 'DOUBLE' && matrix.particles == 'ON'
       run: |
-        ctest -C RelWithDebInfo -L unit -VV
+        ctest -L unit -VV -j $env:NUMBER_OF_PROCESSORS
       working-directory: ${{runner.workspace}}/ERF/build
 
     - name: CMake Shuffle Stress Test
-      if: matrix.particles == 'ON' && matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
+      if: matrix.mesh_precision == 'DOUBLE' && matrix.particles == 'ON'
       shell: pwsh
-      run: ctest -C RelWithDebInfo -L stress --output-on-failure --no-tests=error
+      run: ctest -L stress --output-on-failure --no-tests=error -j $env:NUMBER_OF_PROCESSORS
       working-directory: ${{runner.workspace}}/ERF/build
 
     - name: CMake Regression Tests # see file ERF/Tests/CTestList.cmake
-      if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
+      if: matrix.mesh_precision == 'DOUBLE' && matrix.particles == 'ON'
       run: |
-        ctest -C RelWithDebInfo -L regression -VV
+        ctest -L regression -VV -j $env:NUMBER_OF_PROCESSORS
       working-directory: ${{runner.workspace}}/ERF/build
+
+    # The MS-MPI builds are the downloadable binaries: the executable and how to run it,
+    # not the build tree (which was 450-512 MB per variant).
+    - name: Create Installation README
+      if: matrix.mpi == 'ON'
+      shell: pwsh
+      run: |
+        @"
+        # ERF Windows Build - Installation Instructions
+
+        ## Build Information
+        - Build Type: ${{ matrix.build_type }}
+        - MPI Enabled: ${{ matrix.mpi }}
+        - Particles Enabled: ${{ matrix.particles }}
+        - Mesh precision: ${{ matrix.mesh_precision }}
+        - MS-MPI Version: 10.1.1
+        - Built on: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss UTC")
+        - Commit: ${{ github.sha }}
+
+        ## Required Runtime Installation
+
+        This executable requires MS-MPI Runtime v10.1.1 to run.
+
+        ### Quick Install (PowerShell):
+        ``````powershell
+        # Download and install MS-MPI Runtime v10.1.1
+        Invoke-WebRequest -Uri "https://github.com/microsoft/Microsoft-MPI/releases/download/v10.1.1/msmpisetup.exe" -OutFile "msmpisetup.exe"
+        .\msmpisetup.exe
+
+        # After installation, open a NEW PowerShell window to refresh PATH
+        ``````
+
+        ### Alternative Install (using vcpkg):
+        ``````powershell
+        # vcpkg will download the installer and prompt you to run it
+        vcpkg install msmpi:x64-windows
+        # Follow the instructions vcpkg provides to run the downloaded installer
+        ``````
+
+        ## Running the Executable
+
+        ``````powershell
+        # Single process
+        mpiexec -n 1 .\erf_exec.exe path\to\inputs_file
+
+        # Multiple processes (e.g., 4)
+        mpiexec -n 4 .\erf_exec.exe path\to\inputs_file
+        ``````
+
+        **Important:** Always use `mpiexec` to launch. Running `.\erf_exec.exe` directly will trigger Windows Defender firewall warnings.
+
+        ## Troubleshooting
+
+        ### Executable runs but produces no output:
+        - MS-MPI runtime is not installed, or the wrong version is installed.
+        - Install MS-MPI v10.1.1 runtime using the script above
+        - Open a NEW terminal after installation
+
+        ### "mpiexec not recognized":
+        - Open a new PowerShell window after installing MS-MPI
+        - Or manually refresh PATH: `$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine")`
+        "@ | Out-File -FilePath build\INSTALL.txt -Encoding utf8
+
+    - name: Upload the executable
+      if: matrix.mpi == 'ON'
+      uses: actions/upload-artifact@v7
+      with:
+        name: ERF-win64-${{ matrix.build_type }}-mpi-${{ matrix.mpi }}-mesh-${{ matrix.mesh_precision }}-particles-${{ matrix.particles }}-${{ matrix.particles_precision }}
+        path: |
+          build/Exec/erf_exec.exe
+          build/INSTALL.txt
+        if-no-files-found: error
+        retention-days: 14

@@ -8,6 +8,7 @@
 #include "ERF_IBSEBSolar.H"
 #include "ERF_IBSEBSlab.H"
 #include "ERF_IBSEBBalance.H"
+#include <ERF_TwoStreamCanopyForcing.H>
 #include <ERF_EOS.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_Constants.H>
@@ -270,6 +271,16 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     m_nslots = 0;
     for (int n = 0; n < m_nface; ++n) { m_nslots = std::max(m_nslots, h_slot[n] + 1); }
     ParallelDescriptor::ReduceIntMax(m_nslots);
+
+    // The highest interface any face samples (two_stream_canopy_sample(): a roof its
+    // fluid cell's bottom, a ceiling and a wall the top of its cell too), counted from the domain
+    // bottom; -1 when the level has no faces. The two-stream beam the faces read needs
+    // no interface above it.
+    m_top_sample = -1;
+    for (int n = 0; n < m_nface; ++n) {
+        m_top_sample = std::max(m_top_sample, h_k[n] - domain.smallEnd(2) + ((h_dir[n] != 2 || h_side[n] > 0) ? 1 : 0));
+    }
+    ParallelDescriptor::ReduceIntMax(m_top_sample);
 
     // Checkpoint layout: 4 x 4 column blocks clipped to the k-range that owns
     // faces (see state_boxarray()), the same on every rank from a reduced
@@ -695,11 +706,18 @@ IBFaceSet::compute_view_fractions ()
 /**
  * Longwave of the current step. One kernel per fab over that fab's faces,
  * reading the air temperature of the fluid cell from the conserved state
- * (potential temperature and density through the equation of state).
+ * (potential temperature and density through the equation of state). With
+ * lw_mode = two_stream the sky and ground terms come from the canopy forcing
+ * of the face's column, read from the 2D fab of the same local index (the
+ * level's grids flattened, on the same distribution).
  */
 void
-IBFaceSet::compute_longwave (const MultiFab& cons)
+IBFaceSet::compute_longwave (const MultiFab& cons, const TwoStreamCanopyView& canopy)
 {
+    if (m_params.lw_mode == "two_stream") {
+        compute_longwave_two_stream(cons, canopy);
+        return;
+    }
     const Real  sigma  = ibseb::SIGMA_SB;
     const bool  gray   = (m_params.lw_mode == "gray");
     const Real  lw_fix = m_params.lw_down, eps_sky = m_params.sky_emissivity;
@@ -732,6 +750,95 @@ IBFaceSet::compute_longwave (const MultiFab& cons)
         });
     }
     Gpu::streamSynchronize();
+}
+
+/**
+ * Longwave of the current step with lw_mode = two_stream: the sky term is the
+ * longwave down of the face's column at the face's height (a roof's interface,
+ * a wall's mean of its cell's two; two_stream_canopy_sample()), the ground term
+ * its longwave up at the same height (the ground seen through the air in between),
+ * so the ground's temperature, emissivity and reflection of the sky are the
+ * column's (two_stream_face_sky()). Before the
+ * level's first sweep (an empty ``canopy``, the initial report) the air
+ * temperature is read and the incoming and net longwave are zero.
+ */
+void
+IBFaceSet::compute_longwave_two_stream (const MultiFab& cons, const TwoStreamCanopyView& canopy)
+{
+    const Real  sigma = ibseb::SIGMA_SB;
+    const bool  have  = canopy.valid();
+    const int   k0    = m_dom_lo[2];
+    const Real* peps  = d_emis.data();
+    const int*  pi = d_i.data();  const int* pj = d_j.data();  const int* pk = d_k.data();
+    const int*  pd = d_dir.data();  const int* ps = d_side.data();
+    const Real* pfs = d_f_sky.data(); const Real* pfg = d_f_ground.data(); const Real* pfb = d_f_bldg.data();
+    const Real* pT = d_T_skin.data();
+    Real* pTa = d_T_air.data(); Real* pin = d_LW_down_in.data(); Real* pnet = d_LW_net.data();
+    Real* pext = d_LW_ext.data();
+    for (MFIter mfi(cons); mfi.isValid(); ++mfi) {
+        const int f0 = m_fab_start[mfi.LocalIndex()];
+        const int f1 = m_fab_start[mfi.LocalIndex() + 1];
+        auto const& c = cons.const_array(mfi);
+        const auto beam = have ? canopy.beam->const_array(mfi) : Array4<const Real>{};
+        const auto cosz = have ? canopy.cos_zenith->const_array(mfi) : Array4<const Real>{};
+        const auto flux = have ? canopy.fluxes->const_array(mfi) : Array4<const Real>{};
+        ParallelFor(f1 - f0, [=] AMREX_GPU_DEVICE (int m) noexcept {
+            const int f = f0 + m;
+            const Real rho = c(pi[f], pj[f], pk[f], Rho_comp);
+            pTa[f] = getTgivenRandRTh(rho, c(pi[f], pj[f], pk[f], RhoTheta_comp));
+            if (!have) {
+                pext[f] = 0.0; pin[f] = 0.0; pnet[f] = 0.0;
+                return;
+            }
+            const Real Ts4 = pT[f] * pT[f] * pT[f] * pT[f];
+            const TwoStreamFaceSky sky = two_stream_face_sky(pi[f], pj[f], pk[f], k0, pd[f], ps[f], beam, cosz, flux);
+            const Real lw_ext = pfs[f] * sky.lw_down + pfg[f] * sky.lw_up;
+            const Real lw_in  = lw_ext + pfb[f] * sigma * Ts4;
+            pext[f] = lw_ext;
+            pin[f]  = lw_in;
+            pnet[f] = peps[f] * (lw_in - sigma * Ts4);
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+/**
+ * The fields of a two-stream view must lie on this level's columns, with the
+ * level's distribution, so that the fabs of local index n hold the columns of
+ * the faces fab_start()[n] .. fab_start()[n+1]-1 own: the interface fluxes on
+ * the level's own grids (with the top-of-atmosphere ghost, which a face whose
+ * cell is the top of the domain reads); the beam on its boxes in x and y with
+ * the interfaces from the surface up to at least top_sample_interface() in z;
+ * the cosine of the zenith on them flattened to index 0 in z.
+ */
+void
+IBFaceSet::check_canopy_layout (const MultiFab& cons, const TwoStreamCanopyView& canopy) const
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(canopy.valid(),
+        "erf.ibseb.radiation = two_stream: level " + std::to_string(m_lev) + "'s two-stream view is incomplete");
+    const BoxArray& ba = cons.boxArray();
+    const DistributionMapping& dm = cons.DistributionMap();
+    const auto& beam = *canopy.beam;
+    const auto& cosz = *canopy.cos_zenith;
+    const auto& flux = *canopy.fluxes;
+    bool ok = flux.boxArray() == ba && flux.DistributionMap() == dm && flux.nComp() >= 4 && flux.nGrowVect()[2] >= 1 &&
+              beam.boxArray().size() == ba.size() && beam.DistributionMap() == dm &&
+              cosz.boxArray().size() == ba.size() && cosz.DistributionMap() == dm;
+    // Same columns: the boxes agree in x and y.
+    for (int n = 0; ok && n < static_cast<int>(ba.size()); ++n) {
+        const Box& b = beam.boxArray()[n];
+        const Box& c = cosz.boxArray()[n];
+        for (int d = 0; d < 2; ++d) {
+            ok = ok && b.smallEnd(d) == ba[n].smallEnd(d) && b.bigEnd(d) == ba[n].bigEnd(d) &&
+                       c.smallEnd(d) == ba[n].smallEnd(d) && c.bigEnd(d) == ba[n].bigEnd(d);
+        }
+        // The kernels read the beam at interfaces 0 .. top_sample_interface() and the
+        // cosine of the zenith at index 0 in z.
+        ok = ok && b.smallEnd(2) == 0 && b.bigEnd(2) >= top_sample_interface() && c.smallEnd(2) == 0;
+    }
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ok,
+        "erf.ibseb.radiation = two_stream: level " + std::to_string(m_lev) +
+        "'s two-stream beam, cosine of the zenith or interface fluxes are not laid out on the level's grids");
 }
 
 /**
@@ -1066,7 +1173,7 @@ IBFaceSet::add_heat_flux_to_source (MultiFab& source, const MultiFab& cons,
  * compute_view_fractions() has run.
  */
 void
-IBFaceSet::compute_shortwave (Real time)
+IBFaceSet::compute_shortwave (Real time, const TwoStreamCanopyView& canopy)
 {
     // ---- Sun and irradiances (host scalars) ----
     SunState s;
@@ -1105,6 +1212,11 @@ IBFaceSet::compute_shortwave (Real time)
     }
     ibseb::sun_vector(s.zenith, s.azimuth, s.sx, s.sy, s.sz);
     m_sun = s;
+
+    if (m_params.radiation == "two_stream") {
+        compute_shortwave_two_stream(canopy);
+        return;
+    }
 
     // ---- Per face ----
     const Real sx = s.sx, sy = s.sy, sz = s.sz;
@@ -1146,6 +1258,122 @@ IBFaceSet::compute_shortwave (Real time)
         Print() << "[IBSEB DEBUG] lev=" << m_lev << " sun: zenith=" << s.zenith * 180.0 / PI
                 << " deg azimuth=" << s.azimuth * 180.0 / PI << " deg s=(" << s.sx << "," << s.sy << "," << s.sz
                 << ") DNI=" << s.dni << " W/m2 diffuse_h=" << s.diffuse_h << " W/m2\n";
+    }
+}
+
+/**
+ * Shortwave of the current step with radiation = two_stream, after
+ * compute_shortwave() has placed the sun (m_sun): per face, the direct-normal
+ * irradiance of its column at its height (two_stream_face_sky(): a roof's
+ * interface, a wall's mean of its cell's two), the beam over the column's own
+ * cosine of the zenith, on the face (shadowed by the same ray cast), the
+ * diffuse light of the sky there through f_sky, and the ground's reflection,
+ * the column's shortwave up at the face's height, through f_ground. One kernel per
+ * fab, reading the view's fields of the same local index.
+ *
+ * The faces' sun (sun_mode) and the sweep's are required to be one sun
+ * (ERF::ibseb_check_sun_matches_two_stream()); the kernel checks it, column by
+ * column: a cosine of the zenith more than 1e-4 (1e-3 in single precision)
+ * from the faces' stops the run,
+ * since a direct beam divided by the wrong cosine and laid along the wrong
+ * direction would still look plausible.
+ *
+ * Before the level's first sweep (an empty ``canopy``, the initial report) every
+ * face gets no shortwave. The reported direct-normal and diffuse irradiances
+ * are the means over the level's faces of their columns'.
+ */
+void
+IBFaceSet::compute_shortwave_two_stream (const TwoStreamCanopyView& canopy)
+{
+    const Real sx = m_sun.sx, sy = m_sun.sy, sz = m_sun.sz;
+    const Real* palb = d_albedo.data();
+    const int*  col_top = d_col_top.data();
+    const int   nx = m_nx, ny = m_ny;
+    const int   ci0 = m_col_i0, cj0 = m_col_j0, cbw = m_col_nx, cbh = m_col_ny;
+    const Real  x_lo = m_x_lo, y_lo = m_y_lo, dx = m_dx[0], dy = m_dx[1], dz = m_dx[2];
+    const bool  per_x = m_per_x, per_y = m_per_y;
+    const Real  z_ground = m_z_ground, z_max = m_col_top_max, max_path = m_max_path;
+    const int*  pi = d_i.data();  const int* pj = d_j.data();  const int* pk = d_k.data();
+    const int   k0 = m_dom_lo[2];
+    const int*  pd  = d_dir.data();  const int* ps = d_side.data();
+    const Real* pxf = d_xf.data();   const Real* pyf = d_yf.data();  const Real* pzf = d_zf.data();
+    const Real* pfs = d_f_sky.data(); const Real* pfg = d_f_ground.data();
+    Real* psh = d_shadow.data();  Real* pdir = d_SW_direct_in.data();
+    Real* pdif = d_SW_diffuse_in.data();  Real* pabs = d_SW_abs.data();
+
+    if (!canopy.valid()) {
+        ParallelFor(m_nface, [=] AMREX_GPU_DEVICE (int f) noexcept {
+            psh[f] = 0.0; pdir[f] = 0.0; pdif[f] = 0.0; pabs[f] = 0.0;
+        });
+        Gpu::streamSynchronize();
+        m_sun.dni = 0.0;
+        m_sun.diffuse_h = 0.0;
+        return;
+    }
+
+    // Sums of the columns' direct-normal and diffuse irradiance over the faces,
+    // for the report, and the largest disagreement of the two suns.
+    ReduceOps<ReduceOpSum, ReduceOpSum, ReduceOpMax> reduce_op;
+    ReduceData<Real, Real, Real> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+    const Real sz_up = amrex::max(Real(0.0), sz);
+    const int nfab = static_cast<int>(m_fab_start.size()) - 1;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(canopy.beam->local_size() == nfab,
+        "erf.ibseb.radiation = two_stream: the two-stream beam holds another number of boxes than the faces' level");
+    for (MFIter mfi(*canopy.beam); mfi.isValid(); ++mfi) {
+        const int f0 = m_fab_start[mfi.LocalIndex()];
+        const int f1 = m_fab_start[mfi.LocalIndex() + 1];
+        const auto beam = canopy.beam->const_array(mfi);
+        const auto cosz = canopy.cos_zenith->const_array(mfi);
+        const auto flux = canopy.fluxes->const_array(mfi);
+        reduce_op.eval(f1 - f0, reduce_data, [=] AMREX_GPU_DEVICE (int m) noexcept -> ReduceTuple {
+            const int f = f0 + m;
+            const Real cz = cosz(pi[f], pj[f], 0);
+            const TwoStreamFaceSky sky = two_stream_face_sky(pi[f], pj[f], pk[f], k0, pd[f], ps[f], beam, cosz, flux);
+            const Real dni = sky.dni, dif_h = sky.diffuse, refl = sky.sw_up;
+            // Outward normal: opposite to the side the solid is on.
+            Real n[3] = {0.0, 0.0, 0.0};
+            n[pd[f]] = -static_cast<Real>(ps[f]);
+            const Real cosi = n[0] * sx + n[1] * sy + n[2] * sz;
+            Real shadow = 0.0, direct = 0.0;
+            if (sz > 0.0 && cosi > 0.0 && dni > 0.0) {
+                shadow = ibseb::ray_blocked(pxf[f], pyf[f], pzf[f], sx, sy, sz, col_top, nx, ny, ci0, cj0, cbw, cbh,
+                                            x_lo, y_lo, dx, dy, dz, per_x, per_y, z_ground, z_max, max_path) ? 1.0 : 0.0;
+                direct = dni * cosi * (1.0 - shadow);
+            }
+            const Real diffuse = pfs[f] * dif_h + pfg[f] * refl;
+            psh[f]  = shadow;
+            pdir[f] = direct;
+            pdif[f] = diffuse;
+            pabs[f] = (1.0 - palb[f]) * (direct + diffuse);
+            return {dni, dif_h, std::abs(cz - sz_up)};
+        });
+    }
+    Gpu::streamSynchronize();
+    const auto rv = reduce_data.value(reduce_op);
+    Real sums[2] = {amrex::get<0>(rv), amrex::get<1>(rv)};
+    Real sun_gap = amrex::get<2>(rv);
+    ParallelDescriptor::ReduceRealSum(sums, 2);
+    ParallelDescriptor::ReduceRealMax(sun_gap);
+    const Real nf_all = static_cast<Real>(m_nface_dir[0] + m_nface_dir[1] + m_nface_dir[2]);
+    m_sun.dni       = (nf_all > 0.0) ? sums[0] / nf_all : Real(0.0);
+    m_sun.diffuse_h = (nf_all > 0.0) ? sums[1] / nf_all : Real(0.0);
+    // The two suns are one formula evaluated twice; a float calendar day resolves
+    // about a second of the hour angle, hence the looser single-precision bound.
+    const Real sun_tol = (sizeof(Real) == 8) ? Real(1.e-4) : Real(1.e-3);
+    if (sun_gap > sun_tol) {
+        Abort("erf.ibseb.radiation = two_stream: on level " + std::to_string(m_lev) + " the faces' sun (zenith "
+              + std::to_string(m_sun.zenith * 180.0 / PI) + " deg) and the two-stream sweep's differ by up to "
+              + std::to_string(sun_gap) + " in the cosine of the zenith angle (more than " + std::to_string(sun_tol)
+              + "); the faces must take the sweep's sun"
+                " (erf.ibseb.sun_mode = two_stream, or fixed at erf.fixed_solar_zenith_angle)");
+    }
+    if (m_params.debug) {
+        Print() << "[IBSEB DEBUG] lev=" << m_lev << " sun: zenith=" << m_sun.zenith * 180.0 / PI
+                << " deg azimuth=" << m_sun.azimuth * 180.0 / PI << " deg s=(" << m_sun.sx << "," << m_sun.sy << ","
+                << m_sun.sz << "); two-stream columns: mean DNI=" << m_sun.dni
+                << " W/m2 mean diffuse_h=" << m_sun.diffuse_h << " W/m2 over the faces, largest sun gap "
+                << sun_gap << " in cos z\n";
     }
 }
 

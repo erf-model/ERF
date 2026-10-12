@@ -6,6 +6,7 @@
 #include <AMReX_Math.H>
 #include <ERF_RadiationDiagnostics.H>
 #include <ERF_TwoStreamColumn.H>
+#include <ERF_TwoStreamCanopyForcing.H>
 #include <ERF_Constants.H>
 #include <ERF_PrognosticCloudFraction.H>
 #include <ERF_AerosolOpticalDepth.H>
@@ -245,6 +246,10 @@ TwoStreamRadiation::resize (int nlevs_max)
     m_t_deep.resize(nlevs_max);
     m_q_deep.resize(nlevs_max);
     m_moisture.resize(nlevs_max);
+    m_canopy.resize(nlevs_max);
+    m_canopy_cosz.resize(nlevs_max);
+    m_canopy_m.resize(nlevs_max, -1);
+    m_canopy_step.resize(nlevs_max, -1);
     m_flux_diag.resize(nlevs_max);
     m_diag.resize(nlevs_max);
 }
@@ -344,7 +349,38 @@ TwoStreamRadiation::define_level (int lev,
         m_lw_dn_sfc[lev].reset();
         m_cos_zenith[lev].reset();
     }
+    // A rebuilt level has new grids: the canopy forcing, if the faces asked for it,
+    // must be asked for again on them (the faces do not regrid; ERF::init_ibseb()).
+    m_canopy[lev].reset();
+    m_canopy_cosz[lev].reset();
+    m_canopy_m[lev] = -1;
+    m_canopy_step[lev] = -1;
     m_flux_diag[lev] = FluxDiag{};
+}
+
+void
+TwoStreamRadiation::supply_canopy_forcing (int lev, int m_top)
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(active(),
+        "TwoStreamRadiation::supply_canopy_forcing: erf.radiation_model is not TwoStream");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lev >= 0 && lev < static_cast<int>(m_alb_sw.size()) && m_alb_sw[lev],
+        "TwoStreamRadiation::supply_canopy_forcing: level " + std::to_string(lev) + " has not been defined");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_top >= 0,
+        "TwoStreamRadiation::supply_canopy_forcing: the top of the canopy must be at or above the surface");
+    // The level's grids flattened (the 2D fields' boxes, on their distribution), given the
+    // interfaces 0 .. m_top in z; the sweep asserts that the column reaches m_top.
+    BoxList canopy_boxes = m_alb_sw[lev]->boxArray().boxList();
+    for (Box& b : canopy_boxes) { b.setRange(2, 0, m_top + 1); }
+    // The beam alone: the diffuse light, the longwave and the ground's fluxes are the
+    // sweep's interface fluxes, which ERF keeps (rad_fluxes); only the beam and the
+    // cosine of the zenith are lost after the sweep.
+    m_canopy[lev] = std::make_unique<MultiFab>(BoxArray(std::move(canopy_boxes)), m_alb_sw[lev]->DistributionMap(), 1, 0);
+    m_canopy_cosz[lev] = std::make_unique<MultiFab>(m_alb_sw[lev]->boxArray(), m_alb_sw[lev]->DistributionMap(), 1, 0);
+    // Never read before a sweep has written them: canopy_forcing() returns null until then.
+    m_canopy[lev]->setVal(0.0);
+    m_canopy_cosz[lev]->setVal(0.0);
+    m_canopy_m[lev] = m_top;
+    m_canopy_step[lev] = -1;
 }
 
 void
@@ -975,6 +1011,23 @@ TwoStreamRadiation::advance (int lev,
                 coszen_out = m_cos_zenith[lev]->array(mfi);
             }
 
+            // What the building faces take (erf.ibseb.radiation = two_stream) besides the
+            // interface fluxes, written by the same kernel: the direct beam at the canopy's
+            // interfaces from the scratch of each evaluation, weighted as the blend weights
+            // them, and the cosine of the zenith the sweep used.
+            const bool supply_canopy = supplies_canopy_forcing(lev);
+            const int  m_canopy_top = supply_canopy ? m_canopy_m[lev] : 0;
+            const bool sw_on = rad_choice.sw_enabled;
+            Array4<amrex::Real> canopy_out, canopy_cosz_out;
+            if (supply_canopy) {
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(write_fluxes,
+                    "TwoStreamRadiation: the canopy forcing of the building faces needs the rad_fluxes array");
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_canopy_top <= bx.length(2),
+                    "TwoStreamRadiation: the canopy reaches above the top of the column");
+                canopy_out = m_canopy[lev]->array(mfi);
+                canopy_cosz_out = m_canopy_cosz[lev]->array(mfi);
+            }
+
             // Create a 2D box for (i,j) iteration over the horizontal extent
             // One GPU thread per (i,j) column; k-loop is sequential within each thread
             const auto& lo = bx.loVect();
@@ -1051,6 +1104,13 @@ TwoStreamRadiation::advance (int lev,
                         write_fluxes ? &rad_flux_clear_arr : nullptr,
                         &cos_zenith_col);
 
+                    // The scratch holds this evaluation's beam until the cloudy one overwrites it.
+                    if (supply_canopy) {
+                        two_stream_canopy_beam(i, j, bx.smallEnd(2), m_canopy_top, scratch_arr,
+                                               TwoStreamScratch::F_DIR, sw_on, cos_zenith_col,
+                                               cloud_fraction, false, canopy_out);
+                    }
+
                     amrex::Real max_heating_col = max_heating_clear;
                     amrex::Real sw_flux_col = sw_flux_clear;
                     amrex::Real sw_up_col = sw_up_clear;
@@ -1091,6 +1151,11 @@ TwoStreamRadiation::advance (int lev,
                         lw_up_col = (1.0 - cloud_fraction) * lw_up_clear +
                                     cloud_fraction * lw_up_cloudy;
                         max_heating_col = std::max(max_heating_clear, max_heating_cloudy);
+                        if (supply_canopy) {
+                            two_stream_canopy_beam(i, j, bx.smallEnd(2), m_canopy_top, scratch_arr,
+                                                   TwoStreamScratch::F_DIR, sw_on, cos_zenith_col,
+                                                   cloud_fraction, true, canopy_out);
+                        }
 
                         // Blend per-level heating rates in place
                         // into qheating_clear_arr (which is the real output
@@ -1130,6 +1195,11 @@ TwoStreamRadiation::advance (int lev,
                                                 lw_dn_out(i, j, 0), coszen_out(i, j, 0));
                     }
 
+                    // The sun the building faces must share (their beam is in canopy_out).
+                    if (supply_canopy) {
+                        canopy_cosz_out(i, j, 0) = (cos_zenith_col > amrex::Real(0.0)) ? cos_zenith_col : amrex::Real(0.0);
+                    }
+
                     // The incident TOA flux is the same for both evaluations.
                     // Return tuple for reduction
                     return {max_heating_col, sw_flux_col, sw_up_col, lw_net_col, lw_up_col, sw_toa_clear};
@@ -1167,6 +1237,8 @@ TwoStreamRadiation::advance (int lev,
             sw_toa_sum = sums[4];
             ParallelDescriptor::ReduceLongSum(n_columns_total);
             ParallelDescriptor::ReduceRealMax(max_heating_global);
+            // The faces may take this sweep's canopy forcing in this step, and only in it.
+            if (supplies_canopy_forcing(lev)) { m_canopy_step[lev] = nstep; }
         }
         } // do_sweep
 
