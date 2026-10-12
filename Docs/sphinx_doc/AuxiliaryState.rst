@@ -13,11 +13,11 @@ those parts of the dynamical core.
 
    The auxiliary-state layer is an implementation interface, not a
    user-selectable generic tracer package. Its qualification consumer remains
-   a test-only inert tracer. The M3 spectral-bin microphysics transport is now
-   also a live consumer of the same mapped-measure, semantic-stage, host-carrier,
-   mapped-divergence, and completed-step-ledger contracts. SBM supplies its own
-   spectral semantics, grouped acceptance, canonical-state checks, projection,
-   restart, and boundary policy.
+   a test-only inert tracer. Spectral-bin microphysics is also a live user
+   of the same mapped-measure, host-stage, dry-air-carrier, mapped-divergence,
+   and completed-step-transfer contracts. SBM supplies its own particle-bin
+   semantics, coupled transport acceptance, canonical-state checks,
+   cloud/rain projection, restart, and boundary policy.
 
 Why auxiliary state exists
 --------------------------
@@ -430,18 +430,21 @@ runtime capability.
 Relationship to spectral-bin microphysics
 -----------------------------------------
 
-The SBM spectral state is separately owned outside ERF's core conserved-state
-array. In M3, ``SBMTransport`` uses the generic mapped auxiliary-state contracts
-for its static mapped measure, host-stage timing, dry-air carrier, mapped
-conservative update, and completed-step accounting while retaining ownership of
-spectral coordinates and grouped realizability. The inert tracer remains a
-small proof consumer of the generic coupling, but it is no longer the only live
-consumer.
+The SBM spectral state is owned separately from ERF's core conserved-state
+array. ``SBMTransport`` uses the generic mapped auxiliary-state interfaces
+for the static mapped measure, host-stage timing, dry-air mass carrier,
+conservative transport update, and accepted completed-step accounting. SBM
+retains ownership of spectral-bin coordinates, mass/number admissibility,
+and cloud/rain projection. The inert tracer remains a small proof consumer
+of the shared transport infrastructure.
 
-The generic substrate does not itself provide a complete multilevel lifecycle
-for SBM. The current M3 SBM execution remains single-level and triply periodic;
-spectral FillPatch/prolongation, restriction, reflux, remake/regrid, multilevel
-restart, and the operational nonperiodic boundary lifecycle remain M4 work.
+The code also contains independently tested SBM-specific operators for
+conservative mapped restriction, dry-air-relative prolongation, explicit
+old/new spectral time views, and an all-component accepted-transfer record.
+These methods are not yet connected to the complete adaptive-grid lifecycle.
+Operational SBM simulations remain single-level and triply periodic;
+coarse/fine time interpolation, flux correction, regridding, multilevel
+restart, and nonperiodic spectral boundaries are not yet available.
 
 The auxiliary layer addresses transport between atmospheric grid cells. It
 does not define how an SBM particle distribution is represented or remapped in

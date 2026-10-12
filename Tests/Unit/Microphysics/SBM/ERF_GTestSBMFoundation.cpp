@@ -453,24 +453,24 @@ TEST(SBMFoundation, ZeroAndNonzeroFixtureStatesRemainIdentityAndProject)
     const BoxArray boxes = make_boxes();
     const DistributionMapping mapping(boxes);
     erf_sbm::SBMStateManager manager(layout, 1);
-    manager.define(0, boxes, mapping);
+    manager.define(0, boxes, mapping, 0.0);
 
     MultiFab core(boxes, mapping, RhoQ1_comp + 3, 0);
     core.setVal(Real(9.0));
     manager.project_to_core(0, core, RhoQ2_comp, RhoQ3_comp);
-    EXPECT_DOUBLE_EQ(max_component_norm(manager.state(0), layout.ncomp()), Real(0.0));
+    EXPECT_DOUBLE_EQ(max_component_norm(manager.new_state_for_initialization(0), layout.ncomp()), Real(0.0));
     EXPECT_DOUBLE_EQ(core.norm0(RhoQ2_comp), Real(0.0));
     EXPECT_DOUBLE_EQ(core.norm0(RhoQ3_comp), Real(0.0));
 
     for (int bin = 0; bin < 4; ++bin) {
-        manager.state(0).setVal(Real(bin + 1), bin, 1, 0);
+        manager.new_state_for_initialization(0).setVal(Real(bin + 1), bin, 1, 0);
     }
     MultiFab before(boxes, mapping, layout.ncomp(), 0);
-    MultiFab::Copy(before, manager.state(0), 0, 0, layout.ncomp(), 0);
+    MultiFab::Copy(before, manager.new_state_for_initialization(0), 0, 0, layout.ncomp(), 0);
     manager.project_to_core(0, core, RhoQ2_comp, RhoQ3_comp);
 
     MultiFab difference(boxes, mapping, layout.ncomp(), 0);
-    MultiFab::Copy(difference, manager.state(0), 0, 0, layout.ncomp(), 0);
+    MultiFab::Copy(difference, manager.new_state_for_initialization(0), 0, 0, layout.ncomp(), 0);
     MultiFab::Subtract(difference, before, 0, 0, layout.ncomp(), 0);
     EXPECT_DOUBLE_EQ(max_component_norm(difference, layout.ncomp()), Real(0.0));
     EXPECT_DOUBLE_EQ(core.norm0(RhoQ2_comp), Real(3.0));
@@ -483,20 +483,68 @@ TEST(SBMFoundation, ManagerDefinesAndDestroysMultipleLevelsWithoutStaleState)
     const BoxArray boxes = make_boxes();
     const DistributionMapping mapping(boxes);
     erf_sbm::SBMStateManager manager(layout, 2);
-    manager.define(0, boxes, mapping);
-    manager.define(1, boxes, mapping);
+    manager.define(0, boxes, mapping, 0.0);
+    manager.define(1, boxes, mapping, 0.0);
     EXPECT_TRUE(manager.is_defined(0));
     EXPECT_TRUE(manager.is_defined(1));
-    manager.state(1).setVal(Real(4.0));
+    manager.new_state_for_initialization(1).setVal(Real(4.0));
     manager.destroy(1);
     EXPECT_FALSE(manager.is_defined(1));
-    EXPECT_THROW(static_cast<void>(manager.state(1)), std::logic_error);
-    manager.define(1, boxes, mapping);
-    EXPECT_DOUBLE_EQ(max_component_norm(manager.state(1), layout.ncomp()), Real(0.0));
+    EXPECT_THROW(static_cast<void>(manager.new_state_for_initialization(1)), std::logic_error);
+    manager.define(1, boxes, mapping, 0.0);
+    EXPECT_DOUBLE_EQ(max_component_norm(manager.new_state_for_initialization(1), layout.ncomp()), Real(0.0));
     manager.destroy(0);
     manager.destroy(1);
     EXPECT_FALSE(manager.is_defined(0));
     EXPECT_FALSE(manager.is_defined(1));
+}
+
+TEST(SBMFoundation, StateManagerRotatesTimedViewsByStorageSwap)
+{
+    const auto layout = make_layout();
+    const BoxArray boxes = make_boxes();
+    const DistributionMapping mapping(boxes);
+    erf_sbm::SBMStateManager manager(layout, 1);
+    ASSERT_NO_THROW(manager.define(0, boxes, mapping, 0.25));
+
+    EXPECT_TRUE(manager.new_valid(0));
+    EXPECT_DOUBLE_EQ(manager.new_time(0), 0.25);
+    EXPECT_FALSE(manager.old_valid(0));
+    EXPECT_THROW(static_cast<void>(manager.old_state(0)), std::logic_error);
+    manager.new_state_for_initialization(0).setVal(Real(4.0));
+    const auto* initial_storage = &manager.new_state(0);
+
+    std::string diagnostic;
+    EXPECT_FALSE(manager.begin_step(0, 0.5, diagnostic));
+    EXPECT_NE(diagnostic.find("accepted spectral time 0.25"), std::string::npos);
+    ASSERT_TRUE(manager.begin_step(0, 0.25, diagnostic)) << diagnostic;
+    EXPECT_EQ(&manager.old_state(0), initial_storage);
+    EXPECT_DOUBLE_EQ(manager.old_time(0), 0.25);
+    EXPECT_FALSE(manager.new_valid(0));
+    EXPECT_THROW(static_cast<void>(manager.new_state(0)), std::logic_error);
+    EXPECT_TRUE(manager.step_active(0));
+
+    auto& target = manager.new_target_storage(0);
+    EXPECT_NE(&target, initial_storage);
+    target.setVal(Real(6.0));
+    ASSERT_TRUE(manager.accept_stage_target(0, 0.75, false, diagnostic)) << diagnostic;
+    EXPECT_DOUBLE_EQ(manager.new_time(0), 0.75);
+    EXPECT_DOUBLE_EQ(max_component_norm(manager.new_state(0), layout.ncomp()), Real(6.0));
+    EXPECT_TRUE(manager.step_active(0));
+
+    // Heun's predictor and corrected state may share one semantic target time.
+    manager.new_target_storage(0).setVal(Real(7.0));
+    ASSERT_TRUE(manager.accept_stage_target(0, 0.75, true, diagnostic)) << diagnostic;
+    EXPECT_FALSE(manager.step_active(0));
+    const auto* accepted_storage = &manager.new_state(0);
+    EXPECT_THROW(static_cast<void>(manager.new_state_for_initialization(0)),
+                 std::logic_error);
+
+    ASSERT_TRUE(manager.begin_step(0, 0.75, diagnostic)) << diagnostic;
+    EXPECT_EQ(&manager.old_state(0), accepted_storage);
+    EXPECT_DOUBLE_EQ(manager.old_time(0), 0.75);
+    EXPECT_FALSE(manager.new_valid(0));
+    EXPECT_NE(&manager.old_state(0), &manager.new_target_storage(0));
 }
 
 TEST(SBMFoundation, RestartSchemaAndSpectrumRoundTripAreExact)
@@ -508,9 +556,9 @@ TEST(SBMFoundation, RestartSchemaAndSpectrumRoundTripAreExact)
     const BoxArray boxes = make_boxes();
     const DistributionMapping mapping(boxes);
     erf_sbm::SBMStateManager manager(layout, 1);
-    manager.define(0, boxes, mapping);
+    manager.define(0, boxes, mapping, 0.0);
     for (int comp = 0; comp < layout.ncomp(); ++comp) {
-        manager.state(0).setVal(Real(comp + 1) / Real(8.0), comp, 1, 0);
+        manager.new_state_for_initialization(0).setVal(Real(comp + 1) / Real(8.0), comp, 1, 0);
     }
 
     const auto unique = std::chrono::high_resolution_clock::now().time_since_epoch().count();
@@ -518,7 +566,7 @@ TEST(SBMFoundation, RestartSchemaAndSpectrumRoundTripAreExact)
         ("erf_sbm_restart_" + std::to_string(unique));
     std::filesystem::create_directories(directory);
     const std::string prefix = (directory / "spectrum").string();
-    amrex::VisMF::Write(manager.state(0), prefix);
+    amrex::VisMF::Write(manager.new_state_for_initialization(0), prefix);
     const std::string schema = erf_sbm::restart_schema(layout);
     {
         std::ofstream output(directory / "SBM_Schema", std::ios::binary);
@@ -527,7 +575,7 @@ TEST(SBMFoundation, RestartSchemaAndSpectrumRoundTripAreExact)
     MultiFab restored(boxes, mapping, layout.ncomp(), 0);
     amrex::VisMF::Read(restored, prefix);
     MultiFab difference(boxes, mapping, layout.ncomp(), 0);
-    MultiFab::Copy(difference, manager.state(0), 0, 0, layout.ncomp(), 0);
+    MultiFab::Copy(difference, manager.new_state_for_initialization(0), 0, 0, layout.ncomp(), 0);
     MultiFab::Subtract(difference, restored, 0, 0, layout.ncomp(), 0);
     EXPECT_DOUBLE_EQ(max_component_norm(difference, layout.ncomp()), Real(0.0));
     EXPECT_TRUE(erf_sbm::restart_schema_matches(layout, schema));
@@ -566,72 +614,72 @@ TEST(SBMFoundation, CorruptCompactRestartIsRejectedBeforeProjectionCanRepairIt)
     const BoxArray boxes = make_boxes();
     const DistributionMapping mapping(boxes);
     erf_sbm::SBMStateManager manager(layout, 1);
-    manager.define(0, boxes, mapping);
-    for (int bin = 0; bin < 4; ++bin) manager.state(0).setVal(Real(bin + 1), bin, 1, 0);
+    manager.define(0, boxes, mapping, 0.0);
+    for (int bin = 0; bin < 4; ++bin) manager.new_state_for_initialization(0).setVal(Real(bin + 1), bin, 1, 0);
 
     MultiFab core(boxes, mapping, RhoQ1_comp + 3, 0);
     core.setVal(Real(0.0));
     const erf_sbm::SBMBulkProjection projection(layout);
     manager.project_to_core(0, core, RhoQ2_comp, RhoQ3_comp);
     ASSERT_TRUE(erf_sbm::restart_projection_matches(
-        manager.state(0), core, projection, RhoQ2_comp, RhoQ3_comp));
+        manager.new_state_for_initialization(0), core, projection, RhoQ2_comp, RhoQ3_comp));
 
     core.setVal(Real(99.0), RhoQ2_comp, 1, 0);
     EXPECT_FALSE(erf_sbm::restart_projection_matches(
-        manager.state(0), core, projection, RhoQ2_comp, RhoQ3_comp));
+        manager.new_state_for_initialization(0), core, projection, RhoQ2_comp, RhoQ3_comp));
     EXPECT_DOUBLE_EQ(first_valid_value(core, RhoQ2_comp), Real(99.0));
 
     manager.project_to_core(0, core, RhoQ2_comp, RhoQ3_comp);
     core.setVal(std::numeric_limits<Real>::infinity(), RhoQ2_comp, 1, 0);
     EXPECT_FALSE(erf_sbm::restart_projection_matches(
-        manager.state(0), core, projection, RhoQ2_comp, RhoQ3_comp));
+        manager.new_state_for_initialization(0), core, projection, RhoQ2_comp, RhoQ3_comp));
     EXPECT_TRUE(std::isinf(first_valid_value(core, RhoQ2_comp)));
 
     manager.project_to_core(0, core, RhoQ2_comp, RhoQ3_comp);
     core.setVal(-std::numeric_limits<Real>::infinity(), RhoQ3_comp, 1, 0);
     EXPECT_FALSE(erf_sbm::restart_projection_matches(
-        manager.state(0), core, projection, RhoQ2_comp, RhoQ3_comp));
+        manager.new_state_for_initialization(0), core, projection, RhoQ2_comp, RhoQ3_comp));
     EXPECT_TRUE(std::isinf(first_valid_value(core, RhoQ3_comp)));
     EXPECT_LT(first_valid_value(core, RhoQ3_comp), Real(0.0));
 
     manager.project_to_core(0, core, RhoQ2_comp, RhoQ3_comp);
     core.setVal(std::numeric_limits<Real>::quiet_NaN(), RhoQ2_comp, 1, 0);
     EXPECT_FALSE(erf_sbm::restart_projection_matches(
-        manager.state(0), core, projection, RhoQ2_comp, RhoQ3_comp));
+        manager.new_state_for_initialization(0), core, projection, RhoQ2_comp, RhoQ3_comp));
     EXPECT_TRUE(std::isnan(first_valid_value(core, RhoQ2_comp)));
 
     manager.project_to_core(0, core, RhoQ2_comp, RhoQ3_comp);
     core.setVal(std::numeric_limits<Real>::quiet_NaN(), RhoQ3_comp, 1, 0);
     EXPECT_FALSE(erf_sbm::restart_projection_matches(
-        manager.state(0), core, projection, RhoQ2_comp, RhoQ3_comp));
+        manager.new_state_for_initialization(0), core, projection, RhoQ2_comp, RhoQ3_comp));
     EXPECT_TRUE(std::isnan(first_valid_value(core, RhoQ3_comp)));
 
     manager.project_to_core(0, core, RhoQ2_comp, RhoQ3_comp);
     EXPECT_FALSE(erf_sbm::restart_projection_matches(
-        manager.state(0), core, projection, RhoQ2_comp, RhoQ3_comp,
+        manager.new_state_for_initialization(0), core, projection, RhoQ2_comp, RhoQ3_comp,
         std::numeric_limits<Real>::infinity()));
     EXPECT_FALSE(erf_sbm::restart_projection_matches(
-        manager.state(0), core, projection, RhoQ2_comp, RhoQ3_comp,
+        manager.new_state_for_initialization(0), core, projection, RhoQ2_comp, RhoQ3_comp,
         std::numeric_limits<Real>::quiet_NaN()));
 
-    manager.state(0).setVal(std::numeric_limits<Real>::infinity(), 0, 1, 0);
+    manager.new_state_for_initialization(0).setVal(std::numeric_limits<Real>::infinity(), 0, 1, 0);
     EXPECT_FALSE(erf_sbm::restart_projection_matches(
-        manager.state(0), core, projection, RhoQ2_comp, RhoQ3_comp));
+        manager.new_state_for_initialization(0), core, projection, RhoQ2_comp, RhoQ3_comp));
     EXPECT_DOUBLE_EQ(first_valid_value(core, RhoQ2_comp), Real(3.0));
     EXPECT_DOUBLE_EQ(first_valid_value(core, RhoQ3_comp), Real(7.0));
 
     const Real largest = std::numeric_limits<Real>::max();
-    manager.state(0).setVal(Real(0.0));
-    manager.state(0).setVal(largest / Real(2.0), 0, 1, 0);
+    manager.new_state_for_initialization(0).setVal(Real(0.0));
+    manager.new_state_for_initialization(0).setVal(largest / Real(2.0), 0, 1, 0);
     manager.project_to_core(0, core, RhoQ2_comp, RhoQ3_comp);
     EXPECT_FALSE(erf_sbm::restart_projection_matches(
-        manager.state(0), core, projection, RhoQ2_comp, RhoQ3_comp, largest));
+        manager.new_state_for_initialization(0), core, projection, RhoQ2_comp, RhoQ3_comp, largest));
 
-    manager.state(0).setVal(largest, 0, 1, 0);
+    manager.new_state_for_initialization(0).setVal(largest, 0, 1, 0);
     manager.project_to_core(0, core, RhoQ2_comp, RhoQ3_comp);
     core.setVal(-largest, RhoQ2_comp, 1, 0);
     EXPECT_FALSE(erf_sbm::restart_projection_matches(
-        manager.state(0), core, projection, RhoQ2_comp, RhoQ3_comp));
+        manager.new_state_for_initialization(0), core, projection, RhoQ2_comp, RhoQ3_comp));
 }
 
 } // namespace

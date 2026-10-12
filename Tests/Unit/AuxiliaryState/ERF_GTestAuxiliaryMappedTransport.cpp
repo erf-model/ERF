@@ -965,6 +965,166 @@ void run_auxiliary_mapped_transport_CompletedLedgerAccumulatesEveryComponent ()
     }
 }
 
+void run_auxiliary_mapped_transport_CompletedLedgerScattersChunkComponentsOncePerStage ()
+{
+    TestGrid g;
+    constexpr int ncomp = 3;
+    constexpr double dt = 0.2;
+    MappedFaceFluxRate rate;
+    rate.define(g.ba, g.dm, ncomp, 0);
+    CompletedStepFluxLedger ledger;
+    ledger.define(g.ba, g.dm, ncomp);
+    AuxiliaryStageRecipe recipe;
+    std::string diagnostic;
+
+    fill_componentwise_constant_rate(rate, {Real(3.0), Real(5.0), Real(7.0)});
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 0,
+                                         dt, recipe, diagnostic)) << diagnostic;
+    ASSERT_TRUE(ledger.begin_stage(HostIntegrator::AnelasticHeun, 0, 0.0,
+                                   recipe, diagnostic)) << diagnostic;
+    ASSERT_TRUE(ledger.accumulate_stage_component(rate, 0, 2, diagnostic)) << diagnostic;
+    ASSERT_TRUE(ledger.accumulate_stage_component(rate, 1, 0, diagnostic)) << diagnostic;
+    ASSERT_TRUE(ledger.accumulate_stage_component(rate, 2, 1, diagnostic)) << diagnostic;
+    EXPECT_FALSE(ledger.step_complete());
+    EXPECT_EQ(ledger.next_stage(), 0);
+    ASSERT_TRUE(ledger.finish_stage(diagnostic)) << diagnostic;
+    EXPECT_EQ(ledger.next_stage(), 1);
+
+    fill_componentwise_constant_rate(rate, {Real(10.0), Real(20.0), Real(4.0)});
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 1,
+                                         dt, recipe, diagnostic)) << diagnostic;
+    ASSERT_TRUE(ledger.begin_stage(HostIntegrator::AnelasticHeun, 1, 0.0,
+                                   recipe, diagnostic)) << diagnostic;
+    ASSERT_TRUE(ledger.accumulate_stage_component(rate, 2, 0, diagnostic)) << diagnostic;
+    ASSERT_TRUE(ledger.accumulate_stage_component(rate, 0, 1, diagnostic)) << diagnostic;
+    ASSERT_TRUE(ledger.accumulate_stage_component(rate, 1, 2, diagnostic)) << diagnostic;
+    ASSERT_TRUE(ledger.finish_stage(diagnostic)) << diagnostic;
+    ASSERT_TRUE(ledger.step_complete());
+
+    const Real half_dt = Real(0.5 * dt);
+    const std::array<Real, ncomp> expected{
+        half_dt * Real(5.0 + 4.0),
+        half_dt * Real(7.0 + 10.0),
+        half_dt * Real(3.0 + 20.0)};
+    for (int comp = 0; comp < ncomp; ++comp) {
+        EXPECT_NEAR(max_face_component_error(ledger.integrated_flux(), comp,
+                                             expected[static_cast<std::size_t>(comp)]),
+                    Real(0.0), Real(32.0) * std::numeric_limits<Real>::epsilon());
+    }
+
+    CompletedStepFluxLedger incomplete;
+    incomplete.define(g.ba, g.dm, ncomp);
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 0,
+                                         dt, recipe, diagnostic));
+    ASSERT_TRUE(incomplete.begin_stage(HostIntegrator::AnelasticHeun, 0, 0.0,
+                                       recipe, diagnostic)) << diagnostic;
+    ASSERT_TRUE(incomplete.accumulate_stage_component(rate, 0, 1, diagnostic)) << diagnostic;
+    EXPECT_FALSE(incomplete.accumulate_stage_component(rate, 2, 1, diagnostic));
+    EXPECT_NE(diagnostic.find("duplicate"), std::string::npos);
+    EXPECT_FALSE(incomplete.finish_stage(diagnostic));
+    EXPECT_NE(diagnostic.find("duplicate"), std::string::npos);
+    EXPECT_FALSE(incomplete.step_complete());
+    EXPECT_FALSE(incomplete.step_active());
+    EXPECT_EQ(incomplete.next_stage(), 0);
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        for (int component = 0; component < ncomp; ++component) {
+            EXPECT_EQ(incomplete.integrated_flux().dir(dir).norm0(component),
+                      Real(0.0));
+        }
+    }
+
+    CompletedStepFluxLedger duplicate_after_complete;
+    duplicate_after_complete.define(g.ba, g.dm, ncomp);
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 0,
+                                         dt, recipe, diagnostic));
+    ASSERT_TRUE(duplicate_after_complete.begin_stage(
+        HostIntegrator::AnelasticHeun, 0, 0.0, recipe, diagnostic))
+        << diagnostic;
+    for (int component = 0; component < ncomp; ++component) {
+        ASSERT_TRUE(duplicate_after_complete.accumulate_stage_component(
+            rate, component, component, diagnostic)) << diagnostic;
+    }
+    EXPECT_FALSE(duplicate_after_complete.accumulate_stage_component(
+        rate, 0, 0, diagnostic));
+    EXPECT_NE(diagnostic.find("duplicate"), std::string::npos) << diagnostic;
+    EXPECT_FALSE(duplicate_after_complete.finish_stage(diagnostic));
+    EXPECT_NE(diagnostic.find("duplicate"), std::string::npos) << diagnostic;
+    EXPECT_FALSE(duplicate_after_complete.step_active());
+    EXPECT_FALSE(duplicate_after_complete.step_complete());
+    EXPECT_EQ(duplicate_after_complete.next_stage(), 0);
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        for (int component = 0; component < ncomp; ++component) {
+            EXPECT_EQ(duplicate_after_complete.integrated_flux().dir(dir).norm0(component),
+                      Real(0.0));
+        }
+    }
+}
+
+void
+run_auxiliary_mapped_transport_completed_ledger_preserves_idle_rejection ()
+{
+    TestGrid g;
+    constexpr double dt = 0.25;
+    MappedFaceFluxRate rate;
+    rate.define(g.ba, g.dm, 1, 0);
+    CompletedStepFluxLedger ledger;
+    ledger.define(g.ba, g.dm);
+    AuxiliaryStageRecipe recipe;
+    std::string diagnostic;
+
+    fill_constant_rate(rate, Real(2.0));
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 0, dt,
+                                         recipe, diagnostic))
+        << diagnostic;
+    ASSERT_TRUE(ledger.accept_stage(HostIntegrator::AnelasticHeun, 0, 0.0,
+                                    recipe, rate, diagnostic))
+        << diagnostic;
+    fill_constant_rate(rate, Real(6.0));
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 1, dt,
+                                         recipe, diagnostic))
+        << diagnostic;
+    ASSERT_TRUE(ledger.accept_stage(HostIntegrator::AnelasticHeun, 1, 0.0,
+                                    recipe, rate, diagnostic))
+        << diagnostic;
+    ASSERT_TRUE(ledger.step_complete());
+    EXPECT_FALSE(ledger.step_active());
+    const Real expected = Real(0.5 * dt) * Real(2.0 + 6.0);
+    std::array<Real, AMREX_SPACEDIM> completed_integral{};
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        completed_integral[static_cast<std::size_t>(dir)] =
+            ledger.integrated_flux().dir(dir).norm0(0);
+        EXPECT_EQ(completed_integral[static_cast<std::size_t>(dir)], expected);
+    }
+
+    MappedFaceFluxRate invalid_rate;
+    EXPECT_FALSE(ledger.accept_stage(HostIntegrator::AnelasticHeun, 1, 0.0,
+                                     recipe, invalid_rate, diagnostic));
+    EXPECT_NE(diagnostic.find("not defined compatibly"), std::string::npos)
+        << diagnostic;
+    EXPECT_TRUE(ledger.step_complete());
+    EXPECT_FALSE(ledger.step_active());
+    EXPECT_EQ(ledger.next_stage(), 2);
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        EXPECT_EQ(ledger.integrated_flux().dir(dir).norm0(0),
+                  completed_integral[static_cast<std::size_t>(dir)]);
+    }
+
+    // A valid new step invalidates the old completed record as usual.
+    rate.setVal(Real(0.0));
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 0, dt,
+                                         recipe, diagnostic))
+        << diagnostic;
+    ASSERT_TRUE(ledger.accept_stage(HostIntegrator::AnelasticHeun, 0, 0.0,
+                                    recipe, rate, diagnostic))
+        << diagnostic;
+    EXPECT_FALSE(ledger.step_complete());
+    EXPECT_TRUE(ledger.step_active());
+    EXPECT_EQ(ledger.next_stage(), 1);
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        EXPECT_EQ(ledger.integrated_flux().dir(dir).norm0(0), Real(0.0));
+    }
+}
+
 void run_auxiliary_mapped_transport_StageTargetMustBeDisjoint ()
 {
     TestGrid g;
@@ -1197,6 +1357,75 @@ TEST(AuxiliaryMappedTransport, CompletedLedgerUsesExactHostTemporalWeights)
 TEST(AuxiliaryMappedTransport, CompletedLedgerAccumulatesEveryComponent)
 {
     run_auxiliary_mapped_transport_CompletedLedgerAccumulatesEveryComponent();
+}
+TEST(AuxiliaryMappedTransport, CompletedLedgerScattersChunkComponentsOncePerStage)
+{
+    run_auxiliary_mapped_transport_CompletedLedgerScattersChunkComponentsOncePerStage();
+}
+TEST(AuxiliaryMappedTransport,
+     CompletedLedgerPreservesCompletedRecordOnIdleRejection)
+{
+    run_auxiliary_mapped_transport_completed_ledger_preserves_idle_rejection();
+}
+TEST(AuxiliaryMappedTransport,
+     CompletedLedgerRejectsNonfiniteIntegratedTransfer)
+{
+    TestGrid g;
+    constexpr double dt = 4.0;
+    MappedFaceFluxRate rate;
+    rate.define(g.ba, g.dm, 1, 0);
+    CompletedStepFluxLedger overflow;
+    overflow.define(g.ba, g.dm);
+    AuxiliaryStageRecipe recipe;
+    std::string diagnostic;
+
+    rate.setVal(Real(0.0));
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 0, dt,
+                                         recipe, diagnostic))
+        << diagnostic;
+    ASSERT_TRUE(overflow.accept_stage(HostIntegrator::AnelasticHeun, 0, 0.0,
+                                      recipe, rate, diagnostic))
+        << diagnostic;
+    rate.setVal(std::numeric_limits<Real>::max());
+    ASSERT_TRUE(rate.dir(0).is_finite(0, 1, 0));
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 1, dt,
+                                         recipe, diagnostic))
+        << diagnostic;
+    EXPECT_FALSE(overflow.accept_stage(HostIntegrator::AnelasticHeun, 1, 0.0,
+                                       recipe, rate, diagnostic));
+    EXPECT_NE(diagnostic.find("nonfinite"), std::string::npos) << diagnostic;
+    EXPECT_FALSE(overflow.step_complete());
+    EXPECT_FALSE(overflow.step_active());
+    EXPECT_EQ(overflow.next_stage(), 0);
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+        EXPECT_TRUE(overflow.integrated_flux().dir(dir).is_finite(0, 1, 0));
+        EXPECT_EQ(overflow.integrated_flux().dir(dir).norm0(0), Real(0.0));
+    }
+
+    CompletedStepFluxLedger finite_control;
+    finite_control.define(g.ba, g.dm);
+    rate.setVal(Real(0.0));
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 0, dt,
+                                         recipe, diagnostic))
+        << diagnostic;
+    ASSERT_TRUE(finite_control.accept_stage(HostIntegrator::AnelasticHeun, 0,
+                                            0.0, recipe, rate, diagnostic))
+        << diagnostic;
+    const Real finite_rate = std::numeric_limits<Real>::max() / Real(4.0);
+    rate.setVal(finite_rate);
+    ASSERT_TRUE(rate.dir(0).is_finite(0, 1, 0));
+    ASSERT_TRUE(MakeAuxiliaryStageRecipe(HostIntegrator::AnelasticHeun, 1, dt,
+                                         recipe, diagnostic))
+        << diagnostic;
+    ASSERT_TRUE(finite_control.accept_stage(HostIntegrator::AnelasticHeun, 1,
+                                            0.0, recipe, rate, diagnostic))
+        << diagnostic;
+    ASSERT_TRUE(finite_control.step_complete());
+    const Real expected = Real(2.0) * finite_rate;
+    EXPECT_TRUE(finite_control.integrated_flux().dir(0).is_finite(0, 1, 0));
+    EXPECT_NEAR(
+        max_face_component_error(finite_control.integrated_flux(), 0, expected),
+        Real(0.0), Real(0.0));
 }
 TEST(AuxiliaryMappedTransport, StageTargetMustBeDisjoint)
 {
