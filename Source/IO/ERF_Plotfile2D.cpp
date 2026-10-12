@@ -9,6 +9,7 @@
 #include "ERF_Plotfile2DPrecip.H"
 #include "ERF_Plotfile2DWaterPath.H"
 #include "ERF_NCPlotFile.H"
+#include "ERF_NoahMPGitHash.H"
 #include "ERF_Plotfile2DUtils.H"
 #include "Diagnostics/ERF_NearSurfaceDiagnostics.H"
 #include "ERF_EpochTime.H"
@@ -16,6 +17,7 @@
 #include "ERF_StormDiagnostics.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_Utils.H"
+#include <AMReX_buildInfo.H>
 #include "Diagnostics/ERF_SeaLevelPressure.H"
 
 using namespace amrex;
@@ -764,10 +766,12 @@ ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
          const Real* p_lo = my_geom[lev].ProbLo();
          const Real* p_hi = my_geom[lev].ProbHi();
          const auto dx    = my_geom[lev].CellSize();
+         const NCProvenance nc_provenance{buildInfoGetGitHash(1), buildInfoGetGitHash(2), NoahMPGitHash()};
          writeNCPlotFile(lev, l_which, plotfilename, GetVecOfConstPtrs(mf), varnames, istep,
                          {p_lo[0],p_lo[1],p_lo[2]},{p_hi[0],p_hi[1],dx[2]}, {dx[0],dx[1],dx[2]},
                          my_geom[lev].Domain(), static_cast<Real>(t_new[0]),
-                         static_cast<Real>(start_bdy_time), solverChoice, zlevels_stag[lev]);
+                         static_cast<Real>(start_bdy_time), solverChoice, zlevels_stag[lev],
+                         nc_provenance);
 #endif
     } else {
         // Here we assume the plotfile_type is PlotFileType::None

@@ -6,6 +6,7 @@
 #include <ERF_EpochTime.H>
 #include <AMReX_buildInfo.H>
 #include <ERF_Provenance.H>
+#include <ERF_NoahMPGitHash.H>
 
 #include <iomanip>
 
@@ -122,11 +123,15 @@ ERF::writeJobInfo (const std::string& dir,
 
     const char* githash1 = buildInfoGetGitHash(1);
     const char* githash2 = buildInfoGetGitHash(2);
+    const char* githash3 = NoahMPGitHash();
     if (strlen(githash1) > 0) {
       jobInfoFile << "ERF       git hash: " << githash1 << "\n";
     }
     if (strlen(githash2) > 0) {
       jobInfoFile << "AMReX       git hash: " << githash2 << "\n";
+    }
+    if (strlen(githash3) > 0) {
+      jobInfoFile << "Noah-MP   git hash: " << githash3 << "\n";
     }
 
     const char* buildgithash = buildInfoGetBuildGitHash();
@@ -214,11 +219,15 @@ ERF::writeBuildInfo (std::ostream& os)
     os << "\n";
     const char* githash1 = buildInfoGetGitHash(1);
     const char* githash2 = buildInfoGetGitHash(2);
+    const char* githash3 = NoahMPGitHash();
     if (strlen(githash1) > 0) {
       os << "ERF       git hash: " << githash1 << "\n";
     }
     if (strlen(githash2) > 0) {
       os << "AMReX       git hash: " << githash2 << "\n";
+    }
+    if (strlen(githash3) > 0) {
+      os << "Noah-MP   git hash: " << githash3 << "\n";
     }
 
     const char* buildgithash = buildInfoGetBuildGitHash();
