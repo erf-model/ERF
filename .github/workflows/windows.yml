@@ -1,9 +1,5 @@
 name: Windows
 
-# Every Windows build in one place. PR tier: the MPI-off DOUBLE build with its tests.
-# Merge tier adds the MPI-off SINGLE build and three MS-MPI builds; the MS-MPI DOUBLE
-# build with particles runs the tests under mpiexec, and the MS-MPI builds are the
-# downloadable binaries. Built with Ninja and ccache; see the step comments.
 on:
   push:
     branches: [development]
@@ -41,11 +37,6 @@ jobs:
           # The MPI-off build is particles-on only; particles-off is covered by the MPI build.
           - mpi: OFF
             particles: OFF
-    # The MPI-off build is the test build: debug info and AMReX assertions on. The
-    # MS-MPI builds are what users download: Release, no assertions. These are
-    # expressions rather than matrix 'include' entries on purpose: an include entry
-    # that matches no combination (mpi: ON on a PR, where the axis is [OFF]) is not
-    # dropped but added as a new job with the other axes empty.
     env:
       BUILD_TYPE: ${{ matrix.mpi == 'ON' && 'Release' || 'RelWithDebInfo' }}
       ASSERTIONS: ${{ matrix.mpi == 'ON' && 'OFF' || 'ON' }}
@@ -56,12 +47,6 @@ jobs:
       with:
         submodules: true
 
-    # ccache for MSVC. Three things make it work where earlier attempts did not:
-    # the Ninja generator (CMake only honours COMPILER_LAUNCHER for Makefile and
-    # Ninja generators, never for MSBuild), debug info embedded in each object
-    # (/Z7 via CMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded; the default /Zi
-    # writes a shared .pdb that ccache cannot key on), and no /MP (ccache
-    # handles one source per compiler call; Ninja provides the parallelism).
     - name: Install ccache
       shell: pwsh
       run: |
