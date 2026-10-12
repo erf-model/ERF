@@ -871,8 +871,7 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
                                     vars_new[levc][Vars::cons],
                                     t_new[0]);
 
-        HurricaneSurfaceFluxesTracker(geom[levc],
-                                      hurricane_eye_i_glob,
+        HurricaneSurfaceFluxesTracker(hurricane_eye_i_glob,
                                       hurricane_eye_j_glob,
                                       hurricane_eye_latitude,
                                       hurricane_eye_longitude,

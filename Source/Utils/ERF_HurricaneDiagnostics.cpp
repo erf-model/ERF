@@ -954,7 +954,7 @@ ERF::HurricaneSurfaceFluxesTracker (const int& hurricane_eye_i_glob,
  * Wrapper to track the hurricane eye position over time.
  *
  * @param[in] sc Solver choices
- * @param[in] mf_cc_vel The celle centered velocity mutlifab
+ * @param[in] mf_cc_vel The cell centered velocity mutlifab
  * @param[in] hurricane_eye_i_glob Global i index of the hurricane eye
  * @param[in] hurricane_eye_j_glob Global j index of the hurricane eye
  * @param[out] hurricane_eye_latitude Latitude of the hurricane eye
