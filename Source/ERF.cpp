@@ -892,6 +892,7 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
             WriteLinePlot(filename_minpressure, hurricane_minpressure_vs_time);
             WriteLinePlot(filename_surface_fluxes, hurricane_surface_fluxes_vs_time);
         }
+    }
 } // post_timestep
 
 // This is called from main.cpp and handles all initialization, whether from start or restart
