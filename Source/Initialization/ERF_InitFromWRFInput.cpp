@@ -101,7 +101,6 @@ compute_terrain_top_and_bottom (const MultiFab& mf_PH,
  * @param[out] z_phys MultiFab specifying the node-centered z coordinates.
  * @param[in] NC_PH_fab MultiFab storing WRF perturbation geopotential data.
  * @param[in] NC_PHB_fab MultiFab storing WRF base-state geopotential data.
- * @param[out] dz0_max Maximum first-layer thickness.
  * @param[in] avg_grid_faces_to_nodes Whether to average the wrfinput heights onto the nodes
  *                                   rather than reconstructing nodal heights from them.
  */
@@ -113,7 +112,6 @@ init_terrain_from_wrfinput (int lev,
                             MultiFab* z_phys_nd,
                             const MultiFab& NC_PH_fab,
                             const MultiFab& NC_PHB_fab,
-                            Real& dz0_max,
                             const bool& avg_grid_faces_to_nodes);
 
 /**
@@ -390,6 +388,45 @@ wrf_mean_layer_thickness (const MultiFab& mf_PH,
     }
 
     return prof;
+}
+
+/**
+ * @brief Thickest first layer of the file's vertical grid over the columns this level holds.
+ *
+ * Only the geometric-stretch construction of zlevels_stag needs it, as its dz0.
+ *
+ * @param[in] mf_PH  perturbation geopotential on z-faces
+ * @param[in] mf_PHB base-state geopotential on z-faces
+ * @param[in] klo    index of the surface z-face
+ * @return the largest z(klo+1) - z(klo) over every column
+ */
+Real
+wrf_max_first_layer_thickness (const MultiFab& mf_PH,
+                               const MultiFab& mf_PHB,
+                               int klo)
+{
+    ReduceOps<ReduceOpMax> reduce_op;
+    ReduceData<Real> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+
+    for (MFIter mfi(mf_PH); mfi.isValid(); ++mfi)
+    {
+        const Box& vbx = mfi.validbox();
+        if (klo < vbx.smallEnd(2) || klo+1 > vbx.bigEnd(2)) { continue; }
+
+        const Array4<const Real>&  ph_arr = mf_PH.const_array(mfi);
+        const Array4<const Real>& phb_arr = mf_PHB.const_array(mfi);
+        reduce_op.eval(makeSlab(vbx,2,klo), reduce_data,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+        {
+            return { ( (ph_arr(i,j,k+1) + phb_arr(i,j,k+1))
+                     - (ph_arr(i,j,k  ) + phb_arr(i,j,k  )) ) / CONST_GRAV };
+        });
+    }
+
+    Real dz0_max = amrex::get<0>(reduce_data.value(reduce_op));
+    ParallelAllReduce::Max(dz0_max, ParallelContext::CommunicatorAll());
+    return dz0_max;
 }
 
 } // namespace
@@ -1463,9 +1500,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             MultiFab::Copy(z_phys_interp, *z_phys_nd[lev], 0, 0, 1, 0);
         }
 
-        Real dz0_max;
         init_terrain_from_wrfinput(lev, geom[lev], z_top, boxes_at_level[lev][0], z_phys_nd[lev].get(),
-                                   mf_PH, *mf_PHB, dz0_max, solverChoice.avg_grid_faces_to_nodes);
+                                   mf_PH, *mf_PHB, solverChoice.avg_grid_faces_to_nodes);
         z_phys_nd[lev]->FillBoundary(geom[lev].periodicity());
         if (!solverChoice.avg_grid_faces_to_nodes) {
 #ifdef AMREX_USE_FLOAT
@@ -1603,8 +1639,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                         << " column depth is absorbed aloft: layers are stretched by 0% at the surface"
                         << " and " << Real(100)*a_ramp*sfrac[nlay-1] << "% at the top\n";
                 Print() << "    layer-to-layer stretch ratio above the surface layer is in ["
-                        << r_min << ", " << r_max << "]"
-                        << "    (thickest first layer over the domain was " << dz0_max << " m)\n";
+                        << r_min << ", " << r_max << "]\n";
                 if (r_min < Real(0.5) || r_max > Real(2.0)) {
                     Print() << "WARNING: the mean vertical profile of this file is not smooth in k "
                                "(stretch ratio outside [0.5, 2]); the ERF mesh inherits that.\n";
@@ -1617,6 +1652,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                 //    idealized case, where dz0 and the domain height are the knowns, can use it
                 //    without going through the wrfinput path.
                 //
+                const Real dz0_max = wrf_max_first_layer_thickness(mf_PH, *mf_PHB,
+                                                                   boxes_at_level[lev][0].smallEnd(2));
                 const erf_grid_utils::GeometricStretch gs =
                     erf_grid_utils::build_geometric_zlevels(zlevels_stag[lev], dz0_max, z_top, tol);
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(gs.converged,
@@ -1633,6 +1670,53 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             make_terrain_fitted_coords(lev, geom[lev], *z_phys_nd[lev], zlevels_stag[lev], phys_bc_type,
                                        fine_terrain,
                                        (fine_terrain == FineTerrain::Transform) ? &z_phys_interp : nullptr);
+
+            //
+            // Verify the mesh before it is handed to make_J.
+            //
+            // The reconstruction only fits the surface, and is free to over- or undershoot
+            //    the file where the terrain is under resolved; it is the first layer of the
+            //    mesh built on top of it that has to be positive, so that is what we check.
+            //    This mirrors the check init_from_metgrid makes on its mesh.
+            //
+            {
+                Print() << "Verifying grid integrity" << std::endl;
+
+                const int klo_nd = boxes_at_level[lev][0].smallEnd(2);
+
+                ReduceOps<ReduceOpMin, ReduceOpMax> reduce_op;
+                ReduceData<Real, Real> reduce_data(reduce_op);
+                using ReduceTuple = typename decltype(reduce_data)::Type;
+
+                for ( MFIter mfi(*z_phys_nd[lev]); mfi.isValid(); ++mfi ) {
+                    const Box& vbx = mfi.validbox();
+                    if (klo_nd < vbx.smallEnd(2) || klo_nd >= vbx.bigEnd(2)) { continue; }
+
+                    const Array4<const Real>& z_arr = z_phys_nd[lev]->const_array(mfi);
+                    reduce_op.eval(makeSlab(vbx,2,klo_nd), reduce_data,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+                    {
+                        return {z_arr(i,j,k+1) - z_arr(i,j,k), std::fabs(z_arr(i,j,k))};
+                    });
+                } // mfi
+
+                ReduceTuple hv  = reduce_data.value(reduce_op);
+                Real min_dz     = amrex::get<0>(hv);
+                Real max_abs_z  = amrex::get<1>(hv);
+                ParallelAllReduce::Min(min_dz   , ParallelContext::CommunicatorAll());
+                ParallelAllReduce::Max(max_abs_z, ParallelContext::CommunicatorAll());
+
+                Print() << "Min nodal thickness of the first layer: " << min_dz << " m" << std::endl;
+
+                if (!std::isfinite(min_dz) || !std::isfinite(max_abs_z)) {
+                    Error("Non-finite nodal heights in the mesh built from the wrfinput terrain");
+                }
+                if (min_dz <= zero) {
+                    Error("The mesh built from the wrfinput terrain has a non-positive first "
+                          "layer thickness; the WRF terrain is too rough to represent on the "
+                          "ERF nodal mesh.  Consider running with erf.avg_grid_faces_to_nodes = true.");
+                }
+            }
         }
 
         // **************************************************************************
@@ -2927,6 +3011,10 @@ refine_fab_in_z (const FArrayBox& crse_fab,
 /**
  * Helper function for initializing terrain coordinates from a WRF dataset.
  *
+ * With avg_grid_faces_to_nodes every nodal height is averaged from the file.  Otherwise
+ * only the surface is reconstructed, and the caller builds the rest of the column with
+ * make_terrain_fitted_coords.
+ *
  * The unused level argument is retained for interface compatibility.
  *
  * @param z_top Height assigned to the top of the ERF domain
@@ -2943,7 +3031,6 @@ init_terrain_from_wrfinput (int /*lev*/,
                             MultiFab* z_phys_nd,
                             const MultiFab& mf_PH,
                             const MultiFab& mf_PHB,
-                            Real& dz0_max,
                             const bool& avg_grid_faces_to_nodes)
 {
     Print() << "Constructing nodal heights (z_phys_nd)" << std::endl;
@@ -3060,92 +3147,56 @@ init_terrain_from_wrfinput (int /*lev*/,
         } // mfi
     } else {
 
-        // Lateral ghost cells
-        IntVect ngz = z_phys_nd->nGrowVect(); int kghost = ngz[2]; ngz[2] = 0;
+        //
+        // Only the surface is reconstructed.  make_terrain_fitted_coords, which the caller
+        // runs next, builds every node above the surface -- and the ghost node below it --
+        // from the surface and the 1-D zlevels_stag alone, so nodal heights reconstructed
+        // at any higher level would simply be overwritten.  The checks on the mesh that is
+        // actually used are made by the caller once that mesh has been built.
+        //
 
         // PHB and PH are on z-faces
         Box z_face_dom = convert(subdomain,IntVect(0,0,1));
 
-        // Z-face FAB for each z_wrf slice
+        // Z-face FAB for the surface slice of the WRF heights
         Box z_face_dom_slice = makeSlab(z_face_dom, 2, 0);
         FArrayBox z_slice_wrf(z_face_dom_slice, 1, The_Managed_Arena());
-        FArrayBox z_slice_wrf_sfc(z_face_dom_slice, 1, The_Managed_Arena());
+        z_slice_wrf.setVal<RunOn::Device>(zero);
 
         // Z_phys is nodal
-        Box node_dom = convert(subdomain, IntVect(1,1,1));
-        int klo = node_dom.smallEnd(2);
-        int khi = node_dom.bigEnd(2);
+        const int klo = convert(subdomain, IntVect(1,1,1)).smallEnd(2);
 
-        // Process the surface and the first level above it
-        int kstart = klo;
-        int kend   = klo + 2;
-        for (int k(kstart); k<kend; ++k) {
-            z_slice_wrf.setVal<RunOn::Device>(zero);
+        // Fill the z-face fab with wrf heights -- each rank fills only the boxes it
+        // owns, so the AllReduce below gathers the global slice.  A box stacked above
+        // the surface does not hold it, and must not add to the sum.
+        const Array4<Real>& z_slice_wrf_arr = z_slice_wrf.array();
+        for ( MFIter mfi(mf_PH); mfi.isValid(); ++mfi ) {
 
-            const Array4<Real>& z_slice_wrf_arr     = z_slice_wrf.array();
-            const Array4<Real>& z_slice_wrf_sfc_arr = z_slice_wrf_sfc.array();
+            Box vbx = mfi.validbox();
+            if (klo < vbx.smallEnd(2) || klo > vbx.bigEnd(2)) { continue; }
+            vbx.makeSlab(2,0);
 
-            // Fill the z-face fab with wrf heights -- each rank fills only the
-            // boxes it owns, so the AllReduce below gathers the global slice
-            for ( MFIter mfi(mf_PH); mfi.isValid(); ++mfi ) {
+            const Array4<const Real>& nc_phb_arr = mf_PHB.const_array(mfi);
+            const Array4<const Real>& nc_ph_arr  = mf_PH.const_array(mfi);
 
-                Box vbx = mfi.validbox(); vbx.makeSlab(2,0);
-
-                const Array4<const Real>& nc_phb_arr = mf_PHB.const_array(mfi);
-                const Array4<const Real>& nc_ph_arr  = mf_PH.const_array(mfi);
-
-                ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
-                {
-                    z_slice_wrf_arr(i,j,0) = ( nc_ph_arr(i,j,k) + nc_phb_arr(i,j,k) ) / CONST_GRAV;
-                });
-            }
-
-            // Get global slice of WRF heights
-            Gpu::streamSynchronize();
-            ParallelAllReduce::Sum(z_slice_wrf.dataPtr(),
-                                   z_slice_wrf.size(),
-                                   ParallelContext::CommunicatorAll());
-
-            // Solve for the nodal heights of this level
-            FArrayBox z_slice_erf = reconstruct_nodal_height_slice(z_face_dom_slice, geom,
-                                                                   z_slice_wrf, k, "WRF z-faces");
-
-            // Store the surface
-            if (k==kstart) {
-                LoopOnCpu(z_face_dom_slice, [=] (int i, int j, int /*k*/) noexcept
-                {
-                    z_slice_wrf_sfc_arr(i,j,0) = z_slice_wrf_arr(i,j,0);
-                });
-            }
-
-            // Compute dz0_max from current layer and surface layer
-            if (k==kstart+1) {
-                dz0_max = std::numeric_limits<Real>::min();
-                LoopOnCpu(z_face_dom_slice, [=,&dz0_max] (int i, int j, int /*k*/) noexcept
-                {
-                    Real dz0 = z_slice_wrf_arr(i,j,0) - z_slice_wrf_sfc_arr(i,j,0);
-                    dz0_max = amrex::max(dz0, dz0_max);
-                });
-            }
-
-            // Copy back to z_phys, filling the lateral ghost nodes
-            fill_nodal_level_from_slice(*z_phys_nd, k, z_slice_erf);
-        } // k
-
-        // Extrapolate linearly into the ghost nodes below the surface
-        for ( MFIter mfi(*z_phys_nd); mfi.isValid(); ++mfi ) {
-            Box gbx = mfi.growntilebox();
-            if (klo < gbx.smallEnd(2) || klo+1 > gbx.bigEnd(2)) { continue; }
-
-            const Array4<Real>& z_arr = z_phys_nd->array(mfi);
-            ParallelFor(makeSlab(gbx,2,klo), [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+            ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
             {
-                Real dz = z_arr(i,j,klo+1) - z_arr(i,j,klo);
-                for (int lk(1); lk<(kghost+1); ++lk) {
-                    z_arr(i,j,klo-lk) = z_arr(i,j,klo) - dz * static_cast<Real>(lk);
-                }
+                z_slice_wrf_arr(i,j,0) = ( nc_ph_arr(i,j,klo) + nc_phb_arr(i,j,klo) ) / CONST_GRAV;
             });
         }
+
+        // Get global slice of WRF heights
+        Gpu::streamSynchronize();
+        ParallelAllReduce::Sum(z_slice_wrf.dataPtr(),
+                               z_slice_wrf.size(),
+                               ParallelContext::CommunicatorAll());
+
+        // Solve for the nodal heights of the surface
+        FArrayBox z_slice_erf = reconstruct_nodal_height_slice(z_face_dom_slice, geom,
+                                                               z_slice_wrf, klo, "WRF z-faces");
+
+        // Copy back to z_phys, filling the lateral ghost nodes
+        fill_nodal_level_from_slice(*z_phys_nd, klo, z_slice_erf);
 
         // Sanity check.
         //
@@ -3153,56 +3204,39 @@ init_terrain_from_wrfinput (int /*lev*/,
         // z-face heights, not an exact de-averaging of them.  The four-node average
         // therefore no longer reproduces WRF to round-off, and the size of the
         // mismatch is a genuine diagnostic of how much grid-scale terrain the
-        // WRF field carries.  We report it, and we abort only on failures that
-        // make the mesh unusable: non-finite heights, or a layer that is not
-        // strictly increasing in z.
-        Print() << "Verifying reconstructed nodal heights" << std::endl;
+        // WRF field carries.  We report it, and abort only if the surface is not finite.
+        Print() << "Verifying reconstructed nodal surface heights" << std::endl;
         {
-            ReduceOps<ReduceOpMax, ReduceOpMin> reduce_op;
-            ReduceData<Real, Real> reduce_data(reduce_op);
+            ReduceOps<ReduceOpMax> reduce_op;
+            ReduceData<Real> reduce_data(reduce_op);
             using ReduceTuple = typename decltype(reduce_data)::Type;
 
             for ( MFIter mfi(mf_PHB); mfi.isValid(); ++mfi ) {
-                Box vbx = mfi.validbox();
-                if (vbx.smallEnd(2) > klo+1) { continue; }
-                vbx.setBig(2,klo+1);
+                const Box& vbx = mfi.validbox();
+                if (klo < vbx.smallEnd(2) || klo > vbx.bigEnd(2)) { continue; }
 
                 const Array4<const Real>& nc_phb_arr = mf_PHB.const_array(mfi);
                 const Array4<const Real>& nc_ph_arr  = mf_PH.const_array(mfi);
                 const Array4<const Real>& z_arr      = z_phys_nd->const_array(mfi);
 
-                reduce_op.eval(vbx, reduce_data,
+                reduce_op.eval(makeSlab(vbx,2,klo), reduce_data,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
                 {
                     Real z_face_wrf = ( nc_ph_arr(i,j,k) + nc_phb_arr(i,j,k) ) / CONST_GRAV;
                     Real z_face_erf = fourth * ( z_arr(i, j  , k) + z_arr(i+1, j  , k)
                                                + z_arr(i, j+1, k) + z_arr(i+1, j+1, k) );
-                    Real avg_err = (k < khi) ? std::fabs(z_face_erf-z_face_wrf) : zero;
-
-                    // Nodal layer thickness; only defined once we are at klo
-                    Real dz = (k == klo) ? (z_arr(i,j,klo+1) - z_arr(i,j,klo))
-                                         : std::numeric_limits<Real>::max();
-                    return {avg_err, dz};
+                    return { std::fabs(z_face_erf-z_face_wrf) };
                 });
             } // mfi
 
-            ReduceTuple hv = reduce_data.value(reduce_op);
-            Real max_avg_err = amrex::max(amrex::get<0>(hv), zero);
-            Real min_dz      = amrex::get<1>(hv);
+            Real max_avg_err = amrex::max(amrex::get<0>(reduce_data.value(reduce_op)), zero);
             ParallelAllReduce::Max(max_avg_err, ParallelContext::CommunicatorAll());
-            ParallelAllReduce::Min(min_dz     , ParallelContext::CommunicatorAll());
 
-            Print() << "Max |avg4(nodal z) - WRF z-face| over the reconstructed levels: "
+            Print() << "Max |avg4(nodal z) - WRF z-face| on the surface: "
                     << max_avg_err << " m" << std::endl;
-            Print() << "Min nodal thickness of the first layer: " << min_dz << " m" << std::endl;
 
-            if (!std::isfinite(max_avg_err) || !std::isfinite(min_dz)) {
+            if (!std::isfinite(max_avg_err)) {
                 Error("Non-finite nodal heights produced by the terrain reconstruction");
-            }
-            if (min_dz <= zero) {
-                Error("Reconstructed nodal terrain gives a non-positive first layer thickness; "
-                      "the WRF terrain is too rough to represent on the ERF nodal mesh. "
-                      "Consider running with erf.avg_grid_faces_to_nodes = true.");
             }
         }
     } // avg_grid_faces_to_nodes

@@ -368,7 +368,7 @@ ERF::init_from_metgrid (int lev)
             // check and still yield a degenerate or inverted first layer.  Since
             // reconstruction is the default here, check now rather than letting a
             // bad Jacobian propagate.  This mirrors the check that
-            // init_terrain_from_wrfinput does on its reconstructed levels.
+            // init_from_wrfinput makes on the mesh it builds.
             {
                 Print() << "Verifying grid integrity" << std::endl;
 
