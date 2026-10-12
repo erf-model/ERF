@@ -893,17 +893,6 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
             WriteLinePlot(filename_minpressure, hurricane_minpressure_vs_time);
             WriteLinePlot(filename_surface_fluxes, hurricane_surface_fluxes_vs_time);
         }
-        Vector<std::string> var_names = {"sensible_heat_flux", "latent_heat_flux"};
-
-WriteSingleLevelPlotfile(
-    "surface_flux_plot",
-    mfvec_surface_fluxes[levc],
-    var_names,
-    geom[levc],
-    t_new[0],
-    0);
-    }
-
 } // post_timestep
 
 // This is called from main.cpp and handles all initialization, whether from start or restart
