@@ -57,14 +57,19 @@ Governing Equations
 |                                 | inverse relations inconsistent. See                      |                    |                  |
 |                                 | :ref:`GoverningEquations`.                               |                    |                  |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.gradp_type**              | which horizontal pressure gradient formulation to use    | 0, 1               | 0                |
+| **erf.gradp_type**              | which horizontal pressure gradient formulation to use    | 0, 1, 2, 3         | 0                |
 |                                 | with terrain-fitted coordinates: 0 for dp/dx with a      |                    |                  |
 |                                 | dp/dz correction, 1 for the gradient of the vertically   |                    |                  |
-|                                 | interpolated pressure (Klemp 2011)                       |                    |                  |
+|                                 | interpolated pressure (Klemp 2011), 2 and 3 for the      |                    |                  |
+|                                 | hydrostatic reconstruction of the perturbational         |                    |                  |
+|                                 | pressure to the height of the face, with rho' held       |                    |                  |
+|                                 | constant (2) or reconstructed linearly (3) over the      |                    |                  |
+|                                 | extrapolation segment                                    |                    |                  |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.use_pert_pres_gradient**  | if true, the lateral pressure gradient in the momentum   | Boolean            | true             |
 |                                 | equation uses horizontal derivatives of the              |                    |                  |
 |                                 | perturbational pressure; if false, of the full pressure  |                    |                  |
+|                                 | (only used if gradp_type = 0)                            |                    |                  |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.transport_scalar**        | transport the passive scalar component                   | Boolean            | true             |
 +---------------------------------+----------------------------------------------------------+--------------------+------------------+
