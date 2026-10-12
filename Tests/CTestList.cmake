@@ -9,7 +9,8 @@ include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
 # Functions for adding tests / Categories of tests
 #=============================================================================
 function(resolve_test_exe TEST_DIR TEST_EXE OUT_VAR)
-    if(WIN32)
+    get_property(_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+    if(WIN32 AND _multi_config)
         # Multi-config generators place binaries in a config subdir, and which config is
         # built is not known here.  The tests that launch through `sh -c` let the shell
         # expand the wildcard; the ones driven through `cmake -P` call execute_process,
@@ -1417,10 +1418,11 @@ function(add_test_lsm TEST_NAME TEST_DIR TEST_EXE)
         set(test_labels "regression")
     endif()
 
-    if(WIN32)
+    get_property(_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+    if(WIN32 AND _multi_config)
         set(TEST_EXE "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/*/${TEST_EXE}.exe")
     else()
-        set(TEST_EXE "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/${TEST_EXE}")
+        set(TEST_EXE "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/${TEST_EXE}${CMAKE_EXECUTABLE_SUFFIX}")
     endif()
 
     set(FCOMPARE_TOLERANCE "-r ${ERF_TEST_FCOMPARE_RTOL} --abs_tol ${ERF_TEST_FCOMPARE_ATOL}")

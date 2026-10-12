@@ -253,7 +253,12 @@ if (${ERF_USE_INTERNAL_AMREX})
     # Print AMReX properties
     print_target_properties(amrex)
 
-    if(WIN32)
+    # Multi-config generators (Visual Studio) put binaries in a per-config subdirectory
+    # that is not known at configure time, so the path keeps a wildcard for the test
+    # launchers to expand. Single-config generators (Ninja on Windows, everything on
+    # Linux and macOS) have no subdirectory and get a plain path.
+    get_property(_erf_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+    if(WIN32 AND _erf_multi_config)
       set(FCOMPARE_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/*/amrex_fcompare.exe
         CACHE STRING "Path to fcompare executable for regression tests")
       set(FEXTREMA_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/*/amrex_fextrema.exe
@@ -261,11 +266,11 @@ if (${ERF_USE_INTERNAL_AMREX})
       set(FEXTRACT_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/*/amrex_fextract.exe
         CACHE STRING "Path to fextract executable for regression tests")
     else()
-      set(FCOMPARE_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fcompare
+      set(FCOMPARE_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fcompare${CMAKE_EXECUTABLE_SUFFIX}
         CACHE STRING "Path to fcompare executable for regression tests")
-      set(FEXTREMA_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fextrema
+      set(FEXTREMA_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fextrema${CMAKE_EXECUTABLE_SUFFIX}
         CACHE STRING "Path to fextrema executable for regression tests")
-      set(FEXTRACT_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fextract
+      set(FEXTRACT_EXE ${PROJECT_BINARY_DIR}/Submodules/AMReX/Tools/Plotfile/amrex_fextract${CMAKE_EXECUTABLE_SUFFIX}
         CACHE STRING "Path to fextract executable for regression tests")
     endif()
     message(VERBOSE "fcompare executable: ${FCOMPARE_EXE}")
@@ -359,7 +364,12 @@ else()
       endif()
     endif()
 
-    if(WIN32)
+    # Multi-config generators (Visual Studio) put binaries in a per-config subdirectory
+    # that is not known at configure time, so the path keeps a wildcard for the test
+    # launchers to expand. Single-config generators (Ninja on Windows, everything on
+    # Linux and macOS) have no subdirectory and get a plain path.
+    get_property(_erf_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+    if(WIN32 AND _erf_multi_config)
       set(FCOMPARE_EXE ${AMReX_DIR}/../../../*/amrex_fcompare.exe
         CACHE STRING "Path to fcompare executable for regression tests")
       set(FEXTREMA_EXE ${AMReX_DIR}/../../../*/amrex_fextrema.exe
@@ -367,11 +377,11 @@ else()
       set(FEXTRACT_EXE ${AMReX_DIR}/../../../*/amrex_fextract.exe
         CACHE STRING "Path to fextract executable for regression tests")
     else()
-      set(FCOMPARE_EXE ${AMReX_DIR}/../../../bin/amrex_fcompare
+      set(FCOMPARE_EXE ${AMReX_DIR}/../../../bin/amrex_fcompare${CMAKE_EXECUTABLE_SUFFIX}
         CACHE STRING "Path to fcompare executable for regression tests")
-      set(FEXTREMA_EXE ${AMReX_DIR}/../../../bin/amrex_fextrema
+      set(FEXTREMA_EXE ${AMReX_DIR}/../../../bin/amrex_fextrema${CMAKE_EXECUTABLE_SUFFIX}
         CACHE STRING "Path to fextrema executable for regression tests")
-      set(FEXTRACT_EXE ${AMReX_DIR}/../../../bin/amrex_fextract
+      set(FEXTRACT_EXE ${AMReX_DIR}/../../../bin/amrex_fextract${CMAKE_EXECUTABLE_SUFFIX}
         CACHE STRING "Path to fextract executable for regression tests")
     endif()
     message(VERBOSE "fcompare executable: ${FCOMPARE_EXE}")

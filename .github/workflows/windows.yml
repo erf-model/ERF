@@ -86,9 +86,6 @@ jobs:
           -DERF_ENABLE_TESTS:BOOL=ON `
           -DERF_ENABLE_ALL_WARNINGS:BOOL=OFF `
           -DERF_ENABLE_FCOMPARE:BOOL=ON `
-          -DFCOMPARE_EXE=${{github.workspace}}/build/Submodules/AMReX/Tools/Plotfile/amrex_fcompare.exe `
-          -DFEXTREMA_EXE=${{github.workspace}}/build/Submodules/AMReX/Tools/Plotfile/amrex_fextrema.exe `
-          -DFEXTRACT_EXE=${{github.workspace}}/build/Submodules/AMReX/Tools/Plotfile/amrex_fextract.exe `
           ${{github.workspace}};
 
     - name: Compile and Link
