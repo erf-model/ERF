@@ -672,6 +672,8 @@ solve cannot remove, within the solver tolerance. ``TerrainPoisson_TwoLevelHill`
 ``TerrainPoisson_SlopingWalls`` run the default operator and then
 ``erf.terrain_poisson_neumann = mirror``, which must fail the check: with it the refined level
 leaves up to 1.6e-2 and the walled level up to 7.6e-4, against at most 1e-9 with ``zero_flux``.
+``TerrainPoisson_TwoPatches`` refines two separate patches on the flanks, so that level 1 is
+solved as two regions (development stopped there with a segmentation fault).
 ``TerrainPoisson_Hill_BoxParity`` (one box on one rank against split boxes) and
 ``TerrainPoisson_Hill_Restart`` check the decomposition and a restart;
 ``TerrainPoisson_DivergenceChecker_SelfTest`` feeds the checker made-up logs on both sides of

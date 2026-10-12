@@ -55,18 +55,22 @@ inline Real field (int i, int j, int k)
 // ghost cells of every non-periodic face (x first, then y, then z, as apply_bcs does).
 struct Region
 {
-    Box cells{IntVect(0), IntVect(NX-1, NY-1, NZ-1)};
+    int K0;  // the region's lowest cell; above 0 its bottom is a coarse/fine face
+    Box cells;
     FArrayBox zp, ax, ay, az, dJ, x, y;
-    Dim3 dlo{0, 0, 0}, dhi{NX-1, NY-1, NZ-1};
+    Dim3 dlo, dhi;
 
-    explicit Region (Real hmax)
-        : zp(grow(convert(cells, IntVect(1)), 2), 1, The_Pinned_Arena()),
+    explicit Region (Real hmax, int k0 = 0)
+        : K0(k0),
+          cells(IntVect(0, 0, k0), IntVect(NX-1, NY-1, k0+NZ-1)),
+          zp(grow(convert(cells, IntVect(1)), 2), 1, The_Pinned_Arena()),
           ax(grow(surroundingNodes(cells, 0), 1), 1, The_Pinned_Arena()),
           ay(grow(surroundingNodes(cells, 1), 1), 1, The_Pinned_Arena()),
           az(grow(surroundingNodes(cells, 2), 1), 1, The_Pinned_Arena()),
           dJ(grow(cells, 1), 1, The_Pinned_Arena()),
           x(grow(cells, 1), 1, The_Pinned_Arena()),
-          y(cells, 1, The_Pinned_Arena())
+          y(cells, 1, The_Pinned_Arena()),
+          dlo{0, 0, k0}, dhi{NX-1, NY-1, k0+NZ-1}
     {
         auto z = zp.array();
         const Box& nb = zp.box();
@@ -103,23 +107,23 @@ struct Region
     void set_field (bool constant)
     {
         auto f = x.array();
-        for (int k = 0; k < NZ; ++k) {
+        for (int k = K0; k < K0+NZ; ++k) {
         for (int j = 0; j < NY; ++j) {
         for (int i = 0; i < NX; ++i) {
             f(i,j,k) = constant ? Real(3.5) : field(i,j,k);
         }}}
         // even mirror, in the order of TerrainPoisson::apply_bcs
-        for (int k = 0; k < NZ; ++k) {
+        for (int k = K0; k < K0+NZ; ++k) {
         for (int j = 0; j < NY; ++j) {
             f(-1,j,k) = f(0,j,k);   f(NX,j,k) = f(NX-1,j,k);
         }}
-        for (int k = 0; k < NZ; ++k) {
+        for (int k = K0; k < K0+NZ; ++k) {
         for (int i = -1; i <= NX; ++i) {
             f(i,-1,k) = f(i,0,k);   f(i,NY,k) = f(i,NY-1,k);
         }}
         for (int j = -1; j <= NY; ++j) {
         for (int i = -1; i <= NX; ++i) {
-            f(i,j,-1) = f(i,j,0);   f(i,j,NZ) = f(i,j,NZ-1);
+            f(i,j,K0-1) = f(i,j,K0);   f(i,j,K0+NZ) = f(i,j,K0+NZ-1);
         }}
     }
 
@@ -130,7 +134,7 @@ struct Region
         auto xa = x.const_array();
         auto zpa = zp.const_array(); auto axa = ax.const_array(); auto aya = ay.const_array();
         auto aza = az.const_array(); auto dJa = dJ.const_array();
-        for (int k = 0; k < NZ; ++k) {
+        for (int k = K0; k < K0+NZ; ++k) {
         for (int j = 0; j < NY; ++j) {
         for (int i = 0; i < NX; ++i) {
             terrpoisson_adotx_zero_flux(i, j, k, ya, xa, axa, aya, aza, dJa, zpa,
@@ -147,7 +151,7 @@ struct Region
         auto zpa = zp.const_array(); auto axa = ax.const_array(); auto aya = ay.const_array();
         auto aza = az.const_array(); auto J = dJ.const_array();
         const Real dxi = Real(1.0)/DX, dyi = Real(1.0)/DY, dzi = Real(1.0)/DZ;
-        for (int k = 0; k < NZ; ++k) {
+        for (int k = K0; k < K0+NZ; ++k) {
         for (int j = 0; j < NY; ++j) {
         for (int i = 0; i < NX; ++i) {
             Real fxl = terrpoisson_flux_x(i  ,j,k,xa,zpa,dxi), fxh = terrpoisson_flux_x(i+1,j,k,xa,zpa,dxi);
@@ -157,7 +161,8 @@ struct Region
             if ((zf & tp_face_xhi) && i == NX-1) { fxh = 0; }
             if ((zf & tp_face_ylo) && j == 0)    { fyl = 0; }
             if ((zf & tp_face_yhi) && j == NY-1) { fyh = 0; }
-            if ((zf & tp_face_zhi) && k == NZ-1) { fzh = 0; }
+            if ((zf & tp_face_zlo) && k == K0 && K0 > 0) { fzl = 0; }
+            if ((zf & tp_face_zhi) && k == K0+NZ-1) { fzh = 0; }
             // A x = -div(flux) / J
             ya(i,j,k) = -( (axa(i+1,j,k)*fxh - axa(i,j,k)*fxl) * dxi
                           +(aya(i,j+1,k)*fyh - aya(i,j,k)*fyl) * dyi
@@ -170,7 +175,7 @@ struct Region
     {
         auto ya = y.const_array(); auto J = dJ.const_array();
         Real s = 0, sa = 0;
-        for (int k = 0; k < NZ; ++k) {
+        for (int k = K0; k < K0+NZ; ++k) {
         for (int j = 0; j < NY; ++j) {
         for (int i = 0; i < NX; ++i) {
             const Real v = J(i,j,k) * ya(i,j,k) * DX * DY * DZ;
@@ -302,8 +307,50 @@ TEST(TerrainPoisson, FlatTerrainAndConstants)
     }}}
 }
 
+// A refined region that starts above the ground (its bottom is a coarse/fine face) and stops
+// below the top: with zero flux through all six faces the operator conserves again; leaving
+// the bottom face out of the mask leaks through it, and the face-by-face assembly agrees.
+TEST(TerrainPoisson, RegionAboveTheGroundConserves)
+{
+    Region r(Real(60.0), 3);
+    r.set_field(false);
+    const int all = ALL_NEUMANN | tp_face_zlo;
+    r.apply(all);
+    auto [s_zf, mag_zf] = r.weighted_sum();
+    EXPECT_GT(mag_zf, Real(1.0));
+    EXPECT_LE(std::abs(s_zf), tol(mag_zf)) << "sum dJ A x = " << s_zf << " of " << mag_zf;
+
+    r.apply(ALL_NEUMANN);
+    auto [s_open, mag_open] = r.weighted_sum();
+    EXPECT_GT(std::abs(s_open), Real(1.e-3) * mag_open) << "sum dJ A x = " << s_open;
+
+    FArrayBox yref(r.cells, 1, The_Pinned_Arena());
+    r.apply(all);
+    r.assemble(all, yref);
+    auto ya = r.y.const_array(); auto yr = yref.const_array();
+    for (int k = r.K0; k < r.K0+NZ; ++k) {
+    for (int j = 0; j < NY; ++j) {
+    for (int i = 0; i < NX; ++i) {
+        EXPECT_NEAR(ya(i,j,k), yr(i,j,k), tol(Real(100.0) * (std::abs(yr(i,j,k)) + Real(1.e-3))));
+    }}}
+}
+
 #ifdef ERF_USE_FFT
 namespace {
+
+// Node heights of the hill (a free function: CUDA does not allow a device lambda in a constructor)
+void fill_heights (MultiFab& zp)
+{
+    for (MFIter mfi(zp); mfi.isValid(); ++mfi) {
+        auto z = zp.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const Real h = terrain(Real(i)*DX, Real(j)*DY, Real(60.0));
+            const Real zeta = Real(k) * DZ;
+            z(i,j,k) = zeta + h * (Real(1.0) - zeta / ZTOP);
+        });
+    }
+}
 
 // The same hill on a MultiFab split into boxes, with the metrics from make_J/make_areas,
 // and a TerrainPoisson on a region with slip walls on every side
@@ -329,15 +376,7 @@ struct ClassCase
         ay.define(convert(ba, IntVect(0,1,0)), dm, 1, 1);
         az.define(convert(ba, IntVect(0,0,1)), dm, 1, 1);
         dJ.define(ba, dm, 1, 1);
-        for (MFIter mfi(zp); mfi.isValid(); ++mfi) {
-            auto z = zp.array(mfi);
-            ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                const Real h = terrain(Real(i)*DX, Real(j)*DY, Real(60.0));
-                const Real zeta = Real(k) * DZ;
-                z(i,j,k) = zeta + h * (Real(1.0) - zeta / ZTOP);
-            });
-        }
+        fill_heights(zp);
         make_J(geom, zp, dJ);
         make_areas(geom, zp, ax, ay, az);
         for (auto& s : bcs) { s = "SlipWall"; }
@@ -396,8 +435,12 @@ TEST(TerrainPoisson, ClassMaskApplyAndFluxes)
         Real on_face_zf = 0, on_face_old = 0, inside_diff = 0;
         for (MFIter mfi(f_zf[d]); mfi.isValid(); ++mfi) {
             const Box& b = mfi.validbox();
-            auto a = f_zf[d].const_array(mfi);
-            auto o = f_old[d].const_array(mfi);
+            FArrayBox ah(b, 1, The_Pinned_Arena()), oh(b, 1, The_Pinned_Arena());
+            ah.copy<RunOn::Device>(f_zf[d][mfi]);
+            oh.copy<RunOn::Device>(f_old[d][mfi]);
+            Gpu::streamSynchronize();
+            auto a = ah.const_array();
+            auto o = oh.const_array();
             for (int k = b.smallEnd(2); k <= b.bigEnd(2); ++k) {
             for (int j = b.smallEnd(1); j <= b.bigEnd(1); ++j) {
             for (int i = b.smallEnd(0); i <= b.bigEnd(0); ++i) {

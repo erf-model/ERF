@@ -18,6 +18,10 @@ and requires r <= max_ratio * (largest divergence before the solve) + atol.  A t
 Poisson operator that lets flux through a Neumann face of a sloping region cannot converge
 there and leaves r of order 0.01 to 1 of the divergence before the solve.
 
+The log gives only the largest values, so r sees the part of the remaining error that adds
+to |m|, and on a level with several regions m is the largest of their means; a solve that
+fails as the old operator does leaves r three or more orders of magnitude above the limit.
+
 Exit status: 0 when every solve passes, 1 when one does not, 2 when the log has no solve
 on that level (or fewer than --min-solves), or a solve whose divergence before it was
 already below --min-before (the check would say nothing).
