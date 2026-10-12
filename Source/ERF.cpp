@@ -3351,6 +3351,26 @@ ERF::ReadParameters ()
         interpolation_type = StateInterpType::FullState;
         pp.query_enum_case_insensitive("interpolation_type"  ,interpolation_type);
 
+        //
+        // Perturbational interpolation is only ever reached from FillPatchFineLevel, so
+        // it does nothing at all without refinement.  With refinement it is a mode that
+        // nothing measures: no input file in the repository selects it, so it has no
+        // regression coverage, and what it does is transform the live conserved state in
+        // place -- on both levels, including ghost cells -- and then undo the transform.
+        // Neither (rt/r)*r == rt nor (r - r0) + r0 == r holds in IEEE arithmetic, so every
+        // traversal perturbs the solution it was supposed to leave alone (issue 4257).
+        //
+        // Refuse the combination here, where the message can explain itself, rather than
+        // silently taking that path part-way through a run.  Lift this once the mode has
+        // a deck and a test to hold it.
+        //
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            !(interpolation_type == StateInterpType::Perturbational && max_level > 0),
+            "erf.interpolation_type = Perturbational is not supported with refinement "
+            "(amr.max_level > 0): the mode has no regression coverage and round-trips "
+            "the live state in place on every fill (ERF issue 4257).  Use the default "
+            "FullState, or run with amr.max_level = 0.");
+
         PlotFileType plotfile3d_type_temp = PlotFileType::None;
         pp.query_enum_case_insensitive("plotfile_type"  ,plotfile3d_type_temp);
         pp.query_enum_case_insensitive("plotfile_type_1",plotfile3d_type_1);
