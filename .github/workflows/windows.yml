@@ -41,15 +41,14 @@ jobs:
           # The MPI-off build is particles-on only; particles-off is covered by the MPI build.
           - mpi: OFF
             particles: OFF
-        include:
-          # The MPI-off build is the test build: debug info and AMReX assertions on.
-          - mpi: OFF
-            build_type: RelWithDebInfo
-            assertions: ON
-          # The MS-MPI builds are what users download: Release, no assertions.
-          - mpi: ON
-            build_type: Release
-            assertions: OFF
+    # The MPI-off build is the test build: debug info and AMReX assertions on. The
+    # MS-MPI builds are what users download: Release, no assertions. These are
+    # expressions rather than matrix 'include' entries on purpose: an include entry
+    # that matches no combination (mpi: ON on a PR, where the axis is [OFF]) is not
+    # dropped but added as a new job with the other axes empty.
+    env:
+      BUILD_TYPE: ${{ matrix.mpi == 'ON' && 'Release' || 'RelWithDebInfo' }}
+      ASSERTIONS: ${{ matrix.mpi == 'ON' && 'OFF' || 'ON' }}
 
     steps:
 
@@ -119,8 +118,8 @@ jobs:
           -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded `
           -DCMAKE_POLICY_DEFAULT_CMP0141=NEW `
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install `
-          -DCMAKE_BUILD_TYPE:STRING=${{ matrix.build_type }} `
-          -DAMReX_ASSERTIONS:BOOL=${{ matrix.assertions }} `
+          -DCMAKE_BUILD_TYPE:STRING=$env:BUILD_TYPE `
+          -DAMReX_ASSERTIONS:BOOL=$env:ASSERTIONS `
           -DERF_DIM:STRING=3 `
           -DERF_ENABLE_MPI:BOOL=${{ matrix.mpi }} `
           -DERF_ENABLE_PARTICLES:BOOL=${{ matrix.particles }} `
@@ -199,7 +198,7 @@ jobs:
         # ERF Windows Build - Installation Instructions
 
         ## Build Information
-        - Build Type: ${{ matrix.build_type }}
+        - Build Type: $env:BUILD_TYPE
         - MPI Enabled: ${{ matrix.mpi }}
         - Particles Enabled: ${{ matrix.particles }}
         - Mesh precision: ${{ matrix.mesh_precision }}
@@ -255,7 +254,7 @@ jobs:
       if: matrix.mpi == 'ON'
       uses: actions/upload-artifact@v7
       with:
-        name: ERF-win64-${{ matrix.build_type }}-mpi-${{ matrix.mpi }}-mesh-${{ matrix.mesh_precision }}-particles-${{ matrix.particles }}-${{ matrix.particles_precision }}
+        name: ERF-win64-${{ env.BUILD_TYPE }}-mpi-${{ matrix.mpi }}-mesh-${{ matrix.mesh_precision }}-particles-${{ matrix.particles }}-${{ matrix.particles_precision }}
         path: |
           build/Exec/erf_exec.exe
           build/INSTALL.txt
