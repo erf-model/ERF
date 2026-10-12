@@ -2837,14 +2837,7 @@ add_test_station_series(StationSampling_ImmersedTerrain TerrainHill single
 # 20, on one level and on the deck's two. A restart rebuilt the blanking without
 # clearing the almost-fluid cells of the hill's tails (eb2.small_volfrac), so the
 # wall law acted there after the restart only: 0.2 m/s in u at step 20 on one level.
-# Both legs compare at zero tolerance.  The two-level one needed 1e-8 relative when
-# it was written, for the reason IBSEB_RefinedLevels_Restart above still does -- the
-# restart leg writes a plotfile at the restart step and the straight leg does not,
-# and on two levels that used to move the solution at round-off (issue 4224).  This
-# deck is terrain-fitted, and the coarse detJ halo fix in #4258 removed the part of
-# that drift it was seeing, so it is bit-exact now and the allowance is no longer
-# buying anything.  IBSEB_RefinedLevels_Restart is periodic and still needs its
-# allowance until #4224 is fixed outright.
+# Both legs compare at zero tolerance. 
 # The runner is a cmake -P script (MPI, not Windows).
 if(ERF_ENABLE_MPI AND NOT WIN32)
 add_test_restart_parity(ImmersedTerrain_Hill_Restart TerrainHill 7 20
