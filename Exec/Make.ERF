@@ -891,6 +891,17 @@ all: $(ERF_PREBUILD_TARGETS) $(executable)
 # deleting the file from a build target instead -- a bare `make` builds
 # $(executable), not `all`, because Make.rules is included above and defines the
 # default goal, so that cleanup would never run.
+#
+# The --GIT order below fixes the buildInfoGetGitHash() indices: 1 = ERF,
+# 2 = AMReX, 3 = Noah-MP. Noah-MP is appended only when it is in the build, so
+# index 3 returns "" otherwise and every print site's strlen guard skips it.
+# NOAHMP_HOME is the submodule root (set above, inside the USE_NOAHMP block),
+# which is what git describe needs.
+ERF_GIT_DIRS := $(ERF_HOME) $(AMREX_HOME)
+ifeq ($(USE_NOAHMP), TRUE)
+  ERF_GIT_DIRS += $(NOAHMP_HOME)
+endif
+
 $(ERF_BUILDINFO_SRC): $(filter-out $(ERF_BUILDINFO_OBJ),$(objForExecs))
 	$(AMREX_HOME)/Tools/C_scripts/makebuildinfo_C.py \
           --output_dir $(objEXETempDir) \
@@ -901,7 +912,7 @@ $(ERF_BUILDINFO_SRC): $(filter-out $(ERF_BUILDINFO_OBJ),$(objForExecs))
           --link_flags "$(LINKFLAGS) $(CPPFLAGS) $(includes) $(LDFLAGS)" \
           --libraries "$(FINAL_LIBS)" \
           --MODULES "$(MNAMES)" \
-          --GIT "$(ERF_HOME) $(AMREX_HOME)" \
+          --GIT "$(ERF_GIT_DIRS)" \
           --GIT_STYLE "--always --dirty"
 	$(SILENT) mv $(objEXETempDir)/AMReX_buildInfo.cpp $@
 

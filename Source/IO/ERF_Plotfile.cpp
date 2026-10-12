@@ -5,11 +5,13 @@
 #include "ERF_Constants.H"
 #include "ERF_EpochTime.H"
 #include "ERF_NCPlotFile.H"
+#include "ERF_NoahMPGitHash.H"
 #include "ERF_PlotfileSelection.H"
 #include "ERF_SrcHeaders.H"
 #include "ERF_StormDiagnostics.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_Utils.H"
+#include <AMReX_buildInfo.H>
 
 using namespace amrex;
 
@@ -2280,9 +2282,11 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
              const Real* p_lo = geom[lev].ProbLo();
              const Real* p_hi = geom[lev].ProbHi();
              const auto dx    = geom[lev].CellSize();
+             const NCProvenance nc_provenance{buildInfoGetGitHash(1), buildInfoGetGitHash(2), NoahMPGitHash()};
              writeNCPlotFile(lev, l_which, plotfilename, GetVecOfConstPtrs(mf), varnames, istep,
                              {p_lo[0],p_lo[1],p_lo[2]},{p_hi[0],p_hi[1],p_hi[2]}, {dx[0],dx[1],dx[2]},
-                             geom[lev].Domain(), tnew, start_bdy_time, solverChoice, zlevels_stag[lev]);
+                             geom[lev].Domain(), tnew, start_bdy_time, solverChoice, zlevels_stag[lev],
+                             nc_provenance);
 #endif
         } else {
             // Here we assume the plotfile_type is PlotFileType::None
@@ -2423,9 +2427,11 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                      const Real* p_lo = geom[lev].ProbLo();
                      const Real* p_hi = geom[lev].ProbHi();
                      const auto dx    = geom[lev].CellSizeArray();
+                     const NCProvenance nc_provenance{buildInfoGetGitHash(1), buildInfoGetGitHash(2), NoahMPGitHash()};
                      writeNCPlotFile(lev, which_box, plotfilename, GetVecOfConstPtrs(mf), varnames, istep,
                                      {p_lo[0],p_lo[1],p_lo[2]},{p_hi[0],p_hi[1],p_hi[2]}, {dx[0],dx[1],dx[2]},
-                                     bounding_region, tnew, start_bdy_time, solverChoice, zlevels_stag[lev]);
+                                     bounding_region, tnew, start_bdy_time, solverChoice, zlevels_stag[lev],
+                                     nc_provenance);
                  }
              }
 #endif
