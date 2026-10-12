@@ -9,6 +9,7 @@
 #include "ERF.H"
 #include "ERF_Constants.H"
 #include "AMReX_buildInfo.H"
+#include "ERF_NoahMPGitHash.H"
 #include "ERF_SBMConstraintGroups.H"
 #include "ERF_SBMFixtureValidation.H"
 #include "ERF_SBMRemapping.H"
@@ -225,6 +226,7 @@ ERF::ERF_shared ()
     if (ParallelDescriptor::IOProcessor()) {
         const char* erf_hash = buildInfoGetGitHash(1);
         const char* amrex_hash = buildInfoGetGitHash(2);
+        const char* noahmp_hash = NoahMPGitHash();
         const char* buildgithash = buildInfoGetBuildGitHash();
         const char* buildgitname = buildInfoGetBuildGitName();
 
@@ -234,6 +236,9 @@ ERF::ERF_shared ()
         }
         if (strlen(amrex_hash) > 0) {
           Print() << "AMReX git hash: " << amrex_hash << "\n";
+        }
+        if (strlen(noahmp_hash) > 0) {
+          Print() << "Noah-MP git hash: " << noahmp_hash << "\n";
         }
         if (strlen(buildgithash) > 0) {
           Print() << buildgitname << " git hash: " << buildgithash << "\n";
