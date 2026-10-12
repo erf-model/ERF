@@ -110,8 +110,15 @@ equations and agree to the solver tolerance.  As for the FFT solver, each level 
 its own region, whose boxes must make a rectangle; the faces of a refined level's region are
 Neumann faces.  A region one cell wide in :math:`x` or :math:`y` is solved as two-dimensional.
 A refined region that reaches only one end of a periodic direction is solved with a Neumann
-face there by ``mlmg`` and ``gmres_mlmg``; the FFT preconditioner of ``gmres_fft`` does not
-accept that mix of boundary conditions and stops.
+face there by ``mlmg`` and ``gmres_mlmg`` (coarse cells lie across it); the FFT preconditioner
+of ``gmres_fft`` does not accept that mix of boundary conditions and stops.  A refined level
+whose patches meet across a periodic boundary stops the run with ``mlmg`` and ``gmres_mlmg``,
+since each patch would be solved with a Neumann face at the boundary.
+
+``erf.poisson_reltol`` and ``erf.poisson_abstol`` apply to the divergence with ``gmres_fft``,
+and to :math:`J` times the divergence with ``mlmg`` and ``gmres_mlmg``, which solve the
+:math:`J`-scaled equations; where :math:`J` is small (thin cells near the ground) the latter
+stop at a somewhat larger divergence.
 
 When a solve does not reach its tolerance in 100 iterations, ``mlmg`` stops the run, while
 ``gmres_fft`` and ``gmres_mlmg`` continue with the last iterate; the divergence printed after

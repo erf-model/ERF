@@ -20,10 +20,12 @@ using namespace amrex;
  * GMRES (gmres_mlmg).  It needs no FFT.
  *
  * The level is solved on its own region, as solve_with_gmres does: the faces of the region
- * inside the domain (coarse/fine faces) are Neumann faces, the domain faces take the
- * boundary conditions of get_fft_bc (Dirichlet only on Outflow and Open faces, and on the
- * lateral ones only without real boundary conditions; periodic only where the region spans
- * a periodic direction; Neumann everywhere else).
+ * inside the domain (coarse/fine faces) are Neumann faces; a domain face is Dirichlet only if
+ * it is an Outflow or Open face (a lateral one only without real boundary conditions), as in
+ * get_fft_bc; a direction is periodic only if the region spans it.  A region that reaches one
+ * end of a periodic direction only is given a Neumann face there (coarse cells lie across
+ * it), where get_fft_bc says periodic and the FFT preconditioner stops; project_momenta stops
+ * a level whose regions meet across a periodic boundary.
  *
  * @param lev Level index for the solve
  * @param subdomain Box over which the solve is performed
@@ -125,27 +127,8 @@ void ERF::solve_with_terrain_mlmg (int lev, const Box& subdomain, MultiFab& rhs,
     // Minus the terrain-following gradient, zero on the Neumann faces: the convention of
     // TerrainPoisson::getFluxes.  The solution is passed in, since GMRES leaves its own
     // answer in phi rather than in the multigrid's solution.
+    // The caller (project_momenta) multiplies the lateral fluxes by the map factor.
     mlmg.getFluxes({{&fluxes[0], &fluxes[1], &fluxes[2]}}, {&phi});
-
-    // The lateral fluxes carry the map factor, as in solve_with_gmres
-    for (MFIter mfi(phi); mfi.isValid(); ++mfi)
-    {
-        Box xbx = mfi.nodaltilebox(0);
-        Box ybx = mfi.nodaltilebox(1);
-        const Array4<Real      >& fx_ar = fluxes[0].array(mfi);
-        const Array4<Real      >& fy_ar = fluxes[1].array(mfi);
-        const Array4<Real const>& mf_ux = mapfac[lev][MapFacType::u_x]->const_array(mfi);
-        const Array4<Real const>& mf_vy = mapfac[lev][MapFacType::v_y]->const_array(mfi);
-        ParallelFor(xbx,ybx,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            fx_ar(i,j,k) *= mf_ux(i,j,0);
-        },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            fy_ar(i,j,k) *= mf_vy(i,j,0);
-        });
-    } // mfi
 #else
     amrex::ignore_unused(lev, rhs, phi, fluxes, ax_sub, ay_sub, az_sub, dJ_sub, znd_sub, use_gmres);
     amrex::Abort("erf.terrain_poisson_solver = mlmg or gmres_mlmg needs a 3D build");

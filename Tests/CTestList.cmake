@@ -3391,9 +3391,15 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
         SPLIT_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_y=8 erf.terrain_poisson_solver=mlmg"
         FCOMPARE_RTOL "1.0e-8")
   endif()
+  # Two separate refined patches (two regions on level 1) with MLMG
+  if(ERF_TEST_PYTHON)
+    add_test_terrain_poisson_divergence(TerrainPoisson_TwoPatches_mlmg TerrainPoisson_Hill 1
+        COMMON_OPTIONS "${_tp_two_patches} erf.terrain_poisson_solver=mlmg")
+  endif()
   # An unknown solver stops the run at start-up; MLMG on a region that is not a rectangle (an
   # L-shaped refined level of two boxes; amr.grid_eff keeps AMReX from filling the corner)
-  # stops at its first solve
+  # or on a level whose two patches meet across the periodic x boundary stops at its first
+  # solve
   set(_tph_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TerrainPoisson_Hill)
   add_test_abort(TerrainPoisson_Abort_UnknownSolver ${_tph_dir} TerrainPoisson_Hill.i
                  "Unknown enum: fft in AMREX_ENUM.TerrainPoissonSolver"
@@ -3401,6 +3407,9 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_abort(TerrainPoisson_Abort_MLMGNotRectangle ${_tph_dir} TerrainPoisson_Hill.i
                  "erf.terrain_poisson_solver = mlmg or gmres_mlmg needs the boxes of each region of a level to make a rectangle"
                  "erf.terrain_poisson_solver=mlmg amr.grid_eff=0.99 erf.refinement_indicators=box1 box2 erf.box2.max_level=1 erf.box2.in_box_lo_indices_crse=8 4 0 erf.box2.in_box_hi_indices_crse=11 11 15")
+  add_test_abort(TerrainPoisson_Abort_MLMGAcrossPeriodic ${_tph_dir} TerrainPoisson_Hill.i
+                 "a refined level crosses a periodic boundary"
+                 "erf.terrain_poisson_solver=mlmg amr.grid_eff=0.99 erf.refinement_indicators=box1 box2 erf.box1.in_box_lo_indices_crse=0 12 0 erf.box1.in_box_hi_indices_crse=7 23 15 erf.box2.max_level=1 erf.box2.in_box_lo_indices_crse=24 12 0 erf.box2.in_box_hi_indices_crse=31 23 15")
 endif()
 
 #=============================================================================

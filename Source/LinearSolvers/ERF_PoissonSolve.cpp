@@ -764,6 +764,23 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                     amrex::Abort("erf.terrain_poisson_solver = mlmg or gmres_mlmg needs the boxes of each "
                                  "region of a level to make a rectangle");
                 }
+                // Regions of one level that meet across a periodic boundary would each get a
+                // Neumann face there, and the correction could not cross it
+                for (int dir = 0; dir < 2; ++dir) {
+                    if (!geom[lev].isPeriodic(dir)) { continue; }
+                    const bool at_lo = (my_region.smallEnd(dir) == domain.smallEnd(dir));
+                    const bool at_hi = (my_region.bigEnd(dir)   == domain.bigEnd(dir));
+                    if (at_lo == at_hi) { continue; }
+                    for (int jsub = 0; jsub < subdomains[lev].size(); ++jsub) {
+                        if (jsub == isub) { continue; }
+                        const Box other = subdomains[lev][jsub].minimalBox();
+                        if ((at_lo && other.bigEnd(dir)   == domain.bigEnd(dir)) ||
+                            (at_hi && other.smallEnd(dir) == domain.smallEnd(dir))) {
+                            amrex::Abort("erf.terrain_poisson_solver = mlmg or gmres_mlmg: a refined level "
+                                         "crosses a periodic boundary; refine on one side of it");
+                        }
+                    }
+                }
                 solve_with_terrain_mlmg(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0],
                                         ax_sub, ay_sub, az_sub, dJ_sub, znd_sub,
                                         solverChoice.terrain_poisson_solver == TerrainPoissonSolver::gmres_mlmg);

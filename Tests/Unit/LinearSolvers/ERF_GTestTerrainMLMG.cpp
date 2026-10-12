@@ -42,6 +42,19 @@ AMREX_GPU_HOST_DEVICE inline Real terrain (Real x, Real y)
     return Real(60.0) * (Real(1.0) / (Real(1.0) + xr*xr + yr*yr) + Real(0.05) * x / DX + Real(0.02) * y / DY);
 }
 
+// Node heights of the hill (a free function: CUDA does not allow a device lambda in a constructor)
+void fill_heights (MultiFab& zp)
+{
+    for (MFIter mfi(zp); mfi.isValid(); ++mfi) {
+        auto z = zp.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const Real zeta = Real(k) * DZ;
+            z(i,j,k) = zeta + terrain(Real(i)*DX, Real(j)*DY) * (Real(1.0) - zeta / ZTOP);
+        });
+    }
+}
+
 // The region with slip walls on every side, split into boxes, with the metrics ERF makes
 struct Case
 {
@@ -63,14 +76,7 @@ struct Case
         ay.define(convert(ba, IntVect(0,1,0)), dm, 1, 1);
         az.define(convert(ba, IntVect(0,0,1)), dm, 1, 1);
         dJ.define(ba, dm, 1, 1);
-        for (MFIter mfi(zp); mfi.isValid(); ++mfi) {
-            auto z = zp.array(mfi);
-            ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                const Real zeta = Real(k) * DZ;
-                z(i,j,k) = zeta + terrain(Real(i)*DX, Real(j)*DY) * (Real(1.0) - zeta / ZTOP);
-            });
-        }
+        fill_heights(zp);
         make_J(geom, zp, dJ);
         make_areas(geom, zp, ax, ay, az);
     }
