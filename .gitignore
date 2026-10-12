@@ -23,7 +23,7 @@ plt*
 chk*
 tmp_build_dir
 .ccls-cache
-ERF*.ex
+*.ex
 AMReX_buildInfo.*.cpp
 cmake-build*
 cmake_build*

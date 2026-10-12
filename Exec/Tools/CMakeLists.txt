@@ -15,6 +15,11 @@ if(ERF_ENABLE_NETCDF)
         # (and the structs the latter pulls in)
         ${PROJECT_SOURCE_DIR}/Source
         ${PROJECT_SOURCE_DIR}/Source/DataStructs
+        # ERF_DataStruct.H pulls in ERF_RadStruct.H, which includes
+        # ERF_NoahMPSoilTable.H and, through ERF_SimplifiedSEB.H,
+        # ERF_MicrophysicsConstants.H
+        ${PROJECT_SOURCE_DIR}/Source/Radiation/TwoStream
+        ${PROJECT_SOURCE_DIR}/Source/Microphysics
         ${PROJECT_SOURCE_DIR}/Source/PBL
         ${PROJECT_SOURCE_DIR}/Source/Utils
         ${AMREX_SUBMOD_LOCATION}/Src/Base
