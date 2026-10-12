@@ -40,12 +40,43 @@ jobs:
       with:
         submodules: true
 
-    - name: Configure Project and Generate Build System
+    # ccache for MSVC. Three things make it work where earlier attempts did not:
+    # the Ninja generator (CMake only honours COMPILER_LAUNCHER for Makefile and
+    # Ninja generators, never for MSBuild), debug info embedded in each object
+    # (/Z7 via CMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded; the default /Zi
+    # writes a shared .pdb that ccache cannot key on), and no /MP (ccache
+    # handles one source per compiler call; Ninja provides the parallelism).
+    - name: Install ccache
+      shell: pwsh
       run: |
-        cmake -S . -B build `
+        Invoke-WebRequest https://github.com/ccache/ccache/releases/download/v4.10.2/ccache-4.10.2-windows-x86_64.zip -OutFile ccache.zip
+        Expand-Archive ccache.zip -DestinationPath $env:RUNNER_TEMP
+        "$env:RUNNER_TEMP\ccache-4.10.2-windows-x86_64" | Out-File -FilePath $env:GITHUB_PATH -Append
+        "CCACHE_DIR=$env:RUNNER_TEMP\ccache" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+    # ccache per matrix variant, written only from development; see ci.yml for how it works.
+    - name: Restore Cache
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ runner.temp }}\ccache
+        key: ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.mesh_precision }}-git-${{ github.sha }}
+        restore-keys: |
+             ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.mesh_precision }}-git-
+
+    - name: Set up the MSVC environment
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Configure Project and Generate Build System
+      shell: pwsh
+      run: |
+        cmake -S . -B build -G Ninja `
+          -DCMAKE_C_COMPILER=cl `
+          -DCMAKE_CXX_COMPILER=cl `
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache `
+          -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded `
+          -DCMAKE_POLICY_DEFAULT_CMP0141=NEW `
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install `
           -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo `
-          -DCMAKE_CXX_FLAGS=/MP `
           -DAMReX_ASSERTIONS:BOOL=ON `
           -DERF_DIM:STRING=3 `
           -DERF_ENABLE_MPI:BOOL=OFF `
@@ -55,17 +86,40 @@ jobs:
           -DERF_ENABLE_TESTS:BOOL=ON `
           -DERF_ENABLE_ALL_WARNINGS:BOOL=OFF `
           -DERF_ENABLE_FCOMPARE:BOOL=ON `
+          -DFCOMPARE_EXE=${{github.workspace}}/build/Submodules/AMReX/Tools/Plotfile/amrex_fcompare.exe `
+          -DFEXTREMA_EXE=${{github.workspace}}/build/Submodules/AMReX/Tools/Plotfile/amrex_fextrema.exe `
+          -DFEXTRACT_EXE=${{github.workspace}}/build/Submodules/AMReX/Tools/Plotfile/amrex_fextract.exe `
           ${{github.workspace}};
 
     - name: Compile and Link
+      shell: pwsh
       run: |
-        cmake --build build --config RelWithDebInfo --parallel $env:NUMBER_OF_PROCESSORS --verbose
+        $env:CCACHE_COMPRESS = "1"
+        $env:CCACHE_COMPRESSLEVEL = "10"
+        $env:CCACHE_MAXSIZE = "600M"
+        ccache -z
+        $build_start = [int](Get-Date -UFormat %s)
+        cmake --build build --parallel $env:NUMBER_OF_PROCESSORS
+        if ($LASTEXITCODE -ne 0) { throw "build failed" }
+        # Keep only what this build used; see ci.yml.
+        $age = [int](Get-Date -UFormat %s) - $build_start + 120
+        ccache --evict-older-than "${age}s"
+        '```' | Out-File -Append -FilePath $env:GITHUB_STEP_SUMMARY
+        ccache -s | Tee-Object -Append -FilePath $env:GITHUB_STEP_SUMMARY
+        '```' | Out-File -Append -FilePath $env:GITHUB_STEP_SUMMARY
+
+    - name: Save Cache
+      if: always() && github.ref_name == github.event.repository.default_branch
+      uses: actions/cache/save@v6
+      with:
+        path: ${{ runner.temp }}\ccache
+        key: ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.mesh_precision }}-git-${{ github.sha }}
 
     - name: Check Unit Test Registration
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       shell: pwsh
       run: |
-        $out = & "${{runner.workspace}}/ERF/build/Tests/Unit/RelWithDebInfo/erf_unit_tests.exe" --gtest_list_tests
+        $out = & "${{runner.workspace}}/ERF/build/Tests/Unit/erf_unit_tests.exe" --gtest_list_tests
         $out
         $outText = $out -join "`n"
         if ($outText -notmatch '(?m)^[A-Za-z0-9_].*\.$') {
@@ -76,17 +130,17 @@ jobs:
     - name: CMake Unit Tests
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
-        ctest -C RelWithDebInfo -L unit -VV -j $env:NUMBER_OF_PROCESSORS
+        ctest -L unit -VV -j $env:NUMBER_OF_PROCESSORS
       working-directory: ${{runner.workspace}}/ERF/build
 
     - name: CMake Shuffle Stress Test
       if: matrix.particles == 'ON' && matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       shell: pwsh
-      run: ctest -C RelWithDebInfo -L stress --output-on-failure --no-tests=error -j $env:NUMBER_OF_PROCESSORS
+      run: ctest -L stress --output-on-failure --no-tests=error -j $env:NUMBER_OF_PROCESSORS
       working-directory: ${{runner.workspace}}/ERF/build
 
     - name: CMake Regression Tests # see file ERF/Tests/CTestList.cmake
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
-        ctest -C RelWithDebInfo -L regression -VV -j $env:NUMBER_OF_PROCESSORS
+        ctest -L regression -VV -j $env:NUMBER_OF_PROCESSORS
       working-directory: ${{runner.workspace}}/ERF/build
