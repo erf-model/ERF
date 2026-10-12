@@ -76,17 +76,17 @@ jobs:
     - name: CMake Unit Tests
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
-        ctest -C RelWithDebInfo -L unit -VV
+        ctest -C RelWithDebInfo -L unit -VV -j $env:NUMBER_OF_PROCESSORS
       working-directory: ${{runner.workspace}}/ERF/build
 
     - name: CMake Shuffle Stress Test
       if: matrix.particles == 'ON' && matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       shell: pwsh
-      run: ctest -C RelWithDebInfo -L stress --output-on-failure --no-tests=error
+      run: ctest -C RelWithDebInfo -L stress --output-on-failure --no-tests=error -j $env:NUMBER_OF_PROCESSORS
       working-directory: ${{runner.workspace}}/ERF/build
 
     - name: CMake Regression Tests # see file ERF/Tests/CTestList.cmake
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
-        ctest -C RelWithDebInfo -L regression -VV
+        ctest -C RelWithDebInfo -L regression -VV -j $env:NUMBER_OF_PROCESSORS
       working-directory: ${{runner.workspace}}/ERF/build
