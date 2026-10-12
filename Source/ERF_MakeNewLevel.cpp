@@ -514,6 +514,16 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         //       of the fine detJ for that average-down to telescope and stay conservative.
         for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
             average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
+
+            //
+            // Keep the halo in step with the valid cells we just replaced.  The coarse detJ
+            // under this level is now the average of the fine one, but its ghost cells still
+            // hold what the coarse terrain alone gave, and the two differ in the last bits.
+            // InitData_post does this FillBoundary after its own average-down, so without it
+            // here a restart -- which goes through InitData_post -- does not reproduce the
+            // run it continues.
+            //
+            detJ_cc[crse_lev]->FillBoundary(geom[crse_lev].periodicity());
         }
     }
 
@@ -657,6 +667,10 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
              (solverChoice.coupling_type == CouplingType::TwoWay) ) {
             for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
                 average_down(*detJ_cc[crse_lev+1], *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
+
+                // Keep the halo in step with the valid cells we just replaced (see the note on
+                // the first average-down in MakeNewLevelFromCoarse).
+                detJ_cc[crse_lev]->FillBoundary(geom[crse_lev].periodicity());
             }
         }
 
@@ -1082,6 +1096,10 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         //       of the fine detJ for that average-down to telescope and stay conservative.
         for (int crse_lev = lev-1; crse_lev >= 0; crse_lev--) {
             average_down(  *detJ_cc[crse_lev+1],   *detJ_cc[crse_lev], 0, 1, refRatio(crse_lev));
+
+            // Keep the halo in step with the valid cells we just replaced (see the note on
+            // the first average-down in MakeNewLevelFromCoarse).
+            detJ_cc[crse_lev]->FillBoundary(geom[crse_lev].periodicity());
         }
     }
 
