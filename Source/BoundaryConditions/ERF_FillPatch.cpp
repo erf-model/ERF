@@ -77,11 +77,17 @@ ERF::FillPatchFineLevel (int lev, double time_d,
     // cheap path and being inconsistent with itself.
     // ***************************************************************************
     if (fillset && !cons_only) {
-        if (interpolation_type == StateInterpType::Perturbational) {
-            FillPatchFineLevel(lev, time_d, mfs_vel, mfs_mom,
-                               old_base_state, new_base_state,
-                               false /*fillset*/, true /*cons_only*/);
-        } else {
+        //
+        // Perturbational interpolation cannot reach this: it is only ever used from
+        // here, and ERF::ReadParameters refuses it together with amr.max_level > 0,
+        // which this routine requires (issue 4257).  Were it allowed, the density the
+        // conversion needs could only be had by running the transform again, which
+        // would perturb the live state a second time per fill -- so the mode has to
+        // earn a deck and a test before it comes back, not be given a cheap path here.
+        //
+        AMREX_ALWAYS_ASSERT(interpolation_type != StateInterpType::Perturbational);
+
+        {
             const IntVect ng_rho(1,1,1);
             MultiFab rho_mf(mfs_vel[Vars::cons]->boxArray(),
                             mfs_vel[Vars::cons]->DistributionMap(), 1, ng_rho);
