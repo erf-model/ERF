@@ -205,7 +205,7 @@ ERF::HurricaneTrackerCircle ()
 
     // Define circle properties
     const int n_points = 100;        // number of points on the circle
-    const Real radius = 200e3; // radius in meters (example: 50 km)
+    const Real radius = 100e3; // radius in meters (example: 50 km)
 
     // Clear previous points and reserve space
     hurricane_tracker_circle.clear();
@@ -427,7 +427,7 @@ ERF::HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
             Real y = prob_lo[1] + (j+myhalf)*dx[1];
             Real dist = std::sqrt((x-tmp_x_eye)*(x-tmp_x_eye) +
                                          (y-tmp_y_eye)*(y-tmp_y_eye));
-            if(k==0 && dist < 200e3) {
+            if(k==0 && dist < 100e3) {
                 Real velmag = zero;
                 for (int comp = 0; comp < ncomp; ++comp) {
                     Real vel = vel_arr(i, j, k, comp);
@@ -452,7 +452,7 @@ ERF::HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
                 Real x =  prob_lo[0] + (i+myhalf)*dx[0];
                 Real y =  prob_lo[1] + (j+myhalf)*dx[1];
                 Real dist = std::sqrt((x-tmp_x_eye)*(x-tmp_x_eye) + (y-tmp_y_eye)*(y-tmp_y_eye));
-                if(dist < 200e3) {
+                if(dist < 100e3) {
                     Real velmag = zero;
                     for (int comp = 0; comp < ncomp; ++comp) {
                         Real vel = vel_arr(i, j, k, comp);
@@ -713,7 +713,7 @@ ERF::HurricaneMaxVelTracker (const Geometry& lev_geom,
             Real y = prob_lo[1] + (j+myhalf)*dx[1];
             Real dist = std::sqrt((x-x_eye)*(x-x_eye) +
                                          (y-y_eye)*(y-y_eye));
-            if(k==0 && dist < 200e3) {
+            if(k==0 && dist < 100e3) {
                 Real velmag = zero;
                 for (int comp = 0; comp < ncomp; ++comp) {
                     Real vel = vel_arr(i, j, k, comp);
@@ -779,7 +779,7 @@ ERF::HurricaneMinPressureTracker (MoistureType moisture_type,
             Real y = prob_lo[1] + (j+myhalf)*dx[1];
             Real dist2 = (x-x_last)*(x-x_last) +
                                 (y-y_last)*(y-y_last);
-            if(k==0 && dist2 < 200e3*200e3) {
+            if(k==0 && dist2 < 100e3*100e3) {
                 const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
                 const Real qv_for_p = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0;
                 const Real pressure = getPgivenRTh(rhotheta,qv_for_p);
