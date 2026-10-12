@@ -683,8 +683,8 @@ endif()
 # REQUIRE_LEVEL0_REMAKE makes a regrid test fail if the restart stopped regridding, which
 # would otherwise leave it silently comparing an ordinary restart and passing.
 function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
-    set(oneValueArgs "COMMON_OPTIONS" "RESTART_OPTIONS" "CHK_NRANKS" "RESTART_NRANKS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT" "DATALOG" "DATALOG_SIGDIGITS" "PLT2DFILE")
-    cmake_parse_arguments(ADD_TEST_RP "ALLOW_DIFF_GRIDS;REQUIRE_LEVEL0_REMAKE" "${oneValueArgs}" "" ${ARGN})
+    set(oneValueArgs "COMMON_OPTIONS" "RESTART_OPTIONS" "CHK_OPTIONS" "CHK_LEG_END" "CHK_NRANKS" "RESTART_NRANKS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT" "DATALOG" "DATALOG_SIGDIGITS" "PLT2DFILE" "BNDRY_PLANES_DIR" "BNDRY_PLANES_FIRST_STEP" "BNDRY_PLANES_STEPS" "BNDRY_PLANES_READ_INPUT")
+    cmake_parse_arguments(ADD_TEST_RP "ALLOW_DIFF_GRIDS;REQUIRE_LEVEL0_REMAKE;BNDRY_PLANES_STALE;BNDRY_PLANES_CUT_NEWLINE;BNDRY_PLANES_EARLY_STOP" "${oneValueArgs}" "" ${ARGN})
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
 
@@ -727,6 +727,15 @@ function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
         "-DDATALOG=${ADD_TEST_RP_DATALOG}"
         "-DDATALOG_SIGDIGITS=${ADD_TEST_RP_DATALOG_SIGDIGITS}"
         "-DPLT2DFILE=${ADD_TEST_RP_PLT2DFILE}"
+        "-DCHK_OPTIONS=${ADD_TEST_RP_CHK_OPTIONS}"
+        "-DCHK_LEG_END=${ADD_TEST_RP_CHK_LEG_END}"
+        "-DBNDRY_PLANES_DIR=${ADD_TEST_RP_BNDRY_PLANES_DIR}"
+        "-DBNDRY_PLANES_FIRST_STEP=${ADD_TEST_RP_BNDRY_PLANES_FIRST_STEP}"
+        "-DBNDRY_PLANES_STALE=${ADD_TEST_RP_BNDRY_PLANES_STALE}"
+        "-DBNDRY_PLANES_STEPS=${ADD_TEST_RP_BNDRY_PLANES_STEPS}"
+        "-DBNDRY_PLANES_CUT_NEWLINE=${ADD_TEST_RP_BNDRY_PLANES_CUT_NEWLINE}"
+        "-DBNDRY_PLANES_EARLY_STOP=${ADD_TEST_RP_BNDRY_PLANES_EARLY_STOP}"
+        "-DBNDRY_PLANES_READ_INPUT=${ADD_TEST_RP_BNDRY_PLANES_READ_INPUT}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunRestartParity.cmake)
     # The reservation has to cover the widest leg, which need not be NP.
     set(_procs "${NP}")
@@ -1751,6 +1760,48 @@ add_test_restart_parity(MoistBubble_Kessler_Restart MoistBubble_Kessler_Restart 
     COMMON_OPTIONS "erf.vert_implicit=false"
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
+# Boundary-plane output (erf.output_bndry_planes) across a restart: the series in BndryFiles --
+# one plane directory per output step and a time.dat of "step time" rows -- must come out of a
+# run through a checkpoint as it comes out of a straight run, since erf.input_bndry_planes reads
+# it back and stops on a time.dat whose rows do not increase. Each test runs 16^3 ABL to step 8
+# three times, planes every 2 steps. The runner is a cmake -P script (MPI, not Windows).
+#   _Restart:     restart from step 4, and read the series back. The start-up write used to run
+#                 on a restart too, as step 0: it replaced the step-0 plane with the restart
+#                 state and appended a "0 t" row. The last row before the restart is left
+#                 without its newline, as a time.dat edited or copied by hand may be.
+#   _Replay:      the run went on to step 8 after its step-3 checkpoint, the restart replays 4-8,
+#                 and step 3 is not an output step. A restart that stops before its first plane
+#                 (here: no step at all) must leave time.dat as it was.
+#   _Enable:      the output is switched on at the restart, at an output step (4) ...
+#   _EnableOff:   ... and between two (3): the series begins at step 4 either way.
+#   _StartTime:   output starts 0.05 s into a run whose clock starts at a calendar date
+#                 (start_datetime); the checkpoint at step 3 comes before any plane, and the run
+#                 went on to step 8 after it: planes at 4, 6, 8 only.
+#   _Stale:       both run directories already hold the time.dat of an earlier run; a fresh start
+#                 begins a new series instead of appending to it.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_parity(ABL_BndryPlanes_Restart ABL_BndryPlanes_Restart 4 8
+    BNDRY_PLANES_DIR "BndryFiles" BNDRY_PLANES_STEPS "0 2 4 6 8" BNDRY_PLANES_CUT_NEWLINE
+    BNDRY_PLANES_READ_INPUT "ABL_BndryPlanes_Read.i"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(ABL_BndryPlanes_Replay ABL_BndryPlanes_Restart 3 8
+    CHK_LEG_END 8 BNDRY_PLANES_EARLY_STOP
+    BNDRY_PLANES_DIR "BndryFiles" BNDRY_PLANES_STEPS "0 2 4 6 8" FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(ABL_BndryPlanes_Enable ABL_BndryPlanes_Restart 4 8
+    CHK_OPTIONS "erf.output_bndry_planes=0"
+    BNDRY_PLANES_DIR "BndryFiles" BNDRY_PLANES_FIRST_STEP 4 BNDRY_PLANES_STEPS "4 6 8"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(ABL_BndryPlanes_EnableOff ABL_BndryPlanes_Restart 3 8
+    CHK_OPTIONS "erf.output_bndry_planes=0"
+    BNDRY_PLANES_DIR "BndryFiles" BNDRY_PLANES_FIRST_STEP 3 BNDRY_PLANES_STEPS "4 6 8"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(ABL_BndryPlanes_StartTime ABL_BndryPlanes_StartTime 3 8
+    CHK_LEG_END 8
+    BNDRY_PLANES_DIR "BndryFiles" BNDRY_PLANES_STEPS "4 6 8" FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(ABL_BndryPlanes_Stale ABL_BndryPlanes_Restart 4 8
+    BNDRY_PLANES_DIR "BndryFiles" BNDRY_PLANES_STALE BNDRY_PLANES_STEPS "0 2 4 6 8"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+endif()
 add_test_r(SquallLine_2D                     ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(SuperCell_3D                      ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 if(ERF_ENABLE_NETCDF)
@@ -1844,6 +1895,28 @@ function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME
         ATTACHED_FILES_ON_FAIL "${test_log}"
     )
 endfunction(add_test_abort)
+
+# Reading and writing boundary planes in one folder would replace the planes being read; the
+# folder names differ only in spelling (_SameFolder) or reach it through a symbolic link
+# (_SameFolderLink, link made here at configure time). Not on Windows, whose path spelling and
+# links this does not cover.
+if(NOT WIN32)
+  add_test_abort(ABL_BndryPlanes_SameFolder
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ABL_BndryPlanes_Restart
+                 ABL_BndryPlanes_Restart.i
+                 "name the same folder"
+                 "erf.input_bndry_planes=1 erf.bndry_file=./BndryFiles/ erf.bndry_input_var_names=velocity")
+  add_test_abort(ABL_BndryPlanes_SameFolderLink
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ABL_BndryPlanes_Restart
+                 ABL_BndryPlanes_Restart.i
+                 "name the same folder"
+                 "erf.input_bndry_planes=1 erf.bndry_file=BndryIn erf.bndry_input_var_names=velocity")
+  set(_bp_link_dir "${CMAKE_CURRENT_BINARY_DIR}/test_files/ABL_BndryPlanes_SameFolderLink")
+  file(MAKE_DIRECTORY "${_bp_link_dir}/BndryFiles")
+  if(NOT EXISTS "${_bp_link_dir}/BndryIn")
+    file(CREATE_LINK "BndryFiles" "${_bp_link_dir}/BndryIn" SYMBOLIC)
+  endif()
+endif()
 
 if(ERF_ENABLE_MPI AND NOT WIN32)
   # A shallow nest -- a fine level that stops below the domain top -- has no complete
@@ -2420,11 +2493,84 @@ function(add_test_ibseb_two_stream_sun TEST_NAME TEST_FILES_DIR)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/run/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
 endfunction(add_test_ibseb_two_stream_sun)
 
+# The building faces taking their radiation from the two-stream columns
+# (erf.ibseb.radiation = two_stream; Tests/RunIBSEBTwoStreamProvider.cmake). Under a
+# transparent sky the faces get what the faces' own clear-sky radiation gives for that sky;
+# under an absorbing sky each face gets the exact beam and reflected light at its height, on
+# one level and on two (level 1 refined in z too); a scattering sky adds diffuse light and
+# leaves the beam alone; at night the faces get no sunlight; a restart keeps the reports.
+# Then the start-up aborts: no two-stream radiation, its shortwave off, its longwave off
+# with lw_mode = two_stream, lw_mode = two_stream without the two-stream radiation, inputs
+# of the faces' own clear-sky radiation given with it, and a refined level whose grids do
+# not span the domain in z (it has no column sweep of its own).
+function(add_test_ibseb_two_stream_provider TEST_NAME)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+        "-DTWO_LEVEL_INPUT=${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider/IBSEB_TwoStreamProviderTwoLevel.i"
+        "-DTWO_LEVEL_FILES=${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_RefinedLevels"
+        "-DPRECISION=${ERF_PRECISION}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${CMAKE_CURRENT_SOURCE_DIR}/check_ibseb_two_stream_provider.py"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunIBSEBTwoStreamProvider.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/two_stream/simulation.log;${CURRENT_TEST_BINARY_DIR}/prescribed/simulation.log;${CURRENT_TEST_BINARY_DIR}/absorbing/simulation.log;${CURRENT_TEST_BINARY_DIR}/scattering/simulation.log;${CURRENT_TEST_BINARY_DIR}/night/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level_clear/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level_absorbing/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+endfunction(add_test_ibseb_two_stream_provider)
+
 if(ERF_ENABLE_MPI AND NOT WIN32)
   if(NOT "${ERF_TEST_PYTHON}" STREQUAL "")
     add_test_ibseb_refined_levels(IBSEB_RefinedLevels)
     add_test_ibseb_two_stream_sun(IBSEB_TwoStreamSunRun IBSEB_TwoStreamSun)
+    add_test_ibseb_two_stream_provider(IBSEB_TwoStreamProvider)
   endif()
+  add_test_abort(IBSEB_TwoStreamProviderWithoutTwoStream
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
+                 IBSEB_TwoStreamProvider.i
+                 "erf.ibseb.radiation = two_stream needs erf.radiation_model = TwoStream"
+                 "erf.radiation_model=None")
+  add_test_abort(IBSEB_TwoStreamProviderShortwaveOff
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
+                 IBSEB_TwoStreamProvider.i
+                 "erf.ibseb.radiation = two_stream needs the two-stream shortwave"
+                 "erf.radiation.sw_enabled=false")
+  add_test_abort(IBSEB_TwoStreamProviderLongwaveOff
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
+                 IBSEB_TwoStreamProvider.i
+                 "erf.ibseb.lw_mode = two_stream needs the two-stream longwave"
+                 "erf.radiation.lw_enabled=false")
+  add_test_abort(IBSEB_TwoStreamProviderLwMode
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
+                 IBSEB_TwoStreamProvider.i
+                 "lw_mode = two_stream needs erf.ibseb.radiation = two_stream"
+                 "erf.ibseb.radiation=prescribed erf.ibseb.lw_mode=two_stream")
+  add_test_abort(IBSEB_TwoStreamProviderPrescribedInputs
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
+                 IBSEB_TwoStreamProvider.i
+                 "albedo_ground is not used with erf.ibseb.radiation = two_stream"
+                 "erf.ibseb.albedo_ground=0.2")
+  add_test_abort(IBSEB_TwoStreamProviderLwInputs
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
+                 IBSEB_TwoStreamProvider.i
+                 "T_ground is not used with erf.ibseb.lw_mode = two_stream"
+                 "erf.ibseb.T_ground=300.0")
+  add_test_abort(IBSEB_TwoStreamProviderShallowLevel
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_RefinedLevels
+                 IBSEB_RefinedLevels.i
+                 "grids of level 1 do not span the domain in z"
+                 "erf.radiation_model=TwoStream erf.fixed_solar_zenith_angle=0.3420201433256688 erf.rad_t_sfc=300.0 erf.ibseb.radiation=two_stream amr.refine_whole_domain_dir=-1 erf.city.in_box_lo=100.0 180.0 0.0 erf.city.in_box_hi=220.0 300.0 100.0")
   add_test_abort(IBSEB_RefinedLevelCutsBuilding
                  ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_RefinedLevels
                  IBSEB_RefinedLevels.i
