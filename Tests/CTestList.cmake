@@ -2837,10 +2837,7 @@ add_test_station_series(StationSampling_ImmersedTerrain TerrainHill single
 # 20, on one level and on the deck's two. A restart rebuilt the blanking without
 # clearing the almost-fluid cells of the hill's tails (eb2.small_volfrac), so the
 # wall law acted there after the restart only: 0.2 m/s in u at step 20 on one level.
-# The one-level leg compares at zero tolerance. The two-level one compares to 1e-8
-# relative, for the same reason as IBSEB_RefinedLevels_Restart above: the restart leg
-# writes a plotfile at the restart step and the straight leg does not, and on two
-# levels writing a plotfile moves the solution at round-off (issue 4224).
+# Both legs compare at zero tolerance. 
 # The runner is a cmake -P script (MPI, not Windows).
 if(ERF_ENABLE_MPI AND NOT WIN32)
 add_test_restart_parity(ImmersedTerrain_Hill_Restart TerrainHill 7 20
@@ -2848,7 +2845,7 @@ add_test_restart_parity(ImmersedTerrain_Hill_Restart TerrainHill 7 20
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 add_test_restart_parity(ImmersedTerrain_Hill_TwoLevel_Restart TerrainHill 7 20
     COMMON_OPTIONS "erf.terrain_type=ImmersedForcing erf.immersed_forcing_substep=true eb2.small_volfrac=0.005 erf.plot_vars_1=density x_velocity y_velocity z_velocity theta terrain_IB_mask"
-    FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "0.0")
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
 
 # A restart that re-makes the level-0 grids (erf.regrid_level_0_on_restart, and the
