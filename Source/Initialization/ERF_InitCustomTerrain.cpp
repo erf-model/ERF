@@ -68,10 +68,10 @@ init_my_custom_terrain ( const Geometry& geom,
             int dir = 0;  pp_prob.queryAdd("dir", dir);
 
             Real  L        = Real(100.0); pp_prob.queryAdd("L"        , L);
-            Real  z_offset =   zero; pp_prob.queryAdd("z_offset" , z_offset);
+            Real  z_offset = zero;        pp_prob.queryAdd("z_offset" , z_offset);
 
             // If hm is nonzero, then use alternate hill definition
-            Real  hm       =   zero; pp_prob.queryAdd("hmax" , hm);
+            Real  hm       = zero;        pp_prob.queryAdd("hmax" , hm);
 
             // This is a 2D hill with variation in only the x-direction
             if (dir == 0) {
@@ -134,9 +134,10 @@ init_my_custom_terrain ( const Geometry& geom,
 
         } else if (custom_terrain_type == "ScharMountain") {
 
-            Real asq    = Real(5000.0) * Real(5000.0);
-            Real Hm     =  Real(250.0);
-            Real lambda = Real(4000.0);
+            Real a_mtn  = Real(5000.0); pp_prob.queryAdd("a"     , a_mtn);
+            Real Hm     = Real(250.0);  pp_prob.queryAdd("hm"    , Hm);
+            Real lambda = Real(4000.0); pp_prob.queryAdd("lambda", lambda);
+            Real asq    = a_mtn * a_mtn;
 
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
             {
