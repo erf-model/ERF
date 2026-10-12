@@ -498,4 +498,81 @@ void terrpoisson_adotx (int i, int j, int k, amrex::Array4<T> const& y,
                +(az(i,j,k+1)*pz_hi - az(i,j,k)*pz_lo) * dzinv;
     y(i,j,k) /=  dJ(i,j,k);
 }
+
+/**
+ * Bits of the face mask taken by terrpoisson_adotx_zero_flux: one per face of the solve
+ * region whose flux is set to zero.
+ */
+enum TerrainPoissonFaceBit : int {
+    tp_face_xlo = 1, tp_face_xhi = 2,
+    tp_face_ylo = 4, tp_face_yhi = 8,
+    tp_face_zlo = 16, tp_face_zhi = 32
+};
+
+/**
+ * Apply the terrain Poisson matrix with zero flux through the masked faces of the solve
+ * region.
+ *
+ * The masked faces are the Neumann faces of the region: its faces inside the domain (the
+ * coarse/fine faces of a refined level) and the Neumann (wall or inflow) faces of the
+ * domain.  The even mirror that TerrainPoisson::apply_bcs puts in the ghost cell makes the
+ * normal-gradient part of the flux through such a face vanish, but not the terrain cross
+ * term (h_xi/h_zeta times the vertical difference), so on sloping terrain terrpoisson_adotx
+ * lets correction flux through the face.  Here the flux through each masked face of the
+ * cell (terrpoisson_flux_x/y/z, the fluxes terrpoisson_adotx is built from) is taken back
+ * out of terrpoisson_adotx, which leaves zero flux through it, as AMReX's MLTerrainPoisson
+ * has.  Where the terrain is flat at the face that flux is exactly zero and the result is
+ * terrpoisson_adotx bit for bit; with zf = 0 it is terrpoisson_adotx everywhere.  The
+ * ground flux (k == 0) is zero in both.
+ *
+ * @tparam T Real-valued array and spacing type
+ * @param i x-index of the cell
+ * @param j y-index of the cell
+ * @param k z-index of the cell
+ * @param y Destination operator result
+ * @param x Source solution field, ghost cells filled
+ * @param ax Terrain metric coefficient on x-faces
+ * @param ay Terrain metric coefficient on y-faces
+ * @param az Terrain metric coefficient on z-faces
+ * @param dJ Cell-centered Jacobian determinant
+ * @param zp Node-centered physical height field
+ * @param dxinv Inverse x grid spacing
+ * @param dyinv Inverse y grid spacing
+ * @param dzinv Inverse z grid spacing
+ * @param dlo Low corner of the solve region
+ * @param dhi High corner of the solve region
+ * @param zf Faces of the region with zero flux (sum of TerrainPoissonFaceBit values)
+ */
+template <typename T>
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void terrpoisson_adotx_zero_flux (int i, int j, int k, amrex::Array4<T> const& y,
+                                  amrex::Array4<T const> const& x,
+                                  amrex::Array4<T const> const& ax,
+                                  amrex::Array4<T const> const& ay,
+                                  amrex::Array4<T const> const& az,
+                                  amrex::Array4<T const> const& dJ,
+                                  amrex::Array4<T const> const& zp,
+                                  T dxinv, T dyinv, T dzinv,
+                                  amrex::Dim3 const& dlo, amrex::Dim3 const& dhi,
+                                  int zf) noexcept
+{
+    using amrex::Real;
+
+    terrpoisson_adotx(i, j, k, y, x, ax, ay, az, dJ, zp, dxinv, dyinv, dzinv);
+
+    // terrpoisson_adotx has dJ * y = (ax*px)_hi - (ax*px)_lo + ... with p = -flux; remove
+    // the term of every masked face of this cell
+    Real back = zero;
+    if ((zf & tp_face_xlo) && i == dlo.x) { back -= ax(i  ,j,k) * terrpoisson_flux_x(i  ,j,k,x,zp,dxinv) * dxinv; }
+    if ((zf & tp_face_xhi) && i == dhi.x) { back += ax(i+1,j,k) * terrpoisson_flux_x(i+1,j,k,x,zp,dxinv) * dxinv; }
+    if ((zf & tp_face_ylo) && j == dlo.y) { back -= ay(i,j  ,k) * terrpoisson_flux_y(i,j  ,k,x,zp,dyinv) * dyinv; }
+    if ((zf & tp_face_yhi) && j == dhi.y) { back += ay(i,j+1,k) * terrpoisson_flux_y(i,j+1,k,x,zp,dyinv) * dyinv; }
+    if ((zf & tp_face_zlo) && k == dlo.z && k != 0) {
+        back -= az(i,j,k  ) * terrpoisson_flux_z(i,j,k  ,x,zp,dxinv,dyinv) * dzinv;
+    }
+    if ((zf & tp_face_zhi) && k == dhi.z) {
+        back += az(i,j,k+1) * terrpoisson_flux_z(i,j,k+1,x,zp,dxinv,dyinv) * dzinv;
+    }
+    if (back != zero) { y(i,j,k) += back / dJ(i,j,k); }
+}
 #endif

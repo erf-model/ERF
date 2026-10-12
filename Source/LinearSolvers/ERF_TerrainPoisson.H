@@ -36,6 +36,9 @@ public:
      * @param dJ Cell-centered Jacobian determinant
      * @param z_phys_nd Node-centered physical height field
      * @param use_real_bcs Whether real lateral boundary conditions are active
+     * @param neumann_zero_flux True for zero flux through the Neumann faces of the
+     *        solve region (erf.terrain_poisson_neumann = zero_flux), false for the even
+     *        mirror alone (mirror)
      */
     TerrainPoisson (amrex::Geometry const& geom, amrex::Geometry const& lev_geom,
                     amrex::BoxArray const& ba,
@@ -45,7 +48,8 @@ public:
                     const amrex::MultiFab& ax, const amrex::MultiFab& ay,
                     const amrex::MultiFab& az, const amrex::MultiFab& dJ,
                     amrex::MultiFab const* z_phys_nd,
-                    bool use_real_bcs);
+                    bool use_real_bcs,
+                    bool neumann_zero_flux = true);
 
     /**
      * Apply the terrain Poisson operator.
@@ -68,6 +72,14 @@ public:
      * @param precond_flag True to use the FFT preconditioner
      */
     void usePrecond (bool precond_flag);
+
+    /**
+     * Faces of the solve region whose flux is zero, as a sum of TerrainPoissonFaceBit
+     * values; 0 with neumann_zero_flux = false.
+     *
+     * @return The face mask
+     */
+    [[nodiscard]] int zeroFluxFaces () const { return m_zero_flux_faces; }
 
     /**
      * Compute face-centered terrain Poisson fluxes from a solution field.
@@ -175,6 +187,9 @@ private:
 
     std::unique_ptr<amrex::FFT::PoissonHybrid<amrex::MultiFab>> m_2D_fft_precond;
     amrex::Array<std::pair<amrex::FFT::Boundary,amrex::FFT::Boundary>,AMREX_SPACEDIM> bc_fft;
+
+    //! Faces of the solve region with zero flux (TerrainPoissonFaceBit values)
+    int m_zero_flux_faces = 0;
 };
 
 #endif
