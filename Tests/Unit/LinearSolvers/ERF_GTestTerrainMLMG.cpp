@@ -128,8 +128,8 @@ struct Case
         auto const& J = dJ.const_arrays();
         ParallelFor(y, [=] AMREX_GPU_DEVICE (int b, int i, int j, int k) noexcept
         {
-            terrpoisson_adotx_zero_flux(i, j, k, ya[b], xa[b], axa[b], aya[b], aza[b], J[b], zpa[b],
-                                        dxinv[0], dxinv[1], dxinv[2], lo, hi, zf);
+            terrpoisson_adotx(i, j, k, ya[b], xa[b], axa[b], aya[b], aza[b], J[b], zpa[b],
+                              dxinv[0], dxinv[1], dxinv[2], lo, hi, zf);
         });
         Gpu::streamSynchronize();
     }

@@ -3395,6 +3395,10 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   if(ERF_TEST_PYTHON)
     add_test_terrain_poisson_divergence(TerrainPoisson_TwoPatches_mlmg TerrainPoisson_Hill 1
         COMMON_OPTIONS "${_tp_two_patches} erf.terrain_poisson_solver=mlmg")
+    # Map factors other than one (erf.test_mapfactor) with MLMG: in every MPI build, so the
+    # map-factor scaling of the projection runs in CI
+    add_test_terrain_poisson_divergence(TerrainPoisson_MapFactors_mlmg TerrainPoisson_Hill 1
+        COMMON_OPTIONS "erf.test_mapfactor=true erf.terrain_poisson_solver=mlmg")
   endif()
   # An unknown solver stops the run at start-up; MLMG on a region that is not a rectangle (an
   # L-shaped refined level of two boxes; amr.grid_eff keeps AMReX from filling the corner)
