@@ -395,7 +395,9 @@ List of Parameters
 +--------------------------------+----------------------------------------------------------+--------------------+--------------------------------+
 | **erf.initial_dz**             | vertical cell size of the lowest cell when generating a  | Real > 0           | must be set if                 |
 |                                | stretched vertical mesh; required when                   |                    | ``erf.grid_stretching_ratio``  |
-|                                | ``grid_stretching_ratio`` >= 1                           |                    | is set                         |
+|                                | ``grid_stretching_ratio`` >= 1.  If given without        |                    | is set                         |
+|                                | ``grid_stretching_ratio``, the ratio is solved for so    |                    |                                |
+|                                | that the grid closes on ``geometry.prob_hi`` in z        |                    |                                |
 +--------------------------------+----------------------------------------------------------+--------------------+--------------------------------+
 | **erf.terrain_z_levels**       | explicit list of nominal (terrain-free) staggered z      | List of Reals      | None                           |
 |                                | levels; specifying these makes the mesh type             |                    |                                |
@@ -403,7 +405,7 @@ List of Parameters
 +--------------------------------+----------------------------------------------------------+--------------------+--------------------------------+
 | **erf.zsurface**               | nominal surface height used when generating a stretched  | Real               | 0.0                            |
 |                                | vertical mesh; read only when ``grid_stretching_ratio``  |                    |                                |
-|                                | >= 1                                                     |                    |                                |
+|                                | >= 1 or ``initial_dz`` is given                          |                    |                                |
 +--------------------------------+----------------------------------------------------------+--------------------+--------------------------------+
 | **erf.mesh_type**              | vertical mesh type; normally set from the terrain and    | ConstantDz,        | set from other inputs          |
 |                                | stretching options rather than directly                  | StretchedDz,       |                                |
@@ -415,8 +417,18 @@ List of Parameters
 Notes
 -----
 
-- If both **erf.terrain_z_levels** and **erf.grid_stretching_ratio** are
-  specified, the simple grid stretching will be ignored.
+- If both **erf.terrain_z_levels** and **erf.grid_stretching_ratio** (or
+  **erf.initial_dz**) are specified, the simple grid stretching will be ignored.
+- With **erf.grid_stretching_ratio** and **erf.initial_dz** both given, the top of
+  the grid is wherever the stretched layers end, which need not be
+  **geometry.prob_hi** in z.  With **erf.initial_dz** alone, the constant ratio
+  :math:`r` is instead solved for so that :math:`dz_0 (r^{n_z} - 1)/(r - 1)`
+  fills the domain from **erf.zsurface** to **geometry.prob_hi** exactly.  An
+  **erf.initial_dz** at or above the uniform spacing gives a uniform grid, and
+  an explicit **erf.grid_stretching_ratio** = 0 turns stretching off even when
+  **erf.initial_dz** is given.  This
+  applies to idealized cases and to cases initialized from met_em files; a
+  wrfinput case builds its grid from the file instead.
 - The number of input **erf.terrain_z_levels** must be equal **amr.n_cell** in
   the z direction + 1.
 
@@ -429,6 +441,9 @@ Examples of Usage
 
 -  | **erf.initial_dz** = 5.0
    | the first cell center would be at z=2.5
+
+-  | **erf.initial_dz** = 5.0 (with no **erf.grid_stretching_ratio**)
+   | the stretching ratio is solved for so the grid closes on **geometry.prob_hi**
 
 
 .. _inputs-regridding:
