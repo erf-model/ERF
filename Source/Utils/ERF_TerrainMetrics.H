@@ -39,7 +39,8 @@ join_boxes_stacked_in_z (const amrex::BoxArray& ba);
  * @param[out] stretched_dz_d Device stretched vertical spacing.
  * @param[in] geom Geometry information.
  * @param[in] ref_ratio Refinement ratios.
- * @param[in] grid_stretching_ratio Ratio for grid stretching.
+ * @param[in] grid_stretching_ratio Ratio for grid stretching; zero with a positive dz0
+ *                                  solves for the ratio that closes on the domain top.
  * @param[in] zsurf Surface height.
  * @param[in] dz0 Initial vertical spacing.
  */
