@@ -95,8 +95,15 @@ jobs:
         # changes the hash, the install path, and with it every ccache key that
         # includes mpi.h. x86_64_v3 (AVX2) runs on every GitHub runner.
         spack config add "packages:all:require:target=x86_64_v3"
+        # One MPI. Without this the concretizer has reused an HDF5 from the public build
+        # cache that was built against MPICH, next to the OpenMPI ERF links: two libmpi's
+        # in one executable and five linker warnings per job (development, 2026-10-12).
+        spack config add "packages:all:providers:mpi:[openmpi]"
         spack add netcdf-c netcdf-fortran parallel-netcdf hdf5 openmpi
-        spack concretize -f
+        # --fresh: concretize from the pinned recipes alone, never from whatever the public
+        # cache happens to hold. The binaries for that DAG then come from our own cache
+        # below, so this no longer means building from source every time.
+        spack concretize -f --fresh
         # Project binary cache on GHCR. Every job pulls from it; non-PR runs push to
         # it below (a fork PR's token is read-only, so it can only pull). The public
         # Spack cache has no binaries for these specs, so without this every job
