@@ -155,22 +155,29 @@ jobs:
         }
       working-directory: ${{runner.workspace}}/ERF/build
 
+    # Under MPI every test is a 2-rank mpiexec, so two at a time fill the 4 cores, and
+    # MS-MPI's launcher occasionally fails to start a process when several mpiexec's
+    # run side by side ("process exited without calling init", "Failed to post close
+    # command error 1726", gone after 0.1 s). A launcher failure is not a test
+    # failure: retry once. The MPI-off job keeps -j 4.
     - name: CMake Unit Tests
       if: matrix.mesh_precision == 'DOUBLE' && matrix.particles == 'ON'
+      shell: pwsh
       run: |
-        ctest -L unit -VV -j $env:NUMBER_OF_PROCESSORS
+        ctest -L unit -VV @("${{ matrix.mpi == 'ON' && '-j,2,--repeat,until-pass:2' || '-j,4' }}".Split(','))
       working-directory: ${{runner.workspace}}/ERF/build
 
     - name: CMake Shuffle Stress Test
       if: matrix.mesh_precision == 'DOUBLE' && matrix.particles == 'ON'
       shell: pwsh
-      run: ctest -L stress --output-on-failure --no-tests=error -j $env:NUMBER_OF_PROCESSORS
+      run: ctest -L stress --output-on-failure --no-tests=error @("${{ matrix.mpi == 'ON' && '-j,2,--repeat,until-pass:2' || '-j,4' }}".Split(','))
       working-directory: ${{runner.workspace}}/ERF/build
 
     - name: CMake Regression Tests # see file ERF/Tests/CTestList.cmake
       if: matrix.mesh_precision == 'DOUBLE' && matrix.particles == 'ON'
+      shell: pwsh
       run: |
-        ctest -L regression -VV -j $env:NUMBER_OF_PROCESSORS
+        ctest -L regression -VV @("${{ matrix.mpi == 'ON' && '-j,2,--repeat,until-pass:2' || '-j,4' }}".Split(','))
       working-directory: ${{runner.workspace}}/ERF/build
 
     # The MS-MPI builds are the downloadable binaries: the executable and how to run it,
