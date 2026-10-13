@@ -276,7 +276,7 @@ T terrpoisson_flux_zlo_dir (int i, int j, int k,
 
 /**
  * Bits of the face mask taken by terrpoisson_adotx: one per face of the solve region whose
- * flux is set to zero (erf.terrain_poisson_neumann = zero_flux).
+ * flux is set to zero (TerrainPoisson masks the Neumann faces of its region).
  */
 enum TerrainPoissonFaceBit : int {
     tp_face_xlo = 1, tp_face_xhi = 2,

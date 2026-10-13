@@ -34,20 +34,20 @@ The two-level decks refine a 2 km x 2 km patch around the hill to 10 m (`amr.ref
 
 ## Refined levels and the projection
 
-The four faces of the refined patch cross the slopes around the hill. The projection on the refined level has zero flux through those faces (`erf.terrain_poisson_neumann = zero_flux`, the default; see "Neumann faces on terrain-fitted meshes" in the documentation). With the earlier treatment (`mirror`) the refined level never converges and drifts.
+The four faces of the refined patch cross the slopes around the hill. The projection on the refined level has zero flux through those faces (see "Neumann faces on terrain-fitted meshes" in the documentation). With the operator ERF used before erf-model/ERF#4279, which let flux through them where the terrain slopes, the refined level never converges and drifts.
 
 ## Measured results
 
-The runs used 8 MPI ranks (macOS, Release build with FFT). The table shows, for the refined level, the divergence left after each projection above the constant that a projection on a closed region cannot remove (median and worst over all solves), and the time per solve.
+The runs used 8 MPI ranks (macOS, Release build with FFT). The table shows, for the refined level, the divergence left after each projection above the constant that a projection on a closed region cannot remove (median and worst over all solves), and the time per solve. The rows marked "before #4279" are the same decks run with the operator ERF used before erf-model/ERF#4279, which is no longer selectable (the same as development at 905623352).
 
 | Deck | Level 1: divergence left (median / worst) | Time per level-1 solve | Theta at the end (both levels) |
 |---|---|---|---|
 | `inputs_les_two_level` | 2.1e-10 / 2.2e-9 | 0.060 s | 298.7-301.4 K |
-| `inputs_les_two_level`, `mirror` | 6.7e-6 / 0.22 | 0.38 s | 260.6-370.8 K |
+| `inputs_les_two_level`, before #4279 | 6.7e-6 / 0.22 | 0.38 s | 260.6-370.8 K |
 | `inputs_anel_two_level` | 2.7e-10 / 2.2e-9 | 0.041 s | 299.6-300.4 K |
-| `inputs_anel_two_level`, `mirror` | 2.1e-7 / 0.72 | 0.29 s | 299.6-300.4 K |
+| `inputs_anel_two_level`, before #4279 | 2.1e-7 / 0.72 | 0.29 s | 299.6-300.4 K |
 
-- With `mirror` the two-level LES drifts within 60 s: theta leaves the neutral 300 K by up to 70 K. The single-level LES and level 0 converge, so the drift comes from the refined level.
-- After 600 s of URANS the two treatments differ by up to 0.37 m/s in u and 0.95 m/s in v on the refined level (3 % and 5 % relative), in streaks along the flow downstream of the hill and in the lowest 150 m. Theta hardly differs (6e-3 K on the refined level, 299.88-300.14 K in both), because the URANS case is neutral and its divergence error goes into the wind.
+- With the earlier operator the two-level LES drifts within 60 s: theta leaves the neutral 300 K by up to 70 K. The single-level LES and level 0 converge, so the drift comes from the refined level.
+- After 600 s of URANS the two operators differ by up to 0.37 m/s in u and 0.95 m/s in v on the refined level (3 % and 5 % relative), in streaks along the flow downstream of the hill and in the lowest 150 m. Theta hardly differs (6e-3 K on the refined level, 299.88-300.14 K in both), because the URANS case is neutral and its divergence error goes into the wind.
 - Level 0 converges either way (worst 8e-9 left).
-- `inputs_les` on one level: 259 solves at 0.155 s each, worst 8e-9 left; theta stays at 300 K. The edges of this terrain are flat to round-off, so `zero_flux` and `mirror` agree there to 1e-14 in the wind after the first projection.
+- `inputs_les` on one level: 259 solves at 0.155 s each, worst 8e-9 left; theta stays at 300 K. The edges of this terrain are flat to round-off, so the two operators agree there to 1e-14 in the wind after the first projection.

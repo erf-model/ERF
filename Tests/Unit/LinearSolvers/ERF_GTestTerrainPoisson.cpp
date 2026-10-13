@@ -24,7 +24,8 @@ using namespace amrex;
 // sloping terrain the operator let flux through the face: the sum of dJ * (A x) over the
 // region is then not zero, a right-hand side with zero dJ-weighted mean (what ERF hands the
 // solver) is outside the operator's range, and GMRES cannot converge.
-// erf.terrain_poisson_neumann = zero_flux sets the whole flux through those faces to zero.
+// The operator now sets the whole flux through those faces to zero; the tests below keep the
+// mask-free form of terrpoisson_adotx (zf = 0) as the earlier operator to compare against.
 
 namespace {
 
@@ -338,16 +339,19 @@ TEST(TerrainPoisson, RegionAboveTheGroundConserves)
 #ifdef ERF_USE_FFT
 namespace {
 
-// Node heights of the hill (a free function: CUDA does not allow a device lambda in a constructor)
-void fill_heights (MultiFab& zp)
+// Node heights of the hill (a free function: CUDA does not allow a device lambda in a constructor).
+// With flat_top the hill's shape decays to nothing at the top, as ERF's terrain-following meshes
+// do; otherwise half of it is left there, so the top face slopes too.
+void fill_heights (MultiFab& zp, bool flat_top)
 {
+    const Real decay = flat_top ? Real(1.0) : Real(0.5);
     for (MFIter mfi(zp); mfi.isValid(); ++mfi) {
         auto z = zp.array(mfi);
         ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             const Real h = terrain(Real(i)*DX, Real(j)*DY, Real(60.0));
             const Real zeta = Real(k) * DZ;
-            z(i,j,k) = zeta + h * (Real(1.0) - zeta / ZTOP);
+            z(i,j,k) = zeta + h * (Real(1.0) - decay * zeta / ZTOP);
         });
     }
 }
@@ -363,7 +367,7 @@ struct ClassCase
     Array<std::string,2*AMREX_SPACEDIM> bcs;
     Gpu::DeviceVector<Real> dz_d;
 
-    ClassCase ()
+    explicit ClassCase (bool flat_top = true)
     {
         const Box domain(IntVect(0), IntVect(NX-1, NY-1, NZ-1));
         RealBox rb({Real(0.0), Real(0.0), Real(0.0)}, {NX*DX, NY*DY, NZ*DZ});
@@ -376,7 +380,7 @@ struct ClassCase
         ay.define(convert(ba, IntVect(0,1,0)), dm, 1, 1);
         az.define(convert(ba, IntVect(0,0,1)), dm, 1, 1);
         dJ.define(ba, dm, 1, 1);
-        fill_heights(zp);
+        fill_heights(zp, flat_top);
         make_J(geom, zp, dJ);
         make_areas(geom, zp, ax, ay, az);
         for (auto& s : bcs) { s = "SlipWall"; }
@@ -400,70 +404,117 @@ struct ClassCase
     }
 };
 
+// The earlier operator on the same region, for comparison: terrpoisson_adotx without masked
+// faces (zf = 0), with the ghost cells of x filled as TerrainPoisson fills them
+void apply_unmasked (ClassCase const& c, TerrainPoisson& tp, MultiFab& x, MultiFab& y)
+{
+    tp.apply_bcs(x);
+    auto const& dxinv = c.geom.InvCellSizeArray();
+    auto const& xa = x.const_arrays();
+    auto const& ya = y.arrays();
+    auto const& zpa = c.zp.const_arrays();
+    auto const& axa = c.ax.const_arrays();
+    auto const& aya = c.ay.const_arrays();
+    auto const& aza = c.az.const_arrays();
+    auto const& dJa = c.dJ.const_arrays();
+    ParallelFor(y, [=] AMREX_GPU_DEVICE (int b, int i, int j, int k) noexcept
+    {
+        terrpoisson_adotx(i, j, k, ya[b], xa[b], axa[b], aya[b], aza[b], dJa[b], zpa[b],
+                          dxinv[0], dxinv[1], dxinv[2]);
+    });
+    Gpu::streamSynchronize();
+}
+
+// The face fluxes of the earlier operator: terrpoisson_flux_x/y/z on every face
+void fluxes_unmasked (ClassCase const& c, TerrainPoisson& tp, MultiFab& x, Array<MultiFab,AMREX_SPACEDIM>& f)
+{
+    tp.apply_bcs(x);
+    auto const& dxinv = c.geom.InvCellSizeArray();
+    auto const& xa = x.const_arrays();
+    auto const& zpa = c.zp.const_arrays();
+    auto const& fx = f[0].arrays();
+    auto const& fy = f[1].arrays();
+    auto const& fz = f[2].arrays();
+    ParallelFor(f[0], [=] AMREX_GPU_DEVICE (int b, int i, int j, int k) noexcept
+    { fx[b](i,j,k) = terrpoisson_flux_x(i,j,k,xa[b],zpa[b],dxinv[0]); });
+    ParallelFor(f[1], [=] AMREX_GPU_DEVICE (int b, int i, int j, int k) noexcept
+    { fy[b](i,j,k) = terrpoisson_flux_y(i,j,k,xa[b],zpa[b],dxinv[1]); });
+    ParallelFor(f[2], [=] AMREX_GPU_DEVICE (int b, int i, int j, int k) noexcept
+    { fz[b](i,j,k) = terrpoisson_flux_z(i,j,k,xa[b],zpa[b],dxinv[0],dxinv[1]); });
+    Gpu::streamSynchronize();
+}
+
 } // namespace
 
-// The class: its mask names the Neumann faces of the region (not the ground), apply
-// conserves (dot product with dJ is zero) only with the zero-flux faces, and getFluxes
-// gives zero on those faces and the old fluxes everywhere else.
+// The class: its mask names the Neumann faces of the region (not the ground), apply conserves
+// (dot product with dJ is zero) where the earlier operator, terrpoisson_adotx without the mask,
+// does not, and getFluxes gives zero on those faces and the unmasked fluxes everywhere else.
 TEST(TerrainPoisson, ClassMaskApplyAndFluxes)
 {
-    ClassCase c;
-    TerrainPoisson tp_zf(c.geom, c.geom, c.ba, c.dm, c.bcs, c.dz_d, c.ax, c.ay, c.az, c.dJ, &c.zp, false, true);
-    TerrainPoisson tp_old(c.geom, c.geom, c.ba, c.dm, c.bcs, c.dz_d, c.ax, c.ay, c.az, c.dJ, &c.zp, false, false);
-    EXPECT_EQ(tp_zf.zeroFluxFaces(), ALL_NEUMANN);
-    EXPECT_EQ(tp_old.zeroFluxFaces(), 0);
+    // A flat top (as ERF's meshes have) and a sloping one, so the top face's mask is exercised too
+    for (bool flat_top : {true, false}) {
+        ClassCase c(flat_top);
+        TerrainPoisson tp(c.geom, c.geom, c.ba, c.dm, c.bcs, c.dz_d, c.ax, c.ay, c.az, c.dJ, &c.zp, false);
+        EXPECT_EQ(tp.zeroFluxFaces(), ALL_NEUMANN);
 
-    MultiFab x(c.ba, c.dm, 1, 1), y(c.ba, c.dm, 1, 0);
-    c.set_field(x);
-    tp_zf.apply(y, x);
-    const Real s_zf = MultiFab::Dot(c.dJ, 0, y, 0, 1, 0);
-    const Real mag = y.norm1(0) * c.dJ.max(0);
-    EXPECT_LE(std::abs(s_zf), tol(mag)) << "dJ . A x = " << s_zf;
-    tp_old.apply(y, x);
-    const Real s_old = MultiFab::Dot(c.dJ, 0, y, 0, 1, 0);
-    EXPECT_GT(std::abs(s_old), Real(1.e-3) * mag) << "dJ . A x = " << s_old;
+        MultiFab x(c.ba, c.dm, 1, 1), y(c.ba, c.dm, 1, 0);
+        c.set_field(x);
+        tp.apply(y, x);
+        const Real s_zf = MultiFab::Dot(c.dJ, 0, y, 0, 1, 0);
+        const Real mag = y.norm1(0) * c.dJ.max(0);
+        EXPECT_LE(std::abs(s_zf), tol(mag)) << "dJ . A x = " << s_zf;
+        apply_unmasked(c, tp, x, y);
+        const Real s_old = MultiFab::Dot(c.dJ, 0, y, 0, 1, 0);
+        EXPECT_GT(std::abs(s_old), Real(1.e-3) * mag) << "dJ . A x = " << s_old;
 
-    Array<MultiFab,AMREX_SPACEDIM> f_zf, f_old;
-    for (int d = 0; d < AMREX_SPACEDIM; ++d) {
-        f_zf[d].define(convert(c.ba, IntVect::TheDimensionVector(d)), c.dm, 1, 0);
-        f_old[d].define(convert(c.ba, IntVect::TheDimensionVector(d)), c.dm, 1, 0);
-    }
-    tp_zf.getFluxes(x, f_zf);
-    tp_old.getFluxes(x, f_old);
-    const int dhi[3] = {NX, NY, NZ};
-    for (int d = 0; d < AMREX_SPACEDIM; ++d) {
-        Real on_face_zf = 0, on_face_old = 0, inside_diff = 0;
-        for (MFIter mfi(f_zf[d]); mfi.isValid(); ++mfi) {
-            const Box& b = mfi.validbox();
-            FArrayBox ah(b, 1, The_Pinned_Arena()), oh(b, 1, The_Pinned_Arena());
-            ah.copy<RunOn::Device>(f_zf[d][mfi]);
-            oh.copy<RunOn::Device>(f_old[d][mfi]);
-            Gpu::streamSynchronize();
-            auto a = ah.const_array();
-            auto o = oh.const_array();
-            for (int k = b.smallEnd(2); k <= b.bigEnd(2); ++k) {
-            for (int j = b.smallEnd(1); j <= b.bigEnd(1); ++j) {
-            for (int i = b.smallEnd(0); i <= b.bigEnd(0); ++i) {
-                const int n = (d == 0) ? i : ((d == 1) ? j : k);
-                const bool masked = (d < 2 && (n == 0 || n == dhi[d])) || (d == 2 && n == dhi[d]);
-                if (masked) {
-                    on_face_zf  = amrex::max(on_face_zf , std::abs(a(i,j,k)));
-                    on_face_old = amrex::max(on_face_old, std::abs(o(i,j,k)));
-                } else {
-                    inside_diff = amrex::max(inside_diff, std::abs(a(i,j,k) - o(i,j,k)));
-                }
-            }}}
+        Array<MultiFab,AMREX_SPACEDIM> f_zf, f_old;
+        for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+            f_zf[d].define(convert(c.ba, IntVect::TheDimensionVector(d)), c.dm, 1, 0);
+            f_old[d].define(convert(c.ba, IntVect::TheDimensionVector(d)), c.dm, 1, 0);
         }
-        EXPECT_EQ(on_face_zf, Real(0.0)) << "direction " << d;
-        EXPECT_EQ(inside_diff, Real(0.0)) << "direction " << d;
-        if (d < 2) { EXPECT_GT(on_face_old, Real(1.e-6)) << "direction " << d << ": no slope at the faces"; }
+        tp.getFluxes(x, f_zf);
+        fluxes_unmasked(c, tp, x, f_old);
+        const int dhi[3] = {NX, NY, NZ};
+        for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+            Real on_face_zf = 0, on_face_old = 0, inside_diff = 0, inside_max = 0;
+            for (MFIter mfi(f_zf[d]); mfi.isValid(); ++mfi) {
+                const Box& b = mfi.validbox();
+                FArrayBox ah(b, 1, The_Pinned_Arena()), oh(b, 1, The_Pinned_Arena());
+                ah.copy<RunOn::Device>(f_zf[d][mfi]);
+                oh.copy<RunOn::Device>(f_old[d][mfi]);
+                Gpu::streamSynchronize();
+                auto a = ah.const_array();
+                auto o = oh.const_array();
+                for (int k = b.smallEnd(2); k <= b.bigEnd(2); ++k) {
+                for (int j = b.smallEnd(1); j <= b.bigEnd(1); ++j) {
+                for (int i = b.smallEnd(0); i <= b.bigEnd(0); ++i) {
+                    const int n = (d == 0) ? i : ((d == 1) ? j : k);
+                    const bool masked = (d < 2 && (n == 0 || n == dhi[d])) || (d == 2 && n == dhi[d]);
+                    if (masked) {
+                        on_face_zf  = amrex::max(on_face_zf , std::abs(a(i,j,k)));
+                        on_face_old = amrex::max(on_face_old, std::abs(o(i,j,k)));
+                    } else {
+                        inside_diff = amrex::max(inside_diff, std::abs(a(i,j,k) - o(i,j,k)));
+                        inside_max  = amrex::max(inside_max , std::abs(o(i,j,k)));
+                    }
+                }}}
+            }
+            EXPECT_EQ(on_face_zf, Real(0.0)) << "direction " << d;
+            // the same flux functions compiled in two files: equal up to contraction into FMAs
+            EXPECT_LE(inside_diff, tol(inside_max)) << "direction " << d;
+            if (d < 2 || !flat_top) {
+                EXPECT_GT(on_face_old, Real(1.e-6)) << "direction " << d << ": no slope at the faces";
+            }
+        }
     }
 }
 
 // The singular solve ERF makes on a refined level or a walled domain: a right-hand side with
 // zero dJ-weighted mean.  It is in the range of the zero-flux operator, and FFT-preconditioned
-// GMRES converges to 1e-10 (14 iterations); the old operator's range is not orthogonal to
-// dJ, the system has no solution, and the true residual stays of order one.
+// GMRES converges to 1e-10 (14 iterations).  The earlier operator's range is not orthogonal to
+// dJ (ClassMaskApplyAndFluxes), so that system had no solution: GMRES reported 5e-11 after 35
+// iterations while the solution grew to 8e17 and the true residual was 0.92.  Hence the true
+// residual and the size of the solution are checked here, not GMRES's own estimate.
 TEST(TerrainPoisson, SingularSolveConvergesWithZeroFlux)
 {
     ClassCase c;
@@ -472,29 +523,21 @@ TEST(TerrainPoisson, SingularSolveConvergesWithZeroFlux)
     const Real mean = MultiFab::Dot(c.dJ, 0, rhs, 0, 1, 0) / c.dJ.sum(0);
     rhs.plus(-mean, 0, 1, 0);
 
-    for (bool zero_flux : {true, false}) {
-        TerrainPoisson tp(c.geom, c.geom, c.ba, c.dm, c.bcs, c.dz_d, c.ax, c.ay, c.az, c.dJ, &c.zp, false, zero_flux);
-        GMRES<MultiFab, TerrainPoisson> gmres;
-        gmres.define(tp);
-        gmres.setRestartLength(50);
-        gmres.setMaxIters(200);
-        tp.usePrecond(true);
-        MultiFab phi(c.ba, c.dm, 1, 1);
-        phi.setVal(0.0);
-        const Real rel = (sizeof(Real) == 8) ? Real(1.e-10) : Real(1.e-5);
-        gmres.solve(phi, rhs, rel, Real(0.0));
-        // GMRES's own estimate is not enough: on the old operator it reports 5e-11 after 35
-        // iterations while the solution grows to 8e17 and the true residual is 0.92
-        MultiFab Ax(c.ba, c.dm, 1, 0);
-        tp.apply(Ax, phi);
-        MultiFab::Subtract(Ax, rhs, 0, 0, 1, 0);
-        const Real res = Ax.norm2() / rhs.norm2();
-        if (zero_flux) {
-            EXPECT_LE(res, Real(1.01) * rel) << gmres.getNumIters() << " iterations";
-            EXPECT_LE(phi.norm0(), Real(1.e6)) << gmres.getNumIters() << " iterations";
-        } else {
-            EXPECT_GT(res, Real(1.e-4)) << gmres.getNumIters() << " iterations";
-        }
-    }
+    TerrainPoisson tp(c.geom, c.geom, c.ba, c.dm, c.bcs, c.dz_d, c.ax, c.ay, c.az, c.dJ, &c.zp, false);
+    GMRES<MultiFab, TerrainPoisson> gmres;
+    gmres.define(tp);
+    gmres.setRestartLength(50);
+    gmres.setMaxIters(200);
+    tp.usePrecond(true);
+    MultiFab phi(c.ba, c.dm, 1, 1);
+    phi.setVal(0.0);
+    const Real rel = (sizeof(Real) == 8) ? Real(1.e-10) : Real(1.e-5);
+    gmres.solve(phi, rhs, rel, Real(0.0));
+    MultiFab Ax(c.ba, c.dm, 1, 0);
+    tp.apply(Ax, phi);
+    MultiFab::Subtract(Ax, rhs, 0, 0, 1, 0);
+    const Real res = Ax.norm2() / rhs.norm2();
+    EXPECT_LE(res, Real(1.01) * rel) << gmres.getNumIters() << " iterations";
+    EXPECT_LE(phi.norm0(), Real(1.e6)) << gmres.getNumIters() << " iterations";
 }
 #endif

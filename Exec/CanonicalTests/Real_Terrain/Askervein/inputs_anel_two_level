@@ -77,8 +77,8 @@ erf.mg_v            = 1       # linear solver verbosity: the divergence after ev
 # One refined level around the hill, 2 km x 2 km at dx = dy = 10 m.  z is stretched, so it is
 # not refined (ref_ratio 1 in z), and the patch spans all of it: it is given in coarse cell
 # indices, because a two-value erf.box1.in_box_lo/hi on a stretched mesh stops short of the top.
-# Its four coarse/fine faces cross the slopes around the hill; the projection there needs
-# erf.terrain_poisson_neumann = zero_flux (the default).
+# Its four coarse/fine faces cross the slopes around the hill; the projection sets the flux
+# through them to zero (erf-model/ERF#4272).
 amr.max_level       = 1       # maximum level number allowed
 amr.ref_ratio_vect  = 2 2 1
 erf.refinement_indicators = box1

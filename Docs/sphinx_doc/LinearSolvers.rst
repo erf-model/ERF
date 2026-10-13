@@ -55,20 +55,21 @@ level the coarse/fine faces, where the fine level takes the normal momentum from
 below, and on any level the faces of the domain that are neither periodic nor Dirichlet
 (``Outflow`` or ``Open``).  Those include walls, inflow, ``InflowOutflow``, ``HO_Outflow``
 and symmetry faces, and, when real-data boundary conditions are used, every lateral face.
-These are the Neumann faces.  With
-``erf.terrain_poisson_neumann = mirror`` the solution is copied into the ghost cell across
-such a face.  That makes the first term of :math:`F_x` vanish there, but not the second
-wherever the terrain slopes and :math:`\phi` varies in the vertical, so flux crosses the face.
+These are the Neumann faces.  ERF copies the solution into the ghost cell across such a
+face (an even mirror).  That makes the first term of :math:`F_x` vanish there, but not the
+second wherever the terrain slopes and :math:`\phi` varies in the vertical, so on its own the
+mirror lets flux cross the face.
 
 This matters because the problem on such a region is singular.  ERF makes it solvable by
 removing the :math:`J`-weighted mean of the right-hand side, :math:`J` being the left null
 vector of the operator.  Summing :math:`J A\phi` over the region, the interior fluxes cancel
 in pairs and only the fluxes through the region's faces remain, so the mean removal is
-right only if those are zero for every :math:`\phi`.  With the mirror they are not: the
-system has no solution, GMRES leaves a large divergence after the solve, and a refined level
-over sloping terrain drifts.  With ``zero_flux`` (the default) the whole flux through every
-Neumann face is zero, the sum vanishes, and the solve converges to its tolerance; the
-projection then leaves the normal momentum on those faces unchanged.
+right only if those are zero for every :math:`\phi`.  With the mirror alone they are not:
+the system has no solution, GMRES leaves a large divergence after the solve, and a refined
+level over sloping terrain drifts.  ERF used that operator before erf-model/ERF#4279.  The
+operator now sets the whole flux through every Neumann face to zero, so the sum vanishes and
+the solve converges to its tolerance; the projection then leaves the normal momentum on those
+faces unchanged.
 
 With map factors other than one (real-data runs on a map projection), the divergence that
 ERF corrects carries :math:`m_x m_y`, and so does the change the map-factor scaled fluxes make
@@ -76,11 +77,14 @@ to it; ERF therefore solves :math:`A\phi = \text{rhs} / (m_x m_y)`, and on a sin
 first removes the mean of the right-hand side weighted by :math:`J / (m_x m_y)` (its
 solvability condition).  With map factors of one both steps leave the right-hand side as it is.
 
-The two settings differ only where the terrain slopes at a Neumann face.  Periodic faces
-and Dirichlet (``Outflow`` or ``Open``) faces are treated alike, and where the terrain is
-exactly flat at every Neumann face the results agree bit for bit.  The top of the domain is
-a Neumann face when it is a wall (``SlipWall``): the usual terrain-following meshes flatten
-the coordinate surfaces to the top, so nothing changes there, but a mesh whose top surface
-is not flat (for example one read from a real-data file) changes there too.  Flat terrain does not use
+Results differ from ERF before erf-model/ERF#4279 only where the coordinate surfaces slope
+across a Neumann face, at any height (the ground is one of them; a smoothed mesh can slope
+aloft over flat ground).  Periodic faces and Dirichlet (``Outflow`` or ``Open``) faces are
+treated as before, and so are symmetry faces, where ERF mirrors the mesh too, so that the
+surfaces are flat across the face.  Where the surfaces are flat across every Neumann face the
+results are the same bit for bit.  The top of the domain is a Neumann face when it is a wall
+(``SlipWall`` or ``NoSlipWall``): the usual terrain-following meshes flatten the coordinate
+surfaces to the top, so nothing changes there, but a mesh whose top surface is not flat (for
+example one read from a real-data file) changes there too.  Flat terrain does not use
 this operator at all: ERF treats the mesh as stretched and solves with the hybrid FFT
-solver, so ``erf.terrain_poisson_neumann`` has no effect there.
+solver, which this does not change.

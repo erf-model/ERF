@@ -70,8 +70,7 @@ void ERF::solve_with_gmres (int lev, const Box& subdomain, MultiFab& rhs, MultiF
 
     TerrainPoisson tp(my_geom, Geom(lev), rhs.boxArray(), rhs.DistributionMap(), domain_bc_type,
                       stretched_dz_d[lev], ax_sub, ay_sub, az_sub, dJ_sub, &znd_sub,
-                      solverChoice.use_real_bcs,
-                      solverChoice.terrain_poisson_neumann == TerrainPoissonNeumann::zero_flux);
+                      solverChoice.use_real_bcs);
 
     gmsolver.define(tp);
 

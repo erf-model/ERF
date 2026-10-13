@@ -104,20 +104,6 @@ AMREX_ENUM(MeshType,
 );
 
 /**
- * @brief Treatment of the Neumann faces of the terrain Poisson operator that the
- * FFT-preconditioned GMRES solve applies on a terrain-fitted mesh.
- *
- * zero_flux sets the whole flux through each Neumann face of the solve region to zero:
- * the coarse/fine faces of a refined level and the Neumann (wall, inflow) faces of the
- * domain.  mirror only copies the solution into the ghost cell, which zeroes the
- * normal-gradient part of the face flux but leaves the terrain cross term, and is the
- * operator ERF used before erf-model/ERF#4272.
- */
-AMREX_ENUM(TerrainPoissonNeumann,
-    zero_flux, mirror
-);
-
-/**
  * @brief Terrain and immersed-boundary representation.
  */
 AMREX_ENUM(TerrainType,
@@ -1150,15 +1136,6 @@ struct SolverChoice {
         }
         pp.queryAdd("poisson_abstol", poisson_abstol);
         pp.queryAdd("poisson_reltol", poisson_reltol);
-        // Neumann faces of the terrain Poisson operator (FFT-preconditioned GMRES on a
-        // terrain-fitted mesh): zero flux through them (default) or the old mirror only
-        pp.query_enum_case_insensitive("terrain_poisson_neumann", terrain_poisson_neumann);
-        if (pp.contains("terrain_poisson_neumann") &&
-            (mesh_type != MeshType::VariableDz || terrain_type == TerrainType::EB)) {
-            amrex::Print() << "WARNING: erf.terrain_poisson_neumann is ignored: it applies only to the "
-                           << "projection on a terrain-fitted mesh (erf.terrain_type = StaticFittedMesh "
-                           << "or MovingFittedMesh)" << std::endl;
-        }
 #ifdef AMREX_USE_FLOAT
         poisson_abstol = amrex::max(poisson_abstol,amrex::Real(1e-6));
         poisson_reltol = amrex::max(poisson_reltol,amrex::Real(1e-6));
@@ -2305,7 +2282,6 @@ struct SolverChoice {
 
     int         ncorr               = 1;
     std::string wall_dist_type      = "poisson";
-    TerrainPoissonNeumann terrain_poisson_neumann = TerrainPoissonNeumann::zero_flux;
 #ifdef AMREX_USE_FLOAT
     amrex::Real poisson_abstol      = amrex::Real(1e-6);
     amrex::Real poisson_reltol      = amrex::Real(1e-6);
@@ -2727,8 +2703,6 @@ struct SolverChoice {
  * @brief Whether the compact terrain-metric part of the vertical diffusion is solved implicitly.
  * @var SolverChoice::ncorr
  * @brief Number of projection correction iterations.
- * @var SolverChoice::terrain_poisson_neumann
- * @brief Neumann faces of the terrain Poisson operator: zero flux (default) or mirror only.
  * @var SolverChoice::poisson_abstol
  * @brief Absolute tolerance for the Poisson solve.
  * @var SolverChoice::poisson_reltol

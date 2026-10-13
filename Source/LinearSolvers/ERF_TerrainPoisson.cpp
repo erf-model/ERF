@@ -23,8 +23,6 @@ using namespace amrex;
  * @param[in] dJ Jacobian of the coordinate transformation.
  * @param[in] z_phys_nd Nodal physical height field.
  * @param[in] use_real_bcs Flag to use real boundary conditions.
- * @param[in] neumann_zero_flux True for zero flux through the Neumann faces of the solve
- *            region, false for the even mirror alone (the operator before erf-model/ERF#4272).
  */
 TerrainPoisson::TerrainPoisson (Geometry const& geom, Geometry const& lev_geom,
                                 BoxArray const& ba,
@@ -34,8 +32,7 @@ TerrainPoisson::TerrainPoisson (Geometry const& geom, Geometry const& lev_geom,
                                 const MultiFab& ax, const MultiFab& ay,
                                 const MultiFab& az, const MultiFab& dJ,
                                 MultiFab const* z_phys_nd,
-                                bool use_real_bcs,
-                                bool neumann_zero_flux)
+                                bool use_real_bcs)
     : m_geom(geom),
       m_grids(ba),
       m_dmap(dm),
@@ -54,20 +51,19 @@ TerrainPoisson::TerrainPoisson (Geometry const& geom, Geometry const& lev_geom,
     }
 
     // The faces that apply_bcs mirrors (FFT::Boundary::even) are the Neumann faces of the
-    // solve region: its faces inside the domain and the Neumann faces of the domain.  With
-    // neumann_zero_flux the whole flux through them is zero, terrain cross term included
-    // (erf-model/ERF#4272).  The ground (k = 0) is left out: its flux is zero already.
-    if (neumann_zero_flux) {
-        const Box& region = m_geom.Domain();
-        if (bc_fft[0].first  == FFT::Boundary::even) { m_zero_flux_faces |= tp_face_xlo; }
-        if (bc_fft[0].second == FFT::Boundary::even) { m_zero_flux_faces |= tp_face_xhi; }
-        if (bc_fft[1].first  == FFT::Boundary::even) { m_zero_flux_faces |= tp_face_ylo; }
-        if (bc_fft[1].second == FFT::Boundary::even) { m_zero_flux_faces |= tp_face_yhi; }
-        if (bc_fft[2].first  == FFT::Boundary::even && region.smallEnd(2) > 0) {
-            m_zero_flux_faces |= tp_face_zlo;
-        }
-        if (bc_fft[2].second == FFT::Boundary::even) { m_zero_flux_faces |= tp_face_zhi; }
+    // solve region: its faces inside the domain and the Neumann faces of the domain.  The
+    // whole flux through them is zero, terrain cross term included (erf-model/ERF#4272); the
+    // mirror alone zeroes only the normal-gradient part.  The ground (k = 0) is left out:
+    // its flux is zero already.
+    const Box& region = m_geom.Domain();
+    if (bc_fft[0].first  == FFT::Boundary::even) { m_zero_flux_faces |= tp_face_xlo; }
+    if (bc_fft[0].second == FFT::Boundary::even) { m_zero_flux_faces |= tp_face_xhi; }
+    if (bc_fft[1].first  == FFT::Boundary::even) { m_zero_flux_faces |= tp_face_ylo; }
+    if (bc_fft[1].second == FFT::Boundary::even) { m_zero_flux_faces |= tp_face_yhi; }
+    if (bc_fft[2].first  == FFT::Boundary::even && region.smallEnd(2) > 0) {
+        m_zero_flux_faces |= tp_face_zlo;
     }
+    if (bc_fft[2].second == FFT::Boundary::even) { m_zero_flux_faces |= tp_face_zhi; }
 }
 
 void TerrainPoisson::usePrecond (bool use_precond_in)

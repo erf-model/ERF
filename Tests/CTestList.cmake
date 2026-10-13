@@ -3247,24 +3247,28 @@ endif()
 endif()
 
 #=============================================================================
-# The terrain Poisson operator at Neumann faces (erf.terrain_poisson_neumann, #4272)
+# The terrain Poisson operator at Neumann faces (#4272)
 #
 # FFT-preconditioned GMRES solves the anelastic projection on a terrain-fitted mesh with
 # ERF's own operator.  At a coarse/fine face of a refined level, and at a wall or inflow
 # face of the domain, it used to mirror the solution into the ghost cell only, which leaves
 # the terrain cross term in the flux through the face: on sloping terrain the problem had
-# no solution and the refined level never converged.  zero_flux sets the whole flux there
-# to zero.  Tests/test_files/TerrainPoisson_Hill is a 100 m hill whose refined patch has
+# no solution and the refined level never converged.  The operator now sets the whole flux
+# there to zero.  Tests/test_files/TerrainPoisson_Hill is a 100 m hill whose refined patch has
 # all four coarse/fine faces on its flanks; check_terrain_poisson_divergence.py reads the
 # divergence ERF prints after every solve (erf.mg_v = 1).  Measured on 2 ranks over 6 steps:
-# level 1 leaves at most 9.5e-10 above the mean subtracted from the singular problem with
-# zero_flux, and up to 1.6e-2 (all 25 solves fail) with mirror.  The same deck boxed in by
+# level 1 leaves at most 9.5e-10 above the mean subtracted from the singular problem, where
+# the earlier operator (development at 905623352) left up to 1.6e-2 (all 25 solves fail).  The same deck boxed in by
 # slip walls on one level (the hill's slopes reach the walls): 1.7e-9 against 7.6e-4 (6 of
-# 13 solves fail).  The general-terrain projection needs the FFT build.
+# 13 solves failed).  The general-terrain projection needs the FFT build.
 #=============================================================================
 function(add_test_terrain_poisson_divergence TEST_NAME TEST_FILES_DIR LEVEL)
-    set(oneValueArgs "COMMON_OPTIONS" "NEW_OPTIONS" "OLD_OPTIONS" "MAX_RATIO")
+    set(oneValueArgs "COMMON_OPTIONS" "MAX_RATIO")
     cmake_parse_arguments(ADD_TEST_TPD "" "${oneValueArgs}" "" ${ARGN})
+    if(ADD_TEST_TPD_UNPARSED_ARGUMENTS)
+        message(FATAL_ERROR "add_test_terrain_poisson_divergence(${TEST_NAME}): unknown arguments "
+                            "'${ADD_TEST_TPD_UNPARSED_ARGUMENTS}'")
+    endif()
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
@@ -3281,8 +3285,6 @@ function(add_test_terrain_poisson_divergence TEST_NAME TEST_FILES_DIR LEVEL)
         "-DLEVEL=${LEVEL}"
         "-DMAX_RATIO=${ADD_TEST_TPD_MAX_RATIO}"
         "-DCOMMON_OPTIONS=${ADD_TEST_TPD_COMMON_OPTIONS}"
-        "-DNEW_OPTIONS=${ADD_TEST_TPD_NEW_OPTIONS}"
-        "-DOLD_OPTIONS=${ADD_TEST_TPD_OLD_OPTIONS}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunTerrainPoissonDivergence.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -3290,7 +3292,7 @@ function(add_test_terrain_poisson_divergence TEST_NAME TEST_FILES_DIR LEVEL)
         PROCESSORS ${NP}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression"
-        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/new/simulation.log;${CURRENT_TEST_BINARY_DIR}/old/simulation.log")
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/run/simulation.log")
 endfunction(add_test_terrain_poisson_divergence)
 
 if(ERF_ENABLE_MPI AND NOT WIN32)
@@ -3312,20 +3314,17 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
         LABELS "unit")
   endif()
   if(ERF_ENABLE_FFT AND ERF_TEST_PYTHON)
-    # Two levels: the refined level converges with zero_flux, not with the old mirror
-    add_test_terrain_poisson_divergence(TerrainPoisson_TwoLevelHill TerrainPoisson_Hill 1
-        OLD_OPTIONS "erf.terrain_poisson_neumann=mirror")
+    # Two levels: the refined level converges
+    add_test_terrain_poisson_divergence(TerrainPoisson_TwoLevelHill TerrainPoisson_Hill 1)
     # One level in a box of slip walls on the hill's slopes: the wall part of the fix
     add_test_terrain_poisson_divergence(TerrainPoisson_SlopingWalls TerrainPoisson_Hill 0
-        COMMON_OPTIONS "${_tp_walls}"
-        OLD_OPTIONS "erf.terrain_poisson_neumann=mirror")
+        COMMON_OPTIONS "${_tp_walls}")
     # Two separate refined patches on the hill's flanks, so level 1 has two regions.  The
     # projection walked the level's boxes while reading the region's map-factor and area
     # arrays (numbered over the region's boxes only), and development stopped here with a
     # segmentation fault; the loops now use the region's own arrays
     add_test_terrain_poisson_divergence(TerrainPoisson_TwoPatches TerrainPoisson_Hill 1
-        COMMON_OPTIONS "${_tp_two_patches}"
-        OLD_OPTIONS "erf.terrain_poisson_neumann=mirror")
+        COMMON_OPTIONS "${_tp_two_patches}")
     # Map factors other than one (erf.test_mapfactor: 0.5 and 0.25): the projection adds the
     # map-factor scaled fluxes, which change the divergence by m_x m_y times A phi, so the
     # equation solved is A phi = rhs / (m_x m_y).  Without that division every solve left
@@ -3348,12 +3347,6 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
         COMMON_OPTIONS "${_tph_snd}"
         FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
   endif()
-  # An unknown value stops the run at start-up, naming the key and the choices (add_test_abort
-  # runs through `sh -c ... | tee`, hence the guard)
-  add_test_abort(TerrainPoisson_Abort_UnknownNeumann ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TerrainPoisson_Hill
-                 TerrainPoisson_Hill.i
-                 "Unknown enum: zero in AMREX_ENUM.TerrainPoissonNeumann"
-                 "erf.terrain_poisson_neumann=zero")
 endif()
 
 #=============================================================================

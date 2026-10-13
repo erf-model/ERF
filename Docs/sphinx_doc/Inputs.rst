@@ -945,20 +945,6 @@ List of Parameters
 | **erf.poisson_reltol**               | relative tolerance for the Poisson solve; raised to      | Real > 0           | 1.e-8             |
 |                                      | 1.e-6 in single precision builds                         |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
-| **erf.terrain_poisson_neumann**      | the Neumann faces of the terrain Poisson operator that   | "zero_flux",       | "zero_flux"       |
-|                                      | FFT-preconditioned GMRES applies on a terrain-fitted     | "mirror"           |                   |
-|                                      | mesh: coarse/fine faces of a refined level, and domain   |                    |                   |
-|                                      | faces that are neither periodic nor Outflow/Open (walls, |                    |                   |
-|                                      | inflow, HO_Outflow, symmetry; with real-data boundary    |                    |                   |
-|                                      | conditions every lateral face). ``zero_flux``: no flux   |                    |                   |
-|                                      | through them. ``mirror``: the solution is mirrored into  |                    |                   |
-|                                      | the ghost cell only (the earlier operator), which leaves |                    |                   |
-|                                      | the terrain cross term in the face flux, so a refined    |                    |                   |
-|                                      | level over sloping terrain cannot converge. Answers      |                    |                   |
-|                                      | change only where the terrain slopes at such a face. No  |                    |                   |
-|                                      | effect on flat terrain (solved with the hybrid FFT). See |                    |                   |
-|                                      | :ref:`subsec:TerrainNeumannFaces`.                       |                    |                   |
-+--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 
 Notes
 -----------------

@@ -668,10 +668,10 @@ refined level (ratio 2 2 1) whose four coarse/fine faces lie on the hill's flank
 level inside slip walls, the hill's slopes reach the walls instead. ERF prints the divergence
 before and after every solve (``erf.mg_v = 1``), and ``Tests/check_terrain_poisson_divergence.py``
 requires each solve on the checked level to leave no more than the constant that a singular
-solve cannot remove, within the solver tolerance. ``TerrainPoisson_TwoLevelHill`` and
-``TerrainPoisson_SlopingWalls`` run the default operator and then
-``erf.terrain_poisson_neumann = mirror``, which must fail the check: with it the refined level
-leaves up to 1.6e-2 and the walled level up to 7.6e-4, against at most 1e-9 with ``zero_flux``.
+solve cannot remove, within the solver tolerance. ``TerrainPoisson_TwoLevelHill`` checks the refined level and
+``TerrainPoisson_SlopingWalls`` the walled level: each leaves at most 1e-9, where the operator
+before erf-model/ERF#4279 (no zero-flux faces; development at 905623352) left up to 1.6e-2 and
+7.6e-4.
 ``TerrainPoisson_TwoPatches`` refines two separate patches on the flanks, so that level 1 is
 solved as two regions (development stopped there with a segmentation fault).
 ``TerrainPoisson_MapFactors`` and ``TerrainPoisson_MapFactors_Walls`` run the two decks with
@@ -680,8 +680,7 @@ the divergence after every solve.
 ``TerrainPoisson_Hill_BoxParity`` (one box on one rank against split boxes) and
 ``TerrainPoisson_Hill_Restart`` check the decomposition and a restart;
 ``TerrainPoisson_DivergenceChecker_SelfTest`` feeds the checker made-up logs on both sides of
-its limit; ``TerrainPoisson_Abort_UnknownNeumann`` checks the input. The runs need the FFT
-build; the abort test and the self-test do not.
+its limit. The runs need the FFT build; the self-test does not.
 
 Test Location: `Tests/test_files/TerrainPoisson_Hill`_
 
