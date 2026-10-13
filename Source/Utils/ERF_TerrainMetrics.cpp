@@ -521,9 +521,22 @@ init_fine_terrain_grid (int lev,
         Gpu::copy(Gpu::hostToDevice, z_levels_h.begin(), z_levels_h.end(), z_levels_d.begin());
         auto const& z_lev = z_levels_d.data();
 
+        //
+        // Correct the ghost nodes along with the valid ones.  On a fine level whose
+        // grids do not cover the domain, the lateral ghost nodes have no valid owner
+        // anywhere, so the FillBoundary below cannot bring them up to date: left
+        // uncorrected they would keep the interpolated mesh above the surface while
+        // their k=0 node already holds the fine terrain, and the first layer of such a
+        // column inverts wherever the fine terrain stands more than a layer thickness
+        // above the interpolated one.  Both fields the correction reads are defined on
+        // those nodes -- but only inside the domain, so stop there and leave the nodes
+        // outside it to the clamp below, which is what gives them a mesh at all.
+        //
+        const Box domain_nd = convert(domain, IntVect(1,1,1));
+
         for (MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            const Box& bx = mfi.tilebox();
+            const Box bx = mfi.growntilebox(ngrowVect) & domain_nd;
 
             Array4<Real      > const& z_arr    = z_phys_nd.array(mfi);
             Array4<Real const> const& z_interp = z_phys_interp->const_array(mfi);
@@ -542,8 +555,8 @@ init_fine_terrain_grid (int lev,
             });
         } // mfi
 
-        // The loop above only covers the valid region, so bring the ghost nodes inside
-        // the domain up to date before the fill below reads them
+        // Give every ghost node that does have a valid owner that owner's value, rather
+        // than the one this box computed for itself, before the fill below reads them
         z_phys_nd.FillBoundary(geom.periodicity());
     }
 
