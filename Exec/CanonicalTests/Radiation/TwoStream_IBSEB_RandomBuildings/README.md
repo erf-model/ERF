@@ -4,7 +4,9 @@ The third of the two-stream test cases. It takes the ground of case 2
 (`../TwoStream_NoahMP_vs_ForceRestore`, the two-stream radiation with the force-restore surface
 balance) and stands a seeded random set of buildings on it. The two-stream radiation heats the air
 and the ground. The immersed-boundary surface energy balance (`erf.ibseb`) heats the walls and roofs,
-and its faces take their radiation from the same two-stream columns. The buildings sit on a
+and its faces take their radiation from the same two-stream columns. The columns see the buildings
+(`erf.ibseb.two_stream_buildings`, on by default): no radiative heating inside them, the ground
+under them held, and the ground they shade without the direct sunlight. The buildings sit on a
 refined level.
 
 ## Setup
@@ -47,7 +49,7 @@ python3 plot_random_buildings.py         # random_buildings_{map,tskin,theta}.pn
 
 `check_random_buildings.py` reads `buildings.csv`, the building report `ibseb_buildings.csv`, the
 face dumps (`faces/set.*` on level 0, `faces/set.lev1.*` on level 1), `radiation_diag.csv` and the
-last 2D plotfile. Each check, and what it would catch:
+first and last 2D plotfiles. Each check, and what it would catch:
 
 1. **Buildings.** Both levels hold all 8 buildings, numbered alike, their roofs centred on
    `buildings.csv`. Catches a level that loses or renumbers a building.
@@ -63,87 +65,123 @@ last 2D plotfile. Each check, and what it would catch:
 6. **Levels agree.** Each building's top roof within 0.5 K and its walls within 1 K between the
    levels, at the last dump. The whole-building means are reported, not checked (see below).
 7. **Open ground.** The ground away from the footprints warms on both levels.
+8. **Ground under the buildings.** Every column under a footprint ends at the skin temperature it
+   started with, on both levels, and absorbs no sunlight. Catches a footprint that still takes the
+   sun (in the run before this check, by up to 16 K in 40 minutes). The checker also reports the
+   shaded share of the open ground and the sunlight it absorbs.
 
 The checker also prints each building's top roof, ledges and walls on both levels: area, absorbed
 sunlight and skin temperature. The results below rest on those numbers.
 
 ## Results
 
-On 4 MPI ranks of a laptop shared with other runs, the 10,800 level-0 steps took about 2 h 20 min.
-The building balance cost 0.21 ms per step on level 0 and 0.11 ms on level 1, on the slowest rank.
+Two runs of the deck on development ae7ef9d47 plus this change, on 4 MPI ranks of a laptop shared
+with other runs: the option on (the default) and off (`erf.ibseb.two_stream_buildings = false`, the
+behaviour of #4232). Each took about 2 h 20 min for the 10,800 level-0 steps. The building balance
+cost 0.20 ms per step on level 0 and 0.11 ms on level 1, on the slowest rank. (The numbers differ
+from those in the #4232 run of this deck: the dynamics changed between the two, and the deck now
+pins the acoustic substep count, see `inputs`.)
 
-All 7 checks pass:
+With the option on all 8 checks pass. With it off, checks 1 to 7 pass and check 8 fails, as it
+should: the footprints absorb the full 761 W/m² and no open ground is shaded.
 
-| Check | Result |
-|---|---|
-| 1. Buildings | 8 and 8, roof centres on `buildings.csv` |
-| 2. Energy balance | largest residual 3.3e-8 W/m² over 2,896 rows |
-| 3. The sun and the beam | 11,034 sunlit roof samples (faces × dumps) at 5 heights, largest difference 4.8e-7; no diffuse sky; azimuth 99.5° to 156.6° |
-| 4. The sun climbs | zenith 52.7° to 24.8°; shaded face area 5.3 % to 3.2 % on level 0, 6.5 % to 4.2 % on level 1 |
-| 5. Warming | final means 313.9–321.4 K on level 0, 312.5–319.1 K on level 1 (from 300 K) |
-| 6. Levels agree | level 1 minus level 0: top roofs -0.07 to +0.11 K, walls -0.69 to +0.28 K |
-| 7. Open ground | 310.59 K in the refined area (level 1), 310.48 K outside it (level 0) at 18:00 UTC |
+| Check | On (default) | Off |
+|---|---|---|
+| 1. Buildings | 8 and 8, roof centres on `buildings.csv` | same |
+| 2. Energy balance | largest residual 3.3e-8 W/m² over 2,896 rows | same |
+| 3. The sun and the beam | 11,034 sunlit roof samples at 5 heights, largest difference 4.8e-7; no diffuse sky; azimuth 99.5° to 156.6° | same |
+| 4. The sun climbs | zenith 52.7° to 24.8°; shaded face area 5.3 % to 3.2 % on level 0, 6.5 % to 4.2 % on level 1 | same |
+| 5. Warming | final means 313.0–319.9 K on level 0, 311.5–316.9 K on level 1 (from 300 K) | 313.3–321.2 K, 311.9–319.0 K |
+| 6. Levels agree | level 1 minus level 0: top roofs -0.13 to +0.10 K, walls -0.98 to -0.03 K | -0.06 to +0.08 K, -0.54 to +0.28 K |
+| 7. Open ground | 309.67 K in the refined area (level 1), 309.66 K outside it (level 0) at 18:00 UTC | 309.76 K, 309.65 K |
+| 8. Ground under the buildings | 95 footprint columns on both levels at their starting skin, 0 W/m² absorbed; 3.7 % of level 1's open ground shaded, 0 W/m² there against 761 W/m² in the sun | **fails:** footprints absorb 761 W/m², 0 % shaded |
 
 The sun the faces saw, with the mean direct-normal irradiance over the level-0 faces at their own
-heights:
+heights (the same in both runs):
 
 | UTC | Zenith | Azimuth | Direct normal |
 |---|---|---|---|
 | 15:01 | 52.5° | 99.7° | 958 W/m² |
 | 16:00 | 41.6° | 112.1° | 1017 W/m² |
-| 17:00 | 31.8° | 129.7° | 1050 W/m² |
+| 17:00 | 31.8° | 129.8° | 1050 W/m² |
 | 18:00 | 24.8° | 156.6° | 1065 W/m² |
 
-The buildings at 18:00 UTC, level 0 / level 1: mean skin temperature, absorbed sunlight (SW), net
-longwave (LW) and sensible heat flux (H) over all faces.
+The buildings at 18:00 UTC with the option on, level 0 / level 1: mean skin temperature, absorbed
+sunlight (SW), net longwave (LW) and sensible heat flux (H) over all faces. The absorbed sunlight is
+the same with the option off (the faces' light comes from the columns at their own heights either
+way); the other three columns change because the walls see a different ground.
 
 | Building | Height, material | Mean skin [K] | SW [W/m²] | Net LW [W/m²] | H [W/m²] |
 |---|---|---|---|---|---|
-| 1 | 60 m, timber | 318.1 / 316.5 | 225 / 181 | -76 / -66 | 105 / 81 |
-| 2 | 30 m, timber | 321.4 / 319.1 | 306 / 237 | -93 / -76 | 164 / 119 |
-| 3 | 60 m, brick | 313.9 / 312.5 | 243 / 206 | -51 / -40 | 73 / 60 |
-| 4 | 20 m, brick | 317.6 / 316.9 | 408 / 378 | -86 / -74 | 158 / 140 |
-| 5 | 10 m, concrete | 317.8 / 317.5 | 525 / 509 | -96 / -91 | 175 / 167 |
-| 6 | 50 m, timber | 318.1 / 317.8 | 230 / 221 | -76 / -72 | 118 / 113 |
-| 7 | 50 m, timber | 317.9 / 317.0 | 219 / 204 | -80 / -70 | 106 / 102 |
-| 8 | 20 m, brick | 316.7 / 316.2 | 356 / 330 | -76 / -64 | 139 / 126 |
+| 1 | 60 m, timber | 316.4 / 314.3 | 225 / 181 | -84 / -75 | 105 / 82 |
+| 2 | 30 m, timber | 319.9 / 316.9 | 306 / 237 | -94 / -81 | 174 / 129 |
+| 3 | 60 m, brick | 313.0 / 311.5 | 243 / 206 | -61 / -54 | 71 / 55 |
+| 4 | 20 m, brick | 317.2 / 316.4 | 408 / 378 | -90 / -82 | 158 / 139 |
+| 5 | 10 m, concrete | 317.3 / 316.9 | 525 / 509 | -99 / -95 | 183 / 178 |
+| 6 | 50 m, timber | 317.2 / 316.6 | 230 / 221 | -85 / -85 | 102 / 91 |
+| 7 | 50 m, timber | 316.9 / 315.8 | 219 / 204 | -89 / -83 | 94 / 84 |
+| 8 | 20 m, brick | 316.2 / 315.4 | 356 / 330 | -81 / -74 | 135 / 121 |
 
-Each building's top roof and walls at 18:00 UTC, level 0 / level 1: absorbed sunlight and skin
-temperature.
+The same buildings with the option off:
+
+| Building | Mean skin [K] | SW [W/m²] | Net LW [W/m²] | H [W/m²] |
+|---|---|---|---|---|
+| 1 | 317.2 / 315.5 | 225 / 181 | -75 / -64 | 116 / 94 |
+| 2 | 321.2 / 319.0 | 306 / 237 | -96 / -80 | 159 / 110 |
+| 3 | 313.3 / 311.9 | 243 / 206 | -52 / -41 | 93 / 80 |
+| 4 | 316.8 / 316.3 | 408 / 378 | -87 / -75 | 180 / 161 |
+| 5 | 317.0 / 316.7 | 525 / 509 | -96 / -91 | 225 / 221 |
+| 6 | 317.8 / 317.6 | 230 / 221 | -78 / -75 | 115 / 106 |
+| 7 | 317.0 / 316.3 | 219 / 204 | -78 / -69 | 114 / 106 |
+| 8 | 316.5 / 316.0 | 356 / 330 | -79 / -67 | 137 / 121 |
+
+Each building's top roof and walls at 18:00 UTC with the option on, level 0 / level 1: absorbed
+sunlight and skin temperature.
 
 | Building | Top roof: SW [W/m²], skin [K] | Walls: SW [W/m²], skin [K] |
 |---|---|---|
-| 1 | 586 / 586, 324.5 / 324.5 | 121 / 123, 316.4 / 315.9 |
-| 2 | 582 / 582, 323.6 / 323.7 | 137 / 142, 318.5 / 318.5 |
-| 3 | 683 / 683, 323.0 / 322.9 | 149 / 148, 311.9 / 311.4 |
-| 4 | 677 / 677, 323.2 / 323.2 | 163 / 169, 311.7 / 312.0 |
-| 5 | 724 / 724, 321.9 / 321.9 | 172 / 172, 310.5 / 310.7 |
-| 6 | 584 / 584, 323.8 / 323.8 | 142 / 146, 317.7 / 317.1 |
-| 7 | 584 / 584, 324.2 / 324.2 | 131 / 133, 316.6 / 315.9 |
-| 8 | 677 / 677, 322.9 / 322.9 | 155 / 156, 312.3 / 312.5 |
+| 1 | 586 / 586, 324.6 / 324.6 | 121 / 123, 314.4 / 313.4 |
+| 2 | 582 / 582, 322.9 / 323.0 | 137 / 142, 316.7 / 315.8 |
+| 3 | 683 / 683, 322.2 / 322.1 | 149 / 148, 310.9 / 310.3 |
+| 4 | 677 / 677, 322.7 / 322.7 | 163 / 169, 311.5 / 311.4 |
+| 5 | 724 / 724, 321.2 / 321.2 | 172 / 172, 310.2 / 310.2 |
+| 6 | 584 / 584, 324.4 / 324.3 | 142 / 146, 316.4 / 315.5 |
+| 7 | 584 / 584, 324.7 / 324.7 | 131 / 133, 315.3 / 314.4 |
+| 8 | 677 / 677, 322.7 / 322.7 | 155 / 156, 311.8 / 311.4 |
 
 What the numbers show:
 
+- **What the option changes is the ground, and through it the walls.** With it off the ground under
+  and beside the footprints takes the sun and ends at 311.5 K on level 1, 1.7 K above the open
+  ground; with it on it is held at 306.7 K (the footprints at their 300 K start, their shaded
+  surroundings cooler than the open ground). The open ground away from the buildings is the same
+  within 0.1 K either way, and so is the sunlight every face absorbs.
+- **The walls end cooler with the option on.** On level 0 the buildings' mean skin is 0.3 to 1.3 K
+  lower (0.2 to 2.1 K on level 1): the walls see cooler ground, and their net longwave is 2 to
+  12 W/m² more negative. The sensible heat flux of the low buildings (4, 5, 8) drops by 22 to
+  42 W/m²; the air near them is no longer heated by sunlit ground under and around the footprints.
+  Building 2's heat flux rises by 15 W/m² while its skin falls, so the air in its street must be
+  cooler with the option on; this case does not separate the two effects further.
 - **Roofs absorb four to five times what walls do.** The top roofs absorb 582–724 W/m² at 18:00
   UTC and the walls 121–172 W/m². Buildings that are mostly roof absorb the most per square metre:
   the 10 m concrete block (5) 525 W/m² over all its faces, the 60 m towers (1, 3) 181–243.
 - **A roof's sunlight depends on its material and a little on its height.** Timber roofs absorb
   582–586 W/m², brick 677–683 and concrete 724. Higher roofs absorb slightly more, as less
   absorbing air lies above them.
-- **The two levels agree on roofs and walls.** Their skin temperatures agree to 0.11 K on the top
-  roofs and 0.69 K on the walls.
+- **The two levels agree on roofs and walls.** Their skin temperatures agree to 0.13 K on the top
+  roofs and 0.98 K on the walls with the option on.
 - **They differ at the buildings' edges.** Each level draws a building's edge as a step one cell
   wide, which faces upward (a ledge). Level 0 has one ledge 20 m wide, level 1 narrower ones at
   several heights. On buildings 1–3 the level-1 ledges absorb 327–395 W/m² against 483–579 on
-  level 0, and run 4–9 K cooler. That makes each building's mean skin 0.2–2.4 K cooler on level 1.
-- **The open ground is the same on both levels:** 310.59 K in the refined area, 310.48 K outside it.
-  Under and beside the footprints the ground runs hotter (312.16 K on level 1), as it still takes
-  the sun there.
-- **Reading the ground at each wall's own height** (the last change to this option) cools the walls
-  of the 30–60 m buildings by 0.1–0.9 K against a run that read it at the ground, and moves those of
-  the 10–20 m buildings by 0.2 K or less.
+  level 0, and run 4–9 K cooler. That makes each building's mean skin 0.4–3.0 K cooler on level 1.
+- **The shadow on the ground is small at these sun heights:** 3.7 % of level 1's open ground at
+  18:00 UTC with the sun 65° up, in the shaded columns the ground absorbs no sunlight against
+  761 W/m² in the sun.
 
 ## Compared with the clear-sky faces
+
+The numbers in this section are from the #4232 run of this deck (the option did not exist yet; the
+faces saw the same sunlight and the ground under the buildings took the sun).
 
 The run before this option, with the clear-sky formulas set to match the same beam (a gray sky of
 emissivity 0.83, a fixed 300 K ground), is the reference here.
@@ -170,12 +208,10 @@ emissivity 0.83, a fixed 300 K ground), is the reference here.
 
 ## Limits and notes
 
-- **The ground under and beside the buildings.** The two-stream columns pass through the buildings,
-  so the ground balance still covers the footprints and takes the sun there. The checks leave the
-  footprints out. The ground beside a wall is open, sunlit ground, which the walls see.
-- **Sunlight counted twice.** Where the buildings stand, the faces and the ground both absorb the
-  sunlight: about 7 % more than the domain receives, and 22 % more within the refined
-  area, at 18:00 UTC.
+- **The ground under and beside the buildings.** The ground under a building is held and the
+  shaded ground gets no direct sunlight, but the two-stream columns still pass through the
+  buildings: the light the column's ground reflects, which the walls see, still includes the beam
+  the shaded ground no longer absorbs, and the ground beside a wall still sees the whole sky.
 - **Mixed-layer depth.** The convective velocity scale (`erf.ibseb.z_i_mode = bulk_ri`) takes the
   mixed-layer depth from level 0's profile on both levels.
 - **Ground temperature output.** The two-stream diagnostics file leaves `T_s_mean` empty (`nan`) with

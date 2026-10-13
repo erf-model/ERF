@@ -3907,12 +3907,73 @@ function(add_test_ibseb_two_stream_provider TEST_NAME)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/two_stream/simulation.log;${CURRENT_TEST_BINARY_DIR}/prescribed/simulation.log;${CURRENT_TEST_BINARY_DIR}/absorbing/simulation.log;${CURRENT_TEST_BINARY_DIR}/scattering/simulation.log;${CURRENT_TEST_BINARY_DIR}/night/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level_clear/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level_absorbing/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
 endfunction(add_test_ibseb_two_stream_provider)
 
+# The two-stream columns and their ground balance seeing the buildings
+# (erf.ibseb.two_stream_buildings; Tests/RunIBSEBTwoStreamBuildings.cmake): the ground
+# shadow against the buildings' geometry (one level and two, the tower outside the refined
+# level shading it), the ground balance's shortwave sunlit, shaded and under the buildings
+# under clear, absorbing and scattering skies, the footprints held, no heating in solid
+# cells (on a refined patch whose rates are interpolated too), the input off, the ground
+# balance on its fixed shortwave (no shadow cast), a restart and the night. Then the
+# start-up checks: the input without the two-stream radiation, and with a land model.
+function(add_test_ibseb_two_stream_buildings TEST_NAME)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+        "-DPROVIDER_FILES=${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider"
+        "-DTWO_LEVEL_FILES=${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_RefinedLevels"
+        "-DPRECISION=${ERF_PRECISION}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${CMAKE_CURRENT_SOURCE_DIR}/check_ibseb_two_stream_buildings.py"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunIBSEBTwoStreamBuildings.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/clear/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/simulation.log;${CURRENT_TEST_BINARY_DIR}/absorbing/simulation.log;${CURRENT_TEST_BINARY_DIR}/scattering/simulation.log;${CURRENT_TEST_BINARY_DIR}/off/simulation.log;${CURRENT_TEST_BINARY_DIR}/night/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level/simulation.log;${CURRENT_TEST_BINARY_DIR}/nested/simulation.log;${CURRENT_TEST_BINARY_DIR}/fixed_sw/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+endfunction(add_test_ibseb_two_stream_buildings)
+
 if(ERF_ENABLE_MPI AND NOT WIN32)
   if(NOT "${ERF_TEST_PYTHON}" STREQUAL "")
     add_test_ibseb_refined_levels(IBSEB_RefinedLevels)
     add_test_ibseb_two_stream_sun(IBSEB_TwoStreamSunRun IBSEB_TwoStreamSun)
     add_test_ibseb_two_stream_provider(IBSEB_TwoStreamProvider)
+    add_test_ibseb_two_stream_buildings(IBSEB_TwoStreamBuildings)
   endif()
+  # erf.ibseb.two_stream_buildings acts only on the two-stream radiation: given without a
+  # radiation model the run stops; with another model named it warns and carries on to the
+  # end of the run. With a land-surface model (SLM here) it warns that the model's own
+  # ground is neither covered nor shaded, and the run carries on; given with the balance
+  # off (erf.ibseb.enable = false) it warns that it is ignored.
+  add_test_abort(IBSEB_TwoStreamBuildingsWithoutTwoStream
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_Cube
+                 IBSEB_Cube.i
+                 "erf.ibseb.two_stream_buildings acts only on the two-stream radiation.*sets no erf.radiation_model"
+                 "erf.ibseb.two_stream_buildings=false")
+  add_test_abort(IBSEB_TwoStreamBuildingsOtherRadiation
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_Cube
+                 IBSEB_Cube.i
+                 "WARNING: erf.ibseb.two_stream_buildings acts only on the two-stream radiation.*so it is ignored.*AMReX .* finalized"
+                 "erf.radiation_model=None erf.ibseb.two_stream_buildings=true")
+  add_test_abort(IBSEB_TwoStreamBuildingsDisabled
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_Cube
+                 IBSEB_Cube.i
+                 "WARNING: erf.ibseb.two_stream_buildings is given but erf.ibseb.enable is off.*AMReX .* finalized"
+                 "erf.ibseb.enable=false erf.ibseb.two_stream_buildings=true")
+  add_test_abort(IBSEB_TwoStreamBuildingsLandModel
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
+                 IBSEB_TwoStreamProvider.i
+                 "WARNING: erf.ibseb.two_stream_buildings: the land-surface model keeps its own ground.*AMReX .* finalized"
+                 "erf.land_surface_model=SLM erf.moisture_model=Kessler slm.nsoil=4 slm.soil_dz=0.05 0.10 0.30 0.55 slm.landtype0=10 slm.LAI0=2.0 slm.clay0=13.0 slm.sand0=17.0 slm.sw0=0.60 0.65 0.70 0.80 slm.st0=300.0 299.8 299.5 299.0")
   add_test_abort(IBSEB_TwoStreamProviderWithoutTwoStream
                  ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
                  IBSEB_TwoStreamProvider.i
@@ -4359,7 +4420,7 @@ add_test_station_series(StationSampling_ImmersedTerrain TerrainHill single
 # 20, on one level and on the deck's two. A restart rebuilt the blanking without
 # clearing the almost-fluid cells of the hill's tails (eb2.small_volfrac), so the
 # wall law acted there after the restart only: 0.2 m/s in u at step 20 on one level.
-# Both legs compare at zero tolerance. 
+# Both legs compare at zero tolerance.
 # The runner is a cmake -P script (MPI, not Windows).
 if(ERF_ENABLE_MPI AND NOT WIN32)
 add_test_restart_parity(ImmersedTerrain_Hill_Restart TerrainHill 7 20

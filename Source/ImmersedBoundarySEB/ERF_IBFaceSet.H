@@ -328,6 +328,21 @@ public:
     void compute_shortwave (amrex::Real time, const TwoStreamCanopyView& canopy = TwoStreamCanopyView{});
 
     /**
+     * The buildings' shadow on the ground of the level, for the two-stream ground
+     * balance (erf.ibseb.two_stream_buildings): 1 in a column where the ray from the
+     * centre of its ground toward the sun of the last compute_shortwave() meets a
+     * building (the same column walk as the faces' shadow, ibseb::ray_blocked(), on the
+     * rank's ray map, build_ray_map(), with the buildings outside a refined level
+     * included and the far field beyond its halo open ground), and where the sun is
+     * at or below the horizon; 0 where the sun reaches the ground. A column under a
+     * building, or under an overhang, is in shadow. One ray per column, so a column is
+     * shaded or not, as a face is.
+     * @param[out] shadow A 2D field (k = 0) on the level's grids flattened in z; its
+     *                    valid cells are written.
+     */
+    void compute_ground_shadow (amrex::MultiFab& shadow) const;
+
+    /**
      * The highest interface of the level's vertical grid that any of its faces
      * samples with radiation = two_stream (a roof the bottom of its fluid cell, a
      * ceiling and a wall the top of its cell too), counted from the domain bottom, over all

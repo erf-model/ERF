@@ -93,6 +93,18 @@ struct IBSEBParams
     // longwave up at the same height (the ground's emission and its reflection
     // of the sky, seen through the air in between).
     std::string lw_mode           = "gray";
+
+    // ---- The two-stream columns and the buildings ------------------------------
+    // With erf.radiation_model = TwoStream, the columns see the buildings
+    // (TwoStreamRadiation::set_building_cover()): no heating in a building's solid
+    // cells; the two-stream ground balance (erf.radiation.seb_enable) holds its state
+    // under a building's footprint and leaves it out of its means; and, with the
+    // sweep's shortwave on the ground (erf.radiation.seb_use_radiation_fluxes), the
+    // open ground the buildings shade loses the direct beam, by the faces' ray cast
+    // (IBFaceSet::compute_ground_shadow()). false keeps the columns blind to the
+    // buildings, as before this input, for comparison.
+    bool        two_stream_buildings = true;
+    bool        two_stream_buildings_given = false;  ///< Whether the deck sets it (start-up checks)
     amrex::Real lw_down           = 300.0;  ///< fixed: sky longwave [W/m2]
     amrex::Real sky_emissivity    = 0.83;   ///< gray: effective clear-sky emissivity
     amrex::Real T_ground          = 300.0;  ///< Ground temperature for the ground term [K]
@@ -203,6 +215,8 @@ struct IBSEBParams
         pp.query("view_n_az",        view_n_az);
         pp.query("view_n_el",        view_n_el);
         pp.query("lw_mode",          lw_mode);
+        two_stream_buildings_given = pp.contains("two_stream_buildings");
+        pp.query("two_stream_buildings", two_stream_buildings);
         pp.query("lw_down",          lw_down);
         pp.query("sky_emissivity",   sky_emissivity);
         pp.query("T_ground",         T_ground);

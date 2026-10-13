@@ -119,6 +119,20 @@ void ERF::advance_radiation (int lev,
         return rad_level_needs_interpolation(l);
     };
 
+    // A level whose two-stream heating rates come from its parent has no sweep of its own
+    // to leave the buildings' solid cells unheated (erf.ibseb.two_stream_buildings), so
+    // they are set to zero after the interpolation, and the halo refilled from them. The
+    // refill covers the ghost cells other boxes of the level and periodic images hold; a
+    // ghost cell outside the level keeps its interpolated value, and no consumer of the
+    // rates reads one (the source term reads valid cells).
+    auto mask_two_stream_building_heating = [&] ()
+    {
+        if (solverChoice.rad_type == RadiationType::TwoStream && two_stream_rad.has_building_cover(lev)) {
+            two_stream_rad.mask_building_heating(lev, *qheating_rates[lev]);
+            qheating_rates[lev]->FillBoundary(geom[lev].periodicity());
+        }
+    };
+
     auto interp_rad_from_coarse = [&] ()
     {
         // Ensure the parent level's ghost cells are filled before interpolation.  This is
@@ -337,6 +351,7 @@ void ERF::advance_radiation (int lev,
         amrex::Print() << "Interpolating radiation heating rates and fluxes from level " << lev-1
                        << " to level " << lev << " on the first step after that level was built\n";
         interp_rad_from_coarse();
+        mask_two_stream_building_heating();
         rad_interp_from_coarse_pending[lev] = 0;
         return;
     }
@@ -437,6 +452,7 @@ void ERF::advance_radiation (int lev,
         // in how a level that *does* span the column is solved.
         if (lev > 0 && level_needs_interpolation(lev)) {
             interp_rad_from_coarse();
+            mask_two_stream_building_heating();
             return;
         }
 #ifdef ERF_USE_NETCDF

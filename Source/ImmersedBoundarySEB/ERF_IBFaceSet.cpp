@@ -760,7 +760,7 @@ IBFaceSet::warn_fixed_sun_below_floor () const
     os << "erf.ibseb: the fixed sun stands " << elev << " deg above the horizon, below erf.ibseb.sun_min_elev_deg = "
        << m_params.sun_min_elev_deg << ", and the ray map of level " << m_lev << " does not span the domain: a building"
        " farther than " << m_halo[0] * m_dx[0] << " m in x or " << m_halo[1] * m_dx[1] << " m in y from a face casts no shadow"
-       " on it. Lower erf.ibseb.sun_min_elev_deg to the sun's elevation for exact shadows.";
+       " on it, nor on the ground beneath the face's column (erf.ibseb.two_stream_buildings). Lower erf.ibseb.sun_min_elev_deg to the sun's elevation for exact shadows.";
     if (ParallelDescriptor::IOProcessor()) { Warning(os.str().c_str()); }
 }
 
@@ -1591,6 +1591,28 @@ IBFaceSet::compute_shortwave_two_stream (const TwoStreamCanopyView& canopy)
                 << " W/m2 mean diffuse_h=" << m_sun.diffuse_h << " W/m2 over the faces, largest sun gap "
                 << sun_gap << " in cos z\n";
     }
+}
+
+void
+IBFaceSet::compute_ground_shadow (MultiFab& shadow) const
+{
+    const Real sx = m_sun.sx, sy = m_sun.sy, sz = m_sun.sz;
+    // The rank's ray map holds every column of its boxes and the halo a ray from
+    // them can cross (build_ray_map()), so the walk from a ground centre needs no
+    // communication: the shadow field is on this level's boxes.
+    const ibseb::RayMap rm = ray_map();
+    const int   i_lo = m_dom_lo[0], j_lo = m_dom_lo[1];
+    const Real  x_lo = m_x_lo, y_lo = m_y_lo, dx = m_dx[0], dy = m_dx[1];
+    const Real  z_ground = m_z_ground;
+    for (MFIter mfi(shadow); mfi.isValid(); ++mfi) {
+        const auto out = shadow.array(mfi);
+        ParallelFor(makeSlab(mfi.validbox(), 2, 0), [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept {
+            const Real xc = x_lo + (static_cast<Real>(i - i_lo) + Real(0.5)) * dx;
+            const Real yc = y_lo + (static_cast<Real>(j - j_lo) + Real(0.5)) * dy;
+            out(i, j, 0) = ibseb::ray_blocked(xc, yc, z_ground, sx, sy, sz, rm) ? Real(1.0) : Real(0.0);
+        });
+    }
+    Gpu::streamSynchronize();
 }
 
 /**

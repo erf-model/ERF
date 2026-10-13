@@ -259,7 +259,7 @@ TEST(Plotfile2D, CatalogNamesMatchCanonicalOrder)
         "t_surf", "q_surf", "z0", "u_10m", "v_10m", "u_east_10m", "v_north_10m",
         "OLR", "topographic_shadow", "terrain_direct_factor", "terrain_incidence",
         "unshaded_sw_flux_dn", "terrain_sw_flux_dn", "seb_t_sfc", "seb_q_sfc",
-        "seb_hfx", "seb_lh",
+        "seb_hfx", "seb_lh", "seb_sw_net", "ibseb_ground_shadow",
         "sens_flux", "laten_flux",
         "surf_pres",
         "sea_level_pressure",

@@ -940,6 +940,10 @@ void two_stream_land_forcing (int i, int j, int kmin,
  * @param[out] cos_zenith_out Optional: the cosine of the solar zenith angle this column
  * was swept with (two_stream_cos_zenith, before any flooring), so a caller that needs the
  * sun the sweep used reads it rather than evaluating it again
+ * @param[out] sw_beam_absorbed_out Optional: the part of the absorbed shortwave at the
+ * surface that the direct beam brings, (1 - direct albedo) times the beam at the surface
+ * [W/m^2] (zero with the shortwave off or the sun down), so a caller can take the beam off
+ * the ground where something the column does not hold shades it
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void vertical_two_stream_sweep (
@@ -972,7 +976,8 @@ void vertical_two_stream_sweep (
     const amrex::Array4<const amrex::Real>* lat_arr = nullptr,
     const amrex::Array4<const amrex::Real>* lon_arr = nullptr,
     const amrex::Array4<amrex::Real>* rad_flux_out = nullptr,
-    amrex::Real* cos_zenith_out = nullptr)
+    amrex::Real* cos_zenith_out = nullptr,
+    amrex::Real* sw_beam_absorbed_out = nullptr)
 {
     // Grid bounds: kmin is the surface layer, kmax the top layer.
     const int kmin = bx.smallEnd(2);
@@ -1253,6 +1258,14 @@ void vertical_two_stream_sweep (
     // ========================================================================
     // SURFACE AND DIAGNOSTICS
     // ========================================================================
+    if (sw_beam_absorbed_out != nullptr) {
+        // Select the beam before any arithmetic: with the shortwave off or the sun down
+        // the scratch was never written, and a product formed ahead of the selection
+        // would raise the invalid flag on its signalling NaN.
+        const bool lit = rad_choice.sw_enabled && cos_zenith > 0.0;
+        const amrex::Real beam_sfc = lit ? F_dir(0) : amrex::Real(0.0);
+        *sw_beam_absorbed_out = (amrex::Real(1.0) - alb_dir) * beam_sfc;
+    }
     if (rad_choice.sw_enabled) {
         // Absorbed direct plus diffuse (see the SW block above)
         sw_surface_flux = sw_surface_absorbed;

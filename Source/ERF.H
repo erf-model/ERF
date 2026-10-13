@@ -941,6 +941,10 @@ public:
     void ibseb_check_refined_levels () const;
     void ibseb_check_sun_matches_two_stream () const;
     void ibseb_check_two_stream_provider () const;
+    void ibseb_check_two_stream_buildings () const;
+    [[nodiscard]] bool ibseb_two_stream_buildings () const {
+        return ibseb_params.enable && ibseb_params.two_stream_buildings && solverChoice.rad_type == RadiationType::TwoStream;
+    }
     [[nodiscard]] bool ibseb_after_radiation () const {
         return ibseb_params.enable && ibseb_params.radiation == "two_stream";
     }
