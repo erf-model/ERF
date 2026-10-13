@@ -316,7 +316,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     Vector<Array<MultiFab,AMREX_SPACEDIM>> fluxes_sub; fluxes_sub.resize(1);
 
     MultiFab ax_sub, ay_sub, az_sub, dJ_sub, znd_sub;
-    MultiFab mfmx_sub, mfmy_sub, mfvx_sub, mfuy_sub;
+    MultiFab mfmx_sub, mfmy_sub, mfvx_sub, mfuy_sub, mfux_sub, mfvy_sub;
 
     Array<MultiFab,AMREX_SPACEDIM> rho0_u_sub;
     Array<MultiFab const*, AMREX_SPACEDIM> rho0_u_const;
@@ -456,6 +456,13 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                           az[lev]->nGrowVect(), MFInfo{}.SetAlloc(false));
             znd_sub.define(convert(ba_sub,IntVect(1,1,1)), DistributionMapping(dm_sub), 1,
                            z_phys_nd[lev]->nGrowVect(), MFInfo{}.SetAlloc(false));
+            // The map factors on u and v faces that only the terrain path uses.  Every array a
+            // loop over this subdomain's boxes reads must be a subdomain alias: the level's own
+            // MultiFabs are numbered over all of the level's boxes.
+            mfux_sub.define(mfuy_sub.boxArray(), mfuy_sub.DistributionMap(), 1,
+                            mapfac[lev][MapFacType::u_x]->nGrowVect(), MFInfo{}.SetAlloc(false));
+            mfvy_sub.define(mfvx_sub.boxArray(), mfvx_sub.DistributionMap(), 1,
+                            mapfac[lev][MapFacType::v_y]->nGrowVect(), MFInfo{}.SetAlloc(false));
 
             for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi) {
                 int orig_index = index_map[mfi.index()];
@@ -464,6 +471,8 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                 az_sub.setFab(mfi, FArrayBox((*az[lev])[orig_index], amrex::make_alias, 0, 1));
                 znd_sub.setFab(mfi, FArrayBox((*z_phys_nd[lev])[orig_index], amrex::make_alias, 0, 1));
                 dJ_sub.setFab(mfi, FArrayBox((*detJ_cc[lev])[orig_index], amrex::make_alias, 0, 1));
+                mfux_sub.setFab(mfi, FArrayBox((*mapfac[lev][MapFacType::u_x])[orig_index], amrex::make_alias, 0, 1));
+                mfvy_sub.setFab(mfi, FArrayBox((*mapfac[lev][MapFacType::v_y])[orig_index], amrex::make_alias, 0, 1));
             }
         }
 
@@ -610,6 +619,22 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
             Real vol;
             if (solverChoice.mesh_type == MeshType::ConstantDz) {
                 vol = rhs_sub[0].boxArray().numPts();
+            } else if (solverChoice.mesh_type == MeshType::VariableDz) {
+                // The weight of the mean is dJ / (m_x m_y), in the sum and in the volume: the
+                // equation solved below is A phi = rhs / (m_x m_y), and dJ is the left null
+                // vector of A.  With map factors of one this is dJ.sum() bit for bit.
+                MultiFab wgt(dJ_sub.boxArray(), dJ_sub.DistributionMap(), 1, 0);
+                for (MFIter mfi(wgt); mfi.isValid(); ++mfi) {
+                    const Array4<Real      >& w_arr  = wgt.array(mfi);
+                    const Array4<Real const>& dJ_arr = dJ_sub.const_array(mfi);
+                    const Array4<Real const>& mx_arr = mfmx_sub.const_array(mfi);
+                    const Array4<Real const>& my_arr = mfmy_sub.const_array(mfi);
+                    ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        w_arr(i,j,k) = dJ_arr(i,j,k) / (mx_arr(i,j,0) * my_arr(i,j,0));
+                    });
+                }
+                vol = wgt.sum();
             } else {
                 vol = dJ_sub.sum();
             }
@@ -644,6 +669,20 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
 
         if (solverChoice.mesh_type == MeshType::VariableDz) {
             //
+            // compute_divergence carries m_x m_y, so adding the map-factor scaled fluxes changes
+            // the divergence by m_x m_y (A phi): the equation to solve is A phi = rhs / (m_x m_y)
+            //
+            for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi)
+            {
+                const Array4<Real      >& rhs_arr = rhs_sub[0].array(mfi);
+                const Array4<Real const>& mx_arr  = mfmx_sub.const_array(mfi);
+                const Array4<Real const>& my_arr  = mfmy_sub.const_array(mfi);
+                ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    rhs_arr(i,j,k) /= (mx_arr(i,j,0) * my_arr(i,j,0));
+                });
+            }
+            //
             // Modify ax,ay,ax to include the map factors as used in the divergence calculation
             // We do this here to set the coefficients used in the stencil -- the extra factor
             // of the mapfac comes from the gradient
@@ -656,12 +695,12 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                 const Array4<Real      >& ax_ar = ax_sub.array(mfi);
                 const Array4<Real      >& ay_ar = ay_sub.array(mfi);
                 const Array4<Real      >& az_ar = az_sub.array(mfi);
-                const Array4<Real const>& mf_ux = mapfac[lev][MapFacType::u_x]->const_array(mfi);
-                const Array4<Real const>& mf_uy = mapfac[lev][MapFacType::u_y]->const_array(mfi);
-                const Array4<Real const>& mf_vx = mapfac[lev][MapFacType::v_x]->const_array(mfi);
-                const Array4<Real const>& mf_vy = mapfac[lev][MapFacType::v_y]->const_array(mfi);
-                const Array4<Real const>& mf_mx = mapfac[lev][MapFacType::m_x]->const_array(mfi);
-                const Array4<Real const>& mf_my = mapfac[lev][MapFacType::m_y]->const_array(mfi);
+                const Array4<Real const>& mf_ux = mfux_sub.const_array(mfi);
+                const Array4<Real const>& mf_uy = mfuy_sub.const_array(mfi);
+                const Array4<Real const>& mf_vx = mfvx_sub.const_array(mfi);
+                const Array4<Real const>& mf_vy = mfvy_sub.const_array(mfi);
+                const Array4<Real const>& mf_mx = mfmx_sub.const_array(mfi);
+                const Array4<Real const>& mf_my = mfmy_sub.const_array(mfi);
                 ParallelFor(xbx,ybx,zbx,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
@@ -732,9 +771,31 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
 #endif
 
             //
+            // The lateral fluxes carry the map factor, as the divergence does
+            //
+            for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi)
+            {
+                Box xbx = mfi.nodaltilebox(0);
+                Box ybx = mfi.nodaltilebox(1);
+                const Array4<Real      >& fx_ar = fluxes_sub[0][0].array(mfi);
+                const Array4<Real      >& fy_ar = fluxes_sub[0][1].array(mfi);
+                const Array4<Real const>& mf_ux = mfux_sub.const_array(mfi);
+                const Array4<Real const>& mf_vy = mfvy_sub.const_array(mfi);
+                ParallelFor(xbx,ybx,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    fx_ar(i,j,k) *= mf_ux(i,j,0);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    fy_ar(i,j,k) *= mf_vy(i,j,0);
+                });
+            } // mfi
+
+            //
             // Restore ax,ay,ax to their original definitions
             //
-            for (MFIter mfi(rhs_lev); mfi.isValid(); ++mfi)
+            for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi)
             {
                 Box xbx = mfi.nodaltilebox(0);
                 Box ybx = mfi.nodaltilebox(1);
@@ -742,12 +803,12 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                 const Array4<Real      >& ax_ar = ax_sub.array(mfi);
                 const Array4<Real      >& ay_ar = ay_sub.array(mfi);
                 const Array4<Real      >& az_ar = az_sub.array(mfi);
-                const Array4<Real const>& mf_ux = mapfac[lev][MapFacType::u_x]->const_array(mfi);
-                const Array4<Real const>& mf_uy = mapfac[lev][MapFacType::u_y]->const_array(mfi);
-                const Array4<Real const>& mf_vx = mapfac[lev][MapFacType::v_x]->const_array(mfi);
-                const Array4<Real const>& mf_vy = mapfac[lev][MapFacType::v_y]->const_array(mfi);
-                const Array4<Real const>& mf_mx = mapfac[lev][MapFacType::m_x]->const_array(mfi);
-                const Array4<Real const>& mf_my = mapfac[lev][MapFacType::m_y]->const_array(mfi);
+                const Array4<Real const>& mf_ux = mfux_sub.const_array(mfi);
+                const Array4<Real const>& mf_uy = mfuy_sub.const_array(mfi);
+                const Array4<Real const>& mf_vx = mfvx_sub.const_array(mfi);
+                const Array4<Real const>& mf_vy = mfvy_sub.const_array(mfi);
+                const Array4<Real const>& mf_mx = mfmx_sub.const_array(mfi);
+                const Array4<Real const>& mf_my = mfmy_sub.const_array(mfi);
                 ParallelFor(xbx,ybx,zbx,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
