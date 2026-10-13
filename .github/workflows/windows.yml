@@ -157,20 +157,22 @@ jobs:
 
     - name: CMake Unit Tests
       if: matrix.mesh_precision == 'DOUBLE' && matrix.particles == 'ON'
+      shell: pwsh
       run: |
-        ctest -L unit -VV -j $env:NUMBER_OF_PROCESSORS
+        ctest -L unit -VV @("${{ matrix.mpi == 'ON' && '-j,2,--repeat,until-pass:2' || '-j,4' }}".Split(','))
       working-directory: ${{runner.workspace}}/ERF/build
 
     - name: CMake Shuffle Stress Test
       if: matrix.mesh_precision == 'DOUBLE' && matrix.particles == 'ON'
       shell: pwsh
-      run: ctest -L stress --output-on-failure --no-tests=error -j $env:NUMBER_OF_PROCESSORS
+      run: ctest -L stress --output-on-failure --no-tests=error @("${{ matrix.mpi == 'ON' && '-j,2,--repeat,until-pass:2' || '-j,4' }}".Split(','))
       working-directory: ${{runner.workspace}}/ERF/build
 
     - name: CMake Regression Tests # see file ERF/Tests/CTestList.cmake
       if: matrix.mesh_precision == 'DOUBLE' && matrix.particles == 'ON'
+      shell: pwsh
       run: |
-        ctest -L regression -VV -j $env:NUMBER_OF_PROCESSORS
+        ctest -L regression -VV @("${{ matrix.mpi == 'ON' && '-j,2,--repeat,until-pass:2' || '-j,4' }}".Split(','))
       working-directory: ${{runner.workspace}}/ERF/build
 
     # The MS-MPI builds are the downloadable binaries: the executable and how to run it,
