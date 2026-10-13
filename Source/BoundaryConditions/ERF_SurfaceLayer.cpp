@@ -1101,7 +1101,10 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         //============================================================================
         const bool is_low_face = m_face.isLow();
 
-        auto surface_flux_arr = mf_surface_fluxes->array(mfi);
+        amrex::Array4<amrex::Real> surface_flux_arr;
+        if (mf_surface_fluxes != nullptr) {
+            surface_flux_arr = mf_surface_fluxes->array(mfi);
+        }
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
@@ -1117,10 +1120,14 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 // LSM flux MultiFabs store kinematic fluxes for MOST parameter
                 // updates. The applied hfx array stores the conservative RHS flux.
                 Tflux = cons_arr(i,j,k,Rho_comp) * t_flux_arr(i,j,0);
-                surface_flux_arr(i,j,0,0) = Tflux;
+                if(surface_flux_arr) {
+                    surface_flux_arr(i,j,0,0) = Tflux;
+                }
             } else if (is_land == 2) { // no temperature flux within buildings
                 Tflux = zero;
-                surface_flux_arr(i,j,0,0) = Tflux;
+                if(surface_flux_arr) {
+                    surface_flux_arr(i,j,0,0) = Tflux;
+                }
             } else {
                 Tflux = flux_comp.compute_t_flux(i, j, k, dir,
                                                  cons_arr, velx_arr, vely_arr, velz_arr,
@@ -1130,7 +1137,9 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 // Doing so flips a sentinel (water/unprocessed) cell to "valid LSM"
                 // on the next step, so a MOST-derived value is re-read as an LSM flux
                 // Only Noah-MP should populate the LSM cache.
-                surface_flux_arr(i,j,0,0) = Tflux;
+                if (surface_flux_arr) {
+                    surface_flux_arr(i,j,0,0) = Tflux;
+                }
             }
 
             if (soil_t_flux_arr && is_land == 1) {
@@ -1189,10 +1198,14 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                     // LSM flux MultiFabs store kinematic fluxes for MOST parameter
                     // updates. The applied qfx array stores the conservative RHS flux.
                     Qflux = cons_arr(i,j,k,Rho_comp) * q_flux_arr(i,j,0);
-                    surface_flux_arr(i,j,0,1) = Qflux;
+                    if(surface_flux_arr) {
+                        surface_flux_arr(i,j,0,1) = Qflux;
+                    }
                 } else if (is_land == 2) { // no moisture flux within buildings
                     Qflux = zero;
-                    surface_flux_arr(i,j,0,1) = Qflux;
+                    if(surface_flux_arr) {
+                        surface_flux_arr(i,j,0,1) = Qflux;
+                    }
                 } else {
                     Qflux = flux_comp.compute_q_flux(i, j, k, dir,
                                                      cons_arr, velx_arr, vely_arr, velz_arr,
@@ -1200,7 +1213,9 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                                      q_star_arr, q_surf_arr);
                     // NOTE: no writeback into lsm_q_flux_arr -- see the matching
                     // t_flux note above.
-                    surface_flux_arr(i,j,0,1) = Qflux;
+                    if (surface_flux_arr) {
+                        surface_flux_arr(i,j,0,1) = Qflux;
+                    }
                 }
 
                 // Do scalar flux rotations?

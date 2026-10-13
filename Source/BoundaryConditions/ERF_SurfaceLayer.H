@@ -897,7 +897,7 @@ public:
                                 amrex::MultiFab* yqv_flux,
                                 amrex::MultiFab* zqv_flux,
                                 const amrex::MultiFab* z_phys,
-                                amrex::MultiFab* mf_surface_fluxes);
+                                amrex::MultiFab* mf_surface_fluxes=nullptr);
 
   /**
    * Impose surface-layer boundary conditions for embedded-boundary terrain.
@@ -949,7 +949,7 @@ public:
                                  amrex::MultiFab* zqv_flux,
                                  const amrex::MultiFab* z_phys,
                                  const FluxCalc& flux_comp,
-                                 amrex::MultiFab* mf_surface_fluxes);
+                                 amrex::MultiFab* mf_surface_fluxes=nullptr);
 
   /**
    * Compute embedded-boundary surface-layer flux boundary conditions.
