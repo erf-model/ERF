@@ -3294,6 +3294,10 @@ function(add_test_terrain_poisson_divergence TEST_NAME TEST_FILES_DIR LEVEL)
 endfunction(add_test_terrain_poisson_divergence)
 
 if(ERF_ENABLE_MPI AND NOT WIN32)
+  # The hill on one level, boxed in by slip walls where its slopes reach them
+  set(_tp_walls "amr.max_level=0 geometry.is_periodic=0 0 0 xlo.type=SlipWall xhi.type=SlipWall ylo.type=SlipWall yhi.type=SlipWall geometry.prob_lo=-640 -640 0 geometry.prob_hi=640 640 640 amr.n_cell=16 16 16")
+  # Two separate refined patches on the hill's flanks (two regions on level 1)
+  set(_tp_two_patches "amr.grid_eff=0.99 erf.refinement_indicators=box1 box2 erf.box1.in_box_lo_indices_crse=4 8 0 erf.box1.in_box_hi_indices_crse=11 15 15 erf.box2.max_level=1 erf.box2.in_box_lo_indices_crse=20 16 0 erf.box2.in_box_hi_indices_crse=27 23 15")
   if(ERF_TEST_PYTHON)
     # The checker's own verdicts on made-up logs (no ERF run)
     add_test(NAME TerrainPoisson_DivergenceChecker_SelfTest COMMAND ${CMAKE_COMMAND}
@@ -3313,13 +3317,12 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
         OLD_OPTIONS "erf.terrain_poisson_neumann=mirror")
     # One level in a box of slip walls on the hill's slopes: the wall part of the fix
     add_test_terrain_poisson_divergence(TerrainPoisson_SlopingWalls TerrainPoisson_Hill 0
-        COMMON_OPTIONS "amr.max_level=0 geometry.is_periodic=0 0 0 xlo.type=SlipWall xhi.type=SlipWall ylo.type=SlipWall yhi.type=SlipWall geometry.prob_lo=-640 -640 0 geometry.prob_hi=640 640 640 amr.n_cell=16 16 16"
+        COMMON_OPTIONS "${_tp_walls}"
         OLD_OPTIONS "erf.terrain_poisson_neumann=mirror")
     # Two separate refined patches on the hill's flanks, so level 1 has two regions.  The
     # projection walked the level's boxes while reading the region's map-factor and area
     # arrays (numbered over the region's boxes only), and development stopped here with a
     # segmentation fault; the loops now use the region's own arrays
-    set(_tp_two_patches "amr.grid_eff=0.99 erf.refinement_indicators=box1 box2 erf.box1.in_box_lo_indices_crse=4 8 0 erf.box1.in_box_hi_indices_crse=11 15 15 erf.box2.max_level=1 erf.box2.in_box_lo_indices_crse=20 16 0 erf.box2.in_box_hi_indices_crse=27 23 15")
     add_test_terrain_poisson_divergence(TerrainPoisson_TwoPatches TerrainPoisson_Hill 1
         COMMON_OPTIONS "${_tp_two_patches}"
         OLD_OPTIONS "erf.terrain_poisson_neumann=mirror")
