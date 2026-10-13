@@ -1457,10 +1457,15 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                                   refRatio(lev-1), &node_bilinear_interp,
                                   domain_bcs_type, BCVars::cons_bc);
 
-            // Save interpolated mesh before terrain overwrites k=0 slab
+            // Save interpolated mesh before terrain overwrites k=0 slab.
+            //
+            // Copy the ghost nodes as well: the Transform construction corrects the
+            // ghost columns too (a fine level's lateral ghosts lie inside the domain
+            // but outside its grids, so nothing refills them), and it differences the
+            // fine surface against this mesh node by node.
             z_phys_interp.define(z_phys_nd[lev]->boxArray(), z_phys_nd[lev]->DistributionMap(),
                                  1, z_phys_nd[lev]->nGrowVect());
-            MultiFab::Copy(z_phys_interp, *z_phys_nd[lev], 0, 0, 1, 0);
+            MultiFab::Copy(z_phys_interp, *z_phys_nd[lev], 0, 0, 1, z_phys_nd[lev]->nGrowVect());
         }
 
         Real dz0_max;
