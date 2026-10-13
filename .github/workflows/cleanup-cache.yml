@@ -1,8 +1,23 @@
 name: CleanUpCache
 
+# Runs after every workflow that saves a ccache trunk, not only Linux GCC: a slow
+# workflow (Windows, CUDA) finishes an hour after Linux GCC, and until the next
+# cleanup its old and new trunks coexist. With every variant cached the newest set
+# alone is ~8.7 GB of the 10 GB repository quota, so that overlap pushed the total
+# over the limit and GitHub evicted entries by least recent use, which is how the
+# Windows trunks vanished between two merges on 2026-10-12/13. The concurrency
+# group below coalesces the burst into one cleanup per branch.
 on:
   workflow_run:
-    workflows: [Linux GCC]
+    workflows:
+      - ERF CI
+      - Linux GCC
+      - Linux GCC NetCDF RRTMGP
+      - ERF CI (cuda)
+      - ERF CI (hip)
+      - ERF CI (sycl)
+      - MacOS
+      - Windows
     types:
       - completed
   schedule:
