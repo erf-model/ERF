@@ -954,12 +954,18 @@ struct SolverChoice {
             amrex::Abort("SAM is not correct with variable dz -- choose another moisture model");
         }
 
+        // queryAdd puts the default in the table, so ask whether the ratio was given first
+        const bool have_stretching_ratio = pp.contains("grid_stretching_ratio");
         pp.queryAdd("grid_stretching_ratio", grid_stretching_ratio);
         if (grid_stretching_ratio != 0) {
             AMREX_ASSERT_WITH_MESSAGE((grid_stretching_ratio >= one),
                                       "The grid stretching ratio must be greater than 1");
         }
-        if (grid_stretching_ratio >= 1) {
+        // erf.initial_dz on its own asks for the stretching ratio to be solved for, so that
+        //    a first layer that thick stretches geometrically to close on prob_hi[2].  An
+        //    explicit erf.grid_stretching_ratio = 0 still means no stretching at all.
+        const bool solve_stretching_ratio = !have_stretching_ratio && pp.contains("initial_dz");
+        if (grid_stretching_ratio >= 1 || solve_stretching_ratio) {
             if (terrain_type == TerrainType::None) {
                 terrain_type = TerrainType::StaticFittedMesh;
             }
@@ -2341,7 +2347,7 @@ struct SolverChoice {
     // Staggered z levels for vertical grid stretching
     amrex::Real grid_stretching_ratio   = 0;
     amrex::Real zsurf                   = zero;
-    amrex::Real dz0;
+    amrex::Real dz0                     = zero;
 
     // Coriolis forcing
     amrex::Real coriolis_factor = zero;

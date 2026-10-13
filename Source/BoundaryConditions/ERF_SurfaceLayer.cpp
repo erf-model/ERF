@@ -1892,8 +1892,9 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
     const bool moist = use_moisture;
     const bool have_rho_qv = cons_in.nComp() > RhoQ1_comp;
     const Real rdOcp = m_rdOcp;
-    amrex::Gpu::DeviceScalar<int> d_conversion_failed(0);
-    int* conversion_failed = d_conversion_failed.dataPtr();
+    amrex::Gpu::DeviceScalar<erf_surface_temperature::ConversionFailure>
+        d_fail(erf_surface_temperature::ConversionFailure{});
+    auto* fail = d_fail.dataPtr();
 
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
@@ -1939,23 +1940,27 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
                 const Real rho_theta = cons_arr(li,lj,klo,RhoTheta_comp);
                 if (!amrex::Math::isfinite(rho) || rho <= Real(0.0) ||
                     !amrex::Math::isfinite(rho_theta)) {
-                    amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                    erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_density,
+                        li, lj, klo, rho, rho_theta);
                     return;
                 }
                 Real qv = Real(0.0);
                 if (moist) {
                     if (!have_rho_qv) {
-                        amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                        erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::no_moisture_comp,
+                            li, lj, klo);
                         return;
                     }
                     const Real rho_qv = cons_arr(li,lj,klo,RhoQ1_comp);
                     if (!amrex::Math::isfinite(rho_qv)) {
-                        amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                        erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_rho_qv,
+                            li, lj, klo, rho, rho_theta, rho_qv);
                         return;
                     }
                     qv = rho_qv / rho;
                     if (!amrex::Math::isfinite(qv)) {
-                        amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                        erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_qv,
+                            li, lj, klo, rho, rho_theta, rho_qv);
                         return;
                     }
                 }
@@ -1969,19 +1974,18 @@ SurfaceLayer::fill_tsurf_with_sfc_sst (const int& lev,
                 if (erf_surface_temperature::temperature_to_theta(sfc_sst, pressure, rdOcp, theta)) {
                     t_surf_arr(i,j,k) = theta;
                 } else {
-                    amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                    erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_temperature_to_theta,
+                        li, lj, klo, rho, rho_theta,
+                        moist ? cons_arr(li,lj,klo,RhoQ1_comp) : Real(0.0),
+                        sfc_sst, pressure, delta_z);
                 }
             }
         });
     }
 
     amrex::Gpu::streamSynchronize();
-    int conversion_failed_host = d_conversion_failed.dataValue();
-    amrex::ParallelDescriptor::ReduceIntMax(conversion_failed_host);
-    if (conversion_failed_host != 0) {
-        amrex::Abort("SurfaceLayer fill_tsurf_with_sfc_sst: failed to convert the authoritative "
-                     "sea-surface temperature to potential temperature.");
-    }
+    erf_surface_temperature::abort_on_conversion_failure("SurfaceLayer fill_tsurf_with_sfc_sst",
+                                                         lev, d_fail.dataValue());
 
     fill_planar_boundary(lev, *t_surf[lev]);
 }
@@ -2016,8 +2020,9 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
     const bool moist = use_moisture;
     const bool have_rho_qv = cons_in.nComp() > RhoQ1_comp;
     const Real rdOcp = m_rdOcp;
-    amrex::Gpu::DeviceScalar<int> d_conversion_failed(0);
-    int* conversion_failed = d_conversion_failed.dataPtr();
+    amrex::Gpu::DeviceScalar<erf_surface_temperature::ConversionFailure>
+        d_fail(erf_surface_temperature::ConversionFailure{});
+    auto* fail = d_fail.dataPtr();
     // Use the 2-D surface mask as the iterator so ranks participate only when
     // their grids coincide with the selected face.
     for (MFIter mfi(*m_lmask_lev[lev][0]); mfi.isValid(); ++mfi)
@@ -2093,31 +2098,27 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
                 const Real rho_theta = cons_arr(i,j,k,RhoTheta_comp);
                 if (!amrex::Math::isfinite(rho) || rho <= Real(0.0) ||
                     !amrex::Math::isfinite(rho_theta)) {
-                    if (authoritative) {
-                        amrex::Gpu::Atomic::Max(conversion_failed, 1);
-                    }
+                    erf_surface_temperature::record_conversion_failure(fail, authoritative, erf_surface_temperature::ConversionError::bad_density,
+                        i, j, k, rho, rho_theta);
                     return;
                 }
                 Real qv = Real(0.0);
                 if (moist) {
                     if (!have_rho_qv) {
-                        if (authoritative) {
-                            amrex::Gpu::Atomic::Max(conversion_failed, 1);
-                        }
+                        erf_surface_temperature::record_conversion_failure(fail, authoritative, erf_surface_temperature::ConversionError::no_moisture_comp,
+                            i, j, k);
                         return;
                     }
                     const Real rho_qv = cons_arr(i,j,k,RhoQ1_comp);
                     if (!amrex::Math::isfinite(rho_qv)) {
-                        if (authoritative) {
-                            amrex::Gpu::Atomic::Max(conversion_failed, 1);
-                        }
+                        erf_surface_temperature::record_conversion_failure(fail, authoritative, erf_surface_temperature::ConversionError::bad_rho_qv,
+                            i, j, k, rho, rho_theta, rho_qv);
                         return;
                     }
                     qv = rho_qv / rho;
                     if (!amrex::Math::isfinite(qv)) {
-                        if (authoritative) {
-                            amrex::Gpu::Atomic::Max(conversion_failed, 1);
-                        }
+                        erf_surface_temperature::record_conversion_failure(fail, authoritative, erf_surface_temperature::ConversionError::bad_qv,
+                            i, j, k, rho, rho_theta, rho_qv);
                         return;
                     }
                 }
@@ -2139,19 +2140,18 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
                 if (erf_surface_temperature::theta_to_temperature(
                         t_surface, pressure, rdOcp, t_surface)) {
                     erf_qsatw(t_surface, pressure * Real(0.01), q_surf_arr(i,j,k));
-                } else if (authoritative) {
-                    amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                } else {
+                    erf_surface_temperature::record_conversion_failure(fail, authoritative, erf_surface_temperature::ConversionError::bad_theta_to_temperature,
+                        i, j, k, rho, rho_theta,
+                        moist ? cons_arr(i,j,k,RhoQ1_comp) : Real(0.0),
+                        t_surface, pressure, delta_z);
                 }
             }
         });
     }
     amrex::Gpu::streamSynchronize();
-    int conversion_failed_host = d_conversion_failed.dataValue();
-    amrex::ParallelDescriptor::ReduceIntMax(conversion_failed_host);
-    if (conversion_failed_host != 0) {
-        amrex::Abort("SurfaceLayer fill_qsurf_with_qsat: failed to convert the authoritative "
-                     "surface potential temperature to absolute temperature.");
-    }
+    erf_surface_temperature::abort_on_conversion_failure("SurfaceLayer fill_qsurf_with_qsat",
+                                                         lev, d_fail.dataValue());
     fill_planar_boundary(lev, *q_surf[lev]);
 }
 
@@ -2234,8 +2234,9 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
     const bool moist = use_moisture;
     const bool have_rho_qv = cons_in.nComp() > RhoQ1_comp;
     const Real rdOcp = m_rdOcp;
-    amrex::Gpu::DeviceScalar<int> d_conversion_failed(0);
-    int* conversion_failed = d_conversion_failed.dataPtr();
+    amrex::Gpu::DeviceScalar<erf_surface_temperature::ConversionFailure>
+        d_fail(erf_surface_temperature::ConversionFailure{});
+    auto* fail = d_fail.dataPtr();
 
     // Absent coverage information we must assume nothing is covered: silently
     // treating the whole field as valid is how an uncovered cell ends up holding
@@ -2294,23 +2295,27 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
             const Real rho_theta = cons_arr(li,lj,klo,RhoTheta_comp);
             if (!amrex::Math::isfinite(rho) || rho <= Real(0.0) ||
                 !amrex::Math::isfinite(rho_theta)) {
-                amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_density,
+                    li, lj, klo, rho, rho_theta);
                 return;
             }
             Real qv = Real(0.0);
             if (moist) {
                 if (!have_rho_qv) {
-                    amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                    erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::no_moisture_comp,
+                        li, lj, klo);
                     return;
                 }
                 const Real rho_qv = cons_arr(li,lj,klo,RhoQ1_comp);
                 if (!amrex::Math::isfinite(rho_qv)) {
-                    amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                    erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_rho_qv,
+                        li, lj, klo, rho, rho_theta, rho_qv);
                     return;
                 }
                 qv = rho_qv / rho;
                 if (!amrex::Math::isfinite(qv)) {
-                    amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                    erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_qv,
+                        li, lj, klo, rho, rho_theta, rho_qv);
                     return;
                 }
             }
@@ -2325,17 +2330,16 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
                     coupled_sst_arr(si,sj,donor_k), pressure, rdOcp, theta)) {
                 t_surf_arr(i,j,k) = theta;
             } else {
-                amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_temperature_to_theta,
+                    li, lj, klo, rho, rho_theta,
+                    moist ? cons_arr(li,lj,klo,RhoQ1_comp) : Real(0.0),
+                    coupled_sst_arr(si,sj,donor_k), pressure, delta_z);
             }
         });
     }
     amrex::Gpu::streamSynchronize();
-    int conversion_failed_host = d_conversion_failed.dataValue();
-    amrex::ParallelDescriptor::ReduceIntMax(conversion_failed_host);
-    if (conversion_failed_host != 0) {
-        amrex::Abort("SurfaceLayer fill_tsurf_with_coupled_sst: failed to convert the authoritative "
-                     "coupled sea-surface temperature to potential temperature.");
-    }
+    erf_surface_temperature::abort_on_conversion_failure("SurfaceLayer fill_tsurf_with_coupled_sst",
+                                                         lev, d_fail.dataValue());
 }
 
 /**
@@ -2366,8 +2370,9 @@ SurfaceLayer::fill_tsurf_with_skin_temperature (const int& lev,
     // As in fill_tsurf_with_coupled_sst: a moist run whose state lacks the vapour
     // component aborts below rather than reading past the components.
     const bool have_rho_qv = cons_in.nComp() > RhoQ1_comp;
-    amrex::Gpu::DeviceScalar<int> d_conversion_failed(0);
-    int* conversion_failed = d_conversion_failed.dataPtr();
+    amrex::Gpu::DeviceScalar<erf_surface_temperature::ConversionFailure>
+        d_fail(erf_surface_temperature::ConversionFailure{});
+    auto* fail = d_fail.dataPtr();
 
     for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
     {
@@ -2404,7 +2409,7 @@ SurfaceLayer::fill_tsurf_with_skin_temperature (const int& lev,
             const Real rho = cons_arr(li,lj,klo,Rho_comp);
             const Real rho_theta = cons_arr(li,lj,klo,RhoTheta_comp);
             if (moist && !have_rho_qv) {
-                amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::no_moisture_comp, li, lj, klo);
                 return;
             }
             const Real qv = moist ? cons_arr(li,lj,klo,RhoQ1_comp) / rho : Real(0.0);
@@ -2415,24 +2420,23 @@ SurfaceLayer::fill_tsurf_with_skin_temperature (const int& lev,
             const Real pressure = erf_surface_temperature::pressure_at_boundary_from_cell(
                 rho, rho_theta, qv, delta_z);
             Real theta = t_surf_arr(i,j,k);
-            if (amrex::Math::isfinite(qv) &&
-                erf_surface_temperature::temperature_to_theta(
-                    skin_arr(li,lj,k), pressure, rdOcp, theta)) {
+            if (!amrex::Math::isfinite(qv)) {
+                erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_qv, li, lj, klo, rho, rho_theta,
+                    moist ? cons_arr(li,lj,klo,RhoQ1_comp) : Real(0.0));
+            } else if (erf_surface_temperature::temperature_to_theta(
+                           skin_arr(li,lj,k), pressure, rdOcp, theta)) {
                 t_surf_arr(i,j,k) = theta;
             } else {
-                amrex::Gpu::Atomic::Max(conversion_failed, 1);
+                erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_temperature_to_theta,
+                    li, lj, klo, rho, rho_theta,
+                    moist ? cons_arr(li,lj,klo,RhoQ1_comp) : Real(0.0),
+                    skin_arr(li,lj,k), pressure, delta_z);
             }
         });
     }
     amrex::Gpu::streamSynchronize();
-    int conversion_failed_host = d_conversion_failed.dataValue();
-    amrex::ParallelDescriptor::ReduceIntMax(conversion_failed_host);
-    if (conversion_failed_host != 0) {
-        amrex::Abort("SurfaceLayer fill_tsurf_with_skin_temperature: failed to convert the "
-                     "skin temperature to potential temperature (non-finite or non-positive "
-                     "skin temperature, density or pressure, or a moist state without "
-                     "water vapour).");
-    }
+    erf_surface_temperature::abort_on_conversion_failure(
+        "SurfaceLayer fill_tsurf_with_skin_temperature", lev, d_fail.dataValue());
 }
 
 /**
@@ -2471,8 +2475,9 @@ SurfaceLayer::fill_qsurf_with_skin_moisture (const int& lev,
     const auto *const zref_ptr = m_ma.get_zref(lev);       // reference height
     const similarity_funs sfuns{};
     constexpr Real wsmin = most_min_wind_speed; // the flux kernels' WSMIN
-    amrex::Gpu::DeviceScalar<int> d_failed(0);
-    int* failed = d_failed.dataPtr();
+    amrex::Gpu::DeviceScalar<erf_surface_temperature::ConversionFailure>
+        d_fail(erf_surface_temperature::ConversionFailure{});
+    auto* fail = d_fail.dataPtr();
 
     for (MFIter mfi(*q_surf[lev]); mfi.isValid(); ++mfi)
     {
@@ -2510,7 +2515,7 @@ SurfaceLayer::fill_qsurf_with_skin_moisture (const int& lev,
             const int is_land = (lmask_arr) ? lmask_arr(li,lj,0) : 1;
             if (!is_land) { return; }
             if (!have_rho_qv) {
-                amrex::Gpu::Atomic::Max(failed, 1);
+                erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::no_moisture_comp, li, lj, klo);
                 return;
             }
 
@@ -2525,10 +2530,27 @@ SurfaceLayer::fill_qsurf_with_skin_moisture (const int& lev,
                 rho, cons_arr(li,lj,klo,RhoTheta_comp), qv_cell, delta_z);
             const Real t_skin = skin_arr(li,lj,k);
             const Real q_air = qvm_arr(li,lj,k);
-            if (!amrex::Math::isfinite(qv_cell) || !amrex::Math::isfinite(q_air) ||
-                !erf_surface_temperature::valid_pressure(pressure) ||
-                !erf_surface_temperature::valid_temperature(t_skin)) {
-                amrex::Gpu::Atomic::Max(failed, 1);
+            if (!amrex::Math::isfinite(qv_cell)) {
+                erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_qv, li, lj, klo,
+                    rho, cons_arr(li,lj,klo,RhoTheta_comp), cons_arr(li,lj,klo,RhoQ1_comp));
+                return;
+            }
+            if (!amrex::Math::isfinite(q_air)) {
+                erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_q_air, li, lj, klo,
+                    rho, cons_arr(li,lj,klo,RhoTheta_comp), cons_arr(li,lj,klo,RhoQ1_comp),
+                    t_skin, pressure, delta_z, q_air);
+                return;
+            }
+            if (!erf_surface_temperature::valid_pressure(pressure)) {
+                erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_pressure, li, lj, klo,
+                    rho, cons_arr(li,lj,klo,RhoTheta_comp), cons_arr(li,lj,klo,RhoQ1_comp),
+                    t_skin, pressure, delta_z);
+                return;
+            }
+            if (!erf_surface_temperature::valid_temperature(t_skin)) {
+                erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_skin_temperature, li, lj, klo,
+                    rho, cons_arr(li,lj,klo,RhoTheta_comp), cons_arr(li,lj,klo,RhoQ1_comp),
+                    t_skin, pressure, delta_z);
                 return;
             }
             Real q_sat = Real(0.0);
@@ -2555,20 +2577,17 @@ SurfaceLayer::fill_qsurf_with_skin_moisture (const int& lev,
                 q_surf_value = surface_mixing_ratio(moist_arr(li,lj,k,SoilFactor), q_sat, q_air);
             }
             if (!amrex::Math::isfinite(q_surf_value)) {
-                amrex::Gpu::Atomic::Max(failed, 1);
+                erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_q_surf, li, lj, klo,
+                    rho, cons_arr(li,lj,klo,RhoTheta_comp), cons_arr(li,lj,klo,RhoQ1_comp),
+                    t_skin, pressure, delta_z, q_air);
                 return;
             }
             q_surf_arr(i,j,k) = q_surf_value;
         });
     }
     amrex::Gpu::streamSynchronize();
-    int failed_host = d_failed.dataValue();
-    amrex::ParallelDescriptor::ReduceIntMax(failed_host);
-    if (failed_host != 0) {
-        amrex::Abort("SurfaceLayer fill_qsurf_with_skin_moisture: non-finite water vapour or "
-                     "surface mixing ratio, an invalid skin temperature or surface pressure, or "
-                     "a state without water vapour.");
-    }
+    erf_surface_temperature::abort_on_conversion_failure(
+        "SurfaceLayer fill_qsurf_with_skin_moisture", lev, d_fail.dataValue());
 }
 
 /**
