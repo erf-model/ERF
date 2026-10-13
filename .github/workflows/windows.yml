@@ -155,11 +155,6 @@ jobs:
         }
       working-directory: ${{runner.workspace}}/ERF/build
 
-    # Under MPI every test is a 2-rank mpiexec, so two at a time fill the 4 cores, and
-    # MS-MPI's launcher occasionally fails to start a process when several mpiexec's
-    # run side by side ("process exited without calling init", "Failed to post close
-    # command error 1726", gone after 0.1 s). A launcher failure is not a test
-    # failure: retry once. The MPI-off job keeps -j 4.
     - name: CMake Unit Tests
       if: matrix.mesh_precision == 'DOUBLE' && matrix.particles == 'ON'
       shell: pwsh
