@@ -4406,11 +4406,14 @@ ERF::check_for_low_temp (amrex::MultiFab& S)
 
             Real temp = getTgivenRandRTh(rho, rhotheta, qv);
 
-            if (temp < t_low) {
+            // Written so that a NaN trips it as well.  Every comparison against a NaN is
+            // false, so "temp < t_low" lets exactly the state the microphysics cannot use
+            // walk past the one check that runs on every step of every level.
+            if (!(temp >= t_low)) {
 #ifdef AMREX_USE_GPU
-                AMREX_DEVICE_PRINTF("Temperature too low in cell: %d %d %d %e \n", i,j,k,temp);
+                AMREX_DEVICE_PRINTF("Temperature too low or not finite in cell: %d %d %d %e \n", i,j,k,temp);
 #else
-                printf("Temperature too low in cell: %d %d %d \n", i,j,k);
+                printf("Temperature too low or not finite in cell: %d %d %d \n", i,j,k);
                 printf("Based on temp / rhotheta / rho / qv %e %e %e %e \n", temp,rhotheta,rho,qv);
 #endif
                 Abort();
@@ -4434,20 +4437,21 @@ ERF::check_for_negative_theta (amrex::MultiFab& S)
             const Real rho      = s_arr(i, j, k, Rho_comp);
             const Real rhotheta = s_arr(i, j, k, RhoTheta_comp);
 
-            if (rho <= zero) {
+            // Negated so that a NaN trips these too; see the note in check_for_low_temp
+            if (!(rho > zero)) {
 #ifdef AMREX_USE_GPU
-                AMREX_DEVICE_PRINTF("Rho is negative at %d %d %d %e \n", i,j,k,rho);
+                AMREX_DEVICE_PRINTF("Rho is not positive at %d %d %d %e \n", i,j,k,rho);
 #else
-                printf("Rho is negative at %d %d %d %e \n", i,j,k,rho);
+                printf("Rho is not positive at %d %d %d %e \n", i,j,k,rho);
                 Abort("Bad rho in check_for_negative_theta");
 #endif
             }
 
-            if (rhotheta <= zero) {
+            if (!(rhotheta > zero)) {
 #ifdef AMREX_USE_GPU
-                AMREX_DEVICE_PRINTF("RhoTheta is negative at %d %d %d %e \n", i,j,k,rhotheta);
+                AMREX_DEVICE_PRINTF("RhoTheta is not positive at %d %d %d %e \n", i,j,k,rhotheta);
 #else
-                printf("RhoTheta is negative at %d %d %d %e \n", i,j,k,rhotheta);
+                printf("RhoTheta is not positive at %d %d %d %e \n", i,j,k,rhotheta);
                 Abort("Bad theta in check_for_negative_theta");
 #endif
             }
