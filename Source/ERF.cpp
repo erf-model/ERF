@@ -4394,12 +4394,32 @@ ERF::check_for_low_temp (amrex::MultiFab& S)
     // This value is defined in erf_dtesati in Source/Utils/ERF_MicrophysicsUtils.H
     Real t_low = Real(273.16) - Real(85.);
     //
+    // A device-side Abort() is only an assert, so it does nothing at all in an
+    // optimized GPU build.  Record the first failing cell on the device instead, then
+    // report it and abort from the host, so that a GPU run stops wherever a CPU run would.
+    //
+    amrex::Gpu::DeviceScalar<int> d_found(0);
+
+    // i, j, k
+    amrex::Gpu::DeviceVector<int>  d_info(3, -1);
+
+    // temp, rhotheta, rho, qv
+    amrex::Gpu::DeviceVector<Real> d_state(4, 0.);
+
     for (MFIter mfi(S); mfi.isValid(); ++mfi)
     {
         Box bx = mfi.tilebox();
         const Array4<Real> &s_arr  = S.array(mfi);
+
+        int*  found = d_found.dataPtr();
+        int*  info  = d_info.dataPtr();
+        Real* state = d_state.dataPtr();
+
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+            // Somebody already found a bad cell
+            if (*found) { return; }
+
             const Real rho      = s_arr(i, j, k, Rho_comp);
             const Real rhotheta = s_arr(i, j, k, RhoTheta_comp);
             const Real qv       = s_arr(i, j, k, RhoQ1_comp) / rho;
@@ -4410,15 +4430,37 @@ ERF::check_for_low_temp (amrex::MultiFab& S)
             // false, so "temp < t_low" lets exactly the state the microphysics cannot use
             // walk past the one check that runs on every step of every level.
             if (!(temp >= t_low)) {
-#ifdef AMREX_USE_GPU
-                AMREX_DEVICE_PRINTF("Temperature too low or not finite in cell: %d %d %d %e \n", i,j,k,temp);
-#else
-                printf("Temperature too low or not finite in cell: %d %d %d \n", i,j,k);
-                printf("Based on temp / rhotheta / rho / qv %e %e %e %e \n", temp,rhotheta,rho,qv);
-#endif
-                Abort();
+                // Only one thread wins
+                if (amrex::Gpu::Atomic::CAS(found,0,1) == 0)
+                {
+                    info[0]  = i;
+                    info[1]  = j;
+                    info[2]  = k;
+                    state[0] = temp;
+                    state[1] = rhotheta;
+                    state[2] = rho;
+                    state[3] = qv;
+                }
             }
         });
+    }
+
+    amrex::Gpu::streamSynchronize();
+
+    if (d_found.dataValue())
+    {
+        amrex::Vector<int>  h_info(3);
+        amrex::Vector<Real> h_state(4);
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost, d_info.begin(),  d_info.end(),  h_info.begin());
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost, d_state.begin(), d_state.end(), h_state.begin());
+
+        std::cout << "Temperature too low or not finite in cell: "
+                  << h_info[0] << " " << h_info[1] << " " << h_info[2] << "\n";
+        std::cout << "Based on temp / rhotheta / rho / qv "
+                  << h_state[0] << " " << h_state[1] << " "
+                  << h_state[2] << " " << h_state[3] << "\n";
+
+        amrex::Abort("Temperature too low or not finite in check_for_low_temp");
     }
 }
 
@@ -4428,36 +4470,72 @@ ERF::check_for_negative_theta (amrex::MultiFab& S)
     // *****************************************************************************
     // Test for negative (rho theta)
     // *****************************************************************************
+    //
+    // As in check_for_low_temp, the abort has to happen on the host to also happen in
+    // an optimized GPU build, so we carry the first failing cell back from the device.
+    //
+    amrex::Gpu::DeviceScalar<int> d_found(0);
+
+    // which test failed (0 = rho, 1 = rhotheta), i, j, k
+    amrex::Gpu::DeviceVector<int>  d_info(4, -1);
+
+    // the value that failed
+    amrex::Gpu::DeviceVector<Real> d_state(1, 0.);
+
     for (MFIter mfi(S); mfi.isValid(); ++mfi)
     {
         Box bx = mfi.tilebox();
         const Array4<Real> &s_arr  = S.array(mfi);
+
+        int*  found = d_found.dataPtr();
+        int*  info  = d_info.dataPtr();
+        Real* state = d_state.dataPtr();
+
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+            // Somebody already found a bad cell
+            if (*found) { return; }
+
             const Real rho      = s_arr(i, j, k, Rho_comp);
             const Real rhotheta = s_arr(i, j, k, RhoTheta_comp);
 
-            // Negated so that a NaN trips these too; see the note in check_for_low_temp
-            if (!(rho > zero)) {
-#ifdef AMREX_USE_GPU
-                AMREX_DEVICE_PRINTF("Rho is not positive at %d %d %d %e \n", i,j,k,rho);
-#else
-                printf("Rho is not positive at %d %d %d %e \n", i,j,k,rho);
-                Abort("Bad rho in check_for_negative_theta");
-#endif
-            }
+            // As on the host, rho is the first thing this cell can fail on.  Both tests
+            // are negated so that a NaN trips them too; see the note in check_for_low_temp
+            const int which = !(rho      > zero) ? 0 :
+                              !(rhotheta > zero) ? 1 : -1;
 
-            if (!(rhotheta > zero)) {
-#ifdef AMREX_USE_GPU
-                AMREX_DEVICE_PRINTF("RhoTheta is not positive at %d %d %d %e \n", i,j,k,rhotheta);
-#else
-                printf("RhoTheta is not positive at %d %d %d %e \n", i,j,k,rhotheta);
-                Abort("Bad theta in check_for_negative_theta");
-#endif
+            if (which >= 0) {
+                // Only one thread wins
+                if (amrex::Gpu::Atomic::CAS(found,0,1) == 0)
+                {
+                    info[0]  = which;
+                    info[1]  = i;
+                    info[2]  = j;
+                    info[3]  = k;
+                    state[0] = (which == 0) ? rho : rhotheta;
+                }
             }
-
-            });
+        });
     } // mfi
+
+    amrex::Gpu::streamSynchronize();
+
+    if (d_found.dataValue())
+    {
+        amrex::Vector<int>  h_info(4);
+        amrex::Vector<Real> h_state(1);
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost, d_info.begin(),  d_info.end(),  h_info.begin());
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost, d_state.begin(), d_state.end(), h_state.begin());
+
+        const bool bad_rho = (h_info[0] == 0);
+
+        std::cout << (bad_rho ? "Rho is not positive at " : "RhoTheta is not positive at ")
+                  << h_info[1] << " " << h_info[2] << " " << h_info[3] << " "
+                  << h_state[0] << "\n";
+
+        amrex::Abort(bad_rho ? "Bad rho in check_for_negative_theta"
+                             : "Bad theta in check_for_negative_theta");
+    }
 }
 
 
