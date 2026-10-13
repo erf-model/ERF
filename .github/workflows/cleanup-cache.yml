@@ -2,7 +2,15 @@ name: CleanUpCache
 
 on:
   workflow_run:
-    workflows: [Linux GCC]
+    workflows:
+      - ERF CI
+      - Linux GCC
+      - Linux GCC NetCDF RRTMGP
+      - ERF CI (cuda)
+      - ERF CI (hip)
+      - ERF CI (sycl)
+      - MacOS
+      - Windows
     types:
       - completed
   schedule:
