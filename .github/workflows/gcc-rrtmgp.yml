@@ -23,10 +23,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # This workflow exercises the NetCDF and RRTMGP combinations, which
-        # are orthogonal to particles -- crossing the axis doubled the matrix
-        # for no added coverage of either. Particles OFF is still built by
-        # ci, gcc and windows-mpi.
         particles: [ON]
         # PR tier: NetCDF+RRTMGP only. The NetCDF-OFF (= gcc.yml + Kokkos) and NetCDF-only
         # variants build on merge to development.
@@ -66,11 +62,6 @@ jobs:
       uses: spack/setup-spack@v3
       with:
         spack_path: ${{ github.workspace }}/spack_install_dir
-        # Pinned so the package recipes stop drifting between runs. Jobs have been
-        # installing OpenMPI with different hashes (recipes on develop plus reuse
-        # from the public build cache); different installed headers make ccache
-        # miss every file that includes mpi.h. The pin removes the drift over
-        # time; identical specs within one run need a project build cache.
         spack_ref: cd657f2c90770f5722715f6a0f95d7a5a359359b
         packages_ref: fa11df3be41f58bac19b73346422e06b103ee5b5
 
@@ -90,25 +81,10 @@ jobs:
         export CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
         spack env create erf_netcdf
         spack env activate erf_netcdf
-        # Every job must install the identical spec. Spack concretizes for the host
-        # CPU by default (seen: x86_64_v4, icelake, zen2, one per runner type), which
-        # changes the hash, the install path, and with it every ccache key that
-        # includes mpi.h. x86_64_v3 (AVX2) runs on every GitHub runner.
         spack config add "packages:all:require:target=x86_64_v3"
-        # One MPI. Without this the concretizer has reused an HDF5 from the public build
-        # cache that was built against MPICH, next to the OpenMPI ERF links: two libmpi's
-        # in one executable and five linker warnings per job (development, 2026-10-12).
         spack config add "packages:all:providers:mpi:[openmpi]"
         spack add netcdf-c netcdf-fortran parallel-netcdf hdf5 openmpi
-        # --fresh: concretize from the pinned recipes alone, never from whatever the public
-        # cache happens to hold. The binaries for that DAG then come from our own cache
-        # below, so this no longer means building from source every time.
         spack concretize -f --fresh
-        # Project binary cache on GHCR. Every job pulls from it; non-PR runs push to
-        # it below (a fork PR's token is read-only, so it can only pull). The public
-        # Spack cache has no binaries for these specs, so without this every job
-        # compiles OpenMPI, HDF5 and NetCDF from source (20-70 min). Binaries are
-        # keyed by spec hash, which the target pin above keeps identical across runners.
         spack mirror add --unsigned \
           --oci-username-variable GHCR_USER --oci-password-variable GHCR_TOKEN \
           erf-buildcache oci://ghcr.io/${{ github.repository_owner }}/spack-buildcache
@@ -159,9 +135,6 @@ jobs:
         2>&1 | tee -a ${ERF_DIR}/build-output.txt;
 
         echo '```' >> "$GITHUB_STEP_SUMMARY"
-        # Keep only what this build used: ccache touches an object on every hit, so
-        # anything older than the build is stale. Without this the cache fills with
-        # objects from superseded commits, hits its cap, and evicts live objects.
         ccache --evict-older-than "$(( $(date +%s) - build_start + 120 ))s"
         ccache -s | tee -a "$GITHUB_STEP_SUMMARY"
         echo '```' >> "$GITHUB_STEP_SUMMARY"
@@ -204,9 +177,6 @@ jobs:
         ctest -L regression -VV
       working-directory: ${{ github.workspace }}/erf_clone/build
 
-    # A test that dies on a signal (for example SIGILL from amrex.fpe_trap_invalid)
-    # writes Backtrace.<rank> into its run directory; the log only says "See
-    # Backtrace.0 file for details", so keep those files when a step has failed.
     - name: Upload backtraces from failed tests
       if: failure()
       uses: actions/upload-artifact@v7
@@ -216,10 +186,6 @@ jobs:
         if-no-files-found: ignore
         retention-days: 14
 
-    # Share the Spack binaries with later runs. Runs after the build and tests, and a
-    # registry problem must not turn a good build red, so it only warns on failure.
-    # Build-only dependencies (bison, util-macros, ...) are not installed when
-    # binaries were reused, so they are left out; everything ERF links against is in.
     - name: Push Spack binaries to GHCR
       if: always() && github.event_name != 'pull_request'
       continue-on-error: true
