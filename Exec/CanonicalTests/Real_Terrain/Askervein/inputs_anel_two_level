@@ -94,7 +94,7 @@ erf.check_int       = 1000       # number of timesteps between checkpoints
 erf.plot_file_1     = "plt_"     # prefix of plotfile name
 #erf.plot_int_1      = 100        # number of timesteps between plotfiles
 erf.plot_per_1      = 60.0       # time interval between plotfiles
-erf.plot_vars_1     = x_velocity y_velocity z_velocity z_phys walldist KE Kmh Kmv
+erf.plot_vars_1     = x_velocity y_velocity z_velocity theta z_phys walldist KE Kmh Kmv
 
 erf.plot2d_file_1   = "plt2d_"
 erf.plot2d_int_1    = 10
