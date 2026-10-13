@@ -3323,6 +3323,14 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     add_test_terrain_poisson_divergence(TerrainPoisson_TwoPatches TerrainPoisson_Hill 1
         COMMON_OPTIONS "${_tp_two_patches}"
         OLD_OPTIONS "erf.terrain_poisson_neumann=mirror")
+    # Map factors other than one (erf.test_mapfactor: 0.5 and 0.25): the projection adds the
+    # map-factor scaled fluxes, which change the divergence by m_x m_y times A phi, so the
+    # equation solved is A phi = rhs / (m_x m_y).  Without that division every solve left
+    # 1 - m_x m_y = 75 % of the divergence (1.17e-2 of 1.56e-2 on level 0)
+    add_test_terrain_poisson_divergence(TerrainPoisson_MapFactors TerrainPoisson_Hill 1
+        COMMON_OPTIONS "erf.test_mapfactor=true")
+    add_test_terrain_poisson_divergence(TerrainPoisson_MapFactors_Walls TerrainPoisson_Hill 0
+        COMMON_OPTIONS "${_tp_walls} erf.test_mapfactor=true")
     # The answer on two levels must not depend on the decomposition (one box on one rank
     # against level-1 boxes split in x and y on NP ranks; they agree to 1e-14) or on a
     # restart, which re-makes the solve from the checkpoint

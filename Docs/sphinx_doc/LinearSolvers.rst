@@ -70,6 +70,12 @@ over sloping terrain drifts.  With ``zero_flux`` (the default) the whole flux th
 Neumann face is zero, the sum vanishes, and the solve converges to its tolerance; the
 projection then leaves the normal momentum on those faces unchanged.
 
+With map factors other than one (real-data runs on a map projection), the divergence that
+ERF corrects carries :math:`m_x m_y`, and so does the change the map-factor scaled fluxes make
+to it; ERF therefore solves :math:`A\phi = \text{rhs} / (m_x m_y)`, and on a singular problem
+first removes the mean of the right-hand side weighted by :math:`J / (m_x m_y)` (its
+solvability condition).  With map factors of one both steps leave the right-hand side as it is.
+
 The two settings differ only where the terrain slopes at a Neumann face.  Periodic faces
 and Dirichlet (``Outflow`` or ``Open``) faces are treated alike, and where the terrain is
 exactly flat at every Neumann face the results agree bit for bit.  The top of the domain is

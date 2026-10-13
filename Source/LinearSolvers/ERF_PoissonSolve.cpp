@@ -619,6 +619,22 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
             Real vol;
             if (solverChoice.mesh_type == MeshType::ConstantDz) {
                 vol = rhs_sub[0].boxArray().numPts();
+            } else if (solverChoice.mesh_type == MeshType::VariableDz) {
+                // The weight of the mean is dJ / (m_x m_y), in the sum and in the volume: the
+                // equation solved below is A phi = rhs / (m_x m_y), and dJ is the left null
+                // vector of A.  With map factors of one this is dJ.sum() bit for bit.
+                MultiFab wgt(dJ_sub.boxArray(), dJ_sub.DistributionMap(), 1, 0);
+                for (MFIter mfi(wgt); mfi.isValid(); ++mfi) {
+                    const Array4<Real      >& w_arr  = wgt.array(mfi);
+                    const Array4<Real const>& dJ_arr = dJ_sub.const_array(mfi);
+                    const Array4<Real const>& mx_arr = mfmx_sub.const_array(mfi);
+                    const Array4<Real const>& my_arr = mfmy_sub.const_array(mfi);
+                    ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        w_arr(i,j,k) = dJ_arr(i,j,k) / (mx_arr(i,j,0) * my_arr(i,j,0));
+                    });
+                }
+                vol = wgt.sum();
             } else {
                 vol = dJ_sub.sum();
             }
@@ -652,6 +668,20 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         }
 
         if (solverChoice.mesh_type == MeshType::VariableDz) {
+            //
+            // compute_divergence carries m_x m_y, so adding the map-factor scaled fluxes changes
+            // the divergence by m_x m_y (A phi): the equation to solve is A phi = rhs / (m_x m_y)
+            //
+            for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi)
+            {
+                const Array4<Real      >& rhs_arr = rhs_sub[0].array(mfi);
+                const Array4<Real const>& mx_arr  = mfmx_sub.const_array(mfi);
+                const Array4<Real const>& my_arr  = mfmy_sub.const_array(mfi);
+                ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    rhs_arr(i,j,k) /= (mx_arr(i,j,0) * my_arr(i,j,0));
+                });
+            }
             //
             // Modify ax,ay,ax to include the map factors as used in the divergence calculation
             // We do this here to set the coefficients used in the stencil -- the extra factor

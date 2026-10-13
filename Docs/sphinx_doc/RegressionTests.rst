@@ -674,6 +674,9 @@ solve cannot remove, within the solver tolerance. ``TerrainPoisson_TwoLevelHill`
 leaves up to 1.6e-2 and the walled level up to 7.6e-4, against at most 1e-9 with ``zero_flux``.
 ``TerrainPoisson_TwoPatches`` refines two separate patches on the flanks, so that level 1 is
 solved as two regions (development stopped there with a segmentation fault).
+``TerrainPoisson_MapFactors`` and ``TerrainPoisson_MapFactors_Walls`` run the two decks with
+``erf.test_mapfactor`` (map factors 0.5 and 0.25), where the projection used to leave 75 % of
+the divergence after every solve.
 ``TerrainPoisson_Hill_BoxParity`` (one box on one rank against split boxes) and
 ``TerrainPoisson_Hill_Restart`` check the decomposition and a restart;
 ``TerrainPoisson_DivergenceChecker_SelfTest`` feeds the checker made-up logs on both sides of
