@@ -137,8 +137,8 @@ struct Region
         for (int k = K0; k < K0+NZ; ++k) {
         for (int j = 0; j < NY; ++j) {
         for (int i = 0; i < NX; ++i) {
-            terrpoisson_adotx_zero_flux(i, j, k, ya, xa, axa, aya, aza, dJa, zpa,
-                                        Real(1.0)/DX, Real(1.0)/DY, Real(1.0)/DZ, dlo, dhi, zf);
+            terrpoisson_adotx(i, j, k, ya, xa, axa, aya, aza, dJa, zpa,
+                              Real(1.0)/DX, Real(1.0)/DY, Real(1.0)/DZ, dlo, dhi, zf);
         }}}
     }
 
@@ -258,7 +258,7 @@ TEST(TerrainPoisson, OnlyTheMaskedFaceFluxChanges)
     }}
 }
 
-// terrpoisson_adotx_zero_flux takes the masked faces' fluxes back out of terrpoisson_adotx.
+// terrpoisson_adotx sets the masked faces' fluxes to zero in its own (inlined) stencil.
 // Assembled independently from terrpoisson_flux_x/y/z with those fluxes set to zero, the
 // operator must be the same at every cell, with and without masked faces.
 TEST(TerrainPoisson, ZeroFluxFormMatchesFaceByFaceAssembly)

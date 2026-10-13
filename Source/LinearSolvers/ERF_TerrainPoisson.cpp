@@ -98,9 +98,9 @@ void TerrainPoisson::apply (MultiFab& lhs, MultiFab const& rhs)
     const Dim3 dhi = ubound(m_geom.Domain());
     ParallelFor(rhs, [=] AMREX_GPU_DEVICE (int b, int i, int j, int k)
     {
-        // terrpoisson_adotx, less the flux through the zero-flux faces next to the cell
-        terrpoisson_adotx_zero_flux(i, j, k, y[b], xc[b], axa[b], aya[b], aza[b], dJa[b], zpa[b],
-                                    dxinv[0], dxinv[1], dxinv[2], dlo, dhi, zf);
+        // no flux through the zero-flux faces of the region
+        terrpoisson_adotx(i, j, k, y[b], xc[b], axa[b], aya[b], aza[b], dJa[b], zpa[b],
+                          dxinv[0], dxinv[1], dxinv[2], dlo, dhi, zf);
     });
 }
 

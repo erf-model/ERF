@@ -72,6 +72,9 @@ projection then leaves the normal momentum on those faces unchanged.
 
 The two settings differ only where the terrain slopes at a Neumann face.  Periodic faces
 and Dirichlet (``Outflow`` or ``Open``) faces are treated alike, and where the terrain is
-exactly flat at every Neumann face the results agree bit for bit.  Flat terrain does not use
+exactly flat at every Neumann face the results agree bit for bit.  The top of the domain is
+a Neumann face when it is a wall (``SlipWall``): the usual terrain-following meshes flatten
+the coordinate surfaces to the top, so nothing changes there, but a mesh whose top surface
+is not flat (for example one read from a real-data file) changes there too.  Flat terrain does not use
 this operator at all: ERF treats the mesh as stretched and solves with the hybrid FFT
 solver, so ``erf.terrain_poisson_neumann`` has no effect there.
