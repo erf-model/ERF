@@ -51,3 +51,15 @@ The runs used 8 MPI ranks (macOS, Release build with FFT). The table shows, for 
 - After 600 s of URANS the two operators differ by up to 0.37 m/s in u and 0.95 m/s in v on the refined level (3 % and 5 % relative), in streaks along the flow downstream of the hill and in the lowest 150 m. Theta hardly differs (6e-3 K on the refined level, 299.88-300.14 K in both), because the URANS case is neutral and its divergence error goes into the wind.
 - Level 0 converges either way (worst 8e-9 left).
 - `inputs_les` on one level: 259 solves at 0.155 s each, worst 8e-9 left; theta stays at 300 K. The edges of this terrain are flat to round-off, so the two operators agree there to 1e-14 in the wind after the first projection.
+
+### With AMReX's multigrid (`erf.terrain_poisson_solver = mlmg`)
+
+The same decks run with `erf.terrain_poisson_solver = mlmg` added on the command line, in builds with or without FFT. On the same 8 ranks:
+
+| Deck | Level 1: divergence left (median / worst) | Time per level-1 solve |
+|---|---|---|
+| `inputs_les_two_level` | 3.7e-9 / 1.2e-8 | 0.056 s |
+| `inputs_anel_two_level` | 6.6e-10 / 1.3e-8 | 0.054 s |
+
+- The fields match the FFT-GMRES runs to 1.2e-4 K in theta (LES, 60 s) and to 6.6e-5 m/s in the wind and 4e-5 K in theta (URANS, 600 s; theta 299.6-300.4 K in both), 6e-6 relative: the two solvers solve the same equations and differ by their stopping tolerances.
+- Level 0: 0.19 s per solve with either solver.
