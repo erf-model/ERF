@@ -3247,5 +3247,108 @@ endif()
 endif()
 
 #=============================================================================
+# The terrain Poisson operator at Neumann faces (#4272)
+#
+# FFT-preconditioned GMRES solves the anelastic projection on a terrain-fitted mesh with
+# ERF's own operator.  At a coarse/fine face of a refined level, and at a wall or inflow
+# face of the domain, it used to mirror the solution into the ghost cell only, which leaves
+# the terrain cross term in the flux through the face: on sloping terrain the problem had
+# no solution and the refined level never converged.  The operator now sets the whole flux
+# there to zero.  Tests/test_files/TerrainPoisson_Hill is a 100 m hill whose refined patch has
+# all four coarse/fine faces on its flanks; check_terrain_poisson_divergence.py reads the
+# divergence ERF prints after every solve (erf.mg_v = 1).  Measured on 2 ranks over 6 steps:
+# level 1 leaves at most 9.5e-10 above the mean subtracted from the singular problem, where
+# the earlier operator (development at 905623352) left up to 1.6e-2 (all 25 solves fail).  The same deck boxed in by
+# slip walls on one level (the hill's slopes reach the walls): 1.7e-9 against 7.6e-4 (6 of
+# 13 solves failed).  The general-terrain projection needs the FFT build.
+#=============================================================================
+function(add_test_terrain_poisson_divergence TEST_NAME TEST_FILES_DIR LEVEL)
+    set(oneValueArgs "COMMON_OPTIONS" "MAX_RATIO")
+    cmake_parse_arguments(ADD_TEST_TPD "" "${oneValueArgs}" "" ${ARGN})
+    if(ADD_TEST_TPD_UNPARSED_ARGUMENTS)
+        message(FATAL_ERROR "add_test_terrain_poisson_divergence(${TEST_NAME}): unknown arguments "
+                            "'${ADD_TEST_TPD_UNPARSED_ARGUMENTS}'")
+    endif()
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${CMAKE_CURRENT_SOURCE_DIR}/check_terrain_poisson_divergence.py"
+        "-DLEVEL=${LEVEL}"
+        "-DMAX_RATIO=${ADD_TEST_TPD_MAX_RATIO}"
+        "-DCOMMON_OPTIONS=${ADD_TEST_TPD_COMMON_OPTIONS}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunTerrainPoissonDivergence.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/run/simulation.log")
+endfunction(add_test_terrain_poisson_divergence)
+
+if(ERF_ENABLE_MPI AND NOT WIN32)
+  # The hill on one level, boxed in by slip walls where its slopes reach them
+  set(_tp_walls "amr.max_level=0 geometry.is_periodic=0 0 0 xlo.type=SlipWall xhi.type=SlipWall ylo.type=SlipWall yhi.type=SlipWall geometry.prob_lo=-640 -640 0 geometry.prob_hi=640 640 640 amr.n_cell=16 16 16")
+  # Two separate refined patches on the hill's flanks (two regions on level 1)
+  set(_tp_two_patches "amr.grid_eff=0.99 erf.refinement_indicators=box1 box2 erf.box1.in_box_lo_indices_crse=4 8 0 erf.box1.in_box_hi_indices_crse=11 15 15 erf.box2.max_level=1 erf.box2.in_box_lo_indices_crse=20 16 0 erf.box2.in_box_hi_indices_crse=27 23 15")
+  if(ERF_TEST_PYTHON)
+    # The checker's own verdicts on made-up logs (no ERF run)
+    add_test(NAME TerrainPoisson_DivergenceChecker_SelfTest COMMAND ${CMAKE_COMMAND}
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${CMAKE_CURRENT_SOURCE_DIR}/check_terrain_poisson_divergence.py"
+        "-DWORKING_DIRECTORY=${CMAKE_CURRENT_BINARY_DIR}/test_files/TerrainPoisson_DivergenceChecker_SelfTest"
+        -P ${PROJECT_SOURCE_DIR}/Tests/CheckTerrainPoissonDivergenceSelfTest.cmake)
+    set_tests_properties(TerrainPoisson_DivergenceChecker_SelfTest
+        PROPERTIES
+        TIMEOUT 60
+        PROCESSORS 1
+        LABELS "unit")
+  endif()
+  if(ERF_ENABLE_FFT AND ERF_TEST_PYTHON)
+    # Two levels: the refined level converges
+    add_test_terrain_poisson_divergence(TerrainPoisson_TwoLevelHill TerrainPoisson_Hill 1)
+    # One level in a box of slip walls on the hill's slopes: the wall part of the fix
+    add_test_terrain_poisson_divergence(TerrainPoisson_SlopingWalls TerrainPoisson_Hill 0
+        COMMON_OPTIONS "${_tp_walls}")
+    # Two separate refined patches on the hill's flanks, so level 1 has two regions.  The
+    # projection walked the level's boxes while reading the region's map-factor and area
+    # arrays (numbered over the region's boxes only), and development stopped here with a
+    # segmentation fault; the loops now use the region's own arrays
+    add_test_terrain_poisson_divergence(TerrainPoisson_TwoPatches TerrainPoisson_Hill 1
+        COMMON_OPTIONS "${_tp_two_patches}")
+    # Map factors other than one (erf.test_mapfactor: 0.5 and 0.25): the projection adds the
+    # map-factor scaled fluxes, which change the divergence by m_x m_y times A phi, so the
+    # equation solved is A phi = rhs / (m_x m_y).  Without that division every solve left
+    # 1 - m_x m_y = 75 % of the divergence (1.17e-2 of 1.56e-2 on level 0)
+    add_test_terrain_poisson_divergence(TerrainPoisson_MapFactors TerrainPoisson_Hill 1
+        COMMON_OPTIONS "erf.test_mapfactor=true")
+    add_test_terrain_poisson_divergence(TerrainPoisson_MapFactors_Walls TerrainPoisson_Hill 0
+        COMMON_OPTIONS "${_tp_walls} erf.test_mapfactor=true")
+    # The answer on two levels must not depend on the decomposition (one box on one rank
+    # against level-1 boxes split in x and y on NP ranks; they agree to 1e-14) or on a
+    # restart, which re-makes the solve from the checkpoint
+    set(_tph_snd "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/TerrainPoisson_Hill_BoxParity/input_sounding")
+    add_test_box_parity(TerrainPoisson_Hill_BoxParity TerrainPoisson_Hill "plt00006"
+        COMMON_OPTIONS "${_tph_snd}"
+        REFERENCE_OPTIONS "amr.max_grid_size=1024"
+        SPLIT_OPTIONS "amr.max_grid_size_x=12 amr.max_grid_size_y=8"
+        FCOMPARE_RTOL "1.0e-9")
+    set(_tph_snd "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/TerrainPoisson_Hill_Restart/input_sounding")
+    add_test_restart_parity(TerrainPoisson_Hill_Restart TerrainPoisson_Hill 3 6
+        COMMON_OPTIONS "${_tph_snd}"
+        FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+  endif()
+endif()
+
+#=============================================================================
 # Performance tests
 #=============================================================================
