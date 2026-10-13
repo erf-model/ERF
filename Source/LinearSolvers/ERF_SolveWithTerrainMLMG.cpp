@@ -8,6 +8,8 @@
 #include <AMReX_GMRES_MLMG.H>
 #include <AMReX_MLMG.H>
 #include <AMReX_MLTerrainPoisson.H>
+
+#include <string>
 #endif
 
 using namespace amrex;
@@ -90,11 +92,15 @@ void ERF::solve_with_terrain_mlmg (int lev, const Box& subdomain, MultiFab& rhs,
                                                                                       : LinOpBCType::Neumann;
     }
 
-    // A region one cell wide in x or y is solved as two-dimensional, as solve_with_mlmg does
+    // A region one cell wide in x or y is solved as two-dimensional, as solve_with_mlmg does,
+    // but only where that direction is periodic: MLTerrainPoisson then drops the face fluxes
+    // and the terrain cross terms in it, which are zero only when the one cell is its own
+    // periodic neighbour (its two node columns are the same).  Across a wall, inflow or
+    // outflow face they are not, so such a region keeps all three directions.
     LPInfo info;
-    if (sub_lo.x == sub_hi.x) {
+    if (sub_lo.x == sub_hi.x && is_per[0]) {
         info.setHiddenDirection(0);
-    } else if (sub_lo.y == sub_hi.y) {
+    } else if (sub_lo.y == sub_hi.y && is_per[1]) {
         info.setHiddenDirection(1);
     }
 
@@ -121,7 +127,17 @@ void ERF::solve_with_terrain_mlmg (int lev, const Box& subdomain, MultiFab& rhs,
         gmres.setMaxIters(100);
         gmres.solve(phi, rhs, reltol, abstol);
     } else {
-        mlmg.solve({&phi}, {&rhs}, reltol, abstol);
+        // MLMG stops the run when it does not converge (GMRES carries on with its last
+        // iterate); say which inputs to change instead of AMReX's bare message
+        mlmg.setThrowException(true);
+        try {
+            mlmg.solve({&phi}, {&rhs}, reltol, abstol);
+        } catch (MLMG::error const& err) {
+            amrex::Abort(std::string("erf.terrain_poisson_solver = mlmg at level ") + std::to_string(lev)
+                         + ": " + err.what() + "  Loosen erf.poisson_reltol / erf.poisson_abstol, or use "
+                         + "erf.terrain_poisson_solver = gmres_mlmg or gmres_fft, which continue with "
+                         + "the last iterate.");
+        }
     }
 
     // Minus the terrain-following gradient, zero on the Neumann faces: the convention of

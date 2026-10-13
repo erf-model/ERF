@@ -765,17 +765,20 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                                  "region of a level to make a rectangle");
                 }
                 // Regions of one level that meet across a periodic boundary would each get a
-                // Neumann face there, and the correction could not cross it
+                // Neumann face there, and the correction could not cross it.  They meet when
+                // the other region, shifted by one period, shares a face with this one.
                 for (int dir = 0; dir < 2; ++dir) {
                     if (!geom[lev].isPeriodic(dir)) { continue; }
                     const bool at_lo = (my_region.smallEnd(dir) == domain.smallEnd(dir));
                     const bool at_hi = (my_region.bigEnd(dir)   == domain.bigEnd(dir));
                     if (at_lo == at_hi) { continue; }
+                    const Box grown = amrex::grow(my_region, dir, 1);
                     for (int jsub = 0; jsub < subdomains[lev].size(); ++jsub) {
                         if (jsub == isub) { continue; }
                         const Box other = subdomains[lev][jsub].minimalBox();
-                        if ((at_lo && other.bigEnd(dir)   == domain.bigEnd(dir)) ||
-                            (at_hi && other.smallEnd(dir) == domain.smallEnd(dir))) {
+                        const int period = domain.length(dir);
+                        const Box shifted = amrex::shift(other, dir, at_lo ? -period : period);
+                        if (grown.intersects(shifted)) {
                             amrex::Abort("erf.terrain_poisson_solver = mlmg or gmres_mlmg: a refined level "
                                          "crosses a periodic boundary; refine on one side of it");
                         }
