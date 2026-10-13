@@ -673,6 +673,8 @@ ifeq ($(USE_KOKKOS), TRUE)
 EKAT_CXX := $(CXX)
 ifeq ($(USE_CUDA), TRUE)
     EKAT_CXX := $(EKAT_SOURCE_DIR)/extern/kokkos/bin/nvcc_wrapper
+    NVCC_WRAPPER_DEFAULT_COMPILER ?= $(CXX)
+    export NVCC_WRAPPER_DEFAULT_COMPILER
 endif
 
 # These defaults build the subset of EKAT/Kokkos needed by ERF. Backend choices
