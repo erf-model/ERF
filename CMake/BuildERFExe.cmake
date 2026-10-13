@@ -378,6 +378,22 @@ function(build_erf_lib erf_lib_name)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_WINDFARM)
   endif()
 
+  if(ERF_ENABLE_FIRE)
+    # The fire coupling, atmosphere side, shared by every fire engine
+    target_sources(${erf_lib_name} PRIVATE
+      ${SRC_DIR}/FireCoupling/ERF_FireCoupler.cpp
+      ${SRC_DIR}/FireCoupling/ERF_FireCouplingParams.cpp
+      ${SRC_DIR}/FireCoupling/ERF_FireEngineFactory.cpp
+      ${SRC_DIR}/FireCoupling/ERF_FireGrid.cpp
+      ${SRC_DIR}/FireCoupling/ERF_FirePrerequisites.cpp
+      ${SRC_DIR}/FireCoupling/ERF_FireWindExtract.cpp
+      ${SRC_DIR}/FireCoupling/ERF_FireSurfaceHeight.cpp
+      ${SRC_DIR}/FireCoupling/ERF_FireSmokeEmission.cpp
+    )
+    target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/FireCoupling>)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_ENABLE_FIRE)
+  endif()
+
   if(ERF_BUILD_LIBRARY_ONLY)
     # In library-only superbuild mode, archive extraction + weak amrex_probinit
     # requires a forced reference path (see ERF.cpp/ERF_Prob.cpp link anchor).

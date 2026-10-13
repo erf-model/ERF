@@ -187,6 +187,10 @@ Set build variables in the ``GNUmakefile``:
         - Enables support for Lagrangian particles
         - FALSE
         - TRUE/FALSE
+      * - ``USE_FIRE``
+        - Enables the fire coupling (atmosphere side; fire engines plug into it, see :ref:`sec:FireCoupling`)
+        - FALSE
+        - TRUE/FALSE
       * - ``USE_NOAHMP``
         - Enables Noah-MP land surface model (requires ``USE_NETCDF=TRUE``)
         - FALSE
@@ -558,6 +562,10 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
      - ON/OFF
    * - ``ERF_ENABLE_PARTICLES``
      - Enables support for Lagrangian particles
+     - OFF
+     - ON/OFF
+   * - ``ERF_ENABLE_FIRE``
+     - Enables the fire coupling (atmosphere side; fire engines plug into it, see :ref:`sec:FireCoupling`); adds the smoke scalar to the state
      - OFF
      - ON/OFF
    * - ``ERF_PRECISION``

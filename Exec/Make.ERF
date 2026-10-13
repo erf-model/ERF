@@ -372,6 +372,16 @@ include $(ERF_MOISTURE_SUPERDROPLETSMOIST_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MOISTURE_SUPERDROPLETSMOIST_DIR)
 INCLUDE_LOCATIONS += $(ERF_MOISTURE_SUPERDROPLETSMOIST_DIR)
 
+# The fire coupling (atmosphere side); fire engines plug into it. The define
+# keeps the CMake option's name, ERF_ENABLE_FIRE, which the sources test.
+ifeq ($(USE_FIRE), TRUE)
+    DEFINES += -DERF_ENABLE_FIRE
+    ERF_FIRE_COUPLING_DIR = $(ERF_SOURCE_DIR)/FireCoupling
+    include $(ERF_FIRE_COUPLING_DIR)/Make.package
+    VPATH_LOCATIONS   += $(ERF_FIRE_COUPLING_DIR)
+    INCLUDE_LOCATIONS += $(ERF_FIRE_COUPLING_DIR)
+endif
+
 # If using windfarm parametrization, then compile all models and choose
 # at runtime from the inputs
 ifeq ($(USE_WINDFARM), TRUE)

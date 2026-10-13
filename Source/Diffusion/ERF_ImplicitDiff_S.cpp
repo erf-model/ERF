@@ -3,6 +3,7 @@
 #include "ERF_SolveTridiag.H"
 #include "ERF_GetRhoAlpha.H"
 #include "ERF_GetRhoAlphaForFaces.H"
+#include "ERF_NativeScalarDiffusion.H"
 
 using namespace amrex;
 

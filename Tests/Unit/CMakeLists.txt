@@ -112,6 +112,7 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/ERF_GTestHelloWorld.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ERF_GTestRuntimeStubs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestSurfaceDiagnosticSource.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestMultiScalarSlots.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestSurfaceLayerStress.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestSurfaceLayer.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestMOSTAverage.cpp
@@ -274,6 +275,16 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMRemapping.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/SLM/ERF_GTestSLMInterface.cpp
 )
+# The fire coupling's headers are only on the include path, and its sources
+# only in the library, when the fire coupling is built.
+if(ERF_ENABLE_FIRE)
+  target_sources(${erf_exe_name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/Fire/ERF_GTestFireAnchorLevel.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Fire/ERF_GTestFireAtmInjection.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Fire/ERF_GTestFireCoupler.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Fire/ERF_GTestFirePrecip.cpp
+  )
+endif()
 if(ERF_DIM STREQUAL "3")
   # Motivation: the auxiliary mapped state must reproduce ERF's computational
   # divergence, exact host stage recipes, canonical metric transfers, and ledger.
@@ -336,6 +347,18 @@ erf_register_gtest_suite(${erf_exe_name}
   EXECUTION_TIMEOUT 600
 )
 
+# The fire coupling kernels under the floating-point traps a fire run arms.
+# clang at -O2/-O3 evaluates the unselected arm of `c ? a/b : x`, so a guarded
+# 0/0 or log(0) raises FE_INVALID/FE_DIVBYZERO and kills the run; the plain
+# unit run never arms the traps and cannot see it.
+if(ERF_ENABLE_FIRE)
+  add_test(NAME FireCouplingGTests_FpeTraps
+    COMMAND ${erf_exe_name}
+      --gtest_filter=FireAnchorLevel.*:FireCoupler.*:FirePrecip.*:ExnerTendency.*:HeatInjection.*:SmokeInjection.*
+      amrex.fpe_trap_invalid=1 amrex.fpe_trap_zero=1 amrex.fpe_trap_overflow=1)
+  set_tests_properties(FireCouplingGTests_FpeTraps PROPERTIES LABELS "unit;fire" TIMEOUT 600)
+endif()
+
 add_test(NAME erf_unit_tests_shuffle_repeat
   COMMAND ${erf_exe_name}
     --gtest_shuffle
@@ -356,11 +379,20 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     ${CMAKE_CURRENT_SOURCE_DIR}/ERF_GTestRuntimeStubs.cpp)
   build_erf_exe(erf_sbm_checkpoint_corruptor NO_ERF_MAIN)
 
+  # The fire coupling's smoke scalar adds a component ahead of the moisture
+  # ones in the checkpoint (NSCALARS in ERF_IndexDefines.H); every RunM3Smoke
+  # test passes the count so the runner can insert it in the expected values.
+  set(_sbm_extra_scalars 0)
+  if(ERF_ENABLE_FIRE)
+    math(EXPR _sbm_extra_scalars "${_sbm_extra_scalars} + 1")
+  endif()
+
   add_test(NAME SBM_M3_ZeroCarrier_ERF_Smoke
     COMMAND ${CMAKE_COMMAND}
       -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
       -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_zero_carrier
       -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+      -DEXTRA_SCALAR_COMPONENTS=${_sbm_extra_scalars}
       -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3Smoke.cmake)
   set_tests_properties(SBM_M3_ZeroCarrier_ERF_Smoke PROPERTIES
     LABELS "integration;sbm"
@@ -374,6 +406,7 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
       -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
       -DEXPECTED_SPECTRUM_VALUES=1.50000000000000004e-06,6.00000000000000015e-06,1.80000000000000005e-05,4.80000000000000012e-05,1.00000000000000000e+12,2.00000000000000000e+12,3.00000000000000000e+12,4.00000000000000000e+12,
       -DEXPECTED_CORE_VALUES=1.00000000000000000e+00,2.99999999999999886e+02,0.00000000000000000e+00,0.00000000000000000e+00,0.00000000000000000e+00,7.50000000000000019e-06,6.60000000000000051e-05,
+      -DEXTRA_SCALAR_COMPONENTS=${_sbm_extra_scalars}
       -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3Smoke.cmake)
   set_tests_properties(SBM_M3_ZeroCarrier_2M_ERF_Smoke PROPERTIES
     LABELS "integration;sbm"
@@ -407,6 +440,7 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
       -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
       -DEXPECT_SECOND_CHECKPOINT=true
       -DSKIP_RESTART=true
+      -DEXTRA_SCALAR_COMPONENTS=${_sbm_extra_scalars}
       -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3Smoke.cmake)
   set_tests_properties(SBM_M3_Adaptive_Anelastic_Donor_CFL PROPERTIES
     LABELS "integration;sbm"
@@ -424,6 +458,7 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
       -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
       -DEXPECT_SECOND_CHECKPOINT=true
       -DSKIP_RESTART=true
+      -DEXTRA_SCALAR_COMPONENTS=${_sbm_extra_scalars}
       -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3Smoke.cmake)
   set_tests_properties(SBM_M3_Adaptive_Anelastic_Stretched_Donor_CFL PROPERTIES
     LABELS "integration;sbm"
@@ -464,6 +499,7 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
       -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
       -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_stretched
       -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+      -DEXTRA_SCALAR_COMPONENTS=${_sbm_extra_scalars}
       -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3Smoke.cmake)
   set_tests_properties(SBM_M3_Stretched_Static_Mesh PROPERTIES
     LABELS "integration;sbm"
@@ -483,6 +519,7 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
       -DEXPECTED_SPECTRUM_MAX_VALUES=1.00000128039821617e-06,2.00000256079643235e-06,3.00000384119464895e-06,4.00000512159286470e-06,
       -DEXPECTED_CORE_VALUES=9.99967817714348506e-01,2.99990345314304420e+02,0.00000000000000000e+00,0.00000000000000000e+00,0.00000000000000000e+00,2.99990345314304522e-06,6.99977472400043928e-06,
       -DEXPECTED_CORE_MAX_VALUES=1.00000128039821612e+00,3.00000384119464741e+02,0.00000000000000000e+00,0.00000000000000000e+00,0.00000000000000000e+00,3.00000384119464852e-06,7.00000896278751364e-06,
+      -DEXTRA_SCALAR_COMPONENTS=${_sbm_extra_scalars}
       -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3Smoke.cmake)
   set_tests_properties(SBM_M3_Periodic_StaticTerrain_Mesh PROPERTIES
     LABELS "integration;sbm"
@@ -523,6 +560,7 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
         -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_periodic_advection_${_mode}
         -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
         ${_advection_expected_values}
+        -DEXTRA_SCALAR_COMPONENTS=${_sbm_extra_scalars}
         -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3Smoke.cmake)
     set_tests_properties(SBM_M3_PeriodicAdvection_${_mode} PROPERTIES
       LABELS "integration;sbm"

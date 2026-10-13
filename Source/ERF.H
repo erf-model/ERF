@@ -43,6 +43,7 @@
 #include <ERF_NumericalConstants.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_DataStruct.H>
+#include <ERF_PlotfileSelection.H>
 #include <ERF_BaseStateParams.H>
 #include <ERF_TurbPertStruct.H>
 #include <ERF_InputSoundingData.H>
@@ -70,6 +71,9 @@
 #include "ERF_EulerianMicrophysics.H"
 #include "ERF_LagrangianMicrophysics.H"
 #include "ERF_LandSurface.H"
+#ifdef ERF_ENABLE_FIRE
+#include "ERF_FireCoupler.H"
+#endif
 #include "ERF_Urban.H"
 #include "ERF_TwoStreamRadiation.H"
 
@@ -1094,6 +1098,9 @@ private:
     // Initialize the microphysics object
     void initializeMicrophysics (const int&);
 
+    // Initialize the fire coupling and its engine (erf.fire.enable)
+    void initializeFire (const int&);
+
 #ifdef ERF_USE_WINDFARM
     // Initialize the windfarm object
     void initializeWindFarm (const int&);
@@ -1582,6 +1589,10 @@ private:
     static double last_plot2d_file_time_2;
     static double last_check_file_time;
 
+#ifdef ERF_ENABLE_FIRE
+    static double last_fire_plot_time;   // double: writeNow() takes double&, as for the other plot times
+#endif
+
     amrex::Vector<int> last_subvol_step;
     amrex::Vector<double> last_subvol_time;
 
@@ -1727,11 +1738,9 @@ private:
     amrex::Vector<std::string> plot3d_var_names_2;
     amrex::Vector<std::string> plot2d_var_names_1;
     amrex::Vector<std::string> plot2d_var_names_2;
-    const amrex::Vector<std::string> cons_names     {"density", "rhotheta", "rhoKE", "rhoadv_0",
-                                                     "rhoQ1", "rhoQ2", "rhoQ3",
-                                                     "rhoQ4", "rhoQ5", "rhoQ6",
-                                                     "rhoQ7", "rhoQ8", "rhoQ9",
-                                                     "rhoQ10", "rhoQ11"};
+    // Raw conserved-state names in component order; the list and its
+    // name-to-component map live together in IO/ERF_PlotfileSelection.H
+    const amrex::Vector<std::string> cons_names = erf_plotfile::plot3d_conserved_state_names();
 
     // **************************************************************************************
     // NOTE: The order of variable names here **MUST MATCH THE ORDER** in IO/ERF_Plotfile.cpp
@@ -2009,6 +2018,15 @@ private:
     std::unique_ptr<ReadBndryPlanes>  m_r2d  = nullptr;
     amrex::Vector<std::unique_ptr<SurfaceLayer>>     m_SurfaceLayer;
     amrex::Vector<std::unique_ptr<ForestDrag>> m_forest_drag;
+
+#ifdef ERF_ENABLE_FIRE
+    /// The fire coupling (atmosphere side) and the engine it owns (erf.fire.engine)
+    std::unique_ptr<FireCoupler>      m_fire_coupler = nullptr;
+    FireCouplingParams                m_fire_params;
+    std::string m_fire_plot_file {"plt_fire_"};
+    int         m_fire_plot_int  = -1;
+    amrex::Real m_fire_plot_per  = -1.0;
+#endif
 
     //
     // Holds info for dynamically generated tagging criteria

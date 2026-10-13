@@ -46,6 +46,11 @@ ERF::fill_from_bndryregs (const Vector<MultiFab*>& mfs, const double time)
         MultiFab& mf = *mfs[var_idx];
         const int icomp = 0;
         const int ncomp = mf.nComp();
+        // The ingestion check and the plane read use one slot: for a conserved
+        // component its boundary-condition slot (every passive scalar shares one,
+        // so an ingested scalar plane fills them all, and the planes are stored
+        // by these slots, ReadBndryPlanes::plane_slot), for a velocity its own.
+        const bool is_cons = (var_idx == Vars::cons);
 
         if (var_idx == Vars::xvel) {
            bccomp = BCVars::xvel_bc;
@@ -74,21 +79,19 @@ ERF::fill_from_bndryregs (const Vector<MultiFab*>& mfs, const double time)
 
             ParallelFor(
                 bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                    int bc_comp = (icomp+n >= RhoScalar_comp && icomp+n < RhoScalar_comp+NSCALARS) ?
-                                   BCVars::RhoScalar_bc_comp : icomp+n;
+                    const int bc_comp = is_cons ? cons_bc_comp(icomp+n) : bccomp+n;
                     if (bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir_ingested) {
                         int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
                         int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-                        dest_arr(i,j,k,icomp+n) = bdatxlo(dom_lo.x-1,jb,kb,bccomp+n);
+                        dest_arr(i,j,k,icomp+n) = bdatxlo(dom_lo.x-1,jb,kb,bc_comp);
                     }
                 },
                 bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                    int bc_comp = (icomp+n >= RhoScalar_comp && icomp+n < RhoScalar_comp+NSCALARS) ?
-                                   BCVars::RhoScalar_bc_comp : icomp+n;
+                    const int bc_comp = is_cons ? cons_bc_comp(icomp+n) : bccomp+n;
                     if (bc_ptr[bc_comp].hi(0) == ERFBCType::ext_dir_ingested) {
                         int jb = std::min(std::max(j,dom_lo.y),dom_hi.y);
                         int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-                        dest_arr(i,j,k,icomp+n) = bdatxhi(dom_hi.x+1,jb,kb,bccomp+n);
+                        dest_arr(i,j,k,icomp+n) = bdatxhi(dom_hi.x+1,jb,kb,bc_comp);
                     }
                 }
             );
@@ -103,21 +106,19 @@ ERF::fill_from_bndryregs (const Vector<MultiFab*>& mfs, const double time)
 
             ParallelFor(
                bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                    int bc_comp = (icomp+n >= RhoScalar_comp && icomp+n < RhoScalar_comp+NSCALARS) ?
-                                   BCVars::RhoScalar_bc_comp : icomp+n;
+                    const int bc_comp = is_cons ? cons_bc_comp(icomp+n) : bccomp+n;
                     if (bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir_ingested) {
                         int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
                         int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-                        dest_arr(i,j,k,icomp+n) = bdatylo(ib,dom_lo.y-1,kb,bccomp+n);
+                        dest_arr(i,j,k,icomp+n) = bdatylo(ib,dom_lo.y-1,kb,bc_comp);
                     }
                 },
                 bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                    int bc_comp = (icomp+n >= RhoScalar_comp && icomp+n < RhoScalar_comp+NSCALARS) ?
-                                   BCVars::RhoScalar_bc_comp : icomp+n;
+                    const int bc_comp = is_cons ? cons_bc_comp(icomp+n) : bccomp+n;
                     if (bc_ptr[bc_comp].hi(1) == ERFBCType::ext_dir_ingested) {
                         int ib = std::min(std::max(i,dom_lo.x),dom_hi.x);
                         int kb = std::min(std::max(k,dom_lo.z),dom_hi.z);
-                        dest_arr(i,j,k,icomp+n) = bdatyhi(ib,dom_hi.y+1,kb,bccomp+n);
+                        dest_arr(i,j,k,icomp+n) = bdatyhi(ib,dom_hi.y+1,kb,bc_comp);
                     }
                 }
             );

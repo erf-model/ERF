@@ -2949,8 +2949,10 @@ Lateral Boundary Nudging
 |                               | boundary conditions are used with ``init_type`` =        |                    |                            |
 |                               | ``WRFInput``                                             |                    |                            |
 +-------------------------------+----------------------------------------------------------+--------------------+----------------------------+
-| **erf.use_wrf_bdy_qc_qi**     | ingest cloud water and cloud ice from ``wrfinput`` and   | Boolean            | false                      |
-|                               | ``wrfbdy``; requires an active moisture model and real   |                    |                            |
+| **erf.use_wrf_bdy_qc_qi**     | fill the lateral ghost cells of the hydrometeors from    | Boolean            | false                      |
+|                               | ``wrfbdy`` (cloud water and ice; also rain, snow and     |                    |                            |
+|                               | graupel, see Real Domain BCs) and require them in        |                    |                            |
+|                               | ``wrfinput``; requires an active moisture model and real |                    |                            |
 |                               | boundary conditions with ``init_type`` = ``WRFInput``    |                    |                            |
 +-------------------------------+----------------------------------------------------------+--------------------+----------------------------+
 
@@ -2958,8 +2960,9 @@ For WRF real boundaries, moisture nudging type 0 relaxes only ``qv`` toward
 ``QVAPOR``. Type 1 applies a ``qv`` tendency based on ERF ``qv+qc+qi`` versus
 WRF ``QVAPOR``. Type 2 relaxes ``qv`` toward ``QVAPOR`` and active ``qc``/``qi``
 toward zero with the existing latent-heat terms. Type 3 directly relaxes active
-``qv``, ``qc``, and ``qi`` toward ``QVAPOR``, ``QCLOUD``, and ``QICE`` without
-an added latent-heat term. Type 3 requires ``erf.use_wrf_bdy_qc_qi = true``.
+``qv``, ``qc``, and ``qi`` toward ``QVAPOR``, ``QCLOUD``, and ``QICE`` (and
+``qr``, ``qs`` and ``qg`` toward their own fields for a model that carries all
+five species) without an added latent-heat term. Type 3 requires ``erf.use_wrf_bdy_qc_qi = true``.
 
 .. _sec:CustomForcingInputs:
 
@@ -3182,7 +3185,9 @@ List of Parameters
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.bndry_input_var_names**         | Variables to read; any of velocity, density,             | List of strings    | None (no         |
 |                                       | temperature, theta, scalar, qv, qc and ke. An unknown    |                    | variables)       |
-|                                       | name aborts at start-up                                  |                    |                  |
+|                                       | name aborts at start-up. The passive scalars share one   |                    |                  |
+|                                       | boundary condition, so with more than one (the fire      |                    |                  |
+|                                       | coupling's smoke) ``scalar`` fills all of them           |                    |                  |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.in_rad**                        | width, in cells, of the region inside the domain         | Integer >= 0       | 1                |
 |                                       | boundary from which the boundary planes are written and  |                    |                  |
@@ -5273,6 +5278,82 @@ Evaluation is a trilinear interpolation of that sampled field, so the building
 geometry is resolved at the finest level's cell size; points outside the sampled
 region are treated as fluid.  Very large or highly detailed meshes will
 therefore be limited by the mesh resolution rather than by the STL itself.
+
+.. _sec:InputsFire:
+
+Fire Coupling
+=============
+
+These inputs configure the atmosphere side of the fire coupling described in
+:ref:`sec:FireCoupling`; they need a build with ``ERF_ENABLE_FIRE=ON``
+(``USE_FIRE = TRUE`` with GNU make). The ``erf.fire`` keys are read once at
+start-up by ``FireCouplingParams::read()``, which stops the run on a value
+outside the range given here, naming the key; the three plotfile keys are read
+from ``erf`` with the other output keys. A fire engine reads its own inputs
+besides.
+
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| Parameter                                      | Definition                                                 | Acceptable Values              | Default                |
++================================================+============================================================+================================+========================+
+| **erf.fire.enable**                            | Run a fire (needs a fire engine built in, see              | Boolean                        | false                  |
+|                                                | :ref:`sec:FireCoupling`)                                   |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.engine**                            | The fire engine behind the coupling, one of the engines    | String                         | the first built in     |
+|                                                | built in (ERF_FireEngineFactory.cpp); with none built      |                                |                        |
+|                                                | in, setting it stops the run                               |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.fire_debug**                        | Print per-step coupling diagnostics                        | Boolean                        | false                  |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.grid_ratio**                        | Fire cells per atmospheric cell in x and y; every x,y box  | Integer >= 1                   | 5                      |
+|                                                | length on the fire grid's level must divide by it          |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.anchor_level**                      | AMR level whose grid the fire grid refines; -1 is the      | -1, or 0 to the finest level   | -1                     |
+|                                                | finest level at start-up. Above level 0 the level must     |                                |                        |
+|                                                | keep its boxes (erf.regrid_int = -1) and cover one         |                                |                        |
+|                                                | rectangle of full-height columns; a level below the        |                                |                        |
+|                                                | finest prints a warning                                    |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.coupling_type**                     | Wind used by the fire and whether its heat is injected     | "passive", "lagged",           | "lagged"               |
+|                                                |                                                            | "synchronous"                  |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.heat_flux_alfg**                    | E-folding height of the injected heat [m]                  | Real > 0                       | 45.0                   |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.fire_atm_feedback**                 | Multiplier on the injected fluxes; 0 is one-way coupling   | Real >= 0                      | 1.0                    |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.inject_latent**                     | Inject the latent flux into the vapour equation when       | Boolean                        | true                   |
+|                                                | moisture is active                                         |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.source_mode**                       | Replace the theta and vapour source slots or add to the    | "overwrite", "add"             | "overwrite"            |
+|                                                | rebuilt stage source. Left at the default with another     |                                |                        |
+|                                                | theta source on the fire level (radiation, Rayleigh        |                                |                        |
+|                                                | damping of T, custom forcing or subsidence, slow-step      |                                |                        |
+|                                                | immersed forcing) the run stops: set it explicitly         |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.heat_open_fraction**                | Place the injected heat by the open fraction and roof      | Boolean                        | false                  |
+|                                                | height the engine reports per column                       |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.heat_tendency_density**             | Multiply the injected tendency by the air density          | Boolean                        | false                  |
+|                                                | (injects rho times the flux; for comparison with runs made |                                |                        |
+|                                                | in that form)                                              |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.heat_tendency_exner**               | Divide the rho theta tendency by the cell's Exner function | Boolean                        | false                  |
+|                                                | so the column enthalpy integrates to the fire flux; false  |                                |                        |
+|                                                | (WRF-SFIRE's form) injects Pi times the flux               |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.smoke_enable**                      | Inject the smoke tracer (needs erf.transport_scalar =      | Boolean                        | false                  |
+|                                                | true)                                                      |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.smoke_emission_factor**             | Smoke mass per unit fuel burned [kg/kg]; needs             | Real >= 0                      | 0.02                   |
+|                                                | ``erf.fire.smoke_enable = true`` (set without it the run   |                                |                        |
+|                                                | stops, or warns when ``smoke_enable = false`` or           |                                |                        |
+|                                                | ``erf.fire.enable = false`` is given)                      |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire_plot_file**                         | Prefix of the engine's fire plotfile                       | String                         | ``plt_fire_``          |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire_plot_int**                          | Steps between fire plotfiles; <= 0 disables                | Integer                        | -1                     |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire_plot_per**                          | Seconds between fire plotfiles; <= 0 disables              | Real                           | -1.0                   |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
 
 .. _inputs-particles:
 
