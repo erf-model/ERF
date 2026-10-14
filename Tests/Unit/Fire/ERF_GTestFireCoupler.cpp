@@ -360,8 +360,14 @@ void LatentOnlyFluxInjectsWaterWithoutHeating ()
     const IntVect ghost(5, 5, 0);
     EXPECT_EQ(cpl->get_Q_atm_prev()->norm0(0, 1, ghost), 0.0_rt);
     EXPECT_NEAR(cpl->get_Q_lat_atm_prev()->min(0), QLAT, REL * QLAT);
-    EXPECT_NEAR(cpl->get_Q_lat_atm_prev()->norm0(0, 1, ghost), QLAT, REL * QLAT)
-        << "latent ghost cells must be filled even without sensible heat";
+    // A nonzero maximum cannot establish that *all* ghost cells were filled:
+    // subtract the uniform expected flux over valid cells and the full halo.
+    const MultiFab& latent_field = *cpl->get_Q_lat_atm_prev();
+    MultiFab latent_residual(latent_field.boxArray(), latent_field.DistributionMap(), 1, ghost);
+    latent_residual.setVal(QLAT);
+    MultiFab::Subtract(latent_residual, latent_field, 0, 0, 1, ghost);
+    EXPECT_LE(latent_residual.norm0(0, 1, ghost), REL * QLAT)
+        << "latent valid and ghost cells must all contain the prescribed flux";
 
     // Native MultiFab reductions work on CPU/GPU and across MPI ranks.
     auto src = sources(*cpl, *lev, 0.0_rt);
