@@ -79,7 +79,7 @@ void ExnerTendency_TheColumnEnthalpyIsTheSurfaceFlux ()
                                      false, false, nullptr, nullptr, false, false, true);
 
     const Real exner = std::pow(p / p_0, R_d / Cp_d);
-    constexpr Real Cp_fire = 1004.64;   // the coupling's c_p
+    constexpr Real Cp_fire = Cp_d;   // the same dry-air c_p used by ERF
     EXPECT_NEAR(exner, 0.9546, 5.0e-4);
     Real err_ratio = 0.0, sum_off = 0.0, sum_on = 0.0;
     for (MFIter mfi(src_on); mfi.isValid(); ++mfi) {
@@ -186,7 +186,7 @@ void HeatInjection_TheColumnGetsTheFluxOnAStretchedGrid (Real r)
     }
     apply_fire_tendency_to_cc_source(src, Q, nullptr, zcc, &znd, S, c.geom, alfg, 1.0_rt, false,
                                      false, false, nullptr, nullptr, false, false, false);
-    constexpr Real Cp_fire = 1004.64;   // the coupling's c_p
+    constexpr Real Cp_fire = Cp_d;   // the same dry-air c_p used by ERF
     // the profile's share inside the column: z from the first cell centre, the
     // top cell closed one geometry dz above its centre (10 m)
     auto zc = [=] (int k) {

@@ -224,7 +224,8 @@ inline void apply_fire_tendency_to_cc_source(
     if (alfg <= Real(0.0)) { return; }
     if (feedback <= Real(0.0)) { return; }
 
-    constexpr Real Cp_fire = 1004.64;
+    // Source conversion must use the same dry-air heat capacity as ERF's EOS.
+    constexpr Real Cp_fire = Cp_d;
     constexpr Real L_V  = 2.501e6;
     // Exner function of the cell from its rho theta (erf.fire.heat_tendency_exner):
     // heating q [W/m3] gives d(theta)/dt = q / (rho cp Pi), so the rho theta
