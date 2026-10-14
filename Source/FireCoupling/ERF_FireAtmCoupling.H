@@ -192,7 +192,7 @@ amrex::Real fire_cell_thickness (amrex::Real z_lo, amrex::Real z_hi, amrex::Real
 //   -(1/Cp) dQ/dz, for the lowest cell on a uniform grid; with the density
 //   factor the tendency carries an extra rho, with the Exner factor 1/Pi)
 //
-// With Q_max=14330 W/m2, Cp=1004.64, alfg=45 m, dz=5 m:
+// With Q_max=14330 W/m2, Cp=Cp_d (1004.5 J/(kg K)), alfg=45 m, dz=5 m:
 //   expected_surface_max ~ 0.30 kg K m^-3 s^-1
 //
 // z_phys_nd, the nodal heights of the level, gives each cell's faces: its
