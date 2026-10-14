@@ -264,10 +264,14 @@ ReadBndryPlanes::ReadBndryPlanes (const Geometry& geom, const Real& rdOcp_in)
         }
         // The passive scalars share one boundary condition, so an ingested scalar
         // plane fills every one of them; the writer saves only the first.
-        if (is_scalar_read && NSCALARS > 1) {
-            Print() << "WARNING: erf.bndry_input_var_names reads \"scalar\": the plane of the first "
-                    << "passive scalar (rhoadv_0) fills all " << NSCALARS << " passive scalars at the "
-                    << "ingested faces, the extra ones (such as dust or smoke) included" << std::endl;
+        // (if constexpr: with one scalar the body is compiled out, so clang's
+        // -Wunreachable-code does not flag it.)
+        if constexpr (NSCALARS > 1) {
+            if (is_scalar_read) {
+                Print() << "WARNING: erf.bndry_input_var_names reads \"scalar\": the plane of the first "
+                        << "passive scalar (rhoadv_0) fills all " << NSCALARS << " passive scalars at the "
+                        << "ingested faces, the extra ones (such as dust or smoke) included" << std::endl;
+            }
         }
     }
 
