@@ -494,6 +494,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Diagnostics/ERF_SeaLevelPressure.cpp
        ${SRC_DIR}/IO/ERF_WriteSubvolume.cpp
        ${SRC_DIR}/IO/ERF_WriteJobInfo.cpp
+       ${SRC_DIR}/IO/ERF_NoahMPGitHash.cpp
        ${SRC_DIR}/IO/ERF_ConsoleIO.cpp
        ${SRC_DIR}/IO/ERF_ReadFromERFBdy.cpp
        ${SRC_DIR}/IO/ERF_WriteERFBdy.cpp
@@ -625,6 +626,29 @@ function(build_erf_lib erf_lib_name)
 
   include(AMReXBuildInfo)
   generate_buildinfo(${erf_lib_name} ${PROJECT_SOURCE_DIR})
+
+  # AMReX's generate_buildinfo() hard-codes exactly two hash slots (the app and
+  # AMReX), so the Noah-MP hash is captured here instead and compiled into
+  # ERF_NoahMPGitHash.cpp alone -- scoping the definition to that one file keeps
+  # a dirty Noah-MP working tree from rebuilding all of ERF. Like the other two
+  # hashes under CMake, this is read at configure time, so it refreshes on the
+  # next cmake run. NOAHMP_HOME is NOT used here: under CMake it points at
+  # Submodules/Noah-MP/drivers/erf, while git describe needs the submodule root.
+  if(ERF_ENABLE_NOAHMP)
+    find_package(Git QUIET)
+    set(ERF_NOAHMP_HASH "")
+    if(GIT_FOUND AND EXISTS ${PROJECT_SOURCE_DIR}/Submodules/Noah-MP/.git)
+      execute_process(
+        COMMAND ${GIT_EXECUTABLE} describe --abbrev=12 --dirty --always --tags
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/Submodules/Noah-MP
+        OUTPUT_VARIABLE ERF_NOAHMP_HASH
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET)
+    endif()
+    set_source_files_properties(${SRC_DIR}/IO/ERF_NoahMPGitHash.cpp PROPERTIES
+      COMPILE_DEFINITIONS "ERF_NOAHMP_GIT_HASH=\"${ERF_NOAHMP_HASH}\"")
+  endif()
+
   if(AMREX_C_SCRIPTS_DIR)
     target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${AMREX_C_SCRIPTS_DIR}>)
   elseif(ERF_USE_INTERNAL_AMREX)

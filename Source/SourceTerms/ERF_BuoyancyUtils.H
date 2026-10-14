@@ -5,16 +5,16 @@
 #include <ERF_Constants.H>
 
 /**
- * Compute dry anelastic buoyancy.
+ * Compute dry anelastic vertical perturbational gravitational force density [N/m^3].
  *
  * @param[in] i x-index
  * @param[in] j y-index
  * @param[in] k z-index
  * @param[in] grav_gpu Gravity
- * @param[in] r0_arr Reference density field
+ * @param[in] r0_arr Dry reference density field
  * @param[in] th0_arr Reference potential temperature field
  * @param[in] cell_data State data FAB
- * @return Dry anelastic buoyancy value
+ * @return Dry anelastic vertical force density [N/m^3]
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -25,7 +25,7 @@ buoyancy_dry_anelastic (int& i, int& j, int& k,
                         const amrex::Array4<const amrex::Real>& th0_arr,
                         const amrex::Array4<const amrex::Real>& cell_data)
 {
-    // Note: this is the same term as the moist anelastic buoyancy when qv = qc = qt = 0
+    // The dry anelastic branch averages theta and theta0 before forming their ratio.
     amrex::Real theta_d_hi = cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp);
     amrex::Real theta_d_lo = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
 
@@ -37,7 +37,7 @@ buoyancy_dry_anelastic (int& i, int& j, int& k,
 }
 
 /**
- * Compute dry anelastic buoyancy with embedded boundary handling.
+ * Compute dry anelastic force density with embedded boundary handling.
  *
  * @param[in] i x-index
  * @param[in] j y-index
@@ -47,7 +47,7 @@ buoyancy_dry_anelastic (int& i, int& j, int& k,
  * @param[in] th0_arr Reference potential temperature field
  * @param[in] cell_data State data FAB
  * @param[in] flag EB cell flags
- * @return Dry anelastic buoyancy value
+ * @return Dry anelastic vertical force density [N/m^3]
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -95,72 +95,17 @@ buoyancy_dry_anelastic_eb (int& i, int& j, int& k,
 }
 
 /**
- * Compute moist anelastic buoyancy.
+ * Compute the exact total-density-perturbation gravitational force density [N/m^3].
  *
  * @param[in] i x-index
  * @param[in] j y-index
  * @param[in] k z-index
  * @param[in] grav_gpu Gravity
- * @param[in] r0_arr Reference density field
- * @param[in] th0_arr Reference potential temperature field
+ * @param[in] r0_arr Dry reference density field
  * @param[in] qv0_arr Reference water vapor mixing ratio field
- * @param[in] cell_data State data FAB
+ * @param[in] cell_data Conserved state FAB
  * @param[in] qt_arr Total water mixing ratio field
- * @return Moist anelastic buoyancy value
- */
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE
-amrex::Real
-buoyancy_moist_anelastic (int& i, int& j, int& k,
-                          const amrex::Real& grav_gpu,
-                          const amrex::Array4<const amrex::Real>&  r0_arr,
-                          const amrex::Array4<const amrex::Real>& th0_arr,
-                          const amrex::Array4<const amrex::Real>& qv0_arr,
-                          const amrex::Array4<const amrex::Real>& cell_data,
-                          const amrex::Array4<const amrex::Real>& qt_arr)
-{
-    amrex::Real Fact = (one - RvoRd); // ~= -amrex::Real(0.61)
-
-    amrex::Real th_d_hi  = cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp);
-    amrex::Real th_d_lo  = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
-
-    amrex::Real qv_hi    = cell_data(i,j,k  ,RhoQ1_comp)   /cell_data(i,j,k  ,Rho_comp);
-    amrex::Real qv_lo    = cell_data(i,j,k-1,RhoQ1_comp)   /cell_data(i,j,k-1,Rho_comp);
-
-    amrex::Real qt_hi    = qt_arr(i,j,k  ) - qv_hi;
-    amrex::Real th_v_hi  = th_d_hi * (one - Fact*qt_hi - RvoRd*qt_hi);
-
-    amrex::Real qt_lo    = qt_arr(i,j,k-1) - qv_lo;
-    amrex::Real th_v_lo  = th_d_lo * (one - Fact*qt_lo - RvoRd*qt_lo);
-
-    amrex::Real th_v0_hi = th0_arr(i,j,k  ) * (one - Fact*qv0_arr(i,j,k  ));
-    amrex::Real th_v0_lo = th0_arr(i,j,k-1) * (one - Fact*qv0_arr(i,j,k-1));
-
-    amrex::Real qv0_hi   = qv0_arr(i,j,k  );
-    amrex::Real qv0_lo   = qv0_arr(i,j,k-1);
-
-    amrex::Real q_hi = (qv_hi-qv0_hi) - qt_hi + (th_v_hi - th_v0_hi) / th_v0_hi;
-    amrex::Real q_lo = (qv_lo-qv0_lo) - qt_lo + (th_v_lo - th_v0_lo) / th_v0_lo;
-
-    amrex::Real qavg = myhalf * (q_hi + q_lo);
-
-    amrex::Real r0avg = myhalf * (r0_arr(i,j,k) + r0_arr(i,j,k-1));
-
-    return (-r0avg * grav_gpu * qavg);
-}
-
-/**
- * Compute buoyancy based on density perturbations.
- *
- * @param[in] i x-index
- * @param[in] j y-index
- * @param[in] k z-index
- * @param[in] grav_gpu Gravity
- * @param[in] r0_arr Reference density field
- * @param[in] qv0_arr Reference water vapor mixing ratio field
- * @param[in] cell_data State data FAB
- * @param[in] qt_arr Total water mixing ratio field
- * @return Buoyancy value
+ * @return Vertical perturbational gravitational force density [N/m^3]
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -180,7 +125,7 @@ buoyancy_rhopert (int& i, int& j, int& k,
 }
 
 /**
- * Compute buoyancy based on density perturbations with embedded boundary handling.
+ * Compute type-1 total-density-perturbation force density with EB handling.
  *
  * @param[in] i x-index
  * @param[in] j y-index
@@ -191,7 +136,7 @@ buoyancy_rhopert (int& i, int& j, int& k,
  * @param[in] cell_data State data FAB
  * @param[in] qt_arr Total water mixing ratio field
  * @param[in] flag EB cell flags
- * @return Buoyancy value
+ * @return Vertical perturbational gravitational force density [N/m^3]
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -238,25 +183,24 @@ buoyancy_rhopert_eb (int& i, int& j, int& k,
 }
 
 /**
- * Compute dry buoyancy based on temperature perturbations.
+ * Compute approximate dry temperature-perturbation force density [N/m^3].
+ * Compressible selectors 2 and 3 both dispatch to this implementation.
  *
  * @param[in] i x-index
  * @param[in] j y-index
  * @param[in] k z-index
  * @param[in] grav_gpu Gravity
- * @param[in] lRdoCp Gas constant ratio (unused)
  * @param[in] r0_arr Reference density field
  * @param[in] p0_arr Reference pressure field
  * @param[in] th0_arr Reference potential temperature field
  * @param[in] cell_data State data FAB
- * @return Dry buoyancy value
+ * @return Approximate dry temperature force density [N/m^3]
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 buoyancy_dry_Tpert (int& i, int& j, int& k,
                     const amrex::Real& grav_gpu,
-                    const amrex::Real& /*lRdoCp*/,
                     const amrex::Array4<const amrex::Real>& r0_arr,
                     const amrex::Array4<const amrex::Real>& p0_arr,
                     const amrex::Array4<const amrex::Real>& th0_arr,
@@ -278,7 +222,7 @@ buoyancy_dry_Tpert (int& i, int& j, int& k,
 }
 
 /**
- * Compute dry buoyancy based on potential temperature perturbations.
+ * Compute approximate dry potential-temperature force density [N/m^3].
  *
  * @param[in] i x-index
  * @param[in] j y-index
@@ -287,7 +231,7 @@ buoyancy_dry_Tpert (int& i, int& j, int& k,
  * @param[in] r0_arr Reference density field
  * @param[in] th0_arr Reference potential temperature field
  * @param[in] cell_prim Primitive variable FAB
- * @return Dry buoyancy value
+ * @return Approximate dry potential-temperature force density [N/m^3]
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -308,14 +252,14 @@ buoyancy_dry_Thpert (int& i, int& j, int& k,
 }
 
 /**
- * Compute moist buoyancy based on temperature perturbations.
+ * Compute approximate moist temperature-perturbation force density [N/m^3].
+ * Compressible selectors 2 and 3 both dispatch to this implementation.
  *
  * @param[in] i x-index
  * @param[in] j y-index
  * @param[in] k z-index
  * @param[in] n_qstate Number of moisture species
  * @param[in] grav_gpu Gravity
- * @param[in] lRdoCp Gas constant ratio (unused)
  * @param[in] r0_arr Reference density field
  * @param[in] th0_arr Reference potential temperature field
  * @param[in] qv0_arr Reference water vapor mixing ratio field
@@ -323,7 +267,7 @@ buoyancy_dry_Thpert (int& i, int& j, int& k,
  * @param[in] cell_prim Primitive variable FAB
  * @param[in] cell_data State data FAB
  * @param[in] qt_arr Total water mixing ratio field
- * @return Moist buoyancy value
+ * @return Approximate moist temperature force density [N/m^3]
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -331,7 +275,6 @@ amrex::Real
 buoyancy_moist_Tpert (int& i, int& j, int& k,
                       const int& n_qstate,
                       const amrex::Real& grav_gpu,
-                      const amrex::Real& /*lRdoCp*/,
                       const amrex::Array4<const amrex::Real>& r0_arr,
                       const amrex::Array4<const amrex::Real>& th0_arr,
                       const amrex::Array4<const amrex::Real>& qv0_arr,
@@ -363,7 +306,7 @@ buoyancy_moist_Tpert (int& i, int& j, int& k,
 }
 
 /**
- * Compute moist buoyancy based on potential temperature perturbations.
+ * Compute approximate moist potential-temperature force density [N/m^3].
  *
  * @param[in] i x-index
  * @param[in] j y-index
@@ -375,7 +318,7 @@ buoyancy_moist_Tpert (int& i, int& j, int& k,
  * @param[in] qv0_arr Reference water vapor mixing ratio field
  * @param[in] cell_prim Primitive variable FAB
  * @param[in] qt_arr Total water mixing ratio field
- * @return Moist buoyancy value
+ * @return Approximate moist potential-temperature force density [N/m^3]
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -411,45 +354,5 @@ buoyancy_moist_Thpert (int& i, int& j, int& k,
     return ( -r0avg * grav_gpu * qavg);
 }
 
-// **************************************************************************************
-// Routines below this line are not currently used
-// **************************************************************************************
-
-/**
- * Compute dry anelastic buoyancy using temperature.
- *
- * @param[in] i x-index
- * @param[in] j y-index
- * @param[in] k z-index
- * @param[in] grav_gpu Gravity
- * @param[in] RdoCp Gas constant ratio (unused)
- * @param[in] r0_arr Reference density field
- * @param[in] p0_arr Reference pressure field
- * @param[in] cell_data State data FAB
- * @return Dry anelastic buoyancy value
- */
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE
-amrex::Real
-buoyancy_dry_anelastic_T (int& i, int& j, int& k,
-                          const amrex::Real& grav_gpu,
-                          const amrex::Real& /*RdoCp*/,
-                          const amrex::Array4<const amrex::Real>& r0_arr,
-                          const amrex::Array4<const amrex::Real>& p0_arr,
-                          const amrex::Array4<const amrex::Real>& cell_data)
-{
-    amrex::Real rt0_hi = getRhoThetagivenP(p0_arr(i,j,k));
-    amrex::Real  t0_hi = getTgivenPandTh(p0_arr(i,j,k), rt0_hi/r0_arr(i,j,k), RdoCp);
-    amrex::Real   t_hi = getTgivenPandTh(p0_arr(i,j,k), cell_data(i,j,k,RhoTheta_comp)/r0_arr(i,j,k), RdoCp);
-    amrex::Real   q_hi  = (t_hi-t0_hi)/t0_hi;
-
-    amrex::Real rt0_lo = getRhoThetagivenP(p0_arr(i,j,k-1));
-    amrex::Real  t0_lo = getTgivenPandTh(p0_arr(i,j,k-1), rt0_lo/r0_arr(i,j,k-1), RdoCp);
-    amrex::Real   t_lo = getTgivenPandTh(p0_arr(i,j,k-1), cell_data(i,j,k-1,RhoTheta_comp)/r0_arr(i,j,k-1), RdoCp);
-    amrex::Real   q_lo = (t_lo-t0_lo)/t0_lo;
-
-    amrex::Real r0_q_avg = myhalf * (r0_arr(i,j,k) * q_hi + r0_arr(i,j,k-1) * q_lo);
-    return (-r0_q_avg * grav_gpu);
-}
 
 #endif

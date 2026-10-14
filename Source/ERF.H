@@ -813,6 +813,10 @@ public:
     void init_ibseb ();
     void ibseb_check_refined_levels () const;
     void ibseb_check_sun_matches_two_stream () const;
+    void ibseb_check_two_stream_provider () const;
+    [[nodiscard]] bool ibseb_after_radiation () const {
+        return ibseb_params.enable && ibseb_params.radiation == "two_stream";
+    }
     void ibseb_set_two_stream_sun (int lev, amrex::Real time);
     void ibseb_write_checkpoint (const std::string& checkpointname, int lev) const;
     void ibseb_report (int nstep, amrex::Real time);

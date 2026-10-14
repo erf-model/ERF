@@ -939,13 +939,14 @@ ERF::init_zphys (int lev, double elapsed_time)
 
         //
         // Save the interpolated mesh before the fine terrain overwrites the k=0 slab,
-        // since the transform is expressed relative to it
+        // since the transform is expressed relative to it.  The ghost nodes are
+        // included because the transform corrects the ghost columns as well.
         //
         MultiFab z_phys_interp;
         if (fine_terrain == FineTerrain::Transform) {
             z_phys_interp.define(z_phys_nd[lev]->boxArray(), z_phys_nd[lev]->DistributionMap(),
                                  1, z_phys_nd[lev]->nGrowVect());
-            MultiFab::Copy(z_phys_interp, *z_phys_nd[lev], 0, 0, 1, 0); // valid region only
+            MultiFab::Copy(z_phys_interp, *z_phys_nd[lev], 0, 0, 1, z_phys_nd[lev]->nGrowVect());
         }
 
         if (fine_terrain != FineTerrain::Interpolate) {
@@ -1074,7 +1075,8 @@ ERF::remake_zphys (int lev, Real time, std::unique_ptr<MultiFab>& temp_zphys_nd)
             if (fine_terrain == FineTerrain::Transform) {
                 z_phys_interp.define(temp_zphys_nd->boxArray(), temp_zphys_nd->DistributionMap(),
                                      1, temp_zphys_nd->nGrowVect());
-                MultiFab::Copy(z_phys_interp, *temp_zphys_nd, 0, 0, 1, 0); // valid region only
+                // Ghost nodes included: the transform corrects the ghost columns too
+                MultiFab::Copy(z_phys_interp, *temp_zphys_nd, 0, 0, 1, temp_zphys_nd->nGrowVect());
                 fill_terrain_surface(lev, *temp_zphys_nd, time);
             }
 

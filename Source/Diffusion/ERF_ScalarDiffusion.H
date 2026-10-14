@@ -9,6 +9,7 @@
 #include "ERF_DiffStruct.H"
 #include "ERF_NumericalConstants.H"
 #include "ERF_TerrainMetrics.H"
+#include "ERF_TerrainImplicitMetric.H"
 
 /**
  * Coefficients and state-layout mapping at the native ERF adapter boundary.
@@ -1471,6 +1472,85 @@ ApplyScalarDiffusionFluxDivergence_S (
       (raw_Fz(i, j, k + 1, flux_comp) - raw_Fz(i, j, k, flux_comp)) * dzk_inv;
     rhs(i, j, k, rhs_comp) -= stateContrib;
   });
+}
+
+/**
+ * erf.implicit_terrain_metric: the implicit vertical solve also takes the compact
+ * terrain-metric flux -K_h M_s dphi/dz (ERF_TerrainImplicitMetric.H) on the interior
+ * zeta faces, so add implicit_fac * K_h M_s dphi/dz to the explicit raw F_z there.  K_h
+ * is the horizontal coefficient of the x/y fluxes, averaged to the z face; the bottom and
+ * top faces, which carry the boundary condition, are left alone.
+ */
+template <bool MultiplyMolecularByDensity, bool AddTurbulence>
+inline void
+SubtractTerrainMetricImplicitPart_T_Impl (
+  const amrex::Box& zbx,
+  const amrex::Box& domain,
+  const ScalarDiffusionFieldViews& field,
+  const ScalarDiffusionCoefficients& coefficients,
+  const amrex::Array4<const amrex::Real>& z_nd,
+  const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+  const amrex::Array4<const amrex::Real>& mf_mx,
+  const amrex::Array4<const amrex::Real>& mf_my,
+  const amrex::Real implicit_fac)
+{
+  using namespace amrex;
+  const int dom_klo = domain.smallEnd(2);
+  const int dom_khi = domain.bigEnd(2);
+  const auto scalar = field.scalar;
+  const auto density = field.density;
+  const auto mu_turb = field.mu_turb;
+  const auto zflux = field.zflux;
+  const int scalar_comp = field.scalar_comp;
+  const int rho_comp = field.rho_comp;
+  const int flux_comp = field.flux_comp;
+  ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    if (!TerrainMetricImplicitFace(k, dom_klo, dom_khi)) { return; }
+    const Real kh = ScalarDiffusionFaceCoefficient<
+      MultiplyMolecularByDensity, AddTurbulence>(
+      density, rho_comp, mu_turb, coefficients, i, j, k, 0, 0, 1,
+      coefficients.eddy_h_comp);
+    const Real h_zeta = Compute_h_zeta_AtKface(i, j, k, cellSizeInv, z_nd);
+    const Real grad_z = (cellSizeInv[2] / h_zeta) *
+      (scalar(i, j, k, scalar_comp) - scalar(i, j, k - 1, scalar_comp));
+    const Real metric = TerrainMetricScalarFactor(
+      Compute_h_xi_AtKface(i, j, k, cellSizeInv, z_nd),
+      Compute_h_eta_AtKface(i, j, k, cellSizeInv, z_nd),
+      mf_mx(i, j, 0), mf_my(i, j, 0));
+    zflux(i, j, k, flux_comp) += implicit_fac * kh * metric * grad_z;
+  });
+}
+
+/** Dispatch SubtractTerrainMetricImplicitPart_T_Impl on the coefficient mode. */
+inline void
+SubtractTerrainMetricImplicitPart_T (
+  const amrex::Box& bx,
+  const amrex::Box& domain,
+  const ScalarDiffusionFieldViews& field,
+  const ScalarDiffusionFluxPolicy& policy,
+  const amrex::Array4<const amrex::Real>& z_nd,
+  const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+  const amrex::Array4<const amrex::Real>& mf_mx,
+  const amrex::Array4<const amrex::Real>& mf_my,
+  const amrex::Real implicit_fac)
+{
+  const amrex::Box zbx = amrex::surroundingNodes(bx, 2);
+  const auto mode = policy.coefficient_mode;
+  if (mode.molecular_is_kinematic) {
+    if (mode.add_turbulence) {
+      SubtractTerrainMetricImplicitPart_T_Impl<true, true>(
+        zbx, domain, field, policy.coefficients, z_nd, cellSizeInv, mf_mx, mf_my, implicit_fac);
+    } else {
+      SubtractTerrainMetricImplicitPart_T_Impl<true, false>(
+        zbx, domain, field, policy.coefficients, z_nd, cellSizeInv, mf_mx, mf_my, implicit_fac);
+    }
+  } else if (mode.add_turbulence) {
+    SubtractTerrainMetricImplicitPart_T_Impl<false, true>(
+      zbx, domain, field, policy.coefficients, z_nd, cellSizeInv, mf_mx, mf_my, implicit_fac);
+  } else {
+    SubtractTerrainMetricImplicitPart_T_Impl<false, false>(
+      zbx, domain, field, policy.coefficients, z_nd, cellSizeInv, mf_mx, mf_my, implicit_fac);
+  }
 }
 
 /** Scale only raw F_z for the explicit integration fraction. */

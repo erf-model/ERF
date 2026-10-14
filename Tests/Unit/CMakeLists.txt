@@ -153,6 +153,15 @@ target_sources(${erf_exe_name}
     # Motivation: the k-eqn RANS closure (AL01) must keep its stability
     # functions finite and its length-scale limits exact for any Rt.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestRANSClosure.cpp
+    # Motivation: terrain-fitted momentum diffusion must apply K_h to the projected horizontal
+    # stresses of the zeta-face flux and take the cell-centred du/dz from the cell's own faces
+    # (erf-model/ERF#4214), so the operator is exact for bilinear fields and dissipates energy.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestTerrainStress.cpp
+    # Motivation: erf.implicit_terrain_metric must put K_h times the terrain-metric factor into
+    # the implicit vertical solves on the interior faces and take the same compact term out of
+    # the explicit fluxes, and nothing on the bottom and top faces.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestTerrainImplicitMetric.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/LinearSolvers/ERF_GTestTerrainPoisson.cpp
     # Motivation: the opt-in WRF Smagorinsky-2D limits must reproduce WRF's smag2d_km numbers
     # (slope factor, deformation threshold, cap and their order), limit K_h before the scalar
     # diffusivities are derived from it, and the diffusive time-step rates must follow their
@@ -162,6 +171,9 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSurfaceFluxDiagnostics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSeaLevelPressure.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestCanopyBiophysics.cpp
+    # Motivation: buoyancy dispatch must preserve selector semantics, active
+    # anelastic formulations, and neutral dry type-4 primitive-theta behavior.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestBuoyancy.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestForestDrag.cpp
     # Motivation: a calm cell above an immersed wall gave the wall law u* = 0, an Obukhov length
     # of zero and z / 0 (erf-model/ERF#4016); the stability estimate is now bounded as on flat ground.
@@ -170,6 +182,10 @@ target_sources(${erf_exe_name}
     # materials by building, even when its tallest column is a spire level 0
     # leaves fluid, or the level holds only some of the buildings.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBLevelNumbering.cpp
+    # Motivation: with erf.ibseb.radiation = two_stream every face must read its own column
+    # at its own height (roof interface, wall mean of its cell's two), on a level of several
+    # boxes whose columns all differ.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBTwoStreamFaces.cpp
     # Motivation: observation nudging must read a station file exactly, relax
     # to the closed-form target with the right weight, sigma band and rate cap,
     # and put its sources on the right faces over flat, fitted and immersed
@@ -197,6 +213,11 @@ target_sources(${erf_exe_name}
     # downwelling SW and LW at the surface interface and a zenith cosine floored
     # at zero, copied into the land model's k = 0 plane and nowhere else.
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamLandForcing.cpp
+    # Motivation: the building faces (erf.ibseb.radiation = two_stream) must get the
+    # Beer-Lambert beam at every interface up to the highest one they read, blended
+    # clear/cloudy, no beam with the shortwave off or the sun down, only for the step
+    # of the sweep, and each face its own column's fluxes at its own height.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamCanopyForcing.cpp
     # Motivation: RRTMGP consumes absolute surface temperature; a
     # SurfaceLayer fallback must convert theta at the physical surface
     # pressure diagnosed from the lowest atmospheric cell,
@@ -211,11 +232,17 @@ target_sources(${erf_exe_name}
     # Motivation: a deck may include several files with FILE = <name>; the duplicate-input check
     # must not refuse it.
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestInputsName.cpp
+    # Motivation: a restart used to write its start-up boundary plane as step 0, replacing the
+    # first plane and leaving a time.dat that erf.input_bndry_planes cannot read.
+    ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestWriteBndryPlanes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestEpochTime.cpp
     # Motivation: a station placed by latitude/longitude must land where the
     # lat/lon arrays put it on a rotated grid and on a grid across 180 degrees.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestLatLonMap.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestGridUtils.cpp
+    # Motivation: erf.initial_dz without a stretching ratio must solve for the ratio that
+    # closes the grid on prob_hi, and an explicit ratio must not be solved for.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestInitZLevels.cpp
     # Motivation: a BTF fine level's mesh must not depend on how its grids are split in z.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestTerrainFineColumns.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/HashRng/ERF_GTestHashRngScalar.cpp

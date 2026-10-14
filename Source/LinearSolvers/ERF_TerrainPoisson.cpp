@@ -49,6 +49,21 @@ TerrainPoisson::TerrainPoisson (Geometry const& geom, Geometry const& lev_geom,
         bc_fft = get_fft_bc(lev_geom,domain_bcs_type,bounding_box,use_real_bcs);
         m_2D_fft_precond = std::make_unique<FFT::PoissonHybrid<MultiFab>>(geom,bc_fft);
     }
+
+    // The faces that apply_bcs mirrors (FFT::Boundary::even) are the Neumann faces of the
+    // solve region: its faces inside the domain and the Neumann faces of the domain.  The
+    // whole flux through them is zero, terrain cross term included (erf-model/ERF#4272); the
+    // mirror alone zeroes only the normal-gradient part.  The ground (k = 0) is left out:
+    // its flux is zero already.
+    const Box& region = m_geom.Domain();
+    if (bc_fft[0].first  == FFT::Boundary::even) { m_zero_flux_faces |= tp_face_xlo; }
+    if (bc_fft[0].second == FFT::Boundary::even) { m_zero_flux_faces |= tp_face_xhi; }
+    if (bc_fft[1].first  == FFT::Boundary::even) { m_zero_flux_faces |= tp_face_ylo; }
+    if (bc_fft[1].second == FFT::Boundary::even) { m_zero_flux_faces |= tp_face_yhi; }
+    if (bc_fft[2].first  == FFT::Boundary::even && region.smallEnd(2) > 0) {
+        m_zero_flux_faces |= tp_face_zlo;
+    }
+    if (bc_fft[2].second == FFT::Boundary::even) { m_zero_flux_faces |= tp_face_zhi; }
 }
 
 void TerrainPoisson::usePrecond (bool use_precond_in)
@@ -74,9 +89,14 @@ void TerrainPoisson::apply (MultiFab& lhs, MultiFab const& rhs)
     apply_bcs(xx);
 
     auto const& xc = xx.const_arrays();
+    const int zf = m_zero_flux_faces;
+    const Dim3 dlo = lbound(m_geom.Domain());
+    const Dim3 dhi = ubound(m_geom.Domain());
     ParallelFor(rhs, [=] AMREX_GPU_DEVICE (int b, int i, int j, int k)
     {
-        terrpoisson_adotx(i, j, k, y[b], xc[b], axa[b], aya[b], aza[b], dJa[b], zpa[b], dxinv[0], dxinv[1], dxinv[2]);
+        // no flux through the zero-flux faces of the region
+        terrpoisson_adotx(i, j, k, y[b], xc[b], axa[b], aya[b], aza[b], dJa[b], zpa[b],
+                          dxinv[0], dxinv[1], dxinv[2], dlo, dhi, zf);
     });
 }
 
@@ -216,6 +236,31 @@ void TerrainPoisson::getFluxes (MultiFab& phi,
     {
         fz[b](i,j,k) = terrpoisson_flux_z(i,j,k,x[b],zpa[b],dxinv[0],dxinv[1]);
     });
+
+    // No flux through the zero-flux faces, as in apply
+    const int zf = m_zero_flux_faces;
+    if (zf != 0) {
+        const Dim3 dlo = lbound(m_geom.Domain());
+        const Dim3 dhi = ubound(m_geom.Domain());
+        ParallelFor(fluxes[0], [=] AMREX_GPU_DEVICE (int b, int i, int j, int k)
+        {
+            if (((zf & tp_face_xlo) && i == dlo.x) || ((zf & tp_face_xhi) && i == dhi.x+1)) {
+                fx[b](i,j,k) = zero;
+            }
+        });
+        ParallelFor(fluxes[1], [=] AMREX_GPU_DEVICE (int b, int i, int j, int k)
+        {
+            if (((zf & tp_face_ylo) && j == dlo.y) || ((zf & tp_face_yhi) && j == dhi.y+1)) {
+                fy[b](i,j,k) = zero;
+            }
+        });
+        ParallelFor(fluxes[2], [=] AMREX_GPU_DEVICE (int b, int i, int j, int k)
+        {
+            if (((zf & tp_face_zlo) && k == dlo.z) || ((zf & tp_face_zhi) && k == dhi.z+1)) {
+                fz[b](i,j,k) = zero;
+            }
+        });
+    }
 }
 
 void TerrainPoisson::assign (MultiFab& lhs, MultiFab const& rhs)

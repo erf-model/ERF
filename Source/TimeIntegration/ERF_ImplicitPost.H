@@ -29,6 +29,10 @@
 
                     const Array4<const Real>& z_nd_arr = z_phys_nd[level]->const_array(mfi);
                     const Array4<const Real>& detJ_arr = detJ_cc[level]->const_array(mfi);
+                    const Array4<const Real> mf_mx = mapfac[level][MapFacType::m_x]->const_array(mfi);
+                    const Array4<const Real> mf_my = mapfac[level][MapFacType::m_y]->const_array(mfi);
+                    const bool l_implicit_metric = solverChoice.implicit_terrain_metric &&
+                                                   l_use_terrain_fitted_coords;
 
                     const Array4<const Real>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) :
                                                                      Array4<const Real>{};
@@ -44,7 +48,8 @@
                                                  slow_dt, l_bc_neumann_vals_d, cell_data,
                                                  z_nd_arr, detJ_arr, dxInv, Array4<const Real>{},
                                                  mu_turb, solverChoice,
-                                                 bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+                                                 bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
+                                                 false, mf_mx, mf_my, l_implicit_metric);
                     } else { // no terrain
                         ImplicitDiffForStateLU_N(bx, fine_geom.Domain(), level, RhoKE_comp,
                                                  slow_dt, l_bc_neumann_vals_d, cell_data,
@@ -74,6 +79,10 @@
 
                     const Array4<const Real>& z_nd_arr = z_phys_nd[level]->const_array(mfi);
                     const Array4<const Real>& detJ_arr = detJ_cc[level]->const_array(mfi);
+                    const Array4<const Real> mf_mx = mapfac[level][MapFacType::m_x]->const_array(mfi);
+                    const Array4<const Real> mf_my = mapfac[level][MapFacType::m_y]->const_array(mfi);
+                    const bool l_implicit_metric = solverChoice.implicit_terrain_metric &&
+                                                   l_use_terrain_fitted_coords;
 
                     const Array4<const Real>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) :
                                                                      Array4<const Real>{};
@@ -93,7 +102,8 @@
                                                   z_nd_arr, detJ_arr, dxInv, q1fx_z,
                                                   mu_turb, solverChoice,
                                                   bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
-                                                  l_use_mrf_cg);
+                                                  l_use_mrf_cg,
+                                                  mf_mx, mf_my, l_implicit_metric);
                      } else { // no terrain
                          ImplicitDiffForStateLU_N(bx, fine_geom.Domain(), level, RhoQ1_comp,
                                                   slow_dt, l_bc_neumann_vals_d, cell_data,

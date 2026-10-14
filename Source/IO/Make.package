@@ -14,7 +14,9 @@ CEXE_sources += ERF_StationSampler.cpp
 CEXE_sources += ERF_Checkpoint.cpp
 CEXE_sources += ERF_Provenance.cpp
 CEXE_sources += ERF_WriteJobInfo.cpp
+CEXE_sources += ERF_NoahMPGitHash.cpp
 CEXE_headers += ERF_Provenance.H
+CEXE_headers += ERF_NoahMPGitHash.H
 CEXE_headers += ERF_IntervalMeansCheckpoint.H
 CEXE_headers += ERF_CheckpointSurfaceTemperature.H
 

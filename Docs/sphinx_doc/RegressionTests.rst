@@ -659,6 +659,33 @@ Test Location: `Tests/test_files/Closure_BoxParity`_
 
 .. _`Tests/test_files/Closure_BoxParity`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/Closure_BoxParity
 
+Terrain Poisson operator at Neumann faces
+-----------------------------------------
+The ``TerrainPoisson_*`` tests (MPI builds, not Windows) check the anelastic projection on a
+terrain-fitted mesh where the terrain slopes at a Neumann face of the region being solved
+(:ref:`subsec:TerrainNeumannFaces`). The deck is a 100 m hill on 32 x 32 x 16 cells with one
+refined level (ratio 2 2 1) whose four coarse/fine faces lie on the hill's flanks; run on one
+level inside slip walls, the hill's slopes reach the walls instead. ERF prints the divergence
+before and after every solve (``erf.mg_v = 1``), and ``Tests/check_terrain_poisson_divergence.py``
+requires each solve on the checked level to leave no more than the constant that a singular
+solve cannot remove, within the solver tolerance. ``TerrainPoisson_TwoLevelHill`` checks the refined level and
+``TerrainPoisson_SlopingWalls`` the walled level: each leaves at most 1e-9, where the operator
+before erf-model/ERF#4279 (no zero-flux faces; development at 905623352) left up to 1.6e-2 and
+7.6e-4.
+``TerrainPoisson_TwoPatches`` refines two separate patches on the flanks, so that level 1 is
+solved as two regions (development stopped there with a segmentation fault).
+``TerrainPoisson_MapFactors`` and ``TerrainPoisson_MapFactors_Walls`` run the two decks with
+``erf.test_mapfactor`` (map factors 0.5 and 0.25), where the projection used to leave 75 % of
+the divergence after every solve.
+``TerrainPoisson_Hill_BoxParity`` (one box on one rank against split boxes) and
+``TerrainPoisson_Hill_Restart`` check the decomposition and a restart;
+``TerrainPoisson_DivergenceChecker_SelfTest`` feeds the checker made-up logs on both sides of
+its limit. The runs need the FFT build; the self-test does not.
+
+Test Location: `Tests/test_files/TerrainPoisson_Hill`_
+
+.. _`Tests/test_files/TerrainPoisson_Hill`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/TerrainPoisson_Hill
+
 Station time series
 -------------------
 ``StationSampling_BoxParity`` and ``StationSampling_Restart`` cover the station

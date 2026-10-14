@@ -28,7 +28,8 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
                  const double& time,
                  const double& start_bdy_time,
                  const SolverChoice& solverChoice,
-                 const Vector<Real>& zlevels_stag)
+                 const Vector<Real>& zlevels_stag,
+                 const NCProvenance& provenance)
 {
     //
     // Set the full IO path for NetCDF output
@@ -78,6 +79,19 @@ writeNCPlotFile (int lev, int which_subdomain, const std::string& dir,
     const std::string ndim_name = "num_geo_dims";
 
     ncf.put_attr("title", "ERF NetCDF Plot data output");
+
+    // Provenance of the run that produced the data. Each is written only when
+    // the caller supplied it, so a build without Noah-MP omits that attribute
+    // and the PlotfileToNetCDF converter writes none of the three.
+    if (!provenance.erf_git_hash.empty()) {
+        ncf.put_attr("erf_git_hash", provenance.erf_git_hash);
+    }
+    if (!provenance.amrex_git_hash.empty()) {
+        ncf.put_attr("amrex_git_hash", provenance.amrex_git_hash);
+    }
+    if (!provenance.noahmp_git_hash.empty()) {
+        ncf.put_attr("noahmp_git_hash", provenance.noahmp_git_hash);
+    }
 
     ncf.def_dim(ndim_name, AMREX_SPACEDIM);
     ncf.def_dim(np_name  , num_pts);

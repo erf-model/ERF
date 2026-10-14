@@ -9,7 +9,8 @@ include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
 # Functions for adding tests / Categories of tests
 #=============================================================================
 function(resolve_test_exe TEST_DIR TEST_EXE OUT_VAR)
-    if(WIN32)
+    get_property(_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+    if(WIN32 AND _multi_config)
         # Multi-config generators place binaries in a config subdir, and which config is
         # built is not known here.  The tests that launch through `sh -c` let the shell
         # expand the wildcard; the ones driven through `cmake -P` call execute_process,
@@ -46,8 +47,10 @@ macro(setup_test)
 
     if(ERF_ENABLE_MPI)
         set(NP ${ERF_TEST_NRANKS})
-        set(MPI_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
-        set(MPI_FCOMP_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
+        # Quoted: these strings are handed to `sh -c`, and MS-MPI lives under
+        # "C:/Program Files/Microsoft MPI/Bin/mpiexec.exe".
+        set(MPI_COMMANDS "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
+        set(MPI_FCOMP_COMMANDS "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
     else()
         set(NP 1)
         unset(MPI_COMMANDS)
@@ -563,6 +566,55 @@ function(add_test_smag2d_ridge TEST_NAME MODE PLTFILE)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/steep/simulation.log;${CURRENT_TEST_BINARY_DIR}/control/simulation.log;${CURRENT_TEST_BINARY_DIR}/check_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/check_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log;${CURRENT_TEST_BINARY_DIR}/limit/simulation.log")
 endfunction(add_test_smag2d_ridge)
 
+# Stable flow over a steep ridge with Smagorinsky2D + MRF (Tests/test_files/Terrain_Stress_Ridge,
+# erf-model/ERF#4214), driven by Tests/RunTerrainStressRidge.cmake.  MODE "survive" runs OPTIONS
+# and requires a finished, bounded run; CONTROL_OPTIONS, when given, must start and then fail.
+# MODE "agree" runs ON_OPTIONS and OFF_OPTIONS, which must agree within RTOL/ATOL and differ.
+function(add_test_terrain_stress_ridge TEST_NAME MODE PLTFILE)
+    set(oneValueArgs "OPTIONS" "CONTROL_OPTIONS" "WMAX" "RUN_TIMEOUT" "ON_OPTIONS" "OFF_OPTIONS"
+                     "RTOL" "ATOL")
+    cmake_parse_arguments(ADD_TEST_TSR "" "${oneValueArgs}" "" ${ARGN})
+    set(TEST_FILES_DIR Terrain_Stress_Ridge)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(_run_timeout 1200)
+    if(NOT "${ADD_TEST_TSR_RUN_TIMEOUT}" STREQUAL "")
+        set(_run_timeout "${ADD_TEST_TSR_RUN_TIMEOUT}")
+    endif()
+    math(EXPR _ctest_timeout "2 * ${_run_timeout} + 600")
+
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMODE=${MODE}"
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/Terrain_Stress_Ridge.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DFCOMPARE=${FCOMPARE_EXE}"
+        "-DFEXTREMA=${FEXTREMA_EXE}"
+        "-DPLTFILE=${PLTFILE}"
+        "-DOPTIONS=${ADD_TEST_TSR_OPTIONS}"
+        "-DCONTROL_OPTIONS=${ADD_TEST_TSR_CONTROL_OPTIONS}"
+        "-DWMAX=${ADD_TEST_TSR_WMAX}"
+        "-DRUN_TIMEOUT=${_run_timeout}"
+        "-DON_OPTIONS=${ADD_TEST_TSR_ON_OPTIONS}"
+        "-DOFF_OPTIONS=${ADD_TEST_TSR_OFF_OPTIONS}"
+        "-DRTOL=${ADD_TEST_TSR_RTOL}"
+        "-DATOL=${ADD_TEST_TSR_ATOL}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunTerrainStressRidge.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT ${_ctest_timeout}
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/survive/simulation.log;${CURRENT_TEST_BINARY_DIR}/control/simulation.log;${CURRENT_TEST_BINARY_DIR}/option_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/option_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/agree.log")
+endfunction(add_test_terrain_stress_ridge)
+
 # The numeric log comparison add_test_box_parity's DATALOG relies on: a comparator that
 # accepts everything passes every test that uses it, so it needs its own test.  Pure CMake,
 # no ERF run, hence the "unit" label.
@@ -634,8 +686,8 @@ endif()
 # REQUIRE_LEVEL0_REMAKE makes a regrid test fail if the restart stopped regridding, which
 # would otherwise leave it silently comparing an ordinary restart and passing.
 function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
-    set(oneValueArgs "COMMON_OPTIONS" "RESTART_OPTIONS" "CHK_NRANKS" "RESTART_NRANKS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT" "DATALOG" "DATALOG_SIGDIGITS" "PLT2DFILE")
-    cmake_parse_arguments(ADD_TEST_RP "ALLOW_DIFF_GRIDS;REQUIRE_LEVEL0_REMAKE" "${oneValueArgs}" "" ${ARGN})
+    set(oneValueArgs "COMMON_OPTIONS" "RESTART_OPTIONS" "CHK_OPTIONS" "CHK_LEG_END" "CHK_NRANKS" "RESTART_NRANKS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT" "DATALOG" "DATALOG_SIGDIGITS" "PLT2DFILE" "BNDRY_PLANES_DIR" "BNDRY_PLANES_FIRST_STEP" "BNDRY_PLANES_STEPS" "BNDRY_PLANES_READ_INPUT")
+    cmake_parse_arguments(ADD_TEST_RP "ALLOW_DIFF_GRIDS;REQUIRE_LEVEL0_REMAKE;BNDRY_PLANES_STALE;BNDRY_PLANES_CUT_NEWLINE;BNDRY_PLANES_EARLY_STOP" "${oneValueArgs}" "" ${ARGN})
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
 
@@ -678,6 +730,15 @@ function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
         "-DDATALOG=${ADD_TEST_RP_DATALOG}"
         "-DDATALOG_SIGDIGITS=${ADD_TEST_RP_DATALOG_SIGDIGITS}"
         "-DPLT2DFILE=${ADD_TEST_RP_PLT2DFILE}"
+        "-DCHK_OPTIONS=${ADD_TEST_RP_CHK_OPTIONS}"
+        "-DCHK_LEG_END=${ADD_TEST_RP_CHK_LEG_END}"
+        "-DBNDRY_PLANES_DIR=${ADD_TEST_RP_BNDRY_PLANES_DIR}"
+        "-DBNDRY_PLANES_FIRST_STEP=${ADD_TEST_RP_BNDRY_PLANES_FIRST_STEP}"
+        "-DBNDRY_PLANES_STALE=${ADD_TEST_RP_BNDRY_PLANES_STALE}"
+        "-DBNDRY_PLANES_STEPS=${ADD_TEST_RP_BNDRY_PLANES_STEPS}"
+        "-DBNDRY_PLANES_CUT_NEWLINE=${ADD_TEST_RP_BNDRY_PLANES_CUT_NEWLINE}"
+        "-DBNDRY_PLANES_EARLY_STOP=${ADD_TEST_RP_BNDRY_PLANES_EARLY_STOP}"
+        "-DBNDRY_PLANES_READ_INPUT=${ADD_TEST_RP_BNDRY_PLANES_READ_INPUT}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunRestartParity.cmake)
     # The reservation has to cover the widest leg, which need not be NP.
     set(_procs "${NP}")
@@ -1359,10 +1420,11 @@ function(add_test_lsm TEST_NAME TEST_DIR TEST_EXE)
         set(test_labels "regression")
     endif()
 
-    if(WIN32)
+    get_property(_multi_config GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+    if(WIN32 AND _multi_config)
         set(TEST_EXE "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/*/${TEST_EXE}.exe")
     else()
-        set(TEST_EXE "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/${TEST_EXE}")
+        set(TEST_EXE "${CMAKE_BINARY_DIR}/Exec/${TEST_DIR}/${TEST_EXE}${CMAKE_EXECUTABLE_SUFFIX}")
     endif()
 
     set(FCOMPARE_TOLERANCE "-r ${ERF_TEST_FCOMPARE_RTOL} --abs_tol ${ERF_TEST_FCOMPARE_ATOL}")
@@ -1702,6 +1764,48 @@ add_test_restart_parity(MoistBubble_Kessler_Restart MoistBubble_Kessler_Restart 
     COMMON_OPTIONS "erf.vert_implicit=false"
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
+# Boundary-plane output (erf.output_bndry_planes) across a restart: the series in BndryFiles --
+# one plane directory per output step and a time.dat of "step time" rows -- must come out of a
+# run through a checkpoint as it comes out of a straight run, since erf.input_bndry_planes reads
+# it back and stops on a time.dat whose rows do not increase. Each test runs 16^3 ABL to step 8
+# three times, planes every 2 steps. The runner is a cmake -P script (MPI, not Windows).
+#   _Restart:     restart from step 4, and read the series back. The start-up write used to run
+#                 on a restart too, as step 0: it replaced the step-0 plane with the restart
+#                 state and appended a "0 t" row. The last row before the restart is left
+#                 without its newline, as a time.dat edited or copied by hand may be.
+#   _Replay:      the run went on to step 8 after its step-3 checkpoint, the restart replays 4-8,
+#                 and step 3 is not an output step. A restart that stops before its first plane
+#                 (here: no step at all) must leave time.dat as it was.
+#   _Enable:      the output is switched on at the restart, at an output step (4) ...
+#   _EnableOff:   ... and between two (3): the series begins at step 4 either way.
+#   _StartTime:   output starts 0.05 s into a run whose clock starts at a calendar date
+#                 (start_datetime); the checkpoint at step 3 comes before any plane, and the run
+#                 went on to step 8 after it: planes at 4, 6, 8 only.
+#   _Stale:       both run directories already hold the time.dat of an earlier run; a fresh start
+#                 begins a new series instead of appending to it.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_parity(ABL_BndryPlanes_Restart ABL_BndryPlanes_Restart 4 8
+    BNDRY_PLANES_DIR "BndryFiles" BNDRY_PLANES_STEPS "0 2 4 6 8" BNDRY_PLANES_CUT_NEWLINE
+    BNDRY_PLANES_READ_INPUT "ABL_BndryPlanes_Read.i"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(ABL_BndryPlanes_Replay ABL_BndryPlanes_Restart 3 8
+    CHK_LEG_END 8 BNDRY_PLANES_EARLY_STOP
+    BNDRY_PLANES_DIR "BndryFiles" BNDRY_PLANES_STEPS "0 2 4 6 8" FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(ABL_BndryPlanes_Enable ABL_BndryPlanes_Restart 4 8
+    CHK_OPTIONS "erf.output_bndry_planes=0"
+    BNDRY_PLANES_DIR "BndryFiles" BNDRY_PLANES_FIRST_STEP 4 BNDRY_PLANES_STEPS "4 6 8"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(ABL_BndryPlanes_EnableOff ABL_BndryPlanes_Restart 3 8
+    CHK_OPTIONS "erf.output_bndry_planes=0"
+    BNDRY_PLANES_DIR "BndryFiles" BNDRY_PLANES_FIRST_STEP 3 BNDRY_PLANES_STEPS "4 6 8"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(ABL_BndryPlanes_StartTime ABL_BndryPlanes_StartTime 3 8
+    CHK_LEG_END 8
+    BNDRY_PLANES_DIR "BndryFiles" BNDRY_PLANES_STEPS "4 6 8" FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(ABL_BndryPlanes_Stale ABL_BndryPlanes_Restart 4 8
+    BNDRY_PLANES_DIR "BndryFiles" BNDRY_PLANES_STALE BNDRY_PLANES_STEPS "0 2 4 6 8"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+endif()
 add_test_r(SquallLine_2D                     ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_r(SuperCell_3D                      ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 if(ERF_ENABLE_NETCDF)
@@ -1774,7 +1878,7 @@ function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME
     file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
 
     if(ERF_ENABLE_MPI)
-        set(MPI_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
+        set(MPI_COMMANDS "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
     else()
         unset(MPI_COMMANDS)
     endif()
@@ -1795,6 +1899,28 @@ function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME
         ATTACHED_FILES_ON_FAIL "${test_log}"
     )
 endfunction(add_test_abort)
+
+# Reading and writing boundary planes in one folder would replace the planes being read; the
+# folder names differ only in spelling (_SameFolder) or reach it through a symbolic link
+# (_SameFolderLink, link made here at configure time). Not on Windows, whose path spelling and
+# links this does not cover.
+if(NOT WIN32)
+  add_test_abort(ABL_BndryPlanes_SameFolder
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ABL_BndryPlanes_Restart
+                 ABL_BndryPlanes_Restart.i
+                 "name the same folder"
+                 "erf.input_bndry_planes=1 erf.bndry_file=./BndryFiles/ erf.bndry_input_var_names=velocity")
+  add_test_abort(ABL_BndryPlanes_SameFolderLink
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ABL_BndryPlanes_Restart
+                 ABL_BndryPlanes_Restart.i
+                 "name the same folder"
+                 "erf.input_bndry_planes=1 erf.bndry_file=BndryIn erf.bndry_input_var_names=velocity")
+  set(_bp_link_dir "${CMAKE_CURRENT_BINARY_DIR}/test_files/ABL_BndryPlanes_SameFolderLink")
+  file(MAKE_DIRECTORY "${_bp_link_dir}/BndryFiles")
+  if(NOT EXISTS "${_bp_link_dir}/BndryIn")
+    file(CREATE_LINK "BndryFiles" "${_bp_link_dir}/BndryIn" SYMBOLIC)
+  endif()
+endif()
 
 if(ERF_ENABLE_MPI AND NOT WIN32)
   # A shallow nest -- a fine level that stops below the domain top -- has no complete
@@ -2119,7 +2245,7 @@ function(add_test_rans TEST_NAME CASE_DIR INPUT_FILE NSTEPS CHECK_SCRIPT)
         else()
             set(NP ${ADD_TEST_RANS_NRANKS})
         endif()
-        set(MPI_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
+        set(MPI_COMMANDS "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
     else()
         set(NP 1)
         unset(MPI_COMMANDS)
@@ -2182,7 +2308,7 @@ function(add_test_rans_pair TEST_NAME CASE_DIR INPUT_FILE NSTEPS CHECK_SCRIPT)
         else()
             set(NP ${ADD_TEST_RANS_PAIR_NRANKS})
         endif()
-        set(MPI_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
+        set(MPI_COMMANDS "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
     else()
         set(NP 1)
         unset(MPI_COMMANDS)
@@ -2287,7 +2413,7 @@ function(add_test_most_zref TEST_NAME)
 
     # 4x4 columns: one rank
     if(ERF_ENABLE_MPI)
-        set(MPI_COMMANDS "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
+        set(MPI_COMMANDS "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
     else()
         unset(MPI_COMMANDS)
     endif()
@@ -2295,7 +2421,7 @@ function(add_test_most_zref TEST_NAME)
     resolve_test_exe("" "erf_exec" TEST_EXE)
 
     set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
-    set(test_command sh -c "rm -f ${CURRENT_TEST_BINARY_DIR}/CHECK_FAILED && ( ${ERF_MOST_ZREF_PYTHON} ${CURRENT_TEST_BINARY_DIR}/run_most_zref.py --exe ${TEST_EXE} --mpi-cmd \"${MPI_COMMANDS}\" --workdir ${CURRENT_TEST_BINARY_DIR}/runs > ${test_log} 2>&1 || touch ${CURRENT_TEST_BINARY_DIR}/CHECK_FAILED ) && cat ${test_log} && test ! -f ${CURRENT_TEST_BINARY_DIR}/CHECK_FAILED")
+    set(test_command sh -c "rm -f ${CURRENT_TEST_BINARY_DIR}/CHECK_FAILED && ( ${ERF_MOST_ZREF_PYTHON} ${CURRENT_TEST_BINARY_DIR}/run_most_zref.py --exe ${TEST_EXE} --mpi-cmd '${MPI_COMMANDS}' --workdir ${CURRENT_TEST_BINARY_DIR}/runs > ${test_log} 2>&1 || touch ${CURRENT_TEST_BINARY_DIR}/CHECK_FAILED ) && cat ${test_log} && test ! -f ${CURRENT_TEST_BINARY_DIR}/CHECK_FAILED")
 
     add_test(${TEST_NAME} ${test_command})
     set_tests_properties(${TEST_NAME}
@@ -2371,11 +2497,84 @@ function(add_test_ibseb_two_stream_sun TEST_NAME TEST_FILES_DIR)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/run/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
 endfunction(add_test_ibseb_two_stream_sun)
 
+# The building faces taking their radiation from the two-stream columns
+# (erf.ibseb.radiation = two_stream; Tests/RunIBSEBTwoStreamProvider.cmake). Under a
+# transparent sky the faces get what the faces' own clear-sky radiation gives for that sky;
+# under an absorbing sky each face gets the exact beam and reflected light at its height, on
+# one level and on two (level 1 refined in z too); a scattering sky adds diffuse light and
+# leaves the beam alone; at night the faces get no sunlight; a restart keeps the reports.
+# Then the start-up aborts: no two-stream radiation, its shortwave off, its longwave off
+# with lw_mode = two_stream, lw_mode = two_stream without the two-stream radiation, inputs
+# of the faces' own clear-sky radiation given with it, and a refined level whose grids do
+# not span the domain in z (it has no column sweep of its own).
+function(add_test_ibseb_two_stream_provider TEST_NAME)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+        "-DTWO_LEVEL_INPUT=${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider/IBSEB_TwoStreamProviderTwoLevel.i"
+        "-DTWO_LEVEL_FILES=${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_RefinedLevels"
+        "-DPRECISION=${ERF_PRECISION}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${CMAKE_CURRENT_SOURCE_DIR}/check_ibseb_two_stream_provider.py"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunIBSEBTwoStreamProvider.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/two_stream/simulation.log;${CURRENT_TEST_BINARY_DIR}/prescribed/simulation.log;${CURRENT_TEST_BINARY_DIR}/absorbing/simulation.log;${CURRENT_TEST_BINARY_DIR}/scattering/simulation.log;${CURRENT_TEST_BINARY_DIR}/night/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level_clear/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_level_absorbing/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+endfunction(add_test_ibseb_two_stream_provider)
+
 if(ERF_ENABLE_MPI AND NOT WIN32)
   if(NOT "${ERF_TEST_PYTHON}" STREQUAL "")
     add_test_ibseb_refined_levels(IBSEB_RefinedLevels)
     add_test_ibseb_two_stream_sun(IBSEB_TwoStreamSunRun IBSEB_TwoStreamSun)
+    add_test_ibseb_two_stream_provider(IBSEB_TwoStreamProvider)
   endif()
+  add_test_abort(IBSEB_TwoStreamProviderWithoutTwoStream
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
+                 IBSEB_TwoStreamProvider.i
+                 "erf.ibseb.radiation = two_stream needs erf.radiation_model = TwoStream"
+                 "erf.radiation_model=None")
+  add_test_abort(IBSEB_TwoStreamProviderShortwaveOff
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
+                 IBSEB_TwoStreamProvider.i
+                 "erf.ibseb.radiation = two_stream needs the two-stream shortwave"
+                 "erf.radiation.sw_enabled=false")
+  add_test_abort(IBSEB_TwoStreamProviderLongwaveOff
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
+                 IBSEB_TwoStreamProvider.i
+                 "erf.ibseb.lw_mode = two_stream needs the two-stream longwave"
+                 "erf.radiation.lw_enabled=false")
+  add_test_abort(IBSEB_TwoStreamProviderLwMode
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
+                 IBSEB_TwoStreamProvider.i
+                 "lw_mode = two_stream needs erf.ibseb.radiation = two_stream"
+                 "erf.ibseb.radiation=prescribed erf.ibseb.lw_mode=two_stream")
+  add_test_abort(IBSEB_TwoStreamProviderPrescribedInputs
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
+                 IBSEB_TwoStreamProvider.i
+                 "albedo_ground is not used with erf.ibseb.radiation = two_stream"
+                 "erf.ibseb.albedo_ground=0.2")
+  add_test_abort(IBSEB_TwoStreamProviderLwInputs
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_TwoStreamProvider
+                 IBSEB_TwoStreamProvider.i
+                 "T_ground is not used with erf.ibseb.lw_mode = two_stream"
+                 "erf.ibseb.T_ground=300.0")
+  add_test_abort(IBSEB_TwoStreamProviderShallowLevel
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_RefinedLevels
+                 IBSEB_RefinedLevels.i
+                 "grids of level 1 do not span the domain in z"
+                 "erf.radiation_model=TwoStream erf.fixed_solar_zenith_angle=0.3420201433256688 erf.rad_t_sfc=300.0 erf.ibseb.radiation=two_stream amr.refine_whole_domain_dir=-1 erf.city.in_box_lo=100.0 180.0 0.0 erf.city.in_box_hi=220.0 300.0 100.0")
   add_test_abort(IBSEB_RefinedLevelCutsBuilding
                  ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_RefinedLevels
                  IBSEB_RefinedLevels.i
@@ -2435,12 +2634,12 @@ endif()
 # IBSEB_RefinedLevels_Restart does the same on the two levels of the
 # IBSEB_RefinedLevels deck (a cube on level 1, a tower outside it); its face dumps go
 # to a plain file name, since the deck's faces/ directory does not exist in the
-# runner's legs. It compares to 1e-8 relative, not zero: the restart leg writes a
-# plotfile at the restart step and the straight leg does not, and on two levels
-# writing a plotfile changes the solution at round-off (issue 4224; 5e-15 relative in theta
-# without buildings, 1.7e-10 relative in w here by step 20); with the plotfiles at
-# the same steps in all legs the restart is bit-exact. terrain_IB_mask still shows
-# the uncleared blanking (2.6e-3); 1e-8 relative is about 3e-6 K on the skin temperatures.
+# runner's legs. It compares at zero tolerance like the one-level case. It used to be
+# held at 1e-8 relative because the restart leg writes a plotfile at the restart step
+# and the straight leg does not, and on two levels that moved the solution at round-off
+# (issue 4224: the coarse/fine momentum conversion read density ghost cells nothing had
+# filled yet, so whichever call last wrote them decided the interface momenta). With
+# that fixed the two legs agree bit for bit, which is what a restart owes.
 # The runner is a cmake -P script (MPI, not Windows).
 if(ERF_ENABLE_MPI AND NOT WIN32)
 add_test_restart_parity(IBSEB_Cube_Restart IBSEB_Cube 17 40
@@ -2450,8 +2649,29 @@ add_test_restart_parity(IBSEB_Cube_Restart IBSEB_Cube 17 40
 add_test_restart_parity(IBSEB_RefinedLevels_Restart IBSEB_RefinedLevels 7 20
     COMMON_OPTIONS "erf.ibseb.dump_faces_file=faces_set erf.plot_vars_1=density x_velocity y_velocity z_velocity theta terrain_IB_mask ibseb_nfaces ibseb_tskin ibseb_sw_abs ibseb_lw_net ibseb_H ibseb_G"
     RUN_TIMEOUT 1200
-    FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "0.0")
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
+
+# Writing a 3D plotfile must not change the solution, which on two levels it did: the
+# momentum conversion at the start of FillPatchFineLevel read the density one cell
+# outside every valid box, and nothing had filled those cells that step, so a run that
+# wrote a plotfile (which fills them) and a run that did not diverged from the next step
+# on (issue 4224). One deck, two plot cadences, compared at zero tolerance -- the same
+# standard the station-sampling parity tests below hold their diagnostic to. The
+# buildings are left on because that is where the signal is largest: before the fix this
+# fails by 2.0e-9 in u on level 0 and 6.0e-9 on level 1 by step 10, against 1.5e-13 with
+# erf.buildings_type=None. REQUIRE_ON_FILE is the plotfile only the dense cadence writes,
+# so a typo in the option cannot leave the two legs identical and pass while testing
+# nothing.
+#
+# The two legs run in subdirectories of the deck's directory, so its input files are
+# one level up, as for the InputSounding parity tests below.
+add_test_option_parity(IBSEB_RefinedLevels_PlotCadenceParity IBSEB_RefinedLevels "plt00010"
+    COMMON_OPTIONS "erf.ibseb.enable=false erf.input_sounding_file=../input_sounding erf.buildings_file_name=../cube_and_tower_10m.txt max_step=10 erf.check_int=-1 erf.plot_vars_1=density x_velocity y_velocity z_velocity theta pressure"
+    OFF_OPTIONS "erf.plot_int_1=10"
+    ON_OPTIONS  "erf.plot_int_1=1"
+    REQUIRE_ON_FILE "plt00005/Header"
+    RUN_TIMEOUT 900)
 add_test_r(PBL_IBAware_MRF_Smoothing         ""  "erf_exec" "plt00010")
 
 #=============================================================================
@@ -2642,10 +2862,7 @@ add_test_station_series(StationSampling_ImmersedTerrain TerrainHill single
 # 20, on one level and on the deck's two. A restart rebuilt the blanking without
 # clearing the almost-fluid cells of the hill's tails (eb2.small_volfrac), so the
 # wall law acted there after the restart only: 0.2 m/s in u at step 20 on one level.
-# The one-level leg compares at zero tolerance. The two-level one compares to 1e-8
-# relative, for the same reason as IBSEB_RefinedLevels_Restart above: the restart leg
-# writes a plotfile at the restart step and the straight leg does not, and on two
-# levels writing a plotfile moves the solution at round-off (issue 4224).
+# Both legs compare at zero tolerance. 
 # The runner is a cmake -P script (MPI, not Windows).
 if(ERF_ENABLE_MPI AND NOT WIN32)
 add_test_restart_parity(ImmersedTerrain_Hill_Restart TerrainHill 7 20
@@ -2653,7 +2870,7 @@ add_test_restart_parity(ImmersedTerrain_Hill_Restart TerrainHill 7 20
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 add_test_restart_parity(ImmersedTerrain_Hill_TwoLevel_Restart TerrainHill 7 20
     COMMON_OPTIONS "erf.terrain_type=ImmersedForcing erf.immersed_forcing_substep=true eb2.small_volfrac=0.005 erf.plot_vars_1=density x_velocity y_velocity z_velocity theta terrain_IB_mask"
-    FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "0.0")
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
 
 # A restart that re-makes the level-0 grids (erf.regrid_level_0_on_restart, and the
@@ -2718,18 +2935,28 @@ add_test_restart_parity(TerrainHill_RegridOnRestart_TimeAvg TerrainHill 7 20
     COMMON_OPTIONS  "amr.max_level=0 erf.terrain_type=None erf.time_avg_vel=true erf.plot_vars_1=density x_velocity y_velocity theta u_t_avg v_t_avg umag_t_avg"
     RESTART_OPTIONS "erf.regrid_level_0_on_restart=1 amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64"
     ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
-# Not zero tolerance, and not because of the regrid: the interval means are already not
-# restart-exact without one. A plain same-rank restart of this deck reproduces theta_mean to
-# 1 ulp (1.9e-16 relative) and w_mean to 6.5e-23 absolute, on a w_mean that is itself ~1e-21,
-# and the same two numbers appear whether or not level 0 is re-made. Two decompositions run
-# straight through, with no restart at all, agree exactly, so it is the restart and not the
-# decomposition. That is issue 4243; the bound here is set just above what it costs so this
-# test still fails if the means are actually lost, which would be O(1). Put it back to zero
-# when 4243 is fixed.
+# Zero tolerance, like the other two: issue 4243 is fixed. It was not the regrid and not the
+# checkpoint I/O -- a fresh start kept its t=0 sample in the averaging window unless an
+# initial plotfile happened to flush it, so the straight leg (which writes plt00000) and the
+# checkpoint leg (erf.plot_int_1=-1, which does not) normalized by a different number of
+# samples. A fresh start now always drops that sample at the end of initialization, so the
+# window at step 1 no longer depends on the output cadence.
 add_test_restart_parity(TerrainHill_RegridOnRestart_IntervalMeans TerrainHill 7 20
     COMMON_OPTIONS  "amr.max_level=0 erf.terrain_type=None erf.compute_mean_vars=true erf.plot_vars_1=density x_velocity theta u_mean v_mean w_mean theta_mean"
     RESTART_OPTIONS "erf.regrid_level_0_on_restart=1 amr.max_grid_size_x=8 amr.max_grid_size_y=8 amr.max_grid_size_z=64"
-    ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "1.0e-12" FCOMPARE_ATOL "1.0e-20")
+    ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+endif()
+
+# The same deck with no regrid and no rank change: the plain restart that issue 4243 was
+# actually reported against. The regrid case above would also catch a lost window, but it
+# moves the grids at the same time, so a failure there does not say which half broke. No deck
+# setting erf.compute_mean_vars was registered as a restart-parity case before this, which is
+# why the t=0 sample asymmetry survived in the first place.
+# The runner is a cmake -P script (MPI, not Windows), as for every case above.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_parity(TerrainHill_Restart_IntervalMeans TerrainHill 7 20
+    COMMON_OPTIONS "amr.max_level=0 erf.terrain_type=None erf.compute_mean_vars=true erf.plot_vars_1=density x_velocity theta u_mean v_mean w_mean theta_mean"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
 
 # SLM across a restart. Nothing covered this: the two SLM decks in the tree are gated behind
@@ -2946,6 +3173,180 @@ add_test_abort(DiffusiveDt_Abort_LimitFixedDt ${_smag2d_dir} Smag2D_Ridge.i
 add_test_abort(DiffusiveDt_Abort_LimitNoClosure ${_smag2d_dir} Smag2D_Ridge.i
                "erf.diffusive_dt_limit = true needs an eddy-diffusivity closure"
                "erf.diffusive_dt_limit=true erf.fixed_dt=-1 erf.les_type=None erf.pbl_type=None")
+endif()
+
+#=============================================================================
+# Terrain-fitted momentum stresses (erf-model/ERF#4214)
+#=============================================================================
+# Steep ridge (h dx/dz about 20 in the first cells), 3 km grid, Smagorinsky2D + MRF.  With the
+# projected horizontal stresses on K_v, as before #4214, anelastic runs on this deck fail late
+# at every time step tried, from 5 s up: the anti-diffusion does not depend on dt.  With K_h on
+# them and the implicit split exact (the u/v solves use the correction stress's h_zeta), the
+# anelastic MidPoint run is stable to 20 s and fails at 25 s (step 95).  The test runs 1440
+# steps of 15 s (6 h), a step below that edge, and must stay bounded; measured with erf_exec
+# (Release, 2 ranks), the K_v form fails it at step 1028.  Anelastic on a stretched
+# terrain-fitted mesh needs the FFT preconditioner, so CI's GitHub jobs (no FFT) do not run this
+# test; the gtests cover the kernels there.
+if(ERF_ENABLE_FFT)
+add_test_terrain_stress_ridge(TerrainStress_Ridge_AnelasticMidPoint survive "plt01440"
+    OPTIONS "erf.anelastic=1 erf.use_fft=true erf.anelastic_type=MidPoint erf.fixed_dt=15 max_step=1440 erf.plot_int_1=1440"
+    WMAX 5
+    RUN_TIMEOUT 1800)
+endif()
+
+# erf.implicit_terrain_metric (opt-in) puts the compact K_h * M * d2/dz2 metric term into the
+# implicit vertical solves.  Measured on this deck (Release, 2 ranks, 6 h): with
+# erf.vert_implicit_fac = 1 1 1 the run without the option is stable to 25 s and fails from
+# 30 s; with it, to 70 s, failing at 75 s (as a run without LES does).  The test runs the option
+# at 50 s for 60 steps (fixed_mri_dt_ratio 30, as in the scans), well inside both edges, and the
+# control without it at 50 s must fail (it does at step 2).
+add_test_terrain_stress_ridge(TerrainStress_Ridge_ImplicitMetric survive "plt00060"
+    OPTIONS "erf.implicit_terrain_metric=true erf.vert_implicit_fac=1 1 1 erf.fixed_dt=50 erf.fixed_mri_dt_ratio=30 max_step=60 erf.plot_int_1=60"
+    CONTROL_OPTIONS "erf.vert_implicit_fac=1 1 1 erf.fixed_dt=50 erf.fixed_mri_dt_ratio=30 max_step=60 erf.plot_int_1=60"
+    WMAX 15)
+# A 3-D Witch-of-Agnesi hill (prob.dir = 2, slopes in x and y), 32 x 32 cells in four 16 x 16 boxes,
+# so the stress loop runs on two tiles in y per box (TileNoZ tiles y by 8 on CPU; x is not tiled,
+# so the x seam is covered by TerrainStress.TiledStressesMatchTheWholeBox only).  It exercises the
+# S12/S21 projections, which the 2-D ridges leave at zero, and the K_h-weighted stress temporaries
+# across tile edges.  With them sized on the nodal tile box the reads went past the arrays: a Debug
+# build aborts on the bound check, while a Release run depends on stale memory (it failed at step 12
+# in one run and finished in another; TerrainStress.TiledStressesMatchTheWholeBox catches it in
+# both).  Measured (Release, 2 ranks, 6 h): stable to 30 s at the default vert_implicit_fac; the test
+# runs 60 steps of 20 s.
+add_test_terrain_stress_ridge(TerrainStress_Hill3D survive "plt00060"
+    OPTIONS "geometry.prob_extent=96000 96000 12952.825935499923 amr.n_cell=32 32 40 amr.max_grid_size_y=16 prob.dir=2 erf.fixed_dt=20 erf.fixed_mri_dt_ratio=12 max_step=60 erf.plot_int_1=60"
+    WMAX 5)
+# At a small time step the option changes only the time discretization of the metric term: after
+# 60 steps of 5 s, u and w differ by about 4e-4 and Kmh by 0.1 % (relative), and the two runs
+# must still differ.  A split that removed one form and added another would differ by O(1).
+# Double precision only: y_velocity is round-off (1e-13 here), which in single precision is far
+# above ATOL in both runs and would make the comparison meaningless.
+if(ERF_PRECISION STREQUAL "DOUBLE")
+add_test_terrain_stress_ridge(TerrainStress_Ridge_ImplicitMetricAgree agree "plt00060"
+    ON_OPTIONS "erf.implicit_terrain_metric=true erf.vert_implicit_fac=1 1 1 erf.fixed_dt=5 erf.fixed_mri_dt_ratio=4 max_step=60 erf.plot_int_1=60"
+    OFF_OPTIONS "erf.vert_implicit_fac=1 1 1 erf.fixed_dt=5 erf.fixed_mri_dt_ratio=4 max_step=60 erf.plot_int_1=60"
+    RTOL 0.01
+    ATOL 1.e-9)
+endif()
+
+# erf.implicit_terrain_metric is checked at start-up and aborts naming itself.  add_test_abort
+# runs through `sh -c ... | tee`, so these sit under the same guard as its other uses.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+set(_tsr_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/Terrain_Stress_Ridge)
+add_test_abort(TerrainStress_Abort_MetricWithoutTerrain ${_tsr_dir} Terrain_Stress_Ridge.i
+               "erf.implicit_terrain_metric = true requires a terrain-fitted mesh"
+               "erf.terrain_type=None erf.grid_stretching_ratio=0 prob.custom_terrain_type=None erf.implicit_terrain_metric=true erf.vert_implicit_fac=1 1 1")
+add_test_abort(TerrainStress_Abort_MetricExplicitStage ${_tsr_dir} Terrain_Stress_Ridge.i
+               "erf.vert_implicit_fac is not positive in stage 3 at level 0"
+               "erf.implicit_terrain_metric=true")
+if(ERF_ENABLE_FFT)
+add_test_abort(TerrainStress_Abort_MetricAnelasticMidPoint ${_tsr_dir} Terrain_Stress_Ridge.i
+               "erf.vert_implicit_fac is not positive in stage 2 at level 0"
+               "erf.anelastic=1 erf.use_fft=true erf.anelastic_type=MidPoint erf.implicit_terrain_metric=true erf.vert_implicit_fac=1 1 1")
+endif()
+endif()
+
+#=============================================================================
+# The terrain Poisson operator at Neumann faces (#4272)
+#
+# FFT-preconditioned GMRES solves the anelastic projection on a terrain-fitted mesh with
+# ERF's own operator.  At a coarse/fine face of a refined level, and at a wall or inflow
+# face of the domain, it used to mirror the solution into the ghost cell only, which leaves
+# the terrain cross term in the flux through the face: on sloping terrain the problem had
+# no solution and the refined level never converged.  The operator now sets the whole flux
+# there to zero.  Tests/test_files/TerrainPoisson_Hill is a 100 m hill whose refined patch has
+# all four coarse/fine faces on its flanks; check_terrain_poisson_divergence.py reads the
+# divergence ERF prints after every solve (erf.mg_v = 1).  Measured on 2 ranks over 6 steps:
+# level 1 leaves at most 9.5e-10 above the mean subtracted from the singular problem, where
+# the earlier operator (development at 905623352) left up to 1.6e-2 (all 25 solves fail).  The same deck boxed in by
+# slip walls on one level (the hill's slopes reach the walls): 1.7e-9 against 7.6e-4 (6 of
+# 13 solves failed).  The general-terrain projection needs the FFT build.
+#=============================================================================
+function(add_test_terrain_poisson_divergence TEST_NAME TEST_FILES_DIR LEVEL)
+    set(oneValueArgs "COMMON_OPTIONS" "MAX_RATIO")
+    cmake_parse_arguments(ADD_TEST_TPD "" "${oneValueArgs}" "" ${ARGN})
+    if(ADD_TEST_TPD_UNPARSED_ARGUMENTS)
+        message(FATAL_ERROR "add_test_terrain_poisson_divergence(${TEST_NAME}): unknown arguments "
+                            "'${ADD_TEST_TPD_UNPARSED_ARGUMENTS}'")
+    endif()
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${CMAKE_CURRENT_SOURCE_DIR}/check_terrain_poisson_divergence.py"
+        "-DLEVEL=${LEVEL}"
+        "-DMAX_RATIO=${ADD_TEST_TPD_MAX_RATIO}"
+        "-DCOMMON_OPTIONS=${ADD_TEST_TPD_COMMON_OPTIONS}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunTerrainPoissonDivergence.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/run/simulation.log")
+endfunction(add_test_terrain_poisson_divergence)
+
+if(ERF_ENABLE_MPI AND NOT WIN32)
+  # The hill on one level, boxed in by slip walls where its slopes reach them
+  set(_tp_walls "amr.max_level=0 geometry.is_periodic=0 0 0 xlo.type=SlipWall xhi.type=SlipWall ylo.type=SlipWall yhi.type=SlipWall geometry.prob_lo=-640 -640 0 geometry.prob_hi=640 640 640 amr.n_cell=16 16 16")
+  # Two separate refined patches on the hill's flanks (two regions on level 1)
+  set(_tp_two_patches "amr.grid_eff=0.99 erf.refinement_indicators=box1 box2 erf.box1.in_box_lo_indices_crse=4 8 0 erf.box1.in_box_hi_indices_crse=11 15 15 erf.box2.max_level=1 erf.box2.in_box_lo_indices_crse=20 16 0 erf.box2.in_box_hi_indices_crse=27 23 15")
+  if(ERF_TEST_PYTHON)
+    # The checker's own verdicts on made-up logs (no ERF run)
+    add_test(NAME TerrainPoisson_DivergenceChecker_SelfTest COMMAND ${CMAKE_COMMAND}
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${CMAKE_CURRENT_SOURCE_DIR}/check_terrain_poisson_divergence.py"
+        "-DWORKING_DIRECTORY=${CMAKE_CURRENT_BINARY_DIR}/test_files/TerrainPoisson_DivergenceChecker_SelfTest"
+        -P ${PROJECT_SOURCE_DIR}/Tests/CheckTerrainPoissonDivergenceSelfTest.cmake)
+    set_tests_properties(TerrainPoisson_DivergenceChecker_SelfTest
+        PROPERTIES
+        TIMEOUT 60
+        PROCESSORS 1
+        LABELS "unit")
+  endif()
+  if(ERF_ENABLE_FFT AND ERF_TEST_PYTHON)
+    # Two levels: the refined level converges
+    add_test_terrain_poisson_divergence(TerrainPoisson_TwoLevelHill TerrainPoisson_Hill 1)
+    # One level in a box of slip walls on the hill's slopes: the wall part of the fix
+    add_test_terrain_poisson_divergence(TerrainPoisson_SlopingWalls TerrainPoisson_Hill 0
+        COMMON_OPTIONS "${_tp_walls}")
+    # Two separate refined patches on the hill's flanks, so level 1 has two regions.  The
+    # projection walked the level's boxes while reading the region's map-factor and area
+    # arrays (numbered over the region's boxes only), and development stopped here with a
+    # segmentation fault; the loops now use the region's own arrays
+    add_test_terrain_poisson_divergence(TerrainPoisson_TwoPatches TerrainPoisson_Hill 1
+        COMMON_OPTIONS "${_tp_two_patches}")
+    # Map factors other than one (erf.test_mapfactor: 0.5 and 0.25): the projection adds the
+    # map-factor scaled fluxes, which change the divergence by m_x m_y times A phi, so the
+    # equation solved is A phi = rhs / (m_x m_y).  Without that division every solve left
+    # 1 - m_x m_y = 75 % of the divergence (1.17e-2 of 1.56e-2 on level 0)
+    add_test_terrain_poisson_divergence(TerrainPoisson_MapFactors TerrainPoisson_Hill 1
+        COMMON_OPTIONS "erf.test_mapfactor=true")
+    add_test_terrain_poisson_divergence(TerrainPoisson_MapFactors_Walls TerrainPoisson_Hill 0
+        COMMON_OPTIONS "${_tp_walls} erf.test_mapfactor=true")
+    # The answer on two levels must not depend on the decomposition (one box on one rank
+    # against level-1 boxes split in x and y on NP ranks; they agree to 1e-14) or on a
+    # restart, which re-makes the solve from the checkpoint
+    set(_tph_snd "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/TerrainPoisson_Hill_BoxParity/input_sounding")
+    add_test_box_parity(TerrainPoisson_Hill_BoxParity TerrainPoisson_Hill "plt00006"
+        COMMON_OPTIONS "${_tph_snd}"
+        REFERENCE_OPTIONS "amr.max_grid_size=1024"
+        SPLIT_OPTIONS "amr.max_grid_size_x=12 amr.max_grid_size_y=8"
+        FCOMPARE_RTOL "1.0e-9")
+    set(_tph_snd "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/TerrainPoisson_Hill_Restart/input_sounding")
+    add_test_restart_parity(TerrainPoisson_Hill_Restart TerrainPoisson_Hill 3 6
+        COMMON_OPTIONS "${_tph_snd}"
+        FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+  endif()
 endif()
 
 #=============================================================================
