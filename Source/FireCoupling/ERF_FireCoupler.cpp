@@ -196,17 +196,16 @@ FireCoupler::update_flux_buffer (const Geometry& geom_atm)
     if (!m_Q_atm_prev) { return; }
     FireFluxes fluxes;
     m_engine->fill_fluxes(fluxes);
-    if (!fluxes.sensible) {
-        // No flux this step: last step's must not be injected again
+    if (fluxes.sensible) {
+        coarsen_fire_flux_to_atm(*m_Q_atm_prev, *fluxes.sensible, geom_atm, m_fg);
+        if (m_params.fire_debug) {
+            amrex::Print() << "[FIRE DEBUG] Sensible flux to the atmosphere: max " << m_Q_atm_prev->max(0)
+                           << " W/m2" << fluxes.debug_note << std::endl;
+        }
+    } else {
+        // Clear the stale sensible flux without discarding independent latent
+        // feedback reported by the engine during this same step.
         m_Q_atm_prev->setVal(0.0_rt);
-        m_Q_lat_atm_prev->setVal(0.0_rt);
-        return;
-    }
-
-    coarsen_fire_flux_to_atm(*m_Q_atm_prev, *fluxes.sensible, geom_atm, m_fg);
-    if (m_params.fire_debug) {
-        amrex::Print() << "[FIRE DEBUG] Sensible flux to the atmosphere: max " << m_Q_atm_prev->max(0)
-                       << " W/m2" << fluxes.debug_note << std::endl;
     }
 
     if (m_params.inject_latent && fluxes.latent) {
