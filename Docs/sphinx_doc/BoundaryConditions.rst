@@ -243,31 +243,20 @@ density as the target for ``rho``, ``rho*theta``, and ``rho*qv`` and relaxes
 of state rather than directly nudged. This option is not supported for
 MetGrid-only boundaries, generic boundary-plane input, or anelastic runs.
 
-Cloud hydrometeors at the lateral boundaries are opt-in. The initial state from
-``wrfinput`` fills every hydrometeor species the moisture model carries
-(``QCLOUD``, ``QICE``, ``QRAIN``, ``QSNOW`` and ``QGRAUP`` into ``qc``, ``qi``,
-``qr``, ``qs`` and ``qg``) whatever the option; with
-``erf.use_wrf_bdy_qc_qi = true`` a missing field stops the run. At the lateral
-boundaries, ``erf.use_wrf_bdy_qc_qi = true`` reads ``QCLOUD`` and ``QRAIN`` and,
-for an ice-capable moisture model, ``QICE``, ``QSNOW`` and ``QGRAUP`` from all
-four value/tendency sides of ``wrfbdy``. A moisture model that carries all five
-species gets each field in its own species; otherwise ``QCLOUD`` and ``QRAIN``
-are combined into ``qc`` and ``QICE``, ``QSNOW`` and ``QGRAUP`` into ``qi``, so
-with a rain-capable model without ice (``Kessler``) inflowing rain enters as
-cloud water and ``qr`` is zero at the boundary. Their time-interpolated
-primitive values fill the density-weighted lateral ghost cells of those species.
-This supplies an exterior state to scalar advection; actual inward transport
-still depends on the normal velocity and advection operator. No-ice models
-neither read nor require the ice fields.
+Cloud hydrometeors are opt-in. With ``erf.use_wrf_bdy_qc_qi = true``, ERF reads
+``QCLOUD`` and, for an ice-capable moisture model, ``QICE`` from ``wrfinput`` and
+all four value/tendency sides of ``wrfbdy``. Their time-interpolated primitive
+values fill density-weighted ``qc``/``qi`` lateral ghost cells. This supplies an
+exterior state to scalar advection; actual inward transport still depends on the
+normal velocity and advection operator. No-ice models neither read nor require
+``QICE``, and precipitating species are not mapped to cloud ice.
 
 Interior Davies relaxation is separate. ``erf.bdy_moist_nudge_type = 3`` relaxes
-active ``qv``, ``qc``, and ``qi`` (and ``qr``, ``qs`` and ``qg`` for a model
-that carries all five species) toward the corresponding WRF targets using the
+active ``qv``, ``qc``, and ``qi`` toward the corresponding WRF targets using the
 existing spatial mask and adds no separate latent heating. Modes 0, 1, and 2 keep
 their legacy behavior, so setting ``use_wrf_bdy_qc_qi = true`` with one of those
 modes enables hydrometeor boundary transport without WRF-targeted hydrometeor
-nudging; type 1 then pulls the band's vapour toward ``QVAPOR`` less the
-condensate, so with cloudy inflow type 3 is the consistent choice. Mode 3 requires the new option. Generic boundary-plane and MetGrid-only
+nudging. Mode 3 requires the new option. Generic boundary-plane and MetGrid-only
 input are unsupported. An existing eight-variable ERFBdy cache remains valid
 when the option is false; enabling it requires regenerating an extended cache
 from ``wrfbdy`` so the appended ``QC`` and ``QI`` fields are present.
