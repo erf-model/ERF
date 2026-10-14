@@ -180,7 +180,11 @@ form); set together, the two factors stack (:math:`\rho / \Pi`). With
 against the flux handed in, whose ratio is :math:`1 - e^{-z_{top}/\alpha_g}`
 with neither factor (the factors multiply it by the profile-weighted mean of
 :math:`\rho`, of :math:`1/\Pi`, or of :math:`\rho/\Pi` with both, essentially
-their values near the surface).
+their values near the surface). The Exner factor applies only to sensible
+heating. The latent flux is converted to a water-mass flux by dividing by
+the latent heat of vaporisation and enters the conserved water-vapour source
+without Exner scaling. The optional legacy density multiplier still scales
+both the sensible and water-vapour tendencies.
 
 :cpp:`erf.fire.fire_atm_feedback` multiplies both fluxes before injection;
 zero gives one-way coupling with the fire still responding to the wind, one

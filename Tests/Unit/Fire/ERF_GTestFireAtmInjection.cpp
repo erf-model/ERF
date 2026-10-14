@@ -5,11 +5,8 @@
 #include <AMReX_DistributionMapping.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
-#include <AMReX_Arena.H>
-#include <AMReX_FArrayBox.H>
-#include <AMReX_Gpu.H>
-#include <AMReX_ParallelDescriptor.H>
-#include <algorithm>
+#include <AMReX_Math.H>
+#include <AMReX_Vector.H>
 #include <cmath>
 
 #include <ERF_Constants.H>
@@ -236,12 +233,12 @@ TEST(SmokeInjection, SourceDividesByTheCellThickness)
 
 namespace {
 
-// These tests exercise the production kernel, not a copy of its arithmetic.
-// Keep the PR's profile, constants, density option and defaults fixed: only
-// the Exner conversion of heat versus water is under test here.
+// Check the production source kernel against independent analytic layer
+// weights and column budgets. AMReX reductions work with device data and
+// across MPI ranks; do not read GPU-resident MultiFabs on the host.
 void check_exner_heat_and_water(Real pressure, Real density, Real qv,
-                               bool open_weights, bool additive,
-                               bool legacy_density)
+                                bool open_weights, bool additive,
+                                bool legacy_density)
 {
     SCOPED_TRACE(::testing::Message()
                  << "p=" << pressure << ", rho_d=" << density << ", qv=" << qv
@@ -249,14 +246,17 @@ void check_exner_heat_and_water(Real pressure, Real density, Real qv,
                  << ", legacy_density=" << legacy_density);
 
     Column c;
-    // Several full-height boxes: a rank must never inspect another rank's FAB.
+    // Split into full-height boxes; this also permits a multi-rank run.
     c.ba.maxSize(IntVect(2, 2, NZ));
     c.dm = DistributionMapping(c.ba);
     BoxArray slabs = c.ba;
     slabs.coarsen(IntVect(1, 1, NZ));
+
     constexpr Real sensible = 5.0e4_rt, latent = 3.0e3_rt;
+    // Match PR #4288's current conversion; PR #521 will change it to Cp_d.
     constexpr Real cp = 1004.64_rt, lv = 2.501e6_rt, depth = 100.0_rt;
-    constexpr Real open_fraction = 0.25_rt, roof = 2.0_rt * DZ;
+    // Roof halfway through k=2, not just aligned to a cell face.
+    constexpr Real open_fraction = 0.25_rt, roof = 2.5_rt * DZ;
     constexpr Real background_heat = 0.125_rt, background_water = 1.0e-8_rt;
     constexpr Real background_other = 0.25_rt;
 
@@ -277,6 +277,7 @@ void check_exner_heat_and_water(Real pressure, Real density, Real qv,
     state.setVal(density * qv, RhoQ1_comp, 1);
     qs.setVal(sensible); ql.setVal(latent);
     open.setVal(open_fraction); roofs.setVal(roof);
+
     for (MFIter mfi(zcc); mfi.isValid(); ++mfi) {
         const auto z = zcc.array(mfi);
         ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -295,130 +296,105 @@ void check_exner_heat_and_water(Real pressure, Real density, Real qv,
     apply_fire_tendency_to_cc_source(on, qs, &ql, zcc, &znd, state, c.geom,
         depth, 1.0_rt, true, false, additive, &open, &roofs,
         open_weights, legacy_density, true);
-    Gpu::synchronize();
 
-    // Closed-form column weights, independently of the production helpers.
+    // Closed-form weights, including the cell half-covered by the roof.
     const Real pi = std::pow(pressure / p_0, R_d / Cp_d);
+    const Real decay = -std::expm1(-DZ / depth);
     const Real retained = -std::expm1(-Real(NZ) * DZ / depth);
-    const Real below = -std::expm1(-roof / depth);
-    const Real normalization = retained - (1.0_rt - open_fraction) * below;
+    const Real below_two = -std::expm1(-2.0_rt * DZ / depth);
+    const Real third_weight = std::exp(-2.0_rt * DZ / depth) * decay;
+    const Real third_share = open_fraction + 0.5_rt * (1.0_rt - open_fraction);
+    const Real normalization = retained - (1.0_rt - open_fraction) * below_two
+                                        - (1.0_rt - third_share) * third_weight;
     const Real scale = legacy_density ? density : 1.0_rt;
     const Real bh = additive ? background_heat : 0.0_rt;
     const Real bw = additive ? background_water : 0.0_rt;
-    const Real volume = DXY * DXY * DZ;
-    Real error[5] = {};  // heat off/on, water off/on, unrelated components
-    Real totals[4] = {}; // enthalpy off/on, water mass rate off/on
-    int nonfinite = 0;
-    Long inspected = 0;
-    for (MFIter mfi(on); mfi.isValid(); ++mfi) {
-        const Box& bx = mfi.validbox();
-        // Explicit host staging works with either device or managed arenas.
-        // No host dereference of a device-resident source array is permitted.
-        FArrayBox off_host(bx, NVAR_max, The_Pinned_Arena());
-        FArrayBox on_host(bx, NVAR_max, The_Pinned_Arena());
-        const Long count = bx.numPts() * NVAR_max;
-        Gpu::copy(Gpu::deviceToHost, off[mfi].dataPtr(),
-                  off[mfi].dataPtr() + count, off_host.dataPtr());
-        Gpu::copy(Gpu::deviceToHost, on[mfi].dataPtr(),
-                  on[mfi].dataPtr() + count, on_host.dataPtr());
-        const auto a = off_host.const_array();
-        const auto b = on_host.const_array();
-        for (int k = bx.smallEnd(2); k <= bx.bigEnd(2); ++k) {
-            Real weight = std::exp(-Real(k) * DZ / depth)
-                          * (-std::expm1(-DZ / depth));
+
+    // Residuals: heat off/on, water off/on, exact Exner water invariance,
+    // and every unrelated source component. No host-device staging required.
+    MultiFab residual(c.ba, c.dm, 6, 0);
+    for (MFIter mfi(residual); mfi.isValid(); ++mfi) {
+        const auto a = off.const_array(mfi);
+        const auto b = on.const_array(mfi);
+        const auto e = residual.array(mfi);
+        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            Real weight = std::exp(-Real(k) * DZ / depth) * decay;
             if (open_weights) {
-                weight *= (k < 2 ? open_fraction : 1.0_rt) * retained / normalization;
+                const Real share = k < 2 ? open_fraction : (k == 2 ? third_share : 1.0_rt);
+                weight *= share * retained / normalization;
             }
             const Real heat = scale * sensible * weight / (cp * DZ);
             const Real water = scale * latent * weight / (lv * DZ);
-            const Real expected[4] = {heat, heat / pi, water, water};
-            for (int j = bx.smallEnd(1); j <= bx.bigEnd(1); ++j) {
-                for (int i = bx.smallEnd(0); i <= bx.bigEnd(0); ++i) {
-                    const Real actual[4] = {
-                        a(i, j, k, RhoTheta_comp) - bh,
-                        b(i, j, k, RhoTheta_comp) - bh,
-                        a(i, j, k, RhoQ1_comp) - bw,
-                        b(i, j, k, RhoQ1_comp) - bw};
-                    for (int n = 0; n < 4; ++n) {
-                        if (!std::isfinite(actual[n])) { nonfinite = 1; }
-                        else {
-                            error[n] = std::max(error[n], std::abs(actual[n] - expected[n]) / expected[n]);
-                        }
-                    }
-                    for (int n = 0; n < NVAR_max; ++n) {
-                        if (n == RhoTheta_comp || n == RhoQ1_comp) { continue; }
-                        if (!std::isfinite(a(i, j, k, n)) || !std::isfinite(b(i, j, k, n))) {
-                            nonfinite = 1;
-                        } else {
-                            error[4] = std::max(error[4], std::max(
-                                std::abs(a(i, j, k, n) - background_other),
-                                std::abs(b(i, j, k, n) - background_other)));
-                        }
-                    }
-                    totals[0] += cp * pi * actual[0] * volume;
-                    totals[1] += cp * pi * actual[1] * volume;
-                    totals[2] += actual[2] * volume;
-                    totals[3] += actual[3] * volume;
-                    ++inspected;
-                }
+            e(i, j, k, 0) = a(i, j, k, RhoTheta_comp) - bh - heat;
+            e(i, j, k, 1) = b(i, j, k, RhoTheta_comp) - bh - heat / pi;
+            e(i, j, k, 2) = a(i, j, k, RhoQ1_comp) - bw - water;
+            e(i, j, k, 3) = b(i, j, k, RhoQ1_comp) - bw - water;
+            e(i, j, k, 4) = b(i, j, k, RhoQ1_comp) - a(i, j, k, RhoQ1_comp);
+            Real other = 0.0_rt;
+            for (int n = 0; n < NVAR_max; ++n) {
+                if (n == RhoTheta_comp || n == RhoQ1_comp) { continue; }
+                other = amrex::max(other, amrex::max(
+                    amrex::Math::abs(a(i, j, k, n) - background_other),
+                    amrex::Math::abs(b(i, j, k, n) - background_other)));
             }
-        }
+            e(i, j, k, 5) = other;
+        });
     }
-    ParallelDescriptor::ReduceRealMax(error, 5);
-    ParallelDescriptor::ReduceRealSum(totals, 4);
-    ParallelDescriptor::ReduceIntMax(nonfinite);
-    ParallelDescriptor::ReduceLongSum(inspected);
+
+    EXPECT_FALSE(off.contains_nan(0, NVAR_max));
+    EXPECT_FALSE(on.contains_nan(0, NVAR_max));
+    EXPECT_FALSE(off.contains_inf(0, NVAR_max));
+    EXPECT_FALSE(on.contains_inf(0, NVAR_max));
+
     const Real tolerance = (sizeof(Real) == 8) ? Real(1.0e-10) : Real(8.0e-5);
-    EXPECT_EQ(nonfinite, 0);
-    EXPECT_EQ(inspected, c.geom.Domain().numPts());
-    EXPECT_LE(error[0], tolerance) << "heat with Exner off";
-    EXPECT_LE(error[1], tolerance) << "heat with Exner on";
-    EXPECT_LE(error[2], tolerance) << "water with Exner off";
-    EXPECT_LE(error[3], tolerance) << "water must not acquire 1/Pi";
-    EXPECT_EQ(error[4], 0.0_rt) << "unrelated sources must be unchanged";
+    const Real peak_heat = scale * sensible * decay / (cp * DZ);
+    const Real peak_water = scale * latent * decay / (lv * DZ);
+    const auto err = residual.norm0(Vector<int>{0, 1, 2, 3, 4, 5});
+    EXPECT_LE(err[0], tolerance * peak_heat) << "heat with Exner off";
+    EXPECT_LE(err[1], tolerance * peak_heat / pi) << "heat with Exner on";
+    EXPECT_LE(err[2], tolerance * peak_water) << "water with Exner off";
+    EXPECT_LE(err[3], tolerance * peak_water) << "water without 1/Pi";
+    EXPECT_EQ(err[4], 0.0_rt) << "Exner must leave vapor deposition identical cell by cell";
+    EXPECT_EQ(err[5], 0.0_rt) << "unrelated sources must be unchanged";
+
+    const Real volume = DXY * DXY * DZ;
     const Real area = Real(NX * NX) * DXY * DXY;
+    const Real cells = Real(c.geom.Domain().numPts());
     const Real heat_budget = scale * sensible * retained * area;
     const Real water_budget = scale * (latent / lv) * retained * area;
-    EXPECT_NEAR(totals[0], pi * heat_budget, tolerance * heat_budget);
-    EXPECT_NEAR(totals[1], heat_budget, tolerance * heat_budget);
-    EXPECT_NEAR(totals[2], water_budget, tolerance * water_budget);
-    EXPECT_NEAR(totals[3], water_budget, tolerance * water_budget);
-}
-
-void check_exner_cases(bool open_weights, bool additive, bool legacy_density)
-{
-    for (Real pressure : {7.0e4_rt, 8.5e4_rt, 1.0e5_rt}) {
-        for (Real density : {0.75_rt, 1.25_rt}) {
-            for (Real qv : {0.0_rt, 0.015_rt}) {
-                check_exner_heat_and_water(pressure, density, qv,
-                                          open_weights, additive, legacy_density);
-            }
-        }
-    }
+    const Real heat_off = cp * pi * (off.sum(RhoTheta_comp) - bh * cells) * volume;
+    const Real heat_on = cp * pi * (on.sum(RhoTheta_comp) - bh * cells) * volume;
+    const Real water_off = (off.sum(RhoQ1_comp) - bw * cells) * volume;
+    const Real water_on = (on.sum(RhoQ1_comp) - bw * cells) * volume;
+    EXPECT_NEAR(heat_off, pi * heat_budget, tolerance * heat_budget);
+    EXPECT_NEAR(heat_on, heat_budget, tolerance * heat_budget);
+    EXPECT_NEAR(water_off, water_budget, tolerance * water_budget);
+    EXPECT_NEAR(water_on, water_budget, tolerance * water_budget);
 }
 
 } // namespace
 
 TEST(ExnerTendency, WaterMassIndependentOfExner)
 {
-    check_exner_cases(false, false, false);
+    check_exner_heat_and_water(7.0e4_rt, 0.75_rt, 0.0_rt,   false, false, false);
+    check_exner_heat_and_water(8.5e4_rt, 1.25_rt, 0.015_rt, false, false, false);
+    check_exner_heat_and_water(1.0e5_rt, 1.0_rt,  0.015_rt, false, false, false);
 }
 
 TEST(ExnerTendency, WaterMassIndependentOfExnerWithOpenFraction)
 {
-    check_exner_cases(true, false, false);
+    check_exner_heat_and_water(8.5e4_rt, 1.25_rt, 0.015_rt, true, false, false);
 }
 
 TEST(ExnerTendency, HeatAndWaterPreserveAdditiveBackground)
 {
-    check_exner_cases(false, true, false);
-    check_exner_cases(true, true, false);
+    check_exner_heat_and_water(8.5e4_rt, 0.75_rt, 0.015_rt, false, true, false);
+    check_exner_heat_and_water(8.5e4_rt, 1.25_rt, 0.015_rt, true,  true, false);
 }
 
 TEST(ExnerTendency, LegacyDensityFactorDoesNotApplyExnerToWater)
 {
-    // Compatibility coverage only, not an endorsement of density scaling as
-    // the physical conversion of the prescribed W/m2 inputs.
-    check_exner_cases(false, true, true);
-    check_exner_cases(true, true, true);
+    // Compatibility only, not endorsement of legacy density scaling for W/m2.
+    check_exner_heat_and_water(8.5e4_rt, 1.25_rt, 0.015_rt, false, true, true);
+    check_exner_heat_and_water(7.0e4_rt, 0.75_rt, 0.015_rt, true,  true, true);
 }
