@@ -332,13 +332,60 @@ void SynchronousCouplingHandsOverTheNewWindAndDropsAVanishedLatentFlux ()
     step(*cpl, *lev);
     EXPECT_EQ(cpl->get_Q_lat_atm_prev()->norm0(0, 1, IntVect(5, 5, 0)), 0.0_rt);
     EXPECT_GT(cpl->get_Q_atm_prev()->min(0), 0.0_rt) << "the sensible flux still arrives";
-    // and a step with no flux at all clears both
+    // A missing sensible pointer does not cancel an independently valid latent flux.
     eng->report_latent = true;
     step(*cpl, *lev);
     eng->report_sensible = false;
     step(*cpl, *lev);
     EXPECT_EQ(cpl->get_Q_atm_prev()->norm0(0, 1, IntVect(5, 5, 0)), 0.0_rt) << "no sensible flux this step";
+    EXPECT_NEAR(cpl->get_Q_lat_atm_prev()->max(0), QLAT, REL * QLAT)
+        << "latent flux must remain available without sensible heat";
+    // When the remaining channel disappears too, clear its valid cells and halo.
+    eng->report_latent = false;
+    step(*cpl, *lev);
+    EXPECT_EQ(cpl->get_Q_atm_prev()->norm0(0, 1, IntVect(5, 5, 0)), 0.0_rt);
     EXPECT_EQ(cpl->get_Q_lat_atm_prev()->norm0(0, 1, IntVect(5, 5, 0)), 0.0_rt);
+}
+
+void LatentOnlyFluxInjectsWaterWithoutHeating ()
+{
+    auto lev = make_level(false);
+    FireCouplingParams p = coupling("lagged", false);
+    p.heat_tendency_density = false; // Use the physical mass-flux conversion.
+    StandInEngine* eng = nullptr;
+    auto cpl = make_coupler(*lev, p, eng);
+
+    eng->report_sensible = false;
+    step(*cpl, *lev);
+    const IntVect ghost(5, 5, 0);
+    EXPECT_EQ(cpl->get_Q_atm_prev()->norm0(0, 1, ghost), 0.0_rt);
+    EXPECT_NEAR(cpl->get_Q_lat_atm_prev()->min(0), QLAT, REL * QLAT);
+    EXPECT_NEAR(cpl->get_Q_lat_atm_prev()->norm0(0, 1, ghost), QLAT, REL * QLAT)
+        << "latent ghost cells must be filled even without sensible heat";
+
+    // Native MultiFab reductions work on CPU/GPU and across MPI ranks.
+    auto src = sources(*cpl, *lev, 0.0_rt);
+    EXPECT_EQ(src->norm0(RhoTheta_comp), 0.0_rt);
+    const Real retained = 1.0_rt - std::exp(-Real(NZ) * DZ / ALFG);
+    const Real expected = Real(NX * NY) * FEEDBACK * (QLAT / L_V) * retained;
+    EXPECT_NEAR(src->sum(RhoQ1_comp) * DZ, expected, REL * expected)
+        << "prescribed latent-only flux must be deposited as water mass";
+
+    // An allocated zero sensible field and a null sensible pointer mean the
+    // same physical heat release: neither should affect vapor deposition.
+    eng->report_sensible = true;
+    eng->sensible->setVal(0.0_rt);
+    step(*cpl, *lev);
+    auto src_zero_sensible = sources(*cpl, *lev, 0.0_rt);
+    EXPECT_EQ(src_zero_sensible->norm0(RhoTheta_comp), 0.0_rt);
+    EXPECT_NEAR(src_zero_sensible->sum(RhoQ1_comp) * DZ, expected, REL * expected);
+
+    eng->report_latent = false;
+    step(*cpl, *lev);
+    auto src_cleared = sources(*cpl, *lev, 0.0_rt);
+    EXPECT_EQ(src_cleared->norm0(RhoTheta_comp), 0.0_rt);
+    EXPECT_EQ(src_cleared->norm0(RhoQ1_comp), 0.0_rt)
+        << "a disappeared latent flux must not be reused in a later timestep";
 }
 
 void TheInjectedHeatIsTheSurfaceFlux ()
@@ -835,6 +882,7 @@ TEST(FireCoupler, SynchronousCouplingHandsOverTheNewWindAndDropsVanishedFluxes)
 {
     SynchronousCouplingHandsOverTheNewWindAndDropsAVanishedLatentFlux();
 }
+TEST(FireCoupler, LatentOnlyFluxInjectsWaterWithoutHeating)        { LatentOnlyFluxInjectsWaterWithoutHeating(); }
 TEST(FireCoupler, TheInjectedHeatIsTheSurfaceFlux)                 { TheInjectedHeatIsTheSurfaceFlux(); }
 TEST(FireCoupler, PassiveCouplingInjectsNoHeat)                    { PassiveCouplingInjectsNoHeat(); }
 TEST(FireCoupler, TheOpenFractionKeepsTheColumnEnergyAndThinsTheCellsUnderTheRoof)
