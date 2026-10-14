@@ -51,8 +51,8 @@ ERF::fill_from_realbdy (const Vector<MultiFab*>& mfs,
     Real oma   = one - alpha;
 
     // Flags for read vars and index mapping, built from the component layout
-    // (real_bdy_cons_maps) for any number of passive scalars, with the WRF
-    // hydrometeors flagged as read when use_wrf_bdy_qc_qi is on
+    // (real_bdy_cons_maps) for any number of passive scalars, preserving the
+    // upstream hydrometeor read flags
     const bool separate_hydrometeors = solverChoice.use_wrf_bdy_qc_qi &&
         wrf_bdy_has_separate_hydrometeors(solverChoice.moisture_indices);
     const RealBdyConsMaps cons_maps = real_bdy_cons_maps(solverChoice.use_wrf_bdy_density,

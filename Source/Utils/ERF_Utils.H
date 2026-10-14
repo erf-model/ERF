@@ -64,7 +64,8 @@ wrf_bdy_var_for_moisture_component (const int comp,
  * boundary data (read), from which boundary field (map), and from which
  * boundary-plane slot when planes are read as well (bnd, cons_bc_comp).
  * Density is read with erf.use_wrf_bdy_density, theta and the water vapour
- * always, the hydrometeors with erf.use_wrf_bdy_qc_qi; passive scalars never.
+ * always; passive scalars never. Hydrometeor mappings retain the upstream
+ * read flags, which do not enable hydrometeor ghost-cell fills.
  * Built from the component layout, so every passive scalar (NSCALARS of them)
  * sits between RhoKE_comp and RhoQ1_comp.
  */
@@ -95,14 +96,10 @@ real_bdy_cons_maps (const bool read_density,
     m.map [RhoTheta_comp] = RealBdyVars::T;
     m.read[RhoQ1_comp]    = 1;
     m.map [RhoQ1_comp]    = RealBdyVars::QV;
-    if (use_wrf_bdy_qc_qi) {
-        for (int comp = RhoQ1_comp; comp < NVAR_max; ++comp) { m.read[comp] = 0; }
-    }
     for (int comp = 0; comp < NVAR_max; ++comp) {
         const int bdy_var = wrf_bdy_var_for_moisture_component(
             comp, moisture_indices, use_wrf_bdy_qc_qi, separate_hydrometeors);
         if (bdy_var >= 0) {
-            m.read[comp] = 1;
             m.map[comp]  = bdy_var;
         }
     }

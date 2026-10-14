@@ -19,7 +19,7 @@
  * NSCALARS - 1 while the boundary-condition slots (BCVars) and the boundary
  * planes keep one slot for all the scalars. The checks cover the three maps
  * that depend on that layout: the WRF real-boundary maps (which WRF field fills
- * which component, the hydrometeors included when erf.use_wrf_bdy_qc_qi is on),
+ * which component, preserving the upstream hydrometeor read flags),
  * the boundary-plane reader (which plane slot a field is stored in), and the
  * implicit diffusion's molecular coefficients (one for every scalar). With
  * NSCALARS = 1 the slot maps are the identity on these components, so the slot
@@ -74,18 +74,36 @@ TEST(MultiScalarSlots, TheWrfBoundaryMapsReadNoScalarAndPutTheVapourInQ1)
         }
         EXPECT_EQ(m.read[RhoQ1_comp], 1);
         EXPECT_EQ(m.map[RhoQ1_comp], static_cast<int>(RealBdyVars::QV));
-        EXPECT_EQ(m.read[RhoQ2_comp], 0) << "the cloud water only with erf.use_wrf_bdy_qc_qi";
+        EXPECT_EQ(m.read[RhoQ2_comp], 0);
         EXPECT_EQ(m.bnd[RhoQ1_comp], static_cast<int>(BCVars::RhoQ1_bc_comp));
         EXPECT_EQ(m.bnd[RhoQ2_comp], static_cast<int>(BCVars::RhoQ2_bc_comp));
         EXPECT_EQ(m.bnd[RhoScalar_comp + NSCALARS - 1], static_cast<int>(BCVars::RhoScalar_bc_comp));
     }
-    // with the hydrometeors: the cloud water from its own WRF field
+    // Hydrometeor field mappings do not change the upstream read flags.
     const RealBdyConsMaps q = real_bdy_cons_maps(false, mi, true, false);
     EXPECT_EQ(q.read[RhoQ1_comp], 1);
     EXPECT_EQ(q.map[RhoQ1_comp], static_cast<int>(RealBdyVars::QV));
-    EXPECT_EQ(q.read[RhoQ2_comp], 1);
+    EXPECT_EQ(q.read[RhoQ2_comp], 0);
     EXPECT_EQ(q.map[RhoQ2_comp], static_cast<int>(RealBdyVars::QC));
     EXPECT_EQ(q.read[RhoQ3_comp], 0);
+}
+
+TEST(MultiScalarSlots, HydrometeorMappingsPreserveUpstreamReadFlags)
+{
+    const MoistureComponentIndices mi(RhoQ1_comp, RhoQ2_comp, RhoQ3_comp,
+                                       RhoQ4_comp, RhoQ5_comp, RhoQ6_comp);
+    for (bool read_density : {false, true}) {
+        const RealBdyConsMaps legacy = real_bdy_cons_maps(read_density, mi, false, false);
+        for (bool separate_hydrometeors : {false, true}) {
+            const RealBdyConsMaps mapped = real_bdy_cons_maps(
+                read_density, mi, true, separate_hydrometeors);
+            EXPECT_EQ(mapped.read, legacy.read);
+            EXPECT_EQ(mapped.bnd, legacy.bnd);
+            for (int comp : {mi.qc, mi.qi, mi.qr, mi.qs, mi.qg}) {
+                EXPECT_EQ(mapped.read[comp], 0) << "component " << comp;
+            }
+        }
+    }
 }
 
 TEST(MultiScalarSlots, EveryScalarGetsTheMolecularDiffusivityOfTheExplicitPath)
