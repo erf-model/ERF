@@ -671,9 +671,15 @@ endif
 ifeq ($(USE_KOKKOS), TRUE)
 # When using CUDA, employ the KOKKOS nvcc wrapper (nvcc isn't GCC-compatible)
 EKAT_CXX := $(CXX)
+EKAT_MPI_CXX := $(CXX)
 ifeq ($(USE_CUDA), TRUE)
     EKAT_CXX := $(EKAT_SOURCE_DIR)/extern/kokkos/bin/nvcc_wrapper
-    NVCC_WRAPPER_DEFAULT_COMPILER ?= $(CXX)
+    ifdef CRAYPE_VERSION
+        EKAT_MPI_CXX := $(shell command -v CC 2>/dev/null)
+    else
+        EKAT_MPI_CXX := $(shell command -v mpicxx 2>/dev/null)
+    endif
+    NVCC_WRAPPER_DEFAULT_COMPILER = $(EKAT_MPI_CXX)
     export NVCC_WRAPPER_DEFAULT_COMPILER
 endif
 
@@ -684,6 +690,7 @@ endif
 EKAT_CMAKE_FLAGS := \
   -D CMAKE_BUILD_TYPE:STRING=Release \
   -D CMAKE_CXX_COMPILER:STRING="$(EKAT_CXX)" \
+  -D MPI_CXX_COMPILER:FILEPATH="$(EKAT_MPI_CXX)" \
   -D CMAKE_CXX_STANDARD:STRING=17 \
   -D CMAKE_INSTALL_PREFIX:PATH="$(EKAT_INSTALL_PREFIX)" \
   -D CMAKE_INSTALL_LIBDIR:PATH="$(EKAT_INSTALL_LIBDIR)" \
