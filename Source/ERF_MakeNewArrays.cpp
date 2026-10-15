@@ -596,6 +596,9 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         build_fft_solvers(lev);
     }
 #endif
+
+    mfvec_surface_fluxes[lev].define(ba2d[lev],dm,2,0);
+    mfvec_surface_fluxes[lev].setVal(0.0);
 }
 
 /**
