@@ -856,7 +856,12 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
         MultiFab mf_cc_vel(grids[levc], dmap[levc], AMREX_SPACEDIM, IntVect(0,0,0));
         average_face_to_cellcenter(mf_cc_vel,0,{AMREX_D_DECL(&U_new,&V_new,&W_new)},0);
 
-        HurricaneEyeTracker(solverChoice, mf_cc_vel);
+        int hurricane_eye_i_glob, hurricane_eye_j_glob;
+        Real hurricane_eye_latitude, hurricane_eye_longitude;
+
+        HurricaneEyeTracker(solverChoice, mf_cc_vel,
+                            hurricane_eye_i_glob, hurricane_eye_j_glob,
+                            hurricane_eye_latitude, hurricane_eye_longitude);
 
         HurricaneMaxVelTracker(geom[levc],
                                mf_cc_vel,
@@ -867,11 +872,18 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
                                     vars_new[levc][Vars::cons],
                                     t_new[0]);
 
+        HurricaneSurfaceFluxesTracker(hurricane_eye_i_glob,
+                                      hurricane_eye_j_glob,
+                                      hurricane_eye_latitude,
+                                      hurricane_eye_longitude,
+                                      t_new[0]);
+
         std::string filename_tracker = MakeVTKFilename_TrackerCircle(nstep);
         std::string filename_xy      = MakeVTKFilename_EyeTracker_xy(nstep);
         std::string filename_latlon  = MakeFilename_EyeTracker_latlon(nstep);
         std::string filename_maxvel  = MakeFilename_EyeTracker_maxvel(nstep);
         std::string filename_minpressure  = MakeFilename_EyeTracker_minpressure(nstep);
+        std::string filename_surface_fluxes = MakeFilename_EyeTracker_surface_fluxes(nstep);
 
         if (ParallelDescriptor::IOProcessor()) {
             WriteVTKPolyline(filename_tracker, hurricane_tracker_circle);
@@ -879,9 +891,9 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
             WriteLinePlot(filename_latlon, hurricane_eye_track_latlon);
             WriteLinePlot(filename_maxvel, hurricane_maxvel_vs_time);
             WriteLinePlot(filename_minpressure, hurricane_minpressure_vs_time);
+            WriteLinePlot(filename_surface_fluxes, hurricane_surface_fluxes_vs_time);
         }
     }
-
 } // post_timestep
 
 // This is called from main.cpp and handles all initialization, whether from start or restart

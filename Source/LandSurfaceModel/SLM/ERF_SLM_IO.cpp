@@ -45,7 +45,6 @@ SLM::writeSLM_NetCDF (const MultiFab& mf, const Vector<std::string>& varnames, c
     // TODO: fix this
     //  2D fields are combined into the single mf with varnames components
     AMREX_ALWAYS_ASSERT(mf.nComp() == varnames.size());
-    IntVect ng(0, 0, 0);
     for (int var = 0; var < mf.nComp(); ++var)
     {
         MultiFab fab(mf, make_alias, var, 1);

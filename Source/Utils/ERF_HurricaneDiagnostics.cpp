@@ -72,6 +72,8 @@ void unpack_ij (const Long idx, const int nx, const Dim3& dlo, int& i, int& j) n
  * @param[out] global_val_min Global minimum value
  * @param[out] global_i_min Global minimum i-index
  * @param[out] global_j_min Global minimum j-index
+ * @param[out] hurricane_eye_latitude Latitude of the hurricane eye
+ * @param[out] hurricane_eye_longitude Longitude of the hurricane eye
  */
 void
 ERF::ComputeGlobalMinLocation (const SolverChoice& sc,
@@ -82,7 +84,9 @@ ERF::ComputeGlobalMinLocation (const SolverChoice& sc,
                                int* d_j_min_ptr,
                                Real& global_val_min,
                                int& global_i_min,
-                               int& global_j_min)
+                               int& global_j_min,
+                               Real& hurricane_eye_latitude,
+                               Real& hurricane_eye_longitude)
 {
     Real h_val_min;
     int h_i_min, h_j_min;
@@ -168,14 +172,14 @@ ERF::ComputeGlobalMinLocation (const SolverChoice& sc,
         }
     }
 
-    Real eye_lat = d_eye_lat.dataValue();
-    Real eye_lon = d_eye_lon.dataValue();
+    hurricane_eye_latitude = d_eye_lat.dataValue();
+    hurricane_eye_longitude = d_eye_lon.dataValue();
 
     // Synchronize to ensure the owner has computed values
     Gpu::synchronize();
 
-    ParallelDescriptor::Bcast(&eye_lat, 1, owner_rank);
-    ParallelDescriptor::Bcast(&eye_lon, 1, owner_rank);
+    ParallelDescriptor::Bcast(&hurricane_eye_latitude, 1, owner_rank);
+    ParallelDescriptor::Bcast(&hurricane_eye_longitude, 1, owner_rank);
 
     const auto dx = lev_geom.CellSizeArray();
     const auto prob_lo = lev_geom.ProbLoArray();
@@ -184,7 +188,7 @@ ERF::ComputeGlobalMinLocation (const SolverChoice& sc,
     Real eye_y =  prob_lo[1] + (global_j_min+myhalf)*dx[1];
 
     hurricane_eye_track_xy.push_back({eye_x, eye_y});
-    hurricane_eye_track_latlon.push_back({eye_lon, eye_lat});
+    hurricane_eye_track_latlon.push_back({hurricane_eye_longitude, hurricane_eye_latitude});
 }
 
 /**
@@ -201,7 +205,7 @@ ERF::HurricaneTrackerCircle ()
 
     // Define circle properties
     const int n_points = 100;        // number of points on the circle
-    const Real radius = 200e3; // radius in meters (example: 50 km)
+    const Real radius = 100e3; // radius in meters (example: 50 km)
 
     // Clear previous points and reserve space
     hurricane_tracker_circle.clear();
@@ -222,15 +226,17 @@ ERF::HurricaneTrackerCircle ()
  * @param[in] sc Solver choices
  * @param[in] lev_geom Geometry of the current level
  * @param[in] S_data Conservative state data
- * @param[in] hurricane_eye_latitude Target latitude for the eye
- * @param[in] hurricane_eye_longitude Target longitude for the eye
+ * @param[out] hurricane_eye_latitude Target latitude for the eye
+ * @param[out] hurricane_eye_longitude Target longitude for the eye
  */
 void
 ERF::HurricaneEyeTrackerInitial (const SolverChoice& sc,
                                  const Geometry& lev_geom,
                                  const Vector<MultiFab>& S_data,
-                                 const Real& hurricane_eye_latitude,
-                                 const Real& hurricane_eye_longitude)
+                                 int& hurricane_eye_i_glob,
+                                 int& hurricane_eye_j_glob,
+                                 Real& hurricane_eye_latitude,
+                                 Real& hurricane_eye_longitude)
 {
     int levc = finest_level;
     Gpu::DeviceScalar<Real> d_val_min(1e10);
@@ -349,11 +355,11 @@ ERF::HurricaneEyeTrackerInitial (const SolverChoice& sc,
     }
 
     Real global_val_min;
-    int global_i_min, global_j_min;
 
     ComputeGlobalMinLocation(sc, lev_geom, S_data,
                              d_val_min_ptr, d_i_min_ptr, d_j_min_ptr,
-                             global_val_min, global_i_min, global_j_min);
+                             global_val_min, hurricane_eye_i_glob, hurricane_eye_j_glob,
+                             hurricane_eye_latitude, hurricane_eye_longitude);
 }
 
 /**
@@ -363,12 +369,20 @@ ERF::HurricaneEyeTrackerInitial (const SolverChoice& sc,
  * @param[in] lev_geom Geometry of the current level
  * @param[in] S_data Conservative state data
  * @param[in] mf_cc_vel Cell-centered velocity multifabs
- */
+ * @param[out] global_i_min Global minimum i-index
+ * @param[out] global_j_min Global minimum j-index
+ * @param[in] hurricane_eye_latitude Latitude of the hurricane eye
+ * @param[in] hurricane_eye_longitude Longitude of the hurricane eye
+*/
 void
 ERF::HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
                                     const Geometry& lev_geom,
                                     const MultiFab& mf_cc_vel,
-                                    const Vector<MultiFab>& S_data)
+                                    const Vector<MultiFab>& S_data,
+                                    int& hurricane_eye_i_glob,
+                                    int& hurricane_eye_j_glob,
+                                    Real& hurricane_eye_latitude,
+                                    Real& hurricane_eye_longitude)
 {
 
     if (hurricane_eye_track_xy.empty()) {
@@ -413,7 +427,7 @@ ERF::HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
             Real y = prob_lo[1] + (j+myhalf)*dx[1];
             Real dist = std::sqrt((x-tmp_x_eye)*(x-tmp_x_eye) +
                                          (y-tmp_y_eye)*(y-tmp_y_eye));
-            if(k==0 && dist < 200e3) {
+            if(k==0 && dist < 100e3) {
                 Real velmag = zero;
                 for (int comp = 0; comp < ncomp; ++comp) {
                     Real vel = vel_arr(i, j, k, comp);
@@ -438,7 +452,7 @@ ERF::HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
                 Real x =  prob_lo[0] + (i+myhalf)*dx[0];
                 Real y =  prob_lo[1] + (j+myhalf)*dx[1];
                 Real dist = std::sqrt((x-tmp_x_eye)*(x-tmp_x_eye) + (y-tmp_y_eye)*(y-tmp_y_eye));
-                if(dist < 200e3) {
+                if(dist < 100e3) {
                     Real velmag = zero;
                     for (int comp = 0; comp < ncomp; ++comp) {
                         Real vel = vel_arr(i, j, k, comp);
@@ -465,11 +479,11 @@ ERF::HurricaneEyeTrackerNotInitial (const SolverChoice& sc,
     }
 
     Real global_val_min;
-    int global_i_min, global_j_min;
 
     ComputeGlobalMinLocation(sc, lev_geom, S_data,
                              d_val_min_ptr, d_i_min_ptr, d_j_min_ptr,
-                             global_val_min, global_i_min, global_j_min);
+                             global_val_min, hurricane_eye_i_glob, hurricane_eye_j_glob,
+                             hurricane_eye_latitude, hurricane_eye_longitude);
 }
 
 /**
@@ -482,6 +496,7 @@ ERF::ReadStormTrackerRestart ()
     hurricane_eye_track_latlon.clear();
     hurricane_maxvel_vs_time.clear();
     hurricane_minpressure_vs_time.clear();
+    hurricane_surface_fluxes_vs_time.clear();
 
     const fs::path base_dir("Output_StormTracker");
 
@@ -633,38 +648,35 @@ ERF::ReadStormTrackerRestart ()
             }
         }
     }
-}
 
-/**
- * Wrapper to track the hurricane eye position over time.
- *
- * @param[in] sc Solver choices
- */
-void
-ERF::HurricaneEyeTracker (const SolverChoice& sc,
-                          const MultiFab& mf_cc_vel)
-{
-    static bool is_start = true;
-    int levc=finest_level;
+    //==========================================================
+    // Read surface fluxes tracker file
+    //==========================================================
 
-    const Real hurricane_eye_latitude  = sc.hurricane_eye_latitude;
-    const Real hurricane_eye_longitude = sc.hurricane_eye_longitude;
+    {
+        fs::path file = last_file(base_dir / "surface_fluxes");
 
-    if(is_start and restart_chkfile.empty()){
-        HurricaneEyeTrackerInitial(sc, geom[levc],
-                                   vars_new[levc],
-                                   hurricane_eye_latitude,
-                                   hurricane_eye_longitude);
-        is_start = false;
-    } else {
-         if(!restart_chkfile.empty()) {
-            ReadStormTrackerRestart();
+        if (!file.empty())
+        {
+            std::ifstream ifs(file);
+
+            if (!ifs.is_open()) {
+                Abort("Could not open " + file.string());
+            }
+
+            std::string line;
+
+            // Skip the header line.
+            std::getline(ifs, line);
+
+            amrex::Real val1, val2;
+
+            while (ifs >> val1 >> val2)
+            {
+                hurricane_surface_fluxes_vs_time.push_back({val1, val2});
+            }
         }
-        HurricaneEyeTrackerNotInitial(sc, geom[levc],
-                                      mf_cc_vel,
-                                      vars_new[levc]);
     }
-    HurricaneTrackerCircle();
 }
 
 /**
@@ -701,7 +713,7 @@ ERF::HurricaneMaxVelTracker (const Geometry& lev_geom,
             Real y = prob_lo[1] + (j+myhalf)*dx[1];
             Real dist = std::sqrt((x-x_eye)*(x-x_eye) +
                                          (y-y_eye)*(y-y_eye));
-            if(k==0 && dist < 200e3) {
+            if(k==0 && dist < 100e3) {
                 Real velmag = zero;
                 for (int comp = 0; comp < ncomp; ++comp) {
                     Real vel = vel_arr(i, j, k, comp);
@@ -767,7 +779,7 @@ ERF::HurricaneMinPressureTracker (MoistureType moisture_type,
             Real y = prob_lo[1] + (j+myhalf)*dx[1];
             Real dist2 = (x-x_last)*(x-x_last) +
                                 (y-y_last)*(y-y_last);
-            if(k==0 && dist2 < 200e3*200e3) {
+            if(k==0 && dist2 < 100e3*100e3) {
                 const Real rhotheta = S_arr(i,j,k,RhoTheta_comp);
                 const Real qv_for_p = (use_moisture && (ncomp > RhoQ1_comp)) ? S_arr(i,j,k,RhoQ1_comp)/S_arr(i,j,k,Rho_comp) : 0;
                 const Real pressure = getPgivenRTh(rhotheta,qv_for_p);
@@ -788,5 +800,200 @@ ERF::HurricaneMinPressureTracker (MoistureType moisture_type,
 
     double time_in_hrs = time / 3600.0;
     hurricane_minpressure_vs_time.push_back({static_cast<Real>(time_in_hrs), h_val_min_global});
+}
+
+/**
+ * Compute and track surface fluxes near the hurricane eye.
+ *
+ * @param[in] lev_geom Geometry of the current level
+ * @param[in] hurricane_eye_i_glob Global i-index of the hurricane eye
+ * @param[in] hurricane_eye_j_glob Global j-index of the hurricane eye
+ * @param[in] hurricane_eye_latitude Latitude of the hurricane eye
+ * @param[in] hurricane_eye_longitude Longitude of the hurricane eye
+ * @param[in] time Current simulation time
+ */
+
+void
+ERF::HurricaneSurfaceFluxesTracker (const int& hurricane_eye_i_glob,
+                                    const int& hurricane_eye_j_glob,
+                                    const Real& hurricane_eye_latitude,
+                                    const Real& hurricane_eye_longitude,
+                                    const Real time)
+{
+    const int levc = finest_level;
+
+    const MultiFab& surface_fluxes = mfvec_surface_fluxes[levc];
+
+    const IntVect eye_iv(hurricane_eye_i_glob,
+                         hurricane_eye_j_glob,
+                         0);
+
+    // ------------------------------------------------------------
+    // 3 x 3 degree box centered on hurricane eye.
+    // ------------------------------------------------------------
+
+    const Real half_width = 1.5;
+
+    const Real lat_min = hurricane_eye_latitude - half_width;
+    const Real lat_max = hurricane_eye_latitude + half_width;
+    const Real lon_min = hurricane_eye_longitude - half_width;
+    const Real lon_max = hurricane_eye_longitude + half_width;
+
+    // ------------------------------------------------------------
+    // Device accumulators.
+    // ------------------------------------------------------------
+
+    Gpu::DeviceVector<Real> d_sum(1, 0.0);
+    Gpu::DeviceVector<Real> d_area(1, 0.0);
+
+    Real* d_sum_ptr  = d_sum.data();
+    Real* d_area_ptr = d_area.data();
+
+    // ------------------------------------------------------------
+    // Loop over cells.
+    // ------------------------------------------------------------
+
+    for (MFIter mfi(surface_fluxes, TilingIfNotGPU());
+         mfi.isValid();
+         ++mfi)
+    {
+        const Box& box = mfi.validbox();
+
+        const Array4<const Real> flux =
+            surface_fluxes.const_array(mfi);
+
+        const Array4<const Real> lat =
+            (*(lat_m[levc]))[mfi].const_array();
+
+        const Array4<const Real> lon =
+            (*(lon_m[levc]))[mfi].const_array();
+
+        ParallelFor(
+            box,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (k != 0)
+                    return;
+
+                const Real cell_lat = lat(i,j,k);
+                const Real cell_lon = lon(i,j,k);
+
+                if (cell_lat >= lat_min &&
+                    cell_lat <= lat_max &&
+                    cell_lon >= lon_min &&
+                    cell_lon <= lon_max)
+                {
+                    // For now assume equal-area cells.
+                    // See note below regarding proper area weighting.
+
+                    Gpu::Atomic::Add(
+                        d_sum_ptr,
+                        flux(i,j,k,1));
+
+                    Gpu::Atomic::Add(
+                        d_area_ptr,
+                        Real(1.0));
+                }
+            });
+    }
+
+    Gpu::synchronize();
+
+    // ------------------------------------------------------------
+    // Copy local sums to host.
+    // ------------------------------------------------------------
+
+    Real local_sum  = 0.0;
+    Real local_area = 0.0;
+
+    Gpu::copy(Gpu::deviceToHost,
+              d_sum.begin(), d_sum.end(),
+              &local_sum);
+
+    Gpu::copy(Gpu::deviceToHost,
+              d_area.begin(), d_area.end(),
+              &local_area);
+
+    // ------------------------------------------------------------
+    // MPI reduction.
+    // ------------------------------------------------------------
+
+    Real global_sum  = local_sum;
+    Real global_area = local_area;
+
+#ifdef AMREX_USE_MPI
+    ParallelDescriptor::ReduceRealSum(global_sum);
+    ParallelDescriptor::ReduceRealSum(global_area);
+#endif
+
+    // ------------------------------------------------------------
+    // Average flux.
+    // ------------------------------------------------------------
+
+    Real average_flux = 0.0;
+
+    if (global_area > 0.0)
+        average_flux = global_sum / global_area;
+
+    // Store time and averaged flux.
+    hurricane_surface_fluxes_vs_time.push_back(
+        {time, average_flux});
+
+    if (ParallelDescriptor::IOProcessor())
+    {
+        Print() << "Eye lat/lon = "
+                << hurricane_eye_latitude << " "
+                << hurricane_eye_longitude << "\n";
+
+        Print() << "3x3 degree average surface flux = "
+                << average_flux << "\n";
+    }
+}
+
+/**
+ * Wrapper to track the hurricane eye position over time.
+ *
+ * @param[in] sc Solver choices
+ * @param[in] mf_cc_vel The cell centered velocity mutlifab
+ * @param[in] hurricane_eye_i_glob Global i index of the hurricane eye
+ * @param[in] hurricane_eye_j_glob Global j index of the hurricane eye
+ * @param[out] hurricane_eye_latitude Latitude of the hurricane eye
+ * @param[out] hurricane_eye_longitude Longitude of the hurricane eye
+ */
+void
+ERF::HurricaneEyeTracker (const SolverChoice& sc,
+                          const MultiFab& mf_cc_vel,
+                          int& hurricane_eye_i_glob,
+                          int& hurricane_eye_j_glob,
+                          Real& hurricane_eye_latitude,
+                          Real& hurricane_eye_longitude)
+{
+    static bool is_start = true;
+    int levc=finest_level;
+
+    hurricane_eye_latitude  = sc.hurricane_eye_latitude;
+    hurricane_eye_longitude = sc.hurricane_eye_longitude;
+
+    if(is_start and restart_chkfile.empty()){
+        HurricaneEyeTrackerInitial(sc, geom[levc],
+                                   vars_new[levc],
+                                   hurricane_eye_i_glob,
+                                   hurricane_eye_j_glob,
+                                   hurricane_eye_latitude,
+                                   hurricane_eye_longitude);
+        is_start = false;
+    } else {
+         if(!restart_chkfile.empty()) {
+            ReadStormTrackerRestart();
+        }
+        HurricaneEyeTrackerNotInitial(sc, geom[levc],
+                                      mf_cc_vel,
+                                      vars_new[levc],
+                                      hurricane_eye_i_glob,
+                                      hurricane_eye_j_glob,
+                                      hurricane_eye_latitude,
+                                      hurricane_eye_longitude);
+    }
+    HurricaneTrackerCircle();
 }
 #endif
