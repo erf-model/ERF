@@ -80,6 +80,17 @@ if __name__ == "__main__":
     parser.add_argument("--wrf_minpressure", default=None)
     parser.add_argument("--outfile_minpressure", default=None)
 
+    parser.add_argument(
+    "--erf_lat_hf", type=str, default=None, help="Path to ERF latent heat flux data")
+    parser.add_argument(
+    "--wrf_lat_hf", type=str, default=None, help="Path to WRF latent heat flux data")
+    parser.add_argument(
+    "--scream_lat_hf",type=str,default=None,help="Path to SCREAM latent heat flux data")
+    parser.add_argument(
+    "--era5_lat_hf", type=str, default=None, help="Path to ERA5 latent heat flux data")
+    parser.add_argument(
+   "--outfile_lat_hf", type=str, default=None, help="Output filename for latent heat flux plot")
+
     args = parser.parse_args()
 
     # ---------------- Map plot ----------------
@@ -95,7 +106,6 @@ if __name__ == "__main__":
         plot_actual_hurricane_track(ax, args.actual_track)
 
     ax.legend(loc="upper right")
-    plt.title("Latitude/Longitude Map", fontsize=16)
     plt.savefig(args.outfile_track, dpi=150, bbox_inches="tight")
     plt.close()
 
@@ -109,7 +119,7 @@ if __name__ == "__main__":
 
         if args.erf_maxvel:
             data = np.loadtxt(args.erf_maxvel)
-            data_s = savgol_filter(data[:, 1], window_length=24, polyorder=3)
+            data_s = savgol_filter(data[:, 1], window_length=11, polyorder=3)
             plt.plot(data[:, 0], data_s / 1.852, "-xr", linewidth=2, label="ERF")
 
         if args.wrf_maxvel:
@@ -121,7 +131,7 @@ if __name__ == "__main__":
             plt.plot(data[:, 0], data[:, 1], "-k", linewidth=2, label="Actual")
 
         plt.xlabel("Time (hours)")
-        plt.ylabel("Max wind speed (km/hr)")
+        plt.ylabel("Max wind speed (knots)")
         plt.legend()
         plt.savefig(args.outfile_maxvel, dpi=300, bbox_inches="tight")
         plt.close()
@@ -139,7 +149,7 @@ if __name__ == "__main__":
 
         if args.erf_minpressure:
             data = np.loadtxt(args.erf_minpressure)
-            plt.plot(data[:, 0], data[:, 1], "-xr", linewidth=2, label="ERF")
+            plt.plot(data[:, 0], data[:, 1]/100.0, "-xr", linewidth=2, label="ERF")
 
         if args.wrf_minpressure:
             data = np.loadtxt(args.wrf_minpressure)
@@ -155,4 +165,42 @@ if __name__ == "__main__":
         plt.savefig(args.outfile_minpressure, dpi=300, bbox_inches="tight")
         plt.close()
 
+    # ---------------- Latent heat flux plot ----------------
+    lat_hf_files = [
+        args.erf_lat_hf,
+        args.wrf_lat_hf,
+        args.scream_lat_hf,
+        args.era5_lat_hf,
+    ]
+
+    if any(f is not None for f in lat_hf_files):
+        if args.outfile_lat_hf is None:
+            raise ValueError(
+            "--outfile_lat_hf must be provided if any latent heat flux input is"
+            " given"
+            )
+
+    plt.figure(figsize=(8, 5))
+
+    if args.erf_lat_hf:
+        data = np.loadtxt(args.erf_lat_hf)
+        plt.plot(data[:, 0]/3600.0, data[:, 1]*2.26e6, "-r", linewidth=2, label="ERF")
+
+    if args.wrf_lat_hf:
+        data = np.loadtxt(args.wrf_lat_hf)
+        plt.plot(data[:, 0], data[:, 1], "-b", linewidth=2, label="WRF")
+
+    if args.scream_lat_hf:
+        data = np.loadtxt(args.scream_lat_hf)
+        plt.plot(data[:, 0], data[:, 1], "-g", linewidth=2, label="SCREAM")
+
+    if args.era5_lat_hf:
+        data = np.loadtxt(args.era5_lat_hf)
+        plt.plot(data[:, 0], data[:, 1], "-k", linewidth=2, label="ERA5")
+
+    plt.xlabel("Time (hours)")
+    plt.ylabel(r"Latent Heat Flux ($\mathrm{W/m^2}$)")
+    plt.legend()
+    plt.savefig(args.outfile_lat_hf, dpi=300, bbox_inches="tight")
+    plt.close()
 
