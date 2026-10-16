@@ -1163,11 +1163,6 @@ struct SolverChoice {
                            << "projection on a terrain-fitted mesh (erf.terrain_type = StaticFittedMesh "
                            << "or MovingFittedMesh)" << std::endl;
         }
-#if (AMREX_SPACEDIM != 3)
-        if (terrain_poisson_solver != TerrainPoissonSolver::gmres_fft) {
-            amrex::Abort("erf.terrain_poisson_solver = mlmg or gmres_mlmg needs a 3D build");
-        }
-#endif
 #ifdef AMREX_USE_FLOAT
         poisson_abstol = amrex::max(poisson_abstol,amrex::Real(1e-6));
         poisson_reltol = amrex::max(poisson_reltol,amrex::Real(1e-6));

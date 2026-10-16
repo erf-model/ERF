@@ -4,13 +4,11 @@
 #include "ERF.H"
 #include "ERF_Utils.H"
 
-#if (AMREX_SPACEDIM == 3)
 #include <AMReX_GMRES_MLMG.H>
 #include <AMReX_MLMG.H>
 #include <AMReX_MLTerrainPoisson.H>
 
 #include <string>
-#endif
 
 using namespace amrex;
 
@@ -46,7 +44,6 @@ void ERF::solve_with_terrain_mlmg (int lev, const Box& subdomain, MultiFab& rhs,
                                    MultiFab& ax_sub, MultiFab& ay_sub, MultiFab& az_sub,
                                    MultiFab& dJ_sub, MultiFab& znd_sub, bool use_gmres)
 {
-#if (AMREX_SPACEDIM == 3)
     BL_PROFILE("ERF::solve_with_terrain_mlmg()");
 
     Real reltol = solverChoice.poisson_reltol;
@@ -145,10 +142,6 @@ void ERF::solve_with_terrain_mlmg (int lev, const Box& subdomain, MultiFab& rhs,
     // answer in phi rather than in the multigrid's solution.
     // The caller (project_momenta) multiplies the lateral fluxes by the map factor.
     mlmg.getFluxes({{&fluxes[0], &fluxes[1], &fluxes[2]}}, {&phi});
-#else
-    amrex::ignore_unused(lev, rhs, phi, fluxes, ax_sub, ay_sub, az_sub, dJ_sub, znd_sub, use_gmres);
-    amrex::Abort("erf.terrain_poisson_solver = mlmg or gmres_mlmg needs a 3D build");
-#endif
 
     // ****************************************************************************
     // Impose bc's on pprime
