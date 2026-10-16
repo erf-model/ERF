@@ -291,6 +291,40 @@ indicator alone.  The finer level's terrain and state are then interpolated from
 parent, and its base state is built as described below.  This works whether or not the
 refined region reaches the domain top.
 
+.. _subsec:wrflow-per-level:
+
+Sea surface and skin temperatures at each level
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When ``erf.nc_low_file`` names a wrflowinp file, level 0 reads its sea surface temperature
+(SST) from it at each of the file's times, and the surface layer interpolates linearly in
+time between the two slices that bracket the current time.  Over water the skin
+temperature (TSK) takes the SST from the file, so it is interpolated in time the same way.
+
+A finer level may be given a wrflowinp file of its own, as WRF does for a nest run with
+``sst_update = 1``::
+
+          erf.nc_low_file   = "wrflowinp_d01"
+          erf.nc_low_file_1 = "wrflowinp_d02"
+
+The level then reads its SST from that file, on the cells its own wrfinput file covers,
+and is interpolated in time exactly as level 0 is.  This requires:
+
+-  ``erf.nc_low_file`` for level 0;
+-  ``erf.init_type = WRFInput`` and a single ``erf.nc_init_file_<lev>`` for the level,
+   whose position and size the wrflowinp file must match;
+-  the same times as level 0's file -- the same start, interval and number of times --
+   since every level is interpolated in time between the same slices.
+
+ERF aborts with a message if any of these does not hold.
+
+A finer level that reads its own wrfinput file but is given no wrflowinp file prints a
+warning, and from the start of the run takes **all** of its SST and TSK time slices,
+including the first, by interpolation from its parent, which follows level 0's wrflowinp
+file.  The SST and TSK the level read from its own wrfinput file are not used; the rest of
+that file is.  A level with no wrfinput file of its own always takes its SST and TSK from
+its parent.
+
 The base state at each level
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

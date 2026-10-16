@@ -119,6 +119,7 @@ std::string ERF::nc_bdy_file; // Must provide via input
 
 // NetCDF wrflow (bottom boundary) file
 std::string ERF::nc_low_file; // Must provide via input
+Vector<std::string> ERF::nc_low_file_at_level;
 
 // 1D NetCDF output (for ingestion by AMR-Wind)
 int  ERF::output_1d_column = 0;
@@ -1191,12 +1192,17 @@ ERF::InitData_post ()
                     var_fab.clear();
                 }
 
-                update_sst_tsk(itime, geom[lev], ba2d[lev],
+                update_sst_tsk(lev, itime, geom[lev], ba2d[lev],
                                sst_lev[lev], tsk_lev[lev],
                                m_SurfaceLayer[Orientation(Direction::z, Orientation::low)], low_data_zlo,
                                vars_new[lev][Vars::cons], *mf_PSFC[lev],
                                solverChoice.rdOcp, lmask_lev[lev][0], use_moist);
             } // itime
+
+            // The finer levels that read their own init files, coarsest first
+            for (int flev = 1; flev <= finest_level; ++flev) {
+                init_fine_low_slices(flev, /*restarting=*/ true);
+            }
         }
 #endif
 #ifdef ERF_USE_FFT
@@ -2444,6 +2450,17 @@ ERF::has_own_init_file (int lev) const
 }
 
 //
+// Did the user supply a wrflowinp file of its own for this level (erf.nc_low_file_<lev>)?
+// Level 0 reads erf.nc_low_file, so this is only ever true for lev > 0.
+//
+bool
+ERF::has_own_low_file (int lev) const
+{
+    if (lev < 1 || lev >= static_cast<int>(nc_low_file_at_level.size())) { return false; }
+    return !nc_low_file_at_level[lev].empty();
+}
+
+//
 // Fill the map scale factors at lev by interpolation from lev-1.
 //
 // init_stuff() (re)builds mapfac[lev] and sets it to 1 every time a level is created or
@@ -3357,6 +3374,16 @@ ERF::ReadParameters ()
             Print() << "Reading NC low file name " << nc_low_file << std::endl;
         }
 
+        // NetCDF wrflow files for the finer levels, one per level (erf.nc_low_file_<lev>)
+        nc_low_file_at_level.resize(max_level+1);
+        for (int lev = 1; lev <= max_level; lev++) {
+            const std::string nc_low_name = Concatenate("nc_low_file_",lev,1);
+            if (pp.query(nc_low_name.c_str(), nc_low_file_at_level[lev])) {
+                Print() << "Reading NC low file name at level " << lev << " : "
+                        << nc_low_file_at_level[lev] << std::endl;
+            }
+        }
+
 #endif
 
         // Options for vertical interpolation of met_em*.nc data.
@@ -3919,6 +3946,42 @@ ERF::ReadParameters ()
 
     if (!nc_low_file.empty() && !FileSystem::Exists(nc_low_file)) {
         Abort("Could not find the file \"" + nc_low_file + "\" given as erf.nc_low_file");
+    }
+
+    // A wrflow file for a level > 0 replaces, for that level, the SST/TSK it would otherwise
+    // take from its parent, so it needs level 0's file to be in use and an init file of its
+    // own to say where the level is; its times are checked against level 0's when it is read
+    for (int lev = 1; lev < static_cast<int>(nc_low_file_at_level.size()); lev++) {
+        const std::string& fname = nc_low_file_at_level[lev];
+        if (fname.empty()) { continue; }
+        const std::string key = "erf.nc_low_file_" + std::to_string(lev);
+        if (!FileSystem::Exists(fname)) {
+            Abort("Could not find the file \"" + fname + "\" given as " + key);
+        }
+        if (nc_low_file.empty()) {
+            Abort(key + " is given but erf.nc_low_file (the wrflow file for level 0) is not");
+        }
+        if (solverChoice.init_type != InitType::WRFInput || !has_own_init_file(lev)) {
+            Abort(key + " requires erf.init_type = WRFInput and erf.nc_init_file_" +
+                  std::to_string(lev) + " for that level");
+        }
+        if (nc_init_file[lev].size() != 1) {
+            Abort(key + " is only supported for a level with a single init file (erf.nc_init_file_" +
+                  std::to_string(lev) + " has " + std::to_string(nc_init_file[lev].size()) + ")");
+        }
+    }
+
+    // A level that reads its own init file but has no wrflow file of its own takes every SST/TSK
+    // time slice from its parent, starting with the first -- replacing what it read from its file
+    if (!nc_low_file.empty() && solverChoice.init_type == InitType::WRFInput) {
+        for (int lev = 1; lev <= max_level; lev++) {
+            if (has_own_init_file(lev) && !has_own_low_file(lev)) {
+                Print() << "WARNING: no wrflow file was provided for level " << lev
+                        << " (erf.nc_low_file_" << lev << "): its SST and TSK will be interpolated from level "
+                        << lev-1 << " at every time, starting at the beginning of the run, instead of being "
+                        << "taken from erf.nc_init_file_" << lev << std::endl;
+            }
+        }
     }
 
     // What type of land surface model to use

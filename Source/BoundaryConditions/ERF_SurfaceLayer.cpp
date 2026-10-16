@@ -1857,7 +1857,13 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
                                                   Array4<int> {};
 
         if (use_tsk) {
-            const auto tsk_arr = m_tsk_lev[lev][n_time_lo]->const_array(mfi);
+            // TSK carries the SST from the low file over water (update_sst_tsk), so it is
+            // interpolated in time between the same two slices as the SST.  Written as
+            // lo + alpha * (hi - lo) so that a cell whose TSK is the same in both slices,
+            // as it is over land, keeps exactly that value.
+            const auto tsk_lo_arr = m_tsk_lev[lev][n_time_lo]->const_array(mfi);
+            const auto tsk_hi_arr = (m_tsk_lev[lev][n_time_hi]) ? m_tsk_lev[lev][n_time_hi]->const_array(mfi)
+                                                                : tsk_lo_arr;
             ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
@@ -1865,7 +1871,8 @@ SurfaceLayer::fill_tsurf_with_sst_and_tsk (const int& lev,
                     t_surf_arr(i,j,k) = oma   * sst_lo_arr(i,j,k)
                                       + alpha * sst_hi_arr(i,j,k);
                 } else {
-                    t_surf_arr(i,j,k) = tsk_arr(i,j,k);
+                    t_surf_arr(i,j,k) = tsk_lo_arr(i,j,k)
+                                      + alpha * (tsk_hi_arr(i,j,k) - tsk_lo_arr(i,j,k));
                 }
             });
         } else {
