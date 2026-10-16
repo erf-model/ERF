@@ -46,6 +46,12 @@ erf.coupling_type  = "TwoWay"
 erf.substepping_type  = Implicit
 erf.vert_implicit_fac = 1        # implicit vertical diffusion in all three RK stages
 
+# The path this test exercises, set explicitly rather than taken from the defaults so that
+# a change of default cannot silently move the test off it
+erf.implicit_before_substep     = true
+erf.implicit_momentum_diffusion = true
+erf.implicit_thermal_diffusion  = true
+
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
 erf.v              = 1       # verbosity in ERF.cpp
