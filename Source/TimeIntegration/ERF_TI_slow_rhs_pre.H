@@ -300,6 +300,21 @@
 #endif
             }
 
+            // The ghost cells of scratch still hold S_old; at a coarse/fine boundary fill them with
+            // the coarse data at the time we are advancing to, since a column that ends there is
+            // closed with the value on the other side
+            if (level > 0) {
+                const bool l_mom = solverChoice.implicit_momentum_diffusion;
+                Vector<MultiFab*> scratch_mom = {l_mom ? &scratch_xmom : nullptr,
+                                                 l_mom ? &scratch_ymom : nullptr,
+#ifdef ERF_IMPLICIT_W
+                                                 l_mom ? &scratch_zmom : nullptr};
+#else
+                                                 nullptr};
+#endif
+                FillCoarseFineGhostsForImplicit(level, new_stage_time, scratch, {RhoTheta_comp}, scratch_mom);
+            }
+
 #include "ERF_ImplicitPre.H"
 
             MultiFab::Saxpy(scratch, -one_d, S_old[IntVars::cons], 1, 1, 1, 0); // scratch  := (S_new - S_old)           (for rhotheta only)
