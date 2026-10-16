@@ -388,3 +388,124 @@ ERF::FillIntermediatePatch (int lev, double time_d,
     //    filled everywhere---i.e., physbc_u/v/w fills velocity ghost cells (inter-rank and domain)
     //    and then V2M does the conversion to momenta everywhere; so there is again no need to do a FB on momenta.
 }
+
+/**
+ * Fill the coarse/fine ghost cells of the scratch state used by the implicit vertical solve
+ * (ERF_TI_slow_rhs_pre.H) with coarse data at the time that solve advances to.
+ *
+ * The scratch state is S_old + dt * S_rhs on the valid region but keeps the ghost values of
+ * S_old, i.e. those from the start of the step.  A column whose top or bottom is a coarse/fine
+ * boundary closes its tridiagonal system with the value on the other side of that boundary,
+ * which should be at the new stage time rather than lagged to the start of the step.
+ *
+ * Only ghost cells that are neither covered by another grid at this level nor outside the
+ * domain are changed: those between grids at this level are filled by FillBoundary, and those
+ * outside the domain carry the boundary data the physical-BC rows of the solve read.
+ *
+ * The momenta are formed from the interpolated velocity and the refreshed density with the
+ * same face average the solve divides by, so that it recovers the interpolated velocity.
+ *
+ * @param[in]    lev          level (must be > 0)
+ * @param[in]    time_d       time the implicit solve advances to
+ * @param[inout] scratch_cons rho and (rho theta)
+ * @param[inout] scratch_mom  x-, y- and z-momenta (any entry may be nullptr)
+ */
+void
+ERF::FillCoarseFineGhostsForImplicit (int lev, double time_d,
+                                      MultiFab& scratch_cons,
+                                      const Vector<MultiFab*>& scratch_mom)
+{
+    BL_PROFILE("FillCoarseFineGhostsForImplicit()");
+    AMREX_ALWAYS_ASSERT(lev > 0);
+    AMREX_ALWAYS_ASSERT(interpolation_type == StateInterpType::FullState);
+
+    const TimeLevelSel csel = select_time_level(time_d, t_old[lev-1], t_new[lev-1]);
+
+    // As in FillIntermediatePatch, give AMReX times measured from the coarse new time
+    const double tref = t_new[lev-1];
+    const Real time_rel = static_cast<Real>(time_d - tref);
+    Vector<Real> ctime  = {static_cast<Real>(t_old[lev-1] - tref), Real(0)};
+    Vector<Real> ftime  = {time_rel, time_rel};
+
+    // Copy src into dst on the coarse/fine ghost cells only
+    auto copy_cf_ghosts = [&] (MultiFab& dst, const MultiFab& src, int ncomp, const IntVect& ng)
+    {
+        iMultiFab mask(dst.boxArray(), dst.DistributionMap(), 1, ng);
+        mask.BuildMask(geom[lev].Domain(), geom[lev].periodicity(), 0, 1, 0, 0);
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(dst,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            const Box gbx = mfi.growntilebox(ng);
+            const Array4<const int > m = mask.const_array(mfi);
+            const Array4<const Real> s = src.const_array(mfi);
+            const Array4<      Real> d = dst.array(mfi);
+            ParallelFor(gbx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                if (m(i,j,k)) { d(i,j,k,n) = s(i,j,k,n); }
+            });
+        }
+    };
+
+    // rho and (rho theta): two ghost cells so that the z-face average below z-faces is available
+    const IntVect ngc(2);
+    AMREX_ALWAYS_ASSERT(scratch_cons.nGrowVect().allGE(ngc));
+    {
+        MultiFab tmp(scratch_cons.boxArray(), scratch_cons.DistributionMap(), 2, ngc);
+        MultiFab::Copy(tmp, scratch_cons, 0, 0, 2, ngc);
+
+        Vector<MultiFab*> fmf = {&tmp, &tmp};
+        Vector<MultiFab*> cmf = select_time_data(csel, vars_old[lev-1][Vars::cons], vars_new[lev-1][Vars::cons]);
+        FillPatchTwoLevels(tmp, ngc, IntVect(0,0,0),
+                           time_rel, cmf, ctime, fmf, ftime,
+                           Rho_comp, Rho_comp, 2, geom[lev-1], geom[lev],
+                           refRatio(lev-1), &cell_cons_interp, domain_bcs_type,
+                           BCVars::cons_bc);
+
+        copy_cf_ghosts(scratch_cons, tmp, 2, ngc);
+    }
+
+    // Momenta: interpolate the velocity, then multiply by the face-averaged density
+    const IntVect ngm(1);
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir)
+    {
+        if (!scratch_mom[dir]) { continue; }
+        MultiFab& mom = *scratch_mom[dir];
+        AMREX_ALWAYS_ASSERT(mom.nGrowVect().allGE(ngm));
+
+        MultiFab vel(mom.boxArray(), mom.DistributionMap(), 1, ngm);
+        vel.setVal(zero);
+
+        Vector<MultiFab*> fmf = {&vel, &vel};
+        Vector<MultiFab*> cmf = select_time_data(csel, vars_old[lev-1][Vars::xvel+dir],
+                                                       vars_new[lev-1][Vars::xvel+dir]);
+        FillPatchTwoLevels(vel, ngm, IntVect(0,0,0),
+                           time_rel, cmf, ctime, fmf, ftime,
+                           0, 0, 1, geom[lev-1], geom[lev],
+                           refRatio(lev-1), &face_cons_linear_interp, domain_bcs_type,
+                           BCVars::xvel_bc+dir);
+
+        const int ioff = (dir == 0) ? 1 : 0;
+        const int joff = (dir == 1) ? 1 : 0;
+        const int koff = (dir == 2) ? 1 : 0;
+
+        MultiFab tmp(mom.boxArray(), mom.DistributionMap(), 1, ngm);
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(tmp,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            const Box gbx = mfi.growntilebox(ngm);
+            const Array4<const Real> u   = vel.const_array(mfi);
+            const Array4<const Real> rho = scratch_cons.const_array(mfi);
+            const Array4<      Real> m   = tmp.array(mfi);
+            ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                m(i,j,k) = u(i,j,k) * myhalf * (rho(i,j,k,Rho_comp) + rho(i-ioff,j-joff,k-koff,Rho_comp));
+            });
+        }
+
+        copy_cf_ghosts(mom, tmp, 1, ngm);
+    }
+}
