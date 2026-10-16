@@ -358,9 +358,14 @@ ERF::FillIntermediatePatch (int lev, double time_d,
     // how velocity from fine-fine copies (as well as physical and interpolated bcs) will be filled
     if (!cons_only)
     {
-        IntVect ngu = (!solverChoice.use_num_diff) ? IntVect(1,1,1) : mfs_vel[Vars::xvel]->nGrowVect();
-        IntVect ngv = (!solverChoice.use_num_diff) ? IntVect(1,1,1) : mfs_vel[Vars::yvel]->nGrowVect();
-        IntVect ngw = (!solverChoice.use_num_diff) ? IntVect(1,1,0) : mfs_vel[Vars::zvel]->nGrowVect();
+        // One ghost cell of momentum is enough for the integrator unless we are using numerical
+        // diffusion or EB -- the EB momentum fluxes and Omega are built on grown boxes and read
+        // momenta two cells outside the valid region
+        const bool all_mom_ghosts = solverChoice.use_num_diff ||
+                                    (solverChoice.terrain_type == TerrainType::EB);
+        IntVect ngu = (!all_mom_ghosts) ? IntVect(1,1,1) : mfs_vel[Vars::xvel]->nGrowVect();
+        IntVect ngv = (!all_mom_ghosts) ? IntVect(1,1,1) : mfs_vel[Vars::yvel]->nGrowVect();
+        IntVect ngw = (!all_mom_ghosts) ? IntVect(1,1,0) : mfs_vel[Vars::zvel]->nGrowVect();
 
         const MultiFab* c_vfrac = nullptr;
         if (solverChoice.terrain_type == TerrainType::EB) {
