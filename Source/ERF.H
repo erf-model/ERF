@@ -425,6 +425,13 @@ public:
                          amrex::MultiFab& rhs, amrex::MultiFab& p,
                          amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes);
 #endif
+    void solve_with_terrain_mlmg (int lev, const amrex::Box& subdomain,
+                                  amrex::MultiFab& rhs, amrex::MultiFab& p,
+                                  amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes,
+                                  amrex::MultiFab& ax_sub, amrex::MultiFab& ay_sub,
+                                  amrex::MultiFab& az_sub,
+                                  amrex::MultiFab& dJ_sub, amrex::MultiFab& znd_sub,
+                                  bool use_gmres);
     void solve_with_gmres (int lev, const amrex::Box& subdomain,
                            amrex::MultiFab& rhs, amrex::MultiFab& p,
                            amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes,

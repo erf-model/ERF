@@ -680,7 +680,24 @@ the divergence after every solve.
 ``TerrainPoisson_Hill_BoxParity`` (one box on one rank against split boxes) and
 ``TerrainPoisson_Hill_Restart`` check the decomposition and a restart;
 ``TerrainPoisson_DivergenceChecker_SelfTest`` feeds the checker made-up logs on both sides of
-its limit. The runs need the FFT build; the self-test does not.
+its limit. These runs need the FFT build; the self-test does not.
+
+The same checks run with ``erf.terrain_poisson_solver = mlmg`` and ``gmres_mlmg``
+(:ref:`subsec:TerrainMLMG`), which need no FFT and so run in every MPI build:
+``TerrainPoisson_TwoLevelHill_{mlmg,gmres_mlmg}``, ``TerrainPoisson_SlopingWalls_{mlmg,gmres_mlmg}``,
+``TerrainPoisson_TwoPatches_mlmg``, ``TerrainPoisson_MapFactors_mlmg``,
+``TerrainPoisson_OutflowFace_{mlmg,gmres_mlmg}`` (an Outflow face, so a non-singular solve),
+``TerrainPoisson_OneCellStrip_{mlmg,gmres_mlmg}`` (one cell wide between a wall and an Outflow
+face over sloping terrain) and ``TerrainPoisson_PeriodicApart_mlmg`` (two patches at the two
+ends of a periodic direction that do not face each other) (at a solver
+tolerance of 1e-10, leaving at most 1.2e-11 on the checked level);
+``TerrainPoisson_Hill_BoxParity_MLMG`` and ``TerrainPoisson_Hill_Restart_MLMG``; and three start-up
+or first-solve aborts (an unknown solver, a refined region that is not a rectangle, refined
+patches meeting across a periodic boundary), and in double precision
+``TerrainPoisson_Abort_MLMGNotConverged`` (MLMG stops with a message naming the inputs to
+change). In FFT builds ``TerrainPoisson_Hill_SolverAgreement``,
+``TerrainPoisson_SlopingWalls_SolverAgreement`` and ``TerrainPoisson_OutflowFace_SolverAgreement``
+compare FFT-GMRES on one box with MLMG on split boxes, to 1e-8.
 
 Test Location: `Tests/test_files/TerrainPoisson_Hill`_
 

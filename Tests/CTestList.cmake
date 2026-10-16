@@ -3347,6 +3347,112 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
         COMMON_OPTIONS "${_tph_snd}"
         FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
   endif()
+  # amrex::MLTerrainPoisson (erf.terrain_poisson_solver = mlmg, gmres_mlmg) needs no FFT, so
+  # these run in every MPI build.  Measured on 2 ranks: level 1 of the hill leaves at most
+  # 1.1e-8 (mlmg) and 1.1e-9 (gmres_mlmg) above the subtracted mean, the walls 1.0e-8 and
+  # 9.6e-10 at the default tolerance (1e-8), 1.8x and 20x below the checker's limit (2e-8).
+  # They run at 1e-10 so that the margin does not depend on the compiler or the rank layout:
+  # then at most 1.2e-11 is left (2 ranks, all six tests), over 1000x below the limit.
+  set(_tp_mg_tol "erf.poisson_reltol=1e-10 erf.poisson_abstol=1e-12")
+  if(ERF_TEST_PYTHON)
+    foreach(_tp_solver mlmg gmres_mlmg)
+      add_test_terrain_poisson_divergence(TerrainPoisson_TwoLevelHill_${_tp_solver} TerrainPoisson_Hill 1
+          COMMON_OPTIONS "${_tp_mg_tol} erf.terrain_poisson_solver=${_tp_solver}")
+      add_test_terrain_poisson_divergence(TerrainPoisson_SlopingWalls_${_tp_solver} TerrainPoisson_Hill 0
+          COMMON_OPTIONS "${_tp_walls} ${_tp_mg_tol} erf.terrain_poisson_solver=${_tp_solver}")
+    endforeach()
+  endif()
+  # The multigrid's smoother and bottom solver see the boxes, so two layouts converge to
+  # answers that differ at the solver tolerance (1e-7 relative at the default 1e-8, 1e-12 at
+  # 1e-11).  At the tighter tolerance a defect at a box boundary would stand out.
+  set(_tp_tight "erf.poisson_reltol=1e-11 erf.poisson_abstol=1e-14")
+  set(_tph_snd "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/TerrainPoisson_Hill_BoxParity_MLMG/input_sounding")
+  add_test_box_parity(TerrainPoisson_Hill_BoxParity_MLMG TerrainPoisson_Hill "plt00006"
+      COMMON_OPTIONS "${_tph_snd} ${_tp_tight} erf.terrain_poisson_solver=mlmg"
+      REFERENCE_OPTIONS "amr.max_grid_size=1024"
+      SPLIT_OPTIONS "amr.max_grid_size_x=12 amr.max_grid_size_y=8"
+      FCOMPARE_RTOL "1.0e-9")
+  set(_tph_snd "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/TerrainPoisson_Hill_Restart_MLMG/input_sounding")
+  add_test_restart_parity(TerrainPoisson_Hill_Restart_MLMG TerrainPoisson_Hill 3 6
+      COMMON_OPTIONS "${_tph_snd} erf.terrain_poisson_solver=mlmg"
+      FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+  if(ERF_ENABLE_FFT)
+    # The solvers solve the same equations: FFT-GMRES with the zero-flux operator (one box,
+    # one rank) against MLMG (split boxes, NP ranks), both at the tight tolerance.  Measured:
+    # u, v, w agree to 3e-12 relative on two levels and 1.7e-10 within the walls; the
+    # FFT-GMRES operator before erf-model/ERF#4279 differed from MLMG by 5e-3.
+    set(_tph_snd "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/TerrainPoisson_Hill_SolverAgreement/input_sounding")
+    add_test_box_parity(TerrainPoisson_Hill_SolverAgreement TerrainPoisson_Hill "plt00006"
+        COMMON_OPTIONS "${_tph_snd} ${_tp_tight}"
+        REFERENCE_OPTIONS "amr.max_grid_size=1024 erf.terrain_poisson_solver=gmres_fft"
+        SPLIT_OPTIONS "amr.max_grid_size_x=12 amr.max_grid_size_y=8 erf.terrain_poisson_solver=mlmg"
+        FCOMPARE_RTOL "1.0e-8")
+    set(_tph_snd "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/TerrainPoisson_SlopingWalls_SolverAgreement/input_sounding")
+    add_test_box_parity(TerrainPoisson_SlopingWalls_SolverAgreement TerrainPoisson_Hill "plt00006"
+        COMMON_OPTIONS "${_tph_snd} ${_tp_tight} ${_tp_walls}"
+        REFERENCE_OPTIONS "erf.terrain_poisson_solver=gmres_fft"
+        SPLIT_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_y=8 erf.terrain_poisson_solver=mlmg"
+        FCOMPARE_RTOL "1.0e-8")
+    # The walled hill with an Outflow face at x-hi, where the solvers have a Dirichlet face
+    # (a non-singular problem): FFT-GMRES on one box against MLMG on split boxes
+    set(_tph_snd "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/TerrainPoisson_OutflowFace_SolverAgreement/input_sounding")
+    add_test_box_parity(TerrainPoisson_OutflowFace_SolverAgreement TerrainPoisson_Hill "plt00006"
+        COMMON_OPTIONS "${_tph_snd} ${_tp_tight} ${_tp_walls} xhi.type=Outflow"
+        REFERENCE_OPTIONS "erf.terrain_poisson_solver=gmres_fft"
+        SPLIT_OPTIONS "amr.max_grid_size_x=8 amr.max_grid_size_y=8 erf.terrain_poisson_solver=mlmg"
+        FCOMPARE_RTOL "1.0e-8")
+  endif()
+  # Two separate refined patches (two regions on level 1) with MLMG
+  if(ERF_TEST_PYTHON)
+    add_test_terrain_poisson_divergence(TerrainPoisson_TwoPatches_mlmg TerrainPoisson_Hill 1
+        COMMON_OPTIONS "${_tp_two_patches} ${_tp_mg_tol} erf.terrain_poisson_solver=mlmg")
+    # Map factors other than one (erf.test_mapfactor) with MLMG: in every MPI build, so the
+    # map-factor scaling of the projection runs in CI
+    add_test_terrain_poisson_divergence(TerrainPoisson_MapFactors_mlmg TerrainPoisson_Hill 1
+        COMMON_OPTIONS "erf.test_mapfactor=true ${_tp_mg_tol} erf.terrain_poisson_solver=mlmg")
+    # An Outflow face (a Dirichlet face of the solve) on the walled hill: the problem is not
+    # singular, and the solve converges as at the walls (at most 5e-9 left at the default
+    # tolerance)
+    foreach(_tp_solver mlmg gmres_mlmg)
+      add_test_terrain_poisson_divergence(TerrainPoisson_OutflowFace_${_tp_solver} TerrainPoisson_Hill 0
+          COMMON_OPTIONS "${_tp_walls} xhi.type=Outflow ${_tp_mg_tol} erf.terrain_poisson_solver=${_tp_solver}")
+    endforeach()
+    # A strip one cell wide in x between a wall and an Outflow face, over terrain that slopes
+    # across the cell (sloped_strip_terrain.txt).  The multigrid keeps all three directions
+    # here; solving it as two-dimensional, as for a periodic strip, drops the Outflow face's
+    # flux and the terrain terms across the cell, and MLMG then does not converge.
+    set(_tp_strip "amr.max_level=0 geometry.is_periodic=0 1 0 xlo.type=SlipWall xhi.type=Outflow geometry.prob_lo=-200 -640 0 geometry.prob_hi=-160 640 640 amr.n_cell=1 32 16 erf.terrain_file_name=${CMAKE_CURRENT_SOURCE_DIR}/test_files/TerrainPoisson_Hill/sloped_strip_terrain.txt")
+    foreach(_tp_solver mlmg gmres_mlmg)
+      add_test_terrain_poisson_divergence(TerrainPoisson_OneCellStrip_${_tp_solver} TerrainPoisson_Hill 0
+          COMMON_OPTIONS "${_tp_strip} ${_tp_mg_tol} erf.terrain_poisson_solver=${_tp_solver}")
+    endforeach()
+    # Two refined patches at the two ends of the periodic x direction that do not face each
+    # other across it (y 2-9 and 20-27): each is solved with a Neumann face there, which is
+    # right, so the run goes on.  The check used to compare only the x extents and stopped it.
+    add_test_terrain_poisson_divergence(TerrainPoisson_PeriodicApart_mlmg TerrainPoisson_Hill 1
+        COMMON_OPTIONS "amr.grid_eff=0.99 erf.refinement_indicators=box1 box2 erf.box1.in_box_lo_indices_crse=0 2 0 erf.box1.in_box_hi_indices_crse=7 9 15 erf.box2.max_level=1 erf.box2.in_box_lo_indices_crse=24 20 0 erf.box2.in_box_hi_indices_crse=31 27 15 ${_tp_mg_tol} erf.terrain_poisson_solver=mlmg")
+  endif()
+  # An unknown solver stops the run at start-up; MLMG on a region that is not a rectangle (an
+  # L-shaped refined level of two boxes; amr.grid_eff keeps AMReX from filling the corner)
+  # or on a level whose two patches meet across the periodic x boundary stops at its first
+  # solve
+  set(_tph_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TerrainPoisson_Hill)
+  add_test_abort(TerrainPoisson_Abort_UnknownSolver ${_tph_dir} TerrainPoisson_Hill.i
+                 "Unknown enum: fft in AMREX_ENUM.TerrainPoissonSolver"
+                 "erf.terrain_poisson_solver=fft")
+  add_test_abort(TerrainPoisson_Abort_MLMGNotRectangle ${_tph_dir} TerrainPoisson_Hill.i
+                 "erf.terrain_poisson_solver = mlmg or gmres_mlmg needs the boxes of each region of a level to make a rectangle"
+                 "erf.terrain_poisson_solver=mlmg amr.grid_eff=0.99 erf.refinement_indicators=box1 box2 erf.box2.max_level=1 erf.box2.in_box_lo_indices_crse=8 4 0 erf.box2.in_box_hi_indices_crse=11 11 15")
+  add_test_abort(TerrainPoisson_Abort_MLMGAcrossPeriodic ${_tph_dir} TerrainPoisson_Hill.i
+                 "a refined level crosses a periodic boundary"
+                 "erf.terrain_poisson_solver=mlmg amr.grid_eff=0.99 erf.refinement_indicators=box1 box2 erf.box1.in_box_lo_indices_crse=0 12 0 erf.box1.in_box_hi_indices_crse=7 23 15 erf.box2.max_level=1 erf.box2.in_box_lo_indices_crse=24 12 0 erf.box2.in_box_hi_indices_crse=31 23 15")
+  # MLMG that cannot reach its tolerance stops with a message naming the inputs to change
+  # (double precision only: single precision raises the tolerances to 1e-6, which it reaches)
+  if(ERF_PRECISION STREQUAL "DOUBLE")
+    add_test_abort(TerrainPoisson_Abort_MLMGNotConverged ${_tph_dir} TerrainPoisson_Hill.i
+                   "Loosen erf.poisson_reltol / erf.poisson_abstol"
+                   "erf.terrain_poisson_solver=mlmg erf.poisson_reltol=1e-30 erf.poisson_abstol=1e-30")
+  endif()
 endif()
 
 #=============================================================================
