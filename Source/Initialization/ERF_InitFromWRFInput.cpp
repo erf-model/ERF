@@ -2207,6 +2207,10 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
     //       coarse level.  See MakeNewLevelFromCoarse.
     // **************************************************************************
     if (!read_atmos_state) {
+        // The SST/TSK time slices, as at the end of this routine
+        if (!nc_low_file.empty()) {
+            init_fine_low_slices(lev, /*restarting=*/ false);
+        }
         Print() << "Surface-only initialization from wrfinput complete at level " << lev << ".\n";
         Print() << "The atmospheric state and the base state will be built by the caller.\n";
         return;
@@ -2432,13 +2436,19 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
         for (int itime(0); itime < ntimes; ++itime) {
             read_from_wrflow(itime, nc_low_file, geom[0].Domain(), low_data_zlo);
 
-            update_sst_tsk(itime, geom[lev], ba2d[lev],
+            update_sst_tsk(lev, itime, geom[lev], ba2d[lev],
                            sst_lev[lev], tsk_lev[lev],
                            m_SurfaceLayer[Orientation(Direction::z, Orientation::low)], low_data_zlo,
                            lev_new[Vars::cons], *mf_PSFC[lev],
                            l_rdOcp, lmask_lev[lev][0], use_moist);
         }
     } // lev == 0 && nc_low_file exists
+
+    // A finer level that read its own init file: its SST/TSK time slices come from its own
+    // wrflow file if it has one and otherwise, all of them, from its parent
+    if ((lev > 0) && !nc_low_file.empty()) {
+        init_fine_low_slices(lev, /*restarting=*/ false);
+    }
 }
 
 
@@ -3245,5 +3255,189 @@ init_terrain_from_wrfinput (int /*lev*/,
             }
         }
     } // avg_grid_faces_to_nodes
+}
+
+/**
+ * Give a level > 0 that read its own init file (erf.nc_init_file_<lev>) the SST and TSK
+ * time slices it needs now, when level 0 reads a wrflow file (erf.nc_low_file).
+ *
+ * If the level has a wrflow file of its own (erf.nc_low_file_<lev>), the slices are read from
+ * it, on the level's nest box; its times must be those of level 0's file, so that the surface
+ * layer interpolates both levels in time between the same slices.  Otherwise every slice,
+ * including the first, which the level read from its init file, is replaced by interpolation
+ * from the parent, so that the level follows level 0's wrflow file from the start of the run.
+ * Later slices are filled as level 0 reads them (see ERF::timeStep).
+ *
+ * A level made by refinement, with no init file of its own, is left to Interp2DArrays.
+ *
+ * @param[in] lev        level (> 0)
+ * @param[in] restarting true when restarting from a checkpoint: slice 0 was read from it, and
+ *                       the surface pressure, which is not checkpointed, is re-read
+ */
+void
+ERF::init_fine_low_slices (int lev, bool restarting)
+{
+    AMREX_ALWAYS_ASSERT(lev > 0 && !nc_low_file.empty());
+    if (!has_own_init_file(lev)) { return; }
+
+    const int ntimes = static_cast<int>(low_data_zlo.size());
+    const double time_since_start_low = t_new[0] + start_time - start_low_time;
+    const int n_time_old = std::min(static_cast<int>(time_since_start_low / low_time_interval), ntimes-1);
+    const int n_time_end = std::min(n_time_old+3, ntimes);
+
+    if (has_own_low_file(lev))
+    {
+        check_own_low_file_times(lev);
+        if (restarting) { read_psfc_from_own_init_file(lev); }
+
+        sst_lev[lev].resize(ntimes);
+        tsk_lev[lev].resize(ntimes);
+
+        // After a regrid the slices were remade from the parent from n_time_old on only, but
+        // update_sst_tsk takes TSK over land at the later slices from slice 0
+        const auto& dm = vars_new[lev][Vars::cons].DistributionMap();
+        for (auto* field_lev : {&sst_lev, &tsk_lev}) {
+            if (!(*field_lev)[lev][0]) { Interp2DTimeSlice(lev, 0, *field_lev, ba2d[lev], dm); }
+        }
+
+        // The surface layer takes this level's pointers when the level is added to it
+        std::unique_ptr<SurfaceLayer> no_surface_layer;
+        for (int itime = n_time_old; itime < n_time_end; ++itime) {
+            read_own_low_slice(lev, itime, no_surface_layer);
+        }
+    }
+    else if (!restarting)
+    {
+        // Every slice from the parent, including slice 0 (which the surface layer also uses
+        // for TSK over land) in place of the one read from this level's init file.  On a
+        // restart slice 0 comes from the checkpoint and Interp2DArrays fills the rest.
+        const auto& dm = vars_new[lev][Vars::cons].DistributionMap();
+        for (auto* field_lev : {&sst_lev, &tsk_lev}) {
+            for (auto& slice : (*field_lev)[lev]) { slice.reset(); }
+            Interp2DTimeSlice(lev, 0, *field_lev, ba2d[lev], dm);
+            for (int itime = std::max(n_time_old,1); itime < n_time_end; ++itime) {
+                Interp2DTimeSlice(lev, itime, *field_lev, ba2d[lev], dm);
+            }
+        }
+    }
+}
+
+/**
+ * Read time slice itime of this level's own wrflow file (erf.nc_low_file_<lev>) and make the
+ * SST and TSK at that time from it, as update_sst_tsk does at level 0.
+ *
+ * @param[in] lev       level (> 0) with a wrflow file of its own
+ * @param[in] itime     time slice
+ * @param[in] SurfLayer surface layer to point at a newly made slice, or null
+ */
+void
+ERF::read_own_low_slice (int lev, int itime, std::unique_ptr<SurfaceLayer>& SurfLayer)
+{
+    AMREX_ALWAYS_ASSERT(has_own_low_file(lev));
+    AMREX_ALWAYS_ASSERT(itime < static_cast<int>(sst_lev[lev].size()));
+
+    // The file covers this level's nest box (checked when the slice is read)
+    const Box box2d = nest_box_from_own_init_file(lev);
+
+    Vector<Vector<FArrayBox>> low_data(sst_lev[lev].size());
+    read_from_wrflow(itime, nc_low_file_at_level[lev], box2d, low_data);
+
+    const bool use_moist = (solverChoice.moisture_type != MoistureType::None);
+    update_sst_tsk(lev, itime, geom[lev], ba2d[lev],
+                   sst_lev[lev], tsk_lev[lev], SurfLayer, low_data,
+                   vars_new[lev][Vars::cons], *mf_PSFC[lev],
+                   solverChoice.rdOcp, lmask_lev[lev][0], use_moist);
+}
+
+/**
+ * Check that this level's wrflow file has the same times as level 0's: the surface layer
+ * interpolates every level in time with level 0's start time and interval.
+ *
+ * @param[in] lev level (> 0) with a wrflow file of its own
+ */
+void
+ERF::check_own_low_file_times (int lev)
+{
+    Vector<Vector<FArrayBox>> times_only;
+    double start_lev, final_lev;
+    const double interval_lev = read_times_from_wrflow(nc_low_file_at_level[lev], times_only,
+                                                       start_lev, final_lev);
+    if (times_only.size() != low_data_zlo.size() || start_lev != start_low_time ||
+        final_lev != final_low_time || interval_lev != low_time_interval)
+    {
+        Abort("erf.nc_low_file_" + std::to_string(lev) + " (" + nc_low_file_at_level[lev] + ") has " +
+              std::to_string(times_only.size()) + " times every " + std::to_string(interval_lev) +
+              " s, but erf.nc_low_file (" + nc_low_file + ") has " + std::to_string(low_data_zlo.size()) +
+              " times every " + std::to_string(low_time_interval) + " s; the wrflow files for all " +
+              "levels must have the same times");
+    }
+}
+
+/**
+ * Re-read the surface pressure of a level > 0 from its own init file, on its nest box as
+ * init_from_wrfinput reads it.  The surface pressure is not checkpointed, and update_sst_tsk
+ * needs it to convert the sea surface temperature.
+ *
+ * @param[in] lev level (> 0) with a single init file of its own
+ */
+void
+ERF::read_psfc_from_own_init_file (int lev)
+{
+    AMREX_ALWAYS_ASSERT(lev > 0 && nc_init_file[lev].size() == 1);
+
+    int ratio;
+    Box subdomain_to_read = read_subdomain_from_wrfinput(lev, nc_init_file[lev][0], ratio);
+
+    FArrayBox fab_from_file;
+    int success, use_theta_m;
+    read_from_wrfinput(lev, subdomain_to_read, nc_init_file[lev][0], fab_from_file, "PSFC",
+                       geom[lev], use_theta_m, success);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(success, "read_psfc_from_own_init_file: no PSFC in the init file");
+
+    // Put it on the nest box, as init_from_wrfinput does
+    const Box box2d = nest_box_from_own_init_file(lev);
+    AMREX_ALWAYS_ASSERT(fab_from_file.box().length(0) == box2d.length(0) &&
+                        fab_from_file.box().length(1) == box2d.length(1));
+    fab_from_file.shift(box2d.smallEnd() - fab_from_file.box().smallEnd());
+
+    FArrayBox var_fab(box2d, 1, The_Pinned_Arena());
+    var_fab.template copy<RunOn::Host>(fab_from_file, 0, 0, 1);
+
+    for (MFIter mfi(*mf_PSFC[lev], false); mfi.isValid(); ++mfi) {
+        (*mf_PSFC[lev])[mfi].template copy<RunOn::Device>(var_fab, 0, 0, 1);
+    }
+    if (mf_PSFC[lev]->max(0) == zero) {
+        mf_PSFC[lev]->setVal(p_0);
+    }
+}
+
+/**
+ * The 2D box of cells at a level > 0 that its own init file covers, placed as ERF::ErrorEst
+ * places the level when it is made from that file: the file's box (relative to the parent's
+ * region, in units of this level's cells) is coarsened to the parent, shifted to the parent's
+ * region and refined again.  Unlike boxes_at_level, which ErrorEst fills when it makes the
+ * level, this is also available on a restart.
+ *
+ * @param[in] lev level (> 0) with a single init file of its own
+ */
+Box
+ERF::nest_box_from_own_init_file (int lev)
+{
+    AMREX_ALWAYS_ASSERT(lev > 0 && nc_init_file[lev].size() == 1);
+    AMREX_ALWAYS_ASSERT(subdomains[lev-1].size() == 1);
+
+    int ratio;
+    Box box2d = read_subdomain_from_wrfinput(lev-1, nc_init_file[lev][0], ratio);
+    box2d.setRange(2,0);
+
+    const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
+    const Box parent_region = subdomains[lev-1][0].minimalBox();
+    IntVect parent_lo = parent_region.smallEnd();
+    parent_lo[2] = 0;
+
+    box2d.coarsen(rr2d);
+    box2d.shift(parent_lo);
+    box2d.refine(rr2d);
+    return box2d;
 }
 #endif // ERF_USE_NETCDF

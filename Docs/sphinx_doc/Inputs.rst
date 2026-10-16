@@ -3286,7 +3286,9 @@ to rather than here: ``erf.init_vels_from_checkpoint`` reuses the velocity field
 from a checkpoint while re-initializing the rest of the state (see
 :ref:`sec:Initialization`), ``erf.prob_name`` selects the built-in problem setup,
 ``erf.nc_low_file`` supplies the low-resolution NetCDF data used by
-:ref:`sec:HindCast`, ``erf.buildings_file_name`` supplies the building geometry
+:ref:`sec:HindCast` (and, with ``erf.init_type = WRFInput``, the wrflowinp SST for level 0;
+``erf.nc_low_file_<lev>`` gives a finer level its own, see :ref:`subsec:wrflow-per-level`),
+``erf.buildings_file_name`` supplies the building geometry
 used by the immersed-forcing path (see :ref:`Forcings`), and
 ``erf.cloud_chamber_budget_interval`` controls the budget output of the cloud
 chamber case (see :ref:`CloudChamber`).
