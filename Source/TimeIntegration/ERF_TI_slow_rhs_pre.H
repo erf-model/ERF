@@ -312,7 +312,7 @@
 #else
                                                  nullptr};
 #endif
-                FillCoarseFineGhostsForImplicit(level, new_stage_time, scratch, scratch_mom);
+                FillCoarseFineGhostsForImplicit(level, new_stage_time, scratch, {RhoTheta_comp}, scratch_mom);
             }
 
 #include "ERF_ImplicitPre.H"

@@ -1167,11 +1167,13 @@ private:
                                 const amrex::Vector<amrex::MultiFab*>& mfs_mom,
                                 int ng_cons, int ng_vel, bool cons_only, int icomp_cons, int ncomp_cons);
 
-    // Fill the coarse/fine ghost cells of the scratch (rho, rho theta) and momenta used by the
-    // implicit vertical solve with coarse data at the given time; all other cells are left alone
+    // Fill the coarse/fine ghost cells of the state (rho and the given components) and momenta
+    // used by an implicit vertical solve with coarse data at the given time; all other cells
+    // are left alone
     void FillCoarseFineGhostsForImplicit (int lev, double time,
-                                          amrex::MultiFab& scratch_cons,
-                                          const amrex::Vector<amrex::MultiFab*>& scratch_mom);
+                                          amrex::MultiFab& cons,
+                                          const amrex::Vector<int>& cons_comps,
+                                          const amrex::Vector<amrex::MultiFab*>& mom);
 
     // Fill all multifabs (and all components) in a vector of multifabs corresponding to the
     // grid variables defined in vars_old and vars_new just as FillCoarsePatch.
