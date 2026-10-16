@@ -261,9 +261,11 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
         } // lev
     }
 
-    // Update what we call "old" and "new" time
-    t_old[lev] = t_new[lev];
-    t_new[lev] += dt[lev];
+    // Update what we call "old" and "new" time.  These are set from the start time
+    // handed down by the coarser level rather than accumulated with "+=", so that a
+    // finer level's clock cannot drift away from its parent's over many steps.
+    t_old[lev] = time;
+    t_new[lev] = time + dt[lev];
 
     if (Verbose()) {
         amrex::Print() << "[Level " << lev << " step " << istep[lev]+1 << "] ";
@@ -300,6 +302,10 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
             double strt_time_for_fine = time + (i-1)*dt[lev+1];
             timeStep(lev+1, strt_time_for_fine, i);
         }
+
+        // The finer level has now reached this level's new time; make the two agree
+        // exactly rather than to within the roundoff of summing its substeps.
+        t_new[lev+1] = t_new[lev];
     }
 
     if ( verbose && lev == 0 && solverChoice.moisture_type != MoistureType::None) {
