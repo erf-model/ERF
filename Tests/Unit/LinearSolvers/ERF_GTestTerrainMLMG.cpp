@@ -2,11 +2,9 @@
 #include <AMReX_MultiFab.H>
 #include <AMReX_MultiFabUtil.H>
 
-#if (AMREX_SPACEDIM == 3)
 #include <AMReX_GMRES_MLMG.H>
 #include <AMReX_MLMG.H>
 #include <AMReX_MLTerrainPoisson.H>
-#endif
 
 #include <ERF_TerrainPoisson_3D_K.H>
 #include <ERF_Utils.H>
@@ -25,7 +23,6 @@ using namespace amrex;
 // only for its preconditioner), and its fluxes must be ERF's fluxes, zero on
 // the Neumann faces.  None of these tests needs FFT.
 
-#if (AMREX_SPACEDIM == 3)
 namespace {
 
 Real tol (Real scale) { return scale * (sizeof(Real) == 8 ? Real(1.e-12) : Real(1.e-4)); }
@@ -267,4 +264,3 @@ TEST(TerrainMLMG, SolvesTheSingularProblem)
         EXPECT_LE(Ax.norm2() / rhs.norm2(), Real(100.0) * rel) << (use_gmres ? "GMRESMLMG" : "MLMG");
     }
 }
-#endif
