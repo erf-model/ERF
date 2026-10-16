@@ -56,6 +56,9 @@ erf.abl_driver_type = "GeostrophicWind"
 
 erf.molec_diff_type = "None"
 
+# The implicit vertical scalar solve does not support Dirichlet (prescribed theta) z walls
+erf.vert_implicit = false
+
 erf.les_type = "Deardorff"
 erf.Ck       = 0.1
 erf.Ce       = 0.93

@@ -86,7 +86,14 @@
                 post_comps.push_back(RhoKE_comp);
             }
             if (solverChoice.implicit_moisture_diffusion && solverChoice.moisture_type != MoistureType::None) {
-                post_comps.push_back(RhoQ1_comp);
+                // Every moisture species the implicit solve diffuses: the water species, or qv
+                // only with SBM (the same range as in ERF_ImplicitPost.H)
+                const int n_moist = solverChoice.diffChoice.n_qstate_moist;
+                const int n_implicit = (solverChoice.moisture_type == MoistureType::SBM) ? amrex::min(n_moist, 1)
+                                                                                         : n_moist;
+                for (int n = 0; n < n_implicit; ++n) {
+                    post_comps.push_back(RhoQ1_comp + n);
+                }
             }
             if (!post_comps.empty()) {
                 FillCoarseFineGhostsForImplicit(level, new_stage_time, S_new[IntVars::cons], post_comps,

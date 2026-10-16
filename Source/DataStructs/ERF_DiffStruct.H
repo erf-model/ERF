@@ -8,6 +8,8 @@
 #include <AMReX_Print.H>
 #include <AMReX_Gpu.H>
 
+#include "ERF_IndexDefines.H"
+
 /**
  * @brief Molecular diffusion model used for transport coefficients.
  */
@@ -107,6 +109,11 @@ struct DiffChoice {
     bool eb_diff_constraint_x = false;
     bool eb_diff_constraint_y = false;
     bool eb_diff_constraint_z = false;
+
+    // Number of water (moist) species in the conserved state, starting at RhoQ1_comp.
+    // Set from Microphysics::Get_Qstate_Moist_Size() once the microphysics model exists;
+    // any non-water species a model carries are packed directly after these.
+    int n_qstate_moist = NMOIST_max;
 };
 
 /**
@@ -130,5 +137,8 @@ struct DiffChoice {
  * @brief Whether to constrain EB diffusion in the y direction.
  * @var DiffChoice::eb_diff_constraint_z
  * @brief Whether to constrain EB diffusion in the z direction.
+ * @var DiffChoice::n_qstate_moist
+ * @brief Number of moist conserved components starting at RhoQ1_comp; these are the
+ *        species whose vertical diffusion is split between the explicit and implicit parts.
  */
 #endif
