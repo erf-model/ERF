@@ -28,13 +28,7 @@ ResolveNativeScalarDiffusionPolicy (const int qty_comp, const DiffChoice& choice
   policy.scalar_comp = qty_comp - 1;
   policy.rhs_comp = qty_comp;
   policy.flux_comp = 0;
-  policy.bc_comp =
-    (qty_comp >= RhoScalar_comp && qty_comp < RhoScalar_comp + NSCALARS)
-      ? BCVars::RhoScalar_bc_comp
-      : qty_comp;
-  if (policy.bc_comp > BCVars::RhoScalar_bc_comp) {
-    policy.bc_comp -= (NSCALARS - 1);
-  }
+  policy.bc_comp = cons_bc_comp(qty_comp);
   policy.is_theta = qty_comp == RhoTheta_comp;
   policy.is_q1 = qty_comp == RhoQ1_comp;
   policy.is_q2 = qty_comp == RhoQ2_comp;
@@ -75,6 +69,30 @@ ResolveNativeScalarDiffusionPolicy (const int qty_comp, const DiffChoice& choice
     }
   }
   return policy;
+}
+
+/** Molecular diffusivity by primitive component for the implicit vertical
+ * solve and the EB diffusion (ERF_SetupVertDiff.H): theta, every passive scalar
+ * (all NSCALARS of them) and the water species through Q6; everything else --
+ * KE, the number concentrations, and any non-moist species a scheme appends
+ * after its water species -- is left at zero. With erf.molec_diff_type =
+ * Constant or ConstantAlpha these are the coefficients
+ * ResolveNativeScalarDiffusionPolicy() gives the explicit paths. */
+inline amrex::Vector<amrex::Real>
+VerticalMolecularAlphaByPrim (const DiffChoice& choice)
+{
+  amrex::Vector<amrex::Real> alpha_eff(NPRIMVAR_max, amrex::Real(0));
+  const bool consA = (choice.molec_diff_type == MolecDiffType::ConstantAlpha);
+  const amrex::Real alpha_T_eff = consA ? choice.alpha_T : choice.rhoAlpha_T;
+  const amrex::Real alpha_C_eff = consA ? choice.alpha_C : choice.rhoAlpha_C;
+  alpha_eff[PrimTheta_comp] = alpha_T_eff;
+  for (int n = 0; n < NSCALARS; ++n) {
+    alpha_eff[PrimScalar_comp + n] = alpha_C_eff;
+  }
+  for (int i = PrimQ1_comp; i <= PrimQ6_comp; ++i) {
+    alpha_eff[i] = alpha_C_eff;
+  }
+  return alpha_eff;
 }
 
 #endif // ERF_NATIVE_SCALAR_DIFFUSION_H_

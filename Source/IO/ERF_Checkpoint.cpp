@@ -226,6 +226,16 @@ ERF::WriteCheckpointFile () const
        // conservative, cell-centered vars
        HeaderFile << ncomp_cons << "\n";
 
+       // The passive-scalar block is compile-time (NSCALARS: the base scalar,
+       // plus smoke with ERF_ENABLE_FIRE), so record it next to the header: a
+       // reader built differently would otherwise shift every component after
+       // it (and with a difference of one take the QKE backward-compatibility
+       // path below).
+       {
+           std::ofstream layout(checkpointname + "/ScalarLayout");
+           layout << "nscalars " << NSCALARS << "\n";
+       }
+
        // x-velocity on faces
        HeaderFile << 1 << "\n";
 
@@ -784,6 +794,14 @@ ERF::WriteCheckpointFile () const
 #endif
     } // for lev
 
+#ifdef ERF_ENABLE_FIRE
+    // The fire: the engine's state (FireEngine::write_checkpoint), then the
+    // coupling's lagged fluxes, on the level the fire grid refines
+    if (m_fire_coupler) {
+        m_fire_coupler->write_checkpoint(checkpointname);
+    }
+#endif
+
     if (m_SurfaceModel) {
         m_SurfaceModel->WriteCheckpoint(checkpointname);
     }
@@ -1259,6 +1277,19 @@ ERF::ReadCheckpointFile ()
             unsupported.push_back("spectral bin microphysics (its spectrum is still read onto "
                                   "the run's grids)");
         }
+#ifdef ERF_ENABLE_FIRE
+        // The fire grid is built from the level's boxes (which must divide by
+        // erf.fire.grid_ratio) and its state is read onto them; re-made boxes
+        // would trip the grid-ratio check or VisMF's BoxArray check instead.
+        // Refused whichever level the fire grid is on: only level 0 is re-made,
+        // but no restart of a fire on a finer level with level 0 re-made has
+        // been tested.
+        if (m_fire_coupler) {
+            unsupported.push_back("the fire model (its fire grid is built from the run's level "
+                                  "boxes and its state is still read onto them; refused whichever "
+                                  "level the fire grid is on)");
+        }
+#endif
 
         if (!unsupported.empty()) {
             std::string msg("Restarting with the level-0 grids re-made -- which happens when "
@@ -1364,8 +1395,33 @@ ERF::ReadCheckpointFile ()
             "SBM restart requires an exact compact core component count");
     }
 
+    // The passive-scalar block of the writer (ScalarLayout): a different
+    // NSCALARS means a build with or without the fire coupling's smoke scalar,
+    // whose components would be read shifted. Read on the IO rank and
+    // broadcast, so every rank takes the same decision. A checkpoint without
+    // the file was written before it was recorded, so with one passive scalar.
+    {
+        int nsc = -1;
+        if (ParallelDescriptor::IOProcessor()) {
+            std::ifstream layout(restart_chkfile + "/ScalarLayout");
+            std::string key; int n = -1;
+            if (layout >> key >> n && key == "nscalars") { nsc = n; }
+        }
+        ParallelDescriptor::Bcast(&nsc, 1, ParallelDescriptor::IOProcessorNumber());
+        const bool recorded = (nsc >= 0);
+        if (!recorded) { nsc = 1; }
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nsc == NSCALARS,
+            ("Checkpoint " + restart_chkfile + " was written with " + std::to_string(nsc)
+             + " passive scalar(s)" + (recorded ? "" : " (it records no scalar layout, so it predates the"
+             " fire coupling's smoke scalar)") + " but this build has " + std::to_string(NSCALARS)
+             + " (ERF_ENABLE_FIRE adds the smoke scalar); restart with a build configured like the one"
+             " that wrote it").c_str());
+    }
+
     // NOTE: QKE was removed so this is for backward compatibility
-    AMREX_ASSERT((chk_ncomp_cons==ncomp_cons) || ((chk_ncomp_cons-1)==ncomp_cons));
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE((chk_ncomp_cons==ncomp_cons) || ((chk_ncomp_cons-1)==ncomp_cons),
+        ("Checkpoint has " + std::to_string(chk_ncomp_cons) + " conserved components, this build "
+         + std::to_string(ncomp_cons) + ": was it written by a build with other modules (fire, moisture)?").c_str());
     //
     // See if we have a written separate file that tells how many components and how many ghost cells
     // we have of the base state

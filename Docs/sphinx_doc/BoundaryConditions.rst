@@ -232,8 +232,12 @@ velocity on a domain boundary are set to the observational data and the RHS for 
 is assigned the BDY tendency. The user may specify (in the inputs file) the total
 width of the interior boundary region with ``erf.real_width = <Int>`` (yellow + blue).
 The real BCs are only imposed for :math:`\psi = \left\{ \theta; \; q_v; \; u; \; v \right\}`
-by default. For compressible ``WRFInput`` boundaries, setting
-``erf.use_wrf_bdy_density = true`` additionally uses the converted WRF dry-air
+by default, and for :math:`\rho` as well with ``WRFInput`` boundaries (below).
+In the lateral ghost cells, the density when it is not read, the passive
+scalars and the turbulent kinetic energy are extrapolated from the interior with
+zero gradient, and the moisture components not filled from WRF (see the
+hydrometeors below) are set to zero. For compressible ``WRFInput`` boundaries,
+``erf.use_wrf_bdy_density`` (true by default) uses the converted WRF dry-air
 density as the target for ``rho``, ``rho*theta``, and ``rho*qv`` and relaxes
 ``rho`` in the Davies zone. Pressure is still diagnosed from the ERF equation
 of state rather than directly nudged. This option is not supported for
