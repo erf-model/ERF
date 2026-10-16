@@ -698,6 +698,31 @@ Test Location: `Tests/test_files/Closure_BoxParity`_
 
 .. _`Tests/test_files/Closure_BoxParity`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/Closure_BoxParity
 
+Conservation across coarse/fine boundaries
+------------------------------------------
+The ``Conservation_*`` tests (label ``conservation``, no gold file) run a two-level deck with
+two-way coupling, in which diffusion is the only transport: there is no flow, and the walls are
+closed. They require the domain integral of the diffusing quantity to be the same in the first
+and the last plotfile, to ten significant digits (``Tests/RunConservation.cmake``, which reads
+the composite integral from ``amrex_fvolumesum``). That holds only if the reflux at the
+coarse/fine faces includes the diffusive fluxes, both the explicit ones and the implicit part of
+the vertical ones (erf-model/ERF#4323). Before that fix the integrals changed by 1e-4 to 1e-3
+relative.
+
+``Conservation_MoistDiffusion_Implicit`` and ``Conservation_MoistDiffusion_Explicit`` run the
+``MoistDiffusion_ImplicitCF`` deck, which has a coarse/fine face normal to z, and check
+:math:`\rho q_v`. The first runs it as it stands, with the vertical diffusion implicit in every
+RK stage. The second makes the diffusion explicit (``erf.vert_implicit = false``,
+``erf.alpha_C = 0.4``). ``Conservation_ScalarDiffusion_Flat`` and
+``Conservation_ScalarDiffusion_Terrain`` diffuse a scalar blob through a patch with faces normal
+to x and to z, on a flat mesh and with ``erf.terrain_type = StaticFittedMesh``. The terrain is
+flat, so these check the terrain-fitted code path with :math:`\det J = 1`, which
+``amrex_fvolumesum`` assumes. EB runs do not reflux diffusive fluxes.
+
+Test Location: `Tests/test_files/MoistDiffusion_ImplicitCF`_, `Tests/test_files/ScalarDiffusion_Reflux`_
+
+.. _`Tests/test_files/ScalarDiffusion_Reflux`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusion_Reflux
+
 Terrain Poisson operator at Neumann faces
 -----------------------------------------
 The ``TerrainPoisson_*`` tests (MPI builds, not Windows) check the anelastic projection on a

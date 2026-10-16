@@ -1566,4 +1566,122 @@ ScaleScalarDiffusionVerticalFlux (
   });
 }
 
+
+/**
+ * Face views into which the diffusive fluxes of each component are accumulated for refluxing,
+ * indexed by state component, in the convention of the advective fluxes the flux registers
+ * hold: a state update of -(m_x m_y / detJ) div F.  Null when nothing is refluxed.
+ */
+using ScalarDiffusionRefluxViews = amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>;
+
+/**
+ * Add the diffusive face fluxes of one component on a flat mesh to the reflux face views.
+ * ApplyScalarDiffusionFluxDivergence_N applies -(m^2 (dFx/dx + dFy/dy) + dFz/dz), so in the
+ * advective convention the fluxes are Fx, Fy and Fz / m^2 (m^2 is per column, so it is the
+ * same on both sides of a z face).
+ */
+inline void
+AddScalarDiffusionRefluxFluxes_N (
+  const amrex::Box& bx,
+  const amrex::Array4<const amrex::Real>& xflux,
+  const amrex::Array4<const amrex::Real>& yflux,
+  const amrex::Array4<const amrex::Real>& zflux,
+  const int flux_comp,
+  const ScalarDiffusionRefluxViews& reflux,
+  const int state_comp,
+  const amrex::Array4<const amrex::Real>& mf_mx,
+  const amrex::Array4<const amrex::Real>& mf_my)
+{
+  amrex::ParallelFor(amrex::surroundingNodes(bx, 0), amrex::surroundingNodes(bx, 1),
+                     amrex::surroundingNodes(bx, 2),
+    [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      reflux[0](i, j, k, state_comp) += xflux(i, j, k, flux_comp);
+    },
+    [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      reflux[1](i, j, k, state_comp) += yflux(i, j, k, flux_comp);
+    },
+    [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      reflux[2](i, j, k, state_comp) += zflux(i, j, k, flux_comp) / (mf_mx(i, j, 0) * mf_my(i, j, 0));
+    });
+}
+
+/**
+ * As AddScalarDiffusionRefluxFluxes_N, on a vertically stretched mesh: there detJ = dz[k] / dz,
+ * and ApplyScalarDiffusionFluxDivergence_S applies -(m^2 (dFx/dx + dFy/dy) + dFz/dz[k]), so the
+ * fluxes are detJ Fx, detJ Fy and Fz / m^2.
+ */
+inline void
+AddScalarDiffusionRefluxFluxes_S (
+  const amrex::Box& bx,
+  const amrex::Array4<const amrex::Real>& xflux,
+  const amrex::Array4<const amrex::Real>& yflux,
+  const amrex::Array4<const amrex::Real>& zflux,
+  const int flux_comp,
+  const ScalarDiffusionRefluxViews& reflux,
+  const int state_comp,
+  const amrex::Array4<const amrex::Real>& mf_mx,
+  const amrex::Array4<const amrex::Real>& mf_my,
+  const amrex::Real* dz,
+  const amrex::Real dz_inv)
+{
+  amrex::ParallelFor(amrex::surroundingNodes(bx, 0), amrex::surroundingNodes(bx, 1),
+                     amrex::surroundingNodes(bx, 2),
+    [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      reflux[0](i, j, k, state_comp) += dz[k] * dz_inv * xflux(i, j, k, flux_comp);
+    },
+    [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      reflux[1](i, j, k, state_comp) += dz[k] * dz_inv * yflux(i, j, k, flux_comp);
+    },
+    [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      reflux[2](i, j, k, state_comp) += zflux(i, j, k, flux_comp) / (mf_mx(i, j, 0) * mf_my(i, j, 0));
+    });
+}
+
+/**
+ * As AddScalarDiffusionRefluxFluxes_N, on a terrain-following mesh:
+ * ApplyScalarDiffusionMappedDivergence_T applies -(1/detJ)(m^2 (dTx/dx + dTy/dy) + dGz/dzeta)
+ * with the mapped transfers Tx, Ty and the vertical transfer Gz, so the fluxes are Tx, Ty and
+ * Gz / m^2.  suppress_lower_surface_z_flux must be what that divergence was given.
+ */
+inline void
+AddScalarDiffusionRefluxFluxes_T (
+  const amrex::Box& bx,
+  const amrex::Box& domain,
+  const amrex::Array4<const amrex::Real>& xflux,
+  const amrex::Array4<const amrex::Real>& yflux,
+  const amrex::Array4<const amrex::Real>& zflux,
+  const int flux_comp,
+  const ScalarDiffusionRefluxViews& reflux,
+  const int state_comp,
+  const amrex::Array4<const amrex::Real>& z_nd,
+  const amrex::Array4<const amrex::Real>& ax,
+  const amrex::Array4<const amrex::Real>& ay,
+  const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+  const amrex::Array4<const amrex::Real>& mf_mx,
+  const amrex::Array4<const amrex::Real>& mf_my,
+  const amrex::Array4<const amrex::Real>& mf_uy,
+  const amrex::Array4<const amrex::Real>& mf_vx,
+  const bool suppress_lower_surface_z_flux)
+{
+  const int dom_klo = domain.smallEnd(2);
+  amrex::ParallelFor(amrex::surroundingNodes(bx, 0), amrex::surroundingNodes(bx, 1),
+                     amrex::surroundingNodes(bx, 2),
+    [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      reflux[0](i, j, k, state_comp) +=
+        TerrainDiffusionMappedTx(xflux(i, j, k, flux_comp), ax(i, j, k), mf_uy(i, j, 0));
+    },
+    [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      reflux[1](i, j, k, state_comp) +=
+        TerrainDiffusionMappedTy(yflux(i, j, k, flux_comp), ay(i, j, k), mf_vx(i, j, 0));
+    },
+    [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+      const amrex::Real Gz = (suppress_lower_surface_z_flux && k == dom_klo)
+                           ? amrex::Real(0.0)
+                           : TerrainScalarDiffusionGzAtKFace(i, j, k, domain, xflux, yflux, zflux,
+                                                             flux_comp, z_nd, cellSizeInv,
+                                                             mf_mx, mf_my);
+      reflux[2](i, j, k, state_comp) += Gz / (mf_mx(i, j, 0) * mf_my(i, j, 0));
+    });
+}
+
 #endif // ERF_SCALAR_DIFFUSION_H_
