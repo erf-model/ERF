@@ -396,6 +396,14 @@ public:
     //     came from that file rather than from its parent
     bool has_own_init_file (int lev) const;
 
+    // Fill the coarse/fine ghost cells of the state (rho and the given components) and momenta
+    // used by an implicit vertical solve with coarse data at the given time; all other cells
+    // are left alone.  Public because it launches device lambdas (CUDA requires it)
+    void FillCoarseFineGhostsForImplicit (int lev, double time,
+                                          amrex::MultiFab& cons,
+                                          const amrex::Vector<int>& cons_comps,
+                                          const amrex::Vector<amrex::MultiFab*>& mom);
+
     void WriteMyEBSurface ();
 
     // Compute the divergence -- whether EB, no-terrain, flat terrain or general terrain

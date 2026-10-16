@@ -76,6 +76,24 @@
                           cloud_chamber_budget.get(), auxiliary_inert_tracer.get(),
                           sbm_state_manager.get(), sbm_transport.get());
 
+        // The ghost cells of S_new still hold the previous stage (S_old at the first stage): only
+        // its valid region has been advanced.  At a coarse/fine boundary fill them with the coarse
+        // data at the time we are advancing to, since a column that ends there is closed with the
+        // value on the other side (as for the scratch state in slow_rhs_fun_pre)
+        if (level > 0 && solverChoice.vert_implicit_fac[level][nrk] > zero) {
+            Vector<int> post_comps;
+            if (solverChoice.implicit_ke_diffusion && solverChoice.turbChoice[level].use_tke) {
+                post_comps.push_back(RhoKE_comp);
+            }
+            if (solverChoice.implicit_moisture_diffusion && solverChoice.moisture_type != MoistureType::None) {
+                post_comps.push_back(RhoQ1_comp);
+            }
+            if (!post_comps.empty()) {
+                FillCoarseFineGhostsForImplicit(level, new_stage_time, S_new[IntVars::cons], post_comps,
+                                                {nullptr, nullptr, nullptr});
+            }
+        }
+
         // Implicit diffusion of moisture
         #include "ERF_ImplicitPost.H"
 

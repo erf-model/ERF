@@ -2079,6 +2079,21 @@ endforeach()
 
 add_test_0(CouetteFlow_x                     "" "erf_exec" "plt00050" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_0(CouetteFlow_y                     "" "erf_exec" "plt00050" RUNTIME_OPTIONS "erf.vert_implicit=false ")
+
+# Couette spin-up with a fine patch over the lower half of the column: the vertical implicit
+# solve closes each fine column at the coarse/fine boundary with the coarse data at the stage time.
+#
+# Both tests are compared with looser tolerances than the default.  Between compilers the answers
+# differ by ~1e-9 relative (x_velocity), and z_velocity, which is zero but for roundoff, by ~3e-8
+# absolute (Apple Clang against GNU); a lagged closure moves them by ~1e-2 (CouetteFlow) and
+# ~4e-3 relative in qv (MoistDiffusion), so these tolerances still catch it.
+add_test_r(CouetteFlow_ImplicitCF            "" "erf_exec" "plt00050"
+           FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "1.0e-7")
+
+# The same closure for the implicit moisture solve in slow_rhs_post (ERF_ImplicitPost.H): a
+# moist layer diffusing down through a fine patch over the lower half of the column
+add_test_r(MoistDiffusion_ImplicitCF         "" "erf_exec" "plt00200"
+           FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "1.0e-7")
 add_test_0(PoiseuilleFlow_x                  "" "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_0(PoiseuilleFlow_y                  "" "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_0(InitSoundingIdeal_stationary      "" "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
