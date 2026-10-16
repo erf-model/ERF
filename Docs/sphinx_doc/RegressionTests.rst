@@ -40,6 +40,9 @@ The following problems are currently tested in the CI:
 |                               |          |          |          | NoSlipWall |       | lower half; implicit vertical   |
 |                               |          |          |          |            |       | diffusion closed at the c/f bdy |
 +-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
+| MoistDiffusion_ImplicitCF     | 4 4 32   | Periodic | Periodic | SlipWall   | None  | as CouetteFlow_ImplicitCF, for  |
+|                               |          |          |          | SlipWall   |       | the implicit moisture solve     |
++-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
 | DensityCurrent                | 256 4 64 | Symmetry | Periodic | SlipWall   | None  | +gravity                        |
 |                               |          | Outflow  |          | SlipWall   |       |                                 |
 +-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
@@ -511,6 +514,21 @@ Test Location: `Tests/test_files/CouetteFlow_ImplicitCF`_
 .. _`Tests/test_files/CouetteFlow_ImplicitCF`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/CouetteFlow_ImplicitCF
 
 Problem Location: ``Exec/RegTests/Couette_Poiseuille``
+
+Moisture diffusion with a coarse/fine boundary in z
+---------------------------------------------------
+
+The companion of the test above for the implicit moisture solve, which is done after the
+acoustic substeps (``ERF_ImplicitPost.H``) rather than before them.  A moist layer
+(:math:`q_v = 10` g/kg above :math:`z = 12` of 16, dry below) at rest diffuses down
+(``erf.alpha_C = 4``) through a static refined patch over the lower half of the column,
+with the vertical implicit solve in all three RK stages and two-way coupling.  Each fine
+column is closed at the coarse/fine boundary with the coarse data at the stage time.  The
+test compares the plotfile after 200 coarse steps against a gold file.
+
+Test Location: `Tests/test_files/MoistDiffusion_ImplicitCF`_
+
+.. _`Tests/test_files/MoistDiffusion_ImplicitCF`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/MoistDiffusion_ImplicitCF
 
 Poiseuille Flow (x-direction)
 -----------------------------
