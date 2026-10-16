@@ -1530,6 +1530,7 @@ public:
    * @param[in] sst_ptr sea-surface-temperature field pointer
    */
   void update_sst_ptr (const int lev, const int itime, amrex::MultiFab* sst_ptr) {
+      AMREX_ALWAYS_ASSERT(itime >= 0 && itime < static_cast<int>(m_sst_lev[lev].size()));
       m_sst_lev[lev][itime] = sst_ptr;
   }
 
@@ -1541,6 +1542,7 @@ public:
    * @param[in] tsk_ptr skin-temperature field pointer
    */
   void update_tsk_ptr (const int lev, const int itime, amrex::MultiFab* tsk_ptr) {
+      AMREX_ALWAYS_ASSERT(itime >= 0 && itime < static_cast<int>(m_tsk_lev[lev].size()));
       m_tsk_lev[lev][itime] = tsk_ptr;
   }
 

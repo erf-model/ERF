@@ -717,10 +717,13 @@ void ERF::advance_dycore (int level,
     //
     // This is an optimization since we won't need more than one ghost
     // cell of momentum in the integrator if not using numerical diffusion
+    // or EB (the EB momentum fluxes and Omega read two cells outside the valid region)
     //
-    IntVect ngu = (!solverChoice.use_num_diff) ? IntVect(1,1,1) : xvel_old.nGrowVect();
-    IntVect ngv = (!solverChoice.use_num_diff) ? IntVect(1,1,1) : yvel_old.nGrowVect();
-    IntVect ngw = (!solverChoice.use_num_diff) ? IntVect(1,1,0) : zvel_old.nGrowVect();
+    const bool all_mom_ghosts = solverChoice.use_num_diff ||
+                                (solverChoice.terrain_type == TerrainType::EB);
+    IntVect ngu = (!all_mom_ghosts) ? IntVect(1,1,1) : xvel_old.nGrowVect();
+    IntVect ngv = (!all_mom_ghosts) ? IntVect(1,1,1) : yvel_old.nGrowVect();
+    IntVect ngw = (!all_mom_ghosts) ? IntVect(1,1,0) : zvel_old.nGrowVect();
 
     const MultiFab* c_vfrac = nullptr;
     if (solverChoice.terrain_type == TerrainType::EB) {

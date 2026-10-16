@@ -208,6 +208,11 @@ ERF::FillPatchFineLevel (int lev, double time_d,
                        refRatio(lev-1), mapper, domain_bcs_type,
                        BCVars::cons_bc);
 
+    // FillPatchTwoLevels does not fill the cells outside the domain boundary, and all of
+    // mf_c is copied into the state below; set them to a known value rather than leaving
+    // uninitialized memory -- they will be filled in the physbcs call
+    mf_c.setDomainBndry(bogus_large_value,geom[lev]);
+
     if (interpolation_type == StateInterpType::Perturbational)
     {
         // Restore the coarse values to what they were
@@ -240,11 +245,6 @@ ERF::FillPatchFineLevel (int lev, double time_d,
             MultiFab::Multiply(vars_new[lev][Vars::cons], vars_new[lev][Vars::cons],
                                Rho_comp,RhoTheta_comp,1,IntVect{0});
         }
-
-        // Set values in the cells outside the domain boundary so that we can do the Add
-        //     without worrying about uninitialized values outside the domain -- these
-        //     will be filled in the physbcs call
-        mf_c.setDomainBndry(bogus_large_value,0,2,geom[lev]); // Do both rho and (rho theta) together
 
         // Add rho_0 back to rho and theta_0 back to theta
         MultiFab::Add(mf_c, new_base_state,BaseState::r0_comp,Rho_comp,1,ngvect_cons);

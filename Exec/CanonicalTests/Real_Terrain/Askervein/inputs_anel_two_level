@@ -1,6 +1,7 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.anelastic = 1
-# erf.use_fft is not needed: a terrain-fitted mesh is solved with FFT-preconditioned GMRES
+# erf.use_fft is not needed: a terrain-fitted mesh is solved with FFT-preconditioned GMRES by
+# default (erf.terrain_poisson_solver)
 erf.anelastic_type = MidPoint   # implicit vertical diffusion second order in time
 
 stop_time = 600.0
