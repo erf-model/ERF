@@ -142,6 +142,31 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
                                m_SurfaceLayer[Orientation(Direction::z, Orientation::low)], low_data_zlo,
                                S_new, *mf_PSFC[lev],
                                solverChoice.rdOcp, lmask_lev[lev][0], use_moist);
+
+                // The finer levels have no low file of their own, and Interp2DArrays only
+                // filled the slices needed when each was made, so give them this one too
+                // (from their parent, coarsest first) and point the surface layer at it.
+                //
+                // A level that read its own init file and was never given its parent's
+                // slices (MakeNewLevelFromCoarse does not call Interp2DArrays for it) holds
+                // the single slice from its file, which the surface layer uses throughout;
+                // that level is left as it is.
+                auto& SurfLayer = m_SurfaceLayer[Orientation(Direction::z, Orientation::low)];
+                for (int flev = 1; flev <= finest_level; ++flev) {
+                    if (has_own_init_file(flev) && sst_lev[flev].size() < sst_lev[flev-1].size()) {
+                        continue;
+                    }
+                    Interp2DTimeSlice(flev, itime, sst_lev, ba2d[flev], dmap[flev]);
+                    Interp2DTimeSlice(flev, itime, tsk_lev, ba2d[flev], dmap[flev]);
+                    if (SurfLayer) {
+                        if (itime < static_cast<int>(sst_lev[flev].size()) && sst_lev[flev][itime]) {
+                            SurfLayer->update_sst_ptr(flev, itime, sst_lev[flev][itime].get());
+                        }
+                        if (itime < static_cast<int>(tsk_lev[flev].size()) && tsk_lev[flev][itime]) {
+                            SurfLayer->update_tsk_ptr(flev, itime, tsk_lev[flev][itime].get());
+                        }
+                    }
+                }
             }
         } // itime
     } // have nc_low_file && lev == 0
