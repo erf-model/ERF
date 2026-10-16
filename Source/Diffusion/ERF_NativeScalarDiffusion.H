@@ -55,8 +55,7 @@ ResolveNativeScalarDiffusionPolicy (const int qty_comp, const DiffChoice& choice
     } else if (qty_comp == RhoKE_comp) {
         policy.coefficients.eddy_h_comp = EddyDiff::KE_h;
         policy.coefficients.eddy_v_comp = EddyDiff::KE_v;
-    } else if (
-               qty_comp >= RhoScalar_comp && qty_comp < RhoScalar_comp + NSCALARS) {
+    } else if (qty_comp >= RhoScalar_comp && qty_comp < RhoScalar_comp + NSCALARS) {
         policy.coefficients.eddy_h_comp = EddyDiff::Scalar_h;
         policy.coefficients.eddy_v_comp = EddyDiff::Scalar_v;
         if (choice.molec_diff_type == MolecDiffType::ConstantAlpha) {

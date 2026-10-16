@@ -105,8 +105,8 @@
                         }
 
                         const bool is_q1 = (m_comp == RhoQ1_comp);
-                        const Array4<const Real>& mfx_z = (is_q1) ? Q1fx3->const_array(mfi)
-                                                                  : Array4<const Real> {};
+                        const Array4<const Real>& mfx_z = (is_q1 && Q1fx3) ? Q1fx3->const_array(mfi)
+                                                                           : Array4<const Real> {};
                         const bool l_use_mrf_cg = solverChoice.turbChoice[level].enable_mrf_countergradient
                                                 && (solverChoice.turbChoice[level].pbl_type == PBLType::MRF)
                                                 && is_q1;
