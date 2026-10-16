@@ -85,10 +85,10 @@ ImplicitDiffForStateLU_N (const Box& bx,
     bool neumann_on_zhi  = (bc_ptr[bc_comp].hi(2) == ERFBCType::neumann);
     amrex::ignore_unused(foextrap_on_zlo, foextrap_on_zhi);
 
-    AMREX_ASSERT_WITH_MESSAGE(foextrap_on_zlo || neumann_on_zlo || use_SurfLayer,
-                              "Unexpected lower BC for scalars used with implicit vertical diffusion");
-    AMREX_ASSERT_WITH_MESSAGE(foextrap_on_zhi || neumann_on_zhi,
-                              "Unexpected upper BC for scalars used with implicit vertical diffusion");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(foextrap_on_zlo || neumann_on_zlo || use_SurfLayer,
+                                     "Unexpected lower BC for scalars used with implicit vertical diffusion");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(foextrap_on_zhi || neumann_on_zhi,
+                                     "Unexpected upper BC for scalars used with implicit vertical diffusion");
 
     // k-eqn RANS with a Dirichlet wall value of k: the first cell is held at
     // the value set by the surface layer, so its row reduces to x(klo) = phi(klo)
