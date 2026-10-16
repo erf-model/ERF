@@ -139,5 +139,5 @@ stretched, is solved with the hybrid FFT solver and still needs the FFT build.
 
 ``MLTerrainPoisson`` came into AMReX with AMReX-Codes/amrex#6030, and the flux routine ERF
 uses with AMReX-Codes/amrex#6068.  ERF always compiles this solver, so ERF now needs
-AMReX ``26.10-67`` (commit 6e4e0f9af) or later, as in its AMReX submodule; a build against an
+AMReX ``26.10-67`` (commit 6e4e0f9af) or later (its AMReX submodule carries a later one); a build against an
 older external AMReX does not compile, whatever the option is set to.
