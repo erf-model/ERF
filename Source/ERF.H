@@ -399,6 +399,14 @@ public:
     // Did the user supply a wrflowinp file for this level (erf.nc_low_file_<lev>, lev > 0)?
     bool has_own_low_file (int lev) const;
 
+    // Fill the coarse/fine ghost cells of the state (rho and the given components) and momenta
+    // used by an implicit vertical solve with coarse data at the given time; all other cells
+    // are left alone.  Public because it launches device lambdas (CUDA requires it)
+    void FillCoarseFineGhostsForImplicit (int lev, double time,
+                                          amrex::MultiFab& cons,
+                                          const amrex::Vector<int>& cons_comps,
+                                          const amrex::Vector<amrex::MultiFab*>& mom);
+
     void WriteMyEBSurface ();
 
     // Compute the divergence -- whether EB, no-terrain, flat terrain or general terrain

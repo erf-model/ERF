@@ -2960,6 +2960,12 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
 #endif
     }
 
+    // The moist species (RhoQ1_comp onward) are the ones whose vertical diffusion is
+    // split between the explicit and implicit parts; non-water species follow them
+    solverChoice.diffChoice.n_qstate_moist = micro->Get_Qstate_Moist_Size();
+    AMREX_ALWAYS_ASSERT(solverChoice.diffChoice.n_qstate_moist >= 0 &&
+                        solverChoice.diffChoice.n_qstate_moist <= NMOIST_max);
+
     qmoist.resize(a_nlevsmax);
     precip.resize(a_nlevsmax);
     return;

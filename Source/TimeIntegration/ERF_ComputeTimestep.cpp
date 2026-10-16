@@ -186,14 +186,14 @@ ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
 #endif
     const Real e_th = ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_thermal_diffusion);
     const Real e_ke = ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_ke_diffusion);
-    // The implicit solve treats only the first moisture variable (qv); any other moist species
-    // shares the Q diffusivities and diffuses explicitly, and so do the advected scalars.
-    // "Only qv" is read from the condensate indices: every scheme that carries number or bin
-    // variables also carries qc.
-    const auto& mi = solverChoice.moisture_indices;
-    const bool only_qv = (mi.qc < 0 && mi.qi < 0 && mi.qr < 0 && mi.qs < 0 && mi.qg < 0);
-    const Real e_q  = only_qv ? ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_moisture_diffusion)
-                              : one;
+    // The implicit solve treats the diffChoice.n_qstate_moist water species starting at
+    // RhoQ1_comp (with SBM only qv, but the host does not diffuse the SBM liquid lanes at
+    // all).  Non-water species a microphysics model packs directly after them share the Q
+    // diffusivities and diffuse explicitly, and so do the advected scalars.
+    const bool nonmoist_q = (vars_new[lev][Vars::cons].nComp() >
+                             RhoQ1_comp + solverChoice.diffChoice.n_qstate_moist);
+    const Real e_q  = nonmoist_q ? one
+                                 : ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_moisture_diffusion);
     DiffusiveRateSettings set;
     set.variable_dz = variable_dz;
     set.has_q       = (solverChoice.moisture_type != MoistureType::None);
