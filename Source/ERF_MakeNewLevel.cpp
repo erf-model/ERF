@@ -1332,16 +1332,11 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // ********************************************************************************************
     // NOTE: 2D MFs must be filled before SurfaceLayer is defined since SL class uses sst/tsk
     // Clear the 2D arrays
-    if (sst_lev[lev][0]) {
-        for (int n = 0; n < sst_lev[lev].size(); n++) {
-            sst_lev[lev][n].reset();
-        }
-    }
-    if (tsk_lev[lev][0]) {
-        for (int n = 0; n < tsk_lev[lev].size(); n++) {
-            tsk_lev[lev][n].reset();
-        }
-    }
+    // Every slice, not only when slice 0 exists: a level made part-way through a run, or
+    // given later slices as level 0 reads them, can hold slices > 0 without slice 0, and
+    // those must not survive onto the new grids.
+    for (auto& sst : sst_lev[lev]) { sst.reset(); }
+    for (auto& tsk : tsk_lev[lev]) { tsk.reset(); }
     if (lat_m[lev]) {
         lat_m[lev].reset();
     }
@@ -1592,16 +1587,11 @@ ERF::ClearLevel (int lev)
     advflux_reg[lev].reset();
 
     // Clears the 2D arrays
-    if (sst_lev[lev][0]) {
-        for (int n = 0; n < sst_lev[lev].size(); n++) {
-            sst_lev[lev][n].reset();
-        }
-    }
-    if (tsk_lev[lev][0]) {
-        for (int n = 0; n < tsk_lev[lev].size(); n++) {
-            tsk_lev[lev][n].reset();
-        }
-    }
+    // Every slice, not only when slice 0 exists: a level made part-way through a run, or
+    // given later slices as level 0 reads them, can hold slices > 0 without slice 0, and
+    // those must not survive onto the new grids.
+    for (auto& sst : sst_lev[lev]) { sst.reset(); }
+    for (auto& tsk : tsk_lev[lev]) { tsk.reset(); }
     if (lat_m[lev]) {
         lat_m[lev].reset();
     }

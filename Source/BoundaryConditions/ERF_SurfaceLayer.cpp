@@ -1756,8 +1756,13 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
         ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
         {
             int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-            // Skip cells the LSM did not have a valid flux (lsm_undefined).
-            if (is_land && lsm_t_flux_arr && lsm_t_flux_arr(i,j,0) < lsm_undefined) {
+            // Skip cells where the LSM does not have a valid value (finite and below
+            // lsm_undefined) for every one of the four fluxes; these keep the MOST values.
+            if (is_land && lsm_t_flux_arr &&
+                is_valid_lsm_value(lsm_t_flux_arr(i,j,0)) &&
+                is_valid_lsm_value(lsm_q_flux_arr(i,j,0)) &&
+                is_valid_lsm_value(lsm_tau13_arr (i,j,0)) &&
+                is_valid_lsm_value(lsm_tau23_arr (i,j,0))) {
                 Real rho = cons_arr(i,j,klo,Rho_comp);
                 Real Thd = cons_arr(i,j,klo,RhoTheta_comp) / rho;
                 Real qv  = (has_moisture) ? cons_arr(i,j,klo,RhoQ1_comp) / rho : zero;

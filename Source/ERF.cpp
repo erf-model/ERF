@@ -2836,63 +2836,25 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
                               rr2d, &cell_cons_interp,
                               domain_bcs_type, BCVars::cons_bc);
     }
-    if (sst_lev[lev-1][0]) {
-        if (sst_lev[lev].size() < sst_lev[lev-1].size()) {
-            sst_lev[lev].resize(sst_lev[lev-1].size());
-        }
+    //
+    // The SST and TSK time slices needed now: made and interpolated from the parent if
+    // they do not exist yet, and (for a level with no init file of its own) given a halo
+    // from the parent.  Later slices are filled as level 0 reads them (see
+    // Interp2DTimeSlice and ERF::timeStep).
+    //
+    for (auto* field_lev : {&sst_lev, &tsk_lev}) {
+        if (!(*field_lev)[lev-1][0] && !(*field_lev)[lev][0]) { continue; }
 #ifdef ERF_USE_NETCDF
         double time_since_start_low = t_new[0] + start_time - start_low_time;
         int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
-        int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(sst_lev[lev-1].size()));
+        int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>((*field_lev)[lev-1].size()));
 #else
-        // TODO: Fix if SST is provided without NETCDF
+        // TODO: Fix if SST/TSK is provided without NETCDF
         int n_time_old       = 0;
         int ntimes_to_interp = 1;
 #endif
-        auto ngv = sst_lev[lev-1][0]->nGrowVect(); ngv[2] = 0;
-
         for (int n = n_time_old; n < ntimes_to_interp; n++) {
-            if (!sst_lev[lev-1][n]) { continue; }
-            if (!sst_lev[lev][n]) {
-                sst_lev[lev][n] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
-                // DO fill the ghost cells outside the domain: SurfaceLayer populates t_surf
-                // on grown tileboxes, so it reads the sea surface temperature past a
-                // non-periodic domain face.  As for the Coriolis factors above, the coarse
-                // level has those ghost cells filled (update_sst_tsk fills the grown box).
-                InterpFromCoarseLevel(*sst_lev[lev][n], ngv, ngv,
-                                      *sst_lev[lev-1][n], 0, 0, 1,
-                                      geom[lev-1], geom[lev],
-                                      rr2d, &cell_cons_interp,
-                                      domain_bcs_type, BCVars::cons_bc);
-            }
-        }
-    }
-    if (tsk_lev[lev-1][0]) {
-        if (tsk_lev[lev].size() < tsk_lev[lev-1].size()) {
-            tsk_lev[lev].resize(tsk_lev[lev-1].size());
-        }
-#ifdef ERF_USE_NETCDF
-        double time_since_start_low = t_new[0] + start_time - start_low_time;
-        int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
-        int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(tsk_lev[lev-1].size()));
-#else
-        // TODO: Fix if TSK is provided without NETCDF
-        int n_time_old       = 0;
-        int ntimes_to_interp = 1;
-#endif
-        auto ngv = tsk_lev[lev-1][0]->nGrowVect(); ngv[2] = 0;
-
-        for (int n = n_time_old; n < ntimes_to_interp; n++) {
-            if (!tsk_lev[lev-1][n]) { continue; }
-            if (!tsk_lev[lev][n]) {
-                tsk_lev[lev][n] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
-                // DO fill the ghost cells outside the domain -- see the note on sst_lev
-                InterpFromCoarseLevel(*tsk_lev[lev][n], ngv, ngv,
-                                      *tsk_lev[lev-1][n], 0, 0, 1,
-                                      geom[lev-1], geom[lev],
-                                      rr2d, &cell_cons_interp,
-                                      domain_bcs_type, BCVars::cons_bc);
-            }
+            Interp2DTimeSlice(lev, n, *field_lev, my_ba2d, my_dm);
         }
     }
 
@@ -2966,54 +2928,72 @@ ERF::Interp2DArrays (int lev, const BoxArray& my_ba2d, const DistributionMapping
                            rr2d, mapper, domain_bcs_type,
                            BCVars::cons_bc);
     } // cosPhi
-    if (sst_lev[lev][0]) {
+}
+
+/**
+ * Fill time slice n of a 2D time-series field (sst_lev or tsk_lev) at lev from lev-1.
+ *
+ * The slice is made and interpolated from the parent only if it does not exist at lev yet.
+ * Unless lev has an init file of its own, its halo is then filled from the parent and from
+ * the other grids at lev -- see the notes in Interp2DArrays for both steps.
+ *
+ * @param[in]     lev       level to fill (> 0)
+ * @param[in]     n         time slice
+ * @param[in,out] field_lev sst_lev or tsk_lev
+ * @param[in]     my_ba2d   2D BoxArray at lev
+ * @param[in]     my_dm     DistributionMapping at lev
+ */
+void
+ERF::Interp2DTimeSlice (int lev, int n, Vector<Vector<std::unique_ptr<MultiFab>>>& field_lev,
+                        const BoxArray& my_ba2d, const DistributionMapping& my_dm)
+{
+    AMREX_ALWAYS_ASSERT(lev > 0);
+
+    auto& crse = field_lev[lev-1];
+    auto& fine = field_lev[lev];
+
+    // As in Interp2DArrays: a ratio of 1 in z, since these fields have no vertical extent
+    const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
+
+    if (crse[0]) {
+        if (fine.size() < crse.size()) {
+            fine.resize(crse.size());
+        }
+        if (n < static_cast<int>(crse.size()) && crse[n] && !fine[n]) {
+            auto ngv = crse[0]->nGrowVect(); ngv[2] = 0;
+            fine[n] = std::make_unique<MultiFab>(my_ba2d,my_dm,1,ngv);
+            // DO fill the ghost cells outside the domain: SurfaceLayer populates t_surf
+            // on grown tileboxes, so it reads the sea surface temperature past a
+            // non-periodic domain face.  As for the Coriolis factors in Interp2DArrays, the
+            // coarse level has those ghost cells filled (update_sst_tsk fills the grown box).
+            InterpFromCoarseLevel(*fine[n], ngv, ngv,
+                                  *crse[n], 0, 0, 1,
+                                  geom[lev-1], geom[lev],
+                                  rr2d, &cell_cons_interp,
+                                  domain_bcs_type, BCVars::cons_bc);
+        }
+    }
+
+    // A level that read its own init file keeps its own halo (see Interp2DArrays)
+    if (has_own_init_file(lev)) { return; }
+
+    if (fine[0] && n < static_cast<int>(fine.size()) && n < static_cast<int>(crse.size()) &&
+        fine[n] && crse[n])
+    {
+        Real time_for_fp = 0.0; // This is not actually used
+        Vector<Real> ftime    = {static_cast<Real>(time_for_fp), static_cast<Real>(time_for_fp)};
+        Vector<Real> ctime    = {static_cast<Real>(time_for_fp), static_cast<Real>(time_for_fp)};
         // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
-#ifdef ERF_USE_NETCDF
-        double time_since_start_low = t_new[0] + start_time - start_low_time;
-        int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
-        int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(sst_lev[lev-1].size()));
-#else
-        // TODO: Fix if SST is provided without NETCDF
-        int n_time_old       = 0;
-        int ntimes_to_interp = 1;
-#endif
-        for (int n = n_time_old; n < ntimes_to_interp; n++) {
-            if (!sst_lev[lev][n] || !sst_lev[lev-1][n]) { continue; }
-            Vector<MultiFab*> fmf = {sst_lev[lev  ][n].get(), sst_lev[lev  ][n].get()};
-            Vector<MultiFab*> cmf = {sst_lev[lev-1][n].get(), sst_lev[lev-1][n].get()};
-            IntVect ngv = sst_lev[lev][n]->nGrowVect(); ngv[2] = 0;
-            Interpolater* mapper = &cell_cons_interp;
-            FillPatchTwoLevels(*sst_lev[lev][n].get(), ngv, IntVect(0,0,0),
-                               time_for_fp, cmf, ctime, fmf, ftime,
-                               0, 0, 1, geom[lev-1], geom[lev],
-                               rr2d, mapper, domain_bcs_type,
-                               BCVars::cons_bc);
-        } // ntimes
-    } // sst_lev
-    if (tsk_lev[lev][0]) {
-        // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
-#ifdef ERF_USE_NETCDF
-        double time_since_start_low = t_new[0] + start_time - start_low_time;
-        int n_time_old = static_cast<int>(time_since_start_low /  low_time_interval);
-        int ntimes_to_interp = std::min(n_time_old+3, static_cast<int>(tsk_lev[lev-1].size()));
-#else
-        // TODO: Fix if TSK is provided without NETCDF
-        int n_time_old       = 0;
-        int ntimes_to_interp = 1;
-#endif
-        for (int n = n_time_old; n < ntimes_to_interp; n++) {
-            if (!tsk_lev[lev][n] || !tsk_lev[lev-1][n]) { continue; }
-            Vector<MultiFab*> fmf = {tsk_lev[lev  ][n].get(), tsk_lev[lev  ][n].get()};
-            Vector<MultiFab*> cmf = {tsk_lev[lev-1][n].get(), tsk_lev[lev-1][n].get()};
-            IntVect ngv = tsk_lev[lev][n]->nGrowVect(); ngv[2] = 0;
-            Interpolater* mapper = &cell_cons_interp;
-            FillPatchTwoLevels(*tsk_lev[lev][n].get(), ngv, IntVect(0,0,0),
-                               time_for_fp, cmf, ctime, fmf, ftime,
-                               0, 0, 1, geom[lev-1], geom[lev],
-                               rr2d, mapper, domain_bcs_type,
-                               BCVars::cons_bc);
-        } // ntimes
-    } // tsk_lev
+        Vector<MultiFab*> fmf = {fine[n].get(), fine[n].get()};
+        Vector<MultiFab*> cmf = {crse[n].get(), crse[n].get()};
+        IntVect ngv = fine[n]->nGrowVect(); ngv[2] = 0;
+        Interpolater* mapper = &cell_cons_interp;
+        FillPatchTwoLevels(*fine[n].get(), ngv, IntVect(0,0,0),
+                           time_for_fp, cmf, ctime, fmf, ftime,
+                           0, 0, 1, geom[lev-1], geom[lev],
+                           rr2d, mapper, domain_bcs_type,
+                           BCVars::cons_bc);
+    }
 }
 
 // Initialize microphysics object

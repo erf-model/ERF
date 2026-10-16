@@ -104,6 +104,18 @@ AMREX_ENUM(MeshType,
 );
 
 /**
+ * @brief Linear solver for the anelastic projection on a terrain-fitted mesh.
+ *
+ * gmres_fft is GMRES with ERF's TerrainPoisson operator and an FFT preconditioner (needs the
+ * FFT build).  mlmg and gmres_mlmg use amrex::MLTerrainPoisson (AMReX-Codes/amrex#6030), the
+ * same stencil with zero flux through the Neumann faces, solved by geometric multigrid
+ * alone or as the preconditioner of GMRES; they need no FFT.
+ */
+AMREX_ENUM(TerrainPoissonSolver,
+    gmres_fft, mlmg, gmres_mlmg
+);
+
+/**
  * @brief Terrain and immersed-boundary representation.
  */
 AMREX_ENUM(TerrainType,
@@ -1142,6 +1154,15 @@ struct SolverChoice {
         }
         pp.queryAdd("poisson_abstol", poisson_abstol);
         pp.queryAdd("poisson_reltol", poisson_reltol);
+        // Solver for the projection on a terrain-fitted mesh: FFT-preconditioned GMRES (default),
+        // or amrex::MLTerrainPoisson with multigrid, alone or under GMRES
+        pp.query_enum_case_insensitive("terrain_poisson_solver", terrain_poisson_solver);
+        if (pp.contains("terrain_poisson_solver") &&
+            (mesh_type != MeshType::VariableDz || terrain_type == TerrainType::EB)) {
+            amrex::Print() << "WARNING: erf.terrain_poisson_solver is ignored: it applies only to the "
+                           << "projection on a terrain-fitted mesh (erf.terrain_type = StaticFittedMesh "
+                           << "or MovingFittedMesh)" << std::endl;
+        }
 #ifdef AMREX_USE_FLOAT
         poisson_abstol = amrex::max(poisson_abstol,amrex::Real(1e-6));
         poisson_reltol = amrex::max(poisson_reltol,amrex::Real(1e-6));
@@ -2288,6 +2309,7 @@ struct SolverChoice {
 
     int         ncorr               = 1;
     std::string wall_dist_type      = "poisson";
+    TerrainPoissonSolver  terrain_poisson_solver  = TerrainPoissonSolver::gmres_fft;
 #ifdef AMREX_USE_FLOAT
     amrex::Real poisson_abstol      = amrex::Real(1e-6);
     amrex::Real poisson_reltol      = amrex::Real(1e-6);
@@ -2709,6 +2731,8 @@ struct SolverChoice {
  * @brief Whether the compact terrain-metric part of the vertical diffusion is solved implicitly.
  * @var SolverChoice::ncorr
  * @brief Number of projection correction iterations.
+ * @var SolverChoice::terrain_poisson_solver
+ * @brief Projection solver on a terrain-fitted mesh: gmres_fft (default), mlmg or gmres_mlmg.
  * @var SolverChoice::poisson_abstol
  * @brief Absolute tolerance for the Poisson solve.
  * @var SolverChoice::poisson_reltol

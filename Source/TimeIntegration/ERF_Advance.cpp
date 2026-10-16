@@ -102,6 +102,8 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                 const Array4<const Real> &pert_cell = turbPert.pb_cell[lev].array(mfi);
                 turbPert.apply_tpi(lev, bx, -1, m_ixtype, cell_data, pert_cell);
             }
+            // apply_tpi only modifies valid faces; refresh the ghost faces so they agree (see below)
+            (*physbcs_w[lev])(W_old, U_old, V_old, W_old.nGrowVect(), time, BCVars::zvel_bc, true);
         } else {
             auto m_ixtype = S_old.boxArray().ixType(); // Conserved term
             for (MFIter mfi(S_old,TileNoZ()); mfi.isValid(); ++mfi) {
@@ -110,6 +112,13 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                 const Array4<const Real> &pert_cell = turbPert.pb_cell[lev].array(mfi);
                 turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cell_data, pert_cell);
             }
+            // apply_tpi only modifies valid cells, but the ghost cells must agree with them:
+            //   the first RK stage reads them across box boundaries, and the next finer
+            //   level's FillPatchTwoLevels copies coarse ghost cells as well as valid ones,
+            //   so a stale ghost overlapping another box's valid cell would make the fine
+            //   ghost data depend on copy order (issue 4304).
+            (*physbcs_cons[lev])(S_old, U_old, V_old, RhoTheta_comp, 1, S_old.nGrowVect(),
+                                 time, BCVars::cons_bc, true);
         }
     }
 
