@@ -52,12 +52,12 @@ ERF::FillIntermediatePatch (int lev, double time_d,
     if (lev>0) {
         if (cf_set_width > 0) {
             // We note that mfs_vel[Vars::cons] and mfs_mom[Vars::cons] are in fact the same pointer
-            FPr_c[lev-1].FillSet(*mfs_vel[Vars::cons], time, null_bc, domain_bcs_type);
+            FPr_c[lev-1].FillSet(*mfs_vel[Vars::cons], time_d, null_bc, domain_bcs_type);
         }
         if ( !cons_only && (cf_set_width >= 0) ) {
-            FPr_u[lev-1].FillSet(*mfs_mom[IntVars::xmom], time, null_bc, domain_bcs_type);
-            FPr_v[lev-1].FillSet(*mfs_mom[IntVars::ymom], time, null_bc, domain_bcs_type);
-            FPr_w[lev-1].FillSet(*mfs_mom[IntVars::zmom], time, null_bc, domain_bcs_type);
+            FPr_u[lev-1].FillSet(*mfs_mom[IntVars::xmom], time_d, null_bc, domain_bcs_type);
+            FPr_v[lev-1].FillSet(*mfs_mom[IntVars::ymom], time_d, null_bc, domain_bcs_type);
+            FPr_w[lev-1].FillSet(*mfs_mom[IntVars::zmom], time_d, null_bc, domain_bcs_type);
         }
     }
 
@@ -123,10 +123,20 @@ ERF::FillIntermediatePatch (int lev, double time_d,
         mf.setVal(bogus_large_value);
         MultiFab::Copy(mf,*mfs_vel[Vars::cons],Rho_comp,Rho_comp,1,mf.nGrowVect());
 
+        // Which coarse time level(s) to take is decided in double precision
+        const TimeLevelSel csel = select_time_level(time_d, t_old[lev-1], t_new[lev-1]);
+
+        // AMReX computes its time-interpolation weights in Real from the times it is given,
+        // so give it times measured from the coarse new time (formed in double) rather than
+        // the elapsed times themselves, which can be large compared to dt.  The physical
+        // bc's below still see the elapsed time.
+        const double tref = t_new[lev-1];
+        const Real time_rel = static_cast<Real>(time_d - tref);
+        Vector<Real> ctime  = {static_cast<Real>(t_old[lev-1] - tref), Real(0)};
+        Vector<Real> ftime  = {time_rel, time_rel};
+
         Vector<MultiFab*> fmf = {mfs_vel[Vars::cons],mfs_vel[Vars::cons]};
-        Vector<MultiFab*> cmf = {&vars_old[lev-1][Vars::cons], &vars_new[lev-1][Vars::cons]};
-        Vector<Real> ctime    = {static_cast<Real>(t_old[lev-1]), static_cast<Real>(t_new[lev-1])};
-        Vector<Real> ftime    = {static_cast<Real>(time), static_cast<Real>(time)};
+        Vector<MultiFab*> cmf = select_time_data(csel, vars_old[lev-1][Vars::cons], vars_new[lev-1][Vars::cons]);
 
         if (interpolation_type == StateInterpType::Perturbational)
         {
@@ -138,13 +148,13 @@ ERF::FillIntermediatePatch (int lev, double time_d,
                 // Subtract theta_0 from theta
                 MultiFab::Subtract(*mfs_vel[Vars::cons],base_state[lev],BaseState::th0_comp,RhoTheta_comp,1,IntVect{0});
 
-                if (!amrex::almostEqual(time,ctime[1])) {
+                if (csel != TimeLevelSel::New) {
                     MultiFab::Divide(vars_old[lev-1][Vars::cons], vars_old[lev-1][Vars::cons],
                                      Rho_comp,RhoTheta_comp,1,vars_old[lev-1][Vars::cons].nGrowVect());
                     MultiFab::Subtract(vars_old[lev-1][Vars::cons], base_state[lev-1],
                                        BaseState::th0_comp,RhoTheta_comp,1,vars_old[lev-1][Vars::cons].nGrowVect());
                 }
-                if (!amrex::almostEqual(time,ctime[0])) {
+                if (csel != TimeLevelSel::Old) {
                     MultiFab::Divide(vars_new[lev-1][Vars::cons], vars_new[lev-1][Vars::cons],
                                      Rho_comp,RhoTheta_comp,1,vars_new[lev-1][Vars::cons].nGrowVect());
                     MultiFab::Subtract(vars_new[lev-1][Vars::cons], base_state[lev-1],
@@ -158,11 +168,11 @@ ERF::FillIntermediatePatch (int lev, double time_d,
             {
                 MultiFab::Subtract(*mfs_vel[Vars::cons],base_state[lev],BaseState::r0_comp,Rho_comp,1,IntVect{0});
 
-                if (!amrex::almostEqual(time,ctime[1])) {
+                if (csel != TimeLevelSel::New) {
                     MultiFab::Subtract(vars_old[lev-1][Vars::cons], base_state[lev-1],
                                        BaseState::r0_comp,Rho_comp,1,vars_old[lev-1][Vars::cons].nGrowVect());
                 }
-                if (!amrex::almostEqual(time,ctime[0])) {
+                if (csel != TimeLevelSel::Old) {
                     MultiFab::Subtract(vars_new[lev-1][Vars::cons], base_state[lev-1],
                                        BaseState::r0_comp,Rho_comp,1,vars_new[lev-1][Vars::cons].nGrowVect());
                 }
@@ -172,7 +182,7 @@ ERF::FillIntermediatePatch (int lev, double time_d,
         // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
         mapper = &cell_cons_interp;
         FillPatchTwoLevels(mf, IntVect{ng_cons}, IntVect(0,0,0),
-                           time, cmf, ctime, fmf, ftime,
+                           time_rel, cmf, ctime, fmf, ftime,
                            icomp_cons, icomp_cons, ncomp_cons, geom[lev-1], geom[lev],
                            refRatio(lev-1), mapper, domain_bcs_type,
                            icomp_cons);
@@ -182,11 +192,11 @@ ERF::FillIntermediatePatch (int lev, double time_d,
             if (icomp_cons == 0)
             {
                 // Restore the coarse values to what they were
-                if (!amrex::almostEqual(time,ctime[1])) {
+                if (csel != TimeLevelSel::New) {
                     MultiFab::Add(vars_old[lev-1][Vars::cons], base_state[lev-1],
                                   BaseState::r0_comp,Rho_comp,1,vars_old[lev-1][Vars::cons].nGrowVect());
                 }
-                if (!amrex::almostEqual(time,ctime[0])) {
+                if (csel != TimeLevelSel::Old) {
                     MultiFab::Add(vars_new[lev-1][Vars::cons], base_state[lev-1],
                                   BaseState::r0_comp,Rho_comp,1,vars_new[lev-1][Vars::cons].nGrowVect());
                 }
@@ -203,13 +213,13 @@ ERF::FillIntermediatePatch (int lev, double time_d,
             if (icomp_cons+ncomp_cons > 1)
             {
                 // Add theta_0 to theta
-                if (!amrex::almostEqual(time,ctime[1])) {
+                if (csel != TimeLevelSel::New) {
                     MultiFab::Add(vars_old[lev-1][Vars::cons], base_state[lev-1],
                                   BaseState::th0_comp,RhoTheta_comp,1,vars_old[lev-1][Vars::cons].nGrowVect());
                     MultiFab::Multiply(vars_old[lev-1][Vars::cons], vars_old[lev-1][Vars::cons],
                                        Rho_comp,RhoTheta_comp,1,vars_old[lev-1][Vars::cons].nGrowVect());
                 }
-                if (!amrex::almostEqual(time,ctime[0])) {
+                if (csel != TimeLevelSel::Old) {
                     MultiFab::Add(vars_new[lev-1][Vars::cons], base_state[lev-1],
                                   BaseState::th0_comp,RhoTheta_comp,1,vars_new[lev-1][Vars::cons].nGrowVect());
                     MultiFab::Multiply(vars_new[lev-1][Vars::cons], vars_new[lev-1][Vars::cons],
@@ -274,11 +284,11 @@ ERF::FillIntermediatePatch (int lev, double time_d,
             MultiFab& mfu = *mfs_vel[Vars::xvel];
 
             fmf = {&mfu,&mfu};
-            cmf = {&vars_old[lev-1][Vars::xvel], &vars_new[lev-1][Vars::xvel]};
+            cmf = select_time_data(csel, vars_old[lev-1][Vars::xvel], vars_new[lev-1][Vars::xvel]);
 
             // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
             FillPatchTwoLevels(mfu, IntVect{ng_vel}, IntVect(0,0,0),
-                               time, cmf, ctime, fmf, ftime,
+                               time_rel, cmf, ctime, fmf, ftime,
                                0, 0, 1, geom[lev-1], geom[lev],
                                refRatio(lev-1), mapper, domain_bcs_type,
                                BCVars::xvel_bc);
@@ -288,11 +298,11 @@ ERF::FillIntermediatePatch (int lev, double time_d,
             MultiFab& mfv = *mfs_vel[Vars::yvel];
 
             fmf = {&mfv,&mfv};
-            cmf = {&vars_old[lev-1][Vars::yvel], &vars_new[lev-1][Vars::yvel]};
+            cmf = select_time_data(csel, vars_old[lev-1][Vars::yvel], vars_new[lev-1][Vars::yvel]);
 
             // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
             FillPatchTwoLevels(mfv, IntVect{ng_vel}, IntVect(0,0,0),
-                               time, cmf, ctime, fmf, ftime,
+                               time_rel, cmf, ctime, fmf, ftime,
                                0, 0, 1, geom[lev-1], geom[lev],
                                refRatio(lev-1), mapper, domain_bcs_type,
                                BCVars::yvel_bc);
@@ -302,11 +312,11 @@ ERF::FillIntermediatePatch (int lev, double time_d,
             MultiFab& mfw = *mfs_vel[Vars::zvel];
 
             fmf = {&mfw,&mfw};
-            cmf = {&vars_old[lev-1][Vars::zvel], &vars_new[lev-1][Vars::zvel]};
+            cmf = select_time_data(csel, vars_old[lev-1][Vars::zvel], vars_new[lev-1][Vars::zvel]);
 
             // Call FillPatchTwoLevels which ASSUMES that all ghost cells at lev-1 have already been filled
             FillPatchTwoLevels(mfw, IntVect{ng_vel}, IntVect(0,0,0),
-                               time, cmf, ctime, fmf, ftime,
+                               time_rel, cmf, ctime, fmf, ftime,
                                0, 0, 1, geom[lev-1], geom[lev],
                                refRatio(lev-1), mapper, domain_bcs_type,
                                BCVars::zvel_bc);
@@ -323,12 +333,12 @@ ERF::FillIntermediatePatch (int lev, double time_d,
 
 #ifdef ERF_USE_NETCDF
     if (solverChoice.use_real_bcs && (lev==0)) {
-        fill_from_realbdy(mfs_vel,time,cons_only,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels);
+        fill_from_realbdy(mfs_vel,time_d,cons_only,icomp_cons,ncomp_cons,ngvect_cons,ngvect_vels);
         do_fb = false;
     }
 #endif
 
-    if (m_r2d && !solverChoice.use_real_bcs) { fill_from_bndryregs(mfs_vel,time); }
+    if (m_r2d && !solverChoice.use_real_bcs) { fill_from_bndryregs(mfs_vel,time_d); }
 
     // We call this even if use_real_bcs is true because these will fill the vertical bcs
     (*physbcs_cons[lev])(*mfs_vel[Vars::cons],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
