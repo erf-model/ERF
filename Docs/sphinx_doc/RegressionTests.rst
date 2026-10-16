@@ -36,6 +36,10 @@ The following problems are currently tested in the CI:
 | CouetteFlow_y                 | 4 32  16 | Periodic | Periodic | NoSlipWall | None  | inhomogeneous                   |
 |                               |          |          |          | NoSlipWall |       | bc at zhi (v = 2)               |
 +-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
+| CouetteFlow_ImplicitCF        | 4 4 32   | Periodic | Periodic | NoSlipWall | None  | two levels: fine patch over the |
+|                               |          |          |          | NoSlipWall |       | lower half; implicit vertical   |
+|                               |          |          |          |            |       | diffusion closed at the c/f bdy |
++-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
 | DensityCurrent                | 256 4 64 | Symmetry | Periodic | SlipWall   | None  | +gravity                        |
 |                               |          | Outflow  |          | SlipWall   |       |                                 |
 +-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
@@ -488,6 +492,23 @@ the velocity is specified to be :math:`U = (0,2,0)`.   The steady solution for t
 Test Location: `Tests/test_files/CouetteFlow_y`_
 
 .. _`Tests/test_files/CouetteFlow_y`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/CouetteFlow_y
+
+Problem Location: ``Exec/RegTests/Couette_Poiseuille``
+
+Couette Flow with a coarse/fine boundary in z
+---------------------------------------------
+
+This is Couette flow started from rest, driven by the lid at the high-z boundary
+(:math:`U = (2,0,0)`), with a static refined patch that covers only the lower half of the column
+(:math:`0 \le z \le 8` of 16).  The diffusion front from the lid therefore crosses a coarse/fine
+boundary in z.  The vertical implicit solve is used in all three RK stages
+(``erf.vert_implicit_fac = 1``) with a fine-level diffusion number of about 6, and each fine column
+is closed at the coarse/fine boundary with the coarse data at the stage time.  The test compares
+the plotfile after 50 coarse steps against a gold file.
+
+Test Location: `Tests/test_files/CouetteFlow_ImplicitCF`_
+
+.. _`Tests/test_files/CouetteFlow_ImplicitCF`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/CouetteFlow_ImplicitCF
 
 Problem Location: ``Exec/RegTests/Couette_Poiseuille``
 

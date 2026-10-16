@@ -2079,6 +2079,10 @@ endforeach()
 
 add_test_0(CouetteFlow_x                     "" "erf_exec" "plt00050" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_0(CouetteFlow_y                     "" "erf_exec" "plt00050" RUNTIME_OPTIONS "erf.vert_implicit=false ")
+
+# Couette spin-up with a fine patch over the lower half of the column: the vertical implicit
+# solve closes each fine column at the coarse/fine boundary with the coarse data at the stage time
+add_test_r(CouetteFlow_ImplicitCF            "" "erf_exec" "plt00050")
 add_test_0(PoiseuilleFlow_x                  "" "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_0(PoiseuilleFlow_y                  "" "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_0(InitSoundingIdeal_stationary      "" "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
