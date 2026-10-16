@@ -1079,6 +1079,42 @@ void ComputeTurbulentViscosity (double dt,
                     }
                 }
             });
+            //
+            // Edge and corner ghost cells at a C/F boundary are skipped above when every face
+            // neighbour toward the valid box is itself a C/F ghost cell, e.g. (i_lo-1,j_lo-1).
+            // Fill these from a cell that is valid at this level (in this grid or another),
+            // stepping toward the valid box in two directions (xy, xz, yz) before all three.
+            // The sources are never written in this block, and taking covered cells as well as
+            // our own keeps the result independent of how the level is divided into grids.
+            //
+            ParallelFor(mfi.growntilebox(1), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (mask_arr(i,j,k) != is_notcovered) { return; }
+
+                int si = amrex::min(amrex::max(i, i_lo), i_hi);
+                int sj = amrex::min(amrex::max(j, j_lo), j_hi);
+                int sk = amrex::min(amrex::max(k, k_lo), k_hi);
+                bool gx = (si != i);
+                bool gy = (sj != j);
+                bool gz = (sk != k);
+
+                // Already filled by one of the plane kernels above
+                if (gx && mask_arr(si,j,k) != is_notcovered) { return; }
+                if (gy && mask_arr(i,sj,k) != is_notcovered) { return; }
+                if (gz && mask_arr(i,j,sk) != is_notcovered) { return; }
+
+                int ii = si; int jj = sj; int kk = sk;
+                if        (gx && gy && mask_arr(si,sj,k ) != is_notcovered) {
+                    kk = k;
+                } else if (gx && gz && mask_arr(si,j ,sk) != is_notcovered) {
+                    jj = j;
+                } else if (gy && gz && mask_arr(i ,sj,sk) != is_notcovered) {
+                    ii = i;
+                }
+                for (int n = 0; n < ncomp; n++) {
+                    mu_turb(i,j,k,n) = mu_turb(ii,jj,kk,n);
+                }
+            });
         } // mfi
 
         eddyViscosity.FillBoundary(geom.periodicity());
