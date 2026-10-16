@@ -137,7 +137,8 @@ ImplicitDiffForStateLU_T (const Box& bx,
 
     Real dz_inv = cellSizeInv[2];
 
-    int bc_comp = qty_index;
+    // BC types are stored by BC variable, not by state component
+    const int bc_comp = ResolveNativeScalarDiffusionPolicy(qty_index, solverChoice.diffChoice).bc_comp;
     bool foextrap_on_zlo = (bc_ptr[bc_comp].lo(2) == ERFBCType::foextrap);
     bool foextrap_on_zhi = (bc_ptr[bc_comp].hi(2) == ERFBCType::foextrap);
     bool neumann_on_zlo  = (bc_ptr[bc_comp].lo(2) == ERFBCType::neumann);

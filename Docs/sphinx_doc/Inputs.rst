@@ -1095,8 +1095,8 @@ Notes
      The vertical diffusion of w is explicit (:math:`e_w = 1`) unless ERF is built with
      ``ERF_IMPLICIT_W``; every moisture variable is in the implicit solve (with SBM only qv,
      the one the host diffuses), so the moisture term has :math:`e = 1` only when a
-     microphysics model appends non-water species beyond the eleven moisture slots, and the
-     advected scalar always does.  If dt times this rate
+     microphysics model also carries non-water species (packed directly after the water
+     species, these diffuse explicitly), and the advected scalar always does.  If dt times this rate
      exceeds **erf.diffusive_cfl** a warning is printed, repeated on a level only when the
      Fourier number has grown by half.  The default 0.5 is the forward-Euler bound; the
      three-stage scheme is stable to about 0.63 for a pure diffusion.  With

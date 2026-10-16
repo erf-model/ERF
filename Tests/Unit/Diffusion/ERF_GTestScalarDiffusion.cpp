@@ -669,6 +669,40 @@ ERF_GPU_TEST(
     Real(0.0));
 }
 
+// Motivation: Non-water species are packed directly after the water species,
+// not after slot 11. Only the water species are in the implicit moisture solve,
+// so only they may have their explicit vertical flux scaled; the boundary
+// between the two must follow DiffChoice::n_qstate_moist and BC lookups must
+// map state components to BC variables.
+ERF_GPU_TEST(ScalarDiffusionPolicy, MoistRangeFollowsMoistStateSize)
+{
+  DiffChoice choice;
+  EXPECT_EQ(choice.n_qstate_moist, NMOIST_max);
+
+  choice.n_qstate_moist = 2;
+  EXPECT_TRUE(ResolveNativeScalarDiffusionPolicy(RhoQ1_comp, choice).is_moist);
+  EXPECT_TRUE(ResolveNativeScalarDiffusionPolicy(RhoQ2_comp, choice).is_moist);
+  for (int qcomp : {RhoQ3_comp, RhoQ11_comp, RhoQ11_comp + 1}) {
+    const auto q = ResolveNativeScalarDiffusionPolicy(qcomp, choice);
+    EXPECT_FALSE(q.is_moist);
+    EXPECT_FALSE(q.scale_raw_vertical_flux);
+  }
+  EXPECT_FALSE(ResolveNativeScalarDiffusionPolicy(RhoScalar_comp, choice).is_moist);
+  EXPECT_FALSE(ResolveNativeScalarDiffusionPolicy(RhoKE_comp, choice).is_moist);
+
+  choice.n_qstate_moist = 0;
+  EXPECT_FALSE(ResolveNativeScalarDiffusionPolicy(RhoQ1_comp, choice).is_moist);
+
+  choice.n_qstate_moist = NMOIST_max;
+  EXPECT_TRUE(ResolveNativeScalarDiffusionPolicy(RhoQ11_comp, choice).is_moist);
+  EXPECT_FALSE(ResolveNativeScalarDiffusionPolicy(RhoQ11_comp + 1, choice).is_moist);
+
+  EXPECT_EQ(ResolveNativeScalarDiffusionPolicy(RhoQ1_comp, choice).bc_comp,
+            BCVars::RhoQ1_bc_comp);
+  EXPECT_EQ(ResolveNativeScalarDiffusionPolicy(RhoQ11_comp, choice).bc_comp,
+            BCVars::RhoQ11_bc_comp);
+}
+
 // Motivation: Exercise appended q components through the public N adapter so
 // a fixed Q1-Q11 coefficient lookup, stale primitive extent, or wrong Q eddy
 // component produces a finite, independently checkable failure.

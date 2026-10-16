@@ -36,7 +36,9 @@ ResolveNativeScalarDiffusionPolicy (const int qty_comp, const DiffChoice& choice
         policy.bc_comp -= (NSCALARS - 1);
     }
     policy.is_theta = (qty_comp == RhoTheta_comp);
-    policy.is_moist = (qty_comp >= RhoQ1_comp && qty_comp <= (RhoQ1_comp + NMOIST_max - 1));
+    // Only the water species are in the implicit moisture solve; non-water species
+    // packed after them keep a fully explicit vertical flux
+    policy.is_moist = (qty_comp >= RhoQ1_comp && qty_comp < (RhoQ1_comp + choice.n_qstate_moist));
     policy.is_q1    = (qty_comp == RhoQ1_comp);
     policy.is_q2    = (qty_comp == RhoQ2_comp);
     policy.scale_raw_vertical_flux =

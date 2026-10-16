@@ -186,13 +186,14 @@ ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
 #endif
     const Real e_th = ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_thermal_diffusion);
     const Real e_ke = ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_ke_diffusion);
-    // The implicit solve treats every moisture variable from RhoQ1_comp through
-    // RhoQ1_comp + NMOIST_max - 1 (with SBM only qv, but the host does not diffuse the SBM
-    // liquid lanes at all).  Non-water species a microphysics model appends beyond that
-    // range share the Q diffusivities and diffuse explicitly, and so do the advected scalars.
-    const bool extra_q = (vars_new[lev][Vars::cons].nComp() > RhoQ1_comp + NMOIST_max);
-    const Real e_q  = extra_q ? one
-                              : ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_moisture_diffusion);
+    // The implicit solve treats the diffChoice.n_qstate_moist water species starting at
+    // RhoQ1_comp (with SBM only qv, but the host does not diffuse the SBM liquid lanes at
+    // all).  Non-water species a microphysics model packs directly after them share the Q
+    // diffusivities and diffuse explicitly, and so do the advected scalars.
+    const bool nonmoist_q = (vars_new[lev][Vars::cons].nComp() >
+                             RhoQ1_comp + solverChoice.diffChoice.n_qstate_moist);
+    const Real e_q  = nonmoist_q ? one
+                                 : ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_moisture_diffusion);
     DiffusiveRateSettings set;
     set.variable_dz = variable_dz;
     set.has_q       = (solverChoice.moisture_type != MoistureType::None);
