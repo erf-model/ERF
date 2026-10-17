@@ -3,6 +3,7 @@
 #include "ERF_SolveTridiag.H"
 #include "ERF_GetRhoAlpha.H"
 #include "ERF_GetRhoAlphaForFaces.H"
+#include "ERF_WallGradientCoeffs.H"
 #include "ERF_TerrainImplicitMetric.H"
 #include "ERF_NativeScalarDiffusion.H"
 
@@ -425,6 +426,25 @@ MomFaceHZeta (int i, int j, int k, int ioff, int joff,
     else { return myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,k,cellSizeInv,z_nd)
                     + Compute_h_zeta_AtKface(i-ioff,j-joff,k,cellSizeInv,z_nd) ); }
 }
+
+/**
+ * Physical height of cell k of a u (stagdir 0) or v (stagdir 1) column: the z-node
+ * difference averaged over the two edges of the face, as ComputeStrain_T takes dz0 and dz1
+ * for its one-sided wall gradient.
+ */
+template <int stagdir>
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+Real
+MomFaceCellHeight (int i, int j, int k, const Array4<const Real>& z_nd) noexcept
+{
+    if constexpr (stagdir == 0) {
+        return myhalf * ( z_nd(i,j,k+1) + z_nd(i,j+1,k+1)
+                        - z_nd(i,j,k  ) - z_nd(i,j+1,k  ) );
+    } else {
+        return myhalf * ( z_nd(i,j,k+1) + z_nd(i+1,j,k+1)
+                        - z_nd(i,j,k  ) - z_nd(i+1,j,k  ) );
+    }
+}
 } // namespace
 
 /**
@@ -654,8 +674,16 @@ ImplicitDiffForMomLU_T (const Box& bx,
                       c_tmp = zero;
                       RHS_a(i,j,klo) = zero;
                   } else {
-                      // NOTE: wall is 1/2 dz away (2 dz_inv)
-                      a_tmp = -two * Fact * rhoAlpha_lo * dz_inv / met_h_zeta_lo;
+                      // Wall stress with the one-sided gradient of ComputeStrain_T,
+                      // (c_wall u_wall + c_0 u_0 + c_1 u_1) / dz0 with the physical heights
+                      // of the first two cells: a_tmp multiplies the wall value, and c_1 adds
+                      // to the coupling with the cell above
+                      const Real dz0 = MomFaceCellHeight<stagdir>(i, j, klo  , z_nd);
+                      const Real dz1 = MomFaceCellHeight<stagdir>(i, j, klo+1, z_nd);
+                      const WallGradCoeffs wc = WallGradientCoeffs(dz0, dz1);
+                      const Real idz0 = one / dz0;
+                      a_tmp  = Fact * rhoAlpha_lo * idz0 * wc.c_wall;
+                      c_tmp += Fact * rhoAlpha_lo * idz0 * wc.c_1;
                       const Real rho_wall = myhalf * ( cell_data(i     ,j     ,klo-1,Rho_comp)
                                                      + cell_data(i-ioff,j-joff,klo-1,Rho_comp) );
                       const Real wall_velocity = face_data(i,j,klo-1) / rho_wall;
@@ -774,8 +802,15 @@ ImplicitDiffForMomLU_T (const Box& bx,
                       a_tmp = zero;
                       RHS_a(i,j,khi) = zero;
                   } else {
-                      // NOTE: wall is 1/2 dz away (2 dz_inv)
-                      c_tmp = -two * Fact * rhoAlpha_hi * dz_inv / met_h_zeta_hi;
+                      // Wall stress with the one-sided gradient of ComputeStrain_T: c_tmp
+                      // multiplies the wall value, and c_1 adds to the coupling with the
+                      // cell below
+                      const Real dz0 = MomFaceCellHeight<stagdir>(i, j, khi  , z_nd);
+                      const Real dz1 = MomFaceCellHeight<stagdir>(i, j, khi-1, z_nd);
+                      const WallGradCoeffs wc = WallGradientCoeffs(dz0, dz1);
+                      const Real idz0 = one / dz0;
+                      c_tmp  = Fact * rhoAlpha_hi * idz0 * wc.c_wall;
+                      a_tmp += Fact * rhoAlpha_hi * idz0 * wc.c_1;
                       const Real rho_wall = myhalf * ( cell_data(i     ,j     ,khi+1,Rho_comp)
                                                      + cell_data(i-ioff,j-joff,khi+1,Rho_comp) );
                       const Real wall_velocity = face_data(i,j,khi+1) / rho_wall;

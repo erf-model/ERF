@@ -3,6 +3,7 @@
 #include "ERF_SolveTridiag.H"
 #include "ERF_GetRhoAlpha.H"
 #include "ERF_GetRhoAlphaForFaces.H"
+#include "ERF_WallGradientCoeffs.H"
 #include "ERF_NativeScalarDiffusion.H"
 
 using namespace amrex;
@@ -479,8 +480,13 @@ ImplicitDiffForMomLU_S (const Box& bx,
                       c_tmp = 0.;
                       RHS_a(i,j,klo) = 0.;
                   } else {
-                      // NOTE: wall is 1/2 dz away (2 dz_inv)
-                      a_tmp = -two * Fact * rhoAlpha_lo * dz_inv_lo * dz_inv;
+                      // Wall stress with the one-sided gradient of ComputeStrain_S,
+                      // (c_wall u_wall + c_0 u_0 + c_1 u_1) / dz[klo]: a_tmp multiplies the
+                      // wall value, and c_1 adds to the coupling with the cell above
+                      const WallGradCoeffs wc = WallGradientCoeffs(dz_ptr[klo], dz_ptr[klo+1]);
+                      const Real idz0 = one / dz_ptr[klo];
+                      a_tmp  = Fact * rhoAlpha_lo * idz0 * dz_inv * wc.c_wall;
+                      c_tmp += Fact * rhoAlpha_lo * idz0 * dz_inv * wc.c_1;
                       const Real rho_wall = myhalf * ( cell_data(i     ,j     ,klo-1,Rho_comp)
                                                      + cell_data(i-ioff,j-joff,klo-1,Rho_comp) );
                       const Real wall_velocity = face_data(i,j,klo-1) / rho_wall;
@@ -588,8 +594,13 @@ ImplicitDiffForMomLU_S (const Box& bx,
                       a_tmp = zero;
                       RHS_a(i,j,khi) = zero;
                   } else {
-                      // NOTE: wall is 1/2 dz away (2 dz_inv)
-                      c_tmp = -two * Fact * rhoAlpha_hi * dz_inv_hi * dz_inv;
+                      // Wall stress with the one-sided gradient of ComputeStrain_S: c_tmp
+                      // multiplies the wall value, and c_1 adds to the coupling with the
+                      // cell below
+                      const WallGradCoeffs wc = WallGradientCoeffs(dz_ptr[khi], dz_ptr[khi-1]);
+                      const Real idz0 = one / dz_ptr[khi];
+                      c_tmp  = Fact * rhoAlpha_hi * idz0 * dz_inv * wc.c_wall;
+                      a_tmp += Fact * rhoAlpha_hi * idz0 * dz_inv * wc.c_1;
                       const Real rho_wall = myhalf * ( cell_data(i     ,j     ,khi+1,Rho_comp)
                                                      + cell_data(i-ioff,j-joff,khi+1,Rho_comp) );
                       const Real wall_velocity = face_data(i,j,khi+1) / rho_wall;

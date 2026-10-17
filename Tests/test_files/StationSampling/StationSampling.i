@@ -52,7 +52,6 @@ zhi.type = "SlipWall"
 # TIME STEP CONTROL
 erf.fixed_dt       = 1.0
 erf.fixed_fast_dt  = 0.25
-erf.vert_implicit  = false
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = -1
