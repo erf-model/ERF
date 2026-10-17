@@ -11,6 +11,7 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <utility>
 #include <vector>
 
 using namespace amrex;
@@ -61,6 +62,40 @@ constexpr Real MU   = Real(0.7);    // constant dynamic viscosity: rhoAlpha = MU
 constexpr Real DT   = Real(0.3);
 constexpr Real UW_LO = Real(0.4), UW_HI = Real(-0.3);  // wall velocities
 
+// Set the column extent of every cell to the whole column, 0 to NZ-1
+void
+fill_col_kext (IArrayBox& col_kext)
+{
+  auto ck = col_kext.array();
+  ParallelFor(col_kext.box(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+    amrex::ignore_unused(i, j, k);
+    ck(i,j,k,0) = 0;
+    ck(i,j,k,1) = NZ-1;
+  });
+}
+
+// Flat terrain with the given levels, extended linearly into the ghost nodes; the cell
+// Jacobian is the cell height over the nominal spacing
+void
+fill_terrain (const std::vector<Real>& znd, FArrayBox& z_nd, FArrayBox& detJ)
+{
+  Gpu::DeviceVector<Real> zv(znd.size());
+  Gpu::copy(Gpu::hostToDevice, znd.begin(), znd.end(), zv.begin());
+  const Real* zp = zv.data();
+  const Real dzb = znd[1] - znd[0], dzt = znd[NZ] - znd[NZ-1], ztop = znd[NZ];
+  auto zn = z_nd.array();
+  ParallelFor(z_nd.box(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+    amrex::ignore_unused(i, j);
+    zn(i,j,k) = (k < 0) ? Real(k)*dzb : ((k > NZ) ? ztop + Real(k-NZ)*dzt : zp[k]);
+  });
+  auto dj = detJ.array();
+  ParallelFor(detJ.box(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+    dj(i,j,k) = (zn(i,j,k+1) - zn(i,j,k)) / DZ;
+  });
+  // zv is freed on return
+  Gpu::streamSynchronize();
+}
+
 // Two cell columns in x (the u face between them is solved), one in y, NZ cells in z
 struct WallColumn
 {
@@ -89,28 +124,8 @@ struct WallColumn
     cons.setVal<RunOn::Device>(RHO * Real(300.0), cons.box(), RhoTheta_comp, 1);
     zero_tau.setVal<RunOn::Device>(Real(0.0));
     mf.setVal<RunOn::Device>(Real(1.0));
-    auto ck = col_kext.array();
-    ParallelFor(g, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-      ck(i,j,k,0) = 0;
-      ck(i,j,k,1) = NZ-1;
-    });
-
-    // Flat terrain with the given levels, extended linearly into the ghost nodes; the cell
-    // Jacobian is the cell height over the nominal spacing
-    Gpu::DeviceVector<Real> zv(znd.size());
-    Gpu::copy(Gpu::hostToDevice, znd.begin(), znd.end(), zv.begin());
-    const Real* zp = zv.data();
-    const Real dzb = znd[1] - znd[0], dzt = znd[NZ] - znd[NZ-1], ztop = znd[NZ];
-    auto zn = z_nd.array();
-    ParallelFor(z_nd.box(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-      amrex::ignore_unused(i, j);
-      zn(i,j,k) = (k < 0) ? Real(k)*dzb : ((k > NZ) ? ztop + Real(k-NZ)*dzt : zp[k]);
-    });
-    auto dj = detJ.array();
-    ParallelFor(g, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-      dj(i,j,k) = (zn(i,j,k+1) - zn(i,j,k)) / DZ;
-    });
-    Gpu::streamSynchronize();
+    fill_col_kext(col_kext);
+    fill_terrain(znd, z_nd, detJ);
 
     // No-slip z walls with the wall velocity in the ghost faces
     bcs.resize(BCVars::NumTypes);
@@ -263,7 +278,8 @@ TEST(ImplicitWallStencil, CoefficientsAreTheSecondOrderOneSidedGradient)
   EXPECT_NEAR(n.c_0,    u.c_0,    tol_for_scale(Real(1.0)));
   EXPECT_NEAR(n.c_1,    u.c_1,    tol_for_scale(Real(1.0)));
 
-  for (const auto& d : {std::pair<double,double>{0.1, 0.13}, {2.0, 0.5}, {0.3, 0.9}}) {
+  const std::pair<double,double> spacings[] = {{0.1, 0.13}, {2.0, 0.5}, {0.3, 0.9}};
+  for (const auto& d : spacings) {
     const WallGradCoeffs s = WallGradientCoeffs(Real(d.first), Real(d.second));
     double ww, w0, w1;
     lagrange_slope_at_wall(0.5*d.first, d.first + 0.5*d.second, ww, w0, w1);
