@@ -1351,9 +1351,15 @@ Examples of Usage
      prints certain integral quantities, such as total mass, momentum
      and energy in the domain every **erf.sum_interval** level-0 steps.
      In this example the code will print these quantities every two
-     coarse time steps. The print statements have the form
-   | TIME= 1.91717746 MASS= 1.792410279e+34
-   | for example. If this line is commented out then it will not compute
+     coarse time steps (with **erf.v** :math:`\geq 1`). The print statements have the form
+   | TIME= 1.91717746
+   |  MASS       = 1.7924102790000001e+34
+   | for example, with a line each for the mass, :math:`\rho\theta`, the scalar and the total
+     moisture. With more than one level each line holds two values, ``SL/ML``: the integral
+     over level 0 alone and the composite one, which uses the finest data available. Each cell
+     is weighted by its volume, :math:`\det J/(m_x m_y)`, so these are the quantities the
+     discretization conserves, and they are printed with every digit of the working
+     precision. If this line is commented out then it will not compute
      and print these quantities.
 
 .. _inputs-diagnostic-outputs:

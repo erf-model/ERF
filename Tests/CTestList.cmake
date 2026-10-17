@@ -480,16 +480,22 @@ function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/one_box/simulation.log;${CURRENT_TEST_BINARY_DIR}/split/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
 endfunction(add_test_box_parity)
 
-# Run a deck and require the domain integral of VAR to be the same in FIRST_PLTFILE and
-# LAST_PLTFILE (see Tests/RunConservation.cmake).  TEST_FILES_DIR names the test_files directory,
-# whose deck is <TEST_FILES_DIR>.i; OPTIONS are added to the run.
-function(add_test_conservation TEST_NAME TEST_FILES_DIR VAR FIRST_PLTFILE LAST_PLTFILE)
+# Run a deck and require the composite integral of QUANTITY that ERF prints ("RHO SCALAR" or
+# "RHO QTOTAL") to be the same at the start and the end of the run (see
+# Tests/RunConservation.cmake).  TEST_FILES_DIR names the test_files directory, whose deck is
+# <TEST_FILES_DIR>.i; OPTIONS are added to the run.  The integral must agree to 12 significant
+# digits in double precision; a single-precision build accumulates roundoff of up to 6e-6
+# relative over these runs, so there it must agree to 5.
+function(add_test_conservation TEST_NAME TEST_FILES_DIR QUANTITY)
     set(oneValueArgs "OPTIONS")
     cmake_parse_arguments(ADD_TEST_CONS "" "${oneValueArgs}" "" ${ARGN})
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
-    # amrex_fvolumesum is built with amrex_fcompare, next to it
-    string(REPLACE "amrex_fcompare" "amrex_fvolumesum" FVOLUMESUM_EXE "${FCOMPARE_EXE}")
+    if(ERF_PRECISION STREQUAL "SINGLE")
+        set(digits 5)
+    else()
+        set(digits 12)
+    endif()
 
     add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
         "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
@@ -500,10 +506,9 @@ function(add_test_conservation TEST_NAME TEST_FILES_DIR VAR FIRST_PLTFILE LAST_P
         "-DCONFIG=$<CONFIG>"
         "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
         "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
-        "-DFVOLUMESUM=${FVOLUMESUM_EXE}"
-        "-DVAR=${VAR}"
-        "-DFIRST_PLTFILE=${FIRST_PLTFILE}"
-        "-DLAST_PLTFILE=${LAST_PLTFILE}"
+        "-DQUANTITY=${QUANTITY}"
+        "-DDIGITS=${digits}"
+        "-DUNITS=2"
         "-DOPTIONS=${ADD_TEST_CONS_OPTIONS}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunConservation.cmake)
     set_tests_properties(${TEST_NAME}
@@ -2130,18 +2135,35 @@ add_test_r(CouetteFlow_ImplicitCF            "" "erf_exec" "plt00050"
 add_test_r(MoistDiffusion_ImplicitCF         "" "erf_exec" "plt00200"
            FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "1.0e-7")
 
-# Two-way coupling refluxes the diffusive as well as the advective fluxes, so with no flow and
-# closed walls the domain integral of a diffusing quantity is conserved across coarse/fine faces:
-# moisture through a face normal to z, with the vertical diffusion implicit (the deck as it stands)
-# and explicit, and a scalar through faces normal to x and to z on a flat and a terrain-fitted
-# mesh (flat terrain, so detJ = 1 as amrex_fvolumesum assumes)
-add_test_conservation(Conservation_MoistDiffusion_Implicit MoistDiffusion_ImplicitCF rhoQ1 plt00000 plt00200
-    OPTIONS "erf.plot_vars_1=density rhoQ1")
-add_test_conservation(Conservation_MoistDiffusion_Explicit MoistDiffusion_ImplicitCF rhoQ1 plt00000 plt00200
-    OPTIONS "erf.plot_vars_1=density rhoQ1 erf.alpha_C=0.4 erf.vert_implicit=false")
-add_test_conservation(Conservation_ScalarDiffusion_Flat    ScalarDiffusion_Reflux rhoadv_0 plt00000 plt00100)
-add_test_conservation(Conservation_ScalarDiffusion_Terrain ScalarDiffusion_Reflux rhoadv_0 plt00000 plt00100
+# Two-way coupling refluxes the diffusive as well as the advective fluxes, so in a closed domain the
+# composite integral of a scalar is conserved across coarse/fine faces whatever transports it.
+# Moisture diffuses through a face normal to z, with the vertical diffusion implicit (the deck as
+# it stands, on a flat, a stretched and a terrain-fitted mesh) and explicit.  A scalar diffuses
+# through faces normal to x, y and z: on a flat, a terrain-fitted (flat terrain) and a stretched
+# mesh, with map factors, with 2 x 2 x 1 refinement, with the anelastic integrator, and advected
+# by a sheared flow with Smagorinsky diffusion alone
+set(_moist_cons_options "max_step=100 erf.plot_int_1=-1")
+add_test_conservation(Conservation_MoistDiffusion_Implicit MoistDiffusion_ImplicitCF "RHO QTOTAL"
+    OPTIONS "${_moist_cons_options}")
+add_test_conservation(Conservation_MoistDiffusion_ImplicitStretched MoistDiffusion_ImplicitCF "RHO QTOTAL"
+    OPTIONS "${_moist_cons_options} erf.initial_dz=0.4")
+add_test_conservation(Conservation_MoistDiffusion_ImplicitTerrain MoistDiffusion_ImplicitCF "RHO QTOTAL"
+    OPTIONS "${_moist_cons_options} erf.terrain_type=StaticFittedMesh")
+add_test_conservation(Conservation_MoistDiffusion_Explicit MoistDiffusion_ImplicitCF "RHO QTOTAL"
+    OPTIONS "${_moist_cons_options} erf.alpha_C=0.4 erf.vert_implicit=false")
+add_test_conservation(Conservation_ScalarDiffusion_Flat      ScalarDiffusion_Reflux "RHO SCALAR")
+add_test_conservation(Conservation_ScalarDiffusion_Terrain   ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.terrain_type=StaticFittedMesh")
+add_test_conservation(Conservation_ScalarDiffusion_Stretched ScalarDiffusion_Reflux "RHO SCALAR"
+    OPTIONS "erf.initial_dz=0.025")
+add_test_conservation(Conservation_ScalarDiffusion_MapFactor ScalarDiffusion_Reflux "RHO SCALAR"
+    OPTIONS "erf.test_mapfactor=true")
+add_test_conservation(Conservation_ScalarDiffusion_Ratio221  ScalarDiffusion_Reflux "RHO SCALAR"
+    OPTIONS "'amr.ref_ratio_vect=2 2 1'")
+add_test_conservation(Conservation_ScalarDiffusion_Anelastic ScalarDiffusion_Reflux "RHO SCALAR"
+    OPTIONS "erf.anelastic=1 erf.anelastic_type=MidPoint")
+add_test_conservation(Conservation_ScalarDiffusion_Smagorinsky ScalarDiffusion_Reflux "RHO SCALAR"
+    OPTIONS "erf.molec_diff_type=None erf.les_type=Smagorinsky erf.Cs=0.2 prob.prob_type=12 prob.rad_0=0.25 prob.uRef=10 prob.zRef=1 prob.z0=0.01")
 add_test_0(PoiseuilleFlow_x                  "" "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_0(PoiseuilleFlow_y                  "" "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 add_test_0(InitSoundingIdeal_stationary      "" "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")

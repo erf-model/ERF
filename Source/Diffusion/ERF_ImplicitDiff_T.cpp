@@ -855,7 +855,8 @@ INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU(2)
  * @param[in ] n            conserved component index
  * @param[in ] implicit_fac the vert_implicit_fac the solve used
  * @param[in ] cell_data    conserved state after the solve
- * @param[out] zflux        face flux, component n written
+ * @param[in ] use_mrf_countergradient whether the solve added the MRF countergradient flux
+ * @param[out] zflux        face flux of component n, in component 0
  */
 void
 ImplicitVerticalFluxForReflux_T (const Box& bx,
@@ -871,6 +872,7 @@ ImplicitVerticalFluxForReflux_T (const Box& bx,
                                  const Array4<const Real>& mf_mx,
                                  const Array4<const Real>& mf_my,
                                  const bool implicit_metric,
+                                 const bool use_mrf_countergradient,
                                  const Array4<      Real>& zflux)
 {
 #include "ERF_SetupVertDiff.H"
@@ -886,7 +888,7 @@ ImplicitVerticalFluxForReflux_T (const Box& bx,
 
     ParallelFor(surroundingNodes(bx,2), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        if (k == dom_lo.z || k == dom_hi.z+1) { zflux(i,j,k,n) = zero; return; }
+        if (k == dom_lo.z || k == dom_hi.z+1) { zflux(i,j,k) = zero; return; }
         // The coefficient on this face, from the cell above it (or below, at the top of bx)
         Real rhoAlpha_lo, rhoAlpha_hi;
         const int kc = (k <= khi) ? k : k-1;
@@ -900,11 +902,17 @@ ImplicitVerticalFluxForReflux_T (const Box& bx,
                                       cell_data, mu_turb, alpha_mol, eddy_h_comp,
                                       l_consA, l_turb, z_nd, cellSizeInv, mf_mx, mf_my);
         }
-        const Real coef = (k <= khi) ? (rhoAlpha_lo + metric_lo) : (rhoAlpha_hi + metric_hi);
+        const Real rhoAlpha = (k <= khi) ? rhoAlpha_lo : rhoAlpha_hi;
+        const Real coef = rhoAlpha + ((k <= khi) ? metric_lo : metric_hi);
         const Real h_zeta = Compute_h_zeta_AtKface(i, j, k, cellSizeInv, z_nd);
         const Real phi_hi = cell_data(i,j,k  ,n) / cell_data(i,j,k  ,Rho_comp);
         const Real phi_lo = cell_data(i,j,k-1,n) / cell_data(i,j,k-1,Rho_comp);
-        const Real G = -implicit_fac * coef * dz_inv / h_zeta * (phi_hi - phi_lo);
-        zflux(i,j,k,n) = G / (mf_mx(i,j,0) * mf_my(i,j,0));
+        Real G = -implicit_fac * coef * dz_inv / h_zeta * (phi_hi - phi_lo);
+        // The countergradient flux the solve adds through the face, fac rho*alpha gamma
+        if (use_mrf_countergradient) {
+            const int gam_comp = (n == RhoTheta_comp) ? EddyDiff::HGAMT_v : EddyDiff::HGAMQ_v;
+            G += implicit_fac * rhoAlpha * myhalf * (mu_turb(i,j,k,gam_comp) + mu_turb(i,j,k-1,gam_comp));
+        }
+        zflux(i,j,k) = G / (mf_mx(i,j,0) * mf_my(i,j,0));
     });
 }

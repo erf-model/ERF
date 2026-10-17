@@ -1,15 +1,16 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 #
 # A scalar blob at rest diffusing through the faces of a refined patch, for the conservation tests
-# of the two-way reflux.  The patch covers the middle half of the domain in x and the lower half in
-# z, so it has coarse/fine faces normal to x and to z, and two-way coupling refluxes the scalar
-# across them.  With no flow and slip walls, diffusion is the only transport, so the domain
-# integral of the scalar (rhoadv_0) must not change: that holds only if the diffusive fluxes are in
-# the reflux.  Tests/CTestList.cmake runs it on a flat and on a terrain-fitted mesh.
+# of the two-way reflux.  The patch covers the middle half of the domain in x and in y and the
+# lower half in z, so it has coarse/fine faces normal to all three directions, and two-way
+# coupling refluxes the scalar across them.  With slip walls and periodic sides nothing leaves the
+# domain, so the composite integral of rho*scalar that ERF prints ("RHO SCALAR SL/ML") must not
+# change: that holds only if the diffusive fluxes are in the reflux.  Tests/CTestList.cmake runs
+# it on several meshes, with map factors, and with a sheared flow and turbulent diffusion.
 #
 erf.prob_name = "Scalar Advection/Diffusion"
 
-max_step = 100
+max_step = 50
 
 amrex.fpe_trap_invalid = 1
 
@@ -33,13 +34,13 @@ erf.sum_interval   = 1
 erf.v              = 1
 amr.v              = 1
 
-# REFINEMENT -- the same ratio in every direction, which amrex_fvolumesum assumes
+# REFINEMENT -- given as a vector, so that a test can refine anisotropically
 amr.max_level = 1
-amr.ref_ratio = 2
+amr.ref_ratio_vect = 2 2 2
 erf.refinement_indicators = box1
 erf.box1.max_level = 1
-erf.box1.in_box_lo = 0.25 0.0 0.0
-erf.box1.in_box_hi = 0.75 1.0 0.5
+erf.box1.in_box_lo = 0.25 0.25 0.0
+erf.box1.in_box_hi = 0.75 0.75 0.5
 erf.coupling_type  = "TwoWay"
 erf.cf_width       = 0
 erf.cf_set_width   = 0
@@ -50,7 +51,7 @@ erf.check_int       = -1
 
 # PLOTFILES
 erf.plot_file_1     = plt
-erf.plot_int_1      = 100
+erf.plot_int_1      = -1
 erf.plot_vars_1     = density rhoadv_0
 
 # SOLVER CHOICE

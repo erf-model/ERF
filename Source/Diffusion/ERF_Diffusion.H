@@ -204,6 +204,7 @@ void ImplicitVerticalFluxForReflux_N (const amrex::Box& bx, const amrex::Box& do
                                       const SolverChoice& solverChoice,
                                       const amrex::Array4<const amrex::Real>& mf_mx,
                                       const amrex::Array4<const amrex::Real>& mf_my,
+                                      const bool use_mrf_countergradient,
                                       const amrex::Array4<      amrex::Real>& zflux);
 
 /** \brief As ImplicitVerticalFluxForReflux_N, on a vertically stretched mesh. */
@@ -215,6 +216,7 @@ void ImplicitVerticalFluxForReflux_S (const amrex::Box& bx, const amrex::Box& do
                                       const SolverChoice& solverChoice,
                                       const amrex::Array4<const amrex::Real>& mf_mx,
                                       const amrex::Array4<const amrex::Real>& mf_my,
+                                      const bool use_mrf_countergradient,
                                       const amrex::Array4<      amrex::Real>& zflux);
 
 /** \brief As ImplicitVerticalFluxForReflux_N, on a terrain-following mesh. */
@@ -228,6 +230,7 @@ void ImplicitVerticalFluxForReflux_T (const amrex::Box& bx, const amrex::Box& do
                                       const amrex::Array4<const amrex::Real>& mf_mx,
                                       const amrex::Array4<const amrex::Real>& mf_my,
                                       const bool implicit_metric,
+                                      const bool use_mrf_countergradient,
                                       const amrex::Array4<      amrex::Real>& zflux);
 
 /** \brief Add state diffusion source terms for embedded-boundary cells. */
