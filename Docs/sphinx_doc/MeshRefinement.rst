@@ -299,6 +299,29 @@ The restrictions are the same for both pathways: the PBL models and the column-i
 derived quantities need entire columns and cannot be used on a level whose grids do not
 span the domain in z.  See :ref:`sec:nested-wrfinput`.
 
+**Anelastic runs.**  A level that stops inside the domain in z has coarse/fine faces at its
+top and bottom, and the anelastic projection treats them like its side faces: it applies no
+correction through them, so the flux through them has to come from the coarse level and add up
+to no net inflow.  On a terrain-fitted mesh the flux through a z-face is the contravariant
+:math:`\Omega = \rho_0 w - \rho_0 u\, \partial z/\partial x - \rho_0 v\, \partial z/\partial y`.
+ERF therefore
+
+-  fills the horizontal momenta just below and above the level from the coarse level, since
+   :math:`\Omega` on the level's lowest and highest faces reads them;
+
+-  sets :math:`\Omega` on the level's top and bottom faces from the coarse level's
+   :math:`\Omega`, interpolated so the fine faces over each coarse face average to it, both in
+   the projection and in the fine-level fills the time step uses, so that theta and the other
+   scalars are carried by the same face fluxes the projection balanced (the coarse
+   :math:`\rho w` alone would leave the net inflow in the level as a uniform divergence);
+
+-  passes ``gmres_fft`` only the level's own layers of :math:`\Delta z` for its preconditioner.
+
+All three terrain solvers (``erf.terrain_poisson_solver``) run such a level.  The wall distance
+``erf.wall_dist_type = terrain_height`` takes the ground heights a level does not hold from the
+coarser level.  With one-way coupling this is all the level needs; two-way coupling of such a
+level over terrain has not been tested yet.
+
 Moving Refinement Regions
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 

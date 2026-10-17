@@ -422,6 +422,16 @@ public:
     void project_initial_velocity (int lev, double time, double dt);
     void project_momenta (int lev, double l_time, double l_dt, amrex::Vector<amrex::MultiFab >& vars);
 
+    // A refined level that stops inside the domain in z (ERF_CoarseFineFaces.cpp)
+    void fill_cf_zghost_momenta (int lev, double time,
+                                 amrex::MultiFab& rho0u, amrex::MultiFab& rho0v,
+                                 amrex::MultiFab const& rho0);
+    void cf_zface_omega_target (int lev, double time, amrex::MultiFab& omega_target);
+    void fill_surface_nodes (int lev, amrex::MultiFab& znd_surf);
+    void set_cf_zface_omega_projection (int lev, double time, amrex::MultiFab& omega);
+    void set_cf_zface_omega_fill (int lev, double time, amrex::MultiFab& cons,
+                                  amrex::MultiFab& xvel, amrex::MultiFab& yvel, amrex::MultiFab& zvel);
+
     // Project the velocities to be divergence-free with a thin body
     void project_velocity_tb (int lev, double dt, amrex::Vector<amrex::MultiFab >& vars);
 
