@@ -119,7 +119,7 @@ jobs:
           build_log="${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output.txt"
           diagnostics="${{runner.workspace}}/build-${{matrix.cuda_pkg}}-diagnostics.txt"
           grep -Ei "warning:|warning #|error:|error #" "$build_log" \
-            | grep -Ev "Submodules/(amrex|googletest)" \
+            | grep -Ev "Submodules/(amrex|AMReX|googletest)" \
             | grep -Ev "lto-wrapper: warning:" \
             | sort -fu > "$diagnostics" || true
           cat "$diagnostics"

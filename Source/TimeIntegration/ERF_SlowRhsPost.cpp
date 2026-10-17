@@ -138,12 +138,8 @@ void erf_slow_rhs_post (int level, int finest_level,
     const bool l_anelastic     = solverChoice.anelastic[level];
     const bool l_anelastic_rk2 = (solverChoice.anelastic_type[level] == AnelasticType::RK2);
 
-    // Only add to the flux registers on the final RK stage.  The anelastic integrator
-    // takes two stages (nrk = 0,1) and the compressible one takes three (nrk = 0,1,2),
-    // so testing nrk == 2 alone would never reflux the scalar and moisture fluxes in an
-    // anelastic run.  This matches the condition used in erf_slow_rhs_pre.
-    const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (finest_level > 0) &&
-                            ( (l_anelastic && nrk == 1) || (!l_anelastic && nrk == 2) ) );
+    // Only add to the flux registers on the final RK stage
+    const bool l_reflux = IsRefluxStage(solverChoice, level, finest_level, nrk);
 
     const bool l_use_KE         = ( tc.use_tke );
     const bool l_need_SmnSmn    = ( tc.les_type  == LESType::Deardorff ||
@@ -367,6 +363,14 @@ void erf_slow_rhs_post (int level, int finest_level,
         }
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
             flx_arr{{AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
+
+        // In the stage whose fluxes are refluxed, the diffusion adds its face fluxes to flux[]
+        // too, so that the flux registers see the diffusive as well as the advective transport
+        // (EB diffusion does not do this).  Nothing is counted twice: flux[] holds the faces of
+        // tbx alone and is zeroed above for each box, and the registers take each coarse/fine
+        // face once, from the box holding the cell on its coarse side (CrseAdd) or on its fine
+        // side (FineAdd), tiled or not.
+        const ScalarDiffusionRefluxViews* l_reflux_diffusion = (l_reflux && !l_use_eb) ? &flx_arr : nullptr;
 
         // *************************************************************************
         // Define Array4's
@@ -649,7 +653,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z,
                                                mu_turb, solverChoice, level,
                                                bc_ptr_d,
-                                               l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
+                                               l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac,
+                                               l_reflux_diffusion);
                     } else if (l_use_terrain) {
                         DiffusionSrcForState_T(tbx, domain, diffusion_start, diffusion_num, l_rotate,
                                                new_cons, cur_prim, cell_rhs,
@@ -661,7 +666,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z,
                                                mu_turb, solverChoice, level,
                                                bc_ptr_d,
-                                               l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
+                                               l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac,
+                                               l_reflux_diffusion);
                     } else if (l_use_eb) {
                         DiffusionSrcForState_EB(tbx, domain, diffusion_start, diffusion_num, u, v,
                                                 new_cons, cur_prim, cell_rhs,
@@ -681,7 +687,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z,
                                                mu_turb, solverChoice, level,
                                                bc_ptr_d,
-                                               l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
+                                               l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac,
+                                               l_reflux_diffusion);
                     }
                     if (use_physical_chamber_wall_flux) {
                         // Apply the physical wall correction immediately to

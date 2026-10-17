@@ -435,6 +435,8 @@ if(ERF_ENABLE_EKAT)
   set(EKAT_ENABLE_TESTS OFF CACHE BOOL "ekat enable tests")
   set(EKAT_ENABLE_KOKKOS ON CACHE BOOL "ekat enable kokkos")
   set(EKAT_ENABLE_LOGGING ON CACHE BOOL "ekat enable spdlog")
+  # Kokkos deprecation used inside EKAT or RRTMGP is theirs to fix
+  set(Kokkos_ENABLE_DEPRECATION_WARNINGS OFF CACHE BOOL "kokkos deprecation warnings")
   set(EKAT_BIN ${PROJECT_BINARY_DIR}/Submodules/ekat)
 
   # Force use of internal spdlog from EKAT

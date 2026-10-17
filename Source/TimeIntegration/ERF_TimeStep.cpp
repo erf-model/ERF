@@ -137,23 +137,20 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
             if (low_data_zlo[itime].size() == 0 && need_itime) {
                 read_from_wrflow(itime, nc_low_file, geom[lev].Domain(), low_data_zlo);
 
-                update_sst_tsk(itime, geom[lev], ba2d[lev],
+                update_sst_tsk(lev, itime, geom[lev], ba2d[lev],
                                sst_lev[lev], tsk_lev[lev],
                                m_SurfaceLayer[Orientation(Direction::z, Orientation::low)], low_data_zlo,
                                S_new, *mf_PSFC[lev],
                                solverChoice.rdOcp, lmask_lev[lev][0], use_moist);
 
-                // The finer levels have no low file of their own, and Interp2DArrays only
-                // filled the slices needed when each was made, so give them this one too
-                // (from their parent, coarsest first) and point the surface layer at it.
-                //
-                // A level that read its own init file and was never given its parent's
-                // slices (MakeNewLevelFromCoarse does not call Interp2DArrays for it) holds
-                // the single slice from its file, which the surface layer uses throughout;
-                // that level is left as it is.
+                // Give the finer levels this slice too, coarsest first, and point the surface
+                // layer at it: a level with a wrflow file of its own (erf.nc_low_file_<lev>)
+                // reads it from that file, and any other level -- made by refinement, or from
+                // an init file of its own -- takes it from its parent.
                 auto& SurfLayer = m_SurfaceLayer[Orientation(Direction::z, Orientation::low)];
                 for (int flev = 1; flev <= finest_level; ++flev) {
-                    if (has_own_init_file(flev) && sst_lev[flev].size() < sst_lev[flev-1].size()) {
+                    if (has_own_low_file(flev)) {
+                        read_own_low_slice(flev, itime, SurfLayer);
                         continue;
                     }
                     Interp2DTimeSlice(flev, itime, sst_lev, ba2d[flev], dmap[flev]);

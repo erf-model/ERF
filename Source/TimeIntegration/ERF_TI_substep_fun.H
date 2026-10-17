@@ -89,7 +89,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
         // *************************************************************************
         // Set up flux registers if using two_way coupling
         // *************************************************************************
-        const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (nrk == 2) && (finest_level > 0) );
+        const bool l_reflux = IsRefluxStage(solverChoice, level, finest_level, nrk);
 
         YAFluxRegister* fr_as_crse = nullptr;
         YAFluxRegister* fr_as_fine = nullptr;

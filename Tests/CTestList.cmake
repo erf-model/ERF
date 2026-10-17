@@ -480,6 +480,46 @@ function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/one_box/simulation.log;${CURRENT_TEST_BINARY_DIR}/split/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
 endfunction(add_test_box_parity)
 
+# Run a deck and require the composite integral of QUANTITY that ERF prints ("RHO SCALAR" or
+# "RHO QTOTAL") to be the same at the start and the end of the run (see
+# Tests/RunConservation.cmake).  TEST_FILES_DIR names the test_files directory, whose deck is
+# <TEST_FILES_DIR>.i; OPTIONS are added to the run.  The integral must agree to 12 significant
+# digits in double precision; a single-precision build accumulates roundoff of up to 6e-6
+# relative over these runs, so there it must agree to 5.
+function(add_test_conservation TEST_NAME TEST_FILES_DIR QUANTITY)
+    set(oneValueArgs "OPTIONS")
+    cmake_parse_arguments(ADD_TEST_CONS "" "${oneValueArgs}" "" ${ARGN})
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    if(ERF_PRECISION STREQUAL "SINGLE")
+        set(digits 5)
+    else()
+        set(digits 12)
+    endif()
+
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DQUANTITY=${QUANTITY}"
+        "-DDIGITS=${digits}"
+        "-DUNITS=2"
+        "-DOPTIONS=${ADD_TEST_CONS_OPTIONS}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunConservation.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 600
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;conservation"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/simulation.log")
+endfunction(add_test_conservation)
+
 # Run the deck in test_files/<TEST_FILES_DIR> twice, once with a diagnostic off and once
 # with it on, and require PLTFILE to be identical bit for bit.  This is the harness for
 # "turning this output on does not change the answer": OFF_OPTIONS and ON_OPTIONS are the
@@ -1599,40 +1639,40 @@ endif()
 
 # These tests will all be built in Exec
 add_test_plotfile_header(Plotfile3D_DryUnavailableSelection "" "erf_exec" "plt00000")
-add_test_r(DensityCurrent                    ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(DensityCurrent_anelastic          ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(DensityCurrent_detJ2              ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(DensityCurrent_detJ2_nosub        ""  "erf_exec" "plt00020" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(DensityCurrent_detJ2_MT           ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(EkmanSpiral                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(IsentropicVortexStationary        ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(IsentropicVortexAdvecting         ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(IVA_NumDiff                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(MovingTerrain_nosub               ""  "erf_exec" "plt00020" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(MovingTerrain_sub                 ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(Terrain2Lev_STF_interp            ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(Terrain2Lev_STF_transform         ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(RayleighDamping                   ""  "erf_exec" "plt00100" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(ScalarAdvectionUniformU           ""  "erf_exec" "plt00020" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(ScalarAdvectionShearedU           ""  "erf_exec" "plt00080" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(ScalarAdvDiff_order2              ""  "erf_exec" "plt00020" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(ScalarAdvDiff_order3              ""  "erf_exec" "plt00020" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(ScalarAdvDiff_order4              ""  "erf_exec" "plt00020" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(ScalarAdvDiff_order5              ""  "erf_exec" "plt00020" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(ScalarAdvDiff_order6              ""  "erf_exec" "plt00020" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(ScalarAdvDiff_weno3               ""  "erf_exec" "plt00020" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_d(ScalarAdvDiff_weno3z              ""  "erf_exec" "plt00020" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(ScalarAdvDiff_weno5               ""  "erf_exec" "plt00020" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_d(ScalarAdvDiff_weno5z              ""  "erf_exec" "plt00020" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(ScalarAdvDiff_wenomzq3            ""  "erf_exec" "plt00020" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(ScalarDiffusionGaussian           ""  "erf_exec" "plt00020" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(ScalarDiffusionSine               ""  "erf_exec" "plt00020" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(TaylorGreenAdvecting              ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(TaylorGreenAdvectingDiffusing     ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(MSF_NoSub_IsentropicVortexAdv     ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(MSF_Sub_IsentropicVortexAdv       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
+add_test_r(DensityCurrent                    ""  "erf_exec" "plt00010")
+add_test_r(DensityCurrent_anelastic          ""  "erf_exec" "plt00010")
+add_test_r(DensityCurrent_detJ2              ""  "erf_exec" "plt00010")
+add_test_r(DensityCurrent_detJ2_nosub        ""  "erf_exec" "plt00020")
+add_test_r(DensityCurrent_detJ2_MT           ""  "erf_exec" "plt00010")
+add_test_r(EkmanSpiral                       ""  "erf_exec" "plt00010")
+add_test_r(IsentropicVortexStationary        ""  "erf_exec" "plt00010")
+add_test_r(IsentropicVortexAdvecting         ""  "erf_exec" "plt00010")
+add_test_r(IVA_NumDiff                       ""  "erf_exec" "plt00010")
+add_test_r(MovingTerrain_nosub               ""  "erf_exec" "plt00020")
+add_test_r(MovingTerrain_sub                 ""  "erf_exec" "plt00010")
+add_test_r(Terrain2Lev_STF_interp            ""  "erf_exec" "plt00010")
+add_test_r(Terrain2Lev_STF_transform         ""  "erf_exec" "plt00010")
+add_test_r(RayleighDamping                   ""  "erf_exec" "plt00100")
+add_test_r(ScalarAdvectionUniformU           ""  "erf_exec" "plt00020")
+add_test_r(ScalarAdvectionShearedU           ""  "erf_exec" "plt00080")
+add_test_r(ScalarAdvDiff_order2              ""  "erf_exec" "plt00020")
+add_test_r(ScalarAdvDiff_order3              ""  "erf_exec" "plt00020")
+add_test_r(ScalarAdvDiff_order4              ""  "erf_exec" "plt00020")
+add_test_r(ScalarAdvDiff_order5              ""  "erf_exec" "plt00020")
+add_test_r(ScalarAdvDiff_order6              ""  "erf_exec" "plt00020")
+add_test_r(ScalarAdvDiff_weno3               ""  "erf_exec" "plt00020")
+add_test_d(ScalarAdvDiff_weno3z              ""  "erf_exec" "plt00020")
+add_test_r(ScalarAdvDiff_weno5               ""  "erf_exec" "plt00020")
+add_test_d(ScalarAdvDiff_weno5z              ""  "erf_exec" "plt00020")
+add_test_r(ScalarAdvDiff_wenomzq3            ""  "erf_exec" "plt00020")
+add_test_r(ScalarDiffusionGaussian           ""  "erf_exec" "plt00020")
+add_test_r(ScalarDiffusionSine               ""  "erf_exec" "plt00020")
+add_test_r(TaylorGreenAdvecting              ""  "erf_exec" "plt00010")
+add_test_r(TaylorGreenAdvectingDiffusing     ""  "erf_exec" "plt00010")
+add_test_r(MSF_NoSub_IsentropicVortexAdv     ""  "erf_exec" "plt00010")
+add_test_r(MSF_Sub_IsentropicVortexAdv       ""  "erf_exec" "plt00010")
 #add_test_r(FlowInABox                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(ABL_MOST                          ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
+add_test_r(ABL_MOST                          ""  "erf_exec" "plt00010")
 add_test_r(ABL_MOST_IMP_DIFF                 ""  "erf_exec" "plt00010")
 add_test_r(ABL_MOST_IMP_DIFF_WOA             ""  "erf_exec" "plt00010")
 add_test_r(ABL_MOST_IMP_DIFF_TKE
@@ -1640,12 +1680,16 @@ add_test_r(ABL_MOST_IMP_DIFF_TKE
     "erf_exec"
     "plt00010"
     FCOMPARE_ATOL "4.0e-10")
+# ABL_MOST_IMP_DIFF_TKE with erf.implicit_before_substep = false: the vertical implicit solve of
+# theta (ERF_ImplicitPre.H) runs after the last acoustic substep of each stage.  Momentum is
+# left explicit, since the post-substep momentum solve is broken (see the deck).
+add_test_r(ABL_MOST_IMP_DIFF_PostSubstep     ""  "erf_exec" "plt00010")
 if(ERF_ENABLE_FFT)
     add_test_r(ABL_MOST_Cloudchamber         ""  "erf_exec" "plt00010")
 endif()
-add_test_r(ABL_MOST_SFC                      ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(ABL_MOST_SST                      ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(ABL_MYNN_PBL                      ""  "erf_exec" "plt00100" INPUT_SOUNDING "input_sounding_GABLS1" RUNTIME_OPTIONS "erf.vert_implicit=false " )
+add_test_r(ABL_MOST_SFC                      ""  "erf_exec" "plt00010")
+add_test_r(ABL_MOST_SST                      ""  "erf_exec" "plt00010")
+add_test_r(ABL_MYNN_PBL                      ""  "erf_exec" "plt00100" INPUT_SOUNDING "input_sounding_GABLS1")
 # RunTilingParity.cmake calls mpiexec and fcompare through execute_process,
 # which neither drops an empty MPIEXEC nor expands the Windows exe globs.
 if(ERF_ENABLE_MPI AND NOT WIN32)
@@ -1752,8 +1796,8 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
       RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU"
       VARYING_3D "Kmv" VARYING_2D "pblh u_star")
 endif()
-add_test_r(ABL_InflowFile                    ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(MoistBubble                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
+add_test_r(ABL_InflowFile                    ""  "erf_exec" "plt00010")
+add_test_r(MoistBubble                       ""  "erf_exec" "plt00010")
 # The moist bubble with Kessler rain (the MoistBubble deck with erf.moisture_model=Kessler
 # and the rain fields in the plotfile), restarted from step 4 to step 8 on its constant-dz
 # mesh: the restart path set the microphysics' minimum dz only on fitted meshes, so the
@@ -1761,7 +1805,6 @@ add_test_r(MoistBubble                       ""  "erf_exec" "plt00010" RUNTIME_O
 # value and the step never finished. The runner is a cmake -P script (MPI, not Windows).
 if(ERF_ENABLE_MPI AND NOT WIN32)
 add_test_restart_parity(MoistBubble_Kessler_Restart MoistBubble_Kessler_Restart 4 8
-    COMMON_OPTIONS "erf.vert_implicit=false"
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
 # Boundary-plane output (erf.output_bndry_planes) across a restart: the series in BndryFiles --
@@ -1806,8 +1849,8 @@ add_test_restart_parity(ABL_BndryPlanes_Stale ABL_BndryPlanes_Restart 4 8
     BNDRY_PLANES_DIR "BndryFiles" BNDRY_PLANES_STALE BNDRY_PLANES_STEPS "0 2 4 6 8"
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
-add_test_r(SquallLine_2D                     ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_r(SuperCell_3D                      ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
+add_test_r(SquallLine_2D                     ""  "erf_exec" "plt00010")
+add_test_r(SuperCell_3D                      ""  "erf_exec" "plt00010")
 if(ERF_ENABLE_NETCDF)
   # Distributed terrain ownership and gridded forest interpolation are both
   # exercised by this one-step, two-rank regression.  The NetCDF files are
@@ -2077,8 +2120,8 @@ foreach(_two_stream_test IN ITEMS
   endif()
 endforeach()
 
-add_test_0(CouetteFlow_x                     "" "erf_exec" "plt00050" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_0(CouetteFlow_y                     "" "erf_exec" "plt00050" RUNTIME_OPTIONS "erf.vert_implicit=false ")
+add_test_0(CouetteFlow_x                     "" "erf_exec" "plt00050")
+add_test_0(CouetteFlow_y                     "" "erf_exec" "plt00050")
 
 # Couette spin-up with a fine patch over the lower half of the column: the vertical implicit
 # solve closes each fine column at the coarse/fine boundary with the coarse data at the stage time.
@@ -2094,10 +2137,40 @@ add_test_r(CouetteFlow_ImplicitCF            "" "erf_exec" "plt00050"
 # moist layer diffusing down through a fine patch over the lower half of the column
 add_test_r(MoistDiffusion_ImplicitCF         "" "erf_exec" "plt00200"
            FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "1.0e-7")
-add_test_0(PoiseuilleFlow_x                  "" "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_0(PoiseuilleFlow_y                  "" "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_0(InitSoundingIdeal_stationary      "" "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
-add_test_0(Deardorff_stationary              "" "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
+
+# Two-way coupling refluxes the diffusive as well as the advective fluxes, so in a closed domain the
+# composite integral of a scalar is conserved across coarse/fine faces whatever transports it.
+# Moisture diffuses through a face normal to z, with the vertical diffusion implicit (the deck as
+# it stands, on a flat, a stretched and a terrain-fitted mesh) and explicit.  A scalar diffuses
+# through faces normal to x, y and z: on a flat, a terrain-fitted (flat terrain) and a stretched
+# mesh, with map factors, with 2 x 2 x 1 refinement, with the anelastic integrator, and advected
+# by a sheared flow with Smagorinsky diffusion alone
+set(_moist_cons_options "max_step=100 erf.plot_int_1=-1")
+add_test_conservation(Conservation_MoistDiffusion_Implicit MoistDiffusion_ImplicitCF "RHO QTOTAL"
+    OPTIONS "${_moist_cons_options}")
+add_test_conservation(Conservation_MoistDiffusion_ImplicitStretched MoistDiffusion_ImplicitCF "RHO QTOTAL"
+    OPTIONS "${_moist_cons_options} erf.initial_dz=0.4")
+add_test_conservation(Conservation_MoistDiffusion_ImplicitTerrain MoistDiffusion_ImplicitCF "RHO QTOTAL"
+    OPTIONS "${_moist_cons_options} erf.terrain_type=StaticFittedMesh")
+add_test_conservation(Conservation_MoistDiffusion_Explicit MoistDiffusion_ImplicitCF "RHO QTOTAL"
+    OPTIONS "${_moist_cons_options} erf.alpha_C=0.4 erf.vert_implicit=false")
+add_test_conservation(Conservation_ScalarDiffusion_Flat      ScalarDiffusion_Reflux "RHO SCALAR")
+add_test_conservation(Conservation_ScalarDiffusion_Terrain   ScalarDiffusion_Reflux "RHO SCALAR"
+    OPTIONS "erf.terrain_type=StaticFittedMesh")
+add_test_conservation(Conservation_ScalarDiffusion_Stretched ScalarDiffusion_Reflux "RHO SCALAR"
+    OPTIONS "erf.initial_dz=0.025")
+add_test_conservation(Conservation_ScalarDiffusion_MapFactor ScalarDiffusion_Reflux "RHO SCALAR"
+    OPTIONS "erf.test_mapfactor=true")
+add_test_conservation(Conservation_ScalarDiffusion_Ratio221  ScalarDiffusion_Reflux "RHO SCALAR"
+    OPTIONS "'amr.ref_ratio_vect=2 2 1'")
+add_test_conservation(Conservation_ScalarDiffusion_Anelastic ScalarDiffusion_Reflux "RHO SCALAR"
+    OPTIONS "erf.anelastic=1 erf.anelastic_type=MidPoint")
+add_test_conservation(Conservation_ScalarDiffusion_Smagorinsky ScalarDiffusion_Reflux "RHO SCALAR"
+    OPTIONS "erf.molec_diff_type=None erf.les_type=Smagorinsky erf.Cs=0.2 prob.prob_type=12 prob.rad_0=0.25 prob.uRef=10 prob.zRef=1 prob.z0=0.01")
+add_test_0(PoiseuilleFlow_x                  "" "erf_exec" "plt00010")
+add_test_0(PoiseuilleFlow_y                  "" "erf_exec" "plt00010")
+add_test_0(InitSoundingIdeal_stationary      "" "erf_exec" "plt00010")
+add_test_0(Deardorff_stationary              "" "erf_exec" "plt00010")
 
 # LSM tests are gated because they require large input files (wrfinput, etc)
 # and can take several hours to run.
@@ -2732,7 +2805,6 @@ add_test_option_parity(StationSampling_AnswerParity StationSampling "plt00010"
 # Surface layer: u_star and t_star are 2D diagnostics of the MOST path, so the on leg reads
 # what the surface layer computed as well as the 3D state.
 add_test_option_parity(StationSampling_AnswerParity_MOST ABL_MOST "plt00010"
-    COMMON_OPTIONS "erf.vert_implicit=false"
     OFF_OPTIONS "erf.do_station_sampling=false"
     ON_OPTIONS  "erf.station_names=T erf.station_sampling_interval=1 erf.T.field=theta magvel vorticity_z pressure u_star t_star erf.T.x=500 erf.T.y=500 erf.T.height_agl=8.0 100.0"
     REQUIRE_ON_FILE "Output_Stations/T.dat")

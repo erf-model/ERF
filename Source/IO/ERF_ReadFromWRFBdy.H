@@ -61,11 +61,12 @@ read_times_from_wrflow (const std::string& nc_low_file,
 void
 read_from_wrflow (const int itime,
                   const std::string& nc_low_file,
-                  const amrex::Box& domain,
+                  const amrex::Box& box,
                   amrex::Vector<amrex::Vector<amrex::FArrayBox>>& low_data_zlo);
 
 void
-update_sst_tsk (const int itime,
+update_sst_tsk (const int lev,
+                const int itime,
                 const amrex::Geometry& geom,
                 const amrex::BoxArray& ba2d_lev,
                 amrex::Vector<std::unique_ptr<amrex::MultiFab>>& sst_lev,

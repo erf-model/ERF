@@ -396,6 +396,9 @@ public:
     //     came from that file rather than from its parent
     bool has_own_init_file (int lev) const;
 
+    // Did the user supply a wrflowinp file for this level (erf.nc_low_file_<lev>, lev > 0)?
+    bool has_own_low_file (int lev) const;
+
     // Fill the coarse/fine ghost cells of the state (rho and the given components) and momenta
     // used by an implicit vertical solve with coarse data at the given time; all other cells
     // are left alone.  Public because it launches device lambdas (CUDA requires it)
@@ -1265,6 +1268,22 @@ private:
 
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> low_data_zlo;
 
+    // SST/TSK time slices at a level > 0 that read its own init file, when level 0 reads a
+    // wrflowinp file: from the level's own wrflowinp file if it has one, else from its parent
+    void init_fine_low_slices (int lev, bool restarting);
+
+    // Read time slice itime of this level's own wrflowinp file into sst_lev[lev], tsk_lev[lev]
+    void read_own_low_slice (int lev, int itime, std::unique_ptr<SurfaceLayer>& SurfLayer);
+
+    // Check that this level's wrflowinp file has the same times as level 0's
+    void check_own_low_file_times (int lev);
+
+    // Re-read the surface pressure of a level > 0 from its own init file (it is not checkpointed)
+    void read_psfc_from_own_init_file (int lev);
+
+    // The cells at a level > 0 that its own init file covers, as ERF::ErrorEst places them
+    amrex::Box nest_box_from_own_init_file (int lev);
+
     // Maximum value of terrain read in from wrfinput at level 0
     amrex::Real z_top = zero;
 
@@ -1917,6 +1936,10 @@ private:
 
     // NetCDF initialization of zlo boundary values
     static std::string nc_low_file;
+
+    // Per-level wrflowinp files (erf.nc_low_file_<lev>) for levels > 0 that read their own
+    // init file; entry 0 is unused (level 0 always uses nc_low_file)
+    static amrex::Vector<std::string> nc_low_file_at_level;
 
     // Options for vertical interpolation of met_em*.nc data.
     bool        metgrid_debug_quiescent{false};

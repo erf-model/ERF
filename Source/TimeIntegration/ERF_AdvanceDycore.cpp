@@ -7,6 +7,7 @@
 #include <ERF_EOS.H>
 #include <ERF_TerrainMetrics.H>
 #include <ERF_Diffusion.H>
+#include <ERF_NativeScalarDiffusion.H>
 #include <ERF_TileNoZ.H>
 #include <ERF_Utils.H>
 #include <ERF_EBRedistribute.H>

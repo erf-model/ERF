@@ -881,7 +881,8 @@ List of Parameters
 |                                      | -- see ``vert_implicit_fac`` below                       |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.vert_implicit**                | Do vertical implicit solve for diffusion of u, v, theta, | Boolean            | true              |
-|                                      | KE, and qv with default time-centering in each stage     |                    |                   |
+|                                      | KE, and moisture with default time-centering in each     |                    |                   |
+|                                      | stage                                                    |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.vert_implicit_fac**            | time-centering factor for the vertical diffusive terms,  | 1 or 3 Reals in    | 1.0 1.0 0.0       |
 |                                      | where 0 is fully explicit and 1 is fully implicit.       | [0,1]              |                   |
@@ -894,7 +895,8 @@ List of Parameters
 |                                      | diffusion                                                |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.implicit_moisture_diffusion**  | include the implicit contribution to vertical moisture   | Boolean            | true              |
-|                                      | diffusion                                                |                    |                   |
+|                                      | diffusion of every moisture species (qv only with SBM,   |                    |                   |
+|                                      | whose liquid is owned by the spectral solver)            |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.implicit_ke_diffusion**        | include the implicit contribution to vertical turbulent  | Boolean            | true              |
 |                                      | kinetic energy diffusion                                 |                    |                   |
@@ -1091,9 +1093,10 @@ Notes
      Euler) give :math:`e = 0`, and ``0 0 0``, anelastic RK2 (no implicit solve), ``1 0 0``,
      ``0 0 1`` or ``0.995 0.1 0.0666`` (whose last stage amplifies by 1.0008) give :math:`e = 1`.
      The vertical diffusion of w is explicit (:math:`e_w = 1`) unless ERF is built with
-     ``ERF_IMPLICIT_W``; only the first moisture variable is in the implicit solve, so the
-     moisture term has :math:`e = 1` when other moist species are carried, and the advected
-     scalar always does.  If dt times this rate
+     ``ERF_IMPLICIT_W``; every moisture variable is in the implicit solve (with SBM only qv,
+     the one the host diffuses), so the moisture term has :math:`e = 1` only when a
+     microphysics model also carries non-water species (packed directly after the water
+     species, these diffuse explicitly), and the advected scalar always does.  If dt times this rate
      exceeds **erf.diffusive_cfl** a warning is printed, repeated on a level only when the
      Fourier number has grown by half.  The default 0.5 is the forward-Euler bound; the
      three-stage scheme is stable to about 0.63 for a pure diffusion.  With
@@ -1348,9 +1351,15 @@ Examples of Usage
      prints certain integral quantities, such as total mass, momentum
      and energy in the domain every **erf.sum_interval** level-0 steps.
      In this example the code will print these quantities every two
-     coarse time steps. The print statements have the form
-   | TIME= 1.91717746 MASS= 1.792410279e+34
-   | for example. If this line is commented out then it will not compute
+     coarse time steps (with **erf.v** :math:`\geq 1`). The print statements have the form
+   | TIME= 1.91717746
+   |  MASS       = 1.7924102790000001e+34
+   | for example, with a line each for the mass, :math:`\rho\theta`, the scalar and the total
+     moisture. With more than one level each line holds two values, ``SL/ML``: the integral
+     over level 0 alone and the composite one, which uses the finest data available. Each cell
+     is weighted by its volume, :math:`\det J/(m_x m_y)`, so these are the quantities the
+     discretization conserves, and they are printed with every digit of the working
+     precision. If this line is commented out then it will not compute
      and print these quantities.
 
 .. _inputs-diagnostic-outputs:
@@ -3283,7 +3292,9 @@ to rather than here: ``erf.init_vels_from_checkpoint`` reuses the velocity field
 from a checkpoint while re-initializing the rest of the state (see
 :ref:`sec:Initialization`), ``erf.prob_name`` selects the built-in problem setup,
 ``erf.nc_low_file`` supplies the low-resolution NetCDF data used by
-:ref:`sec:HindCast`, ``erf.buildings_file_name`` supplies the building geometry
+:ref:`sec:HindCast` (and, with ``erf.init_type = WRFInput``, the wrflowinp SST for level 0;
+``erf.nc_low_file_<lev>`` gives a finer level its own, see :ref:`subsec:wrflow-per-level`),
+``erf.buildings_file_name`` supplies the building geometry
 used by the immersed-forcing path (see :ref:`Forcings`), and
 ``erf.cloud_chamber_budget_interval`` controls the budget output of the cloud
 chamber case (see :ref:`CloudChamber`).

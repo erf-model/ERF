@@ -177,8 +177,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
     const bool l_anelastic_rk2 = (solverChoice.anelastic_type[level] == AnelasticType::RK2);
 
-    const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (finest_level > 0) &&
-                            ( (l_anelastic && nrk == 1) || (!l_anelastic && nrk == 2) ) );
+    const bool l_reflux = IsRefluxStage(solverChoice, level, finest_level, nrk);
 
     const bool l_use_eb = (solverChoice.terrain_type == TerrainType::EB);
 
