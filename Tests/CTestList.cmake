@@ -3390,6 +3390,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   # largest net inflow its solves may leave (with the coarse Omega on its top and bottom)
   set(_tp_partial "erf.box1.in_box_lo_indices_crse=8 12 4 erf.box1.in_box_hi_indices_crse=19 23 11 erf.coupling_type=OneWay")
   set(_tp_partial_mean "1.0e-7")
+  set(_tp_partial_4lev "amr.max_level=3 amr.ref_ratio_vect=2 2 1 2 2 1 2 2 1 erf.refinement_indicators=box1 box2 box3 erf.box1.in_box_lo_indices_crse=8 12 4 erf.box1.in_box_hi_indices_crse=19 23 11 erf.box2.max_level=2 erf.box2.in_box_lo_indices_crse=20 28 5 erf.box2.in_box_hi_indices_crse=35 43 10 erf.box3.max_level=3 erf.box3.in_box_lo_indices_crse=48 64 6 erf.box3.in_box_hi_indices_crse=63 79 9 erf.coupling_type=OneWay")
   # Two separate refined patches on the hill's flanks (two regions on level 1)
   set(_tp_two_patches "amr.grid_eff=0.99 erf.refinement_indicators=box1 box2 erf.box1.in_box_lo_indices_crse=4 8 0 erf.box1.in_box_hi_indices_crse=11 15 15 erf.box2.max_level=1 erf.box2.in_box_lo_indices_crse=20 16 0 erf.box2.in_box_hi_indices_crse=27 23 15")
   if(ERF_TEST_PYTHON)
@@ -3425,6 +3426,12 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     # inflow) stays at 7e-9; with the coarse (rho w) on those faces instead it was 2.8e-6 (limit 1e-7).
     add_test_terrain_poisson_divergence(TerrainPoisson_PartialDepth TerrainPoisson_Hill 1
         COMMON_OPTIONS "${_tp_partial}" MAX_MEAN "${_tp_partial_mean}")
+    # Four levels, each nested in the one below and each stopping inside the domain in z
+    # (k 4-11, 5-10 and 6-9 of 16; ratio 2 2 1), so every refined level has coarse/fine faces
+    # at its top and bottom and takes its flux there from the level below.  Every level's
+    # solves are checked.
+    add_test_terrain_poisson_divergence(TerrainPoisson_PartialDepth_FourLevels TerrainPoisson_Hill "1 2 3"
+        COMMON_OPTIONS "${_tp_partial_4lev}" MAX_MEAN "${_tp_partial_mean}")
     # Map factors other than one (erf.test_mapfactor: 0.5 and 0.25): the projection adds the
     # map-factor scaled fluxes, which change the divergence by m_x m_y times A phi, so the
     # equation solved is A phi = rhs / (m_x m_y).  Without that division every solve left

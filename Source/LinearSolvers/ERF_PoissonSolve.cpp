@@ -248,14 +248,11 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                             mom_mf[IntVars::ymom].nGrowVect()[2] >= 1);
         // Where the level stops inside the domain in z there is no fine box to copy from: take
         // those faces from the coarse level first.  FillBoundary below then overwrites the faces
-        // that a neighbouring fine box does cover.  The valid faces hold (rho0 u) unless the
-        // density is fixed (anelastic), when they hold (rho u).
+        // that a neighbouring fine box does cover.  The face density is the base state's: where the
+        // density is fixed (anelastic) rho is rho0, and the base state is built in the ghost cells
+        // of every level, while at start-up the conserved density there may not be filled yet.
         if (lev > 0) {
-            if (solverChoice.fixed_density[lev]) {
-                fill_cf_zghost_momenta(lev, l_time, mom_mf[IntVars::xmom], mom_mf[IntVars::ymom], mom_mf[Vars::cons]);
-            } else {
-                fill_cf_zghost_momenta(lev, l_time, mom_mf[IntVars::xmom], mom_mf[IntVars::ymom], r_hse);
-            }
+            fill_cf_zghost_momenta(lev, l_time, mom_mf[IntVars::xmom], mom_mf[IntVars::ymom], r_hse);
         }
         mom_mf[IntVars::xmom].FillBoundary(IntVect(0,0,1), geom[lev].periodicity());
         mom_mf[IntVars::ymom].FillBoundary(IntVect(0,0,1), geom[lev].periodicity());
