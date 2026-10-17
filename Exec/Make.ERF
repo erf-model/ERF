@@ -13,6 +13,9 @@ ERF_ABS_HOME := $(abspath $(ERF_HOME))
 #   and do not rebuild it unless BUILD_EKAT=TRUE is explicitly requested.
 # - EKAT_INSTALL_LIBDIR defaults to lib, but can be set to lib64 or another
 #   install libdir on systems with a different CMake layout.
+# - EKAT_BUILD_JOBS (default 4) is the number of parallel jobs for building the
+#   bundled EKAT/Kokkos.  Compiling Kokkos with nvcc takes a lot of memory per
+#   job, and an unbounded build can exhaust a workstation's memory.
 #
 # The config-dependent paths are derived after the Make.defs include, where the
 # USE_* backend switches and COMP have been normalized.
@@ -675,7 +678,15 @@ ifeq ($(USE_CUDA), TRUE)
     EKAT_CXX := $(EKAT_SOURCE_DIR)/extern/kokkos/bin/nvcc_wrapper
     NVCC_WRAPPER_DEFAULT_COMPILER ?= $(CXX)
     export NVCC_WRAPPER_DEFAULT_COMPILER
+    # With MPI, CXX is the MPI compiler wrapper, so that nvcc_wrapper's host compiler finds
+    # mpi.h.  But Make.defs exports OMPI_CXX/MPICH_CXX/MPICXX_CXX=nvcc so that the MPI wrapper
+    # calls nvcc; as nvcc's host compiler it must call the real host compiler instead, or
+    # nvcc and the MPI wrapper call each other in a loop (Cray wrappers ignore these)
+    ifeq ($(USE_MPI), TRUE)
+        EKAT_BUILD_ENV := OMPI_CXX="$(NVCC_CCBIN)" MPICH_CXX="$(NVCC_CCBIN)" MPICXX_CXX="$(NVCC_CCBIN)"
+    endif
 endif
+EKAT_BUILD_JOBS ?= 4
 
 # These defaults build the subset of EKAT/Kokkos needed by ERF. Backend choices
 # mirror the AMReX-style USE_OMP/USE_CUDA/USE_HIP/USE_SYCL switches from the
@@ -830,8 +841,8 @@ ifeq ($(BUILD_EKAT), TRUE)
 	  rm -rf "$(EKAT_BUILD_DIR)" "$(EKAT_INSTALL_PREFIX)"; \
 	fi; \
 	echo "Building EKAT/Kokkos in $(EKAT_BUILD_DIR)"; \
-	cmake -S "$(EKAT_SOURCE_DIR)" -B "$(EKAT_BUILD_DIR)" $(EKAT_CMAKE_FLAGS); \
-	cmake --build "$(EKAT_BUILD_DIR)" --target install --parallel
+	env $(EKAT_BUILD_ENV) cmake -S "$(EKAT_SOURCE_DIR)" -B "$(EKAT_BUILD_DIR)" $(EKAT_CMAKE_FLAGS); \
+	env $(EKAT_BUILD_ENV) cmake --build "$(EKAT_BUILD_DIR)" --target install --parallel $(EKAT_BUILD_JOBS)
 else
 	@# EKAT_HOME was supplied externally unless BUILD_EKAT=TRUE was requested.
 	@# Nothing here may rebuild or delete it, so a backend disagreement is a
