@@ -287,7 +287,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         } // mfi
 
         // Where the level stops inside the domain in z, the flux through its top and bottom
-        // faces comes from the coarse level (erf.cf_coarse_omega)
+        // faces comes from the coarse level's Omega (see ERF_CoarseFineFaces.cpp)
         if (lev > 0) {
             set_cf_zface_omega_projection(lev, l_time, mom_mf[IntVars::zmom]);
         }

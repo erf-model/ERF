@@ -312,9 +312,8 @@ ERF therefore
 -  sets :math:`\Omega` on the level's top and bottom faces from the coarse level's
    :math:`\Omega`, interpolated so the fine faces over each coarse face average to it, both in
    the projection and in the fine-level fills the time step uses, so that theta and the other
-   scalars are carried by the same face fluxes the projection balanced
-   (``erf.cf_coarse_omega``, default true; ``false`` keeps the coarse :math:`\rho w`, which
-   leaves the net inflow in the level as a uniform divergence);
+   scalars are carried by the same face fluxes the projection balanced (the coarse
+   :math:`\rho w` alone would leave the net inflow in the level as a uniform divergence);
 
 -  passes ``gmres_fft`` only the level's own layers of :math:`\Delta z` for its preconditioner.
 

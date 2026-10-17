@@ -3422,7 +3422,7 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     # (AMReX FFT assert), and the momenta just below and above the level were never filled, so
     # the slope turned unset memory into a divergence of 1e147.  The flux through the level's
     # top and bottom now comes from the coarse Omega, so the mean the solve subtracts (the net
-    # inflow) stays at 7e-9; with erf.cf_coarse_omega=false it is 2.8e-6 (limit 1e-7).
+    # inflow) stays at 7e-9; with the coarse (rho w) on those faces instead it was 2.8e-6 (limit 1e-7).
     add_test_terrain_poisson_divergence(TerrainPoisson_PartialDepth TerrainPoisson_Hill 1
         COMMON_OPTIONS "${_tp_partial}" MAX_MEAN "${_tp_partial_mean}")
     # Map factors other than one (erf.test_mapfactor: 0.5 and 0.25): the projection adds the

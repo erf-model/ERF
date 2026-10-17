@@ -291,9 +291,10 @@ void ERF::cf_zface_omega_target (int lev, double time_d, MultiFab& omega_target)
  * In the projection, after Omega is formed: set Omega on the level's coarse/fine faces in z
  * from the coarse Omega.  The coarse projection leaves no net inflow into the coarse cells under
  * the level, so the level's fluxes then add up to zero over its boundary, and its solve (which
- * applies no correction through these faces) converges to a divergence-free field.  Without this,
- * the fine level rebuilds Omega from its own u, v and slopes, and the difference stays in the
- * level as a uniform divergence.
+ * applies no correction through these faces) converges to a divergence-free field.  ERF used to
+ * keep the coarse (rho w) that FillSet puts on these faces; the fine level then rebuilt Omega
+ * from its own u, v and slopes, the fluxes no longer added up to the coarse ones, and the
+ * difference stayed in the level as a uniform divergence (2.8e-6 1/s on the test hill).
  *
  * @param lev   Level index (> 0)
  * @param time  Time of the momenta
@@ -302,7 +303,7 @@ void ERF::cf_zface_omega_target (int lev, double time_d, MultiFab& omega_target)
 void ERF::set_cf_zface_omega_projection (int lev, double time_d, MultiFab& omega)
 {
     BL_PROFILE("ERF::set_cf_zface_omega_projection()");
-    if (!solverChoice.cf_coarse_omega || lev == 0 || !solverChoice.anelastic[lev]) { return; }
+    if (lev == 0 || !solverChoice.anelastic[lev]) { return; }
     auto patches = cf_zface_patches(grids[lev], geom[lev].Domain());
     if (patches.empty()) { return; }
 
@@ -340,7 +341,7 @@ void ERF::set_cf_zface_omega_fill (int lev, double time_d, MultiFab& cons,
                                    MultiFab& xvel, MultiFab& yvel, MultiFab& zvel)
 {
     BL_PROFILE("ERF::set_cf_zface_omega_fill()");
-    if (!solverChoice.cf_coarse_omega || lev == 0 || !solverChoice.anelastic[lev]) { return; }
+    if (lev == 0 || !solverChoice.anelastic[lev]) { return; }
     if (solverChoice.mesh_type != MeshType::VariableDz) { return; }
     auto patches = cf_zface_patches(grids[lev], geom[lev].Domain());
     if (patches.empty()) { return; }
