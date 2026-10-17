@@ -2142,9 +2142,9 @@ add_test_r(MoistDiffusion_ImplicitCF         "" "erf_exec" "plt00200"
 # composite integral of a scalar is conserved across coarse/fine faces whatever transports it.
 # Moisture diffuses through a face normal to z, with the vertical diffusion implicit (the deck as
 # it stands, on a flat, a stretched and a terrain-fitted mesh) and explicit.  A scalar diffuses
-# through faces normal to x, y and z: on a flat, a terrain-fitted (flat terrain) and a stretched
-# mesh, with map factors, with 2 x 2 x 1 refinement, with the anelastic integrator, and advected
-# by a sheared flow with Smagorinsky diffusion alone
+# through faces normal to x, y and z: on a flat, a terrain-fitted (flat terrain and a hill) and a
+# stretched mesh, with map factors, with 2 x 2 x 1 refinement, with the anelastic integrator, and
+# advected by a sheared flow with Smagorinsky diffusion alone
 set(_moist_cons_options "max_step=100 erf.plot_int_1=-1")
 add_test_conservation(Conservation_MoistDiffusion_Implicit MoistDiffusion_ImplicitCF "RHO QTOTAL"
     OPTIONS "${_moist_cons_options}")
@@ -2157,6 +2157,8 @@ add_test_conservation(Conservation_MoistDiffusion_Explicit MoistDiffusion_Implic
 add_test_conservation(Conservation_ScalarDiffusion_Flat      ScalarDiffusion_Reflux "RHO SCALAR")
 add_test_conservation(Conservation_ScalarDiffusion_Terrain   ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.terrain_type=StaticFittedMesh")
+add_test_conservation(Conservation_ScalarDiffusion_Hill      ScalarDiffusion_Reflux "RHO SCALAR"
+    OPTIONS "erf.terrain_type=StaticFittedMesh prob.custom_terrain_type=WoA prob.dir=2 prob.hmax=0.25 prob.L=0.15")
 add_test_conservation(Conservation_ScalarDiffusion_Stretched ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.initial_dz=0.025")
 add_test_conservation(Conservation_ScalarDiffusion_MapFactor ScalarDiffusion_Reflux "RHO SCALAR"
