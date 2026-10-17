@@ -66,10 +66,27 @@ void ERF::solve_with_gmres (int lev, const Box& subdomain, MultiFab& rhs, MultiF
         my_geom.define(subdomain, rb, coord_sys, is_per);
     }
 
+    // The FFT preconditioner is built on the region, so it needs the dz of the region's own
+    // layers only, as solve_with_fft passes on a stretched mesh.  A region that stops below
+    // the top or above the ground (a level refined over part of the depth) would otherwise
+    // hand it the whole column.
+    Gpu::DeviceVector<Real> stretched_dz_d_sub;
+    const bool full_column = (sub_lo.z == dom_lo.z && sub_hi.z == dom_hi.z);
+    if (!full_column) {
+        Vector<Real> stretched_dz_h_sub(subdomain.length(2));
+        for (int k = sub_lo.z; k <= sub_hi.z; k++) {
+            stretched_dz_h_sub[k-sub_lo.z] = stretched_dz_h[lev][k];
+        }
+        stretched_dz_d_sub.resize(stretched_dz_h_sub.size());
+        Gpu::copy(Gpu::hostToDevice, stretched_dz_h_sub.begin(), stretched_dz_h_sub.end(),
+                  stretched_dz_d_sub.begin());
+    }
+    Gpu::DeviceVector<Real>& dz_region = full_column ? stretched_dz_d[lev] : stretched_dz_d_sub;
+
     amrex::GMRES<MultiFab, TerrainPoisson> gmsolver;
 
     TerrainPoisson tp(my_geom, Geom(lev), rhs.boxArray(), rhs.DistributionMap(), domain_bc_type,
-                      stretched_dz_d[lev], ax_sub, ay_sub, az_sub, dJ_sub, &znd_sub,
+                      dz_region, ax_sub, ay_sub, az_sub, dJ_sub, &znd_sub,
                       solverChoice.use_real_bcs);
 
     gmsolver.define(tp);

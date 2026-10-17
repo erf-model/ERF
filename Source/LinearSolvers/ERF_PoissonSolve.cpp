@@ -246,6 +246,17 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         // to the extrapolation in VelocityToMomentum (or the boundary fill in the time step).
         AMREX_ALWAYS_ASSERT(mom_mf[IntVars::xmom].nGrowVect()[2] >= 1 &&
                             mom_mf[IntVars::ymom].nGrowVect()[2] >= 1);
+        // Where the level stops inside the domain in z there is no fine box to copy from: take
+        // those faces from the coarse level first.  FillBoundary below then overwrites the faces
+        // that a neighbouring fine box does cover.  The valid faces hold (rho0 u) unless the
+        // density is fixed (anelastic), when they hold (rho u).
+        if (lev > 0) {
+            if (solverChoice.fixed_density[lev]) {
+                fill_cf_zghost_momenta(lev, l_time, mom_mf[IntVars::xmom], mom_mf[IntVars::ymom], mom_mf[Vars::cons]);
+            } else {
+                fill_cf_zghost_momenta(lev, l_time, mom_mf[IntVars::xmom], mom_mf[IntVars::ymom], r_hse);
+            }
+        }
         mom_mf[IntVars::xmom].FillBoundary(IntVect(0,0,1), geom[lev].periodicity());
         mom_mf[IntVars::ymom].FillBoundary(IntVect(0,0,1), geom[lev].periodicity());
 
@@ -274,6 +285,12 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                 }
             });
         } // mfi
+
+        // Where the level stops inside the domain in z, the flux through its top and bottom
+        // faces comes from the coarse level (erf.cf_coarse_omega)
+        if (lev > 0) {
+            set_cf_zface_omega_projection(lev, l_time, mom_mf[IntVars::zmom]);
+        }
     }
 
     // ****************************************************************************

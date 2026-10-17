@@ -22,6 +22,11 @@ The log gives only the largest values, so r sees the part of the remaining error
 to |m|, and on a level with several regions m is the largest of their means; a solve that
 fails as the old operator does leaves r three or more orders of magnitude above the limit.
 
+With --max-mean the mean itself is limited too: it is the net inflow through the region's
+faces divided by its volume, which is zero when the fluxes through a refined level's
+coarse/fine faces add up to the coarse level's (a level that stops inside the domain in z
+leaves it nonzero unless the flux through its top and bottom comes from the coarse level).
+
 Exit status: 0 when every solve passes, 1 when one does not, 2 when the log has no solve
 on that level (or fewer than --min-solves), or a solve whose divergence before it was
 already below --min-before (the check would say nothing).
@@ -82,6 +87,8 @@ def main(argv=None):
                         help="fewest solves the log must hold on the level")
     parser.add_argument("--min-before", type=float, default=1.0e-6,
                         help="smallest divergence before a solve for it to count as a check")
+    parser.add_argument("--max-mean", type=float, default=None,
+                        help="largest allowed |mean| subtracted before a solve (no limit if unset)")
     args = parser.parse_args(argv)
 
     try:
@@ -118,6 +125,13 @@ def main(argv=None):
               f"level {args.level} did not converge; the first (solve {i + 1}) left {residuals[i]:.3e} "
               f"above the mean {m:.3e}, from {b:.3e} before it")
         return 1
+    if args.max_mean is not None:
+        worst = max(range(len(solves)), key=lambda i: solves[i][1])
+        if solves[worst][1] > args.max_mean:
+            print(f"check_terrain_poisson_divergence: FAIL, solve {worst + 1} at level {args.level} "
+                  f"subtracted a mean of {solves[worst][1]:.3e}, above --max-mean {args.max_mean:.1e}: "
+                  "the fluxes through the region's faces do not add up to zero")
+            return 1
     print("check_terrain_poisson_divergence: PASS")
     return 0
 

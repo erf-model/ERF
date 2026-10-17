@@ -1157,6 +1157,10 @@ struct SolverChoice {
         // Solver for the projection on a terrain-fitted mesh: FFT-preconditioned GMRES (default),
         // or amrex::MLTerrainPoisson with multigrid, alone or under GMRES
         pp.query_enum_case_insensitive("terrain_poisson_solver", terrain_poisson_solver);
+        // A refined level that stops inside the domain in z (anelastic, terrain-fitted mesh):
+        // take the flux through its top and bottom faces from the coarse level's Omega, in
+        // the projection and in the fine-level fills (false: the coarse (rho w), as before)
+        pp.queryAdd("cf_coarse_omega", cf_coarse_omega);
         if (pp.contains("terrain_poisson_solver") &&
             (mesh_type != MeshType::VariableDz || terrain_type == TerrainType::EB)) {
             amrex::Print() << "WARNING: erf.terrain_poisson_solver is ignored: it applies only to the "
@@ -2318,6 +2322,7 @@ struct SolverChoice {
     int         ncorr               = 1;
     std::string wall_dist_type      = "poisson";
     TerrainPoissonSolver  terrain_poisson_solver  = TerrainPoissonSolver::gmres_fft;
+    bool                  cf_coarse_omega         = true;
 #ifdef AMREX_USE_FLOAT
     amrex::Real poisson_abstol      = amrex::Real(1e-6);
     amrex::Real poisson_reltol      = amrex::Real(1e-6);
@@ -2741,6 +2746,9 @@ struct SolverChoice {
  * @brief Number of projection correction iterations.
  * @var SolverChoice::terrain_poisson_solver
  * @brief Projection solver on a terrain-fitted mesh: gmres_fft (default), mlmg or gmres_mlmg.
+ * @var SolverChoice::cf_coarse_omega
+ * @brief On a refined level that stops inside the domain in z (anelastic, terrain-fitted mesh),
+ *        set the flux through its top and bottom faces from the coarse Omega (default true).
  * @var SolverChoice::poisson_abstol
  * @brief Absolute tolerance for the Poisson solve.
  * @var SolverChoice::poisson_reltol

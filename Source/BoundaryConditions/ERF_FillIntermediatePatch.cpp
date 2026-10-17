@@ -372,6 +372,12 @@ ERF::FillIntermediatePatch (int lev, double time_d,
             c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
         }
 
+        // The same coarse Omega on the coarse/fine faces in z as the projection uses
+        if (lev > 0) {
+            set_cf_zface_omega_fill(lev, time_d, *mfs_vel[Vars::cons],
+                                    *mfs_vel[Vars::xvel], *mfs_vel[Vars::yvel], *mfs_vel[Vars::zvel]);
+        }
+
         VelocityToMomentum(*mfs_vel[Vars::xvel], ngu,
                            *mfs_vel[Vars::yvel], ngv,
                            *mfs_vel[Vars::zvel], ngw,

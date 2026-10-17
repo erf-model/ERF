@@ -974,6 +974,15 @@ List of Parameters
 |                                      | meshes, which still need the FFT build. See              |                    |                   |
 |                                      | :ref:`subsec:TerrainMLMG`.                               |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
+| **erf.cf_coarse_omega**              | anelastic, terrain-fitted mesh, a refined level that     | true, false        | true              |
+|                                      | stops inside the domain in z: take the flux through its  |                    |                   |
+|                                      | top and bottom faces from the coarse level's             |                    |                   |
+|                                      | contravariant flux Omega, in the projection and in the   |                    |                   |
+|                                      | fine-level fills. ``false``: the coarse (rho w), as      |                    |                   |
+|                                      | before, which leaves a uniform divergence on the level.  |                    |                   |
+|                                      | No effect on levels that span the depth. See             |                    |                   |
+|                                      | :ref:`subsec:partial-depth-refinement`.                  |                    |                   |
++--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 
 Notes
 -----------------
