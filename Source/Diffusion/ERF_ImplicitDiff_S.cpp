@@ -658,3 +658,66 @@ INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU(0)
 INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU(1)
 INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU(2)
 #undef INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU
+
+/**
+ * The implicit part of the vertical diffusive flux of component n on the z faces of bx, as the
+ * matching ImplicitDiffForStateLU_S solve applied it, for refluxing: in the convention of the
+ * advective fluxes the flux registers hold (see AddScalarDiffusionRefluxFluxes_S), i.e. the
+ * vertical transfer divided by m_x m_y.
+ *
+ * cell_data must hold the solution of that solve, including the ghost values a column that
+ * ends at a coarse/fine boundary was closed with.  Faces on the domain boundary are set to zero:
+ * they are never refluxed.
+ *
+ * @param[in ] bx           cell-centered box
+ * @param[in ] domain       box of the whole domain
+ * @param[in ] level        AMR level
+ * @param[in ] n            conserved component index
+ * @param[in ] implicit_fac the vert_implicit_fac the solve used
+ * @param[in ] cell_data    conserved state after the solve
+ * @param[in ] use_mrf_countergradient whether the solve added the MRF countergradient flux
+ * @param[out] zflux        face flux of component n, in component 0
+ */
+void
+ImplicitVerticalFluxForReflux_S (const Box& bx,
+                                 const Box& domain,
+                                 const int level,
+                                 const int n,
+                                 const Real implicit_fac,
+                                 const Array4<const Real>& cell_data,
+                                 const Gpu::DeviceVector<Real>& stretched_dz_d,
+                                 const Array4<const Real>& mu_turb,
+                                 const SolverChoice& solverChoice,
+                                 const Array4<const Real>& mf_mx,
+                                 const Array4<const Real>& mf_my,
+                                 const bool use_mrf_countergradient,
+                                 const Array4<      Real>& zflux)
+{
+#include "ERF_SetupVertDiff.H"
+    const int qty_index  = n;
+    const int prim_index = qty_index - 1;
+    const int prim_scal_index = (qty_index >= RhoScalar_comp && qty_index < RhoScalar_comp+NSCALARS) ? PrimScalar_comp : prim_index;
+    const int khi = bx.bigEnd(2);
+    auto dz_ptr = stretched_dz_d.data();
+
+    ParallelFor(surroundingNodes(bx,2), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        if (k == dom_lo.z || k == dom_hi.z+1) { zflux(i,j,k) = zero; return; }
+        // The coefficient on this face, from the cell above it (or below, at the top of bx)
+        Real rhoAlpha_lo, rhoAlpha_hi;
+        const int kc = (k <= khi) ? k : k-1;
+        getRhoAlpha(i, j, kc, rhoAlpha_lo, rhoAlpha_hi, cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
+                    prim_index, prim_scal_index, l_consA, l_turb);
+        const Real rhoAlpha = (k <= khi) ? rhoAlpha_lo : rhoAlpha_hi;
+        const Real dz_inv_face = two / (dz_ptr[k] + dz_ptr[k-1]);
+        const Real phi_hi = cell_data(i,j,k  ,n) / cell_data(i,j,k  ,Rho_comp);
+        const Real phi_lo = cell_data(i,j,k-1,n) / cell_data(i,j,k-1,Rho_comp);
+        Real G = -implicit_fac * rhoAlpha * dz_inv_face * (phi_hi - phi_lo);
+        // The countergradient flux the solve adds through the face, fac rho*alpha gamma
+        if (use_mrf_countergradient) {
+            const int gam_comp = (n == RhoTheta_comp) ? EddyDiff::HGAMT_v : EddyDiff::HGAMQ_v;
+            G += implicit_fac * rhoAlpha * myhalf * (mu_turb(i,j,k,gam_comp) + mu_turb(i,j,k-1,gam_comp));
+        }
+        zflux(i,j,k) = G / (mf_mx(i,j,0) * mf_my(i,j,0));
+    });
+}

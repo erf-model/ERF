@@ -1912,6 +1912,14 @@ struct SolverChoice {
             }
         }
 
+        // Two-way coupling refluxes the diffusive fluxes of the slow scalars, but not on an EB mesh
+        if (coupling_type == CouplingType::TwoWay && terrain_type == TerrainType::EB &&
+            max_level > 0 && l_use_diff) {
+            amrex::Warning("erf.coupling_type = TwoWay with erf.terrain_type = EB does not reflux the "
+                           "diffusive fluxes: diffusion does not conserve the scalars across "
+                           "coarse/fine boundaries");
+        }
+
         // The implicit terrain metric is a change to the vertical implicit solves on a
         // terrain-fitted mesh; refuse it where it could not do anything.  This comes after
         // every block that can turn the implicit solve off.

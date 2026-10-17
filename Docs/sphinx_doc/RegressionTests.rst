@@ -698,6 +698,58 @@ Test Location: `Tests/test_files/Closure_BoxParity`_
 
 .. _`Tests/test_files/Closure_BoxParity`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/Closure_BoxParity
 
+Conservation across coarse/fine boundaries
+------------------------------------------
+The ``Conservation_*`` tests (label ``conservation``, no gold file) run a two-level deck with
+two-way coupling in a closed domain: slip walls in z, periodic in x and y. They require the
+composite integral of a scalar to be the same at the start and the end of the run
+(``Tests/RunConservation.cmake``). The integral is the one ERF prints every step with
+``erf.sum_interval = 1`` (``RHO SCALAR SL/ML`` or ``RHO QTOTAL SL/ML``, see
+``erf.sum_interval`` in :ref:`Inputs <examples-of-usage-9>`). It weights each cell by
+:math:`\det J/(m_x m_y)` and masks the covered cells, so it is the quantity the discretization
+conserves on any mesh and with any refinement ratio. The two values must agree to 12
+significant digits in double precision and to 5 in single precision.
+
+That holds only if the reflux at the coarse/fine faces includes the diffusive fluxes, both the
+explicit ones and the implicit part of the vertical ones (erf-model/ERF#4323). Before that fix
+every one of these tests failed: the moisture integral changed by about 1e-3 relative, and the
+scalar integral by 1e-4 to 3e-4 (2e-8 with Smagorinsky diffusion alone).
+
+The four ``Conservation_MoistDiffusion_*`` tests run 100 steps of the ``MoistDiffusion_ImplicitCF``
+deck, whose patch has a coarse/fine face normal to z, and check the total moisture.
+``Implicit``, ``ImplicitStretched`` and ``ImplicitTerrain`` diffuse it with the implicit vertical
+solve in every RK stage, on a flat mesh, a stretched mesh (``erf.initial_dz = 0.4``) and a
+terrain-fitted one (``erf.terrain_type = StaticFittedMesh``). ``Explicit`` diffuses it
+explicitly (``erf.vert_implicit = false``, ``erf.alpha_C = 0.4``).
+
+The seven ``Conservation_ScalarDiffusion_*`` tests run the ``ScalarDiffusion_Reflux`` deck: a
+scalar blob diffusing for 50 steps through a patch over the middle half of the domain in x and y
+and the lower half in z, so through faces normal to all three directions. ``Flat`` runs it as it
+stands. ``Terrain`` uses a terrain-fitted mesh, ``Stretched`` a stretched one
+(``erf.initial_dz = 0.025``), ``MapFactor`` map factors (``erf.test_mapfactor = true``), and
+``Ratio221`` 2 x 2 x 1 refinement. ``Anelastic`` uses the anelastic MidPoint integrator, which
+refluxes its second RK stage rather than the third. ``Smagorinsky`` advects the scalar with a
+sheared wind and diffuses it with Smagorinsky diffusion alone.
+
+Three cases have no test, because they are not conserved for reasons that have nothing to do
+with the reflux:
+
+* With non-flat terrain the scalar diffuses through the bottom wall where the terrain slopes, on
+  one level as on two (erf-model/ERF#4330). A terrain-fitted mesh is therefore tested with flat
+  terrain only.
+* The anelastic RK2 integrator refluxes the fluxes of its second stage alone, at full weight,
+  though its update averages the two stages; advection then leaks as well as diffusion
+  (erf-model/ERF#4331).
+* A Deardorff or k-equation TKE always dissipates, so the implicit diffusion of TKE is not
+  tested here. It goes through the same functions as that of moisture.
+
+EB runs do not reflux diffusive fluxes, and ERF warns when two-way coupling is used with EB and
+diffusion.
+
+Test Location: `Tests/test_files/MoistDiffusion_ImplicitCF`_, `Tests/test_files/ScalarDiffusion_Reflux`_
+
+.. _`Tests/test_files/ScalarDiffusion_Reflux`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusion_Reflux
+
 Terrain Poisson operator at Neumann faces
 -----------------------------------------
 The ``TerrainPoisson_*`` tests (MPI builds, not Windows) check the anelastic projection on a

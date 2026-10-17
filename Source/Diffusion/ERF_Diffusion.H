@@ -120,7 +120,8 @@ void DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::BCRec* bc_ptr,
                              const bool use_SurfLayer,
                              const amrex::Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer,
-                             const amrex::Real implicit_fac);
+                             const amrex::Real implicit_fac,
+                             const ScalarDiffusionRefluxViews* reflux_flx = nullptr);
 
 /** \brief Native adapter for regular scalar diffusion on a vertically stretched grid. */
 void DiffusionSrcForState_S (const amrex::Box& bx, const amrex::Box& domain,
@@ -152,7 +153,8 @@ void DiffusionSrcForState_S (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::BCRec* bc_ptr,
                              const bool use_SurfLayer,
                              const amrex::Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer,
-                             const amrex::Real implicit_fac);
+                             const amrex::Real implicit_fac,
+                             const ScalarDiffusionRefluxViews* reflux_flx = nullptr);
 
 /** \brief Native adapter for regular scalar diffusion on terrain-following coordinates. */
 void DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
@@ -190,7 +192,46 @@ void DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
                              const amrex::BCRec* bc_ptr,
                              const bool use_SurfLayer,
                              const amrex::Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer,
-                             const amrex::Real implicit_fac);
+                             const amrex::Real implicit_fac,
+                             const ScalarDiffusionRefluxViews* reflux_flx = nullptr);
+
+/** \brief The implicit part of the vertical diffusive flux of one component, for refluxing (flat mesh). */
+void ImplicitVerticalFluxForReflux_N (const amrex::Box& bx, const amrex::Box& domain,
+                                      const int level, const int n, const amrex::Real implicit_fac,
+                                      const amrex::Array4<const amrex::Real>& cell_data,
+                                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                                      const amrex::Array4<const amrex::Real>& mu_turb,
+                                      const SolverChoice& solverChoice,
+                                      const amrex::Array4<const amrex::Real>& mf_mx,
+                                      const amrex::Array4<const amrex::Real>& mf_my,
+                                      const bool use_mrf_countergradient,
+                                      const amrex::Array4<      amrex::Real>& zflux);
+
+/** \brief As ImplicitVerticalFluxForReflux_N, on a vertically stretched mesh. */
+void ImplicitVerticalFluxForReflux_S (const amrex::Box& bx, const amrex::Box& domain,
+                                      const int level, const int n, const amrex::Real implicit_fac,
+                                      const amrex::Array4<const amrex::Real>& cell_data,
+                                      const amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
+                                      const amrex::Array4<const amrex::Real>& mu_turb,
+                                      const SolverChoice& solverChoice,
+                                      const amrex::Array4<const amrex::Real>& mf_mx,
+                                      const amrex::Array4<const amrex::Real>& mf_my,
+                                      const bool use_mrf_countergradient,
+                                      const amrex::Array4<      amrex::Real>& zflux);
+
+/** \brief As ImplicitVerticalFluxForReflux_N, on a terrain-following mesh. */
+void ImplicitVerticalFluxForReflux_T (const amrex::Box& bx, const amrex::Box& domain,
+                                      const int level, const int n, const amrex::Real implicit_fac,
+                                      const amrex::Array4<const amrex::Real>& cell_data,
+                                      const amrex::Array4<const amrex::Real>& z_nd,
+                                      const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& cellSizeInv,
+                                      const amrex::Array4<const amrex::Real>& mu_turb,
+                                      const SolverChoice& solverChoice,
+                                      const amrex::Array4<const amrex::Real>& mf_mx,
+                                      const amrex::Array4<const amrex::Real>& mf_my,
+                                      const bool implicit_metric,
+                                      const bool use_mrf_countergradient,
+                                      const amrex::Array4<      amrex::Real>& zflux);
 
 /** \brief Add state diffusion source terms for embedded-boundary cells. */
 void DiffusionSrcForState_EB (const amrex::Box& bx, const amrex::Box& domain,

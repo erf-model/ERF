@@ -32,6 +32,25 @@ namespace erf_sbm { class SBMStateManager; class SBMTransport; }
  */
 class ShocDriver;
 
+/**
+ * Whether the fluxes of RK stage nrk at this level go into the flux registers.  With two-way
+ * coupling and more than one level only those of the final stage do: the second (nrk = 1) of
+ * the anelastic integrator and the third (nrk = 2) of the compressible one.  Every stage that
+ * adds fluxes to the registers must use this, so that all of them reflux the same stage.
+ *
+ * @param[in] solverChoice  the solver options
+ * @param[in] level         the level being advanced
+ * @param[in] finest_level  the finest level
+ * @param[in] nrk           the RK stage
+ */
+inline bool
+IsRefluxStage (const SolverChoice& solverChoice, int level, int finest_level, int nrk)
+{
+    const bool anelastic = (solverChoice.anelastic[level] == 1);
+    return (solverChoice.coupling_type == CouplingType::TwoWay) && (finest_level > 0) &&
+           ( (anelastic && nrk == 1) || (!anelastic && nrk == 2) );
+}
+
 void erf_make_tau_terms (int level, int nrk,
                          const amrex::Vector<amrex::BCRec>& domain_bcs_type,
                          const amrex::MultiFab& z_phys_nd,
