@@ -163,6 +163,15 @@ EKAT_BUILD_DIR ?= $(EKAT_SOURCE_DIR)/build/$(EKAT_CONFIG_TAG)
 EKAT_INSTALL_PREFIX := $(abspath $(EKAT_HOME))
 EKAT_LIB_DIR ?= $(EKAT_INSTALL_PREFIX)/$(EKAT_INSTALL_LIBDIR)
 
+# AMReX's Make.defs exports OMPI_CXX/MPICH_CXX/... = nvcc for CUDA+MPI builds so
+# that MPI wrappers compile with nvcc. EKAT uses mpicxx as nvcc_wrapper's host
+# compiler, so those settings would make the wrapper call nvcc again (nested
+# nvcc, which rejects host flags such as -Wno-psabi). Drop them for EKAT only.
+# CC/CXX are dropped too since AMReX has set both to nvcc.
+EKAT_ENV := env -u CC -u CXX \
+  -u OMPI_CC -u OMPI_CXX -u OMPI_CFLAGS -u OMPI_CXXFLAGS \
+  -u MPICH_CC -u MPICH_CXX -u MPICXX_CXX -u MPICC_CC
+  
 # Before the paths were keyed, the bundled EKAT was configured directly in
 # $(EKAT_SOURCE_DIR)/build. Nothing reads that tree any more, and leaving it in
 # place is how a CUDA-enabled install came to be reused by host-only builds, so
@@ -671,9 +680,15 @@ endif
 ifeq ($(USE_KOKKOS), TRUE)
 # When using CUDA, employ the KOKKOS nvcc wrapper (nvcc isn't GCC-compatible)
 EKAT_CXX := $(CXX)
+EKAT_MPI_CXX := $(CXX)
 ifeq ($(USE_CUDA), TRUE)
     EKAT_CXX := $(EKAT_SOURCE_DIR)/extern/kokkos/bin/nvcc_wrapper
-    NVCC_WRAPPER_DEFAULT_COMPILER ?= $(CXX)
+    ifdef CRAYPE_VERSION
+        EKAT_MPI_CXX := $(shell command -v CC 2>/dev/null)
+    else
+        EKAT_MPI_CXX := $(shell command -v mpicxx 2>/dev/null)
+    endif
+    NVCC_WRAPPER_DEFAULT_COMPILER = $(EKAT_MPI_CXX)
     export NVCC_WRAPPER_DEFAULT_COMPILER
 endif
 
@@ -684,7 +699,8 @@ endif
 EKAT_CMAKE_FLAGS := \
   -D CMAKE_BUILD_TYPE:STRING=Release \
   -D CMAKE_CXX_COMPILER:STRING="$(EKAT_CXX)" \
-  -D CMAKE_CXX_STANDARD:STRING=17 \
+  -D MPI_CXX_COMPILER:FILEPATH="$(EKAT_MPI_CXX)" \
+  -D CMAKE_CXX_STANDARD:STRING=20 \
   -D CMAKE_INSTALL_PREFIX:PATH="$(EKAT_INSTALL_PREFIX)" \
   -D CMAKE_INSTALL_LIBDIR:PATH="$(EKAT_INSTALL_LIBDIR)" \
   -D CMAKE_DISABLE_FIND_PACKAGE_spdlog:BOOL=TRUE \
@@ -830,8 +846,8 @@ ifeq ($(BUILD_EKAT), TRUE)
 	  rm -rf "$(EKAT_BUILD_DIR)" "$(EKAT_INSTALL_PREFIX)"; \
 	fi; \
 	echo "Building EKAT/Kokkos in $(EKAT_BUILD_DIR)"; \
-	cmake -S "$(EKAT_SOURCE_DIR)" -B "$(EKAT_BUILD_DIR)" $(EKAT_CMAKE_FLAGS); \
-	cmake --build "$(EKAT_BUILD_DIR)" --target install --parallel
+	$(EKAT_ENV) cmake -S "$(EKAT_SOURCE_DIR)" -B "$(EKAT_BUILD_DIR)" $(EKAT_CMAKE_FLAGS); \
+	$(EKAT_ENV) cmake --build "$(EKAT_BUILD_DIR)" --target install --parallel
 else
 	@# EKAT_HOME was supplied externally unless BUILD_EKAT=TRUE was requested.
 	@# Nothing here may rebuild or delete it, so a backend disagreement is a
