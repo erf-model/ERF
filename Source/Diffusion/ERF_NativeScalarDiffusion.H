@@ -65,10 +65,11 @@ ResolveNativeScalarDiffusionPolicy (const int qty_comp, const DiffChoice& choice
         }
     } else {
         // Every q-state, including future appended species, uses the Q eddy
-        // category. Molecular diffusion is defined only through Q6.
+        // category. Molecular diffusion is defined for the moisture species
+        // (number concentrations included), not for appended non-moist species.
         policy.coefficients.eddy_h_comp = EddyDiff::Q_h;
         policy.coefficients.eddy_v_comp = EddyDiff::Q_v;
-        if (qty_comp >= RhoQ1_comp && qty_comp <= RhoQ6_comp) {
+        if (policy.is_moist) {
             if (choice.molec_diff_type == MolecDiffType::ConstantAlpha) {
                 policy.coefficients.molecular_coeff = choice.alpha_C;
             } else if (choice.molec_diff_type == MolecDiffType::Constant) {

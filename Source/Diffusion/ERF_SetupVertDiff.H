@@ -10,9 +10,9 @@
     bool l_turb   = turbChoice.use_kturb;
 
     // Molecular diffusivity by primitive component.  Only theta, the passive
-    //   scalar and the water species through Q6 have one defined; everything
-    //   else -- KE, the number concentrations, and any non-moist species a
-    //   scheme appends after its water species -- is left at zero.  This
+    //   scalar and the moisture species (number concentrations included) have
+    //   one defined; everything else -- KE, and any non-moist species a scheme
+    //   appends after its moisture species -- is left at zero.  This
     //   matches ResolveNativeScalarDiffusionPolicy() in
     //   ERF_NativeScalarDiffusion.H, which the explicit paths use instead of
     //   these tables.
@@ -23,7 +23,7 @@
 
         alpha_eff[PrimTheta_comp]  = alpha_T_eff;
         alpha_eff[PrimScalar_comp] = alpha_C_eff;
-        for (int i = PrimQ1_comp; i <= PrimQ6_comp; ++i) {
+        for (int i = PrimQ1_comp; i < PrimQ1_comp + diffChoice.n_qstate_moist; ++i) {
             alpha_eff[i] = alpha_C_eff;
         }
     }
