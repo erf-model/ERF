@@ -23,6 +23,33 @@
 
 using namespace amrex;
 
+namespace {
+
+#ifdef AMREX_USE_GPU
+int
+fill_cut_cell_list (Box const& bx, Array4<EBCellFlag const> const& flag,
+                    Dim3* grid_cut_cells)
+{
+    return Scan::PrefixSum<int>(
+        bx.numPts(),
+        [=] AMREX_GPU_DEVICE (Long offset) noexcept -> int
+        {
+            Dim3 const cell = bx.atOffset(offset).dim3();
+            return flag(cell.x,cell.y,cell.z).isSingleValued();
+        },
+        [=] AMREX_GPU_DEVICE (Long offset, int cut_offset) noexcept
+        {
+            Dim3 const cell = bx.atOffset(offset).dim3();
+            if (flag(cell.x,cell.y,cell.z).isSingleValued()) {
+                grid_cut_cells[cut_offset] = cell;
+            }
+        },
+        Scan::Type::exclusive, Scan::retSum);
+}
+#endif
+
+} // namespace
+
 eb_::~eb_ ()
 {
     // if (m_factory) { m_factory.reset(nullptr); }
@@ -154,21 +181,7 @@ eb_::build_cut_cell_lists (FabArray<EBCellFlagFab> const& flags,
         CutCellList grid_cut_cells(num_candidates);
         Dim3* const grid_cut_cells_ptr = grid_cut_cells.data();
 
-        int const num_cut_cells = Scan::PrefixSum<int>(
-            num_candidates,
-            [=] AMREX_GPU_DEVICE (Long offset) noexcept -> int
-            {
-                Dim3 const cell = bx.atOffset(offset).dim3();
-                return flag(cell.x,cell.y,cell.z).isSingleValued();
-            },
-            [=] AMREX_GPU_DEVICE (Long offset, int cut_offset) noexcept
-            {
-                Dim3 const cell = bx.atOffset(offset).dim3();
-                if (flag(cell.x,cell.y,cell.z).isSingleValued()) {
-                    grid_cut_cells_ptr[cut_offset] = cell;
-                }
-            },
-            Scan::Type::exclusive, Scan::retSum);
+        int const num_cut_cells = fill_cut_cell_list(bx, flag, grid_cut_cells_ptr);
 
         grid_cut_cells.resize(num_cut_cells);
         grid_cut_cells.shrink_to_fit();
