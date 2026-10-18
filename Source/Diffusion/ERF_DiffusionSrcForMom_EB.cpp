@@ -120,18 +120,6 @@ Real eb_wall_correction (
     static_assert(WallModel == EBBoundaryType::NoSlipWall ||
                   WallModel == EBBoundaryType::SurfaceLayer);
 
-    Real axm = mom_afrac_x(i  ,j  ,k  );
-    Real axp = mom_afrac_x(i+1,j  ,k  );
-    Real aym = mom_afrac_y(i  ,j  ,k  );
-    Real ayp = mom_afrac_y(i  ,j+1,k  );
-    Real azm = mom_afrac_z(i  ,j  ,k  );
-    Real azp = mom_afrac_z(i  ,j  ,k+1);
-
-    Real adx = (axm-axp) * dy * dz;
-    Real ady = (aym-ayp) * dx * dz;
-    Real adz = (azm-azp) * dx * dy;
-    Real barea = std::sqrt(adx*adx + ady*ady + adz*adz);
-
     RealVect bcent_eb {mom_bcent(i,j,k,0), mom_bcent(i,j,k,1), mom_bcent(i,j,k,2)};
 
     Real nx = mom_bnorm(i,j,k,0);
@@ -252,6 +240,18 @@ Real eb_wall_correction (
             dmomdn = -tbx_z * mom_tau_eb13(i,j,k) - tby_z * mom_tau_eb23(i,j,k) - nz * tauzz;
         }
     }
+
+    Real axm = mom_afrac_x(i  ,j  ,k  );
+    Real axp = mom_afrac_x(i+1,j  ,k  );
+    Real aym = mom_afrac_y(i  ,j  ,k  );
+    Real ayp = mom_afrac_y(i  ,j+1,k  );
+    Real azm = mom_afrac_z(i  ,j  ,k  );
+    Real azp = mom_afrac_z(i  ,j  ,k+1);
+
+    Real adx = (axm-axp) * dy * dz;
+    Real ady = (aym-ayp) * dx * dz;
+    Real adz = (azm-azp) * dx * dy;
+    Real barea = std::sqrt(adx*adx + ady*ady + adz*adz);
 
     return barea * dmomdn / (vol * mom_volfrac(i,j,k));
 }
