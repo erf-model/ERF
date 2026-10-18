@@ -121,7 +121,7 @@ jobs:
     - name: Run Serial Unit Tests
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
-        ctest -L unit --output-on-failure --no-tests=error
+        ctest -L unit -j 4 --output-on-failure --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build
 
     - name: Run Parallel Tests

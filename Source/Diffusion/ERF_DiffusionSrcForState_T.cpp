@@ -161,16 +161,25 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                 bx, domain, field, flux_policy, z_nd, cellSizeInv, mf_mx, mf_my, implicit_fac);
         }
 
-        const bool suppress_lower_surface_z_flux =
-            SurfLayer_zlo && !(native_policy.is_theta || native_policy.is_q1);
+        // No diffusive transfer through a bottom or top domain face where the surface layer
+        // supplies the flux of this quantity separately, or where its boundary condition is
+        // zero gradient (foextrap, as at a slip or no-slip wall without a prescribed value).
+        // There the condition is no flux through the face along its normal, which is the whole
+        // of Gz; the terrain-adjusted ghost cells only approximate that, so on sloping terrain
+        // building Gz from them moved the scalar through the wall (erf-model/ERF#4330).
+        const bool suppress_lower_z_flux = SurfLayer_zlo
+            ? !(native_policy.is_theta || native_policy.is_q1)
+            : (bc_ptr[native_policy.bc_comp].lo(2) == ERFBCType::foextrap);
+        const bool suppress_upper_z_flux =
+            !SurfLayer_zhi && (bc_ptr[native_policy.bc_comp].hi(2) == ERFBCType::foextrap);
         ApplyScalarDiffusionMappedDivergence_T(
             bx, domain, field, z_nd, ax, ay, detJ, cellSizeInv, mf_mx, mf_uy,
-            mf_my, mf_vx, suppress_lower_surface_z_flux);
+            mf_my, mf_vx, suppress_lower_z_flux, suppress_upper_z_flux);
         if (reflux_flx) {
             AddScalarDiffusionRefluxFluxes_T(
                 bx, domain, xflux, yflux, zflux, field.flux_comp, *reflux_flx, field.rhs_comp,
                 z_nd, ax, ay, cellSizeInv, mf_mx, mf_my, mf_uy, mf_vx,
-                suppress_lower_surface_z_flux);
+                suppress_lower_z_flux, suppress_upper_z_flux);
         }
     } // n
 }

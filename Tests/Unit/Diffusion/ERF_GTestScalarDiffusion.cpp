@@ -1113,11 +1113,14 @@ ERF_GPU_TEST(ScalarDiffusionPrimitives, NativeAdaptersMatchExplicitPrimitives)
     mf_my.const_array());
   Gpu::streamSynchronize();
 
+  // The z faces of the domain are Neumann rather than zero gradient (foextrap): the terrain path
+  // takes no transfer through a foextrap domain face (#4330), which these data, not filled to
+  // satisfy that condition, would otherwise make differ from the explicit primitives
   Vector<BCRec> bcs(NBCVAR_max);
   for (auto& bc : bcs) {
     for (int d = 0; d < AMREX_SPACEDIM; ++d) {
-      bc.setLo(d, ERFBCType::foextrap);
-      bc.setHi(d, ERFBCType::foextrap);
+      bc.setLo(d, (d < 2) ? ERFBCType::foextrap : ERFBCType::neumann);
+      bc.setHi(d, (d < 2) ? ERFBCType::foextrap : ERFBCType::neumann);
     }
   }
   Gpu::DeviceVector<BCRec> bcs_device(bcs.size());

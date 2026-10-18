@@ -422,6 +422,20 @@ public:
     void project_initial_velocity (int lev, double time, double dt);
     void project_momenta (int lev, double l_time, double l_dt, amrex::Vector<amrex::MultiFab >& vars);
 
+    // A refined level that stops inside the domain in z (ERF_CoarseFineFaces.cpp)
+    bool cf_zface_coarse_data (int lev, double time, bool conserved_rho,
+                               amrex::MultiFab& omega_t, amrex::MultiFab& rhou_g, amrex::MultiFab& rhov_g,
+                               amrex::Vector<int>& slab_box);
+    void set_cf_zghost_projection (int lev, double time, amrex::MultiFab& xmom, amrex::MultiFab& ymom,
+                                   amrex::MultiFab& omega_t, amrex::Vector<int>& slab_box);
+    void set_cf_zface_omega (int lev, amrex::MultiFab& omega, const amrex::MultiFab& omega_t,
+                             const amrex::Vector<int>& slab_box);
+    void FillSetMomentaCF (int lev, double time, amrex::MultiFab& xmom, amrex::MultiFab& ymom,
+                           amrex::MultiFab& zmom);
+    void fill_surface_nodes (int lev, amrex::MultiFab& znd_surf);
+    // The stretched dz of a solve region's own layers
+    amrex::Gpu::DeviceVector<amrex::Real> make_sub_dz (int lev, const amrex::Box& subdomain);
+
     // Project the velocities to be divergence-free with a thin body
     void project_velocity_tb (int lev, double dt, amrex::Vector<amrex::MultiFab >& vars);
 
@@ -1540,6 +1554,23 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ax;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ay;
+
+    // Layout of the coarse/fine z-face data of each level that stops inside the domain in z
+    // (cf_zface_layout), kept until the level's grids or distribution change, so that every
+    // fill reuses the same plane BoxArrays and DistributionMapping (and their copy patterns)
+    struct CFZFaceLayout {
+        amrex::BoxArray fba;                                // the grids it was made for
+        amrex::DistributionMapping fdm;
+        std::map<int, amrex::Vector<amrex::Box>> patches;   // coarse/fine w-faces, per box
+        amrex::Vector<int> slab_box;                        // box of the level each slab belongs to
+        amrex::DistributionMapping sdm;                     // the slabs' (and planes') distribution
+        amrex::BoxArray ba_r, ba_ru, ba_rv, ba_rw, ba_rz;   // coarse planes: cells, faces, nodes
+        amrex::BoxArray ba_mu, ba_mv;                       // coarse planes: map factors (2D)
+        amrex::BoxArray ba_cf, ba_cx, ba_cy;                // coarse Omega, (rho u), (rho v)
+        amrex::BoxArray ba_f, ba_x, ba_y;                   // fine slabs
+    };
+    const CFZFaceLayout& cf_zface_layout (int lev);
+    std::map<int, CFZFaceLayout> m_cf_zface_cache;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   az;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_src;

@@ -55,9 +55,10 @@ ERF::FillIntermediatePatch (int lev, double time_d,
             FPr_c[lev-1].FillSet(*mfs_vel[Vars::cons], time_d, null_bc, domain_bcs_type);
         }
         if ( !cons_only && (cf_set_width >= 0) ) {
-            FPr_u[lev-1].FillSet(*mfs_mom[IntVars::xmom], time_d, null_bc, domain_bcs_type);
-            FPr_v[lev-1].FillSet(*mfs_mom[IntVars::ymom], time_d, null_bc, domain_bcs_type);
-            FPr_w[lev-1].FillSet(*mfs_mom[IntVars::zmom], time_d, null_bc, domain_bcs_type);
+            // The coarse/fine faces from the coarse level, those in z of a level that stops
+            // inside the domain with the coarse Omega (FillSetMomentaCF)
+            FillSetMomentaCF(lev, time_d, *mfs_mom[IntVars::xmom], *mfs_mom[IntVars::ymom],
+                             *mfs_mom[IntVars::zmom]);
         }
     }
 
