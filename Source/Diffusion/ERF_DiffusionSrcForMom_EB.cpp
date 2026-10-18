@@ -449,18 +449,14 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     Array4<const Real> v_volfrac = v_factory->getVolFrac().const_array(mfi);
     Array4<const Real> w_volfrac = w_factory->getVolFrac().const_array(mfi);
 
-    Array4<const EBCellFlag> u_cellflg{};
-    Array4<const EBCellFlag> v_cellflg{};
-    Array4<const EBCellFlag> w_cellflg{};
+    Array4<const EBCellFlag> u_cellflg = u_flagfab.const_array();
+    Array4<const EBCellFlag> v_cellflg = v_flagfab.const_array();
+    Array4<const EBCellFlag> w_cellflg = w_flagfab.const_array();
     Array4<const Real> u_volcent{};
     Array4<const Real> v_volcent{};
     Array4<const Real> w_volcent{};
 
     if (l_any_correction) {
-        u_cellflg = u_flagfab.const_array();
-        v_cellflg = v_flagfab.const_array();
-        w_cellflg = w_flagfab.const_array();
-
         if (u_type == FabType::singlevalued) {
             u_volcent = u_factory->getCentroid().const_array(mfi);
         }
@@ -535,8 +531,17 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     } else if (u_type == FabType::singlevalued) {
 
         ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            EBCellFlag const cell_flag = u_cellflg(i,j,k);
 
-            if (u_volfrac(i,j,k)>zero) {
+            if (cell_flag.isRegular()) {
+                Real mfsq = mf_ux(i,j,0) * mf_uy(i,j,0);
+
+                rho_u_rhs(i,j,k) -= ( (tau11(i  , j  , k  ) - tau11(i-1, j  , k  ) ) * dxinv * mfsq
+                                    + (tau12(i  , j+1, k  ) - tau12(i  , j  , k  ) ) * dyinv * mfsq
+                                    + (tau13(i  , j  , k+1) - tau13(i  , j  , k  ) ) * dzinv );
+            } else if (cell_flag.isSingleValued()) {
+                Real vfrac = u_volfrac(i,j,k);
+                if (vfrac <= zero) { return; }
 
                 // Inv Jacobian
                 Real mfsq = mf_ux(i,j,0) * mf_uy(i,j,0);
@@ -547,7 +552,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                                     -  tau12(i  , j  , k  ) * u_afrac_y(i  ,j  ,k  ) ) * dyinv * mfsq
                                     + (tau13(i  , j  , k+1) * u_afrac_z(i  ,j  ,k+1)
                                     -  tau13(i  , j  , k  ) * u_afrac_z(i  ,j  ,k  )) * dzinv );
-                diffContrib      /= u_volfrac(i,j,k);
+                diffContrib      /= vfrac;
 
                 rho_u_rhs(i,j,k) -= diffContrib;
             }
@@ -586,8 +591,17 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     } else if (v_type == FabType::singlevalued) {
 
         ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            EBCellFlag const cell_flag = v_cellflg(i,j,k);
 
-            if (v_volfrac(i,j,k)>zero) {
+            if (cell_flag.isRegular()) {
+                Real mfsq = mf_vx(i,j,0) * mf_vy(i,j,0);
+
+                rho_v_rhs(i,j,k) -= ( (tau12(i+1, j  , k  ) - tau12(i  , j  , k  ) ) * dxinv * mfsq
+                                    + (tau22(i  , j  , k  ) - tau22(i  , j-1, k  ) ) * dyinv * mfsq
+                                    + (tau23(i  , j  , k+1) - tau23(i  , j  , k  ) ) * dzinv );
+            } else if (cell_flag.isSingleValued()) {
+                Real vfrac = v_volfrac(i,j,k);
+                if (vfrac <= zero) { return; }
 
                 // Inv Jacobian
                 Real mfsq = mf_vx(i,j,0) * mf_vy(i,j,0);
@@ -598,7 +612,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                                     -  tau22(i  , j-1, k  ) * v_afrac_y(i  ,j  ,k  ) ) * dyinv * mfsq
                                     + (tau23(i  , j  , k+1) * v_afrac_z(i  ,j  ,k+1)
                                     -  tau23(i  , j  , k  ) * v_afrac_z(i  ,j  ,k  ) ) * dzinv );
-                diffContrib      /= v_volfrac(i,j,k);
+                diffContrib      /= vfrac;
 
                 rho_v_rhs(i,j,k) -= diffContrib;
             }
@@ -638,8 +652,17 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     } else if (w_type == FabType::singlevalued) {
 
         ParallelFor(bxz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            EBCellFlag const cell_flag = w_cellflg(i,j,k);
 
-            if (w_volfrac(i,j,k)>zero) {
+            if (cell_flag.isRegular()) {
+                Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
+
+                rho_w_rhs(i,j,k) -= ( (tau13(i+1, j  , k  ) - tau13(i  , j  , k  ) ) * dxinv * mfsq
+                                    + (tau23(i  , j+1, k  ) - tau23(i  , j  , k  ) ) * dyinv * mfsq
+                                    + (tau33(i  , j  , k  ) - tau33(i  , j  , k-1) ) * dzinv );
+            } else if (cell_flag.isSingleValued()) {
+                Real vfrac = w_volfrac(i,j,k);
+                if (vfrac <= zero) { return; }
 
                 // Inv Jacobian
                 Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
@@ -650,7 +673,7 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
                                     -  tau23(i  , j  , k  ) * w_afrac_y(i  ,j  ,k  ) ) * dyinv * mfsq
                                     + (tau33(i  , j  , k  ) * w_afrac_z(i  ,j  ,k+1)
                                     -  tau33(i  , j  , k-1) * w_afrac_z(i  ,j  ,k  ) ) * dzinv );
-                diffContrib      /= w_volfrac(i,j,k);
+                diffContrib      /= vfrac;
 
                 rho_w_rhs(i,j,k) -= diffContrib;
             }
