@@ -151,9 +151,9 @@ TEST(TerrainFileChecks, RejectsSmallTablesWrongSizesAndNonFiniteValues)
     Table t(Real(0.), Real(0.));
     // One row (ny = 1) is a profile constant in y in the ERF format, whatever the y extent;
     // nx = 0 is not a table; the USGS layout needs two points in each direction
-    Table one = t; one.ny = 1; one.y.resize(1); one.z.resize(t.nx);
-    EXPECT_EQ(problem(one), "");
-    Table none = one; none.nx = 0; none.x.clear(); none.z.clear();
+    Table one_row = t; one_row.ny = 1; one_row.y.resize(1); one_row.z.resize(t.nx);
+    EXPECT_EQ(problem(one_row), "");
+    Table none = one_row; none.nx = 0; none.x.clear(); none.z.clear();
     EXPECT_NE(problem(none).find("must both be at least 1"), std::string::npos);
     Table u1(Real(0.), Real(0.), true); u1.ny = 1; u1.y.resize(1); u1.x.resize(u1.nx); u1.z.resize(u1.nx);
     EXPECT_NE(problem(u1, true).find("must both be at least 2 in the USGS format"), std::string::npos);
