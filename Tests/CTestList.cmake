@@ -952,9 +952,15 @@ endfunction(add_test_at_rest_terrain_outflow)
 # a dirichlet_file is multiplied by the ghost density the face prescribes on an Inflow face
 # (InflowThetaDensity) and on an inflow_outflow face (InflowOutflowThetaFile), and only the
 # face that read the file uses it (InflowThetaFileOtherFace, a second inflow face with its
-# own density and theta).
+# own density and theta).  PRE_INPUT names a deck in the test folder to run first, in the same
+# folder (BndryPlanes_MoistTemperature writes the boundary planes its deck then reads).
 function(add_test_field_bounds TEST_NAME PLTFILE VARIABLE LO HI)
+    cmake_parse_arguments(ADD_TEST_FB "" "PRE_INPUT" "" ${ARGN})
     setup_test()
+    set(_pre_input "")
+    if(NOT "${ADD_TEST_FB_PRE_INPUT}" STREQUAL "")
+        set(_pre_input "${CURRENT_TEST_BINARY_DIR}/${ADD_TEST_FB_PRE_INPUT}")
+    endif()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
         "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
@@ -969,6 +975,7 @@ function(add_test_field_bounds TEST_NAME PLTFILE VARIABLE LO HI)
         "-DVARIABLE=${VARIABLE}"
         "-DLO=${LO}"
         "-DHI=${HI}"
+        "-DPRE_INPUT=${_pre_input}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunFieldBounds.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -1343,6 +1350,15 @@ add_test_at_rest_terrain_outflow(AtRestTerrainOutflow "plt00400" 1.0e-8 0.1)
 add_test_field_bounds(InflowThetaDensity "plt00010" theta 299.999 300.001)
 add_test_field_bounds(InflowOutflowThetaFile "plt00010" theta 299.999 300.001)
 add_test_field_bounds(InflowThetaFileOtherFace "plt00010" theta 299.999 300.001)
+
+# Boundary planes from a moist run: the temperature planes hold the moist temperature, and the
+# reader converts them back to theta with the qv planes.  A uniform moist state (theta 300 K,
+# qv 5 g/kg) writes the planes and reads them back at the faces of a subdomain, so theta must stay
+# 300 K; without qv in the conversion it reached 300.086 K (erf-model/ERF#4290).  The
+# BndryPlanes_MoistTemperature_*WithoutQv tests below read and write them without qv.
+add_test_field_bounds(BndryPlanes_MoistTemperature "plt00050" theta 299.999 300.001
+                      PRE_INPUT "BndryPlanes_MoistTemperature_Write.i")
+set_tests_properties(BndryPlanes_MoistTemperature PROPERTIES FIXTURES_SETUP BndryPlanesMoist)
 # Input sponge with a refined patch that does not reach the domain top: ran outside the patch's boxes at start-up
 add_test_field_bounds(InputSponge_FinePatch "plt00004" x_velocity 5.9 8.5)
 # A refined patch below the inversion takes the coarse level's PBL height (~513 m), not its own
@@ -1941,6 +1957,24 @@ function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME
         ATTACHED_FILES_ON_FAIL "${test_log}"
     )
 endfunction(add_test_abort)
+
+# A moist run's temperature planes need the qv planes to be converted back to theta: reading
+# them without qv (the planes BndryPlanes_MoistTemperature writes), and writing them without qv
+# from a moist run, both stop (erf-model/ERF#4290)
+set(_bp_moist_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/BndryPlanes_MoistTemperature)
+# The read test needs the planes BndryPlanes_MoistTemperature writes, a field-bounds test that is
+# not defined on Windows; there CTest would run it without them
+if(NOT WIN32)
+  add_test_abort(BndryPlanes_MoistTemperature_ReadWithoutQv ${_bp_moist_dir}
+                 BndryPlanes_MoistTemperature.i
+                 "reads temperature but not qv"
+                 "erf.bndry_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/BndryPlanes_MoistTemperature/BndryFiles 'erf.bndry_input_var_names=temperature density velocity'")
+  set_tests_properties(BndryPlanes_MoistTemperature_ReadWithoutQv PROPERTIES FIXTURES_REQUIRED BndryPlanesMoist)
+endif()
+add_test_abort(BndryPlanes_MoistTemperature_WriteWithoutQv ${_bp_moist_dir}
+               BndryPlanes_MoistTemperature_Write.i
+               "writes temperature but not qv"
+               "'erf.bndry_output_var_names=temperature density velocity'")
 
 # Reading and writing boundary planes in one folder would replace the planes being read; the
 # folder names differ only in spelling (_SameFolder) or reach it through a symbolic link

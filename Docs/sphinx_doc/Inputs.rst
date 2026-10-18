@@ -3218,6 +3218,11 @@ Notes
 
 - If both interval controls are set, output occurs when either criterion is met.
 - Output is written for the finest level that fully contains the requested box.
+- In a moist run the ``temperature`` planes hold the moist temperature, computed with qv, and
+  the reader converts them back to potential temperature with the ``qv`` planes.  A moist run
+  that writes ``temperature`` must therefore also write ``qv``, and a run that reads
+  ``temperature`` from planes that include ``qv`` must also read ``qv``; otherwise ERF stops.
+  ``theta`` planes need no qv.
 
 .. _sec:NumericalStability:
 
