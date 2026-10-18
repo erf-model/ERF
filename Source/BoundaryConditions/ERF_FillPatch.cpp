@@ -99,6 +99,16 @@ ERF::FillPatchFineLevel (int lev, double time_d,
                                BCVars::cons_bc);
             MultiFab::Copy(*mfs_vel[Vars::cons], rho_mf, 0, Rho_comp, 1, ng_rho);
             //
+            // A density ingested from boundary planes is not imposed by physbcs_cons, so
+            // apply it here, in the same order as below, or the conversion would read a
+            // stale ghost density at the ingested faces (issue 4265).  This writes the
+            // ingested ghost cells of every conserved component; all of them are
+            // overwritten when the conserved state is filled below.
+            //
+            if (m_r2d && !solverChoice.use_real_bcs) {
+                fill_from_bndryregs(lev, mfs_vel, time_d, true);
+            }
+            //
             // FillPatchTwoLevels is told to fill nothing outside the domain, and
             // MomentumToVelocity does not clamp its z faces to the domain the way
             // VelocityToMomentum does, so the cells under and over the domain have
@@ -316,7 +326,7 @@ ERF::FillPatchFineLevel (int lev, double time_d,
 
     bool do_fb = true;
 
-    if (m_r2d && !solverChoice.use_real_bcs) fill_from_bndryregs(mfs_vel,time_d);
+    if (m_r2d && !solverChoice.use_real_bcs) { fill_from_bndryregs(lev,mfs_vel,time_d); }
 
     // We call this even if use_real_bcs is true because these will fill the vertical bcs
     // Note that we call FillBoundary inside the physbcs call
@@ -408,7 +418,7 @@ ERF::FillPatchCrseLevel (int lev, double time_d,
     }
 #endif
 
-    if (m_r2d && !solverChoice.use_real_bcs) { fill_from_bndryregs(mfs_vel,time_d); }
+    if (m_r2d && !solverChoice.use_real_bcs) { fill_from_bndryregs(lev,mfs_vel,time_d); }
 
     // We call this even if use_real_bcs is true because these will fill the vertical bcs
     // Note that we call FillBoundary inside the physbcs call
