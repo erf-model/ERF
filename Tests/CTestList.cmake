@@ -1680,9 +1680,8 @@ add_test_r(ABL_MOST_IMP_DIFF_TKE
     "erf_exec"
     "plt00010"
     FCOMPARE_ATOL "4.0e-10")
-# ABL_MOST_IMP_DIFF_TKE with erf.implicit_before_substep = false: the vertical implicit solve of
-# theta (ERF_ImplicitPre.H) runs after the last acoustic substep of each stage.  Momentum is
-# left explicit, since the post-substep momentum solve is broken (see the deck).
+# ABL_MOST_IMP_DIFF_TKE with erf.implicit_before_substep = false: the vertical implicit solves of
+# theta and momentum (ERF_ImplicitPre.H) run after the last acoustic substep of each stage
 add_test_r(ABL_MOST_IMP_DIFF_PostSubstep     ""  "erf_exec" "plt00010")
 if(ERF_ENABLE_FFT)
     add_test_r(ABL_MOST_Cloudchamber         ""  "erf_exec" "plt00010")
@@ -2136,6 +2135,12 @@ add_test_r(CouetteFlow_ImplicitCF            "" "erf_exec" "plt00050"
 # The same closure for the implicit moisture solve in slow_rhs_post (ERF_ImplicitPost.H): a
 # moist layer diffusing down through a fine patch over the lower half of the column
 add_test_r(MoistDiffusion_ImplicitCF         "" "erf_exec" "plt00200"
+           FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "1.0e-7")
+
+# CouetteFlow_ImplicitCF with the implicit solves after the last acoustic substep of each stage
+# (erf.implicit_before_substep = false).  Until erf-model/ERF#4333 was fixed the new state's ghost
+# cells were not filled before those solves, and the momentum solve divided by a zero wall density
+add_test_r(CouetteFlow_ImplicitCF_PostSubstep "" "erf_exec" "plt00050"
            FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "1.0e-7")
 
 # Two-way coupling refluxes the diffusive as well as the advective fluxes, so in a closed domain the

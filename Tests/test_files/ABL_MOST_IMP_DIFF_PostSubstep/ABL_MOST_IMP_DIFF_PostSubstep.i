@@ -45,15 +45,13 @@ erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure
     
 # SOLVER CHOICE
 erf.vert_implicit_fac  = 1.0 1.0 0.0  # implicit in first two stages, explicit in last RK stage
-# Solve the vertical implicit diffusion of theta after the last acoustic substep of each stage
-# instead of before the substeps (KE and moisture are solved after the stage either way)
+# Solve the vertical implicit diffusion of theta and momentum after the last acoustic substep of
+# each stage instead of before the substeps (KE and moisture are solved after the stage either way)
 erf.implicit_before_substep     = false
 erf.implicit_thermal_diffusion  = true
 erf.implicit_moisture_diffusion = true
 erf.implicit_ke_diffusion       = true
-# The post-substep implicit momentum solve is not exercised here: it diverges on this deck
-# (erf.fixed_mri_dt_ratio > 2) and segfaults in ImplicitDiffForMomLU_N on a two-level deck
-erf.implicit_momentum_diffusion = false
+erf.implicit_momentum_diffusion = true
 
 erf.moisture_model = SatAdj
 
