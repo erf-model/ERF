@@ -4,6 +4,7 @@
 #include "ERF_Constants.H"
 #include "ERF_EddyViscosity.H"
 #include "ERF_RANSClosure.H"
+#include "ERF_CanopyTurbulence.H"
 #include "ERF_Diffusion.H"
 #include "ERF_PBLModels.H"
 #include "ERF_TileNoZ.H"

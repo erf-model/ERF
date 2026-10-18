@@ -5,11 +5,14 @@
 # geometric length everywhere. With uniform wind and k, every cell above the
 # reach of the bottom wall follows the same ODEs:
 #   du/dt = -f u |u|
-#   dk/dt = beta_p f |u|^3 + k expm1(-beta_d f |u| dt_s) / dt_s - Cmu0^3 k0^1.5 / L
-# where dt_s is the RK3 stage step (dt/3, dt/2, dt) and the dissipation uses
+#   dk/dt = beta_p f |u|^3 - beta_d f |u| k - Cmu0^3 k0^1.5 / L
+# Each RK3 stage (dt_s = dt/3, dt/2, dt, all from the start of the step) takes
+# the canopy terms exactly with production and sink frozen at the stage wind,
+#   k_s = k0 e^-x + (P / c)(1 - e^-x) - dt_s Cmu0^3 k0^1.5 / L,
+# x = c dt_s, P = beta_p f |u_s|^3, c = beta_d f |u_s|, and the dissipation uses
 # k0 = 0.500001 (prob.KE_0 plus erf.tke_min = 1e-6, added at initialisation) as the
 # closure is evaluated once per step. One step gives u = 4.8780542453793183 and
-# k = 1.0224377030133676. The bottom wall, which the RANS wall distance needs,
+# k = 1.0188194091496199. The bottom wall, which the RANS wall distance needs,
 # reaches three cells in one step; Tests/CTestList.cmake checks z >= 45 m.
 erf.prob_name = "ABL"
 max_step = 1
@@ -49,9 +52,3 @@ erf.check_int = -1
 erf.plot_file_1 = plt
 erf.plot_int_1  = 1
 erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta KE
-
-erf.subvol_file   = sub
-erf.subvol_int    = 1
-erf.subvol.origin = 0 0 80
-erf.subvol.nxnynz = 4 4 8
-erf.subvol.dxdydz = 10 10 10

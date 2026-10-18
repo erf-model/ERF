@@ -24,6 +24,30 @@ Real tol (Real factor = Real(100))
     return factor * std::numeric_limits<Real>::epsilon();
 }
 
+// Kernels live outside the TEST bodies: nvcc rejects extended device lambdas in
+// the private TestBody() that TEST generates
+void fill_face_velocity (amrex::MultiFab& xvel)
+{
+    for (amrex::MFIter mfi(xvel); mfi.isValid(); ++mfi) {
+        const auto& u = xvel.array(mfi);
+        amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            u(i, j, k) = Real(2) + Real(2) * Real(i);   // faces 2, 4, 6
+        });
+    }
+}
+
+void fill_forest_first_cell (amrex::MultiFab& forest, Real f)
+{
+    for (amrex::MFIter mfi(forest); mfi.isValid(); ++mfi) {
+        const auto& fd = forest.array(mfi);
+        amrex::ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            fd(i, j, k) = (i == 0) ? f : Real(0);
+        });
+    }
+}
+
 } // namespace
 
 // Defaults match the ForestDrag.canopy_* inputs of kynema-sgf (f/winsent):
@@ -88,36 +112,70 @@ TEST(CanopyTurbulence, LengthCapContinuous)
 // Outside the forest the source is exactly zero
 TEST(CanopyTurbulence, SourceZeroWithoutForest)
 {
-    EXPECT_EQ(canopy_turbulence::tke_source(Real(1.2), Real(0.5), Real(0), Real(5), Real(1), Real(4), Real(0.1)),
+    EXPECT_EQ(canopy_turbulence::tke_source(Real(1.2), Real(0.6), Real(0), Real(5), Real(1), Real(4), Real(0.1)),
               Real(0));
 }
 
-// With beta_d = 0 only the wake production rho beta_p f |U|^3 is left
+// With beta_d = 0 only the wake production rho beta_p f |U|^3 is left (phi1 = 1)
 TEST(CanopyTurbulence, SourceProductionOnly)
 {
     const Real rho = Real(1.2), f = Real(0.05), wind = Real(5), beta_p = Real(0.7);
-    EXPECT_NEAR(canopy_turbulence::tke_source(rho, Real(0.5), f, wind, beta_p, Real(0), Real(0.1)),
+    EXPECT_NEAR(canopy_turbulence::tke_source(rho, Real(0.6), f, wind, beta_p, Real(0), Real(0.1)),
                 rho * beta_p * f * wind * wind * wind, tol(Real(1000)));
 }
 
-// For beta_d f |U| dt << 1 the sink tends to the explicit -rho beta_d f |U| k
-TEST(CanopyTurbulence, SinkSmallTimeStep)
+// For beta_d f |U| dt << 1 the source tends to the explicit
+// rho beta_p f |U|^3 - beta_d f |U| (rho k)
+TEST(CanopyTurbulence, SourceSmallTimeStep)
 {
-    const Real rho = Real(1.2), tke = Real(0.5), f = Real(0.01), wind = Real(2), beta_d = Real(4);
+    const Real rho = Real(1.2), rhok = Real(0.6), f = Real(0.01), wind = Real(2);
     const Real dt = Real(1.0e-4);
-    const Real explicit_sink = -rho * beta_d * f * wind * tke;
-    const Real sink = canopy_turbulence::tke_source(rho, tke, f, wind, Real(0), beta_d, dt);
-    EXPECT_NEAR(sink, explicit_sink, Real(1.0e-5) * std::abs(explicit_sink));
+    const Real explicit_src = rho * f * wind * wind * wind - Real(4) * f * wind * rhok;
+    const Real src = canopy_turbulence::tke_source(rho, rhok, f, wind, Real(1), Real(4), dt);
+    EXPECT_NEAR(src, explicit_src, Real(1.0e-5) * std::abs(explicit_src));
 }
 
-// A dense canopy and a long step: the sink tends to -rho k / dt and never
-// removes more than the local k in one step
-TEST(CanopyTurbulence, SinkBoundedByLocalTKE)
+// The stage update (rho k)^n + dt S is the exact solution with production and
+// sink frozen, (rho k)^n e^-x + rho (P / c) (1 - e^-x), for small and large x
+TEST(CanopyTurbulence, StageUpdateIsExact)
 {
-    const Real rho = Real(1.2), tke = Real(0.5), dt = Real(10);
-    const Real sink = canopy_turbulence::tke_source(rho, tke, Real(1), Real(20), Real(0), Real(4), dt);
-    EXPECT_GE(sink, -rho * tke / dt);
-    EXPECT_NEAR(sink, -rho * tke / dt, tol(Real(1000)));
+    const Real rho = Real(1.2), rhok = Real(0.6), f = Real(0.2), wind = Real(5);
+    const Real beta_p = Real(1), beta_d = Real(4);
+    const Real P = beta_p * f * wind * wind * wind;
+    const Real c = beta_d * f * wind;
+    for (const Real dt : {Real(1.0e-3), Real(0.1), Real(1), Real(50)}) {
+        const Real x = c * dt;
+        const Real exact = rhok * std::exp(-x) + rho * (P / c) * (-std::expm1(-x));
+        const Real updated = rhok + dt * canopy_turbulence::tke_source(rho, rhok, f, wind,
+                                                                       beta_p, beta_d, dt);
+        EXPECT_NEAR(updated, exact, std::abs(exact) * tol(Real(1000))) << "dt = " << dt;
+    }
+}
+
+// The exact balance rho P / c is a steady state at any time step: the source is
+// zero there, so an RK stage never moves it (the per-stage form it replaces
+// settled at 1 + c dt / 2 times the balance)
+TEST(CanopyTurbulence, BalanceIsSteadyAtAnyTimeStep)
+{
+    const Real rho = Real(1.2), f = Real(0.2), wind = Real(5);
+    const Real rhok_eq = rho * (f * wind * wind * wind) / (Real(4) * f * wind);
+    for (const Real dt : {Real(0.01), Real(0.5), Real(2), Real(20)}) {
+        const Real src = canopy_turbulence::tke_source(rho, rhok_eq, f, wind, Real(1), Real(4), dt);
+        EXPECT_NEAR(src, Real(0), rho * f * wind * wind * wind * tol(Real(1000))) << "dt = " << dt;
+    }
+}
+
+// Without production, a dense canopy and a long step: the stage update tends to
+// zero from above and never removes more than (rho k)^n
+TEST(CanopyTurbulence, SinkBoundedByStartOfStepTKE)
+{
+    const Real rho = Real(1.2), rhok = Real(0.6);
+    for (const Real dt : {Real(0.1), Real(10), Real(1000)}) {
+        const Real src = canopy_turbulence::tke_source(rho, rhok, Real(1), Real(20), Real(0), Real(4), dt);
+        EXPECT_GE(rhok + dt * src, Real(0)) << "dt = " << dt;
+    }
+    const Real src = canopy_turbulence::tke_source(rho, rhok, Real(1), Real(20), Real(0), Real(4), Real(10));
+    EXPECT_NEAR(rhok + Real(10) * src, Real(0), rhok * tol(Real(1000)));
 }
 
 // The staged kernel: cell 0 is in the forest, cell 1 is not. The wind is the
@@ -145,27 +203,15 @@ TEST(CanopyTurbulence, KernelStagesSourceInCanopyCells)
     state.setVal(rho * tke, RhoKE_comp, 1);
     yvel.setVal(Real(1));
     zvel.setVal(Real(0));
-    for (MFIter mfi(xvel); mfi.isValid(); ++mfi) {
-        const auto& u = xvel.array(mfi);
-        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            u(i, j, k) = Real(2) + Real(2) * Real(i);   // faces 2, 4, 6
-        });
-    }
-    for (MFIter mfi(forest); mfi.isValid(); ++mfi) {
-        const auto& fd = forest.array(mfi);
-        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            fd(i, j, k) = (i == 0) ? f : Real(0);
-        });
-    }
+    fill_face_velocity(xvel);
+    fill_forest_first_cell(forest, f);
 
     CanopyTurbulence canopy;
     canopy.enabled = true;
-    AddCanopyTKESources(source, state, xvel, yvel, zvel, forest, canopy, dt);
+    AddCanopyTKESources(source, state, state, xvel, yvel, zvel, forest, canopy, dt);
 
     const Real wind0 = std::sqrt(Real(3) * Real(3) + Real(1));   // u = (2 + 4) / 2, v = 1
-    const Real expected = canopy_turbulence::tke_source(rho, tke, f, wind0, canopy.beta_p,
+    const Real expected = canopy_turbulence::tke_source(rho, rho * tke, f, wind0, canopy.beta_p,
                                                         canopy.beta_d, dt);
     // Reductions rather than host reads of the arrays, so the test also runs on a GPU
     // build: the canopy cell holds the (positive) source, the other cell zero, and no

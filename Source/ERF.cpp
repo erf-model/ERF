@@ -3913,11 +3913,15 @@ ERF::ReadParameters ()
         }
 
         bool keqn_on_every_level = true;
+        bool implicit_diss_on_every_level = true;
         for (int lev = 0; lev <= max_level; ++lev) {
             keqn_on_every_level = keqn_on_every_level &&
                                   (solverChoice.turbChoice[lev].rans_type == RANSType::kEqn);
+            implicit_diss_on_every_level = implicit_diss_on_every_level &&
+                                           solverChoice.turbChoice[lev].implicit_tke_dissipation;
         }
-        solverChoice.canopyTurb.check_config(solverChoice.do_forest_drag, keqn_on_every_level);
+        solverChoice.canopyTurb.check_config(solverChoice.do_forest_drag, keqn_on_every_level,
+                                             implicit_diss_on_every_level);
 
     }
 

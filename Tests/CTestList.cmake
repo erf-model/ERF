@@ -1380,9 +1380,12 @@ add_test_field_bounds(PBLH_FinePatch "plt2d00004" pblh 450.0 600.0)
 # k-eqn RANS canopy terms in a uniform, fully forested box: one step of the wind (drag with
 # density) and of k (wake production, short-circuit sink, length cap) against the ODEs in the
 # deck. The wall at the bottom (needed for the RANS wall distance) reaches three cells in one
-# step, so the check starts at z = 45 m. Reference: U 4.8780542453793183, k 1.0224377030133676.
-add_test_column_bounds(ForestCanopyRANS_Uniform "plt00001" 45
-    "x_velocity,KE" "4.8780542449,1.0224377029" "4.8780542459,1.0224377031")
+# step, so the check starts at z = 45 m. Reference: U 4.8780542453793183, k 1.0188194091496199.
+# The bounds are 1e-10 relative, so the test runs in double precision only.
+if(ERF_PRECISION STREQUAL "DOUBLE")
+  add_test_column_bounds(ForestCanopyRANS_Uniform "plt00001" 45
+      "x_velocity,KE" "4.87805424489,1.01881940905" "4.87805424587,1.01881940925")
+endif()
 # A refined patch aloft (256-768 m) has no column at the ground: it takes level 0's height (~461 m), not zero
 add_test_field_bounds(PBLH_PatchAloft "plt2d00004" pblh 400.0 600.0)
 # The same patch on one box and on 8 x 8 columns: the coarse heights the patch takes, and the
@@ -2002,27 +2005,38 @@ if(NOT WIN32)
 
 endif()
 
-# Input checks of the k-eqn RANS canopy terms (ERF_CanopyTurbulence.H)
-set(_canopy_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ForestCanopyRANS_Uniform)
-add_test_abort(ForestCanopyRANS_NeedsKEqn ${_canopy_dir} ForestCanopyRANS_Uniform.i
-               "needs erf.rans_type = kEqn on every"
-               "erf.rans_type=None erf.les_type=Smagorinsky erf.Cs=0.1")
-add_test_abort(ForestCanopyRANS_NeedsForest
-               ${CMAKE_CURRENT_SOURCE_DIR}/test_files/PBLH_FinePatch PBLH_FinePatch.i
-               "erf.forest_canopy_tke = true needs a forest"
-               "erf.forest_canopy_tke=1")
-add_test_abort(ForestCanopyRANS_BetaPRange ${_canopy_dir} ForestCanopyRANS_Uniform.i
-               "erf.forest_canopy_beta_p must be in"
-               "erf.forest_canopy_beta_p=1.5")
-add_test_abort(ForestCanopyRANS_BetaDRange ${_canopy_dir} ForestCanopyRANS_Uniform.i
-               "erf.forest_canopy_beta_d must be finite and not negative"
-               "erf.forest_canopy_beta_d=-1")
-add_test_abort(ForestCanopyRANS_AlphaRange ${_canopy_dir} ForestCanopyRANS_Uniform.i
-               "erf.forest_canopy_length_alpha must be in"
-               "erf.forest_canopy_length_alpha=1.5")
-add_test_abort(ForestCanopyRANS_CoefficientsNeedTKE ${_canopy_dir} ForestCanopyRANS_Uniform.i
-               "need erf.forest_canopy_tke = true"
-               "erf.forest_canopy_tke=0 erf.forest_canopy_beta_d=5")
+# Input checks of the k-eqn RANS canopy terms (ERF_CanopyTurbulence.H). add_test_abort
+# runs through sh and tee, so these stay off Windows like the other abort tests.
+if(NOT WIN32)
+  set(_canopy_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ForestCanopyRANS_Uniform)
+  add_test_abort(ForestCanopyRANS_NeedsKEqn ${_canopy_dir} ForestCanopyRANS_Uniform.i
+                 "needs erf.rans_type = kEqn on every"
+                 "erf.rans_type=None erf.les_type=Smagorinsky erf.Cs=0.1")
+  add_test_abort(ForestCanopyRANS_NeedsForest
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/PBLH_FinePatch PBLH_FinePatch.i
+                 "erf.forest_canopy_tke = true needs a forest"
+                 "erf.forest_canopy_tke=1")
+  add_test_abort(ForestCanopyRANS_BetaPRange ${_canopy_dir} ForestCanopyRANS_Uniform.i
+                 "erf.forest_canopy_beta_p must be in"
+                 "erf.forest_canopy_beta_p=1.5")
+  add_test_abort(ForestCanopyRANS_BetaDRange ${_canopy_dir} ForestCanopyRANS_Uniform.i
+                 "erf.forest_canopy_beta_d must be finite and not negative"
+                 "erf.forest_canopy_beta_d=-1")
+  add_test_abort(ForestCanopyRANS_AlphaRange ${_canopy_dir} ForestCanopyRANS_Uniform.i
+                 "erf.forest_canopy_length_alpha must be in"
+                 "erf.forest_canopy_length_alpha=1.5")
+  add_test_abort(ForestCanopyRANS_CoefficientsNeedTKE ${_canopy_dir} ForestCanopyRANS_Uniform.i
+                 "need erf.forest_canopy_tke = true"
+                 "erf.forest_canopy_tke=0 erf.forest_canopy_beta_d=5")
+  # kEqn on level 0 only: the canopy terms would act on part of the hierarchy
+  add_test_abort(ForestCanopyRANS_NeedsKEqnOnEveryLevel
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/PBLH_FinePatch PBLH_FinePatch.i
+                 "needs erf.rans_type = kEqn on every"
+                 "erf.forest_file=${_canopy_dir}/forest_uniform.txt erf.forest_canopy_tke=1 erf.rans_type=kEqn None erf.les_type=None Smagorinsky erf.Cs=0.1")
+  add_test_abort(ForestCanopyRANS_AllZeroCoefficients ${_canopy_dir} ForestCanopyRANS_Uniform.i
+                 "would change nothing"
+                 "erf.forest_canopy_beta_p=0 erf.forest_canopy_beta_d=0 erf.forest_canopy_length_alpha=0")
+endif()
 
 if(ERF_ENABLE_MPI AND NOT WIN32)
   # A shallow nest -- a fine level that stops below the domain top -- has no complete

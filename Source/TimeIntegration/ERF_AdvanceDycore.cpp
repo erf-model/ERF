@@ -13,6 +13,7 @@
 #include <ERF_EBRedistribute.H>
 #include <ERF_PlaneAverage.H>
 #include <ERF_CanopyBiophysics.H>
+#include <ERF_CanopyTurbulence.H>
 #include <ERF_SBMOwnership.H>
 
 using namespace amrex;

@@ -21,7 +21,7 @@
 #include "ERF_TurbPertStruct.H"
 #include "ERF_RadStruct.H"
 #include "ERF_ShocTransportStruct.H"
-#include "ERF_CanopyTurbulence.H"
+#include "ERF_CanopyTurbStruct.H"
 
 /**
  * Enum of possible plotfile types.
@@ -2654,7 +2654,7 @@ struct SolverChoice {
     bool        forest_biophysics       {false};
     bool        forest_biophysics_heat  {false};
     amrex::Real forest_leaf_theta_fixed {-one};
-    // Canopy terms of the k-eqn RANS model (ERF_CanopyTurbulence.H)
+    // Canopy terms of the k-eqn RANS model (ERF_CanopyTurbStruct.H)
     CanopyTurbulence canopyTurb;
 
     // Enforce constant mass flux?
