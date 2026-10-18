@@ -1,6 +1,7 @@
 # Run one ERF deck and require the extrema of one plotfile variable to lie within [LO, HI].
 # Arguments (-D): MPIEXEC, MPIEXEC_NUMPROC_FLAG, MPIEXEC_PREFLAGS, NRANKS, TEST_EXE, INPUT,
-# WORKING_DIRECTORY, FEXTREMA, PLTFILE, VARIABLE, LO, HI.
+# WORKING_DIRECTORY, FEXTREMA, PLTFILE, VARIABLE, LO, HI, and optionally PRE_INPUT: a deck run
+# first in the same folder, e.g. one that writes the boundary planes INPUT reads.
 cmake_minimum_required(VERSION 3.20)
 include(${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake)
 
@@ -25,6 +26,19 @@ erf_mpi_launcher_command(_launch_one
 
 # a plotfile left by an earlier run must not satisfy the check
 file(REMOVE_RECURSE "${WORKING_DIRECTORY}/${PLTFILE}")
+
+if(DEFINED PRE_INPUT AND NOT "${PRE_INPUT}" STREQUAL "")
+    execute_process(
+        COMMAND ${_launch} ${TEST_EXE} ${PRE_INPUT}
+        WORKING_DIRECTORY ${WORKING_DIRECTORY}
+        OUTPUT_FILE ${WORKING_DIRECTORY}/pre_simulation.log
+        ERROR_FILE  ${WORKING_DIRECTORY}/pre_simulation.log
+        RESULT_VARIABLE pre_result)
+    if(NOT pre_result EQUAL 0)
+        message(FATAL_ERROR "RunFieldBounds.cmake: the first run (${PRE_INPUT}) failed (${pre_result}); "
+                            "see pre_simulation.log")
+    endif()
+endif()
 
 execute_process(
     COMMAND ${_launch} ${TEST_EXE} ${INPUT}
