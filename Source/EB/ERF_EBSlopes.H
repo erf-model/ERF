@@ -65,8 +65,8 @@ erf_calc_slopes_eb_Dirichlet (
 /**
  * \brief Compute least-squares slopes from staggered data using EB Dirichlet data.
  *
- * @param[in] igrid_query Grid index for the query location.
- * @param[in] igrid_data Grid index for the data locations.
+ * @tparam GridQuery Grid index for the query location.
+ * @tparam GridData Grid index for the data locations.
  * @param[in] dx Mesh spacing in x.
  * @param[in] dy Mesh spacing in y.
  * @param[in] dz Mesh spacing in z.
@@ -79,10 +79,10 @@ erf_calc_slopes_eb_Dirichlet (
  * @param[in] ccent Cell centroid coordinates.
  * @param[in] flag EB flags on the data grid.
  */
+template <int GridQuery, int GridData>
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>
-erf_calc_slopes_eb_Dirichlet_staggered (int igrid_query,
-                    int igrid_data,
+erf_calc_slopes_eb_Dirichlet_staggered (
                     amrex::Real dx, amrex::Real dy, amrex::Real dz,
                     int i, int j, int k,
                     amrex::RealVect const& bcent_eb,
@@ -91,35 +91,23 @@ erf_calc_slopes_eb_Dirichlet_staggered (int igrid_query,
                     amrex::Array4<amrex::Real const> const& ccent,
                     amrex::Array4<amrex::EBCellFlag const> const& flag)
 {
+    static_assert(GridQuery == Vars::xvel || GridQuery == Vars::yvel ||
+                  GridQuery == Vars::zvel);
+    static_assert(GridData == Vars::xvel || GridData == Vars::yvel ||
+                  GridData == Vars::zvel);
+
     // Fitting stencil
-
-    int ii_lo = -1;
-    int jj_lo = -1;
-    int kk_lo = -1;
-    int ii_hi = 1;
-    int jj_hi = 1;
-    int kk_hi = 1;
-
-    if (igrid_query == Vars::xvel) {
-        ii_lo = -2;
-    } else if (igrid_query == Vars::yvel) {
-        jj_lo = -2;
-    } else if (igrid_query == Vars::zvel) {
-        kk_lo = -2;
-    }
-
-    if (igrid_data == Vars::xvel) {
-        ii_hi = 2;
-    } else if (igrid_data == Vars::yvel) {
-        jj_hi = 2;
-    } else if (igrid_data == Vars::zvel) {
-        kk_hi = 2;
-    }
+    constexpr int ii_lo = (GridQuery == Vars::xvel) ? -2 : -1;
+    constexpr int jj_lo = (GridQuery == Vars::yvel) ? -2 : -1;
+    constexpr int kk_lo = (GridQuery == Vars::zvel) ? -2 : -1;
+    constexpr int ii_hi = (GridData  == Vars::xvel) ?  2 :  1;
+    constexpr int jj_hi = (GridData  == Vars::yvel) ?  2 :  1;
+    constexpr int kk_hi = (GridData  == Vars::zvel) ?  2 :  1;
 
     // Set bias in the index space between the two staggered grids
     amrex::RealVect bias{zero,zero,zero};
-    bias[igrid_query-1] = myhalf;
-    bias[igrid_data-1] = -myhalf;
+    bias[GridQuery-1] = myhalf;
+    bias[GridData-1] = -myhalf;
 
     amrex::EBSlopeNormalEquation normal_eq;
 
