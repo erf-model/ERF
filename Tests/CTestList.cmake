@@ -1680,9 +1680,8 @@ add_test_r(ABL_MOST_IMP_DIFF_TKE
     "erf_exec"
     "plt00010"
     FCOMPARE_ATOL "4.0e-10")
-# ABL_MOST_IMP_DIFF_TKE with erf.implicit_before_substep = false: the vertical implicit solve of
-# theta (ERF_ImplicitPre.H) runs after the last acoustic substep of each stage.  Momentum is
-# left explicit, since the post-substep momentum solve is broken (see the deck).
+# ABL_MOST_IMP_DIFF_TKE with erf.implicit_before_substep = false: the vertical implicit solves of
+# theta and momentum (ERF_ImplicitPre.H) run after the last acoustic substep of each stage
 add_test_r(ABL_MOST_IMP_DIFF_PostSubstep     ""  "erf_exec" "plt00010")
 if(ERF_ENABLE_FFT)
     add_test_r(ABL_MOST_Cloudchamber         ""  "erf_exec" "plt00010")
@@ -2138,13 +2137,21 @@ add_test_r(CouetteFlow_ImplicitCF            "" "erf_exec" "plt00050"
 add_test_r(MoistDiffusion_ImplicitCF         "" "erf_exec" "plt00200"
            FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "1.0e-7")
 
+# CouetteFlow_ImplicitCF with the implicit solves after the last acoustic substep of each stage
+# (erf.implicit_before_substep = false).  Until erf-model/ERF#4333 was fixed the new state's ghost
+# cells were not filled before those solves, and the momentum solve divided by a zero wall density
+add_test_r(CouetteFlow_ImplicitCF_PostSubstep "" "erf_exec" "plt00050"
+           FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "1.0e-7")
+
 # Two-way coupling refluxes the diffusive as well as the advective fluxes, so in a closed domain the
 # composite integral of a scalar is conserved across coarse/fine faces whatever transports it.
 # Moisture diffuses through a face normal to z, with the vertical diffusion implicit (the deck as
 # it stands, on a flat, a stretched and a terrain-fitted mesh) and explicit.  A scalar diffuses
 # through faces normal to x, y and z: on a flat, a terrain-fitted (flat terrain and a hill) and a
-# stretched mesh, with map factors, with 2 x 2 x 1 refinement, with the anelastic integrator, and
-# advected by a sheared flow with Smagorinsky diffusion alone
+# stretched mesh, with map factors, with 2 x 2 x 1 refinement, with the anelastic MidPoint and RK2
+# integrators, and advected by a sheared flow with Smagorinsky diffusion alone.  The RK2 integrator
+# applies the fluxes of both of its stages, so it is also run with the scalar advected and not
+# diffused
 set(_moist_cons_options "max_step=100 erf.plot_int_1=-1")
 add_test_conservation(Conservation_MoistDiffusion_Implicit MoistDiffusion_ImplicitCF "RHO QTOTAL"
     OPTIONS "${_moist_cons_options}")
@@ -2167,6 +2174,10 @@ add_test_conservation(Conservation_ScalarDiffusion_Ratio221  ScalarDiffusion_Ref
     OPTIONS "'amr.ref_ratio_vect=2 2 1'")
 add_test_conservation(Conservation_ScalarDiffusion_Anelastic ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.anelastic=1 erf.anelastic_type=MidPoint")
+add_test_conservation(Conservation_ScalarDiffusion_AnelasticRK2 ScalarDiffusion_Reflux "RHO SCALAR"
+    OPTIONS "erf.anelastic=1 erf.anelastic_type=RK2")
+add_test_conservation(Conservation_ScalarAdvection_AnelasticRK2 ScalarDiffusion_Reflux "RHO SCALAR"
+    OPTIONS "erf.anelastic=1 erf.anelastic_type=RK2 erf.molec_diff_type=None prob.U_0=10 prob.V_0=5")
 add_test_conservation(Conservation_ScalarDiffusion_Smagorinsky ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.molec_diff_type=None erf.les_type=Smagorinsky erf.Cs=0.2 prob.prob_type=12 prob.rad_0=0.25 prob.uRef=10 prob.zRef=1 prob.z0=0.01")
 add_test_0(PoiseuilleFlow_x                  "" "erf_exec" "plt00010")
@@ -3574,6 +3585,78 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                    "Loosen erf.poisson_reltol / erf.poisson_abstol"
                    "erf.terrain_poisson_solver=mlmg erf.poisson_reltol=1e-30 erf.poisson_abstol=1e-30")
   endif()
+endif()
+
+# Terrain text files (erf.terrain_file_name; Source/Utils/ERF_TerrainFileChecks.H).  The deck
+# is an 800 m x 400 m channel over a north-south ridge with inflow at xlo and outflow at xhi;
+# make_tables.py writes the tables.  A malformed or mis-ordered file stops the run with the
+# problem named; the base reader accepted four of these and stopped on two without naming
+# the file or the problem.  A valid file prints where
+# its highest point and steepest slopes sit and the order its heights are read in.
+if(NOT WIN32)
+  set(_tf_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TerrainFileChecks)
+  foreach(_tf_case
+      "SwappedLists|swapped_lists.txt|the x values 0 .. 400 do not cover the domain 0 .. 800"
+      "XNotIncreasing|x_not_increasing.txt|the x values must increase strictly, but x\\[6\\] = 250 follows x\\[5\\] = 300"
+      "TooFewValues|too_few_values.txt|the file ends at line 180"
+      "ExtraValues|extra_values.txt|text after line 181"
+      "TwoPerLine|two_per_line.txt|line 41 has text after the value"
+      "ShortOfDomain|short_of_domain.txt|the x values 0 .. 700 do not cover the domain 0 .. 800")
+    string(REPLACE "|" ";" _tf_parts "${_tf_case}")
+    list(GET _tf_parts 0 _tf_name)
+    list(GET _tf_parts 1 _tf_file)
+    list(GET _tf_parts 2 _tf_message)
+    add_test_abort(TerrainFile_Abort_${_tf_name} ${_tf_dir} TerrainFileChecks.i
+                   "${_tf_message}" "erf.terrain_file_name=${_tf_file}")
+  endforeach()
+
+  # The ridge in the middle: the summary names the read order and the slope of the ridge,
+  # and the gentle terrain next to the inflow and outflow faces gives no warning
+  add_test_abort(TerrainFile_Summary ${_tf_dir} TerrainFileChecks.i
+                 "y varies fastest, height n is at \\(x\\[n / ny\\], y\\[n % ny\\]\\).*largest \\|dh/dx\\| 0\\.819[0-9]* at \\(325, 0\\), largest \\|dh/dy\\| 0 at"
+                 "erf.terrain_file_name=ridge_middle.txt")
+  set_tests_properties(TerrainFile_Summary PROPERTIES FAIL_REGULAR_EXPRESSION "WARNING: at level;Abort")
+  # The ridge next to the outflow face (|dh/dx| up to 0.82 there) gives the warning ...
+  add_test_abort(TerrainFile_SteepOutflowWarns ${_tf_dir} TerrainFileChecks.i
+                 "WARNING: at level 0 the terrain slope \\|grad h\\| reaches 0\\.[78][0-9]* within 2 cells of the xhi face \\(Outflow\\)"
+                 "erf.terrain_file_name=ridge_outflow.txt")
+  set_tests_properties(TerrainFile_SteepOutflowWarns PROPERTIES FAIL_REGULAR_EXPRESSION "xlo face;Abort")
+  # ... but not next to a wall, nor with a steep-terrain option on (the runs must finish):
+  # erf.diffusive_dt_limit, and erf.smag2d_kh_cap with Smagorinsky2D
+  add_test_abort(TerrainFile_SteepWallQuiet ${_tf_dir} TerrainFileChecks.i
+                 "AMReX \\(.*\\) finalized"
+                 "erf.terrain_file_name=ridge_outflow.txt xhi.type=SlipWall")
+  add_test_abort(TerrainFile_SteepOptionQuiet ${_tf_dir} TerrainFileChecks.i
+                 "AMReX \\(.*\\) finalized"
+                 "erf.terrain_file_name=ridge_outflow.txt erf.diffusive_dt_limit=true erf.les_type=Smagorinsky erf.Cs=0.1")
+  add_test_abort(TerrainFile_SteepSmag2DQuiet ${_tf_dir} TerrainFileChecks.i
+                 "AMReX \\(.*\\) finalized"
+                 "erf.terrain_file_name=ridge_outflow.txt erf.les_type=Smagorinsky2D erf.Cs=0.1 erf.smag2d_kh_cap=10")
+  set_tests_properties(TerrainFile_SteepWallQuiet TerrainFile_SteepOptionQuiet TerrainFile_SteepSmag2DQuiet
+                       PROPERTIES FAIL_REGULAR_EXPRESSION "WARNING: at level;Abort")
+  # A fine level that reaches the outflow face only after a regrid: a box moving towards
+  # xhi (x 200-400 m at the start, past 700 m after the first step) is checked when its
+  # grids change, not only at start-up
+  add_test_abort(TerrainFile_SteepAfterRegrid ${_tf_dir} TerrainFileChecks.i
+                 "WARNING: at level 1 the terrain slope \\|grad h\\| reaches 0\\.[78][0-9]* within 2 cells of the xhi face"
+                 "erf.terrain_file_name=ridge_outflow.txt max_step=3 amr.max_level=1 erf.regrid_int=1 erf.refinement_indicators=box1 erf.box1.in_box_lo=200 0 erf.box1.in_box_hi=400 400 erf.box1.move_start_time=0 erf.box1.move_stop_time=1 erf.box1.move_speed_x=4000 erf.box1.move_speed_y=0")
+  # A single row (ny = 1) is a profile constant in y, as the reader always allowed
+  add_test_abort(TerrainFile_OneRow ${_tf_dir} TerrainFileChecks.i
+                 "one y value: constant in y"
+                 "erf.terrain_file_name=one_row.txt")
+  set_tests_properties(TerrainFile_OneRow PROPERTIES FAIL_REGULAR_EXPRESSION "Abort")
+  # The USGS layout: a valid file is summarised; a truncated extra line and a y that
+  # changes within a row stop the run (the base reader accepted both)
+  add_test_abort(TerrainFile_USGS_Summary ${_tf_dir} TerrainFileChecksUSGS.i
+                 "x varies fastest, height n is at \\(x\\[n\\], y\\[n / nx\\]\\).*largest \\|dh/dx\\| 0\\.819[0-9]* at \\(325, 0\\)"
+                 "erf.terrain_file_name_USGS=usgs_ridge.txt")
+  set_tests_properties(TerrainFile_USGS_Summary PROPERTIES FAIL_REGULAR_EXPRESSION "Abort")
+  add_test_abort(TerrainFile_Abort_USGSTruncated ${_tf_dir} TerrainFileChecksUSGS.i
+                 "line 156 must hold exactly three numbers, x y height: '24.87 0'"
+                 "erf.terrain_file_name_USGS=usgs_truncated.txt")
+  add_test_abort(TerrainFile_Abort_USGSYInRow ${_tf_dir} TerrainFileChecksUSGS.i
+                 "y changes within row 2 \\(line 40\\)"
+                 "erf.terrain_file_name_USGS=usgs_y_in_row.txt")
 endif()
 
 #=============================================================================
