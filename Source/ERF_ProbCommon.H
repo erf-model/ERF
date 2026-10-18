@@ -7,6 +7,8 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <type_traits>
+#include <limits>
 
 #include <AMReX_ParmParse.H>
 #include <AMReX_Geometry.H>
@@ -35,7 +37,7 @@ struct ProbParmDefaults {
 /**
  * Read one number from line n of a text file that holds one number per line.
  * Aborts, naming the file and the line, on a line that is missing, is not a
- * number, or holds more than one number.
+ * number (a whole number for T = int), or has text after the number.
  */
 template <typename T>
 T erf_get_single_value (std::istream& is, int n, const std::string& fname)
@@ -51,9 +53,17 @@ T erf_get_single_value (std::istream& is, int n, const std::string& fname)
     }
     std::string extra;
     if (ss >> extra) {
-      amrex::Abort("Terrain file " + fname + ": line " + std::to_string(n) + " holds more than"
-                   + " one value: '" + line + "'; the file has one value per line");
+      if (std::is_integral_v<T> && (extra[0] == '.' || extra[0] == 'e' || extra[0] == 'E')) {
+        amrex::Abort("Terrain file " + fname + ": line " + std::to_string(n) + " must be a whole"
+                     + " number (nx or ny): '" + line + "'");
+      }
+      amrex::Abort("Terrain file " + fname + ": line " + std::to_string(n) + " has text after"
+                   + " the value: '" + line + "'; the file has one value per line, with no"
+                   + " other text");
     }
+  } else if (n <= 2) {
+    amrex::Abort("Terrain file " + fname + ": the file ends at line " + std::to_string(n-1)
+                 + "; lines 1 and 2 must give nx and ny");
   } else {
     amrex::Abort("Terrain file " + fname + ": the file ends at line " + std::to_string(n-1)
                  + ", but nx and ny ask for nx + ny + nx*ny values after them");
@@ -893,7 +903,10 @@ public:
             if (is_usgs) {
                 amrex::Real lat_min, lon_min;
 
-                file >> lon_min >> lat_min;
+                if (!(file >> lon_min >> lat_min)) {
+                    amrex::Abort("Terrain file " + fname + ": the first line must give the longitude"
+                                 " and latitude of the origin");
+                }
                  if(std::fabs(lon_min) > amrex::Real(180.0)) {
                     amrex::Error("The value of longitude for entry in the first line in " + fname
                                  + " should not exceed amrex::Real(180.) It is " + std::to_string(lon_min));
@@ -908,11 +921,20 @@ public:
                                  " both at least 2");
                 }
 
+                if (amrex::Long(nx) * amrex::Long(ny) > amrex::Long(std::numeric_limits<int>::max())) {
+                    amrex::Abort("Terrain file " + fname + ": nx*ny is too large");
+                }
+
                 int counter = 0;
                 while (file >> value1 >> value2 >> value3) {
                     m_xterrain.push_back(value1);
                     if(counter%nx==0) {
                         m_yterrain.push_back(value2);
+                    } else if (value2 != m_yterrain.back()) {
+                        // Only the first y of each row is used: the rest must repeat it
+                        amrex::Abort("Terrain file " + fname + ": y changes within row "
+                                     + std::to_string(counter/nx) + " (line " + std::to_string(counter+3)
+                                     + "); each row of nx points must share one y, with x varying fastest");
                     }
                     m_zterrain.push_back(value3);
                     counter += 1;
@@ -929,13 +951,16 @@ public:
                 int cnt = 1;
                 nx = erf_get_single_value<int>(file,cnt,fname); cnt++;
                 ny = erf_get_single_value<int>(file,cnt,fname); cnt++;
-                amrex::Print()<<"Expecting " << nx << " values of x,    " <<
-                                                ny << " values of y, and " <<
-                                             nx*ny << " values of z" << std::endl;
                 if (nx < 2 || ny < 2) {
                     amrex::Abort("Terrain file " + fname + ": nx = " + std::to_string(nx) + " and ny = "
                                  + std::to_string(ny) + " (lines 1 and 2) must both be at least 2");
                 }
+                if (amrex::Long(nx) * amrex::Long(ny) > amrex::Long(std::numeric_limits<int>::max())) {
+                    amrex::Abort("Terrain file " + fname + ": nx*ny is too large");
+                }
+                amrex::Print()<<"Expecting " << nx << " values of x,    " <<
+                                                ny << " values of y, and " <<
+                                             nx*ny << " values of z" << std::endl;
                 m_xterrain.resize(nx);
                 m_yterrain.resize(ny);
                 m_zterrain.resize(nx * ny);
@@ -1187,8 +1212,7 @@ public:
             } // usgs?
         });
 
-        // The kernel reads the device vectors above, and callers may read terrain_fab on the
-        // host next; finish it before the vectors are freed and the caller reads
+        // The kernel reads the device vectors above: finish it before they are freed
         amrex::Gpu::streamSynchronize();
     }
 

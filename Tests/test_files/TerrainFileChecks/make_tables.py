@@ -8,7 +8,7 @@ lists are swapped does not cover it.  The ridge runs north-south (along y), so
 its slope is all in x.
 
   ridge_middle.txt     ridge at x = 400 m: gentle next to the inflow and outflow faces
-  ridge_outflow.txt    ridge at x = 700 m: |dh/dx| up to about 0.9 next to the outflow face
+  ridge_outflow.txt    ridge at x = 700 m: |dh/dx| up to 0.82 next to the outflow face
   swapped_lists.txt    ridge_middle with nx/ny and the x/y lists swapped
   x_not_increasing.txt ridge_middle with two x values exchanged
   too_few_values.txt   ridge_middle without its last height

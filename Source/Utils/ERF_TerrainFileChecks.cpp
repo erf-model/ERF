@@ -7,6 +7,8 @@
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Reduce.H>
 
+#include <cmath>
+#include <limits>
 #include <sstream>
 
 using namespace amrex;
@@ -29,7 +31,9 @@ z_at (bool is_usgs, int nx, int ny, const Vector<Real>& z, int i, int j)
 }
 
 // The problem with a strictly increasing list of n values v(0..n-1) spanning [lo, hi], or "".
-// Each end may stop at most one spacing of the list (plus a rounding allowance) inside the domain.
+// Each end may stop at most one spacing of the list inside the domain.  The allowance on top is
+// 1e-3 of that spacing (coordinates written with a few digits) plus a few ulp of the coordinates
+// (single precision at map offsets).
 template <typename F>
 std::string
 list_problem (const char* name, int n, F v, Real lo, Real hi)
@@ -42,14 +46,19 @@ list_problem (const char* name, int n, F v, Real lo, Real hi)
             return os.str();
         }
     }
-    const Real slack = Real(1.e-6) * (hi - lo);
+    const Real ulps = Real(8.) * std::numeric_limits<Real>::epsilon()
+                    * amrex::max(std::abs(lo), std::abs(hi));
+    const Real d_lo = v(1) - v(0);
+    const Real d_hi = v(n-1) - v(n-2);
     const Real gap_lo = v(0) - lo;
     const Real gap_hi = hi - v(n-1);
-    if (gap_lo > (v(1) - v(0)) + slack || gap_hi > (v(n-1) - v(n-2)) + slack) {
+    if (gap_lo > d_lo + Real(1.e-3)*d_lo + ulps || gap_hi > d_hi + Real(1.e-3)*d_hi + ulps) {
         std::ostringstream os;
         os << "the " << name << " values " << v(0) << " .. " << v(n-1) << " do not cover the domain "
            << lo << " .. " << hi << ": each end may stop at most one table spacing inside the"
-           << " domain, since heights beyond the table would be held at its edge value";
+           << " domain, since the reader only extends the heights from the edge of the table"
+           << " (linearly before its first point, and in the ERF format by holding the last"
+           << " value after its last point)";
         return os.str();
     }
     return "";
@@ -210,9 +219,11 @@ OpenFaceSlopeWarning (int lev, int band,
         }
     }
     if (os.str().empty()) { return ""; }
-    os << "    No steep-terrain option is on (erf.smag2d_slope_limiter, erf.smag2d_kh_cap,"
-       << " erf.implicit_terrain_metric, erf.diffusive_dt_limit); consider one of them, or"
-       << " flatten the terrain next to inflow and outflow faces\n";
+    os << "    Flattening the terrain within " << band << " cells of inflow and outflow faces avoids"
+       << " this.  With an eddy-diffusivity closure, erf.smag2d_slope_limiter or"
+       << " erf.smag2d_kh_cap (Smagorinsky2D), erf.implicit_terrain_metric (needs"
+       << " erf.vert_implicit_fac > 0) or erf.diffusive_dt_limit limit the terrain-metric"
+       << " diffusion on steep cells; none of them is on here\n";
     return os.str();
 }
 

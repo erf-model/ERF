@@ -3579,7 +3579,8 @@ endif()
 # Terrain text files (erf.terrain_file_name; Source/Utils/ERF_TerrainFileChecks.H).  The deck
 # is an 800 m x 400 m channel over a north-south ridge with inflow at xlo and outflow at xhi;
 # make_tables.py writes the tables.  A malformed or mis-ordered file stops the run with the
-# problem named; the base reader read each of these without a word.  A valid file prints where
+# problem named; the base reader accepted four of these and stopped on two without naming
+# the file or the problem.  A valid file prints where
 # its highest point and steepest slopes sit and the order its heights are read in.
 if(NOT WIN32)
   set(_tf_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TerrainFileChecks)
@@ -3588,7 +3589,7 @@ if(NOT WIN32)
       "XNotIncreasing|x_not_increasing.txt|the x values must increase strictly, but x\\[6\\] = 250 follows x\\[5\\] = 300"
       "TooFewValues|too_few_values.txt|the file ends at line 180"
       "ExtraValues|extra_values.txt|text after line 181"
-      "TwoPerLine|two_per_line.txt|line 41 holds more than one value"
+      "TwoPerLine|two_per_line.txt|line 41 has text after the value"
       "ShortOfDomain|short_of_domain.txt|the x values 0 .. 700 do not cover the domain 0 .. 800")
     string(REPLACE "|" ";" _tf_parts "${_tf_case}")
     list(GET _tf_parts 0 _tf_name)
@@ -3609,14 +3610,18 @@ if(NOT WIN32)
                  "WARNING: at level 0 the terrain slope \\|grad h\\| reaches 0.8[0-9]* within 2 cells of the xhi face \\(Outflow\\)"
                  "erf.terrain_file_name=ridge_outflow.txt")
   set_tests_properties(TerrainFile_SteepOutflowWarns PROPERTIES FAIL_REGULAR_EXPRESSION "xlo face;Abort")
-  # ... but not next to a wall, nor with a steep-terrain option on (both runs must finish)
+  # ... but not next to a wall, nor with a steep-terrain option on (the runs must finish):
+  # erf.diffusive_dt_limit, and erf.smag2d_kh_cap with Smagorinsky2D
   add_test_abort(TerrainFile_SteepWallQuiet ${_tf_dir} TerrainFileChecks.i
                  "AMReX \\(.*\\) finalized"
                  "erf.terrain_file_name=ridge_outflow.txt xhi.type=SlipWall")
   add_test_abort(TerrainFile_SteepOptionQuiet ${_tf_dir} TerrainFileChecks.i
                  "AMReX \\(.*\\) finalized"
                  "erf.terrain_file_name=ridge_outflow.txt erf.diffusive_dt_limit=true erf.les_type=Smagorinsky erf.Cs=0.1")
-  set_tests_properties(TerrainFile_SteepWallQuiet TerrainFile_SteepOptionQuiet
+  add_test_abort(TerrainFile_SteepSmag2DQuiet ${_tf_dir} TerrainFileChecks.i
+                 "AMReX \\(.*\\) finalized"
+                 "erf.terrain_file_name=ridge_outflow.txt erf.les_type=Smagorinsky2D erf.Cs=0.1 erf.smag2d_kh_cap=10")
+  set_tests_properties(TerrainFile_SteepWallQuiet TerrainFile_SteepOptionQuiet TerrainFile_SteepSmag2DQuiet
                        PROPERTIES FAIL_REGULAR_EXPRESSION "WARNING: at level;Abort")
 endif()
 

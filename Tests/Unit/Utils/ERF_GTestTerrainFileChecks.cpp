@@ -97,6 +97,35 @@ TEST(TerrainFileChecks, CoverageLimitIsOneTableSpacing)
     EXPECT_NE(problem(t, false, 0, 800, 0, 451).find("y values 0 .. 400 do not cover"), std::string::npos);
 }
 
+TEST(TerrainFileChecks, AcceptsPerCellTablesWithRoundedCoordinates)
+{
+    // 128 cells of 46.875 m over 0 .. 6000 m, one height per cell, coordinates written with
+    // six significant digits (Python's %g): the last x is 5953.12, so the gap at the top
+    // (46.88 m) exceeds the last spacing (46.87 m) by rounding alone
+    Table t(Real(0.), Real(0.));
+    t.nx = 128; t.ny = 2;
+    t.x.clear();
+    for (int i = 0; i < t.nx; ++i) {
+        t.x.push_back(std::round(Real(46.875) * Real(i) * Real(100.)) / Real(100.));
+    }
+    t.x[t.nx-1] = Real(5953.12);
+    t.x[t.nx-2] = Real(5906.25);
+    t.y = {Real(0.), Real(10.)};
+    t.z.assign(t.nx*t.ny, Real(0.));
+    EXPECT_EQ(problem(t, false, 0, 6000, 0, 20), "");
+    // ... while stopping two cells short still fails
+    EXPECT_NE(problem(t, false, 0, 6046.875, 0, 20).find("do not cover the domain"), std::string::npos);
+
+    // Map coordinates: x from 500000 m, 48 cells of 13.3333 m; one cell short at the top
+    Table u(Real(0.), Real(0.));
+    u.nx = 48; u.ny = 2;
+    u.x.clear();
+    for (int i = 0; i < u.nx; ++i) { u.x.push_back(Real(500000.) + Real(640.) * Real(i) / Real(48.)); }
+    u.y = {Real(0.), Real(10.)};
+    u.z.assign(u.nx*u.ny, Real(0.));
+    EXPECT_EQ(problem(u, false, 500000, 500640, 0, 20), "");
+}
+
 TEST(TerrainFileChecks, RejectsSwappedLists)
 {
     // nx/ny and the x/y lists exchanged: on a domain that is not square the x list falls short
@@ -179,7 +208,7 @@ TEST(TerrainFileChecks, SummaryGivesOrderExtremesAndSlopes)
 TEST(TerrainFileChecks, SurfaceSlopeOfAPlane)
 {
     const Box nodes(IntVect(0,0,0), IntVect(1,1,0), IntVect(1,1,1));
-    FArrayBox fab(nodes, 1);
+    FArrayBox fab(nodes, 1, The_Pinned_Arena());   // written and read on the host
     const Real a = Real(0.3), b = Real(-0.4), dx = Real(20.), dy = Real(10.);
     auto z = fab.array();
     for (int j = 0; j <= 1; ++j) {
@@ -228,5 +257,6 @@ TEST(TerrainFileChecks, OpenFaceWarningOnlyForSteepOpenFaces)
     EXPECT_NE(w.find("WARNING: at level 1 the terrain slope |grad h| reaches 0.45 within 3 cells of the xhi face (Outflow)"),
               std::string::npos) << w;
     EXPECT_EQ(w.find("xlo face"), std::string::npos) << w;
-    EXPECT_NE(w.find("No steep-terrain option is on"), std::string::npos) << w;
+    EXPECT_NE(w.find("Flattening the terrain within 3 cells"), std::string::npos) << w;
+    EXPECT_NE(w.find("none of them is on here"), std::string::npos) << w;
 }

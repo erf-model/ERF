@@ -968,7 +968,7 @@ ERF::InitData_pre ()
 
 /**
  * Warn at start-up when the terrain next to an inflow or outflow face is steep and no
- * steep-terrain option is on.  Only on a terrain-fitted mesh without real-data lateral
+ * steep-terrain option is on (erf.smag2d_slope_limiter and erf.smag2d_kh_cap per level).  Only on a terrain-fitted mesh without real-data lateral
  * boundaries; the band is the cells whose stencils read the face's ghost cells
  * (ComputeGhostCells), on every level that reaches the face.
  */
@@ -979,12 +979,8 @@ ERF::WarnSteepTerrainAtOpenFaces ()
         solverChoice.terrain_type != TerrainType::MovingFittedMesh) { return; }
     if (solverChoice.use_real_bcs) { return; }
 
-    bool steep_option = solverChoice.implicit_terrain_metric || diffusive_dt_limit;
-    for (int lev = 0; lev <= finest_level; ++lev) {
-        const TurbChoice& tc = solverChoice.turbChoice[lev];
-        steep_option = steep_option || tc.smag2d_slope_limiter || (tc.smag2d_kh_cap > zero);
-    }
-    if (steep_option) { return; }
+    // Options for all levels; the Smagorinsky2D limits are per level and checked below
+    if (solverChoice.implicit_terrain_metric || diffusive_dt_limit) { return; }
 
     // faces in the order xlo, xhi, ylo, yhi
     Array<bool,4> open;
@@ -1003,6 +999,8 @@ ERF::WarnSteepTerrainAtOpenFaces ()
 
     const int band = ComputeGhostCells(solverChoice);
     for (int lev = 0; lev <= finest_level; ++lev) {
+        const TurbChoice& tc = solverChoice.turbChoice[lev];
+        if (tc.smag2d_slope_limiter || tc.smag2d_kh_cap > zero) { continue; }
         const auto slopes = erf_terrain_file::FaceBandSlopes(*z_phys_nd[lev], geom[lev], band);
         Print() << erf_terrain_file::OpenFaceSlopeWarning(lev, band, slopes, open, names);
     }

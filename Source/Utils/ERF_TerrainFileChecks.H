@@ -37,8 +37,10 @@ namespace erf_terrain_file {
  * USGS format: the x values of each row, and the y values from row to row), and a
  * table that does not cover the domain: each end of the x and y lists may stop at
  * most one table spacing inside prob_lo or prob_hi (the layout of a file with one
- * height per cell starting at prob_lo), since heights beyond the table are held at
- * its edge value.
+ * height per cell starting at prob_lo), with an allowance of 1e-3 of that spacing for
+ * rounded coordinates.  Beyond the table the reader only extends the heights from its
+ * edge: linearly before the first point, and (ERF format) by holding the last value
+ * after the last point; USGS extends linearly at both ends.
  *
  * @param[in] is_usgs  USGS layout (x varies fastest, one x per point)
  * @param[in] nx, ny   table size
@@ -111,7 +113,7 @@ FaceBandSlopes (const amrex::MultiFab& z_phys_nd, const amrex::Geometry& geom, i
 /**
  * Warning text for the inflow and outflow faces of one level whose band slope (from
  * FaceBandSlopes) exceeds open_face_slope_warn, or an empty string if there is none.
- * The caller prints it only when no steep-terrain option is on.
+ * The caller prints it only when no steep-terrain option is on at that level.
  *
  * @param[in] lev       level, for the text
  * @param[in] band      band width in cells, for the text

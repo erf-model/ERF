@@ -3640,15 +3640,19 @@ interfaces.
     naming the file if
 
     * nx or ny is smaller than 2;
-    * a line is missing, is not a number, or (ERF format) holds more than one value, or
-      the file has more values than nx and ny ask for;
+    * a line is missing or is not a number, (ERF format) a line has text after its value
+      (comments included), or the file has more values than nx and ny ask for;
+    * (USGS format) the y value changes within a row of nx points;
     * a value is not finite;
     * the x or y values do not increase strictly (USGS format: the x values of each row,
       and y from row to row);
     * the table does not cover the domain: in x and in y, each end of the table may stop
       at most one table spacing inside **geometry.prob_lo** or **geometry.prob_hi**, which
-      allows the common layout of one height per cell starting at prob_lo.  Heights beyond
-      the table would otherwise be held at its edge value.
+      allows the common layout of one height per cell starting at prob_lo (with an allowance
+      of 1e-3 of that spacing for coordinates written with few digits).  Beyond the table
+      the reader only extends the heights from its edge: linearly before the first point,
+      and in the ERF format by holding the last value after the last point (the USGS
+      format extends linearly at both ends).
 
     A table larger than the domain is accepted.  For each valid file ERF prints once the
     size and extent of the table, the order its heights are read in, where the lowest and
@@ -3660,13 +3664,17 @@ interfaces.
     without real-data lateral boundaries, ERF prints a WARNING at start-up when the
     terrain slope \|grad h\| exceeds 0.3 (about 17 degrees) in the cells next to an
     inflow or outflow face (Inflow, Outflow, InflowOutflow, HO_Outflow or Open; not
-    periodic faces and not walls) and none of **erf.smag2d_slope_limiter**,
-    **erf.smag2d_kh_cap**, **erf.implicit_terrain_metric** or **erf.diffusive_dt_limit** is
-    on.  The cells checked are those whose stencils read the face's ghost cells (2 cells,
-    3 with fifth- or sixth-order advection or numerical diffusion, 4 with WENO-7Z), on every
-    level that reaches the face,
-    for terrain from any source.  The warning is a prompt to look: it does not change the
-    run.
+    periodic faces and not walls), for terrain from any source.  The cells checked are
+    those whose stencils read the face's ghost cells: the solver's ghost-cell width, 2 to
+    4 cells depending on the advection schemes and numerical diffusion.  Each level that
+    reaches the face is checked on its own mesh.  No warning is printed when
+    **erf.implicit_terrain_metric** or **erf.diffusive_dt_limit** is on, nor on a level
+    where **erf.smag2d_slope_limiter** or **erf.smag2d_kh_cap** is on; these options
+    limit the terrain-metric diffusion on steep cells and need an eddy-diffusivity
+    closure (the first two Smagorinsky2D, **erf.implicit_terrain_metric** the implicit
+    vertical solve).  None of them changes the terrain at the face; flattening the
+    terrain within those cells of the face does.  The warning is a prompt to look: it
+    does not change the run.
 
 .. _sec:ImmersedForcingInputs:
 
