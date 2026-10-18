@@ -3305,8 +3305,15 @@ add_test_abort(DiffusiveDt_Abort_LimitFixedDt ${_smag2d_dir} Smag2D_Ridge.i
                "erf.diffusive_dt_limit = true cannot change erf.fixed_dt"
                "erf.diffusive_dt_limit=true")
 add_test_abort(DiffusiveDt_Abort_LimitNoClosure ${_smag2d_dir} Smag2D_Ridge.i
-               "erf.diffusive_dt_limit = true needs an eddy-diffusivity closure"
+               "erf.diffusive_dt_limit = true needs diffusion to limit"
                "erf.diffusive_dt_limit=true erf.fixed_dt=-1 erf.les_type=None erf.pbl_type=None")
+# The check counts molecular diffusion: CouetteFlow_ImplicitCF has no eddy-diffusivity closure,
+# and its molecular viscosity gives a Fourier number of 11.2 at level 0 (the explicit vertical
+# diffusion of w; u and v are implicit).  Before, the check reported 0 there.
+add_test_abort(DiffusiveDt_CheckMolecular ${CMAKE_CURRENT_SOURCE_DIR}/test_files/CouetteFlow_ImplicitCF
+               CouetteFlow_ImplicitCF.i
+               "WARNING: explicit diffusion at level 0 has Fourier number dt \\* rate = 11\\.2 "
+               "erf.diffusive_dt_check=true")
 endif()
 
 #=============================================================================

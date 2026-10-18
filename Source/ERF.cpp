@@ -4075,9 +4075,9 @@ ERF::ParameterSanityChecks ()
         for (int lev = 0; lev <= max_level; ++lev) {
             any_kturb = any_kturb || solverChoice.turbChoice[lev].use_kturb;
         }
-        if (!any_kturb) {
-            Abort("erf.diffusive_dt_limit = true needs an eddy-diffusivity closure "
-                  "(erf.les_type, erf.rans_type or erf.pbl_type)");
+        if (!any_kturb && solverChoice.diffChoice.molec_diff_type == MolecDiffType::None) {
+            Abort("erf.diffusive_dt_limit = true needs diffusion to limit: an eddy-diffusivity "
+                  "closure (erf.les_type, erf.rans_type or erf.pbl_type) or erf.molec_diff_type");
         }
     }
 

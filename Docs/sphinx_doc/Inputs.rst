@@ -929,13 +929,13 @@ List of Parameters
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.change_max**                   | factor by which dt can grow in subsequent steps          | Real >= 1          | 1.1               |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
-| **erf.diffusive_dt_check**           | warn when dt times the largest explicit eddy-diffusion   | Boolean            | false             |
-|                                      | rate exceeds erf.diffusive_cfl (see Notes); does not     |                    |                   |
-|                                      | change dt or the answer                                  |                    |                   |
+| **erf.diffusive_dt_check**           | warn when dt times the largest explicit diffusion rate   | Boolean            | false             |
+|                                      | (eddy and molecular) exceeds erf.diffusive_cfl (see      |                    |                   |
+|                                      | Notes); does not change dt or the answer                 |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.diffusive_dt_limit**           | also limit an adaptive dt to erf.diffusive_cfl divided   | Boolean            | false             |
-|                                      | by that rate; aborts with erf.fixed_dt or without an     |                    |                   |
-|                                      | eddy-diffusivity closure                                 |                    |                   |
+|                                      | by that rate; aborts with erf.fixed_dt, or with neither  |                    |                   |
+|                                      | an eddy-diffusivity closure nor molecular diffusion      |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.diffusive_cfl**                | diffusive Fourier number used by the check and the       | Real > 0 and <= 1  | 0.5               |
 |                                      | limit; aborts if given with both off                     |                    |                   |
@@ -1049,11 +1049,18 @@ Notes
      range covered by both of the cell columns adjacent to it, so the two grids sharing that
      seam obtain the same answer.
 
--  | With an eddy-diffusivity closure, **erf.diffusive_dt_check** estimates on every level, at
-     the start of every coarse step, the largest explicit eddy-diffusion rate over the cells, from
-     the eddy diffusivities of the previous step.  Those are zero before the first step and on
-     the first step after a restart (they are not checkpointed); molecular diffusion is not
-     included.  For momentum the rate is the largest of the u, v and w rows,
+-  | **erf.diffusive_dt_check** estimates on every level, at the start of every coarse step,
+     the largest explicit diffusion rate over the cells, from the eddy diffusivities of the
+     previous step plus the molecular ones of **erf.molec_diff_type**.  The eddy diffusivities
+     are zero before the first step and on the first step after a restart (they are not
+     checkpointed).  The molecular ones are added to both the horizontal and the vertical
+     diffusivities, as the diffusion operators use them.  For momentum that is
+     **erf.dynamic_viscosity** with ``Constant`` and **erf.dynamic_viscosity** /
+     **erf.rho0_trans** times the largest density around the cell with ``ConstantAlpha`` (the
+     stresses take twice it, as they take twice the eddy viscosity).  For theta it is
+     **erf.alpha_T**, and for moisture and the advected scalar **erf.alpha_C**, times
+     **erf.rho0_trans** with ``Constant`` and times the largest density around the cell with
+     ``ConstantAlpha``.  Turbulent kinetic energy has none.  For momentum the rate is the largest of the u, v and w rows,
      :math:`\mu_h (2a+b) + e_{uv}\mu_v/\Delta z^2`, :math:`\mu_h (a+2b) + e_{uv}\mu_v/\Delta z^2`
      and :math:`\mu_v (a+b) + 2 e_w \mu_v/\Delta z^2` (the horizontal diffusion of w uses
      :math:`\mu_v`: :math:`\tau_{31}` and :math:`\tau_{32}` carry the same edge-averaged
