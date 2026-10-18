@@ -106,19 +106,75 @@ copy_slabs_into (MultiFab& dst, const MultiFab& slabs, const Vector<int>& slab_b
 } // namespace
 
 /**
- * The coarse/fine w-faces of level lev, per box index, kept until the level's grids change.
+ * The layout of level lev's coarse/fine z-face data, kept until the level's grids or
+ * distribution change: its coarse/fine w-faces per box, and one slab per box face whose outside
+ * layer is inside the domain (slab s belongs to box slab_box[s], and the slabs have the boxes'
+ * distribution), with the coarse planes under each slab.  Every fill reuses these BoxArrays and
+ * this DistributionMapping, and so the copy patterns AMReX caches for them.
  *
- * @param lev Level index
+ * @param lev Level index (> 0)
  */
-const std::map<int, Vector<Box>>&
-ERF::cf_zface_patches (int lev)
+const ERF::CFZFaceLayout&
+ERF::cf_zface_layout (int lev)
 {
-    auto& cached = m_cf_zface_cache[lev];
-    if (cached.first.empty() || !(cached.first == grids[lev])) {
-        cached.first  = grids[lev];
-        cached.second = make_cf_zface_patches(grids[lev], geom[lev].Domain());
+    CFZFaceLayout& L = m_cf_zface_cache[lev];
+    if (!L.fba.empty() && L.fba == grids[lev] && L.fdm == dmap[lev]) { return L; }
+
+    L = CFZFaceLayout{};
+    L.fba = grids[lev];
+    L.fdm = dmap[lev];
+    const BoxArray& fba = grids[lev];
+    const Box& fdom = geom[lev].Domain();
+    L.patches = make_cf_zface_patches(fba, fdom);
+
+    const IntVect rr = refRatio(lev-1);
+    BoxList bl_f (IndexType(IntVect(0,0,1))), bl_x (IndexType(IntVect(1,0,0))), bl_y (IndexType(IntVect(0,1,0)));
+    BoxList bl_cf(IndexType(IntVect(0,0,1))), bl_cx(IndexType(IntVect(1,0,0))), bl_cy(IndexType(IntVect(0,1,0)));
+    BoxList bl_r;
+    Vector<int> pmap;
+    for (int n = 0; n < fba.size(); ++n) {
+        const Box& b = fba[n];
+        for (int side = 0; side < 2; ++side) {
+            const int kout = (side == 0) ? b.smallEnd(2) - 1 : b.bigEnd(2) + 1;
+            const int kf   = (side == 0) ? b.smallEnd(2)     : b.bigEnd(2) + 1;
+            if (kout < fdom.smallEnd(2) || kout > fdom.bigEnd(2)) { continue; }
+            Box f = amrex::surroundingNodes(b, 2); f.setRange(2, kf);
+            Box x = amrex::surroundingNodes(b, 0); x.setRange(2, kout);
+            Box y = amrex::surroundingNodes(b, 1); y.setRange(2, kout);
+            bl_f.push_back(f); bl_x.push_back(x); bl_y.push_back(y);
+            // The coarse cells under the slab in the two layers around the face (ci, with room
+            // for the interpolation), and around them room for the metric stencil of OmegaFromW
+            Box c = amrex::coarsen(b, rr); c.setRange(2, kf-1, 2);
+            const Box ci = amrex::grow(c, IntVect(1,1,0));
+            bl_r.push_back(amrex::grow(c, IntVect(3,3,0)));
+            Box cf = amrex::surroundingNodes(ci, 2); cf.setRange(2, kf);
+            Box cx = amrex::surroundingNodes(ci, 0); cx.setRange(2, kout);
+            Box cy = amrex::surroundingNodes(ci, 1); cy.setRange(2, kout);
+            bl_cf.push_back(cf); bl_cx.push_back(cx); bl_cy.push_back(cy);
+            pmap.push_back(dmap[lev][n]);
+            L.slab_box.push_back(n);
+        }
     }
-    return cached.second;
+    if (L.slab_box.empty()) { return L; }
+
+    L.sdm   = DistributionMapping(std::move(pmap));
+    L.ba_r  = BoxArray(std::move(bl_r));
+    L.ba_ru = amrex::convert(L.ba_r, IntVect(1,0,0));
+    L.ba_rv = amrex::convert(L.ba_r, IntVect(0,1,0));
+    L.ba_rw = amrex::convert(L.ba_r, IntVect(0,0,1));
+    L.ba_rz = amrex::convert(L.ba_r, IntVect(1,1,1));
+    BoxList bl_2d = L.ba_r.boxList();
+    for (auto& bb : bl_2d) { bb.setRange(2, 0); }
+    const BoxArray ba_2d(std::move(bl_2d));
+    L.ba_mu = amrex::convert(ba_2d, IntVect(1,0,0));
+    L.ba_mv = amrex::convert(ba_2d, IntVect(0,1,0));
+    L.ba_cf = BoxArray(std::move(bl_cf));
+    L.ba_cx = BoxArray(std::move(bl_cx));
+    L.ba_cy = BoxArray(std::move(bl_cy));
+    L.ba_f  = BoxArray(std::move(bl_f));
+    L.ba_x  = BoxArray(std::move(bl_x));
+    L.ba_y  = BoxArray(std::move(bl_y));
+    return L;
 }
 
 /**
@@ -152,44 +208,13 @@ bool ERF::cf_zface_coarse_data (int lev, double time_d, bool conserved_rho,
     BL_PROFILE("ERF::cf_zface_coarse_data()");
     AMREX_ALWAYS_ASSERT(lev > 0);
     const int levc = lev - 1;
-    const BoxArray& fba = grids[lev];
-    const Box& fdom = geom[lev].Domain();
     const IntVect rr = refRatio(levc);
-    AMREX_ALWAYS_ASSERT(rr[2] == 1 || cf_zface_patches(lev).empty());
+    const CFZFaceLayout& L = cf_zface_layout(lev);
+    AMREX_ALWAYS_ASSERT(rr[2] == 1 || L.patches.empty());
 
-    // One slab per box face whose outside layer is inside the domain
-    BoxList bl_f (IndexType(IntVect(0,0,1))), bl_x (IndexType(IntVect(1,0,0))), bl_y (IndexType(IntVect(0,1,0)));
-    BoxList bl_cf(IndexType(IntVect(0,0,1))), bl_cx(IndexType(IntVect(1,0,0))), bl_cy(IndexType(IntVect(0,1,0)));
-    BoxList bl_r;
-    Vector<int> pmap;
-    slab_box.clear();
-    for (int n = 0; n < fba.size(); ++n) {
-        const Box& b = fba[n];
-        for (int side = 0; side < 2; ++side) {
-            const int kout = (side == 0) ? b.smallEnd(2) - 1 : b.bigEnd(2) + 1;
-            const int kf   = (side == 0) ? b.smallEnd(2)     : b.bigEnd(2) + 1;
-            if (kout < fdom.smallEnd(2) || kout > fdom.bigEnd(2)) { continue; }
-            Box f = amrex::surroundingNodes(b, 2); f.setRange(2, kf);
-            Box x = amrex::surroundingNodes(b, 0); x.setRange(2, kout);
-            Box y = amrex::surroundingNodes(b, 1); y.setRange(2, kout);
-            bl_f.push_back(f); bl_x.push_back(x); bl_y.push_back(y);
-            // The coarse cells under the slab in the two layers around the face (ci, with room
-            // for the interpolation), and around them room for the metric stencil of OmegaFromW
-            Box c = amrex::coarsen(b, rr); c.setRange(2, kf-1, 2);
-            const Box ci = amrex::grow(c, IntVect(1,1,0));
-            bl_r.push_back(amrex::grow(c, IntVect(3,3,0)));
-            Box cf = amrex::surroundingNodes(ci, 2); cf.setRange(2, kf);
-            Box cx = amrex::surroundingNodes(ci, 0); cx.setRange(2, kout);
-            Box cy = amrex::surroundingNodes(ci, 1); cy.setRange(2, kout);
-            bl_cf.push_back(cf); bl_cx.push_back(cx); bl_cy.push_back(cy);
-            pmap.push_back(dmap[lev][n]);
-            slab_box.push_back(n);
-        }
-    }
+    slab_box = L.slab_box;
     if (slab_box.empty()) { return false; }
-
-    DistributionMapping sdm(std::move(pmap));
-    const BoxArray ba_r(std::move(bl_r));
+    const DistributionMapping& sdm = L.sdm;
 
     // ---------------------------------------------------------------------------------
     // Coarse data on the planes, at time
@@ -222,10 +247,10 @@ bool ERF::cf_zface_coarse_data (int lev, double time_d, bool conserved_rho,
         }
     };
 
-    MultiFab pu(amrex::convert(ba_r, IntVect(1,0,0)), sdm, 1, 0);
-    MultiFab pv(amrex::convert(ba_r, IntVect(0,1,0)), sdm, 1, 0);
-    MultiFab pw(amrex::convert(ba_r, IntVect(0,0,1)), sdm, 1, 0);
-    MultiFab pr(ba_r, sdm, 1, 0);
+    MultiFab pu(L.ba_ru, sdm, 1, 0);
+    MultiFab pv(L.ba_rv, sdm, 1, 0);
+    MultiFab pw(L.ba_rw, sdm, 1, 0);
+    MultiFab pr(L.ba_r , sdm, 1, 0);
     plane_at_time(vars_old[levc][Vars::xvel], vars_new[levc][Vars::xvel], 0, pu);
     plane_at_time(vars_old[levc][Vars::yvel], vars_new[levc][Vars::yvel], 0, pv);
     plane_at_time(vars_old[levc][Vars::zvel], vars_new[levc][Vars::zvel], 0, pw);
@@ -237,14 +262,11 @@ bool ERF::cf_zface_coarse_data (int lev, double time_d, bool conserved_rho,
     clamp_outside_domain(pr, geom[levc].Domain(), geom[levc].isPeriodic(0), geom[levc].isPeriodic(1));
 
     // The mesh and the map factors, their ghosts outside the domain included
-    MultiFab pz(amrex::convert(ba_r, IntVect(1,1,1)), sdm, 1, 0);
+    MultiFab pz(L.ba_rz, sdm, 1, 0);
     pz.setVal(0.0);
     pz.ParallelCopy(*z_phys_nd[levc], 0, 0, 1, z_phys_nd[levc]->nGrowVect(), IntVect(0), cper);
-    BoxList bl_2d = ba_r.boxList();
-    for (auto& bb : bl_2d) { bb.setRange(2, 0); }
-    const BoxArray ba_2d(std::move(bl_2d));
-    MultiFab pmu(amrex::convert(ba_2d, IntVect(1,0,0)), sdm, 1, 0);
-    MultiFab pmv(amrex::convert(ba_2d, IntVect(0,1,0)), sdm, 1, 0);
+    MultiFab pmu(L.ba_mu, sdm, 1, 0);
+    MultiFab pmv(L.ba_mv, sdm, 1, 0);
     pmu.setVal(1.0);
     pmv.setVal(1.0);
     pmu.ParallelCopy(*mapfac[levc][MapFacType::u_x], 0, 0, 1, mapfac[levc][MapFacType::u_x]->nGrowVect(), IntVect(0), cper);
@@ -253,9 +275,9 @@ bool ERF::cf_zface_coarse_data (int lev, double time_d, bool conserved_rho,
     // ---------------------------------------------------------------------------------
     // Coarse (rho u), (rho v) on the outside layer and Omega on the faces
     // ---------------------------------------------------------------------------------
-    MultiFab cOm(BoxArray(std::move(bl_cf)), sdm, 1, 0);
-    MultiFab cRu(BoxArray(std::move(bl_cx)), sdm, 1, 0);
-    MultiFab cRv(BoxArray(std::move(bl_cy)), sdm, 1, 0);
+    MultiFab cOm(L.ba_cf, sdm, 1, 0);
+    MultiFab cRu(L.ba_cx, sdm, 1, 0);
+    MultiFab cRv(L.ba_cy, sdm, 1, 0);
     const Box& cdom = geom[levc].Domain();
     const int ck_lo = cdom.smallEnd(2);
     const int ck_hi = cdom.bigEnd(2);
@@ -314,9 +336,9 @@ bool ERF::cf_zface_coarse_data (int lev, double time_d, bool conserved_rho,
     // Interpolate to the fine slabs
     // ---------------------------------------------------------------------------------
     PhysBCFunctNoOp null_bc;
-    omega_t.define(BoxArray(std::move(bl_f)), sdm, 1, 0);
-    rhou_g.define(BoxArray(std::move(bl_x)), sdm, 1, 0);
-    rhov_g.define(BoxArray(std::move(bl_y)), sdm, 1, 0);
+    omega_t.define(L.ba_f, sdm, 1, 0);
+    rhou_g.define(L.ba_x, sdm, 1, 0);
+    rhov_g.define(L.ba_y, sdm, 1, 0);
     InterpFromCoarseLevel(omega_t, IntVect(0), Real(0), cOm, 0, 0, 1, geom[levc], geom[lev],
                           null_bc, 0, null_bc, 0, rr, &face_cons_linear_interp, domain_bcs_type, BCVars::zvel_bc);
     InterpFromCoarseLevel(rhou_g, IntVect(0), Real(0), cRu, 0, 0, 1, geom[levc], geom[lev],
@@ -371,7 +393,7 @@ void ERF::set_cf_zface_omega (int lev, MultiFab& omega, const MultiFab& omega_t,
 {
     BL_PROFILE("ERF::set_cf_zface_omega()");
     if (slab_box.empty() || !solverChoice.anelastic[lev]) { return; }
-    const auto& patches = cf_zface_patches(lev);
+    const auto& patches = cf_zface_layout(lev).patches;
     for (MFIter mfi(omega_t); mfi.isValid(); ++mfi) {
         const int n = slab_box[mfi.index()];
         auto it = patches.find(n);
@@ -419,36 +441,45 @@ void ERF::FillSetMomentaCF (int lev, double time_d, MultiFab& xmom, MultiFab& ym
     Vector<int> slab_box;
     if (!cf_zface_coarse_data(lev, time_d, true, omega_t, rhou_g, rhov_g, slab_box)) { return; }
 
-    // WFromOmega reads the layer outside the level; momenta without a ghost layer in z get a
-    // scratch copy with one
-    MultiFab xm_tmp, ym_tmp;
-    MultiFab* xm = &xmom;
-    MultiFab* ym = &ymom;
-    if (xmom.nGrowVect()[2] < 1 || ymom.nGrowVect()[2] < 1) {
-        xm_tmp.define(xmom.boxArray(), xmom.DistributionMap(), 1, IntVect(1));
-        ym_tmp.define(ymom.boxArray(), ymom.DistributionMap(), 1, IntVect(1));
-        MultiFab::Copy(xm_tmp, xmom, 0, 0, 1, 0);
-        MultiFab::Copy(ym_tmp, ymom, 0, 0, 1, 0);
-        xm = &xm_tmp;
-        ym = &ym_tmp;
-    }
-    copy_slabs_into(*xm, rhou_g, slab_box);
-    copy_slabs_into(*ym, rhov_g, slab_box);
-
-    const auto& patches = cf_zface_patches(lev);
+    const auto& patches = cf_zface_layout(lev).patches;
+    const BoxArray& fba = grids[lev];
     auto dxInv = geom[lev].InvCellSizeArray();
     for (MFIter mfi(omega_t); mfi.isValid(); ++mfi) {
         const int n = slab_box[mfi.index()];
         auto it = patches.find(n);
         if (it == patches.end()) { continue; }
+        const Box& slab = mfi.validbox();
+
+        // WFromOmega reads (rho u), (rho v) in the two layers around the face: the level's own
+        // inside it, and outside it the coarse layer from rhou_g, rhov_g.  Put both in a scratch
+        // slab, so the level's momenta are only read here and need no ghost layer in z.
+        const int kf   = slab.smallEnd(2);
+        const int kout = (kf == fba[n].smallEnd(2)) ? kf - 1 : kf;
+        Box box_u = rhou_g[mfi].box(); box_u.setRange(2, kf-1, 2);
+        Box box_v = rhov_g[mfi].box(); box_v.setRange(2, kf-1, 2);
+        FArrayBox ru_fab(box_u, 1, The_Async_Arena());
+        FArrayBox rv_fab(box_v, 1, The_Async_Arena());
+        const Array4<Real      > ru_s = ru_fab.array();
+        const Array4<Real      > rv_s = rv_fab.array();
+        const Array4<Real const> xm_a = xmom.const_array(n);
+        const Array4<Real const> ym_a = ymom.const_array(n);
+        const Array4<Real const> xg_a = rhou_g.const_array(mfi);
+        const Array4<Real const> yg_a = rhov_g.const_array(mfi);
+        ParallelFor(box_u, box_v,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            ru_s(i,j,k) = (k == kout) ? xg_a(i,j,k) : xm_a(i,j,k);
+        },
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            rv_s(i,j,k) = (k == kout) ? yg_a(i,j,k) : ym_a(i,j,k);
+        });
+
         const Array4<Real      > w_a  = zmom.array(n);
-        const Array4<Real const> ru_a = xm->const_array(n);
-        const Array4<Real const> rv_a = ym->const_array(n);
+        const Array4<Real const> ru_a = ru_fab.const_array();
+        const Array4<Real const> rv_a = rv_fab.const_array();
         const Array4<Real const> t_a  = omega_t.const_array(mfi);
         const Array4<Real const> z_nd = z_phys_nd[lev]->const_array(n);
         const Array4<Real const> mf_u = mapfac[lev][MapFacType::u_x]->const_array(n);
         const Array4<Real const> mf_v = mapfac[lev][MapFacType::v_y]->const_array(n);
-        const Box& slab = mfi.validbox();
         for (const Box& fb : it->second) {
             const Box bx = fb & slab;
             if (!bx.ok()) { continue; }

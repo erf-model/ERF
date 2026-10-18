@@ -423,7 +423,6 @@ public:
     void project_momenta (int lev, double l_time, double l_dt, amrex::Vector<amrex::MultiFab >& vars);
 
     // A refined level that stops inside the domain in z (ERF_CoarseFineFaces.cpp)
-    const std::map<int, amrex::Vector<amrex::Box>>& cf_zface_patches (int lev);
     bool cf_zface_coarse_data (int lev, double time, bool conserved_rho,
                                amrex::MultiFab& omega_t, amrex::MultiFab& rhou_g, amrex::MultiFab& rhov_g,
                                amrex::Vector<int>& slab_box);
@@ -1556,9 +1555,22 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ax;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ay;
 
-    // Coarse/fine w-faces of each level that stops inside the domain in z, per box, and the
-    // grids they were made for (cf_zface_patches)
-    std::map<int, std::pair<amrex::BoxArray, std::map<int, amrex::Vector<amrex::Box>>>> m_cf_zface_cache;
+    // Layout of the coarse/fine z-face data of each level that stops inside the domain in z
+    // (cf_zface_layout), kept until the level's grids or distribution change, so that every
+    // fill reuses the same plane BoxArrays and DistributionMapping (and their copy patterns)
+    struct CFZFaceLayout {
+        amrex::BoxArray fba;                                // the grids it was made for
+        amrex::DistributionMapping fdm;
+        std::map<int, amrex::Vector<amrex::Box>> patches;   // coarse/fine w-faces, per box
+        amrex::Vector<int> slab_box;                        // box of the level each slab belongs to
+        amrex::DistributionMapping sdm;                     // the slabs' (and planes') distribution
+        amrex::BoxArray ba_r, ba_ru, ba_rv, ba_rw, ba_rz;   // coarse planes: cells, faces, nodes
+        amrex::BoxArray ba_mu, ba_mv;                       // coarse planes: map factors (2D)
+        amrex::BoxArray ba_cf, ba_cx, ba_cy;                // coarse Omega, (rho u), (rho v)
+        amrex::BoxArray ba_f, ba_x, ba_y;                   // fine slabs
+    };
+    const CFZFaceLayout& cf_zface_layout (int lev);
+    std::map<int, CFZFaceLayout> m_cf_zface_cache;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   az;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_src;
