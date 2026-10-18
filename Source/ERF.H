@@ -663,6 +663,11 @@ public:
     // true (new grids), otherwise only if it changed by more than 1 % since the last report
     void ReportTerrainSlopeFactor (int lev, bool force);
 
+    // at start-up on a terrain-fitted mesh, warn when the terrain next to an inflow or
+    // outflow face is steeper than erf_terrain_file::open_face_slope_warn and no
+    // steep-terrain option is on
+    void WarnSteepTerrainAtOpenFaces ();
+
 #ifdef ERF_USE_WW3_COUPLING
     //amrex::Print() <<  " About to call send_to_ww3 from ERF.H" << std::endl;
     void send_to_ww3 (int lev);

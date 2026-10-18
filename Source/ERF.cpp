@@ -22,6 +22,7 @@
 #include "ERF_PlotfileSelection.H"
 #include "ERF_Utils.H"
 #include "ERF_TerrainMetrics.H"
+#include "ERF_TerrainFileChecks.H"
 #include "ERF_SrcHeaders.H"
 //#include "ERF_BuoyancyUtils.H"
 
@@ -965,6 +966,48 @@ ERF::InitData_pre ()
     solverChoice.check_params(max_level,geom,phys_bc_type);
 }
 
+/**
+ * Warn at start-up when the terrain next to an inflow or outflow face is steep and no
+ * steep-terrain option is on.  Only on a terrain-fitted mesh without real-data lateral
+ * boundaries; the band is the cells whose stencils read the face's ghost cells
+ * (ComputeGhostCells), on every level that reaches the face.
+ */
+void
+ERF::WarnSteepTerrainAtOpenFaces ()
+{
+    if (solverChoice.terrain_type != TerrainType::StaticFittedMesh &&
+        solverChoice.terrain_type != TerrainType::MovingFittedMesh) { return; }
+    if (solverChoice.use_real_bcs) { return; }
+
+    bool steep_option = solverChoice.implicit_terrain_metric || diffusive_dt_limit;
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        const TurbChoice& tc = solverChoice.turbChoice[lev];
+        steep_option = steep_option || tc.smag2d_slope_limiter || (tc.smag2d_kh_cap > zero);
+    }
+    if (steep_option) { return; }
+
+    // faces in the order xlo, xhi, ylo, yhi
+    Array<bool,4> open;
+    Array<std::string,4> names;
+    bool any_open = false;
+    for (int f = 0; f < 4; ++f) {
+        const Orientation ori(f/2, (f%2 == 0) ? Orientation::low : Orientation::high);
+        const ERF_BC bc = phys_bc_type[ori];
+        open[f] = !geom[0].isPeriodic(ori.coordDir()) &&
+                  (bc == ERF_BC::inflow  || bc == ERF_BC::outflow || bc == ERF_BC::inflow_outflow ||
+                   bc == ERF_BC::ho_outflow || bc == ERF_BC::open);
+        names[f] = domain_bc_type[ori];
+        any_open = any_open || open[f];
+    }
+    if (!any_open) { return; }
+
+    const int band = ComputeGhostCells(solverChoice);
+    for (int lev = 0; lev <= finest_level; ++lev) {
+        const auto slopes = erf_terrain_file::FaceBandSlopes(*z_phys_nd[lev], geom[lev], band);
+        Print() << erf_terrain_file::OpenFaceSlopeWarning(lev, band, slopes, open, names);
+    }
+}
+
 void
 ERF::InitData_post ()
 {
@@ -1015,6 +1058,8 @@ ERF::InitData_post ()
             z_phys_cc[crse_lev]->FillBoundary(geom[crse_lev].periodicity());
         }
     }
+
+    WarnSteepTerrainAtOpenFaces();
 
 #ifdef ERF_IMPLICIT_W
     if ( (SolverChoice::mesh_type == MeshType::VariableDz) &&

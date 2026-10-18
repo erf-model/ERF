@@ -3,6 +3,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <fstream>
+#include <set>
+#include <sstream>
+#include <string>
 
 #include <AMReX_ParmParse.H>
 #include <AMReX_Geometry.H>
@@ -17,6 +21,7 @@
 #include "ERF_GridUtils.H"
 #include "ERF_TileNoZ.H"
 #include "ERF_ColumnBands.H"
+#include "ERF_TerrainFileChecks.H"
 
 #ifdef ERF_USE_NETCDF
 #include <ERF_NCInterface.H>
@@ -27,8 +32,13 @@ struct ProbParmDefaults {
     amrex::Real T_0 = amrex::Real(300.0);
 };
 
+/**
+ * Read one number from line n of a text file that holds one number per line.
+ * Aborts, naming the file and the line, on a line that is missing, is not a
+ * number, or holds more than one number.
+ */
 template <typename T>
-T erf_get_single_value (std::istream& is, int n)
+T erf_get_single_value (std::istream& is, int n, const std::string& fname)
 {
   T r = 0;
   std::string line;
@@ -36,14 +46,17 @@ T erf_get_single_value (std::istream& is, int n)
     std::stringstream ss(line);
     ss >> r;
     if (ss.fail()) {
-      amrex::Abort("Failed to read");
+      amrex::Abort("Terrain file " + fname + ": line " + std::to_string(n)
+                   + " is not a number: '" + line + "'");
     }
-    if (ss >> r) {
-      amrex::Print() << "Trying to read line " << n << " in this file " << std::endl;
-      amrex::Abort("Wrong format: more than one number in this line");
+    std::string extra;
+    if (ss >> extra) {
+      amrex::Abort("Terrain file " + fname + ": line " + std::to_string(n) + " holds more than"
+                   + " one value: '" + line + "'; the file has one value per line");
     }
   } else {
-    amrex::Abort("Unable to read this line");
+    amrex::Abort("Terrain file " + fname + ": the file ends at line " + std::to_string(n-1)
+                 + ", but nx and ny ask for nx + ny + nx*ny values after them");
   }
   return r;
 }
@@ -890,7 +903,10 @@ public:
                                  + " should not exceed amrex::Real(90.) It is " + std::to_string(lat_min));
                 }
 
-                file >> nx >> ny;
+                if (!(file >> nx >> ny) || nx < 2 || ny < 2) {
+                    amrex::Abort("Terrain file " + fname + ": the second line must give nx and ny,"
+                                 " both at least 2");
+                }
 
                 int counter = 0;
                 while (file >> value1 >> value2 >> value3) {
@@ -901,34 +917,59 @@ public:
                     m_zterrain.push_back(value3);
                     counter += 1;
                 }
-                AMREX_ASSERT(m_xterrain.size() == static_cast<long int>(nx*ny));
-                AMREX_ASSERT(m_yterrain.size() == static_cast<long int>(ny));
-                AMREX_ASSERT(m_zterrain.size() == static_cast<long int>(nx*ny));
+                // The loop stops at the end of the file or at the first entry that is not a number
+                file.clear();
+                if (counter != nx*ny || !(file >> std::ws).eof()) {
+                    amrex::Abort("Terrain file " + fname + ": expected nx*ny = " + std::to_string(nx*ny)
+                                 + " lines of x y height after nx and ny, read " + std::to_string(counter)
+                                 + (counter < nx*ny ? "" : " and then more text"));
+                }
 
             } else {
                 int cnt = 1;
-                nx = erf_get_single_value<int>(file,cnt); cnt++;
-                ny = erf_get_single_value<int>(file,cnt); cnt++;
+                nx = erf_get_single_value<int>(file,cnt,fname); cnt++;
+                ny = erf_get_single_value<int>(file,cnt,fname); cnt++;
                 amrex::Print()<<"Expecting " << nx << " values of x,    " <<
                                                 ny << " values of y, and " <<
                                              nx*ny << " values of z" << std::endl;
-                AMREX_ALWAYS_ASSERT(nx > 0);
-                AMREX_ALWAYS_ASSERT(ny > 0);
+                if (nx < 2 || ny < 2) {
+                    amrex::Abort("Terrain file " + fname + ": nx = " + std::to_string(nx) + " and ny = "
+                                 + std::to_string(ny) + " (lines 1 and 2) must both be at least 2");
+                }
                 m_xterrain.resize(nx);
                 m_yterrain.resize(ny);
                 m_zterrain.resize(nx * ny);
                 for (int n = 0; n < nx; n++) {
-                    m_xterrain[n] = erf_get_single_value<amrex::Real>(file,cnt);
+                    m_xterrain[n] = erf_get_single_value<amrex::Real>(file,cnt,fname);
                     cnt++;
                 }
                 for (int n = 0; n < ny; n++) {
-                    m_yterrain[n] = erf_get_single_value<amrex::Real>(file,cnt);
+                    m_yterrain[n] = erf_get_single_value<amrex::Real>(file,cnt,fname);
                     cnt++;
                 }
                 for (int n = 0; n < nx * ny; n++) {
-                    m_zterrain[n] = erf_get_single_value<amrex::Real>(file,cnt);
+                    m_zterrain[n] = erf_get_single_value<amrex::Real>(file,cnt,fname);
                     cnt++;
                 }
+                if (!(file >> std::ws).eof()) {
+                    amrex::Abort("Terrain file " + fname + ": text after line " + std::to_string(cnt-1)
+                                 + ", the last of the nx + ny + nx*ny values that nx = "
+                                 + std::to_string(nx) + " and ny = " + std::to_string(ny) + " ask for");
+                }
+            }
+
+            // Structure and coverage of the table; a summary of it once per file, so that
+            // a transposed or mis-ordered file can be spotted at start-up
+            const std::string problem = erf_terrain_file::TableProblem(
+                is_usgs, nx, ny, m_xterrain, m_yterrain, m_zterrain,
+                geom.ProbLoArray(), geom.ProbHiArray());
+            if (!problem.empty()) {
+                amrex::Abort("Terrain file " + fname + ": " + problem);
+            }
+            static std::set<std::string> summarized;
+            if (summarized.insert(fname).second) {
+                amrex::Print() << erf_terrain_file::TableSummary(fname, is_usgs, nx, ny,
+                                                                 m_xterrain, m_yterrain, m_zterrain);
             }
 
             // Close the file after reading
@@ -1145,6 +1186,10 @@ public:
                 }
             } // usgs?
         });
+
+        // The kernel reads the device vectors above, and callers may read terrain_fab on the
+        // host next; finish it before the vectors are freed and the caller reads
+        amrex::Gpu::streamSynchronize();
     }
 
     /**

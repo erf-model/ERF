@@ -3547,7 +3547,8 @@ List of Parameters
 |                                  | "interpolate" is used). Ignored when                     |                    |                  |
 |                                  | ``terrain_smoothing`` = 0.                               |                    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.terrain_file_name**        | filename                                                 | String             | NONE             |
+| **erf.terrain_file_name**        | text file of terrain heights in ERF order (y varies      | String             | NONE             |
+|                                  | fastest); see the format and the start-up checks below   |                    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.terrain_file_name_nc**     | NetCDF terrain filename                                  | String             | NONE             |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -3557,8 +3558,9 @@ List of Parameters
 | **erf.use_rotate_surface_flux**  | rotate the MOST surface stresses to be normal to the     | Boolean            | false            |
 |                                  | terrain surface; requires that terrain be used           |                    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.terrain_file_name_USGS**   | text file of terrain heights in USGS format; an          | String             | None             |
-|                                  | alternative to ``erf.terrain_file_name``                 |                    |                  |
+| **erf.terrain_file_name_USGS**   | text file of terrain heights in USGS format (x varies    | String             | None             |
+|                                  | fastest); an alternative to ``erf.terrain_file_name``,   |                    |                  |
+|                                  | checked at start-up as described below                   |                    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **prob.custom_terrain_type**     | selects the problem-specific terrain initialization; any | String             | None             |
 |                                  | value other than ``None`` calls                          |                    |                  |
@@ -3623,12 +3625,48 @@ interfaces.
     the surface; if the fine grids are chopped in the vertical the run aborts and asks you
     to raise ``amr.max_grid_size_z`` or to use ``"interpolate"`` instead.
 
--  When setting **erf.terrain_file_name**, the format of the file is expected to
-    be (in raw text): the integer nx on the first line, the integer ny on the second line,
-    then the nx values of the x-coordinate, then the ny values of
-    the y-coordinate, then the (nx times ny) values of the z-coordinate associated
-    with the (x,y) values we have just read in.  Note that the z-values are in the
-    order z(x1,y1), z(x1,y2), z(x1,y3), ... which is contrary to standard Fortran ordering
+-  When setting **erf.terrain_file_name** (or **erf.buildings_file_name**, which uses the
+    same reader), the file is plain text with **one value per line**: the integer nx on
+    the first line, the integer ny on the second line, then the nx values of the
+    x-coordinate, then the ny values of the y-coordinate, then the nx times ny heights.
+    The heights are in the order h(x1,y1), h(x1,y2), h(x1,y3), ..., h(x2,y1), ..., that is
+    **y varies fastest** and height n sits at (x[n / ny], y[n % ny]).  This is contrary to
+    standard Fortran ordering; a file written with x varying fastest is read transposed.
+    The USGS format of **erf.terrain_file_name_USGS** is: longitude and latitude of the
+    origin on the first line, nx and ny on the second, then nx times ny lines of
+    ``x y height`` with **x varying fastest**.
+
+-  Both text formats are checked when the file is read, and the run stops with a message
+    naming the file if
+
+    * nx or ny is smaller than 2;
+    * a line is missing, is not a number, or (ERF format) holds more than one value, or
+      the file has more values than nx and ny ask for;
+    * a value is not finite;
+    * the x or y values do not increase strictly (USGS format: the x values of each row,
+      and y from row to row);
+    * the table does not cover the domain: in x and in y, each end of the table may stop
+      at most one table spacing inside **geometry.prob_lo** or **geometry.prob_hi**, which
+      allows the common layout of one height per cell starting at prob_lo.  Heights beyond
+      the table would otherwise be held at its edge value.
+
+    A table larger than the domain is accepted.  For each valid file ERF prints once the
+    size and extent of the table, the order its heights are read in, where the lowest and
+    highest heights sit, and the largest slopes \|dh/dx\| and \|dh/dy\| between
+    neighbouring table points with where they sit.  A transposed file shows up there: the
+    highest point or the steepest slope is not where the terrain should have it.
+
+-  On a terrain-fitted mesh (**erf.terrain_type** = StaticFittedMesh or MovingFittedMesh)
+    without real-data lateral boundaries, ERF prints a WARNING at start-up when the
+    terrain slope \|grad h\| exceeds 0.3 (about 17 degrees) in the cells next to an
+    inflow or outflow face (Inflow, Outflow, InflowOutflow, HO_Outflow or Open; not
+    periodic faces and not walls) and none of **erf.smag2d_slope_limiter**,
+    **erf.smag2d_kh_cap**, **erf.implicit_terrain_metric** or **erf.diffusive_dt_limit** is
+    on.  The cells checked are those whose stencils read the face's ghost cells (2 cells,
+    3 with fifth- or sixth-order advection or numerical diffusion, 4 with WENO-7Z), on every
+    level that reaches the face,
+    for terrain from any source.  The warning is a prompt to look: it does not change the
+    run.
 
 .. _sec:ImmersedForcingInputs:
 

@@ -3576,6 +3576,50 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   endif()
 endif()
 
+# Terrain text files (erf.terrain_file_name; Source/Utils/ERF_TerrainFileChecks.H).  The deck
+# is an 800 m x 400 m channel over a north-south ridge with inflow at xlo and outflow at xhi;
+# make_tables.py writes the tables.  A malformed or mis-ordered file stops the run with the
+# problem named; the base reader read each of these without a word.  A valid file prints where
+# its highest point and steepest slopes sit and the order its heights are read in.
+if(NOT WIN32)
+  set(_tf_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TerrainFileChecks)
+  foreach(_tf_case
+      "SwappedLists|swapped_lists.txt|the x values 0 .. 400 do not cover the domain 0 .. 800"
+      "XNotIncreasing|x_not_increasing.txt|the x values must increase strictly, but x\\[6\\] = 250 follows x\\[5\\] = 300"
+      "TooFewValues|too_few_values.txt|the file ends at line 180"
+      "ExtraValues|extra_values.txt|text after line 181"
+      "TwoPerLine|two_per_line.txt|line 41 holds more than one value"
+      "ShortOfDomain|short_of_domain.txt|the x values 0 .. 700 do not cover the domain 0 .. 800")
+    string(REPLACE "|" ";" _tf_parts "${_tf_case}")
+    list(GET _tf_parts 0 _tf_name)
+    list(GET _tf_parts 1 _tf_file)
+    list(GET _tf_parts 2 _tf_message)
+    add_test_abort(TerrainFile_Abort_${_tf_name} ${_tf_dir} TerrainFileChecks.i
+                   "${_tf_message}" "erf.terrain_file_name=${_tf_file}")
+  endforeach()
+
+  # The ridge in the middle: the summary names the read order and the slope of the ridge,
+  # and the gentle terrain next to the inflow and outflow faces gives no warning
+  add_test_abort(TerrainFile_Summary ${_tf_dir} TerrainFileChecks.i
+                 "y varies fastest, height n is at \\(x\\[n / ny\\], y\\[n % ny\\]\\).*largest \\|dh/dx\\| 0\\.819[0-9]* at \\(325, 0\\), largest \\|dh/dy\\| 0 at"
+                 "erf.terrain_file_name=ridge_middle.txt")
+  set_tests_properties(TerrainFile_Summary PROPERTIES FAIL_REGULAR_EXPRESSION "WARNING: at level;Abort")
+  # The ridge next to the outflow face (|dh/dx| up to 0.82 there) gives the warning ...
+  add_test_abort(TerrainFile_SteepOutflowWarns ${_tf_dir} TerrainFileChecks.i
+                 "WARNING: at level 0 the terrain slope \\|grad h\\| reaches 0.8[0-9]* within 2 cells of the xhi face \\(Outflow\\)"
+                 "erf.terrain_file_name=ridge_outflow.txt")
+  set_tests_properties(TerrainFile_SteepOutflowWarns PROPERTIES FAIL_REGULAR_EXPRESSION "xlo face;Abort")
+  # ... but not next to a wall, nor with a steep-terrain option on (both runs must finish)
+  add_test_abort(TerrainFile_SteepWallQuiet ${_tf_dir} TerrainFileChecks.i
+                 "AMReX \\(.*\\) finalized"
+                 "erf.terrain_file_name=ridge_outflow.txt xhi.type=SlipWall")
+  add_test_abort(TerrainFile_SteepOptionQuiet ${_tf_dir} TerrainFileChecks.i
+                 "AMReX \\(.*\\) finalized"
+                 "erf.terrain_file_name=ridge_outflow.txt erf.diffusive_dt_limit=true erf.les_type=Smagorinsky erf.Cs=0.1")
+  set_tests_properties(TerrainFile_SteepWallQuiet TerrainFile_SteepOptionQuiet
+                       PROPERTIES FAIL_REGULAR_EXPRESSION "WARNING: at level;Abort")
+endif()
+
 #=============================================================================
 # Performance tests
 #=============================================================================
