@@ -178,6 +178,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
     const bool l_anelastic_rk2 = (solverChoice.anelastic_type[level] == AnelasticType::RK2);
 
     const bool l_reflux = IsRefluxStage(solverChoice, level, finest_level, nrk);
+    const Real l_reflux_dt = RefluxStageWeight(solverChoice, level, finest_level, nrk) * static_cast<Real>(dt);
 
     const bool l_use_eb = (solverChoice.terrain_type == TerrainType::EB);
 
@@ -956,7 +957,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         {
         BL_PROFILE("slow_rhs_pre_fluxreg");
-        // We only add to the flux registers in the final RK step
+        // We add to the flux registers only in the stages whose fluxes the step's update applies,
+        // weighted as in that update (RefluxStageWeight)
         // NOTE: for now we are only refluxing density not (rho theta) since the latter seems to introduce
         //       a problem at top and bottom boundaries -- except when rho is held fixed, in which case
         //       there is no density flux to reflux and we reflux (rho theta) instead.
@@ -967,12 +969,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
             int  num_comp_reflux = 1;
             if (level < finest_level) {
                 fr_as_crse->CrseAdd(mfi, {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
-                                    dx, static_cast<Real>(dt), strt_comp_reflux, strt_comp_reflux,
+                                    dx, l_reflux_dt, strt_comp_reflux, strt_comp_reflux,
                                     num_comp_reflux, RunOn::Device);
             }
             if (level > 0) {
                 fr_as_fine->FineAdd(mfi, {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
-                                    dx, static_cast<Real>(dt), strt_comp_reflux, strt_comp_reflux,
+                                    dx, l_reflux_dt, strt_comp_reflux, strt_comp_reflux,
                                     num_comp_reflux, RunOn::Device);
             }
 

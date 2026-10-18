@@ -2143,8 +2143,10 @@ add_test_r(MoistDiffusion_ImplicitCF         "" "erf_exec" "plt00200"
 # Moisture diffuses through a face normal to z, with the vertical diffusion implicit (the deck as
 # it stands, on a flat, a stretched and a terrain-fitted mesh) and explicit.  A scalar diffuses
 # through faces normal to x, y and z: on a flat, a terrain-fitted (flat terrain and a hill) and a
-# stretched mesh, with map factors, with 2 x 2 x 1 refinement, with the anelastic integrator, and
-# advected by a sheared flow with Smagorinsky diffusion alone
+# stretched mesh, with map factors, with 2 x 2 x 1 refinement, with the anelastic MidPoint and RK2
+# integrators, and advected by a sheared flow with Smagorinsky diffusion alone.  The RK2 integrator
+# applies the fluxes of both of its stages, so it is also run with the scalar advected and not
+# diffused
 set(_moist_cons_options "max_step=100 erf.plot_int_1=-1")
 add_test_conservation(Conservation_MoistDiffusion_Implicit MoistDiffusion_ImplicitCF "RHO QTOTAL"
     OPTIONS "${_moist_cons_options}")
@@ -2167,6 +2169,10 @@ add_test_conservation(Conservation_ScalarDiffusion_Ratio221  ScalarDiffusion_Ref
     OPTIONS "'amr.ref_ratio_vect=2 2 1'")
 add_test_conservation(Conservation_ScalarDiffusion_Anelastic ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.anelastic=1 erf.anelastic_type=MidPoint")
+add_test_conservation(Conservation_ScalarDiffusion_AnelasticRK2 ScalarDiffusion_Reflux "RHO SCALAR"
+    OPTIONS "erf.anelastic=1 erf.anelastic_type=RK2")
+add_test_conservation(Conservation_ScalarAdvection_AnelasticRK2 ScalarDiffusion_Reflux "RHO SCALAR"
+    OPTIONS "erf.anelastic=1 erf.anelastic_type=RK2 erf.molec_diff_type=None prob.U_0=10 prob.V_0=5")
 add_test_conservation(Conservation_ScalarDiffusion_Smagorinsky ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.molec_diff_type=None erf.les_type=Smagorinsky erf.Cs=0.2 prob.prob_type=12 prob.rad_0=0.25 prob.uRef=10 prob.zRef=1 prob.z0=0.01")
 add_test_0(PoiseuilleFlow_x                  "" "erf_exec" "plt00010")
