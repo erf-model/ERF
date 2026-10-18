@@ -307,17 +307,17 @@ void launch_eb_wall_correction (
     }
 #endif
 
-    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        bool is_cut_face;
-        if constexpr (MomDir == 0) {
-            is_cut_face = u_cellflg(i,j,k).isSingleValued();
-        } else if constexpr (MomDir == 1) {
-            is_cut_face = v_cellflg(i,j,k).isSingleValued();
-        } else {
-            is_cut_face = w_cellflg(i,j,k).isSingleValued();
-        }
+    Array4<const EBCellFlag> mom_cellflg;
+    if constexpr (MomDir == 0) {
+        mom_cellflg = u_cellflg;
+    } else if constexpr (MomDir == 1) {
+        mom_cellflg = v_cellflg;
+    } else {
+        mom_cellflg = w_cellflg;
+    }
 
-        if (is_cut_face) {
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        if (mom_cellflg(i,j,k).isSingleValued()) {
             mom_rhs(i,j,k) -= eb_wall_correction<MomDir,WallModel>(
                 i, j, k, u_arr, v_arr, w_arr,
                 u_cellflg, v_cellflg, w_cellflg, u_volcent, v_volcent, w_volcent,
