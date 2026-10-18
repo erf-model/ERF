@@ -3632,18 +3632,22 @@ interfaces.
     The heights are in the order h(x1,y1), h(x1,y2), h(x1,y3), ..., h(x2,y1), ..., that is
     **y varies fastest** and height n sits at (x[n / ny], y[n % ny]).  This is contrary to
     standard Fortran ordering; a file written with x varying fastest is read transposed.
+    nx or ny may be 1: a single value in a direction makes the surface constant in that
+    direction (for example a ridge profile in x with ny = 1 for a run periodic in y).
     The USGS format of **erf.terrain_file_name_USGS** is: longitude and latitude of the
     origin on the first line, nx and ny on the second, then nx times ny lines of
-    ``x y height`` with **x varying fastest**.
+    ``x y height`` with **x varying fastest**; nx and ny must be at least 2, and every point
+    of a row has the y of the row.  Blank lines are skipped in this format.  Each file is
+    read once per run, however many levels and regrids use it.
 
 -  Both text formats are checked when the file is read, and the run stops with a message
     naming the file if
 
-    * nx or ny is smaller than 2;
-    * a line is missing or is not a number, (ERF format) a line has text after its value
-      (comments included), or the file has more values than nx and ny ask for;
+    * nx or ny is smaller than 1 (ERF format) or 2 (USGS format);
+    * a line is missing or is not a number (``nan`` and ``inf`` included); a line has text
+      after its value (ERF format) or does not hold exactly ``x y height`` (USGS format,
+      including a truncated last line); or the file has more values than nx and ny ask for;
     * (USGS format) the y value changes within a row of nx points;
-    * a value is not finite;
     * the x or y values do not increase strictly (USGS format: the x values of each row,
       and y from row to row);
     * the table does not cover the domain: in x and in y, each end of the table may stop
@@ -3652,7 +3656,8 @@ interfaces.
       of 1e-3 of that spacing for coordinates written with few digits).  Beyond the table
       the reader only extends the heights from its edge: linearly before the first point,
       and in the ERF format by holding the last value after the last point (the USGS
-      format extends linearly at both ends).
+      format extends linearly at both ends).  A direction with a single value is not
+      checked.
 
     A table larger than the domain is accepted.  For each valid file ERF prints once the
     size and extent of the table, the order its heights are read in, where the lowest and
@@ -3661,13 +3666,17 @@ interfaces.
     highest point or the steepest slope is not where the terrain should have it.
 
 -  On a terrain-fitted mesh (**erf.terrain_type** = StaticFittedMesh or MovingFittedMesh)
-    without real-data lateral boundaries, ERF prints a WARNING at start-up when the
+    without real-data lateral boundaries, ERF prints a WARNING when the
     terrain slope \|grad h\| exceeds 0.3 (about 17 degrees) in the cells next to an
     inflow or outflow face (Inflow, Outflow, InflowOutflow, HO_Outflow or Open; not
     periodic faces and not walls), for terrain from any source.  The cells checked are
     those whose stencils read the face's ghost cells: the solver's ghost-cell width, 2 to
-    4 cells depending on the advection schemes and numerical diffusion.  Each level that
-    reaches the face is checked on its own mesh.  No warning is printed when
+    4 cells depending on the advection schemes and numerical diffusion.  The slope includes
+    the map factors, as in the diffusive limits.  Each level that reaches the face is
+    checked on its own mesh whenever it has a new set of grids: at initialisation, on the
+    first step after a restart, and after a regrid, so a fine level created later is
+    checked too; each level and face is reported at most once.  A MovingFittedMesh surface
+    is checked only at those times, not as it moves.  No warning is printed when
     **erf.implicit_terrain_metric** or **erf.diffusive_dt_limit** is on, nor on a level
     where **erf.smag2d_slope_limiter** or **erf.smag2d_kh_cap** is on; these options
     limit the terrain-metric diffusion on steep cells and need an eddy-diffusivity

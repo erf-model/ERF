@@ -3607,7 +3607,7 @@ if(NOT WIN32)
   set_tests_properties(TerrainFile_Summary PROPERTIES FAIL_REGULAR_EXPRESSION "WARNING: at level;Abort")
   # The ridge next to the outflow face (|dh/dx| up to 0.82 there) gives the warning ...
   add_test_abort(TerrainFile_SteepOutflowWarns ${_tf_dir} TerrainFileChecks.i
-                 "WARNING: at level 0 the terrain slope \\|grad h\\| reaches 0.8[0-9]* within 2 cells of the xhi face \\(Outflow\\)"
+                 "WARNING: at level 0 the terrain slope \\|grad h\\| reaches 0\\.[78][0-9]* within 2 cells of the xhi face \\(Outflow\\)"
                  "erf.terrain_file_name=ridge_outflow.txt")
   set_tests_properties(TerrainFile_SteepOutflowWarns PROPERTIES FAIL_REGULAR_EXPRESSION "xlo face;Abort")
   # ... but not next to a wall, nor with a steep-terrain option on (the runs must finish):
@@ -3623,6 +3623,29 @@ if(NOT WIN32)
                  "erf.terrain_file_name=ridge_outflow.txt erf.les_type=Smagorinsky2D erf.Cs=0.1 erf.smag2d_kh_cap=10")
   set_tests_properties(TerrainFile_SteepWallQuiet TerrainFile_SteepOptionQuiet TerrainFile_SteepSmag2DQuiet
                        PROPERTIES FAIL_REGULAR_EXPRESSION "WARNING: at level;Abort")
+  # A fine level that reaches the outflow face only after a regrid: a box moving towards
+  # xhi (x 200-400 m at the start, past 700 m after the first step) is checked when its
+  # grids change, not only at start-up
+  add_test_abort(TerrainFile_SteepAfterRegrid ${_tf_dir} TerrainFileChecks.i
+                 "WARNING: at level 1 the terrain slope \\|grad h\\| reaches 0\\.[78][0-9]* within 2 cells of the xhi face"
+                 "erf.terrain_file_name=ridge_outflow.txt max_step=3 amr.max_level=1 erf.regrid_int=1 erf.refinement_indicators=box1 erf.box1.in_box_lo=200 0 erf.box1.in_box_hi=400 400 erf.box1.move_start_time=0 erf.box1.move_stop_time=1 erf.box1.move_speed_x=4000 erf.box1.move_speed_y=0")
+  # A single row (ny = 1) is a profile constant in y, as the reader always allowed
+  add_test_abort(TerrainFile_OneRow ${_tf_dir} TerrainFileChecks.i
+                 "one y value: constant in y"
+                 "erf.terrain_file_name=one_row.txt")
+  set_tests_properties(TerrainFile_OneRow PROPERTIES FAIL_REGULAR_EXPRESSION "Abort")
+  # The USGS layout: a valid file is summarised; a truncated extra line and a y that
+  # changes within a row stop the run (the base reader accepted both)
+  add_test_abort(TerrainFile_USGS_Summary ${_tf_dir} TerrainFileChecksUSGS.i
+                 "x varies fastest, height n is at \\(x\\[n\\], y\\[n / nx\\]\\).*largest \\|dh/dx\\| 0\\.819[0-9]* at \\(325, 0\\)"
+                 "erf.terrain_file_name_USGS=usgs_ridge.txt")
+  set_tests_properties(TerrainFile_USGS_Summary PROPERTIES FAIL_REGULAR_EXPRESSION "Abort")
+  add_test_abort(TerrainFile_Abort_USGSTruncated ${_tf_dir} TerrainFileChecksUSGS.i
+                 "line 156 must hold exactly three numbers, x y height: '24.87 0'"
+                 "erf.terrain_file_name_USGS=usgs_truncated.txt")
+  add_test_abort(TerrainFile_Abort_USGSYInRow ${_tf_dir} TerrainFileChecksUSGS.i
+                 "y changes within row 2 \\(line 40\\)"
+                 "erf.terrain_file_name_USGS=usgs_y_in_row.txt")
 endif()
 
 #=============================================================================

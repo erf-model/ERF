@@ -663,10 +663,10 @@ public:
     // true (new grids), otherwise only if it changed by more than 1 % since the last report
     void ReportTerrainSlopeFactor (int lev, bool force);
 
-    // at start-up on a terrain-fitted mesh, warn when the terrain next to an inflow or
-    // outflow face is steeper than erf_terrain_file::open_face_slope_warn and no
-    // steep-terrain option is on
-    void WarnSteepTerrainAtOpenFaces ();
+    // on a terrain-fitted mesh, warn when the terrain next to an inflow or outflow face of
+    // level lev is steeper than erf_terrain_file::open_face_slope_warn and no steep-terrain
+    // option is on; called by ComputeDt for every new set of grids
+    void WarnSteepTerrainAtOpenFaces (int lev);
 
 #ifdef ERF_USE_WW3_COUPLING
     //amrex::Print() <<  " About to call send_to_ww3 from ERF.H" << std::endl;
@@ -1730,6 +1730,10 @@ private:
     amrex::Vector<amrex::Real> diffusive_fourier_warned;
     // grids on which, and value at which, the terrain slope factor was last reported, per level
     amrex::Vector<amrex::BoxArray> slope_report_grids;
+    // grids on which the open-face terrain slope was last checked, and the faces already
+    // reported, per level (WarnSteepTerrainAtOpenFaces)
+    amrex::Vector<amrex::BoxArray> openface_grids;
+    amrex::Vector<amrex::Array<bool,4>> openface_warned;
     amrex::Vector<amrex::Real> slope_report_alpha;
 
     // Fixed dt at each level (only used if positive)

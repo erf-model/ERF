@@ -16,6 +16,13 @@ its slope is all in x.
   two_per_line.txt     ridge_middle with two heights on one line
   short_of_domain.txt  ridge_middle with the x list ending at 700 m, 100 m short of the domain
                        face and more than its 43.75 m spacing
+  one_row.txt          ridge_middle as a single row (ny = 1): constant in y
+
+USGS format (origin longitude latitude, nx ny, then one "x y height" per line, x fastest):
+
+  usgs_ridge.txt       ridge_middle
+  usgs_truncated.txt   usgs_ridge with a truncated extra line "24.87 0" at the end
+  usgs_y_in_row.txt    usgs_ridge with the y of one point changed within its row
 """
 import math
 
@@ -53,3 +60,23 @@ with open("two_per_line.txt", "w") as f:
     lines[40] = lines[40] + " " + lines[41]
     del lines[41]
     f.write("\n".join(lines) + "\n")
+
+write("one_row.txt", len(X), 1, X, [0.0], [ridge(400.0)[i][0] for i in range(len(X))])
+
+
+def write_usgs(name, rows, extra=""):
+    with open(name, "w") as f:
+        f.write("-119.8 39.5\n%d %d\n" % (len(X), len(Y)))
+        for line in rows:
+            f.write(line + "\n")
+        f.write(extra)
+
+
+h = ridge(400.0)
+rows = ["%.6f %.6f %.6f" % (x, y, h[i][j]) for j, y in enumerate(Y) for i, x in enumerate(X)]
+write_usgs("usgs_ridge.txt", rows)
+write_usgs("usgs_truncated.txt", rows, "24.87 0\n")
+bad = list(rows)
+x, y, z = bad[2 * len(X) + 3].split()
+bad[2 * len(X) + 3] = "%s %.6f %s" % (x, float(y) + 5.0, z)
+write_usgs("usgs_y_in_row.txt", bad)

@@ -149,8 +149,14 @@ TEST(TerrainFileChecks, RejectsListsThatDoNotIncrease)
 TEST(TerrainFileChecks, RejectsSmallTablesWrongSizesAndNonFiniteValues)
 {
     Table t(Real(0.), Real(0.));
+    // One row (ny = 1) is a profile constant in y in the ERF format, whatever the y extent;
+    // nx = 0 is not a table; the USGS layout needs two points in each direction
     Table one = t; one.ny = 1; one.y.resize(1); one.z.resize(t.nx);
-    EXPECT_NE(problem(one).find("must both be at least 2"), std::string::npos);
+    EXPECT_EQ(problem(one), "");
+    Table none = one; none.nx = 0; none.x.clear(); none.z.clear();
+    EXPECT_NE(problem(none).find("must both be at least 1"), std::string::npos);
+    Table u1(Real(0.), Real(0.), true); u1.ny = 1; u1.y.resize(1); u1.x.resize(u1.nx); u1.z.resize(u1.nx);
+    EXPECT_NE(problem(u1, true).find("must both be at least 2 in the USGS format"), std::string::npos);
     Table shrt = t; shrt.z.pop_back();
     EXPECT_NE(problem(shrt).find("expected 17 x values, 9 y values and 153 heights"), std::string::npos);
     Table bad = t; bad.z[40] = std::numeric_limits<Real>::quiet_NaN();
@@ -203,18 +209,36 @@ TEST(TerrainFileChecks, SummaryGivesOrderExtremesAndSlopes)
     }
     const std::string sr = TableSummary("ridge.txt", false, r.nx, r.ny, r.x, r.y, r.z);
     EXPECT_EQ(sr.find("largest |dh/dy| 0 at"), std::string::npos) << sr;
+
+    // A single row: no y slope to report
+    Vector<Real> z1;
+    for (int i = 0; i < t.nx; ++i) { z1.push_back(Real(0.2) * t.x[i]); }
+    const std::string s1 = TableSummary("row.txt", false, t.nx, 1, t.x, {Real(0.)}, z1);
+    EXPECT_NE(s1.find("largest |dh/dx| 0.2 at"), std::string::npos) << s1;
+    EXPECT_NE(s1.find("one y value: constant in y"), std::string::npos) << s1;
 }
 
-TEST(TerrainFileChecks, SurfaceSlopeOfAPlane)
+TEST(TerrainFileChecks, CellTerrainSlopeOfAPlaneWithMapFactors)
 {
-    const Box nodes(IntVect(0,0,0), IntVect(1,1,0), IntVect(1,1,1));
+    // A plane h = a x + b y in physical coordinates on a cell of grid spacing dx, dy with map
+    // factors mfx, mfy: the physical spacing is dx/mfx, so the drop across the cell is
+    // a dx/mfx and the slope is sqrt(a^2 + b^2) whatever the map factors
+    const Box nodes(IntVect(0,0,0), IntVect(1,1,1), IntVect(1,1,1));
     FArrayBox fab(nodes, 1, The_Pinned_Arena());   // written and read on the host
     const Real a = Real(0.3), b = Real(-0.4), dx = Real(20.), dy = Real(10.);
+    const Real mfx = Real(1.3), mfy = Real(0.8);
     auto z = fab.array();
-    for (int j = 0; j <= 1; ++j) {
-        for (int i = 0; i <= 1; ++i) { z(i,j,0) = a * dx * Real(i) + b * dy * Real(j); }
+    for (int k = 0; k <= 1; ++k) {
+        for (int j = 0; j <= 1; ++j) {
+            for (int i = 0; i <= 1; ++i) {
+                z(i,j,k) = a * (dx/mfx) * Real(i) + b * (dy/mfy) * Real(j) + Real(50.) * Real(k);
+            }
+        }
     }
-    EXPECT_NEAR(SurfaceSlope(0, 0, 0, fab.const_array(), dx, dy), Real(0.5), tol);
+    EXPECT_NEAR(CellTerrainSlope(0, 0, 0, fab.const_array(), mfx, mfy, one/dx, one/dy), Real(0.5), tol);
+    // Ignoring the map factors would report sqrt((a/mfx)^2 + (b/mfy)^2) = 0.5507 instead
+    EXPECT_GT(std::abs(CellTerrainSlope(0, 0, 0, fab.const_array(), one, one, one/dx, one/dy) - Real(0.5)),
+              Real(0.03));
 }
 
 TEST(TerrainFileChecks, FaceBandSlopesSeeOnlyTheirBands)
@@ -230,7 +254,14 @@ TEST(TerrainFileChecks, FaceBandSlopesSeeOnlyTheirBands)
     const DistributionMapping dm(ba);
     MultiFab z(convert(ba, IntVect(1)), dm, 1, 1);
     fill_ramp(z);
-    const auto s3 = FaceBandSlopes(z, geom, 3);
+    // map factors on the same boxes flattened to one k, as ERF's ba2d
+    BoxList bl2d = ba.boxList();
+    for (auto& b : bl2d) { b.setRange(2, 0); }
+    const BoxArray ba2d(std::move(bl2d));
+    MultiFab mf1(ba2d, dm, 1, 0), mf2(ba2d, dm, 1, 0);
+    mf1.setVal(one);
+    mf2.setVal(Real(2.));
+    const auto s3 = FaceBandSlopes(z, mf1, mf1, geom, 3);
     EXPECT_NEAR(s3[0], Real(0.), tol);    // xlo
     EXPECT_NEAR(s3[1], Real(0.), tol);    // xhi
     EXPECT_NEAR(s3[2], Real(0.6), tol);   // ylo
@@ -238,10 +269,13 @@ TEST(TerrainFileChecks, FaceBandSlopesSeeOnlyTheirBands)
 
     // A band of 8 cells (400 m) stops just short of the ramp; 9 cells (450 m) reach its
     // first cell (400 .. 450 m) from xlo
-    EXPECT_NEAR(FaceBandSlopes(z, geom, 8)[0], Real(0.), tol);
-    const auto s9 = FaceBandSlopes(z, geom, 9);
+    EXPECT_NEAR(FaceBandSlopes(z, mf1, mf1, geom, 8)[0], Real(0.), tol);
+    const auto s9 = FaceBandSlopes(z, mf1, mf1, geom, 9);
     EXPECT_NEAR(s9[0], Real(0.6), tol);
     EXPECT_NEAR(s9[1], Real(0.), tol);    // xhi band 750 .. 1200 m stays flat
+
+    // A map factor of 2 halves the physical cell: the same drops are twice as steep
+    EXPECT_NEAR(FaceBandSlopes(z, mf2, mf2, geom, 3)[2], Real(1.2), tol);
 }
 
 TEST(TerrainFileChecks, OpenFaceWarningOnlyForSteepOpenFaces)
