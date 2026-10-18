@@ -81,7 +81,10 @@ The ``foextrap`` type refers to "first order extrapolation" which sets all the g
 same value in the last valid cell/face. By contrast, ``hoextrap``, or "higher order extrapolation",
 does a linear extrapolation from the two nearest valid values. The ``neumann`` condition is an
 ERF-specific boundary type for a specified variable gradient. It is supported for theta on
-``slipwall`` and ``noslipwall`` faces and for density on compressible ``slipwall`` faces. The
+``slipwall`` and ``noslipwall`` faces and for density on compressible ``slipwall`` faces.
+On a terrain-fitted mesh, a scalar with ``foextrap`` at the bottom or top of the domain diffuses
+nothing through that face: the condition is taken as zero flux along the face normal, which on
+sloping terrain is not the same as a zero vertical gradient. The
 ``surface_layer`` condition is an ERF-specific
 boundary type that employs the above set of boundary conditions but also directly specifies the
 subgrid scale diffusive fluxes; see :ref:`sec:surface_layer` for more information.

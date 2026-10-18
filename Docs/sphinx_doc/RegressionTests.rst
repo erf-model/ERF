@@ -722,21 +722,22 @@ solve in every RK stage, on a flat mesh, a stretched mesh (``erf.initial_dz = 0.
 terrain-fitted one (``erf.terrain_type = StaticFittedMesh``). ``Explicit`` diffuses it
 explicitly (``erf.vert_implicit = false``, ``erf.alpha_C = 0.4``).
 
-The seven ``Conservation_ScalarDiffusion_*`` tests run the ``ScalarDiffusion_Reflux`` deck: a
+The eight ``Conservation_ScalarDiffusion_*`` tests run the ``ScalarDiffusion_Reflux`` deck: a
 scalar blob diffusing for 50 steps through a patch over the middle half of the domain in x and y
 and the lower half in z, so through faces normal to all three directions. ``Flat`` runs it as it
-stands. ``Terrain`` uses a terrain-fitted mesh, ``Stretched`` a stretched one
+stands. ``Terrain`` uses a terrain-fitted mesh over flat terrain and ``Hill`` one over a hill (a radial
+Witch of Agnesi, 0.25 high, half-width 0.15), ``Stretched`` a stretched mesh
 (``erf.initial_dz = 0.025``), ``MapFactor`` map factors (``erf.test_mapfactor = true``), and
 ``Ratio221`` 2 x 2 x 1 refinement. ``Anelastic`` uses the anelastic MidPoint integrator, which
 refluxes its second RK stage rather than the third. ``Smagorinsky`` advects the scalar with a
 sheared wind and diffuses it with Smagorinsky diffusion alone.
 
-Three cases have no test, because they are not conserved for reasons that have nothing to do
-with the reflux:
+Until erf-model/ERF#4330 was fixed the hill test failed even on one level: the scalar diffused
+through the bottom wall where the terrain slopes (5.9e-5 relative in this run).
 
-* With non-flat terrain the scalar diffuses through the bottom wall where the terrain slopes, on
-  one level as on two (erf-model/ERF#4330). A terrain-fitted mesh is therefore tested with flat
-  terrain only.
+Two cases have no test, because they are not conserved for reasons that have nothing to do with
+the reflux:
+
 * The anelastic RK2 integrator refluxes the fluxes of its second stage alone, at full weight,
   though its update averages the two stages; advection then leaks as well as diffusion
   (erf-model/ERF#4331).
