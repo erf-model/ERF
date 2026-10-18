@@ -256,6 +256,78 @@ Real eb_wall_correction (
     return barea * dmomdn / (vol * mom_volfrac(i,j,k));
 }
 
+/**
+ * Launch an EB wall-correction kernel over the cached cut-face list on GPU.
+ * CPU execution retains the full-box kernel.
+ */
+template <int MomDir, EBBoundaryType WallModel>
+void launch_eb_wall_correction (
+    Box const& bx,
+    eb_::CutCellList const& cut_cells,
+    Array4<Real> const& mom_rhs,
+    const Array4<const Real>& u_arr,
+    const Array4<const Real>& v_arr,
+    const Array4<const Real>& w_arr,
+    const Array4<const EBCellFlag>& u_cellflg,
+    const Array4<const EBCellFlag>& v_cellflg,
+    const Array4<const EBCellFlag>& w_cellflg,
+    const Array4<const Real>& u_volcent,
+    const Array4<const Real>& v_volcent,
+    const Array4<const Real>& w_volcent,
+    const Array4<const Real>& u_vfrac,
+    const Array4<const Real>& v_vfrac,
+    const Array4<const Real>& w_vfrac,
+    const Array4<const Real>& mom_volfrac,
+    const Array4<const Real>& mom_afrac_x,
+    const Array4<const Real>& mom_afrac_y,
+    const Array4<const Real>& mom_afrac_z,
+    const Array4<const Real>& mom_bcent,
+    const Array4<const Real>& mom_bnorm,
+    const Array4<const Real>& mom_tau_eb13,
+    const Array4<const Real>& mom_tau_eb23,
+    Real dx, Real dy, Real dz, Real vol, Real mu_eff) noexcept
+{
+    static_assert(MomDir >= 0 && MomDir < AMREX_SPACEDIM);
+
+#ifdef AMREX_USE_GPU
+    if (Gpu::inLaunchRegion()) {
+        Dim3 const* const cut_cells_ptr = cut_cells.data();
+        int const num_cut_cells = static_cast<int>(cut_cells.size());
+        ParallelFor(num_cut_cells, [=] AMREX_GPU_DEVICE (int cut_index) noexcept {
+            Dim3 const cell = cut_cells_ptr[cut_index];
+            if (!bx.contains(cell)) { return; }
+            mom_rhs(cell.x,cell.y,cell.z) -= eb_wall_correction<MomDir,WallModel>(
+                cell.x, cell.y, cell.z, u_arr, v_arr, w_arr,
+                u_cellflg, v_cellflg, w_cellflg, u_volcent, v_volcent, w_volcent,
+                u_vfrac, v_vfrac, w_vfrac, mom_volfrac,
+                mom_afrac_x, mom_afrac_y, mom_afrac_z, mom_bcent, mom_bnorm,
+                mom_tau_eb13, mom_tau_eb23, dx, dy, dz, vol, mu_eff);
+        });
+        return;
+    }
+#endif
+
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+        bool is_cut_face;
+        if constexpr (MomDir == 0) {
+            is_cut_face = u_cellflg(i,j,k).isSingleValued();
+        } else if constexpr (MomDir == 1) {
+            is_cut_face = v_cellflg(i,j,k).isSingleValued();
+        } else {
+            is_cut_face = w_cellflg(i,j,k).isSingleValued();
+        }
+
+        if (is_cut_face) {
+            mom_rhs(i,j,k) -= eb_wall_correction<MomDir,WallModel>(
+                i, j, k, u_arr, v_arr, w_arr,
+                u_cellflg, v_cellflg, w_cellflg, u_volcent, v_volcent, w_volcent,
+                u_vfrac, v_vfrac, w_vfrac, mom_volfrac,
+                mom_afrac_x, mom_afrac_y, mom_afrac_z, mom_bcent, mom_bnorm,
+                mom_tau_eb13, mom_tau_eb23, dx, dy, dz, vol, mu_eff);
+        }
+    });
+}
+
 } // namespace
 
 /**
@@ -351,6 +423,10 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
     const auto* u_factory = ebfact.get_u_const_factory();
     const auto* v_factory = ebfact.get_v_const_factory();
     const auto* w_factory = ebfact.get_w_const_factory();
+
+    auto const& u_cut_cells = ebfact.get_u_cut_cells(mfi.index());
+    auto const& v_cut_cells = ebfact.get_v_cut_cells(mfi.index());
+    auto const& w_cut_cells = ebfact.get_w_cut_cells(mfi.index());
 
     const auto& u_flagfab = u_factory->getMultiEBCellFlagFab()[mfi];
     const auto& v_flagfab = v_factory->getMultiEBCellFlagFab()[mfi];
@@ -480,27 +556,19 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
     if (l_u_correction) {
         if (l_no_slip) {
-            ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                if (u_cellflg(i,j,k).isSingleValued()) {
-                    rho_u_rhs(i,j,k) -= eb_wall_correction<0,EBBoundaryType::NoSlipWall>(
-                        i, j, k, u_arr, v_arr, w_arr,
-                        u_cellflg, v_cellflg, w_cellflg, u_volcent, v_volcent, w_volcent,
-                        unused_real, unused_real, unused_real, u_volfrac,
-                        u_afrac_x, u_afrac_y, u_afrac_z, u_bcent, u_bnorm,
-                        unused_real, unused_real, dx, dy, dz, vol, mu_eff);
-                }
-            });
+            launch_eb_wall_correction<0,EBBoundaryType::NoSlipWall>(
+                bxx, u_cut_cells, rho_u_rhs, u_arr, v_arr, w_arr,
+                u_cellflg, v_cellflg, w_cellflg, u_volcent, v_volcent, w_volcent,
+                unused_real, unused_real, unused_real, u_volfrac,
+                u_afrac_x, u_afrac_y, u_afrac_z, u_bcent, u_bnorm,
+                unused_real, unused_real, dx, dy, dz, vol, mu_eff);
         } else {
-            ParallelFor(bxx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                if (u_cellflg(i,j,k).isSingleValued()) {
-                    rho_u_rhs(i,j,k) -= eb_wall_correction<0,EBBoundaryType::SurfaceLayer>(
-                        i, j, k, u_arr, v_arr, w_arr,
-                        u_cellflg, v_cellflg, w_cellflg, u_volcent, v_volcent, w_volcent,
-                        u_volfrac, v_volfrac, w_volfrac, u_volfrac,
-                        u_afrac_x, u_afrac_y, u_afrac_z, u_bcent, u_bnorm,
-                        u_tau_eb13, u_tau_eb23, dx, dy, dz, vol, mu_eff);
-                }
-            });
+            launch_eb_wall_correction<0,EBBoundaryType::SurfaceLayer>(
+                bxx, u_cut_cells, rho_u_rhs, u_arr, v_arr, w_arr,
+                u_cellflg, v_cellflg, w_cellflg, u_volcent, v_volcent, w_volcent,
+                u_volfrac, v_volfrac, w_volfrac, u_volfrac,
+                u_afrac_x, u_afrac_y, u_afrac_z, u_bcent, u_bnorm,
+                u_tau_eb13, u_tau_eb23, dx, dy, dz, vol, mu_eff);
         }
     }
 
@@ -539,27 +607,19 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
     if (l_v_correction) {
         if (l_no_slip) {
-            ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                if (v_cellflg(i,j,k).isSingleValued()) {
-                    rho_v_rhs(i,j,k) -= eb_wall_correction<1,EBBoundaryType::NoSlipWall>(
-                        i, j, k, u_arr, v_arr, w_arr,
-                        u_cellflg, v_cellflg, w_cellflg, u_volcent, v_volcent, w_volcent,
-                        unused_real, unused_real, unused_real, v_volfrac,
-                        v_afrac_x, v_afrac_y, v_afrac_z, v_bcent, v_bnorm,
-                        unused_real, unused_real, dx, dy, dz, vol, mu_eff);
-                }
-            });
+            launch_eb_wall_correction<1,EBBoundaryType::NoSlipWall>(
+                bxy, v_cut_cells, rho_v_rhs, u_arr, v_arr, w_arr,
+                u_cellflg, v_cellflg, w_cellflg, u_volcent, v_volcent, w_volcent,
+                unused_real, unused_real, unused_real, v_volfrac,
+                v_afrac_x, v_afrac_y, v_afrac_z, v_bcent, v_bnorm,
+                unused_real, unused_real, dx, dy, dz, vol, mu_eff);
         } else {
-            ParallelFor(bxy, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                if (v_cellflg(i,j,k).isSingleValued()) {
-                    rho_v_rhs(i,j,k) -= eb_wall_correction<1,EBBoundaryType::SurfaceLayer>(
-                        i, j, k, u_arr, v_arr, w_arr,
-                        u_cellflg, v_cellflg, w_cellflg, u_volcent, v_volcent, w_volcent,
-                        u_volfrac, v_volfrac, w_volfrac, v_volfrac,
-                        v_afrac_x, v_afrac_y, v_afrac_z, v_bcent, v_bnorm,
-                        v_tau_eb13, v_tau_eb23, dx, dy, dz, vol, mu_eff);
-                }
-            });
+            launch_eb_wall_correction<1,EBBoundaryType::SurfaceLayer>(
+                bxy, v_cut_cells, rho_v_rhs, u_arr, v_arr, w_arr,
+                u_cellflg, v_cellflg, w_cellflg, u_volcent, v_volcent, w_volcent,
+                u_volfrac, v_volfrac, w_volfrac, v_volfrac,
+                v_afrac_x, v_afrac_y, v_afrac_z, v_bcent, v_bnorm,
+                v_tau_eb13, v_tau_eb23, dx, dy, dz, vol, mu_eff);
         }
     }
 
@@ -599,27 +659,19 @@ DiffusionSrcForMom_EB (const MFIter& mfi,
 
     if (l_w_correction) {
         if (l_no_slip) {
-            ParallelFor(bxz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                if (w_cellflg(i,j,k).isSingleValued()) {
-                    rho_w_rhs(i,j,k) -= eb_wall_correction<2,EBBoundaryType::NoSlipWall>(
-                        i, j, k, u_arr, v_arr, w_arr,
-                        u_cellflg, v_cellflg, w_cellflg, u_volcent, v_volcent, w_volcent,
-                        unused_real, unused_real, unused_real, w_volfrac,
-                        w_afrac_x, w_afrac_y, w_afrac_z, w_bcent, w_bnorm,
-                        unused_real, unused_real, dx, dy, dz, vol, mu_eff);
-                }
-            });
+            launch_eb_wall_correction<2,EBBoundaryType::NoSlipWall>(
+                bxz, w_cut_cells, rho_w_rhs, u_arr, v_arr, w_arr,
+                u_cellflg, v_cellflg, w_cellflg, u_volcent, v_volcent, w_volcent,
+                unused_real, unused_real, unused_real, w_volfrac,
+                w_afrac_x, w_afrac_y, w_afrac_z, w_bcent, w_bnorm,
+                unused_real, unused_real, dx, dy, dz, vol, mu_eff);
         } else {
-            ParallelFor(bxz, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                if (w_cellflg(i,j,k).isSingleValued()) {
-                    rho_w_rhs(i,j,k) -= eb_wall_correction<2,EBBoundaryType::SurfaceLayer>(
-                        i, j, k, u_arr, v_arr, w_arr,
-                        u_cellflg, v_cellflg, w_cellflg, u_volcent, v_volcent, w_volcent,
-                        u_volfrac, v_volfrac, w_volfrac, w_volfrac,
-                        w_afrac_x, w_afrac_y, w_afrac_z, w_bcent, w_bnorm,
-                        w_tau_eb13, w_tau_eb23, dx, dy, dz, vol, mu_eff);
-                }
-            });
+            launch_eb_wall_correction<2,EBBoundaryType::SurfaceLayer>(
+                bxz, w_cut_cells, rho_w_rhs, u_arr, v_arr, w_arr,
+                u_cellflg, v_cellflg, w_cellflg, u_volcent, v_volcent, w_volcent,
+                u_volfrac, v_volfrac, w_volfrac, w_volfrac,
+                w_afrac_x, w_afrac_y, w_afrac_z, w_bcent, w_bnorm,
+                w_tau_eb13, w_tau_eb23, dx, dy, dz, vol, mu_eff);
         }
     }
 }
