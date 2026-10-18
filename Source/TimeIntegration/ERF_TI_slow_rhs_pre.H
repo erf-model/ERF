@@ -182,6 +182,15 @@
                                            solverChoice);
         }
 
+        // Canopy wake production and short-circuit dissipation of the k-eqn
+        // RANS TKE, staged with the other RhoKE sources of this stage
+        if (solverChoice.do_forest_drag && solverChoice.canopyTurb.enabled && forest_drag) {
+            AddCanopyTKESources(cc_src, S_data[IntVars::cons],
+                                xvel_new, yvel_new, zvel_new,
+                                *forest_drag, solverChoice.canopyTurb,
+                                static_cast<Real>(slow_dt));
+        }
+
         // *****************************************************************************
         // Define the pressure gradient
         // *****************************************************************************
