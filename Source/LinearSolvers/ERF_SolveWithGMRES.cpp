@@ -67,21 +67,10 @@ void ERF::solve_with_gmres (int lev, const Box& subdomain, MultiFab& rhs, MultiF
     }
 
     // The FFT preconditioner is built on the region, so it needs the dz of the region's own
-    // layers only, as solve_with_fft passes on a stretched mesh.  A region that stops below
-    // the top or above the ground (a level refined over part of the depth) would otherwise
-    // hand it the whole column.
-    Gpu::DeviceVector<Real> stretched_dz_d_sub;
-    const bool full_column = (sub_lo.z == dom_lo.z && sub_hi.z == dom_hi.z);
-    if (!full_column) {
-        Vector<Real> stretched_dz_h_sub(subdomain.length(2));
-        for (int k = sub_lo.z; k <= sub_hi.z; k++) {
-            stretched_dz_h_sub[k-sub_lo.z] = stretched_dz_h[lev][k];
-        }
-        stretched_dz_d_sub.resize(stretched_dz_h_sub.size());
-        Gpu::copy(Gpu::hostToDevice, stretched_dz_h_sub.begin(), stretched_dz_h_sub.end(),
-                  stretched_dz_d_sub.begin());
-    }
-    Gpu::DeviceVector<Real>& dz_region = full_column ? stretched_dz_d[lev] : stretched_dz_d_sub;
+    // layers only (make_sub_dz), as solve_with_fft passes on a stretched mesh.  A region that
+    // stops below the top or above the ground (a level refined over part of the depth) would
+    // otherwise hand it the whole column.
+    Gpu::DeviceVector<Real> dz_region = make_sub_dz(lev, subdomain);
 
     amrex::GMRES<MultiFab, TerrainPoisson> gmsolver;
 
@@ -109,4 +98,22 @@ void ERF::solve_with_gmres (int lev, const Box& subdomain, MultiFab& rhs, MultiF
     // Impose bc's on pprime
     // ****************************************************************************
     ImposeBCsOnPhi(lev, phi, subdomain);
+}
+
+/**
+ * The stretched dz of a solve region's own layers, k = subdomain lo to hi in z, on the device.
+ *
+ * @param lev       Level index
+ * @param subdomain Region solved on
+ */
+Gpu::DeviceVector<Real> ERF::make_sub_dz (int lev, const Box& subdomain)
+{
+    const int klo = subdomain.smallEnd(2);
+    Vector<Real> dz_h(subdomain.length(2));
+    for (int k = klo; k <= subdomain.bigEnd(2); k++) {
+        dz_h[k-klo] = stretched_dz_h[lev][k];
+    }
+    Gpu::DeviceVector<Real> dz_d(dz_h.size());
+    Gpu::copy(Gpu::hostToDevice, dz_h.begin(), dz_h.end(), dz_d.begin());
+    return dz_d;
 }

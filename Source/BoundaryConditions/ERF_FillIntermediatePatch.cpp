@@ -55,9 +55,10 @@ ERF::FillIntermediatePatch (int lev, double time_d,
             FPr_c[lev-1].FillSet(*mfs_vel[Vars::cons], time_d, null_bc, domain_bcs_type);
         }
         if ( !cons_only && (cf_set_width >= 0) ) {
-            FPr_u[lev-1].FillSet(*mfs_mom[IntVars::xmom], time_d, null_bc, domain_bcs_type);
-            FPr_v[lev-1].FillSet(*mfs_mom[IntVars::ymom], time_d, null_bc, domain_bcs_type);
-            FPr_w[lev-1].FillSet(*mfs_mom[IntVars::zmom], time_d, null_bc, domain_bcs_type);
+            // The coarse/fine faces from the coarse level, those in z of a level that stops
+            // inside the domain with the coarse Omega (FillSetMomentaCF)
+            FillSetMomentaCF(lev, time_d, *mfs_mom[IntVars::xmom], *mfs_mom[IntVars::ymom],
+                             *mfs_mom[IntVars::zmom]);
         }
     }
 
@@ -370,12 +371,6 @@ ERF::FillIntermediatePatch (int lev, double time_d,
         const MultiFab* c_vfrac = nullptr;
         if (solverChoice.terrain_type == TerrainType::EB) {
             c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
-        }
-
-        // The same coarse Omega on the coarse/fine faces in z as the projection uses
-        if (lev > 0) {
-            set_cf_zface_omega_fill(lev, time_d, *mfs_vel[Vars::cons],
-                                    *mfs_vel[Vars::xvel], *mfs_vel[Vars::yvel], *mfs_vel[Vars::zvel]);
         }
 
         VelocityToMomentum(*mfs_vel[Vars::xvel], ngu,

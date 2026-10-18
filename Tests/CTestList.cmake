@@ -3449,6 +3449,15 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
         REFERENCE_OPTIONS "amr.max_grid_size=1024"
         SPLIT_OPTIONS "amr.max_grid_size_x=12 amr.max_grid_size_y=8"
         FCOMPARE_RTOL "1.0e-9")
+    # The same for a level that stops inside the domain in z: its top and bottom faces are
+    # set from the coarse Omega in the fills, which must reach the ghost copies of those faces
+    # in the neighbouring boxes too, or the answer depends on how the level is cut
+    set(_tph_snd "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/TerrainPoisson_PartialDepth_BoxParity/input_sounding")
+    add_test_box_parity(TerrainPoisson_PartialDepth_BoxParity TerrainPoisson_Hill "plt00006"
+        COMMON_OPTIONS "${_tph_snd} ${_tp_partial}"
+        REFERENCE_OPTIONS "amr.max_grid_size=1024"
+        SPLIT_OPTIONS "amr.max_grid_size_x=12 amr.max_grid_size_y=8"
+        FCOMPARE_RTOL "1.0e-9")
     set(_tph_snd "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/TerrainPoisson_Hill_Restart/input_sounding")
     add_test_restart_parity(TerrainPoisson_Hill_Restart TerrainPoisson_Hill 3 6
         COMMON_OPTIONS "${_tph_snd}"
