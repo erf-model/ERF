@@ -4,7 +4,9 @@
 #
 # Arguments (all -D):
 #   NRANKS TEST_EXE INPUT WORKING_DIRECTORY PYTHON_EXE CHECKER LEVEL  required
+#                   (LEVEL may list several levels, space separated: each one is checked)
 #   MAX_RATIO       largest allowed divergence after / before a solve (default 1e-5)
+#   MAX_MEAN        largest allowed |mean| subtracted before a solve (net inflow; default no limit)
 #   COMMON_OPTIONS  options added to the deck (space separated, no quotes inside)
 #   MPIEXEC MPIEXEC_NUMPROC_FLAG MPIEXEC_PREFLAGS CONFIG  as the other runners
 # -DX= defines X as empty, so test for a value, not for DEFINED
@@ -21,6 +23,11 @@ if(NOT "${MPIEXEC}" STREQUAL "" AND "${MPIEXEC_NUMPROC_FLAG}" STREQUAL "")
 endif()
 if("${MAX_RATIO}" STREQUAL "")
     set(MAX_RATIO "1.0e-5")
+endif()
+
+set(mean_opt "")
+if(NOT "${MAX_MEAN}" STREQUAL "")
+    set(mean_opt --max-mean ${MAX_MEAN})
 endif()
 
 erf_resolve_executable(TEST_EXE "${TEST_EXE}" CONFIG "${CONFIG}"
@@ -55,11 +62,18 @@ function(run_leg name rc_var)
         message(FATAL_ERROR "RunTerrainPoissonDivergence.cmake: the run failed (${run_result}): "
                             "${abort_lines} (see ${dir}/simulation.log)")
     endif()
-    execute_process(
-        COMMAND "${PYTHON_EXE}" "${CHECKER}" "${dir}/simulation.log" --level ${LEVEL} --max-ratio ${MAX_RATIO}
-        OUTPUT_VARIABLE check_out ERROR_VARIABLE check_out RESULT_VARIABLE check_result)
-    message("${check_out}")
-    set(${rc_var} "${check_result}" PARENT_SCOPE)
+    separate_arguments(levels UNIX_COMMAND "${LEVEL}")
+    set(worst 0)
+    foreach(lev IN LISTS levels)
+        execute_process(
+            COMMAND "${PYTHON_EXE}" "${CHECKER}" "${dir}/simulation.log" --level ${lev} --max-ratio ${MAX_RATIO} ${mean_opt}
+            OUTPUT_VARIABLE check_out ERROR_VARIABLE check_out RESULT_VARIABLE check_result)
+        message("${check_out}")
+        if(NOT check_result EQUAL 0)
+            set(worst ${check_result})
+        endif()
+    endforeach()
+    set(${rc_var} "${worst}" PARENT_SCOPE)
 endfunction()
 
 run_leg(run run_rc)

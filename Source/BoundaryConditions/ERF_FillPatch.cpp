@@ -143,9 +143,8 @@ ERF::FillPatchFineLevel (int lev, double time_d,
                                Geom(lev).Domain(),
                                domain_bcs_type, c_vfrac);
 
-            FPr_u[lev-1].FillSet(*mfs_mom[IntVars::xmom], time_d, null_bc, domain_bcs_type);
-            FPr_v[lev-1].FillSet(*mfs_mom[IntVars::ymom], time_d, null_bc, domain_bcs_type);
-            FPr_w[lev-1].FillSet(*mfs_mom[IntVars::zmom], time_d, null_bc, domain_bcs_type);
+            FillSetMomentaCF(lev, time_d, *mfs_mom[IntVars::xmom], *mfs_mom[IntVars::ymom],
+                             *mfs_mom[IntVars::zmom]);
 
             MomentumToVelocity(*mfs_vel[Vars::xvel], *mfs_vel[Vars::yvel], *mfs_vel[Vars::zvel],
                                *mfs_vel[Vars::cons],

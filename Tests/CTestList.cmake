@@ -3352,7 +3352,7 @@ endif()
 # 13 solves failed).  The general-terrain projection needs the FFT build.
 #=============================================================================
 function(add_test_terrain_poisson_divergence TEST_NAME TEST_FILES_DIR LEVEL)
-    set(oneValueArgs "COMMON_OPTIONS" "MAX_RATIO")
+    set(oneValueArgs "COMMON_OPTIONS" "MAX_RATIO" "MAX_MEAN")
     cmake_parse_arguments(ADD_TEST_TPD "" "${oneValueArgs}" "" ${ARGN})
     if(ADD_TEST_TPD_UNPARSED_ARGUMENTS)
         message(FATAL_ERROR "add_test_terrain_poisson_divergence(${TEST_NAME}): unknown arguments "
@@ -3373,6 +3373,7 @@ function(add_test_terrain_poisson_divergence TEST_NAME TEST_FILES_DIR LEVEL)
         "-DCHECKER=${CMAKE_CURRENT_SOURCE_DIR}/check_terrain_poisson_divergence.py"
         "-DLEVEL=${LEVEL}"
         "-DMAX_RATIO=${ADD_TEST_TPD_MAX_RATIO}"
+        "-DMAX_MEAN=${ADD_TEST_TPD_MAX_MEAN}"
         "-DCOMMON_OPTIONS=${ADD_TEST_TPD_COMMON_OPTIONS}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunTerrainPoissonDivergence.cmake)
     set_tests_properties(${TEST_NAME}
@@ -3387,6 +3388,11 @@ endfunction(add_test_terrain_poisson_divergence)
 if(ERF_ENABLE_MPI AND NOT WIN32)
   # The hill on one level, boxed in by slip walls where its slopes reach them
   set(_tp_walls "amr.max_level=0 geometry.is_periodic=0 0 0 xlo.type=SlipWall xhi.type=SlipWall ylo.type=SlipWall yhi.type=SlipWall geometry.prob_lo=-640 -640 0 geometry.prob_hi=640 640 640 amr.n_cell=16 16 16")
+  # A refined level that stops inside the domain in z (k 4-11 of 16), one-way coupled, and the
+  # largest net inflow its solves may leave (with the coarse Omega on its top and bottom)
+  set(_tp_partial "erf.box1.in_box_lo_indices_crse=8 12 4 erf.box1.in_box_hi_indices_crse=19 23 11 erf.coupling_type=OneWay")
+  set(_tp_partial_mean "1.0e-7")
+  set(_tp_partial_4lev "amr.max_level=3 amr.ref_ratio_vect=2 2 1 2 2 1 2 2 1 erf.refinement_indicators=box1 box2 box3 erf.box1.in_box_lo_indices_crse=8 12 4 erf.box1.in_box_hi_indices_crse=19 23 11 erf.box2.max_level=2 erf.box2.in_box_lo_indices_crse=20 28 5 erf.box2.in_box_hi_indices_crse=35 43 10 erf.box3.max_level=3 erf.box3.in_box_lo_indices_crse=48 64 6 erf.box3.in_box_hi_indices_crse=63 79 9 erf.coupling_type=OneWay")
   # Two separate refined patches on the hill's flanks (two regions on level 1)
   set(_tp_two_patches "amr.grid_eff=0.99 erf.refinement_indicators=box1 box2 erf.box1.in_box_lo_indices_crse=4 8 0 erf.box1.in_box_hi_indices_crse=11 15 15 erf.box2.max_level=1 erf.box2.in_box_lo_indices_crse=20 16 0 erf.box2.in_box_hi_indices_crse=27 23 15")
   if(ERF_TEST_PYTHON)
@@ -3414,6 +3420,20 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     # segmentation fault; the loops now use the region's own arrays
     add_test_terrain_poisson_divergence(TerrainPoisson_TwoPatches TerrainPoisson_Hill 1
         COMMON_OPTIONS "${_tp_two_patches}")
+    # A refined level over the hill that stops inside the domain in z (k 4-11 of 16, 25-75 %),
+    # one-way coupled.  Development stopped it at start-up: gmres_fft got the whole column's dz
+    # (AMReX FFT assert), and the momenta just below and above the level were never filled, so
+    # the slope turned unset memory into a divergence of 1e147.  The flux through the level's
+    # top and bottom now comes from the coarse Omega, so the mean the solve subtracts (the net
+    # inflow) stays at 7e-9; with the coarse (rho w) on those faces instead it was 2.8e-6 (limit 1e-7).
+    add_test_terrain_poisson_divergence(TerrainPoisson_PartialDepth TerrainPoisson_Hill 1
+        COMMON_OPTIONS "${_tp_partial}" MAX_MEAN "${_tp_partial_mean}")
+    # Four levels, each nested in the one below and each stopping inside the domain in z
+    # (k 4-11, 5-10 and 6-9 of 16; ratio 2 2 1), so every refined level has coarse/fine faces
+    # at its top and bottom and takes its flux there from the level below.  Every level's
+    # solves are checked.
+    add_test_terrain_poisson_divergence(TerrainPoisson_PartialDepth_FourLevels TerrainPoisson_Hill "1 2 3"
+        COMMON_OPTIONS "${_tp_partial_4lev}" MAX_MEAN "${_tp_partial_mean}")
     # Map factors other than one (erf.test_mapfactor: 0.5 and 0.25): the projection adds the
     # map-factor scaled fluxes, which change the divergence by m_x m_y times A phi, so the
     # equation solved is A phi = rhs / (m_x m_y).  Without that division every solve left
@@ -3428,6 +3448,15 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     set(_tph_snd "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/TerrainPoisson_Hill_BoxParity/input_sounding")
     add_test_box_parity(TerrainPoisson_Hill_BoxParity TerrainPoisson_Hill "plt00006"
         COMMON_OPTIONS "${_tph_snd}"
+        REFERENCE_OPTIONS "amr.max_grid_size=1024"
+        SPLIT_OPTIONS "amr.max_grid_size_x=12 amr.max_grid_size_y=8"
+        FCOMPARE_RTOL "1.0e-9")
+    # The same for a level that stops inside the domain in z: its top and bottom faces are
+    # set from the coarse Omega in the fills, which must reach the ghost copies of those faces
+    # in the neighbouring boxes too, or the answer depends on how the level is cut
+    set(_tph_snd "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/TerrainPoisson_PartialDepth_BoxParity/input_sounding")
+    add_test_box_parity(TerrainPoisson_PartialDepth_BoxParity TerrainPoisson_Hill "plt00006"
+        COMMON_OPTIONS "${_tph_snd} ${_tp_partial}"
         REFERENCE_OPTIONS "amr.max_grid_size=1024"
         SPLIT_OPTIONS "amr.max_grid_size_x=12 amr.max_grid_size_y=8"
         FCOMPARE_RTOL "1.0e-9")
@@ -3447,6 +3476,9 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     foreach(_tp_solver mlmg gmres_mlmg)
       add_test_terrain_poisson_divergence(TerrainPoisson_TwoLevelHill_${_tp_solver} TerrainPoisson_Hill 1
           COMMON_OPTIONS "${_tp_mg_tol} erf.terrain_poisson_solver=${_tp_solver}")
+      add_test_terrain_poisson_divergence(TerrainPoisson_PartialDepth_${_tp_solver} TerrainPoisson_Hill 1
+          COMMON_OPTIONS "${_tp_partial} ${_tp_mg_tol} erf.terrain_poisson_solver=${_tp_solver}"
+          MAX_MEAN "${_tp_partial_mean}")
       add_test_terrain_poisson_divergence(TerrainPoisson_SlopingWalls_${_tp_solver} TerrainPoisson_Hill 0
           COMMON_OPTIONS "${_tp_walls} ${_tp_mg_tol} erf.terrain_poisson_solver=${_tp_solver}")
     endforeach()
