@@ -54,7 +54,7 @@ void fill_forest_first_cell (amrex::MultiFab& forest, Real f)
 // off, beta_p = 1, beta_d = 4, alpha = 0.04
 TEST(CanopyTurbulence, Defaults)
 {
-    const CanopyTurbulence canopy;
+    const CanopyTurbulence canopy{};
     EXPECT_FALSE(canopy.enabled);
     EXPECT_EQ(canopy.beta_p, Real(1.0));
     EXPECT_EQ(canopy.beta_d, Real(4.0));
