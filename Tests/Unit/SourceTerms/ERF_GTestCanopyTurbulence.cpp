@@ -166,13 +166,15 @@ TEST(CanopyTurbulence, BalanceIsSteadyAtAnyTimeStep)
 }
 
 // Without production, a dense canopy and a long step: the stage update tends to
-// zero from above and never removes more than (rho k)^n
+// zero and never removes more than (rho k)^n, to round-off
 TEST(CanopyTurbulence, SinkBoundedByStartOfStepTKE)
 {
     const Real rho = Real(1.2), rhok = Real(0.6);
     for (const Real dt : {Real(0.1), Real(10), Real(1000)}) {
         const Real src = canopy_turbulence::tke_source(rho, rhok, Real(1), Real(20), Real(0), Real(4), dt);
-        EXPECT_GE(rhok + dt * src, Real(0)) << "dt = " << dt;
+        // (rho k)^n - ((rho k)^n / dt) dt is zero only to round-off (about 5e-9 in
+        // single precision for dt = 1000)
+        EXPECT_GE(rhok + dt * src, -rhok * tol(Real(10))) << "dt = " << dt;
     }
     const Real src = canopy_turbulence::tke_source(rho, rhok, Real(1), Real(20), Real(0), Real(4), Real(10));
     EXPECT_NEAR(rhok + Real(10) * src, Real(0), rhok * tol(Real(1000)));

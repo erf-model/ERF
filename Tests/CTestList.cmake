@@ -1385,6 +1385,10 @@ add_test_field_bounds(PBLH_FinePatch "plt2d00004" pblh 450.0 600.0)
 if(ERF_PRECISION STREQUAL "DOUBLE")
   add_test_column_bounds(ForestCanopyRANS_Uniform "plt00001" 45
       "x_velocity,KE" "4.87805424489,1.01881940905" "4.87805424587,1.01881940925")
+  # The same with erf.implicit_tke_dissipation = true (the recommended setting);
+  # reference U 4.8780542453793183, k 1.0110471279453457
+  add_test_column_bounds(ForestCanopyRANS_UniformImplicit "plt00001" 45
+      "x_velocity,KE" "4.87805424489,1.01104712784" "4.87805424587,1.01104712805")
 endif()
 # A refined patch aloft (256-768 m) has no column at the ground: it takes level 0's height (~461 m), not zero
 add_test_field_bounds(PBLH_PatchAloft "plt2d00004" pblh 400.0 600.0)
