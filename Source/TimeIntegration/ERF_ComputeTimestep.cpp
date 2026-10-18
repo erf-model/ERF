@@ -35,6 +35,7 @@ ERF::ComputeDt (int step, double cur_time_d)
     // Track exactly the current levels, so a level removed and later re-created is reported again
     slope_report_grids.resize(finest_level+1);
     slope_report_alpha.resize(finest_level+1, zero);
+    openface_grids.resize(finest_level+1);
 
     const bool fitted = (solverChoice.terrain_type == TerrainType::StaticFittedMesh ||
                          solverChoice.terrain_type == TerrainType::MovingFittedMesh);
@@ -56,6 +57,12 @@ ERF::ComputeDt (int step, double cur_time_d)
                 ReportTerrainSlopeFactor(lev, new_grids);
                 slope_report_grids[lev] = grids[lev];
             }
+        }
+
+        // Steep terrain next to an inflow or outflow face: checked for every new set of grids
+        if (openface_grids[lev] != grids[lev]) {
+            WarnSteepTerrainAtOpenFaces(lev);
+            openface_grids[lev] = grids[lev];
         }
 
         dt_tmp[lev] = estTimeStep(lev, dt_mri_ratio[lev]);

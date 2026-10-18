@@ -633,18 +633,31 @@ ERF_GPU_TEST(
   EXPECT_EQ(scalar.coefficients.eddy_h_comp, EddyDiff::Scalar_h);
   EXPECT_EQ(scalar.coefficients.eddy_v_comp, EddyDiff::Scalar_v);
 
-  for (int qcomp : {RhoQ1_comp, RhoQ6_comp}) {
+  // Every moisture species takes alpha_C, including the number concentrations
+  // Morrison and WDM6 keep in Q7 and above
+  for (int qcomp : {RhoQ1_comp, RhoQ6_comp, RhoQ7_comp, RhoQ11_comp}) {
     const auto q = ResolveNativeScalarDiffusionPolicy(qcomp, choice);
     EXPECT_DOUBLE_EQ(q.coefficients.molecular_coeff, choice.alpha_C);
     EXPECT_EQ(q.coefficients.eddy_h_comp, EddyDiff::Q_h);
     EXPECT_EQ(q.coefficients.eddy_v_comp, EddyDiff::Q_v);
   }
-  for (int qcomp : {RhoQ7_comp, RhoQ11_comp, RhoQ11_comp + 1}) {
-    const auto q = ResolveNativeScalarDiffusionPolicy(qcomp, choice);
+  // A non-moist species appended after the moisture species takes none
+  {
+    const auto q = ResolveNativeScalarDiffusionPolicy(RhoQ11_comp + 1, choice);
     EXPECT_DOUBLE_EQ(q.coefficients.molecular_coeff, Real(0.0));
     EXPECT_EQ(q.coefficients.eddy_h_comp, EddyDiff::Q_h);
     EXPECT_EQ(q.coefficients.eddy_v_comp, EddyDiff::Q_v);
-    EXPECT_EQ(q.scalar_comp, qcomp - 1);
+    EXPECT_EQ(q.scalar_comp, RhoQ11_comp);
+  }
+  // The boundary follows the model's moisture size: with six moisture species
+  // (e.g. SuperDropletsMoist), Q7 is an appended species
+  {
+    DiffChoice six = choice;
+    six.n_qstate_moist = 6;
+    EXPECT_DOUBLE_EQ(ResolveNativeScalarDiffusionPolicy(RhoQ6_comp, six)
+                       .coefficients.molecular_coeff, choice.alpha_C);
+    EXPECT_DOUBLE_EQ(ResolveNativeScalarDiffusionPolicy(RhoQ7_comp, six)
+                       .coefficients.molecular_coeff, Real(0.0));
   }
 
   choice.molec_diff_type = MolecDiffType::Constant;

@@ -17,6 +17,7 @@
 #include "ERF_GridUtils.H"
 #include "ERF_TileNoZ.H"
 #include "ERF_ColumnBands.H"
+#include "ERF_TerrainFileChecks.H"
 
 #ifdef ERF_USE_NETCDF
 #include <ERF_NCInterface.H>
@@ -26,27 +27,6 @@ struct ProbParmDefaults {
     amrex::Real rho_0 = one;
     amrex::Real T_0 = amrex::Real(300.0);
 };
-
-template <typename T>
-T erf_get_single_value (std::istream& is, int n)
-{
-  T r = 0;
-  std::string line;
-  if (std::getline(is, line)) {
-    std::stringstream ss(line);
-    ss >> r;
-    if (ss.fail()) {
-      amrex::Abort("Failed to read");
-    }
-    if (ss >> r) {
-      amrex::Print() << "Trying to read line " << n << " in this file " << std::endl;
-      amrex::Abort("Wrong format: more than one number in this line");
-    }
-  } else {
-    amrex::Abort("Unable to read this line");
-  }
-  return r;
-}
 
 void
 init_my_custom_terrain (const amrex::Geometry& geom,
@@ -857,104 +837,18 @@ public:
                          amrex::FArrayBox& terrain_fab,
                          const double& /*time*/)
     {
-        amrex::Vector<amrex::Real> m_xterrain,m_yterrain,m_zterrain;
+        // Read, checked and broadcast once per file; other levels, regrids, the EB build and
+        // the station slabs reuse the table
+        const auto& table = erf_terrain_file::ReadHeightTable(fname, is_usgs,
+                                                              geom.ProbLoArray(), geom.ProbHiArray());
+        const int nx = table.nx;
+        const int ny = table.ny;
+        const amrex::Vector<amrex::Real>& m_xterrain = table.x;
+        const amrex::Vector<amrex::Real>& m_yterrain = table.y;
+        const amrex::Vector<amrex::Real>& m_zterrain = table.z;
 
-        int nx = 0; int ny = 0;
-
-        if (amrex::ParallelDescriptor::IOProcessor()) {
-            // Read terrain file
-            amrex::Print()<<"Reading terrain file: "<< fname<< std::endl;
-            std::ifstream file(fname);
-
-            if (!file.is_open()) {
-                amrex::Abort("Error: Could not open the file " + fname+ "\n");
-            }
-
-            // Check if file is empty
-            if (file.peek() == std::ifstream::traits_type::eof()) {
-                amrex::Abort("Error: The file  " + fname+ " is empty.\n");
-            }
-
-            amrex::Real value1,value2,value3;
-
-            if (is_usgs) {
-                amrex::Real lat_min, lon_min;
-
-                file >> lon_min >> lat_min;
-                 if(std::fabs(lon_min) > amrex::Real(180.0)) {
-                    amrex::Error("The value of longitude for entry in the first line in " + fname
-                                 + " should not exceed amrex::Real(180.) It is " + std::to_string(lon_min));
-                }
-                 if(std::fabs(lat_min) > amrex::Real(90.0)) {
-                    amrex::Error("The value of latitude for entry in the first line in " + fname
-                                 + " should not exceed amrex::Real(90.) It is " + std::to_string(lat_min));
-                }
-
-                file >> nx >> ny;
-
-                int counter = 0;
-                while (file >> value1 >> value2 >> value3) {
-                    m_xterrain.push_back(value1);
-                    if(counter%nx==0) {
-                        m_yterrain.push_back(value2);
-                    }
-                    m_zterrain.push_back(value3);
-                    counter += 1;
-                }
-                AMREX_ASSERT(m_xterrain.size() == static_cast<long int>(nx*ny));
-                AMREX_ASSERT(m_yterrain.size() == static_cast<long int>(ny));
-                AMREX_ASSERT(m_zterrain.size() == static_cast<long int>(nx*ny));
-
-            } else {
-                int cnt = 1;
-                nx = erf_get_single_value<int>(file,cnt); cnt++;
-                ny = erf_get_single_value<int>(file,cnt); cnt++;
-                amrex::Print()<<"Expecting " << nx << " values of x,    " <<
-                                                ny << " values of y, and " <<
-                                             nx*ny << " values of z" << std::endl;
-                AMREX_ALWAYS_ASSERT(nx > 0);
-                AMREX_ALWAYS_ASSERT(ny > 0);
-                m_xterrain.resize(nx);
-                m_yterrain.resize(ny);
-                m_zterrain.resize(nx * ny);
-                for (int n = 0; n < nx; n++) {
-                    m_xterrain[n] = erf_get_single_value<amrex::Real>(file,cnt);
-                    cnt++;
-                }
-                for (int n = 0; n < ny; n++) {
-                    m_yterrain[n] = erf_get_single_value<amrex::Real>(file,cnt);
-                    cnt++;
-                }
-                for (int n = 0; n < nx * ny; n++) {
-                    m_zterrain[n] = erf_get_single_value<amrex::Real>(file,cnt);
-                    cnt++;
-                }
-            }
-
-            // Close the file after reading
-            file.close();
-        }
-
-        amrex::ParallelDescriptor::Bcast(&nx,1,amrex::ParallelDescriptor::IOProcessorNumber());
-        amrex::ParallelDescriptor::Bcast(&ny,1,amrex::ParallelDescriptor::IOProcessorNumber());
-
-        AMREX_ALWAYS_ASSERT(nx > 0 && ny > 0);
-        if (is_usgs) {
-            // The usgs branch below always uses a full 2x2 stencil
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nx > 1 && ny > 1,
-                "USGS terrain file must have at least two points in each direction");
-        }
-
-        int nz = nx * ny;
-        int nx_vals = is_usgs ? (nx * ny) : nx;
-
-        m_xterrain.resize(nx_vals);
-        m_yterrain.resize(ny);
-        m_zterrain.resize(nz);
-
-        amrex::ParallelDescriptor::Bcast(m_xterrain.data(),nx_vals,amrex::ParallelDescriptor::IOProcessorNumber());
-        amrex::ParallelDescriptor::Bcast(m_yterrain.data(),ny,amrex::ParallelDescriptor::IOProcessorNumber());
-        amrex::ParallelDescriptor::Bcast(m_zterrain.data(),nz,amrex::ParallelDescriptor::IOProcessorNumber());
+        const int nz = nx * ny;
+        const int nx_vals = is_usgs ? (nx * ny) : nx;
 
         // Copy data to the GPU
         amrex::Gpu::DeviceVector<amrex::Real> d_xterrain(nx_vals),d_yterrain(ny),d_zterrain(nz);
@@ -1145,6 +1039,9 @@ public:
                 }
             } // usgs?
         });
+
+        // The kernel reads the device vectors above: finish it before they are freed
+        amrex::Gpu::streamSynchronize();
     }
 
     /**

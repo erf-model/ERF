@@ -112,7 +112,9 @@
             solverChoice.terrain_type != TerrainType::EB)
         {
             const Real l_fac = solverChoice.vert_implicit_fac[level][nrk];
-            const Real l_dt  = static_cast<Real>(slow_dt);
+            // weighted as in the step's update (RefluxStageWeight)
+            const Real l_dt  = RefluxStageWeight(solverChoice, level, finest_level, nrk) *
+                               static_cast<Real>(slow_dt);
             const bool l_stretched = (solverChoice.mesh_type == MeshType::StretchedDz);
             const bool l_implicit_metric = solverChoice.implicit_terrain_metric &&
                                            l_use_terrain_fitted_coords;
