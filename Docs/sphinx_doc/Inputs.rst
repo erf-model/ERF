@@ -2223,6 +2223,9 @@ If we set ``erf.molec_diff_type`` to ``ConstantAlpha``, then
 
 - ``erf.alpha_C`` is multiplied by the instantaneous local density :math:`\rho` to form the coefficient for an advected scalar.
 
+With either type, the coefficient formed from ``erf.alpha_C`` also applies to every moisture species of the
+microphysics model, number concentrations included, but not to non-moist species a model appends after them.
+
 Parameters for LES can either be set with one value that applies across all levels, or set with a number of values
 equal to the number of levels, allowing unique values of the parameter to be set for each level.
 
