@@ -1962,11 +1962,15 @@ endfunction(add_test_abort)
 # them without qv (the planes BndryPlanes_MoistTemperature writes), and writing them without qv
 # from a moist run, both stop (erf-model/ERF#4290)
 set(_bp_moist_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/BndryPlanes_MoistTemperature)
-add_test_abort(BndryPlanes_MoistTemperature_ReadWithoutQv ${_bp_moist_dir}
-               BndryPlanes_MoistTemperature.i
-               "reads temperature but not qv"
-               "erf.bndry_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/BndryPlanes_MoistTemperature/BndryFiles 'erf.bndry_input_var_names=temperature density velocity'")
-set_tests_properties(BndryPlanes_MoistTemperature_ReadWithoutQv PROPERTIES FIXTURES_REQUIRED BndryPlanesMoist)
+# The read test needs the planes BndryPlanes_MoistTemperature writes, a field-bounds test that is
+# not defined on Windows; there CTest would run it without them
+if(NOT WIN32)
+  add_test_abort(BndryPlanes_MoistTemperature_ReadWithoutQv ${_bp_moist_dir}
+                 BndryPlanes_MoistTemperature.i
+                 "reads temperature but not qv"
+                 "erf.bndry_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/BndryPlanes_MoistTemperature/BndryFiles 'erf.bndry_input_var_names=temperature density velocity'")
+  set_tests_properties(BndryPlanes_MoistTemperature_ReadWithoutQv PROPERTIES FIXTURES_REQUIRED BndryPlanesMoist)
+endif()
 add_test_abort(BndryPlanes_MoistTemperature_WriteWithoutQv ${_bp_moist_dir}
                BndryPlanes_MoistTemperature_Write.i
                "writes temperature but not qv"
