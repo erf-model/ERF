@@ -263,7 +263,7 @@ Real eb_wall_correction (
 template <int MomDir, EBBoundaryType WallModel>
 void launch_eb_wall_correction (
     Box const& bx,
-    eb_::CutCellList const& cut_cells,
+    [[maybe_unused]] eb_::CutCellList const& cut_cells,
     Array4<Real> const& mom_rhs,
     const Array4<const Real>& u_arr,
     const Array4<const Real>& v_arr,
