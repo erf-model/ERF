@@ -372,6 +372,49 @@ public:
         } else {
             init_my_custom_terrain (geom, terrain_fab, time);
         }
+
+        make_terrain_surface_periodic(geom, terrain_fab);
+    }
+
+    /**
+     * Give every node in a periodic direction the height of its periodic image inside the
+     * domain.  The nodes on the high side of a periodic domain are the same nodes as those
+     * on the low side, but none of the sources above knows that: the file readers clip a
+     * node outside the table to its edge (and look every node up 1e-3 past where it is),
+     * and an analytic surface is periodic only to round-off.  Left as they are the two
+     * copies of a node differ, and so do the metrics of the faces on either side of it --
+     * which means the two grids that share a face update it differently, the mass flux
+     * through it is no longer the same on both sides, and which copy a fill keeps depends
+     * on how the grids are distributed.  The low side is the one we keep.
+    */
+    static void
+    make_terrain_surface_periodic (const amrex::Geometry& geom,
+                                   amrex::FArrayBox& terrain_fab)
+    {
+        const bool per_x = geom.isPeriodic(0);
+        const bool per_y = geom.isPeriodic(1);
+        if (!per_x && !per_y) { return; }
+
+        const amrex::Box& domain = geom.Domain();
+        const int ilo = domain.smallEnd(0); const int nx = domain.length(0);
+        const int jlo = domain.smallEnd(1); const int ny = domain.length(1);
+
+        const amrex::Box bx = terrain_fab.box();
+        const auto blo = amrex::lbound(bx);
+        const auto bhi = amrex::ubound(bx);
+        amrex::Array4<amrex::Real> const& z_arr = terrain_fab.array();
+
+        // We only write nodes outside [lo, lo+n) in a periodic direction and only read
+        // nodes inside it, so no node is both read and written here
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            int ii = (per_x) ? ilo + ((i-ilo) % nx + nx) % nx : i;
+            int jj = (per_y) ? jlo + ((j-jlo) % ny + ny) % ny : j;
+            if ((ii != i || jj != j) &&
+                ii >= blo.x && ii <= bhi.x && jj >= blo.y && jj <= bhi.y) {
+                z_arr(i,j,k) = z_arr(ii,jj,k);
+            }
+        });
     }
 
     /**
