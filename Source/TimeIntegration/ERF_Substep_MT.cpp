@@ -104,6 +104,7 @@ void erf_substep_MT (int step, int /*nrk*/,
 
     const Real* dx = geom.CellSize();
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
+    const int domlo_z = geom.Domain().smallEnd(2);
     const int domhi_z = geom.Domain().bigEnd(2);
 
     Real dxi = dxInv[0];
@@ -150,6 +151,13 @@ void erf_substep_MT (int step, int /*nrk*/,
 
         Box vbx = mfi.validbox();
         const auto& vbx_hi = ubound(vbx);
+
+        // The vertical solve below takes the bottom of the box as the moving terrain and the
+        // top of the box as the top of the domain, so a grid that is split in z (level 0 with
+        // max_grid_size_z below the domain height) or a refined grid with c/f faces in z
+        // would be solved for with the wrong boundary rows
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(vbx.smallEnd(2) == domlo_z && vbx.bigEnd(2) == domhi_z,
+            "erf_substep_MT: MovingFittedMesh requires every grid to span the full height of the domain");
 
         const Array4<Real const>& xmom_src_arr   = xmom_src.const_array(mfi);
         const Array4<Real const>& ymom_src_arr   = ymom_src.const_array(mfi);
