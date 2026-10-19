@@ -13,6 +13,21 @@
 #include <ERF_ProbCommon.H>
 
 /**
+ * The coarse/fine face fluxes of the last RK stage, in the units the flux registers hold:
+ * (rho u)/m_uy, (rho v)/m_vx and the time-weighted (rho w)/(m_x m_y).
+ *
+ * A coarse level records in rec[dir] the flux each substep applied through every face.  A fine
+ * level takes the fluxes in tgt[dir] (component 0) on the faces where component 1 is one -- its
+ * coarse/fine faces -- in place of its own, and tgt_w as (rho w) there at the end of the
+ * substep.  The fine level's fluxes through its boundary then add up to the coarse ones.
+ */
+struct CFFaceFluxes {
+    std::array<amrex::MultiFab*, AMREX_SPACEDIM>       rec {{AMREX_D_DECL(nullptr, nullptr, nullptr)}};
+    std::array<const amrex::MultiFab*, AMREX_SPACEDIM> tgt {{AMREX_D_DECL(nullptr, nullptr, nullptr)}};
+    const amrex::MultiFab* tgt_w = nullptr;
+};
+
+/**
  * Function for computing the fast RHS with no terrain but constant or stretched vertical resolution
  *
  */
@@ -43,7 +58,8 @@ void erf_substep_NS (int step, int nrk, int level, int finest_level,
                      amrex::YAFluxRegister* fr_as_fine,
                      bool l_use_moisture, bool l_reflux, bool l_real_bc,
                      const amrex::Real* sinesq_at_lev_d,
-                     const amrex::Real l_damp_coef);
+                     const amrex::Real l_damp_coef,
+                     const CFFaceFluxes& cf_fluxes);
 
 /**
  * Function for computing the fast RHS with fixed-in-time terrain

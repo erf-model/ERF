@@ -1578,6 +1578,33 @@ private:
     };
     const CFZFaceLayout& cf_zface_layout (int lev);
     std::map<int, CFZFaceLayout> m_cf_zface_cache;
+
+    // The coarse level's fluxes through the coarse/fine faces of level lev over each acoustic
+    // substep of its last RK stage (ERF_CFFluxHistory.cpp).  The fast step of level lev takes
+    // their average over each of its own substeps, so that what crosses its boundary adds up to
+    // what the coarse level moved across it.
+    struct CFFluxHistory {
+        amrex::BoxArray fba;                                    // the grids it was made for
+        amrex::DistributionMapping fdm;
+        amrex::Array<amrex::BoxArray, AMREX_SPACEDIM> sba;      // coarse face slabs, per direction
+        amrex::Array<amrex::DistributionMapping, AMREX_SPACEDIM> sdm;
+        amrex::Array<amrex::Vector<int>, AMREX_SPACEDIM> slab_box;           // box of level lev of each slab
+        amrex::Array<amrex::Vector<amrex::Box>, AMREX_SPACEDIM> slab_faces;  // its coarse/fine faces (fine index)
+        amrex::Array<amrex::Vector<amrex::MultiFab>, AMREX_SPACEDIM> flux;   // per coarse substep
+        amrex::Vector<amrex::MultiFab> rho_w;                   // (rho w) at the substep times
+        amrex::Vector<amrex::Real> time;                        // the coarse substep times
+        bool complete = false;
+        amrex::Array<amrex::MultiFab, AMREX_SPACEDIM> tgt;      // the fine faces' fluxes (CFFaceFluxes)
+        amrex::MultiFab tgt_w;
+    };
+    amrex::Vector<CFFluxHistory> m_cf_flux_hist;
+    bool cf_flux_history_active (int crse_lev) const;
+    CFFluxHistory& cf_flux_history (int lev);
+    void cf_flux_history_record (int crse_lev, int fast_step, int n_sub,
+                                 amrex::Real t_old, amrex::Real t_new,
+                                 const amrex::Array<amrex::MultiFab, AMREX_SPACEDIM>& rec,
+                                 const amrex::MultiFab& rho_w_old, const amrex::MultiFab& rho_w_new);
+    void cf_flux_history_targets (int lev, amrex::Real t_old, amrex::Real t_new);
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   az;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_src;

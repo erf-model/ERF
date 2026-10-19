@@ -38,6 +38,7 @@ using namespace amrex;
  * @param[inout]  fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
  * @param[in   ]  l_use_moisture
  * @param[in   ]  l_reflux should we add fluxes to the FluxRegisters?
+ * @param[inout]  cf_fluxes coarse/fine face fluxes: recorded here on a coarse level, imposed on a fine one
  */
 
 void erf_substep_NS (int step, int nrk,
@@ -70,7 +71,8 @@ void erf_substep_NS (int step, int nrk,
                      bool l_reflux,
                      bool l_real_bc,
                      const amrex::Real* sinesq_stag_d,
-                     const Real l_damp_coef)
+                     const Real l_damp_coef,
+                     const CFFaceFluxes& cf_fluxes)
 {
     //
     // NOTE: for step > 0, S_data and S_prev point to the same MultiFab data!!
@@ -314,6 +316,39 @@ void erf_substep_NS (int step, int nrk,
                 temp_cur_ymom_arr(i,j,k) = stage_ymom(i,j,k) + new_drho_v;
             });
         } // nrk > 0 and/or step > 0
+
+        // On the coarse/fine faces of a fine level, the coarse level's flux over this substep
+        // (CFFaceFluxes) in place of the level's own
+        for (int dir = 0; dir < 2; ++dir) {
+            if (!cf_fluxes.tgt[dir]) { continue; }
+            const Box& fbx = (dir == 0) ? tbx : tby;
+            const Array4<const Real>& tgt = cf_fluxes.tgt[dir]->const_array(mfi);
+            const Array4<Real>& cur = (dir == 0) ? temp_cur_xmom_arr : temp_cur_ymom_arr;
+            const Array4<Real>& avg = (dir == 0) ? avg_xmom_arr      : avg_ymom_arr;
+            const Array4<const Real>& mf = (dir == 0) ? mf_uy : mf_vx;
+            ParallelFor(fbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                if (tgt(i,j,k,1) > myhalf) {
+                    Real new_mom = tgt(i,j,k,0) * mf(i,j,0);
+                    Real h_zeta  = dz_ptr[k] * dzi;
+                    avg(i,j,k) += facinv * (new_mom - cur(i,j,k)) * h_zeta / mf(i,j,0);
+                    cur(i,j,k)  = new_mom;
+                }
+            });
+        }
+
+        // On a coarse level, the flux each face applied over this substep
+        for (int dir = 0; dir < 2; ++dir) {
+            if (!cf_fluxes.rec[dir]) { continue; }
+            const Box& fbx = (dir == 0) ? tbx : tby;
+            const Array4<Real>& rec = cf_fluxes.rec[dir]->array(mfi);
+            const Array4<const Real>& cur = (dir == 0) ? temp_cur_xmom_arr : temp_cur_ymom_arr;
+            const Array4<const Real>& mf  = (dir == 0) ? mf_uy : mf_vx;
+            ParallelFor(fbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            {
+                rec(i,j,k) = cur(i,j,k) / mf(i,j,0);
+            });
+        }
     } //mfi
 
 #ifdef _OPENMP
@@ -489,6 +524,21 @@ void erf_substep_NS (int step, int nrk,
                                + dtau * zmom_src_arr(i,j,hi.z+1);
         }); // b2d
 
+        // (rho w) on the coarse/fine faces of a fine level at the end of this substep, from the coarse level
+        if (cf_fluxes.tgt_w) {
+            const Array4<const Real>& tgt   = cf_fluxes.tgt[2]->const_array(mfi);
+            const Array4<const Real>& tgt_w = cf_fluxes.tgt_w->const_array(mfi);
+            ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
+            {
+                if (tgt(i,j,lo.z,1) > myhalf) {
+                    RHS_a(i,j,lo.z) = tgt_w(i,j,lo.z) - stage_zmom(i,j,lo.z);
+                }
+                if (tgt(i,j,hi.z+1,1) > myhalf) {
+                    RHS_a(i,j,hi.z+1) = tgt_w(i,j,hi.z+1) - stage_zmom(i,j,hi.z+1);
+                }
+            });
+        }
+
 #ifdef AMREX_USE_GPU
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
@@ -550,10 +600,30 @@ void erf_substep_NS (int step, int nrk,
         // Define updates in the RHS of rho and (rho theta)
         // **************************************************************************
         const Array4<Real>&  prev_drho_w = Delta_rho_w.array(mfi);
+        const bool has_tgt_z = (cf_fluxes.tgt[2] != nullptr);
+        const bool has_rec_z = (cf_fluxes.rec[2] != nullptr);
+        const Array4<const Real> tgt_z = (has_tgt_z) ? cf_fluxes.tgt[2]->const_array(mfi) : Array4<const Real>{};
+        const Array4<      Real> rec_z = (has_rec_z) ? cf_fluxes.rec[2]->array(mfi)       : Array4<Real>{};
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             Real zflux_lo = beta_2 * soln_a(i,j,k  ) + beta_1 * prev_drho_w(i,j,k  );
             Real zflux_hi = beta_2 * soln_a(i,j,k+1) + beta_1 * prev_drho_w(i,j,k+1);
+
+            // On the coarse/fine faces of a fine level, the coarse level's flux over this substep
+            if (has_tgt_z) {
+                Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
+                if (tgt_z(i,j,k  ,1) > myhalf) { zflux_lo = tgt_z(i,j,k  ,0) * mfsq - stage_zmom(i,j,k  ); }
+                if (tgt_z(i,j,k+1,1) > myhalf) { zflux_hi = tgt_z(i,j,k+1,0) * mfsq - stage_zmom(i,j,k+1); }
+            }
+
+            // On a coarse level, the flux each face applied over this substep
+            if (has_rec_z) {
+                Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
+                rec_z(i,j,k) = (zflux_lo + stage_zmom(i,j,k)) / mfsq;
+                if (k == vbx_hi.z) {
+                    rec_z(i,j,k+1) = (zflux_hi + stage_zmom(i,j,k+1)) / mfsq;
+                }
+            }
 
             avg_zmom_arr(i,j,k)      += facinv*zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
             if (l_reflux) {

@@ -174,6 +174,29 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
 
         } else {
 
+            // The coarse/fine face fluxes of the last RK stage (ERF_CFFluxHistory.cpp): a coarse
+            // level records those of each substep, a fine level takes the coarse ones
+            CFFaceFluxes cf_fluxes;
+            Array<MultiFab, AMREX_SPACEDIM> cf_rec;
+            const bool cf_record = l_reflux && cf_flux_history_active(level);
+            const bool cf_impose = l_reflux && (level > 0) && cf_flux_history_active(level-1);
+            if (cf_record) {
+                const int mom[AMREX_SPACEDIM] = {AMREX_D_DECL(IntVars::xmom, IntVars::ymom, IntVars::zmom)};
+                for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+                    cf_rec[dir].define(S_data[mom[dir]].boxArray(), S_data[mom[dir]].DistributionMap(), 1, 0);
+                    cf_fluxes.rec[dir] = &cf_rec[dir];
+                }
+            }
+            if (cf_impose) {
+                cf_flux_history_targets(level, static_cast<Real>(old_substep_time),
+                                               static_cast<Real>(new_substep_time));
+                CFFluxHistory& H = cf_flux_history(level);
+                for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+                    cf_fluxes.tgt[dir] = &H.tgt[dir];
+                }
+                cf_fluxes.tgt_w = &H.tgt_w;
+            }
+
             erf_substep_NS(fast_step, nrk, level, finest_level,
                            S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
                            S_data, lagged_delta_rt[level], avg_xmom[level], avg_ymom[level], avg_zmom[level],
@@ -181,7 +204,16 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                            fine_geom, solverChoice.gravity, stretched_dz_d[level],
                            dtau, beta_s, inv_fac, mapfac[level],
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
-                           (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef);
+                           (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
+                           cf_fluxes);
+
+            // Svec_to_use holds (rho w) at the start of the stage when fast_step is 0, the only
+            // substep at which the record reads it
+            if (cf_record) {
+                cf_flux_history_record(level, fast_step, n_sub,
+                                       static_cast<Real>(old_substep_time), static_cast<Real>(new_substep_time),
+                                       cf_rec, Svec_to_use[IntVars::zmom], S_data[IntVars::zmom]);
+            }
         }
 
         // Even if we update all the conserved variables we don't need

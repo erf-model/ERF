@@ -20,6 +20,18 @@ this ensures mass conservation since the normal momentum is in fact the flux for
 In order to ensure that the fine momentum on the coarse-fine boundary stays consistent with the
 interpolated coarse values throughout a fine timestep, we also interpolate the source term for
 the normal momentum on the coarse-fine interface.
+
+With acoustic substepping, interpolating linearly in time between the coarse level's old and new
+momenta is not enough: over a time step the density flux through a face is the time integral of the
+momentum on that face over the acoustic substeps, and the coarse level's integral uses what the
+momentum actually did, which acoustic waves crossing the face make far from linear.  So, under
+two-way coupling and without terrain, the coarse level records the flux through each face under the
+fine level's coarse-fine faces over each acoustic substep of its last RK stage.  On its coarse-fine
+faces the fine level then uses the average of those fluxes over each of its own substeps,
+interpolated conservatively in space, and in the vertical sets the normal momentum at the end of
+each substep from the same record.  The fine fluxes through the interface then add up, over the
+coarse step, to the coarse ones, and the total mass is conserved to round-off.
+
 When using the anelastic approximation, this ensures that the computation of the updates to the
 fine momentum do not use any values of the perturbational pressure from the coarser level since
 the perturbational pressure is not synchronized between levels.
