@@ -138,8 +138,10 @@ void erf_slow_rhs_post (int level, int finest_level,
     const bool l_anelastic     = solverChoice.anelastic[level];
     const bool l_anelastic_rk2 = (solverChoice.anelastic_type[level] == AnelasticType::RK2);
 
-    // Only add to the flux registers on the final RK stage
-    const bool l_reflux = IsRefluxStage(solverChoice, level, finest_level, nrk);
+    // Add to the flux registers only in the stages whose fluxes the step's update applies,
+    // weighted as in that update (RefluxStageWeight)
+    const bool l_reflux    = IsRefluxStage(solverChoice, level, finest_level, nrk);
+    const Real l_reflux_dt = RefluxStageWeight(solverChoice, level, finest_level, nrk) * dt;
 
     const bool l_use_KE         = ( tc.use_tke );
     const bool l_need_SmnSmn    = ( tc.les_type  == LESType::Deardorff ||
@@ -919,19 +921,19 @@ void erf_slow_rhs_post (int level, int finest_level,
 
         {
         BL_PROFILE("rhs_post_10");
-        // We only add to the flux registers in the final RK step
+        // Only in the stages RefluxStageWeight weights
         if (l_reflux) {
             int strt_comp_reflux = RhoTheta_comp + 1;
             int  num_comp_reflux = nvars - strt_comp_reflux;
             if (level < finest_level) {
                 fr_as_crse->CrseAdd(mfi,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
-                    dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
+                    dx, l_reflux_dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
             }
             if (level > 0) {
                 fr_as_fine->FineAdd(mfi,
                     {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
-                    dx, dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
+                    dx, l_reflux_dt, strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
             }
 
             // This is necessary here so we don't go on to the next FArrayBox without

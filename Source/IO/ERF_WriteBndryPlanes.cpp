@@ -267,6 +267,23 @@ void WriteBndryPlanes::write_planes (const int t_step, const double time_d,
     MultiFab& yvel = vars_new[bndry_lev][Vars::yvel];
     MultiFab& zvel = vars_new[bndry_lev][Vars::zvel];
 
+    // A moist temperature plane is computed with qv (erf_dermoisttemp), and the reader needs that
+    // qv to convert it back to theta: without a qv plane it cannot be read correctly
+    if (is_moist) {
+        bool writes_temperature = false;
+        bool writes_qv          = false;
+        for (const auto& name : m_var_names) {
+            if (name == "temperature") { writes_temperature = true; }
+            if (name == "qv")          { writes_qv          = true; }
+        }
+        if (writes_temperature && !writes_qv) {
+            Abort("erf.bndry_output_var_names writes temperature but not qv in a moist run: the"
+                  " temperature includes qv, and the reader needs the qv planes to convert it back"
+                  " to theta.  Add qv to erf.bndry_output_var_names, or write theta instead of"
+                  " temperature");
+        }
+    }
+
     const std::string chkname =
         m_filename + Concatenate("/bndry_output", t_step);
 

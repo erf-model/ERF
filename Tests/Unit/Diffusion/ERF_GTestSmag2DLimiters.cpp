@@ -7,7 +7,8 @@
 //    order (cap, then slope);
 //  * the momentum and scalar diffusive rates against hand-computed values, the explicit
 //    fraction of the partly implicit stages (every stage bounded or not), and the neighbourhood bound (NeighbourhoodMax,
-//    NeighbourhoodMinPositive, CellDiffusiveRates) on coefficients that vary between cells;
+//    NeighbourhoodMinPositive, CellDiffusiveRates) on coefficients that vary between cells,
+//    with molecular diffusivities on their own and added to the eddy ones;
 //  * ComputeTurbulentViscosityLES on a tilted terrain-fitted mesh: K_h is limited before the
 //    scalar diffusivities are derived from it, K_v is not touched, and the limiter does nothing
 //    without terrain.
@@ -349,6 +350,73 @@ TEST(Smag2DLimiters, CellRatesUseTheNeighbourhood)
     rates(rm, rs);
     EXPECT_EQ(rm, Real(0));
     EXPECT_EQ(rs, Real(0));
+}
+
+TEST(Smag2DLimiters, CellRatesAddMolecularDiffusion)
+{
+    // Molecular diffusion enters the rates on its own (no eddy-diffusivity closure, so k_arr is
+    // never read) and added to the eddy diffusivities.  Uniform 1 x 1 x 0.5 cells, as in the
+    // CouetteFlow_ImplicitCF deck (dynamic_viscosity = 4, rho = 1).
+    const int nk = EddyDiff::NumDiffs;
+    std::vector<Real> rho(27, Real(1)), K(27*static_cast<std::size_t>(nk), Real(1));
+    const amrex::Dim3 lo{-1,-1,-1};
+    const amrex::Array4<const Real> sa(rho.data(), lo, amrex::Dim3{2,2,2}, 1);
+    const amrex::Array4<const Real> ka(K.data(),   lo, amrex::Dim3{2,2,2}, nk);
+    const amrex::GpuArray<Real,AMREX_SPACEDIM> dxinv{Real(1), Real(1), Real(2)};
+    const Real a = Real(1), dz2 = Real(4);
+
+    // Couette: u and v implicit in the vertical (e_uv = 0), w explicit (e_w = 1), molecular only.
+    // The w row is mu (a + b) + 2 mu / dz^2 + mu (sqrt(a c) + sqrt(b c)) = 8 + 32 + 16 = 56 1/s,
+    // so dt = 0.2 gives the Fourier number 11.2 the check reports for that deck
+    DiffusiveRateSettings set;
+    set.has_eddy = false;
+    set.e_uv = Real(0); set.e_w = Real(1);
+    set.mol_mom = Real(4);
+    Real rm, rs;
+    CellDiffusiveRates(0, 0, 0, sa, amrex::Array4<const Real>{}, amrex::Array4<const Real>{},
+                       Real(1), Real(1), dxinv, set, rm, rs);
+    EXPECT_NEAR(rm, Real(56), Real(56)*rel_tol());
+    EXPECT_EQ(rs, Real(0));
+
+    // Scalars: theta takes alpha_T; moisture and the advected scalar alpha_C; KE none
+    set.e_th = Real(1); set.e_q = Real(1); set.e_ke = Real(1);
+    set.mol_th = Real(0.3); set.mol_c = Real(0.5);
+    set.has_ke = true;
+    CellDiffusiveRates(0, 0, 0, sa, amrex::Array4<const Real>{}, amrex::Array4<const Real>{},
+                       Real(1), Real(1), dxinv, set, rm, rs);
+    EXPECT_NEAR(rs, ScalarDiffusiveRate(Real(1), Real(0.3), Real(0.3), a, a, Real(0), dz2, Real(1)),
+                rs*rel_tol());
+    set.has_q = true;
+    CellDiffusiveRates(0, 0, 0, sa, amrex::Array4<const Real>{}, amrex::Array4<const Real>{},
+                       Real(1), Real(1), dxinv, set, rm, rs);
+    const Real rs_c = ScalarDiffusiveRate(Real(1), Real(0.5), Real(0.5), a, a, Real(0), dz2, Real(1));
+    EXPECT_NEAR(rs, rs_c, rs_c*rel_tol());
+    set.has_q = false; set.has_scalar = true;
+    CellDiffusiveRates(0, 0, 0, sa, amrex::Array4<const Real>{}, amrex::Array4<const Real>{},
+                       Real(1), Real(1), dxinv, set, rm, rs);
+    EXPECT_NEAR(rs, rs_c, rs_c*rel_tol());
+    set.has_scalar = false;
+
+    // With eddy diffusivities (all 1) the molecular ones add to them, in both directions
+    set.has_eddy = true;
+    CellDiffusiveRates(0, 0, 0, sa, ka, amrex::Array4<const Real>{}, Real(1), Real(1), dxinv, set, rm, rs);
+    const Real rm_sum = MomentumDiffusiveRate(Real(1), Real(5), Real(5), a, a, Real(0), dz2, Real(0), Real(1));
+    EXPECT_NEAR(rm, rm_sum, rm_sum*rel_tol());
+    const Real rs_sum = ScalarDiffusiveRate(Real(1), Real(1.3), Real(1.3), a, a, Real(0), dz2, Real(1));
+    EXPECT_NEAR(rs, amrex::max(rs_sum, ScalarDiffusiveRate(Real(1), Real(1), Real(1), a, a, Real(0), dz2, Real(1))),
+                rs_sum*rel_tol());
+
+    // ConstantAlpha: kinematic coefficients times the largest density around the cell, the rate
+    // divided by the smallest one
+    set.has_eddy = false; set.has_ke = false;
+    set.mol_times_rho = true;
+    rho[26] = Real(2);
+    rho[0]  = Real(0.5);
+    CellDiffusiveRates(0, 0, 0, sa, amrex::Array4<const Real>{}, amrex::Array4<const Real>{},
+                       Real(1), Real(1), dxinv, set, rm, rs);
+    const Real rm_ca = MomentumDiffusiveRate(Real(0.5), Real(8), Real(8), a, a, Real(0), dz2, Real(0), Real(1));
+    EXPECT_NEAR(rm, rm_ca, rm_ca*rel_tol());
+    EXPECT_NEAR(rm, Real(4) * Real(56), rm_ca*rel_tol());
 }
 
 namespace {

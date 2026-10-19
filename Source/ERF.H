@@ -655,13 +655,18 @@ public:
     // compute dt from CFL considerations
     double estTimeStep (int lev, long& dt_fast_ratio) const;
 
-    // largest explicit eddy-diffusion rates (1/s) on level lev, momentum and scalars, for the
+    // largest explicit diffusion rates (eddy and molecular, 1/s) on level lev, momentum and scalars, for the
     // diffusive time-step check (erf.diffusive_dt_check / erf.diffusive_dt_limit)
     void ComputeDiffusiveRates (int lev, amrex::Real& rate_mom, amrex::Real& rate_scal) const;
 
     // print the largest terrain slope factor alpha = h dx/dz on level lev: always when force is
     // true (new grids), otherwise only if it changed by more than 1 % since the last report
     void ReportTerrainSlopeFactor (int lev, bool force);
+
+    // on a terrain-fitted mesh, warn when the terrain next to an inflow or outflow face of
+    // level lev is steeper than erf_terrain_file::open_face_slope_warn and no steep-terrain
+    // option is on; called by ComputeDt for every new set of grids
+    void WarnSteepTerrainAtOpenFaces (int lev);
 
 #ifdef ERF_USE_WW3_COUPLING
     //amrex::Print() <<  " About to call send_to_ww3 from ERF.H" << std::endl;
@@ -985,8 +990,10 @@ public:
     // has_surface_layer_inputs).
     std::set<std::string> user_specified_inputs;
 
-    void fill_from_bndryregs (const amrex::Vector<amrex::MultiFab*>& mfs,
-                              double time);
+    void fill_from_bndryregs (int lev,
+                              const amrex::Vector<amrex::MultiFab*>& mfs,
+                              double time,
+                              bool cons_only = false);
 
 #ifdef ERF_USE_NETCDF
     // Version in which we always set the velocity values but don't set theta
@@ -1725,6 +1732,10 @@ private:
     amrex::Vector<amrex::Real> diffusive_fourier_warned;
     // grids on which, and value at which, the terrain slope factor was last reported, per level
     amrex::Vector<amrex::BoxArray> slope_report_grids;
+    // grids on which the open-face terrain slope was last checked, and the faces already
+    // reported, per level (WarnSteepTerrainAtOpenFaces)
+    amrex::Vector<amrex::BoxArray> openface_grids;
+    amrex::Vector<amrex::Array<bool,4>> openface_warned;
     amrex::Vector<amrex::Real> slope_report_alpha;
 
     // Fixed dt at each level (only used if positive)
