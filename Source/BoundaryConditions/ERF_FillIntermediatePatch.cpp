@@ -244,6 +244,12 @@ ERF::FillIntermediatePatch (int lev, double time_d,
         // Impose physical bc's on fine data (note time and 0 are not used)
         // Note that we do this after the FillPatch because imposing physical bc's on fine ghost
         //      cells that need to be filled from coarse requires that we have done the interpolation first
+        // Quantities ingested from boundary planes are not imposed by physbcs_cons; the density
+        // among them is also read by MomentumToVelocity below at the ingested faces
+        if (m_r2d && !solverChoice.use_real_bcs) {
+            fill_from_bndryregs(lev, {&mf, mfs_vel[Vars::xvel], mfs_vel[Vars::yvel], mfs_vel[Vars::zvel]},
+                                time_d, true);
+        }
         bool do_fb = true; bool do_terrain_adjustment = false;
         (*physbcs_cons[lev])(mf,*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
                              icomp_cons,ncomp_cons,IntVect{ng_cons},time,BCVars::cons_bc,
@@ -339,7 +345,7 @@ ERF::FillIntermediatePatch (int lev, double time_d,
     }
 #endif
 
-    if (m_r2d && !solverChoice.use_real_bcs) { fill_from_bndryregs(mfs_vel,time_d); }
+    if (m_r2d && !solverChoice.use_real_bcs) { fill_from_bndryregs(lev,mfs_vel,time_d); }
 
     // We call this even if use_real_bcs is true because these will fill the vertical bcs
     (*physbcs_cons[lev])(*mfs_vel[Vars::cons],*mfs_vel[Vars::xvel],*mfs_vel[Vars::yvel],
