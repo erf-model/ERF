@@ -332,6 +332,8 @@ public:
         } else {
             init_my_custom_terrain(geom, buildings_fab, time);
         }
+
+        make_terrain_surface_periodic(geom, buildings_fab);
     }
 
 
@@ -372,6 +374,87 @@ public:
         } else {
             init_my_custom_terrain (geom, terrain_fab, time);
         }
+
+        make_terrain_surface_periodic(geom, terrain_fab);
+    }
+
+    /**
+     * Give every node in a periodic direction the height of its periodic image inside the
+     * domain.  The nodes on the high side of a periodic domain are the same nodes as those
+     * on the low side, but none of the sources above knows that: the file readers clip a
+     * node outside the table to its edge (and look every node up 1e-3 past where it is),
+     * and an analytic surface is periodic only to round-off.  Left as they are the two
+     * copies of a node differ, and so do the metrics of the faces on either side of it --
+     * which means the two grids that share a face update it differently, the mass flux
+     * through it is no longer the same on both sides, and which copy a fill keeps depends
+     * on how the grids are distributed.  The low side is the one we keep.
+     *
+     * terrain_fab must hold every node of the domain in a periodic direction, since that is
+     * where the images are read from.  A surface that is far from periodic is still made
+     * periodic here, but we say so, since the cells next to the high side then see a step.
+    */
+    static void
+    make_terrain_surface_periodic (const amrex::Geometry& geom,
+                                   amrex::FArrayBox& terrain_fab)
+    {
+        const bool per_x = geom.isPeriodic(0);
+        const bool per_y = geom.isPeriodic(1);
+        if (!per_x && !per_y) { return; }
+
+        const amrex::Box& domain = geom.Domain();
+        const int ilo = domain.smallEnd(0); const int nx = domain.length(0);
+        const int jlo = domain.smallEnd(1); const int ny = domain.length(1);
+
+        const amrex::Box bx = terrain_fab.box();
+        const auto blo = amrex::lbound(bx);
+        const auto bhi = amrex::ubound(bx);
+        amrex::Array4<amrex::Real> const& z_arr = terrain_fab.array();
+
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            (!per_x || (blo.x <= ilo && bhi.x >= ilo+nx-1)) &&
+            (!per_y || (blo.y <= jlo && bhi.y >= jlo+ny-1)),
+            "make_terrain_surface_periodic: the terrain FArrayBox must hold every node of the domain in a periodic direction");
+
+        // How far the surface is from periodic: the largest difference between a node on the
+        // high side of the domain and its image on the low side (ghost nodes are left out:
+        // they hold whatever the source clipped them to)
+        amrex::Box hi_bx = bx & amrex::surroundingNodes(domain);
+        hi_bx.setSmall(2, bx.smallEnd(2)); hi_bx.setBig(2, bx.smallEnd(2));
+        if (!hi_bx.isEmpty()) {
+            amrex::ReduceOps<amrex::ReduceOpMax> reduce_op;
+            amrex::ReduceData<amrex::Real> reduce_data(reduce_op);
+            reduce_op.eval(hi_bx, reduce_data,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) -> amrex::GpuTuple<amrex::Real>
+                {
+                    int ii = (per_x) ? ilo + ((i-ilo) % nx + nx) % nx : i;
+                    int jj = (per_y) ? jlo + ((j-jlo) % ny + ny) % ny : j;
+                    return { (ii != i || jj != j) ? amrex::Math::abs(z_arr(i,j,k) - z_arr(ii,jj,k))
+                                                  : amrex::Real(0.0) };
+                });
+            // Every rank fills its own copy of the whole surface, so there is nothing to reduce
+            // across ranks.  Warn once: with a moving mesh we are called several times a step.
+            const amrex::Real max_diff = amrex::get<0>(reduce_data.value());
+            static bool warned = false;
+            if (!warned && max_diff > amrex::Real(0.1) * geom.CellSize(2)) {
+                warned = true;
+                amrex::Print() << "WARNING: the terrain surface is not periodic in a periodic direction: "
+                               << "a node on the high side of the domain differs from its image on the low "
+                               << "side by up to " << max_diff << " m.  The low side is used for both, so the "
+                               << "cells next to the high side see a step in the surface.\n";
+            }
+        }
+
+        // We only write nodes outside [lo, lo+n) in a periodic direction and only read
+        // nodes inside it, so no node is both read and written here
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            int ii = (per_x) ? ilo + ((i-ilo) % nx + nx) % nx : i;
+            int jj = (per_y) ? jlo + ((j-jlo) % ny + ny) % ny : j;
+            if ((ii != i || jj != j) &&
+                ii >= blo.x && ii <= bhi.x && jj >= blo.y && jj <= bhi.y) {
+                z_arr(i,j,k) = z_arr(ii,jj,k);
+            }
+        });
     }
 
     /**
@@ -737,6 +820,13 @@ public:
             if (!target_box.isEmpty()) {
                 target_box.setSmall(2, zbx.smallEnd(2));
                 target_box.setBig(2, zbx.smallEnd(2));
+                // The node on the high side of a periodic direction takes the value of its
+                // image on the low side (make_terrain_surface_periodic), so don't count it
+                for (int d = 0; d < 2; ++d) {
+                    if (geom.isPeriodic(d)) {
+                        target_box.setBig(d, amrex::min(target_box.bigEnd(d), geom.Domain().bigEnd(d)));
+                    }
+                }
                 amrex::ReduceOps<amrex::ReduceOpSum, amrex::ReduceOpSum> reduce_op;
                 amrex::ReduceData<amrex::Long, amrex::Long> reduce_data(reduce_op);
                 reduce_op.eval(target_box, reduce_data,
