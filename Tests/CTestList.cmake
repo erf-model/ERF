@@ -1963,8 +1963,8 @@ endfunction(add_test_abort)
 # from a moist run, both stop (erf-model/ERF#4290)
 set(_bp_moist_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/BndryPlanes_MoistTemperature)
 # The read test needs the planes BndryPlanes_MoistTemperature writes, a field-bounds test that is
-# not defined on Windows; there CTest would run it without them
-if(NOT WIN32)
+# defined only with MPI and not on Windows; without it CTest would run the read test anyway
+if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_abort(BndryPlanes_MoistTemperature_ReadWithoutQv ${_bp_moist_dir}
                  BndryPlanes_MoistTemperature.i
                  "reads temperature but not qv"

@@ -21,7 +21,7 @@ pblh_is_diagnosed (const amrex::Real& pblh)
  * Calculate the convective velocity scale
  */
 
-AMREX_GPU_DEVICE
+AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 calc_wstar (const amrex::Real& ust,
@@ -51,7 +51,7 @@ calc_wstar (const amrex::Real& ust,
  * @param[in] thv Virtual potential temperature.
  * @return Convective velocity scale.
  */
-AMREX_GPU_DEVICE
+AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
 calc_wstar (const amrex::Real& hfx,
