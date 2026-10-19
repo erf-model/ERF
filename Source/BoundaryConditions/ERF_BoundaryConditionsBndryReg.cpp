@@ -89,6 +89,11 @@ ERF::fill_from_bndryregs (int lev, const Vector<MultiFab*>& mfs, const double ti
         MultiFab& mf = *mfs[var_idx];
         const int icomp = 0;
         const int ncomp = mf.nComp();
+        // The ingestion check and the plane read use one slot: for a conserved
+        // component its boundary-condition slot (every passive scalar shares one,
+        // so an ingested scalar plane fills them all, and the planes are stored
+        // by these slots, ReadBndryPlanes::plane_slot), for a velocity its own.
+        const bool is_cons = (var_idx == Vars::cons);
 
         if (var_idx == Vars::xvel) {
            bccomp = BCVars::xvel_bc;
@@ -121,26 +126,24 @@ ERF::fill_from_bndryregs (int lev, const Vector<MultiFab*>& mfs, const double ti
 
             ParallelFor(
                 bx_xlo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                    int bc_comp = (icomp+n >= RhoScalar_comp && icomp+n < RhoScalar_comp+NSCALARS) ?
-                                   BCVars::RhoScalar_bc_comp : icomp+n;
+                    const int bc_comp = is_cons ? cons_bc_comp(icomp+n) : bccomp+n;
                     if (bc_ptr[bc_comp].lo(0) == ERFBCType::ext_dir_ingested) {
                         const PlaneIndex pj = plane_index(j, ry, nodal_y, pdom_lo.y, pdom_hi.y);
                         const PlaneIndex pk = plane_index(k, rz, nodal_z, pdom_lo.z, pdom_hi.z);
                         const int ib = pdom_lo.x-1;
-                        const int c  = bccomp+n;
+                        const int c  = bc_comp;
                         dest_arr(i,j,k,icomp+n) =
                             (one-pk.w) * ((one-pj.w) * bdatxlo(ib,pj.lo,pk.lo,c) + pj.w * bdatxlo(ib,pj.hi,pk.lo,c))
                           +      pk.w  * ((one-pj.w) * bdatxlo(ib,pj.lo,pk.hi,c) + pj.w * bdatxlo(ib,pj.hi,pk.hi,c));
                     }
                 },
                 bx_xhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                    int bc_comp = (icomp+n >= RhoScalar_comp && icomp+n < RhoScalar_comp+NSCALARS) ?
-                                   BCVars::RhoScalar_bc_comp : icomp+n;
+                    const int bc_comp = is_cons ? cons_bc_comp(icomp+n) : bccomp+n;
                     if (bc_ptr[bc_comp].hi(0) == ERFBCType::ext_dir_ingested) {
                         const PlaneIndex pj = plane_index(j, ry, nodal_y, pdom_lo.y, pdom_hi.y);
                         const PlaneIndex pk = plane_index(k, rz, nodal_z, pdom_lo.z, pdom_hi.z);
                         const int ib = pdom_hi.x+1;
-                        const int c  = bccomp+n;
+                        const int c  = bc_comp;
                         dest_arr(i,j,k,icomp+n) =
                             (one-pk.w) * ((one-pj.w) * bdatxhi(ib,pj.lo,pk.lo,c) + pj.w * bdatxhi(ib,pj.hi,pk.lo,c))
                           +      pk.w  * ((one-pj.w) * bdatxhi(ib,pj.lo,pk.hi,c) + pj.w * bdatxhi(ib,pj.hi,pk.hi,c));
@@ -158,26 +161,24 @@ ERF::fill_from_bndryregs (int lev, const Vector<MultiFab*>& mfs, const double ti
 
             ParallelFor(
                bx_ylo, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                    int bc_comp = (icomp+n >= RhoScalar_comp && icomp+n < RhoScalar_comp+NSCALARS) ?
-                                   BCVars::RhoScalar_bc_comp : icomp+n;
+                    const int bc_comp = is_cons ? cons_bc_comp(icomp+n) : bccomp+n;
                     if (bc_ptr[bc_comp].lo(1) == ERFBCType::ext_dir_ingested) {
                         const PlaneIndex pi = plane_index(i, rx, nodal_x, pdom_lo.x, pdom_hi.x);
                         const PlaneIndex pk = plane_index(k, rz, nodal_z, pdom_lo.z, pdom_hi.z);
                         const int jb = pdom_lo.y-1;
-                        const int c  = bccomp+n;
+                        const int c  = bc_comp;
                         dest_arr(i,j,k,icomp+n) =
                             (one-pk.w) * ((one-pi.w) * bdatylo(pi.lo,jb,pk.lo,c) + pi.w * bdatylo(pi.hi,jb,pk.lo,c))
                           +      pk.w  * ((one-pi.w) * bdatylo(pi.lo,jb,pk.hi,c) + pi.w * bdatylo(pi.hi,jb,pk.hi,c));
                     }
                 },
                 bx_yhi, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) {
-                    int bc_comp = (icomp+n >= RhoScalar_comp && icomp+n < RhoScalar_comp+NSCALARS) ?
-                                   BCVars::RhoScalar_bc_comp : icomp+n;
+                    const int bc_comp = is_cons ? cons_bc_comp(icomp+n) : bccomp+n;
                     if (bc_ptr[bc_comp].hi(1) == ERFBCType::ext_dir_ingested) {
                         const PlaneIndex pi = plane_index(i, rx, nodal_x, pdom_lo.x, pdom_hi.x);
                         const PlaneIndex pk = plane_index(k, rz, nodal_z, pdom_lo.z, pdom_hi.z);
                         const int jb = pdom_hi.y+1;
-                        const int c  = bccomp+n;
+                        const int c  = bc_comp;
                         dest_arr(i,j,k,icomp+n) =
                             (one-pk.w) * ((one-pi.w) * bdatyhi(pi.lo,jb,pk.lo,c) + pi.w * bdatyhi(pi.hi,jb,pk.lo,c))
                           +      pk.w  * ((one-pi.w) * bdatyhi(pi.lo,jb,pk.hi,c) + pi.w * bdatyhi(pi.hi,jb,pk.hi,c));

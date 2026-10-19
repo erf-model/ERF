@@ -32,6 +32,10 @@ ERF::sum_integrated_quantities (double time)
     Real rhth_ml = zero;
     Real scal_ml = zero;
     Real mois_ml = zero;
+#ifdef ERF_ENABLE_FIRE
+    Real smoke_sl = zero;
+    Real smoke_ml = zero;
+#endif
 
     bool local = true;
 
@@ -57,6 +61,11 @@ ERF::sum_integrated_quantities (double time)
             mois_sl += volWgtSumMF(0,vars_new[0][Vars::cons],RhoQ1_comp+qoff,dJ0,mfx0,mfy0,false);
         }
     }
+#ifdef ERF_ENABLE_FIRE
+    if (m_fire_coupler) {
+        smoke_sl = volWgtSumMF(0, vars_new[0][Vars::cons], RhoSmoke_comp, dJ0, mfx0, mfy0, false);
+    }
+#endif
 
     for (int lev = 0; lev <= finest_level; lev++) {
         auto& mfx = *mapfac[lev][MapFacType::m_x];
@@ -70,6 +79,11 @@ ERF::sum_integrated_quantities (double time)
                 mois_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoQ1_comp+qoff,dJ,mfx,mfy,true);
             }
         }
+#ifdef ERF_ENABLE_FIRE
+        if (m_fire_coupler) {
+            smoke_ml += volWgtSumMF(lev, vars_new[lev][Vars::cons], RhoSmoke_comp, dJ, mfx, mfy, true);
+        }
+#endif
     }
 
     Real h_avg_ustar = zero;
@@ -91,8 +105,13 @@ ERF::sum_integrated_quantities (double time)
         h_avg_olen  /= area_z;
     }
 
+#ifdef ERF_ENABLE_FIRE
+    const int nfoo = 10;
+    Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mois_sl,smoke_sl,mass_ml,rhth_ml,scal_ml,mois_ml,smoke_ml};
+#else
     const int nfoo = 8;
     Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mois_sl,mass_ml,rhth_ml,scal_ml,mois_ml};
+#endif
     Real zero_d = zero;
 #ifdef AMREX_LAZY
     Lazy::QueueReduction([=]() mutable {
@@ -106,10 +125,16 @@ ERF::sum_integrated_quantities (double time)
         rhth_sl = foo[i++];
         scal_sl = foo[i++];
         mois_sl = foo[i++];
+#ifdef ERF_ENABLE_FIRE
+        smoke_sl = foo[i++];
+#endif
         mass_ml = foo[i++];
         rhth_ml = foo[i++];
         scal_ml = foo[i++];
         mois_ml = foo[i++];
+#ifdef ERF_ENABLE_FIRE
+        smoke_ml = foo[i++];
+#endif
 
         // Print the integrals with every digit, so that a run can be checked for conservation
         // from its output (Tests/RunConservation.cmake)
@@ -126,6 +151,9 @@ ERF::sum_integrated_quantities (double time)
            Print() << std::setprecision(sumprecision) << " RHO THETA  = " << rhth_sl << '\n';
            if (solverChoice.transport_scalar) { Print() << std::setprecision(sumprecision) << " RHO SCALAR = " << scal_sl << '\n'; }
            if (solverChoice.moisture_type != MoistureType::None) { Print() << std::setprecision(sumprecision) << " RHO QTOTAL = " << mois_sl << '\n'; }
+#ifdef ERF_ENABLE_FIRE
+           if (m_fire_coupler) { Print() << std::setprecision(sumprecision) << " RHO SMOKE  = " << smoke_sl << '\n'; }
+#endif
         } else {
 #if 1
            Print() << std::setprecision(sumprecision) << " MASS       SL/ML = " << mass_sl << " " << mass_ml << '\n';
@@ -135,6 +163,9 @@ ERF::sum_integrated_quantities (double time)
            Print() << std::setprecision(sumprecision) << " RHO THETA  SL/ML = " << rhth_sl << " " << rhth_ml << '\n';
            if (solverChoice.transport_scalar) { Print() << std::setprecision(sumprecision) << " RHO SCALAR SL/ML = " << scal_sl << " " << scal_ml << '\n'; }
            if (solverChoice.moisture_type != MoistureType::None) { Print() << std::setprecision(sumprecision) << " RHO QTOTAL SL/ML = " << mois_sl << " " << mois_ml << '\n'; }
+#ifdef ERF_ENABLE_FIRE
+           if (m_fire_coupler) { Print() << std::setprecision(sumprecision) << " RHO SMOKE  SL/ML = " << smoke_sl << " " << smoke_ml << '\n'; }
+#endif
         }
 
         // The first data log only holds scalars
