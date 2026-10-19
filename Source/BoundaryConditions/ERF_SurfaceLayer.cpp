@@ -6,8 +6,33 @@
 #include "ERF_SurfaceTemperature.H"
 #include "ERF_SurfaceMoisture.H"
 #include "ERF_TerrainMetrics.H"
+#include "ERF_Wstar.H"
 
 using namespace amrex;
+
+namespace {
+
+/**
+ * The column of a box nearest (i,j).  A planar surface field whose source carries no
+ * lateral ghost cells fills its own ghost cells from the edge of its grid with this, and
+ * then lets fill_planar_boundary replace the ones that another grid or a periodic image
+ * holds.
+ */
+struct NearestColumn
+{
+    int ilo, ihi, jlo, jhi;
+
+    explicit NearestColumn (const Box& b)
+        : ilo(b.smallEnd(0)), ihi(b.bigEnd(0)), jlo(b.smallEnd(1)), jhi(b.bigEnd(1)) {}
+
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    int i (int ii) const noexcept { return amrex::min(amrex::max(ii, ilo), ihi); }
+
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    int j (int jj) const noexcept { return amrex::min(amrex::max(jj, jlo), jhi); }
+};
+
+} // namespace
 
 /**
  * Wrapper to update ustar and tstar for Monin Obukhov similarity theory.
@@ -2186,9 +2211,7 @@ SurfaceLayer::get_lsm_tsurf (const int& lev)
         //       This copies the valid box into the ghost cells.
         //       Fillboundary is called after this to pick up the
         //       interior ghost and periodic directions.
-        Box vbx  = mfi.validbox();
-        int i_lo = vbx.smallEnd(0); int i_hi = vbx.bigEnd(0);
-        int j_lo = vbx.smallEnd(1); int j_hi = vbx.bigEnd(1);
+        const NearestColumn col(mfi.validbox());
 
         auto t_surf_arr = t_surf[lev]->array(mfi);
         auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
@@ -2204,9 +2227,7 @@ SurfaceLayer::get_lsm_tsurf (const int& lev)
         {
             int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
             if (is_land) {
-                int li = amrex::min(amrex::max(i, i_lo), i_hi);
-                int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-                const Real lsm_value = lsm_arr(li,lj,lsm_khi);
+                const Real lsm_value = lsm_arr(col.i(i),col.j(j),lsm_khi);
                 if (amrex::Math::isfinite(lsm_value) && lsm_value > Real(0.0) &&
                     lsm_value < lsm_undefined) {
                     t_surf_arr(i,j,k) = lsm_value;
@@ -2627,12 +2648,78 @@ SurfaceLayer::update_pblh (const int& lev,
     }
 }
 
+/**
+ * Store the PBL height a PBL scheme (MRF, YSU, YSUNew) has diagnosed.
+ *
+ * pblh_in has no ghost cells, so the ghost cells of pblh are filled here: those that
+ * another grid of this level or a periodic image holds by fill_planar_boundary; those at a
+ * coarse/fine boundary from the next coarser level (the same injection as
+ * fill_pblh_from_coarser), so that they agree with the coarse state the other surface
+ * fields there are computed from; and the rest -- outside a non-periodic domain, or where
+ * the coarser level has no height yet -- from the nearest column of their own grid.
+ *
+ * @param[in] lev     Current level
+ * @param[in] pblh_in PBL height, on the grids of the eddy diffusivities (3D, no ghost cells)
+ */
 void
 SurfaceLayer::set_pblh (const int& lev, const amrex::MultiFab& pblh_in)
 {
-    AMREX_ASSERT(pblh[lev]);
-    amrex::MultiFab::Copy(*pblh[lev], pblh_in, 0, 0, 1, 0);
-    fill_planar_boundary(lev, *pblh[lev]);
+    // NOTE: pblh[lev] is a 2D MF (except with EB)
+    //       pblh_in   is a 3D MF built off the eddydiffs BA
+    AMREX_ALWAYS_ASSERT(pblh[lev]);
+    MultiFab& dst = *pblh[lev];
+
+    // The boxes of the two are paired by index below
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        pblh_in.size() == dst.size() && pblh_in.DistributionMap() == dst.DistributionMap(),
+        "SurfaceLayer::set_pblh: the PBL height must be on the grids of the surface layer");
+
+    std::unique_ptr<MultiFab> crse;
+    if (lev > 0 && pblh[lev-1]) {
+        crse = std::make_unique<MultiFab>(dst.boxArray(), dst.DistributionMap(), 1, dst.nGrowVect());
+        inject_pblh_from_coarser(lev, *crse);
+    }
+    // Only the columns inside the domain (or a periodic image of it) take the coarse height
+    const Geometry& geom = m_geom[lev];
+    const NearestColumn in_domain(geom.Domain());
+    const bool per_x = geom.isPeriodic(0);
+    const bool per_y = geom.isPeriodic(1);
+
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(dst, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box gtbx = mfi.growntilebox();
+        const Box& vbx = mfi.validbox();
+        const Box& sbx = pblh_in.box(mfi.index());
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            sbx.smallEnd(0) == vbx.smallEnd(0) && sbx.bigEnd(0) == vbx.bigEnd(0) &&
+            sbx.smallEnd(1) == vbx.smallEnd(1) && sbx.bigEnd(1) == vbx.bigEnd(1),
+            "SurfaceLayer::set_pblh: the PBL height must be on the grids of the surface layer");
+
+        // Clamp to the source box, which is the one we read
+        const NearestColumn col(sbx);
+        const int klo = sbx.smallEnd(2);
+        const int khi = sbx.bigEnd(2);
+
+        const Array4<      Real> pblh_dst = dst.array(mfi);
+        const Array4<const Real> pblh_src = pblh_in.const_array(mfi);
+        const Array4<const Real> pblh_crse = (crse) ? crse->const_array(mfi) : Array4<const Real>{};
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const int li = col.i(i);
+            const int lj = col.j(j);
+            const int lk = amrex::min(amrex::max(k, klo), khi);
+            Real h = pblh_src(li,lj,lk);
+            const bool inside = (per_x || in_domain.i(i) == i) && (per_y || in_domain.j(j) == j);
+            if (pblh_crse && inside && (li != i || lj != j) && pblh_is_diagnosed(pblh_crse(i,j,k))) {
+                h = pblh_crse(i,j,k);
+            }
+            pblh_dst(i,j,k) = h;
+        });
+    }
+    fill_planar_boundary(lev, dst);
 }
 
 /**
@@ -2843,14 +2930,28 @@ SurfaceLayer::define_pblh_columns (const int& lev,
 void
 SurfaceLayer::fill_pblh_from_coarser (const int& lev)
 {
-    AMREX_ALWAYS_ASSERT(lev > 0 && pblh[lev] && pblh[lev-1]);
+    AMREX_ALWAYS_ASSERT(lev > 0 && pblh[lev]);
+    inject_pblh_from_coarser(lev, *pblh[lev]);
+    fill_planar_boundary(lev, *pblh[lev]);
+}
+
+/**
+ * Write into fine, a MultiFab on the grids of pblh[lev], the PBL height of the next coarser
+ * level over all of its cells, ghost cells included (see fill_pblh_from_coarser).
+ *
+ * @param[in]  lev  Current level (> 0)
+ * @param[out] fine PBL height of level lev-1, injected onto the grids of level lev
+ */
+void
+SurfaceLayer::inject_pblh_from_coarser (const int& lev, MultiFab& fine) const
+{
+    AMREX_ALWAYS_ASSERT(lev > 0 && pblh[lev-1]);
     const Geometry& geom_f = m_geom[lev];
     const Geometry& geom_c = m_geom[lev-1];
     const IntVect rr(AMREX_D_DECL(static_cast<int>(std::lround(geom_c.CellSize(0) / geom_f.CellSize(0))),
                                   static_cast<int>(std::lround(geom_c.CellSize(1) / geom_f.CellSize(1))),
                                   1));
 
-    MultiFab& fine = *pblh[lev];
     const MultiFab& crse = *pblh[lev-1];
 
     // Each fine column takes the height of the coarse column that holds it (injection, no
@@ -2889,7 +2990,6 @@ SurfaceLayer::fill_pblh_from_coarser (const int& lev)
             f(i,j,k) = c(amrex::coarsen(i,rx), amrex::coarsen(j,ry), k);
         });
     }
-    fill_planar_boundary(lev, fine);
 }
 
 /**

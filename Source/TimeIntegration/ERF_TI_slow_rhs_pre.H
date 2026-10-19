@@ -41,7 +41,9 @@
         if (solverChoice.coupling_type == CouplingType::TwoWay && finest_level > 0) {
             if (level < finest_level) {
                 fr_as_crse = getAdvFluxReg(level+1);
-                fr_as_crse->reset();
+                // Once per step: the anelastic RK2 integrator registers fluxes at both stages
+                // (RefluxStageWeight)
+                if (nrk == 0) { fr_as_crse->reset(); }
             }
             if (level > 0) {
                 fr_as_fine = getAdvFluxReg(level);

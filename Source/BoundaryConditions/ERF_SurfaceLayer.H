@@ -1114,6 +1114,15 @@ public:
   void fill_pblh_from_coarser (const int& lev);
 
   /**
+   * The PBL height of the next coarser level, injected onto the grids of this level over all
+   * of their cells, ghost cells included.  Public because it launches a device lambda.
+   *
+   * @param[in]  lev  Current level (> 0)
+   * @param[out] fine MultiFab on the grids of pblh[lev]
+   */
+  void inject_pblh_from_coarser (const int& lev, amrex::MultiFab& fine) const;
+
+  /**
    * Compute planetary-boundary-layer height with the selected estimator.
    *
    * @param[in]     lev              level index
