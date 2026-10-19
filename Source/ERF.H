@@ -1591,7 +1591,7 @@ private:
         amrex::Array<amrex::Vector<int>, AMREX_SPACEDIM> slab_box;           // box of level lev of each slab
         amrex::Array<amrex::Vector<amrex::Box>, AMREX_SPACEDIM> slab_faces;  // its coarse/fine faces (fine index)
         amrex::Array<amrex::Vector<amrex::MultiFab>, AMREX_SPACEDIM> flux;   // per coarse substep
-        amrex::Vector<amrex::MultiFab> rho_w;                   // (rho w) at the substep times
+        amrex::Vector<amrex::MultiFab> rho_w;                   // (rho w), Omega with terrain, at the substep times
         amrex::Vector<amrex::Real> time;                        // the coarse substep times
         bool complete = false;
         amrex::Array<amrex::MultiFab, AMREX_SPACEDIM> tgt;      // the fine faces' fluxes (CFFaceFluxes)

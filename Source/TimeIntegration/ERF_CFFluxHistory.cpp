@@ -15,13 +15,21 @@
  *
  * So the coarse level records, in thin slabs of faces under the coarse/fine faces of the fine
  * level, the flux each face applied over each substep of its last RK stage (the stage whose
- * fluxes are the step's), and (rho w) at the substep times.  The fine level, in its own last
+ * fluxes are the step's), and the vertical quantity on its z-faces at the substep times:
+ * (rho w) without terrain, Omega with it.  The fine level, in its own last
  * RK stage, takes on each coarse/fine face the average of the coarse flux over each of its
- * substeps, interpolated conservatively in space, and (rho w) at the end of the substep in z.
+ * substeps, interpolated conservatively in space, and in z that vertical quantity at the end of
+ * the substep.
  * Whatever the substeps of the two levels, its fluxes through the face then add up, over the
  * coarse step, to the coarse level's.
  *
- * This is done for the fast integrator without terrain (erf_substep_NS) under two-way coupling.
+ * With terrain (erf_substep_T) the fluxes are those the terrain integrator forms: h_zeta (rho u)/m
+ * through x- and y-faces, whose area h_zeta is, and Omega through z-faces.  The fine level sets
+ * the Omega of its coarse/fine z-faces, and so (rho w) there follows from its own (rho u) and
+ * (rho v) and the terrain slopes.
+ *
+ * This is done under two-way coupling for the fast integrators without terrain and with
+ * fixed terrain (erf_substep_NS, erf_substep_T), not with moving terrain (erf_substep_MT).
  */
 #include "ERF.H"
 #include "ERF_Constants.H"
@@ -37,9 +45,15 @@ using namespace amrex;
 bool
 ERF::cf_flux_history_active (int crse_lev) const
 {
+    // erf.cf_flux_history = false keeps the coarse/fine faces interpolated linearly in time
+    static const bool enabled = [] {
+        bool on = true;
+        ParmParse("erf").query("cf_flux_history", on);
+        return on;
+    }();
+    if (!enabled) { return false; }
     if (solverChoice.coupling_type != CouplingType::TwoWay) { return false; }
     if (crse_lev >= finest_level) { return false; }
-    if (SolverChoice::mesh_type == MeshType::VariableDz) { return false; }
     if (solverChoice.terrain_type == TerrainType::MovingFittedMesh ||
         solverChoice.terrain_type == TerrainType::EB) { return false; }
     for (int lev = crse_lev; lev <= crse_lev+1; ++lev) {
@@ -134,8 +148,8 @@ ERF::cf_flux_history (int lev)
  * @param t_old     the time at the start of the substep
  * @param t_new     the time at its end
  * @param rec       the flux through each face over the substep (CFFaceFluxes::rec)
- * @param rho_w_old (rho w) at the start of the substep
- * @param rho_w_new (rho w) at its end
+ * @param rho_w_old (rho w) at the start of the substep, Omega with terrain
+ * @param rho_w_new (rho w) at its end, Omega with terrain
  */
 void
 ERF::cf_flux_history_record (int crse_lev, int fast_step, int n_sub, Real t_old, Real t_new,
@@ -182,7 +196,8 @@ ERF::cf_flux_history_record (int crse_lev, int fast_step, int n_sub, Real t_old,
 
 /**
  * Fill CFFluxHistory::tgt and tgt_w of level lev for one of its substeps: on its coarse/fine
- * faces, the coarse level's flux averaged over [t_old, t_new], and (rho w) at t_new
+ * faces, the coarse level's flux averaged over [t_old, t_new], and (rho w) at t_new (Omega
+ * with terrain)
  *
  * @param lev   the fine level (> 0)
  * @param t_old the time at the start of the substep
@@ -211,7 +226,7 @@ ERF::cf_flux_history_targets (int lev, Real t_old, Real t_new)
         Abort("cf_flux_history_targets: the substep is not inside the coarse level's last stage");
     }
 
-    // (rho w) at t_new, linear between the coarse substep times
+    // (rho w), or Omega with terrain, at t_new, linear between the coarse substep times
     int mw = 0;
     while (mw < n_sub-1 && H.time[mw+1] < t_new) { ++mw; }
     Real fw = (t_new - H.time[mw]) / (H.time[mw+1] - H.time[mw]);

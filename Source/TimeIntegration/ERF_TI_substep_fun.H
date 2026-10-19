@@ -145,6 +145,41 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
         bool l_rayleigh_implicit = (solverChoice.dampingChoice.rayleigh_damping_type == RayleighDampingType::FastImplicit);
         Real l_damp_coef         = solverChoice.dampingChoice.rayleigh_dampcoef;
 
+        // The coarse/fine face fluxes of the last RK stage (ERF_CFFluxHistory.cpp): a coarse
+        // level records those of each substep, a fine level takes the coarse ones.  Not done
+        // with moving terrain (cf_flux_history_active).
+        CFFaceFluxes cf_fluxes;
+        Array<MultiFab, AMREX_SPACEDIM> cf_rec;
+        MultiFab cf_rec_om, cf_rec_om_old;
+        const bool cf_terrain = (solverChoice.mesh_type == MeshType::VariableDz);
+        const bool cf_record  = l_reflux && cf_flux_history_active(level);
+        const bool cf_impose  = l_reflux && (level > 0) && cf_flux_history_active(level-1);
+        if (cf_record) {
+            const int mom[AMREX_SPACEDIM] = {AMREX_D_DECL(IntVars::xmom, IntVars::ymom, IntVars::zmom)};
+            for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+                cf_rec[dir].define(S_data[mom[dir]].boxArray(), S_data[mom[dir]].DistributionMap(), 1, 0);
+                cf_fluxes.rec[dir] = &cf_rec[dir];
+            }
+            // With terrain the z-faces hold Omega, which the substep records itself
+            if (cf_terrain) {
+                cf_rec_om.define(S_data[IntVars::zmom].boxArray(), S_data[IntVars::zmom].DistributionMap(), 1, 0);
+                cf_fluxes.rec_w = &cf_rec_om;
+                if (fast_step == 0) {
+                    cf_rec_om_old.define(S_data[IntVars::zmom].boxArray(), S_data[IntVars::zmom].DistributionMap(), 1, 0);
+                    cf_fluxes.rec_w_old = &cf_rec_om_old;
+                }
+            }
+        }
+        if (cf_impose) {
+            cf_flux_history_targets(level, static_cast<Real>(old_substep_time),
+                                           static_cast<Real>(new_substep_time));
+            CFFluxHistory& H = cf_flux_history(level);
+            for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+                cf_fluxes.tgt[dir] = &H.tgt[dir];
+            }
+            cf_fluxes.tgt_w = &H.tgt_w;
+        }
+
         if ( solverChoice.terrain_type == TerrainType::MovingFittedMesh )
         {
             erf_substep_MT(fast_step, nrk, level, finest_level,
@@ -160,7 +195,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
                            (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef);
 
-        } else if (solverChoice.mesh_type == MeshType::VariableDz) {
+        } else if (cf_terrain) {
 
             erf_substep_T(fast_step, nrk, level, finest_level,
                           S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
@@ -170,32 +205,10 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                           z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
                           mapfac[level],
                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
-                          (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef);
+                          (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
+                          cf_fluxes);
 
         } else {
-
-            // The coarse/fine face fluxes of the last RK stage (ERF_CFFluxHistory.cpp): a coarse
-            // level records those of each substep, a fine level takes the coarse ones
-            CFFaceFluxes cf_fluxes;
-            Array<MultiFab, AMREX_SPACEDIM> cf_rec;
-            const bool cf_record = l_reflux && cf_flux_history_active(level);
-            const bool cf_impose = l_reflux && (level > 0) && cf_flux_history_active(level-1);
-            if (cf_record) {
-                const int mom[AMREX_SPACEDIM] = {AMREX_D_DECL(IntVars::xmom, IntVars::ymom, IntVars::zmom)};
-                for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-                    cf_rec[dir].define(S_data[mom[dir]].boxArray(), S_data[mom[dir]].DistributionMap(), 1, 0);
-                    cf_fluxes.rec[dir] = &cf_rec[dir];
-                }
-            }
-            if (cf_impose) {
-                cf_flux_history_targets(level, static_cast<Real>(old_substep_time),
-                                               static_cast<Real>(new_substep_time));
-                CFFluxHistory& H = cf_flux_history(level);
-                for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-                    cf_fluxes.tgt[dir] = &H.tgt[dir];
-                }
-                cf_fluxes.tgt_w = &H.tgt_w;
-            }
 
             erf_substep_NS(fast_step, nrk, level, finest_level,
                            S_slow_rhs, Svec_to_use, S_stage, S_prim, qt, pi_stage, fast_coeffs,
@@ -206,14 +219,18 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
                            (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
                            cf_fluxes);
+        }
 
-            // Svec_to_use holds (rho w) at the start of the stage when fast_step is 0, the only
-            // substep at which the record reads it
-            if (cf_record) {
-                cf_flux_history_record(level, fast_step, n_sub,
-                                       static_cast<Real>(old_substep_time), static_cast<Real>(new_substep_time),
-                                       cf_rec, Svec_to_use[IntVars::zmom], S_data[IntVars::zmom]);
-            }
+        // The vertical quantity at the start and end of the substep: Omega, recorded by the
+        // substep, with terrain; (rho w) without it, where Svec_to_use holds (rho w) at the start
+        // of the stage when fast_step is 0, the only substep at which the record reads it
+        if (cf_record) {
+            const MultiFab& w_old = (cf_terrain) ? ((fast_step == 0) ? cf_rec_om_old : cf_rec_om)
+                                                 : Svec_to_use[IntVars::zmom];
+            const MultiFab& w_new = (cf_terrain) ? cf_rec_om : S_data[IntVars::zmom];
+            cf_flux_history_record(level, fast_step, n_sub,
+                                   static_cast<Real>(old_substep_time), static_cast<Real>(new_substep_time),
+                                   cf_rec, w_old, w_new);
         }
 
         // Even if we update all the conserved variables we don't need
