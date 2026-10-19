@@ -2655,8 +2655,10 @@ SurfaceLayer::update_pblh (const int& lev,
  * another grid of this level or a periodic image holds by fill_planar_boundary; those at a
  * coarse/fine boundary from the next coarser level (the same injection as
  * fill_pblh_from_coarser), so that they agree with the coarse state the other surface
- * fields there are computed from; and the rest -- outside a non-periodic domain, or where
- * the coarser level has no height yet -- from the nearest column of their own grid.
+ * fields there are computed from; those outside a non-periodic domain from the nearest
+ * column of the domain (after fill_planar_boundary, so that a corner beside another grid
+ * takes that grid's height); and the rest -- where the coarser level has no height yet --
+ * from the nearest column of their own grid.
  *
  * @param[in] lev     Current level
  * @param[in] pblh_in PBL height, on the grids of the eddy diffusivities (3D, no ghost cells)
@@ -2720,6 +2722,29 @@ SurfaceLayer::set_pblh (const int& lev, const amrex::MultiFab& pblh_in)
         });
     }
     fill_planar_boundary(lev, dst);
+
+    // A ghost cell outside a non-periodic domain but beside another grid of this level (a
+    // corner) was left above with the nearest column of its own grid, which fill_planar_boundary
+    // does not overwrite; give it the nearest column of the domain, which is inside this fab and
+    // now holds the height of the grid that owns it
+    if (!per_x || !per_y) {
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(dst, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+        {
+            const Box gtbx = mfi.growntilebox();
+            const Array4<Real> pblh_dst = dst.array(mfi);
+            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                const int ci = (per_x) ? i : in_domain.i(i);
+                const int cj = (per_y) ? j : in_domain.j(j);
+                if (ci != i || cj != j) {
+                    pblh_dst(i,j,k) = pblh_dst(ci,cj,k);
+                }
+            });
+        }
+    }
 }
 
 /**
