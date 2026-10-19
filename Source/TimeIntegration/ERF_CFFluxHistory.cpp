@@ -145,14 +145,14 @@ ERF::cf_flux_history (int lev)
  * @param crse_lev  the coarse level
  * @param fast_step the substep, from 0
  * @param n_sub     the number of substeps in the stage
- * @param t_old     the time at the start of the substep
- * @param t_new     the time at its end
+ * @param t_beg     the time at the start of the substep
+ * @param t_end     the time at its end
  * @param rec       the flux through each face over the substep (CFFaceFluxes::rec)
  * @param rho_w_old (rho w) at the start of the substep, Omega with terrain
  * @param rho_w_new (rho w) at its end, Omega with terrain
  */
 void
-ERF::cf_flux_history_record (int crse_lev, int fast_step, int n_sub, Real t_old, Real t_new,
+ERF::cf_flux_history_record (int crse_lev, int fast_step, int n_sub, Real t_beg, Real t_end,
                              const Array<MultiFab, AMREX_SPACEDIM>& rec,
                              const MultiFab& rho_w_old, const MultiFab& rho_w_new)
 {
@@ -167,7 +167,7 @@ ERF::cf_flux_history_record (int crse_lev, int fast_step, int n_sub, Real t_old,
         H.rho_w.clear();
         H.rho_w.resize(n_sub+1);
         H.time.assign(n_sub+1, Real(0));
-        H.time[0] = t_old;
+        H.time[0] = t_beg;
         if (!H.sba[2].empty()) {
             H.rho_w[0].define(H.sba[2], H.sdm[2], 1, 0);
             H.rho_w[0].setVal(zero);
@@ -190,21 +190,21 @@ ERF::cf_flux_history_record (int crse_lev, int fast_step, int n_sub, Real t_old,
         w.setVal(zero);
         w.ParallelCopy(rho_w_new, 0, 0, 1, IntVect(0), IntVect(0), period);
     }
-    H.time[fast_step+1] = t_new;
+    H.time[fast_step+1] = t_end;
     H.complete = (fast_step == n_sub-1);
 }
 
 /**
  * Fill CFFluxHistory::tgt and tgt_w of level lev for one of its substeps: on its coarse/fine
- * faces, the coarse level's flux averaged over [t_old, t_new], and (rho w) at t_new (Omega
+ * faces, the coarse level's flux averaged over [t_beg, t_end], and (rho w) at t_end (Omega
  * with terrain)
  *
  * @param lev   the fine level (> 0)
- * @param t_old the time at the start of the substep
- * @param t_new the time at its end
+ * @param t_beg the time at the start of the substep
+ * @param t_end the time at its end
  */
 void
-ERF::cf_flux_history_targets (int lev, Real t_old, Real t_new)
+ERF::cf_flux_history_targets (int lev, Real t_beg, Real t_end)
 {
     CFFluxHistory& H = cf_flux_history(lev);
     if (!H.complete) {
@@ -214,22 +214,22 @@ ERF::cf_flux_history_targets (int lev, Real t_old, Real t_new)
     // The weight of each coarse substep in this fine one: the fraction of the fine substep
     // it overlaps.  Over the fine substeps of a coarse step they add up to the coarse substeps.
     const int n_sub = static_cast<int>(H.time.size()) - 1;
-    const Real dt = t_new - t_old;
+    const Real dt_sub = t_end - t_beg;
     Vector<Real> wgt(n_sub, Real(0));
     Real wsum = Real(0);
     for (int m = 0; m < n_sub; ++m) {
-        Real overlap = amrex::min(H.time[m+1], t_new) - amrex::max(H.time[m], t_old);
-        wgt[m] = amrex::max(overlap, Real(0)) / dt;
+        Real overlap = amrex::min(H.time[m+1], t_end) - amrex::max(H.time[m], t_beg);
+        wgt[m] = amrex::max(overlap, Real(0)) / dt_sub;
         wsum += wgt[m];
     }
     if (std::abs(wsum - one) > Real(1.e-6)) {
         Abort("cf_flux_history_targets: the substep is not inside the coarse level's last stage");
     }
 
-    // (rho w), or Omega with terrain, at t_new, linear between the coarse substep times
+    // (rho w), or Omega with terrain, at t_end, linear between the coarse substep times
     int mw = 0;
-    while (mw < n_sub-1 && H.time[mw+1] < t_new) { ++mw; }
-    Real fw = (t_new - H.time[mw]) / (H.time[mw+1] - H.time[mw]);
+    while (mw < n_sub-1 && H.time[mw+1] < t_end) { ++mw; }
+    Real fw = (t_end - H.time[mw]) / (H.time[mw+1] - H.time[mw]);
     fw = amrex::min(amrex::max(fw, Real(0)), one);
 
     const IntVect rr = refRatio(lev-1);

@@ -407,6 +407,10 @@ public:
                                           const amrex::Vector<int>& cons_comps,
                                           const amrex::Vector<amrex::MultiFab*>& mom);
 
+    // Average the coarse level's recorded coarse/fine face fluxes over one substep of level lev
+    // (ERF_CFFluxHistory.cpp).  Public because it launches device lambdas (CUDA requires it)
+    void cf_flux_history_targets (int lev, amrex::Real t_beg, amrex::Real t_end);
+
     void WriteMyEBSurface ();
 
     // Compute the divergence -- whether EB, no-terrain, flat terrain or general terrain
@@ -1601,10 +1605,9 @@ private:
     bool cf_flux_history_active (int crse_lev) const;
     CFFluxHistory& cf_flux_history (int lev);
     void cf_flux_history_record (int crse_lev, int fast_step, int n_sub,
-                                 amrex::Real t_old, amrex::Real t_new,
+                                 amrex::Real t_beg, amrex::Real t_end,
                                  const amrex::Array<amrex::MultiFab, AMREX_SPACEDIM>& rec,
                                  const amrex::MultiFab& rho_w_old, const amrex::MultiFab& rho_w_new);
-    void cf_flux_history_targets (int lev, amrex::Real t_old, amrex::Real t_new);
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   az;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_src;
