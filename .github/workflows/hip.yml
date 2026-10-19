@@ -123,7 +123,11 @@ jobs:
         # cmake --build ${{runner.workspace}}/ERF/build-${{matrix.os}} --parallel ${{env.NPROCS}};
 
         pushd ${{runner.workspace}}/ERF/build-${{matrix.os}};
-        # make -j ${{env.NPROCS}};
+        # Compile the two big object libraries on every core, then finish (test
+        # objects and all the links) at -j 2. HIP device links are memory-hungry:
+        # with -j 4 two links ran side by side and the runner VM was shut down
+        # (out of memory) 13 minutes into linking erf_parallel_tests.
+        make -j $(nproc) amrex_3d erf_srclib 2>&1 | tee -a ${{runner.workspace}}/build-${{matrix.os}}-output.txt;
         make -j 2 2>&1 | tee -a ${{runner.workspace}}/build-${{matrix.os}}-output.txt;
 
         echo '```' >> "$GITHUB_STEP_SUMMARY"

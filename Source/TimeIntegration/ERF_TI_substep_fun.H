@@ -187,10 +187,29 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
         // Even if we update all the conserved variables we don't need
         // to fillpatch the slow ones every acoustic substep
 
+        // NOTE: Numerical diffusion is tested on in FillPatchIntermediate and dictates the size of the
+        //       box over which VelocityToMomentum is computed. V2M requires one more ghost cell be
+        //       filled for rho than velocity. This logical condition ensures we fill enough ghost cells
+        //       when use_num_diff is true.
+        int ng_cons = S_data[IntVars::cons].nGrowVect().max() - 1;
+        int ng_vel  = S_data[IntVars::xmom].nGrowVect().max();
+        if (!solverChoice.use_num_diff) {
+            ng_cons = 1;
+            ng_vel  = 1;
+        }
+
         if ( (solverChoice.vert_implicit_fac[level][nrk] > zero_d) &&
              !solverChoice.implicit_before_substep                 &&
              (fast_step == n_sub-1) )
         {
+            // The solves read the ghost cells of S_data: rho and the momenta at the walls and
+            // above and below a column that ends at a coarse/fine boundary, and rho beside the
+            // faces at a grid edge.  They are filled only at the end of each substep (below),
+            // so here they still hold those of the previous substep -- or nothing at all in a
+            // stage with a single substep.  Fill them at the time this substep reaches; the
+            // fill at the end of the substep then refreshes them after the solves.
+            apply_bcs(S_data, new_substep_time, ng_cons, ng_vel, fast_only=true, vel_and_mom_synced=false);
+
             // The interval actually advanced by this RK stage -- NOT the full MRI timestep
             const Real stage_dt = static_cast<Real>(n_sub * dtau);
             MultiFab scratch(S_data[IntVars::cons], make_alias, 0, 2);
@@ -277,15 +296,5 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
             }
         }
 
-        // NOTE: Numerical diffusion is tested on in FillPatchIntermediate and dictates the size of the
-        //       box over which VelocityToMomentum is computed. V2M requires one more ghost cell be
-        //       filled for rho than velocity. This logical condition ensures we fill enough ghost cells
-        //       when use_num_diff is true.
-        int ng_cons = S_data[IntVars::cons].nGrowVect().max() - 1;
-        int ng_vel  = S_data[IntVars::xmom].nGrowVect().max();
-        if (!solverChoice.use_num_diff) {
-            ng_cons = 1;
-            ng_vel  = 1;
-        }
         apply_bcs(S_data, new_substep_time, ng_cons, ng_vel, fast_only=true, vel_and_mom_synced=false);
 };

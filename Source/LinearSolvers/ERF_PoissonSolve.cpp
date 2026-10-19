@@ -246,6 +246,16 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         // to the extrapolation in VelocityToMomentum (or the boundary fill in the time step).
         AMREX_ALWAYS_ASSERT(mom_mf[IntVars::xmom].nGrowVect()[2] >= 1 &&
                             mom_mf[IntVars::ymom].nGrowVect()[2] >= 1);
+        // Where the level stops inside the domain in z there is no fine box to copy from: take
+        // those faces from the coarse level first, in the projected scaling, built from coarse
+        // data only.  FillBoundary below then overwrites the faces that a neighbouring fine box
+        // does cover.  The same call returns the coarse Omega for the level's top and bottom.
+        MultiFab cf_omega_t;
+        Vector<int> cf_slab_box;
+        if (lev > 0) {
+            set_cf_zghost_projection(lev, l_time, mom_mf[IntVars::xmom], mom_mf[IntVars::ymom],
+                                     cf_omega_t, cf_slab_box);
+        }
         mom_mf[IntVars::xmom].FillBoundary(IntVect(0,0,1), geom[lev].periodicity());
         mom_mf[IntVars::ymom].FillBoundary(IntVect(0,0,1), geom[lev].periodicity());
 
@@ -274,6 +284,12 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                 }
             });
         } // mfi
+
+        // Where the level stops inside the domain in z, the flux through its top and bottom
+        // faces comes from the coarse level's Omega (see ERF_CoarseFineFaces.cpp)
+        if (lev > 0) {
+            set_cf_zface_omega(lev, mom_mf[IntVars::zmom], cf_omega_t, cf_slab_box);
+        }
     }
 
     // ****************************************************************************

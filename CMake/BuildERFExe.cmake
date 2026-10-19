@@ -498,6 +498,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/IO/ERF_ConsoleIO.cpp
        ${SRC_DIR}/IO/ERF_ReadFromERFBdy.cpp
        ${SRC_DIR}/IO/ERF_WriteERFBdy.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_CoarseFineFaces.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonSolve_tb.cpp
        ${SRC_DIR}/LinearSolvers/ERF_PoissonWallDist.cpp
@@ -599,6 +600,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/Utils/ERF_ColumnBands.cpp
        ${SRC_DIR}/Utils/ERF_LatLonMap.cpp
        ${SRC_DIR}/Utils/ERF_TerrainSurfaceSlab.cpp
+       ${SRC_DIR}/Utils/ERF_TerrainFileChecks.cpp
        ${SRC_DIR}/Utils/ERF_ConvertForProjection.cpp
        ${SRC_DIR}/Utils/ERF_EnforceConstraintOnBdy.cpp
        ${SRC_DIR}/Utils/ERF_HurricaneDiagnostics.cpp

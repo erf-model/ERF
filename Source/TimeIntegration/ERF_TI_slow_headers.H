@@ -33,22 +33,42 @@ namespace erf_sbm { class SBMStateManager; class SBMTransport; }
 class ShocDriver;
 
 /**
- * Whether the fluxes of RK stage nrk at this level go into the flux registers.  With two-way
- * coupling and more than one level only those of the final stage do: the second (nrk = 1) of
- * the anelastic integrator and the third (nrk = 2) of the compressible one.  Every stage that
- * adds fluxes to the registers must use this, so that all of them reflux the same stage.
+ * The weight with which the fluxes of RK stage nrk at this level go into the flux registers:
+ * the weight of that stage's fluxes in the update the step ends with, or zero if they are not
+ * registered.  Only with two-way coupling and more than one level.  The compressible integrator
+ * and the anelastic MidPoint integrator update from their final stage alone (nrk = 2 and nrk = 1),
+ * which takes weight 1.  The anelastic RK2 integrator is Heun's, S^{n+1} = S^n + dt (R0 + R1) / 2,
+ * so both of its stages take weight 1/2.  Every stage that adds fluxes to the registers must use
+ * this, so that the registers hold the fluxes the update applied.
  *
  * @param[in] solverChoice  the solver options
  * @param[in] level         the level being advanced
  * @param[in] finest_level  the finest level
  * @param[in] nrk           the RK stage
  */
+inline amrex::Real
+RefluxStageWeight (const SolverChoice& solverChoice, int level, int finest_level, int nrk)
+{
+    if (solverChoice.coupling_type != CouplingType::TwoWay || finest_level == 0) {
+        return amrex::Real(0.);
+    }
+    if (solverChoice.anelastic[level] == 1) {
+        if (solverChoice.anelastic_type[level] == AnelasticType::RK2) {
+            return amrex::Real(0.5);
+        }
+        return (nrk == 1) ? amrex::Real(1.) : amrex::Real(0.);
+    }
+    return (nrk == 2) ? amrex::Real(1.) : amrex::Real(0.);
+}
+
+/**
+ * Whether the fluxes of RK stage nrk at this level go into the flux registers
+ * (RefluxStageWeight is not zero).
+ */
 inline bool
 IsRefluxStage (const SolverChoice& solverChoice, int level, int finest_level, int nrk)
 {
-    const bool anelastic = (solverChoice.anelastic[level] == 1);
-    return (solverChoice.coupling_type == CouplingType::TwoWay) && (finest_level > 0) &&
-           ( (anelastic && nrk == 1) || (!anelastic && nrk == 2) );
+    return RefluxStageWeight(solverChoice, level, finest_level, nrk) > amrex::Real(0.);
 }
 
 void erf_make_tau_terms (int level, int nrk,

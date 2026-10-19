@@ -491,6 +491,33 @@ void ReadBndryPlanes::read_file (const int idx,
           }
     }
 
+    // A moist writer computes the temperature plane with qv (erf_dermoisttemp), so the conversion
+    // back to theta below needs the same qv: read its plane too when both are read.  Otherwise qv
+    // is zero there, as for a dry writer.
+    BndryRegister bndry_qv(ba, dm, m_in_rad, m_out_rad, m_extent_rad, 1);
+    bndry_qv.setVal(zero);
+    if (is_temperature_read && is_q1_read && !m_use_real_bcs) {
+        std::string filenameqv = MultiFabFileFullPrefix(lev, chkname1, level_prefix, "qv");
+        for (OrientationIter oit; oit != nullptr; ++oit) {
+              auto ori = oit();
+              if (ori.coordDir() < 2) {
+                  std::string facenameqv = Concatenate(filenameqv + '_', ori, 1);
+                  bndry_qv[ori].read(facenameqv);
+              }
+        }
+    }
+
+    // A temperature plane written with qv cannot be converted back to theta without it
+    if (is_temperature_read && !is_q1_read && !m_use_real_bcs) {
+        const std::string qv_header = Concatenate(MultiFabFileFullPrefix(lev, chkname1, level_prefix, "qv") + '_',
+                                                  Orientation(0, Orientation::low), 1) + "_H";
+        if (FileExists(qv_header)) {
+            Abort("erf.bndry_input_var_names reads temperature but not qv, and " + m_filename +
+                  " holds qv planes: the writer was moist, so its temperature includes qv.  Add qv to"
+                  " erf.bndry_input_var_names, or write and read theta instead of temperature");
+        }
+    }
+
     // Expose for GPU
     bool real_bcs = m_use_real_bcs;
 
@@ -553,6 +580,7 @@ void ReadBndryPlanes::read_file (const int idx,
                 const auto& vbx = mfi.validbox();
                 const auto& bndry_read_arr   = bndry[ori].array(mfi);
                 const auto& bndry_read_r_arr = bndry_r[ori].array(mfi);
+                const auto& bndry_read_qv_arr = bndry_qv[ori].array(mfi);
                 const auto& bndry_mf_arr     = bndryMF.array(mfi);
 
                 const auto& bx = bbx & vbx;
@@ -589,8 +617,10 @@ void ReadBndryPlanes::read_file (const int idx,
                              Real R2 =  bndry_read_r_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2],0);
                              Real T1 =  bndry_read_arr(i, j, k, 0);
                              Real T2 =  bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2],0);
-                             Real Th1 = getThgivenRandT(R1,T1,rdOcp);
-                             Real Th2 = getThgivenRandT(R2,T2,rdOcp);
+                             Real Q1  = bndry_read_qv_arr(i, j, k, 0);
+                             Real Q2  = bndry_read_qv_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2],0);
+                             Real Th1 = getThgivenRandT(R1,T1,rdOcp,Q1);
+                             Real Th2 = getThgivenRandT(R2,T2,rdOcp,Q2);
                              bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
                                                                      myhalf * (R1*Th1 + R2*Th2);
                         });
@@ -620,8 +650,10 @@ void ReadBndryPlanes::read_file (const int idx,
                              Real R2  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];
                              Real T1  = bndry_read_arr(i, j, k, 0);
                              Real T2  = bndry_read_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2], 0);
-                             Real Th1 = getThgivenRandT(R1,T1,rdOcp);
-                             Real Th2 = getThgivenRandT(R2,T2,rdOcp);
+                             Real Q1  = bndry_read_qv_arr(i, j, k, 0);
+                             Real Q2  = bndry_read_qv_arr(i+v_offset[0],j+v_offset[1],k+v_offset[2],0);
+                             Real Th1 = getThgivenRandT(R1,T1,rdOcp,Q1);
+                             Real Th2 = getThgivenRandT(R2,T2,rdOcp,Q2);
                              bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
                                                                      myhalf * (R1*Th1 + R2*Th2);
                         });
@@ -659,8 +691,10 @@ void ReadBndryPlanes::read_file (const int idx,
                                  Real R2 =  bndry_read_r_arr(i+v_offset_int[0],j+v_offset_int[1],k+v_offset_int[2],0);
                                  Real T1 =  bndry_read_arr(i, j, k, 0);
                                  Real T2 =  bndry_read_arr(i+v_offset_int[0],j+v_offset_int[1],k+v_offset_int[2],0);
-                                 Real Th1 = getThgivenRandT(R1,T1,rdOcp);
-                                 Real Th2 = getThgivenRandT(R2,T2,rdOcp);
+                                 Real Q1  = bndry_read_qv_arr(i, j, k, 0);
+                                 Real Q2  = bndry_read_qv_arr(i+v_offset_int[0],j+v_offset_int[1],k+v_offset_int[2],0);
+                                 Real Th1 = getThgivenRandT(R1,T1,rdOcp,Q1);
+                                 Real Th2 = getThgivenRandT(R2,T2,rdOcp,Q2);
                                  bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
                                                                          myhalf * (R1*Th1 + R2*Th2);
                             });
@@ -690,8 +724,10 @@ void ReadBndryPlanes::read_file (const int idx,
                                  Real R2  = l_bc_extdir_vals_d[BCVars::Rho_bc_comp][ori];
                                  Real T1  = bndry_read_arr(i, j, k, 0);
                                  Real T2  = bndry_read_arr(i+v_offset_int[0],j+v_offset_int[1],k+v_offset_int[2], 0);
-                                 Real Th1 = getThgivenRandT(R1,T1,rdOcp);
-                                 Real Th2 = getThgivenRandT(R2,T2,rdOcp);
+                                 Real Q1  = bndry_read_qv_arr(i, j, k, 0);
+                                 Real Q2  = bndry_read_qv_arr(i+v_offset_int[0],j+v_offset_int[1],k+v_offset_int[2],0);
+                                 Real Th1 = getThgivenRandT(R1,T1,rdOcp,Q1);
+                                 Real Th2 = getThgivenRandT(R2,T2,rdOcp,Q2);
                                  bndry_mf_arr(i, j, k, 0) = (real_bcs) ? bndry_read_arr(i, j, k, 0) :
                                                                          myhalf * (R1*Th1 + R2*Th2);
                             });

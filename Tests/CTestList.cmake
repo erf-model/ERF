@@ -952,9 +952,15 @@ endfunction(add_test_at_rest_terrain_outflow)
 # a dirichlet_file is multiplied by the ghost density the face prescribes on an Inflow face
 # (InflowThetaDensity) and on an inflow_outflow face (InflowOutflowThetaFile), and only the
 # face that read the file uses it (InflowThetaFileOtherFace, a second inflow face with its
-# own density and theta).
+# own density and theta).  PRE_INPUT names a deck in the test folder to run first, in the same
+# folder (BndryPlanes_MoistTemperature writes the boundary planes its deck then reads).
 function(add_test_field_bounds TEST_NAME PLTFILE VARIABLE LO HI)
+    cmake_parse_arguments(ADD_TEST_FB "" "PRE_INPUT" "" ${ARGN})
     setup_test()
+    set(_pre_input "")
+    if(NOT "${ADD_TEST_FB_PRE_INPUT}" STREQUAL "")
+        set(_pre_input "${CURRENT_TEST_BINARY_DIR}/${ADD_TEST_FB_PRE_INPUT}")
+    endif()
     resolve_test_exe("" "erf_exec" TEST_EXE)
     add_test(${TEST_NAME} ${CMAKE_COMMAND}
         "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
@@ -969,6 +975,7 @@ function(add_test_field_bounds TEST_NAME PLTFILE VARIABLE LO HI)
         "-DVARIABLE=${VARIABLE}"
         "-DLO=${LO}"
         "-DHI=${HI}"
+        "-DPRE_INPUT=${_pre_input}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunFieldBounds.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -1343,6 +1350,15 @@ add_test_at_rest_terrain_outflow(AtRestTerrainOutflow "plt00400" 1.0e-8 0.1)
 add_test_field_bounds(InflowThetaDensity "plt00010" theta 299.999 300.001)
 add_test_field_bounds(InflowOutflowThetaFile "plt00010" theta 299.999 300.001)
 add_test_field_bounds(InflowThetaFileOtherFace "plt00010" theta 299.999 300.001)
+
+# Boundary planes from a moist run: the temperature planes hold the moist temperature, and the
+# reader converts them back to theta with the qv planes.  A uniform moist state (theta 300 K,
+# qv 5 g/kg) writes the planes and reads them back at the faces of a subdomain, so theta must stay
+# 300 K; without qv in the conversion it reached 300.086 K (erf-model/ERF#4290).  The
+# BndryPlanes_MoistTemperature_*WithoutQv tests below read and write them without qv.
+add_test_field_bounds(BndryPlanes_MoistTemperature "plt00050" theta 299.999 300.001
+                      PRE_INPUT "BndryPlanes_MoistTemperature_Write.i")
+set_tests_properties(BndryPlanes_MoistTemperature PROPERTIES FIXTURES_SETUP BndryPlanesMoist)
 # Input sponge with a refined patch that does not reach the domain top: ran outside the patch's boxes at start-up
 add_test_field_bounds(InputSponge_FinePatch "plt00004" x_velocity 5.9 8.5)
 # A refined patch below the inversion takes the coarse level's PBL height (~513 m), not its own
@@ -1680,9 +1696,8 @@ add_test_r(ABL_MOST_IMP_DIFF_TKE
     "erf_exec"
     "plt00010"
     FCOMPARE_ATOL "4.0e-10")
-# ABL_MOST_IMP_DIFF_TKE with erf.implicit_before_substep = false: the vertical implicit solve of
-# theta (ERF_ImplicitPre.H) runs after the last acoustic substep of each stage.  Momentum is
-# left explicit, since the post-substep momentum solve is broken (see the deck).
+# ABL_MOST_IMP_DIFF_TKE with erf.implicit_before_substep = false: the vertical implicit solves of
+# theta and momentum (ERF_ImplicitPre.H) run after the last acoustic substep of each stage
 add_test_r(ABL_MOST_IMP_DIFF_PostSubstep     ""  "erf_exec" "plt00010")
 if(ERF_ENABLE_FFT)
     add_test_r(ABL_MOST_Cloudchamber         ""  "erf_exec" "plt00010")
@@ -1943,6 +1958,24 @@ function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME
     )
 endfunction(add_test_abort)
 
+# A moist run's temperature planes need the qv planes to be converted back to theta: reading
+# them without qv (the planes BndryPlanes_MoistTemperature writes), and writing them without qv
+# from a moist run, both stop (erf-model/ERF#4290)
+set(_bp_moist_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/BndryPlanes_MoistTemperature)
+# The read test needs the planes BndryPlanes_MoistTemperature writes, a field-bounds test that is
+# not defined on Windows; there CTest would run it without them
+if(NOT WIN32)
+  add_test_abort(BndryPlanes_MoistTemperature_ReadWithoutQv ${_bp_moist_dir}
+                 BndryPlanes_MoistTemperature.i
+                 "reads temperature but not qv"
+                 "erf.bndry_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/BndryPlanes_MoistTemperature/BndryFiles 'erf.bndry_input_var_names=temperature density velocity'")
+  set_tests_properties(BndryPlanes_MoistTemperature_ReadWithoutQv PROPERTIES FIXTURES_REQUIRED BndryPlanesMoist)
+endif()
+add_test_abort(BndryPlanes_MoistTemperature_WriteWithoutQv ${_bp_moist_dir}
+               BndryPlanes_MoistTemperature_Write.i
+               "writes temperature but not qv"
+               "'erf.bndry_output_var_names=temperature density velocity'")
+
 # Reading and writing boundary planes in one folder would replace the planes being read; the
 # folder names differ only in spelling (_SameFolder) or reach it through a symbolic link
 # (_SameFolderLink, link made here at configure time). Not on Windows, whose path spelling and
@@ -2138,13 +2171,21 @@ add_test_r(CouetteFlow_ImplicitCF            "" "erf_exec" "plt00050"
 add_test_r(MoistDiffusion_ImplicitCF         "" "erf_exec" "plt00200"
            FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "1.0e-7")
 
+# CouetteFlow_ImplicitCF with the implicit solves after the last acoustic substep of each stage
+# (erf.implicit_before_substep = false).  Until erf-model/ERF#4333 was fixed the new state's ghost
+# cells were not filled before those solves, and the momentum solve divided by a zero wall density
+add_test_r(CouetteFlow_ImplicitCF_PostSubstep "" "erf_exec" "plt00050"
+           FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "1.0e-7")
+
 # Two-way coupling refluxes the diffusive as well as the advective fluxes, so in a closed domain the
 # composite integral of a scalar is conserved across coarse/fine faces whatever transports it.
 # Moisture diffuses through a face normal to z, with the vertical diffusion implicit (the deck as
 # it stands, on a flat, a stretched and a terrain-fitted mesh) and explicit.  A scalar diffuses
-# through faces normal to x, y and z: on a flat, a terrain-fitted (flat terrain) and a stretched
-# mesh, with map factors, with 2 x 2 x 1 refinement, with the anelastic integrator, and advected
-# by a sheared flow with Smagorinsky diffusion alone
+# through faces normal to x, y and z: on a flat, a terrain-fitted (flat terrain and a hill) and a
+# stretched mesh, with map factors, with 2 x 2 x 1 refinement, with the anelastic MidPoint and RK2
+# integrators, and advected by a sheared flow with Smagorinsky diffusion alone.  The RK2 integrator
+# applies the fluxes of both of its stages, so it is also run with the scalar advected and not
+# diffused
 set(_moist_cons_options "max_step=100 erf.plot_int_1=-1")
 add_test_conservation(Conservation_MoistDiffusion_Implicit MoistDiffusion_ImplicitCF "RHO QTOTAL"
     OPTIONS "${_moist_cons_options}")
@@ -2157,6 +2198,8 @@ add_test_conservation(Conservation_MoistDiffusion_Explicit MoistDiffusion_Implic
 add_test_conservation(Conservation_ScalarDiffusion_Flat      ScalarDiffusion_Reflux "RHO SCALAR")
 add_test_conservation(Conservation_ScalarDiffusion_Terrain   ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.terrain_type=StaticFittedMesh")
+add_test_conservation(Conservation_ScalarDiffusion_Hill      ScalarDiffusion_Reflux "RHO SCALAR"
+    OPTIONS "erf.terrain_type=StaticFittedMesh prob.custom_terrain_type=WoA prob.dir=2 prob.hmax=0.25 prob.L=0.15")
 add_test_conservation(Conservation_ScalarDiffusion_Stretched ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.initial_dz=0.025")
 add_test_conservation(Conservation_ScalarDiffusion_MapFactor ScalarDiffusion_Reflux "RHO SCALAR"
@@ -2165,6 +2208,10 @@ add_test_conservation(Conservation_ScalarDiffusion_Ratio221  ScalarDiffusion_Ref
     OPTIONS "'amr.ref_ratio_vect=2 2 1'")
 add_test_conservation(Conservation_ScalarDiffusion_Anelastic ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.anelastic=1 erf.anelastic_type=MidPoint")
+add_test_conservation(Conservation_ScalarDiffusion_AnelasticRK2 ScalarDiffusion_Reflux "RHO SCALAR"
+    OPTIONS "erf.anelastic=1 erf.anelastic_type=RK2")
+add_test_conservation(Conservation_ScalarAdvection_AnelasticRK2 ScalarDiffusion_Reflux "RHO SCALAR"
+    OPTIONS "erf.anelastic=1 erf.anelastic_type=RK2 erf.molec_diff_type=None prob.U_0=10 prob.V_0=5")
 add_test_conservation(Conservation_ScalarDiffusion_Smagorinsky ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.molec_diff_type=None erf.les_type=Smagorinsky erf.Cs=0.2 prob.prob_type=12 prob.rad_0=0.25 prob.uRef=10 prob.zRef=1 prob.z0=0.01")
 add_test_0(PoiseuilleFlow_x                  "" "erf_exec" "plt00010")
@@ -3258,8 +3305,15 @@ add_test_abort(DiffusiveDt_Abort_LimitFixedDt ${_smag2d_dir} Smag2D_Ridge.i
                "erf.diffusive_dt_limit = true cannot change erf.fixed_dt"
                "erf.diffusive_dt_limit=true")
 add_test_abort(DiffusiveDt_Abort_LimitNoClosure ${_smag2d_dir} Smag2D_Ridge.i
-               "erf.diffusive_dt_limit = true needs an eddy-diffusivity closure"
+               "erf.diffusive_dt_limit = true needs diffusion to limit"
                "erf.diffusive_dt_limit=true erf.fixed_dt=-1 erf.les_type=None erf.pbl_type=None")
+# The check counts molecular diffusion: CouetteFlow_ImplicitCF has no eddy-diffusivity closure,
+# and its molecular viscosity gives a Fourier number of 11.2 at level 0 (the explicit vertical
+# diffusion of w; u and v are implicit).  Before, the check reported 0 there.
+add_test_abort(DiffusiveDt_CheckMolecular ${CMAKE_CURRENT_SOURCE_DIR}/test_files/CouetteFlow_ImplicitCF
+               CouetteFlow_ImplicitCF.i
+               "WARNING: explicit diffusion at level 0 has Fourier number dt \\* rate = 11\\.2 "
+               "erf.diffusive_dt_check=true")
 endif()
 
 #=============================================================================
@@ -3350,7 +3404,7 @@ endif()
 # 13 solves failed).  The general-terrain projection needs the FFT build.
 #=============================================================================
 function(add_test_terrain_poisson_divergence TEST_NAME TEST_FILES_DIR LEVEL)
-    set(oneValueArgs "COMMON_OPTIONS" "MAX_RATIO")
+    set(oneValueArgs "COMMON_OPTIONS" "MAX_RATIO" "MAX_MEAN")
     cmake_parse_arguments(ADD_TEST_TPD "" "${oneValueArgs}" "" ${ARGN})
     if(ADD_TEST_TPD_UNPARSED_ARGUMENTS)
         message(FATAL_ERROR "add_test_terrain_poisson_divergence(${TEST_NAME}): unknown arguments "
@@ -3371,6 +3425,7 @@ function(add_test_terrain_poisson_divergence TEST_NAME TEST_FILES_DIR LEVEL)
         "-DCHECKER=${CMAKE_CURRENT_SOURCE_DIR}/check_terrain_poisson_divergence.py"
         "-DLEVEL=${LEVEL}"
         "-DMAX_RATIO=${ADD_TEST_TPD_MAX_RATIO}"
+        "-DMAX_MEAN=${ADD_TEST_TPD_MAX_MEAN}"
         "-DCOMMON_OPTIONS=${ADD_TEST_TPD_COMMON_OPTIONS}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunTerrainPoissonDivergence.cmake)
     set_tests_properties(${TEST_NAME}
@@ -3385,6 +3440,11 @@ endfunction(add_test_terrain_poisson_divergence)
 if(ERF_ENABLE_MPI AND NOT WIN32)
   # The hill on one level, boxed in by slip walls where its slopes reach them
   set(_tp_walls "amr.max_level=0 geometry.is_periodic=0 0 0 xlo.type=SlipWall xhi.type=SlipWall ylo.type=SlipWall yhi.type=SlipWall geometry.prob_lo=-640 -640 0 geometry.prob_hi=640 640 640 amr.n_cell=16 16 16")
+  # A refined level that stops inside the domain in z (k 4-11 of 16), one-way coupled, and the
+  # largest net inflow its solves may leave (with the coarse Omega on its top and bottom)
+  set(_tp_partial "erf.box1.in_box_lo_indices_crse=8 12 4 erf.box1.in_box_hi_indices_crse=19 23 11 erf.coupling_type=OneWay")
+  set(_tp_partial_mean "1.0e-7")
+  set(_tp_partial_4lev "amr.max_level=3 amr.ref_ratio_vect=2 2 1 2 2 1 2 2 1 erf.refinement_indicators=box1 box2 box3 erf.box1.in_box_lo_indices_crse=8 12 4 erf.box1.in_box_hi_indices_crse=19 23 11 erf.box2.max_level=2 erf.box2.in_box_lo_indices_crse=20 28 5 erf.box2.in_box_hi_indices_crse=35 43 10 erf.box3.max_level=3 erf.box3.in_box_lo_indices_crse=48 64 6 erf.box3.in_box_hi_indices_crse=63 79 9 erf.coupling_type=OneWay")
   # Two separate refined patches on the hill's flanks (two regions on level 1)
   set(_tp_two_patches "amr.grid_eff=0.99 erf.refinement_indicators=box1 box2 erf.box1.in_box_lo_indices_crse=4 8 0 erf.box1.in_box_hi_indices_crse=11 15 15 erf.box2.max_level=1 erf.box2.in_box_lo_indices_crse=20 16 0 erf.box2.in_box_hi_indices_crse=27 23 15")
   if(ERF_TEST_PYTHON)
@@ -3412,6 +3472,20 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     # segmentation fault; the loops now use the region's own arrays
     add_test_terrain_poisson_divergence(TerrainPoisson_TwoPatches TerrainPoisson_Hill 1
         COMMON_OPTIONS "${_tp_two_patches}")
+    # A refined level over the hill that stops inside the domain in z (k 4-11 of 16, 25-75 %),
+    # one-way coupled.  Development stopped it at start-up: gmres_fft got the whole column's dz
+    # (AMReX FFT assert), and the momenta just below and above the level were never filled, so
+    # the slope turned unset memory into a divergence of 1e147.  The flux through the level's
+    # top and bottom now comes from the coarse Omega, so the mean the solve subtracts (the net
+    # inflow) stays at 7e-9; with the coarse (rho w) on those faces instead it was 2.8e-6 (limit 1e-7).
+    add_test_terrain_poisson_divergence(TerrainPoisson_PartialDepth TerrainPoisson_Hill 1
+        COMMON_OPTIONS "${_tp_partial}" MAX_MEAN "${_tp_partial_mean}")
+    # Four levels, each nested in the one below and each stopping inside the domain in z
+    # (k 4-11, 5-10 and 6-9 of 16; ratio 2 2 1), so every refined level has coarse/fine faces
+    # at its top and bottom and takes its flux there from the level below.  Every level's
+    # solves are checked.
+    add_test_terrain_poisson_divergence(TerrainPoisson_PartialDepth_FourLevels TerrainPoisson_Hill "1 2 3"
+        COMMON_OPTIONS "${_tp_partial_4lev}" MAX_MEAN "${_tp_partial_mean}")
     # Map factors other than one (erf.test_mapfactor: 0.5 and 0.25): the projection adds the
     # map-factor scaled fluxes, which change the divergence by m_x m_y times A phi, so the
     # equation solved is A phi = rhs / (m_x m_y).  Without that division every solve left
@@ -3426,6 +3500,15 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     set(_tph_snd "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/TerrainPoisson_Hill_BoxParity/input_sounding")
     add_test_box_parity(TerrainPoisson_Hill_BoxParity TerrainPoisson_Hill "plt00006"
         COMMON_OPTIONS "${_tph_snd}"
+        REFERENCE_OPTIONS "amr.max_grid_size=1024"
+        SPLIT_OPTIONS "amr.max_grid_size_x=12 amr.max_grid_size_y=8"
+        FCOMPARE_RTOL "1.0e-9")
+    # The same for a level that stops inside the domain in z: its top and bottom faces are
+    # set from the coarse Omega in the fills, which must reach the ghost copies of those faces
+    # in the neighbouring boxes too, or the answer depends on how the level is cut
+    set(_tph_snd "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/TerrainPoisson_PartialDepth_BoxParity/input_sounding")
+    add_test_box_parity(TerrainPoisson_PartialDepth_BoxParity TerrainPoisson_Hill "plt00006"
+        COMMON_OPTIONS "${_tph_snd} ${_tp_partial}"
         REFERENCE_OPTIONS "amr.max_grid_size=1024"
         SPLIT_OPTIONS "amr.max_grid_size_x=12 amr.max_grid_size_y=8"
         FCOMPARE_RTOL "1.0e-9")
@@ -3445,6 +3528,9 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
     foreach(_tp_solver mlmg gmres_mlmg)
       add_test_terrain_poisson_divergence(TerrainPoisson_TwoLevelHill_${_tp_solver} TerrainPoisson_Hill 1
           COMMON_OPTIONS "${_tp_mg_tol} erf.terrain_poisson_solver=${_tp_solver}")
+      add_test_terrain_poisson_divergence(TerrainPoisson_PartialDepth_${_tp_solver} TerrainPoisson_Hill 1
+          COMMON_OPTIONS "${_tp_partial} ${_tp_mg_tol} erf.terrain_poisson_solver=${_tp_solver}"
+          MAX_MEAN "${_tp_partial_mean}")
       add_test_terrain_poisson_divergence(TerrainPoisson_SlopingWalls_${_tp_solver} TerrainPoisson_Hill 0
           COMMON_OPTIONS "${_tp_walls} ${_tp_mg_tol} erf.terrain_poisson_solver=${_tp_solver}")
     endforeach()
@@ -3540,6 +3626,78 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                    "Loosen erf.poisson_reltol / erf.poisson_abstol"
                    "erf.terrain_poisson_solver=mlmg erf.poisson_reltol=1e-30 erf.poisson_abstol=1e-30")
   endif()
+endif()
+
+# Terrain text files (erf.terrain_file_name; Source/Utils/ERF_TerrainFileChecks.H).  The deck
+# is an 800 m x 400 m channel over a north-south ridge with inflow at xlo and outflow at xhi;
+# make_tables.py writes the tables.  A malformed or mis-ordered file stops the run with the
+# problem named; the base reader accepted four of these and stopped on two without naming
+# the file or the problem.  A valid file prints where
+# its highest point and steepest slopes sit and the order its heights are read in.
+if(NOT WIN32)
+  set(_tf_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TerrainFileChecks)
+  foreach(_tf_case
+      "SwappedLists|swapped_lists.txt|the x values 0 .. 400 do not cover the domain 0 .. 800"
+      "XNotIncreasing|x_not_increasing.txt|the x values must increase strictly, but x\\[6\\] = 250 follows x\\[5\\] = 300"
+      "TooFewValues|too_few_values.txt|the file ends at line 180"
+      "ExtraValues|extra_values.txt|text after line 181"
+      "TwoPerLine|two_per_line.txt|line 41 has text after the value"
+      "ShortOfDomain|short_of_domain.txt|the x values 0 .. 700 do not cover the domain 0 .. 800")
+    string(REPLACE "|" ";" _tf_parts "${_tf_case}")
+    list(GET _tf_parts 0 _tf_name)
+    list(GET _tf_parts 1 _tf_file)
+    list(GET _tf_parts 2 _tf_message)
+    add_test_abort(TerrainFile_Abort_${_tf_name} ${_tf_dir} TerrainFileChecks.i
+                   "${_tf_message}" "erf.terrain_file_name=${_tf_file}")
+  endforeach()
+
+  # The ridge in the middle: the summary names the read order and the slope of the ridge,
+  # and the gentle terrain next to the inflow and outflow faces gives no warning
+  add_test_abort(TerrainFile_Summary ${_tf_dir} TerrainFileChecks.i
+                 "y varies fastest, height n is at \\(x\\[n / ny\\], y\\[n % ny\\]\\).*largest \\|dh/dx\\| 0\\.819[0-9]* at \\(325, 0\\), largest \\|dh/dy\\| 0 at"
+                 "erf.terrain_file_name=ridge_middle.txt")
+  set_tests_properties(TerrainFile_Summary PROPERTIES FAIL_REGULAR_EXPRESSION "WARNING: at level;Abort")
+  # The ridge next to the outflow face (|dh/dx| up to 0.82 there) gives the warning ...
+  add_test_abort(TerrainFile_SteepOutflowWarns ${_tf_dir} TerrainFileChecks.i
+                 "WARNING: at level 0 the terrain slope \\|grad h\\| reaches 0\\.[78][0-9]* within 2 cells of the xhi face \\(Outflow\\)"
+                 "erf.terrain_file_name=ridge_outflow.txt")
+  set_tests_properties(TerrainFile_SteepOutflowWarns PROPERTIES FAIL_REGULAR_EXPRESSION "xlo face;Abort")
+  # ... but not next to a wall, nor with a steep-terrain option on (the runs must finish):
+  # erf.diffusive_dt_limit, and erf.smag2d_kh_cap with Smagorinsky2D
+  add_test_abort(TerrainFile_SteepWallQuiet ${_tf_dir} TerrainFileChecks.i
+                 "AMReX \\(.*\\) finalized"
+                 "erf.terrain_file_name=ridge_outflow.txt xhi.type=SlipWall")
+  add_test_abort(TerrainFile_SteepOptionQuiet ${_tf_dir} TerrainFileChecks.i
+                 "AMReX \\(.*\\) finalized"
+                 "erf.terrain_file_name=ridge_outflow.txt erf.diffusive_dt_limit=true erf.les_type=Smagorinsky erf.Cs=0.1")
+  add_test_abort(TerrainFile_SteepSmag2DQuiet ${_tf_dir} TerrainFileChecks.i
+                 "AMReX \\(.*\\) finalized"
+                 "erf.terrain_file_name=ridge_outflow.txt erf.les_type=Smagorinsky2D erf.Cs=0.1 erf.smag2d_kh_cap=10")
+  set_tests_properties(TerrainFile_SteepWallQuiet TerrainFile_SteepOptionQuiet TerrainFile_SteepSmag2DQuiet
+                       PROPERTIES FAIL_REGULAR_EXPRESSION "WARNING: at level;Abort")
+  # A fine level that reaches the outflow face only after a regrid: a box moving towards
+  # xhi (x 200-400 m at the start, past 700 m after the first step) is checked when its
+  # grids change, not only at start-up
+  add_test_abort(TerrainFile_SteepAfterRegrid ${_tf_dir} TerrainFileChecks.i
+                 "WARNING: at level 1 the terrain slope \\|grad h\\| reaches 0\\.[78][0-9]* within 2 cells of the xhi face"
+                 "erf.terrain_file_name=ridge_outflow.txt max_step=3 amr.max_level=1 erf.regrid_int=1 erf.refinement_indicators=box1 erf.box1.in_box_lo=200 0 erf.box1.in_box_hi=400 400 erf.box1.move_start_time=0 erf.box1.move_stop_time=1 erf.box1.move_speed_x=4000 erf.box1.move_speed_y=0")
+  # A single row (ny = 1) is a profile constant in y, as the reader always allowed
+  add_test_abort(TerrainFile_OneRow ${_tf_dir} TerrainFileChecks.i
+                 "one y value: constant in y"
+                 "erf.terrain_file_name=one_row.txt")
+  set_tests_properties(TerrainFile_OneRow PROPERTIES FAIL_REGULAR_EXPRESSION "Abort")
+  # The USGS layout: a valid file is summarised; a truncated extra line and a y that
+  # changes within a row stop the run (the base reader accepted both)
+  add_test_abort(TerrainFile_USGS_Summary ${_tf_dir} TerrainFileChecksUSGS.i
+                 "x varies fastest, height n is at \\(x\\[n\\], y\\[n / nx\\]\\).*largest \\|dh/dx\\| 0\\.819[0-9]* at \\(325, 0\\)"
+                 "erf.terrain_file_name_USGS=usgs_ridge.txt")
+  set_tests_properties(TerrainFile_USGS_Summary PROPERTIES FAIL_REGULAR_EXPRESSION "Abort")
+  add_test_abort(TerrainFile_Abort_USGSTruncated ${_tf_dir} TerrainFileChecksUSGS.i
+                 "line 156 must hold exactly three numbers, x y height: '24.87 0'"
+                 "erf.terrain_file_name_USGS=usgs_truncated.txt")
+  add_test_abort(TerrainFile_Abort_USGSYInRow ${_tf_dir} TerrainFileChecksUSGS.i
+                 "y changes within row 2 \\(line 40\\)"
+                 "erf.terrain_file_name_USGS=usgs_y_in_row.txt")
 endif()
 
 #=============================================================================
