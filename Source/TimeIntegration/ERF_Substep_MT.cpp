@@ -104,6 +104,7 @@ void erf_substep_MT (int step, int /*nrk*/,
 
     const Real* dx = geom.CellSize();
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
+    const int domhi_z = geom.Domain().bigEnd(2);
 
     Real dxi = dxInv[0];
     Real dyi = dxInv[1];
@@ -511,7 +512,11 @@ void erf_substep_MT (int step, int /*nrk*/,
 
             soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
 
-            RHS_a(i,j,hi.z+1) = dtau * (slow_rhs_rho_w(i,j,hi.z+1) + zmom_src_arr(i,j,hi.z+1));
+            // Zero at the domain top: Omega'' = 0 at a wall, and Omega''_top = Omega''_top-1
+            // for outflow, the matrix row set in make_fast_coeffs deciding which
+            RHS_a(i,j,hi.z+1) = (hi.z == domhi_z)
+                                ? zero
+                                : dtau * (slow_rhs_rho_w(i,j,hi.z+1) + zmom_src_arr(i,j,hi.z+1));
 
             for (int k = lo.z+1; k <= hi.z+1; k++) {
                 soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
@@ -539,7 +544,11 @@ void erf_substep_MT (int step, int /*nrk*/,
         for (int j = lo.y; j <= hi.y; ++j) {
              AMREX_PRAGMA_SIMD
              for (int i = lo.x; i <= hi.x; ++i) {
-                 RHS_a(i,j,hi.z+1) = dtau * (slow_rhs_rho_w(i,j,hi.z+1) + zmom_src_arr(i,j,hi.z+1));
+                 // Zero at the domain top: Omega'' = 0 at a wall, and Omega''_top = Omega''_top-1
+                 // for outflow, the matrix row set in make_fast_coeffs deciding which
+                 RHS_a(i,j,hi.z+1) = (hi.z == domhi_z)
+                                     ? zero
+                                     : dtau * (slow_rhs_rho_w(i,j,hi.z+1) + zmom_src_arr(i,j,hi.z+1));
              }
         }
         for (int k = lo.z+1; k <= hi.z+1; ++k) {

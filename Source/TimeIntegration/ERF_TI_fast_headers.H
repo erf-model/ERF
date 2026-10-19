@@ -42,7 +42,6 @@ void erf_substep_NS (int step, int nrk, int level, int finest_level,
                      amrex::YAFluxRegister* fr_as_crse,
                      amrex::YAFluxRegister* fr_as_fine,
                      bool l_use_moisture, bool l_reflux, bool l_real_bc,
-                     bool l_outflow_top,
                      const amrex::Real* sinesq_at_lev_d,
                      const amrex::Real l_damp_coef);
 
@@ -77,7 +76,6 @@ void erf_substep_T (int step, int nrk, int level, int finest_level,
                     amrex::YAFluxRegister* fr_as_crse,
                     amrex::YAFluxRegister* fr_as_fine,
                     bool l_use_moisture, bool l_reflux, bool l_real_bc,
-                    bool l_outflow_top,
                     const amrex::Real* sinesq_at_lev_d,
                     const amrex::Real l_damp_coef);
 

@@ -39,7 +39,6 @@ using namespace amrex;
  * @param[in   ] l_use_moisture
  * @param[in   ] l_reflux should we add fluxes to the FluxRegisters?
  * @param[in   ] l_real_bc
- * @param[in   ] l_outflow_top is the top of the domain an outflow boundary?
  * @param[in   ] l_damp_coef
  */
 
@@ -73,7 +72,6 @@ void erf_substep_T (int step, int /*nrk*/,
                     bool l_use_moisture,
                     bool l_reflux,
                     bool l_real_bc,
-                    bool l_outflow_top,
                     const Real* sinesq_stag_d,
                     const Real l_damp_coef)
 {
@@ -194,7 +192,8 @@ void erf_substep_T (int step, int /*nrk*/,
             old_drho_u(i,j,k) = prev_xmom(i,j,k) - stage_xmom(i,j,k);
             if (k == bx_lo.z && k != domlo.z) {
                 old_drho_u(i,j,k-1) = old_drho_u(i,j,k);
-            } else if (k == bx_hi.z) {
+            }
+            if (k == bx_hi.z) {
                 old_drho_u(i,j,k+1) = old_drho_u(i,j,k);
             }
         },
@@ -202,7 +201,8 @@ void erf_substep_T (int step, int /*nrk*/,
             old_drho_v(i,j,k) = prev_ymom(i,j,k) - stage_ymom(i,j,k);
             if (k == bx_lo.z && k != domlo.z) {
                 old_drho_v(i,j,k-1) = old_drho_v(i,j,k);
-            } else if (k == bx_hi.z) {
+            }
+            if (k == bx_hi.z) {
                 old_drho_v(i,j,k+1) = old_drho_v(i,j,k);
             }
         },
@@ -324,7 +324,8 @@ void erf_substep_T (int step, int /*nrk*/,
                                                         + dtau * xmom_src_arr(i,j,k);
                 if (k == bx_lo.z && k != domlo.z) {
                     new_drho_u(i,j,k-1) = new_drho_u(i,j,k);
-                } else if (k == bx_hi.z) {
+                }
+                if (k == bx_hi.z) {
                     new_drho_u(i,j,k+1) = new_drho_u(i,j,k);
                 }
 
@@ -363,7 +364,8 @@ void erf_substep_T (int step, int /*nrk*/,
 
                 if (k == bx_lo.z && k != domlo.z) {
                     new_drho_v(i,j,k-1) = new_drho_v(i,j,k);
-                } else if (k == bx_hi.z) {
+                }
+                if (k == bx_hi.z) {
                     new_drho_v(i,j,k+1) = new_drho_v(i,j,k);
                 }
 
@@ -618,37 +620,38 @@ void erf_substep_T (int step, int /*nrk*/,
         auto const hi = ubound(bx);
         {
         BL_PROFILE("substep_b2d_loop_t");
-#ifdef AMREX_USE_GPU
+
+        // NOTE: RHS is built on a shrunk box in z, explicitly set
+        //       the lo and hi faces here
+        // On a box face inside the domain (a c/f face) the row carries the accumulated
+        // perturbation converted to Omega'', as in the interior rows. At the domain bottom
+        // and top the row is zero: Omega'' = 0 at the ground and at a wall, and
+        // Omega''_top = Omega''_top-1 for outflow, the matrix row set in make_fast_coeffs
+        // deciding which
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
-            // NOTE: RHS is built on a shrunk box in z, explicitly set
-            //       the lo and hi faces here
-            // On a box face inside the domain (a c/f face) the row carries the accumulated
-            // perturbation converted to Omega'', as in the interior rows. At the domain
-            // bottom/top the value is a boundary condition.
             // OmegaFromW takes its indices by non-const reference, hence the copies
             int kf_lo = lo.z;
             int kf_hi = hi.z+1;
-            Real WppmMet_lo = (lo.z == domlo.z)
-                            ? zero
-                            : old_drho_w(i,j,lo.z  ) + OmegaFromW(i,j,kf_lo,zero,
-                                                                  new_drho_u,new_drho_v,
-                                                                  mf_ux,mf_vy,z_nd,dxInv);
-            Real WppmMet_hi = (hi.z == domhi.z)
-                            ? zero
-                            : old_drho_w(i,j,hi.z+1) + OmegaFromW(i,j,kf_hi,zero,
-                                                                  new_drho_u,new_drho_v,
-                                                                  mf_ux,mf_vy,z_nd,dxInv);
-            RHS_a(i,j,lo.z  ) = WppmMet_lo
+            RHS_a(i,j,lo.z  ) = (lo.z == domlo.z)
+                              ? zero
+                              : old_drho_w(i,j,lo.z  ) + OmegaFromW(i,j,kf_lo,zero,
+                                                                    new_drho_u,new_drho_v,
+                                                                    mf_ux,mf_vy,z_nd,dxInv)
                               + dtau * slow_rhs_rho_w(i,j,lo.z  )
                               + dtau *   zmom_src_arr(i,j,lo.z  );
-            RHS_a(i,j,hi.z+1) = WppmMet_hi
+            RHS_a(i,j,hi.z+1) = (hi.z == domhi.z)
+                              ? zero
+                              : old_drho_w(i,j,hi.z+1) + OmegaFromW(i,j,kf_hi,zero,
+                                                                    new_drho_u,new_drho_v,
+                                                                    mf_ux,mf_vy,z_nd,dxInv)
                               + dtau * slow_rhs_rho_w(i,j,hi.z+1)
                               + dtau *   zmom_src_arr(i,j,hi.z+1);
+        });
 
-            // Homogeneous Neumann (Omega''_top = Omega''_top-1) for outflow at the domain top
-            if (hi.z == domhi.z && l_outflow_top) { RHS_a(i,j,hi.z+1) = zero; }
-
+#ifdef AMREX_USE_GPU
+        ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
+        {
             // First row (coeffA = coeffC = 0) at k = lo.z
             soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
 
@@ -663,39 +666,10 @@ void erf_substep_T (int step, int /*nrk*/,
             }
         });
 #else
+        // First row (coeffA = coeffC = 0) at k = lo.z
         for (int j = lo.y; j <= hi.y; ++j) {
             AMREX_PRAGMA_SIMD
-            for (int i = lo.x; i <= hi.x; ++i)
-            {
-                // NOTE: RHS is built on a shrunk box in z, explicitly set
-                //       the lo and hi faces here
-                // On a box face inside the domain (a c/f face) the row carries the accumulated
-                // perturbation converted to Omega'', as in the interior rows. At the domain
-                // bottom/top the value is a boundary condition.
-                // OmegaFromW takes its indices by non-const reference, hence the copies
-                int kf_lo = lo.z;
-                int kf_hi = hi.z+1;
-                Real WppmMet_lo = (lo.z == domlo.z)
-                                ? zero
-                                : old_drho_w(i,j,lo.z  ) + OmegaFromW(i,j,kf_lo,zero,
-                                                                      new_drho_u,new_drho_v,
-                                                                      mf_ux,mf_vy,z_nd,dxInv);
-                Real WppmMet_hi = (hi.z == domhi.z)
-                                ? zero
-                                : old_drho_w(i,j,hi.z+1) + OmegaFromW(i,j,kf_hi,zero,
-                                                                      new_drho_u,new_drho_v,
-                                                                      mf_ux,mf_vy,z_nd,dxInv);
-                RHS_a(i,j,lo.z  ) = WppmMet_lo
-                                  + dtau * slow_rhs_rho_w(i,j,lo.z  )
-                                  + dtau *   zmom_src_arr(i,j,lo.z  );
-                RHS_a(i,j,hi.z+1) = WppmMet_hi
-                                  + dtau * slow_rhs_rho_w(i,j,hi.z+1)
-                                  + dtau *   zmom_src_arr(i,j,hi.z+1);
-
-                // Homogeneous Neumann (Omega''_top = Omega''_top-1) for outflow at the domain top
-                if (hi.z == domhi.z && l_outflow_top) { RHS_a(i,j,hi.z+1) = zero; }
-
-                // First row (coeffA = coeffC = 0) at k = lo.z
+            for (int i = lo.x; i <= hi.x; ++i) {
                 soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
             }
         }
@@ -743,9 +717,9 @@ void erf_substep_T (int step, int /*nrk*/,
 
             cur_zmom(i,j,k) = stage_zmom(i,j,k) + wpp;
 
-            if (k > domlo.z   &&
-                k < domhi.z+1 &&
-                l_rayleigh_impl_for_w) {
+            // W at the ground is kinematic and is not damped; the top face is, since with
+            // outflow it is no longer pinned to the stage value
+            if (k > domlo.z && l_rayleigh_impl_for_w) {
                 Real damping_coeff = l_damp_coef * dtau * sinesq_stag_d[k];
                 cur_zmom(i,j,k) /= (one + damping_coeff);
             }
@@ -761,8 +735,8 @@ void erf_substep_T (int step, int /*nrk*/,
               Real zflux_lo = beta_2 * soln_a(i,j,k  ) + beta_1 * omega_arr(i,j,k);
               Real zflux_hi = beta_2 * soln_a(i,j,k+1) + beta_1 * omega_arr(i,j,k+1);
 
-              // Note that in the solve we effectively impose new_drho_w(i,j,vbx_hi.z+1)=0
-              // so we don't update avg_zmom at k=vbx_hi.z+1
+              // avg_zmom at k=vbx_hi.z+1 is updated by the top cell of the box; the
+              // perturbation there is zero at a wall but not at an outflow top or a c/f face
               avg_zmom_arr(i,j,k)      += facinv*zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
               if (l_reflux) {
                   (flx_arr[2])(i,j,k,0) =        zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));

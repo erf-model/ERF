@@ -39,7 +39,6 @@ using namespace amrex;
  * @param[in   ]  l_use_moisture
  * @param[in   ]  l_reflux should we add fluxes to the FluxRegisters?
  * @param[in   ]  l_real_bc
- * @param[in   ]  l_outflow_top is the top of the domain an outflow boundary?
  */
 
 void erf_substep_NS (int step, int nrk,
@@ -71,7 +70,6 @@ void erf_substep_NS (int step, int nrk,
                      bool l_use_moisture,
                      bool l_reflux,
                      bool l_real_bc,
-                     bool l_outflow_top,
                      const amrex::Real* sinesq_stag_d,
                      const Real l_damp_coef)
 {
@@ -483,18 +481,21 @@ void erf_substep_NS (int step, int nrk,
         {
             // NOTE: RHS is built on a shrunk box in z, explicitly set
             //       the lo and hi faces here
-            // w at bottom boundary of grid is 0 if at domain boundary, otherwise w = w_old + dtau * slow_rhs
-            RHS_a (i,j,lo.z) = prev_zmom(i,j,lo.z) - stage_zmom(i,j,lo.z)
+            // On a box face inside the domain (a c/f face), w = w_old + dtau * slow_rhs.
+            // At the domain bottom and top the row is zero: W'' = 0 at the ground and at
+            // a wall, and W''_top = W''_top-1 for outflow, the matrix row set in
+            // make_fast_coeffs deciding which
+            RHS_a (i,j,lo.z) = (lo.z == domlo.z)
+                             ? zero
+                             : prev_zmom(i,j,lo.z) - stage_zmom(i,j,lo.z)
                              + dtau * slow_rhs_rho_w(i,j,lo.z)
                              + dtau * zmom_src_arr(i,j,lo.z);
 
-            // w at top boundary of grid is 0 if at domain boundary, otherwise w = w_old + dtau * slow_rhs
-            RHS_a (i,j,hi.z+1) = prev_zmom(i,j,hi.z+1) - stage_zmom(i,j,hi.z+1)
+            RHS_a (i,j,hi.z+1) = (hi.z == domhi.z)
+                               ? zero
+                               : prev_zmom(i,j,hi.z+1) - stage_zmom(i,j,hi.z+1)
                                + dtau * slow_rhs_rho_w(i,j,hi.z+1)
                                + dtau * zmom_src_arr(i,j,hi.z+1);
-
-            // Homogeneous Neumann (W''_top = W''_top-1) for outflow at the domain top
-            if (hi.z == domhi.z && l_outflow_top) { RHS_a(i,j,hi.z+1) = zero; }
         }); // b2d
 
 #ifdef AMREX_USE_GPU
@@ -547,10 +548,14 @@ void erf_substep_NS (int step, int nrk,
         }
 #endif
         if (l_rayleigh_impl_for_w) {
-            ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+            // Every face but the ground, as in erf_substep_T: the top face is no longer
+            // pinned with an outflow top, and the faces at the ends of the box are solved for
+            ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-              Real damping_coeff = l_damp_coef * dtau * sinesq_stag_d[k];
-              cur_zmom(i,j,k) /= (one + damping_coeff);
+              if (k > domlo.z) {
+                  Real damping_coeff = l_damp_coef * dtau * sinesq_stag_d[k];
+                  cur_zmom(i,j,k) /= (one + damping_coeff);
+              }
             });
         }
 
