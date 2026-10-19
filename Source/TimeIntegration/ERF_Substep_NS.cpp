@@ -38,6 +38,8 @@ using namespace amrex;
  * @param[inout]  fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
  * @param[in   ]  l_use_moisture
  * @param[in   ]  l_reflux should we add fluxes to the FluxRegisters?
+ * @param[in   ]  l_real_bc
+ * @param[in   ]  l_outflow_top is the top of the domain an outflow boundary?
  */
 
 void erf_substep_NS (int step, int nrk,
@@ -69,6 +71,7 @@ void erf_substep_NS (int step, int nrk,
                      bool l_use_moisture,
                      bool l_reflux,
                      bool l_real_bc,
+                     bool l_outflow_top,
                      const amrex::Real* sinesq_stag_d,
                      const Real l_damp_coef)
 {
@@ -470,7 +473,7 @@ void erf_substep_NS (int step, int nrk,
 
         }); // bx_shrunk_in_k
 
-        Box b2d = tbz; // Copy constructor
+        Box b2d = tbz;
         b2d.setRange(2,0);
 
         auto const lo = lbound(bx);
@@ -478,6 +481,8 @@ void erf_substep_NS (int step, int nrk,
 
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
+            // NOTE: RHS is built on a shrunk box in z, explicitly set
+            //       the lo and hi faces here
             // w at bottom boundary of grid is 0 if at domain boundary, otherwise w = w_old + dtau * slow_rhs
             RHS_a (i,j,lo.z) = prev_zmom(i,j,lo.z) - stage_zmom(i,j,lo.z)
                              + dtau * slow_rhs_rho_w(i,j,lo.z)
@@ -487,12 +492,15 @@ void erf_substep_NS (int step, int nrk,
             RHS_a (i,j,hi.z+1) = prev_zmom(i,j,hi.z+1) - stage_zmom(i,j,hi.z+1)
                                + dtau * slow_rhs_rho_w(i,j,hi.z+1)
                                + dtau * zmom_src_arr(i,j,hi.z+1);
+
+            // Homogeneous Neumann (W''_top = W''_top-1) for outflow at the domain top
+            if (hi.z == domhi.z && l_outflow_top) { RHS_a(i,j,hi.z+1) = zero; }
         }); // b2d
 
 #ifdef AMREX_USE_GPU
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
-          // w = specified Dirichlet value at k = lo.z
+            // Dirichlet condition at k = lo.z
             soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
           cur_zmom(i,j,lo.z) = stage_zmom(i,j,lo.z) + soln_a(i,j,lo.z);
 
