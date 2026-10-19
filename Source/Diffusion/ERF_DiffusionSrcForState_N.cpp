@@ -36,6 +36,8 @@ using namespace amrex;
  * @param[in]  bc_ptr container with boundary conditions
  * @param[in]  use_SurfLayer whether we have turned on subgrid diffusion
  * @param[in]  implicit_fac -- factor of implicitness for vertical differences only
+ * @param[in]  reflux_flx   if not null, face views (indexed by state component) to which the
+ *                           fluxes of each component are added for refluxing
  */
 void
 DiffusionSrcForState_N (const Box& bx, const Box& domain,
@@ -68,7 +70,8 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                         const BCRec* bc_ptr,
                         const bool use_SurfLayer,
                         const Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer,
-                        const Real implicit_fac)
+                        const Real implicit_fac,
+                        const ScalarDiffusionRefluxViews* reflux_flx)
 {
     BL_PROFILE_VAR("DiffusionSrcForState_N()",DiffusionSrcForState_N);
 
@@ -135,5 +138,9 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
         ApplyScalarDiffusionFluxDivergence_N(
             bx, xflux, yflux, zflux, field.flux_comp, cell_rhs, field.rhs_comp,
             cellSizeInv, mf_mx, mf_my);
+        if (reflux_flx) {
+            AddScalarDiffusionRefluxFluxes_N(
+                bx, xflux, yflux, zflux, field.flux_comp, *reflux_flx, field.rhs_comp, mf_mx, mf_my);
+        }
     } // n
 }

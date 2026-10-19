@@ -1,15 +1,19 @@
+# Write erf_terrain_def for inputs_terrain: a flat surface 108 m high over the whole
+# 2048 m x 2048 m domain.  ERF text format (see erf.terrain_file_name in Inputs.rst):
+# one value per line, nx, ny, the x values, the y values, then the heights with y
+# varying fastest.  The table must cover the domain: the reader stops on a table that
+# ends more than one table spacing inside it.
 import numpy as np
 
-target=open("erf_terrain_def","w")
+x = np.arange(0, 2048 + 64, 64)
+y = np.arange(0, 2048 + 64, 64)
 
-xc=1024
-yc=1024
-x=np.arange(xc-256,xc+256,16)
-y=np.arange(yc-256,yc+256,16)
-
-X,Y=np.meshgrid(x,y)
-
-for i in range(0,X.shape[0]):
-    for j in range(0,X.shape[1]):
-        target.write("%g %g %g\n"%(X[i,j],Y[i,j],108))
-target.close()
+with open("erf_terrain_def", "w") as target:
+    target.write("%d\n%d\n" % (len(x), len(y)))
+    for v in x:
+        target.write("%g\n" % v)
+    for v in y:
+        target.write("%g\n" % v)
+    for _ in x:
+        for _ in y:
+            target.write("%g\n" % 108)

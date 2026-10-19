@@ -134,9 +134,6 @@ void ERF::solve_with_fft (int lev, int isub, const Box& subdomain,
     auto const sub_lo = lbound(subdomain);
     auto const sub_hi = ubound(subdomain);
 
-    Vector<Real> stretched_dz_h_sub;
-    Gpu::DeviceVector<Real> stretched_dz_d_sub;
-
     // ****************************************************************************
     // FFT solve
     // ****************************************************************************
@@ -163,15 +160,8 @@ void ERF::solve_with_fft (int lev, int isub, const Box& subdomain,
             amrex::Print() << "Using the hybrid FFT solver on domain " << subdomain << std::endl;
         }
 
-        // Make new stretched_dz_sub array which only covers my_geom
-        stretched_dz_h_sub.resize(subdomain.length(2));
-
-        for (int k = sub_lo.z; k <= sub_hi.z; k++)
-        {
-            stretched_dz_h_sub[k-sub_lo.z] = stretched_dz_h[lev][k];
-        }
-        stretched_dz_d_sub.resize(stretched_dz_h_sub.size());
-        Gpu::copy(Gpu::hostToDevice, stretched_dz_h_sub.begin(), stretched_dz_h_sub.end(), stretched_dz_d_sub.begin());
+        // The dz of the region's own layers, which is all my_geom covers
+        Gpu::DeviceVector<Real> stretched_dz_d_sub = make_sub_dz(lev, subdomain);
 
         m_2D_poisson[lev][isub]->solve(phi, rhs, stretched_dz_d_sub);
     }

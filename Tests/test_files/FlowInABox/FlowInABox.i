@@ -62,6 +62,9 @@ erf.molec_diff_type  = "None"
 erf.alpha_T = 0.0
 erf.alpha_C = 0.0
 
+# The implicit vertical scalar solve does not support Dirichlet (prescribed theta) z walls
+erf.vert_implicit = false
+
 erf.les_type  = "Smagorinsky"
 erf.Cs        = 0.1
 erf.Pr_t      = 0.33333333333333

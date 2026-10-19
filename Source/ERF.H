@@ -400,6 +400,17 @@ public:
     //     came from that file rather than from its parent
     bool has_own_init_file (int lev) const;
 
+    // Did the user supply a wrflowinp file for this level (erf.nc_low_file_<lev>, lev > 0)?
+    bool has_own_low_file (int lev) const;
+
+    // Fill the coarse/fine ghost cells of the state (rho and the given components) and momenta
+    // used by an implicit vertical solve with coarse data at the given time; all other cells
+    // are left alone.  Public because it launches device lambdas (CUDA requires it)
+    void FillCoarseFineGhostsForImplicit (int lev, double time,
+                                          amrex::MultiFab& cons,
+                                          const amrex::Vector<int>& cons_comps,
+                                          const amrex::Vector<amrex::MultiFab*>& mom);
+
     void WriteMyEBSurface ();
 
     // Compute the divergence -- whether EB, no-terrain, flat terrain or general terrain
@@ -414,6 +425,20 @@ public:
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
     void project_initial_velocity (int lev, double time, double dt);
     void project_momenta (int lev, double l_time, double l_dt, amrex::Vector<amrex::MultiFab >& vars);
+
+    // A refined level that stops inside the domain in z (ERF_CoarseFineFaces.cpp)
+    bool cf_zface_coarse_data (int lev, double time, bool conserved_rho,
+                               amrex::MultiFab& omega_t, amrex::MultiFab& rhou_g, amrex::MultiFab& rhov_g,
+                               amrex::Vector<int>& slab_box);
+    void set_cf_zghost_projection (int lev, double time, amrex::MultiFab& xmom, amrex::MultiFab& ymom,
+                                   amrex::MultiFab& omega_t, amrex::Vector<int>& slab_box);
+    void set_cf_zface_omega (int lev, amrex::MultiFab& omega, const amrex::MultiFab& omega_t,
+                             const amrex::Vector<int>& slab_box);
+    void FillSetMomentaCF (int lev, double time, amrex::MultiFab& xmom, amrex::MultiFab& ymom,
+                           amrex::MultiFab& zmom);
+    void fill_surface_nodes (int lev, amrex::MultiFab& znd_surf);
+    // The stretched dz of a solve region's own layers
+    amrex::Gpu::DeviceVector<amrex::Real> make_sub_dz (int lev, const amrex::Box& subdomain);
 
     // Project the velocities to be divergence-free with a thin body
     void project_velocity_tb (int lev, double dt, amrex::Vector<amrex::MultiFab >& vars);
@@ -634,13 +659,18 @@ public:
     // compute dt from CFL considerations
     double estTimeStep (int lev, long& dt_fast_ratio) const;
 
-    // largest explicit eddy-diffusion rates (1/s) on level lev, momentum and scalars, for the
+    // largest explicit diffusion rates (eddy and molecular, 1/s) on level lev, momentum and scalars, for the
     // diffusive time-step check (erf.diffusive_dt_check / erf.diffusive_dt_limit)
     void ComputeDiffusiveRates (int lev, amrex::Real& rate_mom, amrex::Real& rate_scal) const;
 
     // print the largest terrain slope factor alpha = h dx/dz on level lev: always when force is
     // true (new grids), otherwise only if it changed by more than 1 % since the last report
     void ReportTerrainSlopeFactor (int lev, bool force);
+
+    // on a terrain-fitted mesh, warn when the terrain next to an inflow or outflow face of
+    // level lev is steeper than erf_terrain_file::open_face_slope_warn and no steep-terrain
+    // option is on; called by ComputeDt for every new set of grids
+    void WarnSteepTerrainAtOpenFaces (int lev);
 
 #ifdef ERF_USE_WW3_COUPLING
     //amrex::Print() <<  " About to call send_to_ww3 from ERF.H" << std::endl;
@@ -964,8 +994,10 @@ public:
     // has_surface_layer_inputs).
     std::set<std::string> user_specified_inputs;
 
-    void fill_from_bndryregs (const amrex::Vector<amrex::MultiFab*>& mfs,
-                              double time);
+    void fill_from_bndryregs (int lev,
+                              const amrex::Vector<amrex::MultiFab*>& mfs,
+                              double time,
+                              bool cons_only = false);
 
 #ifdef ERF_USE_NETCDF
     // Version in which we always set the velocity values but don't set theta
@@ -1264,6 +1296,22 @@ private:
 
     amrex::Vector<amrex::Vector<amrex::FArrayBox>> low_data_zlo;
 
+    // SST/TSK time slices at a level > 0 that read its own init file, when level 0 reads a
+    // wrflowinp file: from the level's own wrflowinp file if it has one, else from its parent
+    void init_fine_low_slices (int lev, bool restarting);
+
+    // Read time slice itime of this level's own wrflowinp file into sst_lev[lev], tsk_lev[lev]
+    void read_own_low_slice (int lev, int itime, std::unique_ptr<SurfaceLayer>& SurfLayer);
+
+    // Check that this level's wrflowinp file has the same times as level 0's
+    void check_own_low_file_times (int lev);
+
+    // Re-read the surface pressure of a level > 0 from its own init file (it is not checkpointed)
+    void read_psfc_from_own_init_file (int lev);
+
+    // The cells at a level > 0 that its own init file covers, as ERF::ErrorEst places them
+    amrex::Box nest_box_from_own_init_file (int lev);
+
     // Maximum value of terrain read in from wrfinput at level 0
     amrex::Real z_top = zero;
 
@@ -1520,6 +1568,23 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   detJ_cc;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ax;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   ay;
+
+    // Layout of the coarse/fine z-face data of each level that stops inside the domain in z
+    // (cf_zface_layout), kept until the level's grids or distribution change, so that every
+    // fill reuses the same plane BoxArrays and DistributionMapping (and their copy patterns)
+    struct CFZFaceLayout {
+        amrex::BoxArray fba;                                // the grids it was made for
+        amrex::DistributionMapping fdm;
+        std::map<int, amrex::Vector<amrex::Box>> patches;   // coarse/fine w-faces, per box
+        amrex::Vector<int> slab_box;                        // box of the level each slab belongs to
+        amrex::DistributionMapping sdm;                     // the slabs' (and planes') distribution
+        amrex::BoxArray ba_r, ba_ru, ba_rv, ba_rw, ba_rz;   // coarse planes: cells, faces, nodes
+        amrex::BoxArray ba_mu, ba_mv;                       // coarse planes: map factors (2D)
+        amrex::BoxArray ba_cf, ba_cx, ba_cy;                // coarse Omega, (rho u), (rho v)
+        amrex::BoxArray ba_f, ba_x, ba_y;                   // fine slabs
+    };
+    const CFZFaceLayout& cf_zface_layout (int lev);
+    std::map<int, CFZFaceLayout> m_cf_zface_cache;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>   az;
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> z_phys_nd_src;
@@ -1678,6 +1743,10 @@ private:
     amrex::Vector<amrex::Real> diffusive_fourier_warned;
     // grids on which, and value at which, the terrain slope factor was last reported, per level
     amrex::Vector<amrex::BoxArray> slope_report_grids;
+    // grids on which the open-face terrain slope was last checked, and the faces already
+    // reported, per level (WarnSteepTerrainAtOpenFaces)
+    amrex::Vector<amrex::BoxArray> openface_grids;
+    amrex::Vector<amrex::Array<bool,4>> openface_warned;
     amrex::Vector<amrex::Real> slope_report_alpha;
 
     // Fixed dt at each level (only used if positive)
@@ -1918,6 +1987,10 @@ private:
 
     // NetCDF initialization of zlo boundary values
     static std::string nc_low_file;
+
+    // Per-level wrflowinp files (erf.nc_low_file_<lev>) for levels > 0 that read their own
+    // init file; entry 0 is unused (level 0 always uses nc_low_file)
+    static amrex::Vector<std::string> nc_low_file_at_level;
 
     // Options for vertical interpolation of met_em*.nc data.
     bool        metgrid_debug_quiescent{false};

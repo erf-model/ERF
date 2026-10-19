@@ -45,7 +45,9 @@
         if (solverChoice.coupling_type == CouplingType::TwoWay && finest_level > 0) {
             if (level < finest_level) {
                 fr_as_crse = getAdvFluxReg(level+1);
-                fr_as_crse->reset();
+                // Once per step: the anelastic RK2 integrator registers fluxes at both stages
+                // (RefluxStageWeight)
+                if (nrk == 0) { fr_as_crse->reset(); }
             }
             if (level > 0) {
                 fr_as_fine = getAdvFluxReg(level);
@@ -323,6 +325,21 @@
                 MultiFab::Saxpy(scratch_zmom, stage_dt, S_rhs[IntVars::zmom], 0, 0, 1, 0);                   // scratch := S_old + stage_dt*Src
                 scratch_zmom.FillBoundary(geom[level].periodicity());
 #endif
+            }
+
+            // The ghost cells of scratch still hold S_old; at a coarse/fine boundary fill them with
+            // the coarse data at the time we are advancing to, since a column that ends there is
+            // closed with the value on the other side
+            if (level > 0) {
+                const bool l_mom = solverChoice.implicit_momentum_diffusion;
+                Vector<MultiFab*> scratch_mom = {l_mom ? &scratch_xmom : nullptr,
+                                                 l_mom ? &scratch_ymom : nullptr,
+#ifdef ERF_IMPLICIT_W
+                                                 l_mom ? &scratch_zmom : nullptr};
+#else
+                                                 nullptr};
+#endif
+                FillCoarseFineGhostsForImplicit(level, new_stage_time, scratch, {RhoTheta_comp}, scratch_mom);
             }
 
 #include "ERF_ImplicitPre.H"

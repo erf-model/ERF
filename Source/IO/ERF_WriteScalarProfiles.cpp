@@ -2,6 +2,7 @@
  * \file ERF_WriteScalarProfiles.cpp
  */
 #include <iomanip>
+#include <limits>
 #include "ERF_Constants.H"
 
 #include "ERF.H"
@@ -135,31 +136,35 @@ ERF::sum_integrated_quantities (double time)
         smoke_ml = foo[i++];
 #endif
 
+        // Print the integrals with every digit, so that a run can be checked for conservation
+        // from its output (Tests/RunConservation.cmake)
+        const int sumprecision = std::numeric_limits<Real>::max_digits10;
+
         Print() << '\n';
         Print() << "TIME= " << std::setw(datwidth) << std::setprecision(timeprecision) << std::left << time << '\n';
         if (finest_level ==  0) {
 #if 1
-           Print() << " MASS       = " << mass_sl << '\n';
+           Print() << std::setprecision(sumprecision) << " MASS       = " << mass_sl << '\n';
 #else
-           Print() << " PERT MASS  = " << mass_sl << '\n';
+           Print() << std::setprecision(sumprecision) << " PERT MASS  = " << mass_sl << '\n';
 #endif
-           Print() << " RHO THETA  = " << rhth_sl << '\n';
-           if (solverChoice.transport_scalar) { Print() << " RHO SCALAR = " << scal_sl << '\n'; }
-           if (solverChoice.moisture_type != MoistureType::None) { Print() << " RHO QTOTAL = " << mois_sl << '\n'; }
+           Print() << std::setprecision(sumprecision) << " RHO THETA  = " << rhth_sl << '\n';
+           if (solverChoice.transport_scalar) { Print() << std::setprecision(sumprecision) << " RHO SCALAR = " << scal_sl << '\n'; }
+           if (solverChoice.moisture_type != MoistureType::None) { Print() << std::setprecision(sumprecision) << " RHO QTOTAL = " << mois_sl << '\n'; }
 #ifdef ERF_ENABLE_FIRE
-           if (m_fire_coupler) { Print() << " RHO SMOKE  = " << smoke_sl << '\n'; }
+           if (m_fire_coupler) { Print() << std::setprecision(sumprecision) << " RHO SMOKE  = " << smoke_sl << '\n'; }
 #endif
         } else {
 #if 1
-           Print() << " MASS       SL/ML = " << mass_sl << " " << mass_ml << '\n';
+           Print() << std::setprecision(sumprecision) << " MASS       SL/ML = " << mass_sl << " " << mass_ml << '\n';
 #else
-           Print() << " PERT MASS  SL/ML = " << mass_sl << " " << mass_ml << '\n';
+           Print() << std::setprecision(sumprecision) << " PERT MASS  SL/ML = " << mass_sl << " " << mass_ml << '\n';
 #endif
-           Print() << " RHO THETA  SL/ML = " << rhth_sl << " " << rhth_ml << '\n';
-           if (solverChoice.transport_scalar) { Print() << " RHO SCALAR SL/ML = " << scal_sl << " " << scal_ml << '\n'; }
-           if (solverChoice.moisture_type != MoistureType::None) { Print() << " RHO QTOTAL SL/ML = " << mois_sl << " " << mois_ml << '\n'; }
+           Print() << std::setprecision(sumprecision) << " RHO THETA  SL/ML = " << rhth_sl << " " << rhth_ml << '\n';
+           if (solverChoice.transport_scalar) { Print() << std::setprecision(sumprecision) << " RHO SCALAR SL/ML = " << scal_sl << " " << scal_ml << '\n'; }
+           if (solverChoice.moisture_type != MoistureType::None) { Print() << std::setprecision(sumprecision) << " RHO QTOTAL SL/ML = " << mois_sl << " " << mois_ml << '\n'; }
 #ifdef ERF_ENABLE_FIRE
-           if (m_fire_coupler) { Print() << " RHO SMOKE  SL/ML = " << smoke_sl << " " << smoke_ml << '\n'; }
+           if (m_fire_coupler) { Print() << std::setprecision(sumprecision) << " RHO SMOKE  SL/ML = " << smoke_sl << " " << smoke_ml << '\n'; }
 #endif
         }
 

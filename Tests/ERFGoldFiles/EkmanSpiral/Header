@@ -4,8 +4,8 @@ density
 x_velocity
 y_velocity
 z_velocity
-pressure
 theta
+pressure
 3
 5
 0
@@ -17,18 +17,12 @@ theta
 12.5 12.5 12.5 
 0
 0
-0 4 5
+0 2 5
 10
 0 25
-0 25
+0 50
 0 5000
 25 50
-0 25
-0 5000
-0 25
-25 50
-0 5000
-25 50
-25 50
+0 50
 0 5000
 Level_0/Cell

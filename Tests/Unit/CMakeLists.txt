@@ -162,6 +162,10 @@ target_sources(${erf_exe_name}
     # the implicit vertical solves on the interior faces and take the same compact term out of
     # the explicit fluxes, and nothing on the bottom and top faces.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestTerrainImplicitMetric.cpp
+    # Motivation: the implicit vertical momentum solve must close a no-slip z wall with the
+    # second-order one-sided gradient the explicit strain uses, or the steady state of a
+    # wall-bounded flow (PoiseuilleFlow) drifts at the wall cells.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestImplicitWallStencil.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LinearSolvers/ERF_GTestTerrainPoisson.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LinearSolvers/ERF_GTestTerrainMLMG.cpp
     # Motivation: the opt-in WRF Smagorinsky-2D limits must reproduce WRF's smag2d_km numbers
@@ -245,6 +249,9 @@ target_sources(${erf_exe_name}
     # Motivation: erf.initial_dz without a stretching ratio must solve for the ratio that
     # closes the grid on prob_hi, and an explicit ratio must not be solved for.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestInitZLevels.cpp
+    # Motivation: a malformed, mis-ordered or too small terrain file must stop the run with
+    # the problem named, and steep terrain next to an inflow or outflow face must be reported.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestTerrainFileChecks.cpp
     # Motivation: a BTF fine level's mesh must not depend on how its grids are split in z.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestTerrainFineColumns.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/HashRng/ERF_GTestHashRngScalar.cpp

@@ -633,18 +633,31 @@ ERF_GPU_TEST(
   EXPECT_EQ(scalar.coefficients.eddy_h_comp, EddyDiff::Scalar_h);
   EXPECT_EQ(scalar.coefficients.eddy_v_comp, EddyDiff::Scalar_v);
 
-  for (int qcomp : {RhoQ1_comp, RhoQ6_comp}) {
+  // Every moisture species takes alpha_C, including the number concentrations
+  // Morrison and WDM6 keep in Q7 and above
+  for (int qcomp : {RhoQ1_comp, RhoQ6_comp, RhoQ7_comp, RhoQ11_comp}) {
     const auto q = ResolveNativeScalarDiffusionPolicy(qcomp, choice);
     EXPECT_DOUBLE_EQ(q.coefficients.molecular_coeff, choice.alpha_C);
     EXPECT_EQ(q.coefficients.eddy_h_comp, EddyDiff::Q_h);
     EXPECT_EQ(q.coefficients.eddy_v_comp, EddyDiff::Q_v);
   }
-  for (int qcomp : {RhoQ7_comp, RhoQ11_comp, RhoQ11_comp + 1}) {
-    const auto q = ResolveNativeScalarDiffusionPolicy(qcomp, choice);
+  // A non-moist species appended after the moisture species takes none
+  {
+    const auto q = ResolveNativeScalarDiffusionPolicy(RhoQ11_comp + 1, choice);
     EXPECT_DOUBLE_EQ(q.coefficients.molecular_coeff, Real(0.0));
     EXPECT_EQ(q.coefficients.eddy_h_comp, EddyDiff::Q_h);
     EXPECT_EQ(q.coefficients.eddy_v_comp, EddyDiff::Q_v);
-    EXPECT_EQ(q.scalar_comp, qcomp - 1);
+    EXPECT_EQ(q.scalar_comp, RhoQ11_comp);
+  }
+  // The boundary follows the model's moisture size: with six moisture species
+  // (e.g. SuperDropletsMoist), Q7 is an appended species
+  {
+    DiffChoice six = choice;
+    six.n_qstate_moist = 6;
+    EXPECT_DOUBLE_EQ(ResolveNativeScalarDiffusionPolicy(RhoQ6_comp, six)
+                       .coefficients.molecular_coeff, choice.alpha_C);
+    EXPECT_DOUBLE_EQ(ResolveNativeScalarDiffusionPolicy(RhoQ7_comp, six)
+                       .coefficients.molecular_coeff, Real(0.0));
   }
 
   choice.molec_diff_type = MolecDiffType::Constant;
@@ -667,6 +680,40 @@ ERF_GPU_TEST(
     ResolveNativeScalarDiffusionPolicy(RhoScalar_comp, choice)
       .coefficients.molecular_coeff,
     Real(0.0));
+}
+
+// Motivation: Non-water species are packed directly after the water species,
+// not after slot 11. Only the water species are in the implicit moisture solve,
+// so only they may have their explicit vertical flux scaled; the boundary
+// between the two must follow DiffChoice::n_qstate_moist and BC lookups must
+// map state components to BC variables.
+ERF_GPU_TEST(ScalarDiffusionPolicy, MoistRangeFollowsMoistStateSize)
+{
+  DiffChoice choice;
+  EXPECT_EQ(choice.n_qstate_moist, NMOIST_max);
+
+  choice.n_qstate_moist = 2;
+  EXPECT_TRUE(ResolveNativeScalarDiffusionPolicy(RhoQ1_comp, choice).is_moist);
+  EXPECT_TRUE(ResolveNativeScalarDiffusionPolicy(RhoQ2_comp, choice).is_moist);
+  for (int qcomp : {RhoQ3_comp, RhoQ11_comp, RhoQ11_comp + 1}) {
+    const auto q = ResolveNativeScalarDiffusionPolicy(qcomp, choice);
+    EXPECT_FALSE(q.is_moist);
+    EXPECT_FALSE(q.scale_raw_vertical_flux);
+  }
+  EXPECT_FALSE(ResolveNativeScalarDiffusionPolicy(RhoScalar_comp, choice).is_moist);
+  EXPECT_FALSE(ResolveNativeScalarDiffusionPolicy(RhoKE_comp, choice).is_moist);
+
+  choice.n_qstate_moist = 0;
+  EXPECT_FALSE(ResolveNativeScalarDiffusionPolicy(RhoQ1_comp, choice).is_moist);
+
+  choice.n_qstate_moist = NMOIST_max;
+  EXPECT_TRUE(ResolveNativeScalarDiffusionPolicy(RhoQ11_comp, choice).is_moist);
+  EXPECT_FALSE(ResolveNativeScalarDiffusionPolicy(RhoQ11_comp + 1, choice).is_moist);
+
+  EXPECT_EQ(ResolveNativeScalarDiffusionPolicy(RhoQ1_comp, choice).bc_comp,
+            BCVars::RhoQ1_bc_comp);
+  EXPECT_EQ(ResolveNativeScalarDiffusionPolicy(RhoQ11_comp, choice).bc_comp,
+            BCVars::RhoQ11_bc_comp);
 }
 
 // Motivation: Exercise appended q components through the public N adapter so
@@ -1079,11 +1126,14 @@ ERF_GPU_TEST(ScalarDiffusionPrimitives, NativeAdaptersMatchExplicitPrimitives)
     mf_my.const_array());
   Gpu::streamSynchronize();
 
+  // The z faces of the domain are Neumann rather than zero gradient (foextrap): the terrain path
+  // takes no transfer through a foextrap domain face (#4330), which these data, not filled to
+  // satisfy that condition, would otherwise make differ from the explicit primitives
   Vector<BCRec> bcs(NBCVAR_max);
   for (auto& bc : bcs) {
     for (int d = 0; d < AMREX_SPACEDIM; ++d) {
-      bc.setLo(d, ERFBCType::foextrap);
-      bc.setHi(d, ERFBCType::foextrap);
+      bc.setLo(d, (d < 2) ? ERFBCType::foextrap : ERFBCType::neumann);
+      bc.setHi(d, (d < 2) ? ERFBCType::foextrap : ERFBCType::neumann);
     }
   }
   Gpu::DeviceVector<BCRec> bcs_device(bcs.size());

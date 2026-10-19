@@ -27,7 +27,8 @@ ERF::ComputeDt (int step, double cur_time_d)
 {
     Vector<double> dt_tmp(finest_level+1);
 
-    // Explicit eddy-diffusion rates per level (1/s), from the diffusivities of the last step
+    // Explicit diffusion rates per level (1/s): eddy, from the diffusivities of the last step,
+    // plus molecular
     const bool do_diffusive_check = (diffusive_dt_check || diffusive_dt_limit);
     Vector<Real> rate_mom (finest_level+1, zero);
     Vector<Real> rate_scal(finest_level+1, zero);
@@ -35,6 +36,7 @@ ERF::ComputeDt (int step, double cur_time_d)
     // Track exactly the current levels, so a level removed and later re-created is reported again
     slope_report_grids.resize(finest_level+1);
     slope_report_alpha.resize(finest_level+1, zero);
+    openface_grids.resize(finest_level+1);
 
     const bool fitted = (solverChoice.terrain_type == TerrainType::StaticFittedMesh ||
                          solverChoice.terrain_type == TerrainType::MovingFittedMesh);
@@ -56,6 +58,12 @@ ERF::ComputeDt (int step, double cur_time_d)
                 ReportTerrainSlopeFactor(lev, new_grids);
                 slope_report_grids[lev] = grids[lev];
             }
+        }
+
+        // Steep terrain next to an inflow or outflow face: checked for every new set of grids
+        if (openface_grids[lev] != grids[lev]) {
+            WarnSteepTerrainAtOpenFaces(lev);
+            openface_grids[lev] = grids[lev];
         }
 
         dt_tmp[lev] = estTimeStep(lev, dt_mri_ratio[lev]);
@@ -130,13 +138,13 @@ ERF::ComputeDt (int step, double cur_time_d)
                         << " (momentum " << F_mom << ", scalars " << F_scal << ")" << std::endl;
             }
             if (F > diffusive_cfl && F > Real(1.5) * diffusive_fourier_warned[lev]) {
-                Print() << "WARNING: explicit eddy diffusion at level " << lev
+                Print() << "WARNING: explicit diffusion at level " << lev
                         << " has Fourier number dt * rate = " << F
                         << " (momentum " << F_mom << ", scalars " << F_scal
                         << ") > erf.diffusive_cfl = " << diffusive_cfl
                         << " with dt = " << dt[lev] << ".\n"
                         << "         The rate is a conservative estimate of the horizontal, terrain-metric and"
-                        << " explicit vertical eddy diffusion; the run may go unstable.  Consider"
+                        << " explicit vertical eddy and molecular diffusion; the run may go unstable.  Consider"
                         << " erf.diffusive_dt_limit = true (adaptive dt), a smaller erf.fixed_dt, or for"
                         << " Smagorinsky2D erf.smag2d_slope_limiter / erf.smag2d_kh_cap; on a terrain-fitted"
                         << " mesh, erf.implicit_terrain_metric = true with erf.vert_implicit_fac = 1 1 1."
@@ -148,13 +156,13 @@ ERF::ComputeDt (int step, double cur_time_d)
 }
 
 /**
- * Largest explicit eddy-diffusion rates on a level, for the diffusive time-step check: the
+ * Largest explicit diffusion rates on a level, for the diffusive time-step check: the
  * maximum over valid cells of CellDiffusiveRates (ERF_TerrainDiffusionLimits.H), which takes
  * the largest diffusivities and the smallest density over each cell's 3x3x3 neighbourhood,
  * built from the eddy diffusivities of the last step (zero
  * before the first step and on the first step after a restart, since they are not
- * checkpointed; a regrid happens before the advance that recomputes them).  Molecular
- * diffusion is not included.
+ * checkpointed; a regrid happens before the advance that recomputes them) plus the molecular
+ * ones of erf.molec_diff_type.
  *
  * @param[in]  lev       level
  * @param[out] rate_mom  momentum rate (1/s), Mom_h and Mom_v
@@ -166,7 +174,10 @@ ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
 {
     rate_mom  = zero;
     rate_scal = zero;
-    if (!eddyDiffs_lev[lev]) { return; }
+    const DiffChoice& dc = solverChoice.diffChoice;
+    const bool has_eddy  = (eddyDiffs_lev[lev] != nullptr);
+    const bool has_molec = (dc.molec_diff_type != MolecDiffType::None);
+    if (!has_eddy && !has_molec) { return; }
 
     const auto dxinv       = geom[lev].InvCellSizeArray();
     const bool variable_dz = (SolverChoice::mesh_type != MeshType::ConstantDz);
@@ -186,14 +197,14 @@ ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
 #endif
     const Real e_th = ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_thermal_diffusion);
     const Real e_ke = ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_ke_diffusion);
-    // The implicit solve treats only the first moisture variable (qv); any other moist species
-    // shares the Q diffusivities and diffuses explicitly, and so do the advected scalars.
-    // "Only qv" is read from the condensate indices: every scheme that carries number or bin
-    // variables also carries qc.
-    const auto& mi = solverChoice.moisture_indices;
-    const bool only_qv = (mi.qc < 0 && mi.qi < 0 && mi.qr < 0 && mi.qs < 0 && mi.qg < 0);
-    const Real e_q  = only_qv ? ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_moisture_diffusion)
-                              : one;
+    // The implicit solve treats the diffChoice.n_qstate_moist water species starting at
+    // RhoQ1_comp (with SBM only qv, but the host does not diffuse the SBM liquid lanes at
+    // all).  Non-water species a microphysics model packs directly after them share the Q
+    // diffusivities and diffuse explicitly, and so do the advected scalars.
+    const bool nonmoist_q = (vars_new[lev][Vars::cons].nComp() >
+                             RhoQ1_comp + solverChoice.diffChoice.n_qstate_moist);
+    const Real e_q  = nonmoist_q ? one
+                                 : ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_moisture_diffusion);
     DiffusiveRateSettings set;
     set.variable_dz = variable_dz;
     set.has_q       = (solverChoice.moisture_type != MoistureType::None);
@@ -201,11 +212,26 @@ ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
     set.has_scalar  = solverChoice.transport_scalar;
     set.implicit_metric = solverChoice.implicit_terrain_metric;
     set.e_uv = e_uv; set.e_w = e_w; set.e_th = e_th; set.e_q = e_q; set.e_ke = e_ke;
+    set.has_eddy = has_eddy;
+    // Molecular diffusivities as the diffusion operators use them: the stresses take
+    // 2 * dynamic_viscosity (ComputeStress*), i.e. dynamic_viscosity in the convention of
+    // MomentumDiffusiveRate, and the scalars rhoAlpha_T and rhoAlpha_C; with ConstantAlpha
+    // these are kinematic and scaled by the local density
+    if (dc.molec_diff_type == MolecDiffType::Constant) {
+        set.mol_mom = dc.dynamic_viscosity;
+        set.mol_th  = dc.rhoAlpha_T;
+        set.mol_c   = dc.rhoAlpha_C;
+    } else if (dc.molec_diff_type == MolecDiffType::ConstantAlpha) {
+        set.mol_mom = dc.dynamic_viscosity / dc.rho0_trans;
+        set.mol_th  = dc.alpha_T;
+        set.mol_c   = dc.alpha_C;
+        set.mol_times_rho = true;
+    }
 
-    const MultiFab& K = *eddyDiffs_lev[lev];
     const MultiFab& S = vars_new[lev][Vars::cons];
     // CellDiffusiveRates reads the 3x3x3 neighbourhood of each valid cell
-    AMREX_ALWAYS_ASSERT(K.nGrowVect().min() >= 1 && S.nGrowVect().min() >= 1);
+    AMREX_ALWAYS_ASSERT(S.nGrowVect().min() >= 1);
+    AMREX_ALWAYS_ASSERT(!has_eddy || eddyDiffs_lev[lev]->nGrowVect().min() >= 1);
 
     ReduceOps<ReduceOpMax, ReduceOpMax> reduce_op;
     ReduceData<Real, Real> reduce_data(reduce_op);
@@ -215,7 +241,8 @@ ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
     {
         const Box& bx = mfi.tilebox();
         const Array4<const Real> s_arr = S.const_array(mfi);
-        const Array4<const Real> k_arr = K.const_array(mfi);
+        const Array4<const Real> k_arr = has_eddy ? eddyDiffs_lev[lev]->const_array(mfi)
+                                                  : Array4<const Real>{};
         const Array4<const Real> z_nd  = z_phys_nd[lev]->const_array(mfi);
         const Array4<const Real> mf_mx = mapfac[lev][MapFacType::m_x]->const_array(mfi);
         const Array4<const Real> mf_my = mapfac[lev][MapFacType::m_y]->const_array(mfi);

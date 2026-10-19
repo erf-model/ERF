@@ -36,6 +36,13 @@ The following problems are currently tested in the CI:
 | CouetteFlow_y                 | 4 32  16 | Periodic | Periodic | NoSlipWall | None  | inhomogeneous                   |
 |                               |          |          |          | NoSlipWall |       | bc at zhi (v = 2)               |
 +-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
+| CouetteFlow_ImplicitCF        | 4 4 32   | Periodic | Periodic | NoSlipWall | None  | two levels: fine patch over the |
+|                               |          |          |          | NoSlipWall |       | lower half; implicit vertical   |
+|                               |          |          |          |            |       | diffusion closed at the c/f bdy |
++-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
+| MoistDiffusion_ImplicitCF     | 4 4 32   | Periodic | Periodic | SlipWall   | None  | as CouetteFlow_ImplicitCF, for  |
+|                               |          |          |          | SlipWall   |       | the implicit moisture solve     |
++-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
 | DensityCurrent                | 256 4 64 | Symmetry | Periodic | SlipWall   | None  | +gravity                        |
 |                               |          | Outflow  |          | SlipWall   |       |                                 |
 +-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
@@ -491,6 +498,38 @@ Test Location: `Tests/test_files/CouetteFlow_y`_
 
 Problem Location: ``Exec/RegTests/Couette_Poiseuille``
 
+Couette Flow with a coarse/fine boundary in z
+---------------------------------------------
+
+This is Couette flow started from rest, driven by the lid at the high-z boundary
+(:math:`U = (2,0,0)`), with a static refined patch that covers only the lower half of the column
+(:math:`0 \le z \le 8` of 16).  The diffusion front from the lid therefore crosses a coarse/fine
+boundary in z.  The vertical implicit solve is used in all three RK stages
+(``erf.vert_implicit_fac = 1``) with a fine-level diffusion number of about 6, and each fine column
+is closed at the coarse/fine boundary with the coarse data at the stage time.  The test compares
+the plotfile after 50 coarse steps against a gold file.
+
+Test Location: `Tests/test_files/CouetteFlow_ImplicitCF`_
+
+.. _`Tests/test_files/CouetteFlow_ImplicitCF`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/CouetteFlow_ImplicitCF
+
+Problem Location: ``Exec/RegTests/Couette_Poiseuille``
+
+Moisture diffusion with a coarse/fine boundary in z
+---------------------------------------------------
+
+The companion of the test above for the implicit moisture solve, which is done after the
+acoustic substeps (``ERF_ImplicitPost.H``) rather than before them.  A moist layer
+(:math:`q_v = 10` g/kg above :math:`z = 12` of 16, dry below) at rest diffuses down
+(``erf.alpha_C = 4``) through a static refined patch over the lower half of the column,
+with the vertical implicit solve in all three RK stages and two-way coupling.  Each fine
+column is closed at the coarse/fine boundary with the coarse data at the stage time.  The
+test compares the plotfile after 200 coarse steps against a gold file.
+
+Test Location: `Tests/test_files/MoistDiffusion_ImplicitCF`_
+
+.. _`Tests/test_files/MoistDiffusion_ImplicitCF`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/MoistDiffusion_ImplicitCF
+
 Poiseuille Flow (x-direction)
 -----------------------------
 
@@ -658,6 +697,59 @@ scheme returns, and dropping them leaves the answer bit for bit unchanged.
 Test Location: `Tests/test_files/Closure_BoxParity`_
 
 .. _`Tests/test_files/Closure_BoxParity`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/Closure_BoxParity
+
+Conservation across coarse/fine boundaries
+------------------------------------------
+The ``Conservation_*`` tests (label ``conservation``, no gold file) run a two-level deck with
+two-way coupling in a closed domain: slip walls in z, periodic in x and y. They require the
+composite integral of a scalar to be the same at the start and the end of the run
+(``Tests/RunConservation.cmake``). The integral is the one ERF prints every step with
+``erf.sum_interval = 1`` (``RHO SCALAR SL/ML`` or ``RHO QTOTAL SL/ML``, see
+``erf.sum_interval`` in :ref:`Inputs <examples-of-usage-9>`). It weights each cell by
+:math:`\det J/(m_x m_y)` and masks the covered cells, so it is the quantity the discretization
+conserves on any mesh and with any refinement ratio. The two values must agree to 12
+significant digits in double precision and to 5 in single precision.
+
+That holds only if the reflux at the coarse/fine faces includes the diffusive fluxes, both the
+explicit ones and the implicit part of the vertical ones (erf-model/ERF#4323). Before that fix
+every one of these tests failed: the moisture integral changed by about 1e-3 relative, and the
+scalar integral by 1e-4 to 3e-4 (2e-8 with Smagorinsky diffusion alone).
+
+The four ``Conservation_MoistDiffusion_*`` tests run 100 steps of the ``MoistDiffusion_ImplicitCF``
+deck, whose patch has a coarse/fine face normal to z, and check the total moisture.
+``Implicit``, ``ImplicitStretched`` and ``ImplicitTerrain`` diffuse it with the implicit vertical
+solve in every RK stage, on a flat mesh, a stretched mesh (``erf.initial_dz = 0.4``) and a
+terrain-fitted one (``erf.terrain_type = StaticFittedMesh``). ``Explicit`` diffuses it
+explicitly (``erf.vert_implicit = false``, ``erf.alpha_C = 0.4``).
+
+The ``Conservation_ScalarDiffusion_*`` and ``Conservation_ScalarAdvection_*`` tests run the
+``ScalarDiffusion_Reflux`` deck: a scalar blob diffusing for 50 steps through a patch over the
+middle half of the domain in x and y and the lower half in z, so through faces normal to all
+three directions. ``Flat`` runs it as it stands. ``Terrain`` uses a terrain-fitted mesh over flat
+terrain and ``Hill`` one over a hill (a radial Witch of Agnesi, 0.25 high, half-width 0.15),
+``Stretched`` a stretched mesh (``erf.initial_dz = 0.025``), ``MapFactor`` map factors
+(``erf.test_mapfactor = true``), and ``Ratio221`` 2 x 2 x 1 refinement. ``Anelastic`` uses the
+anelastic MidPoint integrator, which refluxes its second RK stage rather than the third.
+``AnelasticRK2`` uses the anelastic RK2 integrator, whose update averages its two stages, so it
+refluxes half the fluxes of each; ``Conservation_ScalarAdvection_AnelasticRK2`` runs it with the
+scalar advected (``prob.U_0 = 10``, ``prob.V_0 = 5``) and not diffused. Until erf-model/ERF#4331
+was fixed the RK2 integrator refluxed its second stage alone, at full weight, and both RK2 tests
+failed: the scalar integral changed by 2.6e-6 relative with diffusion and 1.4e-5 with advection.
+``Smagorinsky`` advects the scalar with a sheared wind and diffuses it with Smagorinsky diffusion
+alone.
+
+Until erf-model/ERF#4330 was fixed the hill test failed even on one level: the scalar diffused
+through the bottom wall where the terrain slopes (5.9e-5 relative in this run).
+
+A Deardorff or k-equation TKE always dissipates, so the implicit diffusion of TKE is not tested
+here. It goes through the same functions as that of moisture.
+
+EB runs do not reflux diffusive fluxes, and ERF warns when two-way coupling is used with EB and
+diffusion.
+
+Test Location: `Tests/test_files/MoistDiffusion_ImplicitCF`_, `Tests/test_files/ScalarDiffusion_Reflux`_
+
+.. _`Tests/test_files/ScalarDiffusion_Reflux`: https://github.com/erf-model/ERF/tree/development/Tests/test_files/ScalarDiffusion_Reflux
 
 Terrain Poisson operator at Neumann faces
 -----------------------------------------

@@ -136,7 +136,7 @@ jobs:
     - name: Report
       run: |
         grep -Ei "warning:|error:" ${{runner.workspace}}/build-output.txt \
-          | grep -Ev "Submodules/(amrex|googletest)" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
+          | grep -Ev "Submodules/(amrex|AMReX|googletest)" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
           | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${{runner.workspace}}/build-output-warnings.txt
         cat ${{runner.workspace}}/build-output-warnings.txt
         export return=$(tail -n 1 ${{runner.workspace}}/build-output-warnings.txt | awk '{print $2}')
@@ -261,7 +261,7 @@ jobs:
 
     - name: Run Serial Unit Tests
       run: |
-        ctest -L unit -LE parallel --output-on-failure --no-tests=error
+        ctest -L unit -j 4 -LE parallel --output-on-failure --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
 
     - name: Run Parallel Tests

@@ -10,8 +10,8 @@
     bool l_turb   = turbChoice.use_kturb;
 
     // Molecular diffusivity by primitive component (theta, every passive
-    //   scalar and the water species through Q6), the coefficients the explicit
-    //   paths take from ResolveNativeScalarDiffusionPolicy()
+    //   scalar and the moisture species, number concentrations included), the
+    //   coefficients the explicit paths take from ResolveNativeScalarDiffusionPolicy()
     Vector<Real> alpha_eff = VerticalMolecularAlphaByPrim(diffChoice);
 
     // Vertical eddy diffusivity component by primitive component.  Every

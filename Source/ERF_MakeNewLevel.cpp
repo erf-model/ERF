@@ -1357,6 +1357,13 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     //     so we must explicitly pass dm.
     Interp2DArrays(lev,ba2d[lev],dm);
 
+#ifdef ERF_USE_NETCDF
+    // A level with a wrflow file of its own takes its SST/TSK slices from it again
+    if (has_own_low_file(lev) && !nc_low_file.empty()) {
+        init_fine_low_slices(lev, /*restarting=*/ false);
+    }
+#endif
+
     if (precip[lev] && old_precip) {
         IntVect ngv = precip[lev]->nGrowVect(); ngv[2] = 0;
         precip[lev]->ParallelCopy(*old_precip, 0, 0, 1, ngv, ngv,
