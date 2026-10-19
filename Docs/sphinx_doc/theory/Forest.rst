@@ -94,11 +94,23 @@ over the stage,
    S_k = \rho P \, \varphi_1(x) - (\rho k)^n \, \frac{1 - e^{-x}}{\Delta t_s},
    \qquad x = c \, \Delta t_s, \quad \varphi_1(x) = \frac{1 - e^{-x}}{x},
 
-so that the stage update is
-:math:`(\rho k)^n e^{-x} + \rho (P/c)(1 - e^{-x})`. The steady state is the exact
-balance :math:`k = P/c` at any time step, and the sink never removes more than
+so that, taken alone, the stage update is
+:math:`(\rho k)^n e^{-x} + \rho (P/c)(1 - e^{-x})`: the canopy terms balance at
+:math:`k = P/c` at any time step, and the canopy sink never removes more than
 :math:`(\rho k)^n`. For :math:`x \ll 1` the source tends to
 :math:`\rho (P - c k)`.
+
+**Scope of the exact stage solution.** The closure's own dissipation
+:math:`\rho C_{\mu 0}^3 k^{3/2}/L` is a separate term. The required implicit
+form (below) divides the stage update by
+:math:`1 + \Delta t_s C_{\mu 0}^3 \sqrt{k} / L`, and with
+``erf.terrain_type = MovingFittedMesh`` the update is also scaled by the old and
+new cell volumes. In both cases the stage value is not the expression above, and
+the steady :math:`k` is the balance of all the terms rather than :math:`P/c`.
+What remains true is that the canopy part of the update never makes :math:`k`
+negative, and the implicit dissipation keeps it non-negative. The source is
+not added in fully immersed cells (``terrain_blank`` = 1) of immersed-forcing
+terrain or buildings.
 
 Inside a dense canopy the eddies are limited by the foliage rather than by the
 distance to the ground. The turbulent length scale :math:`L` of the closure
@@ -119,14 +131,25 @@ The cap is applied before the dissipation :math:`\rho C_{\mu 0}^3 k^{3/2}/L`,
 the Richardson number and the stability functions are computed from
 :math:`L`, so all of them use the capped value.
 
-**Recommended: implicit TKE dissipation.** The cap makes the dissipation rate
+**Required: implicit TKE dissipation.** The cap makes the dissipation rate
 :math:`C_{\mu 0}^3 \sqrt{k} / L = C_{\mu 0}^3 \sqrt{k} f / \alpha` large: about
 1.2 1/s for :math:`f = 0.2` 1/m and :math:`k = 2` m\ :sup:`2`/s\ :sup:`2`, and about
 6 1/s for :math:`f = 0.6` 1/m and :math:`k = 5` m\ :sup:`2`/s\ :sup:`2`. With the
 explicit dissipation, :math:`k` oscillates and can go negative once the time step
 exceeds about the inverse of that rate (0.8 s and 0.17 s in these examples).
-Set ``erf.implicit_tke_dissipation = true``, which has no such limit; the run
-prints a warning when the canopy terms are used without it.
+With a nonzero :math:`\alpha`, the run therefore stops unless
+``erf.implicit_tke_dissipation = true`` on every level; the implicit form has no
+such limit.
+
+The capped length has no lower bound. ``erf.rans_lscale_min`` bounds only the
+PBL-height cap of the geometric length, and the closure's own length is not
+bounded below either (it is :math:`\kappa (d + z_0)` next to the wall and tends to
+:math:`C_b \sqrt{k}/N` in strong stratification). Typical forests have
+:math:`f` = 0.02 to 0.2 1/m and so :math:`\alpha/f` = 0.2 to 2 m, which a floor of
+1 m (the default of ``erf.rans_lscale_min``) would largely remove. In a very
+dense canopy (:math:`f` = 1 to 2 1/m, :math:`\alpha/f` = 2 to 4 cm) the large
+dissipation rate is handled by the implicit form, and the short length moves the
+Richardson number towards neutral.
 
 With ``erf.forest_substep = true`` the momentum drag moves to the acoustic
 substeps, while the TKE source stays in the slow RK stages with the other
@@ -155,7 +178,10 @@ model. Two details differ:
   :math:`c \Delta t \ll 1`.
 
 The canopy terms are off by default. They require a forest and
-``erf.rans_type = kEqn`` on every level, and the run stops otherwise.
+``erf.rans_type = kEqn`` on every level, and the run stops otherwise. The
+coefficients below are ignored, with a warning, while
+``erf.forest_canopy_tke = false``, so a deck can switch the terms on and off
+with that one input.
 
 References:
 

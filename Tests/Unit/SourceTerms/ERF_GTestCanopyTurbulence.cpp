@@ -48,6 +48,21 @@ void fill_forest_first_cell (amrex::MultiFab& forest, Real f)
     }
 }
 
+// Stage the canopy source box by box, as make_sources does; blank may be null
+void add_canopy_sources (amrex::MultiFab& source, const amrex::MultiFab& state,
+                         const amrex::MultiFab& xvel, const amrex::MultiFab& yvel,
+                         const amrex::MultiFab& zvel, const amrex::MultiFab& forest,
+                         const amrex::MultiFab* blank, const CanopyTurbulence& canopy, Real dt)
+{
+    for (amrex::MFIter mfi(source); mfi.isValid(); ++mfi) {
+        AddCanopyTKESources(mfi.validbox(), source.array(mfi), state.const_array(mfi),
+                            state.const_array(mfi), xvel.const_array(mfi), yvel.const_array(mfi),
+                            zvel.const_array(mfi), forest.const_array(mfi),
+                            blank ? blank->const_array(mfi) : amrex::Array4<const Real>{},
+                            canopy, dt);
+    }
+}
+
 } // namespace
 
 // Defaults match the ForestDrag.canopy_* inputs of kynema-sgf (f/winsent):
@@ -210,7 +225,7 @@ TEST(CanopyTurbulence, KernelStagesSourceInCanopyCells)
 
     CanopyTurbulence canopy;
     canopy.enabled = true;
-    AddCanopyTKESources(source, state, state, xvel, yvel, zvel, forest, canopy, dt);
+    add_canopy_sources(source, state, xvel, yvel, zvel, forest, nullptr, canopy, dt);
 
     const Real wind0 = std::sqrt(Real(3) * Real(3) + Real(1));   // u = (2 + 4) / 2, v = 1
     const Real expected = canopy_turbulence::tke_source(rho, rho * tke, f, wind0, canopy.beta_p,
@@ -224,4 +239,51 @@ TEST(CanopyTurbulence, KernelStagesSourceInCanopyCells)
     for (int n = 0; n < RhoKE_comp; ++n) {
         EXPECT_EQ(source.norm0(n), Real(0)) << "component " << n;
     }
+}
+
+// The same box with the forest cell fully immersed (terrain_blank = 1): no source
+// anywhere. A partly immersed cell (0 < terrain_blank < 1) keeps its source.
+TEST(CanopyTurbulence, KernelSkipsImmersedCells)
+{
+    using namespace amrex;
+
+    const Box domain(IntVect(0, 0, 0), IntVect(1, 0, 0));
+    const BoxArray ba(domain);
+    const DistributionMapping dm(ba);
+    const int ncomp = RhoKE_comp + 1;
+
+    MultiFab source(ba, dm, ncomp, 0);
+    MultiFab state(ba, dm, ncomp, 0);
+    MultiFab forest(ba, dm, 1, 0);
+    MultiFab blank(ba, dm, 1, 0);
+    MultiFab xvel(convert(ba, IntVect(1, 0, 0)), dm, 1, 0);
+    MultiFab yvel(convert(ba, IntVect(0, 1, 0)), dm, 1, 0);
+    MultiFab zvel(convert(ba, IntVect(0, 0, 1)), dm, 1, 0);
+
+    const Real rho = Real(1.2), tke = Real(0.5), f = Real(0.05), dt = Real(0.1);
+    state.setVal(Real(0));
+    state.setVal(rho, Rho_comp, 1);
+    state.setVal(rho * tke, RhoKE_comp, 1);
+    yvel.setVal(Real(1));
+    zvel.setVal(Real(0));
+    fill_face_velocity(xvel);
+    fill_forest_first_cell(forest, f);
+
+    CanopyTurbulence canopy;
+    canopy.enabled = true;
+
+    source.setVal(Real(0));
+    blank.setVal(Real(1));
+    add_canopy_sources(source, state, xvel, yvel, zvel, forest, &blank, canopy, dt);
+    for (int n = 0; n < ncomp; ++n) {
+        EXPECT_EQ(source.norm0(n), Real(0)) << "component " << n;
+    }
+
+    source.setVal(Real(0));
+    blank.setVal(Real(0.5));
+    add_canopy_sources(source, state, xvel, yvel, zvel, forest, &blank, canopy, dt);
+    const Real wind0 = std::sqrt(Real(3) * Real(3) + Real(1));
+    const Real expected = canopy_turbulence::tke_source(rho, rho * tke, f, wind0, canopy.beta_p,
+                                                        canopy.beta_d, dt);
+    EXPECT_NEAR(source.max(RhoKE_comp), expected, std::abs(expected) * tol());
 }

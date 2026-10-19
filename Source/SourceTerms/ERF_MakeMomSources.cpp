@@ -801,7 +801,10 @@ void make_mom_sources (double time_d,
         // *****************************************************************************
         // 8. Add CANOPY source terms
         //    The drag is the acceleration -C_d LAD u |U| (Forest.rst) times the
-        //    density on the face, since these are sources of rho u, rho v, rho w
+        //    density on the face, since these are sources of rho u, rho v, rho w.
+        //    With erf.forest_substep = true, cell_data is the state the substep starts
+        //    from (S_old for the first substep, the running substep state after), so
+        //    the density follows the substeps; the velocity is the stage velocity.
         // *****************************************************************************
         if (solverChoice.do_forest_drag &&
            ((is_slow_step && !use_canopy_fast) || (!is_slow_step && use_canopy_fast))) {

@@ -1394,17 +1394,16 @@ add_test_field_bounds(InputSponge_FinePatch "plt00004" x_velocity 5.9 8.5)
 # A refined patch below the inversion takes the coarse level's PBL height (~513 m), not its own
 add_test_field_bounds(PBLH_FinePatch "plt2d00004" pblh 450.0 600.0)
 # k-eqn RANS canopy terms in a uniform, fully forested box: one step of the wind (drag with
-# density) and of k (wake production, short-circuit sink, length cap) against the ODEs in the
-# deck. The wall at the bottom (needed for the RANS wall distance) reaches three cells in one
-# step, so the check starts at z = 45 m. Reference: U 4.8780542453793183, k 1.0188194091496199.
-# The bounds are 1e-10 relative, so the test runs in double precision only.
+# density) and of k (wake production, short-circuit sink, length cap, implicit dissipation)
+# against the closed-form stage solution in the deck. The wall at the bottom (needed for the
+# RANS wall distance) reaches three cells in one step, so the check starts at z = 45 m.
+# Reference: U 4.8780542453793183, k 1.0110471279453457. The bounds are 1e-8 relative, well
+# above round-off and differences in FMA contraction, and far below the change of any term
+# (without the density in the drag, U moves by 0.4 %; with the explicit dissipation, k by
+# 0.8 %). They are too tight for single precision, so the test runs in double precision only.
 if(ERF_PRECISION STREQUAL "DOUBLE")
   add_test_column_bounds(ForestCanopyRANS_Uniform "plt00001" 45
-      "x_velocity,KE" "4.87805424489,1.01881940905" "4.87805424587,1.01881940925")
-  # The same with erf.implicit_tke_dissipation = true (the recommended setting);
-  # reference U 4.8780542453793183, k 1.0110471279453457
-  add_test_column_bounds(ForestCanopyRANS_UniformImplicit "plt00001" 45
-      "x_velocity,KE" "4.87805424489,1.01104712784" "4.87805424587,1.01104712805")
+      "x_velocity,KE" "4.87805419660,1.01104711783" "4.87805429416,1.01104713806")
 endif()
 # A refined patch aloft (256-768 m) has no column at the ground: it takes level 0's height (~461 m), not zero
 add_test_field_bounds(PBLH_PatchAloft "plt2d00004" pblh 400.0 600.0)
@@ -2062,9 +2061,10 @@ if(NOT WIN32)
   add_test_abort(ForestCanopyRANS_AlphaRange ${_canopy_dir} ForestCanopyRANS_Uniform.i
                  "erf.forest_canopy_length_alpha must be in"
                  "erf.forest_canopy_length_alpha=1.5")
-  add_test_abort(ForestCanopyRANS_CoefficientsNeedTKE ${_canopy_dir} ForestCanopyRANS_Uniform.i
-                 "need erf.forest_canopy_tke = true"
-                 "erf.forest_canopy_tke=0 erf.forest_canopy_beta_d=5")
+  # The length cap with the explicit TKE dissipation is stiff: the run stops
+  add_test_abort(ForestCanopyRANS_NeedsImplicitDissipation ${_canopy_dir} ForestCanopyRANS_Uniform.i
+                 "needs erf.implicit_tke_dissipation = true on every level"
+                 "erf.implicit_tke_dissipation=0")
   # kEqn on level 0 only: the canopy terms would act on part of the hierarchy
   add_test_abort(ForestCanopyRANS_NeedsKEqnOnEveryLevel
                  ${CMAKE_CURRENT_SOURCE_DIR}/test_files/PBLH_FinePatch PBLH_FinePatch.i

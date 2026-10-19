@@ -130,6 +130,7 @@
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev,
                      turbPert,
                      r_avg_to_pass, t_avg_to_pass,
+                     forest_drag, &S_old[IntVars::cons],
                      true);
 
         // Heat flux from the building faces (immersed-boundary surface energy
@@ -182,15 +183,6 @@
                                            xvel_new, yvel_new, zvel_new,
                                            frontal_area, base_to_use,
                                            solverChoice);
-        }
-
-        // Canopy wake production and short-circuit dissipation of the k-eqn
-        // RANS TKE, staged with the other RhoKE sources of this stage
-        if (solverChoice.do_forest_drag && solverChoice.canopyTurb.enabled && forest_drag) {
-            AddCanopyTKESources(cc_src, S_data[IntVars::cons], S_old[IntVars::cons],
-                                xvel_new, yvel_new, zvel_new,
-                                *forest_drag, solverChoice.canopyTurb,
-                                static_cast<Real>(slow_dt));
         }
 
         // *****************************************************************************

@@ -2533,19 +2533,19 @@ required; ERF does not assume a unit-spacing grid when metadata is absent.
      - Real [K]
      - None
    * - **erf.forest_canopy_tke**
-     - Add the canopy wake production, short-circuit dissipation and length scale cap to the k-eqn RANS model; needs a forest and ``erf.rans_type = kEqn`` on every level, and at least one of the three coefficients below nonzero; use with ``erf.implicit_tke_dissipation = true`` (see :ref:`sec:Forest`)
+     - Add the canopy wake production, short-circuit dissipation and length scale cap to the k-eqn RANS model; needs a forest and ``erf.rans_type = kEqn`` on every level, and at least one of the three coefficients below nonzero; with ``erf.forest_canopy_length_alpha`` > 0 it needs ``erf.implicit_tke_dissipation = true`` on every level (see :ref:`sec:Forest`)
      - Boolean
      - false
    * - **erf.forest_canopy_beta_p**
-     - Fraction of the drag work that becomes TKE, :math:`\beta_p`; must be in [0, 1]; needs ``erf.forest_canopy_tke = true``
+     - Fraction of the drag work that becomes TKE, :math:`\beta_p`; must be in [0, 1]; ignored, with a warning, unless ``erf.forest_canopy_tke = true``
      - Real
      - 1.0
    * - **erf.forest_canopy_beta_d**
-     - Short-circuit dissipation coefficient :math:`\beta_d`; must be finite and not negative; needs ``erf.forest_canopy_tke = true``
+     - Short-circuit dissipation coefficient :math:`\beta_d`; must be finite and not negative; ignored, with a warning, unless ``erf.forest_canopy_tke = true``
      - Real
      - 4.0
    * - **erf.forest_canopy_length_alpha**
-     - Dimensionless :math:`\alpha` of the length scale cap :math:`L \le \alpha / f` in the canopy, with :math:`f = C_d \, \mathrm{LAD}` [1/m]; must be in [0, 1], 0 disables the cap; needs ``erf.forest_canopy_tke = true``
+     - Dimensionless :math:`\alpha` of the length scale cap :math:`L \le \alpha / f` in the canopy, with :math:`f = C_d \, \mathrm{LAD}` [1/m]; must be in [0, 1], 0 disables the cap; ignored, with a warning, unless ``erf.forest_canopy_tke = true``
      - Real
      - 0.04
 
