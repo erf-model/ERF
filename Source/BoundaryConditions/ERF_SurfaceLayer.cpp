@@ -2630,8 +2630,29 @@ SurfaceLayer::update_pblh (const int& lev,
 void
 SurfaceLayer::set_pblh (const int& lev, const amrex::MultiFab& pblh_in)
 {
-    AMREX_ASSERT(pblh[lev]);
-    amrex::MultiFab::Copy(*pblh[lev], pblh_in, 0, 0, 1, 0);
+    // NOTE: pblh[lev] is a 2D MF (except with EB)
+    //       pblh_in   is a 3D MF built off the eddydiffs BA
+    AMREX_ALWAYS_ASSERT(pblh[lev]);
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(*pblh[lev], TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box gtbx = mfi.growntilebox();
+        const Box vbx  = mfi.validbox();
+        const Box sbx  = pblh_in.box(mfi.index());
+        auto lo  = amrex::lbound(vbx); lo.z = sbx.smallEnd(2);
+        auto hi  = amrex::ubound(vbx); hi.z = sbx.bigEnd(2);
+        const Array4<      Real> pblh_dst = pblh[lev]->array(mfi);
+        const Array4<const Real> pblh_src = pblh_in.const_array(mfi);
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const int li = amrex::min(amrex::max(i, lo.x), hi.x);
+            const int lj = amrex::min(amrex::max(j, lo.y), hi.y);
+            const int lk = amrex::min(amrex::max(k, lo.z), hi.z);
+            pblh_dst(i,j,k) = pblh_src(li,lj,lk);
+        });
+    }
     fill_planar_boundary(lev, *pblh[lev]);
 }
 
