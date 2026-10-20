@@ -60,7 +60,7 @@ double ERF::low_time_interval  = std::numeric_limits<double>::max();
 
 // Time step control
 Real ERF::cfl            = Real(0.8);
-Real ERF::sub_cfl        = one;
+Real ERF::sub_cfl        = Real(0.7);
 Real ERF::init_shrink    = one;
 Real ERF::change_max     = Real(1.1);
 double ERF::dt_max_initial = static_cast<double>(bogus_large_value);
