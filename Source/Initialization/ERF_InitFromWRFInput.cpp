@@ -535,9 +535,6 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
         }
     }
     int nvar = NC_names.size();
-    Vector<Vector<FArrayBox>> NC_fab_var;
-    NC_fab_var.resize(num_boxes_at_level[lev]);
-    for (int idx(0); idx < num_boxes_at_level[lev]; ++ idx) { NC_fab_var[idx].resize(nvar); }
 
     auto& lev_new = vars_new[lev];
 
@@ -655,12 +652,15 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
 
             Print() << "Checking for " << var_name << " ...";
 
+            // The fab read from the file covers the whole file domain on every rank, so
+            // keep only one of them alive at a time: it is released at the end of this
+            // iteration once its data has been copied into this level's MultiFabs.
             int success, use_theta_m;
+            FArrayBox var_fab_from_file;
             read_from_wrfinput(lev, subdomain_to_read, nc_init_file[lev][idx],
-                               NC_fab_var[idx][ivar], var_name, geom[lev],
+                               var_fab_from_file, var_name, geom[lev],
                                use_theta_m, success);
 
-            auto& var_fab_from_file = NC_fab_var[idx][ivar];
             bool has_fallback_behavior =
                 (var_name == "U")       || (var_name == "V")       || (var_name == "W")      ||
                 (var_name == "THM")     || (var_name == "QVAPOR")  || (var_name == "QCLOUD") ||
