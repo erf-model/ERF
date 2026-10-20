@@ -35,6 +35,11 @@ then the scalar fallback. The feature-on scenario below has no LSM provider, so 
 - **Expected behavior**: T_s and q_s evolve over time steps according to force-restore equations
 - **Validates**: Time integration correct, clamping bounds respected, diagnostics present
 
+The decks that set `seb_hfx_default` and `seb_lh_default` also set
+`erf.radiation.seb_turbulent_flux_source = defaults`. The balance otherwise takes H and LE from
+the surface layer's applied fluxes (the default), which are zero for this adiabatic surface layer,
+and the hand-computed residual assumes the constants.
+
 ## Input Files
 
 ### `input_sounding` (Atmospheric Profile)

@@ -20,6 +20,11 @@ Validate the SEB infrastructure implementation:
 - **Expected behavior**: SEB MultiFabs populated with constant fallback values (deterministic, finite, non-crashing)
 - **Validates**: Infrastructure wired correctly with safe fallback path
 
+The decks that set `seb_hfx_default` and `seb_lh_default` also set
+`erf.radiation.seb_turbulent_flux_source = defaults`. The balance otherwise takes H and LE from
+the surface layer's applied fluxes (the default), which are zero for this adiabatic surface layer,
+and the hand-computed residual assumes the constants.
+
 ## Input Files
 
 ### `input_sounding` (Atmospheric Profile)

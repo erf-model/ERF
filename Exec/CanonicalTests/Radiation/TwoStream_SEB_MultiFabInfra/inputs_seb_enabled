@@ -112,6 +112,9 @@ erf.radiation.cloud_fraction = 0.0
 erf.radiation.seb_enable = true
 erf.radiation.seb_sw_flux_default = 50.0
 erf.radiation.seb_lw_flux_default = -25.0
+# The checker's hand-computed residual assumes these constant H and LE, so the
+# surface layer's fluxes (the default source) are switched off here.
+erf.radiation.seb_turbulent_flux_source = defaults
 erf.radiation.seb_hfx_default = 10.0
 erf.radiation.seb_lh_default = 20.0
 erf.radiation.seb_grdflx_default = 5.0

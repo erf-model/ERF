@@ -300,6 +300,37 @@ function(add_test_two_stream_radiation TEST_NAME PLTFILE)
         ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
 endfunction(add_test_two_stream_radiation)
 
+# Run a two-stream deck with the surface energy balance's H and LE taken from the
+# surface layer and from the scalar defaults, and check the balance removed the surface
+# layer's fluxes from the ground (Tests/check_two_stream_seb_flux_source.py).
+function(add_test_two_stream_seb_flux_source TEST_NAME)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DFEXTRACT=${FEXTRACT_EXE}"
+        "-DPYTHON_EXE=${ERF_TEST_PYTHON}"
+        "-DCHECKER=${TWO_STREAM_SEB_FLUX_SOURCE_CHECKER}"
+        "-DSTEPS=10"
+        "-DDT=1.0"
+        "-DHEAT_CAPACITY=2.0e4"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunTwoStreamSEBFluxSource.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1200
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;radiation"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/surface_layer/simulation.log;${CURRENT_TEST_BINARY_DIR}/defaults/simulation.log;${CURRENT_TEST_BINARY_DIR}/two_way/simulation.log;${CURRENT_TEST_BINARY_DIR}/checker.log")
+endfunction(add_test_two_stream_seb_flux_source)
+
 function(add_test_cloud_chamber_parity TEST_NAME)
     set(TEST_FILES_DIR "CloudChamber_SatAdj")
     if (ARGC GREATER 1)
@@ -1585,6 +1616,29 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   # PLT2DFILE the check would pass on a surface temperature that reset to its default.
   add_test_restart_parity(TwoStream_PrognosticSEB_Restart TwoStream_PrognosticSEBRestart 3 6
                           PLT2DFILE "plt2d00006")
+
+  # The prognostic surface energy balance must remove from the ground the sensible and
+  # latent heat the surface layer puts into the air. The deck runs twice, with
+  # erf.radiation.seb_turbulent_flux_source = surface_layer and = defaults; the checker
+  # asserts the balance's seb_hfx/seb_lh equal the surface layer's sensible_heat_flux/
+  # latent_heat_flux at every step (to 1e-10 relative, with |H| and |LE| above 1 W/m^2),
+  # that the defaults leg keeps the constants, and that the skin ends cooler by
+  # sum(dt (H + LE)) / C_s to 5 %. With the balance reading the defaults in both legs
+  # (the behaviour before this test) seb_hfx is 0 against a sensible_heat_flux of tens
+  # of W/m^2, and the two skins agree.
+  if(ERF_TEST_PYTHON)
+    add_test_two_stream_seb_flux_source(TwoStream_SEBSurfaceLayerFluxes)
+  endif()
+
+  # With seb_turbulent_flux_source = surface_layer (the default) the balance takes H from
+  # the surface layer wherever its flux field exists -- including an adiabatic surface layer,
+  # whose flux is zero -- so a nonzero erf.radiation.seb_hfx_default in the deck is not used.
+  # That must be said at start-up rather than happen silently. One step of the deck above.
+  add_test_abort(TwoStream_SEBDefaultReplacedWarning
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/TwoStream_SEBSurfaceLayerFluxes
+                 TwoStream_SEBSurfaceLayerFluxes.i
+                 "seb_hfx_default = 10 is not used"
+                 "erf.radiation.seb_hfx_default=10")
 endif()
 add_test_plotfile_header(Plotfile3D_TwoStreamHeatingSelection "" "erf_exec" "plt00000")
 

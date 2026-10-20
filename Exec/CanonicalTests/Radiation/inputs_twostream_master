@@ -136,9 +136,11 @@ erf.radiation.seb_enable            = false    # Master switch for SEB infrastru
 erf.radiation.seb_use_radiation_fluxes = false  # Take the SEB net SW/LW surface fluxes from the sweep where the LSM has none. Default: false
 erf.radiation.seb_sw_flux_default   = 0.0      # Fallback net SW flux at surface [W/m^2], used when no LSM field is available. Default: 0.0
 erf.radiation.seb_lw_flux_default   = 0.0      # Fallback net LW flux at surface [W/m^2], used when no LSM field is available. Default: 0.0
-erf.radiation.seb_hfx_default       = 0.0      # Fallback sensible heat flux [W/m^2], used when no LSM field is available. Default: 0.0
-erf.radiation.seb_lh_default        = 0.0      # Fallback latent heat flux [W/m^2], used when no LSM field is available. Default: 0.0
-erf.radiation.seb_grdflx_default    = 0.0      # Fallback ground heat flux [W/m^2], used when no LSM field is available. Default: 0.0
+erf.radiation.seb_turbulent_flux_source = surface_layer  # SEB H and LE where no LSM field exists: surface_layer (the fluxes the zlo surface layer applies to the air) or defaults (the two constants below). Default: surface_layer
+erf.radiation.seb_surface_layer_uses_skin = false  # Two-way: the zlo surface layer takes its land surface temperature from the SEB skin T_s. Needs seb_prognostic_enable, seb_turbulent_flux_source = surface_layer, erf.most.surf_temp. Default: false
+erf.radiation.seb_hfx_default       = 0.0      # Fallback sensible heat flux [W/m^2], used with seb_turbulent_flux_source = defaults or where no surface-layer flux exists. Default: 0.0
+erf.radiation.seb_lh_default        = 0.0      # Fallback latent heat flux [W/m^2], used with seb_turbulent_flux_source = defaults, or without a surface-layer flux or moisture model. Default: 0.0
+erf.radiation.seb_grdflx_default    = 0.0      # Fallback ground heat flux [W/m^2], used when no LSM field is available. Keep 0 with seb_prognostic_enable: the force-restore term already carries it. Default: 0.0
 erf.radiation.seb_q_sfc_default     = 0.0      # Fallback surface moisture [kg/kg], used when no LSM field is available. Default: 0.0
 erf.radiation.seb_t_deep_default    = 300.0    # Fallback deep-soil temperature [K] (force-restore reservoir target). Default: 300.0
 erf.radiation.seb_q_deep_default    = 0.0      # Fallback deep-soil moisture [kg/kg] (force-restore reservoir target). Default: 0.0
