@@ -173,7 +173,7 @@ int main (int argc, char* argv[])
             tmp_erf.PerformDataAssimilation(da_iter);
         }
 
-        
+
     }
 
     BL_PROFILE_VAR_STOP(pmain);
