@@ -17,6 +17,7 @@
 #include "ERF_Provenance.H"
 #include "ERF_IntervalMeansCheckpoint.H"
 #include "ERF_CheckpointSurfaceTemperature.H"
+#include "ERF_ReadCheckpointMF.H"
 #include "ERF_SBMStateManager.H"
 #include "ERF_SBMRestart.H"
 #include "ERF_SBMTransport.H"
@@ -888,7 +889,8 @@ ERF::WriteCheckpointFile () const
 
 //
 // Read one checkpoint MultiFab and deposit it into dst, which may live on different grids.
-// See the declaration in ERF.H for why the source's ghost cells are withheld by default.
+// See erf_checkpoint::read_checkpoint_multifab for why the source's ghost cells are withheld
+// by default; this is that, with the periodicity of level lev.
 //
 void
 ERF::read_checkpoint_mf (MultiFab& dst,
@@ -898,60 +900,8 @@ ERF::read_checkpoint_mf (MultiFab& dst,
                          const IntVect& dst_ghosts,
                          bool src_ghosts)
 {
-    //
-    // Undefined on purpose: VisMF::Read defines it on the BoxArray the file records, which is
-    // the decomposition the checkpoint was written with and need not be this run's.
-    //
-    MultiFab src;
-    VisMF::Read(src, mf_name);
-
-    //
-    // A file written with fewer ghost cells than the destination holds cannot fill more than
-    // it has, and the destination cannot take more than it holds.
-    //
-    const IntVect ng_dst = amrex::min(dst_ghosts, dst.nGrowVect());
-
-    //
-    // The overwhelmingly common case: this level's grids ARE the grids the checkpoint was
-    // written on, so nothing has to move between boxes. Copy box to box, exactly as the
-    // reader did before the grids could differ, so that an ordinary restart stays
-    // byte-for-byte what it always was -- no periodic images, and no overlapping sources to
-    // be ambiguous about.
-    //
-    // The distribution still has to be matched: VisMF::Read gives the MultiFab it defines a
-    // DistributionMapping of its own, which is not this run's even when the BoxArray is.
-    // Redistribute is the box-to-box move for exactly that case.
-    //
-    if (src.boxArray() == dst.boxArray())
-    {
-        const IntVect ng_copy = src_ghosts ? amrex::min(ng_dst, src.nGrowVect()) : IntVect(0);
-
-        if (src.DistributionMap() == dst.DistributionMap()) {
-            MultiFab::Copy(dst, src, scomp, dcomp, ncomp, ng_copy);
-        } else {
-            MultiFab aligned(src.boxArray(), dst.DistributionMap(), src.nComp(), src.nGrowVect());
-            aligned.Redistribute(src, 0, 0, src.nComp(), src.nGrowVect());
-            MultiFab::Copy(dst, aligned, scomp, dcomp, ncomp, ng_copy);
-        }
-        return;
-    }
-
-    if (src_ghosts) {
-        //
-        // Two passes, as the MOST reader below does, and for the same reason. The first pass
-        // offers the file's halo so that destination ghost cells OUTSIDE the domain -- which
-        // no valid cell can reach -- get the values the checkpoint recorded for them. But a
-        // file's halo is not guaranteed to agree with its valid data, and offering it alone
-        // would let a stale ghost cell land in a valid cell through a box overlap or a
-        // periodic image, with no ordering guarantee between overlapping sources. So the
-        // second pass copies the valid cells on top, and they win wherever they reach.
-        //
-        const IntVect ng_src = amrex::min(ng_dst, src.nGrowVect());
-        dst.ParallelCopy(src, scomp, dcomp, ncomp, ng_src,     ng_dst, geom[lev].periodicity());
-        dst.ParallelCopy(src, scomp, dcomp, ncomp, IntVect(0), ng_dst, geom[lev].periodicity());
-    } else {
-        dst.ParallelCopy(src, scomp, dcomp, ncomp, IntVect(0), ng_dst, geom[lev].periodicity());
-    }
+    erf_checkpoint::read_checkpoint_multifab(dst, mf_name, scomp, dcomp, ncomp,
+                                             dst_ghosts, src_ghosts, geom[lev].periodicity());
 }
 
 bool
@@ -1236,45 +1186,12 @@ ERF::ReadCheckpointFile ()
     }
 
     //
-    // Refuse, before anything is read, the combinations whose readers have not yet been
-    // taught to redistribute. Those still read straight onto the grids the run uses, so with
-    // level 0 moved they would trip VisMF's BoxArray check part-way through the restart --
-    // an assertion in the middle of I/O rather than a statement of what is not supported.
+    // Every component's state is read on the grids in the file and redistributed onto these,
+    // including the ones that do their own checkpoint I/O: the land-surface models (the mapped
+    // fields below, SLM's own reader, and NoahMP's restart file, which is indexed by global
+    // column), two-stream radiation's force-restore state and the SBM spectrum. So a restart
+    // whose level-0 grids moved needs nothing refused here (issue 4225).
     //
-    // Each of these is a component that does its own checkpoint I/O rather than going through
-    // the loop below; converting them is the remaining work on issue 4225.
-    //
-    if (regrid_level_0_on_restart_in_effect) {
-        Vector<std::string> unsupported;
-
-        if (solverChoice.lsm_type != LandSurfaceType::None) {
-            unsupported.push_back("a land-surface model (its mapped fields, and SLM's canopy "
-                                  "and skin state, are still read onto the run's grids)");
-        }
-        if (solverChoice.rad_type == RadiationType::TwoStream) {
-            unsupported.push_back("two-stream radiation (its force-restore surface state is "
-                                  "still read onto the run's grids)");
-        }
-        if (sbm_state_manager) {
-            unsupported.push_back("spectral bin microphysics (its spectrum is still read onto "
-                                  "the run's grids)");
-        }
-
-        if (!unsupported.empty()) {
-            std::string msg("Restarting with the level-0 grids re-made -- which happens when "
-                            "erf.regrid_level_0_on_restart is set, or when the restart runs on "
-                            "more ranks than the checkpoint has level-0 boxes -- is not yet "
-                            "supported together with:");
-            for (const auto& item : unsupported) { msg += "\n  - " + item; }
-            msg += "\n\nRestart on the same number of ranks the checkpoint was written with, "
-                   "so that level 0 keeps its grids";
-            if (regrid_level_0_on_restart) {
-                msg += ", or drop erf.regrid_level_0_on_restart";
-            }
-            msg += ". See ERF issue 4225.";
-            Abort(msg);
-        }
-    }
 
     // read in array of t_avg_cnt
     //
@@ -1427,7 +1344,11 @@ ERF::ReadCheckpointFile ()
                 Abort("SBM restart is missing authoritative spectrum for level " + std::to_string(lev));
             }
             auto& spectrum = sbm_state_manager->new_state_for_initialization(lev);
-            VisMF::Read(spectrum, spectrum_file);
+            // Read on the grids in the file and redistributed onto the grids the run uses.
+            // The checkpoint writes the spectrum with its ghost cells and an ordinary restart
+            // has always restored those, so the halo is offered too.
+            read_checkpoint_mf(spectrum, spectrum_file, lev, 0, 0, spectrum.nComp(),
+                               spectrum.nGrowVect(), /*src_ghosts=*/true);
             std::string state_diagnostic;
             if (!erf_sbm::authoritative_state_admissible(
                     spectrum, sbm_state_manager->layout(), lev, &state_diagnostic)) {
@@ -1598,10 +1519,15 @@ ERF::ReadCheckpointFile ()
             // interpolates from them, depends on the decomposition
             // (see Terrain2Lev_Hill_BoxParity).
             //
+            // Only the lateral periodicity, as make_terrain_fitted_coords syncs them: in a
+            // domain also periodic in z, the top node of a column is the image of the bottom
+            // one but its height is not, and where the grids moved a periodic copy would give
+            // the top node the bottom's height and the top cell a negative thickness.
+            //
             IntVect ng = z_phys_nd[lev]->nGrowVect();
-            read_checkpoint_mf(*z_phys_nd[lev],
-                               MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z_Phys_nd"),
-                               lev, 0, 0, 1, ng, /*src_ghosts=*/true);
+            erf_checkpoint::read_checkpoint_multifab(
+                *z_phys_nd[lev], MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "Z_Phys_nd"),
+                0, 0, 1, ng, /*src_ghosts=*/true, erf_checkpoint::lateral_periodicity(geom[lev]));
             update_terrain_arrays(lev);
 
 #if 0
@@ -1664,30 +1590,29 @@ ERF::ReadCheckpointFile ()
         // Read the LSM data
         if (solverChoice.lsm_type != LandSurfaceType::None) {
             amrex::Print() << "Reading LSM variables" << std::endl;
+            //
+            // Each of these is read on the grids in the file and redistributed onto the grids
+            // the run uses. The checkpoint writes them with their ghost cells and an ordinary
+            // restart has always restored those, so the halo is offered too (the valid cells
+            // are laid over it where the grids moved).
+            //
             for (int ivar(0); ivar<lsm_data[lev].size(); ++ivar) {
-                BoxArray ba = lsm_data[lev][ivar]->boxArray();
-                DistributionMapping dm = lsm_data[lev][ivar]->DistributionMap();
-                IntVect ng = lsm_data[lev][ivar]->nGrowVect();
-                int nvar   = lsm_data[lev][ivar]->nComp();
-                MultiFab lsm_vars(ba,dm,nvar,ng);
-                VisMF::Read(lsm_vars, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmData" + std::to_string(ivar)));
-                MultiFab::Copy(*(lsm_data[lev][ivar]),lsm_vars,0,0,nvar,ng);
+                MultiFab& dst = *(lsm_data[lev][ivar]);
+                read_checkpoint_mf(dst, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmData" + std::to_string(ivar)),
+                                   lev, 0, 0, dst.nComp(), dst.nGrowVect(), /*src_ghosts=*/true);
             }
             for (int iflux(0); iflux<lsm_flux[lev].size(); ++iflux) {
-                BoxArray ba = lsm_flux[lev][iflux]->boxArray();
-                DistributionMapping dm = lsm_flux[lev][iflux]->DistributionMap();
-                IntVect ng = lsm_flux[lev][iflux]->nGrowVect();
-                int nvar   = lsm_flux[lev][iflux]->nComp();
-                MultiFab lsm_vars(ba,dm,nvar,ng);
-                VisMF::Read(lsm_vars, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmFlux" + std::to_string(iflux)));
-                MultiFab::Copy(*(lsm_flux[lev][iflux]),lsm_vars,0,0,nvar,ng);
+                MultiFab& dst = *(lsm_flux[lev][iflux]);
+                read_checkpoint_mf(dst, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmFlux" + std::to_string(iflux)),
+                                   lev, 0, 0, dst.nComp(), dst.nGrowVect(), /*src_ghosts=*/true);
             }
 
             if (solverChoice.lsm_type == LandSurfaceType::SLM) {
                 const std::string precip_file =
                     MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "SlmPrecip");
                 if (amrex::FileExists(precip_file + "_H")) {
-                    VisMF::Read(*precip[lev], precip_file);
+                    read_checkpoint_mf(*precip[lev], precip_file, lev, 0, 0, precip[lev]->nComp(),
+                                       precip[lev]->nGrowVect(), /*src_ghosts=*/true);
                 } else {
                     amrex::Warning("Checkpoint has no SLM precipitation baseline; "
                                    "seeding it from the cumulative precipitation field");
@@ -1717,7 +1642,9 @@ ERF::ReadCheckpointFile ()
 
         // Two-stream radiation: the force-restore surface state
         if (solverChoice.rad_type == RadiationType::TwoStream) {
-            two_stream_rad.read_checkpoint(lev, restart_chkfile);
+            // Its fields are planar: periodic laterally as the level is, never in z
+            two_stream_rad.read_checkpoint(lev, restart_chkfile,
+                                           erf_checkpoint::lateral_periodicity(geom[lev]));
         }
 
         // Read the radiation heating rates

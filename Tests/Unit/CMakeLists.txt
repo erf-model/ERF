@@ -176,6 +176,9 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSurfaceFluxDiagnostics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSeaLevelPressure.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestCanopyBiophysics.cpp
+    # Motivation: the k-eqn RANS canopy terms must keep the kynema-sgf
+    # formulas, cap L only inside the forest and never remove more than k.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestCanopyTurbulence.cpp
     # Motivation: buoyancy dispatch must preserve selector semantics, active
     # anelastic formulations, and neutral dry type-4 primitive-theta behavior.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestBuoyancy.cpp
@@ -514,6 +517,23 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
         -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
         -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3RestartEquivalence.cmake)
     set_tests_properties(SBM_M3_StaticTerrain_Restart_Equivalence PROPERTIES
+      LABELS "integration;sbm"
+      RUN_SERIAL TRUE
+      TIMEOUT 180)
+
+    # The same across a restart that re-makes the level-0 grids (issue 4225): the spectrum
+    # is read on the checkpoint's 2x2 grids and redistributed onto the restart's 4x4, and
+    # the run must continue as the straight run did.
+    add_test(NAME SBM_M3_StaticTerrain_RegridOnRestart
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+        -DCOMPARE_EXECUTABLE=$<TARGET_FILE:erf_sbm_checkpoint_compare>
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_periodic_static_terrain
+        -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+        "-DRESTART_ARGS=erf.regrid_level_0_on_restart=1|amr.max_grid_size_x=2|amr.max_grid_size_y=2"
+        -DALLOW_DIFF_GRIDS=ON
+        -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3RestartEquivalence.cmake)
+    set_tests_properties(SBM_M3_StaticTerrain_RegridOnRestart PROPERTIES
       LABELS "integration;sbm"
       RUN_SERIAL TRUE
       TIMEOUT 180)

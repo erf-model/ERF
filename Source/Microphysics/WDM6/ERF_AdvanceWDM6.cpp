@@ -945,10 +945,10 @@ void WDM6::Advance (const Real& dt_advance,
         FArrayBox work1_fab(fab_box,3, Arena_Used);
         FArrayBox workn_fab(fab_box,1, Arena_Used);
         FArrayBox work2_fab(fab_box,1, Arena_Used);  // Ventilation factor for diffusion (G11+)
-        // Anchored at klo, not 0. mstep/numdt/sr/fallc/delqi all live on this
+        // Anchored at klo, not 0. mstep/numdt/sr/fallc/fall/delqi all live on this
         // slab and are written with the ParallelFor's own k, while the G9
         // accumulation block reads them back at klo alongside the 3D surface
-        // fields (rain_arr, delz_arr, work1_arr). With the slab at 0 those two
+        // fields (rain_arr, delz_arr). With the slab at 0 those two
         // conventions only coincide when klo == 0; sr_arr(i,j,klo) and
         // fallc_arr(i,j,klo) were otherwise out of bounds on this FAB.
         Box box2d(IntVect(ilo,jlo,klo), IntVect(ihi,jhi,klo));
@@ -1028,6 +1028,11 @@ void WDM6::Advance (const Real& dt_advance,
         FArrayBox fallc_fab(box2d,1, Arena_Used);      // Ice fallout (2D surface)
         FArrayBox delqi_fab(box2d,1, Arena_Used);      // Ice precipitation at bottom (2D)
 
+        // Rain/snow/graupel fallout through the bottom face (2D surface), the Fortran's
+        // fall(i,kts,1..3).  Kept apart from work1, which holds fall speeds and is
+        // overwritten by the second slope_wdm6 call (G6) before G9 reads the fallout.
+        FArrayBox fall_fab(box2d,3, Arena_Used);
+
         auto const& delz_arr = delz_fab.array();
         auto const& denfac_arr = denfac_fab.array();
         auto const& xni_arr = xni_fab.array();
@@ -1106,6 +1111,7 @@ void WDM6::Advance (const Real& dt_advance,
         // G8 array references
         auto const& work1c_arr = work1c_fab.array();    // Ice crystal fall speed
         auto const& fallc_arr = fallc_fab.array();      // Ice fallout (2D)
+        auto const& fall_arr = fall_fab.array();        // Rain/snow/graupel fallout (2D)
         auto const& delqi_arr = delqi_fab.array();      // Ice precip at bottom (2D)
 
         // Clamp negative values and enforce minimums
@@ -1387,6 +1393,9 @@ void WDM6::Advance (const Real& dt_advance,
                 mstep_arr(i,j,k) = 1;
                 numdt_arr(i,j,k) = 1;
                 sr_arr(i,j,k) = Real(0.0);  // Initialize snow ratio to zero
+                fall_arr(i,j,k,0) = Real(0.0);
+                fall_arr(i,j,k,1) = Real(0.0);
+                fall_arr(i,j,k,2) = Real(0.0);
             });
             ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 int mstep_loc = 1;
@@ -1431,6 +1440,8 @@ void WDM6::Advance (const Real& dt_advance,
                                            * work1_arr(i,j,kk_top,0) / static_cast<Real>(col_mstep);
                     const Real top_flux_nr = nr_arr(i,j,kk_top)
                                            * workn_arr(i,j,kk_top) / static_cast<Real>(col_mstep);
+                    // fall(i,k,1) = fall(i,k,1)+falk(i,k,1); only the bottom face is used (G9)
+                    if (kk_top == klo) { fall_arr(i,j,klo,0) += top_flux_qr; }
 
                     qr_arr(i,j,kk_top) = amrex::max(
                         qr_arr(i,j,kk_top) - top_flux_qr * dtcld / den_arr(i,j,kk_top),
@@ -1446,6 +1457,7 @@ void WDM6::Advance (const Real& dt_advance,
                                            * work1_arr(i,j,kk,0) / static_cast<Real>(col_mstep);
                         const Real flux_nr = nr_arr(i,j,kk)
                                            * workn_arr(i,j,kk) / static_cast<Real>(col_mstep);
+                        if (kk == klo) { fall_arr(i,j,klo,0) += flux_qr; }
 
                         const Real dqr_self = amrex::min(
                             flux_qr * dtcld / den_arr(i,j,kk),
@@ -1553,8 +1565,8 @@ void WDM6::Advance (const Real& dt_advance,
                     qg_arr(i,j,k3) = amrex::max(rq2_col(kk) / den_col(kk), Real(0.0));
                 }
 
-                work1_arr(i,j,klo,1) = delqrs2 / dz_col(0) / dtcld;
-                work1_arr(i,j,klo,2) = delqrs3 / dz_col(0) / dtcld;
+                fall_arr(i,j,klo,1) = delqrs2 / dz_col(0) / dtcld;   // fall(i,1,2)
+                fall_arr(i,j,klo,2) = delqrs3 / dz_col(0) / dtcld;   // fall(i,1,3)
             });
 
 
@@ -1808,9 +1820,9 @@ void WDM6::Advance (const Real& dt_advance,
             // Surface precipitation accumulation from sedimentation fallout
             ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
             {
-                const Real fall_r = work1_arr(i,j,klo,0);       // rain fallout
-                const Real fall_s = work1_arr(i,j,klo,1);       // snow fallout
-                const Real fall_g = work1_arr(i,j,klo,2);       // graupel fallout
+                const Real fall_r = fall_arr(i,j,klo,0);        // rain fallout
+                const Real fall_s = fall_arr(i,j,klo,1);        // snow fallout
+                const Real fall_g = fall_arr(i,j,klo,2);        // graupel fallout
                 const Real fall_c = fallc_arr(i,j,klo);         // ice fallout
 
                 const Real fallsum     = fall_r + fall_s + fall_g + fall_c;

@@ -21,6 +21,7 @@
 #include "ERF_TurbPertStruct.H"
 #include "ERF_RadStruct.H"
 #include "ERF_ShocTransportStruct.H"
+#include "ERF_CanopyTurbStruct.H"
 
 /**
  * Enum of possible plotfile types.
@@ -1202,6 +1203,11 @@ struct SolverChoice {
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
             forest_leaf_theta_fixed <= zero || forest_biophysics_heat,
             "forest_leaf_theta_fixed requires forest_biophysics_heat = true");
+
+        // Canopy terms of the k-eqn RANS model (erf.forest_canopy_*); the
+        // checks that need the forest and the turbulence model are in
+        // ERF::ReadParameters, once both are known
+        canopyTurb.init_params(pp);
 
         // immersed forcing parameters
         pp.queryAdd("if_Cd_momentum", if_Cd_momentum);
@@ -2648,6 +2654,8 @@ struct SolverChoice {
     bool        forest_biophysics       {false};
     bool        forest_biophysics_heat  {false};
     amrex::Real forest_leaf_theta_fixed {-one};
+    // Canopy terms of the k-eqn RANS model (ERF_CanopyTurbStruct.H)
+    CanopyTurbulence canopyTurb;
 
     // Enforce constant mass flux?
     amrex::Real const_massflux_u = zero;

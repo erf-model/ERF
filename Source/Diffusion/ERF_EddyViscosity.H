@@ -42,7 +42,8 @@ ComputeTurbulentViscosity (double dt,
                            const eb_& ebfact,
                            bool vert_only = false,
                            const amrex::MultiFab* qheating_rates = nullptr,
-                           const amrex::MultiFab* terrain_blank = nullptr);
+                           const amrex::MultiFab* terrain_blank = nullptr,
+                           const amrex::MultiFab* forest_drag = nullptr);
 
 /** Compute LES turbulent viscosity and dissipation.
  *

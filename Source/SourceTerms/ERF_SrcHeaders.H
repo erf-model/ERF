@@ -97,6 +97,8 @@ void make_sources (int level, int nrk,
                    TurbulentPerturbation& turbPert,
                    const amrex::Table1D<amrex::Real> r_plane_avg,
                    const amrex::Table1D<amrex::Real> t_plane_avg,
+                   const amrex::MultiFab* forest_drag,
+                   const amrex::MultiFab* cons_old,
                    bool is_slow_step);
 
 #if defined(ERF_USE_NETCDF)

@@ -84,6 +84,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                      d_sinesq_at_lev,
                      turbPert,
                      r_avg_to_pass, t_avg_to_pass,
+                     forest_drag, &S_old[IntVars::cons],
                      false);
 
         // *************************************************************************
