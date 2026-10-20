@@ -142,6 +142,10 @@ file **Exec/ERF_Prob.cpp** must still be present for the build.
     A file may be supplied for each level -- ``erf.nc_init_file_0``,
     ``erf.nc_init_file_1``, and so on -- but only level 0 is required to have one;
     see :ref:`sec:nested-wrfinput` below.
+    Each MPI rank reads from the wrfinput file only the part of each field that its
+    own grids cover, so no rank ever holds a whole field.  To keep a large job from
+    having every rank open the file at once, at most ``erf.wrfinput_max_readers``
+    ranks (default 256; a value of zero or less removes the limit) read at the same time.
 
 * **erf.init_type = Metgrid**
 

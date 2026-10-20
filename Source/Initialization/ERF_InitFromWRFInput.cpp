@@ -624,6 +624,48 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
 
     const Real l_rdOcp = solverChoice.rdOcp;
 
+    // **************************************************************************
+    // Each rank reads from the file only the part of each field that its own grids
+    // need, so that no rank (not even the I/O rank) ever holds a whole field.  The
+    // consumers below fill the valid and ghost cells of this level's MultiFabs, in
+    // places clamping the index to the domain, so a rank needs the cells covered by
+    // its own boxes grown by the largest ghost width any of those MultiFabs carries.
+    // **************************************************************************
+    IntVect ng_read(0);
+    for (int d = 0; d < 2; ++d) {
+        ng_read[d] = amrex::max(ng[d], ngz[d], mapfac[lev][MapFacType::m_x]->nGrowVect()[d]) + 1;
+    }
+    const int myproc = ParallelDescriptor::MyProc();
+
+    // The part of typed_fill (a box with the index type of the variable being read)
+    // that this rank needs.  A rank with no boxes here still gets a single column, so
+    // that every rank reads (and holds) something.
+    auto local_region = [&] (const Box& typed_fill) -> Box
+    {
+        Box region;
+        for (int i = 0; i < ba.size(); ++i) {
+            if (dm[i] != myproc) { continue; }
+            Box b = amrex::grow(ba[i], ng_read);
+            b = amrex::convert(b, typed_fill.ixType());
+            b.setRange(2, typed_fill.smallEnd(2), typed_fill.length(2));
+            b &= typed_fill;
+            if (b.ok()) { region = (region.ok()) ? region.minBox(b) : b; }
+        }
+        if (!region.ok()) {
+            region = typed_fill;
+            region.setBig(0, region.smallEnd(0));
+            region.setBig(1, region.smallEnd(1));
+        }
+        return region;
+    };
+
+    // How many ranks may read the file at the same time
+    int wrfinput_max_readers = 256;
+    {
+        ParmParse pp("erf");
+        pp.query("wrfinput_max_readers", wrfinput_max_readers);
+    }
+
     Print() << (read_atmos_state ? "Loading initial data" : "Loading surface data")
             << " from NetCDF file at level " << lev << "\n";
     for (int idx = 0; idx < num_boxes_at_level[lev]; idx++) {
@@ -640,6 +682,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
         Box subdomain_to_fill = boxes_at_level[lev][idx];
         Print() << "Box to fill " << subdomain_to_fill << "\n";
 
+        int use_theta_m;
+        check_wrfinput_geometry(lev, nc_init_file[lev][idx], geom[lev], use_theta_m);
+
         for (int ivar = 0; ivar < nvar; ++ ivar) {
             auto var_name = NC_names[ivar];
 
@@ -652,14 +697,16 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
 
             Print() << "Checking for " << var_name << " ...";
 
-            // The fab read from the file covers the whole file domain on every rank, so
-            // keep only one of them alive at a time: it is released at the end of this
-            // iteration once its data has been copied into this level's MultiFabs.
-            int success, use_theta_m;
+            // Only the box the variable covers in the file is found here; the data is
+            // read below, each rank reading just the part its own grids need.
+            Box file_box;
+            int success = wrfinput_var_box(subdomain_to_read, nc_init_file[lev][idx], var_name, file_box);
+            Print() << (success ? " Reading  " : " Skipping ") << var_name << std::endl;
+
+            // Holds this rank's part of the variable as read from the file; it is
+            // released at the end of this iteration once its data has been copied into
+            // this level's MultiFabs.
             FArrayBox var_fab_from_file;
-            read_from_wrfinput(lev, subdomain_to_read, nc_init_file[lev][idx],
-                               var_fab_from_file, var_name, geom[lev],
-                               use_theta_m, success);
 
             bool has_fallback_behavior =
                 (var_name == "U")       || (var_name == "V")       || (var_name == "W")      ||
@@ -686,29 +733,33 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             if (success) {
                 // This shift occurs only when the coarser grid is at least at level 1,
                 // because the indices are always given relative to that coarser "domain"
+                IntVect shift_by(0);
                 if (lev > 1) {
                     Box shift_by_box(subdomains[lev][0].minimalBox());
-                    IntVect shift_by(shift_by_box.smallEnd());
+                    shift_by = shift_by_box.smallEnd();
                     for (int i = 0; i < AMREX_SPACEDIM; i++) {
-                        shift_by[i] -= var_fab_from_file.box().smallEnd(i);
+                        shift_by[i] -= file_box.smallEnd(i);
                     }
                     // The fab just read lives on the file's vertical grid, so when this level
                     // is refined in the vertical the z part of the shift has to be expressed
                     // there too rather than in this level's index space.
                     if (rr_z > 1) {
                         shift_by[2] = amrex::coarsen(shift_by_box.smallEnd(2), rr_z)
-                                    - var_fab_from_file.box().smallEnd(2);
+                                    - file_box.smallEnd(2);
                     }
-                    var_fab_from_file.shift(shift_by);
                 }
+
+                // The box the whole variable covers, in this level's index space
+                Box var_box(file_box);
+                var_box.shift(shift_by);
 
 
                 // In the case where the array is 1D in the z-direction, the destination box needs to also
                 //    be 1D in the z-direction, but with (i,j) corresponding to the low corner of the box
                 //    to be filled
-                int nx = var_fab_from_file.box().length(0);
-                int ny = var_fab_from_file.box().length(1);
-                int nz = var_fab_from_file.box().length(2);
+                int nx = var_box.length(0);
+                int ny = var_box.length(1);
+                int nz = var_box.length(2);
                 Box subdomain_tmp(subdomain_to_fill);
                 if (nx == 1 and ny == 1) {
                     subdomain_tmp.setBig(0,subdomain_tmp.smallEnd(0));
@@ -719,7 +770,10 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                     subdomain_tmp.setBig(2,subdomain_tmp.smallEnd(2));
                 }
 
-                Box subdomain_to_fill_typed(convert(subdomain_tmp,var_fab_from_file.box().ixType()));
+                Box subdomain_to_fill_typed(convert(subdomain_tmp,var_box.ixType()));
+
+                // Only the part of the box to fill that this rank's own grids need
+                Box local_to_fill = local_region(subdomain_to_fill_typed);
 
                 // *********************************************************************
                 // Decide whether this particular field has to be interpolated in the
@@ -735,7 +789,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                                           var_name == "DZS");
                 const bool refine_in_z = (rr_z > 1) && (nz > 1) && !is_soil_var;
 
-                Box subdomain_crse(subdomain_to_fill_typed);
+                Box subdomain_crse(local_to_fill);
                 if (refine_in_z) {
                     subdomain_crse.coarsen(IntVect(1,1,rr_z));
                     //
@@ -750,16 +804,16 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                     //
                     subdomain_crse.grow(2,1);
                     subdomain_crse.setSmall(2, amrex::max(subdomain_crse.smallEnd(2),
-                                                          var_fab_from_file.box().smallEnd(2)));
+                                                          var_box.smallEnd(2)));
                     subdomain_crse.setBig  (2, amrex::min(subdomain_crse.bigEnd(2),
-                                                          var_fab_from_file.box().bigEnd(2)));
+                                                          var_box.bigEnd(2)));
                 }
 
 #ifdef AMREX_USE_GPU
-                var_fab.resize(subdomain_to_fill_typed, 1, amrex::The_Pinned_Arena());
+                var_fab.resize(local_to_fill, 1, amrex::The_Pinned_Arena());
                 if (refine_in_z) { var_fab_crse.resize(subdomain_crse, 1, amrex::The_Pinned_Arena()); }
 #else
-                var_fab.resize(subdomain_to_fill_typed, 1);
+                var_fab.resize(local_to_fill, 1);
                 if (refine_in_z) { var_fab_crse.resize(subdomain_crse, 1); }
 #endif
 
@@ -767,6 +821,20 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
                 // grid is refined relative to the file, and straight into the destination
                 // otherwise.
                 FArrayBox& read_fab = (refine_in_z) ? var_fab_crse : var_fab;
+
+                // Read the columns of the file under read_fab, over the file's whole
+                // vertical extent.  A field that is a single column in the file is read
+                // whole, since it is spread over every (i,j) below.
+                Box region_to_read(var_box);
+                if (nx > 1 || ny > 1) {
+                    for (int d = 0; d < 2; ++d) {
+                        region_to_read.setRange(d, read_fab.box().smallEnd(d), read_fab.box().length(d));
+                    }
+                }
+                region_to_read.shift(-shift_by);
+                read_region_from_wrfinput(nc_init_file[lev][idx], var_name, file_box, region_to_read,
+                                          var_fab_from_file, wrfinput_max_readers);
+                if (var_fab_from_file.box().ok()) { var_fab_from_file.shift(shift_by); }
 
                 Box intersection = read_fab.box() & var_fab_from_file.box();
                 if (intersection.ok()) {
@@ -1294,7 +1362,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
 
           // Initialize MapFac U
           if ( var_name == "MAPFAC_U" ) {
+              // Each rank holds only its own part of the field, so the test is made on the whole of it
               Real max_val = var_fab.template max<RunOn::Device>();
+              ParallelDescriptor::ReduceRealMax(max_val);
               if (std::fabs(max_val) < std::numeric_limits<Real>::epsilon()) {
                   Print() << "MAPFAC_U cannot be 0, resetting to 1!\n";
                   var_fab.template setVal<RunOn::Device>(1);
@@ -1326,7 +1396,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
 
           // Initialize MapFac V
           if ( var_name == "MAPFAC_V" ) {
+              // Each rank holds only its own part of the field, so the test is made on the whole of it
               Real max_val = var_fab.template max<RunOn::Device>();
+              ParallelDescriptor::ReduceRealMax(max_val);
               if (std::fabs(max_val) < std::numeric_limits<Real>::epsilon()) {
                   Print() << "MAPFAC_V cannot be 0, resetting to 1!\n";
                   var_fab.template setVal<RunOn::Device>(1);
@@ -1358,7 +1430,9 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
 
           // Initialize MapFac M
           if ( var_name == "MAPFAC_M" ) {
+              // Each rank holds only its own part of the field, so the test is made on the whole of it
               Real max_val = var_fab.template max<RunOn::Device>();
+              ParallelDescriptor::ReduceRealMax(max_val);
               if (std::fabs(max_val) < std::numeric_limits<Real>::epsilon()) {
                   Print() << "MAPFAC_M cannot be 0, resetting to 1!\n";
                   var_fab.template setVal<RunOn::Device>(1);
