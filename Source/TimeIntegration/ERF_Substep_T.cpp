@@ -4,6 +4,27 @@
 
 using namespace amrex;
 
+namespace {
+/**
+ * Omega of the stage on a z-face, as erf_slow_rhs_pre builds it: zero at the bottom of the
+ * domain, (rho w) at its top, OmegaFromW in between
+ */
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE Real
+cf_omega_stage (int i, int j, int k, int klo, int khi,
+                const Array4<const Real>& stage_zmom,
+                const Array4<const Real>& stage_xmom,
+                const Array4<const Real>& stage_ymom,
+                const Array4<const Real>& mf_ux,
+                const Array4<const Real>& mf_vy,
+                const Array4<const Real>& z_nd,
+                const GpuArray<Real, AMREX_SPACEDIM>& dxInv)
+{
+    if (k == klo)   { return zero; }
+    if (k == khi+1) { return stage_zmom(i,j,k); }
+    return OmegaFromW(i,j,k,stage_zmom(i,j,k),stage_xmom,stage_ymom,mf_ux,mf_vy,z_nd,dxInv);
+}
+} // namespace
+
 /**
  * Function for computing the fast RHS with fixed-in-time terrain
  *
@@ -40,6 +61,7 @@ using namespace amrex;
  * @param[in   ] l_reflux should we add fluxes to the FluxRegisters?
  * @param[in   ] l_real_bc
  * @param[in   ] l_damp_coef
+ * @param[inout] cf_fluxes coarse/fine face fluxes: recorded here on a coarse level, imposed on a fine one
  */
 
 void erf_substep_T (int step, int /*nrk*/,
@@ -73,7 +95,8 @@ void erf_substep_T (int step, int /*nrk*/,
                     bool l_reflux,
                     bool l_real_bc,
                     const Real* sinesq_stag_d,
-                    const Real l_damp_coef)
+                    const Real l_damp_coef,
+                    const CFFaceFluxes& cf_fluxes)
 {
     BL_PROFILE_REGION("erf_substep_T()");
 
@@ -377,6 +400,43 @@ void erf_substep_T (int step, int /*nrk*/,
 
                 cur_ymom(i,j,k) = stage_ymom(i,j,k) + new_drho_v(i,j,k);
             });
+
+            // On the coarse/fine faces of a fine level, the coarse level's flux over this
+            // substep (CFFaceFluxes) in place of the level's own; on a coarse level, record
+            // the flux each face applied.  In both, the flux is h_zeta (rho u)/m_uy, the
+            // density flux formed below with h_zeta the x-face area.
+            for (int dir = 0; dir < 2; ++dir) {
+                if (!cf_fluxes.tgt[dir] && !cf_fluxes.rec[dir]) { continue; }
+                const bool has_tgt = (cf_fluxes.tgt[dir] != nullptr);
+                const bool has_rec = (cf_fluxes.rec[dir] != nullptr);
+                const Box& fbx = (dir == 0) ? tbx : tby;
+                const Array4<const Real> tgt = (has_tgt) ? cf_fluxes.tgt[dir]->const_array(mfi) : Array4<const Real>{};
+                const Array4<      Real> rec = (has_rec) ? cf_fluxes.rec[dir]->array(mfi)       : Array4<Real>{};
+                const Array4<Real>& pert  = (dir == 0) ? new_drho_u : new_drho_v;
+                const Array4<Real>& cur   = (dir == 0) ? cur_xmom   : cur_ymom;
+                const Array4<Real>& avg   = (dir == 0) ? avg_xmom_arr : avg_ymom_arr;
+                const Array4<const Real>& stage = (dir == 0) ? stage_xmom : stage_ymom;
+                const Array4<const Real>& mf    = (dir == 0) ? mf_uy : mf_vx;
+                ParallelFor(fbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    Real h_zeta = (dir == 0) ? Compute_h_zeta_AtIface(i, j, k, dxInv, z_nd)
+                                             : Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
+                    if (has_tgt && tgt(i,j,k,1) > myhalf) {
+                        Real new_pert = tgt(i,j,k,0) * mf(i,j,0) / h_zeta - stage(i,j,k);
+                        avg(i,j,k) += facinv * (new_pert - pert(i,j,k)) * h_zeta / mf(i,j,0);
+                        pert(i,j,k) = new_pert;
+                        if (k == bx_lo.z && k != domlo.z) {
+                            pert(i,j,k-1) = new_pert;
+                        } else if (k == bx_hi.z) {
+                            pert(i,j,k+1) = new_pert;
+                        }
+                        cur(i,j,k) = stage(i,j,k) + new_pert;
+                    }
+                    if (has_rec) {
+                        rec(i,j,k) = (stage(i,j,k) + pert(i,j,k)) * h_zeta / mf(i,j,0);
+                    }
+                });
+            }
         } // end profile
     }
 
@@ -396,6 +456,8 @@ void erf_substep_T (int step, int /*nrk*/,
         const Array4<Real const>& zmom_src_arr   = zmom_src.const_array(mfi);
         const Array4<Real const>& cc_src_arr     = cc_src.const_array(mfi);
 
+        const Array4<const Real> & stage_xmom = S_stage_data[IntVars::xmom].const_array(mfi);
+        const Array4<const Real> & stage_ymom = S_stage_data[IntVars::ymom].const_array(mfi);
         const Array4<const Real> & stage_zmom = S_stage_data[IntVars::zmom].const_array(mfi);
         const Array4<const Real> & prim       = S_stage_prim.const_array(mfi);
 
@@ -618,6 +680,22 @@ void erf_substep_T (int step, int /*nrk*/,
         b2d.setRange(2,0);
         auto const lo = lbound(bx);
         auto const hi = ubound(bx);
+
+        // The coarse/fine face data (CFFaceFluxes) are in Omega, which is the full Omega of the
+        // stage -- built as in erf_slow_rhs_pre, zero at the bottom of the domain and (rho w) at
+        // its top -- plus the Omega'' of the solve
+        const bool has_tgt_z = (cf_fluxes.tgt[2] != nullptr);
+        const bool has_rec_z = (cf_fluxes.rec[2] != nullptr);
+        const Array4<const Real> tgt_z  = (has_tgt_z) ? cf_fluxes.tgt[2]->const_array(mfi) : Array4<const Real>{};
+        const Array4<const Real> tgt_om = (has_tgt_z) ? cf_fluxes.tgt_w->const_array(mfi)  : Array4<const Real>{};
+        const Array4<      Real> rec_z  = (has_rec_z) ? cf_fluxes.rec[2]->array(mfi)       : Array4<Real>{};
+        const Array4<      Real> rec_om = (has_rec_z) ? cf_fluxes.rec_w->array(mfi)        : Array4<Real>{};
+        const bool has_rec_z_old = (cf_fluxes.rec_w_old != nullptr);
+        const Array4<      Real> rec_om_old = (has_rec_z_old) ? cf_fluxes.rec_w_old->array(mfi) : Array4<Real>{};
+        const int dklo = domlo.z;
+        const int dkhi = domhi.z;
+#define CF_OMEGA_STAGE(I,J,K) cf_omega_stage(I,J,K,dklo,dkhi,stage_zmom,stage_xmom,stage_ymom,mf_ux,mf_vy,z_nd,dxInv)
+
         {
         BL_PROFILE("substep_b2d_loop_t");
 
@@ -647,6 +725,12 @@ void erf_substep_T (int step, int /*nrk*/,
                                                                     mf_ux,mf_vy,z_nd,dxInv)
                               + dtau * slow_rhs_rho_w(i,j,hi.z+1)
                               + dtau *   zmom_src_arr(i,j,hi.z+1);
+
+            // On the coarse/fine faces of a fine level, Omega'' from the coarse level's record
+            if (has_tgt_z) {
+                if (tgt_z(i,j,lo.z  ,1) > myhalf) { RHS_a(i,j,lo.z  ) = tgt_om(i,j,lo.z  ) - CF_OMEGA_STAGE(i,j,lo.z  ); }
+                if (tgt_z(i,j,hi.z+1,1) > myhalf) { RHS_a(i,j,hi.z+1) = tgt_om(i,j,hi.z+1) - CF_OMEGA_STAGE(i,j,hi.z+1); }
+            }
         });
 
 #ifdef AMREX_USE_GPU
@@ -718,8 +802,11 @@ void erf_substep_T (int step, int /*nrk*/,
             cur_zmom(i,j,k) = stage_zmom(i,j,k) + wpp;
 
             // W at the ground is kinematic and is not damped; the top face is, since with
-            // outflow it is no longer pinned to the stage value
-            if (k > domlo.z && l_rayleigh_impl_for_w) {
+            // outflow it is no longer pinned to the stage value.  A coarse/fine face whose
+            // value is imposed from the coarse level's record is not damped either: the coarse
+            // level has damped it already, and it must match the record
+            const bool imposed = has_tgt_z && (tgt_z(i,j,k,1) > myhalf);
+            if (k > domlo.z && !imposed && l_rayleigh_impl_for_w) {
                 Real damping_coeff = l_damp_coef * dtau * sinesq_stag_d[k];
                 cur_zmom(i,j,k) /= (one + damping_coeff);
             }
@@ -734,6 +821,29 @@ void erf_substep_T (int step, int /*nrk*/,
         {
               Real zflux_lo = beta_2 * soln_a(i,j,k  ) + beta_1 * omega_arr(i,j,k);
               Real zflux_hi = beta_2 * soln_a(i,j,k+1) + beta_1 * omega_arr(i,j,k+1);
+
+              // On the coarse/fine faces of a fine level, the coarse level's flux over this substep
+              if (has_tgt_z) {
+                  Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
+                  if (tgt_z(i,j,k  ,1) > myhalf) { zflux_lo = tgt_z(i,j,k  ,0) * mfsq - CF_OMEGA_STAGE(i,j,k  ); }
+                  if (tgt_z(i,j,k+1,1) > myhalf) { zflux_hi = tgt_z(i,j,k+1,0) * mfsq - CF_OMEGA_STAGE(i,j,k+1); }
+              }
+
+              // On a coarse level, the flux each face applied over this substep, and Omega at
+              // its end (and at its start when asked)
+              if (has_rec_z) {
+                  Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
+                  Real om_k = CF_OMEGA_STAGE(i,j,k);
+                  rec_z (i,j,k) = (zflux_lo + om_k) / mfsq;
+                  rec_om(i,j,k) = om_k + soln_a(i,j,k);
+                  if (has_rec_z_old) { rec_om_old(i,j,k) = om_k + omega_arr(i,j,k); }
+                  if (k == vbx_hi.z) {
+                      Real om_kp1 = CF_OMEGA_STAGE(i,j,k+1);
+                      rec_z (i,j,k+1) = (zflux_hi + om_kp1) / mfsq;
+                      rec_om(i,j,k+1) = om_kp1 + soln_a(i,j,k+1);
+                      if (has_rec_z_old) { rec_om_old(i,j,k+1) = om_kp1 + omega_arr(i,j,k+1); }
+                  }
+              }
 
               // avg_zmom at k=vbx_hi.z+1 is updated by the top cell of the box; the
               // perturbation there is zero at a wall but not at an outflow top or a c/f face
@@ -792,6 +902,7 @@ void erf_substep_T (int step, int /*nrk*/,
             Gpu::streamSynchronize();
 
         } // two-way coupling
+#undef CF_OMEGA_STAGE
     } // mfi
     } // OMP
 }
