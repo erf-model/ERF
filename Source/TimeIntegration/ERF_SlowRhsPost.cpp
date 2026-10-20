@@ -667,7 +667,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                mf_my, mf_uy, mf_vy,
                                                hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z,
                                                mu_turb, solverChoice, level,
-                                               bc_ptr_d,
+                                               bc_ptr_d, bc_ptr_h,
                                                l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac,
                                                l_reflux_diffusion);
                     } else if (l_use_eb) {
