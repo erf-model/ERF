@@ -992,15 +992,14 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
              if (std::isnan(dt_sub_max) || (dt_sub_max <= 0.0)) {
                  bad_substep_ratio("dt_sub_max", dt_sub_max);
              }
-             const double sub_ratio = std::max(fixed_dt[level]/dt_sub_max, 4.0);
+             const double sub_ratio = std::max(std::ceil(fixed_dt[level]/dt_sub_max), double(4.0));
              if (!std::isfinite(sub_ratio) || (sub_ratio > 1.0e9)) {
                  bad_substep_ratio("mri_dt_ratio", sub_ratio);
              }
-             dt_fast_ratio = static_cast<long>( sub_ratio );
+             dt_fast_ratio = static_cast<long>(sub_ratio);
          } else {
-             // auto dt_sub_max = (estdt_comp_T/cfl * sub_cfl);
-             // dt_fast_ratio = static_cast<long>( std::max(estdt_comp_T/dt_sub_max,Real(4.)) );
-         dt_fast_ratio = static_cast<long>( std::max((cfl/third) / sub_cfl, Real(4.)) );
+             const double sub_ratio = std::max(std::ceil((cfl/third)/sub_cfl), Real(4.0));
+             dt_fast_ratio = static_cast<long>(sub_ratio);
          }
 
          // Force time step ratio to be an even value
