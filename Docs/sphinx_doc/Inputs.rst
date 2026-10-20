@@ -915,7 +915,10 @@ List of Parameters
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.cfl**                          | CFL number used to compute level 0 dt                    | Real > 0 and <= 1  | 0.8               |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
-| **erf.substepping_cfl**              | CFL number used to compute the number of substeps        | Real > 0 and <= 1  | 1.0               |
+| **erf.substepping_cfl**              | CFL number used to compute the number of substeps:       | Real > 0 and <= 1  | 0.7               |
+|                                      | the horizontal acoustic Courant number of one substep    |                    |                   |
+|                                      | (the vertical is excluded with implicit substepping);    |                    |                   |
+|                                      | values near 1 are unstable                               |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.fixed_dt**                     | set level 0 dt as this value regardless of cfl or other  | Real > 0           | unused if not set |
 |                                      | settings                                                 |                    |                   |
@@ -1168,9 +1171,10 @@ Notes
          the fast timestep will be the slow timestep divided by **fixed_mri_dt_ratio.**
 
      * | If neither **erf.fixed_mri_dt_ratio** nor **erf.fixed_fast_dt** is specified, then the fast timestep
-         will be computed using the CFL condition for compressible flow, then adjusted (reduced if necessary)
-         as above so that the ratio of slow timestep to fine timestep is an even integer.
-         If **erf.substepping_cfl** is specified, that CFL value will be used.  If not, the default value will be used.
+         will be computed using the CFL condition for compressible flow with **erf.substepping_cfl**
+         (default 0.7).  The ratio of slow timestep to fast timestep is rounded up, so the fast timestep
+         never exceeds that limit, and then increased to the next even integer (or, if
+         **erf.force_stage1_single_substep** = 0, to the next multiple of 6).
 
 .. _examples-of-usage-6:
 
