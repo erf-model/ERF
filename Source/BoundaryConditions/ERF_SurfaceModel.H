@@ -277,6 +277,61 @@ public:
     }
 
     /**
+     * @brief Removes an AMR level, and every level above it, from the surface model.
+     *
+     * Called when ERF destroys a level during regridding so that m_nlevs tracks the
+     * levels that actually exist. Otherwise the checkpoint and other level loops
+     * would still visit the destroyed levels and their stale provider pointers.
+     *
+     * @param lev AMR level being destroyed.
+     */
+    void clear_level (int lev)
+    {
+        if (lev < 0 || lev >= m_nlevs) { return; }
+        m_nlevs = lev;
+
+        u_star.resize(m_nlevs);
+        t_star.resize(m_nlevs);
+        q_star.resize(m_nlevs);
+        t_surf.resize(m_nlevs);
+
+        wavg.resize(m_nlevs);
+        m_provider_mode.resize(m_nlevs);
+
+        m_dmap.resize(m_nlevs);
+        m_ba.resize(m_nlevs);
+        m_ba2d.resize(m_nlevs);
+        m_geom.resize(m_nlevs);
+        m_geom2d.resize(m_nlevs);
+        m_lmask.resize(m_nlevs);
+
+        urban_frac_lev.resize(m_nlevs);
+        lsm_data_lev.resize(m_nlevs);
+        urban_data_lev.resize(m_nlevs);
+        weighted_lsm_data_lev.resize(m_nlevs);
+        weighted_urban_data_lev.resize(m_nlevs);
+
+        rad_fields.resize(m_nlevs);
+        rad_output_fields.resize(m_nlevs);
+        m_surface_outputs_requested.resize(m_nlevs);
+        m_last_urban_frac.resize(m_nlevs);
+
+        for (auto& field_lev : fields) {
+            if (static_cast<int>(field_lev.size()) > m_nlevs) { field_lev.resize(m_nlevs); }
+        }
+        for (auto& entry : fieldmap) {
+            if (static_cast<int>(entry.second.lsm_ptr.size()) > m_nlevs) { entry.second.lsm_ptr.resize(m_nlevs); }
+            if (static_cast<int>(entry.second.urb_ptr.size()) > m_nlevs) { entry.second.urb_ptr.resize(m_nlevs); }
+        }
+        for (auto& entry : radiation_input_map) {
+            if (static_cast<int>(entry.second.weighted.size()) > m_nlevs) { entry.second.weighted.resize(m_nlevs); }
+        }
+        for (auto& entry : radiation_output_map) {
+            if (static_cast<int>(entry.second.weighted.size()) > m_nlevs) { entry.second.weighted.resize(m_nlevs); }
+        }
+    }
+
+    /**
      * @brief Registers model variables used in weighted averaging.
      *
      * @param lev AMR level associated with the data.

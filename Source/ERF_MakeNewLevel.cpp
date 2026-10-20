@@ -1631,6 +1631,12 @@ ERF::ClearLevel (int lev)
     if (lev < static_cast<int>(rad_interp_from_coarse_pending.size())) {
         rad_interp_from_coarse_pending[lev] = 0;
     }
+
+    // Drop the level from the surface model too, so its level count (used by its
+    // checkpoint) matches finest_level once regridding has removed levels.
+    if (m_SurfaceModel) {
+        m_SurfaceModel->clear_level(lev);
+    }
 }
 
 //
