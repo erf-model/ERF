@@ -18,9 +18,9 @@ perturb_scale =
     1.0,        // u [m/s]
     1.0,        // v [m/s]
     0.5,        // w [m/s]
-    5.0e-4,     // qv [kg/kg]
-    1.0e-4,      // qc [kg/kg]
-    1.0e-4      // qrain [kg/kg]
+    1.0e-6,     // qv [kg/kg]
+    1.0e-6,      // qc [kg/kg]
+    1.0e-6      // qrain [kg/kg]
 };
 
 /**
