@@ -26,6 +26,7 @@ function(run_erf description)
     message(FATAL_ERROR
       "${description} failed (exit ${_result}).\nstdout:\n${_stdout}\nstderr:\n${_stderr}")
   endif()
+  set(_last_stdout "${_stdout}" PARENT_SCOPE)
 endfunction()
 
 run_erf("Continuous two-step SBM run"
@@ -42,11 +43,29 @@ foreach(_checkpoint IN ITEMS "${_continuous_step_one}" "${_continuous_step_two}"
   endif()
 endforeach()
 
+# RESTART_ARGS (separated by "|", since a ;-list does not survive add_test) reaches the restart alone -- where anything that changes the
+# decomposition has to go. With ALLOW_DIFF_GRIDS the restart is expected to have re-made
+# the level-0 grids (issue 4225): the test fails if it did not, so it cannot silently fall
+# back to comparing an ordinary restart, and the comparator copies the restarted state onto
+# the continuous run's grids before comparing.
+set(_restart_args)
+if(DEFINED RESTART_ARGS)
+  string(REPLACE "|" ";" _restart_args "${RESTART_ARGS}")
+endif()
 run_erf("One-step restart from continuous checkpoint 1"
   "erf.restart=${_continuous_step_one}"
   "max_step=2" "stop_time=2.e-5"
   "erf.check_file=sbm_restarted_chk" "erf.check_int=1"
-  "erf.plot_int_1=-1")
+  "erf.plot_int_1=-1" ${_restart_args})
+set(_compare_args)
+if(ALLOW_DIFF_GRIDS)
+  string(FIND "${_last_stdout}" "RESTART: reading level 0 onto new grids" _remade)
+  if(_remade EQUAL -1)
+    message(FATAL_ERROR "The restart was meant to re-make the level-0 grids and did not.\n"
+                        "stdout:\n${_last_stdout}")
+  endif()
+  set(_compare_args "--allow-different-grids")
+endif()
 
 set(_restarted_step_two "${_run_dir}/sbm_restarted_chk00002")
 if(NOT EXISTS "${_restarted_step_two}/Level_0/SBMSpectrum_H" OR
@@ -55,7 +74,7 @@ if(NOT EXISTS "${_restarted_step_two}/Level_0/SBMSpectrum_H" OR
 endif()
 
 execute_process(
-  COMMAND "${COMPARE_EXECUTABLE}" "${_continuous_step_two}" "${_restarted_step_two}"
+  COMMAND "${COMPARE_EXECUTABLE}" "${_continuous_step_two}" "${_restarted_step_two}" ${_compare_args}
   WORKING_DIRECTORY "${_run_dir}"
   RESULT_VARIABLE _compare_result
   OUTPUT_VARIABLE _compare_stdout
