@@ -2,6 +2,7 @@
 
 #include <AMReX_PlotFileUtil.H>
 #include "ERF_NCInterface.H"
+#include "ERF_ReadCheckpointMF.H"
 
 using namespace amrex;
 
@@ -754,7 +755,12 @@ void SLM::ReadCheckpoint (const int &lev, const std::string &checkpointname)
     ba.readFrom(is);
     GotoNextLine(is);
 
-    AMREX_ALWAYS_ASSERT(ba == ba_lsm_2d);
+    //
+    // The grids the checkpoint was written on. They need not be this run's: a restart that
+    // re-makes the level-0 grids (issue 4225) builds the model on the new ones, and every
+    // field below is read on the grids in the file and redistributed onto those.
+    //
+    amrex::ignore_unused(ba);
 
     //
     // Lifecycle flags, if this checkpoint carries them (see WriteCheckpoint).  The
@@ -772,199 +778,137 @@ void SLM::ReadCheckpoint (const int &lev, const std::string &checkpointname)
 
     const std::string prefix = "SLM_";
 
+    // Every field is planar or a column of soil layers: periodic laterally as the domain is,
+    // never in z
+    const Periodicity period = erf_checkpoint::lateral_periodicity(m_geom);
+    auto read_field = [&] (MultiFab& dst, const std::string& name, int ncomp,
+                           const IntVect& ng_read, bool src_ghosts)
+    {
+        erf_checkpoint::read_checkpoint_multifab(
+            dst, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + name),
+            0, 0, ncomp, ng_read, src_ghosts, period);
+    };
+
     // Use distribution map from data vars, since those are already created and loaded by ERF
     const DistributionMapping& dm = lsm_fab_vars[0]->DistributionMap();
-    IntVect ng = IntVect(0,0,0);
-    {
-        MultiFab mf(ba_lsm_2d,dm,1,ng);
-        VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "landmask"));
-        landmask = amrex::cast<iMultiFab>(mf);
+    erf_checkpoint::read_checkpoint_imultifab(landmask, ba_lsm_2d, dm,
+        MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "landmask"), period);
+    erf_checkpoint::read_checkpoint_imultifab(landtype, ba_lsm_2d, dm,
+        MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "landtype"), period);
+    erf_checkpoint::read_checkpoint_imultifab(vegetype, ba_lsm_2d, dm,
+        MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "vegetype"), period);
 
-        VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "landtype"));
-        landtype = amrex::cast<iMultiFab>(mf);
+    // DST
+    read_field(soilt_vars, "DST", SLM_DST::NumVars, IntVect(0), false);
 
-        VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "vegetype"));
-        vegetype = amrex::cast<iMultiFab>(mf);
-    }
+    // DSW
+    read_field(soilw_vars, "DSW", SLM_DSW::NumVars, IntVect(0), false);
 
-    {
-        // DST
-        MultiFab mf(soilt_vars.boxArray(),dm,SLM_DST::NumVars,0);
-        VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "DST"));
-        MultiFab::Copy(soilt_vars,mf,0,0,SLM_DST::NumVars,ng);
-    }
+    // net_rad
+    read_field(net_rad, "net_rad", SLM_NetRad::NumVars, IntVect(0), false);
 
-    {
-        // DSW
-        MultiFab mf(soilw_vars.boxArray(),dm,SLM_DSW::NumVars,0);
-        VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "DSW"));
-        MultiFab::Copy(soilw_vars,mf,0,0,SLM_DSW::NumVars,ng);
-    }
+    // slm_diag
+    read_field(slm_diag, "slm_diag", SLM_Diag::NumVars, IntVect(0), false);
 
-    {
-        // net_rad
-        MultiFab mf(net_rad.boxArray(),dm,SLM_NetRad::NumVars,0);
-        VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "net_rad"));
-        MultiFab::Copy(net_rad,mf,0,0,SLM_NetRad::NumVars,ng);
-    }
+    read_field(LAI, "LAI", 1, IntVect(0), false);
 
-    {
-        // slm_diag
-        MultiFab mf(slm_diag.boxArray(),dm,SLM_Diag::NumVars,0);
-        VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "slm_diag"));
-        MultiFab::Copy(slm_diag,mf,0,0,SLM_Diag::NumVars,ng);
-    }
+    read_field(SAI, "SAI", 1, IntVect(0), false);
 
-    MultiFab mf(ba_lsm_2d,dm,1,ng);
+    read_field(sstxy, "sstxy", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "LAI"));
-    MultiFab::Copy(LAI,mf,0,0,1,ng);
+    read_field(t_canop, "t_canop", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "SAI"));
-    MultiFab::Copy(SAI,mf,0,0,1,ng);
+    read_field(mw, "mw", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "sstxy"));
-    MultiFab::Copy(sstxy,mf,0,0,1,ng);
+    read_field(mws, "mws", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "t_canop"));
-    MultiFab::Copy(t_canop,mf,0,0,1,ng);
+    read_field(t_skin, "t_skin", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "mw"));
-    MultiFab::Copy(mw,mf,0,0,1,ng);
+    read_field(t_ground_skin, "t_ground_skin", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "mws"));
-    MultiFab::Copy(mws,mf,0,0,1,ng);
+    read_field(t_cas, "t_cas", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "t_skin"));
-    MultiFab::Copy(t_skin,mf,0,0,1,ng);
+    read_field(q_cas, "q_cas", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "t_ground_skin"));
-    MultiFab::Copy(t_ground_skin,mf,0,0,1,ng);
+    read_field(vege_YES, "vege_YES", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "t_cas"));
-    MultiFab::Copy(t_cas,mf,0,0,1,ng);
+    read_field(cp_vege, "cp_vege", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "q_cas"));
-    MultiFab::Copy(q_cas,mf,0,0,1,ng);
+    read_field(z0_sfc, "z0_sfc", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "vege_YES"));
-    MultiFab::Copy(vege_YES,mf,0,0,1,ng);
+    read_field(Khai_L, "Khai_L", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "cp_vege"));
-    MultiFab::Copy(cp_vege,mf,0,0,1,ng);
+    read_field(phi_1, "phi_1", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "z0_sfc"));
-    MultiFab::Copy(z0_sfc,mf,0,0,1,ng);
+    read_field(phi_2, "phi_2", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "Khai_L"));
-    MultiFab::Copy(Khai_L,mf,0,0,1,ng);
+    read_field(IR_emis_vege, "IR_emis_vege", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "phi_1"));
-    MultiFab::Copy(phi_1,mf,0,0,1,ng);
+    read_field(IR_emis_soil, "IR_emis_soil", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "phi_2"));
-    MultiFab::Copy(phi_2,mf,0,0,1,ng);
+    read_field(ztop, "ztop", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "IR_emis_vege"));
-    MultiFab::Copy(IR_emis_vege,mf,0,0,1,ng);
+    read_field(disp_hgt, "disp_hgt", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "IR_emis_soil"));
-    MultiFab::Copy(IR_emis_soil,mf,0,0,1,ng);
+    read_field(Rgl, "Rgl", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "ztop"));
-    MultiFab::Copy(ztop,mf,0,0,1,ng);
+    read_field(Rc_min, "Rc_min", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "disp_hgt"));
-    MultiFab::Copy(disp_hgt,mf,0,0,1,ng);
+    read_field(hs_rc, "hs_rc", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "Rgl"));
-    MultiFab::Copy(Rgl,mf,0,0,1,ng);
+    read_field(precip_extinc, "precip_extinc", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "Rc_min"));
-    MultiFab::Copy(Rc_min,mf,0,0,1,ng);
+    read_field(mw_mx, "mw_mx", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "hs_rc"));
-    MultiFab::Copy(hs_rc,mf,0,0,1,ng);
+    read_field(mws_mx, "mws_mx", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "precip_extinc"));
-    MultiFab::Copy(precip_extinc,mf,0,0,1,ng);
+    read_field(BAI, "BAI", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "mw_mx"));
-    MultiFab::Copy(mw_mx,mf,0,0,1,ng);
+    read_field(mw_inc, "mw_inc", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "mws_mx"));
-    MultiFab::Copy(mws_mx,mf,0,0,1,ng);
+    read_field(evapo_dry, "evapo_dry", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "BAI"));
-    MultiFab::Copy(BAI,mf,0,0,1,ng);
+    read_field(shf_canop, "shf_canop", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "mw_inc"));
-    MultiFab::Copy(mw_inc,mf,0,0,1,ng);
+    read_field(shf_soil, "shf_soil", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "evapo_dry"));
-    MultiFab::Copy(evapo_dry,mf,0,0,1,ng);
+    read_field(shf_air, "shf_air", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "shf_canop"));
-    MultiFab::Copy(shf_canop,mf,0,0,1,ng);
+    read_field(lhf_canop, "lhf_canop", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "shf_soil"));
-    MultiFab::Copy(shf_soil,mf,0,0,1,ng);
+    read_field(lhf_soil, "lhf_soil", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "shf_air"));
-    MultiFab::Copy(shf_air,mf,0,0,1,ng);
+    read_field(lhf_air, "lhf_air", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "lhf_canop"));
-    MultiFab::Copy(lhf_canop,mf,0,0,1,ng);
+    read_field(albedovis_v, "albedovis_v", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "lhf_soil"));
-    MultiFab::Copy(lhf_soil,mf,0,0,1,ng);
+    read_field(albedonir_v, "albedonir_v", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "lhf_air"));
-    MultiFab::Copy(lhf_air,mf,0,0,1,ng);
+    read_field(albedovis_s, "albedovis_s", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "albedovis_v"));
-    MultiFab::Copy(albedovis_v,mf,0,0,1,ng);
+    read_field(albedonir_s, "albedonir_s", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "albedonir_v"));
-    MultiFab::Copy(albedonir_v,mf,0,0,1,ng);
+    read_field(r_a, "r_a", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "albedovis_s"));
-    MultiFab::Copy(albedovis_s,mf,0,0,1,ng);
+    read_field(r_b, "r_b", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "albedonir_s"));
-    MultiFab::Copy(albedonir_s,mf,0,0,1,ng);
+    read_field(r_c, "r_c", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "r_a"));
-    MultiFab::Copy(r_a,mf,0,0,1,ng);
+    read_field(r_d, "r_d", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "r_b"));
-    MultiFab::Copy(r_b,mf,0,0,1,ng);
+    read_field(r_soil, "r_soil", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "r_c"));
-    MultiFab::Copy(r_c,mf,0,0,1,ng);
+    read_field(wet_canop, "wet_canop", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "r_d"));
-    MultiFab::Copy(r_d,mf,0,0,1,ng);
+    read_field(zrefxy, "zrefxy", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "r_soil"));
-    MultiFab::Copy(r_soil,mf,0,0,1,ng);
+    read_field(albold_noahmp, "albold_noahmp", 1, IntVect(0), false);
 
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "wet_canop"));
-    MultiFab::Copy(wet_canop,mf,0,0,1,ng);
-
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "zrefxy"));
-    MultiFab::Copy(zrefxy,mf,0,0,1,ng);
-
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "albold_noahmp"));
-    MultiFab::Copy(albold_noahmp,mf,0,0,1,ng);
-
-    VisMF::Read(mf, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "tauss_noahmp"));
-    MultiFab::Copy(tauss_noahmp,mf,0,0,1,ng);
+    read_field(tauss_noahmp, "tauss_noahmp", 1, IntVect(0), false);
 
     for (int i = 0; i < static_cast<int>(unmapped_fields.size()); i++) {
-        MultiFab mf_unmapped(lsm_fab_vars[unmapped_fields[i]]->boxArray(),dm,1,IntVect(1,1,1));
-        VisMF::Read(mf_unmapped, MultiFabFileFullPrefix(lev, checkpointname, "Level_", prefix + "Data" + std::to_string(unmapped_fields[i])));
-        MultiFab::Copy(*(lsm_fab_vars[unmapped_fields[i]]),mf_unmapped,0,0,1,IntVect(1,1,1));
+        read_field(*(lsm_fab_vars[unmapped_fields[i]]), "Data" + std::to_string(unmapped_fields[i]),
+                   1, IntVect(1,1,1), true);
     }
 
     //

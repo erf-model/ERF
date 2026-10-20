@@ -130,6 +130,7 @@
                      dptr_wbar_sub, d_rayleigh_ptrs_at_lev, d_sinesq_at_lev,
                      turbPert,
                      r_avg_to_pass, t_avg_to_pass,
+                     forest_drag, &S_old[IntVars::cons],
                      true);
 
         // Heat flux from the building faces (immersed-boundary surface energy

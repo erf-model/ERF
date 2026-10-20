@@ -657,7 +657,9 @@ void ERF::advance_dycore (int level,
                                   qheating_rates[level].get(),
                                   (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
-                                      terrain_blanking[level].get() : nullptr);
+                                      terrain_blanking[level].get() : nullptr,
+                                  (solverChoice.do_forest_drag) ?
+                                      m_forest_drag[level]->get_drag_field() : nullptr);
 
         // Zero turbulent mixing in fully immersed cells
         MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
