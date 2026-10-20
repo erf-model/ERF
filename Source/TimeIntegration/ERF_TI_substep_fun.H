@@ -152,8 +152,11 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
         Array<MultiFab, AMREX_SPACEDIM> cf_rec;
         MultiFab cf_rec_om, cf_rec_om_old;
         const bool cf_terrain = (solverChoice.mesh_type == MeshType::VariableDz);
-        const bool cf_record  = l_reflux && cf_flux_history_active(level);
-        const bool cf_impose  = l_reflux && (level > 0) && cf_flux_history_active(level-1);
+        // This is the last RK stage, whose fluxes are the step's, under either coupling
+        // (cf_flux_history_active excludes the anelastic levels)
+        const bool cf_stage   = (nrk == 2);
+        const bool cf_record  = cf_stage && cf_flux_history_active(level);
+        const bool cf_impose  = cf_stage && (level > 0) && cf_flux_history_active(level-1);
         if (cf_record) {
             const int mom[AMREX_SPACEDIM] = {AMREX_D_DECL(IntVars::xmom, IntVars::ymom, IntVars::zmom)};
             for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {

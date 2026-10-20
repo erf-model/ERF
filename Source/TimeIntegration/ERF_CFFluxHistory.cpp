@@ -28,8 +28,10 @@
  * the Omega of its coarse/fine z-faces, and so (rho w) there follows from its own (rho u) and
  * (rho v) and the terrain slopes.
  *
- * This is done under two-way coupling for the fast integrators without terrain and with
- * fixed terrain (erf_substep_NS, erf_substep_T), not with moving terrain (erf_substep_MT).
+ * This is done for the fast integrators without terrain and with fixed terrain (erf_substep_NS,
+ * erf_substep_T), not with moving terrain (erf_substep_MT).  It is done under one-way coupling
+ * too, so that the fine level sees the same fluxes through its coarse/fine faces whether or
+ * not it is averaged down and refluxed onto the coarse level.
  */
 #include "ERF.H"
 #include "ERF_Constants.H"
@@ -52,7 +54,6 @@ ERF::cf_flux_history_active (int crse_lev) const
         return on;
     }();
     if (!enabled) { return false; }
-    if (solverChoice.coupling_type != CouplingType::TwoWay) { return false; }
     if (crse_lev >= finest_level) { return false; }
     if (solverChoice.terrain_type == TerrainType::MovingFittedMesh ||
         solverChoice.terrain_type == TerrainType::EB) { return false; }
