@@ -7,6 +7,7 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace {
 
@@ -75,20 +76,49 @@ void compare_all_components (const amrex::MultiFab& lhs,
     }
 }
 
-void compare_checkpoint (const std::string& lhs_path, const std::string& rhs_path)
+//
+// The restarted checkpoint as it would read on the continuous one's grids. A restart that
+// re-made the level-0 grids (issue 4225) writes its checkpoint on the new ones, so with
+// allow_different_grids the valid cells are copied across first; both must cover the same
+// region. Without it the grids must match, as they always did.
+//
+amrex::MultiFab on_grids_of (const amrex::MultiFab& lhs,
+                             amrex::MultiFab&& rhs,
+                             const bool allow_different_grids,
+                             const std::string& label)
+{
+    if (lhs.boxArray() == rhs.boxArray() || !allow_different_grids) {
+        return std::move(rhs);
+    }
+    require(lhs.boxArray().minimalBox() == rhs.boxArray().minimalBox() &&
+            lhs.boxArray().numPts() == rhs.boxArray().numPts(),
+            label + ": checkpoints cover different regions");
+    require(lhs.nComp() == rhs.nComp(), label + ": checkpoint component counts differ");
+    amrex::MultiFab aligned(lhs.boxArray(), lhs.DistributionMap(), lhs.nComp(), 0);
+    aligned.ParallelCopy(rhs, 0, 0, rhs.nComp());
+    return aligned;
+}
+
+void compare_checkpoint (const std::string& lhs_path, const std::string& rhs_path,
+                         const bool allow_different_grids)
 {
     amrex::MultiFab lhs_spectrum;
     amrex::MultiFab rhs_spectrum;
     amrex::VisMF::Read(lhs_spectrum, lhs_path + "/Level_0/SBMSpectrum");
     amrex::VisMF::Read(rhs_spectrum, rhs_path + "/Level_0/SBMSpectrum");
-    compare_all_components(lhs_spectrum, rhs_spectrum, "SBMSpectrum");
+    compare_all_components(lhs_spectrum,
+                           on_grids_of(lhs_spectrum, std::move(rhs_spectrum),
+                                       allow_different_grids, "SBMSpectrum"),
+                           "SBMSpectrum");
 
     amrex::MultiFab lhs_cell;
     amrex::MultiFab rhs_cell;
     amrex::VisMF::Read(lhs_cell, lhs_path + "/Level_0/Cell");
     amrex::VisMF::Read(rhs_cell, rhs_path + "/Level_0/Cell");
-    compare_component(lhs_cell, rhs_cell, RhoQ2_comp, "projected qc");
-    compare_component(lhs_cell, rhs_cell, RhoQ3_comp, "projected qr");
+    const amrex::MultiFab rhs_cell_aligned =
+        on_grids_of(lhs_cell, std::move(rhs_cell), allow_different_grids, "Cell");
+    compare_component(lhs_cell, rhs_cell_aligned, RhoQ2_comp, "projected qc");
+    compare_component(lhs_cell, rhs_cell_aligned, RhoQ3_comp, "projected qr");
 }
 
 } // namespace
@@ -104,9 +134,12 @@ int main (int argc, char* argv[])
     amrex::Initialize(argc, argv, false);
     int result = 0;
     try {
-        require(argc == 3,
-                "usage: erf_sbm_checkpoint_compare <continuous-checkpoint> <restarted-checkpoint>");
-        compare_checkpoint(argv[1], argv[2]);
+        const bool allow_different_grids =
+            (argc == 4 && std::string(argv[3]) == "--allow-different-grids");
+        require(argc == 3 || allow_different_grids,
+                "usage: erf_sbm_checkpoint_compare <continuous-checkpoint> <restarted-checkpoint>"
+                " [--allow-different-grids]");
+        compare_checkpoint(argv[1], argv[2], allow_different_grids);
     } catch (const std::exception& error) {
         amrex::Print() << "SBM checkpoint comparison failed: " << error.what() << '\n';
         result = 1;

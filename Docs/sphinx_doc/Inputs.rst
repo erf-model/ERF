@@ -641,15 +641,16 @@ Notes
    **amr.refine_grid_layout_x/_y/_z**; if a per-direction flag is also
    specified it takes precedence in that direction
 
--  **erf.regrid_level_0_on_restart** re-makes the level-0 grids after the
-   checkpoint has been read.  The same thing happens automatically, without the
-   flag, when the restart runs on more ranks than level 0 has boxes in the
-   checkpoint -- that is, when a run is continued on more ranks than it was
-   written with.  Re-making the level rebuilds it from the same code a fresh
-   start uses, which knows nothing about the checkpoint, so state that only the
-   checkpoint carries would be lost.  ERF stops in that case and names what
-   would have been lost; restart on the number of ranks the checkpoint was
-   written with to keep the level-0 grids as they were.
+-  **erf.regrid_level_0_on_restart** lets a restart continue on level-0 grids
+   other than the ones the checkpoint was written on, re-made from
+   **amr.max_grid_size** as a fresh start would make them.  The same thing
+   happens automatically, without the flag, when the restart runs on more ranks
+   than level 0 has boxes in the checkpoint -- that is, when a run is continued
+   on more ranks than it was written with.  Every field the checkpoint carries,
+   including the state of the land-surface models, two-stream radiation and
+   spectral bin microphysics, is read on the grids in the file and
+   redistributed onto the new ones, so the run continues as it would have on
+   the original grids.
 
 .. _examples-of-usage-4:
 
@@ -2532,6 +2533,22 @@ required; ERF does not assume a unit-spacing grid when metadata is absent.
      - Prescribed leaf potential temperature [K]; required and positive when heat exchange is enabled
      - Real [K]
      - None
+   * - **erf.forest_canopy_tke**
+     - Add the canopy wake production, short-circuit dissipation and length scale cap to the k-eqn RANS model; needs a forest and ``erf.rans_type = kEqn`` on every level, and at least one of the three coefficients below nonzero; with ``erf.forest_canopy_length_alpha`` > 0 it needs ``erf.implicit_tke_dissipation = true`` on every level (see :ref:`sec:Forest`)
+     - Boolean
+     - false
+   * - **erf.forest_canopy_beta_p**
+     - Fraction of the drag work that becomes TKE, :math:`\beta_p`; must be in [0, 1]; ignored, with a warning, unless ``erf.forest_canopy_tke = true``
+     - Real
+     - 1.0
+   * - **erf.forest_canopy_beta_d**
+     - Short-circuit dissipation coefficient :math:`\beta_d`; must be finite and not negative; ignored, with a warning, unless ``erf.forest_canopy_tke = true``
+     - Real
+     - 4.0
+   * - **erf.forest_canopy_length_alpha**
+     - Dimensionless :math:`\alpha` of the length scale cap :math:`L \le \alpha / f` in the canopy, with :math:`f = C_d \, \mathrm{LAD}` [1/m]; must be in [0, 1], 0 disables the cap; ignored, with a warning, unless ``erf.forest_canopy_tke = true``
+     - Real
+     - 0.04
 
 ``erf.forest_biophysics_heat = true`` requires
 ``erf.forest_biophysics = true`` and a positive
