@@ -9,6 +9,7 @@
 #include <ERF_NumericalDiffusion.H>
 #include <ERF_PlaneAverage.H>
 #include <ERF_SrcHeaders.H>
+#include <ERF_CanopyTurbulence.H>
 #include <ERF_TI_slow_headers.H>
 #include <ERF_MOSTStress.H>
 
@@ -31,6 +32,8 @@ using namespace amrex;
  * @param[in] dptr_wbar_sub  subsidence source term
  * @param[in] d_rayleigh_ptrs_at_lev  Vector of {strength of Rayleigh damping, reference value of theta} used to define Rayleigh damping
  * @param[in] d_sinesq_at_lev  sin( (pi/2) (z-z_t)/(damping depth)) at cell centers
+ * @param[in] forest_drag  forest drag field C_d LAD, or null without a forest
+ * @param[in] cons_old  conserved state at the start of the step, read by the canopy TKE source
  */
 
 void make_sources (int level,
@@ -58,6 +61,8 @@ void make_sources (int level,
                    TurbulentPerturbation& turbPert,
                    const Table1D<Real> r_plane_avg,
                    const Table1D<Real> t_plane_avg,
+                   const MultiFab* forest_drag,
+                   const MultiFab* cons_old,
                    bool is_slow_step)
 {
     BL_PROFILE_REGION("erf_make_sources()");
@@ -97,6 +102,12 @@ void make_sources (int level,
 
     // flag for a moisture model
     bool has_moisture = (solverChoice.moisture_type != MoistureType::None);
+
+    // Canopy terms of the k-eqn RANS model (erf.forest_canopy_tke); check_config
+    // has already required a forest and kEqn on every level
+    const bool use_canopy_tke = is_slow_step && solverChoice.canopyTurb.enabled;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!use_canopy_tke || (forest_drag && cons_old),
+        "erf.forest_canopy_tke needs the forest drag field and the old state in make_sources");
 
     // *****************************************************************************
     // Planar averages for subsidence terms and immersed forcing
@@ -226,6 +237,7 @@ void make_sources (int level,
     //    7. sponging
     //    8. turbulent perturbation
     //    9. nudging towards input sounding values (only for theta)
+    //    9b. canopy wake production and short-circuit dissipation for (rho KE)
     //   10a. Immersed forcing for terrain
     //   10b. Immersed forcing for buildings
     //   Real(11.) Four stream radiation source for (rho theta)
@@ -487,6 +499,16 @@ void make_sources (int level,
             auto m_ixtype = S_data[IntVars::cons].boxArray().ixType(); // Conserved term
             const amrex::Array4<const amrex::Real>& pert_cell = turbPert.pb_cell[level].const_array(mfi);
             turbPert.apply_tpi(level, bx, RhoTheta_comp, m_ixtype, cell_src, pert_cell); // Applied as source term
+        }
+
+        // *************************************************************************************
+        // 9b. Add the canopy wake production and short-circuit dissipation to (rho KE)
+        // *************************************************************************************
+        if (use_canopy_tke) {
+            AddCanopyTKESources(bx, cell_src, cell_data, cons_old->const_array(mfi),
+                                xvel.const_array(mfi), yvel.const_array(mfi), zvel.const_array(mfi),
+                                forest_drag->const_array(mfi), t_blank_arr,
+                                solverChoice.canopyTurb, static_cast<Real>(dt));
         }
 
         // *************************************************************************************

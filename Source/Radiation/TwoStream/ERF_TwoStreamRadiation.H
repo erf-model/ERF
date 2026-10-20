@@ -284,7 +284,8 @@ public:
     void write_checkpoint (int lev, const std::string& checkpointname) const;
 
     /** @brief Read it back when the checkpoint carries it; else keep defaults. */
-    void read_checkpoint (int lev, const std::string& restart_chkfile);
+    void read_checkpoint (int lev, const std::string& restart_chkfile,
+                          const amrex::Periodicity& period);
 
     // Orbital elements of the current year (Berger 1978, or the erf.rad_orbital_*
     // overrides), computed once per year rather than every step, and the

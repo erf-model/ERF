@@ -986,6 +986,36 @@ function(add_test_field_bounds TEST_NAME PLTFILE VARIABLE LO HI)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/simulation.log")
 endfunction(add_test_field_bounds)
 
+# Run test_files/<TEST_NAME>/<TEST_NAME>.i and require every cell at or above Z_MIN in the
+# vertical column through the domain centre of PLTFILE to lie within [LO, HI] for each
+# variable (Tests/RunColumnBounds.cmake). VARIABLES, LOS and HIS are comma-separated lists.
+function(add_test_column_bounds TEST_NAME PLTFILE Z_MIN VARIABLES LOS HIS)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DFEXTRACT=${FEXTRACT_EXE}"
+        "-DPLTFILE=${PLTFILE}"
+        "-DZ_MIN=${Z_MIN}"
+        "-DVARIABLES=${VARIABLES}"
+        "-DLOS=${LOS}"
+        "-DHIS=${HIS}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunColumnBounds.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 600
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/simulation.log")
+endfunction(add_test_column_bounds)
+
 # Positive startup regression for the retained legacy theta/qv parser path.
 # This intentionally has no physical-temperature or physical-wall keys.
 function(add_test_cloud_chamber_legacy_config TEST_NAME)
@@ -1363,8 +1393,23 @@ set_tests_properties(BndryPlanes_MoistTemperature PROPERTIES FIXTURES_SETUP Bndr
 add_test_field_bounds(InputSponge_FinePatch "plt00004" x_velocity 5.9 8.5)
 # A refined patch below the inversion takes the coarse level's PBL height (~513 m), not its own
 add_test_field_bounds(PBLH_FinePatch "plt2d00004" pblh 450.0 600.0)
+# k-eqn RANS canopy terms in a uniform, fully forested box: one step of the wind (drag with
+# density) and of k (wake production, short-circuit sink, length cap, implicit dissipation)
+# against the closed-form stage solution in the deck. The wall at the bottom (needed for the
+# RANS wall distance) reaches three cells in one step, so the check starts at z = 45 m.
+# Reference: U 4.8780542453793183, k 1.0110471279453457. The bounds are 1e-8 relative, well
+# above round-off and differences in FMA contraction, and far below the change of any term
+# (without the density in the drag, U moves by 0.4 %; with the explicit dissipation, k by
+# 0.8 %). They are too tight for single precision, so the test runs in double precision only.
+if(ERF_PRECISION STREQUAL "DOUBLE")
+  add_test_column_bounds(ForestCanopyRANS_Uniform "plt00001" 45
+      "x_velocity,KE" "4.87805419660,1.01104711783" "4.87805429416,1.01104713806")
+endif()
 # A refined patch aloft (256-768 m) has no column at the ground: it takes level 0's height (~461 m), not zero
 add_test_field_bounds(PBLH_PatchAloft "plt2d00004" pblh 400.0 600.0)
+# Native WDM6 surface snow from the fallout through the bottom face, not the fall speed there:
+# ~0.009 mm after 100 s, where the fall speeds gave ~8,600 mm (erf-model/ERF#4364)
+add_test_field_bounds(WDM6_ColdBubble_SnowAccum "plt00200" snow_accum 0.0 1.0)
 # The same patch on one box and on 8 x 8 columns: the coarse heights the patch takes, and the
 # length cap and eddy viscosity they set, must not depend on the decomposition
 add_test_box_parity(PBLH_FinePatch_BoxParity PBLH_FinePatch "plt00004"
@@ -1996,6 +2041,41 @@ if(NOT WIN32)
   if(NOT EXISTS "${_bp_link_dir}/BndryIn")
     file(CREATE_LINK "BndryFiles" "${_bp_link_dir}/BndryIn" SYMBOLIC)
   endif()
+
+endif()
+
+# Input checks of the k-eqn RANS canopy terms (ERF_CanopyTurbulence.H). add_test_abort
+# runs through sh and tee, so these stay off Windows like the other abort tests.
+if(NOT WIN32)
+  set(_canopy_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ForestCanopyRANS_Uniform)
+  add_test_abort(ForestCanopyRANS_NeedsKEqn ${_canopy_dir} ForestCanopyRANS_Uniform.i
+                 "needs erf.rans_type = kEqn on every"
+                 "erf.rans_type=None erf.les_type=Smagorinsky erf.Cs=0.1")
+  add_test_abort(ForestCanopyRANS_NeedsForest
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/PBLH_FinePatch PBLH_FinePatch.i
+                 "erf.forest_canopy_tke = true needs a forest"
+                 "erf.forest_canopy_tke=1")
+  add_test_abort(ForestCanopyRANS_BetaPRange ${_canopy_dir} ForestCanopyRANS_Uniform.i
+                 "erf.forest_canopy_beta_p must be in"
+                 "erf.forest_canopy_beta_p=1.5")
+  add_test_abort(ForestCanopyRANS_BetaDRange ${_canopy_dir} ForestCanopyRANS_Uniform.i
+                 "erf.forest_canopy_beta_d must be finite and not negative"
+                 "erf.forest_canopy_beta_d=-1")
+  add_test_abort(ForestCanopyRANS_AlphaRange ${_canopy_dir} ForestCanopyRANS_Uniform.i
+                 "erf.forest_canopy_length_alpha must be in"
+                 "erf.forest_canopy_length_alpha=1.5")
+  # The length cap with the explicit TKE dissipation is stiff: the run stops
+  add_test_abort(ForestCanopyRANS_NeedsImplicitDissipation ${_canopy_dir} ForestCanopyRANS_Uniform.i
+                 "needs erf.implicit_tke_dissipation = true on every level"
+                 "erf.implicit_tke_dissipation=0")
+  # kEqn on level 0 only: the canopy terms would act on part of the hierarchy
+  add_test_abort(ForestCanopyRANS_NeedsKEqnOnEveryLevel
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/PBLH_FinePatch PBLH_FinePatch.i
+                 "needs erf.rans_type = kEqn on every"
+                 "erf.forest_file=${_canopy_dir}/forest_uniform.txt erf.forest_canopy_tke=1 erf.rans_type=kEqn None erf.les_type=None Smagorinsky erf.Cs=0.1")
+  add_test_abort(ForestCanopyRANS_AllZeroCoefficients ${_canopy_dir} ForestCanopyRANS_Uniform.i
+                 "would change nothing"
+                 "erf.forest_canopy_beta_p=0 erf.forest_canopy_beta_d=0 erf.forest_canopy_length_alpha=0")
 endif()
 
 if(ERF_ENABLE_MPI AND NOT WIN32)
@@ -2087,6 +2167,17 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_restart_parity(TwoStream_PrognosticSEB_Restart TwoStream_PrognosticSEBRestart 3 6
                           PLT2DFILE "plt2d00006")
 
+  # The same across a restart that re-makes the level-0 grids (issue 4225): the
+  # force-restore state is read on the checkpoint's grids and redistributed onto the
+  # restart's. One rank for the checkpoint and two for the restart reaches the automatic
+  # branch; REQUIRE_LEVEL0_REMAKE holds it to having regridded.
+  if(ERF_ENABLE_MPI AND NOT WIN32)
+    add_test_restart_parity(TwoStream_PrognosticSEB_RegridOnRestart TwoStream_PrognosticSEBRestart 3 6
+                            PLT2DFILE "plt2d00006"
+                            CHK_NRANKS 1 RESTART_NRANKS 2
+                            ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE)
+  endif()
+
   # The prognostic surface energy balance must remove from the ground the sensible and
   # latent heat the surface layer puts into the air. The deck runs twice, with
   # erf.radiation.seb_turbulent_flux_source = surface_layer and = defaults; the checker
@@ -2144,6 +2235,7 @@ foreach(_two_stream_test IN ITEMS
     TwoStream_PrognosticSEBLateLevel
     TwoStream_PrognosticSEBRegrid
     TwoStream_PrognosticSEB_Restart
+    TwoStream_PrognosticSEB_RegridOnRestart
     TwoStream_SEBSurfaceLayerFluxes
     TwoStream_SEBSurfaceLayerFluxesMultiLevel
     TwoStream_SEBDefaultReplacedWarning
@@ -3110,15 +3202,17 @@ add_test_restart_parity(SLM_Restart SLM_Restart 7 20
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
 
-# The same deck across a level-0 regrid, which ReadCheckpointFile still refuses: SLM does its
-# own checkpoint I/O and reads onto the grids the run uses, so it cannot yet take grids that
-# moved. Checkpoint on one rank and restart on two to reach the automatic branch without
-# setting anything. When SLM's reader is taught to redistribute, this becomes an
-# add_test_restart_parity case like the one above and the category leaves the guard.
+# The same deck across a level-0 regrid (issue 4225). SLM does its own checkpoint I/O, and
+# it and the mapped LSM fields are read on the checkpoint's grids and redistributed onto the
+# restart's. Checkpoint on one rank and restart on two to reach the automatic branch without
+# setting anything; REQUIRE_LEVEL0_REMAKE holds it to having regridded. plt_lsm_2D carries
+# the canopy and skin state, which the 3D plotfile would not show restarting from its
+# initialization value.
 if(ERF_ENABLE_MPI AND NOT WIN32)
-add_test_restart_abort(SLM_RegridOnRestart_Refused SLM_Restart 7
-    "a land-surface model"
-    CHK_NRANKS 1 RESTART_NRANKS 2)
+add_test_restart_parity(SLM_RegridOnRestart SLM_Restart 7 20
+    PLT2DFILE "plt_lsm_2D_00020"
+    CHK_NRANKS 1 RESTART_NRANKS 2
+    ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
 
 # The same for terrain carried by an embedded boundary: the mesh is flat there

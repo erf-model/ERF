@@ -4,6 +4,7 @@
 #include "ERF_Constants.H"
 #include "ERF_EddyViscosity.H"
 #include "ERF_RANSClosure.H"
+#include "ERF_CanopyTurbulence.H"
 #include "ERF_Diffusion.H"
 #include "ERF_PBLModels.H"
 #include "ERF_TileNoZ.H"
@@ -614,6 +615,8 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
  * @param[in]  const_grav gravitational acceleration
  * @param[in]  SurfLayer optional surface-layer model
  * @param[in]  z_0 roughness length
+ * @param[in]  canopy canopy terms of the k-eqn model (erf.forest_canopy_*)
+ * @param[in]  forest_drag forest drag field C_d LAD, or null without a forest
  */
 void ComputeTurbulentViscosityRANS (int level,
                                     const MultiFab& cons_in,
@@ -626,7 +629,9 @@ void ComputeTurbulentViscosityRANS (int level,
                                     const TurbChoice& turbChoice,
                                     const Real const_grav,
                                     std::unique_ptr<SurfaceLayer>& SurfLayer,
-                                    const MultiFab* z_0)
+                                    const MultiFab* z_0,
+                                    const CanopyTurbulence& canopy,
+                                    const MultiFab* forest_drag)
 {
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
     const bool use_SurfLayer = (SurfLayer != nullptr);
@@ -658,6 +663,12 @@ void ComputeTurbulentViscosityRANS (int level,
         // floor on k: erf.tke_floor if set, otherwise machine epsilon
         const Real tke_floor  = amrex::max(turbChoice.tke_floor, std::numeric_limits<Real>::epsilon());
 
+        // Canopy cap of the turbulent length scale, L <= alpha / (C_d LAD)
+        const bool use_canopy_length = canopy.enabled && (canopy.length_alpha > zero);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!use_canopy_length || forest_drag,
+            "erf.forest_canopy_tke needs the forest drag field");
+        const Real canopy_alpha = canopy.length_alpha;
+
         // Clamped divisor: the select is if-converted, so 1/theta_ref runs even
         //   when theta_ref = 0 and would trip fpe_trap_zero (see ERF_SetupDiff.H)
         const bool use_ref_theta = (turbChoice.theta_ref > 0);
@@ -674,6 +685,8 @@ void ComputeTurbulentViscosityRANS (int level,
             const Array4<Real const>& d_arr  = wdist.const_array(mfi);
             const Array4<Real const>& z0_arr = (use_SurfLayer) ? z_0->const_array(mfi) : Array4<Real const>{};
             const Array4<Real const>& pblh_arr = (pblh_mf) ? pblh_mf->const_array(mfi) : Array4<Real const>{};
+            const Array4<Real const>& f_drag_arr = (use_canopy_length) ? forest_drag->const_array(mfi)
+                                                                        : Array4<Real const>{};
 
             // NOTE: the closures deliberately store no subgrid heat flux.  hfx_z (Hfx3)
             //       is z-nodal, (0,0,1), while the closure's -K dtheta/dz is cell-centred,
@@ -723,6 +736,11 @@ void ComputeTurbulentViscosityRANS (int level,
                 // Turbulent length scale (neutral / stable Eq. 26 / unstable Eq. 28,
                 // the latter bounded through the smoothed Rt)
                 Real length = AL01::turb_length(l_g, N2, tke, Cmu0_pow3, inv_Cb_sq, Rt_crit, Rt_min, eps);
+                // In the canopy the eddies are limited by the foliage: cap L before the
+                // dissipation, Rt and the stability functions are evaluated from it
+                if (f_drag_arr) {
+                    length = canopy_turbulence::limited_length(length, f_drag_arr(i,j,k), canopy_alpha);
+                }
                 mu_turb(i, j, k, EddyDiff::Turb_lengthscale) = length;
 
                 // Dissipation rate (AL01, Eqn. 19)
@@ -846,6 +864,8 @@ void ComputeTurbulentViscosityRANS (int level,
  * @param[in]  ebfact EB factories for cell- and face-centered variables
  * @param[in]  vert_only flag for vertical components of eddyViscosity
  * @param[in]  qheating_rates radiation heating rates (SW, LW components)
+ * @param[in]  terrain_blank immersed forcing mask, or null
+ * @param[in]  forest_drag forest drag field C_d LAD, or null without a forest
  */
 void ComputeTurbulentViscosity (double dt,
                                 const MultiFab& xvel, const MultiFab& yvel,
@@ -868,7 +888,8 @@ void ComputeTurbulentViscosity (double dt,
                                 const eb_& ebfact,
                                 bool vert_only,
                                 const MultiFab* qheating_rates,
-                                const MultiFab* terrain_blank)
+                                const MultiFab* terrain_blank,
+                                const MultiFab* forest_drag)
 {
     BL_PROFILE_VAR("ComputeTurbulentViscosity()",ComputeTurbulentViscosity);
     //
@@ -919,7 +940,8 @@ void ComputeTurbulentViscosity (double dt,
                                       Diss,
                                       geom, use_terrain_fitted_coords,
                                       z_phys_nd, turbChoice, const_grav,
-                                      SurfLayer, z_0);
+                                      SurfLayer, z_0,
+                                      solverChoice.canopyTurb, forest_drag);
     }
 
     if (turbChoice.pbl_type == PBLType::MYJ) {
