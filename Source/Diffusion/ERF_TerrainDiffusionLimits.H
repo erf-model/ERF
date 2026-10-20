@@ -247,16 +247,25 @@ struct DiffusiveRateSettings
     bool has_scalar  = false;  // advected scalar carried
     bool implicit_metric = false;  // erf.implicit_terrain_metric: K_h metric term weighted by e
     amrex::Real e_uv = one, e_w = one, e_th = one, e_q = one, e_ke = one;
+    // Eddy diffusivities are carried (k_arr is read only then)
+    bool has_eddy    = true;
+    // Molecular diffusivities, added to the eddy ones in both directions: momentum (the
+    // dynamic viscosity), theta (alpha_T) and moisture and the advected scalar (alpha_C).
+    // Dynamic values, or with mol_times_rho kinematic ones that are multiplied by the density
+    // (erf.molec_diff_type = ConstantAlpha).  KE has none.
+    amrex::Real mol_mom = zero, mol_th = zero, mol_c = zero;
+    bool mol_times_rho = false;
 };
 
 /**
- * Explicit eddy-diffusion rates of cell (i,j,k), momentum and scalars (1/s), as the
- * diffusive time-step check reduces them: MomentumDiffusiveRate and ScalarDiffusiveRate with
- * the largest diffusivities and the smallest positive density over the cell and its 26
- * neighbours.  Both are zero in a cell without density (covered).
+ * Explicit diffusion rates of cell (i,j,k), momentum and scalars (1/s), as the diffusive
+ * time-step check reduces them: MomentumDiffusiveRate and ScalarDiffusiveRate with the largest
+ * diffusivities -- eddy plus molecular -- and the smallest positive density over the cell and
+ * its 26 neighbours.  Both are zero in a cell without density (covered).
  *
  * @param[in]  s_arr  conserved state (Rho_comp), one ghost cell
- * @param[in]  k_arr  eddy diffusivities (EddyDiff components), one ghost cell
+ * @param[in]  k_arr  eddy diffusivities (EddyDiff components), one ghost cell; read only when
+ *                    set.has_eddy
  * @param[in]  z_nd   nodal heights (read only when set.variable_dz)
  * @param[in]  mf_mx, mf_my map factors of the cell
  * @param[in]  dxinv  inverse cell sizes
@@ -290,26 +299,31 @@ CellDiffusiveRates (int i, int j, int k,
     const amrex::Real a2     = ax*ax;
     const amrex::Real b2     = ay*ay;
     const amrex::Real dzinv2 = dzinv*dzinv;
+    // Largest eddy diffusivity around the cell, or none without a turbulence model
+    auto K = [&] (int n) -> amrex::Real {
+        return (set.has_eddy) ? NeighbourhoodMax(i,j,k,n,k_arr) : zero;
+    };
+    // Molecular diffusivities, made dynamic with the largest density around the cell for
+    // ConstantAlpha, so that divided by the smallest one they still bound the rate
+    const amrex::Real mol_rho = (set.mol_times_rho) ? NeighbourhoodMax(i,j,k,Rho_comp,s_arr) : one;
+    const amrex::Real m_mom = set.mol_mom * mol_rho;
+    const amrex::Real m_th  = set.mol_th  * mol_rho;
+    const amrex::Real m_c   = set.mol_c   * mol_rho;
     // with erf.implicit_terrain_metric the K_h metric term counts with the explicit fraction
-    rate_mom = MomentumDiffusiveRate(rdiv, NeighbourhoodMax(i,j,k,EddyDiff::Mom_h,k_arr),
-                                     NeighbourhoodMax(i,j,k,EddyDiff::Mom_v,k_arr),
+    rate_mom = MomentumDiffusiveRate(rdiv, K(EddyDiff::Mom_h) + m_mom, K(EddyDiff::Mom_v) + m_mom,
                                      a2, b2, h2, dzinv2, set.e_uv, set.e_w, (set.implicit_metric ? set.e_uv : one));
-    amrex::Real rs = ScalarDiffusiveRate(rdiv, NeighbourhoodMax(i,j,k,EddyDiff::Theta_h,k_arr),
-                                         NeighbourhoodMax(i,j,k,EddyDiff::Theta_v,k_arr),
+    amrex::Real rs = ScalarDiffusiveRate(rdiv, K(EddyDiff::Theta_h) + m_th, K(EddyDiff::Theta_v) + m_th,
                                          a2, b2, h2, dzinv2, set.e_th, (set.implicit_metric ? set.e_th : one));
     if (set.has_q) {
-        rs = amrex::max(rs, ScalarDiffusiveRate(rdiv, NeighbourhoodMax(i,j,k,EddyDiff::Q_h,k_arr),
-                                                NeighbourhoodMax(i,j,k,EddyDiff::Q_v,k_arr),
+        rs = amrex::max(rs, ScalarDiffusiveRate(rdiv, K(EddyDiff::Q_h) + m_c, K(EddyDiff::Q_v) + m_c,
                                                 a2, b2, h2, dzinv2, set.e_q, (set.implicit_metric ? set.e_q : one)));
     }
     if (set.has_ke) {
-        rs = amrex::max(rs, ScalarDiffusiveRate(rdiv, NeighbourhoodMax(i,j,k,EddyDiff::KE_h,k_arr),
-                                                NeighbourhoodMax(i,j,k,EddyDiff::KE_v,k_arr),
+        rs = amrex::max(rs, ScalarDiffusiveRate(rdiv, K(EddyDiff::KE_h), K(EddyDiff::KE_v),
                                                 a2, b2, h2, dzinv2, set.e_ke, (set.implicit_metric ? set.e_ke : one)));
     }
     if (set.has_scalar) {
-        rs = amrex::max(rs, ScalarDiffusiveRate(rdiv, NeighbourhoodMax(i,j,k,EddyDiff::Scalar_h,k_arr),
-                                                NeighbourhoodMax(i,j,k,EddyDiff::Scalar_v,k_arr),
+        rs = amrex::max(rs, ScalarDiffusiveRate(rdiv, K(EddyDiff::Scalar_h) + m_c, K(EddyDiff::Scalar_v) + m_c,
                                                 a2, b2, h2, dzinv2, one));
     }
     rate_scal = rs;

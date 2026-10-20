@@ -69,6 +69,10 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
         Abort("MOST Zref must be 10m for YSU PBL scheme");
     }
 
+    // The PBL height for the SurfaceLayer (the w* correction and diagnostics), as MRF
+    // and YSUNew hand theirs over
+    MultiFab pblh_mf(eddyViscosity.boxArray(), eddyViscosity.DistributionMap(), 1, 0);
+
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -305,5 +309,17 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                 K_turb(i,j,k,EddyDiff::Theta_v) = K_turb(i,j,0,EddyDiff::Theta_v);
             }
         });
+
+        // Under TileNoZ the tile spans the full column, and pblh_mf has no ghost cells,
+        // so the tiles together fill every cell
+        {
+            auto pblh_out = pblh_mf.array(mfi);
+            ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                pblh_out(i,j,k) = pblh_arr(i,j,0);
+            });
+        }
     } // mfi
+
+    SurfLayer->set_pblh(level, pblh_mf);
 }

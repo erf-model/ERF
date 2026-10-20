@@ -655,7 +655,7 @@ public:
     // compute dt from CFL considerations
     double estTimeStep (int lev, long& dt_fast_ratio) const;
 
-    // largest explicit eddy-diffusion rates (1/s) on level lev, momentum and scalars, for the
+    // largest explicit diffusion rates (eddy and molecular, 1/s) on level lev, momentum and scalars, for the
     // diffusive time-step check (erf.diffusive_dt_check / erf.diffusive_dt_limit)
     void ComputeDiffusiveRates (int lev, amrex::Real& rate_mom, amrex::Real& rate_scal) const;
 
@@ -990,8 +990,10 @@ public:
     // has_surface_layer_inputs).
     std::set<std::string> user_specified_inputs;
 
-    void fill_from_bndryregs (const amrex::Vector<amrex::MultiFab*>& mfs,
-                              double time);
+    void fill_from_bndryregs (int lev,
+                              const amrex::Vector<amrex::MultiFab*>& mfs,
+                              double time,
+                              bool cons_only = false);
 
 #ifdef ERF_USE_NETCDF
     // Version in which we always set the velocity values but don't set theta
