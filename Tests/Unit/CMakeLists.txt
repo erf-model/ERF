@@ -520,6 +520,23 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
       LABELS "integration;sbm"
       RUN_SERIAL TRUE
       TIMEOUT 180)
+
+    # The same across a restart that re-makes the level-0 grids (issue 4225): the spectrum
+    # is read on the checkpoint's 2x2 grids and redistributed onto the restart's 4x4, and
+    # the run must continue as the straight run did.
+    add_test(NAME SBM_M3_StaticTerrain_RegridOnRestart
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+        -DCOMPARE_EXECUTABLE=$<TARGET_FILE:erf_sbm_checkpoint_compare>
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_periodic_static_terrain
+        -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+        "-DRESTART_ARGS=erf.regrid_level_0_on_restart=1|amr.max_grid_size_x=2|amr.max_grid_size_y=2"
+        -DALLOW_DIFF_GRIDS=ON
+        -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3RestartEquivalence.cmake)
+    set_tests_properties(SBM_M3_StaticTerrain_RegridOnRestart PROPERTIES
+      LABELS "integration;sbm"
+      RUN_SERIAL TRUE
+      TIMEOUT 180)
   endif()
 
   foreach(_mode IN ITEMS 1m 2m)

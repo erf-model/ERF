@@ -8,6 +8,7 @@
 #include <ERF_TwoStreamColumn.H>
 #include <ERF_TwoStreamCanopyForcing.H>
 #include <ERF_Constants.H>
+#include <ERF_ReadCheckpointMF.H>
 #include <ERF_PrognosticCloudFraction.H>
 #include <ERF_AerosolOpticalDepth.H>
 #include <ERF_SimplifiedSEB.H>
@@ -513,22 +514,30 @@ TwoStreamRadiation::write_checkpoint (int lev, const std::string& checkpointname
 }
 
 void
-TwoStreamRadiation::read_checkpoint (int lev, const std::string& restart_chkfile)
+TwoStreamRadiation::read_checkpoint (int lev, const std::string& restart_chkfile,
+                                     const amrex::Periodicity& period)
 {
     // Older checkpoints do not carry the state; then the defaults set by
     // define_level stand. Every level, matching write_checkpoint. A checkpoint
     // written before the SEB ran on fine levels simply has no file for them, which
     // the FileExists test below already handles.
+    //
+    // Each field is read on the grids in the file and redistributed onto the grids the
+    // run uses, which differ when the restart re-made level 0 (issue 4225). The fields
+    // are written with their ghost cells and an ordinary restart has always restored
+    // those, so the halo is offered too.
     if (!active() || !m_rad->seb_enable) { return; }
     const std::string tsfc_name =
         MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "TwoStream_TSfc");
     if (m_t_sfc[lev] && amrex::FileExists(tsfc_name + "_H")) {
-        VisMF::Read(*m_t_sfc[lev], tsfc_name);
+        erf_checkpoint::read_checkpoint_multifab(*m_t_sfc[lev], tsfc_name, 0, 0, 1,
+                                                 m_t_sfc[lev]->nGrowVect(), true, period);
     }
     const std::string qsfc_name =
         MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "TwoStream_QSfc");
     if (m_q_sfc[lev] && amrex::FileExists(qsfc_name + "_H")) {
-        VisMF::Read(*m_q_sfc[lev], qsfc_name);
+        erf_checkpoint::read_checkpoint_multifab(*m_q_sfc[lev], qsfc_name, 0, 0, 1,
+                                                 m_q_sfc[lev]->nGrowVect(), true, period);
     }
 }
 

@@ -2167,6 +2167,17 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_restart_parity(TwoStream_PrognosticSEB_Restart TwoStream_PrognosticSEBRestart 3 6
                           PLT2DFILE "plt2d00006")
 
+  # The same across a restart that re-makes the level-0 grids (issue 4225): the
+  # force-restore state is read on the checkpoint's grids and redistributed onto the
+  # restart's. One rank for the checkpoint and two for the restart reaches the automatic
+  # branch; REQUIRE_LEVEL0_REMAKE holds it to having regridded.
+  if(ERF_ENABLE_MPI AND NOT WIN32)
+    add_test_restart_parity(TwoStream_PrognosticSEB_RegridOnRestart TwoStream_PrognosticSEBRestart 3 6
+                            PLT2DFILE "plt2d00006"
+                            CHK_NRANKS 1 RESTART_NRANKS 2
+                            ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE)
+  endif()
+
   # The prognostic surface energy balance must remove from the ground the sensible and
   # latent heat the surface layer puts into the air. The deck runs twice, with
   # erf.radiation.seb_turbulent_flux_source = surface_layer and = defaults; the checker
@@ -2224,6 +2235,7 @@ foreach(_two_stream_test IN ITEMS
     TwoStream_PrognosticSEBLateLevel
     TwoStream_PrognosticSEBRegrid
     TwoStream_PrognosticSEB_Restart
+    TwoStream_PrognosticSEB_RegridOnRestart
     TwoStream_SEBSurfaceLayerFluxes
     TwoStream_SEBSurfaceLayerFluxesMultiLevel
     TwoStream_SEBDefaultReplacedWarning
@@ -3190,15 +3202,17 @@ add_test_restart_parity(SLM_Restart SLM_Restart 7 20
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
 
-# The same deck across a level-0 regrid, which ReadCheckpointFile still refuses: SLM does its
-# own checkpoint I/O and reads onto the grids the run uses, so it cannot yet take grids that
-# moved. Checkpoint on one rank and restart on two to reach the automatic branch without
-# setting anything. When SLM's reader is taught to redistribute, this becomes an
-# add_test_restart_parity case like the one above and the category leaves the guard.
+# The same deck across a level-0 regrid (issue 4225). SLM does its own checkpoint I/O, and
+# it and the mapped LSM fields are read on the checkpoint's grids and redistributed onto the
+# restart's. Checkpoint on one rank and restart on two to reach the automatic branch without
+# setting anything; REQUIRE_LEVEL0_REMAKE holds it to having regridded. plt_lsm_2D carries
+# the canopy and skin state, which the 3D plotfile would not show restarting from its
+# initialization value.
 if(ERF_ENABLE_MPI AND NOT WIN32)
-add_test_restart_abort(SLM_RegridOnRestart_Refused SLM_Restart 7
-    "a land-surface model"
-    CHK_NRANKS 1 RESTART_NRANKS 2)
+add_test_restart_parity(SLM_RegridOnRestart SLM_Restart 7 20
+    PLT2DFILE "plt_lsm_2D_00020"
+    CHK_NRANKS 1 RESTART_NRANKS 2
+    ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
 
 # The same for terrain carried by an embedded boundary: the mesh is flat there
