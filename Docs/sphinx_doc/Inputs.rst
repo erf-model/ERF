@@ -3264,26 +3264,34 @@ To enhance numerical stability, e.g., for operational runs, we provide some addi
 List of Parameters
 ------------------
 
-+--------------------------+----------------------------------------------------------+--------------------+------------------+
-| Parameter                | Definition                                               | Acceptable Values  | Default          |
-+==========================+==========================================================+====================+==================+
-| **erf.beta_s**           | time off-centering coefficient used in the acoustic      | Real               | 0.1              |
-|                          | substepping; positive values weight the update towards   |                    |                  |
-|                          | the new time                                             |                    |                  |
-+--------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.w_damping**        | enable vertical-velocity damping                         | Boolean            | false            |
-+--------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.w_damping_cfl**    | Critical vertical advective CFL for w-damping to be      | Real > 0           | 1.0              |
-|                          | applied, if ``erf.w_damping`` is true                    |                    |                  |
-+--------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.w_damping_const**  | constant damping coefficient [m/s^2], as used by WRF     | Real               | -1.0 (not used)  |
-|                          | (which uses 0.3); a positive value selects this          |                    |                  |
-|                          | formulation                                              |                    |                  |
-+--------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.w_damping_coeff**  | dimensionless damping factor giving a grid-dependent     | Real               | -1.0 (not used)  |
-|                          | coefficient proportional to dz/dt^2; a positive value    |                    |                  |
-|                          | selects this formulation                                 |                    |                  |
-+--------------------------+----------------------------------------------------------+--------------------+------------------+
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                   | Definition                                               | Acceptable Values  | Default          |
++=============================+==========================================================+====================+==================+
+| **erf.beta_s**              | time off-centering coefficient used in the acoustic      | Real               | 0.1              |
+|                             | substepping; positive values weight the update towards   |                    |                  |
+|                             | the new time                                             |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.use_variable_beta_s** | with implicit substepping, use a beta_s that varies      | Boolean            | false            |
+|                             | on the w-faces, max(beta_s_min, min(beta_s_max,          |                    |                  |
+|                             | h_xi^2 + h_eta^2)), in place of ``erf.beta_s``           |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.beta_s_min**          | lower bound of the spatially varying beta_s              | Real in [-1, 1]    | 0.1              |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.beta_s_max**          | upper bound of the spatially varying beta_s              | Real in [-1, 1]    | 0.8              |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.w_damping**           | enable vertical-velocity damping                         | Boolean            | false            |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.w_damping_cfl**       | Critical vertical advective CFL for w-damping to be      | Real > 0           | 1.0              |
+|                             | applied, if ``erf.w_damping`` is true                    |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.w_damping_const**     | constant damping coefficient [m/s^2], as used by WRF     | Real               | -1.0 (not used)  |
+|                             | (which uses 0.3); a positive value selects this          |                    |                  |
+|                             | formulation                                              |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.w_damping_coeff**     | dimensionless damping factor giving a grid-dependent     | Real               | -1.0 (not used)  |
+|                             | coefficient proportional to dz/dt^2; a positive value    |                    |                  |
+|                             | selects this formulation                                 |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
 
 If ``erf.w_damping`` is true, then either ``erf.w_damping_const`` or ``erf.w_damping_coeff`` must
 be specified. For WRF-like damping, set ``erf.w_damping_const = 0.3`` to give

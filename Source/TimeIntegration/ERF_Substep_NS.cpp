@@ -17,7 +17,8 @@ using namespace amrex;
  * @param[in   ]  S_stage_data solution            at previous RK stage
  * @param[in   ]  S_stage_prim primitive variables at previous RK stage
  * @param[in   ]  pi_stage   Exner function      at previous RK stage
- * @param[in   ]  fast_coeffs coefficients for the tridiagonal solve used in the fast integrator
+ * @param[in   ]  fast_coeffs coefficients for the tridiagonal solve used in the fast integrator,
+ *                           and beta_s on the w-faces (component 5)
  * @param[  out]  S_data    current solution
  * @param[inout]  lagged_delta_rt
  * @param[inout] avg_xmom: time-averaged x-momentum to be used for updating slow variables
@@ -31,7 +32,6 @@ using namespace amrex;
  * @param[in   ]  gravity magnitude of gravity
  * @param[in   ]  stretched_dz_d
  * @param[in   ]  dtau fast time step
- * @param[in   ]  beta_s  Coefficient which determines how implicit vs explicit the solve is
  * @param[in   ]  facinv inverse factor for time-averaging the momenta
  * @param[in   ]  mapfac   vector of map factors
  * @param[inout]  fr_as_crse YAFluxRegister at level l at level l   / l+1 interface
@@ -63,7 +63,7 @@ void erf_substep_NS (int step, int nrk,
                      const Geometry geom,
                      const Real gravity,
                      amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
-                     const double dtau_d, const Real beta_s,
+                     const double dtau_d,
                      const Real facinv,
                      Vector<std::unique_ptr<MultiFab>>& mapfac,
                      YAFluxRegister* fr_as_crse,
@@ -92,9 +92,6 @@ void erf_substep_NS (int step, int nrk,
     int jlo = domlo.y;
     int jhi = domhi.y + 1;
 
-    Real beta_1 = myhalf * (one - beta_s);  // multiplies explicit terms
-    Real beta_2 = myhalf * (one + beta_s);  // multiplies implicit terms
-
     // How much do we project forward the (rho theta) that is used in the horizontal momentum equations
     Real beta_d = Real(0.1);
 
@@ -120,6 +117,11 @@ void erf_substep_NS (int step, int nrk,
     MultiFab     coeff_C_mf(fast_coeffs, make_alias, 2, 1);
     MultiFab     coeff_P_mf(fast_coeffs, make_alias, 3, 1);
     MultiFab     coeff_Q_mf(fast_coeffs, make_alias, 4, 1);
+
+    // beta_s on the w-faces, from which
+    //    beta_1 = myhalf * (one - beta_s) multiplies explicit terms
+    //    beta_2 = myhalf * (one + beta_s) multiplies implicit terms
+    MultiFab      beta_s_mf(fast_coeffs, make_alias, 5, 1);
 
     // *************************************************************************
     // Set gravity as a vector
@@ -411,6 +413,7 @@ void erf_substep_NS (int step, int nrk,
         auto const&     coeffC_a =     coeff_C_mf.array(mfi);
         auto const&     coeffP_a =     coeff_P_mf.array(mfi);
         auto const&     coeffQ_a =     coeff_Q_mf.array(mfi);
+        auto const&     beta_s_a =      beta_s_mf.const_array(mfi);
 
         // *************************************************************************
         // Define flux arrays for use in advection
@@ -496,12 +499,18 @@ void erf_substep_NS (int step, int nrk,
                 + ( coeff_P * (slow_rhs_cons(i,j,k  ,RhoTheta_comp) - temp_rhs_arr(i,j,k  ,RhoTheta_comp)) +
                     coeff_Q * (slow_rhs_cons(i,j,k-1,RhoTheta_comp) - temp_rhs_arr(i,j,k-1,RhoTheta_comp)) );
 
+            // Explicit part of the vertical flux on each face, beta_1 * Omega
+            Real b1_Omega_kp1 = myhalf * (one - beta_s_a(i,j,k+1)) * Omega_kp1;
+            Real b1_Omega_k   = myhalf * (one - beta_s_a(i,j,k  )) * Omega_k;
+            Real b1_Omega_km1 = myhalf * (one - beta_s_a(i,j,k-1)) * Omega_km1;
+
             // lines 6&7 consolidated (reuse Omega & metrics) (order dtau^2)
-            R1_tmp +=  beta_1 * ( ( (Omega_kp1 - Omega_k) / dz_ptr[k] + (Omega_k - Omega_km1) / dz_ptr[k-1] ) * halfg
-                                 +(-(Omega_kp1*theta_t_hi  - Omega_k  *theta_t_mid) * coeff_P / dz_ptr[k]
-                                   -(Omega_k  *theta_t_mid - Omega_km1*theta_t_lo ) * coeff_Q / dz_ptr[k-1]) );
+            R1_tmp +=  ( ( (b1_Omega_kp1 - b1_Omega_k) / dz_ptr[k] + (b1_Omega_k - b1_Omega_km1) / dz_ptr[k-1] ) * halfg
+                        +(-(b1_Omega_kp1*theta_t_hi  - b1_Omega_k  *theta_t_mid) * coeff_P / dz_ptr[k]
+                          -(b1_Omega_k  *theta_t_mid - b1_Omega_km1*theta_t_lo ) * coeff_Q / dz_ptr[k-1]) );
 
             // line 1
+            Real beta_2 = myhalf * (one + beta_s_a(i,j,k));
             RHS_a(i,j,k) = Omega_k + dtau * (slow_rhs_rho_w(i,j,k) + R0_tmp + dtau * beta_2 * R1_tmp + zmom_src_arr(i,j,k));
 
         }); // bx_shrunk_in_k
@@ -624,8 +633,10 @@ void erf_substep_NS (int step, int nrk,
         const Array4<      Real> rec_z = (has_rec_z) ? cf_fluxes.rec[2]->array(mfi)       : Array4<Real>{};
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real zflux_lo = beta_2 * soln_a(i,j,k  ) + beta_1 * prev_drho_w(i,j,k  );
-            Real zflux_hi = beta_2 * soln_a(i,j,k+1) + beta_1 * prev_drho_w(i,j,k+1);
+            Real zflux_lo = myhalf * ( (one + beta_s_a(i,j,k  )) * soln_a(i,j,k  )
+                                     + (one - beta_s_a(i,j,k  )) * prev_drho_w(i,j,k  ) );
+            Real zflux_hi = myhalf * ( (one + beta_s_a(i,j,k+1)) * soln_a(i,j,k+1)
+                                     + (one - beta_s_a(i,j,k+1)) * prev_drho_w(i,j,k+1) );
 
             // On the coarse/fine faces of a fine level, the coarse level's flux over this substep
             if (has_tgt_z) {

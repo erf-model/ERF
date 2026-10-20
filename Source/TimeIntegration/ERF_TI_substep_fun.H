@@ -25,11 +25,16 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
         // Per p2902 of Klemp-Skamarock-Dudhia-2007
         // beta_s = -one : fully explicit
         // beta_s =  one : fully implicit
+        // With erf.use_variable_beta_s, beta_s instead varies on the w-faces with the terrain
+        //    slope (see make_fast_coeffs); the substeps take it from fast_coeffs either way
         Real beta_s;
+        bool l_variable_beta_s;
         if (solverChoice.substepping_type[level] == SubsteppingType::Implicit) {
             beta_s = solverChoice.beta_s;
+            l_variable_beta_s = solverChoice.use_variable_beta_s;
         } else { // Fully explicit
             beta_s = -one_d;
+            l_variable_beta_s = false;
         }
 
         const GpuArray<Real, AMREX_SPACEDIM> dxInv = fine_geom.InvCellSizeArray();
@@ -140,7 +145,9 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
         {
             make_fast_coeffs(level, fast_coeffs, S_stage, S_prim, pi_stage, fine_geom,
                              l_use_moisture, SolverChoice::mesh_type, solverChoice.gravity, solverChoice.c_p,
-                             detJ_cc[level], dtau, beta_s, phys_bc_type);
+                             detJ_cc[level], dtau, beta_s, z_phys_nd[level].get(),
+                             l_variable_beta_s, solverChoice.beta_s_min, solverChoice.beta_s_max,
+                             phys_bc_type);
         }
 
         bool l_rayleigh_implicit = (solverChoice.dampingChoice.rayleigh_damping_type == RayleighDampingType::FastImplicit);
@@ -195,7 +202,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                            z_t_rk[level], z_t_pert.get(),
                            z_phys_nd[level], z_phys_nd_new[level], z_phys_nd_src[level],
                              detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
-                           dtau, beta_s, inv_fac, mapfac[level],
+                           dtau, inv_fac, mapfac[level],
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
                            (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef);
 
@@ -206,7 +213,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                           S_data, lagged_delta_rt[level], avg_xmom[level], avg_ymom[level], avg_zmom[level],
                           cc_src, xmom_src, ymom_src, zmom_src,
                           fine_geom, solverChoice.gravity,
-                          z_phys_nd[level], detJ_cc[level], dtau, beta_s, inv_fac,
+                          z_phys_nd[level], detJ_cc[level], dtau, inv_fac,
                           mapfac[level],
                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
                           (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
@@ -219,7 +226,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                            S_data, lagged_delta_rt[level], avg_xmom[level], avg_ymom[level], avg_zmom[level],
                            cc_src, xmom_src, ymom_src, zmom_src,
                            fine_geom, solverChoice.gravity, stretched_dz_d[level],
-                           dtau, beta_s, inv_fac, mapfac[level],
+                           dtau, inv_fac, mapfac[level],
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
                            (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
                            cf_fluxes);

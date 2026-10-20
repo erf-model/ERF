@@ -77,8 +77,8 @@ Compute_InvDt_Compressible (const int i, const int j, const int k,
     if (l_substepping) {
         // Implicit substepping removes the g33 metric
         // Acoustic contribution limits dtau, whose max is in the first RK stage (1/3 dt)
-        const amrex::Real Uacoustic = third * c * std::sqrt( dxinv[0] * (dxinv[0] + two * idz * amrex::Math::abs(h_xi )) );
-        const amrex::Real Vacoustic = third * c * std::sqrt( dxinv[1] * (dxinv[1] + two * idz * amrex::Math::abs(h_eta)) );
+        const amrex::Real Uacoustic = third * c * dxinv[0];
+        const amrex::Real Vacoustic = third * c * dxinv[1];
         if ((nxc > 1) && (nyc == 1)) {
             // 2-D in x-z
             inv_dt = amrex::max(abs_u*dxinv[0] + Uacoustic,
