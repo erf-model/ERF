@@ -1407,6 +1407,9 @@ if(ERF_PRECISION STREQUAL "DOUBLE")
 endif()
 # A refined patch aloft (256-768 m) has no column at the ground: it takes level 0's height (~461 m), not zero
 add_test_field_bounds(PBLH_PatchAloft "plt2d00004" pblh 400.0 600.0)
+# Native WDM6 surface snow from the fallout through the bottom face, not the fall speed there:
+# ~0.009 mm after 100 s, where the fall speeds gave ~8,600 mm (erf-model/ERF#4364)
+add_test_field_bounds(WDM6_ColdBubble_SnowAccum "plt00200" snow_accum 0.0 1.0)
 # The same patch on one box and on 8 x 8 columns: the coarse heights the patch takes, and the
 # length cap and eddy viscosity they set, must not depend on the decomposition
 add_test_box_parity(PBLH_FinePatch_BoxParity PBLH_FinePatch "plt00004"
