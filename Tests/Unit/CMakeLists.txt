@@ -176,6 +176,9 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSurfaceFluxDiagnostics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSeaLevelPressure.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestCanopyBiophysics.cpp
+    # Motivation: the k-eqn RANS canopy terms must keep the kynema-sgf
+    # formulas, cap L only inside the forest and never remove more than k.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestCanopyTurbulence.cpp
     # Motivation: buoyancy dispatch must preserve selector semantics, active
     # anelastic formulations, and neutral dry type-4 primitive-theta behavior.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestBuoyancy.cpp
