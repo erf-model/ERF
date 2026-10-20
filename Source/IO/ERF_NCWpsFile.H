@@ -351,6 +351,11 @@ fill_fab_from_arrays (int iv,
  * @param NC_dim_types NetCDF data dimension types
  * @param fab_vars Fab data we are to fill
  * @param success Success flags for each requested variable
+ * @param keep_on_host If true, leave each fab in the (pinned, on GPU) host memory it was
+ *                     broadcast into rather than copying it to the device.  Each fab spans
+ *                     the whole domain on every rank, so a caller that only uses it as the
+ *                     source of copies into its own MultiFabs should set this to avoid a
+ *                     full-domain device allocation per variable.
  */
 template<class FAB,typename DType>
 void
@@ -359,7 +364,8 @@ BuildFABsFromNetCDFFile (const amrex::Box& domain,
                          amrex::Vector<std::string> nc_var_names,
                          amrex::Vector<enum NC_Data_Dims_Type> NC_dim_types,
                          amrex::Vector<FAB*> fab_vars,
-                         amrex::Vector<int>& success)
+                         amrex::Vector<int>& success,
+                         bool keep_on_host = false)
 {
     int ioproc = amrex::ParallelDescriptor::IOProcessorNumber();  // I/O rank
 
@@ -400,6 +406,12 @@ BuildFABsFromNetCDFFile (const amrex::Box& domain,
             amrex::Box  fab_bx = tmp.box();
             amrex::Dim3 dom_lb = lbound(domain);
             fab_bx += amrex::IntVect(dom_lb.x,dom_lb.y,dom_lb.z);
+            if (keep_on_host) {
+                // Hand over the host buffer rather than copying it
+                *fab_vars[iv] = std::move(tmp);
+                fab_vars[iv]->shift(amrex::IntVect(dom_lb.x,dom_lb.y,dom_lb.z));
+                continue;
+            }
             // fab_vars points to data on device
             fab_vars[iv]->resize(fab_bx,1);
 #ifdef AMREX_USE_GPU

@@ -150,8 +150,11 @@ read_from_wrfinput (int lev,
         amrex::Print() << " ERROR: no NC dim type for NC_name = '" << NC_name << "'" << std::endl;
     }
 
-    // Read the netcdf file and fill these FABs
-    BuildFABsFromNetCDFFile<FArrayBox,Real>(subdomain_to_read, fname, NC_names, NC_dim_types, NC_fabs_to_read, successes);
+    // Read the netcdf file and fill these FABs.  The fab spans the whole file domain on
+    // every rank and every caller only copies out of it, so keep it in (pinned) host
+    // memory rather than allocating a full-domain copy on the device.
+    BuildFABsFromNetCDFFile<FArrayBox,Real>(subdomain_to_read, fname, NC_names, NC_dim_types, NC_fabs_to_read, successes,
+                                            /*keep_on_host=*/ true);
 
     // Success was already broadcast in ERF_NCWpsFile.H
     success = successes[0];
