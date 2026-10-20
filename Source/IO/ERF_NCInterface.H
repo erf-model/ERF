@@ -42,10 +42,10 @@ struct NCDim
     const int dimid;
 
     //! Name of this dimension
-    [[nodiscard]] std::string name() const;
+    [[nodiscard]] std::string name () const;
 
     //! Length of this dimension
-    [[nodiscard]] size_t len() const;
+    [[nodiscard]] size_t len () const;
 };
 
 //! Representation of a NetCDF variable

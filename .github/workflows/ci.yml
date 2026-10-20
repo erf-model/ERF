@@ -1,20 +1,20 @@
 name: ERF CI
 
+# MPICH on merge only, not PR
 on:
-#  push:
-#    # branches: [development]
-#    paths-ignore:
-#      - Docs/**
-#      - README.rst
-#      - license.txt
-
-  pull_request:
+  push:
     branches: [development]
-    types: [opened, synchronize, reopened]
+    paths-ignore:
+      - Docs/**
+      - README.rst
+      - license.txt
+  workflow_dispatch:
 
+# Each merge into development gets its own group (keyed on the commit), so a burst of
+# merges never cancels a still-pending development run: every merge writes its ccache.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || github.sha }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
 
@@ -25,6 +25,10 @@ jobs:
     env:
       ERF_PARALLEL_TEST_NRANKS: '1;2;4'
     strategy:
+      # Let every variant finish. Cancelling the siblings of a failed job saves
+      # a few test minutes but leaves their caches stale and hides whether the
+      # failure is specific to one variant.
+      fail-fast: false
       matrix:
         os: [ubuntu-22.04]
         particles: [OFF, ON]
@@ -57,24 +61,36 @@ jobs:
     - name: Install CCache
       run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
 
-    - name: Set Up Cache
-      uses: actions/cache@v6
+    # Separate cache per matrix build configuration
+    # Only changes are recompiled from latest development CI run
+    # Looks for cache of exact commit, if not found then cache of latest commit in development branch
+    # PRs restore from cache but do not save to cache
+    # Only merges into development (and manual runs on development) save to cache
+    - name: Restore Cache
+      uses: actions/cache/restore@v6
       with:
         path: ~/.cache/ccache
-        key: ccache-${{ github.workflow }}-${{ github.job }}-git-${{ github.sha }}
+        key: ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.particles }}-git-${{ github.sha }}
         restore-keys: |
-             ccache-${{ github.workflow }}-${{ github.job }}-git-
+             ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.particles }}-git-
 
     - name: Configure CMake
+      # Ubuntu's MPICH wrapper advertises -flto=auto -ffat-lto-objects, and FindMPI
+      # would put them on every target: fat objects double the ccache and every
+      # link re-optimises the whole program (~20 min even on a full cache hit).
+      # FindMPI keeps a non-empty user value, so override the wrapper's flags.
       run: |
         cmake \
           -B${{runner.workspace}}/ERF/build-${{matrix.os}} \
           -DCMAKE_INSTALL_PREFIX:PATH=${{runner.workspace}}/ERF/install \
           -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
+          -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="-O2 -g1 -DNDEBUG" \
           -DAMReX_ASSERTIONS:BOOL=ON \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DERF_DIM:STRING=3 \
           -DERF_ENABLE_MPI:BOOL=ON \
+          -DMPI_CXX_COMPILE_OPTIONS=-fno-lto \
+          -DMPI_CXX_LINK_FLAGS=-fno-lto \
           -DERF_PARALLEL_TEST_ALLOW_OVERSUBSCRIBE:BOOL=ON \
           '-DERF_PARALLEL_TEST_NRANKS:STRING=${{env.ERF_PARALLEL_TEST_NRANKS}}' \
           -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
@@ -91,19 +107,33 @@ jobs:
         export CCACHE_COMPRESSLEVEL=10
         export CCACHE_MAXSIZE=600M
         ccache -z
+        build_start=$(date +%s)
 
         cmake \
           --build ${{runner.workspace}}/ERF/build-${{matrix.os}} \
           --parallel ${{env.NPROCS}} \
           2>&1 | tee -a ${{runner.workspace}}/build-output.txt;
 
-        ccache -s
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
+        # Keep only what this build used: ccache touches an object on every hit, so
+        # anything older than the build is stale. Without this the cache fills with
+        # objects from superseded commits, hits its cap, and evicts live objects.
+        ccache --evict-older-than "$(( $(date +%s) - build_start + 120 ))s"
+        ccache -s | tee -a "$GITHUB_STEP_SUMMARY"
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
         du -hs ~/.cache/ccache
+
+    - name: Save Cache
+      if: always() && github.ref_name == github.event.repository.default_branch
+      uses: actions/cache/save@v6
+      with:
+        path: ~/.cache/ccache
+        key: ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.particles }}-git-${{ github.sha }}
 
     - name: Report
       run: |
         grep -Ei "warning:|error:" ${{runner.workspace}}/build-output.txt \
-          | grep -Ev "Submodules/(amrex|googletest)" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
+          | grep -Ev "Submodules/(amrex|AMReX|googletest)" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
           | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${{runner.workspace}}/build-output-warnings.txt
         cat ${{runner.workspace}}/build-output-warnings.txt
         export return=$(tail -n 1 ${{runner.workspace}}/build-output-warnings.txt | awk '{print $2}')
@@ -228,7 +258,7 @@ jobs:
 
     - name: Run Serial Unit Tests
       run: |
-        ctest -L unit -LE parallel --output-on-failure --no-tests=error
+        ctest -L unit -j 4 -LE parallel --output-on-failure --no-tests=error
       working-directory: ${{runner.workspace}}/ERF/build-${{matrix.os}}
 
     - name: Run Parallel Tests

@@ -52,7 +52,7 @@ namespace SDRiming
      *  where w = log10(St)
      */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    auto impactVelocity_RasmussenHeymsfield1985( const ParticleReal a_Re, /*!< Reynolds number */
+    auto impactVelocity_RasmussenHeymsfield1985 ( const ParticleReal a_Re, /*!< Reynolds number */
                                                  const ParticleReal a_St  /*!< Stokes number */ )
     {
         // the fits only apply for St >= 0.1; log10(0) raises FE_DIVBYZERO under fpe_trap_zero
@@ -103,7 +103,7 @@ namespace SDRiming
 
     /*! \brief Ice surface temperature */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    ParticleReal iceSurfaceTemperature( const ParticleReal a_T, /*!< temperature */
+    ParticleReal iceSurfaceTemperature ( const ParticleReal a_T, /*!< temperature */
                                         const ParticleReal a_P, /*!< pressure */
                                         const ParticleReal a_qv, /*!< vapour fraction */
                                         const ParticleReal a_D, /*!< diffusivity coeff */
@@ -134,7 +134,7 @@ namespace SDRiming
      *  Output bounded to 0.1 <= rho_rime <= 0.91 g/cm^3 (100-910 kg/m^3)
      */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    auto rimeDensity_HeymsfieldPflaum1985( const ParticleReal a_radius,      /*!< droplet radius [m] */
+    auto rimeDensity_HeymsfieldPflaum1985 ( const ParticleReal a_radius,      /*!< droplet radius [m] */
                                            const ParticleReal a_a,           /*!< ice particle equatorial radius [m] */
                                            const ParticleReal a_c,           /*!< ice particle polar radius [m] */
                                            const ParticleReal a_vz_w,        /*!< vertical velocity of water droplet [m/s] */

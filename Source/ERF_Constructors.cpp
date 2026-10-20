@@ -9,8 +9,12 @@
 #include "ERF.H"
 #include "ERF_Constants.H"
 #include "AMReX_buildInfo.H"
+#include "ERF_NoahMPGitHash.H"
 #include "ERF_SBMConstraintGroups.H"
+#include "ERF_SBMFixtureValidation.H"
+#include "ERF_SBMRemapping.H"
 #include "ERF_SBMStateManager.H"
+#include "ERF_SBMTransport.H"
 
 #include <algorithm>
 #include <string>
@@ -18,7 +22,7 @@
 
 namespace {
 
-erf_sbm::SBMLayout make_sbm_layout(const SolverChoice& choice)
+erf_sbm::SBMLayout make_sbm_layout (const SolverChoice& choice)
 {
     erf_sbm::SpectralGridSpec grid;
     grid.coordinate_kind = erf_sbm::CoordinateKind::Mass;
@@ -44,55 +48,76 @@ erf_sbm::SBMLayout make_sbm_layout(const SolverChoice& choice)
     return erf_sbm::SBMLayout(std::move(spec));
 }
 
-void validate_sbm_zero_transport_fixture(const SolverChoice& choice,
-                                         const int max_level)
+void validate_sbm_m3_advection (const SolverChoice& choice,
+                                const int max_level)
 {
     if (choice.moisture_type != MoistureType::SBM) return;
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.sbm_zero_transport_fixture,
-        "moisture_model=SBM requires the explicit zero-transport fixture option");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(AMREX_SPACEDIM == 3,
-        "SBM zero-transport fixture requires three-dimensional triply periodic geometry");
+        "SBM M3 mapped advection requires three dimensions");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(max_level == 0,
-        "SBM M1 zero-transport fixture supports one AMR level only");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.mesh_type == MeshType::ConstantDz,
-        "SBM zero-transport fixture requires mesh_type=ConstantDz");
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.terrain_type == TerrainType::None,
-        "SBM zero-transport fixture requires static Cartesian geometry without terrain or EB");
+        "SBM M3 mapped advection supports one AMR level only");
+    const bool anelastic = !choice.anelastic.empty() && choice.anelastic[0] != 0;
+    // Grid stretching may set StaticFittedMesh as a label while retaining
+    // StretchedDz; only VariableDz selects the fitted-terrain projection.
+    const bool fitted_terrain_mesh =
+        choice.terrain_type == TerrainType::StaticFittedMesh &&
+        choice.mesh_type == MeshType::VariableDz;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        !(anelastic && fitted_terrain_mesh),
+        "SBM M3 does not currently support anelastic StaticFittedMesh: the "
+        "fitted-terrain anelastic projection requires a nonperiodic vertical "
+        "boundary while the M3 spectral lifecycle remains restricted to "
+        "periodic domains");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.terrain_type == TerrainType::None ||
+                                     choice.terrain_type == TerrainType::StaticFittedMesh,
+        "SBM M3 requires static non-EB geometry; moving terrain and embedded boundaries are unsupported");
+    const bool supported_mesh = choice.mesh_type == MeshType::ConstantDz ||
+        choice.mesh_type == MeshType::StretchedDz ||
+        (choice.mesh_type == MeshType::VariableDz &&
+         choice.terrain_type == TerrainType::StaticFittedMesh);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(supported_mesh,
+        "SBM M3 supports ConstantDz, StretchedDz, or static fitted-mesh geometry");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.buildings_type == BuildingsType::None,
-        "SBM zero-transport fixture requires buildings_type=None");
+        "SBM M3 requires buildings_type=None");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.substepping_type.size() == 1 &&
                                      choice.substepping_type[0] == SubsteppingType::None,
-        "SBM zero-transport fixture requires acoustic substepping_type=None");
+        "SBM M3 requires acoustic substepping_type=None");
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.anelastic_type.empty() ||
+                                     choice.anelastic[0] == 0 ||
+                                     choice.anelastic_type[0] == AnelasticType::RK2,
+        "SBM M3 supports the Anelastic RK2 Heun integrator only");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.diffChoice.molec_diff_type == MolecDiffType::None,
-        "SBM zero-transport fixture does not support scalar diffusion");
+        "SBM M3 does not support scalar or particle diffusion");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!choice.turbChoice[0].use_kturb &&
                                      choice.turbChoice[0].pbl_type == PBLType::None,
-        "SBM zero-transport fixture does not support turbulent diffusion or SHOC/macrophysics");
+        "SBM M3 does not support turbulent particle mixing or SHOC/macrophysics");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!choice.use_num_diff,
-        "SBM zero-transport fixture does not support numerical diffusion");
+        "SBM M3 does not support numerical diffusion");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.spongeChoice.sponge_type == SpongeType::None,
-        "SBM zero-transport fixture does not support sponge source terms");
+        "SBM M3 does not support sponge source terms");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!choice.any_perturbation(),
-        "SBM zero-transport fixture does not support velocity perturbations");
+        "SBM M3 does not support velocity perturbations");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!choice.custom_w_subsidence,
-        "SBM zero-transport fixture does not support custom subsidence forcing");
+        "SBM M3 does not support custom subsidence forcing");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!choice.large_scale_forcing &&
                                      !choice.nudging_from_input_sounding &&
                                      !choice.custom_moisture_forcing &&
                                      !choice.use_real_bcs,
-        "SBM zero-transport fixture does not support large-scale, nudging, or custom moisture forcing");
+        "SBM M3 does not support large-scale, nudging, custom moisture forcing, or real physical boundary conditions");
 
     std::string problem_name = "Undefined";
     amrex::ParmParse pp_erf("erf");
     pp_erf.queryAdd("prob_name", problem_name);
     const std::string problem_name_ci = amrex::toLower(problem_name);
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        problem_name_ci == "undefined" || problem_name_ci == "sbm zero-transport fixture",
-        "SBM zero-transport fixture rejects problem-specific liquid forcing and custom initial perturbations");
+        problem_name_ci == "undefined" || problem_name_ci == "sbm m3 periodic advection" ||
+        problem_name_ci == "scalar advection/diffusion",
+        "SBM M3 supports only the qualified Undefined, SBM M3 periodic advection, "
+        "or Scalar Advection/Diffusion problem setups");
 }
 
-void validate_auxiliary_inert_tracer_fixture(const SolverChoice& choice,
-                                             const int max_level)
+void validate_auxiliary_inert_tracer_fixture (const SolverChoice& choice,
+                                              const int max_level)
 {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.moisture_type == MoistureType::None,
         "M2 auxiliary inert tracer fixture requires moisture_model=None");
@@ -201,6 +226,7 @@ ERF::ERF_shared ()
     if (ParallelDescriptor::IOProcessor()) {
         const char* erf_hash = buildInfoGetGitHash(1);
         const char* amrex_hash = buildInfoGetGitHash(2);
+        const char* noahmp_hash = NoahMPGitHash();
         const char* buildgithash = buildInfoGetBuildGitHash();
         const char* buildgitname = buildInfoGetBuildGitName();
 
@@ -210,6 +236,9 @@ ERF::ERF_shared ()
         }
         if (strlen(amrex_hash) > 0) {
           Print() << "AMReX git hash: " << amrex_hash << "\n";
+        }
+        if (strlen(noahmp_hash) > 0) {
+          Print() << "Noah-MP git hash: " << noahmp_hash << "\n";
         }
         if (strlen(buildgithash) > 0) {
           Print() << buildgitname << " git hash: " << buildgithash << "\n";
@@ -252,7 +281,7 @@ ERF::ERF_shared ()
     m_SurfaceLayer.resize(AMREX_SPACEDIM*2);
 
     ReadParameters();
-    validate_sbm_zero_transport_fixture(solverChoice, max_level);
+    validate_sbm_m3_advection(solverChoice, max_level);
     bool auxiliary_inert_tracer_test = false;
     ParmParse pp_auxiliary("erf");
     pp_auxiliary.queryAdd("auxiliary_inert_tracer_test", auxiliary_inert_tracer_test);
@@ -267,6 +296,17 @@ ERF::ERF_shared ()
         if (!solverChoice.sbm_fixture_initial_state.empty()) {
             std::copy(solverChoice.sbm_fixture_initial_state.begin(),
                       solverChoice.sbm_fixture_initial_state.end(), candidate.begin());
+        }
+        const auto fixture_canonicality =
+            erf_sbm::validate_fixture_initial_state_canonicality(layout, candidate);
+        if (!fixture_canonicality.canonical) {
+            const char* representation =
+                fixture_canonicality.moment_mode == erf_sbm::MomentMode::OneMoment ?
+                "one-moment" : "two-moment";
+            amrex::Error("SBM fixture initial state is not canonical for selected spectral "
+                         "representation: population=" +
+                std::to_string(fixture_canonicality.population_id) + " representation=" +
+                representation + " bin=" + std::to_string(fixture_canonicality.bin));
         }
         for (const auto& group : erf_sbm::make_constraint_groups(layout)) {
             amrex::Real margin = amrex::Real(0.0);
@@ -285,6 +325,8 @@ ERF::ERF_shared ()
         }
         sbm_state_manager = std::make_unique<erf_sbm::SBMStateManager>(
             std::move(layout), max_level + 1);
+        sbm_transport = std::make_unique<erf_sbm::SBMTransport>(
+            sbm_state_manager->layout(), max_level + 1);
     }
     // Create one invocation identity after inputs are available and before
     // InitData can read restart metadata or write an output on restart.
@@ -657,6 +699,8 @@ ERF::ERF_shared ()
     surface_state_1.resize(nlevs_max);
     surface_state_2.resize(nlevs_max);
     surface_state_interp.resize(nlevs_max);
+
+    mfvec_surface_fluxes.resize(nlevs_max);
 }
 
 ERF::~ERF () = default;

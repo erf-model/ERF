@@ -20,6 +20,22 @@ this ensures mass conservation since the normal momentum is in fact the flux for
 In order to ensure that the fine momentum on the coarse-fine boundary stays consistent with the
 interpolated coarse values throughout a fine timestep, we also interpolate the source term for
 the normal momentum on the coarse-fine interface.
+
+With acoustic substepping, interpolating linearly in time between the coarse level's old and new
+momenta is not enough: over a time step the density flux through a face is the time integral of the
+momentum on that face over the acoustic substeps, and the coarse level's integral uses what the
+momentum actually did, which acoustic waves crossing the face make far from linear. So, without
+terrain or with terrain that does not move, the coarse level records the
+flux through each face under the fine level's coarse-fine faces over each acoustic substep of its
+last RK stage. On its coarse-fine faces the fine level then uses the average of those fluxes over
+each of its own substeps, interpolated conservatively in space, and in the vertical sets the normal
+momentum (with terrain, the contravariant flux Omega) at the end of each substep from the same
+record. The fine fluxes through the interface then add up, over the coarse step, to the coarse ones,
+and the total mass is conserved to round-off.  Setting ``erf.cf_flux_history = false`` (the default
+is ``true``) goes back to interpolating the coarse momentum linearly in time on these faces; it is
+not done with moving terrain.  This is done under one-way coupling as well as two-way, so that
+the fine level sees the same fluxes through its coarse-fine faces whichever coupling is used.
+
 When using the anelastic approximation, this ensures that the computation of the updates to the
 fine momentum do not use any values of the perturbational pressure from the coarser level since
 the perturbational pressure is not synchronized between levels.
@@ -298,6 +314,29 @@ wrfinput-specific details.
 The restrictions are the same for both pathways: the PBL models and the column-integral
 derived quantities need entire columns and cannot be used on a level whose grids do not
 span the domain in z.  See :ref:`sec:nested-wrfinput`.
+
+**Anelastic runs.**  A level that stops inside the domain in z has coarse/fine faces at its
+top and bottom, and the anelastic projection treats them like its side faces: it applies no
+correction through them, so the flux through them has to come from the coarse level and add up
+to no net inflow.  On a terrain-fitted mesh the flux through a z-face is the contravariant
+:math:`\Omega = \rho_0 w - \rho_0 u\, \partial z/\partial x - \rho_0 v\, \partial z/\partial y`.
+ERF therefore
+
+-  fills the horizontal momenta just below and above the level from the coarse level, since
+   :math:`\Omega` on the level's lowest and highest faces reads them;
+
+-  sets :math:`\Omega` on the level's top and bottom faces from the coarse level's
+   :math:`\Omega`, interpolated so the fine faces over each coarse face average to it, both in
+   the projection and in the fine-level fills the time step uses, so that theta and the other
+   scalars are carried by the same face fluxes the projection balanced (the coarse
+   :math:`\rho w` alone would leave the net inflow in the level as a uniform divergence);
+
+-  passes ``gmres_fft`` only the level's own layers of :math:`\Delta z` for its preconditioner.
+
+All three terrain solvers (``erf.terrain_poisson_solver``) run such a level.  The wall distance
+``erf.wall_dist_type = terrain_height`` takes the ground heights a level does not hold from the
+coarser level.  With one-way coupling this is all the level needs; two-way coupling of such a
+level over terrain has not been tested yet.
 
 Moving Refinement Regions
 ~~~~~~~~~~~~~~~~~~~~~~~~~

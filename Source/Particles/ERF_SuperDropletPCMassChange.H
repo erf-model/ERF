@@ -191,7 +191,7 @@ namespace SDMassChangeUtils_LV
                             RT&             a_res_norm_a,   /*!< absolute norm at exit */
                             RT&             a_res_norm_r    /*!< relative norm at exit */,
                             bool&           a_converged     /*!< convergence status at exit */
-                         ) const
+                          ) const
         {
             a_converged = false;
             RT res_norm0 = RT(0.0);
@@ -872,7 +872,7 @@ namespace SDMassChangeUtils_SV
 
         /*! \brief Compute capacitance */
         AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-        RT capacitance( const RT a_a, /*!< equatorial radius */
+        RT capacitance ( const RT a_a, /*!< equatorial radius */
                         const RT a_c  /*!< polar radius */ ) const noexcept
         {
             auto phi = a_c / a_a;

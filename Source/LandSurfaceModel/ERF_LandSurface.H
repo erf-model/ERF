@@ -115,7 +115,7 @@ public:
     }
 
     void
-    Plot(const int& lev, const int& nstep)
+    Plot (const int& lev, const int& nstep)
     {
         m_lsm_model[lev]->Plot_Landfile(nstep);
     }
@@ -301,8 +301,15 @@ public:
     bool
     Get_LSM_Update_Status (const int& lev) { return m_lsm_model[lev]->Get_Update_Status(); }
 
+    [[nodiscard]] bool
+    Runs_Own_Land_Driver (const int& lev) const
+    {
+        return lev >= 0 && lev < static_cast<int>(m_lsm_model.size()) && m_lsm_model[lev] &&
+               m_lsm_model[lev]->Runs_Own_Land_Driver();
+    }
+
     std::unordered_map<std::string,std::string>&
-    Get_WRFInputNames() { return m_lsm_model[0]->Lsm_WRFInputNames(); }
+    Get_WRFInputNames () { return m_lsm_model[0]->Lsm_WRFInputNames(); }
 
     // Scalar LSM step counter (e.g., NoahMP itimestep) for checkpoint/restart.
     int
@@ -405,24 +412,24 @@ public:
         m_lsm_model[lev]->set_precip_input(precip_in);
     }
 
-    void set_LSM_terrain_inputs(const int& lev,
-                                const amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>& sst_in,
-                                const amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>>& lmask_in)
+    void set_LSM_terrain_inputs (const int& lev,
+                                 const amrex::Vector<amrex::Vector<std::unique_ptr<amrex::MultiFab>>>& sst_in,
+                                 const amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>>& lmask_in)
     {
         m_lsm_model[lev]->set_terrain_inputs(sst_in[lev], lmask_in[lev]);
     }
 
     template<class SurfModelType>
-    SurfModelType* get_model_lev(const int &lev) {
+    SurfModelType* get_model_lev (const int &lev) {
         return static_cast<SurfModelType*>(m_lsm_model[lev].get());
     }
 
-    void WriteCheckpoint(const int &lev, const std::string &checkpointname) const
+    void WriteCheckpoint (const int &lev, const std::string &checkpointname) const
     {
         m_lsm_model[lev]->WriteCheckpoint(lev, checkpointname);
     }
 
-    void ReadCheckpoint(const int &lev, const std::string &checkpointname)
+    void ReadCheckpoint (const int &lev, const std::string &checkpointname)
     {
         m_lsm_model[lev]->ReadCheckpoint(lev, checkpointname);
     }

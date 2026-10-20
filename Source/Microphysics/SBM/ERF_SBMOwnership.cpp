@@ -6,7 +6,7 @@
 
 namespace erf_sbm {
 
-const char* host_write_path_name(const HostWritePath path) noexcept
+const char* host_write_path_name (const HostWritePath path) noexcept
 {
     switch (path) {
     case HostWritePath::Advection: return "advection";
@@ -20,13 +20,13 @@ const char* host_write_path_name(const HostWritePath path) noexcept
     return "unknown";
 }
 
-bool host_write_allowed(const bool sbm_active, const int component) noexcept
+bool host_write_allowed (const bool sbm_active, const int component) noexcept
 {
     return host_write_range_allowed(sbm_active, component, 1);
 }
 
-bool host_write_range_allowed(const bool sbm_active, const int start_component,
-                              const int num_components) noexcept
+bool host_write_range_allowed (const bool sbm_active, const int start_component,
+                               const int num_components) noexcept
 {
     if (start_component < 0 || num_components <= 0 ||
         num_components > std::numeric_limits<int>::max() - start_component) {
@@ -38,14 +38,14 @@ bool host_write_range_allowed(const bool sbm_active, const int start_component,
            !(start_component <= RhoQ3_comp && RhoQ3_comp < end_component);
 }
 
-void require_host_write_allowed(const bool sbm_active, const int component,
+void require_host_write_allowed (const bool sbm_active, const int component,
                                const HostWritePath path)
 {
     require_host_write_range_allowed(sbm_active, component, 1, path);
 }
 
-void require_host_write_range_allowed(const bool sbm_active, const int start_component,
-                                      const int num_components, const HostWritePath path)
+void require_host_write_range_allowed (const bool sbm_active, const int start_component,
+                                       const int num_components, const HostWritePath path)
 {
     if (!host_write_range_allowed(sbm_active, start_component, num_components)) {
         const std::string range = num_components > 0 && start_component >= 0 &&

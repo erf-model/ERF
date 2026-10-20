@@ -84,7 +84,7 @@ public:
     virtual int Get_Qstate_NonMoist_Size () = 0;
 
     /*! \brief get total number of conserved state variables */
-    inline int Get_Qstate_Size()
+    inline int Get_Qstate_Size ()
     {
         return Get_Qstate_Moist_Size() + Get_Qstate_NonMoist_Size();
     }

@@ -775,7 +775,7 @@ SHOCInterface::add_slow_tend (const MFIter& mfi,
 
 
 size_t
-SHOCInterface::requested_buffer_size_in_bytes() const
+SHOCInterface::requested_buffer_size_in_bytes () const
 {
     using TPF = ekat::TeamPolicyFactory<KT::ExeSpace>;
 
@@ -799,7 +799,7 @@ SHOCInterface::requested_buffer_size_in_bytes() const
 
 
 void
-SHOCInterface::init_buffers()
+SHOCInterface::init_buffers ()
 {
 
     // Buffer of contiguous memory
@@ -1127,7 +1127,7 @@ SHOCInterface::finalize_impl (const double dt)
 
 
 void
-SHOCInterface::apply_turbulent_mountain_stress()
+SHOCInterface::apply_turbulent_mountain_stress ()
 {
     auto rrho_i   = m_buffer.rrho_i;
     auto upwp_sfc = m_buffer.upwp_sfc;
@@ -1149,7 +1149,7 @@ SHOCInterface::apply_turbulent_mountain_stress()
 
 
 void
-SHOCInterface::check_flux_state_consistency(const double dt)
+SHOCInterface::check_flux_state_consistency (const double dt)
 {
     using PC  = scream::physics::Constants<Real>;
     using RU  = ekat::ReductionUtils<KT::ExeSpace>;

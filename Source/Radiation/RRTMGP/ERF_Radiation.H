@@ -200,7 +200,7 @@ public:
 
     // Fill KOKKOS Views from AMReX MultiFabs
     void
-    mf_to_kokkos_buffers(amrex::iMultiFab* lmask,
+    mf_to_kokkos_buffers (amrex::iMultiFab* lmask,
                          amrex::MultiFab*  t_surf,
                          const amrex::Vector<const amrex::MultiFab*>& lsm_input_ptrs);
 

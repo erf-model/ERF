@@ -10,7 +10,7 @@
 
 namespace erf_sbm {
 
-GridValidation SpectralGrid::validate(const SpectralGridSpec& spec)
+GridValidation SpectralGrid::validate (const SpectralGridSpec& spec)
 {
     if (spec.edges.size() < 2) return {false, "spectral grid needs at least one bin"};
     if (spec.coordinate_units.empty()) return {false, "spectral coordinate units are required"};
@@ -39,13 +39,13 @@ GridValidation SpectralGrid::validate(const SpectralGridSpec& spec)
     return {true, {}};
 }
 
-SpectralGrid::SpectralGrid(SpectralGridSpec spec) : m_spec(std::move(spec))
+SpectralGrid::SpectralGrid (SpectralGridSpec spec) : m_spec(std::move(spec))
 {
     const auto result = validate(m_spec);
     if (!result.valid) throw std::invalid_argument("invalid spectral grid: " + result.message);
 }
 
-std::string SpectralGrid::identity() const
+std::string SpectralGrid::identity () const
 {
     std::ostringstream out;
     out << "spectral-grid-v4|kind=" << static_cast<int>(m_spec.coordinate_kind)
@@ -56,36 +56,34 @@ std::string SpectralGrid::identity() const
     return out.str();
 }
 
-bool SpectralGrid::two_moment_realizable(const amrex::Real C, const amrex::Real M,
-                                         const amrex::Real lower, const amrex::Real upper) noexcept
+bool SpectralGrid::two_moment_realizable (const amrex::Real C, const amrex::Real M,
+                                          const amrex::Real lower, const amrex::Real upper) noexcept
 {
-    if (!std::isfinite(C) || !std::isfinite(M) || !std::isfinite(lower) || !std::isfinite(upper) ||
-        C < amrex::Real(0.0) || lower >= upper) return false;
-    if (C == amrex::Real(0.0)) return M == amrex::Real(0.0);
-    return M >= lower*C && M <= upper*C;
+    EndpointTransform result;
+    return try_two_moment_to_endpoints(C, M, lower, upper, result);
 }
 
-std::pair<amrex::Real, amrex::Real>
-SpectralGrid::two_moment_to_endpoints(const amrex::Real C, const amrex::Real M,
-                                      const amrex::Real lower, const amrex::Real upper)
+EndpointTransform
+SpectralGrid::two_moment_to_endpoints (const amrex::Real C, const amrex::Real M,
+                                       const amrex::Real lower, const amrex::Real upper)
 {
-    if (!two_moment_realizable(C, M, lower, upper)) {
-        throw std::invalid_argument("non-realizable two-moment state");
+    EndpointTransform result;
+    if (!try_two_moment_to_endpoints(C, M, lower, upper, result)) {
+        throw std::invalid_argument("invalid or materially non-realizable two-moment state");
     }
-    if (C == amrex::Real(0.0)) return {amrex::Real(0.0), amrex::Real(0.0)};
-    const amrex::Real denominator = upper - lower;
-    return {(upper*C - M)/denominator, (M - lower*C)/denominator};
+    return result;
 }
 
 std::pair<amrex::Real, amrex::Real>
-SpectralGrid::endpoints_to_two_moment(const amrex::Real L, const amrex::Real H,
-                                      const amrex::Real lower, const amrex::Real upper)
+SpectralGrid::endpoints_to_two_moment (const amrex::Real L, const amrex::Real H,
+                                       const amrex::Real lower, const amrex::Real upper)
 {
-    if (!std::isfinite(L) || !std::isfinite(H) || L < amrex::Real(0.0) || H < amrex::Real(0.0) || lower >= upper) {
+    amrex::Real C = amrex::Real(0.0);
+    amrex::Real M = amrex::Real(0.0);
+    if (!try_endpoints_to_two_moment(L, H, lower, upper, C, M)) {
         throw std::invalid_argument("invalid two-moment endpoint state");
     }
-    const amrex::Real C = L + H;
-    return {C, lower*L + upper*H};
+    return {C, M};
 }
 
 } // namespace erf_sbm

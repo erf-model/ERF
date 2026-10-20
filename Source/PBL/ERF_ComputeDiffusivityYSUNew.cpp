@@ -41,23 +41,24 @@ using namespace amrex;
  */
 void
 ComputeDiffusivityYSUNew (const MultiFab& xvel,
-                       const MultiFab& yvel,
-                       const MultiFab& cons_in,
-                       MultiFab& eddyViscosity,
-                       const Geometry& geom,
-                       const TurbChoice& turbChoice,
-                       std::unique_ptr<SurfaceLayer>& SurfLayer,
-                       bool use_terrain_fitted_coords,
-                       bool use_moisture,
-                       int level,
-                       const BCRec* bc_ptr,
-                       bool /*vert_only*/,
-                       const std::unique_ptr<MultiFab>& z_phys_nd,
-                       const std::unique_ptr<MultiFab>& z_phys_cc,
-                       const MoistureComponentIndices& moisture_indices,
-                       const MultiFab* qheating_rates,
+                          const MultiFab& yvel,
+                          const MultiFab& cons_in,
+                          MultiFab& eddyViscosity,
+                          const Geometry& geom,
+                          const TurbChoice& turbChoice,
+                          std::unique_ptr<SurfaceLayer>& SurfLayer,
+                          bool use_terrain_fitted_coords,
+                          bool use_moisture,
+                          int level,
+                          const BCRec* bc_ptr,
+                          bool /*vert_only*/,
+                          const std::unique_ptr<MultiFab>& z_phys_nd,
+                          const std::unique_ptr<MultiFab>& z_phys_cc,
+                          const MoistureComponentIndices& moisture_indices,
+                          const MultiFab* qheating_rates,
                           const MultiFab* terrain_blank)
 {
+    const StratType pbl_strat = turbChoice.pbl_strat_type;
     /*
     ============================================================================
     Yonsei University (YSU) Boundary Layer Parameterization Scheme
@@ -464,8 +465,9 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             // WRF bl_ysu.F90 lines 651-662: zol1 = max(br*fm*fm/fh, rimin)
             // Approximate: zol1 = z1 / L_obuk
             Real obuk_val = ol_eff_arr(i, j, 0);
-            if (std::abs(obuk_val) < amrex::Real(1.0e-10))
+            if (std::abs(obuk_val) < amrex::Real(1.0e-10)) {
                 obuk_val = (obuk_val >= zero) ? amrex::Real(1.0e-10) : amrex::Real(-1.0e-10);
+            }
             const Real zl1 = (use_terrain_fitted_coords)
                            ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_nd_arr)
                            : (ksrf + myhalf) * dz;
@@ -1800,7 +1802,28 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 ComputeVerticalDerivativesPBL(i, j, k, uvel, vvel, cell_data, izmin, izmax, pbl_derivative_dz_inv(i,j,k),
                                               c_ext_dir_on_zlo, c_ext_dir_on_zhi, u_ext_dir_on_zlo,
                                               u_ext_dir_on_zhi, v_ext_dir_on_zlo, v_ext_dir_on_zhi, dthetadz,
-                                              dudz, dvdz, moisture_indices);
+                                              dudz, dvdz, moisture_indices, pbl_strat);
+
+                // This branch is the free atmosphere above the PBL, so it only
+                // reaches the first fluid cell of the column when the PBL index
+                // collapses to it. The resolved gradients are unusable there
+                // (ERF #4037), so fall back on the MOST profile. The effective
+                // surface scales and the local surface index are used so that an
+                // immersed surface is handled the same way as the domain bottom.
+                if (k == ksrf) {
+                    const Real zrel_sl = amrex::max(zval - zib, Real(1.0e-4));
+                    const Real theta   = cell_data(i, j, k, RhoTheta_comp) / rho;
+                    const Real qv      = (moisture_indices.qv >= 0) ?
+                                         cell_data(i, j, k, moisture_indices.qv) / rho : zero;
+                    PBLSurfaceLayerGradient sl;
+                    sl.u_star  = us_eff_arr(i, j, 0);
+                    sl.tstar_v = ComputeVirtualTStarPBL(ts_eff_arr(i, j, 0),
+                                                        use_moisture ? qs_eff_arr(i, j, 0) : zero,
+                                                        theta, qv, use_moisture);
+                    sl.zval    = zrel_sl;
+                    sl.zeta    = zrel_sl / obuk_val;
+                    ApplySurfaceLayerGradientsPBL(sl, dthetadz, dudz, dvdz);
+                }
 
                 // Apply boundary safeguards to avoid numerical instability in calm conditions above PBL
                 const Real dudz_safe = (k < izmax) ? dudz : zero;

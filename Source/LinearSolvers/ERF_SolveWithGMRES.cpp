@@ -66,10 +66,16 @@ void ERF::solve_with_gmres (int lev, const Box& subdomain, MultiFab& rhs, MultiF
         my_geom.define(subdomain, rb, coord_sys, is_per);
     }
 
+    // The FFT preconditioner is built on the region, so it needs the dz of the region's own
+    // layers only (make_sub_dz), as solve_with_fft passes on a stretched mesh.  A region that
+    // stops below the top or above the ground (a level refined over part of the depth) would
+    // otherwise hand it the whole column.
+    Gpu::DeviceVector<Real> dz_region = make_sub_dz(lev, subdomain);
+
     amrex::GMRES<MultiFab, TerrainPoisson> gmsolver;
 
     TerrainPoisson tp(my_geom, Geom(lev), rhs.boxArray(), rhs.DistributionMap(), domain_bc_type,
-                      stretched_dz_d[lev], ax_sub, ay_sub, az_sub, dJ_sub, &znd_sub,
+                      dz_region, ax_sub, ay_sub, az_sub, dJ_sub, &znd_sub,
                       solverChoice.use_real_bcs);
 
     gmsolver.define(tp);
@@ -82,26 +88,8 @@ void ERF::solve_with_gmres (int lev, const Box& subdomain, MultiFab& rhs, MultiF
 
     gmsolver.solve(phi, rhs, reltol, abstol);
 
+    // The caller (project_momenta) multiplies the lateral fluxes by the map factor
     tp.getFluxes(phi, fluxes);
-
-    for (MFIter mfi(phi); mfi.isValid(); ++mfi)
-    {
-        Box xbx = mfi.nodaltilebox(0);
-        Box ybx = mfi.nodaltilebox(1);
-        const Array4<Real      >& fx_ar = fluxes[0].array(mfi);
-        const Array4<Real      >& fy_ar = fluxes[1].array(mfi);
-        const Array4<Real const>& mf_ux = mapfac[lev][MapFacType::u_x]->const_array(mfi);
-        const Array4<Real const>& mf_vy = mapfac[lev][MapFacType::v_y]->const_array(mfi);
-        ParallelFor(xbx,ybx,
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            fx_ar(i,j,k) *= mf_ux(i,j,0);
-        },
-        [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            fy_ar(i,j,k) *= mf_vy(i,j,0);
-        });
-    } // mfi
 #else
     amrex::ignore_unused(lev, rhs, phi, fluxes, ax_sub, ay_sub, az_sub, dJ_sub, znd_sub);
 #endif
@@ -110,4 +98,22 @@ void ERF::solve_with_gmres (int lev, const Box& subdomain, MultiFab& rhs, MultiF
     // Impose bc's on pprime
     // ****************************************************************************
     ImposeBCsOnPhi(lev, phi, subdomain);
+}
+
+/**
+ * The stretched dz of a solve region's own layers, k = subdomain lo to hi in z, on the device.
+ *
+ * @param lev       Level index
+ * @param subdomain Region solved on
+ */
+Gpu::DeviceVector<Real> ERF::make_sub_dz (int lev, const Box& subdomain)
+{
+    const int klo = subdomain.smallEnd(2);
+    Vector<Real> dz_h(subdomain.length(2));
+    for (int k = klo; k <= subdomain.bigEnd(2); k++) {
+        dz_h[k-klo] = stretched_dz_h[lev][k];
+    }
+    Gpu::DeviceVector<Real> dz_d(dz_h.size());
+    Gpu::copy(Gpu::hostToDevice, dz_h.begin(), dz_h.end(), dz_d.begin());
+    return dz_d;
 }

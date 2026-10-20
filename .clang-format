@@ -1,8 +1,18 @@
 # -*- mode: yaml -*-
+#
+# The authority for ERF's coding style is the "ERF Coding Style Guide" section
+# of CONTRIBUTING.md; this file exists to keep clang-format from fighting it.
+#
+# Requires clang-format 14 or newer (SpaceBeforeParensOptions).
+#
+# NOTE: this file is not enforced by CI, and ColumnLimit below (80) does not
+# describe the code -- 13% of lines in Source/ are longer than 80 columns, so a
+# blanket `clang-format -i` will still rewrap the tree. Prefer formatting only
+# the lines you touch until that is settled.
 ---
 Language:        Cpp
 AccessModifierOffset: -2
-AlignAfterOpenBracket: AlwaysBreak
+AlignAfterOpenBracket: Align
 AlignConsecutiveAssignments: false
 AlignConsecutiveDeclarations: false
 AlignEscapedNewlinesLeft: false
@@ -42,8 +52,8 @@ BreakStringLiterals: true
 ColumnLimit:     80
 CommentPragmas:  '^ IWYU pragma:'
 ConstructorInitializerAllOnOneLineOrOnePerLine: true
-ConstructorInitializerIndentWidth: 2
-ContinuationIndentWidth: 2
+ConstructorInitializerIndentWidth: 4
+ContinuationIndentWidth: 4
 Cpp11BracedListStyle: true
 DerivePointerAlignment: false
 DisableFormat:   false
@@ -57,8 +67,9 @@ IncludeCategories:
     Priority:        1
 IncludeIsMainRegex: '$'
 IndentCaseLabels: false
-IndentWidth:     2
+IndentWidth:     4
 IndentWrappedFunctionNames: false
+# InsertBraces: true   # CONTRIBUTING.md brace rule; off until that sweep is done
 JavaScriptQuotes: Leave
 JavaScriptWrapImports: true
 KeepEmptyLinesAtTheStartOfBlocks: true
@@ -80,7 +91,15 @@ ReflowComments:  true
 SortIncludes: false
 SpaceAfterCStyleCast: false
 SpaceBeforeAssignmentOperators: true
-SpaceBeforeParens: ControlStatements
+SpaceBeforeParens: Custom
+SpaceBeforeParensOptions:
+  AfterControlStatements: true
+  AfterForeachMacros: true
+  AfterFunctionDeclarationName: true
+  AfterFunctionDefinitionName: true
+  AfterIfMacros: true
+  AfterOverloadedOperator: true
+  BeforeNonEmptyParentheses: false
 SpaceInEmptyParentheses: false
 SpacesBeforeTrailingComments: 1
 SpacesInAngles:  false
@@ -89,6 +108,6 @@ SpacesInCStyleCastParentheses: false
 SpacesInParentheses: false
 SpacesInSquareBrackets: false
 Standard:        Cpp11
-TabWidth:        2
+TabWidth:        4
 UseTab:          Never
 

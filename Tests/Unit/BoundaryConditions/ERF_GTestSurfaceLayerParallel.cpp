@@ -1,6 +1,7 @@
 #include "ERF_GTestSurfaceLayerParallelCommon.H"
 
 #include "../ERF_GTestAssertions.H"
+#include "../ERF_GTestTempDir.H"
 
 #include <gtest/gtest.h>
 
@@ -422,8 +423,8 @@ TEST(SurfaceLayerParallel, TextSstUsesPhysicalSurfaceCopyOnZSplitGrids)
     ScopedMFIterTileSize tile_size(IntVect(AMREX_D_DECL(4, 4, 1024)));
     const std::string prefix = "unit_surface_layer_parallel_text_sst_zsplit";
     ScopedSurfaceLayerParams params(prefix.c_str());
-    const auto file = std::filesystem::current_path() /
-        ("erf_surface_layer_parallel_text_sst_" + std::to_string(sizeof(Real)) + ".txt");
+    const auto file = std::filesystem::path(
+        erf_gtest_temp_path("erf_surface_layer_parallel_text_sst_" + std::to_string(sizeof(Real))).string() + ".txt");
 
     if (ParallelDescriptor::IOProcessor()) {
         std::ofstream out(file);

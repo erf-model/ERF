@@ -144,12 +144,12 @@ FillZeroAreaFaceFluxes (MultiFab& phi, Array<MultiFab,AMREX_SPACEDIM>& fluxes,
 }
 
 // Explicit template instantiations for the types we use
-template void FillZeroAreaFaceFluxes(amrex::MultiFab&, amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>&,
+template void FillZeroAreaFaceFluxes (amrex::MultiFab&, amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>&,
                                      const amrex::Geometry&, amrex::EBFArrayBoxFactory const&,
                                      amrex::EBFArrayBoxFactory const&,
                                      amrex::EBFArrayBoxFactory const&,
                                      amrex::EBFArrayBoxFactory const&);
-template void FillZeroAreaFaceFluxes(amrex::MultiFab&, amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>&,
+template void FillZeroAreaFaceFluxes (amrex::MultiFab&, amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>&,
                                      const amrex::Geometry&, amrex::EBFArrayBoxFactory const&,
                                      eb_aux_ const&,
                                      eb_aux_ const&,

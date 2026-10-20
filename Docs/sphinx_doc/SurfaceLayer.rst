@@ -266,7 +266,18 @@ where :math:`w_*` is the (Deardorff) convective velocity scale and
 :math:`\beta=1.2` (Beljaars 1995, QJRMS). Because :math:`w_*` is computed from the
 boundary layer depth, ``erf.most.include_wstar`` requires ``erf.most.pblh_calc`` to
 name a PBL height scheme; leaving it at its default of ``none`` is an error, since no
-boundary layer depth would ever be diagnosed. The subgrid velocity scale
+boundary layer depth would ever be diagnosed.
+
+On a refined level, the ``MYNN25`` diagnostic runs on the level's own columns only when its
+grids run from the ground to the top of the domain in every column. A refined region that
+ends lower (a patch near the ground, say) cannot see the top of a boundary layer deeper than
+itself, and one that does not reach the ground (a region aloft) has no column to scan, so
+either takes the PBL height of the next coarser level at each of its columns instead: each
+fine column gets the height of the coarse column that holds it. With subcycling that is the
+coarse height of the start of the coarse step. With EB terrain every level still diagnoses
+its own.
+
+The subgrid velocity scale
 :math:`V_{sg}` handles weak large-scale flow that is underresolved (Mahrt & Sun
 1995, MWR). This is parameterized as
 

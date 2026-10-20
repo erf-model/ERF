@@ -95,13 +95,14 @@ void ERF::poisson_wall_dist (int lev)
         // The surface nodes z_nd(:,:,klo) live only in the boxes that touch the surface;
         // when the BoxArray is split in z the boxes above hold nodes from their own k
         // range, so gather the surface slab onto every box (the same 2D footprint, at klo).
+        // A refined level that stops above the ground has no surface nodes at all; those come
+        // from the coarser level (fill_surface_nodes).
         BoxList bl_surf = z_phys_nd[lev]->boxArray().boxList();
         for (auto& b : bl_surf) { b.setRange(2,klo); }
         BoxArray ba_surf(std::move(bl_surf));
         IntVect ng_surf = z_phys_nd[lev]->nGrowVect(); ng_surf[2] = 0;
         MultiFab znd_surf(ba_surf, z_phys_nd[lev]->DistributionMap(), 1, ng_surf);
-        znd_surf.setVal(bogus_large_value);
-        znd_surf.ParallelCopy(*z_phys_nd[lev], 0, 0, 1, ng_surf, ng_surf, geom[lev].periodicity());
+        fill_surface_nodes(lev, znd_surf);
         // Every node the stencil below reads (valid plus the x/y ghosts) must
         // have been gathered; the slab has no z ghosts, so reduce over ng_surf
         // rather than a scalar ghost count.
@@ -568,4 +569,55 @@ void ERF::poisson_wall_dist (int lev)
 
     // The solve only fills the valid region, so fill the ghost cells here
     fill_wall_dist_ghost_cells(*walldist[lev], geom[lev]);
+}
+
+/**
+ * Fill a one-node-thick nodal MultiFab at the bottom of the domain (k = domain lo) with the
+ * surface heights z_phys_nd of level lev, valid and x/y ghost nodes.  Nodes the level holds are
+ * copied; nodes it does not hold (a refined level that stops above the ground holds none) are
+ * interpolated from the coarser level's surface, recursively, the way the level's own mesh was
+ * built from the coarse one (node_bilinear_interp).  Nodes no level can supply stay at
+ * bogus_large_value.
+ *
+ * @param lev      Level index
+ * @param znd_surf Nodal MultiFab whose boxes all lie at k = domain lo
+ */
+void ERF::fill_surface_nodes (int lev, MultiFab& znd_surf)
+{
+    const IntVect ng = znd_surf.nGrowVect();
+    znd_surf.setVal(bogus_large_value);
+    znd_surf.ParallelCopy(*z_phys_nd[lev], 0, 0, 1, ng, ng, geom[lev].periodicity());
+    if (lev == 0) { return; }
+
+    Real zmax = ReduceMax(znd_surf, ng,
+        [=] AMREX_GPU_HOST_DEVICE (Box const& bx, Array4<Real const> const& a) -> Real
+        {
+            Real m = std::numeric_limits<Real>::lowest();
+            amrex::Loop(bx, [&] (int i, int j, int k) { m = amrex::max(m, a(i,j,k)); });
+            return m;
+        });
+    ParallelAllReduce::Max(zmax, ParallelContext::CommunicatorSub());
+    if (zmax < Real(0.5) * bogus_large_value) { return; }   // every node was there
+
+    const int klo = geom[lev].Domain().smallEnd(2);
+    BoxList bl_c = z_phys_nd[lev-1]->boxArray().boxList();
+    for (auto& b : bl_c) { b.setRange(2,klo); }
+    BoxArray ba_c(std::move(bl_c));
+    IntVect ng_c = z_phys_nd[lev-1]->nGrowVect(); ng_c[2] = 0;
+    MultiFab surf_c(ba_c, z_phys_nd[lev-1]->DistributionMap(), 1, ng_c);
+    fill_surface_nodes(lev-1, surf_c);
+
+    MultiFab surf_f(znd_surf.boxArray(), znd_surf.DistributionMap(), 1, ng);
+    InterpFromCoarseLevel(surf_f, ng, ng, surf_c, 0, 0, 1, geom[lev-1], geom[lev],
+                          refRatio(lev-1), &node_bilinear_interp, domain_bcs_type, BCVars::cons_bc);
+
+    for (MFIter mfi(znd_surf); mfi.isValid(); ++mfi) {
+        const Array4<Real      > s_a = znd_surf.array(mfi);
+        const Array4<Real const> f_a = surf_f.const_array(mfi);
+        const Real big = Real(0.5) * bogus_large_value;
+        ParallelFor(mfi.growntilebox(ng), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (s_a(i,j,k) >= big) { s_a(i,j,k) = f_a(i,j,k); }
+        });
+    }
 }

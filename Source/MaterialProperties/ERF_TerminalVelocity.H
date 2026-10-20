@@ -17,7 +17,7 @@ struct TerminalVelocity
 
     /*! \brief Compute viscosity coefficient - Pruppacher & Klett, 1997*/
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    auto viscCoeff( const RT a_T /*!< temperature [K] */ ) const noexcept
+    auto viscCoeff ( const RT a_T /*!< temperature [K] */ ) const noexcept
     {
         RT T_degC = a_T - RT(273.15); // [K] -> [deg Celsius]
         RT viscosity = RT(0.0);
@@ -32,7 +32,7 @@ struct TerminalVelocity
 
     /*! \brief Terminal velocity - Rogers & Yau, 1989 */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    RT RogersYau( const RT a_r) const noexcept
+    RT RogersYau ( const RT a_r) const noexcept
     {
         static const RT k1 = RT(1.233e8); // m^{-1} s^{-1}
         return (k1 * a_r * a_r);
@@ -40,7 +40,7 @@ struct TerminalVelocity
 
     /*! \brief Terminal velocity - Atlas & Ulbrich, 1977 */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    RT AtlasUlbrich( const RT a_r) const noexcept
+    RT AtlasUlbrich ( const RT a_r) const noexcept
     {
         static const RT a = RT(3.778);
         static const RT b = RT(0.67);

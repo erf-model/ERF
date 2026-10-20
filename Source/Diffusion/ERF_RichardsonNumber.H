@@ -79,9 +79,9 @@
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 bool
-IsSaturated(int i, int j, int k,
-            const amrex::Array4<const amrex::Real>& cell_data,
-            int qc_index)
+IsSaturated (int i, int j, int k,
+             const amrex::Array4<const amrex::Real>& cell_data,
+             int qc_index)
 {
     if (qc_index >= 0) {
         amrex::Real rho = cell_data(i, j, k, Rho_comp);
@@ -127,11 +127,11 @@ IsSaturated(int i, int j, int k,
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
-ComputeN2(int i, int j, int k,
-          amrex::Real dzInv,
-          amrex::Real const_grav,
-          const amrex::Array4<const amrex::Real>& cell_data,
-          const MoistureComponentIndices& moisture_indices)
+ComputeN2 (int i, int j, int k,
+           amrex::Real dzInv,
+           amrex::Real const_grav,
+           const amrex::Array4<const amrex::Real>& cell_data,
+           const MoistureComponentIndices& moisture_indices)
 {
     const int rho_comp       = Rho_comp;
     const int rhoTheta_comp  = RhoTheta_comp;
@@ -189,7 +189,7 @@ ComputeN2(int i, int j, int k,
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
-ComputeN2_EB(int i, int j, int k,
+ComputeN2_EB (int i, int j, int k,
           const amrex::Array4<const amrex::EBCellFlag>& c_cflag,
           amrex::Real dzInv,
           amrex::Real const_grav,
@@ -208,58 +208,124 @@ ComputeN2_EB(int i, int j, int k,
     amrex::Real inv_theta;
     amrex::Real dtheta_dz;
 
-    bool is_covered_kp1 = c_cflag(i,j,k+1).isCovered();
-    bool is_covered_km1 = c_cflag(i,j,k-1).isCovered();
+    const bool is_covered_kp1 = c_cflag(i,j,k+1).isCovered();
+    const bool is_covered_km1 = c_cflag(i,j,k-1).isCovered();
 
     if (saturated && qc_index >= 0) {
-        amrex::Real theta_l    = GetThetal(i, j, k  , cell_data, moisture_indices);
-        amrex::Real theta_l_kp1= GetThetal(i, j, k+1, cell_data, moisture_indices);
-        amrex::Real theta_l_km1= GetThetal(i, j, k-1, cell_data, moisture_indices);
+
+        const amrex::Real theta_l = GetThetal(i, j, k  , cell_data, moisture_indices);
 
         inv_theta = one / theta_l;
 
         if (is_covered_kp1) {
-            amrex::Real theta_l_km2= GetThetal(i, j, k-2, cell_data, moisture_indices);
-            dtheta_dz = (three*theta_l - four*theta_l_km1 + theta_l_km2) * myhalf * dzInv;
+
+            if (is_covered_km1) {
+                return zero;
+            }
+
+            const amrex::Real theta_l_km1 = GetThetal(i, j, k-1, cell_data, moisture_indices);
+
+            if (c_cflag(i,j,k-2).isCovered()) {
+                dtheta_dz = (theta_l - theta_l_km1) * dzInv;
+            } else {
+                const amrex::Real theta_l_km2 = GetThetal(i, j, k-2, cell_data, moisture_indices);
+                dtheta_dz = (three*theta_l - four*theta_l_km1 + theta_l_km2) * myhalf * dzInv;
+            }
+
         } else if (is_covered_km1) {
-            amrex::Real theta_l_kp2= GetThetal(i, j, k+2, cell_data, moisture_indices);
-            dtheta_dz = (-theta_l_kp2 + four*theta_l_kp1 - three*theta_l) * myhalf * dzInv;
+
+            const amrex::Real theta_l_kp1 = GetThetal(i, j, k+1, cell_data, moisture_indices);
+
+            if (c_cflag(i,j,k+2).isCovered()) {
+                dtheta_dz = (theta_l_kp1 - theta_l) * dzInv;
+            } else {
+                const amrex::Real theta_l_kp2 = GetThetal(i, j, k+2, cell_data, moisture_indices);
+                dtheta_dz = (-theta_l_kp2 + four*theta_l_kp1 - three*theta_l) * myhalf * dzInv;
+            }
+
         } else {
-            dtheta_dz = myhalf * (theta_l_kp1 - theta_l_km1) * dzInv;
+
+            const amrex::Real theta_l_kp1 = GetThetal(i, j, k+1, cell_data, moisture_indices);
+            const amrex::Real theta_l_km1 = GetThetal(i, j, k-1, cell_data, moisture_indices);
+            dtheta_dz = (theta_l_kp1 - theta_l_km1) * myhalf * dzInv;
         }
 
     } else if (qv_index >= 0) {
-        amrex::Real theta_v    = GetThetav(i, j, k  , cell_data, moisture_indices);
-        amrex::Real theta_v_kp1= GetThetav(i, j, k+1, cell_data, moisture_indices);
-        amrex::Real theta_v_km1= GetThetav(i, j, k-1, cell_data, moisture_indices);
+
+        const amrex::Real theta_v = GetThetav(i, j, k, cell_data, moisture_indices);
 
         inv_theta = one / theta_v;
 
         if (is_covered_kp1) {
-            amrex::Real theta_v_km2= GetThetav(i, j, k-2, cell_data, moisture_indices);
-            dtheta_dz = (three*theta_v - four*theta_v_km1 + theta_v_km2) * myhalf * dzInv;
+
+            if (is_covered_km1) {
+                return zero;
+            }
+
+            const amrex::Real theta_v_km1 = GetThetav(i, j, k-1, cell_data, moisture_indices);
+
+            if (c_cflag(i,j,k-2).isCovered()) {
+                dtheta_dz = (theta_v - theta_v_km1) * dzInv;
+            } else {
+                const amrex::Real theta_v_km2 = GetThetav(i, j, k-2, cell_data, moisture_indices);
+                dtheta_dz = (three*theta_v - four*theta_v_km1 + theta_v_km2) * myhalf * dzInv;
+            }
+
         } else if (is_covered_km1) {
-            amrex::Real theta_v_kp2= GetThetav(i, j, k+2, cell_data, moisture_indices);
-            dtheta_dz = (-theta_v_kp2 + four*theta_v_kp1 - three*theta_v) * myhalf * dzInv;
+
+            const amrex::Real theta_v_kp1 = GetThetav(i, j, k+1, cell_data, moisture_indices);
+
+            if (c_cflag(i,j,k+2).isCovered()) {
+                dtheta_dz = (theta_v_kp1 - theta_v) * dzInv;
+            } else {
+                const amrex::Real theta_v_kp2 = GetThetav(i, j, k+2, cell_data, moisture_indices);
+                dtheta_dz = (-theta_v_kp2 + four*theta_v_kp1 - three*theta_v) * myhalf * dzInv;
+            }
+
         } else {
-            dtheta_dz = myhalf * (theta_v_kp1 - theta_v_km1) * dzInv;
+
+            const amrex::Real theta_v_kp1 = GetThetav(i, j, k+1, cell_data, moisture_indices);
+            const amrex::Real theta_v_km1 = GetThetav(i, j, k-1, cell_data, moisture_indices);
+            dtheta_dz = (theta_v_kp1 - theta_v_km1) * myhalf * dzInv;
         }
 
     } else {
-        amrex::Real theta = cell_data(i, j, k, rhoTheta_comp) / rho;
-        amrex::Real theta_kp1 = cell_data(i, j, k+1, rhoTheta_comp) / cell_data(i, j, k+1, rho_comp);
-        amrex::Real theta_km1 = cell_data(i, j, k-1, rhoTheta_comp) / cell_data(i, j, k-1, rho_comp);
+
+        const amrex::Real theta = cell_data(i, j, k, rhoTheta_comp) / rho;
 
         inv_theta = one / theta;
 
         if (is_covered_kp1) {
-            amrex::Real theta_km2 = cell_data(i, j, k-2, rhoTheta_comp) / cell_data(i, j, k-2, rho_comp);
-            dtheta_dz = (three*theta - four*theta_km1 + theta_km2) * myhalf * dzInv;
+
+            if (is_covered_km1) {
+                return zero;
+            }
+
+            const amrex::Real theta_km1 = cell_data(i, j, k-1, rhoTheta_comp) / cell_data(i, j, k-1, rho_comp);
+
+            if (c_cflag(i,j,k-2).isCovered()) {
+                dtheta_dz = (theta - theta_km1) * dzInv;
+            } else {
+                const amrex::Real theta_km2 = cell_data(i, j, k-2, rhoTheta_comp) / cell_data(i, j, k-2, rho_comp);
+                dtheta_dz = (three*theta - four*theta_km1 + theta_km2) * myhalf * dzInv;
+            }
+
         } else if (is_covered_km1) {
-            amrex::Real theta_kp2 = cell_data(i, j, k+2, rhoTheta_comp) / cell_data(i, j, k+2, rho_comp);
-            dtheta_dz = (-theta_kp2 + four*theta_kp1 - three*theta) * myhalf * dzInv;
+
+            const amrex::Real theta_kp1 = cell_data(i, j, k+1, rhoTheta_comp) / cell_data(i, j, k+1, rho_comp);
+
+            if (c_cflag(i,j,k+2).isCovered()) {
+                dtheta_dz = (theta_kp1 - theta) * dzInv;
+            } else {
+                const amrex::Real theta_kp2 = cell_data(i, j, k+2, rhoTheta_comp) / cell_data(i, j, k+2, rho_comp);
+                dtheta_dz = (-theta_kp2 + four*theta_kp1 - three*theta) * myhalf * dzInv;
+            }
+
         } else {
-            dtheta_dz = myhalf * (theta_kp1 - theta_km1) * dzInv;
+
+            const amrex::Real theta_kp1 = cell_data(i, j, k+1, rhoTheta_comp) / cell_data(i, j, k+1, rho_comp);
+            const amrex::Real theta_km1 = cell_data(i, j, k-1, rhoTheta_comp) / cell_data(i, j, k-1, rho_comp);
+            dtheta_dz = (theta_kp1 - theta_km1) * myhalf * dzInv;
         }
     }
 
@@ -297,10 +363,10 @@ ComputeN2_EB(int i, int j, int k,
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
-ComputeVerticalShear2(int i, int j, int k,
-                      amrex::Real dzInv,
-                      const amrex::Array4<const amrex::Real>& u,
-                      const amrex::Array4<const amrex::Real>& v)
+ComputeVerticalShear2 (int i, int j, int k,
+                       amrex::Real dzInv,
+                       const amrex::Array4<const amrex::Real>& u,
+                       const amrex::Array4<const amrex::Real>& v)
 {
     amrex::Real u_c_km1 = myhalf * (u(i, j, k-1) + u(i+1, j, k-1));
     amrex::Real u_c_kp1 = myhalf * (u(i, j, k+1) + u(i+1, j, k+1));
@@ -328,62 +394,99 @@ ComputeVerticalShear2(int i, int j, int k,
  * @param[in] dzInv inverse vertical grid spacing
  * @param[in] u face-centered x-velocity
  * @param[in] v face-centered y-velocity
+ * @param[out] shear_is_valid whether the required shear stencil is available
  * @return vertical shear squared
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
-ComputeVerticalShear2_EB(int i, int j, int k,
+ComputeVerticalShear2_EB (int i, int j, int k,
                       const amrex::Array4<const amrex::EBCellFlag>& c_cflag,
                       const amrex::Array4<const amrex::Real>& u_vfrac,
                       const amrex::Array4<const amrex::Real>& v_vfrac,
                       amrex::Real dzInv,
                       const amrex::Array4<const amrex::Real>& u,
-                      const amrex::Array4<const amrex::Real>& v)
+                      const amrex::Array4<const amrex::Real>& v,
+                      bool& shear_is_valid)
 {
-    amrex::Real du_dz;
-    amrex::Real dv_dz;
+    // Volume-fraction weighted reconstruction of a velocity component at the
+    // centre of cell (ii,jj,kk) from the two staggered faces that bracket it in
+    // the (di,dj) direction. Returns false when neither face carries any volume,
+    // in which case there is no cell-centred value to be had.
+    auto cell_avg = [=] (const amrex::Array4<const amrex::Real>& vfrac,
+                         const amrex::Array4<const amrex::Real>& vel,
+                         int ii, int jj, int kk, int di, int dj,
+                         amrex::Real& q) -> bool
+    {
+        const amrex::Real f0   = vfrac(ii,    jj,    kk);
+        const amrex::Real f1   = vfrac(ii+di, jj+dj, kk);
+        const amrex::Real fsum = f0 + f1;
+        if (fsum <= zero) { return false; }
+        q = ((f0 > zero ? f0 * vel(ii,    jj,    kk) : zero) +
+             (f1 > zero ? f1 * vel(ii+di, jj+dj, kk) : zero)) / fsum;
+        return true;
+    };
 
-    amrex::Real u_c = ( u_vfrac(i,j,k) * u(i, j, k) + u_vfrac(i+1,j,k) * u(i+1, j, k) )
-                    / ( u_vfrac(i,j,k) + u_vfrac(i+1,j,k) );
-    amrex::Real v_c = ( v_vfrac(i,j,k) * v(i, j, k) + v_vfrac(i,j+1,k) * v(i, j+1, k) )
-                    / ( v_vfrac(i,j,k) + v_vfrac(i,j+1,k) );
+    // Vertical derivative of one velocity component at cell (i,j,k), using the
+    // best stencil the EB geometry leaves available: centred when both k-1 and
+    // k+1 are usable, otherwise one-sided towards whichever neighbour is (second
+    // order when k-2 / k+2 is usable as well). Returns false only when no stencil
+    // at all can be formed, so a single unusable neighbour degrades the order of
+    // accuracy rather than discarding the correction.
+    auto vert_deriv = [=] (const amrex::Array4<const amrex::Real>& vfrac,
+                           const amrex::Array4<const amrex::Real>& vel,
+                           int di, int dj, amrex::Real& dq_dz) -> bool
+    {
+        amrex::Real c_km1 = zero, c_kp1 = zero;
+        const bool have_km1 = !c_cflag(i,j,k-1).isCovered() &&
+                              cell_avg(vfrac, vel, i, j, k-1, di, dj, c_km1);
+        const bool have_kp1 = !c_cflag(i,j,k+1).isCovered() &&
+                              cell_avg(vfrac, vel, i, j, k+1, di, dj, c_kp1);
 
-    if (c_cflag(i,j,k+1).isCovered()) {
-        amrex::Real u_c_km1 = ( u_vfrac(i,j,k-1) * u(i, j, k-1) + u_vfrac(i+1,j,k-1) * u(i+1, j, k-1) )
-                            / ( u_vfrac(i,j,k-1) + u_vfrac(i+1,j,k-1) );
-        amrex::Real u_c_km2 = ( u_vfrac(i,j,k-2) * u(i, j, k-2) + u_vfrac(i+1,j,k-2) * u(i+1, j, k-2) )
-                            / ( u_vfrac(i,j,k-2) + u_vfrac(i+1,j,k-2) );
-        amrex::Real v_c_km1 = ( v_vfrac(i,j,k-1) * v(i, j, k-1) + v_vfrac(i,j+1,k-1) * v(i, j+1, k-1) )
-                            / ( v_vfrac(i,j,k-1) + v_vfrac(i,j+1,k-1) );
-        amrex::Real v_c_km2 = ( v_vfrac(i,j,k-2) * v(i, j, k-2) + v_vfrac(i,j+1,k-2) * v(i, j+1, k-2) )
-                            / ( v_vfrac(i,j,k-2) + v_vfrac(i,j+1,k-2) );
-        du_dz = (three*u_c - four*u_c_km1 + u_c_km2) * myhalf * dzInv;
-        dv_dz = (three*v_c - four*v_c_km1 + v_c_km2) * myhalf * dzInv;
+        // The centred difference never reads the centre cell, so it stays valid
+        // even when the centre cell's own faces carry no volume.
+        if (have_km1 && have_kp1) {
+            dq_dz = myhalf * (c_kp1 - c_km1) * dzInv;
+            return true;
+        }
 
-    } else if (c_cflag(i,j,k-1).isCovered()) {
-        amrex::Real u_c_kp1 = ( u_vfrac(i,j,k+1) * u(i, j, k+1) + u_vfrac(i+1,j,k+1) * u(i+1, j, k+1) )
-                            / ( u_vfrac(i,j,k+1) + u_vfrac(i+1,j,k+1) );
-        amrex::Real u_c_kp2 = ( u_vfrac(i,j,k+2) * u(i, j, k+2) + u_vfrac(i+1,j,k+2) * u(i+1, j, k+2) )
-                            / ( u_vfrac(i,j,k+2) + u_vfrac(i+1,j,k+2) );
-        amrex::Real v_c_kp1 = ( v_vfrac(i,j,k+1) * v(i, j, k+1) + v_vfrac(i,j+1,k+1) * v(i, j+1, k+1) )
-                            / ( v_vfrac(i,j,k+1) + v_vfrac(i,j+1,k+1) );
-        amrex::Real v_c_kp2 = ( v_vfrac(i,j,k+2) * v(i, j, k+2) + v_vfrac(i,j+1,k+2) * v(i, j+1, k+2) )
-                            / ( v_vfrac(i,j,k+2) + v_vfrac(i,j+1,k+2) );
-        du_dz = (-u_c_kp2 + four*u_c_kp1 - three*u_c) * myhalf * dzInv;
-        dv_dz = (-v_c_kp2 + four*v_c_kp1 - three*v_c) * myhalf * dzInv;
-    } else {
-        amrex::Real u_c_km1 = ( u_vfrac(i,j,k-1) * u(i, j, k-1) + u_vfrac(i+1,j,k-1) * u(i+1, j, k-1) )
-                            / ( u_vfrac(i,j,k-1) + u_vfrac(i+1,j,k-1) );
-        amrex::Real u_c_kp1 = ( u_vfrac(i,j,k+1) * u(i, j, k+1) + u_vfrac(i+1,j,k+1) * u(i+1, j, k+1) )
-                            / ( u_vfrac(i,j,k+1) + u_vfrac(i+1,j,k+1) );
-        amrex::Real v_c_km1 = ( v_vfrac(i,j,k-1) * v(i, j, k-1) + v_vfrac(i,j+1,k-1) * v(i, j+1, k-1) )
-                            / ( v_vfrac(i,j,k-1) + v_vfrac(i,j+1,k-1) );
-        amrex::Real v_c_kp1 = ( v_vfrac(i,j,k+1) * v(i, j, k+1) + v_vfrac(i,j+1,k+1) * v(i, j+1, k+1) )
-                            / ( v_vfrac(i,j,k+1) + v_vfrac(i,j+1,k+1) );
-        du_dz = myhalf * (u_c_kp1 - u_c_km1) * dzInv;
-        dv_dz = myhalf * (v_c_kp1 - v_c_km1) * dzInv;
+        // Every remaining stencil is one-sided, and those do need the centre cell.
+        amrex::Real c_c;
+        if (!cell_avg(vfrac, vel, i, j, k, di, dj, c_c)) { return false; }
+
+        if (have_km1) {
+            amrex::Real c_km2;
+            if (!c_cflag(i,j,k-2).isCovered() &&
+                cell_avg(vfrac, vel, i, j, k-2, di, dj, c_km2)) {
+                dq_dz = (three * c_c - four * c_km1 + c_km2) * myhalf * dzInv;
+            } else {
+                dq_dz = (c_c - c_km1) * dzInv;
+            }
+            return true;
+        }
+
+        if (have_kp1) {
+            amrex::Real c_kp2;
+            if (!c_cflag(i,j,k+2).isCovered() &&
+                cell_avg(vfrac, vel, i, j, k+2, di, dj, c_kp2)) {
+                dq_dz = (-c_kp2 + four * c_kp1 - three * c_c) * myhalf * dzInv;
+            } else {
+                dq_dz = (c_kp1 - c_c) * dzInv;
+            }
+            return true;
+        }
+
+        // Both vertical neighbours are unusable: no stencil exists at all.
+        return false;
+    };
+
+    amrex::Real du_dz, dv_dz;
+    if (!vert_deriv(u_vfrac, u, 1, 0, du_dz) ||
+        !vert_deriv(v_vfrac, v, 0, 1, dv_dz)) {
+        shear_is_valid = false;
+        return zero;
     }
+    shear_is_valid = true;
 
     amrex::Real S2_vert = du_dz * du_dz + dv_dz * dv_dz;
 
@@ -400,7 +503,7 @@ ComputeVerticalShear2_EB(int i, int j, int k,
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
-ComputeRichardson(amrex::Real N2_moist, amrex::Real S2_vert)
+ComputeRichardson (amrex::Real N2_moist, amrex::Real S2_vert)
 {
     amrex::Real S2_safe = amrex::max(S2_vert, amrex::Real(1.0e-10));
     return N2_moist / S2_safe;
@@ -416,7 +519,7 @@ ComputeRichardson(amrex::Real N2_moist, amrex::Real S2_vert)
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
-StabilityFunction(amrex::Real Ri, amrex::Real Ri_crit)
+StabilityFunction (amrex::Real Ri, amrex::Real Ri_crit)
 {
     amrex::Real stability_factor = amrex::Real(0.);
     if (Ri >= Ri_crit) {

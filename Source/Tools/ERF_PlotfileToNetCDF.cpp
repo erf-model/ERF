@@ -54,7 +54,7 @@ PrintUsage ()
  * @return 0 on success, otherwise an error code.
  */
 int
-main_main()
+main_main ()
 {
     const int narg = amrex::command_argument_count();
 

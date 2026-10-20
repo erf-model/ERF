@@ -23,14 +23,14 @@ namespace fs = std::filesystem;
  * @param[out] surface_state MultiFabs to be filled with interpolated surface data.
  */
 void
-ERF::FillSurfaceStateMultiFabs(const int lev,
-                               const std::string& filename,
-                               Vector<MultiFab>& surface_state)
+ERF::FillSurfaceStateMultiFabs (const int lev,
+                                const std::string& filename,
+                                Vector<MultiFab>& surface_state)
 {
        // Open the binary file in input mode
     std::ifstream infile(filename, std::ios::binary);
     if (!infile) {
-        std::cerr << "Error: Could not open file " << filename << std::endl;
+        Abort("Error: Could not open the surface data file " + filename);
     }
     Vector<Real> xvec_h, yvec_h, zvec_h;
     Vector<Real> sst_h, q_star_h, t_star_h, u_star_h, ls_mask_h;
@@ -43,6 +43,12 @@ ERF::FillSurfaceStateMultiFabs(const int lev,
     infile.read(reinterpret_cast<char*>(&ny), sizeof(int));
     infile.read(reinterpret_cast<char*>(&nz), sizeof(int));
     infile.read(reinterpret_cast<char*>(&ndata), sizeof(int));
+
+    // Everything below sizes arrays with these, so do not carry on with whatever
+    // was on the stack if the file was too short to hold them
+    if (!infile) {
+        Abort("Error: Could not read nx, ny, nz and ndata from the surface data file " + filename);
+    }
 
     amrex::Gpu::DeviceVector<Real> xvec_d(nx*ny*nz), yvec_d(nx*ny*nz), zvec_d(nz);
     for(int i=0; i<nx; i++) {
@@ -154,10 +160,10 @@ ERF::FillSurfaceStateMultiFabs(const int lev,
  * @param[in] regrid_forces_file_read Flag indicating if a regrid requires a file read.
  */
 void
-ERF::SurfaceDataInterpolation(const int lev,
-                              const double time,
-                              amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z_phys_nd,
-                              bool regrid_forces_file_read)
+ERF::SurfaceDataInterpolation (const int lev,
+                               const double time,
+                               amrex::Vector<std::unique_ptr<amrex::MultiFab>>& a_z_phys_nd,
+                               bool regrid_forces_file_read)
 {
 
     static amrex::Vector<double> next_read_forecast_time;

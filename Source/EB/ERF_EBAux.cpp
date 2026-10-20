@@ -21,7 +21,7 @@ eb_aux_ ()
 
 void
 eb_aux_::
-define( [[maybe_unused]] int const& a_level,
+define ( [[maybe_unused]] int const& a_level,
         int const& a_idim,
         Geometry            const& a_geom,
         BoxArray            const& a_grids,

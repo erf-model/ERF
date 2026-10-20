@@ -122,6 +122,14 @@ closes its energy budget (positive away from the surface, except the absorbed sh
 | ground heat flux into the soil, `GRDFLX` | 294.63 |
 | residual, `FSAXY` − (`FIRAXY` + `HFX` + `LH` + `GRDFLX`) | −0.012 |
 
-The residual is the same size as in the case without radiation (0.016 W/m²). The numbers
+The residual is the same size as in the case without radiation (0.016 W/m²).
+
+In the other direction the two-stream model takes Noah-MP's broadband `albedo` (0.201 here)
+as its surface albedo, so it reflects the shortwave Noah-MP reflects: with
+`erf.radiation.diag_csv_enable = true` the radiation CSV reports `SW_surface` = 859.19 W/m²
+absorbed at the ground at step 1, Noah-MP's `sav` + `sag` = 859.18 W/m². (The visible
+direct-beam albedo `sfc_alb_dir_vis`, 0.067, which it used before, left 1003.10 W/m².) At
+step 0 Noah-MP has not run yet and its fields hold the undefined placeholder, so the sweep
+uses `erf.radiation.surface_albedo_sw`. The numbers
 are identical on 1 and 4 ranks. The two-stream coupling to Noah-MP is single-level:
 `amr.max_level > 0` stops at start-up.

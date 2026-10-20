@@ -69,6 +69,16 @@ ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
     if(use_zlo_sponge_damping)AMREX_ALWAYS_ASSERT(zlo_sponge_end   > ProbLoArr[2]);
     if(use_zhi_sponge_damping)AMREX_ALWAYS_ASSERT(zhi_sponge_start < ProbHiArr[2]);
 
+    // Ramp lengths, computed here so that the kernels divide only by a valid length: the
+    // optimiser evaluates the guarded ramps of the sides that are switched off too, and the
+    // lengths of those sides (whose ends are never read from the inputs) can be zero
+    const Real L_xlo = use_xlo_sponge_damping ? (xlo_sponge_end - ProbLoArr[0]) : one;
+    const Real L_xhi = use_xhi_sponge_damping ? (ProbHiArr[0] - xhi_sponge_start) : one;
+    const Real L_ylo = use_ylo_sponge_damping ? (ylo_sponge_end - ProbLoArr[1]) : one;
+    const Real L_yhi = use_yhi_sponge_damping ? (ProbHiArr[1] - yhi_sponge_start) : one;
+    const Real L_zlo = use_zlo_sponge_damping ? (zlo_sponge_end - ProbLoArr[2]) : one;
+    const Real L_zhi = use_zhi_sponge_damping ? (ProbHiArr[2] - zhi_sponge_start) : one;
+
     ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k)
     {
         int ii = amrex::min(amrex::max(i, domlo_x), domhi_x);
@@ -81,14 +91,14 @@ ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
         // x lo sponge
         if(use_xlo_sponge_damping){
             if (x < xlo_sponge_end) {
-                Real xi = (xlo_sponge_end - x) / (xlo_sponge_end - ProbLoArr[0]);
+                Real xi = (xlo_sponge_end - x) / L_xlo;
                 rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - cell_data(i,j,k,0)*ubar_sponge[k]);
             }
         }
         // x hi sponge
         if(use_xhi_sponge_damping){
             if (x > xhi_sponge_start) {
-                Real xi = (x - xhi_sponge_start) / (ProbHiArr[0] - xhi_sponge_start);
+                Real xi = (x - xhi_sponge_start) / L_xhi;
                 rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - cell_data(i,j,k,0)*ubar_sponge[k]);
             }
         }
@@ -96,14 +106,14 @@ ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
         // y lo sponge
         if(use_ylo_sponge_damping){
             if (y < ylo_sponge_end) {
-                Real xi = (ylo_sponge_end - y) / (ylo_sponge_end - ProbLoArr[1]);
+                Real xi = (ylo_sponge_end - y) / L_ylo;
                 rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - cell_data(i,j,k,0)*ubar_sponge[k]);
             }
         }
         // x right sponge
         if(use_yhi_sponge_damping){
             if (y > yhi_sponge_start) {
-                Real xi = (y - yhi_sponge_start) / (ProbHiArr[1] - yhi_sponge_start);
+                Real xi = (y - yhi_sponge_start) / L_yhi;
                 rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - cell_data(i,j,k,0)*ubar_sponge[k]);
             }
         }
@@ -111,7 +121,7 @@ ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
         // z lo sponge
         if(use_zlo_sponge_damping){
             if (z < zlo_sponge_end) {
-                Real xi = (zlo_sponge_end - z) / (zlo_sponge_end - ProbLoArr[2]);
+                Real xi = (zlo_sponge_end - z) / L_zlo;
                 rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - cell_data(i,j,k,0)*ubar_sponge[k]);
             }
         }
@@ -120,7 +130,7 @@ ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
         // z hi sponge
         if(use_zhi_sponge_damping){
             if (z > zhi_sponge_start) {
-                Real xi = (z - zhi_sponge_start) / (ProbHiArr[2] - zhi_sponge_start);
+                Real xi = (z - zhi_sponge_start) / L_zhi;
                 rho_u_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_u(i, j, k) - cell_data(i,j,k,0)*ubar_sponge[k]);
             }
         }
@@ -139,14 +149,14 @@ ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
         // x lo sponge
         if(use_xlo_sponge_damping){
             if (x < xlo_sponge_end) {
-                Real xi = (xlo_sponge_end - x) / (xlo_sponge_end - ProbLoArr[0]);
+                Real xi = (xlo_sponge_end - x) / L_xlo;
                 rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - cell_data(i,j,k,0)*vbar_sponge[k]);
             }
         }
         // x hi sponge
         if(use_xhi_sponge_damping){
             if (x > xhi_sponge_start) {
-                Real xi = (x - xhi_sponge_start) / (ProbHiArr[0] - xhi_sponge_start);
+                Real xi = (x - xhi_sponge_start) / L_xhi;
                 rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - cell_data(i,j,k,0)*vbar_sponge[k]);
             }
         }
@@ -154,14 +164,14 @@ ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
         // y lo sponge
         if(use_ylo_sponge_damping){
             if (y < ylo_sponge_end) {
-                Real xi = (ylo_sponge_end - y) / (ylo_sponge_end - ProbLoArr[1]);
+                Real xi = (ylo_sponge_end - y) / L_ylo;
                 rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - cell_data(i,j,k,0)*vbar_sponge[k]);
             }
         }
         // x right sponge
         if(use_yhi_sponge_damping){
             if (y > yhi_sponge_start) {
-                Real xi = (y - yhi_sponge_start) / (ProbHiArr[1] - yhi_sponge_start);
+                Real xi = (y - yhi_sponge_start) / L_yhi;
                 rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - cell_data(i,j,k,0)*vbar_sponge[k]);
             }
         }
@@ -169,7 +179,7 @@ ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
         // z lo sponge
         if(use_zlo_sponge_damping){
             if (z < zlo_sponge_end) {
-                Real xi = (zlo_sponge_end - z) / (zlo_sponge_end - ProbLoArr[2]);
+                Real xi = (zlo_sponge_end - z) / L_zlo;
                 rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - cell_data(i,j,k,0)*vbar_sponge[k]);
             }
         }
@@ -178,7 +188,7 @@ ApplySpongeZoneBCsForMom_ReadFromFile (const SpongeChoice& spongeChoice,
         // z hi sponge
         if(use_zhi_sponge_damping){
             if (z > zhi_sponge_start) {
-                Real xi = (z - zhi_sponge_start) / (ProbHiArr[2] - zhi_sponge_start);
+                Real xi = (z - zhi_sponge_start) / L_zhi;
                 rho_v_rhs(i, j, k) -= sponge_strength * xi * xi * (rho_v(i, j, k) - cell_data(i,j,k,0)*vbar_sponge[k]);
             }
         }

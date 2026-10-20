@@ -35,7 +35,7 @@ Finalization is deferred to the `Radiation` destructor.
 **Files:** `ERF_Radiation.cpp`, `ERF_Radiation.H`
 
 Radiation columns are completely independent (no horizontal coupling). They are now
-processed in chunks of `ncol_chunk` (default 5000, configurable via `erf.rad_ncol_chunk`)
+processed in chunks of `ncol_chunk` (default 1024, configurable via `erf.rad_ncol_chunk`)
 instead of all at once. This is the same approach used by E3SM/SCREAM.
 
 Implementation details:
@@ -49,7 +49,7 @@ Implementation details:
 - `compute_band_by_band_surface_albedos`, `compute_heating_rate`, and
   `compute_broadband_surface_fluxes` are called per chunk
 
-**New input parameter:** `erf.rad_ncol_chunk` (integer, default 5000)
+**New input parameter:** `erf.rad_ncol_chunk` (integer, default 1024)
 
 ### 4. Remove Dead Arrays and Parameters
 

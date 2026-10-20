@@ -64,9 +64,10 @@ LW_net, H and G are rewritten at it.
    warmer than the north.
 7. The external-flux run passes the same closure checks with every face
    past the default 380 K bound.
-8. After a restart the skin and slab agree with the straight run to 1e-3 K
-   (1e-5 K in practice; the immersed forcing's atmosphere is not bit-exact
-   through a restart, see SlabConduction).
+8. After a restart the skin, the slab and the face fluxes equal the straight
+   run's exactly (until October 2026 a restart rebuilt the immersed forcing's
+   blanking without clearing the almost-fluid cells, and the skin differed by
+   1.4e-5 K).
 9. In the sunrise run the east wall warms before the roof, ends the warmest
    face, and the west wall stays the coolest of the walls; every face
    stays within the bounds. This check caught a mirrored solar azimuth in
@@ -100,10 +101,10 @@ closure: PASS
 qext: PASS
 == through a checkpoint (4 ranks)
   same faces: PASS (116 faces)
-  skin and slab after the restart: PASS (max |dT_skin| 1.4e-05 K, max |dT_slab| 9.9e-07 K)
-  H after the restart: PASS (max diff 1.2e-03 W/m2)
-  G after the restart: PASS (max diff 1.1e-03 W/m2)
-  LW_net after the restart: PASS (max diff 8.3e-05 W/m2)
+  skin and slab after the restart: PASS (max |dT_skin| 0.0e+00 K, max |dT_slab| 0.0e+00 K)
+  H after the restart: PASS (max diff 0.0e+00 W/m2)
+  G after the restart: PASS (max diff 0.0e+00 W/m2)
+  LW_net after the restart: PASS (max diff 0.0e+00 W/m2)
   SW_abs after the restart: PASS (max diff 0.0e+00 W/m2)
 restart: PASS
 == sunrise over the cube (4 ranks, 10800 steps)

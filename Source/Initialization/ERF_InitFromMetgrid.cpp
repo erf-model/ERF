@@ -24,7 +24,7 @@ using namespace amrex;
  * @return Epoch time read from the first metgrid file
  */
 double
-read_start_time_from_metgrid(int lev, const std::string& fname)
+read_start_time_from_metgrid (int lev, const std::string& fname)
 {
     double NC_epochTime = 0.0;
     const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
@@ -368,7 +368,7 @@ ERF::init_from_metgrid (int lev)
             // check and still yield a degenerate or inverted first layer.  Since
             // reconstruction is the default here, check now rather than letting a
             // bad Jacobian propagate.  This mirrors the check that
-            // init_terrain_from_wrfinput does on its reconstructed levels.
+            // init_from_wrfinput makes on the mesh it builds.
             {
                 Print() << "Verifying grid integrity" << std::endl;
 
@@ -768,7 +768,7 @@ ERF::init_from_metgrid (int lev)
 
             int ntimes_erfbdy;
             Vector<double> bdy_times_erfbdy;
-            bdy_time_interval = read_times_from_erfbdy(erfbdy_file,
+            bdy_time_interval = read_times_from_erfbdy(erfbdy_file, geom[lev].Domain(),
                                                        ntimes_erfbdy, nvars_erfbdy, real_width,
                                                        bdy_times_erfbdy, start_bdy_time, final_bdy_time);
 

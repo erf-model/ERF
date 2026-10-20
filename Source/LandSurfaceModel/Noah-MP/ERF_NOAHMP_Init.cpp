@@ -18,6 +18,7 @@
 #include <AMReX_Utility.H>
 
 #include <ERF_NOAHMP.H>
+#include <ERF_NOAHMP_LevelDriver.H>
 #include <ERF_Constants.H>
 #include <NoahmpFatal.H>
 
@@ -227,6 +228,31 @@ noahmp_preflight (int lev)
     ParallelDescriptor::Barrier();
 }
 
+//
+// Whether namelist.erf names a land setup file for level lev (ERF_SETUP_FILE_0<lev+1>; the
+// driver has entries for levels 0-2 only). Read on the I/O rank and broadcast, so every
+// rank takes the same branch in Init. A missing or unreadable namelist reads as "no",
+// which leaves the level on interp_from_lev0; noahmp_preflight reports such a file
+// whenever a level does run the driver.
+//
+bool
+namelist_names_setup_file (int lev)
+{
+    int named = 0;
+    if (ParallelDescriptor::IOProcessor() && lev >= 0 && lev <= 2) {
+        const std::string namelist = "namelist.erf";
+        std::string setup_file;
+        if (amrex::FileExists(namelist) &&
+            namelist_string_value(namelist, "NOAHLSM_OFFLINE",
+                                  "ERF_SETUP_FILE_0" + std::to_string(lev + 1), setup_file) &&
+            !setup_file.empty()) {
+            named = 1;
+        }
+    }
+    ParallelDescriptor::Bcast(&named, 1, ParallelDescriptor::IOProcessorNumber());
+    return named != 0;
+}
+
 } // namespace
 
 void
@@ -360,8 +386,27 @@ NOAHMP::Init (const int& lev,
     // {{""}} -- one empty string at level 0, so the vector below is never empty there,
     // with or without erf.nc_init_file_0 -- which is how an idealized run could use
     // Noah-MP at all. Say it outright so it does not rest on that placeholder.
-    // A finer level runs the driver only if it has an init file of its own.
-    m_has_nc_file = (lev == 0) || (!nc_init_file[lev].empty());
+    //
+    // A finer level runs the driver if it has a land setup file of its own. A run
+    // initialized from WRF or metgrid files names it with erf.nc_init_file_<lev>, which also
+    // supplies that level's atmosphere. An idealized run has no such file -- its atmosphere
+    // comes from the sounding or the problem setup -- so there the namelist's
+    // ERF_SETUP_FILE_0<lev+1> alone decides: a nested land file whose I_PARENT_START,
+    // J_PARENT_START and PARENT_GRID_RATIO place it in its parent's (the driver reads those
+    // in NoahmpReadLandHeader). Without one, the level takes its land state from level 0
+    // (interp_from_lev0) and the radiation written to its own inputs goes unused. The rule
+    // is noahmp_level_runs_driver. The namelist is read only where it decides, on every
+    // rank alike: the conditions do not depend on the rank, and its broadcast is collective.
+    const bool has_init_file = !nc_init_file[lev].empty();
+    const bool namelist_names_setup = (lev > 0 && !has_init_file && m_idealized_init)
+                                    ? namelist_names_setup_file(lev) : false;
+    m_has_nc_file = noahmp_level_runs_driver(lev, has_init_file, m_idealized_init,
+                                             namelist_names_setup);
+    if (lev > 0) {
+        Print() << "Noah-MP at level " << lev << ": "
+                << (m_has_nc_file ? "runs the land model on its own setup file"
+                                  : "takes its land state from level 0") << std::endl;
+    }
     if (m_has_nc_file) {
         Print() << "Noah-MP initialization started" << std::endl;
 

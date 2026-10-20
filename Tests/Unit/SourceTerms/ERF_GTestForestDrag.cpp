@@ -16,6 +16,7 @@
 
 #include "ERF_ForestDrag.H"
 #include "ERF_ForestUtils.H"
+#include "../ERF_GTestTempDir.H"
 
 namespace {
 
@@ -58,7 +59,11 @@ TEST(ForestUtils, RejectsRawLonLatCoordinates)
 
 TEST(ForestDrag, OptionalFrontalAreaStorageWorksForDiscretePatches)
 {
-    const std::filesystem::path filename = "erf_unit_forest_drag_discrete.txt";
+    // Per-process scratch name (see ERF_GTestTempDir.H): ctest -j runs this test and
+    // erf_unit_tests_shuffle_repeat at once, and a fixed name in the working directory
+    // let one rewrite the file the other was reading. Made on every rank.
+    const std::string scratch_file = (erf_gtest_temp_path("erf_unit_forest_drag_discrete").string() + ".txt");
+    const std::filesystem::path filename = scratch_file;
     if (amrex::ParallelDescriptor::IOProcessor()) {
         std::ofstream output(filename);
         output << "1 1000 1000 1000 2000 0.15 2.0 0.8\n";

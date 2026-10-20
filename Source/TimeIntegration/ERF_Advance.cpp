@@ -1,6 +1,7 @@
 #include <ERF.H>
 #include "ERF_Constants.H"
 #include <ERF_Utils.H>
+#include "Microphysics/SBM/ERF_SBMStateManager.H"
 
 #ifdef ERF_USE_WINDFARM
 #include <ERF_WindFarm.H>
@@ -25,9 +26,19 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     // We must swap the pointers so the previous step's "new" is now this step's "old"
     std::swap(vars_old[lev], vars_new[lev]);
 
-    // Surface energy balance on the building faces, with the state at the start of the step
-    ibseb_advance(lev, time, dt_lev, vars_old[lev][Vars::cons],
-                  vars_old[lev][Vars::xvel], vars_old[lev][Vars::yvel], vars_old[lev][Vars::zvel]);
+    if (sbm_state_manager) {
+        std::string diagnostic;
+        if (!sbm_state_manager->begin_step(lev, time, diagnostic)) {
+            Abort("SBM state lifecycle at ERF::Advance: " + diagnostic);
+        }
+    }
+
+    // Surface energy balance on the building faces, with the state at the start of the step.
+    // With the two-stream columns as their radiation it runs after advance_radiation below.
+    if (!ibseb_after_radiation()) {
+        ibseb_advance(lev, time, dt_lev, vars_old[lev][Vars::cons],
+                      vars_old[lev][Vars::xvel], vars_old[lev][Vars::yvel], vars_old[lev][Vars::zvel]);
+    }
 
     MultiFab& S_old = vars_old[lev][Vars::cons];
     MultiFab& S_new = vars_new[lev][Vars::cons];
@@ -91,6 +102,8 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                 const Array4<const Real> &pert_cell = turbPert.pb_cell[lev].array(mfi);
                 turbPert.apply_tpi(lev, bx, -1, m_ixtype, cell_data, pert_cell);
             }
+            // apply_tpi only modifies valid faces; refresh the ghost faces so they agree (see below)
+            (*physbcs_w[lev])(W_old, U_old, V_old, W_old.nGrowVect(), time, BCVars::zvel_bc, true);
         } else {
             auto m_ixtype = S_old.boxArray().ixType(); // Conserved term
             for (MFIter mfi(S_old,TileNoZ()); mfi.isValid(); ++mfi) {
@@ -99,6 +112,13 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                 const Array4<const Real> &pert_cell = turbPert.pb_cell[lev].array(mfi);
                 turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cell_data, pert_cell);
             }
+            // apply_tpi only modifies valid cells, but the ghost cells must agree with them:
+            //   the first RK stage reads them across box boundaries, and the next finer
+            //   level's FillPatchTwoLevels copies coarse ghost cells as well as valid ones,
+            //   so a stale ghost overlapping another box's valid cell would make the fine
+            //   ghost data depend on copy order (issue 4304).
+            (*physbcs_cons[lev])(S_old, U_old, V_old, RhoTheta_comp, 1, S_old.nGrowVect(),
+                                 time, BCVars::cons_bc, true);
         }
     }
 
@@ -161,6 +181,16 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     // **************************************************************************************
     advance_radiation(lev, S_old, dt_lev);
 
+    // The building faces on this step's two-stream sweep (erf.ibseb.radiation = two_stream),
+    // with the state at the start of the step that the sweep saw: after any direct inflow
+    // perturbation above, and with the ground surface layer's Obukhov length and boundary-layer
+    // height of this step's update_fluxes (the call at the start of the step sees the previous
+    // step's).
+    if (ibseb_after_radiation()) {
+        ibseb_advance(lev, time, dt_lev, vars_old[lev][Vars::cons],
+                      vars_old[lev][Vars::xvel], vars_old[lev][Vars::yvel], vars_old[lev][Vars::zvel]);
+    }
+
     // **************************************************************************************
     // Update the "old" state using SHOC
     // **************************************************************************************
@@ -171,7 +201,7 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
             m_SurfaceLayer[Orientation::zlo()]->impose_SurfaceLayer_bcs(lev, mfs, Tau[lev],
                                                                         SFS_hfx1_lev[lev].get() , SFS_hfx2_lev[lev].get() , SFS_hfx3_lev[lev].get(),
                                                                         SFS_q1fx1_lev[lev].get(), SFS_q1fx2_lev[lev].get(), SFS_q1fx3_lev[lev].get(),
-                                                                        z_phys_nd[lev].get());
+                                                                        z_phys_nd[lev].get(), &mfvec_surface_fluxes[lev]);
         }
 
         // Apply SHOC before the dycore so it sees a coherent state.

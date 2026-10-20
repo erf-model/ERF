@@ -90,7 +90,7 @@ ERFPostProcessBaseGrids (const amrex::Box& domain, bool decompose_in_z);
  * @param[in] ng Number of ghost cells.
  */
 void
-cons_to_prim(const amrex::MultiFab& cons_state, amrex::MultiFab& S_prim, int ng);
+cons_to_prim (const amrex::MultiFab& cons_state, amrex::MultiFab& S_prim, int ng);
 
 /**
  * Fill the ghost cells of the wall distance field, which is only computed on
@@ -109,7 +109,7 @@ fill_wall_dist_ghost_cells (amrex::MultiFab& wdist, const amrex::Geometry& geom)
  * @param[in] n_qstate_into_total Number of components to include in total water.
  */
 void
-make_qt(const amrex::MultiFab& cons_state, amrex::MultiFab& qt, int n_qstate_into_total);
+make_qt (const amrex::MultiFab& cons_state, amrex::MultiFab& qt, int n_qstate_into_total);
 
 /*
  * Create the Jacobian for the metric transformation when use_terrain is true
@@ -144,7 +144,7 @@ void MomentumToVelocity (amrex::MultiFab& xvel_out,
                          const amrex::Box& domain,
                          const amrex::Vector<amrex::BCRec>& domain_bcs_type_h,
                          const amrex::MultiFab* c_vfrac = nullptr // optional
-                        );
+                         );
 
 /*
  * Convert velocity to momentum by multiplying by density averaged onto faces
@@ -162,7 +162,7 @@ void VelocityToMomentum (const amrex::MultiFab& xvel_in,
                          const amrex::Box& domain,
                          const amrex::Vector<amrex::BCRec>& domain_bcs_type_h,
                          const amrex::MultiFab* c_vfrac = nullptr // optional
-                        );
+                         );
 
 /*
  * Convert (den_div u) to (den_mlt u) by multiplying by (den_mlt/den_div)
@@ -734,7 +734,7 @@ thinbody_wall_dist (std::unique_ptr<amrex::MultiFab>& wdist,
                     std::unique_ptr<amrex::MultiFab>& z_phys_cc);
 
 
-void WeatherDataInterpolation(const double time);
+void WeatherDataInterpolation (const double time);
 
 /**
  * Perform quadratic interpolation in one dimension.
@@ -750,14 +750,64 @@ void WeatherDataInterpolation(const double time);
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
-quad_interp_1d(amrex::Real z,
-               amrex::Real z0, amrex::Real p0,
-               amrex::Real z1, amrex::Real p1,
-               amrex::Real z2, amrex::Real p2)
+quad_interp_1d (amrex::Real z,
+                amrex::Real z0, amrex::Real p0,
+                amrex::Real z1, amrex::Real p1,
+                amrex::Real z2, amrex::Real p2)
 {
     return p0 * ( (z - z1) * (z - z2) ) / ( (z0 - z1) * (z0 - z2) )
          + p1 * ( (z - z0) * (z - z2) ) / ( (z1 - z0) * (z1 - z2) )
          + p2 * ( (z - z0) * (z - z1) ) / ( (z2 - z0) * (z2 - z1) );
+}
+
+/**
+ * Which time level(s) a fillpatch at a given time should draw from.
+ */
+enum struct TimeLevelSel { Old, New, Interp };
+
+/**
+ * Decide whether data at time "time" should come from the old-time data, the new-time data,
+ * or an interpolation between the two.
+ *
+ * This is done in double precision, before any cast to Real, and with a single tolerance
+ * at both ends.  The tolerance is a small fraction of (t_new - t_old), but never smaller than
+ * a few ulps of the times themselves, since those carry roundoff proportional to their
+ * magnitude -- which matters once the time is large (e.g. months measured in seconds).
+ *
+ * Times outside [t_old, t_new] are clamped to the nearer end rather than extrapolated.
+ * If t_old == t_new (to within the tolerance), Old is returned.
+ *
+ * @param[in] time  time at which data are requested
+ * @param[in] t_old old time of the level
+ * @param[in] t_new new time of the level
+ */
+inline TimeLevelSel
+select_time_level (double time, double t_old, double t_new)
+{
+    const double t_mag = std::max({std::abs(time), std::abs(t_old), std::abs(t_new)});
+    const double tol   = std::max(1.e-8 * std::abs(t_new - t_old),
+                                  16.0 * std::numeric_limits<double>::epsilon() * t_mag);
+
+    if (time <= t_old + tol) { return TimeLevelSel::Old; }
+    if (time >= t_new - tol) { return TimeLevelSel::New; }
+    return TimeLevelSel::Interp;
+}
+
+/**
+ * The pair of MultiFabs to hand to an AMReX FillPatch routine for a given time-level selection.
+ * When only one time level is wanted it is passed twice, so that AMReX's own comparison of the
+ * (rounded) times can never bring in the other one.
+ *
+ * @param[in] sel    which time level(s) to use
+ * @param[in] old_mf data at the old time
+ * @param[in] new_mf data at the new time
+ */
+inline amrex::Vector<amrex::MultiFab*>
+select_time_data (TimeLevelSel sel, amrex::MultiFab& old_mf, amrex::MultiFab& new_mf)
+{
+    if (sel == TimeLevelSel::Old) { return {&old_mf, &old_mf}; }
+    if (sel == TimeLevelSel::New) { return {&new_mf, &new_mf}; }
+    return {&old_mf, &new_mf};
 }
 
 #endif

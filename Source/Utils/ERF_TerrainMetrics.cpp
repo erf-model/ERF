@@ -348,6 +348,29 @@ make_terrain_fitted_coords (int lev,
     }
 
     //
+    // A node on the high side of a periodic direction is the same node as its image on the
+    // low side, and a box that holds one as valid is not touched by FillBoundary -- so give
+    // both copies one value, or the faces on either side of the node see different metrics
+    // and the mass flux through them differs.  make_terrain_surface_periodic already does
+    // this for a surface built by init_terrain_surface (and that is what the immersed
+    // boundary reads), but not for one that comes from wrfinput, met_em, a restart or the
+    // interpolation from a coarser level; this covers all of them, and the whole column.
+    // The copy kept is that of the lower-numbered box, which for the usual grids (and
+    // always within one box) is the low side, as in make_terrain_surface_periodic.
+    //
+    // Only the lateral periodicity: in a domain that is also periodic in z, the top node of
+    // a column is the image of the bottom one, but its height is not -- syncing them would
+    // give the top node the bottom's height and the top cell a negative thickness.
+    //
+    if (geom.isPeriodic(0) || geom.isPeriodic(1)) {
+        const Box& dom = geom.Domain();
+        const Periodicity lateral_period(IntVect(AMREX_D_DECL(geom.isPeriodic(0) ? dom.length(0) : 0,
+                                                              geom.isPeriodic(1) ? dom.length(1) : 0,
+                                                              0)));
+        z_phys_nd.OverrideSync(lateral_period);
+    }
+
+    //
     // Fill ghost layers and corners (including periodic) -- no matter what level
     //
     z_phys_nd.FillBoundary(geom.periodicity());
@@ -521,9 +544,22 @@ init_fine_terrain_grid (int lev,
         Gpu::copy(Gpu::hostToDevice, z_levels_h.begin(), z_levels_h.end(), z_levels_d.begin());
         auto const& z_lev = z_levels_d.data();
 
+        //
+        // Correct the ghost nodes along with the valid ones.  On a fine level whose
+        // grids do not cover the domain, the lateral ghost nodes have no valid owner
+        // anywhere, so the FillBoundary below cannot bring them up to date: left
+        // uncorrected they would keep the interpolated mesh above the surface while
+        // their k=0 node already holds the fine terrain, and the first layer of such a
+        // column inverts wherever the fine terrain stands more than a layer thickness
+        // above the interpolated one.  Both fields the correction reads are defined on
+        // those nodes -- but only inside the domain, so stop there and leave the nodes
+        // outside it to the clamp below, which is what gives them a mesh at all.
+        //
+        const Box domain_nd = convert(domain, IntVect(1,1,1));
+
         for (MFIter mfi(z_phys_nd, TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            const Box& bx = mfi.tilebox();
+            const Box bx = mfi.growntilebox(ngrowVect) & domain_nd;
 
             Array4<Real      > const& z_arr    = z_phys_nd.array(mfi);
             Array4<Real const> const& z_interp = z_phys_interp->const_array(mfi);
@@ -542,8 +578,8 @@ init_fine_terrain_grid (int lev,
             });
         } // mfi
 
-        // The loop above only covers the valid region, so bring the ghost nodes inside
-        // the domain up to date before the fill below reads them
+        // Give every ghost node that does have a valid owner that owner's value, rather
+        // than the one this box computed for itself, before the fill below reads them
         z_phys_nd.FillBoundary(geom.periodicity());
     }
 
@@ -796,6 +832,11 @@ init_which_terrain_grid (int lev,
         pp.queryAdd("terrain_gamma_m", gamma_m);
         Real z_H     = Real(2.44)*h_m/(1-gamma_m); // Klemp2011 Eqn. 11
 
+        // Levels at which the minimum-thickness criterion forced us to stop smoothing
+        // early, reported once below: a terrain that needs this at many levels is at the
+        // edge of what STF can represent on this vertical grid.
+        int n_capped = 0;
+
         // Populate h_mf at k>0 with h_s, solving in ordered 2D slices
         for (int k = domlo_z+1; k <= domhi_z; k++) // skip terrain level
         {
@@ -818,7 +859,7 @@ init_which_terrain_grid (int lev,
             unsigned iter    = 0;
             Real threshold   = gamma_m;
             Real diff        = bogus_large_value;
-            while (iter < maxIter && diff > threshold)
+            while (iter < maxIter)
             {
 
                 diff = ParReduce(TypeList<ReduceOpMin>{}, TypeList<Real>{}, mf2d, IntVect(ngrow,ngrow,0),
@@ -852,9 +893,46 @@ init_which_terrain_grid (int lev,
 
                 }); //ParReduce
 
-                MultiFab::Copy(h_mf_old, h_mf,0,0,1,h_mf_old.nGrow());
-
                 ParallelDescriptor::ReduceRealMin(diff);
+
+                //
+                // Each pass smooths h_s at THIS level while the level below is already
+                // fixed, so over a peak it always thins the layer: the passes have to
+                // stop before Eqn. 7 is violated, not after.  Measuring only once a pass
+                // has been committed is not enough -- nothing then stops the pass that
+                // breaks the criterion from being the one we keep, which is how a column
+                // over steep terrain ended up at 0.21 of its nominal layer thickness
+                // against gamma_m = 0.5.  Reject that pass and restore what preceded it.
+                //
+                // At iter 0 there is no earlier pass at this level to fall back to, so
+                // carry the level below up unsmoothed instead.  That leaves only the
+                // A-decay term, whose worst case is exactly what z_H = 2.44 h_m/(1-gamma_m)
+                // was chosen to bound: max|dA/dz| = 2.439/z_H, so h_m max|dA/dz| dz equals
+                // (1-gamma_m) dz and the thickness ratio lands on gamma_m.
+                //
+                if (diff < threshold) {
+                    ++n_capped;
+                    if (iter == 0) {
+                        for ( MFIter mfi(h_mf, TilingIfNotGPU()); mfi.isValid(); ++mfi )
+                        {
+                            Box xybx = mfi.growntilebox(ngrow);
+                            xybx.setRange(2,0);
+                            Array4<Real> const& h_s = h_mf.array(mfi);
+                            ParallelFor(xybx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+                            {
+                                h_s(i,j,k) = h_s(i,j,k-1);
+                            });
+                        }
+                        MultiFab::Copy(h_mf_old, h_mf,0,0,1,h_mf_old.nGrow());
+                        h_mf_old.FillBoundary(geom.periodicity());
+                    } else {
+                        // h_mf_old still holds the last pass that satisfied the criterion
+                        MultiFab::Copy(h_mf, h_mf_old,0,0,1,h_mf.nGrow());
+                    }
+                    break;
+                }
+
+                MultiFab::Copy(h_mf_old, h_mf,0,0,1,h_mf_old.nGrow());
 
                 iter++;
 
@@ -890,6 +968,16 @@ init_which_terrain_grid (int lev,
                 });
             } // mfi
         } // k
+
+            if (n_capped > 0) {
+                amrex::Print() << "NOTE: the smoothed terrain-following grid at level " << lev
+                               << " hit its minimum layer-thickness floor (erf.terrain_gamma_m = "
+                               << gamma_m << ") at " << n_capped << " of "
+                               << (domhi_z - domlo_z) << " levels, so the terrain smoothing was "
+                               << "capped there.  Raising erf.terrain_gamma_m, coarsening the "
+                               << "vertical grid or using erf.terrain_smoothing = 0 would give "
+                               << "this terrain more room.\n";
+            }
 
             Gpu::streamSynchronize();
 

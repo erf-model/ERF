@@ -18,13 +18,13 @@ using namespace amrex;
  * @param lgeom Geometry defining the vertical domain
  * @param zlev_stag Optional stretched-grid staggered height levels
  */
-void ERF::init_geo_wind_profile(const std::string input_file,
-                                Vector<Real>& u_geos,
-                                Gpu::DeviceVector<Real>& u_geos_d,
-                                Vector<Real>& v_geos,
-                                Gpu::DeviceVector<Real>& v_geos_d,
-                                const Geometry& lgeom,
-                                const Vector<Real>& zlev_stag)
+void ERF::init_geo_wind_profile (const std::string input_file,
+                                 Vector<Real>& u_geos,
+                                 Gpu::DeviceVector<Real>& u_geos_d,
+                                 Vector<Real>& v_geos,
+                                 Gpu::DeviceVector<Real>& v_geos_d,
+                                 const Geometry& lgeom,
+                                 const Vector<Real>& zlev_stag)
 {
     const int klo = 0;
     const int khi = lgeom.Domain().bigEnd()[AMREX_SPACEDIM-1];

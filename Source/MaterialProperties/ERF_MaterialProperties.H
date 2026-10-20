@@ -107,7 +107,7 @@ struct MaterialPropertiesCore { // For GPU
 
     /*! \brief Return the molar heat capacity */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    amrex::Real molarHeatCapacity( const amrex::Real a_T ) const
+    amrex::Real molarHeatCapacity ( const amrex::Real a_T ) const
     {
         auto retval = zero;
         auto term = one;
@@ -120,7 +120,7 @@ struct MaterialPropertiesCore { // For GPU
 
     /*! \brief Compute the surface tension coeff given temperature */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    amrex::Real surfaceTension( const amrex::Real a_T ) const
+    amrex::Real surfaceTension ( const amrex::Real a_T ) const
     {
         if (m_is_water) {
             return amrex::Real(0.076148325); // N m^{-1}
@@ -134,7 +134,7 @@ struct MaterialPropertiesCore { // For GPU
 
     /*! \brief Return the coeff of curvature given the temperature */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    amrex::Real coeffCurv( const amrex::Real a_T ) const
+    amrex::Real coeffCurv ( const amrex::Real a_T ) const
     {
         auto surf_tens = surfaceTension(a_T);
         auto retval = 2 * surf_tens / (m_Rv * m_density);
@@ -143,7 +143,7 @@ struct MaterialPropertiesCore { // For GPU
 
     /*! \brief Return the vapour pressure coefficient */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    amrex::Real coeffVPSolute() const
+    amrex::Real coeffVPSolute () const
     {
         auto retval = (amrex::Real(0.75)/PI)*(m_mol_weight/m_density);
         if (m_is_water) {
@@ -154,7 +154,7 @@ struct MaterialPropertiesCore { // For GPU
 
     /*! \brief Return the molecular diffusion coefficient given temperature and pressure */
     AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-    amrex::Real coeffMolecularDiffusion( const amrex::Real a_T, const amrex::Real a_P ) const
+    amrex::Real coeffMolecularDiffusion ( const amrex::Real a_T, const amrex::Real a_P ) const
     {
         if (m_is_water) {
 
@@ -211,7 +211,7 @@ struct MaterialProperties : public MaterialPropertiesCore {
 
     /*! \brief Print parameters */
     AMREX_GPU_HOST
-    void print() const {
+    void print () const {
         amrex::Print() << "Material properties of " << amrex::getEnumNameString(m_name) << ":\n";
         amrex::Print() << "    density: " << m_density << "\n";
         amrex::Print() << "    ionization: " << m_ionization << "\n";
@@ -229,28 +229,28 @@ struct MaterialProperties : public MaterialPropertiesCore {
 
     /*! \brief Set this material to H20 */
     AMREX_GPU_HOST_DEVICE
-    void setProperties_H2O();
+    void setProperties_H2O ();
     /*! \brief Set this material to ice */
     AMREX_GPU_HOST_DEVICE
-    void setProperties_ice();
+    void setProperties_ice ();
     /*! \brief Set this material to water */
     AMREX_GPU_HOST_DEVICE
-    void setProperties_water();
+    void setProperties_water ();
     /*! \brief Set this material to agua */
     AMREX_GPU_HOST_DEVICE
-    void setProperties_agua();
+    void setProperties_agua ();
     /*! \brief Set this material to NaCl */
     AMREX_GPU_HOST_DEVICE
-    void setProperties_NaCl();
+    void setProperties_NaCl ();
     /*! \brief Set this material to ammonium sulfate */
     AMREX_GPU_HOST_DEVICE
-    void setProperties_NH42SO4();
+    void setProperties_NH42SO4 ();
     /*! \brief Set this material to ammonium bisulfate */
     AMREX_GPU_HOST_DEVICE
-    void setProperties_NH4HSO4();
+    void setProperties_NH4HSO4 ();
     /*! \brief Set this material to soil */
     AMREX_GPU_HOST_DEVICE
-    void setProperties_soil();
+    void setProperties_soil ();
 
     /*! \brief Compute saturation pressure */
     AMREX_GPU_HOST AMREX_FORCE_INLINE

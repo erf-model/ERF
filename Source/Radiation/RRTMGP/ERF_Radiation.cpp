@@ -117,7 +117,7 @@ Radiation::Radiation (const int& lev,
     // Number of columns per RRTMGP chunk (controls peak GPU memory)
     pp.queryAdd("rad_ncol_chunk", m_ncol_chunk_requested);
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_ncol_chunk_requested > 0,
-        "erf.rad_ncol_chunk must be a positive integer (default 5000). "
+        "erf.rad_ncol_chunk must be a positive integer (default 1024). "
         "It controls the number of columns processed per RRTMGP kernel launch; "
         "a value of 0 or negative would produce an infinite loop.");
     m_ncol_chunk = m_ncol_chunk_requested;
@@ -274,7 +274,7 @@ Radiation::set_grids (int& level,
                       MultiFab* z_phys,
                       MultiFab* lat,
                       MultiFab* lon,
-                      const bool updated_lsm)
+                      const bool /*updated_lsm*/)
 
 {
     // Set data members that may change
@@ -306,7 +306,7 @@ Radiation::set_grids (int& level,
 
     // Only allocate and proceed if we are going to update radiation
     m_update_rad = false;
-    if (m_rad_freq_in_steps > 0) { m_update_rad = ( (m_step == 0) || (m_step % m_rad_freq_in_steps == 0) || updated_lsm); }
+    if (m_rad_freq_in_steps > 0) { m_update_rad = ( (m_step == 0) || (m_step % m_rad_freq_in_steps == 0) ); }
 
     if (m_update_rad) {
         // Call to Init() has set the dimensions: ncol & nlay
@@ -823,6 +823,16 @@ Radiation::mf_to_kokkos_buffers (iMultiFab* lmask,
 void
 Radiation::kokkos_buffers_to_mf (const Vector<MultiFab*>& lsm_output_ptrs)
 {
+    // The heating rates and fluxes read below were written by Kokkos kernels in run_impl().
+    // Kokkos launches on its own default instance while the ParallelFors here launch on
+    // amrex::Gpu::gpuStream(), and nothing orders the consumer against the producer: MFIter
+    // synchronizes the streams it used, but only after its own kernels, which is too late.
+    // This is the same cross-stream race that made radqrclw vary run to run in the datalog
+    // path (see section 7 of RRTMGP_Memory_Reduction.md); that fence guarded one call site,
+    // this one guards the hand-off that feeds qheating_rates and rad_fluxes back into the
+    // solution.  No-op on a CPU build.
+    Kokkos::fence();
+
     // Heating rate, fluxes, zenith, lsm ptrs
 
     Table2D<Real,Order::C> p_lay_tab(p_lay.data(), {0,0}, {static_cast<int>(p_lay.extent(0)),static_cast<int>(p_lay.extent(1))});

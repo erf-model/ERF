@@ -2,10 +2,19 @@
 #include "ERF_Constants.H"
 
 #include <ERF_EOS.H>
+#include <ERF_Utils.H>
 #include <ERF_TimestepUtils.H>
+#include <ERF_TerrainMetrics.H>
+#include "Diffusion/ERF_TerrainDiffusionLimits.H"
 #include <ERF.H>
 #include "Diffusion/ERF_CloudChamberWallFlux.H"
 #include "TimeIntegration/ERF_CloudChamberWallDtGuard.H"
+#include "AuxiliaryState/ERF_AuxiliaryMappedTransport.H"
+#include "Microphysics/SBM/ERF_SBMTransport.H"
+
+#include <cmath>
+#include <limits>
+#include <sstream>
 
 using namespace amrex;
 
@@ -18,9 +27,66 @@ ERF::ComputeDt (int step, double cur_time_d)
 {
     Vector<double> dt_tmp(finest_level+1);
 
+    // Explicit diffusion rates per level (1/s): eddy, from the diffusivities of the last step,
+    // plus molecular
+    const bool do_diffusive_check = (diffusive_dt_check || diffusive_dt_limit);
+    Vector<Real> rate_mom (finest_level+1, zero);
+    Vector<Real> rate_scal(finest_level+1, zero);
+
+    // Track exactly the current levels, so a level removed and later re-created is reported again
+    slope_report_grids.resize(finest_level+1);
+    slope_report_alpha.resize(finest_level+1, zero);
+    openface_grids.resize(finest_level+1);
+
+    const bool fitted = (solverChoice.terrain_type == TerrainType::StaticFittedMesh ||
+                         solverChoice.terrain_type == TerrainType::MovingFittedMesh);
+    const bool moving = (solverChoice.terrain_type == TerrainType::MovingFittedMesh);
+
     for (int lev = 0; lev <= finest_level; ++lev)
     {
+        // The terrain slope factor is reported only when one of the options it informs is on:
+        // the diffusive check or limit, or a Smagorinsky2D limit at this level.  It is printed
+        // whenever a level has a new set of grids (at initialisation, on the first step after a
+        // restart, and on the coarse step after a regrid), and on a moving terrain also whenever
+        // its largest value changes by more than 1 %.
+        const TurbChoice& tc = solverChoice.turbChoice[lev];
+        const bool slope_report = fitted && tc.use_kturb && tc.kh_kv_can_differ() &&
+            (do_diffusive_check || tc.smag2d_slope_limiter || tc.smag2d_kh_cap > zero);
+        if (slope_report) {
+            const bool new_grids = (slope_report_grids[lev] != grids[lev]);
+            if (SlopeReportEvaluate(new_grids, moving)) {
+                ReportTerrainSlopeFactor(lev, new_grids);
+                slope_report_grids[lev] = grids[lev];
+            }
+        }
+
+        // Steep terrain next to an inflow or outflow face: checked for every new set of grids
+        if (openface_grids[lev] != grids[lev]) {
+            WarnSteepTerrainAtOpenFaces(lev);
+            openface_grids[lev] = grids[lev];
+        }
+
         dt_tmp[lev] = estTimeStep(lev, dt_mri_ratio[lev]);
+
+        if (do_diffusive_check) {
+            ComputeDiffusiveRates(lev, rate_mom[lev], rate_scal[lev]);
+            const Real rate = amrex::max(rate_mom[lev], rate_scal[lev]);
+            if (diffusive_dt_limit && fixed_dt[lev] <= zero) {
+                if (rate > zero) {
+                    const double dt_diff = static_cast<double>(diffusive_cfl) / static_cast<double>(rate);
+                    if (verbose) {
+                        Print() << "Diffusive dt at level " << lev << ":  " << dt_diff
+                                << " (erf.diffusive_cfl = " << diffusive_cfl << ")" << std::endl;
+                    }
+                    dt_tmp[lev] = std::min(dt_tmp[lev], dt_diff);
+                } else if (diffusive_first_call && !restart_chkfile.empty() && istep[lev] > 0) {
+                    // The eddy diffusivities are not checkpointed, so on the first step after a
+                    // restart they are not known yet: do not let dt grow past the checkpointed
+                    // step (which the limit bounded if the run that wrote it used the limit).
+                    dt_tmp[lev] = std::min(dt_tmp[lev], dt[lev]);
+                }
+            }
+        }
     }
 
     ParallelDescriptor::ReduceRealMin(&dt_tmp[0], dt_tmp.size());
@@ -53,6 +119,205 @@ ERF::ComputeDt (int step, double cur_time_d)
     dt[0] = dt_0;
     for (int lev = 1; lev <= finest_level; ++lev) {
         dt[lev] = dt[lev-1] / nsubsteps[lev];
+    }
+
+    diffusive_first_call = false;
+
+    // Warn when the step just chosen exceeds the explicit diffusive limit.  The warning repeats
+    // on a level only when the Fourier number has grown by half since it was last reported.
+    if (diffusive_dt_check) {
+        if (static_cast<int>(diffusive_fourier_warned.size()) < finest_level+1) {
+            diffusive_fourier_warned.resize(finest_level+1, zero);
+        }
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            const Real F_mom  = static_cast<Real>(dt[lev]) * rate_mom[lev];
+            const Real F_scal = static_cast<Real>(dt[lev]) * rate_scal[lev];
+            const Real F      = amrex::max(F_mom, F_scal);
+            if (verbose > 1) {
+                Print() << "Diffusive Fourier number at level " << lev << ": " << F
+                        << " (momentum " << F_mom << ", scalars " << F_scal << ")" << std::endl;
+            }
+            if (F > diffusive_cfl && F > Real(1.5) * diffusive_fourier_warned[lev]) {
+                Print() << "WARNING: explicit diffusion at level " << lev
+                        << " has Fourier number dt * rate = " << F
+                        << " (momentum " << F_mom << ", scalars " << F_scal
+                        << ") > erf.diffusive_cfl = " << diffusive_cfl
+                        << " with dt = " << dt[lev] << ".\n"
+                        << "         The rate is a conservative estimate of the horizontal, terrain-metric and"
+                        << " explicit vertical eddy and molecular diffusion; the run may go unstable.  Consider"
+                        << " erf.diffusive_dt_limit = true (adaptive dt), a smaller erf.fixed_dt, or for"
+                        << " Smagorinsky2D erf.smag2d_slope_limiter / erf.smag2d_kh_cap; on a terrain-fitted"
+                        << " mesh, erf.implicit_terrain_metric = true with erf.vert_implicit_fac = 1 1 1."
+                        << "  Repeated only if it grows by half." << std::endl;
+                diffusive_fourier_warned[lev] = F;
+            }
+        }
+    }
+}
+
+/**
+ * Largest explicit diffusion rates on a level, for the diffusive time-step check: the
+ * maximum over valid cells of CellDiffusiveRates (ERF_TerrainDiffusionLimits.H), which takes
+ * the largest diffusivities and the smallest density over each cell's 3x3x3 neighbourhood,
+ * built from the eddy diffusivities of the last step (zero
+ * before the first step and on the first step after a restart, since they are not
+ * checkpointed; a regrid happens before the advance that recomputes them) plus the molecular
+ * ones of erf.molec_diff_type.
+ *
+ * @param[in]  lev       level
+ * @param[out] rate_mom  momentum rate (1/s), Mom_h and Mom_v
+ * @param[out] rate_scal scalar rate (1/s): the largest over theta, and moisture, turbulent
+ *                       kinetic energy and the advected scalar where they are carried
+ */
+void
+ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
+{
+    rate_mom  = zero;
+    rate_scal = zero;
+    const DiffChoice& dc = solverChoice.diffChoice;
+    const bool has_eddy  = (eddyDiffs_lev[lev] != nullptr);
+    const bool has_molec = (dc.molec_diff_type != MolecDiffType::None);
+    if (!has_eddy && !has_molec) { return; }
+
+    const auto dxinv       = geom[lev].InvCellSizeArray();
+    const bool variable_dz = (SolverChoice::mesh_type != MeshType::ConstantDz);
+
+    // Explicit fraction of the vertical diffusion (ExplicitVerticalFraction): 0 where the
+    // partly implicit stages keep it bounded, 1 otherwise.  Compressible levels use the
+    // three-stage scheme; anelastic MidPoint is two stages; anelastic RK2 turns the implicit
+    // solve off (its factors are zero).
+    const auto& fac = solverChoice.vert_implicit_fac[lev];
+    const int nstages = (solverChoice.anelastic[lev] &&
+                         solverChoice.anelastic_type[lev] == AnelasticType::MidPoint) ? 2 : 3;
+    const Real e_uv = ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_momentum_diffusion);
+#ifdef ERF_IMPLICIT_W
+    const Real e_w  = e_uv;
+#else
+    const Real e_w  = one;  // w's vertical diffusion is always explicit in this build
+#endif
+    const Real e_th = ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_thermal_diffusion);
+    const Real e_ke = ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_ke_diffusion);
+    // The implicit solve treats the diffChoice.n_qstate_moist water species starting at
+    // RhoQ1_comp (with SBM only qv, but the host does not diffuse the SBM liquid lanes at
+    // all).  Non-water species a microphysics model packs directly after them share the Q
+    // diffusivities and diffuse explicitly, and so do the advected scalars.
+    const bool nonmoist_q = (vars_new[lev][Vars::cons].nComp() >
+                             RhoQ1_comp + solverChoice.diffChoice.n_qstate_moist);
+    const Real e_q  = nonmoist_q ? one
+                                 : ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_moisture_diffusion);
+    DiffusiveRateSettings set;
+    set.variable_dz = variable_dz;
+    set.has_q       = (solverChoice.moisture_type != MoistureType::None);
+    set.has_ke      = solverChoice.turbChoice[lev].use_tke;
+    set.has_scalar  = solverChoice.transport_scalar;
+    set.implicit_metric = solverChoice.implicit_terrain_metric;
+    set.e_uv = e_uv; set.e_w = e_w; set.e_th = e_th; set.e_q = e_q; set.e_ke = e_ke;
+    set.has_eddy = has_eddy;
+    // Molecular diffusivities as the diffusion operators use them: the stresses take
+    // 2 * dynamic_viscosity (ComputeStress*), i.e. dynamic_viscosity in the convention of
+    // MomentumDiffusiveRate, and the scalars rhoAlpha_T and rhoAlpha_C; with ConstantAlpha
+    // these are kinematic and scaled by the local density
+    if (dc.molec_diff_type == MolecDiffType::Constant) {
+        set.mol_mom = dc.dynamic_viscosity;
+        set.mol_th  = dc.rhoAlpha_T;
+        set.mol_c   = dc.rhoAlpha_C;
+    } else if (dc.molec_diff_type == MolecDiffType::ConstantAlpha) {
+        set.mol_mom = dc.dynamic_viscosity / dc.rho0_trans;
+        set.mol_th  = dc.alpha_T;
+        set.mol_c   = dc.alpha_C;
+        set.mol_times_rho = true;
+    }
+
+    const MultiFab& S = vars_new[lev][Vars::cons];
+    // CellDiffusiveRates reads the 3x3x3 neighbourhood of each valid cell
+    AMREX_ALWAYS_ASSERT(S.nGrowVect().min() >= 1);
+    AMREX_ALWAYS_ASSERT(!has_eddy || eddyDiffs_lev[lev]->nGrowVect().min() >= 1);
+
+    ReduceOps<ReduceOpMax, ReduceOpMax> reduce_op;
+    ReduceData<Real, Real> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+
+    for (MFIter mfi(S, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.tilebox();
+        const Array4<const Real> s_arr = S.const_array(mfi);
+        const Array4<const Real> k_arr = has_eddy ? eddyDiffs_lev[lev]->const_array(mfi)
+                                                  : Array4<const Real>{};
+        const Array4<const Real> z_nd  = z_phys_nd[lev]->const_array(mfi);
+        const Array4<const Real> mf_mx = mapfac[lev][MapFacType::m_x]->const_array(mfi);
+        const Array4<const Real> mf_my = mapfac[lev][MapFacType::m_y]->const_array(mfi);
+
+        reduce_op.eval(bx, reduce_data, [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+        {
+            Real rm = zero, rs = zero;
+            CellDiffusiveRates(i, j, k, s_arr, k_arr, z_nd, mf_mx(i,j,0), mf_my(i,j,0), dxinv, set, rm, rs);
+            return {rm, rs};
+        });
+    }
+
+    ReduceTuple hv = reduce_data.value(reduce_op);
+    rate_mom  = amrex::get<0>(hv);
+    rate_scal = amrex::get<1>(hv);
+    ParallelDescriptor::ReduceRealMax(rate_mom);
+    ParallelDescriptor::ReduceRealMax(rate_scal);
+}
+
+/**
+ * Print the largest terrain slope factor alpha = h dx/dz (TerrainSlopeFactor) on a level, and
+ * how many cells have alpha > 1.  ComputeDt calls it on terrain-fitted meshes where the closure
+ * lets K_h and K_v differ (the explicit terrain-metric diffusion K_h h^2 d2/dz2 then limits the
+ * time step), only when the diffusive check or limit or a Smagorinsky2D limit is on.
+ *
+ * @param[in] lev   level
+ * @param[in] force print even if the largest alpha is within 1 % of the last report (new grids)
+ */
+void
+ERF::ReportTerrainSlopeFactor (int lev, bool force)
+{
+    AMREX_ALWAYS_ASSERT(z_phys_nd[lev]);
+    const TurbChoice& tc = solverChoice.turbChoice[lev];
+
+    const MultiFab& S = vars_new[lev][Vars::cons];
+
+    ReduceOps<ReduceOpMax, ReduceOpSum> reduce_op;
+    ReduceData<Real, Long> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+
+    for (MFIter mfi(S, TilingIfNotGPU()); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.tilebox();
+        const Array4<const Real> z_nd = z_phys_nd[lev]->const_array(mfi);
+        reduce_op.eval(bx, reduce_data, [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple
+        {
+            const Real alpha = TerrainSlopeFactor(ComputeTerrainCellDrops(i,j,k,z_nd));
+            return {alpha, (alpha > one) ? Long(1) : Long(0)};
+        });
+    }
+
+    ReduceTuple hv = reduce_data.value(reduce_op);
+    Real alpha_max = amrex::get<0>(hv);
+    Long n_steep   = amrex::get<1>(hv);
+    ParallelDescriptor::ReduceRealMax(alpha_max);
+
+    if (!SlopeReportPrint(force, alpha_max, slope_report_alpha[lev])) { return; }
+    ParallelDescriptor::ReduceLongSum(n_steep);   // needed only for the printed line
+    slope_report_alpha[lev] = alpha_max;
+
+    Print() << "Terrain slope factor alpha = h dx/dz at level " << lev << ": max " << alpha_max
+            << ", alpha > 1 in " << n_steep << " of " << grids[lev].numPts() << " cells" << std::endl;
+    if (alpha_max > one) {
+        Print() << "    the explicit terrain-metric diffusion K h^2 d2/dz2 limits dt to about"
+                << " dz^2 / (4 K_m h^2) for momentum and dz^2 / (2 K_s h^2) for scalars";
+        if (tc.les_type == LESType::Smagorinsky && tc.smag2d) {
+            Print() << ",\n    i.e. 1 / (4 Cs^2 |S| alpha^2) and Pr_t / (2 Cs^2 |S| alpha^2) for Smagorinsky2D"
+                    << " without the WRF slope limiter (";
+            if (tc.smag2d_slope_limiter) {
+                Print() << "on here: K_h is divided by alpha or alpha^2)";
+            } else {
+                Print() << "off here)";
+            }
+        }
+        Print() << std::endl;
     }
 }
 
@@ -358,6 +623,141 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
     if (estdt_lowM_inv_T > zero) { estdt_lowM_T = cfl / estdt_lowM_inv_T; }
     if (estdt_lowM_inv_N > zero) { estdt_lowM_N = cfl / estdt_lowM_inv_N; }
 
+    // The host estimator uses a directional maximum, whereas M3's donor
+    // positivity condition is based on the sum of all mapped outgoing faces.
+    // Rebuild the current-time dry-air carrier with the same momentum and
+    // static-terrain conventions as AdvectionSrcForRho.
+    if (solverChoice.moisture_type == MoistureType::SBM) {
+        const BoxArray& cell_ba = S_new.boxArray();
+        const DistributionMapping& cell_dm = S_new.DistributionMap();
+        const BoxArray xface_ba = convert(
+            cell_ba, IntVect::TheDimensionVector(0));
+        const BoxArray yface_ba = convert(
+            cell_ba, IntVect::TheDimensionVector(1));
+        const BoxArray zface_ba = convert(
+            cell_ba, IntVect::TheDimensionVector(2));
+
+        MultiFab rho_u(xface_ba, cell_dm, 1, 2);
+        MultiFab rho_v(yface_ba, cell_dm, 1, 2);
+        MultiFab rho_w(zface_ba, cell_dm, 1, 2);
+        rho_u.setVal(Real(0.0));
+        rho_v.setVal(Real(0.0));
+        rho_w.setVal(Real(0.0));
+
+        const IntVect valid_faces(0);
+        const auto& current_u = vars_new[level][Vars::xvel];
+        const auto& current_v = vars_new[level][Vars::yvel];
+        const auto& current_w = vars_new[level][Vars::zvel];
+        VelocityToMomentum(current_u, valid_faces, current_v, valid_faces,
+                           current_w, valid_faces, S_new, rho_u, rho_v, rho_w,
+                           geom[level].Domain(), domain_bcs_type, nullptr);
+        rho_u.FillBoundary(geom[level].periodicity());
+        rho_v.FillBoundary(geom[level].periodicity());
+        rho_w.FillBoundary(geom[level].periodicity());
+
+        erf_auxiliary::MappedFaceFluxRate mapped_carrier;
+        mapped_carrier.define(cell_ba, cell_dm, 1, 0);
+        std::string sbm_diagnostic;
+        if (l_anelastic) {
+            // Projection restores rho0*w before the anelastic stage seam, so
+            // the donor estimate must use the same three momentum carriers.
+            // Terrain Omega is only an internal projection representation.
+            if (!erf_auxiliary::CopyNativeMappedDryAirCarrierFluxRate(
+                    mapped_carrier, rho_u, rho_v, rho_w, sbm_diagnostic)) {
+                amrex::Abort("SBM anelastic native carrier: " + sbm_diagnostic);
+            }
+        } else {
+            MultiFab sbm_vertical_carrier(zface_ba, cell_dm, 1, 0);
+            const bool terrain_fitted =
+                solverChoice.mesh_type == MeshType::VariableDz;
+            const int zlo = geom[level].Domain().smallEnd(2);
+            const int zhi = geom[level].Domain().bigEnd(2);
+            const auto inv_dx = geom[level].InvCellSizeArray();
+            const MultiFab& z_nd = *z_phys_nd[level];
+            const MultiFab& mf_ux = *mapfac[level][MapFacType::u_x];
+            const MultiFab& mf_vy = *mapfac[level][MapFacType::v_y];
+            for (MFIter mfi(sbm_vertical_carrier, TilingIfNotGPU());
+                 mfi.isValid(); ++mfi) {
+                const Box bx = mfi.tilebox();
+                const auto ru = rho_u.const_array(mfi);
+                const auto rv = rho_v.const_array(mfi);
+                const auto rw = rho_w.const_array(mfi);
+                const auto ux = mf_ux.const_array(mfi);
+                const auto vy = mf_vy.const_array(mfi);
+                const auto z = z_nd.const_array(mfi);
+                const auto out = sbm_vertical_carrier.array(mfi);
+                const bool fitted = terrain_fitted;
+                const int bottom = zlo;
+                const int top = zhi + 1;
+                const auto dx = inv_dx;
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    if (!fitted) {
+                        out(i, j, k, 0) = rw(i, j, k, 0);
+                    } else if (k == bottom) {
+                        out(i, j, k, 0) = Real(0.0);
+                    } else if (k == top) {
+                        out(i, j, k, 0) = rw(i, j, k, 0);
+                    } else {
+                        out(i, j, k, 0) = OmegaFromW(i, j, k, rw(i, j, k, 0),
+                                                      ru, rv, ux, vy, z, dx);
+                    }
+                });
+            }
+            const bool carrier_ok =
+                erf_auxiliary::BuildMappedDryAirCarrierFluxRate(
+                    mapped_carrier, rho_u, rho_v, sbm_vertical_carrier,
+                    *ax[level], *ay[level], *az[level],
+                    *mapfac[level][MapFacType::u_y],
+                    *mapfac[level][MapFacType::v_x],
+                    *mapfac[level][MapFacType::m_x],
+                    *mapfac[level][MapFacType::m_y], sbm_diagnostic);
+            if (!carrier_ok) {
+                Abort("SBM M3 current mapped carrier: " + sbm_diagnostic);
+            }
+        }
+
+        if (sbm_transport == nullptr || !sbm_transport->is_defined(level) ||
+            !sbm_transport->measure_is_ready(level)) {
+            Abort("SBM M3 donor timestep estimate requires a ready static measure");
+        }
+        const MultiFab& measure = sbm_transport->static_measure(level);
+
+        Real max_sbm_outgoing_rate = Real(0.0);
+        const bool rate_ok = erf_auxiliary::ComputeMaxMappedOutgoingRate(
+            mapped_carrier, measure, S_new, Rho_comp, dxinv,
+            max_sbm_outgoing_rate, sbm_diagnostic);
+        if (!rate_ok) {
+            Abort("SBM M3 current donor-rate estimate: " + sbm_diagnostic);
+        }
+        if (max_sbm_outgoing_rate > Real(0.0)) {
+            const double adaptive_sbm_dt =
+                static_cast<double>(amrex::min(cfl, Real(1.0)) /
+                                    max_sbm_outgoing_rate);
+            estdt_comp_T = std::min(estdt_comp_T, adaptive_sbm_dt);
+            estdt_comp_N = std::min(estdt_comp_N, adaptive_sbm_dt);
+            estdt_lowM_T = std::min(estdt_lowM_T, adaptive_sbm_dt);
+            estdt_lowM_N = std::min(estdt_lowM_N, adaptive_sbm_dt);
+
+            double hard_sbm_dt = std::numeric_limits<double>::infinity();
+            if (erf_auxiliary::FixedDtExceedsMappedDonorLimit(
+                    static_cast<double>(fixed_dt[level]),
+                    max_sbm_outgoing_rate, hard_sbm_dt)) {
+                std::ostringstream message;
+                message.precision(17);
+                message << "SBM M3 fixed timestep exceeds donor positivity "
+                           "limit: fixed_dt=" << fixed_dt[level]
+                        << " hard_limit=" << hard_sbm_dt
+                        << " max_outgoing_rate=" << max_sbm_outgoing_rate;
+                Abort(message.str());
+            }
+            if (verbose) {
+                Print() << "SBM mapped donor dt at level " << level << ": "
+                        << adaptive_sbm_dt << " (hard fixed-dt limit "
+                        << hard_sbm_dt << ")" << std::endl;
+            }
+        }
+    }
+
      Real max_wall_rate = Real(0.0);
      Real estdt_wall = bogus_large_value;
      if (cloud_chamber_config.active &&
@@ -559,12 +959,47 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
              }
          } else if (fixed_dt[level] > zero) {
              // Max CFL_c = one for substeps by default, but we enforce a min of 4 substeps
-         auto dt_sub_max = (estdt_comp_T * (third/cfl) * sub_cfl);
-             dt_fast_ratio = static_cast<long>( std::max(fixed_dt[level]/static_cast<double>(dt_sub_max), 4.0) );
+             const double dt_sub_max = static_cast<double>(estdt_comp_T * (third/cfl) * sub_cfl);
+             //
+             // Check dt_sub_max BEFORE dividing by it, and the quotient before casting it.
+             // Converting a non-finite or wildly out-of-range double to long is undefined
+             // behaviour and in practice traps, and the division itself raises on a zero
+             // denominator under erf's FPE trapping.  A level handed corrupted state
+             // arrives here with an enormous sound speed, hence a vanishing estdt_comp_T
+             // and a vanishing dt_sub_max; without this the first symptom is a bare signal
+             // inside the time-step estimate rather than a message naming the cause.
+             //
+             auto bad_substep_ratio = [&] (const char* what, double value)
+             {
+                 std::ostringstream message;
+                 message.precision(17);
+                 message << "estTimeStep: cannot form the acoustic substep ratio at level "
+                         << level << ": " << what << " = " << value
+                         << " (fixed_dt=" << fixed_dt[level]
+                         << ", estdt_comp_T=" << estdt_comp_T
+                         << ", cfl=" << cfl << ", substepping_cfl=" << sub_cfl << ")."
+                         << " The compressible time-step estimate came back zero or"
+                            " non-finite, so the state this level was handed is not usable.";
+                 Abort(message.str());
+             };
+
+             //
+             // +inf is deliberately allowed through: an SCM level and a globally empty
+             // level both report an unconstrained acoustic dt on purpose, the quotient
+             // below is then zero, and the ratio correctly floors at the minimum of 4.
+             // Only a zero, negative or NaN denominator is a real failure.
+             //
+             if (std::isnan(dt_sub_max) || (dt_sub_max <= 0.0)) {
+                 bad_substep_ratio("dt_sub_max", dt_sub_max);
+             }
+             const double sub_ratio = std::max(std::ceil(fixed_dt[level]/dt_sub_max), double(4.0));
+             if (!std::isfinite(sub_ratio) || (sub_ratio > 1.0e9)) {
+                 bad_substep_ratio("mri_dt_ratio", sub_ratio);
+             }
+             dt_fast_ratio = static_cast<long>(sub_ratio);
          } else {
-             // auto dt_sub_max = (estdt_comp_T/cfl * sub_cfl);
-             // dt_fast_ratio = static_cast<long>( std::max(estdt_comp_T/dt_sub_max,Real(4.)) );
-         dt_fast_ratio = static_cast<long>( std::max((cfl/third) / sub_cfl, Real(4.)) );
+             const double sub_ratio = std::max(std::ceil((cfl/third)/sub_cfl), Real(4.0));
+             dt_fast_ratio = static_cast<long>(sub_ratio);
          }
 
          // Force time step ratio to be an even value

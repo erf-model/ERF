@@ -15,8 +15,8 @@ namespace erf_sbm {
 // Scientific metadata is part of the restart/schema identity.  Keep this
 // policy in one place so grids and layouts cannot silently serialize the same
 // value with different precision or locale rules.
-inline std::string canonical_real(const amrex::Real value,
-                                  const bool allow_unbounded_nan = false)
+inline std::string canonical_real (const amrex::Real value,
+                                   const bool allow_unbounded_nan = false)
 {
     if (allow_unbounded_nan && std::isnan(value)) return "unbounded";
     std::ostringstream out;

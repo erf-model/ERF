@@ -841,8 +841,8 @@ void wsm6_nislfv_rain_plm6_scratch (int km,
 }
 
 void
-WSM6::Advance(const Real& dt_advance,
-              const SolverChoice&)
+WSM6::Advance (const Real& dt_advance,
+               const SolverChoice&)
 {
     dt = dt_advance;
 

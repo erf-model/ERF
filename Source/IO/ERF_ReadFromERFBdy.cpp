@@ -2,21 +2,24 @@
  * \file ERF_ReadFromERFBdy.cpp
  */
 #include "ERF_ReadFromERFBdy.H"
+#include <AMReX.H>
 #include <AMReX_VisMF.H>
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Print.H>
 #include <fstream>
+#include <sstream>
 
 using namespace amrex;
 
 double
-read_times_from_erfbdy(const std::string& bdy_file_name,
-                       int& ntimes,
-                       int& nvars,
-                       int& real_width,
-                       Vector<double>& bdy_times,
-                       double& start_bdy_time,
-                       double& final_bdy_time)
+read_times_from_erfbdy (const std::string& bdy_file_name,
+                        const Box& domain,
+                        int& ntimes,
+                        int& nvars,
+                        int& real_width,
+                        Vector<double>& bdy_times,
+                        double& start_bdy_time,
+                        double& final_bdy_time)
 {
     std::string HeaderFileName = bdy_file_name + "/Header";
 
@@ -44,12 +47,25 @@ read_times_from_erfbdy(const std::string& bdy_file_name,
         HeaderFile >> bdy_times[i];
     }
 
-    // Read domain box (stored but not used here).
+    // Read the domain box of the run that wrote this file.
     int sml[3], big[3];
     HeaderFile >> sml[0] >> sml[1] >> sml[2];
     HeaderFile >> big[0] >> big[1] >> big[2];
 
     HeaderFile.close();
+
+    // The boundary data in this file were built for the domain recorded in its header,
+    // so refuse to use them for any other domain rather than reading boxes that don't fit.
+    const Box bdy_domain(IntVect(AMREX_D_DECL(sml[0],sml[1],sml[2])),
+                         IntVect(AMREX_D_DECL(big[0],big[1],big[2])));
+    if (bdy_domain != domain) {
+        std::ostringstream msg;
+        msg << "The boundary file " << bdy_file_name << " was written for the domain "
+            << bdy_domain << " but this run has the domain " << domain
+            << " -- please remove or rename " << bdy_file_name
+            << ", or name a different file with erf.erfbdy_file";
+        amrex::Abort(msg.str());
+    }
 
     // Ensure the file holds at least two times.
     AMREX_ALWAYS_ASSERT(ntimes >= 2);
@@ -65,13 +81,13 @@ read_times_from_erfbdy(const std::string& bdy_file_name,
 }
 
 void
-read_from_erfbdy(int itime,
-                 const std::string& bdy_file_name,
-                 Vector<Vector<FArrayBox>>& bdy_data_xlo,
-                 Vector<Vector<FArrayBox>>& bdy_data_xhi,
-                 Vector<Vector<FArrayBox>>& bdy_data_ylo,
-                 Vector<Vector<FArrayBox>>& bdy_data_yhi,
-                 int nvars, int /*real_width*/)
+read_from_erfbdy (int itime,
+                  const std::string& bdy_file_name,
+                  Vector<Vector<FArrayBox>>& bdy_data_xlo,
+                  Vector<Vector<FArrayBox>>& bdy_data_xhi,
+                  Vector<Vector<FArrayBox>>& bdy_data_ylo,
+                  Vector<Vector<FArrayBox>>& bdy_data_yhi,
+                  int nvars, int /*real_width*/)
 {
     Print() << "Reading ERF boundary data for time index " << itime << std::endl;
     std::string time_dir = bdy_file_name + "/Time_" + Concatenate("", itime, 6);

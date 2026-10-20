@@ -226,7 +226,8 @@ Problem::update_w_subsidence (const double& /*time*/,
                               Gpu::DeviceVector<Real>& d_wbar,
                               const amrex::MultiFab& /*state*/,
                               const Geometry& geom,
-                              std::unique_ptr<MultiFab>& z_phys_nd)
+                              std::unique_ptr<MultiFab>& z_phys_nd,
+                              const Vector<Real>& zlevels_stag)
 {
     if (wbar.empty()) return;
 
@@ -239,7 +240,7 @@ Problem::update_w_subsidence (const double& /*time*/,
     // grid stretching exists.
     if (z_phys_nd) {
         zlevels.resize(khi+1);
-        reduce_to_max_per_height(zlevels, z_phys_nd);
+        reduce_to_max_per_height(zlevels, z_phys_nd, zlevels_stag);
     }
 
     // Linearly increase wbar to the cutoff_max and then linearly decrease to cutoff_min

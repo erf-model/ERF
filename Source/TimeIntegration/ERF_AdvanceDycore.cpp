@@ -7,11 +7,13 @@
 #include <ERF_EOS.H>
 #include <ERF_TerrainMetrics.H>
 #include <ERF_Diffusion.H>
+#include <ERF_NativeScalarDiffusion.H>
 #include <ERF_TileNoZ.H>
 #include <ERF_Utils.H>
 #include <ERF_EBRedistribute.H>
 #include <ERF_PlaneAverage.H>
 #include <ERF_CanopyBiophysics.H>
+#include <ERF_SBMOwnership.H>
 
 using namespace amrex;
 
@@ -107,7 +109,7 @@ void ERF::advance_dycore (int level,
     const bool use_lsf = solverChoice.large_scale_forcing;
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         solverChoice.moisture_type != MoistureType::SBM || (!use_lsf && !use_nudging),
-        "SBM zero-transport fixture does not support large-scale subsidence or sounding nudging");
+        "SBM M3 does not support large-scale subsidence or sounding nudging");
 
     const BoxArray& ba            = state_old[IntVars::cons].boxArray();
     const BoxArray& ba_z          = zvel_old.boxArray();
@@ -618,6 +620,7 @@ void ERF::advance_dycore (int level,
     MultiFab* Q1fx3 = SFS_q1fx3_lev[level].get();
     MultiFab* Q2fx3 = SFS_q2fx3_lev[level].get();
     MultiFab* Diss  = SFS_diss_lev[level].get();
+    MultiFab* mf_surface_fluxes = &mfvec_surface_fluxes[level];
 
     MultiFab* Hfx3_EB = nullptr;
     if (solverChoice.terrain_type == TerrainType::EB) {
@@ -654,7 +657,9 @@ void ERF::advance_dycore (int level,
                                   qheating_rates[level].get(),
                                   (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
-                                      terrain_blanking[level].get() : nullptr);
+                                      terrain_blanking[level].get() : nullptr,
+                                  (solverChoice.do_forest_drag) ?
+                                      m_forest_drag[level]->get_drag_field() : nullptr);
 
         // Zero turbulent mixing in fully immersed cells
         MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
@@ -685,26 +690,26 @@ void ERF::advance_dycore (int level,
     if (solverChoice.custom_rhotheta_forcing) {
         prob->update_rhotheta_sources(old_time,
                                       rhotheta_src_ptr,
-                                      fine_geom, z_phys_cc[level]);
+                                      fine_geom, z_phys_cc[level], zlevels_stag[level]);
     }
 
     if (solverChoice.custom_moisture_forcing) {
         prob->update_rhoqt_sources(old_time,
                                    rhoqt_src_ptr,
-                                   fine_geom, z_phys_cc[level]);
+                                   fine_geom, z_phys_cc[level], zlevels_stag[level]);
     }
 
     if (solverChoice.custom_geostrophic_profile) {
         prob->update_geostrophic_profile(old_time,
                                    h_u_geos[level], d_u_geos[level],
                                    h_v_geos[level], d_v_geos[level],
-                                   fine_geom, z_phys_cc[level]);
+                                   fine_geom, z_phys_cc[level], zlevels_stag[level]);
     }
 
     if (solverChoice.custom_w_subsidence) {
         prob->update_w_subsidence(old_time,
                                   h_w_subsid[level], d_w_subsid[level],base_state[level],
-                                  fine_geom, z_phys_nd[level]);
+                                  fine_geom, z_phys_nd[level], zlevels_stag[level]);
     }
 
     // ***********************************************************************************************
@@ -715,10 +720,13 @@ void ERF::advance_dycore (int level,
     //
     // This is an optimization since we won't need more than one ghost
     // cell of momentum in the integrator if not using numerical diffusion
+    // or EB (the EB momentum fluxes and Omega read two cells outside the valid region)
     //
-    IntVect ngu = (!solverChoice.use_num_diff) ? IntVect(1,1,1) : xvel_old.nGrowVect();
-    IntVect ngv = (!solverChoice.use_num_diff) ? IntVect(1,1,1) : yvel_old.nGrowVect();
-    IntVect ngw = (!solverChoice.use_num_diff) ? IntVect(1,1,0) : zvel_old.nGrowVect();
+    const bool all_mom_ghosts = solverChoice.use_num_diff ||
+                                (solverChoice.terrain_type == TerrainType::EB);
+    IntVect ngu = (!all_mom_ghosts) ? IntVect(1,1,1) : xvel_old.nGrowVect();
+    IntVect ngv = (!all_mom_ghosts) ? IntVect(1,1,1) : yvel_old.nGrowVect();
+    IntVect ngw = (!all_mom_ghosts) ? IntVect(1,1,0) : zvel_old.nGrowVect();
 
     const MultiFab* c_vfrac = nullptr;
     if (solverChoice.terrain_type == TerrainType::EB) {

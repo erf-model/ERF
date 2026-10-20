@@ -17,6 +17,7 @@
 #include "ERF_GridUtils.H"
 #include "ERF_TileNoZ.H"
 #include "ERF_ColumnBands.H"
+#include "ERF_TerrainFileChecks.H"
 
 #ifdef ERF_USE_NETCDF
 #include <ERF_NCInterface.H>
@@ -26,27 +27,6 @@ struct ProbParmDefaults {
     amrex::Real rho_0 = one;
     amrex::Real T_0 = amrex::Real(300.0);
 };
-
-template <typename T>
-T erf_get_single_value (std::istream& is, int n)
-{
-  T r = 0;
-  std::string line;
-  if (std::getline(is, line)) {
-    std::stringstream ss(line);
-    ss >> r;
-    if (ss.fail()) {
-      amrex::Abort("Failed to read");
-    }
-    if (ss >> r) {
-      amrex::Print() << "Trying to read line " << n << " in this file " << std::endl;
-      amrex::Abort("Wrong format: more than one number in this line");
-    }
-  } else {
-    amrex::Abort("Unable to read this line");
-  }
-  return r;
-}
 
 void
 init_my_custom_terrain (const amrex::Geometry& geom,
@@ -89,15 +69,15 @@ public:
     }
 
     virtual void
-    erf_init_const_dens_hse(amrex::MultiFab& /*rho_hse*/)
+    erf_init_const_dens_hse (amrex::MultiFab& /*rho_hse*/)
     {
         amrex::Error("Should never call this version of erf_init_const_dens_hse for "+name()+" problem");
     }
 
     virtual void
     erf_init_const_dens_and_th_hse (amrex::MultiFab& /*rho_hse*/, amrex::MultiFab& /* p_hse*/,
-                                   amrex::MultiFab& /* pi_hse*/, amrex::MultiFab& /*th_hse*/,
-                                   amrex::MultiFab& /* qv_hse*/, amrex::Real /*l_rdOcp*/)
+                                    amrex::MultiFab& /* pi_hse*/, amrex::MultiFab& /*th_hse*/,
+                                    amrex::MultiFab& /* qv_hse*/, amrex::Real /*l_rdOcp*/)
     {
         amrex::Error("Should never call this version of erf_init_const_dens_and_th_hse for "+name()+" problem");
     }
@@ -190,12 +170,14 @@ public:
      * @param[out] rhotheta_source  forcing profile
      * @param[in]  geom             container for geometric information
      * @param[in]  z_phys_cc        height coordinate at cell centers
+     * @param[in]  zlevels_stag     nominal heights of the z faces of this level
     */
     virtual void
     update_rhotheta_sources (const double& /*time*/,
                              amrex::MultiFab* src,
                              const amrex::Geometry& /*geom*/,
-                             std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
+                             std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/,
+                             const amrex::Vector<amrex::Real>& /*zlevels_stag*/)
     {
         if (src->empty()) return;
 
@@ -222,12 +204,14 @@ public:
      * @param[out] rhoqt_source     moisture forcing profile
      * @param[in]  geom             container for geometric information
      * @param[in]  z_phys_cc        height coordinate at cell centers
+     * @param[in]  zlevels_stag     nominal heights of the z faces of this level
     */
     virtual void
     update_rhoqt_sources (const double& /*time*/,
                              amrex::MultiFab* qsrc,
                              const amrex::Geometry& /*geom*/,
-                             std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
+                             std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/,
+                             const amrex::Vector<amrex::Real>& /*zlevels_stag*/)
     {
         if (qsrc->empty()) return;
 
@@ -257,6 +241,7 @@ public:
      * @param[out] wbar             w vel forcing profile
      * @param[in]  geom             container for geometric information
      * @param[in]  z_phys_cc        height coordinate at cell centers
+     * @param[in]  zlevels_stag     nominal heights of the z faces of this level
     */
     virtual void
     update_w_subsidence (const double& /*time*/,
@@ -264,7 +249,8 @@ public:
                          amrex::Gpu::DeviceVector<amrex::Real>& d_wbar,
                          const amrex::MultiFab& /*state*/,
                          const amrex::Geometry& geom,
-                         std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
+                         std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/,
+                         const amrex::Vector<amrex::Real>& /*zlevels_stag*/)
     {
         if (wbar.empty()) return;
 
@@ -292,6 +278,7 @@ public:
      * @param[out] v_geos           geostrophic wind profile
      * @param[in]  geom             container for geometric information
      * @param[in]  z_phys_cc        height coordinate at cell centers
+     * @param[in]  zlevels_stag     nominal heights of the z faces of this level
     */
     virtual void
     update_geostrophic_profile (const double& /*time*/,
@@ -300,7 +287,8 @@ public:
                          amrex::Vector<amrex::Real>& v_geos,
                          amrex::Gpu::DeviceVector<amrex::Real>& d_v_geos,
                          const amrex::Geometry& geom,
-                         std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/)
+                         std::unique_ptr<amrex::MultiFab>& /*z_phys_cc*/,
+                         const amrex::Vector<amrex::Real>& /*zlevels_stag*/)
     {
         if (u_geos.empty()) return;
 
@@ -344,6 +332,8 @@ public:
         } else {
             init_my_custom_terrain(geom, buildings_fab, time);
         }
+
+        make_terrain_surface_periodic(geom, buildings_fab);
     }
 
 
@@ -384,6 +374,87 @@ public:
         } else {
             init_my_custom_terrain (geom, terrain_fab, time);
         }
+
+        make_terrain_surface_periodic(geom, terrain_fab);
+    }
+
+    /**
+     * Give every node in a periodic direction the height of its periodic image inside the
+     * domain.  The nodes on the high side of a periodic domain are the same nodes as those
+     * on the low side, but none of the sources above knows that: the file readers clip a
+     * node outside the table to its edge (and look every node up 1e-3 past where it is),
+     * and an analytic surface is periodic only to round-off.  Left as they are the two
+     * copies of a node differ, and so do the metrics of the faces on either side of it --
+     * which means the two grids that share a face update it differently, the mass flux
+     * through it is no longer the same on both sides, and which copy a fill keeps depends
+     * on how the grids are distributed.  The low side is the one we keep.
+     *
+     * terrain_fab must hold every node of the domain in a periodic direction, since that is
+     * where the images are read from.  A surface that is far from periodic is still made
+     * periodic here, but we say so, since the cells next to the high side then see a step.
+    */
+    static void
+    make_terrain_surface_periodic (const amrex::Geometry& geom,
+                                   amrex::FArrayBox& terrain_fab)
+    {
+        const bool per_x = geom.isPeriodic(0);
+        const bool per_y = geom.isPeriodic(1);
+        if (!per_x && !per_y) { return; }
+
+        const amrex::Box& domain = geom.Domain();
+        const int ilo = domain.smallEnd(0); const int nx = domain.length(0);
+        const int jlo = domain.smallEnd(1); const int ny = domain.length(1);
+
+        const amrex::Box bx = terrain_fab.box();
+        const auto blo = amrex::lbound(bx);
+        const auto bhi = amrex::ubound(bx);
+        amrex::Array4<amrex::Real> const& z_arr = terrain_fab.array();
+
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            (!per_x || (blo.x <= ilo && bhi.x >= ilo+nx-1)) &&
+            (!per_y || (blo.y <= jlo && bhi.y >= jlo+ny-1)),
+            "make_terrain_surface_periodic: the terrain FArrayBox must hold every node of the domain in a periodic direction");
+
+        // How far the surface is from periodic: the largest difference between a node on the
+        // high side of the domain and its image on the low side (ghost nodes are left out:
+        // they hold whatever the source clipped them to)
+        amrex::Box hi_bx = bx & amrex::surroundingNodes(domain);
+        hi_bx.setSmall(2, bx.smallEnd(2)); hi_bx.setBig(2, bx.smallEnd(2));
+        if (!hi_bx.isEmpty()) {
+            amrex::ReduceOps<amrex::ReduceOpMax> reduce_op;
+            amrex::ReduceData<amrex::Real> reduce_data(reduce_op);
+            reduce_op.eval(hi_bx, reduce_data,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) -> amrex::GpuTuple<amrex::Real>
+                {
+                    int ii = (per_x) ? ilo + ((i-ilo) % nx + nx) % nx : i;
+                    int jj = (per_y) ? jlo + ((j-jlo) % ny + ny) % ny : j;
+                    return { (ii != i || jj != j) ? amrex::Math::abs(z_arr(i,j,k) - z_arr(ii,jj,k))
+                                                  : amrex::Real(0.0) };
+                });
+            // Every rank fills its own copy of the whole surface, so there is nothing to reduce
+            // across ranks.  Warn once: with a moving mesh we are called several times a step.
+            const amrex::Real max_diff = amrex::get<0>(reduce_data.value());
+            static bool warned = false;
+            if (!warned && max_diff > amrex::Real(0.1) * geom.CellSize(2)) {
+                warned = true;
+                amrex::Print() << "WARNING: the terrain surface is not periodic in a periodic direction: "
+                               << "a node on the high side of the domain differs from its image on the low "
+                               << "side by up to " << max_diff << " m.  The low side is used for both, so the "
+                               << "cells next to the high side see a step in the surface.\n";
+            }
+        }
+
+        // We only write nodes outside [lo, lo+n) in a periodic direction and only read
+        // nodes inside it, so no node is both read and written here
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            int ii = (per_x) ? ilo + ((i-ilo) % nx + nx) % nx : i;
+            int jj = (per_y) ? jlo + ((j-jlo) % ny + ny) % ny : j;
+            if ((ii != i || jj != j) &&
+                ii >= blo.x && ii <= bhi.x && jj >= blo.y && jj <= bhi.y) {
+                z_arr(i,j,k) = z_arr(ii,jj,k);
+            }
+        });
     }
 
     /**
@@ -749,6 +820,13 @@ public:
             if (!target_box.isEmpty()) {
                 target_box.setSmall(2, zbx.smallEnd(2));
                 target_box.setBig(2, zbx.smallEnd(2));
+                // The node on the high side of a periodic direction takes the value of its
+                // image on the low side (make_terrain_surface_periodic), so don't count it
+                for (int d = 0; d < 2; ++d) {
+                    if (geom.isPeriodic(d)) {
+                        target_box.setBig(d, amrex::min(target_box.bigEnd(d), geom.Domain().bigEnd(d)));
+                    }
+                }
                 amrex::ReduceOps<amrex::ReduceOpSum, amrex::ReduceOpSum> reduce_op;
                 amrex::ReduceData<amrex::Long, amrex::Long> reduce_data(reduce_op);
                 reduce_op.eval(target_box, reduce_data,
@@ -843,110 +921,24 @@ public:
 #endif
 
     void
-    read_custom_terrain(const std::string& fname,
+    read_custom_terrain (const std::string& fname,
                          const bool is_usgs,
                          const amrex::Geometry& geom,
                          amrex::FArrayBox& terrain_fab,
                          const double& /*time*/)
     {
-        amrex::Vector<amrex::Real> m_xterrain,m_yterrain,m_zterrain;
+        // Read, checked and broadcast once per file; other levels, regrids, the EB build and
+        // the station slabs reuse the table
+        const auto& table = erf_terrain_file::ReadHeightTable(fname, is_usgs,
+                                                              geom.ProbLoArray(), geom.ProbHiArray());
+        const int nx = table.nx;
+        const int ny = table.ny;
+        const amrex::Vector<amrex::Real>& m_xterrain = table.x;
+        const amrex::Vector<amrex::Real>& m_yterrain = table.y;
+        const amrex::Vector<amrex::Real>& m_zterrain = table.z;
 
-        int nx = 0; int ny = 0;
-
-        if (amrex::ParallelDescriptor::IOProcessor()) {
-            // Read terrain file
-            amrex::Print()<<"Reading terrain file: "<< fname<< std::endl;
-            std::ifstream file(fname);
-
-            if (!file.is_open()) {
-                amrex::Abort("Error: Could not open the file " + fname+ "\n");
-            }
-
-            // Check if file is empty
-            if (file.peek() == std::ifstream::traits_type::eof()) {
-                amrex::Abort("Error: The file  " + fname+ " is empty.\n");
-            }
-
-            amrex::Real value1,value2,value3;
-
-            if (is_usgs) {
-                amrex::Real lat_min, lon_min;
-
-                file >> lon_min >> lat_min;
-                 if(std::fabs(lon_min) > amrex::Real(180.0)) {
-                    amrex::Error("The value of longitude for entry in the first line in " + fname
-                                 + " should not exceed amrex::Real(180.) It is " + std::to_string(lon_min));
-                }
-                 if(std::fabs(lat_min) > amrex::Real(90.0)) {
-                    amrex::Error("The value of latitude for entry in the first line in " + fname
-                                 + " should not exceed amrex::Real(90.) It is " + std::to_string(lat_min));
-                }
-
-                file >> nx >> ny;
-
-                int counter = 0;
-                while (file >> value1 >> value2 >> value3) {
-                    m_xterrain.push_back(value1);
-                    if(counter%nx==0) {
-                        m_yterrain.push_back(value2);
-                    }
-                    m_zterrain.push_back(value3);
-                    counter += 1;
-                }
-                AMREX_ASSERT(m_xterrain.size() == static_cast<long int>(nx*ny));
-                AMREX_ASSERT(m_yterrain.size() == static_cast<long int>(ny));
-                AMREX_ASSERT(m_zterrain.size() == static_cast<long int>(nx*ny));
-
-            } else {
-                int cnt = 1;
-                nx = erf_get_single_value<int>(file,cnt); cnt++;
-                ny = erf_get_single_value<int>(file,cnt); cnt++;
-                amrex::Print()<<"Expecting " << nx << " values of x,    " <<
-                                                ny << " values of y, and " <<
-                                             nx*ny << " values of z" << std::endl;
-                AMREX_ALWAYS_ASSERT(nx > 0);
-                AMREX_ALWAYS_ASSERT(ny > 0);
-                m_xterrain.resize(nx);
-                m_yterrain.resize(ny);
-                m_zterrain.resize(nx * ny);
-                for (int n = 0; n < nx; n++) {
-                    m_xterrain[n] = erf_get_single_value<amrex::Real>(file,cnt);
-                    cnt++;
-                }
-                for (int n = 0; n < ny; n++) {
-                    m_yterrain[n] = erf_get_single_value<amrex::Real>(file,cnt);
-                    cnt++;
-                }
-                for (int n = 0; n < nx * ny; n++) {
-                    m_zterrain[n] = erf_get_single_value<amrex::Real>(file,cnt);
-                    cnt++;
-                }
-            }
-
-            // Close the file after reading
-            file.close();
-        }
-
-        amrex::ParallelDescriptor::Bcast(&nx,1,amrex::ParallelDescriptor::IOProcessorNumber());
-        amrex::ParallelDescriptor::Bcast(&ny,1,amrex::ParallelDescriptor::IOProcessorNumber());
-
-        AMREX_ALWAYS_ASSERT(nx > 0 && ny > 0);
-        if (is_usgs) {
-            // The usgs branch below always uses a full 2x2 stencil
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nx > 1 && ny > 1,
-                "USGS terrain file must have at least two points in each direction");
-        }
-
-        int nz = nx * ny;
-        int nx_vals = is_usgs ? (nx * ny) : nx;
-
-        m_xterrain.resize(nx_vals);
-        m_yterrain.resize(ny);
-        m_zterrain.resize(nz);
-
-        amrex::ParallelDescriptor::Bcast(m_xterrain.data(),nx_vals,amrex::ParallelDescriptor::IOProcessorNumber());
-        amrex::ParallelDescriptor::Bcast(m_yterrain.data(),ny,amrex::ParallelDescriptor::IOProcessorNumber());
-        amrex::ParallelDescriptor::Bcast(m_zterrain.data(),nz,amrex::ParallelDescriptor::IOProcessorNumber());
+        const int nz = nx * ny;
+        const int nx_vals = is_usgs ? (nx * ny) : nx;
 
         // Copy data to the GPU
         amrex::Gpu::DeviceVector<amrex::Real> d_xterrain(nx_vals),d_yterrain(ny),d_zterrain(nz);
@@ -1137,6 +1129,9 @@ public:
                 }
             } // usgs?
         });
+
+        // The kernel reads the device vectors above: finish it before they are freed
+        amrex::Gpu::streamSynchronize();
     }
 
     /**
@@ -1173,7 +1168,7 @@ public:
     }
 
 #ifdef ERF_USE_TERRAIN_VELOCITY
-    virtual amrex::Real compute_terrain_velocity(const double /*time*/)
+    virtual amrex::Real compute_terrain_velocity (const double /*time*/)
     {
         amrex::Error("Should never call compute_terrain_velocity for "+name()+" problem");
     }
@@ -1208,7 +1203,7 @@ protected:
         base_parms.T_0 = T_0;
     }
 
-    std::string name() {
+    std::string name () {
         std::string prob_name;
         amrex::ParmParse pp("erf");
         pp.get("prob_name",prob_name); return prob_name;

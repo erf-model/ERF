@@ -148,7 +148,6 @@ Moisture transport and phase changes are governed by the erf.moisture\_model swi
 | "Kessler" | Vapor ($q\_v$), Cloud Water ($q\_c$), Rain ($q\_r$) | Includes parameterized autoconversion of cloud water to rain ($A\_c$), accretion ($K\_c$), and rain evaporation ($E\_r$). Precipitation undergoes terminal fall velocity sedimentation. |
 | "SAM" | Vapor, Cloud Water, Rain, Ice ($q\_i$), Snow ($q\_s$), Graupel ($q\_g$) | Single-moment scheme. Assumes exponential size distribution ($N \= N\_0 \\exp(-\\lambda D)$). Accounts for the Bergeron process and riming. |
 | "Morrison" | Vapor, Cloud, Rain, Ice, Snow, Graupel | Double-moment scheme derived directly from the WRF implementation. |
-| "P3" | Vapor, Cloud, Rain, Ice Mass, Rime Mass, Ice Number, Rime Volume | Abandons fixed hydrometeor boundaries in favor of continuously evolving particle properties. |
 | "SuperDroplets" | Tracked Lagrangian SDM attributes | A probabilistic Lagrangian method directly advancing computational super-droplets via Köhler theory for condensation and evaporation. |
 
 ### **3.6 Planetary Boundary Layer (PBL) Schemes (erf.pbl\_type)**
@@ -178,7 +177,7 @@ The ERF application operates through distinct pipelines encompassing compilation
 ERF inherently supports both CMake and GNU Make build systems. Building the framework involves compiling the internal AMReX submodules and linking external physics dependencies.
 
 * **Mandatory Dependencies**: AMReX (supplied as a submodule), MPI (for domain decomposition).  
-* **Optional Physics Dependencies**: Enabling radiation (RTE-RRTMGP), turbulence (SHOC), or specific microphysics (P3) automatically activates EKAT, which encapsulates the Kokkos performance portability framework.  
+* **Optional Physics Dependencies**: Enabling radiation (RTE-RRTMGP) or turbulence (SHOC) automatically activates EKAT, which encapsulates the Kokkos performance portability framework.  
 * **I/O Dependencies**: Coupling external data or processing real-terrain geometries necessitates NetCDF (C and Fortran libraries) and HDF5. To link these, users must specify ERF\_ENABLE\_NOAHMP=ON in CMake or USE\_NETCDF=TRUE in Gmake.  
 * **HPC Target Profiles**: To guarantee compatibility across specialized supercomputers, ERF provides explicit build scripts that load optimized compiler modules and target precise GPU backends:  
   * *Perlmutter (NERSC) / Kestrel (NREL)*: cmake\_with\_kokkos\_many\_cuda.sh targets NVIDIA GPUs.  
@@ -290,7 +289,7 @@ Effective triage demands precise diagnostic artifacts. When required evidence is
 
 The ERF codebase incorporates features noted within theoretical documentation that lack explicit programmatic parameter specifications. The assistant MUST NOT hallucinate namespaces for these components; exact evidence or source confirmation is required.
 
-* **Unknown**: The explicit ParmParse configuration keys and arrays required to parameterize the "SHOC" (Simplified Higher-Order Closure) and "P3" (Predicted Particle Properties) microphysics models.  
+* **Unknown**: The explicit ParmParse configuration keys and arrays required to parameterize the "SHOC" (Simplified Higher-Order Closure) model.  
   * *What was tried*: Exhaustive searches using site:erf.readthedocs.io parameters, site:erf.readthedocs.io microphysics, and site:erf.readthedocs.io PBL.  
   * *Insufficient Sources*:. The documentation details the theoretical equations and prognostic variables (e.g., rime mass, cloud fraction PDFs), but omits the exact configuration strings required in the inputs file.  
 * **Unknown**: The exact countergradient correction coefficients ($\\gamma\_\\theta$, $\\gamma\_u$) and boundary entrainment flux variables used when initializing the "YSU" PBL model.  

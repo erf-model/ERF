@@ -104,6 +104,8 @@ void erf_substep_MT (int step, int /*nrk*/,
 
     const Real* dx = geom.CellSize();
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
+    const int domlo_z = geom.Domain().smallEnd(2);
+    const int domhi_z = geom.Domain().bigEnd(2);
 
     Real dxi = dxInv[0];
     Real dyi = dxInv[1];
@@ -149,6 +151,13 @@ void erf_substep_MT (int step, int /*nrk*/,
 
         Box vbx = mfi.validbox();
         const auto& vbx_hi = ubound(vbx);
+
+        // The vertical solve below takes the bottom of the box as the moving terrain and the
+        // top of the box as the top of the domain, so a grid that is split in z (level 0 with
+        // max_grid_size_z below the domain height) or a refined grid with c/f faces in z
+        // would be solved for with the wrong boundary rows
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(vbx.smallEnd(2) == domlo_z && vbx.bigEnd(2) == domhi_z,
+            "erf_substep_MT: MovingFittedMesh requires every grid to span the full height of the domain");
 
         const Array4<Real const>& xmom_src_arr   = xmom_src.const_array(mfi);
         const Array4<Real const>& ymom_src_arr   = ymom_src.const_array(mfi);
@@ -511,7 +520,11 @@ void erf_substep_MT (int step, int /*nrk*/,
 
             soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
 
-            RHS_a(i,j,hi.z+1) = dtau * (slow_rhs_rho_w(i,j,hi.z+1) + zmom_src_arr(i,j,hi.z+1));
+            // Zero at the domain top: Omega'' = 0 at a wall, and Omega''_top = Omega''_top-1
+            // for outflow, the matrix row set in make_fast_coeffs deciding which
+            RHS_a(i,j,hi.z+1) = (hi.z == domhi_z)
+                                ? zero
+                                : dtau * (slow_rhs_rho_w(i,j,hi.z+1) + zmom_src_arr(i,j,hi.z+1));
 
             for (int k = lo.z+1; k <= hi.z+1; k++) {
                 soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
@@ -539,7 +552,11 @@ void erf_substep_MT (int step, int /*nrk*/,
         for (int j = lo.y; j <= hi.y; ++j) {
              AMREX_PRAGMA_SIMD
              for (int i = lo.x; i <= hi.x; ++i) {
-                 RHS_a(i,j,hi.z+1) = dtau * (slow_rhs_rho_w(i,j,hi.z+1) + zmom_src_arr(i,j,hi.z+1));
+                 // Zero at the domain top: Omega'' = 0 at a wall, and Omega''_top = Omega''_top-1
+                 // for outflow, the matrix row set in make_fast_coeffs deciding which
+                 RHS_a(i,j,hi.z+1) = (hi.z == domhi_z)
+                                     ? zero
+                                     : dtau * (slow_rhs_rho_w(i,j,hi.z+1) + zmom_src_arr(i,j,hi.z+1));
              }
         }
         for (int k = lo.z+1; k <= hi.z+1; ++k) {

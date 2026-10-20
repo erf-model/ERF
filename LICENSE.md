@@ -1,10 +1,9 @@
 Energy Research and Forecasting (ERF) Copyright (c) 2022, The
-Regents of the University of California, through Lawrence Berkeley
-National Laboratory, National Renewable Energy Laboratory,
-Lawrence Livermore National Laboratory and Argonne National
-Laboratory (subject to receipt of any required approvals from the
-U.S. Dept. of Energy). All rights reserved.
-
+Regents of the University of California, through
+Lawrence Berkeley National Laboratory, Lawrence Livermore National Laboratory,
+Argonne National Laboratory and Alliance for Energy Innovation, LLC,
+(subject to receipt of any required approvals from the U.S. Dept. of Energy).
+All rights reserved.
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
 
@@ -16,8 +15,8 @@ notice, this list of conditions and the following disclaimer in the
 documentation and/or other materials provided with the distribution.
 
 (3) Neither the name of the University of California, Lawrence Berkeley
-National Laboratory, National Renewable Energy Laboratory, Lawrence
-Livermore National Laboratory, Argonne National Laboratory, U.S. Dept.
+National Laboratory, Lawrence Livermore National Laboratory, 
+Argonne National Laboratory, Alliance for Energy Innovation, LLC, U.S. Dept.
 of Energy nor the names of its contributors may be used to endorse or
 promote products derived from this software without specific prior written
 permission.

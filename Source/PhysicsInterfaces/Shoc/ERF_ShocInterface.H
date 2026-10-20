@@ -162,7 +162,7 @@ protected:
         SHOCPreprocess () = default;
 
         KOKKOS_INLINE_FUNCTION
-        void operator()(const Kokkos::TeamPolicy<KT::ExeSpace>::member_type& team) const
+        void operator() (const Kokkos::TeamPolicy<KT::ExeSpace>::member_type& team) const
         {
             const int i = team.league_rank();
 
@@ -292,7 +292,7 @@ protected:
         view_2d        cldfrac_liq_prev;
 
         // Assigning local variables
-        void set_variables(const int ncol_, const int nlev_,
+        void set_variables (const int ncol_, const int nlev_,
                            const Real z_surf_,
                            const view_2d_const& T_mid_, const view_2d_const& p_mid_, const view_2d_const& p_int_, const view_2d_const& pseudo_density_,
                            const view_2d_const& omega_,
@@ -359,7 +359,7 @@ protected:
         SHOCPostprocess () = default;
 
         KOKKOS_INLINE_FUNCTION
-        void operator()(const Kokkos::TeamPolicy<KT::ExeSpace>::member_type& team) const
+        void operator() (const Kokkos::TeamPolicy<KT::ExeSpace>::member_type& team) const
         {
             const int i = team.league_rank();
 

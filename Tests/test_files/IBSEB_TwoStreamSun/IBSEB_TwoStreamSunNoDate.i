@@ -1,0 +1,64 @@
+# IBSEB_TwoStreamSun.i without start_datetime: the two-stream sun follows the
+# calendar but no date is known, so erf.ibseb.sun_mode = two_stream has no sun
+# to take and stops at start-up (before the two-stream model would).
+stop_time = 100000.0
+max_step  = 1
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_extent =  320     320    160
+amr.n_cell           =  32      32     16
+amr.max_grid_size    =  16
+geometry.is_periodic = 1 1 0
+zlo.type = "NoSlipWall"
+zhi.type = "SlipWall"
+erf.fixed_dt           = 0.5
+erf.substepping_cfl    = 0.5
+erf.sum_interval   = -1
+erf.v              = 0
+amr.v              = 0
+amr.max_level      = 0
+erf.check_file      = chk
+erf.check_int       = -1
+erf.plot_file_1     = plt
+erf.plot_int_1      = -1
+erf.plot_vars_1     = theta terrain_IB_mask ibseb_nfaces ibseb_tskin ibseb_sw_abs ibseb_lw_net ibseb_H ibseb_G
+erf.use_gravity = true
+erf.molec_diff_type = "None"
+erf.les_type        = "Smagorinsky"
+erf.Cs              = 0.17
+erf.init_type           = "input_sounding"
+erf.input_sounding_file = "input_sounding"
+erf.buildings_type = ImmersedForcing
+erf.buildings_file_name = cube_40m_10m_32x32.txt
+erf.immersed_forcing_substep = true
+eb2.small_volfrac = 0.005
+erf.if_use_most = true
+erf.if_z0 = 0.01
+erf.use_coriolis = false
+
+erf.ibseb.enable = true
+erf.ibseb.prognostic = true
+erf.ibseb.debug = false
+erf.ibseb.csv_int = -1
+erf.ibseb.T_skin_init = 300.0
+erf.ibseb.T_interior = 293.0
+erf.ibseb.n_slab_layers = 8
+erf.ibseb.k_therm = 1.0
+erf.ibseb.rho_cp = 1.6e6
+erf.ibseb.thickness = 0.2
+erf.ibseb.albedo = 0.3
+erf.ibseb.emissivity = 0.9
+erf.ibseb.z0_wall = 0.01
+erf.ibseb.z0h_wall = 0.001
+erf.ibseb.lw_mode = "gray"
+erf.ibseb.sky_emissivity = 0.83
+erf.ibseb.T_ground = 300.0
+erf.ibseb.newton_tol_K = 1.0e-3
+erf.ibseb.newton_max_iter = 20
+
+erf.radiation_model = "TwoStream"
+erf.rad_t_sfc = 300.0
+erf.rad_cons_lat = 40.0
+erf.rad_cons_lon = -100.0
+erf.ibseb.sun_mode = "two_stream"

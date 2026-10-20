@@ -2,6 +2,7 @@
  * \file ERF_WriteScalarProfiles.cpp
  */
 #include <iomanip>
+#include <limits>
 #include "ERF_Constants.H"
 
 #include "ERF.H"
@@ -35,14 +36,14 @@ ERF::sum_integrated_quantities (double time)
     bool local = true;
 
     auto& mfx0 = *mapfac[0][MapFacType::m_x];
-    auto& mfy0 = *mapfac[0][MapFacType::m_x];
+    auto& mfy0 = *mapfac[0][MapFacType::m_y];
     auto&  dJ0 = *detJ_cc[0];
 
     mass_sl = volWgtSumMF(0,vars_new[0][Vars::cons],Rho_comp,dJ0,mfx0,mfy0,false,local);
 
     for (int lev = 0; lev <= finest_level; lev++) {
         auto& mfx = *mapfac[lev][MapFacType::m_x];
-        auto& mfy = *mapfac[lev][MapFacType::m_x];
+        auto& mfy = *mapfac[lev][MapFacType::m_y];
         auto&  dJ = *detJ_cc[lev];
         mass_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],Rho_comp,dJ,mfx,mfy,true);
     }
@@ -59,7 +60,7 @@ ERF::sum_integrated_quantities (double time)
 
     for (int lev = 0; lev <= finest_level; lev++) {
         auto& mfx = *mapfac[lev][MapFacType::m_x];
-        auto& mfy = *mapfac[lev][MapFacType::m_x];
+        auto& mfy = *mapfac[lev][MapFacType::m_y];
         auto&  dJ = *detJ_cc[lev];
         rhth_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons], RhoTheta_comp,dJ,mfx,mfy,true);
         scal_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoScalar_comp,dJ,mfx,mfy,true);
@@ -110,26 +111,30 @@ ERF::sum_integrated_quantities (double time)
         scal_ml = foo[i++];
         mois_ml = foo[i++];
 
+        // Print the integrals with every digit, so that a run can be checked for conservation
+        // from its output (Tests/RunConservation.cmake)
+        const int sumprecision = std::numeric_limits<Real>::max_digits10;
+
         Print() << '\n';
         Print() << "TIME= " << std::setw(datwidth) << std::setprecision(timeprecision) << std::left << time << '\n';
         if (finest_level ==  0) {
 #if 1
-           Print() << " MASS       = " << mass_sl << '\n';
+           Print() << std::setprecision(sumprecision) << " MASS       = " << mass_sl << '\n';
 #else
-           Print() << " PERT MASS  = " << mass_sl << '\n';
+           Print() << std::setprecision(sumprecision) << " PERT MASS  = " << mass_sl << '\n';
 #endif
-           Print() << " RHO THETA  = " << rhth_sl << '\n';
-           if (solverChoice.transport_scalar) { Print() << " RHO SCALAR = " << scal_sl << '\n'; }
-           if (solverChoice.moisture_type != MoistureType::None) { Print() << " RHO QTOTAL = " << mois_sl << '\n'; }
+           Print() << std::setprecision(sumprecision) << " RHO THETA  = " << rhth_sl << '\n';
+           if (solverChoice.transport_scalar) { Print() << std::setprecision(sumprecision) << " RHO SCALAR = " << scal_sl << '\n'; }
+           if (solverChoice.moisture_type != MoistureType::None) { Print() << std::setprecision(sumprecision) << " RHO QTOTAL = " << mois_sl << '\n'; }
         } else {
 #if 1
-           Print() << " MASS       SL/ML = " << mass_sl << " " << mass_ml << '\n';
+           Print() << std::setprecision(sumprecision) << " MASS       SL/ML = " << mass_sl << " " << mass_ml << '\n';
 #else
-           Print() << " PERT MASS  SL/ML = " << mass_sl << " " << mass_ml << '\n';
+           Print() << std::setprecision(sumprecision) << " PERT MASS  SL/ML = " << mass_sl << " " << mass_ml << '\n';
 #endif
-           Print() << " RHO THETA  SL/ML = " << rhth_sl << " " << rhth_ml << '\n';
-           if (solverChoice.transport_scalar) { Print() << " RHO SCALAR SL/ML = " << scal_sl << " " << scal_ml << '\n'; }
-           if (solverChoice.moisture_type != MoistureType::None) { Print() << " RHO QTOTAL SL/ML = " << mois_sl << " " << mois_ml << '\n'; }
+           Print() << std::setprecision(sumprecision) << " RHO THETA  SL/ML = " << rhth_sl << " " << rhth_ml << '\n';
+           if (solverChoice.transport_scalar) { Print() << std::setprecision(sumprecision) << " RHO SCALAR SL/ML = " << scal_sl << " " << scal_ml << '\n'; }
+           if (solverChoice.moisture_type != MoistureType::None) { Print() << std::setprecision(sumprecision) << " RHO QTOTAL SL/ML = " << mois_sl << " " << mois_ml << '\n'; }
         }
 
         // The first data log only holds scalars
@@ -185,7 +190,7 @@ ERF::sum_derived_quantities (double time)
     AMREX_ALWAYS_ASSERT(lev == 0);
 
     auto& mfx0 = *mapfac[0][MapFacType::m_x];
-    auto& mfy0 = *mapfac[0][MapFacType::m_x];
+    auto& mfy0 = *mapfac[0][MapFacType::m_y];
     auto&  dJ0 = *detJ_cc[0];
 
     // ************************************************************************
@@ -322,7 +327,7 @@ ERF::sum_energy_quantities (double time)
     int lev = 0;
 
     auto& mfx0 = *mapfac[0][MapFacType::m_x];
-    auto& mfy0 = *mapfac[0][MapFacType::m_x];
+    auto& mfy0 = *mapfac[0][MapFacType::m_y];
     auto&  dJ0 = *detJ_cc[0];
 
     AMREX_ALWAYS_ASSERT(lev == 0);

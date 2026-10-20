@@ -146,7 +146,7 @@ constexpr bool env_subs = false;
 Real vsc = Real(1.0e-5);
 Real elt = Real(1.0e-5);
 
-Real esat_blend_cc(Real t) {
+Real esat_blend_cc (Real t) {
     // constants for liquid
     const Real j0 = Real(.611583699e03);
     const Real j1 = Real(.444606896e02);
@@ -187,7 +187,7 @@ Real esat_blend_cc(Real t) {
 }
 
 
-Real qsat_blend_cc(Real t, Real p) {
+Real qsat_blend_cc (Real t, Real p) {
     // constants for liquid
     const Real j0 = Real(.611583699e03);
     const Real j1 = Real(.444606896e02);
@@ -239,7 +239,7 @@ Real qsat_blend_cc(Real t, Real p) {
 }
 
 
-Real xl_blend_cc(Real t,Real xlv, Real xls, Real cpv, Real cliq, Real cice) {
+Real xl_blend_cc (Real t,Real xlv, Real xls, Real cpv, Real cliq, Real cice) {
     Real xl_blend_cc, xlvt, xlst, chi;
     // t0c = Real(273.15), tice is set elsewhere
     if (t >= t0c) {
@@ -255,7 +255,7 @@ Real xl_blend_cc(Real t,Real xlv, Real xls, Real cpv, Real cliq, Real cice) {
     return xl_blend_cc;
 }
 
-void condensation_edmf_cc(Real qt, Real thl, Real p, Real zagl, Real& thv, Real& qc, Real p1000mb, Real rcp, Real xlvcp, Real rvovrd) {
+void condensation_edmf_cc (Real qt, Real thl, Real p, Real zagl, Real& thv, Real& qc, Real p1000mb, Real rcp, Real xlvcp, Real rvovrd) {
     const int niter = 50;
     const Real diff = Real(1.e-6);
     Real exn = std::pow((p / p1000mb), rcp);
@@ -280,7 +280,7 @@ void condensation_edmf_cc(Real qt, Real thl, Real p, Real zagl, Real& thv, Real&
 // a, b, c, d - are std::vectors of order n
 // a, b, c - are coefficients on the lhs
 // d - is initially rhs on the output becomes a solution std::vector
-void tridiag_cc(int n, const Real* a, const Real* b, Real* c, Real* d) {
+void tridiag_cc (int n, const Real* a, const Real* b, Real* c, Real* d) {
     Real q[n];
     c[n-1] = zero;
     q[0] = -c[0] / b[0];
@@ -297,7 +297,7 @@ void tridiag_cc(int n, const Real* a, const Real* b, Real* c, Real* d) {
     }
 }
 
-void tridiag2_cc(int n, const Real* a, const Real* b, const Real* c, const Real* d, Real* x) {
+void tridiag2_cc (int n, const Real* a, const Real* b, const Real* c, const Real* d, Real* x) {
     Real cp[n+1];
     Real dp[n+1];
     Real m;
@@ -324,7 +324,7 @@ void tridiag2_cc(int n, const Real* a, const Real* b, const Real* c, const Real*
 }
 
 // function to perform tridiagonal matrix algorithm
-void tridiag3_cc(int kte, Real* a, Real* b, Real* c, Real* d, Real* x) {
+void tridiag3_cc (int kte, Real* a, Real* b, Real* c, Real* d, Real* x) {
     // inversion and resolution of a tridiagonal matrix a x = d
     // a - lower diagonal (ai,i-1)
     // b - principal diagonal (ai,i)
@@ -354,7 +354,7 @@ void tridiag3_cc(int kte, Real* a, Real* b, Real* c, Real* d, Real* x) {
 // and then computes the min, average of the up/down
 // length scales, and also considers the distance to the
 // surface.
-void boulac_length_cc(int kts, int kte,
+void boulac_length_cc (int kts, int kte,
                       const Real* zw, const Real* dz, const Real* qtke, const Real* theta,
                       Real* lb1, Real* lb2,
                       // model constant
@@ -510,7 +510,7 @@ void boulac_length_cc(int kts, int kte,
 //\param sh      stability function for heat, at level 2
 //\section gen_mym_level2 gsd mynn-edmf mym_level2 general algorithm
 // @ {
-void mym_level2_cc(
+void mym_level2_cc (
     int kts, int kte,
     const Real* dz,
     const Real* u, const Real* v, const Real* thl, const Real* thetav, const Real* qw,
@@ -609,7 +609,7 @@ void mym_level2_cc(
 //
 //>\ingroup gsd_mynn_edmf
 // this subroutine calculates the mixing lengths.
-void mym_length_cc(
+void mym_length_cc (
     int kts, int kte, Real xland,
     const Real* dz, /*Real dx,*/ const Real* zw,
     Real rmo, Real flt, Real fltv, Real flq,
@@ -928,7 +928,7 @@ void mym_length_cc(
 
 
 // called from driver
-void moisture_check_cc(int kte, Real delt, Real* dp, const Real* exner,
+void moisture_check_cc (int kte, Real delt, Real* dp, const Real* exner,
                     Real* qv, Real* qc, Real* qi, Real* qs, Real* th,
                     Real* dqv, Real* dqc, Real* dqi, Real* dqs, Real* dth,
                     Real xlvcp, Real xlscp) {
@@ -1047,7 +1047,7 @@ void moisture_check_cc(int kte, Real delt, Real* dp, const Real* exner,
 !>\ingroup gsd_mynn_edmf
 !! this subroutine predicts the turbulent quantities at the next step.
 */
-void mym_predict_cc(
+void mym_predict_cc (
     int& kts, int& kte,
     Real& closure,
     Real& delt,
@@ -1293,7 +1293,7 @@ void mym_predict_cc(
     }
 }
 
-void mynn_mix_chem_cc(int kts, int kte, int i,
+void mynn_mix_chem_cc (int kts, int kte, int i,
                    Real delt, Real* dz, Real pblh,
                    int nchem, int kdvel, int ndvel,
                    Real** chem1, Real* vd1,
@@ -1376,7 +1376,7 @@ void mynn_mix_chem_cc(int kts, int kte, int i,
 //>\ingroup gsd_mynn_edmf
 // this subroutine solves for tendencies of u, v, \f$\theta\f$, qv,
 // qc, and qi
-void mynn_tendencies_cc(const int& kts,const int& kte, const Real & delt,
+void mynn_tendencies_cc (const int& kts,const int& kte, const Real & delt,
                                    /*in*/ const Real* dz,
                                    /*in*/ const Real* rho,
                         /*in*/ const Real* u, const Real* v, const Real* th, const Real* tk, const Real* qv,
@@ -2004,7 +2004,7 @@ void mynn_tendencies_cc(const int& kts,const int& kte, const Real & delt,
 
 
 
-void mym_condensation_cc(
+void mym_condensation_cc (
     const int& kts,const int& kte,
     const Real& dx, Real* dz, Real* zw, Real& xland,
     Real* thl, Real* qw, Real* qv, Real* qc, Real* qi, Real* qs,
@@ -2320,7 +2320,7 @@ void mym_condensation_cc(
 // flipped updraft to downdraft. this scheme is currently only tested
 // for stratocumulus cloud conditions. for a detailed description of the
 // model, see paper.
-void ddmf_jpl_cc(int& kts, int& kte, Real& dt, const Real* zw, const Real* dz, const Real* p,
+void ddmf_jpl_cc (int& kts, int& kte, Real& dt, const Real* zw, const Real* dz, const Real* p,
               const Real* u, const Real* v, const Real* th, const Real* thl, const Real* thv,
               const Real* tk,const Real* qt, const Real* qv, const Real* qc, const Real*
               rho, const Real* exner,Real& ust, Real& wthl, Real& wqt, Real& pblh, int& kpbl,
@@ -2560,7 +2560,7 @@ void ddmf_jpl_cc(int& kts, int& kte, Real& dt, const Real* zw, const Real* dz, c
 }
 
 // assuming Real is equivalent to Real or float. adjust as necessary.
-void topdown_cloudrad_cc(int& kts, int& kte, const Real* dz1, const Real* zw, Real& fltv, Real& xland, int& kpbl, Real& pblh, const Real* sqc, const Real* sqi, const Real* sqw, const Real* thl, const Real* th1, const Real* ex1, const Real* p1, const Real*  rho1, const Real* thetav, const Real* cldfra_bl1d, const Real* rthraten, Real& maxkhtopdown, Real* khtopdown, Real* tkeprodtd) {
+void topdown_cloudrad_cc (int& kts, int& kte, const Real* dz1, const Real* zw, Real& fltv, Real& xland, int& kpbl, Real& pblh, const Real* sqc, const Real* sqi, const Real* sqw, const Real* thl, const Real* th1, const Real* ex1, const Real* p1, const Real*  rho1, const Real* thetav, const Real* cldfra_bl1d, const Real* rthraten, Real& maxkhtopdown, Real* khtopdown, Real* tkeprodtd) {
     // constants
   /*
     const Real pfac = two, zfmin = Real(0.01), phifac = Real(8.0);
@@ -2645,7 +2645,7 @@ void topdown_cloudrad_cc(int& kts, int& kte, const Real* dz1, const Real* zw, Re
     }
 }
 
-void scale_aware_cc(Real& dx, Real& pbl1, Real& psig_bl, Real& psig_shcu) {
+void scale_aware_cc (Real& dx, Real& pbl1, Real& psig_bl, Real& psig_shcu) {
     Real dxdh;
     psig_bl = 1.0_rt;
     psig_shcu = 1.0_rt;
@@ -2686,7 +2686,7 @@ void scale_aware_cc(Real& dx, Real& pbl1, Real& psig_bl, Real& psig_shcu) {
 //value could be found to work best in all conditions.
 //>\section gen_get_pblh  gsd get_pblh general algorithm
 //> @{
-void get_pblh_cc(int &kts, int &kte, Real &zi, Real* thetav1d, Real *qke1d, Real *zw1d, Real* dz1d, Real &landsea, int &kzi) {
+void get_pblh_cc (int &kts, int &kte, Real &zi, Real* thetav1d, Real *qke1d, Real *zw1d, Real* dz1d, Real &landsea, int &kzi) {
     // HR: SEGFAULTS WHEN ACCESSING VECTORS, need to look into how to pass 1d arrays to c++ from fortran
     // constants
     const Real sbl_lim = Real(200.0);
@@ -2755,7 +2755,7 @@ void get_pblh_cc(int &kts, int &kte, Real &zi, Real* thetav1d, Real *qke1d, Real
     }
 }
 
-void retrieve_exchange_coeffs_cc(int& kts, int& kte, Real* dfm, Real* dfh, const Real* dz, Real* k_m, Real* k_h) {
+void retrieve_exchange_coeffs_cc (int& kts, int& kte, Real* dfm, Real* dfh, const Real* dz, Real* k_m, Real* k_h) {
     Real dzk;
     k_m[kts] = zero;
     k_h[kts] = zero;
@@ -2785,7 +2785,7 @@ void retrieve_exchange_coeffs_cc(int& kts, int& kte, Real* dfm, Real* dfh, const
 //>\ingroup gsd_mynn_edmf
 // this subroutine calculates the mixing lengths.
 
-void mym_length(int kts, int kte, Real xland, Real* dz, Real* dx, Real* zw, Real rmo, Real flt, Real fltv, Real flq, Real* vt, Real* vq, Real* u1, Real* v1, Real* qke, Real* dtv, Real* el, Real zi, Real* theta, Real* qkw, Real psig_bl, Real* cldfra_bl1d, int bl_mynn_mixlength, Real* edmf_w1, Real* edmf_a1, Real grav, Real karman, Real tv0, Real gtr) {
+void mym_length (int kts, int kte, Real xland, Real* dz, Real* dx, Real* zw, Real rmo, Real flt, Real fltv, Real flq, Real* vt, Real* vq, Real* u1, Real* v1, Real* qke, Real* dtv, Real* el, Real zi, Real* theta, Real* qkw, Real psig_bl, Real* cldfra_bl1d, int bl_mynn_mixlength, Real* edmf_w1, Real* edmf_a1, Real grav, Real karman, Real tv0, Real gtr) {
     int i, j, k;
     Real elt, vsc;
     Real qtke[kte+1], elblmin[kte+1], elblavg[kte+1], thetaw[kte+1];
@@ -3015,7 +3015,7 @@ void mym_length(int kts, int kte, Real xland, Real* dz, Real* dx, Real* zw, Real
 // this scheme remains under development, so consider it experimental code.
 //
 
-void dmp_mf_cc(const int& kts,const int& kte, Real& dt, Real* zw, Real* dz, Real* p, Real* rho, int& momentum_opt, int& tke_opt, int& scalar_opt, Real* u, Real* v, Real* w, Real* th, Real* thl, Real* thv, Real* tk, Real* qt, Real* qv, Real* qc, Real* qke, Real* qnc, Real* qni, Real* qnwfa, Real* qnifa, Real* qnbca, Real& ust, Real& flt, Real& fltv, Real& flq, Real& flqv, Real& pblh, int& kpbl, Real& dx, Real& landsea, Real& ts, Real* edmf_a, Real* edmf_w, Real* edmf_qt, Real* edmf_thl, Real* edmf_ent, Real* edmf_qc, Real* s_aw, Real* s_awthl, Real* s_awqt, Real* s_awqv, Real* s_awqc, Real* s_awu, Real* s_awv, Real* s_awqke, Real* s_awqnc, Real* s_awqni, Real* s_awqnwfa, Real* s_awqnifa, Real* s_awqnbca, int& nchem, Real** chem1, Real** s_awchem, bool& mix_chem, Real* qc_bl1d, Real* cldfra_bl1d, Real* qc_bl1d_old, Real* cldfra_bl1d_old, Real& psig_shcu, Real& maxwidth, int& ktop, Real& maxmf, Real& ztop, Real* rstoch_col, Real grav, Real gtr, Real p608) {
+void dmp_mf_cc (const int& kts,const int& kte, Real& dt, Real* zw, Real* dz, Real* p, Real* rho, int& momentum_opt, int& tke_opt, int& scalar_opt, Real* u, Real* v, Real* w, Real* th, Real* thl, Real* thv, Real* tk, Real* qt, Real* qv, Real* qc, Real* qke, Real* qnc, Real* qni, Real* qnwfa, Real* qnifa, Real* qnbca, Real& ust, Real& flt, Real& fltv, Real& flq, Real& flqv, Real& pblh, int& kpbl, Real& dx, Real& landsea, Real& ts, Real* edmf_a, Real* edmf_w, Real* edmf_qt, Real* edmf_thl, Real* edmf_ent, Real* edmf_qc, Real* s_aw, Real* s_awthl, Real* s_awqt, Real* s_awqv, Real* s_awqc, Real* s_awu, Real* s_awv, Real* s_awqke, Real* s_awqnc, Real* s_awqni, Real* s_awqnwfa, Real* s_awqnifa, Real* s_awqnbca, int& nchem, Real** chem1, Real** s_awchem, bool& mix_chem, Real* qc_bl1d, Real* cldfra_bl1d, Real* qc_bl1d_old, Real* cldfra_bl1d_old, Real& psig_shcu, Real& maxwidth, int& ktop, Real& maxmf, Real& ztop, Real* rstoch_col, Real grav, Real gtr, Real p608) {
     int nup = 8;
     int debug_mf = 0;
     Real nup2;
@@ -3673,7 +3673,7 @@ void dmp_mf_cc(const int& kts,const int& kte, Real& dt, Real* zw, Real* dz, Real
 // - Eddy diffusivity \f$K_h\f$ and eddy viscosity \f$K_m\f$ are calculated.
 // - TKE budget terms are calculated (if the namelist parameter \p tke_budget
 // is set to True)
-void mym_turbulence_cc(
+void mym_turbulence_cc (
     int& kts, int& kte,
     Real& xland, Real& closure,
     Real* dz, Real& dx, Real* zw,
@@ -4075,7 +4075,7 @@ void mym_turbulence_cc(
 // \f$q^{'2}\f$, and \f$\theta^{'}q^{'}\f$.
 //\section gen_mym_ini GSD MYNN-EDMF mym_initialize General Algorithm
 //> @{
-void mym_initialize_cc(const int &kts,const int &kte,const Real &xland, Real *dz, Real &dx, Real *zw, Real *u, Real *v, Real *thl, Real *qw,const Real &zi, Real *theta, Real *thetav, Real *sh, Real *sm, const Real& ust, const Real &rmo, Real* el, Real *qke, Real* tsq, Real* qsq, Real* cov, const Real& Psig_bl, Real *cldfra_bl1D, int &bl_mynn_mixlength, Real *edmf_w1, Real *edmf_a1, int &INITIALIZE_QKE, int &spp_pbl, Real *rstoch_col,const Real & karman,const Real& tv0,const Real& gtr) {
+void mym_initialize_cc (const int &kts,const int &kte,const Real &xland, Real *dz, Real &dx, Real *zw, Real *u, Real *v, Real *thl, Real *qw,const Real &zi, Real *theta, Real *thetav, Real *sh, Real *sm, const Real& ust, const Real &rmo, Real* el, Real *qke, Real* tsq, Real* qsq, Real* cov, const Real& Psig_bl, Real *cldfra_bl1D, int &bl_mynn_mixlength, Real *edmf_w1, Real *edmf_a1, int &INITIALIZE_QKE, int &spp_pbl, Real *rstoch_col,const Real & karman,const Real& tv0,const Real& gtr) {
     Real phm, vkz, elq, elv, b1l, b2l, pmz = one, phh = one, flt = zero, fltv = zero, flq = zero, tmpq;
     int k, l, lmax;
     Real ql[kte-kts];
@@ -4208,9 +4208,10 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
                             const MoistureComponentIndices& moisture_indices)
 {
     auto mynn     = turbChoice.pbl_mynn;
+    const StratType pbl_strat = turbChoice.pbl_strat_type;
     auto level2   = turbChoice.pbl_mynn_level2;
 
-    Real Lt_alpha = (mynn.config == MYNNConfigType::CHEN2021) ? Real(0.1) : Real(0.23);
+    Real Lt_alpha = mynn.Lt_alpha;
 
     // Dirichlet flags to switch derivative stencil
     bool c_ext_dir_on_zlo = ( (bc_ptr[BCVars::cons_bc].lo(2) == ERFBCType::ext_dir) );
@@ -4284,7 +4285,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
 
                 // Not multiplying by dz: its constant and would fall out when we divide qint0/qint1 anyway
 
-                const Real Zval = gdata.ProbLo(2) + (k + myhalf)*gdata.CellSize(2);
+                const Real Zval = (k + myhalf)*gdata.CellSize(2);
                 Gpu::Atomic::Add(&qint(i,j,0,0), Zval*qvel(i,j,k));
                 Gpu::Atomic::Add(&qint(i,j,0,1),      qvel(i,j,k));
             });
@@ -4323,7 +4324,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
                                           u_ext_dir_on_zlo, u_ext_dir_on_zhi,
                                           v_ext_dir_on_zlo, v_ext_dir_on_zhi,
                                           dthetadz, dudz, dvdz,
-                                          moisture_indices);
+                                          moisture_indices, pbl_strat);
 
             // Spatially varying MOST
             Real theta0 = tm_arr(i,j,0);
@@ -4338,7 +4339,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
             }
 
             Real l_obukhov;
-            if (std::abs(surface_heat_flux) > eps) {
+            if (std::abs(surface_heat_flux) > eps && u_star_arr(i,j,0) > eps) {
                 l_obukhov = -( theta0 * u_star_arr(i,j,0)*u_star_arr(i,j,0)*u_star_arr(i,j,0) )
                            / ( d_kappa * d_gravity * surface_heat_flux );
             } else {
@@ -4347,8 +4348,9 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
 
             // Surface-layer length scale (NN09, Eqn. 53)
             AMREX_ASSERT(l_obukhov != 0);
-            const Real zval = use_terrain_fitted_coords ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr)
-                                          : gdata.ProbLo(2) + (k + myhalf)*gdata.CellSize(2);
+            const Real zval = use_terrain_fitted_coords
+                            ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr)
+                            : (k + myhalf)*gdata.CellSize(2);
             const Real zeta = zval/l_obukhov;
             Real l_S;
             if (zeta >= one) {
@@ -4357,6 +4359,19 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
                 l_S = KAPPA*zval/(1+Real(2.7)*zeta);
             } else {
                 l_S = KAPPA*zval*std::pow(one - Real(100.0) * zeta, Real(0.2));
+            }
+
+            // Replace the resolved gradients in the first cell with the MOST
+            // profile gradients; see ApplySurfaceLayerGradientsPBL (ERF #4037)
+            if (k == izmin) {
+                PBLSurfaceLayerGradient sl;
+                sl.u_star  = u_star_arr(i,j,0);
+                sl.tstar_v = ComputeVirtualTStarPBL(t_star_arr(i,j,0),
+                                                    (use_moisture) ? q_star_arr(i,j,0) : zero,
+                                                    theta0, qv0, use_moisture);
+                sl.zval    = zval;
+                sl.zeta    = zeta;
+                ApplySurfaceLayerGradientsPBL(sl, dthetadz, dudz, dvdz);
             }
 
             // ABL-depth length scale (NN09, Eqn. 54)
@@ -4384,7 +4399,7 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
 
             // Master length scale
             Real Lm;
-            if (mynn.config == MYNNConfigType::CHEN2021) {
+            if (mynn.config == MYNNConfigType::Chen2021) {
                 Lm = std::pow(one/(l_S*l_S) + one/(l_T*l_T) + one/(l_B*l_B), -myhalf);
             } else {
                 // NN09, Eqn 52
@@ -4434,10 +4449,8 @@ ComputeDiffusivityMYNNEDMF (const MultiFab& xvel,
             // potential temperature.
 
             // NN09 gives the total water content flux; this assumes that
-            // all the species have the same eddy diffusivity
-            if (mynn.diffuse_moistvars) {
-                K_turb(i,j,k,EddyDiff::Q_v) = rho * Lm * qvel(i,j,k) * SH;
-            }
+            // all the species have the same eddy diffusivity.
+            K_turb(i,j,k,EddyDiff::Q_v) = rho * Lm * qvel(i,j,k) * SH;
 
             K_turb(i,j,k,EddyDiff::Turb_lengthscale) = Lm;
         });

@@ -11,7 +11,7 @@
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
-int get_single_index(int i, int j, int k,
+int get_single_index (int i, int j, int k,
              int nx, int ny)
 {
 
@@ -39,7 +39,7 @@ amrex::Real get_interp_weight (amrex::Real x, amrex::Real xlo, amrex::Real xhi)
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
-void bilinear_interpolation(const amrex::Real* xvec, const amrex::Real* yvec, const amrex::Real* zvec,
+void bilinear_interpolation (const amrex::Real* xvec, const amrex::Real* yvec, const amrex::Real* zvec,
                 const amrex::Real dxvec, const amrex::Real dyvec,
                 const int nx, const int ny, const int nz,
                 const amrex::Real x, const amrex::Real y, const amrex::Real z,
@@ -110,7 +110,7 @@ void bilinear_interpolation(const amrex::Real* xvec, const amrex::Real* yvec, co
 
 AMREX_GPU_DEVICE
 inline
-amrex::Real interpolate_from_coarse(const amrex::Array4<const amrex::Real>& crse,
+amrex::Real interpolate_from_coarse (const amrex::Array4<const amrex::Real>& crse,
                        int n,
                        amrex::Real x, amrex::Real y, amrex::Real z,
                        const amrex::Real* prob_lo_crse,
@@ -153,7 +153,7 @@ amrex::Real interpolate_from_coarse(const amrex::Array4<const amrex::Real>& crse
 
 AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
-void bilinear_interpolation_2d(const amrex::Real* xvec, const amrex::Real* yvec,
+void bilinear_interpolation_2d (const amrex::Real* xvec, const amrex::Real* yvec,
                             const amrex::Real dxvec, const amrex::Real dyvec,
                             const int nx, const int ny,
                             amrex::Real x, amrex::Real y,

@@ -60,7 +60,7 @@ constexpr int kFluxComp = 3;
 constexpr int kRhsComp = 5;
 
 Real
-tolerance(Real scale = Real(1.0))
+tolerance (Real scale = Real(1.0))
 {
   return Real(96.0) * std::numeric_limits<Real>::epsilon() *
          std::max(Real(1.0), std::abs(scale));
@@ -71,27 +71,27 @@ tolerance(Real scale = Real(1.0))
 // analytic RHS comparisons accumulate about 290 eps, so keep 384 eps
 // of headroom here while the pointwise primitive checks retain 96 eps.
 Real
-integrated_terrain_tolerance(Real scale = Real(1.0))
+integrated_terrain_tolerance (Real scale = Real(1.0))
 {
   return Real(384.0) * std::numeric_limits<Real>::epsilon() *
          std::max(Real(1.0), std::abs(scale));
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real
-chi(int i, int j, int k) noexcept
+chi (int i, int j, int k) noexcept
 {
   return Real(0.7) + Real(0.13) * i - Real(0.09) * j + Real(0.11) * k +
          Real(0.017) * i * j - Real(0.012) * i * k + Real(0.023) * j * k;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real
-rho_value(int i, int j, int k) noexcept
+rho_value (int i, int j, int k) noexcept
 {
   return Real(1.1) + Real(0.03) * i + Real(0.02) * j + Real(0.01) * k;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real
-mu_value(int comp, int i, int j, int k) noexcept
+mu_value (int comp, int i, int j, int k) noexcept
 {
   const Real base = comp == EddyDiff::Theta_h    ? Real(0.17)
                     : comp == EddyDiff::Scalar_h ? Real(0.31)
@@ -104,7 +104,7 @@ mu_value(int comp, int i, int j, int k) noexcept
 }
 
 void
-copy_to_host(const FArrayBox& src, FArrayBox& dst)
+copy_to_host (const FArrayBox& src, FArrayBox& dst)
 {
   Gpu::copy(
     Gpu::deviceToHost, src.dataPtr(0), src.dataPtr(0) + src.size(),
@@ -113,14 +113,14 @@ copy_to_host(const FArrayBox& src, FArrayBox& dst)
 }
 
 Box
-grow_box(Box box, const int n)
+grow_box (Box box, const int n)
 {
   box.grow(n);
   return box;
 }
 
 Box
-terrain_node_box(const Box& cells)
+terrain_node_box (const Box& cells)
 {
   Box nodes = surroundingNodes(cells, 2);
   nodes.grow(0, 1);
@@ -147,7 +147,7 @@ struct NativeTerrainScalarCase
   GpuArray<Real, AMREX_SPACEDIM> gravity{
     {Real(0.0), Real(0.0), Real(-9.81)}};
 
-  NativeTerrainScalarCase(
+  NativeTerrainScalarCase (
     const Real a_in,
     const Real b_in,
     const Real c_in,
@@ -251,7 +251,7 @@ struct NativeTerrainScalarCase
     solver.turbChoice[0].use_kturb = false;
   }
 
-  void initialize_fields()
+  void initialize_fields ()
   {
     const int scalar_comp = qty_comp - 1;
     auto cons = conserved.array();
@@ -283,7 +283,7 @@ struct NativeTerrainScalarCase
     Gpu::streamSynchronize();
   }
 
-  void run(const Real implicit_fac)
+  void run (const Real implicit_fac)
   {
     rhs.setVal<RunOn::Device>(Real(0.0));
     xflux.setVal<RunOn::Device>(Real(-91.0));
@@ -299,18 +299,17 @@ struct NativeTerrainScalarCase
     auto qfx1_y_arr = qfx1_y.array();
     auto qfx1_z_arr = qfx1_z.array();
     auto qfx2_z_arr = qfx2_z.array();
-    auto diss_arr = diss.array();
     DiffusionSrcForState_T(
-      bx, domain, qty_comp, 1, false, u.const_array(), v.const_array(),
+      bx, domain, qty_comp, 1, false,
       conserved.const_array(), primitive.const_array(), rhs.array(),
       xflux.array(), yflux.array(), zflux.array(), z_nd.const_array(),
       z_cc.const_array(), ax.const_array(), ay.const_array(), ax.const_array(),
-      detj.const_array(), inv, smn.const_array(), mf_mx.const_array(),
+      detj.const_array(), inv, mf_mx.const_array(),
       mf_ux.const_array(), mf_vx.const_array(), mf_my.const_array(),
       mf_uy.const_array(), mf_vy.const_array(), hfx_x_arr, hfx_y_arr,
-      hfx_z_arr, qfx1_x_arr, qfx1_y_arr, qfx1_z_arr, qfx2_z_arr, diss_arr,
+      hfx_z_arr, qfx1_x_arr, qfx1_y_arr, qfx1_z_arr, qfx2_z_arr,
       mu.const_array(), solver, 0,
-      tm.const_array(), gravity, bcs_device.data(), false, surface,
+      bcs_device.data(), bcs.data(), false, surface,
       implicit_fac);
     Gpu::streamSynchronize();
   }
@@ -318,7 +317,7 @@ struct NativeTerrainScalarCase
 
 template <bool MultiplyMolecularByDensity, bool AddTurbulence>
 void
-build_n_and_check(
+build_n_and_check (
   const Box& bx,
   const FArrayBox& scalar,
   const FArrayBox& rho,
@@ -509,7 +508,7 @@ build_n_and_check(
 }
 
 void
-initialize_n_case(
+initialize_n_case (
   FArrayBox& scalar,
   FArrayBox& rho,
   FArrayBox& mu,
@@ -595,7 +594,7 @@ initialize_n_case(
 }
 
 void
-fill_ones(FArrayBox& fab)
+fill_ones (FArrayBox& fab)
 {
   auto a = fab.array();
   ParallelFor(
@@ -634,18 +633,31 @@ ERF_GPU_TEST(
   EXPECT_EQ(scalar.coefficients.eddy_h_comp, EddyDiff::Scalar_h);
   EXPECT_EQ(scalar.coefficients.eddy_v_comp, EddyDiff::Scalar_v);
 
-  for (int qcomp : {RhoQ1_comp, RhoQ6_comp}) {
+  // Every moisture species takes alpha_C, including the number concentrations
+  // Morrison and WDM6 keep in Q7 and above
+  for (int qcomp : {RhoQ1_comp, RhoQ6_comp, RhoQ7_comp, RhoQ11_comp}) {
     const auto q = ResolveNativeScalarDiffusionPolicy(qcomp, choice);
     EXPECT_DOUBLE_EQ(q.coefficients.molecular_coeff, choice.alpha_C);
     EXPECT_EQ(q.coefficients.eddy_h_comp, EddyDiff::Q_h);
     EXPECT_EQ(q.coefficients.eddy_v_comp, EddyDiff::Q_v);
   }
-  for (int qcomp : {RhoQ7_comp, RhoQ11_comp, RhoQ11_comp + 1}) {
-    const auto q = ResolveNativeScalarDiffusionPolicy(qcomp, choice);
+  // A non-moist species appended after the moisture species takes none
+  {
+    const auto q = ResolveNativeScalarDiffusionPolicy(RhoQ11_comp + 1, choice);
     EXPECT_DOUBLE_EQ(q.coefficients.molecular_coeff, Real(0.0));
     EXPECT_EQ(q.coefficients.eddy_h_comp, EddyDiff::Q_h);
     EXPECT_EQ(q.coefficients.eddy_v_comp, EddyDiff::Q_v);
-    EXPECT_EQ(q.scalar_comp, qcomp - 1);
+    EXPECT_EQ(q.scalar_comp, RhoQ11_comp);
+  }
+  // The boundary follows the model's moisture size: with six moisture species
+  // (e.g. SuperDropletsMoist), Q7 is an appended species
+  {
+    DiffChoice six = choice;
+    six.n_qstate_moist = 6;
+    EXPECT_DOUBLE_EQ(ResolveNativeScalarDiffusionPolicy(RhoQ6_comp, six)
+                       .coefficients.molecular_coeff, choice.alpha_C);
+    EXPECT_DOUBLE_EQ(ResolveNativeScalarDiffusionPolicy(RhoQ7_comp, six)
+                       .coefficients.molecular_coeff, Real(0.0));
   }
 
   choice.molec_diff_type = MolecDiffType::Constant;
@@ -668,6 +680,40 @@ ERF_GPU_TEST(
     ResolveNativeScalarDiffusionPolicy(RhoScalar_comp, choice)
       .coefficients.molecular_coeff,
     Real(0.0));
+}
+
+// Motivation: Non-water species are packed directly after the water species,
+// not after slot 11. Only the water species are in the implicit moisture solve,
+// so only they may have their explicit vertical flux scaled; the boundary
+// between the two must follow DiffChoice::n_qstate_moist and BC lookups must
+// map state components to BC variables.
+ERF_GPU_TEST(ScalarDiffusionPolicy, MoistRangeFollowsMoistStateSize)
+{
+  DiffChoice choice;
+  EXPECT_EQ(choice.n_qstate_moist, NMOIST_max);
+
+  choice.n_qstate_moist = 2;
+  EXPECT_TRUE(ResolveNativeScalarDiffusionPolicy(RhoQ1_comp, choice).is_moist);
+  EXPECT_TRUE(ResolveNativeScalarDiffusionPolicy(RhoQ2_comp, choice).is_moist);
+  for (int qcomp : {RhoQ3_comp, RhoQ11_comp, RhoQ11_comp + 1}) {
+    const auto q = ResolveNativeScalarDiffusionPolicy(qcomp, choice);
+    EXPECT_FALSE(q.is_moist);
+    EXPECT_FALSE(q.scale_raw_vertical_flux);
+  }
+  EXPECT_FALSE(ResolveNativeScalarDiffusionPolicy(RhoScalar_comp, choice).is_moist);
+  EXPECT_FALSE(ResolveNativeScalarDiffusionPolicy(RhoKE_comp, choice).is_moist);
+
+  choice.n_qstate_moist = 0;
+  EXPECT_FALSE(ResolveNativeScalarDiffusionPolicy(RhoQ1_comp, choice).is_moist);
+
+  choice.n_qstate_moist = NMOIST_max;
+  EXPECT_TRUE(ResolveNativeScalarDiffusionPolicy(RhoQ11_comp, choice).is_moist);
+  EXPECT_FALSE(ResolveNativeScalarDiffusionPolicy(RhoQ11_comp + 1, choice).is_moist);
+
+  EXPECT_EQ(ResolveNativeScalarDiffusionPolicy(RhoQ1_comp, choice).bc_comp,
+            BCVars::RhoQ1_bc_comp);
+  EXPECT_EQ(ResolveNativeScalarDiffusionPolicy(RhoQ11_comp, choice).bc_comp,
+            BCVars::RhoQ11_bc_comp);
 }
 
 // Motivation: Exercise appended q components through the public N adapter so
@@ -755,8 +801,6 @@ ERF_GPU_TEST(
   solver.turbChoice.resize(1);
   solver.turbChoice[0].use_kturb = true;
   const GpuArray<Real, AMREX_SPACEDIM> inv{{Real(1.0), Real(1.0), Real(1.0)}};
-  const GpuArray<Real, AMREX_SPACEDIM> gravity{
-    {Real(0.0), Real(0.0), Real(-9.81)}};
   const int q_comps[] = {RhoQ11_comp + 1, RhoQ11_comp + 4};
 
   for (const int qty_comp : q_comps) {
@@ -777,16 +821,15 @@ ERF_GPU_TEST(
     auto qfx1_y_arr = qfx1_y.array();
     auto qfx1_z_arr = qfx1_z.array();
     auto qfx2_z_arr = qfx2_z.array();
-    auto diss_arr = diss.array();
     DiffusionSrcForState_N(
       bx, domain, qty_comp, 1, u.const_array(), v.const_array(),
       conserved.const_array(), primitive.const_array(), rhs.array(),
-      xflux.array(), yflux.array(), zflux.array(), inv, smn.const_array(),
+      xflux.array(), yflux.array(), zflux.array(), inv,
       mf_mx.const_array(), mf_ux.const_array(), mf_vx.const_array(),
       mf_my.const_array(), mf_uy.const_array(), mf_vy.const_array(),
       hfx_x_arr, hfx_y_arr, hfx_z_arr, qfx1_x_arr, qfx1_y_arr, qfx1_z_arr,
-      qfx2_z_arr, diss_arr,
-      mu.const_array(), solver, 0, tm.const_array(), gravity,
+      qfx2_z_arr,
+      mu.const_array(), solver, 0,
       bcs_device.data(), false, surface, Real(0.0));
     Gpu::streamSynchronize();
 
@@ -1083,11 +1126,14 @@ ERF_GPU_TEST(ScalarDiffusionPrimitives, NativeAdaptersMatchExplicitPrimitives)
     mf_my.const_array());
   Gpu::streamSynchronize();
 
+  // The z faces of the domain are Neumann rather than zero gradient (foextrap): the terrain path
+  // takes no transfer through a foextrap domain face (#4330), which these data, not filled to
+  // satisfy that condition, would otherwise make differ from the explicit primitives
   Vector<BCRec> bcs(NBCVAR_max);
   for (auto& bc : bcs) {
     for (int d = 0; d < AMREX_SPACEDIM; ++d) {
-      bc.setLo(d, ERFBCType::foextrap);
-      bc.setHi(d, ERFBCType::foextrap);
+      bc.setLo(d, (d < 2) ? ERFBCType::foextrap : ERFBCType::neumann);
+      bc.setHi(d, (d < 2) ? ERFBCType::foextrap : ERFBCType::neumann);
     }
   }
   Gpu::DeviceVector<BCRec> bcs_device(bcs.size());
@@ -1097,9 +1143,6 @@ ERF_GPU_TEST(ScalarDiffusionPrimitives, NativeAdaptersMatchExplicitPrimitives)
        hfx_z_arr = hfx_z.array();
   auto qfx1_x_arr = qfx1_x.array(), qfx1_y_arr = qfx1_y.array(),
        qfx1_z_arr = qfx1_z.array(), qfx2_z_arr = qfx2_z.array();
-  auto diss_arr = diss.array();
-  const GpuArray<Real, AMREX_SPACEDIM> gravity{
-    {Real(0.0), Real(0.0), Real(-9.81)}};
   const bool rotate = false, use_surface_layer = false;
 
   auto compare = [&]() {
@@ -1159,12 +1202,12 @@ ERF_GPU_TEST(ScalarDiffusionPrimitives, NativeAdaptersMatchExplicitPrimitives)
   DiffusionSrcForState_N(
     cells, cells, RhoScalar_comp, 1, u.const_array(), v.const_array(), cell,
     prim4, rhs.array(), xflux.array(), yflux.array(), zflux.array(), inv,
-    smn.const_array(), mf_mx.const_array(), mf_ux.const_array(),
+    mf_mx.const_array(), mf_ux.const_array(),
     mf_vx.const_array(), mf_my.const_array(), mf_uy.const_array(),
     mf_vy.const_array(), hfx_x_arr, hfx_y_arr, hfx_z_arr, qfx1_x_arr,
-    qfx1_y_arr, qfx1_z_arr, qfx2_z_arr, diss_arr, mu4, solver, 0,
-    tm.const_array(), gravity, bcs_device.data(), use_surface_layer, surface,
-    Real(0.0));
+    qfx1_y_arr, qfx1_z_arr, qfx2_z_arr,
+    mu4, solver, 0, bcs_device.data(),
+    use_surface_layer, surface, Real(0.0));
   compare();
 
   reset_rhs();
@@ -1172,27 +1215,27 @@ ERF_GPU_TEST(ScalarDiffusionPrimitives, NativeAdaptersMatchExplicitPrimitives)
   Gpu::DeviceVector<Real> dz(6);
   Gpu::copy(Gpu::hostToDevice, dz_host.begin(), dz_host.end(), dz.begin());
   DiffusionSrcForState_S(
-    cells, cells, RhoScalar_comp, 1, u.const_array(), v.const_array(), cell,
+    cells, cells, RhoScalar_comp, 1, cell,
     prim4, rhs.array(), xflux.array(), yflux.array(), zflux.array(), dz, inv,
-    smn.const_array(), mf_mx.const_array(), mf_ux.const_array(),
+    mf_mx.const_array(), mf_ux.const_array(),
     mf_vx.const_array(), mf_my.const_array(), mf_uy.const_array(),
     mf_vy.const_array(), hfx_x_arr, hfx_y_arr, hfx_z_arr, qfx1_x_arr,
-    qfx1_y_arr, qfx1_z_arr, qfx2_z_arr, diss_arr, mu4, solver, 0,
-    tm.const_array(), gravity, bcs_device.data(), use_surface_layer, surface,
-    Real(0.0));
+    qfx1_y_arr, qfx1_z_arr, qfx2_z_arr,
+    mu4, solver, 0, bcs_device.data(),
+    use_surface_layer, surface, Real(0.0));
   compare();
 
   reset_rhs();
   DiffusionSrcForState_T(
-    cells, cells, RhoScalar_comp, 1, rotate, u.const_array(), v.const_array(),
+    cells, cells, RhoScalar_comp, 1, rotate,
     cell, prim4, rhs.array(), xflux.array(), yflux.array(), zflux.array(),
     z_nd.const_array(), z_cc.const_array(), ax.const_array(), ay.const_array(),
-    ax.const_array(), detj.const_array(), inv, smn.const_array(),
+    ax.const_array(), detj.const_array(), inv,
     mf_mx.const_array(), mf_ux.const_array(), mf_vx.const_array(),
     mf_my.const_array(), mf_uy.const_array(), mf_vy.const_array(), hfx_x_arr,
     hfx_y_arr, hfx_z_arr, qfx1_x_arr, qfx1_y_arr, qfx1_z_arr, qfx2_z_arr,
-    diss_arr, mu4, solver, 0, tm.const_array(), gravity, bcs_device.data(),
-    use_surface_layer, surface, Real(0.0));
+    mu4, solver, 0, bcs_device.data(), bcs.data(), use_surface_layer, surface,
+    Real(0.0));
   compare();
 }
 

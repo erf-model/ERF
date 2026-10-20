@@ -25,7 +25,7 @@ struct DampingChoice {
      * @brief Read damping options from the input parameter database.
      * @param pp_prefix ParmParse prefix for the ERF input namespace.
      */
-    void init_params(std::string pp_prefix)
+    void init_params (std::string pp_prefix)
     {
         amrex::ParmParse pp(pp_prefix);
 
@@ -68,7 +68,7 @@ struct DampingChoice {
     /**
      * @brief Print the configured damping options.
      */
-    void display()
+    void display ()
     {
         amrex::Print() << "Rayleigh damping            :";
         if (rayleigh_damp_U || rayleigh_damp_V || rayleigh_damp_W || rayleigh_damp_T) {

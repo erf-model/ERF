@@ -39,7 +39,8 @@ join_boxes_stacked_in_z (const amrex::BoxArray& ba);
  * @param[out] stretched_dz_d Device stretched vertical spacing.
  * @param[in] geom Geometry information.
  * @param[in] ref_ratio Refinement ratios.
- * @param[in] grid_stretching_ratio Ratio for grid stretching.
+ * @param[in] grid_stretching_ratio Ratio for grid stretching; zero with a positive dz0
+ *                                  solves for the ratio that closes on the domain top.
  * @param[in] zsurf Surface height.
  * @param[in] dz0 Initial vertical spacing.
  */
@@ -885,16 +886,16 @@ WFromOmega (int& i, int& j, int& k, amrex::Real omega,
 
     // Use extrapolation instead of interpolation if at the bottom boundary
     amrex::Real u_hi = (k == 0) ? amrex::Real(1.5) *   u_arr(i+1,j  ,k  ) - myhalf * u_arr(i+1,j  ,k+1)  :
-                                  myhalf * ( u_arr(i+1,j  ,k-1) +       u_arr(i+1,j  ,k  ) );
+                                  myhalf           * ( u_arr(i+1,j  ,k-1) +          u_arr(i+1,j  ,k  ) );
     amrex::Real u_lo = (k == 0) ? amrex::Real(1.5) *   u_arr(i  ,j  ,k  ) - myhalf * u_arr(i  ,j  ,k+1)  :
-                                  myhalf * ( u_arr(i  ,j  ,k-1) +       u_arr(i  ,j  ,k  ) );
+                                  myhalf           * ( u_arr(i  ,j  ,k-1) +          u_arr(i  ,j  ,k  ) );
     amrex::Real mf_u_hi = mf_u(i+1,j,0);
     amrex::Real mf_u_lo = mf_u(i  ,j,0);
 
     amrex::Real v_hi = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j+1,k  ) - myhalf * v_arr(i  ,j+1,k+1)  :
-                                  myhalf * ( v_arr(i  ,j+1,k-1) +       v_arr(i  ,j+1,k  ) );
+                                  myhalf           * ( v_arr(i  ,j+1,k-1) +          v_arr(i  ,j+1,k  ) );
     amrex::Real v_lo = (k == 0) ? amrex::Real(1.5) *   v_arr(i  ,j  ,k  ) - myhalf * v_arr(i  ,j  ,k+1)  :
-                                  myhalf * ( v_arr(i  ,j  ,k-1) +       v_arr(i  ,j  ,k  ) );
+                                  myhalf           * ( v_arr(i  ,j  ,k-1) +          v_arr(i  ,j  ,k  ) );
     amrex::Real mf_v_hi = mf_v(i,j+1,0);
     amrex::Real mf_v_lo = mf_v(i,j  ,0);
 

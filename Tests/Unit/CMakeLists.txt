@@ -120,6 +120,9 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestMOSTAverageZref.cpp
     # Motivation: a BTF fine level's mesh must not depend on how its grids are split in z.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestTerrainFineColumns.cpp
+    # Motivation: the input sponge's per-height reduction read every k from every box, so a
+    # refined region that does not reach the top was read outside its data.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestReduceToMaxPerHeight.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestWrfBoundaryDensity.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestWrfBoundaryMoisture.cpp
     # Motivation: face-local wall metadata must not inherit a later wall's
@@ -150,10 +153,47 @@ target_sources(${erf_exe_name}
     # Motivation: the k-eqn RANS closure (AL01) must keep its stability
     # functions finite and its length-scale limits exact for any Rt.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestRANSClosure.cpp
+    # Motivation: terrain-fitted momentum diffusion must apply K_h to the projected horizontal
+    # stresses of the zeta-face flux and take the cell-centred du/dz from the cell's own faces
+    # (erf-model/ERF#4214), so the operator is exact for bilinear fields and dissipates energy.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestTerrainStress.cpp
+    # Motivation: erf.implicit_terrain_metric must put K_h times the terrain-metric factor into
+    # the implicit vertical solves on the interior faces and take the same compact term out of
+    # the explicit fluxes, and nothing on the bottom and top faces.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestTerrainImplicitMetric.cpp
+    # Motivation: the implicit vertical momentum solve must close a no-slip z wall with the
+    # second-order one-sided gradient the explicit strain uses, or the steady state of a
+    # wall-bounded flow (PoiseuilleFlow) drifts at the wall cells.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestImplicitWallStencil.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/LinearSolvers/ERF_GTestTerrainPoisson.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/LinearSolvers/ERF_GTestTerrainMLMG.cpp
+    # Motivation: the opt-in WRF Smagorinsky-2D limits must reproduce WRF's smag2d_km numbers
+    # (slope factor, deformation threshold, cap and their order), limit K_h before the scalar
+    # diffusivities are derived from it, and the diffusive time-step rates must follow their
+    # documented formulas, with the vertical part dropped only where every implicit stage is
+    # shown to stay bounded.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestSmag2DLimiters.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSurfaceFluxDiagnostics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSeaLevelPressure.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestCanopyBiophysics.cpp
+    # Motivation: the k-eqn RANS canopy terms must keep the kynema-sgf
+    # formulas, cap L only inside the forest and never remove more than k.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestCanopyTurbulence.cpp
+    # Motivation: buoyancy dispatch must preserve selector semantics, active
+    # anelastic formulations, and neutral dry type-4 primitive-theta behavior.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestBuoyancy.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestForestDrag.cpp
+    # Motivation: a calm cell above an immersed wall gave the wall law u* = 0, an Obukhov length
+    # of zero and z / 0 (erf-model/ERF#4016); the stability estimate is now bounded as on flat ground.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestImmersedWallStability.cpp
+    # Motivation: a refined level's buildings must keep level 0's numbers for the
+    # materials by building, even when its tallest column is a spire level 0
+    # leaves fluid, or the level holds only some of the buildings.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBLevelNumbering.cpp
+    # Motivation: with erf.ibseb.radiation = two_stream every face must read its own column
+    # at its own height (roof interface, wall mean of its cell's two), on a level of several
+    # boxes whose columns all differ.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBTwoStreamFaces.cpp
     # Motivation: observation nudging must read a station file exactly, relax
     # to the closed-form target with the right weight, sigma band and rate cap,
     # and put its sources on the right faces over flat, fitted and immersed
@@ -165,14 +205,27 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamKernels.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamColumn.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamRadiationDriver.cpp
+    # Motivation: with erf.ibseb.sun_mode = two_stream the building faces must
+    # see the two-stream columns' sun: the same zenith, a morning sun in the
+    # east, and the start date read the same way.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestIBSEBTwoStreamSun.cpp
     # Motivation: the surface energy balance must take H and LE from a land
     # model, else from the surface layer's applied flux in W/m^2, else from
     # the scalar defaults; LE stays at its default without a moisture model.
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestSEBTurbulentFlux.cpp
+    # Motivation: with the moisture coupling, the force-restore surface evaporates at
+    # beta times the potential rate, beta linear between Noah-MP's wilting point and
+    # field capacity for the soil category, so it dries as its water content falls.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestSEBSoilMoisture.cpp
     # Motivation: the forcing the two-stream model hands Noah-MP must be the
     # downwelling SW and LW at the surface interface and a zenith cosine floored
     # at zero, copied into the land model's k = 0 plane and nowhere else.
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamLandForcing.cpp
+    # Motivation: the building faces (erf.ibseb.radiation = two_stream) must get the
+    # Beer-Lambert beam at every interface up to the highest one they read, blended
+    # clear/cloudy, no beam with the shortwave off or the sun down, only for the step
+    # of the sweep, and each face its own column's fluxes at its own height.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamCanopyForcing.cpp
     # Motivation: RRTMGP consumes absolute surface temperature; a
     # SurfaceLayer fallback must convert theta at the physical surface
     # pressure diagnosed from the lowest atmospheric cell,
@@ -184,11 +237,23 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestStationSampler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestProvenance.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestCheckpoint.cpp
+    # Motivation: a deck may include several files with FILE = <name>; the duplicate-input check
+    # must not refuse it.
+    ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestInputsName.cpp
+    # Motivation: a restart used to write its start-up boundary plane as step 0, replacing the
+    # first plane and leaving a time.dat that erf.input_bndry_planes cannot read.
+    ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestWriteBndryPlanes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestEpochTime.cpp
     # Motivation: a station placed by latitude/longitude must land where the
     # lat/lon arrays put it on a rotated grid and on a grid across 180 degrees.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestLatLonMap.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestGridUtils.cpp
+    # Motivation: erf.initial_dz without a stretching ratio must solve for the ratio that
+    # closes the grid on prob_hi, and an explicit ratio must not be solved for.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestInitZLevels.cpp
+    # Motivation: a malformed, mis-ordered or too small terrain file must stop the run with
+    # the problem named, and steep terrain next to an inflow or outflow face must be reported.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestTerrainFileChecks.cpp
     # Motivation: a BTF fine level's mesh must not depend on how its grids are split in z.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestTerrainFineColumns.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/HashRng/ERF_GTestHashRngScalar.cpp
@@ -218,13 +283,16 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Kessler/ERF_GTestKesslerPhysicalProperties.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/Morrison/ERF_GTestMorrisonPhysicalProperties.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMFoundation.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMRemapping.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/SLM/ERF_GTestSLMInterface.cpp
 )
 if(ERF_DIM STREQUAL "3")
   # Motivation: the auxiliary mapped state must reproduce ERF's computational
   # divergence, exact host stage recipes, canonical metric transfers, and ledger.
   target_sources(${erf_exe_name} PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/AuxiliaryState/ERF_GTestAuxiliaryMappedTransport.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/AuxiliaryState/ERF_GTestAuxiliaryMappedTransport.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMTransport.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMAMRTransfer.cpp)
 endif()
 if(ERF_ENABLE_NETCDF)
   target_sources(${erf_exe_name} PRIVATE
@@ -268,6 +336,7 @@ endif()
 if(ERF_ENABLE_NOAHMP)
   target_sources(${erf_exe_name} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/Noah-MP/ERF_GTestNoahMPResultPolicy.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/Noah-MP/ERF_GTestNoahMPLevelDriver.cpp
   )
 endif()
 build_erf_exe(${erf_exe_name} NO_ERF_MAIN)
@@ -286,7 +355,7 @@ add_test(NAME erf_unit_tests_shuffle_repeat
     --gtest_output=xml:${ERF_GTEST_REPORT_ROOT}/${erf_exe_name}/shuffle-repeat.xml
 )
 
-# Exercise the bounded zero-transport fixture through ERF's native level,
+# Exercise M3 through ERF's native level,
 # advance, checkpoint, and exact-schema restart paths.  Header min/max values
 # make the manufactured uniform spectrum and projected qc/qr independently
 # observable without adding test-only diagnostics to the application.
@@ -299,26 +368,26 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
     ${CMAKE_CURRENT_SOURCE_DIR}/ERF_GTestRuntimeStubs.cpp)
   build_erf_exe(erf_sbm_checkpoint_corruptor NO_ERF_MAIN)
 
-  add_test(NAME SBM_ZeroTransport_ERF_Smoke
+  add_test(NAME SBM_M3_ZeroCarrier_ERF_Smoke
     COMMAND ${CMAKE_COMMAND}
       -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
-      -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_zero_transport
+      -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_zero_carrier
       -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
-      -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunZeroTransportSmoke.cmake)
-  set_tests_properties(SBM_ZeroTransport_ERF_Smoke PROPERTIES
+      -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3Smoke.cmake)
+  set_tests_properties(SBM_M3_ZeroCarrier_ERF_Smoke PROPERTIES
     LABELS "integration;sbm"
     RUN_SERIAL TRUE
     TIMEOUT 120)
 
-  add_test(NAME SBM_ZeroTransport_2M_ERF_Smoke
+  add_test(NAME SBM_M3_ZeroCarrier_2M_ERF_Smoke
     COMMAND ${CMAKE_COMMAND}
       -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
-      -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_zero_transport_2m
+      -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_zero_carrier_2m
       -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
       -DEXPECTED_SPECTRUM_VALUES=1.50000000000000004e-06,6.00000000000000015e-06,1.80000000000000005e-05,4.80000000000000012e-05,1.00000000000000000e+12,2.00000000000000000e+12,3.00000000000000000e+12,4.00000000000000000e+12,
       -DEXPECTED_CORE_VALUES=1.00000000000000000e+00,2.99999999999999886e+02,0.00000000000000000e+00,0.00000000000000000e+00,0.00000000000000000e+00,7.50000000000000019e-06,6.60000000000000051e-05,
-      -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunZeroTransportSmoke.cmake)
-  set_tests_properties(SBM_ZeroTransport_2M_ERF_Smoke PROPERTIES
+      -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3Smoke.cmake)
+  set_tests_properties(SBM_M3_ZeroCarrier_2M_ERF_Smoke PROPERTIES
     LABELS "integration;sbm"
     RUN_SERIAL TRUE
     TIMEOUT 120)
@@ -339,35 +408,164 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
   endfunction()
 
   add_sbm_expected_failure_test(SBM_Unrealizable_2M_Init inputs_unrealizable_2m
-    "SBM fixture initial state is unrealizable.*failed_constraint=endpoint_low")
-  add_sbm_expected_failure_test(SBM_Nonzero_Carrier inputs_zero_transport
-    "SBM zero-transport fixture requires exactly zero carrier momentum"
-    "-DOVERRIDE=erf.sbm_test_carrier_momentum_fault=true")
-  add_sbm_expected_failure_test(SBM_Native_QC_Write_Fault inputs_zero_transport
+    "SBM fixture initial state is not canonical for selected spectral representation: population=0 representation=two-moment bin=0")
+  add_sbm_expected_failure_test(SBM_M3_Donor_CFL inputs_zero_carrier
+    "SBM M3 donor outgoing-demand condition failed"
+    "-DOVERRIDE=erf.sbm_test_donor_cfl_fault=true")
+  add_test(NAME SBM_M3_Adaptive_Anelastic_Donor_CFL
+    COMMAND ${CMAKE_COMMAND}
+      -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+      -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_adaptive_anelastic_donor
+      -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+      -DEXPECT_SECOND_CHECKPOINT=true
+      -DSKIP_RESTART=true
+      -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3Smoke.cmake)
+  set_tests_properties(SBM_M3_Adaptive_Anelastic_Donor_CFL PROPERTIES
+    LABELS "integration;sbm"
+    RUN_SERIAL TRUE
+    TIMEOUT 120)
+  add_sbm_expected_failure_test(SBM_M3_Fixed_Unsafe_Donor_DT
+    inputs_adaptive_anelastic_donor
+    "SBM M3 fixed timestep exceeds donor positivity limit"
+    "-DOVERRIDE=erf.fixed_dt=0.2")
+
+  add_test(NAME SBM_M3_Adaptive_Anelastic_Stretched_Donor_CFL
+    COMMAND ${CMAKE_COMMAND}
+      -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+      -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_adaptive_anelastic_stretched_donor
+      -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+      -DEXPECT_SECOND_CHECKPOINT=true
+      -DSKIP_RESTART=true
+      -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3Smoke.cmake)
+  set_tests_properties(SBM_M3_Adaptive_Anelastic_Stretched_Donor_CFL PROPERTIES
+    LABELS "integration;sbm"
+    RUN_SERIAL TRUE
+    TIMEOUT 120)
+  add_sbm_expected_failure_test(SBM_M3_Fixed_Unsafe_Anelastic_Stretched_Donor_DT
+    inputs_adaptive_anelastic_stretched_donor
+    "SBM M3 fixed timestep exceeds donor positivity limit"
+    "-DOVERRIDE=erf.fixed_dt=0.05")
+  add_sbm_expected_failure_test(SBM_M3_Reject_Legacy_Zero_Transport inputs_zero_carrier
+    "erf.sbm_zero_transport_fixture=true is obsolete"
+    "-DOVERRIDE=erf.sbm_zero_transport_fixture=true")
+  add_sbm_expected_failure_test(SBM_M3_Reject_Anelastic_StaticTerrain
+    inputs_periodic_static_terrain
+    "SBM M3 does not currently support anelastic StaticFittedMesh"
+    "-DOVERRIDE=erf.anelastic=1")
+  add_sbm_expected_failure_test(SBM_Native_QC_Write_Fault inputs_zero_carrier
     "SBM owns compact qc/qr; native advection write denied for component range"
     "-DOVERRIDE=erf.sbm_test_native_qc_write_fault=true")
   add_sbm_expected_failure_test(SBM_Invalid_Nonmonotonic_Edges inputs_invalid_edges_nonmonotonic
     "Invalid SBM configuration: edges must be strictly increasing")
   add_sbm_expected_failure_test(SBM_Invalid_Zero_Edge_AutoPivot inputs_invalid_zero_edge_autopivot
     "Invalid SBM configuration: pivots must be finite and positive")
-  add_sbm_expected_failure_test(SBM_Implicit_Substepping inputs_zero_transport
-    "SBM zero-transport fixture requires acoustic substepping_type=None"
+  add_sbm_expected_failure_test(SBM_Implicit_Substepping inputs_zero_carrier
+    "SBM M3 requires acoustic substepping_type=None"
     "-DOVERRIDE=erf.substepping_type=Implicit")
   add_sbm_expected_failure_test(SBM_Nonperiodic_Geometry inputs_nonperiodic
-    "SBM zero-transport fixture requires triply periodic geometry")
-  add_sbm_expected_failure_test(SBM_Immersed_Buildings inputs_zero_transport
-    "SBM zero-transport fixture requires buildings_type=None"
+    "SBM M3 currently requires triply periodic geometry")
+  add_sbm_expected_failure_test(SBM_Immersed_Buildings inputs_zero_carrier
+    "SBM M3 requires buildings_type=None"
     "-DOVERRIDE=erf.buildings_type=ImmersedForcing")
-  add_sbm_expected_failure_test(SBM_Nonconstant_Mesh inputs_stretched
-    "SBM zero-transport fixture requires mesh_type=ConstantDz")
+  add_sbm_expected_failure_test(SBM_M3_Moving_Terrain inputs_zero_carrier
+    "SBM M3 requires static non-EB geometry"
+    "-DOVERRIDE=erf.terrain_type=MovingFittedMesh")
+
+  add_test(NAME SBM_M3_Stretched_Static_Mesh
+    COMMAND ${CMAKE_COMMAND}
+      -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+      -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_stretched
+      -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+      -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3Smoke.cmake)
+  set_tests_properties(SBM_M3_Stretched_Static_Mesh PROPERTIES
+    LABELS "integration;sbm"
+    RUN_SERIAL TRUE
+    TIMEOUT 120)
+
+  add_test(NAME SBM_M3_Periodic_StaticTerrain_Mesh
+    COMMAND ${CMAKE_COMMAND}
+      -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+      -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_periodic_static_terrain
+      -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+      -DSKIP_RESTART=true
+      -DNUMERIC_HEADER_COMPARE=ON
+      -DHEADER_COMPARE_SIGDIGITS=12
+      -DHEADER_COMPARE_ULPS=8
+      -DEXPECTED_SPECTRUM_VALUES=9.99967817714348408e-07,1.99993563542869682e-06,2.99990345314304565e-06,3.99987127085739363e-06,
+      -DEXPECTED_SPECTRUM_MAX_VALUES=1.00000128039821617e-06,2.00000256079643235e-06,3.00000384119464895e-06,4.00000512159286470e-06,
+      -DEXPECTED_CORE_VALUES=9.99967817714348506e-01,2.99990345314304420e+02,0.00000000000000000e+00,0.00000000000000000e+00,0.00000000000000000e+00,2.99990345314304522e-06,6.99977472400043928e-06,
+      -DEXPECTED_CORE_MAX_VALUES=1.00000128039821612e+00,3.00000384119464741e+02,0.00000000000000000e+00,0.00000000000000000e+00,0.00000000000000000e+00,3.00000384119464852e-06,7.00000896278751364e-06,
+      -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3Smoke.cmake)
+  set_tests_properties(SBM_M3_Periodic_StaticTerrain_Mesh PROPERTIES
+    LABELS "integration;sbm"
+    RUN_SERIAL TRUE
+    TIMEOUT 120)
+
+  if(AMReX_PRECISION STREQUAL "DOUBLE" AND
+     NOT ERF_ENABLE_CUDA AND NOT ERF_ENABLE_HIP AND NOT ERF_ENABLE_SYCL)
+    add_executable(erf_sbm_checkpoint_compare
+      ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_SBMCheckpointCompare.cpp)
+    target_link_libraries(erf_sbm_checkpoint_compare PRIVATE AMReX::amrex)
+    target_include_directories(erf_sbm_checkpoint_compare PRIVATE ${PROJECT_SOURCE_DIR}/Source)
+    target_compile_features(erf_sbm_checkpoint_compare PRIVATE cxx_std_17)
+
+    add_test(NAME SBM_M3_StaticTerrain_Restart_Equivalence
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+        -DCOMPARE_EXECUTABLE=$<TARGET_FILE:erf_sbm_checkpoint_compare>
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_periodic_static_terrain
+        -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+        -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3RestartEquivalence.cmake)
+    set_tests_properties(SBM_M3_StaticTerrain_Restart_Equivalence PROPERTIES
+      LABELS "integration;sbm"
+      RUN_SERIAL TRUE
+      TIMEOUT 180)
+
+    # The same across a restart that re-makes the level-0 grids (issue 4225): the spectrum
+    # is read on the checkpoint's 2x2 grids and redistributed onto the restart's 4x4, and
+    # the run must continue as the straight run did.
+    add_test(NAME SBM_M3_StaticTerrain_RegridOnRestart
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+        -DCOMPARE_EXECUTABLE=$<TARGET_FILE:erf_sbm_checkpoint_compare>
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_periodic_static_terrain
+        -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+        "-DRESTART_ARGS=erf.regrid_level_0_on_restart=1|amr.max_grid_size_x=2|amr.max_grid_size_y=2"
+        -DALLOW_DIFF_GRIDS=ON
+        -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3RestartEquivalence.cmake)
+    set_tests_properties(SBM_M3_StaticTerrain_RegridOnRestart PROPERTIES
+      LABELS "integration;sbm"
+      RUN_SERIAL TRUE
+      TIMEOUT 180)
+  endif()
+
+  foreach(_mode IN ITEMS 1m 2m)
+    set(_advection_expected_values)
+    if(_mode STREQUAL "2m")
+      list(APPEND _advection_expected_values
+        -DEXPECTED_SPECTRUM_VALUES=1.50000000000000004e-06,6.00000000000000015e-06,1.80000000000000005e-05,4.80000000000000012e-05,1.00000000000000000e+12,2.00000000000000000e+12,3.00000000000000000e+12,4.00000000000000000e+12,
+        -DEXPECTED_CORE_VALUES=1.00000000000000000e+00,2.99999999999999886e+02,0.00000000000000000e+00,0.00000000000000000e+00,0.00000000000000000e+00,7.50000000000000019e-06,6.60000000000000051e-05,)
+    endif()
+    add_test(NAME SBM_M3_PeriodicAdvection_${_mode}
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_periodic_advection_${_mode}
+        -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+        ${_advection_expected_values}
+        -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunM3Smoke.cmake)
+    set_tests_properties(SBM_M3_PeriodicAdvection_${_mode} PROPERTIES
+      LABELS "integration;sbm"
+      RUN_SERIAL TRUE
+      TIMEOUT 120)
+  endforeach()
 
   add_test(NAME SBM_Inadmissible_2M_Restart
     COMMAND ${CMAKE_COMMAND}
       -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
       -DTEST_HELPER=$<TARGET_FILE:erf_sbm_checkpoint_corruptor>
-      -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_zero_transport_2m
+      -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_zero_carrier_2m
       -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
-      "-DEXPECTED_DIAGNOSTIC=SBM authoritative restart state is inadmissible.*level=0.*population=0.*bin=0.*constraint=endpoint_low"
+      "-DEXPECTED_DIAGNOSTIC=SBM authoritative restart state is inadmissible.*level=0.*population=0.*bin=0.*constraint=canonical-two-moment-bin-state"
       -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunAuthoritativeRestartFailure.cmake)
   set_tests_properties(SBM_Inadmissible_2M_Restart PROPERTIES
     LABELS "integration;sbm;negative"
@@ -387,6 +585,29 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
       TIMEOUT 120)
   endif()
 endif()
+
+if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
+   ERF_PRECISION STREQUAL "SINGLE" AND NOT AMReX_HDF5 AND
+   NOT ERF_ENABLE_CUDA AND NOT ERF_ENABLE_HIP AND NOT ERF_ENABLE_SYCL)
+  add_executable(erf_sbm_checkpoint_compare
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_SBMCheckpointCompare.cpp)
+  target_link_libraries(erf_sbm_checkpoint_compare PRIVATE AMReX::amrex)
+  target_include_directories(erf_sbm_checkpoint_compare PRIVATE ${PROJECT_SOURCE_DIR}/Source)
+  target_compile_features(erf_sbm_checkpoint_compare PRIVATE cxx_std_17)
+
+  add_test(NAME SBM_FLOAT_FractionalTimeRestart
+    COMMAND ${CMAKE_COMMAND}
+      -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+      -DCOMPARE_EXECUTABLE=$<TARGET_FILE:erf_sbm_checkpoint_compare>
+      -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_periodic_advection_1m
+      -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+      -P ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/RunFloatRestartTime.cmake)
+  set_tests_properties(SBM_FLOAT_FractionalTimeRestart PROPERTIES
+    LABELS "integration;sbm;single"
+    RUN_SERIAL TRUE
+    TIMEOUT 180)
+endif()
+
 set_tests_properties(erf_unit_tests_shuffle_repeat
   PROPERTIES
     LABELS "stress"
@@ -467,6 +688,8 @@ if(ERF_ENABLE_MPI)
       ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestProvenanceParallel.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SatAdj/ERF_GTestSatAdjParallel.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SAM/ERF_GTestSAMParallel.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMTransportParallel.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMAMRTransferParallel.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/Utils/HashRng/ERF_GTestHashRngParallel.cpp
       # Motivation: planar surface-layer fields on a BoxArray split in z hold
       # duplicate 2D boxes, and every copy must be filled from the computed
@@ -482,7 +705,8 @@ if(ERF_ENABLE_MPI)
       ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestColumnBandsParallel.cpp
       # The column boxes are distributed afresh, so check the copies across ranks too
       ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestTerrainFineColumns.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestProvenanceParallel.cpp
+      # The boxes are spread over the ranks, so a k may be held by another rank only
+      ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestReduceToMaxPerHeight.cpp
   )
   if(ERF_ENABLE_NETCDF)
     # The terrain reader opens the fixture only on the I/O rank and then

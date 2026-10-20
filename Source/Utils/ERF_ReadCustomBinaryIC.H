@@ -12,20 +12,20 @@
  */
 
 inline void
-ReadCustomBinaryIC(const std::string filename,
-                   amrex::Vector<amrex::Real>& latvec_h,
-                   amrex::Vector<amrex::Real>& lonvec_h,
-                   amrex::Vector<amrex::Real>& xvec_h,
-                   amrex::Vector<amrex::Real>& yvec_h,
-                   amrex::Vector<amrex::Real>& zvec_h,
-                   amrex::Vector<amrex::Real>& rho_h,
-                   amrex::Vector<amrex::Real>& uvel_h,
-                   amrex::Vector<amrex::Real>& vvel_h,
-                   amrex::Vector<amrex::Real>& wvel_h,
-                   amrex::Vector<amrex::Real>& theta_h,
-                   amrex::Vector<amrex::Real>& qv_h,
-                   amrex::Vector<amrex::Real>& qc_h,
-                   amrex::Vector<amrex::Real>& qr_h)
+ReadCustomBinaryIC (const std::string filename,
+                    amrex::Vector<amrex::Real>& latvec_h,
+                    amrex::Vector<amrex::Real>& lonvec_h,
+                    amrex::Vector<amrex::Real>& xvec_h,
+                    amrex::Vector<amrex::Real>& yvec_h,
+                    amrex::Vector<amrex::Real>& zvec_h,
+                    amrex::Vector<amrex::Real>& rho_h,
+                    amrex::Vector<amrex::Real>& uvel_h,
+                    amrex::Vector<amrex::Real>& vvel_h,
+                    amrex::Vector<amrex::Real>& wvel_h,
+                    amrex::Vector<amrex::Real>& theta_h,
+                    amrex::Vector<amrex::Real>& qv_h,
+                    amrex::Vector<amrex::Real>& qc_h,
+                    amrex::Vector<amrex::Real>& qr_h)
 {
     int nx = 0, ny = 0, nz = 0, ndata = 0;
     float value;

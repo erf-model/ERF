@@ -93,12 +93,12 @@ def check_materials(prefix, csv):
     return ok
 
 def check_restart(a_prefix, b_prefix):
-    """The slab-owned columns (skin, layers, G, materials, geometry) must be
-    exact after the restart. The atmosphere-derived columns (wind, density,
-    air temperature, H) are only required to be close: the immersed-forcing
-    atmosphere of the development branch does not restart bit-for-bit (the
-    wind at the faces differs by about one part in ten thousand), which is
-    outside the balance."""
+    """Every column of the face dump must be exact after the restart: the
+    slab-owned ones (skin, layers, G, materials, geometry) and the ones read
+    from the atmosphere (wind, density, air temperature, H). The second set
+    is reported on its own line because it is what a restart of the immersed
+    forcing's atmosphere moves (a restart once rebuilt the blanking without
+    clearing the almost-fluid cells, 2.5e-5 relative here)."""
     def load_sorted(prefix):
         fns = sorted(glob.glob(prefix + ".rank*.csv"))
         hdr = open(fns[0]).readline().strip().split(",")
@@ -113,9 +113,9 @@ def check_restart(a_prefix, b_prefix):
         scale = 1.0 + np.abs(a[:, n]).max()
         if name in atm: worst_atm = max(worst_atm, d / scale)
         else: worst_exact = max(worst_exact, d)
-    ok = ok and worst_exact < 1e-9 and worst_atm < 1e-3
-    print(f"  slab, G and geometry after restart equal the straight run: {'PASS' if worst_exact < 1e-9 else 'FAIL'} (max |diff| {worst_exact:.1e})")
-    print(f"  atmosphere-derived columns close (development IF restart is not bit-exact): {'PASS' if worst_atm < 1e-3 else 'FAIL'} (max rel diff {worst_atm:.1e})")
+    ok = ok and worst_exact == 0.0 and worst_atm == 0.0
+    print(f"  slab, G and geometry after restart equal the straight run: {'PASS' if worst_exact == 0.0 else 'FAIL'} (max |diff| {worst_exact:.1e})")
+    print(f"  atmosphere-derived columns equal the straight run: {'PASS' if worst_atm == 0.0 else 'FAIL'} (max rel diff {worst_atm:.1e})")
     return ok
 
 if __name__ == "__main__":

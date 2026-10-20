@@ -50,7 +50,7 @@ const char* diag_name[DIAG_NUM] = {
     "T_fixed_p"
 };
 
-void fill_anelastic_reference_pressure(amrex::MultiFab& base)
+void fill_anelastic_reference_pressure (amrex::MultiFab& base)
 {
     for (amrex::MFIter mfi(base); mfi.isValid(); ++mfi) {
         const amrex::Box& bx = mfi.validbox();

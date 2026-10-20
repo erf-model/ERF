@@ -91,7 +91,6 @@ jobs:
             // runs. A new CI workflow must be added here to be covered.
             const allowedPaths = new Set([
               '.github/workflows/ci.yml',
-              '.github/workflows/codespell.yml',
               '.github/workflows/cuda-ci.yml',
               '.github/workflows/docs.yml',
               '.github/workflows/gcc-rrtmgp.yml',
@@ -100,7 +99,6 @@ jobs:
               '.github/workflows/macos.yml',
               '.github/workflows/style.yml',
               '.github/workflows/sycl.yml',
-              '.github/workflows/windows-mpi.yml',
               '.github/workflows/windows.yml',
             ]);
 

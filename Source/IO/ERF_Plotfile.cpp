@@ -5,11 +5,13 @@
 #include "ERF_Constants.H"
 #include "ERF_EpochTime.H"
 #include "ERF_NCPlotFile.H"
+#include "ERF_NoahMPGitHash.H"
 #include "ERF_PlotfileSelection.H"
 #include "ERF_SrcHeaders.H"
 #include "ERF_StormDiagnostics.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_Utils.H"
+#include <AMReX_buildInfo.H>
 
 using namespace amrex;
 
@@ -1409,12 +1411,36 @@ ERF::FillPlot3DVars (int lev,
         }
         mf_comp ++;
     };
-    // Native SHOC pblh is diagnosed in meters AGL and is copied through
-    // unchanged into the plotfile diagnostic field.
+    // The boundary layer height in meters AGL.  Native SHOC carries its own
+    // column-filled diagnostic; every other scheme gets it from the surface
+    // layer, which diagnoses it whenever erf.most.pblh_calc is set (MYNN25
+    // computes it directly, MRF/YSU/YSUNew write theirs back via set_pblh).
+    // That field is two-dimensional, so broadcast it down each column.
     if (containerHasElement(plot_var_names, "pblh")) {
-        copy_native_shoc_diagnostic(have_native_shoc_diagnostics
-                                    ? &native_shoc_driver[lev]->pblh_diagnostics()
-                                    : nullptr);
+        const auto& surf_lay_zlo = m_SurfaceLayer[Orientation(Direction::z, Orientation::low)];
+        if (have_native_shoc_diagnostics) {
+            copy_native_shoc_diagnostic(&native_shoc_driver[lev]->pblh_diagnostics());
+        } else if (surf_lay_zlo && surf_lay_zlo->computes_pblh()) {
+            const MultiFab* pblh_mf = surf_lay_zlo->get_pblh(lev);
+            const int dcomp = mf_comp;
+#ifdef _OPENMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+            for (MFIter mfi(mf_dst, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const Box& bx = mfi.tilebox();
+                auto       dst = mf_dst.array(mfi);
+                auto const src = pblh_mf->const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    dst(i,j,k,dcomp) = src(i,j,0);
+                });
+            }
+            mf_comp ++;
+        } else {
+            // No PBL height is being diagnosed; keep the -999 sentinel so the
+            // field is not mistaken for a real value.
+            copy_native_shoc_diagnostic(nullptr);
+        }
     }
     if (containerHasElement(plot_var_names, "shoc_cldfrac")) {
         copy_native_shoc_diagnostic(have_native_shoc_diagnostics
@@ -2256,9 +2282,11 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
              const Real* p_lo = geom[lev].ProbLo();
              const Real* p_hi = geom[lev].ProbHi();
              const auto dx    = geom[lev].CellSize();
+             const NCProvenance nc_provenance{buildInfoGetGitHash(1), buildInfoGetGitHash(2), NoahMPGitHash()};
              writeNCPlotFile(lev, l_which, plotfilename, GetVecOfConstPtrs(mf), varnames, istep,
                              {p_lo[0],p_lo[1],p_lo[2]},{p_hi[0],p_hi[1],p_hi[2]}, {dx[0],dx[1],dx[2]},
-                             geom[lev].Domain(), tnew, start_bdy_time, solverChoice, zlevels_stag[lev]);
+                             geom[lev].Domain(), tnew, start_bdy_time, solverChoice, zlevels_stag[lev],
+                             nc_provenance);
 #endif
         } else {
             // Here we assume the plotfile_type is PlotFileType::None
@@ -2399,9 +2427,11 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
                      const Real* p_lo = geom[lev].ProbLo();
                      const Real* p_hi = geom[lev].ProbHi();
                      const auto dx    = geom[lev].CellSizeArray();
+                     const NCProvenance nc_provenance{buildInfoGetGitHash(1), buildInfoGetGitHash(2), NoahMPGitHash()};
                      writeNCPlotFile(lev, which_box, plotfilename, GetVecOfConstPtrs(mf), varnames, istep,
                                      {p_lo[0],p_lo[1],p_lo[2]},{p_hi[0],p_hi[1],p_hi[2]}, {dx[0],dx[1],dx[2]},
-                                     bounding_region, tnew, start_bdy_time, solverChoice, zlevels_stag[lev]);
+                                     bounding_region, tnew, start_bdy_time, solverChoice, zlevels_stag[lev],
+                                     nc_provenance);
                  }
              }
 #endif

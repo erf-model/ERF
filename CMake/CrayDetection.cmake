@@ -282,7 +282,7 @@ if(AMReX_GPU_BACKEND MATCHES "HIP" OR ERF_ENABLE_HIP)
 endif()
 
 # Kokkos Architecture Detection (for EKAT physics)
-if(ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC OR ERF_ENABLE_P3)
+if(ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC)
     message(VERBOSE "EKAT-based physics enabled, checking Kokkos architecture")
     
     set(KOKKOS_ARCH_SET FALSE)
@@ -458,14 +458,14 @@ else()
 endif()
 
 # E3SM Cloned Check
-if(ERF_ENABLE_EAMXX_SHOC OR ERF_ENABLE_P3)
+if(ERF_ENABLE_EAMXX_SHOC)
     message(VERBOSE "Checking EAMxx files from E3SM")
 
     set(E3SM_EXPECTED_PATH "${PROJECT_SOURCE_DIR}/external/E3SM")
 
     if(NOT EXISTS "${PROJECT_SOURCE_DIR}/external/E3SM/components/eamxx/src/physics")
         message(FATAL_ERROR
-            "E3SM provides eamxx required for SHOC/P3 but not found.\n"
+            "E3SM provides eamxx required for SHOC but not found.\n"
             "\n"
             "This requires specific EAMxx physics source files from E3SM at commit 2eb52d9.\n"
             "\n"
@@ -476,7 +476,7 @@ if(ERF_ENABLE_EAMXX_SHOC OR ERF_ENABLE_P3)
             "  ln -s /path/to/your/E3SM ${PROJECT_SOURCE_DIR}/external/E3SM\n"
             "\n"
             "Or disable features:\n"
-            "  cmake -DERF_ENABLE_EAMXX_SHOC=OFF -DERF_ENABLE_P3=OFF ..\n")
+            "  cmake -DERF_ENABLE_EAMXX_SHOC=OFF ..\n")
     endif()
 else()
     message(DEBUG "EKAT physics not enabled, skipping E3SM check")
@@ -496,7 +496,7 @@ message(DEBUG "  MPICH_GPU_SUPPORT_ENABLED: $ENV{MPICH_GPU_SUPPORT_ENABLED}")
 # Fix 1: CUDA + EKAT -> nvcc_wrapper complications
 # ==============================================================================
 
-if(ERF_ENABLE_CUDA AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC OR ERF_ENABLE_P3))
+if(ERF_ENABLE_CUDA AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC))
     message(STATUS "Applying Fix 1: CUDA+EKAT nvcc_wrapper")
 
     message(DEBUG "Problem: nvcc_wrapper doesn't inherit Cray include paths")
@@ -531,7 +531,7 @@ endif()
 # Fix 2: FCOMPARE + Cray + EKAT/Kokkos -> mpi_gnu_123 not found
 # ==============================================================================
 
-if(ERF_ENABLE_FCOMPARE AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC OR ERF_ENABLE_P3))
+if(ERF_ENABLE_FCOMPARE AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC))
     message(STATUS "Applying Fix 2: fcompare linker with EKAT")
 
     message(DEBUG "Problem: --as-needed drops required MPI libs when EKAT is enabled")
@@ -564,7 +564,7 @@ if(ERF_ENABLE_FCOMPARE AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC OR ERF_EN
 
                 if(OTHER_RESULT EQUAL 0 AND NOT "${OTHER_LIBS}" STREQUAL "${CRAY_LIBS_RAW}")
                     message(STATUS "${COMPILER_NAME} compiler libs differ from CXX (using CXX libs only)")
-            	    message(VERBOSE "${COMPILER_NAME} compiler returns different libs than CXX:\n  CXX: ${CRAY_LIBS_RAW}\n  ${COMPILER_NAME}: ${OTHER_LIBS}\n  Using only CXX libs - build may fail if language-specific libs needed")
+                    message(VERBOSE "${COMPILER_NAME} compiler returns different libs than CXX:\n  CXX: ${CRAY_LIBS_RAW}\n  ${COMPILER_NAME}: ${OTHER_LIBS}\n  Using only CXX libs - build may fail if language-specific libs needed")
                 endif()
             endif()
         endforeach()
@@ -574,13 +574,13 @@ if(ERF_ENABLE_FCOMPARE AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC OR ERF_EN
         string(REGEX REPLACE ",--no-as-needed" "" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
         string(REGEX REPLACE ",-l" " -l" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
 
-	# Strip GPU-related flags that Kokkos/AMReX already handle
-	string(REGEX REPLACE "--offload-arch=[^ ]* *" "" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
-	string(REGEX REPLACE "--hip-link *" "" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
-	string(REGEX REPLACE "-fgpu-rdc *" "" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
-	string(REGEX REPLACE "-xhip *" "" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
+        # Strip GPU-related flags that Kokkos/AMReX already handle
+        string(REGEX REPLACE "--offload-arch=[^ ]* *" "" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
+        string(REGEX REPLACE "--hip-link *" "" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
+        string(REGEX REPLACE "-fgpu-rdc *" "" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
+        string(REGEX REPLACE "-xhip *" "" CRAY_LIBS_CLEAN "${CRAY_LIBS_CLEAN}")
 
-	message(VERBOSE "Adding: -Wl,--no-as-needed + cleaned libs")
+        message(VERBOSE "Adding: -Wl,--no-as-needed + cleaned libs")
         message(DEBUG "Cleaned libs: ${CRAY_LIBS_CLEAN}")
 
         # Check if Fix 2 already applied
@@ -892,12 +892,12 @@ set(FIX56_ACTIVE OFF)
 set(FIX7_ACTIVE OFF)
 
 # Fix 1: CUDA + EKAT
-if(ERF_ENABLE_CUDA AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC OR ERF_ENABLE_P3) AND CRAY_CUDA_FLAGS)
+if(ERF_ENABLE_CUDA AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC) AND CRAY_CUDA_FLAGS)
     set(FIX1_ACTIVE ON)
 endif()
 
 # Fix 2: fcompare + EKAT
-if(ERF_ENABLE_FCOMPARE AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC OR ERF_ENABLE_P3) AND CRAY_LIBS_CLEAN)
+if(ERF_ENABLE_FCOMPARE AND (ERF_ENABLE_RRTMGP OR ERF_ENABLE_EAMXX_SHOC) AND CRAY_LIBS_CLEAN)
     set(FIX2_ACTIVE ON)
 endif()
 

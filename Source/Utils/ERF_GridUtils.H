@@ -7,6 +7,7 @@
 #include <sstream>
 #include <string>
 
+#include <AMReX.H>
 #include <AMReX_GpuQualifiers.H>
 #include <AMReX_Math.H>
 #include <AMReX_REAL.H>
@@ -159,6 +160,137 @@ validate_matching_grid (const UniformGridMetadata& reference,
     }
 
     return {};
+}
+
+/**
+ * \brief A geometrically stretched vertical grid: dz_k = dz0 * ratio^k.
+ *
+ * The three numbers that define the grid, plus whether the solve that produced them
+ * actually converged, so a caller can fail loudly instead of using a bad factor.
+ */
+struct GeometricStretch
+{
+    amrex::Real dz0{amrex::Real(0.0)};      //!< thickness of the first layer, as actually used
+    amrex::Real ratio{amrex::Real(1.0)};    //!< layer-to-layer stretch factor
+    amrex::Real residual{amrex::Real(0.0)}; //!< sum of the layers minus z_top, at exit
+    bool uniform{false};                    //!< true when the requested dz0 could not be honored
+    bool converged{false};                  //!< true when |residual| <= tol
+};
+
+/**
+ * \brief Solve for the geometric stretch factor that fills a domain of depth z_top with
+ *        nz layers whose first is dz0 thick.
+ *
+ * The layer thicknesses are dz0 * ratio^k, so the column depth is the geometric sum
+ *
+ *     S(ratio) = dz0 * (ratio^nz - 1) / (ratio - 1),
+ *
+ * and the factor wanted is the root of S(ratio) = z_top, found by Newton iteration from
+ * ratio = 1.03.  The derivative is analytic, so the iteration converges in a handful of
+ * passes for any physically sensible (dz0, z_top, nz).
+ *
+ * This is the natural construction for an **idealized** case, where dz0 and z_top are what
+ * the user knows a priori and the vertical distribution between them is free.  It is not
+ * the right construction when a file already carries a vertical distribution worth keeping
+ * -- see wrf_mean_layer_thickness in ERF_InitFromWRFInput.cpp -- because one constant factor
+ * cannot represent a stretch ratio that varies with height.
+ *
+ * A dz0 at or above the uniform spacing z_top/nz cannot be stretched to fit, since the
+ * thicknesses only grow: that case returns the uniform grid with uniform = true, rather
+ * than a factor below one that would thin the layers aloft.  A single layer is the same
+ * situation for a different reason -- the sum of one layer is dz0 whatever the factor is,
+ * so S has no root and its derivative is identically zero -- and is answered the same way.
+ *
+ * @param[in] dz0   requested thickness of the first layer
+ * @param[in] z_top depth of the column to be filled
+ * @param[in] nz    number of layers
+ * @param[in] tol   convergence tolerance on the column depth, in the same units as z_top
+ * @return the stretch factor, the first-layer thickness used, and whether it converged
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+GeometricStretch
+geometric_stretch (amrex::Real dz0,
+                   amrex::Real z_top,
+                   int nz,
+                   amrex::Real tol) noexcept
+{
+    GeometricStretch gs;
+
+    const amrex::Real Nz = static_cast<amrex::Real>(nz);
+    if (nz < 1 || !(z_top > amrex::Real(0.0)) || !(dz0 > amrex::Real(0.0))) {
+        return gs;
+    }
+
+    // Default to the uniform grid, which is also the answer whenever the requested first
+    // layer is already at least as thick as the uniform spacing, and the only grid there
+    // is when the column holds a single layer.
+    if (nz == 1 || dz0 >= z_top/Nz) {
+        gs.dz0       = z_top/Nz;
+        gs.ratio     = amrex::Real(1.0);
+        gs.residual  = amrex::Real(0.0);
+        gs.uniform   = true;
+        gs.converged = true;
+        return gs;
+    }
+
+    amrex::Real SFact = amrex::Real(1.03);
+    amrex::Real F     = dz0 * ( (std::pow(SFact,Nz) - amrex::Real(1.0)) / (SFact - amrex::Real(1.0)) ) - z_top;
+
+    const int max_iter = 50;
+    int iter = 0;
+    while (amrex::Math::abs(F) > tol && iter < max_iter) {
+        const amrex::Real dFdSF = dz0 * ( Nz * std::pow(SFact,Nz-amrex::Real(1.0)) * (SFact - amrex::Real(1.0))
+                                        - std::pow(SFact,Nz) + amrex::Real(1.0) ) /
+                                        std::pow(SFact-amrex::Real(1.0),amrex::Real(2.0));
+        SFact -= F/dFdSF;
+        const amrex::Real SFact_min = amrex::Real(1.0) + tol;
+        SFact  = (SFact > SFact_min) ? SFact : SFact_min;
+        F      = dz0 * ( (std::pow(SFact,Nz) - amrex::Real(1.0)) / (SFact - amrex::Real(1.0)) ) - z_top;
+        ++iter;
+    }
+
+    gs.dz0       = dz0;
+    gs.ratio     = SFact;
+    gs.residual  = F;
+    gs.uniform   = false;
+    gs.converged = (amrex::Math::abs(F) <= tol);
+    return gs;
+}
+
+/**
+ * \brief Fill a staggered z-level array with a geometrically stretched grid.
+ *
+ * zlevels must already be sized to nz+1; its length is what sets nz.  The top level is
+ * assigned z_top exactly rather than by accumulation, so the array closes on the domain
+ * top to the last bit even though the sum that got there is only accurate to tol.
+ *
+ * @param[in,out] zlevels staggered z-levels, sized nz+1 on entry and filled on exit
+ * @param[in]     dz0     requested thickness of the first layer
+ * @param[in]     z_top   depth of the column to be filled
+ * @param[in]     tol     convergence tolerance passed to geometric_stretch
+ * @return the stretch that was used, so the caller can report or check it
+ */
+inline GeometricStretch
+build_geometric_zlevels (amrex::Vector<amrex::Real>& zlevels,
+                         amrex::Real dz0,
+                         amrex::Real z_top,
+                         amrex::Real tol)
+{
+    const int nz = static_cast<int>(zlevels.size()) - 1;
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nz >= 1,
+        "build_geometric_zlevels needs a zlevels array of at least two entries");
+
+    const GeometricStretch gs = geometric_stretch(dz0, z_top, nz, tol);
+
+    amrex::Real dz = gs.dz0;
+    zlevels[0] = amrex::Real(0.0);
+    for (int k(1); k<=nz; ++k) {
+        zlevels[k] = zlevels[k-1] + dz;
+        dz *= gs.ratio;
+    }
+    zlevels[nz] = z_top;
+
+    return gs;
 }
 
 struct InterpolationStencil

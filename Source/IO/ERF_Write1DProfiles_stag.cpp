@@ -800,7 +800,7 @@ ERF::derive_stress_profiles_stag (Gpu::HostVector<Real>& h_avg_tau11, Gpu::HostV
 }
 
 void
-ERF::derive_forcing_profiles_stag(Gpu::HostVector<Real>& h_avg_ttend,  Gpu::HostVector<Real>& h_avg_qtend,
+ERF::derive_forcing_profiles_stag (Gpu::HostVector<Real>& h_avg_ttend,  Gpu::HostVector<Real>& h_avg_qtend,
                                   Gpu::HostVector<Real>& h_avg_wsub,   Gpu::HostVector<Real>& h_avg_thtend,
                                   Gpu::HostVector<Real>& h_avg_qhtend, Gpu::HostVector<Real>& h_avg_tvtend,
                                   Gpu::HostVector<Real>& h_avg_qvtend, Gpu::HostVector<Real>& h_avg_qcvtend,

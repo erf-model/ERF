@@ -21,6 +21,7 @@
 #include "ERF_TurbPertStruct.H"
 #include "ERF_RadStruct.H"
 #include "ERF_ShocTransportStruct.H"
+#include "ERF_CanopyTurbStruct.H"
 
 /**
  * Enum of possible plotfile types.
@@ -101,6 +102,18 @@ AMREX_ENUM(AnelasticType,
  */
 AMREX_ENUM(MeshType,
     ConstantDz, StretchedDz, VariableDz
+);
+
+/**
+ * @brief Linear solver for the anelastic projection on a terrain-fitted mesh.
+ *
+ * gmres_fft is GMRES with ERF's TerrainPoisson operator and an FFT preconditioner (needs the
+ * FFT build).  mlmg and gmres_mlmg use amrex::MLTerrainPoisson (AMReX-Codes/amrex#6030), the
+ * same stencil with zero flux through the Neumann faces, solved by geometric multigrid
+ * alone or as the preconditioner of GMRES; they need no FFT.
+ */
+AMREX_ENUM(TerrainPoissonSolver,
+    gmres_fft, mlmg, gmres_mlmg
 );
 
 /**
@@ -319,7 +332,7 @@ struct MoistureComponentIndices {
     /**
      * @brief Construct an empty map, i.e. a dry run.
      */
-    MoistureComponentIndices() = default;
+    MoistureComponentIndices () = default;
 
     /**
      * @brief Build the complete index map -- conserved-state components and
@@ -723,12 +736,12 @@ struct SolverChoice {
 
         pp.query_enum_case_insensitive("moisture_model",moisture_type);
 
-        // Test-only M1 failure injections. They remain disabled unless an
+        // Test-only SBM failure injections. They remain disabled unless an
         // integration test explicitly enables the corresponding option.
         pp.queryAdd("sbm_test_native_qc_write_fault", sbm_test_native_qc_write_fault);
-        pp.queryAdd("sbm_test_carrier_momentum_fault", sbm_test_carrier_momentum_fault);
+        pp.queryAdd("sbm_test_donor_cfl_fault", sbm_test_donor_cfl_fault);
         if (moisture_type != MoistureType::SBM &&
-            (sbm_test_native_qc_write_fault || sbm_test_carrier_momentum_fault)) {
+            (sbm_test_native_qc_write_fault || sbm_test_donor_cfl_fault)) {
             amrex::Error("SBM test fault-injection options require moisture_model=SBM");
         }
 
@@ -740,7 +753,13 @@ struct SolverChoice {
         moisture_indices = MoistureComponentIndices::from_moisture_model(moisture_type);
 
         if (moisture_type == MoistureType::SBM) {
-            pp.queryAdd("sbm_zero_transport_fixture", sbm_zero_transport_fixture);
+            if (pp.contains("sbm_zero_transport_fixture")) {
+                bool legacy_zero_transport = false;
+                pp.get("sbm_zero_transport_fixture", legacy_zero_transport);
+                if (legacy_zero_transport) {
+                    amrex::Error("erf.sbm_zero_transport_fixture=true is obsolete; M3 advances the mapped spectral state, so remove this option");
+                }
+            }
             pp.queryAdd("sbm_nbins", sbm_nbins);
             pp.queryAdd("sbm_moment_mode", sbm_moment_mode);
             pp.queryAdd("sbm_cloud_rain_split", sbm_cloud_rain_split);
@@ -748,9 +767,6 @@ struct SolverChoice {
             pp.queryarr("sbm_pivots", sbm_pivots);
             pp.queryarr("sbm_fixture_initial_state", sbm_fixture_initial_state);
 
-            if (!sbm_zero_transport_fixture) {
-                amrex::Error("moisture_model=SBM requires erf.sbm_zero_transport_fixture=true; production spectral transport is not implemented");
-            }
             if (sbm_nbins < 2 || (sbm_moment_mode != 1 && sbm_moment_mode != 2)) {
                 amrex::Error("SBM requires sbm_nbins >= 2 and sbm_moment_mode equal to 1 or 2");
             }
@@ -951,12 +967,18 @@ struct SolverChoice {
             amrex::Abort("SAM is not correct with variable dz -- choose another moisture model");
         }
 
+        // queryAdd puts the default in the table, so ask whether the ratio was given first
+        const bool have_stretching_ratio = pp.contains("grid_stretching_ratio");
         pp.queryAdd("grid_stretching_ratio", grid_stretching_ratio);
         if (grid_stretching_ratio != 0) {
             AMREX_ASSERT_WITH_MESSAGE((grid_stretching_ratio >= one),
                                       "The grid stretching ratio must be greater than 1");
         }
-        if (grid_stretching_ratio >= 1) {
+        // erf.initial_dz on its own asks for the stretching ratio to be solved for, so that
+        //    a first layer that thick stretches geometrically to close on prob_hi[2].  An
+        //    explicit erf.grid_stretching_ratio = 0 still means no stretching at all.
+        const bool solve_stretching_ratio = !have_stretching_ratio && pp.contains("initial_dz");
+        if (grid_stretching_ratio >= 1 || solve_stretching_ratio) {
             if (terrain_type == TerrainType::None) {
                 terrain_type = TerrainType::StaticFittedMesh;
             }
@@ -987,6 +1009,10 @@ struct SolverChoice {
 
         // Average the input z-face heights onto the nodes, or reconstruct our own
         pp.queryAdd("avg_grid_faces_to_nodes",avg_grid_faces_to_nodes);
+
+        // Build the ERF vertical grid from the file's own mean layer-thickness profile,
+        // or from a single geometric stretch anchored on the file's first layer?
+        pp.queryAdd("wrfinput_zlevels_from_file",wrfinput_zlevels_from_file);
 
         // Catch the old name for the flag above so the error says what to do
         // rather than silently ignoring the setting.
@@ -1029,15 +1055,24 @@ struct SolverChoice {
         // *******************************************************************************
 
         read_int_string(max_level, "anelastic", anelastic, 0);
-        read_int_string(max_level, "fixed_density", fixed_density, 0);
+        const bool fixed_density_given =
+            read_int_string(max_level, "fixed_density", fixed_density, 0);
         read_int_string(max_level, "project_initial_velocity", project_initial_velocity, 0);
 
+        // The anelastic equations hold the density at its base-state value, so
+        // fixed_density is forced to 1 at every anelastic level; a user value of 0
+        // there is ignored, and we say so rather than drop it silently.
         bool any_anelastic = false;
         bool any_compress  = false;
         for (int i = 0; i <= max_level; ++i) {
             if (anelastic[i] == 1) {
+                if (fixed_density_given && fixed_density[i] == 0) {
+                    amrex::Print() << "WARNING: erf.fixed_density = 0 is ignored at level " << i
+                                   << " because erf.anelastic = 1 there; the anelastic equations"
+                                   << " always hold the density fixed in time." << std::endl;
+                }
                 project_initial_velocity[i] = 1;
-                fixed_density[i]            = 1; // We default to true but are allowed to override below
+                fixed_density[i]            = 1; // Always fixed when anelastic
                 buoyancy_type[i]            = 3; // (This isn't actually used when anelastic is set)
                 any_anelastic               = true;
             } else {
@@ -1120,6 +1155,15 @@ struct SolverChoice {
         }
         pp.queryAdd("poisson_abstol", poisson_abstol);
         pp.queryAdd("poisson_reltol", poisson_reltol);
+        // Solver for the projection on a terrain-fitted mesh: FFT-preconditioned GMRES (default),
+        // or amrex::MLTerrainPoisson with multigrid, alone or under GMRES
+        pp.query_enum_case_insensitive("terrain_poisson_solver", terrain_poisson_solver);
+        if (pp.contains("terrain_poisson_solver") &&
+            (mesh_type != MeshType::VariableDz || terrain_type == TerrainType::EB)) {
+            amrex::Print() << "WARNING: erf.terrain_poisson_solver is ignored: it applies only to the "
+                           << "projection on a terrain-fitted mesh (erf.terrain_type = StaticFittedMesh "
+                           << "or MovingFittedMesh)" << std::endl;
+        }
 #ifdef AMREX_USE_FLOAT
         poisson_abstol = amrex::max(poisson_abstol,amrex::Real(1e-6));
         poisson_reltol = amrex::max(poisson_reltol,amrex::Real(1e-6));
@@ -1160,6 +1204,11 @@ struct SolverChoice {
             forest_leaf_theta_fixed <= zero || forest_biophysics_heat,
             "forest_leaf_theta_fixed requires forest_biophysics_heat = true");
 
+        // Canopy terms of the k-eqn RANS model (erf.forest_canopy_*); the
+        // checks that need the forest and the turbulence model are in
+        // ERF::ReadParameters, once both are known
+        canopyTurb.init_params(pp);
+
         // immersed forcing parameters
         pp.queryAdd("if_Cd_momentum", if_Cd_momentum);
         pp.queryAdd("if_Cd_scalar", if_Cd_scalar);
@@ -1187,12 +1236,36 @@ struct SolverChoice {
         pp.queryAdd("if_stability_correction",if_stability_correction);
         pp.queryAdd("if_ws_floor",if_ws_floor);
         pp.queryAdd("if_damp_alpha",if_damp_alpha);
+        // Opt-in WRF-style bounds on the wall law (erf-model/ERF#4016): the wind floor behind the
+        // friction velocity of its stability estimate, and the cap on psi_m in the momentum law as
+        // a fraction of ln(z/z0); 0 and 1 (the defaults) turn them off
+        pp.queryAdd("if_stability_wind_floor",if_stability_wind_floor);
+        pp.queryAdd("if_psi_cap_factor",if_psi_cap_factor);
+        if (!(if_stability_wind_floor >= zero)) {
+            amrex::Abort("erf.if_stability_wind_floor must be >= 0 [m/s] (0 leaves the wind as it is)");
+        }
+        if (!(if_psi_cap_factor > zero && if_psi_cap_factor <= one)) {
+            amrex::Abort("erf.if_psi_cap_factor must be in (0, 1] (1 caps psi at ln(z/z0))");
+        }
+        // Say so when a bound is set and the wall law's stability estimate is in use
+        if ((terrain_type == TerrainType::ImmersedForcing || buildings_type == BuildingsType::ImmersedForcing) &&
+            (if_use_most || if_surf_temp_flux != amrex::Real(1e-8) || if_Olen_in != amrex::Real(1e-8)) &&
+            (if_psi_cap_factor < one || if_stability_wind_floor > zero))
+        {
+            amrex::Print() << "Immersed wall law: erf.if_psi_cap_factor = " << if_psi_cap_factor
+                           << ", erf.if_stability_wind_floor = " << if_stability_wind_floor
+                           << " m/s (WRF-style bounds; the defaults 1 and 0 turn them off)\n";
+        }
 
         if ((if_init_surf_temp > zero        && if_surf_temp_flux != amrex::Real(1e-8)) ||
             (if_init_surf_temp > zero        && if_Olen_in        != amrex::Real(1e-8)) ||
             (if_Olen_in != amrex::Real(1e-8) && if_surf_temp_flux != amrex::Real(1e-8)))
         {
             amrex::Error("Can only specify one of init_surf_temp, surf_temp_flux, or Olen");
+        }
+        if (if_Olen_in == zero &&
+            (terrain_type == TerrainType::ImmersedForcing || buildings_type == BuildingsType::ImmersedForcing)) {
+            amrex::Abort("erf.if_Olen = 0 is not an Obukhov length: give a nonzero length [m] (a large |L| is near neutral)");
         }
 
         // Flag to do MOST rotations with terrain
@@ -1317,6 +1390,31 @@ struct SolverChoice {
             turbChoice[lev].init_params(lev,max_level,pp_prefix);
         }
 
+        // WRF's Smagorinsky-2D slope limiter divides K_h by the terrain slope factor of the
+        // mesh, which is 1 everywhere without a terrain-fitted mesh; and the EB closure
+        // (ComputeTurbulentViscosityLES_EB) applies neither limit.
+        bool smag2d_requested = false;
+        bool smag2d_somewhere = false;
+        for (int lev = 0; lev <= max_level; lev++) {
+            smag2d_requested = smag2d_requested || turbChoice[lev].smag2d_limits_requested;
+            smag2d_somewhere = smag2d_somewhere || turbChoice[lev].smag2d;
+        }
+        if (smag2d_requested && !smag2d_somewhere) {
+            amrex::Error("erf.smag2d_slope_limiter and erf.smag2d_kh_cap apply only to "
+                         "erf.les_type = Smagorinsky2D, which no level uses");
+        }
+        for (int lev = 0; lev <= max_level; lev++) {
+            const bool fitted = (terrain_type == TerrainType::StaticFittedMesh ||
+                                 terrain_type == TerrainType::MovingFittedMesh);
+            if (turbChoice[lev].smag2d_slope_limiter && !fitted) {
+                amrex::Error("erf.smag2d_slope_limiter requires erf.terrain_type = StaticFittedMesh "
+                             "or MovingFittedMesh");
+            }
+            if (turbChoice[lev].smag2d_kh_cap > zero && terrain_type == TerrainType::EB) {
+                amrex::Error("erf.smag2d_kh_cap is not supported with erf.terrain_type = EB");
+            }
+        }
+
         // erf.radiation_model = TwoStream selects the two-stream model; its
         // erf.radiation.* sub-options are read only then.
         radChoice.init_params(rad_type == RadiationType::TwoStream, pp_prefix);
@@ -1334,21 +1432,6 @@ struct SolverChoice {
                            << ": only RRTMGP and TwoStream supply the downwelling shortwave, "
                               "downwelling longwave and solar zenith angle Noah-MP needs. Noah-MP "
                               "will run with no radiative forcing (zero SWDOWN, GLW and COSZEN).\n";
-        }
-
-        // The two-stream -> Noah-MP forcing is built and tested on a single level. A refined
-        // run reaches a fine level's Noah-MP inputs by three different routes -- a fine
-        // level that sweeps its own columns, a nested patch interpolated from its parent,
-        // a level created mid-run -- and none of them has been verified. Refuse the
-        // combination rather than run it unverified.
-        if (lsm_type == LandSurfaceType::NOAHMP && rad_type == RadiationType::TwoStream &&
-            max_level > 0)
-        {
-            amrex::Abort("erf.radiation_model = TwoStream with erf.land_surface_model = NOAHMP "
-                         "is supported on a single level only (amr.max_level = " +
-                         std::to_string(max_level) + "): the two-stream model does not yet "
-                         "supply Noah-MP's radiative forcing on refined levels. Set "
-                         "amr.max_level = 0, or use erf.radiation_model = RRTMGP.");
         }
 
         vert_implicit_fac.resize(max_level+1);
@@ -1478,6 +1561,11 @@ struct SolverChoice {
 
         // If true (default), include implicit contributions in tau13, tau23,
         pp.queryAdd("implicit_momentum_diffusion", implicit_momentum_diffusion);
+
+        // If true (default false), also solve the compact terrain-metric part of the vertical
+        // diffusion, K_h M d2/dz2 (ERF_TerrainImplicitMetric.H), implicitly (terrain-fitted
+        // meshes only)
+        pp.queryAdd("implicit_terrain_metric", implicit_terrain_metric);
 
         // The default is true (i.e. that it happens before the acoustic substepping).
         pp.queryAdd("implicit_before_substep", implicit_before_substep);
@@ -1830,6 +1918,73 @@ struct SolverChoice {
             }
         }
 
+        // Two-way coupling refluxes the diffusive fluxes of the slow scalars, but not on an EB mesh
+        if (coupling_type == CouplingType::TwoWay && terrain_type == TerrainType::EB &&
+            max_level > 0 && l_use_diff) {
+            amrex::Warning("erf.coupling_type = TwoWay with erf.terrain_type = EB does not reflux the "
+                           "diffusive fluxes: diffusion does not conserve the scalars across "
+                           "coarse/fine boundaries");
+        }
+
+        // The implicit terrain metric is a change to the vertical implicit solves on a
+        // terrain-fitted mesh; refuse it where it could not do anything.  This comes after
+        // every block that can turn the implicit solve off.
+        if (implicit_terrain_metric) {
+            if (mesh_type != MeshType::VariableDz) {
+                amrex::Abort("erf.implicit_terrain_metric = true requires a terrain-fitted mesh with "
+                             "non-flat terrain (erf.terrain_type = StaticFittedMesh or MovingFittedMesh); "
+                             "on a flat or a purely stretched mesh there are no terrain-metric terms");
+            }
+            // In a stage without the implicit solve the whole averaged metric term is explicit
+            // for that stage.  On the steep ridge test the option gained little with 1 1 0
+            // and ran worse than without it with anelastic MidPoint (measured before the exact
+            // split: 15 s instead of 30 s), while 1 1 1 recovered the full time step.  The rule
+            // is measured, not derived: every stage must solve implicitly.
+            for (int lev = 0; lev <= max_level; lev++) {
+                for (int i = 0; i < 3; ++i) {
+                    if (vert_implicit_fac[lev][i] <= zero) {
+                        amrex::Abort("erf.implicit_terrain_metric = true needs the vertical implicit solve "
+                                     "in every Runge-Kutta stage at every level, but erf.vert_implicit_fac "
+                                     "is not positive in stage " + std::to_string(i+1) + " at level " +
+                                     std::to_string(lev) + ".  Set erf.vert_implicit_fac = 1 1 1; the "
+                                     "option cannot be used where the implicit solve is turned off "
+                                     "(erf.vert_implicit = false, every erf.implicit_*_diffusion = false, "
+                                     "no molecular or turbulent diffusion, or anelastic, which solves in "
+                                     "its first stage only or not at all)");
+                    }
+                }
+            }
+            // The momentum solves carry most of the stiffness; with them explicit the option
+            // treats only the scalar metric terms implicitly
+            if (!implicit_momentum_diffusion) {
+                amrex::Print() << "WARNING: erf.implicit_terrain_metric = true with "
+                               << "erf.implicit_momentum_diffusion = false: the momentum terrain-metric "
+                               << "terms stay explicit; only the scalars are treated implicitly" << std::endl;
+            }
+        } else if (mesh_type == MeshType::VariableDz) {
+            // On a terrain-fitted mesh the projected horizontal stresses carry K_h, and their
+            // terrain-metric part K_h h^2 d2/dz2 is explicit in any stage without the implicit
+            // solve.  On steep slopes that limits the time step (steep test ridge: 45 s before
+            // #4214 was fixed, 15 s after, at the default 1 1 0).  Say so once at start-up.
+            bool explicit_stage_with_kh = false;
+            for (int lev = 0; lev <= max_level; lev++) {
+                if (turbChoice[lev].les_type == LESType::None) { continue; }
+                for (int i = 0; i < 3; ++i) {
+                    if (vert_implicit_fac[lev][i] <= zero) { explicit_stage_with_kh = true; }
+                }
+            }
+            if (explicit_stage_with_kh) {
+                amrex::Print() << "NOTE: terrain-fitted mesh with an LES closure (horizontal eddy "
+                               << "viscosity K_h) and an explicit vertical-diffusion stage "
+                               << "(erf.vert_implicit_fac has a zero): the terrain-metric term "
+                               << "K_h h^2 d2/dz2 stays explicit there and limits the time step on "
+                               << "steep slopes.  To relax it, use erf.vert_implicit_fac = 1 1 1 with "
+                               << "erf.implicit_terrain_metric = true, or erf.smag2d_slope_limiter = true "
+                               << "for Smagorinsky2D; erf.diffusive_dt_check reports the limit."
+                               << std::endl;
+            }
+        }
+
         // Countergradient validation: ensure required implicit diffusion is enabled
         for (int lev = 0; lev <= max_level; lev++) {
             if (turbChoice[lev].enable_mrf_countergradient) {
@@ -1896,6 +2051,9 @@ struct SolverChoice {
 #ifdef ERF_IMPLICIT_W
                 amrex::Print() << ", including w";
 #endif
+                if (implicit_terrain_metric) {
+                    amrex::Print() << "; terrain metric implicit";
+                }
                 amrex::Print() << ")";
             }
         }
@@ -1928,7 +2086,7 @@ struct SolverChoice {
         } else if (moisture_type == MoistureType::MoistNoCondensation) {
             amrex::Print() << "Moisture Model: MoistNoCondensation" << std::endl;
         } else if (moisture_type == MoistureType::SBM) {
-            amrex::Print() << "Moisture Model: SBM zero-transport fixture" << std::endl;
+            amrex::Print() << "Moisture Model: SBM mapped spectral advection (M3)" << std::endl;
         } else {
             amrex::Print() << "Moisture Model: None" << std::endl;
         }
@@ -2066,8 +2224,9 @@ struct SolverChoice {
      * @param string_to_read ParmParse key to read.
      * @param vec_to_fill Destination vector with one entry per level.
      * @param default_int Default value used when the key is absent.
+     * @return True if the key was present in the inputs.
      */
-    void read_int_string (int max_level, const char* string_to_read,
+    bool read_int_string (int max_level, const char* string_to_read,
                           amrex::Vector<int>& vec_to_fill, int default_int)
     {
         amrex::ParmParse pp("erf");
@@ -2087,6 +2246,7 @@ struct SolverChoice {
         } else {
             for (int i = 0; i <= max_level; ++i) vec_to_fill[i] = temp[i];
         }
+        return (nvals > 0);
     }
 
     inline static
@@ -2157,9 +2317,13 @@ struct SolverChoice {
     bool implicit_ke_diffusion       = true;
     bool implicit_momentum_diffusion = true;
     bool implicit_before_substep     = true;
+    // On a terrain-fitted mesh, also treat the compact terrain-metric part of the vertical
+    // diffusion (K_h M d2/dz2, ERF_TerrainImplicitMetric.H) implicitly, in every implicit solve
+    bool implicit_terrain_metric     = false;
 
     int         ncorr               = 1;
     std::string wall_dist_type      = "poisson";
+    TerrainPoissonSolver  terrain_poisson_solver  = TerrainPoissonSolver::gmres_fft;
 #ifdef AMREX_USE_FLOAT
     amrex::Real poisson_abstol      = amrex::Real(1e-6);
     amrex::Real poisson_reltol      = amrex::Real(1e-6);
@@ -2202,6 +2366,8 @@ struct SolverChoice {
     bool        if_stability_correction  = false;
     amrex::Real if_ws_floor              = 0.001;  // [m/s]
     amrex::Real if_damp_alpha            = 0.5;    // [-]
+    amrex::Real if_stability_wind_floor  = amrex::Real(0.0);  // [m/s]
+    amrex::Real if_psi_cap_factor        = amrex::Real(1.0);  // [-]
 
     // This defaults to true but can be set to false for moving terrain cases only
     bool        use_lagged_delta_rt   = true;
@@ -2217,7 +2383,7 @@ struct SolverChoice {
     // Staggered z levels for vertical grid stretching
     amrex::Real grid_stretching_ratio   = 0;
     amrex::Real zsurf                   = zero;
-    amrex::Real dz0;
+    amrex::Real dz0                     = zero;
 
     // Coriolis forcing
     amrex::Real coriolis_factor = zero;
@@ -2395,9 +2561,8 @@ struct SolverChoice {
     int sbm_nbins{4};
     int sbm_moment_mode{1};
     int sbm_cloud_rain_split{-1};
-    bool sbm_zero_transport_fixture{false};
     bool sbm_test_native_qc_write_fault{false};
-    bool sbm_test_carrier_momentum_fault{false};
+    bool sbm_test_donor_cfl_fault{false};
     amrex::Vector<amrex::Real> sbm_edges;
     amrex::Vector<amrex::Real> sbm_pivots;
     amrex::Vector<amrex::Real> sbm_fixture_initial_state;
@@ -2472,6 +2637,13 @@ struct SolverChoice {
     // Average the input z-face heights onto the nodes rather than reconstructing them?
     bool avg_grid_faces_to_nodes {false};
 
+    // When the ERF mesh is reconstructed rather than taken from the file
+    // (avg_grid_faces_to_nodes = false), build zlevels_stag from the domain-mean
+    // layer-thickness profile of the wrfinput file.  Set false to recover the older
+    // construction: a single geometric stretch whose first layer is the thickest first
+    // layer in the file and whose ratio is solved for so the column reaches z_top.
+    bool wrfinput_zlevels_from_file {true};
+
     // Interpolate atmospheric state from coarse when creating finer level at later time?
     bool interp_atmos_from_coarse {false};
 
@@ -2482,6 +2654,8 @@ struct SolverChoice {
     bool        forest_biophysics       {false};
     bool        forest_biophysics_heat  {false};
     amrex::Real forest_leaf_theta_fixed {-one};
+    // Canopy terms of the k-eqn RANS model (ERF_CanopyTurbStruct.H)
+    CanopyTurbulence canopyTurb;
 
     // Enforce constant mass flux?
     amrex::Real const_massflux_u = zero;
@@ -2546,7 +2720,7 @@ struct SolverChoice {
  * @var SolverChoice::anelastic_type
  * @brief Per-level two-stage scheme used by the anelastic integrator.
  * @var SolverChoice::fixed_density
- * @brief Per-level flag selecting fixed-density treatment.
+ * @brief Per-level flag selecting fixed-density treatment; always 1 at an anelastic level.
  * @var SolverChoice::project_initial_velocity
  * @brief Per-level flag for projecting the initial velocity.
  * @var SolverChoice::buoyancy_type
@@ -2569,8 +2743,12 @@ struct SolverChoice {
  * @brief Whether implicit vertical momentum diffusion is included.
  * @var SolverChoice::implicit_before_substep
  * @brief Whether implicit diffusion is applied before acoustic substepping.
+ * @var SolverChoice::implicit_terrain_metric
+ * @brief Whether the compact terrain-metric part of the vertical diffusion is solved implicitly.
  * @var SolverChoice::ncorr
  * @brief Number of projection correction iterations.
+ * @var SolverChoice::terrain_poisson_solver
+ * @brief Projection solver on a terrain-fitted mesh: gmres_fft (default), mlmg or gmres_mlmg.
  * @var SolverChoice::poisson_abstol
  * @brief Absolute tolerance for the Poisson solve.
  * @var SolverChoice::poisson_reltol
@@ -2636,9 +2814,13 @@ struct SolverChoice {
  * @var SolverChoice::if_stability_correction
  * @brief Whether immersed-forcing stability corrections are enabled.
  * @var SolverChoice::if_ws_floor
- * @brief Wind-speed floor for immersed-forcing MOST [m/s].
+ * @brief Wind-speed floor [m/s] in the per-step change limit of the building wall-law forcing.
  * @var SolverChoice::if_damp_alpha
  * @brief Immersed-forcing damping coefficient.
+ * @var SolverChoice::if_stability_wind_floor
+ * @brief Wind-speed floor [m/s] behind the friction velocity of the wall law's stability estimate (0: none).
+ * @var SolverChoice::if_psi_cap_factor
+ * @brief Cap on psi_m in the immersed momentum wall law as a fraction of ln(z/z0) (1: none).
  * @var SolverChoice::use_lagged_delta_rt
  * @brief Whether to use lagged delta terms for moving terrain.
  * @var SolverChoice::rebalance_wrf_input

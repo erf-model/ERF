@@ -246,6 +246,16 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         // to the extrapolation in VelocityToMomentum (or the boundary fill in the time step).
         AMREX_ALWAYS_ASSERT(mom_mf[IntVars::xmom].nGrowVect()[2] >= 1 &&
                             mom_mf[IntVars::ymom].nGrowVect()[2] >= 1);
+        // Where the level stops inside the domain in z there is no fine box to copy from: take
+        // those faces from the coarse level first, in the projected scaling, built from coarse
+        // data only.  FillBoundary below then overwrites the faces that a neighbouring fine box
+        // does cover.  The same call returns the coarse Omega for the level's top and bottom.
+        MultiFab cf_omega_t;
+        Vector<int> cf_slab_box;
+        if (lev > 0) {
+            set_cf_zghost_projection(lev, l_time, mom_mf[IntVars::xmom], mom_mf[IntVars::ymom],
+                                     cf_omega_t, cf_slab_box);
+        }
         mom_mf[IntVars::xmom].FillBoundary(IntVect(0,0,1), geom[lev].periodicity());
         mom_mf[IntVars::ymom].FillBoundary(IntVect(0,0,1), geom[lev].periodicity());
 
@@ -274,6 +284,12 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                 }
             });
         } // mfi
+
+        // Where the level stops inside the domain in z, the flux through its top and bottom
+        // faces comes from the coarse level's Omega (see ERF_CoarseFineFaces.cpp)
+        if (lev > 0) {
+            set_cf_zface_omega(lev, mom_mf[IntVars::zmom], cf_omega_t, cf_slab_box);
+        }
     }
 
     // ****************************************************************************
@@ -316,7 +332,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     Vector<Array<MultiFab,AMREX_SPACEDIM>> fluxes_sub; fluxes_sub.resize(1);
 
     MultiFab ax_sub, ay_sub, az_sub, dJ_sub, znd_sub;
-    MultiFab mfmx_sub, mfmy_sub, mfvx_sub, mfuy_sub;
+    MultiFab mfmx_sub, mfmy_sub, mfvx_sub, mfuy_sub, mfux_sub, mfvy_sub;
 
     Array<MultiFab,AMREX_SPACEDIM> rho0_u_sub;
     Array<MultiFab const*, AMREX_SPACEDIM> rho0_u_const;
@@ -456,6 +472,13 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                           az[lev]->nGrowVect(), MFInfo{}.SetAlloc(false));
             znd_sub.define(convert(ba_sub,IntVect(1,1,1)), DistributionMapping(dm_sub), 1,
                            z_phys_nd[lev]->nGrowVect(), MFInfo{}.SetAlloc(false));
+            // The map factors on u and v faces that only the terrain path uses.  Every array a
+            // loop over this subdomain's boxes reads must be a subdomain alias: the level's own
+            // MultiFabs are numbered over all of the level's boxes.
+            mfux_sub.define(mfuy_sub.boxArray(), mfuy_sub.DistributionMap(), 1,
+                            mapfac[lev][MapFacType::u_x]->nGrowVect(), MFInfo{}.SetAlloc(false));
+            mfvy_sub.define(mfvx_sub.boxArray(), mfvx_sub.DistributionMap(), 1,
+                            mapfac[lev][MapFacType::v_y]->nGrowVect(), MFInfo{}.SetAlloc(false));
 
             for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi) {
                 int orig_index = index_map[mfi.index()];
@@ -464,6 +487,8 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                 az_sub.setFab(mfi, FArrayBox((*az[lev])[orig_index], amrex::make_alias, 0, 1));
                 znd_sub.setFab(mfi, FArrayBox((*z_phys_nd[lev])[orig_index], amrex::make_alias, 0, 1));
                 dJ_sub.setFab(mfi, FArrayBox((*detJ_cc[lev])[orig_index], amrex::make_alias, 0, 1));
+                mfux_sub.setFab(mfi, FArrayBox((*mapfac[lev][MapFacType::u_x])[orig_index], amrex::make_alias, 0, 1));
+                mfvy_sub.setFab(mfi, FArrayBox((*mapfac[lev][MapFacType::v_y])[orig_index], amrex::make_alias, 0, 1));
             }
         }
 
@@ -610,6 +635,22 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
             Real vol;
             if (solverChoice.mesh_type == MeshType::ConstantDz) {
                 vol = rhs_sub[0].boxArray().numPts();
+            } else if (solverChoice.mesh_type == MeshType::VariableDz) {
+                // The weight of the mean is dJ / (m_x m_y), in the sum and in the volume: the
+                // equation solved below is A phi = rhs / (m_x m_y), and dJ is the left null
+                // vector of A.  With map factors of one this is dJ.sum() bit for bit.
+                MultiFab wgt(dJ_sub.boxArray(), dJ_sub.DistributionMap(), 1, 0);
+                for (MFIter mfi(wgt); mfi.isValid(); ++mfi) {
+                    const Array4<Real      >& w_arr  = wgt.array(mfi);
+                    const Array4<Real const>& dJ_arr = dJ_sub.const_array(mfi);
+                    const Array4<Real const>& mx_arr = mfmx_sub.const_array(mfi);
+                    const Array4<Real const>& my_arr = mfmy_sub.const_array(mfi);
+                    ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                    {
+                        w_arr(i,j,k) = dJ_arr(i,j,k) / (mx_arr(i,j,0) * my_arr(i,j,0));
+                    });
+                }
+                vol = wgt.sum();
             } else {
                 vol = dJ_sub.sum();
             }
@@ -644,6 +685,20 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
 
         if (solverChoice.mesh_type == MeshType::VariableDz) {
             //
+            // compute_divergence carries m_x m_y, so adding the map-factor scaled fluxes changes
+            // the divergence by m_x m_y (A phi): the equation to solve is A phi = rhs / (m_x m_y)
+            //
+            for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi)
+            {
+                const Array4<Real      >& rhs_arr = rhs_sub[0].array(mfi);
+                const Array4<Real const>& mx_arr  = mfmx_sub.const_array(mfi);
+                const Array4<Real const>& my_arr  = mfmy_sub.const_array(mfi);
+                ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    rhs_arr(i,j,k) /= (mx_arr(i,j,0) * my_arr(i,j,0));
+                });
+            }
+            //
             // Modify ax,ay,ax to include the map factors as used in the divergence calculation
             // We do this here to set the coefficients used in the stencil -- the extra factor
             // of the mapfac comes from the gradient
@@ -656,12 +711,12 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                 const Array4<Real      >& ax_ar = ax_sub.array(mfi);
                 const Array4<Real      >& ay_ar = ay_sub.array(mfi);
                 const Array4<Real      >& az_ar = az_sub.array(mfi);
-                const Array4<Real const>& mf_ux = mapfac[lev][MapFacType::u_x]->const_array(mfi);
-                const Array4<Real const>& mf_uy = mapfac[lev][MapFacType::u_y]->const_array(mfi);
-                const Array4<Real const>& mf_vx = mapfac[lev][MapFacType::v_x]->const_array(mfi);
-                const Array4<Real const>& mf_vy = mapfac[lev][MapFacType::v_y]->const_array(mfi);
-                const Array4<Real const>& mf_mx = mapfac[lev][MapFacType::m_x]->const_array(mfi);
-                const Array4<Real const>& mf_my = mapfac[lev][MapFacType::m_y]->const_array(mfi);
+                const Array4<Real const>& mf_ux = mfux_sub.const_array(mfi);
+                const Array4<Real const>& mf_uy = mfuy_sub.const_array(mfi);
+                const Array4<Real const>& mf_vx = mfvx_sub.const_array(mfi);
+                const Array4<Real const>& mf_vy = mfvy_sub.const_array(mfi);
+                const Array4<Real const>& mf_mx = mfmx_sub.const_array(mfi);
+                const Array4<Real const>& mf_my = mfmy_sub.const_array(mfi);
                 ParallelFor(xbx,ybx,zbx,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
@@ -680,9 +735,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
 
         if (solverChoice.terrain_type != TerrainType::EB) {
 
-#ifdef ERF_USE_FFT
         Box my_region(subdomains[lev][isub].minimalBox());
-#endif
 
         // ****************************************************************************
         // No terrain or grid stretching
@@ -720,21 +773,75 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         // General terrain
         // ****************************************************************************
         else if (solverChoice.mesh_type == MeshType::VariableDz) {
-#ifdef ERF_USE_FFT
             bool boxes_make_rectangle = (my_region.numPts() == subdomains[lev][isub].numPts());
-            if (!boxes_make_rectangle) {
-                amrex::Abort("FFT preconditioner for GMRES won't work unless the union of boxes is rectangular");
+            if (solverChoice.terrain_poisson_solver != TerrainPoissonSolver::gmres_fft) {
+                // amrex::MLTerrainPoisson, multigrid alone or under GMRES; no FFT needed
+                if (!boxes_make_rectangle) {
+                    amrex::Abort("erf.terrain_poisson_solver = mlmg or gmres_mlmg needs the boxes of each "
+                                 "region of a level to make a rectangle");
+                }
+                // Regions of one level that meet across a periodic boundary would each get a
+                // Neumann face there, and the correction could not cross it.  They meet when
+                // the other region, shifted by one period, shares a face with this one.
+                for (int dir = 0; dir < 2; ++dir) {
+                    if (!geom[lev].isPeriodic(dir)) { continue; }
+                    const bool at_lo = (my_region.smallEnd(dir) == domain.smallEnd(dir));
+                    const bool at_hi = (my_region.bigEnd(dir)   == domain.bigEnd(dir));
+                    if (at_lo == at_hi) { continue; }
+                    const Box grown = amrex::grow(my_region, dir, 1);
+                    for (int jsub = 0; jsub < subdomains[lev].size(); ++jsub) {
+                        if (jsub == isub) { continue; }
+                        const Box other = subdomains[lev][jsub].minimalBox();
+                        const int period = domain.length(dir);
+                        const Box shifted = amrex::shift(other, dir, at_lo ? -period : period);
+                        if (grown.intersects(shifted)) {
+                            amrex::Abort("erf.terrain_poisson_solver = mlmg or gmres_mlmg: a refined level "
+                                         "crosses a periodic boundary; refine on one side of it");
+                        }
+                    }
+                }
+                solve_with_terrain_mlmg(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0],
+                                        ax_sub, ay_sub, az_sub, dJ_sub, znd_sub,
+                                        solverChoice.terrain_poisson_solver == TerrainPoissonSolver::gmres_mlmg);
             } else {
-                solve_with_gmres(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0], ax_sub, ay_sub, az_sub, dJ_sub, znd_sub);
-            }
+#ifdef ERF_USE_FFT
+                if (!boxes_make_rectangle) {
+                    amrex::Abort("FFT preconditioner for GMRES won't work unless the union of boxes is rectangular");
+                } else {
+                    solve_with_gmres(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0], ax_sub, ay_sub, az_sub, dJ_sub, znd_sub);
+                }
 #else
-            amrex::Abort("Rebuild with USE_FFT = TRUE so you can use the FFT preconditioner for GMRES");
+                amrex::Abort("Rebuild with USE_FFT = TRUE so you can use the FFT preconditioner for GMRES, "
+                             "or set erf.terrain_poisson_solver = mlmg");
 #endif
+            } // gmres_fft
+
+            //
+            // The lateral fluxes carry the map factor, as the divergence does
+            //
+            for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi)
+            {
+                Box xbx = mfi.nodaltilebox(0);
+                Box ybx = mfi.nodaltilebox(1);
+                const Array4<Real      >& fx_ar = fluxes_sub[0][0].array(mfi);
+                const Array4<Real      >& fy_ar = fluxes_sub[0][1].array(mfi);
+                const Array4<Real const>& mf_ux = mfux_sub.const_array(mfi);
+                const Array4<Real const>& mf_vy = mfvy_sub.const_array(mfi);
+                ParallelFor(xbx,ybx,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    fx_ar(i,j,k) *= mf_ux(i,j,0);
+                },
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    fy_ar(i,j,k) *= mf_vy(i,j,0);
+                });
+            } // mfi
 
             //
             // Restore ax,ay,ax to their original definitions
             //
-            for (MFIter mfi(rhs_lev); mfi.isValid(); ++mfi)
+            for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi)
             {
                 Box xbx = mfi.nodaltilebox(0);
                 Box ybx = mfi.nodaltilebox(1);
@@ -742,12 +849,12 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                 const Array4<Real      >& ax_ar = ax_sub.array(mfi);
                 const Array4<Real      >& ay_ar = ay_sub.array(mfi);
                 const Array4<Real      >& az_ar = az_sub.array(mfi);
-                const Array4<Real const>& mf_ux = mapfac[lev][MapFacType::u_x]->const_array(mfi);
-                const Array4<Real const>& mf_uy = mapfac[lev][MapFacType::u_y]->const_array(mfi);
-                const Array4<Real const>& mf_vx = mapfac[lev][MapFacType::v_x]->const_array(mfi);
-                const Array4<Real const>& mf_vy = mapfac[lev][MapFacType::v_y]->const_array(mfi);
-                const Array4<Real const>& mf_mx = mapfac[lev][MapFacType::m_x]->const_array(mfi);
-                const Array4<Real const>& mf_my = mapfac[lev][MapFacType::m_y]->const_array(mfi);
+                const Array4<Real const>& mf_ux = mfux_sub.const_array(mfi);
+                const Array4<Real const>& mf_uy = mfuy_sub.const_array(mfi);
+                const Array4<Real const>& mf_vx = mfvx_sub.const_array(mfi);
+                const Array4<Real const>& mf_vy = mfvy_sub.const_array(mfi);
+                const Array4<Real const>& mf_mx = mfmx_sub.const_array(mfi);
+                const Array4<Real const>& mf_my = mfmy_sub.const_array(mfi);
                 ParallelFor(xbx,ybx,zbx,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {

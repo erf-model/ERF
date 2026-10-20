@@ -7,6 +7,7 @@
 #include "AMReX_GpuPrint.H"
 
 #include "ERF_TI_slow_headers.H"
+#include "ERF_SlowRhsPreUtils.H"
 #include "ERF_ShocDriver.H"
 #include "ERF_EOS.H"
 #include "ERF_Utils.H"
@@ -95,7 +96,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        MultiFab* Hfx1, MultiFab* Hfx2, MultiFab* Hfx3,
                        MultiFab* Q1fx1, MultiFab* Q1fx2,
                        MultiFab* Q1fx3, MultiFab* Q2fx3,
-                       MultiFab* Diss,
+                       MultiFab* /*Diss*/,
+                       MultiFab* mf_surface_fluxes,
                        MultiFab* Hfx3_EB,
                        const Geometry geom,
                        const SolverChoice& solverChoice,
@@ -128,10 +130,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
     DiffChoice dc = solverChoice.diffChoice;
     TurbChoice tc = solverChoice.turbChoice[level];
 
-    const MultiFab*  t_mean_mf = nullptr;
-    // TODO: t_mean_mf is only used in PBL, so it is hardcoded to use zlo surface layer for now - generalize?
-    if (SurfLayer[Orientation(Direction::z, Orientation::low)]) { t_mean_mf = SurfLayer[Orientation(Direction::z, Orientation::low)]->get_mac_avg(level,3); }
-
     const Box& domain = geom.Domain();
     const bool use_physical_chamber_wall_flux =
         cloud_chamber_config != nullptr && cloud_chamber_base_state != nullptr &&
@@ -156,7 +154,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                     (tc.rans_type       !=      RANSType::None) ||
                                     (tc.pbl_type        !=       PBLType::None) );
     const bool l_use_turb       = tc.use_kturb;
-    const bool l_need_SmnSmn    = tc.use_keqn;
 
     const Real l_vert_implicit_fac = (solverChoice.implicit_thermal_diffusion) ?
                                      solverChoice.vert_implicit_fac[level][nrk] : zero;
@@ -180,19 +177,13 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
     const bool l_anelastic_rk2 = (solverChoice.anelastic_type[level] == AnelasticType::RK2);
 
-    const bool l_reflux = ( (solverChoice.coupling_type == CouplingType::TwoWay) && (finest_level > 0) &&
-                            ( (l_anelastic && nrk == 1) || (!l_anelastic && nrk == 2) ) );
+    const bool l_reflux = IsRefluxStage(solverChoice, level, finest_level, nrk);
+    const Real l_reflux_dt = RefluxStageWeight(solverChoice, level, finest_level, nrk) * static_cast<Real>(dt);
 
     const bool l_use_eb = (solverChoice.terrain_type == TerrainType::EB);
 
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
     const Real* dx = geom.CellSize();
-
-    // *****************************************************************************
-    // Combine external forcing terms
-    // *****************************************************************************
-    const    Array<Real,AMREX_SPACEDIM> grav{zero, zero, -solverChoice.gravity};
-    const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
 
     // **************************************************************************************
     // If doing advection with EB we need the extra values for tangential interpolation
@@ -277,7 +268,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                         SurfLayer[ori]->impose_SurfaceLayer_bcs(level, mfs, Tau_lev,
                                                                             Hfx1, Hfx2, Hfx3,
                                                                             Q1fx1, Q1fx2, Q1fx3,
-                                                                            &z_phys_nd);
+                                                                            &z_phys_nd,
+                                                                            mf_surface_fluxes);
                     }
                 }
 
@@ -573,14 +565,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
             }
         }
 
-        // Strain magnitude
-        Array4<Real> SmnSmn_a;
-        if (l_need_SmnSmn) {
-            SmnSmn_a = SmnSmn->array(mfi);
-        } else {
-            SmnSmn_a = Array4<Real>{};
-        }
-
         // *****************************************************************************
         // Define updates in the RHS of continuity and potential temperature equations
         // *****************************************************************************
@@ -682,9 +666,6 @@ void erf_slow_rhs_pre (int level, int finest_level,
             Array4<Real> q1fx_z = (Q1fx3) ? Q1fx3->array(mfi) : Array4<Real>{};
 
             Array4<Real> q2fx_z = (Q2fx3) ? Q2fx3->array(mfi) : Array4<Real>{};
-            Array4<Real> diss  = Diss->array(mfi);
-
-            const Array4<const Real> tm_arr = t_mean_mf ? t_mean_mf->const_array(mfi) : Array4<const Real>{};
 
             // NOTE: No diffusion for continuity, so n starts at one
             int n_start = RhoTheta_comp;
@@ -694,26 +675,26 @@ void erf_slow_rhs_pre (int level, int finest_level,
             // by (1 - implicit_fac) and add in the implicit contribution with
             // ERF_Implicit.H
             if (l_use_stretched_dz) {
-                DiffusionSrcForState_S(bx, domain, n_start, n_comp, u, v,
+                DiffusionSrcForState_S(bx, domain, n_start, n_comp,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
-                                       stretched_dz_d, dxInv, SmnSmn_a,
+                                       stretched_dz_d, dxInv,
                                        mf_mx, mf_ux, mf_vx,
                                        mf_my, mf_uy, mf_vy,
-                                       hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
+                                       hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
+                                       bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
             } else if (l_use_terrain_fitted_coords) {
-                DiffusionSrcForState_T(bx, domain, n_start, n_comp, l_rotate, u, v,
+                DiffusionSrcForState_T(bx, domain, n_start, n_comp, l_rotate,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
                                        z_nd, z_cc, ax_arr, ay_arr, az_arr, detJ_arr,
-                                       dxInv, SmnSmn_a,
+                                       dxInv,
                                        mf_mx, mf_ux, mf_vx,
                                        mf_my, mf_uy, mf_vy,
-                                       hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
+                                       hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
+                                       bc_ptr_d, bc_ptr_h, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
             } else if (l_use_eb) {
                 DiffusionSrcForState_EB(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -728,12 +709,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
                 DiffusionSrcForState_N(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
                                        diffflux_x, diffflux_y, diffflux_z,
-                                       dxInv, SmnSmn_a,
+                                       dxInv,
                                        mf_mx, mf_ux, mf_vx,
                                        mf_my, mf_uy, mf_vy,
-                                       hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z, diss,
+                                       hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z,
                                        mu_turb, solverChoice, level,
-                                       tm_arr, grav_gpu, bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
+                                       bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
             }
             if (use_physical_chamber_wall_flux) {
                 erf_cloud_chamber_wall_flux::apply(
@@ -935,9 +916,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
             Real gpz = gpz_arr(i,j,k);
 
-            Real q = (l_use_moisture) ? myhalf * (qt_arr(i,j,k) + qt_arr(i,j,k-1)) : zero;
-
-            rho_w_rhs(i, j, k) += (-gpz - abl_pressure_grad[2] + buoyancy_arr(i,j,k)) / (one + q) + zmom_src_arr(i,j,k);
+            rho_w_rhs(i, j, k) += slow_rhs_pre_z_pressure_buoyancy(
+                qt_arr, i, j, k, l_use_moisture, gpz, abl_pressure_grad[2],
+                buoyancy_arr(i,j,k)) + zmom_src_arr(i,j,k);
 
             if (l_moving_terrain) {
                  rho_w_rhs(i, j, k) *= myhalf * (detJ_arr(i,j,k) + detJ_arr(i,j,k-1));
@@ -976,7 +957,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
 
         {
         BL_PROFILE("slow_rhs_pre_fluxreg");
-        // We only add to the flux registers in the final RK step
+        // We add to the flux registers only in the stages whose fluxes the step's update applies,
+        // weighted as in that update (RefluxStageWeight)
         // NOTE: for now we are only refluxing density not (rho theta) since the latter seems to introduce
         //       a problem at top and bottom boundaries -- except when rho is held fixed, in which case
         //       there is no density flux to reflux and we reflux (rho theta) instead.
@@ -986,14 +968,14 @@ void erf_slow_rhs_pre (int level, int finest_level,
             int strt_comp_reflux = (l_fixed_rho) ? 1 : 0;
             int  num_comp_reflux = 1;
             if (level < finest_level) {
-                fr_as_crse->CrseAdd(mfi,
-                    {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
-                    dx, static_cast<Real>(dt), strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
+                fr_as_crse->CrseAdd(mfi, {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
+                                    dx, l_reflux_dt, strt_comp_reflux, strt_comp_reflux,
+                                    num_comp_reflux, RunOn::Device);
             }
             if (level > 0) {
-                fr_as_fine->FineAdd(mfi,
-                    {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
-                    dx, static_cast<Real>(dt), strt_comp_reflux, strt_comp_reflux, num_comp_reflux, RunOn::Device);
+                fr_as_fine->FineAdd(mfi, {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
+                                    dx, l_reflux_dt, strt_comp_reflux, strt_comp_reflux,
+                                    num_comp_reflux, RunOn::Device);
             }
 
         } // two-way coupling

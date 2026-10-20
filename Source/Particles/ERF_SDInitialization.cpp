@@ -457,7 +457,7 @@ void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-static amrex::Real SD_erfinv(const amrex::Real x) {
+static amrex::Real SD_erfinv (const amrex::Real x) {
     amrex::Real a = amrex::Real(0.147);
     amrex::Real eps = std::numeric_limits<amrex::Real>::epsilon();
     amrex::Real term = std::log(1 - x * x + eps);
@@ -575,7 +575,7 @@ void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
     }
 }
 
-SDDistributionParams SDInitProperties::makeDistributionParams(
+SDDistributionParams SDInitProperties::makeDistributionParams (
     SDDistributionType a_init_type,
     amrex::Real a_mass_min,
     amrex::Real a_mass_max,

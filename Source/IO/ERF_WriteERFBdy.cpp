@@ -9,12 +9,12 @@
 
 using namespace amrex;
 
-void InitERFBdyFile(const std::string& bdy_file_name,
-                    int ntimes,
-                    const Vector<double>& bdy_times,
-                    const Box& domain,
-                    int nvars,
-                    int real_width)
+void InitERFBdyFile (const std::string& bdy_file_name,
+                     int ntimes,
+                     const Vector<double>& bdy_times,
+                     const Box& domain,
+                     int nvars,
+                     int real_width)
 {
     // Only I/O processor creates the directory and writes header.
     if (ParallelDescriptor::IOProcessor())
@@ -63,13 +63,13 @@ void InitERFBdyFile(const std::string& bdy_file_name,
     ParallelDescriptor::Barrier();
 }
 
-void WriteERFBdyTimeSlice(const std::string& bdy_file_name,
-                          int itime,
-                          const Vector<FArrayBox>& bdy_data_xlo,
-                          const Vector<FArrayBox>& bdy_data_xhi,
-                          const Vector<FArrayBox>& bdy_data_ylo,
-                          const Vector<FArrayBox>& bdy_data_yhi,
-                          int nvars)
+void WriteERFBdyTimeSlice (const std::string& bdy_file_name,
+                           int itime,
+                           const Vector<FArrayBox>& bdy_data_xlo,
+                           const Vector<FArrayBox>& bdy_data_xhi,
+                           const Vector<FArrayBox>& bdy_data_ylo,
+                           const Vector<FArrayBox>& bdy_data_yhi,
+                           int nvars)
 {
     // Create time subdirectory.
     std::string time_dir = bdy_file_name + "/Time_" + Concatenate("", itime, 6);

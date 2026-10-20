@@ -269,6 +269,41 @@ The temperature forcing is then formulated as follows:
     F_{\rho\theta} = -C_{d,s} \beta_r \left(\sqrt[3]{\Delta x_1 \Delta x_2 \Delta x_3}\right)^{-1} |U_s| (\rho \theta_{target} - \rho\theta)
 
 The target temperature :math:`\theta_{target}`` is straightforward when using a surface temperature and heating rate; when specifying a surface flux or Obukhov length, the target temperature is determined using MOST.
+
+The stability estimate of the wall law is bounded as on flat ground (:ref:`sec:surface_layer`):
+
+- an Obukhov length derived from :math:`u_*` and the heat flux is held at :math:`|L| \ge 1.5\,\Delta / 100`,
+  and every :math:`\zeta = z/L` at :math:`|\zeta| \le 100`, at both heights the law uses (:math:`0.5\,\Delta`
+  and :math:`1.5\,\Delta`, with :math:`\Delta` the cell size normal to the wall); a prescribed
+  ``erf.if_Olen`` is used as given, with only its :math:`\zeta` held, so the same length applies on every
+  face and at every height;
+- with a prescribed ``erf.if_Olen`` (immersed terrain; the building faces have no prescribed-length branch,
+  so ``erf.if_Olen`` gives them no temperature forcing), :math:`u_*` is held in :math:`[0, 2]` m/s as in the
+  other branches, and :math:`\psi_h` is capped at :math:`\ln(z/z_0)` as in the other temperature branches.
+  Wherever :math:`\psi_m` reaches :math:`\ln(1.5\,\Delta/z_0)` (where :math:`u_*` would turn negative), both
+  :math:`\psi_h` caps bind, since :math:`\psi_h \ge \psi_m` in unstable air, and the target is the cell
+  above.
+
+Without the first, a calm cell gives :math:`u_* = 0`, :math:`L = 0` and an infinite :math:`\zeta`.
+Where neither binds the law is unchanged.
+
+Two bounds of WRF's revised surface layer are available as options, both off by default:
+
+- ``erf.if_stability_wind_floor`` (WRF and the flat-ground surface layer use 0.1 m/s) floors the tangential
+  wind behind the friction velocity of the stability estimate; the velocity target itself uses the actual
+  wind, so the floor does not push a calm cell;
+- ``erf.if_psi_cap_factor`` :math:`f` (WRF uses 0.9) caps :math:`\psi_m` at :math:`f\ln(z/z_0)` in the
+  velocity target and before it forms :math:`u_* = \kappa U / (\ln(1.5\,\Delta/z_0) - \psi_m)`, so that
+  strongly unstable air keeps a positive :math:`u_*` and a nonzero target (a cap of :math:`\ln(z/z_0)` makes
+  the target zero, and a :math:`\psi_m` past :math:`\ln(1.5\,\Delta/z_0)` sets :math:`u_* = 0`).
+
+The temperature forcing keeps caps of :math:`\ln(z/z_0)` on :math:`\psi_h` on every branch: its surface-flux branch forms
+:math:`\theta_*` from an Obukhov length that is not consistent with :math:`u_*`, which those caps keep from
+reaching the target in strongly unstable air. The legacy law is kept as it is; the fraction-stress law of
+`erf-model/ERF#4134 <https://github.com/erf-model/ERF/issues/4134>`_ forms :math:`u_*`, :math:`\theta_*` and
+:math:`L` consistently.
+ERF prints both values at start-up when an option is set and the wall law's stability estimate is in use.
+
 The following inputs are available when representing terrain using immersed forcing:
 
 ::

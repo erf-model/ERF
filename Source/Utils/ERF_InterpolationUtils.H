@@ -20,7 +20,7 @@ namespace Interpolation {
  */
 template <typename ParticleType>
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-void interpolateFields(
+void interpolateFields (
     const ParticleType& p,
     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& plo,
     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxi,
@@ -42,7 +42,7 @@ void interpolateFields(
  */
 template <typename ParticleType, typename Array4Type>
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-bool stencilOutOfBoundsZ(
+bool stencilOutOfBoundsZ (
     const ParticleType& p,
     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& plo,
     const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxi,

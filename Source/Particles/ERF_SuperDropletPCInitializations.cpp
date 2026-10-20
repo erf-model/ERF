@@ -10,7 +10,7 @@ using namespace amrex;
 using namespace SDPCDefn;
 
 /*! Add super-droplet method-specific attributes to particles */
-void SuperDropletPC::add_superdroplet_attributes()
+void SuperDropletPC::add_superdroplet_attributes ()
 {
     BL_PROFILE("SuperDropletPC::add_superdroplets_attributes()");
     const bool communicate_this_comp = true;

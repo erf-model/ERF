@@ -116,7 +116,7 @@ public:
     MRISplitIntegrator (MRISplitIntegrator&&)  noexcept = default;
 
     // Declare a default move assignment operator
-    MRISplitIntegrator& operator=(MRISplitIntegrator&& other)  noexcept = default;
+    MRISplitIntegrator& operator= (MRISplitIntegrator&& other)  noexcept = default;
 
     // Delete the copy constructor and copy assignment operators because
     // the integrator allocates internal memory that is best initialized
@@ -126,7 +126,7 @@ public:
     MRISplitIntegrator (const MRISplitIntegrator& other) = delete;
     //
     // Delete the copy assignment operator
-    MRISplitIntegrator& operator=(const MRISplitIntegrator& other) = delete;
+    MRISplitIntegrator& operator= (const MRISplitIntegrator& other) = delete;
 
     /**
      * @brief Set the number of conservative components.

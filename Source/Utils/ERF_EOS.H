@@ -15,7 +15,7 @@
  * @params[  out]       potential temperature
 */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real getThgivenTandP(const amrex::Real T, const amrex::Real P, const amrex::Real rdOcp)
+amrex::Real getThgivenTandP (const amrex::Real T, const amrex::Real P, const amrex::Real rdOcp)
 {
     return T * std::pow(p_0/P, rdOcp);
 }
@@ -29,7 +29,7 @@ amrex::Real getThgivenTandP(const amrex::Real T, const amrex::Real P, const amre
  * @params[  out]       temperature
 */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real getTgivenPandTh(const amrex::Real P, const amrex::Real th, const amrex::Real rdOcp)
+amrex::Real getTgivenPandTh (const amrex::Real P, const amrex::Real th, const amrex::Real rdOcp)
 {
     return th / std::pow(p_0/P, rdOcp);
 }
@@ -43,7 +43,7 @@ amrex::Real getTgivenPandTh(const amrex::Real P, const amrex::Real th, const amr
  * @params[  out] temperature
 */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real getTgivenRandRTh(const amrex::Real rho, const amrex::Real rhotheta, const amrex::Real qv=amrex::Real(0))
+amrex::Real getTgivenRandRTh (const amrex::Real rho, const amrex::Real rhotheta, const amrex::Real qv=amrex::Real(0))
 {
     // rho and rhotheta are dry values. We use moist theta when using moisture
     // theta_m = theta * (1 + R_v/R_d*qv)
@@ -61,7 +61,7 @@ amrex::Real getTgivenRandRTh(const amrex::Real rho, const amrex::Real rhotheta, 
  * @params[  out] potential temperature
 */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real getThgivenRandT(const amrex::Real rho, const amrex::Real T, const amrex::Real rdOcp, const amrex::Real qv=amrex::Real(0))
+amrex::Real getThgivenRandT (const amrex::Real rho, const amrex::Real T, const amrex::Real rdOcp, const amrex::Real qv=amrex::Real(0))
 {
     // p = rho_d * R_d * T_moist
     amrex::Real p_loc = rho * R_d * T * (amrex::Real(1) + RvoRd*qv);
@@ -78,7 +78,7 @@ amrex::Real getThgivenRandT(const amrex::Real rho, const amrex::Real T, const am
  * @params[  out] pressure
 */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real getPgivenRTh(const amrex::Real rhotheta, const amrex::Real qv = amrex::Real(0))
+amrex::Real getPgivenRTh (const amrex::Real rhotheta, const amrex::Real qv = amrex::Real(0))
 {
     return p_0 * std::pow(R_d * rhotheta * ( amrex::Real(1) + RvoRd*qv) * ip_0, Gamma);
 }
@@ -124,7 +124,7 @@ amrex::Real getRhogivenTandPress (const amrex::Real T, const amrex::Real p, cons
  * @params[  out] pressure
 */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real getdPdRgivenConstantTheta(const amrex::Real rho, const amrex::Real theta, const amrex::Real qv=amrex::Real(0))
+amrex::Real getdPdRgivenConstantTheta (const amrex::Real rho, const amrex::Real theta, const amrex::Real qv=amrex::Real(0))
 {
     // We should be using moist value of theta when using moisture
     // theta_m = theta * (1 + R_v/R_d*qv)
@@ -138,7 +138,7 @@ amrex::Real getdPdRgivenConstantTheta(const amrex::Real rho, const amrex::Real t
  * @params[  out] Exner function
 */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real getExnergivenP(const amrex::Real P, const amrex::Real rdOcp)
+amrex::Real getExnergivenP (const amrex::Real P, const amrex::Real rdOcp)
 {
     // Exner function pi in terms of P
     return std::pow(P * ip_0, rdOcp);
@@ -153,7 +153,7 @@ amrex::Real getExnergivenP(const amrex::Real P, const amrex::Real rdOcp)
  * @params[  out] Exner function
 */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real getExnergivenRTh(const amrex::Real rhotheta, const amrex::Real rdOcp, const amrex::Real qv=amrex::Real(0) )
+amrex::Real getExnergivenRTh (const amrex::Real rhotheta, const amrex::Real rdOcp, const amrex::Real qv=amrex::Real(0) )
 {
     // Exner function pi in terms of (rho theta)
     // We should be using moist value of theta when using moisture
@@ -169,7 +169,7 @@ amrex::Real getExnergivenRTh(const amrex::Real rhotheta, const amrex::Real rdOcp
  * @params[  out] density times potential temperature
 */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real getRhoThetagivenP(const amrex::Real p, const amrex::Real qv=amrex::Real(0))
+amrex::Real getRhoThetagivenP (const amrex::Real p, const amrex::Real qv=amrex::Real(0))
 {
     // diagnostic relation for the full pressure
     // see https://erf.readthedocs.io/en/latest/theory/NavierStokesEquations.html

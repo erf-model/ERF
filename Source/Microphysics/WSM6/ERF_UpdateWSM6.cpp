@@ -4,7 +4,7 @@
 using namespace amrex;
 
 void
-WSM6::Copy_Micro_to_State(MultiFab& cons)
+WSM6::Copy_Micro_to_State (MultiFab& cons)
 {
     for (MFIter mfi(cons, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const auto& box3d = mfi.tilebox();

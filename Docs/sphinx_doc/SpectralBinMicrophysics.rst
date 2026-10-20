@@ -14,34 +14,36 @@ bin-resolved distribution. This is also different from the
 :ref:`sec:SuperDroplets` method, where the condensed phase is represented by
 Lagrangian computational particles that move through the Eulerian model grid.
 
-The purpose of spectral-bin microphysics is ultimately to resolve the
-hydrometeor size distribution and its evolution through physical processes
-rather than representing cloud and precipitation only through a few bulk
-categories. The current ERF SBM runtime establishes the state, configuration,
-ownership, projection, and restart infrastructure needed for that capability.
-ERF also contains a generic mapped transport foundation for prognostic states
-stored outside the core conserved-state array. That transport foundation is
-described below; at present it is exercised with a test-only non-SBM inert
-tracer and is not yet connected to the SBM spectral state.
+A complete spectral-bin microphysics model can explicitly represent the
+particle-size distributions of aerosols and hydrometeors and their evolution
+through physical processes. ERF's currently exposed ``SBM`` option is
+narrower: it predicts a bin-resolved liquid-water distribution and advances
+it by resolved atmospheric advection on a single grid level. The code also
+contains independently tested state-time management and conservative
+coarse/fine spectral-transfer operators. These operators are foundations
+for future mesh-refined simulations, not an enabled multilevel capability.
+Aerosol evolution and cloud microphysical processes are not yet included.
+See :ref:`AuxiliaryState` for the reusable mapped-transport interface.
 
 .. warning::
 
-   The current ``SBM`` option is an infrastructure qualification mode, not yet
-   a production cloud-microphysics scheme.
+   The current ``SBM`` option provides resolved advection of a liquid-water
+   size distribution on one grid level. It is not yet a complete warm-cloud
+   or warm-rain microphysics scheme.
 
-   ERF currently stores and validates a liquid spectral distribution and keeps
-   the conventional bulk cloud- and rain-water fields consistent with that
-   distribution. The spectral state is intentionally not advected, diffused,
-   sedimented, or modified by cloud microphysical processes.
+   The liquid spectrum is the authoritative condensed-water state. It is
+   advected using ERF's dry-air mass carrier, high-order reconstruction,
+   coupled flux-corrected transport, and fixed projections to conventional
+   cloud- and rain-water fields.
 
-   Spectral advection, turbulent or molecular diffusion, condensation and
-   evaporation, aerosol activation, aerosol evolution, collision-coalescence,
-   sedimentation, precipitation, AMR spectral transport, and physical
-   spectral boundary conditions are not yet available through
-   ``erf.moisture_model = SBM``.
+   The runtime does not yet provide particle diffusion or turbulent mixing,
+   condensation/evaporation, aerosol activation or evolution,
+   collision-coalescence, sedimentation, precipitation, multilevel spectral
+   transport, or the full nonperiodic spectral-boundary lifecycle. Moving
+   terrain and embedded boundaries remain unsupported.
 
-   Unsupported configurations are rejected rather than silently reverting to
-   bulk-water transport.
+   Unsupported configurations are rejected rather than silently reverting
+   to bulk-water transport.
 
 Current spectral state
 ----------------------
@@ -78,6 +80,13 @@ quantity :math:`C_i` therefore has units of :math:`\mathrm{m^{-3}}`.
 The spectral coordinate used by the current ERF SBM runtime configuration is
 the liquid-water mass of an individual particle, in kg. Bin edges and pivots
 therefore describe particle water mass, not atmospheric liquid-water content.
+The reference fixed-pivot and interval remapping policies require
+individual-particle liquid-water mass as their spectral coordinate. A spectrum
+expressed in another coordinate, such as particle radius, is a different
+representation because its number measure and moments transform with the
+coordinate change. The current reference policies therefore reject non-mass
+coordinates rather than interpreting radius numerically as though it were
+particle mass.
 
 Bulk cloud and rain fields
 --------------------------
@@ -119,6 +128,10 @@ One- and two-moment bins
 ------------------------
 
 ERF currently supports one- and two-moment spectral bins.
+
+Here ``one moment`` and ``two moments`` refer to the moments stored within each
+spectral bin. They should not be confused with conventional one- or two-moment
+bulk cloud and precipitation parameterizations.
 
 One-moment representation
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -188,321 +201,469 @@ reading the authoritative spectral state from a checkpoint. A materially
 unrealizable two-moment state is rejected rather than clipped or silently
 repaired.
 
+Reference spectral reconstruction and remapping
+------------------------------------------------
+
+This section concerns redistribution in the spectral coordinate---that is,
+how a particle population is represented after a local process changes
+particle liquid-water mass. It is distinct from advection between atmospheric
+grid cells, AMR transfer between spatial resolutions, and conversion of a
+checkpoint from one spectral schema to another.
+
+The current runtime does not yet execute cloud microphysical processes that
+use these remappers. The present implementation establishes the reference
+representation and remapping contracts that future process implementations
+must obey.
+
+Moment normalization
+~~~~~~~~~~~~~~~~~~~~
+
+The prognostic spectral state stored by ERF is density weighted. Within one
+atmospheric grid cell it is convenient to state the remapping algebra using
+the corresponding quantities per unit mass of dry air,
+
+.. math::
+
+   N_i = \frac{C_i}{\rho_d},
+   \qquad
+   q_i = \frac{M_i}{\rho_d},
+
+where :math:`N_i` is particle number per unit mass of dry air and :math:`q_i`
+is liquid-water mass per unit mass of dry air. The stored quantities are
+:math:`C_i=\rho_d N_i` and :math:`M_i=\rho_d q_i`.
+
+Because :math:`\rho_d` is a common factor within the cell, the same linear
+remapping formulas apply to the density-weighted state. For example, if a
+packet number :math:`N_p` is expressed per unit mass of dry air, the
+corresponding number-density packet is :math:`C_p=\rho_d N_p`.
+
+One-moment fixed-pivot remapping
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In the one-moment representation, bin :math:`i` stores its water moment
+:math:`q_i` but not an independent number moment. Particle number is diagnosed
+at the fixed positive pivot mass :math:`p_i`,
+
+.. math::
+
+   N_i = \frac{q_i}{p_i}.
+
+Consider a packet with number :math:`N_p` and actual liquid-water mass
+:math:`m` per particle. If :math:`m` lies between adjacent pivots
+:math:`p_-` and :math:`p_+`, the packet is divided between them using the
+number weights
+
+.. math::
+
+   w_- = \frac{p_+-m}{p_+-p_-},
+   \qquad
+   w_+ = \frac{m-p_-}{p_+-p_-}.
+
+The corresponding increments are
+
+.. math::
+
+   \Delta N_\pm = N_p w_\pm,
+   \qquad
+   \Delta q_\pm = p_\pm N_p w_\pm.
+
+Any attached extensive inventory follows the same number weights. The mapping
+therefore conserves the implied packet number, liquid water, and each attached
+inventory to floating-point roundoff, even though only the water moment and
+attached inventories are persisted in one-moment mode.
+
+Fixed-pivot remapping necessarily introduces spectral spreading for an
+off-pivot packet. If
+
+.. math::
+
+   Q_2 = \int m^2\,d\mu
+
+denotes the second particle-mass moment of the number measure, the increment
+relative to retaining the packet at its actual mass is
+
+.. math::
+
+   \Delta Q_2
+   =
+   N_p(m-p_-)(p_+-m)
+   \ge 0.
+
+This is numerical broadening introduced by the representation; it is not
+physical cloud-spectrum broadening produced by a microphysical process.
+
+For a packet below the first pivot, :math:`0<m<p_0`, define
+
+.. math::
+
+   f_{\mathrm{wet}} = \frac{m}{p_0}.
+
+The reference closure places the fraction :math:`f_{\mathrm{wet}}` of the
+packet number at the first pivot and returns the remaining number through the
+zero-water residual path,
+
+.. math::
+
+   \Delta N_0 = N_p f_{\mathrm{wet}},
+   \qquad
+   \Delta q_0 = N_p m,
+   \qquad
+   N_{\mathrm{res}} = N_p(1-f_{\mathrm{wet}}).
+
+Attached inventories are partitioned by the same
+:math:`f_{\mathrm{wet}}` and :math:`1-f_{\mathrm{wet}}` fractions. This is a
+numerical sub-pivot evaporation closure. It should not be interpreted as a
+statement that the unresolved physical particles represented by the residual
+have necessarily undergone complete physical evaporation.
+
+A zero-water packet is returned entirely through the residual path. A packet
+above the largest fixed pivot reports overflow and is not clipped into the
+largest bin.
+
+Two-moment interval representation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In the two-moment representation, number and liquid-water mass are stored
+independently. For a populated bin with edges :math:`a_i` and :math:`b_i`,
+
+.. math::
+
+   \bar m_i = \frac{q_i}{N_i}
+            = \frac{M_i}{C_i}
+
+may occupy the full admissible interval.
+
+The reference ``mean-delta`` reconstruction is a temporary monodisperse
+representation that places all of the bin number at :math:`\bar m_i`. It
+reproduces the persisted number and water moments to floating-point roundoff;
+it is not an additional prognostic description of within-bin shape.
+
+Canonical persisted two-moment state requires a populated bin to have positive
+number and positive water mass, with its mean inside that bin's routing-owned
+interval. Interior bins own :math:`[a_i,b_i)`; the final bin owns
+:math:`[a_i,b_i]`. A bin with zero number is empty only when its water mass and
+every attached extensive inventory are also exactly zero. A positive-number,
+zero-water liquid-bin state is invalid; a zero-water packet is handled by the
+explicit residual path.
+
+The endpoint transform uses a small floating-point tolerance when testing
+moment realizability. That tolerance is a numerical aid for the transform; it
+does not authorize silent normalization of authoritative persisted state. A
+persisted bin must already satisfy its canonical routing-owned interval and
+must be numerically reconstructable in the active ``amrex::Real`` precision.
+In particular, a mathematically positive stored quantity whose required
+per-particle quotient underflows to zero is rejected rather than interpreted
+as an empty particle population.
+
+The first two moments do not uniquely determine that shape. For any
+nonnegative number distribution supported on :math:`[a_i,b_i]` with
+:math:`N_i>0`, the second mass moment satisfies
+
+.. math::
+
+   \frac{q_i^2}{N_i}
+   \le
+   Q_{2,i}
+   \le
+   (a_i+b_i)q_i-a_i b_i N_i.
+
+A delta distribution at :math:`\bar m_i` attains the lower bound. On the
+closed mathematical support :math:`[a_i,b_i]`, an appropriate mixture at the
+two endpoints attains the upper bound. For the canonical routing ownership
+used here, an interior bin owns :math:`[a_i,b_i)`, so the same expression is
+the upper bound (and limiting supremum) for that bin while a particle exactly
+at :math:`b_i` belongs to the next bin. The final bin includes its global upper
+endpoint. The
+mean-delta reference reconstruction therefore selects the minimum-variance
+distribution consistent with the two stored moments. Quantities that depend
+on unresolved within-bin structure---for example nonlinear collision rates,
+size-dependent sedimentation, or optical properties---are not uniquely
+determined by :math:`N_i` and :math:`q_i` alone.
+
+For an attached extensive property, the mean-delta reference closure assigns
+the bin-mean amount per particle to the reconstructed node. This reproduces
+the stored attached-property inventory to floating-point roundoff, but it
+likewise does not resolve covariance between particle composition and
+liquid-water mass.
+
+If several physically distinct packets are accumulated in the same interval,
+their total number and first water-mass moment are retained, but their
+within-bin spread is not an additional persisted degree of freedom.
+Subsequent mean-delta reconstruction therefore cannot recover that spread.
+This is representation loss, not physical coalescence: particle number has
+not been reduced by the representation itself.
+
+Two-moment packet deposition
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A two-moment process packet is deposited using its actual particle mass,
+rather than being replaced by neighboring pivot masses. If a packet with
+number :math:`N_p` and particle mass :math:`m` lies in interval :math:`i`,
+
+.. math::
+
+   \Delta N_i = N_p,
+   \qquad
+   \Delta q_i = N_p m.
+
+Any attached extensive inventory is deposited into the same interval.
+
+Interior intervals are half-open: a packet exactly on an edge shared by two
+bins belongs to the upper bin. The global upper edge is included in the final
+bin. Materially out-of-range packets return an underflow or overflow status
+rather than being silently clipped.
+
+An unchanged mean-delta reconstruction redeposits into its original interval.
+A state concentrated exactly on an interior shared edge belongs to the upper
+bin; the same state stored in the lower bin is noncanonical and is rejected
+rather than silently migrated by a no-process reconstruction/remapping cycle.
+
+At a positive global lower edge or at the global upper edge, the implementation
+permits only a very small, explicitly bounded floating-point exception: a
+nonnegative particle mass up to four representable floating-point steps
+outside the boundary may be classified as roundoff. Such a packet is deposited
+at the exact boundary mass :math:`m_b`, not at its slightly out-of-support
+input mass :math:`m_{\mathrm{in}}`. Negative particle masses are invalid; in
+particular, a spectrum whose lower edge is exactly zero does not admit
+negative roundoff excursions below that edge.
+
+The corresponding signed numerical water correction is
+
+.. math::
+
+   \delta q_{\mathrm{round}}
+   =
+   N_p\left(m_b-m_{\mathrm{in}}\right),
+
+with the analogous density-weighted correction obtained by multiplication by
+:math:`\rho_d`. A positive correction means boundary normalization increased
+the persisted water amount relative to the incoming floating-point packet; a
+negative correction means it decreased it. This quantity is explicit
+numerical roundoff accounting, not a physical condensation, evaporation, or
+precipitation source.
+
+Storing the exact boundary mass keeps the accepted state inside its declared
+spectral support and lets reconstruction followed immediately by projection
+preserve the accepted moments to floating-point roundoff.
+
+A positive-number packet with exactly zero liquid-water mass is returned
+through the zero-water residual path rather than retained as a populated
+liquid bin. Residual number and attached inventory are returned to the caller
+for process-level handling; the reference remapper itself does not create or
+modify an aerosol population.
+
+A mathematically positive required quantity that underflows to exactly zero in
+the active floating-point precision is rejected fail-closed rather than
+reinterpreted as physical evaporation, residual material, or an empty
+population. Packet routing and application report this case as
+``NumericalUnderflow``; reconstruction and projection reject it through their
+existing invalid/failure returns. Packet application remains atomic.
+
+Restart and scientific identity
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The representation, temporary reconstruction, and packet-remapping policies
+are versioned parts of the SBM scientific identity. The current one-moment
+identities are ``fixed-pivot-1m-v1``, ``fixed-pivot-delta-v1``, and
+``fixed-pivot-two-center-v1``. The current two-moment identities are
+``interval-2m-v1``, ``mean-delta-2m-v1``, and
+``actual-mass-interval-v1``.
+
+These strings are restart and provenance metadata; they are not user-selectable
+microphysics options. Restart comparison is exact, and ERF does not
+automatically convert a checkpoint to a different representation or remapping
+policy.
+
+The representation, transport, and projection policies are versioned parts of
+the exact restart identity. Older zero-transport schemas are rejected rather
+than silently interpreted as the currently supported advection scheme.
+
 Auxiliary prognostic-state transport
 ------------------------------------
 
-The spectral-bin state is stored outside ERF's core conserved-state array.
-Advancing such a state consistently requires more than applying an independent
-advection operator: it must use the same atmospheric mass carrier, mapped
-geometry, and time-integration stages as the host model. ERF now contains a
-generic auxiliary-state transport foundation for this purpose.
-
-The transport layer is deliberately independent of spectral-bin
-microphysics. It carries density-weighted cell-centered components and mapped
-face fluxes, but it contains no knowledge of liquid-water bins, cloud/rain
-partitioning, aerosol activation, collision-coalescence, sedimentation, or
-other microphysical processes.
-
-At the present revision this infrastructure is not a new user-selectable
-tracer package. Its live consumer is a test-only inert tracer used to verify
-the coupling to ERF. The SBM spectral state is not yet advanced through this
-path, so ``erf.moisture_model = SBM`` remains the zero-transport
-infrastructure configuration described elsewhere on this page.
-
-Density-weighted state and mapped conservation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Consider an auxiliary atmospheric quantity whose intensive value per unit
-mass of dry air is :math:`z_a`. As for other ERF dry-air-based constituents,
-the corresponding density-weighted state is
-
-.. math::
-
-   U_a = \rho_d z_a,
-
-where :math:`\rho_d` is the dry-air density.
-
-For mapped-coordinate transport ERF defines the cell measure
-
-.. math::
-
-   \omega = \frac{\det J}{m_x m_y},
-
-where :math:`\det J` is ERF's cell-centered mapping Jacobian and
-:math:`m_x` and :math:`m_y` are the horizontal map factors. The conservative
-mapped state is then
-
-.. math::
-
-   H_a = \omega U_a.
-
-The face quantities supplied to the generic transport operator are already in
-ERF's mapped-coordinate convention. Their computational-coordinate divergence
-may be written schematically as
-
-.. math::
-
-   D_\xi\left(\widetilde{\mathbf{F}}_a\right)
-   =
-   \sum_{d=1}^{3}
-   \frac{
-      \widetilde{F}_{a,d,+}
-      -
-      \widetilde{F}_{a,d,-}
-   }{\Delta \xi_d}.
-
-No additional physical face-area factor or second application of the map
-factors belongs in this divergence. The map factors and Jacobian enter through
-ERF's mapped face-transfer convention and the cell measure
-:math:`\omega`.
-
-For a host stage with recurrence coefficients :math:`a`, :math:`b`, and
-:math:`c`, the generic update has the form
-
-.. math::
-
-   H_a^{\mathrm{target}}
-   =
-   a H_a^n
-   +
-   b H_a^{\mathrm{input}}
-   -
-   c D_\xi\left(\widetilde{\mathbf{F}}_a\right),
-
-followed by
-
-.. math::
-
-   U_a^{\mathrm{target}}
-   =
-   \frac{H_a^{\mathrm{target}}}
-        {\omega^{\mathrm{target}}}.
-
-The old-step, input-stage, and target-stage states are carried with explicit
-time identities. The same is true of the corresponding density and mapped
-measure. This prevents, for example, forming an intensive constituent from a
-predictor state but dividing it by density from a different stage.
-
-Carrier mass flux and the intensive transport variable
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The intensive quantity used to construct an advective face flux is formed
-from state and density at the same input time,
-
-.. math::
-
-   z_a^{\mathrm{input}}
-   =
-   \frac{U_a^{\mathrm{input}}}
-        {\rho_d^{\mathrm{input}}}.
-
-For the inert-tracer verification problem, ERF's native scalar-advection
-operator constructs the mapped constituent face-flux rate from the actual
-host mass carrier,
-
-.. math::
-
-   \widetilde{F}_{a,f}
-   =
-   \widetilde{F}_{d,f} z_{a,f},
-
-where :math:`\widetilde{F}_{d,f}` is the time-averaged carrier mass flux used
-by ERF at that stage and :math:`z_{a,f}` is the reconstructed face value.
-
-The auxiliary state does not independently reconstruct a carrier as
-:math:`\rho_d\mathbf{u}` from separately sampled density and velocity fields.
-It consumes the same stage carrier used by ERF's scalar transport.
-
-A useful consequence is the constant-constituent-ratio property. If
-
-.. math::
-
-   U_a = k\rho_d
-
-everywhere, then
-
-.. math::
-
-   z_a = k.
-
-When the auxiliary constituent and dry-air density are advanced with the same
-carrier and compatible recurrence, transport should preserve this relationship,
-
-.. math::
-
-   U_a^{\mathrm{new}}
-   =
-   k\rho_d^{\mathrm{new}},
-
-apart from floating-point error. ERF's auxiliary transport tests exercise this
-property with spatially varying density and with stage-dependent face fluxes.
-
-Time integration and completed-step face fluxes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Auxiliary transport follows ERF's host time integration rather than advancing
-on an independent timestep. See :ref:`TimeAdvance` for the corresponding ERF
-state recurrences.
-
-For the three-stage compressible advance, let
-:math:`\widetilde{\mathbf{F}}_0`,
-:math:`\widetilde{\mathbf{F}}_1`, and
-:math:`\widetilde{\mathbf{F}}_2` denote the mapped auxiliary face-flux rates
-constructed at the three host stages. The auxiliary conservative state follows
-
-.. math::
-
-   H_a^*
-   =
-   H_a^n
-   -
-   \frac{\Delta t}{3}
-   D_\xi\left(\widetilde{\mathbf{F}}_0\right),
-
-.. math::
-
-   H_a^{**}
-   =
-   H_a^n
-   -
-   \frac{\Delta t}{2}
-   D_\xi\left(\widetilde{\mathbf{F}}_1\right),
-
-and
-
-.. math::
-
-   H_a^{n+1}
-   =
-   H_a^n
-   -
-   \Delta t
-   D_\xi\left(\widetilde{\mathbf{F}}_2\right).
-
-The first two states are predictors anchored at the old state; they are not
-three additive pieces of one forward-Euler update. Consequently, the mapped
-face flux associated with the completed compressible timestep is
-
-.. math::
-
-   \mathbf{J}_a
-   =
-   \Delta t\,\widetilde{\mathbf{F}}_2,
-
-rather than the sum of all three stage rates multiplied by their predictor
-intervals.
-
-For ERF's two-stage anelastic Runge--Kutta method, the first auxiliary stage is
-
-.. math::
-
-   H_a^*
-   =
-   H_a^n
-   -
-   \Delta t
-   D_\xi\left(\widetilde{\mathbf{F}}_0\right),
-
-and the second stage is
-
-.. math::
-
-   H_a^{n+1}
-   =
-   \frac{1}{2}H_a^n
-   +
-   \frac{1}{2}H_a^*
-   -
-   \frac{\Delta t}{2}
-   D_\xi\left(\widetilde{\mathbf{F}}_1\right).
-
-Equivalently,
-
-.. math::
-
-   H_a^{n+1}
-   =
-   H_a^n
-   -
-   \frac{\Delta t}{2}
-   D_\xi\left(
-      \widetilde{\mathbf{F}}_0
-      +
-      \widetilde{\mathbf{F}}_1
-   \right),
-
-so the completed-step mapped face flux is
-
-.. math::
-
-   \mathbf{J}_a
-   =
-   \frac{\Delta t}{2}
-   \left(
-      \widetilde{\mathbf{F}}_0
-      +
-      \widetilde{\mathbf{F}}_1
-   \right).
-
-ERF stores stage face-flux rates and completed-step integrated face fluxes as
-distinct quantities so that these temporal meanings cannot be interchanged
-accidentally. The completed-step ledger supports multiple auxiliary
-components, with every component receiving the same appropriate host-stage
-time weighting.
-
-The anelastic midpoint method is part of ERF's general time-integration
-capability, but it is not currently qualified by this auxiliary-state stage
-adapter and is rejected by the present auxiliary verification path.
-
-Mapped-geometry verification and current limits
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The generic mapped-divergence convention has been checked directly against
-ERF's native scalar operators. The verification includes scalar-advection
-divergence, mapped scalar-diffusion transfers on the native flat and
-vertically stretched grids, and the static-terrain mapped-diffusion transfer
-including its terrain metric cross terms.
-
-The tests also evaluate deliberately incorrect metric treatments. Omitting the
-Jacobian from the mapped cell measure, applying a horizontal map factor a
-second time, using the raw terrain vertical diffusive flux instead of ERF's
-mapped transfer, or omitting the terrain cross terms must disagree with the
-native ERF result. These negative controls help distinguish agreement with the
-actual ERF metric convention from agreement caused by repeating the same
-mistake in both calculations.
-
-This operator-level verification should not be confused with a fully
-user-qualified auxiliary tracer on every ERF geometry. The current live inert
-tracer is intentionally much narrower. It is limited to one AMR level,
-triply periodic ``ConstantDz`` geometry without terrain or buildings, uses
-centered-second-order native scalar advection, and rejects acoustic
-substepping, scalar diffusion, turbulent transport, regridding, and restart.
-It exists to verify the generic transport coupling rather than to provide a
-scientific tracer option.
-
-Potential uses beyond spectral-bin microphysics
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The auxiliary-state layer is generic because some atmospheric constituent
-systems are naturally much larger than ERF's compact core state. In principle,
-the same approach could support future sectional aerosol or atmospheric
-chemistry state, specialized families of passive or reactive tracers, or other
-multi-component moment and distribution representations that need
-conservative transport with ERF's atmospheric carrier while remaining outside
-the fixed core conserved-state array.
-
-These are architectural possibilities, not currently advertised runtime
-capabilities. Each new consumer would still need to define its component
-semantics and physical source terms and separately qualify its boundary
-conditions, diffusion, AMR lifecycle, restart behavior, and any
-application-specific physical constraints.
-
-For SBM, the generic transport foundation removes the need to invent a second
-geometry or time-integration convention for the spectrum. It does not by
-itself provide spectral reconstruction, realizability-preserving limiting,
-spectral diffusion, sedimentation, or cloud microphysical processes. Those
-capabilities must be connected and qualified before the current SBM
-zero-transport restrictions can be relaxed.
+The SBM liquid spectrum is the authoritative liquid-water state. ERF advances
+this spectrum in physical space using the mapped auxiliary-state transport
+infrastructure and the atmospheric dynamical core's dry-air mass flux.
+
+The low-order candidate is conservative donor transport. The high-order
+candidate uses ERF's native WENO-Z3 reconstruction. Two-moment liquid bins are
+reconstructed in endpoint-number coordinates before their face rates are
+transformed back to physical mass and number. A shared atomic-group FCT
+limiter constrains mass, number, and attached extensive properties together.
+
+Projected ``qc`` and ``qr`` remain fixed diagnostics of the accepted liquid
+spectrum. They are refreshed from the spectrum and do not receive an
+independent liquid advection, diffusion, clipping, or microphysical update.
+
+Available end-to-end simulation evidence is deliberately bounded. It covers
+single-level, triply periodic advection on constant- and stretched-z grids,
+plus a one-step static Cos4Hill terrain-fitted case with terrain flat at the
+periodic boundaries. Direct transport tests also exercise nontrivial fluxes
+with a synthetic static mapped measure. These tests do not establish a
+nonperiodic terrain-boundary capability. Particle diffusion and turbulent
+mixing, multilevel spectral synchronization and reflux, nonperiodic spectral
+boundaries, condensation/evaporation, activation, collision-coalescence,
+sedimentation, and precipitation are not available in the runtime. Moving
+terrain and embedded boundaries remain unsupported.
+
+Conservative spectral transfer between grid resolutions
+-------------------------------------------------------
+
+Atmospheric simulations may use locally refined meshes around clouds,
+convective updrafts, or sharp moisture gradients. For spectral-bin
+microphysics, a change in atmospheric grid resolution must transfer the
+liquid-water and droplet-number inventories represented by each
+**spectral bin**. Transferring only bulk cloud-water and rain-water amounts would not
+preserve the underlying particle-size distribution: many different spectra
+can have the same bulk mixing ratios.
+
+The following state and transfer operations have been implemented and tested
+independently. They are needed to extend spectral-bin transport to refined
+atmospheric meshes, but are not yet part of the operational multilevel SBM
+runtime:
+
+* **Time-matched spectral states.** The bin-resolved distribution has explicit
+  previous and updated time views that follow ERF's atmospheric time advance.
+  A quantity expressed per unit dry-air mass is formed using dry-air density
+  from the matching time view, not from a different model stage.
+
+* **Conservative coarse-grid averaging.** For spectral component :math:`a`,
+  let :math:`U_a` be the stored density-weighted amount. Depending on the
+  component, this represents liquid-water mass per unit volume, droplet
+  number per unit volume, or an attached extensive inventory. ERF's mapped
+  conservative amount is
+
+  .. math::
+
+     H_a = \omega U_a, \qquad
+     \omega = \frac{\det J}{m_x m_y},
+
+  where :math:`\det J` is the terrain-coordinate Jacobian and :math:`m_x`
+  and :math:`m_y` are the horizontal map factors. For a coarse cell :math:`c`
+  completely covered by fine cells :math:`j`, restriction uses
+
+  .. math::
+
+     H_{a,c} = \frac{1}{N_c}\sum_{j\in\mathcal{C}(c)} H_{a,j},
+     \qquad
+     U_{a,c} = \frac{H_{a,c}}{\omega_c},
+
+  where :math:`\mathcal{C}(c)` contains the :math:`N_c` fine children of
+  cell :math:`c`. This preserves the represented mapped inventory to
+  floating-point accuracy. Coarse cells outside the fine-covered region
+  retain their previous spectral values exactly.
+
+* **Carrier-relative fine-grid transfer.** The operator forms the amount of each
+  component per unit mass of dry air,
+
+  .. math::
+
+     z_a = \frac{U_a}{\rho_d},
+
+  where :math:`\rho_d` is dry-air density. The fine-grid value is obtained
+  through piecewise-constant interpolation of :math:`z_a` followed by
+  reconstruction with the **fine-grid density at the same semantic time**:
+
+  .. math::
+
+     U_{a,\mathrm{fine}}
+     = \rho_{d,\mathrm{fine}}\,
+       z_{a,\mathrm{parent\ coarse}}.
+
+  Refining the atmospheric mesh thereby transfers a bin's dry-air-relative
+  abundance without treating the change in spatial resolution as a physical
+  droplet-growth, evaporation, or collision process.
+
+* **Accepted spectral face transfers.** The implementation defines and tests a completed-step
+  transport record for every spectral component,
+
+  .. math::
+
+     \mathcal{I}_{a,f}
+     = \int_{t^n}^{t^{n+1}}
+       \widetilde{F}_{a,f}^{\mathrm{accepted}}(t)\,dt,
+
+  where :math:`\widetilde{F}_{a,f}^{\mathrm{accepted}}` is the accepted
+  mapped transport rate through face :math:`f`. The record uses the rates
+  accepted after the coupled transport limiter, not an unrestricted
+  high-order proposal or the two bulk cloud/rain sums. It provides the
+  information needed for conservative coarse/fine flux correction in a
+  subsequent AMR implementation.
+
+* **Physical and numerical admissibility.** A transferred candidate spectrum
+  must still satisfy the declared mass, number, attached-property, and
+  spectral-bin ownership constraints. Invalid or numerically
+  unrepresentable candidates are rejected rather than repaired by clipping
+  or silent redistribution.
+
+.. important::
+
+   **These are tested grid-transfer foundations, not an enabled multilevel
+   SBM capability.** Although ERF supports adaptive mesh refinement for other
+   atmospheric quantities, simulations using ``erf.moisture_model = SBM``
+   still require ``amr.max_level = 0`` and periodic boundaries in all three
+   directions. Coarse/fine temporal interpolation, accepted-flux correction
+   (reflux), regridding, and multilevel spectral restart must be integrated
+   and qualified before SBM can run on refined meshes. These grid-transfer
+   foundations introduce no new user input parameters and no cloud or aerosol
+   microphysical source processes. The currently exposed spectrum represents
+   liquid water only.
+
+What is still needed for multilevel simulations
+-----------------------------------------------
+
+The present SBM runtime advects the liquid-water spectrum on one atmospheric
+grid level. The conservative grid-transfer operators described above have
+been tested separately, but they are not yet connected to ERF's complete
+adaptive-mesh lifecycle.
+
+A future multilevel simulation must interpolate coarse-grid spectral state
+and dry-air density to the same fine-grid time; reconcile the accepted
+bin-resolved transport across coarse/fine interfaces by conservative flux
+correction (reflux); and verify that the synchronized droplet-mass,
+number, and attached-property inventories remain physically admissible.
+Grid creation, regridding, restart, and physical boundary conditions must
+also preserve the full spectral state, rather than reconstructing a size
+distribution from bulk cloud-water and rain-water mixing ratios.
+
+A conservation budget for a refined simulation must count each atmospheric
+region only once, using fine-grid values where refinement is present and
+excluding the underlying coarse-grid cells. Multilevel spectral transport
+will remain unavailable until these coupled operations have been tested in
+ERF, including their failure behavior.
+
+Numerical reconstruction for resolved spectral advection
+--------------------------------------------------------
+
+The current high-order spectral advection method is
+``EndpointNumberWENOZ3``. This numerical-method identity is fixed by the
+implementation and is not a user-selectable SBM option. See
+:ref:`AuxiliaryState` for the mapped conservation and host-stage transport
+conventions.
+
+For the current implementation, ``EndpointNumberWENOZ3`` has a specific
+numerical meaning:
+
+* every transported component first uses the intensive dry-air coordinate
+  :math:`z_a=U_a/\rho_d` formed with the density from the same host stage;
+* each two-moment mass/number pair is transformed to endpoint-number
+  coordinates before high-order reconstruction and converted back to physical
+  mass and number face rates before grouped FCT;
+* one-moment components and attached extensive properties remain in their
+  physical intensive coordinates;
+* no per-component rescaling or normalization is applied before WENO-Z3;
+* reconstruction uses ERF's native ``AdvType::Weno_3Z`` / ``WENO_Z3`` stencil.
+  At this revision its linear weights are :math:`1/3` and :math:`2/3`, with a
+  fixed epsilon of ``1.e-12`` in ``AMREX_USE_FLOAT`` builds and ``1.e-40``
+  otherwise; and
+* the enabled SBM runtime is triply periodic, so its end-to-end simulations
+  do not exercise a physical-boundary high-order fallback. The declared
+  spectral boundary policy permits an admissible donor proposal when a
+  physical-boundary high-order stencil is not qualified.
+
+Changing the reconstruction basis, component normalization, WENO epsilon or
+stencil, or physical-boundary fallback is a numerical-method change requiring
+new qualification; it is not a formatting-only cleanup.
 
 SBM runtime inputs
 ------------------
@@ -512,19 +673,13 @@ The following inputs use the ``erf.`` prefix.
 ``erf.moisture_model``
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Select the current SBM infrastructure with
+Select the current single-level, advection-only SBM capability with
 
 ::
 
    erf.moisture_model = SBM
 
-At the present revision this also requires
-
-::
-
-   erf.sbm_zero_transport_fixture = true
-
-because production spectral transport has not yet been implemented.
+New SBM input files should omit the obsolete no-transport switch described below.
 
 ``erf.sbm_zero_transport_fixture``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -533,11 +688,10 @@ because production spectral transport has not yet been implemented.
 
 **Default:** ``false``
 
-This option must currently be ``true`` when ``erf.moisture_model = SBM``.
-
-It identifies the deliberately bounded zero-transport SBM configuration. It
-should not be interpreted as a physical switch that turns transport off in an
-otherwise complete spectral-bin microphysics scheme.
+This obsolete switch belonged to an earlier infrastructure-only test mode.
+It is not a supported option for current simulations. Omit it from new SBM
+input files. An explicitly true value is rejected rather than silently
+disabling spectral transport.
 
 ``erf.sbm_nbins``
 ~~~~~~~~~~~~~~~~~
@@ -635,6 +789,14 @@ Defines one representative particle mass for each spectral bin.
 
 Each pivot must be finite, positive, and lie inside its corresponding bin.
 
+For ``erf.sbm_moment_mode = 1``, the pivots must also increase strictly from
+one bin to the next. Coincident pivots at a shared bin edge are therefore not
+valid for the fixed-pivot one-moment representation.
+
+In two-moment mode the pivots remain part of the spectral-grid and restart
+identity, but the reference packet remapper uses the packet's actual mass and
+its containing interval rather than replacing the packet by pivot masses.
+
 When explicit ``erf.sbm_edges`` are supplied and ``erf.sbm_pivots`` are
 omitted, ERF uses the geometric mean of each pair of adjacent bin edges.
 
@@ -680,20 +842,19 @@ also satisfy the per-bin realizability condition described above.
 Current execution restrictions
 ------------------------------
 
-The current SBM mode remains intentionally limited so that state ownership,
-projection, initialization, and restart can be tested without ambiguity from
-an incomplete spectral transport implementation. The generic auxiliary-state
-transport foundation described above does not yet change the supported SBM
-runtime envelope.
+The SBM runtime remains single-level. Independently tested grid-transfer
+operators do not yet enable mesh-refined SBM simulations. The following
+runtime restrictions apply:
 
 The current configuration requires:
 
 * a three-dimensional ERF build;
 * one AMR level, ``amr.max_level = 0``;
 * periodic boundaries in all three directions;
-* ``mesh_type = ConstantDz``;
-* no terrain-fitted or embedded-boundary geometry;
-* no immersed buildings;
+* static non-EB geometry; end-to-end evidence covers ``ConstantDz``,
+  ``StretchedDz``, and the triply periodic static ``Cos4Hill`` fitted-mesh
+  smoke profile, with terrain flat at the periodic boundaries;
+* no moving terrain, embedded boundaries, or immersed buildings;
 * ``substepping_type = None``;
 * no molecular scalar diffusion;
 * no turbulent scalar diffusion or PBL/SHOC transport acting on moisture;
@@ -705,22 +866,39 @@ The current configuration requires:
 * no sounding nudging;
 * no custom moisture forcing;
 * no real-data lateral boundary forcing; and
-* no problem setup that introduces problem-specific liquid forcing or custom
-  perturbations.
+* only the supported problem setups: the default/undefined setup,
+  ``Scalar Advection/Diffusion``, and ERF's dedicated periodic SBM test setup;
+  other problem-specific initialization or forcing is rejected.
 
-For the present fixture, ``erf.prob_name`` must therefore be either unset
-(``Undefined`` internally) or
+Anelastic SBM advection is supported only for the currently qualified
+non-fitted-terrain cases, including constant- and stretched-z grids.
+``StaticFittedMesh`` with ``VariableDz`` is explicitly rejected for anelastic
+SBM because ERF's fitted-terrain anelastic projection requires a nonperiodic
+vertical boundary, whereas the current spectral transport capability requires
+a triply periodic domain. This is a support-envelope restriction, not a
+different spectral carrier convention.
 
-::
+The resolved host dry-air carrier may be nonzero. SBM transport uses that
+carrier directly and checks the donor outgoing-demand condition at each host
+stage. For example, the native scalar-advection velocity initializer can be
+used in a periodic SBM advection case with:
 
-   erf.prob_name = "SBM zero-transport fixture"
+.. code-block:: text
 
-In addition, the resolved carrier momentum presented to scalar advection must
-remain exactly zero. A nonzero resolved flow causes ERF to stop rather than
-leave the spectral state behind while transporting only its bulk projection.
+   erf.prob_name = "Scalar Advection/Diffusion"
+   prob.U_0 = 0.8
+   prob.V_0 = 0.6
+   prob.W_0 = 0.4
 
-These restrictions make the present capability suitable for infrastructure
-qualification, not for a moving or evolving cloud simulation.
+Adaptive ERF timestep selection also applies the SBM donor-outflow restriction
+using the current mapped dry-air carrier. A user-specified fixed timestep that
+exceeds the current hard donor-positivity limit is rejected rather than
+silently subcycling the spectrum. The exact stage-time outgoing-demand check
+remains active as a fail-closed guard because the carrier used by a later host
+stage may differ from the pre-step estimate.
+
+The currently enabled SBM capability implements resolved advection only;
+cloud microphysical source processes are not yet coupled to the spectrum.
 
 One-moment example
 ------------------
@@ -730,11 +908,10 @@ test:
 
 .. code-block:: text
 
-   erf.prob_name = "SBM zero-transport fixture"
+   erf.prob_name = "Scalar Advection/Diffusion"
    erf.init_type = Uniform
 
    erf.moisture_model = SBM
-   erf.sbm_zero_transport_fixture = true
    erf.sbm_nbins = 4
    erf.sbm_cloud_rain_split = 2
    erf.sbm_fixture_initial_state = 1.e-6 2.e-6 3.e-6 4.e-6
@@ -749,14 +926,18 @@ test:
    amr.max_level = 0
    geometry.is_periodic = 1 1 1
 
+   prob.U_0 = 0.8
+   prob.V_0 = 0.6
+   prob.W_0 = 0.4
+
 The four initial-state values are the density-weighted liquid-water masses in
 the four bins, in :math:`\mathrm{kg\,m^{-3}}`.
 
 With ``erf.sbm_cloud_rain_split = 2``, the first two bins contribute to cloud
 water and the last two bins contribute to rain water.
 
-This example is a qualification fixture and should not be interpreted as a
-recommended atmospheric size distribution.
+The spatially uniform initial spectrum exercises the host carrier path but is
+not a recommended atmospheric size distribution.
 
 Two-moment example
 ------------------
@@ -765,11 +946,10 @@ The two-moment integration fixture uses:
 
 .. code-block:: text
 
-   erf.prob_name = "SBM zero-transport fixture"
+   erf.prob_name = "Scalar Advection/Diffusion"
    erf.init_type = Uniform
 
    erf.moisture_model = SBM
-   erf.sbm_zero_transport_fixture = true
    erf.sbm_nbins = 4
    erf.sbm_moment_mode = 2
    erf.sbm_cloud_rain_split = 2
@@ -779,6 +959,10 @@ The two-moment integration fixture uses:
    erf.sbm_fixture_initial_state = \
        1.5e-6 6.0e-6 1.8e-5 4.8e-5 \
        1.0e12 2.0e12 3.0e12 4.0e12
+
+   prob.U_0 = 0.8
+   prob.V_0 = 0.6
+   prob.W_0 = 0.4
 
 The first four initial-state values are the bin liquid-water mass densities
 :math:`M_i` in :math:`\mathrm{kg\,m^{-3}}`. The final four are the bin

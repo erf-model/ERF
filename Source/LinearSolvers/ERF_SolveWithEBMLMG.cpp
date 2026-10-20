@@ -160,7 +160,7 @@ solve_with_EB_mlmg (int lev, Vector<MultiFab>& rhs, Vector<MultiFab>& phi,
 
 // Explicit template instantiations for the types we use
 // When USE_FC_FACTORY=1, all are EBFArrayBoxFactory
-template void solve_with_EB_mlmg(int, Vector<MultiFab>&, Vector<MultiFab>&,
+template void solve_with_EB_mlmg (int, Vector<MultiFab>&, Vector<MultiFab>&,
                                  Vector<Array<MultiFab,AMREX_SPACEDIM>>&,
                                  EBFArrayBoxFactory const&,
                                  EBFArrayBoxFactory const&,
@@ -169,7 +169,7 @@ template void solve_with_EB_mlmg(int, Vector<MultiFab>&, Vector<MultiFab>&,
                                  const Geometry&, const Vector<amrex::IntVect>&,
                                  Array<std::string,2*AMREX_SPACEDIM>, int, Real, Real);
 // When USE_FC_FACTORY=0, u/v/w are eb_aux_
-template void solve_with_EB_mlmg(int, Vector<MultiFab>&, Vector<MultiFab>&,
+template void solve_with_EB_mlmg (int, Vector<MultiFab>&, Vector<MultiFab>&,
                                  Vector<Array<MultiFab,AMREX_SPACEDIM>>&,
                                  EBFArrayBoxFactory const&,
                                  eb_aux_ const&,

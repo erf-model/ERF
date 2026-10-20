@@ -133,7 +133,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
     public:
 
         /*! \brief Constructor */
-        SuperDropletsMoist()
+        SuperDropletsMoist ()
         {
             m_qmoist_size = 11;
             m_qstate_moist_size = 6; // qv, qc, qi, qrain, qsnow, qgraup
@@ -146,7 +146,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         }
 
         /*! \brief Destructor */
-        virtual ~SuperDropletsMoist() = default;
+        virtual ~SuperDropletsMoist () = default;
 
         /*! \brief Define super-droplet moisture model parameters */
         virtual void Define (SolverChoice&) override;
@@ -166,9 +166,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         virtual void RestartParticles ( amrex::ParGDBBase*, const std::string& ) override;
 
         /*! \brief finish initializations */
-        virtual void FinishInit(const int&,
-                                amrex::MultiFab&,
-                                const amrex::Vector<MFPtr>&) override;
+        virtual void FinishInit (const int&,
+                                 amrex::MultiFab&,
+                                 const amrex::Vector<MFPtr>&) override;
 
         void Advance ( const amrex::Real&, const SolverChoice& ) override
         {
@@ -286,12 +286,12 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         }
 
         /*! \brief returns pointer to super-droplets particle container */
-        inline virtual ERFPC* getParticleContainer() override
+        inline virtual ERFPC* getParticleContainer () override
         {
             return m_super_droplets;
         }
 
-        inline virtual const std::string& getName() const override
+        inline virtual const std::string& getName () const override
         {
             return m_name;
         }
@@ -544,7 +544,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         SuperDropletPC* m_super_droplets;
 
         /*! \brief read inputs */
-        virtual void readInputs();
+        virtual void readInputs ();
 
     private:
 

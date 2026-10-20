@@ -5,11 +5,14 @@
 #include "AMReX_Reduce.H"
 
 #include "ERF_SurfaceLayer.H"
+#include "ERF_SurfaceMoisture.H"
+#include "ERF_Wstar.H"
 #include "ERF_GTestSurfaceLayerCommon.H"
 
 #include <gtest/gtest.h>
 
 #include "../ERF_GTestAssertions.H"
+#include "../ERF_GTestTempDir.H"
 
 #include <algorithm>
 #include <array>
@@ -547,6 +550,57 @@ void set_quadratic_node_heights (MultiFab& z_phys_nd)
     Gpu::streamSynchronize();
 }
 
+// The PBL height a scheme hands to set_pblh in the tests below: a different value in every
+// column of the domain
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE Real
+test_pblh (int i, int j)
+{
+    return Real(100.0) + Real(i) + Real(10.0) * Real(j);
+}
+
+void set_test_pblh (MultiFab& pblh_in)
+{
+    for (MFIter mfi(pblh_in, false); mfi.isValid(); ++mfi) {
+        auto arr = pblh_in.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            arr(i,j,k) = test_pblh(i,j);
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+// The largest difference, over every cell of pblh (ghost cells included), from the height of
+// the nearest column of the domain, and the number of cells that hold no diagnosed height
+std::pair<Real, Long>
+pblh_ghost_error (const MultiFab& pblh, const Box& domain)
+{
+    const int ilo = domain.smallEnd(0); const int ihi = domain.bigEnd(0);
+    const int jlo = domain.smallEnd(1); const int jhi = domain.bigEnd(1);
+    Real max_err = Real(0.0);
+    Long n_undiagnosed = 0;
+    for (MFIter mfi(pblh, false); mfi.isValid(); ++mfi) {
+        const auto arr = pblh.const_array(mfi);
+        ReduceOps<ReduceOpMax, ReduceOpSum> reduce_op;
+        ReduceData<Real, Long> reduce_data(reduce_op);
+        reduce_op.eval(mfi.fabbox(), reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) -> GpuTuple<Real, Long>
+            {
+                const Real h = arr(i,j,k);
+                if (!pblh_is_diagnosed(h) || !amrex::Math::isfinite(h)) {
+                    return {Real(0.0), Long(1)};
+                }
+                const Real expected = test_pblh(amrex::min(amrex::max(i,ilo),ihi),
+                                                amrex::min(amrex::max(j,jlo),jhi));
+                return {amrex::Math::abs(h - expected), Long(0)};
+            });
+        const auto r = reduce_data.value();
+        max_err = std::max(max_err, get<0>(r));
+        n_undiagnosed += get<1>(r);
+    }
+    return {max_err, n_undiagnosed};
+}
+
 } // namespace
 
 TEST(SurfaceLayerCompatibility, EBAllowsNativeStateWithoutPlanarProviders)
@@ -708,6 +762,56 @@ TEST(SurfaceLayer, QsurfMatchesReferenceOnSelectedFace)
         EXPECT_GT(selected_count, 0);
     }
     pp.remove("most.roughness_type_sea");
+}
+
+// Motivation: how the skin's surface mixing ratio is formed (the resistances or the
+// soil-water factor alone) belongs to each level. The two-stream coupling clears a level
+// it cannot couple with set_skin_moisture(lev, nullptr); doing that to another level
+// between this level's set_skin_moisture and its flux must not switch this level to the
+// soil-water factor.
+TEST(SurfaceLayer, SkinMoistureFormIsPerLevel)
+{
+    using namespace erf_surface_moisture;
+    const std::string prefix = "unit_surface_layer_skin_moisture_per_level";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(make_qsurf_geometry(), true);
+    auto layer = fields.prepare_layer(face, active_faces({face}), prefix, true, false);
+    constexpr Real q_air = Real(0.005);
+    fields.set_surface_cell_pressure(Real(1.0e5), q_air);
+
+    MultiFab* qsurf = layer->get_q_surf(0);
+    MultiFab skin(qsurf->boxArray(), qsurf->DistributionMap(), 1, qsurf->nGrowVect());
+    skin.setVal(Real(300.0));
+    // A saturated soil factor (1), but bare soil behind a no-flux resistance: the
+    // resistance form gives q_air, the soil-water factor q_sat.
+    MultiFab moisture(qsurf->boxArray(), qsurf->DistributionMap(), NumComponents,
+                      qsurf->nGrowVect());
+    moisture.setVal(Real(1.0), SoilFactor, 1);
+    moisture.setVal(Real(0.0), VegetationFraction, 1);
+    moisture.setVal(no_flux_resistance, CanopyResistanceWithoutVPD, 1);
+    moisture.setVal(no_flux_resistance, SoilResistance, 1);
+    moisture.setVal(Real(1.0), GroundRelativeHumidity, 1);
+    layer->get_mac_avg_ptr(0, 4)->setVal(q_air);      // reference-height mixing ratio
+    layer->get_mac_avg_ptr(0, 6)->setVal(Real(5.0));  // wind speed
+    layer->get_u_star(0)->setVal(Real(0.3));
+    layer->get_olen(0)->setVal(Real(1.0e30));
+    std::unique_ptr<MultiFab> z_phys_nd;
+
+    layer->set_skin_temperature(0, &skin);
+    layer->set_skin_moisture(0, &moisture, true, Real(0.0));
+    layer->set_skin_moisture(1, nullptr);
+    qsurf->setVal(Real(-1.0));
+    layer->fill_qsurf_with_skin_moisture(0, fields.cons, z_phys_nd);
+    const Real q_resistances = qsurf->max(0);
+    EXPECT_GE(q_resistances, q_air);
+    EXPECT_LT(q_resistances, q_air + Real(1.0e-4));
+
+    // The same field through the soil-water factor: q_sat, far from q_air.
+    layer->set_skin_moisture(0, &moisture, false);
+    qsurf->setVal(Real(-1.0));
+    layer->fill_qsurf_with_skin_moisture(0, fields.cons, z_phys_nd);
+    EXPECT_GT(qsurf->max(0), Real(0.02));
 }
 
 // Motivation: a terrain-following z-high boundary must use the local upper
@@ -908,8 +1012,8 @@ TEST(SurfaceLayer, PotentialTemperatureLsmFieldRemainsUnchanged)
 TEST(SurfaceLayer, TextSstIsConvertedToPotentialTemperature)
 {
     const std::string prefix = "unit_surface_layer_text_sst";
-    const auto file = std::filesystem::current_path() /
-        ("erf_surface_layer_text_sst_" + std::to_string(sizeof(Real)) + ".txt");
+    const auto file = std::filesystem::path(
+        erf_gtest_temp_path("erf_surface_layer_text_sst_" + std::to_string(sizeof(Real))).string() + ".txt");
     ScopedTestFile cleanup(file);
     {
         std::ofstream out(file);
@@ -946,8 +1050,8 @@ TEST(SurfaceLayer, TextSstIsConvertedToPotentialTemperature)
 TEST(SurfaceLayer, DryTextSstDoesNotReadMoistureComponent)
 {
     const std::string prefix = "unit_surface_layer_dry_text_sst";
-    const auto file = std::filesystem::current_path() /
-        ("erf_surface_layer_dry_text_sst_" + std::to_string(sizeof(Real)) + ".txt");
+    const auto file = std::filesystem::path(
+        erf_gtest_temp_path("erf_surface_layer_dry_text_sst_" + std::to_string(sizeof(Real))).string() + ".txt");
     ScopedTestFile cleanup(file);
     {
         std::ofstream out(file);
@@ -1164,8 +1268,8 @@ TEST(SurfaceLayer, CoupledSstWithoutCoverageMaskLeavesFallbackUnchanged)
 TEST(SurfaceLayer, ConfiguredRdOcpControlsTextSstConversion)
 {
     const std::string prefix = "unit_surface_layer_text_sst_custom_rdOcp";
-    const auto file = std::filesystem::current_path() /
-        ("erf_surface_layer_text_sst_custom_rdOcp_" + std::to_string(sizeof(Real)) + ".txt");
+    const auto file = std::filesystem::path(
+        erf_gtest_temp_path("erf_surface_layer_text_sst_custom_rdOcp_" + std::to_string(sizeof(Real))).string() + ".txt");
     ScopedTestFile cleanup(file);
     {
         std::ofstream out(file);
@@ -1345,4 +1449,50 @@ TEST(SurfaceLayer, MoengPreservesRequiredStressAtMixedFaceCorners)
         EXPECT_NEAR(second_transpose_after, first_value, Real(1.e-10));
         EXPECT_NEAR(first_value, mf_value(*first_required, corner), Real(1.e-10));
     }
+}
+
+// Motivation (#4295): until a PBL scheme has written one, the PBL height is the placeholder
+// bogus_large_value -- on the first step, on a level just made by a regrid, and in any cell
+// no scheme reaches.  The w* correction must ignore it rather than build w* ~ 1e50 from it.
+TEST(SurfaceLayer, WstarIgnoresUndiagnosedPblh)
+{
+    const Real thv = Real(300.0);
+    EXPECT_FALSE(pblh_is_diagnosed(bogus_large_value));
+    EXPECT_TRUE(pblh_is_diagnosed(Real(1000.0)));
+
+    EXPECT_EQ(calc_wstar(Real(0.1), bogus_large_value, thv), Real(0.0));
+    EXPECT_EQ(calc_wstar(Real(0.3), Real(-0.3), Real(0.0), bogus_large_value, thv, thv), Real(0.0));
+
+    // A diagnosed height still gives the usual w*
+    const Real wstar = calc_wstar(Real(0.1), Real(1000.0), thv);
+    ERF_EXPECT_NEAR(wstar, std::cbrt(CONST_GRAV / thv * Real(1000.0) * Real(0.1)),
+                    Real(64.0) * std::numeric_limits<Real>::epsilon() * wstar);
+}
+
+// Motivation (#4295): the PBL schemes hand over their height without ghost cells, and a
+// lateral ghost cell left at the placeholder gave w* ~ 1e50 in the column next to it.  Every
+// ghost cell must end up with a diagnosed height: the neighbouring grid's where there is one,
+// and the edge of the domain's outside it.
+TEST(SurfaceLayer, SetPblhFillsEveryGhostCell)
+{
+    const std::string prefix = "unit_surface_layer_set_pblh_ghosts";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(geom, true);
+    auto layer = fields.prepare_layer(face, active_faces({face}), prefix, false, false);
+
+    MultiFab* pblh = layer->get_pblh(0);
+    ASSERT_NE(pblh, nullptr);
+    ASSERT_GT(pblh->nGrowVect()[0], 0);
+    ASSERT_GT(fields.ba.size(), 1);
+    pblh->setVal(bogus_large_value);
+
+    MultiFab pblh_in(fields.ba, fields.dm, 1, 0);
+    set_test_pblh(pblh_in);
+    layer->set_pblh(0, pblh_in);
+
+    const auto [max_err, n_undiagnosed] = pblh_ghost_error(*pblh, geom.Domain());
+    EXPECT_EQ(n_undiagnosed, 0);
+    EXPECT_EQ(max_err, Real(0.0));
 }

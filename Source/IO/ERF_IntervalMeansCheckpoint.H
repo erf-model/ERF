@@ -182,11 +182,22 @@ initialization_accumulates_state (bool restarting) noexcept
     return !restarting;
 }
 
+// The t=0 sample exists only to populate an initial plotfile: it is an
+// instantaneous state, not a completed step, so it must not leak into the
+// first real interval.  Clearing it regardless of whether an initial plotfile
+// was written is what makes the step-1 window independent of the output
+// cadence, and therefore restart-exact (issue 4243): a leg that writes no
+// initial plotfile would otherwise carry that sample through the checkpoint
+// and normalize by one dt more than the run it is compared against.  A
+// restart instead restores a window that must survive untouched.  In "time"
+// reset mode the t=0 sample is part of the configured window by design and is
+// kept -- nothing resets at a plotfile there, so both legs already agree.
 inline bool
-initialization_plot_consumes_interval (bool restarting,
-                                       bool interval_diagnostic_selected) noexcept
+initialization_clears_interval (bool restarting,
+                                bool compute_mean_vars,
+                                const std::string& reset_mode) noexcept
 {
-    return !restarting && interval_diagnostic_selected;
+    return !restarting && compute_mean_vars && reset_mode == "plotfile";
 }
 
 } // namespace erf_interval_means

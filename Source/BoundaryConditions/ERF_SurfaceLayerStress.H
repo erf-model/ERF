@@ -15,7 +15,7 @@ namespace surface_layer_stress {
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
-conservative_to_kinematic_stress(
+conservative_to_kinematic_stress (
   amrex::Real conservative_stress, amrex::Real rho)
 {
   return conservative_stress / rho;
@@ -32,7 +32,7 @@ conservative_to_kinematic_stress(
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 bool
-lsm_flux_is_valid(
+lsm_flux_is_valid (
   bool has_flux, bool is_land, amrex::Real flux, amrex::Real undefined)
 {
   return has_flux && is_land && flux < undefined;
@@ -61,7 +61,7 @@ struct FaceStressResult
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 FaceStressResult
-combine_lsm_and_most_stress(
+combine_lsm_and_most_stress (
   amrex::Real rho_low,
   amrex::Real rho_high,
   amrex::Real kinematic_low,

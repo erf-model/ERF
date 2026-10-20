@@ -39,7 +39,7 @@
  * @return Clamped aerosol optical depth [0, 100]
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real diagnose_tau_aerosol_constant(amrex::Real tau_aerosol_const)
+amrex::Real diagnose_tau_aerosol_constant (amrex::Real tau_aerosol_const)
 {
     // Guard against invalid input
     if (!amrex::Math::isfinite(tau_aerosol_const)) {
@@ -74,7 +74,7 @@ amrex::Real diagnose_tau_aerosol_constant(amrex::Real tau_aerosol_const)
  * @return Clamped aerosol optical depth [0, 100]
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real diagnose_tau_aerosol_exponential(amrex::Real z_level,
+amrex::Real diagnose_tau_aerosol_exponential (amrex::Real z_level,
                                             amrex::Real dz,
                                             amrex::Real tau_surface,
                                             amrex::Real scale_height_m)
@@ -120,7 +120,7 @@ amrex::Real diagnose_tau_aerosol_exponential(amrex::Real z_level,
  * @return Zero
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real diagnose_tau_aerosol_table(int k)
+amrex::Real diagnose_tau_aerosol_table (int k)
 {
     // Future extension: implement per-level table lookup
     // For now, return 0 (no contribution)

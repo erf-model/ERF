@@ -4,10 +4,12 @@
 #include "ERF_Constants.H"
 #include "ERF_EddyViscosity.H"
 #include "ERF_RANSClosure.H"
+#include "ERF_CanopyTurbulence.H"
 #include "ERF_Diffusion.H"
 #include "ERF_PBLModels.H"
 #include "ERF_TileNoZ.H"
 #include "ERF_TerrainMetrics.H"
+#include "ERF_TerrainDiffusionLimits.H"
 #include "ERF_MoistUtils.H"
 #include "ERF_RichardsonNumber.H"
 
@@ -61,6 +63,13 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
         Real Cs = turbChoice.Cs;
         bool smag2d = turbChoice.smag2d;
 
+        // Opt-in limits of WRF's smag2d_km on the horizontal viscosity (see
+        // Smag2DLimitedViscosity).  The slope limiter needs the terrain slope, so it acts
+        // on terrain-fitted meshes only; SolverChoice aborts if it is asked for elsewhere.
+        bool l_smag2d_slope = smag2d && turbChoice.smag2d_slope_limiter && use_terrain_fitted_coords;
+        Real l_smag2d_cap   = (smag2d) ? turbChoice.smag2d_kh_cap : zero;
+        bool l_smag2d_limit = l_smag2d_slope || (l_smag2d_cap > zero);
+
         // Define variables required inside device lambdas (scalars only)
         Real l_abs_g = const_grav;
         Real l_Ri_crit = turbChoice.Ri_crit;
@@ -79,7 +88,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
             //       and the theta diffusion of every RK stage overwrites all z-faces (the
             //       surface layer the bottom face) before anything reads them, so the value
             //       written here was both misplaced and unused.  The TKE buoyancy source
-            //       reads the face fluxes of that diffusion (ERF_AddTKESources.H).
+            //       reads the face fluxes of that diffusion (ERF_TurbKESources.H).
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
             const Array4<Real const >& cell_data = cons_in.array(mfi);
             Array4<Real const> tau11 = Tau_lev[TauType::tau11]->array(mfi);
@@ -136,6 +145,17 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                 Real nu_turb_base_h = CsDeltaSqr_h * strain_rate_magnitude;
                 Real nu_turb_base_v = CsDeltaSqr_v * strain_rate_magnitude;
 
+                // WRF smag2d_km limits on K_h only, applied before the scalar diffusivities
+                // (Theta_h, Scalar_h, Q_h) are derived from Mom_h below; Mom_v is unchanged.
+                if (l_smag2d_limit) {
+                    Real alpha = one;
+                    if (l_smag2d_slope) {
+                        alpha = TerrainSlopeFactor(ComputeTerrainCellDrops(i,j,k,z_nd_arr));
+                    }
+                    nu_turb_base_h = Smag2DLimitedViscosity(nu_turb_base_h, strain_rate_magnitude,
+                                                            DeltaH, alpha, l_smag2d_cap, l_smag2d_slope);
+                }
+
                 Real stability_factor = one;
 
                 if (l_use_Ri_corr && l_has_xvel && l_has_yvel) {
@@ -183,7 +203,7 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
             //       and the theta diffusion of every RK stage overwrites all z-faces (the
             //       surface layer the bottom face) before anything reads them, so the value
             //       written here was both misplaced and unused.  The TKE buoyancy source
-            //       reads the face fluxes of that diffusion (ERF_AddTKESources.H).
+            //       reads the face fluxes of that diffusion (ERF_TurbKESources.H).
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
             const Array4<Real>& diss    = Diss.array(mfi);
 
@@ -448,15 +468,28 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
                     if (l_use_Ri_corr && l_has_xvel && l_has_yvel) {
                         Real N2 = zero;
                         Real S2_vert = zero;
+                        // Covered and multi-valued cells fall through both branches below
+                        // with no shear computed, so start from "not valid" and let the
+                        // branch that does the work say otherwise.
+                        bool shear_is_valid = false;
                         if (c_cflag(i,j,k).isRegular()) {
                             N2 = ComputeN2(i, j, k, dzInv, l_abs_g, cell_data, moisture_indices);
                             S2_vert = ComputeVerticalShear2(i, j, k, dzInv, u_arr, v_arr);
+                            shear_is_valid = true;
                         } else if (c_cflag(i,j,k).isSingleValued()) {
                             N2 = ComputeN2_EB(i, j, k, c_cflag, dzInv, l_abs_g, cell_data, moisture_indices);
-                            S2_vert = ComputeVerticalShear2_EB(i, j, k, c_cflag, u_vfrac, v_vfrac, dzInv, u_arr, v_arr);
+                            S2_vert = ComputeVerticalShear2_EB(i, j, k, c_cflag, u_vfrac, v_vfrac, dzInv, u_arr, v_arr, shear_is_valid);
                         }
-                        Real Ri = ComputeRichardson(N2, S2_vert);
-                        stability_factor = StabilityFunction(Ri, l_Ri_crit);
+                        // When the EB geometry leaves no usable shear stencil we keep
+                        // stability_factor = 1, i.e. no stratification damping: without a
+                        // trustworthy gradient we would rather leave the Smagorinsky
+                        // viscosity alone than suppress it on the strength of a Ri we do
+                        // not believe. This is a deliberate choice -- damping to 0 instead
+                        // would be just as defensible -- so change it knowingly.
+                        if (shear_is_valid) {
+                            Real Ri = ComputeRichardson(N2, S2_vert);
+                            stability_factor = StabilityFunction(Ri, l_Ri_crit);
+                        }
                     }
 
                     if (isotropic) {
@@ -582,6 +615,8 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
  * @param[in]  const_grav gravitational acceleration
  * @param[in]  SurfLayer optional surface-layer model
  * @param[in]  z_0 roughness length
+ * @param[in]  canopy canopy terms of the k-eqn model (erf.forest_canopy_*)
+ * @param[in]  forest_drag forest drag field C_d LAD, or null without a forest
  */
 void ComputeTurbulentViscosityRANS (int level,
                                     const MultiFab& cons_in,
@@ -594,7 +629,9 @@ void ComputeTurbulentViscosityRANS (int level,
                                     const TurbChoice& turbChoice,
                                     const Real const_grav,
                                     std::unique_ptr<SurfaceLayer>& SurfLayer,
-                                    const MultiFab* z_0)
+                                    const MultiFab* z_0,
+                                    const CanopyTurbulence& canopy,
+                                    const MultiFab* forest_drag)
 {
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
     const bool use_SurfLayer = (SurfLayer != nullptr);
@@ -626,6 +663,12 @@ void ComputeTurbulentViscosityRANS (int level,
         // floor on k: erf.tke_floor if set, otherwise machine epsilon
         const Real tke_floor  = amrex::max(turbChoice.tke_floor, std::numeric_limits<Real>::epsilon());
 
+        // Canopy cap of the turbulent length scale, L <= alpha / (C_d LAD)
+        const bool use_canopy_length = canopy.enabled && (canopy.length_alpha > zero);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!use_canopy_length || forest_drag,
+            "erf.forest_canopy_tke needs the forest drag field");
+        const Real canopy_alpha = canopy.length_alpha;
+
         // Clamped divisor: the select is if-converted, so 1/theta_ref runs even
         //   when theta_ref = 0 and would trip fpe_trap_zero (see ERF_SetupDiff.H)
         const bool use_ref_theta = (turbChoice.theta_ref > 0);
@@ -642,13 +685,15 @@ void ComputeTurbulentViscosityRANS (int level,
             const Array4<Real const>& d_arr  = wdist.const_array(mfi);
             const Array4<Real const>& z0_arr = (use_SurfLayer) ? z_0->const_array(mfi) : Array4<Real const>{};
             const Array4<Real const>& pblh_arr = (pblh_mf) ? pblh_mf->const_array(mfi) : Array4<Real const>{};
+            const Array4<Real const>& f_drag_arr = (use_canopy_length) ? forest_drag->const_array(mfi)
+                                                                        : Array4<Real const>{};
 
             // NOTE: the closures deliberately store no subgrid heat flux.  hfx_z (Hfx3)
             //       is z-nodal, (0,0,1), while the closure's -K dtheta/dz is cell-centred,
             //       and the theta diffusion of every RK stage overwrites all z-faces (the
             //       surface layer the bottom face) before anything reads them, so the value
             //       written here was both misplaced and unused.  The TKE buoyancy source
-            //       reads the face fluxes of that diffusion (ERF_AddTKESources.H).
+            //       reads the face fluxes of that diffusion (ERF_TurbKESources.H).
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
             const Array4<Real>& diss    = Diss.array(mfi);
 
@@ -691,6 +736,11 @@ void ComputeTurbulentViscosityRANS (int level,
                 // Turbulent length scale (neutral / stable Eq. 26 / unstable Eq. 28,
                 // the latter bounded through the smoothed Rt)
                 Real length = AL01::turb_length(l_g, N2, tke, Cmu0_pow3, inv_Cb_sq, Rt_crit, Rt_min, eps);
+                // In the canopy the eddies are limited by the foliage: cap L before the
+                // dissipation, Rt and the stability functions are evaluated from it
+                if (f_drag_arr) {
+                    length = canopy_turbulence::limited_length(length, f_drag_arr(i,j,k), canopy_alpha);
+                }
                 mu_turb(i, j, k, EddyDiff::Turb_lengthscale) = length;
 
                 // Dissipation rate (AL01, Eqn. 19)
@@ -814,6 +864,8 @@ void ComputeTurbulentViscosityRANS (int level,
  * @param[in]  ebfact EB factories for cell- and face-centered variables
  * @param[in]  vert_only flag for vertical components of eddyViscosity
  * @param[in]  qheating_rates radiation heating rates (SW, LW components)
+ * @param[in]  terrain_blank immersed forcing mask, or null
+ * @param[in]  forest_drag forest drag field C_d LAD, or null without a forest
  */
 void ComputeTurbulentViscosity (double dt,
                                 const MultiFab& xvel, const MultiFab& yvel,
@@ -836,7 +888,8 @@ void ComputeTurbulentViscosity (double dt,
                                 const eb_& ebfact,
                                 bool vert_only,
                                 const MultiFab* qheating_rates,
-                                const MultiFab* terrain_blank)
+                                const MultiFab* terrain_blank,
+                                const MultiFab* forest_drag)
 {
     BL_PROFILE_VAR("ComputeTurbulentViscosity()",ComputeTurbulentViscosity);
     //
@@ -887,7 +940,8 @@ void ComputeTurbulentViscosity (double dt,
                                       Diss,
                                       geom, use_terrain_fitted_coords,
                                       z_phys_nd, turbChoice, const_grav,
-                                      SurfLayer, z_0);
+                                      SurfLayer, z_0,
+                                      solverChoice.canopyTurb, forest_drag);
     }
 
     if (turbChoice.pbl_type == PBLType::MYJ) {
@@ -1045,6 +1099,42 @@ void ComputeTurbulentViscosity (double dt,
                     for (int n = 0; n < ncomp; n++) {
                         mu_turb(i,j,k,n) = mu_turb(i,j,k_hi,n);
                     }
+                }
+            });
+            //
+            // Edge and corner ghost cells at a C/F boundary are skipped above when every face
+            // neighbour toward the valid box is itself a C/F ghost cell, e.g. (i_lo-1,j_lo-1).
+            // Fill these from a cell that is valid at this level (in this grid or another),
+            // stepping toward the valid box in two directions (xy, xz, yz) before all three.
+            // The sources are never written in this block, and taking covered cells as well as
+            // our own keeps the result independent of how the level is divided into grids.
+            //
+            ParallelFor(mfi.growntilebox(1), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (mask_arr(i,j,k) != is_notcovered) { return; }
+
+                int si = amrex::min(amrex::max(i, i_lo), i_hi);
+                int sj = amrex::min(amrex::max(j, j_lo), j_hi);
+                int sk = amrex::min(amrex::max(k, k_lo), k_hi);
+                bool gx = (si != i);
+                bool gy = (sj != j);
+                bool gz = (sk != k);
+
+                // Already filled by one of the plane kernels above
+                if (gx && mask_arr(si,j,k) != is_notcovered) { return; }
+                if (gy && mask_arr(i,sj,k) != is_notcovered) { return; }
+                if (gz && mask_arr(i,j,sk) != is_notcovered) { return; }
+
+                int ii = si; int jj = sj; int kk = sk;
+                if        (gx && gy && mask_arr(si,sj,k ) != is_notcovered) {
+                    kk = k;
+                } else if (gx && gz && mask_arr(si,j ,sk) != is_notcovered) {
+                    jj = j;
+                } else if (gy && gz && mask_arr(i ,sj,sk) != is_notcovered) {
+                    ii = i;
+                }
+                for (int n = 0; n < ncomp; n++) {
+                    mu_turb(i,j,k,n) = mu_turb(ii,jj,kk,n);
                 }
             });
         } // mfi

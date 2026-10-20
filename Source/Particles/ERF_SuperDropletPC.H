@@ -52,7 +52,7 @@ class SuperDropletPC : public ERFPC
         }
 
         /*! \brief Destructor */
-        ~SuperDropletPC()
+        ~SuperDropletPC ()
         {
             if (m_mass_change_logging) {
                 fclose(m_mass_change_log);
@@ -78,7 +78,7 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Get vapour material */
         AMREX_FORCE_INLINE
-        virtual const MaterialProperties& getSpeciesMaterial(const Species::Name& a_name) const
+        virtual const MaterialProperties& getSpeciesMaterial (const Species::Name& a_name) const
         {
             for (auto& species : m_species_mat) {
                 if (species->m_name == a_name) { return *species; }
@@ -104,12 +104,12 @@ class SuperDropletPC : public ERFPC
         }
 
         /*! \brief Update device properties if material properties change */
-        void updateDeviceProperties();
+        void updateDeviceProperties ();
 
         /*! \brief Setup species and aerosol mass pointers from SOA */
         template<typename SOAType>
-        void setupMassPointers(SOAType& soa, SDPCDefn::SDSpeciesMassArr& sp_mass_ptrs,
-                               SDPCDefn::SDAerosolMassArr& ae_mass_ptrs) const
+        void setupMassPointers (SOAType& soa, SDPCDefn::SDSpeciesMassArr& sp_mass_ptrs,
+                                SDPCDefn::SDAerosolMassArr& ae_mass_ptrs) const
         {
             for (int i = 0; i < m_num_species; i++) {
                 sp_mass_ptrs[i] = soa.GetRealData(idx_s(i, m_num_aerosols, m_num_species)).data();
@@ -121,7 +121,7 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Update particle radius and total mass from species/aerosol masses */
         AMREX_GPU_DEVICE AMREX_FORCE_INLINE
-        static void updateParticleAttributes(
+        static void updateParticleAttributes (
             int particle_idx,
             amrex::ParticleReal* radius_ptr,
             amrex::ParticleReal* mass_ptr,
@@ -156,7 +156,7 @@ class SuperDropletPC : public ERFPC
         [[nodiscard]] virtual amrex::Vector<std::string> meshPlotVarNames () const override;
 
         /*! \brief Compute mesh variable from particles */
-        virtual void computeMeshVar( const std::string&,
+        virtual void computeMeshVar ( const std::string&,
                                      amrex::MultiFab&,
                                      const amrex::MultiFab&,
                                      const int ) const override;
@@ -173,7 +173,7 @@ class SuperDropletPC : public ERFPC
         void addParticles ( int a_lev, const MFPtr&, const SDInitProperties& );
 
         /*! \brief Set initial number of superdroplets per cell as a box with uniform density */
-        void setNumSDBoxDistribution( int a_lev,
+        void setNumSDBoxDistribution ( int a_lev,
                                       amrex::iMultiFab&,
                                       const int,
                                       const MFPtr&,
@@ -181,14 +181,14 @@ class SuperDropletPC : public ERFPC
                                       const bool );
 
         /*! \brief Scatter a box-level count of super-droplets over the injection box */
-        void setNumSDPerBox( int a_lev,
+        void setNumSDPerBox ( int a_lev,
                              amrex::iMultiFab&,
                              const int,
                              const amrex::RealBox&,
                              const unsigned int );
 
         /*! \brief Set initial number of superdroplets per cell as a bubble with uniform density */
-        void setNumSDBubbleDistribution( int a_lev,
+        void setNumSDBubbleDistribution ( int a_lev,
                                       amrex::iMultiFab&,
                                       const int,
                                       const MFPtr&,
@@ -518,10 +518,10 @@ class SuperDropletPC : public ERFPC
         amrex::Real m_recyc_zmax;
 
         /*! Method to initialize device properties */
-        void initializeDeviceProperties();
+        void initializeDeviceProperties ();
 
         /*! \brief Build ProcessContext with geometry and species info */
-        SDProcess::ProcessContext buildProcessContext(int a_lev) const
+        SDProcess::ProcessContext buildProcessContext (int a_lev) const
         {
             SDProcess::ProcessContext ctx;
             const amrex::Geometry& geom = m_gdb->Geom(a_lev);
@@ -548,7 +548,7 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Setup particle attribute pointers for a tile */
         template<typename SOAType, typename AOSType>
-        void setupParticlePointers(
+        void setupParticlePointers (
             SOAType& soa,
             AOSType& aos,
             SDProcess::ParticlePointers& ptrs) const
@@ -591,7 +591,7 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Common body for forEachParticleTile iterations */
         template<typename TileFunc>
-        void forEachParticleTileBody(
+        void forEachParticleTileBody (
             ParIterType& pti, int a_lev,
             const SDProcess::ProcessContext& ctx,
             TileFunc&& func)
@@ -610,7 +610,7 @@ class SuperDropletPC : public ERFPC
         /*! \brief Iterate over particle tiles with common setup (parallel) */
         template<typename TileFunc>
         AMREX_FORCE_INLINE
-        void forEachParticleTile(
+        void forEachParticleTile (
             int a_lev,
             const SDProcess::ProcessContext& ctx,
             TileFunc&& func)
@@ -628,7 +628,7 @@ class SuperDropletPC : public ERFPC
          */
         template<typename TileFunc>
         AMREX_FORCE_INLINE
-        void forEachParticleTileSerial(int a_lev, const SDProcess::ProcessContext& ctx, TileFunc&& func)
+        void forEachParticleTileSerial (int a_lev, const SDProcess::ProcessContext& ctx, TileFunc&& func)
         {
             for (ParIterType pti(*this, a_lev); pti.isValid(); ++pti) {
                 forEachParticleTileBody(pti, a_lev, ctx, std::forward<TileFunc>(func));
@@ -637,7 +637,7 @@ class SuperDropletPC : public ERFPC
 
         /*! \brief Lightweight iteration (no ProcessContext) */
         template<typename TileFunc>
-        void forEachParticleTile(int a_lev, TileFunc&& func)
+        void forEachParticleTile (int a_lev, TileFunc&& func)
         {
 #ifdef AMREX_USE_OMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -678,7 +678,7 @@ class SuperDropletPC : public ERFPC
                       const double );
 
         /*! \brief add super-droplet method-specific particle attributes */
-        void add_superdroplet_attributes();
+        void add_superdroplet_attributes ();
 
 };
 

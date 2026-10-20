@@ -405,7 +405,7 @@ SLM::Init (const int& /*lev*/,
  *  - Configures soil nudging and relaxation-height values.
  *  - Loads optional Noah-MP parameter tables and radiation settings.
  */
-void SLM::init_from_inputs()
+void SLM::init_from_inputs ()
 {
     ParmParse pp("slm");
     pp.query("landtype0", landtype0);
@@ -792,7 +792,7 @@ void SLM::init_from_inputs()
 /**
  * Loads the Noah-MP radiation lookup values used when no parameter file is supplied.
  */
-void SLM::load_builtin_radiation_parameters()
+void SLM::load_builtin_radiation_parameters ()
 {
     auto load_params = [](auto& params, const char* name, const auto& values)
     {
@@ -829,7 +829,7 @@ void SLM::load_builtin_radiation_parameters()
 /**
  * Initialize SLM
  */
-void SLM::slm_init()
+void SLM::slm_init ()
 {
     // validate the landtype flag
     const int landtype_min = landtype.min(0);
@@ -951,7 +951,7 @@ void SLM::slm_init()
 /**
  * Initializes local SLM fields from WRFInput data.
  */
-void SLM::init_wrfinput_vars()
+void SLM::init_wrfinput_vars ()
 {
     if (wrfinput_initialized) {
         return;
@@ -1224,7 +1224,7 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
  * Initializes the canopy-adjusted reference height on the current grid.
  */
 void
-SLM::initialize_zrefxy()
+SLM::initialize_zrefxy ()
 {
     const Real zlo = m_geom.ProbLo(2);
     const Real dz = m_geom.CellSize(2);
@@ -1336,7 +1336,7 @@ SLM::initialize_processed_state (const bool preserve_checkpoint_fields)
 /**
  * Helper function to set properties according to the IGBP class
  */
-void SLM::init_landtype()
+void SLM::init_landtype ()
 {
     const Real d_z0_soil = z0_soil;
 
@@ -1655,7 +1655,7 @@ void SLM::init_landtype()
 /**
  * Reads soil input file, initializes soil wetness and temperature
  */
-void SLM::init_soil_tw()
+void SLM::init_soil_tw ()
 {
     // TODO - read from input file
     const Real d_tabs_s = tabs_s;
@@ -1829,7 +1829,7 @@ void SLM::init_soil_tw()
 /**
  * Calculates center and face depths for each soil layer
  */
-void SLM::init_layer_depths()
+void SLM::init_layer_depths ()
 {
     const int d_khi_lsm = khi_lsm;
     const int d_klo_lsm = klo_lsm;
@@ -1874,7 +1874,7 @@ void SLM::init_layer_depths()
 /**
  * Initializes soil properties based on clay and sand percentages
  */
-void SLM::init_soil_vars()
+void SLM::init_soil_vars ()
 {
     const bool d_param_updated = params_updated;
 
@@ -1946,7 +1946,7 @@ void SLM::init_soil_vars()
     }
 }
 
-void SLM::init_slm_vars()
+void SLM::init_slm_vars ()
 {
     const int d_khi_lsm = khi_lsm;
 
@@ -2016,7 +2016,7 @@ void SLM::init_slm_vars()
 /**
  * Initializes diagnostics and radiation coupling fields from the SLM state.
  */
-void SLM::initialize_surface_outputs()
+void SLM::initialize_surface_outputs ()
 {
     const int d_khi_lsm = khi_lsm;
 
@@ -2110,7 +2110,7 @@ void SLM::initialize_surface_outputs()
 /**
  * Rebuilds restart fields that can be derived from the checkpoint state.
  */
-void SLM::rebuild_restart_fields()
+void SLM::rebuild_restart_fields ()
 {
     const int d_khi_lsm = khi_lsm;
 
@@ -2213,7 +2213,7 @@ void SLM::rebuild_restart_fields()
  *
  * Returns the vegetation and soil category names loaded from file as a vector of names.
  */
-SLMParameterTable SLM::ReadParameterFile(const std::string &filename, amrex::Vector<std::string> &veg_categories, amrex::Vector<std::string> &soil_categories)
+SLMParameterTable SLM::ReadParameterFile (const std::string &filename, amrex::Vector<std::string> &veg_categories, amrex::Vector<std::string> &soil_categories)
 {
     amrex::Print() << " SLM: Reading parameter file '" << filename << "'..." << std::endl;
 
@@ -2314,7 +2314,7 @@ SLMParameterTable SLM::ReadParameterFile(const std::string &filename, amrex::Vec
     return table;
 }
 
-void SLM::validate_parameter_tables()
+void SLM::validate_parameter_tables ()
 {
     using ParameterBlock = SLMParameterTable::mapped_type;
 
@@ -2527,7 +2527,7 @@ void SLM::validate_parameter_tables()
 /**
  * Overwrites any default SLM variables from values set in the parameter file
  */
-void SLM::init_from_params()
+void SLM::init_from_params ()
 {
     // do nothing if not using the parameter file
     if (!use_param_file) {
@@ -2711,7 +2711,7 @@ void SLM::init_from_params()
  * Updates LAI and SAI based on the current simulation time and monthly values
  * from the LAI and SAI tables.
  */
-void SLM::UpdateLAI(const amrex::MFIter &mfi)
+void SLM::UpdateLAI (const amrex::MFIter &mfi)
 {
     if (interpolate_lai) {
         Box box = mfi.tilebox();
@@ -2854,7 +2854,7 @@ void SLM::UpdateLAI(const amrex::MFIter &mfi)
 /**
  * Updates radiation parameters related to LAI
  */
-void SLM::UpdateLAIParameters(const amrex::MFIter &mfi)
+void SLM::UpdateLAIParameters (const amrex::MFIter &mfi)
 {
     Box box = mfi.tilebox();
     box.makeSlab(2, 0);
@@ -3211,7 +3211,7 @@ SLM::AdvanceSLM ()
 }
 
 
-void SLM::transfer_coeff(const amrex::MFIter &mfi)
+void SLM::transfer_coeff (const amrex::MFIter &mfi)
 {
     const int d_khi_lsm = khi_lsm;
     const Real dt = m_dt;
@@ -3435,7 +3435,7 @@ void SLM::transfer_coeff(const amrex::MFIter &mfi)
     });
 }
 
-void SLM::resistances(const amrex::MFIter &mfi)
+void SLM::resistances (const amrex::MFIter &mfi)
 {
     const int d_khi_lsm = khi_lsm;
     const int d_nz_lsm = m_nz_lsm;
@@ -3725,7 +3725,7 @@ void SLM::resistances(const amrex::MFIter &mfi)
     });
 }
 
-void SLM::fluxes_canopy(const amrex::MFIter &mfi)
+void SLM::fluxes_canopy (const amrex::MFIter &mfi)
 {
     const int d_khi_lsm = khi_lsm;
     const int d_nz_lsm = m_nz_lsm;
@@ -3882,7 +3882,7 @@ void SLM::fluxes_canopy(const amrex::MFIter &mfi)
     });
 }
 
-void SLM::solve_ground_skin_temperature(const amrex::MFIter &mfi)
+void SLM::solve_ground_skin_temperature (const amrex::MFIter &mfi)
 {
     const int d_khi_lsm = khi_lsm;
     const Real dt = m_dt;
@@ -4169,7 +4169,7 @@ void SLM::solve_ground_skin_temperature(const amrex::MFIter &mfi)
     });
 }
 
-void SLM::soil_water(const amrex::MFIter &mfi)
+void SLM::soil_water (const amrex::MFIter &mfi)
 {
     const int d_khi_lsm = khi_lsm;
     const int d_klo_lsm = klo_lsm;
@@ -4445,7 +4445,7 @@ void SLM::soil_water(const amrex::MFIter &mfi)
     });
 }
 
-void SLM::soil_temperature(const amrex::MFIter &mfi)
+void SLM::soil_temperature (const amrex::MFIter &mfi)
 {
     const int d_khi_lsm = khi_lsm;
     const int d_klo_lsm = klo_lsm;
@@ -4608,7 +4608,7 @@ void SLM::soil_temperature(const amrex::MFIter &mfi)
     });
 }
 
-void SLM::soil_nudging(const amrex::MFIter &mfi3d)
+void SLM::soil_nudging (const amrex::MFIter &mfi3d)
 {
     if (!dosoiltnudging && !dosoilwnudging) return;
 
@@ -4657,7 +4657,7 @@ void SLM::soil_nudging(const amrex::MFIter &mfi3d)
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real SLM::fh_calc(const amrex::Real &t, const amrex::Real &mps, const amrex::Real &sw, const amrex::Real &B)
+amrex::Real SLM::fh_calc (const amrex::Real &t, const amrex::Real &mps, const amrex::Real &sw, const amrex::Real &B)
 {
     amrex::Real moist_pot1 = std::max(amrex::Real(-100000.0), mps / (std::pow(std::max(amrex::Real(0.0001), sw), B)) / amrex::Real(1000.0));
     return std::min(amrex::Real(one), std::exp(moist_pot1*CONST_GRAV/amrex::Real(461.0)/t));
@@ -4665,8 +4665,8 @@ amrex::Real SLM::fh_calc(const amrex::Real &t, const amrex::Real &mps, const amr
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real
-SLM::linear_interp(const amrex::Real t0, const amrex::Real t1, const amrex::Real t,
-                   const amrex::Real x, const amrex::Real y)
+SLM::linear_interp (const amrex::Real t0, const amrex::Real t1, const amrex::Real t,
+                    const amrex::Real x, const amrex::Real y)
 {
   // returns a value that is linearly interpolated between x and y at time t. x
   // is at t=t0, y is at t=t1.
@@ -4677,7 +4677,7 @@ SLM::linear_interp(const amrex::Real t0, const amrex::Real t1, const amrex::Real
   return x + (y - x) * dt;
 }
 
-void SLM::Copy_State_to_Lsm(const MultiFab& cons_in, const MultiFab& u_in, const MultiFab& v_in)
+void SLM::Copy_State_to_Lsm (const MultiFab& cons_in, const MultiFab& u_in, const MultiFab& v_in)
 {
     int khi = khi_lsm;
 
@@ -4815,7 +4815,7 @@ void SLM::Copy_State_to_Lsm(const MultiFab& cons_in, const MultiFab& u_in, const
 
 
 void
-SLM::set_precip_input(const amrex::MultiFab* precip_in)
+SLM::set_precip_input (const amrex::MultiFab* precip_in)
 {
     int khi = khi_lsm;
 
@@ -4844,8 +4844,8 @@ SLM::set_precip_input(const amrex::MultiFab* precip_in)
 }
 
 void
-SLM::set_terrain_inputs(const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& sst_in,
-                        const amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_in)
+SLM::set_terrain_inputs (const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& sst_in,
+                         const amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_in)
 {
     if (!first_step)
     {
@@ -4908,7 +4908,7 @@ SLM::set_terrain_inputs(const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& s
 }
 
 
-void SLM::Copy_Lsm_to_State(MultiFab& cons_in)
+void SLM::Copy_Lsm_to_State (MultiFab& cons_in)
 {
     for ( amrex::MFIter mfi(cons_in,amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const auto& box3d = mfi.tilebox();
@@ -4930,7 +4930,7 @@ void SLM::Copy_Lsm_to_State(MultiFab& cons_in)
     cons_in.FillBoundary(m_geom.periodicity());
 }
 
-void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real cur_time, const std::string plot_prefix, const int level_step, const int /*lev*/, const int /*finest_lev*/, amrex::MultiFab &fab, amrex::Geometry &geom, amrex::Vector<std::string> &varnames)
+void SLM::writeSLM_Data (const PlotFileType plotfile_type, const amrex::Real cur_time, const std::string plot_prefix, const int level_step, const int /*lev*/, const int /*finest_lev*/, amrex::MultiFab &fab, amrex::Geometry &geom, amrex::Vector<std::string> &varnames)
 {
 #ifndef ERF_USE_NETCDF
     amrex::ignore_unused(cur_time, plot_prefix, level_step);
@@ -5098,10 +5098,10 @@ void SLM::writeSLM_Data(const PlotFileType plotfile_type, const amrex::Real cur_
 // from BATS
 // ----------------------------------------------------------------------
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void SLM::snow_age_noahmp(amrex::Real dt, amrex::Real tg, amrex::Real sneqvo, amrex::Real sneqv,
-                          amrex::Real tau0, amrex::Real grain_growth, amrex::Real extra_growth,
-                          amrex::Real dirt_soot, amrex::Real swemx,
-                          amrex::Real& tauss, amrex::Real& fage)
+void SLM::snow_age_noahmp (amrex::Real dt, amrex::Real tg, amrex::Real sneqvo, amrex::Real sneqv,
+                           amrex::Real tau0, amrex::Real grain_growth, amrex::Real extra_growth,
+                           amrex::Real dirt_soot, amrex::Real swemx,
+                           amrex::Real& tauss, amrex::Real& fage)
 {
     //input
     //  DT        !main time step (s)
@@ -5151,11 +5151,11 @@ void SLM::snow_age_noahmp(amrex::Real dt, amrex::Real tg, amrex::Real sneqvo, am
 // SUBROUTINE SNOWALB_BATS
 // --------------------------------------------------------------------------------------------------
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void SLM::snowalb_bats_noahmp(int /*nband*/, amrex::Real /*fsno*/, amrex::Real cosz, amrex::Real fage,
-                              amrex::Real bats_cosz, amrex::Real bats_vis_new, amrex::Real bats_nir_new,
-                              amrex::Real bats_vis_age, amrex::Real bats_nir_age,
-                              amrex::Real bats_vis_dir, amrex::Real bats_nir_dir,
-                              amrex::Real* albsnd, amrex::Real* albsni)
+void SLM::snowalb_bats_noahmp (int /*nband*/, amrex::Real /*fsno*/, amrex::Real cosz, amrex::Real fage,
+                               amrex::Real bats_cosz, amrex::Real bats_vis_new, amrex::Real bats_nir_new,
+                               amrex::Real bats_vis_age, amrex::Real bats_nir_age,
+                               amrex::Real bats_vis_dir, amrex::Real bats_nir_dir,
+                               amrex::Real* albsnd, amrex::Real* albsni)
 {
     // --------------------------------------------------------------------------------------------------
     // input
@@ -5206,11 +5206,11 @@ void SLM::snowalb_bats_noahmp(int /*nband*/, amrex::Real /*fsno*/, amrex::Real c
 // SUBROUTINE GROUNDALB
 // --------------------------------------------------------------------------------------------------
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void SLM::groundalb_noahmp(int /*nsoil*/, int nband, int /*ice*/, int ist, amrex::Real fsno,
-                           const amrex::Real* smc, const amrex::Real* albsnd, const amrex::Real* albsni,
-                           amrex::Real cosz, amrex::Real tg,
-                           const amrex::Real* albsat, const amrex::Real* albdry, const amrex::Real* alblak,
-                           amrex::Real* albgrd, amrex::Real* albgri)
+void SLM::groundalb_noahmp (int /*nsoil*/, int nband, int /*ice*/, int ist, amrex::Real fsno,
+                            const amrex::Real* smc, const amrex::Real* albsnd, const amrex::Real* albsni,
+                            amrex::Real cosz, amrex::Real tg,
+                            const amrex::Real* albsat, const amrex::Real* albdry, const amrex::Real* alblak,
+                            amrex::Real* albgrd, amrex::Real* albgri)
 {
     // --------------------------------------------------------------------------------------------------
     //input
@@ -5268,15 +5268,15 @@ void SLM::groundalb_noahmp(int /*nsoil*/, int nband, int /*ice*/, int ist, amrex
 // flux given an underlying surface with known albedo.
 // --------------------------------------------------------------------------------------------------
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void SLM::twostream_noahmp(int ib, int ic, int /*vegtyp*/, amrex::Real cosz, amrex::Real vai,
-                           amrex::Real fwet, amrex::Real t, const amrex::Real* albgrd, const amrex::Real* albgri,
-                           const amrex::Real* rho, const amrex::Real* tau, amrex::Real fveg, int /*ist*/,
-                           amrex::Real xl, amrex::Real omegas_param, amrex::Real betads, amrex::Real betais,
-                           int opt_rad, amrex::Real rc, amrex::Real hvt, amrex::Real hvb, amrex::Real /*den*/,
-                           amrex::Real* fab, amrex::Real* fre, amrex::Real* ftd, amrex::Real* fti,
-                           amrex::Real& gdir, amrex::Real* frev, amrex::Real* freg,
-                           amrex::Real& bgap, amrex::Real& wgap,
-                           amrex::Real& xl_out, amrex::Real& chil_out, amrex::Real& phi1_out, amrex::Real& phi2_out)
+void SLM::twostream_noahmp (int ib, int ic, int /*vegtyp*/, amrex::Real cosz, amrex::Real vai,
+                            amrex::Real fwet, amrex::Real t, const amrex::Real* albgrd, const amrex::Real* albgri,
+                            const amrex::Real* rho, const amrex::Real* tau, amrex::Real fveg, int /*ist*/,
+                            amrex::Real xl, amrex::Real omegas_param, amrex::Real betads, amrex::Real betais,
+                            int opt_rad, amrex::Real rc, amrex::Real hvt, amrex::Real hvb, amrex::Real /*den*/,
+                            amrex::Real* fab, amrex::Real* fre, amrex::Real* ftd, amrex::Real* fti,
+                            amrex::Real& gdir, amrex::Real* frev, amrex::Real* freg,
+                            amrex::Real& bgap, amrex::Real& wgap,
+                            amrex::Real& xl_out, amrex::Real& chil_out, amrex::Real& phi1_out, amrex::Real& phi2_out)
 {
     // --------------------------------------------------------------------------------------------------
     // input
@@ -5505,14 +5505,14 @@ void SLM::twostream_noahmp(int ib, int ic, int /*vegtyp*/, amrex::Real cosz, amr
 // SUBROUTINE SURRAD
 // --------------------------------------------------------------------------------------------------
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void SLM::surrad_noahmp(amrex::Real mpe, amrex::Real fsun, amrex::Real fsha, amrex::Real elai, amrex::Real vai,
-                        amrex::Real laisun, amrex::Real laisha, const amrex::Real* solad, const amrex::Real* solai,
-                        const amrex::Real* fabd, const amrex::Real* fabi, const amrex::Real* ftdd,
-                        const amrex::Real* ftid, const amrex::Real* ftii, const amrex::Real* albgrd,
-                        const amrex::Real* albgri, const amrex::Real* albd, const amrex::Real* albi,
-                        const amrex::Real* frevd, const amrex::Real* frevi, const amrex::Real* fregd, const amrex::Real* fregi,
-                        amrex::Real& parsun, amrex::Real& parsha, amrex::Real& sav, amrex::Real& sag,
-                        amrex::Real& fsa, amrex::Real& fsr, amrex::Real& fsrv, amrex::Real& fsrg)
+void SLM::surrad_noahmp (amrex::Real mpe, amrex::Real fsun, amrex::Real fsha, amrex::Real elai, amrex::Real vai,
+                         amrex::Real laisun, amrex::Real laisha, const amrex::Real* solad, const amrex::Real* solai,
+                         const amrex::Real* fabd, const amrex::Real* fabi, const amrex::Real* ftdd,
+                         const amrex::Real* ftid, const amrex::Real* ftii, const amrex::Real* albgrd,
+                         const amrex::Real* albgri, const amrex::Real* albd, const amrex::Real* albi,
+                         const amrex::Real* frevd, const amrex::Real* frevi, const amrex::Real* fregd, const amrex::Real* fregi,
+                         amrex::Real& parsun, amrex::Real& parsha, amrex::Real& sav, amrex::Real& sag,
+                         amrex::Real& fsa, amrex::Real& fsr, amrex::Real& fsrv, amrex::Real& fsrg)
 {
     // --------------------------------------------------------------------------------------------------
     // input
@@ -5625,7 +5625,7 @@ void SLM::surrad_noahmp(amrex::Real mpe, amrex::Real fsun, amrex::Real fsha, amr
 // --------------------------------------------------------------------------------------------------
 // SUBROUTINE RADIATION_NOAHMP - Main NOAHMP radiation routine
 // --------------------------------------------------------------------------------------------------
-void SLM::radiation_noahmp(const amrex::MFIter &mfi)
+void SLM::radiation_noahmp (const amrex::MFIter &mfi)
 {
     const int d_khi_lsm = khi_lsm;
     const int d_opt_rad = opt_rad;

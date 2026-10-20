@@ -14,14 +14,14 @@ extern "C" {
  *
  * @param morr_rimed_ice: 0 for graupel, 1 for hail configuration
  */
-void morr_two_moment_init_c(int morr_rimed_ice, int morr_noice);
+void morr_two_moment_init_c (int morr_rimed_ice, int morr_noice);
 
 /**
  * Set the constant droplet concentration (NDCNST) for Morrison microphysics
  *
  * @param ndcnst_in: Droplet number concentration in cm^-3
  */
-void set_morrison_ndcnst_c(double ndcnst_in);
+void set_morrison_ndcnst_c (double ndcnst_in);
 
 /**
  * C interface to the Fortran MP_MORR_TWO_MOMENT routine.
@@ -29,7 +29,7 @@ void set_morrison_ndcnst_c(double ndcnst_in);
  * @note: All array dimensions must match between C++ and Fortran calls.
  * @note: Arrays must be allocated in C++ before passing to this routine.
  */
-void mp_morr_two_moment_c(
+void mp_morr_two_moment_c (
     int itimestep,
     // 3D arrays for hydrometeors and state variables
     double* th, double* qv, double* qc, double* qr, double* qi, double* qs, double* qg,

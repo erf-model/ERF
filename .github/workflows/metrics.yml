@@ -1,0 +1,29 @@
+name: CI metrics
+
+# Every Monday: how many merges, how many went red and where, how long a merge and
+# a PR commit took to get a full signal, how long jobs queued, and what a merge
+# costs. Into the job summary; nothing is stored. See metrics/ci_metrics.py.
+on:
+  schedule:
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Window in days"
+        default: "7"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  metrics:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Compute
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DAYS: ${{ inputs.days || '7' }}
+        run: python3 .github/workflows/metrics/ci_metrics.py --repo "$GITHUB_REPOSITORY" --days "$DAYS"

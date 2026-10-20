@@ -68,7 +68,7 @@ expected x/y/z faces from mask: [900, 900, 256]  reported: [900, 900, 256]  nfac
 rank independence: PASS (faces=2056 (x=900 y=900 z=256) buildings=1 area=51400 m2)
 == checkpoint at step 2, restart to step 4 (4 ranks)
 state restored: yes
-restart CSV row matches straight (exact, atmosphere columns to 1e-3): PASS
+restart CSV row matches straight (exact): PASS
 == the same restart on 1 rank (the state field is redistributed from the 4-rank checkpoint)
 restart on 1 rank equals the restart on the checkpoint's rank count: PASS
 == restart with erf.ibseb.n_slab_layers = 6 against the 4-layer checkpoint (must abort)
@@ -78,4 +78,4 @@ checkpoint of other buildings rejected: PASS
 ALL PASS
 ```
 
-The restart comparison is exact for the geometry, skin and slab columns of the report row and allows 1e-3 relative on the two columns read from the atmosphere (net longwave, sensible flux), which the immersed forcing does not restart bit-for-bit (see SlabConduction).
+The restart comparison is exact for every column of the report row, including the two read from the atmosphere (net longwave, sensible flux). Until October 2026 a restart rebuilt the immersed forcing's blanking without clearing the almost-fluid cells, and those two differed by up to 5e-5 relative (sensible flux 222.9486 against 222.9373 W/m2).

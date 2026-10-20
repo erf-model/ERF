@@ -54,7 +54,7 @@ public:
      *
      * @param[in] other source object
      */
-    MOSTAverage& operator=(MOSTAverage&& other)  noexcept = delete;
+    MOSTAverage& operator= (MOSTAverage&& other)  noexcept = delete;
 
     /**
      * Deleted copy constructor.
@@ -68,7 +68,7 @@ public:
      *
      * @param[in] other source object
      */
-    MOSTAverage& operator=(const MOSTAverage& other) = delete;
+    MOSTAverage& operator= (const MOSTAverage& other) = delete;
 
     /**
      * Make MOST-average data structures at one level.

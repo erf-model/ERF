@@ -29,7 +29,7 @@ public:
     ~PlaneAverage () = default;
 
     AMREX_FORCE_INLINE
-    void operator()();
+    void operator() ();
 
     /** evaluate line average at specific location for any average component */
     [[nodiscard]] AMREX_FORCE_INLINE
@@ -194,7 +194,7 @@ PlaneAverage::line_average (int comp, amrex::Gpu::HostVector<amrex::Real>& l_vec
  * Compute the plane averages for the stored field.
  */
 void
-PlaneAverage::operator()()
+PlaneAverage::operator() ()
 {
     std::fill(m_line_average.begin(), m_line_average.end(), zero);
     switch (m_axis) {

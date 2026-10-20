@@ -11,6 +11,8 @@
 
 #include <AMReX_EB2.H>
 #include <AMReX_EBFabFactory.H>
+#include <AMReX_Dim3.H>
+#include <AMReX_GpuContainers.H>
 
 #include <ERF_EBAux.H>
 
@@ -24,6 +26,8 @@
 class eb_ {
 
   public:
+
+    using CutCellList = amrex::Gpu::DeviceVector<amrex::Dim3>;
 
     //! Destroy the EB factory manager.
     ~eb_ ();
@@ -98,6 +102,24 @@ class eb_ {
     #define USE_FC_FACTORY 0 // Default to 0: use eb_aux_ (original)
     #endif
 
+    //! Return cut x-faces owned by a grid, cached when the EB factories are built.
+    [[nodiscard]] CutCellList const& get_u_cut_cells (int grid_index) const noexcept
+    {
+        return m_u_cut_cells[grid_index];
+    }
+
+    //! Return cut y-faces owned by a grid, cached when the EB factories are built.
+    [[nodiscard]] CutCellList const& get_v_cut_cells (int grid_index) const noexcept
+    {
+        return m_v_cut_cells[grid_index];
+    }
+
+    //! Return cut z-faces owned by a grid, cached when the EB factories are built.
+    [[nodiscard]] CutCellList const& get_w_cut_cells (int grid_index) const noexcept
+    {
+        return m_w_cut_cells[grid_index];
+    }
+
     //! Return the cell-centered EB factory.
     const std::unique_ptr<amrex::EBFArrayBoxFactory>& get_const_factory () const noexcept { return m_factory; }
 
@@ -119,18 +141,18 @@ class eb_ {
 
     #if USE_FC_FACTORY
     //! Return the native AMReX x-face EB factory.
-    amrex::EBFArrayBoxFactory const* get_u_const_factory() const noexcept { return m_u_factory_fc.get(); }
+    amrex::EBFArrayBoxFactory const* get_u_const_factory () const noexcept { return m_u_factory_fc.get(); }
     //! Return the native AMReX y-face EB factory.
-    amrex::EBFArrayBoxFactory const* get_v_const_factory() const noexcept { return m_v_factory_fc.get(); }
+    amrex::EBFArrayBoxFactory const* get_v_const_factory () const noexcept { return m_v_factory_fc.get(); }
     //! Return the native AMReX z-face EB factory.
-    amrex::EBFArrayBoxFactory const* get_w_const_factory() const noexcept { return m_w_factory_fc.get(); }
+    amrex::EBFArrayBoxFactory const* get_w_const_factory () const noexcept { return m_w_factory_fc.get(); }
     #else
     //! Return the ERF auxiliary x-face EB factory.
-    eb_aux_ const* get_u_const_factory() const noexcept { return &m_u_factory; }
+    eb_aux_ const* get_u_const_factory () const noexcept { return &m_u_factory; }
     //! Return the ERF auxiliary y-face EB factory.
-    eb_aux_ const* get_v_const_factory() const noexcept { return &m_v_factory; }
+    eb_aux_ const* get_v_const_factory () const noexcept { return &m_v_factory; }
     //! Return the ERF auxiliary z-face EB factory.
-    eb_aux_ const* get_w_const_factory() const noexcept { return &m_w_factory; }
+    eb_aux_ const* get_w_const_factory () const noexcept { return &m_w_factory; }
     #endif
 
     //! Forward declaration for EB surface output.
@@ -162,6 +184,15 @@ class eb_ {
     std::unique_ptr<amrex::EBFArrayBoxFactory> m_v_factory_fc = nullptr;
     std::unique_ptr<amrex::EBFArrayBoxFactory> m_w_factory_fc = nullptr;
 
+    // Persistent per-grid cut-face lists for sparse GPU wall-correction launches.
+    amrex::Vector<CutCellList> m_u_cut_cells;
+    amrex::Vector<CutCellList> m_v_cut_cells;
+    amrex::Vector<CutCellList> m_w_cut_cells;
+
+    void build_cut_cell_lists (
+        amrex::FabArray<amrex::EBCellFlagFab> const& flags,
+        amrex::Vector<CutCellList>& cut_cells);
+
     /**
      * \brief Build terrain EB geometry for the supplied Geometry.
      * \param a_geom Geometry used to define the EB index space.
@@ -188,7 +219,7 @@ class eb_ {
 
     //! Return mutable EB cell flags from an AMReX factory.
     inline amrex::FabArray<amrex::EBCellFlagFab>&
-    getNonConstEBCellFlags(const amrex::EBFArrayBoxFactory& ebfact)
+    getNonConstEBCellFlags (const amrex::EBFArrayBoxFactory& ebfact)
     {
       const amrex::FabArray<amrex::EBCellFlagFab>& flags_const = ebfact.getMultiEBCellFlagFab();
       return const_cast<amrex::FabArray<amrex::EBCellFlagFab>&>(flags_const);
@@ -196,7 +227,7 @@ class eb_ {
 
     //! Return mutable volume fractions from an AMReX factory.
     inline amrex::MultiFab&
-    getNonConstVolFrac(const amrex::EBFArrayBoxFactory& ebfact)
+    getNonConstVolFrac (const amrex::EBFArrayBoxFactory& ebfact)
     {
       const amrex::MultiFab& vfrac_const = ebfact.getVolFrac();
       return const_cast<amrex::MultiFab&>(vfrac_const);
@@ -204,7 +235,7 @@ class eb_ {
 
     //! Return mutable cell centroids from an AMReX factory.
     inline amrex::MultiCutFab&
-    getNonConstCentroid(const amrex::EBFArrayBoxFactory& ebfact)
+    getNonConstCentroid (const amrex::EBFArrayBoxFactory& ebfact)
     {
       const amrex::MultiCutFab& vcent_const = ebfact.getCentroid();
       return const_cast<amrex::MultiCutFab&>(vcent_const);
@@ -212,7 +243,7 @@ class eb_ {
 
     //! Return mutable area-fraction arrays from an AMReX factory.
     inline amrex::Array<amrex::MultiCutFab*, AMREX_SPACEDIM>
-    getNonConstAreaFrac(const amrex::EBFArrayBoxFactory& ebfact)
+    getNonConstAreaFrac (const amrex::EBFArrayBoxFactory& ebfact)
     {
       auto afrac_const = ebfact.getAreaFrac();
       amrex::Array<amrex::MultiCutFab*, AMREX_SPACEDIM> afrac;
@@ -224,7 +255,7 @@ class eb_ {
 
     //! Return mutable face-centroid arrays from an AMReX factory.
     inline amrex::Array<amrex::MultiCutFab*, AMREX_SPACEDIM>
-    getNonConstFaceCent(const amrex::EBFArrayBoxFactory& ebfact)
+    getNonConstFaceCent (const amrex::EBFArrayBoxFactory& ebfact)
     {
       auto fcent_const = ebfact.getFaceCent();
       amrex::Array<amrex::MultiCutFab*, AMREX_SPACEDIM> fcent;

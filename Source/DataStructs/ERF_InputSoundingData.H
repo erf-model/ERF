@@ -479,7 +479,7 @@ public:
         return z_inp_sound[itime].size();
     }
 
-    void set_start_time(amrex::Real start_time)
+    void set_start_time (amrex::Real start_time)
     {
         for (int i = 0; i < n_sounding_times; i++)
         {
