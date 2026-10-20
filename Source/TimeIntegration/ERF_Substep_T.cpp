@@ -38,6 +38,7 @@ using namespace amrex;
  * @param[inout] fr_as_fine YAFluxRegister at level l at level l-1 / l   interface
  * @param[in   ] l_use_moisture
  * @param[in   ] l_reflux should we add fluxes to the FluxRegisters?
+ * @param[in   ] l_real_bc
  * @param[in   ] l_damp_coef
  */
 
@@ -100,6 +101,10 @@ void erf_substep_T (int step, int /*nrk*/,
     const Real* dx = geom.CellSize();
     const GpuArray<Real, AMREX_SPACEDIM> dxInv = geom.InvCellSizeArray();
 
+    // Set gravity as a vector
+    const    Array<Real,AMREX_SPACEDIM> grav{zero, zero, -gravity};
+    const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
+
     Real dxi = dxInv[0];
     Real dyi = dxInv[1];
     Real dzi = dxInv[2];
@@ -121,17 +126,13 @@ void erf_substep_T (int step, int /*nrk*/,
     MultiFab     coeff_P_mf(fast_coeffs, make_alias, 3, 1);
     MultiFab     coeff_Q_mf(fast_coeffs, make_alias, 4, 1);
 
-    // *************************************************************************
-    // Set gravity as a vector
-    const    Array<Real,AMREX_SPACEDIM> grav{zero, zero, -gravity};
-    const GpuArray<Real,AMREX_SPACEDIM> grav_gpu{grav[0], grav[1], grav[2]};
+    MultiFab Omega(S_data[IntVars::zmom].boxArray(), dm, 1, 1);
 
     MultiFab extrap(S_data[IntVars::cons].boxArray(),S_data[IntVars::cons].DistributionMap(),1,1);
 
     // *************************************************************************
-    // First set up some arrays we'll need
+    // Set up data that depends upon the "old" state
     // *************************************************************************
-
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -156,15 +157,17 @@ void erf_substep_T (int step, int /*nrk*/,
         const Array4<const Real>& stage_ymom = S_stage_data[IntVars::ymom].const_array(mfi);
         const Array4<const Real>& stage_zmom = S_stage_data[IntVars::zmom].const_array(mfi);
 
+        const Array4<Real>& theta_extrap = extrap.array(mfi);
+        const Array4<const Real>& prim   = S_stage_prim.const_array(mfi);
+
         Box  bx = mfi.validbox();
-        //
+
         // NOTE: growntilebox / grownnodaltilebox, not the tilebox grown by hand.  Growing by
         //       hand pushes every tile one cell past its own share of the grid, so once the
         //       grid is tiled two tiles store to the same cells -- a data race under OpenMP,
         //       even though both store the same value.  The union of the tiles, and the values
         //       stored, are unchanged, and this is identical to the old expression when there
         //       is one tile per grid.
-        //
         Box gbx = mfi.growntilebox(1);
 
         if (step == 0) {
@@ -181,12 +184,16 @@ void erf_substep_T (int step, int /*nrk*/,
         const auto& bx_lo = lbound(bx);
         const auto& bx_hi = ubound(bx);
 
+        // *********************************************************************
+        // Populate "old" perturbations in momenta
+        // *********************************************************************
         ParallelFor(gtbx, gtby, gtbz,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho_u(i,j,k) = prev_xmom(i,j,k) - stage_xmom(i,j,k);
             if (k == bx_lo.z && k != domlo.z) {
                 old_drho_u(i,j,k-1) = old_drho_u(i,j,k);
-            } else if (k == bx_hi.z) {
+            }
+            if (k == bx_hi.z) {
                 old_drho_u(i,j,k+1) = old_drho_u(i,j,k);
             }
         },
@@ -194,7 +201,8 @@ void erf_substep_T (int step, int /*nrk*/,
             old_drho_v(i,j,k) = prev_ymom(i,j,k) - stage_ymom(i,j,k);
             if (k == bx_lo.z && k != domlo.z) {
                 old_drho_v(i,j,k-1) = old_drho_v(i,j,k);
-            } else if (k == bx_hi.z) {
+            }
+            if (k == bx_hi.z) {
                 old_drho_v(i,j,k+1) = old_drho_v(i,j,k);
             }
         },
@@ -202,12 +210,14 @@ void erf_substep_T (int step, int /*nrk*/,
             old_drho_w(i,j,k) = prev_zmom(i,j,k) - stage_zmom(i,j,k);
         });
 
-        const Array4<Real>& theta_extrap = extrap.array(mfi);
-        const Array4<const Real>& prim   = S_stage_prim.const_array(mfi);
-
+        // *********************************************************************
+        // Populate "old" perturbations in Rho & RhoTheta and lagged RhoTheta
+        // *********************************************************************
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
             old_drho(i,j,k)       = cur_cons(i,j,k,Rho_comp)      - stage_cons(i,j,k,Rho_comp);
             old_drho_theta(i,j,k) = cur_cons(i,j,k,RhoTheta_comp) - stage_cons(i,j,k,RhoTheta_comp);
+
+            // Compute theta extrap for lateral momenta pressure gradient
             if (step == 0) {
                 theta_extrap(i,j,k) = old_drho_theta(i,j,k);
             } else {
@@ -215,23 +225,12 @@ void erf_substep_T (int step, int /*nrk*/,
                   ( old_drho_theta(i,j,k) - lagged_arr(i,j,k) );
             }
 
+            // Convert to Theta_m
             // NOTE: qv is not changing over the fast steps so we use the stage data
             Real qv = (l_use_moisture) ? prim(i,j,k,PrimQ1_comp) : zero;
             theta_extrap(i,j,k) *= (one + RvOverRd*qv);
-        });
-    } // mfi
 
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-    for ( MFIter mfi(S_stage_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-    {
-        // We define lagged_delta_rt for our next step as the current delta_rt
-        // (growntilebox, not a hand-grown tilebox -- see the note above)
-        Box gbx = mfi.growntilebox(1);
-        const Array4<Real>& old_drho_theta = Delta_rho_theta.array(mfi);
-        const Array4<Real>& lagged_arr     = lagged_delta_rt.array(mfi);
-        ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            // Save Theta^{'',n-1} for theta extrap next substep
             lagged_arr(i,j,k) = old_drho_theta(i,j,k);
         });
     } // mfi
@@ -239,7 +238,6 @@ void erf_substep_T (int step, int /*nrk*/,
     // *************************************************************************
     // Define updates in the current RK stage
     // *************************************************************************
-
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
 #endif
@@ -291,7 +289,7 @@ void erf_substep_T (int step, int /*nrk*/,
         // the ghost cells in New_rho_u/v/w will match old_drho_u/v/w
 
         // *********************************************************************
-        // Define updates in the RHS of {x, y, z}-momentum equations
+        // Explicit update for lateral momenta
         // *********************************************************************
         {
         BL_PROFILE("substep_xymom_T");
@@ -309,8 +307,8 @@ void erf_substep_T (int step, int /*nrk*/,
                 Real gp_zeta_on_iface = (k == 0) ?
                    myhalf  * dzi * ( theta_extrap(i-1,j,k+1) + theta_extrap(i,j,k+1)
                                    - theta_extrap(i-1,j,k  ) - theta_extrap(i,j,k  ) ) :
-                   fourth * dzi * ( theta_extrap(i-1,j,k+1) + theta_extrap(i,j,k+1)
-                                  - theta_extrap(i-1,j,k-1) - theta_extrap(i,j,k-1) );
+                   fourth  * dzi * ( theta_extrap(i-1,j,k+1) + theta_extrap(i,j,k+1)
+                                   - theta_extrap(i-1,j,k-1) - theta_extrap(i,j,k-1) );
                 Real gpx = (l_real_bc && (level==0) && (i==ilo || i==ihi)) ? Real(0.) :
                   gp_xi - (met_h_xi / met_h_zeta) * gp_zeta_on_iface;
 
@@ -326,7 +324,8 @@ void erf_substep_T (int step, int /*nrk*/,
                                                         + dtau * xmom_src_arr(i,j,k);
                 if (k == bx_lo.z && k != domlo.z) {
                     new_drho_u(i,j,k-1) = new_drho_u(i,j,k);
-                } else if (k == bx_hi.z) {
+                }
+                if (k == bx_hi.z) {
                     new_drho_u(i,j,k+1) = new_drho_u(i,j,k);
                 }
 
@@ -343,12 +342,12 @@ void erf_substep_T (int step, int /*nrk*/,
                 // Add (negative) gradient of (rho theta) multiplied by lagged "pi"
                 Real met_h_eta  = Compute_h_eta_AtJface(i, j, k, dxInv, z_nd);
                 Real met_h_zeta = Compute_h_zeta_AtJface(i, j, k, dxInv, z_nd);
-                Real gp_eta = (theta_extrap(i,j,k) -theta_extrap(i,j-1,k)) * dyi;
+                Real gp_eta = (theta_extrap(i,j,k) - theta_extrap(i,j-1,k)) * dyi;
                 Real gp_zeta_on_jface = (k == 0) ?
                     myhalf  * dzi * ( theta_extrap(i,j,k+1) + theta_extrap(i,j-1,k+1)
                                     - theta_extrap(i,j,k  ) - theta_extrap(i,j-1,k  ) ) :
-                    fourth * dzi * ( theta_extrap(i,j,k+1) + theta_extrap(i,j-1,k+1)
-                                   - theta_extrap(i,j,k-1) - theta_extrap(i,j-1,k-1) );
+                    fourth  * dzi * ( theta_extrap(i,j,k+1) + theta_extrap(i,j-1,k+1)
+                                    - theta_extrap(i,j,k-1) - theta_extrap(i,j-1,k-1) );
                 Real gpy = (l_real_bc && (level==0) && (j==jlo || j==jhi)) ? Real(0.) :
                   gp_eta - (met_h_eta / met_h_zeta) * gp_zeta_on_jface;
 
@@ -365,7 +364,8 @@ void erf_substep_T (int step, int /*nrk*/,
 
                 if (k == bx_lo.z && k != domlo.z) {
                     new_drho_v(i,j,k-1) = new_drho_v(i,j,k);
-                } else if (k == bx_hi.z) {
+                }
+                if (k == bx_hi.z) {
                     new_drho_v(i,j,k+1) = new_drho_v(i,j,k);
                 }
 
@@ -379,8 +379,6 @@ void erf_substep_T (int step, int /*nrk*/,
             });
         } // end profile
     }
-
-    MultiFab Omega(S_data[IntVars::zmom].boxArray(), dm, 1, 1);
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -467,6 +465,8 @@ void erf_substep_T (int step, int /*nrk*/,
             flx_arr{{AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
 
         // *********************************************************************
+        // Lateral Advection RHS for Rho & RhoTheta
+        // *********************************************************************
         {
         BL_PROFILE("fast_T_making_rho_rhs");
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
@@ -518,9 +518,14 @@ void erf_substep_T (int step, int /*nrk*/,
                 }
             }
         });
-        } // end profile
+        }
 
         // *********************************************************************
+        // Populate "old" Omega
+        // *********************************************************************
+        // NOTE: this must stay in a separate MFIter loop from the one that fills
+        //       old_drho_u/v, since OmegaFromW reads old_drho_u/v at (i+1, j+1, k-1),
+        //       which another tile fills when the grid is tiled under OpenMP
         {
         Box gbxo = mfi.nodaltilebox(2);
         Box gbxo_mid = gbxo;
@@ -544,9 +549,12 @@ void erf_substep_T (int step, int /*nrk*/,
                                           old_drho_u,old_drho_v,
                                           mf_ux,mf_vy,z_nd,dxInv);
         });
-        } // end profile
-        // *********************************************************************
+        }
 
+        // *********************************************************************
+        // Build RHS for tridiagonal system
+        // *********************************************************************
+        // NOTE: we don't act on the bottom or top boundaries of the domain
         Box bx_shrunk_in_k = bx;
         int klo = tbz.smallEnd(2);
         int khi = tbz.bigEnd(2);
@@ -560,7 +568,6 @@ void erf_substep_T (int step, int /*nrk*/,
 
         {
         BL_PROFILE("fast_loop_on_shrunk_t");
-        //Note we don't act on the bottom or top boundaries of the domain
         ParallelFor(bx_shrunk_in_k, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
             Real coeff_P = coeffP_a(i,j,k);
@@ -594,32 +601,58 @@ void erf_substep_T (int step, int /*nrk*/,
             R1_tmp += -( coeff_P/detJ(i,j,k  ) * ( beta_1 * dzi * (Omega_kp1*theta_t_hi - Omega_k*theta_t_mid) + temp_rhs_arr(i,j,k  ,RhoTheta_comp) )
                        + coeff_Q/detJ(i,j,k-1) * ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo) + temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
 
-            // line 1
-            RHS_a(i,j,k) = old_drho_w(i,j,k) + dtau * (slow_rhs_rho_w(i,j,k) + zmom_src_arr(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp);
+            // consolidate terms proportional to dtau
+            RHS_a(i,j,k) = dtau * (slow_rhs_rho_w(i,j,k) + zmom_src_arr(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp);
 
             // We cannot use omega_arr here since that was built with old_rho_u and old_rho_v ...
-            RHS_a(i,j,k) += OmegaFromW(i,j,k,zero,
-                                       new_drho_u,new_drho_v,
-                                       mf_ux,mf_vy,z_nd,dxInv);
+            RHS_a(i,j,k) += old_drho_w(i,j,k) + OmegaFromW(i,j,k,zero,
+                                                           new_drho_u,new_drho_v,
+                                                           mf_ux,mf_vy,z_nd,dxInv);
         });
         } // end profile
 
-        Box b2d = tbz; // Copy constructor
+        // *********************************************************************
+        // Solve tridiagonal system
+        // *********************************************************************
+        Box b2d = tbz;
         b2d.setRange(2,0);
-
         auto const lo = lbound(bx);
         auto const hi = ubound(bx);
-
         {
         BL_PROFILE("substep_b2d_loop_t");
+
+        // NOTE: RHS is built on a shrunk box in z, explicitly set
+        //       the lo and hi faces here
+        // On a box face inside the domain (a c/f face) the row carries the accumulated
+        // perturbation converted to Omega'', as in the interior rows. At the domain bottom
+        // and top the row is zero: Omega'' = 0 at the ground and at a wall, and
+        // Omega''_top = Omega''_top-1 for outflow, the matrix row set in make_fast_coeffs
+        // deciding which
+        ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
+        {
+            // OmegaFromW takes its indices by non-const reference, hence the copies
+            int kf_lo = lo.z;
+            int kf_hi = hi.z+1;
+            RHS_a(i,j,lo.z  ) = (lo.z == domlo.z)
+                              ? zero
+                              : old_drho_w(i,j,lo.z  ) + OmegaFromW(i,j,kf_lo,zero,
+                                                                    new_drho_u,new_drho_v,
+                                                                    mf_ux,mf_vy,z_nd,dxInv)
+                              + dtau * slow_rhs_rho_w(i,j,lo.z  )
+                              + dtau *   zmom_src_arr(i,j,lo.z  );
+            RHS_a(i,j,hi.z+1) = (hi.z == domhi.z)
+                              ? zero
+                              : old_drho_w(i,j,hi.z+1) + OmegaFromW(i,j,kf_hi,zero,
+                                                                    new_drho_u,new_drho_v,
+                                                                    mf_ux,mf_vy,z_nd,dxInv)
+                              + dtau * slow_rhs_rho_w(i,j,hi.z+1)
+                              + dtau *   zmom_src_arr(i,j,hi.z+1);
+        });
+
 #ifdef AMREX_USE_GPU
         ParallelFor(b2d, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
-            // w_klo, w_khi given by specified Dirichlet values
-            RHS_a(i,j,lo.z  ) = dtau * (slow_rhs_rho_w(i,j,lo.z  ) + zmom_src_arr(i,j,lo.z  ));
-            RHS_a(i,j,hi.z+1) = dtau * (slow_rhs_rho_w(i,j,hi.z+1) + zmom_src_arr(i,j,hi.z+1));
-
-            // w = specified Dirichlet value at k = lo.z
+            // First row (coeffA = coeffC = 0) at k = lo.z
             soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
 
             // Transform the RHS from r_i -> rho_i
@@ -627,24 +660,16 @@ void erf_substep_T (int step, int /*nrk*/,
                 soln_a(i,j,k) = (RHS_a(i,j,k)-coeffA_a(i,j,k)*soln_a(i,j,k-1)) * inv_coeffB_a(i,j,k);
             }
 
-            cur_zmom(i,j,lo.z  ) = stage_zmom(i,j,lo.z  ) + soln_a(i,j,lo.z  );
-            cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
-
             // Back sweep to obtain the solution
             for (int k = hi.z; k >= lo.z; k--) {
                 soln_a(i,j,k) -= ( coeffC_a(i,j,k) * inv_coeffB_a(i,j,k) ) *soln_a(i,j,k+1);
             }
         });
 #else
-        // w_klo, w_khi given by specified Dirichlet values
+        // First row (coeffA = coeffC = 0) at k = lo.z
         for (int j = lo.y; j <= hi.y; ++j) {
             AMREX_PRAGMA_SIMD
-            for (int i = lo.x; i <= hi.x; ++i)
-            {
-                RHS_a(i,j,lo.z  ) = dtau * (slow_rhs_rho_w(i,j,lo.z  ) + zmom_src_arr(i,j,lo.z  ));
-                RHS_a(i,j,hi.z+1) = dtau * (slow_rhs_rho_w(i,j,hi.z+1) + zmom_src_arr(i,j,hi.z+1));
-
-                // w = specified Dirichlet value at k = lo.z
+            for (int i = lo.x; i <= hi.x; ++i) {
                 soln_a(i,j,lo.z) = RHS_a(i,j,lo.z) * inv_coeffB_a(i,j,lo.z);
             }
         }
@@ -661,14 +686,6 @@ void erf_substep_T (int step, int /*nrk*/,
            }
         }
 
-        for (int j = lo.y; j <= hi.y; ++j) {
-             AMREX_PRAGMA_SIMD
-             for (int i = lo.x; i <= hi.x; ++i) {
-                 cur_zmom(i,j,lo.z  ) = stage_zmom(i,j,lo.z  ) + soln_a(i,j,lo.z  );
-                 cur_zmom(i,j,hi.z+1) = stage_zmom(i,j,hi.z+1) + soln_a(i,j,hi.z+1);
-             }
-        }
-
         // Back sweep to obtain the solution
         for (int k = hi.z; k >= lo.z; --k) {
              for (int j = lo.y; j <= hi.y; ++j) {
@@ -681,33 +698,35 @@ void erf_substep_T (int step, int /*nrk*/,
 #endif
         } // end profile
 
+        // *********************************************************************
+        // Convert from Omega to W
+        // *********************************************************************
         ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            cur_zmom(i,j,k) = stage_zmom(i,j,k);
-        });
+            // NOTE: WfromOmega uses an interior stencil at domlo.z to touch valid data
+            //       WfromOmega cannot be used at domhi.z+1 for outflow. We enforce
+            //       zero metric terms at the domain high (W'' = Omega'')
+            Real wpp;
+            if (k == domhi.z+1) {
+                wpp = soln_a(i,j,k);
+            } else {
+                wpp = WFromOmega(i,j,k,soln_a(i,j,k),
+                                 new_drho_u,new_drho_v,
+                                 mf_ux,mf_vy,z_nd,dxInv);
+            }
 
-        if (lo.z == domlo.z) {
-            tbz.setSmall(2,domlo.z+1);
-        }
-        if (hi.z == domhi.z) {
-            tbz.setBig(2,domhi.z);
-        }
-        ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-        {
-            Real wpp = WFromOmega(i,j,k,soln_a(i,j,k),
-                                  new_drho_u,new_drho_v,
-                                  mf_ux,mf_vy,z_nd,dxInv);
+            cur_zmom(i,j,k) = stage_zmom(i,j,k) + wpp;
 
-            cur_zmom(i,j,k) += wpp;
-
-            if (l_rayleigh_impl_for_w) {
-              Real damping_coeff = l_damp_coef * dtau * sinesq_stag_d[k];
-              cur_zmom(i,j,k) /= (one + damping_coeff);
+            // W at the ground is kinematic and is not damped; the top face is, since with
+            // outflow it is no longer pinned to the stage value
+            if (k > domlo.z && l_rayleigh_impl_for_w) {
+                Real damping_coeff = l_damp_coef * dtau * sinesq_stag_d[k];
+                cur_zmom(i,j,k) /= (one + damping_coeff);
             }
         });
 
         // **************************************************************************
-        // Define updates in the RHS of rho and (rho theta)
+        // Update Rho & RhoTheta with lateral and vertical advection
         // **************************************************************************
         {
         BL_PROFILE("fast_rho_final_update");
@@ -716,17 +735,17 @@ void erf_substep_T (int step, int /*nrk*/,
               Real zflux_lo = beta_2 * soln_a(i,j,k  ) + beta_1 * omega_arr(i,j,k);
               Real zflux_hi = beta_2 * soln_a(i,j,k+1) + beta_1 * omega_arr(i,j,k+1);
 
-              // Note that in the solve we effectively impose new_drho_w(i,j,vbx_hi.z+1)=0
-              // so we don't update avg_zmom at k=vbx_hi.z+1
+              // avg_zmom at k=vbx_hi.z+1 is updated by the top cell of the box; the
+              // perturbation there is zero at a wall but not at an outflow top or a c/f face
               avg_zmom_arr(i,j,k)      += facinv*zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
               if (l_reflux) {
-                  (flx_arr[2])(i,j,k,0) =    zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
+                  (flx_arr[2])(i,j,k,0) =        zflux_lo / (mf_mx(i,j,0) * mf_my(i,j,0));
               }
 
               if (k == vbx_hi.z) {
                   avg_zmom_arr(i,j,k+1)      += facinv * zflux_hi / (mf_mx(i,j,0) * mf_my(i,j,0));
                   if (l_reflux) {
-                      (flx_arr[2])(i,j,k+1,0) =      zflux_hi / (mf_mx(i,j,0) * mf_my(i,j,0));
+                      (flx_arr[2])(i,j,k+1,0) =          zflux_hi / (mf_mx(i,j,0) * mf_my(i,j,0));
                       (flx_arr[2])(i,j,k+1,1) = (flx_arr[2])(i,j,k+1,0) * myhalf * (prim(i,j,k) + prim(i,j,k+1));
                   }
               }

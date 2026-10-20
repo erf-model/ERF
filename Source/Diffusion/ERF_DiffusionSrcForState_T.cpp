@@ -42,7 +42,8 @@ using namespace amrex;
  * @param[in]  mu_turb turbulent viscosity
  * @param[in]  solverChoice container of solver and diffusion parameters
  * @param[in]  level AMR level
- * @param[in]  bc_ptr container with boundary conditions
+ * @param[in]  bc_ptr container with boundary conditions (device, read in kernels)
+ * @param[in]  bc_ptr_h the same boundary conditions on the host, read here to set up the kernels
  * @param[in]  use_SurfLayer whether we have turned on subgrid diffusion
  * @param[in]  implicit_fac -- factor of implicitness for vertical differences only
  * @param[in]  reflux_flx   if not null, face views (indexed by state component) to which the
@@ -82,6 +83,7 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
                         const SolverChoice &solverChoice,
                         const int level,
                         const BCRec* bc_ptr,
+                        const BCRec* bc_ptr_h,
                         const bool use_SurfLayer,
                         const Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer,
                         const Real implicit_fac,
@@ -169,9 +171,9 @@ DiffusionSrcForState_T (const Box& bx, const Box& domain,
         // building Gz from them moved the scalar through the wall (erf-model/ERF#4330).
         const bool suppress_lower_z_flux = SurfLayer_zlo
             ? !(native_policy.is_theta || native_policy.is_q1)
-            : (bc_ptr[native_policy.bc_comp].lo(2) == ERFBCType::foextrap);
+            : (bc_ptr_h[native_policy.bc_comp].lo(2) == ERFBCType::foextrap);
         const bool suppress_upper_z_flux =
-            !SurfLayer_zhi && (bc_ptr[native_policy.bc_comp].hi(2) == ERFBCType::foextrap);
+            !SurfLayer_zhi && (bc_ptr_h[native_policy.bc_comp].hi(2) == ERFBCType::foextrap);
         ApplyScalarDiffusionMappedDivergence_T(
             bx, domain, field, z_nd, ax, ay, detJ, cellSizeInv, mf_mx, mf_uy,
             mf_my, mf_vx, suppress_lower_z_flux, suppress_upper_z_flux);
