@@ -60,6 +60,7 @@ jobs:
           -DBUILD_SHARED_LIBS:BOOL=FALSE \
           -DCMAKE_CXX_COMPILER_LAUNCHER=$(which ccache) \
           -DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo \
+          -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="-O2 -g1 -DNDEBUG" \
           -DAMReX_ASSERTIONS:BOOL=ON \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DERF_DIM:STRING=3 \
