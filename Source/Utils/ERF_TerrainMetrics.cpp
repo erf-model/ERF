@@ -348,6 +348,29 @@ make_terrain_fitted_coords (int lev,
     }
 
     //
+    // A node on the high side of a periodic direction is the same node as its image on the
+    // low side, and a box that holds one as valid is not touched by FillBoundary -- so give
+    // both copies one value, or the faces on either side of the node see different metrics
+    // and the mass flux through them differs.  make_terrain_surface_periodic already does
+    // this for a surface built by init_terrain_surface (and that is what the immersed
+    // boundary reads), but not for one that comes from wrfinput, met_em, a restart or the
+    // interpolation from a coarser level; this covers all of them, and the whole column.
+    // The copy kept is that of the lower-numbered box, which for the usual grids (and
+    // always within one box) is the low side, as in make_terrain_surface_periodic.
+    //
+    // Only the lateral periodicity: in a domain that is also periodic in z, the top node of
+    // a column is the image of the bottom one, but its height is not -- syncing them would
+    // give the top node the bottom's height and the top cell a negative thickness.
+    //
+    if (geom.isPeriodic(0) || geom.isPeriodic(1)) {
+        const Box& dom = geom.Domain();
+        const Periodicity lateral_period(IntVect(AMREX_D_DECL(geom.isPeriodic(0) ? dom.length(0) : 0,
+                                                              geom.isPeriodic(1) ? dom.length(1) : 0,
+                                                              0)));
+        z_phys_nd.OverrideSync(lateral_period);
+    }
+
+    //
     // Fill ghost layers and corners (including periodic) -- no matter what level
     //
     z_phys_nd.FillBoundary(geom.periodicity());
