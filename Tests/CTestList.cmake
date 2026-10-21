@@ -2078,6 +2078,17 @@ if(NOT WIN32)
                  "erf.forest_canopy_beta_p=0 erf.forest_canopy_beta_d=0 erf.forest_canopy_length_alpha=0")
 endif()
 
+# The projection on a stretched mesh that is periodic in z has no solver: it stops with the same
+# message with and without FFT, rather than the AMReX assertion of the hybrid FFT solver or a
+# request to rebuild with FFT (erf-model/ERF#4281)
+if(NOT WIN32)
+  add_test_abort(Anelastic_StretchedPeriodicZ
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/Anelastic_StretchedPeriodicZ
+                 Anelastic_StretchedPeriodicZ.i
+                 "on a stretched mesh .* needs a non-periodic z direction"
+                 "")
+endif()
+
 if(ERF_ENABLE_MPI AND NOT WIN32)
   # A shallow nest -- a fine level that stops below the domain top -- has no complete
   # column, so the sweep cannot run on it. That is a supported configuration, not an
