@@ -1716,7 +1716,7 @@ ERF::make_lsm_at_level (int lev, bool from_regrid,
                 // With metgrid files only level 0 reads its land state from its file
                 // (init_lsm_from_metgrid), so every finer level inherits it.
                 if ((restart_chkfile.empty() || source_lev >= 0) &&
-                    (nc_init_file[lev].empty() ||
+                    (!has_own_init_file(lev) ||
                      solverChoice.init_type == InitType::Metgrid)) {
                     IntVect source_ref_ratio(1);
                     if (source_lev < 0) {
