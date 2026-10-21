@@ -457,31 +457,31 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                    if (l_substepping) {
                        if ((nxc > 1) && (nyc==1)) {
                            // 2-D in x-z
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv_EB[0]), new_comp_dt);
+                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,0))+c)*dxinv_EB[0] ), new_comp_dt);
                        } else if ((nyc > 1) && (nxc==1)) {
                            // 2-D in y-z
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,1))+c)*dxinv_EB[1]), new_comp_dt);
+                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,1))+c)*dxinv_EB[1] ), new_comp_dt);
                        } else {
                            // 3-D
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv_EB[0]),
-                                                    ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv_EB[1]), new_comp_dt);
+                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,0))+c)*dxinv_EB[0]
+                                                     + (amrex::Math::abs(u(i,j,k,1))+c)*dxinv_EB[1] ), new_comp_dt);
                        }
 
                    // If we are not doing implicit acoustic substepping, then the z-direction contributes
                    //    to the computation of the time step
                    } else {
                        if (nxc > 1 && nyc > 1) {
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv_EB[0]),
-                                                    ((amrex::Math::abs(u(i,j,k,1))+c)*dxinv_EB[1]),
-                                                    ((amrex::Math::abs(u(i,j,k,2))+c)*dxinv_EB[2]), new_comp_dt);
+                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,0))+c)*dxinv_EB[0]
+                                                     + (amrex::Math::abs(u(i,j,k,1))+c)*dxinv_EB[1]
+                                                     + (amrex::Math::abs(u(i,j,k,2))+c)*dxinv_EB[2] ), new_comp_dt);
                        } else if (nxc > 1) {
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,0))+c)*dxinv_EB[0]),
-                                                    ((amrex::Math::abs(u(i,j,k,2))+c)*dxinv_EB[2]), new_comp_dt);
+                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,0))+c)*dxinv_EB[0]
+                                                     + (amrex::Math::abs(u(i,j,k,2))+c)*dxinv_EB[2] ), new_comp_dt);
                        } else if (nyc > 1) {
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,1))+c)*dxinv_EB[1]),
-                                                    ((amrex::Math::abs(u(i,j,k,2))+c)*dxinv_EB[2]), new_comp_dt);
+                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,1))+c)*dxinv_EB[1]
+                                                     + (amrex::Math::abs(u(i,j,k,2))+c)*dxinv_EB[2] ), new_comp_dt);
                        } else {
-                           new_comp_dt = amrex::max(((amrex::Math::abs(u(i,j,k,2))+c)*dxinv_EB[2]), new_comp_dt);
+                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,2))+c)*dxinv_EB[2] ), new_comp_dt);
                        }
 
                    }
