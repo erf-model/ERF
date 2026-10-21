@@ -105,7 +105,7 @@ Compute_InvDt_Compressible (const int i, const int j, const int k,
             // 3-D
             inv_dt = abs_u*dxinv[0] + Uacoustic
                    + abs_v*dxinv[1] + Vacoustic
-                   + abs_w*idz;
+                   + abs_w*idz      + Oacoustic;
         } else if (nxc > 1) {
             // 2-D in x-z
             inv_dt = abs_u*dxinv[0] + Uacoustic
