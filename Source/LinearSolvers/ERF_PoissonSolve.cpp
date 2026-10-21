@@ -754,6 +754,14 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         // Grid stretching (flat terrain)
         // ****************************************************************************
         else if (solverChoice.mesh_type == MeshType::StretchedDz) {
+            // Only the hybrid FFT solver handles a stretched mesh, and it is tridiagonal in z.
+            // A subdomain whose RHS is already zero was skipped above, so this stops only a
+            // projection that would have to do something (issue #4281).
+            if (geom[lev].isPeriodic(2)) {
+                amrex::Abort("The projection (erf.anelastic or erf.project_initial_velocity) on a "
+                             "stretched mesh (erf.grid_stretching_ratio, erf.initial_dz or "
+                             "erf.terrain_z_levels) needs a non-periodic z direction");
+            }
 #ifndef ERF_USE_FFT
             amrex::Abort("Rebuild with USE_FFT = TRUE so you can use the FFT solver");
 #else

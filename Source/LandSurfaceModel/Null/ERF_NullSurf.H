@@ -193,6 +193,20 @@ class NullSurf {
     {}
 
     /**
+     * Returns whether the reference-level atmospheric fields have been filled.
+     */
+    virtual
+    bool
+    Lsm_Has_Atmos_State () { return true; }
+
+    /**
+     * Registers whether the source level's atmospheric fields have been filled.
+     */
+    virtual
+    void
+    Lsm_Set_Source_Has_Atmos_State (bool /*has_atmos_state*/) {}
+
+    /**
      * Returns the atmospheric geometry used by coupling fields.
      */
     virtual

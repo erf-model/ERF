@@ -1713,7 +1713,7 @@ ERF::make_lsm_at_level (int lev, bool from_regrid,
                 // ERF-populated WRFInput fields are transferred raw so SLM performs its
                 // conversions once; idealized fields use the already-processed state.
                 if ((restart_chkfile.empty() || source_lev >= 0) &&
-                    nc_init_file[lev].empty() &&
+                    !has_own_init_file(lev) &&
                     solverChoice.init_type != InitType::Metgrid) {
                     IntVect source_ref_ratio(1);
                     if (source_lev < 0) {

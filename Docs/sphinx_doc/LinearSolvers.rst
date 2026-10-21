@@ -16,6 +16,8 @@ Multigrid can also be used when the union of grids at a level is not in itself r
 
 For simulations using grid stretching in the vertical but a flat lower boundary, we must use the hybrid FFT solver in which
 we perform 2D transforms only in the lateral directions and couple the solution in the vertical direction with a tridiagonal solve.
+Because the vertical solve is tridiagonal, the z direction must not be periodic: a projection on a stretched mesh that is
+periodic in z stops with an error, unless it has nothing to remove (for example a uniform flow), in which case the solve is skipped.
 In both these cases we use a 7-point stencil.
 
 To solve the Poisson equation using terrain-fitted coordinates with general terrain,
