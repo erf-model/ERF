@@ -1027,6 +1027,8 @@ public:
     // responsible for calling rebuild_base_state_from_wrfinput afterwards.
     void init_from_wrfinput (int lev, amrex::MultiFab& mf_PSFC, bool read_atmos_state = true);
     void init_from_metgrid  (int lev);
+    // Fill SLM's inputs from the land fields of a met_em file (see ERF_InitLandFromMetgrid.cpp)
+    void init_lsm_from_metgrid (int lev, const std::string& fname, const std::string& date);
     void init_from_ncfile   (int lev);
 
     // Rebuild the WRF base state on the grids of base_state_mf at this level, using the
