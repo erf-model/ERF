@@ -100,6 +100,11 @@ void ERF::build_fft_solvers (int lev)
             }
             else if (solverChoice.mesh_type == MeshType::StretchedDz)
             {
+                // The hybrid solver is tridiagonal in z and cannot be periodic there.  Leave it
+                // unbuilt: a level whose projection has nothing to remove never needs it, and
+                // project_momenta stops a level that does need a solve (issue #4281).
+                if (geom[lev].isPeriodic(2)) { continue; }
+
                 if (mg_verbose > 0) {
                     amrex::Print() << "Building the hybrid FFT solver to be used on domain " << my_geom.Domain() << std::endl;
                 }
