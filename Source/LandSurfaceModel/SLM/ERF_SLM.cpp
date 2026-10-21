@@ -1146,6 +1146,7 @@ SLM::Lsm_Regrid_Level (const int& lev,
         for (int ivar = 0; ivar < static_cast<int>(unmapped_fields.size()); ++ivar) {
             source_unmapped[ivar] = saved_unmapped[ivar].get();
         }
+        source_has_atmos_state = has_atmos_state;
 
         Lsm_Interpolate_From_Source(old_geom, old_lsm_geom,
                                     IntVect(1), LSMTransferMode::ProcessedState);
@@ -1209,6 +1210,12 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
                               BCVars::cons_bc);
     }
 
+    // tref, qref and pref were interpolated from the source, so they are only as
+    // good as the source's. A level made at initialization, before any
+    // Update_Lsm_Vars, gets zeros, and init_slm_vars must then run again once
+    // this level's own Update_Lsm_Vars has filled them.
+    has_atmos_state = source_has_atmos_state;
+
     if (mode == LSMTransferMode::RawInput) {
         first_step = true;
         wrfinput_initialized = false;
@@ -1217,6 +1224,7 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
         initialize_zrefxy();
         first_step = false;
         wrfinput_initialized = use_wrfinput;
+        init_from_atmos_pending = !has_atmos_state;
     }
 }
 
@@ -4742,6 +4750,7 @@ void SLM::Copy_State_to_Lsm (const MultiFab& cons_in, const MultiFab& u_in, cons
             slm_zenith(i, j, khi) = slm_zenith(i, j, 0);
         });
     }
+    has_atmos_state = true;
 
 #ifdef ERF_USE_NETCDF
     if (rad_input_file != "")
