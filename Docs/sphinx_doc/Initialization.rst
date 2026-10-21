@@ -157,6 +157,8 @@ file **Exec/ERF_Prob.cpp** must still be present for the build.
     System (WPS) listed chronologically starting with the earliest
     timestamp. A minimum of two files are required to derive lateral
     boundary conditions.
+  - With ``erf.land_surface_model = SLM``, SLM's initial land state is also
+    built from the first level-0 file; see :ref:`sec:slm-metgrid-init`.
 
 * **erf.init_type = NCFile**
 
