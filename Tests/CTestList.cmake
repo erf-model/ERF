@@ -3791,11 +3791,11 @@ if(NOT WIN32)
   set_tests_properties(TerrainFile_SteepWallQuiet TerrainFile_SteepOptionQuiet TerrainFile_SteepSmag2DQuiet
                        PROPERTIES FAIL_REGULAR_EXPRESSION "WARNING: at level;Abort")
   # A fine level that reaches the outflow face only after a regrid: a box moving towards
-  # xhi (x 200-400 m at the start, past 700 m after the first step) is checked when its
-  # grids change, not only at start-up
+  # xhi (x 200-400 m at the start, 700-900 m from t = 0.01 s on, so at the first regrid
+  # whatever the time step) is checked when its grids change, not only at start-up
   add_test_abort(TerrainFile_SteepAfterRegrid ${_tf_dir} TerrainFileChecks.i
                  "WARNING: at level 1 the terrain slope \\|grad h\\| reaches 0\\.[78][0-9]* within 2 cells of the xhi face"
-                 "erf.terrain_file_name=ridge_outflow.txt max_step=3 amr.max_level=1 erf.regrid_int=1 erf.refinement_indicators=box1 erf.box1.in_box_lo=200 0 erf.box1.in_box_hi=400 400 erf.box1.move_start_time=0 erf.box1.move_stop_time=1 erf.box1.move_speed_x=4000 erf.box1.move_speed_y=0")
+                 "erf.terrain_file_name=ridge_outflow.txt max_step=3 amr.max_level=1 erf.regrid_int=1 erf.refinement_indicators=box1 erf.box1.in_box_lo=200 0 erf.box1.in_box_hi=400 400 erf.box1.move_start_time=0 erf.box1.move_stop_time=0.01 erf.box1.move_speed_x=50000 erf.box1.move_speed_y=0")
   # A single row (ny = 1) is a profile constant in y, as the reader always allowed
   add_test_abort(TerrainFile_OneRow ${_tf_dir} TerrainFileChecks.i
                  "one y value: constant in y"
