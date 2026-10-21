@@ -93,7 +93,7 @@ get_plotfile_list(const int da_iter)
     std::string pf_dir = member_prefix + "00/plotfiles";
 
     if (!fs::exists(pf_dir)) {
-        amrex::Abort("Plotfile directory not found: " + pf_dir);
+        Abort("Plotfile directory not found: " + pf_dir);
     }
 
     for (const auto& entry : fs::directory_iterator(pf_dir)) {
@@ -169,7 +169,7 @@ read_member_multifab(const int da_iter,
     const std::string da_dir = "DA_Cycle_" + std::to_string(da_iter) + "/";
 
     const std::string member_prefix = da_dir + "member_";
-    std::string member_dir = member_prefix + amrex::Concatenate("", n, 2);
+    std::string member_dir = member_prefix + Concatenate("", n, 2);
     std::string pf_path = member_dir + "/plotfiles/" + pf_name;
 
     PlotFileData pf(pf_path);
@@ -257,8 +257,8 @@ compute_d_prime_vec(MultiFab& d_prime_vec,
                        ncomp,
                        d_vec.nGrowVect());
 
-    amrex::Gpu::DeviceVector<Real> R_diag_d(R_diag.size());
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, R_diag.begin(), R_diag.end(), R_diag_d.begin());
+    Gpu::DeviceVector<Real> R_diag_d(R_diag.size());
+    Gpu::copy(Gpu::hostToDevice, R_diag.begin(), R_diag.end(), R_diag_d.begin());
     const Real* R_diag_d_ptr = R_diag_d.data();
 
     for (MFIter mfi(d_vec, TilingIfNotGPU()); mfi.isValid(); ++mfi)
@@ -267,7 +267,7 @@ compute_d_prime_vec(MultiFab& d_prime_vec,
         const Array4<const Real> d_arr = d_vec.const_array(mfi);
         const Array4<Real> dp_arr = d_prime_vec.array(mfi);
 
-        amrex::ParallelFor(bx, ncomp,
+        ParallelFor(bx, ncomp,
                             [=] AMREX_GPU_DEVICE (int i, int j, int k, int n)
         {
             dp_arr(i,j,k,n) = d_arr(i,j,k,n) / R_diag_d_ptr[n];
@@ -320,8 +320,8 @@ Compute_yf_prime_i_T_Rinv_yf_prime_j(const MultiFab& Yi,
 
     using ReduceTuple = typename decltype(reduce_data)::Type;
 
-    amrex::Gpu::DeviceVector<Real> R_diag_d(R_diag.size());
-    amrex::Gpu::copy(amrex::Gpu::hostToDevice, R_diag.begin(), R_diag.end(), R_diag_d.begin());
+    Gpu::DeviceVector<Real> R_diag_d(R_diag.size());
+    Gpu::copy(Gpu::hostToDevice, R_diag.begin(), R_diag.end(), R_diag_d.begin());
     const Real* R_diag_d_ptr = R_diag_d.data();
 
     for (MFIter mfi(Yi, TilingIfNotGPU()); mfi.isValid(); ++mfi)
@@ -345,7 +345,7 @@ Compute_yf_prime_i_T_Rinv_yf_prime_j(const MultiFab& Yi,
     }
 
     ReduceTuple hv = reduce_data.value();
-    Real result = amrex::get<0>(hv);
+    Real result = get<0>(hv);
 
     ParallelDescriptor::ReduceRealSum(result);
 
@@ -459,7 +459,7 @@ compute_yf_prime_T_d_prime_vec (const MultiFab& yf_prime,
 
     ReduceTuple hv = reduce_data.value();
 
-    Real r = amrex::get<0>(hv);
+    Real r = get<0>(hv);
 
     // Global MPI reduction
     ParallelDescriptor::ReduceRealSum(r);
@@ -708,3 +708,51 @@ MakeFullPath (const std::string& filename, const int da_iter)
     ss << "DA_Cycle_" << da_iter << "/" << filename;
     return ss.str();
 }
+
+void WriteInnovationRMS(const MultiFab& dvec,
+                        const std::string& filename,
+                        int da_iter)
+{
+    Real sum_sq = 0.0;
+    long count = 0;
+
+    for (MFIter mfi(dvec); mfi.isValid(); ++mfi)
+    {
+        const auto& arr = dvec.const_array(mfi);
+        const auto& box = mfi.validbox();
+
+        for (int n = 0; n < dvec.nComp(); ++n)
+        {
+            ReduceOps<ReduceOpSum> reduce_op;
+            ReduceData<Real> reduce_data(reduce_op);
+            using ReduceTuple = typename decltype(reduce_data)::Type;
+
+            reduce_op.eval(box, reduce_data,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                -> ReduceTuple
+                {
+                    const Real val = arr(i, j, k, n);
+                    return {val * val};
+                });
+
+            sum_sq += get<0>(reduce_data.value());
+        }
+
+        count += static_cast<long>(box.numPts()) * dvec.nComp();
+    }
+
+    // Global reductions across MPI ranks
+    ParallelDescriptor::ReduceRealSum(sum_sq);
+    ParallelDescriptor::ReduceLongSum(count);
+
+    if (ParallelDescriptor::IOProcessor())
+    {
+        const Real rms =
+            (count > 0) ? std::sqrt(sum_sq / count) : 0.0;
+
+        std::ofstream out(filename, std::ios::app);
+        out << da_iter << " "
+            << std::setprecision(16) << rms << '\n';
+    }
+}
+
