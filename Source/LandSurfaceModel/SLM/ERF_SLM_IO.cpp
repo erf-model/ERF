@@ -920,6 +920,10 @@ void SLM::ReadCheckpoint (const int &lev, const std::string &checkpointname)
     first_step           = (chk_first_step != 0);
     wrfinput_initialized = (chk_wrfinput_initialized != 0);
 
+    // A checkpoint is written after Update_Lsm_Vars, so tref, qref and pref hold the state
+    has_atmos_state         = true;
+    init_from_atmos_pending = false;
+
     // Initialize common parameters
     init_layer_depths();
     init_soil_vars();
