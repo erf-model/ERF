@@ -13,6 +13,12 @@ ERF_ABS_HOME := $(abspath $(ERF_HOME))
 #   and do not rebuild it unless BUILD_EKAT=TRUE is explicitly requested.
 # - EKAT_INSTALL_LIBDIR defaults to lib, but can be set to lib64 or another
 #   install libdir on systems with a different CMake layout.
+# - EKAT_BUILD_JOBS (default 4) is the number of parallel jobs for building the
+#   bundled EKAT/Kokkos.  Compiling Kokkos with nvcc takes a lot of memory per
+#   job, and an unbounded build can exhaust a workstation's memory.
+# - With USE_CUDA=TRUE, NVCC_WRAPPER_DEFAULT_COMPILER is the host compiler of
+#   Kokkos' nvcc_wrapper for the EKAT/Kokkos build. It defaults to mpicxx (CC
+#   under the Cray PE), and must be an MPI C++ wrapper, never nvcc.
 #
 # The config-dependent paths are derived after the Make.defs include, where the
 # USE_* backend switches and COMP have been normalized.
@@ -673,9 +679,25 @@ ifeq ($(USE_KOKKOS), TRUE)
 EKAT_CXX := $(CXX)
 ifeq ($(USE_CUDA), TRUE)
     EKAT_CXX := $(EKAT_SOURCE_DIR)/extern/kokkos/bin/nvcc_wrapper
-    NVCC_WRAPPER_DEFAULT_COMPILER ?= $(CXX)
+    # nvcc_wrapper's host compiler is the MPI C++ wrapper, so that it finds mpi.h (EKAT is
+    # always built with MPI).  It cannot be $(CXX): in a CUDA build that is nvcc itself on
+    # some sites (Perlmutter), and on others the MPI wrapper with OMPI_CXX/MPICH_CXX/
+    # MPICXX_CXX=nvcc exported by Make.defs, so that nvcc and the wrapper call each other
+    # in a loop.  So take the MPI wrapper by name (Cray's CC under the Cray PE) ...
+    ifdef CRAYPE_VERSION
+        NVCC_WRAPPER_DEFAULT_COMPILER ?= $(shell command -v CC 2>/dev/null)
+    else
+        NVCC_WRAPPER_DEFAULT_COMPILER ?= $(shell command -v mpicxx 2>/dev/null)
+    endif
     export NVCC_WRAPPER_DEFAULT_COMPILER
+    # ... and configure and build EKAT without the variables Make.defs exports to point the
+    # MPI wrappers at nvcc (and the OMPI flags with nvcc's -Xcompiler), and without CC/CXX
+    EKAT_ENV := env -u CC -u CXX \
+      -u OMPI_CC -u OMPI_CXX -u OMPI_CFLAGS -u OMPI_CXXFLAGS \
+      -u MPICH_CC -u MPICH_CXX -u MPICXX_CXX -u MPICC_CC
+    EKAT_MPI_CMAKE_FLAGS := -D MPI_CXX_COMPILER:FILEPATH="$(NVCC_WRAPPER_DEFAULT_COMPILER)"
 endif
+EKAT_BUILD_JOBS ?= 4
 
 # These defaults build the subset of EKAT/Kokkos needed by ERF. Backend choices
 # mirror the AMReX-style USE_OMP/USE_CUDA/USE_HIP/USE_SYCL switches from the
@@ -722,7 +744,7 @@ ifeq ($(USE_SYCL), TRUE)
   EKAT_CMAKE_FLAGS += \
     -D Kokkos_ENABLE_SYCL_LAMBDA:BOOL=ON
 endif
-EKAT_CMAKE_FLAGS += $(EKAT_EXTRA_CMAKE_FLAGS)
+EKAT_CMAKE_FLAGS += $(EKAT_MPI_CMAKE_FLAGS) $(EKAT_EXTRA_CMAKE_FLAGS)
 
 # The backend state build_ekat expects to find recorded in the installed
 # KokkosCore_config.h. Keying the paths by configuration keeps configurations
@@ -829,9 +851,24 @@ ifeq ($(BUILD_EKAT), TRUE)
 	  echo "Removing the stale bundled build and reconfiguring from scratch."; \
 	  rm -rf "$(EKAT_BUILD_DIR)" "$(EKAT_INSTALL_PREFIX)"; \
 	fi; \
+	if [ "$(USE_CUDA)" = "TRUE" ]; then \
+	  host_cxx="$(NVCC_WRAPPER_DEFAULT_COMPILER)"; \
+	  host_out=''; host_rc=1; \
+	  if [ -n "$$host_cxx" ]; then \
+	    host_rc=0; host_out=$$($(EKAT_ENV) timeout 30 "$$host_cxx" --version 2>&1) || host_rc=$$?; \
+	  fi; \
+	  if [ $$host_rc -ne 0 ] || printf '%s\n' "$$host_out" | grep -qi -e nvcc -e 'cuda compiler'; then \
+	    echo "nvcc_wrapper's host compiler NVCC_WRAPPER_DEFAULT_COMPILER='$$host_cxx' is missing,"; \
+	    echo "failed (status $$host_rc), or runs nvcc, which would make nvcc call itself:"; \
+	    printf '%s\n' "$$host_out" | head -n 5; \
+	    echo "Set NVCC_WRAPPER_DEFAULT_COMPILER to the MPI C++ wrapper (mpicxx, or CC on Cray)."; \
+	    exit 1; \
+	  fi; \
+	  echo "nvcc_wrapper host compiler: $$host_cxx ($$(printf '%s\n' "$$host_out" | head -n 1))"; \
+	fi; \
 	echo "Building EKAT/Kokkos in $(EKAT_BUILD_DIR)"; \
-	cmake -S "$(EKAT_SOURCE_DIR)" -B "$(EKAT_BUILD_DIR)" $(EKAT_CMAKE_FLAGS); \
-	cmake --build "$(EKAT_BUILD_DIR)" --target install --parallel
+	$(EKAT_ENV) cmake -S "$(EKAT_SOURCE_DIR)" -B "$(EKAT_BUILD_DIR)" $(EKAT_CMAKE_FLAGS); \
+	$(EKAT_ENV) cmake --build "$(EKAT_BUILD_DIR)" --target install --parallel $(EKAT_BUILD_JOBS)
 else
 	@# EKAT_HOME was supplied externally unless BUILD_EKAT=TRUE was requested.
 	@# Nothing here may rebuild or delete it, so a backend disagreement is a
