@@ -1180,11 +1180,27 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
     AMREX_ALWAYS_ASSERT(source_unmapped.size() == unmapped_fields.size());
 
     const IntVect rr2d(ref_ratio[0], ref_ratio[1], 1);
+
+    // This InterpFromCoarseLevel reads the coarse ghost cells as they are, and SLM
+    // never fills its fields' ghost cells, so they still hold the zeros of Init.
+    // Interpolate from a copy whose ghost cells between boxes (and across periodic
+    // boundaries) are filled; otherwise the fine cells next to a coarse box
+    // boundary get zeros (vegtype = 0, i.e. water). The copy leaves the source
+    // level's own ghost cells, which SLM writes to its checkpoints, as they were.
+    auto with_filled_ghosts = [] (const MultiFab& src, const Geometry& geom)
+    {
+        MultiFab tmp(src.boxArray(), src.DistributionMap(), src.nComp(), src.nGrowVect());
+        MultiFab::Copy(tmp, src, 0, 0, src.nComp(), src.nGrowVect());
+        tmp.FillBoundary(geom.periodicity());
+        return tmp;
+    };
+
     for (int ivar = 0; ivar < m_lsm_data_size; ++ivar) {
         AMREX_ALWAYS_ASSERT(source_data[ivar] != nullptr);
+        const MultiFab src = with_filled_ghosts(*source_data[ivar], source_lsm_geom);
         InterpFromCoarseLevel(*lsm_fab_vars[LsmDataMap[ivar]],
                               lsm_fab_vars[LsmDataMap[ivar]]->nGrowVect(),
-                              IntVect(0,0,0), *source_data[ivar], 0, 0, 1,
+                              IntVect(0,0,0), src, 0, 0, 1,
                               source_lsm_geom, m_lsm_geom, rr2d,
                               &cell_cons_interp, m_domain_bcs_type,
                               BCVars::cons_bc);
@@ -1192,9 +1208,10 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
 
     for (int ivar = 0; ivar < m_lsm_flux_size; ++ivar) {
         AMREX_ALWAYS_ASSERT(source_flux[ivar] != nullptr);
+        const MultiFab src = with_filled_ghosts(*source_flux[ivar], source_geom);
         InterpFromCoarseLevel(*lsm_fab_flux[LsmFluxMap[ivar]],
                               lsm_fab_flux[LsmFluxMap[ivar]]->nGrowVect(),
-                              IntVect(0,0,0), *source_flux[ivar], 0, 0, 1,
+                              IntVect(0,0,0), src, 0, 0, 1,
                               source_geom, m_geom, rr2d,
                               &cell_cons_interp, m_domain_bcs_type,
                               BCVars::cons_bc);
@@ -1202,9 +1219,10 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
 
     for (int ivar = 0; ivar < static_cast<int>(unmapped_fields.size()); ++ivar) {
         AMREX_ALWAYS_ASSERT(source_unmapped[ivar] != nullptr);
+        const MultiFab src = with_filled_ghosts(*source_unmapped[ivar], source_lsm_geom);
         InterpFromCoarseLevel(*lsm_fab_vars[unmapped_fields[ivar]],
                               lsm_fab_vars[unmapped_fields[ivar]]->nGrowVect(),
-                              IntVect(0,0,0), *source_unmapped[ivar], 0, 0, 1,
+                              IntVect(0,0,0), src, 0, 0, 1,
                               source_lsm_geom, m_lsm_geom, rr2d,
                               &cell_cons_interp, m_domain_bcs_type,
                               BCVars::cons_bc);
