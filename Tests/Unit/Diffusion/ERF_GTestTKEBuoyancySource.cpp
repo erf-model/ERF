@@ -203,7 +203,7 @@ BuoyancyResult run_column (Real implicit_fac, Real c, bool with_sfc = false, Rea
         ParmParse pp(sfc_prefix);
         pp.add("most.average_policy", 0);
         pp.add("most.z0", Real(0.1));
-        pp.add("most.surf_temp", Real(300.0));
+        pp.add("most.pot_surf_temp", Real(300.0));
         const RealBox real_box({AMREX_D_DECL(Real(0.0), Real(0.0), Real(0.0))},
                                {AMREX_D_DECL(Real(4.0), Real(4.0), Real(12.0) * dz)});
         const Array<int, AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(1, 1, 0)};
@@ -258,7 +258,7 @@ BuoyancyResult run_column (Real implicit_fac, Real c, bool with_sfc = false, Rea
         ParmParse pp(sfc_prefix);
         pp.remove("most.average_policy");
         pp.remove("most.z0");
-        pp.remove("most.surf_temp");
+        pp.remove("most.pot_surf_temp");
     }
     const Real zmax = Real(12.0) * dz;
     r.flux_scale = K * (std::abs(b) + Real(2.0) * std::abs(c) * zmax + std::abs(qb)) + K * a / dz + std::abs(sfc);

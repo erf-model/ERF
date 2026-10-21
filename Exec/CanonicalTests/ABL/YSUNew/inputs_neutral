@@ -29,7 +29,7 @@ geometry.is_periodic = 1 1 0
 zlo.type = "surface_layer"
 erf.most.z0   = 0.1      # roughness length [m]
 erf.most.zref = 10.0     # reference height [m]
-erf.most.surf_temp = 300.0  # surface temperature [K]
+erf.most.pot_surf_temp = 300.0  # surface temperature [K]
 erf.most.surf_temp_flux = 0.0  # zero heat flux for neutral conditions
 
 zhi.type = "SlipWall"

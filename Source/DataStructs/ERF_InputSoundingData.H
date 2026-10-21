@@ -146,11 +146,17 @@ public:
             // the key existed before this call.  ERF_SurfaceLayer.H parses the same key,
             // so testing the return would report "specified" here whenever that site ran
             // first.  This was also an uninitialized read before.
+            // Only a surface potential temperature (most.pot_surf_temp, or the deprecated
+            // most.surf_temp) is comparable to the sounding's surface theta;
+            // most.abs_surf_temp is not checked.
             amrex::Real surf_temp = amrex::Real(-1.0);
-            pp_erf.queryAdd("most.surf_temp", surf_temp);
+            amrex::Real old_surf_temp = amrex::Real(-1.0);
+            pp_erf.queryAdd("most.pot_surf_temp", surf_temp);
+            pp_erf.queryAdd("most.surf_temp", old_surf_temp);
+            if (old_surf_temp > amrex::Real(0.0)) { surf_temp = old_surf_temp; }
             bool surf_temp_specified = (surf_temp > amrex::Real(0.0));
             if ( surf_temp_specified && (surf_temp != theta_inp_sound_tmp[0]) ) {
-                amrex::Print() << "Input sounding temp does not match most.surf_temp" << std::endl;
+                amrex::Print() << "Input sounding temp does not match most.pot_surf_temp" << std::endl;
                 amrex::Print() << "Modify one or both to match." << std::endl;
                 amrex::Abort();
             }

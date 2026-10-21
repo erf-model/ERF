@@ -198,15 +198,55 @@ public:
           surf_model_fluxes = m_surf_model->are_fluxes();
       }
 
-      // Get surface temperature.  surf_temp and surf_moist are declared with negative
+      // Get surface temperature, as a potential temperature (most.pot_surf_temp) or an
+      // absolute temperature (most.abs_surf_temp); most.surf_temp is the deprecated
+      // spelling of most.pot_surf_temp.  These and surf_moist are probed with negative
       // sentinels (see below) so that "did the user set this" is a property of the
       // value rather than of the queryAdd return value, which only reports whether the
       // key existed before the call and so stops being meaningful once anything has
-      // parsed the key.  Both most.surf_temp and most.surf_moist are also parsed by
+      // parsed the key.  The surface temperatures and most.surf_moist are also parsed by
       // ERF_InputSoundingData.H, so the two sites would poison each other otherwise.
-      pp.queryAdd("most.surf_temp", surf_temp);
+      {
+          amrex::Real pot_st = amrex::Real(-1.);
+          amrex::Real abs_st = amrex::Real(-1.);
+          amrex::Real old_st = amrex::Real(-1.);
+          pp.queryAdd("most.pot_surf_temp", pot_st);
+          pp.queryAdd("most.abs_surf_temp", abs_st);
+          pp.queryAdd("most.surf_temp",     old_st);
+          const int n_st = (pot_st > amrex::Real(0)) + (abs_st > amrex::Real(0)) +
+                           (old_st > amrex::Real(0));
+          if (n_st > 1) {
+              amrex::Abort("Specify only one of most.pot_surf_temp, most.abs_surf_temp "
+                           "and the deprecated most.surf_temp");
+          }
+          if (old_st > amrex::Real(0)) {
+              amrex::Print() << "WARNING: most.surf_temp is deprecated and is read as a surface "
+                             << "potential temperature; use most.pot_surf_temp (potential) or "
+                             << "most.abs_surf_temp (absolute) instead" << std::endl;
+              pot_st = old_st;
+          }
+          if (abs_st > amrex::Real(0)) {
+              surf_temp = abs_st;
+              surf_temp_is_absolute = true;
+          } else {
+              surf_temp = pot_st;
+          }
+      }
       const bool erf_st = (surf_temp > amrex::Real(0));
+      // With an absolute temperature this is only the placeholder until update_fluxes
+      // converts it with the surface pressure.
       if (erf_st) { default_land_surf_temp  = surf_temp; }
+
+      if (surf_temp_is_absolute) {
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+              m_face.coordDir() == 2 && m_face.isLow() && m_terrain_type != TerrainType::EB,
+              "most.abs_surf_temp is supported only on the z-low face without EB terrain");
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+              flux_type != FluxCalcType::CUSTOM && flux_type != FluxCalcType::RICO &&
+              flux_type != FluxCalcType::BULK_COEFF,
+              "most.abs_surf_temp is not supported with custom, rico or bulk_coeff fluxes; "
+              "use most.pot_surf_temp");
+      }
 
       // Get surface moisture
       bool erf_sq = false;
@@ -238,7 +278,9 @@ public:
           pp.get("most.Cd", m_Cd);
           pp.get("most.Ch", m_Ch);
           pp.get("most.Cq", m_Cq);
-          pp.get("most.surf_temp", default_land_surf_temp);
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(erf_st,
+              "bulk_coeff fluxes need most.pot_surf_temp");
+          default_land_surf_temp = surf_temp;
           pp.get("most.surf_moist", default_land_surf_moist);
           amrex::Print() << "Using specified Cd, Ch, Cq for MOST = "
                          << m_Cd << " " << m_Ch << " "
@@ -1021,6 +1063,23 @@ public:
                                     const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
   /**
+   * Set t_surf from the prescribed absolute surface temperature (most.abs_surf_temp, plus
+   * most.surf_heating_rate times the time), converted to the potential temperature the
+   * surface layer works in with the pressure at the surface diagnosed from the lowest
+   * cell, as for coupled SST. Like update_surf_temp, which it replaces in that case, it
+   * writes every cell of the surface.
+   *
+   * @param[in] lev       level index
+   * @param[in] time      elapsed simulation time
+   * @param[in] cons_in   conserved state used to evaluate surface pressure
+   * @param[in] z_phys_nd nodal physical-height field
+   */
+  void fill_tsurf_with_abs_surf_temp (const int& lev,
+                                      const double& time,
+                                      const amrex::MultiFab& cons_in,
+                                      const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
+
+  /**
    * Overwrite the land surface temperature with an external skin temperature.
    *
    * The skin is an absolute temperature [K]; it is converted to the potential
@@ -1157,6 +1216,8 @@ public:
       // NOTE: this is a whole-domain setVal, so it overwrites the SST/TSK fill
       //       done earlier in update_fluxes. Coupled SST is applied after this
       //       call and therefore still wins on the water cells it covers.
+      // An absolute surface temperature is written, converted, by fill_tsurf_with_abs_surf_temp
+      if (surf_temp_is_absolute) { return; }
       if (surf_heating_rate != 0) {
           // Use the actual size of t_surf, not m_geom.size(), which is always
           // max_level+1 and so runs past the levels that exist.  t_surf is sized for
@@ -1331,7 +1392,7 @@ public:
   /**
    * Why this surface layer cannot take its surface temperature from an external
    * skin temperature, or an empty string when it can: the skin sets t_surf, so the
-   * surface layer must compute its heat flux from t_surf (erf.most.surf_temp given,
+   * surface layer must compute its heat flux from t_surf (a surface temperature given,
    * no heating rate) on a non-EB lower surface without rotated surface fluxes, and no
    * land model may own t_surf.
    */
@@ -1347,7 +1408,8 @@ public:
       }
       if (theta_type != ThetaCalcType::SURFACE_TEMPERATURE) {
           return "the surface layer does not compute its heat flux from a surface "
-                 "temperature (set erf.most.surf_temp, not a flux or custom/bulk fluxes)";
+                 "temperature (set erf.most.pot_surf_temp or erf.most.abs_surf_temp, not a "
+                 "flux or custom/bulk fluxes)";
       }
       if (surf_heating_rate != amrex::Real(0)) {
           return "erf.most.surf_heating_rate is set";
@@ -1672,12 +1734,16 @@ private:
   // erf.most.z0 was given (set_default_roughness then leaves z0_const alone).
   bool m_z0_given{false};
   amrex::Real default_land_surf_temp{amrex::Real(300.)};
-  // Negative sentinels: a surface temperature is absolute and a surface moisture is a
+  // Negative sentinels: a surface temperature is in kelvin and a surface moisture is a
   // mixing ratio, so neither can legitimately be negative.  The constructor probes
-  // most.surf_temp / most.surf_moist with these and tests the resulting value to decide
-  // whether the user supplied them.  They were previously left uninitialized, which was
-  // safe only because a plain query() leaves them untouched on a miss.
+  // most.pot_surf_temp / most.abs_surf_temp / most.surf_moist with these and tests the
+  // resulting value to decide whether the user supplied them.  They were previously left
+  // uninitialized, which was safe only because a plain query() leaves them untouched on
+  // a miss.
   amrex::Real surf_temp{amrex::Real(-1.)};
+  // surf_temp (and surf_heating_rate) is an absolute temperature (most.abs_surf_temp),
+  // converted to t_surf's potential temperature with the surface pressure each step.
+  bool surf_temp_is_absolute{false};
   amrex::Real surf_heating_rate{0};
   amrex::Real surf_temp_flux{0};
   amrex::Real default_land_surf_moist{zero};

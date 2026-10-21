@@ -77,14 +77,14 @@ public:
     {
         m_pp.add("most.average_policy", 0);
         m_pp.add("most.z0", Real(0.1));
-        m_pp.add("most.surf_temp", Real(300.0));
+        m_pp.add("most.pot_surf_temp", Real(300.0));
     }
 
     ~ScopedSurfaceLayerParams ()
     {
         m_pp.remove("most.average_policy");
         m_pp.remove("most.z0");
-        m_pp.remove("most.surf_temp");
+        m_pp.remove("most.pot_surf_temp");
     }
 
 private:

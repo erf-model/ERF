@@ -4693,8 +4693,8 @@ ERF::check_mesh_type (int lev)
  *
  * This asks the snapshot taken in ReadParameters, not the live ParmParse table.
  * The live table cannot answer the question: ERF_InputSoundingData.H queries
- * erf.most.surf_temp and erf.most.surf_moist with queryAdd while reading the
- * sounding, which runs during InitData_pre and leaves both keys in the table
+ * the surface-temperature keys and erf.most.surf_moist with queryAdd while reading the
+ * sounding, which runs during InitData_pre and leaves those keys in the table
  * holding their negative sentinels.  Testing the live table would therefore
  * report unqualified MOST inputs for every input_sounding run, whether or not
  * the user wrote any.
