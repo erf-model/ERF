@@ -175,6 +175,9 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestSmag2DLimiters.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSurfaceFluxDiagnostics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSeaLevelPressure.cpp
+    # Motivation: a Noah-MP 2 m tile with zero weight must not reject the bundle, and a
+    # station must leave -999 neighbours out of its interpolation rather than average them.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestSurfaceMissingValues.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestCanopyBiophysics.cpp
     # Motivation: the k-eqn RANS canopy terms must keep the kynema-sgf
     # formulas, cap L only inside the forest and never remove more than k.
