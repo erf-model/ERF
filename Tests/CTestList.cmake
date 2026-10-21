@@ -3226,6 +3226,16 @@ add_test_restart_parity(SLM_RegridOnRestart SLM_Restart 7 20
     ALLOW_DIFF_GRIDS REQUIRE_LEVEL0_REMAKE FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
 
+# The same deck with a refined patch made at initialization (issue 4371). Level 1 took its
+# SLM state from level 0 before either level had seen the atmosphere, so t_canop was set from
+# a zero tref and the first SLM advance on level 1 stopped on t_canop > tfriz.
+if(ERF_ENABLE_MPI AND NOT WIN32)
+add_test_restart_parity(SLM_TwoLevel_Restart SLM_Restart 7 20
+    COMMON_OPTIONS "amr.max_level=1 amr.blocking_factor=4 erf.refinement_indicators=box1 erf.box1.in_box_lo=100.0 100.0 0.0 erf.box1.in_box_hi=300.0 300.0 100.0"
+    PLT2DFILE "plt_lsm_2D_00020"
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+endif()
+
 # The same for terrain carried by an embedded boundary: the mesh is flat there
 # too, so the ground under the station is the surface the EB was built from and
 # not the bottom of the mesh.  The hill is 50 m up at the station, so 40 m above

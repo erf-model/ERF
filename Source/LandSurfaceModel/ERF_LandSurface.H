@@ -215,6 +215,9 @@ public:
             m_lsm_model[lev]->Lsm_Set_Source_Unmapped_Ptr(
                 varIdx, m_lsm_model[source_lev]->Lsm_Unmapped_Ptr(varIdx));
         }
+
+        m_lsm_model[lev]->Lsm_Set_Source_Has_Atmos_State(
+            m_lsm_model[source_lev]->Lsm_Has_Atmos_State());
     }
 
     /**
