@@ -200,6 +200,122 @@ function(add_test_cloud_chamber TEST_NAME MODE)
         ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
 endfunction(add_test_cloud_chamber)
 
+# Short physical-temperature chamber runs for the moisture configurations
+# enabled by the typed Cloud Chamber allowlist. Each model requests only the
+# species and diagnostics its active component map publishes.
+function(add_test_cloud_chamber_bulk_model TEST_NAME MODEL)
+    set(TEST_FILES_DIR "CloudChamber_Bulk")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(bulk_plot_vars "")
+    if(MODEL STREQUAL "Kessler" OR MODEL STREQUAL "SAM_NoIce")
+        set(bulk_plot_vars "qrain rain_accum")
+    elseif(MODEL STREQUAL "SAM" OR MODEL STREQUAL "WSM6")
+        set(bulk_plot_vars "qi qrain qsnow qgraup rain_accum snow_accum graup_accum")
+    elseif(MODEL STREQUAL "WDM6")
+        set(bulk_plot_vars "qi qrain qsnow qgraup nc nn nr rain_accum snow_accum graup_accum")
+    elseif(MODEL STREQUAL "Morrison_NoIce")
+        set(bulk_plot_vars "qrain nc nr rain_accum")
+    elseif(MODEL STREQUAL "Morrison")
+        set(bulk_plot_vars "qi qrain qsnow qgraup nc ni nr ns ng rain_accum snow_accum graup_accum")
+    elseif(NOT MODEL STREQUAL "Kessler_NoRain" AND
+           NOT MODEL STREQUAL "SAM_NoPrecip_NoIce" AND
+           NOT MODEL STREQUAL "MoistNoCondensation")
+        message(FATAL_ERROR "No Cloud Chamber bulk plot mapping for ${MODEL}")
+    endif()
+    set(test_input "${CURRENT_TEST_BINARY_DIR}/CloudChamber_Bulk.i")
+    set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
+    set(test_checker_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.checker.log")
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${test_input}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DSIMULATION_LOG=${test_simulation_log}"
+        "-DCHECKER_LOG=${test_checker_log}"
+        "-DCHECKER=${CLOUD_CHAMBER_CHECKER}"
+        "-DBULK_MODEL=${MODEL}"
+        "-DBULK_PLOT_VARS=${bulk_plot_vars}"
+        "-DBULK_BUDGET=0"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberBulk.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 600
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;cloud-chamber;bulk-microphysics"
+        ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
+endfunction(add_test_cloud_chamber_bulk_model)
+
+# Legacy theta/qv path regression: keep the bulk enablement compatible with
+# the original profile and per-face legacy wall keys.
+function(add_test_cloud_chamber_bulk_legacy TEST_NAME MODEL)
+    set(TEST_FILES_DIR "CloudChamber_Bulk_Legacy")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(test_input "${CURRENT_TEST_BINARY_DIR}/CloudChamber_Bulk_Legacy.i")
+    set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
+    set(test_checker_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.checker.log")
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${test_input}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DSIMULATION_LOG=${test_simulation_log}"
+        "-DCHECKER_LOG=${test_checker_log}"
+        "-DCHECKER=${CLOUD_CHAMBER_CHECKER}"
+        "-DBULK_MODEL=${MODEL}"
+        "-DBULK_PLOT_VARS="
+        "-DBULK_BUDGET=0"
+        "-DCHECKER_MODE=bulk_legacy"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberBulk.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 600
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;cloud-chamber;bulk-microphysics;legacy"
+        ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
+endfunction(add_test_cloud_chamber_bulk_legacy)
+
+function(add_test_cloud_chamber_bulk_reject TEST_NAME MODEL BUDGET EXPECTED_TEXT)
+    set(TEST_FILES_DIR "CloudChamber_Bulk")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(test_input "${CURRENT_TEST_BINARY_DIR}/CloudChamber_Bulk.i")
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${test_input}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DSIMULATION_LOG=${test_log}"
+        "-DCHECKER_LOG=${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.checker.log"
+        "-DCHECKER=${CLOUD_CHAMBER_CHECKER}"
+        "-DBULK_MODEL=${MODEL}"
+        "-DBULK_PLOT_VARS=qrain rain_accum"
+        "-DBULK_BUDGET=${BUDGET}"
+        "-DEXPECT_FAILURE=ON"
+        "-DEXPECT_FAILURE_TEXT=${EXPECTED_TEXT}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberBulk.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 180
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;cloud-chamber;configuration"
+        ATTACHED_FILES_ON_FAIL "${test_log}")
+endfunction(add_test_cloud_chamber_bulk_reject)
+
 # Gold-free TwoStream radiation regression: run a short SW + LW column case
 # and verify the vertical structure of qsrc_sw / qsrc_lw in the plotfile
 # (surface at k = 0, cooling to space from the top layer).
@@ -1343,6 +1459,23 @@ add_test_cloud_chamber_legacy_config(CloudChamber_Legacy_Config)
 add_test_cloud_chamber_neutral_momentum(CloudChamber_Dry_NeutralMomentumActivation)
 add_test_cloud_chamber_fixed_momentum(CloudChamber_Dry_FixedMomentumActivation)
 add_test_cloud_chamber(CloudChamber_SatAdj cloudy)
+add_test_cloud_chamber_bulk_model(CloudChamber_Bulk_Kessler_NoRain Kessler_NoRain)
+add_test_cloud_chamber_bulk_model(CloudChamber_Bulk_Kessler Kessler)
+add_test_cloud_chamber_bulk_model(CloudChamber_Bulk_SAM_NoPrecip_NoIce SAM_NoPrecip_NoIce)
+add_test_cloud_chamber_bulk_model(CloudChamber_Bulk_SAM_NoIce SAM_NoIce)
+add_test_cloud_chamber_bulk_model(CloudChamber_Bulk_SAM SAM)
+add_test_cloud_chamber_bulk_model(CloudChamber_Bulk_WSM6 WSM6)
+add_test_cloud_chamber_bulk_model(CloudChamber_Bulk_WDM6 WDM6)
+add_test_cloud_chamber_bulk_model(CloudChamber_Bulk_Morrison_NoIce Morrison_NoIce)
+add_test_cloud_chamber_bulk_model(CloudChamber_Bulk_Morrison Morrison)
+add_test_cloud_chamber_bulk_model(CloudChamber_Bulk_MoistNoCondensation MoistNoCondensation)
+add_test_cloud_chamber_bulk_legacy(CloudChamber_Bulk_Legacy_Kessler_NoRain Kessler_NoRain)
+add_test_cloud_chamber_bulk_reject(CloudChamber_Bulk_Reject_SBM SBM 0
+    "SBM M3 does not support scalar or particle diffusion")
+add_test_cloud_chamber_bulk_reject(CloudChamber_Bulk_Reject_SuperDroplets SuperDroplets 0
+    "Super-Droplet path currently uses the compressible equation of state")
+add_test_cloud_chamber_bulk_reject(CloudChamber_Bulk_Reject_Budget Kessler 1
+    "cloud_chamber_budget_interval supports only physical_temperature_rh")
 add_test_cloud_chamber_parity(CloudChamber_SatAdj_Parity)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_AllDry all_dry CloudChamber_SatAdj_AllDry)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_WetBudget wet_budget CloudChamber_SatAdj_WetBudget)
@@ -1865,6 +1998,8 @@ add_test_r(MoistBubble                       ""  "erf_exec" "plt00010")
 # value and the step never finished. The runner is a cmake -P script (MPI, not Windows).
 if(ERF_ENABLE_MPI AND NOT WIN32)
 add_test_restart_parity(MoistBubble_Kessler_Restart MoistBubble_Kessler_Restart 4 8
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(CloudChamber_WDM6_Restart CloudChamber_WDM6_Restart 2 4
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
 # Boundary-plane output (erf.output_bndry_planes) across a restart: the series in BndryFiles --

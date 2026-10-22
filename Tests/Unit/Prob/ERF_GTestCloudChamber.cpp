@@ -1,7 +1,9 @@
 #include <AMReX_Array.H>
 #include "ERF_Constants.H"
 #include <AMReX_BoxArray.H>
+#include <AMReX_BCUtil.H>
 #include <AMReX_MultiFab.H>
+#include <AMReX_RealBox.H>
 #include <AMReX_Reduce.H>
 
 #include <algorithm>
@@ -13,6 +15,7 @@
 
 #include "../../../Source/Diffusion/ERF_CloudChamberWallFlux.H"
 #include "../../../Source/Diffusion/ERF_Diffusion.H"
+#include "../../../Source/Diffusion/ERF_ScalarDiffusion.H"
 #include "../../../Source/Diffusion/ERF_CloudChamberWallStress.H"
 #include "../../../Source/Diffusion/ERF_ResolvedWallFlux.H"
 #include "../../../Source/DataStructs/ERF_DataStruct.H"
@@ -324,6 +327,155 @@ TEST(CloudChamberProfile, PhysicalTemperatureAndRelativeHumidityAreExact)
     EXPECT_GT(qv, Real(0.0));
 }
 
+TEST(CloudChamberConfig, MoistureModelSupportIsAnExplicitTypedAllowlist)
+{
+    const std::vector<std::pair<MoistureType, bool>> expected = {
+        {MoistureType::None, true},
+        {MoistureType::SatAdj, true},
+        {MoistureType::MoistNoCondensation, true},
+        {MoistureType::Kessler_NoRain, true},
+        {MoistureType::Kessler, true},
+        {MoistureType::SAM_NoPrecip_NoIce, true},
+        {MoistureType::SAM_NoIce, true},
+        {MoistureType::SAM, true},
+        {MoistureType::WSM6, true},
+        {MoistureType::WDM6, true},
+        {MoistureType::Morrison_NoIce, true},
+        {MoistureType::Morrison, true},
+        {MoistureType::SBM, false},
+        {MoistureType::SuperDroplets, false}};
+
+    for (const auto& [model, supported] : expected) {
+        EXPECT_EQ(erf_cloud_chamber::supports_moisture_model(model), supported)
+            << amrex::getEnumNameString(model);
+    }
+}
+
+// Regression for the generic scalar path used by Q3+ in a physical chamber.
+// The real multibox fill applies the same foextrap scalar contract assigned to
+// NoSlipWall constituents; the native N-grid face kernel must then write zero
+// wall flux while retaining nonzero interior transport for mass and number
+// lanes. The final ext_dir control is a deliberate wrong-mapping negative
+// control: it makes this exact stencil report a nonzero wall flux.
+TEST(CloudChamberWallDiffusion, ExtraMoistureLanesAreImpermeable)
+{
+    using namespace amrex;
+    const Box domain(IntVect(0, 0, 0), IntVect(7, 7, 7));
+    const RealBox real_box({Real(0.0), Real(0.0), Real(0.0)},
+                           {Real(8.0), Real(8.0), Real(8.0)});
+    const int periodicity[AMREX_SPACEDIM] = {0, 0, 0};
+    const Geometry geom(domain, &real_box, CoordSys::cartesian, periodicity);
+    BoxArray grids(domain);
+    grids.maxSize(4);
+    DistributionMapping dmap(grids);
+
+    MultiFab state(grids, dmap, NVAR_max, 1);
+    state.setVal(Real(-99.0));
+    for (MFIter mfi(state); mfi.isValid(); ++mfi) {
+        const auto values = state.array(mfi);
+        const Box bx = mfi.validbox();
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            const Real base = Real(0.1) * i + Real(0.2) * j + Real(0.3) * k;
+            values(i,j,k,Rho_comp) = Real(1.0);
+            values(i,j,k,RhoQ3_comp) = base;
+            values(i,j,k,RhoQ7_comp) = Real(2.0) * base + Real(0.07) * i;
+            values(i,j,k,RhoQ8_comp) = Real(3.0) * base + Real(0.11) * j;
+        });
+    }
+    Vector<BCRec> bcs(state.nComp());
+    for (auto& bc : bcs) {
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            bc.setLo(dir, ERFBCType::foextrap);
+            bc.setHi(dir, ERFBCType::foextrap);
+        }
+    }
+    state.FillBoundary(geom.periodicity());
+    FillDomainBoundary(state, geom, bcs);
+
+    MultiFab wall_flux(grids, dmap, 3, 0);
+    MultiFab interior_flux(grids, dmap, 3, 0);
+    MultiFab ext_dir_mutant_flux(grids, dmap, 1, 0);
+    wall_flux.setVal(Real(0.0));
+    interior_flux.setVal(Real(0.0));
+    ext_dir_mutant_flux.setVal(Real(0.0));
+    const int q_comps[3] = {RhoQ3_comp, RhoQ7_comp, RhoQ8_comp};
+    const int lo_x = domain.smallEnd(0), hi_x = domain.bigEnd(0);
+    const int lo_y = domain.smallEnd(1), hi_y = domain.bigEnd(1);
+    const int lo_z = domain.smallEnd(2), hi_z = domain.bigEnd(2);
+    for (MFIter mfi(state); mfi.isValid(); ++mfi) {
+        const auto values = state.const_array(mfi);
+        const auto wall = wall_flux.array(mfi);
+        const auto interior = interior_flux.array(mfi);
+        const auto mutant = ext_dir_mutant_flux.array(mfi);
+        const Box bx = mfi.validbox();
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            Real wall_max[3] = {Real(0.0), Real(0.0), Real(0.0)};
+            Real interior_max[3] = {Real(0.0), Real(0.0), Real(0.0)};
+            for (int n = 0; n < 3; ++n) {
+                const int comp = q_comps[n];
+                if (i == lo_x) {
+                    wall_max[n] = amrex::max(wall_max[n], std::abs(
+                        ScalarDiffusionFlux_N<0>(values, comp, lo_x, j, k,
+                            Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false)));
+                }
+                if (i == hi_x) {
+                    wall_max[n] = amrex::max(wall_max[n], std::abs(
+                        ScalarDiffusionFlux_N<0>(values, comp, hi_x + 1, j, k,
+                            Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false)));
+                }
+                if (j == lo_y) {
+                    wall_max[n] = amrex::max(wall_max[n], std::abs(
+                        ScalarDiffusionFlux_N<1>(values, comp, i, lo_y, k,
+                            Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false)));
+                }
+                if (j == hi_y) {
+                    wall_max[n] = amrex::max(wall_max[n], std::abs(
+                        ScalarDiffusionFlux_N<1>(values, comp, i, hi_y + 1, k,
+                            Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false)));
+                }
+                if (k == lo_z) {
+                    wall_max[n] = amrex::max(wall_max[n], std::abs(
+                        ScalarDiffusionFlux_N<2>(values, comp, i, j, lo_z,
+                            Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false)));
+                }
+                if (k == hi_z) {
+                    wall_max[n] = amrex::max(wall_max[n], std::abs(
+                        ScalarDiffusionFlux_N<2>(values, comp, i, j, hi_z + 1,
+                            Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false)));
+                }
+                if (i == 3 && j == 3 && k == 3) {
+                    interior_max[n] = amrex::max(
+                        std::abs(ScalarDiffusionFlux_N<0>(values, comp, 3, 3, 3,
+                            Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false)),
+                        amrex::max(
+                            std::abs(ScalarDiffusionFlux_N<1>(values, comp, 3, 3, 3,
+                                Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false)),
+                            std::abs(ScalarDiffusionFlux_N<2>(values, comp, 3, 3, 3,
+                                Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false))));
+                }
+            }
+            for (int n = 0; n < 3; ++n) {
+                wall(i,j,k,n) = wall_max[n];
+                interior(i,j,k,n) = interior_max[n];
+            }
+            if (i == lo_x && j == 3 && k == 3) {
+                mutant(i,j,k) = std::abs(ScalarDiffusionFlux_N<0>(
+                    values, RhoQ3_comp, lo_x, j, k, Real(1.0), Real(1.0),
+                    Real(1.0), Real(1.0), true, false));
+            }
+        });
+    }
+    Gpu::streamSynchronize();
+    for (int n = 0; n < 3; ++n) {
+        EXPECT_DOUBLE_EQ(wall_flux.norm0(n, 0, false), Real(0.0))
+            << "wall flux leaked from Q" << (n == 0 ? 3 : (n == 1 ? 7 : 8));
+        EXPECT_GT(interior_flux.norm0(n, 0, false), Real(0.0))
+            << "interior gradient was vacuous for Q" << (n == 0 ? 3 : (n == 1 ? 7 : 8));
+    }
+    EXPECT_GT(ext_dir_mutant_flux.norm0(0, 0, false), Real(0.0))
+        << "wrong ext_dir wall mapping did not activate the boundary stencil";
+}
+
 // Motivation: dry physical initialization must reject RH rather than
 // silently accepting an input that changes the thermodynamic contract.
 TEST(CloudChamberConfig, RejectsRelativeHumidityInDryPhysicalMode)
@@ -338,12 +490,12 @@ TEST(CloudChamberConfig, RejectsRelativeHumidityInDryPhysicalMode)
     const auto error = erf_cloud_chamber::initialization_contract_error(contract);
 
     EXPECT_NE(error.find("initial_relative_humidity"), std::string::npos);
-    EXPECT_NE(error.find("SatAdj"), std::string::npos);
+    EXPECT_NE(error.find("active moisture model"), std::string::npos);
 }
 
-// Motivation: cloudy physical initialization needs an explicit RH so the
-// SatAdj state is reproducible instead of relying on an implicit default.
-TEST(CloudChamberConfig, RequiresRelativeHumidityForPhysicalSatAdj)
+// Motivation: physical initialization with any active moisture model needs
+// an explicit RH rather than an implicit default.
+TEST(CloudChamberConfig, RequiresRelativeHumidityForPhysicalMoisture)
 {
     const erf_cloud_chamber::InitializationContract contract {
         erf_cloud_chamber::InitializationMode::PhysicalTemperatureRH,
@@ -354,7 +506,7 @@ TEST(CloudChamberConfig, RequiresRelativeHumidityForPhysicalSatAdj)
 
     const auto error = erf_cloud_chamber::initialization_contract_error(contract);
 
-    EXPECT_NE(error.find("physical SatAdj"), std::string::npos);
+    EXPECT_NE(error.find("physical moist"), std::string::npos);
     EXPECT_NE(error.find("initial_relative_humidity"), std::string::npos);
 }
 
@@ -392,8 +544,8 @@ TEST(CloudChamberConfig, RejectsPhysicalKeysInLegacyMode)
     EXPECT_NE(error.find("physical"), std::string::npos);
 }
 
-// Motivation: the valid physical SatAdj contract must remain accepted while
-// the stricter dry/cloudy key checks are enforced.
+// Motivation: the valid physical moist contract must remain accepted while
+// the stricter dry/moist key checks are enforced.
 TEST(CloudChamberConfig, AcceptsPhysicalSatAdjWithRelativeHumidity)
 {
     const erf_cloud_chamber::InitializationContract contract {

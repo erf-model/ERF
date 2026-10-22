@@ -2,6 +2,8 @@
 #include "ERF_Constants.H"
 #include <AMReX_MultiFab.H>
 #include <AMReX_PlotFileUtil.H>
+#include "../Source/DataStructs/ERF_DataStruct.H"
+#include "../Source/Prob/ERF_CloudChamber.H"
 #include "../Source/Utils/ERF_EOS.H"
 #include "../Source/Utils/ERF_MicrophysicsUtils.H"
 
@@ -21,6 +23,8 @@
 namespace {
 
 using amrex::MultiFab;
+using amrex::Box;
+using amrex::MFIter;
 using amrex::ParallelFor;
 using amrex::PlotFileData;
 using amrex::Real;
@@ -133,9 +137,188 @@ bool is_budget_mode (const std::string& mode)
 bool is_checker_mode (const std::string& mode)
 {
     return mode == "dry" || mode == "cloudy" || mode == "parity" ||
+        mode == "bulk" || mode == "bulk_legacy" ||
         mode == "neutral_momentum" || mode == "fixed_momentum" ||
         mode == "most_momentum" ||
         is_budget_mode(mode);
+}
+
+bool check_bulk_plotfiles (const std::string& model_name,
+                           PlotFileData& initial, PlotFileData& final,
+                           std::string& error,
+                           const bool physical_initialization)
+{
+    MoistureType model;
+    try {
+        model = amrex::getEnumCaseInsensitive<MoistureType>(model_name);
+    } catch (const std::exception& exception) {
+        error = "invalid bulk checker model: " + std::string(exception.what());
+        return false;
+    }
+    const auto moisture = MoistureComponentIndices::from_moisture_model(model);
+    if (!erf_cloud_chamber::supports_moisture_model(model) ||
+        model == MoistureType::None || model == MoistureType::SatAdj ||
+        model == MoistureType::SBM || model == MoistureType::SuperDroplets) {
+        error = "checker requires a supported active non-SatAdj moisture model";
+        return false;
+    }
+
+    const std::vector<std::string> core = {
+        "density", "theta", "temp", "pressure", "qv", "qc", "qt", "qsat",
+        "x_velocity", "y_velocity", "z_velocity"};
+    for (const auto& name : core) {
+        if (!has_variable(initial, name) || !has_variable(final, name)) {
+            error = "missing bulk field " + name;
+            return false;
+        }
+    }
+
+    const std::vector<std::string> moisture_candidates = {
+        "qv", "qc", "qi", "qrain", "qsnow", "qgraup", "nc", "ni", "nr",
+        "ns", "ng", "nn", "rain_accum", "snow_accum", "graup_accum",
+        "qt", "qsat", "rel_humidity"};
+    std::vector<std::string> active_fields;
+    for (const auto& name : moisture_candidates) {
+        const auto status = moisture.query_var(name);
+        const bool in_initial = has_variable(initial, name);
+        const bool in_final = has_variable(final, name);
+        if (name == "rel_humidity" && (in_initial || in_final)) {
+            error = "rel_humidity is not a common bulk moisture diagnostic";
+            return false;
+        }
+        if (status.governed && status.available) {
+            if (!in_initial || !in_final) {
+                error = "active moisture field is missing from a bulk plotfile: " + name;
+                return false;
+            }
+            active_fields.push_back(name);
+        } else if (status.governed && (in_initial || in_final)) {
+            error = "inactive moisture diagnostic was requested for this model: " + name;
+            return false;
+        }
+    }
+    if (initial.time() >= final.time()) {
+        error = "bulk simulation did not advance beyond its initial plotfile";
+        return false;
+    }
+
+    MultiFab density = initial.get(0, "density");
+    MultiFab theta = initial.get(0, "theta");
+    MultiFab temperature = initial.get(0, "temp");
+    MultiFab pressure = initial.get(0, "pressure");
+    MultiFab qv = initial.get(0, "qv");
+    MultiFab qc = initial.get(0, "qc");
+    if (!density.is_finite() || !theta.is_finite() || !temperature.is_finite() ||
+        !pressure.is_finite() || !qv.is_finite() || !qc.is_finite()) {
+        error = "initial bulk thermodynamic field is non-finite";
+        return false;
+    }
+
+    const auto domain = initial.probDomain(0);
+    const auto prob_lo = initial.probLo();
+    const auto dx = initial.cellSize(0);
+    const Real lx = dx[0] * Real(domain.length(0));
+    const Real ly = dx[1] * Real(domain.length(1));
+    const Real lz = dx[2] * Real(domain.length(2));
+    const Real bottom = Real(300.0);
+    const Real top = Real(284.0);
+    const Real amplitude = Real(0.02);
+    const Real relative_humidity = Real(0.95);
+    const Real legacy_qv_bottom = Real(0.004);
+    const Real legacy_qv_top = Real(0.006);
+    MultiFab error_field(theta.boxArray(), theta.DistributionMap(), 3, 0);
+    for (MFIter mfi(error_field, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        const auto th = theta.const_array(mfi);
+        const auto temp = temperature.const_array(mfi);
+        const auto p = pressure.const_array(mfi);
+        const auto vapor = qv.const_array(mfi);
+        const auto cloud = qc.const_array(mfi);
+        const auto out = error_field.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            const Real x = prob_lo[0] + (Real(i - domain.smallEnd(0)) + Real(0.5))*dx[0];
+            const Real y = prob_lo[1] + (Real(j - domain.smallEnd(1)) + Real(0.5))*dx[1];
+            const Real z = prob_lo[2] + (Real(k - domain.smallEnd(2)) + Real(0.5))*dx[2];
+            const Real profile_value = bottom + (top - bottom) *
+                (z - prob_lo[2]) / lz + amplitude *
+                std::sin(Real(2.0)*Real(3.14159265358979323846)*(x-prob_lo[0])/lx) *
+                std::sin(Real(2.0)*Real(3.14159265358979323846)*(y-prob_lo[1])/ly) *
+                std::sin(Real(3.14159265358979323846)*(z-prob_lo[2])/lz);
+            if (physical_initialization) {
+                const Real expected_temperature = profile_value;
+                const Real expected_theta = expected_temperature *
+                    std::pow(p_0 / p(i,j,k), R_d / Cp_d);
+                const Real vapor_pressure = relative_humidity *
+                    (Real(100.0) * erf_esatw(expected_temperature));
+                const Real expected_qv = RdoRv * vapor_pressure /
+                    (p(i,j,k) - vapor_pressure);
+                out(i,j,k,0) = std::abs(temp(i,j,k) - expected_temperature);
+                out(i,j,k,1) = std::abs(th(i,j,k) - expected_theta);
+                out(i,j,k,2) = std::abs(vapor(i,j,k) - expected_qv);
+            } else {
+                const Real expected_qv = legacy_qv_bottom +
+                    (legacy_qv_top - legacy_qv_bottom) *
+                    (z - prob_lo[2]) / lz;
+                out(i,j,k,0) = std::abs(th(i,j,k) - profile_value);
+                out(i,j,k,1) = std::abs(vapor(i,j,k) - expected_qv);
+                out(i,j,k,2) = cloud(i,j,k) == Real(0.0) ? Real(0.0) :
+                    std::numeric_limits<Real>::infinity();
+            }
+            if (cloud(i,j,k) != Real(0.0)) {
+                out(i,j,k,0) = std::numeric_limits<Real>::infinity();
+            }
+        });
+    }
+    amrex::Gpu::streamSynchronize();
+    const Real first_tolerance = scaled_tolerance(Real(300.0));
+    const Real second_tolerance = physical_initialization ?
+        scaled_tolerance(Real(300.0)) : scaled_tolerance(Real(1.0));
+    const Real third_tolerance = physical_initialization ?
+        scaled_tolerance(Real(1.0)) : Real(0.0);
+    if (error_field.norm0(0, 0, false) > first_tolerance ||
+        error_field.norm0(1, 0, false) > second_tolerance ||
+        error_field.norm0(2, 0, false) > third_tolerance) {
+        error = physical_initialization ?
+            "bulk cold-start temperature, theta, qv, or zero-qc contract failed" :
+            "legacy bulk cold-start theta, qv, or zero-qc contract failed";
+        return false;
+    }
+
+    const std::vector<std::string> cold_start_zero = {
+        "qc", "qi", "qrain", "qsnow", "qgraup", "nc", "ni", "nr", "ns",
+        "ng", "nn", "rain_accum", "snow_accum", "graup_accum"};
+    for (const auto& name : cold_start_zero) {
+        if (moisture.query_var(name).available &&
+            initial.get(0, name).norm0(0, 0, false) > scaled_tolerance(Real(1.0))) {
+            error = "bulk cold start did not leave " + name + " at zero";
+            return false;
+        }
+    }
+    for (const auto& name : active_fields) {
+        MultiFab initial_field = initial.get(0, name);
+        MultiFab final_field = final.get(0, name);
+        if (!initial_field.is_finite() || !final_field.is_finite()) {
+            error = "bulk moisture field is non-finite: " + name;
+            return false;
+        }
+        if (name != "rel_humidity" &&
+            final_field.min(0) < -scaled_tolerance(Real(1.0))) {
+            error = "bulk moisture field became negative: " + name;
+            return false;
+        }
+    }
+    if (model == MoistureType::WDM6 &&
+        final.get(0, "nn").max(0) <= Real(0.0)) {
+        error = "WDM6 native microphysics did not populate its CCN number reservoir";
+        return false;
+    }
+    for (const auto& name : core) {
+        if (!final.get(0, name).is_finite()) {
+            error = "final bulk field is non-finite: " + name;
+            return false;
+        }
+    }
+    return true;
 }
 
 struct BudgetSummary {
@@ -295,9 +478,10 @@ int main (int argc, char** argv)
 {
     const std::string mode = argc > 1 ? argv[1] : std::string();
     const bool budget_mode = is_budget_mode(mode);
+    const bool bulk_mode = mode == "bulk" || mode == "bulk_legacy";
     const bool activation_mode = mode == "neutral_momentum" ||
         mode == "fixed_momentum" || mode == "most_momentum";
-    const int expected_argc = (budget_mode || activation_mode) ? 5 : 4;
+    const int expected_argc = (budget_mode || activation_mode || bulk_mode) ? 5 : 4;
     if (!is_checker_mode(mode) || argc != expected_argc) {
         std::cerr << "usage: checker mode initial_plotfile final_plotfile\n"
                   << "       checker parity budget_off_plotfile budget_on_plotfile\n"
@@ -310,6 +494,23 @@ int main (int argc, char** argv)
     }
 
     amrex::Initialize(argc, argv, false);
+    if (bulk_mode) {
+        PlotFileData initial(argv[3]);
+        PlotFileData final(argv[4]);
+        std::string error;
+        const bool valid = check_bulk_plotfiles(
+            argv[2], initial, final, error, mode == "bulk");
+        if (!valid) {
+            amrex::Finalize();
+            return fail(error);
+        }
+        std::cout << "mode=" << mode << " model=" << argv[2]
+                  << " active_fields=" << initial.varNames().size()
+                  << " initial_time=" << initial.time()
+                  << " final_time=" << final.time() << "\n";
+        amrex::Finalize();
+        return 0;
+    }
     if (mode == "parity") {
         PlotFileData budget_off(argv[2]);
         PlotFileData budget_on(argv[3]);

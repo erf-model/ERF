@@ -20,16 +20,18 @@ Overview
 
 The Cloud Chamber problem is a single-level, Cartesian, fixed-density
 anelastic configuration for studying buoyancy-driven thermal and moist flow in
-a closed rectangular chamber.  It supports prescribed-temperature walls,
-dry or SatAdj thermodynamics, and several wall-transfer closures for momentum,
-heat, and water vapor.
+a closed rectangular chamber. It supports dry calculations, saturation
+adjustment (``SatAdj``), and ERF's existing Eulerian bulk microphysics
+schemes, together with prescribed-temperature walls and resolved or modeled
+momentum, heat, and water-vapor transfer.
 
-The Cloud Chamber implementation is intended for code-path verification,
-qualitative chamber-flow studies, wall-flux experiments, and conservation
-regression tests.  It is **not** a quantitatively validated Pi-Chamber LES or
-a calibrated engineering wall-model package.  It does not provide finite-rate
-droplet microphysics, droplet deposition, precipitation, natural-convection
-wall correlations, or experimentally calibrated transfer coefficients.
+This configuration is intended for code-path verification, numerical and
+qualitative chamber-flow studies, wall-flux experiments, and focused
+regression testing. Enabling a bulk microphysics scheme uses that scheme's
+existing water-phase transformations, sedimentation and surface
+precipitation accumulation where applicable. It does not introduce
+facility-calibrated wall exchange, droplet-wall deposition, explicitly
+resolved droplet populations, or a quantitatively validated Pi-Chamber LES.
 
 Most new inputs should use
 ``prob.thermodynamic_initialization = physical_temperature_rh``.  The older
@@ -39,33 +41,45 @@ not support the generalized per-channel wall-transfer models described below.
 Choose the thermodynamic mode
 -----------------------------
 
-.. list-table:: Supported Cloud Chamber thermodynamic modes
+.. list-table:: Supported Cloud Chamber moisture configurations
    :header-rows: 1
-   :widths: 22 24 24 30
+   :widths: 22 37 41
 
-   * - Mode
-     - Moisture model
-     - Wall moisture
-     - Typical use
-   * - Dry physical chamber
-     - Omit ``erf.moisture_model``
-     - Every face is ``dry``
-     - Thermal convection and strict dry ``rhoTheta`` budget checks
-   * - SatAdj with dry walls
-     - ``erf.moisture_model = SatAdj``
-     - Every face is ``dry``
-     - Moist thermodynamics in a water-impermeable chamber
-   * - SatAdj with wet walls
-     - ``erf.moisture_model = SatAdj``
-     - One or more faces may be ``wet``
-     - Equilibrium vapor exchange with total-water budget checks
-   * - Legacy theta/qv
-     - Omit moisture for dry legacy mode, or use ``SatAdj`` for cloudy legacy mode
-     - Legacy numerical ``theta``/``qv`` wall values
-     - Backward compatibility with existing Cloud Chamber inputs
+   * - Configuration
+     - ``erf.moisture_model``
+     - Notes
+   * - Dry
+     - omitted
+     - No moisture state; every wall must be dry.
+   * - Equilibrium moist
+     - ``SatAdj``
+     - Preserves the existing equilibrium vapor/cloud-water path and
+       supported nonprecipitating-water budget.
+   * - Nonprecipitating bulk
+     - ``Kessler_NoRain`` or ``SAM_NoPrecip_NoIce``
+     - Vapor and suspended cloud water; no scheme-native precipitation
+       removal in these no-precipitation configurations.
+   * - Precipitating bulk
+     - ``Kessler``, ``SAM_NoIce``, ``SAM``, ``WSM6``, ``WDM6``,
+       ``Morrison_NoIce`` or ``Morrison``
+     - Uses the selected ERF scheme's native hydrometeor species,
+       number concentrations when present, and sedimentation.
+   * - Noncondensing moisture transport
+     - ``MoistNoCondensation``
+     - An ERF moisture-transport shell with no condensation source.
 
 A wall marked ``dry`` is impermeable to water but may still exchange heat.
-A ``wet`` wall is valid only when ``erf.moisture_model = SatAdj``.
+A ``wet`` wall requires a supported active moisture model. It exchanges vapor
+using the saturation mixing ratio at the prescribed wall temperature and
+local hydrostatic pressure. Wall transfer does not deposit suspended cloud
+droplets, ice, or aerosol number; falling precipitation is handled separately
+by the selected bulk scheme.
+
+For any active supported moisture model, physical initialization requires
+``prob.initial_relative_humidity`` (a fraction in ``[0,1]``). The retained
+``legacy_theta_qv`` mode also accepts the supported moisture models, using its
+legacy ``theta`` and ``qv`` profiles and wall keys rather than the generalized
+physical-temperature wall configuration.
 
 Terminology
 -----------
@@ -199,9 +213,9 @@ profile and optionally adds a deterministic three-dimensional perturbation.
      - ``deterministic_sine``
      - the only currently supported perturbation mode
    * - ``prob.initial_relative_humidity``
-     - SatAdj only
+     - any supported active moisture model
      - none
-     - required with SatAdj; a fraction in ``[0,1]``
+     - required when an active moisture model is selected; a fraction in ``[0,1]``
 
 For a domain with lower corner :math:`(x_0,y_0,z_0)` and lengths
 :math:`(L_x,L_y,L_z)`, the temperature field is
@@ -230,18 +244,22 @@ using ERF's configured ``rdOcp = R_d/c_p``.  Here
 :math:`p_\mathrm{hse}` is the local hydrostatic pressure and
 :math:`p_0=100000\ \mathrm{Pa}` is ERF's reference pressure.
 
-With SatAdj, the initial vapor mixing ratio is computed from the supplied
-relative humidity,
+For every supported moist model, the initial vapor mixing ratio is computed
+from the supplied relative humidity,
 
 .. math::
 
    q_v = \frac{R_d}{R_v}
    \frac{RH\,e_s(T)}{p_\mathrm{hse}-RH\,e_s(T)},
 
-where ``RH`` is a fraction rather than a percentage.  The initializer sets
-``qc = 0`` and SatAdj subsequently establishes the equilibrium vapor--cloud
-water partition.  In dry mode there are no ``qv`` or ``qc`` state fields, and
-``prob.initial_relative_humidity`` must be omitted.
+where ``RH`` is a fraction rather than a percentage, ``T`` is the prescribed
+initial physical temperature, and ``p_hse`` is the local hydrostatic pressure.
+Cloud water and every additional bulk hydrometeor and hydrometeor-number
+state component start at zero. The selected microphysics scheme subsequently
+evolves them according to its native physics; WDM6 initializes its aerosol/CCN
+number reservoir through its own microphysics state-transfer path. In dry mode
+no moisture state is present and ``prob.initial_relative_humidity`` must be
+omitted.
 
 Do not combine physical initialization with the legacy profile keys
 ``theta_bottom``, ``theta_top``, ``theta_perturbation_amplitude``,
@@ -269,10 +287,11 @@ Dry legacy mode requires:
    prob.theta_perturbation_amplitude = <optional finite value>
    prob.perturbation_mode = deterministic_sine
 
-For cloudy legacy mode also set ``erf.moisture_model = SatAdj`` and provide
-nonnegative ``prob.qv_bottom`` and ``prob.qv_top``.  Every face still requires
-``<face>.type = NoSlipWall``.  Legacy walls use ``<face>.theta``; cloudy
-legacy walls also require ``<face>.qv``.
+For moist legacy mode, select any supported moisture model and provide
+nonnegative ``prob.qv_bottom`` and ``prob.qv_top``. Every face still requires
+``<face>.type = NoSlipWall``. Legacy walls use ``<face>.theta``; moist legacy
+walls also require ``<face>.qv``. Generalized per-channel wall-transfer keys
+remain unavailable in legacy mode.
 
 Do not combine ``legacy_theta_qv`` with physical profile keys such as
 ``initial_temperature_bottom``, ``initial_temperature_top``,
@@ -330,8 +349,9 @@ In physical-temperature mode, every face requires three basic declarations:
    <face>.moisture = dry|wet
 
 The face prefix is one of ``xlo``, ``xhi``, ``ylo``, ``yhi``, ``zlo``, or
-``zhi``.  Wall temperature must be finite and positive.  A wet wall requires
-SatAdj.  Cloud Chamber walls are stationary; ``<face>.velocity`` is rejected.
+``zhi``. Wall temperature must be finite and positive. A wet wall requires a
+supported active moisture model. Cloud Chamber walls are stationary;
+``<face>.velocity`` is rejected.
 
 ``NoSlipWall`` is the required ERF boundary type for all supported Cloud
 Chamber wall models.  Selecting an aerodynamic momentum model changes the
@@ -363,6 +383,14 @@ are:
    * - cloud water
      - no selector
      - wall flux is always exactly zero
+   * - additional moisture species
+     - no selector
+     - physical NoSlip walls use zero normal diffusive flux; native vertical
+       precipitation sedimentation and bottom accumulation remain scheme-owned
+
+The zero diffusive flux for additional species applies to the physical wall
+transport path. It does not disable or replace scheme-native precipitation
+sedimentation through the bottom boundary.
 
 The retained aggregate compatibility key
 
@@ -505,7 +533,7 @@ The following table summarizes the physical-temperature wall keys.
    * - ``<face>.moisture``
      - none
      - ``dry`` or ``wet``
-     - required on every physical wall; ``wet`` requires SatAdj
+     - required on every physical wall; ``wet`` requires an active supported moisture model
    * - ``<face>.wall_transfer_model``
      - omitted
      - ``resolved_molecular`` only
@@ -1016,6 +1044,24 @@ Budget statuses are:
 
 Enabling the budget diagnostic must not change the simulated state.
 
+Bulk-microphysics diagnostics
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The existing ``erf.cloud_chamber_budget_interval`` diagnostic is currently
+supported only for the dry and ``SatAdj`` physical-temperature chamber. Set it
+to ``0`` (or omit it) when selecting another bulk microphysics model. The
+existing budget does not account for all precipitating and
+number-concentration components, nor for bulk-scheme bottom precipitation
+collection, and must not be interpreted as a total-water closure check in
+those configurations.
+
+Choose plotfile fields from those supported by the active model. In
+particular, ``qv``, ``qc`` and ``qsat`` can be useful for bulk runs, while
+``rel_humidity`` is not available as a common diagnostic for every bulk
+scheme. The species names and their availability follow ERF's
+``MoistureComponentIndices`` mapping; a scheme may allocate more conserved
+components than it actually integrates.
+
 Validated regression examples
 -----------------------------
 
@@ -1042,6 +1088,12 @@ not calibrated physical recommendations.
      - ``Tests/test_files/CloudChamber_SatAdj_MOSTWetBudget/CloudChamber_SatAdj_MOSTWetBudget.i``
    * - Mixed neutral sidewalls and MOST horizontal walls
      - ``Tests/test_files/CloudChamber_SatAdj_MOSTMixedWalls/CloudChamber_SatAdj_MOSTMixedWalls.i``
+   * - Physical-temperature bulk microphysics smoke input
+     - ``Tests/test_files/CloudChamber_Bulk/CloudChamber_Bulk.i``
+   * - WDM6 physical chamber restart-parity input
+     - ``Tests/test_files/CloudChamber_WDM6_Restart/CloudChamber_WDM6_Restart.i``
+   * - Legacy theta/qv Kessler_NoRain smoke input
+     - ``Tests/test_files/CloudChamber_Bulk_Legacy/CloudChamber_Bulk_Legacy.i``
    * - Legacy theta/qv configuration
      - ``Tests/test_files/CloudChamber_Legacy_Config/CloudChamber_Legacy_Config.i``
 
@@ -1059,7 +1111,7 @@ Run checklist
 #. Use one ConstantDz, nonperiodic Cartesian level with fixed-density anelastic
    dynamics and gravity.
 #. In ``physical_temperature_rh``, define bottom/top initial temperature and
-   add RH only when SatAdj is enabled.
+   add RH when any active supported moisture model is enabled.
 #. For ``physical_temperature_rh``, define all six stationary ``NoSlipWall``
    faces with physical wall temperature and ``dry`` or ``wet`` moisture state.
    Choose the momentum, heat, and vapor model on each face; remember that one
@@ -1073,9 +1125,10 @@ Run checklist
 #. Choose a timestep that satisfies the wall-rate guard, or use adaptive
    stepping.
 #. Run a short case and inspect velocity, temperature/potential temperature,
-   and, for SatAdj, ``qv`` and ``qc``.
-#. Enable ``erf.cloud_chamber_budget_interval`` and check dry thermal or total
-   nonprecipitating-water conservation as appropriate.
+   and, for active moisture models, ``qv`` and ``qc`` plus only the species
+   diagnostics supported by that model.
+#. Enable ``erf.cloud_chamber_budget_interval`` only for dry or SatAdj
+   physical-temperature cases; it is not a bulk total-water budget.
 
 Supported scope and limitations
 -------------------------------
@@ -1095,8 +1148,12 @@ The implemented Cloud Chamber wall-model scope is intentionally limited to:
 The implementation does not currently provide moving walls, smooth-wall
 ``y+``/viscous-sublayer laws, stretched-dz wall sampling, terrain-aware wall
 models, EB/AMR wall models, natural-convection wall correlations, ocean/COARE
-closures, cloud-water deposition, precipitation, droplet activation, or
-facility-specific coefficient calibration.
+closures, chamber-specific droplet deposition or wall precipitation
+collection, droplet activation, or facility-specific coefficient calibration.
+Supported precipitating bulk schemes use their existing hydrometeor
+sedimentation and surface-accumulation routines. Microphysics operational
+support does not establish quantitative agreement with laboratory
+measurements, aerosol activation fidelity, or grid-converged LES results.
 
 A numerically stable run is not by itself evidence of quantitative
 Pi-Chamber agreement or grid-independent LES behavior.
@@ -1105,12 +1162,16 @@ Troubleshooting
 ---------------
 
 ``initial_relative_humidity`` is rejected in dry mode
-   Omit ``prob.initial_relative_humidity`` unless
-   ``erf.moisture_model = SatAdj``.  Enter RH as a fraction such as ``0.95``,
-   not ``95``.
+   Omit ``prob.initial_relative_humidity`` when no moisture model is active.
+   Otherwise use a fraction such as ``0.95``, not ``95``.
 
 A wet wall is rejected
-   Wet walls require ``erf.moisture_model = SatAdj``.
+   Wet walls require a supported active moisture model; dry mode cannot
+   exchange water vapor with the wall.
+
+A bulk model's chamber budget is rejected
+   ``erf.cloud_chamber_budget_interval`` is limited to dry and ``SatAdj``
+   physical chamber cases. Omit the option or set it to ``0``.
 
 ``coefficient_source`` is rejected
    Use it only when at least one channel on that face is ``bulk_aero``.  The
