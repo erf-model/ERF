@@ -874,11 +874,9 @@ struct SolverChoice {
         std::string terrain_type_temp = "";
         pp.queryAdd("terrain_type", terrain_type_temp);
         if (terrain_type_temp == "Moving") {
-            amrex::Warning("erf.terrain_type = Moving is deprecated; please replace Moving by MovingFittedMesh");
-            terrain_type = TerrainType::MovingFittedMesh;
+            amrex::Error("erf.terrain_type = Moving is no longer supported; please replace Moving by MovingFittedMesh");
         } else if (terrain_type_temp == "Static") {
-            amrex::Warning("erf.terrain_type = Static is deprecated; please replace Static by StaticFittedMesh");
-            terrain_type = TerrainType::StaticFittedMesh;
+            amrex::Error("erf.terrain_type = Static is no longer supported; please replace Static by StaticFittedMesh");
         } else {
             pp.query_enum_case_insensitive("terrain_type",terrain_type);
         }
@@ -957,6 +955,12 @@ struct SolverChoice {
 
         if (flat_terrain && terrain_type != TerrainType::StaticFittedMesh) {
             amrex::Error("erf.flat_terrain requires terrain_type = StaticFittedMesh");
+        }
+
+        // Refined levels over moving terrain are not supported: erf_substep_MT does not take the
+        // fluxes through coarse/fine faces from the coarse level (cf_flux_history_active)
+        if (terrain_type == TerrainType::MovingFittedMesh && max_level > 0) {
+            amrex::Error("erf.terrain_type = MovingFittedMesh requires amr.max_level = 0");
         }
 
         if ( (moisture_type == MoistureType::SAM                ||

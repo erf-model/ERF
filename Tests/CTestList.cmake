@@ -480,8 +480,8 @@ function(add_test_box_parity TEST_NAME TEST_FILES_DIR PLTFILE)
         ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/one_box/simulation.log;${CURRENT_TEST_BINARY_DIR}/split/simulation.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
 endfunction(add_test_box_parity)
 
-# Run a deck and require the composite integral of QUANTITY that ERF prints ("RHO SCALAR" or
-# "RHO QTOTAL") to be the same at the start and the end of the run (see
+# Run a deck and require the composite integral of QUANTITY that ERF prints ("MASS", "RHO SCALAR"
+# or "RHO QTOTAL") to be the same at the start and the end of the run (see
 # Tests/RunConservation.cmake).  TEST_FILES_DIR names the test_files directory, whose deck is
 # <TEST_FILES_DIR>.i; OPTIONS are added to the run.  The integral must agree to 12 significant
 # digits in double precision; a single-precision build accumulates roundoff of up to 6e-6
@@ -2317,6 +2317,16 @@ add_test_conservation(Conservation_ScalarAdvection_AnelasticRK2 ScalarDiffusion_
     OPTIONS "erf.anelastic=1 erf.anelastic_type=RK2 erf.molec_diff_type=None prob.U_0=10 prob.V_0=5")
 add_test_conservation(Conservation_ScalarDiffusion_Smagorinsky ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.molec_diff_type=None erf.les_type=Smagorinsky erf.Cs=0.2 prob.prob_type=12 prob.rad_0=0.25 prob.uRef=10 prob.zRef=1 prob.z0=0.01")
+
+# Under two-way coupling with acoustic substepping the fine level takes the fluxes through its
+# coarse/fine faces from the coarse level's substeps (erf.cf_flux_history), so in a closed domain
+# the composite mass is conserved to round-off.  On a terrain-fitted mesh those fluxes carry the
+# face areas in x and y and are Omega in z (erf_substep_T).  A uniform wind over a hill drives
+# flow through every coarse/fine face of the deck's patch, which ends inside the domain in x, in y
+# and in z.  With erf.cf_flux_history = false the mass changes by 5e-7 relative over the run; flat
+# ground under a uniform wind would conserve it either way
+add_test_conservation(Conservation_Mass_Hill ScalarDiffusion_Reflux "MASS"
+    OPTIONS "erf.terrain_type=StaticFittedMesh prob.custom_terrain_type=WoA prob.dir=2 prob.hmax=0.25 prob.L=0.15 prob.U_0=10 prob.V_0=5")
 add_test_0(PoiseuilleFlow_x                  "" "erf_exec" "plt00010")
 add_test_0(PoiseuilleFlow_y                  "" "erf_exec" "plt00010")
 add_test_0(InitSoundingIdeal_stationary      "" "erf_exec" "plt00010")
