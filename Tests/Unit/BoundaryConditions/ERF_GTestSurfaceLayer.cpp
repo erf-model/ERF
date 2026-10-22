@@ -970,21 +970,30 @@ TEST(SurfaceLayer, PrescribedMostHeatingRateRemainsPotentialTemperatureTendency)
     pp.remove("most.surf_heating_rate");
 }
 
-// Motivation: Noah-MP's t_sfc is an absolute radiative temperature owned by
-// the radiation path, not a SurfaceLayer theta-like input. It must not be
-// adopted as MOST's thermal boundary; the configured MOST theta remains the
-// fallback when no recognized theta-like LSM field is present.
-TEST(SurfaceLayer, NoahRadiativeSurfaceTemperatureIsNotAdoptedBySurfaceLayer)
+// Motivation: Noah-MP publishes its skin temperature as the absolute field
+// t_sfc, and SLM publishes tsurf the same way. The SurfaceLayer adopts them and
+// converts to potential temperature at the surface pressure, so the value MOST
+// sees is theta, as for every other thermal boundary.
+TEST(SurfaceLayer, AbsoluteLsmSkinTemperatureIsConvertedToPotentialTemperature)
 {
-    const Orientation face(Direction::z, Orientation::low);
-    ScopedSurfaceLayerParams params("unit_surface_layer_noah_t_sfc");
-    SurfaceLayerFields fields;
-    auto layer = fields.prepare_layer(
-        face, active_faces({face}), "unit_surface_layer_noah_t_sfc",
-        false, true, "t_sfc", Real(290.0));
+    for (const std::string name : {"t_sfc", "tsurf"}) {
+        const std::string prefix = "unit_surface_layer_lsm_abs_" + name;
+        const Geometry geom = make_qsurf_geometry();
+        const Orientation face(Direction::z, Orientation::low);
+        ScopedSurfaceLayerParams params(prefix.c_str());
+        SurfaceLayerFields fields(geom);
+        const Real pressure = Real(0.9) * p_0;
+        fields.set_surface_cell_pressure(
+            pressure - test_rho * CONST_GRAV * myhalf * geom.CellSize(2));
+        auto layer = fields.prepare_layer(
+            face, active_faces({face}), prefix, false, true, name, Real(290.0));
 
-    const IntVect point = face_point(fields.domain, face);
-    EXPECT_EQ(mf_value(*layer->get_t_surf(0), point), test_surface_temperature);
+        const Real expected_theta = Real(290.0) * std::pow(p_0 / pressure, RdoCp);
+        const IntVect point = face_point(fields.domain, face);
+        EXPECT_NEAR(mf_value(*layer->get_t_surf(0), point), expected_theta,
+                    Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta)
+            << name;
+    }
 }
 
 // Motivation: SLM exposes its surface field as theta. The SurfaceLayer must
