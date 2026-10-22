@@ -61,6 +61,7 @@ cf_omega_stage (int i, int j, int k, int klo, int khi,
  * @param[in   ] l_reflux should we add fluxes to the FluxRegisters?
  * @param[in   ] l_real_bc
  * @param[in   ] l_damp_coef
+ * @param[in   ] beta_d divergence damping coefficient: how far (rho theta) is projected forward
  * @param[inout] cf_fluxes coarse/fine face fluxes: recorded here on a coarse level, imposed on a fine one
  */
 
@@ -96,6 +97,7 @@ void erf_substep_T (int step, int /*nrk*/,
                     bool l_real_bc,
                     const Real* sinesq_stag_d,
                     const Real l_damp_coef,
+                    const Real beta_d,
                     const CFFaceFluxes& cf_fluxes)
 {
     BL_PROFILE_REGION("erf_substep_T()");
@@ -110,9 +112,6 @@ void erf_substep_T (int step, int /*nrk*/,
     int ihi = domhi.x + 1;
     int jlo = domlo.y;
     int jhi = domhi.y + 1;
-
-    // How much do we project forward the (rho theta) that is used in the horizontal momentum equations
-    Real beta_d = Real(0.1);
 
     Real RvOverRd = R_v / R_d;
 

@@ -204,7 +204,8 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                              detJ_cc[level],   detJ_cc_new[level],   detJ_cc_src[level],
                            dtau, inv_fac, mapfac[level],
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
-                           (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef);
+                           (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
+                           solverChoice.beta_d);
 
         } else if (cf_terrain) {
 
@@ -217,7 +218,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                           mapfac[level],
                           fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
                           (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
-                          cf_fluxes);
+                          solverChoice.beta_d, cf_fluxes);
 
         } else {
 
@@ -229,7 +230,7 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
                            dtau, inv_fac, mapfac[level],
                            fr_as_crse, fr_as_fine, l_use_moisture, l_reflux, solverChoice.use_real_bcs,
                            (l_rayleigh_implicit) ? d_sinesq_stag_ptrs[level].data() : nullptr, l_damp_coef,
-                           cf_fluxes);
+                           solverChoice.beta_d, cf_fluxes);
         }
 
         // The vertical quantity at the start and end of the substep: Omega, recorded by the

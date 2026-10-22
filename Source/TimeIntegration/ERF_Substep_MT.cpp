@@ -46,6 +46,7 @@ using namespace amrex;
  * @param[in   ]  l_use_moisture
  * @param[in   ]  l_reflux should we add fluxes to the FluxRegisters?
  * @param[in   ] l_damp_coef
+ * @param[in   ] beta_d divergence damping coefficient: how far (rho theta) is projected forward
  */
 
 void erf_substep_MT (int step, int /*nrk*/,
@@ -86,14 +87,12 @@ void erf_substep_MT (int step, int /*nrk*/,
                      bool l_reflux,
                      bool /*l_real_bc*/,
                      const Real* sinesq_stag_d,
-                     const Real l_damp_coef)
+                     const Real l_damp_coef,
+                     const Real beta_d)
 {
     BL_PROFILE_REGION("erf_substep_MT()");
 
     Real dtau = static_cast<Real>(dtau_d);
-
-    // How much do we project forward the (rho theta) that is used in the horizontal momentum equations
-    Real beta_d = Real(0.1);
 
     Real RvOverRd = R_v / R_d;
 

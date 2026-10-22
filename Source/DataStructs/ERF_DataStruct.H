@@ -1141,6 +1141,12 @@ struct SolverChoice {
 
         pp.queryAdd("beta_s", beta_s);
 
+        // Divergence damping coefficient for the forward projection of (rho theta)
+        pp.queryAdd("beta_d", beta_d);
+        if (!(beta_d >= amrex::Real(0.0) && beta_d <= amrex::Real(1.0))) {
+            amrex::Abort("erf.beta_d must lie in [0, 1]; got " + std::to_string(beta_d));
+        }
+
         // Spatially varying beta_s on the w-faces (implicit substepping only):
         //    beta_s = max(beta_s_min, min(beta_s_max, h_xi^2 + h_eta^2))
         pp.queryAdd("use_variable_beta_s", use_variable_beta_s);
@@ -2327,6 +2333,10 @@ struct SolverChoice {
     amrex::Real beta_s_min = amrex::Real(0.1);
     amrex::Real beta_s_max = amrex::Real(0.8);
 
+    // divergence damping coefficient: how far (rho theta) is projected forward
+    // in the horizontal momentum equations of the acoustic substepping
+    amrex::Real beta_d = amrex::Real(0.1);
+
     // This controls the time-centering of the *vertical* differences in the diffusive term for
     // theta, u, v (and w if ERF_IMPLICIT_W is set)
     // 0: fully explicit
@@ -2759,6 +2769,8 @@ struct SolverChoice {
  * @brief Lower bound of the spatially varying beta_s.
  * @var SolverChoice::beta_s_max
  * @brief Upper bound of the spatially varying beta_s.
+ * @var SolverChoice::beta_d
+ * @brief Divergence damping coefficient used in the acoustic substepping.
  * @var SolverChoice::vert_implicit_fac
  * @brief Per-level, per-stage implicit vertical diffusion factors.
  * @var SolverChoice::implicit_thermal_diffusion

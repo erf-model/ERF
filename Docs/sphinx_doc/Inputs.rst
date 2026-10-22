@@ -3279,6 +3279,10 @@ List of Parameters
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.beta_s_max**          | upper bound of the spatially varying beta_s              | Real in [-1, 1]    | 0.8              |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.beta_d**              | divergence damping coefficient used in the acoustic      | Real in [0, 1]     | 0.1              |
+|                             | substepping; how far (rho theta) is projected forward    |                    |                  |
+|                             | in the horizontal momentum equations                     |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.w_damping**           | enable vertical-velocity damping                         | Boolean            | false            |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.w_damping_cfl**       | Critical vertical advective CFL for w-damping to be      | Real > 0           | 1.0              |

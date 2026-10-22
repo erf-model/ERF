@@ -73,6 +73,7 @@ void erf_substep_NS (int step, int nrk,
                      bool l_real_bc,
                      const amrex::Real* sinesq_stag_d,
                      const Real l_damp_coef,
+                     const Real beta_d,
                      const CFFaceFluxes& cf_fluxes)
 {
     //
@@ -91,9 +92,6 @@ void erf_substep_NS (int step, int nrk,
     int ihi = domhi.x + 1;
     int jlo = domlo.y;
     int jhi = domhi.y + 1;
-
-    // How much do we project forward the (rho theta) that is used in the horizontal momentum equations
-    Real beta_d = Real(0.1);
 
     bool l_rayleigh_impl_for_w = (sinesq_stag_d != nullptr);
 
