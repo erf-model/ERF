@@ -1195,6 +1195,15 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
         return tmp;
     };
 
+    // The vegetation and soil types are categories: a fine cell takes its coarse cell's,
+    // since a linear interpolation between two of them (17, water, and 5, say, along a
+    // coastline) gives a third (12, cropland) once SLM truncates it to an integer
+    auto interp_for = [] (int var) -> Interpolater*
+    {
+        return (var == LsmVar_SLM::vegtype || var == LsmVar_SLM::soiltype)
+            ? static_cast<Interpolater*>(&pc_interp) : static_cast<Interpolater*>(&cell_cons_interp);
+    };
+
     for (int ivar = 0; ivar < m_lsm_data_size; ++ivar) {
         AMREX_ALWAYS_ASSERT(source_data[ivar] != nullptr);
         const MultiFab src = with_filled_ghosts(*source_data[ivar], source_lsm_geom);
@@ -1202,7 +1211,7 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
                               lsm_fab_vars[LsmDataMap[ivar]]->nGrowVect(),
                               IntVect(0,0,0), src, 0, 0, 1,
                               source_lsm_geom, m_lsm_geom, rr2d,
-                              &cell_cons_interp, m_domain_bcs_type,
+                              interp_for(LsmDataMap[ivar]), m_domain_bcs_type,
                               BCVars::cons_bc);
     }
 
@@ -1224,7 +1233,7 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
                               lsm_fab_vars[unmapped_fields[ivar]]->nGrowVect(),
                               IntVect(0,0,0), src, 0, 0, 1,
                               source_lsm_geom, m_lsm_geom, rr2d,
-                              &cell_cons_interp, m_domain_bcs_type,
+                              interp_for(unmapped_fields[ivar]), m_domain_bcs_type,
                               BCVars::cons_bc);
     }
 

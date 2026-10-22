@@ -6,7 +6,8 @@
 # coupling refluxes the scalar across them.  With slip walls and periodic sides nothing leaves the
 # domain, so the composite integral of rho*scalar that ERF prints ("RHO SCALAR SL/ML") must not
 # change: that holds only if the diffusive fluxes are in the reflux.  Tests/CTestList.cmake runs
-# it on several meshes, with map factors, and with a sheared flow and turbulent diffusion.
+# it on several meshes, with map factors, and with a sheared flow and turbulent diffusion; and,
+# with a uniform wind over a hill, checks that the composite mass ("MASS SL/ML") is conserved.
 #
 erf.prob_name = "Scalar Advection/Diffusion"
 

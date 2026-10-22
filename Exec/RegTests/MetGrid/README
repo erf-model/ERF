@@ -1,3 +1,16 @@
 This problem setup is to test the ability of ERF to correctly use 
 initial data from a metgrid NetCDF file
 to initialize the problem and provide time-dependent boundary conditions.
+
+The inputs_metgrid_slm case initializes the SLM land surface model from the
+met_em files: ERF builds the fields real.exe would write to wrfinput (soil
+temperature and moisture on the 4 Noah layers, land use and dominant soil
+category, skin temperature, and vegetation fraction and LAI interpolated to
+the start date from the monthly climatology) and hands them to SLM, which
+takes the same path it takes for a wrfinput run. Each level reads its land
+state from its own met_em file.
+
+The met_em files in this directory cover only ocean, so this case needs met_em
+files for a domain that includes land (see the comments in the inputs file),
+along with NoahmpTable.TBL and the four rrtmgp-*.nc files (SLM requires the
+radiation model; see Exec/RegTests/WPS_Test/README). Build with USE_RRTMGP=TRUE.
