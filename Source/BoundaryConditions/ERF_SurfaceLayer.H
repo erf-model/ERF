@@ -563,6 +563,12 @@ public:
           }
       }
 
+      // By default an LSM field named "tsurf", "theta" or "t_surf" is copied into
+      // t_surf unchanged. With this option the LSM skin temperature ("tsurf" from
+      // SLM, "t_sfc" from Noah-MP) is taken as an absolute temperature and
+      // converted to potential temperature at the surface pressure.
+      pp.queryAdd("most.use_lsm_skin_temperature", m_use_lsm_skin_temperature);
+
       // Get pointers to LSM data and Fluxes
       int ndata = static_cast<int>(lsm_data.size());
       int nflux = static_cast<int>(lsm_flux.size());
@@ -574,10 +580,11 @@ public:
           m_lsm_data_name[n]     = lsm_data_name[n];
           m_lsm_data_lev[lev][n] = lsm_data[n];
           const std::string lc_name = amrex::toLower(lsm_data_name[n]);
-          // "tsurf" (SLM) and "t_sfc" (Noah-MP) are absolute skin temperatures and
-          // are converted to potential temperature in get_lsm_tsurf; "theta" and
-          // "t_surf" are taken to be potential temperature already.
-          if (lc_name == "tsurf" || lc_name == "t_sfc" ||
+          // With most.use_lsm_skin_temperature, "tsurf" (SLM) and "t_sfc" (Noah-MP)
+          // are absolute skin temperatures and are converted to potential
+          // temperature in get_lsm_tsurf; "theta" and "t_surf" are taken to be
+          // potential temperature already.
+          if (lc_name == "tsurf" || (m_use_lsm_skin_temperature && lc_name == "t_sfc") ||
               lc_name == "theta" || lc_name == "t_surf") {
               m_has_lsm_tsurf  = true;
               m_lsm_tsurf_indx = n;
@@ -1713,6 +1720,7 @@ private:
   bool m_has_lsm_tsurf  = false;
   int  m_lsm_tsurf_indx = -1;
   bool m_lsm_tsurf_is_theta = false;
+  bool m_use_lsm_skin_temperature = false;
 
   // variables for sfc/sst forcing from file
   bool m_use_sfc_fluxes = false;

@@ -970,17 +970,53 @@ TEST(SurfaceLayer, PrescribedMostHeatingRateRemainsPotentialTemperatureTendency)
     pp.remove("most.surf_heating_rate");
 }
 
-// Motivation: Noah-MP publishes its skin temperature as the absolute field
-// t_sfc, and SLM publishes tsurf the same way. The SurfaceLayer adopts them and
-// converts to potential temperature at the surface pressure, so the value MOST
-// sees is theta, as for every other thermal boundary.
-TEST(SurfaceLayer, AbsoluteLsmSkinTemperatureIsConvertedToPotentialTemperature)
+// Motivation: by default Noah-MP's t_sfc, an absolute radiative temperature
+// owned by the radiation path, is not adopted as MOST's thermal boundary; the
+// configured MOST theta remains the fallback.
+TEST(SurfaceLayer, NoahRadiativeSurfaceTemperatureIsNotAdoptedByDefault)
+{
+    const Orientation face(Direction::z, Orientation::low);
+    ScopedSurfaceLayerParams params("unit_surface_layer_noah_t_sfc");
+    SurfaceLayerFields fields;
+    auto layer = fields.prepare_layer(
+        face, active_faces({face}), "unit_surface_layer_noah_t_sfc",
+        false, true, "t_sfc", Real(290.0));
+
+    const IntVect point = face_point(fields.domain, face);
+    EXPECT_EQ(mf_value(*layer->get_t_surf(0), point), test_surface_temperature);
+}
+
+// Motivation: by default an LSM tsurf field is copied into t_surf as it is,
+// with no pressure conversion.
+TEST(SurfaceLayer, LsmTsurfFieldIsCopiedUnchangedByDefault)
+{
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    ScopedSurfaceLayerParams params("unit_surface_layer_lsm_tsurf_default");
+    SurfaceLayerFields fields(geom);
+    fields.set_surface_cell_pressure(Real(0.9) * p_0);
+    auto layer = fields.prepare_layer(
+        face, active_faces({face}), "unit_surface_layer_lsm_tsurf_default",
+        false, true, "tsurf", Real(290.0));
+
+    const IntVect point = face_point(fields.domain, face);
+    EXPECT_EQ(mf_value(*layer->get_t_surf(0), point), Real(290.0));
+}
+
+// Motivation: with most.use_lsm_skin_temperature, Noah-MP publishes its skin
+// temperature as the absolute field t_sfc and SLM publishes tsurf the same way.
+// The SurfaceLayer adopts them and converts to potential temperature at the
+// surface pressure, so the value MOST sees is theta, as for every other thermal
+// boundary.
+TEST(SurfaceLayer, AbsoluteLsmSkinTemperatureIsConvertedWhenEnabled)
 {
     for (const std::string name : {"t_sfc", "tsurf"}) {
         const std::string prefix = "unit_surface_layer_lsm_abs_" + name;
         const Geometry geom = make_qsurf_geometry();
         const Orientation face(Direction::z, Orientation::low);
         ScopedSurfaceLayerParams params(prefix.c_str());
+        ParmParse pp(prefix);
+        pp.add("most.use_lsm_skin_temperature", true);
         SurfaceLayerFields fields(geom);
         const Real pressure = Real(0.9) * p_0;
         fields.set_surface_cell_pressure(
@@ -993,6 +1029,7 @@ TEST(SurfaceLayer, AbsoluteLsmSkinTemperatureIsConvertedToPotentialTemperature)
         EXPECT_NEAR(mf_value(*layer->get_t_surf(0), point), expected_theta,
                     Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta)
             << name;
+        pp.remove("most.use_lsm_skin_temperature");
     }
 }
 

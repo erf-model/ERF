@@ -4124,6 +4124,13 @@ the ones marked **Required** abort the run if they are not given.
 | **erf.most.ignore_sst**               | use the skin temperature rather than the sea-surface     | Boolean             | false            |
 |                                       | temperature from the input data                          |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.use_lsm_skin_temperature** | take the land model's skin temperature (SLM ``tsurf``,   | Boolean             | false            |
+|                                       | Noah-MP ``t_sfc``) as an absolute temperature and        |                     |                  |
+|                                       | convert it to potential temperature at the surface       |                     |                  |
+|                                       | pressure. When false, an LSM ``tsurf``, ``theta`` or     |                     |                  |
+|                                       | ``t_surf`` field is copied unchanged and ``t_sfc`` is    |                     |                  |
+|                                       | not used                                                 |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.use_sfc_fluxes**           | read time-varying sensible and latent heat fluxes and    | Boolean             | false            |
 |                                       | friction velocity from a text file; may not be combined  |                     |                  |
 |                                       | with ``erf.most.use_sfc_sst``                            |                     |                  |

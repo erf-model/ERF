@@ -2195,8 +2195,10 @@ SurfaceLayer::fill_qsurf_with_qsat (const int& lev,
 /**
  * Fill surface temperature from land-surface-model data.
  *
- * t_surf is a potential temperature.  An LSM skin temperature that is an absolute
- * temperature (m_lsm_tsurf_is_theta false) is converted at the surface pressure, as
+ * By default the LSM field is copied into t_surf unchanged.  With
+ * most.use_lsm_skin_temperature, t_surf is a potential temperature: an LSM skin
+ * temperature that is an absolute temperature (m_lsm_tsurf_is_theta false) is
+ * converted at the surface pressure, as
  * fill_tsurf_with_skin_temperature does.  When the LSM also supplies the surface
  * fluxes, t_surf follows the skin only where all four fluxes are valid: those are
  * the cells whose fluxes and u*, t*, q*, L come from the LSM, so the MOST fluxes of
@@ -2212,6 +2214,45 @@ SurfaceLayer::get_lsm_tsurf (const int& lev,
                              const std::unique_ptr<MultiFab>& z_phys_nd)
 {
     const int klo = m_geom[lev].Domain().smallEnd(2);
+
+    if (!m_use_lsm_skin_temperature) {
+        // Default: the LSM field is copied into t_surf as it is.
+        for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
+        {
+            Box gtbx = mfi.growntilebox();
+
+            if (gtbx.smallEnd(2) != klo) { continue; }
+
+            // NOTE: LSM does not carry lateral ghost cells.
+            //       This copies the valid box into the ghost cells.
+            //       Fillboundary is called after this to pick up the
+            //       interior ghost and periodic directions.
+            const NearestColumn col(mfi.validbox());
+
+            auto t_surf_arr = t_surf[lev]->array(mfi);
+            auto lmask_arr  = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
+                                                      Array4<int> {};
+            const auto& lsm_tsurf = *m_lsm_data_lev[lev][m_lsm_tsurf_indx];
+            // get the top-most index of the LSM to use as the surface temperature
+            const auto& lsm_box = lsm_tsurf.box(mfi.index());
+            const int lsm_khi = lsm_box.bigEnd(2);
+            const auto lsm_arr = lsm_tsurf.const_array(mfi);
+
+            ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+            {
+                int is_land = (lmask_arr) ? lmask_arr(i,j,k) : 1;
+                if (is_land) {
+                    const Real lsm_value = lsm_arr(col.i(i),col.j(j),lsm_khi);
+                    if (amrex::Math::isfinite(lsm_value) && lsm_value > Real(0.0) &&
+                        lsm_value < lsm_undefined) {
+                        t_surf_arr(i,j,k) = lsm_value;
+                    }
+                }
+            });
+        }
+        return;
+    }
+
     const Real dz = m_geom[lev].CellSize(2);
     const bool moist = use_moisture;
     const bool have_rho_qv = cons_in.nComp() > RhoQ1_comp;
