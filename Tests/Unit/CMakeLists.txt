@@ -252,6 +252,10 @@ target_sources(${erf_exe_name}
     # first plane and leaving a time.dat that erf.input_bndry_planes cannot read.
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestWriteBndryPlanes.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestEpochTime.cpp
+    # Motivation: SLM's initial soil state from a met_em file must interpolate the source
+    # dataset's soil layers in depth to the Noah layers, and the monthly vegetation to the
+    # start date the way real.exe does, across the year's end and in leap years.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Initialization/ERF_GTestMetgridLandUtils.cpp
     # Motivation: a station placed by latitude/longitude must land where the
     # lat/lon arrays put it on a rotated grid and on a grid across 180 degrees.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestLatLonMap.cpp
