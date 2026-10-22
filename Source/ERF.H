@@ -2050,6 +2050,16 @@ private:
     // see ERF::grids_are_split_in_z.  Used by the implicit vertical diffusion solves.
     amrex::Vector<std::unique_ptr<amrex::iMultiFab>> column_kextent;
 
+    // Masks of the coarse/fine ghost cells (1 there, 0 elsewhere) used by
+    // FillCoarseFineGhostsForImplicit: entry 0 is cell-centred with two ghost cells, entries
+    // 1-3 are on the x-, y- and z-faces with one ghost cell.  Built on first use
+    // and rebuilt whenever the grids they were built on change.
+    amrex::Vector<amrex::Array<std::unique_ptr<amrex::iMultiFab>,AMREX_SPACEDIM+1>> cf_implicit_mask;
+
+    const amrex::iMultiFab& get_cf_implicit_mask (int lev, int which, const amrex::BoxArray& ba,
+                                                  const amrex::DistributionMapping& dm,
+                                                  const amrex::IntVect& ng);
+
     static constexpr int column_kextent_lo_sentinel = std::numeric_limits<int>::min()/2;
     static constexpr int column_kextent_hi_sentinel = std::numeric_limits<int>::max()/2;
 
