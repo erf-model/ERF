@@ -301,10 +301,10 @@ the non-WRFInput path and are overwritten by WRF fields in this path.
 Metgrid initialization
 ----------------------
 
-With ``erf.init_type = Metgrid``, ERF builds from the level-0 ``met_em`` file for
-the start time the same fields that WRF's ``real.exe`` writes to a wrfinput file,
-and hands them to SLM, which then initializes exactly as described above for
-WRFInput.  The fields are built as follows:
+With ``erf.init_type = Metgrid``, ERF builds from each level's ``met_em`` file
+for the start time the same fields that WRF's ``real.exe`` writes to a wrfinput
+file, and hands them to SLM, which then initializes exactly as described above
+for WRFInput.  The fields are built as follows:
 
 +----------------------+----------------------------------------------------------+
 | WRF name             | Built from the met_em file                               |
@@ -338,7 +338,10 @@ Land and water are distinguished by ``LANDMASK``.  The soil layers in a met_em
 file depend on the source dataset (GFS gives 0--10, 10--40, 40--100 and
 100--200 cm, for which the depth interpolation is an exact copy; ERA5 gives
 0--7, 7--28, 28--100 and 100--289 cm), so they are found from the variable
-names.
+names.  Soil temperature is not adjusted for the difference between the source
+model's terrain height (``SOILHGT``) and the met_em terrain (``HGT_M``), as
+``real.exe`` can do; in steep terrain the initial soil temperature may be off
+by the lapse rate times that difference.
 
 Requirements:
 
@@ -346,12 +349,21 @@ Requirements:
 * The met_em file must contain ``LANDMASK``, ``SKINTEMP``, ``LU_INDEX``,
   ``SOILCTOP``, ``GREENFRAC``, ``LAI12M``, and matching ``ST*``/``SM*`` soil
   layers; ``SST`` is optional.
-* Land soil temperatures must lie in 170--400 K and soil moisture in 0--1.
+* A land soil temperature outside 170--400 K, or a moisture outside 0--1, is
+  taken to be missing (metgrid can leave such values where its source data had
+  none, typically along coastlines).  The temperature is replaced by ``TSK``
+  there, and the moisture by the mean of that layer over the other land points,
+  and the number of points filled is printed.  If more than 1% of the land
+  points need filling, the run stops.
 * SLM's tables assume the MODIS land-use categories; a warning is printed if the
   file's ``MMINLU`` is not a MODIS dataset.
 
-Only level 0 reads its land state from its met_em file.  A finer level takes its
-SLM state from level 0, even when it has its own ``erf.nc_init_file_<lev>``.
+Every level reads its land state from its own met_em file
+(``erf.nc_init_file_<lev>``), so a finer level gets that file's higher-resolution
+land use and soil, and the same coastline as its ``LANDMASK``.
+
+Each rank reads only the columns of its own grids.  At most
+``erf.metgrid_max_readers`` ranks (default 256) read the file at the same time.
 
 An example is ``Exec/RegTests/MetGrid/inputs_metgrid_slm``.
 

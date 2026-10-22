@@ -15,6 +15,7 @@
 #include "ERF_LandSurface.H"
 
 #include <algorithm>
+#include <cfenv>
 #include <cmath>
 #include <map>
 #include <regex>
@@ -23,7 +24,8 @@ using namespace amrex;
 
 #ifdef ERF_USE_NETCDF
 
-#include "ERF_NCWpsFile.H"
+#include "ERF_NCInterface.H"
+#include "ERF_MetgridLandUtils.H"
 
 namespace {
 
@@ -31,6 +33,10 @@ namespace {
 constexpr int nsoil_noah = 4;
 constexpr Real dzs_noah[nsoil_noah] = {Real(0.1), Real(0.3), Real(0.6), Real(1.0)};
 constexpr Real zs_noah [nsoil_noah] = {Real(0.05), Real(0.25), Real(0.7), Real(1.5)};
+
+// A land soil value that is missing or out of range is filled in (see init_lsm_from_metgrid),
+// unless there are more of them than this fraction of the land points
+constexpr Real max_bad_soil_fraction = Real(0.01);
 
 // One soil layer of a met_em file, e.g. ST010040 is the layer from 10 to 40 cm.
 struct MetgridSoilLayer {
@@ -97,64 +103,113 @@ find_metgrid_soil_layers (const std::string& fname)
     return layers;
 }
 
-//
-// Linear interpolation in depth from the source layer midpoints to z, held constant
-// beyond the shallowest and deepest midpoints.
-//
-Real
-interp_in_depth (const Vector<Real>& z_src, const Vector<Real>& v_src, Real z)
+// The shape of a met_em variable: (Time, south_north, west_east) for a 2D field, or
+// (Time, nz, south_north, west_east) with nz months or categories
+struct MetgridVar {
+    int found = 0;
+    int nz = 1;
+    int ny = 0;
+    int nx = 0;
+};
+
+// The shapes of the given met_em variables, read on the I/O rank and broadcast
+Vector<MetgridVar>
+metgrid_var_info (const std::string& fname, const Vector<std::string>& names)
 {
-    const int n = z_src.size();
-    if (z <= z_src[0])   { return v_src[0]; }
-    if (z >= z_src[n-1]) { return v_src[n-1]; }
-    int m = 0;
-    while (z > z_src[m+1]) { ++m; }
-    const Real w = (z - z_src[m]) / (z_src[m+1] - z_src[m]);
-    return (one - w) * v_src[m] + w * v_src[m+1];
+    const int n = names.size();
+    Vector<int> info(4*n, 0);
+    if (ParallelDescriptor::IOProcessor()) {
+        auto ncf = ncutils::NCFile::open(fname, NC_NOWRITE);
+        for (int i = 0; i < n; ++i) {
+            if (!ncf.has_var(names[i])) { continue; }
+            const std::vector<size_t> shape = ncf.var(names[i]).shape();
+            if (shape.size() == 3) {
+                info[4*i]   = 1;
+                info[4*i+1] = 1;
+                info[4*i+2] = static_cast<int>(shape[1]);
+                info[4*i+3] = static_cast<int>(shape[2]);
+            } else if (shape.size() == 4) {
+                info[4*i]   = 1;
+                info[4*i+1] = static_cast<int>(shape[1]);
+                info[4*i+2] = static_cast<int>(shape[2]);
+                info[4*i+3] = static_cast<int>(shape[3]);
+            } else {
+                Abort("init_lsm_from_metgrid: " + names[i] + " in " + fname + " has " +
+                      std::to_string(shape.size()) + " dimensions; expected 3 or 4");
+            }
+        }
+        ncf.close();
+    }
+    ParallelDescriptor::Bcast(info.data(), 4*n, ParallelDescriptor::IOProcessorNumber());
+
+    Vector<MetgridVar> vars(n);
+    for (int i = 0; i < n; ++i) {
+        vars[i] = {info[4*i], info[4*i+1], info[4*i+2], info[4*i+3]};
+    }
+    return vars;
 }
 
 //
-// The two months whose mid-month values bracket the given date, and the weight of the
-// second, as in real.exe's monthly_interp_to_date: each monthly value is taken to apply on
-// the 15th of its month, and values in between are interpolated linearly in time.
+// Read the columns of a met_em variable over region (a box in the level's index space, one
+// cell in z) into fab, whose k index is the month or category.  The file's (0,0) is the
+// cell file_lo.  At most max_readers ranks read the file at the same time, as in
+// read_region_from_wrfinput.  A rank with an empty region reads nothing, but every rank
+// must call this.
 //
 void
-monthly_interp_weights (const std::string& date, int& m0, int& m1, Real& w1)
+read_metgrid_region (const std::string& fname, const std::string& name, const MetgridVar& var,
+                     const IntVect& file_lo, const Box& region, FArrayBox& fab, int max_readers)
 {
-    // date is "YYYY-MM-DD_hh:mm:ss"
-    const int year  = std::stoi(date.substr(0,4));
-    const int month = std::stoi(date.substr(5,2));
-    const int day   = std::stoi(date.substr(8,2));
-    const int hour  = std::stoi(date.substr(11,2));
+    const int nprocs = ParallelDescriptor::NProcs();
+    const int myproc = ParallelDescriptor::MyProc();
+    const int nwaves = (max_readers > 0) ? (nprocs + max_readers - 1) / max_readers : 1;
 
-    const bool leap = (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
-    int days_in_month[12] = {31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    for (int wave = 0; wave < nwaves; ++wave) {
+        if ((myproc % nwaves) == wave && region.ok()) {
+            const int ilo = region.smallEnd(0) - file_lo[0];
+            const int jlo = region.smallEnd(1) - file_lo[1];
+            const int ni  = region.length(0);
+            const int nj  = region.length(1);
+            const int nk  = var.nz;
 
-    // Day of the year (starting from 0) of the date and of the middle of each month
-    Real mid[12];
-    int start = 0;
-    for (int m = 0; m < 12; ++m) {
-        mid[m] = Real(start + 14);
-        start += days_in_month[m];
-    }
-    const int days_in_year = start;
-    int doy = day - 1;
-    for (int m = 0; m < month-1; ++m) { doy += days_in_month[m]; }
-    const Real t = Real(doy) + Real(hour) / Real(24.0);
+            // Only the first time is ever used
+            std::vector<size_t> start, count;
+            if (var.nz == 1) {
+                start = {0, size_t(jlo), size_t(ilo)};
+                count = {1, size_t(nj), size_t(ni)};
+            } else {
+                start = {0, 0, size_t(jlo), size_t(ilo)};
+                count = {1, size_t(nk), size_t(nj), size_t(ni)};
+            }
 
-    if (t < mid[0] || t >= mid[11]) {
-        // Between mid-December and mid-January, wrapping around the end of the year
-        m0 = 11;
-        m1 = 0;
-        const Real t0 = mid[11];
-        const Real t1 = mid[0] + Real(days_in_year);
-        const Real tt = (t < mid[0]) ? t + Real(days_in_year) : t;
-        w1 = (tt - t0) / (t1 - t0);
-    } else {
-        m0 = 0;
-        while (t >= mid[m0+1]) { ++m0; }
-        m1 = m0 + 1;
-        w1 = (t - mid[m0]) / (mid[m1] - mid[m0]);
+            std::vector<float> buf(size_t(ni) * nj * nk);
+            {
+                auto prev_fpe_except = amrex::disableFPExcept(amrex::FPExcept::all);
+                auto ncf = ncutils::NCFile::open(fname, NC_NOWRITE);
+                ncf.var(name).get(buf.data(), start, count);
+                ncf.close();
+                std::feclearexcept(FE_ALL_EXCEPT);
+                amrex::setFPExcept(prev_fpe_except);
+            }
+
+            Box bx = region;
+            bx.setRange(2, 0, nk);
+#ifdef AMREX_USE_GPU
+            fab.resize(bx, 1, The_Pinned_Arena());
+#else
+            fab.resize(bx, 1);
+#endif
+            const Array4<Real>& arr = fab.array();
+            const Dim3 lo = lbound(bx);
+            for (int k = 0; k < nk; ++k) {
+                for (int j = 0; j < nj; ++j) {
+                    for (int i = 0; i < ni; ++i) {
+                        arr(lo.x+i,lo.y+j,k) = static_cast<Real>(buf[(size_t(k)*nj + j)*ni + i]);
+                    }
+                }
+            }
+        }
+        if (nwaves > 1) { ParallelDescriptor::Barrier(); }
     }
 }
 
@@ -175,11 +230,16 @@ monthly_interp_weights (const std::string& date, int& m0, int& m1, Real& w1)
  *   SHDMIN/SHDMAX  the smallest and largest monthly GREENFRAC, in percent
  *   LAI            LAI12M interpolated to the date
  *
- * SLM then makes its own conversions from these in SLM::init_wrfinput_vars, as it does for a
- * wrfinput run.
+ * A land soil temperature or moisture that is missing or out of range (metgrid can leave
+ * such points where its source data had none, typically along coastlines) is replaced by
+ * TSK, or by the mean moisture of that layer over the valid land points; the run stops if
+ * more than max_bad_soil_fraction of the land points need it.
+ *
+ * Each rank reads and builds only the columns of its own boxes.  SLM then makes its own
+ * conversions from these fields in SLM::init_wrfinput_vars, as it does for a wrfinput run.
  *
  * @param lev   Integer specifying the current level
- * @param fname Path to the met_em file for the initial time
+ * @param fname Path to this level's met_em file for the initial time
  * @param date  The date of that file, as "YYYY-MM-DD_hh:mm:ss" (needed on the I/O rank only)
  */
 void
@@ -187,7 +247,7 @@ ERF::init_lsm_from_metgrid (int lev, const std::string& fname, const std::string
 {
     AMREX_ALWAYS_ASSERT(solverChoice.lsm_type == LandSurfaceType::SLM);
 
-    Print() << "Initializing SLM from the land fields in " << fname << std::endl;
+    Print() << "Initializing SLM at level " << lev << " from the land fields in " << fname << std::endl;
 
     // SLM's layers must be the Noah layers we interpolate to
     {
@@ -240,59 +300,88 @@ ERF::init_lsm_from_metgrid (int lev, const std::string& fname, const std::string
     }
 
     //
-    // Read the land fields.  Every rank gets the whole domain, kept on the host since the
-    // derivation below is done there.  The z extent of the domain box bounds how many
-    // levels are read, so make it large enough for the 12 months and 16 soil categories.
+    // The met_em fields, with their shapes.  SST is optional; the others are required.
     //
-    Box domain = boxes_at_level[lev][0];
-    domain.setRange(2, 0, 64);
-
-    FArrayBox NC_lmask_fab, NC_tsk_fab, NC_sst_fab, NC_luindex_fab;
-    FArrayBox NC_soilctop_fab, NC_greenfrac_fab, NC_lai12m_fab;
-    Vector<FArrayBox> NC_st_fab(nlay), NC_sm_fab(nlay);
-
-    Vector<FArrayBox*>  NC_fabs;
-    Vector<std::string> NC_names;
-    Vector<enum NC_Data_Dims_Type> NC_dim_types;
-    auto add = [&] (FArrayBox* fab, const std::string& name, NC_Data_Dims_Type type)
-    {
-        NC_fabs.push_back(fab); NC_names.push_back(name); NC_dim_types.push_back(type);
-    };
-    add(&NC_lmask_fab,     "LANDMASK",  NC_Data_Dims_Type::Time_SN_WE);
-    add(&NC_tsk_fab,       "SKINTEMP",  NC_Data_Dims_Type::Time_SN_WE);
-    add(&NC_luindex_fab,   "LU_INDEX",  NC_Data_Dims_Type::Time_SN_WE);
-    add(&NC_soilctop_fab,  "SOILCTOP",  NC_Data_Dims_Type::Time_BT_SN_WE);
-    add(&NC_greenfrac_fab, "GREENFRAC", NC_Data_Dims_Type::Time_BT_SN_WE);
-    add(&NC_lai12m_fab,    "LAI12M",    NC_Data_Dims_Type::Time_BT_SN_WE);
+    enum { i_lmask = 0, i_skin, i_luindex, i_soilctop, i_green, i_lai12m, i_first_layer };
+    Vector<std::string> names = {"LANDMASK", "SKINTEMP", "LU_INDEX", "SOILCTOP", "GREENFRAC", "LAI12M"};
     for (int m = 0; m < nlay; ++m) {
-        add(&NC_st_fab[m], soil_layer_name("ST", layers[m]), NC_Data_Dims_Type::Time_SN_WE);
-        add(&NC_sm_fab[m], soil_layer_name("SM", layers[m]), NC_Data_Dims_Type::Time_SN_WE);
+        names.push_back(soil_layer_name("ST", layers[m]));
+        names.push_back(soil_layer_name("SM", layers[m]));
     }
-    const int n_required = NC_fabs.size();
-    add(&NC_sst_fab,       "SST",       NC_Data_Dims_Type::Time_SN_WE);
+    const int i_sst = names.size();
+    names.push_back("SST");
 
-    Vector<int> success(NC_fabs.size());
-    BuildFABsFromNetCDFFile<FArrayBox,Real>(domain, fname, NC_names, NC_dim_types, NC_fabs,
-                                            success, /*keep_on_host=*/ true);
-    for (int i = 0; i < n_required; ++i) {
-        if (success[i] != 1) {
-            Abort("init_lsm_from_metgrid: " + NC_names[i] + " was not found in " + fname +
+    const Vector<MetgridVar> vars = metgrid_var_info(fname, names);
+    for (int i = 0; i < i_sst; ++i) {
+        if (!vars[i].found) {
+            Abort("init_lsm_from_metgrid: " + names[i] + " was not found in " + fname +
                   "; it is required to initialize SLM from met_em files");
         }
     }
-    const bool have_sst = (success[n_required] == 1);
+    const bool have_sst = vars[i_sst].found;
 
-    const int nmonths = NC_greenfrac_fab.box().length(2);
-    const int ncat    = NC_soilctop_fab.box().length(2);
-    if (nmonths != 12 || NC_lai12m_fab.box().length(2) != 12) {
+    const int nmonths = vars[i_green].nz;
+    const int ncat    = vars[i_soilctop].nz;
+    if (nmonths != 12 || vars[i_lai12m].nz != 12) {
         Abort("init_lsm_from_metgrid: GREENFRAC and LAI12M in " + fname + " must have 12 months");
+    }
+
+    // The file covers this level's domain, its (0,0) at the domain's low corner, as for the
+    // atmospheric fields in init_from_metgrid
+    const Box& domain = boxes_at_level[lev][0];
+    const IntVect file_lo = domain.smallEnd();
+    for (int i = 0; i < static_cast<int>(names.size()); ++i) {
+        if (vars[i].found && (vars[i].nx < domain.length(0) || vars[i].ny < domain.length(1))) {
+            Abort("init_lsm_from_metgrid: " + names[i] + " in " + fname + " is " +
+                  std::to_string(vars[i].nx) + " x " + std::to_string(vars[i].ny) +
+                  ", smaller than level " + std::to_string(lev) + "'s " +
+                  std::to_string(domain.length(0)) + " x " + std::to_string(domain.length(1)));
+        }
+    }
+
+    //
+    // The columns this rank needs: those of its boxes of SLM's input fields (all on the
+    // same grids), and the bounding box of them, which is what it reads
+    //
+    const MultiFab* lsm_mf0 = nullptr;
+    for (const auto& [wrfname, lsmname] : lsm.Get_WRFInputNames()) {
+        int lsm_idx = lsm.Get_DataIdx(lev, lsmname);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lsm_idx != -1, "LSM variable mapping invalid!");
+        AMREX_ALWAYS_ASSERT(lsm_data[lev][lsm_idx]);
+        lsm_mf0 = lsm_data[lev][lsm_idx];
+        break;
+    }
+    AMREX_ALWAYS_ASSERT(lsm_mf0 != nullptr);
+
+    Vector<Box> my_columns;
+    Box region;
+    for (MFIter mfi(*lsm_mf0); mfi.isValid(); ++mfi) {
+        Box b = mfi.validbox();
+        b.setRange(2, 0, 1);
+        b &= makeSlab(domain, 2, 0);
+        if (!b.ok()) { continue; }
+        my_columns.push_back(b);
+        region = region.ok() ? region.minBox(b) : b;
+    }
+
+    int max_readers = 256;
+    {
+        ParmParse pp("erf");
+        pp.query("metgrid_max_readers", max_readers);
+    }
+
+    Vector<FArrayBox> NC_fab(names.size());
+    for (int i = 0; i < static_cast<int>(names.size()); ++i) {
+        if (vars[i].found) {
+            read_metgrid_region(fname, names[i], vars[i], file_lo, region, NC_fab[i], max_readers);
+        }
     }
 
     // read_from_metgrid sets the date on the I/O rank only
     int m0 = 0, m1 = 0;
     Real w1 = zero;
     if (ParallelDescriptor::IOProcessor()) {
-        monthly_interp_weights(date, m0, m1, w1);
+        metgrid_land::monthly_interp_weights(date, m0, m1, w1);
     }
     ParallelDescriptor::Bcast(&m0, 1, ParallelDescriptor::IOProcessorNumber());
     ParallelDescriptor::Bcast(&m1, 1, ParallelDescriptor::IOProcessorNumber());
@@ -301,8 +390,9 @@ ERF::init_lsm_from_metgrid (int lev, const std::string& fname, const std::string
             << " with weight " << w1 << " on the later" << std::endl;
 
     //
-    // Build the wrfinput fields on the host.  The soil fields have one component per layer,
-    // with k = 0 the top layer as in wrfinput.
+    // Build the wrfinput fields on the host over this rank's region.  The soil fields have
+    // one component per layer, with k = 0 the top layer as in wrfinput.  A land soil value
+    // that is missing or out of range is marked with -1 here and filled in below.
     //
     Arena* arena = The_Arena();
 #ifdef AMREX_USE_GPU
@@ -310,24 +400,26 @@ ERF::init_lsm_from_metgrid (int lev, const std::string& fname, const std::string
     // are copied from
     arena = The_Pinned_Arena();
 #endif
-    const Box bx2d  = makeSlab(NC_tsk_fab.box(), 2, 0);
+    const Box bx2d = region;
     Box bxsoil = bx2d; bxsoil.setRange(2, 0, nsoil_noah);
 
+    // A rank with no boxes here has empty fields, which it never reads
+    const bool have_region = region.ok();
     std::map<std::string, FArrayBox> wrf;
-    for (const std::string name : {"TSK", "IVGTYP", "ISLTYP", "VEGFRA", "SHDMIN", "SHDMAX", "LAI"}) {
-        wrf[name].resize(bx2d, 1, arena);
+    for (const char* name : {"TSK", "IVGTYP", "ISLTYP", "VEGFRA", "SHDMIN", "SHDMAX", "LAI"}) {
+        if (have_region) { wrf[name].resize(bx2d, 1, arena); } else { wrf[name]; }
     }
-    for (const std::string name : {"TSLB", "SMOIS", "DZS", "ZS"}) {
-        wrf[name].resize(bxsoil, 1, arena);
+    for (const char* name : {"TSLB", "SMOIS", "DZS", "ZS"}) {
+        if (have_region) { wrf[name].resize(bxsoil, 1, arena); } else { wrf[name]; }
     }
 
-    const auto lmask    = NC_lmask_fab.const_array();
-    const auto skin     = NC_tsk_fab.const_array();
-    const auto luindex  = NC_luindex_fab.const_array();
-    const auto soilctop = NC_soilctop_fab.const_array();
-    const auto green    = NC_greenfrac_fab.const_array();
-    const auto lai12m   = NC_lai12m_fab.const_array();
-    const auto sst      = have_sst ? NC_sst_fab.const_array() : Array4<const Real>{};
+    const auto lmask    = have_region ? NC_fab[i_lmask   ].const_array() : Array4<const Real>{};
+    const auto skin     = have_region ? NC_fab[i_skin    ].const_array() : Array4<const Real>{};
+    const auto luindex  = have_region ? NC_fab[i_luindex ].const_array() : Array4<const Real>{};
+    const auto soilctop = have_region ? NC_fab[i_soilctop].const_array() : Array4<const Real>{};
+    const auto green    = have_region ? NC_fab[i_green   ].const_array() : Array4<const Real>{};
+    const auto lai12m   = have_region ? NC_fab[i_lai12m  ].const_array() : Array4<const Real>{};
+    const auto sst      = (have_region && have_sst) ? NC_fab[i_sst].const_array() : Array4<const Real>{};
 
     auto tsk    = wrf["TSK"].array();
     auto ivgtyp = wrf["IVGTYP"].array();
@@ -341,92 +433,155 @@ ERF::init_lsm_from_metgrid (int lev, const std::string& fname, const std::string
     auto dzs    = wrf["DZS"].array();
     auto zs     = wrf["ZS"].array();
 
-    Long n_bad_soil = 0;
-    Long n_no_soil_cat = 0;
+    constexpr Real bad = Real(-1.0);
+    auto is_land = [&] (int i, int j) { return lmask(i,j,0) > Real(0.5); };
+
+    // The dominant soil category of a land point in SOILCTOP, soil water excluded, or -1 if
+    // SOILCTOP gives it none
+    auto dominant_soil = [&] (int i, int j) -> int
+    {
+        int dominant = -1;
+        Real max_frac = zero;
+        for (int c = 0; c < ncat; ++c) {
+            if (c+1 == isoilwater) { continue; }
+            if (soilctop(i,j,c) > max_frac) {
+                max_frac = soilctop(i,j,c);
+                dominant = c+1;
+            }
+        }
+        return dominant;
+    };
+
     Vector<Real> st(nlay), sm(nlay);
+    if (have_region) {
+        const auto lo = lbound(bx2d);
+        const auto hi = ubound(bx2d);
+        for (int j = lo.y; j <= hi.y; ++j) {
+        for (int i = lo.x; i <= hi.x; ++i) {
+            const bool land = is_land(i,j);
 
-    const auto lo = lbound(bx2d);
-    const auto hi = ubound(bx2d);
-    for (int j = lo.y; j <= hi.y; ++j) {
-    for (int i = lo.x; i <= hi.x; ++i) {
-        const bool land = (lmask(i,j,0) > Real(0.5));
-
-        tsk(i,j,0) = skin(i,j,0);
-        if (!land && have_sst && sst(i,j,0) > Real(170.)) {
-            tsk(i,j,0) = sst(i,j,0);
-        }
-
-        ivgtyp(i,j,0) = std::round(luindex(i,j,0));
-
-        if (land) {
-            int dominant = -1;
-            Real max_frac = zero;
-            for (int c = 0; c < ncat; ++c) {
-                if (c+1 == isoilwater) { continue; }
-                if (soilctop(i,j,c) > max_frac) {
-                    max_frac = soilctop(i,j,c);
-                    dominant = c+1;
-                }
+            tsk(i,j,0) = skin(i,j,0);
+            if (!land && have_sst && sst(i,j,0) > Real(170.)) {
+                tsk(i,j,0) = sst(i,j,0);
             }
-            if (dominant < 0) {
-                // No soil data at this land point: use clay loam, as real.exe does
-                dominant = 8;
-                ++n_no_soil_cat;
-            }
-            isltyp(i,j,0) = dominant;
-        } else {
-            isltyp(i,j,0) = isoilwater;
-        }
 
-        Real gmin = green(i,j,0), gmax = green(i,j,0);
-        for (int m = 1; m < nmonths; ++m) {
-            gmin = std::min(gmin, green(i,j,m));
-            gmax = std::max(gmax, green(i,j,m));
-        }
-        vegfra(i,j,0) = Real(100.) * ((one - w1) * green(i,j,m0) + w1 * green(i,j,m1));
-        shdmin(i,j,0) = Real(100.) * gmin;
-        shdmax(i,j,0) = Real(100.) * gmax;
-        lai(i,j,0)    = (one - w1) * lai12m(i,j,m0) + w1 * lai12m(i,j,m1);
+            ivgtyp(i,j,0) = std::round(luindex(i,j,0));
 
-        for (int m = 0; m < nlay; ++m) {
-            st[m] = NC_st_fab[m].const_array()(i,j,0);
-            sm[m] = NC_sm_fab[m].const_array()(i,j,0);
-        }
-        for (int k = 0; k < nsoil_noah; ++k) {
-            dzs(i,j,k) = dzs_noah[k];
-            zs (i,j,k) = zs_noah[k];
             if (land) {
-                tslb (i,j,k) = interp_in_depth(z_src, st, zs_noah[k]);
-                smois(i,j,k) = interp_in_depth(z_src, sm, zs_noah[k]);
-                if (!std::isfinite(tslb(i,j,k)) || tslb(i,j,k) < Real(170.) || tslb(i,j,k) > Real(400.) ||
-                    !std::isfinite(smois(i,j,k)) || smois(i,j,k) < zero || smois(i,j,k) > one) {
-                    ++n_bad_soil;
-                }
+                // No soil data at this land point: use clay loam, as real.exe does
+                const int dominant = dominant_soil(i,j);
+                isltyp(i,j,0) = (dominant < 0) ? 8 : dominant;
             } else {
-                tslb (i,j,k) = tsk(i,j,0);
-                smois(i,j,k) = one;
+                isltyp(i,j,0) = isoilwater;
+            }
+
+            Real gmin = green(i,j,0), gmax = green(i,j,0);
+            for (int m = 1; m < nmonths; ++m) {
+                gmin = std::min(gmin, green(i,j,m));
+                gmax = std::max(gmax, green(i,j,m));
+            }
+            vegfra(i,j,0) = Real(100.) * ((one - w1) * green(i,j,m0) + w1 * green(i,j,m1));
+            shdmin(i,j,0) = Real(100.) * gmin;
+            shdmax(i,j,0) = Real(100.) * gmax;
+            lai(i,j,0)    = (one - w1) * lai12m(i,j,m0) + w1 * lai12m(i,j,m1);
+
+            for (int m = 0; m < nlay; ++m) {
+                st[m] = NC_fab[i_first_layer + 2*m    ].const_array()(i,j,0);
+                sm[m] = NC_fab[i_first_layer + 2*m + 1].const_array()(i,j,0);
+            }
+            for (int k = 0; k < nsoil_noah; ++k) {
+                dzs(i,j,k) = dzs_noah[k];
+                zs (i,j,k) = zs_noah[k];
+                if (land) {
+                    const Real t = metgrid_land::interp_in_depth(z_src, st, zs_noah[k]);
+                    const Real w = metgrid_land::interp_in_depth(z_src, sm, zs_noah[k]);
+                    const bool t_ok = std::isfinite(t) && t >= Real(170.) && t <= Real(400.);
+                    const bool w_ok = std::isfinite(w) && w >= zero && w <= one;
+                    tslb (i,j,k) = t_ok ? t : bad;
+                    smois(i,j,k) = w_ok ? w : bad;
+                } else {
+                    tslb (i,j,k) = tsk(i,j,0);
+                    smois(i,j,k) = one;
+                }
             }
         }
-    }
+        }
     }
 
-    // Every rank has worked through the whole domain, so these counts agree on all of them
-    if (n_bad_soil > 0) {
-        Abort("init_lsm_from_metgrid: " + std::to_string(n_bad_soil) + " land soil values in " +
-              fname + " are missing or out of range (temperature outside 170-400 K or moisture "
-              "outside 0-1)");
+    //
+    // Count, over the columns this rank owns, the land points and those with a missing or
+    // out-of-range soil value, and sum the valid moisture of each layer
+    //
+    Long n_land = 0, n_bad = 0, n_no_soil_cat = 0;
+    Vector<Real> sm_sum(nsoil_noah, zero);
+    Vector<Long> sm_cnt(nsoil_noah, 0);
+    for (const Box& b : my_columns) {
+        const auto lo = lbound(b);
+        const auto hi = ubound(b);
+        for (int j = lo.y; j <= hi.y; ++j) {
+        for (int i = lo.x; i <= hi.x; ++i) {
+            if (!is_land(i,j)) { continue; }
+            ++n_land;
+            if (dominant_soil(i,j) < 0) { ++n_no_soil_cat; }
+            bool any_bad = false;
+            for (int k = 0; k < nsoil_noah; ++k) {
+                if (tslb(i,j,k) == bad || smois(i,j,k) == bad) { any_bad = true; }
+                if (smois(i,j,k) != bad) {
+                    sm_sum[k] += smois(i,j,k);
+                    ++sm_cnt[k];
+                }
+            }
+            if (any_bad) { ++n_bad; }
+        }
+        }
+    }
+    {
+        Long counts[3] = {n_land, n_bad, n_no_soil_cat};
+        ParallelDescriptor::ReduceLongSum(counts, 3);
+        n_land = counts[0]; n_bad = counts[1]; n_no_soil_cat = counts[2];
+    }
+    ParallelDescriptor::ReduceRealSum(sm_sum.data(), nsoil_noah);
+    ParallelDescriptor::ReduceLongSum(sm_cnt.data(), nsoil_noah);
+
+    if (n_bad > max_bad_soil_fraction * Real(n_land)) {
+        Abort("init_lsm_from_metgrid: " + std::to_string(n_bad) + " of the " +
+              std::to_string(n_land) + " land points in " + fname + " have a soil value that "
+              "is missing or out of range (temperature outside 170-400 K or moisture outside "
+              "0-1); at most " +
+              std::to_string(std::lround(max_bad_soil_fraction * Real(100.))) +
+              "% of them are filled in");
+    }
+    if (n_bad > 0) {
+        Print() << "  " << n_bad << " of the " << n_land << " land points have a soil value "
+                << "that is missing or out of range; using the skin temperature there for "
+                << "temperature, and the mean over the other land points for moisture" << std::endl;
     }
     if (n_no_soil_cat > 0) {
         Print() << "  " << n_no_soil_cat << " land points have no soil category in SOILCTOP; "
                 << "using category 8 (clay loam) there" << std::endl;
     }
 
+    if (n_bad > 0 && have_region) {
+        Vector<Real> sm_mean(nsoil_noah, zero);
+        for (int k = 0; k < nsoil_noah; ++k) {
+            if (sm_cnt[k] > 0) { sm_mean[k] = sm_sum[k] / Real(sm_cnt[k]); }
+        }
+        const auto lo = lbound(bx2d);
+        const auto hi = ubound(bx2d);
+        for (int j = lo.y; j <= hi.y; ++j) {
+        for (int i = lo.x; i <= hi.x; ++i) {
+            for (int k = 0; k < nsoil_noah; ++k) {
+                if (tslb (i,j,k) == bad) { tslb (i,j,k) = tsk(i,j,0); }
+                if (smois(i,j,k) == bad) { smois(i,j,k) = sm_mean[k]; }
+            }
+        }
+        }
+    }
+
     //
     // Copy into the LSM's input fields, as init_from_wrfinput does: the soil layers go to
     // LSM levels k = -1 (top) down to -nsoil, and the 2D fields to the top level.
     //
-    int i_lo = bx2d.smallEnd(0); int i_hi = bx2d.bigEnd(0);
-    int j_lo = bx2d.smallEnd(1); int j_hi = bx2d.bigEnd(1);
     for (const auto& [wrfname, lsmname] : lsm.Get_WRFInputNames()) {
         auto it = wrf.find(wrfname);
         if (it == wrf.end()) {
@@ -444,13 +599,12 @@ ERF::init_lsm_from_metgrid (int lev, const std::string& fname, const std::string
             Box tbx = mfi.tilebox();
             const int lsm_khi = tbx.bigEnd(2);
             tbx.setRange(2, 0, nk);
+            AMREX_ALWAYS_ASSERT(src.box().contains(tbx));
             const Array4<      Real>& dst_arr = lsm_data[lev][lsm_idx]->array(mfi);
             const Array4<const Real>& src_arr = src.const_array();
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
-                int li = amrex::min(amrex::max(i, i_lo), i_hi);
-                int lj = amrex::min(amrex::max(j, j_lo), j_hi);
-                dst_arr(i,j,lsm_khi-k) = src_arr(li,lj,k);
+                dst_arr(i,j,lsm_khi-k) = src_arr(i,j,k);
             });
         }
         lsm_data[lev][lsm_idx]->FillBoundary(geom[lev].periodicity());

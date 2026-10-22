@@ -155,10 +155,11 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     //********************************************************************************************
     // Land Surface Model
     // *******************************************************************************************
-    // In MakeNewLevelFromScratch, atmospheric data is available before the LSM is built, so
-    // prevent the surface-only initialization path from being selected.
-    make_lsm_at_level(lev, true, -1, solverChoice.init_type == InitType::WRFInput ||
-                                     solverChoice.init_type == InitType::Metgrid);
+    // from_regrid = true: in MakeNewLevelFromScratch, atmospheric data is available before
+    // the LSM is built, so prevent the surface-only initialization path from being selected.
+    // source_is_raw_input: a file-less WRFInput level inherits SLM's raw wrfinput fields
+    // from level 0, so that SLM converts them once on this level.
+    make_lsm_at_level(lev, true, -1, solverChoice.init_type == InitType::WRFInput);
 
     // *******************************************************************************************
     // Urban Model
@@ -1713,11 +1714,11 @@ ERF::make_lsm_at_level (int lev, bool from_regrid,
                 // A file-less finer level inherits SLM state from level 0 or its parent.
                 // ERF-populated WRFInput fields are transferred raw so SLM performs its
                 // conversions once; idealized fields use the already-processed state.
-                // With metgrid files only level 0 reads its land state from its file
-                // (init_lsm_from_metgrid), so every finer level inherits it.
+                // A metgrid level always has its own file, from which it reads its land
+                // state (init_lsm_from_metgrid).
                 if ((restart_chkfile.empty() || source_lev >= 0) &&
-                    (!has_own_init_file(lev) ||
-                     solverChoice.init_type == InitType::Metgrid)) {
+                    !has_own_init_file(lev) &&
+                    solverChoice.init_type != InitType::Metgrid) {
                     IntVect source_ref_ratio(1);
                     if (source_lev < 0) {
                         for (int l = 0; l < lev; ++l) {
