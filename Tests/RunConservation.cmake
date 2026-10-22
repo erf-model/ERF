@@ -1,7 +1,9 @@
 # Run a multilevel deck and check that a conserved quantity has the same composite integral at
 # the start and the end of the run.  The integral is the one ERF prints every erf.sum_interval
 # steps (with erf.v >= 1) as "<QUANTITY> SL/ML = <single level> <multilevel>", for instance
-# QUANTITY = "RHO SCALAR" or "RHO QTOTAL".  The multilevel value takes the fine data where it
+# QUANTITY = "MASS", "RHO SCALAR" or "RHO QTOTAL".  ERF pads the shorter names ("MASS       SL/ML"),
+# and the line must start with QUANTITY, so that "MASS" does not also match "PERT MASS".  The
+# multilevel value takes the fine data where it
 # exists and weights each cell by its volume, detJ / (m_x m_y), so it is the quantity the
 # discretization conserves on any mesh and with any refinement ratio.  The first and the last
 # value printed must agree to within DIGITS significant digits, give or take UNITS units of the
@@ -45,7 +47,7 @@ if(NOT run_result EQUAL 0)
     message(FATAL_ERROR "RunConservation.cmake: simulation failed: ${run_result}")
 endif()
 
-file(STRINGS "${log}" lines REGEX "${QUANTITY} SL/ML = ")
+file(STRINGS "${log}" lines REGEX "^ *${QUANTITY} +SL/ML = ")
 list(LENGTH lines nlines)
 if(nlines LESS 2)
     message(FATAL_ERROR "RunConservation.cmake: found ${nlines} lines \"${QUANTITY} SL/ML = ...\" "
@@ -54,7 +56,7 @@ if(nlines LESS 2)
 endif()
 
 function(multilevel_integral line out_var)
-    if(NOT line MATCHES "${QUANTITY} SL/ML = +[^ ]+ +([-+0-9.eE]+)")
+    if(NOT line MATCHES "^ *${QUANTITY} +SL/ML = +[^ ]+ +([-+0-9.eE]+)")
         message(FATAL_ERROR "RunConservation.cmake: cannot read the integral from: ${line}")
     endif()
     set(${out_var} "${CMAKE_MATCH_1}" PARENT_SCOPE)
