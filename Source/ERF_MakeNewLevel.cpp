@@ -1587,6 +1587,9 @@ ERF::ClearLevel (int lev)
     // Clears the map of the vertical extent of the grid column over each (i,j)
     column_kextent[lev].reset();
 
+    // Clears the coarse/fine ghost cell masks of the implicit vertical solves
+    for (auto& m : cf_implicit_mask[lev]) { m.reset(); }
+
     // Clears the physical boundary condition routines
     physbcs_cons[lev].reset();
     physbcs_u[lev].reset();
