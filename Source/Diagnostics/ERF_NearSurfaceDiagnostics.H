@@ -145,6 +145,12 @@ NativeAggregate aggregate_native_bundle (const NativeBundle& bundle) noexcept
     };
 }
 
+// Largest stability coordinate z/L used by the 2 m profile. The stable
+// correction is linear in z/L and is calibrated for z/L of order one; with a
+// very small positive L it would otherwise grow without bound.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real most_profile_zeta_max () noexcept { return amrex::Real(1.0); }
+
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool evaluate_most_factor (const MostState& state,
                            amrex::Real height,
@@ -158,8 +164,9 @@ bool evaluate_most_factor (const MostState& state,
         return false;
     }
     const similarity_funs sfuns{};
-    factor = std::log(height / state.roughness_height) -
-             sfuns.calc_psi_h(height / state.obukhov_length);
+    const amrex::Real zeta = amrex::min(height / state.obukhov_length,
+                                        most_profile_zeta_max());
+    factor = std::log(height / state.roughness_height) - sfuns.calc_psi_h(zeta);
     return valid_real(factor);
 }
 
