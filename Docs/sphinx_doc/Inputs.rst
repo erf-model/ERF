@@ -1811,6 +1811,14 @@ which is what an aircraft or a sounding level is.  A station uses one or the
 other, never both.  One of them is required if the station requests any 3D
 variable; both are ignored by 2D variables, which are surface quantities.
 
+A vertical profile above a site is a station with a long height list, for example
+``erf.Site.height_agl = 100 250 500 1000 2000 3000 4000 5000``.  The input parser
+puts no limit on the number of heights.  The file then holds one column for each
+3D variable at each height, so ``n`` heights and ``m`` 3D variables make ``n * m``
+columns per location (plus one for each 2D variable), and a height above the top of
+the domain returns the value at the top, as described below.  The cadence is
+``erf.station_sampling_interval`` or ``erf.station_sampling_per``.
+
 The local terrain is the elevation of the ground at the station itself, interpolated
 bilinearly from the terrain at the nodes around it: the bottom of a terrain-fitted
 mesh, or, with ``erf.terrain_type = ImmersedForcing``, the terrain surface the immersed
