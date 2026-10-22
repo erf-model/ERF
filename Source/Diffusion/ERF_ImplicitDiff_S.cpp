@@ -274,6 +274,26 @@ ImplicitDiffForStateLU_S (const Box& bx,
 #endif
 }
 
+namespace {
+/**
+ * Inverse heights for the row of a w column at z-face k on a stretched mesh: of its control
+ * volume, between the cell centres on either side of the face (dz_inv), and of the cells
+ * k-1 (dz_inv_lo) and k (dz_inv_hi), across which ComputeStrain_S takes dw/dz.  The bottom
+ * and top faces of the domain have a cell on one side only; their rows carry the boundary
+ * condition, and the missing cell is replaced by the one inside the domain.
+ */
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
+void
+WFaceInvDz (int k, int dom_klo, int dom_khi, const Real* dz_ptr,
+            Real& dz_inv, Real& dz_inv_lo, Real& dz_inv_hi) noexcept
+{
+    const Real dz_below = dz_ptr[amrex::max(k-1, dom_klo  )];
+    const Real dz_above = dz_ptr[amrex::min(k  , dom_khi-1)];
+    dz_inv    = two / (dz_below + dz_above);
+    dz_inv_lo = one / dz_below;
+    dz_inv_hi = one / dz_above;
+}
+} // namespace
 /**
  * Function for computing the implicit contribution to the vertical diffusion
  * of momentum, with a vertically stretched grid over flat terrain.
@@ -351,7 +371,9 @@ ImplicitDiffForMomLU_S (const Box& bx,
 
     // Vertical staggering of this component, and the vertical extent of the domain for the
     // faces we are solving on.  A column whose top or bottom is not the domain boundary ends
-    // at a coarse/fine boundary instead, and must not be given a physical BC row.
+    // at a coarse/fine boundary instead, and must not be given a physical BC row.  The
+    // correction stress of w (tau33i) is cell-centred, so row k (face k) reads it at the
+    // cells k-1 and k on either side of the face, as DiffusionSrcForMom does.
     constexpr int knodal = (stagdir == 2) ? 1 : 0;
     const int dom_klo = domain.smallEnd(2);
     const int dom_khi = domain.bigEnd(2) + knodal;
@@ -449,14 +471,18 @@ ImplicitDiffForMomLU_S (const Box& bx,
           Real dz_inv, dz_inv_lo, dz_inv_hi;
           Real a_tmp, b_tmp, c_tmp, inv_b2_tmp;
           {
-              rhoface = myhalf * (cell_data(i,j,klo,Rho_comp) + cell_data(i-ioff,j-joff,klo,Rho_comp));
-              getRhoAlphaForFaces(i, j, klo, ioff, joff, rhoAlpha_lo, rhoAlpha_hi,
-                                  cell_data, mu_turb, mu_eff,
-                                  l_consA, l_turb);
+              rhoface = getRhoForMomFace<stagdir>(i, j, klo, cell_data);
+              getRhoAlphaForMomRow<stagdir>(i, j, klo, rhoAlpha_lo, rhoAlpha_hi,
+                                            cell_data, mu_turb, mu_eff,
+                                            l_consA, l_turb);
 
-              dz_inv    = one / dz_ptr[klo];
-              dz_inv_lo = dz_inv;
-              dz_inv_hi = two / (dz_ptr[klo] + dz_ptr[klo+1]);
+              if constexpr (stagdir == 2) {
+                  WFaceInvDz(klo, dom_klo, dom_khi, dz_ptr, dz_inv, dz_inv_lo, dz_inv_hi);
+              } else {
+                  dz_inv    = one / dz_ptr[klo];
+                  dz_inv_lo = dz_inv;
+                  dz_inv_hi = two / (dz_ptr[klo] + dz_ptr[klo+1]);
+              }
 
               a_tmp = zero;
               c_tmp = -Fact * gfac * rhoAlpha_hi * dz_inv_hi * dz_inv;
@@ -468,14 +494,13 @@ ImplicitDiffForMomLU_S (const Box& bx,
               if (klo != dom_klo) {
                   // Coarse/fine (or grid) boundary: close the system with the known face value
                   // below instead of imposing a physical BC at an interior height
-                  dz_inv_lo = two / (dz_ptr[klo] + dz_ptr[klo-1]);
-                  a_tmp = -Fact * rhoAlpha_lo * dz_inv_lo * dz_inv;
-                  RHS_a(i,j,klo) += Fact * gfac * (tau_corr(i,j,klo+1) - tau_corr(i,j,klo)) * dz_inv;
-                  const Real rho_below = myhalf * ( cell_data(i     ,j     ,klo-1,Rho_comp)
-                                                  + cell_data(i-ioff,j-joff,klo-1,Rho_comp) );
+                  if constexpr (stagdir != 2) { dz_inv_lo = two / (dz_ptr[klo] + dz_ptr[klo-1]); }
+                  a_tmp = -Fact * gfac * rhoAlpha_lo * dz_inv_lo * dz_inv;
+                  RHS_a(i,j,klo) += Fact * gfac * (tau_corr(i,j,klo+1-knodal) - tau_corr(i,j,klo-knodal)) * dz_inv;
+                  const Real rho_below = getRhoForMomFace<stagdir>(i, j, klo-1, cell_data);
                   RHS_a(i,j,klo) -= a_tmp * (face_data(i,j,klo-1) / rho_below);
               } else if (ext_dir_on_zlo) {
-                  RHS_a(i,j,klo) += Fact * gfac * (tau_corr(i,j,klo+1) - tau_corr(i,j,klo)) * dz_inv;
+                  RHS_a(i,j,klo) += Fact * gfac * (tau_corr(i,j,klo+1-knodal) - tau_corr(i,j,klo-knodal)) * dz_inv;
                   if (stagdir==2) {
                       c_tmp = 0.;
                       RHS_a(i,j,klo) = 0.;
@@ -498,7 +523,7 @@ ImplicitDiffForMomLU_S (const Box& bx,
                   RHS_a(i,j,klo) += Fact * dz_inv * tau(i,j,klo);
               } else {
                   // NOTE: FOEXTRAP has zero lower flux (nothing to add to RHS)
-                  RHS_a(i,j,klo) += Fact * gfac * (tau_corr(i,j,klo+1) - tau_corr(i,j,klo)) * dz_inv;
+                  RHS_a(i,j,klo) += Fact * gfac * (tau_corr(i,j,klo+1-knodal) - tau_corr(i,j,klo-knodal)) * dz_inv;
               }
 
               // Add YSU momentum countergradient correction at bottom boundary.
@@ -528,22 +553,26 @@ ImplicitDiffForMomLU_S (const Box& bx,
           // Build the coefficients and RHS for L decomp
           //===================================================
           for (int k(klo+1); k < khi; k++) {
-              rhoface = myhalf * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
-              getRhoAlphaForFaces(i, j, k, ioff, joff, rhoAlpha_lo, rhoAlpha_hi,
-                                  cell_data, mu_turb, mu_eff,
-                                  l_consA, l_turb);
+              rhoface = getRhoForMomFace<stagdir>(i, j, k, cell_data);
+              getRhoAlphaForMomRow<stagdir>(i, j, k, rhoAlpha_lo, rhoAlpha_hi,
+                                            cell_data, mu_turb, mu_eff,
+                                            l_consA, l_turb);
 
-              dz_inv    = one / dz_ptr[k];
-              dz_inv_lo = two / (dz_ptr[k] + dz_ptr[k-1]);
-              dz_inv_hi = two / (dz_ptr[k] + dz_ptr[k+1]);
+              if constexpr (stagdir == 2) {
+                  WFaceInvDz(k, dom_klo, dom_khi, dz_ptr, dz_inv, dz_inv_lo, dz_inv_hi);
+              } else {
+                  dz_inv    = one / dz_ptr[k];
+                  dz_inv_lo = two / (dz_ptr[k] + dz_ptr[k-1]);
+                  dz_inv_hi = two / (dz_ptr[k] + dz_ptr[k+1]);
+              }
 
-              a_tmp      = -Fact * rhoAlpha_lo * dz_inv_lo * dz_inv;
-              c_tmp      = -Fact * rhoAlpha_hi * dz_inv_hi * dz_inv;
+              a_tmp      = -Fact * gfac * rhoAlpha_lo * dz_inv_lo * dz_inv;
+              c_tmp      = -Fact * gfac * rhoAlpha_hi * dz_inv_hi * dz_inv;
               b_tmp      = rhoface - a_tmp - c_tmp;
               inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,k-1));
 
               RHS_a(i,j,k)    = face_data(i,j,k); // NOTE: this is momenta; solution is velocity
-              RHS_a(i,j,k)   += Fact * gfac * (tau_corr(i,j,k+1) - tau_corr(i,j,k)) * dz_inv;
+              RHS_a(i,j,k)   += Fact * gfac * (tau_corr(i,j,k+1-knodal) - tau_corr(i,j,k-knodal)) * dz_inv;
 
               // Add YSU momentum countergradient correction
               if (use_ysu_mom_countergradient && stagdir < 2) {
@@ -564,30 +593,33 @@ ImplicitDiffForMomLU_S (const Box& bx,
           // Top boundary coefficients and RHS for L decomp
           //===================================================
           {
-              rhoface = myhalf * (cell_data(i,j,khi,Rho_comp) + cell_data(i-ioff,j-joff,khi,Rho_comp));
-              getRhoAlphaForFaces(i, j, khi, ioff, joff, rhoAlpha_lo, rhoAlpha_hi,
-                                  cell_data, mu_turb, mu_eff,
-                                  l_consA, l_turb);
+              rhoface = getRhoForMomFace<stagdir>(i, j, khi, cell_data);
+              getRhoAlphaForMomRow<stagdir>(i, j, khi, rhoAlpha_lo, rhoAlpha_hi,
+                                            cell_data, mu_turb, mu_eff,
+                                            l_consA, l_turb);
 
-              dz_inv    = one / dz_ptr[khi];
-              dz_inv_lo = two / (dz_ptr[khi] + dz_ptr[khi-1]);
-              dz_inv_hi = dz_inv;
+              if constexpr (stagdir == 2) {
+                  WFaceInvDz(khi, dom_klo, dom_khi, dz_ptr, dz_inv, dz_inv_lo, dz_inv_hi);
+              } else {
+                  dz_inv    = one / dz_ptr[khi];
+                  dz_inv_lo = two / (dz_ptr[khi] + dz_ptr[khi-1]);
+                  dz_inv_hi = dz_inv;
+              }
 
               a_tmp = -Fact * gfac * rhoAlpha_lo * dz_inv_lo * dz_inv;
               c_tmp = zero;
 
               RHS_a(i,j,khi)  = face_data(i,j,khi); // NOTE: this is momenta; solution is velocity
-              RHS_a(i,j,khi) += Fact * gfac * (tau_corr(i,j,khi+1) - tau_corr(i,j,khi)) * dz_inv;
+              RHS_a(i,j,khi) += Fact * gfac * (tau_corr(i,j,khi+1-knodal) - tau_corr(i,j,khi-knodal)) * dz_inv;
 
               // BCs: Dirichlet (u_i = val), slip wall (w = 0) --
               //      but only where the top of this column really is the domain boundary
               if (khi != dom_khi) {
                   // Coarse/fine (or grid) boundary: close the system with the known face value
                   // above instead of imposing a physical BC at an interior height
-                  dz_inv_hi = two / (dz_ptr[khi] + dz_ptr[khi+1]);
-                  c_tmp = -Fact * rhoAlpha_hi * dz_inv_hi * dz_inv;
-                  const Real rho_above = myhalf * ( cell_data(i     ,j     ,khi+1,Rho_comp)
-                                                  + cell_data(i-ioff,j-joff,khi+1,Rho_comp) );
+                  if constexpr (stagdir != 2) { dz_inv_hi = two / (dz_ptr[khi] + dz_ptr[khi+1]); }
+                  c_tmp = -Fact * gfac * rhoAlpha_hi * dz_inv_hi * dz_inv;
+                  const Real rho_above = getRhoForMomFace<stagdir>(i, j, khi+1, cell_data);
                   RHS_a(i,j,khi) -= c_tmp * (face_data(i,j,khi+1) / rho_above);
               } else if (ext_dir_on_zhi) {
                   if (stagdir==2) {
@@ -624,7 +656,7 @@ ImplicitDiffForMomLU_S (const Box& bx,
           // Convert back to momenta
           //===================================================
           for (int k(klo); k<=khi; ++k) {
-              rhoface = myhalf * (cell_data(i,j,k,Rho_comp) + cell_data(i-ioff,j-joff,k,Rho_comp));
+              rhoface = getRhoForMomFace<stagdir>(i, j, k, cell_data);
               face_data(i,j,k) = rhoface * soln_a(i,j,k);
           }
 
