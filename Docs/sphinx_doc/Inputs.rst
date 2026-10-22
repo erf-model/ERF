@@ -4057,18 +4057,20 @@ the ones marked **Required** abort the run if they are not given.
 | **erf.most.abs_surf_temp**            | prescribed surface absolute temperature [K], converted   | Real > 0            | -1.0 (not set)   |
 |                                       | to potential temperature each step with the surface      |                     |                  |
 |                                       | pressure diagnosed from the lowest cell; z-low face      |                     |                  |
-|                                       | only, not with EB terrain, SST/TSK input or              |                     |                  |
-|                                       | custom/rico/bulk_coeff fluxes                            |                     |                  |
+|                                       | only, not with EB terrain, SST/TSK input,                |                     |                  |
+|                                       | ``erf.most.use_sfc_fluxes``, ``erf.most.use_sfc_sst``    |                     |                  |
+|                                       | or custom/rico/bulk_coeff fluxes                         |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.surf_temp**                | deprecated spelling of ``erf.most.pot_surf_temp``; at    | Real > 0            | -1.0 (not set)   |
-|                                       | most one of the three may be given                       |                     |                  |
+|                                       | most one of the three may be given, and a value that is  |                     |                  |
+|                                       | given must be positive                                   |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.surf_moist**               | prescribed surface moisture [kg/kg]; read only with an   | Real >= 0           | -1.0 (not set)   |
 |                                       | active moisture model                                    |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.surf_heating_rate**        | rate of change [K/h] applied to the prescribed surface   | Real                | 0.0              |
-|                                       | temperature (absolute with ``abs_surf_temp``); may not   |                     |                  |
-|                                       | be combined with                                         |                     |                  |
+|                                       | temperature (absolute with ``abs_surf_temp``) from the   |                     |                  |
+|                                       | start of the simulation; may not be combined with        |                     |                  |
 |                                       | ``erf.most.surf_temp_flux``                              |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.surf_temp_flux**           | prescribed surface heat flux [K m/s]; may not be         | Real                | 0.0              |

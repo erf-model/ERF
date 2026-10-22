@@ -70,16 +70,14 @@ SurfaceLayer::update_fluxes (const int& lev,
         fill_tsurf_with_sfc_sst(lev, elapsed_time, cons_in, z_phys_nd);
     }
 
-    // Apply heating rate if needed
+    // Apply heating rate if needed.  The rate is applied from the start of the
+    // simulation, so it is given the elapsed simulation time, not the time since the
+    // start of the lower-boundary data: that includes start_time, which with
+    // erf.start_datetime and no wrflowinp file is the epoch time of the start.
     if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
-        update_surf_temp(elapsed_time_since_start_low);
+        update_surf_temp(elapsed_time);
         if (surf_temp_is_absolute) {
-            // The lower-boundary SST/TSK fill uses the prescribed value as its land
-            // temperature, which is a potential temperature there.
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-                (m_sst_lev[lev].empty() || !m_sst_lev[lev][0]) && !m_use_sfc_sst,
-                "most.abs_surf_temp cannot be combined with SST/TSK or sfc-file SST input");
-            fill_tsurf_with_abs_surf_temp(lev, elapsed_time_since_start_low, cons_in, z_phys_nd);
+            fill_tsurf_with_abs_surf_temp(lev, elapsed_time, cons_in, z_phys_nd);
         }
     }
 
@@ -2440,13 +2438,37 @@ SurfaceLayer::fill_tsurf_with_abs_surf_temp (const int& lev,
             const int li = amrex::min(amrex::max(i, i_lo), i_hi);
             const int lj = amrex::min(amrex::max(j, j_lo), j_hi);
 
+            // The state is checked before it is divided by, as in fill_tsurf_with_coupled_sst,
+            // so that a bad state reaches the diagnostic rather than a floating-point trap.
             const Real rho = cons_arr(li,lj,klo,Rho_comp);
             const Real rho_theta = cons_arr(li,lj,klo,RhoTheta_comp);
-            if (moist && !have_rho_qv) {
-                erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::no_moisture_comp, li, lj, klo);
+            if (!amrex::Math::isfinite(rho) || rho <= Real(0.0) ||
+                !amrex::Math::isfinite(rho_theta)) {
+                erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_density,
+                    li, lj, klo, rho, rho_theta);
                 return;
             }
-            const Real qv = moist ? cons_arr(li,lj,klo,RhoQ1_comp) / rho : Real(0.0);
+            Real rho_qv = Real(0.0);
+            Real qv = Real(0.0);
+            if (moist) {
+                if (!have_rho_qv) {
+                    erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::no_moisture_comp,
+                        li, lj, klo);
+                    return;
+                }
+                rho_qv = cons_arr(li,lj,klo,RhoQ1_comp);
+                if (!amrex::Math::isfinite(rho_qv)) {
+                    erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_rho_qv,
+                        li, lj, klo, rho, rho_theta, rho_qv);
+                    return;
+                }
+                qv = rho_qv / rho;
+                if (!amrex::Math::isfinite(qv)) {
+                    erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_qv,
+                        li, lj, klo, rho, rho_theta, rho_qv);
+                    return;
+                }
+            }
             const Real delta_z = z_arr
                 ? Compute_Z_AtCellCenter(li,lj,klo,z_arr) -
                   Compute_Z_AtWFace(li,lj,klo,z_arr)
@@ -2454,17 +2476,12 @@ SurfaceLayer::fill_tsurf_with_abs_surf_temp (const int& lev,
             const Real pressure = erf_surface_temperature::pressure_at_boundary_from_cell(
                 rho, rho_theta, qv, delta_z);
             Real theta = t_surf_arr(i,j,k);
-            if (!amrex::Math::isfinite(qv)) {
-                erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_qv, li, lj, klo, rho, rho_theta,
-                    moist ? cons_arr(li,lj,klo,RhoQ1_comp) : Real(0.0));
-            } else if (erf_surface_temperature::temperature_to_theta(
-                           t_abs, pressure, rdOcp, theta)) {
+            if (erf_surface_temperature::temperature_to_theta(
+                    t_abs, pressure, rdOcp, theta)) {
                 t_surf_arr(i,j,k) = theta;
             } else {
                 erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_temperature_to_theta,
-                    li, lj, klo, rho, rho_theta,
-                    moist ? cons_arr(li,lj,klo,RhoQ1_comp) : Real(0.0),
-                    t_abs, pressure, delta_z);
+                    li, lj, klo, rho, rho_theta, rho_qv, t_abs, pressure, delta_z);
             }
         });
     }

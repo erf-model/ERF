@@ -200,32 +200,35 @@ public:
 
       // Get surface temperature, as a potential temperature (most.pot_surf_temp) or an
       // absolute temperature (most.abs_surf_temp); most.surf_temp is the deprecated
-      // spelling of most.pot_surf_temp.  These and surf_moist are probed with negative
-      // sentinels (see below) so that "did the user set this" is a property of the
-      // value rather than of the queryAdd return value, which only reports whether the
-      // key existed before the call and so stops being meaningful once anything has
-      // parsed the key.  The surface temperatures and most.surf_moist are also parsed by
-      // ERF_InputSoundingData.H, so the two sites would poison each other otherwise.
+      // spelling of most.pot_surf_temp.  These are read with query, not queryAdd, so
+      // that whether a key was given is the query return value: queryAdd would add a
+      // key that is absent, and these keys are also read by ERF_InputSoundingData.H and
+      // by the SurfaceLayer of every face, so the first reader would make the key look
+      // given to the rest.  A key that is given must be positive; it is never ignored.
       {
           amrex::Real pot_st = amrex::Real(-1.);
           amrex::Real abs_st = amrex::Real(-1.);
           amrex::Real old_st = amrex::Real(-1.);
-          pp.queryAdd("most.pot_surf_temp", pot_st);
-          pp.queryAdd("most.abs_surf_temp", abs_st);
-          pp.queryAdd("most.surf_temp",     old_st);
-          const int n_st = (pot_st > amrex::Real(0)) + (abs_st > amrex::Real(0)) +
-                           (old_st > amrex::Real(0));
-          if (n_st > 1) {
+          const bool has_pot = pp.query("most.pot_surf_temp", pot_st);
+          const bool has_abs = pp.query("most.abs_surf_temp", abs_st);
+          const bool has_old = pp.query("most.surf_temp",     old_st);
+          if (int(has_pot) + int(has_abs) + int(has_old) > 1) {
               amrex::Abort("Specify only one of most.pot_surf_temp, most.abs_surf_temp "
                            "and the deprecated most.surf_temp");
           }
-          if (old_st > amrex::Real(0)) {
+          if ((has_pot && !(pot_st > amrex::Real(0))) ||
+              (has_abs && !(abs_st > amrex::Real(0))) ||
+              (has_old && !(old_st > amrex::Real(0)))) {
+              amrex::Abort("most.pot_surf_temp, most.abs_surf_temp and most.surf_temp "
+                           "must be positive temperatures [K]");
+          }
+          if (has_old) {
               amrex::Print() << "WARNING: most.surf_temp is deprecated and is read as a surface "
                              << "potential temperature; use most.pot_surf_temp (potential) or "
                              << "most.abs_surf_temp (absolute) instead" << std::endl;
               pot_st = old_st;
           }
-          if (abs_st > amrex::Real(0)) {
+          if (has_abs) {
               surf_temp = abs_st;
               surf_temp_is_absolute = true;
           } else {
@@ -603,6 +606,18 @@ public:
               flux_type = FluxCalcType::CUSTOM;
               amrex::Print() << "Using MOST with prescribed time-varying surface fluxes from '" << sfc_file << "'" << std::endl;
           }
+      }
+
+      // The constructor's check of most.abs_surf_temp sees only most.flux_type; the
+      // modes known here replace the prescribed temperature too.  The surface-flux file
+      // makes the fluxes custom, and the SST/TSK and sfc-file SST fills use the
+      // prescribed value as their land temperature, which is a potential temperature there.
+      if (surf_temp_is_absolute) {
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!m_use_sfc_fluxes,
+              "most.abs_surf_temp cannot be combined with most.use_sfc_fluxes");
+          AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+              (m_sst_lev[lev].empty() || !m_sst_lev[lev][0]) && !m_use_sfc_sst,
+              "most.abs_surf_temp cannot be combined with SST/TSK or sfc-file SST input");
       }
 
       // Get pointers to LSM data and Fluxes
