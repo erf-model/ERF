@@ -372,6 +372,11 @@ SurfaceLayer::update_fluxes (const int& lev,
         for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi)
         {
             Box gtbx = mfi.growntilebox();
+            // The surface-model fields need not carry lateral ghost cells, so a ghost
+            // column takes the nearest valid column's values, as in
+            // compute_sfc_params_from_lsm_fluxes; fill_planar_boundary below then fills
+            // the interior and periodic ghosts.
+            const NearestColumn col(mfi.validbox());
 
             auto u_star_arr = u_star[lev]->array(mfi);
             auto t_star_arr = t_star[lev]->array(mfi);
@@ -401,10 +406,12 @@ SurfaceLayer::update_fluxes (const int& lev,
             {
                 // Overwrite ustar, tstar, qstar, and olen computed above with LSM values
                 if (lmask_arr(i,j,0) == 1) {
-                    if (lsm_tstar_arr) t_star_arr(i,j,k) = lsm_tstar_arr(i,j,0);
-                    if (lsm_qstar_arr) q_star_arr(i,j,k) = lsm_qstar_arr(i,j,0);
-                    if (lsm_ustar_arr) u_star_arr(i,j,k) = lsm_ustar_arr(i,j,0);
-                    if (lsm_olen_arr)  olen_arr(i,j,k)   = lsm_olen_arr(i,j,0);
+                    const int li = col.i(i);
+                    const int lj = col.j(j);
+                    if (lsm_tstar_arr) t_star_arr(i,j,k) = lsm_tstar_arr(li,lj,0);
+                    if (lsm_qstar_arr) q_star_arr(i,j,k) = lsm_qstar_arr(li,lj,0);
+                    if (lsm_ustar_arr) u_star_arr(i,j,k) = lsm_ustar_arr(li,lj,0);
+                    if (lsm_olen_arr)  olen_arr(i,j,k)   = lsm_olen_arr(li,lj,0);
                 }
             });
         }
@@ -1747,6 +1754,26 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
         if (vbx.smallEnd(2) != klo) { continue; }
         vbx.makeSlab(2,0);
 
+        // The ghost columns are set too, so that they hold the same kind of value as the
+        // valid columns: compute_fluxes writes MOST values over the grown box, and
+        // fill_planar_boundary below refills only the interior and periodic ghosts, so a
+        // coarse/fine or domain-edge ghost would otherwise keep a MOST value next to
+        // LSM values.  The LSM fluxes do not carry lateral ghost cells, so a ghost column
+        // takes the fluxes of the nearest valid column, as in get_lsm_tsurf, with its own
+        // atmospheric state.
+        const NearestColumn col(vbx);
+        const int idx = mfi.index();
+        Box gbx = amrex::grow(vbx, IntVect(AMREX_D_DECL(u_star[lev]->nGrow(0),
+                                                        u_star[lev]->nGrow(1), 0)));
+        Box cons_slab = cons_in.fabbox(idx);
+        cons_slab.setRange(2, 0);
+        gbx &= u_star[lev]->fabbox(idx);
+        gbx &= z_0[lev].fabbox(idx);
+        gbx &= umm_ptr->fabbox(idx);
+        gbx &= zref_ptr->fabbox(idx);
+        gbx &= cons_slab;
+        if (m_lmask_lev[lev][0]) { gbx &= m_lmask_lev[lev][0]->fabbox(idx); }
+
         // Get CC state
         const Array4<const Real> cons_arr = cons_in.const_array(mfi);
 
@@ -1784,32 +1811,36 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
             }
         }
 
-        ParallelFor(vbx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
+        ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
         {
             int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
+            const int li = col.i(i);
+            const int lj = col.j(j);
             // Skip cells where the LSM does not have a valid value (finite and below
             // lsm_undefined) for every one of the four fluxes; these keep the MOST values.
             if (is_land && lsm_t_flux_arr &&
-                is_valid_lsm_value(lsm_t_flux_arr(i,j,0)) &&
-                is_valid_lsm_value(lsm_q_flux_arr(i,j,0)) &&
-                is_valid_lsm_value(lsm_tau13_arr (i,j,0)) &&
-                is_valid_lsm_value(lsm_tau23_arr (i,j,0))) {
+                is_valid_lsm_value(lsm_t_flux_arr(li,lj,0)) &&
+                is_valid_lsm_value(lsm_q_flux_arr(li,lj,0)) &&
+                is_valid_lsm_value(lsm_tau13_arr (li,lj,0)) &&
+                is_valid_lsm_value(lsm_tau23_arr (li,lj,0))) {
+                const Real t_flux = lsm_t_flux_arr(li,lj,0);
+                const Real q_flux = lsm_q_flux_arr(li,lj,0);
                 Real rho = cons_arr(i,j,klo,Rho_comp);
                 Real Thd = cons_arr(i,j,klo,RhoTheta_comp) / rho;
                 Real qv  = (has_moisture) ? cons_arr(i,j,klo,RhoQ1_comp) / rho : zero;
                 Real Thv = Thd * (one + epsv*qv);
-                Real tau = std::sqrt( lsm_tau13_arr(i,j,0)*lsm_tau13_arr(i,j,0)
-                                    + lsm_tau23_arr(i,j,0)*lsm_tau23_arr(i,j,0) );
+                Real tau = std::sqrt( lsm_tau13_arr(li,lj,0)*lsm_tau13_arr(li,lj,0)
+                                    + lsm_tau23_arr(li,lj,0)*lsm_tau23_arr(li,lj,0) );
                 u_star_arr(i,j,0) = amrex::max(std::sqrt(tau),eps);
-                if (lsm_t_flux_arr(i,j,0)>=zero) {
-                    t_star_arr(i,j,0) = amrex::min(-lsm_t_flux_arr(i,j,0) / u_star_arr(i,j,0),-eps);
+                if (t_flux>=zero) {
+                    t_star_arr(i,j,0) = amrex::min(-t_flux / u_star_arr(i,j,0),-eps);
                 } else {
-                    t_star_arr(i,j,0) = amrex::max(-lsm_t_flux_arr(i,j,0) / u_star_arr(i,j,0),eps);
+                    t_star_arr(i,j,0) = amrex::max(-t_flux / u_star_arr(i,j,0),eps);
                 }
-                if (lsm_q_flux_arr(i,j,0)>=zero) {
-                    q_star_arr(i,j,0) = amrex::min(-lsm_q_flux_arr(i,j,0) / u_star_arr(i,j,0),-eps);
+                if (q_flux>=zero) {
+                    q_star_arr(i,j,0) = amrex::min(-q_flux / u_star_arr(i,j,0),-eps);
                 } else {
-                    q_star_arr(i,j,0) = amrex::max(-lsm_q_flux_arr(i,j,0) / u_star_arr(i,j,0),eps);
+                    q_star_arr(i,j,0) = amrex::max(-q_flux / u_star_arr(i,j,0),eps);
                 }
                 Real tstv = t_star_arr(i,j,0)*(one + epsv*qv) + epsv*Thd*q_star_arr(i,j,0);
                 tstv = (tstv >= zero) ? amrex::max(tstv, eps) : amrex::min(tstv, -eps);
