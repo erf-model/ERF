@@ -57,6 +57,11 @@ public:
 
     virtual void WriteDataLog (const double &time) override;
 
+    // Run's column sweep needs every box to span the level's domain in z. A fine level that
+    // does not (a partial-height patch) skips the sweep and ERF interpolates its heating
+    // from the parent (ERF::rad_level_needs_interpolation), as for RRTMGP.
+    bool is_nested_patch () const override { return m_partial_columns; }
+
     const amrex::MultiFab *get_radlwdn () { return radlwdn.get(); }
     const amrex::MultiFab *get_radqrlw () { return radqrlw.get(); }
 
@@ -70,6 +75,7 @@ private:
 
     amrex::Geometry m_geom;
     amrex::BoxArray m_ba;
+    bool m_partial_columns = false;
 
     amrex::MultiFab deltaq, flux;
     std::unique_ptr<amrex::MultiFab> radlwdn;
