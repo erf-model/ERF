@@ -111,9 +111,9 @@ jobs:
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \
           -DCODECOV:BOOL=ON \
-          -DCMAKE_C_COMPILER=$(which clang)             \
-          -DCMAKE_CXX_COMPILER=$(which clang++)         \
-          -DCMAKE_Fortran_COMPILER=$(which flang)       \
+          -DCMAKE_C_COMPILER="$(which clang)"             \
+          -DCMAKE_CXX_COMPILER="$(which clang++)"         \
+          -DCMAKE_Fortran_COMPILER="$(which flang)"       \
           -DCMAKE_CXX_STANDARD=17 \
           ${{github.workspace}};
         # ${{matrix.mpipreflags}} \
@@ -127,7 +127,7 @@ jobs:
         # objects and all the links) at -j 2. HIP device links are memory-hungry:
         # with -j 4 two links ran side by side and the runner VM was shut down
         # (out of memory) 13 minutes into linking erf_parallel_tests.
-        make -j $(nproc) amrex_3d erf_srclib 2>&1 | tee -a ${{runner.workspace}}/build-${{matrix.os}}-output.txt;
+        make -j "$(nproc)" amrex_3d erf_srclib 2>&1 | tee -a ${{runner.workspace}}/build-${{matrix.os}}-output.txt;
         make -j 2 2>&1 | tee -a ${{runner.workspace}}/build-${{matrix.os}}-output.txt;
 
         echo '```' >> "$GITHUB_STEP_SUMMARY"
@@ -152,7 +152,7 @@ jobs:
           | grep -Ev "Submodules/(amrex|AMReX|googletest)" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
           | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${{runner.workspace}}/build-${{matrix.os}}-output-warnings.txt
         cat ${{runner.workspace}}/build-${{matrix.os}}-output-warnings.txt
-        export return=$(tail -n 1 ${{runner.workspace}}/build-${{matrix.os}}-output-warnings.txt | awk '{print $2}')
+        return=$(tail -n 1 ${{runner.workspace}}/build-${{matrix.os}}-output-warnings.txt | awk '{print $2}')
         exit ${return}
 
     # - name: Regression Tests

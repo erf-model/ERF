@@ -93,7 +93,7 @@ jobs:
             -DERF_TEST_NRANKS:STRING=2 \
             -DERF_ENABLE_UNIT_TESTS:BOOL=ON .
           echo "Building with $(nproc) processes"
-          cmake --build build-${{matrix.cuda_pkg}} --parallel $(nproc) \
+          cmake --build build-${{matrix.cuda_pkg}} --parallel "$(nproc)" \
           2>&1 | tee -a ${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output.txt;
 
           echo '```' >> "$GITHUB_STEP_SUMMARY"
