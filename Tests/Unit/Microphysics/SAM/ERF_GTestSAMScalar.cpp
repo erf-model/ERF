@@ -978,6 +978,9 @@ TEST(SAMScalar, SedimentationHelpersMatchDocumentedContracts)
         amrex::Real(3.0e-4), amrex::Real(4.0e-4));
     expect_near_roundoff(interior.rho_avg, amrex::Real(0.9));
     expect_near_roundoff(interior.tabs_avg, amrex::Real(252.5));
+    // Donor (upwind) qci and qp from the cell above the face (#4415).
+    expect_near_roundoff(interior.qci_avg, amrex::Real(2.0e-4));
+    expect_near_roundoff(interior.qp_avg, amrex::Real(4.0e-4));
 
     const SAMFaceState top = sam_face_average_state(
         3, 0, 2,
@@ -1021,7 +1024,8 @@ TEST(SAMScalar, SedimentationHelpersMatchDocumentedContracts)
     const SAMPrecipFaceState precip_interior = sam_precip_face_state(
         kSAMWithIceMode, rho_fab.const_array(), tabs_fab.const_array(), qp_fab.const_array(), 0, 0, 1, 0, 2);
     expect_near_roundoff(precip_interior.rho_avg, amrex::Real(1.1));
-    expect_near_roundoff(precip_interior.qp_avg, amrex::Real(3.0e-7));
+    // Donor (upwind) qp from the cell above the face (#4415).
+    expect_near_roundoff(precip_interior.qp_avg, qp(0,0,1));
     expect_near_roundoff(precip_interior.qrr, precip_interior.omp * precip_interior.qp_avg);
 
     const SAMPrecipFaceState precip_top = sam_precip_face_state(
@@ -1204,10 +1208,12 @@ TEST(SAMScalar, PrecipComponentFaceState_BottomTopInteriorBranches)
     expect_near_roundoff(bottom.qpg_avg, qpg(0,0,0));
 
     const auto interior = sam_precip_component_face_state(rho, tabs, qpr, qps, qpg, 0, 0, 1, 0, 1);
+    // rho stays centred on the face; the transported mixing ratios come from the
+    // donor cell above it (#4415).
     expect_near_roundoff(interior.rho_avg, myhalf * (rho(0,0,0) + rho(0,0,1)));
-    expect_near_roundoff(interior.qpr_avg, myhalf * (qpr(0,0,0) + qpr(0,0,1)));
-    expect_near_roundoff(interior.qps_avg, myhalf * (qps(0,0,0) + qps(0,0,1)));
-    expect_near_roundoff(interior.qpg_avg, myhalf * (qpg(0,0,0) + qpg(0,0,1)));
+    expect_near_roundoff(interior.qpr_avg, qpr(0,0,1));
+    expect_near_roundoff(interior.qps_avg, qps(0,0,1));
+    expect_near_roundoff(interior.qpg_avg, qpg(0,0,1));
 
     const auto top = sam_precip_component_face_state(rho, tabs, qpr, qps, qpg, 0, 0, 2, 0, 1);
     // Nothing falls in through the model top (#4408).
