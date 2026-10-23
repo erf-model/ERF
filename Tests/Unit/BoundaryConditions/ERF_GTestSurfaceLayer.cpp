@@ -645,6 +645,38 @@ pblh_ghost_error (const MultiFab& pblh, const Box& domain)
     return {max_err, n_undiagnosed};
 }
 
+// LSM flux scale * (1 + i/4 + j/8) in the valid cells, a value that varies by column
+void set_lsm_flux_columns (MultiFab& mf, const Real scale)
+{
+    for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
+        const auto arr = mf.array(mfi);
+        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            arr(i,j,k) = scale * (Real(1.0) + Real(0.25) * static_cast<Real>(i)
+                                            + Real(0.125) * static_cast<Real>(j));
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
+// Value at a point of the grown box of the FAB holding it, ghost cells included
+Real
+mf_grown_value (const MultiFab& mf, const IntVect& p)
+{
+    ReduceOps<ReduceOpSum> reduce_op;
+    ReduceData<Real> reduce_data(reduce_op);
+    const Box point_box(p, p, mf.boxArray().ixType());
+    for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
+        const Box overlap = point_box & mfi.fabbox();
+        if (overlap.isEmpty()) { continue; }
+        const auto arr = mf.const_array(mfi);
+        reduce_op.eval(overlap, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) -> GpuTuple<Real>
+            { return {arr(i,j,k)}; });
+    }
+    return get<0>(reduce_data.value());
+}
+
 } // namespace
 
 TEST(SurfaceLayerCompatibility, EBAllowsNativeStateWithoutPlanarProviders)
@@ -1334,16 +1366,7 @@ TEST(SurfaceLayer, LsmDerivedParametersFillCoarseFineAndEdgeGhostColumns)
     for (int n = 0; n < 4; ++n) {
         // No ghost cells, as for the land models
         auto mf = std::make_unique<MultiFab>(collapse_z(fields.ba), fields.dm, 1, 0);
-        const Real scale = scales[n];
-        for (MFIter mfi(*mf); mfi.isValid(); ++mfi) {
-            const auto arr = mf->array(mfi);
-            ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                arr(i,j,k) = scale * (Real(1.0) + Real(0.25) * static_cast<Real>(i)
-                                                + Real(0.125) * static_cast<Real>(j));
-            });
-        }
-        Gpu::streamSynchronize();
+        set_lsm_flux_columns(*mf, scales[n]);
         fields.lsm_flux_data.push_back(std::move(mf));
         fields.lsm_flux_names.push_back(names[n]);
     }
@@ -1353,29 +1376,13 @@ TEST(SurfaceLayer, LsmDerivedParametersFillCoarseFineAndEdgeGhostColumns)
     // compute_sfc_params_from_lsm_fluxes runs only once the LSM has advanced
     layer->update_fluxes(0, 1.0, 1.0, fields.cons, nullptr, fields.no_walldist, 20);
 
-    // Value at a point of the single FAB's grown box, ghost cells included
-    auto value_at = [] (const MultiFab& mf, const IntVect& p) {
-        ReduceOps<ReduceOpSum> reduce_op;
-        ReduceData<Real> reduce_data(reduce_op);
-        const Box point_box(p, p, mf.boxArray().ixType());
-        for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
-            const Box overlap = point_box & mfi.fabbox();
-            if (overlap.isEmpty()) { continue; }
-            const auto arr = mf.const_array(mfi);
-            reduce_op.eval(overlap, reduce_data,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) -> GpuTuple<Real>
-                { return {arr(i,j,k)}; });
-        }
-        return get<0>(reduce_data.value());
-    };
-
     const Real eps = std::numeric_limits<Real>::epsilon();
     for (int j = 0; j <= 7; ++j) {
         SCOPED_TRACE(j);
         // The valid column takes u* from the LSM stress
         const Real tau = std::sqrt(scales[2] * scales[2] + scales[3] * scales[3]) *
                          column_factor(3, j);
-        EXPECT_NEAR(value_at(*layer->get_u_star(0), IntVect(AMREX_D_DECL(3, j, 0))),
+        EXPECT_NEAR(mf_grown_value(*layer->get_u_star(0), IntVect(AMREX_D_DECL(3, j, 0))),
                     std::sqrt(tau), Real(16.0) * eps * std::sqrt(tau));
 
         // The coarse/fine ghost (i = 4) and the domain-edge ghost (i = -1) hold the
@@ -1384,10 +1391,10 @@ TEST(SurfaceLayer, LsmDerivedParametersFillCoarseFineAndEdgeGhostColumns)
         for (const auto& [ghost, valid] : {std::pair{4, 3}, std::pair{-1, 0}}) {
             const IntVect pg(AMREX_D_DECL(ghost, j, 0));
             const IntVect pv(AMREX_D_DECL(valid, j, 0));
-            EXPECT_EQ(value_at(*layer->get_u_star(0), pg), value_at(*layer->get_u_star(0), pv)) << ghost;
-            EXPECT_EQ(value_at(*layer->get_t_star(0), pg), value_at(*layer->get_t_star(0), pv)) << ghost;
-            EXPECT_EQ(value_at(*layer->get_q_star(0), pg), value_at(*layer->get_q_star(0), pv)) << ghost;
-            EXPECT_EQ(value_at(*layer->get_olen(0),   pg), value_at(*layer->get_olen(0),   pv)) << ghost;
+            EXPECT_EQ(mf_grown_value(*layer->get_u_star(0), pg), mf_grown_value(*layer->get_u_star(0), pv)) << ghost;
+            EXPECT_EQ(mf_grown_value(*layer->get_t_star(0), pg), mf_grown_value(*layer->get_t_star(0), pv)) << ghost;
+            EXPECT_EQ(mf_grown_value(*layer->get_q_star(0), pg), mf_grown_value(*layer->get_q_star(0), pv)) << ghost;
+            EXPECT_EQ(mf_grown_value(*layer->get_olen(0),   pg), mf_grown_value(*layer->get_olen(0),   pv)) << ghost;
         }
     }
 }
