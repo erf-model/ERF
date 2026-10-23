@@ -130,10 +130,10 @@ Smag2DLimitedViscosity (amrex::Real nu, amrex::Real strain, amrex::Real DeltaH,
  * Momentum: the largest of the three component rows,
  *   u: mu_h (2 a + b) + e_uv mu_v / dz^2 + mu_v sqrt(a c)
  *   v: mu_h (a + 2 b) + e_uv mu_v / dz^2 + mu_v sqrt(b c)
- *   w: mu_v (a + b)   + 2 e_w mu_v / dz^2 + mu_v (sqrt(a c) + sqrt(b c)),
- * with c = 1/dz^2, plus 2 mu_p h^2 / dz^2 for the terrain-metric part.  The horizontal
- * diffusion of w uses mu_v: tau31 and tau32 carry the same edge-averaged mu_v as tau13 and
- * tau23.  The sqrt terms are the u-w and v-w cross derivatives (dw/dx in tau13, du/dz in
+ *   w: mu_v (a + b)   + 2 mu_v / dz^2     + mu_v (sqrt(a c) + sqrt(b c)),
+ * with c = 1/dz^2, plus 2 mu_p h^2 / dz^2 for the terrain-metric part.  The vertical
+ * diffusion of w is always explicit; its horizontal diffusion uses mu_v: tau31 and tau32
+ * carry the same edge-averaged mu_v as tau13 and tau23.  The sqrt terms are the u-w and v-w cross derivatives (dw/dx in tau13, du/dz in
  * tau31, ...), which stay explicit whether or not the implicit solve takes the second
  * vertical derivative; they are always counted, since with dz > dx/m they exceed the
  * vertical term (dx = 100 m, dz = 500 m: five times).  (The expansion
@@ -165,13 +165,13 @@ AMREX_FORCE_INLINE
 amrex::Real
 MomentumDiffusiveRate (amrex::Real rho, amrex::Real mu_h, amrex::Real mu_v,
                        amrex::Real a, amrex::Real b, amrex::Real h2, amrex::Real dzinv2,
-                       amrex::Real e_uv, amrex::Real e_w, amrex::Real w_metric = one) noexcept
+                       amrex::Real e_uv, amrex::Real w_metric = one) noexcept
 {
     const amrex::Real xa   = std::sqrt(a * dzinv2);
     const amrex::Real xb   = std::sqrt(b * dzinv2);
     const amrex::Real r_u  = mu_h * (two*a + b) + e_uv * mu_v * dzinv2 + mu_v * xa;
     const amrex::Real r_v  = mu_h * (a + two*b) + e_uv * mu_v * dzinv2 + mu_v * xb;
-    const amrex::Real r_w  = mu_v * (a + b)     + two * e_w * mu_v * dzinv2 + mu_v * (xa + xb);
+    const amrex::Real r_w  = mu_v * (a + b)     + two * mu_v * dzinv2 + mu_v * (xa + xb);
     const amrex::Real r_uv = (r_u > r_v) ? r_u : r_v;
     const amrex::Real row  = (r_uv > r_w) ? r_uv : r_w;
     const amrex::Real mu_hm = w_metric * mu_h;
@@ -246,7 +246,7 @@ struct DiffusiveRateSettings
     bool has_ke      = false;  // turbulent kinetic energy carried
     bool has_scalar  = false;  // advected scalar carried
     bool implicit_metric = false;  // erf.implicit_terrain_metric: K_h metric term weighted by e
-    amrex::Real e_uv = one, e_w = one, e_th = one, e_q = one, e_ke = one;
+    amrex::Real e_uv = one, e_th = one, e_q = one, e_ke = one;
     // Eddy diffusivities are carried (k_arr is read only then)
     bool has_eddy    = true;
     // Molecular diffusivities, added to the eddy ones in both directions: momentum (the
@@ -311,7 +311,7 @@ CellDiffusiveRates (int i, int j, int k,
     const amrex::Real m_c   = set.mol_c   * mol_rho;
     // with erf.implicit_terrain_metric the K_h metric term counts with the explicit fraction
     rate_mom = MomentumDiffusiveRate(rdiv, K(EddyDiff::Mom_h) + m_mom, K(EddyDiff::Mom_v) + m_mom,
-                                     a2, b2, h2, dzinv2, set.e_uv, set.e_w, (set.implicit_metric ? set.e_uv : one));
+                                     a2, b2, h2, dzinv2, set.e_uv, (set.implicit_metric ? set.e_uv : one));
     amrex::Real rs = ScalarDiffusiveRate(rdiv, K(EddyDiff::Theta_h) + m_th, K(EddyDiff::Theta_v) + m_th,
                                          a2, b2, h2, dzinv2, set.e_th, (set.implicit_metric ? set.e_th : one));
     if (set.has_q) {

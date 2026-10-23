@@ -167,10 +167,6 @@ function(build_erf_lib erf_lib_name)
                               )
   endif()
 
-  if(ERF_ENABLE_IMPLICIT_W)
-    target_compile_definitions(${erf_lib_name} PUBLIC ERF_IMPLICIT_W)
-  endif()
-
   if(ERF_ENABLE_MULTIBLOCK)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MULTIBLOCK)
   endif()
@@ -210,6 +206,7 @@ function(build_erf_lib erf_lib_name)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/Initialization/ERF_InitFromWRFInput.cpp
                    ${SRC_DIR}/Initialization/ERF_InitFromMetgrid.cpp
+                   ${SRC_DIR}/Initialization/ERF_InitLandFromMetgrid.cpp
                    ${SRC_DIR}/Initialization/ERF_InitFromNCFile.cpp
                    ${SRC_DIR}/IO/ERF_NCInterface.cpp
                    ${SRC_DIR}/IO/ERF_NCPlotFile.cpp

@@ -141,7 +141,7 @@ def main():
                         help='erf.radiation.seb_surface_heat_capacity [J/m^2/K]')
     parser.add_argument('--dz', type=float, default=50.0, help='height of the lowest cell [m]')
     parser.add_argument('--most-surf-temp', type=float, default=301.5,
-                        help='erf.most.surf_temp of the deck [K]')
+                        help='erf.most.pot_surf_temp of the deck [K]')
     parser.add_argument('--hfx-default', type=float, default=0.0)
     parser.add_argument('--lh-default', type=float, default=0.0)
     parser.add_argument('--min-flux', type=float, default=1.0,
@@ -246,7 +246,7 @@ def main():
                         for v in field(args.surface_layer_dir, step, 't_surf', level))
             if worst > 1.0e-10 * args.most_surf_temp:
                 failures.append(f"one-way step {step} level {level}: t_surf moved off "
-                                f"erf.most.surf_temp = {args.most_surf_temp} (by {worst:.3e} K)")
+                                f"erf.most.pot_surf_temp = {args.most_surf_temp} (by {worst:.3e} K)")
 
     if args.two_way_dir:
         # 1 and 3, two-way

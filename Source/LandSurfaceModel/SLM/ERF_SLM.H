@@ -212,9 +212,12 @@ public:
 
         use_terrain = sc.terrain_type != TerrainType::None;
 
-        // Check if initializing from WRFInput
-        if (sc.init_type == InitType::WRFInput) {
-            amrex::Print() << " SLM is initializing from WRFInput!" << std::endl;
+        // Check if initializing from WRFInput, or from metgrid files, for which ERF builds
+        // the same fields real.exe writes to wrfinput (ERF::init_lsm_from_metgrid)
+        if (sc.init_type == InitType::WRFInput || sc.init_type == InitType::Metgrid) {
+            amrex::Print() << " SLM is initializing from "
+                           << ((sc.init_type == InitType::WRFInput) ? "WRFInput" : "metgrid")
+                           << " data!" << std::endl;
             use_wrfinput = true;
         } else {
             use_wrfinput = false;
@@ -662,6 +665,8 @@ public:
     {
         return rad_output_map;
     }
+
+    const std::vector<amrex::Real>& get_soil_dz () const { return m_dz_lsm; }
 
     // utility to skip to next line in Header
     //  -- taken from ERF_Checkpoint

@@ -1027,6 +1027,8 @@ public:
     // responsible for calling rebuild_base_state_from_wrfinput afterwards.
     void init_from_wrfinput (int lev, amrex::MultiFab& mf_PSFC, bool read_atmos_state = true);
     void init_from_metgrid  (int lev);
+    // Fill SLM's inputs from the land fields of a met_em file (see ERF_InitLandFromMetgrid.cpp)
+    void init_lsm_from_metgrid (int lev, const std::string& fname, const std::string& date);
     void init_from_ncfile   (int lev);
 
     // Rebuild the WRF base state on the grids of base_state_mf at this level, using the
@@ -2047,6 +2049,16 @@ private:
     // This is well defined only because grids may not be split in the vertical --
     // see ERF::grids_are_split_in_z.  Used by the implicit vertical diffusion solves.
     amrex::Vector<std::unique_ptr<amrex::iMultiFab>> column_kextent;
+
+    // Masks of the coarse/fine ghost cells (1 there, 0 elsewhere) used by
+    // FillCoarseFineGhostsForImplicit: entry 0 is cell-centred with two ghost cells, entries
+    // 1-3 are on the x-, y- and z-faces with one ghost cell.  Built on first use
+    // and rebuilt whenever the grids they were built on change.
+    amrex::Vector<amrex::Array<std::unique_ptr<amrex::iMultiFab>,AMREX_SPACEDIM+1>> cf_implicit_mask;
+
+    const amrex::iMultiFab& get_cf_implicit_mask (int lev, int which, const amrex::BoxArray& ba,
+                                                  const amrex::DistributionMapping& dm,
+                                                  const amrex::IntVect& ng);
 
     static constexpr int column_kextent_lo_sentinel = std::numeric_limits<int>::min()/2;
     static constexpr int column_kextent_hi_sentinel = std::numeric_limits<int>::max()/2;

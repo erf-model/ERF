@@ -726,7 +726,7 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
     BoxArray ba23 = convert(ba, IntVect(0,1,1));
 
     Tau[lev].resize(9);
-    Tau_corr[lev].resize(3);
+    Tau_corr[lev].resize(2);
 
     // Always resize Tau_EB structure, even if not used, because other code checks nullptr
     Tau_EB[lev].resize(2);  // tau_eb13 and tau_eb23
@@ -788,16 +788,9 @@ ERF::update_diffusive_arrays (int lev, const BoxArray& ba, const DistributionMap
             Tau_corr[lev][1] = std::make_unique<MultiFab>( ba23, dm, 1, IntVect(1,1,1) ); // Tau32
             Tau_corr[lev][0]->setVal(zero);
             Tau_corr[lev][1]->setVal(zero);
-#ifdef ERF_IMPLICIT_W
-            Tau_corr[lev][2] = std::make_unique<MultiFab>( ba  , dm, 1, IntVect(1,1,1) ); // Tau33
-            Tau_corr[lev][2]->setVal(zero);
-#else
-            Tau_corr[lev][2] = nullptr;
-#endif
         } else {
             Tau_corr[lev][0] = nullptr;
             Tau_corr[lev][1] = nullptr;
-            Tau_corr[lev][2] = nullptr;
         }
 
         SFS_hfx1_lev[lev] = std::make_unique<MultiFab>( convert(ba,IntVect(1,0,0)), dm, 1, IntVect(1,1,1) );
@@ -1155,12 +1148,9 @@ ERF::remake_zphys (int lev, Real time, std::unique_ptr<MultiFab>& temp_zphys_nd)
 void
 ERF::make_terrain_blanking (int lev)
 {
-    // Read the small_volfrac threshold from eb2 namespace. The EB build (ERF::initializeEB, in
-    // the constructor) has already recorded it, with AMReX's own default when the inputs do not
-    // set it, so the 0.005 here is not what a deck without the key gets.
-    Real small_volfrac = 0.005;
-    ParmParse pp_eb2("eb2");
-    pp_eb2.queryAdd("small_volfrac", small_volfrac);
+    // eb2.small_volfrac, read once in SolverChoice before the EB build, so the blanking, the EB
+    // and the forcing kernels share it
+    const Real small_volfrac = solverChoice.if_small_volfrac;
 
     // Cell-centered terrain blanking
     terrain_blanking[lev]->setVal(one);

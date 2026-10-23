@@ -589,6 +589,7 @@ ERF::ERF_shared ()
     ba1d.resize(nlevs_max);
     ba2d.resize(nlevs_max);
     column_kextent.resize(nlevs_max);
+    cf_implicit_mask.resize(nlevs_max);
 
     // MultiFabs needed to convert WRFBdy data
     mf_PSFC.resize(nlevs_max);

@@ -121,6 +121,8 @@ bool is_land_surface_provider_field (DiagnosticID id) noexcept
     case DiagnosticID::LandSurfaceAlbedo:
     case DiagnosticID::LandSurfaceSfcrunoff:
     case DiagnosticID::LandSurfaceUdrunoff:
+    case DiagnosticID::LandSurfaceSnow:
+    case DiagnosticID::LandSurfaceSnowh:
     case DiagnosticID::NoahmpTemperature2mVegetated:
     case DiagnosticID::NoahmpTemperature2mBare:
     case DiagnosticID::NoahmpWaterVaporMixingRatio2mVegetated:

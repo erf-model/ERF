@@ -1,6 +1,7 @@
 #ifndef ERF_MOSTUtils_H
 #define ERF_MOSTUtils_H
 
+#include <AMReX_Algorithm.H>
 #include "ERF_Constants.H"
 
 /**
@@ -339,6 +340,24 @@ WaveCoupled_roughness (amrex::Real Hwave,
 
 
 /**
+ * Bounds on the roughness recovered by Compute_roughness.  The inversion is
+ * unbounded above: in weak wind under strong stability (u* from an LSM or bulk
+ * flux large relative to kappa*U, psi_m << 0) it returns z0 >> zref.  The
+ * upper bound is above every tabulated land-cover roughness in NoahmpTable.TBL
+ * (Z0MVT <= 1.10 m) and below the 2 m diagnostic height; z0 is also kept below
+ * half of zref so that ln(zref/z0) stays positive.
+ */
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+bound_inverted_roughness (amrex::Real z0, amrex::Real zref) noexcept
+{
+    const amrex::Real z0_lo = amrex::Real(1.0e-7);
+    const amrex::Real z0_hi = amrex::min(amrex::Real(1.5), amrex::Real(0.5) * zref);
+    return amrex::min(amrex::max(z0, z0_lo), z0_hi);
+}
+
+/**
  * Invert log-law to get roughness
  *
  * @param[in] zref  reference height for the wind speed
@@ -358,6 +377,6 @@ Compute_roughness (amrex::Real zref,
     amrex::Real zeta  = zref / Olen;
     amrex::Real psi_m = sfuns.calc_psi_m2(zeta);
     amrex::Real z0    = zref / std::exp(KAPPA*umm/ustar + psi_m);
-    return std::max(z0, amrex::Real(1.0e-7));
+    return bound_inverted_roughness(z0, zref);
 }
 #endif

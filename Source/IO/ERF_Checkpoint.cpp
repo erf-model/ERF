@@ -17,6 +17,7 @@
 #include "ERF_Provenance.H"
 #include "ERF_IntervalMeansCheckpoint.H"
 #include "ERF_CheckpointSurfaceTemperature.H"
+#include "ERF_CheckpointLsmData.H"
 #include "ERF_ReadCheckpointMF.H"
 #include "ERF_SBMStateManager.H"
 #include "ERF_SBMRestart.H"
@@ -534,7 +535,8 @@ ERF::WriteCheckpointFile () const
                 int nvar   = lsm_data[lev][ivar]->nComp();
                 MultiFab lsm_vars(ba,dm,nvar,ng);
                 MultiFab::Copy(lsm_vars,*(lsm_data[lev][ivar]),0,0,nvar,ng);
-                VisMF::Write(lsm_vars, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "LsmData" + std::to_string(ivar)));
+                VisMF::Write(lsm_vars, MultiFabFileFullPrefix(lev, checkpointname, "Level_",
+                             erf_checkpoint_lsm_data::file_stem(lsm_data_name, ivar)));
             }
             for (int iflux(0); iflux<lsm_flux[lev].size(); ++iflux) {
                 BoxArray ba = lsm_flux[lev][iflux]->boxArray();
@@ -1598,8 +1600,16 @@ ERF::ReadCheckpointFile ()
             //
             for (int ivar(0); ivar<lsm_data[lev].size(); ++ivar) {
                 MultiFab& dst = *(lsm_data[lev][ivar]);
-                read_checkpoint_mf(dst, MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LsmData" + std::to_string(ivar)),
-                                   lev, 0, 0, dst.nComp(), dst.nGrowVect(), /*src_ghosts=*/true);
+                const std::string lsm_file = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_",
+                    erf_checkpoint_lsm_data::file_stem(lsm_data_name, ivar));
+                if (erf_checkpoint_lsm_data::may_be_absent(lsm_data_name, ivar)) {
+                    // Absent from a checkpoint that predates the field: keep its initial values.
+                    read_checkpoint_mf_if_present(dst, lsm_file, lev, 0, 0, dst.nComp(),
+                                                  dst.nGrowVect(), /*src_ghosts=*/true);
+                } else {
+                    read_checkpoint_mf(dst, lsm_file, lev, 0, 0, dst.nComp(),
+                                       dst.nGrowVect(), /*src_ghosts=*/true);
+                }
             }
             for (int iflux(0); iflux<lsm_flux[lev].size(); ++iflux) {
                 MultiFab& dst = *(lsm_flux[lev][iflux]);

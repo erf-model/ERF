@@ -752,6 +752,11 @@ ERF::init_from_metgrid (int lev)
 
     } // itime
 
+    // SLM's land state, from this level's own met_em file
+    if (solverChoice.lsm_type == LandSurfaceType::SLM) {
+        init_lsm_from_metgrid(lev, nc_init_file[lev][0], NC_dateTime[0]);
+    }
+
     // FillBoundary to populate the internal halo cells
      r_hse.FillBoundary(geom[lev].periodicity());
      p_hse.FillBoundary(geom[lev].periodicity());
