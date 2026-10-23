@@ -2,6 +2,7 @@
 #include "ERF_Constants.H"
 
 #include <ERF_TI_fast_headers.H>
+#include <ERF_TerrainMetrics.H>
 
 using namespace amrex;
 
@@ -10,7 +11,8 @@ using namespace amrex;
  * integrator (the acoustic substepping).
  *
  * @param[in]  level level of refinement
- * @param[out] fast_coeffs  the coefficients for the tridiagonal solver computed here
+ * @param[out] fast_coeffs  the coefficients for the tridiagonal solver computed here, and
+ *                          beta_s on the w-faces (component 5)
  * @param[in]  S_stage_data solution at the last stage
  * @param[in]  S_stage_prim primitive variables (i.e. conserved variables divided by density) at the last stage
  * @param[in]  pi_stage Exner function at the last stage
@@ -22,6 +24,11 @@ using namespace amrex;
  * @param[in]  detJ_cc       Jacobian of the metric transformation at cell centers
  * @param[in]  dtau          Fast time step
  * @param[in]  beta_s        Coefficient which determines how implicit vs explicit the solve is
+ * @param[in]  z_phys_nd     Height coordinate at nodes (null without terrain)
+ * @param[in]  use_variable_beta_s If true, beta_s = max(beta_s_min, min(beta_s_max, h_xi^2 + h_eta^2))
+ *                                 on each w-face in place of beta_s
+ * @param[in]  beta_s_min    Lower bound of the spatially varying beta_s
+ * @param[in]  beta_s_max    Upper bound of the spatially varying beta_s
  * @param[in]  phys_bc_type  Physical boundary condition types
  */
 
@@ -37,11 +44,12 @@ void make_fast_coeffs (int /*level*/,
                        std::unique_ptr<MultiFab>& detJ_cc,
                        const double dtau,
                        Real beta_s,
+                       const MultiFab* z_phys_nd,
+                       bool use_variable_beta_s,
+                       Real beta_s_min, Real beta_s_max,
                        amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> &phys_bc_type)
 {
     BL_PROFILE_VAR("make_fast_coeffs()",make_fast_coeffs);
-
-    Real beta_2 = myhalf * (one + beta_s);  // multiplies implicit terms
 
     Real c_v = c_p - R_d;
 
@@ -55,6 +63,9 @@ void make_fast_coeffs (int /*level*/,
     MultiFab coeff_C_mf(fast_coeffs, amrex::make_alias, 2, 1);
     MultiFab coeff_P_mf(fast_coeffs, amrex::make_alias, 3, 1);
     MultiFab coeff_Q_mf(fast_coeffs, amrex::make_alias, 4, 1);
+    MultiFab  beta_s_mf(fast_coeffs, amrex::make_alias, 5, 1);
+
+    const bool has_z_nd = (z_phys_nd != nullptr);
 
 
     // *************************************************************************
@@ -91,6 +102,24 @@ void make_fast_coeffs (int /*level*/,
         auto const& coeffP_a  = coeff_P_mf.array(mfi);
         auto const& coeffQ_a  = coeff_Q_mf.array(mfi);
         auto const&    gam_a  = gam_fab.array();
+        auto const& beta_s_a  = beta_s_mf.array(mfi);
+
+        const Array4<const Real>& z_nd = (has_z_nd) ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
+
+        // *********************************************************************
+        // beta_s on the w-faces, which erf_substep_* uses for the time-weighting of the
+        // vertical fluxes and of the vertical momentum equation
+        // *********************************************************************
+        ParallelFor(tbz, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+        {
+            if (use_variable_beta_s) {
+                Real h_xi  = (has_z_nd) ? Compute_h_xi_AtKface (i, j, k, dxInv, z_nd) : zero;
+                Real h_eta = (has_z_nd) ? Compute_h_eta_AtKface(i, j, k, dxInv, z_nd) : zero;
+                beta_s_a(i,j,k) = amrex::max(beta_s_min, amrex::min(beta_s_max, h_xi*h_xi + h_eta*h_eta));
+            } else {
+                beta_s_a(i,j,k) = beta_s;
+            }
+        });
 
         // *********************************************************************
         // *********************************************************************
@@ -150,12 +179,20 @@ void make_fast_coeffs (int /*level*/,
                 Real theta_t_hi  = myhalf * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
 
                 // LHS for tri-diagonal system
-                Real D = beta_2 * beta_2 * dzi * static_cast<Real>(dtau * dtau);
-                coeffA_a(i,j,k) = D * (one/detJ(i,j,k-1)) * ( halfg - coeff_Q * theta_t_lo );
-                coeffC_a(i,j,k) = D * (one/detJ(i,j,k  )) * (-halfg + coeff_P * theta_t_hi );
+                // NOTE: the w-equation at face k is weighted by beta_2(k), and the vertical
+                //       flux at face k' by beta_2(k'), so each entry carries both
+                //       (multiplied first, so a uniform beta_s rounds as beta_2 * beta_2 did)
+                Real beta_2_km1 = myhalf * (one + beta_s_a(i,j,k-1));
+                Real beta_2_k   = myhalf * (one + beta_s_a(i,j,k  ));
+                Real beta_2_kp1 = myhalf * (one + beta_s_a(i,j,k+1));
+                Real D_A = beta_2_km1 * beta_2_k   * dzi * static_cast<Real>(dtau * dtau);
+                Real D_B = beta_2_k   * beta_2_k   * dzi * static_cast<Real>(dtau * dtau);
+                Real D_C = beta_2_k   * beta_2_kp1 * dzi * static_cast<Real>(dtau * dtau);
+                coeffA_a(i,j,k) = D_A * (one/detJ(i,j,k-1)) * ( halfg - coeff_Q * theta_t_lo );
+                coeffC_a(i,j,k) = D_C * (one/detJ(i,j,k  )) * (-halfg + coeff_P * theta_t_hi );
 
-                coeffB_a(i,j,k) = one + D * ( (coeff_Q/detJ(i,j,k-1) - coeff_P/detJ(i,j,k)) * theta_t_mid
-                                            + halfg * (one/detJ(i,j,k) - one/detJ(i,j,k-1)) );
+                coeffB_a(i,j,k) = one + D_B * ( (coeff_Q/detJ(i,j,k-1) - coeff_P/detJ(i,j,k)) * theta_t_mid
+                                      + halfg * (one/detJ(i,j,k) - one/detJ(i,j,k-1)) );
             });
 
         } else {
@@ -197,11 +234,19 @@ void make_fast_coeffs (int /*level*/,
                 Real theta_t_hi  = myhalf * ( prim(i,j,k  ,PrimTheta_comp) + prim(i,j,k+1,PrimTheta_comp) );
 
                 // LHS for tri-diagonal system
-                Real D = beta_2 * beta_2 * dzi * static_cast<Real>(dtau * dtau);
-                coeffA_a(i,j,k) = D * ( halfg - coeff_Q * theta_t_lo );
-                coeffC_a(i,j,k) = D * (-halfg + coeff_P * theta_t_hi );
+                // NOTE: the w-equation at face k is weighted by beta_2(k), and the vertical
+                //       flux at face k' by beta_2(k'), so each entry carries both
+                //       (multiplied first, so a uniform beta_s rounds as beta_2 * beta_2 did)
+                Real beta_2_km1 = myhalf * (one + beta_s_a(i,j,k-1));
+                Real beta_2_k   = myhalf * (one + beta_s_a(i,j,k  ));
+                Real beta_2_kp1 = myhalf * (one + beta_s_a(i,j,k+1));
+                Real D_A = beta_2_km1 * beta_2_k   * dzi * static_cast<Real>(dtau * dtau);
+                Real D_B = beta_2_k   * beta_2_k   * dzi * static_cast<Real>(dtau * dtau);
+                Real D_C = beta_2_k   * beta_2_kp1 * dzi * static_cast<Real>(dtau * dtau);
+                coeffA_a(i,j,k) = D_A * ( halfg - coeff_Q * theta_t_lo );
+                coeffC_a(i,j,k) = D_C * (-halfg + coeff_P * theta_t_hi );
 
-                coeffB_a(i,j,k) = one + D * (coeff_Q - coeff_P) * theta_t_mid;
+                coeffB_a(i,j,k) = one + D_B * (coeff_Q - coeff_P) * theta_t_mid;
             });
         }
 

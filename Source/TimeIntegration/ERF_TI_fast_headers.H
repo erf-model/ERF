@@ -57,7 +57,7 @@ void erf_substep_NS (int step, int nrk, int level, int finest_level,
                      const amrex::Geometry geom,
                      const amrex::Real gravity,
                      amrex::Gpu::DeviceVector<amrex::Real>& stretched_dz_d,
-                     const double dtau, const amrex::Real beta_s,
+                     const double dtau,
                      const amrex::Real facinv,
                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                      amrex::YAFluxRegister* fr_as_crse,
@@ -65,6 +65,7 @@ void erf_substep_NS (int step, int nrk, int level, int finest_level,
                      bool l_use_moisture, bool l_reflux, bool l_real_bc,
                      const amrex::Real* sinesq_at_lev_d,
                      const amrex::Real l_damp_coef,
+                     const amrex::Real beta_d,
                      const CFFaceFluxes& cf_fluxes);
 
 /**
@@ -92,7 +93,7 @@ void erf_substep_T (int step, int nrk, int level, int finest_level,
                     const amrex::Real gravity,
                     std::unique_ptr<amrex::MultiFab>& z_phys_nd,
                     std::unique_ptr<amrex::MultiFab>& detJ_cc,
-                    const double dtau, const amrex::Real beta_s,
+                    const double dtau,
                     const amrex::Real facinv,
                     amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                     amrex::YAFluxRegister* fr_as_crse,
@@ -100,6 +101,7 @@ void erf_substep_T (int step, int nrk, int level, int finest_level,
                     bool l_use_moisture, bool l_reflux, bool l_real_bc,
                     const amrex::Real* sinesq_at_lev_d,
                     const amrex::Real l_damp_coef,
+                    const amrex::Real beta_d,
                     const CFFaceFluxes& cf_fluxes);
 
 /**
@@ -134,14 +136,15 @@ void erf_substep_MT (int step, int nrk, int level, int finest_level,
                      std::unique_ptr<amrex::MultiFab>& detJ_cc_old,
                      std::unique_ptr<amrex::MultiFab>& detJ_cc_new,
                      std::unique_ptr<amrex::MultiFab>& detJ_cc_stg,
-                     const double dtau, const amrex::Real beta_s,
+                     const double dtau,
                      const amrex::Real facinv,
                      amrex::Vector<std::unique_ptr<amrex::MultiFab>>& mapfac,
                      amrex::YAFluxRegister* fr_as_crse,
                      amrex::YAFluxRegister* fr_as_fine,
                      bool l_use_moisture, bool l_reflux, bool l_real_bc,
                      const amrex::Real* sinesq_at_lev_d,
-                     const amrex::Real l_damp_coef);
+                     const amrex::Real l_damp_coef,
+                     const amrex::Real beta_d);
 
 /**
  * Function for computing the coefficients for the tridiagonal solver used in the fast
@@ -160,6 +163,10 @@ void make_fast_coeffs (int level,
                        std::unique_ptr<amrex::MultiFab>& detJ_cc,
                        const double dtau,
                        const amrex::Real beta_s,
+                       const amrex::MultiFab* z_phys_nd,
+                       const bool use_variable_beta_s,
+                       const amrex::Real beta_s_min,
+                       const amrex::Real beta_s_max,
                        amrex::GpuArray<ERF_BC, AMREX_SPACEDIM*2> &phys_bc_type);
 
 #endif

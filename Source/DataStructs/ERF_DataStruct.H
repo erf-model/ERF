@@ -1141,6 +1141,24 @@ struct SolverChoice {
 
         pp.queryAdd("beta_s", beta_s);
 
+        // Divergence damping coefficient for the forward projection of (rho theta)
+        pp.queryAdd("beta_d", beta_d);
+        if (!(beta_d >= amrex::Real(0.0) && beta_d <= amrex::Real(1.0))) {
+            amrex::Abort("erf.beta_d must lie in [0, 1]; got " + std::to_string(beta_d));
+        }
+
+        // Spatially varying beta_s on the w-faces (implicit substepping only):
+        //    beta_s = max(beta_s_min, min(beta_s_max, h_xi^2 + h_eta^2))
+        pp.queryAdd("use_variable_beta_s", use_variable_beta_s);
+        pp.queryAdd("beta_s_min", beta_s_min);
+        pp.queryAdd("beta_s_max", beta_s_max);
+        if (use_variable_beta_s) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(beta_s_min <= beta_s_max,
+                "erf.beta_s_min must be less than or equal to erf.beta_s_max");
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(beta_s_min >= -one && beta_s_max <= one,
+                "erf.beta_s_min and erf.beta_s_max must lie in [-1, 1]");
+        }
+
         // *******************************************************************************
         // Error check on deprecated input
         // *******************************************************************************
@@ -2318,6 +2336,16 @@ struct SolverChoice {
     // towards the future time step)
     amrex::Real beta_s = amrex::Real(0.1);
 
+    // if true, beta_s varies on the w-faces as max(beta_s_min, min(beta_s_max, h_xi^2 + h_eta^2))
+    // and beta_s itself is not used (implicit substepping only)
+    bool use_variable_beta_s = false;
+    amrex::Real beta_s_min = amrex::Real(0.1);
+    amrex::Real beta_s_max = amrex::Real(0.8);
+
+    // divergence damping coefficient: how far (rho theta) is projected forward
+    // in the horizontal momentum equations of the acoustic substepping
+    amrex::Real beta_d = amrex::Real(0.1);
+
     // This controls the time-centering of the *vertical* differences in the diffusive term for
     // theta, u and v
     // 0: fully explicit
@@ -2745,6 +2773,14 @@ struct SolverChoice {
  * @brief Whether to emit extra CFL diagnostics for compressible substepping.
  * @var SolverChoice::beta_s
  * @brief Time off-centering coefficient for forward weighting.
+ * @var SolverChoice::use_variable_beta_s
+ * @brief Whether beta_s varies on the w-faces with the terrain slope.
+ * @var SolverChoice::beta_s_min
+ * @brief Lower bound of the spatially varying beta_s.
+ * @var SolverChoice::beta_s_max
+ * @brief Upper bound of the spatially varying beta_s.
+ * @var SolverChoice::beta_d
+ * @brief Divergence damping coefficient used in the acoustic substepping.
  * @var SolverChoice::vert_implicit_fac
  * @brief Per-level, per-stage implicit vertical diffusion factors.
  * @var SolverChoice::implicit_thermal_diffusion
