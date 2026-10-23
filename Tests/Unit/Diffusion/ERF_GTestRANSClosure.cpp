@@ -3,6 +3,10 @@
 // ComputeTurbulentViscosityRANS evaluates on the device.
 
 #include <ERF_RANSClosure.H>
+#include <ERF_EddyViscosity.H>
+
+#include <AMReX_FArrayBox.H>
+#include <AMReX_Gpu.H>
 
 #include <gtest/gtest.h>
 
@@ -150,4 +154,119 @@ TEST(RANSClosure, DissipationAndRichardsonAreConsistent)
     // relative tolerance aware of the build precision (1e-12 double, 1e-5 float)
     const Real rtol = (sizeof(Real) == 8) ? Real(1e-12) : Real(1e-5);
     EXPECT_NEAR(AL01::richardson(length, N2, tke, Cmu0_pow3), Rt_direct, rtol * std::abs(Rt_direct));
+}
+
+// Realizability cap nu_t <= C_r k / S (erf.rans_realizability)
+TEST(RANSClosure, RealizabilityCapMatchesClosedForm)
+{
+    const Real Cr = Cmu0 * Cmu0;                    // 0.3094, the equilibrium value
+    const Real tke = Real(0.5), S = Real(0.2);
+    const Real cap = Cr * tke / S;                  // 0.7735
+    Real ratio = Real(-1);
+
+    // above the cap: capped to C_r k / S, ratio = nut / cap > 1
+    const Real nut_hi = Real(2) * cap;
+    EXPECT_NEAR(AL01::realizable_nut(nut_hi, tke, S, Cr, ratio), cap, tol() * cap);
+    EXPECT_NEAR(ratio, Real(2), tol());
+
+    // below the cap: unchanged, ratio < 1
+    const Real nut_lo = Real(0.25) * cap;
+    EXPECT_EQ(AL01::realizable_nut(nut_lo, tke, S, Cr, ratio), nut_lo);
+    EXPECT_NEAR(ratio, Real(0.25), tol());
+
+    // S enters linearly (not S^2): doubling S halves the cap
+    EXPECT_NEAR(AL01::realizable_nut(nut_hi, tke, Real(2) * S, Cr, ratio), Real(0.5) * cap, tol() * cap);
+    EXPECT_NEAR(ratio, Real(4), tol());
+}
+
+TEST(RANSClosure, RealizabilityCapIsNeutralInEquilibriumShear)
+{
+    // Constant-stress layer: k = u*^2 / Cmu0^2, S = u* / (kappa z), nu_t = kappa u* z
+    // (AL01 Eqs. 11, 16 and 19 with P = eps), so nu_t S / k = Cmu0^2 exactly and the
+    // cap with C_r = Cmu0^2 returns nu_t unchanged (ratio = 1).
+    const Real ustar = Real(0.3), z = Real(10);
+    const Real tke = ustar * ustar / (Cmu0 * Cmu0);
+    const Real S   = ustar / (kappa * z);
+    // nu_t from the closure functions themselves (neutral: Rt = 0, l = kappa z)
+    const Real nut = AL01::cmu(Real(0), Cmu0) * std::sqrt(tke) * (kappa * z);
+    EXPECT_NEAR(nut, kappa * ustar * z, tol() * nut);
+    // and P = eps there: nu_t S^2 against dissipation() per unit mass
+    EXPECT_NEAR(nut * S * S, AL01::dissipation(Real(1), Cmu0_pow3, tke, kappa * z), tol() * nut * S * S);
+    Real ratio = Real(0);
+    EXPECT_NEAR(AL01::realizable_nut(nut, tke, S, Cmu0 * Cmu0, ratio), nut, tol() * nut);
+    EXPECT_NEAR(ratio, Real(1), tol());
+    // a slightly larger C_r leaves it alone, a slightly smaller one trims it
+    EXPECT_EQ(AL01::realizable_nut(nut, tke, S, Real(1.01) * Cmu0 * Cmu0, ratio), nut);
+    EXPECT_LT(AL01::realizable_nut(nut, tke, S, Real(0.99) * Cmu0 * Cmu0, ratio), nut);
+}
+
+TEST(RANSClosure, RealizabilityCapOffAndZeroStrain)
+{
+    const Real tke = Real(0.5), nut = Real(3);
+    Real ratio = Real(7);
+    // C_r <= 0: identity, ratio reported as 0
+    EXPECT_EQ(AL01::realizable_nut(nut, tke, Real(0.1), Real(0), ratio), nut);
+    EXPECT_EQ(ratio, Real(0));
+    EXPECT_EQ(AL01::realizable_nut(nut, tke, Real(0.1), Real(-1), ratio), nut);
+    // S = 0 (uniform flow): no cap and a finite ratio, no division by zero
+    Real out = AL01::realizable_nut(nut, tke, Real(0), Real(0.309), ratio);
+    EXPECT_EQ(out, nut);
+    ASSERT_TRUE(std::isfinite(ratio));
+    EXPECT_GE(ratio, Real(0));
+    EXPECT_LT(ratio, Real(1));
+    // k at a tiny floor with finite S: the cap goes to zero with k
+    out = AL01::realizable_nut(nut, Real(1e-16), Real(1), Real(0.309), ratio);
+    EXPECT_NEAR(out, Real(0.309e-16), Real(1e-20));
+}
+
+// The strain magnitude the cap divides by: S = sqrt(2 ComputeSmnSmn), the
+// cell-centred average of the face/edge strains the kernel reads.
+namespace {
+
+// Fill the six strain arrays of a one-cell box from the given uniform values
+// (tau12/13/23 are nodal on their edges) and return sqrt(2 SmnSmn) at the cell.
+Real strain_magnitude (Real t11, Real t22, Real t33, Real t12, Real t13, Real t23,
+                       int node13 = -1)
+{
+    using namespace amrex;
+    const Box cc(IntVect(0), IntVect(0));
+    FArrayBox f11(cc, 1, The_Pinned_Arena()), f22(cc, 1, The_Pinned_Arena()), f33(cc, 1, The_Pinned_Arena());
+    FArrayBox f12(convert(cc, IntVect(1,1,0)), 1, The_Pinned_Arena());
+    FArrayBox f13(convert(cc, IntVect(1,0,1)), 1, The_Pinned_Arena());
+    FArrayBox f23(convert(cc, IntVect(0,1,1)), 1, The_Pinned_Arena());
+    f11.setVal<RunOn::Host>(t11); f22.setVal<RunOn::Host>(t22); f33.setVal<RunOn::Host>(t33);
+    f12.setVal<RunOn::Host>(t12); f13.setVal<RunOn::Host>(t13); f23.setVal<RunOn::Host>(t23);
+    if (node13 >= 0) {
+        // only one of the four tau13 edges carries the value: the average is a quarter
+        f13.setVal<RunOn::Host>(Real(0));
+        const IntVect nodes[4] = {IntVect(0,0,0), IntVect(1,0,0), IntVect(0,0,1), IntVect(1,0,1)};
+        f13.array()(nodes[node13][0], nodes[node13][1], nodes[node13][2]) = t13;
+    }
+    FArrayBox out(cc, 1, The_Pinned_Arena());
+    const Array4<Real const> a11 = f11.const_array(), a22 = f22.const_array(), a33 = f33.const_array();
+    const Array4<Real const> a12 = f12.const_array(), a13 = f13.const_array(), a23 = f23.const_array();
+    const Array4<Real> o = out.array();
+    ParallelFor(cc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+    {
+        o(i,j,k) = std::sqrt(Real(2) * ComputeSmnSmn(i,j,k,a11,a22,a33,a12,a13,a23));
+    });
+    Gpu::streamSynchronize();
+    return out.array()(0,0,0);
+}
+
+} // namespace
+
+TEST(RANSClosure, StrainMagnitudeForTheCap)
+{
+    // simple shear u = a z: S_13 = a/2 on every edge, every other component 0, S = |a|
+    const Real a = Real(0.8);
+    EXPECT_NEAR(strain_magnitude(0, 0, 0, 0, Real(0.5) * a, 0), a, tol());
+    // plane strain S_11 = b, S_33 = -b: 2 S_ij S_ij = 4 b^2, S = 2 |b|
+    const Real b = Real(0.3);
+    EXPECT_NEAR(strain_magnitude(b, 0, -b, 0, 0, 0), Real(2) * b, tol());
+    // the edge strains are averaged over four edges: one edge of four at a/2 gives a/4
+    EXPECT_NEAR(strain_magnitude(0, 0, 0, 0, Real(0.5) * a, 0, 2), Real(0.25) * a, tol());
+    // all three edge strains at c: S_ij S_ij = 2 (3 c^2), S = sqrt(12) c
+    const Real c = Real(0.2);
+    EXPECT_NEAR(strain_magnitude(0, 0, 0, c, c, c), c * std::sqrt(Real(12)), tol());
 }

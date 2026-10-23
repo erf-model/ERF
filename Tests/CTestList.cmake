@@ -2068,6 +2068,24 @@ if(NOT WIN32)
   add_test_abort(ForestCanopyRANS_NeedsImplicitDissipation ${_canopy_dir} ForestCanopyRANS_Uniform.i
                  "needs erf.implicit_tke_dissipation = true on every level"
                  "erf.implicit_tke_dissipation=0")
+  # Input checks of the realizability cap (erf.rans_realizability)
+  # a per-level list switches the cap on at a level without the k-eqn closure: abort
+  add_test_abort(RANSRealizability_NeedsKEqn ${_canopy_dir} ForestCanopyRANS_Uniform.i
+                 "erf.rans_realizability needs erf.rans_type = kEqn"
+                 "erf.rans_type=None erf.les_type=Smagorinsky erf.Cs=0.1 erf.forest_canopy_tke=false 'erf.rans_realizability=0.309 0.309'")
+  add_test_abort(RANSRealizability_Range ${_canopy_dir} ForestCanopyRANS_Uniform.i
+                 "erf.rans_realizability must be 0 .off. or in"
+                 "erf.rans_realizability=20")
+  # on a deck with a surface layer, which the PBL scheme needs before the cap check runs
+  add_test_abort(RANSRealizability_NeedsNoPBL ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS/Neutral_ABL_Flat
+                 inputs_neutral
+                 "erf.rans_realizability needs erf.pbl_type = None"
+                 "erf.use_fft=false erf.pbl_type=YSU erf.rans_realizability=0.309")
+  # a single value is meant for the kEqn levels: it is reset on a level that runs LES
+  # instead of aborting, so the run starts (the test runs one step)
+  add_test_abort(RANSRealizability_SingleValueResetOnLESLevel ${_canopy_dir} ForestCanopyRANS_Uniform.i
+                 "erf.rans_realizability reset to 0 on level 0"
+                 "erf.rans_type=None erf.les_type=Smagorinsky erf.Cs=0.1 erf.forest_canopy_tke=false erf.rans_realizability=0.309")
   # kEqn on level 0 only: the canopy terms would act on part of the hierarchy
   add_test_abort(ForestCanopyRANS_NeedsKEqnOnEveryLevel
                  ${CMAKE_CURRENT_SOURCE_DIR}/test_files/PBLH_FinePatch PBLH_FinePatch.i
@@ -2633,6 +2651,17 @@ if(ERF_ENABLE_FFT)
     add_test_rans(RANS_Neutral_Hill_2D_Poisson Neutral_Hill_2D     inputs_hill        40  check_hill.py RUNTIME_OPTIONS "erf.wall_dist_type=poisson")
     add_test_rans(RANS_Flat_Fitted_2D         Neutral_Hill_2D      inputs_hill        40  check_flat_fitted.py RUNTIME_OPTIONS "prob.hmax=1e-6")
     add_test_rans(RANS_Flat_Fitted_2D_Poisson Neutral_Hill_2D      inputs_hill        40  check_flat_fitted.py RUNTIME_OPTIONS "prob.hmax=1e-6 erf.wall_dist_type=poisson")
+    # Realizability cap of the closure (erf.rans_realizability): the ridge run
+    # without the cap (A) and with C_r = Cmu0^2 (B); the capped Kmv and Khv are
+    # pinned to the closed form rho cmu sqrt(k) l / max(cap_ratio, 1) cell by cell (k of the
+    # closure recovered from diss, which the same kernel writes)
+    # and the cap must be active somewhere in B. The command runs through sh.
+    if(NOT WIN32)
+        add_test_rans_pair(RANS_Neutral_Hill_2D_Realizability Neutral_Hill_2D inputs_hill 40 check_realizability.py
+            RUNTIME_OPTIONS "erf.plot_vars_1=density Kmv Khv Lturb diss cmu cmu_prime cap_ratio"
+            OPTIONS_A "erf.rans_realizability=0" OPTIONS_B "erf.rans_realizability=0.309"
+            CHECK_OPTIONS "--cr 0.309")
+    endif()
     add_test_rans(RANS_Neutral_Hill_3D        Neutral_Hill_3D      inputs_hill3d      40  check_hill3d.py)
     add_test_rans(RANS_Neutral_Hill_3D_Poisson Neutral_Hill_3D     inputs_hill3d      40  check_hill3d.py RUNTIME_OPTIONS "erf.wall_dist_type=poisson")
 endif()

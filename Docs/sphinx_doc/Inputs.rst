@@ -2216,6 +2216,18 @@ List of Parameters
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.rans_lscale_min**                | lower bound [m] of the PBL-height cap above (per-level)  | Real > 0           | 1.0              |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rans_realizability**             | k-equation RANS: cap the eddy viscosity at C_r k / S,    | 0, or Real in      | 0 (off)          |
+|                                        | S the strain-rate magnitude, and every eddy diffusivity  | [0.01, 10]         |                  |
+|                                        | by the same factor (SST limiter form); needs             |                    |                  |
+|                                        | ``erf.rans_type = kEqn`` and ``erf.pbl_type = None``;    |                    |                  |
+|                                        | C_r = Cmu0^2 = 0.309 (default Cmu0) is the neutral       |                    |                  |
+|                                        | equilibrium value, which leaves a neutral constant-      |                    |                  |
+|                                        | stress layer unchanged and limits the viscosity where    |                    |                  |
+|                                        | production exceeds dissipation, as behind a steep crest; |                    |                  |
+|                                        | a single value is reset to 0 on levels without the k-eqn |                    |                  |
+|                                        | closure, a per-level list that switches it on there      |                    |                  |
+|                                        | stops the run (per-level)                                |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.wall_dist_type**                 | wall distance for RANS on a terrain-fitted mesh:         | "poisson",         | "poisson"        |
 |                                        | Tucker (2003) Poisson distance, or the height above the  | "terrain_height"   |                  |
 |                                        | local surface projected on its normal (no linear solve)  |                    |                  |

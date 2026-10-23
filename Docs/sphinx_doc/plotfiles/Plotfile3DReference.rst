@@ -381,6 +381,15 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 |                             | k-eqn RANS       |
 |                             | closure [-]      |
 +-----------------------------+------------------+
+| **cap_ratio**               | Uncapped k-eqn   |
+|                             | eddy viscosity   |
+|                             | over its         |
+|                             | realizability    |
+|                             | cap C_r k / S;   |
+|                             | above 1 the cap  |
+|                             | is active, 0     |
+|                             | when off [-]     |
++-----------------------------+------------------+
 | **walldist**                | Wall distance    |
 |                             | for RANS models  |
 |                             | only [m]         |
@@ -982,13 +991,15 @@ every AMR level in the plotfile:
 * ``qsrc_sw`` and ``qsrc_lw`` require a non-``None`` radiation choice.
 * ``nut``, ``Kmv``, ``Kmh``, ``Khv``, ``Khh``, and ``Lturb`` require
   ``use_kturb = true`` at every AMR level.
-* ``Rt``, ``cmu``, and ``cmu_prime`` also require ``use_kturb = true`` at every
-  AMR level, because they are stored in the eddy-diffusivity container. They are
-  written only by the one-equation k RANS closure, so they are identically zero
-  unless ``erf.rans_type = kEqn`` is active on the level. ``Rt`` is the smoothed
-  turbulent Richardson number and ``cmu``/``cmu_prime`` are the momentum and
-  scalar stability functions of Axell & Liungman (2001), Eqs. 29-32; all three
-  are dimensionless.
+* ``Rt``, ``cmu``, ``cmu_prime`` and ``cap_ratio`` also require ``use_kturb = true``
+  at every AMR level, because they are stored in the eddy-diffusivity container.
+  They are written only by the one-equation k RANS closure, so they are
+  identically zero unless ``erf.rans_type = kEqn`` is active on the level. ``Rt``
+  is the smoothed turbulent Richardson number, ``cmu``/``cmu_prime`` are the
+  momentum and scalar stability functions of Axell & Liungman (2001), Eqs. 29-32,
+  and ``cap_ratio`` is the uncapped eddy viscosity over its realizability cap
+  :math:`C_r k / S` (``erf.rans_realizability``; above 1 the cap is active, 0
+  when the cap is off); all four are dimensionless.
 * ``diss`` requires molecular diffusion or ``use_kturb`` at every level.
 * ``walldist`` requires a non-``None`` RANS choice at every level.
 

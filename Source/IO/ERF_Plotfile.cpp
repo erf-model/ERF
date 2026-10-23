@@ -1403,6 +1403,11 @@ ERF::FillPlot3DVars (int lev,
         MultiFab::Copy(mf_dst,*eddyDiffs_lev[lev],EddyDiff::RANS_cmu_prime,mf_comp,1,0);
         mf_comp ++;
     }
+    if (containerHasElement(plot_var_names, "cap_ratio")) {
+        AMREX_ALWAYS_ASSERT(eddyDiffs_lev[lev] != nullptr);
+        MultiFab::Copy(mf_dst,*eddyDiffs_lev[lev],EddyDiff::RANS_cap_ratio,mf_comp,1,0);
+        mf_comp ++;
+    }
     auto copy_native_shoc_diagnostic = [&](const MultiFab* src) {
         if (src != nullptr) {
             MultiFab::Copy(mf_dst, *src, 0, mf_comp, 1, 0);

@@ -9,6 +9,7 @@
 #define ERF_RANS_CLOSURE_H_
 
 #include <cmath>
+#include <limits>
 #include <AMReX_REAL.H>
 #include <AMReX_GpuQualifiers.H>
 #include <AMReX_Algorithm.H>
@@ -132,6 +133,41 @@ amrex::Real cmu_prime (amrex::Real Rt, amrex::Real Cmu0)
 /** Lowest admissible Rt_min: the poles of cmu' (Rt = -1/0.277) and of cmu
  *  (larger root of 1 + 0.308 Rt + 0.00837 Rt^2) both sit near -3.6. */
 constexpr amrex::Real Rt_min_lower_bound = amrex::Real(-3.6);
+
+/** Realizability cap on the eddy viscosity (erf.rans_realizability = C_r > 0):
+ *
+ *      nu_t <- min(nu_t, C_r k / S),      S = sqrt(2 S_ij S_ij).
+ *
+ *  This is the form of the SST limiter. The closure gives
+ *  nu_t S / k = sqrt(cmu Cmu0^3 P / eps) (AL01 Eqs. 11 and 19), which in a
+ *  neutral equilibrium layer (cmu = Cmu0, P = eps) is Cmu0^2 = 0.3094, so
+ *  C_r = Cmu0^2 leaves neutral equilibrium shear untouched and acts where
+ *  P / eps > Cmu0 / cmu, as in the shear layer that leaves a crest. The cap
+ *  on nu_t carries over to nu_t' (the scalar diffusivity keeps the ratio
+ *  cmu'/cmu of the uncapped closure).
+ *
+ *  @param nut   uncapped eddy viscosity cmu sqrt(k) L
+ *  @param tke   turbulent kinetic energy k (already floored)
+ *  @param S     strain-rate magnitude sqrt(2 S_ij S_ij)
+ *  @param Cr    cap constant C_r; <= 0 disables the cap
+ *  @param ratio out: nu_t / (C_r k / S), the plotfile diagnostic cap_ratio;
+ *               above 1 the cap is active; 0 when disabled
+ *  @return the capped eddy viscosity
+ *
+ *  S is floored at machine epsilon before the division so the cap evaluates
+ *  (to a value far above nu_t) without a divide-by-zero trap in cells of
+ *  uniform flow; the compiler may evaluate both sides of a select.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real realizable_nut (amrex::Real nut, amrex::Real tke, amrex::Real S,
+                            amrex::Real Cr, amrex::Real& ratio)
+{
+    constexpr amrex::Real eps = std::numeric_limits<amrex::Real>::epsilon();
+    if (Cr <= amrex::Real(0)) { ratio = amrex::Real(0); return nut; }
+    const amrex::Real cap = Cr * tke / amrex::max(S, eps);
+    ratio = nut / cap;
+    return amrex::min(nut, cap);
+}
 
 } // namespace AL01
 
