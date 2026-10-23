@@ -885,10 +885,12 @@ SAMFaceState sam_face_average_state (const int& k,
         result.qci_avg = qci_k;
         result.qp_avg = qp_k;
     } else if (k == k_hi + 1) {
+        // Nothing falls in through the model top: no ice or precipitation lies
+        // above the domain.
         result.rho_avg = rho_km1;
         result.tabs_avg = tabs_km1;
-        result.qci_avg = qci_km1;
-        result.qp_avg = qp_km1;
+        result.qci_avg = zero;
+        result.qp_avg = zero;
     } else {
         result.rho_avg = myhalf * (rho_km1 + rho_k);
         result.tabs_avg = myhalf * (tabs_km1 + tabs_k);
@@ -942,9 +944,10 @@ SAMPrecipFaceState sam_precip_face_state (const int& SAM_moisture_type,
         result.tabs_avg = tabs_array(i,j,k);
         result.qp_avg = qp_array(i,j,k);
     } else if (k == k_hi + 1) {
+        // Nothing falls in through the model top.
         result.rho_avg = rho_array(i,j,k-1);
         result.tabs_avg = tabs_array(i,j,k-1);
-        result.qp_avg = qp_array(i,j,k-1);
+        result.qp_avg = zero;
     } else {
         result.rho_avg = myhalf * (rho_array(i,j,k-1) + rho_array(i,j,k));
         result.tabs_avg = myhalf * (tabs_array(i,j,k-1) + tabs_array(i,j,k));
@@ -982,11 +985,12 @@ SAMPrecipComponentFaceState sam_precip_component_face_state (const amrex::Array4
         result.qps_avg = qps_array(i,j,k);
         result.qpg_avg = qpg_array(i,j,k);
     } else if (k == k_hi + 1) {
+        // Nothing falls in through the model top.
         result.rho_avg = rho_array(i,j,k-1);
         result.tabs_avg = tabs_array(i,j,k-1);
-        result.qpr_avg = qpr_array(i,j,k-1);
-        result.qps_avg = qps_array(i,j,k-1);
-        result.qpg_avg = qpg_array(i,j,k-1);
+        result.qpr_avg = zero;
+        result.qps_avg = zero;
+        result.qpg_avg = zero;
     } else {
         result.rho_avg = myhalf * (rho_array(i,j,k-1) + rho_array(i,j,k));
         result.tabs_avg = myhalf * (tabs_array(i,j,k-1) + tabs_array(i,j,k));

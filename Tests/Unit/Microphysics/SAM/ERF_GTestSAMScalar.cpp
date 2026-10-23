@@ -987,6 +987,9 @@ TEST(SAMScalar, SedimentationHelpersMatchDocumentedContracts)
         amrex::Real(3.0e-4), amrex::Real(4.0e-4));
     expect_near_roundoff(top.rho_avg, amrex::Real(0.8));
     expect_near_roundoff(top.tabs_avg, amrex::Real(250.0));
+    // Nothing falls in through the model top (#4408).
+    EXPECT_EQ(top.qci_avg, zero);
+    EXPECT_EQ(top.qp_avg, zero);
 
     EXPECT_EQ(sam_substep_count_from_reduced_flux(amrex::Real(0.0), amrex::Real(5.0), amrex::Real(100.0)), 0);
     EXPECT_EQ(sam_substep_count_from_reduced_flux(amrex::Real(12.0), amrex::Real(5.0), amrex::Real(100.0)),
@@ -1020,6 +1023,11 @@ TEST(SAMScalar, SedimentationHelpersMatchDocumentedContracts)
     expect_near_roundoff(precip_interior.rho_avg, amrex::Real(1.1));
     expect_near_roundoff(precip_interior.qp_avg, amrex::Real(3.0e-7));
     expect_near_roundoff(precip_interior.qrr, precip_interior.omp * precip_interior.qp_avg);
+
+    const SAMPrecipFaceState precip_top = sam_precip_face_state(
+        kSAMWithIceMode, rho_fab.const_array(), tabs_fab.const_array(), qp_fab.const_array(), 0, 0, 3, 0, 2);
+    expect_near_roundoff(precip_top.rho_avg, rho(0,0,2));
+    EXPECT_EQ(precip_top.qp_avg, zero);
 
     const SAMPrecipFaceState tiny_qp = precip_interior;
     const SAMPrecipFaceState threshold_state{
@@ -1202,10 +1210,11 @@ TEST(SAMScalar, PrecipComponentFaceState_BottomTopInteriorBranches)
     expect_near_roundoff(interior.qpg_avg, myhalf * (qpg(0,0,0) + qpg(0,0,1)));
 
     const auto top = sam_precip_component_face_state(rho, tabs, qpr, qps, qpg, 0, 0, 2, 0, 1);
+    // Nothing falls in through the model top (#4408).
     expect_near_roundoff(top.rho_avg, rho(0,0,1));
-    expect_near_roundoff(top.qpr_avg, qpr(0,0,1));
-    expect_near_roundoff(top.qps_avg, qps(0,0,1));
-    expect_near_roundoff(top.qpg_avg, qpg(0,0,1));
+    EXPECT_EQ(top.qpr_avg, zero);
+    EXPECT_EQ(top.qps_avg, zero);
+    EXPECT_EQ(top.qpg_avg, zero);
 
     EXPECT_EQ(sam_precip_face_donor_k(0, 0, 1), 0);
     EXPECT_EQ(sam_precip_face_donor_k(1, 0, 1), 1);
