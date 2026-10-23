@@ -356,6 +356,16 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``m``
      - ``FillMinus999WhenUnavailable``
      - Accumulated subsurface runoff
+   * - ``snow``
+     - ``LandSurface``
+     - ``kg m^-2``
+     - ``FillMinus999WhenUnavailable``
+     - Noah-MP snow water equivalent
+   * - ``snowh``
+     - ``LandSurface``
+     - ``m``
+     - ``FillMinus999WhenUnavailable``
+     - Noah-MP physical snow depth
    * - ``noahmp_temperature_2m_vegetated``
      - ``LandSurface``
      - ``K``

@@ -68,6 +68,23 @@ void set_checkerboard_landmask (amrex::iMultiFab& landmask)
 }
 
 /**
+ * Fills a vegetation and soil type pair with ramps of categories
+ * 1, 4, 7, 10, ... in x (vegetation) and in y (soil).
+ */
+void set_category_ramps (amrex::MultiFab& veg, amrex::MultiFab& soil)
+{
+    for (amrex::MFIter mfi(veg); mfi.isValid(); ++mfi) {
+        const amrex::Box box = mfi.validbox();
+        auto veg_arr  = veg.array(mfi);
+        auto soil_arr = soil.array(mfi);
+        amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            veg_arr (i, j, k) = amrex::Real(1 + 3*i);
+            soil_arr(i, j, k) = amrex::Real(1 + 3*j);
+        });
+    }
+}
+
+/**
  * Returns the largest flux magnitude found at the non-land cells of a mask.
  */
 amrex::Real max_flux_at_non_land_cells (const amrex::MultiFab& flux_mf,
@@ -949,15 +966,7 @@ TEST_F(SLMInterfaceTest, TransfersCategoriesPiecewiseConstant)
     auto* coarse_soil = get_slm_data(land_surface, 1, "soiltype");
     ASSERT_NE(coarse_veg, nullptr);
     ASSERT_NE(coarse_soil, nullptr);
-    for (amrex::MFIter mfi(*coarse_veg); mfi.isValid(); ++mfi) {
-        const amrex::Box box = mfi.validbox();
-        auto veg_arr  = coarse_veg->array(mfi);
-        auto soil_arr = coarse_soil->array(mfi);
-        amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-            veg_arr (i, j, k) = amrex::Real(1 + 3*i);
-            soil_arr(i, j, k) = amrex::Real(1 + 3*j);
-        });
-    }
+    set_category_ramps(*coarse_veg, *coarse_soil);
 
     land_surface.Initialize_From_Source(2, 1, amrex::IntVect(2),
                                          LSMTransferMode::RawInput);

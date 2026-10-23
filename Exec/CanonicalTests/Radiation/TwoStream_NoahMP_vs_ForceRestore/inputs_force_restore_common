@@ -30,7 +30,7 @@ erf.radiation.seb_moisture_layer_depth_m = 0.1
 # moisture flux from a surface mixing ratio; the balance replaces both over land. ERF
 # requires most.surf_moist to equal the sounding's surface value. Its land roughness comes
 # from Noah-MP's tables (erf.most.z0 is not given).
-erf.most.surf_temp  = 300.0
+erf.most.pot_surf_temp = 300.0
 erf.most.surf_moist = 0.014
 
 erf.plot2d_vars_1 = seb_t_sfc seb_q_sfc seb_hfx seb_lh sensible_heat_flux latent_heat_flux t_surf q_surf pblh

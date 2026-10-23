@@ -32,7 +32,7 @@ geometry.is_periodic = 1 1 0
 zlo.type = "surface_layer"
 erf.most.z0   = 0.1      # roughness length [m]
 erf.most.zref = 10.0     # reference height [m]
-erf.most.surf_temp = 265.0      # surface temperature [K] (very cold)
+erf.most.pot_surf_temp = 265.0      # surface temperature [K] (very cold)
 erf.most.surf_heating_rate = -0.25  # strong cooling rate [K/h]
 
 # Upper boundary - capping inversion

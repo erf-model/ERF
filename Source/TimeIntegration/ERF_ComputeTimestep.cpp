@@ -190,11 +190,6 @@ ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
     const int nstages = (solverChoice.anelastic[lev] &&
                          solverChoice.anelastic_type[lev] == AnelasticType::MidPoint) ? 2 : 3;
     const Real e_uv = ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_momentum_diffusion);
-#ifdef ERF_IMPLICIT_W
-    const Real e_w  = e_uv;
-#else
-    const Real e_w  = one;  // w's vertical diffusion is always explicit in this build
-#endif
     const Real e_th = ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_thermal_diffusion);
     const Real e_ke = ExplicitVerticalFraction(nstages, fac, solverChoice.implicit_ke_diffusion);
     // The implicit solve treats the diffChoice.n_qstate_moist water species starting at
@@ -211,7 +206,7 @@ ERF::ComputeDiffusiveRates (int lev, Real& rate_mom, Real& rate_scal) const
     set.has_ke      = solverChoice.turbChoice[lev].use_tke;
     set.has_scalar  = solverChoice.transport_scalar;
     set.implicit_metric = solverChoice.implicit_terrain_metric;
-    set.e_uv = e_uv; set.e_w = e_w; set.e_th = e_th; set.e_q = e_q; set.e_ke = e_ke;
+    set.e_uv = e_uv; set.e_th = e_th; set.e_q = e_q; set.e_ke = e_ke;
     set.has_eddy = has_eddy;
     // Molecular diffusivities as the diffusion operators use them: the stresses take
     // 2 * dynamic_viscosity (ComputeStress*), i.e. dynamic_viscosity in the convention of

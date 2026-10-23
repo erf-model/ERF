@@ -360,8 +360,8 @@ namespace {
  * erf.implicit_terrain_metric: K_h*M (ERF_TerrainImplicitMetric.H) at the lower (face k) and
  * upper (face k+1) z-faces of row k of the u (stagdir 0) or v (stagdir 1) column at (i,j),
  * in the units of getRhoAlphaForFaces.  Zero on the bottom and top faces of the domain,
- * which carry the boundary condition, and for w, whose metric term stays explicit.  The
- * stress kernels put the same compact term into tau13i/tau23i on the same faces.
+ * which carry the boundary condition.  The stress kernels put the same compact term into
+ * tau13i/tau23i on the same faces.
  */
 template <int stagdir>
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
@@ -378,7 +378,6 @@ TerrainMetricMomCoeffs (int i, int j, int k, int dom_klo, int dom_khi,
 {
     metric_lo = zero;
     metric_hi = zero;
-    if (stagdir == 2) { return; }
 
     constexpr int ioff = (stagdir == 0) ? 1 : 0;
     constexpr int joff = (stagdir == 1) ? 1 : 0;
@@ -410,21 +409,16 @@ TerrainMetricMomCoeffs (int i, int j, int k, int dom_klo, int dom_khi,
  * stencil.  With a different h_zeta the split leaves the operator changed by
  * implicit_fac*(L_solve - L_tau_corr) whatever the time step, wherever h_zeta varies along
  * the column's horizontal neighbours non-linearly (curved, height-decaying terrain).
- * w (stagdir 2, implicit only with ERF_IMPLICIT_W) keeps the k-face value it used before;
- * its correction stress tau33i lives at the cells, so the w split is not aligned by this.
  */
 template <int stagdir>
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 Real
-MomFaceHZeta (int i, int j, int k, int ioff, int joff,
+MomFaceHZeta (int i, int j, int k,
               const GpuArray<Real, AMREX_SPACEDIM>& cellSizeInv,
               const Array4<const Real>& z_nd) noexcept
 {
-    amrex::ignore_unused(ioff, joff);
     if constexpr (stagdir == 0) { return Compute_h_zeta_AtEdgeCenterJ(i,j,k,cellSizeInv,z_nd); }
-    else if constexpr (stagdir == 1) { return Compute_h_zeta_AtEdgeCenterI(i,j,k,cellSizeInv,z_nd); }
-    else { return myhalf * ( Compute_h_zeta_AtKface(i     ,j     ,k,cellSizeInv,z_nd)
-                    + Compute_h_zeta_AtKface(i-ioff,j-joff,k,cellSizeInv,z_nd) ); }
+    else { return Compute_h_zeta_AtEdgeCenterI(i,j,k,cellSizeInv,z_nd); }
 }
 
 /**
@@ -451,9 +445,8 @@ MomFaceCellHeight (int i, int j, int k, const Array4<const Real>& z_nd) noexcept
  * Function for computing the implicit contribution to the vertical diffusion
  * of momentum, over terrain.
  *
- * This function (explicitly instantiated below) handles staggering in x, y, or
- * z through the template parameter, stagdir. NOTE: implicit diffusion of w has
- * remains an experimental feature and has *not* been tested yet with terrain.
+ * This function (explicitly instantiated below) handles staggering in x or y
+ * through the template parameter, stagdir.
  *
  * @param[in   ] bx cell-centered box to loop over
  * @param[in   ] level AMR level
@@ -509,17 +502,10 @@ ImplicitDiffForMomLU_T (const Box& bx,
     TurbChoice tc = solverChoice.turbChoice[level];
     bool l_consA  = (dc.molec_diff_type == MolecDiffType::ConstantAlpha);
     bool l_turb   = tc.use_kturb;
-    // The off-diagonal correction strains for u/v contain a factor of 1/2,
-    // while the diagonal correction strain for w does not.
-    constexpr Real molec_fac = (stagdir == 2) ? two : one;
-    Real mu_eff = (l_consA) ? molec_fac * dc.dynamic_viscosity / dc.rho0_trans
-                            : molec_fac * dc.dynamic_viscosity;
-
-    // g(S*) coefficient
-    // stagdir==0: tau_corr = myhalf * du/dz * mu_tot
-    // stagdir==1: tau_corr = myhalf * dv/dz * mu_tot
-    // stagdir==2: tau_corr =       dw/dz * mu_tot
-    constexpr Real gfac = (stagdir == 2) ? two/three : one;
+    // The correction strains for u/v contain a factor of 1/2, so mu_eff does not carry
+    // the factor of 2 of the stresses
+    Real mu_eff = (l_consA) ? dc.dynamic_viscosity / dc.rho0_trans
+                            : dc.dynamic_viscosity;
 
     // offsets used to average to faces
     constexpr int ioff = (stagdir == 0) ? 1 : 0;
@@ -534,12 +520,10 @@ ImplicitDiffForMomLU_T (const Box& bx,
     int box_khi = bx.bigEnd(2);
     amrex::ignore_unused(ilo, ihi, jlo, jhi);
 
-    // Vertical staggering of this component, and the vertical extent of the domain for the
-    // faces we are solving on.  A column whose top or bottom is not the domain boundary ends
-    // at a coarse/fine boundary instead, and must not be given a physical BC row.
-    constexpr int knodal = (stagdir == 2) ? 1 : 0;
+    // The vertical extent of the domain.  A column whose top or bottom is not the domain
+    // boundary ends at a coarse/fine boundary instead, and must not be given a physical BC row.
     const int dom_klo = domain.smallEnd(2);
-    const int dom_khi = domain.bigEnd(2) + knodal;
+    const int dom_khi = domain.bigEnd(2);
 
     // Temporary FABs for tridiagonal solve (allocated on column)
     //   A[k] * x[k-1] + B[k] * x[k] + C[k+1] = RHS[k]
@@ -586,8 +570,8 @@ ImplicitDiffForMomLU_T (const Box& bx,
           // leave them to the explicit update.
           const int klo = amrex::max(box_klo, col_kext(i-ioff,j-joff,0,0),
                                               col_kext(i     ,j     ,0,0));
-          const int khi = amrex::min(box_khi, col_kext(i-ioff,j-joff,0,1)+knodal,
-                                              col_kext(i     ,j     ,0,1)+knodal);
+          const int khi = amrex::min(box_khi, col_kext(i-ioff,j-joff,0,1),
+                                              col_kext(i     ,j     ,0,1));
 
           // Fewer than two faces in common -- nothing to invert, leave the column explicit
 #ifdef AMREX_USE_GPU
@@ -650,11 +634,11 @@ ImplicitDiffForMomLU_T (const Box& bx,
                                                   z_nd, cellSizeInv, mf_x, mf_y);
               }
 
-              met_h_zeta_lo = MomFaceHZeta<stagdir>(i,j,klo,ioff,joff,cellSizeInv,z_nd);
-              met_h_zeta_hi = MomFaceHZeta<stagdir>(i,j,klo+1,ioff,joff,cellSizeInv,z_nd);
+              met_h_zeta_lo = MomFaceHZeta<stagdir>(i,j,klo,cellSizeInv,z_nd);
+              met_h_zeta_hi = MomFaceHZeta<stagdir>(i,j,klo+1,cellSizeInv,z_nd);
 
               a_tmp = zero;
-              c_tmp = -Fact * gfac * (rhoAlpha_hi + metric_hi) * dz_inv / met_h_zeta_hi;
+              c_tmp = -Fact * (rhoAlpha_hi + metric_hi) * dz_inv / met_h_zeta_hi;
 
               RHS_a(i,j,klo) = detJface * face_data(i,j,klo); // NOTE: this is momenta; solution is velocity
 
@@ -664,38 +648,33 @@ ImplicitDiffForMomLU_T (const Box& bx,
                   // Coarse/fine (or grid) boundary: close the system with the known face value
                   // below instead of imposing a physical BC at an interior height
                   a_tmp = -Fact * (rhoAlpha_lo + metric_lo) * dz_inv / met_h_zeta_lo;
-                  RHS_a(i,j,klo) += Fact * gfac * (tau_corr(i,j,klo+1) - tau_corr(i,j,klo));
+                  RHS_a(i,j,klo) += Fact * (tau_corr(i,j,klo+1) - tau_corr(i,j,klo));
                   const Real rho_below = myhalf * ( cell_data(i     ,j     ,klo-1,Rho_comp)
                                                   + cell_data(i-ioff,j-joff,klo-1,Rho_comp) );
                   RHS_a(i,j,klo) -= a_tmp * (face_data(i,j,klo-1) / rho_below);
               } else if (ext_dir_on_zlo) {
-                  RHS_a(i,j,klo) += Fact * gfac * (tau_corr(i,j,klo+1) - tau_corr(i,j,klo));
-                  if (stagdir==2) {
-                      c_tmp = zero;
-                      RHS_a(i,j,klo) = zero;
-                  } else {
-                      // Wall stress with the one-sided gradient of ComputeStrain_T,
-                      // (c_wall u_wall + c_0 u_0 + c_1 u_1) / dz0 with the physical heights
-                      // of the first two cells: a_tmp multiplies the wall value, and c_1 adds
-                      // to the coupling with the cell above
-                      const Real dz0 = MomFaceCellHeight<stagdir>(i, j, klo  , z_nd);
-                      const Real dz1 = MomFaceCellHeight<stagdir>(i, j, klo+1, z_nd);
-                      const WallGradCoeffs wc = WallGradientCoeffs(dz0, dz1);
-                      const Real idz0 = one / dz0;
-                      a_tmp  = Fact * rhoAlpha_lo * idz0 * wc.c_wall;
-                      c_tmp += Fact * rhoAlpha_lo * idz0 * wc.c_1;
-                      const Real rho_wall = myhalf * ( cell_data(i     ,j     ,klo-1,Rho_comp)
-                                                     + cell_data(i-ioff,j-joff,klo-1,Rho_comp) );
-                      const Real wall_velocity = face_data(i,j,klo-1) / rho_wall;
-                      RHS_a(i,j,klo) -= a_tmp * wall_velocity;
-                  }
+                  RHS_a(i,j,klo) += Fact * (tau_corr(i,j,klo+1) - tau_corr(i,j,klo));
+                  // Wall stress with the one-sided gradient of ComputeStrain_T,
+                  // (c_wall u_wall + c_0 u_0 + c_1 u_1) / dz0 with the physical heights
+                  // of the first two cells: a_tmp multiplies the wall value, and c_1 adds
+                  // to the coupling with the cell above
+                  const Real dz0 = MomFaceCellHeight<stagdir>(i, j, klo  , z_nd);
+                  const Real dz1 = MomFaceCellHeight<stagdir>(i, j, klo+1, z_nd);
+                  const WallGradCoeffs wc = WallGradientCoeffs(dz0, dz1);
+                  const Real idz0 = one / dz0;
+                  a_tmp  = Fact * rhoAlpha_lo * idz0 * wc.c_wall;
+                  c_tmp += Fact * rhoAlpha_lo * idz0 * wc.c_1;
+                  const Real rho_wall = myhalf * ( cell_data(i     ,j     ,klo-1,Rho_comp)
+                                                 + cell_data(i-ioff,j-joff,klo-1,Rho_comp) );
+                  const Real wall_velocity = face_data(i,j,klo-1) / rho_wall;
+                  RHS_a(i,j,klo) -= a_tmp * wall_velocity;
               } else if (use_SurfLayer) {
                   // NOTE: tau = -mu*d_z(u_i) w/ SL
-                  RHS_a(i,j,klo) += Fact * gfac * (tau_corr(i,j,klo+1) - tau(i,j,klo));
+                  RHS_a(i,j,klo) += Fact * (tau_corr(i,j,klo+1) - tau(i,j,klo));
                   RHS_a(i,j,klo) += Fact * tau(i,j,klo);
               } else {
                   // NOTE: FOEXTRAP has zero lower flux (nothing to add to RHS)
-                  RHS_a(i,j,klo) += Fact * gfac * (tau_corr(i,j,klo+1) - tau_corr(i,j,klo));
+                  RHS_a(i,j,klo) += Fact * (tau_corr(i,j,klo+1) - tau_corr(i,j,klo));
               }
 
               // Add YSU momentum countergradient correction at bottom boundary.
@@ -706,7 +685,7 @@ ImplicitDiffForMomLU_T (const Box& bx,
               // NOTE: The sign matches the scalar path: tau_i3 = -rho*K*(du_i/dz - gamma_i),
               //       so the countergradient piece of the flux is +rho*K*gamma_i and its
               //       divergence enters the RHS with a minus sign.
-              if (use_ysu_mom_countergradient && stagdir < 2) {
+              if (use_ysu_mom_countergradient) {
                   const int hgam_comp = (stagdir == 0) ? EddyDiff::HGAMU_v : EddyDiff::HGAMV_v;
                   // Average HGAM* to the staggered face
                   const Real gam_klo = myhalf * (mu_turb(i,j,klo  ,hgam_comp) + mu_turb(i-ioff,j-joff,klo  ,hgam_comp));
@@ -737,8 +716,8 @@ ImplicitDiffForMomLU_T (const Box& bx,
                                                   z_nd, cellSizeInv, mf_x, mf_y);
               }
 
-              met_h_zeta_lo = MomFaceHZeta<stagdir>(i,j,k,ioff,joff,cellSizeInv,z_nd);
-              met_h_zeta_hi = MomFaceHZeta<stagdir>(i,j,k+1,ioff,joff,cellSizeInv,z_nd);
+              met_h_zeta_lo = MomFaceHZeta<stagdir>(i,j,k,cellSizeInv,z_nd);
+              met_h_zeta_hi = MomFaceHZeta<stagdir>(i,j,k+1,cellSizeInv,z_nd);
 
               a_tmp      = -Fact * (rhoAlpha_lo + metric_lo) * dz_inv / met_h_zeta_lo;
               c_tmp      = -Fact * (rhoAlpha_hi + metric_hi) * dz_inv / met_h_zeta_hi;
@@ -746,10 +725,10 @@ ImplicitDiffForMomLU_T (const Box& bx,
               inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,k-1));
 
               RHS_a(i,j,k)    = detJface * face_data(i,j,k); // NOTE: this is momenta; solution is velocity
-              RHS_a(i,j,k)   += Fact * gfac * (tau_corr(i,j,k+1) - tau_corr(i,j,k));
+              RHS_a(i,j,k)   += Fact * (tau_corr(i,j,k+1) - tau_corr(i,j,k));
 
               // Add YSU momentum countergradient correction
-              if (use_ysu_mom_countergradient && stagdir < 2) {
+              if (use_ysu_mom_countergradient) {
                   const int hgam_comp = (stagdir == 0) ? EddyDiff::HGAMU_v : EddyDiff::HGAMV_v;
                   // Average HGAM* to the staggered face
                   const Real gam_k   = myhalf * (mu_turb(i,j,k  ,hgam_comp) + mu_turb(i-ioff,j-joff,k  ,hgam_comp));
@@ -779,14 +758,14 @@ ImplicitDiffForMomLU_T (const Box& bx,
                                                   z_nd, cellSizeInv, mf_x, mf_y);
               }
 
-              met_h_zeta_lo = MomFaceHZeta<stagdir>(i,j,khi,ioff,joff,cellSizeInv,z_nd);
-              met_h_zeta_hi = MomFaceHZeta<stagdir>(i,j,khi+1,ioff,joff,cellSizeInv,z_nd);
+              met_h_zeta_lo = MomFaceHZeta<stagdir>(i,j,khi,cellSizeInv,z_nd);
+              met_h_zeta_hi = MomFaceHZeta<stagdir>(i,j,khi+1,cellSizeInv,z_nd);
 
-              a_tmp = -Fact * gfac * (rhoAlpha_lo + metric_lo) * dz_inv / met_h_zeta_lo;
+              a_tmp = -Fact * (rhoAlpha_lo + metric_lo) * dz_inv / met_h_zeta_lo;
               c_tmp = zero;
 
               RHS_a(i,j,khi)  = detJface * face_data(i,j,khi); // NOTE: this is momenta; solution is velocity
-              RHS_a(i,j,khi) += Fact * gfac * (tau_corr(i,j,khi+1) - tau_corr(i,j,khi));
+              RHS_a(i,j,khi) += Fact * (tau_corr(i,j,khi+1) - tau_corr(i,j,khi));
 
               // BCs: Dirichlet (u_i = val), slip wall (w = 0) --
               //      but only where the top of this column really is the domain boundary
@@ -798,24 +777,19 @@ ImplicitDiffForMomLU_T (const Box& bx,
                                                   + cell_data(i-ioff,j-joff,khi+1,Rho_comp) );
                   RHS_a(i,j,khi) -= c_tmp * (face_data(i,j,khi+1) / rho_above);
               } else if (ext_dir_on_zhi) {
-                  if (stagdir==2) {
-                      a_tmp = zero;
-                      RHS_a(i,j,khi) = zero;
-                  } else {
-                      // Wall stress with the one-sided gradient of ComputeStrain_T: c_tmp
-                      // multiplies the wall value, and c_1 adds to the coupling with the
-                      // cell below
-                      const Real dz0 = MomFaceCellHeight<stagdir>(i, j, khi  , z_nd);
-                      const Real dz1 = MomFaceCellHeight<stagdir>(i, j, khi-1, z_nd);
-                      const WallGradCoeffs wc = WallGradientCoeffs(dz0, dz1);
-                      const Real idz0 = one / dz0;
-                      c_tmp  = Fact * rhoAlpha_hi * idz0 * wc.c_wall;
-                      a_tmp += Fact * rhoAlpha_hi * idz0 * wc.c_1;
-                      const Real rho_wall = myhalf * ( cell_data(i     ,j     ,khi+1,Rho_comp)
-                                                     + cell_data(i-ioff,j-joff,khi+1,Rho_comp) );
-                      const Real wall_velocity = face_data(i,j,khi+1) / rho_wall;
-                      RHS_a(i,j,khi) -= c_tmp * wall_velocity;
-                  }
+                  // Wall stress with the one-sided gradient of ComputeStrain_T: c_tmp
+                  // multiplies the wall value, and c_1 adds to the coupling with the
+                  // cell below
+                  const Real dz0 = MomFaceCellHeight<stagdir>(i, j, khi  , z_nd);
+                  const Real dz1 = MomFaceCellHeight<stagdir>(i, j, khi-1, z_nd);
+                  const WallGradCoeffs wc = WallGradientCoeffs(dz0, dz1);
+                  const Real idz0 = one / dz0;
+                  c_tmp  = Fact * rhoAlpha_hi * idz0 * wc.c_wall;
+                  a_tmp += Fact * rhoAlpha_hi * idz0 * wc.c_1;
+                  const Real rho_wall = myhalf * ( cell_data(i     ,j     ,khi+1,Rho_comp)
+                                                 + cell_data(i-ioff,j-joff,khi+1,Rho_comp) );
+                  const Real wall_velocity = face_data(i,j,khi+1) / rho_wall;
+                  RHS_a(i,j,khi) -= c_tmp * wall_velocity;
               }
 
               b_tmp      = detJface * rhoface - a_tmp - c_tmp;
@@ -871,7 +845,6 @@ ImplicitDiffForMomLU_T (const Box& bx,
         const bool);
 INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU(0)
 INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU(1)
-INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU(2)
 #undef INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU
 
 /**

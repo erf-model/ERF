@@ -651,8 +651,7 @@ face coefficient and the same :math:`h_\zeta` (the edge value by which the strai
 whatever the time step, wherever :math:`h_\zeta` varies non-linearly between neighbouring
 columns, as on curved terrain that decays with height. The split is not exact at a no-slip wall
 (the correction stress uses a one-sided three-point :math:`\partial u/\partial z`, the solve the
-two-point wall difference), for w (implicit only with ``ERF_IMPLICIT_W``), and to first order in
-the density with ``erf.molec_diff_type = ConstantAlpha`` (the solve uses the predicted density).
+two-point wall difference) and to first order in the density with ``erf.molec_diff_type = ConstantAlpha`` (the solve uses the predicted density).
 With ``erf.implicit_terrain_metric = true`` the explicit numerator of the scalars becomes
 :math:`(1-f)F_z^D + f K_h M\, \partial\phi/\partial z - m_xh_\xi\overline{F_x^D}-m_yh_\eta\overline{F_y^D}`
 on the faces inside the domain.

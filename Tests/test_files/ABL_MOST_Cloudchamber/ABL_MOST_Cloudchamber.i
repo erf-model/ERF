@@ -32,12 +32,12 @@ erf.xhi.surface_layer.flux_type = MOENG
 erf.yhi.surface_layer.flux_type = MOENG
 erf.zhi.surface_layer.flux_type = MOENG
 
-erf.zlo.most.surf_temp = 299.0
-erf.zhi.most.surf_temp = 280.0
-erf.xlo.most.surf_temp = 289.5
-erf.xhi.most.surf_temp = 289.5
-erf.ylo.most.surf_temp = 289.5
-erf.yhi.most.surf_temp = 289.5
+erf.zlo.most.pot_surf_temp = 299.0
+erf.zhi.most.pot_surf_temp = 280.0
+erf.xlo.most.pot_surf_temp = 289.5
+erf.xhi.most.pot_surf_temp = 289.5
+erf.ylo.most.pot_surf_temp = 289.5
+erf.yhi.most.pot_surf_temp = 289.5
 
 erf.zlo.most.surf_moist = 0.02143
 erf.zhi.most.surf_moist = 0.00623
