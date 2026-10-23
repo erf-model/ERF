@@ -1231,10 +1231,10 @@ TEST(SAMParallel, IceFallSubstepCountUsesGlobalMaximum)
 }
 
 // Motivation:
-// In a one-level column, equal top and bottom component face fluxes leave the
-// in-column precip mass unchanged while the bottom diagnostic accumulation is
-// updated from the limited bottom component flux. This MPI test checks
-// rank-invariant public-path accumulation wiring. The closed multi-level
+// In a one-level column nothing falls in through the model top (#4408), so the
+// in-column precip mass drops by exactly what the limited bottom component flux
+// deposits in the surface accumulation. This MPI test checks rank-invariant
+// public-path accumulation wiring and that one-level budget. The closed multi-level
 // column budget is tested in the SAM physical-property tests.
 TEST(SAMParallel, PrecipFallGlobalMassAndSurfaceAccumulation)
 {
@@ -1337,12 +1337,15 @@ TEST(SAMParallel, PrecipFallGlobalMassAndSurfaceAccumulation)
     const int num_terms = nx * ny;
     const int rank = amrex::ParallelDescriptor::MyProc();
 
+    // surface_accum * area * rho_water / 1000 is flux * dt * area, the mass that left
+    // through the bottom face.
     EXPECT_NEAR(final_precip_mass,
-                initial_precip_mass,
+                initial_precip_mass - expected_surface_accum_mass,
                 mpi_reduction_tol(initial_precip_mass, num_terms))
         << "rank=" << rank
         << " initial_precip_mass=" << initial_precip_mass
-        << " final_precip_mass=" << final_precip_mass;
+        << " final_precip_mass=" << final_precip_mass
+        << " expected_surface_accum_mass=" << expected_surface_accum_mass;
     EXPECT_NEAR(rain_accum_mass,
                 expected_rain_accum_mass,
                 mpi_reduction_tol(expected_rain_accum_mass, num_terms))
