@@ -318,6 +318,10 @@ struct SurfaceLayerFields
     // Lower-boundary SST by time, passed to make_SurfaceLayer_at_level; empty unless a
     // test fills it
     Vector<std::unique_ptr<MultiFab>> sst_data;
+    // LSM fluxes by name (t_flux, q_flux, tau13, tau23), passed to
+    // make_SurfaceLayer_at_level; empty unless a test fills them
+    Vector<std::unique_ptr<MultiFab>> lsm_flux_data;
+    Vector<std::string> lsm_flux_names;
 
     Vector<std::unique_ptr<iMultiFab>> lmask;
     std::unique_ptr<MultiFab> no_walldist;
@@ -329,12 +333,15 @@ struct SurfaceLayerFields
 
     Vector<MultiFab*> state;
 
+    // grids, when given, need not cover the domain, as on a refined level
     explicit SurfaceLayerFields (const Geometry& geometry = make_geometry(),
                                  const bool split_lateral = false,
-                                 const int ncons = RhoQ1_comp + 1)
+                                 const int ncons = RhoQ1_comp + 1,
+                                 const BoxArray& grids = BoxArray())
         : geom(geometry),
           domain(geom.Domain()),
-          ba(split_lateral ? make_qsurf_box_array(domain) : BoxArray(domain)),
+          ba(!grids.empty() ? grids
+             : (split_lateral ? make_qsurf_box_array(domain) : BoxArray(domain))),
           dm(ba),
           cons(ba, dm, ncons, test_state_ng),
           xvel(convert(ba, IntVect(AMREX_D_DECL(1, 0, 0))), dm, 1,
@@ -468,8 +475,6 @@ struct SurfaceLayerFields
         }
 
         std::unique_ptr<MultiFab> qr_prim;
-        Vector<MultiFab*> empty_mfs;
-        Vector<std::string> empty_names;
         Vector<MultiFab*> lsm_data;
         Vector<std::string> lsm_names;
         if (!lsm_name.empty()) {
@@ -480,11 +485,13 @@ struct SurfaceLayerFields
             lsm_data.push_back(lsm_tsurf.get());
             lsm_names.push_back(lsm_name);
         }
+        Vector<MultiFab*> lsm_flux;
+        for (auto& mf : lsm_flux_data) { lsm_flux.push_back(mf.get()); }
         Vector<std::unique_ptr<MultiFab>> tsk;
         layer->make_SurfaceLayer_at_level(
             0, 1, state, theta, qv_prim[0], qr_prim, z_phys_nd[0],
             nullptr, nullptr, nullptr, lsm_data, lsm_names,
-            empty_mfs, empty_names, sst_data, tsk, lmask);
+            lsm_flux, lsm_flux_names, sst_data, tsk, lmask);
         if (coupled_active) {
             layer->update_coupled_sst_ptr(0, coupled_sst.get(), coupled_valid.get());
         }
@@ -1287,6 +1294,101 @@ TEST(SurfaceLayer, AbsoluteLsmSkinTemperatureIsConvertedWhenEnabled)
                     Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta)
             << name;
         pp.remove("most.use_lsm_skin_temperature");
+    }
+}
+
+// Motivation (#4301): with LSM fluxes, u*, t*, q* and L come from the LSM in the valid
+// columns, but compute_fluxes writes MOST values over the grown box and the planar fill
+// refills only interior and periodic ghosts.  A ghost column at a coarse/fine boundary
+// (here the grids cover only part of the domain) or at a non-periodic domain edge must
+// hold the LSM-derived values of the nearest valid column, not MOST values.  The LSM
+// fluxes have no ghost cells and vary by column, so a ghost read from the wrong column,
+// or from outside the flux arrays, also fails.
+TEST(SurfaceLayer, LsmDerivedParametersFillCoarseFineAndEdgeGhostColumns)
+{
+    const std::string prefix = "unit_surface_layer_lsm_flux_ghosts";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+
+    const Box domain(IntVect(0), IntVect(AMREX_D_DECL(7, 7, 3)));
+    const RealBox real_box({AMREX_D_DECL(0.0, 0.0, 0.0)},
+                           {AMREX_D_DECL(8.0, 8.0, 4.0)});
+    const Array<int, AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(0, 0, 0)};
+    const Geometry geom(domain, &real_box, 0, is_periodic.data());
+    // The fine grids stop at i = 3, so i = 4 is a coarse/fine ghost column
+    const BoxArray grids(Box(IntVect(0), IntVect(AMREX_D_DECL(3, 7, 3))));
+    SurfaceLayerFields fields(geom, false, RhoQ1_comp + 1, grids);
+    // The fixture sets the state in the valid cells only; a run fills the ghost cells
+    // from the coarse level or the boundary conditions, and they are read here
+    const IntVect ng = fields.cons.nGrowVect();
+    fields.cons.setVal(test_rho, Rho_comp, 1, ng);
+    fields.cons.setVal(test_rho_theta, RhoTheta_comp, 1, ng);
+    fields.cons.setVal(test_rho * test_qv, RhoQ1_comp, 1, ng);
+
+    // Each flux is its scale times a factor that varies by column
+    const char* names[] = {"t_flux", "q_flux", "tau13", "tau23"};
+    const Real scales[] = {Real(0.01), Real(1.0e-5), Real(0.04), Real(-0.02)};
+    auto column_factor = [] (const int i, const int j) {
+        return Real(1.0) + Real(0.25) * static_cast<Real>(i)
+                         + Real(0.125) * static_cast<Real>(j);
+    };
+    for (int n = 0; n < 4; ++n) {
+        // No ghost cells, as for the land models
+        auto mf = std::make_unique<MultiFab>(collapse_z(fields.ba), fields.dm, 1, 0);
+        const Real scale = scales[n];
+        for (MFIter mfi(*mf); mfi.isValid(); ++mfi) {
+            const auto arr = mf->array(mfi);
+            ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                arr(i,j,k) = scale * (Real(1.0) + Real(0.25) * static_cast<Real>(i)
+                                                + Real(0.125) * static_cast<Real>(j));
+            });
+        }
+        Gpu::streamSynchronize();
+        fields.lsm_flux_data.push_back(std::move(mf));
+        fields.lsm_flux_names.push_back(names[n]);
+    }
+
+    const Orientation face(Direction::z, Orientation::low);
+    auto layer = fields.prepare_layer(face, active_faces({face}), prefix, false, false);
+    // compute_sfc_params_from_lsm_fluxes runs only once the LSM has advanced
+    layer->update_fluxes(0, 1.0, 1.0, fields.cons, nullptr, fields.no_walldist, 20);
+
+    // Value at a point of the single FAB's grown box, ghost cells included
+    auto value_at = [] (const MultiFab& mf, const IntVect& p) {
+        ReduceOps<ReduceOpSum> reduce_op;
+        ReduceData<Real> reduce_data(reduce_op);
+        const Box point_box(p, p, mf.boxArray().ixType());
+        for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
+            const Box overlap = point_box & mfi.fabbox();
+            if (overlap.isEmpty()) { continue; }
+            const auto arr = mf.const_array(mfi);
+            reduce_op.eval(overlap, reduce_data,
+                [=] AMREX_GPU_DEVICE (int i, int j, int k) -> GpuTuple<Real>
+                { return {arr(i,j,k)}; });
+        }
+        return get<0>(reduce_data.value());
+    };
+
+    const Real eps = std::numeric_limits<Real>::epsilon();
+    for (int j = 0; j <= 7; ++j) {
+        SCOPED_TRACE(j);
+        // The valid column takes u* from the LSM stress
+        const Real tau = std::sqrt(scales[2] * scales[2] + scales[3] * scales[3]) *
+                         column_factor(3, j);
+        EXPECT_NEAR(value_at(*layer->get_u_star(0), IntVect(AMREX_D_DECL(3, j, 0))),
+                    std::sqrt(tau), Real(16.0) * eps * std::sqrt(tau));
+
+        // The coarse/fine ghost (i = 4) and the domain-edge ghost (i = -1) hold the
+        // values of their nearest valid columns (i = 3 and i = 0); the atmospheric
+        // state is uniform, so they agree exactly
+        for (const auto& [ghost, valid] : {std::pair{4, 3}, std::pair{-1, 0}}) {
+            const IntVect pg(AMREX_D_DECL(ghost, j, 0));
+            const IntVect pv(AMREX_D_DECL(valid, j, 0));
+            EXPECT_EQ(value_at(*layer->get_u_star(0), pg), value_at(*layer->get_u_star(0), pv)) << ghost;
+            EXPECT_EQ(value_at(*layer->get_t_star(0), pg), value_at(*layer->get_t_star(0), pv)) << ghost;
+            EXPECT_EQ(value_at(*layer->get_q_star(0), pg), value_at(*layer->get_q_star(0), pv)) << ghost;
+            EXPECT_EQ(value_at(*layer->get_olen(0),   pg), value_at(*layer->get_olen(0),   pv)) << ghost;
+        }
     }
 }
 
