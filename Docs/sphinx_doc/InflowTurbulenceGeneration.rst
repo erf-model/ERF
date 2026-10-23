@@ -183,6 +183,15 @@ is transported and through the action of the subgrid-scale (SGS) filter for eddy
 viscosity, white-noise temperature perturbations become colored noise in the
 velocity field.
 
+The perturbations do not depend on the domain decomposition, for every
+``erf.perturbation_type``. A perturbation box's mean velocity, update interval and
+net-zero correction (and, for ``CPM``, its single random value) are computed over
+the whole box, whichever grid boxes and MPI ranks it spans. The random values are
+hashed from the global cell index (or, where there is one value per box, the box
+index) and the number of times the box has been updated. The seed is 1024 with
+``erf.fix_random_seed = 1``, otherwise ``erf.random_seed`` if it is given, and 0
+otherwise, so a run is repeatable unless the seed is changed.
+
 Using the source term to perturb the momentum field through buoyancy coupling
 requires more time compared to the ``direct`` perturbation method. Turbulence onset
 can be triggered by adjusting the size of the perturbation box, as the amplitude is
