@@ -5291,8 +5291,10 @@ List of Parameters
 +--------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | Parameter                            | Definition                                               | Acceptable Values  | Default          |
 +======================================+==========================================================+====================+==================+
-| **eb2.small_volfrac**                | Volume-fraction threshold used to treat cells as         | Real > 0           | 1.0e-14          |
-|                                      | effectively empty                                        |                    |                  |
+| **eb2.small_volfrac**                | Volume-fraction threshold used to treat cells as         | Real > 0           | 1.0e-14;         |
+|                                      | effectively empty. With immersed forcing it is also the  |                    | 0.005 with       |
+|                                      | solid fraction below which the forcing treats a cell or  |                    | immersed forcing |
+|                                      | face as fluid                                            |                    |                  |
 +--------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.eb_boundary_type**             | condition imposed on the embedded boundary               | SlipWall,          | NoSlipWall       |
 |                                      |                                                          | NoSlipWall,        |                  |
