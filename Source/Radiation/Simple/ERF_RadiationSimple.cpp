@@ -161,7 +161,8 @@ void RadiationSimple::Run (int& /*level*/,
                 Real cpmassl = cp_spec * cons_arr(i, j, k, Rho_comp) * dz; // thermal mass
                 Real FTHRL = -(flux_arr(i, j, k+1) - flux_arr(i, j, k)) / cpmassl;
                 // convert heating rate FTHRL for theta_d
-                Real pres = getPgivenRTh(cons_arr(i,j,k,RhoTheta_comp),cons_arr(i,j,k,RhoQ1_comp)/cons_arr(i,j,k,Rho_comp));
+                Real qv_k = (have_qv) ? cons_arr(i,j,k,qv_comp)/cons_arr(i,j,k,Rho_comp) : zero;
+                Real pres = getPgivenRTh(cons_arr(i,j,k,RhoTheta_comp), qv_k);
                 Real exner = getExnergivenP(pres, R_d/Cp_d);
                 FTHRL /= exner;
                 qheating_arr(i, j, k, 1) = FTHRL;          // radiative heating for source term
