@@ -30,7 +30,6 @@ using namespace amrex;
  * @param[in]  mf_vy y map factor at y-faces
  * @param[in,out] tau13i contribution to stress from du/dz
  * @param[in,out] tau23i contribution to stress from dv/dz
- * @param[in,out] tau33i contribution to stress from dw/dz
  */
 void
 ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
@@ -47,8 +46,7 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                          const Array4<const Real>& mf_uy,
                          const Array4<const Real>& mf_vy,
                          Array4<Real>& tau13i,
-                         Array4<Real>& tau23i,
-                         Array4<Real>& tau33i)
+                         Array4<Real>& tau23i)
 {
     // NOTE: mu_eff includes factor of 2
 
@@ -89,7 +87,6 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
 
         Real mu_tot     = rhoAlpha(i,j,k);
 
-        if (tau33i) tau33i(i,j,k) = -mu_tot * tau33(i,j,k);
 
         tau11(i,j,k) = -mu_tot / mfy * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
         tau22(i,j,k) = -mu_tot / mfx * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
@@ -164,7 +161,6 @@ ComputeStressConsVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
  * @param[in]  mf_vy y map factor at y-faces
  * @param[in,out] tau13i contribution to stress from du/dz
  * @param[in,out] tau23i contribution to stress from dv/dz
- * @param[in,out] tau33i contribution to stress from dw/dz
  */
 void
 ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
@@ -182,8 +178,7 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         const Array4<const Real>& mf_uy,
                         const Array4<const Real>& mf_vy,
                         Array4<Real>& tau13i,
-                        Array4<Real>& tau23i,
-                        Array4<Real>& tau33i)
+                        Array4<Real>& tau23i)
 {
     // NOTE: mu_eff includes factor of 2
 
@@ -226,7 +221,6 @@ ComputeStressVarVisc_S (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         Real mu_22 = mu_11;
         Real mu_33 = rhoAlpha(i,j,k) + two * mu_turb(i, j, k, EddyDiff::Mom_v);
 
-        if (tau33i) tau33i(i,j,k) = -mu_33 * tau33(i,j,k);
 
         tau11(i,j,k) = -mu_11 / mfy * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
         tau22(i,j,k) = -mu_22 / mfx * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
