@@ -1155,12 +1155,9 @@ ERF::remake_zphys (int lev, Real time, std::unique_ptr<MultiFab>& temp_zphys_nd)
 void
 ERF::make_terrain_blanking (int lev)
 {
-    // Read the small_volfrac threshold from eb2 namespace. The EB build (ERF::initializeEB, in
-    // the constructor) has already recorded it, with AMReX's own default when the inputs do not
-    // set it, so the 0.005 here is not what a deck without the key gets.
-    Real small_volfrac = 0.005;
-    ParmParse pp_eb2("eb2");
-    pp_eb2.queryAdd("small_volfrac", small_volfrac);
+    // eb2.small_volfrac, read once in SolverChoice before the EB build, so the blanking, the EB
+    // and the forcing kernels share it
+    const Real small_volfrac = solverChoice.if_small_volfrac;
 
     // Cell-centered terrain blanking
     terrain_blanking[lev]->setVal(one);

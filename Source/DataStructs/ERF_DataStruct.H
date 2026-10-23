@@ -1272,6 +1272,18 @@ struct SolverChoice {
             amrex::Abort("erf.if_Olen = 0 is not an Obukhov length: give a nonzero length [m] (a large |L| is near neutral)");
         }
 
+        // The immersed forcing's "almost fluid" threshold (erf-model/ERF#4226). It is recorded
+        // under eb2.small_volfrac here, in ReadParameters, before ERF::initializeEB runs, so the
+        // EB build (which covers cells below it), the blanking and the forcing kernels all use
+        // the same value, and a deck without the key gets 0.005 rather than AMReX's 1e-14.
+        if (terrain_type == TerrainType::ImmersedForcing || buildings_type == BuildingsType::ImmersedForcing) {
+            amrex::ParmParse pp_eb2("eb2");
+            pp_eb2.queryAdd("small_volfrac", if_small_volfrac);
+            if (!(if_small_volfrac >= zero && if_small_volfrac < one)) {
+                amrex::Abort("eb2.small_volfrac must be in [0, 1) with immersed forcing");
+            }
+        }
+
         // Flag to do MOST rotations with terrain
         pp.queryAdd("use_rotate_surface_flux",use_rotate_surface_flux);
         if (use_rotate_surface_flux) {
@@ -2372,6 +2384,7 @@ struct SolverChoice {
     amrex::Real if_damp_alpha            = 0.5;    // [-]
     amrex::Real if_stability_wind_floor  = amrex::Real(0.0);  // [m/s]
     amrex::Real if_psi_cap_factor        = amrex::Real(1.0);  // [-]
+    amrex::Real if_small_volfrac         = amrex::Real(0.005);  // [-] eb2.small_volfrac
 
     // This defaults to true but can be set to false for moving terrain cases only
     bool        use_lagged_delta_rt   = true;
@@ -2791,6 +2804,9 @@ struct SolverChoice {
  * @brief Input Obukhov length for immersed-forcing MOST [m].
  * @var SolverChoice::if_use_most
  * @brief Whether immersed-forcing MOST is enabled.
+ * @var SolverChoice::if_small_volfrac
+ * @brief Immersed-forcing solid fraction below which a cell or face counts as fluid; read from
+ *        eb2.small_volfrac (default 0.005), the same value the EB build uses.
  * @var SolverChoice::if_snap_partial_cells
  * When true, the immersed forcing reads the blanking snapped to solid (1) or
  * fluid (0) at half, so a building from a height map becomes the same
