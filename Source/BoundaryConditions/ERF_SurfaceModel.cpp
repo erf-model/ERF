@@ -1058,7 +1058,18 @@ void SurfaceModel::ReadCheckpoint (const std::string &checkpointname)
     while (urban_stream >> field_idx) chk_urban_fields.push_back(field_idx);
     GotoNextLine(is);
 
-    if (chk_lsm_fields != lsm_fields || chk_urban_fields != urban_fields) {
+    // The entries are indices into the provider's data list, with the fluxes appended after
+    // the data fields, so they move whenever a model adds a data field (Noah-MP grew from 27
+    // to 29 when snow and snowh were added).  Nothing is restored from them -- the fields
+    // themselves are read by name below -- so only require that the same slots are in use.
+    auto same_slots = [] (const amrex::Vector<int>& a, const amrex::Vector<int>& b) {
+        if (a.size() != b.size()) return false;
+        for (int i = 0; i < static_cast<int>(a.size()); ++i) {
+            if ((a[i] == -1) != (b[i] == -1)) return false;
+        }
+        return true;
+    };
+    if (!same_slots(chk_lsm_fields, lsm_fields) || !same_slots(chk_urban_fields, urban_fields)) {
         checkpoint_error("model field lists do not match the current SurfaceModel");
     }
 
@@ -1111,7 +1122,10 @@ void SurfaceModel::ReadCheckpoint (const std::string &checkpointname)
         if (static_cast<int>(fields[field.mf_ind].size()) != m_nlevs) {
             checkpoint_error("current mapped-field level storage is invalid for '" + field_name + "'");
         }
-        if (field.map.first != lsm_ind || field.map.second != urb_ind ||
+        // As above, the provider indices may have shifted; only whether the field maps to the
+        // land and/or urban provider has to match.
+        if ((field.map.first == -1) != (lsm_ind == -1) ||
+            (field.map.second == -1) != (urb_ind == -1) ||
             field.fill_bound != fill_bound) {
             checkpoint_error("mapped-field metadata mismatch for '" + field_name + "'");
         }
@@ -1130,10 +1144,10 @@ void SurfaceModel::ReadCheckpoint (const std::string &checkpointname)
             for (int lev = 0; lev < m_nlevs; ++lev) {
                 const bool invalid_land_index =
                     !lsm_data_lev[lev].empty() &&
-                    lsm_ind >= static_cast<int>(lsm_data_lev[lev].size());
+                    field.map.first >= static_cast<int>(lsm_data_lev[lev].size());
                 const bool invalid_urban_index =
                     !urban_data_lev[lev].empty() &&
-                    urb_ind >= static_cast<int>(urban_data_lev[lev].size());
+                    field.map.second >= static_cast<int>(urban_data_lev[lev].size());
                 if (invalid_land_index || invalid_urban_index) {
                     checkpoint_error("mapped-field index is out of range for '" + field_name + "'");
                 }
