@@ -18,9 +18,6 @@
                 // by implicit_fac.
                 MultiFab* Tau13corr = (l_do_implicit_mom) ? Tau_corr[level][0].get() : nullptr;
                 MultiFab* Tau23corr = (l_do_implicit_mom) ? Tau_corr[level][1].get() : nullptr;
-#ifdef ERF_IMPLICIT_W
-                MultiFab* Tau33corr = (l_do_implicit_mom) ? Tau_corr[level][2].get() : nullptr;
-#endif
 
                 // BCs
                 const BCRec* bc_ptr_h = domain_bcs_type.data();
@@ -47,11 +44,6 @@
                     const Array4<const Real>& tau13_corr = (l_do_implicit_mom) ? Tau13corr->array(mfi) : Array4<Real>{};
                     const Array4<const Real>& tau23_corr = (l_do_implicit_mom) ? Tau23corr->array(mfi) : Array4<Real>{};
 
-#ifdef ERF_IMPLICIT_W
-                    Box tbz = mfi.nodaltilebox(2);
-                    const Array4<      Real>& rho_w      = (l_do_implicit_mom) ? scratch_zmom.array(mfi) : Array4<Real>{};
-                    const Array4<const Real>& tau33_corr = (l_do_implicit_mom) ? Tau33corr->array(mfi) : Array4<Real>{};
-#endif
 
                     const Array4<const Real>& z_nd_arr = z_phys_nd[level]->const_array(mfi);
                     const Array4<const Real>& detJ_arr = detJ_cc[level]->const_array(mfi);
@@ -111,15 +103,6 @@
                                                       mu_turb, solverChoice,
                                                       bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
                                                       l_use_ysu_mom_cg);
-#ifdef ERF_IMPLICIT_W
-                            ImplicitDiffForMomLU_S<2>(tbz, fine_geom.Domain(), level, stage_dt,
-                                                      col_kext,
-                                                      cell_data, rho_w, tau33, tau33_corr,
-                                                      stretched_dz_d[level],
-                                                      mu_turb, solverChoice,
-                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
-                                                      l_use_ysu_mom_cg);
-#endif
                         }
                     } else if (l_use_terrain_fitted_coords) {
                         if (l_do_implicit_theta) {
@@ -149,16 +132,6 @@
                                                       bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
                                                       l_use_ysu_mom_cg,
                                                       mf_vx, mf_vy, l_implicit_metric);
-#ifdef ERF_IMPLICIT_W
-                            ImplicitDiffForMomLU_T<2>(tbz, fine_geom.Domain(), level, stage_dt,
-                                                      col_kext,
-                                                      cell_data, rho_w, tau33, tau33_corr,
-                                                      z_nd_arr, detJ_arr, dxInv,
-                                                      mu_turb, solverChoice,
-                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
-                                                      l_use_ysu_mom_cg,
-                                                      mf_mx, mf_my, l_implicit_metric);
-#endif
                         }
                     } else { // no terrain
                         if (l_do_implicit_theta) {
@@ -184,15 +157,6 @@
                                                       mu_turb, solverChoice,
                                                       bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
                                                       l_use_ysu_mom_cg);
-#ifdef ERF_IMPLICIT_W
-                            ImplicitDiffForMomLU_N<2>(tbz, fine_geom.Domain(), level, stage_dt,
-                                                      col_kext,
-                                                      cell_data, rho_w, tau33, tau33_corr,
-                                                      dxInv,
-                                                      mu_turb, solverChoice,
-                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
-                                                      l_use_ysu_mom_cg);
-#endif
                         }
                     }
                 } // mfi

@@ -74,7 +74,7 @@ struct TerrainStressCase
   FArrayBox mf_mx, mf_ux, mf_vx, mf_my, mf_uy, mf_vy;
   FArrayBox s11, s22, s33, s12, s21, s13, s31, s23, s32;
   FArrayBox rhs_u, rhs_v, rhs_w;
-  FArrayBox s13i, s23i, s33i;  // the parts of tau13/tau23/tau33 the implicit solve takes
+  FArrayBox s13i, s23i;  // the parts of tau13/tau23 the implicit solve takes
   std::vector<BCRec> bcs;
 
   TerrainStressCase (int nx_, int ny_, int nz_, Real dx_, Real dy_, Real dz_,
@@ -110,7 +110,7 @@ struct TerrainStressCase
     s13.resize(tbxxz, 1); s31.resize(tbxxz, 1);
     s23.resize(tbxyz, 1); s32.resize(tbxyz, 1);
     rhs_u.resize(ubx, 1); rhs_v.resize(vbx, 1); rhs_w.resize(wbx, 1);
-    s13i.resize(tbxxz, 1); s23i.resize(tbxyz, 1); s33i.resize(bxcc, 1);
+    s13i.resize(tbxxz, 1); s23i.resize(tbxyz, 1);
 
     // Periodic-type (interior) x/y and first-order extrapolation in z: no Dirichlet
     // stencils, so every strain comes from the generic interior kernels.
@@ -322,7 +322,7 @@ struct TerrainStressCase
     auto a11 = s11.array(), a22 = s22.array(), a33 = s33.array();
     auto a12 = s12.array(), a21 = s21.array(), a13 = s13.array(), a31 = s31.array();
     auto a23 = s23.array(), a32 = s32.array();
-    Array4<Real> c13 = s13i.array(), c23 = s23i.array(), c33 = s33i.array();
+    Array4<Real> c13 = s13i.array(), c23 = s23i.array();
 
     Box cc = bxcc, xy = tbxxy, xz = tbxxz, yz = tbxyz;
     ComputeStrain_T(cc, xy, xz, yz, domain, ua, va, wa,
@@ -336,7 +336,7 @@ struct TerrainStressCase
     ComputeStressVarVisc_T(cc, xy, xz, yz, Real(0.0), mu_turb.const_array(), no_cell_data,
                            a11, a22, a33, a12, a21, a13, a31, a23, a32,
                            er_fab.const_array(), znd, dJ, dxInv,
-                           mmx, mux, mvx, mmy, muy, mvy, c13, c23, c33, implicit_metric);
+                           mmx, mux, mvx, mmy, muy, mvy, c13, c23, implicit_metric);
 
     if (with_rhs) {
       rhs_u.setVal<RunOn::Device>(Real(0.0));
@@ -377,10 +377,10 @@ struct TerrainStressCase
     Box xz = grow(nodal_tile(IntVect(1,0,1)), IntVect(1,1,0));
     Box yz = grow(nodal_tile(IntVect(0,1,1)), IntVect(1,1,0));
     FArrayBox t11(cc,1), t22(cc,1), t33(cc,1), t12(xy,1), t21(xy,1);
-    FArrayBox t13(xz,1), t31(xz,1), t23(yz,1), t32(yz,1), i13(xz,1), i23(yz,1), i33(cc,1);
+    FArrayBox t13(xz,1), t31(xz,1), t23(yz,1), t32(yz,1), i13(xz,1), i23(yz,1);
     auto a11 = t11.array(), a22 = t22.array(), a33 = t33.array(), a12 = t12.array(), a21 = t21.array();
     auto a13 = t13.array(), a31 = t31.array(), a23 = t23.array(), a32 = t32.array();
-    Array4<Real> c13 = i13.array(), c23 = i23.array(), c33 = i33.array();
+    Array4<Real> c13 = i13.array(), c23 = i23.array();
     ComputeStrain_T(cc, xy, xz, yz, domain, ua, va, wa,
                     a11, a22, a33, a12, a21, a13, a31, a23, a32,
                     znd, dJ, dxInv, mmx, mux, mvx, mmy, muy, mvy, bcs.data(), c13, c23);
@@ -389,7 +389,7 @@ struct TerrainStressCase
     ComputeStressVarVisc_T(cc, xy, xz, yz, Real(0.0), mu_turb.const_array(), no_cell_data,
                            a11, a22, a33, a12, a21, a13, a31, a23, a32,
                            er_fab.const_array(), znd, dJ, dxInv,
-                           mmx, mux, mvx, mmy, muy, mvy, c13, c23, c33, false);
+                           mmx, mux, mvx, mmy, muy, mvy, c13, c23, false);
     auto o13 = out13.array(), o23 = out23.array();
     ParallelFor(xz, yz,
       [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept { o13(i,j,k) = a13(i,j,k); },
@@ -428,7 +428,7 @@ struct TerrainStressCase
     auto a11 = s11.array(), a22 = s22.array(), a33 = s33.array();
     auto a12 = s12.array(), a21 = s21.array(), a13 = s13.array(), a31 = s31.array();
     auto a23 = s23.array(), a32 = s32.array();
-    Array4<Real> c13 = s13i.array(), c23 = s23i.array(), c33 = s33i.array();
+    Array4<Real> c13 = s13i.array(), c23 = s23i.array();
     Box cc = bxcc, xy = tbxxy, xz = tbxxz, yz = tbxyz;
     ComputeStrain_T(cc, xy, xz, yz, domain, ua, va, wa,
                     a11, a22, a33, a12, a21, a13, a31, a23, a32,
@@ -438,7 +438,7 @@ struct TerrainStressCase
     ComputeStressConsVisc_T(cc, xy, xz, yz, mu_eff, no_cell_data,
                             a11, a22, a33, a12, a21, a13, a31, a23, a32,
                             er_fab.const_array(), znd, dJ, dxInv,
-                            mmx, mux, mvx, mmy, muy, mvy, c13, c23, c33, implicit_metric);
+                            mmx, mux, mvx, mmy, muy, mvy, c13, c23, implicit_metric);
     Gpu::streamSynchronize();
   }
 
@@ -1063,9 +1063,8 @@ double spectral_radius (Mat g, int n)
 // operator and L the part the implicit solve takes (the divergence of tau13i/tau23i).  On steep
 // curved terrain with K_h >> K_v the K_h metric term makes the scheme unstable at a large dt
 // when L holds only K_v.  With erf.implicit_terrain_metric and vert_implicit_fac = 1 1 1 the
-// split leaves only the limit of w's vertical diffusion, which stays explicit (without
-// ERF_IMPLICIT_W): the spectral radius must not exceed that of the stages applied to the w rows
-// of A alone (or 1), within 0.1 % for the coupling of w to u and v (3e-5 on this mesh).
+// split leaves only the limit of w's vertical diffusion, which stays explicit: the spectral
+// radius must not exceed that of the stages applied to the w rows of A alone (or 1), within 0.1 % for the coupling of w to u and v (3e-5 on this mesh).
 TEST(TerrainStress, ImplicitMetricStagesAreStableOnCurvedTerrain)
 {
   const int nx = 12, ny = 2, nz = 12, m = 2;

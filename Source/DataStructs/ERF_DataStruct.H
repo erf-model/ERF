@@ -2052,9 +2052,6 @@ struct SolverChoice {
                                << ", moisture = " << implicit_moisture_diffusion
                                << ", tke = " << implicit_ke_diffusion
                                << ", momenta = " << implicit_momentum_diffusion;
-#ifdef ERF_IMPLICIT_W
-                amrex::Print() << ", including w";
-#endif
                 if (implicit_terrain_metric) {
                     amrex::Print() << "; terrain metric implicit";
                 }
@@ -2310,7 +2307,7 @@ struct SolverChoice {
     amrex::Real beta_s = amrex::Real(0.1);
 
     // This controls the time-centering of the *vertical* differences in the diffusive term for
-    // theta, u, v (and w if ERF_IMPLICIT_W is set)
+    // theta, u and v
     // 0: fully explicit
     // 1: fully implicit
     amrex::Vector<amrex::Vector<amrex::Real>> vert_implicit_fac; // one value per RK stage

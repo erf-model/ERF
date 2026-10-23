@@ -1065,20 +1065,6 @@ ERF::InitData_post ()
         }
     }
 
-#ifdef ERF_IMPLICIT_W
-    if ( (SolverChoice::mesh_type == MeshType::VariableDz) &&
-         (solverChoice.implicit_momentum_diffusion) ) {
-        for (int lev = 0; lev <= finest_level; lev++) {
-            if ( (solverChoice.vert_implicit_fac[lev][0] > 0) ||
-                 (solverChoice.vert_implicit_fac[lev][1] > 0) ||
-                 (solverChoice.vert_implicit_fac[lev][2] > 0) )
-            {
-                Warning("Doing implicit solve for u, v, and w with terrain at level " + std::to_string(lev) +
-                        " -- this has not been tested");
-            }
-        }
-    }
-#endif
 
     //
     // Copy vars_new into vars_old, then use vars_old to fill covered cells in vars_new during AverageDown

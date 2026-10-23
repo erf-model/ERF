@@ -903,8 +903,8 @@ List of Parameters
 |                                      | kinetic energy diffusion                                 |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.implicit_momentum_diffusion**  | include the implicit contributions in tau13 and tau23    | Boolean            | true              |
-|                                      | (and tau33 if built with ``ERF_IMPLICIT_W``) used to     |                    |                   |
-|                                      | correct the momenta                                      |                    |                   |
+|                                      | used to correct u and v; the vertical diffusion of w is  |                    |                   |
+|                                      | always explicit                                          |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.implicit_terrain_metric**      | on a terrain-fitted mesh, also solve the compact         | Boolean; needs     | false             |
 |                                      | terrain-metric part of the vertical diffusion,           | vert_implicit_fac  |                   |
@@ -1066,8 +1066,9 @@ Notes
      **erf.rho0_trans** with ``Constant`` and times the largest density around the cell with
      ``ConstantAlpha``.  Turbulent kinetic energy has none.  For momentum the rate is the largest of the u, v and w rows,
      :math:`\mu_h (2a+b) + e_{uv}\mu_v/\Delta z^2`, :math:`\mu_h (a+2b) + e_{uv}\mu_v/\Delta z^2`
-     and :math:`\mu_v (a+b) + 2 e_w \mu_v/\Delta z^2` (the horizontal diffusion of w uses
-     :math:`\mu_v`: :math:`\tau_{31}` and :math:`\tau_{32}` carry the same edge-averaged
+     and :math:`\mu_v (a+b) + 2 \mu_v/\Delta z^2` (the vertical diffusion of w is always
+     explicit; its horizontal diffusion uses :math:`\mu_v`: :math:`\tau_{31}` and
+     :math:`\tau_{32}` carry the same edge-averaged
      :math:`\mu_v` as :math:`\tau_{13}` and :math:`\tau_{23}`); each row also counts the explicit u-w
      and v-w cross derivatives, :math:`\mu_v\sqrt{a c}` and :math:`\mu_v\sqrt{b c}` with
      :math:`c = 1/\Delta z^2` (added to the w row for both directions), which exceed the
@@ -1103,8 +1104,7 @@ Notes
      default ``1 1 0`` (Crank-Nicolson for the vertical diffusion) and ``1 1 1`` (backward
      Euler) give :math:`e = 0`, and ``0 0 0``, anelastic RK2 (no implicit solve), ``1 0 0``,
      ``0 0 1`` or ``0.995 0.1 0.0666`` (whose last stage amplifies by 1.0008) give :math:`e = 1`.
-     The vertical diffusion of w is explicit (:math:`e_w = 1`) unless ERF is built with
-     ``ERF_IMPLICIT_W``; every moisture variable is in the implicit solve (with SBM only qv,
+     Every moisture variable is in the implicit solve (with SBM only qv,
      the one the host diffuses), so the moisture term has :math:`e = 1` only when a
      microphysics model also carries non-water species (packed directly after the water
      species, these diffuse explicitly), and the advected scalar always does.  If dt times this rate
