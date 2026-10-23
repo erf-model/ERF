@@ -32,14 +32,33 @@ string(REPLACE "@BULK_BUDGET@" "${BULK_BUDGET}" input_contents "${input_contents
 set(generated_input "${WORKING_DIRECTORY}/CloudChamber_Bulk_Run.i")
 file(WRITE "${generated_input}" "${input_contents}")
 
+# A failed earlier run must not leave plotfiles that a later checker can read.
+file(GLOB stale_plotfiles "${WORKING_DIRECTORY}/plt*")
+foreach(stale_plotfile IN LISTS stale_plotfiles)
+    if(IS_DIRECTORY "${stale_plotfile}")
+        file(REMOVE_RECURSE "${stale_plotfile}")
+    endif()
+endforeach()
+file(REMOVE "${SIMULATION_LOG}" "${CHECKER_LOG}")
+
+set(run_timeout 600)
+if(DEFINED EXPECT_FAILURE AND EXPECT_FAILURE)
+    set(run_timeout 180)
+endif()
+
 execute_process(
-    COMMAND ${mpi_launch} ${TEST_EXE} ${generated_input}
+    COMMAND ${mpi_launch} ${TEST_EXE} ${generated_input} amrex.call_addr2line=0
     WORKING_DIRECTORY "${WORKING_DIRECTORY}"
     OUTPUT_FILE "${SIMULATION_LOG}"
     ERROR_FILE "${SIMULATION_LOG}"
+    TIMEOUT ${run_timeout}
     RESULT_VARIABLE simulation_result)
 
 if(DEFINED EXPECT_FAILURE AND EXPECT_FAILURE)
+    if(NOT "${simulation_result}" MATCHES "^-?[0-9]+$")
+        message(FATAL_ERROR
+            "Expected-failure child timed out or launcher failed (${simulation_result}); see ${SIMULATION_LOG}")
+    endif()
     if(simulation_result EQUAL 0)
         message(FATAL_ERROR "Cloud Chamber ${BULK_MODEL} was expected to fail but succeeded")
     endif()
@@ -65,6 +84,7 @@ execute_process(
     WORKING_DIRECTORY "${WORKING_DIRECTORY}"
     OUTPUT_FILE "${CHECKER_LOG}"
     ERROR_FILE "${CHECKER_LOG}"
+    TIMEOUT 120
     RESULT_VARIABLE checker_result)
 if(NOT checker_result EQUAL 0)
     message(FATAL_ERROR "Cloud Chamber ${BULK_MODEL} property check failed: ${checker_result}")

@@ -250,6 +250,61 @@ function(add_test_cloud_chamber_bulk_model TEST_NAME MODEL)
         ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
 endfunction(add_test_cloud_chamber_bulk_model)
 
+# Longer, dry-wall warm-rain case with a matching no-condensation control. The
+# short bulk matrix above remains startup/initialization smoke coverage.
+function(add_test_cloud_chamber_active_condensation TEST_NAME)
+    set(TEST_FILES_DIR "CloudChamber_ActiveCondensation")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(test_input "${CURRENT_TEST_BINARY_DIR}/CloudChamber_ActiveCondensation.i")
+    set(simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
+    set(checker_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.checker.log")
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DINPUT=${test_input}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DSIMULATION_LOG=${simulation_log}"
+        "-DCHECKER_LOG=${checker_log}"
+        "-DCHECKER=${CLOUD_CHAMBER_CHECKER}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberActiveCondensation.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1300
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;cloud-chamber;bulk-microphysics;active-physics"
+        ATTACHED_FILES_ON_FAIL "${simulation_log};${CURRENT_TEST_BINARY_DIR}/control.simulation.log;${checker_log}")
+endfunction(add_test_cloud_chamber_active_condensation)
+
+function(add_test_cloud_chamber_parser_reject TEST_NAME MODEL)
+    set(TEST_FILES_DIR "CloudChamber_ActiveCondensation")
+    setup_test()
+    set(test_input "${CURRENT_TEST_BINARY_DIR}/CloudChamber_ActiveCondensation.i")
+    set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.parser.log")
+    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DTEST_EXE=${CLOUD_CHAMBER_PARSER_CHECKER}"
+        "-DINPUT=${test_input}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DEXPECTED_MODEL=${MODEL}"
+        "-DEXPECTED_TEXT=selected moisture model is unsupported"
+        "-DLOG_FILE=${test_log}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberParserReject.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 90
+        PROCESSORS 1
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;cloud-chamber;configuration;parser-allowlist"
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/positive.log;${test_log}")
+endfunction(add_test_cloud_chamber_parser_reject)
+
 # Legacy theta/qv path regression: keep the bulk enablement compatible with
 # the original profile and per-face legacy wall keys.
 function(add_test_cloud_chamber_bulk_legacy TEST_NAME MODEL)
@@ -842,10 +897,25 @@ endif()
 # REQUIRE_LEVEL0_REMAKE makes a regrid test fail if the restart stopped regridding, which
 # would otherwise leave it silently comparing an ordinary restart and passing.
 function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
-    set(oneValueArgs "COMMON_OPTIONS" "RESTART_OPTIONS" "CHK_OPTIONS" "CHK_LEG_END" "CHK_NRANKS" "RESTART_NRANKS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT" "DATALOG" "DATALOG_SIGDIGITS" "PLT2DFILE" "BNDRY_PLANES_DIR" "BNDRY_PLANES_FIRST_STEP" "BNDRY_PLANES_STEPS" "BNDRY_PLANES_READ_INPUT")
+    set(oneValueArgs "COMMON_OPTIONS" "RESTART_OPTIONS" "CHK_OPTIONS" "CHK_LEG_END" "CHK_NRANKS" "RESTART_NRANKS" "FCOMPARE_RTOL" "FCOMPARE_ATOL" "RUN_TIMEOUT" "DATALOG" "DATALOG_SIGDIGITS" "PLT2DFILE" "BNDRY_PLANES_DIR" "BNDRY_PLANES_FIRST_STEP" "BNDRY_PLANES_STEPS" "BNDRY_PLANES_READ_INPUT" "CHECKER" "CHECK_MODE" "CHECKER_LOG")
     cmake_parse_arguments(ADD_TEST_RP "ALLOW_DIFF_GRIDS;REQUIRE_LEVEL0_REMAKE;BNDRY_PLANES_STALE;BNDRY_PLANES_CUT_NEWLINE;BNDRY_PLANES_EARLY_STOP" "${oneValueArgs}" "" ${ARGN})
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(_checker_log "")
+    set(_post_checkpoint_log "")
+    if(NOT "${ADD_TEST_RP_CHECK_MODE}" STREQUAL "")
+        if("${ADD_TEST_RP_CHECKER}" STREQUAL "")
+            message(FATAL_ERROR "${TEST_NAME}: CHECKER is required when CHECK_MODE is set")
+        endif()
+        if("${ADD_TEST_RP_CHECKER_LOG}" STREQUAL "")
+            set(_checker_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.checkpoint-activity.log")
+        else()
+            set(_checker_log "${ADD_TEST_RP_CHECKER_LOG}")
+        endif()
+        if(ADD_TEST_RP_CHECK_MODE STREQUAL "wdm6_active")
+            set(_post_checkpoint_log "${CURRENT_TEST_BINARY_DIR}/post_checkpoint_parity.log")
+        endif()
+    endif()
 
     set(_fcompare_rtol "${ERF_TEST_FCOMPARE_RTOL}")
     set(_fcompare_atol "${ERF_TEST_FCOMPARE_ATOL}")
@@ -895,6 +965,9 @@ function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
         "-DBNDRY_PLANES_CUT_NEWLINE=${ADD_TEST_RP_BNDRY_PLANES_CUT_NEWLINE}"
         "-DBNDRY_PLANES_EARLY_STOP=${ADD_TEST_RP_BNDRY_PLANES_EARLY_STOP}"
         "-DBNDRY_PLANES_READ_INPUT=${ADD_TEST_RP_BNDRY_PLANES_READ_INPUT}"
+        "-DCHECKER=${ADD_TEST_RP_CHECKER}"
+        "-DCHECK_MODE=${ADD_TEST_RP_CHECK_MODE}"
+        "-DCHECKER_LOG=${_checker_log}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunRestartParity.cmake)
     # The reservation has to cover the widest leg, which need not be NP.
     set(_procs "${NP}")
@@ -910,7 +983,7 @@ function(add_test_restart_parity TEST_NAME TEST_FILES_DIR STEP_CHK STEP_END)
         PROCESSORS ${_procs}
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression;restart-parity"
-        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/straight/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/checkpoint.log;${CURRENT_TEST_BINARY_DIR}/restart/restart.log;${CURRENT_TEST_BINARY_DIR}/parity.log")
+        ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/straight/simulation.log;${CURRENT_TEST_BINARY_DIR}/restart/checkpoint.log;${CURRENT_TEST_BINARY_DIR}/restart/restart.log;${CURRENT_TEST_BINARY_DIR}/parity.log;${_checker_log};${_post_checkpoint_log}")
 endfunction(add_test_restart_parity)
 
 # Restart abort: run a deck to a checkpoint, restart from it, and require the restart to stop
@@ -1459,23 +1532,28 @@ add_test_cloud_chamber_legacy_config(CloudChamber_Legacy_Config)
 add_test_cloud_chamber_neutral_momentum(CloudChamber_Dry_NeutralMomentumActivation)
 add_test_cloud_chamber_fixed_momentum(CloudChamber_Dry_FixedMomentumActivation)
 add_test_cloud_chamber(CloudChamber_SatAdj cloudy)
-add_test_cloud_chamber_bulk_model(CloudChamber_Bulk_Kessler_NoRain Kessler_NoRain)
-add_test_cloud_chamber_bulk_model(CloudChamber_Bulk_Kessler Kessler)
-add_test_cloud_chamber_bulk_model(CloudChamber_Bulk_SAM_NoPrecip_NoIce SAM_NoPrecip_NoIce)
-add_test_cloud_chamber_bulk_model(CloudChamber_Bulk_SAM_NoIce SAM_NoIce)
-add_test_cloud_chamber_bulk_model(CloudChamber_Bulk_SAM SAM)
-add_test_cloud_chamber_bulk_model(CloudChamber_Bulk_WSM6 WSM6)
-add_test_cloud_chamber_bulk_model(CloudChamber_Bulk_WDM6 WDM6)
-add_test_cloud_chamber_bulk_model(CloudChamber_Bulk_Morrison_NoIce Morrison_NoIce)
-add_test_cloud_chamber_bulk_model(CloudChamber_Bulk_Morrison Morrison)
-add_test_cloud_chamber_bulk_model(CloudChamber_Bulk_MoistNoCondensation MoistNoCondensation)
-add_test_cloud_chamber_bulk_legacy(CloudChamber_Bulk_Legacy_Kessler_NoRain Kessler_NoRain)
-add_test_cloud_chamber_bulk_reject(CloudChamber_Bulk_Reject_SBM SBM 0
+add_test_cloud_chamber_bulk_model(CloudChamber_BulkSmoke_Kessler_NoRain Kessler_NoRain)
+add_test_cloud_chamber_bulk_model(CloudChamber_BulkSmoke_Kessler Kessler)
+add_test_cloud_chamber_bulk_model(CloudChamber_BulkSmoke_SAM_NoPrecip_NoIce SAM_NoPrecip_NoIce)
+add_test_cloud_chamber_bulk_model(CloudChamber_BulkSmoke_SAM_NoIce SAM_NoIce)
+add_test_cloud_chamber_bulk_model(CloudChamber_BulkSmoke_SAM SAM)
+add_test_cloud_chamber_bulk_model(CloudChamber_BulkSmoke_WSM6 WSM6)
+add_test_cloud_chamber_bulk_model(CloudChamber_BulkSmoke_WDM6 WDM6)
+add_test_cloud_chamber_bulk_model(CloudChamber_BulkSmoke_Morrison_NoIce Morrison_NoIce)
+add_test_cloud_chamber_bulk_model(CloudChamber_BulkSmoke_Morrison Morrison)
+add_test_cloud_chamber_bulk_model(CloudChamber_BulkSmoke_MoistNoCondensation MoistNoCondensation)
+add_test_cloud_chamber_active_condensation(CloudChamber_Active_KesslerNoRain)
+add_test_cloud_chamber_bulk_legacy(CloudChamber_BulkSmoke_Legacy_Kessler_NoRain Kessler_NoRain)
+# These runs exercise existing global solver guards before the Cloud Chamber
+# typed allowlist. Parser-level allowlist failures have separate tests.
+add_test_cloud_chamber_bulk_reject(CloudChamber_GlobalReject_SBM SBM 0
     "SBM M3 does not support scalar or particle diffusion")
-add_test_cloud_chamber_bulk_reject(CloudChamber_Bulk_Reject_SuperDroplets SuperDroplets 0
+add_test_cloud_chamber_bulk_reject(CloudChamber_GlobalReject_SuperDroplets SuperDroplets 0
     "Super-Droplet path currently uses the compressible equation of state")
-add_test_cloud_chamber_bulk_reject(CloudChamber_Bulk_Reject_Budget Kessler 1
+add_test_cloud_chamber_bulk_reject(CloudChamber_GlobalReject_Budget Kessler 1
     "cloud_chamber_budget_interval supports only physical_temperature_rh")
+add_test_cloud_chamber_parser_reject(CloudChamber_ParserReject_SBM SBM)
+add_test_cloud_chamber_parser_reject(CloudChamber_ParserReject_SuperDroplets SuperDroplets)
 add_test_cloud_chamber_parity(CloudChamber_SatAdj_Parity)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_AllDry all_dry CloudChamber_SatAdj_AllDry)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_WetBudget wet_budget CloudChamber_SatAdj_WetBudget)
@@ -2001,6 +2079,10 @@ add_test_restart_parity(MoistBubble_Kessler_Restart MoistBubble_Kessler_Restart 
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 add_test_restart_parity(CloudChamber_WDM6_Restart CloudChamber_WDM6_Restart 2 4
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+add_test_restart_parity(CloudChamber_WDM6_ActiveRestart CloudChamber_WDM6_ActiveRestart 500 1000
+    FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0"
+    CHECKER "${CLOUD_CHAMBER_CHECKER}"
+    CHECK_MODE "wdm6_active")
 endif()
 # Boundary-plane output (erf.output_bndry_planes) across a restart: the series in BndryFiles --
 # one plane directory per output step and a time.dat of "step time" rows -- must come out of a

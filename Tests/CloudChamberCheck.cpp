@@ -138,6 +138,8 @@ bool is_checker_mode (const std::string& mode)
 {
     return mode == "dry" || mode == "cloudy" || mode == "parity" ||
         mode == "bulk" || mode == "bulk_legacy" ||
+        mode == "active_condensation" ||
+        mode == "wdm6_active" ||
         mode == "neutral_momentum" || mode == "fixed_momentum" ||
         mode == "most_momentum" ||
         is_budget_mode(mode);
@@ -342,6 +344,257 @@ Real integral (PlotFileData& plotfile, const std::string& scalar)
     return value.sum(0, true) * volume;
 }
 
+Real total_nonprecipitating_water (PlotFileData& plotfile)
+{
+    MultiFab rho = plotfile.get(0, "density");
+    MultiFab qv = plotfile.get(0, "qv");
+    MultiFab qc = plotfile.get(0, "qc");
+    MultiFab::Multiply(qv, rho, 0, 0, 1, 0);
+    MultiFab::Multiply(qc, rho, 0, 0, 1, 0);
+    MultiFab::Add(qv, qc, 0, 0, 1, 0);
+    const auto dx = plotfile.cellSize(0);
+    return qv.sum(0, true) * dx[0] * dx[1] * dx[2];
+}
+
+// The 8^3 RH=1, initially cloud-free case uses 284 K air and a 270 K dry top
+// wall (alpha_T=0.01, alpha_C=0.001); the paired control changes only the
+// moisture model. The analytic initial profile is checked at 512 eps, the
+// closed-water residual at 1e-10 relative (or 512 eps), and each active signal
+// has a separate physical lower bound. Skipping the Kessler_NoRain
+// microphysics dispatch was tested as a mutation and failed the cloud-mass
+// assertion. DOUBLE precision.
+bool check_active_condensation (const std::string& model_name,
+                                PlotFileData& initial,
+                                PlotFileData& active,
+                                PlotFileData& control,
+                                std::string& error)
+{
+    MoistureType model;
+    try {
+        model = amrex::getEnumCaseInsensitive<MoistureType>(model_name);
+    } catch (const std::exception& exception) {
+        error = "invalid active-condensation checker model: " +
+            std::string(exception.what());
+        return false;
+    }
+    if (model != MoistureType::Kessler_NoRain ||
+        initial.time() >= active.time() || active.time() != control.time()) {
+        error = "active-condensation checker requires matched Kessler_NoRain and control times";
+        return false;
+    }
+    const std::vector<std::string> required = {"density", "pressure", "theta", "temp", "qv", "qc"};
+    for (const auto& name : required) {
+        if (!has_variable(initial, name) || !has_variable(active, name) ||
+            !has_variable(control, name)) {
+            error = "active-condensation plotfile is missing " + name;
+            return false;
+        }
+    }
+
+    MultiFab rho0 = initial.get(0, "density");
+    MultiFab p0 = initial.get(0, "pressure");
+    MultiFab theta0 = initial.get(0, "theta");
+    MultiFab temp0 = initial.get(0, "temp");
+    MultiFab qv0 = initial.get(0, "qv");
+    MultiFab qc0 = initial.get(0, "qc");
+    if (!rho0.is_finite() || !p0.is_finite() || !theta0.is_finite() ||
+        !temp0.is_finite() || !qv0.is_finite() || !qc0.is_finite()) {
+        error = "active-condensation initial state is non-finite";
+        return false;
+    }
+
+    const auto domain = initial.probDomain(0);
+    const Real initial_temperature = Real(284.0);
+    MultiFab initial_error(theta0.boxArray(), theta0.DistributionMap(), 3, 0);
+    for (MFIter mfi(initial_error, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        const auto p = p0.const_array(mfi);
+        const auto theta = theta0.const_array(mfi);
+        const auto temp = temp0.const_array(mfi);
+        const auto qv = qv0.const_array(mfi);
+        const auto qc = qc0.const_array(mfi);
+        const auto out = initial_error.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            const Real vapor_pressure = Real(100.0) * erf_esatw(initial_temperature);
+            const Real expected_qv = RdoRv * vapor_pressure / (p(i,j,k) - vapor_pressure);
+            const Real expected_theta = initial_temperature *
+                std::pow(p_0 / p(i,j,k), R_d / Cp_d);
+            out(i,j,k,0) = std::abs(temp(i,j,k) - initial_temperature);
+            out(i,j,k,1) = std::abs(theta(i,j,k) - expected_theta);
+            out(i,j,k,2) = std::abs(qv(i,j,k) - expected_qv) + std::abs(qc(i,j,k));
+        });
+    }
+    amrex::Gpu::streamSynchronize();
+    const Real init_tolerance = scaled_tolerance(initial_temperature, Real(512.0));
+    if (initial_error.norm0(0,0,false) > init_tolerance ||
+        initial_error.norm0(1,0,false) > init_tolerance ||
+        initial_error.norm0(2,0,false) > scaled_tolerance(Real(1.0), Real(512.0))) {
+        error = "active-condensation case did not start from its analytic cloud-free RH=1 profile";
+        return false;
+    }
+
+    MultiFab t_active = active.get(0, "temp");
+    MultiFab t_control = control.get(0, "temp");
+    MultiFab qv_active = active.get(0, "qv");
+    MultiFab qc_active = active.get(0, "qc");
+    MultiFab qv_control = control.get(0, "qv");
+    MultiFab qc_control = control.get(0, "qc");
+    if (!t_active.is_finite() || !t_control.is_finite() ||
+        !qv_active.is_finite() || !qc_active.is_finite() ||
+        !qv_control.is_finite() || !qc_control.is_finite() ||
+        qv_active.min(0) < Real(0.0) || qc_active.min(0) < Real(0.0) ||
+        qv_control.min(0) < Real(0.0) || qc_control.min(0) < Real(0.0)) {
+        error = "active-condensation or control state is non-finite or negative";
+        return false;
+    }
+
+    MultiFab top_cooling(temp0.boxArray(), temp0.DistributionMap(), 1, 0);
+    MultiFab latent_response(temp0.boxArray(), temp0.DistributionMap(), 1, 0);
+    for (MFIter mfi(top_cooling, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        const auto initial_temp = temp0.const_array(mfi);
+        const auto active_temp = t_active.const_array(mfi);
+        const auto control_temp = t_control.const_array(mfi);
+        const auto cloud = qc_active.const_array(mfi);
+        const auto cooling = top_cooling.array(mfi);
+        const auto latent = latent_response.array(mfi);
+        const int top_layer = domain.bigEnd(2) - 1;
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            cooling(i,j,k,0) = k >= top_layer ? initial_temp(i,j,k) - active_temp(i,j,k) : Real(0.0);
+            latent(i,j,k,0) = cloud(i,j,k) > Real(0.0) ?
+                active_temp(i,j,k) - control_temp(i,j,k) : Real(0.0);
+        });
+    }
+    amrex::Gpu::streamSynchronize();
+    const Real cloud_mass = integral(active, "qc");
+    const Real vapor_transfer = integral(control, "qv") - integral(active, "qv");
+    const Real initial_water = total_nonprecipitating_water(initial);
+    const Real final_water = total_nonprecipitating_water(active);
+    const Real water_residual = final_water - initial_water;
+    const Real water_tolerance = std::max(
+        Real(1.0e-10) * std::abs(initial_water),
+        Real(512.0) * std::numeric_limits<Real>::epsilon() * std::abs(initial_water));
+    const Real cooling_signal = top_cooling.max(0, 0, false);
+    const Real latent_signal = latent_response.max(0, 0, false);
+    const Real control_cloud_max = qc_control.max(0, 0, false);
+    if (!(cloud_mass > Real(1.0e-8) * initial_water)) {
+        error = "active Kessler_NoRain case produced no measurable cloud-water mass";
+        return false;
+    }
+    if (!(cooling_signal > Real(0.1))) {
+        error = "cold dry wall did not measurably cool the top chamber cells";
+        return false;
+    }
+    if (!(vapor_transfer > Real(1.0e-8) * initial_water)) {
+        error = "active case did not transfer measurable vapor into cloud water relative to control";
+        return false;
+    }
+    if (!(latent_signal > Real(1.0e-5))) {
+        error = "cloud-bearing cells show no positive latent response relative to the cooling control";
+        return false;
+    }
+    if (control_cloud_max > scaled_tolerance(Real(1.0))) {
+        error = "MoistNoCondensation control unexpectedly formed cloud water";
+        return false;
+    }
+    if (std::abs(water_residual) > water_tolerance) {
+        error = "all-dry Kessler_NoRain domain water mass did not close";
+        return false;
+    }
+
+    std::cout << std::setprecision(17)
+              << "active_condensation model=" << model_name
+              << " cloud_mass_kg=" << cloud_mass
+              << " vapor_transfer_kg=" << vapor_transfer
+              << " top_cell_cooling_K=" << cooling_signal
+              << " latent_response_K=" << latent_signal
+              << " water_residual_kg=" << water_residual
+              << " water_tolerance_kg=" << water_tolerance
+              << " control_cloud_max=" << control_cloud_max << "\n";
+    return true;
+}
+
+// RH=0.95 and ccn0=1e9 m^-3 leave both active and floor-limited nn values, so
+// the Q8 restart state is observable. Activity is checked before exact
+// fcompare with rtol=atol=2e-10; the step-501 comparison catches a lost Q8 restore
+// before both long-run legs can hide it. A temporary Q8-restore mutation made
+// that first-step comparison fail. Number concentration is never treated as
+// water mass. DOUBLE precision.
+bool check_wdm6_activity (PlotFileData& initial, PlotFileData& checkpoint,
+                          std::string& error)
+{
+    const std::vector<std::string> required = {
+        "density", "theta", "temp", "qv", "qc", "qi", "qrain", "qsnow",
+        "qgraup", "nc", "nn", "nr", "rain_accum", "snow_accum", "graup_accum"};
+    for (const auto& name : required) {
+        if (!has_variable(initial, name) || !has_variable(checkpoint, name)) {
+            error = "WDM6 active restart plotfile is missing " + name;
+            return false;
+        }
+    }
+    if (!(checkpoint.time() > initial.time())) {
+        error = "WDM6 checkpoint state did not advance beyond initialization";
+        return false;
+    }
+    for (const auto& name : required) {
+        MultiFab first = initial.get(0, name);
+        MultiFab last = checkpoint.get(0, name);
+        if (!first.is_finite() || !last.is_finite()) {
+            error = "WDM6 active state is non-finite: " + name;
+            return false;
+        }
+        if ((name == "qv" || name == "qc" || name == "qi" || name == "qrain" ||
+             name == "qsnow" || name == "qgraup" || name == "nc" || name == "ni" ||
+             name == "nr" || name == "nn" || name == "ns" || name == "ng") &&
+            last.min(0) < Real(0.0)) {
+            error = "WDM6 active state became negative: " + name;
+            return false;
+        }
+    }
+
+    MultiFab qc_initial = initial.get(0, "qc");
+    MultiFab nc_initial = initial.get(0, "nc");
+    MultiFab nn_initial = initial.get(0, "nn");
+    MultiFab qc_final = checkpoint.get(0, "qc");
+    MultiFab nc_final = checkpoint.get(0, "nc");
+    MultiFab nn_final = checkpoint.get(0, "nn");
+    const Real cloud_mass = integral(checkpoint, "qc");
+    const Real cloud_drop_number_max = nc_final.max(0, 0, false);
+    const Real ccn0 = Real(1000.0e6);
+    const Real nn_departure = std::max(std::abs(nn_final.max(0,0,false) - ccn0),
+                                      std::abs(nn_final.min(0,0,false) - ccn0));
+    const Real nn_nonuniformity = nn_final.max(0,0,false) - nn_final.min(0,0,false);
+    const Real rain_accum_max = checkpoint.get(0, "rain_accum").max(0,0,false);
+    if (qc_initial.max(0,0,false) != Real(0.0) ||
+        nc_initial.max(0,0,false) != Real(0.0)) {
+        error = "WDM6 active restart fixture must start with zero qc and nc";
+        return false;
+    }
+    if (!(cloud_mass > Real(1.0e-8)) || !(cloud_drop_number_max > Real(0.0))) {
+        error = "WDM6 checkpoint lacks measurable cloud water and activated cloud-drop number";
+        return false;
+    }
+    if (!(nn_departure > Real(1.0e4) || nn_nonuniformity > Real(1.0e4))) {
+        error = "WDM6 checkpoint nn remains indistinguishable from uniform ccn0";
+        return false;
+    }
+    if (nn_initial.max(0,0,false) != Real(0.0)) {
+        error = "WDM6 chamber initializer unexpectedly seeded nn before native WDM6 state transfer";
+        return false;
+    }
+
+    std::cout << std::setprecision(17)
+              << "wdm6_active checkpoint_time=" << checkpoint.time()
+              << " cloud_mass_kg=" << cloud_mass
+              << " nc_max=" << cloud_drop_number_max
+              << " nn_min=" << nn_final.min(0,0,false)
+              << " nn_max=" << nn_final.max(0,0,false)
+              << " nn_departure_from_ccn0=" << nn_departure
+              << " nn_nonuniformity=" << nn_nonuniformity
+              << " rain_accum_max_mm=" << rain_accum_max << "\n";
+    return true;
+}
+
 bool check_budget_rows (const std::vector<BudgetRow>& rows,
                         const std::string& mode, BudgetSummary& summary,
                         std::string& error)
@@ -479,14 +732,20 @@ int main (int argc, char** argv)
     const std::string mode = argc > 1 ? argv[1] : std::string();
     const bool budget_mode = is_budget_mode(mode);
     const bool bulk_mode = mode == "bulk" || mode == "bulk_legacy";
+    const bool active_condensation_mode = mode == "active_condensation";
+    const bool wdm6_active_mode = mode == "wdm6_active";
     const bool activation_mode = mode == "neutral_momentum" ||
         mode == "fixed_momentum" || mode == "most_momentum";
-    const int expected_argc = (budget_mode || activation_mode || bulk_mode) ? 5 : 4;
+    const int expected_argc = active_condensation_mode ? 6 :
+        (wdm6_active_mode ? 4 :
+         ((budget_mode || activation_mode || bulk_mode) ? 5 : 4));
     if (!is_checker_mode(mode) || argc != expected_argc) {
         std::cerr << "usage: checker mode initial_plotfile final_plotfile\n"
                   << "       checker parity budget_off_plotfile budget_on_plotfile\n"
                   << "       checker all_dry|wet_budget|bulk_wet|neutral_wet|most_wet initial_plotfile final_plotfile budget_file\n"
-                  << "       checker neutral_momentum|fixed_momentum|most_momentum initial_plotfile final_a final_b\n";
+                  << "       checker neutral_momentum|fixed_momentum|most_momentum initial_plotfile final_a final_b\n"
+                  << "       checker active_condensation model initial_plotfile active_final control_final\n"
+                  << "       checker wdm6_active initial_plotfile checkpoint_plotfile\n";
         return 2;
     }
     if (!retained_flux_activation_contract_holds()) {
@@ -494,6 +753,24 @@ int main (int argc, char** argv)
     }
 
     amrex::Initialize(argc, argv, false);
+    if (active_condensation_mode) {
+        PlotFileData initial(argv[3]);
+        PlotFileData active(argv[4]);
+        PlotFileData control(argv[5]);
+        std::string error;
+        const bool valid = check_active_condensation(
+            argv[2], initial, active, control, error);
+        amrex::Finalize();
+        return valid ? 0 : fail(error);
+    }
+    if (wdm6_active_mode) {
+        PlotFileData initial(argv[2]);
+        PlotFileData checkpoint(argv[3]);
+        std::string error;
+        const bool valid = check_wdm6_activity(initial, checkpoint, error);
+        amrex::Finalize();
+        return valid ? 0 : fail(error);
+    }
     if (bulk_mode) {
         PlotFileData initial(argv[3]);
         PlotFileData final(argv[4]);

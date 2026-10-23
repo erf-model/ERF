@@ -1062,8 +1062,8 @@ scheme. The species names and their availability follow ERF's
 ``MoistureComponentIndices`` mapping; a scheme may allocate more conserved
 components than it actually integrates.
 
-Validated regression examples
------------------------------
+Tracked regression inputs
+-------------------------
 
 The repository contains tracked regression inputs for each major supported
 path.  They are useful syntax references, but their grid, timestep, LES
@@ -1088,10 +1088,14 @@ not calibrated physical recommendations.
      - ``Tests/test_files/CloudChamber_SatAdj_MOSTWetBudget/CloudChamber_SatAdj_MOSTWetBudget.i``
    * - Mixed neutral sidewalls and MOST horizontal walls
      - ``Tests/test_files/CloudChamber_SatAdj_MOSTMixedWalls/CloudChamber_SatAdj_MOSTMixedWalls.i``
-   * - Physical-temperature bulk microphysics smoke input
+   * - Physical-temperature bulk-microphysics startup and finite-state smoke input
      - ``Tests/test_files/CloudChamber_Bulk/CloudChamber_Bulk.i``
-   * - WDM6 physical chamber restart-parity input
+   * - Quick WDM6 physical chamber restart-parity smoke input
      - ``Tests/test_files/CloudChamber_WDM6_Restart/CloudChamber_WDM6_Restart.i``
+   * - Active Kessler_NoRain condensation and dry-wall water-balance input
+     - ``Tests/test_files/CloudChamber_ActiveCondensation/CloudChamber_ActiveCondensation.i``
+   * - WDM6 active-state checkpoint/restart input
+     - ``Tests/test_files/CloudChamber_WDM6_ActiveRestart/CloudChamber_WDM6_ActiveRestart.i``
    * - Legacy theta/qv Kessler_NoRain smoke input
      - ``Tests/test_files/CloudChamber_Bulk_Legacy/CloudChamber_Bulk_Legacy.i``
    * - Legacy theta/qv configuration
@@ -1102,6 +1106,35 @@ A complete dry physical example is included below.
 .. literalinclude:: ../../Tests/test_files/CloudChamber_Dry/CloudChamber_Dry.i
    :language: none
    :caption: Dry physical Cloud Chamber with resolved wall transfer
+
+Bulk-microphysics verification
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The short ``CloudChamber_Bulk`` cases are startup and finite-state smoke
+regressions for the supported Eulerian moisture models. Passing them does
+not, by itself, demonstrate cloud-water production, precipitation formation,
+sedimentation, or conservation. The separate ``CloudChamber_Active`` case
+checks Kessler_NoRain cloud-water production, vapor transfer relative to a
+MoistNoCondensation control, a positive latent-temperature response in
+cloud-bearing cells, and closed total nonprecipitating water mass for dry
+walls. Its initial profile is checked against the analytic RH=1 state.
+
+The ``CloudChamber_WDM6_ActiveRestart`` regression checks cloud water, cloud
+drop number, and evolved CCN number before a step-500 checkpoint, then checks
+exact step-1000 straight-run versus checkpoint/restart parity for the plotted
+state and surface accumulations. The shorter WDM6 restart case remains a
+restart smoke test.
+
+Seeded Kessler public-flow tests exercise native sedimentation and bottom
+rain accumulation, while the chamber active case exercises condensation and
+wall behavior end to end. The current chamber matrix does not establish
+nonzero clean-start rain collection in a full Kessler chamber run. A dry wall
+blocks water-vapor exchange; it does not block the selected scheme's
+hydrometeor sedimentation or surface precipitation accumulation. The chamber
+interval water budget remains limited to dry and SatAdj configurations.
+
+Operationally enabled bulk models have not thereby been calibrated or
+validated against laboratory Pi-Chamber observations.
 
 Run checklist
 -------------

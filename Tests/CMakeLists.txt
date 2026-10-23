@@ -111,6 +111,17 @@ if(ERF_ENABLE_TESTS)
   set(CLOUD_CHAMBER_CHECKER
       "${CMAKE_CURRENT_BINARY_DIR}/erf_cloud_chamber_check${CMAKE_EXECUTABLE_SUFFIX}")
 
+  # Run the typed Cloud Chamber parser directly in a child process so its
+  # allowlist abort can be tested without the earlier global solver guards.
+  add_executable(erf_cloud_chamber_parser_check
+    ${CMAKE_CURRENT_SOURCE_DIR}/CloudChamberParserCheck.cpp)
+  target_link_libraries(erf_cloud_chamber_parser_check PRIVATE AMReX::amrex)
+  target_include_directories(erf_cloud_chamber_parser_check PRIVATE
+    $<TARGET_PROPERTY:erf_srclib,INTERFACE_INCLUDE_DIRECTORIES>)
+  target_compile_features(erf_cloud_chamber_parser_check PRIVATE cxx_std_17)
+  set(CLOUD_CHAMBER_PARSER_CHECKER
+      "${CMAKE_CURRENT_BINARY_DIR}/erf_cloud_chamber_parser_check${CMAKE_EXECUTABLE_SUFFIX}")
+
   # Motivation: the TwoStream column sweep must keep the surface at k = 0 and
   # cool to space from the top layer; this checker reads qsrc_sw / qsrc_lw
   # from a plotfile and verifies that vertical structure without gold files.

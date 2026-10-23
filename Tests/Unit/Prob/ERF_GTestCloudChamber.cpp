@@ -2,6 +2,7 @@
 #include "ERF_Constants.H"
 #include <AMReX_BoxArray.H>
 #include <AMReX_BCUtil.H>
+#include <AMReX_FArrayBox.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_RealBox.H>
 #include <AMReX_Reduce.H>
@@ -22,6 +23,7 @@
 #include "../../../Source/Prob/ERF_CloudChamberBudget.H"
 #include "../../../Source/Prob/ERF_CloudChamber.H"
 #include "../../../Source/Prob/ERF_ProblemDispatch.H"
+#include "../../../Source/BoundaryConditions/ERF_WallScalarBC.H"
 
 using amrex::GpuArray;
 using amrex::Real;
@@ -378,6 +380,7 @@ TEST(CloudChamberWallDiffusion, ExtraMoistureLanesAreImpermeable)
             const Real base = Real(0.1) * i + Real(0.2) * j + Real(0.3) * k;
             values(i,j,k,Rho_comp) = Real(1.0);
             values(i,j,k,RhoQ3_comp) = base;
+            values(i,j,k,RhoQ4_comp) = Real(1.5) * base + Real(0.09) * k;
             values(i,j,k,RhoQ7_comp) = Real(2.0) * base + Real(0.07) * i;
             values(i,j,k,RhoQ8_comp) = Real(3.0) * base + Real(0.11) * j;
         });
@@ -392,13 +395,15 @@ TEST(CloudChamberWallDiffusion, ExtraMoistureLanesAreImpermeable)
     state.FillBoundary(geom.periodicity());
     FillDomainBoundary(state, geom, bcs);
 
-    MultiFab wall_flux(grids, dmap, 3, 0);
-    MultiFab interior_flux(grids, dmap, 3, 0);
+    MultiFab wall_flux(grids, dmap, 4, 0);
+    MultiFab interior_flux(grids, dmap, 4, 0);
+    MultiFab seam_flux(grids, dmap, 4, 0);
     MultiFab ext_dir_mutant_flux(grids, dmap, 1, 0);
     wall_flux.setVal(Real(0.0));
     interior_flux.setVal(Real(0.0));
+    seam_flux.setVal(Real(0.0));
     ext_dir_mutant_flux.setVal(Real(0.0));
-    const int q_comps[3] = {RhoQ3_comp, RhoQ7_comp, RhoQ8_comp};
+    const int q_comps[4] = {RhoQ3_comp, RhoQ4_comp, RhoQ7_comp, RhoQ8_comp};
     const int lo_x = domain.smallEnd(0), hi_x = domain.bigEnd(0);
     const int lo_y = domain.smallEnd(1), hi_y = domain.bigEnd(1);
     const int lo_z = domain.smallEnd(2), hi_z = domain.bigEnd(2);
@@ -406,12 +411,14 @@ TEST(CloudChamberWallDiffusion, ExtraMoistureLanesAreImpermeable)
         const auto values = state.const_array(mfi);
         const auto wall = wall_flux.array(mfi);
         const auto interior = interior_flux.array(mfi);
+        const auto seam = seam_flux.array(mfi);
         const auto mutant = ext_dir_mutant_flux.array(mfi);
         const Box bx = mfi.validbox();
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            Real wall_max[3] = {Real(0.0), Real(0.0), Real(0.0)};
-            Real interior_max[3] = {Real(0.0), Real(0.0), Real(0.0)};
-            for (int n = 0; n < 3; ++n) {
+            Real wall_max[4] = {Real(0.0), Real(0.0), Real(0.0), Real(0.0)};
+            Real interior_max[4] = {Real(0.0), Real(0.0), Real(0.0), Real(0.0)};
+            Real seam_max[4] = {Real(0.0), Real(0.0), Real(0.0), Real(0.0)};
+            for (int n = 0; n < 4; ++n) {
                 const int comp = q_comps[n];
                 if (i == lo_x) {
                     wall_max[n] = amrex::max(wall_max[n], std::abs(
@@ -453,10 +460,26 @@ TEST(CloudChamberWallDiffusion, ExtraMoistureLanesAreImpermeable)
                             std::abs(ScalarDiffusionFlux_N<2>(values, comp, 3, 3, 3,
                                 Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false))));
                 }
+                if (i == 3 || i == 4) {
+                    seam_max[n] = amrex::max(seam_max[n], std::abs(
+                        ScalarDiffusionFlux_N<0>(values, comp, 4, j, k,
+                            Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false)));
+                }
+                if (j == 3 || j == 4) {
+                    seam_max[n] = amrex::max(seam_max[n], std::abs(
+                        ScalarDiffusionFlux_N<1>(values, comp, i, 4, k,
+                            Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false)));
+                }
+                if (k == 3 || k == 4) {
+                    seam_max[n] = amrex::max(seam_max[n], std::abs(
+                        ScalarDiffusionFlux_N<2>(values, comp, i, j, 4,
+                            Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false)));
+                }
             }
-            for (int n = 0; n < 3; ++n) {
+            for (int n = 0; n < 4; ++n) {
                 wall(i,j,k,n) = wall_max[n];
                 interior(i,j,k,n) = interior_max[n];
+                seam(i,j,k,n) = seam_max[n];
             }
             if (i == lo_x && j == 3 && k == 3) {
                 mutant(i,j,k) = std::abs(ScalarDiffusionFlux_N<0>(
@@ -466,14 +489,167 @@ TEST(CloudChamberWallDiffusion, ExtraMoistureLanesAreImpermeable)
         });
     }
     Gpu::streamSynchronize();
-    for (int n = 0; n < 3; ++n) {
+    for (int n = 0; n < 4; ++n) {
         EXPECT_DOUBLE_EQ(wall_flux.norm0(n, 0, false), Real(0.0))
-            << "wall flux leaked from Q" << (n == 0 ? 3 : (n == 1 ? 7 : 8));
+            << "wall flux leaked from Q" << q_comps[n];
         EXPECT_GT(interior_flux.norm0(n, 0, false), Real(0.0))
-            << "interior gradient was vacuous for Q" << (n == 0 ? 3 : (n == 1 ? 7 : 8));
+            << "interior gradient was vacuous for Q" << q_comps[n];
+        EXPECT_GT(seam_flux.norm0(n, 0, false), Real(0.0))
+            << "inter-box seam flux was vacuous for Q" << q_comps[n];
     }
     EXPECT_GT(ext_dir_mutant_flux.norm0(0, 0, false), Real(0.0))
         << "wrong ext_dir wall mapping did not activate the boundary stencil";
+}
+
+// This test feeds the same NoSlipWall intent-to-BC mapper used by init_bcs
+// into BuildScalarDiffusionFluxes_N, requiring exact zero wall flux, positive
+// interior flux, and a closed-domain divergence sum within 512 eps. The
+// multibox stencil regression above independently requires nonzero seam flux.
+// Corrupting the shared production mapping to ext_dir was tested and failed
+// this oracle. This is the narrow adapter-level equivalent; it does not run
+// ERF::init_bcs or erf_slow_rhs_post end to end. DOUBLE precision.
+TEST(CloudChamberWallDiffusion, NoSlipMappingUsesProductionScalarAdapter)
+{
+    using namespace amrex;
+    const Box domain(IntVect(0, 0, 0), IntVect(7, 7, 7));
+    Box data_box = domain;
+    data_box.grow(1);
+    const Box xfaces = surroundingNodes(domain, 0);
+    const Box yfaces = surroundingNodes(domain, 1);
+    const Box zfaces = surroundingNodes(domain, 2);
+    FArrayBox state(data_box, NVAR_max);
+    FArrayBox primitive(data_box, NVAR_max);
+    FArrayBox mu(data_box, EddyDiff::NumDiffs);
+    FArrayBox rhs(domain, NVAR_max);
+    FArrayBox xflux(xfaces, 1), yflux(yfaces, 1), zflux(zfaces, 1);
+    FArrayBox u(xfaces, 1), v(yfaces, 1);
+    FArrayBox mf_ux(xfaces, 1), mf_uy(xfaces, 1);
+    FArrayBox mf_vx(yfaces, 1), mf_vy(yfaces, 1);
+
+    state.setVal<RunOn::Device>(Real(0.0));
+    primitive.setVal<RunOn::Device>(Real(0.0));
+    mu.setVal<RunOn::Device>(Real(0.0));
+    rhs.setVal<RunOn::Device>(Real(0.0));
+    u.setVal<RunOn::Device>(Real(0.0));
+    v.setVal<RunOn::Device>(Real(0.0));
+    mf_ux.setVal<RunOn::Device>(Real(1.0));
+    mf_uy.setVal<RunOn::Device>(Real(1.0));
+    mf_vx.setVal<RunOn::Device>(Real(1.0));
+    mf_vy.setVal<RunOn::Device>(Real(1.0));
+
+    const auto conserved = state.array();
+    const auto intensive = primitive.array();
+    ParallelFor(data_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        const int ii = amrex::max(domain.smallEnd(0), amrex::min(domain.bigEnd(0), i));
+        const int jj = amrex::max(domain.smallEnd(1), amrex::min(domain.bigEnd(1), j));
+        const int kk = amrex::max(domain.smallEnd(2), amrex::min(domain.bigEnd(2), k));
+        const Real base = Real(0.1) * ii + Real(0.2) * jj + Real(0.3) * kk;
+        conserved(i,j,k,Rho_comp) = Real(1.0);
+        intensive(i,j,k,RhoQ3_comp) = base;
+        intensive(i,j,k,RhoQ4_comp) = Real(2.0) * base + Real(0.07) * ii;
+        intensive(i,j,k,RhoQ7_comp) = Real(3.0) * base + Real(0.11) * jj;
+        intensive(i,j,k,RhoQ8_comp) = Real(4.0) * base + Real(0.13) * kk;
+    });
+    Gpu::streamSynchronize();
+
+    Vector<BCRec> bcs(NVAR_max);
+    const int no_slip_unspecified = erf_wall_scalar_bc::logical_boundary_type(
+        erf_wall_scalar_bc::WallScalarBCIntent::Unspecified);
+    EXPECT_EQ(no_slip_unspecified, ERFBCType::foextrap);
+    for (auto& bc : bcs) {
+        for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+            bc.setLo(dir, no_slip_unspecified);
+            bc.setHi(dir, no_slip_unspecified);
+        }
+    }
+    Gpu::DeviceVector<BCRec> bcs_device(bcs.size());
+    Gpu::copy(Gpu::hostToDevice, bcs.begin(), bcs.end(), bcs_device.begin());
+
+    ScalarDiffusionFieldViews field;
+    field.scalar = primitive.const_array();
+    field.density = state.const_array();
+    field.rho_comp = Rho_comp;
+    field.mu_turb = mu.const_array();
+    field.xflux = xflux.array();
+    field.yflux = yflux.array();
+    field.zflux = zflux.array();
+    field.rhs = rhs.array();
+    ScalarDiffusionFluxPolicy policy;
+    policy.coefficients = {Real(0.8), EddyDiff::Q_h, EddyDiff::Q_v};
+    policy.coefficient_mode = {true, false};
+    const GpuArray<Real, AMREX_SPACEDIM> inv{{Real(1.0), Real(1.0), Real(1.0)}};
+    const int q_components[] = {RhoQ3_comp, RhoQ4_comp, RhoQ7_comp, RhoQ8_comp};
+
+    auto copy_to_host = [](const FArrayBox& src, FArrayBox& dst) {
+        Gpu::copy(Gpu::deviceToHost, src.dataPtr(0), src.dataPtr(0) + src.size(),
+                  dst.dataPtr(0));
+        Gpu::streamSynchronize();
+    };
+    for (const int q_comp : q_components) {
+        field.scalar_comp = q_comp;
+        xflux.setVal<RunOn::Device>(Real(0.0));
+        yflux.setVal<RunOn::Device>(Real(0.0));
+        zflux.setVal<RunOn::Device>(Real(0.0));
+        BuildScalarDiffusionFluxes_N(
+            domain, domain, field, policy, inv, u.const_array(), v.const_array(),
+            mf_ux.const_array(), mf_uy.const_array(), mf_vx.const_array(),
+            mf_vy.const_array(), bcs_device.data(), q_comp);
+        Gpu::streamSynchronize();
+
+        FArrayBox xhost(xfaces, 1, The_Pinned_Arena());
+        FArrayBox yhost(yfaces, 1, The_Pinned_Arena());
+        FArrayBox zhost(zfaces, 1, The_Pinned_Arena());
+        copy_to_host(xflux, xhost);
+        copy_to_host(yflux, yhost);
+        copy_to_host(zflux, zhost);
+        const auto fx = xhost.const_array();
+        const auto fy = yhost.const_array();
+        const auto fz = zhost.const_array();
+        Real wall_max = Real(0.0);
+        Real interior_max = Real(0.0);
+        Real integrated_divergence = Real(0.0);
+        for (int k = domain.smallEnd(2); k <= domain.bigEnd(2); ++k) {
+            for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
+                wall_max = std::max(wall_max, std::abs(fx(domain.smallEnd(0),j,k,0)));
+                wall_max = std::max(wall_max, std::abs(fx(domain.bigEnd(0)+1,j,k,0)));
+                for (int i = domain.smallEnd(0)+1; i <= domain.bigEnd(0); ++i) {
+                    interior_max = std::max(interior_max, std::abs(fx(i,j,k,0)));
+                }
+            }
+        }
+        for (int k = domain.smallEnd(2); k <= domain.bigEnd(2); ++k) {
+            for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
+                wall_max = std::max(wall_max, std::abs(fy(i,domain.smallEnd(1),k,0)));
+                wall_max = std::max(wall_max, std::abs(fy(i,domain.bigEnd(1)+1,k,0)));
+                for (int j = domain.smallEnd(1)+1; j <= domain.bigEnd(1); ++j) {
+                    interior_max = std::max(interior_max, std::abs(fy(i,j,k,0)));
+                }
+            }
+        }
+        for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
+            for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
+                wall_max = std::max(wall_max, std::abs(fz(i,j,domain.smallEnd(2),0)));
+                wall_max = std::max(wall_max, std::abs(fz(i,j,domain.bigEnd(2)+1,0)));
+                for (int k = domain.smallEnd(2)+1; k <= domain.bigEnd(2); ++k) {
+                    interior_max = std::max(interior_max, std::abs(fz(i,j,k,0)));
+                }
+            }
+        }
+        for (int k = domain.smallEnd(2); k <= domain.bigEnd(2); ++k) {
+            for (int j = domain.smallEnd(1); j <= domain.bigEnd(1); ++j) {
+                for (int i = domain.smallEnd(0); i <= domain.bigEnd(0); ++i) {
+                    integrated_divergence += fx(i+1,j,k,0) - fx(i,j,k,0) +
+                        fy(i,j+1,k,0) - fy(i,j,k,0) +
+                        fz(i,j,k+1,0) - fz(i,j,k,0);
+                }
+            }
+        }
+        EXPECT_DOUBLE_EQ(wall_max, Real(0.0)) << "physical wall flux for Q" << q_comp;
+        EXPECT_GT(interior_max, Real(0.0)) << "interior flux for Q" << q_comp;
+        EXPECT_NEAR(integrated_divergence, Real(0.0),
+                    Real(512.0) * std::numeric_limits<Real>::epsilon())
+            << "closed-domain integrated flux balance for Q" << q_comp;
+    }
 }
 
 // Motivation: dry physical initialization must reject RH rather than
