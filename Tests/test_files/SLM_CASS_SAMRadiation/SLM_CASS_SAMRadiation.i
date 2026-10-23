@@ -98,7 +98,6 @@ erf.Pr_t      = 1.0
 erf.Sc_t      = 1.0
 
 erf.init_type = "input_sounding"
-erf.init_sounding_ideal = true
 erf.sounding_type = Ideal
 
 #erf.input_sounding_file = "sounding_cass"
