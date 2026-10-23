@@ -461,6 +461,66 @@ TEST(SurfaceLayerParallel, TextSstUsesPhysicalSurfaceCopyOnZSplitGrids)
     ParallelDescriptor::Barrier();
 }
 
+// Motivation: most.abs_surf_temp is converted with the pressure of the lowest cell of
+// each column.  On z-split grids the planar FABs of the boxes aloft must receive the
+// result computed from the physical surface copy, not one from their own state.  The
+// pressure varies along x, so a copy taken from the wrong column also fails, and the
+// cells aloft hold a different pressure, so a copy converted from its own state fails.
+TEST(SurfaceLayerParallel, AbsoluteSurfaceTemperatureUsesPhysicalSurfaceCopyOnZSplitGrids)
+{
+    ScopedMFIterTileSize tile_size(IntVect(AMREX_D_DECL(4, 4, 1024)));
+    const std::string prefix = "unit_surface_layer_parallel_abs_surf_temp_zsplit";
+    ScopedSurfaceLayerParams params(prefix.c_str(), "most.abs_surf_temp", Real(290.0));
+    ParmParse pp(prefix);
+    pp.add("most.surf_heating_rate", Real(3600.0));
+
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(false, IntVect(AMREX_D_DECL(16, 16, 2)));
+    const Real dz_half = myhalf * fields.geom.CellSize(2);
+    // Pressure at the surface below column i; aloft cells are set far from it
+    auto surface_pressure = [] (const int i) {
+        return Real(0.9) * p_0 - Real(100.0) * static_cast<Real>(i);
+    };
+    auto rho_theta_for = [] (const Real cell_pressure) {
+        return (p_0 / R_d) * std::pow(cell_pressure / p_0, Real(1.0) / Gamma);
+    };
+    const Real rho_theta_aloft = rho_theta_for(Real(0.5) * p_0);
+    for (MFIter mfi(fields.cons, false); mfi.isValid(); ++mfi) {
+        auto cons_arr = fields.cons.array(mfi);
+        const Real gdz = test_rho * CONST_GRAV * dz_half;
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            amrex::ignore_unused(j);
+            cons_arr(i,j,k,Rho_comp) = test_rho;
+            const Real p_cell = Real(0.9) * p_0 - Real(100.0) * static_cast<Real>(i) - gdz;
+            cons_arr(i,j,k,RhoTheta_comp) = (k == 0)
+                ? (p_0 / R_d) * std::pow(p_cell / p_0, Real(1.0) / Gamma)
+                : rho_theta_aloft;
+            cons_arr(i,j,k,RhoQ1_comp) = Real(0.0);
+        });
+    }
+    Gpu::streamSynchronize();
+
+    auto layer = fields.prepare_layer(
+        face, active_face(face), prefix, false, false, false, false);
+    // 2 s into a run that started 2026-10-22 00:00 UTC
+    layer->update_fluxes(0, 2.0, 1792627200.0 + 2.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+
+    const MultiFab* t_surf = layer->get_t_surf(0);
+    for (int ibox = 0; ibox < t_surf->boxArray().size(); ++ibox) {
+        const Box& box = t_surf->boxArray()[ibox];
+        for (const IntVect& point : {box.smallEnd(), box.bigEnd()}) {
+            const Real expected_theta = Real(292.0) *
+                std::pow(p_0 / surface_pressure(point[0]), RdoCp);
+            EXPECT_NEAR(global_fab_value(*t_surf, ibox, point, false), expected_theta,
+                        halo_tolerance(expected_theta))
+                << "box " << ibox << " point " << point;
+        }
+    }
+    pp.remove("most.surf_heating_rate");
+}
+
 // Motivation: coupled SST has water-only precedence over the fallback on a
 // z-split grid. A water column must use the covered coupled temperature,
 // convert it with the lowest-cell pressure, and copy that absolute-temperature

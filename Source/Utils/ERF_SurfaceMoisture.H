@@ -127,7 +127,7 @@ aerodynamic_resistance (const amrex::Real z_ref,
  * The aerodynamic resistance [s/m] the surface layer's moisture flux sees over a land
  * column whose skin temperature the two-stream balance gives it.
  *
- * Skin coupling needs erf.most.surf_temp, so that flux comes from the surface_temp
+ * Skin coupling needs a prescribed surface temperature, so that flux comes from the surface_temp
  * kernel. Its stability function is Jimenez's psi_h2 at z_ref / L (calc_psi_h2), not
  * Businger-Dyer's psi_h, and it is limited as in aerodynamic_resistance.
  *

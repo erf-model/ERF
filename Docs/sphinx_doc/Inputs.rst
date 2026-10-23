@@ -2876,7 +2876,7 @@ Every level samples the input sounding at its own cell centres, for the initial 
 state and for nudging, just as a single-level run at that resolution does; the large-scale forcing
 profiles are likewise interpolated to each level's own cell centres. A fine cell below the first
 level-0 cell centre therefore starts from the sounding's air values there, not from a blend with
-the surface line of the file (which, with ``erf.most.surf_temp``, holds the surface temperature).
+the surface line of the file (which, with ``erf.most.pot_surf_temp``, holds the surface temperature).
 
 .. _inputs-obs-nudging:
 
@@ -4059,14 +4059,26 @@ the ones marked **Required** abort the run if they are not given.
 | **erf.most.pblh_calc**                | which scheme diagnoses the PBL height used by the *w*\*  | none, MYNN25,       | none             |
 |                                       | correction                                               | MYNNEDMF, YSU, MRF  |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
-| **erf.most.surf_temp**                | prescribed surface potential temperature [K]; a positive | Real > 0            | -1.0 (not set)   |
+| **erf.most.pot_surf_temp**            | prescribed surface potential temperature [K]; a positive | Real > 0            | -1.0 (not set)   |
 |                                       | value selects the surface-temperature formulation        |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.abs_surf_temp**            | prescribed surface absolute temperature [K], converted   | Real > 0            | -1.0 (not set)   |
+|                                       | to potential temperature each step with the surface      |                     |                  |
+|                                       | pressure diagnosed from the lowest cell; z-low face      |                     |                  |
+|                                       | only, not with EB terrain, SST/TSK input,                |                     |                  |
+|                                       | ``erf.most.use_sfc_fluxes``, ``erf.most.use_sfc_sst``    |                     |                  |
+|                                       | or custom/rico/bulk_coeff fluxes                         |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.surf_temp**                | deprecated spelling of ``erf.most.pot_surf_temp``; at    | Real > 0            | -1.0 (not set)   |
+|                                       | most one of the three may be given, and a value that is  |                     |                  |
+|                                       | given must be positive                                   |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.surf_moist**               | prescribed surface moisture [kg/kg]; read only with an   | Real >= 0           | -1.0 (not set)   |
 |                                       | active moisture model                                    |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.surf_heating_rate**        | rate of change [K/h] applied to the prescribed surface   | Real                | 0.0              |
-|                                       | potential temperature; may not be combined with          |                     |                  |
+|                                       | temperature (absolute with ``abs_surf_temp``) from the   |                     |                  |
+|                                       | start of the simulation; may not be combined with        |                     |                  |
 |                                       | ``erf.most.surf_temp_flux``                              |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.surf_temp_flux**           | prescribed surface heat flux [K m/s]; may not be         | Real                | 0.0              |
@@ -4775,7 +4787,7 @@ atmospheric cell), ``start_datetime`` and the
 |                                                    | potential temperature), so its heat flux responds to       |                    |                  |
 |                                                    | T_s. Needs seb_prognostic_enable,                          |                    |                  |
 |                                                    | seb_turbulent_flux_source = surface_layer and a surface    |                    |                  |
-|                                                    | layer in surface-temperature mode (erf.most.surf_temp,     |                    |                  |
+|                                                    | layer in surface-temperature mode (most.*_surf_temp,       |                    |                  |
 |                                                    | no surf_heating_rate), not on EB terrain, without          |                    |                  |
 |                                                    | erf.use_rotate_surface_flux, with no land or surface       |                    |                  |
 |                                                    | model; each is checked at start-up                         |                    |                  |

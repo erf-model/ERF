@@ -72,23 +72,26 @@ make_parallel_distribution_mapping (const BoxArray& ba)
 class ScopedSurfaceLayerParams
 {
 public:
-    explicit ScopedSurfaceLayerParams (const char* prefix)
-        : m_pp(prefix)
+    explicit ScopedSurfaceLayerParams (const char* prefix,
+                                       std::string temp_key = "most.pot_surf_temp",
+                                       const Real temp = Real(300.0))
+        : m_pp(prefix), m_temp_key(std::move(temp_key))
     {
         m_pp.add("most.average_policy", 0);
         m_pp.add("most.z0", Real(0.1));
-        m_pp.add("most.surf_temp", Real(300.0));
+        m_pp.add(m_temp_key.c_str(), temp);
     }
 
     ~ScopedSurfaceLayerParams ()
     {
         m_pp.remove("most.average_policy");
         m_pp.remove("most.z0");
-        m_pp.remove("most.surf_temp");
+        m_pp.remove(m_temp_key.c_str());
     }
 
 private:
     ParmParse m_pp;
+    std::string m_temp_key;
 };
 
 class ScopedMFIterTileSize

@@ -18,7 +18,7 @@
 #   3. one-way and two-way: the skin ends cooler than with the defaults by the
 #      energy those fluxes carried away, sum(dt (H + LE)) / C_s, to within 5 %;
 #   4. one-way: the surface layer keeps its own surface temperature
-#      (erf.most.surf_temp, a potential temperature);
+#      (erf.most.pot_surf_temp, a potential temperature);
 #   5. two-way: the surface layer's t_surf is the skin temperature of the step
 #      before, converted to potential temperature, (p0 / p_sfc)^(R/cp) T_s.
 #
@@ -39,7 +39,7 @@ geometry.is_periodic = 1 1 0
 zlo.type = "surface_layer"
 erf.most.z0        = 0.1
 erf.most.zref      = 25.0
-erf.most.surf_temp = 301.5     # warmer than the air: H > 0
+erf.most.pot_surf_temp = 301.5     # warmer than the air: H > 0
 erf.most.surf_moist = 0.0095   # moister than the air: LE > 0
 zhi.type = "SlipWall"
 zhi.theta_grad = 0.003
