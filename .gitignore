@@ -24,7 +24,7 @@ chk*
 tmp_build_dir
 .ccls-cache
 *.ex
-AMReX_buildInfo.*.cpp
+AMReX_buildInfo*.cpp
 cmake-build*
 cmake_build*
 cmake*ser*
@@ -89,3 +89,7 @@ Exec/CanonicalTests/Radiation/TwoStream_Benchmark_Suite/benchmark_summary.md
 *.log
 diffs_*/
 Backtrace.*
+
+# Build trees next to the source (build/, build-cuda/, ...), at any depth
+build/
+build-*/
