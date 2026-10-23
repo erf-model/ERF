@@ -2923,6 +2923,25 @@ add_test_option_parity(IBSEB_RefinedLevels_PlotCadenceParity IBSEB_RefinedLevels
 add_test_r(PBL_IBAware_MRF_Smoothing         ""  "erf_exec" "plt00010")
 
 #=============================================================================
+# Inflow perturbations
+#=============================================================================
+
+# The inflow perturbations keep one mean wind, one refresh interval, one net-zero
+# correction and (for CPM) one random value per perturbation box, and key the
+# per-cell random values to the global cell index, so the answer must not depend
+# on the decomposition (#4317).  The 3-cell perturbation boxes straddle the 8-cell
+# grid boxes of the split run, and they refresh within the 30 steps.  The runs
+# are made in subdirectories, so the profiles are given with their full paths.
+foreach(_tp_type Direct CPM)
+    set(_tp_test TurbPert_${_tp_type}_BoxParity)
+    set(_tp_dir "${CMAKE_CURRENT_BINARY_DIR}/test_files/${_tp_test}")
+    add_test_box_parity(${_tp_test} TurbPert_BoxParity "plt00030"
+        COMMON_OPTIONS "erf.perturbation_type=${_tp_type} ylo.dirichlet_file=${_tp_dir}/stable_inflow.txt erf.input_sponge_file=${_tp_dir}/stable_sponge.txt erf.input_sounding_file=${_tp_dir}/stable_sounding.txt"
+        REFERENCE_OPTIONS "amr.max_grid_size=1024"
+        SPLIT_OPTIONS "amr.max_grid_size=8")
+endforeach()
+
+#=============================================================================
 # Station time-series output
 #=============================================================================
 

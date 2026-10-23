@@ -5,7 +5,8 @@
 #include "ERF_Constants.H"
 #include <AMReX_MultiFabUtil.H>
 #include <ERF_TileNoZ.H>
-#include <time.h>
+#include <ERF_HashRNG.H>
+#include <cstdint>
 /**
  * Container holding quantities related to turbulent perturbation parameters
  */
@@ -106,6 +107,19 @@ struct TurbulentPerturbation {
 
         input_w_amp = zero;
         pp.queryAdd("perturbation_w_amp",input_w_amp);
+
+        // Seed of the perturbation's random numbers, read the way erf.deterministic_ic_pert reads
+        // it. The numbers are hashed from the global cell index (or the perturbation-box index) and
+        // the box's refresh count, so they do not depend on the domain decomposition (#4317).
+        {
+            int fix_random_seed = 0;
+            long random_seed = -1;
+            amrex::ParmParse pp_erf("erf");
+            pp_erf.query("fix_random_seed", fix_random_seed);
+            pp_erf.query("random_seed", random_seed);
+            tpi_seed = fix_random_seed ? std::uint64_t(1024)
+                     : ((random_seed >= 0) ? static_cast<std::uint64_t>(random_seed) : std::uint64_t(0));
+        }
 
         // Negative sentinels rather than the queryAdd return values: k = 0 is a legal
         // bound, so the natural default cannot double as "unset", and the return value
@@ -232,6 +246,7 @@ struct TurbulentPerturbation {
             pb_interval.resize(num_levels);
             pb_local_etime.resize(num_levels);
             pb_amp.resize(num_levels);
+            pb_nupdate.resize(num_levels);
             pb_cell.resize(num_levels);
             tpi_Lpb.resize(num_levels);
             tpi_Wpb.resize(num_levels);
@@ -250,6 +265,7 @@ struct TurbulentPerturbation {
         pb_interval[lev].resize(pb_ba[lev].size(), -one);
         pb_local_etime[lev].resize(pb_ba[lev].size(), zero);
         pb_amp[lev].resize(pb_ba[lev].size(), zero);
+        pb_nupdate[lev].resize(pb_ba[lev].size(), 0);
 
         // Creating data array for perturbation amplitude storage
         if (pt_type[lev] == 3) { // CPM_W converts to the k-face ba.
@@ -303,44 +319,29 @@ struct TurbulentPerturbation {
                           amrex::MultiFab& mf_yvel,
                           amrex::MultiFab& mf_cons)
     {
-        // Resetting the net buoyant force value
-        tpi_net_buoyant = zero;
-
-        // Setting random number generator for update interval
-        srand( (unsigned) time(NULL) );
-
         auto m_ixtype = mf_cons.boxArray().ixType(); // safety step
         if (pt_type[lev] == 3) { m_ixtype = amrex::IndexType(amrex::IntVect(0,0,1)); }
 
-        // Seed the random generator at 1024UL for regression testing
-        int fix_random_seed = 0;
-        amrex::ParmParse pp("erf");
-        pp.queryAdd("fix_random_seed", fix_random_seed);
-        if (fix_random_seed) {
-            // We need this one for the ParalleForRNG used in calc_tpi
-            amrex::InitRandom(1024UL, amrex::ParallelDescriptor::NProcs(), 1024UL);
+        const int nboxes = pb_ba[lev].size();
 
-            // We need this one for the RandomReal below
-            srand(1024UL);
-        }
-
-        for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
-
-            bool update_box = true; // initialize flag
-            // Check if the local elapsed time is greater than the update interval and don't go into boxes the rank doesn't own
+        // Which boxes refresh this step. pb_interval and pb_local_etime hold the same values on
+        // every rank, so every rank makes the same choice.
+        amrex::Vector<int> update_box(nboxes, 0);
+        for (int boxIdx = 0; boxIdx < nboxes; boxIdx++) {
             if (pt_type[lev] == 2 || pt_type[lev] == 3) {
                 // for CPM, perturbation boxes/cells refresh after boxes have advected box width/length * num_layers (advective time scale)
-                update_box = ((pb_local_etime[lev][boxIdx] >= pb_interval[lev][boxIdx]*tpi_layers) && pb_local_etime[lev][boxIdx] != -one);
+                update_box[boxIdx] = ((pb_local_etime[lev][boxIdx] >= pb_interval[lev][boxIdx]*tpi_layers) && pb_local_etime[lev][boxIdx] != -one);
             } else {
-                update_box = ( pb_local_etime[lev][boxIdx] >= pb_interval[lev][boxIdx] && pb_local_etime[lev][boxIdx] != -one );
+                update_box[boxIdx] = ( pb_local_etime[lev][boxIdx] >= pb_interval[lev][boxIdx] && pb_local_etime[lev][boxIdx] != -one );
             }
-            if ( update_box ) {
+        }
 
-                // Compute mean velocity of each perturbation box
-                calc_tpi_meanMag_perBox(boxIdx, lev, mf_cons, mf_xvel, mf_yvel);
+        // Compute mean velocity of each refreshing perturbation box
+        calc_tpi_meanMag(lev, update_box, mf_cons, mf_xvel, mf_yvel);
 
-                // Only the rank owning the box will be able to access the storage location
-                // Done for parallelism to avoid Inf being stored in array
+        for (int boxIdx = 0; boxIdx < nboxes; boxIdx++) {
+            if ( update_box[boxIdx] ) {
+
                 if (pb_mag[lev][boxIdx] !=zero) {
                     double interval = 0.0;
                     if (pt_type[lev] == 2 || pt_type[lev] == 3) {
@@ -352,14 +353,15 @@ struct TurbulentPerturbation {
                     } else {
                         interval = tpi_lref[lev] / pb_mag[lev][boxIdx];
                     }
-                    pb_interval[lev][boxIdx] = RandomReal(static_cast<amrex::Real>(0.9*interval),
-                                                          static_cast<amrex::Real>(1.1*interval)); // 10% variation
+                    // 10% variation
+                    const amrex::Real r = erf_hash_rng::hash_uniform(boxIdx, pb_nupdate[lev][boxIdx], 0,
+                                                                     hash_comp_interval, lev, tpi_seed);
+                    pb_interval[lev][boxIdx] = (amrex::Real(0.9) + amrex::Real(0.2)*r) * interval;
 
                     // Reset local elapsed time
                     pb_local_etime[lev][boxIdx] = zero;
                 } else {
-                    // this box is not on this rank, we shouldn't enter it again.
-                    // Technically, all boxes are looped through on the very first step of a simulation and this is when this is set
+                    // No mean wind through this box, so no advective time scale: it is not refreshed again
                     pb_local_etime[lev][boxIdx] = -one;
                 }
 
@@ -369,31 +371,19 @@ struct TurbulentPerturbation {
                 // Trigger random amplitude storage per cell within perturbation box
                 pseudoRandomPert(boxIdx, lev, m_ixtype);
 
+                pb_nupdate[lev][boxIdx]++;
+
             } else {
                 // set perturbation amplitudes to 0 for CPM. A little inefficient but leverages as much as existing code as possible.
                 if (pt_type[lev] == 2 || pt_type[lev] == 3) { zero_amp(boxIdx, lev, m_ixtype); }
 
-                // Increase by timestep of level 0 (but only if the box is owned by this rank)
+                // Increase by timestep of level 0
                 if (pb_local_etime[lev][boxIdx] != -one) { pb_local_etime[lev][boxIdx] += dt; }
             } // if
-
-            if (pt_type[lev] < 2) { // box perturbation method only
-                // Per iteration operation of net-zero buoyant force check
-                if (pb_mag[lev][boxIdx] !=zero) netZeroBuoyantAdd(boxIdx, lev);
-                tpi_net_buoyant += pb_netZero[lev][boxIdx];
-            }
         } // for
 
         if (pt_type[lev] < 2) { // box perturbation method only
-            // Normalizing the adjustment based on how many boxes there are
-            // the values within the array is already normalized by the number
-            // of cells within each box
-            tpi_pert_adjust = tpi_net_buoyant / (amrex::Real) pb_ba[lev].size();
-
-            // Per iteration operation of net-zero buoyant force adjustment
-            for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
-                if (pb_mag[lev][boxIdx] !=zero) netZeroBuoyantAdjust(boxIdx, lev);
-            }
+            netZeroBuoyant(lev);
         }
     }
 
@@ -498,15 +488,17 @@ struct TurbulentPerturbation {
                 amrex::Real amp_copy = pb_amp[lev][boxIdx];
                 const amrex::Array4<amrex::Real>& pert_cell = pb_cell[lev].array(mfi);
 
-                if (pt_type[lev] == 2  || pt_type[lev] == 3) { // CPM
-                    amrex::Real rand_number_const = RandomReal(-one, one);
+                if (pt_type[lev] == 2  || pt_type[lev] == 3) { // CPM: one value per perturbation box
+                    const amrex::Real rand_number_const = erf_hash_rng::hash_symmetric(
+                        boxIdx, pb_nupdate[lev][boxIdx], 0, hash_comp_cpm, lev, tpi_seed);
                     ParallelFor(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                         pert_cell(i,j,k) = rand_number_const * amp_copy;
                     });
-                } else {
-                    ParallelForRNG(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k, const amrex::RandomEngine& engine) noexcept {
-                        amrex::Real rand_double = amrex::Random(engine);
-                        pert_cell(i,j,k) = (rand_double*two - one) * amp_copy;
+                } else { // one value per cell, keyed by its global index and the box's refresh count
+                    const std::uint64_t cell_seed = erf_hash_rng::splitmix64(
+                        tpi_seed ^ erf_hash_rng::splitmix64(static_cast<std::uint64_t>(pb_nupdate[lev][boxIdx])));
+                    ParallelFor(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                        pert_cell(i,j,k) = erf_hash_rng::hash_symmetric(i, j, k, hash_comp_cell, lev, cell_seed) * amp_copy;
                     });
                 }
             }
@@ -539,195 +531,122 @@ struct TurbulentPerturbation {
     }
 
     /**
-     * @brief Accumulate the mean perturbation contribution for net-zero buoyancy enforcement.
-     * @param boxIdx Perturbation-box index on the level.
+     * @brief Remove the mean of the box-perturbation field, so the net buoyant forcing is zero.
+     *
+     * Each perturbation box's mean is summed over every grid box it overlaps and over all
+     * ranks, so the correction does not depend on the domain decomposition.
      * @param lev AMR level index.
      */
-    void netZeroBuoyantAdd (const int& boxIdx,
-                            const int& lev)
+    void netZeroBuoyant (const int& lev)
     {
-        // Creating local copy of PB box array and magnitude
-        const amrex::BoxArray m_pb_ba = pb_ba[lev];
-        amrex::Real* m_pb_netZero = pb_netZero[lev].data();
+        const int nboxes = pb_ba[lev].size();
 
-        // Create device array for summation
-        amrex::Vector<amrex::Real> avg_h(1,zero);
-        amrex::Gpu::DeviceVector<amrex::Real> avg_d(1,zero);
-        amrex::Real* avg = avg_d.data();
-
-        // Iterates through the cells of each box and sum the white noise perturbation
-        for (amrex::MFIter mfi(pb_cell[lev], TileNoZ()) ; mfi.isValid(); ++mfi) {
+        // Sum and cell count of each perturbation box, then one reduction over the ranks
+        amrex::Vector<amrex::Real> sums(2*nboxes, zero);
+        for (amrex::MFIter mfi(pb_cell[lev]); mfi.isValid(); ++mfi) {
             const amrex::Box& vbx = mfi.validbox();
-            amrex::Box pbx = amrex::convert(m_pb_ba[boxIdx], vbx.ixType());
-            amrex::Box ubx = pbx & vbx;
-            if (ubx.ok()) {
-                const amrex::Array4<const amrex::Real>& pert_cell = pb_cell[lev].const_array(mfi);
-                amrex::Real norm = one / static_cast<amrex::Real>(ubx.numPts());
-                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubx, [=]
-                AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
-                    amrex::Gpu::deviceReduceSum(&avg[0], pert_cell(i,j,k)*norm, handler);
+            const amrex::Array4<const amrex::Real>& pert_cell = pb_cell[lev].const_array(mfi);
+            for (const auto& isect : pb_ba[lev].intersections(vbx)) {
+                sums[2*isect.first  ] += box_sum(pert_cell, isect.second);
+                sums[2*isect.first+1] += static_cast<amrex::Real>(isect.second.numPts());
+            }
+        }
+        amrex::ParallelAllReduce::Sum(sums.data(), static_cast<int>(sums.size()),
+                                      amrex::ParallelContext::CommunicatorSub());
+
+        // Normalizing the adjustment based on how many boxes there are; each box's
+        // value is already normalized by the number of cells within it
+        tpi_net_buoyant = zero;
+        for (int boxIdx = 0; boxIdx < nboxes; boxIdx++) {
+            pb_netZero[lev][boxIdx] = (sums[2*boxIdx+1] > zero) ? sums[2*boxIdx] / sums[2*boxIdx+1] : zero;
+            tpi_net_buoyant += pb_netZero[lev][boxIdx];
+        }
+        tpi_pert_adjust = tpi_net_buoyant / static_cast<amrex::Real>(nboxes);
+
+        const amrex::Real adjust = tpi_pert_adjust;
+        for (amrex::MFIter mfi(pb_cell[lev]); mfi.isValid(); ++mfi) {
+            const amrex::Box& vbx = mfi.validbox();
+            const amrex::Array4<amrex::Real>& pert_cell = pb_cell[lev].array(mfi);
+            for (const auto& isect : pb_ba[lev].intersections(vbx)) {
+                ParallelFor(isect.second, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    pert_cell(i,j,k) -= adjust;
                 });
-                amrex::Gpu::copy(amrex::Gpu::deviceToHost, avg_d.begin(), avg_d.end(), avg_h.begin());
-
-                // Assigning onto storage array
-                m_pb_netZero[boxIdx] = avg_h[0];
             }
         }
     }
 
     /**
-     * @brief Adjust perturbation cells so the net buoyant forcing is zero.
-     * @param boxIdx Perturbation-box index on the level.
+     * @brief Compute the mean horizontal velocity magnitude and direction of the refreshing perturbation boxes.
+     *
+     * The velocities are summed over every grid box a perturbation box overlaps, each face once,
+     * and over all ranks, so every rank gets the same mean whatever the domain decomposition.
      * @param lev AMR level index.
-     */
-    void netZeroBuoyantAdjust (const int& boxIdx,
-                               const int& lev)
-    {
-        // Creating local copy of PB box array and magnitude
-        const amrex::BoxArray m_pb_ba = pb_ba[lev];
-        for (amrex::MFIter mfi(pb_cell[lev], TileNoZ()) ; mfi.isValid(); ++mfi) {
-            const amrex::Box& vbx = mfi.validbox();
-            amrex::Box pbx = amrex::convert(m_pb_ba[boxIdx], vbx.ixType());
-            amrex::Box ubx = pbx & vbx;
-            if (ubx.ok()) {
-               const amrex::Real adjust = tpi_pert_adjust;
-               const amrex::Array4<amrex::Real>& pert_cell = pb_cell[lev].array(mfi);
-               ParallelFor(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                   pert_cell(i,j,k) -= adjust;
-               });
-            }
-        }
-    }
-
-// TODO: Test the difference between these two for Source term perturbation
-#define USE_VOLUME_AVERAGE
-    /**
-     * @brief Compute mean horizontal velocity magnitude and direction for one perturbation box.
-     * @param boxIdx Perturbation-box index on the level.
-     * @param lev AMR level index.
+     * @param update_box Nonzero for the perturbation boxes that refresh this step.
      * @param mf_cons Conserved state used for iteration layout.
      * @param mf_xvel X-velocity field.
      * @param mf_yvel Y-velocity field.
      */
-    void calc_tpi_meanMag_perBox (const int& boxIdx,
-                                  const int& lev,
-                                  amrex::MultiFab& mf_cons,
-                                  amrex::MultiFab& mf_xvel,
-                                  amrex::MultiFab& mf_yvel)
-
+    void calc_tpi_meanMag (const int& lev,
+                           const amrex::Vector<int>& update_box,
+                           amrex::MultiFab& mf_cons,
+                           amrex::MultiFab& mf_xvel,
+                           amrex::MultiFab& mf_yvel)
     {
-        // Creating local copy of PB box array and magnitude
-        const amrex::BoxArray m_pb_ba = pb_ba[lev];
-        amrex::Real* m_pb_mag = pb_mag[lev].data();
-        amrex::Real* m_pb_dir = pb_dir[lev].data();
-        m_pb_mag[boxIdx] = zero; // Safety step
-        m_pb_dir[boxIdx] = zero; // Safety step
+        const amrex::BoxArray& m_pb_ba = pb_ba[lev];
+        const int nboxes = m_pb_ba.size();
 
-        // Storage of averages per PB
-        // Index: 0=u (vol/slab_lo), 1=v (vol/slab_lo)
-        //        2=u (slab_hi),     3=v (slab_hi)
-        int n_avg = 4;
-        amrex::Vector<amrex::Real> avg_h(n_avg,zero);
-        amrex::Gpu::DeviceVector<amrex::Real> avg_d(n_avg,zero);
-        amrex::Real* avg = avg_d.data();
+        // Per box: sum of u, number of u faces, sum of v, number of v faces
+        amrex::Vector<amrex::Real> sums(4*nboxes, zero);
+        for (amrex::MFIter mfi(mf_cons); mfi.isValid(); ++mfi) {
+            const amrex::Box& vbx = mfi.validbox(); // cell centered
+            const amrex::Array4<const amrex::Real>& xvel_arry = mf_xvel.const_array(mfi);
+            const amrex::Array4<const amrex::Real>& yvel_arry = mf_yvel.const_array(mfi);
+            for (const auto& isect : m_pb_ba.intersections(vbx)) {
+                const int boxIdx = isect.first;
+                if (!update_box[boxIdx]) { continue; }
+                const amrex::Box& pbx = m_pb_ba[boxIdx];
 
-        // Averaging u & v components in single MFIter
-        for (amrex::MFIter mfi(mf_cons, TileNoZ()); mfi.isValid(); ++mfi) {
+                // The faces of the overlap's cells; the high face only where the overlap ends
+                // at the perturbation box's high side, so a face shared by two grid boxes counts once
+                amrex::Box ubx_u = amrex::surroundingNodes(isect.second, 0);
+                if (isect.second.bigEnd(0) < pbx.bigEnd(0)) { ubx_u.growHi(0, -1); }
+                amrex::Box ubx_v = amrex::surroundingNodes(isect.second, 1);
+                if (isect.second.bigEnd(1) < pbx.bigEnd(1)) { ubx_v.growHi(1, -1); }
 
-            // CC valid box (inherited from mf_cons)
-            const amrex::Box& vbx = mfi.validbox();
+                sums[4*boxIdx  ] += box_sum(xvel_arry, ubx_u);
+                sums[4*boxIdx+1] += static_cast<amrex::Real>(ubx_u.numPts());
+                sums[4*boxIdx+2] += box_sum(yvel_arry, ubx_v);
+                sums[4*boxIdx+3] += static_cast<amrex::Real>(ubx_v.numPts());
+            }
+        }
+        amrex::ParallelAllReduce::Sum(sums.data(), static_cast<int>(sums.size()),
+                                      amrex::ParallelContext::CommunicatorSub());
 
-            // Box logic for u velocity
-            auto ixtype_u    = mf_xvel.boxArray().ixType();
-            amrex::Box vbx_u = amrex::convert(vbx,ixtype_u);
-            amrex::Box pbx_u = amrex::convert(m_pb_ba[boxIdx], ixtype_u);
-            amrex::Box ubx_u = pbx_u & vbx_u;
+        for (int boxIdx = 0; boxIdx < nboxes; boxIdx++) {
+            if (!update_box[boxIdx]) { continue; }
+            const amrex::Real u_avg = (sums[4*boxIdx+1] > zero) ? sums[4*boxIdx  ] / sums[4*boxIdx+1] : zero;
+            const amrex::Real v_avg = (sums[4*boxIdx+3] > zero) ? sums[4*boxIdx+2] / sums[4*boxIdx+3] : zero;
+            pb_mag[lev][boxIdx] = std::sqrt(u_avg*u_avg + v_avg*v_avg);
+            pb_dir[lev][boxIdx] = std::atan(std::abs(u_avg) / std::abs(v_avg+std::numeric_limits<amrex::Real>::epsilon()));
+        }
+    }
 
-            // Box logic for v velocity
-            auto ixtype_v    = mf_yvel.boxArray().ixType();
-            amrex::Box vbx_v = amrex::convert(vbx,ixtype_v);
-            amrex::Box pbx_v = amrex::convert(m_pb_ba[boxIdx], ixtype_v);
-            amrex::Box ubx_v = pbx_v & vbx_v;
-
-            // Operation over box union (U)
-            if (ubx_u.ok()) {
-                const amrex::Array4<const amrex::Real>& xvel_arry = mf_xvel.const_array(mfi);
-
-                #ifdef USE_VOLUME_AVERAGE
-                amrex::Real norm = one / static_cast<amrex::Real>(ubx_u.numPts());
-                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubx_u, [=]
-                AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
-                    amrex::Gpu::deviceReduceSum(&avg[0], xvel_arry(i,j,k)*norm, handler);
-                });
-                #endif // USE_VOLUME_AVERAGE
-
-                #ifdef USE_SLAB_AVERAGE
-                amrex::Box ubxSlab_lo = makeSlab(ubx_u,2,ubx_u.smallEnd(2));
-                amrex::Box ubxSlab_hi = makeSlab(ubx_u,2,ubx_u.bigEnd(2));
-                amrex::Real norm_lo = one / static_cast<amrex::Real>(ubxSlab_lo.numPts());
-                amrex::Real norm_hi = one / static_cast<amrex::Real>(ubxSlab_hi.numPts());
-
-                // Average u in the low slab
-                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubxSlab_lo, [=]
-                AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
-                    amrex::Gpu::deviceReduceSum(&avg[0], xvel_arry(i,j,k)*norm_lo, handler);
-                });
-
-                // Average u in the high slab
-                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubxSlab_hi, [=]
-                AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
-                    amrex::Gpu::deviceReduceSum(&avg[2], xvel_arry(i,j,k)*norm_hi, handler);
-                });
-                #endif // USE_SLAB_AVERAGE
-            } // if
-
-            // Operation over box union (V)
-            if (ubx_v.ok()) {
-                const amrex::Array4<const amrex::Real>& yvel_arry = mf_yvel.const_array(mfi);
-
-                #ifdef USE_VOLUME_AVERAGE
-                amrex::Real norm = one / static_cast<amrex::Real>(ubx_v.numPts());
-                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubx_v, [=]
-                AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
-                    amrex::Gpu::deviceReduceSum(&avg[1], yvel_arry(i,j,k)*norm, handler);
-                });
-                #endif // USE_VOLUME_AVERAGE
-
-                #ifdef USE_SLAB_AVERAGE
-                amrex::Box ubxSlab_lo = makeSlab(ubx_v,2,ubx_v.smallEnd(2));
-                amrex::Box ubxSlab_hi = makeSlab(ubx_v,2,ubx_v.bigEnd(2));
-                amrex::Real norm_lo = one / static_cast<amrex::Real>(ubxSlab_lo.numPts());
-                amrex::Real norm_hi = one / static_cast<amrex::Real>(ubxSlab_hi.numPts());
-
-                // Average v in the low slab
-                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubxSlab_lo, [=]
-                AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
-                    amrex::Gpu::deviceReduceSum(&avg[1], yvel_arry(i,j,k)*norm_lo, handler);
-                });
-
-                // Average v in the high slab
-                ParallelFor(amrex::Gpu::KernelInfo().setReduction(true), ubxSlab_hi, [=]
-                AMREX_GPU_DEVICE(int i, int j, int k, amrex::Gpu::Handler const& handler) noexcept {
-                    amrex::Gpu::deviceReduceSum(&avg[3], yvel_arry(i,j,k)*norm_hi, handler);
-                });
-                #endif // USE_SLAB_AVERAGE
-            } // if
-        } // MFIter
-
-        // Copy from device back to host
-        amrex::Gpu::copy(amrex::Gpu::deviceToHost, avg_d.begin(), avg_d.end(), avg_h.begin());
-
-        // Computing the average magnitude within PB
-        #ifdef USE_VOLUME_AVERAGE
-        m_pb_mag[boxIdx] = std::sqrt(avg_h[0]*avg_h[0] + avg_h[1]*avg_h[1]);
-        m_pb_dir[boxIdx] = std::atan(std::abs(avg_h[0]) / std::abs(avg_h[1]+std::numeric_limits<amrex::Real>::epsilon()));
-        #endif
-
-        #ifdef USE_SLAB_AVERAGE
-        m_pb_mag[boxIdx] = myhalf*( std::sqrt(avg_h[0]*avg_h[0] + avg_h[1]*avg_h[1])
-                                  + std::sqrt(avg_h[2]*avg_h[2] + avg_h[3]*avg_h[3]));
-        m_pb_dir[boxIdx] = std::atan(std::abs(myhalf*(avg_h[0]+avg_h[2])) / std::abs(myhalf*(avg_h[1]+avg_h[3])+std::numeric_limits<amrex::Real>::epsilon()));
-        #endif
+    /**
+     * @brief Sum an array over a box.
+     * @param arr Array to sum.
+     * @param bx Box to sum over.
+     * @return Sum of arr over bx.
+     */
+    static amrex::Real box_sum (const amrex::Array4<const amrex::Real>& arr, const amrex::Box& bx)
+    {
+        amrex::ReduceOps<amrex::ReduceOpSum> reduce_op;
+        amrex::ReduceData<amrex::Real> reduce_data(reduce_op);
+        using ReduceTuple = typename decltype(reduce_data)::Type;
+        reduce_op.eval(bx, reduce_data, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> ReduceTuple
+        {
+            return {arr(i,j,k)};
+        });
+        return amrex::get<0>(reduce_data.value(reduce_op));
     }
 
     /**
@@ -796,18 +715,13 @@ struct TurbulentPerturbation {
     amrex::Vector<amrex::Vector<double>> pb_local_etime;      // PB local elapsed time [s]
     amrex::Vector<amrex::Vector<amrex::Real>> pb_amp;         // PB perturbation amplitude Ri:[K]
     amrex::Vector<amrex::Vector<amrex::Real>> pb_netZero;     // PB array used for net zero sum calculation
+    amrex::Vector<amrex::Vector<int>>         pb_nupdate;     // PB number of refreshes so far
 
-    /**
-     * @brief Return a pseudo-random real value in a closed interval.
-     * @param min Lower bound of the interval.
-     * @param max Upper bound of the interval.
-     * @return Pseudo-random value between min and max.
-     */
-    amrex::Real RandomReal (const amrex::Real min, const amrex::Real max)
-    {
-        amrex::Real r = (amrex::Real) rand() / (amrex::Real) RAND_MAX;
-        return min + r * (max - min);
-    }
+    // Random numbers
+    std::uint64_t tpi_seed = 0;                // seed of the hashed random numbers
+    static constexpr int hash_comp_cell     = 0; // hash salts of the three uses
+    static constexpr int hash_comp_cpm      = 1;
+    static constexpr int hash_comp_interval = 2;
 
 };
 
@@ -866,5 +780,15 @@ struct TurbulentPerturbation {
  * @brief Perturbation amplitude for each perturbation box.
  * @var TurbulentPerturbation::pb_netZero
  * @brief Per-box storage used for net-zero buoyancy calculation.
+ * @var TurbulentPerturbation::pb_nupdate
+ * @brief Number of times each perturbation box has been refreshed; keys its random numbers.
+ * @var TurbulentPerturbation::tpi_seed
+ * @brief Seed of the hashed random numbers (1024 with erf.fix_random_seed, else erf.random_seed, else 0).
+ * @var TurbulentPerturbation::hash_comp_cell
+ * @brief Hash salt of the per-cell perturbation values.
+ * @var TurbulentPerturbation::hash_comp_cpm
+ * @brief Hash salt of the per-box CPM values.
+ * @var TurbulentPerturbation::hash_comp_interval
+ * @brief Hash salt of the refresh-interval variation.
  */
 #endif
