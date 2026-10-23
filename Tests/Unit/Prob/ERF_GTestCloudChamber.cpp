@@ -9,6 +9,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
+#include <iostream>
 #include <limits>
 #include <string>
 
@@ -490,11 +492,19 @@ TEST(CloudChamberWallDiffusion, ExtraMoistureLanesAreImpermeable)
     }
     Gpu::streamSynchronize();
     for (int n = 0; n < 4; ++n) {
-        EXPECT_DOUBLE_EQ(wall_flux.norm0(n, 0, false), Real(0.0))
+        const Real wall_max = wall_flux.norm0(n, 0, false);
+        const Real interior_max = interior_flux.norm0(n, 0, false);
+        const Real seam_max = seam_flux.norm0(n, 0, false);
+        std::cout << std::setprecision(17)
+                  << "cloud_chamber_extra_q_stencil component=" << q_comps[n]
+                  << " wall_flux_max=" << wall_max
+                  << " interior_flux_max=" << interior_max
+                  << " seam_flux_max=" << seam_max << "\n";
+        EXPECT_DOUBLE_EQ(wall_max, Real(0.0))
             << "wall flux leaked from Q" << q_comps[n];
-        EXPECT_GT(interior_flux.norm0(n, 0, false), Real(0.0))
+        EXPECT_GT(interior_max, Real(0.0))
             << "interior gradient was vacuous for Q" << q_comps[n];
-        EXPECT_GT(seam_flux.norm0(n, 0, false), Real(0.0))
+        EXPECT_GT(seam_max, Real(0.0))
             << "inter-box seam flux was vacuous for Q" << q_comps[n];
     }
     EXPECT_GT(ext_dir_mutant_flux.norm0(0, 0, false), Real(0.0))
@@ -649,6 +659,13 @@ TEST(CloudChamberWallDiffusion, NoSlipMappingUsesProductionScalarAdapter)
         EXPECT_NEAR(integrated_divergence, Real(0.0),
                     Real(512.0) * std::numeric_limits<Real>::epsilon())
             << "closed-domain integrated flux balance for Q" << q_comp;
+        std::cout << std::setprecision(17)
+                  << "cloud_chamber_extra_q_adapter component=" << q_comp
+                  << " wall_flux_max=" << wall_max
+                  << " interior_flux_max=" << interior_max
+                  << " integrated_divergence=" << integrated_divergence
+                  << " balance_tolerance="
+                  << Real(512.0) * std::numeric_limits<Real>::epsilon() << "\n";
     }
 }
 

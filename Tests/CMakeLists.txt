@@ -108,8 +108,7 @@ if(ERF_ENABLE_TESTS)
   target_include_directories(erf_cloud_chamber_check PRIVATE
     $<TARGET_PROPERTY:erf_srclib,INTERFACE_INCLUDE_DIRECTORIES>)
   target_compile_features(erf_cloud_chamber_check PRIVATE cxx_std_17)
-  set(CLOUD_CHAMBER_CHECKER
-      "${CMAKE_CURRENT_BINARY_DIR}/erf_cloud_chamber_check${CMAKE_EXECUTABLE_SUFFIX}")
+  set(CLOUD_CHAMBER_CHECKER "$<TARGET_FILE:erf_cloud_chamber_check>")
 
   # Run the typed Cloud Chamber parser directly in a child process so its
   # allowlist abort can be tested without the earlier global solver guards.
@@ -119,8 +118,7 @@ if(ERF_ENABLE_TESTS)
   target_include_directories(erf_cloud_chamber_parser_check PRIVATE
     $<TARGET_PROPERTY:erf_srclib,INTERFACE_INCLUDE_DIRECTORIES>)
   target_compile_features(erf_cloud_chamber_parser_check PRIVATE cxx_std_17)
-  set(CLOUD_CHAMBER_PARSER_CHECKER
-      "${CMAKE_CURRENT_BINARY_DIR}/erf_cloud_chamber_parser_check${CMAKE_EXECUTABLE_SUFFIX}")
+  set(CLOUD_CHAMBER_PARSER_CHECKER "$<TARGET_FILE:erf_cloud_chamber_parser_check>")
 
   # Motivation: the TwoStream column sweep must keep the surface at k = 0 and
   # cool to space from the top layer; this checker reads qsrc_sw / qsrc_lw

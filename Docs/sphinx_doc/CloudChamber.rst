@@ -1113,11 +1113,12 @@ Bulk-microphysics verification
 The short ``CloudChamber_Bulk`` cases are startup and finite-state smoke
 regressions for the supported Eulerian moisture models. Passing them does
 not, by itself, demonstrate cloud-water production, precipitation formation,
-sedimentation, or conservation. The separate ``CloudChamber_Active`` case
-checks Kessler_NoRain cloud-water production, vapor transfer relative to a
-MoistNoCondensation control, a positive latent-temperature response in
-cloud-bearing cells, and closed total nonprecipitating water mass for dry
-walls. Its initial profile is checked against the analytic RH=1 state.
+sedimentation, or conservation. The separate
+``CloudChamber_Active_KesslerNoRain`` case checks Kessler_NoRain cloud-water
+production, vapor transfer relative to a MoistNoCondensation control, a
+positive latent-temperature response in cloud-bearing cells, and closed total
+nonprecipitating water mass for dry walls. Its initial profile is checked
+against the analytic RH=1 state.
 
 The ``CloudChamber_WDM6_ActiveRestart`` regression checks cloud water, cloud
 drop number, and evolved CCN number before a step-500 checkpoint, then checks
@@ -1126,12 +1127,20 @@ state and surface accumulations. The shorter WDM6 restart case remains a
 restart smoke test.
 
 Seeded Kessler public-flow tests exercise native sedimentation and bottom
-rain accumulation, while the chamber active case exercises condensation and
-wall behavior end to end. The current chamber matrix does not establish
-nonzero clean-start rain collection in a full Kessler chamber run. A dry wall
-blocks water-vapor exchange; it does not block the selected scheme's
-hydrometeor sedimentation or surface precipitation accumulation. The chamber
-interval water budget remains limited to dry and SatAdj configurations.
+rain accumulation, while the chamber active case exercises condensation,
+thermal wall response, and water-vapor exchange end to end. The current chamber
+matrix does not establish nonzero clean-start rain collection in a full
+Kessler chamber run. A dry wall blocks water-vapor exchange; it does not block
+the selected scheme's hydrometeor sedimentation or surface precipitation
+accumulation. The chamber interval water budget remains limited to dry and
+SatAdj configurations.
+
+Extra conserved moisture lanes use the NoSlipWall scalar boundary mapping and
+the production N-grid scalar-diffusion adapter in a focused regression. A
+separate multibox stencil check covers the physical faces and box seams. These
+tests do not execute the complete ``ERF::init_bcs`` to slow-RHS call path, so
+they provide adapter-level evidence for extra-lane wall fluxes rather than an
+end-to-end chamber assertion for those lanes.
 
 Operationally enabled bulk models have not thereby been calibrated or
 validated against laboratory Pi-Chamber observations.

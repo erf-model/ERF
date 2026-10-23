@@ -178,7 +178,7 @@ function(add_test_cloud_chamber TEST_NAME MODE)
     set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i")
     set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
     set(test_checker_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.checker.log")
-    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
         "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
         "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
         "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
@@ -226,7 +226,7 @@ function(add_test_cloud_chamber_bulk_model TEST_NAME MODEL)
     set(test_input "${CURRENT_TEST_BINARY_DIR}/CloudChamber_Bulk.i")
     set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
     set(test_checker_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.checker.log")
-    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
         "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
         "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
         "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
@@ -259,7 +259,7 @@ function(add_test_cloud_chamber_active_condensation TEST_NAME)
     set(test_input "${CURRENT_TEST_BINARY_DIR}/CloudChamber_ActiveCondensation.i")
     set(simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
     set(checker_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.checker.log")
-    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
         "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
         "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
         "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
@@ -285,7 +285,7 @@ function(add_test_cloud_chamber_parser_reject TEST_NAME MODEL)
     setup_test()
     set(test_input "${CURRENT_TEST_BINARY_DIR}/CloudChamber_ActiveCondensation.i")
     set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.parser.log")
-    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
         "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
         "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
         "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
@@ -314,7 +314,7 @@ function(add_test_cloud_chamber_bulk_legacy TEST_NAME MODEL)
     set(test_input "${CURRENT_TEST_BINARY_DIR}/CloudChamber_Bulk_Legacy.i")
     set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
     set(test_checker_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.checker.log")
-    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
         "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
         "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
         "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
@@ -345,7 +345,7 @@ function(add_test_cloud_chamber_bulk_reject TEST_NAME MODEL BUDGET EXPECTED_TEXT
     resolve_test_exe("" "erf_exec" TEST_EXE)
     set(test_input "${CURRENT_TEST_BINARY_DIR}/CloudChamber_Bulk.i")
     set(test_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
-    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
         "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
         "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
         "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
@@ -585,7 +585,7 @@ function(add_test_cloud_chamber_parity TEST_NAME)
     endif()
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
-    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
         "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
         "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
         "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
@@ -1088,7 +1088,7 @@ function(add_test_cloud_chamber_budget TEST_NAME MODE SOURCE_NAME)
     set(TEST_FILES_DIR "${SOURCE_NAME}")
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
-    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
         "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
         "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
         "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
@@ -1285,7 +1285,7 @@ function(add_test_cloud_chamber_neutral_momentum TEST_NAME)
     set(TEST_FILES_DIR "CloudChamber_Dry_NeutralMomentum")
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
-    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
         "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
         "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
         "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
@@ -1310,7 +1310,7 @@ function(add_test_cloud_chamber_fixed_momentum TEST_NAME)
     set(TEST_FILES_DIR "CloudChamber_Dry_FixedMomentum")
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
-    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
         "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
         "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
         "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
@@ -1336,7 +1336,7 @@ function(add_test_cloud_chamber_most TEST_NAME)
     set(TEST_FILES_DIR "CloudChamber_SatAdj_MOSTMixedWalls")
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
-    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
         "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
         "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
         "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
@@ -1380,7 +1380,7 @@ function(add_test_cloud_chamber_openmp TEST_NAME)
     endif()
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
-    add_test(${TEST_NAME} ${CMAKE_COMMAND}
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
         "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
         "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
         "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
