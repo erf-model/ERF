@@ -873,9 +873,9 @@ SAMFaceState sam_face_average_state (const int& k,
                                      const amrex::Real& rho_k,
                                      const amrex::Real tabs_km1,
                                      const amrex::Real tabs_k,
-                                     const amrex::Real& qci_km1,
+                                     const amrex::Real& /*qci_km1*/,
                                      const amrex::Real& qci_k,
-                                     const amrex::Real qp_km1,
+                                     const amrex::Real /*qp_km1*/,
                                      const amrex::Real qp_k) noexcept
 {
     SAMFaceState result{};
