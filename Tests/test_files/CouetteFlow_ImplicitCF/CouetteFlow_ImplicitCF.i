@@ -14,7 +14,7 @@
 erf.prob_name = "Couette Flow"
 
 max_step = 50
-erf.fixed_dt = 0.2          # coarse; the fine level takes two steps of 0.1
+erf.fixed_dt = 0.01          # coarse; the fine level takes two steps of 0.1
 
 amrex.fpe_trap_invalid = 1
 
