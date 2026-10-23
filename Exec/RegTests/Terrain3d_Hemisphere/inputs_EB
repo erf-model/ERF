@@ -2,6 +2,7 @@
 erf.prob_name = "Terrain - 3D Hemisphere" 
 
 #max_step = 8000
+max_step = 100
 
 amrex.fpe_trap_invalid = 1
 

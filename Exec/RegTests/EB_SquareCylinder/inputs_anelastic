@@ -2,6 +2,7 @@
 erf.prob_name = "EB Square Cylinder"
 
 #max_step = 10000000
+max_step = 100
 
 amrex.fpe_trap_invalid = 1
 
