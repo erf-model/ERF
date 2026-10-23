@@ -4342,6 +4342,23 @@ List of Parameters
 +-----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **wdm6.ccn0**                     | Background CCN number concentration for WDM6             | Positive real (m^-3) | 100.0e6 (m^-3)   |
 +-----------------------------------+----------------------------------------------------------+----------------------+------------------+
+| **erf.use_morr_cpp_answer**       | Morrison implementation: true = native C++, false =      | Boolean              | true             |
+|                                   | Fortran bridge. Must be left true unless ERF is built    |                      |                  |
+|                                   | with ``USE_MORR_FORT=TRUE`` (GNU Make) or                |                      |                  |
+|                                   | ``ERF_ENABLE_MORR_FORT=ON`` (CMake)                      |                      |                  |
++-----------------------------------+----------------------------------------------------------+----------------------+------------------+
+| **erf.use_wsm6_cpp_answer**       | WSM6 implementation: true = native C++, false =          | Boolean              | false            |
+|                                   | Fortran bridge. Read only when ERF is built with         |                      |                  |
+|                                   | ``USE_WSM6_FORT=TRUE`` (GNU Make) or                     |                      |                  |
+|                                   | ``ERF_ENABLE_WSM6_FORT=ON`` (CMake); otherwise ignored   |                      |                  |
+|                                   | and native C++ always runs                               |                      |                  |
++-----------------------------------+----------------------------------------------------------+----------------------+------------------+
+| **erf.use_wdm6_cpp_answer**       | WDM6 implementation: true = native C++, false =          | Boolean              | false            |
+|                                   | Fortran bridge. Read only when ERF is built with         |                      |                  |
+|                                   | ``USE_WDM6_FORT=TRUE`` (GNU Make) or                     |                      |                  |
+|                                   | ``ERF_ENABLE_WDM6_FORT=ON`` (CMake); otherwise ignored   |                      |                  |
+|                                   | and native C++ always runs                               |                      |                  |
++-----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **erf.microphysics_debug**        | verbosity of the WSM6 and WDM6 microphysics debug        | 0, 1, 2              | 0                |
 |                                   | output; values outside the range are clamped into it     |                      |                  |
 +-----------------------------------+----------------------------------------------------------+----------------------+------------------+
