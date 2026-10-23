@@ -70,9 +70,15 @@ SurfaceLayer::update_fluxes (const int& lev,
         fill_tsurf_with_sfc_sst(lev, elapsed_time, cons_in, z_phys_nd);
     }
 
-    // Apply heating rate if needed
+    // Apply heating rate if needed.  The rate is applied from the start of the
+    // simulation, so it is given the elapsed simulation time, not the time since the
+    // start of the lower-boundary data: that includes start_time, which with
+    // erf.start_datetime and no wrflowinp file is the epoch time of the start.
     if (theta_type == ThetaCalcType::SURFACE_TEMPERATURE) {
-        update_surf_temp(elapsed_time_since_start_low);
+        update_surf_temp(elapsed_time);
+        if (surf_temp_is_absolute) {
+            fill_tsurf_with_abs_surf_temp(lev, elapsed_time, cons_in, z_phys_nd);
+        }
     }
 
     // Overwrite the covered water cells with coupled ocean SST. This must come
@@ -2517,6 +2523,115 @@ SurfaceLayer::fill_tsurf_with_coupled_sst (const int& lev,
     amrex::Gpu::streamSynchronize();
     erf_surface_temperature::abort_on_conversion_failure("SurfaceLayer fill_tsurf_with_coupled_sst",
                                                          lev, d_fail.dataValue());
+}
+
+/**
+ * Set t_surf from the prescribed absolute surface temperature, converted to potential
+ * temperature at the surface pressure.
+ *
+ * @param[in] lev       Current level
+ * @param[in] time      Elapsed time, for the heating rate
+ * @param[in] cons_in   Conserved state (surface pressure from the lowest cell)
+ * @param[in] z_phys_nd Nodal heights, or nullptr on a flat mesh
+ */
+void
+SurfaceLayer::fill_tsurf_with_abs_surf_temp (const int& lev,
+                                             const double& time,
+                                             const MultiFab& cons_in,
+                                             const std::unique_ptr<MultiFab>& z_phys_nd)
+{
+    const Real t_abs = surf_temp + surf_heating_rate * static_cast<Real>(time);
+    if (surf_heating_rate != 0) {
+        amrex::Print() << "Surface temp (absolute) at t=" << time << ": " << t_abs << std::endl;
+    }
+
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+    const Real dz = m_geom[lev].CellSize(2);
+    const bool moist = use_moisture;
+    const Real rdOcp = m_rdOcp;
+    // As in fill_tsurf_with_coupled_sst: a moist run whose state lacks the vapour
+    // component aborts below rather than reading past the components.
+    const bool have_rho_qv = cons_in.nComp() > RhoQ1_comp;
+    amrex::Gpu::DeviceScalar<erf_surface_temperature::ConversionFailure>
+        d_fail(erf_surface_temperature::ConversionFailure{});
+    auto* fail = d_fail.dataPtr();
+
+    for (MFIter mfi(*t_surf[lev]); mfi.isValid(); ++mfi)
+    {
+        Box gtbx = mfi.growntilebox();
+        if (gtbx.smallEnd(2) != klo ||
+            !m_planar_bndry[lev].is_surface_copy(mfi.index())) {
+            continue;
+        }
+        gtbx &= t_surf[lev]->fabbox(mfi.index());
+        if (gtbx.isEmpty()) { continue; }
+
+        // The halo takes the pressure of the nearest valid column; fill_planar_boundary
+        // in update_fluxes then fills the interior and periodic ghosts.
+        const Box vbx = mfi.validbox();
+        const int i_lo = vbx.smallEnd(0); const int i_hi = vbx.bigEnd(0);
+        const int j_lo = vbx.smallEnd(1); const int j_hi = vbx.bigEnd(1);
+
+        auto t_surf_arr = t_surf[lev]->array(mfi);
+        const auto cons_arr = cons_in.const_array(mfi);
+        const auto z_arr    = (z_phys_nd) ? z_phys_nd->const_array(mfi) :
+                                            Array4<const Real> {};
+
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            const int li = amrex::min(amrex::max(i, i_lo), i_hi);
+            const int lj = amrex::min(amrex::max(j, j_lo), j_hi);
+
+            // The state is checked before it is divided by, as in fill_tsurf_with_coupled_sst,
+            // so that a bad state reaches the diagnostic rather than a floating-point trap.
+            const Real rho = cons_arr(li,lj,klo,Rho_comp);
+            const Real rho_theta = cons_arr(li,lj,klo,RhoTheta_comp);
+            if (!amrex::Math::isfinite(rho) || rho <= Real(0.0) ||
+                !amrex::Math::isfinite(rho_theta)) {
+                erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_density,
+                    li, lj, klo, rho, rho_theta);
+                return;
+            }
+            Real rho_qv = Real(0.0);
+            Real qv = Real(0.0);
+            if (moist) {
+                if (!have_rho_qv) {
+                    erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::no_moisture_comp,
+                        li, lj, klo);
+                    return;
+                }
+                rho_qv = cons_arr(li,lj,klo,RhoQ1_comp);
+                if (!amrex::Math::isfinite(rho_qv)) {
+                    erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_rho_qv,
+                        li, lj, klo, rho, rho_theta, rho_qv);
+                    return;
+                }
+                qv = rho_qv / rho;
+                if (!amrex::Math::isfinite(qv)) {
+                    erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_qv,
+                        li, lj, klo, rho, rho_theta, rho_qv);
+                    return;
+                }
+            }
+            const Real delta_z = z_arr
+                ? Compute_Z_AtCellCenter(li,lj,klo,z_arr) -
+                  Compute_Z_AtWFace(li,lj,klo,z_arr)
+                : myhalf*dz;
+            const Real pressure = erf_surface_temperature::pressure_at_boundary_from_cell(
+                rho, rho_theta, qv, delta_z);
+            Real theta = t_surf_arr(i,j,k);
+            if (erf_surface_temperature::temperature_to_theta(
+                    t_abs, pressure, rdOcp, theta)) {
+                t_surf_arr(i,j,k) = theta;
+            } else {
+                erf_surface_temperature::record_conversion_failure(fail, true, erf_surface_temperature::ConversionError::bad_temperature_to_theta,
+                    li, lj, klo, rho, rho_theta, rho_qv, t_abs, pressure, delta_z);
+            }
+        });
+    }
+    amrex::Gpu::streamSynchronize();
+    erf_surface_temperature::abort_on_conversion_failure(
+        "SurfaceLayer fill_tsurf_with_abs_surf_temp", lev, d_fail.dataValue());
 }
 
 /**

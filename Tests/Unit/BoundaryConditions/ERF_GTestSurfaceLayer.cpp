@@ -246,24 +246,59 @@ MoengStressValues compute_moeng_stress_values ()
 class ScopedSurfaceLayerParams
 {
 public:
-    explicit ScopedSurfaceLayerParams (const char* prefix)
-        : m_pp(prefix)
+    explicit ScopedSurfaceLayerParams (const char* prefix,
+                                       std::string temp_key = "most.pot_surf_temp",
+                                       const Real temp = Real(300.0))
+        : m_pp(prefix), m_temp_key(std::move(temp_key))
     {
         m_pp.add("most.average_policy", 0);
         m_pp.add("most.z0", Real(0.1));
-        m_pp.add("most.surf_temp", Real(300.0));
+        m_pp.add(m_temp_key.c_str(), temp);
     }
 
     ~ScopedSurfaceLayerParams ()
     {
         m_pp.remove("most.average_policy");
         m_pp.remove("most.z0");
-        m_pp.remove("most.surf_temp");
+        m_pp.remove(m_temp_key.c_str());
     }
 
 private:
     ParmParse m_pp;
+    std::string m_temp_key;
 };
+
+// Makes amrex::Abort and the AMREX_ALWAYS_ASSERT family throw amrex::RuntimeError
+// for the life of the object, so that a test can check a configuration is rejected.
+class ScopedThrowOnAbort
+{
+public:
+    ScopedThrowOnAbort () : m_saved(amrex::system::throw_exception)
+    {
+        amrex::system::throw_exception = true;
+    }
+    ~ScopedThrowOnAbort () { amrex::system::throw_exception = m_saved; }
+    ScopedThrowOnAbort (const ScopedThrowOnAbort&) = delete;
+    ScopedThrowOnAbort& operator= (const ScopedThrowOnAbort&) = delete;
+
+private:
+    bool m_saved;
+};
+
+// Expects f to abort with a message containing text, so that a configuration is shown
+// to be rejected for the reason under test and not for some other one.
+template <typename F>
+void
+expect_abort_mentioning (F&& f, const std::string& text)
+{
+    ScopedThrowOnAbort throw_on_abort;
+    try {
+        f();
+        ADD_FAILURE() << "expected an abort mentioning \"" << text << "\"";
+    } catch (const amrex::RuntimeError& e) {
+        EXPECT_NE(std::string(e.what()).find(text), std::string::npos) << e.what();
+    }
+}
 
 struct SurfaceLayerFields
 {
@@ -280,6 +315,9 @@ struct SurfaceLayerFields
     std::unique_ptr<MultiFab> lsm_tsurf;
     std::unique_ptr<MultiFab> coupled_sst;
     std::unique_ptr<iMultiFab> coupled_valid;
+    // Lower-boundary SST by time, passed to make_SurfaceLayer_at_level; empty unless a
+    // test fills it
+    Vector<std::unique_ptr<MultiFab>> sst_data;
 
     Vector<std::unique_ptr<iMultiFab>> lmask;
     std::unique_ptr<MultiFab> no_walldist;
@@ -442,12 +480,11 @@ struct SurfaceLayerFields
             lsm_data.push_back(lsm_tsurf.get());
             lsm_names.push_back(lsm_name);
         }
-        Vector<std::unique_ptr<MultiFab>> sst;
         Vector<std::unique_ptr<MultiFab>> tsk;
         layer->make_SurfaceLayer_at_level(
             0, 1, state, theta, qv_prim[0], qr_prim, z_phys_nd[0],
             nullptr, nullptr, nullptr, lsm_data, lsm_names,
-            empty_mfs, empty_names, sst, tsk, lmask);
+            empty_mfs, empty_names, sst_data, tsk, lmask);
         if (coupled_active) {
             layer->update_coupled_sst_ptr(0, coupled_sst.get(), coupled_valid.get());
         }
@@ -968,6 +1005,226 @@ TEST(SurfaceLayer, PrescribedMostHeatingRateRemainsPotentialTemperatureTendency)
     const IntVect point = face_point(fields.domain, face);
     EXPECT_EQ(mf_value(*layer->get_t_surf(0), point), test_surface_temperature + Real(2.0));
     pp.remove("most.surf_heating_rate");
+}
+
+// Motivation: the heating rate is applied from the start of the simulation.  The time
+// since the start of the lower-boundary data includes start_time, which with a dated
+// start and no wrflowinp file is an epoch time, so it must not be what is used.
+TEST(SurfaceLayer, PrescribedMostHeatingRateUsesElapsedSimulationTime)
+{
+    const std::string prefix = "unit_surface_layer_most_heating_dated";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    ParmParse pp(prefix);
+    pp.add("most.surf_heating_rate", Real(3600.0));
+
+    SurfaceLayerFields fields;
+    const Orientation face(Direction::z, Orientation::low);
+    auto layer = fields.prepare_layer(face, active_faces({face}), prefix);
+    // 2 s into a run that started 2026-10-22 00:00 UTC
+    layer->update_fluxes(0, 2.0, 1792627200.0 + 2.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+
+    const IntVect point = face_point(fields.domain, face);
+    EXPECT_EQ(mf_value(*layer->get_t_surf(0), point), test_surface_temperature + Real(2.0));
+    pp.remove("most.surf_heating_rate");
+}
+
+// Motivation: most.abs_surf_temp is an absolute temperature, which MOST needs as the
+// potential temperature at the pressure of the surface.  The expected value is
+// T (p_0/p)^(R_d/c_p) at the surface pressure set below, not ERF's own conversion.
+TEST(SurfaceLayer, AbsoluteSurfaceTemperatureIsConvertedWithSurfacePressure)
+{
+    const std::string prefix = "unit_surface_layer_abs_surf_temp";
+    ScopedSurfaceLayerParams params(prefix.c_str(), "most.abs_surf_temp", Real(290.0));
+
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(geom);
+    const Real pressure = Real(0.9) * p_0;
+    fields.set_surface_cell_pressure(
+        pressure - test_rho * CONST_GRAV * myhalf * geom.CellSize(2));
+    auto layer = fields.prepare_layer(face, active_faces({face}), prefix);
+
+    const Real expected_theta = Real(290.0) * std::pow(p_0 / pressure, RdoCp);
+    const IntVect point = face_point(fields.domain, face);
+    EXPECT_NEAR(mf_value(*layer->get_t_surf(0), point), expected_theta,
+                Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta);
+}
+
+// Motivation: with most.abs_surf_temp the heating rate changes the absolute
+// temperature, from the start of the simulation, and the result follows the
+// surface pressure of the step it is converted on.
+TEST(SurfaceLayer, AbsoluteSurfaceHeatingRateUsesElapsedTimeAndCurrentPressure)
+{
+    const std::string prefix = "unit_surface_layer_abs_heating";
+    ScopedSurfaceLayerParams params(prefix.c_str(), "most.abs_surf_temp", Real(290.0));
+    ParmParse pp(prefix);
+    pp.add("most.surf_heating_rate", Real(3600.0));
+
+    const Geometry geom = make_qsurf_geometry();
+    const Orientation face(Direction::z, Orientation::low);
+    SurfaceLayerFields fields(geom);
+    const Real dz_half = myhalf * geom.CellSize(2);
+    fields.set_surface_cell_pressure(Real(0.9) * p_0 - test_rho * CONST_GRAV * dz_half);
+    auto layer = fields.prepare_layer(face, active_faces({face}), prefix);
+
+    const Real pressure = Real(0.8) * p_0;
+    fields.set_surface_cell_pressure(pressure - test_rho * CONST_GRAV * dz_half);
+    // 2 s into a run that started 2026-10-22 00:00 UTC
+    layer->update_fluxes(0, 2.0, 1792627200.0 + 2.0, fields.cons, nullptr,
+                         fields.no_walldist, 20);
+
+    const Real expected_theta = Real(292.0) * std::pow(p_0 / pressure, RdoCp);
+    const IntVect point = face_point(fields.domain, face);
+    EXPECT_NEAR(mf_value(*layer->get_t_surf(0), point), expected_theta,
+                Real(64.0) * std::numeric_limits<Real>::epsilon() * expected_theta);
+    pp.remove("most.surf_heating_rate");
+}
+
+// Motivation: a surface temperature that is given must select the boundary condition
+// or stop the run.  A non-positive value used to be treated as not given, so it was
+// silently ignored, and alongside another key it bypassed the one-key check.
+TEST(SurfaceLayer, SurfaceTemperatureKeysAreRejectedWhenInvalidOrRepeated)
+{
+    const Orientation face(Direction::z, Orientation::low);
+    struct Case { const char* name; const char* key; Real value; bool with_pot; const char* why; };
+    const char* positive = "must be positive";
+    const char* only_one = "Specify only one";
+    const Case cases[] = {
+        {"abs_zero",          "most.abs_surf_temp", Real( 0.0),  false, positive},
+        {"abs_negative",      "most.abs_surf_temp", Real(-5.0),  false, positive},
+        {"pot_zero",          "most.pot_surf_temp", Real( 0.0),  false, positive},
+        {"abs_zero_with_pot", "most.abs_surf_temp", Real( 0.0),  true,  only_one},
+        {"abs_with_pot",      "most.abs_surf_temp", Real(290.0), true,  only_one},
+        {"old_with_pot",      "most.surf_temp",     Real(300.0), true,  only_one},
+    };
+    for (const auto& c : cases) {
+        SCOPED_TRACE(c.name);
+        const std::string prefix = std::string("unit_surface_layer_bad_st_") + c.name;
+        ParmParse pp(prefix);
+        pp.add("most.average_policy", 0);
+        pp.add("most.z0", Real(0.1));
+        pp.add(c.key, c.value);
+        if (c.with_pot) { pp.add("most.pot_surf_temp", Real(300.0)); }
+
+        SurfaceLayerFields fields;
+        expect_abort_mentioning([&] {
+            static_cast<void>(fields.prepare_layer(face, active_faces({face}), prefix));
+        }, c.why);
+
+        pp.remove("most.average_policy");
+        pp.remove("most.z0");
+        pp.remove(c.key);
+        if (c.with_pot) { pp.remove("most.pot_surf_temp"); }
+    }
+}
+
+// Motivation: most.use_sfc_fluxes turns the fluxes custom after the constructor has
+// checked most.abs_surf_temp against most.flux_type, and the file then supplies the
+// heat flux, so the prescribed temperature would be ignored.
+TEST(SurfaceLayer, AbsoluteSurfaceTemperatureRejectsSurfaceFluxFile)
+{
+    const std::string prefix = "unit_surface_layer_abs_sfc_fluxes";
+    const auto file = std::filesystem::path(
+        erf_gtest_temp_path("erf_surface_layer_abs_sfc_fluxes_" + std::to_string(sizeof(Real))).string() + ".txt");
+    ScopedTestFile cleanup(file);
+    {
+        std::ofstream out(file);
+        ASSERT_TRUE(out.good());
+        out << "day sst(K) H LE TAU\n0.0 290.0 10.0 20.0 0.1\n1.0 290.0 10.0 20.0 0.1\n";
+    }
+
+    ScopedSurfaceLayerParams params(prefix.c_str(), "most.abs_surf_temp", Real(290.0));
+    ParmParse pp(prefix);
+    pp.add("most.use_sfc_fluxes", true);
+    pp.add("most.sfc_file", file.string());
+
+    SurfaceLayerFields fields;
+    const Orientation face(Direction::z, Orientation::low);
+    expect_abort_mentioning([&] {
+        static_cast<void>(fields.prepare_layer(face, active_faces({face}), prefix));
+    }, "most.abs_surf_temp cannot be combined with most.use_sfc_fluxes");
+
+    pp.remove("most.use_sfc_fluxes");
+    pp.remove("most.sfc_file");
+}
+
+// Motivation: the sfc-file SST fill writes the SST over water and uses the prescribed
+// value over land as a potential temperature, so an absolute one would be misread.
+TEST(SurfaceLayer, AbsoluteSurfaceTemperatureRejectsSfcFileSst)
+{
+    const std::string prefix = "unit_surface_layer_abs_sfc_sst";
+    const auto file = std::filesystem::path(
+        erf_gtest_temp_path("erf_surface_layer_abs_sfc_sst_" + std::to_string(sizeof(Real))).string() + ".txt");
+    ScopedTestFile cleanup(file);
+    {
+        std::ofstream out(file);
+        ASSERT_TRUE(out.good());
+        out << "day sst(K)\n0.0 290.0\n1.0 290.0\n";
+    }
+
+    ScopedSurfaceLayerParams params(prefix.c_str(), "most.abs_surf_temp", Real(290.0));
+    ParmParse pp(prefix);
+    pp.add("most.use_sfc_sst", true);
+    pp.add("most.sfc_file", file.string());
+
+    SurfaceLayerFields fields;
+    const Orientation face(Direction::z, Orientation::low);
+    expect_abort_mentioning([&] {
+        static_cast<void>(fields.prepare_layer(face, active_faces({face}), prefix));
+    }, "most.abs_surf_temp cannot be combined with SST/TSK or sfc-file SST input");
+
+    pp.remove("most.use_sfc_sst");
+    pp.remove("most.sfc_file");
+}
+
+// Motivation: the lower-boundary SST/TSK fill uses the prescribed value as its land
+// temperature, which is a potential temperature there.  The combination is rejected
+// at level setup, before any step uses it.
+TEST(SurfaceLayer, AbsoluteSurfaceTemperatureRejectsLowerBoundarySst)
+{
+    const std::string prefix = "unit_surface_layer_abs_lowbdy_sst";
+    ScopedSurfaceLayerParams params(prefix.c_str(), "most.abs_surf_temp", Real(290.0));
+
+    SurfaceLayerFields fields;
+    fields.sst_data.push_back(std::make_unique<MultiFab>(
+        collapse_z(fields.ba), fields.dm, 1, 0));
+    fields.sst_data[0]->setVal(Real(290.0));
+    const Orientation face(Direction::z, Orientation::low);
+    expect_abort_mentioning([&] {
+        static_cast<void>(fields.prepare_layer(face, active_faces({face}), prefix,
+                                               false, false));
+    }, "most.abs_surf_temp cannot be combined with SST/TSK or sfc-file SST input");
+}
+
+// Motivation: the conversion divides by the density of the lowest cell.  A state that
+// cannot give a pressure must reach the conversion diagnostic, as on the SST paths,
+// rather than a floating-point trap or a surface temperature built from it.
+TEST(SurfaceLayer, AbsoluteSurfaceTemperatureReportsUnusableState)
+{
+    const std::string prefix = "unit_surface_layer_abs_bad_state";
+    ScopedSurfaceLayerParams params(prefix.c_str(), "most.abs_surf_temp", Real(290.0));
+
+    const Orientation face(Direction::z, Orientation::low);
+    for (const Real bad_rho : {Real(0.0), Real(-1.0),
+                               std::numeric_limits<Real>::quiet_NaN()}) {
+        SCOPED_TRACE(bad_rho);
+        SurfaceLayerFields fields(make_qsurf_geometry());
+        auto layer = fields.prepare_layer(face, active_faces({face}), prefix,
+                                          true, false);
+        fields.cons.setVal(bad_rho, Rho_comp, 1);
+
+        testing::internal::CaptureStdout();
+        {
+            ScopedThrowOnAbort throw_on_abort;
+            EXPECT_THROW(layer->update_fluxes(0, 0.0, 0.0, fields.cons, nullptr,
+                                              fields.no_walldist, 20),
+                         amrex::RuntimeError);
+        }
+        const std::string report = testing::internal::GetCapturedStdout();
+        EXPECT_NE(report.find("fill_tsurf_with_abs_surf_temp"), std::string::npos) << report;
+        EXPECT_NE(report.find("density or (rho theta)"), std::string::npos) << report;
+    }
 }
 
 // Motivation: by default Noah-MP's t_sfc, an absolute radiative temperature

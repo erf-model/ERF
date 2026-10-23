@@ -81,7 +81,7 @@ erf.radiation.surface_emissivity_lw   = 0.99    # Longwave emissivity, clamped t
 # 4. Two-way coupling with the zlo surface layer
 # ==============================================================================
 # Both options need seb_prognostic_enable, seb_turbulent_flux_source = surface_layer, a zlo
-# surface layer in surface-temperature mode (erf.most.surf_temp given, no
+# surface layer in surface-temperature mode (erf.most.pot_surf_temp given, no
 # erf.most.surf_heating_rate), no EB terrain, no erf.use_rotate_surface_flux and no land or
 # surface model; ERF checks each at start-up. A level that takes its radiation from its
 # parent (a nested patch) is not coupled, with a warning.
@@ -90,7 +90,7 @@ erf.radiation.seb_surface_layer_uses_moisture = false  # ... and its land surfac
 
 zlo.type           = "surface_layer"
 erf.most.z0        = 0.1       # [m] Roughness length. With the skin coupling and seb_soil_type, when not given: f_veg Z0MVT + (1 - f_veg) Z0SOIL from Noah-MP's tables (section 6; a NOTE prints the value used).
-erf.most.surf_temp = 300.0     # [K] Surface-temperature mode; with the skin coupling only the initial value and the value over water. Must equal the sounding's surface theta.
+erf.most.pot_surf_temp = 300.0     # [K] Surface-temperature mode; with the skin coupling only the initial value and the value over water. Must equal the sounding's surface theta.
 erf.most.surf_moist = 0.010    # [kg/kg] Surface-moisture mode; with the moisture coupling only the initial value and the value over water (qsat there). Must equal the sounding's surface qv.
 
 # ==============================================================================

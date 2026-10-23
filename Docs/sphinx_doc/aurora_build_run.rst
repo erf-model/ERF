@@ -342,7 +342,7 @@ The ABL case (``inputs_ml_most``) demonstrates a typical configuration:
    # MOST surface layer
    erf.most.z0        = 0.1
    erf.most.zref      = 8.0
-   erf.most.surf_temp = 1.1
+   erf.most.pot_surf_temp = 1.1
 
    # Time stepping
    erf.fixed_dt = 1.0
