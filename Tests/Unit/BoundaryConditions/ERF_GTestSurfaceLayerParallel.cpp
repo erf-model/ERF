@@ -129,6 +129,26 @@ void set_coupled_sst_ramp (MultiFab& coupled_sst)
     Gpu::streamSynchronize();
 }
 
+// Column state whose lowest cell sits at pressure 0.9 p_0 - 100 i - gdz, with every cell
+// aloft at a single rho theta far from it
+void set_abs_surf_temp_column_state (MultiFab& cons, const Real gdz, const Real rho_theta_aloft)
+{
+    for (MFIter mfi(cons, false); mfi.isValid(); ++mfi) {
+        auto cons_arr = cons.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            amrex::ignore_unused(j);
+            cons_arr(i,j,k,Rho_comp) = test_rho;
+            const Real p_cell = Real(0.9) * p_0 - Real(100.0) * static_cast<Real>(i) - gdz;
+            cons_arr(i,j,k,RhoTheta_comp) = (k == 0)
+                ? (p_0 / R_d) * std::pow(p_cell / p_0, Real(1.0) / Gamma)
+                : rho_theta_aloft;
+            cons_arr(i,j,k,RhoQ1_comp) = Real(0.0);
+        });
+    }
+    Gpu::streamSynchronize();
+}
+
 } // namespace
 
 // On grids split in z the planar surface-layer arrays hold one duplicate box per stacked 3D box;
@@ -485,21 +505,8 @@ TEST(SurfaceLayerParallel, AbsoluteSurfaceTemperatureUsesPhysicalSurfaceCopyOnZS
         return (p_0 / R_d) * std::pow(cell_pressure / p_0, Real(1.0) / Gamma);
     };
     const Real rho_theta_aloft = rho_theta_for(Real(0.5) * p_0);
-    for (MFIter mfi(fields.cons, false); mfi.isValid(); ++mfi) {
-        auto cons_arr = fields.cons.array(mfi);
-        const Real gdz = test_rho * CONST_GRAV * dz_half;
-        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-        {
-            amrex::ignore_unused(j);
-            cons_arr(i,j,k,Rho_comp) = test_rho;
-            const Real p_cell = Real(0.9) * p_0 - Real(100.0) * static_cast<Real>(i) - gdz;
-            cons_arr(i,j,k,RhoTheta_comp) = (k == 0)
-                ? (p_0 / R_d) * std::pow(p_cell / p_0, Real(1.0) / Gamma)
-                : rho_theta_aloft;
-            cons_arr(i,j,k,RhoQ1_comp) = Real(0.0);
-        });
-    }
-    Gpu::streamSynchronize();
+    set_abs_surf_temp_column_state(fields.cons, test_rho * CONST_GRAV * dz_half,
+                                   rho_theta_aloft);
 
     auto layer = fields.prepare_layer(
         face, active_face(face), prefix, false, false, false, false);
