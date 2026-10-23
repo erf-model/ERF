@@ -54,9 +54,39 @@ struct StationVar
     std::string units;
     bool is_2d      = false;              // comes from the 2D diagnostic catalog
     bool is_missing = false;              // valid 2D name, inactive in this run
+    bool cells_may_be_missing = false;    // active 2D field whose cells may hold missing_value
     amrex::Real missing_value = amrex::Real(0.0);
     int comp = -1;                        // component in the filled MultiFab
 };
+
+//
+// Bilinear interpolation of the four values around a station, with weights
+// (1-wx)(1-wy), wx(1-wy), (1-wx)wy and wx*wy.  A value equal to missing_value, or
+// not finite, is left out and the weights of the others are renormalised, so a
+// missing neighbour cannot be blended in as a number; missing_value is returned
+// only when every neighbour with a nonzero weight is missing.
+//
+inline amrex::Real
+station_bilinear_skip_missing (amrex::Real v00, amrex::Real v10,
+                               amrex::Real v01, amrex::Real v11,
+                               amrex::Real wx, amrex::Real wy,
+                               amrex::Real missing_value)
+{
+    const amrex::Real v[4] = {v00, v10, v01, v11};
+    const amrex::Real w[4] = {(amrex::Real(1.0)-wx)*(amrex::Real(1.0)-wy),
+                              wx*(amrex::Real(1.0)-wy),
+                              (amrex::Real(1.0)-wx)*wy,
+                              wx*wy};
+    amrex::Real sum = amrex::Real(0.0);
+    amrex::Real wsum = amrex::Real(0.0);
+    for (int n = 0; n < 4; ++n) {
+        if (w[n] > amrex::Real(0.0) && std::isfinite(v[n]) && v[n] != missing_value) {
+            sum  += w[n] * v[n];
+            wsum += w[n];
+        }
+    }
+    return (wsum > amrex::Real(0.0)) ? sum / wsum : missing_value;
+}
 
 struct StationLoc
 {

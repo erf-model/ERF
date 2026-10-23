@@ -738,6 +738,12 @@ ERF::init_stations ()
                     if (!containerHasElement(requested_2d, var.name)) {
                         requested_2d.push_back(var.name);
                     }
+                    // Its cells may hold the plotfile's -999 where the diagnostic
+                    // could not be formed; the interpolation leaves those out.
+                    if (descriptor->missing_policy == plotfile2d::MissingPolicy::FillMinus999WhenUnavailable) {
+                        var.cells_may_be_missing = true;
+                        var.missing_value = Real(-999.0);
+                    }
                 } else {
                     // Same convention as the 2D plotfile: a diagnostic that this
                     // run does not compute is written as its documented missing
@@ -1456,7 +1462,16 @@ ERF::sample_stations (Real time)
                 for (const auto& var : station.vars) {
                     if (!var.is_2d) { continue; }
                     const int gcol = station.columns[icol++];
-                    row[gcol] = var.is_missing ? var.missing_value : bilinear(a2, var.comp, 0);
+                    if (var.is_missing) {
+                        row[gcol] = var.missing_value;
+                    } else if (var.cells_may_be_missing) {
+                        row[gcol] = station_bilinear_skip_missing(
+                            a2(i0,j0,0,var.comp), a2(i1,j0,0,var.comp),
+                            a2(i0,j1,0,var.comp), a2(i1,j1,0,var.comp),
+                            wx, wy, var.missing_value);
+                    } else {
+                        row[gcol] = bilinear(a2, var.comp, 0);
+                    }
                 }
 
                 const Real z_zero = station.heights_are_agl ? z_surf : Real(0.0);

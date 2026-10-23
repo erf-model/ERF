@@ -620,6 +620,12 @@ public:
               "most.abs_surf_temp cannot be combined with SST/TSK or sfc-file SST input");
       }
 
+      // By default an LSM field named "tsurf", "theta" or "t_surf" is copied into
+      // t_surf unchanged. With this option the LSM skin temperature ("tsurf" from
+      // SLM, "t_sfc" from Noah-MP) is taken as an absolute temperature and
+      // converted to potential temperature at the surface pressure.
+      pp.queryAdd("most.use_lsm_skin_temperature", m_use_lsm_skin_temperature);
+
       // Get pointers to LSM data and Fluxes
       int ndata = static_cast<int>(lsm_data.size());
       int nflux = static_cast<int>(lsm_flux.size());
@@ -631,9 +637,15 @@ public:
           m_lsm_data_name[n]     = lsm_data_name[n];
           m_lsm_data_lev[lev][n] = lsm_data[n];
           const std::string lc_name = amrex::toLower(lsm_data_name[n]);
-          if (lc_name == "tsurf" || lc_name == "theta" || lc_name == "t_surf") {
+          // With most.use_lsm_skin_temperature, "tsurf" (SLM) and "t_sfc" (Noah-MP)
+          // are absolute skin temperatures and are converted to potential
+          // temperature in get_lsm_tsurf; "theta" and "t_surf" are taken to be
+          // potential temperature already.
+          if (lc_name == "tsurf" || (m_use_lsm_skin_temperature && lc_name == "t_sfc") ||
+              lc_name == "theta" || lc_name == "t_surf") {
               m_has_lsm_tsurf  = true;
               m_lsm_tsurf_indx = n;
+              m_lsm_tsurf_is_theta = (lc_name == "theta" || lc_name == "t_surf");
           }
       }
       if (m_use_sfc_sst && m_use_coupled_sst) {
@@ -1159,11 +1171,17 @@ public:
                                       int col) const;
 
   /**
-   * Fill surface temperature from the LSM surface-temperature field.
+   * Fill surface temperature from the LSM surface-temperature field, converted to
+   * potential temperature at the surface pressure when the field is an absolute
+   * temperature.
    *
-   * @param[in] lev level index
+   * @param[in] lev       level index
+   * @param[in] cons_in   conserved state (surface pressure from the lowest cell)
+   * @param[in] z_phys_nd nodal heights, or nullptr on a flat mesh
    */
-  void get_lsm_tsurf (const int& lev);
+  void get_lsm_tsurf (const int& lev,
+                      const amrex::MultiFab& cons_in,
+                      const std::unique_ptr<amrex::MultiFab>& z_phys_nd);
 
   /**
    * Wrapper around compute_pblh.
@@ -1782,6 +1800,8 @@ private:
   bool m_has_lsm_fluxes = false;
   bool m_has_lsm_tsurf  = false;
   int  m_lsm_tsurf_indx = -1;
+  bool m_lsm_tsurf_is_theta = false;
+  bool m_use_lsm_skin_temperature = false;
 
   // variables for sfc/sst forcing from file
   bool m_use_sfc_fluxes = false;
