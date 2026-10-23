@@ -712,6 +712,19 @@ if(EXISTS "${ERF_NOAHMP_TABLE}")
   endif()
 endif()
 
+# The static inputs checker (Exec/Tools/check_erf_inputs.py). Plain Python, no ERF
+# run: its self-test writes small decks that must trip each check and siblings that
+# must not, so a check that stops firing fails the test.
+if(ERF_TEST_PYTHON)
+  add_test(NAME InputsChecker_SelfTest
+      COMMAND ${ERF_TEST_PYTHON} ${PROJECT_SOURCE_DIR}/Exec/Tools/check_erf_inputs.py --self-test)
+  set_tests_properties(InputsChecker_SelfTest
+      PROPERTIES
+      TIMEOUT 120
+      PROCESSORS 1
+      LABELS "unit")
+endif()
+
 # Restart parity: run one deck straight, then to a checkpoint and on from it, and
 # require the plotfile at the end to be identical (no gold file). Every run has a
 # time limit; the default stays at 600, but an explicit RUN_TIMEOUT is forwarded
