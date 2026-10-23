@@ -1,6 +1,8 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 erf.prob_name = "Flow over Witch of Agnesi hill"
 
+max_step = 100
+
 erf.init_type = ConstantDensity
 
 amrex.fpe_trap_invalid=1

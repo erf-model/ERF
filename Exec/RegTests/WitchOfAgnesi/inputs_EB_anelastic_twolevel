@@ -4,6 +4,7 @@ erf.prob_name = "Flow over Witch of Agnesi hill"
 erf.init_type = ConstantDensity
 
 #max_step = 16000
+max_step = 100
 
 amrex.fpe_trap_invalid=1
 amrex.fpe_trap_zero=1
