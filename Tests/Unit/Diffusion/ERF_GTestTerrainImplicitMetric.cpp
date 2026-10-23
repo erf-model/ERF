@@ -345,13 +345,13 @@ TEST(TerrainImplicitMetric, DiffusiveRateWeightsTheMetricTermByTheExplicitFracti
 {
   // rho = 1, dx = dy = 1 km (a = b = 1e-6), h^2 = 0.01, dz = 50 m (1/dz^2 = 4e-4)
   const Real a = Real(1.e-6), h2 = Real(0.01), dzinv2 = Real(4.e-4);
-  // mu_h = 100, mu_v = 10, vertical parts implicit: rows u = 5e-4, w = 4.2e-4 (see
+  // mu_h = 100, mu_v = 10, u and v vertical parts implicit: rows u = 5e-4, w = 8.42e-3 (see
   // Smag2DLimiters.DiffusiveRatesHandValues).  Metric explicit: 2 * 100 * 0.01 * 4e-4 = 8e-4
-  // -> 1.3e-3.  Metric implicit: only w's mu_v part, 2 * 10 * 0.01 * 4e-4 = 8e-5 -> 5.8e-4.
+  // -> 9.22e-3.  Metric implicit: only w's mu_v part, 2 * 10 * 0.01 * 4e-4 = 8e-5 -> 8.5e-3.
+  EXPECT_NEAR(MomentumDiffusiveRate(one, Real(100), Real(10), a, a, h2, dzinv2, zero),
+              Real(9.22e-3), tol_for_scale(Real(9.22e-3)));
   EXPECT_NEAR(MomentumDiffusiveRate(one, Real(100), Real(10), a, a, h2, dzinv2, zero, zero),
-              Real(1.3e-3), tol_for_scale(Real(1.3e-3)));
-  EXPECT_NEAR(MomentumDiffusiveRate(one, Real(100), Real(10), a, a, h2, dzinv2, zero, zero, zero),
-              Real(5.8e-4), tol_for_scale(Real(5.8e-4)));
+              Real(8.5e-3), tol_for_scale(Real(8.5e-3)));
   // Scalar K_h = 300, K_v = 30, e = 0: 300 * 2e-6 + 300 * 0.01 * 4e-4 = 1.8e-3, and without the
   // metric term 6e-4
   EXPECT_NEAR(ScalarDiffusiveRate(one, Real(300), Real(30), a, a, h2, dzinv2, zero),
@@ -380,14 +380,14 @@ TEST(TerrainImplicitMetric, DiffusiveRateWeightsTheMetricTermByTheExplicitFracti
 
   DiffusiveRateSettings set;
   set.variable_dz = true; set.has_q = true; set.has_ke = true; set.has_scalar = true;
-  set.e_uv = zero; set.e_w = one; set.e_th = zero; set.e_q = zero; set.e_ke = zero;
+  set.e_uv = zero; set.e_th = zero; set.e_q = zero; set.e_ke = zero;
   Real rm_off, rs_off, rm_on, rs_on;
   CellDiffusiveRates(0, 0, 0, sa, ka, za, one, one, dxinv, set, rm_off, rs_off);
   set.implicit_metric = true;
   CellDiffusiveRates(0, 0, 0, sa, ka, za, one, one, dxinv, set, rm_on, rs_on);
-  EXPECT_NEAR(rm_off, MomentumDiffusiveRate(one, Real(200), Real(2), a, a, hc2, dz2, zero, one),
+  EXPECT_NEAR(rm_off, MomentumDiffusiveRate(one, Real(200), Real(2), a, a, hc2, dz2, zero),
               tol_for_scale(rm_off));
-  EXPECT_NEAR(rm_on,  MomentumDiffusiveRate(one, Real(200), Real(2), a, a, hc2, dz2, zero, one, zero),
+  EXPECT_NEAR(rm_on,  MomentumDiffusiveRate(one, Real(200), Real(2), a, a, hc2, dz2, zero, zero),
               tol_for_scale(rm_on));
   EXPECT_LT(rm_on, Real(0.5) * rm_off);
   // the advected scalar is never in the implicit solve, so it keeps its metric term and sets

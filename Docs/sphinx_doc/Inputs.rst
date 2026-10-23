@@ -903,8 +903,8 @@ List of Parameters
 |                                      | kinetic energy diffusion                                 |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.implicit_momentum_diffusion**  | include the implicit contributions in tau13 and tau23    | Boolean            | true              |
-|                                      | (and tau33 if built with ``ERF_IMPLICIT_W``) used to     |                    |                   |
-|                                      | correct the momenta                                      |                    |                   |
+|                                      | used to correct u and v; the vertical diffusion of w is  |                    |                   |
+|                                      | always explicit                                          |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.implicit_terrain_metric**      | on a terrain-fitted mesh, also solve the compact         | Boolean; needs     | false             |
 |                                      | terrain-metric part of the vertical diffusion,           | vert_implicit_fac  |                   |
@@ -1066,8 +1066,9 @@ Notes
      **erf.rho0_trans** with ``Constant`` and times the largest density around the cell with
      ``ConstantAlpha``.  Turbulent kinetic energy has none.  For momentum the rate is the largest of the u, v and w rows,
      :math:`\mu_h (2a+b) + e_{uv}\mu_v/\Delta z^2`, :math:`\mu_h (a+2b) + e_{uv}\mu_v/\Delta z^2`
-     and :math:`\mu_v (a+b) + 2 e_w \mu_v/\Delta z^2` (the horizontal diffusion of w uses
-     :math:`\mu_v`: :math:`\tau_{31}` and :math:`\tau_{32}` carry the same edge-averaged
+     and :math:`\mu_v (a+b) + 2 \mu_v/\Delta z^2` (the vertical diffusion of w is always
+     explicit; its horizontal diffusion uses :math:`\mu_v`: :math:`\tau_{31}` and
+     :math:`\tau_{32}` carry the same edge-averaged
      :math:`\mu_v` as :math:`\tau_{13}` and :math:`\tau_{23}`); each row also counts the explicit u-w
      and v-w cross derivatives, :math:`\mu_v\sqrt{a c}` and :math:`\mu_v\sqrt{b c}` with
      :math:`c = 1/\Delta z^2` (added to the w row for both directions), which exceed the
@@ -1103,8 +1104,7 @@ Notes
      default ``1 1 0`` (Crank-Nicolson for the vertical diffusion) and ``1 1 1`` (backward
      Euler) give :math:`e = 0`, and ``0 0 0``, anelastic RK2 (no implicit solve), ``1 0 0``,
      ``0 0 1`` or ``0.995 0.1 0.0666`` (whose last stage amplifies by 1.0008) give :math:`e = 1`.
-     The vertical diffusion of w is explicit (:math:`e_w = 1`) unless ERF is built with
-     ``ERF_IMPLICIT_W``; every moisture variable is in the implicit solve (with SBM only qv,
+     Every moisture variable is in the implicit solve (with SBM only qv,
      the one the host diffuses), so the moisture term has :math:`e = 1` only when a
      microphysics model also carries non-water species (packed directly after the water
      species, these diffuse explicitly), and the advected scalar always does.  If dt times this rate
@@ -1810,6 +1810,14 @@ coordinate, the one ``geometry.prob_lo`` and ``geometry.prob_hi`` are given in,
 which is what an aircraft or a sounding level is.  A station uses one or the
 other, never both.  One of them is required if the station requests any 3D
 variable; both are ignored by 2D variables, which are surface quantities.
+
+A vertical profile above a site is a station with a long height list, for example
+``erf.Site.height_agl = 100 250 500 1000 2000 3000 4000 5000``.  The input parser
+puts no limit on the number of heights.  The file then holds one column for each
+3D variable at each height, so ``n`` heights and ``m`` 3D variables make ``n * m``
+columns per location (plus one for each 2D variable), and a height above the top of
+the domain returns the value at the top, as described below.  The cadence is
+``erf.station_sampling_interval`` or ``erf.station_sampling_per``.
 
 The local terrain is the elevation of the ground at the station itself, interpolated
 bilinearly from the terrain at the nodes around it: the bottom of a terrain-fitted
@@ -2868,7 +2876,7 @@ Every level samples the input sounding at its own cell centres, for the initial 
 state and for nudging, just as a single-level run at that resolution does; the large-scale forcing
 profiles are likewise interpolated to each level's own cell centres. A fine cell below the first
 level-0 cell centre therefore starts from the sounding's air values there, not from a blend with
-the surface line of the file (which, with ``erf.most.surf_temp``, holds the surface temperature).
+the surface line of the file (which, with ``erf.most.pot_surf_temp``, holds the surface temperature).
 
 .. _inputs-obs-nudging:
 
@@ -4063,14 +4071,26 @@ the ones marked **Required** abort the run if they are not given.
 | **erf.most.pblh_calc**                | which scheme diagnoses the PBL height used by the *w*\*  | none, MYNN25,       | none             |
 |                                       | correction                                               | MYNNEDMF, YSU, MRF  |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
-| **erf.most.surf_temp**                | prescribed surface potential temperature [K]; a positive | Real > 0            | -1.0 (not set)   |
+| **erf.most.pot_surf_temp**            | prescribed surface potential temperature [K]; a positive | Real > 0            | -1.0 (not set)   |
 |                                       | value selects the surface-temperature formulation        |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.abs_surf_temp**            | prescribed surface absolute temperature [K], converted   | Real > 0            | -1.0 (not set)   |
+|                                       | to potential temperature each step with the surface      |                     |                  |
+|                                       | pressure diagnosed from the lowest cell; z-low face      |                     |                  |
+|                                       | only, not with EB terrain, SST/TSK input,                |                     |                  |
+|                                       | ``erf.most.use_sfc_fluxes``, ``erf.most.use_sfc_sst``    |                     |                  |
+|                                       | or custom/rico/bulk_coeff fluxes                         |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.surf_temp**                | deprecated spelling of ``erf.most.pot_surf_temp``; at    | Real > 0            | -1.0 (not set)   |
+|                                       | most one of the three may be given, and a value that is  |                     |                  |
+|                                       | given must be positive                                   |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.surf_moist**               | prescribed surface moisture [kg/kg]; read only with an   | Real >= 0           | -1.0 (not set)   |
 |                                       | active moisture model                                    |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.surf_heating_rate**        | rate of change [K/h] applied to the prescribed surface   | Real                | 0.0              |
-|                                       | potential temperature; may not be combined with          |                     |                  |
+|                                       | temperature (absolute with ``abs_surf_temp``) from the   |                     |                  |
+|                                       | start of the simulation; may not be combined with        |                     |                  |
 |                                       | ``erf.most.surf_temp_flux``                              |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.surf_temp_flux**           | prescribed surface heat flux [K m/s]; may not be         | Real                | 0.0              |
@@ -4135,6 +4155,13 @@ the ones marked **Required** abort the run if they are not given.
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.ignore_sst**               | use the skin temperature rather than the sea-surface     | Boolean             | false            |
 |                                       | temperature from the input data                          |                     |                  |
++---------------------------------------+----------------------------------------------------------+---------------------+------------------+
+| **erf.most.use_lsm_skin_temperature** | take the land model's skin temperature (SLM ``tsurf``,   | Boolean             | false            |
+|                                       | Noah-MP ``t_sfc``) as an absolute temperature and        |                     |                  |
+|                                       | convert it to potential temperature at the surface       |                     |                  |
+|                                       | pressure. When false, an LSM ``tsurf``, ``theta`` or     |                     |                  |
+|                                       | ``t_surf`` field is copied unchanged and ``t_sfc`` is    |                     |                  |
+|                                       | not used                                                 |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.use_sfc_fluxes**           | read time-varying sensible and latent heat fluxes and    | Boolean             | false            |
 |                                       | friction velocity from a text file; may not be combined  |                     |                  |
@@ -4779,7 +4806,7 @@ atmospheric cell), ``start_datetime`` and the
 |                                                    | potential temperature), so its heat flux responds to       |                    |                  |
 |                                                    | T_s. Needs seb_prognostic_enable,                          |                    |                  |
 |                                                    | seb_turbulent_flux_source = surface_layer and a surface    |                    |                  |
-|                                                    | layer in surface-temperature mode (erf.most.surf_temp,     |                    |                  |
+|                                                    | layer in surface-temperature mode (most.*_surf_temp,       |                    |                  |
 |                                                    | no surf_heating_rate), not on EB terrain, without          |                    |                  |
 |                                                    | erf.use_rotate_surface_flux, with no land or surface       |                    |                  |
 |                                                    | model; each is checked at start-up                         |                    |                  |
@@ -5276,8 +5303,10 @@ List of Parameters
 +--------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | Parameter                            | Definition                                               | Acceptable Values  | Default          |
 +======================================+==========================================================+====================+==================+
-| **eb2.small_volfrac**                | Volume-fraction threshold used to treat cells as         | Real > 0           | 1.0e-14          |
-|                                      | effectively empty                                        |                    |                  |
+| **eb2.small_volfrac**                | Volume-fraction threshold used to treat cells as         | Real > 0           | 1.0e-14;         |
+|                                      | effectively empty. With immersed forcing it is also the  |                    | 0.005 with       |
+|                                      | solid fraction below which the forcing treats a cell or  |                    | immersed forcing |
+|                                      | face as fluid                                            |                    |                  |
 +--------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.eb_boundary_type**             | condition imposed on the embedded boundary               | SlipWall,          | NoSlipWall       |
 |                                      |                                                          | NoSlipWall,        |                  |

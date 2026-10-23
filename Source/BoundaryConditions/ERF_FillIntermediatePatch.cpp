@@ -437,6 +437,15 @@ ERF::get_cf_implicit_mask (int lev, int which, const BoxArray& ba,
  * domain are changed: those between grids at this level are filled by FillBoundary, and those
  * outside the domain carry the boundary data the physical-BC rows of the solve read.
  *
+ * Only the ghost cells the solves read are filled; the others keep their old values, which
+ * nothing reads before the state is next filled (the scratch state of slow_rhs_pre is used on
+ * its valid region only, and apply_bcs fills all the ghost cells of S_new at the end of
+ * slow_rhs_post).  Every column is closed in z, so a solved component is read at the cell above
+ * and below the column, but not at its sides; the same holds for the momenta.  Density is read
+ * at those cells too, and also by the face averages: at the neighbouring cell in x (y) all the
+ * way up the column for the x- (y-) momentum, and at two cells above and below for the
+ * z-momentum.
+ *
  * The momenta are formed from the interpolated velocity and the refreshed density with the
  * same face average the solve divides by, so that it recovers the interpolated velocity.
  *
@@ -486,8 +495,16 @@ ERF::FillCoarseFineGhostsForImplicit (int lev, double time_d,
         }
     };
 
-    // rho and the solved components: two ghost cells so that the z-face average below z-faces
-    // is available
+    const bool fill_mom[AMREX_SPACEDIM] = {mom[0] != nullptr, mom[1] != nullptr, mom[2] != nullptr};
+
+    // The ghost cells filled (see above): one in z for the solved components and the momenta;
+    // for rho, also one in x (y) for the face average of the x- (y-) momentum, and two in z for
+    // that of the z-momentum
+    const IntVect ng_solved(0,0,1);
+    const IntVect ng_rho(fill_mom[0] ? 1 : 0, fill_mom[1] ? 1 : 0, fill_mom[2] ? 2 : 1);
+    const IntVect ngm(0,0,1);
+
+    // The masks are kept with two ghost cells (one for faces) and used over the region filled
     const IntVect ngc(2);
     AMREX_ALWAYS_ASSERT(cons.nGrowVect().allGE(ngc));
     {
@@ -505,35 +522,41 @@ ERF::FillCoarseFineGhostsForImplicit (int lev, double time_d,
         Vector<MultiFab*> fmf = {&tmp, &tmp};
         Vector<MultiFab*> cmf = select_time_data(csel, vars_old[lev-1][Vars::cons], vars_new[lev-1][Vars::cons]);
 
-        // One fill per run of contiguous components.  cell_cons_interp limits the slopes of
-        // each component separately, so this gives the same result as one fill per component.
+        // One fill per run of contiguous components, over the ghost cells any of them needs.
+        // cell_cons_interp limits the slopes of each component separately, and the value it
+        // gives a fine cell depends only on the coarse data around it, so this gives the same
+        // result in each cell as one fill per component over all its ghost cells.
         const int ncomps = static_cast<int>(comps.size());
         for (int i0 = 0; i0 < ncomps; )
         {
+            IntVect ngf = (comps[i0] == Rho_comp) ? ng_rho : ng_solved;
             int i1 = i0 + 1;
-            while (i1 < ncomps && comps[i1] == comps[i1-1] + 1) { ++i1; }
+            while (i1 < ncomps && comps[i1] == comps[i1-1] + 1) {
+                ngf.max((comps[i1] == Rho_comp) ? ng_rho : ng_solved);
+                ++i1;
+            }
             const int scomp = comps[i0];
             const int ncomp = i1 - i0;
 
-            MultiFab::Copy(tmp, cons, scomp, scomp, ncomp, ngc);
-            FillPatchTwoLevels(tmp, ngc, IntVect(0,0,0),
+            MultiFab::Copy(tmp, cons, scomp, scomp, ncomp, ngf);
+            FillPatchTwoLevels(tmp, ngf, IntVect(0,0,0),
                                time_rel, cmf, ctime, fmf, ftime,
                                scomp, scomp, ncomp, geom[lev-1], geom[lev],
                                refRatio(lev-1), &cell_cons_interp, domain_bcs_type,
                                BCVars::cons_bc+scomp);
-            copy_cf_ghosts(cons, tmp, mask, scomp, ncomp, ngc);
+            copy_cf_ghosts(cons, tmp, mask, scomp, ncomp, ngf);
 
             i0 = i1;
         }
     }
 
     // Momenta: interpolate the velocity, then multiply by the face-averaged density
-    const IntVect ngm(1);
+    const IntVect ngm_mask(1);
     for (int dir = 0; dir < AMREX_SPACEDIM; ++dir)
     {
-        if (!mom[dir]) { continue; }
+        if (!fill_mom[dir]) { continue; }
         MultiFab& mom_dir = *mom[dir];
-        AMREX_ALWAYS_ASSERT(mom_dir.nGrowVect().allGE(ngm));
+        AMREX_ALWAYS_ASSERT(mom_dir.nGrowVect().allGE(ngm_mask));
 
         MultiFab vel(mom_dir.boxArray(), mom_dir.DistributionMap(), 1, ngm);
         vel.setVal(zero);
@@ -568,7 +591,7 @@ ERF::FillCoarseFineGhostsForImplicit (int lev, double time_d,
         }
 
         const iMultiFab& mask = get_cf_implicit_mask(lev, 1+dir, mom_dir.boxArray(),
-                                                     mom_dir.DistributionMap(), ngm);
+                                                     mom_dir.DistributionMap(), ngm_mask);
         copy_cf_ghosts(mom_dir, tmp, mask, 0, 1, ngm);
     }
 }

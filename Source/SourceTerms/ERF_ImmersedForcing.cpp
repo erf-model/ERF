@@ -111,7 +111,7 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
     const Real psi_cap_factor     = solverChoice.if_psi_cap_factor;
     const bool l_use_most         = solverChoice.if_use_most;
 
-    const Real small_volfrac = 0.005;
+    const Real small_volfrac = solverChoice.if_small_volfrac;
     // The terrain kernels keep the raw fractions: erf.if_snap_partial_cells
     // applies to the buildings kernels only (the wall law below is weighted
     // by the fluid fraction of the face, which a snapped face has not).
@@ -226,7 +226,7 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
     const Real psi_cap_factor     = solverChoice.if_psi_cap_factor;
     const bool l_use_most         = solverChoice.if_use_most;
 
-    const Real small_volfrac = 0.005;
+    const Real small_volfrac = solverChoice.if_small_volfrac;
     // The terrain kernels keep the raw fractions: erf.if_snap_partial_cells
     // applies to the buildings kernels only (the wall law below is weighted
     // by the fluid fraction of the face, which a snapped face has not).
@@ -328,7 +328,7 @@ void ImmersedForcingTerrain_Zmom (const Box& tbz,
     const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
 
-    const Real small_volfrac = 0.005;
+    const Real small_volfrac = solverChoice.if_small_volfrac;
     // The terrain kernels keep the raw fractions: erf.if_snap_partial_cells
     // applies to the buildings kernels only (the wall law below is weighted
     // by the fluid fraction of the face, which a snapped face has not).
@@ -400,7 +400,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
 
     const bool is_slow_step = true;  // This is determined by calling context
     const bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
-    const Real small_volfrac = 0.005;
+    const Real small_volfrac = solverChoice.if_small_volfrac;
     // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)
     // or fluid (0) at half, so a height-map building becomes the same
     // staircase of whole cells an exact box is. A face is solid when either
@@ -599,7 +599,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
 
     const bool is_slow_step = true;  // This is determined by calling context
     const bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
-    const Real small_volfrac = 0.005;
+    const Real small_volfrac = solverChoice.if_small_volfrac;
     // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)
     // or fluid (0) at half, so a height-map building becomes the same
     // staircase of whole cells an exact box is. A face is solid when either
@@ -797,7 +797,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
 
     const bool is_slow_step = true;  // This is determined by calling context
     const bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
-    const Real small_volfrac = 0.005;
+    const Real small_volfrac = solverChoice.if_small_volfrac;
     // erf.if_snap_partial_cells: read the cell blanking snapped to solid (1)
     // or fluid (0) at half, so a height-map building becomes the same
     // staircase of whole cells an exact box is. A face is solid when either

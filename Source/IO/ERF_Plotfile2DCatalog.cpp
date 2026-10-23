@@ -87,6 +87,8 @@ const amrex::Vector<DiagnosticDescriptor>& catalog_storage ()
         {DiagnosticID::LandSurfaceAlbedo, "albedo", "Broadband surface albedo", "1", DiagnosticCategory::LandSurface, MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::LandSurfaceSfcrunoff, "sfcrunoff", "Accumulated surface runoff", "m", DiagnosticCategory::LandSurface, MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::LandSurfaceUdrunoff, "udrunoff", "Accumulated subsurface runoff", "m", DiagnosticCategory::LandSurface, MissingPolicy::FillMinus999WhenUnavailable},
+        {DiagnosticID::LandSurfaceSnow, "snow", "Noah-MP snow water equivalent", "kg m^-2", DiagnosticCategory::LandSurface, MissingPolicy::FillMinus999WhenUnavailable},
+        {DiagnosticID::LandSurfaceSnowh, "snowh", "Noah-MP physical snow depth", "m", DiagnosticCategory::LandSurface, MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::NoahmpTemperature2mVegetated, "noahmp_temperature_2m_vegetated", "Noah-MP 2-m temperature over the vegetated fraction", "K", DiagnosticCategory::LandSurface, MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::NoahmpTemperature2mBare, "noahmp_temperature_2m_bare", "Noah-MP 2-m temperature over the bare fraction", "K", DiagnosticCategory::LandSurface, MissingPolicy::FillMinus999WhenUnavailable},
         {DiagnosticID::NoahmpWaterVaporMixingRatio2mVegetated, "noahmp_water_vapor_mixing_ratio_2m_vegetated", "Noah-MP 2-m water-vapor mixing ratio over the vegetated fraction", "kg kg^-1 dry air", DiagnosticCategory::LandSurface, MissingPolicy::FillMinus999WhenUnavailable},

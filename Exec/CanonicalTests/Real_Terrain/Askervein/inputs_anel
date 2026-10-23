@@ -35,7 +35,7 @@ erf.terrain_smoothing = 0  # default
 # BOUNDARY CONDITIONS
 zlo.type              = "surface_layer"
 erf.most.z0           = 0.03  # "grass", Wagenbrenner 2019
-erf.most.surf_temp    = 300.0 # initial value, should match input_sounding
+erf.most.pot_surf_temp = 300.0 # initial value, should match input_sounding
 
 zhi.type              = "SlipWall"
 

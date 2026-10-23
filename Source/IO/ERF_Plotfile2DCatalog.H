@@ -74,6 +74,8 @@ enum class DiagnosticID
     LandSurfaceAlbedo,
     LandSurfaceSfcrunoff,
     LandSurfaceUdrunoff,
+    LandSurfaceSnow,
+    LandSurfaceSnowh,
     NoahmpTemperature2mVegetated,
     NoahmpTemperature2mBare,
     NoahmpWaterVaporMixingRatio2mVegetated,

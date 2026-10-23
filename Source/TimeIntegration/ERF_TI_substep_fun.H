@@ -276,9 +276,6 @@ auto acoustic_substepping_fun = [&,one_d=one,zero_d=zero](int fast_step, int n_s
             MultiFab scratch(S_data[IntVars::cons], make_alias, 0, 2);
             MultiFab scratch_xmom(S_data[IntVars::xmom], make_alias, 0, 1);
             MultiFab scratch_ymom(S_data[IntVars::ymom], make_alias, 0, 1);
-#ifdef ERF_IMPLICIT_W
-            MultiFab scratch_zmom(S_data[IntVars::zmom], make_alias, 0, 1);
-#endif
 #include "ERF_ImplicitPre.H"
         }
 
