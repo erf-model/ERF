@@ -122,7 +122,6 @@ erf.buoyancy_type   = 1
 
 # Initialization
 erf.init_type           = "input_sounding"
-erf.init_sounding_ideal = true
 erf.input_sounding_file = "input_sounding"
 
 # moisture model

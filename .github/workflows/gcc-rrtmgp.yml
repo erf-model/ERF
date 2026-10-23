@@ -3,8 +3,26 @@ name: Linux GCC NetCDF RRTMGP
 on:
   push:
     branches: [development]
+    paths:
+      - '**'
+      - '!Docs/**'
+      - '!**.md'
+      - '!**.rst'
+      - '!license.txt'
+      - '!.github/workflows/**'
+      - '.github/workflows/gcc-rrtmgp.yml'
+      - '.github/actions/**'
   pull_request:
     types: [opened, synchronize, reopened]
+    paths:
+      - '**'
+      - '!Docs/**'
+      - '!**.md'
+      - '!**.rst'
+      - '!license.txt'
+      - '!.github/workflows/**'
+      - '.github/workflows/gcc-rrtmgp.yml'
+      - '.github/actions/**'
   workflow_dispatch:
 
 concurrency:
@@ -98,8 +116,8 @@ jobs:
       run: |
         . ${{ github.workspace }}/spack_install_dir/share/spack/setup-env.sh
         spack env activate erf_netcdf
-        export HDF5_ROOT=$(spack location -i hdf5)
-        export NETCDF_ROOT=$(spack location -i netcdf-c)
+        HDF5_ROOT=$(spack location -i hdf5); export HDF5_ROOT
+        NETCDF_ROOT=$(spack location -i netcdf-c); export NETCDF_ROOT
         cmake \
           -B${ERF_DIR}/build \
           -DCMAKE_INSTALL_PREFIX:PATH=${ERF_DIR}/install \
@@ -154,7 +172,7 @@ jobs:
           | grep -Ev "Submodules/(amrex|AMReX|googletest)" | grep -Ev "lto-wrapper: warning:" | sort | uniq \
           | awk 'BEGIN{i=0}{print $0}{i++}END{print "Warnings: "i}' > ${ERF_DIR}/build-output-warnings.txt
         cat ${ERF_DIR}/build-output-warnings.txt
-        export return=$(tail -n 1 ${ERF_DIR}/build-output-warnings.txt | awk '{print $2}')
+        return=$(tail -n 1 ${ERF_DIR}/build-output-warnings.txt | awk '{print $2}')
         exit ${return}
 
     - name: Check Unit Test Registration
