@@ -497,15 +497,20 @@ void erf_substep_NS (int step, int nrk,
                 + ( coeff_P * (slow_rhs_cons(i,j,k  ,RhoTheta_comp) - temp_rhs_arr(i,j,k  ,RhoTheta_comp)) +
                     coeff_Q * (slow_rhs_cons(i,j,k-1,RhoTheta_comp) - temp_rhs_arr(i,j,k-1,RhoTheta_comp)) );
 
-            // Explicit part of the vertical flux on each face, beta_1 * Omega
-            Real b1_Omega_kp1 = myhalf * (one - beta_s_a(i,j,k+1)) * Omega_kp1;
-            Real b1_Omega_k   = myhalf * (one - beta_s_a(i,j,k  )) * Omega_k;
-            Real b1_Omega_km1 = myhalf * (one - beta_s_a(i,j,k-1)) * Omega_km1;
+            // Explicit part of the vertical flux on each face is beta_1 * Omega. beta_1 on face k
+            // is factored out, and dbeta_1 is how much larger beta_1 is on the neighbouring faces,
+            // which is exactly zero (so the roundoff is that of a scalar beta_1) for uniform beta_s
+            Real beta_1      = myhalf * (one - beta_s_a(i,j,k));
+            Real dbeta_1_kp1 = myhalf * (one - beta_s_a(i,j,k+1)) - beta_1;
+            Real dbeta_1_km1 = myhalf * (one - beta_s_a(i,j,k-1)) - beta_1;
 
             // lines 6&7 consolidated (reuse Omega & metrics) (order dtau^2)
-            R1_tmp +=  ( ( (b1_Omega_kp1 - b1_Omega_k) / dz_ptr[k] + (b1_Omega_k - b1_Omega_km1) / dz_ptr[k-1] ) * halfg
-                        +(-(b1_Omega_kp1*theta_t_hi  - b1_Omega_k  *theta_t_mid) * coeff_P / dz_ptr[k]
-                          -(b1_Omega_k  *theta_t_mid - b1_Omega_km1*theta_t_lo ) * coeff_Q / dz_ptr[k-1]) );
+            R1_tmp +=  beta_1 * ( ( (Omega_kp1 - Omega_k) / dz_ptr[k] + (Omega_k - Omega_km1) / dz_ptr[k-1] ) * halfg
+                                 +(-(Omega_kp1*theta_t_hi  - Omega_k  *theta_t_mid) * coeff_P / dz_ptr[k]
+                                   -(Omega_k  *theta_t_mid - Omega_km1*theta_t_lo ) * coeff_Q / dz_ptr[k-1]) )
+                     + ( ( dbeta_1_kp1*Omega_kp1 / dz_ptr[k] - dbeta_1_km1*Omega_km1 / dz_ptr[k-1] ) * halfg
+                        -  dbeta_1_kp1*Omega_kp1*theta_t_hi * coeff_P / dz_ptr[k]
+                        +  dbeta_1_km1*Omega_km1*theta_t_lo * coeff_Q / dz_ptr[k-1] );
 
             // line 1
             Real beta_2 = myhalf * (one + beta_s_a(i,j,k));
@@ -631,10 +636,10 @@ void erf_substep_NS (int step, int nrk,
         const Array4<      Real> rec_z = (has_rec_z) ? cf_fluxes.rec[2]->array(mfi)       : Array4<Real>{};
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real zflux_lo = myhalf * ( (one + beta_s_a(i,j,k  )) * soln_a(i,j,k  )
-                                     + (one - beta_s_a(i,j,k  )) * prev_drho_w(i,j,k  ) );
-            Real zflux_hi = myhalf * ( (one + beta_s_a(i,j,k+1)) * soln_a(i,j,k+1)
-                                     + (one - beta_s_a(i,j,k+1)) * prev_drho_w(i,j,k+1) );
+            Real zflux_lo = myhalf * (one + beta_s_a(i,j,k  )) * soln_a(i,j,k  )
+                          + myhalf * (one - beta_s_a(i,j,k  )) * prev_drho_w(i,j,k  );
+            Real zflux_hi = myhalf * (one + beta_s_a(i,j,k+1)) * soln_a(i,j,k+1)
+                          + myhalf * (one - beta_s_a(i,j,k+1)) * prev_drho_w(i,j,k+1);
 
             // On the coarse/fine faces of a fine level, the coarse level's flux over this substep
             if (has_tgt_z) {

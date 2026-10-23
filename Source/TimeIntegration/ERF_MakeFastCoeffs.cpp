@@ -181,15 +181,18 @@ void make_fast_coeffs (int /*level*/,
                 // LHS for tri-diagonal system
                 // NOTE: the w-equation at face k is weighted by beta_2(k), and the vertical
                 //       flux at face k' by beta_2(k'), so each entry carries both
+                //       (multiplied first, so a uniform beta_s rounds as beta_2 * beta_2 did)
                 Real beta_2_km1 = myhalf * (one + beta_s_a(i,j,k-1));
                 Real beta_2_k   = myhalf * (one + beta_s_a(i,j,k  ));
                 Real beta_2_kp1 = myhalf * (one + beta_s_a(i,j,k+1));
-                Real D = beta_2_k * dzi * static_cast<Real>(dtau * dtau);
-                coeffA_a(i,j,k) = D * beta_2_km1 * (one/detJ(i,j,k-1)) * ( halfg - coeff_Q * theta_t_lo );
-                coeffC_a(i,j,k) = D * beta_2_kp1 * (one/detJ(i,j,k  )) * (-halfg + coeff_P * theta_t_hi );
+                Real D_A = beta_2_km1 * beta_2_k   * dzi * static_cast<Real>(dtau * dtau);
+                Real D_B = beta_2_k   * beta_2_k   * dzi * static_cast<Real>(dtau * dtau);
+                Real D_C = beta_2_k   * beta_2_kp1 * dzi * static_cast<Real>(dtau * dtau);
+                coeffA_a(i,j,k) = D_A * (one/detJ(i,j,k-1)) * ( halfg - coeff_Q * theta_t_lo );
+                coeffC_a(i,j,k) = D_C * (one/detJ(i,j,k  )) * (-halfg + coeff_P * theta_t_hi );
 
-                coeffB_a(i,j,k) = one + D * beta_2_k * ( (coeff_Q/detJ(i,j,k-1) - coeff_P/detJ(i,j,k)) * theta_t_mid
-                                                       + halfg * (one/detJ(i,j,k) - one/detJ(i,j,k-1)) );
+                coeffB_a(i,j,k) = one + D_B * ( (coeff_Q/detJ(i,j,k-1) - coeff_P/detJ(i,j,k)) * theta_t_mid
+                                      + halfg * (one/detJ(i,j,k) - one/detJ(i,j,k-1)) );
             });
 
         } else {
@@ -233,14 +236,17 @@ void make_fast_coeffs (int /*level*/,
                 // LHS for tri-diagonal system
                 // NOTE: the w-equation at face k is weighted by beta_2(k), and the vertical
                 //       flux at face k' by beta_2(k'), so each entry carries both
+                //       (multiplied first, so a uniform beta_s rounds as beta_2 * beta_2 did)
                 Real beta_2_km1 = myhalf * (one + beta_s_a(i,j,k-1));
                 Real beta_2_k   = myhalf * (one + beta_s_a(i,j,k  ));
                 Real beta_2_kp1 = myhalf * (one + beta_s_a(i,j,k+1));
-                Real D = beta_2_k * dzi * static_cast<Real>(dtau * dtau);
-                coeffA_a(i,j,k) = D * beta_2_km1 * ( halfg - coeff_Q * theta_t_lo );
-                coeffC_a(i,j,k) = D * beta_2_kp1 * (-halfg + coeff_P * theta_t_hi );
+                Real D_A = beta_2_km1 * beta_2_k   * dzi * static_cast<Real>(dtau * dtau);
+                Real D_B = beta_2_k   * beta_2_k   * dzi * static_cast<Real>(dtau * dtau);
+                Real D_C = beta_2_k   * beta_2_kp1 * dzi * static_cast<Real>(dtau * dtau);
+                coeffA_a(i,j,k) = D_A * ( halfg - coeff_Q * theta_t_lo );
+                coeffC_a(i,j,k) = D_C * (-halfg + coeff_P * theta_t_hi );
 
-                coeffB_a(i,j,k) = one + D * beta_2_k * (coeff_Q - coeff_P) * theta_t_mid;
+                coeffB_a(i,j,k) = one + D_B * (coeff_Q - coeff_P) * theta_t_mid;
             });
         }
 

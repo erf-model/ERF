@@ -651,20 +651,27 @@ void erf_substep_T (int step, int /*nrk*/,
                  R1_tmp +=  coeff_P * slow_rhs_cons(i,j,k  ,RhoTheta_comp)
                           + coeff_Q * slow_rhs_cons(i,j,k-1,RhoTheta_comp);
 
-            // Explicit part of the vertical flux on each face, beta_1 * Omega
-            Real b1_Omega_kp1 = myhalf * (one - beta_s_a(i,j,k+1)) * omega_arr(i,j,k+1);
-            Real b1_Omega_k   = myhalf * (one - beta_s_a(i,j,k  )) * omega_arr(i,j,k  );
-            Real b1_Omega_km1 = myhalf * (one - beta_s_a(i,j,k-1)) * omega_arr(i,j,k-1);
+            Real Omega_kp1 = omega_arr(i,j,k+1);
+            Real Omega_k   = omega_arr(i,j,k  );
+            Real Omega_km1 = omega_arr(i,j,k-1);
+
+            // Explicit part of the vertical flux on each face is beta_1 * Omega. beta_1 on face k
+            // is factored out, and dbeta_1 is how much larger beta_1 is on the neighbouring faces,
+            // which is exactly zero (so the roundoff is that of a scalar beta_1) for uniform beta_s
+            Real beta_1      = myhalf * (one - beta_s_a(i,j,k));
+            Real dbeta_1_kp1 = myhalf * (one - beta_s_a(i,j,k+1)) - beta_1;
+            Real dbeta_1_km1 = myhalf * (one - beta_s_a(i,j,k-1)) - beta_1;
 
             Real detJdiff = (detJ(i,j,k) - detJ(i,j,k-1)) / (detJ(i,j,k)*detJ(i,j,k-1));
 
             // consolidate lines 4&5 (order dtau^2)
-            R1_tmp += halfg * ( dzi * (b1_Omega_kp1/detJ(i,j,k) + detJdiff*b1_Omega_k - b1_Omega_km1/detJ(i,j,k-1))
+            R1_tmp += halfg * ( beta_1 * dzi * (Omega_kp1/detJ(i,j,k) + detJdiff*Omega_k - Omega_km1/detJ(i,j,k-1))
+                              + dzi * (dbeta_1_kp1*Omega_kp1/detJ(i,j,k) - dbeta_1_km1*Omega_km1/detJ(i,j,k-1))
                               + temp_rhs_arr(i,j,k,Rho_comp)/detJ(i,j,k) + temp_rhs_arr(i,j,k-1,Rho_comp)/detJ(i,j,k-1) );
 
             // consolidate lines 6&7 (order dtau^2)
-            R1_tmp += -( coeff_P/detJ(i,j,k  ) * ( dzi * (b1_Omega_kp1*theta_t_hi - b1_Omega_k*theta_t_mid) + temp_rhs_arr(i,j,k  ,RhoTheta_comp) )
-                       + coeff_Q/detJ(i,j,k-1) * ( dzi * (b1_Omega_k*theta_t_mid - b1_Omega_km1*theta_t_lo) + temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
+            R1_tmp += -( coeff_P/detJ(i,j,k  ) * ( beta_1 * dzi * (Omega_kp1*theta_t_hi - Omega_k*theta_t_mid) + dzi * dbeta_1_kp1*Omega_kp1*theta_t_hi + temp_rhs_arr(i,j,k  ,RhoTheta_comp) )
+                       + coeff_Q/detJ(i,j,k-1) * ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo) - dzi * dbeta_1_km1*Omega_km1*theta_t_lo + temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
 
             // consolidate terms proportional to dtau
             Real beta_2 = myhalf * (one + beta_s_a(i,j,k));
@@ -823,10 +830,10 @@ void erf_substep_T (int step, int /*nrk*/,
         BL_PROFILE("fast_rho_final_update");
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-              Real zflux_lo = myhalf * ( (one + beta_s_a(i,j,k  )) * soln_a(i,j,k  )
-                                       + (one - beta_s_a(i,j,k  )) * omega_arr(i,j,k  ) );
-              Real zflux_hi = myhalf * ( (one + beta_s_a(i,j,k+1)) * soln_a(i,j,k+1)
-                                       + (one - beta_s_a(i,j,k+1)) * omega_arr(i,j,k+1) );
+              Real zflux_lo = myhalf * (one + beta_s_a(i,j,k  )) * soln_a(i,j,k  )
+                            + myhalf * (one - beta_s_a(i,j,k  )) * omega_arr(i,j,k  );
+              Real zflux_hi = myhalf * (one + beta_s_a(i,j,k+1)) * soln_a(i,j,k+1)
+                            + myhalf * (one - beta_s_a(i,j,k+1)) * omega_arr(i,j,k+1);
 
               // On the coarse/fine faces of a fine level, the coarse level's flux over this substep
               if (has_tgt_z) {
