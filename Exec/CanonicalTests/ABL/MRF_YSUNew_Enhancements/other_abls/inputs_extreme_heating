@@ -38,7 +38,7 @@ geometry.is_periodic = 1 1 0
 zlo.type = "surface_layer"
 erf.most.z0   = 0.01    # roughness length [m] (desert-like, sparse vegetation)
 erf.most.zref = 48.0    # reference height [m]
-erf.most.surf_temp = 320.0  # very hot surface temperature [K]
+erf.most.pot_surf_temp = 320.0  # very hot surface temperature [K]
 erf.most.surf_heating_rate = 15.0  # EXTREME heating rate [K/h]
 
 # Upper boundary - weak stable layer (will be overcome by extreme heating)

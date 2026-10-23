@@ -18,7 +18,7 @@ erf.grid_stretching_ratio   = 1.05
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
 zlo.type              = "surface_layer"
 erf.most.z0           = 0.1
-erf.most.surf_temp    = 290.0 # initial value, should match input_sounding
+erf.most.pot_surf_temp = 290.0 # initial value, should match input_sounding
 erf.most.zref         = 5.0
 
 zhi.type              = "SlipWall"

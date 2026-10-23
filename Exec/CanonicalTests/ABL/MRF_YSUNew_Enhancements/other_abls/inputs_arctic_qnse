@@ -28,7 +28,7 @@ geometry.is_periodic = 1 1 0
 zlo.type = "surface_layer"
 erf.most.z0   = 0.1
 erf.most.zref = 48.0
-erf.most.surf_temp = 260.0 # very cold Arctic surface
+erf.most.pot_surf_temp = 260.0 # very cold Arctic surface
 erf.most.surf_heating_rate = -3.0 # intense radiative surface cooling (-1.0 K/h)
 
 zhi.type = "SlipWall"
