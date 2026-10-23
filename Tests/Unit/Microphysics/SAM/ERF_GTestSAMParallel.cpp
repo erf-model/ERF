@@ -417,6 +417,32 @@ void fill_icefall_reduction_conserved_state (amrex::MultiFab& cons,
     amrex::Gpu::streamSynchronize();
 }
 
+// Cloud ice only in cell k = 1 of every column; the cells below and above are dry.
+void fill_icefall_single_layer_conserved_state (amrex::MultiFab& cons,
+                                                const amrex::Real qci_layer)
+{
+    cons.setVal(amrex::Real(0.0));
+
+    for (amrex::MFIter mfi(cons, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const amrex::Box& bx = mfi.validbox();
+        auto arr = cons.array(mfi);
+        amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            SAMCellState state = make_icefall_reduction_state(false, 0, 0);
+            state.qci = (k == 1) ? qci_layer : zero;
+            state.qn = state.qcl + state.qci;
+            state.qt = state.qv + state.qn;
+
+            arr(i,j,k,Rho_comp) = state.rho;
+            arr(i,j,k,RhoTheta_comp) = state.rho * state.theta;
+            arr(i,j,k,RhoKE_comp) = zero;
+            arr(i,j,k,RhoScalar_comp) = zero;
+            sam_primitive_to_cons(state, arr, i, j, k);
+        });
+    }
+
+    amrex::Gpu::streamSynchronize();
+}
+
 IceFallFluxReductionDiagnostics compute_icefall_flux_reduction_diagnostics (
     const amrex::Geometry& geom,
     const amrex::MultiFab& cons,
@@ -545,7 +571,14 @@ void compute_icefall_reference_global_substep (const amrex::Geometry& geom,
                                                                        zero, zero,
                                                                        qci_km1, qci_k,
                                                                        zero, zero);
-                fz_array(i,j,k) = icefall_face_flux(face_state.rho_avg, face_state.qci_avg);
+                // Same donor cap as SAM::IceFall (#4415), with detJ = 1 on this flat grid.
+                const int donor_k = sam_precip_face_donor_k(k, k_lo, k_hi);
+                const amrex::Real rho_donor = cons_array(i,j,donor_k,Rho_comp);
+                const amrex::Real qci_donor =
+                    icefall_mixing_ratio_from_conserved(cons_array(i,j,donor_k,RhoQ3_comp), rho_donor);
+                fz_array(i,j,k) = sam_limit_precip_component_flux(
+                    icefall_face_flux(face_state.rho_avg, face_state.qci_avg),
+                    rho_donor, qci_donor, amrex::Real(1.0), coef);
             });
         }
 
@@ -1231,10 +1264,78 @@ TEST(SAMParallel, IceFallSubstepCountUsesGlobalMaximum)
 }
 
 // Motivation:
-// In a one-level column, equal top and bottom component face fluxes leave the
-// in-column precip mass unchanged while the bottom diagnostic accumulation is
-// updated from the limited bottom component flux. This MPI test checks
-// rank-invariant public-path accumulation wiring. The closed multi-level
+// A dry cell next to an icy one must not exchange ice with it through their
+// shared face (#4415). With the transported qci centred on the face, the dry
+// cell above the icy layer "sent" half the layer's ice down, the clip on its
+// tendency discarded that loss, and the layer received it anyway: ice was
+// created. Here cell 1 holds all the ice, and the dry bottom cell has nothing
+// to export, so over a single substep the column's ice must be conserved
+// exactly -- what leaves cell 1 arrives in cell 0.
+TEST(SAMParallel, IceFallDryNeighboursConserveColumnIce)
+{
+    constexpr int nx = 8;
+    constexpr int ny = 4;
+    constexpr int nz = 4;
+    const amrex::Real dt = amrex::Real(1.0);
+    const amrex::Real qci_layer = amrex::Real(1.0e-4);
+
+    amrex::Box domain(amrex::IntVect(0, 0, 0), amrex::IntVect(nx - 1, ny - 1, nz - 1));
+    amrex::RealBox real_box({AMREX_D_DECL(0.0, 0.0, 0.0)},
+                            {AMREX_D_DECL(8.0, 4.0, 4.0)});
+    amrex::Array<int, AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(1, 1, 0)};
+    amrex::Geometry geom(domain, &real_box, 0, is_periodic.data());
+
+    amrex::BoxArray ba(domain);
+    ba.maxSize(amrex::IntVect(AMREX_D_DECL(2, 2, nz)));
+    amrex::DistributionMapping dm(ba);
+
+    amrex::MultiFab cons(amrex::The_Pinned_Arena());
+    cons.define(ba, dm, RhoQ6_comp + 1, 0);
+    fill_icefall_single_layer_conserved_state(cons, qci_layer);
+
+    const amrex::Real dz = geom.CellSize(2);
+    const amrex::Real cell_volume = geom.CellSize(0) * geom.CellSize(1) * dz;
+
+    // The cloud-ice fall speed is capped at 0.4 m/s, so this bounds the largest face
+    // flux; it must leave IceFall a single substep for the exact budget below to hold.
+    const amrex::Real rho_bound = cons.max(Rho_comp);
+    ASSERT_EQ(sam_substep_count_from_reduced_flux(
+                  rho_bound * amrex::Real(0.4) * qci_layer + std::numeric_limits<amrex::Real>::epsilon(),
+                  dt, dz), 1);
+
+    const amrex::Real initial_qci_mass = cons.sum(RhoQ3_comp) * cell_volume;
+
+    std::unique_ptr<amrex::MultiFab> z_phys_nd;
+    std::unique_ptr<amrex::MultiFab> detJ_cc;
+
+    SolverChoice sc = make_sam_solver_choice(MoistureType::SAM);
+    SAM sam;
+    sam.Define(sc);
+    sam.Set_dzmin(dz);
+    sam.Set_RealWidth(0);
+    sam.Init(cons, ba, geom, dt, z_phys_nd, detJ_cc);
+    sam.Copy_State_to_Micro(cons);
+    sam.IceFall(sc);
+    sam.Copy_Micro_to_State(cons);
+
+    const amrex::Real final_qci_mass = cons.sum(RhoQ3_comp) * cell_volume;
+    const amrex::Real min_rho_qci = cons.min(RhoQ3_comp);
+
+    const int rank = amrex::ParallelDescriptor::MyProc();
+    EXPECT_NEAR(final_qci_mass, initial_qci_mass,
+                mpi_reduction_tol(initial_qci_mass, nx * ny * nz))
+        << "rank=" << rank
+        << " initial_qci_mass=" << initial_qci_mass
+        << " final_qci_mass=" << final_qci_mass
+        << " residual=" << (final_qci_mass - initial_qci_mass);
+    EXPECT_GE(min_rho_qci, amrex::Real(0.0)) << "rank=" << rank;
+}
+
+// Motivation:
+// In a one-level column nothing falls in through the model top (#4408), so the
+// in-column precip mass drops by exactly what the limited bottom component flux
+// deposits in the surface accumulation. This MPI test checks rank-invariant
+// public-path accumulation wiring and that one-level budget. The closed multi-level
 // column budget is tested in the SAM physical-property tests.
 TEST(SAMParallel, PrecipFallGlobalMassAndSurfaceAccumulation)
 {
@@ -1337,12 +1438,15 @@ TEST(SAMParallel, PrecipFallGlobalMassAndSurfaceAccumulation)
     const int num_terms = nx * ny;
     const int rank = amrex::ParallelDescriptor::MyProc();
 
+    // surface_accum * area * rho_water / 1000 is flux * dt * area, the mass that left
+    // through the bottom face.
     EXPECT_NEAR(final_precip_mass,
-                initial_precip_mass,
+                initial_precip_mass - expected_surface_accum_mass,
                 mpi_reduction_tol(initial_precip_mass, num_terms))
         << "rank=" << rank
         << " initial_precip_mass=" << initial_precip_mass
-        << " final_precip_mass=" << final_precip_mass;
+        << " final_precip_mass=" << final_precip_mass
+        << " expected_surface_accum_mass=" << expected_surface_accum_mass;
     EXPECT_NEAR(rain_accum_mass,
                 expected_rain_accum_mass,
                 mpi_reduction_tol(expected_rain_accum_mass, num_terms))
