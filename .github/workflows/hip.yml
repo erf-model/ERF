@@ -3,14 +3,28 @@ name: ERF CI (hip)
 on:
   push:
     branches: [development]
-    paths-ignore:
-      - Docs/**
-      - README.rst
-      - license.txt
+    paths:
+      - '**'
+      - '!Docs/**'
+      - '!**.md'
+      - '!**.rst'
+      - '!license.txt'
+      - '!.github/workflows/**'
+      - '.github/workflows/hip.yml'
+      - '.github/actions/**'
 
   pull_request:
     branches: [development]
     types: [opened, synchronize, reopened]
+    paths:
+      - '**'
+      - '!Docs/**'
+      - '!**.md'
+      - '!**.rst'
+      - '!license.txt'
+      - '!.github/workflows/**'
+      - '.github/workflows/hip.yml'
+      - '.github/actions/**'
   workflow_dispatch:
 
 concurrency:

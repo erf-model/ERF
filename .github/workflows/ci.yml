@@ -4,10 +4,15 @@ name: ERF CI
 on:
   push:
     branches: [development]
-    paths-ignore:
-      - Docs/**
-      - README.rst
-      - license.txt
+    paths:
+      - '**'
+      - '!Docs/**'
+      - '!**.md'
+      - '!**.rst'
+      - '!license.txt'
+      - '!.github/workflows/**'
+      - '.github/workflows/ci.yml'
+      - '.github/actions/**'
   workflow_dispatch:
 
 # Each merge into development gets its own group (keyed on the commit), so a burst of

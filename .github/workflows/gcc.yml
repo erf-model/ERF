@@ -3,8 +3,26 @@ name: Linux GCC
 on:
   push:
     branches: [development]
+    paths:
+      - '**'
+      - '!Docs/**'
+      - '!**.md'
+      - '!**.rst'
+      - '!license.txt'
+      - '!.github/workflows/**'
+      - '.github/workflows/gcc.yml'
+      - '.github/actions/**'
   pull_request:
     types: [opened, synchronize, reopened]
+    paths:
+      - '**'
+      - '!Docs/**'
+      - '!**.md'
+      - '!**.rst'
+      - '!license.txt'
+      - '!.github/workflows/**'
+      - '.github/workflows/gcc.yml'
+      - '.github/actions/**'
   workflow_dispatch:
 
 concurrency:
