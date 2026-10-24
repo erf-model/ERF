@@ -509,7 +509,7 @@ TEST(Plotfile3DSelection, RadiationHeatingStorageRecognizesEveryModel)
 }
 
 // Motivation: Every diagnostic that reads pressure must participate in the
-// same allocation predicate, including standalone VPD and conditional pp_err.
+// same allocation predicate, including standalone VPD.
 TEST(Plotfile3DSelection, PressureReadersShareAllocationPredicate)
 {
     EXPECT_TRUE(erf_plotfile::plot3d_needs_pressure({"temp", "VPD"}));
@@ -519,9 +519,6 @@ TEST(Plotfile3DSelection, PressureReadersShareAllocationPredicate)
     EXPECT_TRUE(erf_plotfile::plot3d_needs_pressure({"rel_humidity"}));
     EXPECT_TRUE(erf_plotfile::plot3d_needs_pressure({"dpdx"}));
     EXPECT_FALSE(erf_plotfile::plot3d_needs_pressure({"theta"}));
-#ifdef ERF_COMPUTE_ERROR
-    EXPECT_TRUE(erf_plotfile::plot3d_needs_pressure({"pp_err"}));
-#endif
 }
 
 // Motivation: Configured particle containers may be unallocated at output

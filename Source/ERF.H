@@ -1925,10 +1925,6 @@ private:
                                                     "ibseb_lw_net", "ibseb_f_sky", "ibseb_H", "ibseb_G",
                                                     // EB variables
                                                     "volfrac"
-#ifdef ERF_COMPUTE_ERROR
-                                                    // error vars
-                                                    ,"xvel_err", "yvel_err", "zvel_err", "pp_err"
-#endif
                                                     ,"qsrc_sw", "qsrc_lw",
                                                     "Tau11", "Tau12", "Tau13", "Tau21", "Tau22", "Tau23", "Tau31", "Tau32", "Tau33",
                                                     "hfx1", "hfx2", "hfx3", "q1fx1", "q1fx2", "q1fx3", "q2fx3"

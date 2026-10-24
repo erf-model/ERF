@@ -205,17 +205,11 @@ erf.use_lagged_delta_rt
 erf.use_moist_background
   Source/DataStructs/ERF_DataStruct.H:141
 
-erf.use_morr_cpp_answer
-  Source/Microphysics/Morrison/ERF_AdvanceMorrison.cpp:1042
-
 erf.use_terrain
   Source/DataStructs/ERF_DataStruct.H:137
 
 erf.write_eb_surface
   Source/ERF.cpp:1838
-
-erf.zsurface
-  Source/DataStructs/ERF_DataStruct.H:347
 
 particles.disable_plt
   Source/Particles/ERF_ParticleData.H:38

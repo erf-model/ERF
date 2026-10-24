@@ -2,6 +2,7 @@
 erf.prob_name = "Terrain - 3D Hemisphere" 
 
 #max_step = 8000
+max_step = 100
 
 amrex.fpe_trap_invalid = 1
 
@@ -22,10 +23,6 @@ erf.sounding_type = Ideal
 
 xlo.type = "Outflow"
 xhi.type = "Outflow"
-xlo.velocity = 1. 0. 0.
-xlo.density  = 1.16
-xlo.theta    = 300.
-xlo.scalar   = 0.
     
 zlo.type = "SlipWall"
 zhi.type = "Outflow"

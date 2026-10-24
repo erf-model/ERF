@@ -19,7 +19,7 @@ amrex.fpe_trap_invalid = 0
 fabarray.mfiter_tile_size = 1024 1024 1024
 
 # DOMAIN SETUP: Simple 3D domain with stretched vertical grid
-geometry.prob_extent = 3000 3000 1024
+geometry.prob_extent = 3000 3000 2709.7466443956678
 amr.n_cell           =  8   8   64
 amr.max_grid_size_z = 128
 geometry.is_periodic = 1 1 0
@@ -62,7 +62,6 @@ erf.plot_vars_1     = x_velocity y_velocity z_velocity theta qsrc_sw qsrc_lw
 erf.use_gravity = true
 erf.molec_diff_type = "None"
 erf.les_type        = "None"
-erf.Cs = 0.11
 erf.theta_ref = 300.0
 
 # INITIALIZATION - from sounding file

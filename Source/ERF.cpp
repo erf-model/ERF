@@ -6,6 +6,7 @@
  * Main class in ERF code, instantiated from main.cpp
 */
 
+#include <algorithm>
 #include <filesystem>
 #include <memory>
 #include "ERF_Constants.H"
@@ -2329,6 +2330,12 @@ ERF::InitData_post ()
                 const auto* prob_hi = geom[lev].ProbHi();
                 const auto* dx = geom[lev].CellSize();
 
+                // Only on a ConstantDz mesh are prob_lo[2], prob_hi[2] and dx[2] physical heights;
+                // otherwise the levels in zlevels_stag are
+                const bool use_zlevels = (SolverChoice::mesh_type != MeshType::ConstantDz);
+                const Real zlo = use_zlevels ? zlevels_stag[lev].front() : prob_lo[2];
+                const Real zhi = use_zlevels ? zlevels_stag[lev].back()  : prob_hi[2];
+
                 for (int i = 0; i < num_samplelines; i++) {
                     Real xloc = location[AMREX_SPACEDIM*i+0];
                     Real yloc = location[AMREX_SPACEDIM*i+1];
@@ -2336,13 +2343,17 @@ ERF::InitData_post ()
 
                     if (xloc < prob_lo[0] || xloc > prob_hi[0] ||
                         yloc < prob_lo[1] || yloc > prob_hi[1] ||
-                        zloc < prob_lo[2] || zloc > prob_hi[2]) {
+                        zloc < zlo        || zloc > zhi) {
                         Abort("erf.sample_line_real must lie within the level-0 domain");
                     }
 
                     int i_cell = domain.smallEnd(0) + static_cast<int>(std::floor((xloc - prob_lo[0]) / dx[0]));
                     int j_cell = domain.smallEnd(1) + static_cast<int>(std::floor((yloc - prob_lo[1]) / dx[1]));
-                    int k_cell = domain.smallEnd(2) + static_cast<int>(std::floor((zloc - prob_lo[2]) / dx[2]));
+                    int k_cell = (use_zlevels)
+                        ? domain.smallEnd(2) + static_cast<int>(std::upper_bound(zlevels_stag[lev].begin(),
+                                                                                 zlevels_stag[lev].end(), zloc)
+                                                                - zlevels_stag[lev].begin()) - 1
+                        : domain.smallEnd(2) + static_cast<int>(std::floor((zloc - prob_lo[2]) / dx[2]));
 
                     i_cell = std::min(i_cell, domain.bigEnd(0));
                     j_cell = std::min(j_cell, domain.bigEnd(1));
