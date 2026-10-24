@@ -421,7 +421,10 @@ Notes
   **erf.initial_dz**) are specified, the simple grid stretching will be ignored.
 - With **erf.grid_stretching_ratio** and **erf.initial_dz** both given, the top of
   the grid is wherever the stretched layers end, which need not be
-  **geometry.prob_hi** in z.  With **erf.initial_dz** alone, the constant ratio
+  **geometry.prob_hi** in z.  ERF then prints a warning giving that top and
+  uses it as the physical top of the domain; on any mesh other than
+  ``ConstantDz``, **geometry.prob_lo** and **geometry.prob_hi** in z only bound
+  the computational coordinate.  With **erf.initial_dz** alone, the constant ratio
   :math:`r` is instead solved for so that :math:`dz_0 (r^{n_z} - 1)/(r - 1)`
   fills the domain from **erf.zsurface** to **geometry.prob_hi** exactly.  An
   **erf.initial_dz** at or above the uniform spacing gives a uniform grid, and
