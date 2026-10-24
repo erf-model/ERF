@@ -449,6 +449,36 @@ public:
     query_one_or_per_level(pp, "rans_consistent_diffusivities", rans_consistent_diffusivities, lev, max_level);
     query_one_or_per_level(pp, "rans_lscale_from_pblh", rans_lscale_from_pblh, lev, max_level);
     query_one_or_per_level(pp, "rans_lscale_min", rans_lscale_min, lev, max_level);
+    query_one_or_per_level(pp, "rans_realizability", rans_realizability, lev, max_level);
+    if (rans_realizability != zero) {
+        if (!(rans_realizability >= amrex::Real(0.01) && rans_realizability <= amrex::Real(10))) {
+            amrex::Error("erf.rans_realizability must be 0 (off) or in [0.01, 10]; Cmu0^2 = 0.309 is the neutral equilibrium value");
+        }
+        if (rans_type != RANSType::kEqn) {
+            // One value for the whole hierarchy (a single entry, or a list whose entries are all
+            // equal) is meant for the levels that run the k-eqn closure and is reset here; a list
+            // with different entries names this level on purpose and must not switch the cap on
+            // where there is no closure.
+            amrex::Vector<amrex::Real> all_levels;
+            pp.getarr("rans_realizability", all_levels);
+            bool uniform = true;
+            for (auto v : all_levels) { uniform = uniform && (v == all_levels[0]); }
+            if (uniform) {
+                amrex::Print() << "erf.rans_realizability reset to 0 on level " << lev
+                               << " (no k-eqn closure there)" << std::endl;
+                rans_realizability = zero;
+            } else {
+                amrex::Error("erf.rans_realizability needs erf.rans_type = kEqn (it caps the k-eqn eddy viscosity; level "
+                             + std::to_string(lev) + ")");
+            }
+        }
+    }
+    // After the reset above, so a hierarchy with a PBL scheme on an LES level and the cap on
+    // its k-eqn level is accepted
+    if ((rans_realizability != zero) && (pbl_type != PBLType::None)) {
+        amrex::Error("erf.rans_realizability needs erf.pbl_type = None: a PBL scheme overwrites the vertical "
+                     "diffusivities the cap acts on (level " + std::to_string(lev) + ")");
+    }
     if (rans_lscale_from_pblh && !(rans_lscale_min > 0)) {
         amrex::Error("erf.rans_lscale_min must be > 0 with erf.rans_lscale_from_pblh");
     }
@@ -631,6 +661,7 @@ public:
         amrex::Print() << "Rt_crit                     : " << Rt_crit << std::endl;
         amrex::Print() << "Rt_min                      : " << Rt_min << std::endl;
         amrex::Print() << "max_geom_lscale             : " << l_g_max << std::endl;
+        amrex::Print() << "rans_realizability          : " << rans_realizability << std::endl;
         amrex::Print() << "dirichlet_k                 : " << dirichlet_k << std::endl;
         amrex::Print() << "tke_floor                   : " << tke_floor << std::endl;
         amrex::Print() << "implicit_tke_dissipation    : " << implicit_tke_dissipation << std::endl;
@@ -848,6 +879,13 @@ public:
   // instead of the fixed max_geom_lscale
   bool rans_lscale_from_pblh = false;
   amrex::Real rans_lscale_min = one;
+
+  // k-eqn RANS: realizability cap nu_t <= C_r k / S on the eddy viscosity
+  // (and every eddy diffusivity through the same ratio), 0 = off.  C_r = Cmu0^2
+  // leaves a neutral equilibrium surface layer untouched and limits the
+  // viscosity in the shear layer that leaves a crest (AL01 Eqs. 11 and 19;
+  // the SST limiter form).
+  amrex::Real rans_realizability = zero;
 
   // PBL model
   PBLType pbl_type = PBLType::None;
