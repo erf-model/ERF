@@ -1871,6 +1871,12 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
 add_test_restart_parity(MoistBubble_Kessler_Restart MoistBubble_Kessler_Restart 4 8
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
+# Kessler rain over a uniform, laterally periodic layer, with the fine box moved at t = 30 s:
+# a regrid must keep the surface rain accumulator.  The centre column of the 2D plotfile lies
+# in the new fine box.  It accumulates 5.2e-4 mm by t = 60 s (5.0e-4 on the coarse level, which
+# resolves the layer less finely); rebuilt as zero at the regrid, it reaches only 3.9e-4.
+add_test_column_bounds(RegridKeepsPrecipAccum "plt2d00120" 0 "precip_rain_accum"
+    "0.00051" "0.00053")
 # Boundary-plane output (erf.output_bndry_planes) across a restart: the series in BndryFiles --
 # one plane directory per output step and a time.dat of "step time" rows -- must come out of a
 # run through a checkpoint as it comes out of a straight run, since erf.input_bndry_planes reads
