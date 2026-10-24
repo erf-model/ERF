@@ -653,6 +653,79 @@ Real compute_p_k_in_zone (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real
 }
 
 /**
+ * Column integration shared by the two versions of init_isentropic_hse_no_terrain.
+ *
+ * @param[in] z_cc  z_cc(k) is the height of the centre of cell k above the surface.
+ * @param[in] dz_cc dz_cc(k) is the distance used for the hydrostatic step to cell k:
+ *                  the depth of cell 0 for k = 0 (half of it is taken), and the distance
+ *                  between the centres of cells k-1 and k for k > 0.
+ *
+ * The other arguments are those of init_isentropic_hse_no_terrain.
+ */
+template <typename ZccFunc, typename DzFunc>
+AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE
+void
+init_isentropic_hse_no_terrain_column (Real *theta, Real* r, Real* p, Real *q_v,
+                                       ZccFunc const& z_cc, DzFunc const& dz_cc,
+                                       const int& khi, const Real q_t,
+                                       const Real eq_pot_temp, const bool use_empirical,
+                                       const bool T_from_theta,
+                                       const Real z_tr_1, const Real z_tr_2,
+                                       const Real theta_0, const Real theta_tr, const Real T_tr)
+{
+    // theta_0, theta_tr and T_tr are used only when T_from_theta is set. Their
+    // defaults are still physical temperatures: compute_theta is inlined into
+    // the Newton loops and optimised builds evaluate its arm speculatively, so
+    // zeros would raise an FPE (g/(Cp_d*0), then 0*exp(inf)) on a discarded value.
+    Real T_b, T_dp;
+
+    int which_zone = -1;
+    Real scaled_height = amrex::Real(0);
+
+    // Compute the quantities at the first cell center
+    p[0] = p_0;
+    if (z_tr_1 > amrex::Real(0)) {
+        Real z = z_cc(0);
+        if (z <= z_tr_1) {
+            which_zone = 1;
+        } else if (z <= z_tr_2) {
+            which_zone = 2;
+        } else {
+            which_zone = 3;
+        }
+        scaled_height = z/z_tr_2;
+    }
+
+    compute_p_k_in_zone(p[0], p_0, theta[0], r[0], q_v[0], T_dp, T_b, dz_cc(0), amrex::Real(0), q_t, eq_pot_temp,
+                        use_empirical, which_zone, scaled_height, T_from_theta,
+                        theta_0, theta_tr, z_tr_2, T_tr);
+
+    for (int k=1; k<=khi; k++)
+    {
+        p[k] = p[k-1];
+
+        if (z_tr_1 > amrex::Real(0)) {
+            Real z = z_cc(k);
+            if (z <= z_tr_1) {
+                which_zone = 1;
+            } else if (z <= z_tr_2) {
+                which_zone = 2;
+            } else {
+                which_zone = 3;
+            }
+            scaled_height = z/z_tr_2;
+        }
+
+        compute_p_k_in_zone(p[k], p[k-1], theta[k], r[k], q_v[k], T_dp, T_b, dz_cc(k), r[k-1], q_t, eq_pot_temp,
+                            use_empirical, which_zone, scaled_height, T_from_theta,
+                            theta_0, theta_tr, z_tr_2, T_tr);
+    }
+
+    r[khi+1] = r[khi];
+}
+
+/**
  * Initialize an isentropic hydrostatic equilibrium base state without terrain.
  *
  * @param[out] theta Potential temperature profile.
@@ -681,55 +754,36 @@ init_isentropic_hse_no_terrain (Real *theta, Real* r, Real* p, Real *q_v,
                                 const Real z_tr_1 = -one, const Real z_tr_2 = -one,
                                 const Real theta_0 = amrex::Real(300), const Real theta_tr = amrex::Real(300), const Real T_tr = amrex::Real(300))
 {
-    // theta_0, theta_tr and T_tr are used only when T_from_theta is set. Their
-    // defaults are still physical temperatures: compute_theta is inlined into
-    // the Newton loops and optimised builds evaluate its arm speculatively, so
-    // zeros would raise an FPE (g/(Cp_d*0), then 0*exp(inf)) on a discarded value.
-    Real T_b, T_dp;
+    init_isentropic_hse_no_terrain_column(theta, r, p, q_v,
+        [=] (int k) { return (k == 0) ? myhalf * dz : (k+myhalf) * dz; },
+        [=] (int /*k*/) { return dz; },
+        khi, q_t, eq_pot_temp, use_empirical, T_from_theta,
+        z_tr_1, z_tr_2, theta_0, theta_tr, T_tr);
+}
 
-    int which_zone = -1;
-    Real scaled_height = amrex::Real(0);
-
-    // Compute the quantities at z = myhalf*dz (first cell center)
-    p[0] = p_0;
-    if (z_tr_1 > amrex::Real(0)) {
-        Real z = myhalf * dz;
-        if (z <= z_tr_1) {
-            which_zone = 1;
-        } else if (z <= z_tr_2) {
-            which_zone = 2;
-        } else {
-            which_zone = 3;
-        }
-        scaled_height = z/z_tr_2;
-    }
-
-    compute_p_k_in_zone(p[0], p_0, theta[0], r[0], q_v[0], T_dp, T_b, dz, amrex::Real(0), q_t, eq_pot_temp,
-                        use_empirical, which_zone, scaled_height, T_from_theta,
-                        theta_0, theta_tr, z_tr_2, T_tr);
-
-    for (int k=1; k<=khi; k++)
-    {
-        p[k] = p[k-1];
-
-        if (z_tr_1 > amrex::Real(0)) {
-            Real z = (k+myhalf) * dz;
-            if (z <= z_tr_1) {
-                which_zone = 1;
-            } else if (z <= z_tr_2) {
-                which_zone = 2;
-            } else {
-                which_zone = 3;
-            }
-            scaled_height = z/z_tr_2;
-        }
-
-        compute_p_k_in_zone(p[k], p[k-1], theta[k], r[k], q_v[k], T_dp, T_b, dz, r[k-1], q_t, eq_pot_temp,
-                            use_empirical, which_zone, scaled_height, T_from_theta,
-                            theta_0, theta_tr, z_tr_2, T_tr);
-    }
-
-    r[khi+1] = r[khi];
+/**
+ * As above, for a column whose staggered levels are given, e.g. a stretched mesh.
+ *
+ * @param[in] zlevels Staggered levels zlevels[0..khi+1]; heights are measured from zlevels[0].
+ *
+ * The other arguments are those of the version with a uniform dz.
+ */
+AMREX_FORCE_INLINE
+AMREX_GPU_HOST_DEVICE
+void
+init_isentropic_hse_no_terrain (Real *theta, Real* r, Real* p, Real *q_v,
+                                const Real* zlevels, const int& khi, const Real q_t,
+                                const Real eq_pot_temp, const bool use_empirical,
+                                const bool T_from_theta = false,
+                                const Real z_tr_1 = -one, const Real z_tr_2 = -one,
+                                const Real theta_0 = amrex::Real(300), const Real theta_tr = amrex::Real(300), const Real T_tr = amrex::Real(300))
+{
+    auto z_cc = [=] (int k) { return myhalf * (zlevels[k] + zlevels[k+1]) - zlevels[0]; };
+    init_isentropic_hse_no_terrain_column(theta, r, p, q_v,
+        z_cc,
+        [=] (int k) { return (k == 0) ? zlevels[1] - zlevels[0] : z_cc(k) - z_cc(k-1); },
+        khi, q_t, eq_pot_temp, use_empirical, T_from_theta,
+        z_tr_1, z_tr_2, theta_0, theta_tr, T_tr);
 }
 
 } // namespace

@@ -449,7 +449,18 @@ ERF::ERF_shared ()
     extern void erf_probinit_link_anchor_func () noexcept;
     erf_probinit_link_anchor_func();
 #endif
-    prob = amrex_probinit(geom[0].ProbLo(),geom[0].ProbHi());
+    {
+        // The problem sees the physical extent of the domain: on a mesh other than ConstantDz
+        //    that is the vertical levels, not geometry.prob_lo[2] and prob_hi[2]
+        RealArray problo{AMREX_D_DECL(geom[0].ProbLo(0), geom[0].ProbLo(1), geom[0].ProbLo(2))};
+        RealArray probhi{AMREX_D_DECL(geom[0].ProbHi(0), geom[0].ProbHi(1), geom[0].ProbHi(2))};
+        if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+            problo[2] = zlevels_stag[0].front();
+            probhi[2] = zlevels_stag[0].back();
+        }
+        prob = amrex_probinit(problo.data(), probhi.data());
+    }
+    prob->set_zlevels_stag(zlevels_stag);
 
     ParmParse pp_erf("erf");
     std::string prob_name;

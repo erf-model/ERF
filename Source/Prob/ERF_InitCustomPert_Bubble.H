@@ -1,3 +1,7 @@
+    // On a mesh other than ConstantDz, heights come from z_cc and the vertical levels,
+    //    not from geomdata's prob_lo[2] and CellSize(2)
+    const bool use_z_phys = use_physical_z();
+
     ParmParse pp_prob("prob");
 
     Real T_0 = amrex::Real(300.0); pp_prob.query("T_0", T_0);
@@ -56,8 +60,13 @@
         Gpu::DeviceVector<Real> d_t(khi+2);
         Gpu::DeviceVector<Real> d_q_v(khi+2);
 
-        HSEutils::init_isentropic_hse_no_terrain(h_t.data(), h_r.data(),h_p.data(),h_q_v.data(),dz,khi,
-                                                 qt_init,eq_pot_temp,use_empirical,false);
+        if (use_z_phys) {
+            HSEutils::init_isentropic_hse_no_terrain(h_t.data(), h_r.data(),h_p.data(),h_q_v.data(),m_zlevels_stag[lev].data(),khi,
+                                                     qt_init,eq_pot_temp,use_empirical,false);
+        } else {
+            HSEutils::init_isentropic_hse_no_terrain(h_t.data(), h_r.data(),h_p.data(),h_q_v.data(),dz,khi,
+                                                     qt_init,eq_pot_temp,use_empirical,false);
+        }
 
         Gpu::copyAsync(Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
         Gpu::copyAsync(Gpu::hostToDevice, h_p.begin(), h_p.end(), d_p.begin());
@@ -93,7 +102,7 @@
             const auto dx       = geomdata.CellSize();
             const Real x        = prob_lo[0] + (i + myhalf) * dx[0];
             const Real y        = prob_lo[1] + (j + myhalf) * dx[1];
-            const Real z        = prob_lo[2] + (k + myhalf) * dx[2];
+            const Real z        = use_z_phys ? z_cc(i,j,k) : prob_lo[2] + (k + myhalf) * dx[2];
 
             Real rad, delta_theta, theta_total, rho, RH;
 
@@ -149,7 +158,7 @@
 
             const Real x = prob_lo[0] + (i + myhalf) * dx[0];
             const Real y = prob_lo[1] + (j + myhalf) * dx[1];
-            const Real z = prob_lo[2] + (k + myhalf) * dx[2];
+            const Real z = use_z_phys ? z_cc(i,j,k) : prob_lo[2] + (k + myhalf) * dx[2];
 
             //perturb_rho_theta(x, y, z, p_hse(i,j,k), r_hse(i,j,k), rdOcp,
             //                  state_pert(i, j, k, Rho_comp),

@@ -1,4 +1,8 @@
 
+    // On a mesh other than ConstantDz, heights come from z_cc and the vertical levels,
+    //    not from geomdata's prob_lo[2], prob_hi[2] and CellSize(2)
+    const bool use_z_phys = use_physical_z();
+
     ParmParse pp("prob");
     Real rho_0 =   one; pp.query("rho_0", rho_0);
     Real   T_0 = amrex::Real(300.0); pp.query("T_0", T_0);
@@ -12,7 +16,7 @@
         const Real* dx = geomdata.CellSize();
         const Real x = prob_lo[0] + (i + myhalf) * dx[0];
         const Real y = prob_lo[1] + (j + myhalf) * dx[1];
-        const Real z = prob_lo[2] + (k + myhalf) * dx[2];
+        const Real z = use_z_phys ? z_cc(i,j,k) : prob_lo[2] + (k + myhalf) * dx[2];
 
         // Initial potential temperature (actually rho*theta) perturbation
         const Real p = rho_0 * V_0*V_0*
