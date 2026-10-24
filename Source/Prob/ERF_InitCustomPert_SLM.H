@@ -1,4 +1,9 @@
 
+    // On a mesh other than ConstantDz, heights come from z_cc and the vertical levels,
+    //    not from geomdata's prob_lo[2], prob_hi[2] and CellSize(2)
+    const Real phys_z_lo  = phys_zlo(geomdata, lev);
+    const Real phys_z_hi  = phys_zhi(geomdata, lev);
+
     ParmParse pp("prob");
 
     Real A_0 = amrex::Real(1.0); pp.query("A_0", A_0);
@@ -27,7 +32,7 @@
 
         const Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
         const Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
-        const Real zc = 0.5 * (prob_lo[2] + prob_hi[2]);
+        const Real zc = 0.5 * (phys_z_lo + phys_z_hi);
         const Real r = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
 
         // Apply a random temperature perturbation that tapers linearly from
@@ -60,7 +65,7 @@
 
         if (custom_TKE) {
             state_pert(i, j, k, RhoKE_comp) =
-                (1.0 - z / prob_hi[2]) * r_hse(i,j,k);
+                (1.0 - z / phys_z_hi) * r_hse(i,j,k);
         } else {
             state_pert(i, j, k, RhoKE_comp) = KE_0;
         }

@@ -157,11 +157,14 @@ erf_init_dens_hse_dry (amrex::MultiFab& rho_hse,
  * @param[out] rho_hse MultiFab to be filled with HSE density.
  * @param z_phys_nd Unused nodal physical height MultiFab.
  * @param[in] geom Geometry defining the domain.
+ * @param[in] zlevels_stag Staggered vertical levels of this level; the heights on a mesh
+ *                         other than ConstantDz, where CellSize(2) is not physical.
  */
 void
 erf_init_dens_hse_moist (amrex::MultiFab& rho_hse,
                          std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
-                         amrex::Geometry const& geom) override
+                         amrex::Geometry const& geom,
+                         const amrex::Vector<amrex::Real>& zlevels_stag) override
 {
     const amrex::Real dz        = geom.CellSize()[2];
     const int khi        = geom.Domain().bigEnd()[2];
@@ -199,10 +202,17 @@ erf_init_dens_hse_moist (amrex::MultiFab& rho_hse,
         pp.get("T_tr",T_tr);
     }
 
-    HSEutils::init_isentropic_hse_no_terrain( h_t.data(), h_r.data(), h_p.data(),
-                                              h_q_v.data(), dz, khi, q_t, eq_pot_temp, use_empirical,
-                                              T_from_theta, z_tr_1, z_tr_2,
-                                              theta_0, theta_tr, T_tr);
+    if (use_physical_z()) {
+        HSEutils::init_isentropic_hse_no_terrain( h_t.data(), h_r.data(), h_p.data(),
+                                                  h_q_v.data(), zlevels_stag.data(), khi, q_t, eq_pot_temp,
+                                                  use_empirical, T_from_theta, z_tr_1, z_tr_2,
+                                                  theta_0, theta_tr, T_tr);
+    } else {
+        HSEutils::init_isentropic_hse_no_terrain( h_t.data(), h_r.data(), h_p.data(),
+                                                  h_q_v.data(), dz, khi, q_t, eq_pot_temp, use_empirical,
+                                                  T_from_theta, z_tr_1, z_tr_2,
+                                                  theta_0, theta_tr, T_tr);
+    }
 
     amrex::Gpu::DeviceVector<amrex::Real> d_r(khi+2);
     amrex::Gpu::copy(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());

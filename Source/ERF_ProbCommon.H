@@ -94,7 +94,8 @@ public:
     virtual void
     erf_init_dens_hse_moist (amrex::MultiFab& /*rho_hse*/,
                              std::unique_ptr<amrex::MultiFab>& /*z_phys_nd*/,
-                             amrex::Geometry const& /*geom*/)
+                             amrex::Geometry const& /*geom*/,
+                             const amrex::Vector<amrex::Real>& /*zlevels_stag*/)
     {
 
     }
@@ -1208,6 +1209,33 @@ protected:
         amrex::ParmParse pp("erf");
         pp.get("prob_name",prob_name); return prob_name;
     }
+
+public:
+    /**
+     * Store the staggered vertical levels of every AMR level.  On a mesh other than
+     * ConstantDz, geometry.prob_lo[2], prob_hi[2] and CellSize(2) only bound and step the
+     * computational coordinate; the physical heights are these levels (and z_phys_cc/nd).
+     */
+    void set_zlevels_stag (const amrex::Vector<amrex::Vector<amrex::Real>>& zlevels_stag) {
+        m_zlevels_stag = zlevels_stag;
+    }
+
+protected:
+    //! True when heights must come from the vertical levels or z_phys, not from the geometry
+    static bool use_physical_z () { return SolverChoice::mesh_type != MeshType::ConstantDz; }
+
+    //! Physical bottom of the domain at AMR level lev
+    [[nodiscard]] amrex::Real phys_zlo (const amrex::GeometryData& geomdata, int lev) const {
+        return use_physical_z() ? m_zlevels_stag[lev].front() : geomdata.ProbLo(2);
+    }
+
+    //! Physical top of the domain at AMR level lev
+    [[nodiscard]] amrex::Real phys_zhi (const amrex::GeometryData& geomdata, int lev) const {
+        return use_physical_z() ? m_zlevels_stag[lev].back() : geomdata.ProbHi(2);
+    }
+
+    //! Staggered vertical levels of AMR level lev (set by set_zlevels_stag)
+    amrex::Vector<amrex::Vector<amrex::Real>> m_zlevels_stag;
 };
 
 

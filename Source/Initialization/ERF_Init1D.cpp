@@ -63,8 +63,7 @@ ERF::initHSE (int lev)
         if (solverChoice.init_type == InitType::MoistBaseState ||
             solverChoice.init_type == InitType::HindCast)
         {
-            AMREX_ALWAYS_ASSERT(solverChoice.mesh_type == MeshType::ConstantDz);
-            prob->erf_init_dens_hse_moist(dens, z_phys_nd_in, geom[lev]);
+            prob->erf_init_dens_hse_moist(dens, z_phys_nd_in, geom[lev], zlevels_stag[lev]);
         }
         else if (solverChoice.init_type == InitType::ConstantDensity)
         {

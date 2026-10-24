@@ -6,6 +6,7 @@
 #include <AMReX_REAL.H>
 
 #include "ERF_Constants.H"
+#include "ERF_DataStruct.H"
 #include "ERF_EOS.H"
 #include "ERF_MicrophysicsUtils.H"
 #include "BoundaryConditions/ERF_WallThermodynamics.H"
@@ -612,6 +613,11 @@ inline void require_no_unsupported_geometry ()
     if (pp_erf.query("mesh_type", value) &&
         amrex::toLower(value) != "constantdz") {
         amrex::Error("Cloud Chamber: erf.mesh_type must be ConstantDz");
+    }
+    // A stretched or listed vertical grid makes the mesh StretchedDz without erf.mesh_type
+    if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+        amrex::Error("Cloud Chamber: the vertical grid must be uniform (no erf.grid_stretching_ratio, "
+                     "erf.initial_dz or erf.terrain_z_levels)");
     }
 }
 
