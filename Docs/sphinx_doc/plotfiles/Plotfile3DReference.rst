@@ -1117,9 +1117,6 @@ the kinematic momentum diffusivity ``Kmv / density``.
   number-concentration convention. ``nn`` is the CCN / total aerosol number
   carried by ``WDM6``; it shares a conserved component with ``ni``, so the two
   are never selectable at the same time.
-* ``xvel_err``, ``yvel_err``, ``zvel_err``, and ``pp_err`` are error diagnostics
-  available when ``ERF_COMPUTE_ERROR`` is enabled. Their units follow the
-  corresponding velocity or pressure quantity.
 
 The fixed conserved-state inventory is ``density``, ``rhotheta``, ``rhoKE``,
 ``rhoadv_0``, and ``rhoQ1`` through ``rhoQ11``. The ``rhoQ`` components are
