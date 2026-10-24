@@ -104,4 +104,12 @@ def run_all_checks(deck: Deck, ctx: RunContext, report: Report,
             continue
         if not cls.applies(ctx):
             continue
-        cls(deck, ctx, report).run()
+        try:
+            cls(deck, ctx, report).run()
+        except DeckError as exc:
+            report.add(Finding(Severity.ERROR, cls.name, str(exc).split(" =")[0], str(exc),
+                               "Give a value of the type the key expects."))
+        except Exception as exc:  # a checker bug must not hide the rest of the report
+            report.add(Finding(Severity.ERROR, cls.name, "internal",
+                               "the %s checker failed on this deck: %s: %s" % (cls.name, type(exc).__name__, exc),
+                               "Please report this with the deck; the other checks still ran."))

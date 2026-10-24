@@ -26,8 +26,14 @@ class TimeStepChecker(Checker):
         if self.fixed_dt is not None and self.fixed_dt <= 0:
             self.info("erf.fixed_dt", "= %g means 'not set': the step is adaptive" % self.fixed_dt)
             self.fixed_dt = None
-        if self.cfl is not None and not (0 < self.cfl <= 1):
-            self.error("erf.cfl", "= %g; ERF requires 0 < cfl <= 1" % self.cfl)
+        # ERF only asserts cfl > 0 || fixed_dt > 0 (ParameterSanityChecks); it has no upper bound
+        if self.cfl is not None and self.cfl <= 0:
+            if self.fixed_dt is None:
+                self.error("erf.cfl", "= %g with no erf.fixed_dt; ERF stops ('cfl > 0 || fixed_dt > 0')" % self.cfl)
+            self.cfl = None
+        elif self.cfl is not None and self.cfl > 1 and self.fixed_dt is None:
+            self.warn("erf.cfl", "= %g: ERF accepts it, but the RK3 step is only stable for CFL below about 1 (the docs give 0 < cfl <= 1, default 0.8)" % self.cfl,
+                      "Use erf.cfl <= 1.")
         if self.fixed_dt is not None and d.has("erf.cfl"):
             self.warn("erf.cfl", "erf.cfl is ignored while erf.fixed_dt is set",
                       "Remove one of them: fixed_dt for a prescribed step, cfl for an adaptive one.")
@@ -121,8 +127,13 @@ class CompressibleTimeStep(TimeStepChecker):
         ratio = self.int_("erf.fixed_mri_dt_ratio")
         fast = self.real("erf.fixed_fast_dt")
         sub_cfl = self.real("erf.substepping_cfl", DEFAULT_SUBSTEPPING_CFL)
-        if ratio is not None and (ratio <= 0 or ratio % 2):
-            self.error("erf.fixed_mri_dt_ratio", "= %d; must be an even positive integer (ERF stops)" % ratio)
+        # ERF aborts only for ratio > 0 and odd; 0 (the default) or negative means "not set"
+        if ratio is not None and ratio <= 0:
+            ratio = None
+        if ratio is not None and ratio % 2:
+            self.error("erf.fixed_mri_dt_ratio", "= %d; a positive ratio must be even (ERF stops)" % ratio)
+        if fast is not None and fast <= 0:
+            fast = None
         if sub == "None":
             for key in ("erf.fixed_fast_dt", "erf.fixed_mri_dt_ratio", "erf.substepping_cfl"):
                 if d.has(key):
@@ -138,8 +149,11 @@ class CompressibleTimeStep(TimeStepChecker):
                             "Use an even ratio to match the documented rule.")
             if ratio and abs(r - ratio) > 1e-9:
                 self.error("erf.fixed_mri_dt_ratio", "fixed_dt / fixed_fast_dt = %g disagrees with fixed_mri_dt_ratio = %d (ERF stops: 'Dt is over-specified')" % (r, ratio))
-        if sub_cfl is not None and not (0 < sub_cfl <= 1):
-            self.error("erf.substepping_cfl", "must be in (0, 1]")
+        if sub_cfl is None or sub_cfl <= 0:
+            self.error("erf.substepping_cfl", "must be > 0: the substep count is dt divided by this CFL")
+            return
+        if sub_cfl > 1:
+            self.warn("erf.substepping_cfl", "= %g: the acoustic substep is unstable above a CFL of about 1 (WRF practice is 0.5)" % sub_cfl)
         self._substep_cfl(ratio, fast, sub_cfl)
 
     def _substep_cfl(self, ratio, fast, sub_cfl) -> None:
@@ -155,6 +169,8 @@ class CompressibleTimeStep(TimeStepChecker):
             self.info("erf.fixed_dt", "single-column run: the acoustic step is not limited by dx")
             return
         if self.fixed_dt is None:
+            if self.cfl is None:
+                return
             self.info("erf.cfl", "adaptive step: ERF sets dt from the acoustic CFL %g (horizontal only with implicit substepping) and chooses the substep count%s" % (
                 self.cfl, "" if ratio is None else " (every %d substeps)" % ratio))
             dmi = self.real("erf.dt_max_initial", DEFAULT_DT_MAX_INITIAL)
@@ -202,8 +218,10 @@ class CompressibleTimeStep(TimeStepChecker):
             return
         dmin = min([x for x in ([dxh] if dxh else []) + [c.dz_min]])
         cs = c.sound_speed()
-        dt_lim = self.cfl * dmin / (c.options.umax + cs) if self.cfl else None
         if self.fixed_dt is None:
+            if self.cfl is None:
+                return
+            dt_lim = self.cfl * dmin / (c.options.umax + cs)
             self.info("erf.cfl", "no substepping: adaptive dt is about %.3g s (acoustic CFL %g on the smallest cell %g m)" % (dt_lim, self.cfl, dmin))
             return
         acfl = self.fixed_dt * (c.options.umax + cs) / dmin
@@ -266,6 +284,8 @@ class AnelasticTimeStep(TimeStepChecker):
             return
         u = c.options.umax
         if self.fixed_dt is None:
+            if self.cfl is None:
+                return
             self.info("erf.cfl", "adaptive step from the advective CFL %g: about %.3g s for |u| = %g m/s on dx = %g m" % (
                 self.cfl, self.cfl * dxh / u, u, dxh))
             dmi = self.real("erf.dt_max_initial", DEFAULT_DT_MAX_INITIAL)

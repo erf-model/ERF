@@ -21,8 +21,8 @@ class DomainChecker(Checker):
             self.error("geometry.prob_hi", "the domain size is missing: give geometry.prob_hi or geometry.prob_extent",
                        "Set geometry.prob_hi = x y z (with geometry.prob_lo) or geometry.prob_extent = Lx Ly Lz.")
         if d.has("geometry.prob_hi") and d.has("geometry.prob_extent"):
-            self.warn("geometry.prob_extent", "both prob_hi and prob_extent are given; prob_extent is used",
-                      "Keep one of them.")
+            self.error("geometry.prob_extent", "both prob_hi and prob_extent are given; AMReX stops (AMReX_Geometry.cpp asserts exactly one)",
+                       "Keep one of them.")
         if c.max_level is None:
             self.error("amr.max_level", "amr.max_level must be set (0 for a single level)")
         elif c.max_level < 0:

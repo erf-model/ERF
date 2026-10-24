@@ -1,19 +1,57 @@
-"""Turbulence closures, forcing, moisture, terrain and damping."""
+"""Turbulence closures, forcing, moisture, terrain and damping.
+
+Which spellings ERF accepts, and whether case matters, follows how each key is
+read: ``les_type`` and ``rans_type`` go through ``ParmParse::query`` on an
+``AMREX_ENUM`` (exact names), ``molec_diff_type`` and the advection types are
+compared as strings (exact), while ``pbl_type``, ``moisture_model``,
+``terrain_type``, ``init_type`` and ``abl_driver_type`` use
+``query_enum_case_insensitive``.  The enum name lists are read from
+``Source/DataStructs`` when the repository is at hand, so new members are picked
+up; the lists below are the fallback.
+"""
+
+import os
+import re
+from typing import Dict, List
 
 from ..checker import Checker, register
+from .keys import _find_docs
 
-LES_TYPES = {"none", "smagorinsky", "smagorinsky2d", "deardorff"}
-RANS_TYPES = {"none", "keqn"}
-PBL_TYPES = {"none", "mynn25", "mynnedmf", "myj", "ysu", "ysunew", "mrf", "native_shoc", "eamxx_shoc", "shoc"}
-MOLEC_TYPES = {"none", "constant", "constantalpha"}
+LES_TYPES = ["None", "Smagorinsky", "Smagorinsky2D", "Deardorff"]
+RANS_TYPES = ["None", "kEqn"]
+PBL_TYPES = ["None", "MYJ", "MYNN25", "MYNNEDMF", "YSU", "YSUNew", "MRF", "SHOC", "EAMXX_SHOC", "NATIVE_SHOC"]
+MOLEC_TYPES = ["None", "Constant", "ConstantAlpha"]
 # ERF_AdvStruct.H string list
-ADV_TYPES = {"centered_2nd", "upwind_3rd", "upwind_3rd_sl", "centered_4th", "upwind_5th", "centered_6th",
-             "weno3", "weno5", "weno7", "wenoz3", "wenoz5", "wenoz7", "wenomzq3",
-             "blended_3rd4th", "blended_5th6th"}
-TERRAIN_TYPES = {"none", "staticfittedmesh", "movingfittedmesh", "eb", "immersedforcing", "static", "moving"}
-MOISTURE_MODELS = {"none", "satadj", "kessler", "kessler_norain", "sam", "sam_noice", "sam_noprecip_noice",
-                   "morrison", "morrison_noice", "morrison_noprecip_noice", "sbm", "sdm"}
-DRIVERS = {"none", "pressuregradient", "geostrophicwind"}
+ADV_TYPES = ["Centered_2nd", "Upwind_3rd", "Upwind_3rd_SL", "Centered_4th", "Upwind_5th", "Centered_6th",
+             "WENO3", "WENO5", "WENO7", "WENOZ3", "WENOZ5", "WENOZ7", "WENOMZQ3",
+             "Blended_3rd4th", "Blended_5th6th"]
+TERRAIN_TYPES = ["None", "StaticFittedMesh", "MovingFittedMesh", "EB", "ImmersedForcing"]
+MOISTURE_MODELS = ["SAM", "SAM_NoIce", "SAM_NoPrecip_NoIce", "Kessler", "Kessler_NoRain", "SatAdj", "Morrison",
+                   "Morrison_NoIce", "WSM6", "WDM6", "SuperDroplets", "MoistNoCondensation", "SBM", "None"]
+DRIVERS = ["None", "PressureGradient", "GeostrophicWind"]
+
+_ENUM_RE = re.compile(r"AMREX_ENUM\(\s*(\w+)\s*,([^)]*)\)", re.S)
+_ENUMS: Dict[str, List[str]] = {}
+
+
+def source_enum(name: str, fallback: List[str]) -> List[str]:
+    """Members of ``AMREX_ENUM(name, ...)`` under Source/DataStructs, or the fallback."""
+    if not _ENUMS:
+        _ENUMS["_loaded"] = []
+        docs = _find_docs()
+        if docs:
+            root = os.path.abspath(os.path.join(os.path.dirname(docs), "..", ".."))
+            d = os.path.join(root, "Source", "DataStructs")
+            if os.path.isdir(d):
+                for fn in os.listdir(d):
+                    if fn.endswith(".H"):
+                        try:
+                            text = open(os.path.join(d, fn), errors="replace").read()
+                        except OSError:
+                            continue
+                        for m in _ENUM_RE.finditer(text):
+                            _ENUMS[m.group(1)] = [x.strip() for x in m.group(2).split(",") if x.strip()]
+    return _ENUMS.get(name, fallback)
 
 
 @register
@@ -22,14 +60,18 @@ class TurbulenceChecker(Checker):
 
     def run(self) -> None:
         c, d = self.ctx, self.deck
-        les = [v.lower() for v in c.per_level_str("erf.les_type", "None")]
-        rans = [v.lower() for v in c.per_level_str("erf.rans_type", "None")]
-        pbl = [v.lower() for v in c.per_level_str("erf.pbl_type", "None")]
-        molec = (self.str_("erf.molec_diff_type", "None") or "None").lower()
-        self._enum("erf.les_type", les, LES_TYPES)
-        self._enum("erf.rans_type", rans, RANS_TYPES)
-        self._enum("erf.pbl_type", pbl, PBL_TYPES)
-        self._enum("erf.molec_diff_type", [molec], MOLEC_TYPES)
+        les_raw = c.per_level_str("erf.les_type", "None")
+        rans_raw = c.per_level_str("erf.rans_type", "None")
+        pbl_raw = c.per_level_str("erf.pbl_type", "None")
+        molec_raw = self.str_("erf.molec_diff_type", "None") or "None"
+        self._enum("erf.les_type", les_raw, source_enum("LESType", LES_TYPES), exact=True)
+        self._enum("erf.rans_type", rans_raw, source_enum("RANSType", RANS_TYPES), exact=True)
+        self._enum("erf.pbl_type", pbl_raw, source_enum("PBLType", PBL_TYPES), exact=False)
+        self._enum("erf.molec_diff_type", [molec_raw], MOLEC_TYPES, exact=True)
+        les = [v.lower() for v in les_raw]
+        rans = [v.lower() for v in rans_raw]
+        pbl = [v.lower() for v in pbl_raw]
+        molec = molec_raw.lower()
         for lev in range(c.nlev):
             on = [n for n, v in (("les_type", les[lev]), ("rans_type", rans[lev]), ("pbl_type", pbl[lev])) if v != "none"]
             if len(on) > 1 and not (set(on) == {"les_type", "pbl_type"}):
@@ -63,11 +105,20 @@ class TurbulenceChecker(Checker):
     def fixed_dt_none(self) -> bool:
         return not self.deck.has("erf.fixed_dt")
 
-    def _enum(self, key, values, allowed) -> None:
+    def _enum(self, key, values, allowed, exact) -> None:
+        """Report a value ERF would not accept.  ``exact``: the code compares the string
+        (or uses ParmParse::query on an enum), so the case must match too."""
+        lower = {a.lower(): a for a in allowed}
         for v in values:
-            if v not in allowed:
-                self.error(key, "%r is not a known value" % v, "Choose from: " + ", ".join(sorted(allowed)) + ".")
-                return
+            if v in allowed:
+                continue
+            if v.lower() in lower:
+                if exact:
+                    self.error(key, "%r differs in case from %s; ERF compares the string exactly and stops" % (v, lower[v.lower()]),
+                               "Write %s = %s." % (key, lower[v.lower()]))
+                continue
+            self.error(key, "%r is not a known value" % v, "Choose from: " + ", ".join(allowed) + ".")
+            return
 
     def _advection(self) -> None:
         d = self.deck
@@ -77,8 +128,13 @@ class TurbulenceChecker(Checker):
             v = self.str_(key)
             if v is None:
                 continue
-            if v.lower() not in ADV_TYPES:
-                self.error(key, "%r is not an advection scheme" % v, "Choose from: " + ", ".join(sorted(ADV_TYPES)) + ".")
+            if v not in ADV_TYPES:
+                lower = {a.lower(): a for a in ADV_TYPES}
+                if v.lower() in lower:
+                    self.error(key, "%r differs in case from %s; ERF compares the string exactly and stops" % (v, lower[v.lower()]),
+                               "Write %s = %s." % (key, lower[v.lower()]))
+                else:
+                    self.error(key, "%r is not an advection scheme" % v, "Choose from: " + ", ".join(ADV_TYPES) + ".")
             if key.startswith("erf.moistscal") and not moist:
                 self.warn(key, "ignored: no moisture model is active")
             if key.startswith("erf.dycore") and v.lower().startswith("weno") and self.ctx.terrain.lower() == "eb":
@@ -106,7 +162,7 @@ class ForcingChecker(Checker):
         c, d = self.ctx, self.deck
         cor = self.bool_("erf.use_coriolis", False)
         driver = (self.str_("erf.abl_driver_type", "None") or "None").lower()
-        if driver not in DRIVERS:
+        if driver not in [x.lower() for x in source_enum("ABLDriverType", DRIVERS)]:
             self.error("erf.abl_driver_type", "%r is not a driver type" % driver, "None, PressureGradient or GeostrophicWind.")
         if cor and not d.has("erf.latitude") and not d.has("erf.coriolis_3d"):
             self.warn("erf.latitude", "use_coriolis = true with the default latitude of 90 degrees (f = 2 Omega)",
@@ -164,8 +220,9 @@ class MoistureChecker(Checker):
     def run(self) -> None:
         c, d = self.ctx, self.deck
         m = (self.str_("erf.moisture_model", "None") or "None").lower()
-        if m not in MOISTURE_MODELS:
-            self.advise("erf.moisture_model", "%r is not one of the documented models (%s)" % (m, ", ".join(sorted(MOISTURE_MODELS))))
+        models = source_enum("MoistureType", MOISTURE_MODELS)
+        if m not in [x.lower() for x in models]:
+            self.error("erf.moisture_model", "%r is not a moisture model; ERF stops" % m, "Choose from: " + ", ".join(models) + ".")
         if m == "none":
             for k in d.keys():
                 if k.startswith("erf.most.surf_moist") or k in ("erf.most.Cq", "erf.moisture_tight_coupling", "erf.implicit_moisture_diffusion"):
@@ -185,7 +242,7 @@ class TerrainChecker(Checker):
     def run(self) -> None:
         c, d = self.ctx, self.deck
         t = c.terrain.lower()
-        if t not in TERRAIN_TYPES:
+        if t not in [x.lower() for x in source_enum("TerrainType", TERRAIN_TYPES)] + ["static", "moving"]:
             self.error("erf.terrain_type", "%r is not a terrain type" % c.terrain, "None, StaticFittedMesh, MovingFittedMesh, EB or ImmersedForcing.")
         src = [k for k in ("erf.terrain_file_name", "erf.terrain_file_name_nc", "erf.terrain_file_name_USGS", "prob.custom_terrain_type") if d.has(k)]
         if len(src) > 1:

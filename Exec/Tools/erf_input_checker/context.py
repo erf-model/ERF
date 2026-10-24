@@ -49,7 +49,7 @@ class RunContext:
 
         self.n_cell = self._n_cell()
         self.prob_lo, self.prob_hi = self._extent()
-        self.max_level = deck.get_int("amr.max_level", None)
+        self.max_level = self._safe(lambda: deck.get_int("amr.max_level", None), None)
         self.nlev = (self.max_level + 1) if self.max_level is not None else 1
         self.ref_ratio = self._ref_ratio()
 

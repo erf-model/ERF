@@ -48,8 +48,6 @@ class IdealInitChecker(InitChecker):
             if d.has(key):
                 self.warn(key, "only read for init_type = WRFInput / Metgrid / NCFile",
                           "Remove the key, or set erf.init_type to a real-data type.")
-        if c.use_real_bcs:
-            self.error("erf.use_real_bcs", "needs init_type = WRFInput or Metgrid; ERF stops")
         if t in ("uniform", "constantdensity") and grav and not d.has("prob.T_0"):
             self.info("erf.init_type", "a uniform state with gravity relies on the problem's prob.* keys for the base state")
 
@@ -82,13 +80,16 @@ class RealInitChecker(InitChecker):
                 for i, dim in enumerate("xy"):
                     if c.periodic[i]:
                         self.error("geometry.is_periodic", "%s is periodic while lateral boundaries come from the boundary file" % dim)
-            if c.terrain.lower() not in ("none", "staticfittedmesh", "static"):
-                self.error("erf.terrain_type", "only StaticFittedMesh (or None) is allowed with WRFInput / Metgrid")
-            if c.terrain.lower() == "none":
-                self.advise("erf.terrain_type", "real-data runs almost always need erf.terrain_type = StaticFittedMesh so the WRF terrain (HGT) is used")
+            if c.terrain.lower() not in ("staticfittedmesh", "static"):
+                self.error("erf.terrain_type", "= %s; ERF stops ('Only terrain_type = StaticFittedMesh are allowed with init_type = WRFInput or Metgrid')" % c.terrain,
+                           "Set erf.terrain_type = StaticFittedMesh.")
             if (self.str_("erf.moisture_model", "None") or "None").lower() == "none":
-                self.advise("erf.moisture_model", "real-data initial fields carry QVAPOR; without a moisture model the humidity is dropped",
-                            "Set erf.moisture_model (e.g. Kessler, SAM, SatAdj) unless a dry run is intended.")
+                if t == "wrfinput":
+                    self.error("erf.moisture_model", "None with WRFInput; ERF stops ('Can't have moisture_type = None with init_type = WRFInput')",
+                               "Set erf.moisture_model (e.g. Kessler, SAM, SatAdj).")
+                else:
+                    self.advise("erf.moisture_model", "met_em fields carry humidity; without a moisture model it is dropped",
+                                "Set erf.moisture_model unless a dry run is intended.")
             if not self.bool_("erf.use_gravity", False):
                 self.warn("erf.use_gravity", "real-data runs need gravity for the hydrostatic base state")
         if d.has("start_time") and t in ("wrfinput", "metgrid"):

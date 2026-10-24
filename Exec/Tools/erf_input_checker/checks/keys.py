@@ -153,6 +153,14 @@ class DuplicateKeys(Checker):
         return Finding(sev, self.name, key, msg, adv, where)
 
 
+def _finding_at_impl(self, sev, key, where, msg, adv):
+    from ..findings import Finding
+    return Finding(sev, self.name, key, msg, adv, where)
+
+
+Checker._finding_at = _finding_at_impl
+
+
 @register
 class RetiredKeys(Checker):
     """Inputs that ERF stops on, or silently maps to a new name."""
@@ -195,11 +203,20 @@ class UnknownKeys(Checker):
             return
         known_l = {k.lower(): k for k in known}
         read_names = source_key_names(self.docs_path)
+        for name, entry in self.deck.include_notes:
+            self.report.add(self._finding_at(Severity.WARNING, "FILE", entry.where,
+                "FILE = %s was found beside the deck but not from the current directory; ParmParse opens it relative to the directory the run starts in (or AMREX_INPUTS_FILE_PREFIX)" % name,
+                "Run ERF from the deck's directory, or give the path relative to the run directory."))
         indicators = [s.lower() for s in self.deck.get_strs("erf.refinement_indicators")]
         faces = ("xlo", "xhi", "ylo", "yhi", "zlo", "zhi")
         for key in self.deck.keys():
             kl = key.lower()
+            if key in known:
+                continue
             if kl in known_l:
+                # ParmParse keys are case-sensitive: the key as written is never read
+                self.warn(key, "not read: ParmParse keys are case-sensitive and the documented spelling is %s" % known_l[kl],
+                          "Rename to %s." % known_l[kl])
                 continue
             if kl.startswith(tuple(p.lower() for p in FREE_PREFIXES)):
                 continue
@@ -224,16 +241,19 @@ class UnknownKeys(Checker):
             stem = re.sub(r"_\d+$", "", kl)
             if stem in known_l:
                 continue
+            # a documented key under another prefix or with a letter wrong comes first,
+            # so that amr.fixed_dt is reported as erf.fixed_dt and not excused by the
+            # bare-name fallback below
+            close = difflib.get_close_matches(kl, list(known_l.keys()), n=1, cutoff=0.8)
+            if close:
+                self.warn(key, "not a documented input; ParmParse ignores keys nobody reads",
+                          "Did you mean %s?" % known_l[close[0]])
+                continue
             last = parts[-1]
             # the code reads it but the docs do not list it: a documentation gap, not a typo
             if last in read_names or ".".join(parts[1:]) in read_names:
                 self.info(key, "read by the code (Source/) but not listed in Docs/sphinx_doc/Inputs.rst",
                           "Worth a documentation row.")
-                continue
-            close = difflib.get_close_matches(kl, list(known_l.keys()), n=1, cutoff=0.8)
-            if close:
-                self.warn(key, "not a documented input; ParmParse ignores keys nobody reads",
-                          "Did you mean %s?" % known_l[close[0]])
             else:
                 self.advise(key, "not listed in Docs/sphinx_doc/Inputs.rst",
                             "Check the spelling, or that the key belongs to a model built into this executable.")

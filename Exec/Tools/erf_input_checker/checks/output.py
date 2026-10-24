@@ -31,7 +31,8 @@ class OutputChecker(Checker):
         ci = self.int_("amr.check_int", self.int_("erf.check_int", -1))
         cp = self.real("amr.check_per", self.real("erf.check_per", -1.0))
         if (ci or 0) > 0 and (cp or 0) > 0:
-            self.error("amr.check_int", "check_int and check_per are both set")
+            self.warn("amr.check_int", "check_int and check_per are both set; ERF writes a checkpoint whenever either is due",
+                      "Keep one of them.")
         max_step = self.int_("max_step", -1)
         fixed_dt = self.ctx.fixed_dt
         stop_time = self.real("stop_time")

@@ -170,7 +170,7 @@ class ExternalFilesChecker(Checker):
 
     def run(self) -> None:
         d = self.deck
-        self.present: Dict[str, str] = {}
+        self.present: Dict[str, List[str]] = {}
         for key, (what, many) in FILE_KEYS.items():
             if not d.has(key):
                 continue
@@ -183,7 +183,7 @@ class ExternalFilesChecker(Checker):
                     self.error(key, "%s %r not found next to the deck or in the current directory" % (what, name),
                                "Copy or link the file, or give an absolute path.")
                 else:
-                    self.present[key] = path
+                    self.present.setdefault(key, []).append(path)
         for face in ("xlo", "xhi", "ylo", "yhi", "zlo", "zhi"):
             for suf in FACE_FILE_KEYS:
                 key = face + suf
@@ -193,15 +193,19 @@ class ExternalFilesChecker(Checker):
                     if path is None:
                         self.error(key, "file %r not found" % name)
                     else:
-                        self.present[key] = path
+                        self.present.setdefault(key, []).append(path)
         self._real_data()
         self._terrain()
         self._sounding()
         self._tables()
 
     # -- real data ----------------------------------------------------------
+    def _first(self, key: str) -> Optional[str]:
+        paths = self.present.get(key)
+        return paths[0] if paths else None
+
     def _header(self, key: str) -> Optional[NetCDFHeader]:
-        path = self.present.get(key)
+        path = self._first(key)
         if not path:
             return None
         h = NetCDFHeader.read(path)
@@ -311,7 +315,7 @@ class ExternalFilesChecker(Checker):
         nys = h.dims.get("south_north_stag") or (h.dims.get("south_north", 0) + 1)
         if c.n_cell and nxs and nys and (c.n_cell[0] != nxs - 1 or c.n_cell[1] != nys - 1):
             self.error(key, "wrfbdy grid %d x %d does not match n_cell %d x %d" % (nxs - 1, nys - 1, c.n_cell[0], c.n_cell[1]))
-        path = self.present[key]
+        path = self._first(key)
         times = h.times(path)
         if len(times) >= 2:
             dts = [_parse_wrf_time(s) for s in times]
@@ -353,9 +357,9 @@ class ExternalFilesChecker(Checker):
     def _terrain(self) -> None:
         c = self.ctx
         if "erf.terrain_file_name" in self.present:
-            self._terrain_text(self.present["erf.terrain_file_name"], "erf.terrain_file_name")
+            self._terrain_text(self._first("erf.terrain_file_name"), "erf.terrain_file_name")
         if "erf.terrain_file_name_USGS" in self.present:
-            self._terrain_usgs(self.present["erf.terrain_file_name_USGS"])
+            self._terrain_usgs(self._first("erf.terrain_file_name_USGS"))
         if "erf.terrain_file_name_nc" in self.present:
             key = "erf.terrain_file_name_nc"
             h = self._header(key)
@@ -477,7 +481,8 @@ class ExternalFilesChecker(Checker):
                 return
             if len(rows[0]) < 3:
                 self.error(key, "%s: the first line must hold p_surf [hPa], theta_surf [K], qv_surf [g/kg]" % name)
-            elif not (300 < rows[0][0] < 1100):
+                continue
+            if not (300 < rows[0][0] < 1100):
                 self.warn(key, "%s: surface pressure %g looks wrong for hPa" % (name, rows[0][0]))
             if any(len(r) < 5 for r in rows[1:]):
                 self.error(key, "%s: every line after the first needs z theta qv u v" % name)
@@ -500,22 +505,22 @@ class ExternalFilesChecker(Checker):
     # -- tables -----------------------------------------------------------
     def _tables(self) -> None:
         d = self.deck
-        if "erf.abl_geo_wind_table" in self.present:
-            v = self._rows(self.present["erf.abl_geo_wind_table"])
+        for path in self.present.get("erf.abl_geo_wind_table", []):
+            v = self._rows(path)
             if any(len(r) != 3 for r in v):
-                self.error("erf.abl_geo_wind_table", "every line needs z u_g v_g")
-        if "erf.most.roughness_file_name" in self.present:
-            v = self._rows(self.present["erf.most.roughness_file_name"])
+                self.error("erf.abl_geo_wind_table", "%s: every line needs z u_g v_g" % os.path.basename(path))
+        for path in self.present.get("erf.most.roughness_file_name", []):
+            v = self._rows(path)
             if any(len(r) != 3 for r in v):
-                self.error("erf.most.roughness_file_name", "every line needs x y z0")
+                self.error("erf.most.roughness_file_name", "%s: every line needs x y z0" % os.path.basename(path))
             elif any(r[2] <= 0 for r in v):
-                self.error("erf.most.roughness_file_name", "z0 must be positive everywhere")
+                self.error("erf.most.roughness_file_name", "%s: z0 must be positive everywhere" % os.path.basename(path))
         for face in ("xlo", "xhi", "ylo", "yhi"):
-            key = face + ".dirichlet_file"
-            if key in self.present:
-                v = self._rows(self.present[key])
-                if not v or any(len(r) < 4 for r in v):
-                    self.error(key, "every line needs z u v w [theta]")
+            for key in (face + ".dirichlet_file", "erf." + face + ".dirichlet_file"):
+                for path in self.present.get(key, []):
+                    v = self._rows(path)
+                    if not v or any(len(r) < 4 for r in v):
+                        self.error(key, "every line needs z u v w [theta]")
 
     def _rows(self, path: str) -> List[List[float]]:
         out = []
