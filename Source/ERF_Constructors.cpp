@@ -389,7 +389,6 @@ ERF::ERF_shared ()
                  geom,
                  refRatio(),
                  solverChoice.grid_stretching_ratio,
-                 solverChoice.zsurf,
                  solverChoice.dz0);
 
     if (SolverChoice::mesh_type == MeshType::StretchedDz ||
