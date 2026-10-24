@@ -1616,6 +1616,10 @@ if(ERF_PRECISION STREQUAL "DOUBLE")
   add_test_column_bounds(ForestCanopyRANS_Uniform "plt00001" 45
       "x_velocity,KE" "4.87805419660,1.01104711783" "4.87805429416,1.01104713806")
 endif()
+# A stretched mesh starts at geometry.prob_lo[2] = -1, so the cell-centre z_phys runs from -0.9375
+# to 0.9375.  With the flat surface left at 0 the column was squashed onto 0 to 1 and reached
+# 0.96875 (erf-model/ERF#4442).
+add_test_column_bounds(StretchedProbLo_Poiseuille "plt00000" -10 "z_phys" "-0.9375001" "0.9375001")
 # A refined patch aloft (256-768 m) has no column at the ground: it takes level 0's height (~461 m), not zero
 add_test_field_bounds(PBLH_PatchAloft "plt2d00004" pblh 400.0 600.0)
 # Native WDM6 surface snow from the fallout through the bottom face, not the fall speed there:
@@ -3140,6 +3144,25 @@ add_test_option_parity(IBSEB_RefinedLevels_PlotCadenceParity IBSEB_RefinedLevels
 add_test_r(PBL_IBAware_MRF_Smoothing         ""  "erf_exec" "plt00010")
 
 #=============================================================================
+# Inflow perturbations
+#=============================================================================
+
+# The inflow perturbations keep one mean wind, one refresh interval, one net-zero
+# correction and (for CPM) one random value per perturbation box, and key the
+# per-cell random values to the global cell index, so the answer must not depend
+# on the decomposition (#4317).  The 3-cell perturbation boxes straddle the 8-cell
+# grid boxes of the split run, and they refresh within the 30 steps.  The runs
+# are made in subdirectories, so the profiles are given with their full paths.
+foreach(_tp_type Direct CPM)
+    set(_tp_test TurbPert_${_tp_type}_BoxParity)
+    set(_tp_dir "${CMAKE_CURRENT_BINARY_DIR}/test_files/${_tp_test}")
+    add_test_box_parity(${_tp_test} TurbPert_BoxParity "plt00030"
+        COMMON_OPTIONS "erf.perturbation_type=${_tp_type} ylo.dirichlet_file=${_tp_dir}/stable_inflow.txt erf.input_sponge_file=${_tp_dir}/stable_sponge.txt erf.input_sounding_file=${_tp_dir}/stable_sounding.txt"
+        REFERENCE_OPTIONS "amr.max_grid_size=1024"
+        SPLIT_OPTIONS "amr.max_grid_size=8")
+endforeach()
+
+#=============================================================================
 # Station time-series output
 #=============================================================================
 
@@ -3650,12 +3673,13 @@ add_test_abort(DiffusiveDt_Abort_LimitNoClosure ${_smag2d_dir} Smag2D_Ridge.i
                "erf.diffusive_dt_limit = true needs diffusion to limit"
                "erf.diffusive_dt_limit=true erf.fixed_dt=-1 erf.les_type=None erf.pbl_type=None")
 # The check counts molecular diffusion: CouetteFlow_ImplicitCF has no eddy-diffusivity closure,
-# and its molecular viscosity gives a Fourier number of 11.2 at level 0 (the explicit vertical
-# diffusion of w; u and v are implicit).  Before, the check reported 0 there.
+# and its molecular viscosity gives a Fourier number of 11.2 at level 0 with dt = 0.2 (the explicit
+# vertical diffusion of w; u and v are implicit).  Before, the check reported 0 there.  dt is set
+# here because the deck runs at dt = 0.01, where the Fourier number is only about 0.56.
 add_test_abort(DiffusiveDt_CheckMolecular ${CMAKE_CURRENT_SOURCE_DIR}/test_files/CouetteFlow_ImplicitCF
                CouetteFlow_ImplicitCF.i
                "WARNING: explicit diffusion at level 0 has Fourier number dt \\* rate = 11\\.2 "
-               "erf.diffusive_dt_check=true")
+               "erf.diffusive_dt_check=true erf.fixed_dt=0.2")
 endif()
 
 #=============================================================================

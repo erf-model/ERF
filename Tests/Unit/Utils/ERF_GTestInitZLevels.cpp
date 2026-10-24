@@ -35,9 +35,9 @@ struct ZLevels
 };
 
 ZLevels
-build (Real zhi, Real ratio, Real zsurf, Real dz0)
+build (Real zhi, Real ratio, Real zlo, Real dz0)
 {
-    Vector<Geometry> geom{make_geom(zsurf, zhi)};
+    Vector<Geometry> geom{make_geom(zlo, zhi)};
     Vector<IntVect>  ref_ratio;
 
     Vector<Vector<Real>> zlevels_stag(1);
@@ -45,7 +45,7 @@ build (Real zhi, Real ratio, Real zsurf, Real dz0)
     Vector<Gpu::DeviceVector<Real>> stretched_dz_d(1);
 
     init_zlevels(zlevels_stag, stretched_dz_h, stretched_dz_d, geom, ref_ratio,
-                 ratio, zsurf, dz0);
+                 ratio, dz0);
 
     return {zlevels_stag[0], stretched_dz_h[0]};
 }
@@ -83,18 +83,32 @@ TEST(InitZLevels, SolvesTheRatioThatClosesOnProbHi)
     }
 }
 
-// Motivation: the grid is built above erf.zsurface, so the column it has to fill is
-// prob_hi - zsurface rather than prob_hi.
-TEST(InitZLevels, SolvedRatioStartsAtZsurface)
+// Motivation: the grid is built above geometry.prob_lo[2], so the column it has to fill is
+// prob_hi - prob_lo rather than prob_hi.
+TEST(InitZLevels, SolvedRatioStartsAtProbLo)
 {
-    const Real zsurf = Real(100.0);
-    const Real ztop  = Real(1124.0);
-    const auto z = build(ztop, Real(0.0), zsurf, Real(19.503737114205));
+    const Real zlo  = Real(100.0);
+    const Real ztop = Real(1124.0);
+    const auto z = build(ztop, Real(0.0), zlo, Real(19.503737114205));
 
-    EXPECT_EQ(z.zlevels[0], zsurf);
+    EXPECT_EQ(z.zlevels[0], zlo);
     EXPECT_NEAR(z.zlevels[nz], ztop, allowance(ztop));
     for (int k(1); k<nz-1; ++k) {
         EXPECT_NEAR(z.dz[k]/z.dz[k-1], Real(1.03), Real(1.e-6)) << "at k = " << k;
+    }
+}
+
+// Motivation: with an explicit ratio the grid also starts at geometry.prob_lo[2], which may be
+// below zero (#4442); a uniform ratio from prob_lo = -1 must give back the uniform levels.
+TEST(InitZLevels, AnExplicitRatioStartsAtProbLo)
+{
+    const Real zlo = Real(-1.0);
+    const Real dz0 = Real(2.0) / nz;
+    const auto z = build(Real(1.0), Real(1.0), zlo, dz0);
+
+    EXPECT_EQ(z.zlevels[0], zlo);
+    for (int k(0); k<=nz; ++k) {
+        EXPECT_NEAR(z.zlevels[k], zlo + k*dz0, allowance(Real(1.0))) << "at k = " << k;
     }
 }
 

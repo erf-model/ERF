@@ -123,6 +123,8 @@ void SAM::IceFall (const SolverChoice& sc) {
                                                                        qci_km1, qci_k,
                                                                        zero, zero);
                 const Real vt_ice = sam_cloud_ice_terminal_velocity(face_state.qci_avg);
+                const int donor_k = sam_precip_face_donor_k(k, k_lo, k_hi);
+                const Real detJ_donor = (dJ_array) ? dJ_array(i,j,donor_k) : one;
 
                 // NOTE: Fz is the sedimentation flux from the advective operator.
                 //       In the terrain-following coordinate system, the z-deriv in
@@ -130,7 +132,15 @@ void SAM::IceFall (const SolverChoice& sc) {
                 //       there are no u/v components to the sedimentation velocity.
                 //       Therefore, we simply end up with a division by detJ when
                 //       evaluating the source term: dJinv * (flux_hi - flux_lo) * dzinv.
-                fz_array(i,j,k) = face_state.rho_avg * vt_ice * face_state.qci_avg;
+                //
+                // Cap the flux by the ice the donor cell holds, as PrecipFall does, so a
+                // substep cannot export more than the cell contains. The clip on dqi
+                // below then binds only at roundoff, so the column budget closes.
+                fz_array(i,j,k) = sam_limit_precip_component_flux(face_state.rho_avg * vt_ice * face_state.qci_avg,
+                                                                  rho_array(i,j,donor_k),
+                                                                  qci_array(i,j,donor_k),
+                                                                  detJ_donor,
+                                                                  coef);
             });
 
             // Update precip every substep
