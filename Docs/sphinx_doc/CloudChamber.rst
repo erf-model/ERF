@@ -1233,13 +1233,14 @@ conservation or quantitative laboratory-validation result.
 Bulk-microphysics verification
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The short ``CloudChamber_BulkSmoke_*`` cases check that each selected
-Eulerian bulk scheme accepts the chamber configuration, publishes the
-expected plot variables, and advances a few steps with finite core fields
-and active moisture fields that are finite and nonnegative within numerical
-tolerance. They are **startup and interface tests**, not demonstrations
-of nonzero condensation, rain collection, realistic aerosol activation, or
-conservation across every scheme.
+The short ``CloudChamber_BulkSmoke_*`` cases check that each supported
+active Eulerian moisture configuration, including the noncondensing
+``MoistNoCondensation`` transport option, accepts the chamber configuration,
+publishes the expected plot variables, and advances a few steps with finite
+core fields and active moisture fields that are finite and nonnegative within
+numerical tolerance. They are **startup and interface tests**, not
+demonstrations of nonzero condensation, rain collection, realistic aerosol
+activation, or conservation across every scheme.
 
 ``CloudChamber_Active_KesslerNoRain`` is the focused end-to-end in-air
 condensation test. It begins with an analytic cloud-free, liquid-water
@@ -1263,16 +1264,28 @@ quantitative CCN-activation validation. The shorter WDM6 restart case is
 only a smoke test.
 
 Separate **seeded Kessler public-flow property tests** exercise native
-sedimentation and require positive accumulated liquid precipitation through
-the production surface-accumulation interface. One oracle converts the
-scheme-native accumulator to kg m\ :sup:`-2` and checks that initial
-atmospheric column water equals final atmospheric column water plus
-collected precipitation within its stated numerical tolerance. This is not a
-claim that an unseeded, full precipitating Cloud Chamber run has produced or
-collected measurable rain.
+sedimentation, water-column budgets, and the scheme's surface-accumulation
+interface. In particular,
+``Precipitation_KesslerPublicFlowColumnWaterBudgetIncludesSurfaceRain``
+requires strictly positive collected rain after conversion from the native
+accumulation units to kg m\ :sup:`-2` through the production public interface.
+That test also checks that initial atmospheric column water equals final
+atmospheric column water plus collected precipitation within its stated
+numerical tolerance. Neighboring geometry-weighted and sedimentation property
+tests have separate, complementary assertions. None of these seeded tests
+establishes measurable clean-start rain production in a full precipitating
+Cloud Chamber simulation.
 
-A dry wall blocks normal vapor exchange and normal scalar diffusion; it does
-not disable native hydrometeor sedimentation at the lower boundary. Surface
+A ``dry`` wall imposes zero normal **diffusive moisture-species flux** for
+water vapor, suspended cloud water, and additional conserved moisture
+constituents. It does **not** block thermal diffusion: heat can still cross
+a dry, prescribed-temperature wall through its selected heat-transfer closure.
+In fact, the active Kessler_NoRain example relies on heat transfer from the
+air to a cold, dry top wall while all moisture remains within the air.
+
+Wall scalar diffusion and native hydrometeor sedimentation are distinct
+operators. A dry wall does not disable rain, snow, or graupel sedimentation
+through the lower model boundary in a precipitating bulk scheme. Surface
 precipitation accumulators and their conversions are owned by the selected
 microphysics scheme. Do not add number concentrations (``nn``, ``nc``, etc.)
 to water mass or treat raw accumulator values from different schemes as a
