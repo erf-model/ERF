@@ -1,4 +1,10 @@
 
+    // On a mesh other than ConstantDz, heights come from z_cc and the vertical levels,
+    //    not from geomdata's prob_lo[2], prob_hi[2] and CellSize(2)
+    const bool use_z_phys = use_physical_z();
+    const Real phys_z_lo  = phys_zlo(geomdata, lev);
+    const Real phys_z_hi  = phys_zhi(geomdata, lev);
+
     ParmParse pp("prob");
 
     amrex::Real rho_0 = 0.0; pp.query("rho_0", rho_0);
@@ -34,12 +40,12 @@
         const Real* dx = geomdata.CellSize();
         const Real x = prob_lo[0] + (i + 0.5) * dx[0];
         const Real y = prob_lo[1] + (j + 0.5) * dx[1];
-        const Real z = prob_lo[2] + (k + 0.5) * dx[2];
+        const Real z = use_z_phys ? z_cc(i,j,k) : prob_lo[2] + (k + 0.5) * dx[2];
 
         // Define a point (xc,yc,zc) at the center of the domain
         const Real xc = 0.5 * (prob_lo[0] + prob_hi[0]);
         const Real yc = 0.5 * (prob_lo[1] + prob_hi[1]);
-        const Real zc = 0.5 * (prob_lo[2] + prob_hi[2]);
+        const Real zc = 0.5 * (phys_z_lo + phys_z_hi);
 
         const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
 
