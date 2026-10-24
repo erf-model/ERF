@@ -989,12 +989,14 @@ struct SolverChoice {
             if (mesh_type == MeshType::ConstantDz) {
                 mesh_type = MeshType::StretchedDz;
             }
-            pp.queryAdd("zsurface", zsurf);
-            if (zsurf != zero) {
-                amrex::Print() << "Nominal zsurface height != 0, may result in unexpected behavior"
-                    << std::endl;
-            }
             pp.get("initial_dz", dz0);
+        }
+
+        // The stretched levels start at geometry.prob_lo[2]; erf.zsurface used to set the
+        //    bottom separately, and a flat surface did not follow it (#4442)
+        if (pp.contains("zsurface")) {
+            amrex::Abort("erf.zsurface is no longer supported: a stretched vertical grid now starts "
+                         "at geometry.prob_lo[2], so set the bottom of the domain there instead");
         }
 
         int n_zlevels = pp.countval("terrain_z_levels");
@@ -2424,7 +2426,6 @@ struct SolverChoice {
 
     // Staggered z levels for vertical grid stretching
     amrex::Real grid_stretching_ratio   = 0;
-    amrex::Real zsurf                   = zero;
     amrex::Real dz0                     = zero;
 
     // Coriolis forcing
@@ -2886,8 +2887,6 @@ struct SolverChoice {
  * @brief Ratio of dry-air gas constant to c_p.
  * @var SolverChoice::grid_stretching_ratio
  * @brief Vertical grid stretching ratio.
- * @var SolverChoice::zsurf
- * @brief Nominal surface height for stretched-grid setup.
  * @var SolverChoice::dz0
  * @brief Initial vertical grid spacing for stretched-grid setup.
  * @var SolverChoice::coriolis_factor

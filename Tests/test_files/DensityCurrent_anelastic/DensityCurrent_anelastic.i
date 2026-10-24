@@ -34,7 +34,6 @@ amr.max_level       = 0       # maximum level number allowed
 
 amr.n_cell         = 256 1 64   # dx=dy=dz=100 m, Straka et al 1993 / Xue et al 2000
 erf.fixed_dt       = 1.0        # fixed time step [s] -- Straka et al 1993
-erf.fixed_fast_dt  = 0.25       # fixed time step [s] -- Straka et al 1993
 erf.plot_int_1     = 300        # number of timesteps between plotfiles
 erf.check_int      =-1000       # number of timesteps between checkpoints
 

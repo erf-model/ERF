@@ -389,24 +389,25 @@ ERF::ERF_shared ()
                  geom,
                  refRatio(),
                  solverChoice.grid_stretching_ratio,
-                 solverChoice.zsurf,
                  solverChoice.dz0);
 
     if (SolverChoice::mesh_type == MeshType::StretchedDz ||
         SolverChoice::mesh_type == MeshType::VariableDz) {
+        // The vertical levels, not geometry.prob_lo[2] and prob_hi[2], are the physical extent
+        //    of the domain on these meshes; prob_lo[2] and prob_hi[2] only bound the
+        //    computational coordinate.  A mismatch is allowed (the top of a stretched grid is
+        //    not obvious from erf.initial_dz and erf.grid_stretching_ratio), so only warn.
         int nz = geom[0].Domain().length(2) + 1; // staggered
         if (std::fabs(zlevels_stag[0][nz-1]-geom[0].ProbHi(2)) > Real(1.0e-4)) {
-            Print() << "Note: prob_hi[2]=" << geom[0].ProbHi(2)
-                << " does not match highest requested z level " << zlevels_stag[0][nz-1]
-                << std::endl;
+            Print() << "WARNING: geometry.prob_hi[2] = " << geom[0].ProbHi(2)
+                << " does not match the highest z level, " << zlevels_stag[0][nz-1]
+                << "; the domain top is z = " << zlevels_stag[0][nz-1] << std::endl;
         }
         if (std::fabs(zlevels_stag[0][0]-geom[0].ProbLo(2)) > Real(1.0e-4)) {
-            Print() << "Note: prob_lo[2]=" << geom[0].ProbLo(2)
-                << " does not match lowest requested level " << zlevels_stag[0][0]
-                << std::endl;
+            Print() << "WARNING: geometry.prob_lo[2] = " << geom[0].ProbLo(2)
+                << " does not match the lowest z level, " << zlevels_stag[0][0]
+                << "; the domain bottom is z = " << zlevels_stag[0][0] << std::endl;
         }
-
-        // Redefine the problem domain here?
     }
 
     // Get lo/hi indices for massflux calc

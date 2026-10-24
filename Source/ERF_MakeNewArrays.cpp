@@ -871,9 +871,14 @@ ERF::fill_terrain_surface (int lev, MultiFab& z_phys, double elapsed_time)
     //    but we need to use a flat terrain for the mesh itself (the EB data has already been made
     //    from the correct terrain)
     //
+    // A flat surface sits on the lowest z level, which is geometry.prob_lo[2] on a stretched
+    //    grid, so that the mesh built from the levels spans them (#4442)
+    //
     if (solverChoice.terrain_type != TerrainType::StaticFittedMesh &&
         solverChoice.terrain_type != TerrainType::MovingFittedMesh) {
-            terrain_fab.template setVal<RunOn::Device>(zero);
+            terrain_fab.template setVal<RunOn::Device>(zlevels_stag[lev][0]);
+    } else if (!prob->terrain_is_specified()) {
+            terrain_fab.template setVal<RunOn::Device>(zlevels_stag[lev][0]);
     } else {
         //
         // Fill the values of the terrain height at k=0 only

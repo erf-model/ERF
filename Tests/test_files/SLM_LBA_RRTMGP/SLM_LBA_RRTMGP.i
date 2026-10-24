@@ -78,8 +78,6 @@ erf.plotfile_type = "amrex"
 erf.plot_lsm = true
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 0.0
 erf.use_gravity = true
 
 #erf.use_coriolis    = false

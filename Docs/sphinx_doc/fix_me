@@ -211,8 +211,5 @@ erf.use_terrain
 erf.write_eb_surface
   Source/ERF.cpp:1838
 
-erf.zsurface
-  Source/DataStructs/ERF_DataStruct.H:347
-
 particles.disable_plt
   Source/Particles/ERF_ParticleData.H:38

@@ -403,10 +403,6 @@ List of Parameters
 |                                | levels; specifying these makes the mesh type             |                    |                                |
 |                                | ``StretchedDz``.  See :ref:`sec:Meshing`                 |                    |                                |
 +--------------------------------+----------------------------------------------------------+--------------------+--------------------------------+
-| **erf.zsurface**               | nominal surface height used when generating a stretched  | Real               | 0.0                            |
-|                                | vertical mesh; read only when ``grid_stretching_ratio``  |                    |                                |
-|                                | >= 1 or ``initial_dz`` is given                          |                    |                                |
-+--------------------------------+----------------------------------------------------------+--------------------+--------------------------------+
 | **erf.mesh_type**              | vertical mesh type; normally set from the terrain and    | ConstantDz,        | set from other inputs          |
 |                                | stretching options rather than directly                  | StretchedDz,       |                                |
 |                                |                                                          | VariableDz         |                                |
@@ -421,9 +417,12 @@ Notes
   **erf.initial_dz**) are specified, the simple grid stretching will be ignored.
 - With **erf.grid_stretching_ratio** and **erf.initial_dz** both given, the top of
   the grid is wherever the stretched layers end, which need not be
-  **geometry.prob_hi** in z.  With **erf.initial_dz** alone, the constant ratio
+  **geometry.prob_hi** in z.  ERF then prints a warning giving that top and
+  uses it as the physical top of the domain; on any mesh other than
+  ``ConstantDz``, **geometry.prob_lo** and **geometry.prob_hi** in z only bound
+  the computational coordinate.  With **erf.initial_dz** alone, the constant ratio
   :math:`r` is instead solved for so that :math:`dz_0 (r^{n_z} - 1)/(r - 1)`
-  fills the domain from **erf.zsurface** to **geometry.prob_hi** exactly.  An
+  fills the domain from **geometry.prob_lo** to **geometry.prob_hi** in z exactly.  An
   **erf.initial_dz** at or above the uniform spacing gives a uniform grid, and
   an explicit **erf.grid_stretching_ratio** = 0 turns stretching off even when
   **erf.initial_dz** is given.  This
@@ -431,6 +430,10 @@ Notes
   wrfinput case builds its grid from the file instead.
 - The number of input **erf.terrain_z_levels** must be equal **amr.n_cell** in
   the z direction + 1.
+- A stretched grid (**erf.grid_stretching_ratio** or **erf.initial_dz**) starts at
+  **geometry.prob_lo** in z, and a flat surface sits there.  The former input
+  **erf.zsurface** is no longer accepted; set **geometry.prob_lo** in z instead.
+  **erf.terrain_z_levels** must still start at 0.
 
 .. _examples-of-usage-3:
 
@@ -5577,7 +5580,7 @@ Initialization, Terrain and Vertical Mesh
 -----------------------------------------
 
 * :ref:`Grid Stretching <inputs-grid-stretching>` -- ``erf.grid_stretching_ratio``,
-  ``erf.initial_dz``, ``erf.terrain_z_levels``, ``erf.zsurface``
+  ``erf.initial_dz``, ``erf.terrain_z_levels``
 * :ref:`Initialization <inputs-initialization>` -- ``erf.avg_grid_faces_to_nodes``,
   ``erf.init_type``, ``erf.nc_bdy_file``, ``erf.rebalance_wrf_input``,
   ``erf.sounding_type``, ``erf.use_real_bcs``, ``erf.wrfinput_zlevels_from_file``

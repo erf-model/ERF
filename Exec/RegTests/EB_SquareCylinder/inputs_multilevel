@@ -90,7 +90,6 @@ erf.dynamic_viscosity = 0.004
 
 erf.use_coriolis = false
 erf.abl_driver_type = "None"
-erf.abl_pressure_grad = -0.2 0. 0.
 
 erf.init_type = "uniform"
 
