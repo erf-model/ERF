@@ -883,6 +883,19 @@ if(EXISTS "${ERF_NOAHMP_TABLE}")
   endif()
 endif()
 
+# The static inputs checker (Exec/Tools/check_erf_inputs.py). Plain Python, no ERF
+# run: its self-test writes small decks that must trip each check and siblings that
+# must not, so a check that stops firing fails the test.
+if(ERF_TEST_PYTHON)
+  add_test(NAME InputsChecker_SelfTest
+      COMMAND ${ERF_TEST_PYTHON} ${PROJECT_SOURCE_DIR}/Exec/Tools/check_erf_inputs.py --self-test)
+  set_tests_properties(InputsChecker_SelfTest
+      PROPERTIES
+      TIMEOUT 120
+      PROCESSORS 1
+      LABELS "unit")
+endif()
+
 # Restart parity: run one deck straight, then to a checkpoint and on from it, and
 # require the plotfile at the end to be identical (no gold file). Every run has a
 # time limit; the default stays at 600, but an explicit RUN_TIMEOUT is forwarded
@@ -1620,6 +1633,12 @@ endif()
 # to 0.9375.  With the flat surface left at 0 the column was squashed onto 0 to 1 and reached
 # 0.96875 (erf-model/ERF#4442).
 add_test_column_bounds(StretchedProbLo_Poiseuille "plt00000" -10 "z_phys" "-0.9375001" "0.9375001")
+# A regrid keeps the time averages (erf-model/ERF#3917).  The state is a uniform wind turned by
+# Coriolis, so both levels carry the same values; at t = 50 s the fine grids move, and before the
+# fix the remade level restarted its averages from zero (u_t_avg on the fine level near -0.3
+# against 4.1 on the coarse level).  The centre column crosses the fine region.
+add_test_column_bounds(RegridKeepsTimeAverages "plt00100" -10 "u_t_avg,u_mean,uu_mean"
+    "4.0,3.95,39.0" "4.2,4.15,39.7")
 # A refined patch aloft (256-768 m) has no column at the ground: it takes level 0's height (~461 m), not zero
 add_test_field_bounds(PBLH_PatchAloft "plt2d00004" pblh 400.0 600.0)
 # Native WDM6 surface snow from the fallout through the bottom face, not the fall speed there:
@@ -2088,6 +2107,12 @@ add_test_restart_parity(CloudChamber_WDM6_ActiveRestart CloudChamber_WDM6_Active
     CHECKER "${CLOUD_CHAMBER_CHECKER}"
     CHECK_MODE "wdm6_active")
 endif()
+# Kessler rain over a uniform, laterally periodic layer, with the fine box moved at t = 30 s:
+# a regrid must keep the surface rain accumulator.  The centre column of the 2D plotfile lies
+# in the new fine box.  It accumulates 5.2e-4 mm by t = 60 s (5.0e-4 on the coarse level, which
+# resolves the layer less finely); rebuilt as zero at the regrid, it reaches only 3.9e-4.
+add_test_column_bounds(RegridKeepsPrecipAccum "plt2d00120" 0 "precip_rain_accum"
+    "0.00051" "0.00053")
 # Boundary-plane output (erf.output_bndry_planes) across a restart: the series in BndryFiles --
 # one plane directory per output step and a time.dat of "step time" rows -- must come out of a
 # run through a checkpoint as it comes out of a straight run, since erf.input_bndry_planes reads

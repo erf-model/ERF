@@ -1928,8 +1928,12 @@ ERF::ReadCheckpointFile ()
             for (int lev = 0; lev <= finest_level; ++lev) {
                 if (lsm_is >> step_val) {
                     lsm.Set_LSM_Step(lev, step_val);
-                    Print() << "Restored LSM step counter at level " << lev
-                            << " to " << step_val << std::endl;
+                    // A level that takes its land state from level 0 never advances
+                    // the counter, so its restored 0 is not worth reporting.
+                    if (lsm.Runs_Own_Land_Driver(lev)) {
+                        Print() << "Restored LSM step counter at level " << lev
+                                << " to " << step_val << std::endl;
+                    }
                 }
             }
         } else {

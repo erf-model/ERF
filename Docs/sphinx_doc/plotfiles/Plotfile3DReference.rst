@@ -979,15 +979,12 @@ every AMR level in the plotfile:
   ``tke_resolved = 0.5*(uu_fluct + vv_fluct + ww_fluct)``. These fields are also zero
   before the first sample is accumulated.
 
-  Note that the accumulator for a given level is rebuilt when that level is
-  regridded, so a regrid restarts the averaging window on the regridded level
-  while the other levels continue accumulating. In a multi-level run a
-  plotfile written shortly after a regrid can therefore contain interval
-  fields whose averaging windows differ from level to level, and the plotfile
-  itself carries no record of the per-level window length. The same is true of
-  the ``*_t_avg`` fields above. If a consistent window across levels matters
-  for the analysis, write the interval fields from a run without regridding,
-  or allow enough time after a regrid for the window to refill.
+  A regrid keeps the averaging window, for these fields and for the ``*_t_avg``
+  fields above. A remade level copies its accumulator wherever its old and new
+  grids overlap; cells it newly covers, and a newly created level, take the
+  coarser level's average over the same window, interpolated piecewise
+  constantly. Those cells therefore carry coarse-level detail for the part of
+  the window before they were refined.
 * ``qsrc_sw`` and ``qsrc_lw`` require a non-``None`` radiation choice.
 * ``nut``, ``Kmv``, ``Kmh``, ``Khv``, ``Khh``, and ``Lturb`` require
   ``use_kturb = true`` at every AMR level.

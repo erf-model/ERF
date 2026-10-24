@@ -257,10 +257,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // These are just time averaged fields for diagnostics
     // ********************************************************************************************
 
-    // NOTE: We are not completing a fillpatch call on the time averaged data;
-    //       which would copy on intersection and interpolate from coarse.
-    //       Therefore, we are restarting the averaging when the ba changes,
-    //       this may give poor statistics for dynamic mesh refinement.
+    // NOTE: The time averages start empty here.  RemakeLevel and MakeNewLevelFromCoarse then
+    //       fill them from the old grids and the coarse level, so a regrid keeps the averages.
     vel_t_avg[lev] = nullptr;
     if (solverChoice.time_avg_vel) {
         vel_t_avg[lev] = std::make_unique<MultiFab>(ba, dm, 4, 0); // Each vel comp and the mag
