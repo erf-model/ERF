@@ -115,7 +115,7 @@ KesslerFaceState kessler_face_state (const int k,
                                      const int k_hi,
                                      const amrex::Real rho_km1,
                                      const amrex::Real rho_k,
-                                     const amrex::Real qp_km1,
+                                     const amrex::Real /*qp_km1*/,
                                      const amrex::Real qp_k) noexcept
 {
     KesslerFaceState face_state{amrex::Real(0), amrex::Real(0)};
