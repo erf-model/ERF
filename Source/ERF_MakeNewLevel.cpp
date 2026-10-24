@@ -408,6 +408,59 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     }
 }
 
+// The microphysics fields a checkpoint carries (the surface precipitation accumulators) are
+// running totals over the whole run, but micro->Init rebuilds them as zero.  A regrid must
+// keep them just as a restart does, so we copy them out before micro->Init and back after.
+static Vector<std::unique_ptr<MultiFab>>
+save_qmoist_restart_vars (const Vector<MultiFab*>& qmoist_lev, const std::vector<int>& idx)
+{
+    Vector<std::unique_ptr<MultiFab>> saved;
+    for (int i : idx) {
+        const MultiFab* src = (i < qmoist_lev.size()) ? qmoist_lev[i] : nullptr;
+        if (src == nullptr) { saved.push_back(nullptr); continue; }
+        saved.push_back(std::make_unique<MultiFab>(src->boxArray(), src->DistributionMap(),
+                                                   src->nComp(), 0));
+        MultiFab::Copy(*saved.back(), *src, 0, 0, src->nComp(), 0);
+    }
+    return saved;
+}
+
+// Fill an accumulator rebuilt by micro->Init on new grids: cells the old grids covered keep
+// their old value, and the rest take the coarse level's value (piecewise constant).  The
+// accumulators live in the bottom layer of cells, so only that layer is filled from coarse.
+static void
+fill_qmoist_restart_var (MultiFab& dst, const MultiFab* old_mf, const MultiFab* crse_mf,
+                         const Geometry& crse_geom, const Geometry& fine_geom, const IntVect& ratio)
+{
+    const int ncomp = dst.nComp();
+    if (crse_mf != nullptr) {
+        MultiFab tmp(dst.boxArray(), dst.DistributionMap(), ncomp, 0);
+        Vector<BCRec> bcs(ncomp); // unused by pc_interp, which needs no coarse ghost cells
+        for (int n = 0; n < ncomp; ++n) {
+            for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+                bcs[n].setLo(dir, BCType::foextrap);
+                bcs[n].setHi(dir, BCType::foextrap);
+            }
+        }
+        InterpFromCoarseLevel(tmp, IntVect(0), IntVect(0), *crse_mf, 0, 0, ncomp,
+                              crse_geom, fine_geom, ratio, &pc_interp, bcs, 0);
+        const int klo = fine_geom.Domain().smallEnd(2);
+        for (MFIter mfi(dst, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            Box bx = mfi.tilebox();
+            if (bx.smallEnd(2) > klo) { continue; }
+            bx.setBig(2, klo);
+            const auto& dst_arr = dst.array(mfi);
+            const auto& tmp_arr = tmp.const_array(mfi);
+            ParallelFor(bx, ncomp, [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                dst_arr(i,j,k,n) = tmp_arr(i,j,k,n);
+            });
+        }
+    }
+    if (old_mf != nullptr) { dst.ParallelCopy(*old_mf, 0, 0, ncomp); }
+    dst.FillBoundary(fine_geom.periodicity());
+}
+
 // Make a new level using provided BoxArray and DistributionMapping and
 // fill with interpolated coarse level data (overrides the pure virtual function in AmrCore)
 // regrid  --> RemakeLevel            (if level already existed)
@@ -584,6 +637,19 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
+    }
+
+    // A new level takes the accumulated precipitation of the coarse level beneath it
+    {
+        std::vector<int> qmoist_keep_idx;
+        std::vector<std::string> qmoist_keep_names;
+        micro->Get_Qmoist_Restart_Vars(lev, solverChoice, qmoist_keep_idx, qmoist_keep_names);
+        for (int i : qmoist_keep_idx) {
+            if (i < qmoist[lev].size() && qmoist[lev][i] && i < qmoist[lev-1].size() && qmoist[lev-1][i]) {
+                fill_qmoist_restart_var(*qmoist[lev][i], nullptr, qmoist[lev-1][i],
+                                        geom[lev-1], geom[lev], refRatio(lev-1));
+            }
+        }
     }
 
     // ********************************************************************************************
@@ -872,6 +938,13 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
 
     BoxArray            ba_old(vars_new[lev][Vars::cons].boxArray());
     DistributionMapping dm_old(vars_new[lev][Vars::cons].DistributionMap());
+
+    // micro->Init below rebuilds the precipitation accumulators as zero, so save them first
+    std::vector<int> qmoist_keep_idx;
+    std::vector<std::string> qmoist_keep_names;
+    micro->Get_Qmoist_Restart_Vars(lev, solverChoice, qmoist_keep_idx, qmoist_keep_names);
+    Vector<std::unique_ptr<MultiFab>> old_qmoist_keep =
+        save_qmoist_restart_vars(qmoist[lev], qmoist_keep_idx);
 
     if (verbose) {
         amrex::Print() <<"               OLD BA AT LEVEL " << lev << " " << ba_old << std::endl;
@@ -1283,6 +1356,17 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     }
     for (int mvar(0); mvar<qmoist[lev].size(); ++mvar) {
         qmoist[lev][mvar] = micro->Get_Qmoist_Ptr(lev,mvar);
+    }
+
+    // Keep the accumulated precipitation: copy it back where the old grids covered, and take
+    // the coarse level's value where they did not
+    for (int n = 0; n < static_cast<int>(qmoist_keep_idx.size()); ++n) {
+        const int i = qmoist_keep_idx[n];
+        if (i >= qmoist[lev].size() || qmoist[lev][i] == nullptr) { continue; }
+        const MultiFab* crse = (lev > 0 && i < qmoist[lev-1].size()) ? qmoist[lev-1][i] : nullptr;
+        fill_qmoist_restart_var(*qmoist[lev][i], old_qmoist_keep[n].get(), crse,
+                                (lev > 0) ? geom[lev-1] : geom[lev], geom[lev],
+                                (lev > 0) ? refRatio(lev-1) : IntVect(1));
     }
 
     //********************************************************************************************
