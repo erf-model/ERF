@@ -1127,13 +1127,13 @@ state and surface accumulations. The shorter WDM6 restart case remains a
 restart smoke test.
 
 Seeded Kessler public-flow tests exercise native sedimentation and bottom
-rain accumulation, while the chamber active case exercises condensation,
-thermal wall response, and water-vapor exchange end to end. The current chamber
-matrix does not establish nonzero clean-start rain collection in a full
-Kessler chamber run. A dry wall blocks water-vapor exchange; it does not block
-the selected scheme's hydrometeor sedimentation or surface precipitation
-accumulation. The chamber interval water budget remains limited to dry and
-SatAdj configurations.
+rain accumulation, while the chamber active case exercises wall-driven
+cooling, vapor-to-cloud phase conversion within the air, and closed-domain
+water conservation. The current chamber matrix does not establish nonzero
+clean-start rain collection in a full Kessler chamber run. A dry wall blocks
+water-vapor exchange through that wall; it does not block the selected scheme's
+hydrometeor sedimentation or surface precipitation accumulation. The chamber
+interval water budget remains limited to dry and SatAdj configurations.
 
 Extra conserved moisture lanes use the NoSlipWall scalar boundary mapping and
 the production N-grid scalar-diffusion adapter in a focused regression. A

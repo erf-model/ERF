@@ -22,6 +22,7 @@ function(run_parser model case_dir log_path)
     string(REPLACE "@MODEL@" "${model}" case_input "${template}")
     set(input_path "${case_dir}/CloudChamber_ActiveCondensation.i")
     file(WRITE "${input_path}" "${case_input}")
+    file(REMOVE "${log_path}")
     execute_process(
         COMMAND ${parser_launch} "${TEST_EXE}" "${input_path}" amrex.call_addr2line=0
         WORKING_DIRECTORY "${case_dir}"
@@ -39,12 +40,19 @@ if(NOT "${Kessler_NoRain_result}" STREQUAL "0")
 endif()
 
 run_parser("${EXPECTED_MODEL}" "${WORKING_DIRECTORY}/rejected" "${LOG_FILE}")
-if(NOT "${${EXPECTED_MODEL}_result}" MATCHES "^-?[0-9]+$")
+set(parser_result "${${EXPECTED_MODEL}_result}")
+string(TOLOWER "${parser_result}" parser_result_lower)
+if("${parser_result}" STREQUAL "" OR "${parser_result_lower}" MATCHES "timeout")
     message(FATAL_ERROR
-        "Parser rejection timed out or launcher failed (${${EXPECTED_MODEL}_result}); see ${LOG_FILE}")
+        "Parser rejection timed out or did not terminate (${parser_result}); see ${LOG_FILE}")
 endif()
-if("${${EXPECTED_MODEL}_result}" STREQUAL "0")
+if("${parser_result}" STREQUAL "0")
     message(FATAL_ERROR "Cloud Chamber parser accepted unsupported ${EXPECTED_MODEL}")
+endif()
+if(NOT "${parser_result}" MATCHES "^-?[0-9]+$" AND
+   NOT "${parser_result_lower}" STREQUAL "subprocess aborted")
+    message(FATAL_ERROR
+        "Parser rejection had an unrecognized result (${parser_result}); see ${LOG_FILE}")
 endif()
 
 file(READ "${LOG_FILE}" failure_output)

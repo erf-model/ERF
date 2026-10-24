@@ -439,6 +439,21 @@ bool check_active_condensation (const std::string& model_name,
     MultiFab qc_active = active.get(0, "qc");
     MultiFab qv_control = control.get(0, "qv");
     MultiFab qc_control = control.get(0, "qc");
+    for (const auto& name : {std::string("density"), std::string("theta"),
+                             std::string("pressure"), std::string("x_velocity"),
+                             std::string("y_velocity"), std::string("z_velocity")}) {
+        MultiFab active_field = active.get(0, name);
+        MultiFab control_field = control.get(0, name);
+        if (!active_field.is_finite() || !control_field.is_finite()) {
+            error = "active-condensation final field is non-finite: " + name;
+            return false;
+        }
+        if (name == "density" &&
+            (active_field.min(0) <= Real(0.0) || control_field.min(0) <= Real(0.0))) {
+            error = "active-condensation final density is not positive";
+            return false;
+        }
+    }
     if (!t_active.is_finite() || !t_control.is_finite() ||
         !qv_active.is_finite() || !qc_active.is_finite() ||
         !qv_control.is_finite() || !qc_control.is_finite() ||

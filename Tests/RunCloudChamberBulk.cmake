@@ -56,12 +56,19 @@ execute_process(
     RESULT_VARIABLE simulation_result)
 
 if(DEFINED EXPECT_FAILURE AND EXPECT_FAILURE)
-    if(NOT "${simulation_result}" MATCHES "^-?[0-9]+$")
+    string(TOLOWER "${simulation_result}" simulation_result_lower)
+    if("${simulation_result}" STREQUAL "" OR
+       "${simulation_result_lower}" MATCHES "timeout")
         message(FATAL_ERROR
-            "Expected-failure child timed out or launcher failed (${simulation_result}); see ${SIMULATION_LOG}")
+            "Expected-failure child timed out or did not terminate (${simulation_result}); see ${SIMULATION_LOG}")
     endif()
-    if(simulation_result EQUAL 0)
+    if("${simulation_result}" STREQUAL "0")
         message(FATAL_ERROR "Cloud Chamber ${BULK_MODEL} was expected to fail but succeeded")
+    endif()
+    if(NOT "${simulation_result}" MATCHES "^-?[0-9]+$" AND
+       NOT "${simulation_result_lower}" STREQUAL "subprocess aborted")
+        message(FATAL_ERROR
+            "Expected-failure child had an unrecognized result (${simulation_result}); see ${SIMULATION_LOG}")
     endif()
     if(NOT DEFINED EXPECT_FAILURE_TEXT)
         message(FATAL_ERROR "Expected failure text is required for a negative regression")
