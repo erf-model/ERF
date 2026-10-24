@@ -1325,10 +1325,11 @@ still reports that sample, i.e. the means of the initial state. Dropping it is
 what keeps the averaging window independent of the output cadence, and so makes
 the interval fields exact across a checkpoint/restart. In ``time`` mode the
 initialization sample is part of the configured window and is kept.
-In either mode, regridding a level rebuilds that level's accumulator, so the
-averaging window restarts on the regridded level while the other levels keep
-accumulating. A plotfile written shortly after a regrid can therefore mix
-per-level averaging windows; see :ref:`sec:Plotfile3DReference`.
+In either mode, regridding keeps the averaging window: a remade level copies
+its old accumulator wherever its old and new grids overlap, and cells it newly
+covers, like a newly created level, take the coarser level's average over the
+same window (by piecewise-constant interpolation). All levels therefore report
+the same window; see :ref:`sec:Plotfile3DReference`.
 
 
 .. _inputs-screen-output:

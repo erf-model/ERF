@@ -1409,6 +1409,12 @@ endif()
 # to 0.9375.  With the flat surface left at 0 the column was squashed onto 0 to 1 and reached
 # 0.96875 (erf-model/ERF#4442).
 add_test_column_bounds(StretchedProbLo_Poiseuille "plt00000" -10 "z_phys" "-0.9375001" "0.9375001")
+# A regrid keeps the time averages (erf-model/ERF#3917).  The state is a uniform wind turned by
+# Coriolis, so both levels carry the same values; at t = 50 s the fine grids move, and before the
+# fix the remade level restarted its averages from zero (u_t_avg on the fine level near -0.3
+# against 4.1 on the coarse level).  The centre column crosses the fine region.
+add_test_column_bounds(RegridKeepsTimeAverages "plt00100" -10 "u_t_avg,u_mean,uu_mean"
+    "4.0,3.95,39.0" "4.2,4.15,39.7")
 # A refined patch aloft (256-768 m) has no column at the ground: it takes level 0's height (~461 m), not zero
 add_test_field_bounds(PBLH_PatchAloft "plt2d00004" pblh 400.0 600.0)
 # Native WDM6 surface snow from the fallout through the bottom face, not the fall speed there:
