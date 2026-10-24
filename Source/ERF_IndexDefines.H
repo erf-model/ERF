@@ -269,6 +269,9 @@ namespace EddyDiff {
         RANS_Rt,
         RANS_cmu,
         RANS_cmu_prime,
+        // k-eqn RANS: nu_t over its realizability cap C_r k / S (erf.rans_realizability);
+        // above 1 the cap is active, 0 when the cap is off
+        RANS_cap_ratio,
         NumDiffs
     };
 }

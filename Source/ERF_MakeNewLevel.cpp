@@ -20,6 +20,49 @@
 
 using namespace amrex;
 
+namespace {
+
+//
+// Fill the running sum of a time average on a level whose grids were just built.
+//
+// A time average is a running sum of value * dt and a counter of the elapsed time it covers;
+// its value is sum / counter.  Where the level's old grids (old_sum) cover a new cell, the old
+// sum is copied as it is.  Elsewhere the cell takes the coarse level's average, interpolated
+// piecewise-constantly and scaled by this level's counter, so that it covers the same window
+// as the rest of the level.  Without this, every regrid restarted the average from zero.
+//
+void
+fill_time_average_sum (MultiFab& new_sum, const MultiFab* old_sum, double fine_cnt,
+                       const MultiFab* crse_sum, double crse_cnt,
+                       const Geometry& crse_geom, const Geometry& fine_geom, const IntVect& ratio)
+{
+    const int ncomp = new_sum.nComp();
+    new_sum.setVal(zero);
+
+    if (crse_sum != nullptr && crse_cnt > 0.0) {
+        MultiFab crse_scaled(crse_sum->boxArray(), crse_sum->DistributionMap(), ncomp, 0);
+        MultiFab::Copy(crse_scaled, *crse_sum, 0, 0, ncomp, 0);
+        crse_scaled.mult(static_cast<Real>(fine_cnt / crse_cnt), 0, ncomp, 0);
+        // Piecewise-constant interpolation reads no coarse ghost cells, so no boundary
+        // condition is ever applied; the BCRecs are only required by the interface.
+        Vector<BCRec> bcs(ncomp);
+        for (auto& bc : bcs) {
+            for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+                bc.setLo(dir, BCType::foextrap);
+                bc.setHi(dir, BCType::foextrap);
+            }
+        }
+        InterpFromCoarseLevel(new_sum, IntVect(0), IntVect(0), crse_scaled, 0, 0, ncomp,
+                              crse_geom, fine_geom, ratio, &pc_interp, bcs, 0);
+    }
+
+    if (old_sum != nullptr) {
+        new_sum.ParallelCopy(*old_sum, 0, 0, ncomp);
+    }
+}
+
+} // namespace
+
 // Make a new level from scratch using provided BoxArray and DistributionMapping.
 // This is called both for initialization and for restart
 // (overrides the pure virtual function in AmrCore)
@@ -516,6 +559,21 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     // *******************************************************************************************
     init_stuff(lev, ba, dm, vars_new[lev], vars_old[lev], base_state[lev], z_phys_nd[lev]);
 
+    // init_stuff starts the time averages of this new level empty; give them the coarse
+    // level's averages and window instead
+    if (solverChoice.time_avg_vel) {
+        t_avg_cnt[lev] = t_avg_cnt[lev-1];
+        fill_time_average_sum(*vel_t_avg[lev], nullptr, t_avg_cnt[lev],
+                              vel_t_avg[lev-1].get(), t_avg_cnt[lev-1],
+                              geom[lev-1], geom[lev], refRatio(lev-1));
+    }
+    if (solverChoice.compute_mean_vars) {
+        t_mean_cnt[lev] = t_mean_cnt[lev-1];
+        fill_time_average_sum(*interval_means[lev], nullptr, t_mean_cnt[lev],
+                              interval_means[lev-1].get(), t_mean_cnt[lev-1],
+                              geom[lev-1], geom[lev], refRatio(lev-1));
+    }
+
     // define_level (inside init_stuff) filled the two-stream SEB state with the scalar
     // defaults; a level that evolves it needs its parent's values instead, or it
     // radiates at erf.rad_t_sfc for its first step.
@@ -939,6 +997,12 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     BoxArray            ba_old(vars_new[lev][Vars::cons].boxArray());
     DistributionMapping dm_old(vars_new[lev][Vars::cons].DistributionMap());
 
+    // The running sums of the time averages and their counters, which init_stuff resets
+    std::unique_ptr<MultiFab> old_vel_t_avg      = std::move(vel_t_avg[lev]);
+    std::unique_ptr<MultiFab> old_interval_means = std::move(interval_means[lev]);
+    const double old_t_avg_cnt  = t_avg_cnt[lev];
+    const double old_t_mean_cnt = t_mean_cnt[lev];
+
     // micro->Init below rebuilds the precipitation accumulators as zero, so save them first
     std::vector<int> qmoist_keep_idx;
     std::vector<std::string> qmoist_keep_names;
@@ -1042,6 +1106,25 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     //      terrain arrays and metrics, and base state.
     // *******************************************************************************************
     init_stuff(lev, ba, dm, temp_lev_new, temp_lev_old, temp_base_state, temp_zphys_nd);
+
+    // init_stuff starts the time averages of this level empty; carry the old sums and their
+    // windows onto the new grids, and fill newly covered cells from the coarse level
+    if (solverChoice.time_avg_vel) {
+        t_avg_cnt[lev] = old_t_avg_cnt;
+        fill_time_average_sum(*vel_t_avg[lev], old_vel_t_avg.get(), t_avg_cnt[lev],
+                              (lev > 0) ? vel_t_avg[lev-1].get() : nullptr,
+                              (lev > 0) ? t_avg_cnt[lev-1] : 0.0,
+                              geom[(lev > 0) ? lev-1 : 0], geom[lev],
+                              (lev > 0) ? refRatio(lev-1) : IntVect(1));
+    }
+    if (solverChoice.compute_mean_vars) {
+        t_mean_cnt[lev] = old_t_mean_cnt;
+        fill_time_average_sum(*interval_means[lev], old_interval_means.get(), t_mean_cnt[lev],
+                              (lev > 0) ? interval_means[lev-1].get() : nullptr,
+                              (lev > 0) ? t_mean_cnt[lev-1] : 0.0,
+                              geom[(lev > 0) ? lev-1 : 0], geom[lev],
+                              (lev > 0) ? refRatio(lev-1) : IntVect(1));
+    }
 
     // init_stuff rebuilds the flux register on the lev-1 / lev interface, but the one on the
     // lev / lev+1 interface also holds this level's grids. AmrCore::regrid remakes lev+1 after

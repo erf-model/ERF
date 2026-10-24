@@ -1325,10 +1325,11 @@ still reports that sample, i.e. the means of the initial state. Dropping it is
 what keeps the averaging window independent of the output cadence, and so makes
 the interval fields exact across a checkpoint/restart. In ``time`` mode the
 initialization sample is part of the configured window and is kept.
-In either mode, regridding a level rebuilds that level's accumulator, so the
-averaging window restarts on the regridded level while the other levels keep
-accumulating. A plotfile written shortly after a regrid can therefore mix
-per-level averaging windows; see :ref:`sec:Plotfile3DReference`.
+In either mode, regridding keeps the averaging window: a remade level copies
+its old accumulator wherever its old and new grids overlap, and cells it newly
+covers, like a newly created level, take the coarser level's average over the
+same window (by piecewise-constant interpolation). All levels therefore report
+the same window; see :ref:`sec:Plotfile3DReference`.
 
 
 .. _inputs-screen-output:
@@ -2223,6 +2224,20 @@ List of Parameters
 |                                        | (per-level)                                              |                    |                  |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.rans_lscale_min**                | lower bound [m] of the PBL-height cap above (per-level)  | Real > 0           | 1.0              |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rans_realizability**             | k-equation RANS: cap the eddy viscosity at C_r k / S,    | 0, or Real in      | 0 (off)          |
+|                                        | S the strain-rate magnitude, and every eddy diffusivity  | [0.01, 10]         |                  |
+|                                        | by the same factor (SST limiter form); needs             |                    |                  |
+|                                        | ``erf.rans_type = kEqn`` and ``erf.pbl_type = None``;    |                    |                  |
+|                                        | C_r = Cmu0^2 = 0.309 (default Cmu0) is the neutral       |                    |                  |
+|                                        | equilibrium value, which leaves a neutral constant-      |                    |                  |
+|                                        | stress layer unchanged and limits the viscosity where    |                    |                  |
+|                                        | production exceeds dissipation, as behind a steep crest; |                    |                  |
+|                                        | one value for the hierarchy (a single entry, or a list   |                    |                  |
+|                                        | whose entries are all equal) is reset to 0 on levels     |                    |                  |
+|                                        | without the k-eqn closure; a list with different entries |                    |                  |
+|                                        | that switches it on at such a level stops the run        |                    |                  |
+|                                        | (per-level)                                              |                    |                  |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.wall_dist_type**                 | wall distance for RANS on a terrain-fitted mesh:         | "poisson",         | "poisson"        |
 |                                        | Tucker (2003) Poisson distance, or the height above the  | "terrain_height"   |                  |
