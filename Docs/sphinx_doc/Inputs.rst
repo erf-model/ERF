@@ -630,7 +630,9 @@ Notes
    **amr.blocking_factor_x/_y/_z** override them in the specified direction
    only, and may also be specified per level
 
--  **amr.max_grid_size** at every level must be even
+-  **amr.max_grid_size** at every level should be even: ERF does not stop on
+   an odd value, but a box with an odd number of cells cannot be halved for
+   load balancing or coarsened by 2 under a finer level
 
 -  **amr.blocking_factor** at every level must be a power of 2
 
@@ -639,6 +641,9 @@ Notes
 
 -  **amr.max_grid_size** must be a multiple of **amr.blocking_factor**
    at every level
+
+-  the three **amr.blocking_factor** rules above are not applied in the
+   **amr.no_box_split_dir** direction (the vertical, by default)
 
 -  **amr.refine_grid_layout** is a single flag that sets all three of
    **amr.refine_grid_layout_x/_y/_z**; if a per-direction flag is also
@@ -2404,6 +2409,17 @@ List of Parameters
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_ysu_use_consistent_coriolis**  | Ignore above param and use the value from ERF coriolis   | Boolean            | false            |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.enable_ysu_countergradient**       | YSUNew only: apply the nonlocal countergradient          | Boolean            | true             |
+|                                          | corrections to heat, moisture and momentum (HGAMT,       |                    |                  |
+|                                          | HGAMQ, HGAMU, HGAMV); false gives strict HND06 mixing    |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.enable_ysu_entrainment**           | YSUNew only: add the entrainment diffusivity at the      | Boolean            | true             |
+|                                          | first cell above the PBL top (HND06 Eq. 6)               |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.ysu_moistvars**                    | YSUNew only: give moisture its own diffusivity, from the | Boolean            | false            |
+|                                          | moisture Prandtl number, and add the entrainment term to |                    |                  |
+|                                          | it; false uses the heat diffusivity for moisture         |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.enable_ysu_rad_tend_limiter**      | YSUNew only: replace a non-finite radiative tendency at  | Boolean            | false            |
 |                                          | cloud top by zero and bound it before the top-down       |                    |                  |
 |                                          | mixing velocity is formed from it                        |                    |                  |
@@ -2439,6 +2455,14 @@ List of Parameters
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.enable_mrf_unbounded_vpert**       | Enable physically superior unbounded VPERT in MRF PBL    | Boolean            | false            |
 |                                          | scheme                                                   |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.enable_mrf_cloud_adjustment**      | MRF only: adjust the stability functions in cells whose  | Boolean            | false            |
+|                                          | cloud water plus ice exceeds 1e-4 kg/kg (less stable     |                    |                  |
+|                                          | damping, a smaller unstable correction)                  |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mrf_use_zero_ri_extent**       | MRF only: extend the K profile to the PBL height         | Boolean            | false            |
+|                                          | diagnosed with Ribcr = 0, a taller mixing region; false  |                    |                  |
+|                                          | uses the Ribcr = 0.5 corrected height, as WRF does       |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.advect_tke**                       | advect the turbulent kinetic energy (per-level); read    | Boolean            | true             |
 |                                          | only when the PBL scheme carries TKE                     |                    |                  |
