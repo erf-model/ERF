@@ -355,6 +355,144 @@ TEST(CloudChamberConfig, MoistureModelSupportIsAnExplicitTypedAllowlist)
     }
 }
 
+// Keep AMReX GPU lambda launches in namespace-scope helpers: NVCC cannot
+// compile extended device lambdas nested in GoogleTest's generated TestBody.
+void
+initialize_extra_moisture_lanes (amrex::Array4<amrex::Real> values,
+                                 const amrex::Box& box)
+{
+    amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        const amrex::Real base = amrex::Real(0.1) * i + amrex::Real(0.2) * j +
+            amrex::Real(0.3) * k;
+        values(i,j,k,Rho_comp) = amrex::Real(1.0);
+        values(i,j,k,RhoQ3_comp) = base;
+        values(i,j,k,RhoQ4_comp) = amrex::Real(1.5) * base + amrex::Real(0.09) * k;
+        values(i,j,k,RhoQ7_comp) = amrex::Real(2.0) * base + amrex::Real(0.07) * i;
+        values(i,j,k,RhoQ8_comp) = amrex::Real(3.0) * base + amrex::Real(0.11) * j;
+    });
+}
+
+void
+evaluate_extra_moisture_lanes_flux (
+    amrex::Array4<const amrex::Real> values,
+    amrex::Array4<amrex::Real> wall,
+    amrex::Array4<amrex::Real> interior,
+    amrex::Array4<amrex::Real> seam,
+    amrex::Array4<amrex::Real> mutant,
+    const amrex::Box& box,
+    amrex::GpuArray<int, 4> q_comps,
+    int lo_x, int hi_x, int lo_y, int hi_y, int lo_z, int hi_z)
+{
+    amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        amrex::Real wall_max[4] = {amrex::Real(0.0), amrex::Real(0.0),
+                                   amrex::Real(0.0), amrex::Real(0.0)};
+        amrex::Real interior_max[4] = {amrex::Real(0.0), amrex::Real(0.0),
+                                       amrex::Real(0.0), amrex::Real(0.0)};
+        amrex::Real seam_max[4] = {amrex::Real(0.0), amrex::Real(0.0),
+                                   amrex::Real(0.0), amrex::Real(0.0)};
+        for (int n = 0; n < 4; ++n) {
+            const int comp = q_comps[n];
+            if (i == lo_x) {
+                wall_max[n] = amrex::max(wall_max[n], std::abs(
+                    ScalarDiffusionFlux_N<0>(values, comp, lo_x, j, k,
+                        amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0),
+                        amrex::Real(1.0), false, false)));
+            }
+            if (i == hi_x) {
+                wall_max[n] = amrex::max(wall_max[n], std::abs(
+                    ScalarDiffusionFlux_N<0>(values, comp, hi_x + 1, j, k,
+                        amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0),
+                        amrex::Real(1.0), false, false)));
+            }
+            if (j == lo_y) {
+                wall_max[n] = amrex::max(wall_max[n], std::abs(
+                    ScalarDiffusionFlux_N<1>(values, comp, i, lo_y, k,
+                        amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0),
+                        amrex::Real(1.0), false, false)));
+            }
+            if (j == hi_y) {
+                wall_max[n] = amrex::max(wall_max[n], std::abs(
+                    ScalarDiffusionFlux_N<1>(values, comp, i, hi_y + 1, k,
+                        amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0),
+                        amrex::Real(1.0), false, false)));
+            }
+            if (k == lo_z) {
+                wall_max[n] = amrex::max(wall_max[n], std::abs(
+                    ScalarDiffusionFlux_N<2>(values, comp, i, j, lo_z,
+                        amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0),
+                        amrex::Real(1.0), false, false)));
+            }
+            if (k == hi_z) {
+                wall_max[n] = amrex::max(wall_max[n], std::abs(
+                    ScalarDiffusionFlux_N<2>(values, comp, i, j, hi_z + 1,
+                        amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0),
+                        amrex::Real(1.0), false, false)));
+            }
+            if (i == 3 && j == 3 && k == 3) {
+                interior_max[n] = amrex::max(
+                    std::abs(ScalarDiffusionFlux_N<0>(values, comp, 3, 3, 3,
+                        amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0),
+                        amrex::Real(1.0), false, false)),
+                    amrex::max(
+                        std::abs(ScalarDiffusionFlux_N<1>(values, comp, 3, 3, 3,
+                            amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0),
+                            amrex::Real(1.0), false, false)),
+                        std::abs(ScalarDiffusionFlux_N<2>(values, comp, 3, 3, 3,
+                            amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0),
+                            amrex::Real(1.0), false, false))));
+            }
+            if (i == 3 || i == 4) {
+                seam_max[n] = amrex::max(seam_max[n], std::abs(
+                    ScalarDiffusionFlux_N<0>(values, comp, 4, j, k,
+                        amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0),
+                        amrex::Real(1.0), false, false)));
+            }
+            if (j == 3 || j == 4) {
+                seam_max[n] = amrex::max(seam_max[n], std::abs(
+                    ScalarDiffusionFlux_N<1>(values, comp, i, 4, k,
+                        amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0),
+                        amrex::Real(1.0), false, false)));
+            }
+            if (k == 3 || k == 4) {
+                seam_max[n] = amrex::max(seam_max[n], std::abs(
+                    ScalarDiffusionFlux_N<2>(values, comp, i, j, 4,
+                        amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0),
+                        amrex::Real(1.0), false, false)));
+            }
+        }
+        for (int n = 0; n < 4; ++n) {
+            wall(i,j,k,n) = wall_max[n];
+            interior(i,j,k,n) = interior_max[n];
+            seam(i,j,k,n) = seam_max[n];
+        }
+        if (i == lo_x && j == 3 && k == 3) {
+            mutant(i,j,k) = std::abs(ScalarDiffusionFlux_N<0>(
+                values, RhoQ3_comp, lo_x, j, k, amrex::Real(1.0),
+                amrex::Real(1.0), amrex::Real(1.0), amrex::Real(1.0), true, false));
+        }
+    });
+}
+
+void
+initialize_scalar_adapter_fields (amrex::Array4<amrex::Real> conserved,
+                                  amrex::Array4<amrex::Real> intensive,
+                                  const amrex::Box& data_box,
+                                  const amrex::Box& domain)
+{
+    amrex::ParallelFor(data_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+        const int ii = amrex::max(domain.smallEnd(0), amrex::min(domain.bigEnd(0), i));
+        const int jj = amrex::max(domain.smallEnd(1), amrex::min(domain.bigEnd(1), j));
+        const int kk = amrex::max(domain.smallEnd(2), amrex::min(domain.bigEnd(2), k));
+        const amrex::Real base = amrex::Real(0.1) * ii + amrex::Real(0.2) * jj +
+            amrex::Real(0.3) * kk;
+        conserved(i,j,k,Rho_comp) = amrex::Real(1.0);
+        intensive(i,j,k,RhoQ3_comp) = base;
+        intensive(i,j,k,RhoQ4_comp) = amrex::Real(2.0) * base + amrex::Real(0.07) * ii;
+        intensive(i,j,k,RhoQ7_comp) = amrex::Real(3.0) * base + amrex::Real(0.11) * jj;
+        intensive(i,j,k,RhoQ8_comp) = amrex::Real(4.0) * base + amrex::Real(0.13) * kk;
+    });
+}
+
 // Regression for the generic scalar path used by Q3+ in a physical chamber.
 // The real multibox fill applies the same foextrap scalar contract assigned to
 // NoSlipWall constituents; the native N-grid face kernel must then write zero
@@ -378,14 +516,7 @@ TEST(CloudChamberWallDiffusion, ExtraMoistureLanesAreImpermeable)
     for (MFIter mfi(state); mfi.isValid(); ++mfi) {
         const auto values = state.array(mfi);
         const Box bx = mfi.validbox();
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            const Real base = Real(0.1) * i + Real(0.2) * j + Real(0.3) * k;
-            values(i,j,k,Rho_comp) = Real(1.0);
-            values(i,j,k,RhoQ3_comp) = base;
-            values(i,j,k,RhoQ4_comp) = Real(1.5) * base + Real(0.09) * k;
-            values(i,j,k,RhoQ7_comp) = Real(2.0) * base + Real(0.07) * i;
-            values(i,j,k,RhoQ8_comp) = Real(3.0) * base + Real(0.11) * j;
-        });
+        initialize_extra_moisture_lanes(values, bx);
     }
     Vector<BCRec> bcs(state.nComp());
     for (auto& bc : bcs) {
@@ -405,7 +536,7 @@ TEST(CloudChamberWallDiffusion, ExtraMoistureLanesAreImpermeable)
     interior_flux.setVal(Real(0.0));
     seam_flux.setVal(Real(0.0));
     ext_dir_mutant_flux.setVal(Real(0.0));
-    const int q_comps[4] = {RhoQ3_comp, RhoQ4_comp, RhoQ7_comp, RhoQ8_comp};
+    const GpuArray<int, 4> q_comps = {RhoQ3_comp, RhoQ4_comp, RhoQ7_comp, RhoQ8_comp};
     const int lo_x = domain.smallEnd(0), hi_x = domain.bigEnd(0);
     const int lo_y = domain.smallEnd(1), hi_y = domain.bigEnd(1);
     const int lo_z = domain.smallEnd(2), hi_z = domain.bigEnd(2);
@@ -416,79 +547,9 @@ TEST(CloudChamberWallDiffusion, ExtraMoistureLanesAreImpermeable)
         const auto seam = seam_flux.array(mfi);
         const auto mutant = ext_dir_mutant_flux.array(mfi);
         const Box bx = mfi.validbox();
-        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            Real wall_max[4] = {Real(0.0), Real(0.0), Real(0.0), Real(0.0)};
-            Real interior_max[4] = {Real(0.0), Real(0.0), Real(0.0), Real(0.0)};
-            Real seam_max[4] = {Real(0.0), Real(0.0), Real(0.0), Real(0.0)};
-            for (int n = 0; n < 4; ++n) {
-                const int comp = q_comps[n];
-                if (i == lo_x) {
-                    wall_max[n] = amrex::max(wall_max[n], std::abs(
-                        ScalarDiffusionFlux_N<0>(values, comp, lo_x, j, k,
-                            Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false)));
-                }
-                if (i == hi_x) {
-                    wall_max[n] = amrex::max(wall_max[n], std::abs(
-                        ScalarDiffusionFlux_N<0>(values, comp, hi_x + 1, j, k,
-                            Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false)));
-                }
-                if (j == lo_y) {
-                    wall_max[n] = amrex::max(wall_max[n], std::abs(
-                        ScalarDiffusionFlux_N<1>(values, comp, i, lo_y, k,
-                            Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false)));
-                }
-                if (j == hi_y) {
-                    wall_max[n] = amrex::max(wall_max[n], std::abs(
-                        ScalarDiffusionFlux_N<1>(values, comp, i, hi_y + 1, k,
-                            Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false)));
-                }
-                if (k == lo_z) {
-                    wall_max[n] = amrex::max(wall_max[n], std::abs(
-                        ScalarDiffusionFlux_N<2>(values, comp, i, j, lo_z,
-                            Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false)));
-                }
-                if (k == hi_z) {
-                    wall_max[n] = amrex::max(wall_max[n], std::abs(
-                        ScalarDiffusionFlux_N<2>(values, comp, i, j, hi_z + 1,
-                            Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false)));
-                }
-                if (i == 3 && j == 3 && k == 3) {
-                    interior_max[n] = amrex::max(
-                        std::abs(ScalarDiffusionFlux_N<0>(values, comp, 3, 3, 3,
-                            Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false)),
-                        amrex::max(
-                            std::abs(ScalarDiffusionFlux_N<1>(values, comp, 3, 3, 3,
-                                Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false)),
-                            std::abs(ScalarDiffusionFlux_N<2>(values, comp, 3, 3, 3,
-                                Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false))));
-                }
-                if (i == 3 || i == 4) {
-                    seam_max[n] = amrex::max(seam_max[n], std::abs(
-                        ScalarDiffusionFlux_N<0>(values, comp, 4, j, k,
-                            Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false)));
-                }
-                if (j == 3 || j == 4) {
-                    seam_max[n] = amrex::max(seam_max[n], std::abs(
-                        ScalarDiffusionFlux_N<1>(values, comp, i, 4, k,
-                            Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false)));
-                }
-                if (k == 3 || k == 4) {
-                    seam_max[n] = amrex::max(seam_max[n], std::abs(
-                        ScalarDiffusionFlux_N<2>(values, comp, i, j, 4,
-                            Real(1.0), Real(1.0), Real(1.0), Real(1.0), false, false)));
-                }
-            }
-            for (int n = 0; n < 4; ++n) {
-                wall(i,j,k,n) = wall_max[n];
-                interior(i,j,k,n) = interior_max[n];
-                seam(i,j,k,n) = seam_max[n];
-            }
-            if (i == lo_x && j == 3 && k == 3) {
-                mutant(i,j,k) = std::abs(ScalarDiffusionFlux_N<0>(
-                    values, RhoQ3_comp, lo_x, j, k, Real(1.0), Real(1.0),
-                    Real(1.0), Real(1.0), true, false));
-            }
-        });
+        evaluate_extra_moisture_lanes_flux(
+            values, wall, interior, seam, mutant, bx, q_comps,
+            lo_x, hi_x, lo_y, hi_y, lo_z, hi_z);
     }
     Gpu::streamSynchronize();
     for (int n = 0; n < 4; ++n) {
@@ -549,17 +610,7 @@ TEST(CloudChamberWallDiffusion, NoSlipMappingUsesProductionScalarAdapter)
 
     const auto conserved = state.array();
     const auto intensive = primitive.array();
-    ParallelFor(data_box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-        const int ii = amrex::max(domain.smallEnd(0), amrex::min(domain.bigEnd(0), i));
-        const int jj = amrex::max(domain.smallEnd(1), amrex::min(domain.bigEnd(1), j));
-        const int kk = amrex::max(domain.smallEnd(2), amrex::min(domain.bigEnd(2), k));
-        const Real base = Real(0.1) * ii + Real(0.2) * jj + Real(0.3) * kk;
-        conserved(i,j,k,Rho_comp) = Real(1.0);
-        intensive(i,j,k,RhoQ3_comp) = base;
-        intensive(i,j,k,RhoQ4_comp) = Real(2.0) * base + Real(0.07) * ii;
-        intensive(i,j,k,RhoQ7_comp) = Real(3.0) * base + Real(0.11) * jj;
-        intensive(i,j,k,RhoQ8_comp) = Real(4.0) * base + Real(0.13) * kk;
-    });
+    initialize_scalar_adapter_fields(conserved, intensive, data_box, domain);
     Gpu::streamSynchronize();
 
     Vector<BCRec> bcs(NVAR_max);

@@ -382,7 +382,9 @@ bool check_active_condensation (const std::string& model_name,
         error = "active-condensation checker requires matched Kessler_NoRain and control times";
         return false;
     }
-    const std::vector<std::string> required = {"density", "pressure", "theta", "temp", "qv", "qc"};
+    const std::vector<std::string> required = {
+        "density", "pressure", "theta", "temp", "qv", "qc",
+        "x_velocity", "y_velocity", "z_velocity"};
     for (const auto& name : required) {
         if (!has_variable(initial, name) || !has_variable(active, name) ||
             !has_variable(control, name)) {
@@ -531,9 +533,9 @@ bool check_active_condensation (const std::string& model_name,
 
 // RH=0.95 and ccn0=1e9 m^-3 leave both active and floor-limited nn values, so
 // the Q8 restart state is observable. Activity is checked before exact
-// fcompare with rtol=atol=2e-10; the step-501 comparison catches a lost Q8 restore
-// before both long-run legs can hide it. A temporary Q8-restore mutation made
-// that first-step comparison fail. Number concentration is never treated as
+// fcompare with zero relative and absolute tolerances. The step-501 comparison
+// catches a lost Q8 restore before both long-run legs can hide it. A temporary
+// Q8-restore mutation made the first-step comparison fail. Number concentration is never treated as
 // water mass. DOUBLE precision.
 bool check_wdm6_activity (PlotFileData& initial, PlotFileData& checkpoint,
                           std::string& error)
@@ -589,8 +591,9 @@ bool check_wdm6_activity (PlotFileData& initial, PlotFileData& checkpoint,
         error = "WDM6 checkpoint lacks measurable cloud water and activated cloud-drop number";
         return false;
     }
-    if (!(nn_departure > Real(1.0e4) || nn_nonuniformity > Real(1.0e4))) {
-        error = "WDM6 checkpoint nn remains indistinguishable from uniform ccn0";
+    if (!(nn_departure > Real(1.0e4) && nn_nonuniformity > Real(1.0e4))) {
+        error = "WDM6 checkpoint nn lacks both measurable departure from ccn0 "
+            "and spatial variation";
         return false;
     }
     if (nn_initial.max(0,0,false) != Real(0.0)) {
