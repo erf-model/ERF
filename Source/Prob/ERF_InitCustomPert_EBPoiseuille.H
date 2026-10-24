@@ -1,3 +1,9 @@
+    // On a mesh other than ConstantDz, heights come from z_cc and the vertical levels,
+    //    not from geomdata's prob_lo[2], prob_hi[2] and CellSize(2)
+    const bool use_z_phys = use_physical_z();
+    const Real phys_z_lo  = phys_zlo(geomdata, lev);
+    const Real phys_z_hi  = phys_zhi(geomdata, lev);
+
     ParmParse pp("prob");
     Real A_0 = one  ; pp.query("A_0", A_0);
     Real B_0 = zero  ; pp.query("B_0", B_0);
@@ -27,12 +33,12 @@
 
         const Real x = prob_lo[0] + (i + myhalf) * dx[0];
         const Real y = prob_lo[1] + (j + myhalf) * dx[1];
-        const Real z = prob_lo[2] + (k + myhalf) * dx[2];
+        const Real z = use_z_phys ? z_cc(i,j,k) : prob_lo[2] + (k + myhalf) * dx[2];
 
         // Define a point (xc,yc,zc) at the center of the domain
         const Real xc = xc_frac * (prob_lo[0] + prob_hi[0]);
         const Real yc = yc_frac * (prob_lo[1] + prob_hi[1]);
-        const Real zc = zc_frac * (prob_lo[2] + prob_hi[2]);
+        const Real zc = zc_frac * (phys_z_lo + phys_z_hi);
 
         // Define ellipse parameters
         const Real r0   = rad_0 * (prob_hi[0] - prob_lo[0]);

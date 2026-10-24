@@ -2372,7 +2372,7 @@ ERF::InitData_post ()
             pp.queryarr("sample_line_log",samplelinelogname,0,num_samplelinelogs);
 
             for (int i = 0; i < num_samplelinelogs; i++) {
-                setRecordSampleLineInfo(i,lev,sampleline[i],samplelinelogname[i]);
+                setRecordSampleLineInfo(i,samplelinelogname[i]);
             }
         }
 
