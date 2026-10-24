@@ -2,7 +2,7 @@
     Real Ampl = zero;        pp_prob.query("Ampl", Ampl);
     Real wavelength = one; pp_prob.get("wavelength", wavelength);
 
-    Real H           = geomdata.ProbHi()[2];
+    Real H           = phys_zhi(geomdata, lev);   // physical top of the domain
     Real kp          = two * PI / wavelength;
     Real g           = CONST_GRAV;
     Real omega       = std::sqrt(g * kp);

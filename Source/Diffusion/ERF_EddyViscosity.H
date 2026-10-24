@@ -126,6 +126,20 @@ ComputeSmnSmn (int& i, int& j, int& k,
     return SmnSmn;
 }
 
+/** The six strain components ComputeSmnSmn reads, as const arrays of one box. */
+struct StrainArrays {
+    amrex::Array4<amrex::Real const> tau11, tau22, tau33, tau12, tau13, tau23;
+};
+
+/** Strain arrays of the box of mfi from the Tau_lev container (tau11..tau23 of TauType). */
+inline StrainArrays
+strain_arrays (amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev, const amrex::MFIter& mfi)
+{
+    return { Tau_lev[TauType::tau11]->const_array(mfi), Tau_lev[TauType::tau22]->const_array(mfi),
+             Tau_lev[TauType::tau33]->const_array(mfi), Tau_lev[TauType::tau12]->const_array(mfi),
+             Tau_lev[TauType::tau13]->const_array(mfi), Tau_lev[TauType::tau23]->const_array(mfi) };
+}
+
 /**
  * Compute twice-contracted strain-rate magnitude for embedded-boundary cells.
  *

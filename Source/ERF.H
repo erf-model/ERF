@@ -554,8 +554,8 @@ public:
     // Fill the physical boundary conditions for cell-centered velocity (diagnostic only)
     void FillBdyCCVels (amrex::MultiFab& mf_cc_vel, amrex::Geometry& lev_geom);
 
-    void sample_points (int lev, double time, amrex::IntVect cell, amrex::MultiFab& mf);
-    void sample_lines (int lev, double time, amrex::IntVect cell, amrex::MultiFab& mf);
+    void sample_points (int ifile, int lev, double time, amrex::IntVect cell, amrex::MultiFab& mf);
+    void sample_lines (int ifile, int lev, double time, amrex::IntVect cell, amrex::MultiFab& mf);
 
     void derive_diag_profiles (double time,
                                amrex::Gpu::HostVector<amrex::Real>& h_avg_u   , amrex::Gpu::HostVector<amrex::Real>& h_avg_v,
@@ -1902,6 +1902,8 @@ private:
                                                     "Lturb",
                                                     // k-eqn RANS: smoothed turbulent Richardson number and stability functions
                                                     "Rt", "cmu", "cmu_prime",
+                                                    // k-eqn RANS: eddy viscosity over its realizability cap
+                                                    "cap_ratio",
                                                     // native SHOC diagnostics
                                                     "pblh", "shoc_cldfrac", "shoc_ql", "shoc_ql2", "shoc_cond",
                                                     "wqls_sec", "wthv_sec", "w_sec",
@@ -2406,18 +2408,16 @@ private:
         amrex::ParallelDescriptor::Barrier("ERF::setRecordSamplePointInfo");
     }
 
-    void setRecordSampleLineInfo (int i, int lev, amrex::IntVect& cell, const std::string& filename) // NOLINT
+    // The line can span boxes on several ranks; sample_lines gathers it onto
+    // the IO processor, so only that rank opens the log
+    void setRecordSampleLineInfo (int i, const std::string& filename) // NOLINT
     {
-        amrex::MultiFab dummy(grids[lev],dmap[lev],1,0);
-        for (amrex::MFIter mfi(dummy); mfi.isValid(); ++mfi)
+        if (amrex::ParallelDescriptor::IOProcessor())
         {
-            const amrex::Box& bx = mfi.validbox();
-            if (bx.contains(cell)) {
-                samplelinelog[i] = std::make_unique<std::fstream>();
-                samplelinelog[i]->open(filename.c_str(),std::ios::out|std::ios::app);
-                if (!samplelinelog[i]->good()) {
-                    amrex::FileOpenFailed(filename);
-                }
+            samplelinelog[i] = std::make_unique<std::fstream>();
+            samplelinelog[i]->open(filename.c_str(),std::ios::out|std::ios::app);
+            if (!samplelinelog[i]->good()) {
+                amrex::FileOpenFailed(filename);
             }
         }
         amrex::ParallelDescriptor::Barrier("ERF::setRecordSampleLineInfo");

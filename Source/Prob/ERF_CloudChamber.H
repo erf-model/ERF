@@ -648,6 +648,11 @@ inline void require_no_unsupported_geometry ()
         amrex::toLower(value) != "constantdz") {
         amrex::Error("Cloud Chamber: erf.mesh_type must be ConstantDz");
     }
+    // A stretched or listed vertical grid makes the mesh StretchedDz without erf.mesh_type
+    if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+        amrex::Error("Cloud Chamber: the vertical grid must be uniform (no erf.grid_stretching_ratio, "
+                     "erf.initial_dz or erf.terrain_z_levels)");
+    }
 }
 
 inline void reject_unsupported_face_keys (amrex::ParmParse& pp,
