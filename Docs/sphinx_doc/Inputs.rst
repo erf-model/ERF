@@ -403,10 +403,6 @@ List of Parameters
 |                                | levels; specifying these makes the mesh type             |                    |                                |
 |                                | ``StretchedDz``.  See :ref:`sec:Meshing`                 |                    |                                |
 +--------------------------------+----------------------------------------------------------+--------------------+--------------------------------+
-| **erf.zsurface**               | nominal surface height used when generating a stretched  | Real               | 0.0                            |
-|                                | vertical mesh; read only when ``grid_stretching_ratio``  |                    |                                |
-|                                | >= 1 or ``initial_dz`` is given                          |                    |                                |
-+--------------------------------+----------------------------------------------------------+--------------------+--------------------------------+
 | **erf.mesh_type**              | vertical mesh type; normally set from the terrain and    | ConstantDz,        | set from other inputs          |
 |                                | stretching options rather than directly                  | StretchedDz,       |                                |
 |                                |                                                          | VariableDz         |                                |
@@ -421,9 +417,12 @@ Notes
   **erf.initial_dz**) are specified, the simple grid stretching will be ignored.
 - With **erf.grid_stretching_ratio** and **erf.initial_dz** both given, the top of
   the grid is wherever the stretched layers end, which need not be
-  **geometry.prob_hi** in z.  With **erf.initial_dz** alone, the constant ratio
+  **geometry.prob_hi** in z.  ERF then prints a warning giving that top and
+  uses it as the physical top of the domain; on any mesh other than
+  ``ConstantDz``, **geometry.prob_lo** and **geometry.prob_hi** in z only bound
+  the computational coordinate.  With **erf.initial_dz** alone, the constant ratio
   :math:`r` is instead solved for so that :math:`dz_0 (r^{n_z} - 1)/(r - 1)`
-  fills the domain from **erf.zsurface** to **geometry.prob_hi** exactly.  An
+  fills the domain from **geometry.prob_lo** to **geometry.prob_hi** in z exactly.  An
   **erf.initial_dz** at or above the uniform spacing gives a uniform grid, and
   an explicit **erf.grid_stretching_ratio** = 0 turns stretching off even when
   **erf.initial_dz** is given.  This
@@ -431,6 +430,10 @@ Notes
   wrfinput case builds its grid from the file instead.
 - The number of input **erf.terrain_z_levels** must be equal **amr.n_cell** in
   the z direction + 1.
+- A stretched grid (**erf.grid_stretching_ratio** or **erf.initial_dz**) starts at
+  **geometry.prob_lo** in z, and a flat surface sits there.  The former input
+  **erf.zsurface** is no longer accepted; set **geometry.prob_lo** in z instead.
+  **erf.terrain_z_levels** must still start at 0.
 
 .. _examples-of-usage-3:
 
@@ -627,7 +630,9 @@ Notes
    **amr.blocking_factor_x/_y/_z** override them in the specified direction
    only, and may also be specified per level
 
--  **amr.max_grid_size** at every level must be even
+-  **amr.max_grid_size** at every level should be even: ERF does not stop on
+   an odd value, but a box with an odd number of cells cannot be halved for
+   load balancing or coarsened by 2 under a finer level
 
 -  **amr.blocking_factor** at every level must be a power of 2
 
@@ -636,6 +641,9 @@ Notes
 
 -  **amr.max_grid_size** must be a multiple of **amr.blocking_factor**
    at every level
+
+-  the three **amr.blocking_factor** rules above are not applied in the
+   **amr.no_box_split_dir** direction (the vertical, by default)
 
 -  **amr.refine_grid_layout** is a single flag that sets all three of
    **amr.refine_grid_layout_x/_y/_z**; if a per-direction flag is also
@@ -1317,10 +1325,11 @@ still reports that sample, i.e. the means of the initial state. Dropping it is
 what keeps the averaging window independent of the output cadence, and so makes
 the interval fields exact across a checkpoint/restart. In ``time`` mode the
 initialization sample is part of the configured window and is kept.
-In either mode, regridding a level rebuilds that level's accumulator, so the
-averaging window restarts on the regridded level while the other levels keep
-accumulating. A plotfile written shortly after a regrid can therefore mix
-per-level averaging windows; see :ref:`sec:Plotfile3DReference`.
+In either mode, regridding keeps the averaging window: a remade level copies
+its old accumulator wherever its old and new grids overlap, and cells it newly
+covers, like a newly created level, take the coarser level's average over the
+same window (by piecewise-constant interpolation). All levels therefore report
+the same window; see :ref:`sec:Plotfile3DReference`.
 
 
 .. _inputs-screen-output:
@@ -2216,6 +2225,20 @@ List of Parameters
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.rans_lscale_min**                | lower bound [m] of the PBL-height cap above (per-level)  | Real > 0           | 1.0              |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.rans_realizability**             | k-equation RANS: cap the eddy viscosity at C_r k / S,    | 0, or Real in      | 0 (off)          |
+|                                        | S the strain-rate magnitude, and every eddy diffusivity  | [0.01, 10]         |                  |
+|                                        | by the same factor (SST limiter form); needs             |                    |                  |
+|                                        | ``erf.rans_type = kEqn`` and ``erf.pbl_type = None``;    |                    |                  |
+|                                        | C_r = Cmu0^2 = 0.309 (default Cmu0) is the neutral       |                    |                  |
+|                                        | equilibrium value, which leaves a neutral constant-      |                    |                  |
+|                                        | stress layer unchanged and limits the viscosity where    |                    |                  |
+|                                        | production exceeds dissipation, as behind a steep crest; |                    |                  |
+|                                        | one value for the hierarchy (a single entry, or a list   |                    |                  |
+|                                        | whose entries are all equal) is reset to 0 on levels     |                    |                  |
+|                                        | without the k-eqn closure; a list with different entries |                    |                  |
+|                                        | that switches it on at such a level stops the run        |                    |                  |
+|                                        | (per-level)                                              |                    |                  |
++----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.wall_dist_type**                 | wall distance for RANS on a terrain-fitted mesh:         | "poisson",         | "poisson"        |
 |                                        | Tucker (2003) Poisson distance, or the height above the  | "terrain_height"   |                  |
 |                                        | local surface projected on its normal (no linear solve)  |                    |                  |
@@ -2401,6 +2424,17 @@ List of Parameters
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.pbl_ysu_use_consistent_coriolis**  | Ignore above param and use the value from ERF coriolis   | Boolean            | false            |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.enable_ysu_countergradient**       | YSUNew only: apply the nonlocal countergradient          | Boolean            | true             |
+|                                          | corrections to heat, moisture and momentum (HGAMT,       |                    |                  |
+|                                          | HGAMQ, HGAMU, HGAMV); false gives strict HND06 mixing    |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.enable_ysu_entrainment**           | YSUNew only: add the entrainment diffusivity at the      | Boolean            | true             |
+|                                          | first cell above the PBL top (HND06 Eq. 6)               |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.ysu_moistvars**                    | YSUNew only: give moisture its own diffusivity, from the | Boolean            | false            |
+|                                          | moisture Prandtl number, and add the entrainment term to |                    |                  |
+|                                          | it; false uses the heat diffusivity for moisture         |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.enable_ysu_rad_tend_limiter**      | YSUNew only: replace a non-finite radiative tendency at  | Boolean            | false            |
 |                                          | cloud top by zero and bound it before the top-down       |                    |                  |
 |                                          | mixing velocity is formed from it                        |                    |                  |
@@ -2436,6 +2470,14 @@ List of Parameters
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.enable_mrf_unbounded_vpert**       | Enable physically superior unbounded VPERT in MRF PBL    | Boolean            | false            |
 |                                          | scheme                                                   |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.enable_mrf_cloud_adjustment**      | MRF only: adjust the stability functions in cells whose  | Boolean            | false            |
+|                                          | cloud water plus ice exceeds 1e-4 kg/kg (less stable     |                    |                  |
+|                                          | damping, a smaller unstable correction)                  |                    |                  |
++------------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.pbl_mrf_use_zero_ri_extent**       | MRF only: extend the K profile to the PBL height         | Boolean            | false            |
+|                                          | diagnosed with Ribcr = 0, a taller mixing region; false  |                    |                  |
+|                                          | uses the Ribcr = 0.5 corrected height, as WRF does       |                    |                  |
 +------------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.advect_tke**                       | advect the turbulent kinetic energy (per-level); read    | Boolean            | true             |
 |                                          | only when the PBL scheme carries TKE                     |                    |                  |
@@ -3272,26 +3314,38 @@ To enhance numerical stability, e.g., for operational runs, we provide some addi
 List of Parameters
 ------------------
 
-+--------------------------+----------------------------------------------------------+--------------------+------------------+
-| Parameter                | Definition                                               | Acceptable Values  | Default          |
-+==========================+==========================================================+====================+==================+
-| **erf.beta_s**           | time off-centering coefficient used in the acoustic      | Real               | 0.1              |
-|                          | substepping; positive values weight the update towards   |                    |                  |
-|                          | the new time                                             |                    |                  |
-+--------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.w_damping**        | enable vertical-velocity damping                         | Boolean            | false            |
-+--------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.w_damping_cfl**    | Critical vertical advective CFL for w-damping to be      | Real > 0           | 1.0              |
-|                          | applied, if ``erf.w_damping`` is true                    |                    |                  |
-+--------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.w_damping_const**  | constant damping coefficient [m/s^2], as used by WRF     | Real               | -1.0 (not used)  |
-|                          | (which uses 0.3); a positive value selects this          |                    |                  |
-|                          | formulation                                              |                    |                  |
-+--------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.w_damping_coeff**  | dimensionless damping factor giving a grid-dependent     | Real               | -1.0 (not used)  |
-|                          | coefficient proportional to dz/dt^2; a positive value    |                    |                  |
-|                          | selects this formulation                                 |                    |                  |
-+--------------------------+----------------------------------------------------------+--------------------+------------------+
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| Parameter                   | Definition                                               | Acceptable Values  | Default          |
++=============================+==========================================================+====================+==================+
+| **erf.beta_s**              | time off-centering coefficient used in the acoustic      | Real               | 0.1              |
+|                             | substepping; positive values weight the update towards   |                    |                  |
+|                             | the new time                                             |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.use_variable_beta_s** | with implicit substepping, use a beta_s that varies      | Boolean            | false            |
+|                             | on the w-faces, max(beta_s_min, min(beta_s_max,          |                    |                  |
+|                             | h_xi^2 + h_eta^2)), in place of ``erf.beta_s``           |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.beta_s_min**          | lower bound of the spatially varying beta_s              | Real in [-1, 1]    | 0.1              |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.beta_s_max**          | upper bound of the spatially varying beta_s              | Real in [-1, 1]    | 0.8              |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.beta_d**              | divergence damping coefficient used in the acoustic      | Real in [0, 1]     | 0.1              |
+|                             | substepping; how far (rho theta) is projected forward    |                    |                  |
+|                             | in the horizontal momentum equations                     |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.w_damping**           | enable vertical-velocity damping                         | Boolean            | false            |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.w_damping_cfl**       | Critical vertical advective CFL for w-damping to be      | Real > 0           | 1.0              |
+|                             | applied, if ``erf.w_damping`` is true                    |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.w_damping_const**     | constant damping coefficient [m/s^2], as used by WRF     | Real               | -1.0 (not used)  |
+|                             | (which uses 0.3); a positive value selects this          |                    |                  |
+|                             | formulation                                              |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.w_damping_coeff**     | dimensionless damping factor giving a grid-dependent     | Real               | -1.0 (not used)  |
+|                             | coefficient proportional to dz/dt^2; a positive value    |                    |                  |
+|                             | selects this formulation                                 |                    |                  |
++-----------------------------+----------------------------------------------------------+--------------------+------------------+
 
 If ``erf.w_damping`` is true, then either ``erf.w_damping_const`` or ``erf.w_damping_coeff`` must
 be specified. For WRF-like damping, set ``erf.w_damping_const = 0.3`` to give
@@ -4341,6 +4395,23 @@ List of Parameters
 |                                   | regime, 1 = hail regime                                  |                      |                  |
 +-----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **wdm6.ccn0**                     | Background CCN number concentration for WDM6             | Positive real (m^-3) | 100.0e6 (m^-3)   |
++-----------------------------------+----------------------------------------------------------+----------------------+------------------+
+| **erf.use_morr_cpp_answer**       | Morrison implementation: true = native C++, false =      | Boolean              | true             |
+|                                   | Fortran bridge. Must be left true unless ERF is built    |                      |                  |
+|                                   | with ``USE_MORR_FORT=TRUE`` (GNU Make) or                |                      |                  |
+|                                   | ``ERF_ENABLE_MORR_FORT=ON`` (CMake)                      |                      |                  |
++-----------------------------------+----------------------------------------------------------+----------------------+------------------+
+| **erf.use_wsm6_cpp_answer**       | WSM6 implementation: true = native C++, false =          | Boolean              | false            |
+|                                   | Fortran bridge. Read only when ERF is built with         |                      |                  |
+|                                   | ``USE_WSM6_FORT=TRUE`` (GNU Make) or                     |                      |                  |
+|                                   | ``ERF_ENABLE_WSM6_FORT=ON`` (CMake); otherwise ignored   |                      |                  |
+|                                   | and native C++ always runs                               |                      |                  |
++-----------------------------------+----------------------------------------------------------+----------------------+------------------+
+| **erf.use_wdm6_cpp_answer**       | WDM6 implementation: true = native C++, false =          | Boolean              | false            |
+|                                   | Fortran bridge. Read only when ERF is built with         |                      |                  |
+|                                   | ``USE_WDM6_FORT=TRUE`` (GNU Make) or                     |                      |                  |
+|                                   | ``ERF_ENABLE_WDM6_FORT=ON`` (CMake); otherwise ignored   |                      |                  |
+|                                   | and native C++ always runs                               |                      |                  |
 +-----------------------------------+----------------------------------------------------------+----------------------+------------------+
 | **erf.microphysics_debug**        | verbosity of the WSM6 and WDM6 microphysics debug        | 0, 1, 2              | 0                |
 |                                   | output; values outside the range are clamped into it     |                      |                  |
@@ -5548,7 +5619,7 @@ Initialization, Terrain and Vertical Mesh
 -----------------------------------------
 
 * :ref:`Grid Stretching <inputs-grid-stretching>` -- ``erf.grid_stretching_ratio``,
-  ``erf.initial_dz``, ``erf.terrain_z_levels``, ``erf.zsurface``
+  ``erf.initial_dz``, ``erf.terrain_z_levels``
 * :ref:`Initialization <inputs-initialization>` -- ``erf.avg_grid_faces_to_nodes``,
   ``erf.init_type``, ``erf.nc_bdy_file``, ``erf.rebalance_wrf_input``,
   ``erf.sounding_type``, ``erf.use_real_bcs``, ``erf.wrfinput_zlevels_from_file``

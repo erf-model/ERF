@@ -712,6 +712,19 @@ if(EXISTS "${ERF_NOAHMP_TABLE}")
   endif()
 endif()
 
+# The static inputs checker (Exec/Tools/check_erf_inputs.py). Plain Python, no ERF
+# run: its self-test writes small decks that must trip each check and siblings that
+# must not, so a check that stops firing fails the test.
+if(ERF_TEST_PYTHON)
+  add_test(NAME InputsChecker_SelfTest
+      COMMAND ${ERF_TEST_PYTHON} ${PROJECT_SOURCE_DIR}/Exec/Tools/check_erf_inputs.py --self-test)
+  set_tests_properties(InputsChecker_SelfTest
+      PROPERTIES
+      TIMEOUT 120
+      PROCESSORS 1
+      LABELS "unit")
+endif()
+
 # Restart parity: run one deck straight, then to a checkpoint and on from it, and
 # require the plotfile at the end to be identical (no gold file). Every run has a
 # time limit; the default stays at 600, but an explicit RUN_TIMEOUT is forwarded
@@ -1405,6 +1418,16 @@ if(ERF_PRECISION STREQUAL "DOUBLE")
   add_test_column_bounds(ForestCanopyRANS_Uniform "plt00001" 45
       "x_velocity,KE" "4.87805419660,1.01104711783" "4.87805429416,1.01104713806")
 endif()
+# A stretched mesh starts at geometry.prob_lo[2] = -1, so the cell-centre z_phys runs from -0.9375
+# to 0.9375.  With the flat surface left at 0 the column was squashed onto 0 to 1 and reached
+# 0.96875 (erf-model/ERF#4442).
+add_test_column_bounds(StretchedProbLo_Poiseuille "plt00000" -10 "z_phys" "-0.9375001" "0.9375001")
+# A regrid keeps the time averages (erf-model/ERF#3917).  The state is a uniform wind turned by
+# Coriolis, so both levels carry the same values; at t = 50 s the fine grids move, and before the
+# fix the remade level restarted its averages from zero (u_t_avg on the fine level near -0.3
+# against 4.1 on the coarse level).  The centre column crosses the fine region.
+add_test_column_bounds(RegridKeepsTimeAverages "plt00100" -10 "u_t_avg,u_mean,uu_mean"
+    "4.0,3.95,39.0" "4.2,4.15,39.7")
 # A refined patch aloft (256-768 m) has no column at the ground: it takes level 0's height (~461 m), not zero
 add_test_field_bounds(PBLH_PatchAloft "plt2d00004" pblh 400.0 600.0)
 # Native WDM6 surface snow from the fallout through the bottom face, not the fall speed there:
@@ -1867,6 +1890,12 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
 add_test_restart_parity(MoistBubble_Kessler_Restart MoistBubble_Kessler_Restart 4 8
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 endif()
+# Kessler rain over a uniform, laterally periodic layer, with the fine box moved at t = 30 s:
+# a regrid must keep the surface rain accumulator.  The centre column of the 2D plotfile lies
+# in the new fine box.  It accumulates 5.2e-4 mm by t = 60 s (5.0e-4 on the coarse level, which
+# resolves the layer less finely); rebuilt as zero at the regrid, it reaches only 3.9e-4.
+add_test_column_bounds(RegridKeepsPrecipAccum "plt2d00120" 0 "precip_rain_accum"
+    "0.00051" "0.00053")
 # Boundary-plane output (erf.output_bndry_planes) across a restart: the series in BndryFiles --
 # one plane directory per output step and a time.dat of "step time" rows -- must come out of a
 # run through a checkpoint as it comes out of a straight run, since erf.input_bndry_planes reads
@@ -2068,6 +2097,47 @@ if(NOT WIN32)
   add_test_abort(ForestCanopyRANS_NeedsImplicitDissipation ${_canopy_dir} ForestCanopyRANS_Uniform.i
                  "needs erf.implicit_tke_dissipation = true on every level"
                  "erf.implicit_tke_dissipation=0")
+  # Input checks of the realizability cap (erf.rans_realizability)
+  # a per-level list with different entries switches the cap on at a level without the
+  # k-eqn closure: abort
+  add_test_abort(RANSRealizability_NeedsKEqn ${_canopy_dir} ForestCanopyRANS_Uniform.i
+                 "erf.rans_realizability needs erf.rans_type = kEqn"
+                 "erf.rans_type=None erf.les_type=Smagorinsky erf.Cs=0.1 erf.forest_canopy_tke=false 'erf.rans_realizability=0.309 0.5'")
+  add_test_abort(RANSRealizability_Range ${_canopy_dir} ForestCanopyRANS_Uniform.i
+                 "erf.rans_realizability must be 0 .off. or in"
+                 "erf.rans_realizability=20")
+  # on a deck with a surface layer, which the PBL scheme needs before the cap check runs
+  add_test_abort(RANSRealizability_NeedsNoPBL ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS/Neutral_ABL_Flat
+                 inputs_neutral
+                 "erf.rans_realizability needs erf.pbl_type = None"
+                 "erf.use_fft=false erf.pbl_type=YSU erf.rans_realizability=0.309")
+  # One value for the hierarchy is meant for the kEqn levels: on a level without the closure
+  # it is reset instead of refused, and the run then completes its step; the level also runs
+  # a PBL scheme (MYNN25 on the neutral flat deck), which the cap refuses only where it is
+  # still on. Unlike add_test_abort, the command requires both the reset message and the end
+  # of step 1 in the log, so a run that prints the reset and stops afterwards (the PBL check
+  # before the reset) fails. Covers a single entry and a list whose entries are all equal.
+  function(add_test_rans_reset TEST_NAME CAP_OPTION)
+    set(_rr_src ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS/Neutral_ABL_Flat)
+    set(_rr_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
+    file(MAKE_DIRECTORY ${_rr_dir})
+    file(GLOB _rr_files "${_rr_src}/*")
+    file(COPY ${_rr_files} DESTINATION "${_rr_dir}/")
+    if(ERF_ENABLE_MPI)
+      set(_rr_mpi "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
+    else()
+      unset(_rr_mpi)
+    endif()
+    resolve_test_exe("" "erf_exec" _rr_exe)
+    set(_rr_log "${_rr_dir}/${TEST_NAME}.log")
+    add_test(${TEST_NAME} sh -c
+      "${_rr_mpi} ${_rr_exe} ${_rr_dir}/inputs_neutral max_step=1 erf.plot_int_1=-1 erf.check_int=-1 amrex.call_addr2line=0 erf.use_fft=false erf.rans_type=None erf.pbl_type=MYNN25 erf.most.pblh_calc=MYNN25 ${CAP_OPTION} > ${_rr_log} 2>&1 && grep -q 'erf.rans_realizability reset to 0 on level 0' ${_rr_log} && grep -q 'Coarse STEP 1 ends' ${_rr_log}")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS 1 WORKING_DIRECTORY "${_rr_dir}/" LABELS "regression"
+        ATTACHED_FILES_ON_FAIL "${_rr_log}")
+  endfunction(add_test_rans_reset)
+  add_test_rans_reset(RANSRealizability_SingleValueResetOnLESLevel "erf.rans_realizability=0.309")
+  add_test_rans_reset(RANSRealizability_EqualListResetOnLESLevel "'erf.rans_realizability=0.309 0.309'")
   # kEqn on level 0 only: the canopy terms would act on part of the hierarchy
   add_test_abort(ForestCanopyRANS_NeedsKEqnOnEveryLevel
                  ${CMAKE_CURRENT_SOURCE_DIR}/test_files/PBLH_FinePatch PBLH_FinePatch.i
@@ -2633,6 +2703,17 @@ if(ERF_ENABLE_FFT)
     add_test_rans(RANS_Neutral_Hill_2D_Poisson Neutral_Hill_2D     inputs_hill        40  check_hill.py RUNTIME_OPTIONS "erf.wall_dist_type=poisson")
     add_test_rans(RANS_Flat_Fitted_2D         Neutral_Hill_2D      inputs_hill        40  check_flat_fitted.py RUNTIME_OPTIONS "prob.hmax=1e-6")
     add_test_rans(RANS_Flat_Fitted_2D_Poisson Neutral_Hill_2D      inputs_hill        40  check_flat_fitted.py RUNTIME_OPTIONS "prob.hmax=1e-6 erf.wall_dist_type=poisson")
+    # Realizability cap of the closure (erf.rans_realizability): the ridge run
+    # without the cap (A) and with C_r = Cmu0^2 (B); the capped Kmv and Khv are
+    # pinned to the closed form rho cmu sqrt(k) l / max(cap_ratio, 1) cell by cell (k of the
+    # closure recovered from diss, which the same kernel writes)
+    # and the cap must be active somewhere in B. The command runs through sh.
+    if(NOT WIN32)
+        add_test_rans_pair(RANS_Neutral_Hill_2D_Realizability Neutral_Hill_2D inputs_hill 40 check_realizability.py
+            RUNTIME_OPTIONS "erf.plot_vars_1=density Kmv Khv Lturb diss cmu cmu_prime cap_ratio"
+            OPTIONS_A "erf.rans_realizability=0" OPTIONS_B "erf.rans_realizability=0.309"
+            CHECK_OPTIONS "--cr 0.309")
+    endif()
     add_test_rans(RANS_Neutral_Hill_3D        Neutral_Hill_3D      inputs_hill3d      40  check_hill3d.py)
     add_test_rans(RANS_Neutral_Hill_3D_Poisson Neutral_Hill_3D     inputs_hill3d      40  check_hill3d.py RUNTIME_OPTIONS "erf.wall_dist_type=poisson")
 endif()
@@ -3452,12 +3533,13 @@ add_test_abort(DiffusiveDt_Abort_LimitNoClosure ${_smag2d_dir} Smag2D_Ridge.i
                "erf.diffusive_dt_limit = true needs diffusion to limit"
                "erf.diffusive_dt_limit=true erf.fixed_dt=-1 erf.les_type=None erf.pbl_type=None")
 # The check counts molecular diffusion: CouetteFlow_ImplicitCF has no eddy-diffusivity closure,
-# and its molecular viscosity gives a Fourier number of 11.2 at level 0 (the explicit vertical
-# diffusion of w; u and v are implicit).  Before, the check reported 0 there.
+# and its molecular viscosity gives a Fourier number of 11.2 at level 0 with dt = 0.2 (the explicit
+# vertical diffusion of w; u and v are implicit).  Before, the check reported 0 there.  dt is set
+# here because the deck runs at dt = 0.01, where the Fourier number is only about 0.56.
 add_test_abort(DiffusiveDt_CheckMolecular ${CMAKE_CURRENT_SOURCE_DIR}/test_files/CouetteFlow_ImplicitCF
                CouetteFlow_ImplicitCF.i
                "WARNING: explicit diffusion at level 0 has Fourier number dt \\* rate = 11\\.2 "
-               "erf.diffusive_dt_check=true")
+               "erf.diffusive_dt_check=true erf.fixed_dt=0.2")
 endif()
 
 #=============================================================================

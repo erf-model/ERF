@@ -651,10 +651,6 @@ AMReXpack             += $(foreach dir, $(AMReXdirs), $(AMREX_HOME)/Src/$(dir)/M
 
 include $(AMReXpack)
 
-ifeq ($(COMPUTE_ERROR), TRUE)
-  DEFINES += -DERF_COMPUTE_ERROR
-endif
-
 ifeq ($(USE_PARTICLES), TRUE)
   DEFINES += -DERF_USE_PARTICLES
 endif

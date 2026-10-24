@@ -161,6 +161,21 @@ the typical WRF value of 0.1. This off-centering is intended to provide damping 
 and vertically propagating sound waves by biasing the time average toward the future time step.
 This may be controlled with the ``erf.beta_s`` parameter.
 
+Over steep terrain more off-centering may be needed.  With ``erf.use_variable_beta_s = true``,
+:math:`\beta_s` is instead defined on each :math:`w`-face from the slopes of the coordinate
+surface there,
+
+.. math::
+
+   \beta_s = \max\left(\beta_{s,min}, \min\left(\beta_{s,max}, h_\xi^2 + h_\eta^2\right)\right),
+
+with :math:`\beta_{s,min}` and :math:`\beta_{s,max}` set by ``erf.beta_s_min`` (default 0.1)
+and ``erf.beta_s_max`` (default 0.8).  The vertical flux on a face is then weighted by
+:math:`\beta_1` and :math:`\beta_2` of that face, and the :math:`W^{\prime \prime}` equation on a
+face by :math:`\beta_2` of that face, so that the entries of the tridiagonal system for the face
+:math:`k` carry :math:`\beta_2` of face :math:`k` times :math:`\beta_2` of face :math:`k-1`,
+:math:`k` or :math:`k+1`.  Without terrain, :math:`\beta_s = \beta_{s,min}` everywhere.
+
 To solve the coupled system, we first evolve the equations for :math:`U^{\prime \prime, \tau + \delta \tau}`  and
 :math:`V^{\prime \prime, \tau + \delta \tau}` explicitly using :math:`\Theta^{\prime \prime, \tau}` which is already known.
 We then solve a tridiagonal system for :math:`W^{\prime \prime, \tau + \delta \tau}`, and once :math:`W^{\prime \prime, \tau + \delta \tau}`
@@ -177,5 +192,5 @@ to control horizontally propagating sound waves.
 where :math:`\tau*` is the forward projected value used in RHS of the acoustic
 substepping equations for horizontal momentum. According to Skamarock et al,
 this is equivalent to including a horizontal diffusion term in the continuity
-equation. A typical damping coefficient of :math:`\beta_d = 0.1` is used, as in
-WRF.
+equation. A typical damping coefficient of :math:`\beta_d = 0.1` is used by default, as in
+WRF; it can be set with ``erf.beta_d``, which must lie in :math:`[0, 1]`.

@@ -257,10 +257,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     // These are just time averaged fields for diagnostics
     // ********************************************************************************************
 
-    // NOTE: We are not completing a fillpatch call on the time averaged data;
-    //       which would copy on intersection and interpolate from coarse.
-    //       Therefore, we are restarting the averaging when the ba changes,
-    //       this may give poor statistics for dynamic mesh refinement.
+    // NOTE: The time averages start empty here.  RemakeLevel and MakeNewLevelFromCoarse then
+    //       fill them from the old grids and the coarse level, so a regrid keeps the averages.
     vel_t_avg[lev] = nullptr;
     if (solverChoice.time_avg_vel) {
         vel_t_avg[lev] = std::make_unique<MultiFab>(ba, dm, 4, 0); // Each vel comp and the mag
@@ -871,9 +869,14 @@ ERF::fill_terrain_surface (int lev, MultiFab& z_phys, double elapsed_time)
     //    but we need to use a flat terrain for the mesh itself (the EB data has already been made
     //    from the correct terrain)
     //
+    // A flat surface sits on the lowest z level, which is geometry.prob_lo[2] on a stretched
+    //    grid, so that the mesh built from the levels spans them (#4442)
+    //
     if (solverChoice.terrain_type != TerrainType::StaticFittedMesh &&
         solverChoice.terrain_type != TerrainType::MovingFittedMesh) {
-            terrain_fab.template setVal<RunOn::Device>(zero);
+            terrain_fab.template setVal<RunOn::Device>(zlevels_stag[lev][0]);
+    } else if (!prob->terrain_is_specified()) {
+            terrain_fab.template setVal<RunOn::Device>(zlevels_stag[lev][0]);
     } else {
         //
         // Fill the values of the terrain height at k=0 only

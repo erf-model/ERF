@@ -37,7 +37,8 @@ cf_omega_stage (int i, int j, int k, int klo, int khi,
  * @param[in   ] S_stage_data solution            at previous RK stage
  * @param[in   ] S_stage_prim primitive variables at previous RK stage
  * @param[in   ] pi_stage     Exner function      at previous RK stage
- * @param[in   ] fast_coeffs coefficients for the tridiagonal solve used in the fast integrator
+ * @param[in   ] fast_coeffs coefficients for the tridiagonal solve used in the fast integrator,
+ *                           and beta_s on the w-faces (component 5)
  * @param[  out] S_data current solution
  * @param[inout] lagged_delta_rt
  * @param[inout] avg_xmom: time-averaged x-momentum to be used for updating slow variables
@@ -52,7 +53,6 @@ cf_omega_stage (int i, int j, int k, int klo, int khi,
  * @param[in   ] z_phys_nd height coordinate at nodes
  * @param[in   ] detJ_cc Jacobian of the metric transformation
  * @param[in   ] dtau fast time step
- * @param[in   ] beta_s  Coefficient which determines how implicit vs explicit the solve is
  * @param[in   ] facinv inverse factor for time-averaging the momenta
  * @param[in   ] mapfac vector of map factors
  * @param[inout] fr_as_crse YAFluxRegister at level l at level l   / l+1 interface
@@ -61,6 +61,7 @@ cf_omega_stage (int i, int j, int k, int klo, int khi,
  * @param[in   ] l_reflux should we add fluxes to the FluxRegisters?
  * @param[in   ] l_real_bc
  * @param[in   ] l_damp_coef
+ * @param[in   ] beta_d divergence damping coefficient: how far (rho theta) is projected forward
  * @param[inout] cf_fluxes coarse/fine face fluxes: recorded here on a coarse level, imposed on a fine one
  */
 
@@ -86,7 +87,7 @@ void erf_substep_T (int step, int /*nrk*/,
                     const Real gravity,
                     std::unique_ptr<MultiFab>& z_phys_nd,
                     std::unique_ptr<MultiFab>& detJ_cc,
-                    const double dtau_d, const Real beta_s,
+                    const double dtau_d,
                     const Real facinv,
                     Vector<std::unique_ptr<MultiFab>>& mapfac,
                     YAFluxRegister* fr_as_crse,
@@ -96,6 +97,7 @@ void erf_substep_T (int step, int /*nrk*/,
                     bool l_real_bc,
                     const Real* sinesq_stag_d,
                     const Real l_damp_coef,
+                    const Real beta_d,
                     const CFFaceFluxes& cf_fluxes)
 {
     BL_PROFILE_REGION("erf_substep_T()");
@@ -110,12 +112,6 @@ void erf_substep_T (int step, int /*nrk*/,
     int ihi = domhi.x + 1;
     int jlo = domlo.y;
     int jhi = domhi.y + 1;
-
-    Real beta_1 = myhalf * (one - beta_s);  // multiplies explicit terms
-    Real beta_2 = myhalf * (one + beta_s);  // multiplies implicit terms
-
-    // How much do we project forward the (rho theta) that is used in the horizontal momentum equations
-    Real beta_d = Real(0.1);
 
     Real RvOverRd = R_v / R_d;
 
@@ -148,6 +144,11 @@ void erf_substep_T (int step, int /*nrk*/,
     MultiFab     coeff_C_mf(fast_coeffs, make_alias, 2, 1);
     MultiFab     coeff_P_mf(fast_coeffs, make_alias, 3, 1);
     MultiFab     coeff_Q_mf(fast_coeffs, make_alias, 4, 1);
+
+    // beta_s on the w-faces, from which
+    //    beta_1 = myhalf * (one - beta_s) multiplies explicit terms
+    //    beta_2 = myhalf * (one + beta_s) multiplies implicit terms
+    MultiFab      beta_s_mf(fast_coeffs, make_alias, 5, 1);
 
     MultiFab Omega(S_data[IntVars::zmom].boxArray(), dm, 1, 1);
 
@@ -515,6 +516,7 @@ void erf_substep_T (int step, int /*nrk*/,
         auto const&     coeffC_a =     coeff_C_mf.array(mfi);
         auto const&     coeffP_a =     coeff_P_mf.array(mfi);
         auto const&     coeffQ_a =     coeff_Q_mf.array(mfi);
+        auto const&     beta_s_a =      beta_s_mf.const_array(mfi);
 
         // *************************************************************************
         // Define flux arrays for use in advection
@@ -653,17 +655,26 @@ void erf_substep_T (int step, int /*nrk*/,
             Real Omega_k   = omega_arr(i,j,k  );
             Real Omega_km1 = omega_arr(i,j,k-1);
 
+            // Explicit part of the vertical flux on each face is beta_1 * Omega. beta_1 on face k
+            // is factored out, and dbeta_1 is how much larger beta_1 is on the neighbouring faces,
+            // which is exactly zero (so the roundoff is that of a scalar beta_1) for uniform beta_s
+            Real beta_1      = myhalf * (one - beta_s_a(i,j,k));
+            Real dbeta_1_kp1 = myhalf * (one - beta_s_a(i,j,k+1)) - beta_1;
+            Real dbeta_1_km1 = myhalf * (one - beta_s_a(i,j,k-1)) - beta_1;
+
             Real detJdiff = (detJ(i,j,k) - detJ(i,j,k-1)) / (detJ(i,j,k)*detJ(i,j,k-1));
 
             // consolidate lines 4&5 (order dtau^2)
             R1_tmp += halfg * ( beta_1 * dzi * (Omega_kp1/detJ(i,j,k) + detJdiff*Omega_k - Omega_km1/detJ(i,j,k-1))
+                              + dzi * (dbeta_1_kp1*Omega_kp1/detJ(i,j,k) - dbeta_1_km1*Omega_km1/detJ(i,j,k-1))
                               + temp_rhs_arr(i,j,k,Rho_comp)/detJ(i,j,k) + temp_rhs_arr(i,j,k-1,Rho_comp)/detJ(i,j,k-1) );
 
             // consolidate lines 6&7 (order dtau^2)
-            R1_tmp += -( coeff_P/detJ(i,j,k  ) * ( beta_1 * dzi * (Omega_kp1*theta_t_hi - Omega_k*theta_t_mid) + temp_rhs_arr(i,j,k  ,RhoTheta_comp) )
-                       + coeff_Q/detJ(i,j,k-1) * ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo) + temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
+            R1_tmp += -( coeff_P/detJ(i,j,k  ) * ( beta_1 * dzi * (Omega_kp1*theta_t_hi - Omega_k*theta_t_mid) + dzi * dbeta_1_kp1*Omega_kp1*theta_t_hi + temp_rhs_arr(i,j,k  ,RhoTheta_comp) )
+                       + coeff_Q/detJ(i,j,k-1) * ( beta_1 * dzi * (Omega_k*theta_t_mid - Omega_km1*theta_t_lo) - dzi * dbeta_1_km1*Omega_km1*theta_t_lo + temp_rhs_arr(i,j,k-1,RhoTheta_comp) ) );
 
             // consolidate terms proportional to dtau
+            Real beta_2 = myhalf * (one + beta_s_a(i,j,k));
             RHS_a(i,j,k) = dtau * (slow_rhs_rho_w(i,j,k) + zmom_src_arr(i,j,k) + R0_tmp + dtau*beta_2*R1_tmp);
 
             // We cannot use omega_arr here since that was built with old_rho_u and old_rho_v ...
@@ -819,8 +830,10 @@ void erf_substep_T (int step, int /*nrk*/,
         BL_PROFILE("fast_rho_final_update");
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-              Real zflux_lo = beta_2 * soln_a(i,j,k  ) + beta_1 * omega_arr(i,j,k);
-              Real zflux_hi = beta_2 * soln_a(i,j,k+1) + beta_1 * omega_arr(i,j,k+1);
+              Real zflux_lo = myhalf * (one + beta_s_a(i,j,k  )) * soln_a(i,j,k  )
+                            + myhalf * (one - beta_s_a(i,j,k  )) * omega_arr(i,j,k  );
+              Real zflux_hi = myhalf * (one + beta_s_a(i,j,k+1)) * soln_a(i,j,k+1)
+                            + myhalf * (one - beta_s_a(i,j,k+1)) * omega_arr(i,j,k+1);
 
               // On the coarse/fine faces of a fine level, the coarse level's flux over this substep
               if (has_tgt_z) {

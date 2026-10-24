@@ -381,6 +381,15 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 |                             | k-eqn RANS       |
 |                             | closure [-]      |
 +-----------------------------+------------------+
+| **cap_ratio**               | Uncapped k-eqn   |
+|                             | eddy viscosity   |
+|                             | over its         |
+|                             | realizability    |
+|                             | cap C_r k / S;   |
+|                             | above 1 the cap  |
+|                             | is active, 0     |
+|                             | when off [-]     |
++-----------------------------+------------------+
 | **walldist**                | Wall distance    |
 |                             | for RANS models  |
 |                             | only [m]         |
@@ -970,25 +979,24 @@ every AMR level in the plotfile:
   ``tke_resolved = 0.5*(uu_fluct + vv_fluct + ww_fluct)``. These fields are also zero
   before the first sample is accumulated.
 
-  Note that the accumulator for a given level is rebuilt when that level is
-  regridded, so a regrid restarts the averaging window on the regridded level
-  while the other levels continue accumulating. In a multi-level run a
-  plotfile written shortly after a regrid can therefore contain interval
-  fields whose averaging windows differ from level to level, and the plotfile
-  itself carries no record of the per-level window length. The same is true of
-  the ``*_t_avg`` fields above. If a consistent window across levels matters
-  for the analysis, write the interval fields from a run without regridding,
-  or allow enough time after a regrid for the window to refill.
+  A regrid keeps the averaging window, for these fields and for the ``*_t_avg``
+  fields above. A remade level copies its accumulator wherever its old and new
+  grids overlap; cells it newly covers, and a newly created level, take the
+  coarser level's average over the same window, interpolated piecewise
+  constantly. Those cells therefore carry coarse-level detail for the part of
+  the window before they were refined.
 * ``qsrc_sw`` and ``qsrc_lw`` require a non-``None`` radiation choice.
 * ``nut``, ``Kmv``, ``Kmh``, ``Khv``, ``Khh``, and ``Lturb`` require
   ``use_kturb = true`` at every AMR level.
-* ``Rt``, ``cmu``, and ``cmu_prime`` also require ``use_kturb = true`` at every
-  AMR level, because they are stored in the eddy-diffusivity container. They are
-  written only by the one-equation k RANS closure, so they are identically zero
-  unless ``erf.rans_type = kEqn`` is active on the level. ``Rt`` is the smoothed
-  turbulent Richardson number and ``cmu``/``cmu_prime`` are the momentum and
-  scalar stability functions of Axell & Liungman (2001), Eqs. 29-32; all three
-  are dimensionless.
+* ``Rt``, ``cmu``, ``cmu_prime`` and ``cap_ratio`` also require ``use_kturb = true``
+  at every AMR level, because they are stored in the eddy-diffusivity container.
+  They are written only by the one-equation k RANS closure, so they are
+  identically zero unless ``erf.rans_type = kEqn`` is active on the level. ``Rt``
+  is the smoothed turbulent Richardson number, ``cmu``/``cmu_prime`` are the
+  momentum and scalar stability functions of Axell & Liungman (2001), Eqs. 29-32,
+  and ``cap_ratio`` is the uncapped eddy viscosity over its realizability cap
+  :math:`C_r k / S` (``erf.rans_realizability``; above 1 the cap is active, 0
+  when the cap is off); all four are dimensionless.
 * ``diss`` requires molecular diffusion or ``use_kturb`` at every level.
 * ``walldist`` requires a non-``None`` RANS choice at every level.
 
@@ -1117,9 +1125,6 @@ the kinematic momentum diffusivity ``Kmv / density``.
   number-concentration convention. ``nn`` is the CCN / total aerosol number
   carried by ``WDM6``; it shares a conserved component with ``ni``, so the two
   are never selectable at the same time.
-* ``xvel_err``, ``yvel_err``, ``zvel_err``, and ``pp_err`` are error diagnostics
-  available when ``ERF_COMPUTE_ERROR`` is enabled. Their units follow the
-  corresponding velocity or pressure quantity.
 
 The fixed conserved-state inventory is ``density``, ``rhotheta``, ``rhoKE``,
 ``rhoadv_0``, and ``rhoQ1`` through ``rhoQ11``. The ``rhoQ`` components are

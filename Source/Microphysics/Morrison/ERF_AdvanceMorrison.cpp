@@ -187,6 +187,13 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
         ParmParse pp("erf");
         bool use_morr_cpp_answer = true;
         pp.queryAdd("use_morr_cpp_answer", use_morr_cpp_answer);
+#ifndef ERF_USE_MORR_FORT
+        // Without the Fortran bridge, false would skip the microphysics update entirely
+        if (!use_morr_cpp_answer) {
+            Abort("erf.use_morr_cpp_answer = false requires the Morrison Fortran bridge "
+                  "(USE_MORR_FORT=TRUE or ERF_ENABLE_MORR_FORT=ON)");
+        }
+#endif
 
         // Ensure that only one of these is true
         bool run_morr_cpp  =  use_morr_cpp_answer;

@@ -3,14 +3,28 @@ name: ERF CI (cuda)
 on:
   push:
     branches: [development]
-    paths-ignore:
-      - Docs/**
-      - README.rst
-      - license.txt
+    paths:
+      - '**'
+      - '!Docs/**'
+      - '!**.md'
+      - '!**.rst'
+      - '!license.txt'
+      - '!.github/workflows/**'
+      - '.github/workflows/cuda-ci.yml'
+      - '.github/actions/**'
 
   pull_request:
     branches: [development]
     types: [opened, synchronize, reopened]
+    paths:
+      - '**'
+      - '!Docs/**'
+      - '!**.md'
+      - '!**.rst'
+      - '!license.txt'
+      - '!.github/workflows/**'
+      - '.github/workflows/cuda-ci.yml'
+      - '.github/actions/**'
   workflow_dispatch:
 
 concurrency:
@@ -93,7 +107,7 @@ jobs:
             -DERF_TEST_NRANKS:STRING=2 \
             -DERF_ENABLE_UNIT_TESTS:BOOL=ON .
           echo "Building with $(nproc) processes"
-          cmake --build build-${{matrix.cuda_pkg}} --parallel $(nproc) \
+          cmake --build build-${{matrix.cuda_pkg}} --parallel "$(nproc)" \
           2>&1 | tee -a ${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output.txt;
 
           echo '```' >> "$GITHUB_STEP_SUMMARY"

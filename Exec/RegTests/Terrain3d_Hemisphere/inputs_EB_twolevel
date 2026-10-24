@@ -22,10 +22,6 @@ erf.sounding_type = Ideal
 
 xlo.type = "Outflow"
 xhi.type = "Outflow"
-xlo.velocity = 1. 0. 0.
-xlo.density  = 1.16
-xlo.theta    = 300.
-xlo.scalar   = 0.
     
 zlo.type = "SlipWall"
 zhi.type = "Outflow"
@@ -89,8 +85,6 @@ erf.terrain_smoothing = 0
 
 # Constant diffusion coefficient
 erf.molec_diff_type   = "None"
-erf.dynamic_viscosity = 0.0 # [kg/(m-s)]
-erf.alpha_T           = 0.0 # [m^2/s]
 erf.theta_ref = 300.0
 
 #erf.abl_driver_type = "PressureGradient"
