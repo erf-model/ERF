@@ -592,8 +592,7 @@ bool check_wdm6_activity (PlotFileData& initial, PlotFileData& checkpoint,
         return false;
     }
     if (!(nn_departure > Real(1.0e4) && nn_nonuniformity > Real(1.0e4))) {
-        error = "WDM6 checkpoint nn lacks both measurable departure from ccn0 "
-            "and spatial variation";
+        error = "WDM6 checkpoint nn must depart measurably from ccn0 and vary spatially";
         return false;
     }
     if (nn_initial.max(0,0,false) != Real(0.0)) {

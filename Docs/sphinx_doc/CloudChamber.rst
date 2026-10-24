@@ -68,18 +68,27 @@ Choose the thermodynamic mode
      - ``MoistNoCondensation``
      - An ERF moisture-transport shell with no condensation source.
 
-A wall marked ``dry`` is impermeable to water but may still exchange heat.
-A ``wet`` wall requires a supported active moisture model. It exchanges vapor
-using the saturation mixing ratio at the prescribed wall temperature and
-local hydrostatic pressure. Wall transfer does not deposit suspended cloud
-droplets, ice, or aerosol number; falling precipitation is handled separately
-by the selected bulk scheme.
+A ``dry`` wall blocks exchange of water **vapor** through the wall. The
+Cloud Chamber also sets the normal diffusive wall flux of suspended cloud
+water and of additional conserved moisture constituents to zero. These
+boundary rules do not make a precipitating simulation a closed total-water
+system: a selected bulk microphysics scheme can sediment rain, snow, or
+graupel through the lower boundary and update its native surface
+precipitation accumulator. The wall model does not add a droplet-impact,
+aerosol-deposition, or facility-specific collection law.
+
+A ``wet`` wall requires a supported active moisture model. It exchanges
+water vapor with the adjacent air using the saturation mixing ratio **over
+liquid water**, evaluated at the prescribed wall temperature and local
+hydrostatic pressure. It does not directly deposit suspended cloud droplets,
+ice hydrometeors, or aerosol number; those species remain governed by the
+selected native microphysics and transport operators.
 
 For any active supported moisture model, physical initialization requires
 ``prob.initial_relative_humidity`` (a fraction in ``[0,1]``). The retained
-``legacy_theta_qv`` mode also accepts the supported moisture models, using its
-legacy ``theta`` and ``qv`` profiles and wall keys rather than the generalized
-physical-temperature wall configuration.
+``legacy_theta_qv`` mode also accepts the supported moisture models, using
+its legacy ``theta`` and ``qv`` profiles and wall keys rather than the
+generalized physical-temperature wall configuration.
 
 Terminology
 -----------
@@ -244,22 +253,36 @@ using ERF's configured ``rdOcp = R_d/c_p``.  Here
 :math:`p_\mathrm{hse}` is the local hydrostatic pressure and
 :math:`p_0=100000\ \mathrm{Pa}` is ERF's reference pressure.
 
-For every supported moist model, the initial vapor mixing ratio is computed
-from the supplied relative humidity,
+For every supported moist model, ERF converts the specified initial relative
+humidity into water-vapor mixing ratio relative to **dry air**:
 
 .. math::
 
    q_v = \frac{R_d}{R_v}
-   \frac{RH\,e_s(T)}{p_\mathrm{hse}-RH\,e_s(T)},
+   \frac{RH\,e_{sw}(T)}{p_\mathrm{hse}-RH\,e_{sw}(T)}.
 
-where ``RH`` is a fraction rather than a percentage, ``T`` is the prescribed
-initial physical temperature, and ``p_hse`` is the local hydrostatic pressure.
-Cloud water and every additional bulk hydrometeor and hydrometeor-number
-state component start at zero. The selected microphysics scheme subsequently
-evolves them according to its native physics; WDM6 initializes its aerosol/CCN
-number reservoir through its own microphysics state-transfer path. In dry mode
-no moisture state is present and ``prob.initial_relative_humidity`` must be
-omitted.
+Here ``RH`` is a fraction rather than a percentage, :math:`T` is the
+specified physical temperature in K, :math:`p_\mathrm{hse}` is the local
+hydrostatic pressure in Pa, and :math:`e_{sw}(T)` is the saturation vapor
+pressure **over liquid water** in Pa. ERF obtains this saturation pressure
+from ``erf_esatw``. Consequently, ``prob.initial_relative_humidity`` is
+relative humidity with respect to liquid-water saturation, **not** an
+ice-relative humidity even when an ice-capable microphysics model is chosen.
+
+Choose temperatures, perturbation amplitudes, pressures, and humidities that
+remain physically admissible across the actual initialized domain. In
+particular, :math:`p_\mathrm{hse}>RH\,e_{sw}(T)` is required for the expression
+above to yield a nonnegative finite vapor mixing ratio. The parser validates
+positive finite *profile endpoint temperatures* and an RH fraction in
+``[0,1]``; these input checks alone do not ensure physical admissibility of
+all spatially perturbed cell temperatures or the vapor-pressure denominator.
+
+Cloud water and additional bulk hydrometeor and hydrometeor-number state
+components start at zero in the chamber initializer. The selected scheme
+then evolves them according to its native physics; WDM6 seeds and evolves its
+aerosol/CCN number reservoir through the native microphysics state-transfer
+and activation paths. In dry mode there is no moisture state, and
+``prob.initial_relative_humidity`` must be omitted.
 
 Do not combine physical initialization with the legacy profile keys
 ``theta_bottom``, ``theta_top``, ``theta_perturbation_amplitude``,
@@ -1062,13 +1085,28 @@ scheme. The species names and their availability follow ERF's
 ``MoistureComponentIndices`` mapping; a scheme may allocate more conserved
 components than it actually integrates.
 
+A model's native precipitation-accumulation field is not automatically a
+mass-per-area diagnostic; use the scheme's accumulation-unit conversion when
+constructing a kg m\ :sup:`-2` column-water budget.
+
 Tracked regression inputs
 -------------------------
 
-The repository contains tracked regression inputs for each major supported
-path.  They are useful syntax references, but their grid, timestep, LES
-settings, coefficients, and roughness lengths are software-test parameters,
-not calibrated physical recommendations.
+The repository contains tracked cases for the principal supported paths.
+Their grids, time steps, LES settings, transfer coefficients, and roughness
+lengths are **software-test parameters**, not recommendations for laboratory
+calibration or grid-converged atmospheric modeling. The files are useful for
+examining syntax and supported diagnostic names.
+
+Some listed inputs are **CTest templates**, not runnable decks:
+``CloudChamber_Bulk/CloudChamber_Bulk.i`` and
+``CloudChamber_Bulk_Legacy/CloudChamber_Bulk_Legacy.i`` contain
+``@BULK_MODEL@`` and other substitutions, while
+``CloudChamber_ActiveCondensation/CloudChamber_ActiveCondensation.i``
+contains ``@MODEL@``. The CTest runners replace these tokens before launching
+ERF. Replace those tokens with supported model names and compatible settings
+before running a template directly. The complete Kessler_NoRain example below
+contains no such substitutions.
 
 .. list-table:: Tracked Cloud Chamber examples
    :header-rows: 1
@@ -1107,43 +1145,153 @@ A complete dry physical example is included below.
    :language: none
    :caption: Dry physical Cloud Chamber with resolved wall transfer
 
+Runnable moist Cloud Chamber example
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This small, complete example uses ``Kessler_NoRain`` to demonstrate
+wall-driven cooling and in-air vapor-to-cloud conversion without native rain
+sedimentation. It starts at 284 K with saturation relative to liquid water;
+the top wall is held at 270 K and all six walls are dry. The example is a
+numerical demonstration, **not** a calibrated Pi-Chamber simulation or a
+resolution recommendation. Save the input as a plain-text ERF input file and
+run it with the ``erf_exec`` built for your configuration.
+
+.. code-block:: none
+
+   erf.prob_name = "Cloud Chamber"
+   erf.init_type = ConstantDensity
+   erf.anelastic = 1
+   erf.use_gravity = true
+   erf.moisture_model = Kessler_NoRain
+   erf.vert_implicit = false
+   erf.molec_diff_type = ConstantAlpha
+   erf.dynamic_viscosity = 0.0
+   erf.alpha_T = 0.01
+   erf.alpha_C = 0.001
+   erf.les_type = Smagorinsky
+   erf.Cs = 0.1
+   erf.fixed_dt = 0.001
+   erf.sum_interval = -1
+   erf.check_int = -1
+   erf.cloud_chamber_budget_interval = 0
+   erf.plot_file_1 = plt
+   erf.plot_int_1 = 1000
+   erf.plot_vars_1 = density theta temp pressure qv qc qt qsat x_velocity y_velocity z_velocity
+
+   max_step = 1000
+   geometry.prob_lo = 0.0 0.0 0.0
+   geometry.prob_hi = 2.0 2.0 1.0
+   geometry.is_periodic = 0 0 0
+   amr.n_cell = 8 8 8
+   amr.max_level = 0
+   amr.max_grid_size = 4
+
+   prob.p_inf = 100000.0
+   prob.T_0 = 284.0
+   prob.thermodynamic_initialization = physical_temperature_rh
+   prob.initial_temperature_bottom = 284.0
+   prob.initial_temperature_top = 284.0
+   prob.initial_relative_humidity = 1.0
+   prob.temperature_perturbation_amplitude = 0.0
+   prob.perturbation_mode = deterministic_sine
+
+   xlo.type = NoSlipWall
+   xhi.type = NoSlipWall
+   ylo.type = NoSlipWall
+   yhi.type = NoSlipWall
+   zlo.type = NoSlipWall
+   zhi.type = NoSlipWall
+   xlo.temperature = 284.0
+   xlo.moisture = dry
+   xlo.wall_transfer_model = resolved_molecular
+   xhi.temperature = 284.0
+   xhi.moisture = dry
+   xhi.wall_transfer_model = resolved_molecular
+   ylo.temperature = 284.0
+   ylo.moisture = dry
+   ylo.wall_transfer_model = resolved_molecular
+   yhi.temperature = 284.0
+   yhi.moisture = dry
+   yhi.wall_transfer_model = resolved_molecular
+   zlo.temperature = 284.0
+   zlo.moisture = dry
+   zlo.wall_transfer_model = resolved_molecular
+   zhi.temperature = 270.0
+   zhi.moisture = dry
+   zhi.wall_transfer_model = resolved_molecular
+
+The initial and final output should be inspected for ``temp``, ``theta``,
+``qv``, and ``qc``. Cloud water may form inside the cooled air as vapor
+condenses; this does **not** imply vapor transport across a dry boundary.
+Because ``Kessler_NoRain`` does not sediment rain, its water balance differs
+from that of precipitating Kessler. The separate regression test checks
+measurable cloud formation, a noncondensing control, a latent-temperature
+signal, and conservation of integrated :math:`\rho_d(q_v+q_c)` for this
+dry-wall configuration. A plot that looks plausible is not itself a
+conservation or quantitative laboratory-validation result.
+
 Bulk-microphysics verification
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The short ``CloudChamber_Bulk`` cases are startup and finite-state smoke
-regressions for the supported Eulerian moisture models. Passing them does
-not, by itself, demonstrate cloud-water production, precipitation formation,
-sedimentation, or conservation. The separate
-``CloudChamber_Active_KesslerNoRain`` case checks Kessler_NoRain cloud-water
-production, vapor transfer relative to a MoistNoCondensation control, a
-positive latent-temperature response in cloud-bearing cells, and closed total
-nonprecipitating water mass for dry walls. Its initial profile is checked
-against the analytic RH=1 state.
+The short ``CloudChamber_BulkSmoke_*`` cases check that each selected
+Eulerian bulk scheme accepts the chamber configuration, publishes the
+expected plot variables, and advances a few steps with finite core fields
+and active moisture fields that are finite and nonnegative within numerical
+tolerance. They are **startup and interface tests**, not demonstrations
+of nonzero condensation, rain collection, realistic aerosol activation, or
+conservation across every scheme.
 
-The ``CloudChamber_WDM6_ActiveRestart`` regression checks cloud water, cloud
-drop number, and evolved CCN number before a step-500 checkpoint, then checks
-exact step-1000 straight-run versus checkpoint/restart parity for the plotted
-state and surface accumulations. The shorter WDM6 restart case remains a
-restart smoke test.
+``CloudChamber_Active_KesslerNoRain`` is the focused end-to-end in-air
+condensation test. It begins with an analytic cloud-free, liquid-water
+saturated RH=1 state, cools the dry top wall, and compares its evolved
+Kessler_NoRain state against a matched ``MoistNoCondensation`` control. Its
+oracle requires positive cloud-water mass, vapor depletion relative to the
+control, cooling near the upper wall, a positive latent-temperature response
+in cloud-bearing cells, and closure of the total nonprecipitating water
+mass integrated as :math:`\sum_\mathrm{cells}\rho_d(q_v+q_c)\Delta V`.
+The test's dry walls prevent vapor exchange through the boundary, but do not
+prevent conversion of vapor into cloud water **within** the air.
 
-Seeded Kessler public-flow tests exercise native sedimentation and bottom
-rain accumulation, while the chamber active case exercises wall-driven
-cooling, vapor-to-cloud phase conversion within the air, and closed-domain
-water conservation. The current chamber matrix does not establish nonzero
-clean-start rain collection in a full Kessler chamber run. A dry wall blocks
-water-vapor exchange through that wall; it does not block the selected scheme's
-hydrometeor sedimentation or surface precipitation accumulation. The chamber
-interval water budget remains limited to dry and SatAdj configurations.
+``CloudChamber_WDM6_ActiveRestart`` checks an evolved WDM6 mass and number
+state at step 500, including nonzero ``qc`` and cloud-drop number ``nc``.
+It also requires aerosol/CCN number ``nn`` to depart measurably from its
+specified initial ``ccn0`` and remain spatially nonuniform. The test compares
+straight and restarted plotted fields at the **first resumed step (501)**
+and again at step 1000, with zero relative and absolute ``fcompare``
+tolerances. This is a restart-state fidelity regression, **not** a
+quantitative CCN-activation validation. The shorter WDM6 restart case is
+only a smoke test.
 
-Extra conserved moisture lanes use the NoSlipWall scalar boundary mapping and
-the production N-grid scalar-diffusion adapter in a focused regression. A
-separate multibox stencil check covers the physical faces and box seams. These
-tests do not execute the complete ``ERF::init_bcs`` to slow-RHS call path, so
-they provide adapter-level evidence for extra-lane wall fluxes rather than an
-end-to-end chamber assertion for those lanes.
+Separate **seeded Kessler public-flow property tests** exercise native
+sedimentation and require positive accumulated liquid precipitation through
+the production surface-accumulation interface. One oracle converts the
+scheme-native accumulator to kg m\ :sup:`-2` and checks that initial
+atmospheric column water equals final atmospheric column water plus
+collected precipitation within its stated numerical tolerance. This is not a
+claim that an unseeded, full precipitating Cloud Chamber run has produced or
+collected measurable rain.
 
-Operationally enabled bulk models have not thereby been calibrated or
-validated against laboratory Pi-Chamber observations.
+A dry wall blocks normal vapor exchange and normal scalar diffusion; it does
+not disable native hydrometeor sedimentation at the lower boundary. Surface
+precipitation accumulators and their conversions are owned by the selected
+microphysics scheme. Do not add number concentrations (``nn``, ``nc``, etc.)
+to water mass or treat raw accumulator values from different schemes as a
+universal kg m\ :sup:`-2` budget without the model-specific unit conversion.
+The chamber interval budget remains limited to physical dry and ``SatAdj``
+cases; it is not a precipitating bulk total-water budget.
+
+The extra-species wall tests validate the production NoSlipWall logical
+scalar mapping and N-grid diffusion adapter for several conserved mass and
+number lanes. The multibox case also checks interior and decomposition-seam
+fluxes, and a deliberate wrong-BC control makes the boundary-flux oracle
+sensitive. The tests do **not** execute the entire ``ERF::init_bcs`` to
+slow-RHS path, so they establish adapter/stencil behavior, not end-to-end
+species wall-flux closure in a full chamber simulation.
+
+Neither the short smoke matrix nor the active physics/restart/property tests
+establish quantitative agreement with Pi-Chamber observations, fidelity of
+native aerosol activation to any particular laboratory aerosol distribution,
+or grid-converged LES behavior.
 
 Run checklist
 -------------
@@ -1187,18 +1335,23 @@ The implemented Cloud Chamber wall-model scope is intentionally limited to:
 * forced/shear-dependent bulk transfer with no gustiness or natural/mixed
   convection augmentation.
 
-The implementation does not currently provide moving walls, smooth-wall
-``y+``/viscous-sublayer laws, stretched-dz wall sampling, terrain-aware wall
-models, EB/AMR wall models, natural-convection wall correlations, ocean/COARE
-closures, chamber-specific droplet deposition or wall precipitation
-collection, droplet activation, or facility-specific coefficient calibration.
-Supported precipitating bulk schemes use their existing hydrometeor
-sedimentation and surface-accumulation routines. Microphysics operational
-support does not establish quantitative agreement with laboratory
-measurements, aerosol activation fidelity, or grid-converged LES results.
+The Cloud Chamber does not add moving walls, smooth-wall ``y+``/viscous-
+sublayer laws, stretched-dz or terrain-aware wall sampling, EB/AMR wall
+closures, natural-convection correlations, ocean/COARE transfer laws,
+facility-specific droplet impaction/deposition, or a calibrated wall
+precipitation-collection model. Its supported precipitating bulk schemes
+retain their **native** hydrometeor sedimentation and surface precipitation
+accumulation, which can remove atmospheric water through the bottom boundary.
 
-A numerically stable run is not by itself evidence of quantitative
-Pi-Chamber agreement or grid-independent LES behavior.
+There is no **new Cloud Chamber-specific** aerosol or droplet activation
+parameterization. This is distinct from the physics already provided by a
+selected microphysics model: for example, native WDM6 evolves aerosol/CCN
+number and cloud-droplet number through its activation and state-transfer
+paths. Operational availability and passing software regression tests do not
+establish quantitative aerosol-activation fidelity, calibration against
+laboratory observations, or convergence with grid resolution. A numerically
+stable run alone is not evidence of quantitative Pi-Chamber agreement or
+grid-independent LES behavior.
 
 Troubleshooting
 ---------------
