@@ -59,8 +59,11 @@ diffusivity (heat, scalars, moisture, :math:`k`) is built from the capped
 :math:`\nu_t`, so all of them are capped by the same factor; so is the
 shear production of :math:`k`, which uses the capped viscosity. :math:`S`
 is the cell-centred average of the face and edge strains of the velocity at
-the start of the step, the same average the Smagorinsky closure uses (the
-production of :math:`k` recomputes it at every Runge-Kutta stage). In the
+the start of the step, the same average the Smagorinsky closure uses. The
+production of :math:`k` recomputes the strain at every Runge-Kutta stage, so
+within a step the capped stress :math:`\nu_t S = C_r k` holds for the
+start-of-step strain only and the cap lags a fast transient by one step;
+applying it at each stage is left for later. In the
 first cell above a surface layer the wall-face strain enters that average,
 so :math:`S` there is below the log-law value and the cap acts less than
 the closed form below suggests.
@@ -91,9 +94,14 @@ realizable-:math:`c_\mu` study in kynema/kynema-sgf#2036. Values of
 :math:`C_r` are accepted in :math:`[0.01, 10]`; a smaller value trims the
 viscosity in the approach flow too. The key needs ``erf.rans_type = kEqn``
 and no PBL scheme (a PBL scheme overwrites the vertical diffusivities the
-cap acts on); a single value applies to the k-eqn levels of a mixed
-hierarchy and is reset to 0 on the others, while a per-level list that
-switches the cap on at a level without the closure stops the run. The
+cap acts on); one value for the whole hierarchy (a single entry, or a
+per-level list whose entries are all equal) applies to the k-eqn levels and
+is reset to 0 on the others, while a per-level list with different entries
+that switches the cap on at a level without the closure stops the run. The
+check against a PBL scheme runs after that reset, so an LES level with a
+PBL scheme beside a k-eqn level with the cap is accepted. EB terrain
+cannot be combined with the k-eqn closure, so the cap never meets the
+cut-cell strain. The
 plotfile variable ``cap_ratio`` holds :math:`\nu_t / (C_r k / S)` of the
 uncapped closure: above 1 the cap is active in that cell. The
 ``RANS_Neutral_Hill_2D_Realizability`` test checks the capped ``Kmv`` and

@@ -63,8 +63,6 @@ def main(argv):
         hdr, f = erf_plotfile.read_fields(plt, FIELDS)
         nx, ny, nz = [hdr["hi"][d] - hdr["lo"][d] + 1 for d in range(3)]
         cells = [(i, j, k) for i in range(nx) for j in range(ny) for k in range(nz)]
-        vals = [f[fl][i][j][k] for fl in FIELDS for (i, j, k) in cells]
-        rep.check("[%s] all fields finite" % label, 1.0 if all(math.isfinite(v) for v in vals) else 0.0, 1.0, 0.0)
         ratio = [f["cap_ratio"][i][j][k] for (i, j, k) in cells]
         rep.check("[%s] min cap_ratio" % label, min(ratio), 0.0, 0.0, "min")
         if label == "off":
@@ -77,9 +75,10 @@ def main(argv):
             n_capped = sum(1 for r in ratio if r > 1.05)
             rep.check("[on] cells with cap_ratio > 1.05", float(n_capped), 1.0, 0.0, "min")
             print("[on] cap active in %d of %d cells (ratio > 1.05), max cap_ratio %.4g" % (n_capped, len(cells), max(ratio)))
-        # closed form of the stored viscosity and diffusivity
-        err_m, err_h = 0.0, 0.0
+        # closed form of the stored viscosity and diffusivity, and finiteness, in one pass
+        err_m, err_h, finite = 0.0, 0.0, True
         for (i, j, k) in cells:
+            finite = finite and all(math.isfinite(f[fl][i][j][k]) for fl in FIELDS)
             rho = f["density"][i][j][k]
             lt = f["Lturb"][i][j][k]
             sqrt_k = (f["diss"][i][j][k] * lt / (rho * rc.CMU0 ** 3)) ** (1.0 / 3.0)
@@ -89,6 +88,7 @@ def main(argv):
             khv = rho * f["cmu_prime"][i][j][k] * base
             err_m = max(err_m, abs(f["Kmv"][i][j][k] - kmv) / max(abs(kmv), 1e-300))
             err_h = max(err_h, abs(f["Khv"][i][j][k] - khv) / max(abs(khv), 1e-300))
+        rep.check("[%s] all fields finite" % label, 1.0 if finite else 0.0, 1.0, 0.0)
         rep.check("[%s] max rel err Kmv vs rho cmu sqrt(k) l / max(a,1)" % label, err_m, 0.0, 1e-9, "max")
         rep.check("[%s] max rel err Khv vs rho cmu' sqrt(k) l / max(a,1)" % label, err_h, 0.0, 1e-9, "max")
         runs[label] = (cells, f)

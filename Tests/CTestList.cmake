@@ -2069,10 +2069,11 @@ if(NOT WIN32)
                  "needs erf.implicit_tke_dissipation = true on every level"
                  "erf.implicit_tke_dissipation=0")
   # Input checks of the realizability cap (erf.rans_realizability)
-  # a per-level list switches the cap on at a level without the k-eqn closure: abort
+  # a per-level list with different entries switches the cap on at a level without the
+  # k-eqn closure: abort
   add_test_abort(RANSRealizability_NeedsKEqn ${_canopy_dir} ForestCanopyRANS_Uniform.i
                  "erf.rans_realizability needs erf.rans_type = kEqn"
-                 "erf.rans_type=None erf.les_type=Smagorinsky erf.Cs=0.1 erf.forest_canopy_tke=false 'erf.rans_realizability=0.309 0.309'")
+                 "erf.rans_type=None erf.les_type=Smagorinsky erf.Cs=0.1 erf.forest_canopy_tke=false 'erf.rans_realizability=0.309 0.5'")
   add_test_abort(RANSRealizability_Range ${_canopy_dir} ForestCanopyRANS_Uniform.i
                  "erf.rans_realizability must be 0 .off. or in"
                  "erf.rans_realizability=20")
@@ -2081,11 +2082,32 @@ if(NOT WIN32)
                  inputs_neutral
                  "erf.rans_realizability needs erf.pbl_type = None"
                  "erf.use_fft=false erf.pbl_type=YSU erf.rans_realizability=0.309")
-  # a single value is meant for the kEqn levels: it is reset on a level that runs LES
-  # instead of aborting, so the run starts (the test runs one step)
-  add_test_abort(RANSRealizability_SingleValueResetOnLESLevel ${_canopy_dir} ForestCanopyRANS_Uniform.i
+  # a single value is meant for the kEqn levels: on a level without the closure it is reset
+  # instead of refused, and the run then completes its step; the level also runs a PBL
+  # scheme (MYNN25 on the neutral flat deck), which the cap refuses only where it is still on. Unlike add_test_abort, the
+  # command requires both the reset message and the end of step 1 in the log, so a run
+  # that prints the reset and stops afterwards (the PBL check before the reset) fails.
+  set(_rr_src ${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/Canonical_RANS/Neutral_ABL_Flat)
+  set(_rr_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/RANSRealizability_SingleValueResetOnLESLevel)
+  file(MAKE_DIRECTORY ${_rr_dir})
+  file(GLOB _rr_files "${_rr_src}/*")
+  file(COPY ${_rr_files} DESTINATION "${_rr_dir}/")
+  if(ERF_ENABLE_MPI)
+    set(_rr_mpi "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
+  else()
+    unset(_rr_mpi)
+  endif()
+  resolve_test_exe("" "erf_exec" _rr_exe)
+  set(_rr_log "${_rr_dir}/RANSRealizability_SingleValueResetOnLESLevel.log")
+  add_test(RANSRealizability_SingleValueResetOnLESLevel sh -c
+    "${_rr_mpi} ${_rr_exe} ${_rr_dir}/inputs_neutral max_step=1 erf.plot_int_1=-1 erf.check_int=-1 amrex.call_addr2line=0 erf.use_fft=false erf.rans_type=None erf.pbl_type=MYNN25 erf.most.pblh_calc=MYNN25 erf.rans_realizability=0.309 > ${_rr_log} 2>&1 && grep -q 'erf.rans_realizability reset to 0 on level 0' ${_rr_log} && grep -q 'Coarse STEP 1 ends' ${_rr_log}")
+  set_tests_properties(RANSRealizability_SingleValueResetOnLESLevel PROPERTIES
+      TIMEOUT 600 PROCESSORS 1 WORKING_DIRECTORY "${_rr_dir}/" LABELS "regression"
+      ATTACHED_FILES_ON_FAIL "${_rr_log}")
+  # a per-level list with equal entries counts as one value: reset, not refused
+  add_test_abort(RANSRealizability_EqualListResetOnLESLevel ${_canopy_dir} ForestCanopyRANS_Uniform.i
                  "erf.rans_realizability reset to 0 on level 0"
-                 "erf.rans_type=None erf.les_type=Smagorinsky erf.Cs=0.1 erf.forest_canopy_tke=false erf.rans_realizability=0.309")
+                 "erf.rans_type=None erf.les_type=Smagorinsky erf.Cs=0.1 erf.forest_canopy_tke=false 'erf.rans_realizability=0.309 0.309'")
   # kEqn on level 0 only: the canopy terms would act on part of the hierarchy
   add_test_abort(ForestCanopyRANS_NeedsKEqnOnEveryLevel
                  ${CMAKE_CURRENT_SOURCE_DIR}/test_files/PBLH_FinePatch PBLH_FinePatch.i

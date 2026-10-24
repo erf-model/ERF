@@ -455,9 +455,15 @@ public:
             amrex::Error("erf.rans_realizability must be 0 (off) or in [0.01, 10]; Cmu0^2 = 0.309 is the neutral equilibrium value");
         }
         if (rans_type != RANSType::kEqn) {
-            // A single value applies to every level and is meant for the levels that run the
-            // k-eqn closure; a per-level list must not switch the cap on at a level that does not.
-            if (pp.countval("rans_realizability") == 1) {
+            // One value for the whole hierarchy (a single entry, or a list whose entries are all
+            // equal) is meant for the levels that run the k-eqn closure and is reset here; a list
+            // with different entries names this level on purpose and must not switch the cap on
+            // where there is no closure.
+            amrex::Vector<amrex::Real> all_levels;
+            pp.getarr("rans_realizability", all_levels);
+            bool uniform = true;
+            for (auto v : all_levels) { uniform = uniform && (v == all_levels[0]); }
+            if (uniform) {
                 amrex::Print() << "erf.rans_realizability reset to 0 on level " << lev
                                << " (no k-eqn closure there)" << std::endl;
                 rans_realizability = zero;
@@ -466,10 +472,12 @@ public:
                              + std::to_string(lev) + ")");
             }
         }
-        if (pbl_type != PBLType::None) {
-            amrex::Error("erf.rans_realizability needs erf.pbl_type = None: a PBL scheme overwrites the vertical "
-                         "diffusivities the cap acts on (level " + std::to_string(lev) + ")");
-        }
+    }
+    // After the reset above, so a hierarchy with a PBL scheme on an LES level and the cap on
+    // its k-eqn level is accepted
+    if ((rans_realizability != zero) && (pbl_type != PBLType::None)) {
+        amrex::Error("erf.rans_realizability needs erf.pbl_type = None: a PBL scheme overwrites the vertical "
+                     "diffusivities the cap acts on (level " + std::to_string(lev) + ")");
     }
     if (rans_lscale_from_pblh && !(rans_lscale_min > 0)) {
         amrex::Error("erf.rans_lscale_min must be > 0 with erf.rans_lscale_from_pblh");

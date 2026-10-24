@@ -149,9 +149,10 @@ constexpr amrex::Real Rt_min_lower_bound = amrex::Real(-3.6);
  *  @param nut   uncapped eddy viscosity cmu sqrt(k) L
  *  @param tke   turbulent kinetic energy k (already floored)
  *  @param S     strain-rate magnitude sqrt(2 S_ij S_ij)
- *  @param Cr    cap constant C_r; <= 0 disables the cap
+ *  @param Cr    cap constant C_r > 0 (the caller skips the cap, and the strain
+ *               read, when erf.rans_realizability is 0)
  *  @param ratio out: nu_t / (C_r k / S), the plotfile diagnostic cap_ratio;
- *               above 1 the cap is active; 0 when disabled
+ *               above 1 the cap is active
  *  @return the capped eddy viscosity
  *
  *  S is floored at machine epsilon before the division so the cap evaluates
@@ -163,7 +164,7 @@ amrex::Real realizable_nut (amrex::Real nut, amrex::Real tke, amrex::Real S,
                             amrex::Real Cr, amrex::Real& ratio)
 {
     constexpr amrex::Real eps = std::numeric_limits<amrex::Real>::epsilon();
-    if (Cr <= amrex::Real(0)) { ratio = amrex::Real(0); return nut; }
+    AMREX_ASSERT(Cr > amrex::Real(0));
     const amrex::Real cap = Cr * tke / amrex::max(S, eps);
     ratio = nut / cap;
     return amrex::min(nut, cap);

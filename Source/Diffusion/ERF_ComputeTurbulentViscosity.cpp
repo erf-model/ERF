@@ -91,12 +91,9 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
             //       reads the face fluxes of that diffusion (ERF_TurbKESources.H).
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
             const Array4<Real const >& cell_data = cons_in.array(mfi);
-            Array4<Real const> tau11 = Tau_lev[TauType::tau11]->array(mfi);
-            Array4<Real const> tau22 = Tau_lev[TauType::tau22]->array(mfi);
-            Array4<Real const> tau33 = Tau_lev[TauType::tau33]->array(mfi);
-            Array4<Real const> tau12 = Tau_lev[TauType::tau12]->array(mfi);
-            Array4<Real const> tau13 = Tau_lev[TauType::tau13]->array(mfi);
-            Array4<Real const> tau23 = Tau_lev[TauType::tau23]->array(mfi);
+            const StrainArrays tau = strain_arrays(Tau_lev, mfi);
+            const Array4<Real const> tau11 = tau.tau11, tau22 = tau.tau22, tau33 = tau.tau33;
+            const Array4<Real const> tau12 = tau.tau12, tau13 = tau.tau13, tau23 = tau.tau23;
             Array4<Real const> mf_u = mapfac[MapFacType::u_x]->const_array(mfi);
             Array4<Real const> mf_v = mapfac[MapFacType::v_y]->const_array(mfi);
             Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
@@ -409,12 +406,9 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
             const Array4<Real>& hfx_y   = Hfx2.array(mfi);
             const Array4<Real>& hfx_z   = Hfx3.array(mfi);
             const Array4<Real const >& cell_data = cons_in.array(mfi);
-            Array4<Real const> tau11 = Tau_lev[TauType::tau11]->array(mfi);
-            Array4<Real const> tau22 = Tau_lev[TauType::tau22]->array(mfi);
-            Array4<Real const> tau33 = Tau_lev[TauType::tau33]->array(mfi);
-            Array4<Real const> tau12 = Tau_lev[TauType::tau12]->array(mfi);
-            Array4<Real const> tau13 = Tau_lev[TauType::tau13]->array(mfi);
-            Array4<Real const> tau23 = Tau_lev[TauType::tau23]->array(mfi);
+            const StrainArrays tau = strain_arrays(Tau_lev, mfi);
+            const Array4<Real const> tau11 = tau.tau11, tau22 = tau.tau22, tau33 = tau.tau33;
+            const Array4<Real const> tau12 = tau.tau12, tau13 = tau.tau13, tau23 = tau.tau23;
             Array4<Real const> mf_u = mapfac[MapFacType::u_x]->const_array(mfi);
             Array4<Real const> mf_v = mapfac[MapFacType::v_y]->const_array(mfi);
 
@@ -706,13 +700,10 @@ void ComputeTurbulentViscosityRANS (int level,
 
             const Array4<Real const>& z_nd_arr = z_phys_nd->const_array(mfi);
 
-            // Strain components for the cap only; the arrays stay empty otherwise
-            const Array4<Real const> tau11 = (use_cap) ? Tau_lev[TauType::tau11]->const_array(mfi) : Array4<Real const>{};
-            const Array4<Real const> tau22 = (use_cap) ? Tau_lev[TauType::tau22]->const_array(mfi) : Array4<Real const>{};
-            const Array4<Real const> tau33 = (use_cap) ? Tau_lev[TauType::tau33]->const_array(mfi) : Array4<Real const>{};
-            const Array4<Real const> tau12 = (use_cap) ? Tau_lev[TauType::tau12]->const_array(mfi) : Array4<Real const>{};
-            const Array4<Real const> tau13 = (use_cap) ? Tau_lev[TauType::tau13]->const_array(mfi) : Array4<Real const>{};
-            const Array4<Real const> tau23 = (use_cap) ? Tau_lev[TauType::tau23]->const_array(mfi) : Array4<Real const>{};
+            // Strain components for the cap only; the arrays stay empty otherwise. The k-eqn
+            // closure cannot run with EB terrain (SolverChoice stops the run), so the plain
+            // ComputeSmnSmn is the right form here.
+            const StrainArrays tau = (use_cap) ? strain_arrays(Tau_lev, mfi) : StrainArrays{};
 
             ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -777,7 +768,7 @@ void ComputeTurbulentViscosityRANS (int level,
                 // Realizability cap nu_t <= C_r k / S; cap_ratio = nu_t / (C_r k / S)
                 Real cap_ratio = zero;
                 if (use_cap) {
-                    Real S = std::sqrt(two * ComputeSmnSmn(i,j,k,tau11,tau22,tau33,tau12,tau13,tau23));
+                    Real S = std::sqrt(two * ComputeSmnSmn(i,j,k,tau.tau11,tau.tau22,tau.tau33,tau.tau12,tau.tau13,tau.tau23));
                     nut = AL01::realizable_nut(nut, tke, S, Cr, cap_ratio);
                 }
                 mu_turb(i, j, k, EddyDiff::RANS_cap_ratio) = cap_ratio;

@@ -2224,9 +2224,11 @@ List of Parameters
 |                                        | equilibrium value, which leaves a neutral constant-      |                    |                  |
 |                                        | stress layer unchanged and limits the viscosity where    |                    |                  |
 |                                        | production exceeds dissipation, as behind a steep crest; |                    |                  |
-|                                        | a single value is reset to 0 on levels without the k-eqn |                    |                  |
-|                                        | closure, a per-level list that switches it on there      |                    |                  |
-|                                        | stops the run (per-level)                                |                    |                  |
+|                                        | one value for the hierarchy (a single entry, or a list   |                    |                  |
+|                                        | whose entries are all equal) is reset to 0 on levels     |                    |                  |
+|                                        | without the k-eqn closure; a list with different entries |                    |                  |
+|                                        | that switches it on at such a level stops the run        |                    |                  |
+|                                        | (per-level)                                              |                    |                  |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.wall_dist_type**                 | wall distance for RANS on a terrain-fitted mesh:         | "poisson",         | "poisson"        |
 |                                        | Tucker (2003) Poisson distance, or the height above the  | "terrain_height"   |                  |

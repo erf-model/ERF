@@ -200,14 +200,12 @@ TEST(RANSClosure, RealizabilityCapIsNeutralInEquilibriumShear)
     EXPECT_LT(AL01::realizable_nut(nut, tke, S, Real(0.99) * Cmu0 * Cmu0, ratio), nut);
 }
 
-TEST(RANSClosure, RealizabilityCapOffAndZeroStrain)
+TEST(RANSClosure, RealizabilityCapZeroStrainAndTinyK)
 {
+    // (C_r = 0, the cap off, never reaches the function: the kernel skips the cap
+    // and the strain read, and writes cap_ratio = 0 itself)
     const Real tke = Real(0.5), nut = Real(3);
     Real ratio = Real(7);
-    // C_r <= 0: identity, ratio reported as 0
-    EXPECT_EQ(AL01::realizable_nut(nut, tke, Real(0.1), Real(0), ratio), nut);
-    EXPECT_EQ(ratio, Real(0));
-    EXPECT_EQ(AL01::realizable_nut(nut, tke, Real(0.1), Real(-1), ratio), nut);
     // S = 0 (uniform flow): no cap and a finite ratio, no division by zero
     Real out = AL01::realizable_nut(nut, tke, Real(0), Real(0.309), ratio);
     EXPECT_EQ(out, nut);
