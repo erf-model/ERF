@@ -1,0 +1,51 @@
+# Legacy theta/qv path for an existing bulk model.
+erf.prob_name = "Cloud Chamber"
+erf.init_type = ConstantDensity
+erf.anelastic = 1
+erf.use_gravity = true
+erf.vert_implicit = false
+erf.fixed_dt = 0.001
+erf.sum_interval = -1
+erf.check_int = -1
+erf.moisture_model = @BULK_MODEL@
+erf.cloud_chamber_budget_interval = @BULK_BUDGET@
+erf.plot_file_1 = plt
+erf.plot_int_1 = 2
+erf.plot_vars_1 = density theta temp pressure qv qc qt qsat x_velocity y_velocity z_velocity @BULK_PLOT_VARS@
+
+max_step = 2
+geometry.prob_lo = 0.0 0.0 0.0
+geometry.prob_hi = 8.0 8.0 8.0
+geometry.is_periodic = 0 0 0
+amr.n_cell = 8 8 8
+amr.max_level = 0
+amr.max_grid_size = 4
+
+prob.p_inf = 100000.0
+prob.T_0 = 292.0
+prob.thermodynamic_initialization = legacy_theta_qv
+prob.theta_bottom = 300.0
+prob.theta_top = 284.0
+prob.theta_perturbation_amplitude = 0.02
+prob.perturbation_mode = deterministic_sine
+prob.qv_bottom = 0.004
+prob.qv_top = 0.006
+
+xlo.type = NoSlipWall
+xlo.theta = 292.0
+xlo.qv = 0.005
+xhi.type = NoSlipWall
+xhi.theta = 292.0
+xhi.qv = 0.005
+ylo.type = NoSlipWall
+ylo.theta = 292.0
+ylo.qv = 0.005
+yhi.type = NoSlipWall
+yhi.theta = 292.0
+yhi.qv = 0.005
+zlo.type = NoSlipWall
+zlo.theta = 300.0
+zlo.qv = 0.004
+zhi.type = NoSlipWall
+zhi.theta = 284.0
+zhi.qv = 0.006

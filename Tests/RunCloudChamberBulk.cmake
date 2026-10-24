@@ -1,0 +1,106 @@
+include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
+
+foreach(required MPIEXEC MPIEXEC_NUMPROC_FLAG NRANKS TEST_EXE INPUT
+                 WORKING_DIRECTORY SIMULATION_LOG CHECKER_LOG CHECKER
+                 BULK_MODEL BULK_PLOT_VARS BULK_BUDGET)
+    if(NOT DEFINED ${required})
+        message(FATAL_ERROR "RunCloudChamberBulk.cmake missing ${required}")
+    endif()
+endforeach()
+
+if(NOT DEFINED CHECKER_MODE)
+    set(CHECKER_MODE "bulk")
+endif()
+
+erf_mpi_launcher_command(mpi_launch
+    LAUNCHER "${MPIEXEC}"
+    NUMPROC_FLAG "${MPIEXEC_NUMPROC_FLAG}"
+    NRANKS ${NRANKS}
+    PREFLAGS "${MPIEXEC_PREFLAGS}"
+    CONTEXT "RunCloudChamberBulk.cmake")
+erf_mpi_launcher_command(mpi_launch_one
+    LAUNCHER "${MPIEXEC}"
+    NUMPROC_FLAG "${MPIEXEC_NUMPROC_FLAG}"
+    NRANKS 1
+    PREFLAGS "${MPIEXEC_PREFLAGS}"
+    CONTEXT "RunCloudChamberBulk.cmake checker")
+
+file(READ "${INPUT}" input_contents)
+string(REPLACE "@BULK_MODEL@" "${BULK_MODEL}" input_contents "${input_contents}")
+string(REPLACE "@BULK_PLOT_VARS@" "${BULK_PLOT_VARS}" input_contents "${input_contents}")
+string(REPLACE "@BULK_BUDGET@" "${BULK_BUDGET}" input_contents "${input_contents}")
+set(generated_input "${WORKING_DIRECTORY}/CloudChamber_Bulk_Run.i")
+file(WRITE "${generated_input}" "${input_contents}")
+
+# A failed earlier run must not leave plotfiles that a later checker can read.
+file(GLOB stale_plotfiles "${WORKING_DIRECTORY}/plt*")
+file(GLOB stale_checkpoints "${WORKING_DIRECTORY}/chk*")
+foreach(stale_output IN LISTS stale_plotfiles stale_checkpoints)
+    if(IS_DIRECTORY "${stale_output}")
+        file(REMOVE_RECURSE "${stale_output}")
+    endif()
+endforeach()
+file(REMOVE "${SIMULATION_LOG}" "${CHECKER_LOG}")
+
+set(run_timeout 600)
+if(DEFINED EXPECT_FAILURE AND EXPECT_FAILURE)
+    set(run_timeout 180)
+endif()
+
+execute_process(
+    COMMAND ${mpi_launch} ${TEST_EXE} ${generated_input} amrex.call_addr2line=0
+    WORKING_DIRECTORY "${WORKING_DIRECTORY}"
+    OUTPUT_FILE "${SIMULATION_LOG}"
+    ERROR_FILE "${SIMULATION_LOG}"
+    TIMEOUT ${run_timeout}
+    RESULT_VARIABLE simulation_result)
+
+if(DEFINED EXPECT_FAILURE AND EXPECT_FAILURE)
+    string(TOLOWER "${simulation_result}" simulation_result_lower)
+    if("${simulation_result}" STREQUAL "" OR
+       "${simulation_result_lower}" MATCHES "timeout")
+        message(FATAL_ERROR
+            "Expected-failure child timed out or did not terminate (${simulation_result}); see ${SIMULATION_LOG}")
+    endif()
+    if("${simulation_result}" STREQUAL "0")
+        message(FATAL_ERROR "Cloud Chamber ${BULK_MODEL} was expected to fail but succeeded")
+    endif()
+    if(NOT "${simulation_result}" MATCHES "^-?[0-9]+$" AND
+       NOT "${simulation_result_lower}" STREQUAL "subprocess aborted")
+        message(FATAL_ERROR
+            "Expected-failure child had an unrecognized result (${simulation_result}); see ${SIMULATION_LOG}")
+    endif()
+    if(NOT DEFINED EXPECT_FAILURE_TEXT)
+        message(FATAL_ERROR "Expected failure text is required for a negative regression")
+    endif()
+    file(READ "${SIMULATION_LOG}" simulation_output)
+    string(FIND "${simulation_output}" "${EXPECT_FAILURE_TEXT}" failure_text_position)
+    if(failure_text_position EQUAL -1)
+        message(FATAL_ERROR
+            "Cloud Chamber failed without the expected diagnostic '${EXPECT_FAILURE_TEXT}'")
+    endif()
+    if("${simulation_output}" MATCHES "Coarse STEP [0-9]+")
+        message(FATAL_ERROR "Expected rejection happened after a timestep began; see ${SIMULATION_LOG}")
+    endif()
+    file(GLOB produced_outputs "${WORKING_DIRECTORY}/plt*" "${WORKING_DIRECTORY}/chk*")
+    if(produced_outputs)
+        message(FATAL_ERROR "Expected rejection wrote plotfile/checkpoint output; see ${SIMULATION_LOG}")
+    endif()
+    return()
+endif()
+
+if(NOT simulation_result EQUAL 0)
+    message(FATAL_ERROR "Cloud Chamber ${BULK_MODEL} simulation failed: ${simulation_result}")
+endif()
+
+execute_process(
+    COMMAND ${mpi_launch_one} ${CHECKER} ${CHECKER_MODE} ${BULK_MODEL}
+            "${WORKING_DIRECTORY}/plt00000" "${WORKING_DIRECTORY}/plt00002"
+    WORKING_DIRECTORY "${WORKING_DIRECTORY}"
+    OUTPUT_FILE "${CHECKER_LOG}"
+    ERROR_FILE "${CHECKER_LOG}"
+    TIMEOUT 120
+    RESULT_VARIABLE checker_result)
+if(NOT checker_result EQUAL 0)
+    message(FATAL_ERROR "Cloud Chamber ${BULK_MODEL} property check failed: ${checker_result}")
+endif()

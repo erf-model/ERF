@@ -34,6 +34,15 @@ erf_resolve_executable(TEST_EXE "${TEST_EXE}" CONFIG "${CONFIG}"
     CONTEXT "RunRestartParity.cmake: ERF executable")
 erf_resolve_executable(FCOMPARE "${FCOMPARE}" CONFIG "${CONFIG}"
     CONTEXT "RunRestartParity.cmake: fcompare")
+if(NOT "${CHECK_MODE}" STREQUAL "")
+    foreach(arg CHECKER CHECKER_LOG)
+        if("${${arg}}" STREQUAL "")
+            message(FATAL_ERROR "RunRestartParity.cmake: ${arg} is required with CHECK_MODE")
+        endif()
+    endforeach()
+    erf_resolve_executable(CHECKER "${CHECKER}" CONFIG "${CONFIG}"
+        CONTEXT "RunRestartParity.cmake: checker")
+endif()
 
 separate_arguments(common_options   UNIX_COMMAND "${COMMON_OPTIONS}")
 #
@@ -133,6 +142,7 @@ function(padded step out_var)
 endfunction()
 padded(${STEP_CHK} chk_step)
 padded(${STEP_END} end_step)
+set(CHK_PLTFILE "plt${chk_step}")
 set(PLTFILE "plt${end_step}")
 set(CHKFILE "chk${chk_step}")
 
@@ -159,6 +169,10 @@ if(NOT "${PLT2DFILE}" STREQUAL "")
     set(plot2d_end "erf.plot2d_int_1=${STEP_END}")
     set(plot2d_off "erf.plot2d_int_1=-1")
 endif()
+set(chk_plot_option "erf.plot_int_1=-1")
+if(NOT "${CHECK_MODE}" STREQUAL "")
+    set(chk_plot_option "erf.plot_int_1=${STEP_CHK}")
+endif()
 
 # BNDRY_PLANES_STALE leaves the series of an earlier, longer run in both run directories, as a
 # rerun in the same directory finds it: a fresh start has to begin a new series, not append to it.
@@ -177,10 +191,75 @@ run_erf_with("${launch}" "${STRAIGHT_DIR}" "simulation.log" ${RUN_TIMEOUT}
         ${plot2d_end})
 # to the checkpoint step, writing it there (and on to CHK_LEG_END when that is given)
 run_erf_with("${launch_chk}" "${RESTART_DIR}" "checkpoint.log" ${RUN_TIMEOUT}
-        "max_step=${_chk_leg_end}" "erf.check_int=${STEP_CHK}" "erf.plot_int_1=-1"
+        "max_step=${_chk_leg_end}" "erf.check_int=${STEP_CHK}"
+        "${chk_plot_option}"
         ${plot2d_off} ${chk_options})
 if(NOT EXISTS "${RESTART_DIR}/${CHKFILE}/Header")
     message(FATAL_ERROR "RunRestartParity.cmake: no ${CHKFILE} written by the checkpoint run")
+endif()
+if(NOT "${CHECK_MODE}" STREQUAL "")
+    foreach(dir "${RESTART_DIR}/plt00000" "${RESTART_DIR}/${CHK_PLTFILE}")
+        if(NOT EXISTS "${dir}/Header")
+            message(FATAL_ERROR "RunRestartParity.cmake: CHECK_MODE needs plotfile ${dir}")
+        endif()
+    endforeach()
+    execute_process(
+        COMMAND ${launch_one} "${CHECKER}" "${CHECK_MODE}"
+                "${RESTART_DIR}/plt00000" "${RESTART_DIR}/${CHK_PLTFILE}"
+        WORKING_DIRECTORY "${WORKING_DIRECTORY}"
+        OUTPUT_FILE "${CHECKER_LOG}"
+        ERROR_FILE "${CHECKER_LOG}"
+        TIMEOUT 120
+        RESULT_VARIABLE checker_result)
+    if(NOT checker_result EQUAL 0)
+        message(FATAL_ERROR "RunRestartParity.cmake: ${CHECK_MODE} checkpoint activity check failed or timed out: ${checker_result} (see ${CHECKER_LOG})")
+    endif()
+endif()
+
+# An excited WDM6 test also compares the first resumed step. A state-loss bug
+# can be hidden later if the same mutated solver advances both long legs.
+set(post_checkpoint_log "")
+if(CHECK_MODE STREQUAL "wdm6_active")
+    math(EXPR first_post_checkpoint_step "${STEP_CHK} + 1")
+    padded(${first_post_checkpoint_step} first_post_checkpoint_plot_step)
+    set(first_straight_dir "${WORKING_DIRECTORY}/first_step_straight")
+    set(first_restart_dir "${WORKING_DIRECTORY}/first_step_restart")
+    file(REMOVE_RECURSE "${first_straight_dir}" "${first_restart_dir}")
+    file(MAKE_DIRECTORY "${first_straight_dir}" "${first_restart_dir}")
+    foreach(_rp_f IN LISTS _rp_aux)
+        if(NOT IS_DIRECTORY "${_rp_f}")
+            file(COPY "${_rp_f}" DESTINATION "${first_straight_dir}")
+            file(COPY "${_rp_f}" DESTINATION "${first_restart_dir}")
+        endif()
+    endforeach()
+    run_erf_with("${launch}" "${first_straight_dir}" "simulation.log" ${RUN_TIMEOUT}
+        "max_step=${first_post_checkpoint_step}" "erf.check_int=-1"
+        "erf.plot_int_1=${first_post_checkpoint_step}")
+    run_erf_with("${launch}" "${first_restart_dir}" "restart.log" ${RUN_TIMEOUT}
+        "erf.restart=${RESTART_DIR}/${CHKFILE}"
+        "max_step=${first_post_checkpoint_step}" "erf.check_int=-1"
+        "erf.plot_int_1=${first_post_checkpoint_step}")
+    set(first_post_checkpoint_plot "plt${first_post_checkpoint_plot_step}")
+    foreach(dir "${first_straight_dir}" "${first_restart_dir}")
+        if(NOT EXISTS "${dir}/${first_post_checkpoint_plot}/Header")
+            message(FATAL_ERROR "RunRestartParity.cmake: no ${first_post_checkpoint_plot} in ${dir}")
+        endif()
+    endforeach()
+    set(post_checkpoint_log "${WORKING_DIRECTORY}/post_checkpoint_parity.log")
+    execute_process(
+        COMMAND ${launch_one} ${FCOMPARE} --abort_if_not_all_found ${fcompare_grids}
+                --rel_tol ${RTOL} --abs_tol ${ATOL}
+                ${first_straight_dir}/${first_post_checkpoint_plot}
+                ${first_restart_dir}/${first_post_checkpoint_plot}
+        WORKING_DIRECTORY "${WORKING_DIRECTORY}"
+        OUTPUT_FILE "${post_checkpoint_log}"
+        ERROR_FILE "${post_checkpoint_log}"
+        TIMEOUT 120
+        RESULT_VARIABLE post_checkpoint_result)
+    if(NOT post_checkpoint_result EQUAL 0)
+        message(FATAL_ERROR
+            "RunRestartParity.cmake: first post-checkpoint WDM6 state differs from the straight run: ${post_checkpoint_result} (see ${post_checkpoint_log})")
+    endif()
 endif()
 if(BNDRY_PLANES_CUT_NEWLINE)
     set(_bp_cut "${RESTART_DIR}/${BNDRY_PLANES_DIR}/time.dat")
