@@ -43,7 +43,6 @@ zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
 erf.fixed_dt           = 1.0 # fixed time step depending on grid resolution
-erf.fixed_mri_dt_ratio = 4
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 0       # timesteps between computing mass
@@ -68,13 +67,9 @@ erf.plotfile_type = "amrex"
 erf.plot_lsm = true
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 0.0
 erf.use_gravity = true
 
 erf.use_coriolis    = false
-erf.coriolis_3d     = false
-erf.latitude        = 14.982176712702886  # f = 0.376e-4 1/s
 
 erf.dycore_horiz_adv_type    = Upwind_3rd
 erf.dycore_vert_adv_type     = Upwind_3rd

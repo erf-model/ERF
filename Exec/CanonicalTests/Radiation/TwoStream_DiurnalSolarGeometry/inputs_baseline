@@ -56,7 +56,6 @@ erf.plot_vars_1     = x_velocity y_velocity z_velocity theta qsrc_sw qsrc_lw
 erf.use_gravity = true
 erf.molec_diff_type = "None"
 erf.les_type        = "None"
-erf.Cs = 0.11
 erf.theta_ref = 300.0
 
 # INITIALIZATION - from sounding file

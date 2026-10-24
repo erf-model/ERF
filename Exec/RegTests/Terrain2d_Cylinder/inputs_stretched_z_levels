@@ -17,10 +17,6 @@ geometry.is_periodic = 0 1 0
 
 xlo.type = "Outflow"
 xhi.type = "Outflow"
-xlo.velocity = 1. 0. 0.
-xlo.density  = 1.16
-xlo.theta    = 300.
-xlo.scalar   = 0.
     
 zlo.type = "SlipWall"
 zhi.type = "Outflow"
