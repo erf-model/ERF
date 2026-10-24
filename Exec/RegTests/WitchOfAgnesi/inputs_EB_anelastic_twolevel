@@ -4,6 +4,7 @@ erf.prob_name = "Flow over Witch of Agnesi hill"
 erf.init_type = ConstantDensity
 
 #max_step = 16000
+max_step = 100
 
 amrex.fpe_trap_invalid=1
 amrex.fpe_trap_zero=1
@@ -31,7 +32,6 @@ zlo.type = "SlipWall"
 zhi.type = "SlipWall"
 
 # TIME STEP CONTROL
-erf.substepping_type   = None
 erf.fixed_dt           = 0.01
 # erf.cfl              = 0.5
 

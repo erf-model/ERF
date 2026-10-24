@@ -35,7 +35,6 @@ zhi.type = "NoSlipWall"
 
 #erf.abl_driver_type = "PressureGradient"
 erf.abl_driver_type = "None"
-erf.abl_pressure_grad = -0.2 0. 0.
 
 # TIME STEP CONTROL
 erf.substepping_type = None

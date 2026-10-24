@@ -41,7 +41,6 @@ join_boxes_stacked_in_z (const amrex::BoxArray& ba);
  * @param[in] ref_ratio Refinement ratios.
  * @param[in] grid_stretching_ratio Ratio for grid stretching; zero with a positive dz0
  *                                  solves for the ratio that closes on the domain top.
- * @param[in] zsurf Surface height.
  * @param[in] dz0 Initial vertical spacing.
  */
 void
@@ -51,7 +50,6 @@ init_zlevels (amrex::Vector<amrex::Vector<amrex::Real>>& zlevels_stag,
               amrex::Vector<amrex::Geometry> const& geom,
               amrex::Vector<amrex::IntVect>  const& ref_ratio,
               const amrex::Real grid_stretching_ratio,
-              const amrex::Real zsurf,
               const amrex::Real dz0);
 
 /**

@@ -19,8 +19,10 @@ using namespace amrex;
  * @param[in] grid_stretching_ratio Ratio used for stretching the vertical grid; if zero and
  *                                  dz0 is positive, the ratio is solved for so that the grid
  *                                  closes on the top of the domain.
- * @param[in] zsurf Height of the surface.
  * @param[in] dz0 Initial cell height at the surface.
+ *
+ * A stretched grid starts at geometry.prob_lo[2]; the uniform and erf.terrain_z_levels
+ * grids start at 0.
  */
 void
 init_zlevels (Vector<Vector<Real>>& zlevels_stag,
@@ -29,7 +31,6 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
               Vector<Geometry> const& geom,
               Vector<IntVect> const& ref_ratio,
               const Real grid_stretching_ratio,
-              const Real zsurf,
               const Real dz0)
 {
     int max_level = zlevels_stag.size()-1;
@@ -55,7 +56,7 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
                 stretched_dz_h[lev][k] = dx[2];
             }
         } else if (lev == 0 && grid_stretching_ratio == 0) {
-            // Solve for the geometric stretch factor that fills the domain above zsurf with
+            // Solve for the geometric stretch factor that fills the domain above prob_lo with
             //    nz layers whose first is dz0 thick, as the wrfinput path does when it builds
             //    its grid by geometric stretching
 #ifdef AMREX_USE_FLOAT
@@ -63,6 +64,7 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
 #else
             const Real tol = Real(1.e-8);
 #endif
+            const Real zsurf = geom[lev].ProbLo(2);
             const Real depth = geom[lev].ProbHi(2) - zsurf;
             const erf_grid_utils::GeometricStretch gs =
                 erf_grid_utils::build_geometric_zlevels(zlevels_stag[lev], dz0, depth, tol);
@@ -87,6 +89,7 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
             Print() << std::endl;
         } else if (lev == 0) {
             // Create stretched grid based on initial dz and stretching ratio
+            const Real zsurf = geom[lev].ProbLo(2);
             zlevels_stag[lev][0] = zsurf;
             Real dz = dz0;
             Print() << "Stretched grid levels at level : " << lev << " is " <<  zsurf;

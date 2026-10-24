@@ -2,6 +2,7 @@
 erf.prob_name = "ABL"
 # stop_time = 54720.   # ~15.2 hr (14.2 hr + 1 hr buffer), in seconds
 #max_step = 1
+max_step = 100
 
 amrex.fpe_trap_invalid = 1
 
