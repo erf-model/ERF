@@ -91,12 +91,9 @@ void ComputeTurbulentViscosityLES (Vector<std::unique_ptr<MultiFab>>& Tau_lev,
             //       reads the face fluxes of that diffusion (ERF_TurbKESources.H).
             const Array4<Real>& mu_turb = eddyViscosity.array(mfi);
             const Array4<Real const >& cell_data = cons_in.array(mfi);
-            Array4<Real const> tau11 = Tau_lev[TauType::tau11]->array(mfi);
-            Array4<Real const> tau22 = Tau_lev[TauType::tau22]->array(mfi);
-            Array4<Real const> tau33 = Tau_lev[TauType::tau33]->array(mfi);
-            Array4<Real const> tau12 = Tau_lev[TauType::tau12]->array(mfi);
-            Array4<Real const> tau13 = Tau_lev[TauType::tau13]->array(mfi);
-            Array4<Real const> tau23 = Tau_lev[TauType::tau23]->array(mfi);
+            const StrainArrays tau = strain_arrays(Tau_lev, mfi);
+            const Array4<Real const> tau11 = tau.tau11, tau22 = tau.tau22, tau33 = tau.tau33;
+            const Array4<Real const> tau12 = tau.tau12, tau13 = tau.tau13, tau23 = tau.tau23;
             Array4<Real const> mf_u = mapfac[MapFacType::u_x]->const_array(mfi);
             Array4<Real const> mf_v = mapfac[MapFacType::v_y]->const_array(mfi);
             Array4<Real const> z_nd_arr = z_phys_nd->const_array(mfi);
@@ -409,12 +406,9 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
             const Array4<Real>& hfx_y   = Hfx2.array(mfi);
             const Array4<Real>& hfx_z   = Hfx3.array(mfi);
             const Array4<Real const >& cell_data = cons_in.array(mfi);
-            Array4<Real const> tau11 = Tau_lev[TauType::tau11]->array(mfi);
-            Array4<Real const> tau22 = Tau_lev[TauType::tau22]->array(mfi);
-            Array4<Real const> tau33 = Tau_lev[TauType::tau33]->array(mfi);
-            Array4<Real const> tau12 = Tau_lev[TauType::tau12]->array(mfi);
-            Array4<Real const> tau13 = Tau_lev[TauType::tau13]->array(mfi);
-            Array4<Real const> tau23 = Tau_lev[TauType::tau23]->array(mfi);
+            const StrainArrays tau = strain_arrays(Tau_lev, mfi);
+            const Array4<Real const> tau11 = tau.tau11, tau22 = tau.tau22, tau33 = tau.tau33;
+            const Array4<Real const> tau12 = tau.tau12, tau13 = tau.tau13, tau23 = tau.tau23;
             Array4<Real const> mf_u = mapfac[MapFacType::u_x]->const_array(mfi);
             Array4<Real const> mf_v = mapfac[MapFacType::v_y]->const_array(mfi);
 
@@ -604,6 +598,7 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
 /**
  * Function for computing the eddy viscosity with RANS.
  *
+ * @param[in]  Tau_lev strain at this level (the realizability cap reads S_ij)
  * @param[in]  cons_in cell center conserved quantities
  * @param[in]  wdist wall distance
  * @param[out] eddyViscosity turbulent viscosity
@@ -619,6 +614,7 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
  * @param[in]  forest_drag forest drag field C_d LAD, or null without a forest
  */
 void ComputeTurbulentViscosityRANS (int level,
+                                    Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                                     const MultiFab& cons_in,
                                     const MultiFab& wdist,
                                     MultiFab& eddyViscosity,
@@ -668,6 +664,9 @@ void ComputeTurbulentViscosityRANS (int level,
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!use_canopy_length || forest_drag,
             "erf.forest_canopy_tke needs the forest drag field");
         const Real canopy_alpha = canopy.length_alpha;
+        // Realizability cap nu_t <= C_r k / S (AL01::realizable_nut); off at 0
+        const Real Cr = turbChoice.rans_realizability;
+        const bool use_cap = (Cr > zero);
 
         // Clamped divisor: the select is if-converted, so 1/theta_ref runs even
         //   when theta_ref = 0 and would trip fpe_trap_zero (see ERF_SetupDiff.H)
@@ -700,6 +699,11 @@ void ComputeTurbulentViscosityRANS (int level,
             const Array4<Real const>& cell_data = cons_in.array(mfi);
 
             const Array4<Real const>& z_nd_arr = z_phys_nd->const_array(mfi);
+
+            // Strain components for the cap only; the arrays stay empty otherwise. The k-eqn
+            // closure cannot run with EB terrain (SolverChoice stops the run), so the plain
+            // ComputeSmnSmn is the right form here.
+            const StrainArrays tau = (use_cap) ? strain_arrays(Tau_lev, mfi) : StrainArrays{};
 
             ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -760,7 +764,16 @@ void ComputeTurbulentViscosityRANS (int level,
                 // Calculate eddy diffusivities
                 // K = rho * nu_t = rho * c_mu * tke^(1/2) * length
                 Real nut = cmu * std::sqrt(tke) * length; // eddy viscosity
-                Real nut_prime = cmu_prime / cmu * nut;   // eddy diffusivity
+
+                // Realizability cap nu_t <= C_r k / S; cap_ratio = nu_t / (C_r k / S)
+                Real cap_ratio = zero;
+                if (use_cap) {
+                    Real S = std::sqrt(two * ComputeSmnSmn(i,j,k,tau.tau11,tau.tau22,tau.tau33,tau.tau12,tau.tau13,tau.tau23));
+                    nut = AL01::realizable_nut(nut, tke, S, Cr, cap_ratio);
+                }
+                mu_turb(i, j, k, EddyDiff::RANS_cap_ratio) = cap_ratio;
+
+                Real nut_prime = cmu_prime / cmu * nut;   // eddy diffusivity, capped with nu_t
                 mu_turb(i, j, k, EddyDiff::Mom_h) = cell_data(i, j, k, Rho_comp) * nut;
                 mu_turb(i, j, k, EddyDiff::Mom_v) = mu_turb(i, j, k, EddyDiff::Mom_h);
                 mu_turb(i, j, k, EddyDiff::Theta_v) = cell_data(i, j, k, Rho_comp) * nut_prime;
@@ -935,7 +948,7 @@ void ComputeTurbulentViscosity (double dt,
     }
 
     if (turbChoice.rans_type != RANSType::None) {
-        ComputeTurbulentViscosityRANS(level, cons_in, wdist,
+        ComputeTurbulentViscosityRANS(level, Tau_lev, cons_in, wdist,
                                       eddyViscosity,
                                       Diss,
                                       geom, use_terrain_fitted_coords,

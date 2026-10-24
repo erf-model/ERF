@@ -1902,6 +1902,8 @@ private:
                                                     "Lturb",
                                                     // k-eqn RANS: smoothed turbulent Richardson number and stability functions
                                                     "Rt", "cmu", "cmu_prime",
+                                                    // k-eqn RANS: eddy viscosity over its realizability cap
+                                                    "cap_ratio",
                                                     // native SHOC diagnostics
                                                     "pblh", "shoc_cldfrac", "shoc_ql", "shoc_ql2", "shoc_cond",
                                                     "wqls_sec", "wthv_sec", "w_sec",
