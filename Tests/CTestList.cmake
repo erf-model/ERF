@@ -1405,6 +1405,10 @@ if(ERF_PRECISION STREQUAL "DOUBLE")
   add_test_column_bounds(ForestCanopyRANS_Uniform "plt00001" 45
       "x_velocity,KE" "4.87805419660,1.01104711783" "4.87805429416,1.01104713806")
 endif()
+# A stretched mesh starts at geometry.prob_lo[2] = -1, so the cell-centre z_phys runs from -0.9375
+# to 0.9375.  With the flat surface left at 0 the column was squashed onto 0 to 1 and reached
+# 0.96875 (erf-model/ERF#4442).
+add_test_column_bounds(StretchedProbLo_Poiseuille "plt00000" -10 "z_phys" "-0.9375001" "0.9375001")
 # A refined patch aloft (256-768 m) has no column at the ground: it takes level 0's height (~461 m), not zero
 add_test_field_bounds(PBLH_PatchAloft "plt2d00004" pblh 400.0 600.0)
 # Native WDM6 surface snow from the fallout through the bottom face, not the fall speed there:
