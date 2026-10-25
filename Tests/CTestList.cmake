@@ -2795,6 +2795,25 @@ add_test_most_zref(MOST_Zref_Stretched)
 # (prognostic skin, slab conduction, heat flux into the air), 40 steps.
 add_test_r(IBSEB_Cube                        ""  "erf_exec" "plt00040")
 
+# The clear-sky sun's diffuse share must lie in [0, 1] and its solar constant be positive:
+# one value past each end of the share, and a zero solar constant, stop at start-up
+# (erf-model/ERF#4655).
+add_test_abort(IBSEB_DiffuseCoeffAboveOne
+               ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_Cube
+               IBSEB_Cube.i
+               "erf.ibseb.sw_diffuse_coeff must be in"
+               "erf.ibseb.sun_mode=solar erf.ibseb.sw_diffuse_coeff=1.5")
+add_test_abort(IBSEB_DiffuseCoeffNegative
+               ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_Cube
+               IBSEB_Cube.i
+               "erf.ibseb.sw_diffuse_coeff must be in"
+               "erf.ibseb.sun_mode=solar erf.ibseb.sw_diffuse_coeff=-0.1")
+add_test_abort(IBSEB_SolarConstantZero
+               ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_Cube
+               IBSEB_Cube.i
+               "erf.ibseb.solar_constant must be"
+               "erf.ibseb.sun_mode=solar erf.ibseb.solar_constant=0.0")
+
 # The balance on two levels (Tests/RunIBSEBRefinedLevels.cmake): a cube on level 1 and a
 # tower outside it, whose shadow the cube's level-1 faces must find through level 0's
 # column map; the level-1 face dumps, and the refinement-box script's verdicts on the

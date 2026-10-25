@@ -264,6 +264,8 @@ struct IBSEBParams
             }
             if (sw_direct_normal < 0.0 || sw_diffuse < 0.0) { amrex::Abort("erf.ibseb.sw_direct_normal and sw_diffuse must be >= 0"); }
             if (sw_transmission <= 0.0 || sw_transmission > 1.0) { amrex::Abort("erf.ibseb.sw_transmission must be in (0, 1]"); }
+            if (sw_diffuse_coeff < 0.0 || sw_diffuse_coeff > 1.0) { amrex::Abort("erf.ibseb.sw_diffuse_coeff must be in [0, 1]"); }
+            if (solar_constant <= 0.0) { amrex::Abort("erf.ibseb.solar_constant must be > 0"); }
             if (albedo < 0.0 || albedo > 1.0 || albedo_ground < 0.0 || albedo_ground > 1.0) {
                 amrex::Abort("erf.ibseb.albedo and albedo_ground must be in [0, 1]");
             }
