@@ -708,19 +708,30 @@ void SLM::ReadCheckpoint (const int &lev, const std::string &checkpointname)
     // read in title line
     std::getline(is, line);
 
-    // read in number of soil layers
-    is >> m_nz_lsm;
+    // read in number of soil layers and the array of dz. Init has already built the
+    // soil geometry from slm.nsoil / slm.soil_dz, so these are checked against it
+    // rather than adopted.
+    int nz_chk = 0;
+    is >> nz_chk;
+    GotoNextLine(is);
 
-    // read in array of dz
+    Vector<Real> dz_chk;
     std::getline(is, line);
     {
         std::istringstream lis(line);
-        int i = 0;
         while (lis >> word) {
-            m_dz_lsm[i++] = std::stod(word);
+            dz_chk.push_back(static_cast<Real>(std::stod(word)));
         }
     }
-    GotoNextLine(is);
+
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        nz_chk == m_nz_lsm && static_cast<int>(dz_chk.size()) == m_nz_lsm,
+        "SLM::ReadCheckpoint: the checkpoint's number of soil layers differs from slm.nsoil");
+    for (int k = 0; k < m_nz_lsm; ++k) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            std::abs(dz_chk[k] - m_dz_lsm[k]) <= Real(1.e-6) * m_dz_lsm[k],
+            "SLM::ReadCheckpoint: the checkpoint's soil layer thicknesses differ from slm.soil_dz");
+    }
 
     // Read in time
     is >> m_dt;
