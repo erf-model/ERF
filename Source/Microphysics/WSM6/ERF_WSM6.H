@@ -13,6 +13,7 @@
 #include "ERF_MicrophysicsConstants.H"
 #include "ERF_DataStruct.H"
 #include "ERF_IndexDefines.H"
+#include "ERF_MicrophysicsColumns.H"
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_NullMoist.H"
 #include "ERF_SurfacePrecipitation.H"
@@ -238,6 +239,13 @@ private:
     amrex::MultiFab* m_detJ_cc{nullptr};
 
     amrex::Array<FabPtr, MicVar_WSM6::NumVars> mic_fab_vars;
+
+    // Full-column layout of this level's grids (see ERF_MicrophysicsColumns.H)
+    MicrophysicsColumns m_columns;
+
+    // The body of Advance, run on grids in which no column is split between boxes
+    void AdvanceColumns (const amrex::Real& dt_advance,
+                         const SolverChoice& sc);
 
     // ---- WSM6 init coefficients (from mp_wsm6_init save variables) ----
     // hail_opt-dependent (set in Initialize() based on m_hail_opt)

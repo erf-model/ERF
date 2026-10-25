@@ -68,6 +68,17 @@ SAM::PrecipFall (const SolverChoice& sc)
     MultiFab fz;
     fz.define(convert(ba, IntVect(0,0,1)), dm, 3, ngrow);
 
+    // The face states read tabs, rho and the precipitating species at k-1, a ghost cell
+    // whenever a box boundary is interior in z. Cloud and Precip have just updated them in
+    // valid cells only, so refresh the ghosts before the fluxes that size the substeps are
+    // computed; the substep loop below refreshes the species again as they fall. tabs does
+    // not change here, so once is enough for it.
+    tabs->FillBoundary(m_geom.periodicity());
+    rho->FillBoundary(m_geom.periodicity());
+    qpr->FillBoundary(m_geom.periodicity());
+    qps->FillBoundary(m_geom.periodicity());
+    qpg->FillBoundary(m_geom.periodicity());
+
     //  Precompute the vertical component fluxes for the legacy reduced-flux substep rule.
     for (MFIter mfi(fz, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         auto qpr_array  = qpr->const_array(mfi);

@@ -42,6 +42,11 @@ void SAM::IceFall (const SolverChoice& sc) {
     fz.define(convert(ba, IntVect(0,0,1)), dm, 1, ng);
     fz.setVal(0.);
 
+    // The face state reads qci at k-1, a ghost cell whenever a box boundary is interior in
+    // z, and Cloud has just updated qci in valid cells only: refresh before the fluxes that
+    // size the substeps are computed (the substep loop refreshes it again as it falls).
+    qci->FillBoundary(m_geom.periodicity());
+
     for (MFIter mfi(fz, TileNoZ()); mfi.isValid(); ++mfi) {
         auto qci_array = qci->array(mfi);
         auto rho_array = rho->array(mfi);
@@ -98,6 +103,12 @@ void SAM::IceFall (const SolverChoice& sc) {
 
     // Substep the vertical advection
     for (int nsub(0); nsub<n_substep; ++nsub) {
+        // The face state and the donor-cap limiter read qci at k-1, which is a ghost cell
+        // whenever a box boundary is interior in z. The previous substep updated qci in
+        // valid cells only, so refresh ghosts here, as PrecipFall does; otherwise the two
+        // sides of a shared z face see different donor values.
+        qci->FillBoundary(m_geom.periodicity());
+
         for (MFIter mfi(*qci, TileNoZ()); mfi.isValid(); ++mfi) {
             auto qci_array   = qci->array(mfi);
             auto qn_array    = qn->array(mfi);
