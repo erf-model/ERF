@@ -475,10 +475,16 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             const Real sflux  = hfx / (rhox * cp_air) + qfx / rhox * ep1 * t_layer;
             sflux_arr(i, j, 0) = sflux;
 
-            // WRF sfcflg: TRUE when unstable/neutral (sflux > 0), FALSE when stable
+            // WRF sfcflg: TRUE when unstable/neutral, FALSE when stable
             // WRF bl_ysu.F90 line 615: if(br(i).gt.0.0) sfcflg(i) = .false.
-            // In ERF, br > 0 corresponds to sflux < 0 (stable), so:
-            const bool sfcflg = (sflux > zero);
+            // In ERF, br > 0 corresponds to sflux < 0 (stable), and a neutral
+            // surface (sflux = 0) is unstable/neutral, as in WRF. Over a neutral
+            // surface the flux is round-off: t_star comes from a plane-averaged
+            // theta that differs from the surface value in the last bits, and
+            // how depends on the box and tile decomposition. A flux within that
+            // round-off counts as neutral, so that it does not pick the branch.
+            const Real sflux_roundoff = Real(64.0) * real_eps * ustar * t_layer;
+            const bool sfcflg = (sflux >= -sflux_roundoff);
             sfcflg_arr(i, j, 0) = sfcflg ? one : zero;  // Store as scalar field for unified use
 
             // WRF: govrth = g/thx(1) — uses DRY theta at first level
@@ -923,7 +929,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             // WRF bl_ysu.F90 line 687: gamfac = bfac/rhox/wscale
             // WRF bl_ysu.F90 line 688: hgamt(i) = min(gamfac*hfx(i)/cp, gamcrt)
             // Use sflux-based sfcflg for consistency with the precompute kernel (Fix 3)
-            bool SFCFLG = (sfcflg_arr(i, j, 0) > zero);  // TRUE when unstable/neutral (sflux > 0)
+            bool SFCFLG = (sfcflg_arr(i, j, 0) > zero);  // TRUE when unstable/neutral (sflux >= -round-off)
             const Real rho_sfc = cell_data(i, j, ksrf, Rho_comp);
             const Real hfx_col = -rho_sfc * amrex::Real(1004.0) * us_eff_arr(i, j, 0) * ts_eff_arr(i, j, 0);
             const Real gamfac = const_b / (rho_sfc * wscale_corr);
@@ -1590,7 +1596,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 // When stable (BR > 0, i.e., sflux < 0), skip nonlocal PBL mixing
                 // and use free-atmosphere Richardson scheme throughout PBL.
                 // Use sflux-based sfcflg for unified definition (Fix 3)
-                bool SFCFLG = (sfcflg_arr_cap(i, j, 0) > zero);  // TRUE when unstable/neutral (sflux > 0)
+                bool SFCFLG = (sfcflg_arr_cap(i, j, 0) > zero);  // TRUE when unstable/neutral (sflux >= -round-off)
 
                 // Stability function phiM for momentum - BUSINGER-DYER form (WRF)
                 // Unstable (L < 0): phiM = (1 - 16*sf*h/L)^(-1/4)  [APHI16=16, exponent -1/4]
