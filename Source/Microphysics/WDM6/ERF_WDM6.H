@@ -106,6 +106,11 @@ constexpr amrex::Real wdm6_literal (double d)
 #endif
 }
 
+// Components of WDM6's sedimentation face fluxes (m_sed), with the state they carry
+namespace WDM6Sed {
+    enum { qi = 0 /* rhoQ3 */, qr /* rhoQ4 */, qs /* rhoQ5 */, qg /* rhoQ6 */, nr /* rhoQ9 */, NumComps };
+}
+
 class WDM6 : public NullMoist {
     using FabPtr = std::shared_ptr<amrex::MultiFab>;
 
@@ -241,6 +246,8 @@ public:
     void Advance (const amrex::Real& dt_advance,
                   const SolverChoice& solverChoice) override;
 
+    const SedimentationFlux* Sed_Flux () const override { return &m_sed; }
+
     amrex::MultiFab* Qmoist_Ptr (const int& varIdx) override
     {
         AMREX_ALWAYS_ASSERT(varIdx < m_qmoist_size);
@@ -294,6 +301,9 @@ private:
 
     // Full-column layout of this level's grids (see ERF_MicrophysicsColumns.H)
     MicrophysicsColumns m_columns;
+
+    // Sedimentation face fluxes of the most recent Advance, in the order of WDM6Sed
+    SedimentationFlux m_sed;
 
     // The body of Advance, run on grids in which no column is split between boxes
     void AdvanceColumns (const amrex::Real& dt_advance,

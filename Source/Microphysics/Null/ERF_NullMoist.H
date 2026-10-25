@@ -6,6 +6,7 @@
 #include <AMReX_Geometry.H>
 #include <ERF_DataStruct.H>
 #include "ERF_SurfacePrecipitation.H"
+#include "ERF_SedimentationFlux.H"
 
 class NullMoist {
 
@@ -141,6 +142,12 @@ public:
     {
         return {};
     }
+
+    /*! \brief The sedimentation face fluxes of the most recent Advance, or null for a
+     *         scheme that does not sediment (see ERF_SedimentationFlux.H) */
+    virtual
+    const SedimentationFlux*
+    Sed_Flux () const { return nullptr; }
 
     virtual
     void

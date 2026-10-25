@@ -64,7 +64,7 @@ public:
         }
     }
 
-    //! Copy of a cell-centered field (with its ghost cells) on the column layout
+    //! Copy of a field (cell-centered or z-face; with its ghost cells) on the column layout
     [[nodiscard]] FabPtr gather_one (const amrex::MultiFab& src) const;
 
     //! Copy of a nodal field (e.g. z_phys_nd) on the column layout, or null for null input

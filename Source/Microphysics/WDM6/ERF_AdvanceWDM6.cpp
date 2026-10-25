@@ -652,6 +652,8 @@ void wdm6_ccn_activation (
 void WDM6::Advance (const Real& dt_advance,
                     const SolverChoice& solverChoice)
 {
+    m_sed.reset(dt_advance);
+
     if (!m_columns.needs_gather()) {
         AdvanceColumns(dt_advance, solverChoice);
         return;
@@ -668,9 +670,13 @@ void WDM6::Advance (const Real& dt_advance,
     iMultiFab* lmask_saved = m_lmask;
     auto lmask_col = m_columns.gather_2d(m_lmask);
     m_lmask = lmask_col.get();
+    auto sed_saved = m_sed.down;
+    m_sed.down = m_columns.gather_one(*sed_saved);
 
     AdvanceColumns(dt_advance, solverChoice);
 
+    sed_saved->ParallelCopy(*m_sed.down);
+    m_sed.down = sed_saved;
     m_lmask = lmask_saved;
     m_z_phys_nd = z_phys_nd_saved;
     m_columns.scatter(mic_fab_vars, saved);
@@ -780,6 +786,7 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
         auto rain_arr = mic_fab_vars[MicVar_WDM6::rain_accum]->array(mfi);
         auto snow_arr = mic_fab_vars[MicVar_WDM6::snow_accum]->array(mfi);
         auto graup_arr = mic_fab_vars[MicVar_WDM6::graup_accum]->array(mfi);
+        auto const& sed_arr = m_sed.down->array(mfi);
 
         const int ilo = box.smallEnd(0);
         const int ihi = box.bigEnd(0);
@@ -1463,6 +1470,14 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
             ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 amrex::ignore_unused(k);
                 const int col_mstep = mstep_arr(i,j,klo);
+
+                // The face fluxes are what the cells above each face lose: add the
+                // top-down sums of rho*q*dz now, and subtract them after the substeps.
+                sedimentation_add_column_sums(sed_arr, WDM6Sed::qr, i, j, klo, khi, Real(1.0),
+                    [&](int kk) { return den_arr(i,j,kk) * qr_arr(i,j,kk) * delz_arr(i,j,kk); });
+                sedimentation_add_column_sums(sed_arr, WDM6Sed::nr, i, j, klo, khi, Real(1.0),
+                    [&](int kk) { return den_arr(i,j,kk) * nr_arr(i,j,kk) * delz_arr(i,j,kk); });
+
                 for (int n = 1; n <= mstepmax; ++n) {
                     if (n > col_mstep) {
                         continue;
@@ -1538,6 +1553,11 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
                         workn_arr(i,j,kk) = rain_vtn / delz_arr(i,j,kk);
                     }
                 }
+
+                sedimentation_add_column_sums(sed_arr, WDM6Sed::qr, i, j, klo, khi, Real(-1.0),
+                    [&](int kk) { return den_arr(i,j,kk) * qr_arr(i,j,kk) * delz_arr(i,j,kk); });
+                sedimentation_add_column_sums(sed_arr, WDM6Sed::nr, i, j, klo, khi, Real(-1.0),
+                    [&](int kk) { return den_arr(i,j,kk) * nr_arr(i,j,kk) * delz_arr(i,j,kk); });
             });
 
             // ============================================================
@@ -1583,6 +1603,12 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
                         : Real(0.0);
                 }
 
+                // Face fluxes, as for rain: the top-down sums before, minus those after
+                sedimentation_add_column_sums(sed_arr, WDM6Sed::qs, i, j, klo, khi, Real(1.0),
+                    [&](int kk) { return den_arr(i,j,kk) * qs_arr(i,j,kk) * delz_arr(i,j,kk); });
+                sedimentation_add_column_sums(sed_arr, WDM6Sed::qg, i, j, klo, khi, Real(1.0),
+                    [&](int kk) { return den_arr(i,j,kk) * qg_arr(i,j,kk) * delz_arr(i,j,kk); });
+
                 Real delqrs2 = Real(0.0);
                 Real delqrs3 = Real(0.0);
                 wdm6_nislfv_rain_plm6_column(
@@ -1597,6 +1623,10 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
                     qs_arr(i,j,k3) = amrex::max(rq_col(kk) / den_col(kk), Real(0.0));
                     qg_arr(i,j,k3) = amrex::max(rq2_col(kk) / den_col(kk), Real(0.0));
                 }
+                sedimentation_add_column_sums(sed_arr, WDM6Sed::qs, i, j, klo, khi, Real(-1.0),
+                    [&](int kk) { return den_arr(i,j,kk) * qs_arr(i,j,kk) * delz_arr(i,j,kk); });
+                sedimentation_add_column_sums(sed_arr, WDM6Sed::qg, i, j, klo, khi, Real(-1.0),
+                    [&](int kk) { return den_arr(i,j,kk) * qg_arr(i,j,kk) * delz_arr(i,j,kk); });
 
                 fall_arr(i,j,klo,1) = delqrs2 / dz_col(0) / dtcld;   // fall(i,1,2)
                 fall_arr(i,j,klo,2) = delqrs3 / dz_col(0) / dtcld;   // fall(i,1,3)
@@ -1807,6 +1837,10 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
                     rq2_col(kk) = den_col(kk) * qi_arr(i,j,k3);
                 }
 
+                // Face fluxes: the top-down sums before, minus those after
+                sedimentation_add_column_sums(sed_arr, WDM6Sed::qi, i, j, klo, khi, Real(1.0),
+                    [&](int kk) { return den_arr(i,j,kk) * qi_arr(i,j,kk) * delz_arr(i,j,kk); });
+
                 Real delqi_col = Real(0.0);
                 Real delqi2_col = Real(0.0);
 
@@ -1836,6 +1870,8 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
                     const int k3 = klo + kk;
                     qi_arr(i,j,k3) = amrex::max(rq_col(kk) / den_col(kk), Real(0.0));
                 }
+                sedimentation_add_column_sums(sed_arr, WDM6Sed::qi, i, j, klo, khi, Real(-1.0),
+                    [&](int kk) { return den_arr(i,j,kk) * qi_arr(i,j,kk) * delz_arr(i,j,kk); });
 
                 // Ice fallout at surface. Indexed at klo to match the G9 block
                 // below, which reads fallc_arr(i,j,klo); this lambda discards

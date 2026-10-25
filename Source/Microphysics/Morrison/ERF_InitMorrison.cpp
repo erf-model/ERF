@@ -50,6 +50,10 @@ Morrison::Init (const MultiFab& cons_in,
         mic_fab_vars[ivar]->setVal(0.);
     }
 
+    m_sed.define(cons_in.boxArray(), cons_in.DistributionMap(),
+                 {RhoQ2_comp, RhoQ3_comp, RhoQ4_comp, RhoQ5_comp, RhoQ6_comp,
+                  RhoQ7_comp, RhoQ8_comp, RhoQ9_comp, RhoQ10_comp, RhoQ11_comp});
+
 #ifdef ERF_USE_MORR_FORT
     bool use_cpp = true;
     amrex::ParmParse pp("erf");

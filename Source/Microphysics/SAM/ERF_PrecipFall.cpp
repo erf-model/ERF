@@ -159,6 +159,7 @@ SAM::PrecipFall (const SolverChoice& sc)
             auto rain_accum_array = rain_accum->array(mfi);
             auto snow_accum_array = snow_accum->array(mfi);
             auto graup_accum_array = graup_accum->array(mfi);
+            auto sed_array = m_sed.down->array(mfi);
 
             const auto dJ_array = (m_detJ_cc) ? m_detJ_cc->const_array(mfi) : Array4<const Real>{};
 
@@ -203,6 +204,10 @@ SAM::PrecipFall (const SolverChoice& sc)
                                                                     qpg_array(i,j,donor_k),
                                                                     detJ_donor,
                                                                     coef);
+
+                sed_array(i,j,k,0) += fz_array(i,j,k,0) * dtn;
+                sed_array(i,j,k,1) += fz_array(i,j,k,1) * dtn;
+                sed_array(i,j,k,2) += fz_array(i,j,k,2) * dtn;
 
                 if (k == k_lo) {
                     const SAMSurfaceAccumulation surface_accum =

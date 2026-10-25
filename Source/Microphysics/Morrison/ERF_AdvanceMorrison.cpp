@@ -177,6 +177,8 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
     Morrison::Advance (const Real& dt_advance,
                        const SolverChoice& sc)
     {
+        m_sed.reset(dt_advance);
+
         if (!m_columns.needs_gather()) {
             AdvanceColumns(dt_advance, sc);
             return;
@@ -190,9 +192,13 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
         MultiFab* z_phys_nd_saved = m_z_phys_nd;
         auto z_phys_nd_col = m_columns.gather_nodal(m_z_phys_nd);
         m_z_phys_nd = z_phys_nd_col.get();
+        auto sed_saved = m_sed.down;
+        m_sed.down = m_columns.gather_one(*sed_saved);
 
         AdvanceColumns(dt_advance, sc);
 
+        sed_saved->ParallelCopy(*m_sed.down);
+        m_sed.down = sed_saved;
         m_z_phys_nd = z_phys_nd_saved;
         m_columns.scatter(mic_fab_vars, saved);
     }
@@ -277,6 +283,7 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
           auto const& snow_accum_arr  = mic_fab_vars[MicVar_Morr::snow_accum]->array(mfi);
           auto const& graup_accum_arr = mic_fab_vars[MicVar_Morr::graup_accum]->array(mfi);
           auto const& w_arr           = mic_fab_vars[MicVar_Morr::omega]->array(mfi);
+          auto const& sed_arr         = m_sed.down->array(mfi);
 
           // Get radar reflectivity array if radar diagnostics enabled
           //        auto const& refl_arr = m_do_radar_ref ? m_radar->array(mfi) : nullptr;
@@ -2805,6 +2812,19 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
                 morr_arr(i,j,k,MORRInd::faloutnc) = morr_arr(i,j,k,MORRInd::fnc) * morr_arr(i,j,k,MORRInd::dumfnc);
                 morr_arr(i,j,k,MORRInd::faloutg) = morr_arr(i,j,k,MORRInd::fg) * morr_arr(i,j,k,MORRInd::dumg);
                 morr_arr(i,j,k,MORRInd::faloutng) = morr_arr(i,j,k,MORRInd::fng) * morr_arr(i,j,k,MORRInd::dumfng);
+
+                // falout is the flux out of the bottom of cell k (face k) for this substep
+                const Real dt_sub = dt / nstep;
+                sed_arr(i,j,k,MorrSed::qc) += morr_arr(i,j,k,MORRInd::faloutc)  * dt_sub;
+                sed_arr(i,j,k,MorrSed::qi) += morr_arr(i,j,k,MORRInd::falouti)  * dt_sub;
+                sed_arr(i,j,k,MorrSed::qr) += morr_arr(i,j,k,MORRInd::faloutr)  * dt_sub;
+                sed_arr(i,j,k,MorrSed::qs) += morr_arr(i,j,k,MORRInd::falouts)  * dt_sub;
+                sed_arr(i,j,k,MorrSed::qg) += morr_arr(i,j,k,MORRInd::faloutg)  * dt_sub;
+                sed_arr(i,j,k,MorrSed::nc) += morr_arr(i,j,k,MORRInd::faloutnc) * dt_sub;
+                sed_arr(i,j,k,MorrSed::ni) += morr_arr(i,j,k,MORRInd::faloutni) * dt_sub;
+                sed_arr(i,j,k,MorrSed::nr) += morr_arr(i,j,k,MORRInd::faloutnr) * dt_sub;
+                sed_arr(i,j,k,MorrSed::ns) += morr_arr(i,j,k,MORRInd::faloutns) * dt_sub;
+                sed_arr(i,j,k,MorrSed::ng) += morr_arr(i,j,k,MORRInd::faloutng) * dt_sub;
               } //k
 
               // Process top of model level

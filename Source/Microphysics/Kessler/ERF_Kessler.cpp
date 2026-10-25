@@ -169,6 +169,7 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                 auto qp_array  = mic_fab_vars[MicVar_Kess::qp]->array(mfi);
                 auto rain_accum_array = mic_fab_vars[MicVar_Kess::rain_accum]->array(mfi);
                 auto fz_array  = fz.array(mfi);
+                auto sed_array = m_sed.down->array(mfi);
 
                 const auto dJ_array = (m_detJ_cc) ? m_detJ_cc->const_array(mfi) : Array4<const Real>{};
 
@@ -198,6 +199,11 @@ void Kessler::AdvanceKessler (const SolverChoice &solverChoice)
                     const Real max_flux = donor_rho * donor_qp * donor_detJ / coef;
                     fz_array(i,j,k) = amrex::min(
                         kessler_precip_flux(face_state.rho, terminal_velocity, face_state.qp), max_flux);
+
+                    // Record the flux the cell update below uses, after its small-value cutoff
+                    if (!kessler_is_small_sedimentation_value(fz_array(i,j,k))) {
+                        sed_array(i,j,k,0) += fz_array(i,j,k) * dtn;
+                    }
 
                     if(k==k_lo){
                         // Surface accumulation stores the bottom-face precipitation mass per area

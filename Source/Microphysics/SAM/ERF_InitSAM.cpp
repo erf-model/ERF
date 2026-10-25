@@ -58,6 +58,9 @@ SAM::Init (const MultiFab& cons_in,
         mic_fab_vars[ivar]->setVal(0.);
     }
 
+    m_sed.define(cons_in.boxArray(), cons_in.DistributionMap(),
+                 {RhoQ4_comp, RhoQ5_comp, RhoQ6_comp, RhoQ3_comp});
+
     // NOTE: For multi-level not all ranks will own a box.
     //       Furthermore, the plane average allocates space
     //       for the entire domain. We make this consistent.
