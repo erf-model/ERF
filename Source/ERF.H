@@ -705,6 +705,10 @@ public:
                                const int& iteration,
                                const double& time);
 
+    // Set the surface precipitation accumulators of level lev under its finer level's
+    // ground-touching patches to the average of the finer level's (TwoWay coupling)
+    void average_down_precip_accumulators (int lev);
+
     void advance_lsm (int lev,
                       amrex::MultiFab& cons_in,
                       amrex::MultiFab& xvel_in,
