@@ -861,9 +861,13 @@ WSM6::Advance (const Real& dt_advance,
     m_z_phys_nd = z_phys_nd_col.get();
     auto sed_saved = m_sed.down;
     m_sed.down = m_columns.gather_one(*sed_saved);
+    const MultiFab* inflow_saved = m_sed_inflow;
+    auto inflow_col = (m_sed_inflow) ? m_columns.gather_one(*m_sed_inflow) : nullptr;
+    m_sed_inflow = inflow_col.get();
 
     AdvanceColumns(dt_advance, sc);
 
+    m_sed_inflow = inflow_saved;
     sed_saved->ParallelCopy(*m_sed.down);
     m_sed.down = sed_saved;
     m_z_phys_nd = z_phys_nd_saved;
@@ -1264,7 +1268,27 @@ WSM6::AdvanceColumns (const Real& dt_advance,
         const Real precg1 = m_precg1;
         const Real precg2 = m_precg2;
 
+        // At the top of a fine patch, rain, snow, ... come in from the coarse level: add
+        // each minor step's share of it to the top cell before that step, so it falls with
+        // what is already there, and record it on the top face.
+        const auto inflow_arr = (m_sed_inflow) ? m_sed_inflow->const_array(mfi)
+                                               : Array4<const Real>{};
+        const Real inflow_share = Real(1) / static_cast<Real>(wsm6_loops);
+
         for (int loop = 0; loop < wsm6_loops; ++loop) {
+            if (inflow_arr) {
+                ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+                    if (inflow_arr(i,j,khi+1,WSM6Sed::NumComps) < Real(0.5)) { return; }
+                    const Real fac = inflow_share / (den_arr(i,j,khi) * delz_arr(i,j,khi));
+                    qi_arr(i,j,khi) += inflow_arr(i,j,khi+1,WSM6Sed::qi) * fac;
+                    qr_arr(i,j,khi) += inflow_arr(i,j,khi+1,WSM6Sed::qr) * fac;
+                    qs_arr(i,j,khi) += inflow_arr(i,j,khi+1,WSM6Sed::qs) * fac;
+                    qg_arr(i,j,khi) += inflow_arr(i,j,khi+1,WSM6Sed::qg) * fac;
+                    for (int n = 0; n < WSM6Sed::NumComps; ++n) {
+                        sed_arr(i,j,khi+1,n) += inflow_arr(i,j,khi+1,n) * inflow_share;
+                    }
+                });
+            }
             // G1b: denfac = sqrt(den0/den)  [lines 503-515]
             ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 const Real invden = Real(1.0) / den_arr(i,j,k);

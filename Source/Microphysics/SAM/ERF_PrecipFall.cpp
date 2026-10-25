@@ -160,6 +160,10 @@ SAM::PrecipFall (const SolverChoice& sc)
             auto snow_accum_array = snow_accum->array(mfi);
             auto graup_accum_array = graup_accum->array(mfi);
             auto sed_array = m_sed.down->array(mfi);
+            const auto inflow_array = (m_sed_inflow) ? m_sed_inflow->const_array(mfi)
+                                                     : Array4<const Real>{};
+            const int inflow_flag = m_sed.inflow_flag_comp();
+            const Real inv_dt = one / dt;
 
             const auto dJ_array = (m_detJ_cc) ? m_detJ_cc->const_array(mfi) : Array4<const Real>{};
 
@@ -204,6 +208,14 @@ SAM::PrecipFall (const SolverChoice& sc)
                                                                     qpg_array(i,j,donor_k),
                                                                     detJ_donor,
                                                                     coef);
+
+                // At the top of a fine patch the precipitation coming in is the coarse
+                // level's flux through that face, not one built from interpolated ghost cells
+                if (inflow_array && inflow_array(i,j,k,inflow_flag) > Real(0.5)) {
+                    fz_array(i,j,k,0) = inflow_array(i,j,k,0) * inv_dt;
+                    fz_array(i,j,k,1) = inflow_array(i,j,k,1) * inv_dt;
+                    fz_array(i,j,k,2) = inflow_array(i,j,k,2) * inv_dt;
+                }
 
                 sed_array(i,j,k,0) += fz_array(i,j,k,0) * dtn;
                 sed_array(i,j,k,1) += fz_array(i,j,k,1) * dtn;

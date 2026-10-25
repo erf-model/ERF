@@ -26,6 +26,14 @@
  * its bottom face. Schemes whose sedimentation has no face fluxes of its own (the
  * semi-Lagrangian WSM6/WDM6 solvers) reconstruct them with sedimentation_add_column_sums below.
  */
+/**
+ * The inflow a fine patch receives through its top face, handed to a scheme for one Advance
+ * (NullMoist::Set_Sed_Inflow). It is z-nodal on the level's grids, with the components of
+ * the level's SedimentationFlux plus a flag, comp inflow_flag_comp(): where the flag is 1,
+ * face (i,j,k) is the top of a fine column that stops short of the domain top, and
+ * component n holds the amount of cons_comp[n] entering through it during the Advance, per
+ * unit horizontal area (as SedimentationFlux::down). Elsewhere everything is zero.
+ */
 struct SedimentationFlux
 {
     std::shared_ptr<amrex::MultiFab> down;
@@ -41,6 +49,9 @@ struct SedimentationFlux
         down->setVal(0.0);
         dt = 0.0;
     }
+
+    //! The component of a sedimentation inflow (see above) that flags the faces it applies at
+    [[nodiscard]] int inflow_flag_comp () const { return static_cast<int>(cons_comp.size()); }
 
     //! Zero the fluxes at the start of an Advance of length a_dt
     void reset (amrex::Real a_dt)

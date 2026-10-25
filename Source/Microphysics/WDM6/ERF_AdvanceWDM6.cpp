@@ -672,9 +672,13 @@ void WDM6::Advance (const Real& dt_advance,
     m_lmask = lmask_col.get();
     auto sed_saved = m_sed.down;
     m_sed.down = m_columns.gather_one(*sed_saved);
+    const MultiFab* inflow_saved = m_sed_inflow;
+    auto inflow_col = (m_sed_inflow) ? m_columns.gather_one(*m_sed_inflow) : nullptr;
+    m_sed_inflow = inflow_col.get();
 
     AdvanceColumns(dt_advance, solverChoice);
 
+    m_sed_inflow = inflow_saved;
     sed_saved->ParallelCopy(*m_sed.down);
     m_sed.down = sed_saved;
     m_lmask = lmask_saved;
@@ -1257,7 +1261,28 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
             });
         }
 
+        // At the top of a fine patch, rain, snow, ... come in from the coarse level: add
+        // each minor step's share of it to the top cell before that step, so it falls with
+        // what is already there, and record it on the top face.
+        const auto inflow_arr = (m_sed_inflow) ? m_sed_inflow->const_array(mfi)
+                                               : Array4<const Real>{};
+        const Real inflow_share = Real(1) / static_cast<Real>(wdm6_loops);
+
         for (int loop = 0; loop < wdm6_loops; ++loop) {
+            if (inflow_arr) {
+                ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+                    if (inflow_arr(i,j,khi+1,WDM6Sed::NumComps) < Real(0.5)) { return; }
+                    const Real fac = inflow_share / (den_arr(i,j,khi) * delz_arr(i,j,khi));
+                    qi_arr(i,j,khi) += inflow_arr(i,j,khi+1,WDM6Sed::qi) * fac;
+                    qr_arr(i,j,khi) += inflow_arr(i,j,khi+1,WDM6Sed::qr) * fac;
+                    qs_arr(i,j,khi) += inflow_arr(i,j,khi+1,WDM6Sed::qs) * fac;
+                    qg_arr(i,j,khi) += inflow_arr(i,j,khi+1,WDM6Sed::qg) * fac;
+                    nr_arr(i,j,khi) += inflow_arr(i,j,khi+1,WDM6Sed::nr) * fac;
+                    for (int n = 0; n < WDM6Sed::NumComps; ++n) {
+                        sed_arr(i,j,khi+1,n) += inflow_arr(i,j,khi+1,n) * inflow_share;
+                    }
+                });
+            }
             // ============================================================
             // Step 1: Density factor (G1b / DENFAC)
             // ============================================================

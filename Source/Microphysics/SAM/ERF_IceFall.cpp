@@ -116,6 +116,10 @@ void SAM::IceFall (const SolverChoice& sc) {
             auto rho_array   = rho->array(mfi);
             auto fz_array    = fz.array(mfi);
             auto sed_array   = m_sed.down->array(mfi);
+            const auto inflow_array = (m_sed_inflow) ? m_sed_inflow->const_array(mfi)
+                                                     : Array4<const Real>{};
+            const int inflow_flag = m_sed.inflow_flag_comp();
+            const Real inv_dt = one / dt;
 
             const auto dJ_array = (m_detJ_cc) ? m_detJ_cc->const_array(mfi) : Array4<const Real>{};
 
@@ -153,6 +157,11 @@ void SAM::IceFall (const SolverChoice& sc) {
                                                                   qci_array(i,j,donor_k),
                                                                   detJ_donor,
                                                                   coef);
+                // At the top of a fine patch the ice coming in is the coarse level's flux
+                // through that face, not one built from interpolated ghost cells
+                if (inflow_array && inflow_array(i,j,k,inflow_flag) > Real(0.5)) {
+                    fz_array(i,j,k) = inflow_array(i,j,k,3) * inv_dt;
+                }
                 sed_array(i,j,k,3) += fz_array(i,j,k) * dtn;
             });
 

@@ -194,9 +194,13 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
         m_z_phys_nd = z_phys_nd_col.get();
         auto sed_saved = m_sed.down;
         m_sed.down = m_columns.gather_one(*sed_saved);
+        const MultiFab* inflow_saved = m_sed_inflow;
+        auto inflow_col = (m_sed_inflow) ? m_columns.gather_one(*m_sed_inflow) : nullptr;
+        m_sed_inflow = inflow_col.get();
 
         AdvanceColumns(dt_advance, sc);
 
+        m_sed_inflow = inflow_saved;
         sed_saved->ParallelCopy(*m_sed.down);
         m_sed.down = sed_saved;
         m_z_phys_nd = z_phys_nd_saved;
@@ -284,6 +288,8 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
           auto const& graup_accum_arr = mic_fab_vars[MicVar_Morr::graup_accum]->array(mfi);
           auto const& w_arr           = mic_fab_vars[MicVar_Morr::omega]->array(mfi);
           auto const& sed_arr         = m_sed.down->array(mfi);
+          const auto inflow_arr = (m_sed_inflow) ? m_sed_inflow->const_array(mfi)
+                                                 : Array4<const Real>{};
 
           // Get radar reflectivity array if radar diagnostics enabled
           //        auto const& refl_arr = m_do_radar_ref ? m_radar->array(mfi) : nullptr;
@@ -2580,6 +2586,28 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
             } // k
 
             nstep = 1;
+
+            // At the top of a fine patch, rain, snow, ... come in from the coarse level.
+            // Add what enters during this step to the top cell as a tendency, before the
+            // fall speeds are computed, so it falls with what is already there; record it
+            // on the top face.
+            if (inflow_arr && inflow_arr(i,j,khi+1,MorrSed::NumComps) > Real(0.5)) {
+                const Real fac = one / (morr_arr(i,j,khi,MORRInd::rho) * morr_arr(i,j,khi,MORRInd::dzq) * dt);
+                morr_arr(i,j,khi,MORRInd::qc3dten)  += inflow_arr(i,j,khi+1,MorrSed::qc) * fac;
+                morr_arr(i,j,khi,MORRInd::qi3dten)  += inflow_arr(i,j,khi+1,MorrSed::qi) * fac;
+                morr_arr(i,j,khi,MORRInd::qr3dten)  += inflow_arr(i,j,khi+1,MorrSed::qr) * fac;
+                morr_arr(i,j,khi,MORRInd::qni3dten) += inflow_arr(i,j,khi+1,MorrSed::qs) * fac;
+                morr_arr(i,j,khi,MORRInd::qg3dten)  += inflow_arr(i,j,khi+1,MorrSed::qg) * fac;
+                morr_arr(i,j,khi,MORRInd::nc3dten)  += inflow_arr(i,j,khi+1,MorrSed::nc) * fac;
+                morr_arr(i,j,khi,MORRInd::ni3dten)  += inflow_arr(i,j,khi+1,MorrSed::ni) * fac;
+                morr_arr(i,j,khi,MORRInd::nr3dten)  += inflow_arr(i,j,khi+1,MorrSed::nr) * fac;
+                morr_arr(i,j,khi,MORRInd::ns3dten)  += inflow_arr(i,j,khi+1,MorrSed::ns) * fac;
+                morr_arr(i,j,khi,MORRInd::ng3dten)  += inflow_arr(i,j,khi+1,MorrSed::ng) * fac;
+                for (int n = 0; n < MorrSed::NumComps; ++n) {
+                    sed_arr(i,j,khi+1,n) += inflow_arr(i,j,khi+1,n);
+                }
+                ltrue = 1;
+            }
 
             if (ltrue != 0) {
             //goto 400
