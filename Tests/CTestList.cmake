@@ -966,9 +966,10 @@ endfunction(add_test_at_rest_terrain_outflow)
 # (InflowThetaDensity) and on an inflow_outflow face (InflowOutflowThetaFile), and only the
 # face that read the file uses it (InflowThetaFileOtherFace, a second inflow face with its
 # own density and theta).  PRE_INPUT names a deck in the test folder to run first, in the same
-# folder (BndryPlanes_MoistTemperature writes the boundary planes its deck then reads).
+# folder (BndryPlanes_MoistTemperature writes the boundary planes its deck then reads).  MIN_HI
+# and MAX_LO further require the minimum to be at most MIN_HI and the maximum at least MAX_LO.
 function(add_test_field_bounds TEST_NAME PLTFILE VARIABLE LO HI)
-    cmake_parse_arguments(ADD_TEST_FB "" "PRE_INPUT" "" ${ARGN})
+    cmake_parse_arguments(ADD_TEST_FB "" "PRE_INPUT;MIN_HI;MAX_LO" "" ${ARGN})
     setup_test()
     set(_pre_input "")
     if(NOT "${ADD_TEST_FB_PRE_INPUT}" STREQUAL "")
@@ -989,6 +990,8 @@ function(add_test_field_bounds TEST_NAME PLTFILE VARIABLE LO HI)
         "-DLO=${LO}"
         "-DHI=${HI}"
         "-DPRE_INPUT=${_pre_input}"
+        "-DMIN_HI=${ADD_TEST_FB_MIN_HI}"
+        "-DMAX_LO=${ADD_TEST_FB_MAX_LO}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunFieldBounds.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -1406,6 +1409,15 @@ set_tests_properties(BndryPlanes_MoistTemperature PROPERTIES FIXTURES_SETUP Bndr
 add_test_field_bounds(InputSponge_FinePatch "plt00004" x_velocity 5.9 8.5)
 # A refined patch below the inversion takes the coarse level's PBL height (~513 m), not its own
 add_test_field_bounds(PBLH_FinePatch "plt2d00004" pblh 450.0 600.0)
+# A column whose bulk Richardson number never reaches Ribcr takes the top of the scan, capped
+# at 0.9 z(khi) = 907.2 m; YSUNew and MRF gave it the 16 m floor (erf-model/ERF#4458)
+add_test_field_bounds(PBL_NoCrossing_YSUNew "plt2d00002" pblh 907.1 907.3)
+add_test_field_bounds(PBL_NoCrossing_MRF    "plt2d00002" pblh 907.1 907.3)
+# YSUNew columns whose surface cell is already above Ribcr take the 16 m floor, and the others
+# 907.2 m; the interpolation divided 0 by 0 there and the run stopped at the floating-point trap.
+# Both ends are required, so the test also fails where no trap fires (#4458)
+add_test_field_bounds(PBL_SurfaceCrossing_YSUNew "plt2d00002" pblh 15.99 907.3
+                      MIN_HI 16.01 MAX_LO 907.1)
 # k-eqn RANS canopy terms in a uniform, fully forested box: one step of the wind (drag with
 # density) and of k (wake production, short-circuit sink, length cap, implicit dissipation)
 # against the closed-form stage solution in the deck. The wall at the bottom (needed for the

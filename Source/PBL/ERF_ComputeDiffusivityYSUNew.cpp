@@ -7,6 +7,7 @@
 #include "ERF_Constants.H"
 #include "ERF_TurbStruct.H"
 #include "ERF_PBLModels.H"
+#include "ERF_PBLRibCrossing.H"
 #include "ERF_TileNoZ.H"
 #include "ERF_MoistUtils.H"
 
@@ -331,6 +332,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         IArrayBox ksurf_fab(xybx_work, 1, The_Async_Arena());
         FArrayBox zib_fab(xybx_work, 1, The_Async_Arena());
         FArrayBox pblh_floor_fab(xybx_work, 1, The_Async_Arena());   // floor of the corrected height per column, reapplied after the smoothing
+        IArrayBox pbl_open_fab(xybx_work, 1, The_Async_Arena());     // 1 where the corrector found no Ribcr crossing up to khi
         FArrayBox us_eff_fab(xybx_work, 1, The_Async_Arena()), ts_eff_fab(xybx_work, 1, The_Async_Arena());
         FArrayBox qs_eff_fab(xybx_work, 1, The_Async_Arena()), ol_eff_fab(xybx_work, 1, The_Async_Arena());
         FArrayBox t10_eff_fab(xybx_work, 1, The_Async_Arena()), q10_eff_fab(xybx_work, 1, The_Async_Arena());
@@ -338,6 +340,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         const auto& ksurf_arr = ksurf_fab.array();
         const auto& zib_arr   = zib_fab.array();
         const auto& pblh_floor_arr = pblh_floor_fab.array();
+        const auto& pbl_open_arr   = pbl_open_fab.array();
         const auto& us_eff_arr = us_eff_fab.array();  const auto& ts_eff_arr = ts_eff_fab.array();
         const auto& qs_eff_arr = qs_eff_fab.array();  const auto& ol_eff_arr = ol_eff_fab.array();
         const auto& t10_eff_arr = t10_eff_fab.array(); const auto& q10_eff_arr = q10_eff_fab.array();
@@ -687,27 +690,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                                          ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_nd_arr)
                                          : zib;
 
-            int kpbl = ksrf;
-            Real zval0 = zero, Rib0 = zero;
-            // GAP 9: Seed from surface bulk Richardson number (WRF bl_ysu.F90 lines 620-621)
-            // WRF seeds the loop with br (surface bulk Ri) so ksrf is checked first.
-            Real Rib = rib_enhan_arr(i,j,ksrf);  // Seed from surface level
-            zval0 = (use_terrain_fitted_coords)
-                  ? Compute_Zrel_AtCellCenter(i,j,ksrf,z_nd_arr)
-                  : (ksrf + myhalf) * dz;
-            Rib0 = Rib;
-            bool above_critical = (Rib >= Ribcr);  // Check if already above critical
-
-            // Scan rib_enhan_arr to find first crossing of Ribcr with linear interpolation
-            for (int kk = ksrf+1; !above_critical && kk <= khi; ++kk) {
-                if (rib_enhan_arr(i,j,kk) >= Ribcr) { kpbl = kk; above_critical = true; break; }
-                zval0 = (use_terrain_fitted_coords)
-                      ? Compute_Zrel_AtCellCenter(i,j,kk,z_nd_arr)
-                      : (kk + myhalf) * dz;
-                Rib0 = rib_enhan_arr(i,j,kk);
-                kpbl = kk;
-            }
-
             // Compute bounds for pblh clamping
             const Real z_sfc = (use_terrain_fitted_coords)
                               ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_nd_arr)
@@ -729,18 +711,18 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 pblh_min = amrex::max(z_sfc + Real(0.5) * dz_terrain, Real(10.0));
             }
 
-            // Linear interpolation from previous level if crossing detected
-            if (kpbl < khi && rib_enhan_arr(i,j,kpbl) >= Ribcr) {
-                const Real zval = (use_terrain_fitted_coords)
-                                ? Compute_Zrel_AtCellCenter(i,j,kpbl,z_nd_arr)
-                                : (kpbl + myhalf) * dz;
-                Rib = rib_enhan_arr(i,j,kpbl);
-                Real pblh_interp = zval0 + (zval - zval0) / (Rib - Rib0) * (Ribcr - Rib0);
-                pblh_corr_arr(i, j, 0) = amrex::max(amrex::min(pblh_interp, pblh_max), pblh_min);
-            } else {
-                pblh_corr_arr(i, j, 0) = pblh_min;
-            }
-            pbli_arr(i, j, 0) = kpbl;
+            // Scan rib_enhan_arr from the surface cell up (GAP 9: WRF bl_ysu.F90 lines 620-621
+            // seed the scan with the surface bulk Ri, so ksrf is checked first) and interpolate
+            // between the levels that bracket Ribcr.  The surface cell at or above Ribcr gives
+            // pblh_min; no crossing up to khi gives the top of the scan, capped by pblh_max.
+            auto rib_at = [=] (int kk) { return rib_enhan_arr(i,j,kk); };
+            auto z_at   = [=] (int kk) {
+                return (use_terrain_fitted_coords) ? Compute_Zrel_AtCellCenter(i,j,kk,z_nd_arr)
+                                                   : (kk + myhalf) * dz;
+            };
+            const RibCrossing pbl = find_rib_crossing(ksrf, khi, Ribcr, rib_at, z_at, pblh_min, pblh_max);
+            pblh_corr_arr(i, j, 0) = pbl.pblh;
+            pbli_arr(i, j, 0) = pbl.kpbl;
 
             // Initialize countergradient fluxes for now
             hgamt_arr(i, j, 0) = zero;
@@ -1104,25 +1086,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 }
             }
 
-            // Rescan rib_enhan_arr with updated values
-            int kpbl = ksrf;
-            Real zval0 = zero, Rib0 = zero;
-            Real Rib = rib_enhan_arr(i,j,ksrf);
-            zval0 = (use_terrain_fitted_coords)
-                  ? Compute_Zrel_AtCellCenter(i,j,ksrf,z_nd_arr)
-                  : (ksrf + myhalf) * dz;
-            Rib0 = Rib;
-            bool above_critical = (Rib >= Ribcr);
-
-            for (int kk = ksrf+1; !above_critical && kk <= khi; ++kk) {
-                if (rib_enhan_arr(i,j,kk) >= Ribcr) { kpbl = kk; above_critical = true; break; }
-                zval0 = (use_terrain_fitted_coords)
-                      ? Compute_Zrel_AtCellCenter(i,j,kk,z_nd_arr)
-                      : (kk + myhalf) * dz;
-                Rib0 = rib_enhan_arr(i,j,kk);
-                kpbl = kk;
-            }
-
             // Compute bounds
             const Real z_sfc = (use_terrain_fitted_coords)
                               ? Compute_Zrel_AtCellCenter(i, j, ksrf, z_nd_arr)
@@ -1148,18 +1111,18 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             }
             pblh_floor_arr(i, j, 0) = pblh_min;
 
-            // Update PBL height with the enhanced Rib values
-            if (kpbl < khi && rib_enhan_arr(i,j,kpbl) >= Ribcr) {
-                const Real zval = (use_terrain_fitted_coords)
-                                ? Compute_Zrel_AtCellCenter(i,j,kpbl,z_nd_arr)
-                                : (kpbl + myhalf) * dz;
-                Rib = rib_enhan_arr(i,j,kpbl);
-                Real pblh_interp = zval0 + (zval - zval0) / (Rib - Rib0) * (Ribcr - Rib0);
-                pblh_corr_arr(i, j, 0) = amrex::max(amrex::min(pblh_interp, pblh_max), pblh_min);
-            } else {
-                pblh_corr_arr(i, j, 0) = pblh_min;
-            }
-            pbli_arr(i, j, 0) = kpbl;
+            // Rescan the updated rib_enhan_arr from the surface cell up, as in the first
+            // corrector pass (see ERF_PBLRibCrossing.H).  A column with no crossing is marked,
+            // so that no entrainment flux is put at its top cell below.
+            auto rib_at = [=] (int kk) { return rib_enhan_arr(i,j,kk); };
+            auto z_at   = [=] (int kk) {
+                return (use_terrain_fitted_coords) ? Compute_Zrel_AtCellCenter(i,j,kk,z_nd_arr)
+                                                   : (kk + myhalf) * dz;
+            };
+            const RibCrossing pbl = find_rib_crossing(ksrf, khi, Ribcr, rib_at, z_at, pblh_min, pblh_max);
+            pblh_corr_arr(i, j, 0) = pbl.pblh;
+            pbli_arr(i, j, 0) = pbl.kpbl;
+            pbl_open_arr(i, j, 0) = pbl.crossed ? 0 : 1;
         });
 
         // Apply PBLH spatial smoothing if enabled (Seibert et al. 2000 methodology)
@@ -1310,6 +1273,10 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 const int  ksrf = ksurf_arr(i, j, 0);   // local surface: first fluid cell of the column
                 entr_arr(i,j,0) = zero;
                 if (!enable_ysu_entrainment) return;
+                // No Ribcr crossing up to khi: kpbl = khi is the top of the domain, not an
+                // inversion, so no entrainment flux goes there (in WRF bl_ysu.F90 the
+                // entrainment diffusivity applies at k >= kpbl, above its last face when kpbl = kte)
+                if (pbl_open_arr(i,j,0) != 0) return;
 
                 const int kpbl     = pbli_arr(i,j,0);
                 const Real rho_kpbl = cell_data(i, j, kpbl, Rho_comp);
