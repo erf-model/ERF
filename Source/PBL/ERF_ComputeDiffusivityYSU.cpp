@@ -122,7 +122,11 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
             const Real t_surf = t_surf_arr(i,j,0);
             const Real t_layer = t10av_arr(i,j,0);
             const Real ws_layer = ws10av_arr(i,j,0);
-            const Real Rib_layer = CONST_GRAV * most_zref / (ws_layer*ws_layer) * (t_layer - t_surf)/(t_layer);
+            // The squared wind speed in the bulk Richardson numbers is floored at 1 m^2/s^2,
+            // as in WRF's YSU (and YSUNew), so a calm column gives a finite number
+            const Real ws2_floor = Real(1.0);
+            const Real Rib_layer = CONST_GRAV * most_zref / amrex::max(ws_layer*ws_layer, ws2_floor)
+                                 * (t_layer - t_surf)/(t_layer);
 
             // For now, we only support stable boundary layers
             if (Rib_layer < unst_Ribcr) {
@@ -159,7 +163,7 @@ ComputeDiffusivityYSU (const MultiFab& xvel,
                                               + (vvel(i,j,kpbl)+vvel(i  ,j+1,kpbl))*(vvel(i,j,kpbl)+vvel(i  ,j+1,kpbl)) );
                 const Real theta = cell_data(i,j,kpbl,RhoTheta_comp) / cell_data(i,j,kpbl,Rho_comp);
                 Rib_dn = Rib_up;
-                Rib_up = (theta-base_theta)/base_theta * CONST_GRAV * zval / ws2_level;
+                Rib_up = (theta-base_theta)/base_theta * CONST_GRAV * zval / amrex::max(ws2_level, ws2_floor);
                 above_critical = Rib_up >= Rib_cr;
             }
 
