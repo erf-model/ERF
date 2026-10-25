@@ -83,7 +83,7 @@ void RadiationSimple::Run (int& level,
 
     for (MFIter mfi(*cons_in, TileNoZ()); mfi.isValid(); ++mfi)
     {
-        Box box = mfi.validbox();
+        Box box = mfi.tilebox();
         box.makeSlab(2, 0);
 
         const Array4<const Real>& cons_arr = cons_in->const_array(mfi);
