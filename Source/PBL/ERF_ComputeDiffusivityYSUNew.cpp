@@ -147,15 +147,29 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
     const int ng_pblh = (turbChoice.enable_pblh_smoothing)
                       ? std::max(1, turbChoice.pblh_smoothing_passes) : 1;
     if (ng_pblh > 1) {
-        const int ng_avail = std::min({cons_in.nGrowVect()[0], cons_in.nGrowVect()[1],
-                                       xvel.nGrowVect()[0],    xvel.nGrowVect()[1],
-                                       yvel.nGrowVect()[0],    yvel.nGrowVect()[1],
-                                       SurfLayer->get_u_star(level)->nGrowVect()[0],
-                                       SurfLayer->get_u_star(level)->nGrowVect()[1],
-                                       SurfLayer->get_olen(level)->nGrowVect()[0],
-                                       SurfLayer->get_olen(level)->nGrowVect()[1],
-                                       (terrain_blank) ? terrain_blank->nGrowVect()[0] : 1000,
-                                       (terrain_blank) ? terrain_blank->nGrowVect()[1] : 1000});
+        int ng_avail = std::min({cons_in.nGrowVect()[0], cons_in.nGrowVect()[1],
+                                 xvel.nGrowVect()[0],    xvel.nGrowVect()[1],
+                                 yvel.nGrowVect()[0],    yvel.nGrowVect()[1],
+                                 SurfLayer->get_u_star(level)->nGrowVect()[0],
+                                 SurfLayer->get_u_star(level)->nGrowVect()[1],
+                                 SurfLayer->get_olen(level)->nGrowVect()[0],
+                                 SurfLayer->get_olen(level)->nGrowVect()[1],
+                                 (terrain_blank) ? terrain_blank->nGrowVect()[0] : 1000,
+                                 (terrain_blank) ? terrain_blank->nGrowVect()[1] : 1000});
+        // The PBLH passes also read these fields over the same widened region;
+        // a field that is not allocated (nullptr) is not read.
+        auto limit_by = [&ng_avail] (const auto* mf) {
+            if (mf) { ng_avail = std::min({ng_avail, mf->nGrowVect()[0], mf->nGrowVect()[1]}); }
+        };
+        limit_by(SurfLayer->get_t_star(level));
+        limit_by(SurfLayer->get_q_star(level));
+        limit_by(SurfLayer->get_mac_avg(level, 3));
+        limit_by(SurfLayer->get_mac_avg(level, 4));
+        limit_by(SurfLayer->get_mac_avg(level, 6));
+        limit_by(SurfLayer->get_z0(level));
+        limit_by(SurfLayer->get_lmask(level));
+        limit_by(z_phys_nd.get());
+        limit_by(qheating_rates);
         if (ng_pblh > ng_avail) {
             amrex::Abort("erf.pblh_smoothing_passes = " + std::to_string(turbChoice.pblh_smoothing_passes)
                        + " needs " + std::to_string(ng_pblh) + " halo columns, but the state and "
