@@ -1416,7 +1416,13 @@ List of Parameters
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.der_data_log**                | Output filename(s) for derived data                      | Up to four strings | NONE             |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.energy_data_log**             | Output filename(s) for total energy                      | Up to four strings | NONE             |
+| **erf.energy_data_log**             | Output filename(s) for the level-0 domain means of the   | Up to four strings | NONE             |
+|                                     | total mass, rho_d (1 + q_t), and total energy; q_t sums  |                    |                  |
+|                                     | vapour, liquid (cloud, rain) and ice mixing ratios, and  |                    |                  |
+|                                     | the energy is internal (dry air, vapour, liquid, ice,    |                    |                  |
+|                                     | minus latent heats of liquid and ice) plus kinetic and   |                    |                  |
+|                                     | potential; written every erf.sum_interval steps when     |                    |                  |
+|                                     | erf.v > 0                                                |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.profile_int**                 | Interval (number) of steps between outputs               | Integer            | -1               |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+

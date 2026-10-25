@@ -7,6 +7,8 @@
 
 #include "ERF.H"
 #include "ERF_Derive.H"
+#include "ERF_MoistUtils.H"
+#include "ERF_MicrophysicsConstants.H"
 
 using namespace amrex;
 
@@ -356,7 +358,9 @@ ERF::sum_energy_quantities (double time)
     MultiFab tot_energy(grids[lev], dmap[lev], AMREX_SPACEDIM, IntVect(0,0,0));
 
     auto const& dx = geom[lev].CellSizeArray();
+    auto const  prob_lo = geom[lev].ProbLoArray();
     bool is_moist = (solverChoice.moisture_type != MoistureType::None);
+    const MoistureComponentIndices moist_idx = solverChoice.moisture_indices;
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -369,27 +373,34 @@ ERF::sum_energy_quantities (double time)
         const Array4<Real>& tot_mass_arr   = tot_mass.array(mfi);
         const Array4<Real>& tot_energy_arr = tot_energy.array(mfi);
         const Array4<const Real>& cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
-        const Array4<const Real>& z_arr    = (z_phys_nd[lev]) ? z_phys_nd[lev]->const_array(mfi) :
+        const Array4<const Real>& z_arr    = (z_phys_cc[lev]) ? z_phys_cc[lev]->const_array(mfi) :
                                                                 Array4<const Real>{};
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            Real Qv   = (is_moist) ? cons_arr(i,j,k,RhoQ1_comp) : zero;
-            Real Qc   = (is_moist) ? cons_arr(i,j,k,RhoQ2_comp) : zero;
-            Real Qt   = Qv + Qc;
+            // Mixing ratios of vapour, of all liquid (cloud and rain) and of all ice (cloud
+            // ice, snow, graupel); the state holds rho_d times each species
+            Real Qv = zero, Ql = zero, Qi = zero;
+            if (is_moist) { GetMoistureVars(i, j, k, cons_arr, Qv, Ql, Qi, moist_idx); }
+            Real Qt   = Qv + Ql + Qi;
             Real Rhod = cons_arr(i,j,k,Rho_comp);
             Real Rhot = Rhod * (one + Qt);
             Real Temp = getTgivenRandRTh(Rhod, cons_arr(i,j,k,RhoTheta_comp), Qv);
             Real TKE  = myhalf * ( cc_vel_arr(i,j,k,0)*cc_vel_arr(i,j,k,0)
                               + cc_vel_arr(i,j,k,1)*cc_vel_arr(i,j,k,1)
                               + cc_vel_arr(i,j,k,2)*cc_vel_arr(i,j,k,2) );
-            Real zval = (z_arr) ? z_arr(i,j,k) : Real(k)*dx[2];
+            // Height of the cell centre
+            Real zval = (z_arr) ? z_arr(i,j,k) : prob_lo[2] + (Real(k) + myhalf)*dx[2];
 
+            // Heat capacities at constant volume of dry air and vapour, and of liquid
+            // water and ice; latent heats of vaporization and sublimation (constant)
             Real Cv   = Cp_d - R_d;
             Real Cvv  = Cp_v - R_v;
-            Real Cpv  = Cp_v;
+            Real Cl   = Cp_l;
+            Real Ci   = Real(2106.0);
+            Real Ls   = L_v + lfus;
 
             tot_mass_arr(i,j,k)   = Rhot;
-            tot_energy_arr(i,j,k) = Rhod * ( (Cv + Cvv*Qv + Cpv*Qc)*Temp - L_v*Qc
+            tot_energy_arr(i,j,k) = Rhod * ( (Cv + Cvv*Qv + Cl*Ql + Ci*Qi)*Temp - L_v*Ql - Ls*Qi
                                            + (one + Qt)*TKE + (one + Qt)*CONST_GRAV*zval );
 
         });
