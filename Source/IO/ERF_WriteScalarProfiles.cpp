@@ -391,16 +391,18 @@ ERF::sum_energy_quantities (double time)
             // Height of the cell centre
             Real zval = (z_arr) ? z_arr(i,j,k) : prob_lo[2] + (Real(k) + myhalf)*dx[2];
 
-            // Heat capacities at constant volume of dry air and vapour, and of liquid
-            // water and ice; latent heats of vaporization and sublimation (constant)
+            // Internal energy with constant heat capacities (Romps 2008, J. Atmos. Sci. 65,
+            // 3779), measured from liquid water at the triple point: vapour carries
+            // E0v = L_v - R_v T_trip, ice -E0s with E0s = L_f. The latent heats this
+            // implies follow Kirchhoff's law, e.g. L_v(T) = L_v + (c_pv - c_l)(T - T_trip).
             Real Cv   = Cp_d - R_d;
             Real Cvv  = Cp_v - R_v;
-            Real Cl   = Cp_l;
-            Real Ci   = Real(2106.0);
-            Real Ls   = L_v + lfus;
+            Real E0v  = L_v - R_v*h2otrip;
+            Real E0s  = lfus;
 
             tot_mass_arr(i,j,k)   = Rhot;
-            tot_energy_arr(i,j,k) = Rhod * ( (Cv + Cvv*Qv + Cl*Ql + Ci*Qi)*Temp - L_v*Ql - Ls*Qi
+            tot_energy_arr(i,j,k) = Rhod * ( (Cv + Cvv*Qv + Cp_l*Ql + Cp_i*Qi)*(Temp - h2otrip)
+                                           + Qv*E0v - Qi*E0s
                                            + (one + Qt)*TKE + (one + Qt)*CONST_GRAV*zval );
 
         });
