@@ -107,11 +107,14 @@ SLM::writeNCHeader (ncutils::NCFile &nc_file, const amrex::Geometry &geom)
     nc_file.def_var("y", ncutils::NCDType::Real, {"y"});
     nc_file.def_var("z", ncutils::NCDType::Real, {"z"});
 
-    // enable collective mode for parallel NetCDF
+    // The x, y and z coordinates are written below from inside an MFIter loop, so
+    // each rank makes one put call per box that it owns.  Ranks can own different
+    // numbers of boxes, so we must use independent rather than collective access,
+    // otherwise the write hangs waiting for ranks that have no box left.
     nc_file.var("time").par_access(NC_COLLECTIVE);
-    nc_file.var("x").par_access(NC_COLLECTIVE);
-    nc_file.var("y").par_access(NC_COLLECTIVE);
-    nc_file.var("z").par_access(NC_COLLECTIVE);
+    nc_file.var("x").par_access(NC_INDEPENDENT);
+    nc_file.var("y").par_access(NC_INDEPENDENT);
+    nc_file.var("z").par_access(NC_INDEPENDENT);
 
     // write other metadata
 
@@ -294,8 +297,11 @@ void SLM::writeMFtoNC (ncutils::NCFile &nc_file, const MultiFab* mf,
         data = mf_tmp.get();
     }
 
-    // TODO: fix - this is required since file opened each time step, so the variable access prop is reset
-    nc_file.var(name).par_access(NC_COLLECTIVE);
+    // The data below is written from inside an MFIter loop, so each rank makes one put
+    // call per box that it owns.  Ranks can own different numbers of boxes, so we must
+    // use independent rather than collective access.  The access mode is reset each time
+    // the file is opened, so it is set here on every call.
+    nc_file.var(name).par_access(NC_INDEPENDENT);
 
     amrex::Arena* Arena_Used = amrex::The_Arena();
 #ifdef AMREX_USE_GPU
@@ -351,6 +357,7 @@ void SLM::writeMFtoNC (ncutils::NCFile &nc_file, const MultiFab* mf,
                     tmp_arr(i, j, k) = mf_arr(i, j, k);
                 });
             }
+            Gpu::streamSynchronize();
 
             nc_file.var(name).put(dataPtr, starts, counts);
         }
