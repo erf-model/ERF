@@ -229,7 +229,13 @@ Launder, as recalibrated by AL01 against the Högström data set, are
    c_\mu' = \frac{c_\mu^0}{1 + 0.277 \, R_t}
 
 (AL01 Eqs. 31-32; the turbulent Prandtl number is :math:`c_\mu / c_\mu'`).
-Both have poles near :math:`R_t = -3.6`. Below a critical value
+:math:`c_\mu` has its pole at the larger root of its denominator,
+:math:`R_t^{pole} = (-0.308 + \sqrt{0.308^2 - 4 \cdot 0.00837}) / (2 \cdot 0.00837)
+\approx -3.59869`, and :math:`c_\mu'` at :math:`-1/0.277 \approx -3.61011`.
+Just below :math:`R_t^{pole}` the denominator of :math:`c_\mu` is negative, and
+:math:`c_\mu` (with the eddy viscosity) stays negative down to the zero of its
+numerator, :math:`-c_\mu^0/0.108` (:math:`-5.15` for the default
+:math:`c_\mu^0`). Below a critical value
 :math:`R_t^c` (``erf.Rt_crit``, default :math:`-1`) the smoothing of
 Burchard and Petersen maps :math:`R_t` onto :math:`(R_t^{min}, R_t^c)`
 with :math:`R_t^{min}` = ``erf.Rt_min`` (default :math:`-3`):
@@ -244,8 +250,17 @@ terms of order :math:`|R_t|` and returned meaningless values once
 :math:`|R_t|` exceeded about :math:`10^{15}`, which happens wherever
 :math:`k` sits at its floor under an unstable :math:`N^2`. The inputs are
 validated at start-up: :math:`R_t^{min} < R_t^c \le 0` and
-:math:`R_t^{min} > -3.6`. The smoothed :math:`R_t` and the two functions
-can be written to the plotfile as ``Rt``, ``cmu`` and ``cmu_prime``.
+:math:`R_t^{min} > -3.5986889`, just above :math:`R_t^{pole}`, so the
+smoothed :math:`R_t` never reaches the pole, and
+:math:`R_t^{min} > -c_\mu^0/0.108`, so the numerator of :math:`c_\mu` stays
+positive (this is the tighter limit when :math:`c_\mu^0 < 0.3887`).
+Values close to the pole are accepted but are not physically meaningful:
+:math:`c_\mu` is 1.53 at :math:`-3`, 7.26 at :math:`-3.5`, 78 at
+:math:`-3.59` and about 980 at :math:`-3.598`, against
+:math:`c_\mu^0 = 0.5562`, and the turbulent Prandtl number
+:math:`c_\mu / c_\mu'` rises from 0.40 at :math:`-3.5` to 5.9 at
+:math:`-3.598`. Keep :math:`R_t^{min}` at about :math:`-3.5` or above.
+The smoothed :math:`R_t` and the two functions can be written to the plotfile as ``Rt``, ``cmu`` and ``cmu_prime``.
 
 Wall condition on :math:`k`
 ---------------------------
@@ -329,7 +344,7 @@ Inputs
 +----------------------------------------+------------------------------------------------------------+------------------+
 | **erf.Cmu0**, **erf.Cb**               | :math:`c_\mu^0`, :math:`c_b`                               | 0.5562, 0.35     |
 +----------------------------------------+------------------------------------------------------------+------------------+
-| **erf.Rt_crit**, **erf.Rt_min**        | smoothing bounds on :math:`R_t`                            | -1, -3           |
+| **erf.Rt_crit**, **erf.Rt_min**        | smoothing bounds on :math:`R_t`; see the limits above      | -1, -3           |
 +----------------------------------------+------------------------------------------------------------+------------------+
 | **erf.max_geom_lscale**                | cap on :math:`l_g` [m]                                     | 30               |
 +----------------------------------------+------------------------------------------------------------+------------------+

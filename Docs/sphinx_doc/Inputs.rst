@@ -2184,15 +2184,18 @@ List of Parameters
 | **erf.Ri_crit**                        | critical Richardson number used by that correction       | Real               | 0.25             |
 |                                        | (per-level)                                              |                    |                  |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Cmu0**                           | k-equation RANS closure constant (per-level)             | Real               | 0.5562           |
+| **erf.Cmu0**                           | k-equation RANS closure constant (per-level); with       | Real > 0           | 0.5562           |
+|                                        | erf.Rt_min it must satisfy erf.Rt_min > -erf.Cmu0/0.108  |                    |                  |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.Cb**                             | k-equation buoyancy constant (per-level)                 | Real               | 0.35             |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Rt_crit**                        | critical turbulent Richardson number for the k-equation  | Real               | -1.0             |
+| **erf.Rt_crit**                        | critical turbulent Richardson number for the k-equation  | Real <= 0          | -1.0             |
 |                                        | closure (per-level)                                      |                    |                  |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.Rt_min**                         | minimum turbulent Richardson number for the k-equation   | Real               | -3.0             |
-|                                        | closure (per-level)                                      |                    |                  |
+| **erf.Rt_min**                         | minimum turbulent Richardson number for the k-equation   | Real in            | -3.0             |
+|                                        | closure (per-level); must lie above the pole of          | (max(-3.5986889,   |                  |
+|                                        | :math:`c_\mu` at -3.59869 and above -erf.Cmu0/0.108;     | -erf.Cmu0/0.108),  |                  |
+|                                        | values below about -3.5 give a very large :math:`c_\mu`  | erf.Rt_crit)       |                  |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.max_geom_lscale**                | upper bound [m] on the geometric mixing length           | Real > 0           | 30.0             |
 |                                        | (per-level)                                              |                    |                  |

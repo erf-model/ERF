@@ -12,6 +12,7 @@
 
 #include <cmath>
 #include <limits>
+#include <vector>
 
 using amrex::Real;
 
@@ -87,6 +88,74 @@ TEST(RANSClosure, SmoothingIsBoundedBelowByRtMinForAnyRt)
         EXPECT_GT(AL01::cmu_prime(s, Cmu0), Real(0)) << "Rt=" << Rt;
     }
     EXPECT_GT(Rt_min, AL01::Rt_min_lower_bound);
+}
+
+TEST(RANSClosure, RtMinLowerBoundSitsJustAboveThePoleOfCmu)
+{
+    // The pole of cmu is the larger root of 1 + 0.308 Rt + 0.00837 Rt^2,
+    // -3.5986889850 (computed here in double, independently of the header).
+    // The bound must lie above it, and not far above.
+    const double b = 0.308, c = 0.00837;
+    const double pole = (-b + std::sqrt(b*b - 4.0*c)) / (2.0*c);
+    EXPECT_GT(double(AL01::Rt_min_lower_bound), pole);
+    EXPECT_LT(double(AL01::Rt_min_lower_bound) - pole, 1e-6);
+    // the pole of cmu' (-1/0.277) lies below, so the bound covers both
+    EXPECT_LT(-1.0 / 0.277, pole);
+
+    // With the smallest Rt_min the check accepts, the smoothed Rt keeps cmu and
+    // cmu' finite and positive however unstable the air. Near the pole the
+    // denominator of cmu is about 4e-8, below float round-off, so this part
+    // runs in double precision only; -3.598 (cmu about 980) is checked in both.
+    const Real samples[] = {Real(-1.5), Real(-10), Real(-1e4), Real(-1e8), Real(-1e30)};
+    std::vector<Real> rt_mins = {Real(-3.598)};
+    if constexpr (sizeof(Real) == sizeof(double)) {
+        rt_mins.push_back(std::nextafter(AL01::Rt_min_lower_bound, Real(0)));
+    }
+    for (Real rt_min : rt_mins) {
+        for (Real Rt : samples) {
+            const Real s = AL01::smooth_Rt(Rt, Rt_crit, rt_min);
+            const Real cm = AL01::cmu(s, Cmu0);
+            const Real cp = AL01::cmu_prime(s, Cmu0);
+            ASSERT_TRUE(std::isfinite(cm)) << "Rt_min=" << rt_min << " Rt=" << Rt;
+            EXPECT_GT(cm, Real(0)) << "Rt_min=" << rt_min << " Rt=" << Rt;
+            EXPECT_GT(cp, Real(0)) << "Rt_min=" << rt_min << " Rt=" << Rt;
+        }
+    }
+
+    // The old bound (-3.6) accepted Rt_min = -3.599, below the pole: a strongly
+    // unstable cell (raw Rt below about -2.2e4) then gave a negative cmu.
+    if constexpr (sizeof(Real) == sizeof(double)) {
+        const Real s = AL01::smooth_Rt(Real(-1e8), Rt_crit, Real(-3.599));
+        EXPECT_LT(AL01::cmu(s, Cmu0), Real(0));
+        EXPECT_LT(Real(-3.599), AL01::Rt_min_lower_bound);
+    }
+}
+
+TEST(RANSClosure, RtMinAboveTheZeroOfTheCmuNumerator)
+{
+    // cmu = 0 where Cmu0 + 0.108 Rt = 0; below that (and above the pole) it is
+    // negative, which the pole bound alone does not exclude when Cmu0 < 0.3887.
+    EXPECT_NEAR(AL01::cmu(AL01::cmu_numerator_root(Cmu0), Cmu0), Real(0), tol());
+    EXPECT_NEAR(AL01::cmu_numerator_root(Cmu0), Real(-5.15), Real(1e-4));
+    // the default Cmu0: the pole is the binding limit
+    EXPECT_LT(AL01::cmu_numerator_root(Cmu0), AL01::Rt_min_lower_bound);
+
+    // Cmu0 = 0.3 with the default Rt_min = -3: the numerator's zero (-2.78)
+    // lies above Rt_min, so the start-up check must reject the pair, and a
+    // strongly unstable cell would otherwise get a negative cmu
+    const Real cmu0_low = Real(0.3);
+    EXPECT_GT(AL01::cmu_numerator_root(cmu0_low), Rt_min);
+    const Real s = AL01::smooth_Rt(Real(-1e4), Rt_crit, Rt_min);
+    EXPECT_LT(AL01::cmu(s, cmu0_low), Real(0));
+
+    // just above the zero, cmu and cmu' are positive for every smoothed Rt
+    const Real rt_min_ok = AL01::cmu_numerator_root(cmu0_low) + Real(1e-3);
+    const Real samples[] = {Real(-1.5), Real(-10), Real(-1e4), Real(-1e8), Real(-1e30)};
+    for (Real Rt : samples) {
+        const Real t = AL01::smooth_Rt(Rt, Real(-1), rt_min_ok);
+        EXPECT_GT(AL01::cmu(t, cmu0_low), Real(0)) << "Rt=" << Rt;
+        EXPECT_GT(AL01::cmu_prime(t, cmu0_low), Real(0)) << "Rt=" << Rt;
+    }
 }
 
 TEST(RANSClosure, GeometricLengthCapIsHarmonic)
