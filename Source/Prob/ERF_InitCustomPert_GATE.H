@@ -68,6 +68,8 @@
             Real theta_new = getThgivenTandP(Tnew,P,rdOcp);
             Real rhonew    = getRhogivenThetaPress(theta_new,P,rdOcp,qv);
             state_pert(i, j, k, Rho_comp) = rhonew - rho;
+            // Hold qv as well as P: rho changes, so rho*qv changes with it
+            if (use_moisture) { state_pert(i, j, k, RhoQ1_comp) = (rhonew - rho) * qv; }
 
             // Note we do not perturb this
             state_pert(i, j, k, RhoTheta_comp) = 0.0;
@@ -84,7 +86,6 @@
         }
 
         if (use_moisture) {
-            state_pert(i, j, k, RhoQ1_comp) = 0.0;
             state_pert(i, j, k, RhoQ2_comp) = 0.0;
             if ((z <= pert_ref_height) && (qv_0_Pert_Mag != 0.0))
             {
@@ -119,6 +120,8 @@
             Real rhonew    = getRhogivenThetaPress(theta_new,P,rdOcp,qv);
 
             state_pert(i, j, k, Rho_comp) = rhonew - rho;
+            // Hold qv as well as P: rho changes, so rho*qv changes with it
+            if (use_moisture) { state_pert(i, j, k, RhoQ1_comp) = (rhonew - rho) * qv; }
             state_pert(i, j, k, RhoTheta_comp) = 0.0;
         }
 

@@ -145,6 +145,9 @@ target_sources(${erf_exe_name}
     # Motivation: the chamber profile and perturbation must remain analytic,
     # bounded, and independent of MPI decomposition and tile shape.
     ${CMAKE_CURRENT_SOURCE_DIR}/Prob/ERF_GTestCloudChamber.cpp
+    # Motivation: RICO's moisture source must be continuous at prob.moisture_source_cutoff and
+    # default to RICO's 2980 m (erf-model/ERF#4626).
+    ${CMAKE_CURRENT_SOURCE_DIR}/Prob/ERF_GTestRICOMoistureSource.cpp
     # Motivation: production scalar diffusion must use the exact low/high
     # physical-face stencil in every rotated Cartesian direction.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestStateDiffusionDirichlet.cpp

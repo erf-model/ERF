@@ -3972,5 +3972,51 @@ if(NOT WIN32)
 endif()
 
 #=============================================================================
+# Moist initial temperature perturbations (#4621, #4622)
+#
+# BOMEX, GATE and RICO perturb the temperature at fixed pressure by changing the density
+# and holding rho*theta. They must hold qv as well; pressure depends on rho*theta and qv
+# only, so it then stays fixed too. Each test writes the initial state of the case's
+# deck (16 x 16 x 100 cells) without and with one perturbation and requires qv and
+# pressure to agree cell by cell while density changes (Tests/check_perturbation_keeps.py).
+# Before the fix rho*qv was left alone: qv changed by 2-3e-4 of itself and pressure by
+# about 1 Pa. A deck that also perturbs qv was not affected, so no existing answer changes.
+#=============================================================================
+function(add_test_moist_tpert TEST_NAME CASE_DIR INPUT_FILE OPTIONS_B)
+    set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
+    file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
+    file(GLOB _files "${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/${CASE_DIR}/*")
+    file(COPY ${_files} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+    if(ERF_ENABLE_MPI)
+        set(_mpi "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} ${ERF_TEST_NRANKS} ${MPIEXEC_PREFLAGS}")
+        set(_np ${ERF_TEST_NRANKS})
+    else()
+        unset(_mpi)
+        set(_np 1)
+    endif()
+    resolve_test_exe("" "erf_exec" _exe)
+    set(_off "prob.T_0_Pert_Mag=0 prob.qv_0_Pert_Mag=0 prob.pert_deltaT=0 prob.pert_deltaQV=0 prob.U_0_Pert_Mag=0 prob.V_0_Pert_Mag=0 prob.pert_deltaU=0 prob.pert_deltaV=0")
+    set(_run "${_mpi} ${_exe} ${CURRENT_TEST_BINARY_DIR}/${INPUT_FILE} max_step=0 erf.plot_int_1=1 erf.check_int=-1 'amr.n_cell=16 16 100' 'amr.max_grid_size=8 8 100' 'erf.plot_vars_1=density pressure qv' ${_off}")
+    if(ERF_PRECISION STREQUAL "SINGLE")
+        set(_tol 1e-5)
+    else()
+        set(_tol 1e-12)
+    endif()
+    add_test(${TEST_NAME} sh -c
+      "${_run} erf.plot_file_1=pltA > ${CURRENT_TEST_BINARY_DIR}/runA.log 2>&1 && ${_run} ${OPTIONS_B} erf.plot_file_1=pltB > ${CURRENT_TEST_BINARY_DIR}/runB.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_perturbation_keeps.py ${CURRENT_TEST_BINARY_DIR}/pltA00000 ${CURRENT_TEST_BINARY_DIR}/pltB00000 --same qv pressure --differ density --tol ${_tol}")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${_np} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/runA.log;${CURRENT_TEST_BINARY_DIR}/runB.log")
+endfunction(add_test_moist_tpert)
+
+if(NOT WIN32 AND ERF_TEST_PYTHON)
+  add_test_moist_tpert(BOMEX_RandomT_KeepsQv Bomex inputs_bomex            "prob.T_0_Pert_Mag=0.1")
+  add_test_moist_tpert(GATE_RandomT_KeepsQv  GATE  inputs_Kessler_regtest  "prob.T_0_Pert_Mag=0.1")
+  add_test_moist_tpert(GATE_SineT_KeepsQv    GATE  inputs_Kessler_regtest  "prob.pert_deltaT=0.1")
+  add_test_moist_tpert(RICO_RandomT_KeepsQv  RICO  inputs_Kessler_regtest  "prob.T_0_Pert_Mag=0.1")
+  add_test_moist_tpert(RICO_SineT_KeepsQv    RICO  inputs_Kessler_regtest  "prob.pert_deltaT=0.1")
+endif()
+
+#=============================================================================
 # Performance tests
 #=============================================================================
