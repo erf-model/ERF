@@ -484,7 +484,11 @@ if (ng_pblh > 1) {
             if (above_critical) {
                 Real pblh_interp;
                 const Real rib_diff = Rib - Rib0;
-                if (std::abs(rib_diff) > Real(1.0e-10)) {
+                if (Rib0 >= Ribcr) {
+                    // The level below was at or above Ribcr too (only the surface cell can be):
+                    // WRF brint = 0, the height of that level, not an extrapolation above it
+                    pblh_interp = zval0;
+                } else if (std::abs(rib_diff) > Real(1.0e-10)) {
                     pblh_interp = zval0 + (zval - zval0) / rib_diff * (Ribcr - Rib0);
                 } else {
                     // If Rib not changing, use zval0 as PBL height
@@ -493,8 +497,11 @@ if (ng_pblh > 1) {
                 pblh_pred_arr(i, j, 0) = amrex::max(amrex::min(pblh_interp, pblh_max), pblh_min);
                 pbli_arr(i, j, 0) = kpbl;
             } else {
-                pblh_pred_arr(i, j, 0) = pblh_min;
-                pbli_arr(i, j, 0) = ksrf + 1;
+                // No crossing up to khi: the scan ended there with zval = z(khi), the top of
+                // the scan, capped by pblh_max, and kpbl = khi, so the K profile and the
+                // countergradient gates below cover the column (WRF module_bl_mrf.F, brint = 1).
+                pblh_pred_arr(i, j, 0) = amrex::max(amrex::min(zval, pblh_max), pblh_min);
+                pbli_arr(i, j, 0) = kpbl;
             }
         });
 
@@ -687,7 +694,11 @@ if (ng_pblh > 1) {
             if (above_critical) {
                 Real pblh_interp;
                 const Real rib_diff = Rib - Rib0;
-                if (std::abs(rib_diff) > Real(1.0e-10)) {
+                if (Rib0 >= Ribcr) {
+                    // The level below was at or above Ribcr too (only the surface cell can be):
+                    // WRF brint = 0, the height of that level, not an extrapolation above it
+                    pblh_interp = zval0;
+                } else if (std::abs(rib_diff) > Real(1.0e-10)) {
                     pblh_interp = zval0 + (zval - zval0) / rib_diff * (Ribcr - Rib0);
                 } else {
                     // If Rib not changing, use zval0 as PBL height
@@ -696,8 +707,11 @@ if (ng_pblh > 1) {
                 pblh_corr_arr(i, j, 0) = amrex::max(amrex::min(pblh_interp, pblh_max), pblh_min);
                 pbli_arr(i, j, 0) = kpbl;
             } else {
-                pblh_corr_arr(i, j, 0) = pblh_min;
-                pbli_arr(i, j, 0) = ksrf + 1;
+                // No crossing up to khi: the scan ended there with zval = z(khi), the top of
+                // the scan, capped by pblh_max, and kpbl = khi, so the K profile and the
+                // countergradient gates below cover the column (WRF module_bl_mrf.F, brint = 1).
+                pblh_corr_arr(i, j, 0) = amrex::max(amrex::min(zval, pblh_max), pblh_min);
+                pbli_arr(i, j, 0) = kpbl;
             }
             pblh_floor_arr(i, j, 0) = pblh_min;
         });
@@ -916,7 +930,9 @@ if (ng_pblh > 1) {
             if (above_critical_zero) {
                 pbli_zero_arr(i, j, 0) = kpbl_zero;
             } else {
-                pbli_zero_arr(i, j, 0) = ksrf + 1;
+                // No Ri = 0 crossing up to khi: the extent is the top of the scan, as for
+                // pbli_arr above (WRF module_bl_mrf.F, brint = 1)
+                pbli_zero_arr(i, j, 0) = kpbl_zero;
             }
         });
 
