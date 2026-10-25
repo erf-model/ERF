@@ -1,6 +1,10 @@
 #ifndef ERF_PBLMODELS_H_
 #define ERF_PBLMODELS_H_
 
+#include <limits>
+#include <memory>
+
+#include <AMReX_MultiFab.H>
 #include <AMReX_Periodicity.H>
 #include "ERF_Constants.H"
 #include "ERF_DataStruct.H"
@@ -767,6 +771,66 @@ ApplyPBLHSmoothing (amrex::FArrayBox& pblh_fab,
         // the previous pass, which no later pass reads.
         pblh_fab.copy<amrex::RunOn::Device>(pblh_temp, bx, 0, bx, 0, 1);
     }
+}
+
+
+/**
+ * Copy of a field read by the PBLH passes, widened to `ng` horizontal ghost cells.
+ *
+ * With erf.pblh_smoothing_passes = n the PBLH passes read their inputs n columns outside
+ * the tile (see ApplyPBLHSmoothing), but some of those inputs carry fewer ghost cells: the
+ * surface-layer fields have one on the bottom surface. The PBL schemes read such fields
+ * from a copy made here instead.
+ *
+ * The valid cells and the field's own ghost cells are copied unchanged, so a run that
+ * needs no more halo than the field has gives the same answer as reading the field
+ * itself. `fill` then fills the new ghost cells that a box of the level covers, inside
+ * the domain or across a periodic edge, the same way the field's owner fills its own
+ * (for a surface-layer field, SurfaceLayer::fill_planar_boundary). Ghost cells no box
+ * covers -- outside a non-periodic domain edge, or next to a coarser level -- take the
+ * value of the nearest cell of the field's original halo. The smoothing never reads a
+ * column outside a non-periodic edge; next to a coarser level this is a zeroth-order
+ * extrapolation of the surface scales, while the state there is the interpolated one.
+ *
+ * @param[in] src   Field to widen
+ * @param[in] ng    Ghost cells wanted in x and y; z keeps those of src
+ * @param[in] fill  Callable taking the widened MultiFab& and filling its ghost cells
+ *                  from the valid cells of the other boxes of the level
+ */
+template <typename FillFunc>
+std::unique_ptr<amrex::MultiFab>
+WidenForPBLH (const amrex::MultiFab& src, const int ng, FillFunc&& fill)
+{
+    const amrex::IntVect ng_src = src.nGrowVect();
+    const amrex::IntVect ng_dst(ng, ng, ng_src[2]);
+    const int ncomp = src.nComp();
+
+    // A value no field holds, marking the cells nothing below fills
+    constexpr amrex::Real unset = std::numeric_limits<amrex::Real>::max();
+
+    auto dst = std::make_unique<amrex::MultiFab>(src.boxArray(), src.DistributionMap(),
+                                                 ncomp, ng_dst);
+    dst->setVal(unset);
+    amrex::MultiFab::Copy(*dst, src, 0, 0, ncomp, ng_src);
+    fill(*dst);
+
+    for (amrex::MFIter mfi(*dst); mfi.isValid(); ++mfi) {
+        // The cells holding src's own data; never written below, so they can be read
+        const amrex::Box have = amrex::grow(mfi.validbox(), ng_src);
+        const auto lo = amrex::lbound(have);
+        const auto hi = amrex::ubound(have);
+        auto a = dst->array(mfi);
+        amrex::ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (have.contains(i, j, k)) { return; }
+            const int ic = amrex::min(amrex::max(i, lo.x), hi.x);
+            const int jc = amrex::min(amrex::max(j, lo.y), hi.y);
+            for (int n = 0; n < ncomp; ++n) {
+                if (a(i, j, k, n) == unset) { a(i, j, k, n) = a(ic, jc, k, n); }
+            }
+        });
+    }
+    return dst;
 }
 
 #endif
