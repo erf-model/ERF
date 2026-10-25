@@ -305,6 +305,13 @@ NOAHMP::Init (const int& lev,
     m_checked_radiation_inputs = false;
     m_warned_radiation_inputs  = false;
     m_first_advance_nstep      = -1;
+
+    // Likewise drop the precip snapshots: they carry the BoxArray and DistributionMapping
+    // of the accumulators at the time they were allocated, and a rebuilt level's
+    // accumulators may have new ones. prepare_precip_snapshots re-seeds them on the next
+    // driver call, from the checkpoint (m_precip_accum_restored) or from the current values.
+    m_precip_accum_prev.clear();
+
     m_domain_bcs_type = domain_bcs_type;
     m_refRatio = refRatio;
 
