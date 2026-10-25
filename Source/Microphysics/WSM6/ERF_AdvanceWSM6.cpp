@@ -439,12 +439,20 @@ void wsm6_nislfv_rain_plm_scratch (int km,
             }
         }
 
-        for (int kk = kt; kk < km; ++kk) {
+        // Unlike the WRF original, also try the departure point of the column top, and when
+        // the cell top lies above even that, take the rest from the empty region above it
+        // (QA(km) = 0). Otherwise the search fails for the top cells of the column, which
+        // then come out empty and lose what they held: harmless at the model top, where
+        // there is nothing, but not at the top of a refined patch.
+        bool kt_found = false;
+        for (int kk = kt; kk <= km; ++kk) {
             if (ZI(k + 1) <= ZA(kk)) {
                 kt = kk;
+                kt_found = true;
                 break;
             }
         }
+        if (!kt_found) { kt = km + 1; }
         kt = amrex::max(kt - 1, 0);
 
         if (kt == kb) {
@@ -779,12 +787,20 @@ void wsm6_nislfv_rain_plm6_scratch (int km,
                 }
             }
 
-            for (int kk = kt; kk < km; ++kk) {
+            // Unlike the WRF original, also try the departure point of the column top, and when
+            // the cell top lies above even that, take the rest from the empty region above it
+            // (QA(km) = 0). Otherwise the search fails for the top cells of the column, which
+            // then come out empty and lose what they held: harmless at the model top, where
+            // there is nothing, but not at the top of a refined patch.
+            bool kt_found = false;
+            for (int kk = kt; kk <= km; ++kk) {
                 if (ZI(k + 1) <= ZA(kk)) {
                     kt = kk;
+                    kt_found = true;
                     break;
                 }
             }
+            if (!kt_found) { kt = km + 1; }
             kt = amrex::max(kt - 1, 0);
 
             if (kt == kb) {
@@ -2581,6 +2597,7 @@ WSM6::AdvanceColumns (const Real& dt_advance,
                                  / cpm_arr(i,j,k) * dtcld;
                 });
             }
+
             // G17: padding for small values [lines 1444-1449]
             // WSM6-CPP TAG: CLIP
             //   legacy_group: G17

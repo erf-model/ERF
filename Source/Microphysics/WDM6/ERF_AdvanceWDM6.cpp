@@ -528,12 +528,20 @@ void wdm6_nislfv_rain_plm6_column (
                     break;
                 }
             }
-            for (int kk = kt; kk < km; ++kk) {
+            // Unlike the WRF original, also try the departure point of the column top, and when
+            // the cell top lies above even that, take the rest from the empty region above it
+            // (QA(km) = 0). Otherwise the search fails for the top cells of the column, which
+            // then come out empty and lose what they held: harmless at the model top, where
+            // there is nothing, but not at the top of a refined patch.
+            bool kt_found = false;
+            for (int kk = kt; kk <= km; ++kk) {
                 if (ZI(k + 1) <= ZA(kk)) {
                     kt = kk;
+                    kt_found = true;
                     break;
                 }
             }
+            if (!kt_found) { kt = km + 1; }
             // Fortran writes a bare kt = kt - 1 with no floor. Clamping it to 0
             // is not equivalent: when the decrement should drop kt BELOW kb,
             // the Fortran falls through both branches and leaves qn(k) at zero,
