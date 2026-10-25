@@ -196,6 +196,10 @@ ERF::init_from_ncfile (int lev)
 
     MultiFab::Multiply(lev_new[Vars::cons], lev_new[Vars::cons], Rho_comp, RhoTheta_comp, 1, 0);
     MultiFab::Multiply(lev_new[Vars::cons], lev_new[Vars::cons], Rho_comp, RhoScalar_comp, 1, 0);
+    // QV in the file is the mixing ratio, like T (theta); the state holds rho * qv
+    if (have_moisture && success[9]) {
+        MultiFab::Multiply(lev_new[Vars::cons], lev_new[Vars::cons], Rho_comp, RhoQ1_comp, 1, 0);
+    }
 
     // Populate the base state ghost cells and derived data structures if needed
     if (success[6] && success[7] && success[8]) { // have RHO_HSE, P_HSE, and T_HSE

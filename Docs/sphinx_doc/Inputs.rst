@@ -3513,7 +3513,7 @@ List of Parameters
 |                                   | polynomial interpolation scheme for vertical             |                              |                    |
 |                                   | interpolation                                            |                              |                    |
 +-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
-| **erf.metgrid_force_sfc_k**       | If init_type is Metgrid, force the origin data surface   | Integer in [0, number of     | 0                  |
+| **erf.metgrid_force_sfc_k**       | If init_type is Metgrid, force the origin data surface   | Integer in [0, number of     | 6                  |
 |                                   | level to be included in the interpolation for this many  | ERF vertical levels]         |                    |
 |                                   | ERF vertical levels: origin levels between the surface   |                              |                    |
 |                                   | and the centre of the last of these levels are dropped   |                              |                    |

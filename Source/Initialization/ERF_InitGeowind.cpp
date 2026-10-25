@@ -30,6 +30,8 @@ void ERF::init_geo_wind_profile (const std::string input_file,
     const int khi = lgeom.Domain().bigEnd()[AMREX_SPACEDIM-1];
     const amrex::Real dz = lgeom.CellSize()[AMREX_SPACEDIM-1];
 
+    // zlevels_stag is filled on every mesh (k * dz from 0 on a constant-dz mesh), so the
+    // ProbLo/ProbHi branch below is reached only by a caller that passes no z levels
     const bool grid_stretch = (zlev_stag.size() > 0);
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!grid_stretch || zlev_stag.size() == khi+2,
         "init_geo_wind_profile: the z levels must be those of the level being filled");
@@ -43,7 +45,8 @@ void ERF::init_geo_wind_profile (const std::string input_file,
     }
 
     // First, read the input data into temp vectors. Blank lines and lines starting
-    // with '#' are skipped; any other line must start with three numbers, z Ug Vg.
+    // with '#' are skipped; any other line must hold exactly three numbers, z Ug Vg,
+    // optionally followed by a '#' comment (the same rule as Exec/Tools/erf_input_checker).
     std::string line;
     Vector<Real> z_inp, Ug_inp, Vg_inp;
     Real z, Ug, Vg;
@@ -54,9 +57,10 @@ void ERF::init_geo_wind_profile (const std::string input_file,
         const auto first = line.find_first_not_of(" \t\r");
         if (first == std::string::npos || line[first] == '#') { continue; }
         std::istringstream iss(line);
-        if (!(iss >> z >> Ug >> Vg)) {
+        std::string rest;
+        if (!(iss >> z >> Ug >> Vg) || ((iss >> rest) && rest[0] != '#')) {
             amrex::Abort("init_geo_wind_profile: line " + std::to_string(line_no) + " of " + input_file
-                         + " (erf.abl_geo_wind_table) does not start with three numbers z Ug Vg");
+                         + " (erf.abl_geo_wind_table) does not hold exactly three numbers z Ug Vg");
         }
         if (!z_inp.empty() && !(z > z_inp.back())) {
             amrex::Abort("init_geo_wind_profile: the heights in " + input_file
