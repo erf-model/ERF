@@ -36,6 +36,7 @@ bottom at z = 0 and at z = 300 m:
 | `uniform_reference` | ConstantDz, dz = 10 m | `set_k_indices_N` | 5 m |
 | `uniform_raised_base` | ConstantDz, dz = 10 m, `geometry.prob_lo[2] = 300` | `set_k_indices_N` | 5 m |
 | `raised_base_k_arr` | the same, `erf.most.k_arr_in = 0` | `set_k_indices_N` | 5 m |
+| `raised_base_dz_odd` | ConstantDz, dz = 1000/96 m, `geometry.prob_lo[2] = 300` | `set_k_indices_N` | 5.21 m |
 
 The test passes when:
 - every case reports the expected height;
@@ -43,9 +44,9 @@ The test passes when:
   holds 6 digits);
 - the stretched no-terrain column stays within 1e-3 of the uniform column
   over the 10 steps;
-- the raised column follows the uniform column to the 6 digits of hist.dat
-  over the 10 steps (the surface layer's reference height is a height above
-  the ground).
+- both raised columns with dz = 10 m follow the uniform column to the 6 digits
+  of hist.dat over the 10 steps (the surface layer's reference height is a
+  height above the ground).
 
 The script also aborts if the sounding is ever made too uniform to tell a
 cell from its upper neighbour.
@@ -112,3 +113,8 @@ low z face of a constant-dz mesh `erf.most.zref` is an absolute z and
 layer uses is now the height above the bottom wall, as it already was on
 stretched meshes and on the other faces. The raised column now matches the
 column at z = 0 at every step.
+
+With dz = 1000/96 m and the bottom at 300 m, (300 + dz/2) - 300 rounds below
+dz/2, and development stopped at start-up on `wall_offset >= m_radius`
+(`raised_base_dz_odd`; about half of all raised bases did). The default is now
+kept as a height, dz/2, and a given absolute z gets a round-off allowance.

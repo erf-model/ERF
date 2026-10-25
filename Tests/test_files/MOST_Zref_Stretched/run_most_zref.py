@@ -13,6 +13,7 @@ and checks the surface friction velocity.
   uniform_reference   ConstantDz, dz = 10 m           set_k_indices_N        5 m
   uniform_raised_base ConstantDz, prob_lo[2] = 300 m  set_k_indices_N        5 m
   raised_base_k_arr   the same, erf.most.k_arr_in = 0 set_k_indices_N        5 m
+  raised_base_dz_odd  ConstantDz, dz = 1000/96 m, base 300 m  set_k_indices_N  5.21 m
 
 The initial wind is sheared: sounding_most_zref ramps it linearly from 10 m/s at
 the ground to 15 m/s at 50 m, constant above.  ERF interpolates the sounding
@@ -74,10 +75,16 @@ CASES = [
                              "geometry.prob_extent=400", "400", "4430",
                              "geometry.prob_lo=0", "0", "300",
                              "erf.most.k_arr_in=0"],                               5.0, 15.0),
+    # a raised base where prob_lo + dz/2 - prob_lo rounds below dz/2 (dz = 1000/96 m)
+    ("raised_base_dz_odd",  ["erf.grid_stretching_ratio=0",
+                             "amr.n_cell=4", "4", "96",
+                             "geometry.prob_extent=400", "400", "1000",
+                             "geometry.prob_lo=0", "0", "300"],             500.0 / 96.0, 1500.0 / 96.0),
 ]
 
-# the raised column against the uniform one: hist.dat holds 6 significant digits
-TOL_RAISED = 1.0e-6
+# the raised columns against the uniform one: hist.dat holds 6 significant digits, so
+# one unit in the last digit of u* ~ 1.1 is 9e-6
+TOL_RAISED = 1.0e-5
 
 
 def read_sounding(path):
@@ -266,17 +273,19 @@ def main():
                             % (worst, TOL_UNIFORM))
 
     # The same column with its bottom at 300 m: the same u* at every step
-    ok_r, _, ur = new["uniform_raised_base"]
-    if ok_r and ok_u and ur and uu:
+    for raised in ("uniform_raised_base", "raised_base_k_arr"):
+        ok_r, _, ur = new[raised]
+        if not (ok_r and ok_u and ur and uu):
+            continue
         worst = max(abs(a - b) / b for (_, a), (_, b) in zip(ur, uu))
         print()
-        print("u* over the run, bottom at 300 m vs at 0: largest rel diff %.2e (tol %.0e)"
-              % (worst, TOL_RAISED))
+        print("u* over the run, %s (bottom at 300 m) vs uniform_reference: largest rel diff %.2e (tol %.0e)"
+              % (raised, worst, TOL_RAISED))
         if len(ur) != len(uu):
-            failures.append("raised and uniform runs wrote %d and %d u* samples" % (len(ur), len(uu)))
+            failures.append("%s and uniform runs wrote %d and %d u* samples" % (raised, len(ur), len(uu)))
         if worst > TOL_RAISED:
-            failures.append("raised-base u* departs from the uniform column by %.2e (tol %.0e)"
-                            % (worst, TOL_RAISED))
+            failures.append("%s u* departs from the uniform column by %.2e (tol %.0e)"
+                            % (raised, worst, TOL_RAISED))
 
     print()
     if failures:

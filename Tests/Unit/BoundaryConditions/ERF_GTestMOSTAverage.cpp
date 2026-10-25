@@ -361,6 +361,39 @@ TEST(MOSTAverage, PlanarDefaultReferenceWorksOnEveryWall)
     }
 }
 
+// Motivation: on a stretched mesh the reference height is the distance from the
+// wall on both z faces. The z levels here start at z = 30 (uniform spacing, read as a
+// stretched column): the high face measured its distance from the absolute top,
+// 30 m too far, while the low face was already right.
+TEST(MOSTAverage, StretchedDefaultReferenceIsWallRelativeOnBothZFaces)
+{
+    MOSTAverageFields fields(make_terrain_geometry());
+    const auto& geom = fields.geom;
+    const int nz = geom.Domain().length(2);
+    const Real dz = geom.CellSize(2);
+    Vector<Real> zlevels(nz + 1);
+    for (int k = 0; k <= nz; ++k) {
+        zlevels[k] = geom.ProbLo(2) + static_cast<Real>(k) * dz;
+    }
+    ScopedMOSTParams params("unit_most_stretched_raised");
+
+    for (const auto& face : {Orientation(Direction::z, Orientation::low),
+                             Orientation(Direction::z, Orientation::high)}) {
+        MOSTAverage averages(face, Vector<Geometry>{geom}, false,
+                             "unit_most_stretched_raised",
+                             MeshType::StretchedDz, TerrainType::None,
+                             Vector<Vector<Real>>{zlevels});
+        averages.make_MOSTAverage_at_level(
+            0, fields.vars_old, fields.theta, fields.qv,
+            fields.qr, fields.z_phys_nd);
+        const Real expected_zref = Real(0.5) * dz;
+        EXPECT_NEAR(averages.get_zref(0)->min(0), expected_zref, tolerance(expected_zref))
+            << "high=" << !face.isLow();
+        EXPECT_NEAR(averages.get_zref(0)->max(0), expected_zref, tolerance(expected_zref))
+            << "high=" << !face.isLow();
+    }
+}
+
 // Motivation: a lateral plane must be selected per tile.  Testing a grid
 // deeper than the default y tile size catches summing the same plane once for
 // every y tile in the grid.
