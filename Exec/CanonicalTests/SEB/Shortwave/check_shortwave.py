@@ -121,7 +121,7 @@ def check_solar(prefix, log):
     line = [l for l in open(log) if "[IBSEB DEBUG] lev=0 sun:" in l][-1]
     zen = float(re.search(r"zenith=([-\d.eE+]+)", line).group(1))
     az  = float(re.search(r"azimuth=([-\d.eE+]+)", line).group(1))
-    g = 2 * math.pi * (172 - 1) / 365.25
+    g = 2 * math.pi * (172 - 1) / 365.0
     decl = math.degrees(0.006918 - 0.399912*math.cos(g) + 0.070257*math.sin(g) - 0.006758*math.cos(2*g) + 0.000907*math.sin(2*g) - 0.002697*math.cos(3*g) + 0.00148*math.sin(3*g))
     zen_exp = 40.0 - decl
     # 12:00 MST at Boulder is about 1.3 min before solar noon on day 172

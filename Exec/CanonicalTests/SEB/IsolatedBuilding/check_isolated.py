@@ -46,7 +46,7 @@ def report(name, ok, detail):
 # Independent solar geometry (the Shortwave checker's formulas, extended to the
 # beam and diffuse so the day can be integrated).
 def solar(t_utc_s, lat, lon, tz, doy, S0, tau, kd):
-    g = 2 * math.pi * (doy - 1) / 365.25
+    g = 2 * math.pi * (doy - 1) / 365.0
     decl = 0.006918 - 0.399912*math.cos(g) + 0.070257*math.sin(g) - 0.006758*math.cos(2*g) + 0.000907*math.sin(2*g) - 0.002697*math.cos(3*g) + 0.00148*math.sin(3*g)
     eot = 229.18 * (0.000075 + 0.001868*math.cos(g) - 0.032077*math.sin(g) - 0.014615*math.cos(2*g) - 0.040849*math.sin(2*g))
     t_solar = (t_utc_s / 3600.0) % 24.0 + tz + (lon - 15.0 * tz) / 15.0 + eot / 60.0
