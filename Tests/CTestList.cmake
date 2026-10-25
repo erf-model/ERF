@@ -2178,6 +2178,23 @@ endif()
 # message with and without FFT, rather than the AMReX assertion of the hybrid FFT solver or a
 # request to rebuild with FFT (erf-model/ERF#4281)
 if(NOT WIN32)
+  # Thin-body projection (project_velocity_tb) with two corrector passes and dt = 0.025:
+  # the stored gradient gradp (dpdx, dpdy, dpdz) must equal the centred difference of the
+  # stored pressure increment pp_inc (pert_pres) in every interior cell. Before #4608 was
+  # fixed gradp kept only the last pass, and pp_inc took phi = dt * p without the 1/dt;
+  # both made the two differ by 65-100 % of the gradient.
+  if(ERF_TEST_PYTHON)
+    set(TEST_NAME ThinBody_GradP)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(${TEST_NAME} sh -c
+      "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_thin_body_gradp.py ${CURRENT_TEST_BINARY_DIR}/plt00002")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+    unset(TEST_NAME)
+  endif()
+
   add_test_abort(Anelastic_StretchedPeriodicZ
                  ${CMAKE_CURRENT_SOURCE_DIR}/test_files/Anelastic_StretchedPeriodicZ
                  Anelastic_StretchedPeriodicZ.i
