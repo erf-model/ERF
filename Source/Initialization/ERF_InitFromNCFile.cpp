@@ -235,8 +235,8 @@ ERF::init_from_ncfile (int lev)
                 th_hse_arr(i,j,k) = th_hse_arr(ii,jj,kk);
                 pi_hse_arr(i,j,k) = getExnergivenP(p_hse_arr(ii,jj,kk), RdoCp);
 
-                // qv_hse == qv
-                if (have_moisture) qv_hse_arr(i,j,k) = con_arr(ii,jj,kk,RhoQ1_comp);
+                // qv_hse == qv, the mixing ratio (the state holds rho * qv)
+                if (have_moisture) qv_hse_arr(i,j,k) = con_arr(ii,jj,kk,RhoQ1_comp) / con_arr(ii,jj,kk,Rho_comp);
             });
         }// mfi
 

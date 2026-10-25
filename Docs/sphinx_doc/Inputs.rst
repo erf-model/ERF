@@ -2653,7 +2653,11 @@ ABL Driver and Geostrophic Forcing
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.abl_geo_wind_table**  | file containing a height-varying geostrophic wind        | String             | None             |
 |                             | profile; may not be combined with                        |                    |                  |
-|                             | ``add_custom_geostrophic_profile``                       |                    |                  |
+|                             | ``add_custom_geostrophic_profile``. One row per height,  |                    |                  |
+|                             | ``z Ug Vg`` (m, m/s, m/s), heights increasing and        |                    |                  |
+|                             | covering the domain; blank lines and lines starting      |                    |                  |
+|                             | with ``#`` are skipped, and any other row that does not  |                    |                  |
+|                             | start with three numbers stops the run                   |                    |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 
 .. _sec:WindFarmForcingInputs:
@@ -3509,9 +3513,10 @@ List of Parameters
 |                                   | polynomial interpolation scheme for vertical             |                              |                    |
 |                                   | interpolation                                            |                              |                    |
 +-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
-| **erf.metgrid_force_sfc_k**       | If init_type is Metgrid, force the origin data surface   | Integer                      | 0                  |
-|                                   | level to be included in the interpolation for this many  |                              |                    |
-|                                   | ERF vertical levels                                      |                              |                    |
+| **erf.metgrid_force_sfc_k**       | If init_type is Metgrid, force the origin data surface   | Integer in [0, number of     | 0                  |
+|                                   | level to be included in the interpolation for this many  | ERF vertical levels]         |                    |
+|                                   | ERF vertical levels: origin levels between the surface   |                              |                    |
+|                                   | and the centre of the last of these levels are dropped   |                              |                    |
 +-----------------------------------+----------------------------------------------------------+------------------------------+--------------------+
 
 Notes

@@ -264,6 +264,9 @@ target_sources(${erf_exe_name}
     # dataset's soil layers in depth to the Noah layers, and the monthly vegetation to the
     # start date the way real.exe does, across the year's end and in leap years.
     ${CMAKE_CURRENT_SOURCE_DIR}/Initialization/ERF_GTestMetgridLandUtils.cpp
+    # Motivation: erf.metgrid_force_sfc_k must drop the same origin levels whether or not the
+    # column has origin levels below the surface (erf-model/ERF#4607).
+    ${CMAKE_CURRENT_SOURCE_DIR}/Initialization/ERF_GTestMetgridForceSfc.cpp
     # Motivation: a station placed by latitude/longitude must land where the
     # lat/lon arrays put it on a rotated grid and on a grid across 180 degrees.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestLatLonMap.cpp

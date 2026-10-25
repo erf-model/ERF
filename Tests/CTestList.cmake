@@ -2185,6 +2185,33 @@ if(NOT WIN32)
                  "")
 endif()
 
+# Geostrophic wind from erf.abl_geo_wind_table (#4605, #4606). GeoWindTable_TwoLevel starts at
+# rest under Ug = 2 + z/100, Vg = 0, on two levels with level 1 refined in z: after one step
+# v = f dt Ug(z) in every cell of both levels. Level 1 used to read level 0's z levels, past
+# their end when refined in z (the run stopped with a signal). The three tables that follow
+# stop at start-up: no rows, a row with two numbers, and heights that do not increase.
+set(_geo_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/GeoWindTable_TwoLevel)
+if(NOT WIN32 AND ERF_TEST_PYTHON)
+  set(TEST_NAME GeoWindTable_TwoLevel)
+  setup_test()
+  resolve_test_exe("" "erf_exec" TEST_EXE)
+  add_test(${TEST_NAME} sh -c
+    "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_geowind_profile.py ${CURRENT_TEST_BINARY_DIR}/plt00001")
+  set_tests_properties(${TEST_NAME} PROPERTIES
+      TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+      LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+  unset(TEST_NAME)
+endif()
+if(NOT WIN32)
+  add_test_abort(GeoWindTable_Empty ${_geo_dir} GeoWindTable_TwoLevel.i
+                 "has no z Ug Vg rows" "amr.max_level=0 erf.abl_geo_wind_table=geo_wind_table_empty")
+  add_test_abort(GeoWindTable_ShortRow ${_geo_dir} GeoWindTable_TwoLevel.i
+                 "line 2 of geo_wind_table_short_row .* does not start with three numbers"
+                 "amr.max_level=0 erf.abl_geo_wind_table=geo_wind_table_short_row")
+  add_test_abort(GeoWindTable_Decreasing ${_geo_dir} GeoWindTable_TwoLevel.i
+                 "must increase; see line 3" "amr.max_level=0 erf.abl_geo_wind_table=geo_wind_table_decreasing")
+endif()
+
 if(ERF_ENABLE_MPI AND NOT WIN32)
   # A shallow nest -- a fine level that stops below the domain top -- has no complete
   # column, so the sweep cannot run on it. That is a supported configuration, not an
