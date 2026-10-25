@@ -62,6 +62,9 @@ WDM6::Init (const MultiFab& cons_in,
         mic_fab_vars[ivar]->setVal(0.0);
     }
 
+    m_sed.define(cons_in.boxArray(), cons_in.DistributionMap(),
+                 {RhoQ3_comp, RhoQ4_comp, RhoQ5_comp, RhoQ6_comp, RhoQ9_comp});
+
     // Initialize nn to ccn0 / rho (matches WRF itimestep==1 behavior)
     // This must be done here so nn is available before the first microphysics call
     // NOTE: Can't write to cons_in (it's const), so only initialize mic_fab_vars.

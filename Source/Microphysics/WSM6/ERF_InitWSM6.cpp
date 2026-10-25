@@ -40,6 +40,9 @@ WSM6::Init (const MultiFab& cons_in,
         mic_fab_vars[ivar]->setVal(0.0);
     }
 
+    m_sed.define(cons_in.boxArray(), cons_in.DistributionMap(),
+                 {RhoQ3_comp, RhoQ4_comp, RhoQ5_comp, RhoQ6_comp});
+
     nlev = m_geom.Domain().length(2);
     zlo = m_geom.Domain().smallEnd(2);
     zhi = m_geom.Domain().bigEnd(2);

@@ -104,7 +104,8 @@ MicrophysicsColumns::gather_one (const MultiFab& src) const
     // Copy only from the source's valid cells. Its ghost cells may be stale (the
     // accumulators' are never refreshed), and where a source box's ghost region overlaps
     // another source box's valid cells, a copy that read ghost cells could take either.
-    auto dst = std::make_shared<MultiFab>(m_col_ba, m_col_dm, src.nComp(), src.nGrowVect(),
+    auto dst = std::make_shared<MultiFab>(convert(m_col_ba, src.ixType()), m_col_dm,
+                                          src.nComp(), src.nGrowVect(),
                                           MFInfo().SetArena(src.arena()));
     dst->setVal(0.0);
     dst->ParallelCopy(src, 0, 0, src.nComp(), IntVect(0), src.nGrowVect());

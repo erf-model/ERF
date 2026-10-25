@@ -41,6 +41,8 @@ void Kessler::Init (const MultiFab& cons_in,
         mic_fab_vars[ivar]->setVal(0.);
     }
 
+    m_sed.define(cons_in.boxArray(), cons_in.DistributionMap(), {RhoQ3_comp});
+
     // Set class data members
     for ( MFIter mfi(cons_in, TileNoZ()); mfi.isValid(); ++mfi) {
         const auto& box3d = mfi.tilebox();

@@ -103,6 +103,23 @@ void morrison_copy_state_to_micro_cell (
     pres(i,j,k) = thermo.pressure_pa;
 }
 
+// Components of Morrison's sedimentation face fluxes (m_sed), with the state they carry
+namespace MorrSed {
+   enum {
+      qc = 0, // cloud water,   rhoQ2
+      qi,     // cloud ice,     rhoQ3
+      qr,     // rain,          rhoQ4
+      qs,     // snow,          rhoQ5
+      qg,     // graupel,       rhoQ6
+      nc,     // droplet number, rhoQ7
+      ni,     // ice number,    rhoQ8
+      nr,     // rain number,   rhoQ9
+      ns,     // snow number,   rhoQ10
+      ng,     // graupel number, rhoQ11
+      NumComps
+   };
+}
+
 class Morrison : public NullMoist {
 
     using FabPtr = std::shared_ptr<amrex::MultiFab>;
@@ -206,6 +223,8 @@ public:
         a_idx.push_back(2); a_names.push_back("GraupAccum");
     }
 
+    const SedimentationFlux* Sed_Flux () const override { return &m_sed; }
+
     SurfacePrecipAccumulationSources
     Get_Surface_Precip_Accumulation_Ptrs (const int&) const override
     {
@@ -273,5 +292,8 @@ private:
 
     // Full-column layout of this level's grids (see ERF_MicrophysicsColumns.H)
     MicrophysicsColumns m_columns;
+
+    // Sedimentation face fluxes of the most recent Advance, in the order of MorrSed
+    SedimentationFlux m_sed;
 };
 #endif

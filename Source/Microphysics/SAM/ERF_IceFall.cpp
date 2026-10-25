@@ -115,6 +115,7 @@ void SAM::IceFall (const SolverChoice& sc) {
             auto qt_array    = qt->array(mfi);
             auto rho_array   = rho->array(mfi);
             auto fz_array    = fz.array(mfi);
+            auto sed_array   = m_sed.down->array(mfi);
 
             const auto dJ_array = (m_detJ_cc) ? m_detJ_cc->const_array(mfi) : Array4<const Real>{};
 
@@ -152,6 +153,7 @@ void SAM::IceFall (const SolverChoice& sc) {
                                                                   qci_array(i,j,donor_k),
                                                                   detJ_donor,
                                                                   coef);
+                sed_array(i,j,k,3) += fz_array(i,j,k) * dtn;
             });
 
             // Update precip every substep

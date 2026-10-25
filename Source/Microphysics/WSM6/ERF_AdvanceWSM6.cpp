@@ -844,6 +844,8 @@ void
 WSM6::Advance (const Real& dt_advance,
                const SolverChoice& sc)
 {
+    m_sed.reset(dt_advance);
+
     if (!m_columns.needs_gather()) {
         AdvanceColumns(dt_advance, sc);
         return;
@@ -857,9 +859,13 @@ WSM6::Advance (const Real& dt_advance,
     MultiFab* z_phys_nd_saved = m_z_phys_nd;
     auto z_phys_nd_col = m_columns.gather_nodal(m_z_phys_nd);
     m_z_phys_nd = z_phys_nd_col.get();
+    auto sed_saved = m_sed.down;
+    m_sed.down = m_columns.gather_one(*sed_saved);
 
     AdvanceColumns(dt_advance, sc);
 
+    sed_saved->ParallelCopy(*m_sed.down);
+    m_sed.down = sed_saved;
     m_z_phys_nd = z_phys_nd_saved;
     m_columns.scatter(mic_fab_vars, saved);
 }
@@ -952,6 +958,7 @@ WSM6::AdvanceColumns (const Real& dt_advance,
         auto rain_arr = mic_fab_vars[MicVar_WSM6::rain_accum]->array(mfi);
         auto snow_arr = mic_fab_vars[MicVar_WSM6::snow_accum]->array(mfi);
         auto graup_arr = mic_fab_vars[MicVar_WSM6::graup_accum]->array(mfi);
+        auto const& sed_arr = m_sed.down->array(mfi);
 
         const int ilo = box.smallEnd(0);
         const int ihi = box.bigEnd(0);
@@ -1446,6 +1453,15 @@ WSM6::AdvanceColumns (const Real& dt_advance,
                     }
                 }
 
+                // The face fluxes are what the cells above each face lose: add the
+                // top-down sums of rho*q*dz now, and subtract them after G5d.
+                sedimentation_add_column_sums(sed_arr, WSM6Sed::qr, i, j, klo, khi, Real(1.0),
+                    [&](int k) { return den_arr(i,j,k) * qr_arr(i,j,k) * delz_arr(i,j,k); });
+                sedimentation_add_column_sums(sed_arr, WSM6Sed::qs, i, j, klo, khi, Real(1.0),
+                    [&](int k) { return den_arr(i,j,k) * qs_arr(i,j,k) * delz_arr(i,j,k); });
+                sedimentation_add_column_sums(sed_arr, WSM6Sed::qg, i, j, klo, khi, Real(1.0),
+                    [&](int k) { return den_arr(i,j,k) * qg_arr(i,j,k) * delz_arr(i,j,k); });
+
                 // G5b: rain sedimentation
                 wsm6_nislfv_rain_plm_scratch(
                     km_local,
@@ -1499,6 +1515,13 @@ WSM6::AdvanceColumns (const Real& dt_advance,
                     fall_s_arr(i,j,k) = denqrs2_col(kk) * worka_col(kk) / delz_arr(i,j,k);
                     fall_g_arr(i,j,k) = denqrs3_col(kk) * worka_col(kk) / delz_arr(i,j,k);
                 }
+
+                sedimentation_add_column_sums(sed_arr, WSM6Sed::qr, i, j, klo, khi, Real(-1.0),
+                    [&](int k) { return den_arr(i,j,k) * qr_arr(i,j,k) * delz_arr(i,j,k); });
+                sedimentation_add_column_sums(sed_arr, WSM6Sed::qs, i, j, klo, khi, Real(-1.0),
+                    [&](int k) { return den_arr(i,j,k) * qs_arr(i,j,k) * delz_arr(i,j,k); });
+                sedimentation_add_column_sums(sed_arr, WSM6Sed::qg, i, j, klo, khi, Real(-1.0),
+                    [&](int k) { return den_arr(i,j,k) * qg_arr(i,j,k) * delz_arr(i,j,k); });
 
                 // G5e: slab fall fluxes at the lower boundary
                 delqrs1_arr(i,j,0) = delqrs1_col / delz_arr(i,j,klo) / dtcld;
@@ -1652,6 +1675,10 @@ WSM6::AdvanceColumns (const Real& dt_advance,
                     denqci_col(kk) = denqci_arr(i,j,k);
                 }
 
+                // Face fluxes, as for G5: the top-down sums before, minus those after
+                sedimentation_add_column_sums(sed_arr, WSM6Sed::qi, i, j, klo, khi, Real(1.0),
+                    [&](int k) { return den_arr(i,j,k) * qi_arr(i,j,k) * delz_arr(i,j,k); });
+
                 wsm6_nislfv_rain_plm_scratch(
                     km_local,
                     WSM6SedCellScratch::work1c_col,
@@ -1666,6 +1693,8 @@ WSM6::AdvanceColumns (const Real& dt_advance,
                     qi_arr(i,j,k) = amrex::max(
                         denqci_col(kk) / den_col(kk), Real(0.0));
                 }
+                sedimentation_add_column_sums(sed_arr, WSM6Sed::qi, i, j, klo, khi, Real(-1.0),
+                    [&](int k) { return den_arr(i,j,k) * qi_arr(i,j,k) * delz_arr(i,j,k); });
 
                 delqi_arr(i,j,0) = delqi_col / delz_arr(i,j,klo) / dtcld;
                 fallc_arr(i,j,klo) = delqi_arr(i,j,0);
