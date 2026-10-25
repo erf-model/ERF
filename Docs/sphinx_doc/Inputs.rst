@@ -4575,15 +4575,15 @@ List of Parameters
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.rad_orbital_eccentricity**      | Override orbital eccentricity                            | Real               | < 0 uses computed value            |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
-| **erf.rad_orbital_obliquity**         | Override orbital obliquity                               | Real               | < 0 uses computed value            |
+| **erf.rad_orbital_obliquity**         | Override orbital obliquity [degrees]                     | Real               | < 0 uses computed value            |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
-| **erf.rad_orbital_mvelp**             | Override mean longitude of perihelion                    | Real               | < 0 uses computed value            |
+| **erf.rad_orbital_mvelp**             | Override mean longitude of perihelion [degrees]          | Real               | < 0 uses computed value            |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
-| **erf.rad_cons_lat**                  | Constant latitude for idealized cases (RRTMGP and        | Real               | 39.809860                          |
-|                                       | TwoStream)                                               |                    |                                    |
+| **erf.rad_cons_lat**                  | Constant latitude [degrees N] for idealized cases        | Real               | 39.809860                          |
+|                                       | (RRTMGP and TwoStream)                                   |                    |                                    |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
-| **erf.rad_cons_lon**                  | Constant longitude for idealized cases (RRTMGP and       | Real               | -98.555183                         |
-|                                       | TwoStream)                                               |                    |                                    |
+| **erf.rad_cons_lon**                  | Constant longitude [degrees E] for idealized cases       | Real               | -98.555183                         |
+|                                       | (RRTMGP and TwoStream)                                   |                    |                                    |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------------------------+
 | **erf.fixed_total_solar_irradiance**  | Fixed total solar irradiance (TOA) [W/m^2] (RRTMGP and   | Real >= 0          | < 0 disables: 1360.9 W/m^2 times   |
 |                                       | TwoStream)                                               |                    | the Earth-Sun factor of the date   |
@@ -4741,7 +4741,7 @@ atmospheric cell), ``start_datetime`` and the
 |                                                    | [m^2/kg]                                                   |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.sw_kext_cloud**                    | Mass model: cloud-water SW extinction coefficient [m^2/kg] | Real >= 0          | 150.0            |
-|                                                    | (~1.5 / r_eff, r_eff = 10 um)                              |                    |                  |
+|                                                    | (~1500 / r_eff[um]; 150 for r_eff = 10 um)                 |                    |                  |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+
 | **erf.radiation.sw_cloud_omega**                   | Mass model: cloud-water SW single-scattering albedo        | Real [0,1]         | 0.9999           |
 +----------------------------------------------------+------------------------------------------------------------+--------------------+------------------+

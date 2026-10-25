@@ -57,8 +57,8 @@ The mass model (``tau_model = mass``) instead builds each layer's optical proper
 with the constituents mixed by extinction weighting into the layer single-scattering albedo and asymmetry
 factor, :math:`\omega_0 = \sum_i \omega_i \tau_i / \tau` and :math:`g = \sum_i g_i \omega_i \tau_i / \sum_i \omega_i \tau_i`
 (dry and vapor absorption with :math:`\omega = 0`, Rayleigh scattering with :math:`\omega = 1, g = 0`, cloud water
-with ``sw_cloud_omega`` and ``sw_cloud_g``; ``sw_kext_cloud`` :math:`\approx 1.5 / r_{\text{eff}}` with
-:math:`r_{\text{eff}}` in µm gives 150 m²/kg for 10 µm droplets). The prescribed cloud band, the moisture
+with ``sw_cloud_omega`` and ``sw_cloud_g``; ``sw_kext_cloud`` :math:`\approx 3 / (2 \rho_w r_{\text{eff}})`,
+i.e. :math:`1500 / r_{\text{eff}}` m²/kg with :math:`r_{\text{eff}}` in µm, gives 150 m²/kg for 10 µm droplets). The prescribed cloud band, the moisture
 coefficients and the aerosol term are added on top as before. The column optical depth is then a property of
 the atmosphere, not of the grid, and the longwave band uses the mass path described below.
 The diffuse (scattered) shortwave field has upward and downward streams and is solved with the
@@ -190,9 +190,13 @@ fluxes are:
 
 .. math::
 
-   \frac{dF_{\uparrow}}{d\tau} = F_{\uparrow} - 2 B(T), \quad
-   \frac{dF_{\downarrow}}{d\tau} = -F_{\downarrow} + 2 B(T)
+   \frac{dF_{\uparrow}}{d\tau} = F_{\uparrow} - \sigma T^4, \quad
+   \frac{dF_{\downarrow}}{d\tau} = -F_{\downarrow} + \sigma T^4
 
+where :math:`\tau` is the longwave flux optical depth, counted downward from the top. Across a layer of
+optical depth :math:`\Delta\tau` at temperature :math:`T` this gives
+:math:`F_{\text{out}} = F_{\text{in}} e^{-\Delta\tau} + \sigma T^4 (1 - e^{-\Delta\tau})`, so an opaque layer
+emits :math:`\sigma T^4`.
 These are integrated over each model layer using an upward sweep (from the surface upward) and a downward
 sweep (from the top-of-atmosphere downward), with boundary conditions:
 
