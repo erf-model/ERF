@@ -873,7 +873,7 @@ endfunction(add_test_restart_abort)
 # agreement is not between two copies of a constant.
 function(add_test_tiling_parity TEST_NAME TEST_FILES_DIR PLTFILE PLT2DFILE)
     set(options )
-    set(oneValueArgs "RUNTIME_OPTIONS" "VARYING_3D" "VARYING_2D")
+    set(oneValueArgs "RUNTIME_OPTIONS" "VARYING_3D" "VARYING_2D" "TILED_SIZE")
     set(multiValueArgs )
     cmake_parse_arguments(ADD_TEST_TP "${options}" "${oneValueArgs}"
         "${multiValueArgs}" ${ARGN})
@@ -897,6 +897,7 @@ function(add_test_tiling_parity TEST_NAME TEST_FILES_DIR PLTFILE PLT2DFILE)
         "-DPLT2DFILE=${PLT2DFILE}"
         "-DVARYING_3D=${ADD_TEST_TP_VARYING_3D}"
         "-DVARYING_2D=${ADD_TEST_TP_VARYING_2D}"
+        "-DTILED_SIZE=${ADD_TEST_TP_TILED_SIZE}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunTilingParity.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -1878,6 +1879,18 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_tiling_parity(PBL_IBAware_YSUNew_Tiling PBL_IBAware_Tiling "00010" "00010"
       RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU"
       VARYING_3D "Kmv" VARYING_2D "pblh u_star")
+  # YSUNew with PBL-height smoothing over a neutral ground (erf-model/ERF#4479).
+  # The surface heat flux is round-off whose sign follows the decomposition, and
+  # the stability flag took its sign: on this deck Khv beside the cube differed by
+  # 9 % between one box and 8 x 8 tiles, and x_velocity by 4e-8 with 16 boxes. Tiles must split x as well as y to change
+  # that round-off, so the tiled run uses 8 x 8 x-y tiles (TILED_SIZE).
+  add_test_tiling_parity(PBL_IBAware_Neutral_Tiling PBL_IBAware_Neutral "00010" "00010"
+      TILED_SIZE "8 8 1024000"
+      VARYING_3D "Kmv Khv" VARYING_2D "pblh")
+  add_test_box_parity(PBL_IBAware_Neutral_BoxParity PBL_IBAware_Neutral "plt00010"
+      COMMON_OPTIONS "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/PBL_IBAware_Neutral_BoxParity/input_sounding"
+      REFERENCE_OPTIONS "fabarray.mfiter_tile_size=1024000 1024000 1024000"
+      SPLIT_OPTIONS "amr.max_grid_size=8 fabarray.mfiter_tile_size=1024000 1024000 1024000")
 endif()
 add_test_r(ABL_InflowFile                    ""  "erf_exec" "plt00010")
 add_test_r(MoistBubble                       ""  "erf_exec" "plt00010")

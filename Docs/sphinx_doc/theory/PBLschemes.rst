@@ -1353,6 +1353,17 @@ which is in turn used to provide an improved estimate of :math:`h`, which is the
 
    This two step-process matches the WRF implementation, but this could be extended iteratively to reach convergence.
 
+In ``YSUNew`` the sign of the surface virtual heat flux selects the form of the diffusivity inside the PBL. A column
+counts as stable when the flux is negative and as unstable or neutral otherwise, as WRF does with its surface bulk
+Richardson number (``sfcflg``). Over a neutral surface the flux is round-off. With a plane-averaged surface layer
+(the default ``erf.most.average_policy``) it comes from an averaged :math:`\theta` that differs from the surface value
+only in the last bits, and how depends on the box and tile decomposition. A flux within
+:math:`64\,\epsilon\, u_* \theta_1` of zero therefore counts as neutral, where :math:`\epsilon` is the machine epsilon
+of ``amrex::Real`` and :math:`\theta_1` the dry potential temperature of the lowest cell, so that the choice does not
+depend on the decomposition. With :math:`u_* = 0.3` m/s and :math:`\theta_1 = 300` K the band is about
+:math:`1.3\times 10^{-12}` K m/s in double precision and :math:`7\times 10^{-4}` K m/s (about 0.8 W/m\ :sup:`2`) in
+single precision.
+
 
 Countergradient corrections are computed as follows:
 
