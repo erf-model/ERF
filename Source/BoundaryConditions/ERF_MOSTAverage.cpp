@@ -813,17 +813,18 @@ MOSTAverage::set_k_indices_N (const int& lev)
             // Existing behavior: zlo input is an absolute coordinate. The stored
             // reference height is the height above the wall, as on every other face:
             // the surface layer uses it as one, e.g. in ln(zref / z0).
-            // Height above the wall; a given absolute z gets a round-off allowance so that
-            // a query at a cell center (e.g. prob_lo + dz/2) is not rounded below it
+            // Height above the wall. A query at a cell center (prob_lo + dz/2 typed as a z,
+            // or the default dz0/2 on a level refined by an odd ratio) must not round below
+            // it, so the cell count gets an allowance of a few round-off units of the
+            // numbers it came from
             const Real height = (zlo_default_height >= zero) ? zlo_default_height
                                                              : zref_tmp - m_zlo;
-            const Real slack = (zlo_default_height >= zero) ? zero
-                : Real(1000) * std::numeric_limits<Real>::epsilon()
-                  * (std::abs(zref_tmp) + std::abs(m_zlo)) / m_dz;
+            const Real slack = Real(8) * std::numeric_limits<Real>::epsilon()
+                             * ((std::abs(zref_tmp) + std::abs(m_zlo)) / m_dz + one);
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(height / m_dz + slack >= myhalf,
                 "erf.most.zref on the low z face of a constant-dz mesh is an absolute z: it must be "
                 "at least geometry.prob_lo[2] + dz/2");
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp <= m_zhi - myhalf * m_dz,
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE((m_zhi - m_zlo - height) / m_dz + slack >= myhalf,
                 "erf.most.zref on the low z face of a constant-dz mesh is an absolute z: it must be "
                 "at most geometry.prob_hi[2] - dz/2");
 
