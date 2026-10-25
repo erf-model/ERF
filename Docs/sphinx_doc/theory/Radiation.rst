@@ -679,15 +679,18 @@ relative humidity (RH) and cloud liquid water content (qc):
    C_f = \min \left( 1, \max \left( 0, \frac{RH - \text{rh_min}}{\text{rh_max} - \text{rh_min}} \right) + \min \left( 1, \frac{q_c}{q_{c,\text{scale}}} \right) \right)
 
 where the RH threshold parameters allow for a transition from clear sky (RH < rh_min) to complete cloud coverage
-(RH >= rh_max). The coefficient :math:`c_{\text{qc}}` (default :math:`1 \times 10^{-3}`) provides an additional
-scaling of liquid water content's contribution. Optional temporal smoothing via an exponential moving average
-(EMA) may be applied to suppress oscillations:
+(RH >= rh_max). The relative humidity is :math:`RH = \min(1, q_v / q_{sat})`, with the saturation
+mixing ratio over liquid water
 
 .. math::
 
-   C_f^{\text{smoothed}} = \alpha C_f^{\text{new}} + (1 - \alpha) C_f^{\text{old}}
+   q_{sat} = \frac{\epsilon \, e_{sat}}{\max(e_{sat},\, p - e_{sat})}, \qquad
+   e_{sat} = 611.2 \, \text{Pa} \, \exp \left( \frac{17.62 \, T_c}{T_c + 243.12} \right),
 
-where :math:`\alpha` is the blending parameter.
+where :math:`\epsilon = 0.622`, :math:`p` is the pressure and :math:`T_c = T - 273.15` is the temperature
+in Celsius (Magnus formula, WMO 2008 coefficients). :math:`q_{c,\text{scale}}`
+(``erf.radiation.cloud_fraction_qc_scale``, default :math:`1 \times 10^{-3}` kg/kg) is the cloud water at
+which the liquid-water term alone reaches 1.
 
 Solar Geometry and Diurnal Cycle
 --------------------------------
