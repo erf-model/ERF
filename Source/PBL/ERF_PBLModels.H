@@ -1,6 +1,7 @@
 #ifndef ERF_PBLMODELS_H_
 #define ERF_PBLMODELS_H_
 
+#include <functional>
 #include <limits>
 #include <memory>
 
@@ -796,10 +797,13 @@ ApplyPBLHSmoothing (amrex::FArrayBox& pblh_fab,
  * @param[in] ng    Ghost cells wanted in x and y; z keeps those of src
  * @param[in] fill  Callable taking the widened MultiFab& and filling its ghost cells
  *                  from the valid cells of the other boxes of the level
+ *
+ * `fill` is a std::function, not a template parameter: nvcc does not accept the device
+ * lambda below inside a function template instantiated with a lambda local to the caller.
  */
-template <typename FillFunc>
-std::unique_ptr<amrex::MultiFab>
-WidenForPBLH (const amrex::MultiFab& src, const int ng, FillFunc&& fill)
+inline std::unique_ptr<amrex::MultiFab>
+WidenForPBLH (const amrex::MultiFab& src, const int ng,
+              const std::function<void(amrex::MultiFab&)>& fill)
 {
     const amrex::IntVect ng_src = src.nGrowVect();
     const amrex::IntVect ng_dst(ng, ng, ng_src[2]);
