@@ -155,9 +155,12 @@ public:
              const SolverChoice& solverChoice) override
     {
         dt = dt_advance;
+        m_sed.reset(dt_advance);
 
         this->AdvanceKessler(solverChoice);
     }
+
+    const SedimentationFlux* Sed_Flux () const override { return &m_sed; }
 
     amrex::MultiFab*
     Qmoist_Ptr (const int& varIdx) override
@@ -239,5 +242,8 @@ private:
 
     // independent variables
     amrex::Array<FabPtr, MicVar_Kess::NumVars> mic_fab_vars;
+
+    // Sedimentation face fluxes of the most recent Advance (rain, rhoQ3)
+    SedimentationFlux m_sed;
 };
 #endif

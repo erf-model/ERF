@@ -142,12 +142,15 @@ public:
              const SolverChoice& sc) override
     {
         dt = dt_advance;
+        m_sed.reset(dt_advance);
 
         this->Cloud(sc);
         this->IceFall(sc);
         this->Precip(sc);
         this->PrecipFall(sc);
     }
+
+    const SedimentationFlux* Sed_Flux () const override { return &m_sed; }
 
     amrex::MultiFab*
     Qmoist_Ptr (const int& varIdx) override
@@ -382,6 +385,10 @@ private:
 
     // independent variables
     amrex::Array<FabPtr, MicVar::NumVars> mic_fab_vars;
+
+    // Sedimentation face fluxes of the most recent Advance: rain, snow and graupel
+    // (PrecipFall, rhoQ4-6) and cloud ice (IceFall, rhoQ3)
+    SedimentationFlux m_sed;
 
     // microphysics parameters/coefficients
     amrex::TableData<amrex::Real, 1> accrrc;
