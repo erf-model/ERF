@@ -766,7 +766,13 @@ MOSTAverage::set_k_indices_N (const int& lev)
             const Real dz = m_geom[0].CellSize(dir);
             zref_tmp = zlo ? m_geom[0].ProbLo(dir) + myhalf * dz : myhalf * dz;
         }
-        Print() << "Reference height for MOST set to " << zref_tmp << std::endl;
+        if (zlo && !stretched) {
+            // zlo input convention: an absolute z
+            Print() << "Reference height for MOST set to " << zref_tmp - m_geom[0].ProbLo(dir)
+                    << " (z = " << zref_tmp << ")" << std::endl;
+        } else {
+            Print() << "Reference height for MOST set to " << zref_tmp << std::endl;
+        }
         read_z = true;
     }
 
@@ -796,7 +802,9 @@ MOSTAverage::set_k_indices_N (const int& lev)
         const int dom_hi = m_geom[lev].Domain().bigEnd(dir);
 
         if (zlo) {
-            // Existing behavior: zlo input is an absolute coordinate.
+            // Existing behavior: zlo input is an absolute coordinate. The stored
+            // reference height is the height above the wall, as on every other face:
+            // the surface layer uses it as one, e.g. in ln(zref / z0).
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp >= m_zlo + myhalf * m_dz,
                                              "Query point must be past first z-cell!");
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp <= m_zhi - myhalf * m_dz,
@@ -808,8 +816,7 @@ MOSTAverage::set_k_indices_N (const int& lev)
             AMREX_ALWAYS_ASSERT(wall_offset >= m_radius);
 
             m_k_indx[lev]->setVal(dom_lo + wall_offset);
-            m_zref[lev]->setVal(m_zlo +
-                                (static_cast<Real>(wall_offset) + myhalf) * m_dz);
+            m_zref[lev]->setVal((static_cast<Real>(wall_offset) + myhalf) * m_dz);
         } else {
             const Real domain_length = m_zhi - m_zlo;
 
@@ -884,9 +891,7 @@ MOSTAverage::set_k_indices_N (const int& lev)
                 const Real zref_abs = is_lo_face
                     ? zlo0 + (static_cast<Real>(wall_offset0) + myhalf) * dz0
                     : zhi0 - (static_cast<Real>(wall_offset0) + myhalf) * dz0;
-                m_zref[lev]->setVal(zlo
-                    ? zref_abs
-                    : (is_lo_face ? zref_abs - zlo0 : zhi0 - zref_abs));
+                m_zref[lev]->setVal(is_lo_face ? zref_abs - zlo0 : zhi0 - zref_abs);
             }
         } else {
             const Real m_dz = m_geom[lev].CellSize(dir);
@@ -896,9 +901,7 @@ MOSTAverage::set_k_indices_N (const int& lev)
                 ? m_zlo + (static_cast<Real>(wall_offset) + myhalf) * m_dz
                 : m_zhi - (static_cast<Real>(wall_offset) + myhalf) * m_dz;
 
-            m_zref[lev]->setVal(zlo
-                ? zref_abs
-                : (is_lo_face ? zref_abs - m_zlo : m_zhi - zref_abs));
+            m_zref[lev]->setVal(is_lo_face ? zref_abs - m_zlo : m_zhi - zref_abs);
         }
     }
 }

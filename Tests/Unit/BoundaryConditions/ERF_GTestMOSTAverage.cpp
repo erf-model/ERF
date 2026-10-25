@@ -304,8 +304,9 @@ struct MOSTAverageFields
 } // namespace
 
 // Motivation: Plane MOST averages must use the interior high cell for the
-// default reference. The z-low face keeps its absolute-coordinate reference
-// convention, while all other faces use wall-relative distance. Tangential and
+// default reference. The stored reference height is the distance from the wall
+// on every face, also on z-low of this mesh, which starts at z = 30 (it used to
+// be the absolute z there, and the surface layer took ln(30.5 / z0)). Tangential and
 // cell-centered fields must still select the high cell plane, while only a
 // normal nodal field extends to the exterior high node.
 TEST(MOSTAverage, PlanarDefaultReferenceWorksOnEveryWall)
@@ -329,9 +330,7 @@ TEST(MOSTAverage, PlanarDefaultReferenceWorksOnEveryWall)
         const int dir = face.coordDir();
         const int expected_index = face.isLow()
             ? domain.smallEnd(dir) : domain.bigEnd(dir);
-        const Real expected_zref = (dir == 2 && face.isLow())
-            ? geom.ProbLo(dir) + Real(0.5) * geom.CellSize(dir)
-            : Real(0.5) * geom.CellSize(dir);
+        const Real expected_zref = Real(0.5) * geom.CellSize(dir);
         EXPECT_EQ(averages.get_k_indices(0)->min(0), expected_index);
         EXPECT_EQ(averages.get_k_indices(0)->max(0), expected_index);
         EXPECT_NEAR(averages.get_zref(0)->min(0), expected_zref,
@@ -507,9 +506,9 @@ TEST(MOSTAverage, BothPoliciesSupportKAndZrefOnEveryWall)
                 }
                 const Real expected_wall_distance =
                     (static_cast<Real>(wall_offset) + myhalf) * dz;
-                const Real expected_zref = zlo_absolute
-                    ? geom.ProbLo(dir) + expected_wall_distance
-                    : expected_wall_distance;
+                // Inputs on z-low are absolute (zref a z, k_arr_in an index), but the
+                // stored reference height is the distance from the wall on every face
+                const Real expected_zref = expected_wall_distance;
                 EXPECT_EQ(averages.get_k_indices(0)->min(0), expected_index)
                     << "policy=" << policy << ", zref=" << use_zref
                     << ", direction=" << dir << ", high=" << !face.isLow();
@@ -592,11 +591,9 @@ TEST(MOSTAverage, NonTerrainKIndicesAreSetOnEveryWall)
         const int expected_index = face.isLow()
             ? domain.smallEnd(dir) + wall_offset
             : domain.bigEnd(dir) - wall_offset;
-        const Real expected_wall_distance =
+        // The z-low input is an absolute z, the stored height is above the wall
+        const Real expected_zref =
             (static_cast<Real>(wall_offset) + myhalf) * dz;
-        const Real expected_zref = zlo_absolute
-            ? geom.ProbLo(dir) + expected_wall_distance
-            : expected_wall_distance;
 
         const auto* k_indices = averages.get_k_indices(0);
         EXPECT_EQ(k_indices->min(0), expected_index)

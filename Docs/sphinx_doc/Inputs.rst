@@ -4234,11 +4234,15 @@ the ones marked **Required** abort the run if they are not given.
 |                                       | meshes query 10 m above the surface and other meshes     |                     |                  |
 |                                       | use the first cell center, taken from the z levels on a  |                     |                  |
 |                                       | stretched mesh. A height on a cell face lies in the      |                     |                  |
-|                                       | cell above it                                            |                     |                  |
+|                                       | cell above it. On the low z face of a constant-dz mesh   |                     |                  |
+|                                       | the value given here is an absolute z (the height plus   |                     |                  |
+|                                       | geometry.prob_lo[2]); the surface layer always uses the  |                     |                  |
+|                                       | height above the surface                                 |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.k_arr_in**                 | vertical cell index at which the MOST quantities are     | List of Integers    | None             |
 |                                       | evaluated, one per level; an alternative to              |                     |                  |
-|                                       | ``erf.most.zref``                                        |                     |                  |
+|                                       | ``erf.most.zref``; on the low z face an absolute index,  |                     |                  |
+|                                       | on the other faces a number of cells from the wall       |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.use_interpolation**        | interpolate to the query point rather than using the     | Boolean             | false            |
 |                                       | containing cell                                          |                     |                  |
