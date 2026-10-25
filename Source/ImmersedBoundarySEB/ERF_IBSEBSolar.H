@@ -40,7 +40,7 @@ amrex::Real solar_declination (amrex::Real day_of_year)
     return 0.006918
         - 0.399912 * std::cos(gamma) + 0.070257 * std::sin(gamma)
         - 0.006758 * std::cos(2.0 * gamma) + 0.000907 * std::sin(2.0 * gamma)
-        - 0.00248 * std::cos(3.0 * gamma) + 0.00031 * std::sin(3.0 * gamma);
+        - 0.002697 * std::cos(3.0 * gamma) + 0.00148 * std::sin(3.0 * gamma);
 }
 
 /** Equation of time [minutes] from the day of year (Spencer 1971). */
