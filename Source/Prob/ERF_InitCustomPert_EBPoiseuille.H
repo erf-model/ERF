@@ -35,10 +35,10 @@
         const Real y = prob_lo[1] + (j + myhalf) * dx[1];
         const Real z = use_z_phys ? z_cc(i,j,k) : prob_lo[2] + (k + myhalf) * dx[2];
 
-        // Define a point (xc,yc,zc) at the center of the domain
-        const Real xc = xc_frac * (prob_lo[0] + prob_hi[0]);
-        const Real yc = yc_frac * (prob_lo[1] + prob_hi[1]);
-        const Real zc = zc_frac * (phys_z_lo + phys_z_hi);
+        // Define a point (xc,yc,zc) at the given fractions of the domain extent
+        const Real xc = prob_lo[0] + xc_frac * (prob_hi[0] - prob_lo[0]);
+        const Real yc = prob_lo[1] + yc_frac * (prob_hi[1] - prob_lo[1]);
+        const Real zc = phys_z_lo  + zc_frac * (phys_z_hi  - phys_z_lo);
 
         // Define ellipse parameters
         const Real r0   = rad_0 * (prob_hi[0] - prob_lo[0]);
