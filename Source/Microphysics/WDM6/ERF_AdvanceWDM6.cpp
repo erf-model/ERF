@@ -650,7 +650,34 @@ void wdm6_ccn_activation (
 // ---------------------------------------------------------------
 
 void WDM6::Advance (const Real& dt_advance,
-                    const SolverChoice& /*solverChoice*/)
+                    const SolverChoice& solverChoice)
+{
+    if (!m_columns.needs_gather()) {
+        AdvanceColumns(dt_advance, solverChoice);
+        return;
+    }
+
+    // Some column is split between boxes stacked in z. Sedimentation treats each box's
+    // k range as the whole column, so run on a copy of the fields in which every column
+    // lies in one box, then copy the result back.
+    amrex::Array<FabPtr, MicVar_WDM6::NumVars> saved;
+    m_columns.gather(mic_fab_vars, saved);
+    MultiFab* z_phys_nd_saved = m_z_phys_nd;
+    auto z_phys_nd_col = m_columns.gather_nodal(m_z_phys_nd);
+    m_z_phys_nd = z_phys_nd_col.get();
+    iMultiFab* lmask_saved = m_lmask;
+    auto lmask_col = m_columns.gather_2d(m_lmask);
+    m_lmask = lmask_col.get();
+
+    AdvanceColumns(dt_advance, solverChoice);
+
+    m_lmask = lmask_saved;
+    m_z_phys_nd = z_phys_nd_saved;
+    m_columns.scatter(mic_fab_vars, saved);
+}
+
+void WDM6::AdvanceColumns (const Real& dt_advance,
+                           const SolverChoice& /*solverChoice*/)
 {
     // ---------------------------------------------------------------
     // Dual-mode implementation following WSM6 pattern:
@@ -701,6 +728,12 @@ void WDM6::Advance (const Real& dt_advance,
         pp.queryAdd("use_wdm6_cpp_answer", use_wdm6_cpp_answer);
     }
     const bool run_wdm6_fort = !use_wdm6_cpp_answer;
+
+    // The Fortran bridge takes each box's k range as the whole column (the box top as the
+    // model top, its bottom as the ground), so it needs boxes that do span it.
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!run_wdm6_fort || m_columns.boxes_span_domain(),
+        "WDM6: the Fortran bridge (erf.use_wdm6_cpp_answer = false) requires every box to span "
+        "the domain in z (no grids split in z, and no refined levels short of the domain top or bottom)");
 #endif
 
     // Physical constants
@@ -1817,9 +1850,13 @@ void WDM6::Advance (const Real& dt_advance,
             // Step 3h: G9 Surface precipitation accumulation and sr update
             // ============================================================
 
-            // Surface precipitation accumulation from sedimentation fallout
+            // Surface precipitation accumulation from sedimentation fallout. Only a
+            // column standing on the domain bottom has a ground to accumulate it on.
+            const bool reaches_ground = (klo == m_geom.Domain().smallEnd(2));
             ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
             {
+                if (!reaches_ground) { return; }
+
                 const Real fall_r = fall_arr(i,j,klo,0);        // rain fallout
                 const Real fall_s = fall_arr(i,j,klo,1);        // snow fallout
                 const Real fall_g = fall_arr(i,j,klo,2);        // graupel fallout

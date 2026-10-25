@@ -31,6 +31,8 @@ Morrison::Init (const MultiFab& cons_in,
     m_z_phys_nd = z_phys_nd.get();
     m_detJ_cc   = detJ_cc.get();
 
+    m_columns.define(cons_in.boxArray(), geom.Domain());
+
     MicVarMap.resize(m_qmoist_size);
     MicVarMap = {MicVar_Morr::rain_accum, MicVar_Morr::snow_accum, MicVar_Morr::graup_accum};
 

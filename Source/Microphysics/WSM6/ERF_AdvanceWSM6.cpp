@@ -842,7 +842,31 @@ void wsm6_nislfv_rain_plm6_scratch (int km,
 
 void
 WSM6::Advance (const Real& dt_advance,
-               const SolverChoice&)
+               const SolverChoice& sc)
+{
+    if (!m_columns.needs_gather()) {
+        AdvanceColumns(dt_advance, sc);
+        return;
+    }
+
+    // Some column is split between boxes stacked in z. Sedimentation treats each box's
+    // k range as the whole column, so run on a copy of the fields in which every column
+    // lies in one box, then copy the result back.
+    amrex::Array<FabPtr, MicVar_WSM6::NumVars> saved;
+    m_columns.gather(mic_fab_vars, saved);
+    MultiFab* z_phys_nd_saved = m_z_phys_nd;
+    auto z_phys_nd_col = m_columns.gather_nodal(m_z_phys_nd);
+    m_z_phys_nd = z_phys_nd_col.get();
+
+    AdvanceColumns(dt_advance, sc);
+
+    m_z_phys_nd = z_phys_nd_saved;
+    m_columns.scatter(mic_fab_vars, saved);
+}
+
+void
+WSM6::AdvanceColumns (const Real& dt_advance,
+                      const SolverChoice&)
 {
     dt = dt_advance;
 
@@ -872,6 +896,12 @@ WSM6::Advance (const Real& dt_advance,
     { amrex::ParmParse pp("erf");
       pp.queryAdd("use_wsm6_cpp_answer", use_wsm6_cpp_answer); }
     bool run_wsm6_fort = !use_wsm6_cpp_answer;
+
+    // The Fortran bridge takes each box's k range as the whole column (the box top as the
+    // model top, its bottom as the ground), so it needs boxes that do span it.
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!run_wsm6_fort || m_columns.boxes_span_domain(),
+        "WSM6: the Fortran bridge (erf.use_wsm6_cpp_answer = false) requires every box to span "
+        "the domain in z (no grids split in z, and no refined levels short of the domain top or bottom)");
 
     static bool wsm6_inited = false;
 
@@ -2512,10 +2542,13 @@ WSM6::Advance (const Real& dt_advance,
 #ifdef ERF_USE_WSM6_FORT
         }
 #endif
-        ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-            rain_arr(i,j,klo) = rainacc_arr(i,j,0);
-            snow_arr(i,j,klo) = snowacc_arr(i,j,0);
-            graup_arr(i,j,klo) = graupacc_arr(i,j,0);
-        });
+        // Only a column standing on the domain bottom has a ground to accumulate precipitation on
+        if (klo == m_geom.Domain().smallEnd(2)) {
+            ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+                rain_arr(i,j,klo) = rainacc_arr(i,j,0);
+                snow_arr(i,j,klo) = snowacc_arr(i,j,0);
+                graup_arr(i,j,klo) = graupacc_arr(i,j,0);
+            });
+        }
     }
 }

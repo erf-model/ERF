@@ -21,6 +21,8 @@ WDM6::Init (const MultiFab& cons_in,
     m_z_phys_nd = z_phys_nd.get();
     m_detJ_cc = detJ_cc.get();
 
+    m_columns.define(cons_in.boxArray(), geom.Domain());
+
     // Read CCN concentration from input
     amrex::ParmParse pp("wdm6");
     pp.queryAdd("ccn0", m_ccn0);  // default 100.0e6 m^-3

@@ -177,6 +177,30 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
     Morrison::Advance (const Real& dt_advance,
                        const SolverChoice& sc)
     {
+        if (!m_columns.needs_gather()) {
+            AdvanceColumns(dt_advance, sc);
+            return;
+        }
+
+        // Some column is split between boxes stacked in z. Sedimentation treats each
+        // box's k range as the whole column, so run on a copy of the fields in which
+        // every column lies in one box, then copy the result back.
+        amrex::Array<FabPtr, MicVar_Morr::NumVars> saved;
+        m_columns.gather(mic_fab_vars, saved);
+        MultiFab* z_phys_nd_saved = m_z_phys_nd;
+        auto z_phys_nd_col = m_columns.gather_nodal(m_z_phys_nd);
+        m_z_phys_nd = z_phys_nd_col.get();
+
+        AdvanceColumns(dt_advance, sc);
+
+        m_z_phys_nd = z_phys_nd_saved;
+        m_columns.scatter(mic_fab_vars, saved);
+    }
+
+    void
+    Morrison::AdvanceColumns (const Real& dt_advance,
+                              const SolverChoice& sc)
+    {
         // Expose for GPU
         bool do_cond = m_do_cond;
 
@@ -198,6 +222,15 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
         // Ensure that only one of these is true
         bool run_morr_cpp  =  use_morr_cpp_answer;
         bool run_morr_fort = !run_morr_cpp;
+
+        // The Fortran bridge takes each box's k range as the whole column (the box top
+        // as the model top, its bottom as the ground), so it needs boxes that do span it.
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!run_morr_fort || m_columns.boxes_span_domain(),
+            "Morrison: erf.use_morr_cpp_answer = false requires every box to span the domain in z "
+            "(no grids split in z, and no refined levels short of the domain top or bottom)");
+
+        // Only a column standing on the domain bottom has a ground to accumulate precipitation on
+        const int dom_klo = m_geom.Domain().smallEnd(2);
 
         std::string filename = std::string("output_cpp") + std::to_string(use_morr_cpp_answer) + ".txt";
 
@@ -3235,9 +3268,11 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
 
               // Update precipitation accumulation variables
               // These are outside the k-loop in the original code
-              rain_accum_arr(i,j,klo) = rain_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::precrt);
-              snow_accum_arr(i,j,klo) = snow_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::snowprt);
-              graup_accum_arr(i,j,klo) = graup_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::grplprt);
+              if (klo == dom_klo) {
+                  rain_accum_arr(i,j,klo) = rain_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::precrt);
+                  snow_accum_arr(i,j,klo) = snow_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::snowprt);
+                  graup_accum_arr(i,j,klo) = graup_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::grplprt);
+              }
 
             } // cpp
          });

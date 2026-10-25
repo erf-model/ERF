@@ -21,6 +21,7 @@
 #include "ERF_DataStruct.H"
 #include "ERF_NullMoist.H"
 #include "ERF_SurfacePrecipitation.H"
+#include "ERF_MicrophysicsColumns.H"
 #include <ERF_Morrison_Fortran_Interface.H>
 
 namespace MicVar_Morr {
@@ -235,6 +236,11 @@ public:
     }
 
 private:
+    // The body of Advance, run on grids in which no column is split between boxes
+    void
+    AdvanceColumns (const amrex::Real& dt_advance,
+                    const SolverChoice& sc);
+
     // Number of qmoist variables (rain_accum, snow_accum, graup_accum)
     int m_qmoist_size = 3;
 
@@ -264,5 +270,8 @@ private:
 
     // independent variables
     amrex::Array<FabPtr, MicVar_Morr::NumVars> mic_fab_vars;
+
+    // Full-column layout of this level's grids (see ERF_MicrophysicsColumns.H)
+    MicrophysicsColumns m_columns;
 };
 #endif

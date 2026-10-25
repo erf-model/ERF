@@ -21,6 +21,8 @@ WSM6::Init (const MultiFab& cons_in,
     m_z_phys_nd = z_phys_nd.get();
     m_detJ_cc = detJ_cc.get();
 
+    m_columns.define(cons_in.boxArray(), geom.Domain());
+
     MicVarMap.resize(m_qmoist_size);
     MicVarMap = {MicVar_WSM6::rain_accum, MicVar_WSM6::snow_accum, MicVar_WSM6::graup_accum};
 
