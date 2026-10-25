@@ -1753,8 +1753,9 @@ add_test_r(MovingTerrain_sub                 ""  "erf_exec" "plt00010")
 # second time with the domain moved; Tests/check_shift_invariance.py requires the second
 # to be the first shifted by SHIFT cells in x. MovingTerrain: half a wavelength (50 m, 10
 # cells); before the fix the terrain and w ignored prob_lo while u used it (z_velocity off
-# by 2x its size). ScalarAdvDiff: one domain length with xc_frac = yc_frac = 0.25; before
-# the fix the centre was frac * (lo + hi) and the blob moved by 0.5 domain lengths.
+# by 2x its size). ScalarAdvDiff: one domain length in x, y and z with prob_type 12 (an
+# ellipse in x-z) and xc_frac = zc_frac = 0.25; before the fix the centre was
+# frac * (lo + hi) and the blob moved by 0.5 domain lengths in x and z.
 function(add_test_shift_invariance TEST_NAME TEST_FILES_DIR SHIFT VARS OPTIONS_A OPTIONS_B)
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
@@ -1781,7 +1782,8 @@ if(NOT WIN32 AND ERF_TEST_PYTHON)
   add_test_shift_invariance(MovingTerrain_ShiftInvariance MovingTerrain_nosub 10
       "x_velocity z_velocity z_phys" "" "'geometry.prob_lo=50 0 0'")
   add_test_shift_invariance(ScalarAdvDiff_CentreShiftInvariance ScalarAdvectionUniformU 0
-      "rhoadv_0" "prob.xc_frac=0.25 prob.yc_frac=0.25" "prob.xc_frac=0.25 prob.yc_frac=0.25 'geometry.prob_lo=1 1 0'")
+      "rhoadv_0" "prob.prob_type=12 prob.rad_0=0.3 prob.xc_frac=0.25 prob.zc_frac=0.25"
+      "prob.prob_type=12 prob.rad_0=0.3 prob.xc_frac=0.25 prob.zc_frac=0.25 'geometry.prob_lo=1 1 1'")
   # pert_delta_v alone gives a y-velocity perturbation; pert_delta_u alone does not
   add_test_v_perturbation(Poiseuille_PertV_Only "nonzero" "")
   add_test_v_perturbation(Poiseuille_PertU_Only "zero" "prob.pert_delta_u=2.0 prob.pert_delta_v=0.0")

@@ -21,6 +21,12 @@
     Real xradius = amrex::Real(10.0); pp.query("xradius", xradius); // x-radius of scalar bubble
     Real zradius = amrex::Real(10.0); pp.query("zradius", zradius); // z-radius of scalar bubble
 
+    // prob_type 11 divides by the radii
+    if (prob_type == 11) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(xradius > zero && zradius > zero,
+            "prob.xradius and prob.zradius must be > 0 for prob.prob_type = 11");
+    }
+
     AMREX_ALWAYS_ASSERT(sc.terrain_type == TerrainType::EB);
 
     // Set the state_pert

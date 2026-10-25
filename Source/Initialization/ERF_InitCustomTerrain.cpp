@@ -200,6 +200,7 @@ init_my_custom_terrain ( const Geometry& geom,
 
             Real Ampl        = zero;  pp_prob.queryAdd("Ampl", Ampl);
             Real wavelength  = Real(100.); pp_prob.queryAdd("wavelength", wavelength);
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(wavelength > zero, "prob.wavelength must be > 0");
 
             Real kp          = two * PI / wavelength;
             Real g           = CONST_GRAV;

@@ -1,6 +1,7 @@
     ParmParse pp_prob("prob");
     Real Ampl = zero;        pp_prob.query("Ampl", Ampl);
     Real wavelength = one; pp_prob.get("wavelength", wavelength);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(wavelength > zero, "prob.wavelength must be > 0");
 
     Real H           = phys_zhi(geomdata, lev);   // physical top of the domain
     Real kp          = two * PI / wavelength;
