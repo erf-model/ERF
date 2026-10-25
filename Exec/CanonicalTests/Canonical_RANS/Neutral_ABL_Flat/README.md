@@ -66,11 +66,12 @@ moved up by 300 m):
 
 | test | mesh | boxes |
 | --- | --- | --- |
-| `RANS_WallDist_RaisedBase` | constant dz | one box per column |
+| `RANS_WallDist_RaisedBase` | constant dz | one box |
 | `RANS_WallDist_RaisedBase_StretchedZSplit` | stretched, `erf.initial_dz = 4` | split in z (`amr.no_box_split_dir = -1`) |
 
 The script stops if `geometry.prob_lo[2]` is 0, where height and wall
 distance are the same number and the check could not fail. Before
-erf-model/ERF#4609 and #4610 were fixed, both entries failed by 300 m: the
-constant-dz distance included `prob_lo[2]`, and the upper box of the split
-stretched mesh read the surface node at k = 0, which it does not hold.
+erf-model/ERF#4609 and #4610 were fixed, both entries failed: the
+constant-dz distance included `prob_lo[2]` (300 m too large), and the upper
+box of the split stretched mesh read the surface node at k = 0 outside its
+own data, an undefined value (300 m off in the build where this was measured).

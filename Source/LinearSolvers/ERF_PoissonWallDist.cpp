@@ -47,7 +47,9 @@ assert_surface_gathered (const MultiFab& znd_surf)
             return m;
         });
     ParallelAllReduce::Max(znd_max, ParallelContext::CommunicatorSub());
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(znd_max < bogus_large_value,
+    // Same threshold as fill_surface_nodes: a node interpolated from a stencil that still
+    // held bogus values is a fraction of bogus_large_value, not equal to it
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(znd_max < Real(0.5) * bogus_large_value,
         "poisson_wall_dist: the surface nodes were not gathered onto every box");
 }
 
