@@ -57,8 +57,8 @@ The mass model (``tau_model = mass``) instead builds each layer's optical proper
 with the constituents mixed by extinction weighting into the layer single-scattering albedo and asymmetry
 factor, :math:`\omega_0 = \sum_i \omega_i \tau_i / \tau` and :math:`g = \sum_i g_i \omega_i \tau_i / \sum_i \omega_i \tau_i`
 (dry and vapor absorption with :math:`\omega = 0`, Rayleigh scattering with :math:`\omega = 1, g = 0`, cloud water
-with ``sw_cloud_omega`` and ``sw_cloud_g``; ``sw_kext_cloud`` :math:`\approx 1.5 / r_{\text{eff}}` with
-:math:`r_{\text{eff}}` in µm gives 150 m²/kg for 10 µm droplets). The prescribed cloud band, the moisture
+with ``sw_cloud_omega`` and ``sw_cloud_g``; ``sw_kext_cloud`` :math:`\approx 3 / (2 \rho_w r_{\text{eff}})`,
+i.e. :math:`1500 / r_{\text{eff}}` m²/kg with :math:`r_{\text{eff}}` in µm, gives 150 m²/kg for 10 µm droplets). The prescribed cloud band, the moisture
 coefficients and the aerosol term are added on top as before. The column optical depth is then a property of
 the atmosphere, not of the grid, and the longwave band uses the mass path described below.
 The diffuse (scattered) shortwave field has upward and downward streams and is solved with the
@@ -190,9 +190,13 @@ fluxes are:
 
 .. math::
 
-   \frac{dF_{\uparrow}}{d\tau} = F_{\uparrow} - 2 B(T), \quad
-   \frac{dF_{\downarrow}}{d\tau} = -F_{\downarrow} + 2 B(T)
+   \frac{dF_{\uparrow}}{d\tau} = F_{\uparrow} - \sigma T^4, \quad
+   \frac{dF_{\downarrow}}{d\tau} = -F_{\downarrow} + \sigma T^4
 
+where :math:`\tau` is the longwave flux optical depth, counted downward from the top. Across a layer of
+optical depth :math:`\Delta\tau` at temperature :math:`T` this gives
+:math:`F_{\text{out}} = F_{\text{in}} e^{-\Delta\tau} + \sigma T^4 (1 - e^{-\Delta\tau})`, so an opaque layer
+emits :math:`\sigma T^4`.
 These are integrated over each model layer using an upward sweep (from the surface upward) and a downward
 sweep (from the top-of-atmosphere downward), with boundary conditions:
 
@@ -679,15 +683,18 @@ relative humidity (RH) and cloud liquid water content (qc):
    C_f = \min \left( 1, \max \left( 0, \frac{RH - \text{rh_min}}{\text{rh_max} - \text{rh_min}} \right) + \min \left( 1, \frac{q_c}{q_{c,\text{scale}}} \right) \right)
 
 where the RH threshold parameters allow for a transition from clear sky (RH < rh_min) to complete cloud coverage
-(RH >= rh_max). The coefficient :math:`c_{\text{qc}}` (default :math:`1 \times 10^{-3}`) provides an additional
-scaling of liquid water content's contribution. Optional temporal smoothing via an exponential moving average
-(EMA) may be applied to suppress oscillations:
+(RH >= rh_max). The relative humidity is :math:`RH = \min(1, q_v / q_{sat})`, with the saturation
+mixing ratio over liquid water
 
 .. math::
 
-   C_f^{\text{smoothed}} = \alpha C_f^{\text{new}} + (1 - \alpha) C_f^{\text{old}}
+   q_{sat} = \frac{\epsilon \, e_{sat}}{\max(e_{sat},\, p - e_{sat})}, \qquad
+   e_{sat} = 611.2 \, \text{Pa} \, \exp \left( \frac{17.62 \, T_c}{T_c + 243.12} \right),
 
-where :math:`\alpha` is the blending parameter.
+where :math:`\epsilon = 0.622`, :math:`p` is the pressure and :math:`T_c = T - 273.15` is the temperature
+in Celsius (Magnus formula, WMO 2008 coefficients). :math:`q_{c,\text{scale}}`
+(``erf.radiation.cloud_fraction_qc_scale``, default :math:`1 \times 10^{-3}` kg/kg) is the cloud water at
+which the liquid-water term alone reaches 1.
 
 Solar Geometry and Diurnal Cycle
 --------------------------------
