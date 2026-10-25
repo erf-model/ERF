@@ -149,6 +149,10 @@ target_sources(${erf_exe_name}
     # physical-face stencil in every rotated Cartesian direction.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestStateDiffusionDirichlet.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestTKEBuoyancySource.cpp
+    # Motivation: the YSUNew PBL height must interpolate a bulk Richardson crossing at the top
+    # cell, give a column with no crossing the top of the scan, and give a surface cell already
+    # above Ribcr the floor without dividing 0 by 0 (erf-model/ERF#4458).
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestPBLRibCrossing.cpp
     # Motivation: reusable scalar diffusion must honor explicit scalar, coefficient,
     # flux, and tendency components while preserving ERF's N/S/T mapped discretizations.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestScalarDiffusion.cpp

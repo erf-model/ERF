@@ -967,9 +967,10 @@ endfunction(add_test_at_rest_terrain_outflow)
 # (InflowThetaDensity) and on an inflow_outflow face (InflowOutflowThetaFile), and only the
 # face that read the file uses it (InflowThetaFileOtherFace, a second inflow face with its
 # own density and theta).  PRE_INPUT names a deck in the test folder to run first, in the same
-# folder (BndryPlanes_MoistTemperature writes the boundary planes its deck then reads).
+# folder (BndryPlanes_MoistTemperature writes the boundary planes its deck then reads).  MIN_HI
+# and MAX_LO further require the minimum to be at most MIN_HI and the maximum at least MAX_LO.
 function(add_test_field_bounds TEST_NAME PLTFILE VARIABLE LO HI)
-    cmake_parse_arguments(ADD_TEST_FB "" "PRE_INPUT" "" ${ARGN})
+    cmake_parse_arguments(ADD_TEST_FB "" "PRE_INPUT;MIN_HI;MAX_LO" "" ${ARGN})
     setup_test()
     set(_pre_input "")
     if(NOT "${ADD_TEST_FB_PRE_INPUT}" STREQUAL "")
@@ -990,6 +991,8 @@ function(add_test_field_bounds TEST_NAME PLTFILE VARIABLE LO HI)
         "-DLO=${LO}"
         "-DHI=${HI}"
         "-DPRE_INPUT=${_pre_input}"
+        "-DMIN_HI=${ADD_TEST_FB_MIN_HI}"
+        "-DMAX_LO=${ADD_TEST_FB_MAX_LO}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunFieldBounds.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -1407,6 +1410,15 @@ set_tests_properties(BndryPlanes_MoistTemperature PROPERTIES FIXTURES_SETUP Bndr
 add_test_field_bounds(InputSponge_FinePatch "plt00004" x_velocity 5.9 8.5)
 # A refined patch below the inversion takes the coarse level's PBL height (~513 m), not its own
 add_test_field_bounds(PBLH_FinePatch "plt2d00004" pblh 450.0 600.0)
+# A column whose bulk Richardson number never reaches Ribcr takes the top of the scan, capped
+# at 0.9 z(khi) = 907.2 m; YSUNew and MRF gave it the 16 m floor (erf-model/ERF#4458)
+add_test_field_bounds(PBL_NoCrossing_YSUNew "plt2d00002" pblh 907.1 907.3)
+add_test_field_bounds(PBL_NoCrossing_MRF    "plt2d00002" pblh 907.1 907.3)
+# YSUNew columns whose surface cell is already above Ribcr take the 16 m floor, and the others
+# 907.2 m; the interpolation divided 0 by 0 there and the run stopped at the floating-point trap.
+# Both ends are required, so the test also fails where no trap fires (#4458)
+add_test_field_bounds(PBL_SurfaceCrossing_YSUNew "plt2d00002" pblh 15.99 907.3
+                      MIN_HI 16.01 MAX_LO 907.1)
 # k-eqn RANS canopy terms in a uniform, fully forested box: one step of the wind (drag with
 # density) and of k (wake production, short-circuit sink, length cap, implicit dissipation)
 # against the closed-form stage solution in the deck. The wall at the bottom (needed for the
@@ -1883,10 +1895,11 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   # The surface heat flux is round-off whose sign follows the decomposition, and
   # the stability flag took its sign: on this deck Khv beside the cube differed by
   # 9 % between one box and 8 x 8 tiles, and x_velocity by 4e-8 with 16 boxes. Tiles must split x as well as y to change
-  # that round-off, so the tiled run uses 8 x 8 x-y tiles (TILED_SIZE).
+  # that round-off, so the tiled run uses 8 x 8 x-y tiles (TILED_SIZE). Since #4458 no column of this
+  # neutral deck reaches Ribcr, so pblh is the 0.9 z(khi) cap everywhere and only Kmv and Khv must vary.
   add_test_tiling_parity(PBL_IBAware_Neutral_Tiling PBL_IBAware_Neutral "00010" "00010"
       TILED_SIZE "8 8 1024000"
-      VARYING_3D "Kmv Khv" VARYING_2D "pblh")
+      VARYING_3D "Kmv Khv")
   add_test_box_parity(PBL_IBAware_Neutral_BoxParity PBL_IBAware_Neutral "plt00010"
       COMMON_OPTIONS "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/PBL_IBAware_Neutral_BoxParity/input_sounding"
       REFERENCE_OPTIONS "fabarray.mfiter_tile_size=1024000 1024000 1024000"
@@ -2781,6 +2794,25 @@ add_test_most_zref(MOST_Zref_Stretched)
 # Immersed-boundary surface energy balance on the faces of a height-map cube
 # (prognostic skin, slab conduction, heat flux into the air), 40 steps.
 add_test_r(IBSEB_Cube                        ""  "erf_exec" "plt00040")
+
+# The clear-sky sun's diffuse share must lie in [0, 1] and its solar constant be positive:
+# one value past each end of the share, and a zero solar constant, stop at start-up
+# (erf-model/ERF#4655).
+add_test_abort(IBSEB_DiffuseCoeffAboveOne
+               ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_Cube
+               IBSEB_Cube.i
+               "erf.ibseb.sw_diffuse_coeff must be in"
+               "erf.ibseb.sun_mode=solar erf.ibseb.sw_diffuse_coeff=1.5")
+add_test_abort(IBSEB_DiffuseCoeffNegative
+               ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_Cube
+               IBSEB_Cube.i
+               "erf.ibseb.sw_diffuse_coeff must be in"
+               "erf.ibseb.sun_mode=solar erf.ibseb.sw_diffuse_coeff=-0.1")
+add_test_abort(IBSEB_SolarConstantZero
+               ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_Cube
+               IBSEB_Cube.i
+               "erf.ibseb.solar_constant must be"
+               "erf.ibseb.sun_mode=solar erf.ibseb.solar_constant=0.0")
 
 # The balance on two levels (Tests/RunIBSEBRefinedLevels.cmake): a cube on level 1 and a
 # tower outside it, whose shadow the cube's level-1 faces must find through level 0's

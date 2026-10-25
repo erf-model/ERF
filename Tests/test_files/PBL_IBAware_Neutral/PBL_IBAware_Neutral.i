@@ -5,9 +5,12 @@
 # Tests/RunTilingParity.cmake and on one box and on 16 by
 # Tests/RunBoxParity.cmake. The ground is neutral (300 K under a 300 K
 # sounding), so the surface heat flux is round-off whose sign depends on the
-# decomposition. The smoothing lifts the PBL height of the columns beside
-# the 40 m cube above their first cell, so their diffusivity there is the
-# one the surface stability flag selects.
+# decomposition. The bulk Richardson number reaches Ribcr in no column, so
+# every column takes the top of the scan, 0.9 z(khi) = 139.5 m (#4458), and
+# the diffusivity through that depth is the one the surface stability flag
+# selects. pblh is the same in every column, so the tiling test checks only
+# that Kmv and Khv vary; restoring the old flag rule (sflux > 0) still makes
+# both decomposition tests fail.
 stop_time = 100000.0
 amrex.fpe_trap_invalid = 1
 

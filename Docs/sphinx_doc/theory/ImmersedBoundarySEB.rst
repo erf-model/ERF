@@ -78,7 +78,10 @@ the site and time (``solar``): declination,
 equation of time, hour angle, zenith and azimuth by the Spencer series, the
 direct beam by the Bird transmission :math:`S_0 E_0 \tau^{1/\cos z}` and the
 diffuse light as a fraction :math:`k_d` of what the beam lost on the way
-down. The sun vector points from a surface toward the sun, with the azimuth
+down. :math:`k_d` (:cpp:`erf.ibseb.sw_diffuse_coeff`) must lie in
+:math:`[0, 1]`, so the diffuse light is never negative and the direct and
+diffuse light on a horizontal surface never exceed :math:`S_0 E_0 \cos z`;
+the run stops at start-up otherwise. The sun vector points from a surface toward the sun, with the azimuth
 clockwise from north, so east is :math:`+x` and north :math:`+y`. The
 ``two_stream`` provider takes the irradiances from the columns of the
 two-stream radiation instead (`Radiation from the two-stream columns`_ below);
