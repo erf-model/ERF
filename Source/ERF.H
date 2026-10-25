@@ -192,8 +192,13 @@ public:
     // first AdvanceRadiation, when the fluxes are still exactly zero. A caller
     // that needs "the lanes hold real radiation" must additionally know that a
     // radiation step has run.
+    //
+    // RadiationType::Simple is excluded: it computes only a net upward LW flux,
+    // not the (SW up, SW down, LW up, LW down) components, so its rad_fluxes
+    // stay zero and must not be handed to an ocean model.
     [[nodiscard]] bool HasRadiation () const {
-        return (!rad_fluxes.empty() && rad_fluxes[0] != nullptr);
+        return (!rad_fluxes.empty() && rad_fluxes[0] != nullptr) &&
+               (solverChoice.rad_type != RadiationType::Simple);
     }
 
     // Whether ERF can pack cloud fraction on the atmos->ocean Cloud lane. The
