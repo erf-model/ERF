@@ -44,6 +44,17 @@ amrex::Real spencer_day_angle (amrex::Real day_of_year)
     return 2.0 * PI * (day_of_year - 1.0) / 365.0;
 }
 
+/**
+ * Day of year at a UTC time: the start day plus the whole days elapsed since
+ * 00:00 UTC of that day (t_utc_s may exceed 86400 s in a multi-day run). The
+ * Spencer series repeat every 365 days, so the result needs no wrapping.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real day_of_year_at (amrex::Real day0, amrex::Real t_utc_s)
+{
+    return day0 + std::floor(t_utc_s / 86400.0);
+}
+
 /** Solar declination [rad] from the day of year (Spencer 1971). */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real solar_declination (amrex::Real day_of_year)
