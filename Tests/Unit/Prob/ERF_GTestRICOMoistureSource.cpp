@@ -100,7 +100,7 @@ TEST(RICOMoistureSource, ContinuousAtAConfiguredCutoff)
 }
 
 // Motivation: RICO's profile changes at 2980 m, so that is the default cutoff (it was
-// 500 m, where the source jumped); every RICO deck in the repository sets 2980 m.
+// 500 m, where the source jumped).
 TEST(RICOMoistureSource, DefaultCutoffIsTheRICOHeight)
 {
     RICOInputs inputs(false);

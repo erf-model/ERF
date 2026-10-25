@@ -119,9 +119,14 @@
             Real theta_new = getThgivenTandP(Tnew,P,rdOcp);
             Real rhonew    = getRhogivenThetaPress(theta_new,P,rdOcp,qv);
 
+            // Keep the qv the blocks above left (a random qv perturbation, if any) as the
+            // density changes: P is held for the unperturbed qv, as before
+            if (use_moisture) {
+                const Real qv_cur = (state(i,j,k,RhoQ1_comp) + state_pert(i,j,k,RhoQ1_comp))
+                                  / (rho + state_pert(i,j,k,Rho_comp));
+                state_pert(i, j, k, RhoQ1_comp) = rhonew * qv_cur - rho * qv;
+            }
             state_pert(i, j, k, Rho_comp) = rhonew - rho;
-            // Hold qv as well as P: rho changes, so rho*qv changes with it
-            if (use_moisture) { state_pert(i, j, k, RhoQ1_comp) = (rhonew - rho) * qv; }
             state_pert(i, j, k, RhoTheta_comp) = 0.0;
         }
 

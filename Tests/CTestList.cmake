@@ -3980,9 +3980,11 @@ endif()
 # deck (16 x 16 x 100 cells) without and with one perturbation and requires qv and
 # pressure to agree cell by cell while density changes (Tests/check_perturbation_keeps.py).
 # Before the fix rho*qv was left alone: qv changed by 2-3e-4 of itself and pressure by
-# about 1 Pa. A deck that also perturbs qv was not affected, so no existing answer changes.
+# about 1 Pa. A deck that also perturbs qv was not affected. The last test turns on the
+# random qv perturbation with the sinusoidal temperature one: qv must then differ from the
+# run with the temperature perturbation alone (the sine block keeps the random qv).
 #=============================================================================
-function(add_test_moist_tpert TEST_NAME CASE_DIR INPUT_FILE OPTIONS_B)
+function(add_test_moist_tpert TEST_NAME CASE_DIR INPUT_FILE OPTIONS_A OPTIONS_B CHECK_ARGS)
     set(CURRENT_TEST_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
     file(MAKE_DIRECTORY ${CURRENT_TEST_BINARY_DIR})
     file(GLOB _files "${PROJECT_SOURCE_DIR}/Exec/CanonicalTests/${CASE_DIR}/*")
@@ -4003,18 +4005,21 @@ function(add_test_moist_tpert TEST_NAME CASE_DIR INPUT_FILE OPTIONS_B)
         set(_tol 1e-12)
     endif()
     add_test(${TEST_NAME} sh -c
-      "${_run} erf.plot_file_1=pltA > ${CURRENT_TEST_BINARY_DIR}/runA.log 2>&1 && ${_run} ${OPTIONS_B} erf.plot_file_1=pltB > ${CURRENT_TEST_BINARY_DIR}/runB.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_perturbation_keeps.py ${CURRENT_TEST_BINARY_DIR}/pltA00000 ${CURRENT_TEST_BINARY_DIR}/pltB00000 --same qv pressure --differ density --tol ${_tol}")
+      "${_run} ${OPTIONS_A} erf.plot_file_1=pltA > ${CURRENT_TEST_BINARY_DIR}/runA.log 2>&1 && ${_run} ${OPTIONS_B} erf.plot_file_1=pltB > ${CURRENT_TEST_BINARY_DIR}/runB.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_perturbation_keeps.py ${CURRENT_TEST_BINARY_DIR}/pltA00000 ${CURRENT_TEST_BINARY_DIR}/pltB00000 ${CHECK_ARGS} --tol ${_tol}")
     set_tests_properties(${TEST_NAME} PROPERTIES
         TIMEOUT 600 PROCESSORS ${_np} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/runA.log;${CURRENT_TEST_BINARY_DIR}/runB.log")
 endfunction(add_test_moist_tpert)
 
 if(NOT WIN32 AND ERF_TEST_PYTHON)
-  add_test_moist_tpert(BOMEX_RandomT_KeepsQv Bomex inputs_bomex            "prob.T_0_Pert_Mag=0.1")
-  add_test_moist_tpert(GATE_RandomT_KeepsQv  GATE  inputs_Kessler_regtest  "prob.T_0_Pert_Mag=0.1")
-  add_test_moist_tpert(GATE_SineT_KeepsQv    GATE  inputs_Kessler_regtest  "prob.pert_deltaT=0.1")
-  add_test_moist_tpert(RICO_RandomT_KeepsQv  RICO  inputs_Kessler_regtest  "prob.T_0_Pert_Mag=0.1")
-  add_test_moist_tpert(RICO_SineT_KeepsQv    RICO  inputs_Kessler_regtest  "prob.pert_deltaT=0.1")
+  set(_keeps "--same qv pressure --differ density")
+  add_test_moist_tpert(BOMEX_RandomT_KeepsQv Bomex inputs_bomex           "" "prob.T_0_Pert_Mag=0.1" "${_keeps}")
+  add_test_moist_tpert(GATE_RandomT_KeepsQv  GATE  inputs_Kessler_regtest "" "prob.T_0_Pert_Mag=0.1" "${_keeps}")
+  add_test_moist_tpert(GATE_SineT_KeepsQv    GATE  inputs_Kessler_regtest "" "prob.pert_deltaT=0.1"  "${_keeps}")
+  add_test_moist_tpert(RICO_RandomT_KeepsQv  RICO  inputs_Kessler_regtest "" "prob.T_0_Pert_Mag=0.1" "${_keeps}")
+  add_test_moist_tpert(RICO_SineT_KeepsQv    RICO  inputs_Kessler_regtest "" "prob.pert_deltaT=0.1"  "${_keeps}")
+  add_test_moist_tpert(GATE_SineT_KeepsRandomQv GATE inputs_Kessler_regtest "prob.pert_deltaT=0.1"
+                       "prob.pert_deltaT=0.1 prob.qv_0_Pert_Mag=2.5e-5" "--differ qv")
 endif()
 
 #=============================================================================

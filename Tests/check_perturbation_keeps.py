@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check what an initial perturbation changes and what it keeps.
 
-Usage: check_perturbation_keeps.py <plotfile A> <plotfile B> --same V [V ...]
+Usage: check_perturbation_keeps.py <plotfile A> <plotfile B> [--same V [V ...]]
                                    --differ V [V ...] [--tol T]
 
 A is the initial state without the perturbation and B with it. Every --same field
@@ -35,7 +35,7 @@ def main(argv):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("plt_a")
     ap.add_argument("plt_b")
-    ap.add_argument("--same", nargs="+", required=True)
+    ap.add_argument("--same", nargs="*", default=[])
     ap.add_argument("--differ", nargs="+", required=True)
     ap.add_argument("--tol", type=float, default=1e-12)
     a = ap.parse_args(argv)
