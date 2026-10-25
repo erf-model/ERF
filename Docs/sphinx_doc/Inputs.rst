@@ -966,7 +966,11 @@ List of Parameters
 | **erf.force_stage1_single_substep**  | if 1, take a single substep in the first Runge-Kutta     | 0, 1               | 1                 |
 |                                      | stage                                                    |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
-| **erf.ncorr**                        | number of correction iterations in the projection        | Integer >= 1       | 1                 |
+| **erf.ncorr**                        | number of corrector passes in the thin-body              | Integer >= 1       | 1                 |
+|                                      | projection (anelastic runs with zero-flux faces); each   |                    |                   |
+|                                      | pass adds its pressure change to the stored gradient.    |                    |                   |
+|                                      | Also the number of corrections in the Poisson wall       |                    |                   |
+|                                      | distance                                                 |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.poisson_abstol**               | absolute tolerance for the Poisson solve; raised to      | Real > 0           | 1.e-8             |
 |                                      | 1.e-6 in single precision builds                         |                    |                   |
@@ -2046,13 +2050,16 @@ List of Parameters
 | **erf.moistscal_vert_upw_frac**   | as above, for the vertical advection of moist scalars    | Real in [0,1]      | 1.0              |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.zero_xflux_faces**          | list of (i,j,k) x-faces across which the advective flux  | List of 3-integer  | none             |
-|                                   | is forced to zero                                        | triples            |                  |
+|                                   | is forced to zero; with erf.anelastic = 1 these faces    | triples            |                  |
+|                                   | select the thin-body projection                          |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.zero_yflux_faces**          | list of (i,j,k) y-faces across which the advective flux  | List of 3-integer  | none             |
-|                                   | is forced to zero                                        | triples            |                  |
+|                                   | is forced to zero; with erf.anelastic = 1 these faces    | triples            |                  |
+|                                   | select the thin-body projection                          |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.zero_zflux_faces**          | list of (i,j,k) z-faces across which the advective flux  | List of 3-integer  | none             |
-|                                   | is forced to zero                                        | triples            |                  |
+|                                   | is forced to zero; with erf.anelastic = 1 these faces    | triples            |                  |
+|                                   | select the thin-body projection                          |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 The allowed advection types for the dycore variables are:

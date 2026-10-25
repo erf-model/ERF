@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Checks that the thin-body projection (`project_velocity_tb`) keeps the pressure
+Checks, for erf-model/ERF#4608, that the thin-body projection (`project_velocity_tb`) keeps the pressure
 gradient `gradp` consistent with the pressure increment `pp_inc` when it makes more
 than one corrector pass (`erf.ncorr > 1`) and when dt is not 1.
 
@@ -27,6 +27,10 @@ of the cell values, so in every interior cell `dpdx` equals
 `(pert_pres(i+1) - pert_pres(i-1)) / (2 dx)`, and the same in y and z. The check
 passes when the largest mismatch is below 1e-8 of the largest gradient; the fixed
 code gives about 3e-16. It stops if the gradient is zero everywhere.
+
+The check compares two stored fields with each other, so a wrong factor common to both
+would pass; the 1/dt in `pp_inc` is pinned by `gradp`, which already carried it
+(the same convention as `project_momenta`). Double precision only.
 
 | build | relative mismatch |
 | --- | --- |
