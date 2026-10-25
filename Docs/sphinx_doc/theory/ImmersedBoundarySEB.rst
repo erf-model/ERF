@@ -179,6 +179,26 @@ false` diagnoses the flux without applying it. Because the balance now
 owns the temperature condition at the buildings, the immersed forcing's
 surface-temperature inputs must not be set with it.
 
+The air temperature :math:`T_{air}` and the Exner function :math:`\Pi` of a
+face's fluid cell come from ERF's equation of state, as in the two-stream
+columns. With the cell's dry density :math:`\rho`, dry potential temperature
+:math:`\theta_{air}` and water vapour mixing ratio :math:`q_v`,
+
+.. math::
+
+   p = p_0 \left( \frac{R_d\, \rho\theta_{air}\, (1 + q_v R_v/R_d)}{p_0} \right)^{\gamma} , \qquad
+   T_{air} = \frac{p}{R_d\, \rho\, (1 + q_v R_v/R_d)} , \qquad
+   \Pi = \left( \frac{p}{p_0} \right)^{R_d/c_p} = \frac{T_{air}}{\theta_{air}} ,
+
+with :math:`p_0` the reference pressure, :math:`R_d` and :math:`R_v` the gas
+constants of dry air and water vapour and :math:`\gamma = c_p/(c_p - R_d)`.
+A negative :math:`q_v` (an advection undershoot) is read as zero, and
+without a moisture model :math:`q_v = 0`. The vapour matters: at
+10 g/kg it raises :math:`T_{air}` by about 1.9 K at 300 K. The stability
+correction, the convective velocity scale and the mixed-layer depth still
+use the dry :math:`\theta_{air}`, not the virtual potential temperature,
+consistent with a balance that has no latent flux yet.
+
 ``Exec/CanonicalTests/SEB/SensibleHeat`` holds a cube's faces at 320 K in
 an 8 m/s wind at 300 K and checks the wall function on every face against
 the formulas, the rank independence, the heat budget of the closed domain

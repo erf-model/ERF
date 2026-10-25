@@ -74,8 +74,14 @@ public:
      * Construct an empty face set for one level; build() fills it.
      * @param params Inputs of the balance (copied; the set never reads ParmParse).
      * @param lev    AMR level the set belongs to, for reports only.
+     * @param qv_comp State component of rho qv (SolverChoice::moisture_indices.qv),
+     *                negative without a moisture model. The air temperature and the
+     *                Exner function of a fluid cell take its vapour through the
+     *                equation of state, as the rest of ERF does; with no moisture
+     *                model they take none.
      */
-    IBFaceSet (const IBSEBParams& params, int lev) : m_params(params), m_lev(lev) {}
+    IBFaceSet (const IBSEBParams& params, int lev, int qv_comp = -1)
+        : m_params(params), m_lev(lev), m_qv_comp(qv_comp) {}
 
     /**
      * Detect this rank's faces from the cell-centred blanking and allocate
@@ -220,7 +226,8 @@ public:
      * Longwave of the current step. Incoming on a face:
      * ``f_sky LW_sky + f_ground LW_ground + f_bldg sigma T_skin^4``,
      * the sky term fixed or gray (``sky_emissivity sigma T_air^4`` with the
-     * air temperature of the face's fluid cell) with the ground term
+     * air temperature of the face's fluid cell, its water vapour included)
+     * with the ground term
      * ``eps_g sigma T_g^4``, or with ``lw_mode = two_stream`` the longwave
      * down and up at the face's height in the face's column
      * (``canopy``); the building term is the isothermal-surroundings
@@ -526,6 +533,7 @@ public:
 private:
     IBSEBParams m_params;          ///< Copy of the inputs
     int m_lev   = 0;               ///< AMR level, for reports
+    int m_qv_comp = -1;            ///< State component of rho qv, -1 without a moisture model
     int m_nface = 0;               ///< Faces owned by this rank
     int m_nslots = 0;              ///< Slots per cell of the checkpoint field (largest face count on a cell)
     int m_top_sample = -1;         ///< Highest interface a face samples, over all ranks (-1: no faces)

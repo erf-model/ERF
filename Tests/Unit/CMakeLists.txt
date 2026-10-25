@@ -202,6 +202,10 @@ target_sources(${erf_exe_name}
     # at its own height (roof interface, wall mean of its cell's two), on a level of several
     # boxes whose columns all differ.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBTwoStreamFaces.cpp
+    # Motivation: the building faces took the air temperature and the Exner function of
+    # their fluid cell without its water vapour (erf-model/ERF#4481); they now match the
+    # two-stream column's equation of state for the same moist cell.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBMoistAir.cpp
     # Motivation: observation nudging must read a station file exactly, relax
     # to the closed-form target with the right weight, sigma band and rate cap,
     # and put its sources on the right faces over flat, fitted and immersed
