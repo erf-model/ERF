@@ -146,14 +146,41 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
     // column of halo the diffusivity kernels already use, so nothing changes.
     const int ng_pblh = (turbChoice.enable_pblh_smoothing)
                       ? std::max(1, turbChoice.pblh_smoothing_passes) : 1;
+
+    // The surface-layer fields carry one column of halo on the bottom surface, and the
+    // radiative heating rates one; with more smoothing passes than that, the PBLH passes
+    // read them from copies widened to ng_pblh (see WidenForPBLH). Otherwise the fields
+    // are read directly.
+    const auto needs_widening = [&] (const MultiFab* mf) {
+        return mf != nullptr && std::min(mf->nGrowVect()[0], mf->nGrowVect()[1]) < ng_pblh;
+    };
+    const auto widen_sfc = [&] (const MultiFab* mf) -> std::unique_ptr<MultiFab> {
+        if (!needs_widening(mf)) { return nullptr; }
+        return WidenForPBLH(*mf, ng_pblh,
+                            [&] (MultiFab& wide) { SurfLayer->fill_planar_boundary(level, wide); });
+    };
+    const std::unique_ptr<MultiFab> u_star_wide = widen_sfc(SurfLayer->get_u_star(level));
+    const std::unique_ptr<MultiFab> t_star_wide = widen_sfc(SurfLayer->get_t_star(level));
+    const std::unique_ptr<MultiFab> q_star_wide = widen_sfc(SurfLayer->get_q_star(level));
+    const std::unique_ptr<MultiFab> olen_wide   = widen_sfc(SurfLayer->get_olen(level));
+    const std::unique_ptr<MultiFab> z0_wide     = widen_sfc(SurfLayer->get_z0(level));
+    const std::unique_ptr<MultiFab> qheat_wide  = (needs_widening(qheating_rates))
+        ? WidenForPBLH(*qheating_rates, ng_pblh,
+                       [&] (MultiFab& wide) { wide.FillBoundary(geom.periodicity()); })
+        : nullptr;
+    const MultiFab* u_star_src = (u_star_wide) ? u_star_wide.get() : SurfLayer->get_u_star(level);
+    const MultiFab* t_star_src = (t_star_wide) ? t_star_wide.get() : SurfLayer->get_t_star(level);
+    const MultiFab* q_star_src = (q_star_wide) ? q_star_wide.get() : SurfLayer->get_q_star(level);
+    const MultiFab* olen_src   = (olen_wide)   ? olen_wide.get()   : SurfLayer->get_olen(level);
+    const MultiFab* z0_src     = (z0_wide)     ? z0_wide.get()     : SurfLayer->get_z0(level);
+    const MultiFab* qheat_src  = (qheat_wide)  ? qheat_wide.get()  : qheating_rates;
+
     if (ng_pblh > 1) {
         int ng_avail = std::min({cons_in.nGrowVect()[0], cons_in.nGrowVect()[1],
                                  xvel.nGrowVect()[0],    xvel.nGrowVect()[1],
                                  yvel.nGrowVect()[0],    yvel.nGrowVect()[1],
-                                 SurfLayer->get_u_star(level)->nGrowVect()[0],
-                                 SurfLayer->get_u_star(level)->nGrowVect()[1],
-                                 SurfLayer->get_olen(level)->nGrowVect()[0],
-                                 SurfLayer->get_olen(level)->nGrowVect()[1],
+                                 u_star_src->nGrowVect()[0], u_star_src->nGrowVect()[1],
+                                 olen_src->nGrowVect()[0],   olen_src->nGrowVect()[1],
                                  (terrain_blank) ? terrain_blank->nGrowVect()[0] : 1000,
                                  (terrain_blank) ? terrain_blank->nGrowVect()[1] : 1000});
         // The PBLH passes also read these fields over the same widened region;
@@ -161,19 +188,19 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         auto limit_by = [&ng_avail] (const auto* mf) {
             if (mf) { ng_avail = std::min({ng_avail, mf->nGrowVect()[0], mf->nGrowVect()[1]}); }
         };
-        limit_by(SurfLayer->get_t_star(level));
-        limit_by(SurfLayer->get_q_star(level));
+        limit_by(t_star_src);
+        limit_by(q_star_src);
         limit_by(SurfLayer->get_mac_avg(level, 3));
         limit_by(SurfLayer->get_mac_avg(level, 4));
         limit_by(SurfLayer->get_mac_avg(level, 6));
-        limit_by(SurfLayer->get_z0(level));
+        limit_by(z0_src);
         limit_by(SurfLayer->get_lmask(level));
         limit_by(z_phys_nd.get());
-        limit_by(qheating_rates);
+        limit_by(qheat_src);
         if (ng_pblh > ng_avail) {
             amrex::Abort("erf.pblh_smoothing_passes = " + std::to_string(turbChoice.pblh_smoothing_passes)
-                       + " needs " + std::to_string(ng_pblh) + " halo columns, but the state and "
-                         "surface-layer arrays carry only " + std::to_string(ng_avail)
+                       + " needs " + std::to_string(ng_pblh) + " halo columns, but the fields the "
+                         "PBLH passes read carry only " + std::to_string(ng_avail)
                        + "; reduce erf.pblh_smoothing_passes to at most " + std::to_string(ng_avail));
         }
     }
@@ -273,14 +300,14 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
 
         //const Real Ribcr = turbChoice.pbl_mrf_Ribcr;  // Now surface-type-dependent in YSU
         //const Real f0 = turbChoice.pbl_mrf_coriolis_freq;
-        const auto& u_star_arr = SurfLayer->get_u_star(level)->const_array(mfi);
-        const auto& t_star_arr = SurfLayer->get_t_star(level)->const_array(mfi);
-        const auto& q_star_arr = SurfLayer->get_q_star(level)->const_array(mfi);
-        const auto& l_obuk_arr = SurfLayer->get_olen(level)->const_array(mfi);
+        const auto& u_star_arr = u_star_src->const_array(mfi);
+        const auto& t_star_arr = t_star_src->const_array(mfi);
+        const auto& q_star_arr = q_star_src->const_array(mfi);
+        const auto& l_obuk_arr = olen_src->const_array(mfi);
         const auto& t10av_arr  = SurfLayer->get_mac_avg(level, 3)->const_array(mfi);
         const auto& q10av_arr  = SurfLayer->get_mac_avg(level, 4)->const_array(mfi);
         const auto& ws10av_arr = SurfLayer->get_mac_avg(level, 6)->const_array(mfi);  // 10m wind speed for Rossby number
-        const auto& z0_arr     = SurfLayer->get_z0(level)->const_array(mfi);           // Roughness length for Rossby number
+        const auto& z0_arr     = z0_src->const_array(mfi);           // Roughness length for Rossby number
         //const auto& t_surf_arr = SurfLayer->get_t_surf(level)->const_array(mfi);
         // Get land/water mask for proper handling of moisture countergradient
         const auto& lmask_arr = (SurfLayer->get_lmask(level)) ?
@@ -355,8 +382,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         const Array4<Real const> z_nd_arr = z_phys_nd->array(mfi);
         const PBLDerivativeDzInv_T pbl_derivative_dz_inv{z_phys_cc->const_array(mfi)};
         // Get qheating_rates if provided (for LW radiation coupling to top-down mixing)
-        const Array4<Real const> qheat_arr = (qheating_rates != nullptr)
-                                             ? qheating_rates->const_array(mfi)
+        const Array4<Real const> qheat_arr = (qheat_src != nullptr)
+                                             ? qheat_src->const_array(mfi)
                                              : Array4<Real const>{};
         const bool has_qheating_rates = (qheating_rates != nullptr);
 
