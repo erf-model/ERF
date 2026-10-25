@@ -1895,10 +1895,11 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   # The surface heat flux is round-off whose sign follows the decomposition, and
   # the stability flag took its sign: on this deck Khv beside the cube differed by
   # 9 % between one box and 8 x 8 tiles, and x_velocity by 4e-8 with 16 boxes. Tiles must split x as well as y to change
-  # that round-off, so the tiled run uses 8 x 8 x-y tiles (TILED_SIZE).
+  # that round-off, so the tiled run uses 8 x 8 x-y tiles (TILED_SIZE). Since #4458 no column of this
+  # neutral deck reaches Ribcr, so pblh is the 0.9 z(khi) cap everywhere and only Kmv and Khv must vary.
   add_test_tiling_parity(PBL_IBAware_Neutral_Tiling PBL_IBAware_Neutral "00010" "00010"
       TILED_SIZE "8 8 1024000"
-      VARYING_3D "Kmv Khv" VARYING_2D "pblh")
+      VARYING_3D "Kmv Khv")
   add_test_box_parity(PBL_IBAware_Neutral_BoxParity PBL_IBAware_Neutral "plt00010"
       COMMON_OPTIONS "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/PBL_IBAware_Neutral_BoxParity/input_sounding"
       REFERENCE_OPTIONS "fabarray.mfiter_tile_size=1024000 1024000 1024000"
