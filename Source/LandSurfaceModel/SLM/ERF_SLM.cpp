@@ -2770,19 +2770,23 @@ void SLM::UpdateLAI (const amrex::MFIter &mfi)
         static constexpr double dpy[] = {0.0  ,  31.0,  59.0,  90.0, 120.0, 151.0,
                                         181.0, 212.0, 243.0, 273.0, 304.0, 334.0};
         bool leap = (m_orbital_year % 4 == 0 && (!(m_orbital_year % 100 == 0) || (m_orbital_year % 400 == 0))) ? true : false;
-        m_calday = dpy[m_orbital_mon-1] + (m_orbital_day-1.0) + m_orbital_sec/86400.0;
-        // add extra day if leap year
-        if (leap) { m_calday += one; }
+        // In a leap year, 29 February shifts the start of every month from March on by
+        // one day; the dates, the month boundaries and the year end must all agree on it.
+        const Real leap_day = (leap) ? one : zero;
+        auto month_start = [&] (const int m) { return dpy[m] + ((m >= 2) ? leap_day : zero); };
 
         int curr_mon = m_orbital_mon - 1;
         int next_mon = curr_mon + 1;
-        Real t0 = dpy[curr_mon];
+        m_calday = month_start(curr_mon) + (m_orbital_day-1.0) + m_orbital_sec/86400.0;
+
+        Real t0 = month_start(curr_mon);
         Real t1;
-        if (next_mon >= 11) {
+        if (next_mon > 11) {
+            // December interpolates toward the following January
             next_mon = 0;
-            t1 = 365.0;
+            t1 = 365.0 + leap_day;
         } else {
-            t1 = dpy[next_mon];
+            t1 = month_start(next_mon);
         }
 
         const Real d_calday = m_calday;
