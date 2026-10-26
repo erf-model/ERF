@@ -160,6 +160,11 @@ void make_mom_sources (double time_d,
     Real rhoUA{0};
     Real rhoVA{0};
 
+    // Cross-sectional areas the integrals above are taken over; the integrated mass-flux
+    //    error is divided by these to give a momentum-density tendency
+    Real massflux_area_x{0};
+    Real massflux_area_y{0};
+
     // *****************************************************************************
     // Planar averages for subsidence, nudging, or constant mass flux
     // *****************************************************************************
@@ -275,12 +280,18 @@ void make_mom_sources (double time_d,
                 rhoUA_target *= geom.CellSize(2) * Ly;
                 rhoVA_target *= geom.CellSize(2) * Lx;
 
+                const Real H = geom.CellSize(2) * static_cast<Real>(massflux_khi - massflux_klo + 1);
+                massflux_area_x = H * Ly;
+                massflux_area_y = H * Lx;
+
             } else if (solverChoice.mesh_type == MeshType::StretchedDz) {
                 // note: massflux_khi corresponds to staggered indices in this case
+                Real H{0};
                 for (int k=massflux_klo; k < massflux_khi; ++k) {
                     rhoUA        += u_plane_h[k + u_offset] * stretched_dz_h[k];
                     rhoVA        += v_plane_h[k + v_offset] * stretched_dz_h[k];
                     rhoUA_target += r_plane_h[k +   offset] * stretched_dz_h[k];
+                    H            += stretched_dz_h[k];
                 }
                 rhoVA_target = rhoUA_target;
 
@@ -288,6 +299,9 @@ void make_mom_sources (double time_d,
                 rhoVA        *= Lx;
                 rhoUA_target *= Ly;
                 rhoVA_target *= Lx;
+
+                massflux_area_x = H * Ly;
+                massflux_area_y = H * Lx;
             }
 
             // at this point, this is integrated rho*dA
@@ -893,18 +907,22 @@ void make_mom_sources (double time_d,
         // 10. Enforce constant mass flux
         // *****************************************************************************
         if (is_slow_step && (enforce_massflux_x || enforce_massflux_y)) {
+            // The mass fluxes are integrated over the cross-section, so their difference is
+            //    divided by its area to give a tendency of rho*u (rho*v) at each point
             Real tau_inv = one / solverChoice.const_massflux_tau;
+            Real dRUA = (massflux_area_x > zero) ? (rhoUA_target - rhoUA) / massflux_area_x : zero;
+            Real dRVA = (massflux_area_y > zero) ? (rhoVA_target - rhoVA) / massflux_area_y : zero;
 
             // Each direction is relaxed only if its own mass flux is prescribed; the other
             //    direction's target is zero and must not be imposed
             if (enforce_massflux_x) {
                 ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    xmom_src_arr(i, j, k) += tau_inv * (rhoUA_target - rhoUA);
+                    xmom_src_arr(i, j, k) += tau_inv * dRUA;
                 });
             }
             if (enforce_massflux_y) {
                 ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    ymom_src_arr(i, j, k) += tau_inv * (rhoVA_target - rhoVA);
+                    ymom_src_arr(i, j, k) += tau_inv * dRVA;
                 });
             }
         }
