@@ -1325,7 +1325,7 @@ ERF::InitData_post ()
                                       h_u_geos[lev], d_u_geos[lev],
                                       h_v_geos[lev], d_v_geos[lev],
                                       geom[lev],
-                                      zlevels_stag[0]);
+                                      zlevels_stag[lev]);
             }
         }
     }

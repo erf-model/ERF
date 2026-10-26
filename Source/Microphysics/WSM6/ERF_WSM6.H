@@ -226,6 +226,11 @@ public:
         return sources;
     }
 
+    // The body of Advance, run on grids in which no column is split between boxes.
+    // Public because nvcc rejects extended __device__ lambdas in private or protected members.
+    void AdvanceColumns (const amrex::Real& dt_advance,
+                         const SolverChoice& sc);
+
 private:
     int m_qmoist_size = 3;
     int n_qstate_moist_size = 6;
@@ -252,10 +257,6 @@ private:
 
     // Sedimentation face fluxes of the most recent Advance, in the order of WSM6Sed
     SedimentationFlux m_sed;
-
-    // The body of Advance, run on grids in which no column is split between boxes
-    void AdvanceColumns (const amrex::Real& dt_advance,
-                         const SolverChoice& sc);
 
     // ---- WSM6 init coefficients (from mp_wsm6_init save variables) ----
     // hail_opt-dependent (set in Initialize() based on m_hail_opt)

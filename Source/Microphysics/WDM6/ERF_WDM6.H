@@ -276,6 +276,11 @@ public:
         return sources;
     }
 
+    // The body of Advance, run on grids in which no column is split between boxes.
+    // Public because nvcc rejects extended __device__ lambdas in private or protected members.
+    void AdvanceColumns (const amrex::Real& dt_advance,
+                         const SolverChoice& sc);
+
 private:
     int m_qmoist_size = 3;  // rain_accum, snow_accum, graup_accum
     int n_qstate_moist_size = 9;  // 6 mixing ratios + 3 number concentrations
@@ -304,10 +309,6 @@ private:
 
     // Sedimentation face fluxes of the most recent Advance, in the order of WDM6Sed
     SedimentationFlux m_sed;
-
-    // The body of Advance, run on grids in which no column is split between boxes
-    void AdvanceColumns (const amrex::Real& dt_advance,
-                         const SolverChoice& sc);
 
     // No nn-initialized flag: Copy_State_to_Micro decides per cell from RhoQ8,
     // which is restart-correct and needs no cross-call bookkeeping.

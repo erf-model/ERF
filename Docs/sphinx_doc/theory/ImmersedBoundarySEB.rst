@@ -75,7 +75,10 @@ the sun vector either as fixed inputs (:cpp:`erf.ibseb.sun_mode = fixed`,
 for analytic tests), from the two-stream radiation's own sun (``two_stream``,
 see `Refined levels`_ below for why it must be used with that model) or from
 the site and time (``solar``): declination,
-equation of time, hour angle, zenith and azimuth by the Spencer series, the
+equation of time, hour angle, zenith and azimuth by the Spencer series
+(day angle :math:`2\pi (d - 1)/365` for day of year :math:`d`, as Spencer
+fitted it, shared with the Earth-Sun distance factor; :math:`d` advances by
+one at each 00:00 UTC, so a run of several days follows the season), the
 direct beam by the Bird transmission :math:`S_0 E_0 \tau^{1/\cos z}` and the
 diffuse light as a fraction :math:`k_d` of what the beam lost on the way
 down. :math:`k_d` (:cpp:`erf.ibseb.sw_diffuse_coeff`) must lie in

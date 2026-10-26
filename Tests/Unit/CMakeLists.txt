@@ -228,6 +228,11 @@ target_sources(${erf_exe_name}
     # see the two-stream columns' sun: the same zenith, a morning sun in the
     # east, and the start date read the same way.
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestIBSEBTwoStreamSun.cpp
+    # Motivation: the building faces' solar declination and equation of time
+    # must be Spencer's (1971) published series on his 365-day angle, which
+    # puts the June-solstice sun near 23.44 deg, and the date must advance
+    # at 00:00 UTC in a run of several days.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestIBSEBSolarDeclination.cpp
     # Motivation: the surface energy balance must take H and LE from a land
     # model, else from the surface layer's applied flux in W/m^2, else from
     # the scalar defaults; LE stays at its default without a moisture model.
@@ -267,6 +272,9 @@ target_sources(${erf_exe_name}
     # dataset's soil layers in depth to the Noah layers, and the monthly vegetation to the
     # start date the way real.exe does, across the year's end and in leap years.
     ${CMAKE_CURRENT_SOURCE_DIR}/Initialization/ERF_GTestMetgridLandUtils.cpp
+    # Motivation: erf.metgrid_force_sfc_k must drop the same origin levels whether or not the
+    # column has origin levels below the surface (erf-model/ERF#4607).
+    ${CMAKE_CURRENT_SOURCE_DIR}/Initialization/ERF_GTestMetgridForceSfc.cpp
     # Motivation: a station placed by latitude/longitude must land where the
     # lat/lon arrays put it on a rotated grid and on a grid across 180 degrees.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestLatLonMap.cpp
