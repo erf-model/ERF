@@ -115,8 +115,8 @@ ERF::FillSurfaceStateMultiFabs (const int lev,
     Real* ls_mask_d_ptr = ls_mask_d.data();
     Real* sst_d_ptr   = sst_d.data();
 
-    const auto prob_lo  = geom[lev].ProbLo();
-    const auto dx       = geom[lev].CellSize();
+    const auto prob_lo  = geom[lev].ProbLoArray();
+    const auto dx       = geom[lev].CellSizeArray();
 
     for (amrex::MFIter mfi(surface_state[lev]); mfi.isValid(); ++mfi) {
         const Box gbx = mfi.growntilebox();
