@@ -18,8 +18,8 @@ thinbody_wall_dist (std::unique_ptr<MultiFab>& wdist,
 {
     BL_PROFILE("thinbody_wall_dist()");
 
-    const Real* prob_lo = geomdata.ProbLo();
-    const Real* dx = geomdata.CellSize();
+    const auto prob_lo = geomdata.ProbLoArray();
+    const auto dx      = geomdata.CellSizeArray();
 
     const bool use_terrain = (z_phys_cc != nullptr);
     if (use_terrain) {

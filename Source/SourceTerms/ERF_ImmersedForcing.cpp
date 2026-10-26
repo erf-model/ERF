@@ -90,7 +90,7 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
                                   const Real fac)
 {
     // geometric properties
-    const Real* dx_arr = geom.CellSize();
+    const auto dx_arr = geom.CellSizeArray();
     const Real dx_x = dx_arr[0];
     const Real dx_y = dx_arr[1];
     const Real dt = fac;  // fac is actually dt in the calling code
@@ -205,7 +205,7 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
                                   const Real fac)
 {
     // geometric properties
-    const Real* dx_arr = geom.CellSize();
+    const auto dx_arr = geom.CellSizeArray();
     const Real dx_x = dx_arr[0];
     const Real dx_y = dx_arr[1];
     const Real dt = fac;  // fac is actually dt in the calling code
@@ -319,7 +319,7 @@ void ImmersedForcingTerrain_Zmom (const Box& tbz,
                                   const Real fac)
 {
     // geometric properties
-    const Real* dx_arr = geom.CellSize();
+    const auto dx_arr = geom.CellSizeArray();
     const Real dx_x = dx_arr[0];
     const Real dx_y = dx_arr[1];
     const Real dt = fac;  // fac is actually dt in the calling code
@@ -374,7 +374,7 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
                                     const Real fac)
 {
     // geometric properties
-    const Real* dx_arr = geom.CellSize();
+    const auto dx_arr = geom.CellSizeArray();
     const Real dx_x = dx_arr[0];
     const Real dx_y = dx_arr[1];
     const Real dt = fac;
@@ -573,7 +573,7 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
                                     const Real fac)
 {
     // geometric properties
-    const Real* dx_arr = geom.CellSize();
+    const auto dx_arr = geom.CellSizeArray();
     const Real dx_x = dx_arr[0];
     const Real dx_y = dx_arr[1];
     const Real dt = fac;
@@ -771,7 +771,7 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
                                     const Real fac)
 {
     // geometric properties
-    const Real* dx_arr = geom.CellSize();
+    const auto dx_arr = geom.CellSizeArray();
     const Real dx_x = dx_arr[0];
     const Real dx_y = dx_arr[1];
     const Real dt = fac;
@@ -984,7 +984,7 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
                                     const Real time)
 {
     // geometric properties
-    const Real* dx_arr = geom.CellSize();
+    const auto dx_arr = geom.CellSizeArray();
     const Real dx_x = dx_arr[0];
     const Real dx_y = dx_arr[1];
 
@@ -1131,7 +1131,7 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
                                       const Real time)
 {
     // geometric properties
-    const Real* dx_arr = geom.CellSize();
+    const auto dx_arr = geom.CellSizeArray();
     const Real dx_x = dx_arr[0];
     const Real dx_y = dx_arr[1];
 
