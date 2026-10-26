@@ -125,12 +125,16 @@ plot3d_conserved_component_index (const std::string& name)
     if (name == "rhoadv_0") return RhoScalar_comp;
 
     if (name.size() > 4 && name.compare(0, 4, "rhoQ") == 0) {
-        const std::string suffix = name.substr(4);
-        if (!suffix.empty() && std::all_of(suffix.cbegin(), suffix.cend(),
-                                           [] (const char c) { return c >= '0' && c <= '9'; })) {
-            const int q = std::stoi(suffix);
-            return plot3d_q_conserved_component_index(q);
+        // Parse the digits by hand, stopping once past the RhoQ11 limit, so a
+        // long numeric suffix cannot overflow int (std::stoi would throw)
+        int q = 0;
+        for (std::size_t i = 4; i < name.size(); ++i) {
+            const char c = name[i];
+            if (c < '0' || c > '9') return -1;
+            q = 10 * q + (c - '0');
+            if (q > 11) return -1;
         }
+        return plot3d_q_conserved_component_index(q);
     }
 
     return -1;
