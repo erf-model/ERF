@@ -1907,6 +1907,42 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
 endif()
 add_test_r(ABL_InflowFile                    ""  "erf_exec" "plt00010")
 add_test_r(MoistBubble                       ""  "erf_exec" "plt00010")
+# erf.energy_data_log (#4602): the logged total mass and energy of the moist bubble at
+# t = 0 against the same sums taken from its plotfile (Tests/check_energy_log.py). The
+# bubble starts with cloud water, so the liquid terms are checked; the rain variant checks
+# the rain term. No test has ice. Before the fix the log
+# used rho*q in place of the mixing ratios and left out rain and ice: 0.4 % off in mass
+# and 1.1 % in energy. ERF appends to the log, so the test removes it first.
+# 6 significant digits in the log; float sums over the 80 000 cells add about 1e-6
+if(ERF_PRECISION STREQUAL "SINGLE")
+  set(_energy_tol 1e-4)
+else()
+  set(_energy_tol 5e-6)
+endif()
+if(NOT WIN32 AND ERF_TEST_PYTHON)
+  set(TEST_NAME MoistBubble_EnergyLog)
+  set(TEST_FILES_DIR MoistBubble)
+  setup_test()
+  unset(TEST_FILES_DIR)
+  resolve_test_exe("" "erf_exec" TEST_EXE)
+  add_test(${TEST_NAME} sh -c
+    "rm -f ${CURRENT_TEST_BINARY_DIR}/energy.log && ${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/MoistBubble.i max_step=0 erf.plot_int_1=1 erf.check_int=-1 'erf.plot_vars_1=density qv qc temp x_velocity y_velocity z_velocity' erf.energy_data_log=energy.log erf.sum_interval=1 erf.v=1 > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_energy_log.py ${CURRENT_TEST_BINARY_DIR}/plt00000 ${CURRENT_TEST_BINARY_DIR}/energy.log --tol ${_energy_tol}")
+  set_tests_properties(${TEST_NAME} PROPERTIES
+      TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+      LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+  # The same bubble with Kessler rain, 20 steps: rain has formed (up to 3.6e-4 kg/kg, 2.3e-4
+  # of the mass), and the last log row (t = 10 s) is compared with plt00020
+  set(TEST_NAME MoistBubble_EnergyLogRain)
+  set(TEST_FILES_DIR MoistBubble)
+  setup_test()
+  unset(TEST_FILES_DIR)
+  add_test(${TEST_NAME} sh -c
+    "rm -f ${CURRENT_TEST_BINARY_DIR}/energy.log && ${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/MoistBubble.i max_step=20 erf.plot_int_1=20 erf.check_int=-1 erf.moisture_model=Kessler 'erf.plot_vars_1=density qv qc qrain temp x_velocity y_velocity z_velocity' erf.energy_data_log=energy.log erf.sum_interval=1 erf.v=1 > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_energy_log.py ${CURRENT_TEST_BINARY_DIR}/plt00020 ${CURRENT_TEST_BINARY_DIR}/energy.log --row -1 --require-rain --tol ${_energy_tol}")
+  set_tests_properties(${TEST_NAME} PROPERTIES
+      TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+      LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+  unset(TEST_NAME)
+endif()
 # The moist bubble with Kessler rain (the MoistBubble deck with erf.moisture_model=Kessler
 # and the rain fields in the plotfile), restarted from step 4 to step 8 on its constant-dz
 # mesh: the restart path set the microphysics' minimum dz only on fitted meshes, so the

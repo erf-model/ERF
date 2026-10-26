@@ -1416,7 +1416,15 @@ List of Parameters
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.der_data_log**                | Output filename(s) for derived data                      | Up to four strings | NONE             |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.energy_data_log**             | Output filename(s) for total energy                      | Up to four strings | NONE             |
+| **erf.energy_data_log**             | Output filename for the level-0 volume-weighted means of | One string         | NONE             |
+|                                     | the total mass rho_d (1 + q_t) [kg/m3] and the total     | (the first of up   |                  |
+|                                     | energy [J/m3], every erf.sum_interval steps or           | to four is         |                  |
+|                                     | erf.sum_period seconds when erf.v > 0. q_t sums the      | written)           |                  |
+|                                     | vapour, liquid (cloud, rain) and ice mixing ratios. The  |                    |                  |
+|                                     | energy is a diagnostic definition (Romps 2008):          |                    |                  |
+|                                     | internal energy with constant heat capacities, from      |                    |                  |
+|                                     | liquid water at the triple point, plus kinetic and       |                    |                  |
+|                                     | potential energy; ERF does not conserve it exactly       |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.profile_int**                 | Interval (number) of steps between outputs               | Integer            | -1               |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
