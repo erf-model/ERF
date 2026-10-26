@@ -243,6 +243,13 @@ level being written. Otherwise the grid is taken to be aligned with east and
 north, and ``u_east`` and ``v_north`` equal the cell-centered ``x_velocity`` and
 ``y_velocity``. ``w`` is the cell-centered vertical wind.
 
+.. note::
+
+   Until October 2026 (ERF pull request 4700) these fields were not rotated: on
+   a run with latitude/longitude arrays, ``u_east``, ``v_north`` and ``wind_dir``
+   held the grid-relative winds. Output written before then that was rotated in
+   post-processing should not be rotated again.
+
 ``wind_speed`` is the horizontal speed computed from ``u_east`` and
 ``v_north``. ``wind_dir`` is the meteorological wind direction in degrees
 clockwise from north, indicating where the wind comes from. ERF writes the

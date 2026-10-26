@@ -8,6 +8,8 @@
 #include <AMReX_GpuQualifiers.H>
 #include <AMReX_REAL.H>
 
+#include "ERF_NumericalConstants.H"
+
 #include <cmath>
 
 //
@@ -48,12 +50,11 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real meteorological_direction (amrex::Real u_east, amrex::Real v_north,
                                       amrex::Real missing_value) noexcept
 {
-    constexpr amrex::Real pi = amrex::Real(3.14159265358979323846264338327950288);
     if (horizontal_speed(u_east, v_north) <= amrex::Real(1.0e-12)) {
         return missing_value;
     }
     amrex::Real direction = amrex::Real(270.0)
-        - std::atan2(v_north, u_east) * amrex::Real(180.0) / pi;
+        - std::atan2(v_north, u_east) * amrex::Real(180.0) / PI;
     while (direction < amrex::Real(0.0)) {
         direction += amrex::Real(360.0);
     }
@@ -74,7 +75,6 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void grid_rotation_at (const amrex::Array4<const amrex::Real>& ll, int ilo, int ihi,
                        int i, int j, amrex::Real& cos_alpha, amrex::Real& sin_alpha) noexcept
 {
-    constexpr amrex::Real pi = amrex::Real(3.14159265358979323846264338327950288);
     const int im = (i - 1 > ilo) ? i - 1 : ilo;
     const int ip = (i + 1 < ihi) ? i + 1 : ihi;
     const amrex::Real inv_di = (ip > im) ? amrex::Real(1.0) / amrex::Real(ip - im)
@@ -88,7 +88,7 @@ void grid_rotation_at (const amrex::Array4<const amrex::Real>& ll, int ilo, int 
     if (dlon < -amrex::Real(180.0)) { dlon += amrex::Real(360.0); }
     const amrex::Real lat   = ll(i,j,0,0);
     const amrex::Real north = (ll(ip,j,0,0) - ll(im,j,0,0)) * inv_di;
-    const amrex::Real east  = dlon * inv_di * std::cos(lat * pi / amrex::Real(180.0));
+    const amrex::Real east  = dlon * inv_di * std::cos(lat * PI / amrex::Real(180.0));
     const amrex::Real norm  = std::sqrt(east*east + north*north);
 
     if (norm > amrex::Real(0.0)) {

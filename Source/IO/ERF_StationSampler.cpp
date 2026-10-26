@@ -815,10 +815,14 @@ ERF::init_stations ()
             if (var.is_missing) { continue; }
             const auto& list = var.is_2d ? station_vars_2d : station_vars_3d;
             const bool earth = (var.earth_wind != StationEarthWind::None);
-            const std::string& name_u = earth ? std::string("x_velocity") : var.name;
+            const std::string name_u = earth ? std::string("x_velocity") : var.name;
             for (int i = 0; i < static_cast<int>(list.size()); ++i) {
-                if (list[i] == name_u) { var.comp = i; }
-                if (earth && list[i] == "y_velocity") { var.comp_v = i; }
+                if (list[i] == name_u) { var.comp = i; break; }
+            }
+            if (earth) {
+                for (int i = 0; i < static_cast<int>(list.size()); ++i) {
+                    if (list[i] == "y_velocity") { var.comp_v = i; break; }
+                }
             }
             AMREX_ALWAYS_ASSERT(var.comp >= 0);
             AMREX_ALWAYS_ASSERT(!earth || var.comp_v >= 0);

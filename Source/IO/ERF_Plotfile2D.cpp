@@ -689,8 +689,15 @@ ERF::FillPlot2DVars (int lev,
     //    initialization), otherwise the grid is taken to be aligned with east
     const bool have_latlon = (lev < static_cast<int>(lat_m.size())) &&
                              lat_m[lev] != nullptr && lon_m[lev] != nullptr;
+    // Every level is given lat/lon when level 0 has them (interpolated from the
+    //    coarser level, or read from the checkpoint). A level without them would
+    //    write grid-relative winds beside earth-relative ones in one plotfile.
+    const bool any_sampled = static_output_count < static_cast<int>(output_descriptors.size());
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!any_sampled || have_latlon || lat_m.empty() || lat_m[0] == nullptr,
+        "2D plotfile: level 0 has latitude/longitude arrays but this level does not, so its "
+        "sampled u_east, v_north and wind_dir could not be rotated to earth-relative");
     MultiFab cos_alpha, sin_alpha;
-    if (have_latlon && static_output_count < static_cast<int>(output_descriptors.size())) {
+    if (have_latlon && any_sampled) {
         cos_alpha.define(ba2d[lev], dmap[lev], 1, 0);
         sin_alpha.define(ba2d[lev], dmap[lev], 1, 0);
         fill_grid_rotation(cos_alpha, sin_alpha, *lat_m[lev], *lon_m[lev], geom[lev]);

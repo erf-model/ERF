@@ -2780,10 +2780,11 @@ add_test_rans(RANS_Convective_ABL_Flat  Convective_ABL_Flat  inputs_convective  
 add_test_rans(RANS_WallDist_RaisedBase   Neutral_ABL_Flat     inputs_neutral     1   check_walldist.py
     RUNTIME_OPTIONS "erf.use_fft=false 'geometry.prob_lo=0 0 300' erf.input_sounding_file=input_sounding_raised 'erf.plot_vars_1=density walldist KE'")
 # The stretched mesh is projected only by the hybrid FFT solver (ERF_PoissonSolve.cpp), so this case
-# needs ERF_ENABLE_FFT; without it the run stops at its first projection
+# needs ERF_ENABLE_FFT; without it the run stops at its first projection. The solver uses FFT on
+# this mesh whatever erf.use_fft says, so the option is not given.
 if(ERF_ENABLE_FFT)
     add_test_rans(RANS_WallDist_RaisedBase_StretchedZSplit Neutral_ABL_Flat inputs_neutral 1 check_walldist.py
-        RUNTIME_OPTIONS "erf.use_fft=false 'geometry.prob_lo=0 0 300' erf.input_sounding_file=input_sounding_raised 'erf.plot_vars_1=density walldist z_phys KE' erf.initial_dz=4 amr.no_box_split_dir=-1 'amr.max_grid_size=8 8 16'")
+        RUNTIME_OPTIONS "'geometry.prob_lo=0 0 300' erf.input_sounding_file=input_sounding_raised 'erf.plot_vars_1=density walldist z_phys KE' erf.initial_dz=4 amr.no_box_split_dir=-1 'amr.max_grid_size=8 8 16'")
 endif()
 
 # Runs a case twice, with OPTIONS_A and with OPTIONS_B on top of RUNTIME_OPTIONS,
@@ -3290,6 +3291,32 @@ if(NOT WIN32 AND ERF_TEST_PYTHON)
       TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
       LABELS "regression;station" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
   unset(TEST_NAME)
+endif()
+
+# The same on a rotated grid: a 25 km Lambert-conformal wrfinput whose x axis
+# turns by up to 11.4 degrees from east. Three stations (two placed by lat/long, one by x/y)
+# must report the grid angle of the closed-form Lambert rotation, alpha = -n (lon - STAND_LON),
+# to 0.01 degrees and rotate their winds by it, and the 2D sampled u_east/v_north must equal
+# the 3D x/y winds rotated by that angle in every cell. On development the 2D fields were the
+# unrotated grid winds (0.2 rad off). The wrfinput is not in the repository: the test is added
+# when ${ERF_TEST_EXTRA_FILES_DIRECTORY}/EarthWinds_Lambert/wrfinput_d01 exists (see the case
+# README).
+set(_ew_wrf "${ERF_TEST_EXTRA_FILES_DIRECTORY}/EarthWinds_Lambert/wrfinput_d01")
+if(ERF_ENABLE_NETCDF AND NOT WIN32 AND ERF_TEST_PYTHON AND EXISTS "${_ew_wrf}")
+  set(TEST_NAME EarthWinds_Lambert)
+  setup_test()
+  file(COPY "${_ew_wrf}" DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+  resolve_test_exe("" "erf_exec" TEST_EXE)
+  set(_ew_chk "${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_station_earth_winds.py")
+  set(_ew_out "${CURRENT_TEST_BINARY_DIR}/Output_Stations")
+  add_test(${TEST_NAME} sh -c
+    "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/EarthWinds_Lambert.i > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1 && ${_ew_chk} ${_ew_out}/NW.dat --alpha 8.7845 --alpha-tol 0.01 --rtol 1e-6 && ${_ew_chk} ${_ew_out}/NE.dat --alpha -7.6411 --alpha-tol 0.01 --rtol 1e-6 && ${_ew_chk} ${_ew_out}/SW.dat --alpha 6.7324 --alpha-tol 0.01 --rtol 1e-6 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_2d_earth_winds.py ${CURRENT_TEST_BINARY_DIR}/plt2d00001 ${CURRENT_TEST_BINARY_DIR}/plt00001 --k 10 --truelat1 30 --truelat2 60 --stand-lon -120")
+  set_tests_properties(${TEST_NAME} PROPERTIES
+      TIMEOUT 900 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+      LABELS "regression;station" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+  unset(TEST_NAME)
+elseif(ERF_ENABLE_NETCDF)
+  message(STATUS "Skipping EarthWinds_Lambert: ${_ew_wrf} not found")
 endif()
 
 #=============================================================================
