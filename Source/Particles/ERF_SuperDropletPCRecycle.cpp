@@ -262,6 +262,9 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                 Gpu::Atomic::Add(np_recycle_ptr, Long(1));
             });
             Gpu::synchronize();
+#ifdef AMREX_USE_OMP
+#pragma omp atomic
+#endif
             np_recycle_total += *(np_recycle_buf.copyToHost());
         }); // end forEachParticleTile
 

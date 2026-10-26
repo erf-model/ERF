@@ -39,9 +39,9 @@ using namespace amrex;
  * @param[in] horiz_upw_frac horizontal upwind blending fraction
  * @param[in] vert_upw_frac vertical upwind blending fraction
  * @param[in] ebfact EB factories for cell- and face-centered variables
- * @param[in,out] flx_u_arr fluxes for x-momentum
- * @param[in,out] flx_v_arr fluxes for y-momentum
- * @param[in,out] flx_w_arr fluxes for z-momentum
+ * @param[in,out] flx_u_arr unweighted flux densities for x-momentum (zero on closed faces)
+ * @param[in,out] flx_v_arr unweighted flux densities for y-momentum (zero on closed faces)
+ * @param[in,out] flx_w_arr unweighted flux densities for z-momentum (zero on closed faces)
  * @param[in] physbnd_mask Vector of masks for flux interpolation (=1 otherwise, =0 if physbnd)
  * @param[in] already_on_centroids flag whether flux interpolation is unnecessary
  * @param[in] lo_z_face minimum z-face k-index at this level
@@ -174,6 +174,8 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
         w_fcz     = w_factory->getFaceCent()[2]->const_array(mfi);
     }
 
+    // Store unweighted flux densities on open faces. Interpolate to face
+    // centroids before applying area fractions in the divergence below.
     // Inline with 2nd order for efficiency
     if (horiz_adv_type == AdvType::Centered_2nd && vert_adv_type == AdvType::Centered_2nd)
     {
@@ -187,7 +189,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                 if (u_type == FabType::regular) {
                     flx_u_arr[0](i,j,k) = flux_base;
                 } else { // singlevalued
-                    flx_u_arr[0](i,j,k) = (u_afrac_x(i,j,k) > zero) ? u_afrac_x(i,j,k) * flux_base : zero;
+                    flx_u_arr[0](i,j,k) = (u_afrac_x(i,j,k) > zero) ? flux_base : zero;
                 }
             } else {
                 flx_u_arr[0](i,j,k) = zero;
@@ -201,7 +203,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                 if (u_type == FabType::regular) {
                     flx_u_arr[1](i,j,k) = flux_base;
                 } else { // singlevalued
-                    flx_u_arr[1](i,j,k) = (u_afrac_y(i,j,k) > zero) ? u_afrac_y(i,j,k) * flux_base : zero;
+                    flx_u_arr[1](i,j,k) = (u_afrac_y(i,j,k) > zero) ? flux_base : zero;
                 }
             } else {
                 flx_u_arr[1](i,j,k) = zero;
@@ -214,7 +216,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                 if (u_type == FabType::regular) {
                     flx_u_arr[2](i,j,k) = flux_base;
                 } else { // singlevalued
-                    flx_u_arr[2](i,j,k) = (u_afrac_z(i,j,k) > zero) ? u_afrac_z(i,j,k) * flux_base : zero;
+                    flx_u_arr[2](i,j,k) = (u_afrac_z(i,j,k) > zero) ? flux_base : zero;
                 }
             } else {
                 flx_u_arr[2](i,j,k) = zero;
@@ -230,7 +232,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                 if (v_type == FabType::regular) {
                     flx_v_arr[0](i,j,k) = flux_base;
                 } else { // singlevalued
-                    flx_v_arr[0](i,j,k) = (v_afrac_x(i,j,k) > zero) ? v_afrac_x(i,j,k) * flux_base : zero;
+                    flx_v_arr[0](i,j,k) = (v_afrac_x(i,j,k) > zero) ? flux_base : zero;
                 }
             } else {
                 flx_v_arr[0](i,j,k) = zero;
@@ -244,7 +246,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                 if (v_type == FabType::regular) {
                     flx_v_arr[1](i,j,k) = flux_base;
                 } else { // singlevalued
-                    flx_v_arr[1](i,j,k) = (v_afrac_y(i,j,k) > zero) ? v_afrac_y(i,j,k) * flux_base : zero;
+                    flx_v_arr[1](i,j,k) = (v_afrac_y(i,j,k) > zero) ? flux_base : zero;
                 }
             } else {
                 flx_v_arr[1](i,j,k) = zero;
@@ -257,7 +259,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                 if (v_type == FabType::regular) {
                     flx_v_arr[2](i,j,k) = flux_base;
                 } else { // singlevalued
-                    flx_v_arr[2](i,j,k) = (v_afrac_z(i,j,k) > zero) ? v_afrac_z(i,j,k) * flux_base : zero;
+                    flx_v_arr[2](i,j,k) = (v_afrac_z(i,j,k) > zero) ? flux_base : zero;
                 }
             } else {
                 flx_v_arr[2](i,j,k) = zero;
@@ -273,7 +275,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                 if (w_type == FabType::regular) {
                     flx_w_arr[0](i,j,k) = flux_base;
                 } else { // singlevalued
-                    flx_w_arr[0](i,j,k) = (w_afrac_x(i,j,k) > zero) ? w_afrac_x(i,j,k) * flux_base : zero;
+                    flx_w_arr[0](i,j,k) = (w_afrac_x(i,j,k) > zero) ? flux_base : zero;
                 }
             } else {
                 flx_w_arr[0](i,j,k) = zero;
@@ -287,7 +289,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                 if (w_type == FabType::regular) {
                     flx_w_arr[1](i,j,k) = flux_base;
                 } else { // singlevalued
-                    flx_w_arr[1](i,j,k) = (w_afrac_y(i,j,k) > zero) ? w_afrac_y(i,j,k) * flux_base : zero;
+                    flx_w_arr[1](i,j,k) = (w_afrac_y(i,j,k) > zero) ? flux_base : zero;
                 }
             } else {
                 flx_w_arr[1](i,j,k) = zero;
@@ -301,7 +303,7 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
                 if (w_type == FabType::regular) {
                     flx_w_arr[2](i,j,k) = flux_base;
                 } else { // singlevalued
-                    flx_w_arr[2](i,j,k) = (w_afrac_z(i,j,k) > zero) ? w_afrac_z(i,j,k) * flux_base : zero;
+                    flx_w_arr[2](i,j,k) = (w_afrac_z(i,j,k) > zero) ? flux_base : zero;
                 }
             } else {
                 flx_w_arr[2](i,j,k) = zero;
@@ -385,9 +387,17 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
             if (u_vfrac(i,j,k)>zero) {
                 Real mfsq = mf_ux(i,j,0) * mf_uy(i,j,0);
 
-                Real advectionSrc = ( (flx_u_arr[0](i+1, j  , k  ) - flx_u_arr[0](i, j, k)) * dxInv * mfsq
-                                    + (flx_u_arr[1](i  , j+1, k  ) - flx_u_arr[1](i, j, k)) * dyInv * mfsq
-                                    + (flx_u_arr[2](i  , j  , k+1) - flx_u_arr[2](i, j, k)) * dzInv ) / u_vfrac(i,j,k);
+                // Regular fabs have unit face areas and no area-fraction arrays.
+                Real axm = (u_type == FabType::singlevalued) ? u_afrac_x(i,j,k) : one;
+                Real axp = (u_type == FabType::singlevalued) ? u_afrac_x(i+1,j,k) : one;
+                Real aym = (u_type == FabType::singlevalued) ? u_afrac_y(i,j,k) : one;
+                Real ayp = (u_type == FabType::singlevalued) ? u_afrac_y(i,j+1,k) : one;
+                Real azm = (u_type == FabType::singlevalued) ? u_afrac_z(i,j,k) : one;
+                Real azp = (u_type == FabType::singlevalued) ? u_afrac_z(i,j,k+1) : one;
+
+                Real advectionSrc = ( (axp * flx_u_arr[0](i+1, j  , k  ) - axm * flx_u_arr[0](i, j, k)) * dxInv * mfsq
+                                    + (ayp * flx_u_arr[1](i  , j+1, k  ) - aym * flx_u_arr[1](i, j, k)) * dyInv * mfsq
+                                    + (azp * flx_u_arr[2](i  , j  , k+1) - azm * flx_u_arr[2](i, j, k)) * dzInv ) / u_vfrac(i,j,k);
                 rho_u_rhs(i, j, k) = -advectionSrc;
             } else {
                 rho_u_rhs(i, j, k) = zero;
@@ -400,9 +410,17 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
             if (v_vfrac(i,j,k)>zero) {
                 Real mfsq = mf_vx(i,j,0) * mf_vy(i,j,0);
 
-                Real advectionSrc = ( (flx_v_arr[0](i+1, j  , k  ) - flx_v_arr[0](i, j, k)) * dxInv * mfsq
-                                    + (flx_v_arr[1](i  , j+1, k  ) - flx_v_arr[1](i, j, k)) * dyInv * mfsq
-                                    + (flx_v_arr[2](i  , j  , k+1) - flx_v_arr[2](i, j, k)) * dzInv ) / v_vfrac(i,j,k);
+                // Regular fabs have unit face areas and no area-fraction arrays.
+                Real axm = (v_type == FabType::singlevalued) ? v_afrac_x(i,j,k) : one;
+                Real axp = (v_type == FabType::singlevalued) ? v_afrac_x(i+1,j,k) : one;
+                Real aym = (v_type == FabType::singlevalued) ? v_afrac_y(i,j,k) : one;
+                Real ayp = (v_type == FabType::singlevalued) ? v_afrac_y(i,j+1,k) : one;
+                Real azm = (v_type == FabType::singlevalued) ? v_afrac_z(i,j,k) : one;
+                Real azp = (v_type == FabType::singlevalued) ? v_afrac_z(i,j,k+1) : one;
+
+                Real advectionSrc = ( (axp * flx_v_arr[0](i+1, j  , k  ) - axm * flx_v_arr[0](i, j, k)) * dxInv * mfsq
+                                    + (ayp * flx_v_arr[1](i  , j+1, k  ) - aym * flx_v_arr[1](i, j, k)) * dyInv * mfsq
+                                    + (azp * flx_v_arr[2](i  , j  , k+1) - azm * flx_v_arr[2](i, j, k)) * dzInv ) / v_vfrac(i,j,k);
                 rho_v_rhs(i, j, k) = -advectionSrc;
             } else {
                 rho_v_rhs(i, j, k) = zero;
@@ -415,9 +433,17 @@ AdvectionSrcForMom_EB ( const MFIter& mfi,
             if (w_vfrac(i,j,k)>zero) {
                 Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
 
-                Real advectionSrc = ( (flx_w_arr[0](i+1, j  , k  ) - flx_w_arr[0](i, j, k)) * dxInv * mfsq
-                                    + (flx_w_arr[1](i  , j+1, k  ) - flx_w_arr[1](i, j, k)) * dyInv * mfsq
-                                    + (flx_w_arr[2](i  , j  , k+1) - flx_w_arr[2](i, j, k)) * dzInv ) / w_vfrac(i,j,k);
+                // Regular fabs have unit face areas and no area-fraction arrays.
+                Real axm = (w_type == FabType::singlevalued) ? w_afrac_x(i,j,k) : one;
+                Real axp = (w_type == FabType::singlevalued) ? w_afrac_x(i+1,j,k) : one;
+                Real aym = (w_type == FabType::singlevalued) ? w_afrac_y(i,j,k) : one;
+                Real ayp = (w_type == FabType::singlevalued) ? w_afrac_y(i,j+1,k) : one;
+                Real azm = (w_type == FabType::singlevalued) ? w_afrac_z(i,j,k) : one;
+                Real azp = (w_type == FabType::singlevalued) ? w_afrac_z(i,j,k+1) : one;
+
+                Real advectionSrc = ( (axp * flx_w_arr[0](i+1, j  , k  ) - axm * flx_w_arr[0](i, j, k)) * dxInv * mfsq
+                                    + (ayp * flx_w_arr[1](i  , j+1, k  ) - aym * flx_w_arr[1](i, j, k)) * dyInv * mfsq
+                                    + (azp * flx_w_arr[2](i  , j  , k+1) - azm * flx_w_arr[2](i, j, k)) * dzInv ) / w_vfrac(i,j,k);
                 rho_w_rhs(i, j, k) = -advectionSrc;
             } else {
                 rho_w_rhs(i, j, k) = zero;

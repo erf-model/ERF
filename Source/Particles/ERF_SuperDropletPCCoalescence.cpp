@@ -909,7 +909,7 @@ void SuperDropletPC::Coalescence ( int   a_lev,
 
         } );
         Gpu::synchronize();
-        num_collisions = static_cast<Real>(*(particle_collisions.copyToHost()));
+        num_collisions += static_cast<Real>(*(particle_collisions.copyToHost()));
 
         dMdt<ParticleReal> dmdt{ static_cast<ParticleReal>(mat_prop_core.m_lat_vap),
                                  static_cast<ParticleReal>(therco), /* ERF_Constants.H */

@@ -289,6 +289,11 @@ TEST(Plotfile3DSelection, RawStateNamesUseTheMoistureMapAboveRhoQ1)
     EXPECT_EQ(erf_plotfile::plot3d_conserved_component_index("rhoQ3"), RhoQ3_comp);
     EXPECT_EQ(erf_plotfile::plot3d_conserved_component_index("rhoQ4"), RhoQ4_comp);
     EXPECT_EQ(erf_plotfile::plot3d_conserved_component_index("rhoQ99"), -1);
+    EXPECT_EQ(erf_plotfile::plot3d_conserved_component_index("rhoQ011"), RhoQ11_comp);
+    EXPECT_EQ(erf_plotfile::plot3d_conserved_component_index("rhoQ0"), -1);
+    EXPECT_EQ(erf_plotfile::plot3d_conserved_component_index("rhoQ3x"), -1);
+    // Overflows int; must return -1 rather than throw
+    EXPECT_EQ(erf_plotfile::plot3d_conserved_component_index("rhoQ99999999999999999999"), -1);
 
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("rhoQ1", kessler));
     EXPECT_TRUE(erf_plotfile::plot3d_fixed_variable_available("rhoQ3", kessler));

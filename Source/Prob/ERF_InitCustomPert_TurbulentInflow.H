@@ -33,8 +33,10 @@
     Real pert_periods_V = amrex::Real(5.0); pp.query("pert_periods_V", pert_periods_V);
     Real pert_ref_height = amrex::Real(100.0); pp.query("pert_ref_height", pert_ref_height);
 
-    const Real* prob_lo = geomdata.ProbLo();
-    const Real* prob_hi = geomdata.ProbHi();
+    // Captured by value in the kernel below, so copy them out of geomdata rather than
+    // keeping pointers into host storage
+    const GpuArray<Real,AMREX_SPACEDIM> prob_lo{AMREX_D_DECL(geomdata.ProbLo(0), geomdata.ProbLo(1), geomdata.ProbLo(2))};
+    const GpuArray<Real,AMREX_SPACEDIM> prob_hi{AMREX_D_DECL(geomdata.ProbHi(0), geomdata.ProbHi(1), geomdata.ProbHi(2))};
 
     const bool use_eb = (sc.terrain_type == TerrainType::EB);
     const int klo = geomdata.Domain().smallEnd(2);

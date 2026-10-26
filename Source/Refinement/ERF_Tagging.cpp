@@ -41,11 +41,15 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
         int ratio;
         Box subdomain;
 
-        // This is the number of boxes that may have already been defined in the refinement_criteria_setup routine.
-        // If nb == 0 then no boxes have been specified in the inputs file, and we will use the boxes given in wrfinput_d*
-        // If nb >  0 then    boxes have been specified in the inputs file, and we will use the specified boxes as long
-        //    as we can ensure that they are contained inside the boxes given in wrfinput_d*
-        int nb_prespecified = num_boxes_at_level[levc+1];
+        // Box isub at level levc+1 belongs to file isub. Boxes may already have been defined in the
+        // refinement_criteria_setup routine; a box that exists is used as long as it is contained
+        // inside the subdomain its file gives, and a file without a box gets the file's subdomain.
+        //
+        // The met_em files at a level are successive times of a single nest, so only the first
+        // one defines a box there.
+        const int num_subdomains = (solverChoice.init_type == InitType::Metgrid) ?
+                                   amrex::min(1, static_cast<int>(nc_init_file[levc+1].size())) :
+                                   static_cast<int>(nc_init_file[levc+1].size());
 
         if (!nc_init_file[levc+1].empty())
         {
@@ -56,7 +60,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                 amrex::Print() << " met_em         time at level " << levc << " is " << levc_start_time << std::endl;
             }
 
-            for (int isub = 0; isub < nc_init_file[levc+1].size(); isub++) {
+            for (int isub = 0; isub < num_subdomains; isub++) {
                 if (!have_read_nc_init_file[levc+1][isub])
                 {
                     double levf_start_time = read_start_time_from_wrfinput(levc+1, nc_init_file[levc+1][isub]);
@@ -85,7 +89,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                         }
 
                         if ( (ratio != ref_ratio[levc][0]) || (ratio != ref_ratio[levc][1]) ) {
-                            amrex::Print() << "File " << nc_init_file[levc+1][0] << " has refinement ratio = " << ratio << std::endl;
+                            amrex::Print() << "File " << nc_init_file[levc+1][isub] << " has refinement ratio = " << ratio << std::endl;
                             amrex::Print() << "The inputs file has refinement ratio = " << ref_ratio[levc] << std::endl;
                             amrex::Abort("These must be the same in the horizontal -- please edit your inputs file and try again.");
                         }
@@ -126,16 +130,22 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                         } else if (solverChoice.init_type == InitType::Metgrid) {
                             new_fine.refine(ref_ratio[levc]);
                         }
-                        if (nb_prespecified == 0) {
-                            num_boxes_at_level[levc+1] += 1;
-                            boxes_at_level[levc+1].push_back(new_fine);
-                        } else {
+                        const int num_boxes = static_cast<int>(boxes_at_level[levc+1].size());
+                        if (isub < num_boxes) {
                             if (!new_fine.contains(boxes_at_level[levc+1][isub])) {
                                 amrex::Print() << "\n";
                                 amrex::Print() << "Box available in wrfinputs file             " << new_fine << std::endl;
                                 amrex::Print() << "Box requested for refinement in inputs file " << boxes_at_level[levc+1][isub] << std::endl;
                                 amrex::Abort("Specified boxes must be contained within boxes specified in wrfinput at this level");
                             }
+                        } else if (isub == num_boxes) {
+                            num_boxes_at_level[levc+1] += 1;
+                            boxes_at_level[levc+1].push_back(new_fine);
+                        } else {
+                            // An earlier file has no box yet, so this file's box cannot be stored at index isub
+                            amrex::Print() << "File " << nc_init_file[levc+1][isub] << " starts before "
+                                           << nc_init_file[levc+1][num_boxes] << std::endl;
+                            amrex::Abort("The nc_init_file files at a level must be listed in order of start time");
                         }
 
                         Box coarsened_bx(boxes_at_level[levc+1][isub]); coarsened_bx.coarsen(ref_ratio[levc]);

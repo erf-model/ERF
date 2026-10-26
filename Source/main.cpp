@@ -1,6 +1,9 @@
+#include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 
 #include <AMReX.H>
 #include <AMReX_BLProfiler.H>
@@ -130,8 +133,12 @@ void add_par () {
       AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
          derived_prob_hi.size() == erf_prob_hi.size(),
          "erf.prob_hi and erf.prob_extent have inconsistent lengths.");
+      // Allow for rounding in prob_lo + prob_extent, relative to the inputs' magnitude
       for (int i = 0; i < static_cast<int>(erf_prob_hi.size()); ++i) {
-         if (derived_prob_hi[i] != erf_prob_hi[i]) {
+         const amrex::Real lo = (i < static_cast<int>(erf_prob_lo.size()) ? erf_prob_lo[i] : 0.0);
+         const amrex::Real scale = std::max({std::abs(lo), std::abs(erf_prob_extent[i]), std::abs(erf_prob_hi[i])});
+         const amrex::Real tol = amrex::Real(100.0) * std::numeric_limits<amrex::Real>::epsilon() * scale;
+         if (std::abs(derived_prob_hi[i] - erf_prob_hi[i]) > tol) {
             amrex::Abort("erf.prob_hi and erf.prob_extent are both specified but inconsistent.");
          }
       }
