@@ -25,9 +25,6 @@ erf.cf_set_width
 erf.cf_width
   Source/ERF.cpp:2575
 
-erf.expand_plotvars_to_unif_rr
-  Source/ERF.cpp:2524
-
 erf.fix_random_seed
   Source/DataStructs/ERF_TurbPertStruct.H:240
   Source/ERF.cpp:144
