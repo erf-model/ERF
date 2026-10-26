@@ -445,6 +445,12 @@ struct TurbulentPerturbation {
             pb_amp[lev][boxIdx] = input_w_amp;
         } else { // box perturbation
             amrex::Real Um = pb_mag[lev][boxIdx];
+
+            // No mean wind: nothing to trip, and with tpi_Ti > 0 the amplitude below would be
+            //    0/0. The box is not refreshed again, so a zero amplitude also clears the
+            //    perturbation it held
+            if (Um == zero) { return; }
+
             amrex::Real beta = one/tpi_Tinf; // Thermal expansion coefficient
 
             // Pseudo Random temperature the ignores scale when mechanically tripping turbulence
