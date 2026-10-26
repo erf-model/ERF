@@ -176,15 +176,15 @@ void ERF::project_velocity_tb (int lev, double l_dt_d, Vector<MultiFab>& vmf)
         // Calculate new intermediate body force with updated gradp
         if (thin_xforce[lev]) {
             MultiFab::Copy(   deltaf[0][0], fluxes[0][0], 0, 0, 1, 0);
-            ApplyInvertedMask(deltaf[0][0], *xflux_imask[0]);
+            ApplyInvertedMask(deltaf[0][0], *xflux_imask[lev]);
         }
         if (thin_yforce[lev]) {
             MultiFab::Copy(   deltaf[0][1], fluxes[0][1], 0, 0, 1, 0);
-            ApplyInvertedMask(deltaf[0][1], *yflux_imask[0]);
+            ApplyInvertedMask(deltaf[0][1], *yflux_imask[lev]);
         }
         if (thin_zforce[lev]) {
             MultiFab::Copy(   deltaf[0][2], fluxes[0][2], 0, 0, 1, 0);
-            ApplyInvertedMask(deltaf[0][2], *zflux_imask[0]);
+            ApplyInvertedMask(deltaf[0][2], *zflux_imask[lev]);
         }
 
         // DEBUG
@@ -219,13 +219,13 @@ void ERF::project_velocity_tb (int lev, double l_dt_d, Vector<MultiFab>& vmf)
         MultiFab::Saxpy(vmf[Vars::yvel], beta, fluxes[0][1], 0, 0, 1, 0);
         MultiFab::Saxpy(vmf[Vars::zvel], beta, fluxes[0][2], 0, 0, 1, 0);
         if (thin_xforce[lev]) {
-            ApplyMask(vmf[Vars::xvel], *xflux_imask[0]);
+            ApplyMask(vmf[Vars::xvel], *xflux_imask[lev]);
         }
         if (thin_yforce[lev]) {
-            ApplyMask(vmf[Vars::yvel], *yflux_imask[0]);
+            ApplyMask(vmf[Vars::yvel], *yflux_imask[lev]);
         }
         if (thin_zforce[lev]) {
-            ApplyMask(vmf[Vars::zvel], *zflux_imask[0]);
+            ApplyMask(vmf[Vars::zvel], *zflux_imask[lev]);
         }
     } // itp: pressure-force iterations
 

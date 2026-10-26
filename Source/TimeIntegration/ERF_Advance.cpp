@@ -69,21 +69,6 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                            base_state[lev], base_state[lev]);
     }
 
-    //
-    // So we must convert the fillpatched to momenta, including the ghost values
-    //
-    const MultiFab* c_vfrac = nullptr;
-    if (solverChoice.terrain_type == TerrainType::EB) {
-        c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
-    }
-
-    VelocityToMomentum(U_old, rU_old[lev].nGrowVect(),
-                       V_old, rV_old[lev].nGrowVect(),
-                       W_old, rW_old[lev].nGrowVect(),
-                       S_old, rU_old[lev], rV_old[lev], rW_old[lev],
-                       Geom(lev).Domain(),
-                       domain_bcs_type, c_vfrac);
-
     // Update the inflow perturbation update time and amplitude
     if (solverChoice.use_perturbation(lev))
     {
@@ -121,6 +106,23 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                                  time, BCVars::cons_bc, true);
         }
     }
+
+    //
+    // So we must convert the fillpatched to momenta, including the ghost values.
+    // This comes after the inflow perturbation above, since the dycore advances the
+    //    momenta: a CPM_W perturbation of W_old must reach rW_old
+    //
+    const MultiFab* c_vfrac = nullptr;
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
+    }
+
+    VelocityToMomentum(U_old, rU_old[lev].nGrowVect(),
+                       V_old, rV_old[lev].nGrowVect(),
+                       W_old, rW_old[lev].nGrowVect(),
+                       S_old, rU_old[lev], rV_old[lev], rW_old[lev],
+                       Geom(lev).Domain(),
+                       domain_bcs_type, c_vfrac);
 
     // configure SurfaceLayer params if needed
     bool updated_prim = false;

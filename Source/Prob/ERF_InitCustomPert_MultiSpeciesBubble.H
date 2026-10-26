@@ -26,7 +26,7 @@
     Real theta_pert  = two; pp_prob.query("theta_pert", theta_pert);
     Real eq_pot_temp = amrex::Real(320.0); pp_prob.query("eq_pot_temp",eq_pot_temp);
     Real qt_init = amrex::Real(0.02); pp_prob.query("qt_init", qt_init);
-    bool use_empirical = false; pp_prob.query("use_empircal_psat",use_empirical);
+    bool use_empirical = false; pp_prob.query("use_empirical_psat",use_empirical);
 
     std::vector<std::string> m_species;
     int m_num_species = 0;
@@ -143,6 +143,9 @@
             // mean states
             state_pert(i, j, k, RhoQ1_comp) = rho*q_v_hot;
         });
+
+        // The kernel above reads d_r, d_p, d_t and d_q_v; wait for it before they are freed
+        Gpu::streamSynchronize();
     } else {
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -242,3 +245,6 @@
             }
         }
     });
+
+    // The kernel above reads qv_init_d; wait for it before it is freed
+    Gpu::streamSynchronize();

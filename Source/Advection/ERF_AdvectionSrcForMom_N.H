@@ -252,7 +252,8 @@ AdvectionSrcForZMom_N (int i, int j, int k,
         zflux_hi =  rho_w(i,j,k) * w(i,j,k);
     } else {
         rho_w_avg_hi = myhalf * (rho_w(i,j,k) + rho_w(i,j,k+1));
-        if (k == hi_z_face-1) {
+        // The centre next to the top or bottom face is second order, seen from either side
+        if (k == hi_z_face-1 || k == lo_z_face) {
             interp_w_wall.InterpolateInZ(i,j,k+1,0,interp_hi,rho_w_avg_hi,AdvType::Centered_2nd);
         } else if (k == hi_z_face-2 || k == lo_z_face+1) {
             if (vert_adv_type != AdvType::Centered_2nd && vert_adv_type != AdvType::Upwind_3rd) {
@@ -275,7 +276,7 @@ AdvectionSrcForZMom_N (int i, int j, int k,
         zflux_lo = rho_w(i,j,k) * w(i,j,k);
     } else {
         rho_w_avg_lo = myhalf * (rho_w(i,j,k) + rho_w(i,j,k-1));
-        if (k == lo_z_face+1) {
+        if (k == lo_z_face+1 || k == hi_z_face) {
             interp_w_wall.InterpolateInZ(i,j,k,0,interp_lo,rho_w_avg_lo,AdvType::Centered_2nd);
         } else if (k == lo_z_face+2 || k == hi_z_face-1) {
             if (vert_adv_type != AdvType::Centered_2nd && vert_adv_type != AdvType::Upwind_3rd) {
@@ -389,7 +390,9 @@ AdvectionSrcForMomWrapper_N (const amrex::Box& bxx, const amrex::Box& bxy, const
     amrex::ParallelFor(bxz,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        auto dzInv = (k == 0) ? one / dz_ptr[k] : two/(dz_ptr[k] + dz_ptr[k-1]);
+        // dz_ptr holds cell widths, so the top face (k == hi_z_face) has only the cell below it
+        auto dzInv = (k == 0)         ? one / dz_ptr[k]   :
+                     (k == hi_z_face) ? one / dz_ptr[k-1] : two/(dz_ptr[k] + dz_ptr[k-1]);
         rho_w_rhs(i, j, k) = -AdvectionSrcForZMom_N(i, j, k, rho_u, rho_v, rho_w, w,
                                                     interp_w_h, interp_w_v, interp_w_wall,
                                                     mf_mx, mf_my, mf_uy_inv, mf_vx_inv,

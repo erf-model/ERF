@@ -1209,6 +1209,16 @@ MOSTAverage::set_norm_indices_T (const int& lev)
         auto j_arr = m_j_indx[lev]->array(mfi);
         auto k_arr = m_k_indx[lev]->array(mfi);
         auto zref_arr = m_zref[lev]->array(mfi);
+
+        // The displaced column (i_new, j_new) is read here from z_phys at i_new..i_new+1 and
+        //    j_new..j_new+1, and later from the averaged fields at (i_new, j_new); keep it
+        //    inside both FABs, so a displacement past the ghost cells uses the nearest column
+        const auto zp_lo = lbound(z_phys_arr), zp_hi = ubound(z_phys_arr);
+        const auto cc_lo = lbound(fields[imf_cc]->const_array(mfi));
+        const auto cc_hi = ubound(fields[imf_cc]->const_array(mfi));
+        const int inew_lo = amrex::max(zp_lo.x, cc_lo.x), inew_hi = amrex::min(zp_hi.x - 1, cc_hi.x);
+        const int jnew_lo = amrex::max(zp_lo.y, cc_lo.y), jnew_hi = amrex::min(zp_hi.y - 1, cc_hi.y);
+
         ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Elements of normal vector
@@ -1224,8 +1234,8 @@ MOSTAverage::set_norm_indices_T (const int& lev)
             // Compute i & j as displacements (no grid stretching)
             int delta_i  = static_cast<int>(std::round(delta_x*dxInv[0]));
             int delta_j  = static_cast<int>(std::round(delta_y*dxInv[1]));
-            int i_new    = i + delta_i;
-            int j_new    = j + delta_j;
+            int i_new    = amrex::Clamp(i + delta_i, inew_lo, inew_hi);
+            int j_new    = amrex::Clamp(j + delta_j, jnew_lo, jnew_hi);
             i_arr(i,j,0) = i_new;
             j_arr(i,j,0) = j_new;
 

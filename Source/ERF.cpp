@@ -3629,8 +3629,6 @@ ERF::ReadParameters ()
         //       is constructed after ReadParameters() returns, so setSubVolVariables
         //       is called alongside setPlotVariables in the ERF constructor.
 
-        pp.queryAdd("expand_plotvars_to_unif_rr",m_expand_plotvars_to_unif_rr);
-
         pp.queryAdd("plot_face_vels",m_plot_face_vels);
         pp.queryAdd("plot_face_terrain_blanking",m_plot_face_terrain_blanking);
 

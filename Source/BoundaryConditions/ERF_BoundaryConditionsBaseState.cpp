@@ -82,7 +82,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
             {
                 int dest_comp = n;
                 int l_bc_type = bc_ptr[n].lo(0);
-                int iflip = dom_lo.x - 1 - i;
+                int iflip = 2*dom_lo.x - 1 - i;
                 if (l_bc_type == ERFBCType::foextrap) {
                     dest_arr(i,j,k,dest_comp) =  dest_arr(dom_lo.x,j,k,dest_comp);
                 } else if (l_bc_type == ERFBCType::open) {
@@ -121,7 +121,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
             {
                 int dest_comp = n;
                 int l_bc_type = bc_ptr[n].lo(1);
-                int jflip = dom_lo.y - 1 - j;
+                int jflip = 2*dom_lo.y - 1 - j;
                 if (l_bc_type == ERFBCType::foextrap) {
                     dest_arr(i,j,k,dest_comp) =  dest_arr(i,dom_lo.y,k,dest_comp);
                 } else if (l_bc_type == ERFBCType::open) {
@@ -163,7 +163,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
             {
                 int dest_comp = n;
                 int l_bc_type = bc_ptr[n].lo(0);
-                int iflip = dom_lo.x - 1 - i;
+                int iflip = 2*dom_lo.x - 1 - i;
                 if (l_bc_type == ERFBCType::foextrap) {
                     dest_arr(i,j,k,dest_comp) =  dest_arr(dom_lo.x,j,k,dest_comp);
                 } else if (l_bc_type == ERFBCType::open) {
@@ -212,7 +212,7 @@ void ERFPhysBCFunct_base::impose_lateral_basestate_bcs (const Array4<Real>& dest
             {
                 int dest_comp = n;
                 int l_bc_type = bc_ptr[n].lo(1);
-                int jflip = dom_lo.y - 1 - j;
+                int jflip = 2*dom_lo.y - 1 - j;
                 if (l_bc_type == ERFBCType::foextrap) {
                     dest_arr(i,j,k,dest_comp) =  dest_arr(i,dom_lo.y,k,dest_comp);
                 } else if (l_bc_type == ERFBCType::open) {

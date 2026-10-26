@@ -72,27 +72,15 @@ struct MaterialPropertiesCore { // For GPU
     /*! Temperature parameter for air [K] */
     static constexpr amrex::Real s_eps_air_k = 97;
 
-#ifdef AMREX_USE_FLOAT
-    amrex::Real m_density = std::numeric_limits<float>::max(); /*!< density */
-    amrex::Real m_ionization = std::numeric_limits<float>::max(); /*!< ionization */
-    amrex::Real m_mol_weight = std::numeric_limits<float>::max(); /*!< molecular weight (condensate) */
-    amrex::Real m_lat_vap = std::numeric_limits<float>::max(); /*!< latent heat of vaporization */
-    amrex::Real m_lat_fus = std::numeric_limits<float>::max(); /*!< latent heat of fusion */
-    amrex::Real m_Rv = std::numeric_limits<float>::max(); /*!< gas constant for vapour of this material */
-    amrex::Real m_Tc = std::numeric_limits<float>::max(); /*!< critical temperature for surface tension */
-    amrex::Real m_Tb = std::numeric_limits<float>::max(); /*!< boiling temperature */
-    amrex::Real m_Nav_by_molweight = std::numeric_limits<float>::max(); /*!< Avogadro number by vapour mol. weight */
-#else
-    amrex::Real m_density = std::numeric_limits<double>::max(); /*!< density */
-    amrex::Real m_ionization = std::numeric_limits<double>::max(); /*!< ionization */
-    amrex::Real m_mol_weight = std::numeric_limits<double>::max(); /*!< molecular weight (condensate) */
-    amrex::Real m_lat_vap = std::numeric_limits<double>::max(); /*!< latent heat of vaporization */
-    amrex::Real m_lat_fus = std::numeric_limits<double>::max(); /*!< latent heat of fusion */
-    amrex::Real m_Rv = std::numeric_limits<double>::max(); /*!< gas constant for vapour of this material */
-    amrex::Real m_Tc = std::numeric_limits<double>::max(); /*!< critical temperature for surface tension */
-    amrex::Real m_Tb = std::numeric_limits<double>::max(); /*!< boiling temperature */
-    amrex::Real m_Nav_by_molweight = std::numeric_limits<float>::max(); /*!< Avogadro number by vapour mol. weight */
-#endif
+    amrex::Real m_density = std::numeric_limits<amrex::Real>::max(); /*!< density */
+    amrex::Real m_ionization = std::numeric_limits<amrex::Real>::max(); /*!< ionization */
+    amrex::Real m_mol_weight = std::numeric_limits<amrex::Real>::max(); /*!< molecular weight (condensate) */
+    amrex::Real m_lat_vap = std::numeric_limits<amrex::Real>::max(); /*!< latent heat of vaporization */
+    amrex::Real m_lat_fus = std::numeric_limits<amrex::Real>::max(); /*!< latent heat of fusion */
+    amrex::Real m_Rv = std::numeric_limits<amrex::Real>::max(); /*!< gas constant for vapour of this material */
+    amrex::Real m_Tc = std::numeric_limits<amrex::Real>::max(); /*!< critical temperature for surface tension */
+    amrex::Real m_Tb = std::numeric_limits<amrex::Real>::max(); /*!< boiling temperature */
+    amrex::Real m_Nav_by_molweight = std::numeric_limits<amrex::Real>::max(); /*!< Avogadro number by vapour mol. weight */
     /*! vector of molar heat capacity polynomial coeffs */
     amrex::Real m_mol_Cp_coeffs[7] = {  std::numeric_limits<amrex::Real>::max(),
                                         std::numeric_limits<amrex::Real>::max(),

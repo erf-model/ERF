@@ -3,6 +3,7 @@
 
 #include <ERF_EOS.H>
 #include <ERF_Constants.H>
+#include <AMReX_EBCellFlag.H>
 
 /**
  * Compute dry anelastic vertical perturbational gravitational force density [N/m^3].
@@ -59,37 +60,51 @@ buoyancy_dry_anelastic_eb (int& i, int& j, int& k,
                            const amrex::Array4<const amrex::Real>& cell_data,
                            amrex::Array4<amrex::EBCellFlag const> const& flag)
 {
+    // Select the fluid side of the w-face using both adjacent cell flags.
+    if (flag(i,j,k).isMultiValued() || flag(i,j,k-1).isMultiValued() ||
+        (flag(i,j,k).isCovered() && flag(i,j,k-1).isCovered())) {
+        return zero;
+    }
+
     amrex::Real buoyancy = zero;
-    if (flag(i,j,k).isRegular()) {
+    if (flag(i,j,k).isCovered()) {
+        // Extrapolate from below; use the nearest fluid cell if the second
+        // donor is unavailable. Never read covered-cell state or base data.
+        int kk = k-1;
+        if (flag.contains(i,j,k-2) &&
+            (flag(i,j,k-2).isRegular() || flag(i,j,k-2).isSingleValued()) &&
+            cell_data.contains(i,j,k-2) && r0_arr.contains(i,j,k-2) &&
+            th0_arr.contains(i,j,k-2)) {
+            kk = k-2;
+        }
+        amrex::Real theta_d_lo = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
+        amrex::Real theta_d_lolo = cell_data(i,j,kk,RhoTheta_comp)/cell_data(i,j,kk,Rho_comp);
+        amrex::Real  theta_d_wface = myhalf * (three*theta_d_lo - theta_d_lolo);
+        amrex::Real theta_d0_wface = myhalf * (three*th0_arr(i,j,k-1) - th0_arr(i,j,kk));
+        amrex::Real     rho0_wface = myhalf * (three*r0_arr(i,j,k-1) - r0_arr(i,j,kk));
+        buoyancy = -rho0_wface * grav_gpu * (theta_d_wface - theta_d0_wface) / theta_d0_wface;
+    } else if (flag(i,j,k-1).isCovered()) {
+        // Extrapolate from above with the same donor fallback.
+        int kk = k;
+        if (flag.contains(i,j,k+1) &&
+            (flag(i,j,k+1).isRegular() || flag(i,j,k+1).isSingleValued()) &&
+            cell_data.contains(i,j,k+1) && r0_arr.contains(i,j,k+1) &&
+            th0_arr.contains(i,j,k+1)) {
+            kk = k+1;
+        }
+        amrex::Real theta_d_hihi = cell_data(i,j,kk,RhoTheta_comp)/cell_data(i,j,kk,Rho_comp);
+        amrex::Real theta_d_hi = cell_data(i,j,k,RhoTheta_comp)/cell_data(i,j,k,Rho_comp);
+        amrex::Real  theta_d_wface = myhalf * (three*theta_d_hi - theta_d_hihi);
+        amrex::Real theta_d0_wface = myhalf * (three*th0_arr(i,j,k) - th0_arr(i,j,kk));
+        amrex::Real     rho0_wface = myhalf * (three*r0_arr(i,j,k) - r0_arr(i,j,kk));
+        buoyancy = -rho0_wface * grav_gpu * (theta_d_wface - theta_d0_wface) / theta_d0_wface;
+    } else {
         amrex::Real theta_d_hi = cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp);
         amrex::Real theta_d_lo = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
         amrex::Real  theta_d_wface = myhalf * (theta_d_lo + theta_d_hi);
         amrex::Real theta_d0_wface = myhalf * (th0_arr(i,j,k) + th0_arr(i,j,k-1));
         amrex::Real     rho0_wface = myhalf * (r0_arr(i,j,k) + r0_arr(i,j,k-1));
         buoyancy = -rho0_wface * grav_gpu * (theta_d_wface - theta_d0_wface) / theta_d0_wface;
-    } else if (flag(i,j,k).isSingleValued()) {
-        if (flag(i,j,k-1).isCovered()) {
-            amrex::Real theta_d_hihi = cell_data(i,j,k+1,RhoTheta_comp)/cell_data(i,j,k+1,Rho_comp);
-            amrex::Real theta_d_hi = cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp);
-            amrex::Real theta_d_wface  = myhalf * (three*theta_d_hi - theta_d_hihi);
-            amrex::Real theta_d0_wface = myhalf * (three*th0_arr(i,j,k) - th0_arr(i,j,k+1));
-            amrex::Real     rho0_wface = myhalf * (three*r0_arr(i,j,k) - r0_arr(i,j,k+1));
-            buoyancy = -rho0_wface * grav_gpu * (theta_d_wface - theta_d0_wface) / theta_d0_wface;
-        } else if (flag(i,j,k).isCovered()) {
-            amrex::Real theta_d_lo = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
-            amrex::Real theta_d_lolo = cell_data(i,j,k-2,RhoTheta_comp)/cell_data(i,j,k-2,Rho_comp);
-            amrex::Real  theta_d_wface = myhalf * (three*theta_d_lo - theta_d_lolo);
-            amrex::Real theta_d0_wface = myhalf * (three*th0_arr(i,j,k-1) - th0_arr(i,j,k-2));
-            amrex::Real     rho0_wface = myhalf * (three*r0_arr(i,j,k-1) - r0_arr(i,j,k-2));
-            buoyancy = -rho0_wface * grav_gpu * (theta_d_wface - theta_d0_wface) / theta_d0_wface;
-        } else {
-            amrex::Real theta_d_hi = cell_data(i,j,k  ,RhoTheta_comp)/cell_data(i,j,k  ,Rho_comp);
-            amrex::Real theta_d_lo = cell_data(i,j,k-1,RhoTheta_comp)/cell_data(i,j,k-1,Rho_comp);
-            amrex::Real  theta_d_wface = myhalf * (theta_d_lo + theta_d_hi);
-            amrex::Real theta_d0_wface = myhalf * (th0_arr(i,j,k) + th0_arr(i,j,k-1));
-            amrex::Real     rho0_wface = myhalf * (r0_arr(i,j,k) + r0_arr(i,j,k-1));
-            buoyancy = -rho0_wface * grav_gpu * (theta_d_wface - theta_d0_wface) / theta_d0_wface;
-        }
     }
     return buoyancy;
 }
@@ -149,35 +164,46 @@ buoyancy_rhopert_eb (int& i, int& j, int& k,
                      const amrex::Array4<const amrex::Real>& qt_arr,
                      amrex::Array4<amrex::EBCellFlag const> const& flag)
 {
+    if (flag(i,j,k).isMultiValued() || flag(i,j,k-1).isMultiValued() ||
+        (flag(i,j,k).isCovered() && flag(i,j,k-1).isCovered())) {
+        return zero;
+    }
+
     amrex::Real buoyancy = zero;
-    if (flag(i,j,k).isRegular()) {
+    if (flag(i,j,k).isCovered()) {
+        // Extrapolate the total-density perturbation from the fluid below.
+        int kk = k-1;
+        if (flag.contains(i,j,k-2) &&
+            (flag(i,j,k-2).isRegular() || flag(i,j,k-2).isSingleValued()) &&
+            cell_data.contains(i,j,k-2) && r0_arr.contains(i,j,k-2) &&
+            qv0_arr.contains(i,j,k-2) && qt_arr.contains(i,j,k-2)) {
+            kk = k-2;
+        }
+        amrex::Real rhop_lo = cell_data(i,j,k-1,Rho_comp) * (one + qt_arr(i,j,k-1)) -
+                                r0_arr(i,j,k-1) * (one + qv0_arr(i,j,k-1));
+        amrex::Real rhop_lolo = cell_data(i,j,kk,Rho_comp) * (one + qt_arr(i,j,kk)) -
+                                  r0_arr(i,j,kk) * (one + qv0_arr(i,j,kk));
+        buoyancy = grav_gpu * myhalf * (three*rhop_lo - rhop_lolo);
+    } else if (flag(i,j,k-1).isCovered()) {
+        // Extrapolate from above, falling back to the nearest fluid cell.
+        int kk = k;
+        if (flag.contains(i,j,k+1) &&
+            (flag(i,j,k+1).isRegular() || flag(i,j,k+1).isSingleValued()) &&
+            cell_data.contains(i,j,k+1) && r0_arr.contains(i,j,k+1) &&
+            qv0_arr.contains(i,j,k+1) && qt_arr.contains(i,j,k+1)) {
+            kk = k+1;
+        }
+        amrex::Real rhop_hi = cell_data(i,j,k,Rho_comp) * (one + qt_arr(i,j,k)) -
+                                r0_arr(i,j,k) * (one + qv0_arr(i,j,k));
+        amrex::Real rhop_hihi = cell_data(i,j,kk,Rho_comp) * (one + qt_arr(i,j,kk)) -
+                                  r0_arr(i,j,kk) * (one + qv0_arr(i,j,kk));
+        buoyancy = grav_gpu * myhalf * (three*rhop_hi - rhop_hihi);
+    } else {
         amrex::Real rhop_hi = cell_data(i,j,k  ,Rho_comp) * (one +  qt_arr(i,j,k  )) -
                                  r0_arr(i,j,k           ) * (one + qv0_arr(i,j,k  ));
         amrex::Real rhop_lo = cell_data(i,j,k-1,Rho_comp) * (one +  qt_arr(i,j,k-1)) -
                                  r0_arr(i,j,k-1         ) * (one + qv0_arr(i,j,k-1));
         buoyancy = grav_gpu * myhalf * ( rhop_hi + rhop_lo );
-    } else if (flag(i,j,k).isSingleValued()) {
-        if (flag(i,j,k-1).isCovered()) {
-            amrex::Real rhop_hihi = cell_data(i,j,k+1,Rho_comp) * (one +  qt_arr(i,j,k+1)) -
-                                       r0_arr(i,j,k+1         ) * (one + qv0_arr(i,j,k+1));
-            amrex::Real rhop_hi   = cell_data(i,j,k  ,Rho_comp) * (one +  qt_arr(i,j,k  )) -
-                                       r0_arr(i,j,k           ) * (one + qv0_arr(i,j,k  ));
-            buoyancy = grav_gpu * myhalf * ( three * rhop_hi - rhop_hihi );
-            // buoyancy = grav_gpu * rhop_hi;
-        } else if (flag(i,j,k).isCovered()) {
-            amrex::Real rhop_lo   = cell_data(i,j,k-1,Rho_comp) * (one +  qt_arr(i,j,k-1)) -
-                                       r0_arr(i,j,k-1         ) * (one + qv0_arr(i,j,k-1));
-            amrex::Real rhop_lolo = cell_data(i,j,k-2,Rho_comp) * (one +  qt_arr(i,j,k-2)) -
-                                       r0_arr(i,j,k-2         ) * (one + qv0_arr(i,j,k-2));
-            buoyancy = grav_gpu * myhalf * ( three * rhop_lo - rhop_lolo );
-            // buoyancy = grav_gpu * rhop_lo;
-        } else {
-            amrex::Real rhop_hi = cell_data(i,j,k  ,Rho_comp) * (one +  qt_arr(i,j,k  )) -
-                                     r0_arr(i,j,k           ) * (one + qv0_arr(i,j,k  ));
-            amrex::Real rhop_lo = cell_data(i,j,k-1,Rho_comp) * (one +  qt_arr(i,j,k-1)) -
-                                     r0_arr(i,j,k-1         ) * (one + qv0_arr(i,j,k-1));
-            buoyancy = grav_gpu * myhalf * ( rhop_hi + rhop_lo );
-        }
     }
     return buoyancy;
 }

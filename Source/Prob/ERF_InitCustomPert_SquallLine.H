@@ -146,3 +146,6 @@
     }
 
   });
+
+    // The kernel above reads d_r, d_p, d_t and d_q_v; wait for it before they are freed
+    Gpu::streamSynchronize();
