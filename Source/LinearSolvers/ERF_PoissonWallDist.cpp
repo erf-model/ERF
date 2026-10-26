@@ -13,6 +13,47 @@
 using namespace amrex;
 
 /**
+ * Nodal slab at k = klo on the 2D footprint of every box of z_nd, so that boxes
+ * that do not touch the surface (a BoxArray split in z, a refined level that stops
+ * above the ground) still hold the surface nodes once fill_surface_nodes has run.
+ *
+ * @param z_nd Nodal physical heights of the level
+ * @param klo  Lowest k index of the level's domain
+ */
+static MultiFab
+surface_slab (const MultiFab& z_nd, int klo)
+{
+    BoxList bl_surf = z_nd.boxArray().boxList();
+    for (auto& b : bl_surf) { b.setRange(2,klo); }
+    BoxArray ba_surf(std::move(bl_surf));
+    IntVect ng_surf = z_nd.nGrowVect(); ng_surf[2] = 0;
+    return MultiFab(ba_surf, z_nd.DistributionMap(), 1, ng_surf);
+}
+
+/**
+ * Stop unless every surface node, valid and x/y ghost, was gathered. The slab has
+ * no z ghosts, so the reduction runs over its own ghost vector.
+ *
+ * @param znd_surf Surface slab filled by fill_surface_nodes
+ */
+static void
+assert_surface_gathered (const MultiFab& znd_surf)
+{
+    Real znd_max = ReduceMax(znd_surf, znd_surf.nGrowVect(),
+        [=] AMREX_GPU_HOST_DEVICE (Box const& bx, Array4<Real const> const& a) -> Real
+        {
+            Real m = std::numeric_limits<Real>::lowest();
+            amrex::Loop(bx, [&] (int i, int j, int k) { m = amrex::max(m, a(i,j,k)); });
+            return m;
+        });
+    ParallelAllReduce::Max(znd_max, ParallelContext::CommunicatorSub());
+    // Same threshold as fill_surface_nodes: a node interpolated from a stencil that still
+    // held bogus values is a fraction of bogus_large_value, not equal to it
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(znd_max < Real(0.5) * bogus_large_value,
+        "poisson_wall_dist: the surface nodes were not gathered onto every box");
+}
+
+/**
  * Calculate wall distances using the Poisson equation
  *
  * The zlo boundary is assumed to correspond to the land surface. If there are
@@ -43,19 +84,21 @@ void ERF::poisson_wall_dist (int lev)
 
     auto const& zphys_arr = z_phys_nd[lev]->const_arrays();
 
+    const int klo = geomdata.Domain().smallEnd(2);
+
     if (havewall) {
 #if 1
         // Bypass wall dist calc in the trivial cases
 
         if (solverChoice.mesh_type == MeshType::ConstantDz) {
+            // Height above the bottom wall at prob_lo[2]
             Print() << "Directly calculating direct wall distance for constant dz" << std::endl;
-            const auto prob_lo = geomdata.ProbLoArray();
             const auto dx = geomdata.CellSizeArray();
             for (MFIter mfi(*walldist[lev]); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
                 auto dist_arr = walldist[lev]->array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-                    dist_arr(i, j, k) = prob_lo[2] + (k + myhalf) * dx[2];
+                    dist_arr(i, j, k) = (k - klo + myhalf) * dx[2];
                 });
             }
             fill_wall_dist_ghost_cells(*walldist[lev], geom[lev]);
@@ -63,14 +106,19 @@ void ERF::poisson_wall_dist (int lev)
         }
 
         if (solverChoice.mesh_type == MeshType::StretchedDz) {
+            // Height above the (flat) surface, read from the gathered surface slab so that
+            // boxes above the ground and split-in-z layouts see the surface node too
             Print() << "Directly calculating direct wall distance for stretched dz" << std::endl;
-            for (MFIter mfi(*walldist[lev],TileNoZ()); mfi.isValid(); ++mfi) {
+            MultiFab znd_surf = surface_slab(*z_phys_nd[lev], klo);
+            fill_surface_nodes(lev, znd_surf);
+            assert_surface_gathered(znd_surf);
+            for (MFIter mfi(*walldist[lev]); mfi.isValid(); ++mfi) {
                 const Box& bx = mfi.validbox();
                 auto dist_arr = walldist[lev]->array(mfi);
                 const auto zcc_arr = z_phys_cc[lev]->const_array(mfi);
-                const auto znd_arr = z_phys_nd[lev]->const_array(mfi);
+                const auto znd_arr = znd_surf.const_array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-                    dist_arr(i, j, k) = zcc_arr(i, j, k) - znd_arr(i, j, 0);
+                    dist_arr(i, j, k) = zcc_arr(i, j, k) - znd_arr(i, j, klo);
                 });
             }
             fill_wall_dist_ghost_cells(*walldist[lev], geom[lev]);
@@ -90,32 +138,9 @@ void ERF::poisson_wall_dist (int lev)
         // slopes below about 0.3, and free of any linear solve (cf. the
         // terrain height used by the amr-wind immersed terrain and Kynema).
         Print() << "Calculating wall distance from the terrain height (normal-projected)" << std::endl;
-        const int klo = geomdata.Domain().smallEnd(2);
-
-        // The surface nodes z_nd(:,:,klo) live only in the boxes that touch the surface;
-        // when the BoxArray is split in z the boxes above hold nodes from their own k
-        // range, so gather the surface slab onto every box (the same 2D footprint, at klo).
-        // A refined level that stops above the ground has no surface nodes at all; those come
-        // from the coarser level (fill_surface_nodes).
-        BoxList bl_surf = z_phys_nd[lev]->boxArray().boxList();
-        for (auto& b : bl_surf) { b.setRange(2,klo); }
-        BoxArray ba_surf(std::move(bl_surf));
-        IntVect ng_surf = z_phys_nd[lev]->nGrowVect(); ng_surf[2] = 0;
-        MultiFab znd_surf(ba_surf, z_phys_nd[lev]->DistributionMap(), 1, ng_surf);
+        MultiFab znd_surf = surface_slab(*z_phys_nd[lev], klo);
         fill_surface_nodes(lev, znd_surf);
-        // Every node the stencil below reads (valid plus the x/y ghosts) must
-        // have been gathered; the slab has no z ghosts, so reduce over ng_surf
-        // rather than a scalar ghost count.
-        Real znd_max = ReduceMax(znd_surf, ng_surf,
-            [=] AMREX_GPU_HOST_DEVICE (Box const& bx, Array4<Real const> const& a) -> Real
-            {
-                Real m = std::numeric_limits<Real>::lowest();
-                amrex::Loop(bx, [&] (int i, int j, int k) { m = amrex::max(m, a(i,j,k)); });
-                return m;
-            });
-        ParallelAllReduce::Max(znd_max, ParallelContext::CommunicatorSub());
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(znd_max < bogus_large_value,
-            "poisson_wall_dist: the surface nodes were not gathered onto every box");
+        assert_surface_gathered(znd_surf);
 
         for (MFIter mfi(*walldist[lev]); mfi.isValid(); ++mfi) {
             const Box& bx = mfi.validbox();

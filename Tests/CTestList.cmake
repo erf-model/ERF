@@ -2692,6 +2692,13 @@ endfunction(add_test_rans)
 add_test_rans(RANS_Neutral_ABL_Flat     Neutral_ABL_Flat     inputs_neutral     40  check_neutral.py    RUNTIME_OPTIONS "erf.use_fft=false")
 add_test_rans(RANS_Stable_ABL_Flat      Stable_ABL_Flat      inputs_stable      40  check_stable.py     RUNTIME_OPTIONS "erf.use_fft=false")
 add_test_rans(RANS_Convective_ABL_Flat  Convective_ABL_Flat  inputs_convective  40  check_convective.py RUNTIME_OPTIONS "erf.use_fft=false")
+# Wall distance on a flat mesh whose bottom is at z = 300 m: the height above the bottom
+# wall, not the absolute height (#4609), on a constant-dz mesh and on a stretched mesh
+# whose boxes are split in z, where the upper box has no surface node of its own (#4610)
+add_test_rans(RANS_WallDist_RaisedBase   Neutral_ABL_Flat     inputs_neutral     1   check_walldist.py
+    RUNTIME_OPTIONS "erf.use_fft=false 'geometry.prob_lo=0 0 300' erf.input_sounding_file=input_sounding_raised 'erf.plot_vars_1=density walldist KE'")
+add_test_rans(RANS_WallDist_RaisedBase_StretchedZSplit Neutral_ABL_Flat inputs_neutral 1 check_walldist.py
+    RUNTIME_OPTIONS "erf.use_fft=false 'geometry.prob_lo=0 0 300' erf.input_sounding_file=input_sounding_raised 'erf.plot_vars_1=density walldist z_phys KE' erf.initial_dz=4 amr.no_box_split_dir=-1 'amr.max_grid_size=8 8 16'")
 
 # Runs a case twice, with OPTIONS_A and with OPTIONS_B on top of RUNTIME_OPTIONS,
 # and passes both final plotfiles to the check script.

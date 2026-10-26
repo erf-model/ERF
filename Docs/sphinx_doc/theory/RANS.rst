@@ -292,7 +292,8 @@ Wall distance
 -------------
 
 On a flat or vertically stretched mesh the distance :math:`d` is the
-height of the cell centre above the ground. On a terrain-fitted mesh two
+height of the cell centre above the ground, :math:`z - z_{lo}`, where
+:math:`z_{lo}` is ``geometry.prob_lo[2]``. On a terrain-fitted mesh two
 choices are offered through ``erf.wall_dist_type``:
 
 * ``poisson`` (default): the differential-equation distance of Tucker

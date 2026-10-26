@@ -591,7 +591,11 @@ terrain cases with the Poisson wall distance instead of the terrain height.
 Test names: ``RANS_Neutral_ABL_Flat``, ``RANS_Stable_ABL_Flat``,
 ``RANS_Convective_ABL_Flat``, ``RANS_Neutral_Hill_2D`` (and ``_Poisson``),
 ``RANS_Flat_Fitted_2D`` (and ``_Poisson``), ``RANS_Neutral_Hill_3D`` (and
-``_Poisson``); label ``rans``. ``RANS_Neutral_Hill_2D_Realizability`` runs the
+``_Poisson``); label ``rans``. ``RANS_WallDist_RaisedBase`` and
+``RANS_WallDist_RaisedBase_StretchedZSplit`` run the neutral flat case for one
+step with the bottom at 300 m, on a constant-dz mesh and on a stretched mesh
+whose boxes are split in z, and check that the wall distance is the height
+above the bottom wall. ``RANS_Neutral_Hill_2D_Realizability`` runs the
 ridge twice, without and with the realizability cap of the closure
 (``erf.rans_realizability``), and pins the capped viscosity and diffusivity
 to their closed form cell by cell (``check_realizability.py``). The flat cases run with the MLMG projection
