@@ -110,6 +110,7 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
     const Real stab_wind_floor    = solverChoice.if_stability_wind_floor;
     const Real psi_cap_factor     = solverChoice.if_psi_cap_factor;
     const bool l_use_most         = solverChoice.if_use_most;
+    const bool l_stability_correction = solverChoice.if_stability_correction;
 
     const Real small_volfrac = solverChoice.if_small_volfrac;
     // The terrain kernels keep the raw fractions: erf.if_snap_partial_cells
@@ -164,9 +165,11 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
                        : ib_stability::bounded_obukhov_length(-ustar * ustar * ustar * theta_xface / (kappa * ggg * tflux + tiny), Real(1.5) * dx_z);
             Real zeta  = ib_stability::bounded_zeta(Real(1.5) * dx_z, Olen);
 
-            // similarity functions
-            psi_m          = sfuns.calc_psi_m(zeta);
-            psi_h          = sfuns.calc_psi_h(zeta);
+            // similarity functions (off by default: the plain log law)
+            if (l_stability_correction) {
+                psi_m          = sfuns.calc_psi_m(zeta);
+                psi_h          = sfuns.calc_psi_h(zeta);
+            }
             ustar = h_windspeed2r * kappa / (std::log(Real(1.5) * dx_z / z0) - ib_stability::psi_m_for_ustar(psi_m, Real(1.5) * dx_z, z0, psi_cap_factor));
 
             // prevent some unphysical math
@@ -225,6 +228,7 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
     const Real stab_wind_floor    = solverChoice.if_stability_wind_floor;
     const Real psi_cap_factor     = solverChoice.if_psi_cap_factor;
     const bool l_use_most         = solverChoice.if_use_most;
+    const bool l_stability_correction = solverChoice.if_stability_correction;
 
     const Real small_volfrac = solverChoice.if_small_volfrac;
     // The terrain kernels keep the raw fractions: erf.if_snap_partial_cells
@@ -278,9 +282,11 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
                        : ib_stability::bounded_obukhov_length(-ustar * ustar * ustar * theta_yface / (kappa * ggg * tflux + tiny), Real(1.5) * dx_z);
             Real zeta  = ib_stability::bounded_zeta(Real(1.5) * dx_z, Olen);
 
-            // similarity functions
-            psi_m          = sfuns.calc_psi_m(zeta);
-            psi_h          = sfuns.calc_psi_h(zeta);
+            // similarity functions (off by default: the plain log law)
+            if (l_stability_correction) {
+                psi_m          = sfuns.calc_psi_m(zeta);
+                psi_h          = sfuns.calc_psi_h(zeta);
+            }
             ustar = h_windspeed2r * kappa / (std::log(Real(1.5) * dx_z / z0) - ib_stability::psi_m_for_ustar(psi_m, Real(1.5) * dx_z, z0, psi_cap_factor));
 
             // prevent some unphysical math
