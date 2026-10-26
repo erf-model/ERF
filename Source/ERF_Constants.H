@@ -48,6 +48,7 @@ constexpr amrex::Real R_v          = amrex::Real(461.505);  // water vapor const
 constexpr amrex::Real Cp_d         = amrex::Real(1004.5);   // We have set this so that with qv=0 we get identically gamma = amrex::Real(1.4)
 constexpr amrex::Real Cp_v         = amrex::Real(1859.0);
 constexpr amrex::Real Cp_l         = amrex::Real(4200.0);
+constexpr amrex::Real Cp_i         = amrex::Real(2106.0);   // ice at 0 C [J/(kg-K)]
 
 constexpr amrex::Real epsv         = R_v / R_d - one;
 constexpr amrex::Real RdoCp        = R_d / Cp_d;

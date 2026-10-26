@@ -254,12 +254,13 @@ public:
         GetPlotVar(a_name, a_mf);
     }
 
-private:
-    // The body of Advance, run on grids in which no column is split between boxes
+    // The body of Advance, run on grids in which no column is split between boxes.
+    // Public because nvcc rejects extended __device__ lambdas in private or protected members.
     void
     AdvanceColumns (const amrex::Real& dt_advance,
                     const SolverChoice& sc);
 
+private:
     // Number of qmoist variables (rain_accum, snow_accum, graup_accum)
     int m_qmoist_size = 3;
 

@@ -8,6 +8,8 @@ Real theta_hi = 301.0;
 pp_prob.query("axis", axis);
 pp_prob.query("theta_lo", theta_lo);
 pp_prob.query("theta_hi", theta_hi);
+AMREX_ALWAYS_ASSERT_WITH_MESSAGE(axis >= 0 && axis < AMREX_SPACEDIM,
+                                 "prob.axis must be 0, 1 or 2");
 
 const Real problo_axis = geomdata.ProbLo(axis);
 const Real dx_axis     = geomdata.CellSize(axis);

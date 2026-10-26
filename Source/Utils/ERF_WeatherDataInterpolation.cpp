@@ -290,8 +290,9 @@ ERF::FillForecastStateMultiFabs (const int lev,
              // Physical location of the fine node
             Real x = prob_lo_erf[0] + (i+myhalf) * dx_erf[0];
             Real y = prob_lo_erf[1] + (j+myhalf) * dx_erf[1];
-            Real z = prob_lo_erf[2] + k       * dx_erf[2];
-            //const Real z = (z_arr(i,j,k) + z_arr(i,j,k+1))/two;
+            // Physical height of the w face: average of its four surrounding nodes
+            const Real z = fourth * ( z_arr(i,j  ,k) + z_arr(i+1,j  ,k)
+                                    + z_arr(i,j+1,k) + z_arr(i+1,j+1,k) );
 
             Real tmp_wvel;
             bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,

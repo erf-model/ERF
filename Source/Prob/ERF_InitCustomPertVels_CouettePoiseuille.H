@@ -26,7 +26,7 @@
     Real pert_periods_v = amrex::Real(5.0); pp_for_pert_vels.query("pert_periods_v", pert_periods_v);
 
     Real pert_delta_u = zero; pp_for_pert_vels.query("pert_delta_u", pert_delta_u);
-    Real pert_delta_v = zero; pp_for_pert_vels.query("pert_delta_u", pert_delta_v);
+    Real pert_delta_v = zero; pp_for_pert_vels.query("pert_delta_v", pert_delta_v);
 
     Real pert_lo = bogus_large_value; pp_for_pert_vels.query("pert_lo", pert_lo);
     Real pert_hi = bogus_large_value; pp_for_pert_vels.query("pert_hi", pert_hi);
@@ -128,7 +128,7 @@
 
             const Real z = fourth*( z_nd(i  ,j,k) + z_nd(i  ,j,k+1) + z_nd(i+1,j,k) + z_nd(i+1,j,k+1) );
 
-            if (pert_delta_u != zero) {
+            if (pert_delta_v != zero) {
                 const Real xl = (i + myhalf) * dx[0];
                 Real y_h = (prob_type == 20) ? two * (j + myhalf) * dx[1] / (prob_hi[1] - prob_lo[1]) - one
                                                      : two * (z - phys_z_lo)  / (phys_z_hi - phys_z_lo) - one;
