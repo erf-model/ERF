@@ -304,8 +304,9 @@ struct MOSTAverageFields
 } // namespace
 
 // Motivation: Plane MOST averages must use the interior high cell for the
-// default reference. The z-low face keeps its absolute-coordinate reference
-// convention, while all other faces use wall-relative distance. Tangential and
+// default reference. The stored reference height is the distance from the wall
+// on every face, also on z-low of this mesh, which starts at z = 30 (it used to
+// be the absolute z there, and the surface layer took ln(30.5 / z0)). Tangential and
 // cell-centered fields must still select the high cell plane, while only a
 // normal nodal field extends to the exterior high node.
 TEST(MOSTAverage, PlanarDefaultReferenceWorksOnEveryWall)
@@ -329,9 +330,7 @@ TEST(MOSTAverage, PlanarDefaultReferenceWorksOnEveryWall)
         const int dir = face.coordDir();
         const int expected_index = face.isLow()
             ? domain.smallEnd(dir) : domain.bigEnd(dir);
-        const Real expected_zref = (dir == 2 && face.isLow())
-            ? geom.ProbLo(dir) + Real(0.5) * geom.CellSize(dir)
-            : Real(0.5) * geom.CellSize(dir);
+        const Real expected_zref = Real(0.5) * geom.CellSize(dir);
         EXPECT_EQ(averages.get_k_indices(0)->min(0), expected_index);
         EXPECT_EQ(averages.get_k_indices(0)->max(0), expected_index);
         EXPECT_NEAR(averages.get_zref(0)->min(0), expected_zref,
@@ -359,6 +358,110 @@ TEST(MOSTAverage, PlanarDefaultReferenceWorksOnEveryWall)
             EXPECT_NEAR(plane_average[7], expected_xz, tolerance(expected_xz));
             EXPECT_NEAR(plane_average[8], expected_yz, tolerance(expected_yz));
         }
+    }
+}
+
+// Motivation: on a stretched mesh the reference height is the distance from the
+// wall on both z faces. The z levels here start at z = 30 (uniform spacing, read as a
+// stretched column): the high face measured its distance from the absolute top,
+// 30 m too far, while the low face was already right.
+TEST(MOSTAverage, StretchedDefaultReferenceIsWallRelativeOnBothZFaces)
+{
+    MOSTAverageFields fields(make_terrain_geometry());
+    const auto& geom = fields.geom;
+    const int nz = geom.Domain().length(2);
+    const Real dz = geom.CellSize(2);
+    Vector<Real> zlevels(nz + 1);
+    for (int k = 0; k <= nz; ++k) {
+        zlevels[k] = geom.ProbLo(2) + static_cast<Real>(k) * dz;
+    }
+    ScopedMOSTParams params("unit_most_stretched_raised");
+
+    for (const auto& face : {Orientation(Direction::z, Orientation::low),
+                             Orientation(Direction::z, Orientation::high)}) {
+        MOSTAverage averages(face, Vector<Geometry>{geom}, false,
+                             "unit_most_stretched_raised",
+                             MeshType::StretchedDz, TerrainType::None,
+                             Vector<Vector<Real>>{zlevels});
+        averages.make_MOSTAverage_at_level(
+            0, fields.vars_old, fields.theta, fields.qv,
+            fields.qr, fields.z_phys_nd);
+        const Real expected_zref = Real(0.5) * dz;
+        EXPECT_NEAR(averages.get_zref(0)->min(0), expected_zref, tolerance(expected_zref))
+            << "high=" << !face.isLow();
+        EXPECT_NEAR(averages.get_zref(0)->max(0), expected_zref, tolerance(expected_zref))
+            << "high=" << !face.isLow();
+    }
+}
+
+// Motivation: on the low z face of a constant-dz mesh erf.most.zref is an absolute z.
+// With the bottom at 300 m and dz = 1000/96 m, prob_lo + (m + 1/2) dz minus prob_lo
+// can round below the cell center; each cell center typed as a z must still select
+// its own cell (development took the cell below, or stopped for m = 0), and the stored
+// reference height is the height above the wall.
+TEST(MOSTAverage, ZloGivenZrefOnRaisedBaseSelectsItsCell)
+{
+    const Box domain(IntVect(0), IntVect(AMREX_D_DECL(1, 1, 95)));
+    const RealBox real_box({AMREX_D_DECL(0.0, 0.0, 300.0)},
+                           {AMREX_D_DECL(2.0, 2.0, 1300.0)});
+    const Array<int, AMREX_SPACEDIM> is_periodic{AMREX_D_DECL(1, 1, 0)};
+    MOSTAverageFields fields(Geometry(domain, &real_box, 0, is_periodic.data()));
+    const auto& geom = fields.geom;
+    const Real dz = geom.CellSize(2);
+    const Orientation zlo(Direction::z, Orientation::low);
+
+    for (int m = 0; m < 6; ++m) {
+        const std::string prefix = "unit_most_raised_zref_" + std::to_string(m);
+        ScopedMOSTParams params(prefix.c_str());
+        params.add_zref(geom.ProbLo(2) + (static_cast<Real>(m) + myhalf) * dz);
+        MOSTAverage averages(zlo, Vector<Geometry>{geom}, false, prefix,
+                             MeshType::ConstantDz, TerrainType::None,
+                             Vector<Vector<Real>>{});
+        averages.make_MOSTAverage_at_level(
+            0, fields.vars_old, fields.theta, fields.qv,
+            fields.qr, fields.z_phys_nd);
+        const Real expected_zref = (static_cast<Real>(m) + myhalf) * dz;
+        EXPECT_EQ(averages.get_k_indices(0)->min(0), m) << "m=" << m;
+        EXPECT_EQ(averages.get_k_indices(0)->max(0), m) << "m=" << m;
+        EXPECT_NEAR(averages.get_zref(0)->min(0), expected_zref, tolerance(expected_zref))
+            << "m=" << m;
+    }
+}
+
+// Motivation: the high z face of a stretched mesh measures a given erf.most.zref and
+// erf.most.k_arr_in from the top of the column. With the levels starting at z = 30 the
+// distances were taken from the absolute top, 30 m too far (zref 1.5 m was out of the
+// mesh; k_arr_in = 1 stored 31.5 m).
+TEST(MOSTAverage, StretchedZhiGivenZrefAndKAreWallRelative)
+{
+    MOSTAverageFields fields(make_terrain_geometry());
+    const auto& geom = fields.geom;
+    const int nz = geom.Domain().length(2);
+    const Real dz = geom.CellSize(2);
+    Vector<Real> zlevels(nz + 1);
+    for (int k = 0; k <= nz; ++k) {
+        zlevels[k] = geom.ProbLo(2) + static_cast<Real>(k) * dz;
+    }
+    const Orientation zhi(Direction::z, Orientation::high);
+
+    for (const bool use_zref : {true, false}) {
+        const std::string prefix = std::string("unit_most_stretched_zhi_") + (use_zref ? "zref" : "k");
+        ScopedMOSTParams params(prefix.c_str());
+        if (use_zref) {
+            params.add_zref(Real(1.5) * dz);
+        } else {
+            params.add_k_index(1);
+        }
+        MOSTAverage averages(zhi, Vector<Geometry>{geom}, false, prefix,
+                             MeshType::StretchedDz, TerrainType::None,
+                             Vector<Vector<Real>>{zlevels});
+        averages.make_MOSTAverage_at_level(
+            0, fields.vars_old, fields.theta, fields.qv,
+            fields.qr, fields.z_phys_nd);
+        const Real expected_zref = Real(1.5) * dz;
+        EXPECT_NEAR(averages.get_zref(0)->min(0), expected_zref, tolerance(expected_zref))
+            << "zref=" << use_zref;
+        EXPECT_EQ(averages.get_k_indices(0)->min(0), nz - 2) << "zref=" << use_zref;
     }
 }
 
@@ -507,9 +610,9 @@ TEST(MOSTAverage, BothPoliciesSupportKAndZrefOnEveryWall)
                 }
                 const Real expected_wall_distance =
                     (static_cast<Real>(wall_offset) + myhalf) * dz;
-                const Real expected_zref = zlo_absolute
-                    ? geom.ProbLo(dir) + expected_wall_distance
-                    : expected_wall_distance;
+                // Inputs on z-low are absolute (zref a z, k_arr_in an index), but the
+                // stored reference height is the distance from the wall on every face
+                const Real expected_zref = expected_wall_distance;
                 EXPECT_EQ(averages.get_k_indices(0)->min(0), expected_index)
                     << "policy=" << policy << ", zref=" << use_zref
                     << ", direction=" << dir << ", high=" << !face.isLow();
@@ -592,11 +695,9 @@ TEST(MOSTAverage, NonTerrainKIndicesAreSetOnEveryWall)
         const int expected_index = face.isLow()
             ? domain.smallEnd(dir) + wall_offset
             : domain.bigEnd(dir) - wall_offset;
-        const Real expected_wall_distance =
+        // The z-low input is an absolute z, the stored height is above the wall
+        const Real expected_zref =
             (static_cast<Real>(wall_offset) + myhalf) * dz;
-        const Real expected_zref = zlo_absolute
-            ? geom.ProbLo(dir) + expected_wall_distance
-            : expected_wall_distance;
 
         const auto* k_indices = averages.get_k_indices(0);
         EXPECT_EQ(k_indices->min(0), expected_index)
