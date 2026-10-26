@@ -1293,10 +1293,6 @@ List of Parameters
      - Definition
      - Acceptable values
      - Default
-   * - **erf.expand_plotvars_to_unif_rr**
-     - Expand plot variables to a uniform refinement ratio for mixed-refinement cases
-     - Boolean
-     - false
    * - **erf.compute_mean_vars**
      - Accumulate interval first and second moments for resolved plot diagnostics
      - Boolean
@@ -2089,10 +2085,11 @@ The allowed advection types for the dycore variables are:
   "WENOZ3"
   "WENOZ5", and
   "WENOZ7"
+* Third-order WENO-MZQ scheme:
+  "WENOMZQ3"
 
 In addition to the above advection schemes for dycore variables, dry and moist
-scalars also have the option of using "Upwind_3rd_SL" (slope-limited) and
-"WENOMZQ3."
+scalars also have the option of using "Upwind_3rd_SL" (slope-limited).
 
 To use the blended schemes, ``erf.[vartype]_[horiz|vert]_upw_frac`` for the corresponding
 ``erf.[vartype]_[horiz|vert]_adv_type`` should be set to a scalar between 0 and 1, where 1 is fully

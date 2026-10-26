@@ -155,7 +155,9 @@ AdvectionSrcForMom_StretchedDz (const Box& bxx, const Box& bxy, const Box& bxz,
 
                 Real mfsq = mf_mx(i,j,0) * mf_my(i,j,0);
 
-                Real dzInv = (k == 0) ? one / dz_ptr[k] : two/(dz_ptr[k] + dz_ptr[k-1]);
+                // dz_ptr holds cell widths, so the top face (k == hi_z_face) has only the cell below it
+                Real dzInv = (k == 0)         ? one / dz_ptr[k]   :
+                             (k == hi_z_face) ? one / dz_ptr[k-1] : two/(dz_ptr[k] + dz_ptr[k-1]);
 
                 Real advectionSrc = (xflux_hi - xflux_lo) * dxInv * mfsq
                                   + (yflux_hi - yflux_lo) * dyInv * mfsq

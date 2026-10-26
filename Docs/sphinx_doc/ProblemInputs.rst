@@ -40,7 +40,7 @@ Initial state perturbation
 |                         |                                                  | ``qv_0_Pert_Mag``, ``rho_0``                                                       |
 +-------------------------+--------------------------------------------------+------------------------------------------------------------------------------------+
 | Bubble                  | ``ERF_InitCustomPert_Bubble.H``                  | ``T_0``, ``T_pert``, ``T_pert_is_airtemp``, ``do_moist_bubble``, ``eq_pot_temp``,  |
-|                         |                                                  | ``perturb_rho``, ``qt_init``, ``theta_pert``, ``use_empircal_psat``, ``x_c``,      |
+|                         |                                                  | ``perturb_rho``, ``qt_init``, ``theta_pert``, ``use_empirical_psat``, ``x_c``,     |
 |                         |                                                  | ``x_r``, ``y_c``, ``y_r``, ``z_c``, ``z_r``                                        |
 +-------------------------+--------------------------------------------------+------------------------------------------------------------------------------------+
 | DataAssimilation_ISV    | ``ERF_InitCustomPert_DataAssimilation_ISV.H``    | ``M_inf``, ``R``, ``T_inf``, ``alpha``, ``beta``, ``gamma``, ``p_inf``, ``sigma``, |
@@ -63,7 +63,7 @@ Initial state perturbation
 | MovingTerrain           | ``ERF_InitCustomPert_MovingTerrain.H``           | ``Ampl``, ``wavelength``                                                           |
 +-------------------------+--------------------------------------------------+------------------------------------------------------------------------------------+
 | MultiSpeciesBubble      | ``ERF_InitCustomPert_MultiSpeciesBubble.H``      | ``T_0``, ``T_pert``, ``T_pert_is_airtemp``, ``do_moist_bubble``, ``eq_pot_temp``,  |
-|                         |                                                  | ``perturb_rho``, ``qt_init``, ``theta_pert``, ``use_empircal_psat``, ``x_c``,      |
+|                         |                                                  | ``perturb_rho``, ``qt_init``, ``theta_pert``, ``use_empirical_psat``, ``x_c``,     |
 |                         |                                                  | ``x_r``, ``y_c``, ``y_r``, ``z_c``, ``z_r``                                        |
 +-------------------------+--------------------------------------------------+------------------------------------------------------------------------------------+
 | ParticleTests           | ``ERF_InitCustomPert_ParticleTests.H``           | ``T_pert``, ``x_c``, ``x_r``, ``z_c``, ``z_r``                                     |

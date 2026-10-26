@@ -55,7 +55,8 @@ ERF::turbPert_amplitude (int lev)
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     for (MFIter mfi(lev_new[Vars::cons], TileNoZ()); mfi.isValid(); ++mfi) {
-        const Box &bx  = mfi.validbox();
+        // Each tile adds the perturbation over its own cells only
+        const Box &bx  = mfi.tilebox();
         const auto &cons_pert_arr = cons_data.array(mfi); // Address of perturbation array
         const amrex::Array4<const amrex::Real> &pert_cell = turbPert.pb_cell[lev].array(mfi); // per-cell perturbation stored in structure
 
@@ -85,7 +86,8 @@ ERF::turbPert_amplitude_w (int lev)
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     for (MFIter mfi(lev_new[Vars::zvel], TileNoZ()); mfi.isValid(); ++mfi) {
-        const Box &bx  = mfi.validbox();
+        // Each tile adds the perturbation over its own faces only
+        const Box &bx  = mfi.tilebox();
         const auto &wvel_pert_arr = wvel_data.array(mfi); // Address of perturbation array
         const amrex::Array4<const amrex::Real> &pert_cell = turbPert.pb_cell[lev].array(mfi); // per-cell perturbation stored in structure
 

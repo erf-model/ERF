@@ -10,6 +10,8 @@
  *
  * The wrapper handles the x-, y-, and z-momentum grids separately and reduces
  * interpolation order near covered EB cells and vertical domain boundaries.
+ * It stores unweighted flux densities on open faces and zero on closed faces;
+ * area fractions are applied by the divergence after centroid interpolation.
  *
  * \tparam InterpType_H Horizontal interpolation functor.
  * \tparam InterpType_V Vertical interpolation functor.
@@ -74,6 +76,11 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     UPWIND3   interp_u_UPW3_horz(u, upw_frac_h); UPWIND3 interp_u_UPW3_vert(u, upw_frac_v);
     UPWIND3   interp_v_UPW3_horz(v, upw_frac_h); UPWIND3 interp_v_UPW3_vert(v, upw_frac_v);
     UPWIND3   interp_w_UPW3_horz(w, upw_frac_h); UPWIND3 interp_w_UPW3_vert(w, upw_frac_v);
+
+    // The vertical fallbacks take the vertical upwind fraction
+    UPWIND3   interp_u_UPW3_v(u, upw_frac_v);
+    UPWIND3   interp_v_UPW3_v(v, upw_frac_v);
+    UPWIND3   interp_w_UPW3_v(w, upw_frac_v);
 
     bool u_is_regular = (u_type == amrex::FabType::regular);
     bool v_is_regular = (v_type == amrex::FabType::regular);
