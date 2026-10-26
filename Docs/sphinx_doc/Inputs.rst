@@ -1293,10 +1293,6 @@ List of Parameters
      - Definition
      - Acceptable values
      - Default
-   * - **erf.expand_plotvars_to_unif_rr**
-     - Expand plot variables to a uniform refinement ratio for mixed-refinement cases
-     - Boolean
-     - false
    * - **erf.compute_mean_vars**
      - Accumulate interval first and second moments for resolved plot diagnostics
      - Boolean

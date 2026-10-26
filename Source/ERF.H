@@ -1838,7 +1838,6 @@ private:
     std::string plot2d_file_1 {"plt2d_1_"};
     std::string plot2d_file_2 {"plt2d_2_"};
     std::string subvol_file {"subvol"};
-    bool m_expand_plotvars_to_unif_rr = false;
     int m_plot3d_int_1 = -1;
     int m_plot3d_int_2 = -1;
     int m_plot2d_int_1 = -1;
