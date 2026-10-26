@@ -362,7 +362,10 @@
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-           for ( MFIter mfi(*p0,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+           // Tile only in x and y: the second kernel reads r0_tmp and rt0_tmp at k-1 and k+1,
+           //    which the first kernel fills tile by tile, so a tile boundary in z would read
+           //    values another thread may not have written yet
+           for ( MFIter mfi(*p0,TileNoZ()); mfi.isValid(); ++mfi)
            {
                const Array4<Real      > rt0_arr     = rt0.array(mfi);
                const Array4<Real      > rt0_tmp_arr = rt0_new.array(mfi);
