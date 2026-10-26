@@ -179,6 +179,7 @@ Fitch::source_terms_cellcentered (const Geometry& geom,
                   wind_speed, thrust_coeff, power);
 
   auto dx = geom.CellSizeArray();
+  auto ProbLoArr = geom.ProbLoArray();
 
   // Domain valid box
   const amrex::Box& domain = geom.Domain();
@@ -216,8 +217,8 @@ Fitch::source_terms_cellcentered (const Geometry& geom,
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
 
-            Real z_k   = kk*dx[2];
-            Real z_kp1 = (kk+1)*dx[2];
+            Real z_k   = ProbLoArr[2] +  kk   *dx[2];
+            Real z_kp1 = ProbLoArr[2] + (kk+1)*dx[2];
 
             Real A_ijk = compute_Aijk(z_k, z_kp1, d_hub_height, d_rotor_rad);
 
