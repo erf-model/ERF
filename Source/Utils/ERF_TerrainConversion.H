@@ -1,6 +1,7 @@
 #ifndef ERF_TERRAIN_CONVERSION_H_
 #define ERF_TERRAIN_CONVERSION_H_
 
+#include <AMReX_Algorithm.H>
 #include <AMReX_Array.H>
 #include <AMReX_Array4.H>
 #include <AMReX_GpuQualifiers.H>
@@ -40,10 +41,15 @@ z_face_at_xy (amrex::Real x, amrex::Real y, int k_face,
 {
     const amrex::Real lx = (x - plo[0]) * dxi[0];
     const amrex::Real ly = (y - plo[1]) * dxi[1];
-    const int  ix = static_cast<int>(amrex::Math::floor(lx));
-    const int  iy = static_cast<int>(amrex::Math::floor(ly));
-    const amrex::Real fx = lx - static_cast<amrex::Real>(ix);
-    const amrex::Real fy = ly - static_cast<amrex::Real>(iy);
+    // Keep the stencil (ix..ix+1, iy..iy+1) inside height_arr: a point on the upper
+    //    boundary, or just past it, takes the boundary node's value instead of reading
+    //    one node beyond the array
+    const auto hlo = amrex::lbound(height_arr);
+    const auto hhi = amrex::ubound(height_arr);
+    const int  ix = amrex::Clamp(static_cast<int>(amrex::Math::floor(lx)), hlo.x, hhi.x - 1);
+    const int  iy = amrex::Clamp(static_cast<int>(amrex::Math::floor(ly)), hlo.y, hhi.y - 1);
+    const amrex::Real fx = amrex::Clamp(lx - static_cast<amrex::Real>(ix), amrex::Real(0), amrex::Real(1));
+    const amrex::Real fy = amrex::Clamp(ly - static_cast<amrex::Real>(iy), amrex::Real(0), amrex::Real(1));
     return height_arr(ix  , iy  , k_face) * (amrex::Real(1) - fx) * (amrex::Real(1) - fy)
          + height_arr(ix+1, iy  , k_face) *                fx     * (amrex::Real(1) - fy)
          + height_arr(ix  , iy+1, k_face) * (amrex::Real(1) - fx) *                fy
