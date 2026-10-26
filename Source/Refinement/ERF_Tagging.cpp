@@ -89,7 +89,7 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                         }
 
                         if ( (ratio != ref_ratio[levc][0]) || (ratio != ref_ratio[levc][1]) ) {
-                            amrex::Print() << "File " << nc_init_file[levc+1][0] << " has refinement ratio = " << ratio << std::endl;
+                            amrex::Print() << "File " << nc_init_file[levc+1][isub] << " has refinement ratio = " << ratio << std::endl;
                             amrex::Print() << "The inputs file has refinement ratio = " << ref_ratio[levc] << std::endl;
                             amrex::Abort("These must be the same in the horizontal -- please edit your inputs file and try again.");
                         }
