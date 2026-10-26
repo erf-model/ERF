@@ -1747,6 +1747,47 @@ add_test_r(IsentropicVortexAdvecting         ""  "erf_exec" "plt00010")
 add_test_r(IVA_NumDiff                       ""  "erf_exec" "plt00010")
 add_test_r(MovingTerrain_nosub               ""  "erf_exec" "plt00020")
 add_test_r(MovingTerrain_sub                 ""  "erf_exec" "plt00010")
+
+# Problem setups measured from geometry.prob_lo (#4603, #4619, #4623) and the Poiseuille
+# y-velocity perturbation (#4618). Each shift test writes the initial state twice, the
+# second time with the domain moved; Tests/check_shift_invariance.py requires the second
+# to be the first shifted by SHIFT cells in x. MovingTerrain: half a wavelength (50 m, 10
+# cells); before the fix the terrain and w ignored prob_lo while u used it (z_velocity off
+# by 2x its size). ScalarAdvDiff: one domain length in x, y and z with prob_type 12 (an
+# ellipse in x-z) and xc_frac = zc_frac = 0.25; before the fix the centre was
+# frac * (lo + hi) and the blob moved by 0.5 domain lengths in x and z.
+function(add_test_shift_invariance TEST_NAME TEST_FILES_DIR SHIFT VARS OPTIONS_A OPTIONS_B)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(_run "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i max_step=0 erf.plot_int_1=1 erf.check_int=-1")
+    add_test(${TEST_NAME} sh -c
+      "${_run} erf.plot_file_1=pltA ${OPTIONS_A} > ${CURRENT_TEST_BINARY_DIR}/runA.log 2>&1 && ${_run} erf.plot_file_1=pltB ${OPTIONS_B} > ${CURRENT_TEST_BINARY_DIR}/runB.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_shift_invariance.py ${CURRENT_TEST_BINARY_DIR}/pltA00000 ${CURRENT_TEST_BINARY_DIR}/pltB00000 --shift ${SHIFT} --vars ${VARS} --tol 1e-12")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/runA.log;${CURRENT_TEST_BINARY_DIR}/runB.log")
+endfunction(add_test_shift_invariance)
+
+function(add_test_v_perturbation TEST_NAME EXPECT OPTIONS)
+    set(TEST_FILES_DIR Poiseuille_PertV)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(${TEST_NAME} sh -c
+      "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/Poiseuille_PertV.i ${OPTIONS} > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_v_perturbation.py ${CURRENT_TEST_BINARY_DIR}/plt00000 --expect ${EXPECT}")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+endfunction(add_test_v_perturbation)
+
+if(NOT WIN32 AND ERF_TEST_PYTHON)
+  add_test_shift_invariance(MovingTerrain_ShiftInvariance MovingTerrain_nosub 10
+      "x_velocity z_velocity z_phys" "" "'geometry.prob_lo=50 0 0'")
+  add_test_shift_invariance(ScalarAdvDiff_CentreShiftInvariance ScalarAdvectionUniformU 0
+      "rhoadv_0" "prob.prob_type=12 prob.rad_0=0.3 prob.xc_frac=0.25 prob.zc_frac=0.25"
+      "prob.prob_type=12 prob.rad_0=0.3 prob.xc_frac=0.25 prob.zc_frac=0.25 'geometry.prob_lo=1 1 1'")
+  # pert_delta_v alone gives a y-velocity perturbation; pert_delta_u alone does not
+  add_test_v_perturbation(Poiseuille_PertV_Only "nonzero" "")
+  add_test_v_perturbation(Poiseuille_PertU_Only "zero" "prob.pert_delta_u=2.0 prob.pert_delta_v=0.0")
+endif()
 add_test_r(Terrain2Lev_STF_interp            ""  "erf_exec" "plt00010")
 add_test_r(Terrain2Lev_STF_transform         ""  "erf_exec" "plt00010")
 add_test_r(RayleighDamping                   ""  "erf_exec" "plt00100")
@@ -2093,6 +2134,14 @@ function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME
         ATTACHED_FILES_ON_FAIL "${test_log}"
     )
 endfunction(add_test_abort)
+
+if(NOT WIN32)
+  # Inputs that used to index past an array or divide by zero (#4620, #4624)
+  add_test_abort(AnelasticWallDiffusion_AxisOutOfRange ${CMAKE_CURRENT_SOURCE_DIR}/test_files/AnelasticWallDiffusion_X
+                 AnelasticWallDiffusion_X.i "prob.axis must be 0, 1 or 2" "prob.axis=3")
+  add_test_abort(ScalarAdvDiff_ZeroRadius ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ScalarAdvectionUniformU
+                 ScalarAdvectionUniformU.i "prob.rad_0 must be > 0 for prob.prob_type = 11, 12 and 13" "prob.rad_0=0")
+endif()
 
 # A moist run's temperature planes need the qv planes to be converted back to theta: reading
 # them without qv (the planes BndryPlanes_MoistTemperature writes), and writing them without qv
