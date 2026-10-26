@@ -47,7 +47,7 @@
     Real eq_pot_temp = amrex::Real(320.0); pp_prob.query("eq_pot_temp",eq_pot_temp);
 
     bool use_empirical = false;
-    pp_prob.query("use_empircal_psat",use_empirical);
+    pp_prob.query("use_empirical_psat",use_empirical);
 
     if (do_moist_bubble) {
         Vector<Real> h_r(khi+2);
