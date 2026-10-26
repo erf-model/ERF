@@ -36,7 +36,7 @@ ERF::initializeEB ()
         const bool build_eb_for_multigrid = (solverChoice.terrain_type == TerrainType::EB &&
                                             ((solverChoice.project_initial_velocity[0] == 1) ||
                                             solverChoice.anelastic[0] == 1));
-        // Note this just needs to be an integer > number of V-cycles one might use
+        // Let AMReX build the coarser EB levels supported by the geometry for MLMG.
         const int max_coarsening_level = (build_eb_for_multigrid) ? 100 : 0;
         const bool build_coarse_level_by_coarsening(false);
 
@@ -99,10 +99,11 @@ ERF::initializeEB ()
                                 ngrow_for_eb, build_coarse_level_by_coarsening);
                 } else {
                     EB2::Build(gshop, this->Geom(), ngrow_for_eb);
-#if USE_FC_FACTORY
-                    EB2::BuildFC();
-#endif
                 }
+#if USE_FC_FACTORY
+                // Build while the terrain/building data referenced by gshop are alive.
+                EB2::BuildFC();
+#endif
             };
 
             // Build the appropriate implicit function and geometry
@@ -149,10 +150,10 @@ ERF::initializeEB ()
                             ngrow_for_eb, build_coarse_level_by_coarsening);
             } else {
                 EB2::Build(gshop, this->Geom(), ngrow_for_eb);
-#if USE_FC_FACTORY
-                EB2::BuildFC();
-#endif
             }
+#if USE_FC_FACTORY
+            EB2::BuildFC();
+#endif
         } else if (geometry == "box") {
             RealArray box_lo{zero, zero, zero};
             RealArray box_hi{zero, zero, zero};
@@ -165,10 +166,10 @@ ERF::initializeEB ()
                             ngrow_for_eb, build_coarse_level_by_coarsening);
             } else {
                 EB2::Build(gshop, this->Geom(), ngrow_for_eb);
-#if USE_FC_FACTORY
-                EB2::BuildFC();
-#endif
             }
+#if USE_FC_FACTORY
+            EB2::BuildFC();
+#endif
         } else if (geometry == "sphere") {
             auto ProbLoArr = geom[max_level].ProbLoArray();
             auto ProbHiArr = geom[max_level].ProbHiArray();
@@ -182,10 +183,10 @@ ERF::initializeEB ()
                             ngrow_for_eb, build_coarse_level_by_coarsening);
             } else {
                 EB2::Build(gshop, this->Geom(), ngrow_for_eb);
-#if USE_FC_FACTORY
-                EB2::BuildFC();
-#endif
             }
+#if USE_FC_FACTORY
+            EB2::BuildFC();
+#endif
         }
     }
 
