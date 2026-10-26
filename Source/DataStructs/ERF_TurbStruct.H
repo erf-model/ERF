@@ -364,11 +364,7 @@ public:
         if (enable_pblh_smoothing && (pblh_smoothing_weight < 0 || pblh_smoothing_weight > 1)) {
           amrex::Error("pblh_smoothing_weight must be in [0, 1]");
         }
-      } else if (pbl_type == PBLType::SHOC) {
-#ifndef ERF_USE_SHOC
-          amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
       }
-#endif
       if (uses_eamxx_shoc()) {
 #ifndef ERF_USE_EAMXX_SHOC
           amrex::Abort("PBLType::EAMXX_SHOC requested, but ERF was not built with ERF_ENABLE_EAMXX_SHOC=ON");
