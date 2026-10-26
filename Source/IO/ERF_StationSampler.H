@@ -148,6 +148,10 @@ struct StationLoc
                                           // reads, which is as high as the chosen
                                           // level is known to cover the stencil
 
+    // Height of the chosen level's first cell centre above the zero the requested
+    // heights are measured from; a requested height below it is sampled there
+    amrex::Real first_cc_height = amrex::Real(0.0);
+
     // Index into the owning station's column list of this location's first column
     int col_begin = 0;
 };

@@ -235,9 +235,9 @@ ERF::FillPatchFineLevel (int lev, double time_d,
         }
         if (csel != TimeLevelSel::Old) {
             MultiFab::Add(vars_new[lev-1][Vars::cons], base_state[lev-1],
-                          BaseState::r0_comp,Rho_comp,1,vars_new[lev-1][Vars::cons].nGrowVect());
+                          BaseState::r0_comp,Rho_comp,1,ngvect_cons);
             MultiFab::Add(vars_new[lev-1][Vars::cons], base_state[lev-1],
-                          BaseState::th0_comp,RhoTheta_comp,1,vars_new[lev-1][Vars::cons].nGrowVect());
+                          BaseState::th0_comp,RhoTheta_comp,1,ngvect_cons);
             MultiFab::Multiply(vars_new[lev-1][Vars::cons], vars_new[lev-1][Vars::cons],
                                Rho_comp,RhoTheta_comp,1,ngvect_cons);
         }

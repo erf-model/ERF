@@ -470,6 +470,10 @@ StationSampler::writeHeader (const Station& station, std::ostream& os) const
         if (with_height) {
             os << ", height=" << height
                << (station_heights_are_agl ? " m above local terrain" : " m (absolute, model z)");
+            if (height < loc.first_cc_height) {
+                os << " -- below the first cell centre, so sampled there, at height="
+                   << loc.first_cc_height << " m when this file was started";
+            }
         }
         if (var.is_missing) { os << "  [NOT AVAILABLE in this run: constant " << var.missing_value << "]"; }
         if (var.earth_wind != StationEarthWind::None) {
@@ -498,6 +502,10 @@ StationSampler::writeHeader (const Station& station, std::ostream& os) const
     os << "# Values are bilinearly interpolated in the horizontal and linearly\n";
     os << "# interpolated in the vertical, from the finest level that covers the\n";
     os << "# interpolation stencil.\n";
+    os << "# A requested height below the first cell centre of that level is\n";
+    os << "# reported as the value at the first cell centre; the columns where that\n";
+    os << "# happens say so above.  Their sampled height is the one when this file\n";
+    os << "# was started, and can change if regridding changes the level sampled from.\n";
 }
 
 //
@@ -1160,6 +1168,7 @@ ERF::resolve_station_stencils ()
     // computed the same stencils above.
     //
     Vector<int> chosen(2*nloc, -1);
+    Vector<Real> first_cc(nloc, Real(0.0));
 
     if (ParallelDescriptor::IOProcessor())
     {
@@ -1239,6 +1248,7 @@ ERF::resolve_station_stencils ()
                 if (usable) {
                     chosen[2*ip] = lev;
                     chosen[2*ip+1] = ktop;
+                    first_cc[ip] = z_of_k(klo) - z_zero;
 
                     // Nothing in the model lives between the terrain and the first
                     // cell centre, so a height there is the first cell centre's
@@ -1260,6 +1270,7 @@ ERF::resolve_station_stencils ()
     }
 
     ParallelDescriptor::Bcast(chosen.data(), chosen.size(), io_rank);
+    ParallelDescriptor::Bcast(first_cc.data(), first_cc.size(), io_rank);
 
     for (int ip = 0; ip < nloc; ++ip)
     {
@@ -1276,6 +1287,7 @@ ERF::resolve_station_stencils ()
         loc.i1 = c.i1; loc.j1 = c.j1;
         loc.wx = c.wx; loc.wy = c.wy;
         loc.ktop = chosen[2*ip+1];
+        loc.first_cc_height = first_cc[ip];
     }
 
     station_sampler->rememberStencilGrids(grids, finest_level);
