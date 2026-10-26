@@ -64,7 +64,9 @@ ApplyBndryForcing_Forecast (
         Real x = ProbLoArr[0] + ii * dx[0];
         Real y = ProbLoArr[1] + (jj+myhalf) * dx[1];
 
-        Real rho_u_sponge = rho_u_initial_state(i,j,k)*cons_initial_state(i,j,k,0);
+        // Target momentum: forecast u times the forecast density on the x-face
+        Real rho_on_u_face = myhalf * (cons_initial_state(i-1,j,k,0) + cons_initial_state(i,j,k,0));
+        Real rho_u_sponge  = rho_u_initial_state(i,j,k)*rho_on_u_face;
         // x lo sponge
             if (x < xlo_sponge_end) {
                 Real xi = (xlo_sponge_end - x) / hindcast_lateral_sponge_length;
@@ -96,7 +98,9 @@ ApplyBndryForcing_Forecast (
         Real x = ProbLoArr[0] + (ii+myhalf) * dx[0];
         Real y = ProbLoArr[1] + jj * dx[1];
 
-        Real rho_v_sponge    = rho_v_initial_state(i,j,k)*cons_initial_state(i,j,k,0);
+        // Target momentum: forecast v times the forecast density on the y-face
+        Real rho_on_v_face = myhalf * (cons_initial_state(i,j-1,k,0) + cons_initial_state(i,j,k,0));
+        Real rho_v_sponge  = rho_v_initial_state(i,j,k)*rho_on_v_face;
 
         // x lo sponge
             if (x < xlo_sponge_end) {

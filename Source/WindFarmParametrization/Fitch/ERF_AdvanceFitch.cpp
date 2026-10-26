@@ -179,6 +179,7 @@ Fitch::source_terms_cellcentered (const Geometry& geom,
                   wind_speed, thrust_coeff, power);
 
   auto dx = geom.CellSizeArray();
+  auto ProbLoArr = geom.ProbLoArray();
 
   // Domain valid box
   const amrex::Box& domain = geom.Domain();
@@ -216,8 +217,8 @@ Fitch::source_terms_cellcentered (const Geometry& geom,
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int kk = amrex::min(amrex::max(k, domlo_z), domhi_z);
 
-            Real z_k   = kk*dx[2];
-            Real z_kp1 = (kk+1)*dx[2];
+            Real z_k   = ProbLoArr[2] +  kk   *dx[2];
+            Real z_kp1 = ProbLoArr[2] + (kk+1)*dx[2];
 
             Real A_ijk = compute_Aijk(z_k, z_kp1, d_hub_height, d_rotor_rad);
 
@@ -232,8 +233,9 @@ Fitch::source_terms_cellcentered (const Geometry& geom,
 
             fitch_array(i,j,k,0) = Vabs;
             fitch_array(i,j,k,1) =  -myhalf*Nturb_array(i,j,k)/(dx[0]*dx[1])*C_T*Vabs*Vabs*A_ijk/(z_kp1 - z_k);
-            fitch_array(i,j,k,2) = u_vel(i,j,k)/Vabs*fitch_array(i,j,k,1);
-            fitch_array(i,j,k,3) = v_vel(i,j,k)/Vabs*fitch_array(i,j,k,1);
+            // With no wind the thrust is zero; avoid 0/0 in the direction cosines
+            fitch_array(i,j,k,2) = (Vabs > zero) ? u_vel(i,j,k)/Vabs*fitch_array(i,j,k,1) : zero;
+            fitch_array(i,j,k,3) = (Vabs > zero) ? v_vel(i,j,k)/Vabs*fitch_array(i,j,k,1) : zero;
             fitch_array(i,j,k,4) = myhalf*Nturb_array(i,j,k)/(dx[0]*dx[1])*C_TKE*amrex::Math::powi<3>(Vabs)*A_ijk/(z_kp1 - z_k);
 
                  //amrex::Gpu::Atomic::Add(sum_area, A_ijk);

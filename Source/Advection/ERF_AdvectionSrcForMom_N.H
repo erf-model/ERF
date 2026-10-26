@@ -389,7 +389,9 @@ AdvectionSrcForMomWrapper_N (const amrex::Box& bxx, const amrex::Box& bxy, const
     amrex::ParallelFor(bxz,
     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     {
-        auto dzInv = (k == 0) ? one / dz_ptr[k] : two/(dz_ptr[k] + dz_ptr[k-1]);
+        // dz_ptr holds cell widths, so the top face (k == hi_z_face) has only the cell below it
+        auto dzInv = (k == 0)         ? one / dz_ptr[k]   :
+                     (k == hi_z_face) ? one / dz_ptr[k-1] : two/(dz_ptr[k] + dz_ptr[k-1]);
         rho_w_rhs(i, j, k) = -AdvectionSrcForZMom_N(i, j, k, rho_u, rho_v, rho_w, w,
                                                     interp_w_h, interp_w_v, interp_w_wall,
                                                     mf_mx, mf_my, mf_uy_inv, mf_vx_inv,

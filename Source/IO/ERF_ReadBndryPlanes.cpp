@@ -19,7 +19,11 @@ AMREX_FORCE_INLINE
 int closest_index (const Vector<double>& vec, const double value)
 {
     auto const it = std::upper_bound(vec.begin(), vec.end(), value);
-    AMREX_ALWAYS_ASSERT(it != vec.end());
+    if (it == vec.end()) {
+        // A value equal to the last entry lies in the final interval
+        AMREX_ALWAYS_ASSERT(!vec.empty() && value <= vec.back());
+        return std::max(static_cast<int>(vec.size()) - 2, 0);
+    }
 
     const int idx = static_cast<int>(std::distance(vec.begin(), it));
     return std::max(idx - 1, 0);
