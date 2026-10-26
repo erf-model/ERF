@@ -77,6 +77,11 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     UPWIND3   interp_v_UPW3(v, upw_frac_h);
     UPWIND3   interp_w_UPW3(w, upw_frac_h);
 
+    // The vertical fallbacks take the vertical upwind fraction
+    UPWIND3   interp_u_UPW3_v(u, upw_frac_v);
+    UPWIND3   interp_v_UPW3_v(v, upw_frac_v);
+    UPWIND3   interp_w_UPW3_v(w, upw_frac_v);
+
     bool u_is_regular = (u_type == amrex::FabType::regular);
     bool v_is_regular = (v_type == amrex::FabType::regular);
     bool w_is_regular = (w_type == amrex::FabType::regular);
@@ -227,7 +232,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 if (kcell<=1) {
                     interp_u_CEN2.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
                 } else if (kcell==2) {
-                    interp_u_UPW3.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
+                    interp_u_UPW3_v.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
                 }
             }
             flx_u_arr[2](i,j,k) = rho_w_avg * interpz;
@@ -380,7 +385,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 if (kcell<=1) {
                     interp_v_CEN2.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
                 } else if (kcell==2) {
-                    interp_v_UPW3.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
+                    interp_v_UPW3_v.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
                 }
             }
             flx_v_arr[2](i,j,k) = rho_w_avg * interpz;
@@ -546,7 +551,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     if (kcell<=1) {
                         interp_w_CEN2.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
                     } else if (kcell==2) {
-                        interp_w_UPW3.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
+                        interp_w_UPW3_v.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
                     }
                 }
                 flx_w_arr[2](i,j,k) = rho_w_avg * interpz;

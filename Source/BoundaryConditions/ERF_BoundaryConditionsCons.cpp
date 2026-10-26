@@ -581,7 +581,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                 Box xybx = bx;
 
                 int k0 = dom_lo.z;
-                if (xybx.smallEnd(2) < 0)
+                if (xybx.smallEnd(2) < dom_lo.z)
                 {
                     xybx.setBig(2,dom_lo.z-1);
                     xybx.setSmall(2,bx.smallEnd(2));
