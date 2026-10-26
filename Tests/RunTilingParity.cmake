@@ -67,8 +67,13 @@ if(DEFINED RUNTIME_OPTIONS AND NOT "${RUNTIME_OPTIONS}" STREQUAL "")
 endif()
 
 # The tiled run spells out the AMReX CPU default (1024000 8 8) so the test does
-# not depend on it; the untiled run makes every tile its whole box.
-set(_tiled_size   "1024000 8 8")
+# not depend on it, unless TILED_SIZE names another (a test whose defect needs
+# tiles split in x); the untiled run makes every tile its whole box.
+if(DEFINED TILED_SIZE AND NOT "${TILED_SIZE}" STREQUAL "")
+  set(_tiled_size "${TILED_SIZE}")
+else()
+  set(_tiled_size "1024000 8 8")
+endif()
 set(_untiled_size "1024000 1024000 1024000")
 
 foreach(_run IN ITEMS tiled untiled)

@@ -107,11 +107,14 @@ SLM::writeNCHeader (ncutils::NCFile &nc_file, const amrex::Geometry &geom)
     nc_file.def_var("y", ncutils::NCDType::Real, {"y"});
     nc_file.def_var("z", ncutils::NCDType::Real, {"z"});
 
-    // enable collective mode for parallel NetCDF
+    // The x, y and z coordinates are written below from inside an MFIter loop, so
+    // each rank makes one put call per box that it owns.  Ranks can own different
+    // numbers of boxes, so we must use independent rather than collective access,
+    // otherwise the write hangs waiting for ranks that have no box left.
     nc_file.var("time").par_access(NC_COLLECTIVE);
-    nc_file.var("x").par_access(NC_COLLECTIVE);
-    nc_file.var("y").par_access(NC_COLLECTIVE);
-    nc_file.var("z").par_access(NC_COLLECTIVE);
+    nc_file.var("x").par_access(NC_INDEPENDENT);
+    nc_file.var("y").par_access(NC_INDEPENDENT);
+    nc_file.var("z").par_access(NC_INDEPENDENT);
 
     // write other metadata
 
@@ -294,8 +297,11 @@ void SLM::writeMFtoNC (ncutils::NCFile &nc_file, const MultiFab* mf,
         data = mf_tmp.get();
     }
 
-    // TODO: fix - this is required since file opened each time step, so the variable access prop is reset
-    nc_file.var(name).par_access(NC_COLLECTIVE);
+    // The data below is written from inside an MFIter loop, so each rank makes one put
+    // call per box that it owns.  Ranks can own different numbers of boxes, so we must
+    // use independent rather than collective access.  The access mode is reset each time
+    // the file is opened, so it is set here on every call.
+    nc_file.var(name).par_access(NC_INDEPENDENT);
 
     amrex::Arena* Arena_Used = amrex::The_Arena();
 #ifdef AMREX_USE_GPU
@@ -351,6 +357,7 @@ void SLM::writeMFtoNC (ncutils::NCFile &nc_file, const MultiFab* mf,
                     tmp_arr(i, j, k) = mf_arr(i, j, k);
                 });
             }
+            Gpu::streamSynchronize();
 
             nc_file.var(name).put(dataPtr, starts, counts);
         }
@@ -701,19 +708,30 @@ void SLM::ReadCheckpoint (const int &lev, const std::string &checkpointname)
     // read in title line
     std::getline(is, line);
 
-    // read in number of soil layers
-    is >> m_nz_lsm;
+    // read in number of soil layers and the array of dz. Init has already built the
+    // soil geometry from slm.nsoil / slm.soil_dz, so these are checked against it
+    // rather than adopted.
+    int nz_chk = 0;
+    is >> nz_chk;
+    GotoNextLine(is);
 
-    // read in array of dz
+    Vector<Real> dz_chk;
     std::getline(is, line);
     {
         std::istringstream lis(line);
-        int i = 0;
         while (lis >> word) {
-            m_dz_lsm[i++] = std::stod(word);
+            dz_chk.push_back(static_cast<Real>(std::stod(word)));
         }
     }
-    GotoNextLine(is);
+
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+        nz_chk == m_nz_lsm && static_cast<int>(dz_chk.size()) == m_nz_lsm,
+        "SLM::ReadCheckpoint: the checkpoint's number of soil layers differs from slm.nsoil");
+    for (int k = 0; k < m_nz_lsm; ++k) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            std::abs(dz_chk[k] - m_dz_lsm[k]) <= Real(1.e-6) * m_dz_lsm[k],
+            "SLM::ReadCheckpoint: the checkpoint's soil layer thicknesses differ from slm.soil_dz");
+    }
 
     // Read in time
     is >> m_dt;

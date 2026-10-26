@@ -149,6 +149,10 @@ target_sources(${erf_exe_name}
     # physical-face stencil in every rotated Cartesian direction.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestStateDiffusionDirichlet.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestTKEBuoyancySource.cpp
+    # Motivation: the YSUNew PBL height must interpolate a bulk Richardson crossing at the top
+    # cell, give a column with no crossing the top of the scan, and give a surface cell already
+    # above Ribcr the floor without dividing 0 by 0 (erf-model/ERF#4458).
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestPBLRibCrossing.cpp
     # Motivation: reusable scalar diffusion must honor explicit scalar, coefficient,
     # flux, and tendency components while preserving ERF's N/S/T mapped discretizations.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestScalarDiffusion.cpp
@@ -202,6 +206,10 @@ target_sources(${erf_exe_name}
     # at its own height (roof interface, wall mean of its cell's two), on a level of several
     # boxes whose columns all differ.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBTwoStreamFaces.cpp
+    # Motivation: the building faces took the air temperature and the Exner function of
+    # their fluid cell without its water vapour (erf-model/ERF#4481); they now match the
+    # two-stream column's equation of state for the same moist cell.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBMoistAir.cpp
     # Motivation: observation nudging must read a station file exactly, relax
     # to the closed-form target with the right weight, sigma band and rate cap,
     # and put its sources on the right faces over flat, fitted and immersed
@@ -217,6 +225,11 @@ target_sources(${erf_exe_name}
     # see the two-stream columns' sun: the same zenith, a morning sun in the
     # east, and the start date read the same way.
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestIBSEBTwoStreamSun.cpp
+    # Motivation: the building faces' solar declination and equation of time
+    # must be Spencer's (1971) published series on his 365-day angle, which
+    # puts the June-solstice sun near 23.44 deg, and the date must advance
+    # at 00:00 UTC in a run of several days.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestIBSEBSolarDeclination.cpp
     # Motivation: the surface energy balance must take H and LE from a land
     # model, else from the surface layer's applied flux in W/m^2, else from
     # the scalar defaults; LE stays at its default without a moisture model.
@@ -256,6 +269,9 @@ target_sources(${erf_exe_name}
     # dataset's soil layers in depth to the Noah layers, and the monthly vegetation to the
     # start date the way real.exe does, across the year's end and in leap years.
     ${CMAKE_CURRENT_SOURCE_DIR}/Initialization/ERF_GTestMetgridLandUtils.cpp
+    # Motivation: erf.metgrid_force_sfc_k must drop the same origin levels whether or not the
+    # column has origin levels below the surface (erf-model/ERF#4607).
+    ${CMAKE_CURRENT_SOURCE_DIR}/Initialization/ERF_GTestMetgridForceSfc.cpp
     # Motivation: a station placed by latitude/longitude must land where the
     # lat/lon arrays put it on a rotated grid and on a grid across 180 degrees.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestLatLonMap.cpp

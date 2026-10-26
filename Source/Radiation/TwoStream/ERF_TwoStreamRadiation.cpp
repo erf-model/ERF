@@ -1563,8 +1563,8 @@ TwoStreamRadiation::advance (int lev,
         if (rad_choice.seb_prognostic_enable && std::isfinite(t_s_mean)) {
             Print() << "  Surface temperature (mean) = " << t_s_mean << " K\n"
                     << "  Surface temperature (max) = " << t_s_max << " K\n"
-                    << "  Surface moisture (mean) = " << q_s_mean << " kg/kg\n"
-                    << "  Surface moisture (max) = " << q_s_max << " kg/kg\n";
+                    << "  Surface moisture (mean) = " << q_s_mean << " m^3/m^3\n"
+                    << "  Surface moisture (max) = " << q_s_max << " m^3/m^3\n";
         }
     }
 

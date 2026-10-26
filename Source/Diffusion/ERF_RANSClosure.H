@@ -130,9 +130,25 @@ amrex::Real cmu_prime (amrex::Real Rt, amrex::Real Cmu0)
     return Cmu0 / (1 + amrex::Real(0.277)*Rt);
 }
 
-/** Lowest admissible Rt_min: the poles of cmu' (Rt = -1/0.277) and of cmu
- *  (larger root of 1 + 0.308 Rt + 0.00837 Rt^2) both sit near -3.6. */
-constexpr amrex::Real Rt_min_lower_bound = amrex::Real(-3.6);
+/** Lowest admissible Rt_min (exclusive). The pole of cmu is the larger root
+ *  of 1 + 0.308 Rt + 0.00837 Rt^2,
+ *      (-0.308 + sqrt(0.308^2 - 4 * 0.00837)) / (2 * 0.00837) = -3.5986889850,
+ *  and the pole of cmu' (-1/0.277 = -3.6101) lies below it. Just below the
+ *  pole of cmu its denominator is negative, so cmu and the eddy viscosity are
+ *  negative (down to the numerator's zero, -Cmu0/0.108). The literal is the
+ *  root rounded toward zero, which keeps it above the pole in both double and
+ *  single precision. Values just above it are accepted but give a very large
+ *  cmu (about 980 at -3.598). */
+constexpr amrex::Real Rt_min_lower_bound = amrex::Real(-3.5986889);
+
+/** Zero of the numerator of cmu, -Cmu0/0.108 (-5.15 for the default Cmu0).
+ *  Below it cmu is negative even above the pole, so Rt_min must also lie
+ *  above it; this is the tighter of the two limits when Cmu0 < 0.3887. */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real cmu_numerator_root (amrex::Real Cmu0)
+{
+    return -Cmu0 / amrex::Real(0.108);
+}
 
 /** Realizability cap on the eddy viscosity (erf.rans_realizability = C_r > 0):
  *

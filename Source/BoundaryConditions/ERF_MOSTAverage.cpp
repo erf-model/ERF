@@ -1,4 +1,5 @@
 
+#include <limits>
 #include <utility>
 #include "ERF_Constants.H"
 
@@ -756,17 +757,29 @@ MOSTAverage::set_k_indices_N (const int& lev)
         }
     }
 
+    // Height above the wall of the default reference on zlo of a constant-dz mesh, kept
+    // apart from the absolute z the input convention there uses, so that subtracting
+    // prob_lo again cannot round it below the first cell center (negative when unset)
+    Real zlo_default_height = -one;
+
     // Default behavior is to use the first cell center
     if (!read_z && !read_k) {
         if (stretched) {
             const auto& zlevels = m_zlevels_stag[0];
             zref_tmp = zlo ? cell_center_height(zlevels, 0)
-                           : zlevels.back() - cell_center_height(zlevels, zlevels.size()-2);
+                           : column_height(zlevels) - cell_center_height(zlevels, zlevels.size()-2);
         } else {
             const Real dz = m_geom[0].CellSize(dir);
             zref_tmp = zlo ? m_geom[0].ProbLo(dir) + myhalf * dz : myhalf * dz;
+            if (zlo) { zlo_default_height = myhalf * dz; }
         }
-        Print() << "Reference height for MOST set to " << zref_tmp << std::endl;
+        if (zlo && !stretched) {
+            // zlo input convention: an absolute z
+            Print() << "Reference height for MOST set to " << zref_tmp - m_geom[0].ProbLo(dir)
+                    << " (z = " << zref_tmp << ")" << std::endl;
+        } else {
+            Print() << "Reference height for MOST set to " << zref_tmp << std::endl;
+        }
         read_z = true;
     }
 
@@ -774,11 +787,12 @@ MOSTAverage::set_k_indices_N (const int& lev)
     if (read_z && stretched) {
         const auto& zlevels = m_zlevels_stag[lev];
         const int nz = static_cast<int>(zlevels.size()) - 1;
-        const Real target = zlo ? zref_tmp : zlevels.back() - zref_tmp;
+        const Real ztop = column_height(zlevels);
+        const Real target = zlo ? zref_tmp : ztop - zref_tmp;
         const Real first_center = cell_center_height(zlevels, 0);
         const Real last_center = cell_center_height(zlevels, nz - 1);
-        const Real target_min = zlo ? first_center : zlevels.back() - last_center;
-        const Real target_max = zlo ? last_center : zlevels.back() - first_center;
+        const Real target_min = zlo ? first_center : ztop - last_center;
+        const Real target_max = zlo ? last_center : ztop - first_center;
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp >= target_min && zref_tmp <= target_max,
                                          "Query point must remain inside the stretched mesh!");
         const int lk = k_index_below(zlevels, target);
@@ -786,7 +800,7 @@ MOSTAverage::set_k_indices_N (const int& lev)
                                          "K index must be larger than averaging radius!");
         m_k_indx[lev]->setVal(lk);
         m_zref[lev]->setVal(zlo ? cell_center_height(zlevels, lk)
-                                : zlevels.back() - cell_center_height(zlevels, lk));
+                                : ztop - cell_center_height(zlevels, lk));
     } else if (read_z) {
         const Real m_zlo = m_geom[lev].ProbLo(dir);
         const Real m_zhi = m_geom[lev].ProbHi(dir);
@@ -796,20 +810,31 @@ MOSTAverage::set_k_indices_N (const int& lev)
         const int dom_hi = m_geom[lev].Domain().bigEnd(dir);
 
         if (zlo) {
-            // Existing behavior: zlo input is an absolute coordinate.
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp >= m_zlo + myhalf * m_dz,
-                                             "Query point must be past first z-cell!");
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(zref_tmp <= m_zhi - myhalf * m_dz,
-                                             "Query point must be below the last z-cell!");
+            // Existing behavior: zlo input is an absolute coordinate. The stored
+            // reference height is the height above the wall, as on every other face:
+            // the surface layer uses it as one, e.g. in ln(zref / z0).
+            // Height above the wall. A query at a cell center (prob_lo + dz/2 typed as a z,
+            // or the default dz0/2 on a level refined by an odd ratio) must not round below
+            // it, so the cell count gets an allowance of a few round-off units of the
+            // numbers it came from
+            const Real height = (zlo_default_height >= zero) ? zlo_default_height
+                                                             : zref_tmp - m_zlo;
+            const Real slack = Real(8) * std::numeric_limits<Real>::epsilon()
+                             * ((std::abs(zref_tmp) + std::abs(m_zlo)) / m_dz + one);
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(height / m_dz + slack >= myhalf,
+                "erf.most.zref on the low z face of a constant-dz mesh is an absolute z: it must be "
+                "at least geometry.prob_lo[2] + dz/2");
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE((m_zhi - m_zlo - height) / m_dz + slack >= myhalf,
+                "erf.most.zref on the low z face of a constant-dz mesh is an absolute z: it must be "
+                "at most geometry.prob_hi[2] - dz/2");
 
             const int wall_offset =
-                static_cast<int>(floor((zref_tmp - m_zlo) / m_dz - myhalf));
+                static_cast<int>(floor(height / m_dz - myhalf + slack));
 
             AMREX_ALWAYS_ASSERT(wall_offset >= m_radius);
 
             m_k_indx[lev]->setVal(dom_lo + wall_offset);
-            m_zref[lev]->setVal(m_zlo +
-                                (static_cast<Real>(wall_offset) + myhalf) * m_dz);
+            m_zref[lev]->setVal((static_cast<Real>(wall_offset) + myhalf) * m_dz);
         } else {
             const Real domain_length = m_zhi - m_zlo;
 
@@ -876,7 +901,7 @@ MOSTAverage::set_k_indices_N (const int& lev)
                     k0 >= 0 && k0 < m_geom[0].Domain().length(2),
                     "MOST reference index must lie inside the stretched domain!");
                 const Real zcell = cell_center_height(zlevels, k0);
-                m_zref[lev]->setVal(zlo ? zcell : zlevels.back() - zcell);
+                m_zref[lev]->setVal(zlo ? zcell : column_height(zlevels) - zcell);
             } else {
                 const Real dz0 = m_geom[0].CellSize(2);
                 const Real zlo0 = m_geom[0].ProbLo(2);
@@ -884,9 +909,7 @@ MOSTAverage::set_k_indices_N (const int& lev)
                 const Real zref_abs = is_lo_face
                     ? zlo0 + (static_cast<Real>(wall_offset0) + myhalf) * dz0
                     : zhi0 - (static_cast<Real>(wall_offset0) + myhalf) * dz0;
-                m_zref[lev]->setVal(zlo
-                    ? zref_abs
-                    : (is_lo_face ? zref_abs - zlo0 : zhi0 - zref_abs));
+                m_zref[lev]->setVal(is_lo_face ? zref_abs - zlo0 : zhi0 - zref_abs);
             }
         } else {
             const Real m_dz = m_geom[lev].CellSize(dir);
@@ -896,9 +919,7 @@ MOSTAverage::set_k_indices_N (const int& lev)
                 ? m_zlo + (static_cast<Real>(wall_offset) + myhalf) * m_dz
                 : m_zhi - (static_cast<Real>(wall_offset) + myhalf) * m_dz;
 
-            m_zref[lev]->setVal(zlo
-                ? zref_abs
-                : (is_lo_face ? zref_abs - m_zlo : m_zhi - zref_abs));
+            m_zref[lev]->setVal(is_lo_face ? zref_abs - m_zlo : m_zhi - zref_abs);
         }
     }
 }

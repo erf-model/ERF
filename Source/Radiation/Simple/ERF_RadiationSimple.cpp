@@ -47,7 +47,7 @@ void RadiationSimple::Run (int& level,
                            const amrex::Vector<const amrex::MultiFab*>& /*lsm_input_ptrs*/,
                            const amrex::Vector<amrex::MultiFab*>& /*lsm_output_ptrs*/,
                            amrex::MultiFab* qheating_rates,
-                           amrex::MultiFab* rad_fluxes,
+                           amrex::MultiFab* /*rad_fluxes*/,
                            amrex::MultiFab* z_phys,
                            amrex::MultiFab* /*lat*/,
                            amrex::MultiFab* /*lon*/,
@@ -83,7 +83,7 @@ void RadiationSimple::Run (int& level,
 
     for (MFIter mfi(*cons_in, TileNoZ()); mfi.isValid(); ++mfi)
     {
-        Box box = mfi.validbox();
+        Box box = mfi.tilebox();
         box.makeSlab(2, 0);
 
         const Array4<const Real>& cons_arr = cons_in->const_array(mfi);
@@ -93,8 +93,6 @@ void RadiationSimple::Run (int& level,
         const Array4<Real>& radlwdn_arr = radlwdn->array(mfi);
         const Array4<Real>& radqrlw_arr = radqrlw->array(mfi);
         const Array4<Real>& qheating_arr = qheating_rates->array(mfi);
-
-        const Array4<Real>& radfluxes_arr = rad_fluxes->array(mfi);
 
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
@@ -185,8 +183,9 @@ void RadiationSimple::Run (int& level,
                 radlwdn_arr(i, j, k) = flux_arr(i, j, k);  // net lw flux
                 radqrlw_arr(i, j, k) = FTHRL;              // net lw heating
 
-                // write lw dn to ERF fluxes
-                radfluxes_arr(i, j, k, 3) = flux_arr(i, j, k);  // net lw flux
+                // The net flux is not written to rad_fluxes: that array holds
+                // (SW up, SW down, LW up, LW down), and this model computes
+                // none of those. It stays zero, and HasRadiation() is false.
             }
         });
     }

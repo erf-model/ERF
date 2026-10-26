@@ -3,6 +3,10 @@
 
 #include <AMReX_ParallelDescriptor.H>
 #include <ERF_MYNNStruct.H>
+#include <ERF_RANSClosure.H>
+
+#include <iomanip>
+#include <sstream>
 
 /**
  * @brief Large-eddy simulation closure type.
@@ -364,11 +368,7 @@ public:
         if (enable_pblh_smoothing && (pblh_smoothing_weight < 0 || pblh_smoothing_weight > 1)) {
           amrex::Error("pblh_smoothing_weight must be in [0, 1]");
         }
-      } else if (pbl_type == PBLType::SHOC) {
-#ifndef ERF_USE_SHOC
-          amrex::Abort("You set use_shoc to true but didn't build with SHOC; you must rebuild the executable");
       }
-#endif
       if (uses_eamxx_shoc()) {
 #ifndef ERF_USE_EAMXX_SHOC
           amrex::Abort("PBLType::EAMXX_SHOC requested, but ERF was not built with ERF_ENABLE_EAMXX_SHOC=ON");
@@ -484,16 +484,29 @@ public:
     }
 
     if (rans_type == RANSType::kEqn) {
-        // The stability functions (AL01 Eqs. 31, 32) have poles near Rt = -3.6;
-        // the Burchard & Petersen smoothing maps Rt < Rt_crit onto
-        // (Rt_min, Rt_crit) and needs Rt_min < Rt_crit <= 0.
+        // The stability functions (AL01 Eqs. 31, 32) have poles at Rt = -3.59869
+        // (cmu) and -3.61011 (cmu'); the Burchard & Petersen smoothing maps
+        // Rt < Rt_crit onto (Rt_min, Rt_crit) and needs Rt_min < Rt_crit <= 0,
+        // with Rt_min above the pole of cmu (AL01::Rt_min_lower_bound) and above
+        // the zero of its numerator (AL01::cmu_numerator_root), so cmu > 0.
         if (!(Cmu0 > 0)) { amrex::Error("erf.Cmu0 must be > 0 for the k-eqn RANS"); }
         if (!(Cb > 0)) { amrex::Error("erf.Cb must be > 0 for the k-eqn RANS"); }
         if (!(l_g_max > 0)) { amrex::Error("erf.max_geom_lscale must be > 0 for the k-eqn RANS"); }
         if (!(Rt_crit <= 0)) { amrex::Error("erf.Rt_crit must be <= 0 for the k-eqn RANS"); }
         if (!(Rt_min < Rt_crit)) { amrex::Error("erf.Rt_min must be < erf.Rt_crit for the k-eqn RANS"); }
-        if (!(Rt_min > amrex::Real(-3.6))) {
-            amrex::Error("erf.Rt_min must be > -3.6 for the k-eqn RANS (stability functions have poles near -3.61)");
+        if (!(Rt_min > AL01::Rt_min_lower_bound)) {
+            std::ostringstream msg;
+            msg << std::setprecision(8) << "erf.Rt_min must be > " << AL01::Rt_min_lower_bound
+                << " for the k-eqn RANS: the momentum stability function cmu has a pole at Rt = -3.5986889850,"
+                << " and just below it cmu and the eddy viscosity are negative (level " << lev << ")";
+            amrex::Error(msg.str());
+        }
+        if (!(Rt_min > AL01::cmu_numerator_root(Cmu0))) {
+            std::ostringstream msg;
+            msg << std::setprecision(8) << "erf.Rt_min must be > -erf.Cmu0/0.108 = " << AL01::cmu_numerator_root(Cmu0)
+                << " for the k-eqn RANS: below it the numerator Cmu0 + 0.108 Rt of cmu is negative;"
+                << " raise erf.Cmu0 or erf.Rt_min (level " << lev << ")";
+            amrex::Error(msg.str());
         }
     }
     if (tke_floor < 0) { amrex::Error("erf.tke_floor must be >= 0"); }

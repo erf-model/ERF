@@ -3,13 +3,17 @@
 
 Runs MOST_Zref_Stretched.i (flat periodic column, dz0 = 10 m stretched by 1.1,
 erf.most.zref unset) through the three MOST lookup paths a flat stretched mesh
-can take, plus a uniform 10 m column, and checks the surface friction velocity.
+can take, plus a uniform 10 m column with its bottom at z = 0 and at z = 300 m,
+and checks the surface friction velocity.
 
   case                mesh / terrain                  MOST lookup           zref
   fitted_plane        StretchedDz, fitted (auto)      set_k_indices_T       15.5 m
   fitted_interp       VariableDz, StaticFittedMesh    set_norm_positions_T  10 m
   immersed_stretched  StretchedDz, ImmersedForcing    set_k_indices_N        5 m
   uniform_reference   ConstantDz, dz = 10 m           set_k_indices_N        5 m
+  uniform_raised_base ConstantDz, prob_lo[2] = 300 m  set_k_indices_N        5 m
+  raised_base_k_arr   the same, erf.most.k_arr_in = 0 set_k_indices_N        5 m
+  raised_base_dz_odd  ConstantDz, dz = 1000/96 m, base 300 m  set_k_indices_N  5.21 m
 
 The initial wind is sheared: sounding_most_zref ramps it linearly from 10 m/s at
 the ground to 15 m/s at 50 m, constant above.  ERF interpolates the sounding
@@ -20,12 +24,16 @@ with the wind taken AT the reference height: a lookup that reports one height
 but samples the wind of another cell gives a different u*.  From u*(0) and the
 reported zref the script also inverts the ramp for the height the wind actually
 came from.  The stretched no-terrain column must follow the uniform 10 m column
-over the run, since both use the 5 m first cell center.
+over the run, since both use the 5 m first cell center, and the raised column must
+follow it to the 6 digits of hist.dat: zref is a height above the ground.
 
 Before the fix the two fitted cases aborted at start-up (the default 10 m query
 lies exactly on the top face of the first cell) and immersed_stretched reported
 zref = 55.3 m, half of the uniform (prob_hi - prob_lo)/nz spacing, while taking
-the wind of the first cell (5 m).  Pass --old-exe to rerun a binary built before
+the wind of the first cell (5 m).  Before the reference height was made
+wall-relative, the raised column reported zref = 305 m, the absolute height, and
+gave u*(0) = 0.537 for 1.10.
+Pass --old-exe to rerun a binary built before
 the fix and tabulate old against new.
 """
 
@@ -58,7 +66,25 @@ CASES = [
     ("uniform_reference",  ["erf.grid_stretching_ratio=0",
                             "amr.n_cell=4", "4", "443",
                             "geometry.prob_extent=400", "400", "4430"],             5.0, 15.0),
+    ("uniform_raised_base", ["erf.grid_stretching_ratio=0",
+                             "amr.n_cell=4", "4", "443",
+                             "geometry.prob_extent=400", "400", "4430",
+                             "geometry.prob_lo=0", "0", "300"],                    5.0, 15.0),
+    ("raised_base_k_arr",   ["erf.grid_stretching_ratio=0",
+                             "amr.n_cell=4", "4", "443",
+                             "geometry.prob_extent=400", "400", "4430",
+                             "geometry.prob_lo=0", "0", "300",
+                             "erf.most.k_arr_in=0"],                               5.0, 15.0),
+    # a raised base where prob_lo + dz/2 - prob_lo rounds below dz/2 (dz = 1000/96 m)
+    ("raised_base_dz_odd",  ["erf.grid_stretching_ratio=0",
+                             "amr.n_cell=4", "4", "96",
+                             "geometry.prob_extent=400", "400", "1000",
+                             "geometry.prob_lo=0", "0", "300"],             500.0 / 96.0, 1500.0 / 96.0),
 ]
+
+# the raised columns against the uniform one: hist.dat holds 6 significant digits, so
+# one unit in the last digit of u* ~ 1.1 is 9e-6
+TOL_RAISED = 1.0e-5
 
 
 def read_sounding(path):
@@ -245,6 +271,21 @@ def main():
         if worst > TOL_UNIFORM:
             failures.append("stretched u* departs from the uniform column by %.2e (tol %.0e)"
                             % (worst, TOL_UNIFORM))
+
+    # The same column with its bottom at 300 m: the same u* at every step
+    for raised in ("uniform_raised_base", "raised_base_k_arr"):
+        ok_r, _, ur = new[raised]
+        if not (ok_r and ok_u and ur and uu):
+            continue
+        worst = max(abs(a - b) / b for (_, a), (_, b) in zip(ur, uu))
+        print()
+        print("u* over the run, %s (bottom at 300 m) vs uniform_reference: largest rel diff %.2e (tol %.0e)"
+              % (raised, worst, TOL_RAISED))
+        if len(ur) != len(uu):
+            failures.append("%s and uniform runs wrote %d and %d u* samples" % (raised, len(ur), len(uu)))
+        if worst > TOL_RAISED:
+            failures.append("%s u* departs from the uniform column by %.2e (tol %.0e)"
+                            % (raised, worst, TOL_RAISED))
 
     print()
     if failures:
