@@ -2165,6 +2165,17 @@ if(NOT WIN32)
   add_test_abort(RANSRealizability_NeedsKEqn ${_canopy_dir} ForestCanopyRANS_Uniform.i
                  "erf.rans_realizability needs erf.rans_type = kEqn"
                  "erf.rans_type=None erf.les_type=Smagorinsky erf.Cs=0.1 erf.forest_canopy_tke=false 'erf.rans_realizability=0.309 0.5'")
+  # Rt_min between the pole of cmu (-3.59869) and the old bound -3.6 was accepted, and a
+  # strongly unstable cell then got a negative cmu (erf-model/ERF#4516): abort. The bound
+  # prints as -3.5986889 in double and -3.5986888 in single precision.
+  add_test_abort(RANS_RtMinBelowCmuPole ${_canopy_dir} ForestCanopyRANS_Uniform.i
+                 "erf.Rt_min must be > -3.598688. for the k-eqn RANS"
+                 "erf.Rt_min=-3.599")
+  # With Cmu0 = 0.3 the numerator of cmu is zero at -2.78, above the default Rt_min = -3, so
+  # cmu < 0 in unstable air although Rt_min is above the pole: abort
+  add_test_abort(RANS_RtMinBelowCmuNumeratorZero ${_canopy_dir} ForestCanopyRANS_Uniform.i
+                 "erf.Rt_min must be > -erf.Cmu0/0.108"
+                 "erf.Cmu0=0.3")
   add_test_abort(RANSRealizability_Range ${_canopy_dir} ForestCanopyRANS_Uniform.i
                  "erf.rans_realizability must be 0 .off. or in"
                  "erf.rans_realizability=20")
