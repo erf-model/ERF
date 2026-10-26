@@ -12,6 +12,24 @@
 #include <ERF_IBSEBParams.H>
 #include <ERF_IBSEBSolar.H>
 
+namespace {
+
+void
+set_blanking_kernel (amrex::MultiFab& blank)
+{
+    using namespace amrex;
+    for (MFIter mfi(blank); mfi.isValid(); ++mfi) {
+        auto const& blank_arr = blank.array(mfi);
+        const Box bld = Box(IntVect(1, 1, 0), IntVect(2, 2, 1)) & mfi.validbox();
+        ParallelFor(bld, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            blank_arr(i, j, k) = 1.0;
+        });
+    }
+}
+
+} // namespace
+
 // ibseb::solar_declination() and ibseb::equation_of_time() are Spencer's
 // (1971) Fourier series, with the coefficients of Iqbal (1983), eqs. 1.3.1
 // and 1.4.1 (pvlib's declination_spencer71 is the same; its
@@ -101,6 +119,22 @@ TEST(IBSEBSolarDeclination, DateAdvancesAtMidnightUTC)
     EXPECT_NEAR(ibseb::solar_declination(d), ibseb::solar_declination(amrex::Real(1)), tol);
 }
 
+namespace {
+    void
+    set_blanking_region (amrex::MultiFab& blank)
+    {
+        using namespace amrex;
+        for (MFIter mfi(blank); mfi.isValid(); ++mfi) {
+            auto const& blank_arr = blank.array(mfi);
+            const Box bld = Box(IntVect(1, 1, 0), IntVect(2, 2, 1)) & mfi.validbox();
+            ParallelFor(bld, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                blank_arr(i, j, k) = 1.0;
+            });
+        }
+    }
+} // namespace
+
 // The face set's solar sun takes the advancing date: a run that starts on day
 // 80 and is 24 h in sees the sun of a run that starts on day 81 at the same
 // UTC time. Near the equinox one day moves the declination by about 0.4 deg,
@@ -115,11 +149,7 @@ TEST(IBSEBSolarDeclination, FaceSetSunFollowsTheDate)
     const DistributionMapping dm(ba);
     MultiFab blank(ba, dm, 1, 1);
     blank.setVal(0.0);
-    for (MFIter mfi(blank); mfi.isValid(); ++mfi) {
-        auto const& a = blank.array(mfi);
-        const Box bld = Box(IntVect(1, 1, 0), IntVect(2, 2, 1)) & mfi.validbox();
-        ParallelFor(bld, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept { a(i, j, k) = 1.0; });
-    }
+    set_blanking_region(blank);
     blank.FillBoundary(geom.periodicity());
 
     auto sun_at = [&] (Real day0, Real time) {
