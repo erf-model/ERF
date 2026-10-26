@@ -209,11 +209,6 @@ ERF::send_to_ww3 (int lev)
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k){
             u_vel(i,j,k)  = myhalf *( velx_arr(i,j,k) + velx_arr(i+1,j,k) );
-
-            amrex::AllPrintToFile("uvel.txt") << amrex::IntVect(i,j,k) << " ["
-                                              <<velx_arr(i,j,k) << "| avg:  "
-                                              << u_vel(i,j,k)<< " | "
-                                              << velx_arr(i+1,j,k) << "]" <<std::endl;
         });
     }
 
@@ -226,11 +221,6 @@ ERF::send_to_ww3 (int lev)
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k){
 
             v_vel(i,j,k)  = myhalf *( vely_arr(i,j,k) + vely_arr(i,j+1,k) );
-
-            amrex::AllPrintToFile("vvel.txt") << "%ld" << amrex::IntVect(i,j,k) << " ["
-                                              <<vely_arr(i,j,k)<<"| avg: "
-                                              << v_vel(i,j,k)<< " | "
-                                              << vely_arr(i,j+1,k) << "]" <<std::endl;
         });
     }
 
@@ -282,10 +272,6 @@ ERF::send_to_ww3 (int lev)
 
                 theta(i,j,k) = atan ( v_val / u_val );
             }
-
-            amrex::AllPrintToFile("mag_theta.txt") << amrex::IntVect(i,j,k) <<  " Magnitude: "
-                                                   << magnitude(i,j,k) << " Theta: "
-                                                   << theta(i,j,k) <<std::endl;
         });
 
 
