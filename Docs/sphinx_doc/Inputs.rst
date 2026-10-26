@@ -1857,6 +1857,22 @@ cannot produce; a 2D diagnostic that is valid but not computed in this run is
 written as the missing value it would have in a 2D plotfile (0 or -999 depending
 on the diagnostic) rather than being dropped.
 
+Four more names give earth-relative winds, for comparison with towers, which
+report them: ``u_east`` and ``v_north`` (m/s), ``wind_speed`` (the horizontal
+speed, m/s) and ``wind_dir`` (the meteorological direction the wind comes from,
+in degrees clockwise from north; -999 when the wind is calm).  They are 3D
+variables, so they need a height like any other.  Each is formed from the
+station's interpolated ``x_velocity`` and ``y_velocity``, rotated by the
+orientation of the grid at the station, which is read from the run's
+latitude/longitude arrays (a WRF or metgrid initialization, or a restart from
+one).  Without those arrays the grid is taken to be aligned with east and north,
+so ``u_east`` equals ``x_velocity``.  The angle is that of the level-0 cell that
+holds the station, and the header gives it for each column.  These are the same
+formulas as the 2D sampled-level fields of the same names
+(:ref:`sec:Plotfile2DSampledLevels`); a 2D level set writes its own
+``missing_value`` (default -999) for a calm ``wind_dir``, the station always -999.
+"Calm" means a wind of exactly zero.
+
 Values are interpolated bilinearly in the horizontal and linearly in the
 vertical, taken from the finest level that covers the interpolation stencil from
 the bottom of the domain up through the requested heights.  Coverage is required

@@ -47,6 +47,25 @@
 // 'theta_z100m'; those are not accepted here, since a station asks for the 3D
 // variable and a height directly.
 //
+// Four more names are accepted, which neither catalog holds as a 3D variable:
+// the earth-relative winds u_east, v_north, wind_speed and wind_dir.  They are
+// formed from the station's interpolated x_velocity and y_velocity, rotated by
+// the grid orientation at the station (see ERF_EarthRelativeWind.H), so that a
+// column compares directly with a tower on a rotated (e.g. Lambert) grid.
+//
+
+// Which earth-relative wind a station variable is; None for every other variable
+enum class StationEarthWind { None, UEast, VNorth, WindSpeed, WindDir };
+
+inline StationEarthWind
+station_earth_wind_from_name (const std::string& name)
+{
+    if (name == "u_east")     { return StationEarthWind::UEast; }
+    if (name == "v_north")    { return StationEarthWind::VNorth; }
+    if (name == "wind_speed") { return StationEarthWind::WindSpeed; }
+    if (name == "wind_dir")   { return StationEarthWind::WindDir; }
+    return StationEarthWind::None;
+}
 
 struct StationVar
 {
@@ -57,6 +76,10 @@ struct StationVar
     bool cells_may_be_missing = false;    // active 2D field whose cells may hold missing_value
     amrex::Real missing_value = amrex::Real(0.0);
     int comp = -1;                        // component in the filled MultiFab
+    // An earth-relative wind is formed from two 3D components: comp holds
+    // x_velocity and comp_v y_velocity
+    StationEarthWind earth_wind = StationEarthWind::None;
+    int comp_v = -1;
 };
 
 //
@@ -104,6 +127,12 @@ struct StationLoc
     // accuracy of the inverse map, and is reported in the file header
     amrex::Real got_lat = amrex::Real(0.0);
     amrex::Real got_lon = amrex::Real(0.0);
+
+    // Orientation of the grid x axis at the station, counterclockwise from true
+    // east, for the earth-relative winds.  Without lat/lon arrays the grid is
+    // taken to be aligned with east.
+    amrex::Real cos_alpha = amrex::Real(1.0);
+    amrex::Real sin_alpha = amrex::Real(0.0);
 
     // Resolved against the current grids at every output step
     int lev = 0;

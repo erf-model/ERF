@@ -3268,6 +3268,26 @@ add_test_option_parity(StationSampling_AnswerParity_MOST ABL_MOST "plt00010"
     ON_OPTIONS  "erf.station_names=T erf.station_sampling_interval=1 erf.T.field=theta magvel vorticity_z pressure u_star t_star erf.T.x=500 erf.T.y=500 erf.T.height_agl=8.0 100.0"
     REQUIRE_ON_FILE "Output_Stations/T.dat")
 
+# Earth-relative station winds (#4496): u_east, v_north, wind_speed and wind_dir are the
+# station's interpolated x_velocity and y_velocity rotated by the grid orientation. This
+# run has no latitude/longitude arrays, so the grid is taken as aligned with east
+# (alpha = 0) and u_east = x_velocity, v_north = y_velocity exactly. prob.V_0 = -6 gives
+# the wind a y component (wind_dir about 301 degrees), so a column taken from the wrong
+# component, or a sign error in the direction, fails.
+if(NOT WIN32 AND ERF_TEST_PYTHON)
+  set(TEST_NAME StationSampling_EarthWinds)
+  set(TEST_FILES_DIR ABL_MOST)
+  setup_test()
+  unset(TEST_FILES_DIR)
+  resolve_test_exe("" "erf_exec" TEST_EXE)
+  add_test(${TEST_NAME} sh -c
+    "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/ABL_MOST.i prob.V_0=-6.0 erf.station_names=W erf.station_sampling_interval=1 erf.W.field=x_velocity y_velocity u_east v_north wind_speed wind_dir erf.W.x=500 erf.W.y=500 erf.W.height_agl=8.0 100.0 > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_station_earth_winds.py ${CURRENT_TEST_BINARY_DIR}/Output_Stations/W.dat --alpha 0")
+  set_tests_properties(${TEST_NAME} PROPERTIES
+      TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+      LABELS "regression;station" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+  unset(TEST_NAME)
+endif()
+
 #=============================================================================
 # Input sounding on refined levels (#4143): each level samples the sounding, and
 # the large-scale forcing profiles, at its own cell centres

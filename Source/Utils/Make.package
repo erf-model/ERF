@@ -24,6 +24,7 @@ CEXE_headers += ERF_StormDiagnostics.H
 CEXE_headers += ERF_NodalReconstruction.H
 CEXE_headers += ERF_ColumnBands.H
 CEXE_headers += ERF_LatLonMap.H
+CEXE_headers += ERF_EarthRelativeWind.H
 CEXE_headers += ERF_TerrainSurfaceSlab.H
 CEXE_headers += ERF_TerrainFileChecks.H
 

@@ -236,9 +236,12 @@ Wind fields
 Wind fields are cell-centered sampled-level diagnostics. ERF destaggers the
 native face-centered velocity components to scalar cell centers before vertical
 sampling. ``u_east`` and ``v_north`` are earth-relative horizontal winds. When
-map-rotation coefficients are available, ERF rotates grid-relative horizontal
-winds before output. Otherwise, ERF uses identity rotation. ``w`` is the
-cell-centered vertical wind.
+the run has latitude/longitude arrays (a WRF or metgrid initialization, or a
+restart from one), ERF rotates the grid-relative horizontal winds by the
+orientation of the grid at each mass point, measured from those arrays on the
+level being written. Otherwise the grid is taken to be aligned with east and
+north, and ``u_east`` and ``v_north`` equal the cell-centered ``x_velocity`` and
+``y_velocity``. ``w`` is the cell-centered vertical wind.
 
 ``wind_speed`` is the horizontal speed computed from ``u_east`` and
 ``v_north``. ``wind_dir`` is the meteorological wind direction in degrees
