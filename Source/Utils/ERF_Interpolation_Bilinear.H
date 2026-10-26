@@ -60,11 +60,8 @@ void bilinear_interpolation (const amrex::Real* xvec, const amrex::Real* yvec, c
                 amrex::Real& tmp_var)
 {
 
-    if(z < amrex::Real(0)){
-        tmp_var = amrex::Real(0);
-        return;
-    }
-
+    // Points outside the table, including heights below zvec[0], take the value at the
+    // nearest table edge; a negative z inside the table is interpolated like any other
     amrex::Real x_interp = x;
     amrex::Real y_interp = y;
     amrex::Real z_interp = z;
