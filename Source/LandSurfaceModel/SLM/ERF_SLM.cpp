@@ -2,6 +2,7 @@
 #include "ERF_SLM_DefaultParams.H"
 #include "ERF_EOS.H"
 #include "ERF_TileNoZ.H"
+#include "ERF_LSMInterp.H"
 #include "ERF_MicrophysicsUtils.H"
 #include <AMReX_PlotFileUtil.H>
 #include "ERF.H"
@@ -156,7 +157,7 @@ SLM::Init (const int& /*lev*/,
     for (auto ivar = 0; ivar < LsmVar_SLM::NumVars; ++ivar) {
         // State vars are CC
         lsm_fab_vars[ivar] = std::make_shared<MultiFab>(ba_lsm, dm, 1, ng);
-        lsm_fab_vars[ivar]->setVal(lsm_undefined);
+        lsm_fab_vars[ivar]->setVal(zero);
     }
 
     // Create the fluxes
@@ -1182,11 +1183,12 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
     const IntVect rr2d(ref_ratio[0], ref_ratio[1], 1);
 
     // This InterpFromCoarseLevel reads the coarse ghost cells as they are, and SLM
-    // never fills its fields' ghost cells, so they still hold the zeros of Init.
-    // Interpolate from a copy whose ghost cells between boxes (and across periodic
-    // boundaries) are filled; otherwise the fine cells next to a coarse box
-    // boundary get zeros (vegtype = 0, i.e. water). The copy leaves the source
-    // level's own ghost cells, which SLM writes to its checkpoints, as they were.
+    // never fills its fields' ghost cells, so they still hold the values of Init:
+    // zero for the state and lsm_undefined for the fluxes.  Interpolate from a copy
+    // whose ghost cells between boxes (and across periodic boundaries) are filled;
+    // otherwise the fine cells next to a coarse box boundary get those values
+    // (vegtype = 0, i.e. water). The copy leaves the source level's own ghost cells,
+    // which SLM writes to its checkpoints, as they were.
     auto with_filled_ghosts = [] (const MultiFab& src, const Geometry& geom)
     {
         MultiFab tmp(src.boxArray(), src.DistributionMap(), src.nComp(), src.nGrowVect());
@@ -1215,15 +1217,17 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
                               BCVars::cons_bc);
     }
 
+    // A flux SLM has not computed yet holds lsm_undefined, and SurfaceLayer falls back
+    // to MOST there.  lsm_interp_from_coarse keeps that sentinel from blending into the
+    // valid fine cells around it.
     for (int ivar = 0; ivar < m_lsm_flux_size; ++ivar) {
         AMREX_ALWAYS_ASSERT(source_flux[ivar] != nullptr);
         const MultiFab src = with_filled_ghosts(*source_flux[ivar], source_geom);
-        InterpFromCoarseLevel(*lsm_fab_flux[LsmFluxMap[ivar]],
-                              lsm_fab_flux[LsmFluxMap[ivar]]->nGrowVect(),
-                              IntVect(0,0,0), src, 0, 0, 1,
-                              source_geom, m_geom, rr2d,
-                              &cell_cons_interp, m_domain_bcs_type,
-                              BCVars::cons_bc);
+        lsm_interp_from_coarse(*lsm_fab_flux[LsmFluxMap[ivar]],
+                               lsm_fab_flux[LsmFluxMap[ivar]]->nGrowVect(),
+                               IntVect(0,0,0), src, 1,
+                               source_geom, m_geom, rr2d,
+                               m_domain_bcs_type, BCVars::cons_bc);
     }
 
     for (int ivar = 0; ivar < static_cast<int>(unmapped_fields.size()); ++ivar) {

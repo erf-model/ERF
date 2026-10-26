@@ -12,6 +12,7 @@
 
 #include "ERF_NOAHMP.H"
 #include "ERF_Constants.H"
+#include "ERF_LSMInterp.H"
 #include "ERF_EOS.H"
 #include "ERF_NOAHMP_ResultPolicy.H"
 #include "ERF_TerrainMetrics.H"
@@ -44,26 +45,25 @@ NOAHMP::interp_from_lev0 (const int& lev,
     //
     const IntVect rr2d(m_refRatio[0], m_refRatio[1], 1);
 
+    // The level-0 data and fluxes still hold lsm_undefined in cells Noah-MP did not
+    // process: SurfaceLayer falls back to MOST there but does not write that flux back
+    // (see #3446).  lsm_interp_from_coarse interpolates linearly and then marks every fine
+    // cell of such a coarse cell lsm_undefined, so a fine cell holds either a value
+    // interpolated from a valid coarse cell or exactly the sentinel.
     for (int ivar(0); ivar<m_lsm_data_size; ++ivar) {
-        InterpFromCoarseLevel(*lsm_fab_data[ivar], lsm_fab_data[ivar]->nGrowVect(),
-                              IntVect(0,0,0), // do NOT fill ghost cells outside the domain
-                              *lsm_lev0_data[ivar], 0, 0, 1,
-                              m_geom0, m_geom,
-                              rr2d, &pc_interp,
-                              m_domain_bcs_type, BCVars::cons_bc);
+        lsm_interp_from_coarse(*lsm_fab_data[ivar], lsm_fab_data[ivar]->nGrowVect(),
+                               IntVect(0,0,0), // do NOT fill ghost cells outside the domain
+                               *lsm_lev0_data[ivar], 1,
+                               m_geom0, m_geom, rr2d,
+                               m_domain_bcs_type, BCVars::cons_bc);
     }
 
-    // The level-0 flux still holds lsm_undefined in cells Noah-MP did not process:
-    // SurfaceLayer falls back to MOST there but does not write that flux back (see #3446).
-    // Pc_interp copies the coarse values unchanged, so a fine cell holds either a valid
-    // flux or the lsm_undefined sentinel.
     for (int ivar(0); ivar<LsmFlux_NOAHMP::NumVars; ++ivar) {
-        InterpFromCoarseLevel(*lsm_fab_flux[ivar], lsm_fab_flux[ivar]->nGrowVect(),
-                              IntVect(0,0,0), // do NOT fill ghost cells outside the domain
-                              *lsm_lev0_flux[ivar], 0, 0, 1,
-                              m_geom0, m_geom,
-                              rr2d, &pc_interp,
-                              m_domain_bcs_type, BCVars::cons_bc);
+        lsm_interp_from_coarse(*lsm_fab_flux[ivar], lsm_fab_flux[ivar]->nGrowVect(),
+                               IntVect(0,0,0), // do NOT fill ghost cells outside the domain
+                               *lsm_lev0_flux[ivar], 1,
+                               m_geom0, m_geom, rr2d,
+                               m_domain_bcs_type, BCVars::cons_bc);
     }
     Print () << "Noah-MP interpolation at level " << lev << " completed" << std::endl;
 }

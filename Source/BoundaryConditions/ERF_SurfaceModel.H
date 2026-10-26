@@ -10,7 +10,9 @@
 #include "AMReX_FillPatchUtil.H"
 #include "AMReX_GpuLaunch.H"
 
+#include <ERF_Constants.H>
 #include <ERF_DataStruct.H>
+#include <ERF_LSMInterp.H>
 
 enum SurfaceModelType { LAND = 0, URBAN = 1};
 
@@ -24,6 +26,17 @@ struct SurfaceFluxView {
     amrex::Array4<const amrex::Real> tau23;
     amrex::Array4<const amrex::Real> t_flux;
     amrex::Array4<const amrex::Real> q_flux;
+
+    /** Whether all four fluxes exist and hold a valid LSM value (is_valid_lsm_value) at (i,j). */
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    bool valid (int i, int j) const noexcept
+    {
+        return t_flux && q_flux && tau13 && tau23 &&
+               is_valid_lsm_value(t_flux(i,j,0)) &&
+               is_valid_lsm_value(q_flux(i,j,0)) &&
+               is_valid_lsm_value(tau13 (i,j,0)) &&
+               is_valid_lsm_value(tau23 (i,j,0));
+    }
 };
 
 /**
@@ -146,9 +159,19 @@ public:
             amrex::Vector<amrex::Real> ftime    = {time_for_fp, time_for_fp};
             amrex::Vector<amrex::Real> ctime    = {time_for_fp, time_for_fp};
             amrex::IntVect ng_od(0, 0, 0); // ng outside domain
-            amrex::Interpolater* mapper = &amrex::pc_interp;
+            amrex::Interpolater* mapper = &amrex::cell_cons_interp;
             amrex::Vector<amrex::MultiFab*> fmf;
             amrex::Vector<amrex::MultiFab*> cmf;
+            // These fields hold lsm_undefined where no provider has a value, and their
+            // consumers fall back to MOST there.  The linear interpolation below does not
+            // keep such a cell exactly lsm_undefined, so mark every fine cell of one.
+            auto mask_invalid = [&] (amrex::MultiFab& fine, const amrex::IntVect& ngv,
+                                     const amrex::MultiFab& crse, int ncomp)
+            {
+                lsm_mask_invalid_parents(fine, ngv, ng_od, crse, ncomp,
+                                         m_geom[lev-1], m_geom[lev], refRatio[lev-1],
+                                         domain_bcs_type, BCVars::cons_bc);
+            };
             if (u_star[lev] != nullptr && u_star[lev-1] != nullptr) {
             amrex::InterpFromCoarseLevel(*u_star[lev], u_star[lev-1]->nGrowVect(), ng_od,
                                          *u_star[lev-1], 0, 0, 2,
@@ -199,6 +222,11 @@ public:
                                       0, 0, 1, m_geom[lev-1], m_geom[lev],
                                       refRatio[lev-1], mapper, domain_bcs_type,
                                       BCVars::cons_bc);
+
+            // t_surf never holds lsm_undefined, so it needs no mask
+            mask_invalid(*u_star[lev], u_star[lev]->nGrowVect(), *u_star[lev-1], 2);
+            mask_invalid(*t_star[lev], t_star[lev]->nGrowVect(), *t_star[lev-1], 1);
+            mask_invalid(*q_star[lev], q_star[lev]->nGrowVect(), *q_star[lev-1], 1);
             }
 
             for (int field = 0; field < static_cast<int>(fields.size()); ++field) {
@@ -216,6 +244,7 @@ public:
                                           0, 0, 1, m_geom[lev-1], m_geom[lev],
                                           refRatio[lev-1], mapper, domain_bcs_type,
                                           BCVars::cons_bc);
+                mask_invalid(*fields[field][lev], ngv, *fields[field][lev-1], 1);
             }
         }
     }

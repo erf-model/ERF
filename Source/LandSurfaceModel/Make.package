@@ -1,1 +1,2 @@
 CEXE_headers += ERF_LandSurface.H
+CEXE_headers += ERF_LSMInterp.H
