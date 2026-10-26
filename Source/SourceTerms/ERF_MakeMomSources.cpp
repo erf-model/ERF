@@ -884,13 +884,18 @@ void make_mom_sources (double time_d,
         if (is_slow_step && (enforce_massflux_x || enforce_massflux_y)) {
             Real tau_inv = one / solverChoice.const_massflux_tau;
 
-            ParallelFor(tbx, tby,
-            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                xmom_src_arr(i, j, k) += tau_inv * (rhoUA_target - rhoUA);
-            },
-            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                ymom_src_arr(i, j, k) += tau_inv * (rhoVA_target - rhoVA);
-            });
+            // Each direction is relaxed only if its own mass flux is prescribed; the other
+            //    direction's target is zero and must not be imposed
+            if (enforce_massflux_x) {
+                ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    xmom_src_arr(i, j, k) += tau_inv * (rhoUA_target - rhoUA);
+                });
+            }
+            if (enforce_massflux_y) {
+                ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    ymom_src_arr(i, j, k) += tau_inv * (rhoVA_target - rhoVA);
+                });
+            }
         }
 
     } // mfi
