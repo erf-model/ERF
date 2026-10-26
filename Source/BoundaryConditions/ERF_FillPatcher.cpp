@@ -108,14 +108,13 @@ void ERFFillPatcher::Define (BoxArray const& fba, DistributionMapping const& fdm
     // Integer masking array
     m_cf_mask = std::make_unique<iMultiFab> (fba, fdm, 1, 0);
 
-    // Populate mask array
-    if (nghost_set <= 0) {
-        m_cf_mask->setVal(m_set_mask);
-        BuildMask(fba,nghost_set,m_set_mask-1);
-    } else {
-        m_cf_mask->setVal(m_relax_mask);
-        BuildMask(fba,nghost,m_relax_mask-1);
-    }
+    // Populate mask array.  BuildMask(fba, n, val) sets val in every cell farther than
+    //    n cells from the coarse-fine boundary, so after these three steps the band of
+    //    width nghost_set holds m_set_mask, the band out to nghost holds m_relax_mask,
+    //    and the rest of the fine level holds 0
+    m_cf_mask->setVal(m_set_mask);
+    BuildMask(fba,nghost_set,m_relax_mask);
+    BuildMask(fba,nghost,0);
 }
 
 /**
