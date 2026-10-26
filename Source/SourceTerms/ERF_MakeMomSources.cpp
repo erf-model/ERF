@@ -528,16 +528,27 @@ void make_mom_sources (double time_d,
         // 3b. Add height-dependent GEOSTROPHIC forcing
         // *****************************************************************************
         if (geo_wind_profile && is_slow_step) {
+            // sin(latitude) on each face, taken the way the Coriolis forcing above takes it:
+            //    from the hindcast latitude, from the spatially varying factor, or constant
+            const bool geo_hindcast_lat = (solverChoice.init_type == InitType::HindCast) &&
+                                          (forecast_state_at_lev != nullptr);
+            const bool geo_var_sinphi   = !geo_hindcast_lat && var_coriolis && (sinPhi_mf != nullptr);
+            const Array4<const Real> geo_latlon_arr = (geo_hindcast_lat) ?
+                (*forecast_state_at_lev)[4].const_array(mfi) : Array4<const Real>{};
             ParallelFor(tbx, tby,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
+                Real sphi_loc = (geo_hindcast_lat) ? std::sin(geo_latlon_arr(i,j,k,0)*PI/Real(180.0)) :
+                                (geo_var_sinphi)   ? myhalf * (sphi_arr(i,j,0) + sphi_arr(i-1,j,0)) : sinphi;
                 Real rho_on_u_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
-                xmom_src_arr(i, j, k) -= coriolis_factor * rho_on_u_face * dptr_v_geos[k] * sinphi;
+                xmom_src_arr(i, j, k) -= coriolis_factor * rho_on_u_face * dptr_v_geos[k] * sphi_loc;
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
+                Real sphi_loc = (geo_hindcast_lat) ? std::sin(geo_latlon_arr(i,j,k,0)*PI/Real(180.0)) :
+                                (geo_var_sinphi)   ? myhalf * (sphi_arr(i,j,0) + sphi_arr(i,j-1,0)) : sinphi;
                 Real rho_on_v_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
-                ymom_src_arr(i, j, k) += coriolis_factor * rho_on_v_face * dptr_u_geos[k] * sinphi;
+                ymom_src_arr(i, j, k) += coriolis_factor * rho_on_v_face * dptr_u_geos[k] * sphi_loc;
             });
         } // geo_wind_profile
 
