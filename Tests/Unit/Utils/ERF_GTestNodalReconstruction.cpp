@@ -156,19 +156,25 @@ TEST(NodalReconstruction, RoughSliceFallsBackToCG)
     auto const g = got.const_array();
     Real range_lo = std::numeric_limits<Real>::max();
     Real range_hi = std::numeric_limits<Real>::lowest();
+    int n_nonfinite = 0;
     LoopOnCpu(got.box(), [&] (int i, int j, int k) noexcept
     {
         const Real v = g(i,j,k);
-        ASSERT_TRUE(std::isfinite(v)) << "at (" << i << ", " << j << ")";
+        if (!std::isfinite(v)) { ++n_nonfinite; }
         range_lo = amrex::min(range_lo, v);
         range_hi = amrex::max(range_hi, v);
     });
     // The nodal field must stay of the order of the input (a diverged solve
     // would produce garbage well outside it).
+    EXPECT_EQ(n_nonfinite, 0);
     EXPECT_LT(range_hi, Real(500.) + Real(200.) + Real(400.) + Real(100.));
     EXPECT_GT(range_lo, Real(500.) - Real(200.) - Real(400.) - Real(100.));
 
-    const Real tol = Real(16.)*std::numeric_limits<Real>::epsilon()*Real(200.);
+    // The CG fallback is a regularized fit, not an exact solve: the identity
+    // holds only to the solver's relative tolerance (1.e-10) times the scale
+    // of the fit, not to round-off.  Scale the tolerance by the input relief.
+    const Real relief = Real(200.) + 2*Real(400.);
+    const Real tol = Real(1.e-10) * relief * Real(4.);
     EXPECT_LT(avg4_identity_error(got, rough, wface_box), tol);
 }
 
@@ -191,13 +197,19 @@ TEST(NodalReconstruction, FillNodalLevelFromSliceClampsGhosts)
     BoxArray ba(domain);
     ba.maxSize(8);
     ba.surroundingNodes();
-    MultiFab z_phys_nd(ba, DistributionMapping(ba), 1, 1);
+    // Managed arena so the host-side assertion below can read the data on GPU
+    // builds too (the real z_phys_nd is device-reachable and this fill only
+    // reads managed memory, so managed matches both worlds).
+    MultiFab z_phys_nd(ba, DistributionMapping(ba), 1, 1,
+                       MFInfo().SetArena(The_Managed_Arena()));
+
     fill_nodal_level_from_slice(z_phys_nd, 0, got);
 
     const Box slb = got.box();
     const int ilo = slb.smallEnd(0), ihi = slb.bigEnd(0);
     const int jlo = slb.smallEnd(1), jhi = slb.bigEnd(1);
     auto const sarr = got.const_array();
+    int n_mismatch = 0;
     for (MFIter mfi(z_phys_nd); mfi.isValid(); ++mfi) {
         auto const zarr = z_phys_nd.const_array(mfi);
         // The fill writes only the k = 0 plane; compare just that plane.
@@ -206,8 +218,8 @@ TEST(NodalReconstruction, FillNodalLevelFromSliceClampsGhosts)
         {
             const int ii = amrex::max(ilo, amrex::min(i, ihi));
             const int jj = amrex::max(jlo, amrex::min(j, jhi));
-            ASSERT_EQ(zarr(i,j,k), sarr(ii,jj,0))
-                << "at (" << i << ", " << j << ")";
+            if (zarr(i,j,k) != sarr(ii,jj,0)) { ++n_mismatch; }
         });
     }
+    EXPECT_EQ(n_mismatch, 0);
 }

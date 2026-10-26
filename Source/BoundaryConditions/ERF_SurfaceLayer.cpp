@@ -2,6 +2,7 @@
 #include <AMReX_Math.H>
 #include <AMReX_MultiFabUtil.H>
 #include "ERF_Constants.H"
+#include "ERF_HostFabOps.H"
 #include "ERF_SurfaceLayerStress.H"
 #include "ERF_SurfaceTemperature.H"
 #include "ERF_SurfaceMoisture.H"
@@ -3341,15 +3342,8 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
     Box bx_lo = u_star[lev]->boxArray().minimalBox();
     FArrayBox u_star_lo(bx_lo, 1, The_Pinned_Arena());
     FArrayBox z_surf_lo(bx_lo, 1, The_Pinned_Arena());
-    {
-        auto const us_arr = u_star_lo.array();
-        auto const zs_arr = z_surf_lo.array();
-        amrex::LoopOnCpu(bx_lo, [=] (int i, int j, int k) noexcept
-        {
-            us_arr(i,j,k) = 0;
-            zs_arr(i,j,k) = 0;
-        });
-    }
+    erf_host_fab_ops::host_setval(u_star_lo, 0);
+    erf_host_fab_ops::host_setval(z_surf_lo, 0);
     Real* ustar_ptr = u_star_lo.dataPtr();
     Real* zsurf_ptr = z_surf_lo.dataPtr();
     for (MFIter mfi(cons); mfi.isValid(); ++mfi)

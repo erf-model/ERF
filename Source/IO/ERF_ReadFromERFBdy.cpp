@@ -2,6 +2,7 @@
  * \file ERF_ReadFromERFBdy.cpp
  */
 #include "ERF_ReadFromERFBdy.H"
+#include "ERF_HostFabOps.H"
 #include <AMReX.H>
 #include <AMReX_VisMF.H>
 #include <AMReX_ParallelDescriptor.H>
@@ -110,23 +111,16 @@ read_from_erfbdy (int itime,
             std::string filename = time_dir + "/BdyData_xlo_var" + std::to_string(ivar);
             std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
 
-            // A default-constructed FArrayBox allocates from The_Arena(), which is DEVICE
-            // memory unless amrex.the_arena_is_managed=true, so tmp_fab is pinned. Both
-            // fabs here are host-accessible, and the copy is a host loop rather than
+            // tmp_fab is pinned so readFrom() can fill it on the host (a device
+            // or managed fab would get an async htod memcpy, and #3670's
+            // segfault was exactly that read racing the copy).  Both fabs are
+            // host-accessible, and the copy is a host loop rather than
             // copy<RunOn::Host>, which aborts on SYCL builds.
             FArrayBox tmp_fab(amrex::The_Pinned_Arena());
 
             tmp_fab.readFrom(ifs);
             bdy_data_xlo[itime][ivar].resize(tmp_fab.box(), tmp_fab.nComp(), Arena_Used);
-            {
-                auto const dst_arr = bdy_data_xlo[itime][ivar].array();
-                auto const src_arr = tmp_fab.const_array();
-                amrex::LoopOnCpu(tmp_fab.box(), tmp_fab.nComp(),
-                                 [=] (int i, int j, int k, int n) noexcept
-                {
-                    dst_arr(i,j,k,n) = src_arr(i,j,k,n);
-                });
-            }
+            erf_host_fab_ops::host_copy(bdy_data_xlo[itime][ivar], tmp_fab, tmp_fab.nComp());
             ifs.close();
         }
 
@@ -139,15 +133,7 @@ read_from_erfbdy (int itime,
 
             tmp_fab.readFrom(ifs);
             bdy_data_xhi[itime][ivar].resize(tmp_fab.box(), tmp_fab.nComp(), Arena_Used);
-            {
-                auto const dst_arr = bdy_data_xhi[itime][ivar].array();
-                auto const src_arr = tmp_fab.const_array();
-                amrex::LoopOnCpu(tmp_fab.box(), tmp_fab.nComp(),
-                                 [=] (int i, int j, int k, int n) noexcept
-                {
-                    dst_arr(i,j,k,n) = src_arr(i,j,k,n);
-                });
-            }
+            erf_host_fab_ops::host_copy(bdy_data_xhi[itime][ivar], tmp_fab, tmp_fab.nComp());
             ifs.close();
         }
 
@@ -160,15 +146,7 @@ read_from_erfbdy (int itime,
 
             tmp_fab.readFrom(ifs);
             bdy_data_ylo[itime][ivar].resize(tmp_fab.box(), tmp_fab.nComp(), Arena_Used);
-            {
-                auto const dst_arr = bdy_data_ylo[itime][ivar].array();
-                auto const src_arr = tmp_fab.const_array();
-                amrex::LoopOnCpu(tmp_fab.box(), tmp_fab.nComp(),
-                                 [=] (int i, int j, int k, int n) noexcept
-                {
-                    dst_arr(i,j,k,n) = src_arr(i,j,k,n);
-                });
-            }
+            erf_host_fab_ops::host_copy(bdy_data_ylo[itime][ivar], tmp_fab, tmp_fab.nComp());
             ifs.close();
         }
 
@@ -181,15 +159,7 @@ read_from_erfbdy (int itime,
 
             tmp_fab.readFrom(ifs);
             bdy_data_yhi[itime][ivar].resize(tmp_fab.box(), tmp_fab.nComp(), Arena_Used);
-            {
-                auto const dst_arr = bdy_data_yhi[itime][ivar].array();
-                auto const src_arr = tmp_fab.const_array();
-                amrex::LoopOnCpu(tmp_fab.box(), tmp_fab.nComp(),
-                                 [=] (int i, int j, int k, int n) noexcept
-                {
-                    dst_arr(i,j,k,n) = src_arr(i,j,k,n);
-                });
-            }
+            erf_host_fab_ops::host_copy(bdy_data_yhi[itime][ivar], tmp_fab, tmp_fab.nComp());
             ifs.close();
         }
     }

@@ -20,6 +20,7 @@
 #include "AMReX_Print.H"
 #include "AMReX_REAL.H"
 
+#include "ERF_HostFabOps.H"
 #include "ERF_NumericalConstants.H"
 
 enum class VariationOperator
@@ -337,13 +338,7 @@ public:
         } else {
             // Should not happen -- ||E|| -> 0 as mu -> infinity -- but if it
             // does, the interpolant is a safe, bounded answer.
-            auto const S_arr = S.array();
-            auto const r_arr = reference.const_array();
-            for (int j=m_jlo; j<=m_jhi+1; ++j) {
-                for (int i=m_ilo; i<=m_ihi+1; ++i) {
-                    S_arr(i,j,0) = r_arr(i,j,0);
-                }
-            }
+            erf_host_fab_ops::host_copy(S, reference, 1);
             info.deviation = zero;
         }
         info.regularization = m_mu;
@@ -453,14 +448,7 @@ private:
     void applyAT (amrex::FArrayBox const& T,
                   amrex::FArrayBox& R) const
     {
-        // Host loops rather than setVal<RunOn::Host>, which aborts on SYCL builds.
-        {
-            auto const rz_arr = R.array();
-            amrex::LoopOnCpu(R.box(), [=] (int i, int j, int k) noexcept
-            {
-                rz_arr(i,j,k) = zero;
-            });
-        }
+        erf_host_fab_ops::host_setval(R, zero);
         auto const T_arr = T.const_array();
         auto const R_arr = R.array();
         for (int j=m_jlo; j<=m_jhi; ++j) {
@@ -484,19 +472,8 @@ private:
                  amrex::FArrayBox& difx,
                  amrex::FArrayBox& dify) const
     {
-        // Host loops rather than setVal<RunOn::Host>, which aborts on SYCL builds.
-        {
-            auto const dxz_arr = difx.array();
-            amrex::LoopOnCpu(difx.box(), [=] (int i, int j, int k) noexcept
-            {
-                dxz_arr(i,j,k) = zero;
-            });
-            auto const dyz_arr = dify.array();
-            amrex::LoopOnCpu(dify.box(), [=] (int i, int j, int k) noexcept
-            {
-                dyz_arr(i,j,k) = zero;
-            });
-        }
+        erf_host_fab_ops::host_setval(difx, zero);
+        erf_host_fab_ops::host_setval(dify, zero);
 
         auto const S_arr    = S.const_array();
         auto const difx_arr = difx.array();
@@ -525,14 +502,7 @@ private:
                   amrex::FArrayBox const& dify,
                   amrex::FArrayBox& R) const
     {
-        // Host loop rather than setVal<RunOn::Host>, which aborts on SYCL builds.
-        {
-            auto const rz_arr = R.array();
-            amrex::LoopOnCpu(R.box(), [=] (int i, int j, int k) noexcept
-            {
-                rz_arr(i,j,k) = zero;
-            });
-        }
+        erf_host_fab_ops::host_setval(R, zero);
 
         auto const qx_arr = difx.const_array();
         auto const qy_arr = dify.const_array();
@@ -575,14 +545,7 @@ private:
     void applyL (amrex::FArrayBox const& S,
                  amrex::FArrayBox& lap) const
     {
-        // Host loop rather than setVal<RunOn::Host>, which aborts on SYCL builds.
-        {
-            auto const lz_arr = lap.array();
-            amrex::LoopOnCpu(lap.box(), [=] (int i, int j, int k) noexcept
-            {
-                lz_arr(i,j,k) = zero;
-            });
-        }
+        erf_host_fab_ops::host_setval(lap, zero);
 
         auto const S_arr   = S.const_array();
         auto const lap_arr = lap.array();
@@ -607,14 +570,7 @@ private:
     void applyLT (amrex::FArrayBox const& lap,
                   amrex::FArrayBox& R) const
     {
-        // Host loop rather than setVal<RunOn::Host>, which aborts on SYCL builds.
-        {
-            auto const rz_arr = R.array();
-            amrex::LoopOnCpu(R.box(), [=] (int i, int j, int k) noexcept
-            {
-                rz_arr(i,j,k) = zero;
-            });
-        }
+        erf_host_fab_ops::host_setval(R, zero);
 
         auto const q_arr = lap.const_array();
         auto const R_arr = R.array();
@@ -642,12 +598,7 @@ private:
         if (!m_interior_nodal_box.ok()) {
             // Fewer than two cells in a direction: there is no interior node to
             // evaluate the Laplacian at.  mu keeps the operator definite.
-            // Host loop rather than setVal<RunOn::Host>, which aborts on SYCL builds.
-            auto const rz_arr = R.array();
-            amrex::LoopOnCpu(R.box(), [=] (int i, int j, int k) noexcept
-            {
-                rz_arr(i,j,k) = zero;
-            });
+            erf_host_fab_ops::host_setval(R, zero);
             return;
         }
         // m_lap is sized once in solve(); see the note in applyDTD.
@@ -706,15 +657,7 @@ private:
      */
     void computeDiagonal (amrex::FArrayBox& diag) const
     {
-        // Host loop rather than setVal<RunOn::Host>, which aborts on SYCL builds.
-        {
-            amrex::Real const mu_val = m_mu;
-            auto const dz_arr = diag.array();
-            amrex::LoopOnCpu(diag.box(), [=] (int i, int j, int k) noexcept
-            {
-                dz_arr(i,j,k) = mu_val;
-            });
-        }
+        erf_host_fab_ops::host_setval(diag, m_mu);
         auto const d_arr = diag.array();
 
         // A^T A: each incident cell contributes (1/4)^2
@@ -827,29 +770,11 @@ private:
          */
         amrex::FArrayBox Mp(m_nodal_box,1,amrex::The_Managed_Arena());
 
-        // Host loops rather than setVal/copy<RunOn::Host>, which abort on SYCL builds.
-        {
-            auto const x_arr = x.array();
-            amrex::LoopOnCpu(x.box(), [=] (int i, int j, int k) noexcept
-            {
-                x_arr(i,j,k) = zero;
-            });
-            auto const x_r_arr = r.array();
-            auto const rhs_arr = rhs.const_array();
-            amrex::LoopOnCpu(r.box(), [=] (int i, int j, int k) noexcept
-            {   // r = rhs - M*0
-                x_r_arr(i,j,k) = rhs_arr(i,j,k);
-            });
-        }
+        // r = rhs - M*0, with x = 0 the initial guess every attempt restarts from.
+        erf_host_fab_ops::host_setval(x, zero);
+        erf_host_fab_ops::host_copy(r, rhs, 1);
         applyJacobi(diag,r,z);
-        {
-            auto const p_arr = p.array();
-            auto const z_arr = z.const_array();
-            amrex::LoopOnCpu(p.box(), [=] (int i, int j, int k) noexcept
-            {
-                p_arr(i,j,k) = z_arr(i,j,k);
-            });
-        }
+        erf_host_fab_ops::host_copy(p, z, 1);
 
         Real rz = dot(r,z);
         Real const initial = std::sqrt(dot(r,r));
@@ -1235,17 +1160,10 @@ reconstruct_nodal_height_slice (amrex::Box const& w_face_slice_box,
             if (!in_range(info)) { bad_reconstruction = 1; }
         }
 
-        // Host loop rather than copy<RunOn::Host>, which aborts on SYCL builds.
+        // host_copy rather than copy<RunOn::Host>, which aborts on SYCL builds.
         // Both fabs are managed (host-accessible, and z_nd_slice must also be
         // device-readable for fill_nodal_level_from_slice).
-        {
-            auto const z_dst_arr = z_nd_slice.array();
-            auto const z_src_arr = result.first.const_array();
-            amrex::LoopConcurrentOnCpu(nd_box, [=] (int i, int j, int k) noexcept
-            {
-                z_dst_arr(i,j,k,0) = z_src_arr(i,j,k,0);
-            });
-        }
+        erf_host_fab_ops::host_copy(z_nd_slice, result.first, 1);
     }
 
     amrex::ParallelDescriptor::Bcast(&bad_reconstruction, 1, ioproc);
