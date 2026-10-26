@@ -445,6 +445,12 @@ struct TurbulentPerturbation {
             pb_amp[lev][boxIdx] = input_w_amp;
         } else { // box perturbation
             amrex::Real Um = pb_mag[lev][boxIdx];
+
+            // No mean wind through this box: the amplitude scales with Um^2, so it stays zero.
+            //    Without this the scale-aware g below is zero (giving 0/0), and the update
+            //    interval for this box is not refreshed
+            if (Um == zero) { return; }
+
             amrex::Real beta = one/tpi_Tinf; // Thermal expansion coefficient
 
             // Pseudo Random temperature the ignores scale when mechanically tripping turbulence
