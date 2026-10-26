@@ -148,6 +148,9 @@ erf_init_dens_hse_dry (amrex::MultiFab& rho_hse,
                 rho_hse_arr(i,j,k) = r[kk];
             });
         } // mfi
+
+        // The kernels above read d_r; wait for them before d_r is freed
+        amrex::Gpu::streamSynchronize();
     }
 }
 
@@ -231,6 +234,9 @@ erf_init_dens_hse_moist (amrex::MultiFab& rho_hse,
             rho_hse_arr(i,j,k) = r[kk];
         });
     } // mfi
+
+    // The kernels above read d_r; wait for them before d_r is freed
+    amrex::Gpu::streamSynchronize();
 }
 
 /**

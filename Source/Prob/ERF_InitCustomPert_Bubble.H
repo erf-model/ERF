@@ -149,6 +149,9 @@
                 state_pert(i, j, k, qci_comp)   = qn * (one_d - omn);
             }
         });
+
+        // The kernel above reads d_r, d_p, d_t and d_q_v; wait for it before they are freed
+        Gpu::streamSynchronize();
     } else {
         ParallelFor(bx, [=,zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int k)
         {
