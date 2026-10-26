@@ -101,6 +101,7 @@ struct AdvChoice {
                 (dycore_horiz_adv_string == "Centered_6th") ||
                 (dycore_horiz_adv_string == "WENO3"       ) ||
                 (dycore_horiz_adv_string == "WENOZ3"      ) ||
+                (dycore_horiz_adv_string == "WENOMZQ3"    ) ||
                 (dycore_horiz_adv_string == "WENO5"       ) ||
                 (dycore_horiz_adv_string == "WENOZ5"      ) ||
                 (dycore_horiz_adv_string == "WENO7"       ) ||
@@ -122,6 +123,7 @@ struct AdvChoice {
                  (dycore_vert_adv_string == "Centered_6th") ||
                  (dycore_vert_adv_string == "WENO3"       ) ||
                  (dycore_vert_adv_string == "WENOZ3"      ) ||
+                 (dycore_vert_adv_string == "WENOMZQ3"    ) ||
                  (dycore_vert_adv_string == "WENO5"       ) ||
                  (dycore_vert_adv_string == "WENOZ5"      ) ||
                  (dycore_vert_adv_string == "WENO7"       ) ||
