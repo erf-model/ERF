@@ -535,7 +535,7 @@ void select_scattering_props (
  *
  * Computes cloud fraction from RH and qc using:
  *   cf_rh(k) = linear ramp from 0 at rh_min to 1 at rh_max
- *   cf_qc(k) = qc_scale * qc(k)
+ *   cf_qc(k) = min(1, qc(k) / qc_scale)
  *   cf(k) = min(1, cf_rh + cf_qc)  [saturated blend]
  *
  * Temperature comes from the equation of state (Exner function) and

@@ -528,12 +528,20 @@ void wdm6_nislfv_rain_plm6_column (
                     break;
                 }
             }
-            for (int kk = kt; kk < km; ++kk) {
+            // Unlike the WRF original, also try the departure point of the column top, and when
+            // the cell top lies above even that, take the rest from the empty region above it
+            // (QA(km) = 0). Otherwise the search fails for the top cells of the column, which
+            // then come out empty and lose what they held: harmless at the model top, where
+            // there is nothing, but not at the top of a refined patch.
+            bool kt_found = false;
+            for (int kk = kt; kk <= km; ++kk) {
                 if (ZI(k + 1) <= ZA(kk)) {
                     kt = kk;
+                    kt_found = true;
                     break;
                 }
             }
+            if (!kt_found) { kt = km + 1; }
             // Fortran writes a bare kt = kt - 1 with no floor. Clamping it to 0
             // is not equivalent: when the decrement should drop kt BELOW kb,
             // the Fortran falls through both branches and leaves qn(k) at zero,
@@ -650,7 +658,44 @@ void wdm6_ccn_activation (
 // ---------------------------------------------------------------
 
 void WDM6::Advance (const Real& dt_advance,
-                    const SolverChoice& /*solverChoice*/)
+                    const SolverChoice& solverChoice)
+{
+    m_sed.reset(dt_advance);
+
+    if (!m_columns.needs_gather()) {
+        AdvanceColumns(dt_advance, solverChoice);
+        return;
+    }
+
+    // Some column is split between boxes stacked in z. Sedimentation treats each box's
+    // k range as the whole column, so run on a copy of the fields in which every column
+    // lies in one box, then copy the result back.
+    amrex::Array<FabPtr, MicVar_WDM6::NumVars> saved;
+    m_columns.gather(mic_fab_vars, saved);
+    MultiFab* z_phys_nd_saved = m_z_phys_nd;
+    auto z_phys_nd_col = m_columns.gather_nodal(m_z_phys_nd);
+    m_z_phys_nd = z_phys_nd_col.get();
+    iMultiFab* lmask_saved = m_lmask;
+    auto lmask_col = m_columns.gather_2d(m_lmask);
+    m_lmask = lmask_col.get();
+    auto sed_saved = m_sed.down;
+    m_sed.down = m_columns.gather_one(*sed_saved);
+    const MultiFab* inflow_saved = m_sed_inflow;
+    auto inflow_col = (m_sed_inflow) ? m_columns.gather_one(*m_sed_inflow) : nullptr;
+    m_sed_inflow = inflow_col.get();
+
+    AdvanceColumns(dt_advance, solverChoice);
+
+    m_sed_inflow = inflow_saved;
+    sed_saved->ParallelCopy(*m_sed.down);
+    m_sed.down = sed_saved;
+    m_lmask = lmask_saved;
+    m_z_phys_nd = z_phys_nd_saved;
+    m_columns.scatter(mic_fab_vars, saved);
+}
+
+void WDM6::AdvanceColumns (const Real& dt_advance,
+                           const SolverChoice& /*solverChoice*/)
 {
     // ---------------------------------------------------------------
     // Dual-mode implementation following WSM6 pattern:
@@ -701,6 +746,12 @@ void WDM6::Advance (const Real& dt_advance,
         pp.queryAdd("use_wdm6_cpp_answer", use_wdm6_cpp_answer);
     }
     const bool run_wdm6_fort = !use_wdm6_cpp_answer;
+
+    // The Fortran bridge takes each box's k range as the whole column (the box top as the
+    // model top, its bottom as the ground), so it needs boxes that do span it.
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!run_wdm6_fort || m_columns.boxes_span_domain(),
+        "WDM6: the Fortran bridge (erf.use_wdm6_cpp_answer = false) requires every box to span "
+        "the domain in z (no grids split in z, and no refined levels short of the domain top or bottom)");
 #endif
 
     // Physical constants
@@ -747,6 +798,7 @@ void WDM6::Advance (const Real& dt_advance,
         auto rain_arr = mic_fab_vars[MicVar_WDM6::rain_accum]->array(mfi);
         auto snow_arr = mic_fab_vars[MicVar_WDM6::snow_accum]->array(mfi);
         auto graup_arr = mic_fab_vars[MicVar_WDM6::graup_accum]->array(mfi);
+        auto const& sed_arr = m_sed.down->array(mfi);
 
         const int ilo = box.smallEnd(0);
         const int ihi = box.bigEnd(0);
@@ -1217,7 +1269,28 @@ void WDM6::Advance (const Real& dt_advance,
             });
         }
 
+        // At the top of a fine patch, rain, snow, ... come in from the coarse level: add
+        // each minor step's share of it to the top cell before that step, so it falls with
+        // what is already there, and record it on the top face.
+        const auto inflow_arr = (m_sed_inflow) ? m_sed_inflow->const_array(mfi)
+                                               : Array4<const Real>{};
+        const Real inflow_share = Real(1) / static_cast<Real>(wdm6_loops);
+
         for (int loop = 0; loop < wdm6_loops; ++loop) {
+            if (inflow_arr) {
+                ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
+                    if (inflow_arr(i,j,khi+1,WDM6Sed::NumComps) < Real(0.5)) { return; }
+                    const Real fac = inflow_share / (den_arr(i,j,khi) * delz_arr(i,j,khi));
+                    qi_arr(i,j,khi) += inflow_arr(i,j,khi+1,WDM6Sed::qi) * fac;
+                    qr_arr(i,j,khi) += inflow_arr(i,j,khi+1,WDM6Sed::qr) * fac;
+                    qs_arr(i,j,khi) += inflow_arr(i,j,khi+1,WDM6Sed::qs) * fac;
+                    qg_arr(i,j,khi) += inflow_arr(i,j,khi+1,WDM6Sed::qg) * fac;
+                    nr_arr(i,j,khi) += inflow_arr(i,j,khi+1,WDM6Sed::nr) * fac;
+                    for (int n = 0; n < WDM6Sed::NumComps; ++n) {
+                        sed_arr(i,j,khi+1,n) += inflow_arr(i,j,khi+1,n) * inflow_share;
+                    }
+                });
+            }
             // ============================================================
             // Step 1: Density factor (G1b / DENFAC)
             // ============================================================
@@ -1430,6 +1503,14 @@ void WDM6::Advance (const Real& dt_advance,
             ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
                 amrex::ignore_unused(k);
                 const int col_mstep = mstep_arr(i,j,klo);
+
+                // The face fluxes are what the cells above each face lose: add the
+                // top-down sums of rho*q*dz now, and subtract them after the substeps.
+                sedimentation_add_column_sums(sed_arr, WDM6Sed::qr, i, j, klo, khi, Real(1.0),
+                    [&](int kk) { return den_arr(i,j,kk) * qr_arr(i,j,kk) * delz_arr(i,j,kk); });
+                sedimentation_add_column_sums(sed_arr, WDM6Sed::nr, i, j, klo, khi, Real(1.0),
+                    [&](int kk) { return den_arr(i,j,kk) * nr_arr(i,j,kk) * delz_arr(i,j,kk); });
+
                 for (int n = 1; n <= mstepmax; ++n) {
                     if (n > col_mstep) {
                         continue;
@@ -1505,6 +1586,11 @@ void WDM6::Advance (const Real& dt_advance,
                         workn_arr(i,j,kk) = rain_vtn / delz_arr(i,j,kk);
                     }
                 }
+
+                sedimentation_add_column_sums(sed_arr, WDM6Sed::qr, i, j, klo, khi, Real(-1.0),
+                    [&](int kk) { return den_arr(i,j,kk) * qr_arr(i,j,kk) * delz_arr(i,j,kk); });
+                sedimentation_add_column_sums(sed_arr, WDM6Sed::nr, i, j, klo, khi, Real(-1.0),
+                    [&](int kk) { return den_arr(i,j,kk) * nr_arr(i,j,kk) * delz_arr(i,j,kk); });
             });
 
             // ============================================================
@@ -1550,6 +1636,12 @@ void WDM6::Advance (const Real& dt_advance,
                         : Real(0.0);
                 }
 
+                // Face fluxes, as for rain: the top-down sums before, minus those after
+                sedimentation_add_column_sums(sed_arr, WDM6Sed::qs, i, j, klo, khi, Real(1.0),
+                    [&](int kk) { return den_arr(i,j,kk) * qs_arr(i,j,kk) * delz_arr(i,j,kk); });
+                sedimentation_add_column_sums(sed_arr, WDM6Sed::qg, i, j, klo, khi, Real(1.0),
+                    [&](int kk) { return den_arr(i,j,kk) * qg_arr(i,j,kk) * delz_arr(i,j,kk); });
+
                 Real delqrs2 = Real(0.0);
                 Real delqrs3 = Real(0.0);
                 wdm6_nislfv_rain_plm6_column(
@@ -1564,6 +1656,10 @@ void WDM6::Advance (const Real& dt_advance,
                     qs_arr(i,j,k3) = amrex::max(rq_col(kk) / den_col(kk), Real(0.0));
                     qg_arr(i,j,k3) = amrex::max(rq2_col(kk) / den_col(kk), Real(0.0));
                 }
+                sedimentation_add_column_sums(sed_arr, WDM6Sed::qs, i, j, klo, khi, Real(-1.0),
+                    [&](int kk) { return den_arr(i,j,kk) * qs_arr(i,j,kk) * delz_arr(i,j,kk); });
+                sedimentation_add_column_sums(sed_arr, WDM6Sed::qg, i, j, klo, khi, Real(-1.0),
+                    [&](int kk) { return den_arr(i,j,kk) * qg_arr(i,j,kk) * delz_arr(i,j,kk); });
 
                 fall_arr(i,j,klo,1) = delqrs2 / dz_col(0) / dtcld;   // fall(i,1,2)
                 fall_arr(i,j,klo,2) = delqrs3 / dz_col(0) / dtcld;   // fall(i,1,3)
@@ -1774,6 +1870,10 @@ void WDM6::Advance (const Real& dt_advance,
                     rq2_col(kk) = den_col(kk) * qi_arr(i,j,k3);
                 }
 
+                // Face fluxes: the top-down sums before, minus those after
+                sedimentation_add_column_sums(sed_arr, WDM6Sed::qi, i, j, klo, khi, Real(1.0),
+                    [&](int kk) { return den_arr(i,j,kk) * qi_arr(i,j,kk) * delz_arr(i,j,kk); });
+
                 Real delqi_col = Real(0.0);
                 Real delqi2_col = Real(0.0);
 
@@ -1803,6 +1903,8 @@ void WDM6::Advance (const Real& dt_advance,
                     const int k3 = klo + kk;
                     qi_arr(i,j,k3) = amrex::max(rq_col(kk) / den_col(kk), Real(0.0));
                 }
+                sedimentation_add_column_sums(sed_arr, WDM6Sed::qi, i, j, klo, khi, Real(-1.0),
+                    [&](int kk) { return den_arr(i,j,kk) * qi_arr(i,j,kk) * delz_arr(i,j,kk); });
 
                 // Ice fallout at surface. Indexed at klo to match the G9 block
                 // below, which reads fallc_arr(i,j,klo); this lambda discards
@@ -1817,9 +1919,13 @@ void WDM6::Advance (const Real& dt_advance,
             // Step 3h: G9 Surface precipitation accumulation and sr update
             // ============================================================
 
-            // Surface precipitation accumulation from sedimentation fallout
+            // Surface precipitation accumulation from sedimentation fallout. Only a
+            // column standing on the domain bottom has a ground to accumulate it on.
+            const bool reaches_ground = (klo == m_geom.Domain().smallEnd(2));
             ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
             {
+                if (!reaches_ground) { return; }
+
                 const Real fall_r = fall_arr(i,j,klo,0);        // rain fallout
                 const Real fall_s = fall_arr(i,j,klo,1);        // snow fallout
                 const Real fall_g = fall_arr(i,j,klo,2);        // graupel fallout

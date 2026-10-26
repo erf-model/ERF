@@ -1,54 +1,49 @@
 # Prognostic Cloud Fraction Test
 
-## Objective
+## Purpose
 
-Validate that cloud fraction is diagnosed from relative humidity and cloud liquid water, and correctly applied to optical-depth masking.
+Run the TwoStream radiation with `erf.radiation.cloud_fraction_prog_enable = true`,
+so the cloud fraction of the cloud band is diagnosed from relative humidity (RH)
+and cloud water (qc) instead of the fixed `erf.radiation.cloud_fraction`.
 
-## Test Purpose
+The case is a smoke test of that code path. Its sounding is dry (qv = 0) and the
+deck sets no moisture model, so RH = 0 and qc = 0 in every cell, the diagnosed
+cloud fraction is 0, and the cloud band adds no optical depth. It does not test
+the RH value itself; the unit tests in
+`Tests/Unit/Radiation/ERF_GTestTwoStreamColumn.cpp` do
+(`RelativeHumidityOfAHalfSaturatedParcel`,
+`RelativeHumidityStaysBoundedWhenSaturationPressureExceedsP`,
+`CloudFractionLiquidWaterTermIsAThreshold`).
 
-This test confirms that:
-- Cloud fraction is computed from RH/qc without explicit input
-- Cloud-layer opacity masks only cloudy portions of each column
-- Heating rates are reduced in non-cloudy regions
-- Backward compatibility maintained (disabled by default)
+## Configuration
 
-## Test Design
+- **Domain**: 3000 m × 3000 m × 2710 m, 8 × 8 × 64 cells, stretched in z
+  (`erf.initial_dz = 4`, ratio 1.06), periodic in x and y
+- **Flow**: ABL with a 15 m/s geostrophic wind, MRF PBL, surface layer at the bottom
+- **Time**: `stop_time = 5` s with `erf.fixed_dt = 0.5` s
+- **Radiation**: `cloud_layer` optical-depth profile, cloud band 500-2000 m,
+  `cloud_tau_per_layer = 0.5`, fixed sun (cos zenith 0.5)
+- **Cloud fraction**: `rh_min = 0.7`, `rh_max = 1.0`, `qc_scale = 1e-3` kg/kg
 
-### Configuration
+## Key Physics
 
-- **Domain**: 1000 m × 1000 m horizontal, 10 km vertical (20 layers)
-- **Time**: Multiple timesteps (5+ steps)
-- **Sounding**: Includes moisture profile with RH variations
-- **Cloud Optical Depth**: τ_cloud = 1.0 (where clouds form)
-- **Cloud Fraction**: Diagnosed from RH relative to saturation and qc
-- **Prognostic Cloud Fraction**: Enabled (`cloud_fraction_prog_enable = true`)
+The cloud fraction of each layer is (see `Docs/sphinx_doc/theory/Radiation.rst`,
+"Cloud Fraction Diagnosis"):
 
-### Key Physics
-
-Cloud fraction is diagnosed as:
 ```
-cf = min(1.0, max(0.0, (RH - RH_threshold) / (1.0 - RH_threshold)))
-```
-
-or from qc directly:
-```
-cf = min(1.0, qc / qc_threshold)
-```
-
-Total optical depth becomes:
-```
-τ(k) = τ_bg(k) + cf(k) · τ_cloud
+cf = min(1, clamp((RH - rh_min) / (rh_max - rh_min), 0, 1) + min(1, qc / qc_scale))
 ```
 
-This ensures that dry layers contribute no cloud opacity.
+RH = qv / qsat, with qsat from the Magnus saturation vapour pressure over liquid
+water. Inside the cloud band the layer optical depth gains `cf * cloud_tau_per_layer`.
 
 ## Files
 
-- `inputs` — Main control file with prognostic cloud fraction enabled
-- `input_sounding_moist` — Atmospheric sounding with moisture profile
-- `check_progcf.py` — Python validation script
+- `inputs` — control file with the prognostic cloud fraction enabled
+- `input_sounding` — dry sounding (qv = 0)
+- `check_progcf.py` — reads the radiation diagnostics and the plotfiles
 
-## Running the Test
+## How to run
 
 ```bash
 cd Exec/CanonicalTests/Radiation/TwoStream_ProgCloudFraction
@@ -56,24 +51,11 @@ mpirun -np 1 erf.ex inputs
 python3 check_progcf.py
 ```
 
-## Validation Criteria
+## Expected Results
 
-The checker script verifies:
+`check_progcf.py` prints `RESULT: PASS` when the radiation diagnostics parse,
+their values are finite, and every plotfile has a Header.
 
-1. **Cloud fraction** is bounded 0 ≤ cf ≤ 1 everywhere
-2. **Cloud fraction** is highest where RH is highest (physical consistency)
-3. **Heating** reduced in low-cf regions, enhanced in high-cf regions
-5. **Diagnostics file** includes cloud fraction or heating diagnostics
-6. **No NaN or Inf values** in output
-7. **Backward compatibility** (disabled by default, no change to clear-sky case)
+## CTest
 
-## Expected Output
-
-- Radiation diagnostics with cloud-layer signature heating
-- CHECK PASS message confirming prognostic cloud fraction
-- Heating profile showing maximum in cloudy regions
-- Smooth evolution of cloud fraction over multiple steps
-
-## Related Documentation
-
-- Cloud optical-depth formulation in `Source/Radiation/TwoStream/`
+None. The case is not registered in CTest.

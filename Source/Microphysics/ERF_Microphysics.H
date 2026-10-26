@@ -12,6 +12,7 @@
 #include "ERF_DataStruct.H"
 #include "ERF_IndexDefines.H"
 #include "ERF_SurfacePrecipitation.H"
+#include "ERF_SedimentationFlux.H"
 
 /*! \brief Base class for microphysics interface */
 class Microphysics {
@@ -67,6 +68,14 @@ public:
     {
         return {};
     }
+
+    /*! \brief The sedimentation face fluxes of the most recent Advance at a level, or null
+     *         when the moisture model does not sediment there (see ERF_SedimentationFlux.H) */
+    virtual const SedimentationFlux* Get_Sed_Flux (const int& /*lev*/) const { return nullptr; }
+
+    /*! \brief Hand the moisture model at a level the inflow through the top of its fine
+     *         patches for the next Advance, or null (see ERF_SedimentationFlux.H) */
+    virtual void Set_Sed_Inflow (const int& /*lev*/, const amrex::MultiFab* /*inflow*/) { }
 
     /*! \brief get pointer to a moisture variable */
     virtual amrex::MultiFab* Get_Qmoist_Ptr (const int&, const int&) = 0;

@@ -755,9 +755,11 @@ interpolate_column_metgrid (const bool& metgrid_use_below_sfc,
         // surface data.
         int count = 1;
         int knext = count;
+        // The same ERF level as in the branch above: the surface is used through
+        // metgrid_force_sfc_k ERF levels, k = 0 .. metgrid_force_sfc_k-1
         if (metgrid_force_sfc_k > 0) {
             for (int k=knext; k < kmax_orig; k++) {
-                if (orig_z_p[k] > new_z_p[metgrid_force_sfc_k]) {
+                if (orig_z_p[k] > new_z_p[metgrid_force_sfc_k-1]) {
                     knext = k;
                     break;
                 }

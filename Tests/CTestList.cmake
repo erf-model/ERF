@@ -1062,7 +1062,7 @@ endfunction(add_test_restart_abort)
 # agreement is not between two copies of a constant.
 function(add_test_tiling_parity TEST_NAME TEST_FILES_DIR PLTFILE PLT2DFILE)
     set(options )
-    set(oneValueArgs "RUNTIME_OPTIONS" "VARYING_3D" "VARYING_2D")
+    set(oneValueArgs "RUNTIME_OPTIONS" "VARYING_3D" "VARYING_2D" "TILED_SIZE")
     set(multiValueArgs )
     cmake_parse_arguments(ADD_TEST_TP "${options}" "${oneValueArgs}"
         "${multiValueArgs}" ${ARGN})
@@ -1086,6 +1086,7 @@ function(add_test_tiling_parity TEST_NAME TEST_FILES_DIR PLTFILE PLT2DFILE)
         "-DPLT2DFILE=${PLT2DFILE}"
         "-DVARYING_3D=${ADD_TEST_TP_VARYING_3D}"
         "-DVARYING_2D=${ADD_TEST_TP_VARYING_2D}"
+        "-DTILED_SIZE=${ADD_TEST_TP_TILED_SIZE}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunTilingParity.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -1155,9 +1156,10 @@ endfunction(add_test_at_rest_terrain_outflow)
 # (InflowThetaDensity) and on an inflow_outflow face (InflowOutflowThetaFile), and only the
 # face that read the file uses it (InflowThetaFileOtherFace, a second inflow face with its
 # own density and theta).  PRE_INPUT names a deck in the test folder to run first, in the same
-# folder (BndryPlanes_MoistTemperature writes the boundary planes its deck then reads).
+# folder (BndryPlanes_MoistTemperature writes the boundary planes its deck then reads).  MIN_HI
+# and MAX_LO further require the minimum to be at most MIN_HI and the maximum at least MAX_LO.
 function(add_test_field_bounds TEST_NAME PLTFILE VARIABLE LO HI)
-    cmake_parse_arguments(ADD_TEST_FB "" "PRE_INPUT" "" ${ARGN})
+    cmake_parse_arguments(ADD_TEST_FB "" "PRE_INPUT;MIN_HI;MAX_LO" "" ${ARGN})
     setup_test()
     set(_pre_input "")
     if(NOT "${ADD_TEST_FB_PRE_INPUT}" STREQUAL "")
@@ -1178,6 +1180,8 @@ function(add_test_field_bounds TEST_NAME PLTFILE VARIABLE LO HI)
         "-DLO=${LO}"
         "-DHI=${HI}"
         "-DPRE_INPUT=${_pre_input}"
+        "-DMIN_HI=${ADD_TEST_FB_MIN_HI}"
+        "-DMAX_LO=${ADD_TEST_FB_MAX_LO}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunFieldBounds.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
@@ -1617,6 +1621,15 @@ set_tests_properties(BndryPlanes_MoistTemperature PROPERTIES FIXTURES_SETUP Bndr
 add_test_field_bounds(InputSponge_FinePatch "plt00004" x_velocity 5.9 8.5)
 # A refined patch below the inversion takes the coarse level's PBL height (~513 m), not its own
 add_test_field_bounds(PBLH_FinePatch "plt2d00004" pblh 450.0 600.0)
+# A column whose bulk Richardson number never reaches Ribcr takes the top of the scan, capped
+# at 0.9 z(khi) = 907.2 m; YSUNew and MRF gave it the 16 m floor (erf-model/ERF#4458)
+add_test_field_bounds(PBL_NoCrossing_YSUNew "plt2d00002" pblh 907.1 907.3)
+add_test_field_bounds(PBL_NoCrossing_MRF    "plt2d00002" pblh 907.1 907.3)
+# YSUNew columns whose surface cell is already above Ribcr take the 16 m floor, and the others
+# 907.2 m; the interpolation divided 0 by 0 there and the run stopped at the floating-point trap.
+# Both ends are required, so the test also fails where no trap fires (#4458)
+add_test_field_bounds(PBL_SurfaceCrossing_YSUNew "plt2d00002" pblh 15.99 907.3
+                      MIN_HI 16.01 MAX_LO 907.1)
 # k-eqn RANS canopy terms in a uniform, fully forested box: one step of the wind (drag with
 # density) and of k (wake production, short-circuit sink, length cap, implicit dissipation)
 # against the closed-form stage solution in the deck. The wall at the bottom (needed for the
@@ -1945,6 +1958,47 @@ add_test_r(IsentropicVortexAdvecting         ""  "erf_exec" "plt00010")
 add_test_r(IVA_NumDiff                       ""  "erf_exec" "plt00010")
 add_test_r(MovingTerrain_nosub               ""  "erf_exec" "plt00020")
 add_test_r(MovingTerrain_sub                 ""  "erf_exec" "plt00010")
+
+# Problem setups measured from geometry.prob_lo (#4603, #4619, #4623) and the Poiseuille
+# y-velocity perturbation (#4618). Each shift test writes the initial state twice, the
+# second time with the domain moved; Tests/check_shift_invariance.py requires the second
+# to be the first shifted by SHIFT cells in x. MovingTerrain: half a wavelength (50 m, 10
+# cells); before the fix the terrain and w ignored prob_lo while u used it (z_velocity off
+# by 2x its size). ScalarAdvDiff: one domain length in x, y and z with prob_type 12 (an
+# ellipse in x-z) and xc_frac = zc_frac = 0.25; before the fix the centre was
+# frac * (lo + hi) and the blob moved by 0.5 domain lengths in x and z.
+function(add_test_shift_invariance TEST_NAME TEST_FILES_DIR SHIFT VARS OPTIONS_A OPTIONS_B)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(_run "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i max_step=0 erf.plot_int_1=1 erf.check_int=-1")
+    add_test(${TEST_NAME} sh -c
+      "${_run} erf.plot_file_1=pltA ${OPTIONS_A} > ${CURRENT_TEST_BINARY_DIR}/runA.log 2>&1 && ${_run} erf.plot_file_1=pltB ${OPTIONS_B} > ${CURRENT_TEST_BINARY_DIR}/runB.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_shift_invariance.py ${CURRENT_TEST_BINARY_DIR}/pltA00000 ${CURRENT_TEST_BINARY_DIR}/pltB00000 --shift ${SHIFT} --vars ${VARS} --tol 1e-12")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/runA.log;${CURRENT_TEST_BINARY_DIR}/runB.log")
+endfunction(add_test_shift_invariance)
+
+function(add_test_v_perturbation TEST_NAME EXPECT OPTIONS)
+    set(TEST_FILES_DIR Poiseuille_PertV)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    add_test(${TEST_NAME} sh -c
+      "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/Poiseuille_PertV.i ${OPTIONS} > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_v_perturbation.py ${CURRENT_TEST_BINARY_DIR}/plt00000 --expect ${EXPECT}")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+endfunction(add_test_v_perturbation)
+
+if(NOT WIN32 AND ERF_TEST_PYTHON)
+  add_test_shift_invariance(MovingTerrain_ShiftInvariance MovingTerrain_nosub 10
+      "x_velocity z_velocity z_phys" "" "'geometry.prob_lo=50 0 0'")
+  add_test_shift_invariance(ScalarAdvDiff_CentreShiftInvariance ScalarAdvectionUniformU 0
+      "rhoadv_0" "prob.prob_type=12 prob.rad_0=0.3 prob.xc_frac=0.25 prob.zc_frac=0.25"
+      "prob.prob_type=12 prob.rad_0=0.3 prob.xc_frac=0.25 prob.zc_frac=0.25 'geometry.prob_lo=1 1 1'")
+  # pert_delta_v alone gives a y-velocity perturbation; pert_delta_u alone does not
+  add_test_v_perturbation(Poiseuille_PertV_Only "nonzero" "")
+  add_test_v_perturbation(Poiseuille_PertU_Only "zero" "prob.pert_delta_u=2.0 prob.pert_delta_v=0.0")
+endif()
 add_test_r(Terrain2Lev_STF_interp            ""  "erf_exec" "plt00010")
 add_test_r(Terrain2Lev_STF_transform         ""  "erf_exec" "plt00010")
 add_test_r(RayleighDamping                   ""  "erf_exec" "plt00100")
@@ -2089,9 +2143,58 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_tiling_parity(PBL_IBAware_YSUNew_Tiling PBL_IBAware_Tiling "00010" "00010"
       RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU"
       VARYING_3D "Kmv" VARYING_2D "pblh u_star")
+  # YSUNew with PBL-height smoothing over a neutral ground (erf-model/ERF#4479).
+  # The surface heat flux is round-off whose sign follows the decomposition, and
+  # the stability flag took its sign: on this deck Khv beside the cube differed by
+  # 9 % between one box and 8 x 8 tiles, and x_velocity by 4e-8 with 16 boxes. Tiles must split x as well as y to change
+  # that round-off, so the tiled run uses 8 x 8 x-y tiles (TILED_SIZE). Since #4458 no column of this
+  # neutral deck reaches Ribcr, so pblh is the 0.9 z(khi) cap everywhere and only Kmv and Khv must vary.
+  add_test_tiling_parity(PBL_IBAware_Neutral_Tiling PBL_IBAware_Neutral "00010" "00010"
+      TILED_SIZE "8 8 1024000"
+      VARYING_3D "Kmv Khv")
+  add_test_box_parity(PBL_IBAware_Neutral_BoxParity PBL_IBAware_Neutral "plt00010"
+      COMMON_OPTIONS "erf.input_sounding_file=${CMAKE_CURRENT_BINARY_DIR}/test_files/PBL_IBAware_Neutral_BoxParity/input_sounding"
+      REFERENCE_OPTIONS "fabarray.mfiter_tile_size=1024000 1024000 1024000"
+      SPLIT_OPTIONS "amr.max_grid_size=8 fabarray.mfiter_tile_size=1024000 1024000 1024000")
 endif()
 add_test_r(ABL_InflowFile                    ""  "erf_exec" "plt00010")
 add_test_r(MoistBubble                       ""  "erf_exec" "plt00010")
+# erf.energy_data_log (#4602): the logged total mass and energy of the moist bubble at
+# t = 0 against the same sums taken from its plotfile (Tests/check_energy_log.py). The
+# bubble starts with cloud water, so the liquid terms are checked; the rain variant checks
+# the rain term. No test has ice. Before the fix the log
+# used rho*q in place of the mixing ratios and left out rain and ice: 0.4 % off in mass
+# and 1.1 % in energy. ERF appends to the log, so the test removes it first.
+# 6 significant digits in the log; float sums over the 80 000 cells add about 1e-6
+if(ERF_PRECISION STREQUAL "SINGLE")
+  set(_energy_tol 1e-4)
+else()
+  set(_energy_tol 5e-6)
+endif()
+if(NOT WIN32 AND ERF_TEST_PYTHON)
+  set(TEST_NAME MoistBubble_EnergyLog)
+  set(TEST_FILES_DIR MoistBubble)
+  setup_test()
+  unset(TEST_FILES_DIR)
+  resolve_test_exe("" "erf_exec" TEST_EXE)
+  add_test(${TEST_NAME} sh -c
+    "rm -f ${CURRENT_TEST_BINARY_DIR}/energy.log && ${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/MoistBubble.i max_step=0 erf.plot_int_1=1 erf.check_int=-1 'erf.plot_vars_1=density qv qc temp x_velocity y_velocity z_velocity' erf.energy_data_log=energy.log erf.sum_interval=1 erf.v=1 > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_energy_log.py ${CURRENT_TEST_BINARY_DIR}/plt00000 ${CURRENT_TEST_BINARY_DIR}/energy.log --tol ${_energy_tol}")
+  set_tests_properties(${TEST_NAME} PROPERTIES
+      TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+      LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+  # The same bubble with Kessler rain, 20 steps: rain has formed (up to 3.6e-4 kg/kg, 2.3e-4
+  # of the mass), and the last log row (t = 10 s) is compared with plt00020
+  set(TEST_NAME MoistBubble_EnergyLogRain)
+  set(TEST_FILES_DIR MoistBubble)
+  setup_test()
+  unset(TEST_FILES_DIR)
+  add_test(${TEST_NAME} sh -c
+    "rm -f ${CURRENT_TEST_BINARY_DIR}/energy.log && ${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/MoistBubble.i max_step=20 erf.plot_int_1=20 erf.check_int=-1 erf.moisture_model=Kessler 'erf.plot_vars_1=density qv qc qrain temp x_velocity y_velocity z_velocity' erf.energy_data_log=energy.log erf.sum_interval=1 erf.v=1 > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_energy_log.py ${CURRENT_TEST_BINARY_DIR}/plt00020 ${CURRENT_TEST_BINARY_DIR}/energy.log --row -1 --require-rain --tol ${_energy_tol}")
+  set_tests_properties(${TEST_NAME} PROPERTIES
+      TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+      LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+  unset(TEST_NAME)
+endif()
 # The moist bubble with Kessler rain (the MoistBubble deck with erf.moisture_model=Kessler
 # and the rain fields in the plotfile), restarted from step 4 to step 8 on its constant-dz
 # mesh: the restart path set the microphysics' minimum dz only on fitted meshes, so the
@@ -2249,6 +2352,14 @@ function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME
     )
 endfunction(add_test_abort)
 
+if(NOT WIN32)
+  # Inputs that used to index past an array or divide by zero (#4620, #4624)
+  add_test_abort(AnelasticWallDiffusion_AxisOutOfRange ${CMAKE_CURRENT_SOURCE_DIR}/test_files/AnelasticWallDiffusion_X
+                 AnelasticWallDiffusion_X.i "prob.axis must be 0, 1 or 2" "prob.axis=3")
+  add_test_abort(ScalarAdvDiff_ZeroRadius ${CMAKE_CURRENT_SOURCE_DIR}/test_files/ScalarAdvectionUniformU
+                 ScalarAdvectionUniformU.i "prob.rad_0 must be > 0 for prob.prob_type = 11, 12 and 13" "prob.rad_0=0")
+endif()
+
 # A moist run's temperature planes need the qv planes to be converted back to theta: reading
 # them without qv (the planes BndryPlanes_MoistTemperature writes), and writing them without qv
 # from a moist run, both stop (erf-model/ERF#4290)
@@ -2320,6 +2431,17 @@ if(NOT WIN32)
   add_test_abort(RANSRealizability_NeedsKEqn ${_canopy_dir} ForestCanopyRANS_Uniform.i
                  "erf.rans_realizability needs erf.rans_type = kEqn"
                  "erf.rans_type=None erf.les_type=Smagorinsky erf.Cs=0.1 erf.forest_canopy_tke=false 'erf.rans_realizability=0.309 0.5'")
+  # Rt_min between the pole of cmu (-3.59869) and the old bound -3.6 was accepted, and a
+  # strongly unstable cell then got a negative cmu (erf-model/ERF#4516): abort. The bound
+  # prints as -3.5986889 in double and -3.5986888 in single precision.
+  add_test_abort(RANS_RtMinBelowCmuPole ${_canopy_dir} ForestCanopyRANS_Uniform.i
+                 "erf.Rt_min must be > -3.598688. for the k-eqn RANS"
+                 "erf.Rt_min=-3.599")
+  # With Cmu0 = 0.3 the numerator of cmu is zero at -2.78, above the default Rt_min = -3, so
+  # cmu < 0 in unstable air although Rt_min is above the pole: abort
+  add_test_abort(RANS_RtMinBelowCmuNumeratorZero ${_canopy_dir} ForestCanopyRANS_Uniform.i
+                 "erf.Rt_min must be > -erf.Cmu0/0.108"
+                 "erf.Cmu0=0.3")
   add_test_abort(RANSRealizability_Range ${_canopy_dir} ForestCanopyRANS_Uniform.i
                  "erf.rans_realizability must be 0 .off. or in"
                  "erf.rans_realizability=20")
@@ -2365,6 +2487,24 @@ if(NOT WIN32)
                  "erf.forest_canopy_beta_p=0 erf.forest_canopy_beta_d=0 erf.forest_canopy_length_alpha=0")
 endif()
 
+# Thin-body projection (project_velocity_tb) with two corrector passes and dt = 0.025:
+# the stored gradient gradp (dpdx, dpdy, dpdz) must equal the centred difference of the
+# stored pressure increment pp_inc (pert_pres) in every interior cell. Before #4608 was
+# fixed gradp kept only the last pass, and pp_inc took phi = dt * p without the 1/dt;
+# both made the two differ by 65-100 % of the gradient. The 1e-8 tolerance is for
+# double precision (the fixed code gives about 3e-16), so the test runs there only.
+if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
+  set(TEST_NAME ThinBody_GradP)
+  setup_test()
+  resolve_test_exe("" "erf_exec" TEST_EXE)
+  add_test(${TEST_NAME} sh -c
+    "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_thin_body_gradp.py ${CURRENT_TEST_BINARY_DIR}/plt00002")
+  set_tests_properties(${TEST_NAME} PROPERTIES
+      TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+      LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+  unset(TEST_NAME)
+endif()
+
 # The projection on a stretched mesh that is periodic in z has no solver: it stops with the same
 # message with and without FFT, rather than the AMReX assertion of the hybrid FFT solver or a
 # request to rebuild with FFT (erf-model/ERF#4281)
@@ -2374,6 +2514,39 @@ if(NOT WIN32)
                  Anelastic_StretchedPeriodicZ.i
                  "on a stretched mesh .* needs a non-periodic z direction"
                  "")
+endif()
+
+# Geostrophic wind from erf.abl_geo_wind_table (#4605, #4606). GeoWindTable_TwoLevel starts at
+# rest under Ug = 2 + z/100, Vg = 0, on two levels with level 1 refined in z: after one step
+# v = f dt Ug(z) in every cell of both levels. Level 1 used to read level 0's z levels, past
+# their end when refined in z (the run stopped with a signal). The three tables that follow
+# stop at start-up: no rows, a row with two numbers, and heights that do not increase.
+set(_geo_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/GeoWindTable_TwoLevel)
+# 1.7e-9 in double precision; float round-off of v ~ 1e-4 m/s is about 1e-6 relative
+if(ERF_PRECISION STREQUAL "SINGLE")
+  set(_geo_tol 1.0e-4)
+else()
+  set(_geo_tol 1.0e-6)
+endif()
+if(NOT WIN32 AND ERF_TEST_PYTHON)
+  set(TEST_NAME GeoWindTable_TwoLevel)
+  setup_test()
+  resolve_test_exe("" "erf_exec" TEST_EXE)
+  add_test(${TEST_NAME} sh -c
+    "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.i > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_geowind_profile.py ${CURRENT_TEST_BINARY_DIR}/plt00001 --tol ${_geo_tol}")
+  set_tests_properties(${TEST_NAME} PROPERTIES
+      TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+      LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+  unset(TEST_NAME)
+endif()
+if(NOT WIN32)
+  add_test_abort(GeoWindTable_Empty ${_geo_dir} GeoWindTable_TwoLevel.i
+                 "has no z Ug Vg rows" "amr.max_level=0 erf.abl_geo_wind_table=geo_wind_table_empty")
+  add_test_abort(GeoWindTable_ShortRow ${_geo_dir} GeoWindTable_TwoLevel.i
+                 "line 2 of geo_wind_table_short_row .* does not hold exactly three numbers"
+                 "amr.max_level=0 erf.abl_geo_wind_table=geo_wind_table_short_row")
+  add_test_abort(GeoWindTable_Decreasing ${_geo_dir} GeoWindTable_TwoLevel.i
+                 "must increase; see line 3" "amr.max_level=0 erf.abl_geo_wind_table=geo_wind_table_decreasing")
 endif()
 
 if(ERF_ENABLE_MPI AND NOT WIN32)
@@ -2818,6 +2991,13 @@ endfunction(add_test_rans)
 add_test_rans(RANS_Neutral_ABL_Flat     Neutral_ABL_Flat     inputs_neutral     40  check_neutral.py    RUNTIME_OPTIONS "erf.use_fft=false")
 add_test_rans(RANS_Stable_ABL_Flat      Stable_ABL_Flat      inputs_stable      40  check_stable.py     RUNTIME_OPTIONS "erf.use_fft=false")
 add_test_rans(RANS_Convective_ABL_Flat  Convective_ABL_Flat  inputs_convective  40  check_convective.py RUNTIME_OPTIONS "erf.use_fft=false")
+# Wall distance on a flat mesh whose bottom is at z = 300 m: the height above the bottom
+# wall, not the absolute height (#4609), on a constant-dz mesh and on a stretched mesh
+# whose boxes are split in z, where the upper box has no surface node of its own (#4610)
+add_test_rans(RANS_WallDist_RaisedBase   Neutral_ABL_Flat     inputs_neutral     1   check_walldist.py
+    RUNTIME_OPTIONS "erf.use_fft=false 'geometry.prob_lo=0 0 300' erf.input_sounding_file=input_sounding_raised 'erf.plot_vars_1=density walldist KE'")
+add_test_rans(RANS_WallDist_RaisedBase_StretchedZSplit Neutral_ABL_Flat inputs_neutral 1 check_walldist.py
+    RUNTIME_OPTIONS "erf.use_fft=false 'geometry.prob_lo=0 0 300' erf.input_sounding_file=input_sounding_raised 'erf.plot_vars_1=density walldist z_phys KE' erf.initial_dz=4 amr.no_box_split_dir=-1 'amr.max_grid_size=8 8 16'")
 
 # Runs a case twice, with OPTIONS_A and with OPTIONS_B on top of RUNTIME_OPTIONS,
 # and passes both final plotfiles to the check script.
@@ -2985,6 +3165,25 @@ add_test_most_zref(MOST_Zref_Stretched)
 # Immersed-boundary surface energy balance on the faces of a height-map cube
 # (prognostic skin, slab conduction, heat flux into the air), 40 steps.
 add_test_r(IBSEB_Cube                        ""  "erf_exec" "plt00040")
+
+# The clear-sky sun's diffuse share must lie in [0, 1] and its solar constant be positive:
+# one value past each end of the share, and a zero solar constant, stop at start-up
+# (erf-model/ERF#4655).
+add_test_abort(IBSEB_DiffuseCoeffAboveOne
+               ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_Cube
+               IBSEB_Cube.i
+               "erf.ibseb.sw_diffuse_coeff must be in"
+               "erf.ibseb.sun_mode=solar erf.ibseb.sw_diffuse_coeff=1.5")
+add_test_abort(IBSEB_DiffuseCoeffNegative
+               ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_Cube
+               IBSEB_Cube.i
+               "erf.ibseb.sw_diffuse_coeff must be in"
+               "erf.ibseb.sun_mode=solar erf.ibseb.sw_diffuse_coeff=-0.1")
+add_test_abort(IBSEB_SolarConstantZero
+               ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_Cube
+               IBSEB_Cube.i
+               "erf.ibseb.solar_constant must be"
+               "erf.ibseb.sun_mode=solar erf.ibseb.solar_constant=0.0")
 
 # The balance on two levels (Tests/RunIBSEBRefinedLevels.cmake): a cube on level 1 and a
 # tower outside it, whose shadow the cube's level-1 faces must find through level 0's

@@ -6,6 +6,7 @@
 #include <AMReX_Geometry.H>
 #include <ERF_DataStruct.H>
 #include "ERF_SurfacePrecipitation.H"
+#include "ERF_SedimentationFlux.H"
 
 class NullMoist {
 
@@ -142,6 +143,18 @@ public:
         return {};
     }
 
+    /*! \brief The sedimentation face fluxes of the most recent Advance, or null for a
+     *         scheme that does not sediment (see ERF_SedimentationFlux.H) */
+    virtual
+    const SedimentationFlux*
+    Sed_Flux () const { return nullptr; }
+
+    /*! \brief The inflow through the top of a fine patch for the next Advance, or null
+     *         (see ERF_SedimentationFlux.H); the caller keeps it alive for that Advance */
+    virtual
+    void
+    Set_Sed_Inflow (const amrex::MultiFab* inflow) { m_sed_inflow = inflow; }
+
     virtual
     void
     // Current SatAdj/Kessler development paths do not trim by real width, but
@@ -151,6 +164,9 @@ public:
     Set_RealWidth (const int /*real_width*/) { }
 
 protected:
+    // The inflow through the top of a fine patch for the current Advance (Set_Sed_Inflow)
+    const amrex::MultiFab* m_sed_inflow = nullptr;
+
     void
     set_anelastic_reference_pressure_mode (const SolverChoice& sc)
     {

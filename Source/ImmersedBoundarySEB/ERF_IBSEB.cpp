@@ -82,7 +82,7 @@ ERF::init_ibseb ()
     ibseb_check_two_stream_provider();
     m_ibseb.resize(finest_level + 1);
     for (int lev = 0; lev <= finest_level; ++lev) {
-        m_ibseb[lev] = std::make_unique<IBFaceSet>(ibseb_params, lev);
+        m_ibseb[lev] = std::make_unique<IBFaceSet>(ibseb_params, lev, solverChoice.moisture_indices.qv);
         const double t_init0 = ParallelDescriptor::second();
         m_ibseb[lev]->build(*terrain_blanking[lev], geom[lev]);
         if (lev > 0) {

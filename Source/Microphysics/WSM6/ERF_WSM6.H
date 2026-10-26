@@ -13,6 +13,7 @@
 #include "ERF_MicrophysicsConstants.H"
 #include "ERF_DataStruct.H"
 #include "ERF_IndexDefines.H"
+#include "ERF_MicrophysicsColumns.H"
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_NullMoist.H"
 #include "ERF_SurfacePrecipitation.H"
@@ -118,6 +119,11 @@ void wsm6_copy_micro_to_state_cell (
     states(i,j,k,RhoQ6_comp) = rho(i,j,k) * amrex::max(amrex::Real(0), qg(i,j,k));
 }
 
+// Components of WSM6's sedimentation face fluxes (m_sed), with the state they carry
+namespace WSM6Sed {
+    enum { qi = 0 /* rhoQ3 */, qr /* rhoQ4 */, qs /* rhoQ5 */, qg /* rhoQ6 */, NumComps };
+}
+
 class WSM6 : public NullMoist {
     using FabPtr = std::shared_ptr<amrex::MultiFab>;
 
@@ -190,6 +196,8 @@ public:
     void Advance (const amrex::Real& dt_advance,
                   const SolverChoice& solverChoice) override;
 
+    const SedimentationFlux* Sed_Flux () const override { return &m_sed; }
+
     amrex::MultiFab* Qmoist_Ptr (const int& varIdx) override
     {
         AMREX_ALWAYS_ASSERT(varIdx < m_qmoist_size);
@@ -218,6 +226,11 @@ public:
         return sources;
     }
 
+    // The body of Advance, run on grids in which no column is split between boxes.
+    // Public because nvcc rejects extended __device__ lambdas in private or protected members.
+    void AdvanceColumns (const amrex::Real& dt_advance,
+                         const SolverChoice& sc);
+
 private:
     int m_qmoist_size = 3;
     int n_qstate_moist_size = 6;
@@ -238,6 +251,12 @@ private:
     amrex::MultiFab* m_detJ_cc{nullptr};
 
     amrex::Array<FabPtr, MicVar_WSM6::NumVars> mic_fab_vars;
+
+    // Full-column layout of this level's grids (see ERF_MicrophysicsColumns.H)
+    MicrophysicsColumns m_columns;
+
+    // Sedimentation face fluxes of the most recent Advance, in the order of WSM6Sed
+    SedimentationFlux m_sed;
 
     // ---- WSM6 init coefficients (from mp_wsm6_init save variables) ----
     // hail_opt-dependent (set in Initialize() based on m_hail_opt)

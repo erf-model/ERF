@@ -388,6 +388,17 @@ public:
     }
 
     /**
+     * Height of the top of the column above its bottom, on a column of staggered
+     * (face) heights; the high z face's distances are measured from it.
+     *
+     * @param[in] zlevels staggered heights of the column (nz+1 faces)
+     */
+    static amrex::Real column_height (const amrex::Vector<amrex::Real>& zlevels)
+    {
+        return zlevels.back() - zlevels[0];
+    }
+
+    /**
      * Function to compute trilinear interpolation with terrain.
      *
      * @param[in] xp X-position

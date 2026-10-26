@@ -685,6 +685,10 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
             int num_comp = ncomp - src_comp;
             AverageDownTo(lev,src_comp,num_comp);
 
+            // The surface precipitation accumulators under the fine level's patches that
+            // stand on the ground, which (like the state) the fine level tracks better
+            average_down_precip_accumulators(lev);
+
             // The two-stream surface energy balance's prognostic state, for the same
             // reason and at the same moment as the state above: level lev+1 has just
             // finished its subcycles, and every level evolves its own copy of t_sfc
@@ -1321,7 +1325,7 @@ ERF::InitData_post ()
                                       h_u_geos[lev], d_u_geos[lev],
                                       h_v_geos[lev], d_v_geos[lev],
                                       geom[lev],
-                                      zlevels_stag[0]);
+                                      zlevels_stag[lev]);
             }
         }
     }

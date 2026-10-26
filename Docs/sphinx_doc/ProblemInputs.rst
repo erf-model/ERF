@@ -116,8 +116,8 @@ Initial velocity perturbation
 +-----------------------+----------------------------------------------------+------------------------------------------------------------------------------------+
 | ConstantU             | ``ERF_InitCustomPertVels_ConstantU.H``             | ``U_0``, ``V_0``, ``W_0``                                                          |
 +-----------------------+----------------------------------------------------+------------------------------------------------------------------------------------+
-| CouettePoiseuille     | ``ERF_InitCustomPertVels_CouettePoiseuille.H``     | ``U_0``, ``V_0``, ``W_0``, ``pert_delta_u``, ``pert_hi``, ``pert_lo``,             |
-|                       |                                                    | ``pert_periods_u``, ``pert_periods_v``, ``prob_type``                              |
+| CouettePoiseuille     | ``ERF_InitCustomPertVels_CouettePoiseuille.H``     | ``U_0``, ``V_0``, ``W_0``, ``pert_delta_u``, ``pert_delta_v``, ``pert_hi``,        |
+|                       |                                                    | ``pert_lo``, ``pert_periods_u``, ``pert_periods_v``, ``prob_type``                 |
 +-----------------------+----------------------------------------------------+------------------------------------------------------------------------------------+
 | DataAssimilation_ISV  | ``ERF_InitCustomPertVels_DataAssimilation_ISV.H``  | ``M_inf``, ``R``, ``T_inf``, ``alpha``, ``beta``, ``gamma``, ``sigma``, ``xc``,    |
 |                       |                                                    | ``yc``                                                                             |
