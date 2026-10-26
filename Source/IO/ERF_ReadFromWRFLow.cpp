@@ -10,6 +10,7 @@
 #include <sstream>
 #include <string>
 #include <ctime>
+#include <limits>
 #include <atomic>
 
 #include "ERF_DataStruct.H"
@@ -31,8 +32,10 @@ read_times_from_wrflow (const std::string& nc_low_file,
 
     // *******************************************************************************
 
-    int ntimes;
-    double timeInterval;
+    int ntimes = 0;
+    // With a single record there is no interval; the largest double makes
+    // elapsed_time / interval select that record (index 0) at every time
+    double timeInterval = std::numeric_limits<double>::max();
     const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
 
     if (ParallelDescriptor::IOProcessor())
