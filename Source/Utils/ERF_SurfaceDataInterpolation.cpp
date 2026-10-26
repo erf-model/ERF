@@ -50,6 +50,18 @@ ERF::FillSurfaceStateMultiFabs (const int lev,
         Abort("Error: Could not read nx, ny, nz and ndata from the surface data file " + filename);
     }
 
+    // The coordinate arrays are indexed up to n-1 and the data below up to nx*ny*nz; the
+    // land-sea mask is field 4 and the SST field 0, so there must be at least five fields
+    if (nx < 1 || ny < 1 || nz < 1) {
+        Abort("Error: the surface data file " + filename + " has nx = " + std::to_string(nx) +
+              ", ny = " + std::to_string(ny) + ", nz = " + std::to_string(nz) +
+              "; each must be at least 1");
+    }
+    if (ndata < 5) {
+        Abort("Error: the surface data file " + filename + " has ndata = " + std::to_string(ndata) +
+              "; at least 5 fields (SST, q*, T*, u*, land-sea mask) are needed");
+    }
+
     amrex::Gpu::DeviceVector<Real> xvec_d(nx*ny*nz), yvec_d(nx*ny*nz), zvec_d(nz);
     for(int i=0; i<nx; i++) {
         infile.read(reinterpret_cast<char*>(&value), sizeof(float));
@@ -72,12 +84,14 @@ ERF::FillSurfaceStateMultiFabs (const int lev,
          // Vector to store the data
 
     Vector<Real>* data_h = nullptr; // Declare pointer outside the loop
+    Vector<Real> unused_h;          // Fields past the fifth are read and discarded
 
     Real* xvec_d_ptr = xvec_d.data();
     Real* yvec_d_ptr = yvec_d.data();
 
-    Real dxvec = (xvec_h[nx-1]-xvec_h[0])/(nx-1);
-    Real dyvec = (yvec_h[ny-1]-yvec_h[0])/(ny-1);
+    // A single point in a direction has no spacing; the interpolation does not use it then
+    Real dxvec = (nx > 1) ? (xvec_h[nx-1]-xvec_h[0])/(nx-1) : Real(0);
+    Real dyvec = (ny > 1) ? (yvec_h[ny-1]-yvec_h[0])/(ny-1) : Real(0);
 
     // Read the file
     for(int idx=0; idx<ndata; idx++){
@@ -91,6 +105,9 @@ ERF::FillSurfaceStateMultiFabs (const int lev,
             data_h = &u_star_h;
         } else if(idx==4) {
             data_h = &ls_mask_h;
+        } else {
+            unused_h.clear();
+            data_h = &unused_h;
         }
         for(int k=0; k<nz; k++) {
             for(int j=0; j<ny; j++) {
@@ -103,6 +120,12 @@ ERF::FillSurfaceStateMultiFabs (const int lev,
                 }
             }
         }
+    }
+
+    if (!infile) {
+        Abort("Error: the surface data file " + filename + " ended before all of its " +
+              std::to_string(ndata) + " fields of " + std::to_string(nx) + " x " +
+              std::to_string(ny) + " x " + std::to_string(nz) + " values were read");
     }
 
     infile.close();
