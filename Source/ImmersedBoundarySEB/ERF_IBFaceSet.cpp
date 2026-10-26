@@ -1218,13 +1218,15 @@ IBFaceSet::compute_shortwave (Real time, const TwoStreamCanopyView& canopy)
                                                  Real(1.0), m_params.sw_diffuse_coeff);
     } else {
         const Real t_utc = m_params.time_zero_utc_s + time;
-        const Real decl  = ibseb::solar_declination(m_params.day_of_year);
+        // The date advances at each 00:00 UTC, so a run of several days follows the season.
+        const Real day   = ibseb::day_of_year_at(m_params.day_of_year, t_utc);
+        const Real decl  = ibseb::solar_declination(day);
         // Hour angle from UTC and the longitude (a time-zone offset would cancel).
-        const Real ha    = ibseb::solar_hour_angle(t_utc, m_params.longitude_deg, m_params.day_of_year);
+        const Real ha    = ibseb::solar_hour_angle(t_utc, m_params.longitude_deg, day);
         s.zenith  = ibseb::solar_zenith(m_params.latitude_deg, decl, ha);
         s.azimuth = ibseb::solar_azimuth(m_params.latitude_deg, decl, ha, s.zenith);
         const Real cz = std::cos(s.zenith);
-        const Real e0 = ibseb::earth_sun_distance_factor(m_params.day_of_year);
+        const Real e0 = ibseb::earth_sun_distance_factor(day);
         s.dni       = ibseb::clear_sky_dni(cz, m_params.solar_constant, m_params.sw_transmission, e0);
         s.diffuse_h = ibseb::clear_sky_diffuse_h(cz, m_params.solar_constant, m_params.sw_transmission,
                                                  e0, m_params.sw_diffuse_coeff);

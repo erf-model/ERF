@@ -3976,9 +3976,13 @@ column would be taken for a building), a uniform vertical grid (no
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.longitude_deg**       | solar: site longitude, east positive                     | Real in [-180,180] | -105.0                 |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.day_of_year**         | solar: day of year                                       | Real in [1, 366]   | 172                    |
+| **erf.ibseb.day_of_year**         | solar: day of year (1 = 1 January) of the UTC date at    | Real in [1, 366]   | 172                    |
+|                                   | simulation time zero; advances by one at each 00:00 UTC  |                    |                        |
+|                                   | during the run                                           |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
-| **erf.ibseb.time_zero_utc_s**     | solar: seconds after 00:00 UTC at simulation time zero   | Real               | 43200.0                |
+| **erf.ibseb.time_zero_utc_s**     | solar: seconds after 00:00 UTC of day_of_year at         | Real               | 43200.0                |
+|                                   | simulation time zero (86400 or more starts on a later    |                    |                        |
+|                                   | day)                                                     |                    |                        |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.solar_constant**      | solar: solar constant [W/m2]; not with radiation =       | Real > 0           | 1361.0                 |
 |                                   | two_stream                                               |                    |                        |
