@@ -10,6 +10,8 @@
  *
  * The wrapper handles the x-, y-, and z-momentum grids separately and reduces
  * interpolation order near covered EB cells and vertical domain boundaries.
+ * It stores unweighted flux densities on open faces and zero on closed faces;
+ * area fractions are applied by the divergence after centroid interpolation.
  *
  * \tparam InterpType_H Horizontal interpolation functor.
  * \tparam InterpType_V Vertical interpolation functor.
