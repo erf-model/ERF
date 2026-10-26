@@ -480,7 +480,7 @@ struct TurbulentPerturbation {
                            const amrex::IndexType& m_ixtype)
     {
         for (amrex::MFIter mfi(pb_cell[lev],TileNoZ()); mfi.isValid(); ++mfi) {
-            amrex::Box vbx = mfi.validbox();
+            amrex::Box vbx = mfi.tilebox();
             amrex::Box pbx = amrex::convert(pb_ba[lev][boxIdx], m_ixtype);
             if (pt_type[lev] == 3) { pbx.setBig(2, pbx.bigEnd(2) - 1); } // prevent double counting after converting to k-faces
             amrex::Box ubx = pbx & vbx;
@@ -517,7 +517,7 @@ struct TurbulentPerturbation {
     {
 
         for (amrex::MFIter mfi(pb_cell[lev],TileNoZ()); mfi.isValid(); ++mfi) {
-            amrex::Box vbx = mfi.validbox();
+            amrex::Box vbx = mfi.tilebox();
             amrex::Box pbx = amrex::convert(pb_ba[lev][boxIdx], m_ixtype);
             if (pt_type[lev] == 3) { pbx.setBig(2, pbx.bigEnd(2) - 1); } // prevent double counting after converting to k-faces
             amrex::Box ubx = pbx & vbx;
