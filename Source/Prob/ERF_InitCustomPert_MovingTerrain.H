@@ -28,5 +28,5 @@
         state_pert(i, j, k, RhoTheta_comp) = getRhoThetagivenP(p_total) - getRhoThetagivenP(p_hse(i,j,k));
 
         // Set scalar = 0 everywhere
-        state_pert(i, j, k, RhoScalar_comp) = state_pert(i,j,k,Rho_comp);
+        state_pert(i, j, k, RhoScalar_comp) = zero;
     });
