@@ -311,7 +311,7 @@ public:
     std::string MakeFilename_EyeTracker_surface_fluxes (int nstep);
 
     void WriteVTKPolyline (const std::string& filename,
-                           amrex::Vector<std::array<amrex::Real, 2>>& points_xy);
+                           const amrex::Vector<std::array<amrex::Real, 2>>& points_xy);
 
     void WriteLinePlot (const std::string& filename,
                         amrex::Vector<std::array<amrex::Real, 2>>& points_xy);
