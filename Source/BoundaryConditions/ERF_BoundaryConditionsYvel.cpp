@@ -127,7 +127,7 @@ void ERFPhysBCFunct_v::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
         ParallelFor(bx_ylo, bx_ylo_face,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
-                int jflip = dom_lo.y-j;
+                int jflip = 2*dom_lo.y - j;
                 if (bc_ptr[0].lo(1) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k) = (yvel_bc_ptr) ? yvel_bc_ptr[k] : l_bc_extdir_vals_d[0][1];
                 } else if (bc_ptr[0].lo(1) == ERFBCType::ext_dir_upwind && yvel_arr(Clamp(i,yvel_lo.x,yvel_hi.x),dom_lo.y,Clamp(k,yvel_lo.z,yvel_hi.z)) >= zero) {
