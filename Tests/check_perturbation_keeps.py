@@ -16,7 +16,7 @@ import os
 import sys
 
 _here = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(_here, "..", "Exec", "CanonicalTests", "Canonical_RANS"))
+sys.path.insert(0, os.path.join(_here, "..", "Exec", "Tools"))
 import erf_plotfile  # noqa: E402
 
 

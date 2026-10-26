@@ -1,7 +1,9 @@
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include <AMReX_Geometry.H>
 #include <AMReX_Gpu.H>
