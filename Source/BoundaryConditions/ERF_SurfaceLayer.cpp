@@ -119,9 +119,8 @@ SurfaceLayer::update_fluxes (const int& lev,
         fill_planar_boundary(lev, *q_surf[lev]);
     }
 
-    // NOTE: Do iterations to seed variables on the first step (LSM called post step)
-    //       as well as compute values where invalid LSM fluxes may reside
-    //*******************************************************************************
+    // NOTE: Over land, iterate only where the LSM flux is invalid; the LSM-valid
+    //       columns are filled by compute_sfc_params_from_lsm_fluxes below.
     // ***************************************************************
     // Iterate the fluxes if moeng type
     // First iterate over land -- the only model for surface roughness
@@ -191,7 +190,7 @@ SurfaceLayer::update_fluxes (const int& lev,
     } // MOENG -- LAND
 
     // Update u*/T*/q*/L over land (iterations or from LSM fluxes)
-    if (m_has_lsm_fluxes && elapsed_time > zero) {
+    if (m_has_lsm_fluxes) {
         compute_sfc_params_from_lsm_fluxes(lev, cons_in);
     }
 
@@ -621,6 +620,12 @@ SurfaceLayer::compute_fluxes (const int& lev,
         gtbx &= u_star[lev]->fabbox(mfi.index());
         if (gtbx.isEmpty()) { continue; }
 
+        // Land columns with a valid LSM flux are skipped here and filled instead by
+        // compute_sfc_params_from_lsm_fluxes.  The LSM fluxes need not carry lateral ghost
+        // cells, so a ghost column tests the nearest valid column, as that routine does,
+        // and the two make the same choice in every column of the grown box.
+        const NearestColumn col(vbx);
+
         auto u_star_arr = u_star[lev]->array(mfi);
         auto t_star_arr = t_star[lev]->array(mfi);
         auto q_star_arr = q_star[lev]->array(mfi);
@@ -657,24 +662,58 @@ SurfaceLayer::compute_fluxes (const int& lev,
         // Get EB flags if needed
         const auto flag_arr = (l_use_eb) ? m_eb_vec[lev]->get_const_factory()->getMultiEBCellFlagFab()[mfi].const_array() : Array4<const EBCellFlag>{};
 
+        // Get LSM flux arrays
+        auto lsm_t_flux_arr = Array4<const Real> {};
+        auto lsm_q_flux_arr = Array4<const Real> {};
+        auto lsm_tau13_arr  = Array4<const Real> {};
+        auto lsm_tau23_arr  = Array4<const Real> {};
+        if (dir==2) {
+            if (use_surface_model && surf_model_fluxes) {
+                const SurfaceFluxView surf_flux = m_surf_model->get_surface_flux_view(lev, mfi);
+                lsm_t_flux_arr = surf_flux.t_flux;
+                lsm_q_flux_arr = surf_flux.q_flux;
+                lsm_tau13_arr  = surf_flux.tau13;
+                lsm_tau23_arr  = surf_flux.tau23;
+            } else {
+                for (int n(0); n<m_lsm_flux_lev[lev].size(); ++n) {
+                    if (toLower(m_lsm_flux_name[n]) == "t_flux") { lsm_t_flux_arr = m_lsm_flux_lev[lev][n]->const_array(mfi); }
+                    if (toLower(m_lsm_flux_name[n]) == "q_flux") { lsm_q_flux_arr = m_lsm_flux_lev[lev][n]->const_array(mfi); }
+                    if (toLower(m_lsm_flux_name[n]) == "tau13")  { lsm_tau13_arr  = m_lsm_flux_lev[lev][n]->const_array(mfi); }
+                    if (toLower(m_lsm_flux_name[n]) == "tau23")  { lsm_tau23_arr  = m_lsm_flux_lev[lev][n]->const_array(mfi); }
+                }
+            }
+        } // dir = 2
+
+        // Device capture
+        auto has_lsm_fluxes = m_has_lsm_fluxes;
+
         if (!l_use_eb) {
             ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 // always check for land mask at k=0 even if on other faces
-                if (( is_land && lmask_arr(i,j,0) == 1) ||
-                    (!is_land && lmask_arr(i,j,0) == 0))
+                const int li = col.i(i);
+                const int lj = col.j(j);
+                bool valid_lsm_flux = ( has_lsm_fluxes &&
+                                        lsm_t_flux_arr &&
+                                        is_valid_lsm_value(lsm_t_flux_arr(li,lj,0)) &&
+                                        is_valid_lsm_value(lsm_q_flux_arr(li,lj,0)) &&
+                                        is_valid_lsm_value(lsm_tau13_arr (li,lj,0)) &&
+                                        is_valid_lsm_value(lsm_tau23_arr (li,lj,0)) );
+                bool iterate_land   = ( is_land && lmask_arr(i,j,0) == 1 && !valid_lsm_flux);
+                bool iterate_sea    = (!is_land && lmask_arr(i,j,0) == 0 );
+                if (iterate_land || iterate_sea)
                 {
                     // NOTE: All 2D MFs so k index is always 0 from ba2d definition
                     most_flux.iterate_flux(i, j, k, max_iters,
-                                        zref_arr,                            // set in most average
-                                        z0_arr,                              // updated if(!is_land)
-                                        dir_umm_arr, tm_arr, tvm_arr, qvm_arr,
-                                        u_star_arr,                          // updated
-                                        w_star_arr,                          // updated if(m_include_wstar)
-                                        t_star_arr, q_star_arr,              // updated
-                                        t_surf_arr, q_surf_arr, olen_arr,    // updated
-                                        pblh_arr,                            // updated if(m_include_wstar)
-                                        Hwave_arr, Lwave_arr, eta_arr);
+                                           zref_arr,                            // set in most average
+                                           z0_arr,                              // updated if(!is_land)
+                                           dir_umm_arr, tm_arr, tvm_arr, qvm_arr,
+                                           u_star_arr,                          // updated
+                                           w_star_arr,                          // updated if(m_include_wstar)
+                                           t_star_arr, q_star_arr,              // updated
+                                           t_surf_arr, q_surf_arr, olen_arr,    // updated
+                                           pblh_arr,                            // updated if(m_include_wstar)
+                                           Hwave_arr, Lwave_arr, eta_arr);
                 }
             });
         // EB
@@ -689,15 +728,15 @@ SurfaceLayer::compute_fluxes (const int& lev,
                     {
                         if (flag_arr(i,j,k).isSingleValued()) {
                             most_flux.iterate_flux(i, j, k, max_iters,
-                                                zref_arr,                            // set in most average
-                                                z0_arr,                              // updated if(!is_land)
-                                                umm_arr, tm_arr, tvm_arr, qvm_arr,
-                                                u_star_arr,                          // updated
-                                                w_star_arr,                          // updated if(m_include_wstar)
-                                                t_star_arr, q_star_arr,              // updated
-                                                t_surf_arr, q_surf_arr, olen_arr,    // updated
-                                                pblh_arr,                            // updated if(m_include_wstar)
-                                                Hwave_arr, Lwave_arr, eta_arr);
+                                                   zref_arr,                            // set in most average
+                                                   z0_arr,                              // updated if(!is_land)
+                                                   umm_arr, tm_arr, tvm_arr, qvm_arr,
+                                                   u_star_arr,                          // updated
+                                                   w_star_arr,                          // updated if(m_include_wstar)
+                                                   t_star_arr, q_star_arr,              // updated
+                                                   t_surf_arr, q_surf_arr, olen_arr,    // updated
+                                                   pblh_arr,                            // updated if(m_include_wstar)
+                                                   Hwave_arr, Lwave_arr, eta_arr);
                         }
                     }
                 });

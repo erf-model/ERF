@@ -143,17 +143,17 @@ void SurfaceModel::calculate_weight_average (int lev, amrex::MultiFab* const urb
             ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
                 if (use_fluxes) {
-                    u_arr(i, j, k, 0) = source0_arr ? source0_arr(i, j, source0_k) : 0.0;
-                    u_arr(i, j, k, 1) = source1_arr ? source1_arr(i, j, source1_k) : 0.0;
-                    t_arr(i, j, k) = source2_arr ? source2_arr(i, j, source2_k) : 0.0;
-                    q_arr(i, j, k) = source3_arr ? source3_arr(i, j, source3_k) : 0.0;
-                    tsurf_arr(i, j, k) = source4_arr ? source4_arr(i, j, source4_k) : 0.0;
+                    u_arr(i, j, k, 0)  = source0_arr ? source0_arr(i, j, source0_k) : lsm_undefined;
+                    u_arr(i, j, k, 1)  = source1_arr ? source1_arr(i, j, source1_k) : lsm_undefined;
+                    t_arr(i, j, k)     = source2_arr ? source2_arr(i, j, source2_k) : lsm_undefined;
+                    q_arr(i, j, k)     = source3_arr ? source3_arr(i, j, source3_k) : lsm_undefined;
+                    tsurf_arr(i, j, k) = source4_arr ? source4_arr(i, j, source4_k) : lsm_undefined;
                 } else {
-                    u_arr(i, j, k, 0) = source0_arr ? source0_arr(i, j, source0_k) : 0.0;
-                    u_arr(i, j, k, 1) = 0.0;
-                    t_arr(i, j, k) = source1_arr ? source1_arr(i, j, source1_k) : 0.0;
-                    q_arr(i, j, k) = source2_arr ? source2_arr(i, j, source2_k) : 0.0;
-                    tsurf_arr(i, j, k) = source3_arr ? source3_arr(i, j, source3_k) : 0.0;
+                    u_arr(i, j, k, 0)  = source0_arr ? source0_arr(i, j, source0_k) : lsm_undefined;
+                    u_arr(i, j, k, 1)  = lsm_undefined;
+                    t_arr(i, j, k)     = source1_arr ? source1_arr(i, j, source1_k) : lsm_undefined;
+                    q_arr(i, j, k)     = source2_arr ? source2_arr(i, j, source2_k) : lsm_undefined;
+                    tsurf_arr(i, j, k) = source3_arr ? source3_arr(i, j, source3_k) : lsm_undefined;
                 }
             });
         }
@@ -167,58 +167,65 @@ void SurfaceModel::calculate_weight_average (int lev, amrex::MultiFab* const urb
     // Output weighted surface fluxes into ustar, tstar, qstar and surface temperature into tsurf
     // TODO: make sure grids of urban and LSM inputs match
     if (m_surface_outputs_requested[lev] && output_fields_registered && use_weights) {
-    if (!use_fluxes) {
-        u_star[lev]->setVal(0.0, 1, 1, 0);
-    }
-    for (int field = 0; field < nfields; ++field)
-    {
-        int output_field = (use_fluxes && field > 0) ? field - 1 : field;
-        int comp = (use_fluxes && field < 2) ? field : 0;
-
-        // whether we have a valid LSM multifab
-        bool valid_land = (use_land &&
-                           lsm_fields[field] != -1 &&
-                           lsm_data_lev[lev][lsm_fields[field]]);
-
-        // whether we have a valid urban multifab
-        bool valid_urban = (use_urban &&
-                            urban_fields[field] != -1 &&
-                            urban_data_lev[lev][urban_fields[field]]);
-
-        for (MFIter mfi(*u_star[lev], TileNoZ()); mfi.isValid(); ++mfi)
-        {
-            Box tbx = mfi.tilebox();
-
-            const auto weights_arr = use_weights
-                ? wavg[lev]->const_array(mfi) : Array4<const Real>{};
-
-            // Outputs for surface boundary condition
-            auto output_arr = outputs[output_field]->array(mfi);
-            const amrex::MultiFab* lsm_mf = valid_land ? lsm_data_lev[lev][lsm_fields[field]] : nullptr;
-            const amrex::MultiFab* urban_mf = valid_urban ? urban_data_lev[lev][urban_fields[field]] : nullptr;
-            const int lsm_khi = valid_land ? lsm_mf->box(mfi.index()).bigEnd(2) : 0;
-            const int urban_klo = valid_urban ? urban_mf->box(mfi.index()).smallEnd(2) : 0;
-            auto lsm_data_arr = valid_land ? lsm_mf->const_array(mfi) : Array4<const Real>{};
-            auto urban_data_arr = valid_urban ? urban_mf->const_array(mfi) : Array4<const Real>{};
-
-            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                if (valid_land && use_land && !use_urban) {
-                    output_arr(i, j, k, comp) = lsm_data_arr(i, j, lsm_khi);
-                } else if (valid_urban && use_urban && !use_land) {
-                    output_arr(i, j, k, comp) = urban_data_arr(i, j, urban_klo);
-                } else {
-                    Real land = (lsm_data_arr) ? lsm_data_arr(i, j, lsm_khi) * weights_arr(i, j, 0, SurfaceModelType::LAND) : 0.0;
-                    Real urb  = (urban_data_arr) ? urban_data_arr(i, j, urban_klo) * weights_arr(i, j, 0, SurfaceModelType::URBAN) : 0.0;
-                    output_arr(i, j, k, comp) = land + urb;
-                }
-
-            });
+        if (!use_fluxes) {
+            u_star[lev]->setVal(0.0, 1, 1, 0);
         }
+        for (int field = 0; field < nfields; ++field)
+        {
+            int output_field = (use_fluxes && field > 0) ? field - 1 : field;
+            int comp = (use_fluxes && field < 2) ? field : 0;
 
-        outputs[output_field]->FillBoundary(comp, 1, m_geom[lev].periodicity());
-    }
-    }
+            // whether we have a valid LSM multifab
+            bool valid_land = (use_land &&
+                               lsm_fields[field] != -1 &&
+                               lsm_data_lev[lev][lsm_fields[field]]);
+
+            // whether we have a valid urban multifab
+            bool valid_urban = (use_urban &&
+                                urban_fields[field] != -1 &&
+                                urban_data_lev[lev][urban_fields[field]]);
+
+            for (MFIter mfi(*u_star[lev], TileNoZ()); mfi.isValid(); ++mfi)
+            {
+                Box tbx = mfi.tilebox();
+
+                const auto weights_arr = use_weights
+                    ? wavg[lev]->const_array(mfi) : Array4<const Real>{};
+
+                // Outputs for surface boundary condition
+                auto output_arr = outputs[output_field]->array(mfi);
+                const amrex::MultiFab* lsm_mf = valid_land ? lsm_data_lev[lev][lsm_fields[field]] : nullptr;
+                const amrex::MultiFab* urban_mf = valid_urban ? urban_data_lev[lev][urban_fields[field]] : nullptr;
+                const int lsm_khi   = valid_land  ? lsm_mf->box(mfi.index()).bigEnd(2) : 0;
+                const int urban_klo = valid_urban ? urban_mf->box(mfi.index()).smallEnd(2) : 0;
+                auto lsm_data_arr   = valid_land  ? lsm_mf->const_array(mfi) : Array4<const Real>{};
+                auto urban_data_arr = valid_urban ? urban_mf->const_array(mfi) : Array4<const Real>{};
+
+                ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
+                {
+                    if (valid_land && use_land && !use_urban) {
+                        output_arr(i, j, k, comp) = lsm_data_arr(i, j, lsm_khi);
+                    } else if (valid_urban && use_urban && !use_land) {
+                        output_arr(i, j, k, comp) = urban_data_arr(i, j, urban_klo);
+                    } else {
+                        // A provider weighted in this cell must hold a valid value: blending its
+                        // lsm_undefined sentinel gives a value below lsm_undefined, which the
+                        // SurfaceLayer would take as a valid flux.  Such a cell is left undefined
+                        // so the SurfaceLayer falls back to MOST there.
+                        const Real w_land = weights_arr(i, j, 0, SurfaceModelType::LAND );
+                        const Real w_urb  = weights_arr(i, j, 0, SurfaceModelType::URBAN);
+                        const Real land = (lsm_data_arr   && w_land > 0.0) ?   lsm_data_arr(i, j, lsm_khi  ) : 0.0;
+                        const Real urb  = (urban_data_arr && w_urb  > 0.0) ? urban_data_arr(i, j, urban_klo) : 0.0;
+                        output_arr(i, j, k, comp) = (is_valid_lsm_value(land) && is_valid_lsm_value(urb))
+                                                  ? land * w_land + urb * w_urb : lsm_undefined;
+                    }
+
+                });
+            }
+
+            outputs[output_field]->FillBoundary(comp, 1, m_geom[lev].periodicity());
+        } // field
+    } // weighted
 
     // Write weighted copies only when both providers contribute.  With one
     // provider, get_weighted_model_data() returns the provider-owned source.

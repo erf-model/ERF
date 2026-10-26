@@ -146,29 +146,29 @@ public:
             amrex::Vector<amrex::Real> ftime    = {time_for_fp, time_for_fp};
             amrex::Vector<amrex::Real> ctime    = {time_for_fp, time_for_fp};
             amrex::IntVect ng_od(0, 0, 0); // ng outside domain
-            amrex::Interpolater* mapper = &amrex::cell_cons_interp;
+            amrex::Interpolater* mapper = &amrex::pc_interp;
             amrex::Vector<amrex::MultiFab*> fmf;
             amrex::Vector<amrex::MultiFab*> cmf;
             if (u_star[lev] != nullptr && u_star[lev-1] != nullptr) {
             amrex::InterpFromCoarseLevel(*u_star[lev], u_star[lev-1]->nGrowVect(), ng_od,
                                          *u_star[lev-1], 0, 0, 2,
                                          m_geom[lev-1], m_geom[lev],
-                                         refRatio[lev-1], &amrex::cell_cons_interp,
+                                         refRatio[lev-1], mapper,
                                          domain_bcs_type, BCVars::cons_bc);
             amrex::InterpFromCoarseLevel(*t_star[lev], t_star[lev-1]->nGrowVect(), ng_od,
                                          *t_star[lev-1], 0, 0, 1,
                                          m_geom[lev-1], m_geom[lev],
-                                         refRatio[lev-1], &amrex::cell_cons_interp,
+                                         refRatio[lev-1], mapper,
                                          domain_bcs_type, BCVars::cons_bc);
             amrex::InterpFromCoarseLevel(*q_star[lev], q_star[lev-1]->nGrowVect(), ng_od,
                                          *q_star[lev-1], 0, 0, 1,
                                          m_geom[lev-1], m_geom[lev],
-                                         refRatio[lev-1], &amrex::cell_cons_interp,
+                                         refRatio[lev-1], mapper,
                                          domain_bcs_type, BCVars::cons_bc);
             amrex::InterpFromCoarseLevel(*t_surf[lev], t_surf[lev-1]->nGrowVect(), ng_od,
                                          *t_surf[lev-1], 0, 0, 1,
                                          m_geom[lev-1], m_geom[lev],
-                                         refRatio[lev-1], &amrex::cell_cons_interp,
+                                         refRatio[lev-1], mapper,
                                          domain_bcs_type, BCVars::cons_bc);
 
             fmf = {u_star[lev  ].get(), u_star[lev  ].get()};
@@ -207,7 +207,7 @@ public:
                 amrex::InterpFromCoarseLevel(*fields[field][lev], ngv, ng_od,
                                              *fields[field][lev-1], 0, 0, 1,
                                              m_geom[lev-1], m_geom[lev],
-                                             refRatio[lev-1], &amrex::cell_cons_interp,
+                                             refRatio[lev-1], mapper,
                                              domain_bcs_type, BCVars::cons_bc);
                 fmf = {fields[field][lev  ].get(), fields[field][lev  ].get()};
                 cmf = {fields[field][lev-1].get(), fields[field][lev-1].get()};
@@ -986,9 +986,9 @@ private:
         t_star[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, ng);
         q_star[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, ng);
         t_surf[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, ng);
-        u_star[lev]->setVal(0.0);
-        t_star[lev]->setVal(0.0);
-        q_star[lev]->setVal(0.0);
+        u_star[lev]->setVal(lsm_undefined);
+        t_star[lev]->setVal(lsm_undefined);
+        q_star[lev]->setVal(lsm_undefined);
         t_surf[lev]->setVal(300.0);
     }
 

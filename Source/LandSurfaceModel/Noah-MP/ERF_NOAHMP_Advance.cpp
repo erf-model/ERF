@@ -49,20 +49,20 @@ NOAHMP::interp_from_lev0 (const int& lev,
                               IntVect(0,0,0), // do NOT fill ghost cells outside the domain
                               *lsm_lev0_data[ivar], 0, 0, 1,
                               m_geom0, m_geom,
-                              rr2d, &cell_cons_interp,
+                              rr2d, &pc_interp,
                               m_domain_bcs_type, BCVars::cons_bc);
     }
 
     // The level-0 flux still holds lsm_undefined in cells Noah-MP did not process:
     // SurfaceLayer falls back to MOST there but does not write that flux back (see #3446).
-    // These sentinels are interpolated along with the valid values, so every consumer of
-    // the fine-level flux must go on rejecting values that are not below lsm_undefined.
+    // Pc_interp copies the coarse values unchanged, so a fine cell holds either a valid
+    // flux or the lsm_undefined sentinel.
     for (int ivar(0); ivar<LsmFlux_NOAHMP::NumVars; ++ivar) {
         InterpFromCoarseLevel(*lsm_fab_flux[ivar], lsm_fab_flux[ivar]->nGrowVect(),
                               IntVect(0,0,0), // do NOT fill ghost cells outside the domain
                               *lsm_lev0_flux[ivar], 0, 0, 1,
                               m_geom0, m_geom,
-                              rr2d, &cell_cons_interp,
+                              rr2d, &pc_interp,
                               m_domain_bcs_type, BCVars::cons_bc);
     }
     Print () << "Noah-MP interpolation at level " << lev << " completed" << std::endl;

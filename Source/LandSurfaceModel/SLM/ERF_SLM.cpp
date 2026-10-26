@@ -156,14 +156,14 @@ SLM::Init (const int& /*lev*/,
     for (auto ivar = 0; ivar < LsmVar_SLM::NumVars; ++ivar) {
         // State vars are CC
         lsm_fab_vars[ivar] = std::make_shared<MultiFab>(ba_lsm, dm, 1, ng);
-        lsm_fab_vars[ivar]->setVal(zero);
+        lsm_fab_vars[ivar]->setVal(lsm_undefined);
     }
 
     // Create the fluxes
     for (auto ivar = 0; ivar < LsmFlux_SLM::NumVars; ++ivar) {
         // NOTE: Fluxes are CC with ghost cells for averaging
         lsm_fab_flux[ivar] = std::make_shared<MultiFab>(ba_lsm_2d, dm, 1, IntVect(1,1,0));
-        lsm_fab_flux[ivar]->setVal(zero);
+        lsm_fab_flux[ivar]->setVal(lsm_undefined);
     }
 
     // build list for checkpointing extra variables not mapped to ERF in lsm_fab_vars

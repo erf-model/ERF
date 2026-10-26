@@ -164,7 +164,7 @@ struct adiabatic_charnock
 
             ++iter_z;
         } while ( (std::abs(z0 - z0_old) > tol_z) && (iter_z <= max_iters) );
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter_z < max_iters,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter_z <= max_iters,
                                          "Maximum number of MOST roughness iterations reached.");
         C = std::log(zref / z0);
 
@@ -266,7 +266,7 @@ struct adiabatic_mod_charnock
             z0    = Mod_Charnock_roughness(ustar, mdata.Cnk_b);
             ++iter_z;
         } while ( (std::abs(z0 - z0_old) > tol_z) && (iter_z <= max_iters) );
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter_z < max_iters,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter_z <= max_iters,
                                          "Maximum number of MOST roughness iterations reached.");
         C = std::log(zref / z0);
 
@@ -365,7 +365,7 @@ struct adiabatic_donelan
             z0    = Donelan_roughness(ustar, air_viscosity(tm_arr(i,j,k)), mdata.visc);
             ++iter_z;
         } while ( (std::abs(z0 - z0_old) > tol_z) && (iter_z <= max_iters) );
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter_z < max_iters,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter_z <= max_iters,
                                          "Maximum number of MOST roughness iterations reached.");
         C = std::log(zref / z0);
 
@@ -465,7 +465,7 @@ struct adiabatic_wave_coupled
                                           air_viscosity(tm_arr(i,j,k)), mdata.visc);
             ++iter_z;
         } while ( (std::abs(z0 - z0_old) > tol_z) && (iter_z <= max_iters) );
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter_z < max_iters,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter_z <= max_iters,
                                          "Maximum number of MOST roughness iterations reached.");
         C = std::log(zref / z0);
 
@@ -585,7 +585,7 @@ struct surface_flux
             }
             //Olen  = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
             //zeta  = zref / Olen;
-             amrex::Real ustar_floor = amrex::max(ustar, USTARMIN);
+            amrex::Real ustar_floor = amrex::max(ustar, USTARMIN);
             Olen  = -ustar_floor * ustar_floor * ustar_floor * tvm_arr(i,j,k) /
                     (mdata.kappa * mdata.gravity * tflux);
             zeta  = zref / Olen;
@@ -599,7 +599,7 @@ struct surface_flux
             }
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter <= max_iters,
                                          "Maximum number of MOST iterations reached.");
 
         // Populate the stored MOST arrays
@@ -751,7 +751,7 @@ struct surface_flux_charnock
             u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(zref / z0) - psi_m);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter <= max_iters,
                                          "Maximum number of MOST iterations reached.");
 
         // Populate the stored MOST arrays
@@ -881,7 +881,7 @@ struct surface_flux_mod_charnock
             u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(zref / z0) - psi_m);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter <= max_iters,
                                          "Maximum number of MOST iterations reached.");
 
         // Populate the stored MOST arrays
@@ -1008,7 +1008,7 @@ struct surface_flux_donelan
             u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(zref / z0) - psi_m);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter <= max_iters,
                                          "Maximum number of MOST iterations reached.");
 
         // Populate the stored MOST arrays
@@ -1136,7 +1136,7 @@ struct surface_flux_wave_coupled
             u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(zref / z0) - psi_m);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter <= max_iters,
                                          "Maximum number of MOST iterations reached.");
 
         // Populate the stored MOST arrays
@@ -1316,7 +1316,7 @@ struct surface_temp
 
             ++iter;
         } while ( (std::abs(zeta - zeta_old) > tol) && (iter <= max_iters) );
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter <= max_iters,
                                          "Maximum number of MOST iterations reached.");
 
         // Populate the stored MOST arrays
@@ -1498,7 +1498,7 @@ struct surface_temp_charnock
 
                 ++iter_z;
             } while ( (std::abs(z0 - z0_old) > tol_z) && (iter_z <= max_iters) );
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter_z < max_iters,
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter_z <= max_iters,
                                              "Maximum number of MOST roughness iterations reached.");
             C = std::log(zref / z0);
 
@@ -1511,7 +1511,7 @@ struct surface_temp_charnock
 
             ++iter;
         } while ( (std::abs(zeta - zeta_old) > tol) && (iter <= max_iters) );
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter <= max_iters,
                                          "Maximum number of MOST iterations reached.");
 
         // Populate the stored MOST arrays
@@ -1682,7 +1682,7 @@ struct surface_temp_mod_charnock
 
                 ++iter_z;
             } while ( (std::abs(z0 - z0_old) > tol_z) && (iter_z <= max_iters) );
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter_z < max_iters,
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter_z <= max_iters,
                                              "Maximum number of MOST roughness iterations reached.");
             C = std::log(zref / z0);
 
@@ -1695,7 +1695,7 @@ struct surface_temp_mod_charnock
 
             ++iter;
         } while ( (std::abs(zeta - zeta_old) > tol) && (iter <= max_iters) );
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter <= max_iters,
                                          "Maximum number of MOST iterations reached.");
 
         // Populate the stored MOST arrays
@@ -1863,7 +1863,7 @@ struct surface_temp_donelan
 
                 ++iter_z;
             } while ( (std::abs(z0 - z0_old) > tol_z) && (iter_z <= max_iters) );
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter_z < max_iters,
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter_z <= max_iters,
                                              "Maximum number of MOST roughness iterations reached.");
             C = std::log(zref / z0);
 
@@ -1876,7 +1876,7 @@ struct surface_temp_donelan
 
             ++iter;
         } while ( (std::abs(zeta - zeta_old) > tol) && (iter <= max_iters) );
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter <= max_iters,
                                          "Maximum number of MOST iterations reached.");
 
         // Populate the stored MOST arrays
@@ -2045,7 +2045,7 @@ struct surface_temp_wave_coupled
 
                 ++iter_z;
             } while ( (std::abs(z0 - z0_old) > tol_z) && (iter_z <= max_iters) );
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter_z < max_iters,
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter_z <= max_iters,
                                              "Maximum number of MOST roughness iterations reached.");
             C = std::log(zref / z0);
 
@@ -2058,7 +2058,7 @@ struct surface_temp_wave_coupled
 
             ++iter;
         } while ( (std::abs(zeta - zeta_old) > tol) && (iter <= max_iters) );
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter < max_iters,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter <= max_iters,
                                          "Maximum number of MOST iterations reached.");
 
         // Populate the stored MOST arrays
