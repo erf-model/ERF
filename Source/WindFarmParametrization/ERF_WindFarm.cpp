@@ -233,14 +233,21 @@ WindFarm::read_windfarm_spec_table (const std::string windfarm_spec_table)
         Print() << "Reading in wind farm specifications table: " << windfarm_spec_table << "\n";
     }
 
-    int nlines;
-    file_turb_table >> nlines;
+    // The power curve is interpolated (and extrapolated) linearly, which needs two points
+    int nlines = 0;
+    if (!(file_turb_table >> nlines) || nlines < 2) {
+        Abort("The first line of " + windfarm_spec_table + " must be the number of power-curve "
+              "entries, at least 2. Aborting.....");
+    }
     wind_speed.resize(nlines);
     thrust_coeff.resize(nlines);
     power.resize(nlines);
 
     Real rotor_dia;
-    file_turb_table >> hub_height >> rotor_dia >> thrust_coeff_standing >> nominal_power;
+    if (!(file_turb_table >> hub_height >> rotor_dia >> thrust_coeff_standing >> nominal_power)) {
+        Abort("Could not read the hub height, rotor diameter, standing thrust coefficient and "
+              "nominal power from the second line of " + windfarm_spec_table + ". Aborting.....");
+    }
     rotor_rad = rotor_dia*myhalf;
     if(rotor_rad > hub_height) {
         Abort("The blade length is more than the hub height. Check the second line in wind-turbine-1.tbl. Aborting.....");
@@ -250,7 +257,10 @@ WindFarm::read_windfarm_spec_table (const std::string windfarm_spec_table)
     }
 
     for(int iline=0;iline<nlines;iline++){
-        file_turb_table >> wind_speed[iline] >> thrust_coeff[iline] >> power[iline];
+        if (!(file_turb_table >> wind_speed[iline] >> thrust_coeff[iline] >> power[iline])) {
+            Abort(windfarm_spec_table + " has fewer than the " + std::to_string(nlines) +
+                  " power-curve entries its first line gives. Aborting.....");
+        }
         if(thrust_coeff[iline] > one) {
             Abort("The thrust coefficient is greater than one. Check wind-turbine-1.tbl. Aborting.....");
         }
@@ -488,7 +498,8 @@ WindFarm::fill_Nturb_multifab (const Geometry& geom,
     for ( MFIter mfi(mf_Nturb,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx     = mfi.tilebox();
         auto  Nturb_array = mf_Nturb.array(mfi);
-        const Array4<const Real>& z_nd_arr = z_phys_nd->const_array(mfi);
+        // Read only when is_terrain, so leave it empty when there is no z_phys_nd
+        const Array4<const Real> z_nd_arr = (is_terrain) ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             int li = amrex::min(amrex::max(i, i_lo), i_hi);
             int lj = amrex::min(amrex::max(j, j_lo), j_hi);
@@ -586,8 +597,10 @@ WindFarm::fill_SMark_multifab_mesoscale_models (const Geometry& geom,
     int j_lo = geom.Domain().smallEnd(1); int j_hi = geom.Domain().bigEnd(1);
     int k_lo = geom.Domain().smallEnd(2); int k_hi = geom.Domain().bigEnd(2);
 
-    //auto dx = geom.CellSizeArray();
-    //auto ProbLoArr = geom.ProbLoArray();
+    // Node heights come from z_phys_nd, or from the flat mesh if there is none
+    const bool is_terrain = (z_phys_nd != nullptr);
+    auto dx = geom.CellSizeArray();
+    auto ProbLoArr = geom.ProbLoArray();
 
      // Initialize wind farm
     for ( MFIter mfi(mf_SMark,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -595,7 +608,7 @@ WindFarm::fill_SMark_multifab_mesoscale_models (const Geometry& geom,
         const Box& gbx    = mfi.growntilebox(1);
         auto  SMark_array = mf_SMark.array(mfi);
         auto  Nturb_array = mf_Nturb.array(mfi);
-        const Array4<const Real>& z_nd_arr = z_phys_nd->const_array(mfi);
+        const Array4<const Real> z_nd_arr = (is_terrain) ? z_phys_nd->const_array(mfi) : Array4<const Real>{};
         int k0 = std::max(gbx.smallEnd(2), geom.Domain().smallEnd(2));
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -604,10 +617,10 @@ WindFarm::fill_SMark_multifab_mesoscale_models (const Geometry& geom,
                 int lj = amrex::min(amrex::max(j, j_lo), j_hi);
                 int lk = amrex::min(amrex::max(k, k_lo), k_hi);
 
-                Real z1 = z_nd_arr(li,lj,lk  );
-                Real z2 = z_nd_arr(li,lj,lk+1);
+                Real z1 = (is_terrain) ? z_nd_arr(li,lj,lk  ) : ProbLoArr[2] +  lk   *dx[2];
+                Real z2 = (is_terrain) ? z_nd_arr(li,lj,lk+1) : ProbLoArr[2] + (lk+1)*dx[2];
 
-                Real zturb = z_nd_arr(li,lj,k0) + d_hub_height;
+                Real zturb = ((is_terrain) ? z_nd_arr(li,lj,k0) : ProbLoArr[2] + k0*dx[2]) + d_hub_height;
                 if (zturb+1e-3 > z1 and zturb+1e-3 < z2) {
                     SMark_array(i,j,k,0) = one;
                 }
