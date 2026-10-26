@@ -28,9 +28,8 @@ geometry.is_periodic = 1 1 0
 # MOST BOUNDARY - Adiabatic surface (zero heat flux for neutral conditions)
 zlo.type = "surface_layer"
 erf.most.z0   = 0.1      # roughness length [m]
-erf.most.zref = 10.0     # reference height [m]
-erf.most.surf_temp = 300.0  # surface temperature [K]
-erf.most.surf_temp_flux = 0.0  # zero heat flux for neutral conditions
+erf.most.zref = 15.625   # reference height [m]: first cell center (dz = 31.25 m)
+erf.most.pot_surf_temp = 300.0  # surface temperature [K]
 
 zhi.type = "SlipWall"
 zhi.theta_grad = 0.0  # adiabatic upper boundary

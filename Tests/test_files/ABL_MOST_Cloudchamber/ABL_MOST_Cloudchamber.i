@@ -32,12 +32,12 @@ erf.xhi.surface_layer.flux_type = MOENG
 erf.yhi.surface_layer.flux_type = MOENG
 erf.zhi.surface_layer.flux_type = MOENG
 
-erf.zlo.most.surf_temp = 299.0
-erf.zhi.most.surf_temp = 280.0
-erf.xlo.most.surf_temp = 289.5
-erf.xhi.most.surf_temp = 289.5
-erf.ylo.most.surf_temp = 289.5
-erf.yhi.most.surf_temp = 289.5
+erf.zlo.most.pot_surf_temp = 299.0
+erf.zhi.most.pot_surf_temp = 280.0
+erf.xlo.most.pot_surf_temp = 289.5
+erf.xhi.most.pot_surf_temp = 289.5
+erf.ylo.most.pot_surf_temp = 289.5
+erf.yhi.most.pot_surf_temp = 289.5
 
 erf.zlo.most.surf_moist = 0.02143
 erf.zhi.most.surf_moist = 0.00623
@@ -89,7 +89,6 @@ erf.terrain_type = StaticFittedMesh
 erf.anelastic = 1
 #erf.use_fft = 1
 erf.fixed_dt           = 0.025  # fixed time step depending on grid resolution
-erf.fixed_mri_dt_ratio = 4
 
 # DIAGNOSTICS & VERBOSITY
 erf.sum_interval   = 1       # timesteps between computing mass
@@ -111,8 +110,6 @@ erf.plot_vars_1     = x_velocity y_velocity z_velocity temp theta qv qsat qc qt 
 #erf.plot_vars_1     = x_velocity y_velocity z_velocity temp theta qv qsat qc qt pressure density Tau11 Tau12 Tau13 Tau21 Tau22 Tau23 Tau31 Tau32 Tau33 hfx1 hfx2 hfx3 q1fx1 q1fx2 q1fx3
 
 # SOLVER CHOICE
-erf.alpha_T = 0
-erf.alpha_C = 0
 erf.use_gravity = true
 
 erf.molec_diff_type = "None"
@@ -122,7 +119,6 @@ erf.buoyancy_type   = 1
 
 # Initialization
 erf.init_type           = "input_sounding"
-erf.init_sounding_ideal = true
 erf.input_sounding_file = "input_sounding"
 
 # moisture model

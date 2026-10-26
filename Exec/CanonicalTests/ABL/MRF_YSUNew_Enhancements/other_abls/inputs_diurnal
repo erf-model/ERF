@@ -33,7 +33,7 @@ erf.most.zref = 48.0
 
 # Diurnal temperature cycle parameters:
 # Start with neutral, then heat, then cool
-erf.most.surf_temp = 295.0
+erf.most.pot_surf_temp = 295.0
 erf.most.surf_heating_rate = 1.0  # Dynamic heating rate [K/h] to trigger transition
 
 zhi.type = "SlipWall"
@@ -67,7 +67,6 @@ erf.use_gravity = true
 erf.molec_diff_type = "None"
 # When using a PBL model, LES closure should be disabled
 erf.les_type        = "None"
-erf.Cs = 0.11
 erf.theta_ref = 300.0
 
 # INITIALIZATION - from sounding file

@@ -40,7 +40,7 @@ geometry.is_periodic = 1 1 0
 zlo.type = "surface_layer"
 erf.most.z0   = 0.0001   # smooth ocean surface [m]
 erf.most.zref = 48.0     # reference height [m]
-erf.most.surf_temp = 299.5   # sea surface temperature [K] (warm ocean)
+erf.most.pot_surf_temp = 299.5   # sea surface temperature [K] (warm ocean)
 erf.most.surf_heating_rate = 8.0  # strong but realistic heating rate [K/h]
 
 # Upper boundary - strong capping inversion at cloud top
@@ -78,7 +78,6 @@ erf.use_gravity = true
 erf.molec_diff_type = "None"
 # When using a PBL model, LES closure should be disabled
 erf.les_type        = "None"
-erf.Cs = 0.11
 erf.theta_ref = 300.0
 
 # INITIALIZATION - from sounding file

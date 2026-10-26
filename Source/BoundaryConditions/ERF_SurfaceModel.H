@@ -65,30 +65,8 @@ public:
                            amrex::Vector<amrex::Vector<std::unique_ptr<amrex::iMultiFab>>>& /*lmask_lev*/)
         : m_nlevs(nlevs), m_ba(ba), m_geom(geom), m_dmap(dm) {
 
-        u_star.resize(m_nlevs);
-        t_star.resize(m_nlevs);
-        q_star.resize(m_nlevs);
-        t_surf.resize(m_nlevs);
-
-        wavg.resize(m_nlevs);
-        m_provider_mode.resize(m_nlevs, SurfaceProviderMode::None);
+        resize_levels(m_nlevs);
         m_output_fields_registered = {false, false};
-
-        m_ba2d.resize(m_nlevs);
-        m_geom2d.resize(m_nlevs);
-        m_lmask.resize(m_nlevs);
-
-
-        urban_frac_lev.resize(m_nlevs);
-        lsm_data_lev.resize(m_nlevs);
-        urban_data_lev.resize(m_nlevs);
-        weighted_lsm_data_lev.resize(m_nlevs);
-        weighted_urban_data_lev.resize(m_nlevs);
-
-        rad_fields.resize(m_nlevs);
-        rad_output_fields.resize(m_nlevs);
-        m_surface_outputs_requested.resize(m_nlevs, false);
-        m_last_urban_frac.resize(m_nlevs, nullptr);
 
         // set initial fields for each model to none
         lsm_fields = amrex::Vector<int>(5, -1);
@@ -111,35 +89,7 @@ public:
      */
     void initialize_for_level (int lev, const amrex::BoxArray &ba, const amrex::Geometry &geom, const amrex::DistributionMapping &dm, const amrex::Vector<std::unique_ptr<amrex::iMultiFab>>& lmask_lev, const amrex::Vector <amrex::BCRec> &domain_bcs_type, const amrex::Vector<amrex::IntVect> &refRatio)
     {
-        if (lev >= m_nlevs) {
-            m_nlevs = lev+1;
-
-            u_star.resize(m_nlevs);
-            t_star.resize(m_nlevs);
-            q_star.resize(m_nlevs);
-            t_surf.resize(m_nlevs);
-
-            wavg.resize(m_nlevs);
-            m_provider_mode.resize(m_nlevs, SurfaceProviderMode::None);
-
-            m_dmap.resize(m_nlevs);
-            m_ba.resize(m_nlevs);
-            m_ba2d.resize(m_nlevs);
-            m_geom.resize(m_nlevs);
-            m_geom2d.resize(m_nlevs);
-            m_lmask.resize(m_nlevs);
-
-            urban_frac_lev.resize(m_nlevs);
-            lsm_data_lev.resize(m_nlevs);
-            urban_data_lev.resize(m_nlevs);
-            weighted_lsm_data_lev.resize(m_nlevs);
-            weighted_urban_data_lev.resize(m_nlevs);
-
-            rad_fields.resize(m_nlevs);
-            rad_output_fields.resize(m_nlevs);
-            m_surface_outputs_requested.resize(m_nlevs, m_surface_outputs_enabled);
-            m_last_urban_frac.resize(m_nlevs, nullptr);
-        }
+        if (lev >= m_nlevs) { resize_levels(lev+1); }
 
         m_ba[lev] = ba;
         m_geom[lev] = geom;
@@ -174,9 +124,6 @@ public:
         // Recreate registered fields on the current level layout. This is also
         // needed when an existing AMR level is remade with a new grid layout.
         for (int field = 0; field < static_cast<int>(fields.size()); ++field) {
-            if (static_cast<int>(fields[field].size()) < m_nlevs) {
-                fields[field].resize(m_nlevs);
-            }
             fields[field][lev].reset();
         }
         for (const auto& entry : fieldmap) {
@@ -185,9 +132,6 @@ public:
             }
         }
         for (auto& entry : radiation_input_map) {
-            if (static_cast<int>(entry.second.weighted.size()) < m_nlevs) {
-                entry.second.weighted.resize(m_nlevs);
-            }
             entry.second.weighted[lev].reset();
         }
 
@@ -274,6 +218,21 @@ public:
                                           BCVars::cons_bc);
             }
         }
+    }
+
+    /**
+     * @brief Removes an AMR level, and every level above it, from the surface model.
+     *
+     * Called when ERF destroys a level during regridding so that m_nlevs tracks the
+     * levels that actually exist. Otherwise the checkpoint and other level loops
+     * would still visit the destroyed levels and their stale provider pointers.
+     *
+     * @param lev AMR level being destroyed.
+     */
+    void clear_level (int lev)
+    {
+        if (lev < 0 || lev >= m_nlevs) { return; }
+        resize_levels(lev);
     }
 
     /**
@@ -924,6 +883,52 @@ public:
                              amrex::MultiFab* weighted, SurfaceModelType type);
 
 private:
+
+    /**
+     * @brief Sets the number of AMR levels and resizes all per-level storage to match.
+     *
+     * Shared by the constructor, initialize_for_level and clear_level so that every
+     * per-level member is grown and shrunk together. New levels start empty.
+     *
+     * @param nlevs New number of AMR levels.
+     */
+    void resize_levels (int nlevs)
+    {
+        m_nlevs = nlevs;
+
+        u_star.resize(m_nlevs);
+        t_star.resize(m_nlevs);
+        q_star.resize(m_nlevs);
+        t_surf.resize(m_nlevs);
+
+        wavg.resize(m_nlevs);
+        m_provider_mode.resize(m_nlevs, SurfaceProviderMode::None);
+
+        m_dmap.resize(m_nlevs);
+        m_ba.resize(m_nlevs);
+        m_ba2d.resize(m_nlevs);
+        m_geom.resize(m_nlevs);
+        m_geom2d.resize(m_nlevs);
+        m_lmask.resize(m_nlevs);
+
+        urban_frac_lev.resize(m_nlevs);
+        lsm_data_lev.resize(m_nlevs);
+        urban_data_lev.resize(m_nlevs);
+        weighted_lsm_data_lev.resize(m_nlevs);
+        weighted_urban_data_lev.resize(m_nlevs);
+
+        rad_fields.resize(m_nlevs);
+        rad_output_fields.resize(m_nlevs);
+        m_surface_outputs_requested.resize(m_nlevs, m_surface_outputs_enabled);
+        m_last_urban_frac.resize(m_nlevs, nullptr);
+
+        for (auto& field_lev : fields) { field_lev.resize(m_nlevs); }
+        for (auto& entry : fieldmap) {
+            entry.second.lsm_ptr.resize(m_nlevs, nullptr);
+            entry.second.urb_ptr.resize(m_nlevs, nullptr);
+        }
+        for (auto& entry : radiation_input_map) { entry.second.weighted.resize(m_nlevs); }
+    }
 
     /**
      * @brief Updates the provider mode after model data are registered.

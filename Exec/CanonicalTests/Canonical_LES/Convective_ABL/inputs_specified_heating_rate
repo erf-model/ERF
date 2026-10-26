@@ -20,7 +20,7 @@ geometry.is_periodic = 1 1 0
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
 zlo.type      = surface_layer
 erf.most.z0   = 0.16  # see Abkar & Moin 2017
-erf.most.surf_temp = 301.0
+erf.most.pot_surf_temp = 300.0
 erf.most.surf_heating_rate = 1.0 # [K/hr]
 
 zhi.type        = SlipWall

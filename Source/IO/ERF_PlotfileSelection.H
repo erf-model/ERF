@@ -195,11 +195,6 @@ plot3d_fixed_unconditional_diagnostic (const std::string& name)
         if (name == candidate) return true;
     }
 
-#ifdef ERF_COMPUTE_ERROR
-    if (name == "xvel_err" || name == "yvel_err" || name == "zvel_err" ||
-        name == "pp_err") return true;
-#endif
-
     return false;
 }
 
@@ -276,7 +271,7 @@ plot3d_fixed_variable_available (const std::string& name,
         name == "Khv" || name == "Khh" || name == "Lturb") {
         return caps.eddy_diffusivity_storage;
     }
-    if (name == "Rt" || name == "cmu" || name == "cmu_prime") {
+    if (name == "Rt" || name == "cmu" || name == "cmu_prime" || name == "cap_ratio") {
         return caps.eddy_diffusivity_storage;
     }
     if (name == "diss") return caps.dissipation_storage;
@@ -298,9 +293,6 @@ plot3d_needs_pressure (const amrex::Vector<std::string>& names)
             name == "rel_humidity") {
             return true;
         }
-#ifdef ERF_COMPUTE_ERROR
-        if (name == "pp_err") return true;
-#endif
     }
     return false;
 }

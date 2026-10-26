@@ -209,15 +209,6 @@ void erf_make_tau_terms (int level, int nrk,
             Array4<Real> s23_corr = (do_implicit) ? S23_for_impl.array() : Array4<Real>{};
             Array4<Real> tau13_corr = (do_implicit) ? Tau_corr_lev[0]->array(mfi) : Array4<Real>{};
             Array4<Real> tau23_corr = (do_implicit) ? Tau_corr_lev[1]->array(mfi) : Array4<Real>{};
-#ifdef ERF_IMPLICIT_W
-            FArrayBox S33_for_impl;
-            S33_for_impl.resize( bxcc,1,The_Async_Arena());
-            Array4<Real> s33_corr = (do_implicit) ? S33_for_impl.array() : Array4<Real>{};
-            Array4<Real> tau33_corr = (do_implicit) ? Tau_corr_lev[2]->array(mfi) : Array4<Real>{};
-#else
-            Array4<Real> s33_corr = Array4<Real>{};
-            Array4<Real> tau33_corr = Array4<Real>{};
-#endif
 
             // Calculate the magnitude of the strain-rate tensor squared if
             // using Deardorff or k-eqn RANS. This contributes to the production
@@ -243,7 +234,6 @@ void erf_make_tau_terms (int level, int nrk,
             //      viscosity calculated as the sum of a constant viscosity (or
             //      constant alpha with mu = rho*alpha) and the eddy viscosity
             //      from the turbulence model
-            //    - IMPLICIT path: s33_corr is modified in here
             //
             // 5. Copy temp Sij fabs into Tau_lev multifabs
             //    - stress tensor is symmetric if no terrain and no implicit diffusion
@@ -321,7 +311,7 @@ void erf_make_tau_terms (int level, int nrk,
                                             er_arr,
                                             mf_mx, mf_ux, mf_vx,
                                             mf_my, mf_uy, mf_vy,
-                                            s13_corr, s23_corr, s33_corr);
+                                            s13_corr, s23_corr);
                 } else {
                     ComputeStressVarVisc_S(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                            cell_data,
@@ -332,7 +322,7 @@ void erf_make_tau_terms (int level, int nrk,
                                            er_arr,
                                            mf_mx, mf_ux, mf_vx,
                                            mf_my, mf_uy, mf_vy,
-                                           s13_corr, s23_corr, s33_corr);
+                                           s13_corr, s23_corr);
                 }
 
                 // Remove halo cells from tau_ii but extend across valid_box bdry
@@ -348,7 +338,6 @@ void erf_make_tau_terms (int level, int nrk,
                     tau11(i,j,k) = s11(i,j,k);
                     tau22(i,j,k) = s22(i,j,k);
                     tau33(i,j,k) = s33(i,j,k);
-                    if (tau33_corr) tau33_corr(i,j,k) = s33_corr(i,j,k);
                 });
 
                 ParallelFor(tbxxy, tbxxz, tbxyz,
@@ -475,7 +464,7 @@ void erf_make_tau_terms (int level, int nrk,
                                             er_arr, z_nd, detJ_arr, dxInv,
                                             mf_mx, mf_ux, mf_vx,
                                             mf_my, mf_uy, mf_vy,
-                                            s13_corr, s23_corr, s33_corr,
+                                            s13_corr, s23_corr,
                                             l_implicit_metric);
                 } else {
                     ComputeStressVarVisc_T(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
@@ -487,7 +476,7 @@ void erf_make_tau_terms (int level, int nrk,
                                            er_arr, z_nd, detJ_arr, dxInv,
                                            mf_mx, mf_ux, mf_vx,
                                            mf_my, mf_uy, mf_vy,
-                                           s13_corr, s23_corr, s33_corr,
+                                           s13_corr, s23_corr,
                                            l_implicit_metric);
                 }
 
@@ -504,7 +493,6 @@ void erf_make_tau_terms (int level, int nrk,
                     tau11(i,j,k) = s11(i,j,k);
                     tau22(i,j,k) = s22(i,j,k);
                     tau33(i,j,k) = s33(i,j,k);
-                    if (tau33_corr) tau33_corr(i,j,k) = s33_corr(i,j,k);
                 });
 
                 ParallelFor(tbxxy, tbxxz, tbxyz,
@@ -619,7 +607,7 @@ void erf_make_tau_terms (int level, int nrk,
                                                 s11, s22, s33,
                                                 s12, s13, s23,
                                                 er_arr,
-                                                s13_corr, s23_corr, s33_corr);
+                                                s13_corr, s23_corr);
                     } else {
                         ComputeStressConsVisc_EB(bxcc, tbxxy, tbxxz, tbxyz, mu_eff,
                                                 cell_data,
@@ -627,7 +615,7 @@ void erf_make_tau_terms (int level, int nrk,
                                                 s12, s13, s23,
                                                 er_arr,
                                                 vfrac,
-                                                s13_corr, s23_corr, s33_corr);
+                                                s13_corr, s23_corr);
                     }
                 } else {
                     if (solverChoice.terrain_type != TerrainType::EB) {
@@ -636,7 +624,7 @@ void erf_make_tau_terms (int level, int nrk,
                                             s11, s22, s33,
                                             s12, s13, s23,
                                             er_arr,
-                                            s13_corr, s23_corr, s33_corr);
+                                            s13_corr, s23_corr);
                     } else {
                         ComputeStressVarVisc_EB(bxcc, tbxxy, tbxxz, tbxyz, mu_eff, mu_turb,
                                             cell_data,
@@ -644,7 +632,7 @@ void erf_make_tau_terms (int level, int nrk,
                                             s12, s13, s23,
                                             er_arr,
                                             vfrac,
-                                            s13_corr, s23_corr, s33_corr);
+                                            s13_corr, s23_corr);
                     }
                 }
 
@@ -661,7 +649,6 @@ void erf_make_tau_terms (int level, int nrk,
                     tau11(i,j,k) = s11(i,j,k);
                     tau22(i,j,k) = s22(i,j,k);
                     tau33(i,j,k) = s33(i,j,k);
-                    if (tau33_corr) tau33_corr(i,j,k) = s33_corr(i,j,k);
                 });
                 ParallelFor(tbxxy, tbxxz, tbxyz,
                 [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {

@@ -6,6 +6,7 @@
  * Main class in ERF code, instantiated from main.cpp
 */
 
+#include <algorithm>
 #include <filesystem>
 #include <memory>
 #include "ERF_Constants.H"
@@ -65,7 +66,7 @@ double ERF::low_time_interval  = std::numeric_limits<double>::max();
 
 // Time step control
 Real ERF::cfl            = Real(0.8);
-Real ERF::sub_cfl        = one;
+Real ERF::sub_cfl        = Real(0.7);
 Real ERF::init_shrink    = one;
 Real ERF::change_max     = Real(1.1);
 double ERF::dt_max_initial = static_cast<double>(bogus_large_value);
@@ -714,6 +715,10 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
             int num_comp = ncomp - src_comp;
             AverageDownTo(lev,src_comp,num_comp);
 
+            // The surface precipitation accumulators under the fine level's patches that
+            // stand on the ground, which (like the state) the fine level tracks better
+            average_down_precip_accumulators(lev);
+
             // The two-stream surface energy balance's prognostic state, for the same
             // reason and at the same moment as the state above: level lev+1 has just
             // finished its subcycles, and every level evolves its own copy of t_sfc
@@ -1095,20 +1100,6 @@ ERF::InitData_post ()
         }
     }
 
-#ifdef ERF_IMPLICIT_W
-    if ( (SolverChoice::mesh_type == MeshType::VariableDz) &&
-         (solverChoice.implicit_momentum_diffusion) ) {
-        for (int lev = 0; lev <= finest_level; lev++) {
-            if ( (solverChoice.vert_implicit_fac[lev][0] > 0) ||
-                 (solverChoice.vert_implicit_fac[lev][1] > 0) ||
-                 (solverChoice.vert_implicit_fac[lev][2] > 0) )
-            {
-                Warning("Doing implicit solve for u, v, and w with terrain at level " + std::to_string(lev) +
-                        " -- this has not been tested");
-            }
-        }
-    }
-#endif
 
     //
     // Copy vars_new into vars_old, then use vars_old to fill covered cells in vars_new during AverageDown
@@ -1364,7 +1355,7 @@ ERF::InitData_post ()
                                       h_u_geos[lev], d_u_geos[lev],
                                       h_v_geos[lev], d_v_geos[lev],
                                       geom[lev],
-                                      zlevels_stag[0]);
+                                      zlevels_stag[lev]);
             }
         }
     }
@@ -2419,6 +2410,12 @@ ERF::InitData_post ()
                 const auto* prob_hi = geom[lev].ProbHi();
                 const auto* dx = geom[lev].CellSize();
 
+                // Only on a ConstantDz mesh are prob_lo[2], prob_hi[2] and dx[2] physical heights;
+                // otherwise the levels in zlevels_stag are
+                const bool use_zlevels = (SolverChoice::mesh_type != MeshType::ConstantDz);
+                const Real zlo = use_zlevels ? zlevels_stag[lev].front() : prob_lo[2];
+                const Real zhi = use_zlevels ? zlevels_stag[lev].back()  : prob_hi[2];
+
                 for (int i = 0; i < num_samplelines; i++) {
                     Real xloc = location[AMREX_SPACEDIM*i+0];
                     Real yloc = location[AMREX_SPACEDIM*i+1];
@@ -2426,13 +2423,17 @@ ERF::InitData_post ()
 
                     if (xloc < prob_lo[0] || xloc > prob_hi[0] ||
                         yloc < prob_lo[1] || yloc > prob_hi[1] ||
-                        zloc < prob_lo[2] || zloc > prob_hi[2]) {
+                        zloc < zlo        || zloc > zhi) {
                         Abort("erf.sample_line_real must lie within the level-0 domain");
                     }
 
                     int i_cell = domain.smallEnd(0) + static_cast<int>(std::floor((xloc - prob_lo[0]) / dx[0]));
                     int j_cell = domain.smallEnd(1) + static_cast<int>(std::floor((yloc - prob_lo[1]) / dx[1]));
-                    int k_cell = domain.smallEnd(2) + static_cast<int>(std::floor((zloc - prob_lo[2]) / dx[2]));
+                    int k_cell = (use_zlevels)
+                        ? domain.smallEnd(2) + static_cast<int>(std::upper_bound(zlevels_stag[lev].begin(),
+                                                                                 zlevels_stag[lev].end(), zloc)
+                                                                - zlevels_stag[lev].begin()) - 1
+                        : domain.smallEnd(2) + static_cast<int>(std::floor((zloc - prob_lo[2]) / dx[2]));
 
                     i_cell = std::min(i_cell, domain.bigEnd(0));
                     j_cell = std::min(j_cell, domain.bigEnd(1));
@@ -2451,7 +2452,7 @@ ERF::InitData_post ()
             pp.queryarr("sample_line_log",samplelinelogname,0,num_samplelinelogs);
 
             for (int i = 0; i < num_samplelinelogs; i++) {
-                setRecordSampleLineInfo(i,lev,sampleline[i],samplelinelogname[i]);
+                setRecordSampleLineInfo(i,samplelinelogname[i]);
             }
         }
 
@@ -4124,6 +4125,17 @@ ERF::ReadParameters ()
                   "forest_lai_file, forest_height_file, and forest_cd or forest_cd_file.");
         }
 
+        bool keqn_on_every_level = true;
+        bool implicit_diss_on_every_level = true;
+        for (int lev = 0; lev <= max_level; ++lev) {
+            keqn_on_every_level = keqn_on_every_level &&
+                                  (solverChoice.turbChoice[lev].rans_type == RANSType::kEqn);
+            implicit_diss_on_every_level = implicit_diss_on_every_level &&
+                                           solverChoice.turbChoice[lev].implicit_tke_dissipation;
+        }
+        solverChoice.canopyTurb.check_config(solverChoice.do_forest_drag, keqn_on_every_level,
+                                             implicit_diss_on_every_level);
+
     }
 
     // If init from WRFInput or Metgrid make sure a valid file name is present at level zero
@@ -4845,9 +4857,9 @@ ERF::check_mesh_type (int lev)
  *
  * This asks the snapshot taken in ReadParameters, not the live ParmParse table.
  * The live table cannot answer the question: ERF_InputSoundingData.H queries
- * erf.most.surf_temp and erf.most.surf_moist with queryAdd while reading the
- * sounding, which runs during InitData_pre and leaves both keys in the table
- * holding their negative sentinels.  Testing the live table would therefore
+ * erf.most.surf_moist with queryAdd while reading the sounding, which runs during
+ * InitData_pre and leaves that key in the table holding its negative sentinel.
+ * Testing the live table would therefore
  * report unqualified MOST inputs for every input_sounding run, whether or not
  * the user wrote any.
  *

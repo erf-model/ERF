@@ -13,6 +13,16 @@ void RadiationSimple::Init (const amrex::Geometry& geom,
     m_geom = geom;
     m_ba = ba;
 
+    // Set (or cleared) on every Init, so a level that spans the column again after a
+    // regrid resumes the sweep.
+    m_partial_columns = false;
+    for (int ib = 0; ib < ba.size(); ++ib) {
+        if (ba[ib].smallEnd(2) != geom.Domain().smallEnd(2) || ba[ib].bigEnd(2) != geom.Domain().bigEnd(2)) {
+            m_partial_columns = true;
+            break;
+        }
+    }
+
     DistributionMapping dm = cons_in->DistributionMap();
     deltaq.define(ba, dm, 1, 0);
     flux.define(ba, dm, 1, IntVect(0, 0, 1));
@@ -25,7 +35,7 @@ void RadiationSimple::Init (const amrex::Geometry& geom,
     radqrlw->setVal(zero);
 }
 
-void RadiationSimple::Run (int& /*level*/,
+void RadiationSimple::Run (int& level,
                            int& /*step*/,
                            double& /*time*/,
                            const double& /*dt*/,
@@ -37,7 +47,7 @@ void RadiationSimple::Run (int& /*level*/,
                            const amrex::Vector<const amrex::MultiFab*>& /*lsm_input_ptrs*/,
                            const amrex::Vector<amrex::MultiFab*>& /*lsm_output_ptrs*/,
                            amrex::MultiFab* qheating_rates,
-                           amrex::MultiFab* rad_fluxes,
+                           amrex::MultiFab* /*rad_fluxes*/,
                            amrex::MultiFab* z_phys,
                            amrex::MultiFab* /*lat*/,
                            amrex::MultiFab* /*lon*/,
@@ -45,6 +55,12 @@ void RadiationSimple::Run (int& /*level*/,
                            amrex::Real& /*declin*/,
                            amrex::Real& /*calday*/)
 {
+    if (m_partial_columns) {
+        // Level 0 has no parent to interpolate from: grids split in z are unsupported here.
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(level > 0,
+            "RadiationSimple: every level-0 box must span the domain in z (do not split grids in z)");
+        return;
+    }
 
     constexpr amrex::Real cp_spec = 1015.0;
     constexpr amrex::Real coef = 70.0;
@@ -67,7 +83,7 @@ void RadiationSimple::Run (int& /*level*/,
 
     for (MFIter mfi(*cons_in, TileNoZ()); mfi.isValid(); ++mfi)
     {
-        Box box = mfi.validbox();
+        Box box = mfi.tilebox();
         box.makeSlab(2, 0);
 
         const Array4<const Real>& cons_arr = cons_in->const_array(mfi);
@@ -77,8 +93,6 @@ void RadiationSimple::Run (int& /*level*/,
         const Array4<Real>& radlwdn_arr = radlwdn->array(mfi);
         const Array4<Real>& radqrlw_arr = radqrlw->array(mfi);
         const Array4<Real>& qheating_arr = qheating_rates->array(mfi);
-
-        const Array4<Real>& radfluxes_arr = rad_fluxes->array(mfi);
 
         ParallelFor(box, [=] AMREX_GPU_DEVICE (int i, int j, int)
         {
@@ -161,15 +175,17 @@ void RadiationSimple::Run (int& /*level*/,
                 Real cpmassl = cp_spec * cons_arr(i, j, k, Rho_comp) * dz; // thermal mass
                 Real FTHRL = -(flux_arr(i, j, k+1) - flux_arr(i, j, k)) / cpmassl;
                 // convert heating rate FTHRL for theta_d
-                Real pres = getPgivenRTh(cons_arr(i,j,k,RhoTheta_comp),cons_arr(i,j,k,RhoQ1_comp)/cons_arr(i,j,k,Rho_comp));
+                Real qv_k = (have_qv) ? cons_arr(i,j,k,qv_comp)/cons_arr(i,j,k,Rho_comp) : zero;
+                Real pres = getPgivenRTh(cons_arr(i,j,k,RhoTheta_comp), qv_k);
                 Real exner = getExnergivenP(pres, R_d/Cp_d);
-                FTHRL *= exner;
+                FTHRL /= exner;
                 qheating_arr(i, j, k, 1) = FTHRL;          // radiative heating for source term
                 radlwdn_arr(i, j, k) = flux_arr(i, j, k);  // net lw flux
                 radqrlw_arr(i, j, k) = FTHRL;              // net lw heating
 
-                // write lw dn to ERF fluxes
-                radfluxes_arr(i, j, k, 3) = flux_arr(i, j, k);  // net lw flux
+                // The net flux is not written to rad_fluxes: that array holds
+                // (SW up, SW down, LW up, LW down), and this model computes
+                // none of those. It stays zero, and HasRadiation() is false.
             }
         });
     }

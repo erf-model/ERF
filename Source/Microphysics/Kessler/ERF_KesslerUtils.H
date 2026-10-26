@@ -115,7 +115,7 @@ KesslerFaceState kessler_face_state (const int k,
                                      const int k_hi,
                                      const amrex::Real rho_km1,
                                      const amrex::Real rho_k,
-                                     const amrex::Real qp_km1,
+                                     const amrex::Real /*qp_km1*/,
                                      const amrex::Real qp_k) noexcept
 {
     KesslerFaceState face_state{amrex::Real(0), amrex::Real(0)};
@@ -123,11 +123,12 @@ KesslerFaceState kessler_face_state (const int k,
     // Sedimentation is one-way downward transport. Use a face-centered density
     // for the z-face flux, but upwind the transported rain mixing ratio from the
     // donor cell. A centered qp can create flux from downstream rain when the
-    // donor cell is dry. The top boundary face uses the top cell below the
-    // boundary.
+    // donor cell is dry. The top boundary face carries no rain: nothing lies
+    // above the domain, so its donor is empty. It keeps the top cell's rho so
+    // the fall speed stays defined.
     if (k == k_hi + 1) {
         face_state.rho = rho_km1;
-        face_state.qp = qp_km1;
+        face_state.qp = amrex::Real(0);
     } else if (k == 0) {
         face_state.rho = rho_k;
         face_state.qp = qp_k;

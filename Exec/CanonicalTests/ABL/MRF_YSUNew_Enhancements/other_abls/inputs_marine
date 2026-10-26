@@ -30,7 +30,7 @@ geometry.is_periodic = 1 1 0
 zlo.type = "surface_layer"
 erf.most.z0   = 0.0001     # smooth sea surface roughness
 erf.most.zref = 48.0
-#erf.most.surf_temp = 298.0 # warm sea surface temperature
+#erf.most.pot_surf_temp = 298.0 # warm sea surface temperature
 erf.most.surf_temp_flux = 0.01 # weak sensible heat flux over marine layer
 
 # To force sea classification, we can utilize roughness types or landmask configurations
@@ -69,7 +69,6 @@ erf.use_gravity = true
 erf.molec_diff_type = "None"
 # When using a PBL model, LES closure should be disabled
 erf.les_type        = "None"
-erf.Cs = 0.11
 erf.theta_ref = 300.0
 
 # INITIALIZATION - from sounding file

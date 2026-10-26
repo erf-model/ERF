@@ -69,6 +69,18 @@ void fill (Gpu::DeviceVector<T>& d, size_t n, T value)
     upload(d, h);
 }
 
+/**
+ * Water vapour mixing ratio of cell (i, j, k): rho qv over rho, at least zero
+ * (as the two-stream column reads it, get_qv_from_state()), or zero when the
+ * run has no moisture model (``qv_comp`` negative, the state then has no such
+ * component).
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real cell_qv (const Array4<const Real>& c, int i, int j, int k, int qv_comp) noexcept
+{
+    return (qv_comp >= 0) ? amrex::max(Real(0.0), c(i, j, k, qv_comp) / c(i, j, k, Rho_comp)) : Real(0.0);
+}
+
 } // namespace
 
 /**
@@ -706,7 +718,8 @@ IBFaceSet::compute_view_fractions ()
 /**
  * Longwave of the current step. One kernel per fab over that fab's faces,
  * reading the air temperature of the fluid cell from the conserved state
- * (potential temperature and density through the equation of state). With
+ * (dry density, potential temperature and, with a moisture model, water
+ * vapour through the equation of state; cell_qv()). With
  * lw_mode = two_stream the sky and ground terms come from the canopy forcing
  * of the face's column, read from the 2D fab of the same local index (the
  * level's grids flattened, on the same distribution).
@@ -729,6 +742,7 @@ IBFaceSet::compute_longwave (const MultiFab& cons, const TwoStreamCanopyView& ca
     const Real* pT = d_T_skin.data();
     Real* pTa = d_T_air.data(); Real* pin = d_LW_down_in.data(); Real* pnet = d_LW_net.data();
     Real* pext = d_LW_ext.data();
+    const int qv_comp = m_qv_comp;
     for (MFIter mfi(cons); mfi.isValid(); ++mfi) {
         const int f0 = m_fab_start[mfi.LocalIndex()];
         const int f1 = m_fab_start[mfi.LocalIndex() + 1];
@@ -736,7 +750,8 @@ IBFaceSet::compute_longwave (const MultiFab& cons, const TwoStreamCanopyView& ca
         ParallelFor(f1 - f0, [=] AMREX_GPU_DEVICE (int m) noexcept {
             const int f = f0 + m;
             const Real rho = c(pi[f], pj[f], pk[f], Rho_comp);
-            const Real Ta  = getTgivenRandRTh(rho, c(pi[f], pj[f], pk[f], RhoTheta_comp));
+            const Real qv  = cell_qv(c, pi[f], pj[f], pk[f], qv_comp);
+            const Real Ta  = getTgivenRandRTh(rho, c(pi[f], pj[f], pk[f], RhoTheta_comp), qv);
             const Real lw_sky = gray ? eps_sky * sigma * Ta * Ta * Ta * Ta : lw_fix;
             const Real Ts4 = pT[f] * pT[f] * pT[f] * pT[f];
             // Sky and ground do not depend on the face; the wall term does
@@ -775,6 +790,7 @@ IBFaceSet::compute_longwave_two_stream (const MultiFab& cons, const TwoStreamCan
     const Real* pT = d_T_skin.data();
     Real* pTa = d_T_air.data(); Real* pin = d_LW_down_in.data(); Real* pnet = d_LW_net.data();
     Real* pext = d_LW_ext.data();
+    const int qv_comp = m_qv_comp;
     for (MFIter mfi(cons); mfi.isValid(); ++mfi) {
         const int f0 = m_fab_start[mfi.LocalIndex()];
         const int f1 = m_fab_start[mfi.LocalIndex() + 1];
@@ -785,7 +801,8 @@ IBFaceSet::compute_longwave_two_stream (const MultiFab& cons, const TwoStreamCan
         ParallelFor(f1 - f0, [=] AMREX_GPU_DEVICE (int m) noexcept {
             const int f = f0 + m;
             const Real rho = c(pi[f], pj[f], pk[f], Rho_comp);
-            pTa[f] = getTgivenRandRTh(rho, c(pi[f], pj[f], pk[f], RhoTheta_comp));
+            pTa[f] = getTgivenRandRTh(rho, c(pi[f], pj[f], pk[f], RhoTheta_comp),
+                                      cell_qv(c, pi[f], pj[f], pk[f], qv_comp));
             if (!have) {
                 pext[f] = 0.0; pin[f] = 0.0; pnet[f] = 0.0;
                 return;
@@ -1027,6 +1044,7 @@ IBFaceSet::compute_sensible (const MultiFab& cons, const MultiFab& xvel,
     Real* pth = d_theta_air.data(); Real* prho = d_rho.data(); Real* pU = d_U_tan.data();
     Real* pus = d_ustar.data();     Real* pH = d_H.data();     Real* pTa = d_T_air.data();
     Real* pHc = d_H_coeff.data();   Real* pws = d_w_star.data(); Real* pol = d_olen.data(); Real* pzi = d_z_i.data();
+    const int qv_comp = m_qv_comp;
     for (MFIter mfi(cons); mfi.isValid(); ++mfi) {
         const int f0 = m_fab_start[mfi.LocalIndex()];
         const int f1 = m_fab_start[mfi.LocalIndex() + 1];
@@ -1044,7 +1062,7 @@ IBFaceSet::compute_sensible (const MultiFab& cons, const MultiFab& xvel,
             const Real rho = c(i, j, k, Rho_comp);
             const Real rth = c(i, j, k, RhoTheta_comp);
             const Real th  = rth / rho;
-            const Real Ta  = getTgivenRandRTh(rho, rth);
+            const Real Ta  = getTgivenRandRTh(rho, rth, cell_qv(c, i, j, k, qv_comp));
             const Real th_skin = pT[f] * th / Ta;            // skin temperature as a potential temperature
             // Cell-centred velocity and its tangential part with respect to the wall.
             Real U[3] = { Real(0.5) * (u(i, j, k) + u(i + 1, j, k)),
@@ -1136,6 +1154,7 @@ IBFaceSet::add_heat_flux_to_source (MultiFab& source, const MultiFab& cons,
     const Real vol = dx[0] * dx[1] * dx[2];
     const int*  pi = d_i.data();  const int* pj = d_j.data();  const int* pk = d_k.data();
     const Real* pH = d_H.data();  const Real* pA = d_area.data();
+    const int qv_comp = m_qv_comp;
     for (MFIter mfi(source); mfi.isValid(); ++mfi) {
         const int f0 = m_fab_start[mfi.LocalIndex()];
         const int f1 = m_fab_start[mfi.LocalIndex() + 1];
@@ -1144,7 +1163,7 @@ IBFaceSet::add_heat_flux_to_source (MultiFab& source, const MultiFab& cons,
         ParallelFor(f1 - f0, [=] AMREX_GPU_DEVICE (int m) noexcept {
             const int f = f0 + m;
             const int i = pi[f], j = pj[f], k = pk[f];
-            const Real exner = getExnergivenRTh(c(i, j, k, RhoTheta_comp), rdOcp);
+            const Real exner = getExnergivenRTh(c(i, j, k, RhoTheta_comp), rdOcp, cell_qv(c, i, j, k, qv_comp));
             const Real tend  = pH[f] * pA[f] / (c_p * vol * exner);
             Gpu::Atomic::AddNoRet(&src(i, j, k, RhoTheta_comp), tend);
         });
@@ -1199,13 +1218,15 @@ IBFaceSet::compute_shortwave (Real time, const TwoStreamCanopyView& canopy)
                                                  Real(1.0), m_params.sw_diffuse_coeff);
     } else {
         const Real t_utc = m_params.time_zero_utc_s + time;
-        const Real decl  = ibseb::solar_declination(m_params.day_of_year);
+        // The date advances at each 00:00 UTC, so a run of several days follows the season.
+        const Real day   = ibseb::day_of_year_at(m_params.day_of_year, t_utc);
+        const Real decl  = ibseb::solar_declination(day);
         // Hour angle from UTC and the longitude (a time-zone offset would cancel).
-        const Real ha    = ibseb::solar_hour_angle(t_utc, m_params.longitude_deg, m_params.day_of_year);
+        const Real ha    = ibseb::solar_hour_angle(t_utc, m_params.longitude_deg, day);
         s.zenith  = ibseb::solar_zenith(m_params.latitude_deg, decl, ha);
         s.azimuth = ibseb::solar_azimuth(m_params.latitude_deg, decl, ha, s.zenith);
         const Real cz = std::cos(s.zenith);
-        const Real e0 = ibseb::earth_sun_distance_factor(m_params.day_of_year);
+        const Real e0 = ibseb::earth_sun_distance_factor(day);
         s.dni       = ibseb::clear_sky_dni(cz, m_params.solar_constant, m_params.sw_transmission, e0);
         s.diffuse_h = ibseb::clear_sky_diffuse_h(cz, m_params.solar_constant, m_params.sw_transmission,
                                                  e0, m_params.sw_diffuse_coeff);

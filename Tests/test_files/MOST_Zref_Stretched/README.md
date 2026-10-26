@@ -25,7 +25,8 @@ the ramp and prints the height the wind actually came from. With a uniform
 wind this check could not tell the cells apart.
 
 `run_most_zref.py` runs the deck through the three MOST lookups a flat
-stretched mesh can take, plus a uniform 10 m column (443 levels):
+stretched mesh can take, plus a uniform 10 m column (443 levels) with its
+bottom at z = 0 and at z = 300 m:
 
 | case | mesh / terrain | lookup | zref |
 |---|---|---|---|
@@ -33,13 +34,19 @@ stretched mesh can take, plus a uniform 10 m column (443 levels):
 | `fitted_interp` | VariableDz, `erf.terrain_type = StaticFittedMesh` | `set_norm_positions_T` + `trilinear_interp_T` | 10 m |
 | `immersed_stretched` | StretchedDz, `erf.terrain_type = ImmersedForcing` | `set_k_indices_N` | 5 m |
 | `uniform_reference` | ConstantDz, dz = 10 m | `set_k_indices_N` | 5 m |
+| `uniform_raised_base` | ConstantDz, dz = 10 m, `geometry.prob_lo[2] = 300` | `set_k_indices_N` | 5 m |
+| `raised_base_k_arr` | the same, `erf.most.k_arr_in = 0` | `set_k_indices_N` | 5 m |
+| `raised_base_dz_odd` | ConstantDz, dz = 1000/96 m, `geometry.prob_lo[2] = 300` | `set_k_indices_N` | 5.21 m |
 
 The test passes when:
 - every case reports the expected height;
 - u*(0) matches the log law with the wind at that height to 2e-5 (hist.dat
   holds 6 digits);
 - the stretched no-terrain column stays within 1e-3 of the uniform column
-  over the 10 steps.
+  over the 10 steps;
+- both raised columns with dz = 10 m follow the uniform column to the 6 digits
+  of hist.dat over the 10 steps (the surface layer's reference height is a
+  height above the ground).
 
 The script also aborts if the sounding is ever made too uniform to tell a
 cell from its upper neighbour.
@@ -93,3 +100,21 @@ Stretched against uniform, new binary:
 python3 run_most_zref.py --exe /path/to/erf_exec --mpi-cmd "mpiexec -n 1" \
     [--old-exe /path/to/erf_exec_before_fix]
 ```
+
+## Raised base
+
+Measured on 2026-10-25 against development 3c9c151c4 (`--old-exe`): the
+uniform column with its bottom at z = 300 m reported zref = 305 m, the absolute
+height of the first cell centre, and took u*(0) = 0.536589 from
+0.41 * 10.5 / ln(305 / 0.1), against 1.10045 with zref = 5 m; with
+`erf.most.k_arr_in = 0` it did the same. The inputs keep their meaning (on the
+low z face of a constant-dz mesh `erf.most.zref` is an absolute z and
+`erf.most.k_arr_in` an absolute index), but the reference height the surface
+layer uses is now the height above the bottom wall, as it already was on
+stretched meshes and on the other faces. The raised column now matches the
+column at z = 0 at every step.
+
+With dz = 1000/96 m and the bottom at 300 m, (300 + dz/2) - 300 rounds below
+dz/2, and development stopped at start-up on `wall_offset >= m_radius`
+(`raised_base_dz_odd`; about half of all raised bases did). The default is now
+kept as a height, dz/2, and a given absolute z gets a round-off allowance.

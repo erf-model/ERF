@@ -41,7 +41,7 @@ geometry.is_periodic = 1 1 0
 zlo.type = "surface_layer"
 erf.most.z0   = 0.1      # roughness length [m]
 erf.most.zref = 48.0     # reference height [m]
-erf.most.surf_temp = 300.0  # initial surface temperature [K]
+erf.most.pot_surf_temp = 300.0  # initial surface temperature [K]
 erf.most.surf_heating_rate = 1.0  # average rate (will vary with time/procedure)
 
 # Upper boundary - stable layer
@@ -79,7 +79,6 @@ erf.use_gravity = true
 erf.molec_diff_type = "None"
 # When using a PBL model, LES closure should be disabled
 erf.les_type        = "None"
-erf.Cs = 0.11
 erf.theta_ref = 300.0
 
 # INITIALIZATION - from sounding file

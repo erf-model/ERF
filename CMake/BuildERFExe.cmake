@@ -167,10 +167,6 @@ function(build_erf_lib erf_lib_name)
                               )
   endif()
 
-  if(ERF_ENABLE_IMPLICIT_W)
-    target_compile_definitions(${erf_lib_name} PUBLIC ERF_IMPLICIT_W)
-  endif()
-
   if(ERF_ENABLE_MULTIBLOCK)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_MULTIBLOCK)
   endif()
@@ -210,6 +206,7 @@ function(build_erf_lib erf_lib_name)
     target_sources(${erf_lib_name} PRIVATE
                    ${SRC_DIR}/Initialization/ERF_InitFromWRFInput.cpp
                    ${SRC_DIR}/Initialization/ERF_InitFromMetgrid.cpp
+                   ${SRC_DIR}/Initialization/ERF_InitLandFromMetgrid.cpp
                    ${SRC_DIR}/Initialization/ERF_InitFromNCFile.cpp
                    ${SRC_DIR}/IO/ERF_NCInterface.cpp
                    ${SRC_DIR}/IO/ERF_NCPlotFile.cpp
@@ -526,6 +523,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/LinearSolvers/ERF_SolveWithTerrainMLMG.cpp
        ${SRC_DIR}/LinearSolvers/ERF_SolveWithMLMG.cpp
        ${SRC_DIR}/LinearSolvers/ERF_TerrainPoisson.cpp
+       ${SRC_DIR}/Microphysics/ERF_MicrophysicsColumns.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_InitMorrison.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_AdvanceMorrison.cpp
        ${SRC_DIR}/Microphysics/Morrison/ERF_UpdateMorrison.cpp
@@ -609,6 +607,7 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/TimeIntegration/ERF_SlowRhsPre.cpp
        ${SRC_DIR}/TimeIntegration/ERF_SlowRhsPost.cpp
        ${SRC_DIR}/TimeIntegration/ERF_Substep_NS.cpp
+       ${SRC_DIR}/TimeIntegration/ERF_CFFluxHistory.cpp
        ${SRC_DIR}/TimeIntegration/ERF_Substep_T.cpp
        ${SRC_DIR}/TimeIntegration/ERF_Substep_MT.cpp
        ${SRC_DIR}/Utils/ERF_AverageDown.cpp

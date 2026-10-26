@@ -8,7 +8,7 @@ fabarray.mfiter_tile_size = 1024 1024 1024
 # PROBLEM SIZE & GEOMETRY (Cuxart et al. 2006)
 #geometry.prob_extent = 2048  2048  1024
 #amr.n_cell           =  4   4   256
-geometry.prob_extent = 8000  8000  2048
+geometry.prob_extent = 8000  8000  2709.7466443956678
 amr.n_cell           =  8   8   64
 
 geometry.is_periodic = 1 1 0
@@ -18,7 +18,7 @@ erf.grid_stretching_ratio = 1.06
 # MOST BOUNDARY (DEFAULT IS ADIABATIC FOR THETA)
 zlo.type = "surface_layer"
 erf.most.z0                 = 0.1  # from Cuxart et al. 2006
-erf.most.surf_temp          = 265.0 # initial value, should match input_sounding
+erf.most.pot_surf_temp      = 265.0 # initial value, should match input_sounding
 erf.most.surf_heating_rate  = -0.25 # [K/h] from Cuxart et al. 2006
 erf.most.zref = 10.0
 

@@ -119,7 +119,7 @@ void ERF::advance_dycore (int level,
 
     MultiFab    S_prim  (ba  , dm, num_prim,          state_old[IntVars::cons].nGrowVect());
     MultiFab  pi_stage  (ba  , dm,        1,          1);
-    MultiFab fast_coeffs(ba_z, dm,        5,          0);
+    MultiFab fast_coeffs(ba_z, dm,        6,          0);
 
     MultiFab* eddyDiffs = eddyDiffs_lev[level].get();
     MultiFab* SmnSmn    = SmnSmn_lev[level].get();
@@ -657,7 +657,9 @@ void ERF::advance_dycore (int level,
                                   qheating_rates[level].get(),
                                   (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) ?
-                                      terrain_blanking[level].get() : nullptr);
+                                      terrain_blanking[level].get() : nullptr,
+                                  (solverChoice.do_forest_drag) ?
+                                      m_forest_drag[level]->get_drag_field() : nullptr);
 
         // Zero turbulent mixing in fully immersed cells
         MultiFab* terrain_blank = (solverChoice.terrain_type == TerrainType::ImmersedForcing ||

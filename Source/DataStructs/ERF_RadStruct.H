@@ -179,7 +179,7 @@ public:
   /** @brief Mass model, SW: water-vapor gray absorption coefficient [m^2/kg]. */
   amrex::Real sw_kabs_vapor = 4.0e-3;
 
-  /** @brief Mass model, SW: cloud-water extinction coefficient [m^2/kg] (~1.5/r_e with r_e = 10 um). */
+  /** @brief Mass model, SW: cloud-water extinction coefficient [m^2/kg] (~1500/r_e[um]: 150 for r_e = 10 um). */
   amrex::Real sw_kext_cloud = 150.0;
 
   /** @brief Mass model, SW: cloud-water single-scattering albedo. */

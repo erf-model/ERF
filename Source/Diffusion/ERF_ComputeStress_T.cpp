@@ -34,7 +34,6 @@ using namespace amrex;
  * @param[in]  mf_vy y map factor at y-faces
  * @param[in,out] tau13i contribution to stress from du/dz
  * @param[in,out] tau23i contribution to stress from dv/dz
- * @param[in,out] tau33i contribution to stress from dw/dz
  * @param[in]  implicit_metric erf.implicit_terrain_metric: tau13i/tau23i also hold the compact
  *             terrain-metric term on the interior faces (see ERF_TerrainImplicitMetric.H)
  */
@@ -57,7 +56,6 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                          const Array4<const Real>& mf_vy,
                          Array4<Real>& tau13i,
                          Array4<Real>& tau23i,
-                         Array4<Real>& tau33i,
                          const bool implicit_metric)
 {
     // NOTE: mu_eff includes factor of 2
@@ -101,7 +99,6 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     //***********************************************************************************
     Real OneThird   = (one/three);
     ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        if (tau33i) tau33i(i,j,k) = tau33(i,j,k);
 
         tau11(i,j,k) -= OneThird*er_arr(i,j,k);
         tau22(i,j,k) -= OneThird*er_arr(i,j,k);
@@ -131,7 +128,6 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         tau33(i,j,k) -= met_h_xi*mfx*tau31bar + met_h_eta*mfy*tau32bar;
         tau33(i,j,k) *= -mu_tot;
 
-        if (tau33i) { tau33i(i,j,k) *= -mu_tot; }
     });
 
     // Second block: compute JT*2mu*(S-D)
@@ -387,7 +383,6 @@ ComputeStressConsVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
  * @param[in]  mf_vy y map factor at y-faces
  * @param[in,out] tau13i contribution to stress from du/dz
  * @param[in,out] tau23i contribution to stress from dv/dz
- * @param[in,out] tau33i contribution to stress from dw/dz
  * @param[in]  implicit_metric erf.implicit_terrain_metric: tau13i/tau23i also hold the compact
  *             terrain-metric term on the interior faces (see ERF_TerrainImplicitMetric.H)
  *
@@ -423,7 +418,6 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
                         const Array4<const Real>& mf_vy,
                         Array4<Real>& tau13i,
                         Array4<Real>& tau23i,
-                        Array4<Real>& tau33i,
                         const bool implicit_metric)
 {
     // NOTE: mu_eff includes factor of 2
@@ -467,7 +461,6 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
     //***********************************************************************************
     Real OneThird   = (one/three);
     ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-        if (tau33i) tau33i(i,j,k) = tau33(i,j,k);
 
         tau11(i,j,k) -= OneThird*er_arr(i,j,k);
         tau22(i,j,k) -= OneThird*er_arr(i,j,k);
@@ -498,7 +491,6 @@ ComputeStressVarVisc_T (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff,
         tau33(i,j,k) -= met_h_xi*mfx*tau31bar + met_h_eta*mfy*tau32bar;
         tau33(i,j,k) *= -mu_tot;
 
-        if (tau33i) { tau33i(i,j,k) *= -mu_tot; }
     });
 
     // The zeta-face stresses project the horizontal stresses K_h*S11, K_h*S12, K_h*S21 and

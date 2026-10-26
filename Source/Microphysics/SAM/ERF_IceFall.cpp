@@ -42,6 +42,11 @@ void SAM::IceFall (const SolverChoice& sc) {
     fz.define(convert(ba, IntVect(0,0,1)), dm, 1, ng);
     fz.setVal(0.);
 
+    // The face state reads qci at k-1, a ghost cell whenever a box boundary is interior in
+    // z, and Cloud has just updated qci in valid cells only: refresh before the fluxes that
+    // size the substeps are computed (the substep loop refreshes it again as it falls).
+    qci->FillBoundary(m_geom.periodicity());
+
     for (MFIter mfi(fz, TileNoZ()); mfi.isValid(); ++mfi) {
         auto qci_array = qci->array(mfi);
         auto rho_array = rho->array(mfi);
@@ -98,12 +103,23 @@ void SAM::IceFall (const SolverChoice& sc) {
 
     // Substep the vertical advection
     for (int nsub(0); nsub<n_substep; ++nsub) {
+        // The face state and the donor-cap limiter read qci at k-1, which is a ghost cell
+        // whenever a box boundary is interior in z. The previous substep updated qci in
+        // valid cells only, so refresh ghosts here, as PrecipFall does; otherwise the two
+        // sides of a shared z face see different donor values.
+        qci->FillBoundary(m_geom.periodicity());
+
         for (MFIter mfi(*qci, TileNoZ()); mfi.isValid(); ++mfi) {
             auto qci_array   = qci->array(mfi);
             auto qn_array    = qn->array(mfi);
             auto qt_array    = qt->array(mfi);
             auto rho_array   = rho->array(mfi);
             auto fz_array    = fz.array(mfi);
+            auto sed_array   = m_sed.down->array(mfi);
+            const auto inflow_array = (m_sed_inflow) ? m_sed_inflow->const_array(mfi)
+                                                     : Array4<const Real>{};
+            const int inflow_flag = m_sed.inflow_flag_comp();
+            const Real inv_dt = one / dt;
 
             const auto dJ_array = (m_detJ_cc) ? m_detJ_cc->const_array(mfi) : Array4<const Real>{};
 
@@ -123,6 +139,8 @@ void SAM::IceFall (const SolverChoice& sc) {
                                                                        qci_km1, qci_k,
                                                                        zero, zero);
                 const Real vt_ice = sam_cloud_ice_terminal_velocity(face_state.qci_avg);
+                const int donor_k = sam_precip_face_donor_k(k, k_lo, k_hi);
+                const Real detJ_donor = (dJ_array) ? dJ_array(i,j,donor_k) : one;
 
                 // NOTE: Fz is the sedimentation flux from the advective operator.
                 //       In the terrain-following coordinate system, the z-deriv in
@@ -130,7 +148,21 @@ void SAM::IceFall (const SolverChoice& sc) {
                 //       there are no u/v components to the sedimentation velocity.
                 //       Therefore, we simply end up with a division by detJ when
                 //       evaluating the source term: dJinv * (flux_hi - flux_lo) * dzinv.
-                fz_array(i,j,k) = face_state.rho_avg * vt_ice * face_state.qci_avg;
+                //
+                // Cap the flux by the ice the donor cell holds, as PrecipFall does, so a
+                // substep cannot export more than the cell contains. The clip on dqi
+                // below then binds only at roundoff, so the column budget closes.
+                fz_array(i,j,k) = sam_limit_precip_component_flux(face_state.rho_avg * vt_ice * face_state.qci_avg,
+                                                                  rho_array(i,j,donor_k),
+                                                                  qci_array(i,j,donor_k),
+                                                                  detJ_donor,
+                                                                  coef);
+                // At the top of a fine patch the ice coming in is the coarse level's flux
+                // through that face, not one built from interpolated ghost cells
+                if (inflow_array && inflow_array(i,j,k,inflow_flag) > Real(0.5)) {
+                    fz_array(i,j,k) = inflow_array(i,j,k,3) * inv_dt;
+                }
+                sed_array(i,j,k,3) += fz_array(i,j,k) * dtn;
             });
 
             // Update precip every substep

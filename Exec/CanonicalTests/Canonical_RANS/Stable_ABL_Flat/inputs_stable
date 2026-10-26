@@ -25,7 +25,7 @@ geometry.is_periodic = 1 1 0
 # MOST BOUNDARY: prescribed cooling surface (GABLS1)
 zlo.type                   = "surface_layer"
 erf.most.z0                = 0.1
-erf.most.surf_temp         = 265.0
+erf.most.pot_surf_temp     = 265.0
 erf.most.surf_heating_rate = -0.25   # [K/h]
 erf.most.pblh_calc         = "MYNN25"
 

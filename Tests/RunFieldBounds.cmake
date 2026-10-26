@@ -1,7 +1,9 @@
 # Run one ERF deck and require the extrema of one plotfile variable to lie within [LO, HI].
 # Arguments (-D): MPIEXEC, MPIEXEC_NUMPROC_FLAG, MPIEXEC_PREFLAGS, NRANKS, TEST_EXE, INPUT,
 # WORKING_DIRECTORY, FEXTREMA, PLTFILE, VARIABLE, LO, HI, and optionally PRE_INPUT: a deck run
-# first in the same folder, e.g. one that writes the boundary planes INPUT reads.
+# first in the same folder, e.g. one that writes the boundary planes INPUT reads.  Optionally
+# MIN_HI and MAX_LO also require the minimum to be at most MIN_HI and the maximum at least
+# MAX_LO, so the field must reach both ends of a known range, not only stay inside it.
 cmake_minimum_required(VERSION 3.20)
 include(${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake)
 
@@ -70,4 +72,10 @@ set(V_MAX "${CMAKE_MATCH_2}")
 message(STATUS "RunFieldBounds.cmake: ${VARIABLE} in [${V_MIN}, ${V_MAX}], required [${LO}, ${HI}]")
 if(V_MIN LESS LO OR V_MAX GREATER HI)
     message(FATAL_ERROR "RunFieldBounds.cmake: ${VARIABLE} leaves [${LO}, ${HI}]: min ${V_MIN}, max ${V_MAX}")
+endif()
+if(DEFINED MIN_HI AND NOT "${MIN_HI}" STREQUAL "" AND V_MIN GREATER MIN_HI)
+    message(FATAL_ERROR "RunFieldBounds.cmake: ${VARIABLE} minimum ${V_MIN} is above ${MIN_HI}")
+endif()
+if(DEFINED MAX_LO AND NOT "${MAX_LO}" STREQUAL "" AND V_MAX LESS MAX_LO)
+    message(FATAL_ERROR "RunFieldBounds.cmake: ${VARIABLE} maximum ${V_MAX} is below ${MAX_LO}")
 endif()

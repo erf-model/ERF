@@ -22,7 +22,7 @@ erf.most.z0   = 0.05
 
 #erf.most.surf_temp_flux = qwall # [K-m/s]
 # --OR--
-#erf.most.surf_temp = Twall # [K]
+#erf.most.pot_surf_temp = Twall # [K]
 #erf.most.surf_heating_rate = dT/dt # [K/h]
 
 zhi.type = "SlipWall"

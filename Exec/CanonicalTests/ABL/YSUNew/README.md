@@ -22,7 +22,7 @@ The YSUNew scheme is an enhanced version of the YSU scheme with improved treatme
 - `erf.pbl_ysu_land_Ribcr = 0.25`
 - `erf.enable_ysu_countergradient = false` (not applicable in stable conditions)
 - `erf.enable_ysu_entrainment = false` (weak entrainment in stable layer)
-- `erf.most.surf_temp = 265.0 K` (cold surface)
+- `erf.most.pot_surf_temp = 265.0 K` (cold surface)
 - `erf.most.surf_heating_rate = -0.25 K/h` (cooling)
 - Domain: 4000×4000×2000 m, 4×4×64 cells
 - Time steps: 100 (total ~5 seconds simulation time)
@@ -55,9 +55,8 @@ The YSUNew scheme is an enhanced version of the YSU scheme with improved treatme
 - `erf.enable_ysu_countergradient = true` (critical for accurate PBL height)
 - `erf.enable_ysu_entrainment = true` (important for convective PBL top)
 - `erf.pbl_ysunew_phifac = 8.0` (stability function parameter)
-- `erf.most.surf_temp = 308.0 K` (warm surface)
-- `erf.most.surf_heating_rate = 0.1 K*m/s` (strong heating, positive = unstable)
-- `erf.ysu_moistvars = true` (moisture effects)
+- `erf.most.surf_temp_flux = 0.1 K*m/s` (prescribed surface heat flux, positive = unstable)
+- `erf.ysu_moistvars = false` (dry; see `inputs_moist` for the moist case)
 - Domain: 4000×4000×2000 m, 4×4×64 cells
 - Time steps: 100
 
@@ -88,7 +87,7 @@ The YSUNew scheme is an enhanced version of the YSU scheme with improved treatme
 - `erf.pbl_type = YSUNew`
 - `erf.enable_ysu_countergradient = false` (not relevant for neutral conditions)
 - `erf.enable_ysu_entrainment = false`
-- `erf.most.surf_temp = 300.0 K`
+- `erf.most.pot_surf_temp = 300.0 K`
 - `erf.most.surf_heating_rate = 0.0 K/h` (no surface heat flux)
 - `erf.ysu_moistvars = false`
 - Domain: 4000×4000×2000 m, 4×4×64 cells

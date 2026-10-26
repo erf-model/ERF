@@ -477,7 +477,8 @@ TEST(KesslerScalar, PrecipFlux_AnalyticDerivativeInPositiveDomain)
 
 // Motivation: Face-state selection has three branches: bottom, top, and
 // interior. Interior faces keep rho centered on the z face while qp stays
-// donor/upwind for downward sedimentation.
+// donor/upwind for downward sedimentation. The top face has no donor above the
+// domain, so it carries no rain (#4408).
 TEST(KesslerScalar, FaceState_BottomTopInteriorBranches)
 {
     const KesslerFaceState bottom =
@@ -490,7 +491,7 @@ TEST(KesslerScalar, FaceState_BottomTopInteriorBranches)
     EXPECT_NEAR(bottom.rho, amrex::Real(1.1), formula_abs_tol(amrex::Real(1.1)));
     EXPECT_NEAR(bottom.qp, amrex::Real(0.3), formula_abs_tol(amrex::Real(0.3)));
     EXPECT_NEAR(top.rho, amrex::Real(1.0), formula_abs_tol(amrex::Real(1.0)));
-    EXPECT_NEAR(top.qp, amrex::Real(0.2), formula_abs_tol(amrex::Real(0.2)));
+    EXPECT_EQ(top.qp, amrex::Real(0));
     EXPECT_NEAR(interior.rho, amrex::Real(1.05), formula_abs_tol(amrex::Real(1.05)));
     EXPECT_NEAR(interior.qp, amrex::Real(0.3), formula_abs_tol(amrex::Real(0.3)));
 }

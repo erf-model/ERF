@@ -190,6 +190,7 @@ void DiffusionSrcForState_T (const amrex::Box& bx, const amrex::Box& domain,
                              const SolverChoice& solverChoice,
                              const int level,
                              const amrex::BCRec* bc_ptr,
+                             const amrex::BCRec* bc_ptr_h,
                              const bool use_SurfLayer,
                              const amrex::Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer,
                              const amrex::Real implicit_fac,
@@ -280,8 +281,7 @@ void ComputeStressConsVisc_EB (amrex::Box bxcc,
                               const amrex::Array4<const amrex::Real>& er_arr,
                               amrex::Array4<const amrex::Real>& vfrac,
                               amrex::Array4<amrex::Real>& tau13i,
-                              amrex::Array4<amrex::Real>& tau23i,
-                              amrex::Array4<amrex::Real>& tau33i);
+                              amrex::Array4<amrex::Real>& tau23i);
 
 /** \brief Compute stress components for constant viscosity on a uniform grid without terrain. */
 void ComputeStressConsVisc_N (amrex::Box bxcc,
@@ -298,8 +298,7 @@ void ComputeStressConsVisc_N (amrex::Box bxcc,
                               amrex::Array4<amrex::Real>& tau23,
                               const amrex::Array4<const amrex::Real>& er_arr,
                               amrex::Array4<amrex::Real>& tau13i,
-                              amrex::Array4<amrex::Real>& tau23i,
-                              amrex::Array4<amrex::Real>& tau33i);
+                              amrex::Array4<amrex::Real>& tau23i);
 
 /** \brief Compute stress components for constant viscosity on a vertically stretched grid. */
 void ComputeStressConsVisc_S (amrex::Box bxcc,
@@ -322,8 +321,7 @@ void ComputeStressConsVisc_S (amrex::Box bxcc,
                               const amrex::Array4<const amrex::Real>& mf_uy,
                               const amrex::Array4<const amrex::Real>& mf_vy,
                               amrex::Array4<amrex::Real>& tau13i,
-                              amrex::Array4<amrex::Real>& tau23i,
-                              amrex::Array4<amrex::Real>& tau33i);
+                              amrex::Array4<amrex::Real>& tau23i);
 
 /** \brief Compute stress components for constant viscosity on terrain-following coordinates. */
 void ComputeStressConsVisc_T (amrex::Box bxcc,
@@ -350,7 +348,6 @@ void ComputeStressConsVisc_T (amrex::Box bxcc,
                               const amrex::Array4<const amrex::Real>& mf_vy,
                               amrex::Array4<amrex::Real>& tau13i,
                               amrex::Array4<amrex::Real>& tau23i,
-                              amrex::Array4<amrex::Real>& tau33i,
                               const bool implicit_metric);
 
 /** \brief Compute embedded-boundary stress components for variable viscosity. */
@@ -370,8 +367,7 @@ void ComputeStressVarVisc_EB (amrex::Box bxcc,
                               const amrex::Array4<const amrex::Real>& er_arr,
                               amrex::Array4<const amrex::Real>& vfrac,
                               amrex::Array4<amrex::Real>& tau13i,
-                              amrex::Array4<amrex::Real>& tau23i,
-                              amrex::Array4<amrex::Real>& tau33i);
+                              amrex::Array4<amrex::Real>& tau23i);
 
 /** \brief Compute stress components for variable viscosity on a uniform grid without terrain. */
 void ComputeStressVarVisc_N (amrex::Box bxcc,
@@ -389,8 +385,7 @@ void ComputeStressVarVisc_N (amrex::Box bxcc,
                              amrex::Array4<amrex::Real>& tau23,
                              const amrex::Array4<const amrex::Real>& er_arr,
                              amrex::Array4<amrex::Real>& tau13i,
-                             amrex::Array4<amrex::Real>& tau23i,
-                             amrex::Array4<amrex::Real>& tau33i);
+                             amrex::Array4<amrex::Real>& tau23i);
 
 /** \brief Compute stress components for variable viscosity on a vertically stretched grid. */
 void ComputeStressVarVisc_S (amrex::Box bxcc,
@@ -414,8 +409,7 @@ void ComputeStressVarVisc_S (amrex::Box bxcc,
                              const amrex::Array4<const amrex::Real>& mf_uy,
                              const amrex::Array4<const amrex::Real>& mf_vy,
                              amrex::Array4<amrex::Real>& tau13i,
-                             amrex::Array4<amrex::Real>& tau23i,
-                             amrex::Array4<amrex::Real>& tau33i);
+                             amrex::Array4<amrex::Real>& tau23i);
 
 /** \brief Compute stress components for variable viscosity on terrain-following coordinates. */
 void ComputeStressVarVisc_T (amrex::Box bxcc,
@@ -443,7 +437,6 @@ void ComputeStressVarVisc_T (amrex::Box bxcc,
                              const amrex::Array4<const amrex::Real>& mf_vy,
                              amrex::Array4<amrex::Real>& tau13i,
                              amrex::Array4<amrex::Real>& tau23i,
-                             amrex::Array4<amrex::Real>& tau33i,
                              const bool implicit_metric);
 
 /** \brief Compute embedded-boundary strain-rate components. */

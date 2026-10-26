@@ -45,10 +45,10 @@
     const Real dy = geomdata.CellSize(1);
     const Real prob_lo_x = geomdata.ProbLo(0);
     const Real prob_lo_y = geomdata.ProbLo(1);
-    const Real prob_lo_z = geomdata.ProbLo(2);
+    const Real prob_lo_z = phys_zlo(geomdata, lev);   // physical, not the computational, bottom
     const Real prob_hi_x = geomdata.ProbHi(0);
     const Real prob_hi_y = geomdata.ProbHi(1);
-    const Real prob_hi_z = geomdata.ProbHi(2);
+    const Real prob_hi_z = phys_zhi(geomdata, lev);   // physical, not the computational, top
 
     // Define a point (xc,yc,zc) at the center of the domain
     const Real xc = myhalf * (prob_lo_x + prob_hi_x);

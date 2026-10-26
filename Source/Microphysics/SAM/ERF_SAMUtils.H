@@ -873,9 +873,9 @@ SAMFaceState sam_face_average_state (const int& k,
                                      const amrex::Real& rho_k,
                                      const amrex::Real tabs_km1,
                                      const amrex::Real tabs_k,
-                                     const amrex::Real& qci_km1,
+                                     const amrex::Real& /*qci_km1*/,
                                      const amrex::Real& qci_k,
-                                     const amrex::Real qp_km1,
+                                     const amrex::Real /*qp_km1*/,
                                      const amrex::Real qp_k) noexcept
 {
     SAMFaceState result{};
@@ -885,15 +885,21 @@ SAMFaceState sam_face_average_state (const int& k,
         result.qci_avg = qci_k;
         result.qp_avg = qp_k;
     } else if (k == k_hi + 1) {
+        // Nothing falls in through the model top: no ice or precipitation lies
+        // above the domain.
         result.rho_avg = rho_km1;
         result.tabs_avg = tabs_km1;
-        result.qci_avg = qci_km1;
-        result.qp_avg = qp_km1;
+        result.qci_avg = zero;
+        result.qp_avg = zero;
     } else {
+        // Sedimentation only moves mass down, out of cell k: keep rho and T
+        // centred on the face but take the transported mixing ratios from that
+        // donor cell, so the flux does not depend on the receiving cell below
+        // (a dry donor sends nothing).
         result.rho_avg = myhalf * (rho_km1 + rho_k);
         result.tabs_avg = myhalf * (tabs_km1 + tabs_k);
-        result.qci_avg = myhalf * (qci_km1 + qci_k);
-        result.qp_avg = myhalf * (qp_km1 + qp_k);
+        result.qci_avg = qci_k;
+        result.qp_avg = qp_k;
     }
     return result;
 }
@@ -942,13 +948,15 @@ SAMPrecipFaceState sam_precip_face_state (const int& SAM_moisture_type,
         result.tabs_avg = tabs_array(i,j,k);
         result.qp_avg = qp_array(i,j,k);
     } else if (k == k_hi + 1) {
+        // Nothing falls in through the model top.
         result.rho_avg = rho_array(i,j,k-1);
         result.tabs_avg = tabs_array(i,j,k-1);
-        result.qp_avg = qp_array(i,j,k-1);
+        result.qp_avg = zero;
     } else {
+        // Centred rho and T, donor (upwind) qp from the cell above the face.
         result.rho_avg = myhalf * (rho_array(i,j,k-1) + rho_array(i,j,k));
         result.tabs_avg = myhalf * (tabs_array(i,j,k-1) + tabs_array(i,j,k));
-        result.qp_avg = myhalf * (qp_array(i,j,k-1) + qp_array(i,j,k));
+        result.qp_avg = qp_array(i,j,k);
     }
     result.omp = sam_precip_rain_fraction(SAM_moisture_type, result.tabs_avg);
     result.omg = sam_graupel_fraction(SAM_moisture_type, result.tabs_avg);
@@ -982,17 +990,19 @@ SAMPrecipComponentFaceState sam_precip_component_face_state (const amrex::Array4
         result.qps_avg = qps_array(i,j,k);
         result.qpg_avg = qpg_array(i,j,k);
     } else if (k == k_hi + 1) {
+        // Nothing falls in through the model top.
         result.rho_avg = rho_array(i,j,k-1);
         result.tabs_avg = tabs_array(i,j,k-1);
-        result.qpr_avg = qpr_array(i,j,k-1);
-        result.qps_avg = qps_array(i,j,k-1);
-        result.qpg_avg = qpg_array(i,j,k-1);
+        result.qpr_avg = zero;
+        result.qps_avg = zero;
+        result.qpg_avg = zero;
     } else {
+        // Centred rho and T, donor (upwind) qpr/qps/qpg from the cell above the face.
         result.rho_avg = myhalf * (rho_array(i,j,k-1) + rho_array(i,j,k));
         result.tabs_avg = myhalf * (tabs_array(i,j,k-1) + tabs_array(i,j,k));
-        result.qpr_avg = myhalf * (qpr_array(i,j,k-1) + qpr_array(i,j,k));
-        result.qps_avg = myhalf * (qps_array(i,j,k-1) + qps_array(i,j,k));
-        result.qpg_avg = myhalf * (qpg_array(i,j,k-1) + qpg_array(i,j,k));
+        result.qpr_avg = qpr_array(i,j,k);
+        result.qps_avg = qps_array(i,j,k);
+        result.qpg_avg = qpg_array(i,j,k);
     }
     return result;
 }

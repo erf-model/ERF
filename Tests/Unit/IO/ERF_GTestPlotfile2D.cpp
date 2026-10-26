@@ -273,7 +273,7 @@ TEST(Plotfile2D, CatalogNamesMatchCanonicalOrder)
         "sw_flux_dn", "sw_flux_dn_dir_vis", "sw_flux_dn_dir_nir",
         "sw_flux_dn_dif_vis", "sw_flux_dn_dif_nir", "lw_flux_dn",
         "grdflx", "fira", "sav", "sag", "albedo", "sfcrunoff",
-        "udrunoff",
+        "udrunoff", "snow", "snowh",
         "noahmp_temperature_2m_vegetated", "noahmp_temperature_2m_bare",
         "noahmp_water_vapor_mixing_ratio_2m_vegetated",
         "noahmp_water_vapor_mixing_ratio_2m_bare",

@@ -1146,6 +1146,7 @@ SLM::Lsm_Regrid_Level (const int& lev,
         for (int ivar = 0; ivar < static_cast<int>(unmapped_fields.size()); ++ivar) {
             source_unmapped[ivar] = saved_unmapped[ivar].get();
         }
+        source_has_atmos_state = has_atmos_state;
 
         Lsm_Interpolate_From_Source(old_geom, old_lsm_geom,
                                     IntVect(1), LSMTransferMode::ProcessedState);
@@ -1179,21 +1180,47 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
     AMREX_ALWAYS_ASSERT(source_unmapped.size() == unmapped_fields.size());
 
     const IntVect rr2d(ref_ratio[0], ref_ratio[1], 1);
+
+    // This InterpFromCoarseLevel reads the coarse ghost cells as they are, and SLM
+    // never fills its fields' ghost cells, so they still hold the zeros of Init.
+    // Interpolate from a copy whose ghost cells between boxes (and across periodic
+    // boundaries) are filled; otherwise the fine cells next to a coarse box
+    // boundary get zeros (vegtype = 0, i.e. water). The copy leaves the source
+    // level's own ghost cells, which SLM writes to its checkpoints, as they were.
+    auto with_filled_ghosts = [] (const MultiFab& src, const Geometry& geom)
+    {
+        MultiFab tmp(src.boxArray(), src.DistributionMap(), src.nComp(), src.nGrowVect());
+        MultiFab::Copy(tmp, src, 0, 0, src.nComp(), src.nGrowVect());
+        tmp.FillBoundary(geom.periodicity());
+        return tmp;
+    };
+
+    // The vegetation and soil types are categories: a fine cell takes its coarse cell's,
+    // since a linear interpolation between two of them (17, water, and 5, say, along a
+    // coastline) gives a third (12, cropland) once SLM truncates it to an integer
+    auto interp_for = [] (int var) -> Interpolater*
+    {
+        return (var == LsmVar_SLM::vegtype || var == LsmVar_SLM::soiltype)
+            ? static_cast<Interpolater*>(&pc_interp) : static_cast<Interpolater*>(&cell_cons_interp);
+    };
+
     for (int ivar = 0; ivar < m_lsm_data_size; ++ivar) {
         AMREX_ALWAYS_ASSERT(source_data[ivar] != nullptr);
+        const MultiFab src = with_filled_ghosts(*source_data[ivar], source_lsm_geom);
         InterpFromCoarseLevel(*lsm_fab_vars[LsmDataMap[ivar]],
                               lsm_fab_vars[LsmDataMap[ivar]]->nGrowVect(),
-                              IntVect(0,0,0), *source_data[ivar], 0, 0, 1,
+                              IntVect(0,0,0), src, 0, 0, 1,
                               source_lsm_geom, m_lsm_geom, rr2d,
-                              &cell_cons_interp, m_domain_bcs_type,
+                              interp_for(LsmDataMap[ivar]), m_domain_bcs_type,
                               BCVars::cons_bc);
     }
 
     for (int ivar = 0; ivar < m_lsm_flux_size; ++ivar) {
         AMREX_ALWAYS_ASSERT(source_flux[ivar] != nullptr);
+        const MultiFab src = with_filled_ghosts(*source_flux[ivar], source_geom);
         InterpFromCoarseLevel(*lsm_fab_flux[LsmFluxMap[ivar]],
                               lsm_fab_flux[LsmFluxMap[ivar]]->nGrowVect(),
-                              IntVect(0,0,0), *source_flux[ivar], 0, 0, 1,
+                              IntVect(0,0,0), src, 0, 0, 1,
                               source_geom, m_geom, rr2d,
                               &cell_cons_interp, m_domain_bcs_type,
                               BCVars::cons_bc);
@@ -1201,13 +1228,20 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
 
     for (int ivar = 0; ivar < static_cast<int>(unmapped_fields.size()); ++ivar) {
         AMREX_ALWAYS_ASSERT(source_unmapped[ivar] != nullptr);
+        const MultiFab src = with_filled_ghosts(*source_unmapped[ivar], source_lsm_geom);
         InterpFromCoarseLevel(*lsm_fab_vars[unmapped_fields[ivar]],
                               lsm_fab_vars[unmapped_fields[ivar]]->nGrowVect(),
-                              IntVect(0,0,0), *source_unmapped[ivar], 0, 0, 1,
+                              IntVect(0,0,0), src, 0, 0, 1,
                               source_lsm_geom, m_lsm_geom, rr2d,
-                              &cell_cons_interp, m_domain_bcs_type,
+                              interp_for(unmapped_fields[ivar]), m_domain_bcs_type,
                               BCVars::cons_bc);
     }
+
+    // tref, qref and pref were interpolated from the source, so they are only as
+    // good as the source's. A level made at initialization, before any
+    // Update_Lsm_Vars, gets zeros, and init_slm_vars must then run again once
+    // this level's own Update_Lsm_Vars has filled them.
+    has_atmos_state = source_has_atmos_state;
 
     if (mode == LSMTransferMode::RawInput) {
         first_step = true;
@@ -1217,6 +1251,7 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
         initialize_zrefxy();
         first_step = false;
         wrfinput_initialized = use_wrfinput;
+        init_from_atmos_pending = !has_atmos_state;
     }
 }
 
@@ -2735,19 +2770,23 @@ void SLM::UpdateLAI (const amrex::MFIter &mfi)
         static constexpr double dpy[] = {0.0  ,  31.0,  59.0,  90.0, 120.0, 151.0,
                                         181.0, 212.0, 243.0, 273.0, 304.0, 334.0};
         bool leap = (m_orbital_year % 4 == 0 && (!(m_orbital_year % 100 == 0) || (m_orbital_year % 400 == 0))) ? true : false;
-        m_calday = dpy[m_orbital_mon-1] + (m_orbital_day-1.0) + m_orbital_sec/86400.0;
-        // add extra day if leap year
-        if (leap) { m_calday += one; }
+        // In a leap year, 29 February shifts the start of every month from March on by
+        // one day; the dates, the month boundaries and the year end must all agree on it.
+        const Real leap_day = (leap) ? one : zero;
+        auto month_start = [&] (const int m) { return dpy[m] + ((m >= 2) ? leap_day : zero); };
 
         int curr_mon = m_orbital_mon - 1;
         int next_mon = curr_mon + 1;
-        Real t0 = dpy[curr_mon];
+        m_calday = month_start(curr_mon) + (m_orbital_day-1.0) + m_orbital_sec/86400.0;
+
+        Real t0 = month_start(curr_mon);
         Real t1;
-        if (next_mon >= 11) {
+        if (next_mon > 11) {
+            // December interpolates toward the following January
             next_mon = 0;
-            t1 = 365.0;
+            t1 = 365.0 + leap_day;
         } else {
-            t1 = dpy[next_mon];
+            t1 = month_start(next_mon);
         }
 
         const Real d_calday = m_calday;
@@ -4742,6 +4781,7 @@ void SLM::Copy_State_to_Lsm (const MultiFab& cons_in, const MultiFab& u_in, cons
             slm_zenith(i, j, khi) = slm_zenith(i, j, 0);
         });
     }
+    has_atmos_state = true;
 
 #ifdef ERF_USE_NETCDF
     if (rad_input_file != "")

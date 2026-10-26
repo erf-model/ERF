@@ -229,15 +229,13 @@ void install_exit_trap ()
 int main (int argc, char* argv[])
 {
 
+// For the early exits below, which all come before amrex::Initialize (and, with
+// WW3 coupling, before amrex::MPMD::Initialize): MPI is ours to finalize.
 auto finalize_mpi_and_return = [](int code) {
 #ifdef AMREX_USE_MPI
-#ifdef ERF_USE_WW3_COUPLING
-    amrex::MPMD::Finalize();
-#else
     MPI_Finalize();
 #endif
-#endif
-return code;
+    return code;
 };
 
 #if defined(AMREX_MPI_THREAD_MULTIPLE)
@@ -253,7 +251,7 @@ return code;
         ERF::print_usage(MPI_COMM_WORLD, std::cout);
         ERF::print_error(
             MPI_COMM_WORLD, "No input file provided. Exiting!!");
-        return 1;
+        return finalize_mpi_and_return(1);
     }
 
     // Look for "-h" or "--help" flag and print usage
@@ -262,7 +260,7 @@ return code;
         if ((param == "--help") || (param == "-h") || (param == "--usage")) {
             ERF::print_banner(MPI_COMM_WORLD, std::cout);
             ERF::print_usage(MPI_COMM_WORLD, std::cout);
-            return 0;
+            return finalize_mpi_and_return(0);
         }
     }
 
@@ -285,16 +283,6 @@ return code;
         return finalize_mpi_and_return(1);
     }
 
-  //  print_banner(MPI_COMM_WORLD, std::cout);
-    // Check to see if the command line contains --describe
-    if (argc >= 2) {
-        for (auto i = 1; i < argc; i++) {
-            if (std::string(argv[i]) == "--describe") {
-                ERF::writeBuildInfo(std::cout);
-                return 0;
-            }
-        }
-    }
 #ifdef ERF_USE_WW3_COUPLING
     MPI_Comm comm = amrex::MPMD::Initialize(argc, argv);
     amrex::Initialize(argc,argv,true,comm,add_par);
@@ -362,9 +350,10 @@ return code;
     amrex::Finalize();
 #ifdef AMREX_USE_MPI
 #ifdef ERF_USE_WW3_COUPLING
+    // MPI was initialized above, before amrex::MPMD::Initialize, so MPMD::Finalize
+    // frees its communicator but leaves MPI_Finalize to us.
     amrex::MPMD::Finalize();
-#else
-    MPI_Finalize();
 #endif
+    MPI_Finalize();
 #endif
 }

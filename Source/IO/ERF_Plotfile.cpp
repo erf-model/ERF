@@ -1403,6 +1403,11 @@ ERF::FillPlot3DVars (int lev,
         MultiFab::Copy(mf_dst,*eddyDiffs_lev[lev],EddyDiff::RANS_cmu_prime,mf_comp,1,0);
         mf_comp ++;
     }
+    if (containerHasElement(plot_var_names, "cap_ratio")) {
+        AMREX_ALWAYS_ASSERT(eddyDiffs_lev[lev] != nullptr);
+        MultiFab::Copy(mf_dst,*eddyDiffs_lev[lev],EddyDiff::RANS_cap_ratio,mf_comp,1,0);
+        mf_comp ++;
+    }
     auto copy_native_shoc_diagnostic = [&](const MultiFab* src) {
         if (src != nullptr) {
             MultiFab::Copy(mf_dst, *src, 0, mf_comp, 1, 0);
@@ -1754,169 +1759,6 @@ ERF::FillPlot3DVars (int lev,
         }
         mf_comp += 1;
     }
-
-#ifdef ERF_COMPUTE_ERROR
-    // Next, check for error in velocities and if desired, output them -- note we output none or all, not just some
-    if (containerHasElement(plot_var_names, "xvel_err") ||
-        containerHasElement(plot_var_names, "yvel_err") ||
-        containerHasElement(plot_var_names, "zvel_err"))
-    {
-        //
-        // Moving terrain ANALYTICAL
-        //
-        Real H           = geom[lev].ProbHi()[2];
-        Real Ampl        = Real(0.16);
-        Real wavelength  = Real(100.);
-        Real kp          = two * PI / wavelength;
-        Real g           = CONST_GRAV;
-        Real omega       = std::sqrt(g * kp);
-        Real omega_t     = omega * t_new[lev];
-
-        const auto dx = geom[lev].CellSizeArray();
-
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-        for (MFIter mfi(mf_dst, TilingIfNotGPU()); mfi.isValid(); ++mfi)
-        {
-            const Box& bx = mfi.validbox();
-            Box xbx(bx); xbx.surroundingNodes(0);
-            const Array4<Real> xvel_arr = vars_new[lev][Vars::xvel].array(mfi);
-            const Array4<Real> zvel_arr = vars_new[lev][Vars::zvel].array(mfi);
-
-            const Array4<Real const>& z_nd = z_phys_nd[lev]->const_array(mfi);
-
-            ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                Real x = i * dx[0];
-                Real z = fourth * (z_nd(i,j,k) + z_nd(i,j+1,k) + z_nd(i,j,k+1) + z_nd(i,j+1,k+1));
-
-                Real z_base = Ampl * std::sin(kp * x - omega_t);
-                z -= z_base;
-
-                Real fac = std::cosh( kp * (z - H) ) / std::sinh(kp * H);
-
-                xvel_arr(i,j,k) -= -Ampl * omega * fac * std::sin(kp * x - omega_t);
-            });
-
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                Real x   = (i + myhalf) * dx[0];
-                Real z   = fourth * ( z_nd(i,j,k) + z_nd(i+1,j,k) + z_nd(i,j+1,k) + z_nd(i+1,j+1,k));
-
-                Real z_base = Ampl * std::sin(kp * x - omega_t);
-                z -= z_base;
-
-                Real fac = std::sinh( kp * (z - H) ) / std::sinh(kp * H);
-
-                zvel_arr(i,j,k) -= Ampl * omega * fac * std::cos(kp * x - omega_t);
-            });
-        }
-
-        MultiFab temp_mf(mf_dst.boxArray(), mf_dst.DistributionMap(), AMREX_SPACEDIM, 0);
-        average_face_to_cellcenter(temp_mf,0,
-            Array<const MultiFab*,3>{&vars_new[lev][Vars::xvel],&vars_new[lev][Vars::yvel],&vars_new[lev][Vars::zvel]});
-
-        if (containerHasElement(plot_var_names, "xvel_err")) {
-            MultiFab::Copy(mf_dst,temp_mf,0,mf_comp,1,0);
-            mf_comp += 1;
-        }
-        if (containerHasElement(plot_var_names, "yvel_err")) {
-            MultiFab::Copy(mf_dst,temp_mf,1,mf_comp,1,0);
-            mf_comp += 1;
-        }
-        if (containerHasElement(plot_var_names, "zvel_err")) {
-            MultiFab::Copy(mf_dst,temp_mf,2,mf_comp,1,0);
-            mf_comp += 1;
-        }
-
-        // Now restore the velocities to what they were
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-        for (MFIter mfi(mf_dst, TilingIfNotGPU()); mfi.isValid(); ++mfi)
-        {
-            const Box& bx = mfi.validbox();
-            Box xbx(bx); xbx.surroundingNodes(0);
-
-            const Array4<Real> xvel_arr = vars_new[lev][Vars::xvel].array(mfi);
-            const Array4<Real> zvel_arr = vars_new[lev][Vars::zvel].array(mfi);
-
-            const Array4<Real const>& z_nd = z_phys_nd[lev]->const_array(mfi);
-
-            ParallelFor(xbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                Real x = i * dx[0];
-                Real z = fourth * (z_nd(i,j,k) + z_nd(i,j+1,k) + z_nd(i,j,k+1) + z_nd(i,j+1,k+1));
-                Real z_base = Ampl * std::sin(kp * x - omega_t);
-
-                z -= z_base;
-
-                Real fac = std::cosh( kp * (z - H) ) / std::sinh(kp * H);
-                xvel_arr(i,j,k) += -Ampl * omega * fac * std::sin(kp * x - omega_t);
-            });
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
-            {
-                Real x   = (i + myhalf) * dx[0];
-                Real z   = fourth * ( z_nd(i,j,k) + z_nd(i+1,j,k) + z_nd(i,j+1,k) + z_nd(i+1,j+1,k));
-                Real z_base = Ampl * std::sin(kp * x - omega_t);
-
-                z -= z_base;
-                Real fac = std::sinh( kp * (z - H) ) / std::sinh(kp * H);
-
-                zvel_arr(i,j,k) += Ampl * omega * fac * std::cos(kp * x - omega_t);
-            });
-        }
-    } // end xvel_err, yvel_err, zvel_err
-
-    if (containerHasElement(plot_var_names, "pp_err"))
-    {
-        // Moving terrain ANALYTICAL
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-        for ( MFIter mfi(mf_dst,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-        {
-            const Box& bx = mfi.tilebox();
-            const Array4<Real>& derdat = mf_dst.array(mfi);
-            const Array4<Real const>& p0_arr = p_hse.const_array(mfi);
-            const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
-
-            const auto dx = geom[lev].CellSizeArray();
-            const Array4<Real const>& z_nd = z_phys_nd[lev]->const_array(mfi);
-            const Array4<Real const>&  p_arr = pressure.const_array(mfi);
-            const Array4<Real const>& r0_arr = r_hse.const_array(mfi);
-
-            Real H           = geom[lev].ProbHi()[2];
-            Real Ampl        = Real(0.16);
-            Real wavelength  = Real(100.);
-            Real kp          = two * PI / wavelength;
-            Real g           = CONST_GRAV;
-            Real omega       = std::sqrt(g * kp);
-            Real omega_t     = omega * t_new[lev];
-
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-            {
-                derdat(i, j, k, mf_comp) = p_arr(i,j,k) - p0_arr(i,j,k);
-
-                Real rho_hse     = r0_arr(i,j,k);
-
-                Real x   = (i + myhalf) * dx[0];
-                Real z   = Real(0.125) * ( z_nd(i,j,k  ) + z_nd(i+1,j,k  ) + z_nd(i,j+1,k  ) + z_nd(i+1,j+1,k  )
-                                    +z_nd(i,j,k+1) + z_nd(i+1,j,k+1) + z_nd(i,j+1,k+1) + z_nd(i+1,j+1,k+1) );
-                Real z_base = Ampl * std::sin(kp * x - omega_t);
-
-                z -= z_base;
-                Real fac = std::cosh( kp * (z - H) ) / std::sinh(kp * H);
-                Real pprime_exact = -(Ampl * omega * omega / kp) * fac *
-                                          std::sin(kp * x - omega_t) * r0_arr(i,j,k);
-
-                derdat(i,j,k,mf_comp) -= pprime_exact;
-            });
-        }
-        mf_comp += 1;
-    }
-#endif
 
     if (solverChoice.rad_type != RadiationType::None) {
         if (containerHasElement(plot_var_names, "qsrc_sw") ||

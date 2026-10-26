@@ -3,8 +3,9 @@
     ParmParse pp("prob");
     Real Ampl = zero       ; pp.query("Ampl", Ampl);
     Real wavelength = one; pp.get("wavelength", wavelength);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(wavelength > zero, "prob.wavelength must be > 0");
 
-    Real H           = geomdata.ProbHi()[2];
+    Real H           = phys_zhi(geomdata, lev);   // physical top of the domain
     Real kp          = two * PI / wavelength;
     Real g           = CONST_GRAV;
     Real omega       = std::sqrt(g * kp);

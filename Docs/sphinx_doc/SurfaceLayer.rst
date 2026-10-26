@@ -190,9 +190,10 @@ When computing an average :math:`\overline{\phi}` for the MOST boundary, where :
    erf.most.time_average      = BOOL   #USE TIME AVERAGING?
    erf.most.z0                = FLOAT  #SURFACE ROUGHNESS [m]
    erf.most.zref              = FLOAT  #QUERY DISTANCE (HEIGHT OR NORM LENGTH) [m]
-   erf.most.surf_temp         = FLOAT  #SPECIFIED SURFACE POTENTIAL TEMP [K]
+   erf.most.pot_surf_temp     = FLOAT  #SPECIFIED SURFACE POTENTIAL TEMP [K]
+   erf.most.abs_surf_temp     = FLOAT  #SPECIFIED SURFACE ABSOLUTE TEMP [K]
    erf.most.surf_temp_flux    = FLOAT  #SPECIFIED SURFACE TEMP FLUX [K-m/s]
-   erf.most.surf_heating_rate = FLOAT  #SPECIFIED RATE OF SURFACE POTENTIAL TEMP CHANGE [K/h]
+   erf.most.surf_heating_rate = FLOAT  #SPECIFIED RATE OF SURFACE TEMP CHANGE [K/h]
    erf.most.surf_moist        = FLOAT  #SPECIFIED SURFACE MOISTURE [-]
    erf.most.surf_moist_flux   = FLOAT  #SPECIFIED SURFACE MOISTURE FLUX [m/s]
    erf.most.k_arr_in          = INT    #SPECIFIED K INDEX ARRAY (MAXLEV)
@@ -203,7 +204,7 @@ On the surface-temperature moisture path, when no positive
 ``most.surf_moist`` is available, the surface moisture used in the
 thermodynamic MOST state falls back to the atmospheric value.
 
-When neither ``erf.most.zref`` nor ``erf.most.k_arr_in`` is given, a mesh with terrain-fitted coordinates queries :math:`z_{ref} = 10` m above the surface, while a mesh without them uses the center of the first cell. On a vertically stretched mesh (``erf.grid_stretching_ratio`` or ``erf.terrain_z_levels``) that center, and the cell holding a specified :math:`z_{ref}`, come from the actual z levels rather than from a uniform spacing. A query height that lies exactly on a cell face belongs to the cell above the face, or is interpolated across it when ``erf.most.use_interpolation`` is true. The height in use is printed at start-up (``MOST reference height at level ...``).
+When neither ``erf.most.zref`` nor ``erf.most.k_arr_in`` is given, a mesh with terrain-fitted coordinates queries :math:`z_{ref} = 10` m above the surface, while a mesh without them uses the center of the first cell. On a vertically stretched mesh (``erf.grid_stretching_ratio`` or ``erf.terrain_z_levels``) that center, and the cell holding a specified :math:`z_{ref}`, come from the actual z levels rather than from a uniform spacing. A query height that lies exactly on a cell face belongs to the cell above the face, or is interpolated across it when ``erf.most.use_interpolation`` is true. The height in use is printed at start-up (``MOST reference height at level ...``). It is always the height above the surface; on the low z face of a constant-dz mesh, however, a value given in ``erf.most.zref`` is read as an absolute z, the height plus ``geometry.prob_lo[2]``, and ``erf.most.k_arr_in`` as an absolute cell index.
 
 We now consider two concrete examples. To employ an instantaneous ``planar average`` at a specified vertical height above the bottom surface, one would specify:
 
@@ -311,7 +312,7 @@ For example,
     ylo.type = "surface_layer"
 
     erf.xlo.surface_layer.flux_type = MOENG
-    erf.xlo.most.surf_temp = 289.5
+    erf.xlo.most.pot_surf_temp = 289.5
     erf.xlo.most.surf_moist = 0.00765
     erf.xlo.most.z0 = 0.000035
     erf.xlo.most.zref = 0.03125
@@ -319,7 +320,7 @@ For example,
     erf.xlo.most.radius = 0
 
     erf.ylo.surface_layer.flux_type = MOENG
-    erf.ylo.most.surf_temp = 289.5
+    erf.ylo.most.pot_surf_temp = 289.5
     erf.ylo.most.surf_moist = 0.00765
     erf.ylo.most.z0 = 0.000035
     erf.ylo.most.zref = 0.03125
@@ -343,7 +344,7 @@ an error and aborts, since there is no way to tell which one was meant.
 Note that not all existing options are supported when using MOST on other faces (such as interpolation and time averaging).
 Currently the `MOENG` flux type is supported on all faces; ``bulk_coeff``,
 ``custom`` and ``rico`` abort anywhere else.  Of the surface thermodynamic
-pathways, only the prescribed surface temperature (``most.surf_temp``) carries the
+pathways, only the prescribed surface potential temperature (``most.pot_surf_temp``) carries the
 orientation through to the flux, so a prescribed surface heat flux
 (``most.surf_temp_flux``), the fully adiabatic case, and any variable sea
 roughness (``most.roughness_type_sea`` other than ``constant`` over water cells)
@@ -405,8 +406,11 @@ or purely time and SST information, such as:
 The SST column in this file is absolute temperature in kelvin. ERF converts
 it to the SurfaceLayer's canonical potential-temperature field using the
 physical surface pressure diagnosed from the lowest atmospheric cell. In
-contrast, ``erf.most.surf_temp`` and ``erf.most.surf_heating_rate`` are already
-specified in the SurfaceLayer potential-temperature convention. SST and
+contrast, ``erf.most.pot_surf_temp`` and ``erf.most.surf_heating_rate`` are already
+specified in the SurfaceLayer potential-temperature convention, while
+``erf.most.abs_surf_temp`` (with ``erf.most.surf_heating_rate`` then a rate of change of
+the absolute temperature) is converted every step with the same diagnosed surface
+pressure. ``erf.most.surf_temp`` is the deprecated spelling of ``erf.most.pot_surf_temp``. SST and
 skin-temperature data from WRFInput, wrflowinp, and Metgrid are normalized to
 that same convention at ingestion; coupled SST is converted when it enters
 the SurfaceLayer, while Noah-MP's absolute ``t_sfc`` remains owned by the

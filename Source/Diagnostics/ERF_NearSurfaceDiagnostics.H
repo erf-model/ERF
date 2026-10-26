@@ -75,28 +75,48 @@ bool native_bundle_is_valid (const NativeBundle& bundle) noexcept
            native_bundle_vegetation_fraction_is_valid(bundle);
 }
 
+// A tile with zero weight does not enter the aggregate, so its value is not
+// checked: Noah-MP writes T2MVXY = 0 where FVEGXY = 0 (and the bare tile is
+// likewise unused where FVEGXY = 1).  Any fraction strictly between 0 and 1
+// still requires both tiles to be valid.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool native_vegetated_tile_is_used (amrex::Real vegetation_fraction) noexcept
+{
+    return vegetation_fraction > amrex::Real(0.0);
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+bool native_bare_tile_is_used (amrex::Real vegetation_fraction) noexcept
+{
+    return vegetation_fraction < amrex::Real(1.0);
+}
+
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool native_bundle_temperature_is_valid (const NativeBundle& bundle) noexcept
 {
-    return valid_noahmp_component(bundle.temperature_vegetated) &&
-           valid_noahmp_component(bundle.temperature_bare) &&
-           bundle.temperature_vegetated > amrex::Real(0.0) &&
-           bundle.temperature_bare > amrex::Real(0.0) &&
-           valid_noahmp_component(bundle.vegetation_fraction) &&
-           bundle.vegetation_fraction >= amrex::Real(0.0) &&
-           bundle.vegetation_fraction <= amrex::Real(1.0);
+    if (!native_bundle_vegetation_fraction_is_valid(bundle)) { return false; }
+    const amrex::Real f = bundle.vegetation_fraction;
+    const bool vegetated_ok = !native_vegetated_tile_is_used(f) ||
+        (valid_noahmp_component(bundle.temperature_vegetated) &&
+         bundle.temperature_vegetated > amrex::Real(0.0));
+    const bool bare_ok = !native_bare_tile_is_used(f) ||
+        (valid_noahmp_component(bundle.temperature_bare) &&
+         bundle.temperature_bare > amrex::Real(0.0));
+    return vegetated_ok && bare_ok;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool native_bundle_mixing_ratio_is_valid (const NativeBundle& bundle) noexcept
 {
-    return valid_noahmp_component(bundle.mixing_ratio_vegetated) &&
-           valid_noahmp_component(bundle.mixing_ratio_bare) &&
-           valid_noahmp_component(bundle.vegetation_fraction) &&
-           bundle.mixing_ratio_vegetated >= amrex::Real(0.0) &&
-           bundle.mixing_ratio_bare >= amrex::Real(0.0) &&
-           bundle.vegetation_fraction >= amrex::Real(0.0) &&
-           bundle.vegetation_fraction <= amrex::Real(1.0);
+    if (!native_bundle_vegetation_fraction_is_valid(bundle)) { return false; }
+    const amrex::Real f = bundle.vegetation_fraction;
+    const bool vegetated_ok = !native_vegetated_tile_is_used(f) ||
+        (valid_noahmp_component(bundle.mixing_ratio_vegetated) &&
+         bundle.mixing_ratio_vegetated >= amrex::Real(0.0));
+    const bool bare_ok = !native_bare_tile_is_used(f) ||
+        (valid_noahmp_component(bundle.mixing_ratio_bare) &&
+         bundle.mixing_ratio_bare >= amrex::Real(0.0));
+    return vegetated_ok && bare_ok;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -111,11 +131,25 @@ AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 NativeAggregate aggregate_native_bundle (const NativeBundle& bundle) noexcept
 {
     const amrex::Real f = bundle.vegetation_fraction;
+    // At the endpoints take the one tile in use, so that an unused tile's
+    // placeholder (which may be a sentinel) cannot leak in through 0 * value.
+    if (!native_vegetated_tile_is_used(f)) {
+        return {bundle.temperature_bare, bundle.mixing_ratio_bare};
+    }
+    if (!native_bare_tile_is_used(f)) {
+        return {bundle.temperature_vegetated, bundle.mixing_ratio_vegetated};
+    }
     return {
         f * bundle.temperature_vegetated + (amrex::Real(1.0)-f) * bundle.temperature_bare,
         f * bundle.mixing_ratio_vegetated + (amrex::Real(1.0)-f) * bundle.mixing_ratio_bare
     };
 }
+
+// Largest stability coordinate z/L used by the 2 m profile. The stable
+// correction is linear in z/L and is calibrated for z/L of order one; with a
+// very small positive L it would otherwise grow without bound.
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real most_profile_zeta_max () noexcept { return amrex::Real(1.0); }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool evaluate_most_factor (const MostState& state,
@@ -130,8 +164,9 @@ bool evaluate_most_factor (const MostState& state,
         return false;
     }
     const similarity_funs sfuns{};
-    factor = std::log(height / state.roughness_height) -
-             sfuns.calc_psi_h(height / state.obukhov_length);
+    const amrex::Real zeta = amrex::min(height / state.obukhov_length,
+                                        most_profile_zeta_max());
+    factor = std::log(height / state.roughness_height) - sfuns.calc_psi_h(zeta);
     return valid_real(factor);
 }
 

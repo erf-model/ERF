@@ -42,7 +42,8 @@ ComputeTurbulentViscosity (double dt,
                            const eb_& ebfact,
                            bool vert_only = false,
                            const amrex::MultiFab* qheating_rates = nullptr,
-                           const amrex::MultiFab* terrain_blank = nullptr);
+                           const amrex::MultiFab* terrain_blank = nullptr,
+                           const amrex::MultiFab* forest_drag = nullptr);
 
 /** Compute LES turbulent viscosity and dissipation.
  *
@@ -123,6 +124,20 @@ ComputeSmnSmn (int& i, int& j, int& k,
                        + two*s12bar*s12bar + two*s13bar*s13bar + two*s23bar*s23bar;
 
     return SmnSmn;
+}
+
+/** The six strain components ComputeSmnSmn reads, as const arrays of one box. */
+struct StrainArrays {
+    amrex::Array4<amrex::Real const> tau11, tau22, tau33, tau12, tau13, tau23;
+};
+
+/** Strain arrays of the box of mfi from the Tau_lev container (tau11..tau23 of TauType). */
+inline StrainArrays
+strain_arrays (amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev, const amrex::MFIter& mfi)
+{
+    return { Tau_lev[TauType::tau11]->const_array(mfi), Tau_lev[TauType::tau22]->const_array(mfi),
+             Tau_lev[TauType::tau33]->const_array(mfi), Tau_lev[TauType::tau12]->const_array(mfi),
+             Tau_lev[TauType::tau13]->const_array(mfi), Tau_lev[TauType::tau23]->const_array(mfi) };
 }
 
 /**

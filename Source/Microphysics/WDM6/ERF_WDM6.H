@@ -13,6 +13,7 @@
 #include "ERF_MicrophysicsConstants.H"
 #include "ERF_DataStruct.H"
 #include "ERF_IndexDefines.H"
+#include "ERF_MicrophysicsColumns.H"
 #include "ERF_MicrophysicsUtils.H"
 #include "ERF_NullMoist.H"
 #include "ERF_SurfacePrecipitation.H"
@@ -103,6 +104,11 @@ constexpr amrex::Real wdm6_literal (double d)
     // True doubles. Correct when the Fortran is built -fdefault-real-8.
     return amrex::Real(d);
 #endif
+}
+
+// Components of WDM6's sedimentation face fluxes (m_sed), with the state they carry
+namespace WDM6Sed {
+    enum { qi = 0 /* rhoQ3 */, qr /* rhoQ4 */, qs /* rhoQ5 */, qg /* rhoQ6 */, nr /* rhoQ9 */, NumComps };
 }
 
 class WDM6 : public NullMoist {
@@ -240,6 +246,8 @@ public:
     void Advance (const amrex::Real& dt_advance,
                   const SolverChoice& solverChoice) override;
 
+    const SedimentationFlux* Sed_Flux () const override { return &m_sed; }
+
     amrex::MultiFab* Qmoist_Ptr (const int& varIdx) override
     {
         AMREX_ALWAYS_ASSERT(varIdx < m_qmoist_size);
@@ -268,6 +276,11 @@ public:
         return sources;
     }
 
+    // The body of Advance, run on grids in which no column is split between boxes.
+    // Public because nvcc rejects extended __device__ lambdas in private or protected members.
+    void AdvanceColumns (const amrex::Real& dt_advance,
+                         const SolverChoice& sc);
+
 private:
     int m_qmoist_size = 3;  // rain_accum, snow_accum, graup_accum
     int n_qstate_moist_size = 9;  // 6 mixing ratios + 3 number concentrations
@@ -290,6 +303,12 @@ private:
     amrex::iMultiFab* m_lmask{nullptr};  // land/water mask from ERF::lmask_lev
 
     amrex::Array<FabPtr, MicVar_WDM6::NumVars> mic_fab_vars;
+
+    // Full-column layout of this level's grids (see ERF_MicrophysicsColumns.H)
+    MicrophysicsColumns m_columns;
+
+    // Sedimentation face fluxes of the most recent Advance, in the order of WDM6Sed
+    SedimentationFlux m_sed;
 
     // No nn-initialized flag: Copy_State_to_Micro decides per cell from RhoQ8,
     // which is restart-correct and needs no cross-call bookkeeping.

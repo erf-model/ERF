@@ -21,6 +21,7 @@
 #include "ERF_DataStruct.H"
 #include "ERF_NullMoist.H"
 #include "ERF_SurfacePrecipitation.H"
+#include "ERF_MicrophysicsColumns.H"
 #include <ERF_Morrison_Fortran_Interface.H>
 
 namespace MicVar_Morr {
@@ -100,6 +101,23 @@ void morrison_copy_state_to_micro_cell (
     tabs(i,j,k) = thermo.temperature;
     // Morrison's native pressure unit is Pa.
     pres(i,j,k) = thermo.pressure_pa;
+}
+
+// Components of Morrison's sedimentation face fluxes (m_sed), with the state they carry
+namespace MorrSed {
+   enum {
+      qc = 0, // cloud water,   rhoQ2
+      qi,     // cloud ice,     rhoQ3
+      qr,     // rain,          rhoQ4
+      qs,     // snow,          rhoQ5
+      qg,     // graupel,       rhoQ6
+      nc,     // droplet number, rhoQ7
+      ni,     // ice number,    rhoQ8
+      nr,     // rain number,   rhoQ9
+      ns,     // snow number,   rhoQ10
+      ng,     // graupel number, rhoQ11
+      NumComps
+   };
 }
 
 class Morrison : public NullMoist {
@@ -205,6 +223,8 @@ public:
         a_idx.push_back(2); a_names.push_back("GraupAccum");
     }
 
+    const SedimentationFlux* Sed_Flux () const override { return &m_sed; }
+
     SurfacePrecipAccumulationSources
     Get_Surface_Precip_Accumulation_Ptrs (const int&) const override
     {
@@ -233,6 +253,12 @@ public:
     {
         GetPlotVar(a_name, a_mf);
     }
+
+    // The body of Advance, run on grids in which no column is split between boxes.
+    // Public because nvcc rejects extended __device__ lambdas in private or protected members.
+    void
+    AdvanceColumns (const amrex::Real& dt_advance,
+                    const SolverChoice& sc);
 
 private:
     // Number of qmoist variables (rain_accum, snow_accum, graup_accum)
@@ -264,5 +290,11 @@ private:
 
     // independent variables
     amrex::Array<FabPtr, MicVar_Morr::NumVars> mic_fab_vars;
+
+    // Full-column layout of this level's grids (see ERF_MicrophysicsColumns.H)
+    MicrophysicsColumns m_columns;
+
+    // Sedimentation face fluxes of the most recent Advance, in the order of MorrSed
+    SedimentationFlux m_sed;
 };
 #endif

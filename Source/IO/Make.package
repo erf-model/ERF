@@ -19,6 +19,7 @@ CEXE_headers += ERF_Provenance.H
 CEXE_headers += ERF_NoahMPGitHash.H
 CEXE_headers += ERF_IntervalMeansCheckpoint.H
 CEXE_headers += ERF_CheckpointSurfaceTemperature.H
+CEXE_headers += ERF_ReadCheckpointMF.H
 
 CEXE_headers += ERF_WriteBndryPlanes.H
 CEXE_headers += ERF_ReadBndryPlanes.H

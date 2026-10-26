@@ -25,7 +25,7 @@ erf.most.average_policy    = 0       # POLICY FOR AVERAGING
 erf.most.z0                = 4.0     # SURFACE ROUGHNESS
 erf.most.zref              = 8.0     # QUERY DISTANCE (HEIGHT OR NORM LENGTH)
 #----------------------------------------------------------------- 
-#erf.most.surf_temp         = 301.0   # SPECIFIED SURFACE TEMP
+#erf.most.pot_surf_temp     = 301.0   # SPECIFIED SURFACE TEMP
 #erf.most.surf_temp_flux    = 8.14165 # SPECIFIED SURFACE FLUX
 #----------------------------------------------------------------- 
 #erf.most.k_arr_in          = 0       # SPECIFIED K INDEX ARRAY (MAXLEV)
@@ -55,8 +55,6 @@ erf.plot_int_1      = 10        # number of timesteps between plotfiles
 erf.plot_vars_1     = density rhoadv_0 x_velocity y_velocity z_velocity pressure temp theta
 
 # SOLVER CHOICE
-erf.alpha_T = 0.0
-erf.alpha_C = 1.0
 erf.use_gravity = false
 
 erf.les_type = "Smagorinsky"

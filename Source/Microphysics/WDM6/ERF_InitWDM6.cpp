@@ -21,6 +21,8 @@ WDM6::Init (const MultiFab& cons_in,
     m_z_phys_nd = z_phys_nd.get();
     m_detJ_cc = detJ_cc.get();
 
+    m_columns.define(cons_in.boxArray(), geom.Domain());
+
     // Read CCN concentration from input
     amrex::ParmParse pp("wdm6");
     pp.queryAdd("ccn0", m_ccn0);  // default 100.0e6 m^-3
@@ -59,6 +61,9 @@ WDM6::Init (const MultiFab& cons_in,
                                                         MFInfo().SetArena(Arena_Used));
         mic_fab_vars[ivar]->setVal(0.0);
     }
+
+    m_sed.define(cons_in.boxArray(), cons_in.DistributionMap(),
+                 {RhoQ3_comp, RhoQ4_comp, RhoQ5_comp, RhoQ6_comp, RhoQ9_comp});
 
     // Initialize nn to ccn0 / rho (matches WRF itimestep==1 behavior)
     // This must be done here so nn is available before the first microphysics call
