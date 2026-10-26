@@ -591,7 +591,7 @@ struct surface_flux
             Olen  = -ustar_floor * ustar_floor * ustar_floor * tvm_arr(i,j,k) /
                     (mdata.kappa * mdata.gravity * tflux);
             zeta  = zref / Olen;
-            zeta  = amrex::max(amrex::min(zeta, amrex::Real(100.0)), -amrex::Real(100.0));
+            zeta  = amrex::max(amrex::min(zeta, amrex::Real(100.0)), -ZETAMIN);
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
             //u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(zref / z0_arr(i,j,k)) - psi_m);
@@ -639,6 +639,9 @@ private:
     const amrex::Real tol = amrex::Real(1.0e-5);
     const amrex::Real WSMIN = most_min_wind_speed; // minimum wind speed
     const amrex::Real USTARMIN = amrex::Real(0.001); // minimum friction velocity
+    // Most negative z/L used in the iteration. The Businger-Dyer psi_h exceeds ln(zref/z0) (3.7 for 2 m, 0.05 m)
+    // near z/L = -8, which makes theta_mean - theta_surf change sign and the local heat-flux ratio singular.
+    const amrex::Real ZETAMIN = amrex::Real(5.0);
     const amrex::Real alpha = amrex::Real(0.5); // under-relaxation factor for umm/u* iteration
 };
 
