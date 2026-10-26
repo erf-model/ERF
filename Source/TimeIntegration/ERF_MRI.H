@@ -83,6 +83,9 @@ private:
         // TODO: We can optimize memory by making the cell-centered part of S_sum
         //       have only 2 components, not ncomp_cons components
         const bool include_ghost = true;
+        // CreateLike appends to T_store, so drop any storage from a previous
+        // initialization before S_sum and F_slow are taken from entries 0 and 1
+        T_store.clear();
         amrex::IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
         S_sum = T_store[0].get();
         amrex::IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
