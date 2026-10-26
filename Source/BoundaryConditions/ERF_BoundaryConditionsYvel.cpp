@@ -76,7 +76,7 @@ void ERFPhysBCFunct_v::impose_lateral_yvel_bcs (const Array4<Real>& dest_arr,
         Box bx_xhi(bx);  bx_xhi.setSmall(0,dom_hi.x+1);
         ParallelFor(bx_xlo, bx_xhi,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                int iflip = dom_lo.x - 1- i;
+                int iflip = 2*dom_lo.x - 1 - i;
                 if (bc_ptr[0].lo(0) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k) = (yvel_bc_ptr) ? yvel_bc_ptr[k] : l_bc_extdir_vals_d[0][0];
                 } else if (bc_ptr[0].lo(0) == ERFBCType::ext_dir_upwind && xvel_arr(dom_lo.x,Clamp(j,xvel_lo.y,xvel_hi.y),Clamp(k,xvel_lo.z,xvel_hi.z)) >= zero) {
@@ -258,7 +258,7 @@ void ERFPhysBCFunct_v::impose_vertical_yvel_bcs (const Array4<Real>& dest_arr,
         Box bx_zhi(bx);  bx_zhi.setSmall(2,dom_hi.z+1);
         ParallelFor(bx_zlo, bx_zhi,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                int kflip = dom_lo.z - 1 - k;
+                int kflip = 2*dom_lo.z - 1 - k;
                 if (bc_ptr[0].lo(2) == ERFBCType::ext_dir) {
                     dest_arr(i,j,k) = l_bc_extdir_vals_d[0][2];
                 } else if (bc_ptr[0].lo(2) == ERFBCType::foextrap) {
