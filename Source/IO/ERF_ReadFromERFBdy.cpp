@@ -111,13 +111,22 @@ read_from_erfbdy (int itime,
             std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
 
             // A default-constructed FArrayBox allocates from The_Arena(), which is DEVICE
-            // memory unless amrex.the_arena_is_managed=true. readFrom() then htod_memcpy's
-            // into it and the copy<RunOn::Host> below host-reads that device pointer.
+            // memory unless amrex.the_arena_is_managed=true, so tmp_fab is pinned. Both
+            // fabs here are host-accessible, and the copy is a host loop rather than
+            // copy<RunOn::Host>, which aborts on SYCL builds.
             FArrayBox tmp_fab(amrex::The_Pinned_Arena());
 
             tmp_fab.readFrom(ifs);
             bdy_data_xlo[itime][ivar].resize(tmp_fab.box(), tmp_fab.nComp(), Arena_Used);
-            bdy_data_xlo[itime][ivar].template copy<RunOn::Host>(tmp_fab, 0, 0, tmp_fab.nComp());
+            {
+                auto const dst_arr = bdy_data_xlo[itime][ivar].array();
+                auto const src_arr = tmp_fab.const_array();
+                amrex::LoopOnCpu(tmp_fab.box(), tmp_fab.nComp(),
+                                 [=] (int i, int j, int k, int n) noexcept
+                {
+                    dst_arr(i,j,k,n) = src_arr(i,j,k,n);
+                });
+            }
             ifs.close();
         }
 
@@ -125,14 +134,20 @@ read_from_erfbdy (int itime,
             std::string filename = time_dir + "/BdyData_xhi_var" + std::to_string(ivar);
             std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
 
-            // A default-constructed FArrayBox allocates from The_Arena(), which is DEVICE
-            // memory unless amrex.the_arena_is_managed=true. readFrom() then htod_memcpy's
-            // into it and the copy<RunOn::Host> below host-reads that device pointer.
+            // See the X-low comment: pinned tmp_fab, host-loop copy (SYCL-safe).
             FArrayBox tmp_fab(amrex::The_Pinned_Arena());
 
             tmp_fab.readFrom(ifs);
             bdy_data_xhi[itime][ivar].resize(tmp_fab.box(), tmp_fab.nComp(), Arena_Used);
-            bdy_data_xhi[itime][ivar].template copy<RunOn::Host>(tmp_fab, 0, 0, tmp_fab.nComp());
+            {
+                auto const dst_arr = bdy_data_xhi[itime][ivar].array();
+                auto const src_arr = tmp_fab.const_array();
+                amrex::LoopOnCpu(tmp_fab.box(), tmp_fab.nComp(),
+                                 [=] (int i, int j, int k, int n) noexcept
+                {
+                    dst_arr(i,j,k,n) = src_arr(i,j,k,n);
+                });
+            }
             ifs.close();
         }
 
@@ -140,14 +155,20 @@ read_from_erfbdy (int itime,
             std::string filename = time_dir + "/BdyData_ylo_var" + std::to_string(ivar);
             std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
 
-            // A default-constructed FArrayBox allocates from The_Arena(), which is DEVICE
-            // memory unless amrex.the_arena_is_managed=true. readFrom() then htod_memcpy's
-            // into it and the copy<RunOn::Host> below host-reads that device pointer.
+            // See the X-low comment: pinned tmp_fab, host-loop copy (SYCL-safe).
             FArrayBox tmp_fab(amrex::The_Pinned_Arena());
 
             tmp_fab.readFrom(ifs);
             bdy_data_ylo[itime][ivar].resize(tmp_fab.box(), tmp_fab.nComp(), Arena_Used);
-            bdy_data_ylo[itime][ivar].template copy<RunOn::Host>(tmp_fab, 0, 0, tmp_fab.nComp());
+            {
+                auto const dst_arr = bdy_data_ylo[itime][ivar].array();
+                auto const src_arr = tmp_fab.const_array();
+                amrex::LoopOnCpu(tmp_fab.box(), tmp_fab.nComp(),
+                                 [=] (int i, int j, int k, int n) noexcept
+                {
+                    dst_arr(i,j,k,n) = src_arr(i,j,k,n);
+                });
+            }
             ifs.close();
         }
 
@@ -155,14 +176,20 @@ read_from_erfbdy (int itime,
             std::string filename = time_dir + "/BdyData_yhi_var" + std::to_string(ivar);
             std::ifstream ifs(filename.c_str(), std::ios::in | std::ios::binary);
 
-            // A default-constructed FArrayBox allocates from The_Arena(), which is DEVICE
-            // memory unless amrex.the_arena_is_managed=true. readFrom() then htod_memcpy's
-            // into it and the copy<RunOn::Host> below host-reads that device pointer.
+            // See the X-low comment: pinned tmp_fab, host-loop copy (SYCL-safe).
             FArrayBox tmp_fab(amrex::The_Pinned_Arena());
 
             tmp_fab.readFrom(ifs);
             bdy_data_yhi[itime][ivar].resize(tmp_fab.box(), tmp_fab.nComp(), Arena_Used);
-            bdy_data_yhi[itime][ivar].template copy<RunOn::Host>(tmp_fab, 0, 0, tmp_fab.nComp());
+            {
+                auto const dst_arr = bdy_data_yhi[itime][ivar].array();
+                auto const src_arr = tmp_fab.const_array();
+                amrex::LoopOnCpu(tmp_fab.box(), tmp_fab.nComp(),
+                                 [=] (int i, int j, int k, int n) noexcept
+                {
+                    dst_arr(i,j,k,n) = src_arr(i,j,k,n);
+                });
+            }
             ifs.close();
         }
     }

@@ -3334,11 +3334,22 @@ SurfaceLayer::init_tke_from_ustar (const int& lev,
     // and broadcasting to each rank. No mask since all CC data
     //
     // Pinned so the reduction below can read them on the host; the device
-    // still reaches pinned memory, so the loops here are unaffected.
+    // still reaches pinned memory, so the loops here are unaffected.  The
+    // zero-fills are host loops rather than setVal<RunOn::Host>, which aborts
+    // on SYCL builds.
     const int klo = m_geom[lev].Domain().smallEnd(2);
     Box bx_lo = u_star[lev]->boxArray().minimalBox();
-    FArrayBox u_star_lo(bx_lo, 1, The_Pinned_Arena()); u_star_lo.setVal<RunOn::Host>(0);
-    FArrayBox z_surf_lo(bx_lo, 1, The_Pinned_Arena()); z_surf_lo.setVal<RunOn::Host>(0);
+    FArrayBox u_star_lo(bx_lo, 1, The_Pinned_Arena());
+    FArrayBox z_surf_lo(bx_lo, 1, The_Pinned_Arena());
+    {
+        auto const us_arr = u_star_lo.array();
+        auto const zs_arr = z_surf_lo.array();
+        amrex::LoopOnCpu(bx_lo, [=] (int i, int j, int k) noexcept
+        {
+            us_arr(i,j,k) = 0;
+            zs_arr(i,j,k) = 0;
+        });
+    }
     Real* ustar_ptr = u_star_lo.dataPtr();
     Real* zsurf_ptr = z_surf_lo.dataPtr();
     for (MFIter mfi(cons); mfi.isValid(); ++mfi)

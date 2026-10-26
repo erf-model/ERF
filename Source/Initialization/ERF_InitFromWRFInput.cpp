@@ -3475,7 +3475,16 @@ ERF::read_psfc_from_own_init_file (int lev)
     fab_from_file.shift(box2d.smallEnd() - fab_from_file.box().smallEnd());
 
     FArrayBox var_fab(box2d, 1, The_Pinned_Arena());
-    var_fab.template copy<RunOn::Host>(fab_from_file, 0, 0, 1);
+    // Host loop rather than copy<RunOn::Host>, which aborts on SYCL builds.
+    // Both fabs are pinned and aligned by the shift() above.
+    {
+        auto const dst_arr = var_fab.array();
+        auto const src_arr = fab_from_file.const_array();
+        amrex::LoopOnCpu(box2d, 1, [=] (int i, int j, int k, int n) noexcept
+        {
+            dst_arr(i,j,k,n) = src_arr(i,j,k,n);
+        });
+    }
 
     for (MFIter mfi(*mf_PSFC[lev], false); mfi.isValid(); ++mfi) {
         (*mf_PSFC[lev])[mfi].template copy<RunOn::Device>(var_fab, 0, 0, 1);

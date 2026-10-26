@@ -279,6 +279,11 @@ target_sources(${erf_exe_name}
     # Motivation: erf.initial_dz without a stretching ratio must solve for the ratio that
     # closes the grid on prob_hi, and an explicit ratio must not be solved for.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestInitZLevels.cpp
+    # Motivation: the nodal terrain reconstruction must keep its averaging identity on both
+    # solver paths (exact de-averaging, and the CG fallback rough terrain forces), and the
+    # slice-to-level fill must clamp lateral ghost nodes, without BaseFab RunOn::Host calls
+    # that abort on SYCL builds.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestNodalReconstruction.cpp
     # Motivation: a malformed, mis-ordered or too small terrain file must stop the run with
     # the problem named, and steep terrain next to an inflow or outflow face must be reported.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestTerrainFileChecks.cpp
