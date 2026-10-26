@@ -21,6 +21,8 @@
 #include <AMReX_EBToPVD.H>
 #include <AMReX_Scan.H>
 
+#include <string>
+
 using namespace amrex;
 
 namespace {
@@ -68,6 +70,16 @@ eb_::make_all_factories ([[maybe_unused]] int level,
                          DistributionMapping const& dm,
                          EB2::Level const& a_eb_level)
 {
+#if USE_FC_FACTORY
+    for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+        if (!a_eb_level.hasFCData(idim)) {
+            Abort("ERF: native face-centered EB data are unavailable at level " +
+                  std::to_string(level) + ", direction " + std::to_string(idim) +
+                  ". EB2::BuildFC() must successfully build data before factory construction.");
+        }
+    }
+#endif
+
     Print() << "making EB factory\n";
     m_factory = std::make_unique<EBFArrayBoxFactory>(a_eb_level, a_geom, ba, dm,
         Vector<int>{nghost_basic(), nghost_volume(), nghost_full()}, m_support_level);
@@ -76,7 +88,7 @@ eb_::make_all_factories ([[maybe_unused]] int level,
     eb_::set_connection_flags(m_factory.get());
 
 #if USE_FC_FACTORY
-    // New: Native AMReX FC factories (EB2::BuildFC called in ERF.cpp)
+    // Native AMReX FC factories (EB2::BuildFC called in initializeEB).
     { int const idim(0);
         Print() << "making EB staggered u-factory\n";
         m_u_factory_fc = std::make_unique<EBFArrayBoxFactory>(
