@@ -403,26 +403,17 @@ void make_sources (int level,
         // *************************************************************************************
         if (solverChoice.custom_w_subsidence && is_slow_step && solverChoice.do_theta_advection) {
             const int n = RhoTheta_comp;
-            if (solverChoice.custom_forcing_prim_vars) {
-                const int nr = Rho_comp;
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    Real dzInv = (z_cc_arr) ? one/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : myhalf*dxInv[2];
-                    Real T_hi = dptr_t_plane(k+1) / dptr_r_plane(k+1);
-                    Real T_lo = dptr_t_plane(k-1) / dptr_r_plane(k-1);
-                    Real wbar_cc = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
-                    cell_src(i, j, k, n) -= cell_data(i,j,k,nr) * wbar_cc * (T_hi - T_lo) * dzInv;
-                });
-            } else {
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    Real dzInv = (z_cc_arr) ? one/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : myhalf*dxInv[2];
-                    Real T_hi = dptr_t_plane(k+1) / dptr_r_plane(k+1);
-                    Real T_lo = dptr_t_plane(k-1) / dptr_r_plane(k-1);
-                    Real wbar_cc = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
-                    cell_src(i, j, k, n) -= wbar_cc * (T_hi - T_lo) * dzInv;
-                });
-            }
+            // -w dtheta/dz is a tendency of theta whichever way the custom forcing is
+            //    specified, so it is weighted by the cell density to give one of rho*theta
+            const int nr = Rho_comp;
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real dzInv = (z_cc_arr) ? one/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : myhalf*dxInv[2];
+                Real T_hi = dptr_t_plane(k+1) / dptr_r_plane(k+1);
+                Real T_lo = dptr_t_plane(k-1) / dptr_r_plane(k-1);
+                Real wbar_cc = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                cell_src(i, j, k, n) -= cell_data(i,j,k,nr) * wbar_cc * (T_hi - T_lo) * dzInv;
+            });
         }
 
         // *************************************************************************************
@@ -430,32 +421,20 @@ void make_sources (int level,
         // *************************************************************************************
         if (solverChoice.custom_w_subsidence && (solverChoice.moisture_type != MoistureType::None) && is_slow_step) {
             const int nv = RhoQ1_comp;
-            if (solverChoice.custom_forcing_prim_vars) {
-                const int nr = Rho_comp;
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    Real dzInv = (z_cc_arr) ? one/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : myhalf*dxInv[2];
-                    Real Qv_hi = dptr_qv_plane(k+1) / dptr_r_plane(k+1);
-                    Real Qv_lo = dptr_qv_plane(k-1) / dptr_r_plane(k-1);
-                    Real Qc_hi = dptr_qc_plane(k+1) / dptr_r_plane(k+1);
-                    Real Qc_lo = dptr_qc_plane(k-1) / dptr_r_plane(k-1);
-                    Real wbar_cc = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
-                    cell_src(i, j, k, nv  ) -= cell_data(i,j,k,nr) * wbar_cc * (Qv_hi - Qv_lo) * dzInv;
-                    cell_src(i, j, k, nv+1) -= cell_data(i,j,k,nr) * wbar_cc * (Qc_hi - Qc_lo) * dzInv;
-                });
-            } else {
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    Real dzInv = (z_cc_arr) ? one/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : myhalf*dxInv[2];
-                    Real Qv_hi = dptr_qv_plane(k+1) / dptr_r_plane(k+1);
-                    Real Qv_lo = dptr_qv_plane(k-1) / dptr_r_plane(k-1);
-                    Real Qc_hi = dptr_qc_plane(k+1) / dptr_r_plane(k+1);
-                    Real Qc_lo = dptr_qc_plane(k-1) / dptr_r_plane(k-1);
-                    Real wbar_cc = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
-                    cell_src(i, j, k, nv  ) -= wbar_cc * (Qv_hi - Qv_lo) * dzInv;
-                    cell_src(i, j, k, nv+1) -= wbar_cc * (Qc_hi - Qc_lo) * dzInv;
-                });
-            }
+            // -w dq/dz is a tendency of the mixing ratios whichever way the custom forcing is
+            //    specified, so it is weighted by the cell density to give one of rho*q
+            const int nr = Rho_comp;
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real dzInv = (z_cc_arr) ? one/ (z_cc_arr(i,j,k+1) - z_cc_arr(i,j,k-1)) : myhalf*dxInv[2];
+                Real Qv_hi = dptr_qv_plane(k+1) / dptr_r_plane(k+1);
+                Real Qv_lo = dptr_qv_plane(k-1) / dptr_r_plane(k-1);
+                Real Qc_hi = dptr_qc_plane(k+1) / dptr_r_plane(k+1);
+                Real Qc_lo = dptr_qc_plane(k-1) / dptr_r_plane(k-1);
+                Real wbar_cc = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                cell_src(i, j, k, nv  ) -= cell_data(i,j,k,nr) * wbar_cc * (Qv_hi - Qv_lo) * dzInv;
+                cell_src(i, j, k, nv+1) -= cell_data(i,j,k,nr) * wbar_cc * (Qc_hi - Qc_lo) * dzInv;
+            });
         }
 
         // *************************************************************************************

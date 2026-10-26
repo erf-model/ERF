@@ -160,6 +160,11 @@ void make_mom_sources (double time_d,
     Real rhoUA{0};
     Real rhoVA{0};
 
+    // Cross-sectional areas the integrals above are taken over; the integrated mass-flux
+    //    error is divided by these to give a momentum-density tendency
+    Real massflux_area_x{0};
+    Real massflux_area_y{0};
+
     // *****************************************************************************
     // Planar averages for subsidence, nudging, or constant mass flux
     // *****************************************************************************
@@ -275,12 +280,18 @@ void make_mom_sources (double time_d,
                 rhoUA_target *= geom.CellSize(2) * Ly;
                 rhoVA_target *= geom.CellSize(2) * Lx;
 
+                const Real H = geom.CellSize(2) * static_cast<Real>(massflux_khi - massflux_klo + 1);
+                massflux_area_x = H * Ly;
+                massflux_area_y = H * Lx;
+
             } else if (solverChoice.mesh_type == MeshType::StretchedDz) {
                 // note: massflux_khi corresponds to staggered indices in this case
+                Real H{0};
                 for (int k=massflux_klo; k < massflux_khi; ++k) {
                     rhoUA        += u_plane_h[k + u_offset] * stretched_dz_h[k];
                     rhoVA        += v_plane_h[k + v_offset] * stretched_dz_h[k];
                     rhoUA_target += r_plane_h[k +   offset] * stretched_dz_h[k];
+                    H            += stretched_dz_h[k];
                 }
                 rhoVA_target = rhoUA_target;
 
@@ -288,6 +299,9 @@ void make_mom_sources (double time_d,
                 rhoVA        *= Lx;
                 rhoUA_target *= Ly;
                 rhoVA_target *= Lx;
+
+                massflux_area_x = H * Ly;
+                massflux_area_y = H * Lx;
             }
 
             // at this point, this is integrated rho*dA
@@ -528,16 +542,27 @@ void make_mom_sources (double time_d,
         // 3b. Add height-dependent GEOSTROPHIC forcing
         // *****************************************************************************
         if (geo_wind_profile && is_slow_step) {
+            // sin(latitude) on each face, taken the way the Coriolis forcing above takes it:
+            //    from the hindcast latitude, from the spatially varying factor, or constant
+            const bool geo_hindcast_lat = (solverChoice.init_type == InitType::HindCast) &&
+                                          (forecast_state_at_lev != nullptr);
+            const bool geo_var_sinphi   = !geo_hindcast_lat && var_coriolis && (sinPhi_mf != nullptr);
+            const Array4<const Real> geo_latlon_arr = (geo_hindcast_lat) ?
+                (*forecast_state_at_lev)[4].const_array(mfi) : Array4<const Real>{};
             ParallelFor(tbx, tby,
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
+                Real sphi_loc = (geo_hindcast_lat) ? std::sin(geo_latlon_arr(i,j,k,0)*PI/Real(180.0)) :
+                                (geo_var_sinphi)   ? myhalf * (sphi_arr(i,j,0) + sphi_arr(i-1,j,0)) : sinphi;
                 Real rho_on_u_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
-                xmom_src_arr(i, j, k) -= coriolis_factor * rho_on_u_face * dptr_v_geos[k] * sinphi;
+                xmom_src_arr(i, j, k) -= coriolis_factor * rho_on_u_face * dptr_v_geos[k] * sphi_loc;
             },
             [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
+                Real sphi_loc = (geo_hindcast_lat) ? std::sin(geo_latlon_arr(i,j,k,0)*PI/Real(180.0)) :
+                                (geo_var_sinphi)   ? myhalf * (sphi_arr(i,j,0) + sphi_arr(i,j-1,0)) : sinphi;
                 Real rho_on_v_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
-                ymom_src_arr(i, j, k) += coriolis_factor * rho_on_v_face * dptr_u_geos[k] * sinphi;
+                ymom_src_arr(i, j, k) += coriolis_factor * rho_on_v_face * dptr_u_geos[k] * sphi_loc;
             });
         } // geo_wind_profile
 
@@ -545,74 +570,42 @@ void make_mom_sources (double time_d,
         // 4. Add custom SUBSIDENCE terms
         // *****************************************************************************
         if (solverChoice.custom_w_subsidence && is_slow_step && solverChoice.do_mom_advection) {
-            if (solverChoice.custom_forcing_prim_vars) {
-                const int nr = Rho_comp;
-                ParallelFor(tbx, tby,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    Real dzInv = myhalf*dxInv[2];
-                    if (z_nd_arr) {
-                        Real z_xf_lo = fourth * ( z_nd_arr(i,j,k  ) + z_nd_arr(i,j+1,k  )
-                                              + z_nd_arr(i,j,k-1) + z_nd_arr(i,j+1,k-1) );
-                        Real z_xf_hi = fourth * ( z_nd_arr(i,j,k+1) + z_nd_arr(i,j+1,k+1)
-                                              + z_nd_arr(i,j,k+2) + z_nd_arr(i,j+1,k+2) );
-                        dzInv = one / (z_xf_hi - z_xf_lo);
-                    }
-                    Real rho_on_u_face = myhalf * ( cell_data(i,j,k,nr) + cell_data(i-1,j,k,nr) );
-                    Real U_hi = dptr_u_plane(k+1) / dptr_r_plane(k+1);
-                    Real U_lo = dptr_u_plane(k-1) / dptr_r_plane(k-1);
-                    Real wbar_xf = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
-                    xmom_src_arr(i, j, k) -= rho_on_u_face * wbar_xf * (U_hi - U_lo) * dzInv;
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    Real dzInv = myhalf*dxInv[2];
-                    if (z_nd_arr) {
-                        Real z_yf_lo = fourth * ( z_nd_arr(i,j,k  ) + z_nd_arr(i+1,j,k  )
-                                              + z_nd_arr(i,j,k-1) + z_nd_arr(i+1,j,k-1) );
-                        Real z_yf_hi = fourth * ( z_nd_arr(i,j,k+1) + z_nd_arr(i+1,j,k+1)
-                                              + z_nd_arr(i,j,k+2) + z_nd_arr(i+1,j,k+2) );
-                        dzInv = one / (z_yf_hi - z_yf_lo);
-                    }
-                    Real rho_on_v_face = myhalf * ( cell_data(i,j,k,nr) + cell_data(i,j-1,k,nr) );
-                    Real V_hi = dptr_v_plane(k+1) / dptr_r_plane(k+1);
-                    Real V_lo = dptr_v_plane(k-1) / dptr_r_plane(k-1);
-                    Real wbar_yf = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
-                    ymom_src_arr(i, j, k) -= rho_on_v_face * wbar_yf * (V_hi - V_lo) * dzInv;
-                });
-            } else {
-                ParallelFor(tbx, tby,
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    Real dzInv = myhalf*dxInv[2];
-                    if (z_nd_arr) {
-                        Real z_xf_lo = fourth * ( z_nd_arr(i,j,k  ) + z_nd_arr(i,j+1,k  )
-                                              + z_nd_arr(i,j,k-1) + z_nd_arr(i,j+1,k-1) );
-                        Real z_xf_hi = fourth * ( z_nd_arr(i,j,k+1) + z_nd_arr(i,j+1,k+1)
-                                              + z_nd_arr(i,j,k+2) + z_nd_arr(i,j+1,k+2) );
-                        dzInv = one / (z_xf_hi - z_xf_lo);
-                    }
-                    Real U_hi = dptr_u_plane(k+1) / dptr_r_plane(k+1);
-                    Real U_lo = dptr_u_plane(k-1) / dptr_r_plane(k-1);
-                    Real wbar_xf = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
-                    xmom_src_arr(i, j, k) -= wbar_xf * (U_hi - U_lo) * dzInv;
-                },
-                [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    Real dzInv = myhalf*dxInv[2];
-                    if (z_nd_arr) {
-                        Real z_yf_lo = fourth * ( z_nd_arr(i,j,k  ) + z_nd_arr(i+1,j,k  )
-                                              + z_nd_arr(i,j,k-1) + z_nd_arr(i+1,j,k-1) );
-                        Real z_yf_hi = fourth * ( z_nd_arr(i,j,k+1) + z_nd_arr(i+1,j,k+1)
-                                              + z_nd_arr(i,j,k+2) + z_nd_arr(i+1,j,k+2) );
-                        dzInv = one / (z_yf_hi - z_yf_lo);
-                    }
-                    Real V_hi = dptr_v_plane(k+1) / dptr_r_plane(k+1);
-                    Real V_lo = dptr_v_plane(k-1) / dptr_r_plane(k-1);
-                    Real wbar_yf = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
-                    ymom_src_arr(i, j, k) -= wbar_yf * (V_hi - V_lo) * dzInv;
-                });
-            }
+            // -w dU/dz is a tendency of the velocity whichever way the custom forcing is
+            //    specified, so it is weighted by the face density to give one of rho*u, rho*v
+            const int nr = Rho_comp;
+            ParallelFor(tbx, tby,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real dzInv = myhalf*dxInv[2];
+                if (z_nd_arr) {
+                    Real z_xf_lo = fourth * ( z_nd_arr(i,j,k  ) + z_nd_arr(i,j+1,k  )
+                                          + z_nd_arr(i,j,k-1) + z_nd_arr(i,j+1,k-1) );
+                    Real z_xf_hi = fourth * ( z_nd_arr(i,j,k+1) + z_nd_arr(i,j+1,k+1)
+                                          + z_nd_arr(i,j,k+2) + z_nd_arr(i,j+1,k+2) );
+                    dzInv = one / (z_xf_hi - z_xf_lo);
+                }
+                Real rho_on_u_face = myhalf * ( cell_data(i,j,k,nr) + cell_data(i-1,j,k,nr) );
+                Real U_hi = dptr_u_plane(k+1) / dptr_r_plane(k+1);
+                Real U_lo = dptr_u_plane(k-1) / dptr_r_plane(k-1);
+                Real wbar_xf = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                xmom_src_arr(i, j, k) -= rho_on_u_face * wbar_xf * (U_hi - U_lo) * dzInv;
+            },
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                Real dzInv = myhalf*dxInv[2];
+                if (z_nd_arr) {
+                    Real z_yf_lo = fourth * ( z_nd_arr(i,j,k  ) + z_nd_arr(i+1,j,k  )
+                                          + z_nd_arr(i,j,k-1) + z_nd_arr(i+1,j,k-1) );
+                    Real z_yf_hi = fourth * ( z_nd_arr(i,j,k+1) + z_nd_arr(i+1,j,k+1)
+                                          + z_nd_arr(i,j,k+2) + z_nd_arr(i+1,j,k+2) );
+                    dzInv = one / (z_yf_hi - z_yf_lo);
+                }
+                Real rho_on_v_face = myhalf * ( cell_data(i,j,k,nr) + cell_data(i,j-1,k,nr) );
+                Real V_hi = dptr_v_plane(k+1) / dptr_r_plane(k+1);
+                Real V_lo = dptr_v_plane(k-1) / dptr_r_plane(k-1);
+                Real wbar_yf = myhalf * (dptr_wbar_sub[k] + dptr_wbar_sub[k+1]);
+                ymom_src_arr(i, j, k) -= rho_on_v_face * wbar_yf * (V_hi - V_lo) * dzInv;
+            });
         }
 
         if (solverChoice.large_scale_forcing && is_slow_step)
@@ -882,15 +875,24 @@ void make_mom_sources (double time_d,
         // 10. Enforce constant mass flux
         // *****************************************************************************
         if (is_slow_step && (enforce_massflux_x || enforce_massflux_y)) {
+            // The mass fluxes are integrated over the cross-section, so their difference is
+            //    divided by its area to give a tendency of rho*u (rho*v) at each point
             Real tau_inv = one / solverChoice.const_massflux_tau;
+            Real dRUA = (massflux_area_x > zero) ? (rhoUA_target - rhoUA) / massflux_area_x : zero;
+            Real dRVA = (massflux_area_y > zero) ? (rhoVA_target - rhoVA) / massflux_area_y : zero;
 
-            ParallelFor(tbx, tby,
-            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                xmom_src_arr(i, j, k) += tau_inv * (rhoUA_target - rhoUA);
-            },
-            [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                ymom_src_arr(i, j, k) += tau_inv * (rhoVA_target - rhoVA);
-            });
+            // Each direction is relaxed only if its own mass flux is prescribed; the other
+            //    direction's target is zero and must not be imposed
+            if (enforce_massflux_x) {
+                ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    xmom_src_arr(i, j, k) += tau_inv * dRUA;
+                });
+            }
+            if (enforce_massflux_y) {
+                ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                    ymom_src_arr(i, j, k) += tau_inv * dRVA;
+                });
+            }
         }
 
     } // mfi

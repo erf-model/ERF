@@ -201,9 +201,15 @@ ERF::FillForecastStateMultiFabs (const int lev,
             // Geometry (note we must include these here to get the data on device)
             const Real x        = prob_lo[0] + (i + myhalf) * dx[0];
             const Real y        = prob_lo[1] + (j + myhalf) * dx[1];
-            // Height from z_phys_nd, or the flat-mesh height if there is none
-            const Real z = (z_arr) ? (z_arr(i,j,k) + z_arr(i,j,k+1))/two
-                                   : prob_lo[2] + (k + myhalf) * dx[2];
+            // Height of the cell centre from z_phys_nd -- the average of its eight corner
+            //    nodes, taken in pairs so that a flat column gives back its height exactly --
+            //    or the flat-mesh height if there is no z_phys_nd
+            const Real z = (z_arr) ?
+                myhalf * ( myhalf * ( myhalf * (z_arr(i,j  ,k  ) + z_arr(i+1,j  ,k  ))
+                                    + myhalf * (z_arr(i,j+1,k  ) + z_arr(i+1,j+1,k  )) )
+                         + myhalf * ( myhalf * (z_arr(i,j  ,k+1) + z_arr(i+1,j  ,k+1))
+                                    + myhalf * (z_arr(i,j+1,k+1) + z_arr(i+1,j+1,k+1)) ) )
+                : prob_lo[2] + (k + myhalf) * dx[2];
 
             // First interpolate where the weather data is available from
             Real tmp_rho, tmp_theta, tmp_qv, tmp_qc, tmp_qr, tmp_lat, tmp_lon;
@@ -259,8 +265,11 @@ ERF::FillForecastStateMultiFabs (const int lev,
              // Physical location of the fine node
             Real x = prob_lo_erf[0] + i       * dx_erf[0];
             Real y = prob_lo_erf[1] + (j+myhalf) * dx_erf[1];
-            const Real z = (z_arr) ? (z_arr(i,j,k) + z_arr(i,j,k+1))/two
-                                   : prob_lo_erf[2] + (k+myhalf) * dx_erf[2];
+            // Height of the x-face centre: the average of nodes (i, j..j+1, k..k+1)
+            const Real z = (z_arr) ?
+                myhalf * ( myhalf * (z_arr(i,j,k  ) + z_arr(i,j+1,k  ))
+                         + myhalf * (z_arr(i,j,k+1) + z_arr(i,j+1,k+1)) )
+                : prob_lo_erf[2] + (k+myhalf) * dx_erf[2];
 
             Real tmp_uvel;
             bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
@@ -275,8 +284,11 @@ ERF::FillForecastStateMultiFabs (const int lev,
              // Physical location of the fine node
             Real x = prob_lo_erf[0] + (i+myhalf) * dx_erf[0];
             Real y = prob_lo_erf[1] + j       * dx_erf[1];
-            const Real z = (z_arr) ? (z_arr(i,j,k) + z_arr(i,j,k+1))/two
-                                   : prob_lo_erf[2] + (k+myhalf) * dx_erf[2];
+            // Height of the y-face centre: the average of nodes (i..i+1, j, k..k+1)
+            const Real z = (z_arr) ?
+                myhalf * ( myhalf * (z_arr(i,j,k  ) + z_arr(i+1,j,k  ))
+                         + myhalf * (z_arr(i,j,k+1) + z_arr(i+1,j,k+1)) )
+                : prob_lo_erf[2] + (k+myhalf) * dx_erf[2];
 
             Real tmp_vvel;
             bilinear_interpolation(xvec_d_ptr, yvec_d_ptr, zvec_d_ptr,
