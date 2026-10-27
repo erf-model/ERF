@@ -1,4 +1,5 @@
 CEXE_headers += ERF_EOS.H
+CEXE_headers += ERF_HostFabView.H
 CEXE_headers += ERF_HSEUtils.H
 CEXE_headers += ERF_Interpolation_UPW.H
 CEXE_headers += ERF_Interpolation_WENO.H
