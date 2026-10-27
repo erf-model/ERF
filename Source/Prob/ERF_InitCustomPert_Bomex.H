@@ -76,19 +76,22 @@
         }
 
         if (use_moisture) {
-            state_pert(i, j, k, RhoQ1_comp) = zero;
-            state_pert(i, j, k, RhoQ2_comp) = zero;
+            // The temperature perturbation above changes rho; rescale the moisture
+            //     densities so the mixing ratios (and hence the pressure) are unchanged
+            Real rhoold = state(i,j,k,Rho_comp);
+            Real rhonew = rhoold + state_pert(i,j,k,Rho_comp);
+
+            Real qvold = state(i,j,k,RhoQ1_comp) / rhoold;
+            Real qcold = state(i,j,k,RhoQ2_comp) / rhoold;
+
+            Real qvnew = qvold;
             if ((z <= pert_ref_height) && (qv_0_Pert_Mag != zero))
             {
-                Real rhoold = state(i,j,k,Rho_comp);
-                Real rhonew = rhoold + state_pert(i,j,k,Rho_comp);
-
-                Real qvold = state(i,j,k,RhoQ1_comp) / rhoold;
-
                 Real rand_double = amrex::Random(engine); // Between zero and one
-                Real qvnew = qvold + (rand_double*two - one)*qv_0_Pert_Mag;
-
-                state_pert(i, j, k, RhoQ1_comp) = rhonew * qvnew - rhoold * qvold;
+                qvnew += (rand_double*two - one)*qv_0_Pert_Mag;
             }
+
+            state_pert(i, j, k, RhoQ1_comp) = rhonew * qvnew - rhoold * qvold;
+            state_pert(i, j, k, RhoQ2_comp) = (rhonew - rhoold) * qcold;
         }
     });
