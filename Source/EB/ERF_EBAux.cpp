@@ -784,8 +784,8 @@ define ( [[maybe_unused]] int const& a_level,
                                         + hi_areaHi_z * (hi_centHi_z[1] + myhalf) ) / aux_afrac_z(i,j,k+1)
                                       : zero;
               } else if (a_idim == 2) {
-                aux_fcent_z(i,j,k+1,0) = lo_centHi_z[0];      // x
-                aux_fcent_z(i,j,k+1,1) = lo_centHi_z[1];      // y
+                aux_fcent_z(i,j,k+1,0) = hi_centHi_z[0];      // x
+                aux_fcent_z(i,j,k+1,1) = hi_centHi_z[1];      // y
               }
             }
 
