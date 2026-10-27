@@ -385,14 +385,18 @@ inline void apply_fire_tendency_to_cc_source(
             // energy is rho times the flux; density_factor = false drops it.
             // The Exner factor divides the tendency by Pi(p) so that the
             // enthalpy, not rho theta, integrates to the flux.
-            Real rho_fac = density_factor ? rho : Real(1.0);
+            // Preserve the explicit legacy density option, but apply Exner
+            // only to heat. Q_lat / L_V is a water mass flux: converting it
+            // to d(rho_d q_v)/dt must not multiply that mass by 1/Pi.
+            const Real mass_fac = density_factor ? rho : Real(1.0);
+            Real heat_fac = mass_fac;
             if (exner_factor) {
                 const Real rhotheta = amrex::max(s_old_a(i, j, k, RhoTheta_comp), Real(1.0e-10));
                 // the moist pressure where there is vapour (about 1 % in Pi at 15 g/kg)
                 const Real qv = has_moisture ? amrex::max(s_old_a(i, j, k, RhoQ1_comp), Real(0.0)) / rho : Real(0.0);
                 const Real p = getPgivenRTh(rhotheta, qv);
                 const Real exner = std::pow(p / p_0, rdOcp);
-                rho_fac /= amrex::max(exner, Real(1.0e-6));
+                heat_fac /= amrex::max(exner, Real(1.0e-6));
             }
 
             // Layer weight: the fraction of the column's exponential profile
@@ -431,16 +435,16 @@ inline void apply_fire_tendency_to_cc_source(
             // is kept (exp_k - exp_kp1 times the flux, over the cell thickness).
             Real theta_tend, q_tend = Real(0.0);
             if (use_open) {
-                theta_tend = rho_fac * (q_sfc_sensible / Cp_fire) * w_k / dz;
-                if (has_latent) { q_tend = rho_fac * (q_sfc_latent / L_V) * w_k / dz; }
+                theta_tend = heat_fac * (q_sfc_sensible / Cp_fire) * w_k / dz;
+                if (has_latent) { q_tend = mass_fac * (q_sfc_latent / L_V) * w_k / dz; }
             } else {
                 Real hfx_k    = (q_sfc_sensible / Cp_fire) * exp_k;
                 Real hfx_kp1  = (q_sfc_sensible / Cp_fire) * exp_kp1;
-                theta_tend = -rho_fac * (hfx_kp1 - hfx_k) / dz;
+                theta_tend = -heat_fac * (hfx_kp1 - hfx_k) / dz;
                 if (has_latent) {
                     Real qfx_k   = (q_sfc_latent / L_V) * exp_k;
                     Real qfx_kp1 = (q_sfc_latent / L_V) * exp_kp1;
-                    q_tend  = -rho_fac * (qfx_kp1 - qfx_k) / dz;
+                    q_tend  = -mass_fac * (qfx_kp1 - qfx_k) / dz;
                 }
             }
             if (additive) {
