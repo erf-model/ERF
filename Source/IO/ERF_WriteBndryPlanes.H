@@ -32,6 +32,9 @@ public:
      */
     bool start_series (int start_step, double start_time, bool restarting);
 
+    //! Level the planes are taken from
+    static int get_bndry_lev () { return bndry_lev; }
+
     /** How many leading rows of a time.dat with these steps and times a run starting at
      *  start_step and start_time keeps: on a restart the rows up to and including the restart
      *  that increase in step and time and are not later than the restart; on a fresh start none.
