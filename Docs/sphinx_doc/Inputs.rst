@@ -3665,8 +3665,9 @@ List of Parameters
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.terrain_file_name_nc**     | NetCDF terrain filename                                  | String             | NONE             |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.buildings_type**           | how buildings are represented; see :ref:`Forcings`       | None,              | None             |
-|                                  |                                                          | ImmersedForcing    |                  |
+| **erf.buildings_type**           | how buildings are represented; see :ref:`Forcings`;      | None,              | None             |
+|                                  | ImmersedForcing is not supported with                    | ImmersedForcing    |                  |
+|                                  | ``erf.terrain_type`` = EB                                |                    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.use_rotate_surface_flux**  | rotate the MOST surface stresses to be normal to the     | Boolean            | false            |
 |                                  | terrain surface; requires that terrain be used           |                    |                  |
