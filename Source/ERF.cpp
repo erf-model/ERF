@@ -123,14 +123,6 @@ std::string ERF::nc_bdy_file; // Must provide via input
 std::string ERF::nc_low_file; // Must provide via input
 Vector<std::string> ERF::nc_low_file_at_level;
 
-// 1D NetCDF output (for ingestion by AMR-Wind)
-int  ERF::output_1d_column = 0;
-int  ERF::column_interval  = -1;
-double ERF::column_per       = -1.0;
-Real ERF::column_loc_x     = zero;
-Real ERF::column_loc_y     = zero;
-std::string ERF::column_file_name = "column_data.nc";
-
 // 2D BndryRegister output (for ingestion by AMR-Wind)
 int  ERF::output_bndry_planes            = 0;
 int  ERF::bndry_output_planes_interval   = -1;
@@ -788,35 +780,6 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
                 rad[0]->WriteDataLog(time + start_time);
             }
         }
-    }
-
-    if (output_1d_column) {
-#ifdef ERF_USE_NETCDF
-      if (is_it_time_for_action(nstep, time, dt_lev0, column_interval, column_per))
-      {
-         int lev_column = 0;
-         for (int lev = finest_level; lev >= 0; lev--)
-         {
-            const Box& domain_lev = geom[lev].Domain();
-            Real dx_lev = geom[lev].CellSize(0);
-            Real dy_lev = geom[lev].CellSize(1);
-            // Cell containing (column_loc_x,column_loc_y) -- note that these locations are
-            //     measured from ProbLo, which need not be at the origin
-            int i_lev = domain_lev.smallEnd(0) +
-                static_cast<int>(std::floor((column_loc_x - geom[lev].ProbLo(0)) / dx_lev));
-            int j_lev = domain_lev.smallEnd(1) +
-                static_cast<int>(std::floor((column_loc_y - geom[lev].ProbLo(1)) / dy_lev));
-            // Loop runs from finest to coarsest, so stop at the first (finest) level
-            //     that contains the column
-            if (grids[lev].contains(IntVect(i_lev,j_lev,domain_lev.smallEnd(2)))) {
-                lev_column = lev; break;
-            }
-         }
-         writeToNCColumnFile(lev_column, column_file_name, column_loc_x, column_loc_y, time);
-      }
-#else
-      Abort("To output 1D column files ERF must be compiled with NetCDF");
-#endif
     }
 
     if (output_bndry_planes)
@@ -3681,12 +3644,12 @@ ERF::ReadParameters ()
 #endif
         pp.queryAdd("profile_rad_int", rad_datalog_int);
 
-        pp.queryAdd("output_1d_column", output_1d_column);
-        pp.queryAdd("column_per", column_per);
-        pp.queryAdd("column_interval", column_interval);
-        pp.queryAdd("column_loc_x", column_loc_x);
-        pp.queryAdd("column_loc_y", column_loc_y);
-        pp.queryAdd("column_file_name", column_file_name);
+        // The 1D NetCDF column output has been removed
+        int output_1d_column = 0;
+        pp.query("output_1d_column", output_1d_column);
+        if (output_1d_column) {
+            amrex::Error("erf.output_1d_column is no longer supported; the 1D column output was removed");
+        }
 
         // Sampler output frequency
         pp.queryAdd("line_sampling_per", line_sampling_per);
