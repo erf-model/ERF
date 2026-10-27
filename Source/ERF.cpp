@@ -3276,7 +3276,9 @@ ERF::init_only (int lev, double elapsed_time)
         turbPert_update(lev, zero);
         if (solverChoice.use_wvel_perturbation(lev)) {
             turbPert_amplitude_w(lev);
-        } else {
+        } else if (solverChoice.pert_type[lev] != PerturbationType::Direct) {
+            // The direct perturbation is a rate applied over each time step,
+            //    so it adds nothing at the initial time
             turbPert_amplitude(lev);
         }
     }

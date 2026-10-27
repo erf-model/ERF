@@ -28,11 +28,10 @@ Three different types of perturbation methods are currently available,
 introduced by `DeLeon et al. (2018)`_ and are referred to as the box perturbation
 method. The ``source`` option applies the perturbation amplitude range,
 :math:`\pm \Phi_{PB}`, to each cell within the perturbation box as a source term.
-Conversely, the ``direct`` option applies the calculated temperature difference
-directly onto the :math:`\rho \theta` field. We note that while both methods
-effectively generate turbulence downstream, the latter approach is more unstable
-and requires more fine tuning. The following describes the theory of the box
-perturbation method:
+The ``direct`` option uses the same rate but adds it, multiplied by the time step,
+directly to the :math:`\rho \theta` field at the start of every time step. Both
+options add the same total perturbation over one update interval. The following
+describes the theory of the box perturbation method:
 
 .. _`DeLeon et al. (2018)`: https://doi.org/10.2514/1.J057245
 
@@ -192,23 +191,27 @@ index) and the number of times the box has been updated. The seed is 1024 with
 ``erf.fix_random_seed = 1``, otherwise ``erf.random_seed`` if it is given, and 0
 otherwise, so a run is repeatable unless the seed is changed.
 
-Using the source term to perturb the momentum field through buoyancy coupling
-requires more time compared to the ``direct`` perturbation method. Turbulence onset
-can be triggered by adjusting the size of the perturbation box, as the amplitude is
-heavily influenced by having the two-dimensional scales of the perturbation box in
-the denominator.
+Turbulence onset can be triggered by adjusting the size of the perturbation box,
+as the amplitude is heavily influenced by having the two-dimensional scales of the
+perturbation box in the denominator.
 
 Direct type forcing
 -------------------
 
-The ``direct`` method can also be used to effectively trip turbulence into the
-domain. Minute differences exist between the ``direct`` and ``source`` method,
-with the primary one being the perturbation amplitude is directly solved from the
-Richardson number relationship as,
+The ``direct`` method computes the same amplitude and update interval as the
+``source`` method, and differs only in how the perturbation is added. Instead of
+entering the right-hand side as a source term, the perturbation is added to the
+:math:`\rho \theta` field before each time step as
 
 .. math::
 
-   \Phi_{PB} = \frac{Ri_{PB} {\langle U(z) \rangle}^2_{PB}}{g \beta H_{PB}}.
+   (\rho \theta)^n \leftarrow (\rho \theta)^n + \Delta t \, \Phi_{PB},
+
+where :math:`\Delta t` is the current time step of the level. Since the increment
+is scaled by the current time step, a box receives a total of
+:math:`\Delta \overline{\phi}` over one update interval :math:`t_p` even when the
+time step varies. Unlike the ``source`` method, no perturbation is added at the
+initial time.
 
 To activate the ``direct`` type forcing, set the following inputs list.
 
@@ -223,10 +226,6 @@ To activate the ``direct`` type forcing, set the following inputs list.
 
           erf.perturbation_nondimensional = 0.042 # Ri
           erf.perturbation_T_infinity = 300.0
-
-We want to note that the ``direct`` perturbation method is sensitive to the
-temperature amplitude computed through the equation above, and is subject to crash
-the simulation when this amplitude is too large.
 
 Cell Perturbation Method
 ------------------------
