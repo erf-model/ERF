@@ -4,6 +4,8 @@
 #include <AMReX_TableData.H>
 #include <AMReX_GpuContainers.H>
 
+#include <limits>
+
 #include "ERF_ImmersedForcing.H"
 #include "ERF_NumericalDiffusion.H"
 #include "ERF_PlaneAverage.H"
@@ -876,10 +878,14 @@ void make_mom_sources (double time_d,
         // *****************************************************************************
         if (is_slow_step && (enforce_massflux_x || enforce_massflux_y)) {
             // The mass fluxes are integrated over the cross-section, so their difference is
-            //    divided by its area to give a tendency of rho*u (rho*v) at each point
+            //    divided by its area to give a tendency of rho*u (rho*v) at each point.
+            //    The divisor is never zero: an optimised build may divide before it tests
+            //    the area, and 0/0 would then trip amrex.fpe_trap_invalid even when the
+            //    result is discarded. For a positive area the divisor is the area itself.
             Real tau_inv = one / solverChoice.const_massflux_tau;
-            Real dRUA = (massflux_area_x > zero) ? (rhoUA_target - rhoUA) / massflux_area_x : zero;
-            Real dRVA = (massflux_area_y > zero) ? (rhoVA_target - rhoVA) / massflux_area_y : zero;
+            constexpr Real tiny_area = std::numeric_limits<Real>::min();
+            Real dRUA = (massflux_area_x > zero) ? (rhoUA_target - rhoUA) / amrex::max(massflux_area_x, tiny_area) : zero;
+            Real dRVA = (massflux_area_y > zero) ? (rhoVA_target - rhoVA) / amrex::max(massflux_area_y, tiny_area) : zero;
 
             // Each direction is relaxed only if its own mass flux is prescribed; the other
             //    direction's target is zero and must not be imposed
