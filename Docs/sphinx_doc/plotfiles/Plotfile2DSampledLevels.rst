@@ -250,6 +250,15 @@ north, and ``u_east`` and ``v_north`` equal the cell-centered ``x_velocity`` and
    held the grid-relative winds. Output written before then that was rotated in
    post-processing should not be rotated again.
 
+.. note::
+
+   On a refined level the latitude and longitude are interpolated from the
+   coarser level without wrapping the longitude. A refined patch that straddles
+   the antimeridian (longitude ±180 degrees) therefore gets wrong longitudes in
+   the cells between, and ``u_east``, ``v_north`` and ``wind_dir`` there are
+   rotated by a wrong angle. Level 0 is not affected, and neither are the
+   station time series, which take the angle from level 0.
+
 ``wind_speed`` is the horizontal speed computed from ``u_east`` and
 ``v_north``. ``wind_dir`` is the meteorological wind direction in degrees
 clockwise from north, indicating where the wind comes from. ERF writes the

@@ -91,6 +91,7 @@ def main(argv):
     for r in rows:
         for h in heights:
             if ("u_east", h) not in alphas:
+                print("FAIL: the header gives no grid angle for u_east at height %g" % h)
                 return 1
             ca = math.cos(math.radians(alphas[("u_east", h)]))
             sa = math.sin(math.radians(alphas[("u_east", h)]))
