@@ -126,11 +126,19 @@ parse_metadata (std::istream& input, Metadata& result, std::string& error)
                     std::to_string(lev);
             return false;
         }
+        // The map records the writer's ranks, which need not exist in the
+        // restarted run, so only reject entries that cannot be a rank at all.
         record.processor_map.resize(static_cast<std::size_t>(map_size));
         for (long long ibox = 0; ibox < map_size; ++ibox) {
-            if (!(input >> record.processor_map[static_cast<std::size_t>(ibox)])) {
+            int& rank = record.processor_map[static_cast<std::size_t>(ibox)];
+            if (!(input >> rank)) {
                 error = "truncated interval-mean processor map for level " +
                         std::to_string(lev);
+                return false;
+            }
+            if (rank < 0) {
+                error = "invalid interval-mean processor-map rank " +
+                        std::to_string(rank) + " for level " + std::to_string(lev);
                 return false;
             }
         }
