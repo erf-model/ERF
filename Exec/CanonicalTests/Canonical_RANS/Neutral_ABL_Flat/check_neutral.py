@@ -13,10 +13,10 @@ import math
 import os
 import sys
 
-# erf_plotfile.py lives in Canonical_RANS/ next to the case directories; the
-# CTest copies it beside this script, so look in both places.
+# erf_plotfile.py lives in Exec/Tools; the CTest copies it beside this script,
+# so look in both places.
 _here = os.path.dirname(os.path.abspath(__file__))
-sys.path[:0] = [_here, os.path.join(_here, "..")]
+sys.path[:0] = [_here, os.path.join(_here, ".."), os.path.join(_here, "..", "..", "..", "Tools")]
 import erf_plotfile  # noqa: E402
 
 KAPPA = 0.41

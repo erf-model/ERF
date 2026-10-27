@@ -2818,6 +2818,7 @@ function(add_test_rans TEST_NAME CASE_DIR INPUT_FILE NSTEPS CHECK_SCRIPT)
     # shared plotfile reader and check helpers used by every check script
     file(GLOB _rans_py "${_rans_root}/*.py")
     file(COPY ${_rans_py} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+    file(COPY ${PROJECT_SOURCE_DIR}/Exec/Tools/erf_plotfile.py DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
 
     if(ERF_ENABLE_MPI)
         if("${ADD_TEST_RANS_NRANKS}" STREQUAL "")
@@ -2893,6 +2894,7 @@ function(add_test_rans_pair TEST_NAME CASE_DIR INPUT_FILE NSTEPS CHECK_SCRIPT)
     file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
     file(GLOB _rans_py "${_rans_root}/*.py")
     file(COPY ${_rans_py} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
+    file(COPY ${PROJECT_SOURCE_DIR}/Exec/Tools/erf_plotfile.py DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
 
     if(ERF_ENABLE_MPI)
         if("${ADD_TEST_RANS_PAIR_NRANKS}" STREQUAL "")
@@ -4358,6 +4360,92 @@ if(NOT WIN32)
   add_test_abort(TerrainFile_Abort_USGSYInRow ${_tf_dir} TerrainFileChecksUSGS.i
                  "y changes within row 2 \\(line 40\\)"
                  "erf.terrain_file_name_USGS=usgs_y_in_row.txt")
+endif()
+
+#=============================================================================
+# Moist initial temperature and qv perturbations (#4621, #4622)
+#
+# BOMEX, GATE and RICO perturb the temperature at fixed pressure by changing the density
+# and holding rho*theta, and add any qv perturbation on the new density
+# (Source/Prob/ERF_MoistPerturbation.H). Each test writes the initial state of the case's
+# deck (16 x 16 x 100 cells) once per option set given and hands the plotfiles to a check:
+#  - *_KeepsQv: without and with one temperature perturbation, qv and pressure must agree
+#    cell by cell while density changes (Tests/check_perturbation_keeps.py). Before the
+#    fix rho*qv was left alone: qv changed by 2-3e-4 of itself and pressure by about 1 Pa.
+#  - GATE_SineT_KeepsRandomQv: the random qv perturbation alone and with the sinusoidal
+#    temperature one: qv must be the same (the temperature does not move it).
+#  - *_TandQv_KeepsT: the random T perturbation alone and with the sinusoidal qv one: T must
+#    be the same (the density is found at the pressure of the new qv, so T = T + dT).
+#    prob.pert_ref_height = 5000 m, above the 4000 m top, puts the T perturbation in every
+#    cell: where qv alone is perturbed the density is kept and T moves, as before.
+#    BOMEX has no sinusoidal perturbation and no such test.
+# Runs compared with each other must draw the same number of random values per cell.
+#  - *_Sum: no perturbation, each of two alone, and both: the change from both must be the
+#    sum of the two (Tests/check_perturbation_sum.py), for the random and sinusoidal
+#    temperature perturbations (temp) and for the random and sinusoidal qv ones (qv).
+#    RICO used to start the sinusoidal ones from the unperturbed state and drop the
+#    random ones.
+# Each run's options are one argument; "base" means no perturbation at all.
+#=============================================================================
+function(add_test_moist_pert TEST_NAME CASE_DIR INPUT_FILE CHECKER CHECK_ARGS)
+    # setup_test copies test_files/<TEST_FILES_DIR>; the decks live in Exec/CanonicalTests
+    set(TEST_FILES_DIR "../../Exec/CanonicalTests/${CASE_DIR}")
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(_off "prob.T_0_Pert_Mag=0 prob.qv_0_Pert_Mag=0 prob.pert_deltaT=0 prob.pert_deltaQV=0 prob.U_0_Pert_Mag=0 prob.V_0_Pert_Mag=0 prob.pert_deltaU=0 prob.pert_deltaV=0")
+    set(_run "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${INPUT_FILE} max_step=0 erf.plot_int_1=1 erf.check_int=-1 'amr.n_cell=16 16 100' 'amr.max_grid_size=8 8 100' 'erf.plot_vars_1=density pressure qv temp' ${_off}")
+    set(_cmd "")
+    set(_plts "")
+    set(_logs "")
+    set(_i 0)
+    foreach(_opts IN LISTS ARGN)
+        if("${_opts}" STREQUAL "base")
+            set(_opts "")
+        endif()
+        string(APPEND _cmd "${_run} ${_opts} erf.plot_file_1=run${_i}_ > ${CURRENT_TEST_BINARY_DIR}/run${_i}.log 2>&1 && ")
+        list(APPEND _plts "${CURRENT_TEST_BINARY_DIR}/run${_i}_00000")
+        list(APPEND _logs "${CURRENT_TEST_BINARY_DIR}/run${_i}.log")
+        math(EXPR _i "${_i} + 1")
+    endforeach()
+    string(REPLACE ";" " " _plts "${_plts}")
+    add_test(${TEST_NAME} sh -c
+      "${_cmd}${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/${CHECKER} ${_plts} ${CHECK_ARGS}")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression" ATTACHED_FILES_ON_FAIL "${_logs}")
+endfunction(add_test_moist_pert)
+
+if(NOT WIN32 AND ERF_TEST_PYTHON)
+  if(ERF_PRECISION STREQUAL "SINGLE")
+    set(_mp_tol "--tol 1e-5")
+    set(_mp_sum_tol "--tol 1e-2")
+  else()
+    set(_mp_tol "--tol 1e-12")
+    set(_mp_sum_tol "--tol 1e-9")
+  endif()
+  set(_keeps "--same qv pressure --differ density ${_mp_tol}")
+  set(_k check_perturbation_keeps.py)
+  set(_s check_perturbation_sum.py)
+  add_test_moist_pert(BOMEX_RandomT_KeepsQv Bomex inputs_bomex           ${_k} "${_keeps}" base "prob.T_0_Pert_Mag=0.1")
+  add_test_moist_pert(GATE_RandomT_KeepsQv  GATE  inputs_Kessler_regtest ${_k} "${_keeps}" base "prob.T_0_Pert_Mag=0.1")
+  add_test_moist_pert(GATE_SineT_KeepsQv    GATE  inputs_Kessler_regtest ${_k} "${_keeps}" base "prob.pert_deltaT=0.1")
+  add_test_moist_pert(RICO_RandomT_KeepsQv  RICO  inputs_Kessler_regtest ${_k} "${_keeps}" base "prob.T_0_Pert_Mag=0.1")
+  add_test_moist_pert(RICO_SineT_KeepsQv    RICO  inputs_Kessler_regtest ${_k} "${_keeps}" base "prob.pert_deltaT=0.1")
+  add_test_moist_pert(GATE_SineT_KeepsRandomQv GATE inputs_Kessler_regtest ${_k} "--same qv --differ density ${_mp_tol}"
+                      "prob.qv_0_Pert_Mag=2.5e-5" "prob.qv_0_Pert_Mag=2.5e-5 prob.pert_deltaT=0.1")
+  # T and qv perturbed together: T is T + dT, as with the T perturbation alone (the density
+  # is found at the pressure of the new qv), while qv differs
+  # (the qv perturbation is the sinusoidal one: a second random draw per cell would change
+  # the random T of the cells drawn after it)
+  foreach(_case GATE RICO)
+    add_test_moist_pert(${_case}_TandQv_KeepsT ${_case} inputs_Kessler_regtest ${_k} "--same temp --differ qv ${_mp_tol}"
+                        "prob.T_0_Pert_Mag=0.1 prob.pert_ref_height=5000"
+                        "prob.T_0_Pert_Mag=0.1 prob.pert_ref_height=5000 prob.pert_deltaQV=2.5e-5")
+    add_test_moist_pert(${_case}_RandomAndSineT_Sum ${_case} inputs_Kessler_regtest ${_s} "--vars temp ${_mp_sum_tol}"
+                        base "prob.T_0_Pert_Mag=0.1" "prob.pert_deltaT=0.1" "prob.T_0_Pert_Mag=0.1 prob.pert_deltaT=0.1")
+    add_test_moist_pert(${_case}_RandomAndSineQv_Sum ${_case} inputs_Kessler_regtest ${_s} "--vars qv ${_mp_sum_tol}"
+                        base "prob.qv_0_Pert_Mag=2.5e-5" "prob.pert_deltaQV=2.5e-5" "prob.qv_0_Pert_Mag=2.5e-5 prob.pert_deltaQV=2.5e-5")
+  endforeach()
 endif()
 
 #=============================================================================
