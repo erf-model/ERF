@@ -554,6 +554,9 @@ public:
     void write_1D_profiles (double time);
     void write_1D_profiles_stag (double time);
 
+    // Fill the ghost cells the boundary planes read, then write the planes
+    void write_bndry_planes (int step, double time);
+
     amrex::Real cloud_fraction (double time);
 
     // Fill the physical boundary conditions for cell-centered velocity (diagnostic only)
