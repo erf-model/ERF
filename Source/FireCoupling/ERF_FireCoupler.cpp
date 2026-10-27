@@ -311,7 +311,8 @@ FireCoupler::add_sources (MultiFab& cc_source,
             m_engine->roof_height_atm(),
             m_params.heat_open_fraction,
             m_params.heat_tendency_density,
-            m_params.heat_tendency_exner);
+            m_params.heat_tendency_exner,
+            m_params.heat_in_bottom_cell());
     }
 
     // The smoke tracer, after the heat: proportional to the fuel burnt, which

@@ -217,7 +217,8 @@ inline void apply_fire_tendency_to_cc_source(
     const amrex::MultiFab* roof_h_atm = nullptr,
     bool use_open_weights = false,
     bool density_factor = false,
-    bool exner_factor = false)
+    bool exner_factor = false,
+    bool bottom_cell = false)
 {
     using namespace amrex;
 
@@ -226,12 +227,14 @@ inline void apply_fire_tendency_to_cc_source(
 
     // Source conversion must use the same dry-air heat capacity as ERF's EOS.
     constexpr Real Cp_fire = Cp_d;
-    constexpr Real L_V  = 2.501e6;
+    // and the latent heat ERF uses (an engine converting a vapour mass flux to
+    // its latent flux multiplies by this same L_v, so the water round-trips exactly)
+    constexpr Real L_V  = L_v;
     // Exner function of the cell from its rho theta (erf.fire.heat_tendency_exner):
     // heating q [W/m3] gives d(theta)/dt = q / (rho cp Pi), so the rho theta
     // tendency carries 1/Pi; without it the enthalpy injected is Pi times the
-    // flux, 4.5 % short at 850 hPa. WRF-SFIRE omits the factor; the default here
-    // does too.
+    // flux, 4.5 % short at 850 hPa. WRF-SFIRE omits the factor; it is on by
+    // default here.
     const Real rdOcp = R_d / Cp_d;
 
     const Box& domain = geom_atm.Domain();
@@ -408,6 +411,9 @@ inline void apply_fire_tendency_to_cc_source(
             // cells that remain, so the injected energy per column is unchanged
             // and none of it lands inside a building.
             Real w_k = exp_k - exp_kp1;
+            // erf.fire.heat_profile = bottom_cell: the whole flux enters the
+            // lowest cell of the column (the LSFIRE coupling)
+            if (bottom_cell) { w_k = (k == klo) ? Real(1.0) : Real(0.0); }
             if (use_open) {
                 const Real f_open = open_arr(i, j, 0);
                 const Real h_roof = roof_arr(i, j, 0);
@@ -435,7 +441,7 @@ inline void apply_fire_tendency_to_cc_source(
             // Without the open-fraction option the flux-difference expression
             // is kept (exp_k - exp_kp1 times the flux, over the cell thickness).
             Real theta_tend, q_tend = Real(0.0);
-            if (use_open) {
+            if (use_open || bottom_cell) {
                 theta_tend = heat_fac * (q_sfc_sensible / Cp_fire) * w_k / dz;
                 if (has_latent) { q_tend = mass_fac * (q_sfc_latent / L_V) * w_k / dz; }
             } else {

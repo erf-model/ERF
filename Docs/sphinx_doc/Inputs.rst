@@ -5575,9 +5575,13 @@ besides.
 |                                                | (injects rho times the flux; for comparison with runs made |                                |                        |
 |                                                | in that form)                                              |                                |                        |
 +------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
-| **erf.fire.heat_tendency_exner**               | Divide the rho theta tendency by the cell's Exner function | Boolean                        | false                  |
+| **erf.fire.heat_tendency_exner**               | Divide the rho theta tendency by the cell's Exner function | Boolean                        | true                   |
 |                                                | so the column enthalpy integrates to the fire flux; false  |                                |                        |
 |                                                | (WRF-SFIRE's form) injects Pi times the flux               |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.heat_profile**                      | How the fire heat is placed in the column: "exponential"   | String                         | exponential            |
+|                                                | (e-folding erf.fire.heat_flux_alfg, WRF-SFIRE) or          |                                |                        |
+|                                                | "bottom_cell" (all of it in the lowest cell, as LSFIRE)    |                                |                        |
 +------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
 | **erf.fire.smoke_enable**                      | Inject the smoke tracer (needs erf.transport_scalar =      | Boolean                        | false                  |
 |                                                | true)                                                      |                                |                        |

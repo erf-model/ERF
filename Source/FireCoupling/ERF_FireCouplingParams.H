@@ -43,7 +43,10 @@ struct FireCouplingParams
     /// erf.fire.heat_tendency_density: density factor of the theta tendency
     bool        heat_tendency_density = false;
     /// erf.fire.heat_tendency_exner: Exner factor of the theta tendency
-    bool        heat_tendency_exner   = false;
+    bool        heat_tendency_exner   = true;
+    /// erf.fire.heat_profile: exponential (WRF-SFIRE, e-folding heat_flux_alfg)
+    /// or bottom_cell (all of the flux into the lowest cell)
+    std::string heat_profile          = "exponential";
     /// erf.fire.smoke_enable: inject the smoke tracer
     bool        smoke_enable          = false;
     /// erf.fire.smoke_emission_factor: kg smoke per kg fuel burned [-]
@@ -56,6 +59,7 @@ struct FireCouplingParams
     bool is_synchronous() const { return coupling_type == "synchronous"; }
     /// Heat (and vapour) reach the atmosphere: lagged and synchronous coupling.
     bool injects_flux()   const { return is_lagged() || is_synchronous(); }
+    bool heat_in_bottom_cell() const { return heat_profile == "bottom_cell"; }
 
     /// Parse and check the keys above from erf.fire.*. With erf.fire.enable,
     /// erf.fire.engine must name an engine compiled into this executable

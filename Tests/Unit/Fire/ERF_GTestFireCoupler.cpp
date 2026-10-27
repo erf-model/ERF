@@ -76,7 +76,7 @@ constexpr Real RHO = 1.15;                 // air density [kg/m3]
 constexpr Real FEEDBACK = 0.5;             // erf.fire.fire_atm_feedback
 constexpr Real EMISSION = 0.02;            // erf.fire.smoke_emission_factor
 constexpr Real BACKGROUND = 7.0;           // every other source of the cell
-constexpr Real Cp_fire = Cp_d, L_V = 2.501e6;   // ERF dry-air c_p; existing fire latent convention
+constexpr Real Cp_fire = Cp_d, L_V = L_v;   // ERF dry-air c_p and latent heat, as the coupling uses
 /// Relative round-off tolerance of the build precision
 constexpr double REL = (sizeof(Real) == 8) ? 1.0e-9 : 1.0e-4;
 

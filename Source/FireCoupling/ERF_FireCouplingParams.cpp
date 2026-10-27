@@ -71,11 +71,22 @@ FireCouplingParams::read ()
     pp.query("heat_open_fraction", c.heat_open_fraction);
     pp.query("heat_tendency_density", c.heat_tendency_density);
     pp.query("heat_tendency_exner", c.heat_tendency_exner);
+    pp.query("heat_profile", c.heat_profile);
+    one_of("heat_profile", c.heat_profile, {"exponential", "bottom_cell"});
+    if (c.heat_in_bottom_cell() && c.heat_open_fraction) {
+        fail("erf.fire.heat_open_fraction places the heat along the exponential profile;"
+             " it cannot be combined with erf.fire.heat_profile = bottom_cell");
+    }
+    if (c.heat_in_bottom_cell() && pp.contains("heat_flux_alfg")) {
+        amrex::Print() << "[FIRE] WARNING: erf.fire.heat_flux_alfg is ignored with"
+                       << " erf.fire.heat_profile = bottom_cell\n";
+    }
     // The keys of the heat injection, given with passive coupling, which
     // injects no heat: warn once per key
     if (c.is_passive()) {
         for (const char* k : {"heat_flux_alfg", "fire_atm_feedback", "inject_latent", "source_mode",
-                              "heat_open_fraction", "heat_tendency_density", "heat_tendency_exner"}) {
+                              "heat_open_fraction", "heat_tendency_density", "heat_tendency_exner",
+                              "heat_profile"}) {
             if (pp.contains(k)) {
                 amrex::Print() << "[FIRE] WARNING: erf.fire." << k << " is ignored with erf.fire.coupling_type"
                                << " = passive (no heat is injected)\n";

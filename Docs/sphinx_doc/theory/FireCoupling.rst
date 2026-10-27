@@ -271,14 +271,22 @@ flux is distributed the same way into the vapour equation (divided by the
 latent heat of vaporisation) when :cpp:`erf.fire.inject_latent` is true and a
 moisture model is active.
 
+:cpp:`erf.fire.heat_profile = bottom_cell` replaces the profile: the whole
+sensible and latent flux enters the lowest cell of each column, divided by
+that cell's thickness, as in the LSFIRE coupling; :cpp:`erf.fire.heat_flux_alfg`
+is then unused and :cpp:`erf.fire.heat_open_fraction` cannot be set. The
+default, ``exponential``, is the profile above. Either way the heat enters
+through the source term at every Runge-Kutta stage of the step after the
+engine released it.
+
 The tendency above is a :math:`\rho\theta` budget: heating :math:`q` per unit
 volume gives :math:`\partial\theta/\partial t = q / (\rho c_p \Pi)` with the
 Exner function :math:`\Pi = (p/p_0)^{R_d/c_p}`, so the enthalpy
 :math:`c_p \Pi\, \partial(\rho\theta)/\partial t` the column receives is
 :math:`\Pi` times the flux, 4.5 % short at 850 hPa.
 :cpp:`erf.fire.heat_tendency_exner = true` divides the tendency by
-:math:`\Pi` of each cell so that the enthalpy integrates to the flux; the
-default omits the factor, as WRF-SFIRE does. :cpp:`erf.fire.heat_tendency_density = true`
+:math:`\Pi` of each cell so that the enthalpy integrates to the flux; this
+is the default. Setting it to false omits the factor, as WRF-SFIRE does. :cpp:`erf.fire.heat_tendency_density = true`
 multiplies the tendency by the air density, so the column receives
 :math:`\rho` times the flux (kept for comparison with runs made in that
 form); set together, the two factors stack (:math:`\rho / \Pi`). With
@@ -288,7 +296,7 @@ with neither factor (the factors multiply it by the profile-weighted mean of
 :math:`\rho`, of :math:`1/\Pi`, or of :math:`\rho/\Pi` with both, essentially
 their values near the surface). The Exner factor applies only to sensible
 heating. The latent flux is converted to a water-mass flux by dividing by
-the latent heat of vaporisation and enters the conserved water-vapour source
+the latent heat of vaporisation :math:`L_v` of ``ERF_Constants.H`` and enters the conserved water-vapour source
 without Exner scaling. The optional legacy density multiplier still scales
 both the sensible and water-vapour tendencies.
 

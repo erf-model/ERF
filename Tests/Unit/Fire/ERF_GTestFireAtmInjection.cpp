@@ -217,6 +217,56 @@ TEST(HeatInjection, TheColumnGetsTheFluxOnAStretchedGrid)
 }
 
 namespace {
+// erf.fire.heat_profile = bottom_cell: the whole flux, sensible and latent,
+// enters the lowest cell of the column (the LSFIRE coupling), on a stretched
+// grid whose first cell is thinner than the mean spacing
+void HeatInjection_BottomCellTakesTheWholeFlux ()
+{
+    Column c;
+    const Real r = 1.05_rt, q = 5.0e4_rt, ql = 2.0e4_rt, alfg = 100.0_rt;
+    const Real d0 = 500.0_rt * (r - 1.0_rt) / (std::pow(r, Real(NZ)) - 1.0_rt);
+    MultiFab src(c.ba, c.dm, NVAR_max, 0), Q(c.ba, c.dm, 1, 0), QL(c.ba, c.dm, 1, 0), S(c.ba, c.dm, NVAR_max, 0);
+    MultiFab znd(convert(c.ba, IntVect(1, 1, 1)), c.dm, 1, 1), zcc(c.ba, c.dm, 1, 1);
+    src.setVal(0.0_rt); S.setVal(0.0_rt); S.setVal(1.0_rt, Rho_comp, 1);
+    S.setVal(getRhoThetagivenP(1.0e5_rt), RhoTheta_comp, 1);
+    Q.setVal(0.0_rt);  Q.setVal(q,  makeSlab(c.geom.Domain(), 2, 0), 0, 1);
+    QL.setVal(0.0_rt); QL.setVal(ql, makeSlab(c.geom.Domain(), 2, 0), 0, 1);
+    for (MFIter mfi(znd); mfi.isValid(); ++mfi) {
+        auto z = znd.array(mfi);
+        ParallelFor(mfi.growntilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            z(i, j, k) = d0 * (std::pow(r, Real(k)) - 1.0_rt) / (r - 1.0_rt);
+        });
+    }
+    for (MFIter mfi(zcc); mfi.isValid(); ++mfi) {
+        auto z = zcc.array(mfi);
+        ParallelFor(mfi.growntilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            const Real lo = d0 * (std::pow(r, Real(k)) - 1.0_rt) / (r - 1.0_rt);
+            const Real hi = d0 * (std::pow(r, Real(k + 1)) - 1.0_rt) / (r - 1.0_rt);
+            z(i, j, k) = 0.5_rt * (lo + hi);
+        });
+    }
+    apply_fire_tendency_to_cc_source(src, Q, &QL, zcc, &znd, S, c.geom, alfg, 1.0_rt, true,
+                                     false, false, nullptr, nullptr, false, false, false,
+                                     /*bottom_cell=*/true);
+    for (MFIter mfi(src); mfi.isValid(); ++mfi) {
+        auto t  = src.const_array(mfi, RhoTheta_comp);
+        auto qv = src.const_array(mfi, RhoQ1_comp);
+        EXPECT_NEAR(Cp_d * t(1, 2, 0) * d0, q, 1.0e-9 * q) << "the sensible flux, all in the first cell";
+        EXPECT_NEAR(L_v * qv(1, 2, 0) * d0, ql, 1.0e-9 * ql) << "the vapour, latent / L_v, all in the first cell";
+        for (int k = 1; k < NZ; ++k) {
+            EXPECT_EQ(t(1, 2, k), 0.0_rt) << "k = " << k;
+            EXPECT_EQ(qv(1, 2, k), 0.0_rt) << "k = " << k;
+        }
+    }
+}
+}  // namespace
+
+TEST(HeatInjection, BottomCellTakesTheWholeFlux)
+{
+    HeatInjection_BottomCellTakesTheWholeFlux();
+}
+
+namespace {
 void SmokeInjection_SourceDividesByTheCellThickness ()
 {
     Column c;
@@ -304,7 +354,7 @@ void check_exner_heat_and_water(Real pressure, Real density, Real qv,
 
     constexpr Real sensible = 5.0e4_rt, latent = 3.0e3_rt;
     // The coupling's conversion: ERF's Cp_d (hgopalan/ERF#521)
-    constexpr Real cp = Cp_d, lv = 2.501e6_rt, depth = 100.0_rt;
+    constexpr Real cp = Cp_d, lv = L_v, depth = 100.0_rt;
     // Roof halfway through k=2, not just aligned to a cell face.
     constexpr Real open_fraction = 0.25_rt, roof = 2.5_rt * DZ;
     constexpr Real background_heat = 0.125_rt, background_water = 1.0e-8_rt;
