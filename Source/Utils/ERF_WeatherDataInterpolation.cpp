@@ -176,6 +176,12 @@ ERF::FillForecastStateMultiFabs (const int lev,
                             erf_mf_cons.DistributionMap());
     }
 
+    // Conserved-state slots for the forecast moisture; a slot the moisture model does
+    //    not carry is negative and is left at zero
+    const int qv_comp = solverChoice.moisture_indices.qv;
+    const int qc_comp = solverChoice.moisture_indices.qc;
+    const int qr_comp = solverChoice.moisture_indices.qr;
+
     // Interpolate the data on to the ERF mesh
 
      for (MFIter mfi(erf_mf_cons); mfi.isValid(); ++mfi) {
@@ -255,7 +261,11 @@ ERF::FillForecastStateMultiFabs (const int lev,
                                    x, y, zero,
                                    lonvec_d_ptr, tmp_lon);
 
-            fine_cons_arr(i,j,k,Rho_comp) = tmp_rho;
+            fine_cons_arr(i,j,k,Rho_comp)      = tmp_rho;
+            fine_cons_arr(i,j,k,RhoTheta_comp) = tmp_rho * tmp_theta;
+            if (qv_comp >= 0) { fine_cons_arr(i,j,k,qv_comp) = tmp_rho * tmp_qv; }
+            if (qc_comp >= 0) { fine_cons_arr(i,j,k,qc_comp) = tmp_rho * tmp_qc; }
+            if (qr_comp >= 0) { fine_cons_arr(i,j,k,qr_comp) = tmp_rho * tmp_qr; }
             fine_latlon_arr(i,j,k,0) = tmp_lat;
             fine_latlon_arr(i,j,k,1) = tmp_lon;
         });
