@@ -972,8 +972,8 @@ void SuperDropletPC::Coalescence ( int   a_lev,
                 AMREX_ALWAYS_ASSERT(    ((phase_i == SDPhase::ice) && (phase_j == SDPhase::water))
                                      || ((phase_i == SDPhase::water) && (phase_j == SDPhase::ice)) );
 
-                ParticleType& p_ice = pstruct_ptr[i];
-                if (ERF::Interpolation::stencilOutOfBoundsZ(p_ice, plo, dxi, zheight)) { return; }
+                ParticleType& p_ice = pstruct_ptr[(phase_i == SDPhase::ice) ? i : j];
+                AMREX_ALWAYS_ASSERT(!ERF::Interpolation::stencilOutOfBoundsZ(p_ice, plo, dxi, zheight));
                 constexpr int nf = static_cast<int>(InterpFieldsFull::NUM_FIELDS);
                 ParticleReal fv[nf];
                 const Array4<const Real> fa[nf] = {
