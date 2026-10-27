@@ -2735,12 +2735,12 @@ Constant Mass Flux
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | Parameter                        | Definition                                               | Acceptable Values  | Default          |
 +==================================+==========================================================+====================+==================+
-| **erf.const_massflux_u**         | target mass flux in the x direction; requires periodic   | Real               | 0.0              |
-|                                  | boundaries in x                                          |                    |                  |
+| **erf.const_massflux_u**         | bulk velocity (m/s) whose mass flux through the layer is | Real               | 0.0              |
+|                                  | held in x, by a uniform source that acts like a          |                    |                  |
+|                                  | background pressure gradient; 0 turns it off; requires   |                    |                  |
+|                                  | periodic boundaries in x                                 |                    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.const_massflux_v**         | representing a background driving pressure gradient), to | Real               | 0.0              |
-|                                  | obtain a desired mass flux with the specified bulk       |                    |                  |
-|                                  | velocity in x,y                                          |                    |                  |
+| **erf.const_massflux_v**         | the same in y; requires periodic boundaries in y         | Real               | 0.0              |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.const_massflux_layer_lo**  | height of the bottom of the layer over which the         | Real               | bottom of domain |
 |                                  | constant mass flux is enforced                           |                    |                  |
@@ -2748,8 +2748,8 @@ Constant Mass Flux
 | **erf.const_massflux_layer_hi**  | height of the top of the layer over which the constant   | Real               | top of domain    |
 |                                  | mass flux is enforced                                    |                    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.const_massflux_tau**       | Timescale over which to adjust the background pressure   | Real > 0           | 1.0              |
-|                                  | gradient to match the specified mass flux                |                    |                  |
+| **erf.const_massflux_tau**       | time scale (s) over which the mass flux relaxes to its   | Real > 0; the run  | 1.0              |
+|                                  | target                                                   | stops otherwise    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 .. _sec:GravityCoriolisInputs:
