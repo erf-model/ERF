@@ -1784,6 +1784,11 @@ if(NOT WIN32 AND ERF_TEST_PYTHON)
   add_test_shift_invariance(ScalarAdvDiff_CentreShiftInvariance ScalarAdvectionUniformU 0
       "rhoadv_0" "prob.prob_type=12 prob.rad_0=0.3 prob.xc_frac=0.25 prob.zc_frac=0.25"
       "prob.prob_type=12 prob.rad_0=0.3 prob.xc_frac=0.25 prob.zc_frac=0.25 'geometry.prob_lo=1 1 1'")
+  # Couette (prob_type 1): u grows linearly with the height above the bottom, so moving
+  # the bottom to z = 5 must leave it unchanged; before the fix it was divided by the
+  # absolute top height and came out 16/21 of the first run's
+  add_test_shift_invariance(CouetteFlow_ProbLoShiftInvariance CouetteFlow_x 0
+      "x_velocity" "" "'geometry.prob_lo=0 0 5'")
   # pert_delta_v alone gives a y-velocity perturbation; pert_delta_u alone does not
   add_test_v_perturbation(Poiseuille_PertV_Only "nonzero" "")
   add_test_v_perturbation(Poiseuille_PertU_Only "zero" "prob.pert_delta_u=2.0 prob.pert_delta_v=0.0")
