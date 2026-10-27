@@ -47,10 +47,16 @@ macro(setup_test)
 
     if(ERF_ENABLE_MPI)
         set(NP ${ERF_TEST_NRANKS})
-        # Quoted: these strings are handed to `sh -c`, and MS-MPI lives under
-        # "C:/Program Files/Microsoft MPI/Bin/mpiexec.exe".
-        set(MPI_COMMANDS "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
-        set(MPI_FCOMP_COMMANDS "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
+        # These strings are handed to `sh -c`. Each launcher token is quoted, so a
+        # path with spaces ("C:/Program Files/Microsoft MPI/Bin/mpiexec.exe") stays
+        # one word and a multi-word launcher ("flux run") stays several.
+        erf_mpi_launcher_tokens(_mpi_launcher_tokens "${MPIEXEC_EXECUTABLE}")
+        set(_mpi_launcher "")
+        foreach(_token IN LISTS _mpi_launcher_tokens)
+            string(APPEND _mpi_launcher "\"${_token}\" ")
+        endforeach()
+        set(MPI_COMMANDS "${_mpi_launcher}${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
+        set(MPI_FCOMP_COMMANDS "${_mpi_launcher}${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
     else()
         set(NP 1)
         unset(MPI_COMMANDS)
