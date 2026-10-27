@@ -126,7 +126,7 @@ ImplicitDiffForStateLU_N (const Box& bx,
             {
                 getRhoAlpha(i, j, klo, rhoAlpha_lo, rhoAlpha_hi,
                             cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
-                            prim_index, prim_scal_index, l_consA, l_turb);
+                            prim_scal_index, l_consA, l_turb);
 
                 a_tmp      = zero;
                 if (!at_zlo) { a_tmp = -Fact * rhoAlpha_lo * dz_inv; }
@@ -170,7 +170,7 @@ ImplicitDiffForStateLU_N (const Box& bx,
             for (int k(klo+1); k < khi; k++) {
                 getRhoAlpha(i, j, k, rhoAlpha_lo, rhoAlpha_hi,
                             cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
-                            prim_index, prim_scal_index, l_consA, l_turb);
+                            prim_scal_index, l_consA, l_turb);
 
                 a_tmp      = -Fact * rhoAlpha_lo * dz_inv;
                 c_tmp      = -Fact * rhoAlpha_hi * dz_inv;
@@ -201,7 +201,7 @@ ImplicitDiffForStateLU_N (const Box& bx,
             {
                 getRhoAlpha(i, j, khi, rhoAlpha_lo, rhoAlpha_hi,
                             cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
-                            prim_index, prim_scal_index, l_consA, l_turb);
+                            prim_scal_index, l_consA, l_turb);
 
                 a_tmp      = -Fact * rhoAlpha_lo * dz_inv;
                 c_tmp      = zero;
@@ -645,7 +645,7 @@ ImplicitVerticalFluxForReflux_N (const Box& bx,
         Real rhoAlpha_lo, rhoAlpha_hi;
         const int kc = (k <= khi) ? k : k-1;
         getRhoAlpha(i, j, kc, rhoAlpha_lo, rhoAlpha_hi, cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
-                    prim_index, prim_scal_index, l_consA, l_turb);
+                    prim_scal_index, l_consA, l_turb);
         const Real rhoAlpha = (k <= khi) ? rhoAlpha_lo : rhoAlpha_hi;
         const Real phi_hi = cell_data(i,j,k  ,n) / cell_data(i,j,k  ,Rho_comp);
         const Real phi_lo = cell_data(i,j,k-1,n) / cell_data(i,j,k-1,Rho_comp);
