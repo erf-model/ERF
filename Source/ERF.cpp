@@ -602,6 +602,35 @@ ERF::fill_seb_from_coarse (int lev)
     fill_one(two_stream_rad.seb_q_sfc(lev), two_stream_rad.seb_q_sfc(lev-1));
 }
 
+/**
+ * Write the boundary planes. The planes read m_out_rad cells around the target box, and those
+ * cells lie in ghost cells of vars_new wherever the box reaches the domain or grid edge, so the
+ * ghost cells of every level up to the one the planes come from are filled first (coarse to
+ * fine, as each fine-level fill reads the ghost cells of the level below).
+ *
+ * @param step Step written to the planes and time.dat
+ * @param time Time written to time.dat
+ */
+void
+ERF::write_bndry_planes (int step, double time)
+{
+    if (!m_w2d) { return; }
+
+    FillPatchCrseLevel(0, t_new[0], {&vars_new[0][Vars::cons], &vars_new[0][Vars::xvel],
+                       &vars_new[0][Vars::yvel], &vars_new[0][Vars::zvel]});
+
+    for (int lev = 1; lev <= WriteBndryPlanes::get_bndry_lev(); ++lev) {
+        bool fillset = false;
+        FillPatchFineLevel(lev, t_new[lev], {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::xvel],
+                           &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]},
+                           {&vars_new[lev][Vars::cons], &rU_new[lev], &rV_new[lev], &rW_new[lev]},
+                           base_state[lev], base_state[lev], fillset);
+    }
+
+    bool is_moist = (micro->Get_Qstate_Moist_Size() > 0);
+    m_w2d->write_planes(step, time, vars_new, is_moist);
+}
+
 // Called after every coarse timestep
 void
 ERF::post_timestep (int nstep, double time, double dt_lev0)
@@ -795,8 +824,7 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
       if (is_it_time_for_action(istep[0], time, dt_lev0, bndry_output_planes_interval, bndry_output_planes_per) &&
           time >= bndry_output_planes_start_time)
       {
-         bool is_moist = (micro->Get_Qstate_Moist_Size() > 0);
-         m_w2d->write_planes(istep[0], time+start_time, vars_new, is_moist);
+         write_bndry_planes(istep[0], time+start_time);
       }
     }
 
@@ -1425,8 +1453,7 @@ ERF::InitData_post ()
             is_it_time_for_action(istep[0], t_new[0], dt[0], bndry_output_planes_interval, bndry_output_planes_per);
 
         if (!has_start_plane && output_step && t_new[0] >= bndry_output_planes_start_time) {
-            bool is_moist = (micro->Get_Qstate_Moist_Size() > 0);
-            m_w2d->write_planes(istep[0], t_new[0]+start_time, vars_new, is_moist);
+            write_bndry_planes(istep[0], t_new[0]+start_time);
         }
     }
 
