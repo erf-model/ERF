@@ -771,7 +771,8 @@ void SuperDropletPC::Coalescence ( int   a_lev,
 
                 // interpolate flow quantities at ice particle location
                 ParticleType& p_ice = pstruct_ptr[id_i];
-                if (ERF::Interpolation::stencilOutOfBoundsZ(p_ice, plo, dxi, zheight)) { return; }
+                // Redistribute keeps every particle inside its grid, so the stencil is in bounds
+                AMREX_ALWAYS_ASSERT(!ERF::Interpolation::stencilOutOfBoundsZ(p_ice, plo, dxi, zheight));
                 constexpr int nf = static_cast<int>(InterpFieldsTR::NUM_FIELDS);
                 ParticleReal fv[nf];
                 const Array4<const Real> fa[nf] = {
