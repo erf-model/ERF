@@ -81,7 +81,7 @@ void ExnerTendency_TheColumnEnthalpyIsTheSurfaceFlux ()
                                      false, false, nullptr, nullptr, false, false, true);
 
     const Real exner = std::pow(p / p_0, R_d / Cp_d);
-    constexpr Real Cp_fire = 1004.64;   // the coupling's c_p
+    constexpr Real Cp_fire = Cp_d;   // the same dry-air c_p used by ERF
     EXPECT_NEAR(exner, 0.9546, 5.0e-4);
     Real err_ratio = 0.0, sum_off = 0.0, sum_on = 0.0;
     for (MFIter mfi(src_on); mfi.isValid(); ++mfi) {
@@ -103,6 +103,56 @@ void ExnerTendency_TheColumnEnthalpyIsTheSurfaceFlux ()
 TEST(ExnerTendency, TheColumnEnthalpyIsTheSurfaceFlux)
 {
     ExnerTendency_TheColumnEnthalpyIsTheSurfaceFlux();
+}
+
+namespace {
+void HeatInjection_UsesERFDryAirHeatCapacity ()
+{
+    // Q is a physical flux in W/m2. With heat_tendency_exner on, ERF's
+    // c_p * Pi times its rho_d*theta_d tendency must recover that flux.
+    // With the option off, c_p times the tendency represents the
+    // potential-temperature-equivalent input, not physical enthalpy.
+    Column c;
+    const Real heat_flux = 2.0e4_rt, alfg = 45.0_rt;
+    MultiFab src(c.ba, c.dm, NVAR_max, 0), Q(c.ba, c.dm, 1, 0);
+    MultiFab zcc(c.ba, c.dm, 1, 1), S(c.ba, c.dm, NVAR_max, 0);
+    Q.setVal(0.0_rt);
+    Q.setVal(heat_flux, makeSlab(c.geom.Domain(), 2, 0), 0, 1);
+    S.setVal(0.0_rt);
+    S.setVal(1.0_rt, Rho_comp, 1);
+    for (MFIter mfi(zcc); mfi.isValid(); ++mfi) {
+        auto z = zcc.array(mfi);
+        ParallelFor(mfi.growntilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            z(i, j, k) = (Real(k) + 0.5_rt) * DZ;
+        });
+    }
+    const Real retained = 1.0_rt - std::exp(-Real(NZ) * DZ / alfg);
+    const Real expected = Real(NX * NX) * heat_flux * retained;
+    const Real tolerance = (sizeof(Real) == 8) ? Real(3.0e-8) : Real(4.0e-5);
+
+    for (Real pressure : {8.5e4_rt, 1.0e5_rt}) {
+        S.setVal(getRhoThetagivenP(pressure), RhoTheta_comp, 1);
+        const Real exner = std::pow(pressure / p_0, R_d / Cp_d);
+        for (bool with_exner : {false, true}) {
+            SCOPED_TRACE(::testing::Message() << "p=" << pressure
+                         << " exner_enabled=" << with_exner);
+            src.setVal(0.0_rt);
+            apply_fire_tendency_to_cc_source(src, Q, nullptr, zcc, nullptr, S,
+                c.geom, alfg, 1.0_rt, false, false, false,
+                nullptr, nullptr, false, false, with_exner);
+            // MultiFab::sum is a CPU/GPU and MPI collective reduction.
+            const Real deposited = Cp_d * (with_exner ? exner : Real(1.0))
+                                   * src.sum(RhoTheta_comp) * DZ;
+            EXPECT_NEAR(deposited, expected, tolerance * expected)
+                << "the prescribed physical heat flux must use ERF's Cp_d";
+        }
+    }
+}
+} // namespace
+
+TEST(HeatInjection, UsesERFDryAirHeatCapacity)
+{
+    HeatInjection_UsesERFDryAirHeatCapacity();
 }
 
 namespace {
@@ -138,7 +188,7 @@ void HeatInjection_TheColumnGetsTheFluxOnAStretchedGrid (Real r)
     }
     apply_fire_tendency_to_cc_source(src, Q, nullptr, zcc, &znd, S, c.geom, alfg, 1.0_rt, false,
                                      false, false, nullptr, nullptr, false, false, false);
-    constexpr Real Cp_fire = 1004.64;   // the coupling's c_p
+    constexpr Real Cp_fire = Cp_d;   // the same dry-air c_p used by ERF
     // the profile's share inside the column: z from the first cell centre, the
     // top cell closed one geometry dz above its centre (10 m)
     auto zc = [=] (int k) {

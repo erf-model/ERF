@@ -192,7 +192,7 @@ amrex::Real fire_cell_thickness (amrex::Real z_lo, amrex::Real z_hi, amrex::Real
 //   -(1/Cp) dQ/dz, for the lowest cell on a uniform grid; with the density
 //   factor the tendency carries an extra rho, with the Exner factor 1/Pi)
 //
-// With Q_max=14330 W/m2, Cp=1004.64, alfg=45 m, dz=5 m:
+// With Q_max=14330 W/m2, Cp=Cp_d (1004.5 J/(kg K)), alfg=45 m, dz=5 m:
 //   expected_surface_max ~ 0.30 kg K m^-3 s^-1
 //
 // z_phys_nd, the nodal heights of the level, gives each cell's faces: its
@@ -224,7 +224,8 @@ inline void apply_fire_tendency_to_cc_source(
     if (alfg <= Real(0.0)) { return; }
     if (feedback <= Real(0.0)) { return; }
 
-    constexpr Real Cp_fire = 1004.64;
+    // Source conversion must use the same dry-air heat capacity as ERF's EOS.
+    constexpr Real Cp_fire = Cp_d;
     constexpr Real L_V  = 2.501e6;
     // Exner function of the cell from its rho theta (erf.fire.heat_tendency_exner):
     // heating q [W/m3] gives d(theta)/dt = q / (rho cp Pi), so the rho theta
