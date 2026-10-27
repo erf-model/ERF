@@ -143,6 +143,9 @@
             // mean states
             state_pert(i, j, k, RhoQ1_comp) = rho*q_v_hot;
         });
+
+        // The kernel above reads d_r, d_p, d_t and d_q_v; wait for it before they are freed
+        Gpu::streamSynchronize();
     } else {
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -242,3 +245,6 @@
             }
         }
     });
+
+    // The kernel above reads qv_init_d; wait for it before it is freed
+    Gpu::streamSynchronize();

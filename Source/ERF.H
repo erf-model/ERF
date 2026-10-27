@@ -554,6 +554,9 @@ public:
     void write_1D_profiles (double time);
     void write_1D_profiles_stag (double time);
 
+    // Fill the ghost cells the boundary planes read, then write the planes
+    void write_bndry_planes (int step, double time);
+
     amrex::Real cloud_fraction (double time);
 
     // Fill the physical boundary conditions for cell-centered velocity (diagnostic only)
@@ -1838,7 +1841,6 @@ private:
     std::string plot2d_file_1 {"plt2d_1_"};
     std::string plot2d_file_2 {"plt2d_2_"};
     std::string subvol_file {"subvol"};
-    bool m_expand_plotvars_to_unif_rr = false;
     int m_plot3d_int_1 = -1;
     int m_plot3d_int_2 = -1;
     int m_plot2d_int_1 = -1;

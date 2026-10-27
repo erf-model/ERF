@@ -8,6 +8,7 @@
 #include <cctype>
 #include <cstdio>
 #include <cmath>
+#include <limits>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -2499,9 +2500,15 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
                 // Inf, so builds with FP-exception trapping stay clean. The
                 // qc == 0 and qs == 0 case cannot be reached by any consumer --
                 // every use is gated on qs > qcrmin, qg > qcrmin or qc > qmin --
-                // and 0.0 is returned there only for definiteness.
+                // and 0.0 is returned there only for definiteness. The divisor
+                // is never zero either: an optimised build may divide before it
+                // tests qc, and with qs = qc = 0 the 0/0 trips
+                // amrex.fpe_trap_invalid although the result is not used. For
+                // qc >= the smallest normal number the divisor is qc itself.
+                constexpr Real tiny_qc = std::numeric_limits<Real>::min();
+                const Real qc_div = amrex::max(qc_val, tiny_qc);
                 const Real ratio_s = (qc_val > Real(0.0))
-                    ? amrex::min(amrex::max(Real(0.0), qs_val / qc_val), Real(1.0))
+                    ? amrex::min(amrex::max(Real(0.0), qs_val / qc_div), Real(1.0))
                     : (qs_val > Real(0.0) ? Real(1.0) : Real(0.0));
                 // Same treatment as ratio_s above, and for the same reason. This
                 // was MISSED when ratio_s was fixed: that edit replaced only the
@@ -2511,7 +2518,7 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
                 // 8.85033631487811001e-02 against native 0, which was the whole
                 // remaining nn residual at 10 steps.
                 const Real ratio_g = (qc_val > Real(0.0))
-                    ? amrex::min(amrex::max(Real(0.0), qg_val / qc_val), Real(1.0))
+                    ? amrex::min(amrex::max(Real(0.0), qg_val / qc_div), Real(1.0))
                     : (qg_val > Real(0.0) ? Real(1.0) : Real(0.0));
 
                 if (qs_val > Real(qcrmin) && qc_val > Real(qmin)) {

@@ -366,7 +366,7 @@ struct TurbulentPerturbation {
                 }
 
                 // Trigger amplitude calculation per perturbation box
-                calc_tpi_amp(lev, boxIdx, pb_interval[lev][boxIdx]);
+                calc_tpi_amp(lev, boxIdx, pb_interval[lev][boxIdx], dt);
 
                 // Trigger random amplitude storage per cell within perturbation box
                 pseudoRandomPert(boxIdx, lev, m_ixtype);
@@ -431,10 +431,12 @@ struct TurbulentPerturbation {
      * @param lev AMR level index.
      * @param boxIdx Perturbation-box index on the level.
      * @param interval Current perturbation update interval [s].
+     * @param dt Timestep [s].
      */
     void calc_tpi_amp (const int& lev,
                        const int& boxIdx,
-                       const double& interval)
+                       const double& interval,
+                       const double& dt)
     {
         pb_amp[lev][boxIdx] = zero; // Safety step
         if (pt_type[lev] == 2) { // CPM
@@ -445,6 +447,12 @@ struct TurbulentPerturbation {
             pb_amp[lev][boxIdx] = input_w_amp;
         } else { // box perturbation
             amrex::Real Um = pb_mag[lev][boxIdx];
+
+            // No mean wind: nothing to trip, and with tpi_Ti > 0 the amplitude below would be
+            //    0/0. The box is not refreshed again, so a zero amplitude also clears the
+            //    perturbation it held
+            if (Um == zero) { return; }
+
             amrex::Real beta = one/tpi_Tinf; // Thermal expansion coefficient
 
             // Pseudo Random temperature the ignores scale when mechanically tripping turbulence
@@ -461,10 +469,15 @@ struct TurbulentPerturbation {
             pb_amp[lev][boxIdx] = (tpi_nonDim * Um * Um) / (g * beta * tpi_Hpb[lev]) * 1 / total_ref_ratio;
 
             if (pt_type[lev] == 0) {
-                // Performing this step converts the perturbation proportionality into
-                // the forcing term
+                // Source mode: divide by interval to get forcing rate (K/s)
                 // Ma & Senocak (2023) Eq. 7
                 pb_amp[lev][boxIdx] /= static_cast<amrex::Real>(interval);
+            } else if (pt_type[lev] == 1) {
+                // Direct mode: divide by number of timesteps to get per-step increment.
+                // This gives the same total perturbation as source mode and should resolve
+                // instability issues previously associated with direct mode.
+                amrex::Real num_steps = interval / dt;
+                pb_amp[lev][boxIdx] /= num_steps;
             }
         }
     }
@@ -480,7 +493,7 @@ struct TurbulentPerturbation {
                            const amrex::IndexType& m_ixtype)
     {
         for (amrex::MFIter mfi(pb_cell[lev],TileNoZ()); mfi.isValid(); ++mfi) {
-            amrex::Box vbx = mfi.validbox();
+            amrex::Box vbx = mfi.tilebox();
             amrex::Box pbx = amrex::convert(pb_ba[lev][boxIdx], m_ixtype);
             if (pt_type[lev] == 3) { pbx.setBig(2, pbx.bigEnd(2) - 1); } // prevent double counting after converting to k-faces
             amrex::Box ubx = pbx & vbx;
@@ -517,7 +530,7 @@ struct TurbulentPerturbation {
     {
 
         for (amrex::MFIter mfi(pb_cell[lev],TileNoZ()); mfi.isValid(); ++mfi) {
-            amrex::Box vbx = mfi.validbox();
+            amrex::Box vbx = mfi.tilebox();
             amrex::Box pbx = amrex::convert(pb_ba[lev][boxIdx], m_ixtype);
             if (pt_type[lev] == 3) { pbx.setBig(2, pbx.bigEnd(2) - 1); } // prevent double counting after converting to k-faces
             amrex::Box ubx = pbx & vbx;

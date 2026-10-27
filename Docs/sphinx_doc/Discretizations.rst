@@ -283,12 +283,16 @@ With the WENO5 scheme, one has :math:`N=3, \; \omega_{1} = 1/10, \; \omega_{2} =
 
 Details for the WENO7 scheme are provided in `Shu, C.W. (1997)`_.
 By default, the WENO3 scheme will be employed for moisture variables if the code is compiled with moisture support. However, users may
-utilize the WENO scheme for dry scalar variables as well.   The scheme for each type is specified by
+utilize the WENO scheme for dry scalar variables, and for the dycore variables (momentum, density and potential temperature), as well.
+The WENO-Z variants (WENOZ3, WENOZ5, WENOZ7) and the third-order WENO-MZQ scheme (WENOMZQ3) are available for all of these too.
+The scheme for each type is specified by
 
 .. _`Shu, C.W. (1997)`: https://www3.nd.edu/~zxu2/acms60790S13/Shu-WENO-notes.pdf
 
 ::
 
+   erf.dycore_horiz_adv_type    =
+   erf.dycore_vert_adv_type     =
    erf.dryscal_horiz_adv_type   =
    erf.dryscal_vert_adv_type    =
    erf.moistscal_horiz_adv_type =

@@ -161,10 +161,11 @@ public:
     {
         using namespace amrex;
 
-        // Convert physical coordinates to cell indices (floating point)
-        Real i_real = (x - m_problo[0]) / m_dx[0];
-        Real j_real = (y - m_problo[1]) / m_dx[1];
-        Real k_real = (z - m_problo[2]) / m_dx[2];
+        // fillSignedDistance samples at prob_lo + (index + 0.5) * dx.
+        // Convert physical coordinates to continuous cell-centered indices.
+        Real i_real = (x - m_problo[0]) / m_dx[0] - 0.5;
+        Real j_real = (y - m_problo[1]) / m_dx[1] - 0.5;
+        Real k_real = (z - m_problo[2]) / m_dx[2] - 0.5;
 
         // Get integer cell indices
         int i = static_cast<int>(std::floor(i_real));
@@ -206,7 +207,9 @@ public:
 
         Real phi = phi_0 * (1.0 - wz) + phi_1 * wz;
 
-        return phi;
+        // fillSignedDistance has the opposite sign to STLtools::fillFab,
+        // including with reversed normals. Match EB: positive solid, negative fluid.
+        return -phi;
     }
 
     /**
