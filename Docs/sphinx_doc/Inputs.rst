@@ -1916,7 +1916,11 @@ restart does not repeat that row, since the run that wrote the file before
 already has it.
 
 Rows are buffered in memory and written out every ``erf.station_buffer_steps``
-output steps, whenever a checkpoint is written, and at the end of the run.  A
+output steps, whenever a 2D or 3D plotfile or a checkpoint is written, and at the
+end of the run.  A run that aborts loses only the rows sampled since the last of
+these, so the station series reaches at least as far as the plotfiles do; a
+smaller ``erf.station_buffer_steps`` narrows that window further, at the cost of
+reopening every station file more often.  A
 restart appends to the file the earlier run wrote, so the series is continuous
 across a restart; the resumption is marked by a comment line.  Because the
 buffer is flushed with every checkpoint, a restart from any checkpoint picks the
