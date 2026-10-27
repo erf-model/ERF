@@ -104,7 +104,8 @@ divisible by the ratio; the run stops at start-up naming the first box that
 is not, with the inputs to change. The level must keep its boxes for the whole
 run (on a level above 0, :cpp:`erf.regrid_int` must be off), its boxes must
 form one rectangle, no box may be split in z, and the bottom boundary must be
-a surface layer.
+a surface layer unless the engine says it reads nothing from one
+(``FireEngine::needs_surface_layer``; the example engine and LSFIRE do not).
 
 The engine reads, at the start of each step, the face velocities of the fire
 grid's level (before the dynamical core with ``"passive"`` and ``"lagged"``

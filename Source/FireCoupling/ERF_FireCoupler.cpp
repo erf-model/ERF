@@ -86,7 +86,8 @@ FireCoupler::initialize (const ERF& erf,
                          const MultiFab* z_phys_nd_atm)
 {
     // The ERF configuration a fire grid needs, then the engine's own inputs
-    verify_fire_prerequisites(erf, lev, surface_layer, m_params.grid_ratio);
+    verify_fire_prerequisites(erf, lev, surface_layer, m_params.grid_ratio,
+                              m_engine->needs_surface_layer());
     m_engine->verify_prerequisites(erf, lev);
 
     FireGrid fg = create_fire_grid(erf.boxArray(lev), erf.DistributionMap(lev),

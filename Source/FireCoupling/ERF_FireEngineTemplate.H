@@ -109,6 +109,10 @@ public:
     /// Optional, false unless declared: true if advance() needs forcing.precip_accum_k0.
     bool wants_surface_precip () const override;
 
+    /// Optional, true unless declared: false if the engine reads nothing from the
+    /// surface layer, so it may run over any bottom boundary.
+    bool needs_surface_layer () const override;
+
     /**
      * Optional, nullptr unless declared: for erf.fire.heat_open_fraction, the
      * fraction of each atmospheric column open to the air [0-1] and the mean

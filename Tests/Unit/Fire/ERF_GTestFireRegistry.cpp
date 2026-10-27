@@ -82,6 +82,7 @@ TEST(FireRegistry, OptionalMethodDefaults)
     EXPECT_EQ(engine->plot_var("fire_phi"), nullptr);
     EXPECT_LT(engine->burned_area(), 0.0);
     EXPECT_FALSE(engine->wants_surface_precip());
+    EXPECT_TRUE(engine->needs_surface_layer());
     engine->start_run(1.0, 10, 1);              // no-op
     engine->write_plotfile("unused", 0.0, 0);   // no-op
 }

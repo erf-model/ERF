@@ -90,6 +90,9 @@ public:
 
     Real smoke_heat_per_kg () const override { return 1.8e7_rt; }
 
+    // A prescribed fire reads nothing from the surface layer
+    bool needs_surface_layer () const override { return false; }
+
     void write_checkpoint (const std::string& checkpointname) const override
     {
         if (ParallelDescriptor::IOProcessor()) {

@@ -154,7 +154,9 @@ public:
      * @param[in] erf            ERF instance (public AmrCore accessors only)
      * @param[in] lev            The level the fire grid refines
      * @param[in] fg             The fire grid the coupling built
-     * @param[in] surface_layer  The bottom surface layer (never null)
+     * @param[in] surface_layer  The bottom surface layer; never null when
+     *                           needs_surface_layer() is true, and nullptr when
+     *                           it is false and the bottom boundary is not one
      * @param[in] z_phys_nd_atm  Nodal height of level lev [m] (ERF always passes it)
      */
     virtual void initialize (const ERF& erf,
@@ -196,6 +198,16 @@ public:
 
     /// The engine needs the surface precipitation accumulation in FireForcing.
     virtual bool wants_surface_precip () const { return false; }
+
+    /**
+     * @brief The engine needs a surface layer at the bottom boundary
+     *
+     * True by default: the coupling then stops at start-up unless zlo.type =
+     * surface_layer. An engine that reads nothing from the surface layer (it
+     * takes the wind and heights from FireForcing alone) returns false and may
+     * run over any bottom boundary.
+     */
+    virtual bool needs_surface_layer () const { return true; }
 
     /**
      * @brief Optional heat placement per atmospheric column, for

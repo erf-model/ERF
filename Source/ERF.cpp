@@ -1658,12 +1658,13 @@ ERF::InitData_post ()
 
 #ifdef ERF_USE_FIRE
     // The fire coupling is initialised after the surface layers are built (so its
-    // own prerequisite checks run there), and ERF::Advance samples Theta_prim,
-    // which is only allocated with a surface layer. Any other bottom boundary
-    // would skip both and crash on the first step, so stop here instead.
-    if (m_fire_coupler &&
+    // own prerequisite checks run there). An engine that reads the surface layer
+    // (FireEngine::needs_surface_layer, the default) needs one at the bottom, so
+    // stop here, with the inputs to set, instead of in the coupler's checks.
+    if (m_fire_coupler && m_fire_coupler->engine().needs_surface_layer() &&
         phys_bc_type[Orientation(Direction::z,Orientation::low)] != ERF_BC::surface_layer) {
-        Abort("[FIRE] The fire coupling requires a surface layer at the bottom boundary: "
+        Abort(std::string("[FIRE] The fire engine ") + m_fire_coupler->engine().name()
+              + " requires a surface layer at the bottom boundary: "
               "set zlo.type = \"surface_layer\" with erf.most.z0 and a diffusion choice "
               "other than None (erf.molec_diff_type, erf.les_type, RANS or PBL)");
     }

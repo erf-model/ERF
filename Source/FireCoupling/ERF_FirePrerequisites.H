@@ -66,7 +66,8 @@ void verify_fire_precip_source(const std::string& engine_name,
  * @param[in] grid_ratio       erf.fire.grid_ratio, fire cells per atmospheric cell in x and y
  *
  * Checks performed (in order):
- * 1. SurfaceLayer pointer is not null (zlo.type = surface_layer)
+ * 1. SurfaceLayer pointer is not null (zlo.type = surface_layer), unless
+ *    needs_surface_layer is false (FireEngine::needs_surface_layer)
  * 2. 0 <= lev <= finest level
  * 3. On a level above 0: static refinement (erf.regrid_int <= 0)
  * 7. Every box of the level spans its full height (no z-decomposition)
@@ -79,6 +80,7 @@ void verify_fire_precip_source(const std::string& engine_name,
 void verify_fire_prerequisites(const ERF& erf,
                                int lev,
                                const SurfaceLayer* surface_layer,
-                               int grid_ratio);
+                               int grid_ratio,
+                               bool needs_surface_layer = true);
 
 #endif

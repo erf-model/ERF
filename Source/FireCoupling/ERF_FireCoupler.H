@@ -55,7 +55,8 @@ public:
      *
      * @param[in] erf            ERF instance (public AmrCore accessors only)
      * @param[in] lev            The level the fire grid refines (fire_anchor_level)
-     * @param[in] surface_layer  The bottom surface layer, or nullptr (aborts)
+     * @param[in] surface_layer  The bottom surface layer, or nullptr (aborts when
+     *                           the engine needs one, FireEngine::needs_surface_layer)
      * @param[in] z_phys_nd_atm  Nodal height of level lev [m] (ERF always passes it)
      */
     void initialize (const ERF& erf,

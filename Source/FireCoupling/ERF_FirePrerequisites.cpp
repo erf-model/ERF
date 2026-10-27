@@ -78,11 +78,12 @@ void verify_fire_precip_source(const std::string& engine_name,
 void verify_fire_prerequisites(const ERF& erf,
                                int lev,
                                const SurfaceLayer* surface_layer,
-                               int grid_ratio)
+                               int grid_ratio,
+                               bool needs_surface_layer)
 {
-    // Check 1: Surface layer BC type is "surface_layer"
+    // Check 1: Surface layer BC type is "surface_layer", for an engine that reads it
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-        surface_layer != nullptr,
+        !needs_surface_layer || surface_layer != nullptr,
         "fire module requires SurfaceLayer. "
         "Check: phys_bc_type[zlo] == surface_layer AND erf.most.z0 is set");
 
