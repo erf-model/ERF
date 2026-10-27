@@ -294,6 +294,15 @@ ERF::ERF_shared ()
         std::vector<amrex::Real> candidate(static_cast<std::size_t>(layout.ncomp()),
                                            amrex::Real(0.0));
         if (!solverChoice.sbm_fixture_initial_state.empty()) {
+            // ReadParameters checks the length against sbm_nbins and sbm_moment_mode;
+            // check it against the layout itself before writing into candidate.
+            if (solverChoice.sbm_fixture_initial_state.size() !=
+                static_cast<amrex::Long>(layout.ncomp())) {
+                amrex::Error("sbm_fixture_initial_state has " +
+                    std::to_string(solverChoice.sbm_fixture_initial_state.size()) +
+                    " entries but the SBM layout has " + std::to_string(layout.ncomp()) +
+                    " components");
+            }
             std::copy(solverChoice.sbm_fixture_initial_state.begin(),
                       solverChoice.sbm_fixture_initial_state.end(), candidate.begin());
         }

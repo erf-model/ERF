@@ -90,6 +90,12 @@ struct TurbulentPerturbation {
         // Reading inputs, and placing assertion for the perturbation inflow to work
         pp.getarr("perturbation_box_dims",tpi_boxDim);
         pp.getarr("perturbation_direction",tpi_direction);
+        if (tpi_boxDim.size() != 3) {
+            amrex::Abort("perturbation_box_dims must have 3 entries (Nx Ny Nz)");
+        }
+        if (tpi_direction.size() != 6) {
+            amrex::Abort("perturbation_direction must have 6 entries (west south bottom east north top)");
+        }
         pp.get("perturbation_layers",tpi_layers);
         pp.get("perturbation_offset",tpi_offset);
 
@@ -366,7 +372,7 @@ struct TurbulentPerturbation {
                 }
 
                 // Trigger amplitude calculation per perturbation box
-                calc_tpi_amp(lev, boxIdx, pb_interval[lev][boxIdx], dt);
+                calc_tpi_amp(lev, boxIdx, pb_interval[lev][boxIdx]);
 
                 // Trigger random amplitude storage per cell within perturbation box
                 pseudoRandomPert(boxIdx, lev, m_ixtype);
@@ -395,13 +401,16 @@ struct TurbulentPerturbation {
      * @param m_ixtype Index type of the destination array.
      * @param src_arr Destination array receiving perturbation increments.
      * @param pert_cell Stored perturbation amplitudes.
+     * @param scale Factor applied to the stored amplitudes (the time step for the direct
+     *              perturbation, whose stored amplitudes are rates).
      */
     void apply_tpi (const int& lev,
                     const amrex::Box& vbx,                      // box union from upper level
                     const int& comp,                            // Component to modify
                     const amrex::IndexType& m_ixtype,           // IntVect type of src_arr
                     const amrex::Array4<amrex::Real>& src_arr,  // Array to apply perturbation
-                    const amrex::Array4<amrex::Real const>& pert_cell)
+                    const amrex::Array4<amrex::Real const>& pert_cell,
+                    const amrex::Real scale = one)
     {
         for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
             amrex::Box pbx = amrex::convert(pb_ba[lev][boxIdx], m_ixtype);
@@ -410,11 +419,11 @@ struct TurbulentPerturbation {
             if (ubx.ok()) {
                 if (comp == -1) { // vertical velocity perturbations
                     ParallelFor(ubx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        src_arr(i,j,k) += pert_cell(i,j,k);
+                        src_arr(i,j,k) += scale * pert_cell(i,j,k);
                     });
                 } else {
                     ParallelFor(ubx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        src_arr(i,j,k,comp) += pert_cell(i,j,k);
+                        src_arr(i,j,k,comp) += scale * pert_cell(i,j,k);
 
                         // For box region debug only
                         #ifdef INDEX_PERTURB
@@ -431,12 +440,10 @@ struct TurbulentPerturbation {
      * @param lev AMR level index.
      * @param boxIdx Perturbation-box index on the level.
      * @param interval Current perturbation update interval [s].
-     * @param dt Timestep [s].
      */
     void calc_tpi_amp (const int& lev,
                        const int& boxIdx,
-                       const double& interval,
-                       const double& dt)
+                       const double& interval)
     {
         pb_amp[lev][boxIdx] = zero; // Safety step
         if (pt_type[lev] == 2) { // CPM
@@ -468,17 +475,11 @@ struct TurbulentPerturbation {
             // Ma and Senocak (2023) Eq. 8, solving for delta phi
             pb_amp[lev][boxIdx] = (tpi_nonDim * Um * Um) / (g * beta * tpi_Hpb[lev]) * 1 / total_ref_ratio;
 
-            if (pt_type[lev] == 0) {
-                // Source mode: divide by interval to get forcing rate (K/s)
-                // Ma & Senocak (2023) Eq. 7
-                pb_amp[lev][boxIdx] /= static_cast<amrex::Real>(interval);
-            } else if (pt_type[lev] == 1) {
-                // Direct mode: divide by number of timesteps to get per-step increment.
-                // This gives the same total perturbation as source mode and should resolve
-                // instability issues previously associated with direct mode.
-                amrex::Real num_steps = interval / dt;
-                pb_amp[lev][boxIdx] /= num_steps;
-            }
+            // Divide by the interval to get a forcing rate [K/s], Ma & Senocak (2023) Eq. 7.
+            //    The source perturbation adds this rate as a source term; the direct
+            //    perturbation adds it times the time step to the state at every step. Either
+            //    way the total over one refresh interval is delta phi, even if dt changes
+            pb_amp[lev][boxIdx] /= static_cast<amrex::Real>(interval);
         }
     }
 

@@ -106,4 +106,11 @@
         } else {
             state_pert(i, j, k, RhoKE_comp) = KE_0;
         }
+
+        if (use_moisture) {
+            // The density change above would change qc with it; rescale rho*qc so the
+            //     cloud-water mixing ratio is held, as in Aaron Lattanzi's #4772 for BOMEX
+            state_pert(i, j, k, RhoQ2_comp) = state_pert(i,j,k,Rho_comp)
+                                            * state(i,j,k,RhoQ2_comp) / state(i,j,k,Rho_comp);
+        }
     });

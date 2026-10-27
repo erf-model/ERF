@@ -240,7 +240,7 @@ read_metgrid_region (const std::string& fname, const std::string& name, const Me
  *
  * @param lev   Integer specifying the current level
  * @param fname Path to this level's met_em file for the initial time
- * @param date  The date of that file, as "YYYY-MM-DD_hh:mm:ss" (needed on the I/O rank only)
+ * @param date  The date of that file, as "YYYY-MM-DD_hh:mm:ss"
  */
 void
 ERF::init_lsm_from_metgrid (int lev, const std::string& fname, const std::string& date)
@@ -377,15 +377,10 @@ ERF::init_lsm_from_metgrid (int lev, const std::string& fname, const std::string
         }
     }
 
-    // read_from_metgrid sets the date on the I/O rank only
+    // read_from_metgrid gives every rank the date
     int m0 = 0, m1 = 0;
     Real w1 = zero;
-    if (ParallelDescriptor::IOProcessor()) {
-        metgrid_land::monthly_interp_weights(date, m0, m1, w1);
-    }
-    ParallelDescriptor::Bcast(&m0, 1, ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::Bcast(&m1, 1, ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::Bcast(&w1, 1, ParallelDescriptor::IOProcessorNumber());
+    metgrid_land::monthly_interp_weights(date, m0, m1, w1);
     Print() << "  monthly fields interpolated between months " << m0+1 << " and " << m1+1
             << " with weight " << w1 << " on the later" << std::endl;
 

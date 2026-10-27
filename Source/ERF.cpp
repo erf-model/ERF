@@ -123,14 +123,6 @@ std::string ERF::nc_bdy_file; // Must provide via input
 std::string ERF::nc_low_file; // Must provide via input
 Vector<std::string> ERF::nc_low_file_at_level;
 
-// 1D NetCDF output (for ingestion by AMR-Wind)
-int  ERF::output_1d_column = 0;
-int  ERF::column_interval  = -1;
-double ERF::column_per       = -1.0;
-Real ERF::column_loc_x     = zero;
-Real ERF::column_loc_y     = zero;
-std::string ERF::column_file_name = "column_data.nc";
-
 // 2D BndryRegister output (for ingestion by AMR-Wind)
 int  ERF::output_bndry_planes            = 0;
 int  ERF::bndry_output_planes_interval   = -1;
@@ -602,6 +594,35 @@ ERF::fill_seb_from_coarse (int lev)
     fill_one(two_stream_rad.seb_q_sfc(lev), two_stream_rad.seb_q_sfc(lev-1));
 }
 
+/**
+ * Write the boundary planes. The planes read m_out_rad cells around the target box, and those
+ * cells lie in ghost cells of vars_new wherever the box reaches the domain or grid edge, so the
+ * ghost cells of every level up to the one the planes come from are filled first (coarse to
+ * fine, as each fine-level fill reads the ghost cells of the level below).
+ *
+ * @param step Step written to the planes and time.dat
+ * @param time Time written to time.dat
+ */
+void
+ERF::write_bndry_planes (int step, double time)
+{
+    if (!m_w2d) { return; }
+
+    FillPatchCrseLevel(0, t_new[0], {&vars_new[0][Vars::cons], &vars_new[0][Vars::xvel],
+                       &vars_new[0][Vars::yvel], &vars_new[0][Vars::zvel]});
+
+    for (int lev = 1; lev <= WriteBndryPlanes::get_bndry_lev(); ++lev) {
+        bool fillset = false;
+        FillPatchFineLevel(lev, t_new[lev], {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::xvel],
+                           &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]},
+                           {&vars_new[lev][Vars::cons], &rU_new[lev], &rV_new[lev], &rW_new[lev]},
+                           base_state[lev], base_state[lev], fillset);
+    }
+
+    bool is_moist = (micro->Get_Qstate_Moist_Size() > 0);
+    m_w2d->write_planes(step, time, vars_new, is_moist);
+}
+
 // Called after every coarse timestep
 void
 ERF::post_timestep (int nstep, double time, double dt_lev0)
@@ -761,42 +782,12 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
         }
     }
 
-    if (output_1d_column) {
-#ifdef ERF_USE_NETCDF
-      if (is_it_time_for_action(nstep, time, dt_lev0, column_interval, column_per))
-      {
-         int lev_column = 0;
-         for (int lev = finest_level; lev >= 0; lev--)
-         {
-            const Box& domain_lev = geom[lev].Domain();
-            Real dx_lev = geom[lev].CellSize(0);
-            Real dy_lev = geom[lev].CellSize(1);
-            // Cell containing (column_loc_x,column_loc_y) -- note that these locations are
-            //     measured from ProbLo, which need not be at the origin
-            int i_lev = domain_lev.smallEnd(0) +
-                static_cast<int>(std::floor((column_loc_x - geom[lev].ProbLo(0)) / dx_lev));
-            int j_lev = domain_lev.smallEnd(1) +
-                static_cast<int>(std::floor((column_loc_y - geom[lev].ProbLo(1)) / dy_lev));
-            // Loop runs from finest to coarsest, so stop at the first (finest) level
-            //     that contains the column
-            if (grids[lev].contains(IntVect(i_lev,j_lev,domain_lev.smallEnd(2)))) {
-                lev_column = lev; break;
-            }
-         }
-         writeToNCColumnFile(lev_column, column_file_name, column_loc_x, column_loc_y, time);
-      }
-#else
-      Abort("To output 1D column files ERF must be compiled with NetCDF");
-#endif
-    }
-
     if (output_bndry_planes)
     {
       if (is_it_time_for_action(istep[0], time, dt_lev0, bndry_output_planes_interval, bndry_output_planes_per) &&
           time >= bndry_output_planes_start_time)
       {
-         bool is_moist = (micro->Get_Qstate_Moist_Size() > 0);
-         m_w2d->write_planes(istep[0], time+start_time, vars_new, is_moist);
+         write_bndry_planes(istep[0], time+start_time);
       }
     }
 
@@ -1425,8 +1416,7 @@ ERF::InitData_post ()
             is_it_time_for_action(istep[0], t_new[0], dt[0], bndry_output_planes_interval, bndry_output_planes_per);
 
         if (!has_start_plane && output_step && t_new[0] >= bndry_output_planes_start_time) {
-            bool is_moist = (micro->Get_Qstate_Moist_Size() > 0);
-            m_w2d->write_planes(istep[0], t_new[0]+start_time, vars_new, is_moist);
+            write_bndry_planes(istep[0], t_new[0]+start_time);
         }
     }
 
@@ -3249,7 +3239,10 @@ ERF::init_only (int lev, double elapsed_time)
         turbPert_update(lev, zero);
         if (solverChoice.use_wvel_perturbation(lev)) {
             turbPert_amplitude_w(lev);
-        } else {
+        } else if (solverChoice.pert_type[lev] == PerturbationType::CPM) {
+            // Only CPM stores an increment [K]. The source and direct perturbations store a
+            //    rate [K/s], which is applied over each time step, so they add nothing at the
+            //    initial time
             turbPert_amplitude(lev);
         }
     }
@@ -3651,12 +3644,12 @@ ERF::ReadParameters ()
 #endif
         pp.queryAdd("profile_rad_int", rad_datalog_int);
 
-        pp.queryAdd("output_1d_column", output_1d_column);
-        pp.queryAdd("column_per", column_per);
-        pp.queryAdd("column_interval", column_interval);
-        pp.queryAdd("column_loc_x", column_loc_x);
-        pp.queryAdd("column_loc_y", column_loc_y);
-        pp.queryAdd("column_file_name", column_file_name);
+        // The 1D NetCDF column output has been removed
+        int output_1d_column = 0;
+        pp.query("output_1d_column", output_1d_column);
+        if (output_1d_column) {
+            amrex::Error("erf.output_1d_column is no longer supported; the 1D column output was removed");
+        }
 
         // Sampler output frequency
         pp.queryAdd("line_sampling_per", line_sampling_per);

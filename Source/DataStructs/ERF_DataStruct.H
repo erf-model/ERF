@@ -963,6 +963,12 @@ struct SolverChoice {
             amrex::Error("erf.terrain_type = MovingFittedMesh requires amr.max_level = 0");
         }
 
+        // Immersed-forcing buildings need the terrain blanking that init_zphys builds, and
+        // init_zphys returns before building it when the terrain is EB
+        if (terrain_type == TerrainType::EB && buildings_type == BuildingsType::ImmersedForcing) {
+            amrex::Error("erf.buildings_type = ImmersedForcing is not supported with erf.terrain_type = EB");
+        }
+
         if ( (moisture_type == MoistureType::SAM                ||
               moisture_type == MoistureType::SAM_NoIce          ||
               moisture_type == MoistureType::SAM_NoPrecip_NoIce   ) &&
