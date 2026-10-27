@@ -18,6 +18,10 @@ void ERFPC::EvolveParticles ( int                                        a_lev,
 {
     BL_PROFILE("ERFPCPC::EvolveParticles()");
 
+    // The kernels below index the flow state and z_phys_nd by the particle tile's grid
+    AMREX_ALWAYS_ASSERT(OnSameGrids(a_lev, a_flow_vars[a_lev][Vars::cons]) &&
+                        OnSameGrids(a_lev, *a_z_phys_nd[a_lev]));
+
     if (m_verbose > 0) {
         Long np_total = 0;
         int finest = m_gdb->finestLevel();
