@@ -568,7 +568,7 @@ void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
         // Update SD multiplicity and mass with the initialized main + tail distribution
         for (int n = 0; n < a_np; n++) {
             a_mult[n] += tmp_mult[n];
-            a_mass[n] += tmp_mass[n];
+            a_mass[n] = tmp_mass[n];
         }
         amrex::Print() << "Done sampling\n";
     } else {
