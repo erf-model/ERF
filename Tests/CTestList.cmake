@@ -3901,19 +3901,55 @@ add_test_abort(TerrainStress_Abort_MetricAnelasticMidPoint ${_tsr_dir} Terrain_S
 endif()
 endif()
 
-# The fire coupling (ERF_ENABLE_FIRE): erf.fire.enable needs a fire engine built
-# in (none is in this repository), the coupling inputs stop the run naming the
-# key, and a build without the coupling refuses a fire deck instead of running
-# it as plain ERF. The checks run in the constructor, so any deck serves.
+# The fire coupling (ERF_ENABLE_FIRE): erf.fire.enable needs a fire engine
+# compiled in (none is in this repository; ERF_FIRE_ENGINE_DIRS adds them), the
+# coupling inputs stop the run naming the key, and a build without the coupling
+# refuses a fire deck instead of running it as plain ERF. The checks run in the
+# constructor, so any deck serves.
 if(ERF_ENABLE_MPI AND NOT WIN32)
 set(_fire_abort_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/Terrain_Stress_Ridge)
 if(ERF_ENABLE_FIRE)
+if(NOT ERF_FIRE_ENGINE_DIRS)
 add_test_abort(Fire_Abort_NoEngineBuiltIn ${_fire_abort_dir} Terrain_Stress_Ridge.i
-               "erf.fire.enable = true, but this ERF has no fire engine built in"
+               "erf.fire.enable = true, but no fire engine is compiled into this executable"
                "erf.fire.enable=true")
 add_test_abort(Fire_Abort_EngineWithoutEngines ${_fire_abort_dir} Terrain_Stress_Ridge.i
-               "erf.fire.engine is set, but this ERF has no fire engine built in"
+               "erf.fire.engine is set, but no fire engine is compiled into this executable"
                "erf.fire.engine=native")
+else()
+add_test_abort(Fire_Abort_EngineNotCompiledIn ${_fire_abort_dir} Terrain_Stress_Ridge.i
+               "erf.fire.engine = .no_such_engine. is not one of"
+               "erf.fire.enable=true erf.fire.engine=no_such_engine")
+endif()
+add_test_abort(Fire_Abort_OldPlotKey ${_fire_abort_dir} Terrain_Stress_Ridge.i
+               "erf.fire_plot_int is now erf.fire.plot_int"
+               "erf.fire_plot_int=10")
+# The example engine directory (Tests/FireEngineExample), when the build
+# compiles it in: a coupled run writes the engine's fields into the ERF
+# plotfile, and a restart from its mid-run checkpoint (engine state and the
+# coupler's lagged fluxes) reproduces the final plotfile exactly.
+set(_fex_src ${CMAKE_CURRENT_SOURCE_DIR}/FireEngineExample)
+get_filename_component(_fex_src_abs "${_fex_src}" ABSOLUTE)
+set(_fex_in_build FALSE)
+foreach(_d IN LISTS ERF_FIRE_ENGINE_DIRS)
+  get_filename_component(_d_abs "${_d}" ABSOLUTE)
+  if(_d_abs STREQUAL _fex_src_abs)
+    set(_fex_in_build TRUE)
+  endif()
+endforeach()
+if(_fex_in_build AND ERF_ENABLE_FCOMPARE)
+set(_fex_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Fire_ExampleEngine_Restart)
+file(MAKE_DIRECTORY ${_fex_dir})
+file(COPY ${_fex_src}/inputs_fire_example ${_fex_src}/input_sounding DESTINATION ${_fex_dir})
+resolve_test_exe("" "erf_exec" _fex_exe)
+set(_fex_mpi "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} 2 ${MPIEXEC_PREFLAGS}")
+add_test(NAME Fire_ExampleEngine_Restart
+         COMMAND sh -c "rm -rf plt0* chk0* rst && ${_fex_mpi} ${_fex_exe} inputs_fire_example amrex.call_addr2line=0 > straight.log 2>&1 && grep -q fire_phi plt00008/Header && mkdir rst && cd rst && cp ../input_sounding . && ${_fex_mpi} ${_fex_exe} ../inputs_fire_example erf.restart=../chk00004 erf.check_int=-1 amrex.call_addr2line=0 > ../restart.log 2>&1 && cd .. && ${FCOMPARE_EXE} -r 0 --abs_tol 0 plt00008 rst/plt00008"
+         WORKING_DIRECTORY ${_fex_dir})
+set_tests_properties(Fire_ExampleEngine_Restart PROPERTIES
+    LABELS "regression;fire" TIMEOUT 600 PROCESSORS 2
+    ATTACHED_FILES_ON_FAIL "${_fex_dir}/straight.log;${_fex_dir}/restart.log")
+endif()
 add_test_abort(Fire_Abort_CouplingType ${_fire_abort_dir} Terrain_Stress_Ridge.i
                "erf.fire.coupling_type = .tight. is not one of .passive., .lagged., .synchronous."
                "erf.fire.coupling_type=tight")

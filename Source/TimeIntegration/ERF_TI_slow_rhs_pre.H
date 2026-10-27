@@ -1,6 +1,6 @@
 #include "ERF_SrcHeaders.H"
 
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
 #include <ERF_FireCoupler.H>
 #endif
 
@@ -142,7 +142,7 @@
         // cc_src at every RK stage. The lagged fire flux (FireCoupler) is constant
         // across all RK stages and must be added here to survive the integrator.
         // *****************************************************************************
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
         // on the level the fire grid refines; coarser levels get it by average-down.
         // The heat and vapour with the WRF-Fire profile, then the smoke tracer,
         // proportional to the fuel burnt (FireCoupler::add_sources).

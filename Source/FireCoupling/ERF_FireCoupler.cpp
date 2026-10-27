@@ -71,6 +71,12 @@ FireCoupler::FireCoupler (const FireCouplingParams& params, std::unique_ptr<Fire
     : m_params(params), m_engine(std::move(engine))
 {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_engine != nullptr, "[FIRE] FireCoupler needs a fire engine");
+    m_plot_var_names = m_engine->plot_var_names();
+    if (!m_plot_var_names.empty()) {
+        amrex::Print() << "[FIRE] " << m_engine->name()
+                       << ": the following additional variables are available to plot:\n";
+        for (const auto& n : m_plot_var_names) { amrex::Print() << "    " << n << "\n"; }
+    }
 }
 
 void
@@ -175,12 +181,50 @@ FireCoupler::advance (Real time, Real dt,
                               post_dycore ? yvel_new : yvel_old,
                               z_phys_cc, T_atm_k0, RH_atm_k0, precip_accum_k0.get()};
     m_engine->advance(forcing);
+    if (m_params.fire_debug) {
+        const Real area = m_engine->burned_area();   // every rank: it may reduce over the fire grid
+        if (area >= 0.0_rt) {
+            amrex::Print() << "[FIRE DEBUG] Burned area at t=" << time + dt << ": " << area << " m2" << std::endl;
+        }
+    }
 
     // Store the fire flux of this step for injection at the next step via the
     // Runge-Kutta source term (add_sources). This applies in both lagged and
     // synchronous modes; in passive mode the buffer keeps its zero unless the
     // smoke tracer needs it.
     update_flux_buffer(geom);
+}
+
+void
+FireCoupler::fill_plot_var (const std::string& name, MultiFab& dst, int dcomp, int lev) const
+{
+    dst.setVal(0.0_rt, dcomp, 1, 0);
+    if (lev != m_lev || !m_Q_atm_prev) { return; }
+    const MultiFab* fire_field = m_engine->plot_var(name);
+    if (!fire_field) { return; }
+
+    // The column means, on the k = 0 slabs the lagged fluxes use
+    MultiFab col(m_Q_atm_prev->boxArray(), m_Q_atm_prev->DistributionMap(), 1, 0);
+    col.setVal(0.0_rt);
+    coarsen_fire_flux_to_atm(col, *fire_field, m_geom_atm, m_fg);
+
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dst.boxArray().size() == col.boxArray().size() &&
+                                     dst.DistributionMap() == col.DistributionMap(),
+                                     "[FIRE] fill_plot_var: the plotfile MultiFab is not on the fire grid's level");
+    const int k0 = m_geom_atm.Domain().smallEnd(2);
+    for (MFIter mfi(dst); mfi.isValid(); ++mfi) {
+        Box bx = mfi.validbox();
+        if (bx.smallEnd(2) > k0) { continue; }
+        bx.setSmall(2, k0);
+        bx.setBig(2, k0);
+        const auto d = dst.array(mfi);
+        const auto c = col.const_array(mfi);
+        const int kc = col.boxArray()[mfi.index()].smallEnd(2);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            d(i, j, k, dcomp) = c(i, j, kc);
+        });
+    }
 }
 
 void

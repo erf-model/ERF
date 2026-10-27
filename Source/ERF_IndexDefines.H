@@ -15,8 +15,8 @@
 #define NDRY       3
 
 // Smoke: a passive tracer the fire coupling emits from the fire's heat [kg/m^3],
-// present in builds with the fire coupling (ERF_ENABLE_FIRE)
-#ifdef ERF_ENABLE_FIRE
+// present in builds with the fire coupling (ERF_USE_FIRE)
+#ifdef ERF_USE_FIRE
 #define NSCALARS_SMOKE 1
 #else
 #define NSCALARS_SMOKE 0
@@ -58,9 +58,9 @@
 
 // Scalar slots (consecutive, starting at RhoScalar_comp = NDRY):
 //   [RhoScalar_comp]     always present (base passive scalar)
-//   [RhoSmoke_comp]      smoke, only with ERF_ENABLE_FIRE
+//   [RhoSmoke_comp]      smoke, only with ERF_USE_FIRE
 //   [RhoQ1_comp ...]     moisture variables
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
 #define RhoSmoke_comp  (RhoScalar_comp+1)
 #endif
 #define RhoQ1_comp     (RhoScalar_comp+NSCALARS)

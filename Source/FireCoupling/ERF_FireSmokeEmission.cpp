@@ -1,6 +1,6 @@
 #include <ERF_FireSmokeEmission.H>
 
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
 
 #include <ERF_IndexDefines.H>
 #include <AMReX_MFIter.H>
@@ -78,4 +78,4 @@ void inject_smoke_from_fire(
     }
 }
 
-#endif // ERF_ENABLE_FIRE
+#endif // ERF_USE_FIRE

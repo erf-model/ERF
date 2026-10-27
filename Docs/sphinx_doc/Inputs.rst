@@ -5534,12 +5534,12 @@ besides.
 +------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
 | Parameter                                      | Definition                                                 | Acceptable Values              | Default                |
 +================================================+============================================================+================================+========================+
-| **erf.fire.enable**                            | Run a fire (needs a fire engine built in, see              | Boolean                        | false                  |
+| **erf.fire.enable**                            | Run a fire (needs a fire engine compiled in, see           | Boolean                        | false                  |
 |                                                | :ref:`sec:FireCoupling`)                                   |                                |                        |
 +------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
-| **erf.fire.engine**                            | The fire engine behind the coupling, one of the engines    | String                         | the first built in     |
-|                                                | built in (ERF_FireEngineFactory.cpp); with none built      |                                |                        |
-|                                                | in, setting it stops the run                               |                                |                        |
+| **erf.fire.engine**                            | The fire engine behind the coupling, one of the engines    | String                         | the only one built     |
+|                                                | compiled in (ERF_REGISTER_FIRE_ENGINE); required when      |                                |                        |
+|                                                | several are; with none, setting it stops the run           |                                |                        |
 +------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
 | **erf.fire.fire_debug**                        | Print per-step coupling diagnostics                        | Boolean                        | false                  |
 +------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
@@ -5587,11 +5587,13 @@ besides.
 |                                                | stops, or warns when ``smoke_enable = false`` or           |                                |                        |
 |                                                | ``erf.fire.enable = false`` is given)                      |                                |                        |
 +------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
-| **erf.fire_plot_file**                         | Prefix of the engine's fire plotfile                       | String                         | ``plt_fire_``          |
+| **erf.fire.plot_file**                         | Prefix of the engine's fire plotfile                       | String                         | ``plt_fire_``          |
 +------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
-| **erf.fire_plot_int**                          | Steps between fire plotfiles; <= 0 disables                | Integer                        | -1                     |
+| **erf.fire.plot_int**                          | Steps between fire plotfiles; <= 0 disables. With neither  | Integer                        | erf.plot_int_1         |
+|                                                | this nor plot_per given, both take erf.plot_int_1 and      |                                |                        |
+|                                                | erf.plot_per_1 (the old erf.fire_plot_* keys stop the run) |                                |                        |
 +------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
-| **erf.fire_plot_per**                          | Seconds between fire plotfiles; <= 0 disables              | Real                           | -1.0                   |
+| **erf.fire.plot_per**                          | Seconds between fire plotfiles; <= 0 disables              | Real                           | erf.plot_per_1         |
 +------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
 
 .. _inputs-particles:

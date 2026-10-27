@@ -303,8 +303,8 @@ void check_exner_heat_and_water(Real pressure, Real density, Real qv,
     slabs.coarsen(IntVect(1, 1, NZ));
 
     constexpr Real sensible = 5.0e4_rt, latent = 3.0e3_rt;
-    // Match PR #4288's current conversion; PR #521 will change it to Cp_d.
-    constexpr Real cp = 1004.64_rt, lv = 2.501e6_rt, depth = 100.0_rt;
+    // The coupling's conversion: ERF's Cp_d (hgopalan/ERF#521)
+    constexpr Real cp = Cp_d, lv = 2.501e6_rt, depth = 100.0_rt;
     // Roof halfway through k=2, not just aligned to a cell face.
     constexpr Real open_fraction = 0.25_rt, roof = 2.5_rt * DZ;
     constexpr Real background_heat = 0.125_rt, background_water = 1.0e-8_rt;

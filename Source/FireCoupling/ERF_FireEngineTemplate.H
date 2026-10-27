@@ -14,17 +14,21 @@
  * is the smallest engine that works.
  *
  * To start a new engine:
- *  1. Copy this file into the new model's own folder, rename the class and the
- *     include guard, and write the bodies in a .cpp file there. Delete the
+ *  1. Copy this file into the new model's engine directory (outside ERF),
+ *     rename the class and the include guard, and write the bodies in a .cpp
+ *     file there. Delete the
  *     declarations of the optional methods the engine does not provide (their
  *     defaults in FireEngine then apply); a declaration left without a body
  *     fails to link.
- *  2. Read the model's inputs under its own prefix (erf.fire.<engine>.*), so
- *     they never mix with the coupling's keys (FireCouplingParams) or another
- *     engine's.
- *  3. Register the engine in ERF_FireEngineFactory.cpp: its name in
- *     fire_engine_names() (the first name is the default of erf.fire.engine)
- *     and a branch creating it in make_fire_engine().
+ *  2. Read the model's inputs under its own prefix (fire.<engine>.* is
+ *     recommended), so they never mix with the coupling's keys
+ *     (FireCouplingParams, erf.fire.*) or another engine's.
+ *  3. Register the engine in that .cpp, at namespace scope:
+ *         ERF_REGISTER_FIRE_ENGINE(MyEngine, "my_fire")
+ *     (ERF_FireEngineRegistry.H), and give the engine directory a
+ *     Make.package (GNU make, FIRE_HOME) and an ERFFireEngine.cmake defining
+ *     erf_fire_engine_add(target) (CMake, ERF_FIRE_ENGINE_DIRS).
+ *     Tests/FireEngineExample is a complete engine directory to copy.
  *  4. Run the FireCoupler unit tests with the new engine in place of their
  *     stand-in, and a restart of a coupled run against a straight run: the
  *     atmosphere and fire plotfiles must agree at zero tolerance.
@@ -73,7 +77,7 @@ public:
      * ignition happens before the run ends). On a restart, read_checkpoint()
      * comes after this.
      */
-    void start_run (amrex::Real stop_time, int max_step, int steps_per_coarse_step) override;
+    void start_run (amrex::Real stop_time, int max_step, int steps_per_coarse_step) override;   // optional
 
     /**
      * Advance the fire over one step of the fire grid's level (forcing.dt from
@@ -86,8 +90,11 @@ public:
 
     /**
      * Point fluxes.sensible (and fluxes.latent, if the fuel releases water) at
-     * the step's mean heat flux into the air on the fire grid [W/m2]; leave a
-     * pointer nullptr for none. The fields must stay valid until the next
+     * the heat flux into the air on the fire grid [W/m2], positive upward,
+     * averaged over exactly [forcing.time, forcing.time + forcing.dt] of the
+     * last advance() (sum over any substeps, divided by forcing.dt); leave a
+     * pointer nullptr for none. A vapour mass flux becomes a latent flux by
+     * multiplying by L_v (ERF_Constants.H). The fields must stay valid until the next
      * advance(). Called only when the coupling injects heat or smoke.
      */
     void fill_fluxes (FireFluxes& fluxes) override;
@@ -111,6 +118,7 @@ public:
     const amrex::MultiFab* roof_height_atm () const override;
 
     /**
+     * Optional (the default writes nothing and the engine cannot restart).
      * Write everything the engine carries from one step to the next under
      * checkpointname/Level_<lev>/ (lev the fire grid's level). The coupling
      * writes its lagged fluxes after this; use names that do not start with
@@ -119,14 +127,28 @@ public:
     void write_checkpoint (const std::string& checkpointname) const override;
 
     /**
+     * Optional (the default stops the run, saying restart is not supported).
      * Read back what write_checkpoint() wrote, on a restart, after start_run()
      * and before the first step; step is the fire grid level's step count at
      * the checkpoint. Abort if the checkpoint's fire grid is not this run's.
      */
     void read_checkpoint (const std::string& restart_chkfile, int max_level, int step) override;
 
-    /// Write the engine's plotfile of the fire grid, named plotfile_prefix plus the step.
+    /// Optional (the default writes nothing): the engine's plotfile of the fire grid,
+    /// named plotfile_prefix plus the step.
     void write_plotfile (const std::string& plotfile_prefix, amrex::Real time, int step) const override;
+
+    /**
+     * Optional, none unless declared: the fire fields the ERF plotfile can
+     * carry (names starting with "fire_", listed in erf.plot_vars_*), known
+     * from the inputs alone (asked before initialize()), and each field on the
+     * fire grid; the coupler writes its column means at k = 0.
+     */
+    std::vector<std::string> plot_var_names () const override;
+    const amrex::MultiFab* plot_var (const std::string& name) const override;
+
+    /// Optional, -1 unless declared: area burned so far [m2], printed with erf.fire.fire_debug.
+    amrex::Real burned_area () const override;
 
     /**
      * Optional, nullptr (or 0) unless declared: what other surface models read

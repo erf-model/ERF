@@ -1,9 +1,11 @@
 #ifndef ERF_FIRE_ENGINE_H
 #define ERF_FIRE_ENGINE_H
 
+#include <AMReX.H>
 #include <AMReX_MultiFab.H>
 #include <AMReX_REAL.H>
 #include <string>
+#include <vector>
 #include <ERF_FireGrid.H>
 
 class ERF;
@@ -23,10 +25,32 @@ class SurfaceLayer;
  * (the wind sampler of ERF_FireWindExtract.H, the column grounds of
  * ERF_FireSurfaceHeight.H).
  *
- * The engines built into this ERF are listed in ERF_FireEngineFactory.cpp.
+ * ERF itself contains no engine. An engine lives in its own directory outside
+ * ERF (FIRE_HOME in GNU make, ERF_FIRE_ENGINE_DIRS in CMake) and registers
+ * itself with ERF_REGISTER_FIRE_ENGINE (ERF_FireEngineRegistry.H).
  * ERF_FireEngineTemplate.H declares every method below for new engines: a
  * method added to FireEngine is declared there too (a pure virtual one that is
  * missing fails the build; an optional one does not).
+ *
+ * Memory contract. Every MultiFab the coupling hands an engine (FireForcing,
+ * the FireGrid layout) and every one the engine hands back (FireFluxes, the
+ * getters below) is an ordinary AMReX MultiFab in the default arena, so on a
+ * GPU build its data is on the device. The coupling reads the engine's fields
+ * on the device right after the call that returned them. An engine that runs
+ * on the host:
+ * - copies what it reads from FireForcing to the host inside advance()
+ *   (fire_host_copy(), ERF_FireUtils.H, does the copy and the stream
+ *   synchronisation), because those fields are temporaries of that call;
+ * - owns the MultiFabs it returns, allocated on fg.ba and fg.dm (or the
+ *   level's k = 0 slabs where stated), and keeps them alive until its next
+ *   advance(); it fills them on the host and copies them back to device
+ *   memory (fire_host_copy() the other way) before returning from
+ *   fill_fluxes() or the getter;
+ * - may hold managed or pinned memory internally, but synchronises the GPU
+ *   stream (amrex::Gpu::streamSynchronize()) before it touches the host side
+ *   of data the device may still be writing.
+ * The coupling never frees, resizes or keeps across steps a pointer an engine
+ * returns.
  */
 
 /**
@@ -54,12 +78,22 @@ struct FireForcing
 /**
  * @brief The fluxes a fire engine hands to the atmosphere after its step
  *
- * Both fields live on the fire grid, per unit ground area, as the mean over
- * the engine's step; the coupling averages them onto the atmospheric columns
- * and injects them at the next step. The pointers stay valid until the
- * engine's next advance. Sensible and latent pointers are independently
- * optional: nullptr means no flux for that channel on this step, without
- * suppressing a valid flux from the other channel.
+ * Both fields live on the fire grid (FireGrid::ba, FireGrid::dm), per unit
+ * ground area, and are positive into the atmosphere. Each is the time mean
+ * over exactly the interval of the last advance(), [forcing.time,
+ * forcing.time + forcing.dt], whatever steps the engine takes inside it: an
+ * engine that subcycles accumulates its fluxes over its substeps and divides
+ * by forcing.dt. The coupling averages them onto the atmospheric columns and
+ * injects them, unchanged, at every stage of the next ERF step of the fire
+ * grid's level (the one-step lag of WRF-Fire; erf.fire.coupling_type =
+ * synchronous only changes the wind the engine saw).
+ *
+ * The latent flux is the energy of the water vapour released, so the vapour
+ * mass flux is latent / L_v [kg/m2/s] with L_v of ERF_Constants.H; an engine
+ * that computes a mass flux multiplies by that same L_v. The pointers stay
+ * valid until the engine's next advance(). Sensible and latent pointers are
+ * independently optional: nullptr means no flux for that channel on this
+ * step, without suppressing a valid flux from the other channel.
  */
 struct FireFluxes
 {
@@ -82,9 +116,12 @@ struct FireFluxes
  *   after that level's dycore;
  * - smoke_heat_per_kg(), heat_open_fraction_atm() and roof_height_atm() when
  *   it injects the lagged fluxes, at every Runge-Kutta stage of the next step;
- * - write_plotfile() on the fire plotfile schedule (erf.fire_plot_int,
- *   erf.fire_plot_per), and write_checkpoint() from FireCoupler::write_checkpoint
- *   when ERF writes a checkpoint.
+ * - write_plotfile() on the fire plotfile schedule (erf.fire.plot_int,
+ *   erf.fire.plot_per), and write_checkpoint() from FireCoupler::write_checkpoint
+ *   when ERF writes a checkpoint;
+ * - plot_var_names() once, when the coupler is constructed (before
+ *   verify_prerequisites), and plot_var() each time ERF writes its own
+ *   plotfile, for the fire fields that file carries.
  *
  * The getters at the end (level set, reference wind, heat release) are what
  * other surface models may read from the fire (a dust or smoke source model,
@@ -133,7 +170,10 @@ public:
      * @param[in] max_step               ERF's max_step, counting level-0 steps (negative when unset)
      * @param[in] steps_per_coarse_step  Steps of the fire grid's level per level-0 step
      */
-    virtual void start_run (amrex::Real stop_time, int max_step, int steps_per_coarse_step) = 0;
+    virtual void start_run (amrex::Real stop_time, int max_step, int steps_per_coarse_step)
+    {
+        amrex::ignore_unused(stop_time, max_step, steps_per_coarse_step);
+    }
 
     /// Advance the fire over one step of its level.
     virtual void advance (const FireForcing& forcing) = 0;
@@ -141,7 +181,9 @@ public:
     /**
      * @brief The fluxes of the step just taken, on the fire grid
      *
-     * Called after advance(), only when the coupling injects heat or smoke.
+     * Means over exactly [forcing.time, forcing.time + forcing.dt] of the last
+     * advance() (see FireFluxes). Called after advance(), only when the
+     * coupling injects heat or smoke.
      */
     virtual void fill_fluxes (FireFluxes& fluxes) = 0;
 
@@ -173,9 +215,13 @@ public:
      *
      * Everything the engine carries from one step to the next, under
      * checkpointname/Level_<lev>/ of the fire grid's level. Called by
-     * FireCoupler::write_checkpoint, which then writes the lagged fluxes.
+     * FireCoupler::write_checkpoint, which then writes the lagged fluxes. The
+     * default writes nothing; such an engine cannot restart (read_checkpoint).
      */
-    virtual void write_checkpoint (const std::string& checkpointname) const = 0;
+    virtual void write_checkpoint (const std::string& checkpointname) const
+    {
+        amrex::ignore_unused(checkpointname);
+    }
 
     /**
      * @brief Restore the engine's state from a checkpoint on a restart
@@ -183,17 +229,59 @@ public:
      * @param[in] restart_chkfile  The checkpoint directory
      * @param[in] max_level        ERF's max_level (the levels to look for the fire state on)
      * @param[in] step             The step count of the fire grid's level at the checkpoint
+     *
+     * The default stops the run: an engine that does not implement restart
+     * says so instead of continuing from its initial state.
      */
-    virtual void read_checkpoint (const std::string& restart_chkfile, int max_level, int step) = 0;
+    virtual void read_checkpoint (const std::string& restart_chkfile, int max_level, int step)
+    {
+        amrex::ignore_unused(restart_chkfile, max_level, step);
+        amrex::Abort(std::string("[FIRE] fire engine \"") + name()
+                     + "\" does not support restart from a checkpoint");
+    }
 
     /**
      * @brief Write the engine's plotfile of the fire grid
      *
-     * @param[in] plotfile_prefix  erf.fire_plot_file (the step is appended)
+     * @param[in] plotfile_prefix  erf.fire.plot_file (the step is appended)
      * @param[in] time             Simulation time [s]
      * @param[in] step             Level-0 step number
+     *
+     * The default writes nothing (the engine's fields may still reach the ERF
+     * plotfile through plot_var_names()).
      */
-    virtual void write_plotfile (const std::string& plotfile_prefix, amrex::Real time, int step) const = 0;
+    virtual void write_plotfile (const std::string& plotfile_prefix, amrex::Real time, int step) const
+    {
+        amrex::ignore_unused(plotfile_prefix, time, step);
+    }
+
+    /**
+     * @brief Fire fields the ERF plotfile can carry, by name
+     *
+     * The names the deck may list in erf.plot_vars_* (for example "fire_phi",
+     * "fire_heat_flux"); they should start with "fire_" so they never collide
+     * with an ERF variable. The coupler asks once, when it is constructed:
+     * before initialize() and before ERF reads its plot variable lists, so the
+     * answer depends on the engine's inputs only. The default lists none.
+     */
+    virtual std::vector<std::string> plot_var_names () const { return {}; }
+
+    /**
+     * @brief The field plot_var_names() lists as name, on the fire grid
+     *
+     * One component, on FireGrid::ba and FireGrid::dm, valid until the next
+     * advance(). The coupler averages it over each atmospheric column (the
+     * grid_ratio^2 fire cells under it) and writes it into the k = 0 layer of
+     * the ERF plotfile, zero elsewhere. nullptr writes zeros.
+     */
+    virtual const amrex::MultiFab* plot_var (const std::string& name) const
+    {
+        amrex::ignore_unused(name);
+        return nullptr;
+    }
+
+    /// Area burned so far [m2], for the run log; negative when the engine does not track it.
+    virtual amrex::Real burned_area () const { return amrex::Real(-1.0); }
 
     /// Level set on the fire grid, negative where burned; nullptr if the engine has none.
     virtual const amrex::MultiFab* level_set () const { return nullptr; }

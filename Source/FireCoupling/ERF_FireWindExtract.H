@@ -114,4 +114,34 @@ void fill_fire_wind_from_interpolation(
     amrex::Real            z0_log         = 0.1,
     bool                   below_first_log = false);
 
+/**
+ * @brief The wind at the lowest cell centre of each atmospheric column, and
+ *        its height above that column's ground
+ *
+ * For an engine that drives its fire with the k = 0 wind of the atmospheric
+ * columns rather than a wind interpolated to a height (LSFIRE does). The face
+ * velocities are averaged to the k = 0 cell centre; the height is that centre
+ * minus the column's ground, the mean of its four k = 0 nodes (the ground
+ * compute_fire_surface_height uses), or minus the domain floor without nodal
+ * heights.
+ *
+ * @param[out] u_k0, v_k0  Wind [m/s] on the k = 0 slabs of the level (one per box of
+ *                         the level, the BoxArray of FireForcing::T_k0), with any
+ *                         ghost cells: those are filled with FillBoundary
+ * @param[out] h_k0        Height of that wind above the column's ground [m], laid out as u_k0
+ * @param[in]  xvel, yvel  Face velocities of the level (FireForcing::xvel, yvel)
+ * @param[in]  z_phys_cc   Cell-centre height of the level [m]
+ * @param[in]  z_phys_nd   Nodal height of the level [m], or nullptr (flat floor)
+ * @param[in]  geom        Geometry of the level
+ */
+void extract_fire_wind_k0(
+    amrex::MultiFab&       u_k0,
+    amrex::MultiFab&       v_k0,
+    amrex::MultiFab&       h_k0,
+    const amrex::MultiFab& xvel,
+    const amrex::MultiFab& yvel,
+    const amrex::MultiFab& z_phys_cc,
+    const amrex::MultiFab* z_phys_nd,
+    const amrex::Geometry& geom);
+
 #endif

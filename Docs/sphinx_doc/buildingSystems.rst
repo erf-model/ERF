@@ -191,6 +191,10 @@ Set build variables in the ``GNUmakefile``:
         - Enables the fire coupling (atmosphere side; fire engines plug into it, see :ref:`sec:FireCoupling`)
         - FALSE
         - TRUE/FALSE
+      * - ``FIRE_HOME``
+        - Fire engine directories to compile in, space separated, each with a ``Make.package`` (needs ``USE_FIRE=TRUE``; see :ref:`sec:FireCoupling`)
+        - (none)
+        - paths
       * - ``USE_NOAHMP``
         - Enables Noah-MP land surface model (requires ``USE_NETCDF=TRUE``)
         - FALSE
@@ -568,6 +572,10 @@ CMake can also generate makefiles for the Ninja build system for faster compilat
      - Enables the fire coupling (atmosphere side; fire engines plug into it, see :ref:`sec:FireCoupling`); adds the smoke scalar to the state
      - OFF
      - ON/OFF
+   * - ``ERF_FIRE_ENGINE_DIRS``
+     - Fire engine directories to compile in, a CMake list, each with an ``ERFFireEngine.cmake`` (needs ``ERF_ENABLE_FIRE=ON``; see :ref:`sec:FireCoupling`)
+     - (none)
+     - paths
    * - ``ERF_PRECISION``
      - Floating-point precision for mesh data
      - DOUBLE

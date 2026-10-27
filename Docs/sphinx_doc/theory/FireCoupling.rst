@@ -11,8 +11,11 @@ fire, and the fire's heat drives the wind. ERF provides the atmosphere side of
 that coupling: where the fire grid sits, what the fire is handed each step,
 and how its heat, water vapour and smoke enter the atmosphere. The fire
 itself, the model that spreads the front and computes the heat it releases,
-is a *fire engine* that plugs into this coupling. No fire engine is built into
-this repository; the coupling layer is the common part every engine shares.
+is a *fire engine* that plugs into this coupling. Fire engines live outside
+this repository, each in its own *engine directory*; a user builds ERF plus
+one or more engines in their own build directory against the same ERF source
+tree, and ERF itself needs no change to add an engine. The coupling layer is
+the common part every engine shares.
 
 Building with the fire coupling
 -------------------------------
@@ -26,10 +29,46 @@ that a build configured differently refuses to restart from it instead of
 reading the components shifted; a checkpoint without the file is read as one
 scalar, so older checkpoints restart in builds without the fire coupling.
 
-:cpp:`erf.fire.enable = true` needs an engine built into the executable
-(``Source/FireCoupling/ERF_FireEngineFactory.cpp``); without one the run stops
-at start-up and points to the template described below. A build without
-``ERF_ENABLE_FIRE`` stops on :cpp:`erf.fire.enable = true` as well.
+The compile definition is ``ERF_USE_FIRE``, like the other optional modules.
+
+:cpp:`erf.fire.enable = true` needs an engine compiled into the executable;
+without one the run stops at start-up and says how to add one. A build
+without the fire coupling stops on :cpp:`erf.fire.enable = true` as well.
+
+Building ERF with a fire engine
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+An engine directory provides two build files next to its sources:
+
+* ``Make.package`` for GNU make. ``Exec/Make.ERF`` includes it, with the
+  directory on ``VPATH`` and the include path and ``FIRE_ENGINE_DIR`` set to
+  it, so it lists its sources (``CEXE_sources += ...``) and any library it
+  links (``LIBRARIES += ...``).
+* ``ERFFireEngine.cmake`` for CMake, defining ``erf_fire_engine_add(target)``.
+  ERF includes the file and calls the function with its object library, with
+  ``ERF_FIRE_ENGINE_DIR`` set to the directory; it adds the sources
+  (``target_sources``), include directories and libraries.
+
+With GNU make, from any directory:
+
+.. code-block:: make
+
+   ERF_HOME   = /path/to/ERF
+   FIRE_HOME  = /path/to/fire-engine      # one or more engine directories
+   USE_FIRE   = TRUE
+   include $(ERF_HOME)/Exec/Make.ERF
+
+With CMake:
+
+.. code-block:: console
+
+   cmake -S /path/to/ERF -B build -DERF_ENABLE_FIRE=ON \
+         -DERF_FIRE_ENGINE_DIRS="/path/to/fire-engine;/path/to/other-engine"
+
+Several engines can be compiled into one executable; :cpp:`erf.fire.engine`
+then picks one at run time (with a single engine it is the default).
+``Tests/FireEngineExample`` is a complete engine directory, a prescribed
+growing disk of heat that ERF's CI builds both ways.
 
 Coupling layer and fire engines
 -------------------------------
@@ -53,10 +92,10 @@ coupled to ERF the same way.
 * **The fire engine** (``FireEngine`` in ``ERF_FireEngine.H``) is the fire
   model itself: it advances the front on the fire grid and reports, after
   each step, the sensible and latent heat flux into the air on the fire grid
-  [W/m²], averaged over its step. It writes its own checkpoint state and fire
-  plotfile, and may offer a level set, a reference wind and the heat release
-  to other surface models. :cpp:`erf.fire.engine` selects it among the
-  engines built in.
+  [W/m²], averaged over its step. It may write its own checkpoint state and
+  fire plotfile, list fields for the ERF plotfile, and offer a level set, a
+  reference wind and the heat release to other surface models.
+  :cpp:`erf.fire.engine` selects it among the engines compiled in.
 
 The fire grid refines the columns of its level by :cpp:`erf.fire.grid_ratio`
 in x and y. Each fire box is an atmospheric box refined by the ratio, owned
@@ -91,17 +130,21 @@ it declares; the optional methods are kept in it by hand.
 
 To add an engine:
 
-#. Copy the template into the new model's own folder, rename the class, and
-   write the method bodies in a ``.cpp`` file there. Delete the optional
-   methods the engine does not provide; their defaults then apply.
-#. Read the model's inputs under its own prefix (``erf.fire.<engine>.*``), so
-   they never mix with the coupling's keys or another engine's.
-#. Register the engine in ``Source/FireCoupling/ERF_FireEngineFactory.cpp``:
-   its name in ``fire_engine_names()`` (the first name is the default of
-   :cpp:`erf.fire.engine`) and a branch creating it in ``make_fire_engine()``.
-   Add the new folder's sources to ``CMake/BuildERFExe.cmake`` (inside
-   ``if(ERF_ENABLE_FIRE)``) and to a ``Make.package`` included from
-   ``Exec/Make.ERF`` under ``USE_FIRE``.
+#. Copy ``Tests/FireEngineExample`` (or the template) into the new model's
+   engine directory, outside ERF, rename the class, and write the method
+   bodies there. Delete the optional methods the engine does not provide;
+   their defaults then apply.
+#. Read the model's inputs under its own prefix (``fire.<engine>.*`` is
+   recommended), so they never mix with the coupling's keys
+   (:cpp:`erf.fire.*`) or another engine's.
+#. Register the engine in its ``.cpp``, at namespace scope:
+   ``ERF_REGISTER_FIRE_ENGINE(MyEngine, "my_fire")``
+   (``ERF_FireEngineRegistry.H``). The registration runs during static
+   initialisation, so that ``.cpp`` must be compiled as source into the
+   build, not hidden inside a prebuilt static library that nothing
+   references; an engine shipping a prebuilt library keeps its registering
+   wrapper as source. List the sources in the directory's ``Make.package``
+   and ``ERFFireEngine.cmake``.
 #. Run the ``FireCoupler`` unit tests (``Tests/Unit/Fire/ERF_GTestFireCoupler.cpp``,
    whose stand-in engine is the smallest engine that works) with the new
    engine, and a restart of a coupled run against an uninterrupted one: the
@@ -109,6 +152,69 @@ To add an engine:
 
 The engine owns its fire physics and its own state, including its checkpoint
 and plotfile; the coupling layer does the rest, as described on this page.
+An engine without restart support keeps the default ``read_checkpoint``,
+which stops a restarted run with a message instead of continuing from the
+engine's initial state.
+
+The engine contract
+~~~~~~~~~~~~~~~~~~~
+
+**Fluxes.** ``fill_fluxes`` returns the sensible and latent heat flux into
+the air, per unit ground area [W/m²], positive upward, on the fire grid.
+Each is the time mean over exactly the interval of the last ``advance``,
+:math:`[t_n, t_{n+1}]` with :math:`t_n` = ``forcing.time`` and
+:math:`t_{n+1} - t_n` = ``forcing.dt``, however the engine steps inside it:
+an engine that subcycles sums its substep fluxes times their steps and
+divides by ``forcing.dt``. The coupling then injects that mean, unchanged, at
+every Runge-Kutta stage of the next ERF step of the fire grid's level, over
+:math:`[t_{n+1}, t_{n+2}]` (the one-step lag above), so the energy a column
+receives over the run equals the energy the engine released, shifted by one
+step.
+
+**Water.** The latent flux is the energy of the water vapour the fire
+releases. The coupling turns it into a vapour mass flux
+:math:`F_q = Q_{lat} / L_v` [kg/m²/s], with :math:`L_v` the latent heat of
+vaporisation of ``ERF_Constants.H``, and injects it into
+:math:`\rho_d q_v` with the vertical profile of the heat. An engine that
+computes a mass flux multiplies it by that same :math:`L_v`, so the water the
+atmosphere receives is exactly the water the engine released.
+
+**Memory.** Every MultiFab the coupling hands an engine and every one an
+engine hands back is an ordinary AMReX MultiFab in the default arena, so on
+a GPU build its data is on the device:
+
+* the fields of ``FireForcing`` are temporaries of the ``advance`` call; an
+  engine that needs them on the host copies them during the call
+  (``fire_host_copy`` in ``ERF_FireUtils.H`` copies and synchronises the GPU
+  stream);
+* the engine owns every MultiFab it returns (fluxes, plot fields, getters),
+  on the fire grid's ``BoxArray`` and ``DistributionMapping``, and keeps it
+  alive and unchanged until its next ``advance``; a host-side engine copies
+  its results into those device MultiFabs (``fire_host_copy`` the other way)
+  before returning;
+* an engine may hold managed or pinned memory internally, but synchronises
+  the GPU stream before reading on the host what the device may still be
+  writing;
+* the coupling never frees, resizes or keeps across steps a pointer an
+  engine returns.
+
+**Shared helpers.** ``fill_fire_wind_from_interpolation``
+(``ERF_FireWindExtract.H``) samples the 3D wind at a height above ground on
+the fire grid; ``extract_fire_wind_k0`` gives the wind of the lowest cell of
+each atmospheric column and its height above that column's ground, for an
+engine driven by the lowest-cell wind; ``compute_fire_surface_height``
+(``ERF_FireSurfaceHeight.H``) gives the ground of each fire cell's column.
+
+Fire fields in the ERF plotfile
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+An engine may list fields (``plot_var_names``, names starting with
+``fire_``) that the deck can request in :cpp:`erf.plot_vars_1` and
+:cpp:`erf.plot_vars_2`, like any ERF variable. The coupler writes the mean of
+each over the fire cells under every atmospheric column into the lowest
+cell of that column on the fire grid's level, and zero elsewhere. The engine's
+own fire-resolution plotfile is separate (:cpp:`erf.fire.plot_int`,
+:cpp:`erf.fire.plot_per`, which default to the 3D plotfile schedule).
 
 Coupling modes
 --------------

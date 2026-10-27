@@ -32,9 +32,9 @@
 #include "ERF_ReadFromWRFBdy.H"
 #endif
 
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
 #include "ERF_FirePrerequisites.H"
-#include "ERF_FireEngineFactory.H"
+#include "ERF_FireEngineRegistry.H"
 #endif
 
 using namespace amrex;
@@ -107,7 +107,7 @@ double ERF::last_plot2d_file_time_1 = 0.0;
 double ERF::last_plot2d_file_time_2 = 0.0;
 double ERF::last_check_file_time    = 0.0;
 
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
 // double: writeNow() takes double&, as for the other plot times. Starts at 0 like
 // them (and is realigned on restart), so fire plots land on k * fire_plot_per.
 double ERF::last_fire_plot_time = 0.0;
@@ -169,7 +169,7 @@ ERF::Evolve ()
     double cur_time = static_cast<double>(t_new[0]);
 
     // Write fire output at time 0 (initial condition)
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
     if (m_fire_coupler && istep[0] == 0 && (m_fire_plot_int > 0 || m_fire_plot_per > zero)) {
         m_fire_coupler->engine().write_plotfile(m_fire_plot_file, cur_time, istep[0]);
         if (m_fire_coupler->params().fire_debug) {
@@ -308,7 +308,7 @@ ERF::WriteAtIntermediateTime (int step, double cur_time)
         if (m_plot2d_per_2 > zero) {last_plot2d_file_time_2 += m_plot2d_per_2;}
     }
 
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
     if (m_fire_coupler && (m_fire_plot_int > 0 || m_fire_plot_per > zero)) {
         if (writeNow(cur_time, step+1, m_fire_plot_int, m_fire_plot_per, dt[0], last_fire_plot_time)) {
             m_fire_coupler->engine().write_plotfile(m_fire_plot_file, cur_time, step+1);
@@ -1656,7 +1656,7 @@ ERF::InitData_post ()
         }
     }
 
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
     // The fire coupling is initialised after the surface layers are built (so its
     // own prerequisite checks run there), and ERF::Advance samples Theta_prim,
     // which is only allocated with a surface layer. Any other bottom boundary
@@ -2086,7 +2086,7 @@ ERF::InitData_post ()
     // restart alike: on a restart the fields are allocated and set up from the
     // inputs here, then overwritten from the checkpoint by
     // FireCoupler::read_checkpoint() (the engine's state, then the lagged fluxes).
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
     // z_phys_nd is allocated on every level, flat terrain included.
     if (m_fire_coupler) {
         const int fire_lev = fire_anchor_level(m_fire_coupler->params().anchor_level, finest_level);
@@ -3100,16 +3100,16 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
 void
 ERF::initializeFire (const int& /*a_nlevsmax*/ /*!< number of AMR levels */)
 {
-#ifndef ERF_ENABLE_FIRE
+#ifndef ERF_USE_FIRE
     {   // a fire deck on a build without the module would run as plain ERF, silently
         amrex::ParmParse pp("erf.fire"); bool want = false; pp.query("enable", want);
         if (want) { amrex::Abort("erf.fire.enable = true but this executable was built without the fire coupling"
                                  "; rebuild with it (CMake ERF_ENABLE_FIRE=ON, GNU make USE_FIRE=TRUE)"
-                                 " and a fire engine (see Source/FireCoupling/ERF_FireEngineTemplate.H)"); }
+                                 " and a fire engine directory (GNU make FIRE_HOME, CMake ERF_FIRE_ENGINE_DIRS)"); }
     }
 #else
     // The coupling inputs, with their range checks; with erf.fire.enable the
-    // engine must be one built into this ERF (ERF_FireEngineFactory.cpp)
+    // engine must be one compiled into this executable (ERF_REGISTER_FIRE_ENGINE)
     m_fire_params = FireCouplingParams::read();
     if (!m_fire_params.enable) { return; }
 
@@ -3157,11 +3157,11 @@ ERF::initializeFire (const int& /*a_nlevsmax*/ /*!< number of AMR levels */)
 
     // The engine erf.fire.engine selects, behind the shared coupling layer.
     // FireCouplingParams::read() has already rejected a name no engine has;
-    // this is the backstop for an engine listed but not created.
+    // this is the backstop for a registered creator that returns no engine.
     std::unique_ptr<FireEngine> engine = make_fire_engine(m_fire_params.engine, m_fire_params);
     if (!engine) {
         amrex::Abort("[FIRE] erf.fire.engine = \"" + m_fire_params.engine + "\" is listed in "
-                     "fire_engine_names() but make_fire_engine() does not create it");
+                     "registered but its creator returned no engine");
     }
     m_fire_coupler = std::make_unique<FireCoupler>(m_fire_params, std::move(engine));
     amrex::Print() << "[FIRE] Fire coupling enabled (engine " << m_fire_params.engine
@@ -3209,7 +3209,7 @@ ERF::restart ()
     if (m_plot2d_per_2 > zero) {last_plot2d_file_time_2 = std::floor(cur_time/m_plot2d_per_2) * m_plot2d_per_2;}
     if (m_plot3d_per_1 > zero) {last_plot3d_file_time_1 = std::floor(cur_time/m_plot3d_per_1) * m_plot3d_per_1;}
     if (m_plot3d_per_2 > zero) {last_plot3d_file_time_2 = std::floor(cur_time/m_plot3d_per_2) * m_plot3d_per_2;}
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
     // the fire plot clock is realigned like the others, so a restart keeps the
     // k * fire_plot_per instants instead of writing at its first step
     if (m_fire_plot_per > zero) {last_fire_plot_time = std::floor(cur_time/m_fire_plot_per) * m_fire_plot_per;}
@@ -3716,10 +3716,24 @@ ERF::ReadParameters ()
         pp.queryAdd("plot2d_per_1",  m_plot2d_per_1);
         pp.queryAdd("plot2d_per_2",  m_plot2d_per_2);
 
-#ifdef ERF_ENABLE_FIRE
-        pp.query("fire_plot_file", m_fire_plot_file);
-        pp.query("fire_plot_int",  m_fire_plot_int);
-        pp.query("fire_plot_per",  m_fire_plot_per);
+#ifdef ERF_USE_FIRE
+        // The engine's own fire plotfile, on the 3D plotfile schedule unless
+        // the deck gives one of its own
+        for (const char* old_key : {"fire_plot_file", "fire_plot_int", "fire_plot_per"}) {
+            if (pp.contains(old_key)) {
+                Abort(std::string("erf.") + old_key + " is now erf.fire." + std::string(old_key).substr(5));
+            }
+        }
+        {
+            ParmParse pp_fire("erf.fire");
+            pp_fire.query("plot_file", m_fire_plot_file);
+            const bool int_given = pp_fire.query("plot_int", m_fire_plot_int);
+            const bool per_given = pp_fire.query("plot_per", m_fire_plot_per);
+            if (!int_given && !per_given) {
+                m_fire_plot_int = m_plot3d_int_1;
+                m_fire_plot_per = m_plot3d_per_1;
+            }
+        }
 #endif
 
         pp.queryAdd("subvol_file",   subvol_file);

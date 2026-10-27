@@ -34,7 +34,7 @@ ERF::sum_integrated_quantities (double time)
     Real rhth_ml = zero;
     Real scal_ml = zero;
     Real mois_ml = zero;
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
     Real smoke_sl = zero;
     Real smoke_ml = zero;
 #endif
@@ -63,7 +63,7 @@ ERF::sum_integrated_quantities (double time)
             mois_sl += volWgtSumMF(0,vars_new[0][Vars::cons],RhoQ1_comp+qoff,dJ0,mfx0,mfy0,false);
         }
     }
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
     if (m_fire_coupler) {
         smoke_sl = volWgtSumMF(0, vars_new[0][Vars::cons], RhoSmoke_comp, dJ0, mfx0, mfy0, false);
     }
@@ -81,7 +81,7 @@ ERF::sum_integrated_quantities (double time)
                 mois_ml += volWgtSumMF(lev,vars_new[lev][Vars::cons],RhoQ1_comp+qoff,dJ,mfx,mfy,true);
             }
         }
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
         if (m_fire_coupler) {
             smoke_ml += volWgtSumMF(lev, vars_new[lev][Vars::cons], RhoSmoke_comp, dJ, mfx, mfy, true);
         }
@@ -107,7 +107,7 @@ ERF::sum_integrated_quantities (double time)
         h_avg_olen  /= area_z;
     }
 
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
     const int nfoo = 10;
     Real foo[nfoo] = {mass_sl,rhth_sl,scal_sl,mois_sl,smoke_sl,mass_ml,rhth_ml,scal_ml,mois_ml,smoke_ml};
 #else
@@ -127,14 +127,14 @@ ERF::sum_integrated_quantities (double time)
         rhth_sl = foo[i++];
         scal_sl = foo[i++];
         mois_sl = foo[i++];
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
         smoke_sl = foo[i++];
 #endif
         mass_ml = foo[i++];
         rhth_ml = foo[i++];
         scal_ml = foo[i++];
         mois_ml = foo[i++];
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
         smoke_ml = foo[i++];
 #endif
 
@@ -153,7 +153,7 @@ ERF::sum_integrated_quantities (double time)
            Print() << std::setprecision(sumprecision) << " RHO THETA  = " << rhth_sl << '\n';
            if (solverChoice.transport_scalar) { Print() << std::setprecision(sumprecision) << " RHO SCALAR = " << scal_sl << '\n'; }
            if (solverChoice.moisture_type != MoistureType::None) { Print() << std::setprecision(sumprecision) << " RHO QTOTAL = " << mois_sl << '\n'; }
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
            if (m_fire_coupler) { Print() << std::setprecision(sumprecision) << " RHO SMOKE  = " << smoke_sl << '\n'; }
 #endif
         } else {
@@ -165,7 +165,7 @@ ERF::sum_integrated_quantities (double time)
            Print() << std::setprecision(sumprecision) << " RHO THETA  SL/ML = " << rhth_sl << " " << rhth_ml << '\n';
            if (solverChoice.transport_scalar) { Print() << std::setprecision(sumprecision) << " RHO SCALAR SL/ML = " << scal_sl << " " << scal_ml << '\n'; }
            if (solverChoice.moisture_type != MoistureType::None) { Print() << std::setprecision(sumprecision) << " RHO QTOTAL SL/ML = " << mois_sl << " " << mois_ml << '\n'; }
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
            if (m_fire_coupler) { Print() << std::setprecision(sumprecision) << " RHO SMOKE  SL/ML = " << smoke_sl << " " << smoke_ml << '\n'; }
 #endif
         }

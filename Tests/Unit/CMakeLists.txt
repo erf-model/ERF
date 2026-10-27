@@ -323,6 +323,7 @@ if(ERF_ENABLE_FIRE)
     ${CMAKE_CURRENT_SOURCE_DIR}/Fire/ERF_GTestFireAtmInjection.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Fire/ERF_GTestFireCoupler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Fire/ERF_GTestFirePrecip.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Fire/ERF_GTestFireRegistry.cpp
   )
 endif()
 if(ERF_DIM STREQUAL "3")
@@ -396,7 +397,7 @@ erf_register_gtest_suite(${erf_exe_name}
 if(ERF_ENABLE_FIRE)
   add_test(NAME FireCouplingGTests_FpeTraps
     COMMAND ${erf_exe_name}
-      --gtest_filter=FireAnchorLevel.*:FireCoupler.*:FirePrecip.*:ExnerTendency.*:HeatInjection.*:SmokeInjection.*
+      --gtest_filter=FireAnchorLevel.*:FireCoupler.*:FirePrecip.*:FireRegistry.*:ExnerTendency.*:HeatInjection.*:SmokeInjection.*
       amrex.fpe_trap_invalid=1 amrex.fpe_trap_zero=1 amrex.fpe_trap_overflow=1)
   set_tests_properties(FireCouplingGTests_FpeTraps PROPERTIES LABELS "unit;fire" TIMEOUT 600)
 endif()

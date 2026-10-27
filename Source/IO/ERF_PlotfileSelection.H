@@ -115,7 +115,7 @@ plot3d_q_conserved_component_index (const int q)
 /**
  * @brief Names of the raw conserved-state variables, in component order.
  *
- * The optional smoke scalar (RhoSmoke_comp, under ERF_ENABLE_FIRE) sits
+ * The optional smoke scalar (RhoSmoke_comp, under ERF_USE_FIRE) sits
  * between rhoadv_0 and rhoQ1 exactly as in ERF_IndexDefines.H.  Every name
  * here must map to a component in plot3d_conserved_component_index, or it can
  * never be plotted.
@@ -124,7 +124,7 @@ inline amrex::Vector<std::string>
 plot3d_conserved_state_names ()
 {
     amrex::Vector<std::string> names = {"density", "rhotheta", "rhoKE", "rhoadv_0"};
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
     names.push_back("smoke");
 #endif
     names.insert(names.end(), {
@@ -149,7 +149,7 @@ plot3d_conserved_component_index (const std::string& name)
     if (name == "rhotheta") return RhoTheta_comp;
     if (name == "rhoKE")    return RhoKE_comp;
     if (name == "rhoadv_0") return RhoScalar_comp;
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
     if (name == "smoke") return RhoSmoke_comp;
 #endif
 

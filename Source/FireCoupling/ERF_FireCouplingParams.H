@@ -18,8 +18,8 @@ struct FireCouplingParams
 {
     /// erf.fire.enable: run a fire
     bool        enable                = false;
-    /// erf.fire.engine: the fire engine behind the coupling (default: the first
-    /// engine fire_engine_names() lists)
+    /// erf.fire.engine: the fire engine behind the coupling (default: the only
+    /// engine compiled in; required when there are several)
     std::string engine;
     /// erf.fire.grid_ratio: fire cells per atmospheric cell in x and y
     int         grid_ratio            = 5;
@@ -58,8 +58,8 @@ struct FireCouplingParams
     bool injects_flux()   const { return is_lagged() || is_synchronous(); }
 
     /// Parse and check the keys above from erf.fire.*. With erf.fire.enable,
-    /// erf.fire.engine must name an engine built into this ERF
-    /// (fire_engine_names(), ERF_FireEngineFactory.H).
+    /// erf.fire.engine must name an engine compiled into this executable
+    /// (fire_engine_names(), ERF_FireEngineRegistry.H).
     static FireCouplingParams read ();
 };
 

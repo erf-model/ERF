@@ -2,6 +2,8 @@
 #define ERF_FIRE_COUPLER_H
 
 #include <memory>
+#include <string>
+#include <vector>
 #include <AMReX_MultiFab.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_BoxArray.H>
@@ -166,6 +168,26 @@ public:
      */
     void read_checkpoint (const std::string& restart_chkfile, int max_level, int step);
 
+    /// Fire fields the ERF plotfile can carry (FireEngine::plot_var_names(), read at construction,
+    /// before ERF reads erf.plot_vars_*).
+    const std::vector<std::string>& plot_var_names () const { return m_plot_var_names; }
+
+    /**
+     * @brief Fill component dcomp of an ERF plotfile MultiFab of level lev
+     *        with the fire field name
+     *
+     * On the fire grid's level, the k = 0 cell of each column holds the mean
+     * of the engine's field (FireEngine::plot_var) over the fire cells under
+     * it; every other cell, every other level and a field the engine returns
+     * as nullptr hold zero.
+     *
+     * @param[in]  name  One of plot_var_names()
+     * @param[out] dst   Cell-centred MultiFab on the boxes of level lev
+     * @param[in]  dcomp Component of dst to fill
+     * @param[in]  lev   The level dst belongs to
+     */
+    void fill_plot_var (const std::string& name, amrex::MultiFab& dst, int dcomp, int lev) const;
+
     /// The level the fire grid refines (erf.fire.anchor_level, resolved at initialize).
     int level () const { return m_lev; }
 
@@ -208,6 +230,8 @@ private:
     // level they hold zero.
     std::unique_ptr<amrex::MultiFab> m_Q_atm_prev;      ///< sensible [W/m2]
     std::unique_ptr<amrex::MultiFab> m_Q_lat_atm_prev;  ///< latent   [W/m2]
+
+    std::vector<std::string> m_plot_var_names;  ///< FireEngine::plot_var_names(), read at construction
 };
 
 #endif

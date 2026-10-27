@@ -1,5 +1,5 @@
 #include <ERF_FireCouplingParams.H>
-#include <ERF_FireEngineFactory.H>
+#include <ERF_FireEngineRegistry.H>
 #include <AMReX_ParmParse.H>
 #include <AMReX_Print.H>
 
@@ -38,16 +38,23 @@ FireCouplingParams::read ()
              + std::to_string(c.anchor_level));
     }
 
-    // The engine: one built into this ERF, the first by default
+    // The engine: one compiled into this executable (ERF_REGISTER_FIRE_ENGINE).
+    // With a single engine it is the default; with several the deck names one.
     const std::vector<std::string> engines = fire_engine_names();
-    if (!engines.empty()) { c.engine = engines.front(); }
+    if (engines.size() == 1) { c.engine = engines.front(); }
     const bool engine_given = pp.query("engine", c.engine);
     if (engine_given || c.enable) {
         if (engines.empty()) {
             fail(std::string(c.enable ? "erf.fire.enable = true" : "erf.fire.engine is set")
-                 + ", but this ERF has no fire engine built in: Source/FireCoupling holds only the "
-                   "coupling to the atmosphere. Source/FireCoupling/ERF_FireEngineTemplate.H lists what "
-                   "an engine provides and how to add one.");
+                 + ", but no fire engine is compiled into this executable: Source/FireCoupling holds "
+                   "only the coupling to the atmosphere. Build with an engine directory (GNU make "
+                   "FIRE_HOME, CMake ERF_FIRE_ENGINE_DIRS); Source/FireCoupling/ERF_FireEngineTemplate.H "
+                   "lists what an engine provides.");
+        }
+        if (!engine_given && engines.size() > 1) {
+            std::string list;
+            for (const auto& a : engines) { list += (list.empty() ? "" : ", ") + std::string("\"") + a + "\""; }
+            fail("several fire engines are compiled in (" + list + "): set erf.fire.engine to one of them");
         }
         one_of("engine", c.engine, engines);
     }

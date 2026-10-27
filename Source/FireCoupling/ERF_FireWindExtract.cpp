@@ -255,3 +255,40 @@ void fill_fire_wind_from_interpolation(
         });
     }
 }
+
+void extract_fire_wind_k0(
+    amrex::MultiFab&       u_k0,
+    amrex::MultiFab&       v_k0,
+    amrex::MultiFab&       h_k0,
+    const amrex::MultiFab& xvel,
+    const amrex::MultiFab& yvel,
+    const amrex::MultiFab& z_phys_cc,
+    const amrex::MultiFab* z_phys_nd,
+    const amrex::Geometry& geom)
+{
+    using namespace amrex;
+    const int  k0      = geom.Domain().smallEnd(2);
+    const Real z_floor = geom.ProbLo(2);
+    const bool use_znd = (z_phys_nd != nullptr);
+    for (MFIter mfi(u_k0); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.validbox();
+        const auto u   = xvel.const_array(mfi);
+        const auto v   = yvel.const_array(mfi);
+        const auto zcc = z_phys_cc.const_array(mfi);
+        const Array4<Real const> znd = use_znd ? z_phys_nd->const_array(mfi) : Array4<Real const>{};
+        const auto us = u_k0.array(mfi);
+        const auto vs = v_k0.array(mfi);
+        const auto hs = h_k0.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        {
+            us(i,j,0) = Real(0.5) * (u(i,j,k0) + u(i+1,j,k0));
+            vs(i,j,0) = Real(0.5) * (v(i,j,k0) + v(i,j+1,k0));
+            const Real zsfc = use_znd ? Real(0.25) * (znd(i,j,k0) + znd(i+1,j,k0) + znd(i,j+1,k0) + znd(i+1,j+1,k0))
+                                      : z_floor;
+            hs(i,j,0) = zcc(i,j,k0) - zsfc;
+        });
+    }
+    u_k0.FillBoundary(geom.periodicity());
+    v_k0.FillBoundary(geom.periodicity());
+    h_k0.FillBoundary(geom.periodicity());
+}

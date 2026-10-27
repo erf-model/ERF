@@ -493,7 +493,7 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
         Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(), U_new, V_new, W_new);
     }
 
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
     // Advance the fire on the level its grid refines (erf.fire.anchor_level).
     // The coupler hands the engine the wind (before the dycore with passive and
     // lagged coupling, after it with synchronous), the air temperature and

@@ -229,7 +229,7 @@ ERF::WriteCheckpointFile () const
        HeaderFile << ncomp_cons << "\n";
 
        // The passive-scalar block is compile-time (NSCALARS: the base scalar,
-       // plus smoke with ERF_ENABLE_FIRE), so record it next to the header: a
+       // plus smoke with ERF_USE_FIRE), so record it next to the header: a
        // reader built differently would otherwise shift every component after
        // it (and with a difference of one take the QKE backward-compatibility
        // path below).
@@ -797,7 +797,7 @@ ERF::WriteCheckpointFile () const
 #endif
     } // for lev
 
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
     // The fire: the engine's state (FireEngine::write_checkpoint), then the
     // coupling's lagged fluxes, on the level the fire grid refines
     if (m_fire_coupler) {
@@ -1227,7 +1227,7 @@ ERF::ReadCheckpointFile ()
             unsupported.push_back("spectral bin microphysics (its spectrum is still read onto "
                                   "the run's grids)");
         }
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
         // The fire grid is built from the level's boxes (which must divide by
         // erf.fire.grid_ratio) and its state is read onto them; re-made boxes
         // would trip the grid-ratio check or VisMF's BoxArray check instead.
@@ -1364,7 +1364,7 @@ ERF::ReadCheckpointFile ()
             ("Checkpoint " + restart_chkfile + " was written with " + std::to_string(nsc)
              + " passive scalar(s)" + (recorded ? "" : " (it records no scalar layout, so it predates the"
              " fire coupling's smoke scalar)") + " but this build has " + std::to_string(NSCALARS)
-             + " (ERF_ENABLE_FIRE adds the smoke scalar); restart with a build configured like the one"
+             + " (ERF_USE_FIRE adds the smoke scalar); restart with a build configured like the one"
              " that wrote it").c_str());
     }
 

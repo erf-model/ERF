@@ -14,7 +14,7 @@
  * @file ERF_GTestMultiScalarSlots.cpp
  * @brief Component maps with more than one passive scalar (NSCALARS > 1)
  *
- * Builds with extra passive scalars (the fire coupling's smoke, ERF_ENABLE_FIRE)
+ * Builds with extra passive scalars (the fire coupling's smoke, ERF_USE_FIRE)
  * put them between rhoadv_0 and rhoQ1, so every moisture component moves up by
  * NSCALARS - 1 while the boundary-condition slots (BCVars) and the boundary
  * planes keep one slot for all the scalars. The checks cover the three maps

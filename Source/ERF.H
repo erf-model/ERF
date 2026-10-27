@@ -71,7 +71,7 @@
 #include "ERF_EulerianMicrophysics.H"
 #include "ERF_LagrangianMicrophysics.H"
 #include "ERF_LandSurface.H"
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
 #include "ERF_FireCoupler.H"
 #endif
 #include "ERF_Urban.H"
@@ -1730,7 +1730,7 @@ private:
     static double last_plot2d_file_time_2;
     static double last_check_file_time;
 
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
     static double last_fire_plot_time;   // double: writeNow() takes double&, as for the other plot times
 #endif
 
@@ -2175,7 +2175,7 @@ private:
     amrex::Vector<std::unique_ptr<SurfaceLayer>>     m_SurfaceLayer;
     amrex::Vector<std::unique_ptr<ForestDrag>> m_forest_drag;
 
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
     /// The fire coupling (atmosphere side) and the engine it owns (erf.fire.engine)
     std::unique_ptr<FireCoupler>      m_fire_coupler = nullptr;
     FireCouplingParams                m_fire_params;

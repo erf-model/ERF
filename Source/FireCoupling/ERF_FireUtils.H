@@ -157,4 +157,27 @@ void fire_copy_k0_plane(amrex::MultiFab& dst_2d, const amrex::MultiFab& src_3d)
     }
 }
 
+/**
+ * @brief Copy a MultiFab between device and host-accessible memory, for an
+ *        engine whose fire physics runs on the host
+ *
+ * The memory contract of ERF_FireEngine.H: the coupling's fields are in the
+ * default arena (device memory on a GPU build) and are only valid during the
+ * call that hands them over; an engine's returned fields must be readable
+ * there too. dst and src have the same BoxArray and DistributionMapping;
+ * ncomp components and nghost ghost cells are copied from component 0. dst
+ * belongs to the caller (allocate a host copy once with
+ * amrex::MFInfo().SetArena(amrex::The_Pinned_Arena()), or The_Managed_Arena(),
+ * and reuse it). The copy completes before the call returns: the GPU stream is
+ * synchronised, so the host may read dst, or the device read it, right away.
+ * On a CPU build it is a plain copy.
+ */
+inline
+void fire_host_copy(amrex::MultiFab& dst, const amrex::MultiFab& src, int ncomp = 1, int nghost = 0)
+{
+    AMREX_ALWAYS_ASSERT(dst.boxArray() == src.boxArray() && dst.DistributionMap() == src.DistributionMap());
+    amrex::MultiFab::Copy(dst, src, 0, 0, ncomp, nghost);
+    amrex::Gpu::streamSynchronize();
+}
+
 #endif  // ERF_FIRE_UTILS_H

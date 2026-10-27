@@ -1,7 +1,7 @@
 #ifndef ERF_FIRE_SMOKE_EMISSION_H
 #define ERF_FIRE_SMOKE_EMISSION_H
 
-#ifdef ERF_ENABLE_FIRE
+#ifdef ERF_USE_FIRE
 
 #include <AMReX_MultiFab.H>
 #include <AMReX_Geometry.H>
@@ -40,5 +40,5 @@ void inject_smoke_from_fire(
     bool                   fire_debug,
     int                    step);
 
-#endif // ERF_ENABLE_FIRE
+#endif // ERF_USE_FIRE
 #endif // ERF_FIRE_SMOKE_EMISSION_H
