@@ -180,7 +180,8 @@ applied over the range :math:`[-\phi, +\phi]` then introduced to the
 :math:`\rho \theta` field via source term (:math:`F_{\rho \theta}`). As temperature
 is transported and through the action of the subgrid-scale (SGS) filter for eddy
 viscosity, white-noise temperature perturbations become colored noise in the
-velocity field.
+velocity field. Since the perturbation enters only as a source term, none is
+added to the initial state; the forcing starts with the first time step.
 
 The perturbations do not depend on the domain decomposition, for every
 ``erf.perturbation_type``. A perturbation box's mean velocity, update interval and
@@ -210,7 +211,7 @@ entering the right-hand side as a source term, the perturbation is added to the
 where :math:`\Delta t` is the current time step of the level. Since the increment
 is scaled by the current time step, a box receives a total of
 :math:`\Delta \overline{\phi}` over one update interval :math:`t_p` even when the
-time step varies. Unlike the ``source`` method, no perturbation is added at the
+time step varies. As for the ``source`` method, no perturbation is added at the
 initial time.
 
 To activate the ``direct`` type forcing, set the following inputs list.
