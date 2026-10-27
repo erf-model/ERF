@@ -736,6 +736,10 @@ ERF::FillPlot2DVars (int lev,
 void
 ERF::Write2DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string> plot_var_names)
 {
+    // Station rows are buffered, and a run that aborts never reaches the next
+    // flush: flushing here keeps the station series as far along as the plotfiles.
+    flush_stations();
+
     const int plot_step = istep[0];
     const std::string plotfilename = make_2d_plotfile_name(which, plot_step,
                                                            plot2d_file_1, plot2d_file_2,

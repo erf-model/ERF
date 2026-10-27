@@ -1961,6 +1961,10 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 {
     auto dPlotTime0 = amrex::second();
 
+    // Station rows are buffered, and a run that aborts never reaches the next
+    // flush: flushing here keeps the station series as far along as the plotfiles.
+    flush_stations();
+
     Real tnew = static_cast<Real>(t_new[0]);
 
     const Vector<std::string> varnames = PlotFileVarNames(plot_var_names);
