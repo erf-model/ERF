@@ -65,11 +65,6 @@
         // Set an initial value for KE
         state_pert(i, j, k, RhoKE_comp) = KE_0;
 
-        if (use_moisture) {
-            state_pert(i, j, k, RhoQ1_comp) = 0.0;
-            state_pert(i, j, k, RhoQ2_comp) = 0.0;
-        }
-
         // sinusoidal variation of theta and qv for regression tests
         if (pert_deltaT != 0.0)
         {
