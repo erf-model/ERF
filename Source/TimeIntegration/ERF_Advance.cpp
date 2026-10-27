@@ -91,11 +91,14 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
             (*physbcs_w[lev])(W_old, U_old, V_old, W_old.nGrowVect(), time, BCVars::zvel_bc, true);
         } else {
             auto m_ixtype = S_old.boxArray().ixType(); // Conserved term
+            // The direct perturbation stores a rate, so it adds rate * dt at every step;
+            //    CPM stores the increment itself, which it adds once per refresh
+            const Real pert_scale = (solverChoice.pert_type[lev] == PerturbationType::Direct) ? Real(dt_lev) : one;
             for (MFIter mfi(S_old,TileNoZ()); mfi.isValid(); ++mfi) {
                 Box bx  = mfi.tilebox();
                 const Array4<Real> &cell_data  = S_old.array(mfi);
                 const Array4<const Real> &pert_cell = turbPert.pb_cell[lev].array(mfi);
-                turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cell_data, pert_cell);
+                turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cell_data, pert_cell, pert_scale);
             }
             // apply_tpi only modifies valid cells, but the ghost cells must agree with them:
             //   the first RK stage reads them across box boundaries, and the next finer

@@ -1293,10 +1293,6 @@ List of Parameters
      - Definition
      - Acceptable values
      - Default
-   * - **erf.expand_plotvars_to_unif_rr**
-     - Expand plot variables to a uniform refinement ratio for mixed-refinement cases
-     - Boolean
-     - false
    * - **erf.compute_mean_vars**
      - Accumulate interval first and second moments for resolved plot diagnostics
      - Boolean
@@ -2105,10 +2101,11 @@ The allowed advection types for the dycore variables are:
   "WENOZ3"
   "WENOZ5", and
   "WENOZ7"
+* Third-order WENO-MZQ scheme:
+  "WENOMZQ3"
 
 In addition to the above advection schemes for dycore variables, dry and moist
-scalars also have the option of using "Upwind_3rd_SL" (slope-limited) and
-"WENOMZQ3."
+scalars also have the option of using "Upwind_3rd_SL" (slope-limited).
 
 To use the blended schemes, ``erf.[vartype]_[horiz|vert]_upw_frac`` for the corresponding
 ``erf.[vartype]_[horiz|vert]_adv_type`` should be set to a scalar between 0 and 1, where 1 is fully
@@ -2754,12 +2751,12 @@ Constant Mass Flux
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | Parameter                        | Definition                                               | Acceptable Values  | Default          |
 +==================================+==========================================================+====================+==================+
-| **erf.const_massflux_u**         | target mass flux in the x direction; requires periodic   | Real               | 0.0              |
-|                                  | boundaries in x                                          |                    |                  |
+| **erf.const_massflux_u**         | bulk velocity (m/s) whose mass flux through the layer is | Real               | 0.0              |
+|                                  | held in x, by a uniform source that acts like a          |                    |                  |
+|                                  | background pressure gradient; 0 turns it off; requires   |                    |                  |
+|                                  | periodic boundaries in x                                 |                    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.const_massflux_v**         | representing a background driving pressure gradient), to | Real               | 0.0              |
-|                                  | obtain a desired mass flux with the specified bulk       |                    |                  |
-|                                  | velocity in x,y                                          |                    |                  |
+| **erf.const_massflux_v**         | the same in y; requires periodic boundaries in y         | Real               | 0.0              |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.const_massflux_layer_lo**  | height of the bottom of the layer over which the         | Real               | bottom of domain |
 |                                  | constant mass flux is enforced                           |                    |                  |
@@ -2767,8 +2764,8 @@ Constant Mass Flux
 | **erf.const_massflux_layer_hi**  | height of the top of the layer over which the constant   | Real               | top of domain    |
 |                                  | mass flux is enforced                                    |                    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.const_massflux_tau**       | Timescale over which to adjust the background pressure   | Real > 0           | 1.0              |
-|                                  | gradient to match the specified mass flux                |                    |                  |
+| **erf.const_massflux_tau**       | time scale (s) over which the mass flux relaxes to its   | Real > 0; the run  | 1.0              |
+|                                  | target                                                   | stops otherwise    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 .. _sec:GravityCoriolisInputs:
@@ -3286,11 +3283,6 @@ Boundary Plane I/O (Coupling Support)
 These options control writing and reading boundary-plane data for coupling
 workflows (e.g., AMR-Wind). See :ref:`CouplingToAMRWind` for examples.
 
-The one-dimensional column output used by the same coupling is configured with
-``erf.output_1d_column``, ``erf.column_file_name``, ``erf.column_interval``,
-``erf.column_per``, ``erf.column_loc_x`` and ``erf.column_loc_y``, all of which
-are documented on that page rather than here.
-
 List of Parameters
 ------------------
 
@@ -3689,8 +3681,9 @@ List of Parameters
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.terrain_file_name_nc**     | NetCDF terrain filename                                  | String             | NONE             |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.buildings_type**           | how buildings are represented; see :ref:`Forcings`       | None,              | None             |
-|                                  |                                                          | ImmersedForcing    |                  |
+| **erf.buildings_type**           | how buildings are represented; see :ref:`Forcings`;      | None,              | None             |
+|                                  | ImmersedForcing is not supported with                    | ImmersedForcing    |                  |
+|                                  | ``erf.terrain_type`` = EB                                |                    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.use_rotate_surface_flux**  | rotate the MOST surface stresses to be normal to the     | Boolean            | false            |
 |                                  | terrain surface; requires that terrain be used           |                    |                  |

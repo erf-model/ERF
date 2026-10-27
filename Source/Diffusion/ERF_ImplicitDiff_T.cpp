@@ -189,11 +189,10 @@ ImplicitDiffForStateLU_T (const Box& bx,
             {
                 getRhoAlpha(i, j, klo, rhoAlpha_lo, rhoAlpha_hi,
                             cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
-                            prim_index, prim_scal_index, l_consA, l_turb);
+                            prim_scal_index, l_consA, l_turb);
                 Real metric_lo = zero, metric_hi = zero;
                 if (implicit_metric) {
-                    const Real alpha_mol = (l_consA && l_turb) ? d_alpha_eff[prim_scal_index]
-                                                               : d_alpha_eff[prim_index];
+                    const Real alpha_mol = d_alpha_eff[prim_scal_index];
                     TerrainMetricScalarCoeffs(i, j, klo, dom_klo, dom_khi, metric_lo, metric_hi,
                                               cell_data, mu_turb, alpha_mol, eddy_h_comp,
                                               l_consA, l_turb, z_nd, cellSizeInv, mf_mx, mf_my);
@@ -246,11 +245,10 @@ ImplicitDiffForStateLU_T (const Box& bx,
             for (int k(klo+1); k < khi; k++) {
                 getRhoAlpha(i, j, k, rhoAlpha_lo, rhoAlpha_hi,
                             cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
-                            prim_index, prim_scal_index, l_consA, l_turb);
+                            prim_scal_index, l_consA, l_turb);
                 Real metric_lo = zero, metric_hi = zero;
                 if (implicit_metric) {
-                    const Real alpha_mol = (l_consA && l_turb) ? d_alpha_eff[prim_scal_index]
-                                                               : d_alpha_eff[prim_index];
+                    const Real alpha_mol = d_alpha_eff[prim_scal_index];
                     TerrainMetricScalarCoeffs(i, j, k, dom_klo, dom_khi, metric_lo, metric_hi,
                                               cell_data, mu_turb, alpha_mol, eddy_h_comp,
                                               l_consA, l_turb, z_nd, cellSizeInv, mf_mx, mf_my);
@@ -293,11 +291,10 @@ ImplicitDiffForStateLU_T (const Box& bx,
             {
                 getRhoAlpha(i, j, khi, rhoAlpha_lo, rhoAlpha_hi,
                             cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
-                            prim_index, prim_scal_index, l_consA, l_turb);
+                            prim_scal_index, l_consA, l_turb);
                 Real metric_lo = zero, metric_hi = zero;
                 if (implicit_metric) {
-                    const Real alpha_mol = (l_consA && l_turb) ? d_alpha_eff[prim_scal_index]
-                                                               : d_alpha_eff[prim_index];
+                    const Real alpha_mol = d_alpha_eff[prim_scal_index];
                     TerrainMetricScalarCoeffs(i, j, khi, dom_klo, dom_khi, metric_lo, metric_hi,
                                               cell_data, mu_turb, alpha_mol, eddy_h_comp,
                                               l_consA, l_turb, z_nd, cellSizeInv, mf_mx, mf_my);
@@ -901,11 +898,10 @@ ImplicitVerticalFluxForReflux_T (const Box& bx,
         Real rhoAlpha_lo, rhoAlpha_hi;
         const int kc = (k <= khi) ? k : k-1;
         getRhoAlpha(i, j, kc, rhoAlpha_lo, rhoAlpha_hi, cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
-                    prim_index, prim_scal_index, l_consA, l_turb);
+                    prim_scal_index, l_consA, l_turb);
         Real metric_lo = zero, metric_hi = zero;
         if (implicit_metric) {
-            const Real alpha_mol = (l_consA && l_turb) ? d_alpha_eff[prim_scal_index]
-                                                       : d_alpha_eff[prim_index];
+            const Real alpha_mol = d_alpha_eff[prim_scal_index];
             TerrainMetricScalarCoeffs(i, j, kc, dom_klo, dom_khi, metric_lo, metric_hi,
                                       cell_data, mu_turb, alpha_mol, eddy_h_comp,
                                       l_consA, l_turb, z_nd, cellSizeInv, mf_mx, mf_my);

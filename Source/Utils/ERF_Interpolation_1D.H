@@ -18,6 +18,12 @@ amrex::Real interpolate_1d (const amrex::Real* alpha, const amrex::Real* beta,
     // below is such that it will always be assigned some other value.
     amrex::Real beta_interp = bogus_large_value;
 
+    // A single point gives a constant: there is no second point to interpolate or
+    //    extrapolate with
+    if (alpha_size == 1) {
+        return beta[0];
+    }
+
     // If the interpolation point already exists in the array,
     // just return it
     for (int i = 0; i < alpha_size; ++i) {
@@ -33,7 +39,7 @@ amrex::Real interpolate_1d (const amrex::Real* alpha, const amrex::Real* beta,
     amrex::Real alpha_max = alpha[alpha_size-1];
     if (alpha_interp >= alpha_min && alpha_interp <= alpha_max) //interpolate
     {
-        for (int i = 0; i < alpha_size; ++i)
+        for (int i = 0; i < alpha_size - 1; ++i)
         {
             if (alpha_interp >= alpha[i] && alpha_interp <= alpha[i + 1])
             {

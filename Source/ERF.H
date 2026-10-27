@@ -554,6 +554,9 @@ public:
     void write_1D_profiles (double time);
     void write_1D_profiles_stag (double time);
 
+    // Fill the ghost cells the boundary planes read, then write the planes
+    void write_bndry_planes (int step, double time);
+
     amrex::Real cloud_fraction (double time);
 
     // Fill the physical boundary conditions for cell-centered velocity (diagnostic only)
@@ -859,13 +862,6 @@ public:
                           amrex::MultiFab& dens, amrex::MultiFab& pres, amrex::MultiFab& pi,
                           amrex::MultiFab& th, amrex::MultiFab& qv,
                           std::unique_ptr<amrex::MultiFab>& z_cc);
-
-#ifdef ERF_USE_NETCDF
-    //! Write a timestep to 1D vertical column output for coupling
-    void writeToNCColumnFile (int lev,
-                              const std::string& colfile_name, amrex::Real xloc, amrex::Real yloc,
-                              double time);
-#endif //ERF_USE_NETCDF
 
     void init_from_input_sounding (int lev);
 
@@ -1268,10 +1264,6 @@ private:
     void setSubVolVariables (const std::string& pp_subvol_var_names, amrex::Vector<std::string>& subvol_var_names);
 
 #ifdef ERF_USE_NETCDF
-    //! Create 1D vertical column output for coupling
-    void createNCColumnFile (int lev,
-                             const std::string& colfile_name, amrex::Real xloc, amrex::Real yloc);
-
     // Copy from the NC*fabs into the MultiFabs holding the boundary data
     void init_from_wrfbdy (amrex::Vector<amrex::FArrayBox*> x_vel_lateral,
                            amrex::Vector<amrex::FArrayBox*> y_vel_lateral,
@@ -1838,7 +1830,6 @@ private:
     std::string plot2d_file_1 {"plt2d_1_"};
     std::string plot2d_file_2 {"plt2d_2_"};
     std::string subvol_file {"subvol"};
-    bool m_expand_plotvars_to_unif_rr = false;
     int m_plot3d_int_1 = -1;
     int m_plot3d_int_2 = -1;
     int m_plot2d_int_1 = -1;
@@ -2089,14 +2080,6 @@ private:
     std::unique_ptr<amrex::MultiFab> wrf_PHB; // Base geopotential
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_PSFC;
-
-    // 1D CDF output (for ingestion in AMR-Wind)
-    static int         output_1d_column;
-    static int         column_interval;
-    static double column_per;
-    static amrex::Real column_loc_x;
-    static amrex::Real column_loc_y;
-    static std::string column_file_name;
 
     // 2D BndryRegister output (for ingestion in AMR-Wind)
     static int         output_bndry_planes;

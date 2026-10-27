@@ -2288,6 +2288,55 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
   unset(TEST_NAME)
 endif()
 
+# Constant mass-flux control (erf.const_massflux_u, erf.const_massflux_v) with
+# amrex.fpe_trap_invalid = 1. Without a mass flux the cross-sectional areas are zero, and
+# the guarded divisions by them formed 0/0 in optimised Apple clang builds, which divided
+# before testing the area: MassFlux_Off_TrapInvalid stopped with SIGILL at step 1 before
+# the fix. MassFlux_X_Relaxation checks the relaxation of the integrated x mass flux
+# against the closed form of the RK2 step (Tests/check_massflux_relaxation.py).
+if(NOT WIN32)
+  set(TEST_NAME MassFlux_Off_TrapInvalid)
+  set(TEST_FILES_DIR "MassFlux_TrapInvalid")
+  setup_test()
+  resolve_test_exe("" "erf_exec" TEST_EXE)
+  add_test(${TEST_NAME} sh -c
+    "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/MassFlux_TrapInvalid.i > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1")
+  set_tests_properties(${TEST_NAME} PROPERTIES
+      TIMEOUT 300 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+      LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+  unset(TEST_NAME)
+  unset(TEST_FILES_DIR)
+endif()
+
+if(NOT WIN32 AND ERF_TEST_PYTHON)
+  if(ERF_PRECISION STREQUAL "DOUBLE")
+    set(_massflux_tol 1e-8)
+  else()
+    set(_massflux_tol 1e-4)
+  endif()
+  set(TEST_NAME MassFlux_X_Relaxation)
+  set(TEST_FILES_DIR "MassFlux_TrapInvalid")
+  setup_test()
+  resolve_test_exe("" "erf_exec" TEST_EXE)
+  add_test(${TEST_NAME} sh -c
+    "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/MassFlux_TrapInvalid.i max_step=3 erf.const_massflux_u=1.0 erf.const_massflux_layer_lo=0.2 erf.const_massflux_layer_hi=0.6 > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_massflux_relaxation.py ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log --dt 0.025 --steps 3 --tol ${_massflux_tol}")
+  set_tests_properties(${TEST_NAME} PROPERTIES
+      TIMEOUT 300 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+      LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+  unset(TEST_NAME)
+  unset(TEST_FILES_DIR)
+  unset(_massflux_tol)
+endif()
+
+# erf.const_massflux_tau must be positive: the control divides by it
+if(NOT WIN32)
+  add_test_abort(MassFlux_TauZero_Abort
+                 ${CMAKE_CURRENT_SOURCE_DIR}/test_files/MassFlux_TrapInvalid
+                 MassFlux_TrapInvalid.i
+                 "erf.const_massflux_tau must be > 0"
+                 "erf.const_massflux_u=1.0 erf.const_massflux_tau=0")
+endif()
+
 # The projection on a stretched mesh that is periodic in z has no solver: it stops with the same
 # message with and without FFT, rather than the AMReX assertion of the hybrid FFT solver or a
 # request to rebuild with FFT (erf-model/ERF#4281)

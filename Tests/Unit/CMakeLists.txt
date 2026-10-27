@@ -324,6 +324,7 @@ if(ERF_DIM STREQUAL "3")
 endif()
 if(ERF_ENABLE_NETCDF)
   target_sources(${erf_exe_name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestNCInterface.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestTerrainNetCDF.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestForestDragNetCDF.cpp
   )

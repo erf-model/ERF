@@ -963,6 +963,12 @@ struct SolverChoice {
             amrex::Error("erf.terrain_type = MovingFittedMesh requires amr.max_level = 0");
         }
 
+        // Immersed-forcing buildings need the terrain blanking that init_zphys builds, and
+        // init_zphys returns before building it when the terrain is EB
+        if (terrain_type == TerrainType::EB && buildings_type == BuildingsType::ImmersedForcing) {
+            amrex::Error("erf.buildings_type = ImmersedForcing is not supported with erf.terrain_type = EB");
+        }
+
         if ( (moisture_type == MoistureType::SAM                ||
               moisture_type == MoistureType::SAM_NoIce          ||
               moisture_type == MoistureType::SAM_NoPrecip_NoIce   ) &&
@@ -1316,6 +1322,12 @@ struct SolverChoice {
         pp.queryAdd("const_massflux_u", const_massflux_u);
         pp.queryAdd("const_massflux_v", const_massflux_v);
         pp.queryAdd("const_massflux_tau", const_massflux_tau);
+        // The control divides by tau; tau <= 0 gives no source or one that drives the flow
+        //    away from the target
+        if (!(const_massflux_tau > amrex::Real(0))) {
+            amrex::Abort("erf.const_massflux_tau must be > 0 (got " +
+                         std::to_string(const_massflux_tau) + ")");
+        }
         pp.queryAdd("const_massflux_layer_lo", const_massflux_layer_lo);
         pp.queryAdd("const_massflux_layer_hi", const_massflux_layer_hi);
 
