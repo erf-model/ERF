@@ -165,6 +165,9 @@ eb_::make_cc_factory ([[maybe_unused]] int level,
     m_factory = std::make_unique<EBFArrayBoxFactory>(a_eb_level, a_geom, ba, dm,
         Vector<int>{nghost_basic(), nghost_volume(), nghost_full()}, m_support_level);
 
+    // Correct cell connectivity
+    eb_::set_connection_flags(m_factory.get());
+
     m_u_cut_cells.clear();
     m_v_cut_cells.clear();
     m_w_cut_cells.clear();

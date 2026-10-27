@@ -60,7 +60,7 @@
             Real rand_double = amrex::Random(engine); // Between zero and one
             state_pert(i, j, k, RhoTheta_comp) = (rand_double*two - one)*T_0_Pert_Mag;
         }
-        if ((z <= pert_ref_height) && (Q_0_Pert_Mag != zero)) {
+        if (use_moisture && (z <= pert_ref_height) && (Q_0_Pert_Mag != zero)) {
             Real rand_double = amrex::Random(engine); // Between zero and one
             state_pert(i, j, k, RhoQ1_comp) = (rand_double*two - one)*Q_0_Pert_Mag;
         }
@@ -78,7 +78,7 @@
 
             Real rhotheta  = state(i,j,k,RhoTheta_comp);
             Real rho       = state(i,j,k,Rho_comp);
-            Real qv        = state(i,j,k,RhoQ1_comp) / rho;
+            Real qv        = (use_moisture) ? state(i,j,k,RhoQ1_comp) / rho : zero;
             Real Told      = getTgivenRandRTh(rho,rhotheta,qv);
             Real P         = getPgivenRTh(rhotheta,qv);
 

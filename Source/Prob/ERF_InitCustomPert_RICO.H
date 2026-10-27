@@ -61,7 +61,7 @@
 
             Real rhotheta  = state(i,j,k,RhoTheta_comp);
             Real rho       = state(i,j,k,Rho_comp);
-            Real qv        = state(i,j,k,RhoQ1_comp) / rho;
+            Real qv        = (use_moisture) ? state(i,j,k,RhoQ1_comp) / rho : zero;
             Real Told      = getTgivenRandRTh(rho,rhotheta,qv);
             Real P         = getPgivenRTh(rhotheta,qv);
 
@@ -114,7 +114,7 @@
 
             Real rhotheta  = state(i,j,k,RhoTheta_comp);
             Real rho       = state(i,j,k,Rho_comp);
-            Real qv        = state(i,j,k,RhoQ1_comp) / rho;
+            Real qv        = (use_moisture) ? state(i,j,k,RhoQ1_comp) / rho : zero;
             Real Told      = getTgivenRandRTh(rho,rhotheta,qv);
             Real P         = getPgivenRTh(rhotheta,qv);
 
