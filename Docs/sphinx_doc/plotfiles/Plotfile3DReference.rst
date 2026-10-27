@@ -1129,6 +1129,9 @@ the kinematic momentum diffusivity ``Kmv / density``.
 The fixed conserved-state inventory is ``density``, ``rhotheta``, ``rhoKE``,
 ``rhoadv_0``, and ``rhoQ1`` through ``rhoQ11``. The ``rhoQ`` components are
 active only to the extent that the selected moisture model provides them.
+Builds with ``ERF_ENABLE_FIRE`` add ``smoke``, the fire coupling's smoke tracer
+as a mass concentration [kg/m^3], between ``rhoadv_0`` and ``rhoQ1``; it is zero
+unless a fire runs with ``erf.fire.smoke_enable``.
 
 Wind-farm-only variables
 ~~~~~~~~~~~~~~~~~~~~~~~~

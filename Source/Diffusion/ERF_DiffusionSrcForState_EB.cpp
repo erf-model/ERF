@@ -1,6 +1,7 @@
 #include "ERF_Diffusion.H"
 #include "ERF_EddyViscosity.H"
 #include <ERF_EBStruct.H>
+#include "ERF_NativeScalarDiffusion.H"
 
 using namespace amrex;
 

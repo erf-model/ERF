@@ -58,6 +58,54 @@ wrf_bdy_var_for_moisture_component (const int comp,
     return -1;
 }
 
+/**
+ * The real-boundary maps of the conserved state, one entry per conserved
+ * component up to NVAR_max: whether the component is read from the WRF/metgrid
+ * boundary data (read), from which boundary field (map), and from which
+ * boundary-plane slot when planes are read as well (bnd, cons_bc_comp).
+ * Density is read with erf.use_wrf_bdy_density, theta and the water vapour
+ * always; passive scalars never. Hydrometeor mappings retain the upstream
+ * read flags, which do not enable hydrometeor ghost-cell fills.
+ * Built from the component layout, so every passive scalar (NSCALARS of them)
+ * sits between RhoKE_comp and RhoQ1_comp.
+ */
+struct RealBdyConsMaps
+{
+    amrex::Vector<int> read;
+    amrex::Vector<int> map;
+    amrex::Vector<int> bnd;
+};
+
+inline RealBdyConsMaps
+real_bdy_cons_maps (const bool read_density,
+                    const MoistureComponentIndices& moisture_indices,
+                    const bool use_wrf_bdy_qc_qi,
+                    const bool separate_hydrometeors)
+{
+    RealBdyConsMaps m;
+    m.read.assign(NVAR_max, 0);
+    m.map.resize(NVAR_max);
+    m.bnd.resize(NVAR_max);
+    for (int comp = 0; comp < NVAR_max; ++comp) {
+        m.map[comp] = comp;
+        m.bnd[comp] = cons_bc_comp(comp);
+    }
+    m.read[Rho_comp]      = read_density ? 1 : 0;
+    m.map [Rho_comp]      = read_density ? RealBdyVars::R : Rho_comp;
+    m.read[RhoTheta_comp] = 1;
+    m.map [RhoTheta_comp] = RealBdyVars::T;
+    m.read[RhoQ1_comp]    = 1;
+    m.map [RhoQ1_comp]    = RealBdyVars::QV;
+    for (int comp = 0; comp < NVAR_max; ++comp) {
+        const int bdy_var = wrf_bdy_var_for_moisture_component(
+            comp, moisture_indices, use_wrf_bdy_qc_qi, separate_hydrometeors);
+        if (bdy_var >= 0) {
+            m.map[comp]  = bdy_var;
+        }
+    }
+    return m;
+}
+
 /*
  * Rebalance state to satisfy both EOS and HSE one column at a time
  */
