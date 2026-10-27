@@ -473,8 +473,9 @@ struct TurbulentPerturbation {
                 // Ma & Senocak (2023) Eq. 7
                 pb_amp[lev][boxIdx] /= static_cast<amrex::Real>(interval);
             } else if (pt_type[lev] == 1) {
-                // Direct mode: divide by number of timesteps to get per-step increment
-                // This gives the same total perturbation as source mode over one refresh interval
+                // Direct mode: divide by number of timesteps to get per-step increment.
+                // This gives the same total perturbation as source mode and should resolve
+                // instability issues previously associated with direct mode.
                 amrex::Real num_steps = interval / dt;
                 pb_amp[lev][boxIdx] /= num_steps;
             }
