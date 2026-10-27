@@ -3267,11 +3267,6 @@ Boundary Plane I/O (Coupling Support)
 These options control writing and reading boundary-plane data for coupling
 workflows (e.g., AMR-Wind). See :ref:`CouplingToAMRWind` for examples.
 
-The one-dimensional column output used by the same coupling is configured with
-``erf.output_1d_column``, ``erf.column_file_name``, ``erf.column_interval``,
-``erf.column_per``, ``erf.column_loc_x`` and ``erf.column_loc_y``, all of which
-are documented on that page rather than here.
-
 List of Parameters
 ------------------
 
