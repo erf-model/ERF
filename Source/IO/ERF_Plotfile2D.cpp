@@ -13,6 +13,7 @@
 #include "ERF_Plotfile2DUtils.H"
 #include "Diagnostics/ERF_NearSurfaceDiagnostics.H"
 #include "ERF_EpochTime.H"
+#include "ERF_LatLonMap.H"
 #include "ERF_SrcHeaders.H"
 #include "ERF_StormDiagnostics.H"
 #include "ERF_TerrainMetrics.H"
@@ -683,6 +684,24 @@ ERF::FillPlot2DVars (int lev,
     //    the pressure vertical coordinate.  This matches the 3-D plotfile path.
     MultiFab p_hse(base_state[lev], make_alias, BaseState::p0_comp, 1);
     const MultiFab* p_hse_ptr = (solverChoice.anelastic[lev] == 1) ? &p_hse : nullptr;
+    // The grid orientation, for the earth-relative u_east, v_north and wind_dir:
+    //    from this level's lat/lon when the run has them (a WRF or metgrid
+    //    initialization), otherwise the grid is taken to be aligned with east
+    const bool have_latlon = (lev < static_cast<int>(lat_m.size())) &&
+                             lat_m[lev] != nullptr && lon_m[lev] != nullptr;
+    // Every level is given lat/lon when level 0 has them (interpolated from the
+    //    coarser level, or read from the checkpoint). A level without them would
+    //    write grid-relative winds beside earth-relative ones in one plotfile.
+    const bool any_sampled = static_output_count < static_cast<int>(output_descriptors.size());
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!any_sampled || have_latlon || lat_m.empty() || lat_m[0] == nullptr,
+        "2D plotfile: level 0 has latitude/longitude arrays but this level does not, so its "
+        "sampled u_east, v_north and wind_dir could not be rotated to earth-relative");
+    MultiFab cos_alpha, sin_alpha;
+    if (have_latlon && any_sampled) {
+        cos_alpha.define(ba2d[lev], dmap[lev], 1, 0);
+        sin_alpha.define(ba2d[lev], dmap[lev], 1, 0);
+        fill_grid_rotation(cos_alpha, sin_alpha, *lat_m[lev], *lon_m[lev], geom[lev]);
+    }
     for (int out_idx = static_output_count; out_idx < static_cast<int>(output_descriptors.size()); ++out_idx) {
         const auto& descriptor = output_descriptors[out_idx];
         // Sampled-level descriptors are dynamic. The interpolator owns
@@ -692,6 +711,10 @@ ERF::FillPlot2DVars (int lev,
         wind_sources.xvel = &vars_new[lev][Vars::xvel];
         wind_sources.yvel = &vars_new[lev][Vars::yvel];
         wind_sources.zvel = &vars_new[lev][Vars::zvel];
+        if (have_latlon) {
+            wind_sources.cos_alpha = &cos_alpha;
+            wind_sources.sin_alpha = &sin_alpha;
+        }
         plotfile2d::fill_sampled_level_component(
             mf_dst, mf_comp, descriptor,
             vars_new[lev][Vars::cons],
