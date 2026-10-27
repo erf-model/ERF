@@ -57,7 +57,9 @@ struct FireForcing
  * Both fields live on the fire grid, per unit ground area, as the mean over
  * the engine's step; the coupling averages them onto the atmospheric columns
  * and injects them at the next step. The pointers stay valid until the
- * engine's next advance.
+ * engine's next advance. Sensible and latent pointers are independently
+ * optional: nullptr means no flux for that channel on this step, without
+ * suppressing a valid flux from the other channel.
  */
 struct FireFluxes
 {
