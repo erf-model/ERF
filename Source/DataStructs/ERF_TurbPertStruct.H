@@ -90,6 +90,12 @@ struct TurbulentPerturbation {
         // Reading inputs, and placing assertion for the perturbation inflow to work
         pp.getarr("perturbation_box_dims",tpi_boxDim);
         pp.getarr("perturbation_direction",tpi_direction);
+        if (tpi_boxDim.size() != 3) {
+            amrex::Abort("perturbation_box_dims must have 3 entries (Nx Ny Nz)");
+        }
+        if (tpi_direction.size() != 6) {
+            amrex::Abort("perturbation_direction must have 6 entries (west south bottom east north top)");
+        }
         pp.get("perturbation_layers",tpi_layers);
         pp.get("perturbation_offset",tpi_offset);
 
