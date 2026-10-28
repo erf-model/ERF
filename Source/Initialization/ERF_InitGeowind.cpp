@@ -31,16 +31,13 @@ void ERF::init_geo_wind_profile (const std::string input_file,
     const amrex::Real dz = lgeom.CellSize()[AMREX_SPACEDIM-1];
 
     // zlevels_stag is filled on every mesh, so the ProbLo/ProbHi branch below is reached only
-    // by a caller that passes no z levels.  The table's heights are physical heights: on a
-    // stretched mesh the z levels already are, while on a constant-dz mesh they run from 0
-    // (k * dz) and are shifted to start at geometry.prob_lo[2].
+    // by a caller that passes no z levels.  The table's heights are physical heights, as the
+    // z levels are: they start at geometry.prob_lo[2] on every mesh.
     const bool grid_stretch = (zlev_stag.size() > 0);
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!grid_stretch || zlev_stag.size() == khi+2,
         "init_geo_wind_profile: the z levels must be those of the level being filled");
-    const Real zlev_offset = (SolverChoice::mesh_type == MeshType::ConstantDz)
-                           ? lgeom.ProbLo(AMREX_SPACEDIM-1) : zero;
-    const Real zbot = (grid_stretch) ? zlev_stag[klo]   + zlev_offset : lgeom.ProbLo(AMREX_SPACEDIM-1);
-    const Real ztop = (grid_stretch) ? zlev_stag[khi+1] + zlev_offset : lgeom.ProbHi(AMREX_SPACEDIM-1);
+    const Real zbot = (grid_stretch) ? zlev_stag[klo]   : lgeom.ProbLo(AMREX_SPACEDIM-1);
+    const Real ztop = (grid_stretch) ? zlev_stag[khi+1] : lgeom.ProbHi(AMREX_SPACEDIM-1);
 
     amrex::Print() << "Reading geostrophic wind profile from " << input_file << std::endl;
     std::ifstream profile_reader(input_file);
@@ -89,7 +86,7 @@ void ERF::init_geo_wind_profile (const std::string input_file,
 
     // Now, interpolate vectors to the cell centers
     for (int k = 0; k <= khi; k++) {
-        z = (grid_stretch) ? myhalf * (zlev_stag[k] + zlev_stag[k+1]) + zlev_offset
+        z = (grid_stretch) ? myhalf * (zlev_stag[k] + zlev_stag[k+1])
                            : zbot + (k + myhalf) * dz;
         u_geos[k] = interpolate_1d(z_inp.dataPtr(), Ug_inp.dataPtr(), z, Ninp);
         v_geos[k] = interpolate_1d(z_inp.dataPtr(), Vg_inp.dataPtr(), z, Ninp);
