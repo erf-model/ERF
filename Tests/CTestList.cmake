@@ -4050,7 +4050,7 @@ set(_fex_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Fire_ExampleEngine_Restart)
 file(MAKE_DIRECTORY ${_fex_dir})
 file(COPY ${_fex_src}/inputs_fire_example ${_fex_src}/input_sounding DESTINATION ${_fex_dir})
 resolve_test_exe("" "erf_exec" _fex_exe)
-set(_fex_mpi "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} 2 ${MPIEXEC_PREFLAGS}")
+set(_fex_mpi "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 2 ${MPIEXEC_PREFLAGS}")
 add_test(NAME Fire_ExampleEngine_Restart
          COMMAND sh -c "rm -rf plt0* chk0* rst && ${_fex_mpi} ${_fex_exe} inputs_fire_example amrex.call_addr2line=0 > straight.log 2>&1 && grep -q fire_phi plt00008/Header && mkdir rst && cd rst && cp ../input_sounding . && ${_fex_mpi} ${_fex_exe} ../inputs_fire_example erf.restart=../chk00004 erf.check_int=-1 amrex.call_addr2line=0 > ../restart.log 2>&1 && cd .. && ${FCOMPARE_EXE} -r 0 --abs_tol 0 plt00008 rst/plt00008"
          WORKING_DIRECTORY ${_fex_dir})
@@ -4089,7 +4089,7 @@ file(MAKE_DIRECTORY ${_fl_dir})
 file(GLOB _fl_files "${_fire_abort_dir}/*")
 file(COPY ${_fl_files} DESTINATION ${_fl_dir})
 resolve_test_exe("" "erf_exec" _fl_exe)
-set(_fl_mpi "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
+set(_fl_mpi "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
 add_test(NAME Fire_Abort_CheckpointWithoutLayout
          COMMAND sh -c "rm -rf chk_fl* && ${_fl_mpi} ${_fl_exe} Terrain_Stress_Ridge.i max_step=1 erf.plot_int_1=-1 erf.check_int=1 erf.check_file=chk_fl amrex.call_addr2line=0 > write.log 2>&1 && test -f chk_fl00001/ScalarLayout && rm chk_fl00001/ScalarLayout && ${_fl_mpi} ${_fl_exe} Terrain_Stress_Ridge.i max_step=2 erf.plot_int_1=-1 erf.check_int=-1 erf.restart=chk_fl00001 amrex.call_addr2line=0 2>&1 | tee Fire_Abort_CheckpointWithoutLayout.log"
          WORKING_DIRECTORY ${_fl_dir})
