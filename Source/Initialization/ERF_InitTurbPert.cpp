@@ -193,6 +193,10 @@ ERF::turbPert_update_automatic (int lev, double time)
     }
     const int hklo = geom[pbl_level].Domain().smallEnd(2);
     BoxArray height_boxes = amrex::coarsen(parent_state.boxArray(), height_ratio);
+    // coarsen shares box storage and defers the coordinate transformation.
+    // set() does neither copy-on-write nor coarsening: detach and materialize
+    // first, or flattening these slabs also flattens the parent state's grids.
+    height_boxes.uniqify();
     for (int b = 0; b < height_boxes.size(); ++b) {
         Box slab = height_boxes[b];
         slab.setRange(2, hklo);

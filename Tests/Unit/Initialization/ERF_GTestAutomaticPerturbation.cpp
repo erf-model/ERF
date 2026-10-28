@@ -252,6 +252,8 @@ TEST_P(AutomaticPerturbation, UpdatesEdgesHeightAndCalmWinds)
         MultiFab zcc(ba, dm, 1, 0);
         MultiFab znd(convert(ba, IntVect::TheNodeVector()), dm, 1, 0);
         BoxArray ground_ba = znd.boxArray();
+        // The ground slab must not change the shared 3D state/height layout.
+        ground_ba.uniqify();
         for (int b = 0; b < ground_ba.size(); ++b) {
             Box bx = ground_ba[b]; bx.setRange(2, 0); ground_ba.set(b, bx);
         }
