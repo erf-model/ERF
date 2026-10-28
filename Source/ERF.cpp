@@ -1327,13 +1327,20 @@ ERF::InitData_post ()
         d_u_geos.resize(max_level+1, Gpu::DeviceVector<Real>(0));
         h_v_geos.resize(max_level+1, Vector<Real>(0));
         d_v_geos.resize(max_level+1, Gpu::DeviceVector<Real>(0));
-        for (int lev = 0; lev <= finest_level; lev++) {
+        // Every level that can exist, not only those there now: a level made later, by a
+        //    regrid or after a restart with fewer levels, has no other place to get its profile.
+        //    The profile depends only on the level's geometry and z levels, which exist for
+        //    every level from the start.
+        for (int lev = 0; lev <= max_level; lev++) {
             const int domlen = geom[lev].Domain().length(2);
             h_u_geos[lev].resize(domlen, 0.0_rt);
             d_u_geos[lev].resize(domlen, 0.0_rt);
             h_v_geos[lev].resize(domlen, 0.0_rt);
             d_v_geos[lev].resize(domlen, 0.0_rt);
             if (solverChoice.custom_geostrophic_profile) {
+                // A custom profile may read the level's z_phys_cc, so a level not made yet
+                //    is filled when it first advances (ERF::advance_dycore updates it every step)
+                if (lev > finest_level) { continue; }
                 prob->update_geostrophic_profile(t_new[0],
                                                  h_u_geos[lev], d_u_geos[lev],
                                                  h_v_geos[lev], d_v_geos[lev],

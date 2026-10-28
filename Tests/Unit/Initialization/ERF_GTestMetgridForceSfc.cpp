@@ -29,18 +29,20 @@ amrex::Real profile (amrex::Real z) { return (z / amrex::Real(100.0)) * (z / amr
 // given) onto the ERF levels with linear interpolation and erf.metgrid_force_sfc_k = force.
 // interpolate_column_metgrid is a device function, so it runs in a one-cell ParallelFor on
 // FABs that the host can also read and write (pinned memory in a GPU build).
-std::vector<amrex::Real> interpolate (const std::vector<amrex::Real>& orig_z, int force)
+std::vector<amrex::Real> interpolate (const std::vector<amrex::Real>& orig_z, int force,
+                                      bool retain_sfc = false, bool extra_top = true)
 {
     amrex::Arena* arena = amrex::The_Arena();
 #ifdef AMREX_USE_GPU
     arena = amrex::The_Pinned_Arena();
 #endif
 
-    // interpolate_column_metgrid reads origin levels 0 .. ubound-1, so add one unused level
+    // Optionally an extra origin level 1000 m above the last, which the ERF column does not reach
     const int nz_orig = static_cast<int>(orig_z.size());
-    const amrex::Box obox(amrex::IntVect(0,0,0), amrex::IntVect(0,0,nz_orig));
+    const int nz_box  = extra_top ? nz_orig + 1 : nz_orig;
+    const amrex::Box obox(amrex::IntVect(0,0,0), amrex::IntVect(0,0,nz_box-1));
     amrex::FArrayBox oz(obox, 1, arena), od(obox, 1, arena);
-    for (int k = 0; k <= nz_orig; ++k) {
+    for (int k = 0; k < nz_box; ++k) {
         const amrex::Real z = (k < nz_orig) ? orig_z[k] : orig_z.back() + amrex::Real(1000.0);
         oz(amrex::IntVect(0,0,k)) = z;
         od(amrex::IntVect(0,0,k)) = profile(z);
@@ -67,7 +69,7 @@ std::vector<amrex::Real> interpolate (const std::vector<amrex::Real>& orig_z, in
     [=] AMREX_GPU_DEVICE (int, int, int) noexcept
     {
         interpolate_column_metgrid(/*use_below_sfc=*/false, /*use_sfc=*/true, /*exp_interp=*/false,
-                                   /*retain_sfc=*/false, /*proximity=*/amrex::Real(0.0), /*order=*/1,
+                                   retain_sfc, /*proximity=*/amrex::Real(0.0), /*order=*/1,
                                    force, 0, 0, kNewCells-1, 0, 0, 'U', 'M', oz_a, od_a, nz_a, nd_a);
     });
     amrex::Gpu::streamSynchronize();
@@ -127,4 +129,28 @@ TEST(MetgridForceSfc, BothBranchesAgree)
             EXPECT_NEAR(a[k], b[k], kTol * (amrex::Real(1.0) + std::abs(a[k]))) << "metgrid_force_sfc_k = " << force << ", level " << k;
         }
     }
+}
+
+// Motivation: erf.metgrid_retain_sfc sets the lowest ERF level to the origin surface value.
+// With an origin level below the surface, the first of the levels as ordered is that
+// below-ground level, not the surface, and it was taken instead.
+TEST(MetgridForceSfc, RetainSfcTakesTheSurfaceValue)
+{
+    const auto v = interpolate(column_with_below_sfc(), 0, /*retain_sfc=*/true);
+    EXPECT_NEAR(v[0], profile(kSfc), kTol * profile(kSfc));
+}
+
+// Motivation: the top origin level must be used.  The column interpolation read origin
+// levels 0 .. ubound-1, so an ERF level between the two highest origin levels was
+// extrapolated from those below them.
+TEST(MetgridForceSfc, UsesTheTopOriginLevel)
+{
+    // The top ERF cell centre, 1020 m, lies between the two highest origin levels
+    const std::vector<amrex::Real> z = {kSfc, amrex::Real(300.0), amrex::Real(600.0), amrex::Real(1100.0)};
+    const auto v = interpolate(z, 0, /*retain_sfc=*/false, /*extra_top=*/false);
+    const amrex::Real z_top = amrex::Real(1020.0);
+    const amrex::Real w = (z_top - amrex::Real(600.0)) / (amrex::Real(1100.0) - amrex::Real(600.0));
+    const amrex::Real expected = profile(amrex::Real(600.0))
+                               + w * (profile(amrex::Real(1100.0)) - profile(amrex::Real(600.0)));
+    EXPECT_NEAR(v[kNewCells-1], expected, kTol * expected);
 }
