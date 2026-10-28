@@ -1780,7 +1780,7 @@ function(add_test_shift_invariance TEST_NAME TEST_FILES_DIR SHIFT VARS OPTIONS_A
     resolve_test_exe("" "erf_exec" TEST_EXE)
     set(_run "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i max_step=0 erf.plot_int_1=1 erf.check_int=-1")
     add_test(${TEST_NAME} sh -c
-      "${_run} erf.plot_file_1=pltA ${OPTIONS_A} > ${CURRENT_TEST_BINARY_DIR}/runA.log 2>&1 && ${_run} erf.plot_file_1=pltB ${OPTIONS_B} > ${CURRENT_TEST_BINARY_DIR}/runB.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_shift_invariance.py ${CURRENT_TEST_BINARY_DIR}/pltA00000 ${CURRENT_TEST_BINARY_DIR}/pltB00000 --shift ${SHIFT} --vars ${VARS} --tol 1e-12")
+      "${_run} erf.plot_file_1=pltA ${OPTIONS_A} > ${CURRENT_TEST_BINARY_DIR}/runA.log 2>&1 && ${_run} erf.plot_file_1=pltB ${OPTIONS_B} > ${CURRENT_TEST_BINARY_DIR}/runB.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_shift_invariance.py ${CURRENT_TEST_BINARY_DIR}/pltA00000 ${CURRENT_TEST_BINARY_DIR}/pltB00000 --shift ${SHIFT} --vars ${VARS} --tol 1e-12 ${ARGN}")
     set_tests_properties(${TEST_NAME} PROPERTIES
         TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/runA.log;${CURRENT_TEST_BINARY_DIR}/runB.log")
@@ -1808,6 +1808,15 @@ if(NOT WIN32 AND ERF_TEST_PYTHON)
   # absolute top height and came out 16/21 of the first run's
   add_test_shift_invariance(CouetteFlow_ProbLoShiftInvariance CouetteFlow_x 0
       "x_velocity" "" "'geometry.prob_lo=0 0 5'")
+  # The bottom of the domain is geometry.prob_lo[2] (#4445): moving prob_lo, prob_hi and the
+  # hill down 500 m in z must move the whole terrain-fitted mesh down 500 m.  Before the fix
+  # the STF and Sullivan transforms measured the terrain and the levels from z = 0
+  foreach(_smoothing 1 2)
+    add_test_shift_invariance(Terrain_ProbLoZShift_Smoothing${_smoothing} Terrain2Lev_STF_interp 0
+        "z_phys" "amr.max_level=0 erf.terrain_smoothing=${_smoothing}"
+        "amr.max_level=0 erf.terrain_smoothing=${_smoothing} 'geometry.prob_lo=-3200 0 -500' 'geometry.prob_hi=3200 400 2700' prob.z_offset=-500"
+        --offset -500 --offset-vars z_phys)
+  endforeach()
   # pert_delta_v alone gives a y-velocity perturbation; pert_delta_u alone does not
   add_test_v_perturbation(Poiseuille_PertV_Only "nonzero" "")
   add_test_v_perturbation(Poiseuille_PertU_Only "zero" "prob.pert_delta_u=2.0 prob.pert_delta_v=0.0")
@@ -2433,6 +2442,19 @@ if(NOT WIN32 AND ERF_TEST_PYTHON)
   set_tests_properties(${TEST_NAME} PROPERTIES
       TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
       LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+  # The same with the bottom at z = 200 m: the z levels start at geometry.prob_lo[2] on a
+  # constant-dz mesh too (#4445), so the table must be read at them, not 200 m above them
+  set(_geo_test ${TEST_NAME})
+  set(TEST_NAME GeoWindTable_TwoLevel_ProbLoZ)
+  set(TEST_FILES_DIR ${_geo_test})
+  setup_test()
+  add_test(${TEST_NAME} sh -c
+    "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${_geo_test}.i 'geometry.prob_lo=0 0 200' 'geometry.prob_extent=800 800 800' > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_geowind_profile.py ${CURRENT_TEST_BINARY_DIR}/plt00001 --tol ${_geo_tol}")
+  set_tests_properties(${TEST_NAME} PROPERTIES
+      TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+      LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+  unset(TEST_FILES_DIR)
+  unset(_geo_test)
   unset(TEST_NAME)
 endif()
 if(NOT WIN32)
