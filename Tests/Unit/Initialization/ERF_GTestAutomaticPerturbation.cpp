@@ -133,7 +133,7 @@ TEST(AutomaticPerturbationWind, SamplesAGLAcrossStackedBoxesAndRejectsShallowCov
                 MultiFab zcc(ba, dm, 1, 0);
                 MultiFab znd(convert(ba, IntVect::TheNodeVector()), dm, 1, 0);
                 fill_sampling_profile(u, v, zcc, znd, domain.smallEnd(2), terrain);
-                // Both targets bracket centres on opposite sides of the z-box split.
+                // Both targets bracket centers on opposite sides of the z-box split.
                 const Real target = terrain ? Real(36) : Real(12);
                 const auto wind = sample_perturbation_wind(edge, target, geom, state, u, v,
                                                           terrain ? &zcc : nullptr, terrain ? &znd : nullptr);

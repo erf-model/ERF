@@ -343,13 +343,13 @@ Set the flag to ``false`` to restore the previous CPM/CPM_W timing.
      - Use one refresh clock per CPM/CPM_W level, without per-box timing jitter.
    * - ``erf.perturbation_refresh_height``
      - ``20.0``
-     - Wind-sampling height in metres AGL when ``perturbation_auto = false``; must be positive.
+     - Wind-sampling height in meters AGL when ``perturbation_auto = false``; must be positive.
    * - ``erf.perturbation_refresh_wind_period``
      - ``600.0``
      - Seconds between timing-wind samples when ``perturbation_auto = false``; must be positive. This is not the perturbation refresh interval.
 
 In automatic mode, the timing wind is sampled at **0.05 times each active
-edge's mean PBL height**, in metres AGL. ERF chooses the finest coarser level
+edge's mean PBL height**, in meters AGL. ERF chooses the finest coarser level
 covering that height along the entire edge, starting with the immediate parent.
 These winds are resampled with the other automatic controls, using
 ``perturbation_auto_period`` (600 seconds by default).
@@ -458,7 +458,7 @@ At the first advance of a nest, ERF samples the latest available parent state.
 For each lateral edge of each rectangular subdomain, it samples one parent
 column in width along that edge. Each parent column uses the PBL height of the
 cell containing it on the selected PBL ancestor. This mapping uses the cumulative
-horizontal refinement ratio and retains the ancestor's height in metres AGL.
+horizontal refinement ratio and retains the ancestor's height in meters AGL.
 It averages the horizontal wind components over the lower
 ``perturbation_auto_pbl_fraction`` of that height, weighting
 by the vertical cell thickness inside that layer. If the parent grids end
@@ -473,7 +473,7 @@ are excluded. Internal coarse/fine edges remain eligible.
 The height cutoff for an edge is the specified fraction of the ancestor PBL
 height averaged over the sampled parent columns: by default, 90% of this edge
 mean. Each column contributes once to the arithmetic mean. This produces one
-uniform cutoff in metres AGL along each edge and throughout its perturbation
+uniform cutoff in meters AGL along each edge and throughout its perturbation
 layers; it does not vary with the PBL height at individual columns. Different
 edges may have different means. Perturbations are applied only where the sample
 point lies above local ground and at or below this cutoff: cell centers for thermal perturbations and
@@ -485,15 +485,15 @@ its per-box refresh interval (when used) and its ``source``/``direct`` amplitude
 larger above-PBL wind scale sets its amplitude.
 
 For ``CPM``, ERF obtains ``Ug`` by sampling horizontal wind at **1.1 times the
-edge-mean PBL height**, in metres AGL. It first tries the immediate parent and
+edge-mean PBL height**, in meters AGL. It first tries the immediate parent and
 then successively coarser levels, choosing the finest ancestor whose grids
 cover that height in every sampled column along the edge. The PBL height still
 comes from the finest ancestor with a PBL scheme. If no coarser level covers
 the target height, automatic CPM stops with an error.
 
-On the selected level, ERF linearly interpolates cell-centred ``u`` and ``v``
+On the selected level, ERF linearly interpolates cell-centered ``u`` and ``v``
 to the target height in each column, averages each component along the edge,
-and sets ``Ug = sqrt(mean(u)^2 + mean(v)^2)``. It uses the nearest cell centre
+and sets ``Ug = sqrt(mean(u)^2 + mean(v)^2)``. It uses the nearest cell center
 within the bottom or top half-cell, and never extrapolates outside the
 available grid. This above-PBL wind estimate replaces ``perturbation_Ug`` in
 the CPM amplitude formula. It is independent of the lower-PBL wind used for
@@ -545,7 +545,7 @@ does not reproduce an uninterrupted random sequence.
 
 Set ``erf.v = 1`` to log each control update's time, wind-parent level
 (``parent``), PBL-height source level (``pbl_level``), edge, inflow selection,
-mean wind and height cutoff in metres AGL.
+mean wind and height cutoff in meters AGL.
 For ``CPM``, the log also reports the wind source level (``Ug_level``), target
 height (``Ug_height_agl``), and sampled speed (``Ug``). An inactive edge has
 ``Ug_level = -1`` because it does not need an amplitude sample.

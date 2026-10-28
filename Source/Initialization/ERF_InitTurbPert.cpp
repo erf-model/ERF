@@ -34,7 +34,7 @@ sample_perturbation_wind (const Box& region, Real height_agl,
                          const MultiFab* z_cc, const MultiFab* z_nd)
 {
     // Keep only the edge strip, with the source grids' ownership. A vertical
-    // halo exchanges cell-centred winds/heights across stacked boxes without
+    // halo exchanges cell-centered winds/heights across stacked boxes without
     // allocating a full-volume copy or depending on source ghost values.
     BoxList boxes;
     Vector<int> source_indices, owners;
@@ -50,7 +50,7 @@ sample_perturbation_wind (const Box& region, Real height_agl,
     if (boxes.isEmpty()) { return {}; }
     const BoxArray ba(boxes);
     const DistributionMapping dm(owners);
-    // Components are u, v, cell-centre height, bottom height, top height (AGL).
+    // Components are u, v, cell-center height, bottom height, top height (AGL).
     MultiFab samples(ba, dm, 5, IntVect(0,0,1));
     samples.setVal(bogus_large_value);
     const int klo = geometry.Domain().smallEnd(2);
@@ -184,7 +184,7 @@ ERF::turbPert_update_automatic (int lev, double time)
 
     // Gather the ancestor's column heights onto the parent layout. Each parent
     // column takes the diagnostic of the ancestor cell containing it. Coarsen
-    // only in x/y: PBLH is a depth in metres AGL, independent of either level's
+    // only in x/y: PBLH is a depth in meters AGL, independent of either level's
     // vertical spacing, domain height, and decomposition into stacked boxes.
     IntVect height_ratio(1);
     for (int level = pbl_level; level < parent; ++level) {

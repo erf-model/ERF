@@ -12,7 +12,7 @@ struct PerturbationWindSample {
 };
 
 // Sample horizontal winds at one height AGL and average over the columns in
-// region. Interpolate between cell centres; use the nearest centre within the
+// region. Interpolate between cell centers; use the nearest center within the
 // bottom/top half-cell. A height outside the available cells is not covered.
 // All ranks participate. complete is true only when every column is covered.
 PerturbationWindSample sample_perturbation_wind (

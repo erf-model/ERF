@@ -28,7 +28,7 @@ struct AutomaticPerturbationFace {
     amrex::Real u = zero;
     amrex::Real v = zero;
     amrex::Real Ug = zero; // CPM wind scale sampled above the PBL
-    amrex::Real height = zero; // perturbation ceiling, metres above local terrain
+    amrex::Real height = zero; // perturbation ceiling, meters above local terrain
 
     bool inflow () const {
         const amrex::Real normal = (face % 2 == 0) ? u : v;
