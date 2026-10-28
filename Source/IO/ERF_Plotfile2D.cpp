@@ -16,6 +16,7 @@
 #include "ERF_LatLonMap.H"
 #include "ERF_SrcHeaders.H"
 #include "ERF_StormDiagnostics.H"
+#include "ERF_SurfaceTemperature.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_Utils.H"
 #include <AMReX_buildInfo.H>
@@ -520,7 +521,11 @@ ERF::FillPlot2DVars (int lev,
     } // laten_flux
 
     if (containerHasElement(plot_var_names, "surf_pres")) {
+        // The pressure at the ground, as WRF's PSFC: the lowest cell's pressure plus
+        //    rho g times the height of that cell's centre above the ground, the same
+        //    surface pressure the radiation and surface layer use
         bool moist = (solverChoice.moisture_type != MoistureType::None);
+        const Real dz = geom[lev].CellSize(2);
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -529,11 +534,15 @@ ERF::FillPlot2DVars (int lev,
             const Box& bx = mfi.tilebox();
             const auto& derdat   = mf_dst.array(mfi);
             const auto& cons_arr = vars_new[lev][Vars::cons].const_array(mfi);
+            const auto& z_arr    = (z_phys_nd[lev]) ? z_phys_nd[lev]->const_array(mfi)
+                                                    : Array4<const Real>{};
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                auto rt = cons_arr(i,j,klo,RhoTheta_comp);
-                auto qv = (moist) ? cons_arr(i,j,klo,RhoQ1_comp)/cons_arr(i,j,klo,Rho_comp)
-                                  : zero;
-                derdat(i, j, k, mf_comp) = getPgivenRTh(rt, qv);
+                const Real rho = cons_arr(i,j,klo,Rho_comp);
+                const Real qv  = (moist) ? cons_arr(i,j,klo,RhoQ1_comp)/rho : zero;
+                const Real z_cc_agl = (z_arr) ? Compute_Zrel_AtCellCenter(i,j,klo,z_arr)
+                                              : myhalf*dz;
+                derdat(i, j, k, mf_comp) = erf_surface_temperature::pressure_at_surface(
+                    rho, cons_arr(i,j,klo,RhoTheta_comp), qv, z_cc_agl);
             });
         }
         mf_comp++;
