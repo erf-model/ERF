@@ -1897,7 +1897,8 @@ value.
    extrapolated to the requested height by surface-layer similarity.  In a run
    whose first cell is 100 m deep, ``height_agl = 10.0`` and ``height_agl = 40.0`` both
    report the value 50 m up.  For 2 m and 10 m quantities, ask for the 2D
-   diagnostics (``temperature_2m``, ``water_vapor_mixing_ratio_2m`` and the
+   diagnostics (``temperature_2m``, ``water_vapor_mixing_ratio_2m``, the 10 m
+   winds ``u_10m``, ``v_10m``, ``u_east_10m`` and ``v_north_10m``, and the other
    surface-layer diagnostics), which are computed from the surface-layer
    parameterization; the run warns once if a requested height falls in that
    first half cell.

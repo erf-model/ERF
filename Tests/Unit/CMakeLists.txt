@@ -191,6 +191,10 @@ target_sources(${erf_exe_name}
     # Motivation: the stable-side z/L in the 2 m profile must stay bounded for a very
     # small positive Obukhov length.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestNearSurfaceStability.cpp
+    # Motivation: the 10 m winds must take the surface-layer momentum profile's speed
+    # in the first-cell wind's direction, turn earth-relative with the grid, and be
+    # missing where the profile cannot be evaluated.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics/ERF_GTestNearSurfaceWind.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestCanopyBiophysics.cpp
     # Motivation: the k-eqn RANS canopy terms must keep the kynema-sgf
     # formulas, cap L only inside the forest and never remove more than k.
