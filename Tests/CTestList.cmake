@@ -3389,6 +3389,37 @@ if(NOT WIN32 AND ERF_TEST_PYTHON)
   unset(TEST_NAME)
 endif()
 
+# A 3D variable the configuration cannot produce (#4488): qsnow under Kessler, which
+# carries no ice. By default the run stops; with erf.station_allow_unavailable the
+# column is kept, written as -999 and marked in the header, while a name that is no
+# variable at all still stops the run. The kept case checks that column 3 (qsnow) is
+# -999 on every row and column 2 (qv) is not.
+if(NOT WIN32)
+  set(_st_kessler_dir ${CMAKE_CURRENT_SOURCE_DIR}/test_files/MoistBubble_Kessler_Restart)
+  set(_st_kessler_opts "erf.station_names=S1 erf.station_sampling_interval=1 erf.S1.x=10000 erf.S1.y=200 erf.S1.height_agl=1000")
+  add_test_abort(StationSampling_Unavailable3D_Aborts ${_st_kessler_dir}
+                 MoistBubble_Kessler_Restart.i
+                 "'qsnow' is a 3D plotfile variable but is not available in this configuration"
+                 "${_st_kessler_opts} 'erf.S1.field=qv qsnow'")
+  add_test_abort(StationSampling_Unavailable3D_MisspeltAborts ${_st_kessler_dir}
+                 MoistBubble_Kessler_Restart.i
+                 "'qsnoww' is neither a 3D plotfile variable nor a built-in 2D diagnostic"
+                 "${_st_kessler_opts} erf.station_allow_unavailable=true 'erf.S1.field=qv qsnoww'")
+
+  set(TEST_NAME StationSampling_Unavailable3D_AsMissing)
+  set(TEST_FILES_DIR MoistBubble_Kessler_Restart)
+  setup_test()
+  unset(TEST_FILES_DIR)
+  resolve_test_exe("" "erf_exec" TEST_EXE)
+  set(_st_dat "${CURRENT_TEST_BINARY_DIR}/Output_Stations/S1.dat")
+  add_test(${TEST_NAME} sh -c
+    "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/MoistBubble_Kessler_Restart.i max_step=3 erf.plot_int_1=-1 erf.check_int=-1 ${_st_kessler_opts} erf.station_allow_unavailable=true 'erf.S1.field=qv qsnow' > ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log 2>&1 && grep -q \"qsnow.*NOT AVAILABLE in this run\" ${_st_dat} && awk '!/^#/ { n++; if (\$3 != -999 || \$2 == -999) bad++ } END { exit !(n > 0 && bad == 0) }' ${_st_dat}")
+  set_tests_properties(${TEST_NAME} PROPERTIES
+      TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+      LABELS "regression;station" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log")
+  unset(TEST_NAME)
+endif()
+
 # The same on a rotated grid: a 25 km Lambert-conformal wrfinput whose x axis
 # turns by up to 11.4 degrees from east. Three stations (two placed by lat/long, one by x/y)
 # must report the grid angle of the closed-form Lambert rotation, alpha = -n (lon - STAND_LON),
