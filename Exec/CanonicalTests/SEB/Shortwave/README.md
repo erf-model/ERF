@@ -27,6 +27,14 @@ step 2 is what the checker reads.
 - `inputs_zen20`: the sun 70 deg above the horizon; the shadow reaches 30 m,
   so the six lowest rows of the short west wall are shadowed and the top two
   and the roof are lit.
+- `inputs_zen20_halo`: the zen20 sun on a ray map whose per-rank patches do
+  not span the domain: 2 x 1 hemisphere rays make the shallowest view ray
+  45 deg, the sun floor `erf.ibseb.sun_min_elev_deg = 60` is below the
+  70 deg sun, and the halo is ceil(140 / tan(45) / 5 m) + 1 = 29 cells, so
+  a 32-cell box grown by 29 covers 90 of the 128 columns. Every shadow must
+  still match the independent ray cast (the halo is the reach of the
+  shallowest ray, not a cut-off), and the run log must say the patches do
+  not span the domain.
 - `inputs_solar`: sun from the site and time, Boulder at solar noon on the
   June solstice, where the zenith must be the latitude minus the declination
   and the sun due south.

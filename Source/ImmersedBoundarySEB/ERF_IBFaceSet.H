@@ -6,11 +6,13 @@
 #include <AMReX_DistributionMapping.H>
 #include <AMReX_Geometry.H>
 #include <AMReX_GpuContainers.H>
+#include <AMReX_iMultiFab.H>
 #include <cmath>
 #include <string>
 #include <vector>
 #include "ERF_IBSEBParams.H"
 #include "ERF_IBSEBMaterials.H"
+#include "ERF_IBSEBSolar.H"
 #include <ERF_TwoStreamCanopyForcing.H>
 
 /**
@@ -42,11 +44,25 @@
  * are the faces whose fluid cell is in that fab, which is what lets a kernel
  * scatter into that fab's arrays without a search.
  *
- * **Building ids.** The solid columns of the blanking (any solid cell in the
- * column) are labelled by 4-connectivity in the horizontal and numbered in
- * scan order over ``(i, j)``, identically on every rank from a reduced column
- * mask; a face carries the id of the column of its solid neighbour. Ids are
- * 1-based, 0 is never assigned.
+ * **Column maps.** The solid columns of the blanking (any solid cell in the
+ * column) are kept as a k-collapsed ``amrex::iMultiFab`` on the level's own
+ * boxes, one integer per column: the domain-relative k of its highest solid
+ * cell, -1 where it is fluid. Nothing about the columns is replicated across
+ * the ranks (erf-model/ERF#4020): the building labelling exchanges labels
+ * through the map's ghost cells, and the ray cast of the shortwave and the
+ * view fractions reads a per-rank *patch* of the map, this rank's boxes
+ * grown by a halo that holds every column a ray from one of its faces can
+ * reach (build_ray_map()).
+ *
+ * **Building ids.** The solid columns are labelled by 4-connectivity in the
+ * horizontal (across the periodic seams too) and numbered in scan order over
+ * ``(i, j)``, the same on every rank and whatever the decomposition: every
+ * column starts with its own scan index as its label, each box takes the
+ * lowest label of its connected pieces, and the pieces exchange labels
+ * through one ghost cell until nothing changes, so a building ends with the
+ * scan index of its first column; the distinct labels, gathered once, give
+ * the numbering. A face carries the id of the column of its solid neighbour.
+ * Ids are 1-based, 0 is never assigned.
  *
  * **Output.** The list is never written directly. scatter_diagnostics() puts
  * the number of faces and their mean skin temperature into cell-centred
@@ -104,28 +120,25 @@ public:
     void build (const amrex::MultiFab& blanking, const amrex::Geometry& geom);
 
     /**
-     * Add the buildings this refined level does not hold to the column map of
-     * its ray cast, from the map of the level below.
+     * Add the buildings this refined level does not hold to the ray map of
+     * its ray cast, from the column maps of the levels below.
      *
      * build() takes the map from the level's own cells, so on a refined level
      * that covers part of the domain the rays of the shortwave and the view
-     * fractions would pass through every building outside it. Every column of
-     * the coarser map whose top cell this level's grids do not cover
+     * fractions would pass through every building outside it. The ray map
+     * is rebuilt with the halo for the tallest column of every level, and
+     * each column of the patch that this level's grids do not cover takes
+     * the top of the finest level below that covers it
      * (ERF::ibseb_check_refined_levels() has made sure a building is wholly
-     * inside or wholly outside) is copied onto the ratio x ratio columns of
-     * this level beneath it, at the same height, and the map grows to the
-     * bounding box of both. Only the ray cast reads the result: the building
-     * ids, the face heights of the wall function and the reports keep the
-     * level's own buildings. Call after build() and before
-     * compute_view_fractions(); the coarser set must have had its own call
-     * already, so buildings outside several levels pass down the hierarchy.
+     * inside or wholly outside each level), on the ratio x ratio columns of
+     * this level beneath the coarse one, at the same height. Only the ray
+     * cast reads the result: the building ids, the face heights of the wall
+     * function and the reports keep the level's own buildings. Call after
+     * build() of every level involved and before compute_view_fractions().
      *
-     * @param coarser   Face set of the level below.
-     * @param ratio     Refinement ratio from the level below to this one.
-     * @param grids_crse This level's grids coarsened by ``ratio``.
+     * @param below Face sets of levels 0 to this level's minus one, in that order.
      */
-    void add_outside_occluders (const IBFaceSet& coarser, const amrex::IntVect& ratio,
-                                const amrex::BoxArray& grids_crse);
+    void add_outside_occluders (const std::vector<const IBFaceSet*>& below);
 
     /**
      * Give the sun of the next compute_shortwave() with
@@ -167,7 +180,20 @@ public:
     int building_level0 (int b) const { return m_to_lev0.at(b); }
 
     /** Free the column labels once the level above has been mapped (map_buildings_to_level0()). */
-    void release_labels () { std::vector<int>().swap(m_lab); }
+    void release_labels () { m_lab.clear(); }
+
+    /**
+     * The ray map of this rank for the kernels of the shortwave and the view
+     * fractions: the column tops over this rank's patch and the grid they are
+     * drawn on (ibseb::RayMap). A rank without boxes has no patch and no faces.
+     */
+    ibseb::RayMap ray_map () const;
+
+    /** Halo of the ray map in cells (x, y), from the last build_ray_map(). */
+    amrex::IntVect ray_halo () const { return m_halo; }
+
+    /** Whether every rank's patch spans the whole domain, so every ray is followed to its end. */
+    bool ray_map_spans_domain () const { return m_map_spans_domain; }
 
     /** Number of faces owned by this rank (not the global count; see report()). */
     int n_faces () const { return m_nface; }
@@ -466,15 +492,24 @@ public:
     amrex::Gpu::DeviceVector<amrex::Real> d_LW_ext;       ///< Incoming longwave from sky and ground only [W/m2]
     amrex::Gpu::DeviceVector<amrex::Real> d_resid;        ///< |balance| after the solve [W/m2]
     amrex::Gpu::DeviceVector<int>         d_niter;        ///< Newton iterations of the last solve
-    // Column tops over the bounding box of the built columns (origin
-    // m_col_i0, m_col_j0 in 0-based domain columns, m_col_nx x m_col_ny
-    // values, index (ci - i0) * m_col_ny + (cj - j0)), replicated on every
-    // rank for the ray cast: 4 bytes per built column per rank. Each entry is
-    // the domain-relative k of the highest solid cell of its column, -1 where
-    // the column is fluid; ibseb::column_top() turns it into a height, and
-    // columns outside the box are open ground.
-    amrex::Gpu::DeviceVector<int> d_col_top;
-    int m_col_i0 = 0, m_col_j0 = 0, m_col_nx = 0, m_col_ny = 0;
+    // Column tops of the level's own columns: a k-collapsed map on the level's
+    // boxes (the grids with their k range collapsed to one cell) with one
+    // ghost cell, filled across boxes and periodic seams. Each entry is the
+    // domain-relative k of the highest solid cell of its column, -1 where the
+    // column is fluid. Kept after build() so the ray map can be rebuilt with
+    // the buildings of the levels below (add_outside_occluders()).
+    amrex::iMultiFab m_col_valid;
+    // The ray map: one box per rank (the ranks with boxes), this rank's boxes
+    // grown by m_halo, clipped to the domain where it is not periodic and
+    // reduced to one domain width (with wrapping) where it is. Holds the
+    // level's own tops, the periodic images and, after add_outside_occluders(),
+    // the tops of the levels below outside this level.
+    amrex::iMultiFab m_ray_patch;
+    amrex::Box       m_patch_box;              ///< This rank's patch (empty without boxes)
+    amrex::IntVect   m_halo{AMREX_D_DECL(0, 0, 0)}; ///< Halo of the patch in cells
+    bool m_wrap_x = false, m_wrap_y = false;   ///< The patch spans the periodic domain in x / y
+    bool m_map_spans_domain = false;           ///< Every rank's patch spans the domain
+    int  m_max_steps = 0;                      ///< Columns a walk is followed for: the halo's reach in x plus y, before the domain cap
 
     /// Sun and irradiances of the last compute_shortwave() call, for reports.
     struct SunState {
@@ -523,22 +558,21 @@ private:
     std::vector<amrex::Long> m_bld_ncol;
     std::vector<int>  m_bld_ilo, m_bld_ihi, m_bld_jlo, m_bld_jhi;
     // Level-0 numbering (map_buildings_to_level0()): the level-0 id of each
-    // building of this level (identity on level 0), and the column labels over
-    // the level's own built bounding box, kept until the level above has been
-    // mapped.
+    // building of this level (identity on level 0), and the building id of
+    // every column on the level's own boxes (0 where fluid), kept until the
+    // level above has been mapped.
     std::vector<int>  m_to_lev0;
-    std::vector<int>  m_lab;
-    int m_lab_i0 = 0, m_lab_j0 = 0, m_lab_nx = 0, m_lab_ny = 0;
+    amrex::iMultiFab  m_lab;
 
     // Geometry kept for the ray cast and the reports.
+    amrex::Geometry m_geom;                    ///< Geometry of the level
     int  m_nx = 0, m_ny = 0, m_nz = 0;         ///< Cells of the domain in x, y and z
     amrex::IntVect m_dom_lo{AMREX_D_DECL(0, 0, 0)}; ///< Low corner of the level's domain
     amrex::Real m_x_lo = 0.0, m_y_lo = 0.0;    ///< Domain origin [m]
     amrex::Real m_dx[3] = {0.0, 0.0, 0.0};     ///< Cell sizes [m]
     bool m_per_x = false, m_per_y = false;     ///< Periodicity in x and y
-    amrex::Real m_col_top_max = 0.0;           ///< Tallest column [m]
+    amrex::Real m_col_top_max = 0.0;           ///< Tallest column the ray map holds [m] (the levels below included after add_outside_occluders())
     amrex::Real m_z_ground = 0.0;              ///< Ground height [m] (flat, the domain bottom)
-    amrex::Real m_max_path = 0.0;              ///< Ray path cap [m]
     SunState m_sun;
     /// The two-stream sun of the next compute_shortwave() (sun_mode = two_stream).
     struct TwoStreamSun { bool set = false; amrex::Real decl = 0.0, hour_angle = 0.0, lat_deg = 0.0, S0 = 0.0; };
@@ -546,6 +580,29 @@ private:
     double m_cost_s = 0.0;        ///< Wall-clock seconds spent in the per-step update on this rank
     amrex::Long m_cost_n = 0;     ///< Number of per-step updates timed
     double m_init_cost_s = 0.0;   ///< Wall-clock seconds of build() and compute_view_fractions()
+
+    /**
+     * Build the ray map (m_ray_patch) from m_col_valid and the levels below.
+     * The halo is sized for the shallowest ray the map must follow to its
+     * end: the shallowest ray of the hemisphere sampling
+     * (ibseb::hemisphere_min_sz()) and a sun ``erf.ibseb.sun_min_elev_deg``
+     * above the horizon, over the tallest column of this level and the levels
+     * below, ``height / tan(elevation)`` cells in x and in y
+     * (ibseb::ray_halo_cells()). A rising ray stops above the tallest column
+     * and a falling one at the ground, so within that reach the walk is exact,
+     * and beyond it only a sun lower than the floor is concerned, whose
+     * direct beam the clear-sky attenuation has all but removed; a building
+     * farther than the halo from a face then casts no shadow on it (the far
+     * field is open ground). The patch is this rank's boxes grown by the
+     * halo, clipped to the domain where it is not periodic and, where it is,
+     * reduced to one domain width when the grown box is at least that wide,
+     * in which case the walk wraps round and is exact for any reach.
+     * @param below Face sets of the levels below (empty on level 0), each with its build() done.
+     */
+    void build_ray_map (const std::vector<const IBFaceSet*>& below);
+
+    /** Warn once when a fixed sun stands below ``erf.ibseb.sun_min_elev_deg`` and the map does not span the domain. */
+    void warn_fixed_sun_below_floor () const;
 };
 
 #endif

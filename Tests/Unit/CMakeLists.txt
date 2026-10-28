@@ -210,6 +210,13 @@ target_sources(${erf_exe_name}
     # materials by building, even when its tallest column is a spire level 0
     # leaves fluid, or the level holds only some of the buildings.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBLevelNumbering.cpp
+    # Motivation: the ray cast of the building faces reads a per-rank patch of the
+    # column map with a halo sized for the shallowest ray, instead of a map of the whole
+    # domain on every rank (erf-model/ERF#4020): a ray that leaves the patch is in open
+    # country, a patch spanning a periodic domain wraps round, the buildings are
+    # labelled across boxes and periodic seams in one numbering whatever the
+    # decomposition, and a refined level sees the buildings of the level below.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBRayMap.cpp
     # Motivation: with erf.ibseb.radiation = two_stream every face must read its own column
     # at its own height (roof interface, wall mean of its cell's two), on a level of several
     # boxes whose columns all differ.
