@@ -29,6 +29,7 @@
         const Real x = prob_lo[0] + (i + myhalf) * dx[0];
         const Real y = prob_lo[1] + (j + myhalf) * dx[1];
         const Real z = use_terrain ? z_cc(i, j, k) : prob_lo[2] + (k + myhalf) * dx[2];
+        const Real z_agl = z - erf_prob_heights::z_ground_cc(i,j,z_sfc_nd); // height above the ground
 
         const Real xc = myhalf * (prob_lo[0] + prob_hi[0]);
         const Real yc = myhalf * (prob_lo[1] + prob_hi[1]);
@@ -37,7 +38,7 @@
 
         // Apply a random temperature perturbation that tapers linearly from
         // T_0_Pert_Mag at the surface to zero at pert_ref_height.
-        if (pert_ref_height > zero && z <= pert_ref_height &&
+        if (pert_ref_height > zero && z_agl <= pert_ref_height &&
             T_0_Pert_Mag != zero) {
             const Real rhotheta = state(i,j,k,RhoTheta_comp);
             const Real rho = state(i,j,k,Rho_comp);
@@ -47,7 +48,7 @@
 
             const Real rand_double = amrex::Random(engine);
             const Real Tnew = Told + T_0_Pert_Mag * (one - two * rand_double)
-                              * (one - z / pert_ref_height);
+                              * (one - z_agl / pert_ref_height);
             const Real theta_new = getThgivenTandP(Tnew, P, rdOcp);
             const Real rhonew = getRhogivenThetaPress(theta_new, P, rdOcp, qv);
 
@@ -73,7 +74,7 @@
         if (use_moisture) {
             state_pert(i, j, k, RhoQ1_comp) = zero;
             state_pert(i, j, k, RhoQ2_comp) = zero;
-            if (z <= pert_ref_height && qv_0_Pert_Mag != zero) {
+            if (z_agl <= pert_ref_height && qv_0_Pert_Mag != zero) {
                 const Real rhoold = state(i,j,k,Rho_comp);
                 const Real rhonew = rhoold + state_pert(i,j,k,Rho_comp);
                 const Real qvold = state(i,j,k,RhoQ1_comp) / rhoold;

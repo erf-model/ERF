@@ -125,9 +125,9 @@ erf_init_dens_hse_dry (amrex::MultiFab& rho_hse,
 
         if (is_constant_dz) {
             const amrex::Real dz = geom.CellSize()[2];
-            HSEutils::init_isentropic_hse_constant_dz(rho_sfc,Thetabar,h_r.data(),h_p.data(),dz,klo,khi);
+            HSEutils::init_isentropic_hse_constant_dz(rho_sfc,Thetabar,h_r.data(),h_p.data(),dz,geom.ProbLo(2),klo,khi);
         } else { // stretched_dz
-            HSEutils::init_isentropic_hse_stretched_dz(rho_sfc,Thetabar,h_r.data(),h_p.data(),stretched_dz_h.data(),klo,khi);
+            HSEutils::init_isentropic_hse_stretched_dz(rho_sfc,Thetabar,h_r.data(),h_p.data(),stretched_dz_h.data(),geom.ProbLo(2),klo,khi);
         }
 
         amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());

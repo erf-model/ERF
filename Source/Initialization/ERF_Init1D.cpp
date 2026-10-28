@@ -297,13 +297,12 @@ ERF::erf_enforce_hse (int lev,
                 if (klo == 0)
                 {
                     // Absolute heights of the centers of the bottom cell and of the ghost cell below it
-                    // NOTE: with terrain the ghost cell keeps the pressure at -hz, which is right only
-                    //       where the ground is at z = 0.  The base-state BCs overwrite it, except
-                    //       on moving terrain.
+                    // NOTE: the base-state BCs overwrite the ghost cell afterwards, except on moving
+                    //       terrain, where this value is the one that is used.
                     Real hz, hz_below;
                     if (l_use_terrain) {
                         hz       = zcc_arr(i,j,klo);
-                        hz_below = -hz;
+                        hz_below = zcc_arr(i,j,klo-1);
                     } else {
                         hz       = z_bot + myhalf*dz;
                         hz_below = z_bot - myhalf*dz;
