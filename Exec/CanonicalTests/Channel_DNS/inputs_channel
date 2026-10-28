@@ -70,12 +70,14 @@ erf.const_massflux_u = 17.54475114359453
 erf.const_massflux_tau = 0.005 # ad hoc timescale for background pressure adjustment
 
 # INITIALIZATION
+erf.prob_name = "Poiseuille Flow"   # the plane-channel setup (prob_type 21) lives here
+
 prob.rho_0 = 1.0
 prob.T_0 = 300.
 
 # Poiseuille profile
 prob.prob_type = 21 # normal dir in z
-prob.u_0 = 26.25    # centerline vel
+prob.U_0 = 26.25    # centerline vel
 
 # divergence free perturbations
 prob.pert_delta_u = 2.625

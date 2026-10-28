@@ -292,7 +292,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
             {
                 int dest_comp = icomp+n;
                 int l_bc_type = bc_ptr[n].lo(0);
-                int iflip = dom_lo.x - 1 - i;
+                int iflip = 2*dom_lo.x - 1 - i;
                 if (l_bc_type == ERFBCType::foextrap) {
                     dest_arr(i,j,k,dest_comp) =  dest_arr(dom_lo.x,j,k,dest_comp);
                 } else if (l_bc_type == ERFBCType::open) {
@@ -341,7 +341,7 @@ void ERFPhysBCFunct_cons::impose_lateral_cons_bcs (const Array4<Real>& dest_arr,
             {
                 int dest_comp = icomp+n;
                 int l_bc_type = bc_ptr[n].lo(1);
-                int jflip = dom_lo.y - 1 - j;
+                int jflip = 2*dom_lo.y - 1 - j;
                 if (l_bc_type == ERFBCType::foextrap) {
                     dest_arr(i,j,k,dest_comp) =  dest_arr(i,dom_lo.y,k,dest_comp);
                 } else if (l_bc_type == ERFBCType::open) {
@@ -503,7 +503,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                                  BCVars::RhoScalar_bc_comp : dest_comp;
                 if (bc_comp > BCVars::RhoScalar_bc_comp) bc_comp -= (NSCALARS-1);
                 int l_bc_type = bc_ptr[n].lo(2);
-                int kflip = dom_lo.z - 1 - k;
+                int kflip = 2*dom_lo.z - 1 - k;
                 if (l_bc_type == ERFBCType::foextrap) {
                     dest_arr(i,j,k,dest_comp) =  dest_arr(i,j,dom_lo.z,dest_comp);
                 } else if (l_bc_type == ERFBCType::open) {
@@ -581,7 +581,7 @@ void ERFPhysBCFunct_cons::impose_vertical_cons_bcs (const Array4<Real>& dest_arr
                 Box xybx = bx;
 
                 int k0 = dom_lo.z;
-                if (xybx.smallEnd(2) < 0)
+                if (xybx.smallEnd(2) < dom_lo.z)
                 {
                     xybx.setBig(2,dom_lo.z-1);
                     xybx.setSmall(2,bx.smallEnd(2));

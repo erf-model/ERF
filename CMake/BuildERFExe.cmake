@@ -213,8 +213,7 @@ function(build_erf_lib erf_lib_name)
                    ${SRC_DIR}/IO/ERF_ReadFromMetgrid.cpp
                    ${SRC_DIR}/IO/ERF_ReadFromWRFBdy.cpp
                    ${SRC_DIR}/IO/ERF_ReadFromWRFInput.cpp
-                   ${SRC_DIR}/IO/ERF_ReadFromWRFLow.cpp
-                   ${SRC_DIR}/IO/ERF_NCColumnFile.cpp)
+                   ${SRC_DIR}/IO/ERF_ReadFromWRFLow.cpp)
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_NETCDF)
   endif()
 
@@ -373,6 +372,42 @@ function(build_erf_lib erf_lib_name)
       ${SRC_DIR}/WindFarmParametrization/GeneralActuatorDisk/ERF_AdvanceGeneralAD.cpp
     )
     target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_WINDFARM)
+  endif()
+
+  if(ERF_ENABLE_FIRE)
+    # The fire coupling, atmosphere side, shared by every fire engine
+    target_sources(${erf_lib_name} PRIVATE
+      ${SRC_DIR}/FireCoupling/ERF_FireCoupler.cpp
+      ${SRC_DIR}/FireCoupling/ERF_FireCouplingParams.cpp
+      ${SRC_DIR}/FireCoupling/ERF_FireEngineRegistry.cpp
+      ${SRC_DIR}/FireCoupling/ERF_FireGrid.cpp
+      ${SRC_DIR}/FireCoupling/ERF_FirePrerequisites.cpp
+      ${SRC_DIR}/FireCoupling/ERF_FireWindExtract.cpp
+      ${SRC_DIR}/FireCoupling/ERF_FireSurfaceHeight.cpp
+      ${SRC_DIR}/FireCoupling/ERF_FireSmokeEmission.cpp
+    )
+    target_include_directories(${erf_lib_name} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/Source/FireCoupling>)
+    target_compile_definitions(${erf_lib_name} PUBLIC ERF_USE_FIRE)
+
+    # Fire engines live outside ERF, each in a directory that provides
+    # ERFFireEngine.cmake defining erf_fire_engine_add(target). The function is
+    # called right after its file is included, so every engine may use the same
+    # name; ERF_FIRE_ENGINE_DIR holds the engine's directory during the call.
+    foreach(_fire_dir IN LISTS ERF_FIRE_ENGINE_DIRS)
+      get_filename_component(_fire_dir "${_fire_dir}" ABSOLUTE)
+      if(NOT EXISTS "${_fire_dir}/ERFFireEngine.cmake")
+        message(FATAL_ERROR "ERF_FIRE_ENGINE_DIRS: ${_fire_dir} has no ERFFireEngine.cmake")
+      endif()
+      set(ERF_FIRE_ENGINE_DIR "${_fire_dir}")
+      include("${_fire_dir}/ERFFireEngine.cmake")
+      if(NOT COMMAND erf_fire_engine_add)
+        message(FATAL_ERROR "${_fire_dir}/ERFFireEngine.cmake does not define erf_fire_engine_add(target)")
+      endif()
+      erf_fire_engine_add(${erf_lib_name})
+      message(STATUS "ERF fire engine directory: ${_fire_dir}")
+    endforeach()
+  elseif(ERF_FIRE_ENGINE_DIRS)
+    message(FATAL_ERROR "ERF_FIRE_ENGINE_DIRS is set but ERF_ENABLE_FIRE is OFF")
   endif()
 
   if(ERF_BUILD_LIBRARY_ONLY)

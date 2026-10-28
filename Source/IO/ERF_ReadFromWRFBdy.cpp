@@ -94,8 +94,8 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
 
     // *******************************************************************************
 
-    int ntimes;
-    double timeInterval;
+    int ntimes = 0;
+    double timeInterval = 0.0;
     const std::string dateTimeFormat = "%Y-%m-%d_%H:%M:%S";
 
     if (ParallelDescriptor::IOProcessor())
@@ -132,6 +132,26 @@ read_times_from_wrfbdy (const std::string& nc_bdy_file,
                 AMREX_ALWAYS_ASSERT(static_cast<double>(epochTimes[nt] - epochTimes[nt-1]) == timeInterval);
             }
         }
+
+        // With a single record the interval cannot come from Times; WRF also writes the time
+        // of the next boundary update for each record, so take it from there
+        if (ntimes == 1) {
+            const std::string next_name = "md___nextbdytimee_x_t_d_o_m_a_i_n_m_e_t_a_data_";
+            Vector<CharArray> array_next(1);
+            Vector<int> success_next(1);
+            ReadNetCDFFile(nc_bdy_file, {next_name}, array_next, success_next);
+            if (success_next[0] != 1) {
+                Abort("wrfbdy file " + nc_bdy_file + " has a single time and no " + next_name +
+                      ", so the boundary update interval is unknown");
+            }
+            const char* next_data = array_next[0].get_data();
+            std::string next_date(next_data, next_data + array_next[0].get_vshape()[1]);
+            timeInterval = static_cast<double>(getEpochTime(next_date, dateTimeFormat) - epochTimes[0]);
+            Print() << "  wrfbdy next update  : " << next_date << std::endl;
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(timeInterval > 0.0,
+                "wrfbdy next boundary time must be after its only time stamp");
+        }
+
         start_bdy_time = static_cast<double>(epochTimes[0]);
         final_bdy_time = static_cast<double>(epochTimes[ntimes-1]) + timeInterval;
         Print() << "  start_bdy_time " << start_bdy_time << std::endl;

@@ -1,5 +1,9 @@
 #include "ERF_SrcHeaders.H"
 
+#ifdef ERF_USE_FIRE
+#include <ERF_FireCoupler.H>
+#endif
+
 /**
  *  Wrapper for calling the routine that creates the slow RHS
  */
@@ -132,6 +136,27 @@
                      r_avg_to_pass, t_avg_to_pass,
                      forest_drag, &S_old[IntVars::cons],
                      true);
+
+        // *****************************************************************************
+        // Inject the fire-to-atmosphere heat flux AFTER make_sources, which resets
+        // cc_src at every RK stage. The lagged fire flux (FireCoupler) is constant
+        // across all RK stages and must be added here to survive the integrator.
+        // *****************************************************************************
+#ifdef ERF_USE_FIRE
+        // on the level the fire grid refines; coarser levels get it by average-down.
+        // The heat and vapour with the WRF-Fire profile, then the smoke tracer,
+        // proportional to the fuel burnt (FireCoupler::add_sources).
+        if (m_fire_coupler && level == m_fire_coupler->level()) {
+            bool has_moisture = (solverChoice.moisture_type != MoistureType::None);
+            m_fire_coupler->add_sources(cc_src,
+                                        S_old[IntVars::cons],
+                                        *zpc_to_use,
+                                        zpn_to_use,
+                                        fine_geom,
+                                        has_moisture,
+                                        istep[level]);
+        }
+#endif
 
         // Heat flux from the building faces (immersed-boundary surface energy
         // balance), added to the freshly rebuilt source; no-op unless enabled.
@@ -362,7 +387,10 @@
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-           for ( MFIter mfi(*p0,TilingIfNotGPU()); mfi.isValid(); ++mfi)
+           // Tile only in x and y: the second kernel reads r0_tmp and rt0_tmp at k-1 and k+1,
+           //    which the first kernel fills tile by tile, so a tile boundary in z would read
+           //    values another thread may not have written yet
+           for ( MFIter mfi(*p0,TileNoZ()); mfi.isValid(); ++mfi)
            {
                const Array4<Real      > rt0_arr     = rt0.array(mfi);
                const Array4<Real      > rt0_tmp_arr = rt0_new.array(mfi);

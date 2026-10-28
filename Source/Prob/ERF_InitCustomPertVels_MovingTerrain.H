@@ -1,6 +1,6 @@
     ParmParse pp_prob("prob");
     Real Ampl = zero;        pp_prob.query("Ampl", Ampl);
-    Real wavelength = one; pp_prob.get("wavelength", wavelength);
+    Real wavelength = Real(100.); pp_prob.queryAdd("wavelength", wavelength); // as the custom terrain
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(wavelength > zero, "prob.wavelength must be > 0");
 
     Real H           = phys_zhi(geomdata, lev);   // physical top of the domain

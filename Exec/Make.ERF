@@ -378,6 +378,22 @@ include $(ERF_MOISTURE_SUPERDROPLETSMOIST_DIR)/Make.package
 VPATH_LOCATIONS   += $(ERF_MOISTURE_SUPERDROPLETSMOIST_DIR)
 INCLUDE_LOCATIONS += $(ERF_MOISTURE_SUPERDROPLETSMOIST_DIR)
 
+# The fire coupling (atmosphere side); fire engines plug into it. Each
+# directory in FIRE_HOME (one or more, space separated) is a fire engine
+# directory with its own Make.package; FIRE_ENGINE_DIR holds the directory
+# while its Make.package is read.
+ifeq ($(USE_FIRE), TRUE)
+    DEFINES += -DERF_USE_FIRE
+    ERF_FIRE_COUPLING_DIR = $(ERF_SOURCE_DIR)/FireCoupling
+    include $(ERF_FIRE_COUPLING_DIR)/Make.package
+    VPATH_LOCATIONS   += $(ERF_FIRE_COUPLING_DIR)
+    INCLUDE_LOCATIONS += $(ERF_FIRE_COUPLING_DIR)
+    $(foreach d,$(FIRE_HOME),$(if $(wildcard $(d)/Make.package),,$(error FIRE_HOME: $(d) has no Make.package)))
+    $(foreach d,$(FIRE_HOME),$(eval FIRE_ENGINE_DIR := $(abspath $(d)))$(eval include $(FIRE_ENGINE_DIR)/Make.package)$(eval VPATH_LOCATIONS += $(FIRE_ENGINE_DIR))$(eval INCLUDE_LOCATIONS += $(FIRE_ENGINE_DIR)))
+else ifneq ($(strip $(FIRE_HOME)),)
+    $(error FIRE_HOME is set but USE_FIRE is not TRUE)
+endif
+
 # If using windfarm parametrization, then compile all models and choose
 # at runtime from the inputs
 ifeq ($(USE_WINDFARM), TRUE)

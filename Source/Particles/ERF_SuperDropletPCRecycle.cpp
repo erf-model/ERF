@@ -8,6 +8,10 @@
 using namespace amrex;
 using namespace SDPCDefn;
 
+namespace {
+    // Recycled super-droplet whose vz still carries its physical height
+    constexpr int recycle_pending = -1;
+}
 
 /*! Recycle deactivated particles: particles that have zero multiplicity are
  *  recycled by resetting them to dry aerosol particles and placing them randomly
@@ -204,8 +208,9 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                 if (ptrs.active_ptr[i] > 0) { return; }
 
                 // Place particle randomly in physical (x, y, z) within the
-                // user-specified bounds, then map physical z to computational
-                // zeta in the new column for storage in pos(2).
+                // user-specified bounds. pos(2) gets a provisional zeta from this
+                // grid's columns; placeRecycledParticles sets the final zeta from
+                // the columns of the grid that owns the particle.
                 const Real x_new = x_min + Random(rnd_engine)*(x_max - x_min);
                 const Real y_new = y_min + Random(rnd_engine)*(y_max - y_min);
                 const Real z_new = z_min + Random(rnd_engine)*(z_max - z_min);
@@ -216,12 +221,16 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                 // particle to its owning grid
                 const Real x_ter = amrex::min(amrex::max(x_new, gx_lo), gx_hi);
                 const Real y_ter = amrex::min(amrex::max(y_new, gy_lo), gy_hi);
+                // keep the provisional zeta inside the domain so Redistribute does not remove it
+                const Real zeta_prov = ERF::ParticlePos::zeta_from_z(x_ter, y_ter, z_new,
+                                                                     ctx.plo, ctx.dxi, zheight, k_max);
                 p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(
-                    ERF::ParticlePos::zeta_from_z(x_ter, y_ter, z_new,
-                                                  ctx.plo, ctx.dxi, zheight, k_max));
+                    amrex::Clamp(zeta_prov, ctx.plo[AMREX_SPACEDIM-1] + myhalf*ctx.dx[AMREX_SPACEDIM-1],
+                                            ctx.phi[AMREX_SPACEDIM-1] - myhalf*ctx.dx[AMREX_SPACEDIM-1]));
 
-                // Set velocities to zero
+                // Set velocities to zero; vz carries the physical height until the particle is placed
                 ptrs.v_ptr[0][i] = ptrs.v_ptr[1][i] = ptrs.v_ptr[2][i] = ptrs.vterm_ptr[i] = zero;
+                ptrs.v_ptr[AMREX_SPACEDIM-1][i] = static_cast<ParticleReal>(z_new);
 
                 // reset all species masses to zero
                 for (int ctr = 0; ctr < ctx.num_species; ctr++) {
@@ -255,13 +264,16 @@ void SuperDropletPC::Recycle ( const int             a_lev,
                     ctx.num_species, ctx.num_aerosols, ptrs.sp_sol_arr, ptrs.ae_sol_arr,
                     ptrs.sp_mass_ptrs, ptrs.ae_mass_ptrs, ptrs.sp_rho_arr, ptrs.ae_rho_arr);
 
-                // set as active
-                ptrs.active_ptr[i] = 1;
+                // set as active once placed
+                ptrs.active_ptr[i] = recycle_pending;
 
                 // add to count
                 Gpu::Atomic::Add(np_recycle_ptr, Long(1));
             });
             Gpu::synchronize();
+#ifdef AMREX_USE_OMP
+#pragma omp atomic
+#endif
             np_recycle_total += *(np_recycle_buf.copyToHost());
         }); // end forEachParticleTile
 
@@ -269,6 +281,7 @@ void SuperDropletPC::Recycle ( const int             a_lev,
         Print() << "    recycled " << np_recycle_total << " super-droplets.\n";
 
         Redistribute();
+        if (np_recycle_total > 0) { placeRecycledParticles(a_z_phys_nd); }
 
     } else {
 
@@ -291,6 +304,84 @@ void SuperDropletPC::Recycle ( const int             a_lev,
 
         Redistribute();
     }
+}
+
+/*! Convert the physical height that recycled super-droplets carry in vz to zeta, using
+ *  the terrain columns of the grid that owns each particle. A particle whose height lies
+ *  outside those columns moves toward its grid with an extrapolated zeta and is placed
+ *  on a later pass. */
+void SuperDropletPC::placeRecycledParticles ( const Vector<MFPtr>& a_z_phys_nd )
+{
+    BL_PROFILE("SuperDropletPC::placeRecycledParticles()");
+
+    const int max_passes = 8;
+    for (int pass = 0; pass < max_passes; pass++) {
+
+        Long num_pending = 0;
+
+        for (int lev = 0; lev <= finestLevel(); lev++) {
+
+            const auto proc_ctx = buildProcessContext(lev);
+            const Box& dom = Geom(lev).Domain();
+            const int  k_max = dom.bigEnd(AMREX_SPACEDIM-1) - dom.smallEnd(AMREX_SPACEDIM-1);
+            const MFPtr& z_height = a_z_phys_nd[lev];
+
+            forEachParticleTile(lev, proc_ctx,
+                [&](ParIterType& /*pti*/, int grid, ParticleType* p_pbox,
+                    const SDProcess::ParticlePointers& ptrs,
+                    const SDProcess::ProcessContext& ctx)
+            {
+                const auto zheight = (*z_height)[grid].const_array();
+                const int k_lo = amrex::max(0,     zheight.begin[2]);
+                const int k_hi = amrex::min(k_max, zheight.end[2] - 2);
+
+                Gpu::Buffer<Long> np_pending_buf({0});
+                auto* np_pending_ptr = np_pending_buf.data();
+
+                ParallelFor(ptrs.num_particles, [=] AMREX_GPU_DEVICE (int i) noexcept
+                {
+                    ParticleType& p = p_pbox[i];
+                    if (p.id() <= 0) { return; }
+                    if (ptrs.active_ptr[i] != recycle_pending) { return; }
+
+                    const Real x = static_cast<Real>(p.pos(0));
+                    const Real y = static_cast<Real>(p.pos(1));
+                    const Real z = static_cast<Real>(ptrs.v_ptr[AMREX_SPACEDIM-1][i]);
+                    const Real zeta = ERF::ParticlePos::zeta_from_z(x, y, z, ctx.plo, ctx.dxi, zheight, k_max);
+
+                    // zeta_from_z extrapolates beyond this grid's columns, which is final
+                    // only past the bottom or top of the domain
+                    const bool below = (k_lo > 0)
+                        && (z < ERF::ParticlePos::z_face_at_xy(x, y, k_lo, ctx.plo, ctx.dxi, zheight));
+                    const bool above = (k_hi < k_max)
+                        && (z >= ERF::ParticlePos::z_face_at_xy(x, y, k_hi+1, ctx.plo, ctx.dxi, zheight));
+
+                    if (below || above) {
+                        // keep the estimate inside the domain so Redistribute does not remove it
+                        p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(
+                            amrex::Clamp(zeta, ctx.plo[AMREX_SPACEDIM-1] + myhalf*ctx.dx[AMREX_SPACEDIM-1],
+                                               ctx.phi[AMREX_SPACEDIM-1] - myhalf*ctx.dx[AMREX_SPACEDIM-1]));
+                        Gpu::Atomic::Add(np_pending_ptr, Long(1));
+                    } else {
+                        p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(zeta);
+                        ptrs.v_ptr[AMREX_SPACEDIM-1][i] = zero;
+                        ptrs.active_ptr[i] = 1;
+                    }
+                });
+                Gpu::synchronize();
+#ifdef AMREX_USE_OMP
+#pragma omp atomic
+#endif
+                num_pending += *(np_pending_buf.copyToHost());
+            });
+        }
+
+        ParallelDescriptor::ReduceLongSum( &num_pending, 1 );
+        Redistribute();
+        if (num_pending == 0) { return; }
+    }
+    amrex::Abort("SuperDropletPC::placeRecycledParticles() - recycled super-droplets still unplaced after "
+                 + std::to_string(max_passes) + " passes");
 }
 
 #endif

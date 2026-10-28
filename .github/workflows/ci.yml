@@ -36,6 +36,12 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04]
+        # The particles-ON leg also builds the fire coupling (ERF_ENABLE_FIRE,
+        # which adds the smoke scalar) with the example engine directory
+        # (Tests/FireEngineExample, compiled in from ERF_FIRE_ENGINE_DIRS as an
+        # out-of-tree engine would be) and runs its tests; the OFF leg keeps the
+        # default single-scalar layout. The CUDA build covers the coupling with
+        # no engine.
         particles: [OFF, ON]
         include:
         - os: ubuntu-22.04
@@ -99,6 +105,8 @@ jobs:
           -DERF_PARALLEL_TEST_ALLOW_OVERSUBSCRIBE:BOOL=ON \
           '-DERF_PARALLEL_TEST_NRANKS:STRING=${{env.ERF_PARALLEL_TEST_NRANKS}}' \
           -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
+          -DERF_ENABLE_FIRE:BOOL=${{matrix.particles}} \
+          "-DERF_FIRE_ENGINE_DIRS:STRING=${{ matrix.particles == 'ON' && format('{0}/Tests/FireEngineExample', github.workspace) || '' }}" \
           -DERF_ENABLE_TESTS:BOOL=ON \
           -DERF_ENABLE_ALL_WARNINGS:BOOL=ON \
           -DERF_ENABLE_FCOMPARE:BOOL=ON \

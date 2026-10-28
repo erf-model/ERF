@@ -59,7 +59,8 @@ SAM::PrecipFall (const SolverChoice& sc)
     auto tabs  = mic_fab_vars[MicVar::tabs];
     auto rain_accum = mic_fab_vars[MicVar::rain_accum];
     auto snow_accum = mic_fab_vars[MicVar::snow_accum];
-    auto graup_accum = mic_fab_vars[MicVar::graup_accum];
+    auto graupel_accum = mic_fab_vars[MicVar::graupel_accum];
+    auto precip_accum = mic_fab_vars[MicVar::precip_accum];
 
     auto ba    = tabs->boxArray();
     auto dm    = tabs->DistributionMap();
@@ -158,7 +159,8 @@ SAM::PrecipFall (const SolverChoice& sc)
 
             auto rain_accum_array = rain_accum->array(mfi);
             auto snow_accum_array = snow_accum->array(mfi);
-            auto graup_accum_array = graup_accum->array(mfi);
+            auto graupel_accum_array = graupel_accum->array(mfi);
+            auto precip_accum_array = precip_accum->array(mfi);
             auto sed_array = m_sed.down->array(mfi);
             const auto inflow_array = (m_sed_inflow) ? m_sed_inflow->const_array(mfi)
                                                      : Array4<const Real>{};
@@ -228,7 +230,10 @@ SAM::PrecipFall (const SolverChoice& sc)
                             dtn);
                     rain_accum_array(i,j,k)  = rain_accum_array(i,j,k)  + surface_accum.rain;
                     snow_accum_array(i,j,k)  = snow_accum_array(i,j,k)  + surface_accum.snow;
-                    graup_accum_array(i,j,k) = graup_accum_array(i,j,k) + surface_accum.graupel;
+                    graupel_accum_array(i,j,k) = graupel_accum_array(i,j,k) + surface_accum.graupel;
+                    // The total is in mm of liquid water, whatever the species' own densities
+                    precip_accum_array(i,j,k) += (fz_array(i,j,k,0) + fz_array(i,j,k,1) + fz_array(i,j,k,2))
+                                               * dtn / rhor * Real(1000.0);
                 }
             });
 

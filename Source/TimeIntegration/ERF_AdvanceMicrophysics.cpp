@@ -218,7 +218,8 @@ ERF::average_down_precip_accumulators (int lev)
 {
     // Only the sedimenting schemes; their Qmoist variables are exactly their surface
     // precipitation accumulators (Kessler: rain; SAM, Morrison, WSM6, WDM6: rain, snow,
-    // graupel), each holding its running total in the cell on the ground.
+    // graupel and the precipitation total), each holding its running total in the cell
+    // on the ground.
     if (!micro || !micro->Get_Sed_Flux(lev+1)) { return; }
 
     const BoxArray& fba = grids[lev+1];

@@ -70,17 +70,18 @@ ERF::init_from_metgrid (int lev)
         Print() << "Init with met_em without moisture model." << std::endl;
     }
 
-    // Check for an erfbdy file.
-    if (lev == 0 && !write_erfbdy) {
+    // The boundary data come from an erfbdy file when this run writes one -- it then keeps
+    // only the first two times in memory and reads the others back as they are needed --
+    // or when there is one to read.  Otherwise every time stays in memory from the met_em
+    // files, and no boundary file is read during the run.
+    if (lev == 0) {
         std::string erfbdy_header = erfbdy_file + "/Header";
-        use_erfbdy = FileSystem::Exists(erfbdy_header);
+        use_erfbdy = write_erfbdy || FileSystem::Exists(erfbdy_header);
     }
     // Set nvars_erfbdy based on whether moisture is enabled
-    if (use_erfbdy || write_erfbdy) {
+    if (use_erfbdy) {
         nvars_erfbdy = use_moisture ? MetGridBdyVars::NumTypes : (MetGridBdyVars::NumTypes - 1);
     }
-
-    use_erfbdy = true;
 
     int ntimes = num_files_at_level[lev];
     Print() << ntimes << " met_em.d0" << lev+1 << "*.nc files are listed" << std::endl;

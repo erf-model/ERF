@@ -771,7 +771,8 @@ void SuperDropletPC::Coalescence ( int   a_lev,
 
                 // interpolate flow quantities at ice particle location
                 ParticleType& p_ice = pstruct_ptr[id_i];
-                if (ERF::Interpolation::stencilOutOfBoundsZ(p_ice, plo, dxi, zheight)) { return; }
+                // Redistribute keeps every particle inside its grid, so the stencil is in bounds
+                AMREX_ALWAYS_ASSERT(!ERF::Interpolation::stencilOutOfBoundsZ(p_ice, plo, dxi, zheight));
                 constexpr int nf = static_cast<int>(InterpFieldsTR::NUM_FIELDS);
                 ParticleReal fv[nf];
                 const Array4<const Real> fa[nf] = {
@@ -909,7 +910,7 @@ void SuperDropletPC::Coalescence ( int   a_lev,
 
         } );
         Gpu::synchronize();
-        num_collisions = static_cast<Real>(*(particle_collisions.copyToHost()));
+        num_collisions += static_cast<Real>(*(particle_collisions.copyToHost()));
 
         dMdt<ParticleReal> dmdt{ static_cast<ParticleReal>(mat_prop_core.m_lat_vap),
                                  static_cast<ParticleReal>(therco), /* ERF_Constants.H */
@@ -971,8 +972,8 @@ void SuperDropletPC::Coalescence ( int   a_lev,
                 AMREX_ALWAYS_ASSERT(    ((phase_i == SDPhase::ice) && (phase_j == SDPhase::water))
                                      || ((phase_i == SDPhase::water) && (phase_j == SDPhase::ice)) );
 
-                ParticleType& p_ice = pstruct_ptr[i];
-                if (ERF::Interpolation::stencilOutOfBoundsZ(p_ice, plo, dxi, zheight)) { return; }
+                ParticleType& p_ice = pstruct_ptr[(phase_i == SDPhase::ice) ? i : j];
+                AMREX_ALWAYS_ASSERT(!ERF::Interpolation::stencilOutOfBoundsZ(p_ice, plo, dxi, zheight));
                 constexpr int nf = static_cast<int>(InterpFieldsFull::NUM_FIELDS);
                 ParticleReal fv[nf];
                 const Array4<const Real> fa[nf] = {

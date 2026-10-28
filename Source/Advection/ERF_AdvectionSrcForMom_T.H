@@ -317,7 +317,8 @@ AdvectionSrcForZMom (int i, int j, int k,
     if (k == hi_z_face) {
         centFluxZZNext *=  w(i,j,k);
     } else {
-        if (k == hi_z_face-1)
+        // The centre next to the top or bottom face is second order, seen from either side
+        if (k == hi_z_face-1 || k == lo_z_face)
         {
             interp_omega_wall.InterpolateInZ(i,j,k+1,0,interp_hi,Omega_avg_hi,AdvType::Centered_2nd);
         } else if (k == hi_z_face-2 || k == lo_z_face+1) {
@@ -334,7 +335,7 @@ AdvectionSrcForZMom (int i, int j, int k,
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
-    Omega_avg_lo = (k == 0) ? Omega(i,j,k) * az(i,j,k) :
+    Omega_avg_lo = (k == lo_z_face) ? Omega(i,j,k) * az(i,j,k) :
                       fourth * (Omega(i,j,k) + Omega(i,j,k-1)) * (az(i,j,k) + az(i,j,k-1));
     amrex::Real centFluxZZPrev = Omega_avg_lo;
 
@@ -342,10 +343,10 @@ AdvectionSrcForZMom (int i, int j, int k,
     // If k == hi_z_face-1, l_spatial_order_hi = 2
     // If k == hi_z_face-2, l_spatial_order_hi = std::min(vert_spatial_order, 4);
     // If k == lo_z_face+1, l_spatial_order_hi = std::min(vert_spatial_order, 4);
-    if (k == 0) {
+    if (k == lo_z_face) {
         centFluxZZPrev *=  w(i,j,k);
     } else {
-        if (k == lo_z_face+1) {
+        if (k == lo_z_face+1 || k == hi_z_face) {
             interp_omega_wall.InterpolateInZ(i,j,k,0,interp_lo,Omega_avg_lo,AdvType::Centered_2nd);
         } else if (k == lo_z_face+2 || k == hi_z_face-1) {
             if (vert_adv_type != AdvType::Centered_2nd && vert_adv_type != AdvType::Upwind_3rd) {

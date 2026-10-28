@@ -1188,9 +1188,9 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                     const int gi = blo[0] + bx;
                     const int gj = blo[1] + by;
                     const int gk = blo[2] + bz;
-                    const int pi = gi / rr[0];
-                    const int pj = gj / rr[1];
-                    const int pk = gk / rr[2];
+                    const int pi = amrex::coarsen(gi, rr[0]);
+                    const int pj = amrex::coarsen(gj, rr[1]);
+                    const int pk = amrex::coarsen(gk, rr[2]);
 
                     const int nbr_off[6][3] = {
                         {-1,0,0},{1,0,0},{0,-1,0},{0,1,0},{0,0,-1},{0,0,1}
@@ -1205,7 +1205,8 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                         const int ngi = blo[0] + nx;
                         const int ngj = blo[1] + ny;
                         const int ngk = blo[2] + nz;
-                        if (ngi/rr[0] != pi || ngj/rr[1] != pj || ngk/rr[2] != pk) { continue; }
+                        if (amrex::coarsen(ngi, rr[0]) != pi || amrex::coarsen(ngj, rr[1]) != pj ||
+                            amrex::coarsen(ngk, rr[2]) != pk) { continue; }
                         int nb = nx + blen[0] * (ny + blen[1] * nz);
                         if (active_count[nb] >= 2 && first_active[nb] >= 0) {
                             donor_pidx[b] = first_active[nb];
@@ -1222,7 +1223,8 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                         const int ngi = blo[0] + nx;
                         const int ngj = blo[1] + ny;
                         const int ngk = blo[2] + nz;
-                        if (ngi/rr[0] != pi || ngj/rr[1] != pj || ngk/rr[2] != pk) { continue; }
+                        if (amrex::coarsen(ngi, rr[0]) != pi || amrex::coarsen(ngj, rr[1]) != pj ||
+                            amrex::coarsen(ngk, rr[2]) != pk) { continue; }
                         int nb = nx + blen[0] * (ny + blen[1] * nz);
                         if (first_active[nb] >= 0) {
                             donor_pidx[b] = first_active[nb];

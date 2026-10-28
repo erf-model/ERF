@@ -5,6 +5,8 @@
 #include <AMReX_Vector.H>
 #include <AMReX_REAL.H>
 
+#include <utility>
+
 struct TimeInterpolatedData {
     /**
      * Construct empty time-interpolated data storage.
@@ -26,16 +28,36 @@ struct TimeInterpolatedData {
     }
 
     /**
-     * Default move constructor.
-     */
-    TimeInterpolatedData (TimeInterpolatedData&&)  noexcept = default;
-
-    /**
-     * Default move-assignment operator.
+     * Move constructor: takes over the source's data and ownership, leaving it empty.
      *
      * @param[in] other source object
      */
-    TimeInterpolatedData& operator= (TimeInterpolatedData&& other)  noexcept = default;
+    TimeInterpolatedData (TimeInterpolatedData&& other) noexcept
+        : m_data(std::move(other.m_data)),
+          m_owns_data(std::move(other.m_owns_data)),
+          m_time(other.m_time)
+    {
+        other.m_data.clear();
+        other.m_owns_data.clear();
+    }
+
+    /**
+     * Move-assignment operator: frees the data this object owns, then takes over the
+     * source's data and ownership, leaving it empty.
+     *
+     * @param[in] other source object
+     */
+    TimeInterpolatedData& operator= (TimeInterpolatedData&& other) noexcept {
+        if (this != &other) {
+            clear();
+            m_data      = std::move(other.m_data);
+            m_owns_data = std::move(other.m_owns_data);
+            m_time      = other.m_time;
+            other.m_data.clear();
+            other.m_owns_data.clear();
+        }
+        return *this;
+    }
 
     /**
      * Deleted copy constructor.
@@ -111,7 +133,7 @@ struct TimeInterpolatedData {
 private:
     amrex::Vector<amrex::MultiFab*> m_data;
     amrex::Vector<int> m_owns_data;
-    double m_time;
+    double m_time = 0.0;
 };
 
 #endif

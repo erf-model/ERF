@@ -33,9 +33,10 @@ namespace MicVar_WDM6 {
       nn,          // total aerosol number concentration
       nc,          // cloud droplet number concentration
       nr,          // rain drop number concentration
-      rain_accum,
-      snow_accum,
-      graup_accum,
+      rain_accum,    // rain alone
+      snow_accum,    // snow alone
+      graupel_accum, // graupel alone
+      precip_accum,  // everything that fell, cloud ice included
       NumVars
    };
 }
@@ -262,17 +263,18 @@ public:
                               std::vector<int>& a_idx,
                               std::vector<std::string>& a_names) const override
     {
-        a_idx = {0, 1, 2};
-        a_names = {"RainAccum", "SnowAccum", "GraupAccum"};
+        a_idx = {0, 1, 2, 3};
+        a_names = {"RainAccum", "SnowAccum", "GraupAccum", "PrecipAccum"};
     }
 
     SurfacePrecipAccumulationSources
     Get_Surface_Precip_Accumulation_Ptrs (const int&) const override
     {
         SurfacePrecipAccumulationSources sources;
-        sources.total   = {mic_fab_vars[MicVar_WDM6::rain_accum].get(), rhoh2o / amrex::Real(1000.0)};
+        sources.total   = {mic_fab_vars[MicVar_WDM6::precip_accum].get(), rhoh2o / amrex::Real(1000.0)};
+        sources.rain    = {mic_fab_vars[MicVar_WDM6::rain_accum].get(), rhoh2o / amrex::Real(1000.0)};
         sources.snow    = {mic_fab_vars[MicVar_WDM6::snow_accum].get(), rhoh2o / amrex::Real(1000.0)};
-        sources.graupel = {mic_fab_vars[MicVar_WDM6::graup_accum].get(), rhoh2o / amrex::Real(1000.0)};
+        sources.graupel = {mic_fab_vars[MicVar_WDM6::graupel_accum].get(), rhoh2o / amrex::Real(1000.0)};
         return sources;
     }
 
@@ -282,7 +284,7 @@ public:
                          const SolverChoice& sc);
 
 private:
-    int m_qmoist_size = 3;  // rain_accum, snow_accum, graup_accum
+    int m_qmoist_size = 4;  // rain_accum, snow_accum, graupel_accum, precip_accum
     int n_qstate_moist_size = 9;  // 6 mixing ratios + 3 number concentrations
     int n_qstate_moist_numconc_size = 3;  // nn, nc, nr
 

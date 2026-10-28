@@ -47,7 +47,7 @@
     Real eq_pot_temp = amrex::Real(320.0); pp_prob.query("eq_pot_temp",eq_pot_temp);
 
     bool use_empirical = false;
-    pp_prob.query("use_empircal_psat",use_empirical);
+    pp_prob.query("use_empirical_psat",use_empirical);
 
     if (do_moist_bubble) {
         Vector<Real> h_r(khi+2);
@@ -149,6 +149,9 @@
                 state_pert(i, j, k, qci_comp)   = qn * (one_d - omn);
             }
         });
+
+        // The kernel above reads d_r, d_p, d_t and d_q_v; wait for it before they are freed
+        Gpu::streamSynchronize();
     } else {
         ParallelFor(bx, [=,zero_d=zero] AMREX_GPU_DEVICE(int i, int j, int k)
         {

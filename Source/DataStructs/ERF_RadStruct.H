@@ -1093,7 +1093,12 @@ public:
       if (cloud_fraction_rh_max < cloud_fraction_rh_min) {
         cloud_fraction_rh_max = cloud_fraction_rh_min;
       }
-      clamp_low("cloud_fraction_qc_scale", cloud_fraction_qc_scale, 0.0);
+      // qc is divided by this scale, and the kernel drops the qc term when it is not
+      // positive; clamping a bad value to zero would switch that term off silently
+      if (!(cloud_fraction_qc_scale > 0.0)) {
+        amrex::Abort("erf.radiation.cloud_fraction_qc_scale = " + std::to_string(cloud_fraction_qc_scale) +
+                     " must be positive [kg/kg].");
+      }
 
       // Prescribed bulk aerosol/turbidity optical depth
       // (all optional; disabled by default)

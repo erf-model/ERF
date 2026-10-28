@@ -109,7 +109,7 @@ ERF::MakeFilename_EyeTracker_surface_fluxes (int nstep) {
 
 void
 ERF::WriteVTKPolyline (const std::string& filename,
-                       Vector<std::array<Real, 2>>& points_xy)
+                       const Vector<std::array<Real, 2>>& points_xy)
 {
     std::ofstream vtkfile(filename);
     if (!vtkfile.is_open()) {
@@ -127,10 +127,10 @@ ERF::WriteVTKPolyline (const std::string& filename,
         vtkfile.close();
         return;
     }
-    if (num_points < 2) {
-        points_xy.push_back(points_xy[0]);
-    }
-    num_points = points_xy.size();
+    // A VTK polyline needs at least two points; repeat a lone point in the
+    // file only, leaving the caller's track history unchanged
+    const int num_in = num_points;
+    num_points = std::max(num_in, 2);
 
     vtkfile << "# vtk DataFile Version three\n";
     vtkfile << "Storm Track\n";
@@ -139,7 +139,8 @@ ERF::WriteVTKPolyline (const std::string& filename,
 
     // Write points (Z=0 assumed)
     vtkfile << "POINTS " << num_points << " float\n";
-    for (const auto& pt : points_xy) {
+    for (int i = 0; i < num_points; ++i) {
+        const auto& pt = points_xy[std::min(i, num_in - 1)];
         vtkfile << pt[0] << " " << pt[1] << " " << 10000.0 << std::endl;
     }
 

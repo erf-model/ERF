@@ -50,9 +50,10 @@ namespace MicVar_Morr {
       ns,    // snow number
       ng,    // graupel number
       // derived vars
-      rain_accum,
-      snow_accum,
-      graup_accum,
+      rain_accum,    // rain alone
+      snow_accum,    // snow alone
+      graupel_accum, // graupel alone
+      precip_accum,  // everything that fell, cloud water and cloud ice included
       omega,
       NumVars
    };
@@ -216,11 +217,13 @@ public:
         a_names.clear();
 
         // The ordering here needs to match that in
-        // MicVarMap = {MicVar_Morr::rain_accum, MicVar_Morr::snow_accum, MicVar_Morr::graup_accum};
+        // MicVarMap = {MicVar_Morr::rain_accum, MicVar_Morr::snow_accum,
+        //              MicVar_Morr::graupel_accum, MicVar_Morr::precip_accum};
         //
         a_idx.push_back(0); a_names.push_back("RainAccum");
         a_idx.push_back(1); a_names.push_back("SnowAccum");
         a_idx.push_back(2); a_names.push_back("GraupAccum");
+        a_idx.push_back(3); a_names.push_back("PrecipAccum");
     }
 
     const SedimentationFlux* Sed_Flux () const override { return &m_sed; }
@@ -229,11 +232,12 @@ public:
     Get_Surface_Precip_Accumulation_Ptrs (const int&) const override
     {
         SurfacePrecipAccumulationSources sources;
-        sources.total = {mic_fab_vars[MicVar_Morr::rain_accum].get(), rhor / amrex::Real(1000.0)};
+        sources.total = {mic_fab_vars[MicVar_Morr::precip_accum].get(), rhor / amrex::Real(1000.0)};
+        sources.rain  = {mic_fab_vars[MicVar_Morr::rain_accum].get(), rhor / amrex::Real(1000.0)};
 
         if (m_moisture_type == MoistureType::Morrison) {
             sources.snow    = {mic_fab_vars[MicVar_Morr::snow_accum].get(), rhor / amrex::Real(1000.0)};
-            sources.graupel = {mic_fab_vars[MicVar_Morr::graup_accum].get(), rhor / amrex::Real(1000.0)};
+            sources.graupel = {mic_fab_vars[MicVar_Morr::graupel_accum].get(), rhor / amrex::Real(1000.0)};
         }
 
         return sources;
@@ -261,8 +265,8 @@ public:
                     const SolverChoice& sc);
 
 private:
-    // Number of qmoist variables (rain_accum, snow_accum, graup_accum)
-    int m_qmoist_size = 3;
+    // Number of qmoist variables (rain_accum, snow_accum, graupel_accum, precip_accum)
+    int m_qmoist_size = 4;
 
     // Number of qstate variables
     int n_qstate_moist_size = 11;
