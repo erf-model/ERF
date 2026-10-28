@@ -300,7 +300,11 @@ ForestDrag::define_drag_field (const BoxArray& ba,
             all_boxes_touch_bottom = false;
         }
     }
-    AMREX_ALWAYS_ASSERT(all_boxes_touch_bottom);
+    // The drag field reads each column's ground nodes at k = 0 from its own box
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(all_boxes_touch_bottom,
+        "Forest drag needs every box of the level to reach the ground: do not split the grids "
+        "in z (amr.max_grid_size in z at least the number of cells in z), and refine forested "
+        "levels from the ground up");
 
     // Allocate the forest drag MF and frontal area MF
     // NOTE: 1 ghost cell for averaging to faces

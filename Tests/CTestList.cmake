@@ -1410,6 +1410,16 @@ set_tests_properties(BndryPlanes_MoistTemperature PROPERTIES FIXTURES_SETUP Bndr
 add_test_field_bounds(InputSponge_FinePatch "plt00004" x_velocity 5.9 8.5)
 # A refined patch below the inversion takes the coarse level's PBL height (~513 m), not its own
 add_test_field_bounds(PBLH_FinePatch "plt2d00004" pblh 450.0 600.0)
+
+# RANS wall distance on levels a regrid makes (#4691): level 1 is added after step 1 and
+# moved after step 3, and walldist over both levels must lie between half a level-1 cell
+# (8 m) and the top level-0 cell centre (1008 m), reaching 8 m so level 1 is in the file.
+# Before the fix level 1 kept the bogus_large_value its new grids were set to.
+add_test_field_bounds(RANS_WallDist_Regrid "plt00004" walldist 7.99 1008.01 MIN_HI 8.01)
+# The same deck stopped after step 2, when level 1 has only been added from level 0
+set(TEST_FILES_DIR RANS_WallDist_Regrid)
+add_test_field_bounds(RANS_WallDist_NewLevel "plt00002" walldist 7.99 1008.01 MIN_HI 8.01)
+unset(TEST_FILES_DIR)
 # A column whose bulk Richardson number never reaches Ribcr takes the top of the scan, capped
 # at 0.9 z(khi) = 907.2 m; YSUNew and MRF gave it the 16 m floor (erf-model/ERF#4458)
 add_test_field_bounds(PBL_NoCrossing_YSUNew "plt2d00002" pblh 907.1 907.3)
