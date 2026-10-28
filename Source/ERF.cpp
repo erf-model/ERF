@@ -1859,6 +1859,15 @@ ERF::InitData_post ()
                 static_cast<int>(ori) == Orientation::zlo()) {
                 face_pp_prefix = pp_prefix;
             }
+            if (static_cast<int>(ori) == Orientation::zlo() &&
+                solverChoice.perturbation_auto && solverChoice.any_perturbation()) {
+                // Supply a diagnostic for PBL ancestors using the selected bottom
+                // face's namespace. Preserve an explicit choice (including "none").
+                ParmParse pp_face(face_pp_prefix);
+                if (!pp_face.contains("most.pblh_calc")) {
+                    pp_face.add("most.pblh_calc", std::string("MYNN25"));
+                }
+            }
             m_SurfaceLayer[ori] = std::make_unique<SurfaceLayer>(ori, geom, rotate, face_pp_prefix, Qv_prim,
                                                                  z_phys_nd,
                                                                  zlevels_stag,
@@ -1974,7 +1983,8 @@ ERF::InitData_post ()
                     // we don't want to call update_fluxes multiple times because
                     // it will change u* and theta* from their previous values
                     m_SurfaceLayer[ori]->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
-                                                     solverChoice.moisture_indices);
+                                                     solverChoice.moisture_indices,
+                                                     solverChoice.perturbation_auto);
 #ifdef ERF_USE_NETCDF
                     double elapsed_time_since_start_low = t_new[lev] + (start_time - start_low_time);
 #else
@@ -3235,7 +3245,9 @@ ERF::init_only (int lev, double elapsed_time)
     }
 
     // Initialize turbulent perturbation
-    if (solverChoice.use_perturbation(lev)) {
+    // Automatic regions are first resolved in Advance, after the parent has advanced
+    // and its PBL scheme has supplied a height (also for delayed nests and restarts).
+    if (solverChoice.use_perturbation(lev) && !solverChoice.perturbation_auto) {
         turbPert_update(lev, zero);
         if (solverChoice.use_wvel_perturbation(lev)) {
             turbPert_amplitude_w(lev);

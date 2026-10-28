@@ -2920,15 +2920,18 @@ SurfaceLayer::fill_qsurf_with_skin_moisture (const int& lev,
  * @param[in] vars Level-indexed state MultiFabs passed to the PBL height estimator
  * @param[in] z_phys_cc Cell-centered physical height used by the PBL height estimator
  * @param[in] moisture_indices Moisture component indices used by the PBL height estimator
+ * @param[in] height_agl Diagnose MYNN heights relative to local ground
  */
 void
 SurfaceLayer::update_pblh (const int& lev,
                            Vector<Vector<MultiFab>>& vars,
                            MultiFab* z_phys_cc,
-                           const MoistureComponentIndices& moisture_indices)
+                           const MoistureComponentIndices& moisture_indices,
+                           bool height_agl)
 {
     if (pblh_type == PBLHeightCalcType::MYNN25) {
         MYNNPBLH estimator;
+        estimator.use_agl = height_agl;
         compute_pblh(lev, vars, z_phys_cc, estimator, moisture_indices);
     } else if (pblh_type == PBLHeightCalcType::YSU || pblh_type == PBLHeightCalcType::MRF || pblh_type == PBLHeightCalcType::YSUNew)
     {

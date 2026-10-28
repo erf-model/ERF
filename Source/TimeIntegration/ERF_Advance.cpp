@@ -72,6 +72,9 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     // Update the inflow perturbation update time and amplitude
     if (solverChoice.use_perturbation(lev))
     {
+        if (solverChoice.perturbation_auto) {
+            turbPert_update_automatic(lev, time);
+        }
         turbPert.calc_tpi_update(lev, dt_lev, U_old, V_old, S_old);
     }
 
@@ -156,7 +159,8 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
             //       Reassign the field ptrs for MAC avg computation.
             m_SurfaceLayer[ori]->update_mac_ptrs(lev, vars_old, Theta_prim, Qv_prim, Qr_prim);
             m_SurfaceLayer[ori]->update_pblh(lev, vars_old, z_phys_cc[lev].get(),
-                                             solverChoice.moisture_indices);
+                                             solverChoice.moisture_indices,
+                                             solverChoice.perturbation_auto);
 
 #ifdef ERF_USE_NETCDF
             double elapsed_time_since_start_low = time + (start_time - start_low_time);

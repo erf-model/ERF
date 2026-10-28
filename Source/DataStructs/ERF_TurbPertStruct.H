@@ -21,6 +21,20 @@ AMREX_ENUM(PerturbationType,
     Source, Direct, CPM, CPM_W, None
 );
 
+// One lateral edge of a rectangular nest. Faces are xlo, ylo, xhi, yhi.
+struct AutomaticPerturbationFace {
+    amrex::Box region;
+    int face = 0;
+    amrex::Real u = zero;
+    amrex::Real v = zero;
+    amrex::Real height = zero; // perturbation ceiling, metres above local terrain
+
+    bool inflow () const {
+        const amrex::Real normal = (face % 2 == 0) ? u : v;
+        return height > zero && ((face < 2) ? normal > zero : normal < zero);
+    }
+};
+
 /**
  * @brief Runtime state and operations for turbulent perturbation forcing.
  */
@@ -71,6 +85,7 @@ struct TurbulentPerturbation {
      * @param pp_prefix ParmParse prefix for the ERF input namespace.
      * @param refRatio Refinement ratios between AMR levels.
      * @param max_level Maximum AMR level configured for the run.
+     * @param automatic Select runtime inflow/height masks driven by the parent.
      */
     void init_tpi (const int lev,
                    const amrex::Vector<amrex::BoxArray>& subdomains_lev,
@@ -80,16 +95,22 @@ struct TurbulentPerturbation {
                    const int ngrow_state,
                    std::string pp_prefix,
                    const amrex::Vector<amrex::IntVect> refRatio,
-                   const int max_level)
+                   const int max_level,
+                   const bool automatic = false)
 
     {
         ref_ratio = refRatio;
+        auto_mode = automatic;
 
         amrex::ParmParse pp(pp_prefix);
 
         // Reading inputs, and placing assertion for the perturbation inflow to work
         pp.getarr("perturbation_box_dims",tpi_boxDim);
-        pp.getarr("perturbation_direction",tpi_direction);
+        if (auto_mode) {
+            tpi_direction = {1, 1, 0, 1, 1, 0};
+        } else {
+            pp.getarr("perturbation_direction",tpi_direction);
+        }
         if (tpi_boxDim.size() != 3) {
             amrex::Abort("perturbation_box_dims must have 3 entries (Nx Ny Nz)");
         }
@@ -143,6 +164,9 @@ struct TurbulentPerturbation {
         // Check variables message
         if (tpi_offset < 0) { amrex::Abort("Please provide a valid inflow cell offset value for perturbation region (ie. 0-5)"); }
         if (tpi_layers < 0) { amrex::Abort("Please provide a valid perturbation layer value (ie. 3-5)"); }
+        if (auto_mode && tpi_layers == 0) {
+            amrex::Abort("Automatic perturbations require perturbation_layers > 0");
+        }
         if (tpi_nonDim < zero) { amrex::Abort("Please provide a valid nondimensional number (ie. Ri = amrex::Real(0.042))"); }
         for (int i = 0; i < tpi_boxDim.size(); i++) {
             if (tpi_boxDim[i] < 3) { amrex::Abort("Please provide valid dimensions for perturbation boxes."); }
@@ -172,6 +196,16 @@ struct TurbulentPerturbation {
 
             const amrex::IntVect& valid_box_lo = subdomain_box.smallEnd();
             const amrex::IntVect& valid_box_hi = subdomain_box.bigEnd();
+
+            if (auto_mode) {
+                // Allocate all possible edges once. A mask chooses inflow and height
+                // at runtime, including corners when either adjoining edge is inflow.
+                for (int face = 0; face < 4; ++face) {
+                    const amrex::Box region = automatic_face_box(subdomain_box, face);
+                    if (region.ok()) { tmp_bl.push_back(region); }
+                }
+                continue;
+            }
 
             // default perturbation region to be the entire z extent if the user does not specify bounds
             if (!have_klo) { perturbation_klo = valid_box_lo[2]; }
@@ -241,7 +275,11 @@ struct TurbulentPerturbation {
 
         //amrex::PrintToFile("BoxPerturbationOutput") << "\nBoxList: " << tmp_bl << "\n";
         amrex::BoxArray tmp_ba(tmp_bl);
+        if (auto_mode) { tmp_ba.removeOverlap(); }
         tmp_ba.maxSize(boxSize);
+        if (auto_mode && tmp_ba.empty()) {
+            amrex::Abort("Automatic perturbation strips are empty; reduce perturbation_offset");
+        }
 
         const int num_levels = max_level + 1;
         if (pb_ba.size() < num_levels) {
@@ -258,6 +296,9 @@ struct TurbulentPerturbation {
             tpi_Wpb.resize(num_levels);
             tpi_Hpb.resize(num_levels);
             tpi_lref.resize(num_levels);
+            auto_mask.resize(num_levels);
+            auto_next_update.resize(num_levels, -1.0);
+            auto_ready.resize(num_levels, false);
         }
 
         pb_ba[lev] = tmp_ba;
@@ -280,6 +321,17 @@ struct TurbulentPerturbation {
             pb_cell[lev].define(ba, dm, 1, ngrow_state); // this is the only place ba is used. Maybe we can print here to determine what's valid...
         }
         pb_cell[lev].setVal(0.);
+        if (auto_mode) {
+            auto_mask[lev].define(pb_cell[lev].boxArray(), dm, 1, 0);
+            auto_mask[lev].setVal(zero);
+            auto_next_update[lev] = -1.0;
+            auto_ready[lev] = false;
+            // Regridding can leave vectors at the same size; resize alone would retain
+            // clocks/amplitudes belonging to a different set of boxes.
+            pb_interval[lev].assign(pb_ba[lev].size(), -one);
+            pb_local_etime[lev].assign(pb_ba[lev].size(), zero);
+            pb_nupdate[lev].assign(pb_ba[lev].size(), 0);
+        }
 
         // Computing perturbation reference length
         tpi_Lpb[lev] = tpi_boxDim[0]*dx[0];
@@ -311,6 +363,87 @@ struct TurbulentPerturbation {
     }
 
 
+    // Geometry of a candidate edge strip, clipped to the nest interior.
+    amrex::Box automatic_face_box (const amrex::Box& subdomain, int face) const
+    {
+        amrex::Box region = subdomain;
+        region.grow(0, -tpi_offset);
+        region.grow(1, -tpi_offset);
+        const int dir = face % 2;
+        const int width = tpi_layers * tpi_boxDim[dir];
+        if (face < 2) {
+            region.setBig(dir, std::min(region.bigEnd(dir), region.smallEnd(dir)+width-1));
+        } else {
+            region.setSmall(dir, std::max(region.smallEnd(dir), region.bigEnd(dir)-width+1));
+        }
+        return region;
+    }
+
+    bool automatic_update_due (int lev, double time) const
+    {
+        return !auto_ready[lev] || time >= auto_next_update[lev];
+    }
+
+    // Refresh the parent controls without changing the perturbation boxes or
+    // their random refresh counts. z_ground is a nodal bottom slab per grid box.
+    void configure_automatic (int lev, double time, double period,
+                              const amrex::Vector<AutomaticPerturbationFace>& faces,
+                              const amrex::Geometry& geom,
+                              const amrex::MultiFab* z_cc,
+                              const amrex::MultiFab* z_nd,
+                              const amrex::MultiFab* z_ground)
+    {
+        auto_mask[lev].setVal(zero);
+        pb_cell[lev].setVal(zero);
+        pb_mag[lev].assign(pb_ba[lev].size(), zero);
+        pb_dir[lev].assign(pb_ba[lev].size(), zero);
+        const bool on_w_faces = (pt_type[lev] == 3);
+        const bool terrain = (z_cc != nullptr);
+        AMREX_ALWAYS_ASSERT(!terrain || (z_nd && z_ground));
+        const int klo = geom.Domain().smallEnd(2);
+        const auto dx = geom.CellSizeArray();
+        const auto problo = geom.ProbLoArray();
+        for (const auto& face : faces) {
+            if (!face.inflow()) { continue; }
+            const amrex::Real speed = std::hypot(face.u, face.v);
+            for (const auto& isect : pb_ba[lev].intersections(face.region)) {
+                const int b = isect.first;
+                if (speed > pb_mag[lev][b]) {
+                    pb_mag[lev][b] = speed;
+                    pb_dir[lev][b] = std::atan2(std::abs(face.u), std::abs(face.v));
+                }
+            }
+            const amrex::Real height = face.height;
+            const amrex::Box region = amrex::convert(face.region, auto_mask[lev].ixType());
+            for (amrex::MFIter mfi(auto_mask[lev]); mfi.isValid(); ++mfi) {
+                const amrex::Box bx = mfi.validbox() & region;
+                if (!bx.ok()) { continue; }
+                const auto mask = auto_mask[lev].array(mfi);
+                const auto cc = terrain ? z_cc->const_array(mfi) : amrex::Array4<const amrex::Real>{};
+                const auto nd = terrain ? z_nd->const_array(mfi) : amrex::Array4<const amrex::Real>{};
+                const auto ground = terrain ? z_ground->const_array(mfi) : amrex::Array4<const amrex::Real>{};
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                    amrex::Real z = problo[2] + (k-klo + (on_w_faces ? zero : amrex::Real(0.5)))*dx[2];
+                    amrex::Real zs = problo[2];
+                    if (terrain) {
+                        zs = amrex::Real(0.25)*(ground(i,j,klo) + ground(i+1,j,klo) +
+                                               ground(i,j+1,klo) + ground(i+1,j+1,klo));
+                        z = on_w_faces ? amrex::Real(0.25)*(nd(i,j,k) + nd(i+1,j,k) +
+                                                          nd(i,j+1,k) + nd(i+1,j+1,k))
+                                       : cc(i,j,k);
+                    }
+                    if (z > zs && z-zs <= height) { mask(i,j,k) = one; }
+                });
+            }
+        }
+        // Reconsider even boxes that previously had calm winds. They must be able
+        // to start again after a later parent update changes the inflow.
+        pb_interval[lev].assign(pb_ba[lev].size(), -one);
+        pb_local_etime[lev].assign(pb_ba[lev].size(), zero);
+        auto_ready[lev] = true;
+        auto_next_update[lev] = time + period;
+    }
+
     /**
      * @brief Update perturbation amplitudes and intervals when each box is ready.
      * @param lev AMR level index.
@@ -329,6 +462,7 @@ struct TurbulentPerturbation {
         if (pt_type[lev] == 3) { m_ixtype = amrex::IndexType(amrex::IntVect(0,0,1)); }
 
         const int nboxes = pb_ba[lev].size();
+        if (nboxes == 0 || (auto_mode && !auto_ready[lev])) { return; }
 
         // Which boxes refresh this step. pb_interval and pb_local_etime hold the same values on
         // every rank, so every rank makes the same choice.
@@ -343,7 +477,7 @@ struct TurbulentPerturbation {
         }
 
         // Compute mean velocity of each refreshing perturbation box
-        calc_tpi_meanMag(lev, update_box, mf_cons, mf_xvel, mf_yvel);
+        if (!auto_mode) { calc_tpi_meanMag(lev, update_box, mf_cons, mf_xvel, mf_yvel); }
 
         for (int boxIdx = 0; boxIdx < nboxes; boxIdx++) {
             if ( update_box[boxIdx] ) {
@@ -449,7 +583,8 @@ struct TurbulentPerturbation {
         if (pt_type[lev] == 2) { // CPM
             amrex::Real cp = 1004; // specific heat of air [J/(kg K)]
             amrex::Real Ec = amrex::Real(0.2); // Eckert number
-            pb_amp[lev][boxIdx] = (input_Ug * input_Ug) / (Ec * cp);
+            const amrex::Real Ug = auto_mode ? pb_mag[lev][boxIdx] : input_Ug;
+            pb_amp[lev][boxIdx] = (Ug * Ug) / (Ec * cp);
         } else if (pt_type[lev] == 3) {
             pb_amp[lev][boxIdx] = input_w_amp;
         } else { // box perturbation
@@ -501,18 +636,22 @@ struct TurbulentPerturbation {
             if (ubx.ok()) {
                 amrex::Real amp_copy = pb_amp[lev][boxIdx];
                 const amrex::Array4<amrex::Real>& pert_cell = pb_cell[lev].array(mfi);
+                const bool use_mask = auto_mode;
+                const auto mask = use_mask ? auto_mask[lev].const_array(mfi)
+                                           : amrex::Array4<const amrex::Real>{};
 
                 if (pt_type[lev] == 2  || pt_type[lev] == 3) { // CPM: one value per perturbation box
                     const amrex::Real rand_number_const = erf_hash_rng::hash_symmetric(
                         boxIdx, pb_nupdate[lev][boxIdx], 0, hash_comp_cpm, lev, tpi_seed);
                     ParallelFor(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                        pert_cell(i,j,k) = rand_number_const * amp_copy;
+                        pert_cell(i,j,k) = (use_mask && mask(i,j,k) == zero) ? zero : rand_number_const * amp_copy;
                     });
                 } else { // one value per cell, keyed by its global index and the box's refresh count
                     const std::uint64_t cell_seed = erf_hash_rng::splitmix64(
                         tpi_seed ^ erf_hash_rng::splitmix64(static_cast<std::uint64_t>(pb_nupdate[lev][boxIdx])));
                     ParallelFor(ubx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                        pert_cell(i,j,k) = erf_hash_rng::hash_symmetric(i, j, k, hash_comp_cell, lev, cell_seed) * amp_copy;
+                        pert_cell(i,j,k) = (use_mask && mask(i,j,k) == zero) ? zero
+                            : erf_hash_rng::hash_symmetric(i, j, k, hash_comp_cell, lev, cell_seed) * amp_copy;
                     });
                 }
             }
@@ -554,6 +693,7 @@ struct TurbulentPerturbation {
     void netZeroBuoyant (const int& lev)
     {
         const int nboxes = pb_ba[lev].size();
+        if (nboxes == 0) { return; }
 
         // Sum and cell count of each perturbation box, then one reduction over the ranks
         amrex::Vector<amrex::Real> sums(2*nboxes, zero);
@@ -562,7 +702,9 @@ struct TurbulentPerturbation {
             const amrex::Array4<const amrex::Real>& pert_cell = pb_cell[lev].const_array(mfi);
             for (const auto& isect : pb_ba[lev].intersections(vbx)) {
                 sums[2*isect.first  ] += box_sum(pert_cell, isect.second);
-                sums[2*isect.first+1] += static_cast<amrex::Real>(isect.second.numPts());
+                sums[2*isect.first+1] += auto_mode
+                    ? box_sum(auto_mask[lev].const_array(mfi), isect.second)
+                    : static_cast<amrex::Real>(isect.second.numPts());
             }
         }
         amrex::ParallelAllReduce::Sum(sums.data(), static_cast<int>(sums.size()),
@@ -576,14 +718,22 @@ struct TurbulentPerturbation {
             tpi_net_buoyant += pb_netZero[lev][boxIdx];
         }
         tpi_pert_adjust = tpi_net_buoyant / static_cast<amrex::Real>(nboxes);
+        if (auto_mode) {
+            amrex::Real sum = zero, count = zero;
+            for (int b = 0; b < nboxes; ++b) { sum += sums[2*b]; count += sums[2*b+1]; }
+            tpi_pert_adjust = count > zero ? sum / count : zero;
+        }
 
         const amrex::Real adjust = tpi_pert_adjust;
         for (amrex::MFIter mfi(pb_cell[lev]); mfi.isValid(); ++mfi) {
             const amrex::Box& vbx = mfi.validbox();
             const amrex::Array4<amrex::Real>& pert_cell = pb_cell[lev].array(mfi);
+            const bool use_mask = auto_mode;
+            const auto mask = use_mask ? auto_mask[lev].const_array(mfi)
+                                       : amrex::Array4<const amrex::Real>{};
             for (const auto& isect : pb_ba[lev].intersections(vbx)) {
                 ParallelFor(isect.second, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-                    pert_cell(i,j,k) -= adjust;
+                    if (!use_mask || mask(i,j,k) > zero) { pert_cell(i,j,k) -= adjust; }
                 });
             }
         }
@@ -696,6 +846,11 @@ struct TurbulentPerturbation {
     amrex::Vector<amrex::MultiFab>  pb_cell;
 
   private:
+
+    bool auto_mode{false};
+    amrex::Vector<amrex::MultiFab> auto_mask;
+    amrex::Vector<double> auto_next_update;
+    amrex::Vector<bool> auto_ready;
 
     // Private data members
     int tpi_layers;                   // Number of layers of perturbation boxes

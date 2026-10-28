@@ -23,8 +23,8 @@ evolution of turbulence.
    |  Image taken from `DeLeon et al. (2018)`            |
    +-----------------------------------------------------+
 
-Three different types of perturbation methods are currently available,
-``source``, ``direct``, and ``CPM``. The first two methods use the formulation
+Four different types of perturbation methods are currently available,
+``source``, ``direct``, ``CPM``, and ``CPM_W``. The first two methods use the formulation
 introduced by `DeLeon et al. (2018)`_ and are referred to as the box perturbation
 method. The ``source`` option applies the perturbation amplitude range,
 :math:`\pm \Phi_{PB}`, to each cell within the perturbation box as a source term.
@@ -247,10 +247,10 @@ all nodes within a box/cell. The perturbation amplitude is formulated as follows
 
 where :math:`U_g` is the geostrophic wind speed and :math:`Ec` is the Eckert
 number. The geostrophic wind speed can be considered the large-scale forcing.
-Currently, this value is prescribed by the user (``erf.perturbation_Ug``) and
+In manual mode, this value is prescribed by the user (``erf.perturbation_Ug``) and
 should represent the wind speed above the boundary layer and in the free
-atmosphere. In the future, the geostrophic wind will be automatically calculated
-within the code. Previous research has shown the optimum Eckert number to be 0.2 to
+atmosphere. Automatic mode instead uses a parent boundary-layer wind speed as
+described below. Previous research has shown the optimum Eckert number to be 0.2 to
 quickly develop turbulence (`Muñoz-Esparza and Kosović (2018) <https://journals.ametsoc.org/view/journals/mwre/146/6/mwr-d-18-0077.1.xml>`_).
 
 The perturbation update interval depends on the advective time scale for flow
@@ -315,3 +315,137 @@ with an example also in ``Exec/RegTests/TurbulentInflow/``:
 
           erf.perturbation_klo = 1
           erf.perturbation_khi = 40
+
+Automatic perturbations on LES nests
+-----------------------------------
+
+Set ``erf.perturbation_auto = true`` to obtain the active inflow edges and
+horizontal wind scale from each nest's immediate parent, and the height limit
+from its finest ancestor using a PBL scheme. This defaults
+to ``true`` for ``erf.init_type = WRFInput`` or ``Metgrid`` and ``false`` for
+other initialization types. An explicit ``erf.perturbation_auto = false``
+retains the manual controls described above. This option works with ``source``,
+``direct``, ``CPM`` and ``CPM_W``. A perturbation method must still be selected
+with ``erf.perturbation_type``; its default remains ``None``.
+
+In automatic mode, ERF enables the requested perturbation type only on refined
+levels using a three-dimensional LES closure (Smagorinsky or Deardorff) without
+a PBL scheme. Level 0, PBL levels, RANS levels and Smagorinsky2D levels receive
+no perturbations. An explicit ``None`` in the per-level perturbation-type list
+still disables that level. The immediate parent may use a PBL scheme or be
+another LES level. For the PBL height, ERF searches from that parent toward
+level 0 and selects the first level with a PBL scheme. For example, with a
+PBL scheme on level 0 and LES on levels 1 and 2, both LES levels use level 0's
+PBL height; level 1 samples level 0's winds, while level 2 samples level 1's
+winds. If levels 0 and 1 both use PBL schemes, an LES level 2 instead uses
+level 1's PBL height. Automatic mode requires a PBL ancestor with a valid
+height diagnostic; it does not substitute a diagnostic from an LES level.
+
+For example, add the following to a two-level case with a YSU parent and a
+Deardorff nest. The case must also have the surface-layer inputs required by its
+PBL scheme::
+
+          erf.les_type = None Deardorff
+          erf.pbl_type = YSU None
+          erf.perturbation_type = CPM
+          erf.perturbation_auto = true
+          erf.perturbation_auto_period = 600.0
+          erf.perturbation_auto_pbl_fraction = 0.9
+
+          erf.perturbation_box_dims = 8 8 3
+          erf.perturbation_layers = 3
+          erf.perturbation_offset = 5
+
+The automatic controls are:
+
+.. list-table:: Automatic perturbation inputs
+   :header-rows: 1
+   :widths: 42 12 46
+
+   * - Input
+     - Default
+     - Meaning
+   * - ``erf.perturbation_auto``
+     - Depends on initialization
+     - Enable parent controls on eligible LES nests; defaults to ``true`` for WRFInput and Metgrid, ``false`` otherwise.
+   * - ``erf.perturbation_auto_period``
+     - ``600.0``
+     - Seconds between updates of edges, height and wind scale; must be positive.
+   * - ``erf.perturbation_auto_pbl_fraction``
+     - ``0.9``
+     - Fraction of the finest PBL ancestor's height; must be greater than zero and at most one.
+
+At the first advance of a nest, ERF samples the latest available parent state.
+For each lateral edge of each rectangular subdomain, it samples one parent
+column in width along that edge. Each parent column uses the PBL height of the
+cell containing it on the selected PBL ancestor. This mapping uses the cumulative
+horizontal refinement ratio and retains the ancestor's height in metres AGL.
+It averages the horizontal wind components over the lower
+``perturbation_auto_pbl_fraction`` of that height, weighting
+by the vertical cell thickness inside that layer. If the parent grids end
+below that height, the wind average uses the available part of the layer.
+Wind components are in the simulation's grid directions. A positive mean
+``u`` selects the west edge and a negative mean ``u`` selects the east edge;
+positive and negative mean ``v`` select the south and north edges, respectively.
+Each edge uses its own average, so opposing edges can both be active if the
+parent winds vary spatially. Periodic physical edges, walls and symmetry faces
+are excluded. Internal coarse/fine edges remain eligible.
+
+The height cutoff for an edge is the specified fraction of the ancestor PBL
+height averaged over the sampled parent columns: by default, 90% of this edge
+mean. Each column contributes once to the arithmetic mean. This produces one
+uniform cutoff in metres AGL along each edge and throughout its perturbation
+layers; it does not vary with the PBL height at individual columns. Different
+edges may have different means. Perturbations are applied only where the sample
+point lies above local ground and at or below this cutoff: cell centers for thermal perturbations and
+vertical-velocity faces for ``CPM_W``. Thus the cutoff follows the nest's local
+terrain and can cut through a perturbation box. Shared corners receive one
+increment; they are active if either adjoining edge permits perturbations.
+Where a box intersects two active edges, the larger parent wind speed sets its
+amplitude and refresh interval.
+
+For ``CPM``, the magnitude of the averaged parent wind replaces
+``perturbation_Ug`` in the amplitude formula. This is a boundary-layer wind
+scale, not a diagnosed geostrophic wind. ``source`` and ``direct`` also use the
+parent wind for their existing amplitude and refresh formulas. ``CPM_W`` uses
+the parent wind for edge selection and refresh timing, while its vertical
+velocity amplitude still comes from ``perturbation_w_amp``.
+
+The controls are recomputed on the first nest time step at or after the update
+period has elapsed since the previous control update (600 seconds by default).
+The individual perturbation boxes continue to draw new random values on their
+existing advective intervals between these updates. At a control update, ERF
+clears the previous forcing and regenerates it under the new controls. Calm
+edges are disabled and can become active at a later update. This clears stored
+forcing; perturbations already advected into the solution continue to evolve.
+
+``perturbation_box_dims``, ``perturbation_layers`` and ``perturbation_offset``
+remain required. Layers must be positive, and the offset must leave space
+inside the nest. Dimensions and offsets are specified in cells at each level.
+``perturbation_direction``, ``perturbation_Ug``, ``perturbation_klo`` and
+``perturbation_khi`` do not control the automatic regions. Thermal perturbations
+may include the lowest cell center; ``CPM_W`` excludes the ground face.
+
+The selected PBL ancestor's height comes from its bottom ``surface_layer``
+diagnostic, or from native SHOC's PBL-height diagnostic. When the bottom surface
+layer has no explicit ``most.pblh_calc`` input, automatic mode supplies
+``MYNN25``. In automatic mode the MYNN diagnostic
+uses heights above local ground, including its near-surface temperature scan
+and TKE blending. YSU, YSUNew and MRF write their scheme's height to the surface
+layer as they advance. An explicit ``most.pblh_calc`` setting is respected in
+the bottom face's input namespace; it must provide a valid height on the
+selected PBL ancestor. A diagnosed height of zero contributes zero to the edge
+mean and provides no depth for the wind average. Missing or uninitialized
+heights cause an error when the controls are updated.
+
+Automatic mode currently supports rectangular nests that reach the ground, on
+flat, stretched or fitted-terrain meshes. Immersed-forcing terrain and embedded
+boundary terrain are not supported. The finest cells and their parent cells
+need not have the same vertical spacing or domain height. Regridding, delayed
+nest creation and restarting reset the control timer and recompute the controls
+at the next advance; random refresh counters are not checkpointed, so a restart
+does not reproduce an uninterrupted random sequence.
+
+Set ``erf.v = 1`` to log each control update's time, wind-parent level
+(``parent``), PBL-height source level (``pbl_level``), edge, inflow selection,
+mean wind and height cutoff in metres AGL.

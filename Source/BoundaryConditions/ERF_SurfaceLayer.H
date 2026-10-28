@@ -1190,11 +1190,13 @@ public:
    * @param[in,out] vars             state variables used by the PBL-height calculation
    * @param[in]     z_phys_cc        cell-centered physical-height field
    * @param[in]     moisture_indices indices for moisture components
+   * @param[in]     height_agl       diagnose MYNN heights relative to local ground
    */
   void update_pblh (const int& lev,
                     amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars,
                     amrex::MultiFab* z_phys_cc,
-                    const MoistureComponentIndices& moisture_indices);
+                    const MoistureComponentIndices& moisture_indices,
+                    bool height_agl = false);
 
   /**
    * Set the PBL height of a refined level whose grids do not run from the ground to the top
