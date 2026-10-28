@@ -131,8 +131,11 @@ void RadiationSimple::Run (int& level,
             // note: qzinf now holds total optical depth of column (due to cloud)
             //       qzeroz is initialized to zero since first level is at surface
 
-            // compute net upward longwave flux up to inversion height
-            for (int k = 0; k <= itop; k++)
+            // compute net upward longwave flux up to inversion height.  When the
+            // moist layer reaches the top cell, itop = nz: the face at nz is then
+            // written below, where its above-inversion term vanishes (zi = z_itop),
+            // and deltaq has no cell at nz to read.
+            for (int k = 0; k <= amrex::min(itop, nz - 1); k++)
             {
                 flux_arr(i, j, k) = coef*exp(-qzinf) + coef1*exp(-qzeroz);
                 qzinf = qzinf - deltaq_arr(i, j, k);
