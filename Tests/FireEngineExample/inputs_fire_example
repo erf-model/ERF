@@ -1,0 +1,55 @@
+# The example fire engine (ERF_FireEngineExample.cpp) on a small dry,
+# neutral, periodic box with an 8 m/s wind: a disk of prescribed heat grows
+# from (1000, 1000) m. It checks the out-of-tree engine plumbing, not fire
+# physics: the registry, the lagged heat injection, the fire fields in the
+# ERF plotfile and the checkpoint/restart of engine and coupler.
+
+max_step  = 8
+stop_time = 1.0e9
+
+geometry.prob_lo     = 0.0 0.0 0.0
+geometry.prob_hi     = 2000.0 2000.0 600.0
+geometry.is_periodic = 1 1 0
+amr.n_cell           = 20 20 30
+amr.max_level        = 0
+amr.max_grid_size    = 10 10 30    # box lengths divide by grid_ratio; no split in z
+amr.blocking_factor  = 2
+
+zlo.type = "surface_layer"
+zhi.type = "SlipWall"
+erf.most.z0        = 0.1
+erf.most.surf_temp = 300.0
+
+erf.molec_diff_type = "ConstantAlpha"   # a surface layer needs a diffusive closure
+erf.les_type        = "None"
+erf.use_gravity     = true
+erf.use_coriolis    = false
+
+erf.init_type           = "input_sounding"
+erf.input_sounding_file = "input_sounding"
+erf.sounding_type       = Ideal
+
+erf.fixed_dt     = 0.5
+erf.v            = 0
+amr.v            = 0
+erf.sum_interval = -1
+
+erf.plot_file_1 = plt
+erf.plot_int_1  = 4
+erf.plot_vars_1 = density x_velocity y_velocity z_velocity theta fire_phi fire_heat_flux
+erf.check_file  = chk
+erf.check_int   = 4
+erf.fire.plot_int = -1
+
+erf.fire.enable        = true
+erf.fire.engine        = example
+erf.fire.fire_debug    = true
+erf.fire.grid_ratio    = 5
+erf.fire.coupling_type = lagged
+
+fire.example.x0        = 1000.0
+fire.example.y0        = 1000.0
+fire.example.r0        = 150.0
+fire.example.ros       = 2.0
+fire.example.heat_flux = 5.0e4
+fire.example.nsub      = 3

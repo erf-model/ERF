@@ -30,8 +30,9 @@ void ERF::init_geo_wind_profile (const std::string input_file,
     const int khi = lgeom.Domain().bigEnd()[AMREX_SPACEDIM-1];
     const amrex::Real dz = lgeom.CellSize()[AMREX_SPACEDIM-1];
 
-    // zlevels_stag is filled on every mesh (k * dz from 0 on a constant-dz mesh), so the
-    // ProbLo/ProbHi branch below is reached only by a caller that passes no z levels
+    // zlevels_stag is filled on every mesh, so the ProbLo/ProbHi branch below is reached only
+    // by a caller that passes no z levels.  The table's heights are physical heights, as the
+    // z levels are: they start at geometry.prob_lo[2] on every mesh.
     const bool grid_stretch = (zlev_stag.size() > 0);
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!grid_stretch || zlev_stag.size() == khi+2,
         "init_geo_wind_profile: the z levels must be those of the level being filled");

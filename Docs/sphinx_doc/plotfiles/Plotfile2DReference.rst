@@ -121,6 +121,26 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``m``
      - ``FillMinus999WhenUnavailable``
      - Roughness height from the surface layer
+   * - ``u_10m``
+     - ``SurfaceLayer``
+     - ``m/s``
+     - ``FillMinus999WhenUnavailable``
+     - Grid-relative x wind 10 m above the local surface, from the surface-layer profile
+   * - ``v_10m``
+     - ``SurfaceLayer``
+     - ``m/s``
+     - ``FillMinus999WhenUnavailable``
+     - Grid-relative y wind 10 m above the local surface, from the surface-layer profile
+   * - ``u_east_10m``
+     - ``SurfaceLayer``
+     - ``m/s``
+     - ``FillMinus999WhenUnavailable``
+     - Eastward wind 10 m above the local surface, from the surface-layer profile
+   * - ``v_north_10m``
+     - ``SurfaceLayer``
+     - ``m/s``
+     - ``FillMinus999WhenUnavailable``
+     - Northward wind 10 m above the local surface, from the surface-layer profile
    * - ``OLR``
      - ``Radiation``
      - ``W/m^2``
@@ -160,7 +180,7 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``SurfaceState``
      - ``Pa``
      - ``AlwaysAvailable``
-     - Surface pressure
+     - Surface pressure, at the ground
    * - ``sea_level_pressure``
      - ``SurfaceState``
      - ``Pa``
@@ -441,6 +461,16 @@ The selection contract and the value written after selection are separate:
      - Selectable: ERF accepts these fixed request names; the runtime
        SurfaceLayer source may still be absent.
      - Value: SurfaceLayer scalar values; ``-999`` when the source pointer is absent.
+   * - ``u_10m``, ``v_10m``, ``u_east_10m``, ``v_north_10m``
+     - Selectable: fixed request names; the runtime SurfaceLayer source may still be absent.
+     - Value: the wind 10 m above the local surface, as WRF's ``U10``/``V10``. Its speed is
+       :math:`u_* / \kappa \, [\ln(10/z_0) - \psi_m(10/L)]` from the surface layer's
+       :math:`u_*`, :math:`z_0` and Obukhov length :math:`L` (with :math:`10/L` capped at 1,
+       as for ``temperature_2m``), and its direction that of the wind at the centre of the
+       first cell. ``u_east_10m`` and ``v_north_10m`` are turned earth-relative with the
+       grid orientation from the run's latitude and longitude, as the sampled ``u_east``
+       and ``v_north`` are; without them the grid is taken to be aligned with east. ``-999``
+       without a surface layer, or where :math:`z_0 \ge 10` m.
    * - ``pblh``
      - Selectable: fixed request name.
      - Native SHOC ``pblh`` is reported in metres above local ground (AGL). Value: native SHOC PBL height when native SHOC diagnostics are present; otherwise SurfaceLayer; ``-999`` if neither exists.
@@ -466,7 +496,10 @@ The selection contract and the value written after selection are separate:
      - Value: legacy conservative surface flux outputs.
    * - ``surf_pres``
      - Selectable: fixed request name.
-     - Value: pressure computed from the lowest atmospheric state.
+     - Value: the pressure at the ground, as WRF's ``PSFC``: the pressure of the
+       lowest cell's state plus :math:`\rho g z_c`, with :math:`z_c` the height
+       of that cell's centre above the ground -- the same surface pressure the
+       radiation and the surface layer use.
    * - ``sea_level_pressure``
      - Selectable: fixed request name in dry and moist configurations.
      - Value: pressure reduced hydrostatically from the local terrain surface
@@ -587,7 +620,8 @@ The output units are pascals. It is pressure reduced to ERF's physical
 mean sea level. The diagnostic uses the lowest model level, assumes the fixed
 lapse rate below it, applies no horizontal smoothing, does not calculate
 1000-hPa height, is computed independently on each AMR level, and does not
-alter model state. ``surf_pres`` remains a separate lowest-cell-center field.
+alter model state. ``surf_pres`` remains a separate field, the pressure at the
+ground.
 
 .. code-block:: text
 
@@ -698,6 +732,15 @@ equivalent.
 | ``precip_frozen_accum``     | Accumulated frozen surface precipitation,        | kg/m^2   |
 |                             | liquid-water equivalent                          |          |
 +-----------------------------+--------------------------------------------------+----------+
+
+``precip_rain_accum``, ``precip_snow_accum`` and ``precip_graupel_accum`` each
+hold that one species, as their 3D counterparts ``rain_accum``, ``snow_accum``
+and ``graupel_accum`` do. For ``Morrison``, ``WSM6`` and ``WDM6``,
+``precip_total_accum`` is the scheme's precipitation total, the 3D
+``precip_accum``, which also counts the cloud ice (and, for ``Morrison``, the
+cloud water) that fell, so it can exceed the rain plus ``precip_frozen_accum``.
+For the other schemes it is the rain plus the frozen species; for ``SAM`` that
+leaves out the cloud ice that the 3D ``precip_accum`` counts.
 
 ``precip_total_accum`` is the normalized native total when one exists, or the
 sum of normalized rain and frozen accumulations otherwise.

@@ -576,12 +576,14 @@ void SuperDropletsMoist::rainAccumulation (const MultiFab& a_z_phys_nd)
         Box bx = mfi.tilebox();
         const Array4<Real const>& zflux_arr = mf_zflux.const_array(mfi);
         const Array4<Real>& rain_accum_arr = m_mic_fab_vars[lev][MicVar_SD::rain_accum]->array(mfi);
+        const Array4<Real>& precip_accum_arr = m_mic_fab_vars[lev][MicVar_SD::precip_accum]->array(mfi);
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
             if (k == k_lo) {
                 auto rain_accum = std::max(Real(0), -zflux_arr(i,j,k)*dt/mat_density);
                 rain_accum_arr(i,j,k) += (rain_accum * Real(1000.0) /* [m] -> [mm] */);
+                precip_accum_arr(i,j,k) += (rain_accum * Real(1000.0) /* [m] -> [mm] */);
             }
         });
     }
@@ -605,6 +607,8 @@ void SuperDropletsMoist::snowAccumulation (const MultiFab& a_z_phys_nd)
 
         auto& vapour_mat = m_super_droplets->getSpeciesMaterial(Species::Name::ice);
         auto mat_density = vapour_mat.m_density;
+        // The precipitation total is in mm of liquid water
+        const Real water_density = m_super_droplets->getSpeciesMaterial(Species::Name::H2O).m_density;
 
         MultiFab mf_zflux( m_mic_fab_vars[lev][MicVar_SD::snow_accum]->boxArray(),
                            m_mic_fab_vars[lev][MicVar_SD::snow_accum]->DistributionMap(),
@@ -616,12 +620,15 @@ void SuperDropletsMoist::snowAccumulation (const MultiFab& a_z_phys_nd)
             Box bx = mfi.tilebox();
             const Array4<Real const>& zflux_arr = mf_zflux.const_array(mfi);
             const Array4<Real>& snow_accum_arr = m_mic_fab_vars[lev][MicVar_SD::snow_accum]->array(mfi);
+            const Array4<Real>& precip_accum_arr = m_mic_fab_vars[lev][MicVar_SD::precip_accum]->array(mfi);
 
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 if (k == k_lo) {
                     auto snow_accum = std::max(Real(0), -zflux_arr(i,j,k)*dt/mat_density);
                     snow_accum_arr(i,j,k) += (snow_accum * Real(1000) /* [m] -> [mm] */);
+                    auto ice_as_water = std::max(Real(0), -zflux_arr(i,j,k)*dt/water_density);
+                    precip_accum_arr(i,j,k) += (ice_as_water * Real(1000) /* [m] -> [mm] */);
                 }
             });
         }

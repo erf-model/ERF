@@ -102,9 +102,8 @@
         // KE_decay_height is a depth of turbulence above the ground, so the profile
         // is a function of height above the terrain surface, not of absolute z.  Over
         // terrain higher than KE_decay_height the latter would clamp the decay factor
-        // to its floor at the ground -- exactly backwards.  On a flat mesh with
-        // prob_lo[2] == 0 this reduces to the absolute height, since
-        // init_default_zphys ignores prob_lo[2].  Under EB, z_cc is already measured
+        // to its floor at the ground -- exactly backwards.  On a flat mesh this is the
+        // height above geometry.prob_lo[2].  Under EB, z_cc is already measured
         // from the EB surface, so z_sfc is forced to zero there.  Matches the surface
         // height used by SurfaceLayer::init_tke_from_ustar.
         if (state_pert.nComp() > RhoKE_comp) {

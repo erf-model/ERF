@@ -18,6 +18,7 @@ void mp_wsm6_run_c (
     double xlv0, double xlf0, double den0, double denr, double cliq, double cice, double psat,
     double* rain, double* rainncv, double* sr,
     double* snow, double* snowncv, double* graupel, double* graupelncv,
+    double* rainonly, double* snowonly,
     int ims, int ime, int jms, int jme, int kms, int kme,
     int its, int ite, int jts, int jte, int kts, int kte,
     int microphysics_debug, int diag_i_dbg, int diag_j_dbg);

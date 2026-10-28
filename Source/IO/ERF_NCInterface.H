@@ -306,6 +306,13 @@ public:
                             MPI_Comm comm = MPI_COMM_WORLD,
                             MPI_Info info = MPI_INFO_NULL);
 
+    // The file owns its NetCDF ID and closes it on destruction, so it cannot be copied.
+    //    Moving hands the open file to the new object
+    NCFile (const NCFile&) = delete;
+    NCFile& operator= (const NCFile&) = delete;
+    NCFile (NCFile&& other) noexcept : NCGroup(other.ncid), is_open{other.is_open} { other.is_open = false; }
+    NCFile& operator= (NCFile&&) = delete;
+
     ~NCFile ();
 
     void close ();

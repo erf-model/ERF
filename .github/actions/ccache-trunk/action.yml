@@ -1,0 +1,33 @@
+name: ccache trunk on GHCR
+description: Restore or save a Linux ccache directory as a GHCR image; registry failures are warnings.
+inputs:
+  mode:
+    description: restore or save
+    required: true
+  key:
+    description: Build configuration, such as ubuntu-22.04-x64-gcc-mpich-double-particles-on
+    required: true
+  path:
+    description: Dedicated ccache directory (replaced after a complete restore)
+    default: ~/.cache/ccache
+  token:
+    description: GITHUB_TOKEN (save requires packages write)
+    default: ''
+outputs:
+  hit:
+    description: true only after a complete restore
+    value: ${{ steps.transfer.outputs.hit }}
+runs:
+  using: composite
+  steps:
+    - id: transfer
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        CACHE_MODE: ${{ inputs.mode }}
+        CACHE_KEY: ${{ inputs.key }}
+        CACHE_PATH: ${{ inputs.path }}
+        GHCR_TOKEN: ${{ inputs.token }}
+        CACHE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
+        CACHE_OWNER_TYPE: ${{ github.event.repository.owner.type }}
+      run: bash "$ACTION_PATH/cache.sh"

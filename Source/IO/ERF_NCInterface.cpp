@@ -14,8 +14,6 @@ namespace ncutils {
 
 namespace {
 
-char recname[NC_MAX_NAME + 1];
-
 /**
  * utility function for checking NetCDF error flag for an error condition
  *
@@ -64,6 +62,7 @@ void check_nc_file_exists (const std::string& fname)
  */
 std::string NCDim::name () const
 {
+    char recname[NC_MAX_NAME + 1];
     check_nc_error(nc_inq_dimname(ncid, dimid, recname));
     return std::string(recname);
 }
@@ -83,6 +82,7 @@ size_t NCDim::len () const
  */
 std::string NCVar::name () const
 {
+    char recname[NC_MAX_NAME + 1];
     check_nc_error(nc_inq_varname(ncid, varid, recname));
     return std::string(recname);
 }
@@ -702,9 +702,15 @@ std::vector<NCDim> NCGroup::all_dims () const
 {
     std::vector<NCDim> adims;
     int ndims = num_dimensions();
+    if (ndims < 1) return adims;
+
+    // In NetCDF-4 the dimension IDs are unique across the file, so the IDs of the
+    //    dimensions in a group need not run from 0 to ndims-1
+    std::vector<int> dimids(ndims);
+    check_nc_error(nc_inq_dimids(ncid, &ndims, dimids.data(), 0));
     adims.reserve(ndims);
     for (int i = 0; i < ndims; ++i) {
-        adims.emplace_back(NCDim{ncid, i});
+        adims.emplace_back(NCDim{ncid, dimids[i]});
     }
     return adims;
 }

@@ -191,6 +191,8 @@ option(ERF_ENABLE_NOAHMP "Enable Noah-MP" OFF)
 
 #Other parameterizations
 option(ERF_ENABLE_WINDFARM "Enable wind farm parameterizations" OFF)
+option(ERF_ENABLE_FIRE "Enable the fire coupling (the atmosphere side; fire engines plug into it)" OFF)
+set(ERF_FIRE_ENGINE_DIRS "" CACHE STRING "Fire engine directories (each with ERFFireEngine.cmake) to compile in; needs ERF_ENABLE_FIRE")
 option(ERF_ENABLE_WSM6_FORT "Enable WSM6 Fortran bridge calls" OFF)
 option(ERF_ENABLE_WDM6_FORT "Enable WDM6 Fortran bridge calls" OFF)
 

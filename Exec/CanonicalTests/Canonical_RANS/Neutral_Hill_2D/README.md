@@ -37,7 +37,7 @@ mpirun -np 2 erf_exec inputs_hill prob.hmax=1e-6 max_step=40 erf.plot_int_1=40
 python3 check_flat_fitted.py plt00040
 ```
 
-The scripts read the full 3D fields (`../erf_plotfile.py`,
+The scripts read the full 3D fields (`Exec/Tools/erf_plotfile.py`,
 `read_fields`), so the planar-average logs, which ERF does not write on a
 fitted mesh, are not needed.
 

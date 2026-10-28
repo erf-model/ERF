@@ -25,8 +25,10 @@ on:
       - '.github/actions/**'
   workflow_dispatch:
 
+# Development pushes finish the active run and keep only the newest pending commit.
+# PR cancellation and commit-specific manual groups stay unchanged.
 concurrency:
-  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || github.sha }}-linux-gcc
+  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || (github.event_name == 'push' && 'latest') || github.sha }}-linux-gcc
   cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
@@ -136,6 +138,21 @@ jobs:
       if: github.event_name != 'pull_request' && matrix.particles == 'OFF' && matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
         make -C Exec -j2 USE_NETCDF=FALSE USE_PARTICLES=FALSE
+
+    - name: GNUmake Compile and Link with an out-of-tree fire engine
+      # Merge tier only: ERF plus the example fire engine directory, built from a
+      # directory outside the ERF tree as a fire-model repository would build it.
+      if: github.event_name != 'pull_request' && matrix.particles == 'OFF' && matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
+      run: |
+        mkdir -p ${{runner.temp}}/fire_build
+        cd ${{runner.temp}}/fire_build
+        printf 'ERF_HOME = %s\nFIRE_HOME = %s/Tests/FireEngineExample\nUSE_FIRE = TRUE\nUSE_MPI = TRUE\nUSE_NETCDF = FALSE\nCOMP = gnu\nDIM = 3\ninclude $(ERF_HOME)/Exec/Make.ERF\n' \
+          "${{github.workspace}}" "${{github.workspace}}" > GNUmakefile
+        cp ${{github.workspace}}/Exec/ERF_Prob.cpp ${{github.workspace}}/Exec/ERF_Prob.H ${{github.workspace}}/Exec/Make.package .
+        make -j2
+        cp ${{github.workspace}}/Tests/FireEngineExample/inputs_fire_example ${{github.workspace}}/Tests/FireEngineExample/input_sounding .
+        mpiexec -n 2 ./ERF3d.gnu*.ex inputs_fire_example max_step=4 erf.check_int=-1 | tee run.log
+        grep -q "fire_phi" plt00004/Header
 
     - name: Check Unit Test Registration
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'

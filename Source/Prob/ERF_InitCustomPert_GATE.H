@@ -77,27 +77,26 @@
             if (sin_qv) { dqv += qvfac * damp * z * std::cos(dval * (x - xc)); }
         }
 
-        // We want to keep pressure constant, so the temperature perturbation
-        //     effectively ends up as a density perturbation
-        if (rand_T || sin_T) {
-            Real rhotheta  = state(i,j,k,RhoTheta_comp);
-            Real rho       = state(i,j,k,Rho_comp);
-            Real qv        = (use_moisture) ? state(i,j,k,RhoQ1_comp) / rho : zero;
-            Real Told      = getTgivenRandRTh(rho,rhotheta,qv);
-            Real P         = getPgivenRTh(rhotheta,qv);
-
-            Real Tnew      = Told + dT;
-
-            Real theta_new = getThgivenTandP(Tnew,P,rdOcp);
-            Real rhonew    = getRhogivenThetaPress(theta_new,P,rdOcp,qv);
-            state_pert(i, j, k, Rho_comp) = rhonew - rho;
-
-            // Note we do not perturb this
-            state_pert(i, j, k, RhoTheta_comp) = zero;
+        // Apply both at once (ERF_MoistPerturbation.H): the temperature perturbation at
+        //     fixed pressure ends up as a density perturbation (rho*theta is held), and qv
+        //     becomes qv + dqv on the new density, so a temperature perturbation alone
+        //     leaves qv, and the pressure, as they were
+        if (rand_T || sin_T || rand_qv || sin_qv) {
+            Real drho, drhoqv;
+            erf_moist_perturbation::perturb_temperature_and_vapour(
+                state(i,j,k,Rho_comp), state(i,j,k,RhoTheta_comp),
+                use_moisture ? state(i,j,k,RhoQ1_comp) : zero, dT, dqv,
+                rand_T || sin_T, use_moisture, rdOcp, drho, drhoqv);
+            if (rand_T || sin_T) {
+                state_pert(i, j, k, Rho_comp) = drho;
+                // Note we do not perturb this
+                state_pert(i, j, k, RhoTheta_comp) = zero;
+            }
+            if (use_moisture) { state_pert(i, j, k, RhoQ1_comp) = drhoqv; }
         }
 
         // Set scalar = A_0*exp(-10r^2), where r is distance from center of domain
-        state_pert(i, j, k, RhoScalar_comp) = A_0 * exp(-amrex::Real(10.)*r*r);
+        state_pert(i, j, k, RhoScalar_comp) = A_0 * std::exp(-amrex::Real(10.)*r*r);
 
         // Set an initial value for KE
         if (custom_TKE) {
@@ -107,18 +106,9 @@
         }
 
         if (use_moisture) {
-            state_pert(i, j, k, RhoQ1_comp) = zero;
-            state_pert(i, j, k, RhoQ2_comp) = zero;
-            if (rand_qv || sin_qv)
-            {
-                // qv is perturbed on top of the density the temperature perturbation gave
-                Real rhoold = state(i,j,k,Rho_comp);
-                Real rhonew = rhoold + state_pert(i,j,k,Rho_comp);
-
-                Real qvold = state(i,j,k,RhoQ1_comp) / rhoold;
-                Real qvnew = qvold + dqv;
-
-                state_pert(i, j, k, RhoQ1_comp) = rhonew * qvnew - rhoold * qvold;
-            }
+            // The density change above would change qc with it; rescale rho*qc so the
+            //     cloud-water mixing ratio is held, as in Aaron Lattanzi's #4772 for BOMEX
+            state_pert(i, j, k, RhoQ2_comp) = state_pert(i,j,k,Rho_comp)
+                                            * state(i,j,k,RhoQ2_comp) / state(i,j,k,Rho_comp);
         }
     });

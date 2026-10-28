@@ -23,7 +23,7 @@ validate_flat_terrain (int lev,
     // threshold has to track the working precision: a hard-wired 1e-10 is far below single-
     // precision round-off at domain-top magnitudes and would abort on a genuinely flat mesh.
     // Keep the original (double-precision) threshold, floored at a few hundred ulps.
-    const Real scale = std::max(Real(1.0), std::abs(z_levels_h.back()));
+    const Real scale = std::max({Real(1.0), std::abs(z_levels_h.front()), std::abs(z_levels_h.back())});
     const Real rel_tol = std::max(Real(1.0e-10), Real(100.0) * std::numeric_limits<Real>::epsilon());
     const Real tolerance = rel_tol * scale;
 
@@ -65,6 +65,7 @@ init_default_zphys (int /*lev*/,
 {
     const auto& dx = geom.CellSize();
     Real dz = dx[2];
+    Real z_bot = geom.ProbLo(2) - z_offset;
 
     for (MFIter mfi(z_phys_nd,true); mfi.isValid(); ++mfi)
     {
@@ -72,7 +73,7 @@ init_default_zphys (int /*lev*/,
         const Array4< Real> z_nd_arr = z_phys_nd.array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            z_nd_arr(i,j,k) = k * dz - z_offset;
+            z_nd_arr(i,j,k) = z_bot + k * dz;
         });
     }
 
@@ -82,7 +83,7 @@ init_default_zphys (int /*lev*/,
         const Array4< Real> z_cc_arr = z_phys_cc.array(mfi);
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
         {
-            z_cc_arr(i,j,k) = (k + myhalf) * dz - z_offset;
+            z_cc_arr(i,j,k) = z_bot + (k + myhalf) * dz;
         });
     }
 }
@@ -684,6 +685,11 @@ init_which_terrain_grid (int lev,
     int nz = static_cast<int>(z_levels_h.size());
     Real z_top = z_levels_h[nz-1];
 
+    // The STF and Sullivan transforms measure heights and terrain from the bottom of the
+    // domain, which is z_levels_h[0] = geometry.prob_lo[2]; the BTF one does so already
+    Real z_bot = z_levels_h[0];
+    Real depth = z_top - z_bot;
+
     Gpu::DeviceVector<Real> z_levels_d;
     z_levels_d.resize(nz);
     Gpu::copy(Gpu::hostToDevice, z_levels_h.begin(), z_levels_h.end(), z_levels_d.begin());
@@ -811,11 +817,11 @@ init_which_terrain_grid (int lev,
                   // Fill the lateral boundaries
                   z_arr(i,j,k0) = z_arr(ii,jj,k0);
 
-                  // Populate h with terrain
-                  h(i,j,k0) = z_arr(i,j,k0);
+                  // Populate h with the terrain height above the bottom of the domain
+                  h(i,j,k0) = z_arr(i,j,k0) - z_bot;
 
                   // Return height for max
-                  return { z_arr(i,j,k0) };
+                  return { h(i,j,k0) };
                 });
         amrex::ParallelDescriptor::ReduceRealMax(h_m);
 
@@ -842,8 +848,8 @@ init_which_terrain_grid (int lev,
         {
             auto const& z_lev_h = z_levels_h.data();
 
-            Real zz       = z_lev_h[k];
-            Real zz_minus = z_lev_h[k-1];
+            Real zz       = z_lev_h[k]   - z_bot;
+            Real zz_minus = z_lev_h[k-1] - z_bot;
 
             // Hybrid attenuation profile, Klemp2011 Eqn. 9
             Real A;
@@ -1007,7 +1013,7 @@ init_which_terrain_grid (int lev,
 
                     // Fill levels using model from Sullivan et. al. 2014
                     int omega = 3; //Used to adjust how rapidly grid lines level out. omega=1 is BTF!
-                    z_arr(i,j,k) = z + static_cast<Real>(std::pow((one - (z/z_top)),omega) * z_arr(ii,jj,k0));
+                    z_arr(i,j,k) = z + static_cast<Real>(std::pow((one - (z - z_bot)/depth),omega) * (z_arr(ii,jj,k0) - z_bot));
 
                     // Fill lateral boundaries and below the bottom surface
                     if (k == k0) {
@@ -1044,18 +1050,18 @@ init_which_terrain_grid (int lev,
 
                     // Fill values outside the lateral boundaries and below the bottom surface (necessary if init_type = "WRFInput")
                     if (k == k0+1) {
-                        z_arr(i,j,k) = z + z_arr(ii,jj,k0);
+                        z_arr(i,j,k) = z + (z_arr(ii,jj,k0) - z_bot);
                     } else {
                         // Fill levels using model from Sullivan et. al. 2014
                         int omega = 3; //Used to adjust how rapidly grid lines level out. omega=1 is BTF!
-                        z_arr(i,j,k) = z + static_cast<Real>(std::pow((one - (z/z_top)),omega) * z_arr(ii,jj,k0));
+                        z_arr(i,j,k) = z + static_cast<Real>(std::pow((one - (z - z_bot)/depth),omega) * (z_arr(ii,jj,k0) - z_bot));
                     }
                 });
                 gbx.setBig(2,0);
                 ParallelFor(gbx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
                 {
-                    z_arr(i,j,k  ) = zero;
-                    z_arr(i,j,k-1) = -z_arr(i,j,k+1);
+                    z_arr(i,j,k  ) = z_bot;
+                    z_arr(i,j,k-1) = two*z_bot - z_arr(i,j,k+1);
                 });
             } // mfi
             break;

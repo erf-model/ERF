@@ -28,7 +28,7 @@ python3 check_neutral.py --physics plt08640 surf_hist.dat
 ```
 
 `check_neutral.py` needs only the Python standard library. It reads the
-plotfile with `../erf_plotfile.py`, averages every field over x and y, and
+plotfile with `Exec/Tools/erf_plotfile.py`, averages every field over x and y, and
 prints one row per check with the measured value, the target and the
 tolerance. The exit code is non-zero if any enabled check fails.
 

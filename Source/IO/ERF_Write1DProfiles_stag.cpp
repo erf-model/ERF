@@ -90,7 +90,7 @@ ERF::write_1D_profiles_stag (double time)
                 if (data_log1.good()) {
                   // Write the quantities at this time
                   for (int k = 0; k < unstag_size; k++) {
-                      Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][k] : k * dx[2];
+                      Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][k] : geom[0].ProbLo(2) + k * dx[2];
                       data_log1 << std::setw(prof_datwidth) << std::setprecision(prof_timeprecision) << time << " "
                                 << std::setw(prof_datwidth) << std::setprecision(prof_datprecision) << z << " "
                                 << h_avg_u[k]   << " " << h_avg_v[k]   << " " << h_avg_w[k]     << " "
@@ -101,7 +101,7 @@ ERF::write_1D_profiles_stag (double time)
                                 << std::endl;
                   } // loop over z
                   // Write top face values
-                  Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][unstag_size] : unstag_size * dx[2];
+                  Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][unstag_size] : geom[0].ProbLo(2) + unstag_size * dx[2];
                   data_log1 << std::setw(prof_datwidth) << std::setprecision(prof_timeprecision) << time << " "
                             << std::setw(prof_datwidth) << std::setprecision(prof_datprecision) << z << " "
                             << 0 << " " << 0 << " " << h_avg_w[unstag_size] << " "
@@ -156,7 +156,7 @@ ERF::write_1D_profiles_stag (double time)
 
                   // For internal values, interpolate scalar quantities to faces
                   for (int k = 1; k < unstag_size; k++) {
-                      Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][k] : k * dx[2];
+                      Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][k] : geom[0].ProbLo(2) + k * dx[2];
                       Real uface  = myhalf*(h_avg_u[k]  + h_avg_u[k-1]);
                       Real vface  = myhalf*(h_avg_v[k]  + h_avg_v[k-1]);
                       Real thface = myhalf*(h_avg_th[k] + h_avg_th[k-1]);
@@ -167,10 +167,11 @@ ERF::write_1D_profiles_stag (double time)
                       Real uuface = myhalf*(h_avg_uu[k] + h_avg_uu[k-1]);
                       Real vvface = myhalf*(h_avg_vv[k] + h_avg_vv[k-1]);
                       Real thvface = thface * (one + epsv*qvface - qcface - qrface);
-                      w_cc   = myhalf*(h_avg_w[k-1]  + h_avg_w[k]);
-                      uw_cc  = myhalf*(h_avg_uw[k-1] + h_avg_uw[k]);
-                      vw_cc  = myhalf*(h_avg_vw[k-1] + h_avg_vw[k]);
-                      ww_cc  = myhalf*(h_avg_ww[k-1] + h_avg_ww[k]);
+                      // Cell k lies between faces k and k+1, as in derive_diag_profiles_stag
+                      w_cc   = myhalf*(h_avg_w[k]  + h_avg_w[k+1]);
+                      uw_cc  = myhalf*(h_avg_uw[k] + h_avg_uw[k+1]);
+                      vw_cc  = myhalf*(h_avg_vw[k] + h_avg_vw[k+1]);
+                      ww_cc  = myhalf*(h_avg_ww[k] + h_avg_ww[k+1]);
                       data_log2 << std::setw(prof_datwidth) << std::setprecision(prof_timeprecision) << time << " "
                                 << std::setw(prof_datwidth) << std::setprecision(prof_datprecision) << z << " "
                                 << h_avg_uu[k]   - h_avg_u[k]*h_avg_u[k]   << " " // u'u'
@@ -224,7 +225,7 @@ ERF::write_1D_profiles_stag (double time)
                   Real uuface = Real(1.5)*h_avg_uu[k-1] - myhalf*h_avg_uu[k-2];
                   Real vvface = Real(1.5)*h_avg_vv[k-1] - myhalf*h_avg_vv[k-2];
                   Real thvface = thface * (one + epsv*qvface - qcface - qrface);
-                  Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][unstag_size] : unstag_size * dx[2];
+                  Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][unstag_size] : geom[0].ProbLo(2) + unstag_size * dx[2];
                   data_log2 << std::setw(prof_datwidth) << std::setprecision(prof_timeprecision) << time << " "
                             << std::setw(prof_datwidth) << std::setprecision(prof_datprecision) << z << " "
                             << 0                                     << " " // u'u'
@@ -260,7 +261,7 @@ ERF::write_1D_profiles_stag (double time)
                 if (data_log3.good()) {
                   // Write the average stresses
                   for (int k = 0; k < unstag_size; k++) {
-                      Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][k] : k * dx[2];
+                      Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][k] : geom[0].ProbLo(2) + k * dx[2];
                       data_log3 << std::setw(prof_datwidth) << std::setprecision(prof_timeprecision) << time << " "
                                 << std::setw(prof_datwidth) << std::setprecision(prof_datprecision) << z << " "
                                 << h_avg_tau11[k]  << " " << h_avg_tau12[k] << " " << h_avg_tau13[k] << " "
@@ -272,7 +273,7 @@ ERF::write_1D_profiles_stag (double time)
                   } // loop over z
                   // Write top face values
                   Real NANval = zero;
-                  Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][unstag_size] : unstag_size * dx[2];
+                  Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][unstag_size] : geom[0].ProbLo(2) + unstag_size * dx[2];
                   data_log3 << std::setw(prof_datwidth) << std::setprecision(prof_timeprecision) << time << " "
                             << std::setw(prof_datwidth) << std::setprecision(prof_datprecision) << z << " "
                             << NANval << " " << NANval << " " << h_avg_tau13[unstag_size] << " "
@@ -288,7 +289,7 @@ ERF::write_1D_profiles_stag (double time)
                 std::ostream& data_log4 = DataLog(4);
                 if (data_log4.good()) {
                     for (int k = 0; k < unstag_size; k++) {
-                        Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][k] : k * dx[2];
+                        Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][k] : geom[0].ProbLo(2) + k * dx[2];
                         data_log4 << std::setw(prof_datwidth) << std::setprecision(prof_timeprecision) << time << " "
                                   << std::setw(prof_datwidth) << std::setprecision(prof_datprecision) << z << " "
                                   << h_avg_ttend[k]  << " " << h_avg_qtend[k]   << " " << h_avg_wsub[k]   << " "
@@ -299,7 +300,7 @@ ERF::write_1D_profiles_stag (double time)
                   } // loop over z
                   // Write top face values
                   Real NANval = zero;
-                  Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][unstag_size] : unstag_size * dx[2];
+                  Real z = (zlevels_stag[0].size() > 1) ? zlevels_stag[0][unstag_size] : geom[0].ProbLo(2) + unstag_size * dx[2];
                   data_log4 << std::setw(prof_datwidth) << std::setprecision(prof_timeprecision) << time << " "
                             << std::setw(prof_datwidth) << std::setprecision(prof_datprecision) << z << " "
                             << NANval << " " << NANval << " " << NANval << " "

@@ -49,7 +49,7 @@ SAM::Init (const MultiFab& cons_in,
     m_detJ_cc   = detJ_cc.get();
 
     MicVarMap.resize(m_qmoist_size);
-    MicVarMap = {MicVar::rain_accum, MicVar::snow_accum, MicVar::graup_accum};
+    MicVarMap = {MicVar::rain_accum, MicVar::snow_accum, MicVar::graupel_accum, MicVar::precip_accum};
 
     // initialize microphysics variables
     for (auto ivar = 0; ivar < MicVar::NumVars; ++ivar) {

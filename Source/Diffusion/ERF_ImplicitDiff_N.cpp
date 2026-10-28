@@ -126,7 +126,7 @@ ImplicitDiffForStateLU_N (const Box& bx,
             {
                 getRhoAlpha(i, j, klo, rhoAlpha_lo, rhoAlpha_hi,
                             cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
-                            prim_index, prim_scal_index, l_consA, l_turb);
+                            prim_scal_index, l_consA, l_turb);
 
                 a_tmp      = zero;
                 if (!at_zlo) { a_tmp = -Fact * rhoAlpha_lo * dz_inv; }
@@ -170,7 +170,7 @@ ImplicitDiffForStateLU_N (const Box& bx,
             for (int k(klo+1); k < khi; k++) {
                 getRhoAlpha(i, j, k, rhoAlpha_lo, rhoAlpha_hi,
                             cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
-                            prim_index, prim_scal_index, l_consA, l_turb);
+                            prim_scal_index, l_consA, l_turb);
 
                 a_tmp      = -Fact * rhoAlpha_lo * dz_inv;
                 c_tmp      = -Fact * rhoAlpha_hi * dz_inv;
@@ -201,7 +201,7 @@ ImplicitDiffForStateLU_N (const Box& bx,
             {
                 getRhoAlpha(i, j, khi, rhoAlpha_lo, rhoAlpha_hi,
                             cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
-                            prim_index, prim_scal_index, l_consA, l_turb);
+                            prim_scal_index, l_consA, l_turb);
 
                 a_tmp      = -Fact * rhoAlpha_lo * dz_inv;
                 c_tmp      = zero;
@@ -211,18 +211,25 @@ ImplicitDiffForStateLU_N (const Box& bx,
 
                 RHS_a(i,j,khi) = cell_data(i,j,khi,n); // NOTE: this is rho*phi; solution is phi
                 if (!at_zhi) {
-                    // Coarse/fine boundary: close the system with the known value above.  The
-                    // countergradient flux then passes through both faces, as it does in the
-                    // interior, rather than only through the lower one.
+                    // Coarse/fine boundary: close the system with the known value above
                     RHS_a(i,j,khi) -= c_tmp * (cell_data(i,j,khi+1,n) / cell_data(i,j,khi+1,Rho_comp));
-                    if (use_mrf_countergradient && (n == RhoTheta_comp || n == RhoQ1_comp)) {
-                        const int gam_comp = (n == RhoTheta_comp) ? EddyDiff::HGAMT_v : EddyDiff::HGAMQ_v;
-                        const Real gam_hi = myhalf * (mu_turb(i, j, khi, gam_comp) + mu_turb(i, j, khi+1, gam_comp));
-                        const Real gam_lo = myhalf * (mu_turb(i, j, khi, gam_comp) + mu_turb(i, j, khi-1, gam_comp));
-                        RHS_a(i,j,khi) -= Fact * (rhoAlpha_hi * gam_hi - rhoAlpha_lo * gam_lo);
-                    }
                 } else if (neumann_on_zhi) {
                     RHS_a(i,j,khi) -= -Fact * rhoAlpha_hi * bc_neumann_vals[5]; // NOTE: N_val = d_z(\phi)
+                }
+
+                // Add countergradient correction to RHS at top boundary.
+                // NOTE: The lower face at khi always carries the countergradient flux, which
+                //       row khi-1 has already taken out of the cell below; without it here
+                //       that flux would leave the column.  The upper face carries it only at
+                //       a coarse/fine boundary -- the domain top is a lid for gamma.
+                if (use_mrf_countergradient && (n == RhoTheta_comp || n == RhoQ1_comp)) {
+                    const int gam_comp = (n == RhoTheta_comp) ? EddyDiff::HGAMT_v : EddyDiff::HGAMQ_v;
+                    const Real gam_lo = myhalf * (mu_turb(i, j, khi, gam_comp) + mu_turb(i, j, khi-1, gam_comp));
+                    RHS_a(i,j,khi) += Fact * rhoAlpha_lo * gam_lo;
+                    if (!at_zhi) {
+                        const Real gam_hi = myhalf * (mu_turb(i, j, khi, gam_comp) + mu_turb(i, j, khi+1, gam_comp));
+                        RHS_a(i,j,khi) -= Fact * rhoAlpha_hi * gam_hi;
+                    }
                 }
 
                 // First solve
@@ -645,7 +652,7 @@ ImplicitVerticalFluxForReflux_N (const Box& bx,
         Real rhoAlpha_lo, rhoAlpha_hi;
         const int kc = (k <= khi) ? k : k-1;
         getRhoAlpha(i, j, kc, rhoAlpha_lo, rhoAlpha_hi, cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
-                    prim_index, prim_scal_index, l_consA, l_turb);
+                    prim_scal_index, l_consA, l_turb);
         const Real rhoAlpha = (k <= khi) ? rhoAlpha_lo : rhoAlpha_hi;
         const Real phi_hi = cell_data(i,j,k  ,n) / cell_data(i,j,k  ,Rho_comp);
         const Real phi_lo = cell_data(i,j,k-1,n) / cell_data(i,j,k-1,Rho_comp);

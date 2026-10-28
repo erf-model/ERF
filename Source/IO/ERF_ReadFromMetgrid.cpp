@@ -197,6 +197,12 @@ read_from_metgrid (int lev, int /*itime*/,
     ParallelDescriptor::Bcast(&NC_dx,        1, ioproc);
     ParallelDescriptor::Bcast(&NC_dy,        1, ioproc);
 
+    // The date string, so that every rank has the same value
+    int date_len = ParallelDescriptor::IOProcessor() ? static_cast<int>(NC_dateTime.size()) : 0;
+    ParallelDescriptor::Bcast(&date_len, 1, ioproc);
+    NC_dateTime.resize(date_len);
+    if (date_len > 0) { ParallelDescriptor::Bcast(NC_dateTime.data(), date_len, ioproc); }
+
     Print() << "Loading initial data from NetCDF file at level " << lev << std::endl;
 
     Vector<FArrayBox*>  NC_fabs;

@@ -21,8 +21,8 @@ using namespace amrex;
  *                                  closes on the top of the domain.
  * @param[in] dz0 Initial cell height at the surface.
  *
- * A stretched grid starts at geometry.prob_lo[2]; the uniform and erf.terrain_z_levels
- * grids start at 0.
+ * Every grid starts at geometry.prob_lo[2]: the uniform and stretched grids are built up
+ * from it, and erf.terrain_z_levels must begin there.
  */
 void
 init_zlevels (Vector<Vector<Real>>& zlevels_stag,
@@ -47,9 +47,10 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
 
         if (grid_stretching_ratio == 0 && !(dz0 > 0)) {
             // This is the default for z_levels
+            const Real zsurf = geom[lev].ProbLo(2);
             for (int k = 0; k < nz+1; k++)
             {
-                zlevels_stag[lev][k] = k * dx[2];
+                zlevels_stag[lev][k] = zsurf + k * dx[2];
             }
             for (int k = 0; k < nz; k++)
             {
@@ -133,10 +134,14 @@ init_zlevels (Vector<Vector<Real>>& zlevels_stag,
 
         pp.getarr("terrain_z_levels", zlevels_stag[0], 0, nz+1);
 
-        // These levels should range from 0 at the surface to the height of the
-        // top of model domain (see the coordinate surface height, zeta, in
-        // Klemp 2011)
-        AMREX_ALWAYS_ASSERT(zlevels_stag[0][0] == 0);
+        // These levels should range from geometry.prob_lo[2] at the surface to the
+        // height of the top of model domain (see the coordinate surface height, zeta,
+        // in Klemp 2011)
+        if (zlevels_stag[0][0] != geom[0].ProbLo(2)) {
+            Abort("erf.terrain_z_levels must start at geometry.prob_lo[2] = " +
+                  std::to_string(geom[0].ProbLo(2)) + ", not at " +
+                  std::to_string(zlevels_stag[0][0]));
+        }
 
         for (int lev = 1; lev <= max_level; lev++) {
             int rr = ref_ratio[lev-1][2];

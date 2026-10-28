@@ -7,6 +7,7 @@
 #include "ERF_MOSTStress.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_IndexDefines.H"
+#include "ERF_EarthRelativeWind.H"
 
 using namespace amrex;
 
@@ -213,6 +214,70 @@ void fill (MultiFab& dst,
             }
             if (source_comp >= 0) {
                 dst_arr(i,j,k,source_comp) = source_value;
+            }
+        });
+    }
+}
+
+void fill_wind_10m (MultiFab& dst,
+                    int u_comp,
+                    int v_comp,
+                    int u_east_comp,
+                    int v_north_comp,
+                    const WindSources& sources,
+                    Real missing_value)
+{
+    if (u_comp < 0 && v_comp < 0 && u_east_comp < 0 && v_north_comp < 0) { return; }
+
+    const bool have_surface_layer = sources.u_star && sources.roughness_height &&
+                                    sources.obukhov_length && sources.xvel && sources.yvel;
+    const bool have_rotation = sources.cos_alpha && sources.sin_alpha;
+    const int klo = sources.klo;
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(dst, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        const auto dst_arr = dst.array(mfi);
+
+        const auto ustar = array_or_empty(sources.u_star, mfi);
+        const auto z0 = array_or_empty(sources.roughness_height, mfi);
+        const auto olen = array_or_empty(sources.obukhov_length, mfi);
+        const auto u = array_or_empty(sources.xvel, mfi);
+        const auto v = array_or_empty(sources.yvel, mfi);
+        const auto cosa = array_or_empty(sources.cos_alpha, mfi);
+        const auto sina = array_or_empty(sources.sin_alpha, mfi);
+
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            Real u10 = missing_value;
+            Real v10 = missing_value;
+            Real factor = zero;
+            if (have_surface_layer &&
+                valid_real(ustar(i,j,0)) && ustar(i,j,0) >= zero &&
+                evaluate_most_momentum_factor(z0(i,j,0), olen(i,j,0), wind_height, factor)) {
+                const Real speed = ustar(i,j,0) / KAPPA * factor;
+                // The direction of the wind at the centre of the first cell
+                const Real u_cc = myhalf * (u(i,j,klo) + u(i+1,j,klo));
+                const Real v_cc = myhalf * (v(i,j,klo) + v(i,j+1,klo));
+                const Real speed_cc = std::sqrt(u_cc*u_cc + v_cc*v_cc);
+                if (valid_real(speed) && speed >= zero && valid_real(speed_cc)) {
+                    u10 = (speed_cc > zero) ? speed * u_cc / speed_cc : zero;
+                    v10 = (speed_cc > zero) ? speed * v_cc / speed_cc : zero;
+                }
+            }
+
+            if (u_comp >= 0) { dst_arr(i,j,k,u_comp) = u10; }
+            if (v_comp >= 0) { dst_arr(i,j,k,v_comp) = v10; }
+            if (u_east_comp >= 0 || v_north_comp >= 0) {
+                Real u_east = u10;
+                Real v_north = v10;
+                // Without a grid orientation the grid is taken to be aligned with east
+                if (u10 != missing_value && have_rotation) {
+                    erf_earth_wind::grid_to_earth(u10, v10, cosa(i,j,0), sina(i,j,0), u_east, v_north);
+                }
+                if (u_east_comp  >= 0) { dst_arr(i,j,k,u_east_comp)  = u_east; }
+                if (v_north_comp >= 0) { dst_arr(i,j,k,v_north_comp) = v_north; }
             }
         });
     }

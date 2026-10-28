@@ -290,6 +290,11 @@ class SuperDropletPC : public ERFPC
                                const double a_dt,
                                const bool a_recycle);
 
+        /*! \brief Set the vertical coordinate of recycled super-droplets on their owning grids
+         * \param[in] a_z_phys_nd Array of terrain heights
+         */
+        void placeRecycledParticles ( const amrex::Vector<MFPtr>& a_z_phys_nd );
+
         /*! \brief Return the number of super-droplets
             This returns the number of AMReX particles being used in the simulation. */
         [[nodiscard]] inline virtual amrex::Long NumSuperDroplets ()

@@ -27,8 +27,10 @@ on:
       - '.github/actions/**'
   workflow_dispatch:
 
+# Development pushes finish the active run and keep only the newest pending commit.
+# PR cancellation and commit-specific manual groups stay unchanged.
 concurrency:
-  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || github.sha }}-cuda-ci
+  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || (github.event_name == 'push' && 'latest') || github.sha }}-cuda-ci
   cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
@@ -102,6 +104,7 @@ jobs:
             -DERF_ENABLE_MPI:BOOL=ON \
             -DERF_ENABLE_CUDA:BOOL=ON \
             -DERF_ENABLE_PARTICLES:BOOL=${{matrix.particles}} \
+            -DERF_ENABLE_FIRE:BOOL=ON \
             -DERF_PRECISION:STRING=${{matrix.mesh_precision}} \
             -DERF_PARTICLES_PRECISION:STRING=${{matrix.particles_precision}} \
             -DERF_TEST_NRANKS:STRING=2 \

@@ -374,11 +374,11 @@ Grid Stretching
 ===============
 
 This automatically activates **erf.terrain_type = StaticFittedMesh**. By default, the
-problem-specific terrain is initialized to be flat at an elevation of z=0.
+problem-specific terrain is initialized to be flat at **geometry.prob_lo** in z.
 These inputs are used to automatically generate the staggered z levels used to
 calculate the grid metric transformation. Alternatively, arbitrary z levels may
-be specified with the **erf.terrain_z_levels** parameter, which should vary
-from 0 (at the surface) to the domain height.
+be specified with the **erf.terrain_z_levels** parameter, which must start at
+**geometry.prob_lo** in z (the surface) and rise to the domain height.
 
 .. _list-of-parameters-3:
 
@@ -430,10 +430,10 @@ Notes
   wrfinput case builds its grid from the file instead.
 - The number of input **erf.terrain_z_levels** must be equal **amr.n_cell** in
   the z direction + 1.
-- A stretched grid (**erf.grid_stretching_ratio** or **erf.initial_dz**) starts at
+- Every vertical grid -- uniform, stretched (**erf.grid_stretching_ratio** or
+  **erf.initial_dz**) or given by **erf.terrain_z_levels** -- starts at
   **geometry.prob_lo** in z, and a flat surface sits there.  The former input
   **erf.zsurface** is no longer accepted; set **geometry.prob_lo** in z instead.
-  **erf.terrain_z_levels** must still start at 0.
 
 .. _examples-of-usage-3:
 
@@ -1853,6 +1853,32 @@ cannot produce; a 2D diagnostic that is valid but not computed in this run is
 written as the missing value it would have in a 2D plotfile (0 or -999 depending
 on the diagnostic) rather than being dropped.
 
+A 3D name that this configuration cannot produce -- ``qsnow`` under Kessler
+microphysics, for example, since Kessler carries no ice -- can be treated the same
+way by setting ``erf.station_allow_unavailable = true``.  Its column is then
+kept and written as -999 at every height, the header marks it as not available in
+this run, and the run prints a warning, so one station list can be shared by
+configurations that carry different fields.  The default is false, which stops
+the run: a column that holds no data is easy to overlook in a long series, so it
+has to be asked for.  A name that is neither a 3D nor a 2D variable still stops
+the run.
+
+Four more names give earth-relative winds, for comparison with towers, which
+report them: ``u_east`` and ``v_north`` (m/s), ``wind_speed`` (the horizontal
+speed, m/s) and ``wind_dir`` (the meteorological direction the wind comes from,
+in degrees clockwise from north; -999 when the wind is calm).  They are 3D
+variables, so they need a height like any other.  Each is formed from the
+station's interpolated ``x_velocity`` and ``y_velocity``, rotated by the
+orientation of the grid at the station, which is read from the run's
+latitude/longitude arrays (a WRF or metgrid initialization, or a restart from
+one).  Without those arrays the grid is taken to be aligned with east and north,
+so ``u_east`` equals ``x_velocity``.  The angle is that of the level-0 cell that
+holds the station, and the header gives it for each column.  These are the same
+formulas as the 2D sampled-level fields of the same names
+(:ref:`sec:Plotfile2DSampledLevels`); a 2D level set writes its own
+``missing_value`` (default -999) for a calm ``wind_dir``, the station always -999.
+"Calm" means a wind of exactly zero.
+
 Values are interpolated bilinearly in the horizontal and linearly in the
 vertical, taken from the finest level that covers the interpolation stencil from
 the bottom of the domain up through the requested heights.  Coverage is required
@@ -1871,7 +1897,8 @@ value.
    extrapolated to the requested height by surface-layer similarity.  In a run
    whose first cell is 100 m deep, ``height_agl = 10.0`` and ``height_agl = 40.0`` both
    report the value 50 m up.  For 2 m and 10 m quantities, ask for the 2D
-   diagnostics (``temperature_2m``, ``water_vapor_mixing_ratio_2m`` and the
+   diagnostics (``temperature_2m``, ``water_vapor_mixing_ratio_2m``, the 10 m
+   winds ``u_10m``, ``v_10m``, ``u_east_10m`` and ``v_north_10m``, and the other
    surface-layer diagnostics), which are computed from the surface-layer
    parameterization; the run warns once if a requested height falls in that
    first half cell.
@@ -1900,7 +1927,11 @@ restart does not repeat that row, since the run that wrote the file before
 already has it.
 
 Rows are buffered in memory and written out every ``erf.station_buffer_steps``
-output steps, whenever a checkpoint is written, and at the end of the run.  A
+output steps, whenever a 2D or 3D plotfile or a checkpoint is written, and at the
+end of the run.  A run that aborts loses only the rows sampled since the last of
+these, so the station series reaches at least as far as the plotfiles do; a
+smaller ``erf.station_buffer_steps`` narrows that window further, at the cost of
+reopening every station file more often.  A
 restart appends to the file the earlier run wrote, so the series is continuous
 across a restart; the resumption is marked by a comment line.  Because the
 buffer is flushed with every checkpoint, a restart from any checkpoint picks the
@@ -2000,6 +2031,9 @@ List of Parameters
 | **erf.station_buffer_steps**       | Output steps buffered before the files are written       | Integer            | 100              |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.station_output_dir**         | Directory the station files are written to               | String             | Output_Stations  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.station_allow_unavailable**  | Write a 3D variable this configuration cannot produce as | Boolean            | false            |
+|                                    | -999 instead of stopping the run                         |                    |                  |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 .. note::
@@ -2672,7 +2706,9 @@ ABL Driver and Geostrophic Forcing
 |                             | ``z Ug Vg`` (m, m/s, m/s), heights increasing and        |                    |                  |
 |                             | covering the domain; blank lines and lines starting      |                    |                  |
 |                             | with ``#`` are skipped, and any other row that does not  |                    |                  |
-|                             | start with three numbers stops the run                   |                    |                  |
+|                             | start with three numbers stops the run. ``z`` is the     |                    |                  |
+|                             | physical height, in the same coordinate as               |                    |                  |
+|                             | ``geometry.prob_lo[2]`` and ``prob_hi[2]``               |                    |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 
 .. _sec:WindFarmForcingInputs:
@@ -3267,11 +3303,6 @@ Boundary Plane I/O (Coupling Support)
 These options control writing and reading boundary-plane data for coupling
 workflows (e.g., AMR-Wind). See :ref:`CouplingToAMRWind` for examples.
 
-The one-dimensional column output used by the same coupling is configured with
-``erf.output_1d_column``, ``erf.column_file_name``, ``erf.column_interval``,
-``erf.column_per``, ``erf.column_loc_x`` and ``erf.column_loc_y``, all of which
-are documented on that page rather than here.
-
 List of Parameters
 ------------------
 
@@ -3303,7 +3334,9 @@ List of Parameters
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.bndry_input_var_names**         | Variables to read; any of velocity, density,             | List of strings    | None (no         |
 |                                       | temperature, theta, scalar, qv, qc and ke. An unknown    |                    | variables)       |
-|                                       | name aborts at start-up                                  |                    |                  |
+|                                       | name aborts at start-up. The passive scalars share one   |                    |                  |
+|                                       | boundary condition, so with more than one (the fire      |                    |                  |
+|                                       | coupling's smoke) ``scalar`` fills all of them           |                    |                  |
 +---------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.in_rad**                        | width, in cells, of the region inside the domain         | Integer >= 0       | 1                |
 |                                       | boundary from which the boundary planes are written and  |                    |                  |
@@ -3670,8 +3703,9 @@ List of Parameters
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.terrain_file_name_nc**     | NetCDF terrain filename                                  | String             | NONE             |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.buildings_type**           | how buildings are represented; see :ref:`Forcings`       | None,              | None             |
-|                                  |                                                          | ImmersedForcing    |                  |
+| **erf.buildings_type**           | how buildings are represented; see :ref:`Forcings`;      | None,              | None             |
+|                                  | ImmersedForcing is not supported with                    | ImmersedForcing    |                  |
+|                                  | ``erf.terrain_type`` = EB                                |                    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.use_rotate_surface_flux**  | rotate the MOST surface stresses to be normal to the     | Boolean            | false            |
 |                                  | terrain surface; requires that terrain be used           |                    |                  |
@@ -4176,7 +4210,8 @@ the ones marked **Required** abort the run if they are not given.
 |                                       | value requires an active moisture model                  |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.rhosurf**                  | surface density used with the prescribed fluxes instead  | Real                | 0.0 (use first   |
-|                                       | of the density in the first cell                         |                     | cell)            |
+|                                       | of the density in the first cell; may not be combined    |                     | cell)            |
+|                                       | with ``erf.most.use_sfc_fluxes``                         |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.Cd**                       | bulk transfer coefficient for momentum.  **Required**    | Real                | must be set      |
 |                                       | when ``flux_type`` = ``bulk_coeff``                      |                     |                  |
@@ -4230,8 +4265,9 @@ the ones marked **Required** abort the run if they are not given.
 |                                       | not used                                                 |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.use_sfc_fluxes**           | read time-varying sensible and latent heat fluxes and    | Boolean             | false            |
-|                                       | friction velocity from a text file; may not be combined  |                     |                  |
-|                                       | with ``erf.most.use_sfc_sst``                            |                     |                  |
+|                                       | kinematic surface stress from a text file; may not be    |                     |                  |
+|                                       | combined with ``erf.most.use_sfc_sst`` or                |                     |                  |
+|                                       | ``erf.most.rhosurf``                                     |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.use_sfc_sst**              | read a time-varying sea-surface temperature from a text  | Boolean             | false            |
 |                                       | file; may not be combined with                           |                     |                  |
@@ -5515,6 +5551,88 @@ Evaluation is a trilinear interpolation of that sampled field, so the building
 geometry is resolved at the finest level's cell size; points outside the sampled
 region are treated as fluid.  Very large or highly detailed meshes will
 therefore be limited by the mesh resolution rather than by the STL itself.
+
+.. _sec:InputsFire:
+
+Fire Coupling
+=============
+
+These inputs configure the atmosphere side of the fire coupling described in
+:ref:`sec:FireCoupling`; they need a build with ``ERF_ENABLE_FIRE=ON``
+(``USE_FIRE = TRUE`` with GNU make). The ``erf.fire`` keys are read once at
+start-up by ``FireCouplingParams::read()``, which stops the run on a value
+outside the range given here, naming the key; the three plotfile keys are read
+from ``erf`` with the other output keys. A fire engine reads its own inputs
+besides.
+
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| Parameter                                      | Definition                                                 | Acceptable Values              | Default                |
++================================================+============================================================+================================+========================+
+| **erf.fire.enable**                            | Run a fire (needs a fire engine compiled in, see           | Boolean                        | false                  |
+|                                                | :ref:`sec:FireCoupling`)                                   |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.engine**                            | The fire engine behind the coupling, one of the engines    | String                         | the only one built     |
+|                                                | compiled in (ERF_REGISTER_FIRE_ENGINE); required when      |                                |                        |
+|                                                | several are; with none, setting it stops the run           |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.fire_debug**                        | Print per-step coupling diagnostics                        | Boolean                        | false                  |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.grid_ratio**                        | Fire cells per atmospheric cell in x and y; every x,y box  | Integer >= 1                   | 5                      |
+|                                                | length on the fire grid's level must divide by it          |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.anchor_level**                      | AMR level whose grid the fire grid refines; -1 is the      | -1, or 0 to the finest level   | -1                     |
+|                                                | finest level at start-up. Above level 0 the level must     |                                |                        |
+|                                                | keep its boxes (erf.regrid_int = -1) and cover one         |                                |                        |
+|                                                | rectangle of full-height columns; a level below the        |                                |                        |
+|                                                | finest prints a warning                                    |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.coupling_type**                     | Wind used by the fire and whether its heat is injected     | "passive", "lagged",           | "lagged"               |
+|                                                |                                                            | "synchronous"                  |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.heat_flux_alfg**                    | E-folding height of the injected heat [m]                  | Real > 0                       | 45.0                   |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.fire_atm_feedback**                 | Multiplier on the injected fluxes; 0 is one-way coupling   | Real >= 0                      | 1.0                    |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.inject_latent**                     | Inject the latent flux into the vapour equation when       | Boolean                        | true                   |
+|                                                | moisture is active                                         |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.source_mode**                       | Replace the theta and vapour source slots or add to the    | "overwrite", "add"             | "overwrite"            |
+|                                                | rebuilt stage source. Left at the default with another     |                                |                        |
+|                                                | theta source on the fire level (radiation, Rayleigh        |                                |                        |
+|                                                | damping of T, custom forcing or subsidence, slow-step      |                                |                        |
+|                                                | immersed forcing) the run stops: set it explicitly         |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.heat_open_fraction**                | Place the injected heat by the open fraction and roof      | Boolean                        | false                  |
+|                                                | height the engine reports per column                       |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.heat_tendency_density**             | Multiply the injected tendency by the air density          | Boolean                        | false                  |
+|                                                | (injects rho times the flux; for comparison with runs made |                                |                        |
+|                                                | in that form)                                              |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.heat_tendency_exner**               | Divide the rho theta tendency by the cell's Exner function | Boolean                        | true                   |
+|                                                | so the column enthalpy integrates to the fire flux; false  |                                |                        |
+|                                                | (WRF-SFIRE's form) injects Pi times the flux               |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.heat_profile**                      | How the fire heat is placed in the column: "exponential"   | String                         | exponential            |
+|                                                | (e-folding erf.fire.heat_flux_alfg, WRF-SFIRE) or          |                                |                        |
+|                                                | "bottom_cell" (all of it in the lowest cell, as LSFIRE)    |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.smoke_enable**                      | Inject the smoke tracer (needs erf.transport_scalar =      | Boolean                        | false                  |
+|                                                | true)                                                      |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.smoke_emission_factor**             | Smoke mass per unit fuel burned [kg/kg]; needs             | Real >= 0                      | 0.02                   |
+|                                                | ``erf.fire.smoke_enable = true`` (set without it the run   |                                |                        |
+|                                                | stops, or warns when ``smoke_enable = false`` or           |                                |                        |
+|                                                | ``erf.fire.enable = false`` is given)                      |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.plot_file**                         | Prefix of the engine's fire plotfile                       | String                         | ``plt_fire_``          |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.plot_int**                          | Steps between fire plotfiles; <= 0 disables. With neither  | Integer                        | erf.plot_int_1         |
+|                                                | this nor plot_per given, both take erf.plot_int_1 and      |                                |                        |
+|                                                | erf.plot_per_1 (the old erf.fire_plot_* keys stop the run) |                                |                        |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
+| **erf.fire.plot_per**                          | Seconds between fire plotfiles; <= 0 disables              | Real                           | erf.plot_per_1         |
++------------------------------------------------+------------------------------------------------------------+--------------------------------+------------------------+
 
 .. _inputs-particles:
 
