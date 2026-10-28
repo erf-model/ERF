@@ -5,6 +5,17 @@ ProcessorCount(PROCESSES)
 # Shared handling of multi-word MPI launchers (e.g., "flux run").
 include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
 
+# The launcher for the test commands handed to `sh -c`. Each launcher token is quoted,
+# so a path with spaces ("C:/Program Files/Microsoft MPI/Bin/mpiexec.exe") stays one
+# word and a multi-word launcher ("flux run") stays several.
+set(ERF_SH_MPI_LAUNCHER "")
+if(ERF_ENABLE_MPI)
+    erf_mpi_launcher_tokens(_mpi_launcher_tokens "${MPIEXEC_EXECUTABLE}")
+    foreach(_token IN LISTS _mpi_launcher_tokens)
+        string(APPEND ERF_SH_MPI_LAUNCHER "\"${_token}\" ")
+    endforeach()
+endif()
+
 #=============================================================================
 # Functions for adding tests / Categories of tests
 #=============================================================================
@@ -47,10 +58,8 @@ macro(setup_test)
 
     if(ERF_ENABLE_MPI)
         set(NP ${ERF_TEST_NRANKS})
-        # Quoted: these strings are handed to `sh -c`, and MS-MPI lives under
-        # "C:/Program Files/Microsoft MPI/Bin/mpiexec.exe".
-        set(MPI_COMMANDS "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
-        set(MPI_FCOMP_COMMANDS "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
+        set(MPI_COMMANDS "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
+        set(MPI_FCOMP_COMMANDS "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
     else()
         set(NP 1)
         unset(MPI_COMMANDS)
@@ -2168,7 +2177,7 @@ function(add_test_abort TEST_NAME SOURCE_DIR INPUT_FILE EXPECTED_MESSAGE RUNTIME
     file(COPY ${TEST_FILES} DESTINATION "${CURRENT_TEST_BINARY_DIR}/")
 
     if(ERF_ENABLE_MPI)
-        set(MPI_COMMANDS "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
+        set(MPI_COMMANDS "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
     else()
         unset(MPI_COMMANDS)
     endif()
@@ -2301,7 +2310,7 @@ if(NOT WIN32)
     file(GLOB _rr_files "${_rr_src}/*")
     file(COPY ${_rr_files} DESTINATION "${_rr_dir}/")
     if(ERF_ENABLE_MPI)
-      set(_rr_mpi "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
+      set(_rr_mpi "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
     else()
       unset(_rr_mpi)
     endif()
@@ -2841,7 +2850,7 @@ function(add_test_rans TEST_NAME CASE_DIR INPUT_FILE NSTEPS CHECK_SCRIPT)
         else()
             set(NP ${ADD_TEST_RANS_NRANKS})
         endif()
-        set(MPI_COMMANDS "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
+        set(MPI_COMMANDS "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
     else()
         set(NP 1)
         unset(MPI_COMMANDS)
@@ -2917,7 +2926,7 @@ function(add_test_rans_pair TEST_NAME CASE_DIR INPUT_FILE NSTEPS CHECK_SCRIPT)
         else()
             set(NP ${ADD_TEST_RANS_PAIR_NRANKS})
         endif()
-        set(MPI_COMMANDS "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
+        set(MPI_COMMANDS "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
     else()
         set(NP 1)
         unset(MPI_COMMANDS)
@@ -3033,7 +3042,7 @@ function(add_test_most_zref TEST_NAME)
 
     # 4x4 columns: one rank
     if(ERF_ENABLE_MPI)
-        set(MPI_COMMANDS "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
+        set(MPI_COMMANDS "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
     else()
         unset(MPI_COMMANDS)
     endif()
@@ -4041,7 +4050,7 @@ set(_fex_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/Fire_ExampleEngine_Restart)
 file(MAKE_DIRECTORY ${_fex_dir})
 file(COPY ${_fex_src}/inputs_fire_example ${_fex_src}/input_sounding DESTINATION ${_fex_dir})
 resolve_test_exe("" "erf_exec" _fex_exe)
-set(_fex_mpi "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} 2 ${MPIEXEC_PREFLAGS}")
+set(_fex_mpi "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 2 ${MPIEXEC_PREFLAGS}")
 add_test(NAME Fire_ExampleEngine_Restart
          COMMAND sh -c "rm -rf plt0* chk0* rst && ${_fex_mpi} ${_fex_exe} inputs_fire_example amrex.call_addr2line=0 > straight.log 2>&1 && grep -q fire_phi plt00008/Header && mkdir rst && cd rst && cp ../input_sounding . && ${_fex_mpi} ${_fex_exe} ../inputs_fire_example erf.restart=../chk00004 erf.check_int=-1 amrex.call_addr2line=0 > ../restart.log 2>&1 && cd .. && ${FCOMPARE_EXE} -r 0 --abs_tol 0 plt00008 rst/plt00008"
          WORKING_DIRECTORY ${_fex_dir})
@@ -4080,7 +4089,7 @@ file(MAKE_DIRECTORY ${_fl_dir})
 file(GLOB _fl_files "${_fire_abort_dir}/*")
 file(COPY ${_fl_files} DESTINATION ${_fl_dir})
 resolve_test_exe("" "erf_exec" _fl_exe)
-set(_fl_mpi "\"${MPIEXEC_EXECUTABLE}\" ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
+set(_fl_mpi "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}")
 add_test(NAME Fire_Abort_CheckpointWithoutLayout
          COMMAND sh -c "rm -rf chk_fl* && ${_fl_mpi} ${_fl_exe} Terrain_Stress_Ridge.i max_step=1 erf.plot_int_1=-1 erf.check_int=1 erf.check_file=chk_fl amrex.call_addr2line=0 > write.log 2>&1 && test -f chk_fl00001/ScalarLayout && rm chk_fl00001/ScalarLayout && ${_fl_mpi} ${_fl_exe} Terrain_Stress_Ridge.i max_step=2 erf.plot_int_1=-1 erf.check_int=-1 erf.restart=chk_fl00001 amrex.call_addr2line=0 2>&1 | tee Fire_Abort_CheckpointWithoutLayout.log"
          WORKING_DIRECTORY ${_fl_dir})
