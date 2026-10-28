@@ -121,6 +121,26 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``m``
      - ``FillMinus999WhenUnavailable``
      - Roughness height from the surface layer
+   * - ``u_10m``
+     - ``SurfaceLayer``
+     - ``m/s``
+     - ``FillMinus999WhenUnavailable``
+     - Grid-relative x wind 10 m above the local surface, from the surface-layer profile
+   * - ``v_10m``
+     - ``SurfaceLayer``
+     - ``m/s``
+     - ``FillMinus999WhenUnavailable``
+     - Grid-relative y wind 10 m above the local surface, from the surface-layer profile
+   * - ``u_east_10m``
+     - ``SurfaceLayer``
+     - ``m/s``
+     - ``FillMinus999WhenUnavailable``
+     - Eastward wind 10 m above the local surface, from the surface-layer profile
+   * - ``v_north_10m``
+     - ``SurfaceLayer``
+     - ``m/s``
+     - ``FillMinus999WhenUnavailable``
+     - Northward wind 10 m above the local surface, from the surface-layer profile
    * - ``OLR``
      - ``Radiation``
      - ``W/m^2``
@@ -441,6 +461,16 @@ The selection contract and the value written after selection are separate:
      - Selectable: ERF accepts these fixed request names; the runtime
        SurfaceLayer source may still be absent.
      - Value: SurfaceLayer scalar values; ``-999`` when the source pointer is absent.
+   * - ``u_10m``, ``v_10m``, ``u_east_10m``, ``v_north_10m``
+     - Selectable: fixed request names; the runtime SurfaceLayer source may still be absent.
+     - Value: the wind 10 m above the local surface, as WRF's ``U10``/``V10``. Its speed is
+       :math:`u_* / \kappa \, [\ln(10/z_0) - \psi_m(10/L)]` from the surface layer's
+       :math:`u_*`, :math:`z_0` and Obukhov length :math:`L` (with :math:`10/L` capped at 1,
+       as for ``temperature_2m``), and its direction that of the wind at the centre of the
+       first cell. ``u_east_10m`` and ``v_north_10m`` are turned earth-relative with the
+       grid orientation from the run's latitude and longitude, as the sampled ``u_east``
+       and ``v_north`` are; without them the grid is taken to be aligned with east. ``-999``
+       without a surface layer, or where :math:`z_0 \ge 10` m.
    * - ``pblh``
      - Selectable: fixed request name.
      - Native SHOC ``pblh`` is reported in metres above local ground (AGL). Value: native SHOC PBL height when native SHOC diagnostics are present; otherwise SurfaceLayer; ``-999`` if neither exists.
