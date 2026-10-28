@@ -17,6 +17,7 @@ MODULE mp_morr_two_moment_isohelper
                 rho, pii, p, dt_in, dz, w, &
                 rainnc, rainncv, sr, &
                 snownc, snowncv, graupelnc, graupelncv, &
+                rainonlync, &
                 refl_10cm, diagflag, do_radar_ref, &
                 qrcuten, qscuten, qicuten, &
                 !  f_qndrop, qndrop, ht, &
@@ -35,6 +36,7 @@ MODULE mp_morr_two_moment_isohelper
     REAL(C_DOUBLE), VALUE, INTENT(IN) :: dt_in
     REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme, kms:kme) :: rainnc, snownc, graupelnc
     REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme) :: rainncv, sr,  snowncv, graupelncv
+    REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme, kms:kme) :: rainonlync
     REAL(C_DOUBLE), INTENT(INOUT), DIMENSION(ims:ime, jms:jme, kms:kme) :: refl_10cm
     LOGICAL(C_BOOL), VALUE, INTENT(IN) :: diagflag
     INTEGER(C_INT), VALUE, INTENT(IN) :: do_radar_ref
@@ -67,6 +69,7 @@ MODULE mp_morr_two_moment_isohelper
                 rho, pii, p, dt_in, dz, w, &
                 rainnc, rainncv, sr, &
                 snownc, snowncv, graupelnc, graupelncv, &
+                rainonlync, &
                 refl_10cm, diag_flag_f, do_radar_ref, &
                 qrcuten, qscuten, qicuten, &
                 f_qndrop_f, qndrop, &

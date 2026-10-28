@@ -977,7 +977,8 @@ WSM6::AdvanceColumns (const Real& dt_advance,
         auto const& p_arr = mic_fab_vars[MicVar_WSM6::pres]->array(mfi);
         auto rain_arr = mic_fab_vars[MicVar_WSM6::rain_accum]->array(mfi);
         auto snow_arr = mic_fab_vars[MicVar_WSM6::snow_accum]->array(mfi);
-        auto graup_arr = mic_fab_vars[MicVar_WSM6::graup_accum]->array(mfi);
+        auto graupel_arr = mic_fab_vars[MicVar_WSM6::graupel_accum]->array(mfi);
+        auto precip_arr = mic_fab_vars[MicVar_WSM6::precip_accum]->array(mfi);
         auto const& sed_arr = m_sed.down->array(mfi);
 
         const int ilo = box.smallEnd(0);
@@ -1034,6 +1035,8 @@ WSM6::AdvanceColumns (const Real& dt_advance,
         FArrayBox rainacc_fab(fab_box2d, 1, Arena_Used);
         FArrayBox snowacc_fab(fab_box2d, 1, Arena_Used);
         FArrayBox graupacc_fab(fab_box2d, 1, Arena_Used);
+        FArrayBox rainonly_fab(fab_box2d, 1, Arena_Used);
+        FArrayBox snowonly_fab(fab_box2d, 1, Arena_Used);
 
         auto const& rainncv_arr = rainncv_fab.array();
         auto const& sr_arr = sr_fab.array();
@@ -1042,6 +1045,8 @@ WSM6::AdvanceColumns (const Real& dt_advance,
         auto const& rainacc_arr = rainacc_fab.array();
         auto const& snowacc_arr = snowacc_fab.array();
         auto const& graupacc_arr = graupacc_fab.array();
+        auto const& rainonly_arr = rainonly_fab.array();
+        auto const& snowonly_arr = snowonly_fab.array();
         ParallelFor(fab_box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
             rainncv_arr(i,j,k) = Real(0.0);
             sr_arr(i,j,k) = Real(0.0);
@@ -1050,16 +1055,13 @@ WSM6::AdvanceColumns (const Real& dt_advance,
             rainacc_arr(i,j,k) = Real(0.0);
             snowacc_arr(i,j,k) = Real(0.0);
             graupacc_arr(i,j,k) = Real(0.0);
+            rainonly_arr(i,j,k) = Real(0.0);
+            snowonly_arr(i,j,k) = Real(0.0);
         });
-        ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-            rainacc_arr(i,j,0) = rain_arr(i,j,klo);
-            snowacc_arr(i,j,0) = snow_arr(i,j,klo);
-            graupacc_arr(i,j,0) = graup_arr(i,j,klo);
-            rainncv_arr(i,j,0) = Real(0.0);
-            sr_arr(i,j,0) = Real(0.0);
-            snowncv_arr(i,j,0) = Real(0.0);
-            graupelncv_arr(i,j,0) = Real(0.0);
-        });
+        // The WRF-style accumulators start this step at zero, so afterwards they hold
+        // what fell during it: rainacc the total, snowacc the snow and cloud ice,
+        // graupacc the graupel, and rainonly and snowonly the rain and snow alone.
+        // They are added to the running accumulations at the end.
 
 #ifdef ERF_USE_WSM6_FORT
         if (run_wsm6_fort) {
@@ -1076,6 +1078,7 @@ WSM6::AdvanceColumns (const Real& dt_advance,
                 rainacc_arr.dataPtr(), rainncv_arr.dataPtr(), sr_arr.dataPtr(),
                 snowacc_arr.dataPtr(), snowncv_arr.dataPtr(),
                 graupacc_arr.dataPtr(), graupelncv_arr.dataPtr(),
+                rainonly_arr.dataPtr(), snowonly_arr.dataPtr(),
                 imlo, imhi, jmlo, jmhi, kmlo, kmhi,
                 ilo, ihi, jlo, jhi, klo, khi, microphysics_debug_bridge, diag_i, diag_j);
         } else {
@@ -1763,6 +1766,8 @@ WSM6::AdvanceColumns (const Real& dt_advance,
                     graupelncv_arr(i,j,0) += fallsum_qg * precip;
                     graupacc_arr(i,j,0) += fallsum_qg * precip;
                 }
+                rainonly_arr(i,j,0) += fall_r_arr(i,j,klo) * precip;
+                snowonly_arr(i,j,0) += fall_s_arr(i,j,klo) * precip;
                 if (fallsum > Real(0.0)) {
                     sr_arr(i,j,0) =
                         (snowncv_arr(i,j,0) + graupelncv_arr(i,j,0)) /
@@ -2615,9 +2620,10 @@ WSM6::AdvanceColumns (const Real& dt_advance,
         // Only a column standing on the domain bottom has a ground to accumulate precipitation on
         if (klo == m_geom.Domain().smallEnd(2)) {
             ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int) {
-                rain_arr(i,j,klo) = rainacc_arr(i,j,0);
-                snow_arr(i,j,klo) = snowacc_arr(i,j,0);
-                graup_arr(i,j,klo) = graupacc_arr(i,j,0);
+                rain_arr(i,j,klo)    += rainonly_arr(i,j,0);
+                snow_arr(i,j,klo)    += snowonly_arr(i,j,0);
+                graupel_arr(i,j,klo) += graupacc_arr(i,j,0);
+                precip_arr(i,j,klo)  += rainacc_arr(i,j,0);
             });
         }
     }

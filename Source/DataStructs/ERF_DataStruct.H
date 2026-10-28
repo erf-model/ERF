@@ -288,11 +288,17 @@ struct MoistureComponentIndices {
     // handed out by the microphysics interface.  Slot numbers are scheme
     // specific, which is exactly why they belong in this per-scheme map.
     // ---------------------------------------------------------------------
-    int rain_accum  = absent;  //!< accumulated surface rain
-    int snow_accum  = absent;  //!< accumulated surface snow
-    int graup_accum = absent;  //!< accumulated surface graupel
-    int rel_hum     = absent;  //!< relative humidity
-    int cond_rate   = absent;  //!< condensation rate
+    //
+    // The accumulations are what reached the ground, in mm of liquid water:
+    // rain, snow and graupel each hold that species alone, and precip_accum
+    // holds everything that fell out -- those three plus whatever cloud water
+    // and cloud ice the scheme sediments -- so it can exceed their sum.
+    int rain_accum    = absent;  //!< accumulated surface rain
+    int snow_accum    = absent;  //!< accumulated surface snow
+    int graupel_accum = absent;  //!< accumulated surface graupel
+    int precip_accum  = absent;  //!< accumulated surface precipitation, all species
+    int rel_hum       = absent;  //!< relative humidity
+    int cond_rate     = absent;  //!< condensation rate
 
     /**
      * @brief Construct the conserved-state component map.
@@ -377,10 +383,13 @@ struct MoistureComponentIndices {
 
         case MoistureType::Kessler:
             // Warm rain in three moist components; qmoist is {rain_accum}.
-            mi.qv         = RhoQ1_comp;
-            mi.qc         = RhoQ2_comp;
-            mi.qr         = RhoQ3_comp;
-            mi.rain_accum = 0;
+            // Rain is the only species that falls, so the precipitation total
+            // is the rain accumulation itself.
+            mi.qv           = RhoQ1_comp;
+            mi.qc           = RhoQ2_comp;
+            mi.qr           = RhoQ3_comp;
+            mi.rain_accum   = 0;
+            mi.precip_accum = 0;
             break;
 
         case MoistureType::SBM:
@@ -394,25 +403,27 @@ struct MoistureComponentIndices {
         case MoistureType::SAM_NoIce:
             // The SAM class always allocates six moist components, so rain sits
             // in the fourth slot even with the ice species switched off.
-            mi.qv         = RhoQ1_comp;
-            mi.qc         = RhoQ2_comp;
-            mi.qr         = RhoQ4_comp;
-            mi.rain_accum = 0;
+            mi.qv           = RhoQ1_comp;
+            mi.qc           = RhoQ2_comp;
+            mi.qr           = RhoQ4_comp;
+            mi.rain_accum   = 0;
+            mi.precip_accum = 3;
             break;
 
         case MoistureType::SAM:
         case MoistureType::WSM6:
             // Single-moment mixed phase; qmoist is
-            // {rain_accum, snow_accum, graup_accum}.
-            mi.qv          = RhoQ1_comp;
-            mi.qc          = RhoQ2_comp;
-            mi.qi          = RhoQ3_comp;
-            mi.qr          = RhoQ4_comp;
-            mi.qs          = RhoQ5_comp;
-            mi.qg          = RhoQ6_comp;
-            mi.rain_accum  = 0;
-            mi.snow_accum  = 1;
-            mi.graup_accum = 2;
+            // {rain_accum, snow_accum, graupel_accum, precip_accum}.
+            mi.qv            = RhoQ1_comp;
+            mi.qc            = RhoQ2_comp;
+            mi.qi            = RhoQ3_comp;
+            mi.qr            = RhoQ4_comp;
+            mi.qs            = RhoQ5_comp;
+            mi.qg            = RhoQ6_comp;
+            mi.rain_accum    = 0;
+            mi.snow_accum    = 1;
+            mi.graupel_accum = 2;
+            mi.precip_accum  = 3;
             break;
 
         case MoistureType::Morrison:
@@ -429,9 +440,10 @@ struct MoistureComponentIndices {
             mi.nr          = RhoQ9_comp;
             mi.ns          = RhoQ10_comp;
             mi.ng          = RhoQ11_comp;
-            mi.rain_accum  = 0;
-            mi.snow_accum  = 1;
-            mi.graup_accum = 2;
+            mi.rain_accum    = 0;
+            mi.snow_accum    = 1;
+            mi.graupel_accum = 2;
+            mi.precip_accum  = 3;
             break;
 
         case MoistureType::Morrison_NoIce:
@@ -442,9 +454,10 @@ struct MoistureComponentIndices {
             mi.qv         = RhoQ1_comp;
             mi.qc         = RhoQ2_comp;
             mi.qr         = RhoQ4_comp;
-            mi.nc         = RhoQ7_comp;
-            mi.nr         = RhoQ9_comp;
-            mi.rain_accum = 0;
+            mi.nc           = RhoQ7_comp;
+            mi.nr           = RhoQ9_comp;
+            mi.rain_accum   = 0;
+            mi.precip_accum = 3;
             break;
 
         case MoistureType::WDM6:
@@ -460,9 +473,10 @@ struct MoistureComponentIndices {
             mi.nc          = RhoQ7_comp;
             mi.nn          = RhoQ8_comp;
             mi.nr          = RhoQ9_comp;
-            mi.rain_accum  = 0;
-            mi.snow_accum  = 1;
-            mi.graup_accum = 2;
+            mi.rain_accum    = 0;
+            mi.snow_accum    = 1;
+            mi.graupel_accum = 2;
+            mi.precip_accum  = 3;
             break;
 
         case MoistureType::SuperDroplets:
@@ -476,10 +490,11 @@ struct MoistureComponentIndices {
             mi.qr         = RhoQ4_comp;
             mi.qs         = RhoQ5_comp;
             mi.qg         = RhoQ6_comp;
-            mi.cond_rate  = 3;
-            mi.rel_hum    = 7;
-            mi.rain_accum = 8;
-            mi.snow_accum = 10;
+            mi.cond_rate    = 3;
+            mi.rel_hum      = 7;
+            mi.rain_accum   = 8;
+            mi.snow_accum   = 10;
+            mi.precip_accum = 11;
             break;
 
         default:
@@ -614,7 +629,8 @@ struct MoistureComponentIndices {
     [[nodiscard]] int qmoist_index_for_var (const std::string& name) const {
         if (name == "rain_accum")        { return rain_accum; }
         if (name == "snow_accum")        { return snow_accum; }
-        if (name == "graup_accum")       { return graup_accum; }
+        if (name == "graupel_accum")     { return graupel_accum; }
+        if (name == "precip_accum")      { return precip_accum; }
         if (name == "rel_humidity")      { return rel_hum; }
         if (name == "condensation_rate") { return cond_rate; }
         return absent;
@@ -652,7 +668,8 @@ struct MoistureComponentIndices {
 
         // Moist diagnostics, either from a qmoist array or derived at output time
         if ( (name == "rain_accum") || (name == "snow_accum") ||
-             (name == "graup_accum") || (name == "rel_humidity") ||
+             (name == "graupel_accum") || (name == "precip_accum") ||
+             (name == "rel_humidity") ||
              (name == "condensation_rate") ) {
             return {true, qmoist_index_for_var(name) != absent};
         }

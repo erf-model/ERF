@@ -1467,7 +1467,7 @@ private:
     std::unique_ptr<erf_auxiliary::AuxiliaryInertTracer> auxiliary_inert_tracer;
     std::unique_ptr<CloudChamberBudget> cloud_chamber_budget;
     erf_cloud_chamber::Config cloud_chamber_config;
-    amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) rain_accum, snow_accum, graup_accum
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) rain_accum, snow_accum, graupel_accum, precip_accum
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> precip; // SLM precipitation-rate scratch
 
     // Variables for wind farm parametrization models
@@ -1835,6 +1835,10 @@ private:
                                         const amrex::IntVect& dst_ghosts,
                                         bool src_ghosts = false);
 
+    // Rebuild precip_accum, and for some schemes rain_accum, at a level read from a
+    // checkpoint that predates precip_accum
+    void convert_legacy_precip_accumulations (int lev);
+
     // plotfile prefix and frequency
     std::string plot3d_file_1 {"plt_1_"};
     std::string plot3d_file_2 {"plt_2_"};
@@ -1925,7 +1929,7 @@ private:
                                                     // moisture vars
                                                     "moist_density", "qv", "qc", "qi", "qrain", "qsnow", "qgraup",
                                                     "qt", "qn", "qp", "qsat", "nc", "ni", "nr", "ns", "ng", "nn",
-                                                    "rain_accum", "snow_accum", "graup_accum",
+                                                    "rain_accum", "snow_accum", "graupel_accum", "precip_accum",
                                                     "rel_humidity", "condensation_rate",
                                                     // Terrain IB mask
                                                     "terrain_IB_mask",

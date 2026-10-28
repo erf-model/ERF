@@ -938,6 +938,70 @@ ERF::read_checkpoint_mf_if_present (MultiFab& dst,
 }
 
 /**
+ * Rebuild the precipitation accumulations of a level read from a checkpoint
+ * written before precip_accum existed.
+ *
+ * Such a checkpoint holds rain_accum, snow_accum and graupel_accum but no total.
+ * For SAM its rain_accum is rain alone, so the total is the sum of the three.
+ * For Morrison, WSM6 and WDM6 its rain_accum is the total, so that becomes
+ * precip_accum and rain_accum is what remains of it once the snow and graupel
+ * are taken out -- which still holds any cloud water and cloud ice that fell,
+ * as the old snow_accum of those schemes still holds the cloud ice.  The sums
+ * are taken in liquid-water depth, through each accumulation's own conversion.
+ *
+ * @param lev AMR level whose qmoist accumulations were just read.
+ */
+void
+ERF::convert_legacy_precip_accumulations (int lev)
+{
+    const MoistureComponentIndices& mi = solverChoice.moisture_indices;
+    if (mi.precip_accum < 0 || mi.rain_accum < 0 || mi.precip_accum == mi.rain_accum) { return; }
+
+    const SurfacePrecipAccumulationSources sources = micro->Get_Surface_Precip_Accumulation_Ptrs(lev);
+    // precip_accum is in mm of liquid water, i.e. kg/m^2, where the scheme does not
+    // hand it out as a source with its own conversion
+    const Real f_total   = surface_precip_has_source(sources.total) ? sources.total.native_to_kg_m2 : Real(1);
+    const Real f_rain    = sources.rain.native_to_kg_m2;
+    const Real f_snow    = sources.snow.native_to_kg_m2;
+    const Real f_graupel = sources.graupel.native_to_kg_m2;
+
+    const MoistureType mtype = solverChoice.moisture_type;
+    const bool rain_held_total = (mtype == MoistureType::Morrison) ||
+                                 (mtype == MoistureType::Morrison_NoIce) ||
+                                 (mtype == MoistureType::WSM6) ||
+                                 (mtype == MoistureType::WDM6);
+
+    Warning("Restart checkpoint " + restart_chkfile + " predates precip_accum; rebuilding it at level "
+            + std::to_string(lev) + (rain_held_total
+            ? " from the old rain_accum, which held the total, and taking the snow and graupel out of rain_accum"
+            : " as the sum of rain_accum, snow_accum and graupel_accum"));
+
+    MultiFab& precip = *qmoist[lev][mi.precip_accum];
+    MultiFab& rain   = *qmoist[lev][mi.rain_accum];
+    const MultiFab* snow    = (mi.snow_accum    >= 0) ? qmoist[lev][mi.snow_accum]    : nullptr;
+    const MultiFab* graupel = (mi.graupel_accum >= 0) ? qmoist[lev][mi.graupel_accum] : nullptr;
+
+    for (MFIter mfi(precip); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.fabbox();
+        const auto p_arr = precip.array(mfi);
+        const auto r_arr = rain.array(mfi);
+        const auto s_arr = (snow)    ? snow->const_array(mfi)    : Array4<const Real>{};
+        const auto g_arr = (graupel) ? graupel->const_array(mfi) : Array4<const Real>{};
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const Real frozen = ((s_arr) ? s_arr(i,j,k) * f_snow    : Real(0))
+                              + ((g_arr) ? g_arr(i,j,k) * f_graupel : Real(0));
+            if (rain_held_total) {
+                p_arr(i,j,k) = r_arr(i,j,k);
+                r_arr(i,j,k) = amrex::max(Real(0), r_arr(i,j,k) * f_total - frozen) / f_rain;
+            } else {
+                p_arr(i,j,k) = (r_arr(i,j,k) * f_rain + frozen) / f_total;
+            }
+        });
+    }
+}
+
+/**
  * ERF function for reading data from a checkpoint file during restart.
  */
 void
@@ -1657,12 +1721,25 @@ ERF::ReadCheckpointFile ()
         std::vector<std::string> qmoist_names;
         micro->Get_Qmoist_Restart_Vars(lev, solverChoice, qmoist_indices, qmoist_names);
         int qmoist_nvar = static_cast<int>(qmoist_indices.size());
+        bool precip_accum_missing = false;
         for (int var = 0; var < qmoist_nvar; var++) {
             const int ncomp  = 1;
             IntVect ng_moist = qmoist[lev][qmoist_indices[var]]->nGrowVect();
-            read_checkpoint_mf(*(qmoist[lev][qmoist_indices[var]]),
-                               amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", qmoist_names[var]),
-                               lev, 0, 0, ncomp, ng_moist, /*src_ghosts=*/true);
+            const std::string qmoist_file =
+                amrex::MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", qmoist_names[var]);
+            if (qmoist_names[var] == "PrecipAccum") {
+                // Checkpoints written before the precipitation total was kept separately
+                // have no such file; it is rebuilt from the others below
+                precip_accum_missing = !read_checkpoint_mf_if_present(*(qmoist[lev][qmoist_indices[var]]),
+                                                                      qmoist_file, lev, 0, 0, ncomp,
+                                                                      ng_moist, /*src_ghosts=*/true);
+            } else {
+                read_checkpoint_mf(*(qmoist[lev][qmoist_indices[var]]), qmoist_file,
+                                   lev, 0, 0, ncomp, ng_moist, /*src_ghosts=*/true);
+            }
+        }
+        if (precip_accum_missing) {
+            convert_legacy_precip_accumulations(lev);
         }
 
 #if defined(ERF_USE_WINDFARM)

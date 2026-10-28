@@ -83,6 +83,8 @@ namespace MORRInd {
            snowrt, // SNOW PER TIME STEP
            snowprt, // TOTAL CLOUD ICE PLUS SNOW PER TIME STEP
            grplprt, // TOTAL GRAUPEL PER TIME STEP
+           rainonlyprt, // RAIN ALONE PER TIME STEP
+           snowonlyprt, // SNOW ALONE (NO CLOUD ICE) PER TIME STEP
            effc,  // DROPLET EFFECTIVE RADIUS
            effi, // CLOUD ICE EFFECTIVE RADIUS
            effs, // SNOW EFFECTIVE RADIUS
@@ -285,7 +287,8 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
           auto const& pres_arr        = mic_fab_vars[MicVar_Morr::pres]->array(mfi);
           auto const& rain_accum_arr  = mic_fab_vars[MicVar_Morr::rain_accum]->array(mfi);
           auto const& snow_accum_arr  = mic_fab_vars[MicVar_Morr::snow_accum]->array(mfi);
-          auto const& graup_accum_arr = mic_fab_vars[MicVar_Morr::graup_accum]->array(mfi);
+          auto const& graupel_accum_arr = mic_fab_vars[MicVar_Morr::graupel_accum]->array(mfi);
+          auto const& precip_accum_arr  = mic_fab_vars[MicVar_Morr::precip_accum]->array(mfi);
           auto const& w_arr           = mic_fab_vars[MicVar_Morr::omega]->array(mfi);
           auto const& sed_arr         = m_sed.down->array(mfi);
           const auto inflow_arr = (m_sed_inflow) ? m_sed_inflow->const_array(mfi)
@@ -2583,6 +2586,8 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
                 // hm added 7/13/13
                 morr_arr(i,j,k,MORRInd::snowprt) = Real(0);
                 morr_arr(i,j,k,MORRInd::grplprt) = Real(0);
+                morr_arr(i,j,k,MORRInd::rainonlyprt) = Real(0);
+                morr_arr(i,j,k,MORRInd::snowonlyprt) = Real(0);
             } // k
 
             nstep = 1;
@@ -2942,6 +2947,8 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
               // Added 7/13/13
               morr_arr(i,j,klo,MORRInd::snowprt) += (morr_arr(i,j,kts,MORRInd::falouti) + morr_arr(i,j,kts,MORRInd::falouts)) * dt / nstep;
               morr_arr(i,j,klo,MORRInd::grplprt) += morr_arr(i,j,kts,MORRInd::faloutg) * dt / nstep;
+              morr_arr(i,j,klo,MORRInd::rainonlyprt) += morr_arr(i,j,kts,MORRInd::faloutr) * dt / nstep;
+              morr_arr(i,j,klo,MORRInd::snowonlyprt) += morr_arr(i,j,kts,MORRInd::falouts) * dt / nstep;
             }
 
             for(int k=klo; k<=khi; k++) {
@@ -3305,7 +3312,7 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
                   // NEED gpu-compatible summation for rain_accum, check SAM or Kessler for better example
                   rain_accum_arr(i,j,k) = rain_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::precrt);
                   snow_accum_arr(i,j,k) = snow_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::snowprt);
-                  graup_accum_arr(i,j,k) = graup_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::grplprt);
+                  graupel_accum_arr(i,j,k) = graupel_accum_arr(i,j,k) + morr_arr(i,j,k,MORRInd::grplprt);
                   */
 
                   rainncv_arr(i,j,0) = morr_arr(i,j,klo,MORRInd::precrt);
@@ -3317,9 +3324,12 @@ Real ndcnst_to_number_mixing_ratio (const Real ndcnst, const Real rho_erf) noexc
               // Update precipitation accumulation variables
               // These are outside the k-loop in the original code
               if (klo == dom_klo) {
-                  rain_accum_arr(i,j,klo) = rain_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::precrt);
-                  snow_accum_arr(i,j,klo) = snow_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::snowprt);
-                  graup_accum_arr(i,j,klo) = graup_accum_arr(i,j,klo) + morr_arr(i,j,klo,MORRInd::grplprt);
+                  // Each species alone, and the total, which also holds the cloud water
+                  // and cloud ice that fell out
+                  rain_accum_arr(i,j,klo)    += morr_arr(i,j,klo,MORRInd::rainonlyprt);
+                  snow_accum_arr(i,j,klo)    += morr_arr(i,j,klo,MORRInd::snowonlyprt);
+                  graupel_accum_arr(i,j,klo) += morr_arr(i,j,klo,MORRInd::grplprt);
+                  precip_accum_arr(i,j,klo)  += morr_arr(i,j,klo,MORRInd::precrt);
               }
 
             } // cpp
