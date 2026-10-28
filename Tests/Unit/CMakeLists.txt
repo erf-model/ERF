@@ -229,6 +229,10 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamKernels.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamColumn.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTwoStreamRadiationDriver.cpp
+    # Motivation: the Simple longwave scheme must stay inside the column when the
+    # moist layer reaches the domain top (erf-model/ERF#4484), and give the top
+    # cell its closed-form heating there.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestRadiationSimple.cpp
     # Motivation: with erf.ibseb.sun_mode = two_stream the building faces must
     # see the two-stream columns' sun: the same zenith, a morning sun in the
     # east, and the start date read the same way.
