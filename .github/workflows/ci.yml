@@ -15,10 +15,10 @@ on:
       - '.github/actions/**'
   workflow_dispatch:
 
-# Each merge into development gets its own group (keyed on the commit), so a burst of
-# merges never cancels a still-pending development run: every merge writes its ccache.
+# Development pushes finish the active run and keep only the newest pending commit.
+# PR cancellation and commit-specific manual groups stay unchanged.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || github.sha }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || (github.event_name == 'push' && 'latest') || github.sha }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
