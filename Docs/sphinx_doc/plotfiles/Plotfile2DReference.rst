@@ -160,7 +160,7 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``SurfaceState``
      - ``Pa``
      - ``AlwaysAvailable``
-     - Surface pressure
+     - Surface pressure, at the ground
    * - ``sea_level_pressure``
      - ``SurfaceState``
      - ``Pa``
@@ -466,7 +466,10 @@ The selection contract and the value written after selection are separate:
      - Value: legacy conservative surface flux outputs.
    * - ``surf_pres``
      - Selectable: fixed request name.
-     - Value: pressure computed from the lowest atmospheric state.
+     - Value: the pressure at the ground, as WRF's ``PSFC``: the pressure of the
+       lowest cell's state plus :math:`\rho g z_c`, with :math:`z_c` the height
+       of that cell's centre above the ground -- the same surface pressure the
+       radiation and the surface layer use.
    * - ``sea_level_pressure``
      - Selectable: fixed request name in dry and moist configurations.
      - Value: pressure reduced hydrostatically from the local terrain surface
@@ -587,7 +590,8 @@ The output units are pascals. It is pressure reduced to ERF's physical
 mean sea level. The diagnostic uses the lowest model level, assumes the fixed
 lapse rate below it, applies no horizontal smoothing, does not calculate
 1000-hPa height, is computed independently on each AMR level, and does not
-alter model state. ``surf_pres`` remains a separate lowest-cell-center field.
+alter model state. ``surf_pres`` remains a separate field, the pressure at the
+ground.
 
 .. code-block:: text
 
