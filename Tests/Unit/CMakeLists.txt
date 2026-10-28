@@ -175,6 +175,10 @@ target_sources(${erf_exe_name}
     # second-order one-sided gradient the explicit strain uses, or the steady state of a
     # wall-bounded flow (PoiseuilleFlow) drifts at the wall cells.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestImplicitWallStencil.cpp
+    # Motivation: the implicit vertical momentum solves must carry the YSU countergradient flux
+    # through the lower face of the top row and both faces of a coarse/fine row, or the column
+    # loses momentum through the face below the top cell (erf-model/ERF#4822).
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestImplicitMomCountergradient.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LinearSolvers/ERF_GTestTerrainPoisson.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LinearSolvers/ERF_GTestTerrainMLMG.cpp
     # Motivation: the opt-in WRF Smagorinsky-2D limits must reproduce WRF's smag2d_km numbers
