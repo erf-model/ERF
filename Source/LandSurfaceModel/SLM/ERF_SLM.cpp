@@ -55,7 +55,7 @@ read_wrfinput_soil_dz (const std::string& fname)
 #endif
 
 std::string
-soil_dz_string (const Vector<Real>& dz)
+soil_dz_string (const std::vector<Real>& dz)
 {
     std::string str;
     for (const Real v : dz) { str += (str.empty() ? "" : " ") + std::to_string(v); }
