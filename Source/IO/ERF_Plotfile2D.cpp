@@ -416,6 +416,42 @@ ERF::FillPlot2DVars (int lev,
         mf_comp++;
     } // z0
 
+    // 10 m winds from the surface-layer momentum profile, in the direction of the
+    //    first-cell wind; -999 without a surface layer
+    {
+        const bool want_u10  = containerHasElement(plot_var_names, "u_10m");
+        const bool want_v10  = containerHasElement(plot_var_names, "v_10m");
+        const bool want_ue10 = containerHasElement(plot_var_names, "u_east_10m");
+        const bool want_vn10 = containerHasElement(plot_var_names, "v_north_10m");
+        const int u10_comp  = want_u10  ? mf_comp++ : -1;
+        const int v10_comp  = want_v10  ? mf_comp++ : -1;
+        const int ue10_comp = want_ue10 ? mf_comp++ : -1;
+        const int vn10_comp = want_vn10 ? mf_comp++ : -1;
+        if (want_u10 || want_v10 || want_ue10 || want_vn10) {
+            near_surface_diagnostics::WindSources wind10;
+            wind10.u_star           = surf_layer ? surf_layer->get_u_star(lev) : nullptr;
+            wind10.roughness_height = surf_layer ? surf_layer->get_z0(lev)     : nullptr;
+            wind10.obukhov_length   = surf_layer ? surf_layer->get_olen(lev)   : nullptr;
+            wind10.xvel = &vars_new[lev][Vars::xvel];
+            wind10.yvel = &vars_new[lev][Vars::yvel];
+            wind10.klo  = klo;
+            // The grid orientation for the earth-relative components, as for the
+            //    sampled u_east and v_north; without lat/lon the grid is aligned with east
+            MultiFab cos_alpha_10m, sin_alpha_10m;
+            const bool latlon = (lev < static_cast<int>(lat_m.size())) &&
+                                lat_m[lev] != nullptr && lon_m[lev] != nullptr;
+            if ((want_ue10 || want_vn10) && latlon) {
+                cos_alpha_10m.define(ba2d[lev], dmap[lev], 1, 0);
+                sin_alpha_10m.define(ba2d[lev], dmap[lev], 1, 0);
+                fill_grid_rotation(cos_alpha_10m, sin_alpha_10m, *lat_m[lev], *lon_m[lev], geom[lev]);
+                wind10.cos_alpha = &cos_alpha_10m;
+                wind10.sin_alpha = &sin_alpha_10m;
+            }
+            near_surface_diagnostics::fill_wind_10m(mf_dst, u10_comp, v10_comp,
+                                                    ue10_comp, vn10_comp, wind10);
+        }
+    } // u_10m, v_10m, u_east_10m, v_north_10m
+
     if (containerHasElement(plot_var_names, "OLR")) {
         // Outgoing longwave: the upward LW at the top-of-atmosphere
         // interface, which rad_fluxes keeps in the z-ghost cell above the

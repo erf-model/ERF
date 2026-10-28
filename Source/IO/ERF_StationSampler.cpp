@@ -1280,7 +1280,8 @@ ERF::resolve_station_stencils ()
                                 "reported as the value at that cell centre -- there is no "
                                 "similarity extrapolation to the requested height.  For 2 m or "
                                 "10 m quantities, request the 2D diagnostics (temperature_2m, "
-                                "water_vapor_mixing_ratio_2m, and the surface-layer diagnostics) "
+                                "water_vapor_mixing_ratio_2m, u_10m, v_10m, u_east_10m, "
+                                "v_north_10m, and the other surface-layer diagnostics) "
                                 "instead of a 3D variable at that height");
                     }
                 }
