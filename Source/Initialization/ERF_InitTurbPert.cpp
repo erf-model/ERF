@@ -141,7 +141,7 @@ sample_perturbation_wind (const Box& region, Real height_agl,
 }
 
 // Resolve each rectangular nest's lateral inflow edges using the latest
-// available parent winds and the finest PBL ancestor's height. Run after the
+// available parent winds and a PBL or LES ancestor's height. Run after the
 // ancestors advance, so diagnostics exist on the first step of a new or restarted nest.
 void
 ERF::turbPert_update_automatic (int lev, double time)
@@ -158,14 +158,12 @@ ERF::turbPert_update_automatic (int lev, double time)
     const Box& domain = geom[lev].Domain();
     const Real fraction = solverChoice.perturbation_auto_pbl_fraction;
 
-    int pbl_level = parent;
-    while (pbl_level >= 0 && solverChoice.turbChoice[pbl_level].pbl_type == PBLType::None) {
-        --pbl_level;
-    }
+    const int pbl_level = solverChoice.perturbation_pblh_level(lev);
     if (pbl_level < 0) {
-        Abort("erf.perturbation_auto requires a coarser level with a PBL scheme "
+        Abort("erf.perturbation_auto requires a coarser level with a PBL scheme or 3D LES closure "
               "to supply the PBL height for level " + std::to_string(lev));
     }
+    const bool les_pblh = solverChoice.turbChoice[pbl_level].pbl_type == PBLType::None;
 
     const MultiFab* pblh = nullptr;
     if (solverChoice.turbChoice[pbl_level].uses_native_shoc() && native_shoc_driver[pbl_level] &&
@@ -173,13 +171,13 @@ ERF::turbPert_update_automatic (int lev, double time)
         pblh = &native_shoc_driver[pbl_level]->pblh_diagnostics();
     } else if (m_SurfaceLayer[Orientation::zlo()]) {
         // YSU/MRF supply their scheme's height via set_pblh, including when the
-        // separate MOST estimator is disabled. MYNN uses most.pblh_calc.
+        // separate MOST estimator is disabled. MYNN and LES use most.pblh_calc.
         pblh = m_SurfaceLayer[Orientation::zlo()]->get_pblh(pbl_level);
     }
     if (!pblh) {
-        Abort("erf.perturbation_auto requires a PBL-height diagnostic on PBL level " +
+        Abort("erf.perturbation_auto requires a PBL-height diagnostic on ancestor level " +
               std::to_string(pbl_level) + ": use a zlo surface_layer with "
-              "erf.most.pblh_calc = MYNN25, YSU/MRF, or native SHOC");
+              "erf.most.pblh_calc = MYNN25 for LES, or a diagnostic from the ancestor's PBL scheme");
     }
 
     // Gather the ancestor's column heights onto the parent layout. Each parent
@@ -306,10 +304,10 @@ ERF::turbPert_update_automatic (int lev, double time)
         footprint.setRange(2, pklo);
         const Real count = sums[nsum*f+4];
         if (sums[nsum*f+5] > zero || count != Real(footprint.numPts())) {
-            Abort("Automatic perturbations: missing/invalid PBL height from PBL level " +
+            Abort("Automatic perturbations: missing/invalid PBL height from ancestor level " +
                   std::to_string(pbl_level) + " on parent level " + std::to_string(parent) +
                   " along " + names[faces[f].face] + ". Check ancestor coverage and "
-                  "erf.most.pblh_calc; the height must be diagnosed before the nest advances.");
+                  "erf.most.pblh_calc (use MYNN25 for LES); the height must be diagnosed before the nest advances.");
         }
         const Real depth = sums[nsum*f+2];
         faces[f].u = depth > zero ? sums[nsum*f] / depth : zero;
@@ -372,6 +370,7 @@ ERF::turbPert_update_automatic (int lev, double time)
         if (verbose > 0) {
             Print() << "Automatic perturbations: time=" << time << " level=" << lev
                     << " parent=" << parent << " pbl_level=" << pbl_level
+                    << " pblh_source=" << (les_pblh ? "LES" : "PBL")
                     << " subdomain=" << subdomain_ids[f]
                     << " edge=" << names[faces[f].face] << " inflow=" << faces[f].inflow()
                     << " u=" << faces[f].u << " v=" << faces[f].v

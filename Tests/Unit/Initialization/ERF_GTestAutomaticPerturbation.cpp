@@ -197,6 +197,37 @@ TEST(AutomaticPerturbationWind, CPMAmplitudeUsesAbovePBLWindIndependentlyOfAdvec
     EXPECT_LE(fields[1].norm0(), tolerance);
 }
 
+TEST(AutomaticPerturbationHeight, LESAncestorsSupplyHeightWithoutDisplacingPBLSchemes)
+{
+    SolverChoice solver;
+    solver.turbChoice.resize(3);
+    for (const auto les : {LESType::Smagorinsky, LESType::Deardorff}) {
+        for (auto& tc : solver.turbChoice) {
+            tc.les_type = les;
+            tc.pbl_type = PBLType::None;
+        }
+        EXPECT_EQ(solver.perturbation_pblh_level(0), -1);
+        EXPECT_EQ(solver.perturbation_pblh_level(1), 0);
+        EXPECT_EQ(solver.perturbation_pblh_level(2), 1);
+
+        solver.turbChoice[0].les_type = LESType::None;
+        solver.turbChoice[0].pbl_type = PBLType::YSU;
+        EXPECT_EQ(solver.perturbation_pblh_level(2), 0);
+        solver.turbChoice[1].les_type = LESType::None;
+        solver.turbChoice[1].pbl_type = PBLType::MYNN25;
+        EXPECT_EQ(solver.perturbation_pblh_level(2), 1);
+    }
+
+    for (auto& tc : solver.turbChoice) {
+        tc.les_type = LESType::None;
+        tc.pbl_type = PBLType::None;
+    }
+    EXPECT_EQ(solver.perturbation_pblh_level(1), -1);
+    solver.turbChoice[0].les_type = LESType::Smagorinsky;
+    solver.turbChoice[0].smag2d = true;
+    EXPECT_EQ(solver.perturbation_pblh_level(1), -1);
+}
+
 TEST(AutomaticPerturbationHeight, MYNNIsIndependentOfTerrainElevation)
 {
     const Box domain(IntVect(0), IntVect(11));

@@ -1896,7 +1896,7 @@ ERF::InitData_post ()
             }
             if (static_cast<int>(ori) == Orientation::zlo() &&
                 solverChoice.perturbation_auto && solverChoice.any_perturbation()) {
-                // Supply a diagnostic for PBL ancestors using the selected bottom
+                // Supply a diagnostic for PBL or LES ancestors using the selected bottom
                 // face's namespace. Preserve an explicit choice (including "none").
                 ParmParse pp_face(face_pp_prefix);
                 if (!pp_face.contains("most.pblh_calc")) {

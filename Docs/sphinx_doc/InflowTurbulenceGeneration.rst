@@ -400,7 +400,9 @@ Automatic perturbations on LES nests
 
 Set ``erf.perturbation_auto = true`` to obtain the active inflow edges and
 advective wind scale from each nest's immediate parent, and the height limit
-from its finest ancestor using a PBL scheme. This defaults
+from its finest ancestor using a PBL scheme. When no ancestor uses a PBL scheme,
+the height comes from the nearest coarser three-dimensional LES level's
+surface-layer diagnostic. Automatic mode defaults
 to ``true`` for ``erf.init_type = WRFInput`` or ``Metgrid`` and ``false`` for
 other initialization types. An explicit ``erf.perturbation_auto = false``
 retains the manual controls described above. This option works with ``source``,
@@ -417,8 +419,18 @@ level 0 and selects the first level with a PBL scheme. For example, with a
 PBL scheme on level 0 and LES on levels 1 and 2, both LES levels use level 0's
 PBL height; level 1 samples level 0's winds, while level 2 samples level 1's
 winds. If levels 0 and 1 both use PBL schemes, an LES level 2 instead uses
-level 1's PBL height. Automatic mode requires a PBL ancestor with a valid
-height diagnostic; it does not substitute a diagnostic from an LES level.
+level 1's PBL height.
+
+When all levels use LES, level 1 uses level 0's diagnosed PBL height and
+level 2 uses level 1's diagnostic. This uses ``most.pblh_calc = MYNN25`` on
+the bottom ``surface_layer`` boundary, independently of ``erf.pbl_type``;
+the LES closures remain unchanged. Automatic mode supplies this diagnostic
+setting when it is not explicitly specified. A refined LES ancestor whose
+grids do not cover the full vertical domain inherits the diagnostic from its
+coarser level through the existing surface-layer machinery. An explicit
+``most.pblh_calc = none`` or a scheme-only diagnostic such as ``YSU`` cannot
+supply the LES fallback; select ``MYNN25`` in that case. Missing or invalid
+heights remain errors.
 
 For example, add the following to a two-level case with a YSU parent and a
 Deardorff nest. The case must also have the surface-layer inputs required by its
@@ -446,18 +458,18 @@ The automatic controls are:
      - Meaning
    * - ``erf.perturbation_auto``
      - Depends on initialization
-     - Enable parent controls on eligible LES nests; defaults to ``true`` for WRFInput and Metgrid, ``false`` otherwise.
+     - Enable parent controls on eligible LES nests, using a PBL ancestor's height or an LES diagnostic fallback; defaults to ``true`` for WRFInput and Metgrid, ``false`` otherwise.
    * - ``erf.perturbation_auto_period``
      - ``600.0``
      - Seconds between updates of edges, height and wind scale; must be positive.
    * - ``erf.perturbation_auto_pbl_fraction``
      - ``0.9``
-     - Fraction of the finest PBL ancestor's height; must be greater than zero and at most one.
+     - Fraction of the selected ancestor's PBL height; must be greater than zero and at most one.
 
 At the first advance of a nest, ERF samples the latest available parent state.
 For each lateral edge of each rectangular subdomain, it samples one parent
 column in width along that edge. Each parent column uses the PBL height of the
-cell containing it on the selected PBL ancestor. This mapping uses the cumulative
+cell containing it on the selected ancestor. This mapping uses the cumulative
 horizontal refinement ratio and retains the ancestor's height in meters AGL.
 It averages the horizontal wind components over the lower
 ``perturbation_auto_pbl_fraction`` of that height, weighting
@@ -488,7 +500,7 @@ For ``CPM``, ERF obtains ``Ug`` by sampling horizontal wind at **1.1 times the
 edge-mean PBL height**, in meters AGL. It first tries the immediate parent and
 then successively coarser levels, choosing the finest ancestor whose grids
 cover that height in every sampled column along the edge. The PBL height still
-comes from the finest ancestor with a PBL scheme. If no coarser level covers
+comes from the selected PBL or LES ancestor. If no coarser level covers
 the target height, automatic CPM stops with an error.
 
 On the selected level, ERF linearly interpolates cell-centered ``u`` and ``v``
@@ -523,7 +535,7 @@ inside the nest. Dimensions and offsets are specified in cells at each level.
 ``perturbation_khi`` do not control the automatic regions. Thermal perturbations
 may include the lowest cell center; ``CPM_W`` excludes the ground face.
 
-The selected PBL ancestor's height comes from its bottom ``surface_layer``
+The selected ancestor's height comes from its bottom ``surface_layer``
 diagnostic, or from native SHOC's PBL-height diagnostic. When the bottom surface
 layer has no explicit ``most.pblh_calc`` input, automatic mode supplies
 ``MYNN25``. In automatic mode the MYNN diagnostic
@@ -531,7 +543,10 @@ uses heights above local ground, including its near-surface temperature scan
 and TKE blending. YSU, YSUNew and MRF write their scheme's height to the surface
 layer as they advance. An explicit ``most.pblh_calc`` setting is respected in
 the bottom face's input namespace; it must provide a valid height on the
-selected PBL ancestor. A diagnosed height of zero contributes zero to the edge
+selected ancestor. The MYNN25 diagnostic can run on LES fields: it combines
+a virtual-potential-temperature increase criterion with a TKE criterion.
+For Deardorff LES, the stored TKE is subgrid TKE; this diagnostic does not add
+resolved velocity variance. A diagnosed height of zero contributes zero to the edge
 mean and provides no depth for the wind average. Missing or uninitialized
 heights cause an error when the controls are updated.
 
@@ -544,7 +559,8 @@ at the next advance; random refresh counters are not checkpointed, so a restart
 does not reproduce an uninterrupted random sequence.
 
 Set ``erf.v = 1`` to log each control update's time, wind-parent level
-(``parent``), PBL-height source level (``pbl_level``), edge, inflow selection,
+(``parent``), PBL-height source level (``pbl_level``), source type
+(``pblh_source = PBL`` or ``LES``), edge, inflow selection,
 mean wind and height cutoff in meters AGL.
 For ``CPM``, the log also reports the wind source level (``Ug_level``), target
 height (``Ug_height_agl``), and sampled speed (``Ug``). An inactive edge has

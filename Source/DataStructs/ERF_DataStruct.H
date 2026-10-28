@@ -2655,6 +2655,20 @@ struct SolverChoice {
         return false;
     }
 
+    // Prefer a PBL scheme's height even when the immediate parent is LES.
+    // An all-LES hierarchy instead uses the nearest LES surface-layer diagnostic.
+    int perturbation_pblh_level (int lev) const
+    {
+        for (int source = lev-1; source >= 0; --source) {
+            if (turbChoice[source].pbl_type != PBLType::None) { return source; }
+        }
+        for (int source = lev-1; source >= 0; --source) {
+            const auto& tc = turbChoice[source];
+            if (tc.les_type != LESType::None && !tc.smag2d) { return source; }
+        }
+        return -1;
+    }
+
     // Type of perturbation
     amrex::Vector<PerturbationType> pert_type;
     bool perturbation_auto{false};
@@ -2996,12 +3010,13 @@ struct SolverChoice {
  * @var SolverChoice::pert_type
  * @brief Turbulent perturbation type for each AMR level.
  * @var SolverChoice::perturbation_auto
- * @brief Select LES nests, using parent winds and the finest PBL ancestor's height.
+ * @brief Select LES nests, using parent winds and a PBL ancestor's height,
+ * or the nearest LES ancestor's diagnostic when no PBL scheme is present.
  * Defaults to true for WRFInput and Metgrid initialization, false otherwise.
  * @var SolverChoice::perturbation_auto_period
  * @brief Seconds between automatic parent-wind and PBL-height updates.
  * @var SolverChoice::perturbation_auto_pbl_fraction
- * @brief Fraction of the finest PBL ancestor's height occupied by perturbations.
+ * @brief Fraction of the selected ancestor's PBL height occupied by perturbations.
  * @var SolverChoice::use_num_diff
  * @brief Whether sixth-order numerical diffusion is enabled.
  * @var SolverChoice::num_diff_coeff
