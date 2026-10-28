@@ -102,6 +102,7 @@ namespace HSEutils
      * @param[out] r         hydrostatically balanced density profile
      * @param[out] p         hydrostatically balanced pressure profile
      * @param[in]  dz        vertical grid spacing (constant)
+     * @param[in]  z_bot     absolute height of the bottom of the domain
      * @param[in]  klo       z-index corresponding to the small end of the domain
      * @param[in]  khi       z-index corresponding to the big   end of the domain
     */
@@ -113,16 +114,19 @@ namespace HSEutils
                                      amrex::Real* r,
                                      amrex::Real* p,
                                      const amrex::Real& dz,
+                                     const amrex::Real& z_bot,
                                      const int klo, const int khi)
     {
       int kstart;
 
-      // r_sfc / p_0 are the density / pressure at klo
+      // r_sfc is the initial guess for the density at klo; p_0 is the pressure at z = 0
+
+      // Absolute height of the center of cell klo
+      const Real hz = z_bot + myhalf*dz;
 
       // Initial guess
-      Real myhalf_dz = myhalf*dz;
       r[klo] = r_sfc;
-      p[klo] = p_0 - myhalf_dz * r[klo] * CONST_GRAV;
+      p[klo] = p_0 - hz * r[klo] * CONST_GRAV;
 
       if (klo == 0)
       {
@@ -135,14 +139,14 @@ namespace HSEutils
 
           for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
           {
-              p_hse = p_0 - myhalf_dz * r[klo] * CONST_GRAV;
+              p_hse = p_0 - hz * r[klo] * CONST_GRAV;
               p_eos = getPgivenRTh(r[klo]*theta);
 
               Real A = p_hse - p_eos;
 
               Real dpdr = getdPdRgivenConstantTheta(r[klo],theta);
 
-              Real drho = A / (dpdr + myhalf_dz * CONST_GRAV);
+              Real drho = A / (dpdr + hz * CONST_GRAV);
 
               r[klo] = r[klo] + drho;
               p[klo] = getPgivenRTh(r[klo]*theta);
@@ -212,6 +216,7 @@ namespace HSEutils
      * @param[out] r         hydrostatically balanced density profile
      * @param[out] p         hydrostatically balanced pressure profile
      * @param[in]  stretched_dz vertical grid spacing (stretched)
+     * @param[in]  z_bot     absolute height of the bottom of the domain
      * @param[in]  klo       z-index corresponding to the small end of the domain
      * @param[in]  khi       z-index corresponding to the big   end of the domain
     */
@@ -223,15 +228,19 @@ namespace HSEutils
                                       amrex::Real* r,
                                       amrex::Real* p,
                                       const amrex::Real* stretched_dz,
+                                      const amrex::Real& z_bot,
                                       const int klo, const int khi)
     {
       int kstart;
 
-      // r_sfc / p_0 are the density / pressure at klo
+      // r_sfc is the initial guess for the density at klo; p_0 is the pressure at z = 0
+
+      // Absolute height of the center of cell klo
+      const Real hz = z_bot + myhalf*stretched_dz[klo];
 
       // Initial guess
       r[klo] = r_sfc;
-      p[klo] = p_0 - myhalf*stretched_dz[klo] * r[klo] * CONST_GRAV;
+      p[klo] = p_0 - hz * r[klo] * CONST_GRAV;
 
       if (klo == 0)
       {
@@ -244,14 +253,14 @@ namespace HSEutils
 
           for (int iter = 0; iter < MAX_ITER && !converged_hse; iter++)
           {
-              p_hse = p_0 - myhalf*stretched_dz[klo] * r[klo] * CONST_GRAV;
+              p_hse = p_0 - hz * r[klo] * CONST_GRAV;
               p_eos = getPgivenRTh(r[klo]*theta);
 
               Real A = p_hse - p_eos;
 
               Real dpdr = getdPdRgivenConstantTheta(r[klo],theta);
 
-              Real drho = A / (dpdr + myhalf*stretched_dz[klo] * CONST_GRAV);
+              Real drho = A / (dpdr + hz * CONST_GRAV);
 
               r[klo] = r[klo] + drho;
               p[klo] = getPgivenRTh(r[klo]*theta);

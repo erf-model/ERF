@@ -47,6 +47,7 @@
         const Real x = prob_lo[0] + (i + myhalf) * dx[0];
         const Real y = prob_lo[1] + (j + myhalf) * dx[1];
         const Real z = use_z_phys ? z_cc(i,j,k) : prob_lo[2] + (k + myhalf) * dx[2];
+        const Real z_agl = z - erf_prob_heights::z_ground_cc(i,j,z_sfc_nd); // height above the ground
 
         // Define a point (xc,yc,zc) at the center of the domain
         const Real xc = myhalf * (prob_lo[0] + prob_hi[0]);
@@ -56,11 +57,11 @@
         const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
 
         // Add temperature perturbations
-        if ((z <= pert_ref_height) && (T_0_Pert_Mag != zero)) {
+        if ((z_agl <= pert_ref_height) && (T_0_Pert_Mag != zero)) {
             Real rand_double = amrex::Random(engine); // Between zero and one
             state_pert(i, j, k, RhoTheta_comp) = (rand_double*two - one)*T_0_Pert_Mag;
         }
-        if (use_moisture && (z <= pert_ref_height) && (Q_0_Pert_Mag != zero)) {
+        if (use_moisture && (z_agl <= pert_ref_height) && (Q_0_Pert_Mag != zero)) {
             Real rand_double = amrex::Random(engine); // Between zero and one
             state_pert(i, j, k, RhoQ1_comp) = (rand_double*two - one)*Q_0_Pert_Mag;
         }
@@ -73,7 +74,7 @@
         // sinusoidal variation of theta and qv for regression tests
         if (pert_deltaT != zero)
         {
-            const Real zl = z / pert_ref_height;
+            const Real zl = z_agl / pert_ref_height;
             const Real damp = std::exp(-myhalf * zl * zl);
 
             Real rhotheta  = state(i,j,k,RhoTheta_comp);
@@ -82,7 +83,7 @@
             Real Told      = getTgivenRandRTh(rho,rhotheta,qv);
             Real P         = getPgivenRTh(rhotheta,qv);
 
-            Real Tpert    = tfac * damp * z * std::cos(cval * (x - xc));
+            Real Tpert    = tfac * damp * z_agl * std::cos(cval * (x - xc));
             Real Tnew     = Told + Tpert;
 
             Real theta_new = getThgivenTandP(Tnew,P,rdOcp);
@@ -94,14 +95,14 @@
 
         if (use_moisture && pert_deltaQV != zero)
         {
-            const Real zl = z / pert_ref_height;
+            const Real zl = z_agl / pert_ref_height;
             const Real damp = std::exp(-myhalf * zl * zl);
 
             Real rhoold = state(i,j,k,Rho_comp);
             Real rhonew = rhoold + state_pert(i,j,k,Rho_comp);
 
             Real qvold = state(i,j,k,RhoQ1_comp) / rhoold;
-            Real qvnew = qvold + qvfac * damp * z * std::cos(dval * (x - xc));
+            Real qvnew = qvold + qvfac * damp * z_agl * std::cos(dval * (x - xc));
 
             state_pert(i, j, k, RhoQ1_comp) = rhonew * qvnew - rhoold * qvold;
         }
