@@ -39,6 +39,9 @@ jobs:
   # https://github.com/ROCm-Developer-Tools/HIP/issues/2246
   Build-And-Test-HIP:
     name: HIP ROCm GFortran@9.3 C++17 - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
+    permissions:
+      contents: read
+      packages: write
     runs-on: ubuntu-22.04
     timeout-minutes: 180
     # Have to have -Wno-deprecated-declarations due to deprecated atomicAddNoRet
@@ -52,10 +55,14 @@ jobs:
     #    /opt/rocm-4.1.1/hip/include/hip/hcc_detail/hip_runtime.h:176:9: note: macro 'select_impl_' defined here
     #    #define select_impl_(_1, _2, impl_, ...) impl_
     # NOTE: -Werror was removed because ERF specifically had a lot of warnings. It will be a separate task to go through and fix them all...
-    env: {CXXFLAGS: "-Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual -Wextra-semi -Wunreachable-code -Wno-deprecated-declarations -Wno-gnu-zero-variadic-macro-arguments -Wno-pass-failed"}
+    env:
+      CXXFLAGS: "-Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual -Wextra-semi -Wunreachable-code -Wno-deprecated-declarations -Wno-gnu-zero-variadic-macro-arguments -Wno-pass-failed"
+      CCACHE_TRUNK_KEY: ubuntu-22.04-x64-rocm-${{ matrix.rocm_version }}-gfx908-openmpi-${{ matrix.mesh_precision }}-particles-on
     strategy:
       fail-fast: false
       matrix:
+        # Use the same version for dependency installation and the GHCR tag.
+        rocm_version: ["6.3.2"]
         # GPU builds cover the particle-enabled configuration only. The
         # particles-OFF variant costs a second long GPU compile for solver
         # coverage the particles-ON build already provides; it is still built
@@ -77,18 +84,30 @@ jobs:
     - uses: actions/checkout@v7
       with:
         submodules: true
+        persist-credentials: false
 
     - name: Free up disk space
       uses: ./.github/actions/free-space-ubuntu
 
     - name: Dependencies
-      run: Submodules/AMReX/.github/workflows/dependencies/dependencies_hip.sh
+      run: Submodules/AMReX/.github/workflows/dependencies/dependencies_hip.sh "${{ matrix.rocm_version }}"
 
     - name: Install CCache
       run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
 
-    # ccache per matrix variant, written only from development; see ci.yml for how it works.
+    # GHCR trunk per configuration; the old Actions cache seeds the first restore.
     - name: Restore Cache
+      id: ghcr-cache
+      uses: ./.github/actions/ccache-trunk
+      with:
+        mode: restore
+        key: ${{ env.CCACHE_TRUNK_KEY }}
+        path: ~/.cache/ccache
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Restore legacy Actions cache
+      if: steps.ghcr-cache.outputs.hit != 'true'
+      continue-on-error: true
       uses: actions/cache/restore@v6
       with:
         path: ~/.cache/ccache
@@ -156,11 +175,14 @@ jobs:
         du -hs ~/.cache/ccache
 
     - name: Save Cache
-      if: always() && github.ref_name == github.event.repository.default_branch
-      uses: actions/cache/save@v6
+      if: always() && github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+      uses: ./.github/actions/ccache-trunk
       with:
+        mode: save
+        key: ${{ env.CCACHE_TRUNK_KEY }}
         path: ~/.cache/ccache
-        key: ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.mesh_precision }}-git-${{ github.sha }}
+        token: ${{ secrets.GITHUB_TOKEN }}
+
 
     - name: Report
       run: |

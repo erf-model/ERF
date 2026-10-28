@@ -1,234 +1,313 @@
 #!/usr/bin/env python3
-"""Exercise cache failures without Docker, credentials, or network access."""
+"""The same observable cache contract, exercised through both real backends."""
 
+import contextlib
+import io
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
+
+import cache
+import oras
+import prune
+import transport
 
 
-ACTION = Path(__file__).resolve().parent
-MOCK = r'''#!/usr/bin/env python3
-import json, os, pathlib, subprocess, sys
-tool = pathlib.Path(sys.argv[0]).name
-args = sys.argv[1:]
-calls = pathlib.Path(os.environ['MOCK_CALLS'])
-previous = [json.loads(line) for line in calls.read_text().splitlines()] if calls.exists() else []
-with calls.open('a') as out:
-    out.write(json.dumps([tool, args, os.environ.get('DOCKER_CONFIG')]) + '\n')
-scenario = os.environ.get('MOCK_SCENARIO', '')
-if tool == 'sleep':
-    sys.exit(0)
-if tool == 'timeout':
-    assert args[0] == '--kill-after=5s' and args[1].endswith('s'), args
-    command = args[2:]
-    if scenario == 'pull_timeout' and command[:2] == ['docker', 'pull']:
-        sys.exit(124)
-    if scenario == 'prune_timeout' and command[0] == 'bash':
-        sys.exit(124)
-    sys.exit(subprocess.call(command))
-if tool == 'mv':
-    source, target = args[-2:]
-    if scenario == 'promotion_failure' and '.ghcr-' in source and not source.endswith('.previous'):
-        print('simulated rename failure', file=sys.stderr)
-        sys.exit(1)
-    sys.exit(subprocess.call(['/bin/mv', *args]))
-if tool == 'docker':
-    operation = args[0]
-    count = sum(t == 'docker' and a[0] == operation for t, a, _ in previous)
-    if operation == 'login':
-        assert sys.stdin.read() == 'synthetic-test-token'
-        pathlib.Path(os.environ['DOCKER_CONFIG'], 'config.json').write_text('synthetic credentials')
-    fail = scenario == operation + '_failure'
-    fail |= scenario == operation + '_transient' and count == 0
-    if operation == 'pull' and scenario == 'missing':
-        print('manifest unknown', file=sys.stderr)
-        sys.exit(1)
-    if operation == 'cp':
-        destination = pathlib.Path(args[-1])
-        (destination / 'restored-object').write_text('complete object')
-        if scenario == 'partial_copy':
-            (destination / 'partial-object').write_text('incomplete')
-            fail = True
-    if fail:
-        print('503 registry unavailable / simulated transfer failure', file=sys.stderr)
-        sys.exit(1)
-    if operation == 'create':
-        print('synthetic-container')
-    sys.exit(0)
-if tool == 'gh':
-    if '--method' not in args:
-        if scenario == 'prune_failure':
-            print('gh: Forbidden (HTTP 403)', file=sys.stderr)
-            sys.exit(1)
-        print('1\t2026-10-27T01:00:00Z\tubuntu-22.04-x64-gcc-mpich-double-particles-on')
-        print('2\t2026-10-27T00:00:00Z\t')
-        print('3\t2026-10-27T02:00:00Z\tubuntu-22.04-x64-gcc-mpich-double-particles-off')
-        print('4\t2026-10-26T00:00:00Z\tsha-old')
-        if scenario == 'retention':
-            print('5\t2026-10-27T03:00:00Z\tsha-recent')
-            print('6\t2026-10-27T04:00:00Z\tsha-newest')
-            print('7\t2026-10-25T00:00:00Z\tsha-older,release')
-    elif scenario == 'delete_race' and args[-1].endswith('/2'):
-        print('gh: Not Found (HTTP 404)', file=sys.stderr)
-        sys.exit(1)
-    sys.exit(0)
-raise AssertionError((tool, args))
-'''
+class TransportContract:
+    """Only external commands are mocked; policy and backend code both execute."""
 
-
-class CacheTransferTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(prefix="erf-cache-test-")
+        self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        self.bin = self.root / "bin"
-        self.bin.mkdir()
-        for name in ("docker", "gh", "timeout", "sleep", "mv"):
-            script = self.bin / name
-            script.write_text(MOCK)
-            script.chmod(0o755)
-        self.cache = self.root / "cache with spaces"
+        self.cache = self.root / 'cache with spaces'
         self.cache.mkdir()
-        (self.cache / "local-object").write_text("original")
-        self.runner = self.root / "runner"
+        (self.cache / 'old').write_text('original')
+        self.runner = self.root / 'runner'
         self.runner.mkdir()
-        self.shared_config = self.root / "shared-docker-config"
+        self.output = self.root / 'output'
+        self.source = self.root / 'snapshot'
+        self.source.mkdir()
+        (self.source / 'object').write_text('complete object')
+        os.utime(self.source / 'object', (1_600_000_000, 1_600_000_000))
+        self.archive = self.root / 'snapshot.tar'
+        oras.pack(self.source, self.archive)
+        self.manifest = {'artifactType': oras.ARTIFACT_TYPE, 'layers': [{
+            'mediaType': oras.LAYER_TYPE, 'digest': 'sha256:' + oras.sha256(self.archive),
+            'size': self.archive.stat().st_size}]}
+        self.shared_config = self.root / 'shared-docker-config'
         self.shared_config.mkdir()
-        (self.shared_config / "config.json").write_text("existing credentials")
-        self.output = self.root / "output"
-        self.call_log = self.root / "calls.jsonl"
-        self.env = dict(os.environ, PATH=f"{self.bin}{os.pathsep}{os.environ['PATH']}",
-                        CACHE_MODE="restore", CACHE_KEY="Ubuntu-22.04 X64 GCC MPICH DOUBLE Particles ON",
-                        CACHE_PATH=str(self.cache), GHCR_TOKEN="synthetic-test-token",
-                        RUNNER_OS="Linux", RUNNER_TEMP=str(self.runner),
-                        GITHUB_OUTPUT=str(self.output), GITHUB_REPOSITORY_OWNER="ExampleOwner",
-                        GITHUB_ACTOR="test-actor", GITHUB_SHA="0" * 40,
-                        CACHE_SOURCE="https://example.invalid/repo", CACHE_OWNER_TYPE="User",
-                        DOCKER_CONFIG=str(self.shared_config), MOCK_CALLS=str(self.call_log))
+        (self.shared_config / 'config.json').write_text('existing credentials')
+        self.env = dict(
+            CACHE_MODE='restore', CACHE_TRANSPORT=self.backend,
+            CACHE_KEY='Ubuntu-22.04 X64 GCC MPICH DOUBLE Particles ON',
+            CACHE_PATH=str(self.cache), GHCR_TOKEN='synthetic-test-token',
+            RUNNER_OS='Linux', RUNNER_ARCH='X64', RUNNER_TEMP=str(self.runner),
+            GITHUB_OUTPUT=str(self.output), GITHUB_REPOSITORY_OWNER='ExampleOwner',
+            GITHUB_ACTOR='tester', GITHUB_SHA='0' * 40,
+            CACHE_SOURCE='https://example.invalid/repo', CACHE_OWNER_TYPE='User',
+            DOCKER_CONFIG=str(self.shared_config))
+        self.calls = []
+        self.failure = None
 
-    def run_action(self, mode="restore", scenario="", **overrides):
-        env = dict(self.env, CACHE_MODE=mode, MOCK_SCENARIO=scenario, **overrides)
-        result = subprocess.run(["bash", str(ACTION / "cache.sh")], env=env,
-                                capture_output=True, text=True, timeout=20)
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(list(self.runner.iterdir()), [], "temporary credentials leaked")
-        self.assertEqual(list(self.root.glob("*.ghcr-*")), [], "staging directory leaked")
-        self.assertEqual((self.shared_config / "config.json").read_text(), "existing credentials")
-        return result
+    def command(self, args, **kwargs):
+        operation = args[1]
+        if operation.endswith('prune.py'):
+            phase = 'prune'
+        else:
+            phase = {'pull': 'fetch', 'manifest': 'fetch', 'cp': 'extract',
+                     'blob': 'extract', 'rm': 'close', 'build': 'package'}.get(operation, operation)
+        self.calls.append(phase)
+        if phase == 'login':
+            self.assertEqual(kwargs['input'], 'synthetic-test-token')
+            self.assertNotIn('synthetic-test-token', args)
+            if self.backend == 'docker':
+                location = Path(kwargs['env']['DOCKER_CONFIG']) / 'config.json'
+                self.assertNotEqual(location.parent, self.shared_config)
+            else:
+                location = Path(args[args.index('--registry-config') + 1])
+            location.write_text('temporary credentials')
+        if self.failure:
+            self.failure(phase, args, kwargs)
+        stdout = ''
+        if operation == 'manifest':
+            stdout = json.dumps(self.manifest)
+        elif operation == 'blob':
+            shutil.copyfile(self.archive, args[args.index('--output') + 1])
+        elif operation == 'cp':
+            shutil.copytree(self.source, args[-1], dirs_exist_ok=True)
+        elif phase == 'prune':
+            self.assertEqual(kwargs['env']['GH_TOKEN'], 'synthetic-test-token')
+        return subprocess.CompletedProcess(args, 0, stdout, '')
 
-    def calls(self, tool):
-        if not self.call_log.exists():
-            return []
-        return [args for name, args, _ in map(json.loads, self.call_log.read_text().splitlines())
-                if name == tool]
+    def action(self, mode='restore', **env):
+        self.calls.clear()
+        self.output.unlink(missing_ok=True)
+        with patch.dict(os.environ, {**self.env, 'CACHE_MODE': mode, **env}), \
+                patch.object(oras, 'install_oras', return_value=Path('oras')), \
+                patch.object(transport.subprocess, 'run', side_effect=self.command), \
+                patch.object(transport.time, 'sleep'), \
+                contextlib.redirect_stdout(io.StringIO()) as out, \
+                contextlib.redirect_stderr(io.StringIO()) as err:
+            try:
+                status = cache.main()
+            finally:
+                self.assertEqual(list(self.runner.iterdir()), [], 'temporary credentials leaked')
+                self.assertEqual(list(self.root.glob('*.ghcr-*')), [], 'staging/backup leaked')
+                self.assertEqual((self.shared_config / 'config.json').read_text(), 'existing credentials')
+        return status, out.getvalue(), err.getvalue()
 
-    def assert_local_preserved(self):
-        self.assertEqual([p.name for p in self.cache.iterdir()], ["local-object"])
-        self.assertEqual((self.cache / "local-object").read_text(), "original")
-        self.assertEqual(self.output.read_text(), "hit=false\n")
+    def preserved(self):
+        self.assertEqual(list(self.cache.iterdir()), [self.cache / 'old'])
+        self.assertEqual((self.cache / 'old').read_text(), 'original')
+        self.assertEqual(self.output.read_text(), 'hit=false\n')
 
     def test_complete_restore_replaces_cache(self):
-        self.run_action()
-        self.assertEqual([p.name for p in self.cache.iterdir()], ["restored-object"])
-        self.assertTrue(self.output.read_text().endswith("hit=true\n"))
-        self.assertTrue(any(a[0] == "rm" for a in self.calls("docker")))
+        status, out, err = self.action()
+        self.assertEqual((status, err), (0, ''))
+        self.assertEqual((self.cache / 'object').read_text(), 'complete object')
+        self.assertFalse((self.cache / 'old').exists())
+        self.assertEqual((self.cache / 'object').stat().st_mtime, 1_600_000_000)
+        self.assertEqual(self.output.read_text(), 'hit=false\nhit=true\n')
+        self.assertIn('ubuntu-22.04-x64-gcc-mpich-double-particles-on', out)
+        if self.backend == 'docker':
+            self.assertEqual(self.calls[-1], 'close')
 
-    def test_failed_restores_preserve_cache_and_allow_build(self):
-        for scenario in ("login_failure", "pull_failure", "pull_timeout", "create_failure",
-                         "partial_copy", "promotion_failure", "missing"):
-            with self.subTest(scenario=scenario):
-                self.output.unlink(missing_ok=True)
-                self.call_log.unlink(missing_ok=True)
-                result = self.run_action(scenario=scenario)
-                self.assert_local_preserved()
-                if scenario == "missing":
-                    self.assertIn("cold build", result.stdout)
+    def test_failed_restore_preserves_cache(self):
+        phases = ['login', 'fetch', 'extract'] + (['create'] if self.backend == 'docker' else [])
+        for failed in phases:
+            with self.subTest(phase=failed):
+                def fail(phase, args, kwargs):
+                    if phase == failed:
+                        raise subprocess.CalledProcessError(1, args, stderr='503 registry unavailable')
+                self.failure = fail
+                status, _, err = self.action()
+                self.assertEqual(status, 0)
+                self.assertIn('503 registry unavailable', err)
+                self.preserved()
+                if failed in ('login', 'fetch'):
+                    self.assertEqual(self.calls.count(failed), 2)
+
+    def test_partial_extraction_preserves_cache(self):
+        if self.backend == 'docker':
+            def partial(phase, args, kwargs):
+                if phase == 'extract':
+                    (Path(args[-1]) / 'partial-object').write_text('incomplete')
+                    raise subprocess.CalledProcessError(1, args, stderr='partial copy')
+            self.failure = partial
+        else:
+            with self.archive.open('ab') as stream:
+                stream.write(b'corrupt download')
+        status, _, err = self.action()
+        self.assertEqual(status, 0)
+        self.assertIn('::warning::', err)
+        self.preserved()
+
+    def test_misses_are_quiet_but_auth_and_server_failures_warn(self):
+        for detail, quiet in [('manifest unknown', True), ('no such manifest', True),
+                              ('manifest not found', True), ('403 Forbidden', False),
+                              ('503 Service Unavailable: manifest unknown', False)]:
+            with self.subTest(detail=detail):
+                def fail(phase, args, kwargs):
+                    if phase == 'fetch':
+                        raise subprocess.CalledProcessError(1, args, stderr=detail)
+                self.failure = fail
+                status, out, err = self.action()
+                self.assertEqual(status, 0)
+                self.preserved()
+                if quiet:
+                    self.assertEqual(err, '')
+                    self.assertIn('no cache at', out)
                 else:
-                    self.assertIn("::warning::", result.stderr)
-                if scenario in ("login_failure", "pull_failure"):
-                    operation = scenario.split("_")[0]
-                    self.assertEqual(sum(a[0] == operation for a in self.calls("docker")), 2)
+                    self.assertIn(detail, err)
+                self.assertNotIn('extract', self.calls)
 
-    def test_restore_without_credentials_or_existing_directory(self):
-        (self.cache / "local-object").unlink()
-        self.cache.rmdir()
-        self.run_action(GHCR_TOKEN="")
-        self.assertEqual((self.cache / "restored-object").read_text(), "complete object")
-        self.assertFalse(any(a[0] == "login" for a in self.calls("docker")))
+    def test_transient_timeout_recovers(self):
+        def fail_once(phase, args, kwargs):
+            if phase == 'fetch' and self.calls.count('fetch') == 1:
+                raise subprocess.TimeoutExpired(args, kwargs['timeout'])
+        self.failure = fail_once
+        self.assertEqual(self.action()[0], 0)
+        self.assertEqual(self.calls.count('fetch'), 2)
+        self.assertTrue(self.output.read_text().endswith('hit=true\n'))
 
-    def test_transient_pull_recovers_with_two_attempts(self):
-        self.run_action(scenario="pull_transient")
-        self.assertEqual(sum(a[0] == "pull" for a in self.calls("docker")), 2)
-        self.assertTrue(self.output.read_text().endswith("hit=true\n"))
+    def test_persistent_timeout_preserves_cache(self):
+        def timeout(phase, args, kwargs):
+            if phase == 'fetch':
+                raise subprocess.TimeoutExpired(args, kwargs['timeout'])
+        self.failure = timeout
+        status, _, err = self.action(CACHE_TIMEOUT='7')
+        self.assertEqual(status, 0)
+        self.assertIn('timed out after 7s', err)
+        self.assertEqual(self.calls.count('fetch'), 2)
+        self.preserved()
 
-    def test_save_failure_never_prunes_and_allows_tests(self):
-        for scenario in ("login_failure", "build_failure", "push_failure"):
-            with self.subTest(scenario=scenario):
-                self.call_log.unlink(missing_ok=True)
-                result = self.run_action("save", scenario)
-                self.assertIn("::warning::", result.stderr)
-                self.assertEqual(self.calls("gh"), [])
+    def test_anonymous_restore_with_no_existing_directory(self):
+        shutil.rmtree(self.cache)
+        status, _, err = self.action(GHCR_TOKEN='')
+        self.assertEqual((status, err), (0, ''))
+        self.assertNotIn('login', self.calls)
+        self.assertEqual((self.cache / 'object').read_text(), 'complete object')
 
-    def test_save_retries_and_prunes_only_superseded_versions(self):
-        self.run_action("save", "push_transient", CACHE_OWNER_TYPE="Organization")
-        self.assertEqual(sum(a[0] == "push" for a in self.calls("docker")), 2)
-        deleted = [a[-1] for a in self.calls("gh") if "DELETE" in a]
-        self.assertEqual(deleted, [f"orgs/ExampleOwner/packages/container/erf-ccache/versions/{i}"
-                                   for i in (2, 4)])
+    def test_save_then_prune_and_failure_is_nonfatal(self):
+        def fail_prune(phase, args, kwargs):
+            if phase == 'prune':
+                raise subprocess.CalledProcessError(1, args, stderr='403 pruning denied synthetic-test-token')
+        self.failure = fail_prune
+        status, out, err = self.action('save')
+        self.assertEqual(status, 0)
+        self.assertEqual(self.calls[-2:], ['push', 'prune'])
+        self.assertIn('saved ghcr.io/', out)
+        self.assertIn('403 pruning denied', err)
+        self.assertNotIn('synthetic-test-token', err)
+        self.assertIn('a later save will retry', err)
 
-    def test_prune_failure_timeout_and_delete_race_are_nonfatal(self):
-        for scenario in ("prune_failure", "prune_timeout", "delete_race"):
-            with self.subTest(scenario=scenario):
-                self.call_log.unlink(missing_ok=True)
-                result = self.run_action("save", scenario)
-                self.assertIn(
-                    "saved ghcr.io/exampleowner/erf-ccache:ubuntu-22.04-x64-gcc-mpich-double-particles-on",
-                    result.stdout)
-                if scenario == "delete_race":
-                    deleted = [a[-1] for a in self.calls("gh") if "DELETE" in a]
-                    self.assertEqual(deleted, [f"users/ExampleOwner/packages/container/erf-ccache/versions/{i}"
-                                               for i in (2, 4)])
-                else:
-                    self.assertIn("::warning::", result.stderr)
+    def test_transient_push_retries_before_pruning(self):
+        def fail_once(phase, args, kwargs):
+            if phase == 'push' and self.calls.count('push') == 1:
+                raise subprocess.CalledProcessError(1, args, stderr='503 unavailable')
+        self.failure = fail_once
+        status, out, err = self.action('save')
+        self.assertEqual((status, err), (0, ''))
+        self.assertEqual(self.calls[-3:], ['push', 'push', 'prune'])
+        self.assertIn('saved ghcr.io/', out)
 
-    def test_prune_retains_newest_sha_versions_and_all_named_tags(self):
-        cases = (
-            ("erf-ccache:0", {2, 4, 5, 6}),
-            ("erf-ccache:1", {2, 4, 5}),
-            ("erf-ccache", {2, 4}),
-        )
-        for package_spec, expected_deleted in cases:
-            with self.subTest(package_spec=package_spec):
-                self.call_log.unlink(missing_ok=True)
-                env = dict(self.env, MOCK_SCENARIO="retention", KEEP="2",
-                           OWNER="ExampleOwner", OWNER_TYPE="User",
-                           GH_TOKEN="synthetic-test-token")
-                result = subprocess.run(["bash", str(ACTION / "prune.sh"), package_spec],
-                                        env=env, capture_output=True, text=True, timeout=20)
-                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                deleted = {int(args[-1].rsplit("/", 1)[1]) for args in self.calls("gh")
-                           if "DELETE" in args}
-                self.assertEqual(deleted, expected_deleted)
+    def test_failed_save_never_prunes(self):
+        for failed in ['login', 'push'] + (['package'] if self.backend == 'docker' else []):
+            with self.subTest(phase=failed):
+                def fail(phase, args, kwargs):
+                    if phase == failed:
+                        raise subprocess.CalledProcessError(1, args, stderr='503 unavailable')
+                self.failure = fail
+                status, _, err = self.action('save')
+                self.assertEqual(status, 0)
+                self.assertIn('::warning::', err)
+                self.assertNotIn('prune', self.calls)
 
-    def test_empty_save_does_not_login_or_prune(self):
-        (self.cache / "local-object").unlink()
-        self.run_action("save")
-        self.assertFalse(self.call_log.exists())
+    def test_empty_save_skips_transport(self):
+        (self.cache / 'old').unlink()
+        self.assertEqual(self.action('save')[0], 0)
+        self.assertEqual(self.calls, [])
 
-    def test_invalid_configuration_fails_before_transport(self):
-        for override in ({"CACHE_MODE": "invalid"}, {"CACHE_KEY": ""},
-                         {"CACHE_MODE": "save", "GHCR_TOKEN": ""},
-                         {"CACHE_PATH": "/"}, {"CACHE_PATH": os.environ["HOME"]}):
-            with self.subTest(override=override):
-                result = subprocess.run(["bash", str(ACTION / "cache.sh")],
-                                        env=dict(self.env, **override), capture_output=True, text=True)
-                self.assertEqual(result.returncode, 2)
-                self.assertIn("::error::", result.stderr)
-                self.assertFalse(self.call_log.exists())
+    def test_invalid_inputs_fail_before_transport(self):
+        for env in ({'CACHE_MODE': 'invalid'}, {'CACHE_KEY': ''}, {'CACHE_PATH': ''},
+                    {'CACHE_PATH': str(Path.home())}, {'CACHE_PATH': self.root.anchor},
+                    {'CACHE_TIMEOUT': '601'}, {'CACHE_TIMEOUT': '01'},
+                    {'CACHE_MODE': 'save', 'GHCR_TOKEN': ''}):
+            with self.subTest(env=env):
+                status, _, err = self.action(**env)
+                self.assertEqual(status, 2)
+                self.assertIn('::error::', err)
+                self.assertEqual(self.calls, [])
+
+    def test_failed_promotion_rolls_back(self):
+        rename = Path.rename
+        def fail(path, target):
+            if '.ghcr-' in path.name and not path.name.endswith('.previous'):
+                raise OSError('simulated rename failure')
+            return rename(path, target)
+        with patch.object(Path, 'rename', fail):
+            status, _, err = self.action()
+        self.assertEqual(status, 0)
+        self.assertIn('simulated rename failure', err)
+        self.preserved()
+
+    def test_interrupted_promotion_rolls_back_and_propagates(self):
+        rename = Path.rename
+        for interruption in (SystemExit(143), KeyboardInterrupt()):
+            with self.subTest(interruption=type(interruption).__name__):
+                def interrupt(path, target):
+                    if '.ghcr-' in path.name and not path.name.endswith('.previous'):
+                        raise interruption
+                    return rename(path, target)
+                with patch.object(Path, 'rename', interrupt), self.assertRaises(type(interruption)):
+                    self.action()
+                self.preserved()
+
+    def test_interruption_just_after_moving_old_cache_rolls_back(self):
+        rename = Path.rename
+        def interrupt_after_rename(path, target):
+            result = rename(path, target)
+            if target.name.endswith('.previous'):
+                raise SystemExit(143)
+            return result
+        with patch.object(Path, 'rename', interrupt_after_rename), self.assertRaises(SystemExit):
+            self.action()
+        self.preserved()
 
 
-if __name__ == "__main__":
+class DockerContractTests(TransportContract, unittest.TestCase):
+    backend = 'docker'
+
+
+class OrasContractTests(TransportContract, unittest.TestCase):
+    backend = 'oras'
+
+
+class RetentionTests(unittest.TestCase):
+    def test_named_tags_and_sha_retention(self):
+        versions = ('1\t2026-10-27T01:00:00Z\tactive-trunk\n'
+                    '2\t2026-10-27T00:00:00Z\t\n'
+                    '3\t2026-10-27T02:00:00Z\tother-trunk\n'
+                    '4\t2026-10-26T00:00:00Z\tsha-old\n'
+                    '5\t2026-10-27T03:00:00Z\tsha-recent\n'
+                    '6\t2026-10-27T04:00:00Z\tsha-newest\n'
+                    '7\t2026-10-25T00:00:00Z\tsha-older,release\n')
+        for keep, deleted in [(0, {'2', '4', '5', '6'}), (1, {'2', '4', '5'}), (2, {'2', '4'})]:
+            with self.subTest(keep=keep):
+                self.assertEqual(set(prune.select_versions(versions, keep)), deleted)
+
+    def test_concurrent_delete_404_is_harmless(self):
+        response = subprocess.CompletedProcess(['gh'], 1, '', 'gh: Not Found (HTTP 404)')
+        with patch.object(prune.subprocess, 'run', return_value=response), \
+                patch.object(prune.time, 'monotonic', return_value=0):
+            self.assertIsNone(prune.github_api(['--method', 'DELETE', 'example'], deadline=60))
+
+
+if __name__ == '__main__':
     unittest.main()
