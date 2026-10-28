@@ -14,6 +14,12 @@
 
 namespace metgrid_land {
 
+// The Noah soil layers real.exe writes to wrfinput (DZS) for a 4-layer LSM, which SLM's
+// initial state from met_em files is interpolated to, and so the layers SLM takes then
+constexpr int nsoil_noah = 4;
+constexpr amrex::Real dzs_noah[nsoil_noah] = {amrex::Real(0.1), amrex::Real(0.3),
+                                              amrex::Real(0.6), amrex::Real(1.0)};
+
 /**
  * Linear interpolation in depth from the source layer midpoints to z, held constant
  * beyond the shallowest and deepest midpoints.

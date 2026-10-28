@@ -9,7 +9,60 @@
 #include <optional>
 #include <AMReX_Math.H>
 
+#ifdef ERF_USE_NETCDF
+#include "ERF_MetgridLandUtils.H"
+#endif
+
 using namespace amrex;
+
+namespace {
+
+#ifdef ERF_USE_NETCDF
+/**
+ * The soil layer thicknesses (DZS) in a wrfinput file, or none if the file or the
+ * variable is not there.  Read on the I/O rank and broadcast.
+ *
+ * @param fname wrfinput file
+ */
+Vector<Real>
+read_wrfinput_soil_dz (const std::string& fname)
+{
+    int nsoil = 0;
+    Vector<double> dzs;
+    if (ParallelDescriptor::IOProcessor() && FileSystem::Exists(fname)) {
+        auto ncf = ncutils::NCFile::open(fname, NC_NOWRITE);
+        if (ncf.has_var("DZS")) {
+            auto var = ncf.var("DZS");
+            const std::vector<size_t> shape = var.shape();  // (Time, soil_layers_stag)
+            nsoil = static_cast<int>(shape.back());
+            dzs.resize(nsoil);
+            std::vector<size_t> start(shape.size(), 0);
+            std::vector<size_t> count(shape.size(), 1);
+            count.back() = static_cast<size_t>(nsoil);
+            var.get(dzs.data(), start, count);
+        }
+        ncf.close();
+    }
+    ParallelDescriptor::Bcast(&nsoil, 1, ParallelDescriptor::IOProcessorNumber());
+    dzs.resize(nsoil);
+    if (nsoil > 0) {
+        ParallelDescriptor::Bcast(dzs.data(), nsoil, ParallelDescriptor::IOProcessorNumber());
+    }
+    Vector<Real> dz(nsoil);
+    for (int k = 0; k < nsoil; ++k) { dz[k] = static_cast<Real>(dzs[k]); }
+    return dz;
+}
+#endif
+
+std::string
+soil_dz_string (const Vector<Real>& dz)
+{
+    std::string str;
+    for (const Real v : dz) { str += (str.empty() ? "" : " ") + std::to_string(v); }
+    return str;
+}
+
+} // namespace
 
 
 /* Initialize lsm data structures */
@@ -24,7 +77,7 @@ SLM::Init (const int& /*lev*/,
            IntVect& /*refRatio*/,
            const Real& dt,
            std::unique_ptr<amrex::MultiFab>& z_phys_nd_in,
-           Vector<Vector<std::string>>& /*nc_init_file*/)
+           Vector<Vector<std::string>>& nc_init_file)
 {
     m_dt = dt;
     m_geom = geom;
@@ -33,15 +86,66 @@ SLM::Init (const int& /*lev*/,
     z_phys_nd = z_phys_nd_in.get();
 
     ParmParse pp("slm");
+    const bool have_nsoil = pp.contains("nsoil");
+    const bool have_dz    = pp.contains("soil_dz");
     pp.query("nsoil", m_nz_lsm);
+    m_dz_lsm.clear();
+    pp.queryarr("soil_dz", m_dz_lsm);
+
+    // The soil layers of the initial data, where they have them: the Noah layers SLM's
+    // state is interpolated to from met_em files, or the file's own DZS for wrfinput, which
+    // is what SLM's soil physics then uses.  Without slm.soil_dz SLM takes these; with it
+    // the two must agree, since slm.soil_dz sets the geometry the soil is plotted on.
+    Vector<Real> data_dz;
+    std::string data_source;
+#ifdef ERF_USE_NETCDF
+    if (m_init_type == InitType::Metgrid) {
+        data_dz.assign(metgrid_land::dzs_noah, metgrid_land::dzs_noah + metgrid_land::nsoil_noah);
+        data_source = "the Noah layers SLM is initialized on from met_em files";
+    } else if (m_init_type == InitType::WRFInput &&
+               !nc_init_file.empty() && !nc_init_file[0].empty()) {
+        data_dz = read_wrfinput_soil_dz(nc_init_file[0][0]);
+        data_source = "DZS in " + nc_init_file[0][0];
+    }
+#else
+    amrex::ignore_unused(nc_init_file);
+#endif
+
+    if (!data_dz.empty()) {
+        const int nsoil_data = static_cast<int>(data_dz.size());
+        if (!have_dz) {
+            if (have_nsoil && m_nz_lsm != nsoil_data) {
+                amrex::Abort("SLM: slm.nsoil = " + std::to_string(m_nz_lsm) + " but " + data_source
+                             + " has " + std::to_string(nsoil_data) + " layers ("
+                             + soil_dz_string(data_dz) + " m); leave slm.nsoil and slm.soil_dz unset to use them");
+            }
+            m_nz_lsm = nsoil_data;
+            m_dz_lsm = data_dz;
+            amrex::Print() << "SLM: " << m_nz_lsm << " soil layers from " << data_source << ": "
+                           << soil_dz_string(m_dz_lsm) << " m" << std::endl;
+        } else {
+            bool match = (static_cast<int>(m_dz_lsm.size()) == nsoil_data);
+            for (int k = 0; match && k < nsoil_data; ++k) {
+                match = std::abs(m_dz_lsm[k] - data_dz[k]) <= Real(1.e-6) * data_dz[k];
+            }
+            if (!match) {
+                amrex::Abort("SLM: slm.soil_dz = " + soil_dz_string(m_dz_lsm) + " differs from "
+                             + data_source + ", " + soil_dz_string(data_dz)
+                             + " m; set it to those, or leave slm.nsoil and slm.soil_dz unset to use them");
+            }
+        }
+    } else if (!have_dz) {
+        amrex::Abort("SLM: slm.soil_dz is required -- the thicknesses in m of the slm.nsoil soil "
+                     "layers (" + std::to_string(m_nz_lsm) + " unless set), from the top down");
+    }
+
     if (m_nz_lsm < 2) {
         amrex::Abort("SLM: nsoil must be at least 2");
     }
-    pp.queryarr("soil_dz", m_dz_lsm);
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-      static_cast<int>(m_dz_lsm.size()) == m_nz_lsm,
-      "Provided soil thicknesses most match number of soil layers");
-    AMREX_ALWAYS_ASSERT(static_cast<int>(m_dz_lsm.size()) > 0);
+    if (static_cast<int>(m_dz_lsm.size()) != m_nz_lsm) {
+        amrex::Abort("SLM: slm.soil_dz has " + std::to_string(m_dz_lsm.size())
+                     + " values but slm.nsoil is " + std::to_string(m_nz_lsm));
+    }
     for (int k = 0; k < static_cast<int>(m_dz_lsm.size()); ++k) {
         if (!std::isfinite(m_dz_lsm[k]) || m_dz_lsm[k] <= zero) {
             amrex::Abort("SLM: soil_dz values must be finite and positive");
