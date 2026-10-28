@@ -433,15 +433,16 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         forecast_state_2[lev].resize(nvars + 1);
         forecast_state_interp[lev].resize(nvars + 1);
 
-        // Define the "normal" components
+        // Define the "normal" components, with the same staggering as the state they
+        //    stand for: the velocities live on faces
         for (int comp = 0; comp < nvars; ++comp) {
             const MultiFab& src = vars_new[lev][comp];
             ncomp = src.nComp();
-            ngrow = src.nGrow();
+            const BoxArray ba_comp = convert(ba, src.ixType());
 
-            forecast_state_1[lev][comp].define(ba, dm, ncomp, ng);
-            forecast_state_2[lev][comp].define(ba, dm, ncomp, ng);
-            forecast_state_interp[lev][comp].define(ba, dm, ncomp, ng);
+            forecast_state_1[lev][comp].define(ba_comp, dm, ncomp, ng);
+            forecast_state_2[lev][comp].define(ba_comp, dm, ncomp, ng);
+            forecast_state_interp[lev][comp].define(ba_comp, dm, ncomp, ng);
         }
 
         // Define the "extra" component (last slot)

@@ -212,6 +212,9 @@ public:
 
         use_terrain = sc.terrain_type != TerrainType::None;
 
+        // Where the initial data come from, which can supply the soil layers (see Init)
+        m_init_type = sc.init_type;
+
         // Check if initializing from WRFInput, or from metgrid files, for which ERF builds
         // the same fields real.exe writes to wrfinput (ERF::init_lsm_from_metgrid)
         if (sc.init_type == InitType::WRFInput || sc.init_type == InitType::Metgrid) {
@@ -1007,6 +1010,7 @@ private:
 
     // whether to initialize SLM from inputs file or from wrfinput
     bool use_wrfinput = false;
+    InitType m_init_type = InitType::None;
     bool wrfinput_initialized = false;
 
     // whether Copy_State_to_Lsm has filled tref, qref and pref on this level

@@ -440,23 +440,23 @@ The default subvolume inventory is documented on :ref:`sec:Plotfiles`.
 |                             | ratio [kg/kg]    |
 +-----------------------------+------------------+
 | **rain_accum**              | Accumulated rain |
-|                             | amount with      |
-|                             | precipitating    |
-|                             | moisture models  |
-|                             | [mm]             |
+|                             | at the surface,  |
+|                             | rain alone [mm]  |
 +-----------------------------+------------------+
 | **snow_accum**              | Accumulated snow |
-|                             | amount with SAM  |
-|                             | or Morrison      |
-|                             | microphysics     |
-|                             | [mm]             |
+|                             | at the surface,  |
+|                             | snow alone [mm]  |
 +-----------------------------+------------------+
-| **graup_accum**             | Accumulated      |
-|                             | graupel amount   |
-|                             | with SAM or      |
-|                             | Morrison         |
-|                             | microphysics     |
-|                             | [mm]             |
+| **graupel_accum**           | Accumulated      |
+|                             | graupel at the   |
+|                             | surface, graupel |
+|                             | alone [mm]       |
++-----------------------------+------------------+
+| **precip_accum**            | Accumulated      |
+|                             | precipitation at |
+|                             | the surface, all |
+|                             | species [mm of   |
+|                             | liquid water]    |
 +-----------------------------+------------------+
 | **rel_humidity**            | Relative         |
 |                             | humidity;        |
@@ -879,16 +879,16 @@ arrays:
      - Accumulations
      - Moist diagnostics
    * - ``Kessler``, ``SAM_NoIce``, ``Morrison_NoIce``
-     - ``rain_accum``
+     - ``rain_accum``, ``precip_accum``
      - none
    * - ``SAM``, ``Morrison``, ``WSM6``, ``WDM6``
-     - ``rain_accum``, ``snow_accum``, ``graup_accum``
+     - ``rain_accum``, ``snow_accum``, ``graupel_accum``, ``precip_accum``
      - none
    * - ``SatAdj``
      - none
      - ``rel_humidity``, recovered from the conserved state
    * - ``SuperDroplets``
-     - ``rain_accum``, ``snow_accum``
+     - ``rain_accum``, ``snow_accum``, ``precip_accum``
      - ``rel_humidity``, ``condensation_rate``
    * - ``SBM``
      - none
@@ -901,8 +901,28 @@ The current SBM fixture has no surface-precipitation accumulation or
 microphysical tendency diagnostics because sedimentation and cloud
 microphysical processes are not yet implemented.
 
+Each accumulation is what has reached the ground since the start of the run.
+``rain_accum``, ``snow_accum`` and ``graupel_accum`` each hold that one species
+and nothing else. ``precip_accum`` holds everything that fell out, in mm of
+liquid water: those three, plus any cloud water and cloud ice the scheme lets
+fall -- cloud water and cloud ice in ``Morrison``, cloud ice in ``SAM``,
+``WSM6`` and ``WDM6``. It can therefore be larger than the sum of the other
+three, and adding them up undercounts it. For ``Kessler`` rain is the only
+species that falls, so ``precip_accum`` is ``rain_accum``. ``SAM`` keeps
+``snow_accum`` and ``graupel_accum`` in mm of the species' own density, not of
+liquid water. ``SuperDroplets`` has no rain or snow categories: its
+``rain_accum`` is every liquid particle that reaches the ground and its
+``snow_accum`` every ice particle, in mm of ice.
+
+A restart from a checkpoint written before ``precip_accum`` existed rebuilds it
+with a warning. For ``Morrison``, ``WSM6`` and ``WDM6`` that checkpoint's
+``rain_accum`` was the total, so it becomes ``precip_accum`` and the snow and
+graupel are taken out of ``rain_accum``; what the run accumulated before the
+restart still counts the cloud ice with the snow (and, for ``Morrison``, the
+cloud water with the rain).
+
 ``SuperDroplets`` allocates a graupel accumulation slot that nothing fills, so
-``graup_accum`` is not offered for that scheme. ``SatAdj`` publishes no qmoist
+``graupel_accum`` is not offered for that scheme. ``SatAdj`` publishes no qmoist
 arrays at all: its ``rel_humidity`` is derived from the conserved state when the
 plotfile is written, which the map records with a distinct sentinel so the
 writer takes the right path.
@@ -1129,6 +1149,9 @@ the kinematic momentum diffusivity ``Kmv / density``.
 The fixed conserved-state inventory is ``density``, ``rhotheta``, ``rhoKE``,
 ``rhoadv_0``, and ``rhoQ1`` through ``rhoQ11``. The ``rhoQ`` components are
 active only to the extent that the selected moisture model provides them.
+Builds with ``ERF_ENABLE_FIRE`` add ``smoke``, the fire coupling's smoke tracer
+as a mass concentration [kg/m^3], between ``rhoadv_0`` and ``rhoQ1``; it is zero
+unless a fire runs with ``erf.fire.smoke_enable``.
 
 Wind-farm-only variables
 ~~~~~~~~~~~~~~~~~~~~~~~~

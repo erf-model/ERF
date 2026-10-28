@@ -28,28 +28,25 @@
     Real pert_delta_u = zero; pp_for_pert_vels.query("pert_delta_u", pert_delta_u);
     Real pert_delta_v = zero; pp_for_pert_vels.query("pert_delta_v", pert_delta_v);
 
-    Real pert_lo = bogus_large_value; pp_for_pert_vels.query("pert_lo", pert_lo);
-    Real pert_hi = bogus_large_value; pp_for_pert_vels.query("pert_hi", pert_hi);
-
     auto problo = geomdata.ProbLo();
     auto probhi = geomdata.ProbHi();
 
     Real aval = pert_periods_u * two * PI / (probhi[1] - problo[1]);
     Real bval = pert_periods_v * two * PI / (probhi[0] - problo[0]);
 
-    // Couette flow
+    // Couette flow: the wall-parallel velocity grows linearly with the height above the bottom
     if (prob_type == 1) {
 
         ParallelFor(xbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             const auto *const dx       = geomdata.CellSize();
-            const Real z = use_z_phys ? erf_prob_heights::z_xface(i,j,k,z_nd) : (k + myhalf) * dx[2];
-            x_vel_pert(i, j, k) = U_0 * z / phys_z_hi;
+            const Real z = use_z_phys ? erf_prob_heights::z_xface(i,j,k,z_nd) - phys_z_lo : (k + myhalf) * dx[2];
+            x_vel_pert(i, j, k) = U_0 * z / (phys_z_hi - phys_z_lo);
         });
 
         ParallelFor(ybx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             const auto *const dx       = geomdata.CellSize();
-            const Real z = use_z_phys ? erf_prob_heights::z_yface(i,j,k,z_nd) : (k + myhalf) * dx[2];
-            y_vel_pert(i, j, k) = V_0 * z / phys_z_hi;
+            const Real z = use_z_phys ? erf_prob_heights::z_yface(i,j,k,z_nd) - phys_z_lo : (k + myhalf) * dx[2];
+            y_vel_pert(i, j, k) = V_0 * z / (phys_z_hi - phys_z_lo);
         });
 
         ParallelFor(zbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -130,8 +127,10 @@
 
             if (pert_delta_v != zero) {
                 const Real xl = (i + myhalf) * dx[0];
-                Real y_h = (prob_type == 20) ? two * (j + myhalf) * dx[1] / (prob_hi[1] - prob_lo[1]) - one
-                                                     : two * (z - phys_z_lo)  / (phys_z_hi - phys_z_lo) - one;
+                // v is on the y faces, so with y normal to the walls (prob_type 20) its
+                //    position is j*dy, and the scaling vanishes on the walls themselves
+                Real y_h = (prob_type == 20) ? two * j * dx[1] / (prob_hi[1] - prob_lo[1]) - one
+                                             : two * (z - phys_z_lo)  / (phys_z_hi - phys_z_lo) - one;
                 const Real scaling = std::cos(PI/two * y_h);
                 y_vel_pert(i, j, k) += pert_delta_v * scaling * std::cos(bval * xl);
             }

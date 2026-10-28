@@ -113,8 +113,34 @@ plot3d_q_conserved_component_index (const int q)
 }
 
 /**
+ * @brief Names of the raw conserved-state variables, in component order.
+ *
+ * The optional smoke scalar (RhoSmoke_comp, under ERF_USE_FIRE) sits
+ * between rhoadv_0 and rhoQ1 exactly as in ERF_IndexDefines.H.  Every name
+ * here must map to a component in plot3d_conserved_component_index, or it can
+ * never be plotted.
+ */
+inline amrex::Vector<std::string>
+plot3d_conserved_state_names ()
+{
+    amrex::Vector<std::string> names = {"density", "rhotheta", "rhoKE", "rhoadv_0"};
+#ifdef ERF_USE_FIRE
+    names.push_back("smoke");
+#endif
+    names.insert(names.end(), {
+        "rhoQ1",  "rhoQ2",  "rhoQ3",
+        "rhoQ4",  "rhoQ5",  "rhoQ6",
+        "rhoQ7",  "rhoQ8",  "rhoQ9",
+        "rhoQ10", "rhoQ11"
+    });
+    return names;
+}
+
+/**
  * @brief Conserved-state component behind a raw state variable name
- *        ("density", "rhotheta", "rhoQ3", ...), or -1 if the name is not one.
+ *        ("density", "rhotheta", "smoke", "rhoQ3", ...), or -1 if the name is
+ *        not one.  The smoke scalar is written as stored, i.e. as a mass
+ *        concentration (rho times the mixing ratio), like rhoadv_0.
  */
 inline int
 plot3d_conserved_component_index (const std::string& name)
@@ -123,6 +149,9 @@ plot3d_conserved_component_index (const std::string& name)
     if (name == "rhotheta") return RhoTheta_comp;
     if (name == "rhoKE")    return RhoKE_comp;
     if (name == "rhoadv_0") return RhoScalar_comp;
+#ifdef ERF_USE_FIRE
+    if (name == "smoke") return RhoSmoke_comp;
+#endif
 
     if (name.size() > 4 && name.compare(0, 4, "rhoQ") == 0) {
         // Parse the digits by hand, stopping once past the RhoQ11 limit, so a

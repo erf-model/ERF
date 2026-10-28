@@ -47,16 +47,41 @@
 // 'theta_z100m'; those are not accepted here, since a station asks for the 3D
 // variable and a height directly.
 //
+// Four more names are accepted, which neither catalog holds as a 3D variable:
+// the earth-relative winds u_east, v_north, wind_speed and wind_dir.  They are
+// formed from the station's interpolated x_velocity and y_velocity, rotated by
+// the grid orientation at the station (see ERF_EarthRelativeWind.H), so that a
+// column compares directly with a tower on a rotated (e.g. Lambert) grid.
+//
+
+// Which earth-relative wind a station variable is; None for every other variable
+enum class StationEarthWind { None, UEast, VNorth, WindSpeed, WindDir };
+
+inline StationEarthWind
+station_earth_wind_from_name (const std::string& name)
+{
+    if (name == "u_east")     { return StationEarthWind::UEast; }
+    if (name == "v_north")    { return StationEarthWind::VNorth; }
+    if (name == "wind_speed") { return StationEarthWind::WindSpeed; }
+    if (name == "wind_dir")   { return StationEarthWind::WindDir; }
+    return StationEarthWind::None;
+}
 
 struct StationVar
 {
     std::string name;
     std::string units;
     bool is_2d      = false;              // comes from the 2D diagnostic catalog
-    bool is_missing = false;              // valid 2D name, inactive in this run
+    bool is_missing = false;              // valid name this run does not produce (an inactive
+                                          // 2D diagnostic, or with
+                                          // erf.station_allow_unavailable a 3D variable)
     bool cells_may_be_missing = false;    // active 2D field whose cells may hold missing_value
     amrex::Real missing_value = amrex::Real(0.0);
     int comp = -1;                        // component in the filled MultiFab
+    // An earth-relative wind is formed from two 3D components: comp holds
+    // x_velocity and comp_v y_velocity
+    StationEarthWind earth_wind = StationEarthWind::None;
+    int comp_v = -1;
 };
 
 //
@@ -104,6 +129,12 @@ struct StationLoc
     // accuracy of the inverse map, and is reported in the file header
     amrex::Real got_lat = amrex::Real(0.0);
     amrex::Real got_lon = amrex::Real(0.0);
+
+    // Orientation of the grid x axis at the station, counterclockwise from true
+    // east, for the earth-relative winds.  Without lat/lon arrays the grid is
+    // taken to be aligned with east.
+    amrex::Real cos_alpha = amrex::Real(1.0);
+    amrex::Real sin_alpha = amrex::Real(0.0);
 
     // Resolved against the current grids at every output step
     int lev = 0;
@@ -200,6 +231,10 @@ public:
 
     [[nodiscard]] int bufferSteps () const { return m_buffer_steps; }
 
+    // erf.station_allow_unavailable: write a 3D variable this configuration
+    // cannot produce as a constant missing column instead of stopping the run
+    [[nodiscard]] bool allowUnavailable () const { return m_allow_unavailable; }
+
     // A height below the first cell centre is honored by clamping, which is
     // worth saying once and not once per output step.
     [[nodiscard]] bool lowHeightWarned () const { return m_low_height_warned; }
@@ -237,6 +272,7 @@ private:
     amrex::Vector<Station> m_stations;
     int m_ncolumns    = 0;
     int m_buffer_steps = 100;
+    bool m_allow_unavailable = false;
 
     // m_rows[irow] holds the values of every column at m_times[irow]
     amrex::Vector<amrex::Real> m_times;

@@ -214,6 +214,7 @@
                         xlv0,xlf0,den0,denr,cliq,cice,psat,   &
                         rain,rainncv,sr,snow,snowncv,graupel, &
                         graupelncv,rainprod2d,evapprod2d,     &
+                        rainonly,snowonly,                    &
                         its,ite,kts,kte,microphysics_debug,diag_i_dbg,diag_j_dbg,diag_k_raw_base,   &
                         errmsg,errflg                         &
                        )
@@ -313,6 +314,12 @@
  real(kind=kind_phys),intent(inout),dimension(its:,:),optional::  &
                                                       rainprod2d, &
                                                       evapprod2d
+
+! ERF: rain alone and snow alone; rain above also holds the snow, cloud ice and
+! graupel, and snow the cloud ice
+ real(kind=kind_phys),intent(inout),dimension(its:),optional::    &
+                                                        rainonly, &
+                                                        snowonly
 
 !output arguments:
  character(len=*),intent(out):: errmsg
@@ -810,6 +817,12 @@ integer:: i, j, k, mstepmax,                                     &
                        + graupelncv(i)
          graupel(i) = fallsum_qg*delz(i,kts)/denr*dtcld*1000. + graupel(i)
        endif
+     endif
+     if(present(rainonly)) then
+       rainonly(i) = fall(i,kts,1)*delz(i,kts)/denr*dtcld*1000. + rainonly(i)
+     endif
+     if(present(snowonly)) then
+       snowonly(i) = fall(i,kts,2)*delz(i,kts)/denr*dtcld*1000. + snowonly(i)
      endif
      if(present (snowncv)) then
         if(fallsum.gt.0.)sr(i)=(snowncv(i) + graupelncv(i))/(rainncv(i)+1.e-12)

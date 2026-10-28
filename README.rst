@@ -39,7 +39,7 @@ See CONTRIBUTING.md for how to contribute to ERF development.
 Acknowledgments
 ~~~~~~~~~~~~~~~
 
-The development of the Energy Research and Forecasting (ERF) code is funded by the 
+The development of the Energy Research and Forecasting (ERF) code is funded by the
 U.S. Department of Energy (DOE).
 
 ERF is built on the `AMReX <https://github.com/AMReX-codes/AMReX>`_ library.

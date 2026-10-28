@@ -3,6 +3,7 @@
  */
 #include "ERF_Plotfile2DInterpolator.H"
 #include "ERF_Plotfile2DFill.H"
+#include "ERF_EarthRelativeWind.H"
 
 #include <cmath>
 #include <sstream>
@@ -27,8 +28,6 @@ struct SampledRotation
     Real cos_alpha = Real(1.0);
     Real sin_alpha = Real(0.0);
 };
-
-constexpr Real sampled_wind_dir_pi = Real(3.141592653589793238462643383279502884L);
 
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 SampledRotation rotation_at_mass_point (int i, int j,
@@ -60,8 +59,8 @@ SampledEarthWind earth_wind_at_cell_center (int i, int j, int k,
                                                        have_rotation);
 
     SampledEarthWind wind;
-    wind.u_east = u_cc * rot.cos_alpha - v_cc * rot.sin_alpha;
-    wind.v_north = u_cc * rot.sin_alpha + v_cc * rot.cos_alpha;
+    erf_earth_wind::grid_to_earth(u_cc, v_cc, rot.cos_alpha, rot.sin_alpha,
+                                  wind.u_east, wind.v_north);
     wind.w = w_cc;
     return wind;
 }
@@ -69,27 +68,14 @@ SampledEarthWind earth_wind_at_cell_center (int i, int j, int k,
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 Real horizontal_wind_speed (const SampledEarthWind& wind) noexcept
 {
-    return std::sqrt(wind.u_east * wind.u_east + wind.v_north * wind.v_north);
+    return erf_earth_wind::horizontal_speed(wind.u_east, wind.v_north);
 }
 
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 Real meteorological_wind_direction (const SampledEarthWind& wind,
                                     Real missing_value) noexcept
 {
-    const Real speed = horizontal_wind_speed(wind);
-    if (speed <= Real(1.0e-12)) {
-        return missing_value;
-    }
-
-    Real direction = Real(270.0)
-        - std::atan2(wind.v_north, wind.u_east) * Real(180.0) / sampled_wind_dir_pi;
-    while (direction < Real(0.0)) {
-        direction += Real(360.0);
-    }
-    while (direction >= Real(360.0)) {
-        direction -= Real(360.0);
-    }
-    return direction;
+    return erf_earth_wind::meteorological_direction(wind.u_east, wind.v_north, missing_value);
 }
 
 AMREX_GPU_DEVICE AMREX_FORCE_INLINE

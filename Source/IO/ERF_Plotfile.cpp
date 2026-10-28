@@ -265,6 +265,19 @@ ERF::appendPlot3DVariables (const Vector<std::string>& plot_var_names,
         }
     }
 
+#ifdef ERF_USE_FIRE
+    // The fire engine's fields, at k = 0 of the fire grid's level; filled last
+    // in FillPlot3DVars, in this order
+    if (m_fire_coupler) {
+        for (const auto& plot_name : m_fire_coupler->plot_var_names()) {
+            if (containerHasElement(plot_var_names, plot_name) &&
+                !containerHasElement(tmp_plot_names, plot_name)) {
+                tmp_plot_names.push_back(plot_name);
+            }
+        }
+    }
+#endif
+
     for (int i = 0; i < tmp_plot_names.size(); i++) {
         if (!containerHasElement(a_plot_var_names, tmp_plot_names[i])) {
             a_plot_var_names.push_back(tmp_plot_names[i]);
@@ -1658,7 +1671,8 @@ ERF::FillPlot3DVars (int lev,
         //--------------------------------------------------------------------------
         copy_moist_diagnostic("rain_accum");
         copy_moist_diagnostic("snow_accum");
-        copy_moist_diagnostic("graup_accum");
+        copy_moist_diagnostic("graupel_accum");
+        copy_moist_diagnostic("precip_accum");
 
         // Relative humidity.  A scheme either publishes it in a qmoist array or, as
         // SatAdj does, publishes no qmoist arrays at all and leaves it to be
@@ -1925,6 +1939,18 @@ ERF::FillPlot3DVars (int lev,
         }
     }
 
+#ifdef ERF_USE_FIRE
+    // Must match the order of appendPlot3DVariables (after microphysics)
+    if (m_fire_coupler) {
+        for (const auto& plot_name : m_fire_coupler->plot_var_names()) {
+            if (containerHasElement(plot_var_names, plot_name)) {
+                m_fire_coupler->fill_plot_var(plot_name, mf_dst, mf_comp, lev);
+                mf_comp += 1;
+            }
+        }
+    }
+#endif
+
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         mf_comp == ncomp_mf,
         "3D plotfile component assembly does not match selected variable names");
@@ -1935,6 +1961,10 @@ bool
 ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string> plot_var_names)
 {
     auto dPlotTime0 = amrex::second();
+
+    // Station rows are buffered, and a run that aborts never reaches the next
+    // flush: flushing here keeps the station series as far along as the plotfiles.
+    flush_stations();
 
     Real tnew = static_cast<Real>(t_new[0]);
 
