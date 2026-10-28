@@ -1,9 +1,17 @@
 # Linux ccache trunks on GHCR
 
-This action stores one ccache snapshot per workflow/job/variant at
+This action stores one ccache snapshot per named build configuration at
 `ghcr.io/<repository-owner>/erf-ccache:<sanitized-key>`. The current caller is `ci.yml`,
 which runs the two Linux MPICH variants on development pushes and manual dispatch.
 Only default-branch runs save. Other CI workflows still use Actions cache.
+
+The two tags are `ubuntu-22.04-x64-gcc-mpich-double-particles-off` and
+`ubuntu-22.04-x64-gcc-mpich-double-particles-on`: runner environment, architecture,
+compiler, MPI provider, precision, and particle setting.
+`CCACHE_TRUNK_KEY` in the job environment supplies the same key to restore and save,
+independently of the workflow and job names. Include additional matrix dimensions in
+the key when adding distinct build configurations. Renaming a key starts a new trunk;
+retire obsolete named tags separately, since pruning preserves named tags.
 
 The runner needs Bash, Docker, GNU coreutils, and `gh` (all present on GitHub's Ubuntu
 runners). The publishing job needs `contents: read` and `packages: write`. A new package

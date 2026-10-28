@@ -63,10 +63,14 @@ if tool == 'gh':
         if scenario == 'prune_failure':
             print('gh: Forbidden (HTTP 403)', file=sys.stderr)
             sys.exit(1)
-        print('1\t2026-10-27T01:00:00Z\terf-ci-build-and-test-on')
+        print('1\t2026-10-27T01:00:00Z\tubuntu-22.04-x64-gcc-mpich-double-particles-on')
         print('2\t2026-10-27T00:00:00Z\t')
-        print('3\t2026-10-27T02:00:00Z\terf-ci-build-and-test-off')
+        print('3\t2026-10-27T02:00:00Z\tubuntu-22.04-x64-gcc-mpich-double-particles-off')
         print('4\t2026-10-26T00:00:00Z\tsha-old')
+        if scenario == 'retention':
+            print('5\t2026-10-27T03:00:00Z\tsha-recent')
+            print('6\t2026-10-27T04:00:00Z\tsha-newest')
+            print('7\t2026-10-25T00:00:00Z\tsha-older,release')
     elif scenario == 'delete_race' and args[-1].endswith('/2'):
         print('gh: Not Found (HTTP 404)', file=sys.stderr)
         sys.exit(1)
@@ -97,7 +101,7 @@ class CacheTransferTests(unittest.TestCase):
         self.output = self.root / "output"
         self.call_log = self.root / "calls.jsonl"
         self.env = dict(os.environ, PATH=f"{self.bin}{os.pathsep}{os.environ['PATH']}",
-                        CACHE_MODE="restore", CACHE_KEY="ERF CI-Build-And-Test-ON",
+                        CACHE_MODE="restore", CACHE_KEY="Ubuntu-22.04 X64 GCC MPICH DOUBLE Particles ON",
                         CACHE_PATH=str(self.cache), GHCR_TOKEN="synthetic-test-token",
                         RUNNER_OS="Linux", RUNNER_TEMP=str(self.runner),
                         GITHUB_OUTPUT=str(self.output), GITHUB_REPOSITORY_OWNER="ExampleOwner",
@@ -180,13 +184,34 @@ class CacheTransferTests(unittest.TestCase):
             with self.subTest(scenario=scenario):
                 self.call_log.unlink(missing_ok=True)
                 result = self.run_action("save", scenario)
-                self.assertIn("saved ghcr.io/exampleowner/erf-ccache:erf-ci-build-and-test-on", result.stdout)
+                self.assertIn(
+                    "saved ghcr.io/exampleowner/erf-ccache:ubuntu-22.04-x64-gcc-mpich-double-particles-on",
+                    result.stdout)
                 if scenario == "delete_race":
                     deleted = [a[-1] for a in self.calls("gh") if "DELETE" in a]
                     self.assertEqual(deleted, [f"users/ExampleOwner/packages/container/erf-ccache/versions/{i}"
                                                for i in (2, 4)])
                 else:
                     self.assertIn("::warning::", result.stderr)
+
+    def test_prune_retains_newest_sha_versions_and_all_named_tags(self):
+        cases = (
+            ("erf-ccache:0", {2, 4, 5, 6}),
+            ("erf-ccache:1", {2, 4, 5}),
+            ("erf-ccache", {2, 4}),
+        )
+        for package_spec, expected_deleted in cases:
+            with self.subTest(package_spec=package_spec):
+                self.call_log.unlink(missing_ok=True)
+                env = dict(self.env, MOCK_SCENARIO="retention", KEEP="2",
+                           OWNER="ExampleOwner", OWNER_TYPE="User",
+                           GH_TOKEN="synthetic-test-token")
+                result = subprocess.run(["bash", str(ACTION / "prune.sh"), package_spec],
+                                        env=env, capture_output=True, text=True, timeout=20)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                deleted = {int(args[-1].rsplit("/", 1)[1]) for args in self.calls("gh")
+                           if "DELETE" in args}
+                self.assertEqual(deleted, expected_deleted)
 
     def test_empty_save_does_not_login_or_prune(self):
         (self.cache / "local-object").unlink()

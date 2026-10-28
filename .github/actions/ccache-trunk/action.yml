@@ -5,7 +5,7 @@ inputs:
     description: restore or save
     required: true
   key:
-    description: Variant identifier, such as ERF CI-Build-And-Test-ON
+    description: Build configuration, such as ubuntu-22.04-x64-gcc-mpich-double-particles-on
     required: true
   path:
     description: Dedicated ccache directory (replaced after a complete restore)

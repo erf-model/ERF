@@ -32,10 +32,8 @@ jobs:
     name: OS ${{matrix.os}} - Particles ${{matrix.particles}}
     env:
       ERF_PARALLEL_TEST_NRANKS: '1;2;4'
+      CCACHE_TRUNK_KEY: ${{ matrix.os }}-x64-gcc-mpich-double-particles-${{ matrix.particles }}
     strategy:
-      # Let every variant finish. Cancelling the siblings of a failed job saves
-      # a few test minutes but leaves their caches stale and hides whether the
-      # failure is specific to one variant.
       fail-fast: false
       matrix:
         os: [ubuntu-22.04]
@@ -73,21 +71,15 @@ jobs:
     - name: Install CCache
       run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
 
-    # One GHCR trunk per matrix variant. Registry failures warn and allow a cold build.
-    # Only default-branch runs publish; all action helpers are covered by the paths above.
     - name: Restore Cache
       uses: ./.github/actions/ccache-trunk
       with:
         mode: restore
-        key: ${{ github.workflow }}-${{ github.job }}-${{ matrix.particles }}
+        key: ${{ env.CCACHE_TRUNK_KEY }}
         path: ~/.cache/ccache
         token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Configure CMake
-      # Ubuntu's MPICH wrapper advertises -flto=auto -ffat-lto-objects, and FindMPI
-      # would put them on every target: fat objects double the ccache and every
-      # link re-optimises the whole program (~20 min even on a full cache hit).
-      # FindMPI keeps a non-empty user value, so override the wrapper's flags.
       run: |
         cmake \
           -B${{runner.workspace}}/ERF/build-${{matrix.os}} \
@@ -124,9 +116,6 @@ jobs:
           2>&1 | tee -a ${{runner.workspace}}/build-output.txt;
 
         echo '```' >> "$GITHUB_STEP_SUMMARY"
-        # Keep only what this build used: ccache touches an object on every hit, so
-        # anything older than the build is stale. Without this the cache fills with
-        # objects from superseded commits, hits its cap, and evicts live objects.
         ccache --evict-older-than "$(( $(date +%s) - build_start + 120 ))s"
         ccache -s | tee -a "$GITHUB_STEP_SUMMARY"
         echo '```' >> "$GITHUB_STEP_SUMMARY"
@@ -137,7 +126,7 @@ jobs:
       uses: ./.github/actions/ccache-trunk
       with:
         mode: save
-        key: ${{ github.workflow }}-${{ github.job }}-${{ matrix.particles }}
+        key: ${{ env.CCACHE_TRUNK_KEY }}
         path: ~/.cache/ccache
         token: ${{ secrets.GITHUB_TOKEN }}
 
