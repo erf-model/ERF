@@ -1159,7 +1159,8 @@ public:
 
         } else {
             amrex::Print() << "Initializing flat terrain" << std::endl;
-            terrain_fab.template setVal<amrex::RunOn::Device>(0);
+            // A flat surface at the bottom of the domain
+            terrain_fab.template setVal<amrex::RunOn::Device>(geom.ProbLo(2));
 
             if (SolverChoice::mesh_type == MeshType::VariableDz) {
                 SolverChoice::set_mesh_type(MeshType::StretchedDz);

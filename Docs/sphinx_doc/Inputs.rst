@@ -374,11 +374,11 @@ Grid Stretching
 ===============
 
 This automatically activates **erf.terrain_type = StaticFittedMesh**. By default, the
-problem-specific terrain is initialized to be flat at an elevation of z=0.
+problem-specific terrain is initialized to be flat at **geometry.prob_lo** in z.
 These inputs are used to automatically generate the staggered z levels used to
 calculate the grid metric transformation. Alternatively, arbitrary z levels may
-be specified with the **erf.terrain_z_levels** parameter, which should vary
-from 0 (at the surface) to the domain height.
+be specified with the **erf.terrain_z_levels** parameter, which must start at
+**geometry.prob_lo** in z (the surface) and rise to the domain height.
 
 .. _list-of-parameters-3:
 
@@ -430,10 +430,10 @@ Notes
   wrfinput case builds its grid from the file instead.
 - The number of input **erf.terrain_z_levels** must be equal **amr.n_cell** in
   the z direction + 1.
-- A stretched grid (**erf.grid_stretching_ratio** or **erf.initial_dz**) starts at
+- Every vertical grid -- uniform, stretched (**erf.grid_stretching_ratio** or
+  **erf.initial_dz**) or given by **erf.terrain_z_levels** -- starts at
   **geometry.prob_lo** in z, and a flat surface sits there.  The former input
   **erf.zsurface** is no longer accepted; set **geometry.prob_lo** in z instead.
-  **erf.terrain_z_levels** must still start at 0.
 
 .. _examples-of-usage-3:
 
