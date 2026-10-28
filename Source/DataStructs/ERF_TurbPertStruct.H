@@ -105,6 +105,19 @@ struct TurbulentPerturbation {
 
         amrex::ParmParse pp(pp_prefix);
 
+        uniform_mode = true;
+        pp.queryAdd("perturbation_uniform_refresh", uniform_mode);
+        uniform_height = amrex::Real(20);
+        pp.queryAdd("perturbation_refresh_height", uniform_height);
+        uniform_wind_period = amrex::Real(600);
+        pp.queryAdd("perturbation_refresh_wind_period", uniform_wind_period);
+        if (uniform_refresh_enabled(lev) &&
+            (!(uniform_height > zero) || !std::isfinite(uniform_height) ||
+             !(uniform_wind_period > zero) || !std::isfinite(uniform_wind_period))) {
+            amrex::Abort("Uniform CPM refresh requires positive, finite "
+                         "perturbation_refresh_height and perturbation_refresh_wind_period");
+        }
+
         // Reading inputs, and placing assertion for the perturbation inflow to work
         pp.getarr("perturbation_box_dims",tpi_boxDim);
         if (auto_mode) {
@@ -165,8 +178,8 @@ struct TurbulentPerturbation {
         // Check variables message
         if (tpi_offset < 0) { amrex::Abort("Please provide a valid inflow cell offset value for perturbation region (ie. 0-5)"); }
         if (tpi_layers < 0) { amrex::Abort("Please provide a valid perturbation layer value (ie. 3-5)"); }
-        if (auto_mode && tpi_layers == 0) {
-            amrex::Abort("Automatic perturbations require perturbation_layers > 0");
+        if ((auto_mode || uniform_refresh_enabled(lev)) && tpi_layers == 0) {
+            amrex::Abort("Automatic perturbations and uniform CPM refresh require perturbation_layers > 0");
         }
         if (tpi_nonDim < zero) { amrex::Abort("Please provide a valid nondimensional number (ie. Ri = amrex::Real(0.042))"); }
         for (int i = 0; i < tpi_boxDim.size(); i++) {
@@ -301,7 +314,9 @@ struct TurbulentPerturbation {
             auto_mask.resize(num_levels);
             auto_next_update.resize(num_levels, -1.0);
             auto_ready.resize(num_levels, 0);
+            uniform_clock.resize(num_levels);
         }
+        uniform_clock[lev] = UniformClock{};
 
         pb_ba[lev] = tmp_ba;
 
@@ -385,6 +400,65 @@ struct TurbulentPerturbation {
     bool automatic_update_due (int lev, double time) const
     {
         return !auto_ready[lev] || time >= auto_next_update[lev];
+    }
+
+    bool uniform_refresh_enabled (int lev) const
+    {
+        return uniform_mode && (pt_type[lev] == 2 || pt_type[lev] == 3);
+    }
+
+    bool uniform_wind_update_due (int lev, double time) const
+    {
+        return time >= uniform_clock[lev].next_wind_update;
+    }
+
+    amrex::Real uniform_sampling_height () const { return uniform_height; }
+    amrex::Real uniform_sampling_period () const { return uniform_wind_period; }
+
+    bool uniform_sampling_face (int face) const
+    {
+        return tpi_direction[face < 2 ? face : face+1] != 0;
+    }
+
+    // speed is max(|mean u|, |mean v|) over the sampled edges. This is the
+    // existing CPM speed*cos(angle) correction, with one clock for the level.
+    void set_uniform_advection (int lev, double time, amrex::Real speed, double wind_period)
+    {
+        AMREX_ALWAYS_ASSERT(uniform_refresh_enabled(lev));
+        AMREX_ALWAYS_ASSERT(speed >= zero && std::isfinite(speed));
+        auto& clock = uniform_clock[lev];
+        clock.interval = speed > zero
+            ? double(tpi_layers) * double(std::min(tpi_Lpb[lev], tpi_Wpb[lev])) / double(speed)
+            : 0.0;
+        clock.next_refresh = time;
+        clock.next_wind_update = time + wind_period;
+        clock.apply = false;
+    }
+
+    double uniform_refresh_interval (int lev) const { return uniform_clock[lev].interval; }
+
+    // Called once per level step. No box scans or field clears between events;
+    // apply_tpi also checks this step's flag so stored increments cannot repeat.
+    bool calc_tpi_uniform_update (int lev, double time)
+    {
+        AMREX_ALWAYS_ASSERT(uniform_refresh_enabled(lev));
+        auto& clock = uniform_clock[lev];
+        clock.apply = false;
+        if ((auto_mode && !auto_ready[lev]) || clock.interval <= 0.0 ||
+            time < clock.next_refresh || pb_ba[lev].empty()) { return false; }
+
+        clock.next_refresh = time + clock.interval;
+        clock.apply = true;
+        pb_cell[lev].setVal(zero);
+        const auto m_ixtype = pb_cell[lev].ixType();
+        for (int b = 0; b < pb_ba[lev].size(); ++b) {
+            pb_interval[lev][b] = clock.interval / double(tpi_layers);
+            pb_local_etime[lev][b] = zero;
+            calc_tpi_amp(lev, b, pb_interval[lev][b]);
+            pseudoRandomPert(b, lev, m_ixtype);
+            ++pb_nupdate[lev][b];
+        }
+        return true;
     }
 
     // Refresh the parent controls without changing the perturbation boxes or
@@ -551,6 +625,7 @@ struct TurbulentPerturbation {
                     const amrex::Array4<amrex::Real const>& pert_cell,
                     const amrex::Real scale = one)
     {
+        if (uniform_refresh_enabled(lev) && !uniform_clock[lev].apply) { return; }
         for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
             amrex::Box pbx = amrex::convert(pb_ba[lev][boxIdx], m_ixtype);
             if (pt_type[lev] == 3) { pbx.setBig(2, pbx.bigEnd(2) - 1); } // prevent double counting after converting to k-faces
@@ -851,6 +926,17 @@ struct TurbulentPerturbation {
     amrex::Vector<amrex::MultiFab>  pb_cell;
 
   private:
+
+    struct UniformClock {
+        double interval = 0.0;
+        double next_refresh = -1.0;
+        double next_wind_update = -1.0;
+        bool apply = false;
+    };
+    bool uniform_mode{true};
+    amrex::Real uniform_height{amrex::Real(20)};
+    amrex::Real uniform_wind_period{amrex::Real(600)};
+    amrex::Vector<UniformClock> uniform_clock;
 
     bool auto_mode{false};
     amrex::Vector<amrex::Vector<amrex::Real>> pb_Ug; // CPM amplitude scale; independent of refresh winds

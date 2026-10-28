@@ -3394,9 +3394,10 @@ ERF::init_only (int lev, double elapsed_time)
     }
 
     // Initialize turbulent perturbation
-    // Automatic regions are first resolved in Advance, after the parent has advanced
-    // and its PBL scheme has supplied a height (also for delayed nests and restarts).
-    if (solverChoice.use_perturbation(lev) && !solverChoice.perturbation_auto) {
+    // Automatic controls and uniform refresh first sample winds in Advance,
+    // after initialization is complete (also for delayed nests and restarts).
+    if (solverChoice.use_perturbation(lev) && !solverChoice.perturbation_auto &&
+        !turbPert.uniform_refresh_enabled(lev)) {
         turbPert_update(lev, zero);
         if (solverChoice.use_wvel_perturbation(lev)) {
             turbPert_amplitude_w(lev);

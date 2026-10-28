@@ -172,7 +172,9 @@ One further family is documented on its own page rather than here:
   ``erf.perturbation_T_infinity``, ``erf.perturbation_T_intensity``,
   ``erf.perturbation_Ug``, ``erf.perturbation_w_amp``, ``erf.perturbation_klo``,
   ``erf.perturbation_khi``, ``erf.perturbation_auto``,
-  ``erf.perturbation_auto_period`` and ``erf.perturbation_auto_pbl_fraction`` -- are described in
+  ``erf.perturbation_auto_period``, ``erf.perturbation_auto_pbl_fraction``,
+  ``erf.perturbation_uniform_refresh``, ``erf.perturbation_refresh_height`` and
+  ``erf.perturbation_refresh_wind_period`` -- are described in
   :ref:`sec:InflowTurbulenceGeneration`.
 
 

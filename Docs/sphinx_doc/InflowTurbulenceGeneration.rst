@@ -254,8 +254,10 @@ edge-mean PBL height on a coarser level, as described below. Previous research
 has shown the optimum Eckert number to be 0.2 to
 quickly develop turbulence (`Muñoz-Esparza and Kosović (2018) <https://journals.ametsoc.org/view/journals/mwre/146/6/mwr-d-18-0077.1.xml>`_).
 
-The perturbation update interval depends on the advective time scale for flow
-through the perturbation boxes/cells:
+CPM and CPM_W use a shared refresh interval per level by default, as described
+under :ref:`sec:UniformCPMRefresh` below. With
+``erf.perturbation_uniform_refresh = false``, each box retains its own
+advective update interval:
 
 .. math::
 
@@ -263,6 +265,7 @@ through the perturbation boxes/cells:
 
 where :math:`\langle \theta(z) \rangle_{PB}` is the local wind direction and
 :math:`\langle U(z) \rangle_{PB}` is the local wind speed of the box/cell.
+This per-box mode also retains the existing plus/minus 10% timing variation.
 
 Below is an example of the input tags necessary for a simulation with CPM:
 
@@ -316,6 +319,81 @@ with an example also in ``Exec/RegTests/TurbulentInflow/``:
 
           erf.perturbation_klo = 1
           erf.perturbation_khi = 40
+
+.. _sec:UniformCPMRefresh:
+
+Uniform refresh for CPM and CPM_W
+--------------------------------
+
+``erf.perturbation_uniform_refresh = true`` is the default for CPM and CPM_W.
+All perturbation boxes on a level draw new random values together, using one
+advective interval for that level. Separate levels have separate clocks.
+The ``source`` and ``direct`` methods retain their per-box timing.
+Set the flag to ``false`` to restore the previous CPM/CPM_W timing.
+
+.. list-table:: Uniform refresh inputs
+   :header-rows: 1
+   :widths: 42 12 46
+
+   * - Input
+     - Default
+     - Meaning
+   * - ``erf.perturbation_uniform_refresh``
+     - ``true``
+     - Use one refresh clock per CPM/CPM_W level, without per-box timing jitter.
+   * - ``erf.perturbation_refresh_height``
+     - ``20.0``
+     - Wind-sampling height in metres AGL when ``perturbation_auto = false``; must be positive.
+   * - ``erf.perturbation_refresh_wind_period``
+     - ``600.0``
+     - Seconds between timing-wind samples when ``perturbation_auto = false``; must be positive. This is not the perturbation refresh interval.
+
+In automatic mode, the timing wind is sampled at **0.05 times each active
+edge's mean PBL height**, in metres AGL. ERF chooses the finest coarser level
+covering that height along the entire edge, starting with the immediate parent.
+These winds are resampled with the other automatic controls, using
+``perturbation_auto_period`` (600 seconds by default).
+
+In idealized or other manual cases, the timing wind comes from the receiving
+level at ``perturbation_refresh_height``. This also works on level 0 and does
+not require a PBL diagnostic. Sampling uses a one-column strip along each
+configured lateral perturbation edge, inset by ``perturbation_offset``.
+The nest must reach the ground and contain the sampling height along those
+edges. The height is independent of ``perturbation_klo`` and
+``perturbation_khi``. Wind interpolation and averaging use the same method as
+the automatic wind sampler.
+
+Let :math:`\bar u_e,\bar v_e` be the horizontally averaged wind components at
+the sampling height on edge :math:`e`. The shared refresh interval is
+
+.. math::
+
+   S = \max_e\left(\max(|\bar u_e|,|\bar v_e|)\right),
+   \qquad
+   t_{\mathrm{refresh}} =
+     \frac{\min(N_x\Delta x,N_y\Delta y)\,\mathrm{num\_layers}}{S}.
+
+This retains the existing CPM box-size, layer-count and wind-angle scaling;
+the fastest sampled edge determines the interval for the whole level.
+For example, 800 m boxes, three layers and :math:`S=5` m/s give 480 seconds.
+The first refresh occurs on the first advance, including for a delayed nest.
+Later refreshes occur on the first time step at or after the shared deadline,
+and the next deadline is measured from that refresh. Each wind-control update
+starts a new shared cycle immediately. Regrids and restarts initialize fresh
+clocks. When all sampled winds are calm, no increments are applied; wind
+sampling continues on its control period so perturbations can resume.
+
+Between refreshes, ERF skips perturbation-box scans, forcing-field clearing,
+and perturbation application. Stored increments are applied only on a refresh
+step. CPM still determines its amplitude from ``perturbation_Ug`` or the
+automatic wind at 1.1 times PBLH, and CPM_W still uses ``perturbation_w_amp``.
+The near-surface timing wind does not change either amplitude formula.
+
+For an idealized case, the defaults can be written explicitly as::
+
+          erf.perturbation_uniform_refresh = true
+          erf.perturbation_refresh_height = 20.0
+          erf.perturbation_refresh_wind_period = 600.0
 
 Automatic perturbations on LES nests
 -----------------------------------
@@ -403,7 +481,7 @@ vertical-velocity faces for ``CPM_W``. Thus the cutoff follows the nest's local
 terrain and can cut through a perturbation box. Shared corners receive one
 increment; they are active if either adjoining edge permits perturbations.
 Where a box intersects two active edges, the larger lower-PBL wind speed sets
-its refresh interval and its ``source``/``direct`` amplitude. For ``CPM``, the
+its per-box refresh interval (when used) and its ``source``/``direct`` amplitude. For ``CPM``, the
 larger above-PBL wind scale sets its amplitude.
 
 For ``CPM``, ERF obtains ``Ug`` by sampling horizontal wind at **1.1 times the
@@ -430,8 +508,10 @@ or restarting also forces a fresh control update on the next advance.
 Afterward, the controls are recomputed on the first nest time step at or after
 the update period has elapsed since the previous control update (600 seconds
 by default).
-The individual perturbation boxes continue to draw new random values on their
-existing advective intervals between these updates. At a control update, ERF
+Between control updates, CPM/CPM_W boxes draw new random values on their shared
+clock by default; with uniform refresh disabled, they use their individual
+advective intervals. The ``source`` and ``direct`` methods also retain their
+individual intervals. At a control update, ERF
 clears the previous forcing and regenerates it under the new controls. Calm
 edges are disabled and can become active at a later update. This clears stored
 forcing; perturbations already advected into the solution continue to evolve.

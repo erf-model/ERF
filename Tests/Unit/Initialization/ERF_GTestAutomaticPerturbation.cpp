@@ -165,6 +165,7 @@ TEST(AutomaticPerturbationWind, CPMAmplitudeUsesAbovePBLWindIndependentlyOfAdvec
     state.setVal(zero); u.setVal(zero); v.setVal(zero);
     const std::string prefix = "test_auto_cpm_Ug";
     ParmParse pp(prefix);
+    pp.add("perturbation_uniform_refresh", false);
     pp.addarr("perturbation_box_dims", Vector<int>{3,3,3});
     pp.add("perturbation_layers", 1);
     pp.add("perturbation_offset", 0);
@@ -234,6 +235,7 @@ TEST_P(AutomaticPerturbation, UpdatesEdgesHeightAndCalmWinds)
     const Vector<BoxArray> subdomains{BoxArray(domain)};
     const std::string prefix = "test_auto_perturbation_" + std::to_string(static_cast<int>(type));
     ParmParse pp(prefix);
+    pp.add("perturbation_uniform_refresh", false);
     pp.addarr("perturbation_box_dims", Vector<int>{3,3,3});
     pp.add("perturbation_layers", 1);
     pp.add("perturbation_offset", 0);
@@ -296,6 +298,158 @@ TEST_P(AutomaticPerturbation, UpdatesEdgesHeightAndCalmWinds)
             const Real tolerance = Real(256)*real_eps
                                  * std::max(one, pert.pb_cell[1].norm1());
             EXPECT_NEAR(pert.pb_cell[1].sum(0), zero, tolerance);
+        }
+    }
+}
+
+void check_uniform_application (TurbulentPerturbation& pert, int lev, bool active)
+{
+    const auto& stored = pert.pb_cell[lev];
+    MultiFab applied(stored.boxArray(), stored.DistributionMap(), 1, 0);
+    applied.setVal(zero);
+    for (MFIter mfi(applied); mfi.isValid(); ++mfi) {
+        pert.apply_tpi(lev, mfi.validbox(), pert.pt_type[lev] == 3 ? -1 : 0,
+                       applied.ixType(), applied.array(mfi), stored.const_array(mfi));
+    }
+    if (active) { MultiFab::Subtract(applied, stored, 0, 0, 1, 0); }
+    EXPECT_EQ(applied.norm0(), zero);
+}
+
+TEST(UniformCPMRefresh, DelayedStartIdleStepsCalmRecoveryAndRegrid)
+{
+    const Box domain(IntVect(0), IntVect(11));
+    const RealBox physical({0.,0.,0.}, {24.,24.,24.});
+    const int periodic[3] = {0,0,0};
+    const Geometry geom(domain, &physical, 0, periodic);
+    BoxArray ba(domain); ba.maxSize(6);
+    const DistributionMapping dm(ba);
+    for (const auto type : {PerturbationType::CPM, PerturbationType::CPM_W}) {
+        for (const bool automatic : {false, true}) {
+            SCOPED_TRACE(::testing::Message() << "type=" << static_cast<int>(type)
+                                             << " automatic=" << automatic);
+            const int lev = automatic ? 1 : 0;
+            const std::string prefix = "test_uniform_" + std::to_string(static_cast<int>(type))
+                                     + "_" + std::to_string(automatic);
+            ParmParse pp(prefix);
+            // Deliberately omit the flag: uniform refresh must be the default.
+            pp.addarr("perturbation_box_dims", Vector<int>{3,3,3});
+            pp.addarr("perturbation_direction", Vector<int>{1,0,0,0,0,0});
+            pp.add("perturbation_layers", 2);
+            pp.add("perturbation_offset", 0);
+            pp.add("perturbation_Ug", Real(10));
+            pp.add("perturbation_w_amp", one);
+            TurbulentPerturbation pert;
+            pert.init_tpi_type(lev, type, 1);
+            const auto initialize = [&](double time) {
+                pert.init_tpi(lev, Vector<BoxArray>{BoxArray(domain)}, geom.CellSizeArray(),
+                              ba, dm, 0, prefix, Vector<IntVect>{IntVect(2)}, 1, automatic);
+                if (automatic) {
+                    Vector<AutomaticPerturbationFace> faces(1);
+                    faces[0].region = pert.automatic_face_box(domain, 0);
+                    faces[0].u = two;
+                    faces[0].Ug = Real(10);
+                    faces[0].height = Real(16);
+                    pert.configure_automatic(lev, time, 600., faces, geom, nullptr, nullptr, nullptr);
+                }
+            };
+            initialize(3700.);
+            EXPECT_TRUE(pert.uniform_refresh_enabled(lev));
+            EXPECT_EQ(pert.uniform_sampling_height(), Real(20));
+            EXPECT_TRUE(pert.uniform_wind_update_due(lev, 3700.));
+            // Two 6 m boxes at an advection speed of 2 m/s take 6 seconds.
+            pert.set_uniform_advection(lev, 3700., two, 600.);
+            EXPECT_EQ(pert.uniform_refresh_interval(lev), 6.);
+            EXPECT_TRUE(pert.calc_tpi_uniform_update(lev, 3700.));
+            EXPECT_GT(pert.pb_cell[lev].norm0(), zero);
+            check_uniform_application(pert, lev, true);
+            MultiFab previous(pert.pb_cell[lev].boxArray(), dm, 1, 0);
+            MultiFab::Copy(previous, pert.pb_cell[lev], 0, 0, 1, 0);
+            for (const double time : {3700.25, 3701., 3705.875}) {
+                EXPECT_FALSE(pert.calc_tpi_uniform_update(lev, time));
+                // Nonzero stored increments must not be applied again.
+                EXPECT_GT(pert.pb_cell[lev].norm0(), zero);
+                check_uniform_application(pert, lev, false);
+            }
+            EXPECT_TRUE(pert.calc_tpi_uniform_update(lev, 3706.));
+            check_uniform_application(pert, lev, true);
+            MultiFab::Subtract(previous, pert.pb_cell[lev], 0, 0, 1, 0);
+            EXPECT_GT(previous.norm0(), zero);
+            EXPECT_FALSE(pert.uniform_wind_update_due(lev, 4299.));
+            EXPECT_TRUE(pert.uniform_wind_update_due(lev, 4300.));
+            pert.set_uniform_advection(lev, 4300., zero, 600.);
+            EXPECT_FALSE(pert.calc_tpi_uniform_update(lev, 4300.));
+            check_uniform_application(pert, lev, false);
+            EXPECT_TRUE(pert.uniform_wind_update_due(lev, 4900.));
+            pert.set_uniform_advection(lev, 4900., four, 600.);
+            EXPECT_EQ(pert.uniform_refresh_interval(lev), 3.);
+            EXPECT_TRUE(pert.calc_tpi_uniform_update(lev, 4900.));
+            check_uniform_application(pert, lev, true);
+            // Same-size regrids must discard the old shared clock too.
+            initialize(4901.);
+            EXPECT_TRUE(pert.uniform_wind_update_due(lev, 4901.));
+            EXPECT_FALSE(pert.calc_tpi_uniform_update(lev, 4901.));
+            pert.set_uniform_advection(lev, 4901., two, 600.);
+            EXPECT_TRUE(pert.calc_tpi_uniform_update(lev, 4901.));
+        }
+    }
+}
+
+TEST(UniformCPMRefresh, LevelsKeepIndependentClocks)
+{
+    const Box domain(IntVect(0), IntVect(11));
+    const BoxArray ba(domain);
+    const DistributionMapping dm(ba);
+    const std::string prefix = "test_uniform_level_clocks";
+    ParmParse pp(prefix);
+    pp.addarr("perturbation_box_dims", Vector<int>{3,3,3});
+    pp.addarr("perturbation_direction", Vector<int>{1,0,0,0,0,0});
+    pp.add("perturbation_layers", 1);
+    pp.add("perturbation_offset", 0);
+    pp.add("perturbation_w_amp", one);
+    TurbulentPerturbation pert;
+    for (int lev = 0; lev < 2; ++lev) {
+        pert.init_tpi_type(lev, PerturbationType::CPM_W, 1);
+        const Real dx = lev == 0 ? one : myhalf;
+        pert.init_tpi(lev, Vector<BoxArray>{ba}, GpuArray<Real,3>{dx,dx,dx},
+                      ba, dm, 0, prefix, Vector<IntVect>{IntVect(2)}, 1);
+        pert.set_uniform_advection(lev, 3600. + lev, one, 600.);
+        EXPECT_TRUE(pert.calc_tpi_uniform_update(lev, 3600. + lev));
+    }
+    EXPECT_EQ(pert.uniform_refresh_interval(0), 3.);
+    EXPECT_EQ(pert.uniform_refresh_interval(1), 1.5);
+    EXPECT_FALSE(pert.calc_tpi_uniform_update(0, 3602.5));
+    EXPECT_TRUE(pert.calc_tpi_uniform_update(1, 3602.5));
+    EXPECT_TRUE(pert.calc_tpi_uniform_update(0, 3603.));
+    EXPECT_FALSE(pert.calc_tpi_uniform_update(1, 3603.));
+}
+
+TEST(AutomaticPerturbationWind, SamplesTwentyMetresOnEveryEdge)
+{
+    const Box domain(IntVect(0), IntVect(11));
+    const RealBox physical({0.,0.,0.}, {24.,24.,24.});
+    const int periodic[3] = {0,0,0};
+    const Geometry geom(domain, &physical, 0, periodic);
+    BoxArray ba(domain); ba.maxSize(6);
+    const DistributionMapping dm(ba);
+    MultiFab state(ba, dm, 1, 0);
+    MultiFab u(convert(ba, IntVect(1,0,0)), dm, 1, 0);
+    MultiFab v(convert(ba, IntVect(0,1,0)), dm, 1, 0);
+    MultiFab zcc(ba, dm, 1, 0);
+    MultiFab znd(convert(ba, IntVect::TheNodeVector()), dm, 1, 0);
+    for (const bool terrain : {false, true}) {
+        fill_sampling_profile(u, v, zcc, znd, 0, terrain);
+        for (int face = 0; face < 4; ++face) {
+            SCOPED_TRACE(::testing::Message() << "terrain=" << terrain << " face=" << face);
+            Box edge = domain;
+            edge.setRange(face%2, face < 2 ? 0 : 11);
+            const auto wind = sample_perturbation_wind(edge, Real(20), geom, state, u, v,
+                                                      terrain ? &zcc : nullptr, terrain ? &znd : nullptr);
+            EXPECT_TRUE(wind.complete);
+            const Real mean_i = myhalf * (edge.smallEnd(0) + edge.bigEnd(0));
+            const Real mean_j = myhalf * (edge.smallEnd(1) + edge.bigEnd(1));
+            const Real tolerance = Real(256)*real_eps*Real(20);
+            EXPECT_NEAR(wind.u, four + Real(0.01)*mean_i, tolerance);
+            EXPECT_NEAR(wind.v, Real(0.02)*mean_j, tolerance);
         }
     }
 }

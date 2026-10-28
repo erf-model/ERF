@@ -298,6 +298,9 @@ ERF::turbPert_update_automatic (int lev, double time)
         ParallelAllReduce::Sum(sums.data(), static_cast<int>(sums.size()), ParallelContext::CommunicatorSub());
     }
     static constexpr const char* names[] = {"xlo", "ylo", "xhi", "yhi"};
+    const bool uniform_refresh = turbPert.uniform_refresh_enabled(lev);
+    const bool sample_Ug = solverChoice.pert_type[lev] == PerturbationType::CPM;
+    Real refresh_speed = zero;
     for (int f = 0; f < faces.size(); ++f) {
         Box footprint = sample_boxes[f];
         footprint.setRange(2, pklo);
@@ -316,7 +319,10 @@ ERF::turbPert_update_automatic (int lev, double time)
         faces[f].height = fraction * sums[nsum*f+3] / count;
         int Ug_level = -1;
         const Real Ug_height = Real(1.1) * sums[nsum*f+3] / count;
-        if (solverChoice.pert_type[lev] == PerturbationType::CPM && faces[f].inflow()) {
+        int refresh_level = -1;
+        const Real refresh_height = Real(0.05) * sums[nsum*f+3] / count;
+        PerturbationWindSample refresh_wind;
+        if ((sample_Ug || uniform_refresh) && faces[f].inflow()) {
             // Use one sampling height and one source level for the whole edge.
             // A shallow LES parent can fall back to a deeper ancestor.
             const Box nest = subdomains[lev][subdomain_ids[f]].minimalBox();
@@ -328,22 +334,39 @@ ERF::turbPert_update_automatic (int lev, double time)
                 sample.setRange(dir, faces[f].face < 2 ? sample.smallEnd(dir) : sample.bigEnd(dir));
                 sample.setSmall(2, geom[source].Domain().smallEnd(2));
                 sample.setBig(2, geom[source].Domain().bigEnd(2));
-                const auto wind = sample_perturbation_wind(sample, Ug_height, geom[source],
-                    vars_new[source][Vars::cons], vars_new[source][Vars::xvel], vars_new[source][Vars::yvel],
-                    z_phys_cc[source].get(), z_phys_nd[source].get());
-                if (wind.complete) {
-                    faces[f].Ug = std::hypot(wind.u, wind.v);
-                    Ug_level = source;
-                    break;
+                if (sample_Ug && Ug_level < 0) {
+                    const auto wind = sample_perturbation_wind(sample, Ug_height, geom[source],
+                        vars_new[source][Vars::cons], vars_new[source][Vars::xvel], vars_new[source][Vars::yvel],
+                        z_phys_cc[source].get(), z_phys_nd[source].get());
+                    if (wind.complete) {
+                        faces[f].Ug = std::hypot(wind.u, wind.v);
+                        Ug_level = source;
+                    }
                 }
+                if (uniform_refresh && refresh_level < 0) {
+                    refresh_wind = sample_perturbation_wind(sample, refresh_height, geom[source],
+                        vars_new[source][Vars::cons], vars_new[source][Vars::xvel], vars_new[source][Vars::yvel],
+                        z_phys_cc[source].get(), z_phys_nd[source].get());
+                    if (refresh_wind.complete) { refresh_level = source; }
+                }
+                if ((!sample_Ug || Ug_level >= 0) && (!uniform_refresh || refresh_level >= 0)) { break; }
             }
-            if (Ug_level < 0) {
+            if (sample_Ug && Ug_level < 0) {
                 Abort("Automatic CPM perturbations: no coarser level supplied complete wind samples "
                       "at 1.1 * mean PBLH (" +
                       std::to_string(Ug_height) + " m AGL) along " + names[faces[f].face] +
                       " of level " + std::to_string(lev) +
                       ". Check sampling coverage and terrain heights; "
                       "this does not necessarily mean the domain is too shallow.");
+            }
+            if (uniform_refresh) {
+                if (refresh_level < 0) {
+                    Abort("Uniform CPM refresh: no coarser level supplied complete wind samples "
+                          "at 0.05 * mean PBLH (" + std::to_string(refresh_height) +
+                          " m AGL) along " + names[faces[f].face] + " of level " + std::to_string(lev));
+                }
+                refresh_speed = std::max(refresh_speed,
+                    std::max(std::abs(refresh_wind.u), std::abs(refresh_wind.v)));
             }
         }
         if (verbose > 0) {
@@ -357,6 +380,11 @@ ERF::turbPert_update_automatic (int lev, double time)
                 Print() << " Ug_level=" << Ug_level << " Ug_height_agl=" << Ug_height
                         << " m Ug=" << faces[f].Ug << " m/s";
             }
+            if (uniform_refresh) {
+                Print() << " refresh_wind_level=" << refresh_level
+                        << " refresh_height_agl=" << refresh_height << " m"
+                        << " refresh_u=" << refresh_wind.u << " refresh_v=" << refresh_wind.v << " m/s";
+            }
             Print() << "\n";
         }
     }
@@ -364,8 +392,57 @@ ERF::turbPert_update_automatic (int lev, double time)
     auto fine_ground = perturbation_ground(z_phys_nd[lev].get(), vars_old[lev][Vars::cons], geom[lev]);
     turbPert.configure_automatic(lev, time, solverChoice.perturbation_auto_period, faces, geom[lev],
                                  z_phys_cc[lev].get(), z_phys_nd[lev].get(), fine_ground.get());
+    if (uniform_refresh) {
+        turbPert.set_uniform_advection(lev, time, refresh_speed, solverChoice.perturbation_auto_period);
+        if (verbose > 0) {
+            Print() << "Uniform CPM refresh: time=" << time << " level=" << lev
+                    << " advection_speed=" << refresh_speed << " m/s"
+                    << " interval=" << turbPert.uniform_refresh_interval(lev) << " s"
+                    << " active=" << (refresh_speed > zero) << "\n";
+        }
+    }
     // The mask kernels read the temporary ground slabs.
     Gpu::streamSynchronize();
+}
+
+// Idealized/manual CPM uses the receiving level, including level 0. Sampling
+// has a separate clock so a calm flow can recover without scanning each step.
+void
+ERF::turbPert_update_uniform_wind (int lev, double time)
+{
+    if (!turbPert.uniform_wind_update_due(lev, time)) { return; }
+    BL_PROFILE("ERF::turbPert_update_uniform_wind()");
+    const Real height = turbPert.uniform_sampling_height();
+    Real speed = zero;
+    for (const auto& subdomain : subdomains[lev]) {
+        const Box nest = subdomain.minimalBox();
+        if (nest.smallEnd(2) != geom[lev].Domain().smallEnd(2)) {
+            Abort("Uniform CPM refresh requires nests that reach the ground");
+        }
+        for (int face = 0; face < 4; ++face) {
+            if (!turbPert.uniform_sampling_face(face)) { continue; }
+            Box edge = turbPert.automatic_face_box(nest, face);
+            if (!edge.ok()) { continue; }
+            const int dir = face % 2;
+            edge.setRange(dir, face < 2 ? edge.smallEnd(dir) : edge.bigEnd(dir));
+            const auto wind = sample_perturbation_wind(edge, height, geom[lev],
+                vars_old[lev][Vars::cons], vars_old[lev][Vars::xvel], vars_old[lev][Vars::yvel],
+                z_phys_cc[lev].get(), z_phys_nd[lev].get());
+            if (!wind.complete) {
+                Abort("Uniform CPM refresh: level " + std::to_string(lev) +
+                      " cannot sample every edge column at perturbation_refresh_height = " +
+                      std::to_string(height) + " m AGL");
+            }
+            speed = std::max(speed, std::max(std::abs(wind.u), std::abs(wind.v)));
+        }
+    }
+    turbPert.set_uniform_advection(lev, time, speed, turbPert.uniform_sampling_period());
+    if (verbose > 0) {
+        Print() << "Uniform CPM refresh: time=" << time << " level=" << lev
+                << " height_agl=" << height << " m advection_speed=" << speed << " m/s"
+                << " interval=" << turbPert.uniform_refresh_interval(lev) << " s"
+                << " active=" << (speed > zero) << "\n";
+    }
 }
 
 /**
