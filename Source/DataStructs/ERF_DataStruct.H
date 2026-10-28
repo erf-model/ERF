@@ -2658,8 +2658,8 @@ struct SolverChoice {
     // Type of perturbation
     amrex::Vector<PerturbationType> pert_type;
     bool perturbation_auto{false};
-    amrex::Real perturbation_auto_period{600.0}; // seconds between parent-based updates
-    amrex::Real perturbation_auto_pbl_fraction{0.9};
+    amrex::Real perturbation_auto_period{amrex::Real(600.0)}; // seconds between parent-based updates
+    amrex::Real perturbation_auto_pbl_fraction{amrex::Real(0.9)};
 
     // Numerical diffusion
     bool use_num_diff{false};

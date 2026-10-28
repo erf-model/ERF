@@ -249,8 +249,9 @@ where :math:`U_g` is the geostrophic wind speed and :math:`Ec` is the Eckert
 number. The geostrophic wind speed can be considered the large-scale forcing.
 In manual mode, this value is prescribed by the user (``erf.perturbation_Ug``) and
 should represent the wind speed above the boundary layer and in the free
-atmosphere. Automatic mode instead uses a parent boundary-layer wind speed as
-described below. Previous research has shown the optimum Eckert number to be 0.2 to
+atmosphere. Automatic mode instead samples the horizontal wind at 1.1 times the
+edge-mean PBL height on a coarser level, as described below. Previous research
+has shown the optimum Eckert number to be 0.2 to
 quickly develop turbulence (`Muñoz-Esparza and Kosović (2018) <https://journals.ametsoc.org/view/journals/mwre/146/6/mwr-d-18-0077.1.xml>`_).
 
 The perturbation update interval depends on the advective time scale for flow
@@ -320,7 +321,7 @@ Automatic perturbations on LES nests
 -----------------------------------
 
 Set ``erf.perturbation_auto = true`` to obtain the active inflow edges and
-horizontal wind scale from each nest's immediate parent, and the height limit
+advective wind scale from each nest's immediate parent, and the height limit
 from its finest ancestor using a PBL scheme. This defaults
 to ``true`` for ``erf.init_type = WRFInput`` or ``Metgrid`` and ``false`` for
 other initialization types. An explicit ``erf.perturbation_auto = false``
@@ -401,15 +402,26 @@ point lies above local ground and at or below this cutoff: cell centers for ther
 vertical-velocity faces for ``CPM_W``. Thus the cutoff follows the nest's local
 terrain and can cut through a perturbation box. Shared corners receive one
 increment; they are active if either adjoining edge permits perturbations.
-Where a box intersects two active edges, the larger parent wind speed sets its
-amplitude and refresh interval.
+Where a box intersects two active edges, the larger lower-PBL wind speed sets
+its refresh interval and its ``source``/``direct`` amplitude. For ``CPM``, the
+larger above-PBL wind scale sets its amplitude.
 
-For ``CPM``, the magnitude of the averaged parent wind replaces
-``perturbation_Ug`` in the amplitude formula. This is a boundary-layer wind
-scale, not a diagnosed geostrophic wind. ``source`` and ``direct`` also use the
-parent wind for their existing amplitude and refresh formulas. ``CPM_W`` uses
-the parent wind for edge selection and refresh timing, while its vertical
-velocity amplitude still comes from ``perturbation_w_amp``.
+For ``CPM``, ERF obtains ``Ug`` by sampling horizontal wind at **1.1 times the
+edge-mean PBL height**, in metres AGL. It first tries the immediate parent and
+then successively coarser levels, choosing the finest ancestor whose grids
+cover that height in every sampled column along the edge. The PBL height still
+comes from the finest ancestor with a PBL scheme. If no coarser level covers
+the target height, automatic CPM stops with an error.
+
+On the selected level, ERF linearly interpolates cell-centred ``u`` and ``v``
+to the target height in each column, averages each component along the edge,
+and sets ``Ug = sqrt(mean(u)^2 + mean(v)^2)``. It uses the nearest cell centre
+within the bottom or top half-cell, and never extrapolates outside the
+available grid. This above-PBL wind estimate replaces ``perturbation_Ug`` in
+the CPM amplitude formula. It is independent of the lower-PBL wind used for
+inflow selection and advective refresh timing. ``source`` and ``direct`` retain
+the lower-PBL parent wind for their existing amplitude and refresh formulas.
+``CPM_W`` retains ``perturbation_w_amp`` for its vertical-velocity amplitude.
 
 The controls are recomputed on the first nest time step at or after the update
 period has elapsed since the previous control update (600 seconds by default).
@@ -449,3 +461,6 @@ does not reproduce an uninterrupted random sequence.
 Set ``erf.v = 1`` to log each control update's time, wind-parent level
 (``parent``), PBL-height source level (``pbl_level``), edge, inflow selection,
 mean wind and height cutoff in metres AGL.
+For ``CPM``, the log also reports the wind source level (``Ug_level``), target
+height (``Ug_height_agl``), and sampled speed (``Ug``). An inactive edge has
+``Ug_level = -1`` because it does not need an amplitude sample.

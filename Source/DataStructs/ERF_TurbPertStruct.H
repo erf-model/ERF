@@ -27,6 +27,7 @@ struct AutomaticPerturbationFace {
     int face = 0;
     amrex::Real u = zero;
     amrex::Real v = zero;
+    amrex::Real Ug = zero; // CPM wind scale sampled above the PBL
     amrex::Real height = zero; // perturbation ceiling, metres above local terrain
 
     bool inflow () const {
@@ -285,6 +286,7 @@ struct TurbulentPerturbation {
         if (pb_ba.size() < num_levels) {
             pb_ba.resize(num_levels);
             pb_mag.resize(num_levels);
+            pb_Ug.resize(num_levels);
             pb_dir.resize(num_levels);
             pb_netZero.resize(num_levels);
             pb_interval.resize(num_levels);
@@ -305,6 +307,7 @@ struct TurbulentPerturbation {
 
         // Initializing mean magnitude and direction vectors
         pb_mag[lev].resize(pb_ba[lev].size(), zero);
+        pb_Ug[lev].resize(pb_ba[lev].size(), zero);
         pb_dir[lev].resize(pb_ba[lev].size(), zero);
         pb_netZero[lev].resize(pb_ba[lev].size(), zero);
 
@@ -396,6 +399,7 @@ struct TurbulentPerturbation {
         auto_mask[lev].setVal(zero);
         pb_cell[lev].setVal(zero);
         pb_mag[lev].assign(pb_ba[lev].size(), zero);
+        pb_Ug[lev].assign(pb_ba[lev].size(), zero);
         pb_dir[lev].assign(pb_ba[lev].size(), zero);
         const bool on_w_faces = (pt_type[lev] == 3);
         const bool terrain = (z_cc != nullptr);
@@ -408,6 +412,7 @@ struct TurbulentPerturbation {
             const amrex::Real speed = std::hypot(face.u, face.v);
             for (const auto& isect : pb_ba[lev].intersections(face.region)) {
                 const int b = isect.first;
+                pb_Ug[lev][b] = std::max(pb_Ug[lev][b], face.Ug);
                 if (speed > pb_mag[lev][b]) {
                     pb_mag[lev][b] = speed;
                     pb_dir[lev][b] = std::atan2(std::abs(face.u), std::abs(face.v));
@@ -423,13 +428,13 @@ struct TurbulentPerturbation {
                 const auto nd = terrain ? z_nd->const_array(mfi) : amrex::Array4<const amrex::Real>{};
                 const auto ground = terrain ? z_ground->const_array(mfi) : amrex::Array4<const amrex::Real>{};
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    amrex::Real z = problo[2] + (k-klo + (on_w_faces ? zero : amrex::Real(0.5)))*dx[2];
+                    amrex::Real z = problo[2] + (k-klo + (on_w_faces ? zero : myhalf))*dx[2];
                     amrex::Real zs = problo[2];
                     if (terrain) {
-                        zs = amrex::Real(0.25)*(ground(i,j,klo) + ground(i+1,j,klo) +
-                                               ground(i,j+1,klo) + ground(i+1,j+1,klo));
-                        z = on_w_faces ? amrex::Real(0.25)*(nd(i,j,k) + nd(i+1,j,k) +
-                                                          nd(i,j+1,k) + nd(i+1,j+1,k))
+                        zs = fourth*(ground(i,j,klo) + ground(i+1,j,klo) +
+                                     ground(i,j+1,klo) + ground(i+1,j+1,klo));
+                        z = on_w_faces ? fourth*(nd(i,j,k) + nd(i+1,j,k) +
+                                                 nd(i,j+1,k) + nd(i+1,j+1,k))
                                        : cc(i,j,k);
                     }
                     if (z > zs && z-zs <= height) { mask(i,j,k) = one; }
@@ -581,9 +586,9 @@ struct TurbulentPerturbation {
     {
         pb_amp[lev][boxIdx] = zero; // Safety step
         if (pt_type[lev] == 2) { // CPM
-            amrex::Real cp = 1004; // specific heat of air [J/(kg K)]
-            amrex::Real Ec = amrex::Real(0.2); // Eckert number
-            const amrex::Real Ug = auto_mode ? pb_mag[lev][boxIdx] : input_Ug;
+            constexpr amrex::Real cp = amrex::Real(1004); // specific heat of air [J/(kg K)]
+            constexpr amrex::Real Ec = amrex::Real(0.2); // Eckert number
+            const amrex::Real Ug = auto_mode ? pb_Ug[lev][boxIdx] : input_Ug;
             pb_amp[lev][boxIdx] = (Ug * Ug) / (Ec * cp);
         } else if (pt_type[lev] == 3) {
             pb_amp[lev][boxIdx] = input_w_amp;
@@ -848,6 +853,7 @@ struct TurbulentPerturbation {
   private:
 
     bool auto_mode{false};
+    amrex::Vector<amrex::Vector<amrex::Real>> pb_Ug; // CPM amplitude scale; independent of refresh winds
     amrex::Vector<amrex::MultiFab> auto_mask;
     amrex::Vector<double> auto_next_update;
     amrex::Vector<bool> auto_ready;

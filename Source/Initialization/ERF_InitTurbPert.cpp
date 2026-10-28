@@ -3,6 +3,7 @@
  */
 #include <ERF.H>
 #include <ERF_TerrainSurfaceSlab.H>
+#include <ERF_PerturbationWind.H>
 #include <AMReX_MultiFabUtil.H>
 #include <ERF_TileNoZ.H>
 #include <ERF_ProbCommon.H>
@@ -25,6 +26,105 @@ perturbation_ground (const MultiFab* z_nd, const MultiFab& state, const Geometry
 }
 
 } // namespace
+
+PerturbationWindSample
+sample_perturbation_wind (const Box& region, Real height_agl,
+                         const Geometry& geometry, const MultiFab& state,
+                         const MultiFab& xvel, const MultiFab& yvel,
+                         const MultiFab* z_cc, const MultiFab* z_nd)
+{
+    // Keep only the edge strip, with the source grids' ownership. A vertical
+    // halo exchanges cell-centred winds/heights across stacked boxes without
+    // allocating a full-volume copy or depending on source ghost values.
+    BoxList boxes;
+    Vector<int> source_indices, owners;
+    const auto& source_ba = state.boxArray();
+    const auto& source_owners = state.DistributionMap().ProcessorMap();
+    for (int b = 0; b < source_ba.size(); ++b) {
+        const Box bx = source_ba[b] & region;
+        if (!bx.ok()) { continue; }
+        boxes.push_back(bx);
+        source_indices.push_back(b);
+        owners.push_back(source_owners[b]);
+    }
+    if (boxes.isEmpty()) { return {}; }
+    const BoxArray ba(boxes);
+    const DistributionMapping dm(owners);
+    // Components are u, v, cell-centre height, bottom height, top height (AGL).
+    MultiFab samples(ba, dm, 5, IntVect(0,0,1));
+    samples.setVal(bogus_large_value);
+    const int klo = geometry.Domain().smallEnd(2);
+    const auto dx = geometry.CellSizeArray();
+    auto ground = perturbation_ground(z_nd, samples, geometry);
+    for (MFIter mfi(samples); mfi.isValid(); ++mfi) {
+        const int src = source_indices[mfi.index()];
+        const auto ua = xvel.const_array(src);
+        const auto va = yvel.const_array(src);
+        const auto cc = z_cc ? z_cc->const_array(src) : Array4<const Real>{};
+        const auto nd = z_nd ? z_nd->const_array(src) : Array4<const Real>{};
+        const auto ga = ground ? ground->const_array(mfi) : Array4<const Real>{};
+        const auto a = samples.array(mfi);
+        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            Real zlo = (k-klo)*dx[2];
+            Real zhi = zlo + dx[2];
+            Real z = myhalf*(zlo+zhi);
+            if (nd) {
+                const Real zs = fourth*(ga(i,j,klo) + ga(i+1,j,klo) +
+                                        ga(i,j+1,klo) + ga(i+1,j+1,klo));
+                zlo = fourth*(nd(i,j,k) + nd(i+1,j,k) +
+                              nd(i,j+1,k) + nd(i+1,j+1,k)) - zs;
+                zhi = fourth*(nd(i,j,k+1) + nd(i+1,j,k+1) +
+                              nd(i,j+1,k+1) + nd(i+1,j+1,k+1)) - zs;
+                z = cc ? cc(i,j,k) - zs : myhalf*(zlo+zhi);
+            }
+            a(i,j,k,0) = myhalf*(ua(i,j,k)+ua(i+1,j,k));
+            a(i,j,k,1) = myhalf*(va(i,j,k)+va(i,j+1,k));
+            a(i,j,k,2) = z;
+            a(i,j,k,3) = zlo;
+            a(i,j,k,4) = zhi;
+        });
+    }
+    samples.FillBoundary(geometry.periodicity());
+
+    Real sums[3] = {zero, zero, zero};
+    for (MFIter mfi(samples); mfi.isValid(); ++mfi) {
+        const auto a = samples.const_array(mfi);
+        ReduceOps<ReduceOpSum, ReduceOpSum, ReduceOpSum> op;
+        ReduceData<Real, Real, Real> data(op);
+        using Tuple = typename decltype(data)::Type;
+        op.eval(mfi.validbox(), data, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> Tuple {
+            const Real z = a(i,j,k,2);
+            const Real znext = a(i,j,k+1,2);
+            Real u = a(i,j,k,0);
+            Real v = a(i,j,k,1);
+            if (znext != bogus_large_value && znext > z && height_agl >= z && height_agl < znext) {
+                const Real weight = (height_agl-z)/(znext-z);
+                u += weight*(a(i,j,k+1,0)-u);
+                v += weight*(a(i,j,k+1,1)-v);
+            } else if ((k == klo && height_agl >= a(i,j,k,3) && height_agl < z) ||
+                       (znext == bogus_large_value && height_agl >= z && height_agl <= a(i,j,k,4))) {
+                // Constant extension within the first/last half-cell only.
+            } else {
+                return {zero, zero, zero};
+            }
+            return {u, v, one};
+        });
+        const auto values = data.value(op);
+        sums[0] += amrex::get<0>(values);
+        sums[1] += amrex::get<1>(values);
+        sums[2] += amrex::get<2>(values);
+    }
+    ParallelAllReduce::Sum(sums, 3, ParallelContext::CommunicatorSub());
+    Box footprint = region;
+    footprint.setRange(2, klo);
+    if (sums[2] != Real(footprint.numPts()) || sums[2] == zero) { return {}; }
+    const Real u = sums[0]/sums[2];
+    const Real v = sums[1]/sums[2];
+    if (!std::isfinite(u) || !std::isfinite(v)) {
+        Abort("Automatic perturbations: non-finite wind at the CPM sampling height");
+    }
+    return {u, v, true};
+}
 
 // Resolve each rectangular nest's lateral inflow edges using the latest
 // available parent winds and the finest PBL ancestor's height. Run after the
@@ -157,14 +257,14 @@ ERF::turbPert_update_automatic (int lev, double time)
                 Real zlo = (k-pklo)*pdx[2];
                 Real zhi = zlo + pdx[2];
                 if (terrain) {
-                    const Real zs = amrex::Real(0.25)*(ground(i,j,pklo) + ground(i+1,j,pklo) +
-                                                       ground(i,j+1,pklo) + ground(i+1,j+1,pklo));
-                    zlo = amrex::Real(0.25)*(nd(i,j,k) + nd(i+1,j,k) + nd(i,j+1,k) + nd(i+1,j+1,k)) - zs;
-                    zhi = amrex::Real(0.25)*(nd(i,j,k+1) + nd(i+1,j,k+1) + nd(i,j+1,k+1) + nd(i+1,j+1,k+1)) - zs;
+                    const Real zs = fourth*(ground(i,j,pklo) + ground(i+1,j,pklo) +
+                                            ground(i,j+1,pklo) + ground(i+1,j+1,pklo));
+                    zlo = fourth*(nd(i,j,k) + nd(i+1,j,k) + nd(i,j+1,k) + nd(i+1,j+1,k)) - zs;
+                    zhi = fourth*(nd(i,j,k+1) + nd(i+1,j,k+1) + nd(i,j+1,k+1) + nd(i+1,j+1,k+1)) - zs;
                 }
-                const Real weight = amrex::max(zero, amrex::min(zhi, fraction*h) - amrex::max(zero, zlo));
-                const Real u = amrex::Real(0.5)*(ua(i,j,k) + ua(i+1,j,k));
-                const Real v = amrex::Real(0.5)*(va(i,j,k) + va(i,j+1,k));
+                const Real weight = amrex::max(Real(zero), amrex::min(zhi, fraction*h) - amrex::max(Real(zero), zlo));
+                const Real u = myhalf*(ua(i,j,k) + ua(i+1,j,k));
+                const Real v = myhalf*(va(i,j,k) + va(i,j+1,k));
                 return {u*weight, v*weight, weight, bottom*h, bottom, zero};
             });
             const auto r = data.value(op);
@@ -196,13 +296,47 @@ ERF::turbPert_update_automatic (int lev, double time)
         // One mean AGL cutoff for the entire edge, including all perturbation
         // layers. Column-local heights above only set the wind integration depth.
         faces[f].height = fraction * sums[nsum*f+3] / count;
+        int Ug_level = -1;
+        const Real Ug_height = Real(1.1) * sums[nsum*f+3] / count;
+        if (solverChoice.pert_type[lev] == PerturbationType::CPM && faces[f].inflow()) {
+            // Use one sampling height and one source level for the whole edge.
+            // A shallow LES parent can fall back to a deeper ancestor.
+            const Box nest = subdomains[lev][subdomain_ids[f]].minimalBox();
+            IntVect ratio(1);
+            for (int source = parent; source >= 0; --source) {
+                ratio *= refRatio(source);
+                Box sample = amrex::coarsen(nest, ratio);
+                const int dir = faces[f].face % 2;
+                sample.setRange(dir, faces[f].face < 2 ? sample.smallEnd(dir) : sample.bigEnd(dir));
+                sample.setSmall(2, geom[source].Domain().smallEnd(2));
+                sample.setBig(2, geom[source].Domain().bigEnd(2));
+                const auto wind = sample_perturbation_wind(sample, Ug_height, geom[source],
+                    vars_new[source][Vars::cons], vars_new[source][Vars::xvel], vars_new[source][Vars::yvel],
+                    z_phys_cc[source].get(), z_phys_nd[source].get());
+                if (wind.complete) {
+                    faces[f].Ug = std::hypot(wind.u, wind.v);
+                    Ug_level = source;
+                    break;
+                }
+            }
+            if (Ug_level < 0) {
+                Abort("Automatic CPM perturbations: no coarser level covers 1.1 * mean PBLH (" +
+                      std::to_string(Ug_height) + " m AGL) along " + names[faces[f].face] +
+                      " of level " + std::to_string(lev));
+            }
+        }
         if (verbose > 0) {
             Print() << "Automatic perturbations: time=" << time << " level=" << lev
                     << " parent=" << parent << " pbl_level=" << pbl_level
                     << " subdomain=" << subdomain_ids[f]
                     << " edge=" << names[faces[f].face] << " inflow=" << faces[f].inflow()
                     << " u=" << faces[f].u << " v=" << faces[f].v
-                    << " height_agl=" << faces[f].height << " m\n";
+                    << " height_agl=" << faces[f].height << " m";
+            if (solverChoice.pert_type[lev] == PerturbationType::CPM) {
+                Print() << " Ug_level=" << Ug_level << " Ug_height_agl=" << Ug_height
+                        << " m Ug=" << faces[f].Ug << " m/s";
+            }
+            Print() << "\n";
         }
     }
 
