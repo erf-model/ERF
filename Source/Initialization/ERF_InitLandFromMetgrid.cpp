@@ -29,9 +29,10 @@ using namespace amrex;
 
 namespace {
 
-// The Noah soil layers real.exe writes to wrfinput (DZS, ZS) for a 4-layer LSM.
-constexpr int nsoil_noah = 4;
-constexpr Real dzs_noah[nsoil_noah] = {Real(0.1), Real(0.3), Real(0.6), Real(1.0)};
+// The depths of the Noah soil layers real.exe writes to wrfinput (ZS); their thicknesses
+// (DZS) are metgrid_land::dzs_noah
+using metgrid_land::nsoil_noah;
+using metgrid_land::dzs_noah;
 constexpr Real zs_noah [nsoil_noah] = {Real(0.05), Real(0.25), Real(0.7), Real(1.5)};
 
 // A land soil value that is missing or out of range is filled in (see init_lsm_from_metgrid),
