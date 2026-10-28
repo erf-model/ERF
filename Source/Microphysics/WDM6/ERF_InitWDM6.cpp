@@ -41,7 +41,8 @@ WDM6::Init (const MultiFab& cons_in,
                    << (m_hail_opt ? " (hail)" : " (graupel)") << "\n";
 
     MicVarMap.resize(m_qmoist_size);
-    MicVarMap = {MicVar_WDM6::rain_accum, MicVar_WDM6::snow_accum, MicVar_WDM6::graup_accum};
+    MicVarMap = {MicVar_WDM6::rain_accum, MicVar_WDM6::snow_accum,
+                 MicVar_WDM6::graupel_accum, MicVar_WDM6::precip_accum};
 
     // Select appropriate Arena based on execution mode
     // - Fortran bridge + GPU: Use managed memory for CPU (Fortran) ↔ GPU data transfer

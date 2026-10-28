@@ -1671,7 +1671,8 @@ ERF::FillPlot3DVars (int lev,
         //--------------------------------------------------------------------------
         copy_moist_diagnostic("rain_accum");
         copy_moist_diagnostic("snow_accum");
-        copy_moist_diagnostic("graup_accum");
+        copy_moist_diagnostic("graupel_accum");
+        copy_moist_diagnostic("precip_accum");
 
         // Relative humidity.  A scheme either publishes it in a qmoist array or, as
         // SatAdj does, publishes no qmoist arrays at all and leaves it to be

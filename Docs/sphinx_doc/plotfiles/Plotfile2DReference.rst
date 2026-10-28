@@ -699,6 +699,15 @@ equivalent.
 |                             | liquid-water equivalent                          |          |
 +-----------------------------+--------------------------------------------------+----------+
 
+``precip_rain_accum``, ``precip_snow_accum`` and ``precip_graupel_accum`` each
+hold that one species, as their 3D counterparts ``rain_accum``, ``snow_accum``
+and ``graupel_accum`` do. For ``Morrison``, ``WSM6`` and ``WDM6``,
+``precip_total_accum`` is the scheme's precipitation total, the 3D
+``precip_accum``, which also counts the cloud ice (and, for ``Morrison``, the
+cloud water) that fell, so it can exceed the rain plus ``precip_frozen_accum``.
+For the other schemes it is the rain plus the frozen species; for ``SAM`` that
+leaves out the cloud ice that the 3D ``precip_accum`` counts.
+
 ``precip_total_accum`` is the normalized native total when one exists, or the
 sum of normalized rain and frozen accumulations otherwise.
 ``precip_frozen_accum`` is the sum of normalized snow, graupel, and hail

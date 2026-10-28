@@ -34,7 +34,8 @@ Morrison::Init (const MultiFab& cons_in,
     m_columns.define(cons_in.boxArray(), geom.Domain());
 
     MicVarMap.resize(m_qmoist_size);
-    MicVarMap = {MicVar_Morr::rain_accum, MicVar_Morr::snow_accum, MicVar_Morr::graup_accum};
+    MicVarMap = {MicVar_Morr::rain_accum, MicVar_Morr::snow_accum,
+                 MicVar_Morr::graupel_accum, MicVar_Morr::precip_accum};
 
 #if defined(ERF_USE_MORR_FORT) && defined(AMREX_USE_GPU)
     Arena* Arena_Used = The_Managed_Arena();

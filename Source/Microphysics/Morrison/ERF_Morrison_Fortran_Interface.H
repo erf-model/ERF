@@ -37,8 +37,12 @@ void mp_morr_two_moment_c (
     // 3D arrays for thermodynamics
     double* rho, double* pii, double* p, double dt_in, double* dz, double* w,
     // 2D arrays for precipitation
+    // rainnc is the total that fell, snownc snow alone and graupelnc graupel
+    // alone; rainonlync is rain alone (cloud water and cloud ice count only
+    // in the total)
     double* rainnc, double* rainncv, double* sr,
     double* snownc, double* snowncv, double* graupelnc, double* graupelncv,
+    double* rainonlync,
     // Radar reflectivity
     double* refl_10cm, bool diagflag, int do_radar_ref,
     // Cumulus tendencies
