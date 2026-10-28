@@ -15,6 +15,7 @@
 #include <ERF_MOSTStress.H>
 #include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Gpu.H>
+#include <array>
 #include <cmath>
 #include <fstream>
 #include <iomanip>
@@ -22,6 +23,7 @@
 #include <algorithm>
 #include <limits>
 #include <map>
+#include <numeric>
 #include <AMReX_ParallelReduce.H>
 
 using namespace amrex;
@@ -113,7 +115,7 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     const auto dx = geom.CellSizeArray();
     const auto plo = geom.ProbLoArray();
     const Real face_area[3] = { dx[1] * dx[2], dx[0] * dx[2], dx[0] * dx[1] };
-    m_nx = nx; m_ny = ny;
+    m_nx = nx; m_ny = ny; m_nz = domain.length(2);
     m_dom_lo = domain.smallEnd();
     m_x_lo = plo[0]; m_y_lo = plo[1];
     for (int d = 0; d < 3; ++d) { m_dx[d] = dx[d]; }
@@ -121,16 +123,14 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     m_max_path = 4.0 * (geom.ProbLength(0) + geom.ProbLength(1));
     m_z_ground = plo[2];
 
-    // The face list of a cell, and with it the slot numbering of the
-    // checkpoint record (see state_ncomp()), must not depend on the
-    // decomposition: every valid cell has to see its six neighbours, which
-    // needs a filled ghost layer on the blanking.
+    // The face list of a cell must not depend on the decomposition: every
+    // valid cell has to see its six neighbours, which needs a filled ghost
+    // layer on the blanking.
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(blanking.nGrowVect().min() >= 1,
                                      "erf.ibseb: the blanking needs at least one ghost cell");
 
-    std::vector<int>  h_i, h_j, h_k, h_dir, h_side, h_nbi, h_nbj, h_slot;
+    std::vector<int>  h_i, h_j, h_k, h_dir, h_side, h_nbi, h_nbj;
     std::vector<Real> h_area, h_xf, h_yf, h_zf;
-    m_domain_cells = domain.numPts();
     // Solid neighbours outside the level's grids, of a fluid cell (a wall
     // against the edge) or of a solid one (a building running across the
     // edge, which a low roof can do with no fluid cell in between): a
@@ -217,11 +217,6 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
                 }
                 continue;
             }
-            // Slot of each face within its cell's checkpoint record: the
-            // faces of a cell are numbered in the (dir, side) order of the
-            // loops below, which the rebuild from the same blanking
-            // reproduces on restart whatever the rank count.
-            int cell_slot = 0;
             for (int d = 0; d < 3; ++d) {
                 for (int s = -1; s <= 1; s += 2) {
                     IntVect nb(i, j, k);
@@ -232,7 +227,6 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
                     solid_outside(b, bx, fbox, nb);
                     h_i.push_back(i); h_j.push_back(j); h_k.push_back(k);
                     h_dir.push_back(d); h_side.push_back(s);
-                    h_slot.push_back(cell_slot++);
                     // Face centre: the fluid cell centre moved half a cell toward the solid.
                     Real c[3] = { Real(plo[0] + (i + 0.5) * dx[0]), Real(plo[1] + (j + 0.5) * dx[1]), Real(plo[2] + (k + 0.5) * dx[2]) };
                     c[d] += 0.5 * s * dx[d];
@@ -277,13 +271,6 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
         }
     }
 
-    // Width of the checkpoint record: the largest number of faces on one cell
-    // anywhere on the level (see state_ncomp()), reduced so every rank lays
-    // the field out the same way.
-    m_nslots = 0;
-    for (int n = 0; n < m_nface; ++n) { m_nslots = std::max(m_nslots, h_slot[n] + 1); }
-    ParallelDescriptor::ReduceIntMax(m_nslots);
-
     // The highest interface any face samples (two_stream_canopy_sample(): a roof its
     // fluid cell's bottom, a ceiling and a wall the top of its cell too), counted from the domain
     // bottom; -1 when the level has no faces. The two-stream beam the faces read needs
@@ -293,73 +280,6 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
         m_top_sample = std::max(m_top_sample, h_k[n] - domain.smallEnd(2) + ((h_dir[n] != 2 || h_side[n] > 0) ? 1 : 0));
     }
     ParallelDescriptor::ReduceIntMax(m_top_sample);
-
-    // Checkpoint layout: 4 x 4 column blocks clipped to the k-range that owns
-    // faces (see state_boxarray()), the same on every rank from a reduced
-    // block k-range map; and the transfer layer, this rank's grids cut by
-    // those blocks, gathered into one global BoxArray owned by the rank whose
-    // grid each piece came from.
-    {
-        constexpr int BS = 4;
-        const int klo = domain.smallEnd(2);
-        const int nbx = (nx + BS - 1) / BS, nby = (ny + BS - 1) / BS;
-        // Lowest and highest face-owning cell of each block. Face-owning cells
-        // are the fluid cells against solid, a one-cell shell, so a block over
-        // the interior of a wide footprint owns faces only in the layer above
-        // the roof and its box collapses to that layer instead of carrying the
-        // whole column from the ground.
-        std::vector<int> blk_lo(static_cast<size_t>(nbx) * nby, std::numeric_limits<int>::max());
-        std::vector<int> blk_hi(static_cast<size_t>(nbx) * nby, -1);
-        for (int n = 0; n < m_nface; ++n) {
-            const size_t p = static_cast<size_t>((h_i[n] - ilo) / BS) * nby + (h_j[n] - jlo) / BS;
-            blk_lo[p] = std::min(blk_lo[p], h_k[n] - klo);
-            blk_hi[p] = std::max(blk_hi[p], h_k[n] - klo);
-        }
-        ParallelDescriptor::ReduceIntMin(blk_lo.data(), static_cast<int>(blk_lo.size()));
-        ParallelDescriptor::ReduceIntMax(blk_hi.data(), static_cast<int>(blk_hi.size()));
-        BoxList bl;
-        for (int bi = 0; bi < nbx; ++bi) {
-            for (int bj = 0; bj < nby; ++bj) {
-                const size_t p = static_cast<size_t>(bi) * nby + bj;
-                const int kmax = blk_hi[p];
-                if (kmax < 0) { continue; }
-                const int kmin = blk_lo[p];
-                const IntVect blo(ilo + bi * BS, jlo + bj * BS, klo + kmin);
-                const IntVect bhi(std::min(ilo + (bi + 1) * BS - 1, domain.bigEnd(0)),
-                                  std::min(jlo + (bj + 1) * BS - 1, domain.bigEnd(1)), klo + kmax);
-                bl.push_back(Box(blo, bhi));
-            }
-        }
-        m_state_ba = BoxArray(bl);
-        Vector<Box> mybx;
-        m_xfer_src.clear();
-        for (MFIter mfi(blanking); mfi.isValid(); ++mfi) {
-            for (const auto& pr : m_state_ba.intersections(mfi.validbox())) {
-                mybx.push_back(pr.second);
-                m_xfer_src.push_back(mfi.LocalIndex());
-            }
-        }
-        const int nranks = ParallelDescriptor::NProcs();
-        const int nmine = static_cast<int>(mybx.size());
-        Vector<int> counts(nranks, 0);
-        if (nranks == 1) {
-            // The non-MPI implementation of AllGather leaves its output
-            // untouched, so populate the single-rank count explicitly.
-            counts[0] = nmine;
-        } else {
-            ParallelAllGather::AllGather(nmine, counts.data(), ParallelDescriptor::Communicator());
-        }
-        Vector<Box> allbx(mybx);
-        AllGatherBoxes(allbx);
-        Vector<int> owner;
-        owner.reserve(allbx.size());
-        for (int r = 0; r < nranks; ++r) { for (int n = 0; n < counts[r]; ++n) { owner.push_back(r); } }
-        AMREX_ALWAYS_ASSERT(owner.size() == allbx.size());
-        BoxList xl;
-        for (const Box& b : allbx) { xl.push_back(b); }
-        m_xfer_ba = BoxArray(xl);
-        m_xfer_dm = DistributionMapping(owner);
-    }
 
     // Buildings: 4-connected solid columns, numbered in scan order. The column
     // mask is reduced so every rank labels the same columns with the same ids;
@@ -477,7 +397,6 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     const size_t nf = static_cast<size_t>(m_nface);
     upload(d_i, h_i); upload(d_j, h_j); upload(d_k, h_k);
     upload(d_dir, h_dir); upload(d_side, h_side); upload(d_bid, h_bid);
-    upload(d_slot, h_slot);
     upload(d_area, h_area);
     upload(d_xf, h_xf); upload(d_yf, h_yf); upload(d_zf, h_zf);
     fill(d_mat,      nf, 0);
@@ -1549,96 +1468,308 @@ IBFaceSet::scatter_diagnostics (MultiFab& nfaces, MultiFab& tskin) const
     Gpu::streamSynchronize();
 }
 
+namespace {
+
 /**
- * Write the skin temperature, the sensible flux and the slab temperatures
- * into the state field. The record of a face starts at component
- * ``slot * (2 + n_layers)``, the slot being the face's number within its own
- * cell (see state_ncomp()); no two faces of a cell share a slot, so the
- * writes are plain stores.
+ * Key of a face in the checkpoint records (see IBFaceSet::write_state()):
+ * its fluid cell counted from the domain's low corner, then the direction
+ * and the side, so every face of the level has its own key and the keys
+ * sort by cell. Decoded by face_from_key().
  */
-MultiFab
-IBFaceSet::make_state () const
+Long face_key (int ir, int jr, int kr, int dir, int side, int ny, int nz)
 {
-    if (m_state_ba.empty()) { return MultiFab(); }
-    return MultiFab(m_state_ba, DistributionMapping(m_state_ba), state_ncomp(), 0);
+    return ((static_cast<Long>(ir) * ny + jr) * nz + kr) * 6 + dir * 2 + (side > 0 ? 1 : 0);
 }
 
-void
-IBFaceSet::save_state (MultiFab& state) const
+/** The (i, j, k, dir, side) of a key, (i, j, k) counted from the domain's low corner. */
+std::array<int, 5> face_from_key (Long key, int ny, int nz)
 {
-    AMREX_ALWAYS_ASSERT(state.nComp() == state_ncomp() && state.boxArray() == m_state_ba);
-    const int nl = n_layers();
-    const int* pi = d_i.data();  const int* pj = d_j.data();  const int* pk = d_k.data();
-    const int* pslot = d_slot.data();
-    const Real* pT = d_T_skin.data(); const Real* pS = d_T_slab.data(); const Real* pH = d_H.data();
-    MultiFab mine(m_xfer_ba, m_xfer_dm, state_ncomp(), 0);
-    mine.setVal(0.0);
-    for (MFIter mfi(mine); mfi.isValid(); ++mfi) {
-        const int li = m_xfer_src[mfi.LocalIndex()];
-        const int f0 = m_fab_start[li];
-        const int f1 = m_fab_start[li + 1];
-        const Box bx = mfi.validbox();
-        auto const& st = mine.array(mfi);
-        ParallelFor(f1 - f0, [=] AMREX_GPU_DEVICE (int m) noexcept {
-            const int f  = f0 + m;
-            if (!bx.contains(IntVect(pi[f], pj[f], pk[f]))) { return; }
-            const int c0 = pslot[f] * (2 + nl);
-            st(pi[f], pj[f], pk[f], c0)     = pT[f];
-            st(pi[f], pj[f], pk[f], c0 + 1) = pH[f];
-            for (int l = 0; l < nl; ++l) { st(pi[f], pj[f], pk[f], c0 + 2 + l) = pS[f * nl + l]; }
-        });
-    }
-    Gpu::streamSynchronize();
-    state.setVal(0.0);
-    state.ParallelCopy(mine);
-    if (m_params.debug) {
-        Print() << "[IBSEB DEBUG] lev=" << m_lev << " face state saved: " << state_ncomp()
-                << " components (" << m_nslots << " slots x " << (2 + n_layers()) << ") on " << m_state_ba.size()
-                << " boxes, " << m_state_ba.numPts() << " of the level's " << m_domain_cells << " cells\n";
+    std::array<int, 5> f{};
+    f[4] = (key % 2 == 1) ? 1 : -1;
+    f[3] = static_cast<int>((key / 2) % 3);
+    Long cell = key / 6;
+    f[2] = static_cast<int>(cell % nz); cell /= nz;
+    f[1] = static_cast<int>(cell % ny); cell /= ny;
+    f[0] = static_cast<int>(cell);
+    return f;
+}
+
+/** Face count of every rank on the I/O rank (empty elsewhere), and the offsets of their runs. */
+void gather_counts (int nmine, std::vector<int>& counts, std::vector<int>& disp)
+{
+    const bool io = ParallelDescriptor::IOProcessor();
+    const int nranks = ParallelDescriptor::NProcs();
+    counts.assign(io ? nranks : 0, 0);
+    disp.assign(io ? nranks : 0, 0);
+    ParallelDescriptor::Gather(&nmine, 1, counts.data(), 1, ParallelDescriptor::IOProcessorNumber());
+    if (io) {
+        Long run = 0;
+        for (int r = 0; r < nranks; ++r) { disp[r] = static_cast<int>(run); run += counts[r]; }
     }
 }
 
 /**
- * Read the skin temperature, the sensible flux and the slab temperatures back
- * from the state field, the inverse of save_state(), into a list that build()
- * has just recreated with the same slot numbering.
+ * Word written after the header line of a face-state file and checked on
+ * read: a file from a machine with another byte order or another 64-bit
+ * integer width reads it back as something else and is refused.
+ */
+constexpr Long face_file_marker = 0x0102030405060708LL;
+
+/** ``counts`` and ``disp`` scaled by ``nrec`` values per face (the I/O rank; empty elsewhere). */
+void scale_counts (const std::vector<int>& counts, const std::vector<int>& disp, int nrec,
+                   std::vector<int>& vcounts, std::vector<int>& vdisp)
+{
+    vcounts.resize(counts.size()); vdisp.resize(disp.size());
+    for (size_t r = 0; r < counts.size(); ++r) { vcounts[r] = counts[r] * nrec; vdisp[r] = disp[r] * nrec; }
+}
+
+} // namespace
+
+/**
+ * One record per face, gathered on the I/O rank and written in key order:
+ * the header line, the sorted keys, then the values record by record. Every
+ * rank sorts its own faces first so the gathered runs are ordered; the I/O
+ * rank then merges them by sorting an index over all the records.
  */
 void
-IBFaceSet::load_state (const MultiFab& state)
+IBFaceSet::write_state (const std::string& file) const
 {
-    AMREX_ALWAYS_ASSERT(state.nComp() == state_ncomp() && state.boxArray() == m_state_ba);
     const int nl = n_layers();
-    const int* pi = d_i.data();  const int* pj = d_j.data();  const int* pk = d_k.data();
-    const int* pslot = d_slot.data();
-    Real* pT = d_T_skin.data(); Real* pS = d_T_slab.data(); Real* pH = d_H.data();
-    MultiFab mine(m_xfer_ba, m_xfer_dm, state_ncomp(), 0);
-    mine.ParallelCopy(state);
-    for (MFIter mfi(mine); mfi.isValid(); ++mfi) {
-        const int li = m_xfer_src[mfi.LocalIndex()];
-        const int f0 = m_fab_start[li];
-        const int f1 = m_fab_start[li + 1];
-        const Box bx = mfi.validbox();
-        auto const& st = mine.const_array(mfi);
-        ParallelFor(f1 - f0, [=] AMREX_GPU_DEVICE (int m) noexcept {
-            const int f  = f0 + m;
-            if (!bx.contains(IntVect(pi[f], pj[f], pk[f]))) { return; }
-            const int c0 = pslot[f] * (2 + nl);
-            pT[f] = st(pi[f], pj[f], pk[f], c0);
-            pH[f] = st(pi[f], pj[f], pk[f], c0 + 1);
-            for (int l = 0; l < nl; ++l) { pS[f * nl + l] = st(pi[f], pj[f], pk[f], c0 + 2 + l); }
-        });
+    const int nrec = 2 + nl;
+    const int nf = m_nface;
+    const bool io = ParallelDescriptor::IOProcessor();
+    const int root = ParallelDescriptor::IOProcessorNumber();
+
+    std::vector<int> h_i(nf), h_j(nf), h_k(nf), h_dir(nf), h_side(nf);
+    std::vector<Real> h_T(nf), h_H(nf), h_S(static_cast<size_t>(nf) * nl);
+    Gpu::copy(Gpu::deviceToHost, d_i.begin(), d_i.end(), h_i.begin());
+    Gpu::copy(Gpu::deviceToHost, d_j.begin(), d_j.end(), h_j.begin());
+    Gpu::copy(Gpu::deviceToHost, d_k.begin(), d_k.end(), h_k.begin());
+    Gpu::copy(Gpu::deviceToHost, d_dir.begin(), d_dir.end(), h_dir.begin());
+    Gpu::copy(Gpu::deviceToHost, d_side.begin(), d_side.end(), h_side.begin());
+    Gpu::copy(Gpu::deviceToHost, d_T_skin.begin(), d_T_skin.end(), h_T.begin());
+    Gpu::copy(Gpu::deviceToHost, d_H.begin(), d_H.end(), h_H.begin());
+    Gpu::copy(Gpu::deviceToHost, d_T_slab.begin(), d_T_slab.end(), h_S.begin());
+    Gpu::streamSynchronize();
+
+    // This rank's records in key order.
+    std::vector<Long> my_key(nf);
+    for (int n = 0; n < nf; ++n) {
+        my_key[n] = face_key(h_i[n] - m_dom_lo[0], h_j[n] - m_dom_lo[1], h_k[n] - m_dom_lo[2],
+                             h_dir[n], h_side[n], m_ny, m_nz);
     }
+    std::vector<int> order(nf);
+    std::iota(order.begin(), order.end(), 0);
+    std::sort(order.begin(), order.end(), [&] (int a, int b) { return my_key[a] < my_key[b]; });
+    std::vector<Long> key(nf);
+    std::vector<double> val(static_cast<size_t>(nf) * nrec);
+    for (int m = 0; m < nf; ++m) {
+        const int n = order[m];
+        key[m] = my_key[n];
+        double* r = &val[static_cast<size_t>(m) * nrec];
+        r[0] = static_cast<double>(h_T[n]);
+        r[1] = static_cast<double>(h_H[n]);
+        for (int l = 0; l < nl; ++l) { r[2 + l] = static_cast<double>(h_S[static_cast<size_t>(n) * nl + l]); }
+    }
+
+    // Every rank's records on the I/O rank.
+    std::vector<int> counts, disp, vcounts, vdisp;
+    gather_counts(nf, counts, disp);
+    scale_counts(counts, disp, nrec, vcounts, vdisp);
+    Long ntot = 0;
+    for (int c : counts) { ntot += c; }
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ntot * nrec < std::numeric_limits<int>::max(),
+                                     "erf.ibseb: too many face records for one checkpoint file");
+    std::vector<Long>   all_key(io ? ntot : 0);
+    std::vector<double> all_val(io ? ntot * nrec : 0);
+    ParallelDescriptor::Gatherv(key.data(), nf, all_key.data(), counts, disp, root);
+    ParallelDescriptor::Gatherv(val.data(), nf * nrec, all_val.data(), vcounts, vdisp, root);
+
+    if (io) {
+        std::vector<Long> perm(ntot);
+        std::iota(perm.begin(), perm.end(), 0);
+        std::sort(perm.begin(), perm.end(), [&] (Long a, Long b) { return all_key[a] < all_key[b]; });
+        for (Long m = 1; m < ntot; ++m) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(all_key[perm[m]] != all_key[perm[m - 1]],
+                                             "erf.ibseb: two faces of the level share a checkpoint key");
+        }
+        std::vector<Long>   skey(ntot);
+        std::vector<double> sval(static_cast<size_t>(ntot) * nrec);
+        for (Long m = 0; m < ntot; ++m) {
+            skey[m] = all_key[perm[m]];
+            std::copy_n(&all_val[static_cast<size_t>(perm[m]) * nrec], nrec, &sval[static_cast<size_t>(m) * nrec]);
+        }
+        std::ofstream f(file, std::ofstream::out | std::ofstream::trunc | std::ofstream::binary);
+        if (!f) { Abort("erf.ibseb: cannot open " + file + " for writing"); }
+        f << "IBSEBFaces 1 " << ntot << " " << nl << " " << m_nx << " " << m_ny << " " << m_nz << "\n";
+        const Long marker = face_file_marker;
+        f.write(reinterpret_cast<const char*>(&marker), sizeof(Long));
+        f.write(reinterpret_cast<const char*>(skey.data()), static_cast<std::streamsize>(ntot * sizeof(Long)));
+        f.write(reinterpret_cast<const char*>(sval.data()), static_cast<std::streamsize>(sval.size() * sizeof(double)));
+        if (!f) { Abort("erf.ibseb: writing " + file + " failed"); }
+        if (m_params.debug) {
+            Print() << "[IBSEB DEBUG] lev=" << m_lev << " face state saved: " << ntot << " records x "
+                    << nrec << " values (" << ntot * nrec << " values, "
+                    << ntot * (sizeof(Long) + nrec * sizeof(double)) << " bytes of records) to " << file << "\n";
+        }
+    }
+}
+
+/**
+ * The inverse of write_state(): the I/O rank reads the table and checks the
+ * header against this level (every rank gets the header, so all stop
+ * together on a mismatch); each rank sends the keys of its own faces, the
+ * I/O rank looks them up by binary search and sends the records back; each
+ * rank then unpacks its records into the device arrays.
+ */
+void
+IBFaceSet::read_state (const std::string& file)
+{
+    const int nl = n_layers();
+    const int nrec = 2 + nl;
+    const int nf = m_nface;
+    const bool io = ParallelDescriptor::IOProcessor();
+    const int root = ParallelDescriptor::IOProcessorNumber();
+
+    // The I/O rank reads the whole file: the header (face count, slab layers,
+    // domain size), the marker word and the table. What it found goes to every
+    // rank as hdr[5], so all ranks stop together on any fault. The table is
+    // read only when the header matches this level, so a header mismatch is
+    // reported as such below rather than as a short file.
+    enum : Long { ok = 1, cannot_open, bad_header, bad_marker, too_short, unsorted };
+    const Long nface_level = m_nface_dir[0] + m_nface_dir[1] + m_nface_dir[2];
+    std::array<Long, 6> hdr{};
+    std::vector<Long>   tkey;
+    std::vector<double> tval;
+    if (io) {
+        std::ifstream f(file, std::ifstream::in | std::ifstream::binary);
+        std::string tag;
+        int version = 0;
+        Long marker = 0;
+        if (!f) {
+            hdr[5] = cannot_open;
+        } else if (!(f >> tag >> version >> hdr[0] >> hdr[1] >> hdr[2] >> hdr[3] >> hdr[4])
+                   || tag != "IBSEBFaces" || version != 1 || hdr[0] < 0) {
+            hdr[5] = bad_header;
+        } else {
+            f.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            f.read(reinterpret_cast<char*>(&marker), sizeof(Long));
+            if (!f || marker != face_file_marker) {
+                hdr[5] = bad_marker;
+            } else if (hdr[1] != nl || hdr[2] != m_nx || hdr[3] != m_ny || hdr[4] != m_nz || hdr[0] != nface_level) {
+                hdr[5] = ok;   // the checks below say which header entry differs
+            } else {
+                const Long n = hdr[0];
+                tkey.resize(n);
+                tval.resize(static_cast<size_t>(n) * nrec);
+                f.read(reinterpret_cast<char*>(tkey.data()), static_cast<std::streamsize>(n * sizeof(Long)));
+                f.read(reinterpret_cast<char*>(tval.data()), static_cast<std::streamsize>(tval.size() * sizeof(double)));
+                hdr[5] = f ? ok : too_short;
+                for (Long m = 1; hdr[5] == ok && m < n; ++m) {
+                    if (tkey[m] <= tkey[m - 1]) { hdr[5] = unsorted; }
+                }
+            }
+        }
+    }
+    ParallelDescriptor::Bcast(hdr.data(), hdr.size(), root);
+    switch (hdr[5]) {
+    case ok: break;
+    case cannot_open: Abort("erf.ibseb: cannot open " + file + " for reading"); break;
+    case bad_header:  Abort("erf.ibseb: " + file + " is not a face-state file of this ERF (its first line should read"
+                            " 'IBSEBFaces 1 <faces> <layers> <nx> <ny> <nz>')"); break;
+    case bad_marker:  Abort("erf.ibseb: " + file + " was written on a machine with another byte order or integer"
+                            " width; restart from a checkpoint written on this kind of machine"); break;
+    case too_short:   Abort("erf.ibseb: " + file + " ends before the " + std::to_string(hdr[0])
+                            + " records its header announces"); break;
+    default:          Abort("erf.ibseb: the face keys of " + file + " are not in ascending order"); break;
+    }
+    if (hdr[1] != nl) {
+        Abort("erf.ibseb: " + file + " holds " + std::to_string(hdr[1]) + " slab layers per face; the deck sets"
+              " erf.ibseb.n_slab_layers = " + std::to_string(nl) + ". Restart with the checkpoint's value.");
+    }
+    if (hdr[2] != m_nx || hdr[3] != m_ny || hdr[4] != m_nz) {
+        Abort("erf.ibseb: " + file + " was written for a different domain (" + std::to_string(hdr[2]) + " x "
+              + std::to_string(hdr[3]) + " x " + std::to_string(hdr[4]) + " cells against " + std::to_string(m_nx)
+              + " x " + std::to_string(m_ny) + " x " + std::to_string(m_nz) + " here)");
+    }
+    if (hdr[0] != nface_level) {
+        Abort("erf.ibseb: " + file + " was written for a different building layout (" + std::to_string(hdr[0])
+              + " faces against the " + std::to_string(nface_level)
+              + " the blanking gives); restart from a checkpoint of the same buildings");
+    }
+
+    const Long ntot = hdr[0];
+
+    // This rank's keys to the I/O rank.
+    std::vector<int> h_i(nf), h_j(nf), h_k(nf), h_dir(nf), h_side(nf);
+    Gpu::copy(Gpu::deviceToHost, d_i.begin(), d_i.end(), h_i.begin());
+    Gpu::copy(Gpu::deviceToHost, d_j.begin(), d_j.end(), h_j.begin());
+    Gpu::copy(Gpu::deviceToHost, d_k.begin(), d_k.end(), h_k.begin());
+    Gpu::copy(Gpu::deviceToHost, d_dir.begin(), d_dir.end(), h_dir.begin());
+    Gpu::copy(Gpu::deviceToHost, d_side.begin(), d_side.end(), h_side.begin());
+    Gpu::streamSynchronize();
+    std::vector<Long> key(nf);
+    for (int n = 0; n < nf; ++n) {
+        key[n] = face_key(h_i[n] - m_dom_lo[0], h_j[n] - m_dom_lo[1], h_k[n] - m_dom_lo[2],
+                          h_dir[n], h_side[n], m_ny, m_nz);
+    }
+    std::vector<int> counts, disp, vcounts, vdisp;
+    gather_counts(nf, counts, disp);
+    scale_counts(counts, disp, nrec, vcounts, vdisp);
+    std::vector<Long> all_key(io ? ntot : 0);
+    ParallelDescriptor::Gatherv(key.data(), nf, all_key.data(), counts, disp, root);
+
+    // Look every face up; a face without a record means other buildings.
+    std::vector<double> all_val(io ? ntot * nrec : 0);
+    std::array<Long, 2> missing{0, -1};   // count, first key
+    if (io) {
+        for (Long m = 0; m < ntot; ++m) {
+            const auto it = std::lower_bound(tkey.begin(), tkey.end(), all_key[m]);
+            if (it == tkey.end() || *it != all_key[m]) {
+                if (missing[0] == 0) { missing[1] = all_key[m]; }
+                ++missing[0];
+                continue;
+            }
+            const Long t = it - tkey.begin();
+            std::copy_n(&tval[static_cast<size_t>(t) * nrec], nrec, &all_val[static_cast<size_t>(m) * nrec]);
+        }
+    }
+    ParallelDescriptor::Bcast(missing.data(), missing.size(), root);
+    if (missing[0] > 0) {
+        const auto fc = face_from_key(missing[1], m_ny, m_nz);
+        Abort("erf.ibseb: " + file + " was written for a different building layout (" + std::to_string(missing[0])
+              + " faces of this blanking have no record there, the first at i=" + std::to_string(fc[0] + m_dom_lo[0])
+              + " j=" + std::to_string(fc[1] + m_dom_lo[1]) + " k=" + std::to_string(fc[2] + m_dom_lo[2])
+              + " dir=" + std::to_string(fc[3]) + " side=" + std::to_string(fc[4])
+              + "); restart from a checkpoint of the same buildings");
+    }
+
+    // The records back to the ranks that asked for them, in the order they asked.
+    std::vector<double> val(static_cast<size_t>(nf) * nrec);
+#ifdef AMREX_USE_MPI
+    BL_MPI_REQUIRE(MPI_Scatterv(all_val.data(), vcounts.data(), vdisp.data(), MPI_DOUBLE,
+                                val.data(), nf * nrec, MPI_DOUBLE, root, ParallelDescriptor::Communicator()));
+#else
+    val = all_val;
+#endif
+    std::vector<Real> h_T(nf), h_H(nf), h_S(static_cast<size_t>(nf) * nl);
+    for (int n = 0; n < nf; ++n) {
+        const double* r = &val[static_cast<size_t>(n) * nrec];
+        h_T[n] = static_cast<Real>(r[0]);
+        h_H[n] = static_cast<Real>(r[1]);
+        for (int l = 0; l < nl; ++l) { h_S[static_cast<size_t>(n) * nl + l] = static_cast<Real>(r[2 + l]); }
+    }
+    Gpu::copy(Gpu::hostToDevice, h_T.begin(), h_T.end(), d_T_skin.begin());
+    Gpu::copy(Gpu::hostToDevice, h_H.begin(), h_H.end(), d_H.begin());
+    Gpu::copy(Gpu::hostToDevice, h_S.begin(), h_S.end(), d_T_slab.begin());
     Gpu::streamSynchronize();
     if (m_params.debug) {
-        std::vector<Real> h_T(m_nface);
-        Gpu::copy(Gpu::deviceToHost, d_T_skin.begin(), d_T_skin.end(), h_T.begin());
-        Gpu::streamSynchronize();
         Real tmin = 1.0e30, tmax = -1.0e30;
-        for (int n = 0; n < m_nface; ++n) { tmin = std::min(tmin, h_T[n]); tmax = std::max(tmax, h_T[n]); }
+        for (int n = 0; n < nf; ++n) { tmin = std::min(tmin, h_T[n]); tmax = std::max(tmax, h_T[n]); }
         ParallelDescriptor::ReduceRealMin(tmin);
         ParallelDescriptor::ReduceRealMax(tmax);
-        Print() << "[IBSEB DEBUG] lev=" << m_lev << " face state loaded: T_skin in ["
-                << tmin << ", " << tmax << "] K\n";
+        Print() << "[IBSEB DEBUG] lev=" << m_lev << " face state loaded: " << ntot << " records from " << file
+                << ", T_skin in [" << tmin << ", " << tmax << "] K\n";
     }
 }
 

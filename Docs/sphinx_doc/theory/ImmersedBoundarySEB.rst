@@ -45,25 +45,20 @@ every dump), which is what the regtests and the canonical cases read. A
 restart appends from its next report on: the step it starts from is printed
 but not written to the report file or dumped again.
 
-For output the list is scattered into cell-centred fields: ``ibseb_nfaces``
-and ``ibseb_tskin`` in the plotfile, and ``IBSEBState`` in the checkpoint,
-which holds the skin temperature, sensible flux and slab temperatures of the
-faces of each cell. Its boxes are 4 x 4 column blocks clipped to the k-range
-that owns faces, and it carries one slot per face rather than the six a cell
-could hold in principle, so its width is the largest face count on any cell
-of the level (two or three around ordinary buildings). Face-owning cells are
-the fluid cells against solid, a one-cell shell, so a block over the interior
-of a wide footprint keeps only the layer above the roof while a block on a
-wall still spans its height. On restart the list is rebuilt from the blanking
-and refilled from that field, so a restart does not depend on the number of
-ranks. ``Exec/CanonicalTests/SEB/FaceStorage`` checks the face counts against
-the mask, the rank independence and the checkpoint round trip.
-
-The field still carries whole boxes rather than the faces alone, so its size
-grows with the surface of the buildings and, through the wall blocks, with
-their height. A city-scale deck should expect the checkpoint to grow with the
-built area; storing the faces themselves, rather than a cell field that
-covers them, would be needed to make it proportional to the face count.
+For output the list is scattered into cell-centred fields, ``ibseb_nfaces``
+and ``ibseb_tskin`` in the plotfile. The checkpoint holds the faces
+themselves: ``Level_N/IBSEBFaces`` carries one record per face, its skin
+temperature, sensible flux and slab temperatures, keyed by the face's cell,
+direction and side and written in key order by the I/O rank, so the file is
+the size of the data (``8 (3 + n_slab_layers)`` bytes per face after a
+header line) and is the same whatever the number of ranks. On restart the list is rebuilt from the
+blanking and every face looks its record up by its key, so a restart does not
+depend on the number of ranks. A checkpoint with another layer count, another
+domain or other buildings is refused with a message that says so, and so is
+one written before the records, which held the state as the cell field
+``IBSEBState``. ``Exec/CanonicalTests/SEB/FaceStorage`` checks the face
+counts against the mask, the rank independence and the checkpoint round trip,
+face by face.
 
 Shortwave and shadow
 --------------------
