@@ -423,8 +423,13 @@ inflow selection and advective refresh timing. ``source`` and ``direct`` retain
 the lower-PBL parent wind for their existing amplitude and refresh formulas.
 ``CPM_W`` retains ``perturbation_w_amp`` for its vertical-velocity amplitude.
 
-The controls are recomputed on the first nest time step at or after the update
-period has elapsed since the previous control update (600 seconds by default).
+The controls are initialized on the first advance of each nest, including nests
+created later in the simulation. They use the latest available ancestor PBLH
+and winds. Timing uses seconds elapsed from the simulation's start. Regridding
+or restarting also forces a fresh control update on the next advance.
+Afterward, the controls are recomputed on the first nest time step at or after
+the update period has elapsed since the previous control update (600 seconds
+by default).
 The individual perturbation boxes continue to draw new random values on their
 existing advective intervals between these updates. At a control update, ERF
 clears the previous forcing and regenerates it under the new controls. Calm
