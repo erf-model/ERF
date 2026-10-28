@@ -300,7 +300,7 @@ struct TurbulentPerturbation {
             tpi_lref.resize(num_levels);
             auto_mask.resize(num_levels);
             auto_next_update.resize(num_levels, -1.0);
-            auto_ready.resize(num_levels, false);
+            auto_ready.resize(num_levels, 0);
         }
 
         pb_ba[lev] = tmp_ba;
@@ -328,7 +328,7 @@ struct TurbulentPerturbation {
             auto_mask[lev].define(pb_cell[lev].boxArray(), dm, 1, 0);
             auto_mask[lev].setVal(zero);
             auto_next_update[lev] = -1.0;
-            auto_ready[lev] = false;
+            auto_ready[lev] = 0;
             // Regridding can leave vectors at the same size; resize alone would retain
             // clocks/amplitudes belonging to a different set of boxes.
             pb_interval[lev].assign(pb_ba[lev].size(), -one);
@@ -445,7 +445,7 @@ struct TurbulentPerturbation {
         // to start again after a later parent update changes the inflow.
         pb_interval[lev].assign(pb_ba[lev].size(), -one);
         pb_local_etime[lev].assign(pb_ba[lev].size(), zero);
-        auto_ready[lev] = true;
+        auto_ready[lev] = 1;
         auto_next_update[lev] = time + period;
     }
 
@@ -856,7 +856,8 @@ struct TurbulentPerturbation {
     amrex::Vector<amrex::Vector<amrex::Real>> pb_Ug; // CPM amplitude scale; independent of refresh winds
     amrex::Vector<amrex::MultiFab> auto_mask;
     amrex::Vector<double> auto_next_update;
-    amrex::Vector<bool> auto_ready;
+    // Integer flags avoid std::vector<bool>'s proxy references in amrex::Vector.
+    amrex::Vector<int> auto_ready;
 
     // Private data members
     int tpi_layers;                   // Number of layers of perturbation boxes

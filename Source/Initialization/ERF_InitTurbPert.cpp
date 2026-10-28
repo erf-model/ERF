@@ -117,7 +117,21 @@ sample_perturbation_wind (const Box& region, Real height_agl,
     ParallelAllReduce::Sum(sums, 3, ParallelContext::CommunicatorSub());
     Box footprint = region;
     footprint.setRange(2, klo);
-    if (sums[2] != Real(footprint.numPts()) || sums[2] == zero) { return {}; }
+    if (sums[2] != Real(footprint.numPts()) || sums[2] == zero) {
+        // Report the actual sampling failure: an incomplete count does not
+        // necessarily mean the ancestor's domain is too shallow. These
+        // collective reductions only run when a source level is rejected.
+        const Real min_height = samples.min(2);
+        const Real max_height = samples.max(2);
+        Print() << "Automatic perturbation wind sampling: region=" << region
+                << " target_height_agl=" << height_agl << " m"
+                << " samples=" << sums[2]
+                << " expected_columns=" << footprint.numPts()
+                << " cell_height_agl_min=" << min_height << " m"
+                << " cell_height_agl_max=" << max_height << " m"
+                << " source_boxes=" << ba.size() << "\n";
+        return {};
+    }
     const Real u = sums[0]/sums[2];
     const Real v = sums[1]/sums[2];
     if (!std::isfinite(u) || !std::isfinite(v)) {
@@ -320,9 +334,12 @@ ERF::turbPert_update_automatic (int lev, double time)
                 }
             }
             if (Ug_level < 0) {
-                Abort("Automatic CPM perturbations: no coarser level covers 1.1 * mean PBLH (" +
+                Abort("Automatic CPM perturbations: no coarser level supplied complete wind samples "
+                      "at 1.1 * mean PBLH (" +
                       std::to_string(Ug_height) + " m AGL) along " + names[faces[f].face] +
-                      " of level " + std::to_string(lev));
+                      " of level " + std::to_string(lev) +
+                      ". Check sampling coverage and terrain heights; "
+                      "this does not necessarily mean the domain is too shallow.");
             }
         }
         if (verbose > 0) {
