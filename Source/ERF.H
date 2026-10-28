@@ -455,6 +455,11 @@ public:
     // Calculate wall distance by solving a Poisson equation
     void poisson_wall_dist (int lev);
 
+    // The RANS wall distance at this level (poisson_wall_dist plus the thin-body
+    // correction); called when the level is made and again whenever a regrid
+    // remakes or adds it, since init_stuff resets the field on new grids
+    void make_wall_dist (int lev);
+
     void make_subdomains (const amrex::BoxList& ba, amrex::Vector<amrex::BoxArray>& bins);
 
 #ifdef ERF_USE_FFT
