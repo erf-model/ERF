@@ -497,7 +497,8 @@ void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
         for (int n = 0; n < a_np; n++) {
             auto tmp = lnmin + urd(a_rng) * lnrng;
             a_mass[n] = std::exp(tmp);
-            a_mult[n] += (m_numdens * a_dV) * std::exp(-a_mass[n] / delta);
+            a_mult[n] += (m_numdens * a_dV) * (a_mass[n] / delta)
+                       * std::exp(-(a_mass[n] - a_mass_min) / delta);
         }
     } else if (a_init_type == SDDistributionType::radius_log_normal) {
         std::uniform_real_distribution<amrex::Real> urd(zero, one);
@@ -567,7 +568,7 @@ void SDInitProperties::getDistribution ( amrex::Vector<amrex::Real>& a_mass,
         // Update SD multiplicity and mass with the initialized main + tail distribution
         for (int n = 0; n < a_np; n++) {
             a_mult[n] += tmp_mult[n];
-            a_mass[n] += tmp_mass[n];
+            a_mass[n] = tmp_mass[n];
         }
         amrex::Print() << "Done sampling\n";
     } else {

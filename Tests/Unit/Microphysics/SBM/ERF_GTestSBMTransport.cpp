@@ -1720,18 +1720,22 @@ void run_host_slow_copy_preserves_accepted_liquid_projection_test ()
     ASSERT_TRUE(transport.rebuild_static_measure(0, detj, mx, my, diagnostic))
         << diagnostic;
 
-    constexpr int qc = 5;
-    constexpr int qr = 6;
-    constexpr int unrelated = 7;
-    MultiFab anchor(ba, dm, 8, 0);
-    MultiFab predictor(ba, dm, 8, 0);
-    MultiFab target(ba, dm, 8, 0);
+    // Place qc, qr and an unrelated component right after RhoQ1_comp so they
+    // never overlap it, whatever scalars the build adds before the moisture
+    // components (5, 6, 7 and 8 components when RhoQ1_comp is 4).
+    constexpr int qc = RhoQ1_comp + 1;
+    constexpr int qr = RhoQ1_comp + 2;
+    constexpr int unrelated = RhoQ1_comp + 3;
+    constexpr int ncomp = RhoQ1_comp + 4;
+    MultiFab anchor(ba, dm, ncomp, 0);
+    MultiFab predictor(ba, dm, ncomp, 0);
+    MultiFab target(ba, dm, ncomp, 0);
     anchor.setVal(Real(0.0));
     anchor.setVal(Real(1.0), Rho_comp, 1, 0);
     anchor.setVal(Real(300.0), RhoTheta_comp, 1, 0);
     anchor.setVal(Real(0.01), RhoQ1_comp, 1, 0);
-    MultiFab::Copy(predictor, anchor, 0, 0, 8, 0);
-    MultiFab::Copy(target, anchor, 0, 0, 8, 0);
+    MultiFab::Copy(predictor, anchor, 0, 0, ncomp, 0);
+    MultiFab::Copy(target, anchor, 0, 0, ncomp, 0);
     predictor.setVal(Real(0.03), RhoQ1_comp, 1, 0);
     predictor.setVal(Real(11.0), qc, 1, 0);
     predictor.setVal(Real(13.0), qr, 1, 0);
@@ -1775,8 +1779,8 @@ void run_host_slow_copy_preserves_accepted_liquid_projection_test ()
 
     // A non-SBM host copy continues to own every slow component, including
     // the compact liquid indices.
-    MultiFab non_sbm_target(ba, dm, 8, 0);
-    MultiFab::Copy(non_sbm_target, anchor, 0, 0, 8, 0);
+    MultiFab non_sbm_target(ba, dm, ncomp, 0);
+    MultiFab::Copy(non_sbm_target, anchor, 0, 0, ncomp, 0);
     for (amrex::MFIter mfi(non_sbm_target, amrex::TilingIfNotGPU());
          mfi.isValid(); ++mfi) {
         const Box bx = mfi.tilebox();

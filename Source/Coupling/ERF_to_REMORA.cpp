@@ -603,7 +603,16 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
         if (has_radiation) {
             if (iFluxSWrad < static_cast<int>(states.size()) && states[iFluxSWrad] != nullptr) {
                 MultiFab tmp(ba2d_lev, dm, 1, 0);
-                tmp.ParallelCopy(*rad_fluxes[lev], 1, 0, 1);
+                // REMORA applies no albedo: srflx enters its surface heat flux as the
+                // net shortwave, so export SW down minus the reflected SW up
+                for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    Box bx = mfi.tilebox();
+                    auto const& rad_flux = rad_fluxes[lev]->const_array(mfi);
+                    auto t = tmp.array(mfi);
+                    ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                        t(i,j,k) = rad_flux(i,j,k,1) - rad_flux(i,j,k,0);
+                    });
+                }
                 ApplyConservativeRemap(tmp, *states[iFluxSWrad], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
                 if (verbose) { PrintFluxLaneStats("SWrad_lane", *states[iFluxSWrad]); }
             }
@@ -815,7 +824,16 @@ ERF::PackAtmosphericStates (amrex::Vector<amrex::MultiFab*>& states,
     if (has_radiation) {
         if (iSWrad < static_cast<int>(states.size()) && states[iSWrad] != nullptr) {
             MultiFab tmp(ba2d_lev, dm, 1, 0);
-            tmp.ParallelCopy(*rad_fluxes[lev], 1, 0, 1);
+            // REMORA applies no albedo: srflx enters its surface heat flux as the
+            // net shortwave, so export SW down minus the reflected SW up
+            for (MFIter mfi(tmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                Box bx = mfi.tilebox();
+                auto const& rad_flux = rad_fluxes[lev]->const_array(mfi);
+                auto t = tmp.array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
+                    t(i,j,k) = rad_flux(i,j,k,1) - rad_flux(i,j,k,0);
+                });
+            }
             ApplyConservativeRemap(tmp, *states[iSWrad], *weight_mf, *index_mf, max_stencil_size, dst_mskr);
         }
         if (iLWrad < static_cast<int>(states.size()) && states[iLWrad] != nullptr) {

@@ -1,0 +1,22 @@
+CEXE_sources += ERF_FireCoupler.cpp
+CEXE_sources += ERF_FireCouplingParams.cpp
+CEXE_sources += ERF_FireEngineRegistry.cpp
+CEXE_sources += ERF_FireGrid.cpp
+CEXE_sources += ERF_FirePrerequisites.cpp
+CEXE_sources += ERF_FireWindExtract.cpp
+CEXE_sources += ERF_FireSurfaceHeight.cpp
+CEXE_sources += ERF_FireSmokeEmission.cpp
+
+CEXE_headers += ERF_FireCoupler.H
+CEXE_headers += ERF_FireCouplingParams.H
+CEXE_headers += ERF_FireEngine.H
+CEXE_headers += ERF_FireEngineRegistry.H
+CEXE_headers += ERF_FireEngineTemplate.H
+CEXE_headers += ERF_FireGrid.H
+CEXE_headers += ERF_FirePrerequisites.H
+CEXE_headers += ERF_FireWindExtract.H
+CEXE_headers += ERF_FireSurfaceHeight.H
+CEXE_headers += ERF_FirePrecip.H
+CEXE_headers += ERF_FireUtils.H
+CEXE_headers += ERF_FireAtmCoupling.H
+CEXE_headers += ERF_FireSmokeEmission.H

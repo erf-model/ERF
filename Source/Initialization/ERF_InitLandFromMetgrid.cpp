@@ -29,9 +29,10 @@ using namespace amrex;
 
 namespace {
 
-// The Noah soil layers real.exe writes to wrfinput (DZS, ZS) for a 4-layer LSM.
-constexpr int nsoil_noah = 4;
-constexpr Real dzs_noah[nsoil_noah] = {Real(0.1), Real(0.3), Real(0.6), Real(1.0)};
+// The depths of the Noah soil layers real.exe writes to wrfinput (ZS); their thicknesses
+// (DZS) are metgrid_land::dzs_noah
+using metgrid_land::nsoil_noah;
+using metgrid_land::dzs_noah;
 constexpr Real zs_noah [nsoil_noah] = {Real(0.05), Real(0.25), Real(0.7), Real(1.5)};
 
 // A land soil value that is missing or out of range is filled in (see init_lsm_from_metgrid),
@@ -240,7 +241,7 @@ read_metgrid_region (const std::string& fname, const std::string& name, const Me
  *
  * @param lev   Integer specifying the current level
  * @param fname Path to this level's met_em file for the initial time
- * @param date  The date of that file, as "YYYY-MM-DD_hh:mm:ss" (needed on the I/O rank only)
+ * @param date  The date of that file, as "YYYY-MM-DD_hh:mm:ss"
  */
 void
 ERF::init_lsm_from_metgrid (int lev, const std::string& fname, const std::string& date)
@@ -377,15 +378,10 @@ ERF::init_lsm_from_metgrid (int lev, const std::string& fname, const std::string
         }
     }
 
-    // read_from_metgrid sets the date on the I/O rank only
+    // read_from_metgrid gives every rank the date
     int m0 = 0, m1 = 0;
     Real w1 = zero;
-    if (ParallelDescriptor::IOProcessor()) {
-        metgrid_land::monthly_interp_weights(date, m0, m1, w1);
-    }
-    ParallelDescriptor::Bcast(&m0, 1, ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::Bcast(&m1, 1, ParallelDescriptor::IOProcessorNumber());
-    ParallelDescriptor::Bcast(&w1, 1, ParallelDescriptor::IOProcessorNumber());
+    metgrid_land::monthly_interp_weights(date, m0, m1, w1);
     Print() << "  monthly fields interpolated between months " << m0+1 << " and " << m1+1
             << " with weight " << w1 << " on the later" << std::endl;
 

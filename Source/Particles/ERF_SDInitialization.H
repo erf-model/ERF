@@ -177,10 +177,11 @@ amrex::Real SD_sample_mass_gpu (const SDDistributionParams& params,
 
         case SDDistributionType::mass_exponential: {
             if (params.sampled_mult) {
-                // Sampled multiplicity: sample uniformly in log-space, weight by exponential PDF
+                // Sampled multiplicity: sample uniformly in log-space, weight by the exponential PDF in ln(m)
                 amrex::Real lnval = params.lnmin + u * params.lnrng;
                 mass = std::exp(lnval);
-                mult_contribution = (params.numdens * params.cell_volume) * std::exp(-mass / params.delta);
+                mult_contribution = (params.numdens * params.cell_volume) * (mass / params.delta)
+                                  * std::exp(-(mass - params.mass_min) / params.delta);
             } else {
                 // Constant multiplicity: true exponential distribution via inverse transform
                 // If U ~ Uniform(0,1), then -delta*ln(U) ~ Exponential(1/delta)

@@ -3,6 +3,8 @@
 
 #include <AMReX_REAL.H>
 #include <AMReX_Arena.H>
+#include <AMReX_Extension.H>
+#include <AMReX_GpuQualifiers.H>
 
 /**
  * Definition of indexing parameters
@@ -12,8 +14,16 @@
 //      rho, rhotheta, rhoKE
 #define NDRY       3
 
+// Smoke: a passive tracer the fire coupling emits from the fire's heat [kg/m^3],
+// present in builds with the fire coupling (ERF_USE_FIRE)
+#ifdef ERF_USE_FIRE
+#define NSCALARS_SMOKE 1
+#else
+#define NSCALARS_SMOKE 0
+#endif
+
 // This defines the ACTUAL number of non-moisture scalar vars
-#define NSCALARS   1
+#define NSCALARS   (1 + NSCALARS_SMOKE)
 
 // This defines the MAXIMUM number of moisture vars (six q's plus five n's)
 #define NMOIST_max 11
@@ -31,12 +41,13 @@
 // We also assume (the final "+1" that the base state components have the same bcs)
 #define NBCVAR_max ((NDRY + 1 + NMOIST_max + 1) + 2*5) // allow up to 5 non-moist species
 
-// This is the number of components if we assume there is only one passive scalar
-// We can use this when we assume all passive scalars have the same diffusion coefficients
+// Number of primitive components: one per conserved component after Rho_comp,
+// counting every passive scalar (the base scalar and, with the fire coupling, smoke)
+// and the moist quantities.
 // The trailing 2*5 mirrors NVAR_max: a microphysics model may append up to 5 non-moist
 // species (two components each) after the water species, and the diffusion coefficient
-// tables below are indexed by primitive component over that full range as well
-#define NPRIMVAR_max ((NDRY + 1 + NMOIST_max) + 2*5) // allow up to 5 non-moist species
+// tables are indexed by primitive component over that full range as well.
+#define NPRIMVAR_max ((NDRY + NSCALARS + NMOIST_max) + 2*5)
 
 // Cell-centered state variables
 #define Rho_comp       0
@@ -45,6 +56,13 @@
 
 #define RhoScalar_comp (RhoKE_comp+1)
 
+// Scalar slots (consecutive, starting at RhoScalar_comp = NDRY):
+//   [RhoScalar_comp]     always present (base passive scalar)
+//   [RhoSmoke_comp]      smoke, only with ERF_USE_FIRE
+//   [RhoQ1_comp ...]     moisture variables
+#ifdef ERF_USE_FIRE
+#define RhoSmoke_comp  (RhoScalar_comp+1)
+#endif
 #define RhoQ1_comp     (RhoScalar_comp+NSCALARS)
 #define RhoQ2_comp     (RhoQ1_comp+1)
 #define RhoQ3_comp     (RhoQ1_comp+2)
@@ -110,6 +128,19 @@ namespace BCVars {
         zvel_bc = NBCVAR_max+2,
         NumTypes
     };
+}
+
+/**
+ * The boundary-condition slot (BCVars) of conserved component n: every passive
+ * scalar shares BCVars::RhoScalar_bc_comp, and each component above the scalars
+ * has its own slot, NSCALARS - 1 below its component index. Boundary planes are
+ * stored by these slots too (ReadBndryPlanes::plane_slot).
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+int cons_bc_comp (int n) noexcept
+{
+    if (n >= RhoScalar_comp && n < RhoScalar_comp + NSCALARS) { return BCVars::RhoScalar_bc_comp; }
+    return (n >= RhoScalar_comp + NSCALARS) ? n - (NSCALARS - 1) : n;
 }
 
 // Note that we don't use these, but we need this vector to be long enough

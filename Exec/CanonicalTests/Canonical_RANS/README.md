@@ -18,7 +18,7 @@ numbers and tolerances for each case are in that case's README.
 ## Rules
 
 - Every deck ships a `check_<case>.py` that reads the plotfile
-  (`erf_plotfile.py`, standard library only) and prints one row per check:
+  (`Exec/Tools/erf_plotfile.py`, standard library only) and prints one row per check:
   measured value, target, tolerance, pass. Its exit code is the verdict.
   `--smoke` runs the structural checks that must hold after a few steps
   (the CTest entries, `ctest -L rans`; the flat entries pass
