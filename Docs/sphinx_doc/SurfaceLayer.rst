@@ -383,7 +383,12 @@ where ``erf.most.sfc_file`` is the path to a text file with the following exampl
    205.542 295.63  43.55  88.67 0.00
    205.583 298.40 104.08 154.39 0.00
 
-This mode implies ``erf.most.flux_type = custom`` and is not compatible with an active land surface model or EB.
+``H`` and ``LE`` are dynamic fluxes and are applied as :math:`H/c_{p}` and :math:`LE/L_{v}`;
+``TAU`` is the kinematic stress :math:`u_{\star}^{2}` and is multiplied by the local density, so the
+applied surface stress is :math:`\rho \, \mathrm{TAU}`.
+
+This mode implies ``erf.most.flux_type = custom`` and is not compatible with an active land surface model, EB,
+or ``erf.most.rhosurf``.
 The existing text-file forcing restriction with EB remains in effect.
 
 
