@@ -72,7 +72,9 @@ struct StationVar
     std::string name;
     std::string units;
     bool is_2d      = false;              // comes from the 2D diagnostic catalog
-    bool is_missing = false;              // valid 2D name, inactive in this run
+    bool is_missing = false;              // valid name this run does not produce (an inactive
+                                          // 2D diagnostic, or with
+                                          // erf.station_allow_unavailable a 3D variable)
     bool cells_may_be_missing = false;    // active 2D field whose cells may hold missing_value
     amrex::Real missing_value = amrex::Real(0.0);
     int comp = -1;                        // component in the filled MultiFab
@@ -229,6 +231,10 @@ public:
 
     [[nodiscard]] int bufferSteps () const { return m_buffer_steps; }
 
+    // erf.station_allow_unavailable: write a 3D variable this configuration
+    // cannot produce as a constant missing column instead of stopping the run
+    [[nodiscard]] bool allowUnavailable () const { return m_allow_unavailable; }
+
     // A height below the first cell centre is honored by clamping, which is
     // worth saying once and not once per output step.
     [[nodiscard]] bool lowHeightWarned () const { return m_low_height_warned; }
@@ -266,6 +272,7 @@ private:
     amrex::Vector<Station> m_stations;
     int m_ncolumns    = 0;
     int m_buffer_steps = 100;
+    bool m_allow_unavailable = false;
 
     // m_rows[irow] holds the values of every column at m_times[irow]
     amrex::Vector<amrex::Real> m_times;

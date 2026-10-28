@@ -1853,6 +1853,16 @@ cannot produce; a 2D diagnostic that is valid but not computed in this run is
 written as the missing value it would have in a 2D plotfile (0 or -999 depending
 on the diagnostic) rather than being dropped.
 
+A 3D name that this configuration cannot produce -- ``qsnow`` under Kessler
+microphysics, for example, since Kessler carries no ice -- can be treated the same
+way by setting ``erf.station_allow_unavailable = true``.  Its column is then
+kept and written as -999 at every height, the header marks it as not available in
+this run, and the run prints a warning, so one station list can be shared by
+configurations that carry different fields.  The default is false, which stops
+the run: a column that holds no data is easy to overlook in a long series, so it
+has to be asked for.  A name that is neither a 3D nor a 2D variable still stops
+the run.
+
 Four more names give earth-relative winds, for comparison with towers, which
 report them: ``u_east`` and ``v_north`` (m/s), ``wind_speed`` (the horizontal
 speed, m/s) and ``wind_dir`` (the meteorological direction the wind comes from,
@@ -2020,6 +2030,9 @@ List of Parameters
 | **erf.station_buffer_steps**       | Output steps buffered before the files are written       | Integer            | 100              |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.station_output_dir**         | Directory the station files are written to               | String             | Output_Stations  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.station_allow_unavailable**  | Write a 3D variable this configuration cannot produce as | Boolean            | false            |
+|                                    | -999 instead of stopping the run                         |                    |                  |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
 
 .. note::
