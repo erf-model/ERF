@@ -343,7 +343,8 @@ namespace HSEutils
 
         if (klo == 0)  {
             //
-            // r_sfc / p_0 are the density / pressure at the surface
+            // r_sfc is the initial guess for the density in the bottom cell; p_0 is the
+            // pressure at z = 0, so the bottom cell's pressure comes from its absolute height
             //
             // Initial guess
             int k0 = 0;
@@ -351,6 +352,7 @@ namespace HSEutils
             // Where we start the lower iteration
             kstart = 1;
 
+            // Absolute height of the center of the bottom cell (not its height above the ground)
             Real myhalf_dz = z_cc(i,j,k0);
             r[k0] = r_sfc;
             p[k0] = p_0 - myhalf_dz * r[k0] * CONST_GRAV;
