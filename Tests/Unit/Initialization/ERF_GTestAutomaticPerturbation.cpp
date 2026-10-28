@@ -242,7 +242,6 @@ TEST(AutomaticPerturbationHeight, MYNNIsIndependentOfTerrainElevation)
     slab.setRange(2, 0);
     MultiFab height(BoxArray(slab), dm, 1, 0);
     MYNNPBLH estimator;
-    estimator.use_agl = true;
     for (const Real elevation : {zero, Real(1000)}) {
         fill_pbl_column(state, zcc, elevation);
         estimator.compute_pblh(geom, &zcc, &height, state, nullptr, MoistureComponentIndices{});

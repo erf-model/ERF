@@ -25,8 +25,10 @@ on:
       - '.github/actions/**'
   workflow_dispatch:
 
+# Development pushes finish the active run and keep only the newest pending commit.
+# PR cancellation and commit-specific manual groups stay unchanged.
 concurrency:
-  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || github.sha }}-linux-gcc-rrtmgp
+  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || (github.event_name == 'push' && 'latest') || github.sha }}-linux-gcc-rrtmgp
   cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
@@ -50,12 +52,14 @@ jobs:
         - rrtmgp: ON
           netcdf: OFF
     env:
+      CCACHE_TRUNK_KEY: ubuntu-22.04-x64-gcc-spack-openmpi-double-particles-on-kokkos-netcdf-${{ matrix.netcdf }}-rrtmgp-${{ matrix.rrtmgp }}
       ERF_DIR: ${{ github.workspace }}/erf_clone
     steps:
 
     - uses: actions/checkout@v7
       with:
         submodules: recursive
+        persist-credentials: false
         path: erf_clone
 
     - name: Install Dependencies
@@ -67,8 +71,19 @@ jobs:
     - name: Free up disk space
       uses: ./erf_clone/.github/actions/free-space-ubuntu
 
-    # ccache per matrix variant, written only from development; see ci.yml for how it works.
+    # GHCR trunk per configuration; the old Actions cache seeds the first restore.
     - name: Restore Cache
+      id: ghcr-cache
+      uses: ./erf_clone/.github/actions/ccache-trunk
+      with:
+        mode: restore
+        key: ${{ env.CCACHE_TRUNK_KEY }}
+        path: ~/.cache/ccache
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Restore legacy Actions cache
+      if: steps.ghcr-cache.outputs.hit != 'true'
+      continue-on-error: true
       uses: actions/cache/restore@v6
       with:
         path: ~/.cache/ccache
@@ -160,11 +175,14 @@ jobs:
         du -hs ~/.cache/ccache
 
     - name: Save Cache
-      if: always() && github.ref_name == github.event.repository.default_branch
-      uses: actions/cache/save@v6
+      if: always() && github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+      uses: ./erf_clone/.github/actions/ccache-trunk
       with:
+        mode: save
+        key: ${{ env.CCACHE_TRUNK_KEY }}
         path: ~/.cache/ccache
-        key: ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.netcdf }}-${{ matrix.rrtmgp }}-git-${{ github.sha }}
+        token: ${{ secrets.GITHUB_TOKEN }}
+
 
     - name: Report
       run: |

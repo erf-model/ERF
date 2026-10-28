@@ -25,13 +25,18 @@ on:
       - '.github/actions/**'
   workflow_dispatch:
 
+# Development pushes finish the active run and keep only the newest pending commit.
+# PR cancellation and commit-specific manual groups stay unchanged.
 concurrency:
-  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || github.sha }}-macos
+  group: ${{ github.event.pull_request.number || github.ref }}-${{ github.head_ref || (github.event_name == 'push' && 'latest') || github.sha }}-macos
   cancel-in-progress: ${{ github.ref != 'refs/heads/development' }}
 
 jobs:
   MacOS-Clang:
     name: Apple Clang@11.0 - Mesh ${{matrix.mesh_precision}} Particles ${{matrix.particles}} ${{matrix.particles_precision}}
+    permissions:
+      contents: read
+      packages: write
     runs-on: macos-latest
     timeout-minutes: 120
     # env: {CXXFLAGS: "-fno-operator-names -Werror -Wall -Wextra -Wpedantic -Wnull-dereference -Wfloat-conversion -Wshadow -Woverloaded-virtual"}
@@ -58,12 +63,30 @@ jobs:
     - uses: actions/checkout@v7
       with:
         submodules: true
+        persist-credentials: false
+
+    - name: Select cache configuration
+      shell: bash
+      env:
+        TRUNK_KEY: macos-latest-${{ runner.arch }}-appleclang-openmpi-${{ matrix.mesh_precision }}-particles-on
+      run: printf 'CCACHE_TRUNK_KEY=%s\n' "$TRUNK_KEY" >> "$GITHUB_ENV"
 
     - name: Install Dependencies
       run: Submodules/AMReX/.github/workflows/dependencies/dependencies_mac.sh
 
-    # ccache per matrix variant, written only from development; see ci.yml for how it works.
+    # GHCR trunk per configuration; the old Actions cache seeds the first restore.
     - name: Restore Cache
+      id: ghcr-cache
+      uses: ./.github/actions/ccache-trunk
+      with:
+        mode: restore
+        key: ${{ env.CCACHE_TRUNK_KEY }}
+        path: ~/Library/Caches/ccache
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Restore legacy Actions cache
+      if: steps.ghcr-cache.outputs.hit != 'true'
+      continue-on-error: true
       uses: actions/cache/restore@v6
       with:
         path: ~/Library/Caches/ccache
@@ -115,11 +138,14 @@ jobs:
         echo '```' >> "$GITHUB_STEP_SUMMARY"
 
     - name: Save Cache
-      if: always() && github.ref_name == github.event.repository.default_branch
-      uses: actions/cache/save@v6
+      if: always() && github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+      uses: ./.github/actions/ccache-trunk
       with:
+        mode: save
+        key: ${{ env.CCACHE_TRUNK_KEY }}
         path: ~/Library/Caches/ccache
-        key: ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.mesh_precision }}-git-${{ github.sha }}
+        token: ${{ secrets.GITHUB_TOKEN }}
+
 
     - name: Report
       run: |

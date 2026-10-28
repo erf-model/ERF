@@ -1157,6 +1157,19 @@ ERF::ReadCheckpointFile ()
                     Abort("Cannot restart with a different number of cells in z");
                 }
 
+                // A constant-dz checkpoint written before the levels started at
+                // geometry.prob_lo[2] holds levels that start at 0; z_phys is rebuilt from
+                // the levels on this mesh, so shifting them is all the update it needs
+                if (SolverChoice::mesh_type == MeshType::ConstantDz) {
+                    const Real shift = geom[lev].ProbLo(2) - zlevels_from_chk[0];
+                    if (shift != zero) {
+                        Print() << "Shifting the z levels read from the checkpoint at level " << lev
+                                << " by " << shift << " so that they start at geometry.prob_lo[2]"
+                                << std::endl;
+                        for (auto& z : zlevels_from_chk) { z += shift; }
+                    }
+                }
+
                 zlevels_stag[lev] = zlevels_from_chk;
 
                 // Keep the cell heights consistent with the levels we just read in

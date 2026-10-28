@@ -10,10 +10,6 @@
  * @brief Diagnostic utility for the planetary boundary layer height.
  */
 struct MYNNPBLH {
-    // Automatic inflow controls need a ground-relative diagnostic. Keep the
-    // legacy diagnostic convention for callers that do not request this mode.
-    bool use_agl = false;
-
     /*
      * Diagnose the PBL height
      *
@@ -115,7 +111,6 @@ struct MYNNPBLH {
             if (z_phys_cc)
             {
                 const auto zphys_arr = z_phys_cc->const_array(mfi);
-                const bool height_agl = use_agl;
 
                 // Need to sort out ghost cell differences (z_phys_cc has ng=1)
                 int imin = lbound(zphys_arr).x;
@@ -123,19 +118,20 @@ struct MYNNPBLH {
                 int imax = ubound(zphys_arr).x;
                 int jmax = ubound(zphys_arr).y;
 
+                // Heights here are above the ground.  The ground is the bottom face of the
+                // column, where z_phys_cc in the ghost cell below mirrors the bottom cell.
+
                 // Find minimum thetav in the surface layer (this updates
                 // ghost cells, too)
                 ParallelFor(gtbx2d, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept
                 {
                     int ii = amrex::max(amrex::min(i,imax),imin);
                     int jj = amrex::max(amrex::min(j,jmax),jmin);
+                    const amrex::Real z_sfc = myhalf * (zphys_arr(ii,jj,klo) + zphys_arr(ii,jj,klo-1));
 
-                    // ERF mirrors the bottom height ghost cell about the surface.
-                    const amrex::Real zs = height_agl ? myhalf*(zphys_arr(ii,jj,klo-1)
-                                                              + zphys_arr(ii,jj,klo)) : zero;
                     amrex::Real min_thv = min_thv_arr(i,j,0);
                     for (int k(klo); k <= khi; ++k) {
-                        if (zphys_arr(ii,jj,k) - zs < thetamin_height) {
+                        if (zphys_arr(ii,jj,k) - z_sfc < thetamin_height) {
                             amrex::Real thv = GetThetav(i, j, k, cons_arr, moisture_indices);
                             min_thv = amrex::min(min_thv, thv);
                         }
@@ -148,9 +144,8 @@ struct MYNNPBLH {
                 {
                     int ii = amrex::max(amrex::min(i,imax),imin);
                     int jj = amrex::max(amrex::min(j,jmax),jmin);
+                    const amrex::Real z_sfc = myhalf * (zphys_arr(ii,jj,klo) + zphys_arr(ii,jj,klo-1));
 
-                    const amrex::Real zs = height_agl ? myhalf*(zphys_arr(ii,jj,klo-1)
-                                                              + zphys_arr(ii,jj,klo)) : zero;
                     const amrex::Real min_thv = min_thv_arr(i,j,0);
                     const int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
 
@@ -171,7 +166,7 @@ struct MYNNPBLH {
                                         && (thv  <  min_thv + theta_incr_land))
                             {
                                 // Interpolate to get lowest height where theta = min_theta + theta_incr
-                                zi = zphys_arr(ii,jj,k) - zs
+                                zi = zphys_arr(ii,jj,k) - z_sfc
                                    + (zphys_arr(ii,jj,k+1)-zphys_arr(ii,jj,k))/(thv1-thv)
                                      * (min_thv + theta_incr_land - thv);
                             }
@@ -179,7 +174,7 @@ struct MYNNPBLH {
                                               && (thv  <  min_thv + theta_incr_water))
                             {
                                 // Interpolate to get lowest height where theta = min_theta + theta_incr
-                                zi = zphys_arr(ii,jj,k) - zs
+                                zi = zphys_arr(ii,jj,k) - z_sfc
                                    + (zphys_arr(ii,jj,k+1)-zphys_arr(ii,jj,k))/(thv1-thv)
                                      * (min_thv + theta_incr_water - thv);
                             }
@@ -199,7 +194,7 @@ struct MYNNPBLH {
                             if ((tke1 <= TKEeps) && (tke > TKEeps))
                             {
                                 // Interpolate to get lowest height where TKE -> 0
-                                zi_tke = zphys_arr(ii,jj,k) - zs
+                                zi_tke = zphys_arr(ii,jj,k) - z_sfc
                                        + (zphys_arr(ii,jj,k+1)-zphys_arr(ii,jj,k))/(tke1-tke)
                                          * (TKEeps - tke);
                             }

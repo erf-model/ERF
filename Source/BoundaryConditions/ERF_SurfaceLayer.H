@@ -562,6 +562,15 @@ public:
       if (m_use_sfc_fluxes || m_use_sfc_sst) {
           if (m_use_sfc_fluxes) {
               AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!use_surface_model, "Cannot use surface flux forcing with LSM/Urban model!");
+              // The file's H and LE already carry the density, and the stress
+              // takes the local density, so a surface density would count it
+              // twice in H and LE (see set_sfc_params_from_file_fluxes).
+              // The value is tested, not the key: flux_type = custom has already
+              // queryAdd-ed most.rhosurf with its default of 0 (use the first cell).
+              amrex::Real rhosurf_in = zero;
+              pp.query("most.rhosurf", rhosurf_in);
+              AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rhosurf_in <= zero,
+                  "most.rhosurf cannot be combined with most.use_sfc_fluxes");
           }
           if (m_terrain_type == TerrainType::EB) {
               amrex::Abort("Text-file surface forcing is not supported with EB terrain");
@@ -1056,6 +1065,21 @@ public:
                                            amrex::MultiFab& cons_in);
 
   /**
+   * Set kinematic u*, t*, and q* from the fluxes interpolated from most.sfc_file.
+   *
+   * @param[in] lev       level index
+   * @param[in] cons_in   conserved state supplying the first-cell density
+   * @param[in] sfc_tflux sensible heat flux H [W/m2]
+   * @param[in] sfc_qflux latent heat flux LE [W/m2]
+   * @param[in] sfc_tau   kinematic surface stress TAU [m2/s2]
+   */
+  void set_sfc_params_from_file_fluxes (const int& lev,
+                                        const amrex::MultiFab& cons_in,
+                                        const amrex::Real& sfc_tflux,
+                                        const amrex::Real& sfc_qflux,
+                                        const amrex::Real& sfc_tau);
+
+  /**
    * Fill surface temperature from available SST and TSK data.
    *
    * @param[in] lev  level index
@@ -1190,13 +1214,11 @@ public:
    * @param[in,out] vars             state variables used by the PBL-height calculation
    * @param[in]     z_phys_cc        cell-centered physical-height field
    * @param[in]     moisture_indices indices for moisture components
-   * @param[in]     height_agl       diagnose MYNN heights relative to local ground
    */
   void update_pblh (const int& lev,
                     amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars,
                     amrex::MultiFab* z_phys_cc,
-                    const MoistureComponentIndices& moisture_indices,
-                    bool height_agl = false);
+                    const MoistureComponentIndices& moisture_indices);
 
   /**
    * Set the PBL height of a refined level whose grids do not run from the ground to the top

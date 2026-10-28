@@ -109,6 +109,8 @@ public:
      * @param[out] p_hse       hydrostatic reference pressure
      * @param[in] z_nd         height coordinate at nodes
      * @param[in] z_cc         height coordinate at cell centers
+     * @param[in] z_sfc_nd     height of the ground at the nodes of the bottom face of each
+     *                         column, at k = 0, over the planar footprint of bx
      * @param[in] mf_m         map factor on cell centers
      * @param[in] mf_u         map factor on x-faces
      * @param[in] mf_v         map factor on y-faces
@@ -123,6 +125,7 @@ public:
                       amrex::Array4<amrex::Real      > const& /*p_hse*/,
                       amrex::Array4<amrex::Real const> const& /*z_nd*/,
                       amrex::Array4<amrex::Real const> const& /*z_cc*/,
+                      amrex::Array4<amrex::Real const> const& /*z_sfc_nd*/,
                       amrex::GeometryData const& /*geomdata*/,
                       amrex::Array4<amrex::Real const> const& /*mf_m*/,
                       const SolverChoice& /*sc*/, const int /*lev*/)
@@ -141,6 +144,8 @@ public:
      * @param[out] y_vel_pert  y-component of velocity perturbation to be filled in this routine
      * @param[out] z_vel_pert  z-component of velocity perturbation to be filled in this routine
      * @param[in] z_nd         height coordinate at nodes
+     * @param[in] z_sfc_nd     height of the ground at the nodes of the bottom face of each
+     *                         column, at k = 0 (see init_custom_pert)
      * @param[in] mf_m         map factor on cell centers
      * @param[in] mf_u         map factor on x-faces
      * @param[in] mf_v         map factor on y-faces
@@ -155,6 +160,7 @@ public:
                            amrex::Array4<amrex::Real      > const& /*y_vel_pert*/,
                            amrex::Array4<amrex::Real      > const& /*z_vel_pert*/,
                            amrex::Array4<amrex::Real const> const& /*z_nd*/,
+                           amrex::Array4<amrex::Real const> const& /*z_sfc_nd*/,
                            amrex::GeometryData const& /*geomdata*/,
                            amrex::Array4<amrex::Real const> const& /*mf_u*/,
                            amrex::Array4<amrex::Real const> const& /*mf_v*/,
@@ -1159,7 +1165,8 @@ public:
 
         } else {
             amrex::Print() << "Initializing flat terrain" << std::endl;
-            terrain_fab.template setVal<amrex::RunOn::Device>(0);
+            // A flat surface at the bottom of the domain
+            terrain_fab.template setVal<amrex::RunOn::Device>(geom.ProbLo(2));
 
             if (SolverChoice::mesh_type == MeshType::VariableDz) {
                 SolverChoice::set_mesh_type(MeshType::StretchedDz);

@@ -25,7 +25,7 @@
             {
                 auto x = prob_lo[0] + (i + myhalf) * dx[0];
                 auto y = prob_lo[1] + (j + myhalf) * dx[1];
-                auto z = use_z_phys ? d_zlevels_arr[k] : prob_lo[2] + (k + myhalf) * dx[2];
+                auto z = use_z_phys ? d_zlevels_arr[k] : (k + myhalf) * dx[2];
 
                 //const Real c = two*dx[0];
                 auto c = amrex::Real(1700.0)*amrex::Real(1700.0);

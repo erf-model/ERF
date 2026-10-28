@@ -872,7 +872,7 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
     }
 
     if (solverChoice.io_hurricane_eye_tracker and
-         (nstep == 0 or (m_plot3d_int_1 > 0 and (nstep+1)%m_plot3d_int_1 == 0))) {
+         (nstep == 0 or (m_plot3d_int_1 > 0 and nstep%m_plot3d_int_1 == 0))) {
 
         int levc=finest_level;
 
@@ -2018,8 +2018,7 @@ ERF::InitData_post ()
                     // we don't want to call update_fluxes multiple times because
                     // it will change u* and theta* from their previous values
                     m_SurfaceLayer[ori]->update_pblh(lev, vars_new, z_phys_cc[lev].get(),
-                                                     solverChoice.moisture_indices,
-                                                     solverChoice.perturbation_auto);
+                                                     solverChoice.moisture_indices);
 #ifdef ERF_USE_NETCDF
                     double elapsed_time_since_start_low = t_new[lev] + (start_time - start_low_time);
 #else
