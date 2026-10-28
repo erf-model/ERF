@@ -2705,7 +2705,9 @@ ABL Driver and Geostrophic Forcing
 |                             | ``z Ug Vg`` (m, m/s, m/s), heights increasing and        |                    |                  |
 |                             | covering the domain; blank lines and lines starting      |                    |                  |
 |                             | with ``#`` are skipped, and any other row that does not  |                    |                  |
-|                             | start with three numbers stops the run                   |                    |                  |
+|                             | start with three numbers stops the run. ``z`` is the     |                    |                  |
+|                             | physical height, in the same coordinate as               |                    |                  |
+|                             | ``geometry.prob_lo[2]`` and ``prob_hi[2]``               |                    |                  |
 +-----------------------------+----------------------------------------------------------+--------------------+------------------+
 
 .. _sec:WindFarmForcingInputs:
