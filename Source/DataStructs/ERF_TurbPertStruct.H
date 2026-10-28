@@ -90,6 +90,12 @@ struct TurbulentPerturbation {
         // Reading inputs, and placing assertion for the perturbation inflow to work
         pp.getarr("perturbation_box_dims",tpi_boxDim);
         pp.getarr("perturbation_direction",tpi_direction);
+        if (tpi_boxDim.size() != 3) {
+            amrex::Abort("perturbation_box_dims must have 3 entries (Nx Ny Nz)");
+        }
+        if (tpi_direction.size() != 6) {
+            amrex::Abort("perturbation_direction must have 6 entries (west south bottom east north top)");
+        }
         pp.get("perturbation_layers",tpi_layers);
         pp.get("perturbation_offset",tpi_offset);
 
@@ -395,13 +401,16 @@ struct TurbulentPerturbation {
      * @param m_ixtype Index type of the destination array.
      * @param src_arr Destination array receiving perturbation increments.
      * @param pert_cell Stored perturbation amplitudes.
+     * @param scale Factor applied to the stored amplitudes (the time step for the direct
+     *              perturbation, whose stored amplitudes are rates).
      */
     void apply_tpi (const int& lev,
                     const amrex::Box& vbx,                      // box union from upper level
                     const int& comp,                            // Component to modify
                     const amrex::IndexType& m_ixtype,           // IntVect type of src_arr
                     const amrex::Array4<amrex::Real>& src_arr,  // Array to apply perturbation
-                    const amrex::Array4<amrex::Real const>& pert_cell)
+                    const amrex::Array4<amrex::Real const>& pert_cell,
+                    const amrex::Real scale = one)
     {
         for (int boxIdx = 0; boxIdx < pb_ba[lev].size(); boxIdx++) {
             amrex::Box pbx = amrex::convert(pb_ba[lev][boxIdx], m_ixtype);
@@ -410,11 +419,11 @@ struct TurbulentPerturbation {
             if (ubx.ok()) {
                 if (comp == -1) { // vertical velocity perturbations
                     ParallelFor(ubx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        src_arr(i,j,k) += pert_cell(i,j,k);
+                        src_arr(i,j,k) += scale * pert_cell(i,j,k);
                     });
                 } else {
                     ParallelFor(ubx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        src_arr(i,j,k,comp) += pert_cell(i,j,k);
+                        src_arr(i,j,k,comp) += scale * pert_cell(i,j,k);
 
                         // For box region debug only
                         #ifdef INDEX_PERTURB
@@ -445,6 +454,12 @@ struct TurbulentPerturbation {
             pb_amp[lev][boxIdx] = input_w_amp;
         } else { // box perturbation
             amrex::Real Um = pb_mag[lev][boxIdx];
+
+            // No mean wind: nothing to trip, and with tpi_Ti > 0 the amplitude below would be
+            //    0/0. The box is not refreshed again, so a zero amplitude also clears the
+            //    perturbation it held
+            if (Um == zero) { return; }
+
             amrex::Real beta = one/tpi_Tinf; // Thermal expansion coefficient
 
             // Pseudo Random temperature the ignores scale when mechanically tripping turbulence
@@ -460,12 +475,11 @@ struct TurbulentPerturbation {
             // Ma and Senocak (2023) Eq. 8, solving for delta phi
             pb_amp[lev][boxIdx] = (tpi_nonDim * Um * Um) / (g * beta * tpi_Hpb[lev]) * 1 / total_ref_ratio;
 
-            if (pt_type[lev] == 0) {
-                // Performing this step converts the perturbation proportionality into
-                // the forcing term
-                // Ma & Senocak (2023) Eq. 7
-                pb_amp[lev][boxIdx] /= static_cast<amrex::Real>(interval);
-            }
+            // Divide by the interval to get a forcing rate [K/s], Ma & Senocak (2023) Eq. 7.
+            //    The source perturbation adds this rate as a source term; the direct
+            //    perturbation adds it times the time step to the state at every step. Either
+            //    way the total over one refresh interval is delta phi, even if dt changes
+            pb_amp[lev][boxIdx] /= static_cast<amrex::Real>(interval);
         }
     }
 
@@ -480,7 +494,7 @@ struct TurbulentPerturbation {
                            const amrex::IndexType& m_ixtype)
     {
         for (amrex::MFIter mfi(pb_cell[lev],TileNoZ()); mfi.isValid(); ++mfi) {
-            amrex::Box vbx = mfi.validbox();
+            amrex::Box vbx = mfi.tilebox();
             amrex::Box pbx = amrex::convert(pb_ba[lev][boxIdx], m_ixtype);
             if (pt_type[lev] == 3) { pbx.setBig(2, pbx.bigEnd(2) - 1); } // prevent double counting after converting to k-faces
             amrex::Box ubx = pbx & vbx;
@@ -517,7 +531,7 @@ struct TurbulentPerturbation {
     {
 
         for (amrex::MFIter mfi(pb_cell[lev],TileNoZ()); mfi.isValid(); ++mfi) {
-            amrex::Box vbx = mfi.validbox();
+            amrex::Box vbx = mfi.tilebox();
             amrex::Box pbx = amrex::convert(pb_ba[lev][boxIdx], m_ixtype);
             if (pt_type[lev] == 3) { pbx.setBig(2, pbx.bigEnd(2) - 1); } // prevent double counting after converting to k-faces
             amrex::Box ubx = pbx & vbx;

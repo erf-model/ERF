@@ -42,7 +42,11 @@ Canopy input modes
 ERF supports two mutually exclusive canopy descriptions:
 
 * ``erf.forest_file`` describes discrete circular forest patches. Each row is
-  ``tree_type x_center y_center height diameter Cd LAI LAImax``.
+  ``tree_type x_center y_center height diameter Cd LAI LAImax``. Where patches
+  overlap, their drag :math:`C_d L` and leaf area densities :math:`L` add. A
+  cell receives drag from a patch when its centre is strictly below the tree
+  height :math:`h`, as in the gridded mode; the type-2 profile tends to zero at
+  :math:`z = h`.
 * Gridded NetCDF mode uses ``erf.forest_lai_file`` and
   ``erf.forest_height_file`` together with either ``erf.forest_cd_file`` or a
   constant ``erf.forest_cd``. The corresponding NetCDF variables are ``LAI``,

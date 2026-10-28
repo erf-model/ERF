@@ -26,6 +26,22 @@
 // the third harmonic of delta was -0.00248 cos(3g) + 0.00031 sin(3g), and
 // until erf-model/ERF#4656 the day angle divided by 365.25.
 
+namespace {
+
+// Mark the cells of building as building (blank = 1). A free function: nvcc
+// rejects an extended device lambda inside a gtest body, which is a private
+// member function of the generated test class.
+void mark_building (amrex::MultiFab& blank, const amrex::Box& building)
+{
+    for (amrex::MFIter mfi(blank); mfi.isValid(); ++mfi) {
+        auto const& a = blank.array(mfi);
+        const amrex::Box bld = building & mfi.validbox();
+        amrex::ParallelFor(bld, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept { a(i, j, k) = 1.0; });
+    }
+}
+
+} // namespace
+
 TEST(IBSEBSolarDeclination, MatchesSpencerSeries)
 {
     const double tol = (sizeof(amrex::Real) == 8) ? 1.0e-9 : 1.0e-5;
@@ -115,11 +131,7 @@ TEST(IBSEBSolarDeclination, FaceSetSunFollowsTheDate)
     const DistributionMapping dm(ba);
     MultiFab blank(ba, dm, 1, 1);
     blank.setVal(0.0);
-    for (MFIter mfi(blank); mfi.isValid(); ++mfi) {
-        auto const& a = blank.array(mfi);
-        const Box bld = Box(IntVect(1, 1, 0), IntVect(2, 2, 1)) & mfi.validbox();
-        ParallelFor(bld, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept { a(i, j, k) = 1.0; });
-    }
+    mark_building(blank, Box(IntVect(1, 1, 0), IntVect(2, 2, 1)));
     blank.FillBoundary(geom.periodicity());
 
     auto sun_at = [&] (Real day0, Real time) {

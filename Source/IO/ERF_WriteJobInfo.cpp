@@ -69,7 +69,7 @@ ERF::writeJobInfo (const std::string& dir,
 
     if (use_datetime) {
         const std::string dt_format = "%Y-%m-%d %H:%M:%S"; // ISO 8601 standard
-        jobInfoFile << "Simulation time: " << getTimestamp(start_time+t_new[0], dt_format) << "\n";
+        jobInfoFile << "Simulation time: " << getTimestamp(start_time+artifact_time_seconds, dt_format) << "\n";
         jobInfoFile << "\n\n";
     }
 

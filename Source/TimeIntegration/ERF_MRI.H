@@ -32,7 +32,7 @@ private:
    /**
     * \brief Integrator timestep size (Real)
     */
-    double timestep;
+    double timestep = 0.0;
 
    /**
     * \brief The ratio of slow timestep size / fast timestep size (int)
@@ -40,14 +40,14 @@ private:
     int slow_fast_timestep_ratio = 0;
 
    /**
-    * \brief Should we not do acoustic substepping
+    * \brief Should we not do acoustic substepping (-1 until setNoSubstepping is called)
     */
-    int no_substepping;
+    int no_substepping = -1;
 
    /**
-    * \brief Should we use the anelastic integrator
+    * \brief Should we use the anelastic integrator (-1 until setAnelastic is called)
     */
-    int anelastic;
+    int anelastic = -1;
 
     /**
     * \brief Which two-stage scheme the anelastic integrator uses
@@ -55,14 +55,15 @@ private:
     AnelasticType anelastic_type = AnelasticType::RK2;
 
    /**
-    * \brief How many components in the cell-centered MultiFab
+    * \brief How many components in the cell-centered MultiFab (-1 until setNcompCons is called)
     */
-    int ncomp_cons;
+    int ncomp_cons = -1;
 
    /**
     * \brief Do we follow the recommendation to only perform a single substep in the first RK stage
+    *        (-1 until setForceFirstStageSingleSubstep is called)
     */
-    int force_stage1_single_substep;
+    int force_stage1_single_substep = -1;
 
    /**
     * \brief The no_substep function is called when we have no acoustic substepping
@@ -71,8 +72,8 @@ private:
 
 
     amrex::Vector<std::unique_ptr<T> > T_store;
-    T* S_sum;
-    T* F_slow;
+    T* S_sum = nullptr;
+    T* F_slow = nullptr;
 
     /**
      * @brief Allocate internal storage for integrator variables.
@@ -83,6 +84,9 @@ private:
         // TODO: We can optimize memory by making the cell-centered part of S_sum
         //       have only 2 components, not ncomp_cons components
         const bool include_ghost = true;
+        // CreateLike appends to T_store, so drop any storage from a previous
+        // initialization before S_sum and F_slow are taken from entries 0 and 1
+        T_store.clear();
         amrex::IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
         S_sum = T_store[0].get();
         amrex::IntegratorOps<T>::CreateLike(T_store, S_data, include_ghost);
@@ -252,6 +256,13 @@ public:
         // no_substepping:  we don't do any acoustic subcycling so we only make one call per RK
         //                  stage to slow_rhs
         // *******************************************************************************
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(no_substepping >= 0 && anelastic >= 0 &&
+                                         force_stage1_single_substep >= 0 && ncomp_cons > 0,
+            "MRISplitIntegrator::advance: setNoSubstepping, setAnelastic, "
+            "setForceFirstStageSingleSubstep and setNcompCons must be called before advance");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(S_sum != nullptr && F_slow != nullptr,
+            "MRISplitIntegrator::advance: integrator storage must be initialized before advance");
+
         timestep = time_step;
 
         const int substep_ratio = get_slow_fast_timestep_ratio();

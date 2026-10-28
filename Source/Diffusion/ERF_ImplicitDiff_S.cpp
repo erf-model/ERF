@@ -126,7 +126,7 @@ ImplicitDiffForStateLU_S (const Box& bx,
             {
                 getRhoAlpha(i, j, klo, rhoAlpha_lo, rhoAlpha_hi,
                             cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
-                            prim_index, prim_scal_index, l_consA, l_turb);
+                            prim_scal_index, l_consA, l_turb);
 
                 dz_inv    = one / dz_ptr[klo];
                 dz_inv_lo = dz_inv;
@@ -179,7 +179,7 @@ ImplicitDiffForStateLU_S (const Box& bx,
             for (int k(klo+1); k < khi; k++) {
                 getRhoAlpha(i, j, k, rhoAlpha_lo, rhoAlpha_hi,
                             cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
-                            prim_index, prim_scal_index, l_consA, l_turb);
+                            prim_scal_index, l_consA, l_turb);
 
                 dz_inv    = one / dz_ptr[k];
                 dz_inv_lo = two / (dz_ptr[k] + dz_ptr[k-1]);
@@ -219,7 +219,7 @@ ImplicitDiffForStateLU_S (const Box& bx,
             {
                 getRhoAlpha(i, j, khi, rhoAlpha_lo, rhoAlpha_hi,
                             cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
-                            prim_index, prim_scal_index, l_consA, l_turb);
+                            prim_scal_index, l_consA, l_turb);
 
                 dz_inv    = one / dz_ptr[khi];
                 dz_inv_lo = two / (dz_ptr[khi] + dz_ptr[khi-1]);
@@ -687,7 +687,7 @@ ImplicitVerticalFluxForReflux_S (const Box& bx,
         Real rhoAlpha_lo, rhoAlpha_hi;
         const int kc = (k <= khi) ? k : k-1;
         getRhoAlpha(i, j, kc, rhoAlpha_lo, rhoAlpha_hi, cell_data, mu_turb, d_alpha_eff, d_eddy_diff_idz,
-                    prim_index, prim_scal_index, l_consA, l_turb);
+                    prim_scal_index, l_consA, l_turb);
         const Real rhoAlpha = (k <= khi) ? rhoAlpha_lo : rhoAlpha_hi;
         const Real dz_inv_face = two / (dz_ptr[k] + dz_ptr[k-1]);
         const Real phi_hi = cell_data(i,j,k  ,n) / cell_data(i,j,k  ,Rho_comp);

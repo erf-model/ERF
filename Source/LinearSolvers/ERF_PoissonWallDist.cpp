@@ -54,6 +54,36 @@ assert_surface_gathered (const MultiFab& znd_surf)
 }
 
 /**
+ * The RANS wall distance at this level: the distance to the bottom wall from
+ * poisson_wall_dist, corrected for thin immersed bodies.  Does nothing when this
+ * level runs no RANS model.  init_stuff resets walldist to bogus_large_value
+ * whenever a level is made on new grids, so this runs at initialisation (and on
+ * a restart) and again for each level a regrid adds or remakes.
+ *
+ * @param lev Level index
+ */
+void ERF::make_wall_dist (int lev)
+{
+    if (solverChoice.turbChoice[lev].rans_type == RANSType::None) { return; }
+
+    // Handle bottom boundary
+    poisson_wall_dist(lev);
+
+    // Correct the wall distance for immersed bodies
+    if (solverChoice.advChoice.have_zero_flux_faces) {
+        thinbody_wall_dist(walldist[lev],
+                           solverChoice.advChoice.zero_xflux,
+                           solverChoice.advChoice.zero_yflux,
+                           solverChoice.advChoice.zero_zflux,
+                           geom[lev],
+                           z_phys_cc[lev]);
+
+        // The correction is only applied on the valid region
+        fill_wall_dist_ghost_cells(*walldist[lev], geom[lev]);
+    }
+}
+
+/**
  * Calculate wall distances using the Poisson equation
  *
  * The zlo boundary is assumed to correspond to the land surface. If there are

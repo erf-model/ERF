@@ -121,9 +121,15 @@ ComputeStressConsVisc_EB (Box bxcc, Box tbxxy, Box tbxxz, Box tbxyz, Real mu_eff
         // Cell centered strains
         ParallelFor(bxcc, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            tau11(i,j,k) = -mu_eff * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
-            tau22(i,j,k) = -mu_eff * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
-            tau33(i,j,k) = -mu_eff * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
+            if (vfrac(i,j,k) > zero) {
+                tau11(i,j,k) = -mu_eff * ( tau11(i,j,k) - OneThird*er_arr(i,j,k) );
+                tau22(i,j,k) = -mu_eff * ( tau22(i,j,k) - OneThird*er_arr(i,j,k) );
+                tau33(i,j,k) = -mu_eff * ( tau33(i,j,k) - OneThird*er_arr(i,j,k) );
+            } else {
+                tau11(i,j,k) = zero;
+                tau22(i,j,k) = zero;
+                tau33(i,j,k) = zero;
+            }
         });
 
         // Off-diagonal strains

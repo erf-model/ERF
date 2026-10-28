@@ -316,8 +316,8 @@ choices are offered through ``erf.wall_dist_type``:
   Poisson distance can.
 
 The distance is available as the plot variable ``walldist``. It is
-computed once at initialisation, also on a restart; it is not recomputed
-after a regrid.
+computed at initialisation, also on a restart, and again on every level
+that a regrid adds or remakes.
 
 Limitations
 -----------

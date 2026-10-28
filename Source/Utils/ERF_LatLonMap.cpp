@@ -2,6 +2,7 @@
  * \file ERF_LatLonMap.cpp
  */
 #include "ERF_LatLonMap.H"
+#include "ERF_EarthRelativeWind.H"
 #include "ERF_NumericalConstants.H"
 
 #include <algorithm>
@@ -62,23 +63,49 @@ void
 grid_rotation_from_latlon (const Array4<const Real>& ll, const Box& dom, int i, int j,
                            Real& cos_alpha, Real& sin_alpha)
 {
-    const GradientStencil s = gradient_stencil(dom, i, j);
+    erf_earth_wind::grid_rotation_at(ll, dom.smallEnd(0), dom.bigEnd(0), i, j,
+                                     cos_alpha, sin_alpha);
+}
 
-    // Displacement on the sphere per cell in i: east and north components, in
-    // degrees of latitude (the common factor, the Earth's radius, cancels)
-    const Real lat   = ll(i,j,0,0);
-    const Real north = (ll(s.ip,j,0,0) - ll(s.im,j,0,0)) * s.inv_di;
-    const Real east  = wrap_longitude_difference(ll(s.ip,j,0,1) - ll(s.im,j,0,1)) * s.inv_di
-                     * std::cos(lat * PI / Real(180.0));
-    const Real norm  = std::sqrt(east*east + north*north);
+//
+// The grid rotation at every mass point of a level, from that level's lat/lon.
+// The centred difference reads one neighbour in i on each side, so lat/lon are
+// first copied into a scratch with one ghost cell in x and y; at the edge of the
+// domain the difference collapses to one side, as in grid_rotation_from_latlon.
+// The neighbours come from the ghost cells of lat/lon as well as their valid
+// cells: on a refined level the boxes need not cover the domain, and a neighbour
+// across the edge of a patch, inside the domain, is held only in a ghost cell
+// (filled from the coarser level when the level is made or regridded, and read
+// back from the checkpoint on a restart).
+//
+void
+fill_grid_rotation (MultiFab& cos_alpha, MultiFab& sin_alpha,
+                    const MultiFab& lat, const MultiFab& lon, const Geometry& geom)
+{
+    const Box& dom = geom.Domain();
+    const int ilo = dom.smallEnd(0);
+    const int ihi = dom.bigEnd(0);
 
-    if (norm > Real(0.0)) {
-        cos_alpha = east  / norm;
-        sin_alpha = north / norm;
-    } else {
-        // A domain one cell wide in x has no i direction to measure
-        cos_alpha = Real(1.0);
-        sin_alpha = Real(0.0);
+    // Ghost cells outside the domain are left at zero: the stencil never reads them
+    const IntVect ng(1,1,0);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(lat.nGrowVect().allGE(ng) && lon.nGrowVect().allGE(ng),
+        "fill_grid_rotation: lat/lon need one ghost cell in x and y");
+    MultiFab ll(cos_alpha.boxArray(), cos_alpha.DistributionMap(), 2, ng);
+    ll.setVal(Real(0.0));
+    const Periodicity period(IntVect(geom.isPeriodic(0) ? dom.length(0) : 0,
+                                     geom.isPeriodic(1) ? dom.length(1) : 0, 0));
+    ll.ParallelCopy(lat, 0, 0, 1, ng, ng, period);
+    ll.ParallelCopy(lon, 0, 1, 1, ng, ng, period);
+
+    for (MFIter mfi(cos_alpha, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.tilebox();
+        const Array4<const Real>& ll_arr = ll.const_array(mfi);
+        const Array4<Real>& c_arr = cos_alpha.array(mfi);
+        const Array4<Real>& s_arr = sin_alpha.array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            erf_earth_wind::grid_rotation_at(ll_arr, ilo, ihi, i, j, c_arr(i,j,k), s_arr(i,j,k));
+        });
     }
 }
 

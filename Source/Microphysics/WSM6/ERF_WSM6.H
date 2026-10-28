@@ -30,9 +30,10 @@ namespace MicVar_WSM6 {
       qr,
       qs,
       qg,
-      rain_accum,
-      snow_accum,
-      graup_accum,
+      rain_accum,    // rain alone
+      snow_accum,    // snow alone
+      graupel_accum, // graupel alone
+      precip_accum,  // everything that fell, cloud ice included
       NumVars
    };
 }
@@ -212,17 +213,18 @@ public:
                               std::vector<int>& a_idx,
                               std::vector<std::string>& a_names) const override
     {
-        a_idx = {0, 1, 2};
-        a_names = {"RainAccum", "SnowAccum", "GraupAccum"};
+        a_idx = {0, 1, 2, 3};
+        a_names = {"RainAccum", "SnowAccum", "GraupAccum", "PrecipAccum"};
     }
 
     SurfacePrecipAccumulationSources
     Get_Surface_Precip_Accumulation_Ptrs (const int&) const override
     {
         SurfacePrecipAccumulationSources sources;
-        sources.total   = {mic_fab_vars[MicVar_WSM6::rain_accum].get(), rhoh2o / amrex::Real(1000.0)};
+        sources.total   = {mic_fab_vars[MicVar_WSM6::precip_accum].get(), rhoh2o / amrex::Real(1000.0)};
+        sources.rain    = {mic_fab_vars[MicVar_WSM6::rain_accum].get(), rhoh2o / amrex::Real(1000.0)};
         sources.snow    = {mic_fab_vars[MicVar_WSM6::snow_accum].get(), rhoh2o / amrex::Real(1000.0)};
-        sources.graupel = {mic_fab_vars[MicVar_WSM6::graup_accum].get(), rhoh2o / amrex::Real(1000.0)};
+        sources.graupel = {mic_fab_vars[MicVar_WSM6::graupel_accum].get(), rhoh2o / amrex::Real(1000.0)};
         return sources;
     }
 
@@ -232,7 +234,7 @@ public:
                          const SolverChoice& sc);
 
 private:
-    int m_qmoist_size = 3;
+    int m_qmoist_size = 4;
     int n_qstate_moist_size = 6;
     int n_qstate_moist_numconc_size = 0;
 

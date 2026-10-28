@@ -35,6 +35,10 @@ void SAM::IceFall (const SolverChoice& sc) {
     auto rho   = mic_fab_vars[MicVar::rho];
     auto tabs  = mic_fab_vars[MicVar::tabs];
 
+    // Cloud ice that falls out of the bottom reaches the ground, so it counts in
+    // the precipitation total (though in none of the rain, snow or graupel ones)
+    auto precip_accum = mic_fab_vars[MicVar::precip_accum];
+
     MultiFab fz;
     IntVect  ng = qcl->nGrowVect();
     BoxArray ba = qcl->boxArray();
@@ -116,6 +120,7 @@ void SAM::IceFall (const SolverChoice& sc) {
             auto rho_array   = rho->array(mfi);
             auto fz_array    = fz.array(mfi);
             auto sed_array   = m_sed.down->array(mfi);
+            auto precip_accum_array = precip_accum->array(mfi);
             const auto inflow_array = (m_sed_inflow) ? m_sed_inflow->const_array(mfi)
                                                      : Array4<const Real>{};
             const int inflow_flag = m_sed.inflow_flag_comp();
@@ -163,6 +168,11 @@ void SAM::IceFall (const SolverChoice& sc) {
                     fz_array(i,j,k) = inflow_array(i,j,k,3) * inv_dt;
                 }
                 sed_array(i,j,k,3) += fz_array(i,j,k) * dtn;
+
+                // In mm of liquid water, as the other accumulations
+                if (k == k_lo) {
+                    precip_accum_array(i,j,k) += fz_array(i,j,k) * dtn / rhor * Real(1000.0);
+                }
             });
 
             // Update precip every substep

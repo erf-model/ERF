@@ -15,7 +15,6 @@
 
 using namespace amrex;
 
-static PhysBCFunctNoOp null_bc_for_fill;
 
 void
 ERF::setPlotVariables (const std::string& pp_plot_var_names, Vector<std::string>& plot_var_names)
@@ -265,6 +264,19 @@ ERF::appendPlot3DVariables (const Vector<std::string>& plot_var_names,
             }
         }
     }
+
+#ifdef ERF_USE_FIRE
+    // The fire engine's fields, at k = 0 of the fire grid's level; filled last
+    // in FillPlot3DVars, in this order
+    if (m_fire_coupler) {
+        for (const auto& plot_name : m_fire_coupler->plot_var_names()) {
+            if (containerHasElement(plot_var_names, plot_name) &&
+                !containerHasElement(tmp_plot_names, plot_name)) {
+                tmp_plot_names.push_back(plot_name);
+            }
+        }
+    }
+#endif
 
     for (int i = 0; i < tmp_plot_names.size(); i++) {
         if (!containerHasElement(a_plot_var_names, tmp_plot_names[i])) {
@@ -1659,7 +1671,8 @@ ERF::FillPlot3DVars (int lev,
         //--------------------------------------------------------------------------
         copy_moist_diagnostic("rain_accum");
         copy_moist_diagnostic("snow_accum");
-        copy_moist_diagnostic("graup_accum");
+        copy_moist_diagnostic("graupel_accum");
+        copy_moist_diagnostic("precip_accum");
 
         // Relative humidity.  A scheme either publishes it in a qmoist array or, as
         // SatAdj does, publishes no qmoist arrays at all and leaves it to be
@@ -1926,6 +1939,18 @@ ERF::FillPlot3DVars (int lev,
         }
     }
 
+#ifdef ERF_USE_FIRE
+    // Must match the order of appendPlot3DVariables (after microphysics)
+    if (m_fire_coupler) {
+        for (const auto& plot_name : m_fire_coupler->plot_var_names()) {
+            if (containerHasElement(plot_var_names, plot_name)) {
+                m_fire_coupler->fill_plot_var(plot_name, mf_dst, mf_comp, lev);
+                mf_comp += 1;
+            }
+        }
+    }
+#endif
+
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
         mf_comp == ncomp_mf,
         "3D plotfile component assembly does not match selected variable names");
@@ -1936,6 +1961,10 @@ bool
 ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string> plot_var_names)
 {
     auto dPlotTime0 = amrex::second();
+
+    // Station rows are buffered, and a run that aborts never reaches the next
+    // flush: flushing here keeps the station series as far along as the plotfiles.
+    flush_stations();
 
     Real tnew = static_cast<Real>(t_new[0]);
 
@@ -2139,119 +2168,32 @@ ERF::Write3DPlotFile (int which, PlotFileType plotfile_type, Vector<std::string>
 
         if (plotfile_type == PlotFileType::Amrex) {
 
-            int lev0 = 0;
-            int desired_ratio = std::max(std::max(ref_ratio[lev0][0],ref_ratio[lev0][1]),ref_ratio[lev0][2]);
-            bool any_ratio_one = ( ( (ref_ratio[lev0][0] == 1) || (ref_ratio[lev0][1] == 1) ) ||
-                                     (ref_ratio[lev0][2] == 1) );
-            for (int lev = 1; lev < finest_level; lev++) {
-                any_ratio_one = any_ratio_one ||
-                                     ( ( (ref_ratio[lev][0] == 1) || (ref_ratio[lev][1] == 1) ) ||
-                                         (ref_ratio[lev][2] == 1) );
-            }
-
-            if (any_ratio_one && m_expand_plotvars_to_unif_rr)
-            {
-                Vector<IntVect>   r2(finest_level);
-                Vector<Geometry>  g2(finest_level+1);
-                Vector<MultiFab> mf2(finest_level+1);
-
-                mf2[0].define(grids[0], dmap[0], ncomp_mf, 0);
-
-                // Copy level 0 as is
-                MultiFab::Copy(mf2[0],mf[0],0,0,mf[0].nComp(),0);
-
-                // Define a new multi-level array of Geometry's so that we pass the new "domain" at lev > 0
-                Array<int,AMREX_SPACEDIM> periodicity =
-                             {Geom()[lev0].isPeriodic(0),Geom()[lev0].isPeriodic(1),Geom()[lev0].isPeriodic(2)};
-                g2[lev0].define(Geom()[lev0].Domain(),&(Geom()[lev0].ProbDomain()),0,periodicity.data());
-
-                r2[0] = IntVect(desired_ratio/ref_ratio[lev0][0],
-                                desired_ratio/ref_ratio[lev0][1],
-                                desired_ratio/ref_ratio[lev0][2]);
-
-                for (int lev = 1; lev <= finest_level; ++lev) {
-                    if (lev > 1) {
-                        r2[lev-1][0] = r2[lev-2][0] * desired_ratio / ref_ratio[lev-1][0];
-                        r2[lev-1][1] = r2[lev-2][1] * desired_ratio / ref_ratio[lev-1][1];
-                        r2[lev-1][2] = r2[lev-2][2] * desired_ratio / ref_ratio[lev-1][2];
-                    }
-
-                    mf2[lev].define(refine(grids[lev],r2[lev-1]), dmap[lev], ncomp_mf, 0);
-
-                    // Set the new problem domain
-                    Box d2(Geom()[lev].Domain());
-                    d2.refine(r2[lev-1]);
-
-                    g2[lev].define(d2,&(Geom()[lev].ProbDomain()),0,periodicity.data());
-                }
-
-                //
-                // We need to make a temporary that is the size of ncomp_mf
-                // in order to not get an out of bounds error
-                // even though the values will not be used
-                //
-                Vector<BCRec> temp_domain_bcs_type;
-                temp_domain_bcs_type.resize(ncomp_mf);
-
-                //
-                // Do piecewise constant interpolation of mf into mf2
-                //
-                for (int lev = 1; lev <= finest_level; ++lev) {
-                    Interpolater* mapper_c = &pc_interp;
-                    InterpFromCoarseLevel(mf2[lev], static_cast<Real>(t_new[lev]), mf[lev],
-                                          0, 0, ncomp_mf,
-                                          geom[lev], g2[lev],
-                                          null_bc_for_fill, 0, null_bc_for_fill, 0,
-                                          r2[lev-1], mapper_c, temp_domain_bcs_type, 0);
-                }
-
-                // Define an effective ref_ratio which is isotropic to be passed into WriteMultiLevelPlotfile
-                Vector<IntVect> rr(finest_level);
-                for (int lev = 0; lev < finest_level; ++lev) {
-                    rr[lev] = IntVect(desired_ratio);
-                }
-
-               Print() << "Writing 3D plotfile " << plotfilename << "\n";
-               if (SolverChoice::mesh_type != MeshType::ConstantDz) {
-                   WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
-                                                      GetVecOfConstPtrs(mf2),
-                                                      GetVecOfConstPtrs(mf_nd),
-                                                      varnames,
-                                                      g2, tnew, istep, rr);
-               } else {
-                   WriteMultiLevelPlotfile(plotfilename, finest_level+1,
-                                           GetVecOfConstPtrs(mf2), varnames,
-                                           g2, tnew, istep, rr);
-               }
-
+            if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+                WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
+                                                   GetVecOfConstPtrs(mf),
+                                                   GetVecOfConstPtrs(mf_nd),
+                                                   varnames,
+                                                   geom, tnew, istep, ref_ratio);
             } else {
-               if (SolverChoice::mesh_type != MeshType::ConstantDz) {
-                    WriteMultiLevelPlotfileWithTerrain(plotfilename, finest_level+1,
-                                                       GetVecOfConstPtrs(mf),
-                                                       GetVecOfConstPtrs(mf_nd),
-                                                       varnames,
-                                                       geom, tnew, istep, ref_ratio);
-                } else {
-                    WriteMultiLevelPlotfile(plotfilename, finest_level+1,
-                                            GetVecOfConstPtrs(mf), varnames,
-                                            geom, tnew, istep, ref_ratio);
-                }
-                if (m_plot_face_vels) {
-                    Print() << "Writing face velocities" << std::endl;
-                    WriteMultiLevelPlotfile(plotfilenameU, finest_level+1,
-                                            GetVecOfConstPtrs(mf_u),
-                                            {"x_velocity_stag"},
-                                            geom, tnew, istep, ref_ratio);
-                    WriteMultiLevelPlotfile(plotfilenameV, finest_level+1,
-                                            GetVecOfConstPtrs(mf_v),
-                                            {"y_velocity_stag"},
-                                            geom, tnew, istep, ref_ratio);
-                    WriteMultiLevelPlotfile(plotfilenameW, finest_level+1,
-                                            GetVecOfConstPtrs(mf_w),
-                                            {"z_velocity_stag"},
-                                            geom, tnew, istep, ref_ratio);
-                }
-            } // ref_ratio test
+                WriteMultiLevelPlotfile(plotfilename, finest_level+1,
+                                        GetVecOfConstPtrs(mf), varnames,
+                                        geom, tnew, istep, ref_ratio);
+            }
+            if (m_plot_face_vels) {
+                Print() << "Writing face velocities" << std::endl;
+                WriteMultiLevelPlotfile(plotfilenameU, finest_level+1,
+                                        GetVecOfConstPtrs(mf_u),
+                                        {"x_velocity_stag"},
+                                        geom, tnew, istep, ref_ratio);
+                WriteMultiLevelPlotfile(plotfilenameV, finest_level+1,
+                                        GetVecOfConstPtrs(mf_v),
+                                        {"y_velocity_stag"},
+                                        geom, tnew, istep, ref_ratio);
+                WriteMultiLevelPlotfile(plotfilenameW, finest_level+1,
+                                        GetVecOfConstPtrs(mf_w),
+                                        {"z_velocity_stag"},
+                                        geom, tnew, istep, ref_ratio);
+            }
 
             writeJobInfo(plotfilename, erf_provenance::ArtifactType::Plotfile3D,
                          istep[0], t_new[0]);

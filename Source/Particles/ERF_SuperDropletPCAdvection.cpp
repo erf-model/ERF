@@ -205,13 +205,7 @@ void SuperDropletPC::AdvectParticles ( int                   a_lev,
                 if (advect_w_gravity) {
                     z_n -= static_cast<Real>(a_dt * terminal_vel);
                 }
-                int qi = int(amrex::Math::floor((x_n - ctx.plo[0]) * ctx.dxi[0]));
-                int qj = int(amrex::Math::floor((y_n - ctx.plo[1]) * ctx.dxi[1]));
-                int qk = int(amrex::Math::floor((z_n - ctx.plo[AMREX_SPACEDIM-1])
-                                                * ctx.dxi[AMREX_SPACEDIM-1]));
-                if (qi     < zheight.begin[0] || qi + 1 >= zheight.end[0] ||
-                    qj     < zheight.begin[1] || qj + 1 >= zheight.end[1] ||
-                    qk     < zheight.begin[2] || qk + 1 >= zheight.end[2]) { return; }
+                AMREX_ASSERT(amrex::Math::isfinite(x_n) && amrex::Math::isfinite(y_n) && amrex::Math::isfinite(z_n));
                 p.pos(0) = static_cast<ParticleReal>(x_n);
                 p.pos(1) = static_cast<ParticleReal>(y_n);
                 p.pos(AMREX_SPACEDIM-1) = static_cast<ParticleReal>(

@@ -69,21 +69,6 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                            base_state[lev], base_state[lev]);
     }
 
-    //
-    // So we must convert the fillpatched to momenta, including the ghost values
-    //
-    const MultiFab* c_vfrac = nullptr;
-    if (solverChoice.terrain_type == TerrainType::EB) {
-        c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
-    }
-
-    VelocityToMomentum(U_old, rU_old[lev].nGrowVect(),
-                       V_old, rV_old[lev].nGrowVect(),
-                       W_old, rW_old[lev].nGrowVect(),
-                       S_old, rU_old[lev], rV_old[lev], rW_old[lev],
-                       Geom(lev).Domain(),
-                       domain_bcs_type, c_vfrac);
-
     // Update the inflow perturbation update time and amplitude
     if (solverChoice.use_perturbation(lev))
     {
@@ -106,11 +91,14 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
             (*physbcs_w[lev])(W_old, U_old, V_old, W_old.nGrowVect(), time, BCVars::zvel_bc, true);
         } else {
             auto m_ixtype = S_old.boxArray().ixType(); // Conserved term
+            // The direct perturbation stores a rate, so it adds rate * dt at every step;
+            //    CPM stores the increment itself, which it adds once per refresh
+            const Real pert_scale = (solverChoice.pert_type[lev] == PerturbationType::Direct) ? Real(dt_lev) : one;
             for (MFIter mfi(S_old,TileNoZ()); mfi.isValid(); ++mfi) {
                 Box bx  = mfi.tilebox();
                 const Array4<Real> &cell_data  = S_old.array(mfi);
                 const Array4<const Real> &pert_cell = turbPert.pb_cell[lev].array(mfi);
-                turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cell_data, pert_cell);
+                turbPert.apply_tpi(lev, bx, RhoTheta_comp, m_ixtype, cell_data, pert_cell, pert_scale);
             }
             // apply_tpi only modifies valid cells, but the ghost cells must agree with them:
             //   the first RK stage reads them across box boundaries, and the next finer
@@ -121,6 +109,23 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                                  time, BCVars::cons_bc, true);
         }
     }
+
+    //
+    // So we must convert the fillpatched to momenta, including the ghost values.
+    // This comes after the inflow perturbation above, since the dycore advances the
+    //    momenta: a CPM_W perturbation of W_old must reach rW_old
+    //
+    const MultiFab* c_vfrac = nullptr;
+    if (solverChoice.terrain_type == TerrainType::EB) {
+        c_vfrac = &((get_eb(lev).get_const_factory())->getVolFrac());
+    }
+
+    VelocityToMomentum(U_old, rU_old[lev].nGrowVect(),
+                       V_old, rV_old[lev].nGrowVect(),
+                       W_old, rW_old[lev].nGrowVect(),
+                       S_old, rU_old[lev], rV_old[lev], rW_old[lev],
+                       Geom(lev).Domain(),
+                       domain_bcs_type, c_vfrac);
 
     // configure SurfaceLayer params if needed
     bool updated_prim = false;
@@ -490,6 +495,24 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     if (solverChoice.time_avg_vel) {
         Time_Avg_Vel_atCC(dt[lev], t_avg_cnt[lev], vel_t_avg[lev].get(), U_new, V_new, W_new);
     }
+
+#ifdef ERF_USE_FIRE
+    // Advance the fire on the level its grid refines (erf.fire.anchor_level).
+    // The coupler hands the engine the wind (before the dycore with passive and
+    // lagged coupling, after it with synchronous), the air temperature and
+    // humidity at k = 0 from the state before the dycore and, when the engine
+    // asks for it, the surface precipitation accumulated through this step's
+    // microphysics; it then holds the engine's fluxes for the next step.
+    if (m_fire_coupler && lev == m_fire_coupler->level()) {
+        const SurfacePrecipAccumulationSources precip_sources =
+            micro ? micro->Get_Surface_Precip_Accumulation_Ptrs(lev)
+                  : SurfacePrecipAccumulationSources{};
+        m_fire_coupler->advance(time, dt_lev, S_old,
+                                vars_old[lev][Vars::xvel], vars_old[lev][Vars::yvel],
+                                vars_new[lev][Vars::xvel], vars_new[lev][Vars::yvel],
+                                *z_phys_cc[lev], ba2d[lev], Geom(lev), precip_sources);
+    }
+#endif
 
     // ***********************************************************************************************
     // Two-stream radiation, post-dycore call: reports the cached flux

@@ -29,8 +29,9 @@ namespace MicVar_SD {
         rh_w,        /*!< relative humidity (water) */
         rh_i,        /*!< relative humidity (ice) */
         rain_accum,  /*!< rain accumulation (mm) */
-        graup_accum,  /*!< graupel accumulation (mm) */
+        graupel_accum,  /*!< graupel accumulation (mm) */
         snow_accum,  /*!< snow accumulation (mm) */
+        precip_accum,  /*!< precipitation accumulation, liquid and ice (mm of liquid water) */
         NumVars
     };
 }
@@ -135,7 +136,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         /*! \brief Constructor */
         SuperDropletsMoist ()
         {
-            m_qmoist_size = 11;
+            m_qmoist_size = 12;
             m_qstate_moist_size = 6; // qv, qc, qi, qrain, qsnow, qgraup
             m_qstate_nonmoist_size = -1; // sentinel; readInputs() sets the actual count before construction returns
             m_name = "super_droplets_moisture";

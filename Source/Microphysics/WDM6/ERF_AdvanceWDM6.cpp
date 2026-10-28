@@ -8,6 +8,7 @@
 #include <cctype>
 #include <cstdio>
 #include <cmath>
+#include <limits>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -797,7 +798,8 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
         auto const& p_arr = mic_fab_vars[MicVar_WDM6::pres]->array(mfi);
         auto rain_arr = mic_fab_vars[MicVar_WDM6::rain_accum]->array(mfi);
         auto snow_arr = mic_fab_vars[MicVar_WDM6::snow_accum]->array(mfi);
-        auto graup_arr = mic_fab_vars[MicVar_WDM6::graup_accum]->array(mfi);
+        auto graupel_arr = mic_fab_vars[MicVar_WDM6::graupel_accum]->array(mfi);
+        auto precip_arr = mic_fab_vars[MicVar_WDM6::precip_accum]->array(mfi);
         auto const& sed_arr = m_sed.down->array(mfi);
 
         const int ilo = box.smallEnd(0);
@@ -898,6 +900,8 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
         FArrayBox snowncv_fab(fab_box2d, 1, Arena_Used);
         FArrayBox graupacc_fab(fab_box2d, 1, Arena_Used);
         FArrayBox graupelncv_fab(fab_box2d, 1, Arena_Used);
+        FArrayBox rainonly_fab(fab_box2d, 1, Arena_Used);
+        FArrayBox snowonly_fab(fab_box2d, 1, Arena_Used);
 
         auto const& rainacc_arr = rainacc_fab.array();
         auto const& rainncv_arr = rainncv_fab.array();
@@ -906,6 +910,8 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
         auto const& snowncv_arr = snowncv_fab.array();
         auto const& graupacc_arr = graupacc_fab.array();
         auto const& graupelncv_arr = graupelncv_fab.array();
+        auto const& rainonly_arr = rainonly_fab.array();
+        auto const& snowonly_arr = snowonly_fab.array();
 
         // Initialize 2D arrays to zero over the full storage slab so the Fortran
         // bridge never reads ghost entries that were never written.
@@ -917,6 +923,8 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
             snowncv_arr(i,j,k) = Real(0.0);
             graupacc_arr(i,j,k) = Real(0.0);
             graupelncv_arr(i,j,k) = Real(0.0);
+            rainonly_arr(i,j,k) = Real(0.0);
+            snowonly_arr(i,j,k) = Real(0.0);
         });
 
         // (Tile-based diagnostics removed - using global diagnostics instead)
@@ -941,6 +949,7 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
             rainacc_arr.dataPtr(), rainncv_arr.dataPtr(), sr_arr.dataPtr(),
             snowacc_arr.dataPtr(), snowncv_arr.dataPtr(),
             graupacc_arr.dataPtr(), graupelncv_arr.dataPtr(),
+            rainonly_arr.dataPtr(), snowonly_arr.dataPtr(),
             imlo, imhi, jmlo, jmhi, kmlo, kmhi,
             ilo, ihi, jlo, jhi, klo, khi,
             microphysics_debug, diag_i, diag_j);
@@ -965,11 +974,14 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
 
         // (Tile-based precipitation diagnostics removed - using global diagnostics instead)
 
-        // Accumulate precipitation
+        // Accumulate precipitation: rainacc is the total that fell this step and
+        // snowacc the snow plus cloud ice, as in WRF, so the rain and snow alone
+        // come from their own buffers
         ParallelFor(box2d, [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-            rain_arr(i,j,k) += rainacc_arr(i,j,k);
-            snow_arr(i,j,k) += snowacc_arr(i,j,k);
-            graup_arr(i,j,k) += graupacc_arr(i,j,k);
+            rain_arr(i,j,k)    += rainonly_arr(i,j,k);
+            snow_arr(i,j,k)    += snowonly_arr(i,j,k);
+            graupel_arr(i,j,k) += graupacc_arr(i,j,k);
+            precip_arr(i,j,k)  += rainacc_arr(i,j,k);
         });
         } else {
 #endif
@@ -1937,21 +1949,16 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
 
                 const Real conv = delz_arr(i,j,klo) / Real(rhoh2o) * dtcld * Real(1000.0);
 
+                // Each species alone, and the total, which also holds the cloud ice
+                rain_arr(i,j,klo)    += fall_r * conv;
+                snow_arr(i,j,klo)    += fall_s * conv;
+                graupel_arr(i,j,klo) += fallsum_qg * conv;
+                precip_arr(i,j,klo)  += fallsum * conv;
+
+                // The frozen share of what fell this step, as WRF's sr
                 if (fallsum > Real(0.0)) {
-                    rain_arr(i,j,klo) += fallsum * conv;
-                }
-
-                if (fallsum_qsi > Real(0.0)) {
-                    snow_arr(i,j,klo) += fallsum_qsi * conv;
-                }
-
-                if (fallsum_qg > Real(0.0)) {
-                    graup_arr(i,j,klo) += fallsum_qg * conv;
-                }
-
-                if (fallsum > Real(0.0)) {
-                    sr_arr(i,j,klo) = (snow_arr(i,j,klo) + graup_arr(i,j,klo))
-                                    / (rain_arr(i,j,klo) + wdm6_literal(1.0e-12));
+                    sr_arr(i,j,klo) = (fallsum_qsi + fallsum_qg)
+                                    / (fallsum + wdm6_literal(1.0e-12));
                 }
             });
 
@@ -2499,9 +2506,15 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
                 // Inf, so builds with FP-exception trapping stay clean. The
                 // qc == 0 and qs == 0 case cannot be reached by any consumer --
                 // every use is gated on qs > qcrmin, qg > qcrmin or qc > qmin --
-                // and 0.0 is returned there only for definiteness.
+                // and 0.0 is returned there only for definiteness. The divisor
+                // is never zero either: an optimised build may divide before it
+                // tests qc, and with qs = qc = 0 the 0/0 trips
+                // amrex.fpe_trap_invalid although the result is not used. For
+                // qc >= the smallest normal number the divisor is qc itself.
+                constexpr Real tiny_qc = std::numeric_limits<Real>::min();
+                const Real qc_div = amrex::max(qc_val, tiny_qc);
                 const Real ratio_s = (qc_val > Real(0.0))
-                    ? amrex::min(amrex::max(Real(0.0), qs_val / qc_val), Real(1.0))
+                    ? amrex::min(amrex::max(Real(0.0), qs_val / qc_div), Real(1.0))
                     : (qs_val > Real(0.0) ? Real(1.0) : Real(0.0));
                 // Same treatment as ratio_s above, and for the same reason. This
                 // was MISSED when ratio_s was fixed: that edit replaced only the
@@ -2511,7 +2524,7 @@ void WDM6::AdvanceColumns (const Real& dt_advance,
                 // 8.85033631487811001e-02 against native 0, which was the whole
                 // remaining nn residual at 10 steps.
                 const Real ratio_g = (qc_val > Real(0.0))
-                    ? amrex::min(amrex::max(Real(0.0), qg_val / qc_val), Real(1.0))
+                    ? amrex::min(amrex::max(Real(0.0), qg_val / qc_div), Real(1.0))
                     : (qg_val > Real(0.0) ? Real(1.0) : Real(0.0));
 
                 if (qs_val > Real(qcrmin) && qc_val > Real(qmin)) {

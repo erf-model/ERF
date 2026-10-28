@@ -1,5 +1,5 @@
-    const Real* prob_lo = geom.ProbLo();
-    const auto dx = geom.CellSize();
+    const auto prob_lo = geom.ProbLoArray();
+    const auto dx      = geom.CellSizeArray();
     bool use_zlevels = (z_phys_cc != nullptr);
 
     for (MFIter mfi(*src, TilingIfNotGPU()); mfi.isValid(); ++mfi)
