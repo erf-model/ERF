@@ -196,13 +196,10 @@ void SuperDropletPC::readInputs (const double a_dt)
         }
     }
 
-    {
-        Vector<int> bin_size = {1,1,1};
-        pp.queryarr("coalescence_bin_size", bin_size);
-        for (int i = 0; i < AMREX_SPACEDIM; i++) {
-            m_coalescence_bin_size[i] = bin_size[i];
-        }
-    }
+    // the IntVect overload of queryarr requires exactly AMREX_SPACEDIM values
+    m_coalescence_bin_size = IntVect(1);
+    pp.queryarr("coalescence_bin_size", m_coalescence_bin_size);
+    AMREX_ALWAYS_ASSERT(m_coalescence_bin_size.allGT(0));
 
     const auto dx_h = Geom(0).CellSize();
     const Real cell_volume = dx_h[0]*dx_h[1]*dx_h[2];

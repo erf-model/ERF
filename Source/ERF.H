@@ -43,6 +43,7 @@
 #include <ERF_NumericalConstants.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_DataStruct.H>
+#include <ERF_PlotfileSelection.H>
 #include <ERF_BaseStateParams.H>
 #include <ERF_TurbPertStruct.H>
 #include <ERF_InputSoundingData.H>
@@ -70,6 +71,9 @@
 #include "ERF_EulerianMicrophysics.H"
 #include "ERF_LagrangianMicrophysics.H"
 #include "ERF_LandSurface.H"
+#ifdef ERF_USE_FIRE
+#include "ERF_FireCoupler.H"
+#endif
 #include "ERF_Urban.H"
 #include "ERF_TwoStreamRadiation.H"
 
@@ -554,6 +558,9 @@ public:
     void write_1D_profiles (double time);
     void write_1D_profiles_stag (double time);
 
+    // Fill the ghost cells the boundary planes read, then write the planes
+    void write_bndry_planes (int step, double time);
+
     amrex::Real cloud_fraction (double time);
 
     // Fill the physical boundary conditions for cell-centered velocity (diagnostic only)
@@ -859,13 +866,6 @@ public:
                           amrex::MultiFab& dens, amrex::MultiFab& pres, amrex::MultiFab& pi,
                           amrex::MultiFab& th, amrex::MultiFab& qv,
                           std::unique_ptr<amrex::MultiFab>& z_cc);
-
-#ifdef ERF_USE_NETCDF
-    //! Write a timestep to 1D vertical column output for coupling
-    void writeToNCColumnFile (int lev,
-                              const std::string& colfile_name, amrex::Real xloc, amrex::Real yloc,
-                              double time);
-#endif //ERF_USE_NETCDF
 
     void init_from_input_sounding (int lev);
 
@@ -1176,6 +1176,9 @@ private:
     // Initialize the microphysics object
     void initializeMicrophysics (const int&);
 
+    // Initialize the fire coupling and its engine (erf.fire.enable)
+    void initializeFire (const int&);
+
 #ifdef ERF_USE_WINDFARM
     // Initialize the windfarm object
     void initializeWindFarm (const int&);
@@ -1268,10 +1271,6 @@ private:
     void setSubVolVariables (const std::string& pp_subvol_var_names, amrex::Vector<std::string>& subvol_var_names);
 
 #ifdef ERF_USE_NETCDF
-    //! Create 1D vertical column output for coupling
-    void createNCColumnFile (int lev,
-                             const std::string& colfile_name, amrex::Real xloc, amrex::Real yloc);
-
     // Copy from the NC*fabs into the MultiFabs holding the boundary data
     void init_from_wrfbdy (amrex::Vector<amrex::FArrayBox*> x_vel_lateral,
                            amrex::Vector<amrex::FArrayBox*> y_vel_lateral,
@@ -1468,7 +1467,7 @@ private:
     std::unique_ptr<erf_auxiliary::AuxiliaryInertTracer> auxiliary_inert_tracer;
     std::unique_ptr<CloudChamberBudget> cloud_chamber_budget;
     erf_cloud_chamber::Config cloud_chamber_config;
-    amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) rain_accum, snow_accum, graup_accum
+    amrex::Vector<amrex::Vector<amrex::MultiFab*>> qmoist; // (lev,ncomp) rain_accum, snow_accum, graupel_accum, precip_accum
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> precip; // SLM precipitation-rate scratch
 
     // Variables for wind farm parametrization models
@@ -1723,6 +1722,10 @@ private:
     static double last_plot2d_file_time_2;
     static double last_check_file_time;
 
+#ifdef ERF_USE_FIRE
+    static double last_fire_plot_time;   // double: writeNow() takes double&, as for the other plot times
+#endif
+
     amrex::Vector<int> last_subvol_step;
     amrex::Vector<double> last_subvol_time;
 
@@ -1832,6 +1835,10 @@ private:
                                         const amrex::IntVect& dst_ghosts,
                                         bool src_ghosts = false);
 
+    // Rebuild precip_accum, and for some schemes rain_accum, at a level read from a
+    // checkpoint that predates precip_accum
+    void convert_legacy_precip_accumulations (int lev);
+
     // plotfile prefix and frequency
     std::string plot3d_file_1 {"plt_1_"};
     std::string plot3d_file_2 {"plt_2_"};
@@ -1871,11 +1878,9 @@ private:
     amrex::Vector<std::string> plot3d_var_names_2;
     amrex::Vector<std::string> plot2d_var_names_1;
     amrex::Vector<std::string> plot2d_var_names_2;
-    const amrex::Vector<std::string> cons_names     {"density", "rhotheta", "rhoKE", "rhoadv_0",
-                                                     "rhoQ1", "rhoQ2", "rhoQ3",
-                                                     "rhoQ4", "rhoQ5", "rhoQ6",
-                                                     "rhoQ7", "rhoQ8", "rhoQ9",
-                                                     "rhoQ10", "rhoQ11"};
+    // Raw conserved-state names in component order; the list and its
+    // name-to-component map live together in IO/ERF_PlotfileSelection.H
+    const amrex::Vector<std::string> cons_names = erf_plotfile::plot3d_conserved_state_names();
 
     // **************************************************************************************
     // NOTE: The order of variable names here **MUST MATCH THE ORDER** in IO/ERF_Plotfile.cpp
@@ -1924,7 +1929,7 @@ private:
                                                     // moisture vars
                                                     "moist_density", "qv", "qc", "qi", "qrain", "qsnow", "qgraup",
                                                     "qt", "qn", "qp", "qsat", "nc", "ni", "nr", "ns", "ng", "nn",
-                                                    "rain_accum", "snow_accum", "graup_accum",
+                                                    "rain_accum", "snow_accum", "graupel_accum", "precip_accum",
                                                     "rel_humidity", "condensation_rate",
                                                     // Terrain IB mask
                                                     "terrain_IB_mask",
@@ -2089,14 +2094,6 @@ private:
 
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> mf_PSFC;
 
-    // 1D CDF output (for ingestion in AMR-Wind)
-    static int         output_1d_column;
-    static int         column_interval;
-    static double column_per;
-    static amrex::Real column_loc_x;
-    static amrex::Real column_loc_y;
-    static std::string column_file_name;
-
     // 2D BndryRegister output (for ingestion in AMR-Wind)
     static int         output_bndry_planes;
     static int         bndry_output_planes_interval;
@@ -2165,6 +2162,15 @@ private:
     std::unique_ptr<ReadBndryPlanes>  m_r2d  = nullptr;
     amrex::Vector<std::unique_ptr<SurfaceLayer>>     m_SurfaceLayer;
     amrex::Vector<std::unique_ptr<ForestDrag>> m_forest_drag;
+
+#ifdef ERF_USE_FIRE
+    /// The fire coupling (atmosphere side) and the engine it owns (erf.fire.engine)
+    std::unique_ptr<FireCoupler>      m_fire_coupler = nullptr;
+    FireCouplingParams                m_fire_params;
+    std::string m_fire_plot_file {"plt_fire_"};
+    int         m_fire_plot_int  = -1;
+    amrex::Real m_fire_plot_per  = -1.0;
+#endif
 
     //
     // Holds info for dynamically generated tagging criteria

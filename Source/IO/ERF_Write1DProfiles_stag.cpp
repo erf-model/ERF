@@ -167,10 +167,11 @@ ERF::write_1D_profiles_stag (double time)
                       Real uuface = myhalf*(h_avg_uu[k] + h_avg_uu[k-1]);
                       Real vvface = myhalf*(h_avg_vv[k] + h_avg_vv[k-1]);
                       Real thvface = thface * (one + epsv*qvface - qcface - qrface);
-                      w_cc   = myhalf*(h_avg_w[k-1]  + h_avg_w[k]);
-                      uw_cc  = myhalf*(h_avg_uw[k-1] + h_avg_uw[k]);
-                      vw_cc  = myhalf*(h_avg_vw[k-1] + h_avg_vw[k]);
-                      ww_cc  = myhalf*(h_avg_ww[k-1] + h_avg_ww[k]);
+                      // Cell k lies between faces k and k+1, as in derive_diag_profiles_stag
+                      w_cc   = myhalf*(h_avg_w[k]  + h_avg_w[k+1]);
+                      uw_cc  = myhalf*(h_avg_uw[k] + h_avg_uw[k+1]);
+                      vw_cc  = myhalf*(h_avg_vw[k] + h_avg_vw[k+1]);
+                      ww_cc  = myhalf*(h_avg_ww[k] + h_avg_ww[k+1]);
                       data_log2 << std::setw(prof_datwidth) << std::setprecision(prof_timeprecision) << time << " "
                                 << std::setw(prof_datwidth) << std::setprecision(prof_datprecision) << z << " "
                                 << h_avg_uu[k]   - h_avg_u[k]*h_avg_u[k]   << " " // u'u'

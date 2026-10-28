@@ -139,9 +139,11 @@ public:
         for (int field = 0; field < static_cast<int>(fields.size()); ++field) {
             fields[field][lev].reset();
         }
+        // Keep each map's consumer kind: a map active only for one output must not
+        //    become persistent because a regrid happened while it was active
         for (const auto& entry : fieldmap) {
             if (entry.second.active) {
-                activate_field_map(entry.first);
+                activate_field_map(entry.first, entry.second.persistent_consumer);
             }
         }
         for (auto& entry : radiation_input_map) {

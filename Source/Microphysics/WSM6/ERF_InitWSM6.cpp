@@ -24,7 +24,8 @@ WSM6::Init (const MultiFab& cons_in,
     m_columns.define(cons_in.boxArray(), geom.Domain());
 
     MicVarMap.resize(m_qmoist_size);
-    MicVarMap = {MicVar_WSM6::rain_accum, MicVar_WSM6::snow_accum, MicVar_WSM6::graup_accum};
+    MicVarMap = {MicVar_WSM6::rain_accum, MicVar_WSM6::snow_accum,
+                 MicVar_WSM6::graupel_accum, MicVar_WSM6::precip_accum};
 
 #if defined(ERF_USE_WSM6_FORT) && defined(AMREX_USE_GPU)
     // The host-only Fortran bridge receives dataPtr() from mic_fab_vars.

@@ -31,7 +31,7 @@ amr.max_level = 0
 erf.check_int   = -1
 erf.plot_file_1 = plt
 erf.plot_int_1  = 200
-erf.plot_vars_1 = density theta temp qv qc qi qrain qsnow qgraup rain_accum snow_accum graup_accum
+erf.plot_vars_1 = density theta temp qv qc qi qrain qsnow qgraup rain_accum snow_accum graupel_accum
 
 erf.use_gravity  = true
 erf.use_coriolis = false

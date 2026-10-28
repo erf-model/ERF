@@ -16,7 +16,8 @@ Exits non-zero if a check fails.
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_here = os.path.dirname(os.path.abspath(__file__))
+sys.path[:0] = [_here, os.path.join(_here, ".."), os.path.join(_here, "..", "..", "..", "Tools")]
 import erf_plotfile  # noqa: E402
 from rans_checks import Report  # noqa: E402
 

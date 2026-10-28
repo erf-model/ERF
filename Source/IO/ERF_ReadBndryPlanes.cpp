@@ -72,8 +72,8 @@ void ReadBndryPlanes::define_level_data (int /*lev*/)
             IntVect plo(lo);
             IntVect phi(hi);
             const int normal = ori.coordDir();
-            plo[normal] = ori.isHigh() ? hi[normal] - (m_in_rad - 1) : -m_out_rad;
-            phi[normal] = ori.isHigh() ? hi[normal] + (m_out_rad   ) : (m_in_rad - 1);
+            plo[normal] = ori.isHigh() ? hi[normal] - (m_in_rad - 1) : lo[normal] - m_out_rad;
+            phi[normal] = ori.isHigh() ? hi[normal] + (m_out_rad   ) : lo[normal] + (m_in_rad - 1);
             const Box pbx(plo, phi);
             m_data_n[ori]->push_back(FArrayBox(pbx, ncomp));
             m_data_np1[ori]->push_back(FArrayBox(pbx, ncomp));
@@ -261,13 +261,20 @@ ReadBndryPlanes::ReadBndryPlanes (const Geometry& geom, const Real& rdOcp_in)
             if (m_var_names[i] == "qv")           is_q1_read = 1;
             if (m_var_names[i] == "qc")           is_q2_read = 1;
             if (m_var_names[i] == "ke")           is_KE_read = 1;
-            const bool known = m_var_names[i] == "velocity" || m_var_names[i] == "density"     ||
-                               m_var_names[i] == "temperature" || m_var_names[i] == "theta" ||
-                               m_var_names[i] == "scalar"   || m_var_names[i] == "qv"          ||
-                               m_var_names[i] == "qc"       || m_var_names[i] == "ke";
-            if (!known) {
+            if (plane_slot(m_var_names[i]) < 0) {
                 Abort("erf.bndry_input_var_names: unknown variable \"" + m_var_names[i] +
                       "\"; the names read are velocity, density, temperature, theta, scalar, qv, qc and ke");
+            }
+        }
+        // The passive scalars share one boundary condition, so an ingested scalar
+        // plane fills every one of them; the writer saves only the first.
+        // (if constexpr: with one scalar the body is compiled out, so clang's
+        // -Wunreachable-code does not flag it.)
+        if constexpr (NSCALARS > 1) {
+            if (is_scalar_read) {
+                Print() << "WARNING: erf.bndry_input_var_names reads \"scalar\": the plane of the first "
+                        << "passive scalar (rhoadv_0) fills all " << NSCALARS << " passive scalars at the "
+                        << "ingested faces, the extra ones (such as dust or smoke) included" << std::endl;
             }
         }
     }
@@ -538,17 +545,9 @@ void ReadBndryPlanes::read_file (const int idx,
             ncomp = 1;
         }
 
-        // Every name was checked against this list in the constructor; the -1 only
-        // keeps the compiler from seeing an unset value.
-        int n_offset = -1;
-        if (var_name == "density")     n_offset = BCVars::Rho_bc_comp;
-        if (var_name == "theta")       n_offset = BCVars::RhoTheta_bc_comp;
-        if (var_name == "temperature") n_offset = BCVars::RhoTheta_bc_comp;
-        if (var_name == "ke")          n_offset = BCVars::RhoKE_bc_comp;
-        if (var_name == "scalar")      n_offset = BCVars::RhoScalar_bc_comp;
-        if (var_name == "qv")          n_offset = BCVars::RhoQ1_bc_comp;
-        if (var_name == "qc")          n_offset = BCVars::RhoQ2_bc_comp;
-        if (var_name == "velocity")    n_offset = BCVars::xvel_bc;
+        // The slot the plane is stored in; every name was checked against
+        // plane_slot in the constructor, so it is never -1 here.
+        const int n_offset = plane_slot(var_name);
 
         // Print() << "Reading " << chkname1 << " for variable " << var_name << " with n_offset == " << n_offset << std::endl;
 
