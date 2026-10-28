@@ -4210,7 +4210,8 @@ the ones marked **Required** abort the run if they are not given.
 |                                       | value requires an active moisture model                  |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.rhosurf**                  | surface density used with the prescribed fluxes instead  | Real                | 0.0 (use first   |
-|                                       | of the density in the first cell                         |                     | cell)            |
+|                                       | of the density in the first cell; may not be combined    |                     | cell)            |
+|                                       | with ``erf.most.use_sfc_fluxes``                         |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.Cd**                       | bulk transfer coefficient for momentum.  **Required**    | Real                | must be set      |
 |                                       | when ``flux_type`` = ``bulk_coeff``                      |                     |                  |
@@ -4264,8 +4265,9 @@ the ones marked **Required** abort the run if they are not given.
 |                                       | not used                                                 |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.use_sfc_fluxes**           | read time-varying sensible and latent heat fluxes and    | Boolean             | false            |
-|                                       | friction velocity from a text file; may not be combined  |                     |                  |
-|                                       | with ``erf.most.use_sfc_sst``                            |                     |                  |
+|                                       | kinematic surface stress from a text file; may not be    |                     |                  |
+|                                       | combined with ``erf.most.use_sfc_sst`` or                |                     |                  |
+|                                       | ``erf.most.rhosurf``                                     |                     |                  |
 +---------------------------------------+----------------------------------------------------------+---------------------+------------------+
 | **erf.most.use_sfc_sst**              | read a time-varying sea-surface temperature from a text  | Boolean             | false            |
 |                                       | file; may not be combined with                           |                     |                  |
