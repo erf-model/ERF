@@ -167,8 +167,9 @@ void SurfaceModel::calculate_weight_average (int lev, amrex::MultiFab* const urb
     // Output weighted surface fluxes into ustar, tstar, qstar and surface temperature into tsurf
     // TODO: make sure grids of urban and LSM inputs match
     if (m_surface_outputs_requested[lev] && output_fields_registered && use_weights) {
+        // Component 1 is unused without fluxes; match the single-provider copy
         if (!use_fluxes) {
-            u_star[lev]->setVal(0.0, 1, 1, 0);
+            u_star[lev]->setVal(lsm_undefined, 1, 1, 0);
         }
         for (int field = 0; field < nfields; ++field)
         {
@@ -209,13 +210,15 @@ void SurfaceModel::calculate_weight_average (int lev, amrex::MultiFab* const urb
                         output_arr(i, j, k, comp) = urban_data_arr(i, j, urban_klo);
                     } else {
                         // A provider weighted in this cell must hold a valid value: blending its
-                        // lsm_undefined sentinel gives a value below lsm_undefined, which the
+                        // lsm_undefined sentinel gives a value below lsm_undefined, and leaving out
+                        // a provider with no field gives a partial value, either of which the
                         // SurfaceLayer would take as a valid flux.  Such a cell is left undefined
-                        // so the SurfaceLayer falls back to MOST there.
+                        // so the SurfaceLayer falls back to MOST there, as the single-provider
+                        // copy does for a missing field.
                         const Real w_land = weights_arr(i, j, 0, SurfaceModelType::LAND );
                         const Real w_urb  = weights_arr(i, j, 0, SurfaceModelType::URBAN);
-                        const Real land = (lsm_data_arr   && w_land > 0.0) ?   lsm_data_arr(i, j, lsm_khi  ) : 0.0;
-                        const Real urb  = (urban_data_arr && w_urb  > 0.0) ? urban_data_arr(i, j, urban_klo) : 0.0;
+                        const Real land = (w_land > 0.0) ? (lsm_data_arr   ?   lsm_data_arr(i, j, lsm_khi  ) : lsm_undefined) : 0.0;
+                        const Real urb  = (w_urb  > 0.0) ? (urban_data_arr ? urban_data_arr(i, j, urban_klo) : lsm_undefined) : 0.0;
                         output_arr(i, j, k, comp) = (is_valid_lsm_value(land) && is_valid_lsm_value(urb))
                                                   ? land * w_land + urb * w_urb : lsm_undefined;
                     }

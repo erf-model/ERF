@@ -48,8 +48,9 @@ NOAHMP::interp_from_lev0 (const int& lev,
     // The level-0 data and fluxes still hold lsm_undefined in cells Noah-MP did not
     // process: SurfaceLayer falls back to MOST there but does not write that flux back
     // (see #3446).  lsm_interp_from_coarse interpolates linearly and then marks every fine
-    // cell of such a coarse cell lsm_undefined, so a fine cell holds either a value
-    // interpolated from a valid coarse cell or exactly the sentinel.
+    // cell of such a coarse cell lsm_undefined, and gives a fine cell whose stencil
+    // touches one its parent's value, so a fine cell holds either a value bounded by the
+    // valid coarse cells around it or exactly the sentinel.
     for (int ivar(0); ivar<m_lsm_data_size; ++ivar) {
         lsm_interp_from_coarse(*lsm_fab_data[ivar], lsm_fab_data[ivar]->nGrowVect(),
                                IntVect(0,0,0), // do NOT fill ghost cells outside the domain

@@ -166,13 +166,13 @@ public:
             amrex::Vector<amrex::MultiFab*> cmf;
             // These fields hold lsm_undefined where no provider has a value, and their
             // consumers fall back to MOST there.  The linear interpolation below does not
-            // keep such a cell exactly lsm_undefined, so mark every fine cell of one.
+            // keep such a cell exactly lsm_undefined, nor its valid neighbours bounded, so
+            // correct the fine cells afterwards (see lsm_mask_invalid_parents).
             auto mask_invalid = [&] (amrex::MultiFab& fine, const amrex::IntVect& ngv,
                                      const amrex::MultiFab& crse, int ncomp)
             {
                 lsm_mask_invalid_parents(fine, ngv, ng_od, crse, ncomp,
-                                         m_geom[lev-1], m_geom[lev], refRatio[lev-1],
-                                         domain_bcs_type, BCVars::cons_bc);
+                                         m_geom[lev-1], m_geom[lev], refRatio[lev-1]);
             };
             if (u_star[lev] != nullptr && u_star[lev-1] != nullptr) {
             amrex::InterpFromCoarseLevel(*u_star[lev], u_star[lev-1]->nGrowVect(), ng_od,

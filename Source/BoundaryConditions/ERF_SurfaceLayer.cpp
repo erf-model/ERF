@@ -692,8 +692,10 @@ SurfaceLayer::compute_fluxes (const int& lev,
                 std::is_same<FluxIter, surface_flux_eb>::value) {
                 ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    if (( is_land && lmask_arr(i,j,0) == 1) ||
-                        (!is_land && lmask_arr(i,j,0) == 0))
+                    const bool iterate_land = ( is_land && lmask_arr(i,j,0) == 1 &&
+                                               !(use_lsm_fluxes && lsm_flux.valid(col.i(i), col.j(j))) );
+                    const bool iterate_sea  = (!is_land && lmask_arr(i,j,0) == 0 );
+                    if (iterate_land || iterate_sea)
                     {
                         if (flag_arr(i,j,k).isSingleValued()) {
                             most_flux.iterate_flux(i, j, k, max_iters,
@@ -1110,33 +1112,24 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         // Get LSM fluxes
         auto lmask_arr      = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
                                                       Array4<int> {};
-        auto lsm_t_flux_arr  = Array4<const Real> {};
         auto soil_t_flux_arr = Array4<Real> {};
-        auto lsm_q_flux_arr = Array4<const Real> {};
-        auto lsm_tau13_arr  = Array4<const Real> {};
-        auto lsm_tau23_arr  = Array4<const Real> {};
-        // LSM tau fields are cell-centered kinematic stresses [m2 s-2].
-        // Tau_lev tau13/tau23 are face-centered conservative stresses [N m-2].
         for (int n(0); n<m_lsm_flux_lev[lev].size(); ++n) {
-            if (toLower(m_lsm_flux_name[n]) == "t_flux")      { lsm_t_flux_arr  = m_lsm_flux_lev[lev][n]->const_array(mfi); }
-            if (toLower(m_lsm_flux_name[n]) == "soil_t_flux") { soil_t_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
-            if (toLower(m_lsm_flux_name[n]) == "q_flux")      { lsm_q_flux_arr  = m_lsm_flux_lev[lev][n]->const_array(mfi); }
-            if (toLower(m_lsm_flux_name[n]) == "tau13")       { lsm_tau13_arr   = m_lsm_flux_lev[lev][n]->const_array(mfi); }
-            if (toLower(m_lsm_flux_name[n]) == "tau23")       { lsm_tau23_arr   = m_lsm_flux_lev[lev][n]->const_array(mfi); }
+            if (m_lsm_flux_lev[lev][n] && toLower(m_lsm_flux_name[n]) == "soil_t_flux") {
+                soil_t_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi);
+            }
         }
 
-        // Get provider or weight-averaged LSM+Urban fluxes through SurfaceModel.
-        const SurfaceFluxView surf_flux = (use_surface_model && surf_model_fluxes)
-            ? m_surf_model->get_surface_flux_view(lev, mfi) : SurfaceFluxView{};
-        const auto surf_tflux_arr = surf_flux.t_flux;
-        const auto surf_qflux_arr = surf_flux.q_flux;
-        const auto surf_uflux_arr = surf_flux.tau13;
-        const auto surf_vflux_arr = surf_flux.tau23;
-        const bool use_surface_model_fluxes = use_surface_model && surf_model_fluxes;
-        const auto t_flux_arr = use_surface_model_fluxes ? surf_tflux_arr : lsm_t_flux_arr;
-        const auto q_flux_arr = use_surface_model_fluxes ? surf_qflux_arr : lsm_q_flux_arr;
-        const auto surface_tau13_arr = use_surface_model_fluxes ? surf_uflux_arr : lsm_tau13_arr;
-        const auto surface_tau23_arr = use_surface_model_fluxes ? surf_vflux_arr : lsm_tau23_arr;
+        // Provider, weight-averaged LSM+Urban or registered LSM fluxes.  A column uses the
+        // LSM fluxes only where SurfaceFluxView::valid holds for all four, the same test
+        // compute_fluxes and compute_sfc_params_from_lsm_fluxes make, so the applied fluxes
+        // come from the same source as that column's u*/t*/q*.
+        // LSM tau fields are cell-centered kinematic stresses [m2 s-2].
+        // Tau_lev tau13/tau23 are face-centered conservative stresses [N m-2].
+        const SurfaceFluxView lsm_flux = get_lsm_flux_view(lev, mfi);
+        const auto t_flux_arr = lsm_flux.t_flux;
+        const auto q_flux_arr = lsm_flux.q_flux;
+        const auto surface_tau13_arr = lsm_flux.tau13;
+        const auto surface_tau23_arr = lsm_flux.tau23;
         const bool has_lsm_t_flux = static_cast<bool>(t_flux_arr);
         const bool is_custom = (flux_type == FluxCalcType::CUSTOM);
         const bool is_rico   = (flux_type == FluxCalcType::RICO);
@@ -1158,8 +1151,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             // open water); fall back to MOST there instead of applying garbage.
             Real Tflux;
             int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-            const bool lsm_flux_is_valid = (t_flux_arr) ? (t_flux_arr(i,j,0) < lsm_undefined) :
-                                                              false;
+            const bool lsm_flux_is_valid = lsm_flux.valid(i,j);
             const bool has_land_and_flux = (is_land == 1 && lsm_flux_is_valid);
             if (t_flux_arr && has_land_and_flux) {
                 // LSM flux MultiFabs store kinematic fluxes for MOST parameter
@@ -1236,8 +1228,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 // Valid qv flux from LSM and over land (sentinel -> fall back to MOST)
                 Real Qflux;
                 int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-                const bool lsm_flux_is_valid = (q_flux_arr) ? (q_flux_arr(i,j,0) < lsm_undefined) :
-                                                                  false;
+                const bool lsm_flux_is_valid = lsm_flux.valid(i,j);
                 const bool has_land_and_flux = (is_land == 1 && lsm_flux_is_valid);
                 if (q_flux_arr && has_land_and_flux) {
                     // LSM flux MultiFabs store kinematic fluxes for MOST parameter
@@ -1314,12 +1305,8 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 Real stressx;
                 int is_land_hi = (lmask_arr) ? lmask_arr(i  ,j,0) : 1;
                 int is_land_lo = (lmask_arr) ? lmask_arr(i-1,j,0) : 1;
-                const bool lsm_hi_flux_is_valid = surface_layer_stress::lsm_flux_is_valid(
-                    static_cast<bool>(surface_tau13_arr), is_land_hi == 1,
-                    surface_tau13_arr ? surface_tau13_arr(i  ,j,0) : zero, lsm_undefined);
-                const bool lsm_lo_flux_is_valid = surface_layer_stress::lsm_flux_is_valid(
-                    static_cast<bool>(surface_tau13_arr), is_land_lo == 1,
-                    surface_tau13_arr ? surface_tau13_arr(i-1,j,0) : zero, lsm_undefined);
+                const bool lsm_hi_flux_is_valid = is_land_hi == 1 && lsm_flux.valid(i,j);
+                const bool lsm_lo_flux_is_valid = is_land_lo == 1 && lsm_flux.valid(i-1,j);
                 const bool has_land_and_flux_hi = (is_land_hi == 1 && lsm_hi_flux_is_valid);
                 const bool has_land_and_flux_lo = (is_land_lo == 1 && lsm_lo_flux_is_valid);
                 if (surface_tau13_arr && (has_land_and_flux_hi || has_land_and_flux_lo)) {
@@ -1388,12 +1375,8 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 Real stressy;
                 int is_land_hi = (lmask_arr) ? lmask_arr(i,j  ,0) : 1;
                 int is_land_lo = (lmask_arr) ? lmask_arr(i,j-1,0) : 1;
-                const bool lsm_hi_flux_is_valid = surface_layer_stress::lsm_flux_is_valid(
-                    static_cast<bool>(surface_tau23_arr), is_land_hi == 1,
-                    surface_tau23_arr ? surface_tau23_arr(i,j  ,0) : zero, lsm_undefined);
-                const bool lsm_lo_flux_is_valid = surface_layer_stress::lsm_flux_is_valid(
-                    static_cast<bool>(surface_tau23_arr), is_land_lo == 1,
-                    surface_tau23_arr ? surface_tau23_arr(i,j-1,0) : zero, lsm_undefined);
+                const bool lsm_hi_flux_is_valid = is_land_hi == 1 && lsm_flux.valid(i,j);
+                const bool lsm_lo_flux_is_valid = is_land_lo == 1 && lsm_flux.valid(i,j-1);
                 const bool has_land_and_flux_hi = (is_land_hi == 1 && lsm_hi_flux_is_valid);
                 const bool has_land_and_flux_lo = (is_land_lo == 1 && lsm_lo_flux_is_valid);
                 if (surface_tau23_arr && (has_land_and_flux_hi || has_land_and_flux_lo)) {
