@@ -81,11 +81,13 @@ jobs:
       run: Submodules/AMReX/.github/workflows/dependencies/dependencies_ccache.sh
 
     # GHCR trunk per configuration; the old Actions cache seeds the first restore.
+    # ORAS, not Docker: ubuntu_free_disk_space.sh above uninstalls the Docker CLI.
     - name: Restore Cache
       id: ghcr-cache
       uses: ./.github/actions/ccache-trunk
       with:
         mode: restore
+        transport: oras
         key: ${{ env.CCACHE_TRUNK_KEY }}
         path: ~/.cache/ccache
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -147,6 +149,7 @@ jobs:
       uses: ./.github/actions/ccache-trunk
       with:
         mode: save
+        transport: oras
         key: ${{ env.CCACHE_TRUNK_KEY }}
         path: ~/.cache/ccache
         token: ${{ secrets.GITHUB_TOKEN }}
