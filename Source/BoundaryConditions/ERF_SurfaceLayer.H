@@ -1076,6 +1076,8 @@ public:
    */
   [[nodiscard]] SurfaceFluxView get_lsm_flux_view (const int& lev,
                                                    const amrex::MFIter& mfi) const;
+
+  /**
    * Set kinematic u*, t*, and q* from the fluxes interpolated from most.sfc_file.
    *
    * @param[in] lev       level index

@@ -1758,6 +1758,9 @@ SurfaceLayer::get_lsm_flux_view (const int& lev,
         if (toLower(m_lsm_flux_name[n]) == "tau23")  { flux.tau23  = m_lsm_flux_lev[lev][n]->const_array(mfi); }
     }
     return flux;
+}
+
+/**
  * Set u*, t*, and q* from the fluxes interpolated from most.sfc_file.
  *
  * The file's H and LE [W/m2] are dynamic fluxes, but its TAU [m2/s2] is kinematic.
