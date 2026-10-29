@@ -86,7 +86,7 @@
                                                      h_q_v.data(), m_zlevels_stag[lev].data(), khi, qt_init, eq_pot_temp, use_empirical);
         } else {
             HSEutils::init_isentropic_hse_no_terrain(h_t.data(), h_r.data(), h_p.data(),
-                                                     h_q_v.data(), dz, khi, qt_init, eq_pot_temp, use_empirical);
+                                                     h_q_v.data(), dz, geomdata.ProbLo(2), khi, qt_init, eq_pot_temp, use_empirical);
         }
 
         Gpu::copy(Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
