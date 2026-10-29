@@ -7,6 +7,7 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_GpuContainers.H>
 #include <cmath>
+#include <string>
 #include <vector>
 #include "ERF_IBSEBParams.H"
 #include "ERF_IBSEBMaterials.H"
@@ -49,12 +50,12 @@
  *
  * **Output.** The list is never written directly. scatter_diagnostics() puts
  * the number of faces and their mean skin temperature into cell-centred
- * fields for the plotfile; save_state() / load_state() move the skin
- * temperature, the sensible flux and the slab temperatures through a
- * cell-centred field with one slot per face of a cell (see state_ncomp())
- * for the checkpoint. On restart the list is rebuilt from the blanking and
- * refilled from that field, so a restart does not depend on the rank count
- * or on the order the faces were found in.
+ * fields for the plotfile; write_state() / read_state() move the skin
+ * temperature, the sensible flux and the slab temperatures through one
+ * record per face, keyed by the face's cell, direction and side, for the
+ * checkpoint. On restart the list is rebuilt from the blanking and every
+ * face finds its record by its key, so a restart does not depend on the
+ * rank count or on the order the faces were found in.
  *
  * **Per-step order.** build() detects and stores the faces and
  * compute_view_fractions() fills ``d_f_sky`` / ``d_f_ground`` / ``d_f_bldg``
@@ -174,44 +175,6 @@ public:
     int n_buildings () const { return m_nbld; }
     /** Conduction layers per face, from ``erf.ibseb.n_slab_layers``. */
     int n_layers () const { return m_params.n_slab_layers; }
-
-    /**
-     * Number of components of the checkpoint state field.
-     *
-     * The field carries n_slots() slots of ``2 + n_layers()`` values per cell:
-     * component ``slot * (2 + n_layers())`` is the skin temperature of that
-     * slot, the next its sensible flux (read as the previous step's by the
-     * convective velocity scale), and the following ``n_layers()`` components
-     * are its slab layers.
-     *
-     * A cell carries one slot per face it owns, numbered in the ``(dir, side)``
-     * order in which build() finds them, so the width is the largest face
-     * count on any one cell of the level rather than the six a cell could hold
-     * in principle. Around ordinary buildings that maximum is two or three (an
-     * outside edge or corner); six needs a one-cell slot. build() rebuilds the
-     * numbering from the same blanking on restart, so the slots line up
-     * whatever the rank count.
-     */
-    int state_ncomp () const { return m_nslots * (2 + n_layers()); }
-
-    /** Slots per cell of the checkpoint field: the largest face count on a cell of the level. */
-    int n_slots () const { return m_nslots; }
-
-    /**
-     * Boxes of the checkpoint field: 4 x 4 column blocks clipped to the
-     * k-range that actually owns faces, so the field follows the shell of
-     * face-owning cells rather than the built volume. A block over the
-     * interior of a wide footprint keeps only the layer above the roof, while
-     * a block on a wall still spans its height. Built identically on every
-     * rank by build() from a reduced block k-range map; the same buildings
-     * give the same boxes on restart, whatever the rank count. Empty when the
-     * level has no faces.
-     */
-    const amrex::BoxArray& state_boxarray () const { return m_state_ba; }
-    /** Whether the level has a checkpoint field to write (any faces at all). */
-    bool has_state () const { return !m_state_ba.empty(); }
-    /** A field on state_boxarray() with state_ncomp() components, for the checkpoint. */
-    amrex::MultiFab make_state () const;
 
     /**
      * View fractions: sample a cosine-weighted hemisphere around
@@ -394,24 +357,47 @@ public:
 
     /**
      * Write the face state (skin temperature, sensible flux and slab
-     * temperatures) into a field from make_state(), for the checkpoint.
+     * temperatures) to ``file`` for the checkpoint: one record per face of
+     * the level, in one global order, written by the I/O rank.
      *
-     * The faces of this rank are written into a transfer field on this
-     * rank's grids cut by the state boxes, which a ParallelCopy moves onto
-     * the state's own distribution. Each face writes its own slot (see
-     * state_ncomp()), so no two faces touch the same component of the same
-     * cell and no atomics are needed; cells without a face in a slot keep
-     * zero there.
+     * The file holds one text line, ``IBSEBFaces 1 <nface> <n_layers> <nx>
+     * <ny> <nz>`` (the format version, the level's face count, the slab
+     * layers per face and the domain size in cells), then in binary a marker
+     * word (``0x0102030405060708`` as a 64-bit integer, so a file from a
+     * machine with another byte order is refused), the ``nface`` keys as
+     * 64-bit integers in ascending order, then the
+     * ``nface x (2 + n_layers)`` values as doubles: a face's skin
+     * temperature, its sensible flux (read as the previous step's by the
+     * convective velocity scale) and its slab layers from the skin inward.
+     * The key of a face is ``((i ny + j) nz + k) 6 + 2 dir + (side > 0)``
+     * with ``(i, j, k)`` counted from the domain's low corner, so it names
+     * the face whatever the rank count. The values are doubles whatever
+     * ``amrex::Real`` is, so a single-precision run reads a double-precision
+     * checkpoint and the other way round. The file costs ``8 (3 + n_layers)``
+     * bytes per face beyond its header line and marker, which is the data itself: the cell field it replaces
+     * covered the face-owning cells with whole boxes and was about eleven
+     * times larger on the FaceStorage skyscraper (erf-model/ERF#4019).
+     *
+     * Every rank copies its faces to the host and sorts them by key; the I/O
+     * rank gathers the records, orders them and writes the file. Collective:
+     * every rank must call it.
      */
-    void save_state (amrex::MultiFab& state) const;
+    void write_state (const std::string& file) const;
 
     /**
-     * Read the face state (skin, flux, slab) back from a field written by
-     * save_state(), after build() has recreated the list from the blanking:
-     * the reverse ParallelCopy onto the transfer field, then each face reads
-     * its slot. Only the slots that correspond to a face of this list are read.
+     * Read the face state back from a file written by write_state(), after
+     * build() has recreated the list from the blanking.
+     *
+     * The I/O rank reads the table; every rank sends it the keys of its own
+     * faces; the I/O rank finds each one by binary search and sends the
+     * records back. Only the I/O rank ever holds the whole table, and a
+     * restart on any number of ranks finds every face. Stops when the file
+     * holds another number of slab layers than the deck's
+     * ``erf.ibseb.n_slab_layers``, another domain size or another number of
+     * faces, or when a face of this list has no record: a checkpoint of other
+     * buildings. Collective: every rank must call it.
      */
-    void load_state (const amrex::MultiFab& state);
+    void read_state (const std::string& file);
 
     /**
      * Print the ``[IBSEB]`` summary line and, when asked, append one row per
@@ -443,7 +429,6 @@ public:
     amrex::Gpu::DeviceVector<int>         d_i, d_j, d_k;   ///< Fluid cell of the face
     amrex::Gpu::DeviceVector<int>         d_dir;           ///< Face direction: 0 x, 1 y, 2 z
     amrex::Gpu::DeviceVector<int>         d_side;          ///< Solid neighbour at -1 (low) or +1 (high) side
-    amrex::Gpu::DeviceVector<int>         d_slot;          ///< Slot of the face within its cell's checkpoint record
     amrex::Gpu::DeviceVector<int>         d_bid;           ///< Building id (1-based)
     amrex::Gpu::DeviceVector<int>         d_mat;           ///< Material id (0 = uniform inputs)
     amrex::Gpu::DeviceVector<amrex::Real> d_albedo, d_emis;///< Optical properties of the face
@@ -491,16 +476,6 @@ public:
     amrex::Gpu::DeviceVector<int> d_col_top;
     int m_col_i0 = 0, m_col_j0 = 0, m_col_nx = 0, m_col_ny = 0;
 
-    // Checkpoint layout (see state_boxarray()) and the transfer layer of
-    // save_state() / load_state(): this rank's grids cut by the state boxes,
-    // gathered into one global BoxArray owned box by box by the rank whose
-    // grid it came from, with the local grid index each box came from.
-    amrex::BoxArray m_state_ba;
-    amrex::BoxArray m_xfer_ba;
-    amrex::DistributionMapping m_xfer_dm;
-    std::vector<int> m_xfer_src;
-    amrex::Long m_domain_cells = 0;            ///< Cells of the level, for the debug summary of the field
-
     /// Sun and irradiances of the last compute_shortwave() call, for reports.
     struct SunState {
         amrex::Real zenith = 0.0, azimuth = 0.0;        ///< [rad]
@@ -535,7 +510,6 @@ private:
     int m_lev   = 0;               ///< AMR level, for reports
     int m_qv_comp = -1;            ///< State component of rho qv, -1 without a moisture model
     int m_nface = 0;               ///< Faces owned by this rank
-    int m_nslots = 0;              ///< Slots per cell of the checkpoint field (largest face count on a cell)
     int m_top_sample = -1;         ///< Highest interface a face samples, over all ranks (-1: no faces)
     int m_nbld  = 0;               ///< Buildings of the level (global)
     std::vector<int> m_fab_start;  ///< See fab_start()
@@ -557,7 +531,7 @@ private:
     int m_lab_i0 = 0, m_lab_j0 = 0, m_lab_nx = 0, m_lab_ny = 0;
 
     // Geometry kept for the ray cast and the reports.
-    int  m_nx = 0, m_ny = 0;                   ///< Columns of the domain
+    int  m_nx = 0, m_ny = 0, m_nz = 0;         ///< Cells of the domain in x, y and z
     amrex::IntVect m_dom_lo{AMREX_D_DECL(0, 0, 0)}; ///< Low corner of the level's domain
     amrex::Real m_x_lo = 0.0, m_y_lo = 0.0;    ///< Domain origin [m]
     amrex::Real m_dx[3] = {0.0, 0.0, 0.0};     ///< Cell sizes [m]

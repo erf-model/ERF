@@ -1,0 +1,153 @@
+name: GHCR cache smoke test
+
+# Manual transport checks using a tiny program, without building ERF.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# All branches share diagnostic tags; let a run finish before the next starts.
+concurrency:
+  group: ghcr-cache-smoke
+  cancel-in-progress: false
+
+jobs:
+  roundtrip:
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        os: [ubuntu-22.04, macos-15-intel, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Configure smoke test
+        run: |
+          printf 'CCACHE_DIR=%s/ccache-smoke\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          key=$(printf 'transport-check-%s-%s' "$RUNNER_OS" "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')
+          printf 'CCACHE_TRUNK_KEY=%s\n' "$key" >> "$GITHUB_ENV"
+          if [[ "$RUNNER_OS" == Windows ]]; then py=python; else py=python3; fi
+          printf 'SMOKE_PYTHON=%s\n' "$py" >> "$GITHUB_ENV"
+      - name: Install Linux ccache
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -qq && sudo apt-get install -y ccache
+      - name: Install macOS ccache
+        if: runner.os == 'macOS'
+        run: brew install ccache
+      - name: Install Windows ccache
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $archive = "$env:RUNNER_TEMP/ccache.zip"
+          Invoke-WebRequest https://github.com/ccache/ccache/releases/download/v4.10.2/ccache-4.10.2-windows-x86_64.zip -OutFile $archive
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne '6252f081876a9a9f700fae13a5aec5d0d486b28261d7f1f72ac11c7ad9df4da9') {
+            throw 'ccache checksum mismatch'
+          }
+          Expand-Archive $archive -DestinationPath $env:RUNNER_TEMP
+          "$env:RUNNER_TEMP\ccache-4.10.2-windows-x86_64" | Out-File -FilePath $env:GITHUB_PATH -Append
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+      - name: Run helper tests
+        run: '"$SMOKE_PYTHON" -m unittest discover -s .github/actions/ccache-trunk -p "test_*.py" -v'
+      - name: Populate compiler cache
+        run: '"$SMOKE_PYTHON" .github/actions/ccache-trunk/smoke.py populate'
+      - name: Publish cache
+        uses: ./.github/actions/ccache-trunk
+        with:
+          mode: save
+          key: ${{ env.CCACHE_TRUNK_KEY }}
+          path: ${{ env.CCACHE_DIR }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Record published version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CACHE_OWNER_TYPE: ${{ github.event.repository.owner.type }}
+        run: '"$SMOKE_PYTHON" .github/actions/ccache-trunk/smoke.py record-version'
+      - name: Empty local cache
+        run: '"$SMOKE_PYTHON" .github/actions/ccache-trunk/smoke.py empty'
+      - name: Restore cache
+        id: restore
+        uses: ./.github/actions/ccache-trunk
+        with:
+          mode: restore
+          key: ${{ env.CCACHE_TRUNK_KEY }}
+          path: ${{ env.CCACHE_DIR }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify reuse and source invalidation
+        env:
+          CACHE_HIT: ${{ steps.restore.outputs.hit }}
+        run: |
+          test "$CACHE_HIT" = true
+          "$SMOKE_PYTHON" .github/actions/ccache-trunk/smoke.py verify
+      - name: Publish replacement cache
+        uses: ./.github/actions/ccache-trunk
+        with:
+          mode: save
+          key: ${{ env.CCACHE_TRUNK_KEY }}
+          path: ${{ env.CCACHE_DIR }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify superseded version was pruned
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CACHE_OWNER_TYPE: ${{ github.event.repository.owner.type }}
+        run: '"$SMOKE_PYTHON" .github/actions/ccache-trunk/smoke.py check-pruning'
+      - name: Empty local cache again
+        run: '"$SMOKE_PYTHON" .github/actions/ccache-trunk/smoke.py empty'
+      - name: Restore replacement cache
+        id: replacement
+        uses: ./.github/actions/ccache-trunk
+        with:
+          mode: restore
+          key: ${{ env.CCACHE_TRUNK_KEY }}
+          path: ${{ env.CCACHE_DIR }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify replacement contains the changed source
+        env:
+          CACHE_HIT: ${{ steps.replacement.outputs.hit }}
+        run: |
+          test "$CACHE_HIT" = true
+          "$SMOKE_PYTHON" .github/actions/ccache-trunk/smoke.py verify-replacement
+
+  read-only:
+    needs: roundtrip
+    permissions:
+      contents: read
+      packages: read
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Restore with read-only token
+        id: readonly
+        uses: ./.github/actions/ccache-trunk
+        with:
+          mode: restore
+          transport: oras
+          key: transport-check-windows-x64
+          path: ${{ runner.temp }}/readonly-cache
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Restore anonymously
+        id: anonymous
+        uses: ./.github/actions/ccache-trunk
+        with:
+          mode: restore
+          transport: oras
+          key: transport-check-windows-x64
+          path: ${{ runner.temp }}/anonymous-cache
+      - name: Require both restores
+        env:
+          READONLY: ${{ steps.readonly.outputs.hit }}
+          ANONYMOUS: ${{ steps.anonymous.outputs.hit }}
+        run: test "$READONLY" = true && test "$ANONYMOUS" = true

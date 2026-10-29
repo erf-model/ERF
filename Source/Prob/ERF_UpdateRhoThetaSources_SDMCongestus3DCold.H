@@ -24,7 +24,7 @@
             {
                 auto x = prob_lo[0] + (i + 0.5) * dx[0];
                 auto y = prob_lo[1] + (j + 0.5) * dx[1];
-                auto z = use_z_phys ? d_zlevels_arr[k] : prob_lo[2] + (k + 0.5) * dx[2];
+                auto z = use_z_phys ? d_zlevels_arr[k] : (k + 0.5) * dx[2];
 
                 const auto c = 2890000.0;
                 const auto r = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc));
