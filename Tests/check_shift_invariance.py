@@ -15,8 +15,9 @@ A field named in --offset-vars is a height that moves with the domain: run B mov
 by D in z, so the check is instead B(i,j,k) = A(i+S,j,k) + D.
 
 The check reports max |B(i) - A(i+S)| over the domain for each field, relative to
-max |A|, and fails above --tol. It stops when a field is uniform in x in run A: such
-a field could not tell a shifted state from an unshifted one.
+max |A|, and fails above --tol. It stops when a field could not tell a shifted state
+from an unshifted one: uniform in x in run A for S != 0, or uniform everywhere for
+S = 0 (the domain moved in z, which a profile in z can show).
 Exit status 0 on pass, 1 on a mismatch, 2 on a vacuous field.
 """
 
@@ -48,9 +49,16 @@ def main(argv):
         off = a.offset if name in a.offset_vars else 0.0
         nx, ny, nz = len(fa), len(fa[0]), len(fa[0][0])
         amax = max(abs(fa[i][j][k]) for i in range(nx) for j in range(ny) for k in range(nz))
-        xvar = max(abs(fa[i][j][k] - fa[0][j][k]) for i in range(nx) for j in range(ny) for k in range(nz))
-        if amax == 0.0 or xvar == 0.0:
-            print("%s: uniform in x in run A; the check is vacuous" % name)
+        if a.shift != 0:
+            # an index shift in x is only seen by a field that varies in x
+            var = max(abs(fa[i][j][k] - fa[0][j][k]) for i in range(nx) for j in range(ny) for k in range(nz))
+            where = "in x"
+        else:
+            # a domain moved in z (shift 0): any variation can show the move, e.g. a profile in z
+            var = max(abs(fa[i][j][k] - fa[0][0][0]) for i in range(nx) for j in range(ny) for k in range(nz))
+            where = "everywhere"
+        if amax == 0.0 or var == 0.0:
+            print("%s: uniform %s in run A; the check is vacuous" % (name, where))
             return 2
         err = max(abs(fb[i][j][k] - fa[(i + a.shift) % nx][j][k] - off)
                   for i in range(nx) for j in range(ny) for k in range(nz))
