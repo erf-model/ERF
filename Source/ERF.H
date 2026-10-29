@@ -1168,6 +1168,8 @@ private:
 
     // Initialize the Turbulent perturbation
     void turbPert_update (const int lev, const double dt);
+    void turbPert_update_automatic (int lev, double time);
+    void turbPert_update_uniform_wind (int lev, double time);
     void turbPert_amplitude (const int lev);
     void turbPert_amplitude_w (const int lev);
 
