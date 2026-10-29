@@ -314,18 +314,25 @@ ImplicitDiffForStateLU_T (const Box& bx,
 
                 RHS_a(i,j,khi) = detJ(i,j,khi) * cell_data(i,j,khi,n); // NOTE: this is rho*phi; solution is phi
                 if (!at_zhi) {
-                    // Coarse/fine boundary: close the system with the known value above.  The
-                    // countergradient flux then passes through both faces, as it does in the
-                    // interior, rather than only through the lower one.
+                    // Coarse/fine boundary: close the system with the known value above
                     RHS_a(i,j,khi) -= c_tmp * (cell_data(i,j,khi+1,n) / cell_data(i,j,khi+1,Rho_comp));
-                    if (use_mrf_countergradient && (n == RhoTheta_comp || n == RhoQ1_comp)) {
-                        const int gam_comp = (n == RhoTheta_comp) ? EddyDiff::HGAMT_v : EddyDiff::HGAMQ_v;
-                        const Real gam_hi = myhalf * (mu_turb(i, j, khi, gam_comp) + mu_turb(i, j, khi+1, gam_comp));
-                        const Real gam_lo = myhalf * (mu_turb(i, j, khi, gam_comp) + mu_turb(i, j, khi-1, gam_comp));
-                        RHS_a(i,j,khi) -= Fact * (rhoAlpha_hi * gam_hi - rhoAlpha_lo * gam_lo);
-                    }
                 } else if (neumann_on_zhi) {
                     RHS_a(i,j,khi) -= -Fact * rhoAlpha_hi * bc_neumann_vals[5]; // NOTE: N_val = d_z(\phi)
+                }
+
+                // Add countergradient correction to RHS at top boundary.
+                // NOTE: The lower face at khi always carries the countergradient flux, which
+                //       row khi-1 has already taken out of the cell below; without it here
+                //       that flux would leave the column.  The upper face carries it only at
+                //       a coarse/fine boundary -- the domain top is a lid for gamma.
+                if (use_mrf_countergradient && (n == RhoTheta_comp || n == RhoQ1_comp)) {
+                    const int gam_comp = (n == RhoTheta_comp) ? EddyDiff::HGAMT_v : EddyDiff::HGAMQ_v;
+                    const Real gam_lo = myhalf * (mu_turb(i, j, khi, gam_comp) + mu_turb(i, j, khi-1, gam_comp));
+                    RHS_a(i,j,khi) += Fact * rhoAlpha_lo * gam_lo;
+                    if (!at_zhi) {
+                        const Real gam_hi = myhalf * (mu_turb(i, j, khi, gam_comp) + mu_turb(i, j, khi+1, gam_comp));
+                        RHS_a(i,j,khi) -= Fact * rhoAlpha_hi * gam_hi;
+                    }
                 }
 
                 // First solve
@@ -675,10 +682,11 @@ ImplicitDiffForMomLU_T (const Box& bx,
               }
 
               // Add YSU momentum countergradient correction at bottom boundary.
-              // NOTE: As for the scalars, the lower face at klo carries no
+              // NOTE: As for the scalars, the lower face at the domain bottom carries no
               //       countergradient flux -- the surface stress is supplied by the
-              //       surface layer model or the wall BC above.  Only the upper face
-              //       contributes here.
+              //       surface layer model or the wall BC above.  At a coarse/fine boundary
+              //       the lower face is an interior face and carries it, as in the
+              //       interior rows (erf-model/ERF#4822).
               // NOTE: The sign matches the scalar path: tau_i3 = -rho*K*(du_i/dz - gamma_i),
               //       so the countergradient piece of the flux is +rho*K*gamma_i and its
               //       divergence enters the RHS with a minus sign.
@@ -689,6 +697,11 @@ ImplicitDiffForMomLU_T (const Box& bx,
                   const Real gam_kp1 = myhalf * (mu_turb(i,j,klo+1,hgam_comp) + mu_turb(i-ioff,j-joff,klo+1,hgam_comp));
                   const Real gam_hi  = myhalf * (gam_klo + gam_kp1);
                   RHS_a(i,j,klo) -= Fact * rhoAlpha_hi * gam_hi;
+                  if (klo != dom_klo) {
+                      const Real gam_km1 = myhalf * (mu_turb(i,j,klo-1,hgam_comp) + mu_turb(i-ioff,j-joff,klo-1,hgam_comp));
+                      const Real gam_lo  = myhalf * (gam_klo + gam_km1);
+                      RHS_a(i,j,klo) += Fact * rhoAlpha_lo * gam_lo;
+                  }
               }
 
               b_tmp      = detJface * rhoface - a_tmp - c_tmp;
@@ -787,6 +800,26 @@ ImplicitDiffForMomLU_T (const Box& bx,
                                                  + cell_data(i-ioff,j-joff,khi+1,Rho_comp) );
                   const Real wall_velocity = face_data(i,j,khi+1) / rho_wall;
                   RHS_a(i,j,khi) -= c_tmp * wall_velocity;
+              }
+
+              // Add YSU momentum countergradient correction at top boundary.
+              // NOTE: The lower face at khi is the interior face shared with row khi-1, which
+              //       has already taken this flux out of the cell below, so it always carries
+              //       it; without it here the flux left the column (erf-model/ERF#4822).  The
+              //       upper face carries it only at a coarse/fine boundary -- the domain top
+              //       is a lid for gamma, as for the scalars.
+              if (use_ysu_mom_countergradient) {
+                  const int hgam_comp = (stagdir == 0) ? EddyDiff::HGAMU_v : EddyDiff::HGAMV_v;
+                  // Average HGAM* to the staggered face
+                  const Real gam_khi = myhalf * (mu_turb(i,j,khi  ,hgam_comp) + mu_turb(i-ioff,j-joff,khi  ,hgam_comp));
+                  const Real gam_km1 = myhalf * (mu_turb(i,j,khi-1,hgam_comp) + mu_turb(i-ioff,j-joff,khi-1,hgam_comp));
+                  const Real gam_lo  = myhalf * (gam_khi + gam_km1);
+                  RHS_a(i,j,khi) += Fact * rhoAlpha_lo * gam_lo;
+                  if (khi != dom_khi) {
+                      const Real gam_kp1 = myhalf * (mu_turb(i,j,khi+1,hgam_comp) + mu_turb(i-ioff,j-joff,khi+1,hgam_comp));
+                      const Real gam_hi  = myhalf * (gam_khi + gam_kp1);
+                      RHS_a(i,j,khi) -= Fact * rhoAlpha_hi * gam_hi;
+                  }
               }
 
               b_tmp      = detJface * rhoface - a_tmp - c_tmp;

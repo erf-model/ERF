@@ -40,9 +40,11 @@ using namespace amrex;
  * where both paths (fresh start and restart) have the blanking of every
  * level built and ghost-filled. The face list is always rebuilt from the
  * blanking rather than read back, so the checkpoint carries only the state
- * (``IBSEBState``, see IBFaceSet::state_ncomp()) and a restart on a different
- * number of ranks works. A checkpoint from a run without the balance has no
- * such field; the initial state is kept and a note is printed.
+ * (one record per face in ``Level_N/IBSEBFaces``, see IBFaceSet::write_state())
+ * and a restart on a different number of ranks works. A checkpoint from a run
+ * without the balance has no such file; the initial state is kept and a note
+ * is printed. A checkpoint written before the records, which held the state
+ * as the cell field ``IBSEBState``, is refused with a message.
  */
 void
 ERF::init_ibseb ()
@@ -86,8 +88,9 @@ ERF::init_ibseb ()
         const double t_init0 = ParallelDescriptor::second();
         m_ibseb[lev]->build(*terrain_blanking[lev], geom[lev]);
         if (lev > 0) {
-            m_ibseb[lev]->add_outside_occluders(*m_ibseb[lev-1], ref_ratio[lev-1],
-                                                amrex::coarsen(grids[lev], ref_ratio[lev-1]));
+            std::vector<const IBFaceSet*> below;
+            for (int c = 0; c < lev; ++c) { below.push_back(m_ibseb[c].get()); }
+            m_ibseb[lev]->add_outside_occluders(below);
             m_ibseb[lev]->map_buildings_to_level0(*m_ibseb[lev-1], ref_ratio[lev-1]);
             m_ibseb[lev-1]->release_labels();
         }
@@ -119,35 +122,24 @@ ERF::init_ibseb ()
         if (ibseb_params.radiation == "two_stream" && m_ibseb[lev]->has_faces()) {
             two_stream_rad.supply_canopy_forcing(lev, m_ibseb[lev]->top_sample_interface());
         }
-        std::unique_ptr<MultiFab> restored;
+        // The face records of the checkpoint (IBFaceSet::read_state() checks
+        // the layer count, the domain and the faces against this level and
+        // stops on a mismatch). Read here for the skin temperature the initial
+        // diagnostics below start from, and again after them.
+        std::string state_file;
         if (!restart_chkfile.empty()) {
-            const std::string name = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "IBSEBState");
-            if (FileExists(name + "_H")) {
-                // The field's width is n_slots x (2 + n_slab_layers) and its
-                // boxes follow the buildings; a checkpoint written with
-                // another layer count or another building set cannot be
-                // unpacked.
-                const VisMF header(name);
-                const int ncomp_chk = header.nComp();
-                if (ncomp_chk != m_ibseb[lev]->state_ncomp()) {
-                    Abort("erf.ibseb: IBSEBState in " + restart_chkfile + " has " + std::to_string(ncomp_chk)
-                          + " components; the deck sets erf.ibseb.n_slab_layers = " + std::to_string(ibseb_params.n_slab_layers)
-                          + ", which with the " + std::to_string(m_ibseb[lev]->n_slots())
-                          + " face slots per cell of this blanking needs " + std::to_string(m_ibseb[lev]->state_ncomp())
-                          + ". The checkpoint was written with another erf.ibseb.n_slab_layers (restart with the"
-                            " checkpoint's value) or for another building set.");
-                }
-                if (header.boxArray() != m_ibseb[lev]->state_boxarray()) {
-                    Abort("erf.ibseb: IBSEBState in " + restart_chkfile + " was written for a different building layout ("
-                          + std::to_string(header.boxArray().size()) + " boxes against the "
-                          + std::to_string(m_ibseb[lev]->state_boxarray().size()) + " the blanking gives); restart from a checkpoint of the same buildings");
-                }
-                restored = std::make_unique<MultiFab>(m_ibseb[lev]->make_state());
-                VisMF::Read(*restored, name);
-                m_ibseb[lev]->load_state(*restored);
+            const std::string name = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "IBSEBFaces");
+            if (FileExists(name)) {
+                state_file = name;
+                m_ibseb[lev]->read_state(state_file);
                 Print() << "[IBSEB] Face state restored from " << restart_chkfile << "\n";
-            } else {
-                Print() << "[IBSEB] Checkpoint has no IBSEBState; keeping the initial face state.\n";
+            } else if (FileExists(MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "IBSEBState") + "_H")) {
+                Abort("erf.ibseb: " + restart_chkfile + " holds the face state as the cell field IBSEBState of an"
+                      " earlier ERF; this ERF reads one record per face (Level_" + std::to_string(lev)
+                      + "/IBSEBFaces) and cannot unpack it. Restart from a checkpoint written by this ERF, or start"
+                      " the run afresh.");
+            } else if (m_ibseb[lev]->has_faces()) {
+                Print() << "[IBSEB] Checkpoint has no face state; keeping the initial face state.\n";
             }
         }
         m_ibseb[lev]->assign_materials();
@@ -171,7 +163,7 @@ ERF::init_ibseb ()
         m_ibseb[lev]->compute_longwave(vars_new[lev][Vars::cons]);
         m_ibseb[lev]->compute_sensible(vars_new[lev][Vars::cons], vars_new[lev][Vars::xvel],
                                        vars_new[lev][Vars::yvel], vars_new[lev][Vars::zvel], solverChoice.c_p);
-        if (restored) { m_ibseb[lev]->load_state(*restored); }
+        if (!state_file.empty()) { m_ibseb[lev]->read_state(state_file); }
         const bool restarting = !restart_chkfile.empty();
         // A restart writes a 3D plotfile for its first step (plot_file_on_restart). With
         // two_stream no sweep has run yet, so the face fields that hold radiation are
@@ -541,26 +533,23 @@ ERF::ibseb_advance (int lev, Real time, Real dt_lev, const MultiFab& cons,
 }
 
 /**
- * Write the face state of one level into the checkpoint as ``IBSEBState``, a
- * field on the blocks around the buildings (IBFaceSet::state_boxarray())
- * clipped to the cells that own faces, so it scales with the shell of the
- * buildings rather than with the level. Called inside the level loop of
+ * Write the face state of one level into the checkpoint as
+ * ``Level_N/IBSEBFaces``: one record per face (IBFaceSet::write_state()), so
+ * the file is the size of the data. Called inside the level loop of
  * ERF::WriteCheckpointFile(); a no-op unless the balance is on and the level
  * has faces.
  *
  * @param[in] checkpointname  Path of the checkpoint directory being written.
  * @param[in] lev             AMR level whose face state is written, as the
- *                            ``IBSEBState`` field of its ``Level_`` group.
+ *                            ``IBSEBFaces`` file of its ``Level_`` group.
  */
 void
 ERF::ibseb_write_checkpoint (const std::string& checkpointname, int lev) const
 {
     if (!ibseb_params.enable || lev >= static_cast<int>(m_ibseb.size()) || !m_ibseb[lev]) { return; }
-    // A level without faces has no field to write (and nothing to restore).
-    if (!m_ibseb[lev]->has_state()) { return; }
-    MultiFab state = m_ibseb[lev]->make_state();
-    m_ibseb[lev]->save_state(state);
-    VisMF::Write(state, MultiFabFileFullPrefix(lev, checkpointname, "Level_", "IBSEBState"));
+    // A level without faces has no records to write (and nothing to restore).
+    if (!m_ibseb[lev]->has_faces()) { return; }
+    m_ibseb[lev]->write_state(MultiFabFileFullPrefix(lev, checkpointname, "Level_", "IBSEBFaces"));
 }
 
 /**

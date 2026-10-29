@@ -1,0 +1,46 @@
+name: ccache trunk on GHCR
+description: Restore or save a ccache directory on GHCR; registry failures are warnings.
+inputs:
+  mode:
+    description: restore or save
+    required: true
+  key:
+    description: Build configuration, such as ubuntu-22.04-x64-gcc-mpich-double-particles-on
+    required: true
+  path:
+    description: Dedicated ccache directory (replaced after a complete restore)
+    default: ~/.cache/ccache
+  token:
+    description: GITHUB_TOKEN (save requires packages write)
+    default: ''
+  transport:
+    description: auto (Docker on Linux, ORAS on macOS/Windows), docker, or oras
+    default: auto
+  transfer-timeout:
+    description: Per-command transfer timeout in seconds (1-600)
+    default: '180'
+outputs:
+  hit:
+    description: true only after a complete restore
+    value: ${{ steps.transfer.outputs.hit }}
+runs:
+  using: composite
+  steps:
+    - id: transfer
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        CACHE_TRANSPORT: ${{ inputs.transport }}
+        CACHE_TIMEOUT: ${{ inputs.transfer-timeout }}
+        CACHE_MODE: ${{ inputs.mode }}
+        CACHE_KEY: ${{ inputs.key }}
+        CACHE_PATH: ${{ inputs.path }}
+        GHCR_TOKEN: ${{ inputs.token }}
+        CACHE_SOURCE: ${{ github.server_url }}/${{ github.repository }}
+        CACHE_OWNER_TYPE: ${{ github.event.repository.owner.type }}
+      run: |
+        if [[ "$RUNNER_OS" == Windows ]]; then
+          python "$ACTION_PATH/cache.py"
+        else
+          python3 "$ACTION_PATH/cache.py"
+        fi

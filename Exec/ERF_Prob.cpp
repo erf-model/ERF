@@ -110,6 +110,7 @@ Problem::init_custom_pert (
     Array4<Real      > const& p_hse,
     Array4<Real const> const& z_nd,
     Array4<Real const> const& z_cc,
+    Array4<Real const> const& z_sfc_nd,
     GeometryData const& geomdata,
     Array4<Real const> const&   mf_m,
     const SolverChoice& sc,
@@ -232,6 +233,7 @@ Problem::init_custom_pert_vels (
     Array4<Real      > const& y_vel_pert,
     Array4<Real      > const& z_vel_pert,
     Array4<Real const> const& z_nd,
+    Array4<Real const> const& z_sfc_nd,
     GeometryData const& geomdata,
     Array4<Real const> const& mf_u,
     Array4<Real const> const& mf_v,
@@ -358,8 +360,10 @@ Problem::update_rhotheta_sources (const double& time,
     Gpu::DeviceVector<Real> d_zlevels;
     d_zlevels.resize(khi+1);
 
+    // The case formulas take heights above the bottom of the domain
     if (z_phys_cc) {
         reduce_to_max_per_height(zlevels, z_phys_cc, zlevels_stag);
+        for (auto& z : zlevels) { z -= geom.ProbLo(2); }
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
     }
 
@@ -412,8 +416,10 @@ Problem::update_rhoqt_sources (const double& time,
     Gpu::DeviceVector<Real> d_zlevels;
     d_zlevels.resize(khi+1);
 
+    // The case formulas take heights above the bottom of the domain
     if (z_phys_cc) {
         reduce_to_max_per_height(zlevels, z_phys_cc, zlevels_stag);
+        for (auto& z : zlevels) { z -= geom.ProbLo(2); }
         amrex::Gpu::copy(amrex::Gpu::hostToDevice, zlevels.begin(), zlevels.end(), d_zlevels.begin());
     }
 
@@ -459,8 +465,10 @@ Problem::update_w_subsidence (const double& time,
     // grid stretching exists.
     Vector<Real> zlevels;
     zlevels.resize(khi+2);
+    // The case formulas take heights above the bottom of the domain
     if (z_phys_nd) {
         reduce_to_max_per_height(zlevels, z_phys_nd, zlevels_stag);
+        for (auto& z : zlevels) { z -= geom.ProbLo(2); }
     }
 
     ParmParse pp_erf("erf");
@@ -503,8 +511,10 @@ Problem::update_geostrophic_profile (const double& /*time*/,
     // grid stretching exists.
     Vector<Real> zlevels;
     zlevels.resize(khi+1);
+    // The case formulas take heights above the bottom of the domain
     if (z_phys_cc) {
         reduce_to_max_per_height(zlevels, z_phys_cc, zlevels_stag);
+        for (auto& z : zlevels) { z -= geom.ProbLo(2); }
     }
 
     ParmParse pp_erf("erf");

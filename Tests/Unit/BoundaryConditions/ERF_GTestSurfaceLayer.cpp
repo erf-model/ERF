@@ -1188,6 +1188,37 @@ TEST(SurfaceLayer, AbsoluteSurfaceTemperatureRejectsSurfaceFluxFile)
     pp.remove("most.sfc_file");
 }
 
+// Motivation: the file's H and LE already carry the density, so most.rhosurf would
+// multiply them by the density a second time.
+TEST(SurfaceLayer, SurfaceFluxFileRejectsRhoSurf)
+{
+    const std::string prefix = "unit_surface_layer_sfc_fluxes_rhosurf";
+    const auto file = std::filesystem::path(
+        erf_gtest_temp_path("erf_surface_layer_sfc_fluxes_rhosurf_" + std::to_string(sizeof(Real))).string() + ".txt");
+    ScopedTestFile cleanup(file);
+    {
+        std::ofstream out(file);
+        ASSERT_TRUE(out.good());
+        out << "day sst(K) H LE TAU\n0.0 290.0 10.0 20.0 0.1\n1.0 290.0 10.0 20.0 0.1\n";
+    }
+
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    ParmParse pp(prefix);
+    pp.add("most.use_sfc_fluxes", true);
+    pp.add("most.sfc_file", file.string());
+    pp.add("most.rhosurf", Real(1.2));
+
+    SurfaceLayerFields fields;
+    const Orientation face(Direction::z, Orientation::low);
+    expect_abort_mentioning([&] {
+        static_cast<void>(fields.prepare_layer(face, active_faces({face}), prefix));
+    }, "most.rhosurf cannot be combined with most.use_sfc_fluxes");
+
+    pp.remove("most.use_sfc_fluxes");
+    pp.remove("most.sfc_file");
+    pp.remove("most.rhosurf");
+}
+
 // Motivation: the sfc-file SST fill writes the SST over water and uses the prescribed
 // value over land as a potential temperature, so an absolute one would be misread.
 TEST(SurfaceLayer, AbsoluteSurfaceTemperatureRejectsSfcFileSst)

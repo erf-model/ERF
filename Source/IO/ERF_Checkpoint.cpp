@@ -1157,6 +1157,19 @@ ERF::ReadCheckpointFile ()
                     Abort("Cannot restart with a different number of cells in z");
                 }
 
+                // A constant-dz checkpoint written before the levels started at
+                // geometry.prob_lo[2] holds levels that start at 0; z_phys is rebuilt from
+                // the levels on this mesh, so shifting them is all the update it needs
+                if (SolverChoice::mesh_type == MeshType::ConstantDz) {
+                    const Real shift = geom[lev].ProbLo(2) - zlevels_from_chk[0];
+                    if (shift != zero) {
+                        Print() << "Shifting the z levels read from the checkpoint at level " << lev
+                                << " by " << shift << " so that they start at geometry.prob_lo[2]"
+                                << std::endl;
+                        for (auto& z : zlevels_from_chk) { z += shift; }
+                    }
+                }
+
                 zlevels_stag[lev] = zlevels_from_chk;
 
                 // Keep the cell heights consistent with the levels we just read in
@@ -1274,23 +1287,11 @@ ERF::ReadCheckpointFile ()
     // including the ones that do their own checkpoint I/O: the land-surface models (the mapped
     // fields below, SLM's own reader, and NoahMP's restart file, which is indexed by global
     // column), two-stream radiation's force-restore state and the SBM spectrum. So a restart
-    // whose level-0 grids moved needs nothing refused here (issue 4225).
+    // whose level-0 grids moved needs nothing refused here (issue 4225), except the fire model.
     //
     if (regrid_level_0_on_restart_in_effect) {
         Vector<std::string> unsupported;
 
-        if (solverChoice.lsm_type != LandSurfaceType::None) {
-            unsupported.push_back("a land-surface model (its mapped fields, and SLM's canopy "
-                                  "and skin state, are still read onto the run's grids)");
-        }
-        if (solverChoice.rad_type == RadiationType::TwoStream) {
-            unsupported.push_back("two-stream radiation (its force-restore surface state is "
-                                  "still read onto the run's grids)");
-        }
-        if (sbm_state_manager) {
-            unsupported.push_back("spectral bin microphysics (its spectrum is still read onto "
-                                  "the run's grids)");
-        }
 #ifdef ERF_USE_FIRE
         // The fire grid is built from the level's boxes (which must divide by
         // erf.fire.grid_ratio) and its state is read onto them; re-made boxes

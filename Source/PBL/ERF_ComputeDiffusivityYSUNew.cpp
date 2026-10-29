@@ -2045,7 +2045,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
             // when consumed by the implicit solver. In ERF_ImplicitDiff_T.cpp
             // (ImplicitDiffForStateLU_T and ImplicitDiffForMomLU_T), the RHS
             // countergradient contribution is:
-            //     RHS += Fact * rhoAlpha * gam / met_h_zeta
+            //     RHS -= Fact * (rhoAlpha_hi * gam_hi - rhoAlpha_lo * gam_lo)
+            // with no metric factor (the term carries no vertical derivative), and
             // where `Fact = implicit_fac * dt * dz_inv` ALREADY contains the
             // single grid-spacing factor required. Multiplying by dz_inv a
             // second time  double-applies the grid spacing and

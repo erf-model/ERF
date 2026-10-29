@@ -276,9 +276,11 @@ init_my_custom_terrain ( const Geometry& geom,
             });
 
         } else if (custom_terrain_type == "None") {
+            // A flat surface at the bottom of the domain
+            Real z_bot = ProbLoArr[2];
             ParallelFor(zbx, [=] AMREX_GPU_DEVICE (int i, int j, int)
             {
-                z_arr(i,j,k0) = zero;
+                z_arr(i,j,k0) = z_bot;
             });
         } else {
             Abort("Don't know this custom_terrain_type");
