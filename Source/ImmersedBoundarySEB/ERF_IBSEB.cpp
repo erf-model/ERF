@@ -88,8 +88,9 @@ ERF::init_ibseb ()
         const double t_init0 = ParallelDescriptor::second();
         m_ibseb[lev]->build(*terrain_blanking[lev], geom[lev]);
         if (lev > 0) {
-            m_ibseb[lev]->add_outside_occluders(*m_ibseb[lev-1], ref_ratio[lev-1],
-                                                amrex::coarsen(grids[lev], ref_ratio[lev-1]));
+            std::vector<const IBFaceSet*> below;
+            for (int c = 0; c < lev; ++c) { below.push_back(m_ibseb[c].get()); }
+            m_ibseb[lev]->add_outside_occluders(below);
             m_ibseb[lev]->map_buildings_to_level0(*m_ibseb[lev-1], ref_ratio[lev-1]);
             m_ibseb[lev-1]->release_labels();
         }

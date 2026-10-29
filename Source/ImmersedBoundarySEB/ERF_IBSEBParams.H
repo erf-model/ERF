@@ -65,6 +65,14 @@ struct IBSEBParams
     amrex::Real solar_constant    = 1361.0; ///< solar: [W/m2]
     amrex::Real sw_transmission   = 0.7;    ///< solar, two_stream: bulk clear-sky transmission (Bird)
     amrex::Real sw_diffuse_coeff  = 0.5;    ///< solar, two_stream: share of the attenuated beam that arrives as diffuse light
+    // The lowest sun elevation [deg] at which the shadow test is exact everywhere: the
+    // ray map each rank keeps (IBFaceSet::build_ray_map()) reaches as far as a ray that
+    // low can travel before it clears the tallest building, (tallest height) / tan(elevation),
+    // beyond this rank's columns. With the sun lower, a building farther than that from a
+    // face casts no shadow on it. The clear-sky direct beam at 2 deg is 0.05 W/m2 with the
+    // default transmission (2.3 W/m2 at sw_transmission = 0.8; a fixed beam keeps its
+    // value at any elevation), and a small domain is covered whole whatever the value.
+    amrex::Real sun_min_elev_deg = 2.0;
     // Optical properties, uniform unless the material library below overrides them.
     amrex::Real albedo            = 0.3;    ///< Face shortwave albedo
     amrex::Real albedo_ground     = 0.2;    ///< Ground albedo for the reflected diffuse term
@@ -187,6 +195,7 @@ struct IBSEBParams
         pp.query("solar_constant",   solar_constant);
         pp.query("sw_transmission",  sw_transmission);
         pp.query("sw_diffuse_coeff", sw_diffuse_coeff);
+        pp.query("sun_min_elev_deg", sun_min_elev_deg);
         pp.query("albedo",           albedo);
         pp.query("albedo_ground",    albedo_ground);
         pp.query("emissivity",       emissivity);
@@ -266,6 +275,9 @@ struct IBSEBParams
             if (sw_transmission <= 0.0 || sw_transmission > 1.0) { amrex::Abort("erf.ibseb.sw_transmission must be in (0, 1]"); }
             if (sw_diffuse_coeff < 0.0 || sw_diffuse_coeff > 1.0) { amrex::Abort("erf.ibseb.sw_diffuse_coeff must be in [0, 1]"); }
             if (solar_constant <= 0.0) { amrex::Abort("erf.ibseb.solar_constant must be > 0"); }
+            if (sun_min_elev_deg <= 0.0 || sun_min_elev_deg >= 90.0) {
+                amrex::Abort("erf.ibseb.sun_min_elev_deg must be in (0, 90) [deg]");
+            }
             if (albedo < 0.0 || albedo > 1.0 || albedo_ground < 0.0 || albedo_ground > 1.0) {
                 amrex::Abort("erf.ibseb.albedo and albedo_ground must be in [0, 1]");
             }
