@@ -12,9 +12,96 @@ Radiation
 
 Radiative transfer in ERF includes both a full k-distribution model (RRTMGP) for detailed studies
 and a simplified two-stream model for idealized and intermediate-complexity atmospheric simulations.
-This section describes the two-stream radiation model's physics, which employs Beer-Lambert direct-beam
+This section describes RRTMGP's surface terrain correction and the two-stream radiation model's
+physics. The two-stream model employs Beer-Lambert direct-beam
 attenuation for shortwave radiation, a Meador-Weaver two-stream diffuse field combined by the adding method
 with the surface albedo, gray-gas longwave two-stream, and an optional Simplified Surface Energy Balance (SEB) module.
+
+.. _sec:TopographicRadiation:
+
+Topographic correction of surface radiation
+-------------------------------------------
+
+With RRTMGP on a static terrain-following mesh, ``erf.topo_shading`` removes
+direct sunlight obstructed by resolved terrain, and ``erf.slope_rad`` adjusts
+the direct beam for surface slope. Both options default to false; runtime
+controls are listed in :ref:`inputs-topographic-radiation`. The correction
+follows the surface-only approach used by WRF: it changes the land model's
+shortwave forcing while retaining the column solver's atmospheric fluxes and
+heating. It is not a three-dimensional atmospheric radiative-transfer solve.
+
+Let :math:`h(x,y)` be the terrain elevation, :math:`\boldsymbol{s}` the unit
+vector toward the sun in grid coordinates, and :math:`\mu=s_z`. The upward
+terrain normal and nonnegative incidence cosine are
+
+.. math::
+
+   \boldsymbol{n} = \frac{(-h_x,-h_y,1)}{\sqrt{1+h_x^2+h_y^2}},
+   \qquad I = \max(0,\boldsymbol{n}\cdot\boldsymbol{s}).
+
+For :math:`\mu>10^{-4}`, with both corrections enabled, the surface shortwave
+flux is
+
+.. math::
+
+   F_{\mathrm{SW,terrain}} = F_{\mathrm{diffuse}}
+       + (1-S)\,\frac{I}{\mu}\,F_{\mathrm{direct,horizontal}},
+
+where :math:`S=1` if terrain obstructs the ray toward the sun and :math:`S=0`
+otherwise. Disabling shading sets :math:`S=0`; disabling the slope correction
+replaces :math:`I/\mu` with 1. At night and near the horizon
+(:math:`\mu\leq10^{-4}`), the correction is bypassed, with shadow mask 0 and
+direct factor 1. A surface facing away from the sun has :math:`I=0` even when
+no other terrain casts a shadow on it.
+
+RRTMGP's visible and near-infrared direct fluxes receive the same factor.
+Their diffuse components are preserved, and the corrected components supply
+the broadband sum for Noah-MP. SLM consumes the spectral components. Longwave
+and the radiation solver's solar zenith cosine are preserved. Diffuse sky-view
+reduction and radiation reflected or emitted by surrounding terrain are not
+included.
+
+Terrain geometry and search
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Surface heights are the horizontal average of the four bottom mesh nodes
+around each mass point. This uses the final ERF mesh after WRFInput, Metgrid,
+or idealized terrain initialization. Height differences and map factors give
+the physical slopes. Latitude/longitude gradients rotate the geographic sun
+vector onto the grid axes; idealized grids without those fields use east and
+north as their grid axes.
+
+For each target cell, the search samples the terrain along a ray toward the
+sun, with bilinear interpolation between mass points. A terrain height above
+the ray blocks the direct beam. The maximum horizontal ray distance is
+``erf.shadlen``, default 25 km. Periodic directions wrap, and nonperiodic
+domain boundaries terminate the search. Physical distances use the target's
+map factors throughout the ray, a local tangent-plane approximation.
+
+The cached terrain includes off-rank heights and ancestor terrain outside
+refined grids, with piecewise-constant prolongation from ancestors. Regridding
+invalidates the affected geometry caches. When a fine level inherits radiation,
+ERF interpolates the raw surface forcing before applying the fine level's
+terrain correction, avoiding a second correction of already adjusted fluxes.
+Fine Noah-MP levels still follow the existing land-model rule: a level without
+its own land setup file inherits level-0 land state.
+
+Update timing
+^^^^^^^^^^^^^
+
+The mask and slope factor update when RRTMGP computes radiation, every
+``erf.rad_freq_in_steps`` ERF steps, and remain fixed between updates.
+RRTMGP averages its zenith cosine over the upcoming radiation interval; the
+terrain correction uses the sun direction at that interval's midpoint, keeping
+the column solver's zenith cosine as the land-model input. This approximates
+shadow motion over the interval, so resolving a moving shadow requires a
+sufficiently short radiation interval. A fine level inheriting radiation uses
+its parent's radiation time. Missing raw forcing after restart or grid creation
+forces a refresh before the next correction.
+
+See :ref:`sec:Plotfile2DTopographicRadiation` for diagnostics of the cast shadow,
+slope factor, and original and corrected shortwave fluxes.
+
 
 Shortwave Radiation
 --------------------------------------
