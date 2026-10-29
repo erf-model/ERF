@@ -225,10 +225,11 @@ public:
                                       refRatio[lev-1], mapper, domain_bcs_type,
                                       BCVars::cons_bc);
 
-            // t_surf never holds lsm_undefined, so it needs no mask
+            // t_surf starts at 300 but is lsm_undefined where its provider has no field
             mask_invalid(*u_star[lev], u_star[lev]->nGrowVect(), *u_star[lev-1], 2);
             mask_invalid(*t_star[lev], t_star[lev]->nGrowVect(), *t_star[lev-1], 1);
             mask_invalid(*q_star[lev], q_star[lev]->nGrowVect(), *q_star[lev-1], 1);
+            mask_invalid(*t_surf[lev], t_surf[lev]->nGrowVect(), *t_surf[lev-1], 1);
             }
 
             for (int field = 0; field < static_cast<int>(fields.size()); ++field) {

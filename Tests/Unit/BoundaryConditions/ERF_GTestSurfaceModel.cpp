@@ -163,7 +163,8 @@ TEST(SurfaceModel, InitializesOutputsAndDefaultWeights)
     EXPECT_EQ(fixture.model->get_tstar(0)->nComp(), 1);
     EXPECT_EQ(fixture.model->get_qstar(0)->nComp(), 1);
     EXPECT_EQ(fixture.model->get_tsurf(0)->max(0), Real(300.0));
-    EXPECT_EQ(fixture.model->get_ustar(0)->max(0), Real(0.0));
+    // No provider has written u* yet, so it holds the sentinel that sends SurfaceLayer to MOST
+    EXPECT_EQ(fixture.model->get_ustar(0)->max(0), lsm_undefined);
     EXPECT_EQ(fixture.model->get_wavg_factors(0)->max(SurfaceModelType::LAND), Real(1.0));
     EXPECT_EQ(fixture.model->get_wavg_factors(0)->max(SurfaceModelType::URBAN), Real(0.0));
 }
@@ -260,11 +261,12 @@ TEST(SurfaceModel, UnconfiguredProviderFieldsAreSkipped)
 
     fixture.model->calculate_weight_average(0, nullptr);
 
-    EXPECT_EQ(fixture.model->get_ustar(0)->max(0), Real(0.0));
-    EXPECT_EQ(fixture.model->get_ustar(0)->max(1), Real(0.0));
-    EXPECT_EQ(fixture.model->get_tstar(0)->max(0), Real(0.0));
-    EXPECT_EQ(fixture.model->get_qstar(0)->max(0), Real(0.0));
-    EXPECT_EQ(fixture.model->get_tsurf(0)->max(0), Real(0.0));
+    // A field the provider does not supply is left undefined, not zero
+    EXPECT_EQ(fixture.model->get_ustar(0)->max(0), lsm_undefined);
+    EXPECT_EQ(fixture.model->get_ustar(0)->max(1), lsm_undefined);
+    EXPECT_EQ(fixture.model->get_tstar(0)->max(0), lsm_undefined);
+    EXPECT_EQ(fixture.model->get_qstar(0)->max(0), lsm_undefined);
+    EXPECT_EQ(fixture.model->get_tsurf(0)->max(0), lsm_undefined);
 }
 
 TEST(SurfaceModel, SingleEnabledModelUsesFullSurfaceWithoutFraction)
