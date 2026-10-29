@@ -34,6 +34,40 @@ struct NearestColumn
 
 } // namespace
 
+void
+SurfaceLayer::set_immersed_surface_params (const int& lev)
+{
+    const auto& surface_mask = *m_lmask_lev[lev][0];
+    for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi) {
+        Box bx = mfi.fabbox();
+        // The mask is an (i,j,0) field even for lateral or EB surfaces.
+        // Limit the lateral halo to the mask's available ghost cells.
+        Box mask_columns = surface_mask.fabbox(mfi.index());
+        mask_columns.setRange(2, bx.smallEnd(2), bx.length(2));
+        bx &= mask_columns;
+
+        const auto mask_arr = surface_mask.const_array(mfi);
+        const auto u_star_arr = u_star[lev]->array(mfi);
+        const auto w_star_arr = w_star[lev]->array(mfi);
+        const auto t_star_arr = t_star[lev]->array(mfi);
+        const auto q_star_arr = q_star[lev]->array(mfi);
+        const auto olen_arr = olen[lev]->array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            if (mask_arr(i,j,0) == 2) {
+                // MOST and LSM updates skip immersed columns. Finite, inactive
+                // scales keep their initialization sentinels out of stress/TKE
+                // calculations; immersed forcing handles roof and wall physics.
+                u_star_arr(i,j,k) = zero;
+                w_star_arr(i,j,k) = zero;
+                t_star_arr(i,j,k) = zero;
+                q_star_arr(i,j,k) = zero;
+                // Finite neutral limit, also used by the IB-aware PBL schemes.
+                olen_arr(i,j,k) = Real(1.0e10);
+            }
+        });
+    }
+}
+
 /**
  * Wrapper to update ustar and tstar for Monin Obukhov similarity theory.
  *
@@ -301,6 +335,10 @@ SurfaceLayer::update_fluxes (const int& lev,
             q_star[lev]->setVal(custom_qstar);
         }
     }
+
+    // Custom fluxes can write whole fields; reset immersed columns before
+    // the RANS boundary TKE calculation or any subsequent stress calculation.
+    set_immersed_surface_params(lev);
 
     if (m_update_k_rans) {
         // Clamped divisor: the select is if-converted, so 1/theta_ref runs even

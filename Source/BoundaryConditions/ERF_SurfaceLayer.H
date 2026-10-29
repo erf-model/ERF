@@ -830,6 +830,8 @@ public:
           surface_mask.DistributionMap() == u_star[lev]->DistributionMap(),
           "Surface-layer mask and parameters must have identical ownership.");
 
+      set_immersed_surface_params(lev);
+
       surface_diagnostic_source[lev] = std::make_unique<amrex::MultiFab>(ba_flux, dm, ncomp, ng);
       surface_diagnostic_source[lev]->setVal(
           surface_diagnostics::to_plot_value(surface_diagnostics::SurfaceDiagnosticSource::Missing));
@@ -874,6 +876,15 @@ public:
           amrex::Print() << std::endl;
       }
   }
+
+  /**
+   * Set benign surface scales in immersed columns (land mask 2), including ghosts.
+   * Called after allocation, checkpoint restoration, and surface-scale updates.
+   * Preserve PBL height, roughness, surface temperature, and surface moisture.
+   *
+   * @param[in] lev level index
+   */
+  void set_immersed_surface_params (const int& lev);
 
   /**
    * Update surface fluxes and related surface-layer state.
