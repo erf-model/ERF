@@ -33,9 +33,10 @@
         const Real z = use_terrain ? fourth*( z_nd(i,j  ,k) + z_nd(i,j  ,k+1)
                                           + z_nd(i,j+1,k) + z_nd(i,j+1,k+1) )
             : prob_lo[2] + (k + myhalf) * dx[2];
+        const Real z_agl = z - erf_prob_heights::z_ground_xface(i,j,z_sfc_nd); // height above the ground
 
         x_vel_pert(i, j, k) = zero;
-        if ((z <= pert_ref_height) && (U_0_Pert_Mag != zero))
+        if ((z_agl <= pert_ref_height) && (U_0_Pert_Mag != zero))
         {
             Real rand_double = amrex::Random(engine); // Between zero and one
             Real x_vel_prime = (rand_double*two - one)*U_0_Pert_Mag;
@@ -52,10 +53,11 @@
         const Real z = use_terrain ? fourth*( z_nd(i  ,j,k) + z_nd(i  ,j,k+1)
                                           + z_nd(i+1,j,k) + z_nd(i+1,j,k+1) )
             : prob_lo[2] + (k + myhalf) * dx[2];
+        const Real z_agl = z - erf_prob_heights::z_ground_yface(i,j,z_sfc_nd); // height above the ground
 
         // Set the y-velocity
         y_vel_pert(i, j, k) = zero;
-        if ((z <= pert_ref_height) && (V_0_Pert_Mag != zero))
+        if ((z_agl <= pert_ref_height) && (V_0_Pert_Mag != zero))
         {
             Real rand_double = amrex::Random(engine); // Between zero and one
             Real y_vel_prime = (rand_double*two - one)*V_0_Pert_Mag;
@@ -64,9 +66,9 @@
         if (pert_deltaV != zero)
         {
             const Real xl = x - prob_lo[0];
-            const Real zl = z / pert_ref_height;
+            const Real zl = z_agl / pert_ref_height;
             const Real damp = std::exp(-myhalf * zl * zl);
-            y_vel_pert(i, j, k) += vfac * damp * z * std::cos(bval * xl);
+            y_vel_pert(i, j, k) += vfac * damp * z_agl * std::cos(bval * xl);
         }
     });
 

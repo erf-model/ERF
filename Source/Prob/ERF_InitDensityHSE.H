@@ -125,9 +125,9 @@ erf_init_dens_hse_dry (amrex::MultiFab& rho_hse,
 
         if (is_constant_dz) {
             const amrex::Real dz = geom.CellSize()[2];
-            HSEutils::init_isentropic_hse_constant_dz(rho_sfc,Thetabar,h_r.data(),h_p.data(),dz,klo,khi);
+            HSEutils::init_isentropic_hse_constant_dz(rho_sfc,Thetabar,h_r.data(),h_p.data(),dz,geom.ProbLo(2),klo,khi);
         } else { // stretched_dz
-            HSEutils::init_isentropic_hse_stretched_dz(rho_sfc,Thetabar,h_r.data(),h_p.data(),stretched_dz_h.data(),klo,khi);
+            HSEutils::init_isentropic_hse_stretched_dz(rho_sfc,Thetabar,h_r.data(),h_p.data(),stretched_dz_h.data(),geom.ProbLo(2),klo,khi);
         }
 
         amrex::Gpu::copyAsync(amrex::Gpu::hostToDevice, h_r.begin(), h_r.end(), d_r.begin());
@@ -212,7 +212,7 @@ erf_init_dens_hse_moist (amrex::MultiFab& rho_hse,
                                                   theta_0, theta_tr, T_tr);
     } else {
         HSEutils::init_isentropic_hse_no_terrain( h_t.data(), h_r.data(), h_p.data(),
-                                                  h_q_v.data(), dz, khi, q_t, eq_pot_temp, use_empirical,
+                                                  h_q_v.data(), dz, geom.ProbLo(2), khi, q_t, eq_pot_temp, use_empirical,
                                                   T_from_theta, z_tr_1, z_tr_2,
                                                   theta_0, theta_tr, T_tr);
     }

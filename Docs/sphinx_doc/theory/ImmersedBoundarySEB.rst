@@ -31,7 +31,7 @@ is one kernel over the list with no communication; only the reports reduce
 across ranks.
 
 Building ids come from labelling the solid columns of the blanking, four
-connected in the horizontal and numbered in scan order; a face carries the
+connected in the horizontal, across the periodic seams too, and numbered in scan order; a face carries the
 id of its solid neighbour's column. The per-building report,
 :cpp:`erf.ibseb.csv_file`, lists every :cpp:`erf.ibseb.csv_int` steps the
 number of faces, the area, the area-weighted mean skin temperature with
@@ -45,25 +45,20 @@ every dump), which is what the regtests and the canonical cases read. A
 restart appends from its next report on: the step it starts from is printed
 but not written to the report file or dumped again.
 
-For output the list is scattered into cell-centred fields: ``ibseb_nfaces``
-and ``ibseb_tskin`` in the plotfile, and ``IBSEBState`` in the checkpoint,
-which holds the skin temperature, sensible flux and slab temperatures of the
-faces of each cell. Its boxes are 4 x 4 column blocks clipped to the k-range
-that owns faces, and it carries one slot per face rather than the six a cell
-could hold in principle, so its width is the largest face count on any cell
-of the level (two or three around ordinary buildings). Face-owning cells are
-the fluid cells against solid, a one-cell shell, so a block over the interior
-of a wide footprint keeps only the layer above the roof while a block on a
-wall still spans its height. On restart the list is rebuilt from the blanking
-and refilled from that field, so a restart does not depend on the number of
-ranks. ``Exec/CanonicalTests/SEB/FaceStorage`` checks the face counts against
-the mask, the rank independence and the checkpoint round trip.
-
-The field still carries whole boxes rather than the faces alone, so its size
-grows with the surface of the buildings and, through the wall blocks, with
-their height. A city-scale deck should expect the checkpoint to grow with the
-built area; storing the faces themselves, rather than a cell field that
-covers them, would be needed to make it proportional to the face count.
+For output the list is scattered into cell-centred fields, ``ibseb_nfaces``
+and ``ibseb_tskin`` in the plotfile. The checkpoint holds the faces
+themselves: ``Level_N/IBSEBFaces`` carries one record per face, its skin
+temperature, sensible flux and slab temperatures, keyed by the face's cell,
+direction and side and written in key order by the I/O rank, so the file is
+the size of the data (``8 (3 + n_slab_layers)`` bytes per face after a
+header line) and is the same whatever the number of ranks. On restart the list is rebuilt from the
+blanking and every face looks its record up by its key, so a restart does not
+depend on the number of ranks. A checkpoint with another layer count, another
+domain or other buildings is refused with a message that says so, and so is
+one written before the records, which held the state as the cell field
+``IBSEBState``. ``Exec/CanonicalTests/SEB/FaceStorage`` checks the face
+counts against the mask, the rank independence and the checkpoint round trip,
+face by face.
 
 Shortwave and shadow
 --------------------
@@ -96,16 +91,33 @@ shadow. Shadow is decided by a ray cast from the face centre toward the sun
 against the height of every column of the level, a two-dimensional walk over
 the columns the ray crosses: buildings stand on the ground and the ray only
 rises, so the ray is blocked wherever its height on entering a column is
-below that column's top. The column tops are an array over the bounding
-box of the built columns, replicated on every rank, holding the index of the
-highest solid cell of each column rather than its height (4 bytes per built
-column per rank; every column outside the box is open ground), so the test
-needs no communication and costs a few operations per column crossed. That
-replication is still proportional to the built area rather than to this
-rank's share of it, which is the limit to watch on a city-scale deck; the
-walk itself is already bounded, since a rising ray stops once it passes the
-tallest column and a descending one stops at the ground, so a ray reaches no
-further than the tallest building divided by the tangent of its elevation. With the
+below that column's top. The column tops are a map with one integer per
+column, the index of its highest solid cell rather than its height, held on
+the level's own boxes like any other field (so the grids must not be split
+in z, which :cpp:`amr.no_box_split_dir = 2`, the ERF default, keeps them from
+being). Each rank's ray cast reads its
+own *patch* of that map: the rank's boxes grown by a halo, filled once at
+initialisation by a parallel copy, so the test needs no communication and
+costs a few operations per column crossed, and nothing of the size of the
+domain is replicated on every rank. The halo is exact rather than a cut-off:
+a rising ray stops once it passes the tallest column and a descending one
+stops at the ground, so a ray reaches no further than the tallest building
+divided by the tangent of its elevation, and the halo is that reach for the
+shallowest ray the map must follow: the shallowest ray of the hemisphere
+sampling below (set by :cpp:`erf.ibseb.view_n_az` and
+:cpp:`erf.ibseb.view_n_el`) and a sun :cpp:`erf.ibseb.sun_min_elev_deg`
+above the horizon (2 degrees by default, where the clear-sky direct beam is
+0.05 W/m2 with the default transmission and 2.3 W/m2 at a transmission of
+0.8; a fixed beam keeps its value at any elevation). A ray that leaves the patch has
+left the map, and the far field is open ground: only a sun lower than that
+floor is concerned, and then a building farther than the halo from a face
+casts no shadow on it, which a warning says for a fixed sun. Where the
+grown boxes would reach past one domain width the patch is the domain
+itself: wrapped in a periodic direction, so a ray comes back in on the other
+side and is followed to its end whatever its elevation, and clipped at a
+non-periodic edge, beyond which nothing stands. The patch therefore never
+costs more than the whole map did, 4 bytes per column of the domain per
+rank, and on a city-scale deck it costs the rank's share plus the halo. With the
 prescribed provider the diffuse light on a face is the sky view fraction
 times the horizontal diffuse plus the ground view fraction times the ground
 albedo times the total horizontal irradiance, with the fractions from the
@@ -421,13 +433,12 @@ level below for the buildings it resolves, and on the refined level itself
 for one only that level resolves (a low block under the coarser cell height),
 including a block that runs across the edge solid against solid. A
 building outside a refined level has its faces only on the levels below,
-and the refined level's rays still find it: its columns are copied from the
-column map of the level below into the refined level's ray cast, so it
-shades the refined faces and enters their view fractions at the coarser
-resolution. The copy takes ratio x ratio entries per coarse column, so the
-refined level's map covers the built area of every level at its own
-resolution, replicated on every rank like the level's own: 4 bytes per
-column, 16 MB per rank for 1024 x 1024 built coarse columns at a ratio of 2. On the coarse level a building can reach one cell beyond its
+and the refined level's rays still find it: each column of the refined
+level's ray patch that its own grids do not cover takes the top of the
+finest level below that covers it, so the building shades the refined faces
+and enters their view fractions at the coarser resolution. The copy takes
+ratio x ratio entries per coarse column, at the refined level's resolution,
+and the halo of the patch is sized for the tallest building of every level. On the coarse level a building can reach one cell beyond its
 footprint, where the embedded boundary ramps from its roof to the ground,
 so a street that carries the edge of a refined level must be four coarse
 cells wide: two ramp cells and the two cells between which the edge falls.

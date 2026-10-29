@@ -473,9 +473,8 @@ SLM::Init (const int& /*lev*/,
         slm_init();
     }
 
-    // Following Noah-MP, zref is modified to become ztop (canopy top height) + dz0 (center height of the atmosphere's lowest grid)
+    // Following Noah-MP, zref is modified to become ztop (canopy top height) + dz0 (height above the ground of the center of the atmosphere's lowest cell)
     if (!use_wrfinput) {
-        Real zlo      = m_geom.ProbLo(2);
         Real dz       = m_geom.CellSize(2);
         for ( MFIter mfi(cons_in,TileNoZ()); mfi.isValid(); ++mfi) {
             const Box& xybx      = mfi.growntilebox(0);
@@ -484,7 +483,7 @@ SLM::Init (const int& /*lev*/,
             auto zrefxy_arr = zrefxy.array(mfi);
 
             ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
-                amrex::Real znd = (z_nd_arr) ? Compute_Zrel_AtCellCenter(i, j, 0, z_nd_arr) : zlo + myhalf*dz;
+                amrex::Real znd = (z_nd_arr) ? Compute_Zrel_AtCellCenter(i, j, 0, z_nd_arr) : myhalf*dz;
                 zrefxy_arr(i,j,0) = ztop_arr(i,j,0) + znd;
             });
         }
@@ -1369,7 +1368,6 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
 void
 SLM::initialize_zrefxy ()
 {
-    const Real zlo = m_geom.ProbLo(2);
     const Real dz = m_geom.CellSize(2);
     for (MFIter mfi(landtype, TileNoZ()); mfi.isValid(); ++mfi) {
         const Box& xybx = mfi.growntilebox(0);
@@ -1382,7 +1380,7 @@ SLM::initialize_zrefxy ()
         ParallelFor(xybx, [=] AMREX_GPU_DEVICE(int i, int j, int) noexcept {
             if (landmask_arr(i, j, 0) == 1) {
                 const Real znd = z_nd_arr ? Compute_Zrel_AtCellCenter(i, j, 0, z_nd_arr)
-                                           : zlo + myhalf * dz;
+                                           : myhalf * dz;
                 zrefxy_arr(i, j, 0) = ztop_arr(i, j, 0) + znd;
             }
         });

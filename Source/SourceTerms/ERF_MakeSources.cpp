@@ -546,6 +546,9 @@ void make_sources (int level,
                 //       second pass below.  The accumulation order is unchanged, so the
                 //       values are identical to the old per-level array.
                 Real q_int_inf = zero;
+                // Height of the ground (the bottom face).  zi is an absolute height; the
+                //    zi factor in the flux below is the inversion's height above the ground.
+                Real z_sfc = myhalf * (z_cc_arr(i,j,klo) + z_cc_arr(i,j,klo-1));
                 Real zi   = myhalf * (z_cc_arr(i,j,khi) + z_cc_arr(i,j,khi-1));
                 Real rhoi = myhalf * (cell_data(i,j,khi,Rho_comp) + cell_data(i,j,khi-1,Rho_comp));
                 for (int k(klo+1); k<=khi+1; ++k) {
@@ -565,10 +568,10 @@ void make_sources (int level,
                 // the lower face is carried across iterations so each face is evaluated
                 // once, exactly as when both faces were read from the shared array.
                 Real q_int   = zero;                                             // face klo
-                Real z_lo    = myhalf * (z_cc_arr(i,j,klo) + z_cc_arr(i,j,klo-1));
+                Real z_lo    = z_sfc;
                 Real flux_lo = F1*std::exp(-q_int) + F0*std::exp(-(q_int_inf - q_int));
                 if (z_lo > zi) {
-                    flux_lo += rhoi * Cp_d * D * ( std::pow(z_lo-zi,Real(4.)/three)/Real(4.) + zi*std::pow(z_lo-zi,one/three) ) ;
+                    flux_lo += rhoi * Cp_d * D * ( std::pow(z_lo-zi,Real(4.)/three)/Real(4.) + (zi-z_sfc)*std::pow(z_lo-zi,one/three) ) ;
                 }
 
                 for (int k(klo); k<=khi; ++k) {
@@ -579,7 +582,7 @@ void make_sources (int level,
                     Real z_hi    = myhalf * (z_cc_arr(i,j,k+1) + z_cc_arr(i,j,k));
                     Real flux_hi = F1*std::exp(-q_int) + F0*std::exp(-(q_int_inf - q_int));
                     if (z_hi > zi) {
-                        flux_hi += rhoi * Cp_d * D * ( std::pow(z_hi-zi,Real(4.)/three)/Real(4.) + zi*std::pow(z_hi-zi,one/three) ) ;
+                        flux_hi += rhoi * Cp_d * D * ( std::pow(z_hi-zi,Real(4.)/three)/Real(4.) + (zi-z_sfc)*std::pow(z_hi-zi,one/three) ) ;
                     }
 
                     // Average to w-faces when looping CC

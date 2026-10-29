@@ -70,14 +70,23 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
     }
 
     // Update the inflow perturbation update time and amplitude
+    bool apply_perturbations = true;
     if (solverChoice.use_perturbation(lev))
     {
-        turbPert.calc_tpi_update(lev, dt_lev, U_old, V_old, S_old);
+        if (solverChoice.perturbation_auto) {
+            turbPert_update_automatic(lev, time);
+        }
+        if (turbPert.uniform_refresh_enabled(lev)) {
+            if (!solverChoice.perturbation_auto) { turbPert_update_uniform_wind(lev, time); }
+            apply_perturbations = turbPert.calc_tpi_uniform_update(lev, time);
+        } else {
+            turbPert.calc_tpi_update(lev, dt_lev, U_old, V_old, S_old);
+        }
     }
 
     // If PerturbationType::Direct or CPM is selected, directly add the computed perturbation
     // on the conserved field
-    if (solverChoice.use_direct_perturbation(lev))
+    if (solverChoice.use_direct_perturbation(lev) && apply_perturbations)
     {
         if (solverChoice.use_wvel_perturbation(lev)) { // CPM_W
             auto m_ixtype = W_old.boxArray().ixType();

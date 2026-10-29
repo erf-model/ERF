@@ -45,13 +45,11 @@ struct SimpleColumn
         cons.setVal(rho, Rho_comp, 1, 1);
         cons.setVal(rho * theta, RhoTheta_comp, 1, 1);
         cons.setVal(rho * qv, RhoQ1_comp, 1, 1);
-        for (amrex::MFIter mfi(cons); mfi.isValid(); ++mfi) {
-            const auto a = cons.array(mfi);
-            const amrex::Box top(amrex::IntVect(0, 0, nz - 1), amrex::IntVect(0, 0, nz - 1));
-            amrex::ParallelFor(top & mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) {
-                a(i, j, k, RhoQ2_comp) = rho * qc_top;
-            });
-        }
+
+        // Cloud water in the top cell only.  (A ParallelFor here would put an extended
+        // __device__ lambda in a constructor, which nvcc does not allow.)
+        const amrex::Box top(amrex::IntVect(0, 0, nz - 1), amrex::IntVect(0, 0, nz - 1));
+        cons.setVal(rho * qc_top, top, RhoQ2_comp, 1);
 
         qheating.define(ba, dm, 2, 0);
         qheating.setVal(0.0);
@@ -72,8 +70,8 @@ struct SimpleColumn
         const double dt = 1.0;
         amrex::Real declin = 0.0;
         amrex::Real calday = 0.0;
-        const amrex::Vector<const amrex::MultiFab*> lsm_in;
-        const amrex::Vector<amrex::MultiFab*> lsm_out;
+        const amrex::Vector<const amrex::MultiFab*> lsm_in{};
+        const amrex::Vector<amrex::MultiFab*> lsm_out{};
         rad.Run(level, step, time, dt, ba, geom, &cons, nullptr, nullptr, lsm_in, lsm_out,
                 &qheating, nullptr, nullptr, nullptr, nullptr, false, declin, calday);
         amrex::Gpu::streamSynchronize();

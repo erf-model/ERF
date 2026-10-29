@@ -288,16 +288,8 @@ SurfaceLayer::update_fluxes (const int& lev,
                         << " (W/m^2) TAU = " << sfc_ustar
                         << " (m^2/s^2)" << std::endl;
 
-            // overwrite the custom_ustar/tstar/qstar values with the new values and
-            // use the existing pathway to set u*,t*,q* with or without a custom_rhosurf
-            // note - when m_use_sfc_fluxes=true, custom_flux has specified_rho_surf=true,
-            // so there is no rho factor here
-            custom_ustar = std::sqrt(sfc_ustar); // convert tau from file to u*
-            custom_tstar = sfc_tflux / Cp_d;
-            custom_qstar = sfc_qflux / L_v;
-        }
-
-        if (custom_rhosurf > 0) {
+            set_sfc_params_from_file_fluxes(lev, cons_in, sfc_tflux, sfc_qflux, sfc_ustar);
+        } else if (custom_rhosurf > 0) {
             specified_rho_surf = true;
             u_star[lev]->setVal(std::sqrt(custom_rhosurf) * custom_ustar);
             t_star[lev]->setVal(custom_rhosurf * custom_tstar);
@@ -884,8 +876,7 @@ SurfaceLayer::impose_SurfaceLayer_bcs (const int& lev,
                                  xqv_flux, yqv_flux, zqv_flux,
                                  z_phys, flux_comp, mf_surface_fluxes);
     } else if (flux_type == FluxCalcType::CUSTOM) {
-        const bool fluxes_include_rho = specified_rho_surf || m_use_sfc_fluxes;
-        custom_flux flux_comp(fluxes_include_rho);
+        custom_flux flux_comp(specified_rho_surf);
         compute_SurfaceLayer_bcs(lev, mfs, Tau_lev,
                                  xheat_flux, yheat_flux, zheat_flux,
                                  xqv_flux, yqv_flux, zqv_flux,
@@ -1767,6 +1758,57 @@ SurfaceLayer::get_lsm_flux_view (const int& lev,
         if (toLower(m_lsm_flux_name[n]) == "tau23")  { flux.tau23  = m_lsm_flux_lev[lev][n]->const_array(mfi); }
     }
     return flux;
+ * Set u*, t*, and q* from the fluxes interpolated from most.sfc_file.
+ *
+ * The file's H and LE [W/m2] are dynamic fluxes, but its TAU [m2/s2] is kinematic.
+ * All three are stored kinematic, as most.ustar/tstar/qstar are without most.rhosurf,
+ * and custom_flux multiplies each by the local density: H/Cp_d and LE/L_v are divided
+ * here by the first-cell density that custom_flux multiplies back, so they are applied
+ * unchanged, and the applied stress is rho*TAU.
+ *
+ * @param[in] lev       Current level
+ * @param[in] cons_in   Conserved state supplying the first-cell density
+ * @param[in] sfc_tflux Sensible heat flux H [W/m2]
+ * @param[in] sfc_qflux Latent heat flux LE [W/m2]
+ * @param[in] sfc_tau   Kinematic surface stress TAU [m2/s2]
+ */
+void
+SurfaceLayer::set_sfc_params_from_file_fluxes (const int& lev,
+                                               const MultiFab& cons_in,
+                                               const Real& sfc_tflux,
+                                               const Real& sfc_qflux,
+                                               const Real& sfc_tau)
+{
+    u_star[lev]->setVal(std::sqrt(sfc_tau));
+
+    const int klo = m_geom[lev].Domain().smallEnd(2);
+    const Real rho_tflux = sfc_tflux / Cp_d;
+    const Real rho_qflux = sfc_qflux / L_v;
+
+    for (MFIter mfi(*t_star[lev]); mfi.isValid(); ++mfi)
+    {
+        Box gtbx = mfi.growntilebox();
+
+        // Only the copy of a z-split planar field on the z-low face reads the 3-D
+        // state; fill_planar_boundary at the end of update_fluxes fills the others.
+        if (gtbx.smallEnd(2) != klo ||
+            !m_planar_bndry[lev].is_surface_copy(mfi.index())) {
+            continue;
+        }
+        gtbx &= cons_in.fabbox(mfi.index());
+        if (gtbx.isEmpty()) { continue; }
+
+        const auto cons_arr   = cons_in.const_array(mfi);
+        const auto t_star_arr = t_star[lev]->array(mfi);
+        const auto q_star_arr = q_star[lev]->array(mfi);
+
+        ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+        {
+            const Real rho = cons_arr(i,j,klo,Rho_comp);
+            t_star_arr(i,j,k) = rho_tflux / rho;
+            q_star_arr(i,j,k) = rho_qflux / rho;
+        });
+    }
 }
 
 /**

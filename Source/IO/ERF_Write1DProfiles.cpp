@@ -80,7 +80,7 @@ ERF::write_1D_profiles (double time)
                       if (zlevels_stag[0].size() > 1) {
                           z = myhalf * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
                       } else {
-                          z = (k + myhalf)* dx[2];
+                          z = geom[0].ProbLo(2) + (k + myhalf)* dx[2];
                       }
                       data_log1 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
@@ -103,7 +103,7 @@ ERF::write_1D_profiles (double time)
                       if (zlevels_stag[0].size() > 1) {
                           z = myhalf * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
                       } else {
-                          z = (k + myhalf)* dx[2];
+                          z = geom[0].ProbLo(2) + (k + myhalf)* dx[2];
                       }
                       Real thv = h_avg_th[k] * (one + epsv*h_avg_qv[k] - h_avg_qc[k] - h_avg_qr[k]);
                       data_log2 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
@@ -158,7 +158,7 @@ ERF::write_1D_profiles (double time)
                       if (zlevels_stag[0].size() > 1) {
                           z = myhalf * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
                       } else {
-                          z = (k + myhalf)* dx[2];
+                          z = geom[0].ProbLo(2) + (k + myhalf)* dx[2];
                       }
                       data_log3 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                 << std::setw(datwidth) << std::setprecision(datprecision) << z << " "
@@ -180,7 +180,7 @@ ERF::write_1D_profiles (double time)
                         if (zlevels_stag[0].size() > 1) {
                             z = myhalf * (zlevels_stag[0][k] + zlevels_stag[0][k+1]);
                         } else {
-                            z = (k + myhalf)* dx[2];
+                            z = geom[0].ProbLo(2) + (k + myhalf)* dx[2];
                         }
                         data_log4 << std::setw(datwidth) << std::setprecision(timeprecision) << time << " "
                                   << std::setw(datwidth) << std::setprecision(datprecision) << z << " "

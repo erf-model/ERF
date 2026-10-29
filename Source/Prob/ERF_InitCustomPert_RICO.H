@@ -46,6 +46,7 @@
         const Real x = prob_lo[0] + (i + myhalf) * dx[0];
         const Real y = prob_lo[1] + (j + myhalf) * dx[1];
         const Real z = use_z_phys ? z_cc(i,j,k) : prob_lo[2] + (k + myhalf) * dx[2];
+        const Real z_agl = z - erf_prob_heights::z_ground_cc(i,j,z_sfc_nd); // height above the ground
 
         // Define a point (xc,yc,zc) at the center of the domain
         const Real xc = myhalf * (prob_lo[0] + prob_hi[0]);
@@ -60,8 +61,8 @@
         //     at fixed pressure ends up as a density perturbation (rho*theta is held), and
         //     qv becomes qv + dqv on the new density, so a temperature perturbation alone
         //     leaves qv, and the pressure, as they were
-        const bool rand_T  = (z <= pert_ref_height) && (T_0_Pert_Mag != zero);
-        const bool rand_qv = use_moisture && (z <= pert_ref_height) && (qv_0_Pert_Mag != zero);
+        const bool rand_T  = (z_agl <= pert_ref_height) && (T_0_Pert_Mag != zero);
+        const bool rand_qv = use_moisture && (z_agl <= pert_ref_height) && (qv_0_Pert_Mag != zero);
         const bool sin_T   = (pert_deltaT != zero);
         const bool sin_qv  = use_moisture && (pert_deltaQV != zero);
 
@@ -77,10 +78,10 @@
             dqv += (rand_double*two - one)*qv_0_Pert_Mag;
         }
         if (sin_T || sin_qv) {
-            const Real zl = z / pert_ref_height;
+            const Real zl = z_agl / pert_ref_height;
             const Real damp = std::exp(-myhalf * zl * zl);
-            if (sin_T)  { dT  += tfac  * damp * z * std::cos(cval * (x - xc)); }
-            if (sin_qv) { dqv += qvfac * damp * z * std::cos(dval * (x - xc)); }
+            if (sin_T)  { dT  += tfac  * damp * z_agl * std::cos(cval * (x - xc)); }
+            if (sin_qv) { dqv += qvfac * damp * z_agl * std::cos(dval * (x - xc)); }
         }
 
         if (rand_T || sin_T || rand_qv || sin_qv) {
