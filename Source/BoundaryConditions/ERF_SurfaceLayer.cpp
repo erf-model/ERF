@@ -1861,9 +1861,11 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
             int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
             const int li = col.i(i);
             const int lj = col.j(j);
+            // Only ordinary land (mask 1) uses LSM fluxes. Immersed buildings and
+            // terrain (mask 2) retain their existing surface-layer parameters.
             // Skip cells where the LSM does not have a valid value (finite and below
             // lsm_undefined) for every one of the four fluxes; these keep the MOST values.
-            if (is_land && lsm_t_flux_arr &&
+            if (is_land == 1 && lsm_t_flux_arr &&
                 is_valid_lsm_value(lsm_t_flux_arr(li,lj,0)) &&
                 is_valid_lsm_value(lsm_q_flux_arr(li,lj,0)) &&
                 is_valid_lsm_value(lsm_tau13_arr (li,lj,0)) &&
