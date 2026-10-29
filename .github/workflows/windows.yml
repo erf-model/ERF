@@ -163,7 +163,6 @@ jobs:
       run: |
         $env:CCACHE_COMPRESS = "1"
         $env:CCACHE_COMPRESSLEVEL = "10"
-        $env:CCACHE_MAXSIZE = "600M"
         ccache -z
         $build_start = [int](Get-Date -UFormat %s)
         cmake --build build --parallel $env:NUMBER_OF_PROCESSORS
