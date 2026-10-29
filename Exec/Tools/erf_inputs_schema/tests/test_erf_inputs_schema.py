@@ -60,5 +60,20 @@ class BuildRequirementTests(unittest.TestCase):
         self.assertEqual(on["feature_sources"]["ERF_USE_WIDGET"], "CMakeLists.txt:3")
 
 
+class LayerTests(unittest.TestCase):
+    def test_a_shared_key_records_both_layers_and_which_won(self):
+        fact = generate()["keys"]["amr.max_level"]
+        self.assertEqual(fact["layers"], {"AMReX": "AMReX/Src/Base/AMReX_ParallelDescriptor.cpp:9",
+                                          "ERF": "Source/ERF_Synthetic.cpp:19"})
+        self.assertEqual(fact["layer"], "AMReX")
+        self.assertEqual(fact["source"], fact["layers"]["AMReX"])
+
+    def test_a_key_of_one_layer_names_that_layer(self):
+        keys = generate()["keys"]
+        self.assertEqual(keys["erf.cfl"]["layer"], "ERF")
+        self.assertEqual(keys["erf.cfl"]["layers"], {"ERF": "Source/ERF_Synthetic.cpp:6"})
+        self.assertEqual(keys["amrex.use_gpu_aware_mpi"]["layer"], "AMReX")
+
+
 if __name__ == "__main__":
     unittest.main()
