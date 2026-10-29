@@ -269,6 +269,28 @@ boundary layer depth, ``erf.most.include_wstar`` requires ``erf.most.pblh_calc``
 name a PBL height scheme; leaving it at its default of ``none`` is an error, since no
 boundary layer depth would ever be diagnosed.
 
+Limits on the similarity solution
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In every flux kernel the log-law brackets :math:`C - \psi_m` and :math:`C - \psi_h`, with
+:math:`C = \ln(z_{ref}/z_0)`, are held at or above :math:`\min(C/2,\,1)`. In strongly unstable,
+weak-wind air over rough ground :math:`\psi` exceeds :math:`C`, and without the floor
+:math:`u_{\star}` turns negative and, for a prescribed heat flux, the diagnosed surface
+temperature falls below the air under an upward flux. The floor is 1 wherever
+:math:`z_{ref} \geq e^2 z_0`, and below that it stays under the neutral value :math:`C`.
+
+A prescribed *stable* flux (``erf.most.surf_temp_flux`` < 0, or the equivalent
+``erf.most.surf_heating_rate``) can only be carried down to a minimum wind at
+:math:`z_{ref}`: with the Businger-Dyer functions the wind a friction velocity supports,
+:math:`u_{\star}(C + 5\,z_{ref}/L)/\kappa`, is smallest at :math:`z_{ref}/L = C/10`, and
+below that wind the flux has no similarity solution (Basu et al., "An inconvenient 'truth'
+about using sensible heat flux as a surface boundary condition in models under stably
+stratified regimes", Boundary-Layer Meteorol., 2008). Wherever this happens, for example under
+a forest canopy that slows the first-cell wind to about 1 m/s, ERF holds :math:`z_{ref}/L` at
+:math:`C/10` and applies only the flux that the wind carries there, which is weaker than the
+prescribed one. Prescribing the surface temperature (``erf.most.pot_surf_temp``) avoids
+this limit. For weak-wind convective runs, ``erf.most.include_wstar`` adds the convective
+velocity scale to the wind and keeps the solution away from the bracket floor.
+
 On a refined level, the ``MYNN25`` diagnostic runs on the level's own columns only when its
 grids run from the ground to the top of the domain in every column. A refined region that
 ends lower (a patch near the ground, say) cannot see the top of a boundary layer deeper than

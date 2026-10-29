@@ -179,11 +179,125 @@ struct similarity_funs
         }
     }
 
+    /**
+     * Stable z/L at which the prescribed-flux problem folds.
+     *
+     * With the Businger-Dyer psi_m = -beta_m z/L and L fixed by u* and the flux, the wind a
+     * given u* supports, u* (C - psi_m) / kappa, is smallest at z/L = C / (2 beta_m); below
+     * that wind the prescribed stable flux has no solution (Basu et al., BLM 2008). The
+     * physical (large u*) branch has z/L below this value, so bounding z/L by it leaves every
+     * point that has a solution unchanged.
+     *
+     * @param[in] C ln(zref/z0)
+     */
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
+    amrex::Real
+    calc_zeta_fold (amrex::Real C) const
+    {
+        return C / (two * beta_m);
+    }
+
 private:
     amrex::Real beta_m{amrex::Real(5.0)};         ///< Constants from Dyer, BLM, 1974
     amrex::Real beta_h{amrex::Real(5.0)};         ///< https://doi.org/amrex::Real(10.1007)/BF00240838
     amrex::Real gamma_m{amrex::Real(16.0)};
     amrex::Real gamma_h{amrex::Real(16.0)};
+};
+
+
+/**
+ * Log-law bracket ln(zref/z0) - psi of the MOST flux kernels, held at or above min(C/2, 1).
+ *
+ * In strongly unstable air psi exceeds C = ln(zref/z0) and the bracket changes sign, which
+ * turns u* negative and puts the diagnosed surface temperature on the wrong side of the air
+ * for a prescribed flux. The floor is 1 for zref >= e^2 z0 and C/2 below, so it never exceeds
+ * the neutral bracket C. Smaller floors (e.g. 0.1 C) let the relaxed iterations oscillate.
+ *
+ * @param[in] C   ln(zref/z0)
+ * @param[in] psi stability correction (momentum or heat)
+ */
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+most_bracket (amrex::Real C, amrex::Real psi)
+{
+    return amrex::max(C - psi, amrex::min(myhalf * C, one));
+}
+
+/**
+ * Fraction of a prescribed stable heat flux the wind can carry.
+ *
+ * When z/L is held at the fold (see similarity_funs::calc_zeta_fold), the wind is below the
+ * minimum the prescribed flux needs; the flux that u* supports at the fold is
+ * -u*^3 thv zeta_fold / (kappa g zref). Returns 1 everywhere else.
+ *
+ * @param[in] zeta      z/L used by the kernel (already bounded by zeta_fold)
+ * @param[in] zeta_fold z/L at the fold
+ * @param[in] ustar     friction velocity
+ * @param[in] thv       virtual potential temperature at zref
+ * @param[in] tflux     prescribed virtual heat flux
+ * @param[in] kappa     von Karman constant
+ * @param[in] gravity   gravitational acceleration
+ * @param[in] zref      reference height
+ */
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+most_fold_flux_scale (amrex::Real zeta, amrex::Real zeta_fold, amrex::Real ustar,
+                      amrex::Real thv, amrex::Real tflux, amrex::Real kappa,
+                      amrex::Real gravity, amrex::Real zref)
+{
+    if (zeta < zeta_fold || tflux >= zero) { return one; }
+    const amrex::Real tflux_fold = -ustar * ustar * ustar * thv * zeta_fold / (kappa * gravity * zref);
+    return amrex::min(tflux_fold / tflux, one);
+}
+
+/**
+ * Aitken delta-squared acceleration of the relaxed u* iteration in the prescribed-flux kernels.
+ *
+ * Near the stable fold the slope of the fixed-point map approaches 1 and the plain iteration
+ * needs hundreds of passes. From pass `start` on, every third iterate is replaced by the
+ * Aitken extrapolation of the last three (kept only within a factor of 2 of them), so points
+ * that converge before `start` are unchanged.
+ */
+struct most_aitken
+{
+    /**
+     * Return the iterate to continue from.
+     *
+     * @param[in] u_new iterate after pass `iter`
+     * @param[in] iter  number of passes done
+     */
+    AMREX_GPU_HOST_DEVICE
+    AMREX_FORCE_INLINE
+    amrex::Real
+    update (amrex::Real u_new, int iter)
+    {
+        if (iter < start) { return u_new; }
+        u0 = u1;
+        u1 = u2;
+        u2 = u_new;
+        if (++n < 3) { return u_new; }
+        const amrex::Real d = u2 - two * u1 + u0;
+        const amrex::Real ua = (d != zero) ? u2 - (u2 - u1) * (u2 - u1) / d : u_new;
+        const amrex::Real lo = myhalf * amrex::min(u0, amrex::min(u1, u2));
+        const amrex::Real hi = two * amrex::max(u0, amrex::max(u1, u2));
+        if (d == zero || !(ua > lo && ua < hi)) {
+            n = 0;
+            return u_new;
+        }
+        // The extrapolated value starts the next triple
+        u2 = ua;
+        n  = 1;
+        return ua;
+    }
+
+    int start{25};
+    int n{0};
+    amrex::Real u0{zero};
+    amrex::Real u1{zero};
+    amrex::Real u2{zero};
 };
 
 
