@@ -288,6 +288,9 @@ target_sources(${erf_exe_name}
     # Motivation: erf.metgrid_force_sfc_k must drop the same origin levels whether or not the
     # column has origin levels below the surface (erf-model/ERF#4607).
     ${CMAKE_CURRENT_SOURCE_DIR}/Initialization/ERF_GTestMetgridForceSfc.cpp
+    # Parent-driven inflow masks must follow height and wind reversals, including
+    # calm periods, without applying corner increments twice.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Initialization/ERF_GTestAutomaticPerturbation.cpp
     # Motivation: a station placed by latitude/longitude must land where the
     # lat/lon arrays put it on a rotated grid and on a grid across 180 degrees.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestLatLonMap.cpp
