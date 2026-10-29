@@ -976,14 +976,14 @@ ERF::convert_legacy_precip_accumulations (int lev)
             ? " from the old rain_accum, which held the total, and taking the snow and graupel out of rain_accum"
             : " as the sum of rain_accum, snow_accum and graupel_accum"));
 
-    MultiFab& precip = *qmoist[lev][mi.precip_accum];
-    MultiFab& rain   = *qmoist[lev][mi.rain_accum];
+    MultiFab& precip_mf = *qmoist[lev][mi.precip_accum];
+    MultiFab& rain      = *qmoist[lev][mi.rain_accum];
     const MultiFab* snow    = (mi.snow_accum    >= 0) ? qmoist[lev][mi.snow_accum]    : nullptr;
     const MultiFab* graupel = (mi.graupel_accum >= 0) ? qmoist[lev][mi.graupel_accum] : nullptr;
 
-    for (MFIter mfi(precip); mfi.isValid(); ++mfi) {
+    for (MFIter mfi(precip_mf); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.fabbox();
-        const auto p_arr = precip.array(mfi);
+        const auto p_arr = precip_mf.array(mfi);
         const auto r_arr = rain.array(mfi);
         const auto s_arr = (snow)    ? snow->const_array(mfi)    : Array4<const Real>{};
         const auto g_arr = (graupel) ? graupel->const_array(mfi) : Array4<const Real>{};
