@@ -212,7 +212,7 @@ erf_init_dens_hse_moist (amrex::MultiFab& rho_hse,
                                                   theta_0, theta_tr, T_tr);
     } else {
         HSEutils::init_isentropic_hse_no_terrain( h_t.data(), h_r.data(), h_p.data(),
-                                                  h_q_v.data(), dz, khi, q_t, eq_pot_temp, use_empirical,
+                                                  h_q_v.data(), dz, geom.ProbLo(2), khi, q_t, eq_pot_temp, use_empirical,
                                                   T_from_theta, z_tr_1, z_tr_2,
                                                   theta_0, theta_tr, T_tr);
     }
