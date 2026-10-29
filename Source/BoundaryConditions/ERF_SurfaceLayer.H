@@ -1069,14 +1069,14 @@ public:
    *
    * @param[in] lev       level index
    * @param[in] cons_in   conserved state supplying the first-cell density
-   * @param[in] sfc_tflux sensible heat flux H [W/m2]
-   * @param[in] sfc_qflux latent heat flux LE [W/m2]
+   * @param[in] tflux_in  sensible heat flux H [W/m2]
+   * @param[in] qflux_in  latent heat flux LE [W/m2]
    * @param[in] sfc_tau   kinematic surface stress TAU [m2/s2]
    */
   void set_sfc_params_from_file_fluxes (const int& lev,
                                         const amrex::MultiFab& cons_in,
-                                        const amrex::Real& sfc_tflux,
-                                        const amrex::Real& sfc_qflux,
+                                        const amrex::Real& tflux_in,
+                                        const amrex::Real& qflux_in,
                                         const amrex::Real& sfc_tau);
 
   /**
