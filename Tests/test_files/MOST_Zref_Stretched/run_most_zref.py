@@ -25,7 +25,9 @@ but samples the wind of another cell gives a different u*.  From u*(0) and the
 reported zref the script also inverts the ramp for the height the wind actually
 came from.  The stretched no-terrain column must follow the uniform 10 m column
 over the run, since both use the 5 m first cell center, and the raised column must
-follow it to the 6 digits of hist.dat: zref is a height above the ground.
+follow it to the 6 digits of hist.dat: zref is a height above the ground.  Sounding
+heights are absolute, like the mesh, so the raised columns are given the sounding
+raised by 300 m (SOUNDING_SHIFT): the same wind at the same height above the ground.
 
 Before the fix the two fitted cases aborted at start-up (the default 10 m query
 lies exactly on the top face of the first cell) and immersed_stretched reported
@@ -86,6 +88,15 @@ CASES = [
 # one unit in the last digit of u* ~ 1.1 is 9e-6
 TOL_RAISED = 1.0e-5
 
+# Sounding heights are absolute, like the mesh (the bottom of the domain is
+# geometry.prob_lo[2], #4445), so a column whose base is raised gets the sounding raised
+# with it: the same wind at the same height above its ground as the uniform column.
+SOUNDING_SHIFT = {
+    "uniform_raised_base": 300.0,
+    "raised_base_k_arr":   300.0,
+    "raised_base_dz_odd":  300.0,
+}
+
 
 def read_sounding(path):
     """Heights and wind speeds of an input sounding (first line is the surface)."""
@@ -122,13 +133,27 @@ def sampled_height(snd, u_star, zref):
     return None
 
 
+def write_sounding(src, dst, shift):
+    """Copy an input sounding with every height raised by shift (the surface line is kept)."""
+    with open(src) as fin, open(dst, "w") as fout:
+        lines = fin.read().splitlines()
+        fout.write(lines[0] + "\n")
+        for line in lines[1:]:
+            cols = line.split()
+            if not cols:
+                continue
+            cols[0] = repr(float(cols[0]) + shift)
+            fout.write(" ".join(cols) + "\n")
+
+
 def run_case(exe, mpi_cmd, workdir, name, opts, src_dir):
     """Run one configuration; return (log text, u* series or None, ok)."""
     rundir = os.path.join(workdir, name)
     os.makedirs(rundir, exist_ok=True)
-    for f in (DECK, SOUNDING):
-        with open(os.path.join(src_dir, f)) as fin, open(os.path.join(rundir, f), "w") as fout:
-            fout.write(fin.read())
+    with open(os.path.join(src_dir, DECK)) as fin, open(os.path.join(rundir, DECK), "w") as fout:
+        fout.write(fin.read())
+    write_sounding(os.path.join(src_dir, SOUNDING), os.path.join(rundir, SOUNDING),
+                   SOUNDING_SHIFT.get(name, 0.0))
     hist = os.path.join(rundir, "hist.dat")
     if os.path.exists(hist):
         os.remove(hist)

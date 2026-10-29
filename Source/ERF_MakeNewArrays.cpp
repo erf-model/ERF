@@ -546,7 +546,8 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
     {
         turbPert.init_tpi_type(lev, solverChoice.pert_type[lev], max_level);
         turbPert.init_tpi(lev, subdomains[lev], geom[lev].CellSizeArray(),
-                          ba, dm, ngrow_state, pp_prefix, refRatio(), max_level);
+                          ba, dm, ngrow_state, pp_prefix, refRatio(), max_level,
+                          solverChoice.perturbation_auto);
     }
 
     //

@@ -60,7 +60,7 @@
                                                  q_t,eq_pot_temp,use_empirical,true,height,z_tr,
                                                  theta_0, theta_tr, T_tr);
     } else {
-        HSEutils::init_isentropic_hse_no_terrain(h_t.data(), h_r.data(),h_p.data(),h_q_v.data(),dz,khi,
+        HSEutils::init_isentropic_hse_no_terrain(h_t.data(), h_r.data(),h_p.data(),h_q_v.data(),dz,geomdata.ProbLo(2),khi,
                                                  q_t,eq_pot_temp,use_empirical,true,height,z_tr,
                                                  theta_0, theta_tr, T_tr);
     }
@@ -81,6 +81,9 @@
         const Real x        = prob_lo[0] + (i + myhalf) * dx[0];
         const Real y        = prob_lo[1] + (j + myhalf) * dx[1];
         const Real z        = use_z_phys ? z_cc(i,j,k) : prob_lo[2] + (k + myhalf) * dx[2];
+        // The humidity zones (height, z_tr) are heights above the ground, as in the profile
+        //    from init_isentropic_hse_no_terrain; the bubble centre z_c is a coordinate, like x_c
+        const Real z_agl    = z - erf_prob_heights::z_ground_cc(i,j,z_sfc_nd);
         Real rad, delta_theta, theta_total, temperature, rho, RH, scalar;
 
         // Introduce the warm bubble. Assume that the bubble is pressure matched with the background
@@ -96,11 +99,11 @@
             scalar = zero;
         }
 
-        Real scaled_height = z / z_tr;
+        Real scaled_height = z_agl / z_tr;
         int which_zone = -1;
-        if (z <= height) {
+        if (z_agl <= height) {
             which_zone = 1;
-        } else if (z <= z_tr) {
+        } else if (z_agl <= z_tr) {
             which_zone = 2;
         } else {
             which_zone = 3;
@@ -112,7 +115,7 @@
         RH              = HSEutils::compute_relative_humidity(p[k], T_b, use_empirical, which_zone, scaled_height);
 
         Real q_v_hot;
-        if (z < height) {
+        if (z_agl < height) {
             q_v_hot = amrex::Real(0.014);
         } else {
             q_v_hot = HSEutils::vapor_mixing_ratio(p[k], T_b, RH, use_empirical, which_zone);
@@ -126,7 +129,7 @@
         Real RH_back          = HSEutils::compute_relative_humidity(p[k], T_back, use_empirical, which_zone, scaled_height);
 
         Real q_v_back;
-        if (z < height) {
+        if (z_agl < height) {
             q_v_back = amrex::Real(0.014);
         } else {
             q_v_back = HSEutils::vapor_mixing_ratio(p[k], T_back, RH_back, use_empirical, which_zone);

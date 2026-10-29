@@ -233,6 +233,7 @@ ERF::erf_enforce_hse (int lev,
 
     const auto geomdata = geom[lev].data();
     const Real dz = geomdata.CellSize(2);
+    const Real z_bot = geomdata.ProbLo(2);
 
     //
     // A box stacked on another box of this level continues from the pressure (and density) that
@@ -274,7 +275,9 @@ ERF::erf_enforce_hse (int lev,
             // (dens_hse*gravity would also be dens[0]*gravity because we use foextrap for rho at k = -1)
             // Note ng_pres_hse = 1
 
-           // We start by assuming pressure on the ground is p_0 (in ERF_Constants.H)
+           // p_0 (in ERF_Constants.H) is the pressure at z = 0 on every mesh, so the bottom
+           // cell's pressure comes from its absolute height.  Over terrain, or with
+           // geometry.prob_lo[2] != 0, the ground is not at z = 0 and its pressure is not p_0.
            // Note that gravity is positive
 
             Array4<Real>  rho_arr = dens.array(mfi);
@@ -293,12 +296,16 @@ ERF::erf_enforce_hse (int lev,
                 // Set value at surface from Newton iteration for rho
                 if (klo == 0)
                 {
-                    // Physical height of the terrain at cell center
-                    Real hz;
+                    // Absolute heights of the centers of the bottom cell and of the ghost cell below it
+                    // NOTE: the base-state BCs overwrite the ghost cell afterwards, except on moving
+                    //       terrain, where this value is the one that is used.
+                    Real hz, hz_below;
                     if (l_use_terrain) {
-                        hz = zcc_arr(i,j,klo);
+                        hz       = zcc_arr(i,j,klo);
+                        hz_below = zcc_arr(i,j,klo-1);
                     } else {
-                        hz = myhalf*dz;
+                        hz       = z_bot + myhalf*dz;
+                        hz_below = z_bot - myhalf*dz;
                     }
 
                     pres_arr(i,j,klo) = p_0 - hz * rho_arr(i,j,klo) * l_gravity;
@@ -309,7 +316,7 @@ ERF::erf_enforce_hse (int lev,
                     // Set ghost cell with dz and rho at boundary
                     // (We will set the rest of the ghost cells in the boundary condition routine)
                     //
-                    pres_arr(i,j,klo-1) = p_0 + hz * rho_arr(i,j,klo) * l_gravity;
+                    pres_arr(i,j,klo-1) = p_0 - hz_below * rho_arr(i,j,klo) * l_gravity;
                       pi_arr(i,j,klo-1) = getExnergivenP(pres_arr(i,j,klo-1), rdOcp);
                       th_arr(i,j,klo-1) = getRhoThetagivenP(pres_arr(i,j,klo-1)) / rho_arr(i,j,klo-1);
 

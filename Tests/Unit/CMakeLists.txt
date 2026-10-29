@@ -175,6 +175,10 @@ target_sources(${erf_exe_name}
     # second-order one-sided gradient the explicit strain uses, or the steady state of a
     # wall-bounded flow (PoiseuilleFlow) drifts at the wall cells.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestImplicitWallStencil.cpp
+    # Motivation: the implicit vertical momentum solves must carry the YSU countergradient flux
+    # through the lower face of the top row and both faces of a coarse/fine row, or the column
+    # loses momentum through the face below the top cell (erf-model/ERF#4822).
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestImplicitMomCountergradient.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LinearSolvers/ERF_GTestTerrainPoisson.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LinearSolvers/ERF_GTestTerrainMLMG.cpp
     # Motivation: the opt-in WRF Smagorinsky-2D limits must reproduce WRF's smag2d_km numbers
@@ -210,6 +214,13 @@ target_sources(${erf_exe_name}
     # materials by building, even when its tallest column is a spire level 0
     # leaves fluid, or the level holds only some of the buildings.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBLevelNumbering.cpp
+    # Motivation: the ray cast of the building faces reads a per-rank patch of the
+    # column map with a halo sized for the shallowest ray, instead of a map of the whole
+    # domain on every rank (erf-model/ERF#4020): a ray that leaves the patch is in open
+    # country, a patch spanning a periodic domain wraps round, the buildings are
+    # labelled across boxes and periodic seams in one numbering whatever the
+    # decomposition, and a refined level sees the buildings of the level below.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestIBSEBRayMap.cpp
     # Motivation: with erf.ibseb.radiation = two_stream every face must read its own column
     # at its own height (roof interface, wall mean of its cell's two), on a level of several
     # boxes whose columns all differ.
@@ -284,6 +295,9 @@ target_sources(${erf_exe_name}
     # Motivation: erf.metgrid_force_sfc_k must drop the same origin levels whether or not the
     # column has origin levels below the surface (erf-model/ERF#4607).
     ${CMAKE_CURRENT_SOURCE_DIR}/Initialization/ERF_GTestMetgridForceSfc.cpp
+    # Parent-driven inflow masks must follow height and wind reversals, including
+    # calm periods, without applying corner increments twice.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Initialization/ERF_GTestAutomaticPerturbation.cpp
     # Motivation: a station placed by latitude/longitude must land where the
     # lat/lon arrays put it on a rotated grid and on a grid across 180 degrees.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestLatLonMap.cpp

@@ -42,6 +42,32 @@ z_zface (int i, int j, int k, amrex::Array4<amrex::Real const> const& z_nd) noex
                                + z_nd(i,j+1,k) + z_nd(i+1,j+1,k) );
 }
 
+//! Height of the ground under cell (i,j), from z_sfc_nd, the ground heights at the nodes
+//! of the bottom face of each column (see ERF::init_custom)
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real
+z_ground_cc (int i, int j, amrex::Array4<amrex::Real const> const& z_sfc_nd) noexcept
+{
+    return amrex::Real(0.25) * ( z_sfc_nd(i,j  ,0) + z_sfc_nd(i+1,j  ,0)
+                               + z_sfc_nd(i,j+1,0) + z_sfc_nd(i+1,j+1,0) );
+}
+
+//! Height of the ground under x-face (i,j)
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real
+z_ground_xface (int i, int j, amrex::Array4<amrex::Real const> const& z_sfc_nd) noexcept
+{
+    return amrex::Real(0.5) * ( z_sfc_nd(i,j,0) + z_sfc_nd(i,j+1,0) );
+}
+
+//! Height of the ground under y-face (i,j)
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real
+z_ground_yface (int i, int j, amrex::Array4<amrex::Real const> const& z_sfc_nd) noexcept
+{
+    return amrex::Real(0.5) * ( z_sfc_nd(i,j,0) + z_sfc_nd(i+1,j,0) );
+}
+
 } // namespace erf_prob_heights
 
 #endif
