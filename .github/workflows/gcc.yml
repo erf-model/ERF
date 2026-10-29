@@ -118,7 +118,6 @@ jobs:
       run: |
         export CCACHE_COMPRESS=1
         export CCACHE_COMPRESSLEVEL=10
-        export CCACHE_MAXSIZE=600M
         ccache -z
         build_start=$(date +%s)
 
@@ -225,7 +224,8 @@ jobs:
     - name: CMake Regression Tests # see file ERF/Tests/CTestList.cmake
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
-        ctest -L regression -VV
+        # CTest accounts for each test's MPI ranks through its PROCESSORS property.
+        ctest -L regression --parallel "$(nproc)" -VV
       working-directory: ${{runner.workspace}}/ERF/build
 
     # The SDM cases whose gold files live in the machine-specific repository are
