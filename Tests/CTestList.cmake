@@ -1778,9 +1778,12 @@ add_test_r(MovingTerrain_sub                 ""  "erf_exec" "plt00010")
 function(add_test_shift_invariance TEST_NAME TEST_FILES_DIR SHIFT VARS OPTIONS_A OPTIONS_B)
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
+    # Extra checker arguments (e.g. --offset -500 --offset-vars z_phys) arrive as a CMake list;
+    # spliced into the sh -c string as is, its ;-separators would end the command
+    string(REPLACE ";" " " _extra_args "${ARGN}")
     set(_run "${MPI_COMMANDS} ${TEST_EXE} ${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i max_step=0 erf.plot_int_1=1 erf.check_int=-1")
     add_test(${TEST_NAME} sh -c
-      "${_run} erf.plot_file_1=pltA ${OPTIONS_A} > ${CURRENT_TEST_BINARY_DIR}/runA.log 2>&1 && ${_run} erf.plot_file_1=pltB ${OPTIONS_B} > ${CURRENT_TEST_BINARY_DIR}/runB.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_shift_invariance.py ${CURRENT_TEST_BINARY_DIR}/pltA00000 ${CURRENT_TEST_BINARY_DIR}/pltB00000 --shift ${SHIFT} --vars ${VARS} --tol 1e-12 ${ARGN}")
+      "${_run} erf.plot_file_1=pltA ${OPTIONS_A} > ${CURRENT_TEST_BINARY_DIR}/runA.log 2>&1 && ${_run} erf.plot_file_1=pltB ${OPTIONS_B} > ${CURRENT_TEST_BINARY_DIR}/runB.log 2>&1 && ${ERF_TEST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/check_shift_invariance.py ${CURRENT_TEST_BINARY_DIR}/pltA00000 ${CURRENT_TEST_BINARY_DIR}/pltB00000 --shift ${SHIFT} --vars ${VARS} --tol 1e-12 ${_extra_args}")
     set_tests_properties(${TEST_NAME} PROPERTIES
         TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression" ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/runA.log;${CURRENT_TEST_BINARY_DIR}/runB.log")
