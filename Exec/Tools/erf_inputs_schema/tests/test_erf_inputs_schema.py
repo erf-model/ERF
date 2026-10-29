@@ -14,6 +14,12 @@ if str(TOOLS) not in sys.path:
 from erf_inputs_schema import canonical  # noqa: E402
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
+SYNTHETIC = FIXTURES / "synthetic"
+
+
+def generate(**kwargs):
+    from erf_inputs_schema import schema
+    return schema.generate(SYNTHETIC / "erf", SYNTHETIC / "AMReX", **kwargs)
 
 
 class CanonicalValueTests(unittest.TestCase):
@@ -34,6 +40,24 @@ class CanonicalValueTests(unittest.TestCase):
             canonical.canonical_value("real", "1.0.0", {})
         with self.assertRaises(ValueError):
             canonical.canonical_value("enum", "Morrison", {"values": ["None"], "case_insensitive": False})
+
+
+class BuildRequirementTests(unittest.TestCase):
+    def test_a_key_read_only_under_ifdef_needs_that_feature(self):
+        fact = generate()["keys"]["erf.widget_on"]
+        self.assertEqual(fact["source"], "Source/ERF_Synthetic.cpp:12")
+        self.assertEqual(fact["requires"], ["ERF_USE_WIDGET"])
+        self.assertEqual(fact["requires_evidence"], {"ERF_USE_WIDGET": "Source/ERF_Synthetic.cpp:10"})
+
+    def test_an_unconditional_key_needs_nothing(self):
+        self.assertNotIn("requires", generate()["keys"]["erf.cfl"])
+
+    def test_the_feature_follows_the_build_options(self):
+        off = generate()
+        on = generate(cmake_options={"ERF_ENABLE_WIDGET": True})
+        self.assertIs(off["features"]["ERF_USE_WIDGET"], False)
+        self.assertIs(on["features"]["ERF_USE_WIDGET"], True)
+        self.assertEqual(on["feature_sources"]["ERF_USE_WIDGET"], "CMakeLists.txt:3")
 
 
 if __name__ == "__main__":
