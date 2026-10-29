@@ -668,8 +668,10 @@ Real compute_p_k_in_zone (Real &p_k, const Real p_k_minus_1, Real &theta_k, Real
  *
  * @param[in] z_cc  z_cc(k) is the height of the centre of cell k above the surface.
  * @param[in] dz_cc dz_cc(k) is the distance used for the hydrostatic step to cell k:
- *                  the depth of cell 0 for k = 0 (half of it is taken), and the distance
- *                  between the centres of cells k-1 and k for k > 0.
+ *                  for k = 0, twice the absolute height of the centre of cell 0 (half of
+ *                  it is taken), so that the column starts from p_0 at z = 0, as in the
+ *                  other HSE initializers; for k > 0, the distance between the centres
+ *                  of cells k-1 and k.
  *
  * The other arguments are those of init_isentropic_hse_no_terrain.
  */
@@ -694,7 +696,7 @@ init_isentropic_hse_no_terrain_column (Real *theta, Real* r, Real* p, Real *q_v,
     int which_zone = -1;
     Real scaled_height = amrex::Real(0);
 
-    // Compute the quantities at the first cell center
+    // Compute the quantities at the first cell center, integrating from p_0 at z = 0
     p[0] = p_0;
     if (z_tr_1 > amrex::Real(0)) {
         Real z = z_cc(0);
@@ -744,6 +746,7 @@ init_isentropic_hse_no_terrain_column (Real *theta, Real* r, Real* p, Real *q_v,
  * @param[out] p Pressure profile.
  * @param[out] q_v Water vapor mixing ratio profile.
  * @param[in] dz Vertical grid spacing.
+ * @param[in] z_bot Absolute height of the bottom of the domain (geometry.prob_lo[2]).
  * @param[in] khi Top index of the domain.
  * @param[in] q_t Total water mixing ratio.
  * @param[in] eq_pot_temp Equilibrium potential temperature.
@@ -759,7 +762,7 @@ AMREX_FORCE_INLINE
 AMREX_GPU_HOST_DEVICE
 void
 init_isentropic_hse_no_terrain (Real *theta, Real* r, Real* p, Real *q_v,
-                                const Real& dz, const int& khi, const Real q_t,
+                                const Real& dz, const Real& z_bot, const int& khi, const Real q_t,
                                 const Real eq_pot_temp, const bool use_empirical,
                                 const bool T_from_theta = false,
                                 const Real z_tr_1 = -one, const Real z_tr_2 = -one,
@@ -767,7 +770,7 @@ init_isentropic_hse_no_terrain (Real *theta, Real* r, Real* p, Real *q_v,
 {
     init_isentropic_hse_no_terrain_column(theta, r, p, q_v,
         [=] (int k) { return (k == 0) ? myhalf * dz : (k+myhalf) * dz; },
-        [=] (int /*k*/) { return dz; },
+        [=] (int k) { return (k == 0) ? two * (z_bot + myhalf * dz) : dz; },
         khi, q_t, eq_pot_temp, use_empirical, T_from_theta,
         z_tr_1, z_tr_2, theta_0, theta_tr, T_tr);
 }
@@ -775,7 +778,8 @@ init_isentropic_hse_no_terrain (Real *theta, Real* r, Real* p, Real *q_v,
 /**
  * As above, for a column whose staggered levels are given, e.g. a stretched mesh.
  *
- * @param[in] zlevels Staggered levels zlevels[0..khi+1]; heights are measured from zlevels[0].
+ * @param[in] zlevels Staggered levels zlevels[0..khi+1]; heights are measured from zlevels[0],
+ *                    except that the column starts from p_0 at z = 0.
  *
  * The other arguments are those of the version with a uniform dz.
  */
@@ -792,7 +796,7 @@ init_isentropic_hse_no_terrain (Real *theta, Real* r, Real* p, Real *q_v,
     auto z_cc = [=] (int k) { return myhalf * (zlevels[k] + zlevels[k+1]) - zlevels[0]; };
     init_isentropic_hse_no_terrain_column(theta, r, p, q_v,
         z_cc,
-        [=] (int k) { return (k == 0) ? zlevels[1] - zlevels[0] : z_cc(k) - z_cc(k-1); },
+        [=] (int k) { return (k == 0) ? zlevels[0] + zlevels[1] : z_cc(k) - z_cc(k-1); },
         khi, q_t, eq_pot_temp, use_empirical, T_from_theta,
         z_tr_1, z_tr_2, theta_0, theta_tr, T_tr);
 }
