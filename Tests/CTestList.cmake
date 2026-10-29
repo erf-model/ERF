@@ -3112,6 +3112,17 @@ add_test_abort(IBSEB_SolarConstantZero
                IBSEB_Cube.i
                "erf.ibseb.solar_constant must be"
                "erf.ibseb.sun_mode=solar erf.ibseb.solar_constant=0.0")
+# The sun floor of the ray map's halo must lie in (0, 90) deg (erf-model/ERF#4020).
+add_test_abort(IBSEB_SunFloorZero
+               ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_Cube
+               IBSEB_Cube.i
+               "erf.ibseb.sun_min_elev_deg must be in"
+               "erf.ibseb.sun_min_elev_deg=0.0")
+add_test_abort(IBSEB_SunFloorNinety
+               ${CMAKE_CURRENT_SOURCE_DIR}/test_files/IBSEB_Cube
+               IBSEB_Cube.i
+               "erf.ibseb.sun_min_elev_deg must be in"
+               "erf.ibseb.sun_min_elev_deg=90.0")
 
 # The balance on two levels (Tests/RunIBSEBRefinedLevels.cmake): a cube on level 1 and a
 # tower outside it, whose shadow the cube's level-1 faces must find through level 0's

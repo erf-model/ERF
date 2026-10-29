@@ -24,6 +24,8 @@
 #include <limits>
 #include <map>
 #include <numeric>
+#include <set>
+#include <AMReX_BoxList.H>
 #include <AMReX_ParallelReduce.H>
 
 using namespace amrex;
@@ -83,26 +85,94 @@ Real cell_qv (const Array4<const Real>& c, int i, int j, int k, int qv_comp) noe
     return (qv_comp >= 0) ? amrex::max(Real(0.0), c(i, j, k, qv_comp) / c(i, j, k, Rho_comp)) : Real(0.0);
 }
 
+/** Host mirror of one fab of an iMultiFab: its whole box, ghost cells included. */
+struct HostInts
+{
+    Box box;
+    std::vector<int> v;
+    HostInts (const Box& b, int value) : box(b), v(static_cast<size_t>(b.numPts()), value) {}
+    explicit HostInts (const IArrayBox& fab) : box(fab.box()), v(static_cast<size_t>(fab.box().numPts()))
+    {
+        AMREX_ALWAYS_ASSERT(fab.nComp() == 1);
+        Gpu::copy(Gpu::deviceToHost, fab.dataPtr(), fab.dataPtr() + v.size(), v.begin());
+        Gpu::streamSynchronize();
+    }
+    Array4<int> array () noexcept { return Array4<int>(v.data(), amrex::begin(box), amrex::end(box), 1); }
+    Array4<const int> array () const noexcept { return Array4<const int>(v.data(), amrex::begin(box), amrex::end(box), 1); }
+    void upload (IArrayBox& fab) const
+    {
+        AMREX_ALWAYS_ASSERT(fab.box() == box);
+        Gpu::copy(Gpu::hostToDevice, v.begin(), v.end(), fab.dataPtr());
+        Gpu::streamSynchronize();
+    }
+};
+
+/** Every rank's entries of a vector, in rank order (MPI_Allgatherv; the vector itself without MPI). */
+template <class T>
+std::vector<T> all_gather (const std::vector<T>& mine)
+{
+#ifdef AMREX_USE_MPI
+    const int np = ParallelDescriptor::NProcs();
+    std::vector<int> counts(np, 0), displs(np, 0);
+    const int n = static_cast<int>(mine.size());
+    BL_MPI_REQUIRE(MPI_Allgather(&n, 1, MPI_INT, counts.data(), 1, MPI_INT, ParallelDescriptor::Communicator()));
+    Long total = 0;
+    for (int r = 0; r < np; ++r) { displs[r] = static_cast<int>(total); total += counts[r]; }
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(total < Long(std::numeric_limits<int>::max()), "erf.ibseb: too many entries to gather");
+    std::vector<T> all(static_cast<size_t>(total));
+    BL_MPI_REQUIRE(MPI_Allgatherv(mine.data(), n, ParallelDescriptor::Mpi_typemap<T>::type(),
+                                  all.data(), counts.data(), displs.data(), ParallelDescriptor::Mpi_typemap<T>::type(),
+                                  ParallelDescriptor::Communicator()));
+    return all;
+#else
+    return mine;
+#endif
+}
+
+/**
+ * The level's boxes with their k range collapsed to the domain's bottom
+ * cell: the layout of the column maps, one cell per column. No two boxes
+ * may hold the same column, so the grids must not be split in z
+ * (amr.no_box_split_dir, 2 by default in ERF, keeps them whole).
+ */
+BoxArray column_box_array (const BoxArray& ba, const Box& domain)
+{
+    BoxList bl = ba.boxList();
+    for (Box& b : bl) { b.setRange(2, domain.smallEnd(2), 1); }
+    BoxArray cba(std::move(bl));
+    std::vector<std::pair<int, Box>> isects;
+    for (int n = 0; n < static_cast<int>(cba.size()); ++n) {
+        cba.intersections(cba[n], isects);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(isects.size() == 1,
+            "erf.ibseb: the level's grids are split in z, so a column spans several boxes; keep amr.no_box_split_dir = 2 (the default)");
+    }
+    return cba;
+}
+
 } // namespace
 
 /**
  * Detect the faces owned by this rank and allocate the per-face arrays.
  *
- * The scan visits every valid cell of every local fab in MFIter order. A
- * fluid cell (blanking < 0.5) contributes one face for each of its six
+ * The scan visits every valid cell of every local fab in MFIter order, once.
+ * A fluid cell (blanking < 0.5) contributes one face for each of its six
  * neighbours that is solid (blanking >= 0.5); the neighbour may sit in a
  * ghost cell, which is why the blanking must have its ghost cells filled.
  * Neighbours outside the domain in a non-periodic direction are skipped, so
  * a building against a non-periodic boundary has no face there. Solid cells
- * contribute no face, only the column mask used for the building ids. A
- * solid neighbour outside the level's grids, of a fluid or a solid cell,
- * means a building crosses the edge of a refined level; the scan counts them
- * and stops the run once all ranks have reported.
+ * contribute no face, only the column map (the highest solid cell of each
+ * column of the level's own boxes) that the building ids and the ray cast
+ * read. A solid neighbour outside the level's grids, of a fluid or a solid
+ * cell, means a building crosses the edge of a refined level; the scan
+ * counts them and stops the run once all ranks have reported.
  *
  * Faces are appended in scan order, which makes them contiguous per fab;
  * m_fab_start records where each fab's faces begin. The per-direction,
  * per-building and total counts are reduced over all ranks here, once, so
- * report() does not have to reduce static numbers every time.
+ * report() does not have to reduce static numbers every time. Nothing of
+ * the size of the domain is gathered: the column map is exchanged through
+ * its ghost cells, the building labels through theirs (see the header), and
+ * the one gather is of the distinct labels, one per building.
  */
 void
 IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
@@ -112,15 +182,16 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     const int ny  = domain.length(1);
     const int ilo = domain.smallEnd(0);
     const int jlo = domain.smallEnd(1);
+    const int klo = domain.smallEnd(2);
     const auto dx = geom.CellSizeArray();
     const auto plo = geom.ProbLoArray();
     const Real face_area[3] = { dx[1] * dx[2], dx[0] * dx[2], dx[0] * dx[1] };
+    m_geom = geom;
     m_nx = nx; m_ny = ny; m_nz = domain.length(2);
     m_dom_lo = domain.smallEnd();
     m_x_lo = plo[0]; m_y_lo = plo[1];
     for (int d = 0; d < 3; ++d) { m_dx[d] = dx[d]; }
     m_per_x = geom.isPeriodic(0); m_per_y = geom.isPeriodic(1);
-    m_max_path = 4.0 * (geom.ProbLength(0) + geom.ProbLength(1));
     m_z_ground = plo[2];
 
     // The face list of a cell must not depend on the decomposition: every
@@ -128,6 +199,16 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     // layer on the blanking.
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(blanking.nGrowVect().min() >= 1,
                                      "erf.ibseb: the blanking needs at least one ghost cell");
+    // The labelling below gives every column its scan index plus one as a label, in an int.
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(Long(nx) * ny < Long(std::numeric_limits<int>::max()),
+                                     "erf.ibseb: the level has more columns than an int can label");
+
+    // The level's own column map: one cell per column of each of the level's
+    // boxes, with one ghost cell for the neighbours the faces and the
+    // labelling read across boxes and periodic seams.
+    const BoxArray col_ba = column_box_array(blanking.boxArray(), domain);
+    m_col_valid.define(col_ba, blanking.DistributionMap(), 1, IntVect(AMREX_D_DECL(1, 1, 0)));
+    m_col_valid.setVal(-1);
 
     std::vector<int>  h_i, h_j, h_k, h_dir, h_side, h_nbi, h_nbj;
     std::vector<Real> h_area, h_xf, h_yf, h_zf;
@@ -157,41 +238,6 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
         return true;
     };
 
-    // Bounding box of the solid columns (global), so the column arrays below
-    // cover the built area only: 8 bytes per built column per rank.
-    int bi0 = std::numeric_limits<int>::max(), bi1 = std::numeric_limits<int>::min();
-    int bj0 = bi0, bj1 = bi1;
-    for (MFIter mfi(blanking); mfi.isValid(); ++mfi) {
-        const Box& bx = mfi.validbox();
-        const HostFab hf(blanking[mfi]);
-        auto const& b = hf.array();
-        const auto lo = lbound(bx);
-        const auto hi = ubound(bx);
-        for (int k = lo.z; k <= hi.z; ++k) {
-        for (int j = lo.y; j <= hi.y; ++j) {
-        for (int i = lo.x; i <= hi.x; ++i) {
-            if (b(i, j, k) >= 0.5) {
-                bi0 = std::min(bi0, i); bi1 = std::max(bi1, i);
-                bj0 = std::min(bj0, j); bj1 = std::max(bj1, j);
-            }
-        }}}
-    }
-    ParallelDescriptor::ReduceIntMin(bi0); ParallelDescriptor::ReduceIntMin(bj0);
-    ParallelDescriptor::ReduceIntMax(bi1); ParallelDescriptor::ReduceIntMax(bj1);
-    const bool any_solid = (bi1 >= bi0) && (bj1 >= bj0);
-    m_col_i0 = any_solid ? bi0 - ilo : 0;  m_col_j0 = any_solid ? bj0 - jlo : 0;
-    m_col_nx = any_solid ? bi1 - bi0 + 1 : 0;  m_col_ny = any_solid ? bj1 - bj0 + 1 : 0;
-    const int bw = m_col_nx, bh = m_col_ny;
-    const size_t ncol = static_cast<size_t>(bw) * bh;
-    // Highest solid cell of each built column of this rank, as a domain-
-    // relative k index, -1 where the column carries no solid cell; reduced
-    // below so every rank sees the same columns. This one array is both the
-    // solid-column mask of the labelling (a column is solid exactly when its
-    // top is not -1) and the column top of the ray cast, and it is an index
-    // rather than a height so that it costs 4 bytes per column instead of the
-    // 24 a separate mask, index and height in Real took.
-    std::vector<int> coltop_k(ncol, -1);
-
     m_fab_start.clear();
     for (MFIter mfi(blanking); mfi.isValid(); ++mfi) {
         m_fab_start.push_back(static_cast<int>(h_i.size()));
@@ -199,14 +245,20 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
         const HostFab hf(blanking[mfi]);
         auto const& b = hf.array();
         const Box& fbox = Box(b);
+        // The column map of this box: the highest solid cell of each of its
+        // columns, as a domain-relative k index, -1 where the column carries
+        // no solid cell. It is an index rather than a height so that it costs
+        // 4 bytes per column.
+        IArrayBox& cfab = m_col_valid[mfi];
+        HostInts top(cfab.box(), -1);
+        auto const& t = top.array();
         const auto lo = lbound(bx);
         const auto hi = ubound(bx);
         for (int k = lo.z; k <= hi.z; ++k) {
         for (int j = lo.y; j <= hi.y; ++j) {
         for (int i = lo.x; i <= hi.x; ++i) {
             if (b(i, j, k) >= 0.5) {
-                const size_t c = static_cast<size_t>(i - bi0) * bh + (j - bj0);
-                coltop_k[c] = std::max(coltop_k[c], k - domain.smallEnd(2));
+                t(i, j, klo) = std::max(t(i, j, klo), k - klo);
                 for (int d = 0; d < 3; ++d) {
                     for (int s = -1; s <= 1; s += 2) {
                         IntVect nb(i, j, k);
@@ -227,22 +279,23 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
                     solid_outside(b, bx, fbox, nb);
                     h_i.push_back(i); h_j.push_back(j); h_k.push_back(k);
                     h_dir.push_back(d); h_side.push_back(s);
-                    // Face centre: the fluid cell centre moved half a cell toward the solid.
-                    Real c[3] = { Real(plo[0] + (i + 0.5) * dx[0]), Real(plo[1] + (j + 0.5) * dx[1]), Real(plo[2] + (k + 0.5) * dx[2]) };
+                    // Face centre: the fluid cell centre moved half a cell toward the solid
+                    // (plo is the position of the domain's low corner cell).
+                    Real c[3] = { Real(plo[0] + (i - ilo + 0.5) * dx[0]), Real(plo[1] + (j - jlo + 0.5) * dx[1]), Real(plo[2] + (k - klo + 0.5) * dx[2]) };
                     c[d] += 0.5 * s * dx[d];
                     h_xf.push_back(c[0]); h_yf.push_back(c[1]); h_zf.push_back(c[2]);
-                    // Column of the solid neighbour, wrapped for periodic directions.
-                    int ci = nb[0] - ilo, cj = nb[1] - jlo;
-                    ci = (ci % nx + nx) % nx;
-                    cj = (cj % ny + ny) % ny;
-                    h_nbi.push_back(ci); h_nbj.push_back(cj);
+                    // Column of the solid neighbour, unwrapped: it lies in this
+                    // box or in its ghost cell, where the periodic image is.
+                    h_nbi.push_back(nb[0]); h_nbj.push_back(nb[1]);
                     h_area.push_back(face_area[d]);
                 }
             }
         }}}
+        top.upload(cfab);
     }
     m_fab_start.push_back(static_cast<int>(h_i.size()));
     m_nface = static_cast<int>(h_i.size());
+    m_col_valid.FillBoundary(geom.periodicity());
 
     // The column map, the building ids and the ray cast below see only the
     // level's own cells, so a building must lie wholly inside the level.
@@ -281,94 +334,210 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
     }
     ParallelDescriptor::ReduceIntMax(m_top_sample);
 
-    // Buildings: 4-connected solid columns, numbered in scan order. The column
-    // mask is reduced so every rank labels the same columns with the same ids;
-    // the labelling itself is a plain depth-first flood fill on the host.
-    if (ncol > 0) {
-        ParallelDescriptor::ReduceIntMax(coltop_k.data(), static_cast<int>(ncol));
+    // Tallest column of the level over all ranks: the height a rising ray
+    // stops at (one cell above the highest solid cell; the ground when the
+    // level holds no solid cell).
+    {
+        const int kmax = m_col_valid.max(0);
+        m_col_top_max = (kmax >= 0) ? Real(m_z_ground + (kmax + 1.0) * dx[2]) : Real(m_z_ground);
     }
-    // Column index in the built box of a face's solid neighbour (a 0-based,
-    // wrapped domain column; the neighbour is solid, so it lies in the box).
-    auto col_index = [&] (int n) {
-        const size_t c = static_cast<size_t>(h_nbi[n] - m_col_i0) * bh + (h_nbj[n] - m_col_j0);
-        AMREX_ALWAYS_ASSERT(h_nbi[n] >= m_col_i0 && h_nbi[n] < m_col_i0 + bw && h_nbj[n] >= m_col_j0 && h_nbj[n] < m_col_j0 + bh);
-        return c;
-    };
-    // Column tops for the ray cast: the index map itself, which
-    // ibseb::column_top() turns into a height one cell above the highest
-    // solid cell, the ground where the column is fluid.
-    upload(d_col_top, coltop_k);
-    m_col_top_max = plo[2];
-    for (size_t c = 0; c < ncol; ++c) {
-        if (coltop_k[c] >= 0) {
-            m_col_top_max = std::max(m_col_top_max, Real(plo[2] + (coltop_k[c] + 1.0) * dx[2]));
-        }
+
+    // Host copies of the column map, ghost cells filled: the column of a
+    // face's solid neighbour is in its fab's box or its ghost ring.
+    std::vector<HostInts> tops;
+    std::vector<Box> vboxes;
+    for (MFIter mfi(m_col_valid); mfi.isValid(); ++mfi) {
+        tops.emplace_back(m_col_valid[mfi]);
+        vboxes.push_back(mfi.validbox());
     }
+    const int nfab = static_cast<int>(tops.size());
+    AMREX_ALWAYS_ASSERT(nfab + 1 == static_cast<int>(m_fab_start.size()));
     // Height of each face's building column, for the wall-function depth.
     {
         std::vector<Real> h_hb(h_i.size());
-        for (size_t n = 0; n < h_i.size(); ++n) {
-            const int kt = coltop_k[col_index(n)];
-            h_hb[n] = (kt >= 0) ? (kt + 1.0) * dx[2] : 0.0;
+        for (int li = 0; li < nfab; ++li) {
+            auto const& t = tops[li].array();
+            for (int n = m_fab_start[li]; n < m_fab_start[li + 1]; ++n) {
+                const int kt = t(h_nbi[n], h_nbj[n], klo);
+                h_hb[n] = (kt >= 0) ? (kt + 1.0) * dx[2] : 0.0;
+            }
         }
         upload(d_hbld, h_hb);
     }
-    std::vector<int> h_bid(m_nface);
-    {
-    std::vector<int> label(ncol, 0);
-    std::vector<int> stack;
-    m_nbld = 0;
-    for (int ci = 0; ci < bw; ++ci) {
-        for (int cj = 0; cj < bh; ++cj) {
-            const size_t p = static_cast<size_t>(ci) * bh + cj;
-            if (coltop_k[p] < 0 || label[p] > 0) { continue; }
-            ++m_nbld;
-            label[p] = m_nbld;
-            stack.clear();
-            stack.push_back(static_cast<int>(p));
-            while (!stack.empty()) {
-                const int q = stack.back(); stack.pop_back();
-                const int qi = q / bh, qj = q % bh;
-                const int ni[4] = {qi - 1, qi + 1, qi, qi};
-                const int nj[4] = {qj, qj, qj - 1, qj + 1};
-                for (int n = 0; n < 4; ++n) {
-                    if (ni[n] < 0 || ni[n] >= bw || nj[n] < 0 || nj[n] >= bh) { continue; }
-                    const size_t r = static_cast<size_t>(ni[n]) * bh + nj[n];
-                    if (coltop_k[r] >= 0 && label[r] == 0) {
-                        label[r] = m_nbld;
-                        stack.push_back(static_cast<int>(r));
+
+    // ---- Buildings: 4-connected solid columns, numbered in scan order ----
+    // Each box splits its solid columns into connected pieces (a depth-first
+    // flood fill); a piece's label starts as the lowest scan index plus one
+    // of its columns, and the pieces then take the lowest label of their
+    // neighbours across the box edges, through one ghost cell of m_lab,
+    // until no label changes anywhere: the pieces of one building all end
+    // with the scan index of its first column. The rounds are as many as a
+    // building's pieces are deep, so the exchange never depends on the
+    // number of columns.
+    m_lab.define(col_ba, blanking.DistributionMap(), 1, IntVect(AMREX_D_DECL(1, 1, 0)));
+    m_lab.setVal(0);
+    std::vector<std::vector<int>> piece_of(nfab);    // per fab, per valid column: its piece, -1 where fluid
+    std::vector<std::vector<int>> piece_label(nfab); // per fab, per piece: its label
+    auto scan_label = [=] (int i, int j) { return (i - ilo) * ny + (j - jlo) + 1; };
+    for (int li = 0; li < nfab; ++li) {
+        const Box& vb = vboxes[li];
+        auto const& t = tops[li].array();
+        const auto lo = lbound(vb);
+        const int lx = vb.length(0), ly = vb.length(1);
+        auto idx = [=] (int i, int j) { return (j - lo.y) * lx + (i - lo.x); };
+        std::vector<int>& piece = piece_of[li];
+        piece.assign(static_cast<size_t>(lx) * ly, -1);
+        std::vector<int> stack;
+        for (int i = lo.x; i < lo.x + lx; ++i) {
+            for (int j = lo.y; j < lo.y + ly; ++j) {
+                if (t(i, j, klo) < 0 || piece[idx(i, j)] >= 0) { continue; }
+                const int p = static_cast<int>(piece_label[li].size());
+                int lab = scan_label(i, j);
+                piece[idx(i, j)] = p;
+                stack.clear();
+                stack.push_back(idx(i, j));
+                while (!stack.empty()) {
+                    const int q = stack.back(); stack.pop_back();
+                    const int qi = lo.x + q % lx, qj = lo.y + q / lx;
+                    lab = std::min(lab, scan_label(qi, qj));
+                    const int ni[4] = {qi - 1, qi + 1, qi, qi};
+                    const int nj[4] = {qj, qj, qj - 1, qj + 1};
+                    for (int n = 0; n < 4; ++n) {
+                        if (!vb.contains(IntVect(ni[n], nj[n], klo))) { continue; }
+                        const int r = idx(ni[n], nj[n]);
+                        if (t(ni[n], nj[n], klo) >= 0 && piece[r] < 0) {
+                            piece[r] = p;
+                            stack.push_back(r);
+                        }
+                    }
+                }
+                piece_label[li].push_back(lab);
+            }
+        }
+    }
+    // Write the labels into the map, exchange, lower, repeat.
+    auto write_labels = [&] (const std::vector<std::vector<int>>& value) {
+        int li = 0;
+        for (MFIter mfi(m_lab); mfi.isValid(); ++mfi, ++li) {
+            IArrayBox& fab = m_lab[mfi];
+            HostInts L(fab.box(), 0);
+            auto const& a = L.array();
+            const Box& vb = vboxes[li];
+            const auto lo = lbound(vb);
+            const int lx = vb.length(0), ly = vb.length(1);
+            for (int j = lo.y; j < lo.y + ly; ++j) {
+                for (int i = lo.x; i < lo.x + lx; ++i) {
+                    const int p = piece_of[li][(j - lo.y) * lx + (i - lo.x)];
+                    if (p >= 0) { a(i, j, klo) = value[li][p]; }
+                }
+            }
+            L.upload(fab);
+        }
+        m_lab.FillBoundary(geom.periodicity());
+    };
+    int n_rounds = 0;
+    for (;;) {
+        write_labels(piece_label);
+        ++n_rounds;
+        bool changed = false;
+        int li = 0;
+        for (MFIter mfi(m_lab); mfi.isValid(); ++mfi, ++li) {
+            const HostInts L(m_lab[mfi]);
+            auto const& a = L.array();
+            const Box& vb = vboxes[li];
+            const auto lo = lbound(vb);
+            const auto hi = ubound(vb);
+            const int lx = vb.length(0);
+            for (int j = lo.y; j <= hi.y; ++j) {
+                for (int i = lo.x; i <= hi.x; ++i) {
+                    if (i != lo.x && i != hi.x && j != lo.y && j != hi.y) { continue; }   // an inner column has no neighbour outside the box
+                    const int p = piece_of[li][(j - lo.y) * lx + (i - lo.x)];
+                    if (p < 0) { continue; }
+                    const int ni[4] = {i - 1, i + 1, i, i};
+                    const int nj[4] = {j, j, j - 1, j + 1};
+                    for (int n = 0; n < 4; ++n) {
+                        const IntVect nb(ni[n], nj[n], klo);
+                        if (vb.contains(nb) || !L.box.contains(nb)) { continue; }
+                        const int g = a(nb);
+                        if (g > 0 && g < piece_label[li][p]) { piece_label[li][p] = g; changed = true; }
                     }
                 }
             }
         }
+        ParallelDescriptor::ReduceBoolOr(changed);
+        if (!changed) { break; }
     }
-    for (int n = 0; n < m_nface; ++n) {
-        h_bid[n] = label[col_index(n)];
+    // The distinct labels, one per building, gathered from every rank and
+    // numbered in scan order; the pieces take the number of their label.
+    std::vector<int> labels_all;
+    {
+        std::set<int> mine;
+        for (const auto& pl : piece_label) { mine.insert(pl.begin(), pl.end()); }
+        const std::vector<int> labels_mine(mine.begin(), mine.end());
+        labels_all = all_gather(labels_mine);
+        std::sort(labels_all.begin(), labels_all.end());
+        labels_all.erase(std::unique(labels_all.begin(), labels_all.end()), labels_all.end());
+    }
+    m_nbld = static_cast<int>(labels_all.size());
+    std::vector<std::vector<int>> piece_id(nfab);
+    for (int li = 0; li < nfab; ++li) {
+        for (int lab : piece_label[li]) {
+            const auto it = std::lower_bound(labels_all.begin(), labels_all.end(), lab);
+            AMREX_ALWAYS_ASSERT(it != labels_all.end() && *it == lab);
+            piece_id[li].push_back(static_cast<int>(it - labels_all.begin()) + 1);
+        }
+    }
+    write_labels(piece_id);
+    // The id of each face: that of the column of its solid neighbour, in the
+    // fab's box or its ghost ring.
+    std::vector<int> h_bid(m_nface);
+    {
+        int li = 0;
+        for (MFIter mfi(m_lab); mfi.isValid(); ++mfi, ++li) {
+            const HostInts L(m_lab[mfi]);
+            auto const& a = L.array();
+            for (int n = m_fab_start[li]; n < m_fab_start[li + 1]; ++n) {
+                h_bid[n] = a(h_nbi[n], h_nbj[n], klo);
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(h_bid[n] >= 1, "erf.ibseb: a face's solid neighbour has no building id");
+            }
+        }
     }
     // Footprints, for the debug summary: columns and bounding box per building.
     m_bld_ncol.assign(m_nbld + 1, 0);
-    m_bld_ilo.assign(m_nbld + 1, nx); m_bld_ihi.assign(m_nbld + 1, -1);
-    m_bld_jlo.assign(m_nbld + 1, ny); m_bld_jhi.assign(m_nbld + 1, -1);
-    for (int ci = 0; ci < bw; ++ci) {
-        for (int cj = 0; cj < bh; ++cj) {
-            const int b = label[static_cast<size_t>(ci) * bh + cj];
-            if (b == 0) { continue; }
-            const int gi = ci + m_col_i0 + ilo, gj = cj + m_col_j0 + jlo;
-            m_bld_ncol[b] += 1;
-            m_bld_ilo[b] = std::min(m_bld_ilo[b], gi); m_bld_ihi[b] = std::max(m_bld_ihi[b], gi);
-            m_bld_jlo[b] = std::min(m_bld_jlo[b], gj); m_bld_jhi[b] = std::max(m_bld_jhi[b], gj);
+    m_bld_ilo.assign(m_nbld + 1, std::numeric_limits<int>::max()); m_bld_ihi.assign(m_nbld + 1, std::numeric_limits<int>::min());
+    m_bld_jlo.assign(m_nbld + 1, std::numeric_limits<int>::max()); m_bld_jhi.assign(m_nbld + 1, std::numeric_limits<int>::min());
+    for (int li = 0; li < nfab; ++li) {
+        const Box& vb = vboxes[li];
+        const auto lo = lbound(vb);
+        const int lx = vb.length(0), ly = vb.length(1);
+        for (int j = lo.y; j < lo.y + ly; ++j) {
+            for (int i = lo.x; i < lo.x + lx; ++i) {
+                const int p = piece_of[li][(j - lo.y) * lx + (i - lo.x)];
+                if (p < 0) { continue; }
+                const int bb = piece_id[li][p];
+                m_bld_ncol[bb] += 1;
+                m_bld_ilo[bb] = std::min(m_bld_ilo[bb], i); m_bld_ihi[bb] = std::max(m_bld_ihi[bb], i);
+                m_bld_jlo[bb] = std::min(m_bld_jlo[bb], j); m_bld_jhi[bb] = std::max(m_bld_jhi[bb], j);
+            }
         }
     }
+    ParallelDescriptor::ReduceLongSum(m_bld_ncol.data(), m_nbld + 1);
+    ParallelDescriptor::ReduceIntMin(m_bld_ilo.data(), m_nbld + 1); ParallelDescriptor::ReduceIntMax(m_bld_ihi.data(), m_nbld + 1);
+    ParallelDescriptor::ReduceIntMin(m_bld_jlo.data(), m_nbld + 1); ParallelDescriptor::ReduceIntMax(m_bld_jhi.data(), m_nbld + 1);
     // The column labels, by which a refined level finds its buildings in the
     // level below (map_buildings_to_level0()), are kept until then.
-    m_lab_i0 = m_col_i0; m_lab_j0 = m_col_j0; m_lab_nx = bw; m_lab_ny = bh;
-    m_lab.swap(label);
     m_to_lev0.resize(m_nbld + 1);
     for (int b = 0; b <= m_nbld; ++b) { m_to_lev0[b] = b; }
-    }   // stack is freed here
-    // The column map has done its work too; free it before the per-face
-    // device uploads below.
-    std::vector<int>().swap(coltop_k);
+    tops.clear();
+    piece_of.clear();
+
+    // The ray map of this rank, from the level's own columns; a refined
+    // level rebuilds it with the levels below (add_outside_occluders()).
+    build_ray_map({});
+    if (m_params.debug) {
+        Print() << "[IBSEB DEBUG] lev=" << m_lev << " buildings labelled in " << n_rounds << " exchange round(s)\n";
+    }
+    if (m_lev == 0) { warn_fixed_sun_below_floor(); }
 
     // Static totals: per direction, per building, and the summed area.
     std::vector<Long> nd(3, 0);
@@ -446,80 +615,184 @@ IBFaceSet::build (const MultiFab& blanking, const Geometry& geom)
 }
 
 /**
- * Copy the coarser level's columns that this level does not cover into the
- * column map of the ray cast (see the header). The coarser map is copied to
- * the host, as both maps are replicated on every rank, and the merged map is
- * uploaded again: one pass over the two built bounding boxes at
- * initialisation.
+ * The ray map of this rank (see the header): the halo, this rank's patch,
+ * every rank's patch as one box array, and its contents from the levels
+ * below (coarsest first, so the finest level that covers a column has the
+ * last word) and then this level's own columns with their periodic images.
  */
 void
-IBFaceSet::add_outside_occluders (const IBFaceSet& coarser, const IntVect& ratio, const BoxArray& grids_crse)
+IBFaceSet::build_ray_map (const std::vector<const IBFaceSet*>& below)
 {
-    const size_t ncol_c = static_cast<size_t>(coarser.m_col_nx) * coarser.m_col_ny;
-    if (ncol_c == 0) { return; }
-    std::vector<int> top_c(ncol_c);
-    Gpu::copy(Gpu::deviceToHost, coarser.d_col_top.begin(), coarser.d_col_top.end(), top_c.begin());
-    std::vector<int> top_f(static_cast<size_t>(m_col_nx) * m_col_ny);
-    if (!top_f.empty()) {
-        Gpu::copy(Gpu::deviceToHost, d_col_top.begin(), d_col_top.end(), top_f.begin());
+    const Box& domain = m_geom.Domain();
+    // The tallest column of this level and of the levels below: the height
+    // a rising ray stops at, and what sizes the halo.
+    Real z_max = m_col_top_max;
+    for (const IBFaceSet* c : below) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(c->m_col_valid.ok(), "erf.ibseb: a level below has not been built");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(c->m_geom.Domain().smallEnd(2) == domain.smallEnd(2) && c->m_z_ground == m_z_ground,
+                                         "erf.ibseb: the levels do not share the ground");
+        z_max = std::max(z_max, c->m_col_top_max);
     }
-    const Real dz_c = coarser.m_dx[2], dz_f = m_dx[2];
+    m_col_top_max = z_max;
+    // The shallowest ray the map follows to its end: the hemisphere's and the
+    // sun's floor; the halo is its horizontal reach over the tallest column.
+    const Real sz_view = ibseb::hemisphere_min_sz(m_params.view_n_az, m_params.view_n_el);
+    const Real sz_sun  = std::sin(m_params.sun_min_elev_deg * PI / 180.0);
+    const Real sz_min  = std::min(sz_view, sz_sun);
+    const Real height  = z_max - m_z_ground;
+    const int halo[2] = { ibseb::ray_halo_cells(height, m_dx[0], sz_min), ibseb::ray_halo_cells(height, m_dx[1], sz_min) };
+    // The columns a ray at the floor can cross in x plus in y: what a walk is
+    // followed for, however the patch is cut or wrapped.
+    m_max_steps = static_cast<int>(std::min(Long(std::numeric_limits<int>::max() / 2), Long(halo[0]) + Long(halo[1])));
 
-    // Coarse columns outside this level, as the first of their ratio x ratio
-    // columns here (0-based) and a top index of this level; and the bounding
-    // box of those and of the level's own columns.
-    struct Outside { int i0, j0, kt; };
-    std::vector<Outside> outside;
-    const bool own = (m_col_nx > 0 && m_col_ny > 0);
-    int bi0 = own ? m_col_i0 : std::numeric_limits<int>::max();
-    int bj0 = own ? m_col_j0 : std::numeric_limits<int>::max();
-    int bi1 = own ? m_col_i0 + m_col_nx - 1 : std::numeric_limits<int>::min();
-    int bj1 = own ? m_col_j0 + m_col_ny - 1 : std::numeric_limits<int>::min();
-    for (int ci = 0; ci < coarser.m_col_nx; ++ci) {
-        for (int cj = 0; cj < coarser.m_col_ny; ++cj) {
-            const int kc = top_c[static_cast<size_t>(ci) * coarser.m_col_ny + cj];
-            if (kc < 0) { continue; }
-            const int gi = coarser.m_col_i0 + ci, gj = coarser.m_col_j0 + cj;
-            // A building is wholly inside this level or wholly outside it, so
-            // its top cell decides.
-            const IntVect top_cell(AMREX_D_DECL(gi + coarser.m_dom_lo[0], gj + coarser.m_dom_lo[1],
-                                                kc + coarser.m_dom_lo[2]));
-            if (grids_crse.contains(top_cell)) { continue; }
-            // The same height here: the top is kc + 1 cells of the level below up.
-            const Real h = (kc + 1) * dz_c;
-            // h / dz_f is a whole number of cells (the ratio times kc + 1);
-            // rounding keeps it so whatever the precision of the division.
-            const int kt = static_cast<int>(std::lround(h / dz_f)) - 1;
-            outside.push_back({gi * ratio[0], gj * ratio[1], kt});
-            bi0 = std::min(bi0, gi * ratio[0]); bi1 = std::max(bi1, (gi + 1) * ratio[0] - 1);
-            bj0 = std::min(bj0, gj * ratio[1]); bj1 = std::max(bj1, (gj + 1) * ratio[1] - 1);
-        }
+    // This rank's patch: its boxes grown by the halo. A halo wider than the
+    // domain adds nothing beyond one domain width: where the direction is
+    // periodic the patch is then the whole domain, wrapped; where it is not
+    // the patch stops at the domain's edge.
+    Box bbox;
+    for (MFIter mfi(m_col_valid); mfi.isValid(); ++mfi) {
+        if (bbox.ok()) { bbox.minBox(mfi.validbox()); } else { bbox = mfi.validbox(); }
     }
-    if (outside.empty()) { return; }
-
-    const int nxb = bi1 - bi0 + 1, nyb = bj1 - bj0 + 1;
-    std::vector<int> top(static_cast<size_t>(nxb) * nyb, -1);
-    for (int ci = 0; ci < m_col_nx; ++ci) {
-        for (int cj = 0; cj < m_col_ny; ++cj) {
-            top[static_cast<size_t>(m_col_i0 + ci - bi0) * nyb + (m_col_j0 + cj - bj0)] =
-                top_f[static_cast<size_t>(ci) * m_col_ny + cj];
-        }
-    }
-    for (const auto& o : outside) {
-        for (int a = 0; a < ratio[0]; ++a) {
-            for (int b = 0; b < ratio[1]; ++b) {
-                int& t = top[static_cast<size_t>(o.i0 + a - bi0) * nyb + (o.j0 + b - bj0)];
-                t = std::max(t, o.kt);
+    Box patch;
+    m_wrap_x = m_wrap_y = false;
+    bool spans = true;
+    for (int d = 0; d < 2; ++d) { m_halo[d] = std::min(halo[d], domain.length(d)); }
+    m_halo[2] = 0;
+    if (bbox.ok()) {
+        patch = bbox;
+        for (int d = 0; d < 2; ++d) {
+            patch.grow(d, m_halo[d]);
+            if (m_geom.isPeriodic(d)) {
+                if (patch.length(d) >= domain.length(d)) {
+                    patch.setRange(d, domain.smallEnd(d), domain.length(d));
+                    (d == 0 ? m_wrap_x : m_wrap_y) = true;
+                }
+            } else {
+                patch.setSmall(d, std::max(patch.smallEnd(d), domain.smallEnd(d)));
+                patch.setBig(d, std::min(patch.bigEnd(d), domain.bigEnd(d)));
             }
+            spans = spans && (patch.smallEnd(d) == domain.smallEnd(d) && patch.length(d) == domain.length(d));
         }
-        m_col_top_max = std::max(m_col_top_max, Real(m_z_ground + (o.kt + 1.0) * dz_f));
     }
-    m_col_i0 = bi0; m_col_j0 = bj0; m_col_nx = nxb; m_col_ny = nyb;
-    upload(d_col_top, top);
+    m_patch_box = patch;
+    ParallelDescriptor::ReduceBoolAnd(spans);
+    m_map_spans_domain = spans;
+
+    // Every rank's patch, one box each for the ranks that have boxes.
+    std::vector<int> mine;
+    if (patch.ok()) {
+        mine = { patch.smallEnd(0), patch.smallEnd(1), patch.smallEnd(2),
+                 patch.bigEnd(0), patch.bigEnd(1), patch.bigEnd(2), ParallelDescriptor::MyProc() };
+    }
+    const std::vector<int> all = all_gather(mine);
+    BoxList bl;
+    Vector<int> pmap;
+    for (size_t n = 0; n + 7 <= all.size(); n += 7) {
+        bl.push_back(Box(IntVect(all[n], all[n + 1], all[n + 2]), IntVect(all[n + 3], all[n + 4], all[n + 5])));
+        pmap.push_back(all[n + 6]);
+    }
+    m_ray_patch.clear();
+    if (bl.isEmpty()) { return; }
+    const BoxArray patch_ba(std::move(bl));
+    const DistributionMapping patch_dm(pmap);
+    m_ray_patch.define(patch_ba, patch_dm, 1, 0);
+    m_ray_patch.setVal(-1);
+
+    // The levels below: each column of the patch that a level covers takes
+    // that level's top, on the ratio x ratio columns of this level beneath
+    // the coarse one, at the same height; the finest level wins.
+    for (const IBFaceSet* c : below) {
+        const Box& cdom = c->m_geom.Domain();
+        const IntVect ratio(AMREX_D_DECL(domain.length(0) / cdom.length(0), domain.length(1) / cdom.length(1), 1));
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ratio[0] * cdom.length(0) == domain.length(0) && ratio[1] * cdom.length(1) == domain.length(1),
+                                         "erf.ibseb: the domains of the levels are not refinements of one another");
+        iMultiFab crse(amrex::coarsen(patch_ba, ratio), patch_dm, 1, 0);
+        crse.setVal(-2);                                   // -2: that level does not cover the column
+        crse.ParallelCopy(c->m_col_valid, 0, 0, 1, IntVect(0), IntVect(0), c->m_geom.periodicity());
+        const Real dz_c = c->m_dx[2], dz_f = m_dx[2];
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(std::abs(dz_c / dz_f - std::round(dz_c / dz_f)) < 1.0e-6,
+                                         "erf.ibseb: the vertical cell sizes of the levels are not a whole ratio");
+        const int rx = ratio[0], ry = ratio[1];
+        for (MFIter mfi(m_ray_patch); mfi.isValid(); ++mfi) {
+            const Box& pb = mfi.validbox();
+            auto const& p  = m_ray_patch.array(mfi);
+            auto const& cr = crse.const_array(mfi);
+            ParallelFor(pb, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                const int kc = cr(amrex::coarsen(i, rx), amrex::coarsen(j, ry), k);
+                if (kc == -2) { return; }
+                // The same height here: the top is kc + 1 cells of that level
+                // up, a whole number of cells of this one (rounded to keep it
+                // so whatever the precision of the division).
+                p(i, j, k) = (kc < 0) ? -1 : static_cast<int>((kc + 1) * dz_c / dz_f + Real(0.5)) - 1;
+            });
+        }
+    }
+    // This level's own columns, with their periodic images.
+    m_ray_patch.ParallelCopy(m_col_valid, 0, 0, 1, IntVect(0), IntVect(0), m_geom.periodicity());
+    Gpu::streamSynchronize();
+
     if (m_params.debug) {
-        Print() << "[IBSEB DEBUG] lev=" << m_lev << " ray cast: " << outside.size()
-                << " columns of the level below, outside this level, added as occluders\n";
+        Print() << "[IBSEB DEBUG] lev=" << m_lev << " ray map: halo " << m_halo[0] << " x " << m_halo[1]
+                << " cells for rays " << std::asin(sz_min) * 180.0 / PI << " deg above the horizon over "
+                << height << " m (hemisphere " << std::asin(sz_view) * 180.0 / PI << " deg, sun floor "
+                << m_params.sun_min_elev_deg << " deg); " << (spans ? "every rank's patch spans the domain" : "the patches do not span the domain")
+                << "; " << below.size() << " level(s) below merged\n";
+        std::ostringstream os;
+        os << "[IBSEB DEBUG] lev=" << m_lev << " rank " << ParallelDescriptor::MyProc() << ": ray map patch " << patch
+           << (m_wrap_x ? " wraps in x" : "") << (m_wrap_y ? " wraps in y" : "")
+           << ", " << (patch.ok() ? patch.numPts() * sizeof(int) / 1024.0 : 0.0) << " kB\n";
+        AllPrint() << os.str();
     }
+}
+
+/**
+ * Warn when a fixed sun stands below ``erf.ibseb.sun_min_elev_deg`` and
+ * the ray map does not span the domain: the shadows of buildings beyond the
+ * halo are then not cast. Printed once per level by the I/O rank.
+ */
+void
+IBFaceSet::warn_fixed_sun_below_floor () const
+{
+    if (m_params.sun_mode != "fixed" || m_map_spans_domain) { return; }
+    const Real elev = 90.0 - m_params.sun_zenith_deg;
+    if (elev >= m_params.sun_min_elev_deg) { return; }
+    std::ostringstream os;
+    os << "erf.ibseb: the fixed sun stands " << elev << " deg above the horizon, below erf.ibseb.sun_min_elev_deg = "
+       << m_params.sun_min_elev_deg << ", and the ray map of level " << m_lev << " does not span the domain: a building"
+       " farther than " << m_halo[0] * m_dx[0] << " m in x or " << m_halo[1] * m_dx[1] << " m in y from a face casts no shadow"
+       " on it. Lower erf.ibseb.sun_min_elev_deg to the sun's elevation for exact shadows.";
+    if (ParallelDescriptor::IOProcessor()) { Warning(os.str().c_str()); }
+}
+
+ibseb::RayMap
+IBFaceSet::ray_map () const
+{
+    ibseb::RayMap m;
+    if (m_patch_box.ok()) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_ray_patch.local_size() == 1, "erf.ibseb: the ray map holds no patch for this rank");
+        m.top = m_ray_patch.const_array(m_ray_patch.IndexArray()[0]);
+    }
+    m.ilo = m_dom_lo[0]; m.jlo = m_dom_lo[1];
+    m.nx = m_nx; m.ny = m_ny;
+    m.wrap_x = m_wrap_x; m.wrap_y = m_wrap_y;
+    m.x_lo = m_x_lo; m.y_lo = m_y_lo;
+    m.dx = m_dx[0]; m.dy = m_dx[1]; m.dz = m_dx[2];
+    m.z_ground = m_z_ground;
+    m.z_max = m_col_top_max;
+    m.max_steps = m_max_steps;
+    return m;
+}
+
+/**
+ * Rebuild the ray map with the buildings of the levels below (see the
+ * header and build_ray_map()).
+ */
+void
+IBFaceSet::add_outside_occluders (const std::vector<const IBFaceSet*>& below)
+{
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!below.empty(), "erf.ibseb: add_outside_occluders() needs the levels below");
+    build_ray_map(below);
+    warn_fixed_sun_below_floor();
 }
 
 /**
@@ -533,33 +806,54 @@ IBFaceSet::add_outside_occluders (const IBFaceSet& coarser, const IntVect& ratio
  * resolves through its other columns. A building none of whose columns lies
  * under a labelled coarse column is one only this level resolves; it maps to
  * 0, and a warning names it when the level below has buildings at all.
+ * The level below's ids are brought under this level's columns by a
+ * parallel copy; the votes, a few per building, are gathered from every rank
+ * and summed, so every rank reaches the same verdict.
  */
 void
 IBFaceSet::map_buildings_to_level0 (const IBFaceSet& coarser, const IntVect& ratio)
 {
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(coarser.m_lab.size() == static_cast<size_t>(coarser.m_lab_nx) * coarser.m_lab_ny,
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(coarser.m_lab.ok(),
                                      "erf.ibseb: the level below released its labels before this level was mapped");
-    std::vector<std::map<int, Long>> votes(m_nbld + 1);
-    for (int ci = 0; ci < m_lab_nx; ++ci) {
-        for (int cj = 0; cj < m_lab_ny; ++cj) {
-            const int b = m_lab[static_cast<size_t>(ci) * m_lab_ny + cj];
-            if (b == 0) { continue; }
-            // amrex::coarsen, not a division: the column indices here are cell
-            // indices of the level, and integer division truncates towards zero,
-            // which would send a negative index to the coarse column above the
-            // one that covers it.
-            const int cc = amrex::coarsen(ci + m_lab_i0, ratio[0]) - coarser.m_lab_i0;
-            const int cd = amrex::coarsen(cj + m_lab_j0, ratio[1]) - coarser.m_lab_j0;
-            if (cc < 0 || cc >= coarser.m_lab_nx || cd < 0 || cd >= coarser.m_lab_ny) { continue; }
-            const int bc = coarser.m_lab[static_cast<size_t>(cc) * coarser.m_lab_ny + cd];
-            if (bc > 0 && coarser.m_to_lev0[bc] > 0) { ++votes[b][coarser.m_to_lev0[bc]]; }
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(coarser.m_geom.Domain().smallEnd(2) == m_geom.Domain().smallEnd(2),
+                                     "erf.ibseb: the levels do not share the ground");
+    const int klo = m_geom.Domain().smallEnd(2);
+    const IntVect ratio_h(AMREX_D_DECL(ratio[0], ratio[1], 1));
+    iMultiFab crse(amrex::coarsen(m_lab.boxArray(), ratio_h), m_lab.DistributionMap(), 1, 0);
+    crse.setVal(0);
+    crse.ParallelCopy(coarser.m_lab, 0, 0, 1, IntVect(0), IntVect(0), coarser.m_geom.periodicity());
+    // This rank's votes: (this level's id, level 0's id) -> columns.
+    std::map<std::pair<int, int>, Long> votes;
+    for (MFIter mfi(m_lab); mfi.isValid(); ++mfi) {
+        const Box& vb = mfi.validbox();
+        const HostInts lab(m_lab[mfi]);
+        const HostInts cl(crse[mfi]);
+        auto const& a = lab.array();
+        auto const& c = cl.array();
+        const auto lo = lbound(vb);
+        const auto hi = ubound(vb);
+        for (int j = lo.y; j <= hi.y; ++j) {
+            for (int i = lo.x; i <= hi.x; ++i) {
+                const int b = a(i, j, klo);
+                if (b == 0) { continue; }
+                // amrex::coarsen, not a division: integer division truncates
+                // towards zero, which would send a negative index to the
+                // coarse column above the one that covers it.
+                const int bc = c(amrex::coarsen(i, ratio[0]), amrex::coarsen(j, ratio[1]), klo);
+                if (bc > 0 && coarser.m_to_lev0[bc] > 0) { ++votes[{b, coarser.m_to_lev0[bc]}]; }
+            }
         }
     }
+    std::vector<Long> mine;
+    for (const auto& [key, n] : votes) { mine.push_back(key.first); mine.push_back(key.second); mine.push_back(n); }
+    const std::vector<Long> all = all_gather(mine);
+    std::vector<std::map<int, Long>> tally(m_nbld + 1);
+    for (size_t n = 0; n + 3 <= all.size(); n += 3) { tally[static_cast<int>(all[n])][static_cast<int>(all[n + 1])] += all[n + 2]; }
     std::vector<int> unmapped;
     for (int b = 1; b <= m_nbld; ++b) {
         int best = 0;
         Long n_best = 0;
-        for (const auto& [id, n] : votes[b]) {     // ascending id: the lowest wins a tie
+        for (const auto& [id, n] : tally[b]) {     // ascending id: the lowest wins a tie
             if (n > n_best) { best = id; n_best = n; }
         }
         m_to_lev0[b] = best;
@@ -571,7 +865,7 @@ IBFaceSet::map_buildings_to_level0 (const IBFaceSet& coarser, const IntVect& rat
            << " building(s) that no labelled column of the level below lies under (level " << m_lev << " number";
         for (int b : unmapped) { os << " " << b; }
         os << "); they take erf.ibseb.material_default and building_level0 = 0 in the report";
-        // Every rank holds the same labels and reaches the same verdict.
+        // Every rank holds the same votes and reaches the same verdict.
         if (ParallelDescriptor::IOProcessor()) { Warning(os.str().c_str()); }
     }
     if (m_params.debug) {
@@ -592,12 +886,7 @@ void
 IBFaceSet::compute_view_fractions ()
 {
     const int n_az = m_params.view_n_az, n_el = m_params.view_n_el;
-    const int*  col_top = d_col_top.data();
-    const int   nx = m_nx, ny = m_ny;
-    const int   ci0 = m_col_i0, cj0 = m_col_j0, cbw = m_col_nx, cbh = m_col_ny;
-    const Real  x_lo = m_x_lo, y_lo = m_y_lo, dx = m_dx[0], dy = m_dx[1], dz = m_dx[2];
-    const bool  per_x = m_per_x, per_y = m_per_y;
-    const Real  z_ground = m_z_ground, z_max = m_col_top_max, max_path = m_max_path;
+    const ibseb::RayMap rm = ray_map();
     const int*  pd = d_dir.data();  const int* ps = d_side.data();
     const Real* pxf = d_xf.data();  const Real* pyf = d_yf.data();  const Real* pzf = d_zf.data();
     Real* pfs = d_f_sky.data(); Real* pfg = d_f_ground.data(); Real* pfb = d_f_bldg.data();
@@ -607,8 +896,7 @@ IBFaceSet::compute_view_fractions ()
             for (int ia = 0; ia < n_az; ++ia) {
                 Real sx, sy, sz;
                 ibseb::hemisphere_direction(pd[f], -ps[f], ia, ie, n_az, n_el, sx, sy, sz);
-                const int hit = ibseb::ray_hit(pxf[f], pyf[f], pzf[f], sx, sy, sz, col_top, nx, ny, ci0, cj0, cbw, cbh,
-                                               x_lo, y_lo, dx, dy, dz, per_x, per_y, z_ground, z_max, max_path);
+                const int hit = ibseb::ray_hit(pxf[f], pyf[f], pzf[f], sx, sy, sz, rm);
                 if (hit == ibseb::RAY_SKY) ++n_sky; else if (hit == ibseb::RAY_GROUND) ++n_gnd; else ++n_bld;
             }
         }
@@ -1164,12 +1452,7 @@ IBFaceSet::compute_shortwave (Real time, const TwoStreamCanopyView& canopy)
     const Real dir_h = dni * amrex::max(Real(0.0), sz);
     const Real alb_g = m_params.albedo_ground;
     const Real* palb = d_albedo.data();
-    const int*  col_top = d_col_top.data();
-    const int   nx = m_nx, ny = m_ny;
-    const int   ci0 = m_col_i0, cj0 = m_col_j0, cbw = m_col_nx, cbh = m_col_ny;
-    const Real  x_lo = m_x_lo, y_lo = m_y_lo, dx = m_dx[0], dy = m_dx[1], dz = m_dx[2];
-    const bool  per_x = m_per_x, per_y = m_per_y;
-    const Real  z_ground = m_z_ground, z_max = m_col_top_max, max_path = m_max_path;
+    const ibseb::RayMap rm = ray_map();
     const int*  pd  = d_dir.data();  const int* ps = d_side.data();
     const Real* pxf = d_xf.data();   const Real* pyf = d_yf.data();  const Real* pzf = d_zf.data();
     const Real* pfs = d_f_sky.data(); const Real* pfg = d_f_ground.data();
@@ -1182,8 +1465,7 @@ IBFaceSet::compute_shortwave (Real time, const TwoStreamCanopyView& canopy)
         const Real cosi = n[0] * sx + n[1] * sy + n[2] * sz;
         Real shadow = 0.0, direct = 0.0;
         if (sz > 0.0 && cosi > 0.0 && dni > 0.0) {
-            shadow = ibseb::ray_blocked(pxf[f], pyf[f], pzf[f], sx, sy, sz, col_top, nx, ny, ci0, cj0, cbw, cbh,
-                                        x_lo, y_lo, dx, dy, dz, per_x, per_y, z_ground, z_max, max_path) ? 1.0 : 0.0;
+            shadow = ibseb::ray_blocked(pxf[f], pyf[f], pzf[f], sx, sy, sz, rm) ? 1.0 : 0.0;
             direct = dni * cosi * (1.0 - shadow);
         }
         const Real diffuse = pfs[f] * dif_h + pfg[f] * alb_g * (dir_h + dif_h);
@@ -1227,12 +1509,7 @@ IBFaceSet::compute_shortwave_two_stream (const TwoStreamCanopyView& canopy)
 {
     const Real sx = m_sun.sx, sy = m_sun.sy, sz = m_sun.sz;
     const Real* palb = d_albedo.data();
-    const int*  col_top = d_col_top.data();
-    const int   nx = m_nx, ny = m_ny;
-    const int   ci0 = m_col_i0, cj0 = m_col_j0, cbw = m_col_nx, cbh = m_col_ny;
-    const Real  x_lo = m_x_lo, y_lo = m_y_lo, dx = m_dx[0], dy = m_dx[1], dz = m_dx[2];
-    const bool  per_x = m_per_x, per_y = m_per_y;
-    const Real  z_ground = m_z_ground, z_max = m_col_top_max, max_path = m_max_path;
+    const ibseb::RayMap rm = ray_map();
     const int*  pi = d_i.data();  const int* pj = d_j.data();  const int* pk = d_k.data();
     const int   k0 = m_dom_lo[2];
     const int*  pd  = d_dir.data();  const int* ps = d_side.data();
@@ -1277,8 +1554,7 @@ IBFaceSet::compute_shortwave_two_stream (const TwoStreamCanopyView& canopy)
             const Real cosi = n[0] * sx + n[1] * sy + n[2] * sz;
             Real shadow = 0.0, direct = 0.0;
             if (sz > 0.0 && cosi > 0.0 && dni > 0.0) {
-                shadow = ibseb::ray_blocked(pxf[f], pyf[f], pzf[f], sx, sy, sz, col_top, nx, ny, ci0, cj0, cbw, cbh,
-                                            x_lo, y_lo, dx, dy, dz, per_x, per_y, z_ground, z_max, max_path) ? 1.0 : 0.0;
+                shadow = ibseb::ray_blocked(pxf[f], pyf[f], pzf[f], sx, sy, sz, rm) ? 1.0 : 0.0;
                 direct = dni * cosi * (1.0 - shadow);
             }
             const Real diffuse = pfs[f] * dif_h + pfg[f] * refl;
@@ -1429,10 +1705,17 @@ IBFaceSet::print_debug_summary () const
     const int nfab = static_cast<int>(m_fab_start.size()) - 1;
     const size_t bytes = static_cast<size_t>(m_nface) *
         (7 * sizeof(int) + (11 + static_cast<size_t>(nl)) * sizeof(Real));
+    // The ray map: this rank's patch and its share of the column map and labels.
+    size_t map_cells = static_cast<size_t>(m_patch_box.ok() ? m_patch_box.numPts() : 0);
+    const size_t per_column = m_lab.ok() ? 2 : 1;      // ok() iterates the fabs itself: not inside the loop below
+    for (MFIter mfi(m_col_valid); mfi.isValid(); ++mfi) {
+        map_cells += per_column * static_cast<size_t>(m_col_valid[mfi].box().numPts());
+    }
+    const size_t map_bytes = map_cells * sizeof(int);
     std::ostringstream os;
     os << "[IBSEB DEBUG] lev=" << m_lev << " rank " << ParallelDescriptor::MyProc()
        << ": faces=" << m_nface << " over " << nfab << " fab(s), device memory "
-       << bytes / 1024.0 << " kB; fab ranges:";
+       << bytes / 1024.0 << " kB for the faces, " << map_bytes / 1024.0 << " kB for the ray map; fab ranges:";
     for (int f = 0; f < nfab; ++f) { os << " [" << m_fab_start[f] << "," << m_fab_start[f + 1] << ")"; }
     AllPrint() << os.str() << "\n";
 }

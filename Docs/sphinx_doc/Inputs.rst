@@ -4048,6 +4048,14 @@ column would be taken for a building), a uniform vertical grid (no
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.view_n_el**           | elevations of the hemisphere sampling                    | Integer >= 1       | 8                      |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
+| **erf.ibseb.sun_min_elev_deg**    | lowest sun elevation [deg] at which the shadow test is   | Real in (0, 90)    | 2.0                    |
+|                                   | exact everywhere: each rank's ray map reaches (tallest   |                    |                        |
+|                                   | building) / tan(elevation) beyond its own columns; with  |                    |                        |
+|                                   | the sun lower, a building farther than that from a face  |                    |                        |
+|                                   | casts no shadow on it. The map reaches at least as far   |                    |                        |
+|                                   | as the shallowest view ray (view_n_az, view_n_el) too,   |                    |                        |
+|                                   | and a domain it covers whole is exact whatever the value |                    |                        |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------------+
 | **erf.ibseb.lw_mode**             | sky longwave. ``fixed``: lw_down. ``gray``:              | "fixed", "gray",   | "gray"; "two_stream"   |
 |                                   | sky_emissivity sigma T_air^4, with the air temperature   | "two_stream"       | with radiation =       |
 |                                   | of the face's fluid cell. ``two_stream`` (only with      |                    | two_stream             |

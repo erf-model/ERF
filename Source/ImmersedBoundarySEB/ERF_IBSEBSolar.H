@@ -4,6 +4,8 @@
 #include <AMReX_REAL.H>
 #include <AMReX_GpuQualifiers.H>
 #include <AMReX_Algorithm.H>
+#include <AMReX_Array4.H>
+#include <limits>
 #include <ERF_NumericalConstants.H>
 #include <cmath>
 
@@ -196,36 +198,105 @@ amrex::Real clear_sky_diffuse_h (amrex::Real cos_zenith, amrex::Real S0, amrex::
 }
 
 /**
- * Top height of a column of the level. The column map covers the bounding box
- * of the built columns only (origin ``i0, j0`` in 0-based domain columns,
- * ``bw x bh`` values indexed ``(ci - i0) * bh + (cj - j0)``); every other
- * column is open ground. An entry is the domain-relative k of the highest
- * solid cell of its column, or -1 where the column is fluid, so the top is
- * one cell above that index and a fluid column sits at the ground.
+ * The column tops a ray cast on one rank sees: a k-collapsed map over this
+ * rank's patch of the level (its boxes grown by the halo of
+ * IBFaceSet::build_ray_map()), with the domain and the grid it is drawn on.
+ * An entry is the domain-relative k of the highest solid cell of its column,
+ * -1 where the column is fluid; column_top() turns it into a height. The
+ * patch holds the columns of other ranks and the periodic images within the
+ * halo, so the walk needs no communication. Where ``wrap_x`` (``wrap_y``) is
+ * set the patch spans the whole periodic domain in x (y) and a ray that
+ * leaves it comes back in on the other side; otherwise a ray that leaves the
+ * patch has left the map: the far field is open ground (see locate()). A
+ * ray is followed for as many columns as the halo's reach holds
+ * (``max_steps``), which is every column a ray no shallower than the map's
+ * floor can cross before it clears the tallest column or reaches the
+ * ground; a shallower ray stops there too, so a building beyond the halo's
+ * reach never shades, whether the map wraps or not. A level ray is followed
+ * for two rounds of the map and then counts as sky.
  */
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-amrex::Real column_top (const int* col_top, int ci, int cj,
-                        int i0, int j0, int bw, int bh,
-                        amrex::Real z_ground, amrex::Real dz)
+struct RayMap
 {
-    ci -= i0; cj -= j0;
-    if (ci < 0 || ci >= bw || cj < 0 || cj >= bh) { return z_ground; }
-    const int kt = col_top[ci * bh + cj];
-    return (kt < 0) ? z_ground : z_ground + (kt + 1) * dz;
+    amrex::Array4<const int> top;       ///< Column tops over the patch (any k index; use ``top.begin[2]``)
+    int  ilo = 0, jlo = 0;              ///< Low corner of the domain, in cells
+    int  nx = 0, ny = 0;                ///< Columns of the domain in x and y
+    bool wrap_x = false, wrap_y = false;///< The patch spans the periodic domain in x / y
+    amrex::Real x_lo = 0.0, y_lo = 0.0; ///< Physical position of the domain's low corner [m]
+    amrex::Real dx = 0.0, dy = 0.0, dz = 0.0;  ///< Cell sizes [m]
+    amrex::Real z_ground = 0.0;         ///< Ground height [m]
+    amrex::Real z_max = 0.0;            ///< Tallest column the map holds [m]; a ray above it meets nothing
+    int  max_steps = 0;                 ///< Columns a ray at the map's floor elevation crosses before it clears z_max (the halo's reach in x plus y)
+
+    /** Whether the map holds column ``(ci, cj)`` (wrapped into the patch where the patch spans the domain). */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    bool locate (int& ci, int& cj) const noexcept
+    {
+        if (ci < top.begin[0] || ci >= top.end[0]) {
+            if (!wrap_x) { return false; }
+            ci = top.begin[0] + ((ci - top.begin[0]) % nx + nx) % nx;
+        }
+        if (cj < top.begin[1] || cj >= top.end[1]) {
+            if (!wrap_y) { return false; }
+            cj = top.begin[1] + ((cj - top.begin[1]) % ny + ny) % ny;
+        }
+        return true;
+    }
+
+    /** Top height of column ``(ci, cj)`` of the map (the ground where it is fluid). */
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    amrex::Real column_top (int ci, int cj) const noexcept
+    {
+        const int kt = top(ci, cj, top.begin[2]);
+        return (kt < 0) ? z_ground : z_ground + (kt + 1) * dz;
+    }
+};
+
+/**
+ * Halo of a ray map, in cells: how far a ray no shallower than ``sz_min``
+ * (the sine of its elevation) can travel horizontally before it rises above
+ * ``height`` or falls that far, ``height / tan(elevation)``, rounded up and
+ * with one cell for the column it starts in. At least one cell, so a face
+ * always finds the column of its solid neighbour; a level ray would reach
+ * for ever, which the caller caps at the domain.
+ */
+inline int ray_halo_cells (amrex::Real height, amrex::Real dx, amrex::Real sz_min)
+{
+    if (height <= 0.0) { return 1; }
+    const amrex::Real cz = std::sqrt(amrex::max(amrex::Real(0.0), amrex::Real(1.0) - sz_min * sz_min));
+    if (sz_min <= 0.0 || cz <= 0.0) { return std::numeric_limits<int>::max() / 4; }
+    const amrex::Real reach = height * cz / sz_min / dx;
+    if (reach >= amrex::Real(std::numeric_limits<int>::max() / 8)) { return std::numeric_limits<int>::max() / 4; }
+    return amrex::max(1, static_cast<int>(std::ceil(reach)) + 1);
+}
+
+/**
+ * Sine of the elevation of the shallowest ray of the hemisphere sampling
+ * (hemisphere_direction()) with ``n_az`` azimuths and ``n_el`` elevations:
+ * on a roof the ray furthest from the normal, ``cos(theta_max)``; on a wall,
+ * where a ray's sine of elevation is ``sin(theta) sin(phi)``, the ray
+ * nearest the normal at the azimuth nearest the horizontal,
+ * ``sin(theta_min) sin(pi / n_az)``. With an odd ``n_az`` a wall has level
+ * rays (``phi = pi``), which the walk follows for two rounds of the map.
+ */
+inline amrex::Real hemisphere_min_sz (int n_az, int n_el)
+{
+    const amrex::Real u_min = 0.5 / n_el, u_max = (n_el - 0.5) / n_el;
+    const amrex::Real roof  = std::sqrt(1.0 - u_max);
+    const amrex::Real wall  = std::sqrt(u_min) * std::sin(PI / n_az);
+    return amrex::min(roof, wall);
 }
 
 /**
  * Whether the ray from a face toward the sun hits a building.
  *
- * Buildings are represented by the top height of the columns of the level
- * (``col_top`` over the built bounding box, see column_top(), replicated on
- * every rank), so a ray is blocked wherever its height on entering a
- * column is below that column's top: buildings stand on the ground, so the
- * lowest point of the ray inside a column is at its entry, and the height
- * only grows along a ray toward a sun above the horizon. The walk over the
- * columns is a 2D digital differential analyser. It stops when the ray
- * rises above the tallest column, leaves the domain in a non-periodic
- * direction, or has travelled ``max_path``.
+ * Buildings are the column tops of the rank's ray map (RayMap), so a ray is
+ * blocked wherever its height on entering a column is below that column's
+ * top: buildings stand on the ground, so the lowest point of the ray inside
+ * a column is at its entry, and the height only grows along a ray toward a
+ * sun above the horizon. The walk over the columns is a 2D digital
+ * differential analyser. It stops when the ray rises above the tallest
+ * column or leaves the map (the far field is open ground; in a periodic
+ * direction the map spans, the ray wraps round instead).
  *
  * The start point is nudged a little along the ray so a face does not
  * test its own column at its own height: a wall starts in its fluid cell's
@@ -236,18 +307,16 @@ amrex::Real column_top (const int* col_top, int ci, int cj,
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 bool ray_blocked (amrex::Real x0, amrex::Real y0, amrex::Real z0,
-                  amrex::Real sx, amrex::Real sy, amrex::Real sz,
-                  const int* col_top, int nx, int ny, int i0, int j0, int bw, int bh,
-                  amrex::Real x_lo, amrex::Real y_lo, amrex::Real dx, amrex::Real dy, amrex::Real dz,
-                  bool per_x, bool per_y, amrex::Real z_ground, amrex::Real z_max, amrex::Real max_path)
+                  amrex::Real sx, amrex::Real sy, amrex::Real sz, const RayMap& m)
 {
     if (sz <= 0.0) return true;              // sun at or below the horizon
-    if (z0 >= z_max) return false;           // nothing stands this high
+    if (z0 >= m.z_max) return false;         // nothing stands this high
+    const amrex::Real dx = m.dx, dy = m.dy;
     const amrex::Real eps = 1.0e-6 * amrex::min(dx, dy);
     const amrex::Real t0  = 1.0e-3 * amrex::min(dx, dy);
     amrex::Real x = x0 + t0 * sx, y = y0 + t0 * sy, z = z0 + t0 * sz;
-    int ci = static_cast<int>(std::floor((x - x_lo) / dx));
-    int cj = static_cast<int>(std::floor((y - y_lo) / dy));
+    int ci = m.ilo + static_cast<int>(std::floor((x - m.x_lo) / dx));
+    int cj = m.jlo + static_cast<int>(std::floor((y - m.y_lo) / dy));
     const int stepx = (sx > 0.0) ? 1 : ((sx < 0.0) ? -1 : 0);
     const int stepy = (sy > 0.0) ? 1 : ((sy < 0.0) ? -1 : 0);
     const amrex::Real big = 1.0e30;
@@ -255,29 +324,25 @@ bool ray_blocked (amrex::Real x0, amrex::Real y0, amrex::Real z0,
     const amrex::Real tdy = (stepy != 0) ? dy / std::abs(sy) : big;
     // Distance along the ray to the next column boundary in x and in y.
     amrex::Real tmx = big, tmy = big;
-    if (stepx > 0)      tmx = ((x_lo + (ci + 1) * dx) - x) / sx;
-    else if (stepx < 0) tmx = ((x_lo + ci * dx) - x) / sx;
-    if (stepy > 0)      tmy = ((y_lo + (cj + 1) * dy) - y) / sy;
-    else if (stepy < 0) tmy = ((y_lo + cj * dy) - y) / sy;
-    amrex::Real t = 0.0;
-    const int max_iter = 4 * (nx + ny) + 8;
+    if (stepx > 0)      tmx = ((m.x_lo + (ci - m.ilo + 1) * dx) - x) / sx;
+    else if (stepx < 0) tmx = ((m.x_lo + (ci - m.ilo) * dx) - x) / sx;
+    if (stepy > 0)      tmy = ((m.y_lo + (cj - m.jlo + 1) * dy) - y) / sy;
+    else if (stepy < 0) tmy = ((m.y_lo + (cj - m.jlo) * dy) - y) / sy;
+    // Columns crossed before the ray passes the tallest one, plus a margin,
+    // and never more than the halo's reach (see RayMap).
+    const amrex::Real t_max = (m.z_max - z) / sz;
+    const amrex::Real steps = amrex::min(t_max * (std::abs(sx) / dx + std::abs(sy) / dy), amrex::Real(m.max_steps));
+    const int max_iter = static_cast<int>(amrex::min(amrex::Real(1.0e9), steps)) + 8;
     for (int it = 0; it < max_iter; ++it) {
         // Column (ci, cj) with the ray entering at height z.
-        if (ci < 0 || ci >= nx) {
-            if (!per_x) return false;
-            ci = (ci % nx + nx) % nx;
-        }
-        if (cj < 0 || cj >= ny) {
-            if (!per_y) return false;
-            cj = (cj % ny + ny) % ny;
-        }
-        if (z + eps < column_top(col_top, ci, cj, i0, j0, bw, bh, z_ground, dz)) return true;
+        if (!m.locate(ci, cj)) return false;
+        if (z + eps < m.column_top(ci, cj)) return true;
         // Step to the next column.
+        amrex::Real t;
         if (tmx < tmy) { t = tmx; tmx += tdx; ci += stepx; }
         else           { t = tmy; tmy += tdy; cj += stepy; }
         z = z0 + t0 * sz + t * sz;
-        if (z >= z_max) return false;
-        if (t > max_path) return false;
+        if (z >= m.z_max) return false;
     }
     return false;
 }
@@ -291,59 +356,58 @@ enum RayHit : int { RAY_SKY = 0, RAY_GROUND = 1, RAY_BUILDING = 2 };
  * ray_blocked(), with the height test made direction-aware:
  *
  * - rising or level rays (``sz >= 0``) are blocked by a column whose top is
- *   above the entry height; a level ray that crosses ``max_path`` without a
- *   hit ends at the horizon, which counts as sky;
+ *   above the entry height; a level ray that leaves the map, or has crossed
+ *   the domain twice where the map wraps, ends at the horizon, which counts as sky;
  * - falling rays (``sz < 0``) are blocked by a solid column whose top is
  *   above the exit height (the ray descends inside the column) and reach
  *   the ground where the exit height is at or below ``z_ground``.
  *
- * Solid columns are those with a top above the ground. The domain is
- * wrapped in periodic directions; leaving it in a non-periodic direction
- * counts as sky for a rising ray and as ground for a falling one.
+ * Solid columns are those with a top above the ground. Leaving the map
+ * counts as sky for a rising ray and as ground for a falling one: the far
+ * field is open ground. Where the map spans a periodic direction the ray
+ * wraps round instead.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 int ray_hit (amrex::Real x0, amrex::Real y0, amrex::Real z0,
-             amrex::Real sx, amrex::Real sy, amrex::Real sz,
-             const int* col_top, int nx, int ny, int i0, int j0, int bw, int bh,
-             amrex::Real x_lo, amrex::Real y_lo, amrex::Real dx, amrex::Real dy, amrex::Real dz,
-             bool per_x, bool per_y, amrex::Real z_ground, amrex::Real z_max,
-             amrex::Real max_path)
+             amrex::Real sx, amrex::Real sy, amrex::Real sz, const RayMap& m)
 {
+    const amrex::Real dx = m.dx, dy = m.dy;
     const amrex::Real eps = 1.0e-6 * amrex::min(dx, dy);
-    if (sz > 0.0 && z0 >= z_max) return RAY_SKY;
+    if (sz > 0.0 && z0 >= m.z_max) return RAY_SKY;
     const amrex::Real t0 = 1.0e-3 * amrex::min(dx, dy);
     amrex::Real x = x0 + t0 * sx, y = y0 + t0 * sy, z = z0 + t0 * sz;
-    int ci = static_cast<int>(std::floor((x - x_lo) / dx));
-    int cj = static_cast<int>(std::floor((y - y_lo) / dy));
+    int ci = m.ilo + static_cast<int>(std::floor((x - m.x_lo) / dx));
+    int cj = m.jlo + static_cast<int>(std::floor((y - m.y_lo) / dy));
     const int stepx = (sx > 0.0) ? 1 : ((sx < 0.0) ? -1 : 0);
     const int stepy = (sy > 0.0) ? 1 : ((sy < 0.0) ? -1 : 0);
     const amrex::Real big = 1.0e30;
     const amrex::Real tdx = (stepx != 0) ? dx / std::abs(sx) : big;
     const amrex::Real tdy = (stepy != 0) ? dy / std::abs(sy) : big;
     amrex::Real tmx = big, tmy = big;
-    if (stepx > 0)      tmx = ((x_lo + (ci + 1) * dx) - x) / sx;
-    else if (stepx < 0) tmx = ((x_lo + ci * dx) - x) / sx;
-    if (stepy > 0)      tmy = ((y_lo + (cj + 1) * dy) - y) / sy;
-    else if (stepy < 0) tmy = ((y_lo + cj * dy) - y) / sy;
+    if (stepx > 0)      tmx = ((m.x_lo + (ci - m.ilo + 1) * dx) - x) / sx;
+    else if (stepx < 0) tmx = ((m.x_lo + (ci - m.ilo) * dx) - x) / sx;
+    if (stepy > 0)      tmy = ((m.y_lo + (cj - m.jlo + 1) * dy) - y) / sy;
+    else if (stepy < 0) tmy = ((m.y_lo + (cj - m.jlo) * dy) - y) / sy;
     if (stepx == 0 && stepy == 0) {          // vertical ray
         if (sz > 0.0) return RAY_SKY;
         // straight down from a wall face never happens (the face is vertical);
         // from a roof the hemisphere points up. Treat as ground for safety.
         return RAY_GROUND;
     }
-    amrex::Real t = 0.0;
-    const int max_iter = 4 * (nx + ny) + 8;
+    // Columns crossed before the ray passes the tallest column or reaches
+    // the ground, plus a margin, and never more than the halo's reach (see
+    // RayMap). A ray within 1e-9 of level (phi = pi of an odd n_az gives sz
+    // of 1e-16) is a level ray and gets two rounds of the map.
+    const bool level = (std::abs(sz) < 1.0e-9);
+    const amrex::Real t_max = (sz > 0.0) ? (m.z_max - z) / sz : ((sz < 0.0) ? (z - m.z_ground) / (-sz) : big);
+    const amrex::Real rounds = amrex::Real(2 * ((m.top.end[0] - m.top.begin[0]) + (m.top.end[1] - m.top.begin[1])));
+    const amrex::Real steps = level ? rounds
+                            : amrex::min(t_max * (std::abs(sx) / dx + std::abs(sy) / dy), amrex::Real(m.max_steps));
+    const int max_iter = static_cast<int>(amrex::min(amrex::Real(1.0e9), steps)) + 8;
     for (int it = 0; it < max_iter; ++it) {
-        if (ci < 0 || ci >= nx) {
-            if (!per_x) return (sz >= 0.0) ? RAY_SKY : RAY_GROUND;
-            ci = (ci % nx + nx) % nx;
-        }
-        if (cj < 0 || cj >= ny) {
-            if (!per_y) return (sz >= 0.0) ? RAY_SKY : RAY_GROUND;
-            cj = (cj % ny + ny) % ny;
-        }
-        const amrex::Real top = column_top(col_top, ci, cj, i0, j0, bw, bh, z_ground, dz);
-        const bool solid = (top > z_ground + eps);
+        if (!m.locate(ci, cj)) return (sz >= 0.0) ? RAY_SKY : RAY_GROUND;
+        const amrex::Real top = m.column_top(ci, cj);
+        const bool solid = (top > m.z_ground + eps);
         const amrex::Real t_next = amrex::min(tmx, tmy);
         const amrex::Real z_out  = z0 + t0 * sz + t_next * sz;
         if (sz >= 0.0) {
@@ -351,13 +415,12 @@ int ray_hit (amrex::Real x0, amrex::Real y0, amrex::Real z0,
         } else {
             if (solid && z + eps < top) return RAY_BUILDING;     // entered below the top
             if (solid && z_out < top - eps) return RAY_BUILDING; // descends into it
-            if (z_out <= z_ground + eps) return RAY_GROUND;
+            if (z_out <= m.z_ground + eps) return RAY_GROUND;
         }
-        if (tmx < tmy) { t = tmx; tmx += tdx; ci += stepx; }
-        else           { t = tmy; tmy += tdy; cj += stepy; }
+        if (tmx < tmy) { tmx += tdx; ci += stepx; }
+        else           { tmy += tdy; cj += stepy; }
         z = z_out;
-        if (sz > 0.0 && z >= z_max) return RAY_SKY;
-        if (t > max_path) return (sz >= 0.0) ? RAY_SKY : RAY_GROUND;
+        if (sz > 0.0 && z >= m.z_max) return RAY_SKY;
     }
     return (sz >= 0.0) ? RAY_SKY : RAY_GROUND;
 }
