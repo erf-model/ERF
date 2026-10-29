@@ -314,18 +314,25 @@ ImplicitDiffForStateLU_T (const Box& bx,
 
                 RHS_a(i,j,khi) = detJ(i,j,khi) * cell_data(i,j,khi,n); // NOTE: this is rho*phi; solution is phi
                 if (!at_zhi) {
-                    // Coarse/fine boundary: close the system with the known value above.  The
-                    // countergradient flux then passes through both faces, as it does in the
-                    // interior, rather than only through the lower one.
+                    // Coarse/fine boundary: close the system with the known value above
                     RHS_a(i,j,khi) -= c_tmp * (cell_data(i,j,khi+1,n) / cell_data(i,j,khi+1,Rho_comp));
-                    if (use_mrf_countergradient && (n == RhoTheta_comp || n == RhoQ1_comp)) {
-                        const int gam_comp = (n == RhoTheta_comp) ? EddyDiff::HGAMT_v : EddyDiff::HGAMQ_v;
-                        const Real gam_hi = myhalf * (mu_turb(i, j, khi, gam_comp) + mu_turb(i, j, khi+1, gam_comp));
-                        const Real gam_lo = myhalf * (mu_turb(i, j, khi, gam_comp) + mu_turb(i, j, khi-1, gam_comp));
-                        RHS_a(i,j,khi) -= Fact * (rhoAlpha_hi * gam_hi - rhoAlpha_lo * gam_lo);
-                    }
                 } else if (neumann_on_zhi) {
                     RHS_a(i,j,khi) -= -Fact * rhoAlpha_hi * bc_neumann_vals[5]; // NOTE: N_val = d_z(\phi)
+                }
+
+                // Add countergradient correction to RHS at top boundary.
+                // NOTE: The lower face at khi always carries the countergradient flux, which
+                //       row khi-1 has already taken out of the cell below; without it here
+                //       that flux would leave the column.  The upper face carries it only at
+                //       a coarse/fine boundary -- the domain top is a lid for gamma.
+                if (use_mrf_countergradient && (n == RhoTheta_comp || n == RhoQ1_comp)) {
+                    const int gam_comp = (n == RhoTheta_comp) ? EddyDiff::HGAMT_v : EddyDiff::HGAMQ_v;
+                    const Real gam_lo = myhalf * (mu_turb(i, j, khi, gam_comp) + mu_turb(i, j, khi-1, gam_comp));
+                    RHS_a(i,j,khi) += Fact * rhoAlpha_lo * gam_lo;
+                    if (!at_zhi) {
+                        const Real gam_hi = myhalf * (mu_turb(i, j, khi, gam_comp) + mu_turb(i, j, khi+1, gam_comp));
+                        RHS_a(i,j,khi) -= Fact * rhoAlpha_hi * gam_hi;
+                    }
                 }
 
                 // First solve

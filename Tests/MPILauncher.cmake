@@ -7,8 +7,8 @@
 #     -DMPIEXEC_EXECUTABLE="flux run"
 #     -DMPIEXEC_EXECUTABLE="srun --mpibind=off"
 #
-# The tests that build a shell string (MPI_COMMANDS in CTestList.cmake) cope
-# with those values because `sh -c` re-splits the string. The tests driven
+# The tests that build a shell string (ERF_SH_MPI_LAUNCHER in CTestList.cmake)
+# quote each token from erf_mpi_launcher_tokens() for `sh -c`. The tests driven
 # through `cmake -P` build an argv list for execute_process instead, and
 # execute_process never invokes a shell: a multi-word value used as argv[0] is
 # looked up as one literal file name, so "flux run" fails.

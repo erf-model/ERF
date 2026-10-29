@@ -872,7 +872,7 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
     }
 
     if (solverChoice.io_hurricane_eye_tracker and
-         (nstep == 0 or (m_plot3d_int_1 > 0 and (nstep+1)%m_plot3d_int_1 == 0))) {
+         (nstep == 0 or (m_plot3d_int_1 > 0 and nstep%m_plot3d_int_1 == 0))) {
 
         int levc=finest_level;
 

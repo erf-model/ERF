@@ -1,0 +1,7 @@
+FILE = inputs_base
+
+# Base of the checkpoint legs: the balance prognostic, so the skin temperature
+# and the slab move and a lost or misplaced record would show, and every face
+# dumped at each report so the restart is compared with the straight run face
+# by face (compare_faces.py). The deck that reads this sets the dump prefix.
+erf.ibseb.prognostic = true

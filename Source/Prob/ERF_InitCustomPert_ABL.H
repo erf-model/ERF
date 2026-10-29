@@ -71,15 +71,11 @@
     const bool use_moisture = (sc.moisture_type != MoistureType::None);
     const Real rdOcp        = sc.rdOcp;
 
-    const bool use_eb = (sc.terrain_type == TerrainType::EB);
-    const int klo = geomdata.Domain().smallEnd(2);
     if (KE_decay_height > 0 &&
         state_pert.nComp() > RhoKE_comp) {
         amrex::Print() << "Initial KE profile (order " << KE_decay_order
                        << ") will extend up to " << KE_decay_height
                        << std::endl;
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(klo == bx.smallEnd(2),
-        "Vertical decomposition with KE initialization is not allowed.");
     }
 
 #ifndef AMREX_USE_GPU
@@ -112,11 +108,12 @@
         const Real x = prob_lo_x + (i + myhalf) * dx;
         const Real y = prob_lo_y + (j + myhalf) * dy;
         const Real z = z_cc(i,j,k);
+        const Real z_agl = z - erf_prob_heights::z_ground_cc(i,j,z_sfc_nd); // height above the ground
 
         const Real r  = std::sqrt((x-xc)*(x-xc) + (y-yc)*(y-yc) + (z-zc)*(z-zc));
 
         // Add temperature perturbations
-        if ((z <= pert_ref_height) && (T_0_Pert_Mag != amrex::Real(0))) {
+        if ((z_agl <= pert_ref_height) && (T_0_Pert_Mag != amrex::Real(0))) {
             Real rand_double;
             if (deterministic_ic_pert) {
                 rand_double = erf_hash_rng::hash_uniform(
@@ -151,7 +148,7 @@
         // setting both knobs does perturb rho*theta, and the result is then no
         // longer isobaric.
         if (add_sinusoidal_T) {
-            const Real zl   = z / pert_ref_height;
+            const Real zl   = z_agl / pert_ref_height;
             const Real damp = std::exp(-myhalf * zl * zl);
 
             const Real rho      = state(i,j,k,Rho_comp);
@@ -161,7 +158,7 @@
             const Real Told = getTgivenRandRTh(rho,rhotheta,qv);
             const Real P    = getPgivenRTh(rhotheta,qv);
 
-            const Real Tnew      = Told + tfac * damp * z * std::cos(cval * (x - xc));
+            const Real Tnew      = Told + tfac * damp * z_agl * std::cos(cval * (x - xc));
             const Real theta_new = getThgivenTandP(Tnew,P,rdOcp);
             const Real rho_new   = getRhogivenThetaPress(theta_new,P,rdOcp,qv);
 
@@ -180,11 +177,10 @@
         // KE_decay_height is a depth of turbulence above the ground, so the profile
         // is a function of height above the terrain surface, not of absolute z.  Over
         // terrain higher than KE_decay_height the latter would clamp the decay factor
-        // to its floor at the ground -- exactly backwards.  On a flat mesh with
-        // prob_lo[2] == 0 this reduces to the absolute height, since
-        // init_default_zphys ignores prob_lo[2].  Under EB, z_cc is already measured
-        // from the EB surface, so z_sfc is forced to zero there.  Matches the surface
-        // height used by SurfaceLayer::init_tke_from_ustar.
+        // to its floor at the ground -- exactly backwards.  On a flat mesh this is the
+        // height above geometry.prob_lo[2].  Under EB, z_cc is already measured
+        // from the EB surface, so the ground is at zero there (see z_sfc_nd).  Matches
+        // the surface height used by SurfaceLayer::init_tke_from_ustar.
         if (state_pert.nComp() > RhoKE_comp) {
             // Deardorff
             if (rhoKE_0 > 0) {
@@ -194,10 +190,6 @@
             }
             if (KE_decay_height > 0) {
                 // scale initial SGS kinetic energy with height
-                const Real z_sfc = (use_eb) ? zero :
-                        fourth * ( z_nd(i  ,j  ,klo) + z_nd(i+1,j  ,klo)
-                                 + z_nd(i  ,j+1,klo) + z_nd(i+1,j+1,klo) );
-                const Real z_agl = z_cc(i,j,k) - z_sfc;
                 state_pert(i, j, k, RhoKE_comp) *= amrex::max(
                     std::pow(1 - amrex::min(z_agl/KE_decay_height,amrex::Real(1)), KE_decay_order),
                     amrex::Real(1e-12));
