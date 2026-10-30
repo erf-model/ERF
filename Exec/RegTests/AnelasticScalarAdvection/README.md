@@ -15,7 +15,7 @@ in `erf_slow_rhs_pre` and does not use these momenta, so it serves as a referenc
 |---|---|
 | `inputs_mapfac_anelastic` | Blob in a uniform wind, uniform mesh, `erf.test_mapfactor = true` (m = 0.5), MLMG projection |
 | `inputs_mapfac_compressible` | The same blob with the compressible integrator, no substepping: the reference for the case above |
-| `inputs_fitted` | Blob on a terrain-fitted mesh (`VariableDz`) with flat ground, 12 levels from 20 m stretched by 1.2 |
+| `inputs_fitted` | Blob on a terrain-fitted mesh (`VariableDz`) over a 1e-6 m hill, in effect flat ground, 12 levels from 20 m stretched by 1.2 |
 | `inputs_stretched` | The same blob and stretching without terrain (`StretchedDz`); needs the FFT projection |
 | `inputs_hill` | Uniform scalar and uniform theta in the wind over a 100 m Witch of Agnesi hill, the same stretching |
 | `check_mapfac_parity.py` | Blob centroids on every level against the analytic drift `U t m / dx`, `V t m / dy` and the compressible run |

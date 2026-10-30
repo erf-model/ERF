@@ -1,7 +1,8 @@
 # Anelastic advection of a passive scalar on a stretched terrain-fitted mesh
 # (VariableDz): the blob must move at the wind speed on every level.
-# prob.hmax = 0 keeps the ground flat, so the wind stays uniform, on the terrain-fitted
-# path (without prob.custom_terrain_type ERF would reset a flat mesh to StretchedDz).
+# A hill 1e-6 m high keeps the ground flat for this purpose, so the wind stays uniform, on the
+# terrain-fitted path (without prob.custom_terrain_type ERF would reset a flat mesh to
+# StretchedDz, and prob.hmax = 0 would select a different, 0.5 m high hill).
 # Before the fix the blob moved at U / h_zeta, about 3x too fast in the 20 m bottom level.
 erf.prob_name = "Scalar Advection/Diffusion"
 erf.anelastic = 1
@@ -22,7 +23,7 @@ erf.terrain_smoothing     = 0
 erf.initial_dz            = 20.0
 erf.grid_stretching_ratio = 1.2
 prob.custom_terrain_type  = "WoA"
-prob.hmax                 = 0.0
+prob.hmax                 = 1.0e-6
 prob.L                    = 300.0
 
 # Multigrid needs no FFT build, so this case runs in every CI job
