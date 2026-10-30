@@ -16,6 +16,9 @@ RETIRED_KEYS = {
     "erf.no_substepping": "set erf.substepping_type = None instead",
     "erf.use_wrf_height_grid": "renamed: set erf.wrfinput_zlevels_from_file instead",
     "erf.pbl_mynn_diffuse_moistvars": "removed",
+    # Source-retired, found by build_erf_schema.py (ERF_DampingStruct.H, ERF_IBSEBParams.H)
+    "erf.rayleigh_damp_substep": "deprecated: set erf.rayleigh_damping_type instead",
+    "erf.ibseb.utc_offset_hours": "not an input: the sun follows time_zero_utc_s (UTC) and longitude_deg; remove it",
 }
 RETIRED_VALUES = {
     "erf.init_type": {"real": "WRFInput", "ideal": "WRFInput"},
