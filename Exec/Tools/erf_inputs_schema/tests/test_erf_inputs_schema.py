@@ -162,6 +162,26 @@ class RemovedKeyTests(unittest.TestCase):
         self.assertEqual(fact["type"], "unknown")
         self.assertNotIn("removed_evidence", fact)
 
+    def test_query_greater_than_zero_then_error_is_removed(self):
+        fact = generate()["keys"]["erf.use_terrain"]
+        self.assertEqual((fact["type"], fact["removed_shape"]), ("removed", "query_gt0_error"))
+        self.assertEqual(fact["removed_evidence"], "Source/ERF_Removed.cpp:17")
+
+    def test_countval_greater_than_zero_then_error_is_removed(self):
+        fact = generate()["keys"]["erf.no_substepping"]
+        self.assertEqual((fact["type"], fact["removed_shape"]), ("removed", "countval_gt0_error"))
+
+    def test_contains_guarding_a_typed_read_is_not_removed(self):
+        fact = generate()["keys"]["erf.also_typed"]
+        self.assertEqual(fact["type"], "int")
+        self.assertNotIn("removed_shape", fact)
+
+    def test_removed_wins_over_a_typed_read_elsewhere_and_keeps_both_lines(self):
+        fact = generate()["keys"]["erf.old_knob"]
+        self.assertEqual(fact["type"], "removed")
+        self.assertEqual(fact["removed_evidence"], "Source/ERF_Removed.cpp:5")
+        self.assertEqual(fact["shadowed_reads"], ["Source/ERF_Shadow.cpp:5 int"])
+
 
 if __name__ == "__main__":
     unittest.main()

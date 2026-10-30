@@ -36,6 +36,18 @@
   "source": "Source/ERF_Synthetic.cpp:15",
   "type": "real"
  },
+ "erf.also_typed": {
+  "default": "0",
+  "default_origin": "initializer",
+  "default_source": "Source/ERF_Removed.cpp:22",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Removed.cpp:23"
+  },
+  "required": true,
+  "source": "Source/ERF_Removed.cpp:23",
+  "type": "int"
+ },
  "erf.cfl": {
   "default": "0.8",
   "default_origin": "initializer",
@@ -90,6 +102,19 @@
    "SAM"
   ]
  },
+ "erf.no_substepping": {
+  "default": null,
+  "default_origin": "none",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Removed.cpp:19"
+  },
+  "removed_evidence": "Source/ERF_Removed.cpp:20",
+  "removed_shape": "countval_gt0_error",
+  "required": false,
+  "source": "Source/ERF_Removed.cpp:19",
+  "type": "removed"
+ },
  "erf.nsteps": {
   "default": "10",
   "default_origin": "initializer",
@@ -110,7 +135,11 @@
    "ERF": "Source/ERF_Removed.cpp:4"
   },
   "removed_evidence": "Source/ERF_Removed.cpp:5",
+  "removed_shape": "contains_abort",
   "required": false,
+  "shadowed_reads": [
+   "Source/ERF_Shadow.cpp:5 int"
+  ],
   "source": "Source/ERF_Removed.cpp:4",
   "type": "removed"
  },
@@ -124,6 +153,19 @@
   "required": false,
   "source": "Source/ERF_Removed.cpp:7",
   "type": "unknown"
+ },
+ "erf.use_terrain": {
+  "default": null,
+  "default_origin": "none",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Removed.cpp:16"
+  },
+  "removed_evidence": "Source/ERF_Removed.cpp:17",
+  "removed_shape": "query_gt0_error",
+  "required": false,
+  "source": "Source/ERF_Removed.cpp:16",
+  "type": "removed"
  },
  "erf.widget_on": {
   "default": "false",
