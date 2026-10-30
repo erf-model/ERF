@@ -84,23 +84,51 @@ def enums(files):
     return found
 
 
-def declarations(text, enum_names):
-    """name -> set of schema types declared in this text."""
+def declared(text, enum_names):
+    """(name, schema type, 1-based line) for every declaration in this text, every declarator of a line included."""
     scalar = "|".join(sorted({re.escape(t) for t in CPP_TYPES} | {re.escape(e) for e in enum_names}, key=len,
                              reverse=True))
     rx = re.compile(r"(?<![\w:])(?:(?:amrex::)?(?:Vector|Array|GpuArray)\s*<\s*(" + scalar + r")\s*(?:,\s*\w+\s*)?>"
                     r"|std::vector\s*<\s*(" + scalar + r")\s*>|std::array\s*<\s*(" + scalar + r")\s*,\s*\w+\s*>"
                     r"|(" + scalar + r"))\s+&?\s*(\w+)\s*(?=[;=,\[{()])")
-    out = {}
     for m in rx.finditer(text):
         element = m.group(1) or m.group(2) or m.group(3)
         base = element or m.group(4)
         kind = "enum:" + base if base in enum_names else CPP_TYPES[base]
         if element and not kind.endswith("_list"):
             kind += "_list"
+        line = text.count("\n", 0, m.start()) + 1
         for name in [m.group(5)] + _more_declarators(text, m.end()):
-            out.setdefault(name, set()).add(kind)
+            yield name, kind, line
+
+
+def declarations(text, enum_names):
+    """name -> set of schema types declared in this text."""
+    out = {}
+    for name, kind, _ in declared(text, enum_names):
+        out.setdefault(name, set()).add(kind)
     return out
+
+
+def pick_kind(candidates, method, per_level, line):
+    """One name's kind from its (kind, declaration line) candidates, by the owner's rule of 10-30: keep the kinds the
+    read call takes (a list for the array reads, a scalar otherwise, any for a per-level read), then the nearest
+    declaration before the read; otherwise unknown."""
+    kinds = {k for k, _ in candidates}
+    if len(kinds) == 1:
+        return next(iter(kinds))
+    if not per_level:
+        want_list = method in LIST_METHODS
+        candidates = [(k, ln) for k, ln in candidates if k.endswith("_list") == want_list]
+        if len({k for k, _ in candidates}) == 1:
+            return candidates[0][0]
+    before = [(ln, k) for k, ln in candidates if ln <= line]
+    if before:
+        nearest = max(ln for ln, _ in before)
+        at = {k for ln, k in before if ln == nearest}
+        if len(at) == 1:
+            return next(iter(at))
+    return "unknown"
 
 
 def _more_declarators(text, pos):
@@ -188,13 +216,15 @@ class FileScan:
         self.text = strip_comments(path.read_text(errors="replace"))
         self.lines = self.text.split("\n")
         self.conds = conditions(self.lines)
-        self.local = declarations(self.text, enum_names)
+        self.local = {}                                    # name -> [(kind, declaration line)]
+        for name, kind, line in declared(self.text, enum_names):
+            self.local.setdefault(name, []).append((kind, line))
         header = path.with_suffix(".H")
         self.header_rel = self.rel[:-len(path.suffix)] + ".H"
         if path.suffix == ".cpp" and header.exists():          # a .cpp's own header is local scope too
             self.header_text = strip_comments(header.read_text(errors="replace"))
-            for name, kinds in declarations(self.header_text, enum_names).items():
-                self.local.setdefault(name, set()).update(kinds)
+            for name, kind, _ in declared(self.header_text, enum_names):
+                self.local.setdefault(name, []).append((kind, 0))     # declared before any line of the .cpp
         else:
             self.header_text = ""
         self.offsets = [0]
@@ -223,12 +253,13 @@ class FileScan:
         p = resolve_prefix(expr)
         return ([p], None) if p is not None else (None, None)
 
-    def kind_of(self, name):
-        for table in (self.local, self.global_decls):
-            kinds = table.get(name, set())
-            if len(kinds) == 1:
-                return next(iter(kinds))
-        return "unknown"
+    def kind_of(self, name, method="query", line=0, per_level=False):
+        """The kind of the variable a read fills: its declarations in this file (pick_kind), else the one kind it has
+        across ERF, else unknown."""
+        if name in self.local:
+            return pick_kind(self.local[name], method, per_level, line)
+        kinds = self.global_decls.get(name, set())
+        return next(iter(kinds)) if len(kinds) == 1 else "unknown"
 
     def names(self, arg):
         if arg.startswith('"'):
@@ -252,12 +283,12 @@ class FileScan:
                 out.append((m.start(), "__erf__", "read_int_string", m.group(1), None, True))
         return out
 
-    def kind(self, method, target, per_level):
+    def kind(self, method, target, per_level, line=0):
         if method == "read_int_string":
             return "int"
         if method in ("contains", "countval"):
             return "unknown"                                 # a presence read; a typed read of the same key wins
-        kind = self.kind_of(target_name(target))
+        kind = self.kind_of(target_name(target), method, line, per_level)
         if per_level and kind.endswith("_list"):
             kind = kind[:-5]
         if method in LIST_METHODS and not kind.endswith("_list") and kind != "unknown":
@@ -294,7 +325,7 @@ class FileScan:
                 if is_pp:                                    # only ParmParse objects; not maps, NetCDF handles, etc.
                     unresolved.append(f"{self.rel}:{line + 1} {var}.{key}")
                 continue
-            fact = {"type": self.kind(method, target, per_level), "source": f"{self.rel}:{line + 1}"}
+            fact = {"type": self.kind(method, target, per_level, line + 1), "source": f"{self.rel}:{line + 1}"}
             if per_level:
                 fact["per_level"] = True
             if "enum" in method:
