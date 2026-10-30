@@ -23,8 +23,10 @@
     Real pert_deltaT = zero; pp_prob.query("pert_deltaT", pert_deltaT);
     Real pert_deltaQV = zero; pp_prob.query("pert_deltaQV", pert_deltaQV);
 
-    Real pert_periods_T = zero; pp_prob.query("pert_periods_T", pert_periods_T);
-    Real pert_periods_QV = zero; pp_prob.query("pert_periods_QV", pert_periods_QV);
+    // The periods default to 5, as pert_periods_U/V do: a zero period would make
+    //    cos(cval*(x-xc)) identically one, a uniform bias rather than a zero-mean wave
+    Real pert_periods_T = amrex::Real(5.0); pp_prob.query("pert_periods_T", pert_periods_T);
+    Real pert_periods_QV = amrex::Real(5.0); pp_prob.query("pert_periods_QV", pert_periods_QV);
 
     Real prob_lo_x = geomdata.ProbLo(0);
     Real prob_hi_x = geomdata.ProbHi(0);
