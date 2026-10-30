@@ -653,62 +653,54 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
         erf_auxiliary::MappedFaceFluxRate mapped_carrier;
         mapped_carrier.define(cell_ba, cell_dm, 1, 0);
         std::string sbm_diagnostic;
-        if (l_anelastic) {
-            // Projection restores rho0*w before the anelastic stage seam, so
-            // the donor estimate must use the same three momentum carriers.
-            // Terrain Omega is only an internal projection representation.
-            if (!erf_auxiliary::CopyNativeMappedDryAirCarrierFluxRate(
-                    mapped_carrier, rho_u, rho_v, rho_w, sbm_diagnostic)) {
-                amrex::Abort("SBM anelastic native carrier: " + sbm_diagnostic);
-            }
-        } else {
-            MultiFab sbm_vertical_carrier(zface_ba, cell_dm, 1, 0);
-            const bool terrain_fitted =
-                solverChoice.mesh_type == MeshType::VariableDz;
-            const int zlo = geom[level].Domain().smallEnd(2);
-            const int zhi = geom[level].Domain().bigEnd(2);
-            const auto inv_dx = geom[level].InvCellSizeArray();
-            const MultiFab& z_nd = *z_phys_nd[level];
-            const MultiFab& mf_ux = *mapfac[level][MapFacType::u_x];
-            const MultiFab& mf_vy = *mapfac[level][MapFacType::v_y];
-            for (MFIter mfi(sbm_vertical_carrier, TilingIfNotGPU());
-                 mfi.isValid(); ++mfi) {
-                const Box bx = mfi.tilebox();
-                const auto ru = rho_u.const_array(mfi);
-                const auto rv = rho_v.const_array(mfi);
-                const auto rw = rho_w.const_array(mfi);
-                const auto ux = mf_ux.const_array(mfi);
-                const auto vy = mf_vy.const_array(mfi);
-                const auto z = z_nd.const_array(mfi);
-                const auto out = sbm_vertical_carrier.array(mfi);
-                const bool fitted = terrain_fitted;
-                const int bottom = zlo;
-                const int top = zhi + 1;
-                const auto dx = inv_dx;
-                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                    if (!fitted) {
-                        out(i, j, k, 0) = rw(i, j, k, 0);
-                    } else if (k == bottom) {
-                        out(i, j, k, 0) = Real(0.0);
-                    } else if (k == top) {
-                        out(i, j, k, 0) = rw(i, j, k, 0);
-                    } else {
-                        out(i, j, k, 0) = OmegaFromW(i, j, k, rw(i, j, k, 0),
-                                                      ru, rv, ux, vy, z, dx);
-                    }
-                });
-            }
-            const bool carrier_ok =
-                erf_auxiliary::BuildMappedDryAirCarrierFluxRate(
-                    mapped_carrier, rho_u, rho_v, sbm_vertical_carrier,
-                    *ax[level], *ay[level], *az[level],
-                    *mapfac[level][MapFacType::u_y],
-                    *mapfac[level][MapFacType::v_x],
-                    *mapfac[level][MapFacType::m_x],
-                    *mapfac[level][MapFacType::m_y], sbm_diagnostic);
-            if (!carrier_ok) {
-                Abort("SBM M3 current mapped carrier: " + sbm_diagnostic);
-            }
+        // The same mapped carrier for both integrators: erf_slow_rhs_post gives the anelastic
+        // transport these faces too, with Omega rebuilt from the projected rho w
+        MultiFab sbm_vertical_carrier(zface_ba, cell_dm, 1, 0);
+        const bool terrain_fitted =
+            solverChoice.mesh_type == MeshType::VariableDz;
+        const int zlo = geom[level].Domain().smallEnd(2);
+        const int zhi = geom[level].Domain().bigEnd(2);
+        const auto inv_dx = geom[level].InvCellSizeArray();
+        const MultiFab& z_nd = *z_phys_nd[level];
+        const MultiFab& mf_ux = *mapfac[level][MapFacType::u_x];
+        const MultiFab& mf_vy = *mapfac[level][MapFacType::v_y];
+        for (MFIter mfi(sbm_vertical_carrier, TilingIfNotGPU());
+             mfi.isValid(); ++mfi) {
+            const Box bx = mfi.tilebox();
+            const auto ru = rho_u.const_array(mfi);
+            const auto rv = rho_v.const_array(mfi);
+            const auto rw = rho_w.const_array(mfi);
+            const auto ux = mf_ux.const_array(mfi);
+            const auto vy = mf_vy.const_array(mfi);
+            const auto z = z_nd.const_array(mfi);
+            const auto out = sbm_vertical_carrier.array(mfi);
+            const bool fitted = terrain_fitted;
+            const int bottom = zlo;
+            const int top = zhi + 1;
+            const auto dx = inv_dx;
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                if (!fitted) {
+                    out(i, j, k, 0) = rw(i, j, k, 0);
+                } else if (k == bottom) {
+                    out(i, j, k, 0) = Real(0.0);
+                } else if (k == top) {
+                    out(i, j, k, 0) = rw(i, j, k, 0);
+                } else {
+                    out(i, j, k, 0) = OmegaFromW(i, j, k, rw(i, j, k, 0),
+                                                  ru, rv, ux, vy, z, dx);
+                }
+            });
+        }
+        const bool carrier_ok =
+            erf_auxiliary::BuildMappedDryAirCarrierFluxRate(
+                mapped_carrier, rho_u, rho_v, sbm_vertical_carrier,
+                *ax[level], *ay[level], *az[level],
+                *mapfac[level][MapFacType::u_y],
+                *mapfac[level][MapFacType::v_x],
+                *mapfac[level][MapFacType::m_x],
+                *mapfac[level][MapFacType::m_y], sbm_diagnostic);
+        if (!carrier_ok) {
+            Abort("SBM M3 current mapped carrier: " + sbm_diagnostic);
         }
 
         if (sbm_transport == nullptr || !sbm_transport->is_defined(level) ||
