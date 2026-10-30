@@ -145,7 +145,7 @@ def _more_declarators(text, pos):
         elif c == ";" and depth == 0:
             return names
         elif c == "," and depth == 0:
-            m = re.match(r"\s*&?\s*(\w+)\s*(?=[=;,\[{])", text[i + 1:])
+            m = re.match(r"\s*&?\s*(\w+)\s*(?=[=;,\[{(])", text[i + 1:])
             if not m:
                 return names
             names.append(m.group(1))
@@ -354,9 +354,16 @@ class FileScan:
             self._retired = {}
             for shape, rx in RETIRED_SHAPES:
                 for m in rx.finditer(self.text):
+                    if shape == "contains_abort" and _body_reads(self.text, m.end(), m.group(2)):
+                        continue                         # read and mapped (AMReX's nosub): accepted, not removed
                     line = _abort_line(self.text, m.end())
                     if line:
                         self._retired[(m.group(1), m.group(2), self.line_of(m.start()))] = (shape, line)
+            for m in RETIRED_VIA_VARIABLE.finditer(self.text):
+                line = _abort_line(self.text, m.end())
+                if line:
+                    shape = f"{m.group(3)}_var_gt0_error"
+                    self._retired[(m.group(2), m.group(4), self.line_of(m.start()))] = (shape, line)
         return self._retired
 
 
@@ -365,7 +372,16 @@ RETIRED_SHAPES = (
     ("query_gt0_error", re.compile(r'\bif\s*\(\s*(\w+)\s*\.\s*query\s*\(\s*"([^"]+)"\s*,[^()]*\)\s*>\s*0\s*\)')),
     ("countval_gt0_error", re.compile(r'\bif\s*\(\s*(\w+)\s*\.\s*countval\s*\(\s*"([^"]+)"\s*\)\s*>\s*0\s*\)')),
 )
+# int n = pp.countval(k); if (n > 0) Error(...)   (ERF_DataStruct.H's no_substepping)
+RETIRED_VIA_VARIABLE = re.compile(r'\b(?:int|long|auto)\s+(\w+)\s*=\s*(\w+)\s*\.\s*(countval|query)\s*\(\s*"([^"]+)"'
+                                  r'[^;]*;\s*if\s*\(\s*\1\s*>\s*0\s*\)')
 ABORT = re.compile(r"\b(?:amrex::)?(?:Abort|Error)\s*\(")
+
+
+def _body_reads(text, pos, key):
+    """Does the if() body at pos read key with a typed query (so the key is mapped, not refused)?"""
+    body, _ = _if_body(text, pos)
+    return bool(re.search(r"\.\s*(?:" + "|".join(METHODS) + r')\s*\(\s*"' + re.escape(key) + '"', body))
 
 
 def _if_body(text, pos):
@@ -391,12 +407,13 @@ def _abort_line(text, pos):
 
 def _initializer(name, text, before_line):
     """(raw initializer, 1-based line) of the last declaration of name before before_line (any line if None)."""
-    rx = re.compile(r"(?:[\w>]\s+|,\s*)&?\s*" + re.escape(name) + r"\s*(?:=\s*([^;,{}]+?)|\{\s*([^{}]*?)\s*\})\s*[;,]")
+    rx = re.compile(r"(?:[\w>]\s+|,\s*)&?\s*" + re.escape(name) +
+                    r"\s*(?:=\s*([^;,{}]+?)|\{\s*([^{}]*?)\s*\}|\(\s*([^()]*?)\s*\))\s*[;,]")
     best = None
     for m in rx.finditer(text):
         at = text.count("\n", 0, m.start()) + 1
         if before_line is None or at <= before_line + 1:
-            best = ((m.group(1) if m.group(1) is not None else m.group(2)).strip(), at)
+            best = (next(g for g in m.groups() if g is not None).strip(), at)
     return best
 
 
