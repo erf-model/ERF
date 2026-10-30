@@ -563,12 +563,13 @@ struct surface_flux
         amrex::Real zref  = zref_arr(i,j,k);
         amrex::Real C     = std::log(zref / z0_arr(i,j,k));
         amrex::Real zeta_fold = sfuns.calc_zeta_fold(C);
+        bool at_fold = false;
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
         if (u_star_arr(i,j,k) == bogus_large_value) {
-            u_star_arr(i,j,k) = mdata.kappa * umm / C;
+            u_star_arr(i,j,k) = mdata.kappa * umm / most_bracket(C, zero);
         } else {
             Olen  = olen_arr(i,j,k);
-            zeta  = amrex::max(amrex::min(zref / Olen, zeta_fold), -amrex::Real(100.0));
+            zeta  = most_clamp_zeta(zref / Olen, zeta_fold, at_fold);
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
         }
@@ -593,9 +594,8 @@ struct surface_flux
              amrex::Real ustar_floor = amrex::max(ustar, USTARMIN);
             Olen  = -ustar_floor * ustar_floor * ustar_floor * tvm_arr(i,j,k) /
                     (mdata.kappa * mdata.gravity * tflux);
-            zeta  = zref / Olen;
             // Stable side bounded at the fold, where the prescribed flux stops having a solution
-            zeta  = amrex::max(amrex::min(zeta, zeta_fold), -amrex::Real(100.0));
+            zeta  = most_clamp_zeta(zref / Olen, zeta_fold, at_fold);
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
             //u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(zref / z0_arr(i,j,k)) - psi_m);
@@ -605,29 +605,17 @@ struct surface_flux
             }
             ++iter;
             u_star_arr(i,j,k) = accel.update(u_star_arr(i,j,k), iter);
-        } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+        } while ((accel.extrapolated || std::abs(u_star_arr(i,j,k) - ustar) > tol) &&
+                 iter <= max_iters);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter <= max_iters,
                                          "Maximum number of MOST iterations reached.");
 
-        // Below the fold the wind cannot carry the prescribed flux: apply the flux it carries
+        // Populate the stored MOST arrays; below the fold, apply the flux the wind can carry
         amrex::Real ustar_final = amrex::max(u_star_arr(i,j,k), USTARMIN);
-        amrex::Real flux_scale  = most_fold_flux_scale(zeta, zeta_fold, ustar_final, tvm_arr(i,j,k), tflux,
-                                                       mdata.kappa, mdata.gravity, zref);
-        if (flux_scale < one) { Olen = zref / zeta_fold; }
-        amrex::Real CmPsih = most_bracket(C, psi_h);
-
-        // Populate the stored MOST arrays
+        most_flux_outputs(mdata, spec_qflux, at_fold, zeta_fold, C, psi_h, ustar_final, zref,
+                          tm_arr(i,j,k), tvm_arr(i,j,k), qvm_arr(i,j,k), qflux, Olen,
+                          t_surf_arr(i,j,k), t_star_arr(i,j,k), q_surf_arr(i,j,k), q_star_arr(i,j,k));
         olen_arr(i,j,k)   = Olen;
-        t_surf_arr(i,j,k) = flux_scale * mdata.surf_temp_flux * CmPsih /
-                            (ustar_final * mdata.kappa) + tm_arr(i,j,k);
-        t_star_arr(i,j,k) = -flux_scale * mdata.surf_temp_flux / ustar_final;
-        if (spec_qflux) {
-            q_surf_arr(i,j,k) = flux_scale * mdata.surf_moist_flux * CmPsih /
-                                (ustar_final * mdata.kappa) + qvm_arr(i,j,k);
-            q_star_arr(i,j,k) = -flux_scale * mdata.surf_moist_flux / ustar_final;
-        } else {
-            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) / CmPsih;
-        }
     }
 
 private:
@@ -715,12 +703,13 @@ struct surface_flux_charnock
         amrex::Real zref  = zref_arr(i,j,k);
         amrex::Real C     = std::log(zref / z0_arr(i,j,k));
         amrex::Real zeta_fold = sfuns.calc_zeta_fold(C);
+        bool at_fold = false;
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
         if (u_star_arr(i,j,k) == bogus_large_value) {
-            u_star_arr(i,j,k) = mdata.kappa * umm / C;
+            u_star_arr(i,j,k) = mdata.kappa * umm / most_bracket(C, zero);
         } else {
             Olen  = olen_arr(i,j,k);
-            zeta  = amrex::max(amrex::min(zref / Olen, zeta_fold), -amrex::Real(100.0));
+            zeta  = most_clamp_zeta(zref / Olen, zeta_fold, at_fold);
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
         }
@@ -751,7 +740,7 @@ struct surface_flux_charnock
             }
             Olen  = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
             // Stable side bounded at the fold, where the prescribed flux stops having a solution
-            zeta  = amrex::max(amrex::min(zref / Olen, zeta_fold), -amrex::Real(100.0));
+            zeta  = most_clamp_zeta(zref / Olen, zeta_fold, at_fold);
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
             {
@@ -760,29 +749,17 @@ struct surface_flux_charnock
             }
             ++iter;
             u_star_arr(i,j,k) = accel.update(u_star_arr(i,j,k), iter);
-        } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+        } while ((accel.extrapolated || std::abs(u_star_arr(i,j,k) - ustar) > tol) &&
+                 iter <= max_iters);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter <= max_iters,
                                          "Maximum number of MOST iterations reached.");
 
-        // Below the fold the wind cannot carry the prescribed flux: apply the flux it carries
-        amrex::Real flux_scale = most_fold_flux_scale(zeta, zeta_fold, u_star_arr(i,j,k), tvm_arr(i,j,k), tflux,
-                                                      mdata.kappa, mdata.gravity, zref);
-        if (flux_scale < one) { Olen = zref / zeta_fold; }
-        amrex::Real CmPsih = most_bracket(C, psi_h);
-
-        // Populate the stored MOST arrays
+        // Populate the stored MOST arrays; below the fold, apply the flux the wind can carry
         z0_arr(i,j,k)     = z0;
+        most_flux_outputs(mdata, spec_qflux, at_fold, zeta_fold, C, psi_h, u_star_arr(i,j,k), zref,
+                          tm_arr(i,j,k), tvm_arr(i,j,k), qvm_arr(i,j,k), qflux, Olen,
+                          t_surf_arr(i,j,k), t_star_arr(i,j,k), q_surf_arr(i,j,k), q_star_arr(i,j,k));
         olen_arr(i,j,k)   = Olen;
-        t_surf_arr(i,j,k) = flux_scale * mdata.surf_temp_flux * CmPsih /
-                            (u_star_arr(i,j,k) * mdata.kappa) + tm_arr(i,j,k);
-        t_star_arr(i,j,k) = -flux_scale * mdata.surf_temp_flux / u_star_arr(i,j,k);
-        if (spec_qflux) {
-            q_surf_arr(i,j,k) = flux_scale * mdata.surf_moist_flux * CmPsih /
-                                (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
-            q_star_arr(i,j,k) = -flux_scale * mdata.surf_moist_flux / u_star_arr(i,j,k);
-        } else {
-            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) / CmPsih;
-        }
     }
 
 private:
@@ -869,12 +846,13 @@ struct surface_flux_mod_charnock
         amrex::Real zref  = zref_arr(i,j,k);
         amrex::Real C     = std::log(zref / z0_arr(i,j,k));
         amrex::Real zeta_fold = sfuns.calc_zeta_fold(C);
+        bool at_fold = false;
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
         if (u_star_arr(i,j,k) == bogus_large_value) {
-            u_star_arr(i,j,k) = mdata.kappa * umm / C;
+            u_star_arr(i,j,k) = mdata.kappa * umm / most_bracket(C, zero);
         } else {
             Olen  = olen_arr(i,j,k);
-            zeta  = amrex::max(amrex::min(zref / Olen, zeta_fold), -amrex::Real(100.0));
+            zeta  = most_clamp_zeta(zref / Olen, zeta_fold, at_fold);
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
         }
@@ -897,7 +875,7 @@ struct surface_flux_mod_charnock
             }
             Olen  = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
             // Stable side bounded at the fold, where the prescribed flux stops having a solution
-            zeta  = amrex::max(amrex::min(zref / Olen, zeta_fold), -amrex::Real(100.0));
+            zeta  = most_clamp_zeta(zref / Olen, zeta_fold, at_fold);
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
             {
@@ -906,29 +884,17 @@ struct surface_flux_mod_charnock
             }
             ++iter;
             u_star_arr(i,j,k) = accel.update(u_star_arr(i,j,k), iter);
-        } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+        } while ((accel.extrapolated || std::abs(u_star_arr(i,j,k) - ustar) > tol) &&
+                 iter <= max_iters);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter <= max_iters,
                                          "Maximum number of MOST iterations reached.");
 
-        // Below the fold the wind cannot carry the prescribed flux: apply the flux it carries
-        amrex::Real flux_scale = most_fold_flux_scale(zeta, zeta_fold, u_star_arr(i,j,k), tvm_arr(i,j,k), tflux,
-                                                      mdata.kappa, mdata.gravity, zref);
-        if (flux_scale < one) { Olen = zref / zeta_fold; }
-        amrex::Real CmPsih = most_bracket(C, psi_h);
-
-        // Populate the stored MOST arrays
+        // Populate the stored MOST arrays; below the fold, apply the flux the wind can carry
         z0_arr(i,j,k)     = z0;
+        most_flux_outputs(mdata, spec_qflux, at_fold, zeta_fold, C, psi_h, u_star_arr(i,j,k), zref,
+                          tm_arr(i,j,k), tvm_arr(i,j,k), qvm_arr(i,j,k), qflux, Olen,
+                          t_surf_arr(i,j,k), t_star_arr(i,j,k), q_surf_arr(i,j,k), q_star_arr(i,j,k));
         olen_arr(i,j,k)   = Olen;
-        t_surf_arr(i,j,k) = flux_scale * mdata.surf_temp_flux * CmPsih /
-                            (u_star_arr(i,j,k) * mdata.kappa) + tm_arr(i,j,k);
-        t_star_arr(i,j,k) = -flux_scale * mdata.surf_temp_flux / u_star_arr(i,j,k);
-        if (spec_qflux) {
-            q_surf_arr(i,j,k) = flux_scale * mdata.surf_moist_flux * CmPsih /
-                                (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
-            q_star_arr(i,j,k) = -flux_scale * mdata.surf_moist_flux / u_star_arr(i,j,k);
-        } else {
-            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) / CmPsih;
-        }
     }
 
 private:
@@ -1011,12 +977,13 @@ struct surface_flux_donelan
         amrex::Real zref  = zref_arr(i,j,k);
         amrex::Real C     = std::log(zref / z0_arr(i,j,k));
         amrex::Real zeta_fold = sfuns.calc_zeta_fold(C);
+        bool at_fold = false;
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
         if (u_star_arr(i,j,k) == bogus_large_value) {
-            u_star_arr(i,j,k) = mdata.kappa * umm / C;
+            u_star_arr(i,j,k) = mdata.kappa * umm / most_bracket(C, zero);
         } else {
             Olen  = olen_arr(i,j,k);
-            zeta  = amrex::max(amrex::min(zref / Olen, zeta_fold), -amrex::Real(100.0));
+            zeta  = most_clamp_zeta(zref / Olen, zeta_fold, at_fold);
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
         }
@@ -1040,7 +1007,7 @@ struct surface_flux_donelan
             }
             Olen  = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
             // Stable side bounded at the fold, where the prescribed flux stops having a solution
-            zeta  = amrex::max(amrex::min(zref / Olen, zeta_fold), -amrex::Real(100.0));
+            zeta  = most_clamp_zeta(zref / Olen, zeta_fold, at_fold);
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
             {
@@ -1049,29 +1016,17 @@ struct surface_flux_donelan
             }
             ++iter;
             u_star_arr(i,j,k) = accel.update(u_star_arr(i,j,k), iter);
-        } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+        } while ((accel.extrapolated || std::abs(u_star_arr(i,j,k) - ustar) > tol) &&
+                 iter <= max_iters);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter <= max_iters,
                                          "Maximum number of MOST iterations reached.");
 
-        // Below the fold the wind cannot carry the prescribed flux: apply the flux it carries
-        amrex::Real flux_scale = most_fold_flux_scale(zeta, zeta_fold, u_star_arr(i,j,k), tvm_arr(i,j,k), tflux,
-                                                      mdata.kappa, mdata.gravity, zref);
-        if (flux_scale < one) { Olen = zref / zeta_fold; }
-        amrex::Real CmPsih = most_bracket(C, psi_h);
-
-        // Populate the stored MOST arrays
+        // Populate the stored MOST arrays; below the fold, apply the flux the wind can carry
         z0_arr(i,j,k)     = z0;
+        most_flux_outputs(mdata, spec_qflux, at_fold, zeta_fold, C, psi_h, u_star_arr(i,j,k), zref,
+                          tm_arr(i,j,k), tvm_arr(i,j,k), qvm_arr(i,j,k), qflux, Olen,
+                          t_surf_arr(i,j,k), t_star_arr(i,j,k), q_surf_arr(i,j,k), q_star_arr(i,j,k));
         olen_arr(i,j,k)   = Olen;
-        t_surf_arr(i,j,k) = flux_scale * mdata.surf_temp_flux * CmPsih /
-                            (u_star_arr(i,j,k) * mdata.kappa) + tm_arr(i,j,k);
-        t_star_arr(i,j,k) = -flux_scale * mdata.surf_temp_flux / u_star_arr(i,j,k);
-        if (spec_qflux) {
-            q_surf_arr(i,j,k) = flux_scale * mdata.surf_moist_flux * CmPsih /
-                                (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
-            q_star_arr(i,j,k) = -flux_scale * mdata.surf_moist_flux / u_star_arr(i,j,k);
-        } else {
-            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) / CmPsih;
-        }
     }
 
 private:
@@ -1154,12 +1109,13 @@ struct surface_flux_wave_coupled
         amrex::Real zref  = zref_arr(i,j,k);
         amrex::Real C     = std::log(zref / z0_arr(i,j,k));
         amrex::Real zeta_fold = sfuns.calc_zeta_fold(C);
+        bool at_fold = false;
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
         if (u_star_arr(i,j,k) == bogus_large_value) {
-            u_star_arr(i,j,k) = mdata.kappa * umm / C;
+            u_star_arr(i,j,k) = mdata.kappa * umm / most_bracket(C, zero);
         } else {
             Olen  = olen_arr(i,j,k);
-            zeta  = amrex::max(amrex::min(zref / Olen, zeta_fold), -amrex::Real(100.0));
+            zeta  = most_clamp_zeta(zref / Olen, zeta_fold, at_fold);
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
         }
@@ -1184,7 +1140,7 @@ struct surface_flux_wave_coupled
             }
             Olen  = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
             // Stable side bounded at the fold, where the prescribed flux stops having a solution
-            zeta  = amrex::max(amrex::min(zref / Olen, zeta_fold), -amrex::Real(100.0));
+            zeta  = most_clamp_zeta(zref / Olen, zeta_fold, at_fold);
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
             {
@@ -1193,29 +1149,17 @@ struct surface_flux_wave_coupled
             }
             ++iter;
             u_star_arr(i,j,k) = accel.update(u_star_arr(i,j,k), iter);
-        } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
+        } while ((accel.extrapolated || std::abs(u_star_arr(i,j,k) - ustar) > tol) &&
+                 iter <= max_iters);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter <= max_iters,
                                          "Maximum number of MOST iterations reached.");
 
-        // Below the fold the wind cannot carry the prescribed flux: apply the flux it carries
-        amrex::Real flux_scale = most_fold_flux_scale(zeta, zeta_fold, u_star_arr(i,j,k), tvm_arr(i,j,k), tflux,
-                                                      mdata.kappa, mdata.gravity, zref);
-        if (flux_scale < one) { Olen = zref / zeta_fold; }
-        amrex::Real CmPsih = most_bracket(C, psi_h);
-
-        // Populate the stored MOST arrays
+        // Populate the stored MOST arrays; below the fold, apply the flux the wind can carry
         z0_arr(i,j,k)     = z0;
+        most_flux_outputs(mdata, spec_qflux, at_fold, zeta_fold, C, psi_h, u_star_arr(i,j,k), zref,
+                          tm_arr(i,j,k), tvm_arr(i,j,k), qvm_arr(i,j,k), qflux, Olen,
+                          t_surf_arr(i,j,k), t_star_arr(i,j,k), q_surf_arr(i,j,k), q_star_arr(i,j,k));
         olen_arr(i,j,k)   = Olen;
-        t_surf_arr(i,j,k) = flux_scale * mdata.surf_temp_flux * CmPsih /
-                            (u_star_arr(i,j,k) * mdata.kappa) + tm_arr(i,j,k);
-        t_star_arr(i,j,k) = -flux_scale * mdata.surf_temp_flux / u_star_arr(i,j,k);
-        if (spec_qflux) {
-            q_surf_arr(i,j,k) = flux_scale * mdata.surf_moist_flux * CmPsih /
-                                (u_star_arr(i,j,k) * mdata.kappa) + qvm_arr(i,j,k);
-            q_star_arr(i,j,k) = -flux_scale * mdata.surf_moist_flux / u_star_arr(i,j,k);
-        } else {
-            q_star_arr(i,j,k) = mdata.kappa * (qvm_arr(i,j,k) - q_surf_arr(i,j,k)) / CmPsih;
-        }
     }
 
 private:

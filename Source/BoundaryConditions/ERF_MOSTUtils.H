@@ -32,6 +32,33 @@ public:
 
 
 /**
+ * Lower bound of the log-law bracket ln(zref/z0) - psi of the MOST flux kernels: C/2 held
+ * between 1/2 and 1.
+ *
+ * The bound is 1 for zref >= e^2 z0 and C/2 down to zref = e z0, so it does not exceed the
+ * neutral bracket C wherever zref >= e^(1/2) z0. The lower limit of 1/2 keeps the bracket,
+ * and so u*, positive and finite when z0 approaches or exceeds zref (C <= 0).
+ *
+ * The bound is set by the under-relaxed u* iteration, not by the physics. At an unstable
+ * fixed point the relaxed map has slope (1 - alpha) - alpha s / bracket, with
+ * s = -3 (z/L) dpsi_m/d(z/L) between 1.3 (z/L = -0.5) and 2.4 (z/L = -50) for Businger-Dyer.
+ * With alpha = 0.5 the iteration converges only for bracket > s/3 (0.4 to 0.8), so a bound of
+ * 1 keeps the switch between the bounded and free branches inside the convergent range, while
+ * 0.1 C (0.3 at C = 3) does not and the iteration oscillates between two values. If alpha
+ * changes, the bound needs revisiting; see PR #4866.
+ *
+ * @param[in] C ln(zref/z0)
+ */
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+most_bracket_floor (amrex::Real C)
+{
+    return amrex::max(amrex::min(amrex::Real(0.5) * C, amrex::Real(1.0)), amrex::Real(0.5));
+}
+
+
+/**
  * Structure of similarity functions for Moeng formulation
  */
 struct similarity_funs
@@ -183,10 +210,12 @@ struct similarity_funs
      * Stable z/L at which the prescribed-flux problem folds.
      *
      * With the Businger-Dyer psi_m = -beta_m z/L and L fixed by u* and the flux, the wind a
-     * given u* supports, u* (C - psi_m) / kappa, is smallest at z/L = C / (2 beta_m); below
+     * given u* supports is u* max(C - psi_m, b) / kappa, with b = most_bracket_floor(C). For
+     * C > 0 it is smallest at z/L = C / (2 beta_m); for small or negative C (z0 near or above
+     * zref) the floor binds first and the minimum is at the kink z/L = (b - C) / beta_m. Below
      * that wind the prescribed stable flux has no solution (Basu et al., BLM 2008). The
      * physical (large u*) branch has z/L below this value, so bounding z/L by it leaves every
-     * point that has a solution unchanged.
+     * point that has a solution unchanged. The result is positive for every C.
      *
      * @param[in] C ln(zref/z0)
      */
@@ -195,7 +224,7 @@ struct similarity_funs
     amrex::Real
     calc_zeta_fold (amrex::Real C) const
     {
-        return C / (two * beta_m);
+        return amrex::max(C / (two * beta_m), (most_bracket_floor(C) - C) / beta_m);
     }
 
 private:
@@ -207,12 +236,13 @@ private:
 
 
 /**
- * Log-law bracket ln(zref/z0) - psi of the MOST flux kernels, held at or above min(C/2, 1).
+ * Log-law bracket ln(zref/z0) - psi of the MOST flux kernels, held at or above
+ * most_bracket_floor(C).
  *
  * In strongly unstable air psi exceeds C = ln(zref/z0) and the bracket changes sign, which
  * turns u* negative and puts the diagnosed surface temperature on the wrong side of the air
- * for a prescribed flux. The floor is 1 for zref >= e^2 z0 and C/2 below, so it never exceeds
- * the neutral bracket C. Smaller floors (e.g. 0.1 C) let the relaxed iterations oscillate.
+ * for a prescribed flux. With the floor the bracket is at least 1/2, so u* stays positive and
+ * finite for every C.
  *
  * @param[in] C   ln(zref/z0)
  * @param[in] psi stability correction (momentum or heat)
@@ -222,35 +252,132 @@ AMREX_FORCE_INLINE
 amrex::Real
 most_bracket (amrex::Real C, amrex::Real psi)
 {
-    return amrex::max(C - psi, amrex::min(myhalf * C, one));
+    return amrex::max(C - psi, most_bracket_floor(C));
 }
 
 /**
- * Fraction of a prescribed stable heat flux the wind can carry.
+ * z/L of the prescribed-flux kernels, bounded below by -100 and above by the fold (see
+ * similarity_funs::calc_zeta_fold), where the prescribed stable flux stops having a solution.
  *
- * When z/L is held at the fold (see similarity_funs::calc_zeta_fold), the wind is below the
- * minimum the prescribed flux needs; the flux that u* supports at the fold is
- * -u*^3 thv zeta_fold / (kappa g zref). Returns 1 everywhere else.
- *
- * @param[in] zeta      z/L used by the kernel (already bounded by zeta_fold)
- * @param[in] zeta_fold z/L at the fold
- * @param[in] ustar     friction velocity
- * @param[in] thv       virtual potential temperature at zref
- * @param[in] tflux     prescribed virtual heat flux
- * @param[in] kappa     von Karman constant
- * @param[in] gravity   gravitational acceleration
- * @param[in] zref      reference height
+ * @param[in]  zeta      z/L from the current u* and flux
+ * @param[in]  zeta_fold z/L at the fold
+ * @param[out] at_fold   whether the fold bound was applied
  */
 AMREX_GPU_HOST_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real
-most_fold_flux_scale (amrex::Real zeta, amrex::Real zeta_fold, amrex::Real ustar,
-                      amrex::Real thv, amrex::Real tflux, amrex::Real kappa,
-                      amrex::Real gravity, amrex::Real zref)
+most_clamp_zeta (amrex::Real zeta, amrex::Real zeta_fold, bool& at_fold)
 {
-    if (zeta < zeta_fold || tflux >= zero) { return one; }
+    at_fold = (zeta >= zeta_fold);
+    return amrex::max(amrex::min(zeta, zeta_fold), amrex::Real(-100.0));
+}
+
+/**
+ * Factors applied to the prescribed sensible and moisture fluxes at the stable fold.
+ */
+struct most_flux_scale
+{
+    amrex::Real temp{amrex::Real(1.0)};  ///< factor on surf_temp_flux
+    amrex::Real moist{amrex::Real(1.0)}; ///< factor on surf_moist_flux
+};
+
+/**
+ * Part of a prescribed stable flux the wind can carry at the fold.
+ *
+ * The virtual heat flux is tflux_s + tflux_q, with tflux_s = surf_temp_flux (1 + epsv qv) and
+ * tflux_q = qflux epsv theta. When z/L is held at the fold (see
+ * similarity_funs::calc_zeta_fold), the wind is below the minimum the prescribed flux needs and
+ * carries only -u*^3 thv zeta_fold / (kappa g zref). Only the prescribed components that are
+ * downward drive the fold, so only they are reduced, by a common factor, until the net virtual
+ * flux equals that value. An upward component, or a moisture flux diagnosed from q_surf, is
+ * left unchanged; if no prescribed component is downward, nothing is reduced. Returns 1 for
+ * both factors away from the fold.
+ *
+ * @param[in] at_fold    whether z/L was held at the fold
+ * @param[in] zeta_fold  z/L at the fold
+ * @param[in] ustar      friction velocity
+ * @param[in] thv        virtual potential temperature at zref
+ * @param[in] tflux_s    sensible part of the virtual heat flux
+ * @param[in] tflux_q    moisture part of the virtual heat flux
+ * @param[in] spec_qflux whether the moisture flux is prescribed
+ * @param[in] kappa      von Karman constant
+ * @param[in] gravity    gravitational acceleration
+ * @param[in] zref       reference height
+ */
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+most_flux_scale
+most_fold_flux_scale (bool at_fold, amrex::Real zeta_fold, amrex::Real ustar,
+                      amrex::Real thv, amrex::Real tflux_s, amrex::Real tflux_q,
+                      bool spec_qflux, amrex::Real kappa, amrex::Real gravity,
+                      amrex::Real zref)
+{
+    most_flux_scale scale;
+    const amrex::Real tflux = tflux_s + tflux_q;
+    if (!at_fold || tflux >= zero) { return scale; }
     const amrex::Real tflux_fold = -ustar * ustar * ustar * thv * zeta_fold / (kappa * gravity * zref);
-    return amrex::min(tflux_fold / tflux, one);
+    if (tflux_fold <= tflux) { return scale; }
+    const bool down_s = (tflux_s < zero);
+    const bool down_q = (spec_qflux && tflux_q < zero);
+    const amrex::Real down = (down_s ? tflux_s : zero) + (down_q ? tflux_q : zero);
+    if (down >= zero) { return scale; }
+    const amrex::Real r = amrex::max((down + tflux_fold - tflux) / down, amrex::Real(0.0));
+    if (down_s) { scale.temp  = r; }
+    if (down_q) { scale.moist = r; }
+    return scale;
+}
+
+/**
+ * Surface state of a prescribed-flux kernel once its u* iteration has converged.
+ *
+ * Sets t_surf, t_star and q_star (and q_surf when the moisture flux is prescribed). At the
+ * fold the prescribed fluxes are reduced by most_fold_flux_scale and the Obukhov length is set
+ * to the fold value.
+ *
+ * @param[in]    mdata      MOST data (prescribed fluxes, kappa, gravity)
+ * @param[in]    spec_qflux whether the moisture flux is prescribed
+ * @param[in]    at_fold    whether z/L was held at the fold on the last pass
+ * @param[in]    zeta_fold  z/L at the fold
+ * @param[in]    C          ln(zref/z0)
+ * @param[in]    psi_h      heat stability correction of the last pass
+ * @param[in]    ustar      friction velocity
+ * @param[in]    zref       reference height
+ * @param[in]    tm         potential temperature at zref
+ * @param[in]    tvm        virtual potential temperature at zref
+ * @param[in]    qvm        water vapor at zref
+ * @param[in]    qflux      moisture flux of the last pass
+ * @param[inout] olen       Obukhov length
+ * @param[out]   t_surf     surface potential temperature
+ * @param[out]   t_star     temperature scale
+ * @param[inout] q_surf     surface water vapor (read when the moisture flux is diagnosed)
+ * @param[out]   q_star     moisture scale
+ */
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+void
+most_flux_outputs (const most_data& mdata, bool spec_qflux, bool at_fold,
+                   amrex::Real zeta_fold, amrex::Real C, amrex::Real psi_h,
+                   amrex::Real ustar, amrex::Real zref, amrex::Real tm,
+                   amrex::Real tvm, amrex::Real qvm, amrex::Real qflux,
+                   amrex::Real& olen, amrex::Real& t_surf, amrex::Real& t_star,
+                   amrex::Real& q_surf, amrex::Real& q_star)
+{
+    const most_flux_scale scale = most_fold_flux_scale(at_fold, zeta_fold, ustar, tvm,
+                                                       mdata.surf_temp_flux * (one + epsv * qvm),
+                                                       qflux * epsv * tm, spec_qflux,
+                                                       mdata.kappa, mdata.gravity, zref);
+    if (at_fold) { olen = zref / zeta_fold; }
+    const amrex::Real CmPsih = most_bracket(C, psi_h);
+    const amrex::Real hflux  = scale.temp * mdata.surf_temp_flux;
+    t_surf = hflux * CmPsih / (ustar * mdata.kappa) + tm;
+    t_star = -hflux / ustar;
+    if (spec_qflux) {
+        const amrex::Real mflux = scale.moist * mdata.surf_moist_flux;
+        q_surf = mflux * CmPsih / (ustar * mdata.kappa) + qvm;
+        q_star = -mflux / ustar;
+    } else {
+        q_star = mdata.kappa * (qvm - q_surf) / CmPsih;
+    }
 }
 
 /**
@@ -259,7 +386,10 @@ most_fold_flux_scale (amrex::Real zeta, amrex::Real zeta_fold, amrex::Real ustar
  * Near the stable fold the slope of the fixed-point map approaches 1 and the plain iteration
  * needs hundreds of passes. From pass `start` on, every third iterate is replaced by the
  * Aitken extrapolation of the last three (kept only within a factor of 2 of them), so points
- * that converge before `start` are unchanged.
+ * that converge before `start` are unchanged. The map is not stationary when w* or a
+ * u*-dependent z0 also changes from pass to pass, so the kernels do not stop on an
+ * extrapolated pass: the plain pass after it, with zeta and psi from the same u*, decides
+ * convergence.
  */
 struct most_aitken
 {
@@ -274,6 +404,7 @@ struct most_aitken
     amrex::Real
     update (amrex::Real u_new, int iter)
     {
+        extrapolated = false;
         if (iter < start) { return u_new; }
         u0 = u1;
         u1 = u2;
@@ -290,10 +421,12 @@ struct most_aitken
         // The extrapolated value starts the next triple
         u2 = ua;
         n  = 1;
+        extrapolated = true;
         return ua;
     }
 
     int start{25};
+    bool extrapolated{false}; ///< whether the last update returned an extrapolated value
     int n{0};
     amrex::Real u0{zero};
     amrex::Real u1{zero};
