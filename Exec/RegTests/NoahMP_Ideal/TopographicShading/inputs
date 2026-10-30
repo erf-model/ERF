@@ -1,0 +1,79 @@
+# Radial Witch of Agnesi hill; RRTMGP supplies terrain-corrected light to Noah-MP.
+# Run prepare.py in an empty working directory first (see README.md).
+max_step = 3
+geometry.prob_extent = 6400 3200 16000
+amr.n_cell = 64 32 48
+geometry.is_periodic = 1 1 0
+amr.max_level = 0
+amr.max_grid_size = 32
+amr.no_box_split_dir = 2
+
+zlo.type = surface_layer
+zhi.type = SlipWall
+erf.most.z0 = 0.1
+erf.most.zref = 30.0
+erf.most.average_policy = 1
+erf.most.radius = 0
+
+erf.terrain_type = StaticFittedMesh
+erf.initial_dz = 40
+prob.custom_terrain_type = WoA
+prob.dir = 2
+prob.hmax = 250
+prob.L = 250
+prob.z_offset = 0
+
+erf.fixed_dt = 1.0
+erf.fixed_mri_dt_ratio = 8
+erf.v = 1
+erf.prob_name = ABL
+erf.init_type = input_sounding
+erf.sounding_type = Ideal
+erf.input_sounding_file = input_sounding
+erf.use_gravity = true
+erf.les_type = Smagorinsky
+erf.Cs = 0.16
+erf.pbl_type = None
+erf.molec_diff_type = None
+erf.moisture_model = MoistNoCondensation
+
+start_datetime = "2024-08-05 13:00:00"
+erf.rad_cons_lat = 40
+erf.rad_cons_lon = -100
+erf.radiation_model = RRTMGP
+erf.rad_t_sfc = 300
+erf.co2vmr = 0.00042
+erf.o3vmr = 3.0e-8
+erf.n2ovmr = 3.2e-7
+erf.covmr = 1.5e-7
+erf.ch4vmr = 1.7e-6
+erf.o2vmr = 0.209
+erf.n2vmr = 0.7906
+# One held interval and a subsequent update; useful for checking repeated calls.
+erf.rad_freq_in_steps = 2
+erf.rad_do_subcol_sampling = false
+erf.rrtmgp_file_path = radiation_data
+erf.rrtmgp_coeffs_sw = rrtmgp-data-sw-g224-2018-12-04.nc
+erf.rrtmgp_coeffs_lw = rrtmgp-data-lw-g256-2018-12-04.nc
+erf.rrtmgp_cloud_optics_sw = rrtmgp-cloud-optics-coeffs-sw.nc
+erf.rrtmgp_cloud_optics_lw = rrtmgp-cloud-optics-coeffs-lw.nc
+# Despite its historical name, fixed_solar_zenith_angle is cos(zenith).
+erf.fixed_solar_zenith_angle = 0.17364817766693033
+erf.fixed_solar_azimuth_angle = 90
+
+erf.topo_shading = true
+erf.slope_rad = true
+erf.shadlen = 3000
+erf.land_surface_model = NOAHMP
+
+erf.check_int = -1
+erf.plot_int_1 = -1
+erf.plot2d_file_1 = plt2d
+erf.plot2d_int_1 = 1
+erf.plot2d_vars_1 = z_surf topographic_shadow terrain_direct_factor terrain_incidence unshaded_sw_flux_dn terrain_sw_flux_dn sw_flux_dn cos_zenith_angle t_sfc sav sag
+# Also write NetCDF for the independent checker/Matplotlib; native plotfiles
+# remain available for ParaView and VisIt.
+erf.plotfile2d_type_2 = Netcdf
+erf.plot2d_file_2 = surface
+erf.plot2d_int_2 = 1
+erf.plot2d_vars_2 = z_surf topographic_shadow terrain_direct_factor terrain_incidence unshaded_sw_flux_dn terrain_sw_flux_dn sw_flux_dn cos_zenith_angle t_sfc sav sag
