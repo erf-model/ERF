@@ -3805,14 +3805,16 @@ interfaces.
     * (USGS format) the y value changes within a row of nx points;
     * the x or y values do not increase strictly (USGS format: the x values of each row,
       and y from row to row);
-    * the table does not cover the domain: in x and in y, each end of the table may stop
+    * a terrain table does not cover the domain: in x and in y, each end of the table may stop
       at most one table spacing inside **geometry.prob_lo** or **geometry.prob_hi**, which
       allows the common layout of one height per cell starting at prob_lo (with an allowance
       of 1e-3 of that spacing for coordinates written with few digits).  Beyond the table
       the reader only extends the heights from its edge: linearly before the first point,
       and in the ERF format by holding the last value after the last point (the USGS
       format extends linearly at both ends).  A direction with a single value is not
-      checked.
+      checked. **erf.buildings_file_name** is exempt from this coverage check, so building
+      files may cover only a local patch; all other checks and the existing edge-extension
+      behavior still apply.
 
     A table larger than the domain is accepted.  For each valid file ERF prints once the
     size and extent of the table, the order its heights are read in, where the lowest and
