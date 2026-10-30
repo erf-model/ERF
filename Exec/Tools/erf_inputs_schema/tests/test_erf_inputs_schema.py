@@ -151,5 +151,17 @@ class DeclarationTests(unittest.TestCase):
         self.assertEqual(keys["erf.eye_longitude"]["default"], "-10000000000.0")
 
 
+class RemovedKeyTests(unittest.TestCase):
+    def test_a_key_whose_presence_aborts_as_removed_is_marked_removed(self):
+        fact = generate()["keys"]["erf.old_knob"]
+        self.assertEqual(fact["type"], "removed")
+        self.assertEqual(fact["removed_evidence"], "Source/ERF_Removed.cpp:5")
+
+    def test_contains_without_an_abort_is_not_removed(self):
+        fact = generate()["keys"]["erf.probe_only"]
+        self.assertEqual(fact["type"], "unknown")
+        self.assertNotIn("removed_evidence", fact)
+
+
 if __name__ == "__main__":
     unittest.main()

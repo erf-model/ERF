@@ -102,6 +102,29 @@
   "source": "Source/ERF_Synthetic.cpp:7",
   "type": "int"
  },
+ "erf.old_knob": {
+  "default": null,
+  "default_origin": "none",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Removed.cpp:4"
+  },
+  "removed_evidence": "Source/ERF_Removed.cpp:5",
+  "required": false,
+  "source": "Source/ERF_Removed.cpp:4",
+  "type": "removed"
+ },
+ "erf.probe_only": {
+  "default": null,
+  "default_origin": "none",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Removed.cpp:7"
+  },
+  "required": false,
+  "source": "Source/ERF_Removed.cpp:7",
+  "type": "unknown"
+ },
  "erf.widget_on": {
   "default": "false",
   "default_origin": "initializer",
