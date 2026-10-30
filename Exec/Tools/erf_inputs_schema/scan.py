@@ -98,8 +98,30 @@ def declarations(text, enum_names):
         kind = "enum:" + base if base in enum_names else CPP_TYPES[base]
         if element and not kind.endswith("_list"):
             kind += "_list"
-        out.setdefault(m.group(5), set()).add(kind)
+        for name in [m.group(5)] + _more_declarators(text, m.end()):
+            out.setdefault(name, set()).add(kind)
     return out
+
+
+def _more_declarators(text, pos):
+    """The other names of `T a = x, b = y;`: top-level commas up to the statement's `;` (none for a call)."""
+    depth, names = 0, []
+    for i in range(pos, min(len(text), pos + 400)):
+        c = text[i]
+        if c in "([{<":
+            depth += 1
+        elif c in ")]}>":
+            depth -= 1
+            if depth < 0:
+                return []                                # inside an argument list, not a declaration
+        elif c == ";" and depth == 0:
+            return names
+        elif c == "," and depth == 0:
+            m = re.match(r"\s*&?\s*(\w+)\s*(?=[=;,\[{])", text[i + 1:])
+            if not m:
+                return names
+            names.append(m.group(1))
+    return []
 
 
 def target_name(expr):
@@ -291,7 +313,7 @@ class FileScan:
 
 def _initializer(name, text, before_line):
     """(raw initializer, 1-based line) of the last declaration of name before before_line (any line if None)."""
-    rx = re.compile(r"[\w>]\s+&?\s*" + re.escape(name) + r"\s*(?:=\s*([^;,{}]+?)|\{\s*([^{}]*?)\s*\})\s*[;,]")
+    rx = re.compile(r"(?:[\w>]\s+|,\s*)&?\s*" + re.escape(name) + r"\s*(?:=\s*([^;,{}]+?)|\{\s*([^{}]*?)\s*\})\s*[;,]")
     best = None
     for m in rx.finditer(text):
         at = text.count("\n", 0, m.start()) + 1
