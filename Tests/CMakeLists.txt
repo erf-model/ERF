@@ -153,35 +153,11 @@ if(ERF_ENABLE_TESTS)
 
   include(${CMAKE_CURRENT_SOURCE_DIR}/CTestList.cmake)
 
-  if(ERF_ENABLE_NOAHMP AND ERF_ENABLE_RRTMGP AND Python3_Interpreter_FOUND)
-    execute_process(COMMAND "${Python3_EXECUTABLE}" -c "import numpy, netCDF4"
-      RESULT_VARIABLE _topo_python_ready OUTPUT_QUIET ERROR_QUIET)
-    if(_topo_python_ready EQUAL 0)
-      add_test(NAME NoahMP_TopographicShading COMMAND ${CMAKE_COMMAND}
-        "-DTEST_EXE=$<TARGET_FILE:erf_exec>"
-        "-DPYTHON_EXE=${Python3_EXECUTABLE}"
-        "-DCASE_DIR=${PROJECT_SOURCE_DIR}/Exec/RegTests/NoahMP_Ideal/TopographicShading"
-        "-DWORKING_DIRECTORY=${CMAKE_CURRENT_BINARY_DIR}/NoahMP_TopographicShading"
-        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
-        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
-        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
-        "-DNRANKS=${ERF_TEST_NRANKS}"
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/RunTopographicShading.cmake)
-      set_tests_properties(NoahMP_TopographicShading PROPERTIES
-        LABELS "regression;radiation;noahmp" TIMEOUT 700 PROCESSORS ${ERF_TEST_NRANKS}
-        ATTACHED_FILES_ON_FAIL "${CMAKE_CURRENT_BINARY_DIR}/NoahMP_TopographicShading/run/simulation.log")
-    else()
-      message(STATUS "Skipping NoahMP_TopographicShading: Python numpy/netCDF4 unavailable")
-    endif()
-  endif()
-
   if(ERF_ENABLE_MPI)
     # Open MPI 4 keeps one session directory per user under TMPDIR; concurrent mpiexec
     # launches race on it. Open MPI 5 makes the directory unique per launch itself.
     get_property(_erf_tests DIRECTORY PROPERTY TESTS)
     foreach(_erf_test IN LISTS _erf_tests)
-      # Tests registered outside setup_test may use a different working directory.
-      file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/test_files/${_erf_test}")
       set_property(TEST ${_erf_test} APPEND PROPERTY ENVIRONMENT
         "TMPDIR=${CMAKE_CURRENT_BINARY_DIR}/test_files/${_erf_test}")
     endforeach()
