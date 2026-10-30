@@ -5,6 +5,8 @@ the line of their #ifdef/#ifndef (the evidence a build requirement cites), and n
 """
 import re
 
+from .canonical import canonical_value
+
 ERF_ALIASES = {"pp_prefix", "m_pp_prefix", "a_pp_prefix", "face_pp_prefix"}      # all "erf" (ERF.H: pp_prefix {"erf"})
 # Prefixes built at run time from a name, read as families (the name is checked separately).
 FAMILIES = {("Source/Initialization/ERF_InitBCs.cpp", "pp_text"): (["<face>", "erf.<face>"], "face"),
@@ -166,6 +168,7 @@ class FileScan:
         self.conds = conditions(self.lines)
         self.local = declarations(self.text, enum_names)
         header = path.with_suffix(".H")
+        self.header_rel = self.rel[:-len(path.suffix)] + ".H"
         if path.suffix == ".cpp" and header.exists():          # a .cpp's own header is local scope too
             self.header_text = strip_comments(header.read_text(errors="replace"))
             for name, kinds in declarations(self.header_text, enum_names).items():
@@ -239,6 +242,25 @@ class FileScan:
             kind += "_list"
         return kind
 
+    def default(self, target, kind, line, fact):
+        """(value, origin, source): the variable's initializer as a canonical literal. Origins: initializer, none,
+        expression (an initializer that is not a plain literal of the type)."""
+        name = target_name(target) if target else None
+        found = _initializer(name, self.text, line) if name else None
+        rel = self.rel
+        if found is None and name and self.header_text:
+            found, rel = _initializer(name, self.header_text, None), self.header_rel
+        if found is None or kind.endswith("_list") or kind == "unknown":
+            return None, "none", None
+        raw, at = found
+        if kind.startswith("enum:"):                     # values attach later; schema._enum_facts canonicalizes
+            return _literal(raw), "initializer", f"{rel}:{at}"
+        try:
+            value = canonical_value(kind, _literal(raw), fact)
+        except ValueError:
+            return None, "expression", f"{rel}:{at}"
+        return value, "initializer", f"{rel}:{at}"
+
     def hits(self):
         hits, unresolved = [], []
         for pos, var, method, key, target, per_level in self.calls():
@@ -257,9 +279,37 @@ class FileScan:
                 fact["case_insensitive"] = "case_insensitive" in method
             if family:
                 fact["family"] = family
+            fact["required"] = method.startswith("get")
+            value, origin, src = self.default(target, fact["type"], line, fact)
+            fact.update(default=value, default_origin=origin)
+            if src:
+                fact["default_source"] = src
             for p in pfx:
                 hits.append((f"{p}.{key}" if p else key, fact, self.conds[line], method, target))
         return hits, unresolved
+
+
+def _initializer(name, text, before_line):
+    """(raw initializer, 1-based line) of the last declaration of name before before_line (any line if None)."""
+    rx = re.compile(r"[\w>]\s+&?\s*" + re.escape(name) + r"\s*(?:=\s*([^;,{}]+?)|\{\s*([^{}]*?)\s*\})\s*[;,]")
+    best = None
+    for m in rx.finditer(text):
+        at = text.count("\n", 0, m.start()) + 1
+        if before_line is None or at <= before_line + 1:
+            best = ((m.group(1) if m.group(1) is not None else m.group(2)).strip(), at)
+    return best
+
+
+def _literal(raw):
+    """A C++ literal as a ParmParse word: enum Name::Value -> Value, "text" -> text, 0.8_rt -> 0.8."""
+    raw = raw.strip()
+    m = re.fullmatch(r"(?:\w+::)*\w+::(\w+)", raw)
+    if m and not re.fullmatch(r"[0-9.eE+-]+", raw):
+        return m.group(1)
+    m = re.fullmatch(r'"([^"]*)"', raw)
+    if m:
+        return m.group(1)
+    return re.sub(r"(?<=[0-9.])(?:_rt|_prt|[fFlL])$", "", raw)
 
 
 def scan(root, rel_base, enum_names, global_decls, erf_side, all_files=()):

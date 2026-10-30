@@ -39,6 +39,11 @@ def merge(old, new):
         out.setdefault("type_conflict", sorted({a, b}))
     if old.get("per_level") or new.get("per_level"):
         out["per_level"] = True
+    out["required"] = bool(old.get("required") or new.get("required"))
+    if old.get("default_origin") == "none" and new.get("default_origin") != "none":
+        for k in ("default", "default_origin", "default_source"):
+            if k in new:
+                out[k] = new[k]
     return out
 
 
@@ -62,6 +67,11 @@ def _enum_facts(table, enum_names, values):
         fact["type"] = "enum_list" if fact["type"].startswith("enum_list") else "enum"
         fact["values"] = enum_names[name]
         fact.setdefault("case_insensitive", False)
+        if fact.get("default") is not None and fact["type"] == "enum":
+            try:
+                fact["default"] = canonical.canonical_value("enum", fact["default"], fact)
+            except ValueError:
+                fact.update(default=None, default_origin="expression")
         vr = {v: dict(values[(name, v)]) for v in fact["values"] if (name, v) in values}
         if vr:
             fact["value_requires"] = vr
