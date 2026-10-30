@@ -183,5 +183,20 @@ class RemovedKeyTests(unittest.TestCase):
         self.assertEqual(fact["shadowed_reads"], ["Source/ERF_Shadow.cpp:5 int"])
 
 
+class SeveralKindsTests(unittest.TestCase):
+    """One name with several kinds in a file (the owner's rule, 10-30): keep the kinds the read call takes, then the
+    nearest declaration before the read, otherwise unknown."""
+
+    def test_a_list_read_takes_the_list_kind(self):
+        self.assertEqual(generate()["keys"]["xlo.velocity"]["type"], "real_list")
+
+    def test_a_scalar_read_takes_the_scalar_kind(self):
+        self.assertEqual(generate()["keys"]["xlo.speed"]["type"], "real")
+
+    def test_the_nearest_declaration_before_the_read_decides(self):
+        keys = generate()["keys"]
+        self.assertEqual((keys["xlo.k_int"]["type"], keys["xlo.k_real"]["type"]), ("int", "real"))
+
+
 if __name__ == "__main__":
     unittest.main()

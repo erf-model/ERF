@@ -184,5 +184,51 @@
   },
   "source": "Source/ERF_Synthetic.cpp:12",
   "type": "bool"
+ },
+ "xlo.k_int": {
+  "default": "1",
+  "default_origin": "initializer",
+  "default_source": "Source/ERF_Kinds.cpp:11",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Kinds.cpp:12"
+  },
+  "required": false,
+  "source": "Source/ERF_Kinds.cpp:12",
+  "type": "int"
+ },
+ "xlo.k_real": {
+  "default": "0.5",
+  "default_origin": "initializer",
+  "default_source": "Source/ERF_Kinds.cpp:15",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Kinds.cpp:16"
+  },
+  "required": false,
+  "source": "Source/ERF_Kinds.cpp:16",
+  "type": "real"
+ },
+ "xlo.speed": {
+  "default": null,
+  "default_origin": "none",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Kinds.cpp:9"
+  },
+  "required": false,
+  "source": "Source/ERF_Kinds.cpp:9",
+  "type": "real"
+ },
+ "xlo.velocity": {
+  "default": null,
+  "default_origin": "none",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Kinds.cpp:6"
+  },
+  "required": false,
+  "source": "Source/ERF_Kinds.cpp:6",
+  "type": "real_list"
  }
 }
