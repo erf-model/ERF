@@ -236,5 +236,30 @@ class CheckerSchemaTests(unittest.TestCase):
                                        ("erf.use_terrain", "Source/ERF_Removed.cpp:17")])
 
 
+SITE_FACTS = [{"feature": "mpi_gpu_aware", "on": False, "key": "amrex.use_gpu_aware_mpi", "value": "true",
+               "evidence": "site: the MPI is configured without CUDA"}]
+
+
+class SiteFactTests(unittest.TestCase):
+    def test_a_site_fact_sets_a_feature_and_a_value_requirement(self):
+        s = generate(site_facts=SITE_FACTS)
+        self.assertIs(s["features"]["mpi_gpu_aware"], False)
+        need = s["keys"]["amrex.use_gpu_aware_mpi"]["value_requires"]["true"]
+        self.assertEqual(need["feature"], "mpi_gpu_aware")
+        self.assertEqual(need["evidence"], "site: the MPI is configured without CUDA; "
+                                           "AMReX/Src/Base/AMReX_ParallelDescriptor.cpp:6")
+
+    def test_the_schema_records_where_its_build_facts_came_from(self):
+        with tempfile.TemporaryDirectory() as td:
+            out, facts = Path(td) / "s.json", Path(td) / "site.json"
+            import json
+            facts.write_text(json.dumps(SITE_FACTS))
+            run_cli("--erf-dir", SYNTHETIC / "erf", "--amrex-dir", SYNTHETIC / "AMReX", "--out", out,
+                    "--cmake", "-DERF_ENABLE_WIDGET=ON", "--site-facts", facts)
+            got = json.loads(out.read_text())["build"]
+        self.assertEqual(got["cmake"], {"ERF_ENABLE_WIDGET": True})
+        self.assertEqual(got["facts_from"], {"cmake": "d_list", "site_facts": SITE_FACTS})
+
+
 if __name__ == "__main__":
     unittest.main()
