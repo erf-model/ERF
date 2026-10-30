@@ -19,11 +19,19 @@ def _decls(files, enum_names):
     return out
 
 
+def layer_of(source):
+    return "AMReX" if source.startswith("AMReX/") else "ERF"
+
+
 def merge(old, new):
-    """The first read's fact, its type refined by later reads; a real disagreement is recorded, never hidden."""
+    """The first read's fact, its type refined by later reads; a real disagreement is recorded, never hidden.
+    AMReX's reads come first, so a shared key's fact (and its source) is AMReX's: layer names it, and layers keeps
+    each layer's first read."""
+    lay = layer_of(new["source"])
     if old is None:
-        return dict(new)
-    out = dict(old)
+        return dict(new, layer=lay, layers={lay: new["source"]})
+    out = dict(old, layers=dict(old["layers"]))
+    out["layers"].setdefault(lay, new["source"])
     a, b = old["type"], new["type"]
     if a == "unknown" or b == a + "_list":
         out["type"] = b
