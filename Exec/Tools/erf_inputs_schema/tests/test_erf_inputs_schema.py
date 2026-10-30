@@ -233,6 +233,7 @@ class CheckerSchemaTests(unittest.TestCase):
         curated_only, source_only = schema_check.cross_check(generate(), {"erf.old_knob": "x", "erf.gone": "y"})
         self.assertEqual(curated_only, ["erf.gone"])
         self.assertEqual(source_only, [("erf.no_substepping", "Source/ERF_Removed.cpp:20"),
+                                       ("erf.old_flag", "Source/ERF_MoreShapes.cpp:6"),
                                        ("erf.use_terrain", "Source/ERF_Removed.cpp:17")])
 
 
