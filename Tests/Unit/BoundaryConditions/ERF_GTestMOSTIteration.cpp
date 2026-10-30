@@ -331,3 +331,39 @@ TEST(MOSTIteration, UnstableSurfaceTempAtSmallCKeepsItsSign)
     EXPECT_GT(r.ustar, Real(0.0));
     EXPECT_LT(r.tstar, Real(0.0));
 }
+
+// Motivation: in stable air with z0 at or above zref the relaxed z/L iteration of
+// surface_temp crept through a near-touch of its residual and hit the iteration cap
+// (an abort). The bracketed fallback must return a root of zeta = Rib F(zeta) instead.
+TEST(MOSTIteration, StableSurfaceTempWithZ0AtZrefConverges)
+{
+    const std::vector<Point> pts{
+        {Real(1.0), Real(1.0), Real(0.8), Real(300.0), Real(295.0)},
+        {Real(5.0), Real(5.0), Real(0.8), Real(300.0), Real(299.0)},
+    };
+    similarity_funs sfuns;
+    for (const auto& p : pts) {
+        const Result r = run_temp(p);
+        const Real C    = std::log(p.zref / p.z0);
+        const Real Rib  = CONST_GRAV * p.zref / p.theta * (p.theta - p.t_surf) / (p.umm * p.umm);
+        const Real zeta = p.zref / r.olen;
+        const Real CmPsim = most_bracket(C, sfuns.calc_psi_m2(zeta));
+        const Real CmPsih = most_bracket(C, sfuns.calc_psi_h2(zeta));
+        EXPECT_GT(zeta, Real(0.0));
+        EXPECT_NEAR(zeta, Rib * CmPsim * CmPsim / CmPsih, Real(2.0e-3));
+        EXPECT_GT(r.ustar, Real(0.0));
+        EXPECT_GT(r.tstar, Real(0.0));
+    }
+}
+
+// Motivation: the adiabatic kernel divided by ln(zref/z0) directly, so u* was infinite at
+// z0 = zref and negative above it; it must use the bounded bracket like the others.
+TEST(MOSTIteration, AdiabaticUstarIsBoundedWhenZ0ReachesZref)
+{
+    for (const Real z0 : {Real(1.0), Real(2.0)}) {
+        const Point p{Real(1.0), z0, Real(2.0), Real(300.0), Real(300.0)};
+        const Result r = run(adiabatic(Real(0.0), Real(0.0)), p);
+        EXPECT_TRUE(std::isfinite(r.ustar));
+        EXPECT_NEAR(r.ustar, KAPPA * p.umm / most_bracket_floor(std::log(p.zref / z0)), Real(1.0e-12));
+    }
+}

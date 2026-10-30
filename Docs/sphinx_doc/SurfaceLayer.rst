@@ -283,6 +283,14 @@ a fine vertical grid). The value of the floor is tied to the 0.5 under-relaxatio
 :math:`u_{\star}` iteration, which converges on the unstable branch only for brackets above
 about 0.8.
 
+With a prescribed surface temperature, :math:`z_{ref}/L` solves
+:math:`z_{ref}/L = Ri_b\,(C - \psi_m)^2/(C - \psi_h)` by under-relaxed iteration. In stable air
+with :math:`z_0` comparable to or above :math:`z_{ref}` the residual of this equation can come
+within the tolerance of zero without crossing it, and the iteration then creeps instead of
+converging. If it has not converged after the maximum number of passes, the constant-roughness
+kernels (``surface_temp`` and its EB counterpart) solve the same equation by bracketing and
+bisection, starting from where the iteration started, instead of stopping the run.
+
 A prescribed *stable* flux (``erf.most.surf_temp_flux`` < 0) can only be carried down to a
 minimum wind at :math:`z_{ref}`: with the Businger-Dyer functions the wind a friction velocity
 supports, :math:`u_{\star}(C + 5\,z_{ref}/L)/\kappa`, is smallest at :math:`z_{ref}/L = C/10`,

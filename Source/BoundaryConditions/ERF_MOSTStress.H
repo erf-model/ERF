@@ -67,7 +67,7 @@ struct adiabatic
     {
         olen_arr(i,j,k)   = bogus_large_value;
         amrex::Real umm   = std::max(umm_arr(i,j,k), WSMIN);
-        u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref_arr(i,j,k) / z0_arr(i,j,k));
+        u_star_arr(i,j,k) = mdata.kappa * umm / most_bracket(std::log(zref_arr(i,j,k) / z0_arr(i,j,k)), zero);
         t_star_arr(i,j,k) = zero;
         q_star_arr(i,j,k) = zero;
     }
@@ -153,7 +153,7 @@ struct adiabatic_charnock
 
             // Update
             C = std::log(zref / z0_old);
-            ustar = mdata.kappa * umm / (C - psi_m);
+            ustar = mdata.kappa * umm / most_bracket(C, psi_m);
             if (mdata.Cnk_a > 0) {
                 // NOTE: air_viscosity should take T and not Th!
                 z0 = Charnock_roughness(ustar, mdata.Cnk_a,
@@ -173,7 +173,7 @@ struct adiabatic_charnock
         // Populate the stored MOST arrays
         z0_arr(i,j,k)     = z0;
         olen_arr(i,j,k)   = bogus_large_value;
-        u_star_arr(i,j,k) = mdata.kappa * umm / (C - psi_m);
+        u_star_arr(i,j,k) = mdata.kappa * umm / most_bracket(C, psi_m);
         t_star_arr(i,j,k) = zero;
         q_star_arr(i,j,k) = zero;
     }
@@ -264,7 +264,7 @@ struct adiabatic_mod_charnock
 
             // Update
             C = std::log(zref / z0_old);
-            ustar = mdata.kappa * umm / (C - psi_m);
+            ustar = mdata.kappa * umm / most_bracket(C, psi_m);
             z0    = Mod_Charnock_roughness(ustar, mdata.Cnk_b);
             ++iter_z;
         } while ( (std::abs(z0 - z0_old) > tol_z) && (iter_z <= max_iters) );
@@ -275,7 +275,7 @@ struct adiabatic_mod_charnock
         // Populate the stored MOST arrays
         z0_arr(i,j,k)     = z0;
         olen_arr(i,j,k)   = bogus_large_value;
-        u_star_arr(i,j,k) = mdata.kappa * umm / (C - psi_m);
+        u_star_arr(i,j,k) = mdata.kappa * umm / most_bracket(C, psi_m);
         t_star_arr(i,j,k) = zero;
         q_star_arr(i,j,k) = zero;
     }
@@ -362,7 +362,7 @@ struct adiabatic_donelan
 
             // Update
             C = std::log(zref / z0_old);
-            ustar = mdata.kappa * umm / (C - psi_m);
+            ustar = mdata.kappa * umm / most_bracket(C, psi_m);
             // NOTE: air_viscosity should take T and not Th!
             z0    = Donelan_roughness(ustar, air_viscosity(tm_arr(i,j,k)), mdata.visc);
             ++iter_z;
@@ -374,7 +374,7 @@ struct adiabatic_donelan
         // Populate the stored MOST arrays
         z0_arr(i,j,k)     = z0;
         olen_arr(i,j,k)   = bogus_large_value;
-        u_star_arr(i,j,k) = mdata.kappa * umm / (C - psi_m);
+        u_star_arr(i,j,k) = mdata.kappa * umm / most_bracket(C, psi_m);
         t_star_arr(i,j,k) = zero;
         q_star_arr(i,j,k) = zero;
     }
@@ -461,7 +461,7 @@ struct adiabatic_wave_coupled
 
             // Update
             C = std::log(zref / z0_old);
-            ustar = mdata.kappa * umm / (C - psi_m);
+            ustar = mdata.kappa * umm / most_bracket(C, psi_m);
             // NOTE: air_viscosity should take T and not Th!
             z0    = WaveCoupled_roughness(Hwave_arr(i,j,k), Lwave_arr(i,j,k), eps, ustar,
                                           air_viscosity(tm_arr(i,j,k)), mdata.visc);
@@ -474,7 +474,7 @@ struct adiabatic_wave_coupled
         // Populate the stored MOST arrays
         z0_arr(i,j,k)     = z0;
         olen_arr(i,j,k)   = bogus_large_value;
-        u_star_arr(i,j,k) = mdata.kappa * umm / (C - psi_m);
+        u_star_arr(i,j,k) = mdata.kappa * umm / most_bracket(C, psi_m);
         t_star_arr(i,j,k) = zero;
         q_star_arr(i,j,k) = zero;
     }
@@ -1306,6 +1306,7 @@ struct surface_temp
         Rib = std::min(std::max(Rib,-amrex::Real(4.0)),amrex::Real(4.0));
 
         // Fixed point iteration on zeta
+        const amrex::Real zeta_start = zeta;
         int iter = 0;
         do {
             // Transfer curr to old
@@ -1324,8 +1325,13 @@ struct surface_temp
 
             ++iter;
         } while ( (std::abs(zeta - zeta_old) > tol) && (iter <= max_iters) );
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter <= max_iters,
-                                         "Maximum number of MOST iterations reached.");
+        if (iter > max_iters) {
+            // The relaxed iteration stalls where its residual nearly touches zero (z0
+            // comparable to zref); solve the same equation by bracketing instead
+            zeta   = most_rib_zeta_bracketed(sfuns, C, Rib, zeta_start, tol);
+            CmPsim = most_bracket(C, sfuns.calc_psi_m2(zeta));
+            CmPsih = most_bracket(C, sfuns.calc_psi_h2(zeta));
+        }
 
         // Populate the stored MOST arrays
         olen_arr(i,j,k)   = zref / zeta;

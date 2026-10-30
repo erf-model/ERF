@@ -51,7 +51,8 @@ struct adiabatic_eb
                   const amrex::Array4<amrex::Real>& /*eta_arr*/) const
     {
         olen_arr(i,j,k)   = bogus_large_value;
-        u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,0) / std::log(zref_arr(i,j,0) / z0_arr(i,j,k));
+        u_star_arr(i,j,k) = mdata.kappa * umm_arr(i,j,0) /
+                            most_bracket(std::log(zref_arr(i,j,0) / z0_arr(i,j,k)), zero);
         t_star_arr(i,j,k) = zero;
         q_star_arr(i,j,k) = zero;
     }
@@ -159,6 +160,7 @@ struct surface_temp_eb
         Rib = std::min(std::max(Rib,-amrex::Real(4.0)),amrex::Real(4.0));
 
         // Fixed point iteration on zeta
+        const amrex::Real zeta_start = zeta;
         int iter = 0;
         do {
             // Transfer curr to old
@@ -177,8 +179,13 @@ struct surface_temp_eb
 
             ++iter;
         } while ( (std::abs(zeta - zeta_old) > tol) && (iter <= max_iters) );
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter <= max_iters,
-                                         "Maximum number of MOST iterations reached.");
+        if (iter > max_iters) {
+            // The relaxed iteration stalls where its residual nearly touches zero (z0
+            // comparable to zref); solve the same equation by bracketing instead
+            zeta   = most_rib_zeta_bracketed(sfuns, C, Rib, zeta_start, tol);
+            CmPsim = most_bracket(C, sfuns.calc_psi_m2(zeta));
+            CmPsih = most_bracket(C, sfuns.calc_psi_h2(zeta));
+        }
 
         // Populate the stored MOST arrays
         olen_arr(i,j,k)   = zref / zeta;

@@ -2,6 +2,7 @@
 #define ERF_MOSTUtils_H
 
 #include <AMReX_Algorithm.H>
+#include <AMReX_BLassert.H>
 #include "ERF_Constants.H"
 
 /**
@@ -256,6 +257,72 @@ most_bracket (amrex::Real C, amrex::Real psi)
 }
 
 /**
+ * Solve zeta = Rib (C - psi_m)^2 / (C - psi_h) of the prescribed-temperature kernels by
+ * bracketing and bisection, with the Jimenez functions and the brackets of most_bracket.
+ *
+ * The relaxed fixed-point iteration stalls where zeta - Rib F(zeta) nearly touches zero
+ * without crossing it, which the Jimenez stable functions produce when z0 is comparable to or
+ * above zref (C below about 1): each pass then moves zeta by about the tolerance. From zeta0
+ * this steps, with doubling steps, in the direction the iteration moves until the residual
+ * changes sign, and bisects that interval, so it returns the root the iteration was heading
+ * to, or the next one past a near-touch.
+ *
+ * @param[in] sfuns similarity functions
+ * @param[in] C     ln(zref/z0)
+ * @param[in] Rib   bulk Richardson number
+ * @param[in] zeta0 z/L to start from
+ * @param[in] tol   width of the final interval
+ */
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+most_rib_zeta_bracketed (const similarity_funs& sfuns, amrex::Real C, amrex::Real Rib,
+                         amrex::Real zeta0, amrex::Real tol)
+{
+    auto resid = [&] (amrex::Real zeta) {
+        const amrex::Real CmPsim = most_bracket(C, sfuns.calc_psi_m2(zeta));
+        const amrex::Real CmPsih = most_bracket(C, sfuns.calc_psi_h2(zeta));
+        return zeta - Rib * CmPsim * CmPsim / CmPsih;
+    };
+
+    amrex::Real a  = zeta0;
+    amrex::Real ra = resid(a);
+    if (ra == zero) { return a; }
+
+    // Step against the residual until it changes sign
+    const amrex::Real dir = (ra > zero) ? amrex::Real(-1.0) : amrex::Real(1.0);
+    amrex::Real h  = amrex::max(std::abs(ra), tol);
+    amrex::Real b  = a + dir * h;
+    amrex::Real rb = resid(b);
+    int n = 0;
+    while ((rb > zero) == (ra > zero) && n < 60) {
+        a  = b;
+        ra = rb;
+        h *= two;
+        b  = a + dir * h;
+        rb = resid(b);
+        ++n;
+    }
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE((rb > zero) != (ra > zero),
+                                     "MOST zeta solve found no sign change.");
+
+    // Bisect [a, b]
+    n = 0;
+    while (std::abs(b - a) > tol && n < 60) {
+        const amrex::Real m  = myhalf * (a + b);
+        const amrex::Real rm = resid(m);
+        if ((rm > zero) == (ra > zero)) {
+            a  = m;
+            ra = rm;
+        } else {
+            b = m;
+        }
+        ++n;
+    }
+    return myhalf * (a + b);
+}
+
+/**
  * z/L of the prescribed-flux kernels, bounded below by -100 and above by the fold (see
  * similarity_funs::calc_zeta_fold), where the prescribed stable flux stops having a solution.
  *
@@ -290,8 +357,10 @@ struct most_flux_scale
  * carries only -u*^3 thv zeta_fold / (kappa g zref). Only the prescribed components that are
  * downward drive the fold, so only they are reduced, by a common factor, until the net virtual
  * flux equals that value. An upward component, or a moisture flux diagnosed from q_surf, is
- * left unchanged; if no prescribed component is downward, nothing is reduced. Returns 1 for
- * both factors away from the fold.
+ * left unchanged; if no prescribed component is downward, nothing is reduced. The factor is
+ * not taken below 0, so when a diagnosed condensation flux alone is stronger than the fold
+ * value, the downward prescribed components are removed and the net flux remains stronger
+ * than the fold value. Returns 1 for both factors away from the fold.
  *
  * @param[in] at_fold    whether z/L was held at the fold
  * @param[in] zeta_fold  z/L at the fold
