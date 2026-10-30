@@ -858,12 +858,8 @@ void make_mom_sources (double time_d,
         // *****************************************************************************
         // 9b. Add immersed source terms for buildings
         // *****************************************************************************
-        // geometric properties
-        const Real* dx_arr = geom.CellSize();
-        const Real delta_xy = std::sqrt(dx_arr[0] * dx_arr[1]);
-        if ((solverChoice.buildings_type == BuildingsType::ImmersedForcing) &&
-           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)) &&
-            (delta_xy <= 50.0)) { // only apply immersed forcing when grid spacing is less than 50m
+        if (solverChoice.use_building_immersed_forcing(geom) &&
+           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast))) {
 
             ImmersedForcingBuildings_Xmom(tbx, u, v, w, cell_data, t_blank_arr, t_blank_xface_arr,
                                           z_cc_arr, xmom_src_arr, geom, solverChoice, dt);

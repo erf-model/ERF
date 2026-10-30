@@ -3852,6 +3852,12 @@ selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 ``erf.buildings_type`` = ``ImmersedForcing``.  At most one of
 ``erf.if_surf_temp_flux``, ``erf.if_init_surf_temp`` and ``erf.if_Olen`` may be set.
 
+Building immersed forcing is applied only on levels where the nominal horizontal
+grid spacing satisfies :math:`\sqrt{\Delta x\,\Delta y} \leq 50\,\mathrm{m}`.
+Building cells at the surface are marked as ``landmask = 2`` only on those levels;
+coarser levels retain their land/sea mask. Immersed terrain has no such resolution
+cutoff.
+
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | Parameter                         | Definition                                               | Acceptable Values  | Default          |
 +===================================+==========================================================+====================+==================+

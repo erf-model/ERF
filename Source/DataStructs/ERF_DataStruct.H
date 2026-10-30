@@ -2553,6 +2553,13 @@ struct SolverChoice {
     std::string mean_vars_reset_mode = "plotfile";
     amrex::Real mean_vars_reset_time = -one;
 
+    // Building forcing and its landmask use the same horizontal resolution cutoff.
+    [[nodiscard]] bool use_building_immersed_forcing (const amrex::Geometry& geom) const noexcept
+    {
+        return buildings_type == BuildingsType::ImmersedForcing &&
+               std::sqrt(geom.CellSize(0) * geom.CellSize(1)) <= amrex::Real(50.0);
+    }
+
     /**
      * @brief Query whether any turbulent perturbation mode is enabled on a level.
      * @param lev AMR level index.

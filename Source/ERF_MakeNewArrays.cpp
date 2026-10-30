@@ -1028,18 +1028,22 @@ ERF::init_zphys (int lev, double elapsed_time)
             init_immersed_forcing(lev);
         }
 
-        // buildings are landmask = 2
-        for (MFIter mfi(*lmask_lev[lev][0]); mfi.isValid(); ++mfi) {
-            const Box& bx2d = mfi.growntilebox();
-            auto lmask_arr = lmask_lev[lev][0]->array(mfi);
-            const auto& t_blank_arr = terrain_blanking[lev]->array(mfi);
+        // Mark immersed solids as landmask = 2 only where their forcing is active.
+        // Immersed terrain has no resolution cutoff.
+        if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+            solverChoice.use_building_immersed_forcing(geom[lev])) {
+            for (MFIter mfi(*lmask_lev[lev][0]); mfi.isValid(); ++mfi) {
+                const Box& bx2d = mfi.growntilebox();
+                auto lmask_arr = lmask_lev[lev][0]->array(mfi);
+                const auto& t_blank_arr = terrain_blanking[lev]->array(mfi);
 
-            amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-                // Use k=0 for the terrain_blanking field
-                if (t_blank_arr(i, j, 0) > 0.0) {
-                    lmask_arr(i, j, k) = 2;
-                }
-            });
+                amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                    // Use k=0 for the terrain_blanking field
+                    if (t_blank_arr(i, j, 0) > 0.0) {
+                        lmask_arr(i, j, k) = 2;
+                    }
+                });
+            }
         }
     }
 
