@@ -354,13 +354,13 @@ class FileScan:
             self._retired = {}
             for shape, rx in RETIRED_SHAPES:
                 for m in rx.finditer(self.text):
-                    if shape == "contains_abort" and _body_reads(self.text, m.end(), m.group(2)):
+                    if _body_reads(self.text, m.end(), m.group(2)):
                         continue                         # read and mapped (AMReX's nosub): accepted, not removed
                     line = _abort_line(self.text, m.end())
                     if line:
                         self._retired[(m.group(1), m.group(2), self.line_of(m.start()))] = (shape, line)
             for m in RETIRED_VIA_VARIABLE.finditer(self.text):
-                line = _abort_line(self.text, m.end())
+                line = None if _body_reads(self.text, m.end(), m.group(4)) else _abort_line(self.text, m.end())
                 if line:
                     shape = f"{m.group(3)}_var_gt0_error"
                     self._retired[(m.group(2), m.group(4), self.line_of(m.start()))] = (shape, line)
@@ -399,10 +399,17 @@ def _if_body(text, pos):
 
 
 def _abort_line(text, pos):
-    """The 1-based line of the Abort/Error the if() body calls, or None."""
+    """The 1-based line of an Abort/Error the if() body always calls when entered, or None. An Abort nested in an
+    inner if/else (a size or value check, as in ERF_InitZLevels.cpp) is not a removal."""
     body, start = _if_body(text, pos)
-    m = ABORT.search(body)
-    return text.count("\n", 0, start + m.start()) + 1 if m else None
+    top = 1 if body.startswith("{") else 0
+    for m in ABORT.finditer(body):
+        before = body[:m.start()]
+        depth = before.count("{") - before.count("}")
+        statement = re.split(r"[;{}]", before)[-1]
+        if depth == top and not re.search(r"\b(?:if|else)\b", statement):
+            return text.count("\n", 0, start + m.start()) + 1
+    return None
 
 
 def _initializer(name, text, before_line):
