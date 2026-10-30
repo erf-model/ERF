@@ -427,15 +427,26 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
         const eb_& eb_lev = get_eb(level);
         const MultiFab& detJ = (eb_lev.get_const_factory())->getVolFrac();
 
-        estdt_comp_inv_N = ReduceMax(S_new, ccvel_N, detJ, 0,
-        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
-                                   Array4<Real const> const& s,
-                                   Array4<Real const> const& u,
-                                   Array4<Real const> const& vf) -> Real
+        ReduceOps<ReduceOpMax> reduce_op;
+        ReduceData<Real>       reduce_data(reduce_op);
+
+#ifdef AMREX_USE_OMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(S_new,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-           Real new_comp_dt = -bogus_large_value;
-           amrex::Loop(b, [=,&new_comp_dt] (int i, int j, int k) noexcept
-           {
+            const Box& bx = mfi.tilebox();
+
+            const Array4<const Real>& s     = S_new.const_array(mfi);
+            const Array4<const Real>& u     = ccvel_N.const_array(mfi);
+            const Array4<const Real>& vf    = detJ.const_array(mfi);
+            const Array4<const Real>& mf_mx = mapfac[level][MapFacType::m_x]->const_array(mfi);
+            const Array4<const Real>& mf_my = mapfac[level][MapFacType::m_y]->const_array(mfi);
+
+            reduce_op.eval(bx, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> GpuTuple<Real>
+            {
+               Real new_comp_dt = -bogus_large_value;
                if (vf(i,j,k) > zero)
                {
                    const Real rho      = s(i, j, k, Rho_comp);
@@ -447,33 +458,37 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                    Real pressure = getPgivenRTh(rhotheta);
                    Real c = std::sqrt(Gamma * pressure / rho);
 
+                   // Inverse physical horizontal spacing
+                   const Real idx = mf_mx(i,j,0) * dxinv_EB[0];
+                   const Real idy = mf_my(i,j,0) * dxinv_EB[1];
+
                    // If we are doing implicit acoustic substepping, then the z-direction does not contribute
                    //    to the computation of the time step
                    if (l_substepping) {
                        if ((nxc > 1) && (nyc==1)) {
                            // 2-D in x-z
-                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,0))+c)*dxinv_EB[0]), new_comp_dt);
+                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,0))+c)*idx), new_comp_dt);
                        } else if ((nyc > 1) && (nxc==1)) {
                            // 2-D in y-z
-                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,1))+c)*dxinv_EB[1]), new_comp_dt);
+                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,1))+c)*idy), new_comp_dt);
                        } else {
                            // 3-D
-                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,0))+c)*dxinv_EB[0]
-                                                     + (amrex::Math::abs(u(i,j,k,1))+c)*dxinv_EB[1] ), new_comp_dt);
+                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,0))+c)*idx
+                                                     + (amrex::Math::abs(u(i,j,k,1))+c)*idy ), new_comp_dt);
                        }
 
                    // If we are not doing implicit acoustic substepping, then the z-direction contributes
                    //    to the computation of the time step
                    } else {
                        if (nxc > 1 && nyc > 1) {
-                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,0))+c)*dxinv_EB[0]
-                                                     + (amrex::Math::abs(u(i,j,k,1))+c)*dxinv_EB[1]
+                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,0))+c)*idx
+                                                     + (amrex::Math::abs(u(i,j,k,1))+c)*idy
                                                      + (amrex::Math::abs(u(i,j,k,2))+c)*dxinv_EB[2] ), new_comp_dt);
                        } else if (nxc > 1) {
-                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,0))+c)*dxinv_EB[0]
+                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,0))+c)*idx
                                                      + (amrex::Math::abs(u(i,j,k,2))+c)*dxinv_EB[2] ), new_comp_dt);
                        } else if (nyc > 1) {
-                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,1))+c)*dxinv_EB[1]
+                           new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,1))+c)*idy
                                                      + (amrex::Math::abs(u(i,j,k,2))+c)*dxinv_EB[2] ), new_comp_dt);
                        } else {
                            new_comp_dt = amrex::max( ( (amrex::Math::abs(u(i,j,k,2))+c)*dxinv_EB[2] ), new_comp_dt);
@@ -481,9 +496,11 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
                    }
                }
-           });
-           return new_comp_dt;
-       });
+               return {new_comp_dt};
+            });
+        }
+
+        estdt_comp_inv_N = amrex::get<0>(reduce_data.value(reduce_op));
 
         // The metric terms do not exist for EB, so the terrain aware
         // estimate is identical to the terrain unaware estimate
@@ -502,10 +519,12 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
         {
             const Box& bx = mfi.tilebox();
 
-            const Array4<const Real>& s    = S_new.const_array(mfi);
-            const Array4<const Real>& u_T  = ccvel_T.const_array(mfi);
-            const Array4<const Real>& u_N  = ccvel_N.const_array(mfi);
-            const Array4<const Real>& z_nd = z_nd_mf.const_array(mfi);
+            const Array4<const Real>& s     = S_new.const_array(mfi);
+            const Array4<const Real>& u_T   = ccvel_T.const_array(mfi);
+            const Array4<const Real>& u_N   = ccvel_N.const_array(mfi);
+            const Array4<const Real>& z_nd  = z_nd_mf.const_array(mfi);
+            const Array4<const Real>& mf_mx = mapfac[level][MapFacType::m_x]->const_array(mfi);
+            const Array4<const Real>& mf_my = mapfac[level][MapFacType::m_y]->const_array(mfi);
 
             reduce_op.eval(bx, reduce_data,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> GpuTuple<Real,Real>
@@ -521,11 +540,13 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
 
                 Real inv_dt_T = Compute_InvDt_Compressible(i,j,k, c,
                                     u_T(i,j,k,0), u_T(i,j,k,1), u_T(i,j,k,2),
-                                    z_nd, dxinv, true, l_substepping, nxc, nyc);
+                                    z_nd, mf_mx(i,j,0), mf_my(i,j,0), dxinv,
+                                    true, l_substepping, nxc, nyc);
 
                 Real inv_dt_N = Compute_InvDt_Compressible(i,j,k, c,
                                     u_N(i,j,k,0), u_N(i,j,k,1), u_N(i,j,k,2),
-                                    z_nd, dxinv, false, l_substepping, nxc, nyc);
+                                    z_nd, mf_mx(i,j,0), mf_my(i,j,0), dxinv,
+                                    false, l_substepping, nxc, nyc);
 
                 return {inv_dt_T, inv_dt_N};
             });
@@ -553,21 +574,33 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
     //
     if (solverChoice.terrain_type == TerrainType::EB)
     {
-        estdt_lowM_inv_N = ReduceMax(ccvel_N, z_nd_mf, 0,
-        [=] AMREX_GPU_HOST_DEVICE (Box const& b,
-                                   Array4<Real const> const& u,
-                                   Array4<Real const> const& z_nd) -> Real
+        ReduceOps<ReduceOpMax> reduce_op;
+        ReduceData<Real>       reduce_data(reduce_op);
+
+#ifdef AMREX_USE_OMP
+#pragma omp parallel if (Gpu::notInLaunchRegion())
+#endif
+        for (MFIter mfi(ccvel_N,TilingIfNotGPU()); mfi.isValid(); ++mfi)
         {
-            Real new_lm_dt = -bogus_large_value;
-            Loop(b, [=,&new_lm_dt] (int i, int j, int k) noexcept
+            const Box& bx = mfi.tilebox();
+
+            const Array4<const Real>& u     = ccvel_N.const_array(mfi);
+            const Array4<const Real>& z_nd  = z_nd_mf.const_array(mfi);
+            const Array4<const Real>& mf_mx = mapfac[level][MapFacType::m_x]->const_array(mfi);
+            const Array4<const Real>& mf_my = mapfac[level][MapFacType::m_y]->const_array(mfi);
+
+            reduce_op.eval(bx, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> GpuTuple<Real>
             {
                 Real inv_dt_lowM_N = Compute_InvDt_Anelastic(i,j,k,
                                              u(i,j,k,0), u(i,j,k,1), u(i,j,k,2),
-                                             z_nd, dxinv_EB, false);
-                new_lm_dt = amrex::max(inv_dt_lowM_N, new_lm_dt);
+                                             z_nd, mf_mx(i,j,0), mf_my(i,j,0),
+                                             dxinv_EB, false);
+                return {inv_dt_lowM_N};
             });
-            return new_lm_dt;
-        });
+        }
+
+        estdt_lowM_inv_N = amrex::get<0>(reduce_data.value(reduce_op));
 
         // The metric terms do not exist for EB
         estdt_lowM_inv_T = estdt_lowM_inv_N;
@@ -584,22 +617,22 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
         {
             const Box& bx = mfi.tilebox();
 
-            const Array4<const Real>& u_T  = ccvel_T.const_array(mfi);
-            const Array4<const Real>& u_N  = ccvel_N.const_array(mfi);
-            const Array4<const Real>& z_nd = z_nd_mf.const_array(mfi);
-            const Array4<const Real>& mf_x = mapfac[level][MapFacType::m_x]->const_array(mfi);
-            const Array4<const Real>& mf_y = mapfac[level][MapFacType::m_y]->const_array(mfi);
+            const Array4<const Real>& u_T   = ccvel_T.const_array(mfi);
+            const Array4<const Real>& u_N   = ccvel_N.const_array(mfi);
+            const Array4<const Real>& z_nd  = z_nd_mf.const_array(mfi);
+            const Array4<const Real>& mf_mx = mapfac[level][MapFacType::m_x]->const_array(mfi);
+            const Array4<const Real>& mf_my = mapfac[level][MapFacType::m_y]->const_array(mfi);
 
             reduce_op.eval(bx, reduce_data,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> GpuTuple<Real,Real>
             {
                 Real inv_dt_T = Compute_InvDt_Anelastic(i,j,k,
                                     u_T(i,j,k,0), u_T(i,j,k,1), u_T(i,j,k,2),
-                                    z_nd, dxinv, true, mf_x(i,j,0), mf_y(i,j,0));
+                                    z_nd, mf_mx(i,j,0), mf_my(i,j,0), dxinv, true);
 
                 Real inv_dt_N = Compute_InvDt_Anelastic(i,j,k,
                                     u_N(i,j,k,0), u_N(i,j,k,1), u_N(i,j,k,2),
-                                    z_nd, dxinv, false, mf_x(i,j,0), mf_y(i,j,0));
+                                    z_nd, mf_mx(i,j,0), mf_my(i,j,0), dxinv, false);
 
                 return {inv_dt_T, inv_dt_N};
             });
@@ -907,8 +940,11 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
          // Terrain aware   (T): includes h_xi, h_eta and h_zeta
          // Terrain unaware (N): no metric terms, dxinv[2] used for the vertical spacing
          if (fixed_dt[level] <= zero) {
+             // Smallest physical horizontal spacing, dx/mf_x and dy/mf_y
+             const Real mf_x_max = mapfac[level][MapFacType::m_x]->max(0);
+             const Real mf_y_max = mapfac[level][MapFacType::m_y]->max(0);
              Print() << "Using cfl = " << cfl << " and dx/dy/dz_min = " <<
-               one/dxinv[0] << " " << one/dxinv[1] << " " << dz_min[level] << std::endl;
+               one/(mf_x_max*dxinv[0]) << " " << one/(mf_y_max*dxinv[1]) << " " << dz_min[level] << std::endl;
              Print() << "Compressible dt at level " << level << ":  "
                      << estdt_comp_T << " (terrain aware)  "
                      << estdt_comp_N << " (terrain unaware)" << std::endl;

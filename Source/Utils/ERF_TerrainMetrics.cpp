@@ -743,9 +743,7 @@ init_which_terrain_grid (int lev,
                 // If k0 = 0 then z_arr at k0 has already been filled from the terrain data
                 // If k0 > 0 then z_arr at k0 has already been filled from interpolation
                 //
-                // z_levels stop at dom_lo: a ghost node of a box that starts near the ground can
-                // lie below it, where the levels are extended by reflection
-                Real z         = (k >= 0) ? z_lev[k] : two*z_lev[0] - z_lev[-k];
+                Real z         = z_lev[k];
                 Real z_sfc     = z_arr(ii,jj,k0);
                 Real z_lev_sfc = z_lev[k0];
 
