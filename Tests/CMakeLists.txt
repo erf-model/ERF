@@ -174,6 +174,18 @@ if(ERF_ENABLE_TESTS)
       message(STATUS "Skipping NoahMP_TopographicShading: Python numpy/netCDF4 unavailable")
     endif()
   endif()
+
+  if(ERF_ENABLE_MPI)
+    # Open MPI 4 keeps one session directory per user under TMPDIR; concurrent mpiexec
+    # launches race on it. Open MPI 5 makes the directory unique per launch itself.
+    get_property(_erf_tests DIRECTORY PROPERTY TESTS)
+    foreach(_erf_test IN LISTS _erf_tests)
+      # Tests registered outside setup_test may use a different working directory.
+      file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/test_files/${_erf_test}")
+      set_property(TEST ${_erf_test} APPEND PROPERTY ENVIRONMENT
+        "TMPDIR=${CMAKE_CURRENT_BINARY_DIR}/test_files/${_erf_test}")
+    endforeach()
+  endif()
 endif()
 
 if(ERF_ENABLE_UNIT_TESTS)

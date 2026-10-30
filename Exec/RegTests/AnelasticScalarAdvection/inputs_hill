@@ -1,0 +1,58 @@
+# A uniform scalar and a uniform theta in the wind over a 100 m hill, on a stretched
+# terrain-fitted mesh.  The projected momenta have no divergence, so advection must leave
+# both uniform; this holds only when the vertical flux uses Omega, the flow through the
+# terrain-following faces, with the face areas of the horizontal fluxes.
+erf.prob_name = "Scalar Advection/Diffusion"
+erf.anelastic = 1
+
+max_step  = 30
+stop_time = 1.0e6
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_lo     = -1280. -1280.    0.
+geometry.prob_hi     =  1280.  1280.  791.6  # 12 levels from 20 m stretched by 1.2
+amr.n_cell           =    32     32   12     # dx = dy = 80 m
+geometry.is_periodic = 1 1 0
+amr.max_level        = 0
+
+# Witch of Agnesi hill in the middle of the domain, 300 m half-width
+erf.terrain_type          = StaticFittedMesh
+erf.terrain_smoothing     = 0
+erf.initial_dz            = 20.0
+erf.grid_stretching_ratio = 1.2
+prob.custom_terrain_type  = "WoA"
+prob.dir                  = 2
+prob.hmax                 = 100.0
+prob.L                    = 300.0
+
+# Multigrid needs no FFT build, so this case runs in every CI job
+erf.terrain_poisson_solver = mlmg
+
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+erf.fixed_dt = 2.0        # advective CFL about 0.3
+erf.v = 1
+amr.v = 0
+erf.check_int   = -1
+erf.plot_file_1 = plt
+erf.plot_int_1  = 30
+erf.plot_vars_1 = density scalar theta x_velocity y_velocity z_velocity z_phys
+
+erf.dycore_horiz_adv_type    = "Upwind_3rd"
+erf.dycore_vert_adv_type     = "Upwind_3rd"
+erf.dryscal_horiz_adv_type   = "Upwind_3rd"
+erf.dryscal_vert_adv_type    = "Upwind_3rd"
+
+erf.use_gravity     = false
+erf.les_type        = "None"
+erf.molec_diff_type = "None"
+
+erf.init_type = "uniform"
+prob.rho_0 = 1.0
+prob.T_0   = 300.0
+prob.A_0   = 1.0
+prob.U_0   = 10.0
+prob.V_0   = 3.0
+prob.rad_0 = 100.0        # a ball far larger than the domain: scalar = A_0 everywhere
