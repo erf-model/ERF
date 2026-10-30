@@ -1,0 +1,76 @@
+{
+ "amr.max_level": {
+  "default": "0",
+  "default_origin": "initializer",
+  "default_source": "AMReX/Src/Base/AMReX_ParallelDescriptor.cpp:8",
+  "layer": "AMReX",
+  "layers": {"AMReX": "AMReX/Src/Base/AMReX_ParallelDescriptor.cpp:9", "ERF": "Source/ERF_Synthetic.cpp:19"},
+  "required": false,
+  "source": "AMReX/Src/Base/AMReX_ParallelDescriptor.cpp:9",
+  "type": "int"
+ },
+ "amrex.use_gpu_aware_mpi": {
+  "default": "false",
+  "default_origin": "initializer",
+  "default_source": "AMReX/Src/Base/AMReX_ParallelDescriptor.cpp:5",
+  "layer": "AMReX",
+  "layers": {"AMReX": "AMReX/Src/Base/AMReX_ParallelDescriptor.cpp:6"},
+  "required": false,
+  "source": "AMReX/Src/Base/AMReX_ParallelDescriptor.cpp:6",
+  "type": "bool"
+ },
+ "erf.Cs": {
+  "default": null,
+  "default_origin": "none",
+  "layer": "ERF",
+  "layers": {"ERF": "Source/ERF_Synthetic.cpp:15"},
+  "per_level": true,
+  "required": false,
+  "source": "Source/ERF_Synthetic.cpp:15",
+  "type": "real"
+ },
+ "erf.cfl": {
+  "default": "0.8",
+  "default_origin": "initializer",
+  "default_source": "Source/ERF_Synthetic.H:7",
+  "layer": "ERF",
+  "layers": {"ERF": "Source/ERF_Synthetic.cpp:6"},
+  "required": false,
+  "source": "Source/ERF_Synthetic.cpp:6",
+  "type": "real"
+ },
+ "erf.moisture_model": {
+  "case_insensitive": true,
+  "default": "None",
+  "default_origin": "initializer",
+  "default_source": "Source/ERF_Synthetic.cpp:8",
+  "layer": "ERF",
+  "layers": {"ERF": "Source/ERF_Synthetic.cpp:9"},
+  "required": false,
+  "source": "Source/ERF_Synthetic.cpp:9",
+  "type": "enum",
+  "values": ["None", "Kessler", "SAM"]
+ },
+ "erf.nsteps": {
+  "default": "10",
+  "default_origin": "initializer",
+  "default_source": "Source/ERF_Synthetic.H:8",
+  "layer": "ERF",
+  "layers": {"ERF": "Source/ERF_Synthetic.cpp:7"},
+  "required": true,
+  "source": "Source/ERF_Synthetic.cpp:7",
+  "type": "int"
+ },
+ "erf.widget_on": {
+  "default": "false",
+  "default_origin": "initializer",
+  "default_source": "Source/ERF_Synthetic.cpp:11",
+  "layer": "ERF",
+  "layers": {"ERF": "Source/ERF_Synthetic.cpp:12"},
+  "required": false,
+  "requires": ["ERF_USE_WIDGET"],
+  "requires_evidence": {"ERF_USE_WIDGET": "Source/ERF_Synthetic.cpp:10"},
+  "source": "Source/ERF_Synthetic.cpp:12",
+  "type": "bool"
+ }
+}

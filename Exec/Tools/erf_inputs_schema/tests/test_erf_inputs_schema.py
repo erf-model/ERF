@@ -129,5 +129,19 @@ class DeterminismTests(unittest.TestCase):
             self.assertEqual(got["keys"], generate()["keys"])
 
 
+class ParityTests(unittest.TestCase):
+    """The synthetic tree's schema, key for key: Build B's fields (type, source, per_level, enum values,
+    case_insensitive, requires) plus this tool's (layer, layers, default, default_origin, required)."""
+
+    def test_every_key_matches_the_expected_record(self):
+        import json
+        expected = json.loads((FIXTURES / "synthetic_expected_keys.json").read_text())
+        got = generate()["keys"]
+        self.assertEqual(sorted(got), sorted(expected))
+        for key, record in expected.items():
+            with self.subTest(key=key):
+                self.assertEqual(got[key], record)
+
+
 if __name__ == "__main__":
     unittest.main()
