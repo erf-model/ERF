@@ -1017,7 +1017,11 @@ ERF::init_zphys (int lev, double elapsed_time)
         solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
         make_terrain_blanking(lev);
 
-        init_immersed_forcing(lev); // needed for real cases
+        // Preserve the velocity initialization from WRFInput and Metgrid.
+        if (solverChoice.init_type != InitType::WRFInput &&
+            solverChoice.init_type != InitType::Metgrid) {
+            init_immersed_forcing(lev);
+        }
 
         // buildings are landmask = 2
         for (MFIter mfi(*lmask_lev[lev][0]); mfi.isValid(); ++mfi) {
