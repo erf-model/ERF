@@ -871,6 +871,8 @@ We note that when using implicit substepping, the vertical grid spacing does not
 The number of acoustic sub-steps per timestep can also be specified by the user as a fixed value or by specifying the
 number of substeps per RK stage.  For the anelastic equations, the timestep calculation uses the advective CFL constraint,
 which means it is determined by the fluid speed rather than the sound speed and thus allows much larger timesteps.
+In both cases the horizontal terms use the physical cell widths :math:`\Delta x / m_x` and :math:`\Delta y / m_y`,
+where :math:`m_x` and :math:`m_y` are the local map factors, so the timestep is limited by the smallest physical cell.
 
 .. _list-of-parameters-6:
 
