@@ -3,7 +3,11 @@
 Written before the implementation; each test fails until its capability exists. Run from the ERF root:
     python3 -m unittest discover -s Exec/Tools/erf_inputs_schema/tests
 """
+import os
+import shutil
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -73,6 +77,56 @@ class LayerTests(unittest.TestCase):
         self.assertEqual(keys["erf.cfl"]["layer"], "ERF")
         self.assertEqual(keys["erf.cfl"]["layers"], {"ERF": "Source/ERF_Synthetic.cpp:6"})
         self.assertEqual(keys["amrex.use_gpu_aware_mpi"]["layer"], "AMReX")
+
+
+CLI = TOOLS / "build_erf_schema.py"
+GIT_ENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.invalid", "GIT_COMMITTER_NAME": "t",
+           "GIT_COMMITTER_EMAIL": "t@example.invalid", "GIT_AUTHOR_DATE": "2026-10-29T00:00:00+00:00",
+           "GIT_COMMITTER_DATE": "2026-10-29T00:00:00+00:00"}
+
+
+def git(repo, *args):
+    return subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "-C", str(repo), *args], check=True,
+                          capture_output=True, text=True, env={**os.environ, **GIT_ENV}).stdout.strip()
+
+
+def git_repo(root, tree):
+    """A one-commit repo holding a copy of tree; returns its commit."""
+    shutil.copytree(tree, root)
+    git(root, "init", "-q")
+    git(root, "add", ".")
+    git(root, "commit", "-q", "-m", "fixture")
+    return git(root, "rev-parse", "HEAD")
+
+
+def run_cli(*args):
+    return subprocess.run([sys.executable, str(CLI), *map(str, args)], check=True, capture_output=True, text=True)
+
+
+class DeterminismTests(unittest.TestCase):
+    def test_two_runs_give_identical_bytes(self):
+        with tempfile.TemporaryDirectory() as td:
+            outs = [Path(td) / f"s{i}.json" for i in (1, 2)]
+            for out in outs:
+                run_cli("--erf-dir", SYNTHETIC / "erf", "--amrex-dir", SYNTHETIC / "AMReX", "--out", out)
+            self.assertEqual(outs[0].read_bytes(), outs[1].read_bytes())
+            self.assertTrue(outs[0].read_bytes().endswith(b"}\n"))
+
+    def test_git_mode_reads_by_archive_and_takes_amrex_from_the_gitlink(self):
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            amrex = git_repo(td / "amrex", SYNTHETIC / "AMReX")
+            erf = td / "erf"
+            git_repo(erf, SYNTHETIC / "erf")
+            git(erf, "update-index", "--add", "--cacheinfo", f"160000,{amrex},Submodules/AMReX")
+            git(erf, "commit", "-q", "-m", "gitlink")
+            commit = git(erf, "rev-parse", "HEAD")
+            out = td / "s.json"
+            run_cli("--repo", erf, "--erf", commit, "--amrex-repo", td / "amrex", "--out", out)
+            import json
+            got = json.loads(out.read_text())
+            self.assertEqual((got["erf_commit"], got["amrex_commit"]), (commit, amrex))
+            self.assertEqual(got["keys"], generate()["keys"])
 
 
 if __name__ == "__main__":
