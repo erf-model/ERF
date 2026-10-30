@@ -28,6 +28,8 @@
 #include <AMReX_FillPatchUtil.H>
 #include <AMReX_Interpolater.H>
 
+#include <limits>
+
 using namespace amrex;
 
 namespace {
@@ -411,6 +413,99 @@ void ERF::set_cf_zface_omega (int lev, MultiFab& omega, const MultiFab& omega_t,
 }
 
 /**
+ * Whether the coarse/fine faces of this level take the horizontal mass flux from the coarse level:
+ * an anelastic level on a terrain-fitted mesh.  The face areas vary along the coarse/fine faces
+ * there, so interpolating (rho u) would leave the fine fluxes not adding up to the coarse flux.
+ *
+ * @param lev Level index (> 0)
+ */
+bool ERF::cf_interp_mass_flux (int lev) const
+{
+    return solverChoice.anelastic[lev] && solverChoice.mesh_type == MeshType::VariableDz;
+}
+
+/**
+ * Register the coarse horizontal momenta for the coarse/fine face fills of the level above,
+ * as (ax rho u) and (ay rho v) where cf_interp_mass_flux holds.
+ *
+ * @param levc  Coarse level index
+ * @param xold  x-face momenta at the first time
+ * @param xnew  x-face momenta at the second time
+ * @param yold  y-face momenta at the first time
+ * @param ynew  y-face momenta at the second time
+ * @param times The two times
+ */
+void ERF::RegisterCoarseMomentumCF (int levc, const MultiFab& xold, const MultiFab& xnew,
+                                    const MultiFab& yold, const MultiFab& ynew,
+                                    const Vector<double>& times)
+{
+    if (!cf_interp_mass_flux(levc+1)) {
+        FPr_u[levc].RegisterCoarseData({&xold,&xnew}, times);
+        FPr_v[levc].RegisterCoarseData({&yold,&ynew}, times);
+        return;
+    }
+    auto weighted = [&] (const MultiFab& m, const MultiFab& area) {
+        const IntVect ng = amrex::min(m.nGrowVect(), area.nGrowVect());
+        MultiFab w(m.boxArray(), m.DistributionMap(), 1, ng);
+        MultiFab::Copy(w, m, 0, 0, 1, ng);
+        MultiFab::Multiply(w, area, 0, 0, 1, ng);
+        return w;
+    };
+    const MultiFab xo = weighted(xold, *ax[levc]);
+    const MultiFab xn = weighted(xnew, *ax[levc]);
+    const MultiFab yo = weighted(yold, *ay[levc]);
+    const MultiFab yn = weighted(ynew, *ay[levc]);
+    FPr_u[levc].RegisterCoarseData({&xo,&xn}, times);
+    FPr_v[levc].RegisterCoarseData({&yo,&yn}, times);
+}
+
+/**
+ * Fill the coarse/fine faces of one horizontal momentum component.  Where cf_interp_mass_flux
+ * holds, the fill gives the mass flux, which is divided by the fine area on the faces it set;
+ * all other faces keep their values exactly.
+ */
+static void
+fill_cf_momentum (ERFFillPatcher& patcher, MultiFab& mom, const MultiFab& area, bool mass_flux, double time_d,
+                  const Vector<BCRec>& bcs)
+{
+    PhysBCFunctNoOp null_bc;
+    if (!mass_flux) {
+        patcher.FillSet(mom, time_d, null_bc, bcs);
+        return;
+    }
+    constexpr Real not_set = std::numeric_limits<Real>::max();
+    MultiFab flux(mom.boxArray(), mom.DistributionMap(), 1, 0);
+    flux.setVal(not_set);
+    patcher.FillSet(flux, time_d, null_bc, bcs);
+    for (MFIter mfi(flux, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.tilebox();
+        const auto f = flux.const_array(mfi);
+        const auto a = area.const_array(mfi);
+        const auto m = mom.array(mfi);
+        const Real flag = not_set;
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (f(i,j,k) != flag) { m(i,j,k) = f(i,j,k) / a(i,j,k); }
+        });
+    }
+}
+
+/**
+ * Fill the horizontal momenta on the coarse/fine faces of a level (see RegisterCoarseMomentumCF).
+ *
+ * @param lev    Level index (> 0)
+ * @param time_d Time of the fill
+ * @param xmom   x-face momenta, (rho u)
+ * @param ymom   y-face momenta, (rho v)
+ */
+void ERF::FillSetHorizontalMomentaCF (int lev, double time_d, MultiFab& xmom, MultiFab& ymom)
+{
+    const bool mass_flux = cf_interp_mass_flux(lev);
+    fill_cf_momentum(FPr_u[lev-1], xmom, *ax[lev], mass_flux, time_d, domain_bcs_type);
+    fill_cf_momentum(FPr_v[lev-1], ymom, *ay[lev], mass_flux, time_d, domain_bcs_type);
+}
+
+/**
  * Set a refined level's momenta on its coarse/fine faces from the coarse level (FillSet), and on
  * an anelastic level over terrain give its faces in z the (rho w) whose Omega is the coarse
  * Omega,  rho w = WFromOmega(Omega_coarse, rho u, rho v),  with the layer of (rho u), (rho v)
@@ -431,8 +526,7 @@ void ERF::FillSetMomentaCF (int lev, double time_d, MultiFab& xmom, MultiFab& ym
 {
     BL_PROFILE("ERF::FillSetMomentaCF()");
     PhysBCFunctNoOp null_bc;
-    FPr_u[lev-1].FillSet(xmom, time_d, null_bc, domain_bcs_type);
-    FPr_v[lev-1].FillSet(ymom, time_d, null_bc, domain_bcs_type);
+    FillSetHorizontalMomentaCF(lev, time_d, xmom, ymom);
     FPr_w[lev-1].FillSet(zmom, time_d, null_bc, domain_bcs_type);
 
     if (!solverChoice.anelastic[lev] || solverChoice.mesh_type != MeshType::VariableDz) { return; }
