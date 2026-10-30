@@ -536,7 +536,18 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
   add_sbm_expected_failure_test(SBM_M3_Fixed_Unsafe_Anelastic_Stretched_Donor_DT
     inputs_adaptive_anelastic_stretched_donor
     "SBM M3 fixed timestep exceeds donor positivity limit"
-    "-DOVERRIDE=erf.fixed_dt=0.05")
+    "-DOVERRIDE=erf.fixed_dt=0.08")
+  # The limit on this deck is 1/14.4 s = 0.0694 s, from the outflow rate U/dx + V/dy + W/dz of the
+  # 0.1 thick bottom cell: the estimate must see the same mapped faces as the transport
+  add_test(NAME SBM_M3_Fixed_Safe_Anelastic_Stretched_Donor_DT
+    COMMAND $<TARGET_FILE:erf_exec>
+      ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_adaptive_anelastic_stretched_donor
+      erf.fixed_dt=0.068 erf.check_int=-1 amrex.call_addr2line=0
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+  set_tests_properties(SBM_M3_Fixed_Safe_Anelastic_Stretched_Donor_DT PROPERTIES
+    LABELS "integration;sbm"
+    RUN_SERIAL TRUE
+    TIMEOUT 120)
   add_sbm_expected_failure_test(SBM_M3_Reject_Legacy_Zero_Transport inputs_zero_carrier
     "erf.sbm_zero_transport_fixture=true is obsolete"
     "-DOVERRIDE=erf.sbm_zero_transport_fixture=true")
