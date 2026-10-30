@@ -4,11 +4,11 @@ build requirements each key or enum value has, and the canonical form of each ty
 
 Offline and read-only: source is read by `git archive` from a local clone, so no checkout changes and no build runs.
 
-    python3 Exec/Tools/build_erf_schema.py --repo . --erf HEAD --cmake "-DERF_ENABLE_NETCDF=ON" --out schema.json
+    python3 Exec/Tools/build_erf_schema.py --repo . --erf HEAD --cmake="-DERF_ENABLE_NETCDF=ON" --out schema.json
     python3 Exec/Tools/build_erf_schema.py --erf-dir <erf tree> --amrex-dir <amrex tree> --out schema.json
 
-AMReX is the commit ERF's Submodules/AMReX points at, unless --amrex is given. Build options come from --cmake (a -D
-list, repeatable) and/or --cmake-cache (a CMakeCache.txt). Facts that are the site's, not the build's (for example
+AMReX is the commit ERF's Submodules/AMReX points at, unless --amrex is given. Build options come from --cmake=... (a -D
+list, repeatable; the = form, since the value starts with a dash) and/or --cmake-cache (a CMakeCache.txt). Facts that are the site's, not the build's (for example
 whether the MPI is GPU-aware), come from --site-facts. Check a deck against the result with
 `check_erf_inputs.py --schema schema.json inputs`.
 """
@@ -34,7 +34,7 @@ def parse_args(argv):
     p.add_argument("--amrex", help="AMReX commit (default: ERF's gitlink at --erf)")
     p.add_argument("--erf-dir", type=Path, help="an ERF tree with Source/, CMake/, CMakeLists.txt (directory mode)")
     p.add_argument("--amrex-dir", type=Path, help="an AMReX tree with Src/ (directory mode)")
-    p.add_argument("--cmake", action="append", default=[], help="cmake -D options, e.g. '-DERF_ENABLE_NETCDF=ON'")
+    p.add_argument("--cmake", action="append", default=[], help="cmake -D options, given as --cmake='-DERF_ENABLE_NETCDF=ON ...'")
     p.add_argument("--cmake-cache", type=Path, help="a CMakeCache.txt to take ERF_* options from")
     p.add_argument("--site-facts", type=Path, help="a JSON list of site facts (see erf_inputs_schema/README)")
     p.add_argument("--out", type=Path, required=True)

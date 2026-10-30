@@ -255,7 +255,7 @@ class SiteFactTests(unittest.TestCase):
             import json
             facts.write_text(json.dumps(SITE_FACTS))
             run_cli("--erf-dir", SYNTHETIC / "erf", "--amrex-dir", SYNTHETIC / "AMReX", "--out", out,
-                    "--cmake", "-DERF_ENABLE_WIDGET=ON", "--site-facts", facts)
+                    "--cmake=-DERF_ENABLE_WIDGET=ON", "--site-facts", facts)
             got = json.loads(out.read_text())["build"]
         self.assertEqual(got["cmake"], {"ERF_ENABLE_WIDGET": True})
         self.assertEqual(got["facts_from"], {"cmake": "d_list", "site_facts": SITE_FACTS})
