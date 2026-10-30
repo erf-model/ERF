@@ -272,66 +272,10 @@ void erf_slow_rhs_post (int level, int finest_level,
         avg_zmom.ParallelCopy(S_data[IntVars::zmom], 0, 0, 1, 0, 1, geom.periodicity());
     }
 
-    // Non-EB Anelastic: the slow scalars are advected with the projected momentum.  Set the
-    // carrier before the tile loop below: a copy per tile inside that loop left the faces of the tiles
-    // not yet visited at their values from the previous stage while earlier tiles were already
-    // advecting with them, so the scalars depended on the tile size.
-    //
-    // The momenta are put in the form AdvectionSrcForRho defines them (ax rho_u / mf_uy,
-    // ay rho_v / mf_vx, az Omega / (mf_mx mf_my)), since AdvectionSrcForScalars divides the
-    // flux differences by detJ.  The projection hands back rho w, so Omega is rebuilt as in
-    // erf_slow_rhs_pre (0 at the bottom of the domain, rho w at its top); project_momenta
-    // has filled the z-ghost faces of the horizontal momenta that OmegaFromW reads.
-    if (l_anelastic && !l_use_eb) {
-        const bool l_fitted_mom = (solverChoice.mesh_type == MeshType::VariableDz);
-        const int  klo_face     = domain.smallEnd(2);
-        const int  khi_face     = domain.bigEnd(2) + 1;
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-        for (MFIter mfi(S_data[IntVars::cons],TilingIfNotGPU()); mfi.isValid(); ++mfi)
-        {
-            const Box tbx_mom = mfi.nodaltilebox(0);
-            const Box tby_mom = mfi.nodaltilebox(1);
-            const Box tbz_mom = mfi.nodaltilebox(2);
-
-            const Array4<const Real>& ax_mom = ax->const_array(mfi);
-            const Array4<const Real>& ay_mom = ay->const_array(mfi);
-            const Array4<const Real>& az_mom = az->const_array(mfi);
-            const Array4<const Real>  xmom_c = S_data[IntVars::xmom].const_array(mfi);
-            const Array4<const Real>  ymom_c = S_data[IntVars::ymom].const_array(mfi);
-            const Array4<const Real>  zmom_c = S_data[IntVars::zmom].const_array(mfi);
-            const Array4<const Real>& z_nd   = z_phys_nd->const_array(mfi);
-            const Array4<const Real>& mfm_x  = mapfac[MapFacType::m_x]->const_array(mfi);
-            const Array4<const Real>& mfm_y  = mapfac[MapFacType::m_y]->const_array(mfi);
-            const Array4<const Real>& mfu_x  = mapfac[MapFacType::u_x]->const_array(mfi);
-            const Array4<const Real>& mfv_x  = mapfac[MapFacType::v_x]->const_array(mfi);
-            const Array4<const Real>& mfu_y  = mapfac[MapFacType::u_y]->const_array(mfi);
-            const Array4<const Real>& mfv_y  = mapfac[MapFacType::v_y]->const_array(mfi);
-            const Array4<Real> avg_x = avg_xmom.array(mfi);
-            const Array4<Real> avg_y = avg_ymom.array(mfi);
-            const Array4<Real> avg_z = avg_zmom.array(mfi);
-
-            ParallelFor(tbx_mom, tby_mom, tbz_mom,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                avg_x(i,j,k) = ax_mom(i,j,k) * xmom_c(i,j,k) / mfu_y(i,j,0);
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                avg_y(i,j,k) = ay_mom(i,j,k) * ymom_c(i,j,k) / mfv_x(i,j,0);
-            },
-            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                Real omega_face;
-                if (!l_fitted_mom || k == khi_face) {
-                    omega_face = zmom_c(i,j,k);
-                } else if (k == klo_face) {
-                    omega_face = zero;
-                } else {
-                    omega_face = OmegaFromW(i,j,k,zmom_c(i,j,k),xmom_c,ymom_c,mfu_x,mfv_y,z_nd,dxInv);
-                }
-                avg_z(i,j,k) = az_mom(i,j,k) * omega_face / (mfm_x(i,j,0) * mfm_y(i,j,0));
-            });
-        }
-    }
+    // Non-EB Anelastic: the slow scalars are advected with the momenta AdvectionSrcForRho set in
+    // erf_slow_rhs_pre from the start of this stage (ax rho_u / mf_uy, ay rho_v / mf_vx,
+    // az Omega / (mf_mx mf_my)), the same faces that advect theta.  These momenta are already
+    // projected, by the previous stage or step.
 
     // M2 proof consumer: run after the stage carrier is final and before the
     // caller copies S_data over S_new, preserving the predictor density view.

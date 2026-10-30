@@ -4612,8 +4612,9 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_PartialDepth inputs_hill 30
       RUNTIME_OPTIONS "amr.max_level=1 'amr.ref_ratio_vect=2 2 1' erf.refinement_indicators=box1 erf.box1.max_level=1 'erf.box1.in_box_lo_indices_crse=8 12 2' 'erf.box1.in_box_hi_indices_crse=19 23 8' erf.coupling_type=OneWay"
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol} --require-level)
-  # Two-way coupling with reflux.  Theta, which does not use these momenta, departs by 1.5e-4
-  # here, so the limit is wider: it holds the scalar to the level of theta, not to round-off
+  # Two-way coupling with reflux: the scalars are refluxed and depart by 4.2e-4 (theta, which
+  # is registered but not refluxed, by 1.5e-4), next to the patch, where the fluxes of the two
+  # levels do not agree over terrain.  The limit is wider until they do
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_TwoWay inputs_hill 30
       RUNTIME_OPTIONS "amr.max_level=1 'amr.ref_ratio_vect=2 2 1' erf.refinement_indicators=box1 erf.box1.max_level=1 'erf.box1.in_box_lo_indices_crse=8 12 0' 'erf.box1.in_box_hi_indices_crse=19 23 11'"
       CHECK check_uniform_scalar.py PLOTFILES 1.0e-3 --require-level)
@@ -4621,6 +4622,18 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_MidPoint inputs_hill 30
       RUNTIME_OPTIONS "erf.anelastic_type=MidPoint"
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol})
+  # A wind that varies in time, for both integrators: the error is second order in dt
+  # (measured 0.072 m at dt = 0.4 s; with the momenta of the end of each stage it was 3.4 m)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Inertial_RK2 inputs_inertial 40
+      RUNTIME_OPTIONS "erf.anelastic_type=RK2"
+      CHECK check_inertial_drift.py PLOTFILES)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Inertial_MidPoint inputs_inertial 40
+      RUNTIME_OPTIONS "erf.anelastic_type=MidPoint"
+      CHECK check_inertial_drift.py PLOTFILES)
+  # The time step from erf.cfl with map factors
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_CFL_MapFactor inputs_mapfac_anelastic 5
+      RUNTIME_OPTIONS "erf.fixed_dt=-1 erf.cfl=0.5 erf.change_max=100"
+      CHECK check_cfl_dt.py PLOTFILES)
   if(ERF_ENABLE_FFT)
     # A stretched mesh without terrain has only the FFT projection
     add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Stretched inputs_stretched 50

@@ -415,9 +415,8 @@ public:
                 // ****************************************************
                 // Evaluate F_slow(S_stage) only for the slow variables
                 // Note that we are using the current stage versions (in S_new) of the slow variables
-                //      (because we didn't update the slow variables in the substepping)
-                //       but we are using the "new" versions (in S_sum) of the velocities
-                //      (because we did    update the fast variables in the substepping)
+                //      and the momenta slow_rhs_pre took from the same stage to advect them;
+                //      S_sum holds the projected state at the end of the stage
                 // ****************************************************
                 slow_rhs_post(*F_slow, S_old, S_new, *S_sum, time, old_time_stage, time_stage, nrk);
             } // nrk

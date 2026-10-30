@@ -158,15 +158,18 @@ Compute_InvDt_Anelastic (const int i, const int j, const int k,
                          const amrex::Real w,
                          const amrex::Array4<const amrex::Real>& z_nd,
                          const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>& dxinv,
-                         const bool l_terrain_aware)
+                         const bool l_terrain_aware,
+                         const amrex::Real mf_x = amrex::Real(1.0),
+                         const amrex::Real mf_y = amrex::Real(1.0))
 {
     amrex::Real idz = dxinv[2];
     if (l_terrain_aware) {
         idz /= Compute_h_zeta_AtCellCenter(i,j,k,dxinv,z_nd);
     }
 
-    return ( amrex::Math::abs(u)*dxinv[0]
-           + amrex::Math::abs(v)*dxinv[1]
+    // The physical cell width is dx / m
+    return ( amrex::Math::abs(u)*dxinv[0]*mf_x
+           + amrex::Math::abs(v)*dxinv[1]*mf_y
            + amrex::Math::abs(w)*idz     );
 }
 

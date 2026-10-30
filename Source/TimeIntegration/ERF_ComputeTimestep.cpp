@@ -587,17 +587,19 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
             const Array4<const Real>& u_T  = ccvel_T.const_array(mfi);
             const Array4<const Real>& u_N  = ccvel_N.const_array(mfi);
             const Array4<const Real>& z_nd = z_nd_mf.const_array(mfi);
+            const Array4<const Real>& mf_x = mapfac[level][MapFacType::m_x]->const_array(mfi);
+            const Array4<const Real>& mf_y = mapfac[level][MapFacType::m_y]->const_array(mfi);
 
             reduce_op.eval(bx, reduce_data,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> GpuTuple<Real,Real>
             {
                 Real inv_dt_T = Compute_InvDt_Anelastic(i,j,k,
                                     u_T(i,j,k,0), u_T(i,j,k,1), u_T(i,j,k,2),
-                                    z_nd, dxinv, true);
+                                    z_nd, dxinv, true, mf_x(i,j,0), mf_y(i,j,0));
 
                 Real inv_dt_N = Compute_InvDt_Anelastic(i,j,k,
                                     u_N(i,j,k,0), u_N(i,j,k,1), u_N(i,j,k,2),
-                                    z_nd, dxinv, false);
+                                    z_nd, dxinv, false, mf_x(i,j,0), mf_y(i,j,0));
 
                 return {inv_dt_T, inv_dt_N};
             });
@@ -653,8 +655,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
         erf_auxiliary::MappedFaceFluxRate mapped_carrier;
         mapped_carrier.define(cell_ba, cell_dm, 1, 0);
         std::string sbm_diagnostic;
-        // The same mapped carrier for both integrators: erf_slow_rhs_post gives the anelastic
-        // transport these faces too, with Omega rebuilt from the projected rho w
+        // The same mapped carrier for both integrators: erf_slow_rhs_pre gives the anelastic
+        // transport these faces too, from the current momenta
         MultiFab sbm_vertical_carrier(zface_ba, cell_dm, 1, 0);
         const bool terrain_fitted =
             solverChoice.mesh_type == MeshType::VariableDz;

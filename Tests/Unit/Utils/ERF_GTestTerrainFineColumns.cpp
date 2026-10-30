@@ -232,6 +232,32 @@ TEST(TerrainFineColumns, SplitPatchAloftMatchesWholePatch)
     }
 }
 
+// A box that starts at k = 1 has ghost nodes below the domain, where the z levels stop.  The levels
+// are extended there by reflection; the build used to read before the start of z_levels.
+TEST(TerrainFineColumns, GhostNodesBelowTheDomainUseReflectedLevels)
+{
+    const Geometry geom = make_geom(true);
+    BoxArray ba_cc(Box(IntVect(0,0,1), IntVect(nx-1,ny-1,nz-1)));
+    const MultiFab z_phys_nd = build_fine_mesh(ba_cc, geom, true);
+    const Vector<Real> z_levels = make_z_levels();
+    const Real z_top = z_levels[nz];
+    const Real z_ref = Real(2.)*z_levels[0] - z_levels[1];
+    int checked = 0;
+    for (MFIter mfi(z_phys_nd); mfi.isValid(); ++mfi) {
+        const auto z = z_phys_nd.const_array(mfi);
+        const Box bx = mfi.validbox();
+        ASSERT_LE(mfi.fabbox().smallEnd(2) + 1, -1);
+        const int i = bx.smallEnd(0) + 1;
+        const int j = bx.smallEnd(1) + 1;
+        const Real z_sfc = z(i,j,1);
+        const Real expected = ((z_sfc - z_levels[1])*z_top + (z_top - z_sfc)*z_ref) / (z_top - z_levels[1]);
+        EXPECT_NEAR(z(i,j,-1), expected, Real(1.e-4));
+        ++checked;
+    }
+    ParallelDescriptor::ReduceIntSum(checked);
+    EXPECT_GT(checked, 0);
+}
+
 // The per-box build is what the fine level used to get; it does depend on the split, which
 // is what the tests above would catch
 TEST(TerrainFineColumns, PerBoxBuildDependsOnSplit)
