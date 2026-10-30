@@ -17,4 +17,6 @@ void read_synthetic (SyntheticParams& sp)
     ParmParse pa("amr");
     int max_level = 0;
     pa.query("max_level", max_level);              // also read by AMReX: a shared key
+    pp.query("eye_latitude", sp.eye_latitude);
+    pp.query("eye_longitude", sp.eye_longitude);
 }

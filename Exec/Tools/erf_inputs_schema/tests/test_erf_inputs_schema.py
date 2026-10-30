@@ -143,5 +143,13 @@ class ParityTests(unittest.TestCase):
                 self.assertEqual(got[key], record)
 
 
+class DeclarationTests(unittest.TestCase):
+    def test_every_name_on_a_multi_declarator_line_is_typed(self):
+        keys = generate()["keys"]
+        self.assertEqual(keys["erf.eye_latitude"]["type"], "real")
+        self.assertEqual(keys["erf.eye_longitude"]["type"], "real")
+        self.assertEqual(keys["erf.eye_longitude"]["default"], "-10000000000.0")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -4,7 +4,10 @@
   "default_origin": "initializer",
   "default_source": "AMReX/Src/Base/AMReX_ParallelDescriptor.cpp:8",
   "layer": "AMReX",
-  "layers": {"AMReX": "AMReX/Src/Base/AMReX_ParallelDescriptor.cpp:9", "ERF": "Source/ERF_Synthetic.cpp:19"},
+  "layers": {
+   "AMReX": "AMReX/Src/Base/AMReX_ParallelDescriptor.cpp:9",
+   "ERF": "Source/ERF_Synthetic.cpp:19"
+  },
   "required": false,
   "source": "AMReX/Src/Base/AMReX_ParallelDescriptor.cpp:9",
   "type": "int"
@@ -14,7 +17,9 @@
   "default_origin": "initializer",
   "default_source": "AMReX/Src/Base/AMReX_ParallelDescriptor.cpp:5",
   "layer": "AMReX",
-  "layers": {"AMReX": "AMReX/Src/Base/AMReX_ParallelDescriptor.cpp:6"},
+  "layers": {
+   "AMReX": "AMReX/Src/Base/AMReX_ParallelDescriptor.cpp:6"
+  },
   "required": false,
   "source": "AMReX/Src/Base/AMReX_ParallelDescriptor.cpp:6",
   "type": "bool"
@@ -23,7 +28,9 @@
   "default": null,
   "default_origin": "none",
   "layer": "ERF",
-  "layers": {"ERF": "Source/ERF_Synthetic.cpp:15"},
+  "layers": {
+   "ERF": "Source/ERF_Synthetic.cpp:15"
+  },
   "per_level": true,
   "required": false,
   "source": "Source/ERF_Synthetic.cpp:15",
@@ -34,9 +41,35 @@
   "default_origin": "initializer",
   "default_source": "Source/ERF_Synthetic.H:7",
   "layer": "ERF",
-  "layers": {"ERF": "Source/ERF_Synthetic.cpp:6"},
+  "layers": {
+   "ERF": "Source/ERF_Synthetic.cpp:6"
+  },
   "required": false,
   "source": "Source/ERF_Synthetic.cpp:6",
+  "type": "real"
+ },
+ "erf.eye_latitude": {
+  "default": "-10000000000.0",
+  "default_origin": "initializer",
+  "default_source": "Source/ERF_Synthetic.H:9",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Synthetic.cpp:20"
+  },
+  "required": false,
+  "source": "Source/ERF_Synthetic.cpp:20",
+  "type": "real"
+ },
+ "erf.eye_longitude": {
+  "default": "-10000000000.0",
+  "default_origin": "initializer",
+  "default_source": "Source/ERF_Synthetic.H:9",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_Synthetic.cpp:21"
+  },
+  "required": false,
+  "source": "Source/ERF_Synthetic.cpp:21",
   "type": "real"
  },
  "erf.moisture_model": {
@@ -45,18 +78,26 @@
   "default_origin": "initializer",
   "default_source": "Source/ERF_Synthetic.cpp:8",
   "layer": "ERF",
-  "layers": {"ERF": "Source/ERF_Synthetic.cpp:9"},
+  "layers": {
+   "ERF": "Source/ERF_Synthetic.cpp:9"
+  },
   "required": false,
   "source": "Source/ERF_Synthetic.cpp:9",
   "type": "enum",
-  "values": ["None", "Kessler", "SAM"]
+  "values": [
+   "None",
+   "Kessler",
+   "SAM"
+  ]
  },
  "erf.nsteps": {
   "default": "10",
   "default_origin": "initializer",
   "default_source": "Source/ERF_Synthetic.H:8",
   "layer": "ERF",
-  "layers": {"ERF": "Source/ERF_Synthetic.cpp:7"},
+  "layers": {
+   "ERF": "Source/ERF_Synthetic.cpp:7"
+  },
   "required": true,
   "source": "Source/ERF_Synthetic.cpp:7",
   "type": "int"
@@ -66,10 +107,16 @@
   "default_origin": "initializer",
   "default_source": "Source/ERF_Synthetic.cpp:11",
   "layer": "ERF",
-  "layers": {"ERF": "Source/ERF_Synthetic.cpp:12"},
+  "layers": {
+   "ERF": "Source/ERF_Synthetic.cpp:12"
+  },
   "required": false,
-  "requires": ["ERF_USE_WIDGET"],
-  "requires_evidence": {"ERF_USE_WIDGET": "Source/ERF_Synthetic.cpp:10"},
+  "requires": [
+   "ERF_USE_WIDGET"
+  ],
+  "requires_evidence": {
+   "ERF_USE_WIDGET": "Source/ERF_Synthetic.cpp:10"
+  },
   "source": "Source/ERF_Synthetic.cpp:12",
   "type": "bool"
  }
