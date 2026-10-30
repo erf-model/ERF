@@ -48,6 +48,17 @@
   "source": "Source/ERF_Removed.cpp:24",
   "type": "int"
  },
+ "erf.box_hi": {
+  "default": null,
+  "default_origin": "none",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_MoreShapes.cpp:20"
+  },
+  "required": false,
+  "source": "Source/ERF_MoreShapes.cpp:20",
+  "type": "real_list"
+ },
  "erf.cfl": {
   "default": "0.8",
   "default_origin": "initializer",
@@ -59,6 +70,18 @@
   "required": false,
   "source": "Source/ERF_Synthetic.cpp:6",
   "type": "real"
+ },
+ "erf.chv": {
+  "default": "1",
+  "default_origin": "initializer",
+  "default_source": "Source/ERF_MoreShapes.cpp:17",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_MoreShapes.cpp:18"
+  },
+  "required": false,
+  "source": "Source/ERF_MoreShapes.cpp:18",
+  "type": "int"
  },
  "erf.eye_latitude": {
   "default": "-10000000000.0",
@@ -83,6 +106,17 @@
   "required": false,
   "source": "Source/ERF_Synthetic.cpp:21",
   "type": "real"
+ },
+ "erf.legacy": {
+  "default": null,
+  "default_origin": "none",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_MoreShapes.cpp:10"
+  },
+  "required": false,
+  "source": "Source/ERF_MoreShapes.cpp:10",
+  "type": "int"
  },
  "erf.moisture_model": {
   "case_insensitive": true,
@@ -126,6 +160,19 @@
   "required": true,
   "source": "Source/ERF_Synthetic.cpp:7",
   "type": "int"
+ },
+ "erf.old_flag": {
+  "default": null,
+  "default_origin": "none",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_MoreShapes.cpp:4"
+  },
+  "removed_evidence": "Source/ERF_MoreShapes.cpp:6",
+  "removed_shape": "countval_var_gt0_error",
+  "required": false,
+  "source": "Source/ERF_MoreShapes.cpp:4",
+  "type": "removed"
  },
  "erf.old_knob": {
   "default": null,

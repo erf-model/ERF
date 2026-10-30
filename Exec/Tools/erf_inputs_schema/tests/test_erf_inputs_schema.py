@@ -261,5 +261,24 @@ class SiteFactTests(unittest.TestCase):
         self.assertEqual(got["facts_from"], {"cmake": "d_list", "site_facts": SITE_FACTS})
 
 
+class MoreShapesTests(unittest.TestCase):
+    """Shapes the 87f45a6e parity run found (ERF_DataStruct.H, AMReX_Amr.cpp, ERF_WriteBndryPlanes.cpp)."""
+
+    def test_a_count_kept_in_a_variable_then_error_is_removed(self):
+        fact = generate()["keys"]["erf.old_flag"]
+        self.assertEqual((fact["type"], fact["removed_shape"]), ("removed", "countval_var_gt0_error"))
+        self.assertEqual(fact["removed_evidence"], "Source/ERF_MoreShapes.cpp:6")
+
+    def test_contains_whose_body_reads_the_key_is_not_removed_despite_an_error(self):
+        fact = generate()["keys"]["erf.legacy"]
+        self.assertEqual(fact["type"], "int")
+        self.assertNotIn("removed_shape", fact)
+
+    def test_constructor_style_declarators_are_typed(self):
+        keys = generate()["keys"]
+        self.assertEqual((keys["erf.chv"]["type"], keys["erf.chv"]["default"]), ("int", "1"))
+        self.assertEqual(keys["erf.box_hi"]["type"], "real_list")
+
+
 if __name__ == "__main__":
     unittest.main()
