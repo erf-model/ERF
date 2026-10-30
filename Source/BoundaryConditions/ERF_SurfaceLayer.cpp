@@ -119,9 +119,8 @@ SurfaceLayer::update_fluxes (const int& lev,
         fill_planar_boundary(lev, *q_surf[lev]);
     }
 
-    // NOTE: Do iterations to seed variables on the first step (LSM called post step)
-    //       as well as compute values where invalid LSM fluxes may reside
-    //*******************************************************************************
+    // NOTE: Over land, iterate only where the LSM flux is invalid; the LSM-valid
+    //       columns are filled by compute_sfc_params_from_lsm_fluxes below.
     // ***************************************************************
     // Iterate the fluxes if moeng type
     // First iterate over land -- the only model for surface roughness
@@ -191,7 +190,7 @@ SurfaceLayer::update_fluxes (const int& lev,
     } // MOENG -- LAND
 
     // Update u*/T*/q*/L over land (iterations or from LSM fluxes)
-    if (m_has_lsm_fluxes && elapsed_time > zero) {
+    if (m_has_lsm_fluxes) {
         compute_sfc_params_from_lsm_fluxes(lev, cons_in);
     }
 
@@ -613,6 +612,15 @@ SurfaceLayer::compute_fluxes (const int& lev,
         gtbx &= u_star[lev]->fabbox(mfi.index());
         if (gtbx.isEmpty()) { continue; }
 
+        // Land columns with a valid LSM flux are skipped here and filled instead by
+        // compute_sfc_params_from_lsm_fluxes.  The LSM fluxes need not carry lateral ghost
+        // cells, so a ghost column tests the nearest valid column, as that routine does.
+        // Both take the fluxes from get_lsm_flux_view and test them with
+        // SurfaceFluxView::valid, so a column with lmask == 1 gets exactly one of the two.
+        // (compute_sfc_params_from_lsm_fluxes also treats a non-zero lmask other than 1,
+        // e.g. an ImmersedForcing building cell, and a missing lmask as land.)
+        const NearestColumn col(vbx);
+
         auto u_star_arr = u_star[lev]->array(mfi);
         auto t_star_arr = t_star[lev]->array(mfi);
         auto q_star_arr = q_star[lev]->array(mfi);
@@ -649,24 +657,32 @@ SurfaceLayer::compute_fluxes (const int& lev,
         // Get EB flags if needed
         const auto flag_arr = (l_use_eb) ? m_eb_vec[lev]->get_const_factory()->getMultiEBCellFlagFab()[mfi].const_array() : Array4<const EBCellFlag>{};
 
+        // Get LSM flux arrays (z-low face only; the other faces never use them)
+        const bool use_lsm_fluxes = is_land && m_has_lsm_fluxes &&
+                                    dir == 2 && m_face.isLow();
+        const SurfaceFluxView lsm_flux = (use_lsm_fluxes) ? get_lsm_flux_view(lev, mfi)
+                                                          : SurfaceFluxView{};
+
         if (!l_use_eb) {
             ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
             {
                 // always check for land mask at k=0 even if on other faces
-                if (( is_land && lmask_arr(i,j,0) == 1) ||
-                    (!is_land && lmask_arr(i,j,0) == 0))
+                const bool iterate_land = ( is_land && lmask_arr(i,j,0) == 1 &&
+                                           !(use_lsm_fluxes && lsm_flux.valid(col.i(i), col.j(j))) );
+                const bool iterate_sea  = (!is_land && lmask_arr(i,j,0) == 0 );
+                if (iterate_land || iterate_sea)
                 {
                     // NOTE: All 2D MFs so k index is always 0 from ba2d definition
                     most_flux.iterate_flux(i, j, k, max_iters,
-                                        zref_arr,                            // set in most average
-                                        z0_arr,                              // updated if(!is_land)
-                                        dir_umm_arr, tm_arr, tvm_arr, qvm_arr,
-                                        u_star_arr,                          // updated
-                                        w_star_arr,                          // updated if(m_include_wstar)
-                                        t_star_arr, q_star_arr,              // updated
-                                        t_surf_arr, q_surf_arr, olen_arr,    // updated
-                                        pblh_arr,                            // updated if(m_include_wstar)
-                                        Hwave_arr, Lwave_arr, eta_arr);
+                                           zref_arr,                            // set in most average
+                                           z0_arr,                              // updated if(!is_land)
+                                           dir_umm_arr, tm_arr, tvm_arr, qvm_arr,
+                                           u_star_arr,                          // updated
+                                           w_star_arr,                          // updated if(m_include_wstar)
+                                           t_star_arr, q_star_arr,              // updated
+                                           t_surf_arr, q_surf_arr, olen_arr,    // updated
+                                           pblh_arr,                            // updated if(m_include_wstar)
+                                           Hwave_arr, Lwave_arr, eta_arr);
                 }
             });
         // EB
@@ -676,20 +692,22 @@ SurfaceLayer::compute_fluxes (const int& lev,
                 std::is_same<FluxIter, surface_flux_eb>::value) {
                 ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
                 {
-                    if (( is_land && lmask_arr(i,j,0) == 1) ||
-                        (!is_land && lmask_arr(i,j,0) == 0))
+                    const bool iterate_land = ( is_land && lmask_arr(i,j,0) == 1 &&
+                                               !(use_lsm_fluxes && lsm_flux.valid(col.i(i), col.j(j))) );
+                    const bool iterate_sea  = (!is_land && lmask_arr(i,j,0) == 0 );
+                    if (iterate_land || iterate_sea)
                     {
                         if (flag_arr(i,j,k).isSingleValued()) {
                             most_flux.iterate_flux(i, j, k, max_iters,
-                                                zref_arr,                            // set in most average
-                                                z0_arr,                              // updated if(!is_land)
-                                                umm_arr, tm_arr, tvm_arr, qvm_arr,
-                                                u_star_arr,                          // updated
-                                                w_star_arr,                          // updated if(m_include_wstar)
-                                                t_star_arr, q_star_arr,              // updated
-                                                t_surf_arr, q_surf_arr, olen_arr,    // updated
-                                                pblh_arr,                            // updated if(m_include_wstar)
-                                                Hwave_arr, Lwave_arr, eta_arr);
+                                                   zref_arr,                            // set in most average
+                                                   z0_arr,                              // updated if(!is_land)
+                                                   umm_arr, tm_arr, tvm_arr, qvm_arr,
+                                                   u_star_arr,                          // updated
+                                                   w_star_arr,                          // updated if(m_include_wstar)
+                                                   t_star_arr, q_star_arr,              // updated
+                                                   t_surf_arr, q_surf_arr, olen_arr,    // updated
+                                                   pblh_arr,                            // updated if(m_include_wstar)
+                                                   Hwave_arr, Lwave_arr, eta_arr);
                         }
                     }
                 });
@@ -1094,33 +1112,24 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         // Get LSM fluxes
         auto lmask_arr      = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
                                                       Array4<int> {};
-        auto lsm_t_flux_arr  = Array4<const Real> {};
         auto soil_t_flux_arr = Array4<Real> {};
-        auto lsm_q_flux_arr = Array4<const Real> {};
-        auto lsm_tau13_arr  = Array4<const Real> {};
-        auto lsm_tau23_arr  = Array4<const Real> {};
-        // LSM tau fields are cell-centered kinematic stresses [m2 s-2].
-        // Tau_lev tau13/tau23 are face-centered conservative stresses [N m-2].
         for (int n(0); n<m_lsm_flux_lev[lev].size(); ++n) {
-            if (toLower(m_lsm_flux_name[n]) == "t_flux")      { lsm_t_flux_arr  = m_lsm_flux_lev[lev][n]->const_array(mfi); }
-            if (toLower(m_lsm_flux_name[n]) == "soil_t_flux") { soil_t_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi); }
-            if (toLower(m_lsm_flux_name[n]) == "q_flux")      { lsm_q_flux_arr  = m_lsm_flux_lev[lev][n]->const_array(mfi); }
-            if (toLower(m_lsm_flux_name[n]) == "tau13")       { lsm_tau13_arr   = m_lsm_flux_lev[lev][n]->const_array(mfi); }
-            if (toLower(m_lsm_flux_name[n]) == "tau23")       { lsm_tau23_arr   = m_lsm_flux_lev[lev][n]->const_array(mfi); }
+            if (m_lsm_flux_lev[lev][n] && toLower(m_lsm_flux_name[n]) == "soil_t_flux") {
+                soil_t_flux_arr = m_lsm_flux_lev[lev][n]->array(mfi);
+            }
         }
 
-        // Get provider or weight-averaged LSM+Urban fluxes through SurfaceModel.
-        const SurfaceFluxView surf_flux = (use_surface_model && surf_model_fluxes)
-            ? m_surf_model->get_surface_flux_view(lev, mfi) : SurfaceFluxView{};
-        const auto surf_tflux_arr = surf_flux.t_flux;
-        const auto surf_qflux_arr = surf_flux.q_flux;
-        const auto surf_uflux_arr = surf_flux.tau13;
-        const auto surf_vflux_arr = surf_flux.tau23;
-        const bool use_surface_model_fluxes = use_surface_model && surf_model_fluxes;
-        const auto t_flux_arr = use_surface_model_fluxes ? surf_tflux_arr : lsm_t_flux_arr;
-        const auto q_flux_arr = use_surface_model_fluxes ? surf_qflux_arr : lsm_q_flux_arr;
-        const auto surface_tau13_arr = use_surface_model_fluxes ? surf_uflux_arr : lsm_tau13_arr;
-        const auto surface_tau23_arr = use_surface_model_fluxes ? surf_vflux_arr : lsm_tau23_arr;
+        // Provider, weight-averaged LSM+Urban or registered LSM fluxes.  A column uses the
+        // LSM fluxes only where SurfaceFluxView::valid holds for all four, the same test
+        // compute_fluxes and compute_sfc_params_from_lsm_fluxes make, so the applied fluxes
+        // come from the same source as that column's u*/t*/q*.
+        // LSM tau fields are cell-centered kinematic stresses [m2 s-2].
+        // Tau_lev tau13/tau23 are face-centered conservative stresses [N m-2].
+        const SurfaceFluxView lsm_flux = get_lsm_flux_view(lev, mfi);
+        const auto t_flux_arr = lsm_flux.t_flux;
+        const auto q_flux_arr = lsm_flux.q_flux;
+        const auto surface_tau13_arr = lsm_flux.tau13;
+        const auto surface_tau23_arr = lsm_flux.tau23;
         const bool has_lsm_t_flux = static_cast<bool>(t_flux_arr);
         const bool is_custom = (flux_type == FluxCalcType::CUSTOM);
         const bool is_rico   = (flux_type == FluxCalcType::RICO);
@@ -1142,8 +1151,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             // open water); fall back to MOST there instead of applying garbage.
             Real Tflux;
             int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-            const bool lsm_flux_is_valid = (t_flux_arr) ? (t_flux_arr(i,j,0) < lsm_undefined) :
-                                                              false;
+            const bool lsm_flux_is_valid = lsm_flux.valid(i,j);
             const bool has_land_and_flux = (is_land == 1 && lsm_flux_is_valid);
             if (t_flux_arr && has_land_and_flux) {
                 // LSM flux MultiFabs store kinematic fluxes for MOST parameter
@@ -1220,8 +1228,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 // Valid qv flux from LSM and over land (sentinel -> fall back to MOST)
                 Real Qflux;
                 int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
-                const bool lsm_flux_is_valid = (q_flux_arr) ? (q_flux_arr(i,j,0) < lsm_undefined) :
-                                                                  false;
+                const bool lsm_flux_is_valid = lsm_flux.valid(i,j);
                 const bool has_land_and_flux = (is_land == 1 && lsm_flux_is_valid);
                 if (q_flux_arr && has_land_and_flux) {
                     // LSM flux MultiFabs store kinematic fluxes for MOST parameter
@@ -1298,12 +1305,8 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 Real stressx;
                 int is_land_hi = (lmask_arr) ? lmask_arr(i  ,j,0) : 1;
                 int is_land_lo = (lmask_arr) ? lmask_arr(i-1,j,0) : 1;
-                const bool lsm_hi_flux_is_valid = surface_layer_stress::lsm_flux_is_valid(
-                    static_cast<bool>(surface_tau13_arr), is_land_hi == 1,
-                    surface_tau13_arr ? surface_tau13_arr(i  ,j,0) : zero, lsm_undefined);
-                const bool lsm_lo_flux_is_valid = surface_layer_stress::lsm_flux_is_valid(
-                    static_cast<bool>(surface_tau13_arr), is_land_lo == 1,
-                    surface_tau13_arr ? surface_tau13_arr(i-1,j,0) : zero, lsm_undefined);
+                const bool lsm_hi_flux_is_valid = is_land_hi == 1 && lsm_flux.valid(i,j);
+                const bool lsm_lo_flux_is_valid = is_land_lo == 1 && lsm_flux.valid(i-1,j);
                 const bool has_land_and_flux_hi = (is_land_hi == 1 && lsm_hi_flux_is_valid);
                 const bool has_land_and_flux_lo = (is_land_lo == 1 && lsm_lo_flux_is_valid);
                 if (surface_tau13_arr && (has_land_and_flux_hi || has_land_and_flux_lo)) {
@@ -1372,12 +1375,8 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 Real stressy;
                 int is_land_hi = (lmask_arr) ? lmask_arr(i,j  ,0) : 1;
                 int is_land_lo = (lmask_arr) ? lmask_arr(i,j-1,0) : 1;
-                const bool lsm_hi_flux_is_valid = surface_layer_stress::lsm_flux_is_valid(
-                    static_cast<bool>(surface_tau23_arr), is_land_hi == 1,
-                    surface_tau23_arr ? surface_tau23_arr(i,j  ,0) : zero, lsm_undefined);
-                const bool lsm_lo_flux_is_valid = surface_layer_stress::lsm_flux_is_valid(
-                    static_cast<bool>(surface_tau23_arr), is_land_lo == 1,
-                    surface_tau23_arr ? surface_tau23_arr(i,j-1,0) : zero, lsm_undefined);
+                const bool lsm_hi_flux_is_valid = is_land_hi == 1 && lsm_flux.valid(i,j);
+                const bool lsm_lo_flux_is_valid = is_land_lo == 1 && lsm_flux.valid(i,j-1);
                 const bool has_land_and_flux_hi = (is_land_hi == 1 && lsm_hi_flux_is_valid);
                 const bool has_land_and_flux_lo = (is_land_lo == 1 && lsm_lo_flux_is_valid);
                 if (surface_tau23_arr && (has_land_and_flux_hi || has_land_and_flux_lo)) {
@@ -1720,6 +1719,31 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
 }
 
 /**
+ * The four LSM fluxes on one grid, from the surface model when it supplies fluxes and
+ * from the registered LSM fluxes otherwise.
+ *
+ * @param[in] lev Current level
+ * @param[in] mfi Iterator over a MultiFab with the cons BoxArray and DistributionMapping
+ */
+SurfaceFluxView
+SurfaceLayer::get_lsm_flux_view (const int& lev,
+                                 const MFIter& mfi) const
+{
+    if (use_surface_model && surf_model_fluxes) {
+        return m_surf_model->get_surface_flux_view(lev, mfi);
+    }
+    SurfaceFluxView flux;
+    for (int n(0); n<m_lsm_flux_lev[lev].size(); ++n) {
+        if (!m_lsm_flux_lev[lev][n]) { continue; }
+        if (toLower(m_lsm_flux_name[n]) == "t_flux") { flux.t_flux = m_lsm_flux_lev[lev][n]->const_array(mfi); }
+        if (toLower(m_lsm_flux_name[n]) == "q_flux") { flux.q_flux = m_lsm_flux_lev[lev][n]->const_array(mfi); }
+        if (toLower(m_lsm_flux_name[n]) == "tau13")  { flux.tau13  = m_lsm_flux_lev[lev][n]->const_array(mfi); }
+        if (toLower(m_lsm_flux_name[n]) == "tau23")  { flux.tau23  = m_lsm_flux_lev[lev][n]->const_array(mfi); }
+    }
+    return flux;
+}
+
+/**
  * Set u*, t*, and q* from the fluxes interpolated from most.sfc_file.
  *
  * The file's H and LE [W/m2] are dynamic fluxes, but its TAU [m2/s2] is kinematic.
@@ -1789,7 +1813,6 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
 
     Real eps = std::numeric_limits<amrex::Real>::epsilon();
     bool has_moisture = use_moisture;
-    const bool use_surface_model_fluxes = use_surface_model && surf_model_fluxes;
     const int klo = m_geom[lev].Domain().smallEnd(2);
     const auto *const umm_ptr  = m_ma.get_average(lev,6); // horizontal velocity magnitude
     const auto *const zref_ptr = m_ma.get_zref(lev);     // reference height
@@ -1832,29 +1855,20 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
         const auto zref_arr = zref_ptr->array(mfi);
         const auto z0_arr   = z_0[lev].array(mfi);
 
+        // compute_fluxes does not iterate the columns set here, so w* is set here too
+        const auto w_star_arr = (m_include_wstar) ? w_star[lev]->array(mfi) : Array4<Real> {};
+        const auto pblh_arr   = (m_include_wstar) ? pblh[lev]->const_array(mfi) : Array4<const Real> {};
+
         // Get LSM fluxes
         auto lmask_arr      = (m_lmask_lev[lev][0]) ? m_lmask_lev[lev][0]->array(mfi) :
                                                       Array4<int> {};
-        auto lsm_t_flux_arr = Array4<const Real> {};
-        auto lsm_q_flux_arr = Array4<const Real> {};
-        auto lsm_tau13_arr  = Array4<const Real> {};
-        auto lsm_tau23_arr  = Array4<const Real> {};
         // compute_sfc_params_from_lsm_fluxes consumes signed kinematic stress
         // components; their vector magnitude determines u_star^2.
-        if (use_surface_model_fluxes) {
-            const SurfaceFluxView surf_flux = m_surf_model->get_surface_flux_view(lev, mfi);
-            lsm_t_flux_arr = surf_flux.t_flux;
-            lsm_q_flux_arr = surf_flux.q_flux;
-            lsm_tau13_arr  = surf_flux.tau13;
-            lsm_tau23_arr  = surf_flux.tau23;
-        } else {
-            for (int n(0); n<m_lsm_flux_lev[lev].size(); ++n) {
-                if (toLower(m_lsm_flux_name[n]) == "t_flux") { lsm_t_flux_arr = m_lsm_flux_lev[lev][n]->const_array(mfi); }
-                if (toLower(m_lsm_flux_name[n]) == "q_flux") { lsm_q_flux_arr = m_lsm_flux_lev[lev][n]->const_array(mfi); }
-                if (toLower(m_lsm_flux_name[n]) == "tau13")  { lsm_tau13_arr  = m_lsm_flux_lev[lev][n]->const_array(mfi); }
-                if (toLower(m_lsm_flux_name[n]) == "tau23")  { lsm_tau23_arr  = m_lsm_flux_lev[lev][n]->const_array(mfi); }
-            }
-        }
+        const SurfaceFluxView lsm_flux = get_lsm_flux_view(lev, mfi);
+        const auto lsm_t_flux_arr = lsm_flux.t_flux;
+        const auto lsm_q_flux_arr = lsm_flux.q_flux;
+        const auto lsm_tau13_arr  = lsm_flux.tau13;
+        const auto lsm_tau23_arr  = lsm_flux.tau23;
 
         ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int /*k*/) noexcept
         {
@@ -1863,11 +1877,7 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
             const int lj = col.j(j);
             // Skip cells where the LSM does not have a valid value (finite and below
             // lsm_undefined) for every one of the four fluxes; these keep the MOST values.
-            if (is_land && lsm_t_flux_arr &&
-                is_valid_lsm_value(lsm_t_flux_arr(li,lj,0)) &&
-                is_valid_lsm_value(lsm_q_flux_arr(li,lj,0)) &&
-                is_valid_lsm_value(lsm_tau13_arr (li,lj,0)) &&
-                is_valid_lsm_value(lsm_tau23_arr (li,lj,0))) {
+            if (is_land && lsm_flux.valid(li,lj)) {
                 const Real t_flux = lsm_t_flux_arr(li,lj,0);
                 const Real q_flux = lsm_q_flux_arr(li,lj,0);
                 Real rho = cons_arr(i,j,klo,Rho_comp);
@@ -1893,6 +1903,11 @@ SurfaceLayer::compute_sfc_params_from_lsm_fluxes (const int& lev,
                                   ( KAPPA * CONST_GRAV * tstv );
                 z0_arr(i,j,0)   = Compute_roughness(zref_arr(i,j,0),   olen_arr(i,j,0),
                                                     umm_arr(i,j,0), u_star_arr(i,j,0));
+                if (w_star_arr) {
+                    w_star_arr(i,j,0) = calc_wstar(u_star_arr(i,j,0), t_star_arr(i,j,0),
+                                                   q_star_arr(i,j,0), pblh_arr(i,j,0),
+                                                   Thd, Thv, qv);
+                }
             }
         });
     } // mfi
@@ -2341,7 +2356,6 @@ SurfaceLayer::get_lsm_tsurf (const int& lev,
     const Real rdOcp = m_rdOcp;
     const bool convert = !m_lsm_tsurf_is_theta;
     const bool gate_on_fluxes = m_has_lsm_fluxes;
-    const bool use_surface_model_fluxes = use_surface_model && surf_model_fluxes;
     amrex::Gpu::DeviceScalar<erf_surface_temperature::ConversionFailure>
         d_fail(erf_surface_temperature::ConversionFailure{});
     auto* fail = d_fail.dataPtr();
@@ -2380,27 +2394,8 @@ SurfaceLayer::get_lsm_tsurf (const int& lev,
 
         // The same four fluxes, and the same validity test, as
         // compute_sfc_params_from_lsm_fluxes
-        auto lsm_t_flux_arr = Array4<const Real> {};
-        auto lsm_q_flux_arr = Array4<const Real> {};
-        auto lsm_tau13_arr  = Array4<const Real> {};
-        auto lsm_tau23_arr  = Array4<const Real> {};
-        if (gate_on_fluxes) {
-            if (use_surface_model_fluxes) {
-                const SurfaceFluxView surf_flux = m_surf_model->get_surface_flux_view(lev, mfi);
-                lsm_t_flux_arr = surf_flux.t_flux;
-                lsm_q_flux_arr = surf_flux.q_flux;
-                lsm_tau13_arr  = surf_flux.tau13;
-                lsm_tau23_arr  = surf_flux.tau23;
-            } else {
-                for (int n(0); n<m_lsm_flux_lev[lev].size(); ++n) {
-                    if (toLower(m_lsm_flux_name[n]) == "t_flux") { lsm_t_flux_arr = m_lsm_flux_lev[lev][n]->const_array(mfi); }
-                    if (toLower(m_lsm_flux_name[n]) == "q_flux") { lsm_q_flux_arr = m_lsm_flux_lev[lev][n]->const_array(mfi); }
-                    if (toLower(m_lsm_flux_name[n]) == "tau13")  { lsm_tau13_arr  = m_lsm_flux_lev[lev][n]->const_array(mfi); }
-                    if (toLower(m_lsm_flux_name[n]) == "tau23")  { lsm_tau23_arr  = m_lsm_flux_lev[lev][n]->const_array(mfi); }
-                }
-            }
-        }
-        const bool have_fluxes = lsm_t_flux_arr && lsm_q_flux_arr && lsm_tau13_arr && lsm_tau23_arr;
+        const SurfaceFluxView lsm_flux = (gate_on_fluxes) ? get_lsm_flux_view(lev, mfi)
+                                                          : SurfaceFluxView{};
 
         ParallelFor(gtbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
@@ -2415,14 +2410,8 @@ SurfaceLayer::get_lsm_tsurf (const int& lev,
                 return;
             }
 
-            if (gate_on_fluxes) {
-                if (!have_fluxes ||
-                    !is_valid_lsm_value(lsm_t_flux_arr(li,lj,0)) ||
-                    !is_valid_lsm_value(lsm_q_flux_arr(li,lj,0)) ||
-                    !is_valid_lsm_value(lsm_tau13_arr (li,lj,0)) ||
-                    !is_valid_lsm_value(lsm_tau23_arr (li,lj,0))) {
-                    return;
-                }
+            if (gate_on_fluxes && !lsm_flux.valid(li,lj)) {
+                return;
             }
 
             if (!convert) {

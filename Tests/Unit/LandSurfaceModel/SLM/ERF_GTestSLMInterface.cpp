@@ -85,13 +85,14 @@ void set_category_ramps (amrex::MultiFab& veg, amrex::MultiFab& soil)
 }
 
 /**
- * Returns the largest flux magnitude found at the non-land cells of a mask.
+ * Returns how many non-land cells of a mask hold a flux other than lsm_undefined,
+ * i.e. how many of them SLM wrote to.
  */
-amrex::Real max_flux_at_non_land_cells (const amrex::MultiFab& flux_mf,
-                                        const amrex::iMultiFab& landmask)
+int count_written_non_land_cells (const amrex::MultiFab& flux_mf,
+                                  const amrex::iMultiFab& landmask)
 {
-    amrex::ReduceOps<amrex::ReduceOpMax> reduce_op;
-    amrex::ReduceData<amrex::Real> reduce_data(reduce_op);
+    amrex::ReduceOps<amrex::ReduceOpSum> reduce_op;
+    amrex::ReduceData<int> reduce_data(reduce_op);
     using ReduceTuple = typename decltype(reduce_data)::Type;
 
     for (amrex::MFIter mfi(flux_mf, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -100,13 +101,13 @@ amrex::Real max_flux_at_non_land_cells (const amrex::MultiFab& flux_mf,
         const auto mask = landmask.const_array(mfi);
         reduce_op.eval(bx, reduce_data,
                        [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple {
-            return (mask(i, j, k) == 0) ? amrex::Math::abs(flux(i, j, k)) : amrex::Real(0.0);
+            return (mask(i, j, k) == 0 && flux(i, j, k) != lsm_undefined) ? 1 : 0;
         });
     }
 
-    amrex::Real max_flux = amrex::get<0>(reduce_data.value());
-    amrex::ParallelDescriptor::ReduceRealMax(max_flux);
-    return max_flux;
+    int count = amrex::get<0>(reduce_data.value());
+    amrex::ParallelDescriptor::ReduceIntSum(count);
+    return count;
 }
 
 struct SLMTestState {
@@ -831,7 +832,9 @@ TEST_F(SLMInterfaceTest, AdvancesMixedLandAndNonLandCells)
     ASSERT_FALSE(q_flux->contains_nan());
     ASSERT_FALSE(olen->contains_nan());
 
-    EXPECT_EQ(max_flux_at_non_land_cells(*t_flux, *landmask[0][0]), amrex::Real(0.0));
+    // SLM fluxes start at lsm_undefined and SLM never writes them at non-land cells,
+    // so the SurfaceLayer falls back to MOST there
+    EXPECT_EQ(count_written_non_land_cells(*t_flux, *landmask[0][0]), 0);
 }
 
 TEST_F(SLMInterfaceTest, AcceptsNonIntegralAndRestartLikeTimes)

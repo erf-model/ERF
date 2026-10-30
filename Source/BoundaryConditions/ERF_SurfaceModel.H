@@ -10,7 +10,9 @@
 #include "AMReX_FillPatchUtil.H"
 #include "AMReX_GpuLaunch.H"
 
+#include <ERF_Constants.H>
 #include <ERF_DataStruct.H>
+#include <ERF_LSMInterp.H>
 
 enum SurfaceModelType { LAND = 0, URBAN = 1};
 
@@ -24,6 +26,17 @@ struct SurfaceFluxView {
     amrex::Array4<const amrex::Real> tau23;
     amrex::Array4<const amrex::Real> t_flux;
     amrex::Array4<const amrex::Real> q_flux;
+
+    /** Whether all four fluxes exist and hold a valid LSM value (is_valid_lsm_value) at (i,j). */
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    bool valid (int i, int j) const noexcept
+    {
+        return t_flux && q_flux && tau13 && tau23 &&
+               is_valid_lsm_value(t_flux(i,j,0)) &&
+               is_valid_lsm_value(q_flux(i,j,0)) &&
+               is_valid_lsm_value(tau13 (i,j,0)) &&
+               is_valid_lsm_value(tau23 (i,j,0));
+    }
 };
 
 /**
@@ -151,26 +164,36 @@ public:
             amrex::Interpolater* mapper = &amrex::cell_cons_interp;
             amrex::Vector<amrex::MultiFab*> fmf;
             amrex::Vector<amrex::MultiFab*> cmf;
+            // These fields hold lsm_undefined where no provider has a value, and their
+            // consumers fall back to MOST there.  The linear interpolation below does not
+            // keep such a cell exactly lsm_undefined, nor its valid neighbours bounded, so
+            // correct the fine cells afterwards (see lsm_mask_invalid_parents).
+            auto mask_invalid = [&] (amrex::MultiFab& fine, const amrex::IntVect& ngv,
+                                     const amrex::MultiFab& crse, int ncomp)
+            {
+                lsm_mask_invalid_parents(fine, ngv, ng_od, crse, ncomp,
+                                         m_geom[lev-1], m_geom[lev], refRatio[lev-1]);
+            };
             if (u_star[lev] != nullptr && u_star[lev-1] != nullptr) {
             amrex::InterpFromCoarseLevel(*u_star[lev], u_star[lev-1]->nGrowVect(), ng_od,
                                          *u_star[lev-1], 0, 0, 2,
                                          m_geom[lev-1], m_geom[lev],
-                                         refRatio[lev-1], &amrex::cell_cons_interp,
+                                         refRatio[lev-1], mapper,
                                          domain_bcs_type, BCVars::cons_bc);
             amrex::InterpFromCoarseLevel(*t_star[lev], t_star[lev-1]->nGrowVect(), ng_od,
                                          *t_star[lev-1], 0, 0, 1,
                                          m_geom[lev-1], m_geom[lev],
-                                         refRatio[lev-1], &amrex::cell_cons_interp,
+                                         refRatio[lev-1], mapper,
                                          domain_bcs_type, BCVars::cons_bc);
             amrex::InterpFromCoarseLevel(*q_star[lev], q_star[lev-1]->nGrowVect(), ng_od,
                                          *q_star[lev-1], 0, 0, 1,
                                          m_geom[lev-1], m_geom[lev],
-                                         refRatio[lev-1], &amrex::cell_cons_interp,
+                                         refRatio[lev-1], mapper,
                                          domain_bcs_type, BCVars::cons_bc);
             amrex::InterpFromCoarseLevel(*t_surf[lev], t_surf[lev-1]->nGrowVect(), ng_od,
                                          *t_surf[lev-1], 0, 0, 1,
                                          m_geom[lev-1], m_geom[lev],
-                                         refRatio[lev-1], &amrex::cell_cons_interp,
+                                         refRatio[lev-1], mapper,
                                          domain_bcs_type, BCVars::cons_bc);
 
             fmf = {u_star[lev  ].get(), u_star[lev  ].get()};
@@ -201,6 +224,12 @@ public:
                                       0, 0, 1, m_geom[lev-1], m_geom[lev],
                                       refRatio[lev-1], mapper, domain_bcs_type,
                                       BCVars::cons_bc);
+
+            // t_surf starts at 300 but is lsm_undefined where its provider has no field
+            mask_invalid(*u_star[lev], u_star[lev]->nGrowVect(), *u_star[lev-1], 2);
+            mask_invalid(*t_star[lev], t_star[lev]->nGrowVect(), *t_star[lev-1], 1);
+            mask_invalid(*q_star[lev], q_star[lev]->nGrowVect(), *q_star[lev-1], 1);
+            mask_invalid(*t_surf[lev], t_surf[lev]->nGrowVect(), *t_surf[lev-1], 1);
             }
 
             for (int field = 0; field < static_cast<int>(fields.size()); ++field) {
@@ -209,7 +238,7 @@ public:
                 amrex::InterpFromCoarseLevel(*fields[field][lev], ngv, ng_od,
                                              *fields[field][lev-1], 0, 0, 1,
                                              m_geom[lev-1], m_geom[lev],
-                                             refRatio[lev-1], &amrex::cell_cons_interp,
+                                             refRatio[lev-1], mapper,
                                              domain_bcs_type, BCVars::cons_bc);
                 fmf = {fields[field][lev  ].get(), fields[field][lev  ].get()};
                 cmf = {fields[field][lev-1].get(), fields[field][lev-1].get()};
@@ -218,6 +247,7 @@ public:
                                           0, 0, 1, m_geom[lev-1], m_geom[lev],
                                           refRatio[lev-1], mapper, domain_bcs_type,
                                           BCVars::cons_bc);
+                mask_invalid(*fields[field][lev], ngv, *fields[field][lev-1], 1);
             }
         }
     }
@@ -988,9 +1018,9 @@ private:
         t_star[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, ng);
         q_star[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, ng);
         t_surf[lev] = std::make_unique<amrex::MultiFab>(m_ba2d[lev], m_dmap[lev], 1, ng);
-        u_star[lev]->setVal(0.0);
-        t_star[lev]->setVal(0.0);
-        q_star[lev]->setVal(0.0);
+        u_star[lev]->setVal(lsm_undefined);
+        t_star[lev]->setVal(lsm_undefined);
+        q_star[lev]->setVal(lsm_undefined);
         t_surf[lev]->setVal(300.0);
     }
 

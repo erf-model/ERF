@@ -1065,6 +1065,19 @@ public:
                                            amrex::MultiFab& cons_in);
 
   /**
+   * The four LSM fluxes on one grid: from the surface model when it supplies fluxes,
+   * otherwise from the registered LSM fluxes.  A flux that is not available is left null,
+   * and SurfaceFluxView::valid then rejects every cell.  compute_fluxes,
+   * compute_sfc_params_from_lsm_fluxes and get_lsm_tsurf all take their fluxes from here,
+   * so they agree on which land columns use the LSM flux.
+   *
+   * @param[in] lev level index
+   * @param[in] mfi iterator over a MultiFab with the cons BoxArray and DistributionMapping
+   */
+  [[nodiscard]] SurfaceFluxView get_lsm_flux_view (const int& lev,
+                                                   const amrex::MFIter& mfi) const;
+
+  /**
    * Set kinematic u*, t*, and q* from the fluxes interpolated from most.sfc_file.
    *
    * @param[in] lev       level index
