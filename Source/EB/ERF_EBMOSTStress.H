@@ -260,10 +260,14 @@ struct surface_flux_eb
         if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         } else {
+            // olen_arr holds the Obukhov length as iterated (not limited); only the psi that
+            // form the brackets below are capped, as in the loop
             Olen  = olen_arr(i,j,k);
             zeta  = zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
+            psi_m = most_capped_psi(psi_m, zref, z0_arr(i,j,k));
+            psi_h = most_capped_psi(psi_h, zref, z0_arr(i,j,k));
         }
         do {
             ustar = u_star_arr(i,j,k);
@@ -282,6 +286,8 @@ struct surface_flux_eb
             zeta  = zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
+            psi_m = most_capped_psi(psi_m, zref, z0_arr(i,j,k));
+            psi_h = most_capped_psi(psi_h, zref, z0_arr(i,j,k));
             u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(zref / z0_arr(i,j,k)) - psi_m);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);

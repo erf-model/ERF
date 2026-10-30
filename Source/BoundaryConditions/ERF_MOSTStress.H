@@ -5,6 +5,7 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_MOSTUtils.H"
 #include "ERF_Wstar.H"
+#include "ERF_ImmersedWallStability.H"
 
 /**
  * Minimum wind speed [m/s] of the surface-layer flux kernels below (their WSMIN), and of
@@ -12,6 +13,25 @@
  * SurfaceLayer::fill_qsurf_with_skin_moisture to invert the surface_temp kernel's flux.
  */
 inline constexpr amrex::Real most_min_wind_speed = amrex::Real(0.1);
+
+/**
+ * Largest fraction of ln(zref / z0) the stability functions psi_m and psi_h may reach in the
+ * prescribed-flux kernels (WRF sfclay uses 0.9). With a prescribed upward flux the surface
+ * temperature is t_surf - t_mean = F (ln(zref / z0) - psi_h) / (kappa u*), and u* = kappa U /
+ * (ln(zref / z0) - psi_m). The Businger-Dyer psi grows without bound as z/L -> -inf, so without a
+ * cap a bracket changes sign at a z/L that depends on zref / z0 (-8.4 for 2 m / 0.05 m, -3.9 for
+ * 2 m / 0.1 m): t_surf drops below the air, the Moeng local flux, which divides by
+ * theta_mean - theta_surf, becomes singular, and u* can turn negative (erf-model/ERF#4765). The cap
+ * keeps each bracket at or above 0.1 ln(zref / z0) and leaves everything else bit for bit unchanged.
+ */
+inline constexpr amrex::Real most_psi_cap_factor = amrex::Real(0.9);
+
+/** psi_m or psi_h held at or below most_psi_cap_factor ln(zref / z0); uncapped where the log law does not hold (zref <= z0). */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real most_capped_psi (amrex::Real psi, amrex::Real zref, amrex::Real z0) noexcept
+{
+    return (zref > z0) ? ib_stability::capped_psi(psi, zref, z0, most_psi_cap_factor) : psi;
+}
 
 /**
  * Adiabatic with constant roughness
@@ -565,10 +585,14 @@ struct surface_flux
         if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         } else {
+            // olen_arr holds the Obukhov length as iterated (not limited); only the psi that
+            // form the brackets below are capped, as in the loop
             Olen  = olen_arr(i,j,k);
             zeta  = zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
+            psi_m = most_capped_psi(psi_m, zref, z0_arr(i,j,k));
+            psi_h = most_capped_psi(psi_h, zref, z0_arr(i,j,k));
         }
         do {
             ustar = u_star_arr(i,j,k);
@@ -594,12 +618,19 @@ struct surface_flux
             zeta  = amrex::max(amrex::min(zeta, amrex::Real(100.0)), -amrex::Real(100.0));
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
+            psi_m = most_capped_psi(psi_m, zref, z0_arr(i,j,k));
+            psi_h = most_capped_psi(psi_h, zref, z0_arr(i,j,k));
             //u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(zref / z0_arr(i,j,k)) - psi_m);
             {
                 amrex::Real ustar_new = mdata.kappa * umm / (std::log(zref / z0_arr(i,j,k)) - psi_m);
-                u_star_arr(i,j,k) = (one - alpha) * ustar + alpha * ustar_new;
+                // With the psi cap a strongly unstable point can sit where the fixed-point map has a slope
+                // below -3, and a fixed alpha then gives a two-cycle; from alpha_decay_iter on, alpha falls as
+                // 1/iter (iterations before that, and so every point that converges by then, are unchanged)
+                ++iter;
+                const amrex::Real alpha_i = (iter <= alpha_decay_iter) ? alpha
+                                          : alpha * amrex::Real(alpha_decay_iter) / amrex::Real(iter);
+                u_star_arr(i,j,k) = (one - alpha_i) * ustar + alpha_i * ustar_new;
             }
-            ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter <= max_iters,
                                          "Maximum number of MOST iterations reached.");
@@ -640,6 +671,7 @@ private:
     const amrex::Real WSMIN = most_min_wind_speed; // minimum wind speed
     const amrex::Real USTARMIN = amrex::Real(0.001); // minimum friction velocity
     const amrex::Real alpha = amrex::Real(0.5); // under-relaxation factor for umm/u* iteration
+    const int alpha_decay_iter = 20; // iteration after which alpha decays as 1/iter
 };
 
 
@@ -719,10 +751,14 @@ struct surface_flux_charnock
         if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         } else {
+            // olen_arr holds the Obukhov length as iterated (not limited); only the psi that
+            // form the brackets below are capped, as in the loop
             Olen  = olen_arr(i,j,k);
             zeta  = zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
+            psi_m = most_capped_psi(psi_m, zref, z0_arr(i,j,k));
+            psi_h = most_capped_psi(psi_h, zref, z0_arr(i,j,k));
         }
         do {
             ustar = u_star_arr(i,j,k);
@@ -750,6 +786,8 @@ struct surface_flux_charnock
             zeta  = zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
+            psi_m = most_capped_psi(psi_m, zref, z0);
+            psi_h = most_capped_psi(psi_h, zref, z0);
             u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(zref / z0) - psi_m);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
@@ -857,10 +895,14 @@ struct surface_flux_mod_charnock
         if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         } else {
+            // olen_arr holds the Obukhov length as iterated (not limited); only the psi that
+            // form the brackets below are capped, as in the loop
             Olen  = olen_arr(i,j,k);
             zeta  = zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
+            psi_m = most_capped_psi(psi_m, zref, z0_arr(i,j,k));
+            psi_h = most_capped_psi(psi_h, zref, z0_arr(i,j,k));
         }
         do {
             ustar = u_star_arr(i,j,k);
@@ -880,6 +922,8 @@ struct surface_flux_mod_charnock
             zeta  = zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
+            psi_m = most_capped_psi(psi_m, zref, z0);
+            psi_h = most_capped_psi(psi_h, zref, z0);
             u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(zref / z0) - psi_m);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
@@ -983,10 +1027,14 @@ struct surface_flux_donelan
         if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         } else {
+            // olen_arr holds the Obukhov length as iterated (not limited); only the psi that
+            // form the brackets below are capped, as in the loop
             Olen  = olen_arr(i,j,k);
             zeta  = zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
+            psi_m = most_capped_psi(psi_m, zref, z0_arr(i,j,k));
+            psi_h = most_capped_psi(psi_h, zref, z0_arr(i,j,k));
         }
         do {
             ustar = u_star_arr(i,j,k);
@@ -1007,6 +1055,8 @@ struct surface_flux_donelan
             zeta  = zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
+            psi_m = most_capped_psi(psi_m, zref, z0);
+            psi_h = most_capped_psi(psi_h, zref, z0);
             u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(zref / z0) - psi_m);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
@@ -1110,10 +1160,14 @@ struct surface_flux_wave_coupled
         if (u_star_arr(i,j,k) == bogus_large_value) {
             u_star_arr(i,j,k) = mdata.kappa * umm / std::log(zref / z0_arr(i,j,k));
         } else {
+            // olen_arr holds the Obukhov length as iterated (not limited); only the psi that
+            // form the brackets below are capped, as in the loop
             Olen  = olen_arr(i,j,k);
             zeta  = zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
+            psi_m = most_capped_psi(psi_m, zref, z0_arr(i,j,k));
+            psi_h = most_capped_psi(psi_h, zref, z0_arr(i,j,k));
         }
         do {
             ustar = u_star_arr(i,j,k);
@@ -1135,6 +1189,8 @@ struct surface_flux_wave_coupled
             zeta  = zref / Olen;
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
+            psi_m = most_capped_psi(psi_m, zref, z0);
+            psi_h = most_capped_psi(psi_h, zref, z0);
             u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(zref / z0) - psi_m);
             ++iter;
         } while ((std::abs(u_star_arr(i,j,k) - ustar) > tol) && iter <= max_iters);
