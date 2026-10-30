@@ -19,3 +19,17 @@ void more_shapes ()
     std::vector<amrex::Real> box_lo(3), box_hi(3);  // ERF_WriteBndryPlanes.cpp's
     pp.queryarr("box_hi", box_hi);
 }
+
+void zlevels ()
+{
+    ParmParse pp("erf");
+    int n_zlevels = pp.countval("z_levels");      // ERF_InitZLevels.cpp's shape: a size check, then the read
+    if (n_zlevels > 0)
+    {
+        if (n_zlevels != 5) {
+            amrex::Abort("You must specify a z_level for every value of k");
+        }
+        amrex::Vector<amrex::Real> zlev;
+        pp.queryarr("z_levels", zlev);
+    }
+}

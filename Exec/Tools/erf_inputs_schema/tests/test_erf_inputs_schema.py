@@ -275,6 +275,11 @@ class MoreShapesTests(unittest.TestCase):
         self.assertEqual(fact["type"], "int")
         self.assertNotIn("removed_shape", fact)
 
+    def test_a_size_check_inside_the_body_is_not_a_removal(self):
+        fact = generate()["keys"]["erf.z_levels"]
+        self.assertEqual(fact["type"], "real_list")
+        self.assertNotIn("removed_shape", fact)
+
     def test_constructor_style_declarators_are_typed(self):
         keys = generate()["keys"]
         self.assertEqual((keys["erf.chv"]["type"], keys["erf.chv"]["default"]), ("int", "1"))

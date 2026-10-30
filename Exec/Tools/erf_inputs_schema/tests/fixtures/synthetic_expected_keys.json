@@ -232,6 +232,17 @@
   "source": "Source/ERF_Synthetic.cpp:12",
   "type": "bool"
  },
+ "erf.z_levels": {
+  "default": null,
+  "default_origin": "none",
+  "layer": "ERF",
+  "layers": {
+   "ERF": "Source/ERF_MoreShapes.cpp:33"
+  },
+  "required": false,
+  "source": "Source/ERF_MoreShapes.cpp:33",
+  "type": "real_list"
+ },
  "xlo.k_int": {
   "default": "1",
   "default_origin": "initializer",
