@@ -1,0 +1,46 @@
+# The reference for inputs_mapfac_anelastic: the same blob, wind and map factors
+# with the compressible integrator and no acoustic substepping, whose
+# scalar-advection momenta are ax rho u / mf_uy, ay rho v / mf_vx (AdvectionSrcForRho)
+erf.prob_name = "Scalar Advection/Diffusion"
+erf.substepping_type = None
+erf.test_mapfactor = true
+
+max_step  = 60
+stop_time = 1000.0
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_lo     =    0.    0.   0.
+geometry.prob_hi     = 1000. 1000. 400.
+amr.n_cell           =   32    32    4
+geometry.is_periodic =    1     1    0
+amr.max_level        = 0
+
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+erf.fixed_dt = 0.5        # c dt / dx 0.32 at T_0 = 1 K
+erf.v = 1
+amr.v = 0
+erf.check_int   = -1
+erf.plot_file_1 = plt
+erf.plot_int_1  = 60
+erf.plot_vars_1 = density scalar x_velocity y_velocity
+
+erf.dycore_horiz_adv_type    = "Upwind_3rd"
+erf.dycore_vert_adv_type     = "Upwind_3rd"
+erf.dryscal_horiz_adv_type   = "Upwind_3rd"
+erf.dryscal_vert_adv_type    = "Upwind_3rd"
+
+erf.use_gravity     = false
+erf.les_type        = "None"
+erf.molec_diff_type = "None"
+
+erf.init_type = "uniform"
+prob.rho_0 = 1.0
+prob.T_0   = 1.0
+prob.A_0   = 1.0
+prob.U_0   = 10.0
+prob.V_0   = 5.0
+prob.rad_0 = 0.25         # blob radius 250 m, centred at x = y = 500 m, uniform in z
+prob.prob_type = 11

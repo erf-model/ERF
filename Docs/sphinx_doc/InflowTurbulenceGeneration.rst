@@ -323,7 +323,7 @@ with an example also in ``Exec/RegTests/TurbulentInflow/``:
 .. _sec:UniformCPMRefresh:
 
 Uniform refresh for CPM and CPM_W
---------------------------------
+---------------------------------
 
 ``erf.perturbation_uniform_refresh = true`` is the default for CPM and CPM_W.
 All perturbation boxes on a level draw new random values together, using one
@@ -396,7 +396,7 @@ For an idealized case, the defaults can be written explicitly as::
           erf.perturbation_refresh_wind_period = 600.0
 
 Automatic perturbations on LES nests
------------------------------------
+------------------------------------
 
 Set ``erf.perturbation_auto = true`` to obtain the active inflow edges and
 advective wind scale from each nest's immediate parent, and the height limit
