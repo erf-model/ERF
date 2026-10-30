@@ -51,6 +51,13 @@ def build_options(a):
     return dict(sorted(opts.items()))
 
 
+def facts_from(a, site):
+    """Which kind of build facts the schema came from: a CMakeCache.txt holds every ERF option, a -D list only those
+    passed (the rest take ERF's CMakeLists defaults)."""
+    kind = "+".join(k for k, given in (("cmake_cache", a.cmake_cache), ("d_list", a.cmake)) if given) or "none"
+    return {"cmake": kind, "site_facts": site}
+
+
 def write(result, out):
     out.write_text(json.dumps(result, indent=1, sort_keys=True, ensure_ascii=False) + "\n")
 
@@ -59,14 +66,15 @@ def main(argv=None):
     a = parse_args(argv)
     site = json.loads(a.site_facts.read_text()) if a.site_facts else None
     meta = {"generator": GENERATOR, "generator_commit": source.generator_commit(TOOLS)}
+    given = (build_options(a), site, meta, facts_from(a, site))
     if a.erf_dir:
         meta.update(erf_commit=None, amrex_commit=None)
-        result = schema.generate(a.erf_dir, a.amrex_dir, build_options(a), site, meta)
+        result = schema.generate(a.erf_dir, a.amrex_dir, *given)
     else:
         with tempfile.TemporaryDirectory() as td:
             erf_root, amrex_root, erf_c, amrex_c = source.checkout(a.repo, a.erf, td, a.amrex_repo, a.amrex)
             meta.update(erf_commit=erf_c, amrex_commit=amrex_c)
-            result = schema.generate(erf_root, amrex_root, build_options(a), site, meta)
+            result = schema.generate(erf_root, amrex_root, *given)
     write(result, a.out)
     print(json.dumps({"keys": len(result["keys"]), "patterns": len(result["patterns"]),
                       "unresolved": len(result["unresolved"]),

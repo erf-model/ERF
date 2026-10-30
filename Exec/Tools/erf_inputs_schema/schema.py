@@ -93,7 +93,19 @@ def _enum_facts(table, enum_names, values):
             fact["value_requires"] = vr
 
 
-def generate(erf_root, amrex_root, cmake_options=None, site_facts=None, meta=None):
+def _apply_site_facts(site_facts, keys, features, feature_sources):
+    """A site fact is a feature the build options cannot show (e.g. whether the MPI is GPU-aware): it sets the
+    feature and, when it names a key and value, that value's requirement, with the key's read line as evidence."""
+    for f in site_facts:
+        features[f["feature"]] = bool(f["on"])
+        feature_sources[f["feature"]] = "site"
+        if f.get("key") in keys and f.get("value") is not None:
+            where = keys[f["key"]]["source"]
+            keys[f["key"]].setdefault("value_requires", {})[f["value"]] = {
+                "feature": f["feature"], "evidence": f'{f.get("evidence", "site")}; {where}'}
+
+
+def generate(erf_root, amrex_root, cmake_options=None, site_facts=None, meta=None, facts_from=None):
     """The schema for the ERF tree at erf_root (Source/, CMakeLists.txt, CMake/) and AMReX at amrex_root (Src/)."""
     erf_root, amrex_root = Path(erf_root), Path(amrex_root)
     cmake_options = dict(cmake_options or {})
@@ -119,7 +131,10 @@ def generate(erf_root, amrex_root, cmake_options=None, site_facts=None, meta=Non
             if needs.get(key):
                 fact["requires"] = sorted(needs[key])
                 fact["requires_evidence"] = dict(sorted(needs[key].items()))
-    return {"schema_version": SCHEMA_VERSION, **(meta or {}), "build": {"cmake": cmake_options},
+    _apply_site_facts(site_facts or [], keys, features, feature_sources)
+    build = {"cmake": cmake_options,
+             "facts_from": facts_from or {"cmake": "given" if cmake_options else "none", "site_facts": site_facts}}
+    return {"schema_version": SCHEMA_VERSION, **(meta or {}), "build": build,
             "canonical_rules": canonical.RULES, "features": dict(sorted(features.items())),
             "feature_sources": dict(sorted(feature_sources.items())), "enums": dict(sorted(enum_names.items())),
             "keys": dict(sorted(keys.items())), "patterns": dict(sorted(patterns.items())),
