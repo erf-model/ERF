@@ -306,9 +306,56 @@ class FileScan:
             fact.update(default=value, default_origin=origin)
             if src:
                 fact["default_source"] = src
+            retired = self.retired.get((var, key, line))
+            if retired:
+                fact = {"type": "removed", "source": fact["source"], "removed_shape": retired[0],
+                        "removed_evidence": f"{self.rel}:{retired[1]}", "required": False, "default": None,
+                        "default_origin": "none"}
             for p in pfx:
                 hits.append((f"{p}.{key}" if p else key, fact, self.conds[line], method, target))
         return hits, unresolved
+
+    @property
+    def retired(self):
+        """(var, key, 0-based line) -> (shape, abort line) for ERF's three ways of retiring a key: the read sits in an
+        if() whose body calls Abort or Error.  contains(k) -> Abort; query(k, x) > 0 -> Error; countval(k) > 0 -> Error."""
+        if not hasattr(self, "_retired"):
+            self._retired = {}
+            for shape, rx in RETIRED_SHAPES:
+                for m in rx.finditer(self.text):
+                    line = _abort_line(self.text, m.end())
+                    if line:
+                        self._retired[(m.group(1), m.group(2), self.line_of(m.start()))] = (shape, line)
+        return self._retired
+
+
+RETIRED_SHAPES = (
+    ("contains_abort", re.compile(r'\bif\s*\(\s*(\w+)\s*\.\s*contains\s*\(\s*"([^"]+)"\s*\)\s*\)')),
+    ("query_gt0_error", re.compile(r'\bif\s*\(\s*(\w+)\s*\.\s*query\s*\(\s*"([^"]+)"\s*,[^()]*\)\s*>\s*0\s*\)')),
+    ("countval_gt0_error", re.compile(r'\bif\s*\(\s*(\w+)\s*\.\s*countval\s*\(\s*"([^"]+)"\s*\)\s*>\s*0\s*\)')),
+)
+ABORT = re.compile(r"\b(?:amrex::)?(?:Abort|Error)\s*\(")
+
+
+def _if_body(text, pos):
+    """The statement an if() controls, starting at pos: a braced block, or one statement up to its semicolon."""
+    i = pos + len(text[pos:]) - len(text[pos:].lstrip())
+    if text[i:i + 1] != "{":
+        end = text.find(";", i)
+        return text[i:end if end >= 0 else len(text)], i
+    depth = 0
+    for j in range(i, len(text)):
+        depth += {"{": 1, "}": -1}.get(text[j], 0)
+        if depth == 0:
+            return text[i:j + 1], i
+    return text[i:], i
+
+
+def _abort_line(text, pos):
+    """The 1-based line of the Abort/Error the if() body calls, or None."""
+    body, start = _if_body(text, pos)
+    m = ABORT.search(body)
+    return text.count("\n", 0, start + m.start()) + 1 if m else None
 
 
 def _initializer(name, text, before_line):

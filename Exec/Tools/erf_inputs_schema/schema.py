@@ -23,13 +23,29 @@ def layer_of(source):
     return "AMReX" if source.startswith("AMReX/") else "ERF"
 
 
+def _merge_removed(old, new, lay):
+    """removed wins: ERF stops the run if the key is present. A typed read elsewhere is kept in shadowed_reads, so
+    the conflict stays visible."""
+    keep, other = (old, new) if old["type"] == "removed" else (new, old)
+    out = dict(keep, layer=old["layer"], layers=dict(old["layers"]))
+    out["layers"].setdefault(lay, new["source"])
+    shadowed = list(keep.get("shadowed_reads", [])) + list(other.get("shadowed_reads", []))
+    if other["type"] not in ("removed", "unknown"):
+        shadowed.append(f'{other["source"]} {other["type"]}')
+    if shadowed:
+        out["shadowed_reads"] = sorted(set(shadowed))
+    return out
+
+
 def merge(old, new):
     """The first read's fact, its type refined by later reads; a real disagreement is recorded, never hidden.
     AMReX's reads come first, so a shared key's fact (and its source) is AMReX's: layer names it, and layers keeps
-    each layer's first read."""
+    each layer's first read. A removed key stays removed (_merge_removed)."""
     lay = layer_of(new["source"])
     if old is None:
         return dict(new, layer=lay, layers={lay: new["source"]})
+    if "removed" in (old["type"], new["type"]):
+        return _merge_removed(old, new, lay)
     out = dict(old, layers=dict(old["layers"]))
     out["layers"].setdefault(lay, new["source"])
     a, b = old["type"], new["type"]
