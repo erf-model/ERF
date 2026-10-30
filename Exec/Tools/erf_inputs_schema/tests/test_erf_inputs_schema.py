@@ -198,5 +198,43 @@ class SeveralKindsTests(unittest.TestCase):
         self.assertEqual((keys["xlo.k_int"]["type"], keys["xlo.k_real"]["type"]), ("int", "real"))
 
 
+CHECKER = TOOLS / "check_erf_inputs.py"
+DECK = """erf.old_knob = 1
+erf.cfl = fast
+erf.widget_on = true
+erf.notakey = 1
+erf.nsteps = 20
+"""
+
+
+def check_deck(schema_args):
+    import json
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        (td / "s.json").write_text(json.dumps(generate()))
+        (td / "inputs").write_text(DECK)
+        args = [sys.executable, str(CHECKER), "--json", *[a.replace("S", str(td / "s.json")) for a in schema_args],
+                str(td / "inputs")]
+        out = subprocess.run(args, capture_output=True, text=True).stdout
+    return {(f["checker"], f["key"]): f["severity"] for f in json.loads(out)["findings"]}
+
+
+class CheckerSchemaTests(unittest.TestCase):
+    def test_the_checker_uses_a_given_schema(self):
+        got = {k: v for (c, k), v in check_deck(["--schema", "S"]).items() if c == "schema"}
+        self.assertEqual(got, {"erf.old_knob": "ERROR", "erf.cfl": "ERROR", "erf.widget_on": "ERROR",
+                               "erf.notakey": "WARNING"})
+
+    def test_without_a_schema_the_schema_check_does_not_run(self):
+        self.assertFalse([k for (c, k) in check_deck([]) if c == "schema"])
+
+    def test_the_source_derived_removed_set_is_cross_checked_against_retired_keys(self):
+        from erf_input_checker.checks import schema as schema_check
+        curated_only, source_only = schema_check.cross_check(generate(), {"erf.old_knob": "x", "erf.gone": "y"})
+        self.assertEqual(curated_only, ["erf.gone"])
+        self.assertEqual(source_only, [("erf.no_substepping", "Source/ERF_Removed.cpp:20"),
+                                       ("erf.use_terrain", "Source/ERF_Removed.cpp:17")])
+
+
 if __name__ == "__main__":
     unittest.main()
