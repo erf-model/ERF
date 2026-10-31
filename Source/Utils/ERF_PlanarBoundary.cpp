@@ -126,6 +126,42 @@ PlanarBoundary::gather_surface (const MultiFab& mf, MultiFab& dst,
 }
 
 /**
+ * The ground plane of a field on a level's 3D grids, on one planar box per 3D box (see
+ * ERF_PlanarBoundary.H).
+ *
+ * @param[in] src field on the level's 3D grids
+ * @param[in] klo index of the lowest cell of the domain
+ */
+std::unique_ptr<MultiFab>
+copy_ground_plane (const MultiFab& src, int klo)
+{
+    const IndexType ixtype = src.ixType();
+    const BoxArray& ba = src.boxArray();
+    const int ncomp = src.nComp();
+
+    BoxList bl(ixtype);
+    for (int ib = 0; ib < static_cast<int>(ba.size()); ++ib) {
+        Box b = enclosedCells(ba[ib]);
+        b.setRange(2, klo);
+        bl.push_back(convert(b, ixtype));
+    }
+    auto plane = std::make_unique<MultiFab>(BoxArray(std::move(bl)), src.DistributionMap(), ncomp, 0);
+
+    // Every box first holds the lowest plane of its own 3D box, so that it holds finite
+    // values even over columns in which no box reaches the ground
+    for (MFIter mfi(*plane); mfi.isValid(); ++mfi) {
+        const Box& pbx = mfi.validbox();
+        const int dk = enclosedCells(ba[mfi.index()]).smallEnd(2) - klo;
+        (*plane)[mfi].copy<RunOn::Device>(src[mfi], amrex::shift(pbx, 2, dk), 0, pbx, 0, ncomp);
+    }
+
+    // Then the ground plane, from the boxes that hold it
+    plane->ParallelCopy(src, 0, 0, ncomp);
+
+    return plane;
+}
+
+/**
  * Gather buffer for one target layout, index type, and number of components, allocated on
  * first use.  The source MultiFab list avoids rebuilding the layout key on every fill.
  *

@@ -123,4 +123,24 @@ private:
     amrex::Vector<Buffer> m_buffers;     // Gather buffers
 };
 
+/**
+ * The ground plane of a field on a level's 3D grids, on one planar box per 3D box.
+ *
+ * Box ib of the result is the footprint of box ib of src, cut down to the plane k = klo in
+ * the index type of src (so a nodal-in-z field keeps the nodes klo and klo+1), on the rank
+ * of box ib.  It therefore lines up, box for box, with any MultiFab on the collapsed
+ * BoxArray (ba2d) and the level's DistributionMapping, and a kernel that reads src at klo
+ * can read it instead from any box, including one that starts above the ground.
+ *
+ * Each planar box first takes the lowest plane of its own 3D box, moved down to klo; the
+ * ground plane is then copied in from the boxes that hold it.  Where no box of the level
+ * reaches the ground (a refined level aloft), the planar box keeps that lowest plane: a
+ * finite stand-in, not the ground, which callers must not report as the ground.
+ *
+ * @param[in] src field on the level's 3D grids (any index type, any number of components)
+ * @param[in] klo index of the lowest cell of the domain
+ */
+std::unique_ptr<amrex::MultiFab>
+copy_ground_plane (const amrex::MultiFab& src, int klo);
+
 #endif
