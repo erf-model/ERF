@@ -1227,6 +1227,8 @@ ERF::update_terrain_arrays (int lev)
 {
     if (SolverChoice::mesh_type == MeshType::StretchedDz ||
         SolverChoice::mesh_type == MeshType::VariableDz) {
+        // Every path that builds or rebuilds z_phys_nd (new level, regrid, restart) comes here
+        validate_flat_top(lev, geom[lev], *z_phys_nd[lev]);
         make_J(geom[lev],*z_phys_nd[lev],*detJ_cc[lev]);
         make_areas(geom[lev],*z_phys_nd[lev],*ax[lev],*ay[lev],*az[lev]);
         make_zcc(geom[lev],*z_phys_nd[lev],*z_phys_cc[lev]);
