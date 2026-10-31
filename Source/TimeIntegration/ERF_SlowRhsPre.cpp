@@ -355,6 +355,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     omega_arr(i,j,k) = zero;
                 });
             }
+            // Omega = rho w on the top face assumes the top of the domain is flat
+            // (enforced at setup by validate_flat_top)
             Box gbxo_hi = gbxo; gbxo_hi.setSmall(2,gbxo.bigEnd(2));
             int hi_z_face = domain.bigEnd(2)+1;
                 if (gbxo_hi.bigEnd(2) >= hi_z_face) {
