@@ -3,6 +3,7 @@
 
 #include <AMReX_REAL.H>
 #include <AMReX_ParmParse.H>
+#include "ERF_IndexDefines.H"
 
 #include <string>
 
@@ -16,6 +17,23 @@ enum class WallScalarBCIntent : unsigned char {
     DirichletPrimitive,
     Neumann
 };
+
+/** Map the wall-input intent to ERF's logical conserved-scalar BC record. */
+inline int
+logical_boundary_type (WallScalarBCIntent intent) noexcept
+{
+    switch (intent) {
+    case WallScalarBCIntent::DirichletConserved:
+        return ERFBCType::ext_dir;
+    case WallScalarBCIntent::DirichletPrimitive:
+        return ERFBCType::ext_dir_prim;
+    case WallScalarBCIntent::Neumann:
+        return ERFBCType::neumann;
+    case WallScalarBCIntent::Unspecified:
+    default:
+        return ERFBCType::foextrap;
+    }
+}
 
 enum class SolidWallKind : unsigned char {
     NoSlip,

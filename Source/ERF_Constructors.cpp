@@ -478,7 +478,7 @@ ERF::ERF_shared ()
     const std::string prob_name_ci = amrex::toLower(prob_name);
     if (prob_name_ci == "cloud chamber" || prob_name_ci == "cloudchamber") {
         cloud_chamber_config = erf_cloud_chamber::parse_config(
-            geom[0].ProbLo(), geom[0].ProbHi());
+            geom[0].ProbLo(), geom[0].ProbHi(), solverChoice.moisture_type);
         const amrex::GpuArray<Real, AMREX_SPACEDIM> cloud_chamber_dx = {
             geom[0].CellSize(0), geom[0].CellSize(1), geom[0].CellSize(2)};
         erf_cloud_chamber::validate_wall_roughness_geometry(
@@ -492,7 +492,7 @@ ERF::ERF_shared ()
                 !cloud_chamber_config.physical_initialization ||
                 (solverChoice.moisture_type != MoistureType::None &&
                  solverChoice.moisture_type != MoistureType::SatAdj)) {
-                Error("Cloud Chamber: cloud_chamber_budget_interval requires physical_temperature_rh with no moisture or SatAdj");
+                Error("Cloud Chamber: cloud_chamber_budget_interval supports only physical_temperature_rh with dry mode or SatAdj; bulk and other active moisture models are unsupported");
             }
             cloud_chamber_budget = std::make_unique<CloudChamberBudget>(budget_interval);
         }
