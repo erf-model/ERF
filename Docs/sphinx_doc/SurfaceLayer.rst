@@ -269,6 +269,46 @@ boundary layer depth, ``erf.most.include_wstar`` requires ``erf.most.pblh_calc``
 name a PBL height scheme; leaving it at its default of ``none`` is an error, since no
 boundary layer depth would ever be diagnosed.
 
+Limits on the similarity solution
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In every flux kernel the log-law brackets :math:`C - \psi_m` and :math:`C - \psi_h`, with
+:math:`C = \ln(z_{ref}/z_0)`, are held at or above :math:`C/2` clamped to
+:math:`[1/2,\,1]`. In strongly unstable, weak-wind air over rough ground :math:`\psi` exceeds
+:math:`C`, and without the floor :math:`u_{\star}` turns negative and, for a prescribed heat
+flux, the diagnosed surface temperature falls below the air under an upward flux. The floor
+is 1 wherever :math:`z_{ref} \geq e^2 z_0`, stays under the neutral value :math:`C` wherever
+:math:`z_{ref} \geq e^{1/2} z_0`, and keeps :math:`u_{\star}` positive and finite where the
+roughness length reaches or exceeds :math:`z_{ref}` (:math:`C \leq 0`, e.g. tall canopies on
+a fine vertical grid). The value of the floor is tied to the 0.5 under-relaxation of the
+:math:`u_{\star}` iteration, which converges on the unstable branch only for brackets above
+about 0.8.
+
+With a prescribed surface temperature, :math:`z_{ref}/L` solves
+:math:`z_{ref}/L = Ri_b\,(C - \psi_m)^2/(C - \psi_h)` by under-relaxed iteration. In stable air
+with :math:`z_0` comparable to or above :math:`z_{ref}` the residual of this equation can come
+within the tolerance of zero without crossing it, and the iteration then creeps instead of
+converging. If it has not converged after the maximum number of passes, the constant-roughness
+kernels (``surface_temp`` and its EB counterpart) solve the same equation by bracketing and
+bisection, starting from where the iteration started, instead of stopping the run.
+
+A prescribed *stable* flux (``erf.most.surf_temp_flux`` < 0) can only be carried down to a
+minimum wind at :math:`z_{ref}`: with the Businger-Dyer functions the wind a friction velocity
+supports, :math:`u_{\star}(C + 5\,z_{ref}/L)/\kappa`, is smallest at :math:`z_{ref}/L = C/10`,
+and below that wind the flux has no similarity solution (Basu et al., "An inconvenient 'truth'
+about using sensible heat flux as a surface boundary condition in models under stably
+stratified regimes", Boundary-Layer Meteorol., 2008). Where the bracket floor binds first
+(:math:`C < 1/3`), the minimum is instead where :math:`C + 5\,z_{ref}/L` reaches the floor.
+Wherever the wind is below the minimum, for example under a forest canopy that slows the
+first-cell wind to about 1 m/s, ERF holds :math:`z_{ref}/L` at the fold and applies only the
+virtual heat flux that the wind carries there, which is weaker than the prescribed one. Only
+the downward prescribed components are reduced: a prescribed evaporation flux that offsets
+part of the cooling is applied in full, and so is an upward sensible flux when a prescribed
+condensation flux makes the net flux stable. Prescribing the surface temperature
+(``erf.most.pot_surf_temp``, optionally with ``erf.most.surf_heating_rate`` to cool it in
+time, as the GABLS1 and Stable_ABL_Flat inputs do) avoids this limit. For weak-wind
+convective runs, ``erf.most.include_wstar`` adds the convective velocity scale to the wind and
+keeps the solution away from the bracket floor.
+
 On a refined level, the ``MYNN25`` diagnostic runs on the level's own columns only when its
 grids run from the ground to the top of the domain in every column. A refined region that
 ends lower (a patch near the ground, say) cannot see the top of a boundary layer deeper than
