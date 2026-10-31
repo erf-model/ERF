@@ -443,6 +443,11 @@ public:
                                    amrex::MultiFab& omega_t, amrex::Vector<int>& slab_box);
     void set_cf_zface_omega (int lev, amrex::MultiFab& omega, const amrex::MultiFab& omega_t,
                              const amrex::Vector<int>& slab_box);
+    bool cf_interp_mass_flux (int lev) const;
+    void RegisterCoarseMomentumCF (int levc, const amrex::MultiFab& xold, const amrex::MultiFab& xnew,
+                                   const amrex::MultiFab& yold, const amrex::MultiFab& ynew,
+                                   const amrex::Vector<double>& times);
+    void FillSetHorizontalMomentaCF (int lev, double time, amrex::MultiFab& xmom, amrex::MultiFab& ymom);
     void FillSetMomentaCF (int lev, double time, amrex::MultiFab& xmom, amrex::MultiFab& ymom,
                            amrex::MultiFab& zmom);
     void fill_surface_nodes (int lev, amrex::MultiFab& znd_surf);
