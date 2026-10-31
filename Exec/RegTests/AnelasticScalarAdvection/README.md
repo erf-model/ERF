@@ -2,12 +2,13 @@
 
 ## Purpose
 
-With the anelastic integrator, `erf_slow_rhs_post` sets the momenta that advect the slow
-scalars (TKE, moisture, passive scalars) from the projected momenta.
-`AdvectionSrcForScalars` expects them in the form `AdvectionSrcForRho` builds,
-`ax rho u / mf_uy`, `ay rho v / mf_vx` and `az Omega / (mf_mx mf_my)`, and divides the flux
-differences by `detJ`. These cases check that form against exact answers. Theta is advected
-in `erf_slow_rhs_pre` with the same faces, at the start of each stage, so it serves as a reference.
+With the anelastic integrator, `erf_slow_rhs_post` advects the slow scalars (TKE, moisture,
+passive scalars) with the momenta that `AdvectionSrcForRho` sets in `erf_slow_rhs_pre` from
+the start of each stage, in the form `ax rho u / mf_uy`, `ay rho v / mf_vx` and
+`az Omega / (mf_mx mf_my)`; `AdvectionSrcForScalars` divides the flux differences by `detJ`.
+These momenta were projected by the previous stage or step. These cases check the scalars
+against exact answers. Theta is advected in `erf_slow_rhs_pre` with the same faces, so it
+serves as a reference.
 
 ## Files
 
