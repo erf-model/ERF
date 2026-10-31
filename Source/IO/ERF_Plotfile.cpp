@@ -895,7 +895,8 @@ ERF::FillPlot3DVars (int lev,
                                     S_arr(i,j,k,Rho_comp), rdOcp) :
                     getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
                 Real fac = Cp_d + Cp_l*(qv + qc);
-                Real pv = erf_esatw(T)*Real(100.0);
+                // Dry-air partial pressure uses the actual vapor pressure, not e_sat
+                Real pv = p_arr(i,j,k) * qv / (RdoRv + qv);
 
                 derdat(i, j, k, mf_comp) = T*std::pow((p_arr(i,j,k) - pv)/p_0, -R_d/fac)*std::exp(L_v*qv/(fac*T)) ;
             });
