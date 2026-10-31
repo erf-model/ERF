@@ -143,7 +143,7 @@ public:
          amrex::MultiFab* z_phys,
          amrex::MultiFab* lat_ptr,
          amrex::MultiFab* lon_ptr,
-         const bool updated_lsm,
+         const bool force_update,
          amrex::Real& declin,
          amrex::Real& calday) override
     {
@@ -163,7 +163,7 @@ public:
                   cons_in, lmask, t_surf,
                   lsm_input_ptrs, qheating_rates,
                   rad_fluxes, z_phys, lat_ptr, lon_ptr,
-                  updated_lsm);
+                  force_update);
         rad_run_impl(lsm_output_ptrs);
         declin = m_declin;
         calday = m_calday;
@@ -188,7 +188,7 @@ public:
                amrex::MultiFab* z_phys,
                amrex::MultiFab* lat,
                amrex::MultiFab* lon,
-               const bool updated_lsm);
+               const bool force_update);
 
     // Initialize the temporary variables
     void

@@ -532,6 +532,10 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         rad_fluxes[lev]->setVal(zero);
     }
 
+    if (solverChoice.topographicChoice.active()) {
+        topographic_radiation.define_level(lev, ba2d[lev], dm, geom[lev]);
+    }
+
     // Two-stream radiation: the model owns its 2D surface and SEB fields.
     if (solverChoice.rad_type == RadiationType::TwoStream)
     {
