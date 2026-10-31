@@ -1078,6 +1078,11 @@ ERF::remake_zphys (int lev, Real time, std::unique_ptr<MultiFab>& temp_zphys_nd)
                                      1, temp_zphys_nd->nGrowVect());
                 // Ghost nodes included: the transform corrects the ghost columns too
                 MultiFab::Copy(z_phys_interp, *temp_zphys_nd, 0, 0, 1, temp_zphys_nd->nGrowVect());
+            }
+
+            // As in init_zphys, every mode except Interpolate builds on the terrain at the
+            //    fine resolution rather than the surface interpolated from the coarse level
+            if (fine_terrain != FineTerrain::Interpolate) {
                 fill_terrain_surface(lev, *temp_zphys_nd, time);
             }
 
