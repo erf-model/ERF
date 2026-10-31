@@ -454,6 +454,8 @@ public:
     void average_down_mass_flux (int crse_lev);
     // The horizontal mass flux the level's last step applied (cf_anelastic_record)
     amrex::Vector<amrex::Array<amrex::MultiFab, 2>> m_cf_step_flux;
+    // ... and its vertical flux, as Omega
+    amrex::Vector<amrex::MultiFab> m_cf_step_zflux;
     void FillSetHorizontalMomentaCF (int lev, double time, amrex::MultiFab& xmom, amrex::MultiFab& ymom);
     void FillSetMomentaCF (int lev, double time, amrex::MultiFab& xmom, amrex::MultiFab& ymom,
                            amrex::MultiFab& zmom);

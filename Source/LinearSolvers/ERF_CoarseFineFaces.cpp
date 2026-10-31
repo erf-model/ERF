@@ -577,7 +577,9 @@ void ERF::average_down_mass_flux (int crse_lev)
 bool ERF::cf_anelastic_flux_match (int lev) const
 {
     return cf_flux_history_enabled() && lev > 0 && lev <= finest_level &&
-           cf_interp_mass_flux(lev) && solverChoice.anelastic[lev-1];
+           solverChoice.anelastic[lev] && solverChoice.anelastic[lev-1] &&
+           solverChoice.terrain_type != TerrainType::EB &&
+           solverChoice.terrain_type != TerrainType::MovingFittedMesh;
 }
 
 /**
@@ -601,6 +603,26 @@ void ERF::cf_anelastic_record (int levc, int nrk)
         if (nrk == 0) { R.setVal(zero); }
         MultiFab::Saxpy(R, b, *avg[d], 0, 0, 1, 0);
     }
+
+    // The vertical, as Omega (avg_zmom is az Omega / (m_x m_y)); Omega is (rho w) without terrain
+    if (static_cast<int>(m_cf_step_zflux.size()) <= levc) { m_cf_step_zflux.resize(levc+1); }
+    MultiFab& Rz = m_cf_step_zflux[levc];
+    if (Rz.boxArray() != avg_zmom[levc].boxArray() || Rz.DistributionMap() != avg_zmom[levc].DistributionMap()) {
+        Rz.define(avg_zmom[levc].boxArray(), avg_zmom[levc].DistributionMap(), 1, 0);
+    }
+    if (nrk == 0) { Rz.setVal(zero); }
+    for (MFIter mfi(Rz, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.tilebox();
+        const auto r_arr = Rz.array(mfi);
+        const auto f_arr = avg_zmom[levc].const_array(mfi);
+        const auto a_arr = az[levc]->const_array(mfi);
+        const auto mx = mapfac[levc][MapFacType::m_x]->const_array(mfi);
+        const auto my = mapfac[levc][MapFacType::m_y]->const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            r_arr(i,j,k) += b * f_arr(i,j,k) * mx(i,j,0) * my(i,j,0) / a_arr(i,j,k);
+        });
+    }
 }
 
 /**
@@ -622,6 +644,9 @@ void ERF::cf_anelastic_stage_registration (int lev, int nrk)
     }
 
     const Real k = (solverChoice.anelastic_type[lev] == AnelasticType::MidPoint) ? one : Real(2);
+    // On a terrain-fitted mesh the coarse momenta are registered as mass fluxes
+    //    (RegisterCoarseMomentumCF); on a flat mesh as momenta, and the shift is converted
+    const bool mass_flux = cf_interp_mass_flux(lev);
     const MultiFab* mold[2] = {&rU_old[levc], &rV_old[levc]};
     const MultiFab* mnew[2] = {&rU_new[levc], &rV_new[levc]};
     const MultiFab* area[2] = {ax[levc].get(), ay[levc].get()};
@@ -629,10 +654,15 @@ void ERF::cf_anelastic_stage_registration (int lev, int nrk)
     ERFFillPatcher* fpr[2]  = {&FPr_u[levc], &FPr_v[levc]};
 
     for (int d = 0; d < 2; ++d) {
+        if (!mass_flux && nrk != 0) {
+            fpr[d]->RegisterCoarseData({mold[d], mnew[d]}, fpr[d]->crse_times());
+            continue;
+        }
         MultiFab wo = weighted_mass_flux(*mold[d], *area[d], *mf[d]);
         MultiFab wn = weighted_mass_flux(*mnew[d], *area[d], *mf[d]);
         if (nrk == 0) {
-            // k D on the coarse level's faces, zero on the ghost faces outside the domain
+            // k D on the coarse level's faces, zero on the ghost faces outside the domain;
+            //    as a momentum, k D m / a, where the momenta are registered as such
             const IntVect ng = wo.nGrowVect();
             MultiFab shift(wo.boxArray(), wo.DistributionMap(), 1, ng);
             shift.setVal(zero);
@@ -643,17 +673,59 @@ void ERF::cf_anelastic_stage_registration (int lev, int nrk)
                 const auto r_arr  = R.const_array(mfi);
                 const auto wo_arr = wo.const_array(mfi);
                 const auto wn_arr = wn.const_array(mfi);
+                const auto a_arr  = area[d]->const_array(mfi);
+                const auto f_arr  = mf[d]->const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int kk) noexcept
+                {
+                    const Real D = k * (r_arr(i,j,kk) - myhalf * (wo_arr(i,j,kk) + wn_arr(i,j,kk)));
+                    s_arr(i,j,kk) = mass_flux ? D : D * f_arr(i,j,0) / a_arr(i,j,kk);
+                });
+            }
+            shift.FillBoundary(geom[levc].periodicity());
+            if (!mass_flux) {
+                MultiFab::Copy(wo, *mold[d], 0, 0, 1, ng);
+                MultiFab::Copy(wn, *mnew[d], 0, 0, 1, ng);
+            }
+            MultiFab::Add(wo, shift, 0, 0, 1, ng);
+            MultiFab::Add(wn, shift, 0, 0, 1, ng);
+        }
+        // the times the coarse momenta were registered with (RegisterCoarseMomentumCF)
+        fpr[d]->RegisterCoarseData({&wo,&wn}, fpr[d]->crse_times());
+    }
+
+    // The coarse/fine faces in z of a level that stops inside the domain in z.  On a flat mesh
+    //    they are filled from the coarse (rho w), which is Omega there: shift it the same way.
+    //    On a terrain-fitted mesh they take the coarse Omega instead (cf_zface_coarse_data).
+    if (!mass_flux) {
+        const MultiFab& wold = rW_old[levc];
+        const MultiFab& wnew = rW_new[levc];
+        if (nrk != 0) {
+            FPr_w[levc].RegisterCoarseData({&wold, &wnew}, FPr_w[levc].crse_times());
+        } else {
+            const IntVect ng = wold.nGrowVect();
+            MultiFab zo(wold.boxArray(), wold.DistributionMap(), 1, ng);
+            MultiFab zn(wold.boxArray(), wold.DistributionMap(), 1, ng);
+            MultiFab shift(wold.boxArray(), wold.DistributionMap(), 1, ng);
+            shift.setVal(zero);
+            const MultiFab& Rz = m_cf_step_zflux[levc];
+            for (MFIter mfi(shift, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const Box bx = mfi.tilebox();
+                const auto s_arr  = shift.array(mfi);
+                const auto r_arr  = Rz.const_array(mfi);
+                const auto wo_arr = wold.const_array(mfi);
+                const auto wn_arr = wnew.const_array(mfi);
                 ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int kk) noexcept
                 {
                     s_arr(i,j,kk) = k * (r_arr(i,j,kk) - myhalf * (wo_arr(i,j,kk) + wn_arr(i,j,kk)));
                 });
             }
             shift.FillBoundary(geom[levc].periodicity());
-            MultiFab::Add(wo, shift, 0, 0, 1, ng);
-            MultiFab::Add(wn, shift, 0, 0, 1, ng);
+            MultiFab::Copy(zo, wold, 0, 0, 1, ng);
+            MultiFab::Copy(zn, wnew, 0, 0, 1, ng);
+            MultiFab::Add(zo, shift, 0, 0, 1, ng);
+            MultiFab::Add(zn, shift, 0, 0, 1, ng);
+            FPr_w[levc].RegisterCoarseData({&zo, &zn}, FPr_w[levc].crse_times());
         }
-        // the times the coarse momenta were registered with (RegisterCoarseMomentumCF)
-        fpr[d]->RegisterCoarseData({&wo,&wn}, fpr[d]->crse_times());
     }
 }
 
