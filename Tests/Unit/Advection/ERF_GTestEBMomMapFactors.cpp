@@ -247,7 +247,7 @@ TEST_P(EBMomMapFactors, AllRegularEBMatchesNonEB)
     // The w tendency is compared away from the two w-faces next to each wall. There, for
     // vertical orders above 4, the non-EB operator reduces the vertical interpolation of w
     // to 4th-order centered and the EB operator to 3rd-order upwind, a difference that
-    // involves no map factor.
+    // involves no map factor (erf-model/ERF#4889).
     Box w_interior = ref.rho_w_rhs.box();
     w_interior.setSmall(2, domain.smallEnd(2) + 3);
     w_interior.setBig  (2, domain.bigEnd(2)   - 2);
