@@ -1,9 +1,13 @@
 #!/bin/bash
 
-#Pin cudatoolkit version so headers match the kokkos that ekat uses
-module load gcc-native/13.2 cmake cudatoolkit/12.9 cray-hdf5-parallel cray-netcdf-hdf5parallel cray-libsci
-
-module swap cray-mpich cray-mpich/9.0.1
+# Use the default cudatoolkit and cray-mpich: the default cray-mpich's GPU transport
+# layer (libmpi_gtl_cuda) needs the CUDA runtime major version of the default
+# cudatoolkit, and the bundled Kokkos builds against it. Pinning one without the
+# other breaks the build or the run (see Docs/sphinx_doc/buildingTroubleshooting.rst).
+# cray-netcdf-hdf5parallel/4.9.2.3 is the first netcdf built against the
+# cray-mpich 9.1 library name (libmpi_gnu.so.12); the older default links
+# libmpi_gnu_123.so.12, which loads cray-mpich 9.0.1 alongside 9.1.0.
+module load cmake cray-hdf5-parallel cray-netcdf-hdf5parallel/4.9.2.3 cray-libsci
 
 #module load gcc-native/13.2
 #module load cray-mpich/8.1.30
