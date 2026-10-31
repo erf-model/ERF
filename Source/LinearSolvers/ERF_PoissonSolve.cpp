@@ -114,10 +114,8 @@ void ERF::project_initial_velocity (int lev, double time, double l_dt)
                            Geom(levc).Domain(), domain_bcs_type, c_vfrac_crse);
 
         rU_new[levc].FillBoundary(geom[levc].periodicity());
-        FPr_u[levc].RegisterCoarseData({&rU_new[levc], &rU_new[levc]}, {time, time+l_dt});
-
         rV_new[levc].FillBoundary(geom[levc].periodicity());
-        FPr_v[levc].RegisterCoarseData({&rV_new[levc], &rV_new[levc]}, {time, time+l_dt});
+        RegisterCoarseMomentumCF(levc, rU_new[levc], rU_new[levc], rV_new[levc], rV_new[levc], {time, time+l_dt});
 
         rW_new[levc].FillBoundary(geom[levc].periodicity());
         FPr_w[levc].RegisterCoarseData({&rW_new[levc], &rW_new[levc]}, {time, time+l_dt});
@@ -154,8 +152,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     //
     if (lev > 0) {
         PhysBCFunctNoOp null_bc;
-        FPr_u[lev-1].FillSet(mom_mf[IntVars::xmom], l_time, null_bc, domain_bcs_type);
-        FPr_v[lev-1].FillSet(mom_mf[IntVars::ymom], l_time, null_bc, domain_bcs_type);
+        FillSetHorizontalMomentaCF(lev, l_time, mom_mf[IntVars::xmom], mom_mf[IntVars::ymom]);
         FPr_w[lev-1].FillSet(mom_mf[IntVars::zmom], l_time, null_bc, domain_bcs_type);
     }
 

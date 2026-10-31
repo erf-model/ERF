@@ -4604,10 +4604,12 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_MapFactor inputs_hill 30
       RUNTIME_OPTIONS "erf.test_mapfactor=true"
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol})
-  # A refined patch on the hill's flanks, through all of z
+  # A refined patch on the hill's flanks, through all of z, one-way coupled.  The fine fluxes
+  # through its coarse/fine faces must add up to the coarse flux: 3.0e-5 when (rho u) was
+  # interpolated there, where the face areas vary, 5.9e-8 with the mass flux
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_TwoLevels inputs_hill 30
       RUNTIME_OPTIONS "amr.max_level=1 'amr.ref_ratio_vect=2 2 1' erf.refinement_indicators=box1 erf.box1.max_level=1 'erf.box1.in_box_lo_indices_crse=8 12 0' 'erf.box1.in_box_hi_indices_crse=19 23 11' erf.coupling_type=OneWay"
-      CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol} --require-level)
+      CHECK check_uniform_scalar.py PLOTFILES 1.0e-6 --require-level)
   # A refined patch that stops inside the domain in z, on the same hill
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_PartialDepth inputs_hill 30
       RUNTIME_OPTIONS "amr.max_level=1 'amr.ref_ratio_vect=2 2 1' erf.refinement_indicators=box1 erf.box1.max_level=1 'erf.box1.in_box_lo_indices_crse=8 12 2' 'erf.box1.in_box_hi_indices_crse=19 23 8' erf.coupling_type=OneWay"
