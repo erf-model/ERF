@@ -24,6 +24,7 @@
  */
 #include "ERF.H"
 #include "ERF_Utils.H"
+#include "ERF_TI_slow_headers.H"
 
 #include <AMReX_FillPatchUtil.H>
 #include <AMReX_Interpolater.H>
@@ -470,9 +471,6 @@ void ERF::RegisterCoarseMomentumCF (int levc, const MultiFab& xold, const MultiF
                                     const MultiFab& yold, const MultiFab& ynew,
                                     const Vector<double>& times)
 {
-    if (static_cast<int>(m_cf_mom_times.size()) <= levc) { m_cf_mom_times.resize(levc+1); }
-    m_cf_mom_times[levc] = times;
-
     if (!cf_interp_mass_flux(levc+1)) {
         FPr_u[levc].RegisterCoarseData({&xold,&xnew}, times);
         FPr_v[levc].RegisterCoarseData({&yold,&ynew}, times);
@@ -578,26 +576,8 @@ void ERF::average_down_mass_flux (int crse_lev)
  */
 bool ERF::cf_anelastic_flux_match (int lev) const
 {
-    static const bool enabled = [] {
-        bool on = true;
-        ParmParse("erf").query("cf_flux_history", on);
-        return on;
-    }();
-    return enabled && lev > 0 && lev <= finest_level &&
+    return cf_flux_history_enabled() && lev > 0 && lev <= finest_level &&
            cf_interp_mass_flux(lev) && solverChoice.anelastic[lev-1];
-}
-
-/**
- * The weight of stage nrk's flux in the step of the anelastic integrator of a level
- *
- * @param type The level's anelastic integrator
- * @param nrk  The stage
- */
-static Real
-anelastic_stage_weight (AnelasticType type, int nrk)
-{
-    if (type == AnelasticType::MidPoint) { return (nrk == 1) ? one : zero; }
-    return myhalf;
 }
 
 /**
@@ -611,7 +591,7 @@ void ERF::cf_anelastic_record (int levc, int nrk)
 {
     if (!cf_anelastic_flux_match(levc+1)) { return; }
     if (static_cast<int>(m_cf_step_flux.size()) <= levc) { m_cf_step_flux.resize(levc+1); }
-    const Real b = anelastic_stage_weight(solverChoice.anelastic_type[levc], nrk);
+    const Real b = StageFluxWeight(solverChoice, levc, nrk);
     const MultiFab* avg[2] = {&avg_xmom[levc], &avg_ymom[levc]};
     for (int d = 0; d < 2; ++d) {
         MultiFab& R = m_cf_step_flux[levc][d];
@@ -637,7 +617,7 @@ void ERF::cf_anelastic_stage_registration (int lev, int nrk)
     const int levc = lev - 1;
     if (static_cast<int>(m_cf_step_flux.size()) <= levc ||
         m_cf_step_flux[levc][0].boxArray() != avg_xmom[levc].boxArray() ||
-        static_cast<int>(m_cf_mom_times.size()) <= levc) {
+        FPr_u[levc].crse_times().size() != 2) {
         Abort("cf_anelastic_stage_registration: the coarse level has not recorded its step");
     }
 
@@ -672,7 +652,8 @@ void ERF::cf_anelastic_stage_registration (int lev, int nrk)
             MultiFab::Add(wo, shift, 0, 0, 1, ng);
             MultiFab::Add(wn, shift, 0, 0, 1, ng);
         }
-        fpr[d]->RegisterCoarseData({&wo,&wn}, m_cf_mom_times[levc]);
+        // the times the coarse momenta were registered with (RegisterCoarseMomentumCF)
+        fpr[d]->RegisterCoarseData({&wo,&wn}, fpr[d]->crse_times());
     }
 }
 

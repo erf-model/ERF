@@ -452,9 +452,7 @@ public:
     void cf_anelastic_record (int levc, int nrk);
     void cf_anelastic_stage_registration (int lev, int nrk);
     void average_down_mass_flux (int crse_lev);
-    // Times of the coarse momenta last registered for the level above, and the horizontal mass
-    // flux the level's last step applied (cf_anelastic_record)
-    amrex::Vector<amrex::Vector<double>> m_cf_mom_times;
+    // The horizontal mass flux the level's last step applied (cf_anelastic_record)
     amrex::Vector<amrex::Array<amrex::MultiFab, 2>> m_cf_step_flux;
     void FillSetHorizontalMomentaCF (int lev, double time, amrex::MultiFab& xmom, amrex::MultiFab& ymom);
     void FillSetMomentaCF (int lev, double time, amrex::MultiFab& xmom, amrex::MultiFab& ymom,
@@ -1640,6 +1638,7 @@ private:
         amrex::MultiFab tgt_w;
     };
     amrex::Vector<CFFluxHistory> m_cf_flux_hist;
+    static bool cf_flux_history_enabled ();
     bool cf_flux_history_active (int crse_lev) const;
     CFFluxHistory& cf_flux_history (int lev);
     void cf_flux_history_record (int crse_lev, int fast_step, int n_sub,
