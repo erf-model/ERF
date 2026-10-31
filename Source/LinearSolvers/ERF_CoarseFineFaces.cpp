@@ -488,6 +488,61 @@ void ERF::RegisterCoarseMomentumCF (int levc, const MultiFab& xold, const MultiF
     FPr_v[levc].RegisterCoarseData({&yo,&yn}, times);
 }
 
+/**
+ * Average the horizontal momenta of level crse_lev+1 down onto the faces of level crse_lev it
+ * covers, as mass fluxes: ax (rho u) / m_uy and ay (rho v) / m_vx are averaged, and divided by the
+ * coarse area and map factor.  Over terrain the areas vary along a coarse face, so the plain
+ * average of (rho u) is not the coarse momentum whose flux is the mean of the fine fluxes: on a
+ * coarse/fine face it would replace the projected coarse momentum with another one, and the
+ * uncovered coarse cell next to it would start the next step with a divergence.  The fine
+ * coarse/fine faces end each step on the coarse mass flux (cf_anelastic_stage_registration), so
+ * here the coarse/fine faces get back the flux they had.  Faces the fine level does not cover
+ * are left as they are.
+ *
+ * @param crse_lev Coarse level index
+ */
+void ERF::average_down_mass_flux (int crse_lev)
+{
+    const int lev = crse_lev + 1;
+    const IntVect rr = refRatio(crse_lev);
+    MultiFab* mom_f[2]       = {&rU_new[lev], &rV_new[lev]};
+    MultiFab* mom_c[2]       = {&rU_new[crse_lev], &rV_new[crse_lev]};
+    const MultiFab* area_f[2] = {ax[lev].get(), ay[lev].get()};
+    const MultiFab* area_c[2] = {ax[crse_lev].get(), ay[crse_lev].get()};
+    const MultiFab* mf_f[2]   = {mapfac[lev][MapFacType::u_y].get(), mapfac[lev][MapFacType::v_x].get()};
+    const MultiFab* mf_c[2]   = {mapfac[crse_lev][MapFacType::u_y].get(), mapfac[crse_lev][MapFacType::v_x].get()};
+
+    for (int d = 0; d < 2; ++d) {
+        const MultiFab wf = weighted_mass_flux(*mom_f[d], *area_f[d], *mf_f[d]);
+
+        // The coarse faces under the fine level, on the fine level's distribution
+        const BoxArray cba = amrex::coarsen(mom_f[d]->boxArray(), rr);
+        const DistributionMapping& dm = mom_f[d]->DistributionMap();
+        MultiFab wc(cba, dm, 1, 0);
+        amrex::average_down_faces(wf, wc, rr);
+
+        // The coarse area and map factor on those faces (the map factor has no extent in z)
+        MultiFab ac(cba, dm, 1, 0);
+        ac.ParallelCopy(*area_c[d], 0, 0, 1);
+        BoxList bl2d = cba.boxList();
+        for (auto& b : bl2d) { b.setRange(2, 0); }
+        MultiFab mfc(BoxArray(std::move(bl2d)), dm, 1, 0);
+        mfc.ParallelCopy(*mf_c[d], 0, 0, 1);
+
+        for (MFIter mfi(wc, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const Box bx = mfi.tilebox();
+            const auto w_arr = wc.array(mfi);
+            const auto a_arr = ac.const_array(mfi);
+            const auto f_arr = mfc.const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                w_arr(i,j,k) = w_arr(i,j,k) * f_arr(i,j,0) / a_arr(i,j,k);
+            });
+        }
+        mom_c[d]->ParallelCopy(wc, 0, 0, 1, IntVect(0), IntVect(0), geom[crse_lev].periodicity());
+    }
+}
+
 //
 // Anelastic coarse/fine faces in time.
 //

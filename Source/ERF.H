@@ -451,6 +451,7 @@ public:
     bool cf_anelastic_flux_match (int lev) const;
     void cf_anelastic_record (int levc, int nrk);
     void cf_anelastic_stage_registration (int lev, int nrk);
+    void average_down_mass_flux (int crse_lev);
     // Times of the coarse momenta last registered for the level above, and the horizontal mass
     // flux the level's last step applied (cf_anelastic_record)
     amrex::Vector<amrex::Vector<double>> m_cf_mom_times;

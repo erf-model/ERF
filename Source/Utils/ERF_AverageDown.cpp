@@ -207,8 +207,13 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_perturbational_a
     }
 
     if (SolverChoice::terrain_type != TerrainType::EB) {
-        average_down_faces(rU_new[crse_lev+1], rU_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
-        average_down_faces(rV_new[crse_lev+1], rV_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
+        // Anelastic over terrain: the horizontal momenta as mass fluxes (see average_down_mass_flux)
+        if (solverChoice.anelastic[crse_lev] && cf_interp_mass_flux(crse_lev+1)) {
+            average_down_mass_flux(crse_lev);
+        } else {
+            average_down_faces(rU_new[crse_lev+1], rU_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
+            average_down_faces(rV_new[crse_lev+1], rV_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
+        }
         average_down_faces(rW_new[crse_lev+1], rW_new[crse_lev], refRatio(crse_lev), geom[crse_lev]);
     } else {
         EB_average_down_faces({&rU_new[crse_lev+1], &rV_new[crse_lev+1], &rW_new[crse_lev+1]},
