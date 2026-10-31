@@ -38,7 +38,7 @@ z_at (bool is_usgs, int nx, int ny, const Vector<Real>& z, int i, int j)
 // (single precision at map offsets).
 template <typename F>
 std::string
-list_problem (const char* name, int n, F v, Real lo, Real hi)
+list_problem (const char* name, int n, F v, Real lo, Real hi, bool require_domain_coverage)
 {
     // A single value makes the surface constant in this direction: nothing to bracket
     if (n == 1) { return ""; }
@@ -50,6 +50,7 @@ list_problem (const char* name, int n, F v, Real lo, Real hi)
             return os.str();
         }
     }
+    if (!require_domain_coverage) { return ""; }
     const Real ulps = Real(8.) * std::numeric_limits<Real>::epsilon()
                     * amrex::max(std::abs(lo), std::abs(hi));
     const Real d_lo = v(1) - v(0);
@@ -74,7 +75,8 @@ std::string
 TableProblem (bool is_usgs, int nx, int ny,
               const Vector<Real>& x, const Vector<Real>& y, const Vector<Real>& z,
               const GpuArray<Real,AMREX_SPACEDIM>& prob_lo,
-              const GpuArray<Real,AMREX_SPACEDIM>& prob_hi)
+              const GpuArray<Real,AMREX_SPACEDIM>& prob_hi,
+              bool require_domain_coverage)
 {
     std::ostringstream os;
     const int nmin = is_usgs ? 2 : 1;
@@ -106,17 +108,20 @@ TableProblem (bool is_usgs, int nx, int ny,
         if (!s.empty()) { return s; }
     }
 
-    std::string s = list_problem("y", ny, [&] (int m) { return y[m]; }, prob_lo[1], prob_hi[1]);
+    std::string s = list_problem("y", ny, [&] (int m) { return y[m]; }, prob_lo[1], prob_hi[1],
+                                 require_domain_coverage);
     if (!s.empty()) { return s; }
     if (is_usgs) {
         for (int j = 0; j < ny; ++j) {
-            s = list_problem("x", nx, [&] (int m) { return x[j*nx + m]; }, prob_lo[0], prob_hi[0]);
+            s = list_problem("x", nx, [&] (int m) { return x[j*nx + m]; }, prob_lo[0], prob_hi[0],
+                             require_domain_coverage);
             if (!s.empty()) {
                 return s + " (row " + std::to_string(j) + " of the x-fastest USGS layout)";
             }
         }
     } else {
-        s = list_problem("x", nx, [&] (int m) { return x[m]; }, prob_lo[0], prob_hi[0]);
+        s = list_problem("x", nx, [&] (int m) { return x[m]; }, prob_lo[0], prob_hi[0],
+                         require_domain_coverage);
         if (!s.empty()) { return s; }
     }
     return "";
@@ -179,7 +184,8 @@ namespace {
 HeightTable
 read_and_broadcast (const std::string& fname, bool is_usgs,
                     const GpuArray<Real,AMREX_SPACEDIM>& prob_lo,
-                    const GpuArray<Real,AMREX_SPACEDIM>& prob_hi)
+                    const GpuArray<Real,AMREX_SPACEDIM>& prob_hi,
+                    bool require_domain_coverage)
 {
     HeightTable t;
     if (ParallelDescriptor::IOProcessor()) {
@@ -298,7 +304,8 @@ read_and_broadcast (const std::string& fname, bool is_usgs,
 
         // Structure and coverage of the table, and a summary of it, so that a transposed or
         // mis-ordered file can be spotted at start-up
-        const std::string problem = TableProblem(is_usgs, t.nx, t.ny, t.x, t.y, t.z, prob_lo, prob_hi);
+        const std::string problem = TableProblem(is_usgs, t.nx, t.ny, t.x, t.y, t.z,
+                                                 prob_lo, prob_hi, require_domain_coverage);
         if (!problem.empty()) {
             Abort("Terrain file " + fname + ": " + problem);
         }
@@ -323,15 +330,18 @@ read_and_broadcast (const std::string& fname, bool is_usgs,
 const HeightTable&
 ReadHeightTable (const std::string& fname, bool is_usgs,
                  const GpuArray<Real,AMREX_SPACEDIM>& prob_lo,
-                 const GpuArray<Real,AMREX_SPACEDIM>& prob_hi)
+                 const GpuArray<Real,AMREX_SPACEDIM>& prob_hi,
+                 bool require_domain_coverage)
 {
-    // One entry per file and layout, the same on every rank (every rank calls with the same
-    // name), so the file is read, checked and broadcast once however often it is asked for
+    // Include the coverage policy so a cached building patch cannot bypass the terrain check
+    // if the same file is subsequently requested as terrain.
     static std::map<std::string, HeightTable> tables;
-    const std::string key = (is_usgs ? "USGS:" : "ERF:") + fname;
+    const std::string key = std::string(require_domain_coverage ? "covered:" : "partial:")
+                          + (is_usgs ? "USGS:" : "ERF:") + fname;
     auto it = tables.find(key);
     if (it == tables.end()) {
-        it = tables.emplace(key, read_and_broadcast(fname, is_usgs, prob_lo, prob_hi)).first;
+        it = tables.emplace(key, read_and_broadcast(fname, is_usgs, prob_lo, prob_hi,
+                                                    require_domain_coverage)).first;
     }
     return it->second;
 }

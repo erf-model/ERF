@@ -103,15 +103,20 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         terrain_blanking[lev] = std::make_unique<MultiFab>(ba,dm,1,ngrow);
         terrain_blanking[lev]->setVal(one);
 
-#if USE_FC_FACTORY
-        // Face-centered terrain blanking for momentum forcing
-        terrain_blanking_xface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)),dm,1,ngrow);
-        terrain_blanking_yface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)),dm,1,ngrow);
-        terrain_blanking_zface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,ngrow);
-        terrain_blanking_xface[lev]->setVal(one);
-        terrain_blanking_yface[lev]->setVal(one);
-        terrain_blanking_zface[lev]->setVal(one);
-#endif
+        if (use_native_fc_factories()) {
+            // Face-centered terrain blanking for momentum forcing
+            terrain_blanking_xface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)),dm,1,ngrow);
+            terrain_blanking_yface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)),dm,1,ngrow);
+            terrain_blanking_zface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,ngrow);
+            terrain_blanking_xface[lev]->setVal(one);
+            terrain_blanking_yface[lev]->setVal(one);
+            terrain_blanking_zface[lev]->setVal(one);
+        } else {
+            // Null face masks select the existing cell-centered average in the forcing kernels.
+            terrain_blanking_xface[lev].reset();
+            terrain_blanking_yface[lev].reset();
+            terrain_blanking_zface[lev].reset();
+        }
 
         // Initialize planar average storage for immersed forcing
         // Sized to match PlaneAverage output with ghost cells, using same indexing as subsidence
@@ -1017,20 +1022,28 @@ ERF::init_zphys (int lev, double elapsed_time)
         solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
         make_terrain_blanking(lev);
 
-        init_immersed_forcing(lev); // needed for real cases
+        // Preserve the velocity initialization from WRFInput and Metgrid.
+        if (solverChoice.init_type != InitType::WRFInput &&
+            solverChoice.init_type != InitType::Metgrid) {
+            init_immersed_forcing(lev);
+        }
 
-        // buildings are landmask = 2
-        for (MFIter mfi(*lmask_lev[lev][0]); mfi.isValid(); ++mfi) {
-            const Box& bx2d = mfi.growntilebox();
-            auto lmask_arr = lmask_lev[lev][0]->array(mfi);
-            const auto& t_blank_arr = terrain_blanking[lev]->array(mfi);
+        // Mark immersed solids as landmask = 2 only where their forcing is active.
+        // Immersed terrain has no resolution cutoff.
+        if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+            solverChoice.use_building_immersed_forcing(geom[lev])) {
+            for (MFIter mfi(*lmask_lev[lev][0]); mfi.isValid(); ++mfi) {
+                const Box& bx2d = mfi.growntilebox();
+                auto lmask_arr = lmask_lev[lev][0]->array(mfi);
+                const auto& t_blank_arr = terrain_blanking[lev]->array(mfi);
 
-            amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-                // Use k=0 for the terrain_blanking field
-                if (t_blank_arr(i, j, 0) > 0.0) {
-                    lmask_arr(i, j, k) = 2;
-                }
-            });
+                amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                    // Use k=0 for the terrain_blanking field
+                    if (t_blank_arr(i, j, 0) > 0.0) {
+                        lmask_arr(i, j, k) = 2;
+                    }
+                });
+            }
         }
     }
 
@@ -1175,6 +1188,8 @@ ERF::make_terrain_blanking (int lev)
     terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
 
 #if USE_FC_FACTORY
+    if (!use_native_fc_factories()) { return; }
+
     // Face-centered terrain blanking from face-centered EB volume fractions
     terrain_blanking_xface[lev]->setVal(one);
     terrain_blanking_yface[lev]->setVal(one);

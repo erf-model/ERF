@@ -1430,6 +1430,198 @@ TEST(SurfaceLayer, LsmDerivedParametersFillCoarseFineAndEdgeGhostColumns)
     }
 }
 
+// Immersed columns skip MOST. Their initial values must be safe even in
+// neighboring FABs' ghost cells, without losing the land/water first-call sentinel.
+TEST(SurfaceLayer, ImmersedColumnsHaveBenignInitialParameters)
+{
+    const std::string prefix = "unit_surface_layer_immersed_init";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    ParmParse pp(prefix);
+    // Water on lateral faces requires constant roughness.
+    pp.add("most.roughness_type_sea", std::string("constant"));
+    for (const auto face : all_faces()) {
+        SCOPED_TRACE(static_cast<int>(face));
+        SurfaceLayerFields fields(make_geometry(), true);
+        const int ilo = fields.domain.smallEnd(0);
+        for (MFIter mfi(*fields.lmask[0]); mfi.isValid(); ++mfi) {
+            const auto mask = fields.lmask[0]->array(mfi);
+            ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                mask(i,j,k) = amrex::min(amrex::max(i - ilo, 0), 2);
+            });
+        }
+        auto layer = fields.prepare_layer(face, active_faces({face}), prefix, false, false);
+        const std::array<MultiFab*, 9> parameters = {
+            layer->get_u_star(0), layer->get_w_star(0), layer->get_t_star(0),
+            layer->get_q_star(0), layer->get_olen(0), layer->get_pblh(0),
+            layer->get_z0(0), layer->get_t_surf(0), layer->get_q_surf(0)};
+        const std::array<Real, 9> ordinary = {
+            bogus_large_value, bogus_large_value, Real(0), Real(0),
+            bogus_large_value, bogus_large_value, Real(0.1), Real(300), Real(0)};
+        const std::array<Real, 9> immersed = {
+            Real(0), Real(0), Real(0), Real(0), Real(1.0e10),
+            bogus_large_value, Real(0.1), Real(300), Real(0)};
+        for (int n = 0; n < 9; ++n) {
+            SCOPED_TRACE(n);
+            ReduceOps<ReduceOpSum> op;
+            ReduceData<int> data(op);
+            const Real active_value = ordinary[n];
+            const Real inactive_value = immersed[n];
+            for (MFIter mfi(*parameters[n]); mfi.isValid(); ++mfi) {
+                const auto arr = parameters[n]->const_array(mfi);
+                op.eval(mfi.fabbox(), data,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) -> GpuTuple<int> {
+                        return {arr(i,j,k) != ((i >= ilo + 2) ? inactive_value : active_value)};
+                    });
+            }
+            EXPECT_EQ(get<0>(data.value()), 0);
+        }
+    }
+    pp.remove("most.roughness_type_sea");
+}
+
+// Exercise the normal update with and without LSM fluxes, including stale
+// building values, and the downstream TKE initialization that squares u*.
+TEST(SurfaceLayer, ImmersedColumnsRemainBenignThroughFluxAndTkeUpdates)
+{
+    const std::string prefix = "unit_surface_layer_immersed_update";
+    ScopedSurfaceLayerParams params(prefix.c_str());
+    const Orientation face(Direction::z, Orientation::low);
+    for (const bool with_lsm : {false, true}) {
+        SCOPED_TRACE(with_lsm);
+        SurfaceLayerFields fields(make_qsurf_geometry());
+        fields.cons.setVal(test_rho * test_surface_temperature, RhoTheta_comp, 1,
+                           fields.cons.nGrowVect());
+        const int ib = fields.domain.bigEnd(0);
+        for (MFIter mfi(*fields.lmask[0]); mfi.isValid(); ++mfi) {
+            const auto mask = fields.lmask[0]->array(mfi);
+            ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                mask(i,j,k) = (i >= ib) ? 2 : 1;
+            });
+        }
+        if (with_lsm) {
+            for (const char* name : {"t_flux", "q_flux", "tau13", "tau23"}) {
+                auto mf = std::make_unique<MultiFab>(collapse_z(fields.ba), fields.dm, 1, 0);
+                mf->setVal(Real(0));
+                if (std::string(name) == "tau13") {
+                    for (MFIter mfi(*mf); mfi.isValid(); ++mfi) {
+                        const auto arr = mf->array(mfi);
+                        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            arr(i,j,k) = (i < ib) ? Real(0.04) : Real(0);
+                        });
+                    }
+                }
+                fields.lsm_flux_data.push_back(std::move(mf));
+                fields.lsm_flux_names.push_back(name);
+            }
+        }
+        auto layer = fields.prepare_layer(face, active_faces({face}), prefix, false, false);
+        const std::array<MultiFab*, 5> parameters = {
+            layer->get_u_star(0), layer->get_w_star(0), layer->get_t_star(0),
+            layer->get_q_star(0), layer->get_olen(0)};
+        const std::array<Real, 5> expected = {Real(0), Real(0), Real(0), Real(0), Real(1.0e10)};
+        // A diagnosed height must survive the inactive-column reset.
+        layer->get_pblh(0)->setVal(Real(500));
+        for (const bool stale_values : {false, true}) {
+            SCOPED_TRACE(stale_values);
+            if (stale_values) {
+                for (auto* mf : parameters) {
+                    for (MFIter mfi(*mf); mfi.isValid(); ++mfi) {
+                        const auto arr = mf->array(mfi);
+                        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            if (i >= ib) { arr(i,j,k) = bogus_large_value; }
+                        });
+                    }
+                }
+            }
+            layer->update_fluxes(0, 1.0, 1.0, fields.cons, nullptr, fields.no_walldist, 20);
+            for (const int i : {ib, ib + 1}) {
+                const IntVect p(AMREX_D_DECL(i, 1, 0));
+                for (int n = 0; n < 5; ++n) {
+                    EXPECT_EQ(mf_grown_value(*parameters[n], p), expected[n]) << n;
+                }
+                EXPECT_EQ(mf_grown_value(*layer->get_pblh(0), p), Real(500));
+            }
+            EXPECT_GT(mf_value(*layer->get_u_star(0), IntVect(1, 1, 0)), Real(0));
+        }
+
+        auto z_phys_nd = std::make_unique<MultiFab>(
+            convert(fields.ba, IntVect(1)), fields.dm, 1, 1);
+        for (MFIter mfi(*z_phys_nd); mfi.isValid(); ++mfi) {
+            const auto z = z_phys_nd->array(mfi);
+            ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                z(i,j,k) = Real(k);
+            });
+        }
+        layer->init_tke_from_ustar(0, fields.cons, z_phys_nd, Real(1));
+        for (int k = 0; k <= fields.domain.bigEnd(2); ++k) {
+            const IntVect p(AMREX_D_DECL(ib, 1, k));
+            EXPECT_EQ(single_value(fields.cons, Box(p, p), RhoKE_comp), Real(0));
+        }
+    }
+}
+
+// Motivation (#4486): SLM leaves zero fluxes in building columns (mask 2).
+// Those finite values must not overwrite the existing surface parameters;
+// zero fluxes remain valid for ordinary land (mask 1).
+TEST(SurfaceLayer, LsmDerivedParametersPreserveWaterAndBuildingColumns)
+{
+    const std::string prefix = "unit_surface_layer_lsm_flux_mask";
+    ScopedSurfaceLayerParams params(prefix.c_str(), "most.pot_surf_temp",
+                                   test_surface_temperature + Real(1.0));
+    SurfaceLayerFields fields(make_qsurf_geometry());
+    const IntVect ng = fields.cons.nGrowVect();
+    fields.cons.setVal(test_rho, Rho_comp, 1, ng);
+    fields.cons.setVal(test_rho * test_surface_temperature, RhoTheta_comp, 1, ng);
+    fields.cons.setVal(test_rho * test_qv, RhoQ1_comp, 1, ng);
+
+    for (const char* name : {"t_flux", "q_flux", "tau13", "tau23"}) {
+        auto mf = std::make_unique<MultiFab>(collapse_z(fields.ba), fields.dm, 1, 0);
+        mf->setVal(Real(0.0));
+        fields.lsm_flux_data.push_back(std::move(mf));
+        fields.lsm_flux_names.push_back(name);
+    }
+
+    const Orientation face(Direction::z, Orientation::low);
+    // At time zero, initialize the reference values with MOST, before LSM fluxes
+    // are used. Then assign water, land, and building columns to the same state.
+    auto layer = fields.prepare_layer(face, active_faces({face}), prefix, true);
+    const std::array<MultiFab*, 5> parameters = {
+        layer->get_u_star(0), layer->get_t_star(0), layer->get_q_star(0),
+        layer->get_olen(0), layer->get_z0(0)};
+    const int ilo = fields.domain.smallEnd(0);
+    const int j = fields.domain.smallEnd(1);
+    std::array<std::array<Real, 5>, 3> before;
+    for (int mask = 0; mask < 3; ++mask) {
+        const IntVect p(AMREX_D_DECL(ilo + mask, j, 0));
+        for (int n = 0; n < 5; ++n) {
+            before[mask][n] = mf_value(*parameters[n], p);
+            ASSERT_TRUE(std::isfinite(before[mask][n]));
+        }
+    }
+    for (MFIter mfi(*fields.lmask[0]); mfi.isValid(); ++mfi) {
+        const auto mask_arr = fields.lmask[0]->array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int jj, int k) noexcept {
+            mask_arr(i,jj,k) = amrex::min(amrex::max(i - ilo, 0), 2);
+        });
+    }
+
+    layer->compute_sfc_params_from_lsm_fluxes(0, fields.cons);
+    Gpu::streamSynchronize();
+
+    for (int mask : {0, 2}) {
+        SCOPED_TRACE(mask);
+        const IntVect p(AMREX_D_DECL(ilo + mask, j, 0));
+        for (int n = 0; n < 5; ++n) {
+            // Excluded columns receive no writes, so preservation is exact.
+            EXPECT_EQ(mf_value(*parameters[n], p), before[mask][n]) << n;
+        }
+    }
+    const Real eps = std::numeric_limits<Real>::epsilon();
+    const IntVect land(AMREX_D_DECL(ilo + 1, j, 0));
+    EXPECT_GT(before[1][0], eps);
+    EXPECT_EQ(mf_value(*layer->get_u_star(0), land), eps);
+}
+
 // Motivation: SLM exposes its surface field as theta. The SurfaceLayer must
 // preserve that canonical value, rather than treating every LSM temperature
 // field as an absolute-temperature Noah-MP field.
