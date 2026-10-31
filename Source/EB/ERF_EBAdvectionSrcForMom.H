@@ -70,6 +70,7 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
     CENTERED2 interp_u_CEN2(u, 0);
     CENTERED2 interp_v_CEN2(v, 0);
     CENTERED2 interp_w_CEN2(w, 0);
+    CENTERED4 interp_w_CEN4(w, 0);
 
     UPWIND3   interp_u_UPW3_horz(u, upw_frac_h); UPWIND3 interp_u_UPW3_vert(u, upw_frac_v);
     UPWIND3   interp_v_UPW3_horz(v, upw_frac_h); UPWIND3 interp_v_UPW3_vert(v, upw_frac_v);
@@ -532,11 +533,15 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                     }
                 }
 
-                // Adjust available cell numbers near the top and bottom boundaries
+                // Adjust available cell numbers near the top and bottom boundaries.
+                // As in the non-EB operator, the second face from the wall uses
+                // 4th-order centered when the wall, not the EB, limits the stencil.
 
+                bool wall_cen4 = false;
                 if (k == hi_z_face || k == lo_z_face+1) {
                     kcell=std::min(kcell,1);
                 } else if (k == hi_z_face-1 || k == lo_z_face+2 ) {
+                    wall_cen4 = (kcell > 2);
                     kcell=std::min(kcell,2);
                 }
 
@@ -545,6 +550,8 @@ EBAdvectionSrcForMomWrapper (const amrex::Vector<amrex::Box>& bxx_grown,
                 amrex::Real interpz = zero;
                 if (kcell==ncells_w_vert) {
                     interp_w_vert.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
+                } else if (wall_cen4) {
+                    interp_w_CEN4.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);
                 } else {
                     if (kcell<=1) {
                         interp_w_CEN2.InterpolateInZ(i,j,k,0,interpz,rho_w_avg);

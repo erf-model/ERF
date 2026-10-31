@@ -244,18 +244,10 @@ TEST_P(EBMomMapFactors, AllRegularEBMatchesNonEB)
     // single and double precision.
     const Real rel_tol = Real(1000) * real_eps;
 
-    // The w tendency is compared away from the two w-faces next to each wall. There, for
-    // vertical orders above 4, the non-EB operator reduces the vertical interpolation of w
-    // to 4th-order centered and the EB operator to 3rd-order upwind, a difference that
-    // involves no map factor (erf-model/ERF#4889).
-    Box w_interior = ref.rho_w_rhs.box();
-    w_interior.setSmall(2, domain.smallEnd(2) + 3);
-    w_interior.setBig  (2, domain.bigEnd(2)   - 2);
-
     const char* names[3] = {"rho_u_rhs", "rho_v_rhs", "rho_w_rhs"};
     const FArrayBox* refs[3] = {&ref.rho_u_rhs, &ref.rho_v_rhs, &ref.rho_w_rhs};
     const FArrayBox* ebs [3] = {&eb .rho_u_rhs, &eb .rho_v_rhs, &eb .rho_w_rhs};
-    const Box boxes[3] = {ref.rho_u_rhs.box(), ref.rho_v_rhs.box(), w_interior};
+    const Box boxes[3] = {ref.rho_u_rhs.box(), ref.rho_v_rhs.box(), ref.rho_w_rhs.box()};
     for (int n = 0; n < 3; ++n) {
         SCOPED_TRACE(names[n]);
         const auto [diff, scale] = max_diff_and_scale(*ebs[n], *refs[n], boxes[n]);
