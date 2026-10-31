@@ -416,6 +416,8 @@ void ERF::set_cf_zface_omega (int lev, MultiFab& omega, const MultiFab& omega_t,
  * Whether the coarse/fine faces of this level take the horizontal mass flux from the coarse level:
  * an anelastic level on a terrain-fitted mesh.  The face areas vary along the coarse/fine faces
  * there, so interpolating (rho u) would leave the fine fluxes not adding up to the coarse flux.
+ * The mass flux is the one the advection forms, ax (rho u) / m_uy and ay (rho v) / m_vx, so the
+ * map factors, which can vary along the faces as well, are included.
  *
  * @param lev Level index (> 0)
  */
@@ -426,7 +428,7 @@ bool ERF::cf_interp_mass_flux (int lev) const
 
 /**
  * Register the coarse horizontal momenta for the coarse/fine face fills of the level above,
- * as (ax rho u) and (ay rho v) where cf_interp_mass_flux holds.
+ * as ax (rho u) / m_uy and ay (rho v) / m_vx where cf_interp_mass_flux holds.
  *
  * @param levc  Coarse level index
  * @param xold  x-face momenta at the first time
@@ -444,29 +446,42 @@ void ERF::RegisterCoarseMomentumCF (int levc, const MultiFab& xold, const MultiF
         FPr_v[levc].RegisterCoarseData({&yold,&ynew}, times);
         return;
     }
-    auto weighted = [&] (const MultiFab& m, const MultiFab& area) {
-        const IntVect ng = amrex::min(m.nGrowVect(), area.nGrowVect());
+    auto weighted = [&] (const MultiFab& m, const MultiFab& area, const MultiFab& mf) {
+        IntVect ng = amrex::min(m.nGrowVect(), area.nGrowVect());
+        ng[0] = amrex::min(ng[0], mf.nGrowVect()[0]);
+        ng[1] = amrex::min(ng[1], mf.nGrowVect()[1]);
         MultiFab w(m.boxArray(), m.DistributionMap(), 1, ng);
-        MultiFab::Copy(w, m, 0, 0, 1, ng);
-        MultiFab::Multiply(w, area, 0, 0, 1, ng);
+        for (MFIter mfi(w, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const Box bx = mfi.growntilebox(ng);
+            const auto w_arr = w.array(mfi);
+            const auto m_arr = m.const_array(mfi);
+            const auto a_arr = area.const_array(mfi);
+            const auto f_arr = mf.const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                w_arr(i,j,k) = m_arr(i,j,k) * a_arr(i,j,k) / f_arr(i,j,0);
+            });
+        }
         return w;
     };
-    const MultiFab xo = weighted(xold, *ax[levc]);
-    const MultiFab xn = weighted(xnew, *ax[levc]);
-    const MultiFab yo = weighted(yold, *ay[levc]);
-    const MultiFab yn = weighted(ynew, *ay[levc]);
+    const MultiFab& mf_uy = *mapfac[levc][MapFacType::u_y];
+    const MultiFab& mf_vx = *mapfac[levc][MapFacType::v_x];
+    const MultiFab xo = weighted(xold, *ax[levc], mf_uy);
+    const MultiFab xn = weighted(xnew, *ax[levc], mf_uy);
+    const MultiFab yo = weighted(yold, *ay[levc], mf_vx);
+    const MultiFab yn = weighted(ynew, *ay[levc], mf_vx);
     FPr_u[levc].RegisterCoarseData({&xo,&xn}, times);
     FPr_v[levc].RegisterCoarseData({&yo,&yn}, times);
 }
 
 /**
  * Fill the coarse/fine faces of one horizontal momentum component.  Where cf_interp_mass_flux
- * holds, the fill gives the mass flux, which is divided by the fine area on the faces it set;
- * all other faces keep their values exactly.
+ * holds, the fill gives the mass flux, which is multiplied by the fine map factor and divided by
+ * the fine area on the faces it set; all other faces keep their values exactly.
  */
 static void
-fill_cf_momentum (ERFFillPatcher& patcher, MultiFab& mom, const MultiFab& area, bool mass_flux, double time_d,
-                  const Vector<BCRec>& bcs)
+fill_cf_momentum (ERFFillPatcher& patcher, MultiFab& mom, const MultiFab& area, const MultiFab& mapfac,
+                  bool mass_flux, double time_d, const Vector<BCRec>& bcs)
 {
     PhysBCFunctNoOp null_bc;
     if (!mass_flux) {
@@ -481,11 +496,12 @@ fill_cf_momentum (ERFFillPatcher& patcher, MultiFab& mom, const MultiFab& area, 
         const Box bx = mfi.tilebox();
         const auto f = flux.const_array(mfi);
         const auto a = area.const_array(mfi);
+        const auto mf = mapfac.const_array(mfi);
         const auto m = mom.array(mfi);
         const Real flag = not_set;
         ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
-            if (f(i,j,k) != flag) { m(i,j,k) = f(i,j,k) / a(i,j,k); }
+            if (f(i,j,k) != flag) { m(i,j,k) = f(i,j,k) * mf(i,j,0) / a(i,j,k); }
         });
     }
 }
@@ -501,8 +517,10 @@ fill_cf_momentum (ERFFillPatcher& patcher, MultiFab& mom, const MultiFab& area, 
 void ERF::FillSetHorizontalMomentaCF (int lev, double time_d, MultiFab& xmom, MultiFab& ymom)
 {
     const bool mass_flux = cf_interp_mass_flux(lev);
-    fill_cf_momentum(FPr_u[lev-1], xmom, *ax[lev], mass_flux, time_d, domain_bcs_type);
-    fill_cf_momentum(FPr_v[lev-1], ymom, *ay[lev], mass_flux, time_d, domain_bcs_type);
+    fill_cf_momentum(FPr_u[lev-1], xmom, *ax[lev], *mapfac[lev][MapFacType::u_y], mass_flux, time_d,
+                     domain_bcs_type);
+    fill_cf_momentum(FPr_v[lev-1], ymom, *ay[lev], *mapfac[lev][MapFacType::v_x], mass_flux, time_d,
+                     domain_bcs_type);
 }
 
 /**
