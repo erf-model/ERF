@@ -162,6 +162,29 @@ copy_ground_plane (const MultiFab& src, int klo)
 }
 
 /**
+ * Finish a column sum computed box by box on a planar MultiFab (see ERF_PlanarBoundary.H).
+ *
+ * @param[in,out] mf    planar MultiFab, one box per 3D box
+ * @param[in]     comp  first component holding a column sum
+ * @param[in]     ncomp number of components
+ */
+void
+sum_over_stacked_boxes (MultiFab& mf, int comp, int ncomp)
+{
+    if (mf.boxArray().isDisjoint()) { return; }
+
+    // The columns covered by the planar boxes, each in exactly one box
+    BoxArray ba_cols(mf.boxArray().boxList());
+    ba_cols.removeOverlap();
+    MultiFab sums(ba_cols, DistributionMapping(ba_cols), ncomp, 0);
+    sums.setVal(0.0);
+
+    // Every planar box adds its part into the columns it covers, then each takes the totals back
+    sums.ParallelAdd(mf, comp, 0, ncomp);
+    mf.ParallelCopy(sums, 0, comp, ncomp);
+}
+
+/**
  * Gather buffer for one target layout, index type, and number of components, allocated on
  * first use.  The source MultiFab list avoids rebuilding the layout key on every fill.
  *

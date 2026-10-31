@@ -143,4 +143,20 @@ private:
 std::unique_ptr<amrex::MultiFab>
 copy_ground_plane (const amrex::MultiFab& src, int klo);
 
+/**
+ * Finish a column sum computed box by box on a planar MultiFab.
+ *
+ * A column sum over a level's 3D grids, accumulated into the planar box of each 3D box,
+ * holds in each planar box only the part of the column inside its own 3D box.  When the
+ * 3D BoxArray is split in z, several planar boxes cover one column; this adds their parts
+ * and gives every one of them the whole sum.  A planar BoxArray without overlapping boxes
+ * is left as it is.
+ *
+ * @param[in,out] mf    planar MultiFab, one box per 3D box, cell-centered, no ghost cells used
+ * @param[in]     comp  first component holding a column sum
+ * @param[in]     ncomp number of components
+ */
+void
+sum_over_stacked_boxes (amrex::MultiFab& mf, int comp, int ncomp);
+
 #endif

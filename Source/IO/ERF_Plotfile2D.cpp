@@ -269,9 +269,6 @@ ERF::FillPlot2DVars (int lev,
         planes.back()->ParallelCopy(*src, 0, 0, src->nComp(), IntVect(0,0,1), IntVect(0));
         return planes.back().get();
     };
-    // Components holding column sums, which a level split in z computes box by box
-    Vector<int> column_sum_comps;
-
     const MultiFab* pblh_source = nullptr;
     const MultiFab* sens_flux_source = nullptr;
     const MultiFab* laten_flux_source = nullptr;
@@ -636,7 +633,6 @@ ERF::FillPlot2DVars (int lev,
         } else {
             mf_qv_int.setVal(0.);
         }
-        column_sum_comps.push_back(mf_comp);
         mf_comp++;
     }
 
@@ -651,8 +647,9 @@ ERF::FillPlot2DVars (int lev,
                                                selected_water_paths,
                                                geom[lev],
                                                *detJ_cc[lev]);
+        // On grids split in z each 2D box holds only its own box's part of the column
         for (int n = 0; n < selected_water_paths.n; ++n) {
-            column_sum_comps.push_back(selected_water_paths.dst_comp[n]);
+            sum_over_stacked_boxes(mf_dst, selected_water_paths.dst_comp[n], 1);
         }
     }
 
@@ -838,17 +835,6 @@ ERF::FillPlot2DVars (int lev,
     if (!spans_z) {
         PlanarBoundary planar;
         planar.define(grids[lev], ba2d[lev], dmap[lev], klo);
-
-        // Each 2D box holds the sum over its own 3D box only; the column's sum is the sum of
-        //    those over every box stacked over the column
-        if (!column_sum_comps.empty() && !planar.surface_index().empty()) {
-            MultiFab sums(planar.surface_boxes(), planar.surface_dm(), 1, 0);
-            for (int comp : column_sum_comps) {
-                sums.setVal(0.0);
-                sums.ParallelAdd(mf_dst, comp, 0, 1);
-                mf_dst.ParallelCopy(sums, 0, comp, 1);
-            }
-        }
 
         // Columns in which no box reaches the ground have no ground values: -999 there.
         //    Elsewhere the copy below overwrites these boxes with the one that reaches the ground.
