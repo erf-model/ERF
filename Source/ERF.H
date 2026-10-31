@@ -436,6 +436,9 @@ public:
     void project_momenta (int lev, double l_time, double l_dt, amrex::Vector<amrex::MultiFab >& vars);
 
     // A refined level that stops inside the domain in z (ERF_CoarseFineFaces.cpp)
+    void cf_zface_coarse_at (int lev, double tc, bool conserved_rho,
+                             const amrex::MultiFab& pz, const amrex::MultiFab& pmu, const amrex::MultiFab& pmv,
+                             amrex::MultiFab& cOm, amrex::MultiFab& cRu, amrex::MultiFab& cRv);
     bool cf_zface_coarse_data (int lev, double time, bool conserved_rho,
                                amrex::MultiFab& omega_t, amrex::MultiFab& rhou_g, amrex::MultiFab& rhov_g,
                                amrex::Vector<int>& slab_box);
@@ -452,6 +455,9 @@ public:
     void cf_anelastic_record (int levc, int nrk);
     void cf_anelastic_stage_registration (int lev, int nrk);
     void average_down_mass_flux (int crse_lev);
+    bool cf_anelastic_stage1 (int lev) const;
+    // Whether each fine level is in the first stage of its step (cf_anelastic_stage_registration)
+    amrex::Vector<int> m_cf_stage1;
     // The horizontal mass flux the level's last step applied (cf_anelastic_record)
     amrex::Vector<amrex::Array<amrex::MultiFab, 2>> m_cf_step_flux;
     // ... and its vertical flux, as Omega
