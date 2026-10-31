@@ -282,6 +282,14 @@
                          cloud_chamber_config.active ? &cloud_chamber_config : nullptr,
                          cloud_chamber_budget.get());
 
+        // Anelastic coarse/fine faces in time (ERF_CoarseFineFaces.cpp): a coarse level adds
+        // this stage's mass fluxes to those of its step, a fine level registers the coarse
+        // momenta its coarse/fine faces are filled from in this stage
+        if (solverChoice.anelastic[level]) {
+            if (level < finest_level) { cf_anelastic_record(level, nrk); }
+            if (level > 0)            { cf_anelastic_stage_registration(level, nrk); }
+        }
+
         if ((solverChoice.vert_implicit_fac[level][nrk] > zero_d) && solverChoice.implicit_before_substep) {
             const Real stage_dt = static_cast<Real>(slow_dt);
             /**

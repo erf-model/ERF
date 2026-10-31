@@ -447,6 +447,14 @@ public:
     void RegisterCoarseMomentumCF (int levc, const amrex::MultiFab& xold, const amrex::MultiFab& xnew,
                                    const amrex::MultiFab& yold, const amrex::MultiFab& ynew,
                                    const amrex::Vector<double>& times);
+    // Anelastic coarse/fine faces in time (ERF_CoarseFineFaces.cpp)
+    bool cf_anelastic_flux_match (int lev) const;
+    void cf_anelastic_record (int levc, int nrk);
+    void cf_anelastic_stage_registration (int lev, int nrk);
+    // Times of the coarse momenta last registered for the level above, and the horizontal mass
+    // flux the level's last step applied (cf_anelastic_record)
+    amrex::Vector<amrex::Vector<double>> m_cf_mom_times;
+    amrex::Vector<amrex::Array<amrex::MultiFab, 2>> m_cf_step_flux;
     void FillSetHorizontalMomentaCF (int lev, double time, amrex::MultiFab& xmom, amrex::MultiFab& ymom);
     void FillSetMomentaCF (int lev, double time, amrex::MultiFab& xmom, amrex::MultiFab& ymom,
                            amrex::MultiFab& zmom);
