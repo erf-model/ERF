@@ -268,8 +268,8 @@ INSTANTIATE_TEST_SUITE_P(
     AdvectionOrders, EBMomMapFactors,
     ::testing::Values(AdvType::Centered_2nd, AdvType::Upwind_3rd, AdvType::Centered_4th,
                       AdvType::Upwind_5th, AdvType::Centered_6th),
-    [] (const ::testing::TestParamInfo<AdvType>& info) {
-        switch (info.param) {
+    [] (const ::testing::TestParamInfo<AdvType>& param_info) {
+        switch (param_info.param) {
         case AdvType::Centered_2nd: return std::string("Centered_2nd");
         case AdvType::Upwind_3rd:   return std::string("Upwind_3rd");
         case AdvType::Centered_4th: return std::string("Centered_4th");
