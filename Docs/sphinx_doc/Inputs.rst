@@ -4727,6 +4727,94 @@ netCDF "No such file or directory" error.
    Using RRTMGP requires ``USE_RRTMGP=TRUE`` at build time. See :ref:`sec:building` for build instructions.
 
 
+.. _inputs-topographic-radiation:
+
+Topographic shading and slope radiation
+---------------------------------------
+
+RRTMGP can account for terrain blocking direct sunlight and for the angle at
+which sunlight strikes a sloping surface. These corrections require
+``erf.radiation_model = RRTMGP`` and ``erf.terrain_type = StaticFittedMesh``.
+They use the finalized terrain heights, map factors, and grid orientation,
+including for ``erf.init_type = WRFInput`` and ``Metgrid``. No additional WPS
+shading fields are required. TwoStream, Simple, and moving or immersed terrain
+are not supported by these options.
+
+Both corrections are disabled by default. Enable ``erf.topo_shading`` explicitly
+to cast terrain shadows, and ``erf.slope_rad`` to account for surface slope.
+
+.. list-table:: Topographic radiation controls
+   :header-rows: 1
+   :widths: 30 50 20
+
+   * - Parameter
+     - Definition
+     - Default
+   * - ``erf.topo_shading``
+     - Boolean; remove the direct beam where resolved terrain blocks the sun.
+     - ``false``
+   * - ``erf.slope_rad``
+     - Boolean; project the horizontal direct-beam flux onto the terrain normal.
+     - ``false``
+   * - ``erf.shadlen``
+     - Maximum horizontal terrain-search distance toward the sun, in metres;
+       must be positive and finite.
+     - ``25000`` (25 km)
+   * - ``erf.fixed_solar_azimuth_angle``
+     - Degrees clockwise from geographic north in ``[0, 360)``. Required with
+       a positive ``erf.fixed_solar_zenith_angle`` when either correction is
+       enabled; requires a positive fixed zenith cosine in turn.
+     - Unset; use the astronomical sun.
+
+The shading and slope switches are independent. For example, add the following
+to a configured RRTMGP case on static fitted terrain:
+
+.. code-block:: text
+
+   erf.topo_shading = true
+   erf.slope_rad = true
+   erf.shadlen = 25000
+   erf.rad_freq_in_steps = 1
+   amr.no_box_split_dir = 2
+
+The search includes terrain on other MPI ranks and periodic images within
+``erf.shadlen``. It stops at a nonperiodic domain boundary. Terrain farther
+away than the search distance cannot cast a shadow on the target cell.
+Increasing the distance increases the terrain cache size and search work.
+Horizontal column boxes must be disjoint; ``amr.no_box_split_dir = 2`` is the
+ERF default and satisfies this requirement.
+
+**Update timing.** The shadow mask and slope correction update with RRTMGP,
+at ``erf.rad_freq_in_steps`` (default ``1``). Both are held between radiation
+updates; there is no separate shadow-update interval. For the astronomical
+sun, the ray direction and slope incidence use the midpoint of the upcoming
+radiation interval. Use a shorter interval to resolve moving shadows. On
+restart or grid creation, missing raw surface forcing triggers a radiation
+refresh even if that step would normally be skipped. Levels that inherit
+radiation from their parent use the parent's radiation time and apply their
+own terrain correction after interpolation.
+
+For a fixed sun 10 degrees above the eastern horizon, also set:
+
+.. code-block:: text
+
+   erf.fixed_solar_zenith_angle = 0.17364817766693033
+   erf.fixed_solar_azimuth_angle = 90
+
+Despite its name, ``fixed_solar_zenith_angle`` is a **cosine**, here
+``sin(10 degrees)``. The azimuth is geographic: 0 is north, 90 east, 180 south,
+and 270 west. Omit both fixed-sun parameters to use the date, time, latitude,
+and longitude.
+
+Only direct surface shortwave is corrected. Diffuse shortwave, longwave, the
+solar zenith cosine supplied to land models, and atmospheric radiation fluxes
+and heating retain their column-solver values. Noah-MP receives corrected
+broadband shortwave; SLM receives corrected visible and near-infrared direct
+components. See :ref:`sec:TopographicRadiation` for the equations and
+approximations, and :ref:`sec:Plotfile2DTopographicRadiation` for mask and flux
+outputs and a visualization example.
+
+
 Two-Stream Radiation Model
 ---------------------------
 

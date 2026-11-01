@@ -515,6 +515,16 @@ ERF::FillPlot2DVars (int lev,
         mf_comp++;
     } // OLR
 
+    const Vector<std::string> topo_names = {"topographic_shadow", "terrain_direct_factor",
+        "terrain_incidence", "unshaded_sw_flux_dn", "terrain_sw_flux_dn"};
+    for (int n = 0; n < int(topo_names.size()); ++n) {
+        if (containerHasElement(plot_var_names, topo_names[n])) {
+            plotfile2d::fill_component_from_klevel_or_value(mf_dst, mf_comp,
+                topographic_radiation.diagnostics(lev), 0, -999, n);
+            ++mf_comp;
+        }
+    }
+
     // The two-stream simplified surface energy balance carries its own
     // prognostic surface state, distinct from the Noah-MP "t_sfc" above and
     // from the surface layer's "t_surf".  Both accessors return nullptr

@@ -98,6 +98,13 @@ Several other conditions are reported at start-up or on the first land step:
   252 K in one land hour. With RRTMGP or TwoStream, inputs still missing on the first land step
   mean the coupling did not reach that level (RRTMGP does not solve on a fine level that is a
   nested patch), and ERF stops with a message instead of running on zero.
+  On static terrain-following grids with RRTMGP, ``erf.topo_shading`` and
+  ``erf.slope_rad`` optionally correct direct sunlight for terrain obstruction
+  and slope before supplying Noah-MP's broadband shortwave forcing. The mask
+  and correction follow ``erf.rad_freq_in_steps``; diffuse shortwave, longwave,
+  and the original solar zenith cosine are preserved. These terrain options
+  currently require RRTMGP. See :ref:`inputs-topographic-radiation` for controls
+  and :ref:`sec:Plotfile2DTopographicRadiation` for the diagnostic outputs.
 - **Surface layer.** The land model's fluxes reach the atmosphere only through the surface layer,
   so a ``surface_layer`` boundary is needed (``zlo.type = "surface_layer"``); without one ERF warns
   that the fluxes will not be applied. The surface layer in turn needs a diffusive closure.
