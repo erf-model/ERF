@@ -688,8 +688,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
         erf_auxiliary::MappedFaceFluxRate mapped_carrier;
         mapped_carrier.define(cell_ba, cell_dm, 1, 0);
         std::string sbm_diagnostic;
-        // The same mapped carrier for both integrators: erf_slow_rhs_post gives the anelastic
-        // transport these faces too, with Omega rebuilt from the projected rho w
+        // The same mapped carrier for both integrators: erf_slow_rhs_pre gives the anelastic
+        // transport these faces too, from the current momenta
         MultiFab sbm_vertical_carrier(zface_ba, cell_dm, 1, 0);
         const bool terrain_fitted =
             solverChoice.mesh_type == MeshType::VariableDz;

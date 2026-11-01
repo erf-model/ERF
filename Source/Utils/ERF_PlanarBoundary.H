@@ -123,4 +123,40 @@ private:
     amrex::Vector<Buffer> m_buffers;     // Gather buffers
 };
 
+/**
+ * The ground plane of a field on a level's 3D grids, on one planar box per 3D box.
+ *
+ * Box ib of the result is the footprint of box ib of src, cut down to the plane k = klo in
+ * the index type of src (so a nodal-in-z field keeps the nodes klo and klo+1), on the rank
+ * of box ib.  It therefore lines up, box for box, with any MultiFab on the collapsed
+ * BoxArray (ba2d) and the level's DistributionMapping, and a kernel that reads src at klo
+ * can read it instead from any box, including one that starts above the ground.
+ *
+ * Each planar box first takes the lowest plane of its own 3D box, moved down to klo; the
+ * ground plane is then copied in from the boxes that hold it.  Where no box of the level
+ * reaches the ground (a refined level aloft), the planar box keeps that lowest plane: a
+ * finite stand-in, not the ground, which callers must not report as the ground.
+ *
+ * @param[in] src field on the level's 3D grids (any index type, any number of components)
+ * @param[in] klo index of the lowest cell of the domain
+ */
+std::unique_ptr<amrex::MultiFab>
+copy_ground_plane (const amrex::MultiFab& src, int klo);
+
+/**
+ * Finish a column sum computed box by box on a planar MultiFab.
+ *
+ * A column sum over a level's 3D grids, accumulated into the planar box of each 3D box,
+ * holds in each planar box only the part of the column inside its own 3D box.  When the
+ * 3D BoxArray is split in z, several planar boxes cover one column; this adds their parts
+ * and gives every one of them the whole sum.  A planar BoxArray without overlapping boxes
+ * is left as it is.
+ *
+ * @param[in,out] mf    planar MultiFab, one box per 3D box, cell-centered, no ghost cells used
+ * @param[in]     comp  first component holding a column sum
+ * @param[in]     ncomp number of components
+ */
+void
+sum_over_stacked_boxes (amrex::MultiFab& mf, int comp, int ncomp);
+
 #endif

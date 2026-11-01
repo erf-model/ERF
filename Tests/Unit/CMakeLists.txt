@@ -143,6 +143,9 @@ target_sources(${erf_exe_name}
     # Motivation: reusable scalar advection must honor explicit source, flux, and
     # tendency components instead of inferring primitive storage from native cons layout.
     ${CMAKE_CURRENT_SOURCE_DIR}/Advection/ERF_GTestScalarAdvection.cpp
+    # Motivation: with an EB that cuts no cell, EB momentum advection must equal the non-EB
+    # operator, map factors included: x-face mass fluxes divide by m_y, y-face ones by m_x.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Advection/ERF_GTestEBMomMapFactors.cpp
     # Motivation: the z-momentum box must be shrunk only at the bottom and top of the
     # domain, so that a grid split in z leaves no w-face without a source term.
     ${CMAKE_CURRENT_SOURCE_DIR}/Advection/ERF_GTestZmomBoxDecomposition.cpp

@@ -2,6 +2,7 @@
 
 #include "ERF.H"
 #include "ERF_TileNoZ.H"
+#include "ERF_PlanarBoundary.H"
 
 using namespace amrex;
 
@@ -138,6 +139,9 @@ ERF::volWgtColumnSum (int lev, const MultiFab& mf_to_be_summed, int comp,
             });
         }
     } // mfi
+
+    // On grids split in z each 2D box holds only its own box's part of the column
+    sum_over_stacked_boxes(mf_2d, 0, 1);
 
     auto const& dx = geom[lev].CellSizeArray();
 

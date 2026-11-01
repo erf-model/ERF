@@ -53,6 +53,59 @@ validate_flat_terrain (int lev,
 }
 
 /**
+ * Abort unless the top of the domain is flat, i.e. z_phys_nd is the same at every node of the
+ * top slab.  The top boundary is a horizontal plane: erf_slow_rhs_pre sets Omega = rho w on the
+ * top face, the anelastic projection converts it with OmegaFromW, and the two only agree when
+ * the terrain slopes vanish there.  Every mesh builder pins the top node to z_top, so this
+ * guards against a mesh (custom, read from a file or a checkpoint) that does not.
+ *
+ * @param[in] lev Level index.
+ * @param[in] geom Geometry information.
+ * @param[in] z_phys_nd Nodal physical height field.
+ */
+void
+validate_flat_top (int lev,
+                   const Geometry& geom,
+                   const MultiFab& z_phys_nd)
+{
+    const int k_top = geom.Domain().bigEnd(2) + 1;
+
+    ReduceOps<ReduceOpMin, ReduceOpMax> reduce_op;
+    ReduceData<Real, Real> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+
+    for (MFIter mfi(z_phys_nd); mfi.isValid(); ++mfi) {
+        const Box& bx = mfi.validbox();
+        if (bx.bigEnd(2) < k_top) { continue; }
+        auto const& z_arr = z_phys_nd.const_array(mfi);
+        reduce_op.eval(makeSlab(bx,2,k_top), reduce_data,
+        [=] AMREX_GPU_DEVICE (int i, int j, int k) -> ReduceTuple {
+            return {z_arr(i,j,k), z_arr(i,j,k)};
+        });
+    }
+
+    ReduceTuple hv = reduce_data.value(reduce_op);
+    Real z_top_min = amrex::get<0>(hv);
+    Real z_top_max = amrex::get<1>(hv);
+    ParallelDescriptor::ReduceRealMin(z_top_min);
+    ParallelDescriptor::ReduceRealMax(z_top_max);
+
+    // No box at this level reaches the top of the domain
+    if (z_top_min > z_top_max) { return; }
+
+    // Same precision-aware tolerance as validate_flat_terrain
+    const Real scale = std::max({Real(1.0), std::abs(z_top_min), std::abs(z_top_max)});
+    const Real rel_tol = std::max(Real(1.0e-10), Real(100.0) * std::numeric_limits<Real>::epsilon());
+
+    if (z_top_max - z_top_min > rel_tol * scale) {
+        Print() << "Top of the domain at level " << lev << " ranges from "
+                << z_top_min << " to " << z_top_max << std::endl;
+        Abort("The top of the domain must be flat: z_phys_nd varies along the top boundary at level "
+              + std::to_string(lev) + ".");
+    }
+}
+
+/**
  * Define a default z_phys so we have it even if a completely regular grid
  * This will be over-written if we use z_levels, or grid stretching, or terrain-fitted grids
  */
@@ -743,7 +796,10 @@ init_which_terrain_grid (int lev,
                 // If k0 = 0 then z_arr at k0 has already been filled from the terrain data
                 // If k0 > 0 then z_arr at k0 has already been filled from interpolation
                 //
-                Real z         = z_lev[k];
+                // A box that does not start at the bottom (e.g. a refined box starting at
+                // k0 = 1) has ghost nodes below the domain, where z_lev is not defined;
+                // extend the levels there by reflection about the bottom
+                Real z         = (k >= domlo_z) ? z_lev[k] : two*z_lev[domlo_z] - z_lev[2*domlo_z-k];
                 Real z_sfc     = z_arr(ii,jj,k0);
                 Real z_lev_sfc = z_lev[k0];
 
