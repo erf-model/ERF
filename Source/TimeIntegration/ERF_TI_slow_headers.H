@@ -33,6 +33,28 @@ namespace erf_sbm { class SBMStateManager; class SBMTransport; }
 class ShocDriver;
 
 /**
+ * The weight of the fluxes of RK stage nrk at this level in the update the step ends with.  The
+ * compressible integrator and the anelastic MidPoint integrator update from their final stage
+ * alone (nrk = 2 and nrk = 1), which takes weight 1.  The anelastic RK2 integrator is Heun's,
+ * S^{n+1} = S^n + dt (R0 + R1) / 2, so both of its stages take weight 1/2.
+ *
+ * @param[in] solverChoice  the solver options
+ * @param[in] level         the level being advanced
+ * @param[in] nrk           the RK stage
+ */
+inline amrex::Real
+StageFluxWeight (const SolverChoice& solverChoice, int level, int nrk)
+{
+    if (solverChoice.anelastic[level] == 1) {
+        if (solverChoice.anelastic_type[level] == AnelasticType::RK2) {
+            return amrex::Real(0.5);
+        }
+        return (nrk == 1) ? amrex::Real(1.) : amrex::Real(0.);
+    }
+    return (nrk == 2) ? amrex::Real(1.) : amrex::Real(0.);
+}
+
+/**
  * The weight with which the fluxes of RK stage nrk at this level go into the flux registers:
  * the weight of that stage's fluxes in the update the step ends with, or zero if they are not
  * registered.  Only with two-way coupling and more than one level.  The compressible integrator
@@ -52,13 +74,7 @@ RefluxStageWeight (const SolverChoice& solverChoice, int level, int finest_level
     if (solverChoice.coupling_type != CouplingType::TwoWay || finest_level == 0) {
         return amrex::Real(0.);
     }
-    if (solverChoice.anelastic[level] == 1) {
-        if (solverChoice.anelastic_type[level] == AnelasticType::RK2) {
-            return amrex::Real(0.5);
-        }
-        return (nrk == 1) ? amrex::Real(1.) : amrex::Real(0.);
-    }
-    return (nrk == 2) ? amrex::Real(1.) : amrex::Real(0.);
+    return StageFluxWeight(solverChoice, level, nrk);
 }
 
 /**
