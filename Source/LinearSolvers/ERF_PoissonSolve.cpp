@@ -62,6 +62,34 @@ solve_with_EB_mlmg (int lev,
                     int mg_verbose, Real reltol, Real abstol);
 
 /**
+ * Whether any map factor at this level differs from one (valid cells only)
+ *
+ * @param lev Level index
+ */
+bool ERF::has_nonunit_mapfac (int lev) const
+{
+    for (int i = 0; i < MapFacType::num; ++i) {
+        const MultiFab& mf = *mapfac[lev][i];
+        if (mf.min(0) != one || mf.max(0) != one) { return true; }
+    }
+    return false;
+}
+
+/**
+ * Whether the projection at this level uses the terrain Poisson solver.  The FFT and the
+ * constant-coefficient MLMG solves on a flat mesh (ConstantDz or StretchedDz) leave the map
+ * factors out of the operator and the gradient, so with map factors other than one a flat
+ * mesh is projected with the terrain Poisson solver too, which carries them (#4903).
+ *
+ * @param lev Level index
+ */
+bool ERF::projection_uses_terrain_solver (int lev) const
+{
+    if (solverChoice.terrain_type == TerrainType::EB) { return false; }
+    return (solverChoice.mesh_type == MeshType::VariableDz) || has_nonunit_mapfac(lev);
+}
+
+/**
  * Project the single-level velocity field to enforce the anelastic constraint
  * Note that the level may or may not be level zero
  *
@@ -334,9 +362,17 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     Array<MultiFab,AMREX_SPACEDIM> rho0_u_sub;
     Array<MultiFab const*, AMREX_SPACEDIM> rho0_u_const;
 
+    // A flat mesh whose map factors are not all one is projected with the terrain Poisson solver
+    const bool use_terrain_solver = projection_uses_terrain_solver(lev);
+    const bool flat_with_mapfac   = use_terrain_solver && (solverChoice.mesh_type != MeshType::VariableDz);
+    if (flat_with_mapfac && lev > 0) {
+        amrex::Abort("The projection on a refined level of a mesh without terrain (or with only "
+                     "grid stretching) and map factors other than one is not supported");
+    }
+
     // If we are going to solve with MLMG then we do not need to break this into subdomains
     bool will_solve_with_mlmg = false;
-    if (solverChoice.mesh_type == MeshType::ConstantDz) {
+    if (solverChoice.mesh_type == MeshType::ConstantDz && !use_terrain_solver) {
         will_solve_with_mlmg = true;
 #ifdef ERF_USE_FFT
         if (use_fft) {
@@ -460,7 +496,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         rho0_u_const[1] = &rho0_u_sub[1];
         rho0_u_const[2] = &rho0_u_sub[2];
 
-        if (solverChoice.mesh_type != MeshType::ConstantDz) {
+        if (solverChoice.mesh_type != MeshType::ConstantDz || use_terrain_solver) {
             ax_sub.define(convert(ba_sub,IntVect(1,0,0)), DistributionMapping(dm_sub), 1,
                           ax[lev]->nGrowVect(), MFInfo{}.SetAlloc(false));
             ay_sub.define(convert(ba_sub,IntVect(0,1,0)), DistributionMapping(dm_sub), 1,
@@ -630,9 +666,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
             Real sum = volWgtSumMF(lev,rhs_sub[0],0,dJ_sub,mfmx_sub,mfmy_sub,false,local);
 
             Real vol;
-            if (solverChoice.mesh_type == MeshType::ConstantDz) {
-                vol = rhs_sub[0].boxArray().numPts();
-            } else if (solverChoice.mesh_type == MeshType::VariableDz) {
+            if (use_terrain_solver) {
                 // The weight of the mean is dJ / (m_x m_y), in the sum and in the volume: the
                 // equation solved below is A phi = rhs / (m_x m_y), and dJ is the left null
                 // vector of A.  With map factors of one this is dJ.sum() bit for bit.
@@ -648,6 +682,8 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                     });
                 }
                 vol = wgt.sum();
+            } else if (solverChoice.mesh_type == MeshType::ConstantDz) {
+                vol = rhs_sub[0].boxArray().numPts();
             } else {
                 vol = dJ_sub.sum();
             }
@@ -680,7 +716,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
             amrex::Print() << " Solving in subdomain " << isub << " of " << subdomains[lev].size() << " bins at level " << lev << std::endl;
         }
 
-        if (solverChoice.mesh_type == MeshType::VariableDz) {
+        if (use_terrain_solver) {
             //
             // compute_divergence carries m_x m_y, so adding the map-factor scaled fluxes changes
             // the divergence by m_x m_y (A phi): the equation to solve is A phi = rhs / (m_x m_y)
@@ -737,7 +773,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         // ****************************************************************************
         // No terrain or grid stretching
         // ****************************************************************************
-        if (solverChoice.mesh_type == MeshType::ConstantDz) {
+        if (solverChoice.mesh_type == MeshType::ConstantDz && !use_terrain_solver) {
             if (will_solve_with_mlmg) {
                 solve_with_mlmg(lev, rhs_sub, phi_sub, fluxes_sub, geom[lev], ref_ratio, domain_bc_type,
                                 mg_verbose, solverChoice.poisson_reltol, solverChoice.poisson_abstol);
@@ -750,7 +786,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         // ****************************************************************************
         // Grid stretching (flat terrain)
         // ****************************************************************************
-        else if (solverChoice.mesh_type == MeshType::StretchedDz) {
+        else if (solverChoice.mesh_type == MeshType::StretchedDz && !use_terrain_solver) {
             // Only the hybrid FFT solver handles a stretched mesh, and it is tridiagonal in z.
             // A subdomain whose RHS is already zero was skipped above, so this stops only a
             // projection that would have to do something (issue #4281).
@@ -775,11 +811,13 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         } // grid stretching
 
         // ****************************************************************************
-        // General terrain
+        // General terrain, or a flat mesh with map factors other than one
         // ****************************************************************************
-        else if (solverChoice.mesh_type == MeshType::VariableDz) {
+        else if (use_terrain_solver) {
             bool boxes_make_rectangle = (my_region.numPts() == subdomains[lev][isub].numPts());
-            if (solverChoice.terrain_poisson_solver != TerrainPoissonSolver::gmres_fft) {
+            // erf.terrain_poisson_solver applies to terrain-fitted meshes only; a flat mesh
+            // uses MLTerrainPoisson, which needs no FFT
+            if (flat_with_mapfac || solverChoice.terrain_poisson_solver != TerrainPoissonSolver::gmres_fft) {
                 // amrex::MLTerrainPoisson, multigrid alone or under GMRES; no FFT needed
                 if (!boxes_make_rectangle) {
                     amrex::Abort("erf.terrain_poisson_solver = mlmg or gmres_mlmg needs the boxes of each "
@@ -807,6 +845,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                 }
                 solve_with_terrain_mlmg(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0],
                                         ax_sub, ay_sub, az_sub, dJ_sub, znd_sub,
+                                        !flat_with_mapfac &&
                                         solverChoice.terrain_poisson_solver == TerrainPoissonSolver::gmres_mlmg);
             } else {
 #ifdef ERF_USE_FFT
@@ -875,7 +914,7 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
                 });
             } // mfi
 
-        } // MeshType::VariableDz
+        } // use_terrain_solver
 
         // ****************************************************************************
         // Print time in solve

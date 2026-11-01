@@ -431,6 +431,13 @@ public:
                              amrex::MultiFab const& dJ_in,
                              amrex::Geometry const& geom_at_lev);
 
+    // Does any map factor at this level differ from one?
+    bool has_nonunit_mapfac (int lev) const;
+
+    // Does the projection at this level use the terrain Poisson solver?  Always on a
+    //     terrain-fitted mesh, and on a flat mesh whose map factors are not all one (#4903)
+    bool projection_uses_terrain_solver (int lev) const;
+
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
     void project_initial_velocity (int lev, double time, double dt);
     void project_momenta (int lev, double l_time, double l_dt, amrex::Vector<amrex::MultiFab >& vars);

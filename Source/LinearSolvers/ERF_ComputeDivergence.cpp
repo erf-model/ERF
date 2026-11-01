@@ -36,7 +36,8 @@ void ERF::compute_divergence (int lev, MultiFab& rhs,
         bool already_on_centroids = true;
         EB_computeDivergence(rhs, rho0_u_const, geom_at_lev, already_on_centroids);
     }
-    else if (SolverChoice::mesh_type == MeshType::ConstantDz)
+    // With map factors other than one, ConstantDz uses the general form below (ax = ay = dJ = 1)
+    else if (SolverChoice::mesh_type == MeshType::ConstantDz && !has_nonunit_mapfac(lev))
     {
         computeDivergence(rhs, rho0_u_const, geom_at_lev);
     }
