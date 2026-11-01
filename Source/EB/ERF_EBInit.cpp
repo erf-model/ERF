@@ -102,7 +102,7 @@ ERF::initializeEB ()
                 }
 #if USE_FC_FACTORY
                 // Build while the terrain/building data referenced by gshop are alive.
-                EB2::BuildFC();
+                if (use_native_fc_factories()) { EB2::BuildFC(); }
 #endif
             };
 
@@ -152,7 +152,7 @@ ERF::initializeEB ()
                 EB2::Build(gshop, this->Geom(), ngrow_for_eb);
             }
 #if USE_FC_FACTORY
-            EB2::BuildFC();
+            if (use_native_fc_factories()) { EB2::BuildFC(); }
 #endif
         } else if (geometry == "box") {
             RealArray box_lo{zero, zero, zero};
@@ -168,7 +168,7 @@ ERF::initializeEB ()
                 EB2::Build(gshop, this->Geom(), ngrow_for_eb);
             }
 #if USE_FC_FACTORY
-            EB2::BuildFC();
+            if (use_native_fc_factories()) { EB2::BuildFC(); }
 #endif
         } else if (geometry == "sphere") {
             auto ProbLoArr = geom[max_level].ProbLoArray();
@@ -185,7 +185,7 @@ ERF::initializeEB ()
                 EB2::Build(gshop, this->Geom(), ngrow_for_eb);
             }
 #if USE_FC_FACTORY
-            EB2::BuildFC();
+            if (use_native_fc_factories()) { EB2::BuildFC(); }
 #endif
         }
     }
@@ -201,7 +201,7 @@ ERF::initializeEB ()
             auto gshop = EB2::makeShop(implicit_fun);
             EB2::Build(gshop, this->Geom(), ngrow_for_eb);
 #if USE_FC_FACTORY
-            EB2::BuildFC();
+            if (use_native_fc_factories()) { EB2::BuildFC(); }
 #endif
         } else if (geometry == "plane") {
             amrex::Abort("plane geometry is not supported with ImmersedForcing for buildings");
@@ -214,7 +214,7 @@ ERF::initializeEB ()
             auto gshop = EB2::makeShop(implicit_fun);
             EB2::Build(gshop, this->Geom(), ngrow_for_eb);
 #if USE_FC_FACTORY
-            EB2::BuildFC();
+            if (use_native_fc_factories()) { EB2::BuildFC(); }
 #endif
         } else if (geometry == "sphere") {
             amrex::Abort("sphere geometry is not supported with ImmersedForcing for buildings");

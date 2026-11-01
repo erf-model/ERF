@@ -2445,6 +2445,10 @@ ERF::ReadCheckpointFileSurfaceLayer ()
                 // Z0
                 read_most_var("Z0" + face, m_SurfaceLayer[ori]->get_z0(lev));
 
+                // Older checkpoints can contain initialization sentinels in
+                // immersed columns, which skip the usual MOST/LSM updates.
+                m_SurfaceLayer[ori]->set_immersed_surface_params(lev);
+
                 // The exponentially filtered averages.  We only mark the filter as initialized
                 // if every piece of its state came back, so that a partial restore degrades to
                 // "start the average over" instead of blending in whatever the containers hold.

@@ -3409,9 +3409,11 @@ ERF::init_only (int lev, double elapsed_time)
         }
     }
 
-    // Set initial velocity field for immersed cells to be close to 0
-    if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
-        solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+    // Set immersed-cell velocities close to 0, preserving WRFInput and Metgrid initialization.
+    if (solverChoice.init_type != InitType::WRFInput &&
+        solverChoice.init_type != InitType::Metgrid &&
+        (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+         solverChoice.buildings_type == BuildingsType::ImmersedForcing)) {
         init_immersed_forcing(lev);
     }
 }

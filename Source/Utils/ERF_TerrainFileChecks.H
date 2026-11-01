@@ -92,11 +92,13 @@ struct HeightTable
  * @param[in] fname    file name
  * @param[in] is_usgs  USGS layout
  * @param[in] prob_lo, prob_hi  domain extent, for the coverage check
+ * @param[in] require_domain_coverage  false for local building patches; all other checks remain
  */
 const HeightTable&
 ReadHeightTable (const std::string& fname, bool is_usgs,
                  const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& prob_lo,
-                 const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& prob_hi);
+                 const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& prob_hi,
+                 bool require_domain_coverage = true);
 
 /**
  * The first problem found in a height table, or an empty string if there is none.
@@ -110,11 +112,14 @@ ReadHeightTable (const std::string& fname, bool is_usgs,
  * rounded coordinates.  Beyond the table the reader only extends the heights from its
  * edge: linearly before the first point, and (ERF format) by holding the last value
  * after the last point; USGS extends linearly at both ends.
+ * Setting require_domain_coverage to false skips only the coverage check, for building
+ * files that describe a local patch. Coordinate ordering and all format checks still apply.
  *
  * @param[in] is_usgs  USGS layout (x varies fastest, one x per point)
  * @param[in] nx, ny   table size
  * @param[in] x, y, z  table coordinates and heights
  * @param[in] prob_lo, prob_hi  domain extent
+ * @param[in] require_domain_coverage  whether the table must cover the domain
  */
 std::string
 TableProblem (bool is_usgs, int nx, int ny,
@@ -122,7 +127,8 @@ TableProblem (bool is_usgs, int nx, int ny,
               const amrex::Vector<amrex::Real>& y,
               const amrex::Vector<amrex::Real>& z,
               const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& prob_lo,
-              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& prob_hi);
+              const amrex::GpuArray<amrex::Real,AMREX_SPACEDIM>& prob_hi,
+              bool require_domain_coverage = true);
 
 /**
  * Text describing a valid height table: its size and extent, the order its heights are

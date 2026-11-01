@@ -10,8 +10,8 @@
 
 #include "ERF_TerrainFileChecks.H"
 
-// Motivation: a terrain or buildings height file that is malformed, mis-ordered or too small
-// for the domain used to be read without a word -- a short x list held the edge height over
+// Motivation: malformed or mis-ordered height files, or terrain tables too small
+// for the domain, used to be read without a word -- a short x list held the edge height over
 // the rest of the domain, lists out of order bracketed the wrong points -- and a file written
 // with x varying fastest put a north-south ridge east-west.  TableProblem names the first such
 // problem, TableSummary prints where the highest point and the steepest slopes sit, and
@@ -52,9 +52,11 @@ struct Table
 };
 
 std::string
-problem (const Table& t, bool usgs = false, Real xlo = 0, Real xhi = 800, Real ylo = 0, Real yhi = 400)
+problem (const Table& t, bool usgs = false, Real xlo = 0, Real xhi = 800, Real ylo = 0, Real yhi = 400,
+         bool require_domain_coverage = true)
 {
-    return TableProblem(usgs, t.nx, t.ny, t.x, t.y, t.z, lo_of(xlo, ylo), hi_of(xhi, yhi));
+    return TableProblem(usgs, t.nx, t.ny, t.x, t.y, t.z, lo_of(xlo, ylo), hi_of(xhi, yhi),
+                        require_domain_coverage);
 }
 
 // Nodal heights on 50 m cells: a ramp of slope 0.6 in x from x = 400 m to 600 m, flat before
@@ -95,6 +97,38 @@ TEST(TerrainFileChecks, CoverageLimitIsOneTableSpacing)
     EXPECT_EQ(problem(t, false, -50, 800), "");
     EXPECT_NE(problem(t, false, -51, 800).find("x values 0 .. 800 do not cover"), std::string::npos);
     EXPECT_NE(problem(t, false, 0, 800, 0, 451).find("y values 0 .. 400 do not cover"), std::string::npos);
+}
+
+TEST(TerrainFileChecks, BuildingPatchMayCoverOnlyPartOfDomain)
+{
+    Table t(Real(0.), Real(0.));
+    for (auto& x : t.x) { x += Real(10000.); }
+    for (auto& y : t.y) { y += Real(45002.5); }
+    // A local building patch inside a 60 km domain must pass, while the same
+    // table used as terrain must still fail the default coverage check.
+    EXPECT_EQ(problem(t, false, 0, 60000, 0, 60000, false), "");
+    EXPECT_NE(problem(t, false, 0, 60000, 0, 60000).find("do not cover the domain"),
+              std::string::npos);
+}
+
+TEST(TerrainFileChecks, BuildingPatchStillRejectsMalformedTables)
+{
+    const Table valid(Real(0.), Real(0.));
+    auto patch_problem = [] (const Table& t) {
+        return problem(t, false, -10000, 60000, -10000, 60000, false);
+    };
+    Table t = valid;
+    std::swap(t.x[5], t.x[6]);
+    EXPECT_NE(patch_problem(t).find("x values must increase strictly"), std::string::npos);
+    t = valid;
+    t.y[3] = t.y[2];
+    EXPECT_NE(patch_problem(t).find("y values must increase strictly"), std::string::npos);
+    t = valid;
+    t.z.pop_back();
+    EXPECT_NE(patch_problem(t).find("expected"), std::string::npos);
+    t = valid;
+    t.z[0] = std::numeric_limits<Real>::quiet_NaN();
+    EXPECT_NE(patch_problem(t).find("not finite"), std::string::npos);
 }
 
 TEST(TerrainFileChecks, AcceptsPerCellTablesWithRoundedCoordinates)

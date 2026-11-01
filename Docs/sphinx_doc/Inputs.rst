@@ -3807,14 +3807,16 @@ interfaces.
     * (USGS format) the y value changes within a row of nx points;
     * the x or y values do not increase strictly (USGS format: the x values of each row,
       and y from row to row);
-    * the table does not cover the domain: in x and in y, each end of the table may stop
+    * a terrain table does not cover the domain: in x and in y, each end of the table may stop
       at most one table spacing inside **geometry.prob_lo** or **geometry.prob_hi**, which
       allows the common layout of one height per cell starting at prob_lo (with an allowance
       of 1e-3 of that spacing for coordinates written with few digits).  Beyond the table
       the reader only extends the heights from its edge: linearly before the first point,
       and in the ERF format by holding the last value after the last point (the USGS
       format extends linearly at both ends).  A direction with a single value is not
-      checked.
+      checked. **erf.buildings_file_name** is exempt from this coverage check, so building
+      files may cover only a local patch; all other checks and the existing edge-extension
+      behavior still apply.
 
     A table larger than the domain is accepted.  For each valid file ERF prints once the
     size and extent of the table, the order its heights are read in, where the lowest and
@@ -3851,6 +3853,12 @@ These inputs configure the immersed-forcing representation of solid bodies,
 selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 ``erf.buildings_type`` = ``ImmersedForcing``.  At most one of
 ``erf.if_surf_temp_flux``, ``erf.if_init_surf_temp`` and ``erf.if_Olen`` may be set.
+
+Building immersed forcing is applied only on levels where the nominal horizontal
+grid spacing satisfies :math:`\sqrt{\Delta x\,\Delta y} \leq 50\,\mathrm{m}`.
+Building cells at the surface are marked as ``landmask = 2`` only on those levels;
+coarser levels retain their land/sea mask. Immersed terrain has no such resolution
+cutoff.
 
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | Parameter                         | Definition                                               | Acceptable Values  | Default          |

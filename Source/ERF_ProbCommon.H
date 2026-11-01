@@ -335,7 +335,9 @@ public:
         auto valid_fname = pp.queryAdd("buildings_file_name",fname);
 
         if (valid_fname) {
-            read_custom_terrain(fname,false,geom,buildings_fab,time);
+            // Buildings may occupy only a local patch of the physical domain.
+            read_custom_terrain(fname,false,geom,buildings_fab,time,
+                                /*require_domain_coverage=*/false);
         } else {
             init_my_custom_terrain(geom, buildings_fab, time);
         }
@@ -932,12 +934,14 @@ public:
                          const bool is_usgs,
                          const amrex::Geometry& geom,
                          amrex::FArrayBox& terrain_fab,
-                         const double& /*time*/)
+                         const double& /*time*/,
+                         bool require_domain_coverage = true)
     {
         // Read, checked and broadcast once per file; other levels, regrids, the EB build and
         // the station slabs reuse the table
         const auto& table = erf_terrain_file::ReadHeightTable(fname, is_usgs,
-                                                              geom.ProbLoArray(), geom.ProbHiArray());
+                                                              geom.ProbLoArray(), geom.ProbHiArray(),
+                                                              require_domain_coverage);
         const int nx = table.nx;
         const int ny = table.ny;
         const amrex::Vector<amrex::Real>& m_xterrain = table.x;

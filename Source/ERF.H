@@ -2519,6 +2519,14 @@ private:
     // array of EB objects
     amrex::Vector<std::unique_ptr<eb_>> eb;
 
+    // Immersed buildings on a static fitted mesh use cell-centered blanking.
+    // Keep geometry construction, factories, and face-mask allocation in agreement.
+    [[nodiscard]] bool use_native_fc_factories () const noexcept {
+        return USE_FC_FACTORY &&
+            !(solverChoice.buildings_type == BuildingsType::ImmersedForcing &&
+              solverChoice.terrain_type == TerrainType::StaticFittedMesh);
+    }
+
     [[nodiscard]] eb_ const& get_eb (int lev) const noexcept {
         AMREX_ASSERT(lev >= 0 && lev < eb.size() && eb[lev] != nullptr);
         return *eb[lev];
