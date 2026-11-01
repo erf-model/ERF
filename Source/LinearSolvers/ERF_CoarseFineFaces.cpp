@@ -544,8 +544,8 @@ void ERF::RegisterCoarseMomentumCF (int levc, const MultiFab& xold, const MultiF
 }
 
 /**
- * Average the horizontal momenta of level crse_lev+1 down onto the faces of level crse_lev it
- * covers, as mass fluxes: ax (rho u) / m_uy and ay (rho v) / m_vx are averaged, and divided by the
+ * Average the momenta of level crse_lev+1 down onto the faces of level crse_lev it covers, as
+ * mass fluxes (the vertical as Omega, see below).  Horizontally: ax (rho u) / m_uy and ay (rho v) / m_vx are averaged, and divided by the
  * coarse area and map factor.  Over terrain the areas vary along a coarse face, so the plain
  * average of (rho u) is not the coarse momentum whose flux is the mean of the fine fluxes: on a
  * coarse/fine face it would replace the projected coarse momentum with another one, and the
@@ -566,6 +566,38 @@ void ERF::average_down_mass_flux (int crse_lev)
     const MultiFab* area_c[2] = {ax[crse_lev].get(), ay[crse_lev].get()};
     const MultiFab* mf_f[2]   = {mapfac[lev][MapFacType::u_y].get(), mapfac[lev][MapFacType::v_x].get()};
     const MultiFab* mf_c[2]   = {mapfac[crse_lev][MapFacType::u_y].get(), mapfac[crse_lev][MapFacType::v_x].get()};
+
+    // The coarse cells the fine level covers, with a layer in z
+    const Periodicity fper = geom[lev].periodicity();
+    const Periodicity cper = geom[crse_lev].periodicity();
+    const iMultiFab covered = amrex::makeFineMask(grids[crse_lev], dmap[crse_lev], IntVect(0,0,1),
+                                                  grids[lev], rr, cper, 0, 1);
+
+    // The coarse Omega on the fine level's coarse/fine faces in z, before the horizontal momenta
+    //    around them change: those faces keep their Omega (see the vertical below)
+    const auto dxInv_c = geom[crse_lev].InvCellSizeArray();
+    const int ck_lo = geom[crse_lev].Domain().smallEnd(2);
+    const int ck_hi = geom[crse_lev].Domain().bigEnd(2);
+    rU_new[crse_lev].FillBoundary(cper);
+    rV_new[crse_lev].FillBoundary(cper);
+    MultiFab om_cf(rW_new[crse_lev].boxArray(), rW_new[crse_lev].DistributionMap(), 1, 0);
+    for (MFIter mfi(om_cf, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.tilebox();
+        const auto o_arr = om_cf.array(mfi);
+        const auto c_arr = covered.const_array(mfi);
+        const auto u_arr = rU_new[crse_lev].const_array(mfi);
+        const auto v_arr = rV_new[crse_lev].const_array(mfi);
+        const auto w_arr = rW_new[crse_lev].const_array(mfi);
+        const auto z_nd  = z_phys_nd[crse_lev]->const_array(mfi);
+        const auto mf_u  = mapfac[crse_lev][MapFacType::u_x]->const_array(mfi);
+        const auto mf_v  = mapfac[crse_lev][MapFacType::v_y]->const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const bool cf = (c_arr(i,j,k-1) != c_arr(i,j,k)) && k > ck_lo && k <= ck_hi;
+            o_arr(i,j,k) = cf ? OmegaFromW(i,j,k,w_arr(i,j,k),u_arr,v_arr,mf_u,mf_v,z_nd,dxInv_c)
+                              : zero;
+        });
+    }
 
     for (int d = 0; d < 2; ++d) {
         const MultiFab wf = weighted_mass_flux(*mom_f[d], *area_f[d], *mf_f[d]);
@@ -595,6 +627,88 @@ void ERF::average_down_mass_flux (int crse_lev)
             });
         }
         mom_c[d]->ParallelCopy(wc, 0, 0, 1, IntVect(0), IntVect(0), geom[crse_lev].periodicity());
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // The vertical, as the flux az Omega / (m_x m_y).  Averaging (rho w) leaves the covered
+    // coarse cells with a divergence over terrain, and their scalars, advected with it, reach
+    // the uncovered cells through the advection stencil.  Each coarse face with covered cells
+    // on both sides takes the mean of the fine fluxes over it, and its (rho w) is rebuilt from
+    // that Omega and the coarse (rho u), (rho v) averaged down above; the fine level's
+    // coarse/fine faces in z keep their coarse Omega, which the fine faces there reproduce on
+    // average (cf_zface_coarse_data): their (rho w) is rebuilt from it, since the horizontal
+    // momenta it depends on over terrain have changed.  All other coarse faces are left as they are.
+    // ---------------------------------------------------------------------------------------
+    rU_new[lev].FillBoundary(fper);
+    rV_new[lev].FillBoundary(fper);
+    rU_new[crse_lev].FillBoundary(cper);
+    rV_new[crse_lev].FillBoundary(cper);
+
+    // The fine fluxes, on the faces with fine cells on both sides (a coarse/fine face in z reads
+    //    momenta outside the level, and its coarse face is not set from it below)
+    iMultiFab in_fine(grids[lev], dmap[lev], 1, IntVect(0,0,1));
+    in_fine.setVal(0);
+    in_fine.setVal(1, 0);
+    in_fine.FillBoundary(fper);
+    const int fk_lo = geom[lev].Domain().smallEnd(2);
+    const int fk_hi = geom[lev].Domain().bigEnd(2);
+    const auto dxInv_f = geom[lev].InvCellSizeArray();
+    MultiFab ff(rW_new[lev].boxArray(), rW_new[lev].DistributionMap(), 1, 0);
+    for (MFIter mfi(ff, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.tilebox();
+        const auto f_arr = ff.array(mfi);
+        const auto m_arr = in_fine.const_array(mfi);
+        const auto u_arr = rU_new[lev].const_array(mfi);
+        const auto v_arr = rV_new[lev].const_array(mfi);
+        const auto w_arr = rW_new[lev].const_array(mfi);
+        const auto z_nd  = z_phys_nd[lev]->const_array(mfi);
+        const auto mf_u  = mapfac[lev][MapFacType::u_x]->const_array(mfi);
+        const auto mf_v  = mapfac[lev][MapFacType::v_y]->const_array(mfi);
+        const auto mx    = mapfac[lev][MapFacType::m_x]->const_array(mfi);
+        const auto my    = mapfac[lev][MapFacType::m_y]->const_array(mfi);
+        const auto a_arr = az[lev]->const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (k == fk_lo || k == fk_hi + 1 || m_arr(i,j,k-1) == 0 || m_arr(i,j,k) == 0) {
+                f_arr(i,j,k) = zero;
+            } else {
+                const Real om = OmegaFromW(i,j,k,w_arr(i,j,k),u_arr,v_arr,mf_u,mf_v,z_nd,dxInv_f);
+                f_arr(i,j,k) = a_arr(i,j,k) * om / (mx(i,j,0) * my(i,j,0));
+            }
+        });
+    }
+
+    // Their means over the coarse faces, on the coarse level's faces under the fine level
+    const BoxArray cba_w = amrex::coarsen(ff.boxArray(), rr);
+    MultiFab fc(cba_w, ff.DistributionMap(), 1, 0);
+    amrex::average_down_faces(ff, fc, rr);
+    MultiFab fcc(rW_new[crse_lev].boxArray(), rW_new[crse_lev].DistributionMap(), 1, 0);
+    fcc.setVal(zero);
+    fcc.ParallelCopy(fc, 0, 0, 1, IntVect(0), IntVect(0), cper);
+
+    for (MFIter mfi(rW_new[crse_lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.tilebox();
+        const auto w_arr = rW_new[crse_lev].array(mfi);
+        const auto f_arr = fcc.const_array(mfi);
+        const auto o_arr = om_cf.const_array(mfi);
+        const auto c_arr = covered.const_array(mfi);
+        const auto u_arr = rU_new[crse_lev].const_array(mfi);
+        const auto v_arr = rV_new[crse_lev].const_array(mfi);
+        const auto z_nd  = z_phys_nd[crse_lev]->const_array(mfi);
+        const auto mf_u  = mapfac[crse_lev][MapFacType::u_x]->const_array(mfi);
+        const auto mf_v  = mapfac[crse_lev][MapFacType::v_y]->const_array(mfi);
+        const auto mx    = mapfac[crse_lev][MapFacType::m_x]->const_array(mfi);
+        const auto my    = mapfac[crse_lev][MapFacType::m_y]->const_array(mfi);
+        const auto a_arr = az[crse_lev]->const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (c_arr(i,j,k-1) == 1 && c_arr(i,j,k) == 1) {
+                const Real om = f_arr(i,j,k) * mx(i,j,0) * my(i,j,0) / a_arr(i,j,k);
+                w_arr(i,j,k) = WFromOmega(i,j,k,om,u_arr,v_arr,mf_u,mf_v,z_nd,dxInv_c);
+            } else if (c_arr(i,j,k-1) != c_arr(i,j,k) && k > ck_lo && k <= ck_hi) {
+                w_arr(i,j,k) = WFromOmega(i,j,k,o_arr(i,j,k),u_arr,v_arr,mf_u,mf_v,z_nd,dxInv_c);
+            }
+        });
     }
 }
 
