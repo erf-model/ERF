@@ -619,15 +619,17 @@ ERF::FillPlot3DVars (int lev,
     const bool needs_pressure = erf_plotfile::plot3d_needs_pressure(plot_var_names);
     if (solverChoice.anelastic[lev] == 0) {
         if (needs_pressure) {
-            int ng = (containerHasElement(plot_var_names, "dpdx") || containerHasElement(plot_var_names, "dpdy") ||
-                      containerHasElement(plot_var_names, "dpdz")) ? 1 : 0;
+            // The EB stencils in compute_gradp_xy reach up to three cells to each side
+            const bool needs_gradp = (containerHasElement(plot_var_names, "dpdx") || containerHasElement(plot_var_names, "dpdy") ||
+                                      containerHasElement(plot_var_names, "dpdz"));
+            int ng = (needs_gradp) ? ((solverChoice.terrain_type == TerrainType::EB) ? 3 : 1) : 0;
 
             // Allocate space for pressure
             pressure.define(ba,dm,1,ng);
 
             if (ng > 0) {
                 // Default to p_hse as a way of filling ghost cells at domain boundaries
-                MultiFab::Copy(pressure,p_hse,0,0,1,1);
+                MultiFab::Copy(pressure,p_hse,0,0,1,ng);
             }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
