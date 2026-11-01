@@ -293,9 +293,15 @@ ERF::FillPlot2DVars (int lev,
     // NOTE: the SurfaceLayer pblh holds only the bogus value it was initialized
     //       with unless erf.most.pblh_calc was set (the default is "none"), so we
     //       leave the source null in that case and emit the missing value.
+    // The surface layer's PBL height is set in every column of the level, including the
+    //    columns in which no box reaches the ground: a level that does not reach the domain
+    //    top takes the coarser level's there (SurfaceLayer::fill_pblh_from_coarser)
+    bool pblh_in_every_column = false;
     if (!pblh_source && surf_layer && surf_layer->computes_pblh()) {
         pblh_source = surf_layer->get_pblh(lev);
+        pblh_in_every_column = true;
     }
+    int pblh_comp = -1;
     pblh_source       = at_ground(pblh_source);
     sens_flux_source  = at_ground(sens_flux_source);
     laten_flux_source = at_ground(laten_flux_source);
@@ -439,6 +445,7 @@ ERF::FillPlot2DVars (int lev,
     if (containerHasElement(plot_var_names, "pblh")) {
         plotfile2d::fill_component_from_klevel_or_value(
             mf_dst, mf_comp, pblh_source, 0, -999);
+        if (pblh_in_every_column) { pblh_comp = mf_comp; }
         mf_comp++;
     } // pblh
 
@@ -836,11 +843,16 @@ ERF::FillPlot2DVars (int lev,
         PlanarBoundary planar;
         planar.define(grids[lev], ba2d[lev], dmap[lev], klo);
 
-        // Columns in which no box reaches the ground have no ground values: -999 there.
+        // Columns in which no box reaches the ground have no ground values: -999 there,
+        //    except the PBL height, which the surface layer sets in those columns too.
         //    Elsewhere the copy below overwrites these boxes with the one that reaches the ground.
         for (MFIter mfi(mf_dst); mfi.isValid(); ++mfi) {
             if (!planar.is_surface_copy(mfi.index())) {
-                mf_dst[mfi].setVal<RunOn::Device>(-999);
+                for (int n = 0; n < mf_dst.nComp(); ++n) {
+                    if (n != pblh_comp) {
+                        mf_dst[mfi].setVal<RunOn::Device>(-999, mf_dst[mfi].box(), n, 1);
+                    }
+                }
             }
         }
         planar.fill(mf_dst, geom[lev].periodicity());
