@@ -39,6 +39,23 @@
 using namespace amrex;
 
 /**
+ * Whether the coarse/fine faces take the coarse level's fluxes over its step (erf.cf_flux_history,
+ * true by default): the compressible flux history here, and its anelastic counterpart
+ * (cf_anelastic_flux_match).  erf.cf_flux_history = false keeps the coarse/fine faces
+ * interpolated linearly in time, for comparison.
+ */
+bool
+ERF::cf_flux_history_enabled ()
+{
+    static const bool enabled = [] {
+        bool on = true;
+        ParmParse("erf").query("cf_flux_history", on);
+        return on;
+    }();
+    return enabled;
+}
+
+/**
  * Whether the coarse/fine face fluxes of level crse_lev+1 come from the substeps of level
  * crse_lev
  *
@@ -47,13 +64,7 @@ using namespace amrex;
 bool
 ERF::cf_flux_history_active (int crse_lev) const
 {
-    // erf.cf_flux_history = false keeps the coarse/fine faces interpolated linearly in time
-    static const bool enabled = [] {
-        bool on = true;
-        ParmParse("erf").query("cf_flux_history", on);
-        return on;
-    }();
-    if (!enabled) { return false; }
+    if (!cf_flux_history_enabled()) { return false; }
     if (crse_lev >= finest_level) { return false; }
     if (solverChoice.terrain_type == TerrainType::MovingFittedMesh ||
         solverChoice.terrain_type == TerrainType::EB) { return false; }

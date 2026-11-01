@@ -619,15 +619,17 @@ ERF::FillPlot3DVars (int lev,
     const bool needs_pressure = erf_plotfile::plot3d_needs_pressure(plot_var_names);
     if (solverChoice.anelastic[lev] == 0) {
         if (needs_pressure) {
-            int ng = (containerHasElement(plot_var_names, "dpdx") || containerHasElement(plot_var_names, "dpdy") ||
-                      containerHasElement(plot_var_names, "dpdz")) ? 1 : 0;
+            // The EB stencils in compute_gradp_xy reach up to three cells to each side
+            const bool needs_gradp = (containerHasElement(plot_var_names, "dpdx") || containerHasElement(plot_var_names, "dpdy") ||
+                                      containerHasElement(plot_var_names, "dpdz"));
+            int ng = (needs_gradp) ? ((solverChoice.terrain_type == TerrainType::EB) ? 3 : 1) : 0;
 
             // Allocate space for pressure
             pressure.define(ba,dm,1,ng);
 
             if (ng > 0) {
                 // Default to p_hse as a way of filling ghost cells at domain boundaries
-                MultiFab::Copy(pressure,p_hse,0,0,1,1);
+                MultiFab::Copy(pressure,p_hse,0,0,1,ng);
             }
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -895,7 +897,8 @@ ERF::FillPlot3DVars (int lev,
                                     S_arr(i,j,k,Rho_comp), rdOcp) :
                     getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
                 Real fac = Cp_d + Cp_l*(qv + qc);
-                Real pv = erf_esatw(T)*Real(100.0);
+                // Dry-air partial pressure uses the actual vapor pressure, not e_sat
+                Real pv = p_arr(i,j,k) * qv / (RdoRv + qv);
 
                 derdat(i, j, k, mf_comp) = T*std::pow((p_arr(i,j,k) - pv)/p_0, -R_d/fac)*std::exp(L_v*qv/(fac*T)) ;
             });

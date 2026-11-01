@@ -1247,22 +1247,11 @@ ERF::ReadCheckpointFile ()
             (regrid_level_0_on_restart || ba.size() < ParallelDescriptor::NProcs()))
         {
             //
-            // Coarsening before we split the grids ensures that each resulting
-            // grid will have an even number of cells in each direction.
+            // The grids a fresh start would build.  MakeBaseGrids keeps every box inside the
+            // domain when a direction has an odd number of cells (it then does not coarsen
+            // that direction before splitting), and it honours amr.no_box_split_dir.
             //
-            BoxArray new_ba(amrex::coarsen(Geom(0).Domain(),2));
-            //
-            // Now split up into list of grids within max_grid_size[0] limit.
-            //
-            new_ba.maxSize(max_grid_size[0]/2);
-            //
-            // Now refine these boxes back to level zero
-            //
-            new_ba.refine(2);
-
-            if (refine_grid_layout) {
-                ChopGrids(0, new_ba, ParallelDescriptor::NProcs());
-            }
+            BoxArray new_ba = MakeBaseGrids();
 
             if (new_ba != ba) {
                 ba_target = new_ba;

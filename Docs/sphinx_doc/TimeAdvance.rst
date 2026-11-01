@@ -64,6 +64,40 @@ The midpoint stages are given by:
 
   \mathbf{S}^{n+1} &=& \mathbf{S}^n + \Delta t f(\mathbf{S}^{*})
 
+.. _ScalarAdvectionMomenta:
+
+Momenta that Advect the Scalars
+-------------------------------
+
+In every Runge-Kutta stage the slow scalars (turbulent kinetic energy, moisture and passive
+scalars) are advected with face momenta in the form :math:`a_x \rho u / m_{u,y}`,
+:math:`a_y \rho v / m_{v,x}` and :math:`a_z \Omega / (m_x m_y)`, where
+:math:`a_x, a_y, a_z` are the face areas, :math:`\Omega` is the momentum normal to the
+coordinate surfaces (:math:`\rho w` without terrain), and with an embedded boundary the area
+fractions are applied to the fluxes instead.  Which momenta these are depends on the
+integrator:
+
+- **Compressible, no substepping:** the momenta of the stage state :math:`\mathbf{S}^n`,
+  :math:`\mathbf{S}^{*}` or :math:`\mathbf{S}^{**}`.  These are the momenta that advect
+  :math:`\rho` and :math:`\rho \theta` in the same stage.
+- **Compressible, with acoustic substepping:** the momenta of the stage state plus the
+  average over the acoustic substeps of the perturbation momenta, with the vertical
+  off-centering :math:`\beta_1, \beta_2` described below.  This is the mass flux that
+  advances :math:`\rho` over the stage.
+- **Anelastic, RK2:** :math:`(\rho \mathbf{u})^n` in the first stage and
+  :math:`(\rho \mathbf{u})^{*}` in the second, the same momenta that advect
+  :math:`\rho \theta`.  Each pairs a scalar with momenta from the same state, as the averaged
+  update :math:`\frac{\Delta t}{2} ( f(\mathbf{S}^{n}) + f(\mathbf{S}^{*}) )` requires.
+- **Anelastic, MidPoint:** :math:`(\rho \mathbf{u})^n` in the first (half) stage and
+  :math:`(\rho \mathbf{u})^{*} = (\rho \mathbf{u})^{n+1/2}` in the second, again the same
+  momenta that advect :math:`\rho \theta`.
+
+In the anelastic cases the momenta are projected at the end of each stage, so the momenta at
+the start of the next stage or step are divergence-free and a uniform scalar stays uniform.
+The pairing is the same with and without an embedded boundary.  Using the momenta from the end
+of a stage instead, ahead of the scalar by about half a step, makes the scalars only first
+order accurate in time when the wind varies (erf-model/ERF#4870).
+
 .. _AcousticSubstep:
 
 Acoustic Sub-stepping
