@@ -4604,22 +4604,30 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_MapFactor inputs_hill 30
       RUNTIME_OPTIONS "erf.test_mapfactor=true"
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol})
-  # A refined patch on the hill's flanks, through all of z, one-way coupled.  The fine fluxes
-  # through its coarse/fine faces must add up to the coarse flux: 3.0e-5 when (rho u) was
-  # interpolated there, where the face areas vary, 5.9e-8 with the mass flux
+  # Refined patches on the hill's flanks, 2 x 2 x 1, one-way and two-way coupled, through all of
+  # z and stopping inside the domain in z.  Over each coarse step the fine fluxes through the
+  # coarse/fine faces add up to the flux the coarse level's stages applied, in space and in time
+  # (ERF_CoarseFineFaces.cpp), and two-way coupling averages the momenta down as mass fluxes, so
+  # a uniform scalar and theta stay uniform to the projection's tolerance.  The tolerance is set
+  # to 1e-12 so that its floor (1e-7 at the default 1e-6) does not hide a real departure:
+  # measured 1.8e-11 at most.  Two-way used to depart by 2.2e-4 through all of z, and by 8.7e-3
+  # stopping inside the domain in z (with a non-uniform flow), next to the patch.
+  set(_hill_amr "amr.max_level=1 'amr.ref_ratio_vect=2 2 1' erf.refinement_indicators=box1 erf.box1.max_level=1 erf.poisson_reltol=1e-12 erf.poisson_abstol=1e-12")
+  set(_hill_full "'erf.box1.in_box_lo_indices_crse=8 12 0' 'erf.box1.in_box_hi_indices_crse=19 23 11'")
+  set(_hill_part "'erf.box1.in_box_lo_indices_crse=8 12 2' 'erf.box1.in_box_hi_indices_crse=19 23 8'")
+  set(_hill_amr_tol 1.0e-9)
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_TwoLevels inputs_hill 30
-      RUNTIME_OPTIONS "amr.max_level=1 'amr.ref_ratio_vect=2 2 1' erf.refinement_indicators=box1 erf.box1.max_level=1 'erf.box1.in_box_lo_indices_crse=8 12 0' 'erf.box1.in_box_hi_indices_crse=19 23 11' erf.coupling_type=OneWay"
-      CHECK check_uniform_scalar.py PLOTFILES 1.0e-6 --require-level)
-  # A refined patch that stops inside the domain in z, on the same hill
+      RUNTIME_OPTIONS "${_hill_amr} ${_hill_full} erf.coupling_type=OneWay"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_PartialDepth inputs_hill 30
-      RUNTIME_OPTIONS "amr.max_level=1 'amr.ref_ratio_vect=2 2 1' erf.refinement_indicators=box1 erf.box1.max_level=1 'erf.box1.in_box_lo_indices_crse=8 12 2' 'erf.box1.in_box_hi_indices_crse=19 23 8' erf.coupling_type=OneWay"
-      CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol} --require-level)
-  # Two-way coupling with reflux: the scalars are refluxed and depart by 4.2e-4 (theta, which
-  # is registered but not refluxed, by 1.5e-4), next to the patch, where the fluxes of the two
-  # levels do not agree over terrain.  The limit is wider until they do
+      RUNTIME_OPTIONS "${_hill_amr} ${_hill_part} erf.coupling_type=OneWay"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_TwoWay inputs_hill 30
-      RUNTIME_OPTIONS "amr.max_level=1 'amr.ref_ratio_vect=2 2 1' erf.refinement_indicators=box1 erf.box1.max_level=1 'erf.box1.in_box_lo_indices_crse=8 12 0' 'erf.box1.in_box_hi_indices_crse=19 23 11'"
-      CHECK check_uniform_scalar.py PLOTFILES 1.0e-3 --require-level)
+      RUNTIME_OPTIONS "${_hill_amr} ${_hill_full}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_PartialDepth_TwoWay inputs_hill 30
+      RUNTIME_OPTIONS "${_hill_amr} ${_hill_part}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
   # The other anelastic integrator (the default is RK2)
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_MidPoint inputs_hill 30
       RUNTIME_OPTIONS "erf.anelastic_type=MidPoint"

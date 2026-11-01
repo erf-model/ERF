@@ -24,6 +24,7 @@
  */
 #include "ERF.H"
 #include "ERF_Utils.H"
+#include "ERF_TI_slow_headers.H"
 
 #include <AMReX_FillPatchUtil.H>
 #include <AMReX_Interpolater.H>
@@ -180,57 +181,45 @@ ERF::cf_zface_layout (int lev)
 }
 
 /**
- * Build, from the coarse level at time, the data a refined level needs at its coarse/fine faces
- * in z, on one slab per such face of each of its boxes (slab s belongs to box slab_box[s], and
- * the slabs have the boxes' distribution):
- *
- *   rhou_g, rhov_g: (rho u) and (rho v) on the x- and y-faces of the layer just outside the box
- *                   (below its bottom, above its top);
- *   omega_t:        the coarse Omega on the box's top or bottom w-face.
- *
- * All three are interpolated with face_cons_linear_interp, so the fine faces over each coarse
- * face average to it (the ratio in z is one).  The density is the conserved rho when
- * conserved_rho is true (the level's momenta are rho u, as with a fixed density), else the base
- * state's rho0, so the result is in the scaling of the level's own valid faces and needs no
- * density from the fine level.  Only coarse planes around these faces are copied and computed on.
+ * The coarse Omega on the coarse/fine w-faces of level lev, and the coarse (rho u), (rho v) on the
+ * layer just outside them, on the coarse planes of cf_zface_layout, at coarse time tc (linear in
+ * time between the coarse old and new states).  Not yet clamped outside the domain.
  *
  * @param lev           Level index (> 0)
- * @param time          Time, for the coarse time interpolation
+ * @param tc            Time
  * @param conserved_rho Scaling: conserved rho (true) or base-state rho0 (false)
- * @param omega_t       Fine slabs on the w-faces (output)
- * @param rhou_g        Fine slabs on the x-faces of the outside layer (output)
- * @param rhov_g        Fine slabs on the y-faces of the outside layer (output)
- * @param slab_box      Box of level lev each slab belongs to (output)
- * @return              False when the level has no coarse/fine faces in z (outputs not defined)
+ * @param pz            Coarse z_phys_nd on the planes
+ * @param pmu, pmv      Coarse map factors on the planes
+ * @param cOm           Coarse Omega (output)
+ * @param cRu, cRv      Coarse (rho u), (rho v) on the outside layer (output)
  */
-bool ERF::cf_zface_coarse_data (int lev, double time_d, bool conserved_rho,
-                                MultiFab& omega_t, MultiFab& rhou_g, MultiFab& rhov_g,
-                                Vector<int>& slab_box)
+void ERF::cf_zface_coarse_at (int lev, double tc, bool conserved_rho,
+                              const MultiFab& pz, const MultiFab& pmu, const MultiFab& pmv,
+                              MultiFab& cOm, MultiFab& cRu, MultiFab& cRv)
 {
-    BL_PROFILE("ERF::cf_zface_coarse_data()");
-    AMREX_ALWAYS_ASSERT(lev > 0);
     const int levc = lev - 1;
-    const IntVect rr = refRatio(levc);
     const CFZFaceLayout& L = cf_zface_layout(lev);
-    AMREX_ALWAYS_ASSERT(rr[2] == 1 || L.patches.empty());
-
-    slab_box = L.slab_box;
-    if (slab_box.empty()) { return false; }
     const DistributionMapping& sdm = L.sdm;
+    const Periodicity cper = geom[levc].periodicity();
+    const Box& cdom = geom[levc].Domain();
+    const int ck_lo = cdom.smallEnd(2);
+    const int ck_hi = cdom.bigEnd(2);
+    auto dxInv_c = geom[levc].InvCellSizeArray();
+    const bool per_x = geom[levc].isPeriodic(0);
+    const bool per_y = geom[levc].isPeriodic(1);
 
     // ---------------------------------------------------------------------------------
-    // Coarse data on the planes, at time
+    // Coarse data on the planes, at tc
     // ---------------------------------------------------------------------------------
-    const TimeLevelSel csel = select_time_level(time_d, t_old[levc], t_new[levc]);
+    const TimeLevelSel csel = select_time_level(tc, t_old[levc], t_new[levc]);
     Real fac_new = one, fac_old = zero;
     if (csel == TimeLevelSel::Old) {
         fac_new = zero; fac_old = one;
     } else if (csel == TimeLevelSel::Interp) {
-        fac_new = static_cast<Real>((time_d - t_old[levc]) / (t_new[levc] - t_old[levc]));
+        fac_new = static_cast<Real>((tc - t_old[levc]) / (t_new[levc] - t_old[levc]));
         fac_old = one - fac_new;
     }
-    const Periodicity cper = geom[levc].periodicity();
-    // Component comp of the coarse data at time on the planes (valid coarse cells only; cells
+    // Component comp of the coarse data at tc on the planes (valid coarse cells only; cells
     // past a non-periodic side stay zero and are clamped after the computation)
     auto plane_at_time = [&] (const MultiFab& mold, const MultiFab& mnew, int comp, MultiFab& dst) {
         dst.setVal(0.0);
@@ -261,29 +250,14 @@ bool ERF::cf_zface_coarse_data (int lev, double time_d, bool conserved_rho,
     } else {
         plane_at_time(base_state[levc], base_state[levc], BaseState::r0_comp, pr);
     }
-    clamp_outside_domain(pr, geom[levc].Domain(), geom[levc].isPeriodic(0), geom[levc].isPeriodic(1));
-
-    // The mesh and the map factors, their ghosts outside the domain included
-    MultiFab pz(L.ba_rz, sdm, 1, 0);
-    pz.setVal(0.0);
-    pz.ParallelCopy(*z_phys_nd[levc], 0, 0, 1, z_phys_nd[levc]->nGrowVect(), IntVect(0), cper);
-    MultiFab pmu(L.ba_mu, sdm, 1, 0);
-    MultiFab pmv(L.ba_mv, sdm, 1, 0);
-    pmu.setVal(1.0);
-    pmv.setVal(1.0);
-    pmu.ParallelCopy(*mapfac[levc][MapFacType::u_x], 0, 0, 1, mapfac[levc][MapFacType::u_x]->nGrowVect(), IntVect(0), cper);
-    pmv.ParallelCopy(*mapfac[levc][MapFacType::v_y], 0, 0, 1, mapfac[levc][MapFacType::v_y]->nGrowVect(), IntVect(0), cper);
+    clamp_outside_domain(pr, cdom, per_x, per_y);
 
     // ---------------------------------------------------------------------------------
     // Coarse (rho u), (rho v) on the outside layer and Omega on the faces
     // ---------------------------------------------------------------------------------
-    MultiFab cOm(L.ba_cf, sdm, 1, 0);
-    MultiFab cRu(L.ba_cx, sdm, 1, 0);
-    MultiFab cRv(L.ba_cy, sdm, 1, 0);
-    const Box& cdom = geom[levc].Domain();
-    const int ck_lo = cdom.smallEnd(2);
-    const int ck_hi = cdom.bigEnd(2);
-    auto dxInv_c = geom[levc].InvCellSizeArray();
+    cOm.define(L.ba_cf, sdm, 1, 0);
+    cRu.define(L.ba_cx, sdm, 1, 0);
+    cRv.define(L.ba_cy, sdm, 1, 0);
 
     for (MFIter mfi(pr); mfi.isValid(); ++mfi)
     {
@@ -328,8 +302,92 @@ bool ERF::cf_zface_coarse_data (int lev, double time_d, bool conserved_rho,
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept { cu(i,j,k) = ru_c(i,j,k); },
         [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept { cv(i,j,k) = rv_c(i,j,k); });
     }
+}
+
+/**
+ * Build, from the coarse level at time, the data a refined level needs at its coarse/fine faces
+ * in z, on one slab per such face of each of its boxes (slab s belongs to box slab_box[s], and
+ * the slabs have the boxes' distribution):
+ *
+ *   rhou_g, rhov_g: (rho u) and (rho v) on the x- and y-faces of the layer just outside the box
+ *                   (below its bottom, above its top);
+ *   omega_t:        the coarse Omega on the box's top or bottom w-face.
+ *
+ * All three are interpolated with face_cons_linear_interp, so the fine faces over each coarse
+ * face average to it (the ratio in z is one).  The density is the conserved rho when
+ * conserved_rho is true (the level's momenta are rho u, as with a fixed density), else the base
+ * state's rho0, so the result is in the scaling of the level's own valid faces and needs no
+ * density from the fine level.  Only coarse planes around these faces are copied and computed on.
+ *
+ * @param lev           Level index (> 0)
+ * @param time          Time, for the coarse time interpolation
+ * @param conserved_rho Scaling: conserved rho (true) or base-state rho0 (false)
+ * @param omega_t       Fine slabs on the w-faces (output)
+ * @param rhou_g        Fine slabs on the x-faces of the outside layer (output)
+ * @param rhov_g        Fine slabs on the y-faces of the outside layer (output)
+ * @param slab_box      Box of level lev each slab belongs to (output)
+ * @return              False when the level has no coarse/fine faces in z (outputs not defined)
+ */
+bool ERF::cf_zface_coarse_data (int lev, double time_d, bool conserved_rho,
+                                MultiFab& omega_t, MultiFab& rhou_g, MultiFab& rhov_g,
+                                Vector<int>& slab_box)
+{
+    BL_PROFILE("ERF::cf_zface_coarse_data()");
+    AMREX_ALWAYS_ASSERT(lev > 0);
+    const int levc = lev - 1;
+    const IntVect rr = refRatio(levc);
+    const CFZFaceLayout& L = cf_zface_layout(lev);
+    AMREX_ALWAYS_ASSERT(rr[2] == 1 || L.patches.empty());
+
+    slab_box = L.slab_box;
+    if (slab_box.empty()) { return false; }
+    const DistributionMapping& sdm = L.sdm;
+
+    const Periodicity cper = geom[levc].periodicity();
+    const Box& cdom = geom[levc].Domain();
+    const int ck_lo = cdom.smallEnd(2);
+    const int ck_hi = cdom.bigEnd(2);
     const bool per_x = geom[levc].isPeriodic(0);
     const bool per_y = geom[levc].isPeriodic(1);
+
+    // The mesh and the map factors, their ghosts outside the domain included
+    MultiFab pz(L.ba_rz, sdm, 1, 0);
+    pz.setVal(0.0);
+    pz.ParallelCopy(*z_phys_nd[levc], 0, 0, 1, z_phys_nd[levc]->nGrowVect(), IntVect(0), cper);
+    MultiFab pmu(L.ba_mu, sdm, 1, 0);
+    MultiFab pmv(L.ba_mv, sdm, 1, 0);
+    pmu.setVal(1.0);
+    pmv.setVal(1.0);
+    pmu.ParallelCopy(*mapfac[levc][MapFacType::u_x], 0, 0, 1, mapfac[levc][MapFacType::u_x]->nGrowVect(), IntVect(0), cper);
+    pmv.ParallelCopy(*mapfac[levc][MapFacType::v_y], 0, 0, 1, mapfac[levc][MapFacType::v_y]->nGrowVect(), IntVect(0), cper);
+
+    MultiFab cOm, cRu, cRv;
+    cf_zface_coarse_at(lev, time_d, conserved_rho, pz, pmu, pmv, cOm, cRu, cRv);
+
+    // In the first stage of a fine step, shift Omega so that over the coarse step the fine faces
+    // apply the Omega of the coarse step's stages (see cf_anelastic_stage_registration)
+    if (cf_anelastic_stage1(lev)) {
+        MultiFab cOm_o, cOm_n, tu, tv;
+        cf_zface_coarse_at(lev, t_old[levc], conserved_rho, pz, pmu, pmv, cOm_o, tu, tv);
+        cf_zface_coarse_at(lev, t_new[levc], conserved_rho, pz, pmu, pmv, cOm_n, tu, tv);
+        MultiFab rOm(L.ba_cf, sdm, 1, 0);
+        rOm.setVal(0.0);
+        rOm.ParallelCopy(m_cf_step_zflux[levc], 0, 0, 1, IntVect(0), IntVect(0), cper);
+        const Real kfac = (solverChoice.anelastic_type[lev] == AnelasticType::MidPoint) ? one : Real(2);
+        for (MFIter mfi(cOm); mfi.isValid(); ++mfi) {
+            const Array4<Real      > om = cOm.array(mfi);
+            const Array4<Real const> oo = cOm_o.const_array(mfi);
+            const Array4<Real const> on = cOm_n.const_array(mfi);
+            const Array4<Real const> ro = rOm.const_array(mfi);
+            ParallelFor(cOm[mfi].box(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                if (k > ck_lo && k <= ck_hi) {
+                    om(i,j,k) += kfac * (ro(i,j,k) - myhalf * (oo(i,j,k) + on(i,j,k)));
+                }
+            });
+        }
+    }
+
     clamp_outside_domain(cOm, cdom, per_x, per_y);
     clamp_outside_domain(cRu, cdom, per_x, per_y);
     clamp_outside_domain(cRv, cdom, per_x, per_y);
@@ -427,6 +485,35 @@ bool ERF::cf_interp_mass_flux (int lev) const
 }
 
 /**
+ * The mass flux a (rho u) / m of a horizontal momentum component, on the faces of its valid
+ * region and the ghost faces that the momentum, the area and the map factor all hold.
+ *
+ * @param m    Face momenta, (rho u) or (rho v)
+ * @param area Face areas, ax or ay
+ * @param mf   Map factor on those faces, m_uy or m_vx
+ */
+static MultiFab
+weighted_mass_flux (const MultiFab& m, const MultiFab& area, const MultiFab& mf)
+{
+    IntVect ng = amrex::min(m.nGrowVect(), area.nGrowVect());
+    ng[0] = amrex::min(ng[0], mf.nGrowVect()[0]);
+    ng[1] = amrex::min(ng[1], mf.nGrowVect()[1]);
+    MultiFab w(m.boxArray(), m.DistributionMap(), 1, ng);
+    for (MFIter mfi(w, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.growntilebox(ng);
+        const auto w_arr = w.array(mfi);
+        const auto m_arr = m.const_array(mfi);
+        const auto a_arr = area.const_array(mfi);
+        const auto f_arr = mf.const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            w_arr(i,j,k) = m_arr(i,j,k) * a_arr(i,j,k) / f_arr(i,j,0);
+        });
+    }
+    return w;
+}
+
+/**
  * Register the coarse horizontal momenta for the coarse/fine face fills of the level above,
  * as ax (rho u) / m_uy and ay (rho v) / m_vx where cf_interp_mass_flux holds.
  *
@@ -446,32 +533,388 @@ void ERF::RegisterCoarseMomentumCF (int levc, const MultiFab& xold, const MultiF
         FPr_v[levc].RegisterCoarseData({&yold,&ynew}, times);
         return;
     }
-    auto weighted = [&] (const MultiFab& m, const MultiFab& area, const MultiFab& mf) {
-        IntVect ng = amrex::min(m.nGrowVect(), area.nGrowVect());
-        ng[0] = amrex::min(ng[0], mf.nGrowVect()[0]);
-        ng[1] = amrex::min(ng[1], mf.nGrowVect()[1]);
-        MultiFab w(m.boxArray(), m.DistributionMap(), 1, ng);
-        for (MFIter mfi(w, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            const Box bx = mfi.growntilebox(ng);
-            const auto w_arr = w.array(mfi);
-            const auto m_arr = m.const_array(mfi);
-            const auto a_arr = area.const_array(mfi);
-            const auto f_arr = mf.const_array(mfi);
-            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-            {
-                w_arr(i,j,k) = m_arr(i,j,k) * a_arr(i,j,k) / f_arr(i,j,0);
-            });
-        }
-        return w;
-    };
     const MultiFab& mf_uy = *mapfac[levc][MapFacType::u_y];
     const MultiFab& mf_vx = *mapfac[levc][MapFacType::v_x];
-    const MultiFab xo = weighted(xold, *ax[levc], mf_uy);
-    const MultiFab xn = weighted(xnew, *ax[levc], mf_uy);
-    const MultiFab yo = weighted(yold, *ay[levc], mf_vx);
-    const MultiFab yn = weighted(ynew, *ay[levc], mf_vx);
+    const MultiFab xo = weighted_mass_flux(xold, *ax[levc], mf_uy);
+    const MultiFab xn = weighted_mass_flux(xnew, *ax[levc], mf_uy);
+    const MultiFab yo = weighted_mass_flux(yold, *ay[levc], mf_vx);
+    const MultiFab yn = weighted_mass_flux(ynew, *ay[levc], mf_vx);
     FPr_u[levc].RegisterCoarseData({&xo,&xn}, times);
     FPr_v[levc].RegisterCoarseData({&yo,&yn}, times);
+}
+
+/**
+ * Average the momenta of level crse_lev+1 down onto the faces of level crse_lev it covers, as
+ * mass fluxes (the vertical as Omega, see below).  Horizontally: ax (rho u) / m_uy and ay (rho v) / m_vx are averaged, and divided by the
+ * coarse area and map factor.  Over terrain the areas vary along a coarse face, so the plain
+ * average of (rho u) is not the coarse momentum whose flux is the mean of the fine fluxes: on a
+ * coarse/fine face it would replace the projected coarse momentum with another one, and the
+ * uncovered coarse cell next to it would start the next step with a divergence.  The fine
+ * coarse/fine faces end each step on the coarse mass flux (cf_anelastic_stage_registration), so
+ * here the coarse/fine faces get back the flux they had.  Faces the fine level does not cover
+ * are left as they are.
+ *
+ * @param crse_lev Coarse level index
+ */
+void ERF::average_down_mass_flux (int crse_lev)
+{
+    const int lev = crse_lev + 1;
+    const IntVect rr = refRatio(crse_lev);
+    MultiFab* mom_f[2]       = {&rU_new[lev], &rV_new[lev]};
+    MultiFab* mom_c[2]       = {&rU_new[crse_lev], &rV_new[crse_lev]};
+    const MultiFab* area_f[2] = {ax[lev].get(), ay[lev].get()};
+    const MultiFab* area_c[2] = {ax[crse_lev].get(), ay[crse_lev].get()};
+    const MultiFab* mf_f[2]   = {mapfac[lev][MapFacType::u_y].get(), mapfac[lev][MapFacType::v_x].get()};
+    const MultiFab* mf_c[2]   = {mapfac[crse_lev][MapFacType::u_y].get(), mapfac[crse_lev][MapFacType::v_x].get()};
+
+    // The coarse cells the fine level covers, with a layer in z
+    const Periodicity fper = geom[lev].periodicity();
+    const Periodicity cper = geom[crse_lev].periodicity();
+    const iMultiFab covered = amrex::makeFineMask(grids[crse_lev], dmap[crse_lev], IntVect(0,0,1),
+                                                  grids[lev], rr, cper, 0, 1);
+
+    // The coarse Omega on the fine level's coarse/fine faces in z, before the horizontal momenta
+    //    around them change: those faces keep their Omega (see the vertical below)
+    const auto dxInv_c = geom[crse_lev].InvCellSizeArray();
+    const int ck_lo = geom[crse_lev].Domain().smallEnd(2);
+    const int ck_hi = geom[crse_lev].Domain().bigEnd(2);
+    rU_new[crse_lev].FillBoundary(cper);
+    rV_new[crse_lev].FillBoundary(cper);
+    MultiFab om_cf(rW_new[crse_lev].boxArray(), rW_new[crse_lev].DistributionMap(), 1, 0);
+    for (MFIter mfi(om_cf, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.tilebox();
+        const auto o_arr = om_cf.array(mfi);
+        const auto c_arr = covered.const_array(mfi);
+        const auto u_arr = rU_new[crse_lev].const_array(mfi);
+        const auto v_arr = rV_new[crse_lev].const_array(mfi);
+        const auto w_arr = rW_new[crse_lev].const_array(mfi);
+        const auto z_nd  = z_phys_nd[crse_lev]->const_array(mfi);
+        const auto mf_u  = mapfac[crse_lev][MapFacType::u_x]->const_array(mfi);
+        const auto mf_v  = mapfac[crse_lev][MapFacType::v_y]->const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const bool cf = (c_arr(i,j,k-1) != c_arr(i,j,k)) && k > ck_lo && k <= ck_hi;
+            o_arr(i,j,k) = cf ? OmegaFromW(i,j,k,w_arr(i,j,k),u_arr,v_arr,mf_u,mf_v,z_nd,dxInv_c)
+                              : zero;
+        });
+    }
+
+    for (int d = 0; d < 2; ++d) {
+        const MultiFab wf = weighted_mass_flux(*mom_f[d], *area_f[d], *mf_f[d]);
+
+        // The coarse faces under the fine level, on the fine level's distribution
+        const BoxArray cba = amrex::coarsen(mom_f[d]->boxArray(), rr);
+        const DistributionMapping& dm = mom_f[d]->DistributionMap();
+        MultiFab wc(cba, dm, 1, 0);
+        amrex::average_down_faces(wf, wc, rr);
+
+        // The coarse area and map factor on those faces (the map factor has no extent in z)
+        MultiFab ac(cba, dm, 1, 0);
+        ac.ParallelCopy(*area_c[d], 0, 0, 1);
+        BoxList bl2d = cba.boxList();
+        for (auto& b : bl2d) { b.setRange(2, 0); }
+        MultiFab mfc(BoxArray(std::move(bl2d)), dm, 1, 0);
+        mfc.ParallelCopy(*mf_c[d], 0, 0, 1);
+
+        for (MFIter mfi(wc, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const Box bx = mfi.tilebox();
+            const auto w_arr = wc.array(mfi);
+            const auto a_arr = ac.const_array(mfi);
+            const auto f_arr = mfc.const_array(mfi);
+            ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                w_arr(i,j,k) = w_arr(i,j,k) * f_arr(i,j,0) / a_arr(i,j,k);
+            });
+        }
+        mom_c[d]->ParallelCopy(wc, 0, 0, 1, IntVect(0), IntVect(0), geom[crse_lev].periodicity());
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // The vertical, as the flux az Omega / (m_x m_y).  Averaging (rho w) leaves the covered
+    // coarse cells with a divergence over terrain, and their scalars, advected with it, reach
+    // the uncovered cells through the advection stencil.  Each coarse face with covered cells
+    // on both sides takes the mean of the fine fluxes over it, and its (rho w) is rebuilt from
+    // that Omega and the coarse (rho u), (rho v) averaged down above; the fine level's
+    // coarse/fine faces in z keep their coarse Omega, which the fine faces there reproduce on
+    // average (cf_zface_coarse_data): their (rho w) is rebuilt from it, since the horizontal
+    // momenta it depends on over terrain have changed.  All other coarse faces are left as they are.
+    // ---------------------------------------------------------------------------------------
+    rU_new[lev].FillBoundary(fper);
+    rV_new[lev].FillBoundary(fper);
+    rU_new[crse_lev].FillBoundary(cper);
+    rV_new[crse_lev].FillBoundary(cper);
+
+    // The fine fluxes, on the faces with fine cells on both sides (a coarse/fine face in z reads
+    //    momenta outside the level, and its coarse face is not set from it below)
+    iMultiFab in_fine(grids[lev], dmap[lev], 1, IntVect(0,0,1));
+    in_fine.setVal(0);
+    in_fine.setVal(1, 0);
+    in_fine.FillBoundary(fper);
+    const int fk_lo = geom[lev].Domain().smallEnd(2);
+    const int fk_hi = geom[lev].Domain().bigEnd(2);
+    const auto dxInv_f = geom[lev].InvCellSizeArray();
+    MultiFab ff(rW_new[lev].boxArray(), rW_new[lev].DistributionMap(), 1, 0);
+    for (MFIter mfi(ff, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.tilebox();
+        const auto f_arr = ff.array(mfi);
+        const auto m_arr = in_fine.const_array(mfi);
+        const auto u_arr = rU_new[lev].const_array(mfi);
+        const auto v_arr = rV_new[lev].const_array(mfi);
+        const auto w_arr = rW_new[lev].const_array(mfi);
+        const auto z_nd  = z_phys_nd[lev]->const_array(mfi);
+        const auto mf_u  = mapfac[lev][MapFacType::u_x]->const_array(mfi);
+        const auto mf_v  = mapfac[lev][MapFacType::v_y]->const_array(mfi);
+        const auto mx    = mapfac[lev][MapFacType::m_x]->const_array(mfi);
+        const auto my    = mapfac[lev][MapFacType::m_y]->const_array(mfi);
+        const auto a_arr = az[lev]->const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (k == fk_lo || k == fk_hi + 1 || m_arr(i,j,k-1) == 0 || m_arr(i,j,k) == 0) {
+                f_arr(i,j,k) = zero;
+            } else {
+                const Real om = OmegaFromW(i,j,k,w_arr(i,j,k),u_arr,v_arr,mf_u,mf_v,z_nd,dxInv_f);
+                f_arr(i,j,k) = a_arr(i,j,k) * om / (mx(i,j,0) * my(i,j,0));
+            }
+        });
+    }
+
+    // Their means over the coarse faces, on the coarse level's faces under the fine level
+    const BoxArray cba_w = amrex::coarsen(ff.boxArray(), rr);
+    MultiFab fc(cba_w, ff.DistributionMap(), 1, 0);
+    amrex::average_down_faces(ff, fc, rr);
+    MultiFab fcc(rW_new[crse_lev].boxArray(), rW_new[crse_lev].DistributionMap(), 1, 0);
+    fcc.setVal(zero);
+    fcc.ParallelCopy(fc, 0, 0, 1, IntVect(0), IntVect(0), cper);
+
+    for (MFIter mfi(rW_new[crse_lev], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.tilebox();
+        const auto w_arr = rW_new[crse_lev].array(mfi);
+        const auto f_arr = fcc.const_array(mfi);
+        const auto o_arr = om_cf.const_array(mfi);
+        const auto c_arr = covered.const_array(mfi);
+        const auto u_arr = rU_new[crse_lev].const_array(mfi);
+        const auto v_arr = rV_new[crse_lev].const_array(mfi);
+        const auto z_nd  = z_phys_nd[crse_lev]->const_array(mfi);
+        const auto mf_u  = mapfac[crse_lev][MapFacType::u_x]->const_array(mfi);
+        const auto mf_v  = mapfac[crse_lev][MapFacType::v_y]->const_array(mfi);
+        const auto mx    = mapfac[crse_lev][MapFacType::m_x]->const_array(mfi);
+        const auto my    = mapfac[crse_lev][MapFacType::m_y]->const_array(mfi);
+        const auto a_arr = az[crse_lev]->const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            if (c_arr(i,j,k-1) == 1 && c_arr(i,j,k) == 1) {
+                const Real om = f_arr(i,j,k) * mx(i,j,0) * my(i,j,0) / a_arr(i,j,k);
+                w_arr(i,j,k) = WFromOmega(i,j,k,om,u_arr,v_arr,mf_u,mf_v,z_nd,dxInv_c);
+            } else if (c_arr(i,j,k-1) != c_arr(i,j,k) && k > ck_lo && k <= ck_hi) {
+                w_arr(i,j,k) = WFromOmega(i,j,k,o_arr(i,j,k),u_arr,v_arr,mf_u,mf_v,z_nd,dxInv_c);
+            }
+        });
+    }
+}
+
+//
+// Anelastic coarse/fine faces in time.
+//
+// Over a coarse step the coarse level advects with the mass flux R its stages apply:
+// (F_1 + F_2)/2 with the RK2 (Heun) integrator, F_2 with MidPoint, where F_s is the flux of
+// the momenta at the start of stage s (avg_xmom and avg_ymom, set by erf_slow_rhs_pre).  The
+// fine level's coarse/fine faces are filled by interpolating linearly in time between the
+// coarse momenta at the start and end of the step, w^n and w^{n+1} (in mass-flux form), and
+// over the fine steps of a coarse step its faces apply (w^n + w^{n+1})/2 -- the trapezoid and
+// midpoint rules are exact for a linear function -- which is not R.  Scalars are refluxed and
+// rho is not, so the difference changes a uniform scalar next to the fine level (#4873).
+//
+// So the coarse level records R on its faces (cf_anelastic_record), and in the first stage of
+// each fine step the fine level fills its coarse/fine faces from the coarse momenta shifted by
+// k D, D = R - (w^n + w^{n+1})/2, k = 2 for RK2 and 1 for MidPoint
+// (cf_anelastic_stage_registration).  The faces that stage fills are those of the projection
+// that ends it, whose momenta the second stage advects with; the first stage advects with the
+// momenta the step started with, filled at its start.  A fine RK2 step then applies
+// (I(t_a) + I(t_b) + 2D)/2 and a MidPoint step I(t_a + dt/2) + D, I the linear interpolation in
+// time, and over the coarse step these add up to R.  The spatial interpolation keeps the mean of
+// the fine faces under each coarse face, so this holds face by face.  The second stage fills
+// from the unshifted momenta, so the step ends, and the next one starts, on the linear
+// interpolation.
+//
+// erf.cf_flux_history = false turns this off, as it does the compressible flux history.
+//
+
+/**
+ * Whether the coarse/fine faces of level lev apply, over a coarse step, the mass flux the coarse
+ * level's stages applied: both levels anelastic, on a terrain-fitted mesh (cf_interp_mass_flux)
+ *
+ * @param lev Fine level index
+ */
+bool ERF::cf_anelastic_flux_match (int lev) const
+{
+    return cf_flux_history_enabled() && lev > 0 && lev <= finest_level &&
+           solverChoice.anelastic[lev] && solverChoice.anelastic[lev-1] &&
+           solverChoice.terrain_type != TerrainType::EB &&
+           solverChoice.terrain_type != TerrainType::MovingFittedMesh;
+}
+
+/**
+ * Add stage nrk's horizontal mass fluxes (avg_xmom, avg_ymom) to the flux R the coarse level
+ * levc applies over its step.  Called once erf_slow_rhs_pre has set them.
+ *
+ * @param levc Coarse level index
+ * @param nrk  The stage
+ */
+void ERF::cf_anelastic_record (int levc, int nrk)
+{
+    if (!cf_anelastic_flux_match(levc+1)) { return; }
+    if (static_cast<int>(m_cf_step_flux.size()) <= levc) { m_cf_step_flux.resize(levc+1); }
+    const Real b = StageFluxWeight(solverChoice, levc, nrk);
+    const MultiFab* avg[2] = {&avg_xmom[levc], &avg_ymom[levc]};
+    for (int d = 0; d < 2; ++d) {
+        MultiFab& R = m_cf_step_flux[levc][d];
+        if (R.boxArray() != avg[d]->boxArray() || R.DistributionMap() != avg[d]->DistributionMap()) {
+            R.define(avg[d]->boxArray(), avg[d]->DistributionMap(), 1, 0);
+        }
+        if (nrk == 0) { R.setVal(zero); }
+        MultiFab::Saxpy(R, b, *avg[d], 0, 0, 1, 0);
+    }
+
+    // The vertical, as Omega (avg_zmom is az Omega / (m_x m_y)); Omega is (rho w) without terrain
+    if (static_cast<int>(m_cf_step_zflux.size()) <= levc) { m_cf_step_zflux.resize(levc+1); }
+    MultiFab& Rz = m_cf_step_zflux[levc];
+    if (Rz.boxArray() != avg_zmom[levc].boxArray() || Rz.DistributionMap() != avg_zmom[levc].DistributionMap()) {
+        Rz.define(avg_zmom[levc].boxArray(), avg_zmom[levc].DistributionMap(), 1, 0);
+    }
+    if (nrk == 0) { Rz.setVal(zero); }
+    for (MFIter mfi(Rz, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        const Box bx = mfi.tilebox();
+        const auto r_arr = Rz.array(mfi);
+        const auto f_arr = avg_zmom[levc].const_array(mfi);
+        const auto a_arr = az[levc]->const_array(mfi);
+        const auto mx = mapfac[levc][MapFacType::m_x]->const_array(mfi);
+        const auto my = mapfac[levc][MapFacType::m_y]->const_array(mfi);
+        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            r_arr(i,j,k) += b * f_arr(i,j,k) * mx(i,j,0) * my(i,j,0) / a_arr(i,j,k);
+        });
+    }
+}
+
+/**
+ * Whether fine level lev is in the first stage of its step with its coarse/fine faces taking the
+ * coarse step's flux (cf_anelastic_stage_registration): its fills then shift the coarse Omega on
+ * its coarse/fine faces in z as they shift the horizontal momenta (cf_zface_coarse_data)
+ *
+ * @param lev Fine level index
+ */
+bool ERF::cf_anelastic_stage1 (int lev) const
+{
+    return lev < static_cast<int>(m_cf_stage1.size()) && m_cf_stage1[lev] != 0 &&
+           cf_anelastic_flux_match(lev) && cf_interp_mass_flux(lev) &&
+           lev-1 < static_cast<int>(m_cf_step_zflux.size()) && m_cf_step_zflux[lev-1].ok();
+}
+
+/**
+ * Register the coarse horizontal momenta for the coarse/fine faces of fine level lev in stage
+ * nrk of its step: shifted so that the fine faces apply the coarse step's flux in the first
+ * stage, as they are in the second (see above)
+ *
+ * @param lev Fine level index
+ * @param nrk The stage
+ */
+void ERF::cf_anelastic_stage_registration (int lev, int nrk)
+{
+    if (!cf_anelastic_flux_match(lev)) { return; }
+    const int levc = lev - 1;
+    if (static_cast<int>(m_cf_step_flux.size()) <= levc ||
+        m_cf_step_flux[levc][0].boxArray() != avg_xmom[levc].boxArray() ||
+        FPr_u[levc].crse_times().size() != 2) {
+        Abort("cf_anelastic_stage_registration: the coarse level has not recorded its step");
+    }
+
+    if (static_cast<int>(m_cf_stage1.size()) <= lev) { m_cf_stage1.resize(lev+1, 0); }
+    m_cf_stage1[lev] = (nrk == 0) ? 1 : 0;
+
+    const Real k = (solverChoice.anelastic_type[lev] == AnelasticType::MidPoint) ? one : Real(2);
+    // On a terrain-fitted mesh the coarse momenta are registered as mass fluxes
+    //    (RegisterCoarseMomentumCF); on a flat mesh as momenta, and the shift is converted
+    const bool mass_flux = cf_interp_mass_flux(lev);
+    const MultiFab* mold[2] = {&rU_old[levc], &rV_old[levc]};
+    const MultiFab* mnew[2] = {&rU_new[levc], &rV_new[levc]};
+    const MultiFab* area[2] = {ax[levc].get(), ay[levc].get()};
+    const MultiFab* mf[2]   = {mapfac[levc][MapFacType::u_y].get(), mapfac[levc][MapFacType::v_x].get()};
+    ERFFillPatcher* patcher[2] = {&FPr_u[levc], &FPr_v[levc]};
+
+    for (int d = 0; d < 2; ++d) {
+        if (!mass_flux && nrk != 0) {
+            patcher[d]->RegisterCoarseData({mold[d], mnew[d]}, patcher[d]->crse_times());
+            continue;
+        }
+        MultiFab wo = weighted_mass_flux(*mold[d], *area[d], *mf[d]);
+        MultiFab wn = weighted_mass_flux(*mnew[d], *area[d], *mf[d]);
+        if (nrk == 0) {
+            // k D on the coarse level's faces, zero on the ghost faces outside the domain;
+            //    as a momentum, k D m / a, where the momenta are registered as such
+            const IntVect ng = wo.nGrowVect();
+            MultiFab shift(wo.boxArray(), wo.DistributionMap(), 1, ng);
+            shift.setVal(zero);
+            const MultiFab& R = m_cf_step_flux[levc][d];
+            for (MFIter mfi(shift, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const Box bx = mfi.tilebox();
+                const auto s_arr  = shift.array(mfi);
+                const auto r_arr  = R.const_array(mfi);
+                const auto wo_arr = wo.const_array(mfi);
+                const auto wn_arr = wn.const_array(mfi);
+                const auto a_arr  = area[d]->const_array(mfi);
+                const auto f_arr  = mf[d]->const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int kk) noexcept
+                {
+                    const Real D = k * (r_arr(i,j,kk) - myhalf * (wo_arr(i,j,kk) + wn_arr(i,j,kk)));
+                    s_arr(i,j,kk) = mass_flux ? D : D * f_arr(i,j,0) / a_arr(i,j,kk);
+                });
+            }
+            shift.FillBoundary(geom[levc].periodicity());
+            if (!mass_flux) {
+                MultiFab::Copy(wo, *mold[d], 0, 0, 1, ng);
+                MultiFab::Copy(wn, *mnew[d], 0, 0, 1, ng);
+            }
+            MultiFab::Add(wo, shift, 0, 0, 1, ng);
+            MultiFab::Add(wn, shift, 0, 0, 1, ng);
+        }
+        // the times the coarse momenta were registered with (RegisterCoarseMomentumCF)
+        patcher[d]->RegisterCoarseData({&wo,&wn}, patcher[d]->crse_times());
+    }
+
+    // The coarse/fine faces in z of a level that stops inside the domain in z.  On a flat mesh
+    //    they are filled from the coarse (rho w), which is Omega there: shift it the same way.
+    //    On a terrain-fitted mesh they take the coarse Omega instead (cf_zface_coarse_data).
+    if (!mass_flux) {
+        const MultiFab& wold = rW_old[levc];
+        const MultiFab& wnew = rW_new[levc];
+        if (nrk != 0) {
+            FPr_w[levc].RegisterCoarseData({&wold, &wnew}, FPr_w[levc].crse_times());
+        } else {
+            const IntVect ng = wold.nGrowVect();
+            MultiFab zo(wold.boxArray(), wold.DistributionMap(), 1, ng);
+            MultiFab zn(wold.boxArray(), wold.DistributionMap(), 1, ng);
+            MultiFab shift(wold.boxArray(), wold.DistributionMap(), 1, ng);
+            shift.setVal(zero);
+            const MultiFab& Rz = m_cf_step_zflux[levc];
+            for (MFIter mfi(shift, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                const Box bx = mfi.tilebox();
+                const auto s_arr  = shift.array(mfi);
+                const auto r_arr  = Rz.const_array(mfi);
+                const auto wo_arr = wold.const_array(mfi);
+                const auto wn_arr = wnew.const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int kk) noexcept
+                {
+                    s_arr(i,j,kk) = k * (r_arr(i,j,kk) - myhalf * (wo_arr(i,j,kk) + wn_arr(i,j,kk)));
+                });
+            }
+            shift.FillBoundary(geom[levc].periodicity());
+            MultiFab::Copy(zo, wold, 0, 0, 1, ng);
+            MultiFab::Copy(zn, wnew, 0, 0, 1, ng);
+            MultiFab::Add(zo, shift, 0, 0, 1, ng);
+            MultiFab::Add(zn, shift, 0, 0, 1, ng);
+            FPr_w[levc].RegisterCoarseData({&zo, &zn}, FPr_w[levc].crse_times());
+        }
+    }
 }
 
 /**
