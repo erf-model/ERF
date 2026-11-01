@@ -97,8 +97,57 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_perturbational_a
     }
 
     if (SolverChoice::terrain_type != TerrainType::EB) {
+        // Anelastic: rho is not averaged down (rho == rho0 on each level), so averaging
+        //    w (rho S) with w = detJ/(m_x m_y) gives rho_c S for a uniform S only if the fine
+        //    w (rho) average exactly to the coarse w (rho), which fails when m varies (#4904).
+        //    Rescale the covered coarse cells by w_c rho_c / avg(w_f rho_f) so that
+        //    (rho S)_c = rho_c * (the same-weighted mean of S_f).
+        const bool rescale_by_rho = solverChoice.anelastic[crse_lev] && (scomp > Rho_comp);
+
+        MultiFab rho_w_fac;
+        if (rescale_by_rho) {
+            MultiFab rho_w[2];
+            for (int l = 0; l < 2; ++l) {
+                const int lev = crse_lev + l;
+                const MultiFab& cons = vars_new[lev][Vars::cons];
+                rho_w[l].define(cons.boxArray(), cons.DistributionMap(), 1, 0);
+                for (MFIter mfi(rho_w[l], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.tilebox();
+                    const Array4<      Real> rw_arr   = rho_w[l].array(mfi);
+                    const Array4<const Real> cons_arr = cons.const_array(mfi);
+                    const Array4<const Real> mfx_arr  = mapfac[lev][MapFacType::m_x]->const_array(mfi);
+                    const Array4<const Real> mfy_arr  = mapfac[lev][MapFacType::m_y]->const_array(mfi);
+                    if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+                        const Array4<const Real> detJ_arr = detJ_cc[lev]->const_array(mfi);
+                        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                        {
+                            rw_arr(i,j,k) = cons_arr(i,j,k,Rho_comp) * detJ_arr(i,j,k)
+                                          / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
+                        });
+                    } else {
+                        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                        {
+                            rw_arr(i,j,k) = cons_arr(i,j,k,Rho_comp) / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
+                        });
+                    }
+                } // mfi
+            } // l
+
+            // Uncovered cells keep rho_w[0] unchanged, so their factor is exactly one
+            rho_w_fac.define(rho_w[0].boxArray(), rho_w[0].DistributionMap(), 1, 0);
+            MultiFab::Copy(rho_w_fac, rho_w[0], 0, 0, 1, 0);
+            average_down(rho_w[1], rho_w[0], 0, 1, refRatio(crse_lev));
+            MultiFab::Divide(rho_w_fac, rho_w[0], 0, 0, 1, 0);
+        }
+
         average_down(vars_new[crse_lev+1][Vars::cons],vars_new[crse_lev  ][Vars::cons],
                     scomp, ncomp, refRatio(crse_lev));
+
+        if (rescale_by_rho) {
+            for (int n = 0; n < ncomp; ++n) {
+                MultiFab::Multiply(vars_new[crse_lev][Vars::cons], rho_w_fac, 0, scomp+n, 1, 0);
+            }
+        }
     } else {
         // const auto dx = geom[fine_lev].CellSize();
         // Setting cell_vol to the exact value may cause round-off errors in volume average.
