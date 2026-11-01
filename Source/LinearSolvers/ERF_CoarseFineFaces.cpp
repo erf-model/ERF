@@ -839,11 +839,11 @@ void ERF::cf_anelastic_stage_registration (int lev, int nrk)
     const MultiFab* mnew[2] = {&rU_new[levc], &rV_new[levc]};
     const MultiFab* area[2] = {ax[levc].get(), ay[levc].get()};
     const MultiFab* mf[2]   = {mapfac[levc][MapFacType::u_y].get(), mapfac[levc][MapFacType::v_x].get()};
-    ERFFillPatcher* fpr[2]  = {&FPr_u[levc], &FPr_v[levc]};
+    ERFFillPatcher* patcher[2] = {&FPr_u[levc], &FPr_v[levc]};
 
     for (int d = 0; d < 2; ++d) {
         if (!mass_flux && nrk != 0) {
-            fpr[d]->RegisterCoarseData({mold[d], mnew[d]}, fpr[d]->crse_times());
+            patcher[d]->RegisterCoarseData({mold[d], mnew[d]}, patcher[d]->crse_times());
             continue;
         }
         MultiFab wo = weighted_mass_flux(*mold[d], *area[d], *mf[d]);
@@ -878,7 +878,7 @@ void ERF::cf_anelastic_stage_registration (int lev, int nrk)
             MultiFab::Add(wn, shift, 0, 0, 1, ng);
         }
         // the times the coarse momenta were registered with (RegisterCoarseMomentumCF)
-        fpr[d]->RegisterCoarseData({&wo,&wn}, fpr[d]->crse_times());
+        patcher[d]->RegisterCoarseData({&wo,&wn}, patcher[d]->crse_times());
     }
 
     // The coarse/fine faces in z of a level that stops inside the domain in z.  On a flat mesh
