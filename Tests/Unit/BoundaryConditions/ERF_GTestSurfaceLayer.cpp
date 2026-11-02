@@ -581,7 +581,7 @@ Long check_qsurf_values (const SurfaceLayerFields& fields,
 
 // nvcc rejects an extended __device__ lambda whose enclosing function has
 // private access, and gtest generates TestBody() as a private member, so the
-// device fills below live here rather than inside the TEST bodies.
+// device kernels below live here rather than inside the TEST bodies.
 void set_quadratic_node_heights (MultiFab& z_phys_nd)
 {
     for (MFIter mfi(z_phys_nd, false); mfi.isValid(); ++mfi) {
@@ -675,6 +675,71 @@ mf_grown_value (const MultiFab& mf, const IntVect& p)
             { return {arr(i,j,k)}; });
     }
     return get<0>(reduce_data.value());
+}
+
+void set_clamped_landmask (iMultiFab& lmask, int ilo)
+{
+    for (MFIter mfi(lmask); mfi.isValid(); ++mfi) {
+        const auto mask = lmask.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            mask(i,j,k) = amrex::min(amrex::max(i - ilo, 0), 2);
+        });
+    }
+}
+
+int count_parameter_mismatches (const MultiFab& parameter, int immersed_ilo,
+                                Real active_value, Real inactive_value)
+{
+    ReduceOps<ReduceOpSum> op;
+    ReduceData<int> data(op);
+    for (MFIter mfi(parameter); mfi.isValid(); ++mfi) {
+        const auto arr = parameter.const_array(mfi);
+        op.eval(mfi.fabbox(), data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) -> GpuTuple<int> {
+                return {arr(i,j,k) != ((i >= immersed_ilo) ? inactive_value : active_value)};
+            });
+    }
+    return get<0>(data.value());
+}
+
+void set_immersed_landmask (iMultiFab& lmask, int ib)
+{
+    for (MFIter mfi(lmask); mfi.isValid(); ++mfi) {
+        const auto mask = lmask.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            mask(i,j,k) = (i >= ib) ? 2 : 1;
+        });
+    }
+}
+
+void set_test_tau13 (MultiFab& tau13, int ib)
+{
+    for (MFIter mfi(tau13); mfi.isValid(); ++mfi) {
+        const auto arr = tau13.array(mfi);
+        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            arr(i,j,k) = (i < ib) ? Real(0.04) : Real(0);
+        });
+    }
+}
+
+void set_stale_immersed_values (MultiFab& parameter, int ib)
+{
+    for (MFIter mfi(parameter); mfi.isValid(); ++mfi) {
+        const auto arr = parameter.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            if (i >= ib) { arr(i,j,k) = bogus_large_value; }
+        });
+    }
+}
+
+void set_linear_node_heights (MultiFab& z_phys_nd)
+{
+    for (MFIter mfi(z_phys_nd); mfi.isValid(); ++mfi) {
+        const auto z = z_phys_nd.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            z(i,j,k) = Real(k);
+        });
+    }
 }
 
 } // namespace
@@ -1443,12 +1508,7 @@ TEST(SurfaceLayer, ImmersedColumnsHaveBenignInitialParameters)
         SCOPED_TRACE(static_cast<int>(face));
         SurfaceLayerFields fields(make_geometry(), true);
         const int ilo = fields.domain.smallEnd(0);
-        for (MFIter mfi(*fields.lmask[0]); mfi.isValid(); ++mfi) {
-            const auto mask = fields.lmask[0]->array(mfi);
-            ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                mask(i,j,k) = amrex::min(amrex::max(i - ilo, 0), 2);
-            });
-        }
+        set_clamped_landmask(*fields.lmask[0], ilo);
         auto layer = fields.prepare_layer(face, active_faces({face}), prefix, false, false);
         const std::array<MultiFab*, 9> parameters = {
             layer->get_u_star(0), layer->get_w_star(0), layer->get_t_star(0),
@@ -1462,18 +1522,8 @@ TEST(SurfaceLayer, ImmersedColumnsHaveBenignInitialParameters)
             bogus_large_value, Real(0.1), Real(300), Real(0)};
         for (int n = 0; n < 9; ++n) {
             SCOPED_TRACE(n);
-            ReduceOps<ReduceOpSum> op;
-            ReduceData<int> data(op);
-            const Real active_value = ordinary[n];
-            const Real inactive_value = immersed[n];
-            for (MFIter mfi(*parameters[n]); mfi.isValid(); ++mfi) {
-                const auto arr = parameters[n]->const_array(mfi);
-                op.eval(mfi.fabbox(), data,
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) -> GpuTuple<int> {
-                        return {arr(i,j,k) != ((i >= ilo + 2) ? inactive_value : active_value)};
-                    });
-            }
-            EXPECT_EQ(get<0>(data.value()), 0);
+            EXPECT_EQ(count_parameter_mismatches(*parameters[n], ilo + 2,
+                                                 ordinary[n], immersed[n]), 0);
         }
     }
     pp.remove("most.roughness_type_sea");
@@ -1492,23 +1542,13 @@ TEST(SurfaceLayer, ImmersedColumnsRemainBenignThroughFluxAndTkeUpdates)
         fields.cons.setVal(test_rho * test_surface_temperature, RhoTheta_comp, 1,
                            fields.cons.nGrowVect());
         const int ib = fields.domain.bigEnd(0);
-        for (MFIter mfi(*fields.lmask[0]); mfi.isValid(); ++mfi) {
-            const auto mask = fields.lmask[0]->array(mfi);
-            ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                mask(i,j,k) = (i >= ib) ? 2 : 1;
-            });
-        }
+        set_immersed_landmask(*fields.lmask[0], ib);
         if (with_lsm) {
             for (const char* name : {"t_flux", "q_flux", "tau13", "tau23"}) {
                 auto mf = std::make_unique<MultiFab>(collapse_z(fields.ba), fields.dm, 1, 0);
                 mf->setVal(Real(0));
                 if (std::string(name) == "tau13") {
-                    for (MFIter mfi(*mf); mfi.isValid(); ++mfi) {
-                        const auto arr = mf->array(mfi);
-                        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            arr(i,j,k) = (i < ib) ? Real(0.04) : Real(0);
-                        });
-                    }
+                    set_test_tau13(*mf, ib);
                 }
                 fields.lsm_flux_data.push_back(std::move(mf));
                 fields.lsm_flux_names.push_back(name);
@@ -1525,12 +1565,7 @@ TEST(SurfaceLayer, ImmersedColumnsRemainBenignThroughFluxAndTkeUpdates)
             SCOPED_TRACE(stale_values);
             if (stale_values) {
                 for (auto* mf : parameters) {
-                    for (MFIter mfi(*mf); mfi.isValid(); ++mfi) {
-                        const auto arr = mf->array(mfi);
-                        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                            if (i >= ib) { arr(i,j,k) = bogus_large_value; }
-                        });
-                    }
+                    set_stale_immersed_values(*mf, ib);
                 }
             }
             layer->update_fluxes(0, 1.0, 1.0, fields.cons, nullptr, fields.no_walldist, 20);
@@ -1546,12 +1581,7 @@ TEST(SurfaceLayer, ImmersedColumnsRemainBenignThroughFluxAndTkeUpdates)
 
         auto z_phys_nd = std::make_unique<MultiFab>(
             convert(fields.ba, IntVect(1)), fields.dm, 1, 1);
-        for (MFIter mfi(*z_phys_nd); mfi.isValid(); ++mfi) {
-            const auto z = z_phys_nd->array(mfi);
-            ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                z(i,j,k) = Real(k);
-            });
-        }
+        set_linear_node_heights(*z_phys_nd);
         layer->init_tke_from_ustar(0, fields.cons, z_phys_nd, Real(1));
         for (int k = 0; k <= fields.domain.bigEnd(2); ++k) {
             const IntVect p(AMREX_D_DECL(ib, 1, k));
@@ -1598,12 +1628,7 @@ TEST(SurfaceLayer, LsmDerivedParametersPreserveWaterAndBuildingColumns)
             ASSERT_TRUE(std::isfinite(before[mask][n]));
         }
     }
-    for (MFIter mfi(*fields.lmask[0]); mfi.isValid(); ++mfi) {
-        const auto mask_arr = fields.lmask[0]->array(mfi);
-        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int jj, int k) noexcept {
-            mask_arr(i,jj,k) = amrex::min(amrex::max(i - ilo, 0), 2);
-        });
-    }
+    set_clamped_landmask(*fields.lmask[0], ilo);
 
     layer->compute_sfc_params_from_lsm_fluxes(0, fields.cons);
     Gpu::streamSynchronize();
