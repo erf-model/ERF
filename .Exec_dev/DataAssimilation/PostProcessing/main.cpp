@@ -126,7 +126,7 @@ int main(int argc, char* argv[])
     int exit_code = 0;
 
     {
-    
+
         std::string a_file_list_1;
         std::string a_file_list_2;
 

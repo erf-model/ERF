@@ -281,7 +281,7 @@ MakeEnsembleCheckpointName (int da_iter, int ens_no);
 std::string
 MakeFullPath (const std::string& filename, const int da_iter);
 
-void 
+void
 WriteInnovationRMS(const amrex::MultiFab& dvec,
                    const std::string& filename,
                    int da_iter);
