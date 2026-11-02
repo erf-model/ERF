@@ -1443,6 +1443,10 @@ List of Parameters
 | **erf.test_mapfactor**              | set the map scale factors to 0.5 instead of 1 for        | Boolean            | false            |
 |                                     | testing; see :ref:`sec:MapFactors`                       |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.test_mapfactor_amp**          | if nonzero, set the level-0 map scale factors to         | Real               | 0                |
+|                                     | 1 + amp sin(2 pi x/Lx) cos(2 pi y/Ly) for testing;       |                    |                  |
+|                                     | see :ref:`sec:MapFactors`                                |                    |                  |
++-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.sum_period**                  | wall-clock-independent simulation-time interval [s]      | Real               | -1.0 (not used)  |
 |                                     | between integrated-quantity summaries; an alternative to |                    |                  |
 |                                     | ``erf.sum_interval``                                     |                    |                  |
@@ -3607,6 +3611,11 @@ unless specified in the initialization when **erf.init_type = WRFInput** or **er
 
 There is an option to test the map scale factors by setting  **erf.test_mapfactor = true**; this
 arbitrarily sets the map factors to 0.5 in order to test the implementation.
+
+Setting **erf.test_mapfactor_amp** to a nonzero value instead makes the map factors on level 0 vary
+smoothly in space, m = 1 + amp sin(2 pi x / Lx) cos(2 pi y / Ly), as if they had been read from an init
+file there; finer levels take theirs from the coarser level, as a level without an init file of its
+own does.
 
 .. _inputs-terrain:
 
@@ -5885,7 +5894,7 @@ Diagnostics and Testing
 -----------------------
 
 * :ref:`Diagnostic Outputs <inputs-diagnostic-outputs>` -- ``erf.Ave_Plane``,
-  ``erf.test_mapfactor``, ``erf.time_avg_vel``
+  ``erf.test_mapfactor``, ``erf.test_mapfactor_amp``, ``erf.time_avg_vel``
 
 Ensemble Initialization
 -----------------------

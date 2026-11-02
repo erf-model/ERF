@@ -735,6 +735,14 @@ struct SolverChoice {
         // Do we set map scale factors to myhalf instead of 1 for testing?
         pp.queryAdd("test_mapfactor", test_mapfactor);
 
+        // For testing: if nonzero, the map scale factors on level 0 vary smoothly in space,
+        // m = 1 + test_mapfactor_amp sin(2 pi x / Lx) cos(2 pi y / Ly), as if read from an init file
+        // there; finer levels take theirs from the coarser level, as a level without a file does
+        pp.queryAdd("test_mapfactor_amp", test_mapfactor_amp);
+        if (test_mapfactor && test_mapfactor_amp != amrex::Real(0)) {
+            amrex::Abort("erf.test_mapfactor and erf.test_mapfactor_amp cannot be used together");
+        }
+
         // Which horizontal pressure gradient formulation to use with terrain fitted coords?
         // 0: dp/dx with dp/dz correction (default)
         // 1: gradient of vertically interpolated p, see Klemp 2011
@@ -2461,6 +2469,7 @@ struct SolverChoice {
 #endif
 
     bool        test_mapfactor         = false;
+    amrex::Real test_mapfactor_amp     = amrex::Real(0);
 
     int         gradp_type             = 0;
 
@@ -2910,6 +2919,8 @@ struct SolverChoice {
  * @brief Relative tolerance for the Poisson solve.
  * @var SolverChoice::test_mapfactor
  * @brief Whether to use test map scale factors.
+ * @var SolverChoice::test_mapfactor_amp
+ * @brief Amplitude of the spatially varying test map scale factors on level 0 (0: not used).
  * @var SolverChoice::gradp_type
  * @brief Terrain-fitted horizontal pressure-gradient formulation.
  * @var SolverChoice::use_pert_pres_gradient

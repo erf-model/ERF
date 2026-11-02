@@ -4685,6 +4685,15 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_TwoWay inputs_hill 30
       RUNTIME_OPTIONS "${_hill_amr} ${_hill_full}"
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  # Map factors that vary in space on level 0 (as if read from its init file), which the fine
+  # level, having no file of its own, interpolates.  The fine map factors must be in place before
+  # the initial projection, or the first step departs by ~1e-2 (erf-model/ERF#4905)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_TwoLevels_VaryingMapFactor inputs_hill 30
+      RUNTIME_OPTIONS "${_hill_amr} ${_hill_full} erf.coupling_type=OneWay erf.test_mapfactor_amp=0.2"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_TwoWay_VaryingMapFactor inputs_hill 30
+      RUNTIME_OPTIONS "${_hill_amr} ${_hill_full} erf.test_mapfactor_amp=0.2"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_PartialDepth_TwoWay inputs_hill 30
       RUNTIME_OPTIONS "${_hill_amr} ${_hill_part}"
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
