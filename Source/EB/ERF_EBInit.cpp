@@ -28,6 +28,13 @@ ERF::initializeEB ()
     std::string geometry ="terrain";
     ParmParse pp_eb2("eb2");
     pp_eb2.queryAdd("geometry", geometry);
+#if !USE_FC_FACTORY
+    if (solverChoice.buildings_fc_factories &&
+        solverChoice.buildings_type == BuildingsType::ImmersedForcing &&
+        solverChoice.terrain_type == TerrainType::StaticFittedMesh) {
+        Abort("erf.buildings_fc_factories=true requires USE_FC_FACTORY=1");
+    }
+#endif
     if ( solverChoice.terrain_type == TerrainType::EB ||
          solverChoice.terrain_type == TerrainType::ImmersedForcing)
     {
@@ -192,6 +199,9 @@ ERF::initializeEB ()
 
     if ( solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
         constexpr int ngrow_for_eb = 4;
+        Print() << "Building EB factories: "
+                << (use_native_fc_factories() ? "native face-centered" : "cell-centered")
+                << "\n";
         if (geometry == "terrain") {
             Box buildings_bx(surroundingNodes(geom[max_level].Domain())); buildings_bx.grow(3);
             FArrayBox buildings_fab(makeSlab(buildings_bx,2,0),1);

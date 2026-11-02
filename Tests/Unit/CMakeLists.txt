@@ -435,6 +435,27 @@ add_test(NAME erf_unit_tests_shuffle_repeat
     --gtest_output=xml:${ERF_GTEST_REPORT_ROOT}/${erf_exe_name}/shuffle-repeat.xml
 )
 
+if(TARGET erf_exec AND ERF_DIM STREQUAL "3")
+  foreach(_factory_choice IN ITEMS default native)
+    if(_factory_choice STREQUAL "native")
+      set(_expected_factory "native face-centered")
+      set(_factory_override erf.buildings_fc_factories=true)
+    else()
+      set(_expected_factory "cell-centered")
+      set(_factory_override)
+    endif()
+    add_test(NAME ImmersedBuildingFactories_${_factory_choice}
+      COMMAND $<TARGET_FILE:erf_exec>
+        ${PROJECT_SOURCE_DIR}/Tests/test_files/ImmersedForcing/inputs_building_fc_factories
+        ${_factory_override})
+    set_tests_properties(ImmersedBuildingFactories_${_factory_choice} PROPERTIES
+      LABELS "integration;immersed-forcing"
+      PASS_REGULAR_EXPRESSION "Building EB factories: ${_expected_factory}"
+      RUN_SERIAL TRUE
+      TIMEOUT 120)
+  endforeach()
+endif()
+
 # Exercise M3 through ERF's native level,
 # advance, checkpoint, and exact-schema restart paths.  Header min/max values
 # make the manufactured uniform spectrum and projected qc/qr independently

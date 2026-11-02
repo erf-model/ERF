@@ -907,6 +907,7 @@ struct SolverChoice {
         if (buildings_type_temp == "ImmersedForcing") {
             buildings_type = BuildingsType::ImmersedForcing;
         }
+        pp.queryAdd("buildings_fc_factories", buildings_fc_factories);
 
         //
         // Read the init_type here to make sure we correctly set the mesh and terrain types
@@ -2360,6 +2361,9 @@ struct SolverChoice {
     BuildingsType buildings_type = BuildingsType::None;
 
     inline static
+    bool buildings_fc_factories = false;
+
+    inline static
     bool use_real_bcs = false;
 
     inline static
@@ -2825,6 +2829,8 @@ struct SolverChoice {
  * @brief Permit fixed-index planar averages after validating a flat fitted mesh.
  * @var SolverChoice::buildings_type
  * @brief Building representation.
+ * @var SolverChoice::buildings_fc_factories
+ * @brief Use native face-centered EB factories for immersed buildings on a static fitted mesh.
  * @var SolverChoice::use_real_bcs
  * @brief Whether real-data lateral boundary conditions are used.
  * @var SolverChoice::mesh_type

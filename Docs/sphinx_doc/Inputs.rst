@@ -3712,6 +3712,10 @@ List of Parameters
 |                                  | ImmersedForcing is not supported with                    | ImmersedForcing    |                  |
 |                                  | ``erf.terrain_type`` = EB                                |                    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.buildings_fc_factories**   | use native face-centered EB factories for immersed       | Boolean            | false            |
+|                                  | buildings with ``StaticFittedMesh`` terrain; see         |                    |                  |
+|                                  | :ref:`sec:ImmersedForcingInputs`                         |                    |                  |
++----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.use_rotate_surface_flux**  | rotate the MOST surface stresses to be normal to the     | Boolean            | false            |
 |                                  | terrain surface; requires that terrain be used           |                    |                  |
 +----------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -3867,6 +3871,16 @@ initialization; the immersed momentum forcing relaxes them during time stepping
 on levels where it is active.
 Other initialization paths set velocities on fully immersed faces to 0.01 m/s
 after initialization.
+
+For ``erf.buildings_type = ImmersedForcing`` with
+``erf.terrain_type = StaticFittedMesh``, ``erf.buildings_fc_factories``
+selects the native face-centered EB factories when set to ``true``. The default
+``false`` uses the cell-centered building mask averaged to velocity faces for
+momentum forcing. Native face-centered factories represent the face geometry
+directly, but complex building geometry may cause the EB geometry construction
+or solver convergence to fail. If that occurs, use the default cell-centered
+option as a troubleshooting step. This input does not affect other terrain or
+building combinations.
 
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | Parameter                         | Definition                                               | Acceptable Values  | Default          |
