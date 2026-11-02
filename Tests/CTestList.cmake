@@ -4694,6 +4694,15 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_TwoWay_VaryingMapFactor inputs_hill 30
       RUNTIME_OPTIONS "${_hill_amr} ${_hill_full} erf.test_mapfactor_amp=0.2"
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  # The same with a patch that does not span the full depth: its coarse/fine faces in z take the
+  # vertical flux Omega / (m_x m_y) from the coarse level, not Omega, or with the map factors varying
+  # in a coarse column the level's boundary fluxes do not add up to zero (erf-model/ERF#4922)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_PartialDepth_VaryingMapFactor inputs_hill 30
+      RUNTIME_OPTIONS "${_hill_amr} ${_hill_part} erf.coupling_type=OneWay erf.test_mapfactor_amp=0.2"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_PartialDepth_TwoWay_VaryingMapFactor inputs_hill 30
+      RUNTIME_OPTIONS "${_hill_amr} ${_hill_part} erf.test_mapfactor_amp=0.2"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_PartialDepth_TwoWay inputs_hill 30
       RUNTIME_OPTIONS "${_hill_amr} ${_hill_part}"
       CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
