@@ -174,6 +174,15 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
     //      terrain arrays, metric terms and base state.
     // *******************************************************************************************
     init_stuff(lev, ba, dm, lev_new, lev_old, base_state[lev], z_phys_nd[lev]);
+
+    // init_stuff leaves map factors of 1.  A refined level with no init file of its own takes them
+    // from the coarser level; do that now, before the initial data, the terrain metrics and the
+    // initial projection use them (Interp2DArrays, called only after every level has been made,
+    // does it again, to the same values).  Otherwise the initial momenta on this level are made
+    // divergence-free with the wrong map factors, and the first step does not keep a uniform
+    // scalar uniform (erf-model/ERF#4905).
+    if (lev > 0 && !has_own_init_file(lev)) { interp_mapfac_from_coarse(lev); }
+
     if (auxiliary_inert_tracer) {
         auxiliary_inert_tracer->define(lev, ba, dm);
     }
