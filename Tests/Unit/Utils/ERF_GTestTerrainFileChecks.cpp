@@ -1,14 +1,20 @@
 #include <cmath>
+#include <filesystem>
+#include <fstream>
 #include <limits>
 #include <string>
 
 #include <AMReX_Geometry.H>
+#include <AMReX_Gpu.H>
 #include <AMReX_MultiFab.H>
+#include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Vector.H>
 
 #include <gtest/gtest.h>
 
+#include "ERF_ProbCommon.H"
 #include "ERF_TerrainFileChecks.H"
+#include "../ERF_GTestTempDir.H"
 
 // Motivation: malformed or mis-ordered height files, or terrain tables too small
 // for the domain, used to be read without a word -- a short x list held the edge height over
@@ -109,6 +115,49 @@ TEST(TerrainFileChecks, BuildingPatchMayCoverOnlyPartOfDomain)
     EXPECT_EQ(problem(t, false, 0, 60000, 0, 60000, false), "");
     EXPECT_NE(problem(t, false, 0, 60000, 0, 60000).find("do not cover the domain"),
               std::string::npos);
+}
+
+TEST(TerrainFileChecks, BuildingPatchIsZeroOutsideItsTable)
+{
+    const std::string fname = erf_gtest_temp_path("erf_unit_building_patch").string() + ".txt";
+    if (ParallelDescriptor::IOProcessor()) {
+        std::ofstream file(fname);
+        // x = 2, 3, 4; y = 2, 3, 4. Nonzero border rows expose edge extension.
+        file << "3\n3\n2\n3\n4\n2\n3\n4\n"
+             << "20\n20\n20\n0\n0\n0\n20\n20\n20\n";
+    }
+    ParallelDescriptor::Barrier();
+
+    const Box domain(IntVect(0,0,0), IntVect(5,5,0));
+    const RealBox rb({Real(0.), Real(0.), Real(0.)},
+                     {Real(6.), Real(6.), Real(1.)});
+    const Geometry geom(domain, rb, CoordSys::cartesian, {0, 0, 0});
+    const Box nodes = convert(domain, IntVect(1, 1, 0));
+    FArrayBox heights(nodes, 1);
+    ProblemBase problem;
+    problem.read_custom_terrain(fname, false, geom, heights, 0.0,
+                                /*require_domain_coverage=*/false,
+                                /*zero_outside_table=*/true);
+
+    FArrayBox host_heights(nodes, 1, The_Pinned_Arena());
+    Gpu::copy(Gpu::deviceToHost, heights.dataPtr(), heights.dataPtr() + heights.size(),
+              host_heights.dataPtr());
+    Gpu::streamSynchronize();
+    const auto h = host_heights.const_array();
+    for (int j = 0; j <= 6; ++j) {
+        for (int i = 0; i <= 6; ++i) {
+            if (i < 2 || i > 4 || j < 2 || j > 4) {
+                EXPECT_EQ(h(i,j,0), Real(0.)) << "node (" << i << ", " << j << ")";
+            }
+        }
+    }
+    EXPECT_NEAR(h(2,3,0), Real(20.), Real(0.05));
+    EXPECT_NEAR(h(3,3,0), Real(0.), Real(0.05));
+    EXPECT_NEAR(h(4,3,0), Real(20.), Real(0.05));
+    EXPECT_NEAR(h(2,4,0), Real(20.), Real(0.05));
+
+    ParallelDescriptor::Barrier();
+    if (ParallelDescriptor::IOProcessor()) { std::filesystem::remove(fname); }
 }
 
 TEST(TerrainFileChecks, BuildingPatchStillRejectsMalformedTables)

@@ -3815,8 +3815,9 @@ interfaces.
       and in the ERF format by holding the last value after the last point (the USGS
       format extends linearly at both ends).  A direction with a single value is not
       checked. **erf.buildings_file_name** is exempt from this coverage check, so building
-      files may cover only a local patch; all other checks and the existing edge-extension
-      behavior still apply.
+      files may cover only a local patch. Building height is zero outside the table's
+      x and y coordinates; the terrain edge-extension behavior does not apply to buildings.
+      All other file checks still apply.
 
     A table larger than the domain is accepted.  For each valid file ERF prints once the
     size and extent of the table, the order its heights are read in, where the lowest and
