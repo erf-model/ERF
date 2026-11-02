@@ -3933,6 +3933,16 @@ selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 |                                   | 0.9; 1 caps the target at :math:`\ln(z/z_0)` and         |                    |                  |
 |                                   | leaves :math:`u_*` uncapped                              |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_average_down**           | cell average down over refined levels with two-way       | ``plain``,         | ``plain``        |
+|                                   | coupling: ``plain`` is the plain cell average;           | ``fluid_mass``     |                  |
+|                                   | ``fluid_mass`` weights the fine cells by their fluid     |                    |                  |
+|                                   | mass :math:`(1-\beta_f)\rho_f` and leaves coarse cells   |                    |                  |
+|                                   | that are solid on their own level alone, so solid fine   |                    |                  |
+|                                   | cells do not mix into coarse fluid and partial cells;    |                    |                  |
+|                                   | not conservative over the covered cells; the face        |                    |                  |
+|                                   | momenta keep the plain average either way; needs         |                    |                  |
+|                                   | amr.max_level > 0 and two-way coupling to act            |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_damp_alpha**             | damping coefficient used in the immersed forcing wall    | Real               | 0.5              |
 |                                   | model                                                    |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -5834,7 +5844,8 @@ Immersed Forcing and Canopy Source Terms
 * :ref:`Terrain <inputs-terrain>` -- ``erf.if_Cd_momentum``, ``erf.if_Cd_scalar``,
   ``erf.if_Olen``, ``erf.if_damp_alpha``, ``erf.if_implicit_drag``,
   ``erf.if_init_surf_temp``, ``erf.if_stability_correction``, ``erf.if_surf_heating_rate``,
-  ``erf.if_snap_partial_cells``, ``erf.if_surf_temp_flux``, ``erf.if_use_most``, ``erf.if_ws_floor``, ``erf.if_z0``,
+  ``erf.if_average_down``, ``erf.if_snap_partial_cells``, ``erf.if_surf_temp_flux``, ``erf.if_use_most``,
+  ``erf.if_ws_floor``, ``erf.if_z0``,
   ``erf.immersed_forcing_substep``, ``erf.use_rotate_surface_flux``
 
 Lateral Boundary Nudging for Real-Data Runs

@@ -317,9 +317,30 @@ The following inputs are available when representing terrain using immersed forc
         erf.if_Olen                    = FLOAT
         erf.if_use_most                = BOOL
         erf.if_implicit_drag           = BOOL
+        erf.if_average_down            = STRING
         erf.immersed_forcing_substep   = BOOL
 
 An example of using immersed forcing for a Witch of Agnesi hill is available in ``Exec/RegTests/ImmersedForcingTest``.
+
+**Mesh refinement.** Each level builds its own solid fraction :math:`\beta` and forces its own solid and partial
+cells, so near the surface the levels disagree about the geometry. With two-way coupling the covered coarse cells
+take the average of the fine cells over them. The plain cell average (``erf.if_average_down = plain``, the default)
+mixes the values of solid fine cells into coarse fluid and partial cells. With ``erf.if_average_down = fluid_mass``
+the fine cells are weighted by their fluid mass,
+
+.. math::
+
+   (\rho \phi)_c = \rho_c \, \frac{\sum_f (1-\beta_f)\, V_f\, (\rho \phi)_f}{\sum_f (1-\beta_f)\, V_f\, \rho_f},
+
+with :math:`V_f` the fine cell volume (:math:`\det J / (m_x m_y)`, the weight the plain average carries) and
+:math:`\rho_c` the coarse density: the coarse cell's own base-state density when the density is not averaged
+(anelastic), and the fluid-volume-weighted mean of the fine density when it is (compressible). Coarse cells that
+are solid on their own level, or with no fluid fine cell under them, keep their value. The coarse value is the
+fluid mean over the whole coarse cell, so the integral of :math:`\rho\phi` over a covered partial cell is
+:math:`1/(1-\beta_c)` times the fine fluid integral: this average is not conservative over the covered region,
+where the plain average is. The face momenta keep the plain average with either setting: it is the fine mass flux
+through the coarse face, which keeps the anelastic constraint. See
+`erf-model/ERF#4918 <https://github.com/erf-model/ERF/issues/4918>`_.
 
 .. note:: When using fully compressible simulations, it is recommended to apply immersed forcing on the substep for numerical stability.
 

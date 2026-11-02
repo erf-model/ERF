@@ -178,6 +178,42 @@ function(add_test_anelastic_wall_diffusion TEST_NAME TEST_AXIS)
         ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
 endfunction(add_test_anelastic_wall_diffusion)
 
+# Two-level immersed-forcing case checked against the fluid-mass-weighted fine average
+# (Tests/ImmersedAverageDownCheck.cpp). EXPECT_CHECKER_FAIL ON registers the leg that must fail
+# the check (the plain average), so the test proves the check sees the difference.
+function(add_test_immersed_average_down TEST_NAME TEST_FILES_DIR TOL EXPECT_CHECKER_FAIL RUNTIME_OPTIONS)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i")
+    set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
+    set(test_checker_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.checker.log")
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${test_input}"
+        "-DRUNTIME_OPTIONS=${RUNTIME_OPTIONS}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DSIMULATION_LOG=${test_simulation_log}"
+        "-DCHECKER_LOG=${test_checker_log}"
+        "-DCHECKER=$<TARGET_FILE:erf_immersed_average_down_check>"
+        "-DPLOTFILE=${CURRENT_TEST_BINARY_DIR}/plt00005"
+        "-DTOL=${TOL}"
+        "-DEXPECT_CHECKER_FAIL=${EXPECT_CHECKER_FAIL}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunImmersedAverageDown.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1800
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;multilevel;immersed"
+        ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
+endfunction(add_test_immersed_average_down)
+
 # Checker-driven Cloud Chamber tests.  The short run checks the exact initial
 # conserved-state correction and a bounded early buoyant response; it
 # intentionally avoids a fragile turbulent gold file.
@@ -1866,6 +1902,13 @@ add_test_r(ABL_MYNN_PBL                      ""  "erf_exec" "plt00100" INPUT_SOU
 # RunTilingParity.cmake calls mpiexec and fcompare through execute_process,
 # which neither drops an empty MPIEXEC nor expands the Windows exe globs.
 if(ERF_ENABLE_MPI AND NOT WIN32)
+  # Immersed LES on two levels with the surface on a coarse mid-plane and a theta gradient: with
+  # erf.if_average_down = fluid_mass every covered coarse cell is the fluid-mass-weighted average
+  # of the fine cells over it; the plain average (the default) mixes the solid fine cell in,
+  # 0.10 K off here, and must fail the same check.
+  add_test_immersed_average_down(ImmersedLES2LevAverageDown ImmersedLES2LevAverageDown 0.001 OFF "")
+  add_test_immersed_average_down(ImmersedLES2LevAverageDown_Plain ImmersedLES2LevAverageDown 0.001 ON
+                                 "erf.if_average_down=plain")
   # Box, rank and tiling parity of the other closures: one box on one rank without tiling
   # against four boxes on two ranks with 8 x 8 tiles (Tests/test_files/Closure_BoxParity).
   set(_cbp_ref   "amr.max_grid_size_x=32 amr.max_grid_size_y=32 fabarray.mfiter_tile_size=1024 1024 1024")
