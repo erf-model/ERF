@@ -1443,6 +1443,10 @@ List of Parameters
 | **erf.test_mapfactor**              | set the map scale factors to 0.5 instead of 1 for        | Boolean            | false            |
 |                                     | testing; see :ref:`sec:MapFactors`                       |                    |                  |
 +-------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.test_mapfactor_amp**          | if nonzero, set the level-0 map scale factors to         | Real               | 0                |
+|                                     | 1 + amp sin(2 pi x/Lx) cos(2 pi y/Ly) for testing;       |                    |                  |
+|                                     | see :ref:`sec:MapFactors`                                |                    |                  |
++-------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.sum_period**                  | wall-clock-independent simulation-time interval [s]      | Real               | -1.0 (not used)  |
 |                                     | between integrated-quantity summaries; an alternative to |                    |                  |
 |                                     | ``erf.sum_interval``                                     |                    |                  |
@@ -3608,6 +3612,11 @@ unless specified in the initialization when **erf.init_type = WRFInput** or **er
 There is an option to test the map scale factors by setting  **erf.test_mapfactor = true**; this
 arbitrarily sets the map factors to 0.5 in order to test the implementation.
 
+Setting **erf.test_mapfactor_amp** to a nonzero value instead makes the map factors on level 0 vary
+smoothly in space, m = 1 + amp sin(2 pi x / Lx) cos(2 pi y / Ly), as if they had been read from an init
+file there; finer levels take theirs from the coarser level, as a level without an init file of its
+own does.
+
 .. _inputs-terrain:
 
 Terrain
@@ -3873,6 +3882,13 @@ selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 |                                   | immersed forcing drag rather than an explicit            |                    |                  |
 |                                   | forward-Euler source                                     |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_implicit_projection**    | anelastic terrain immersed forcing on a constant-dz      | Boolean            | false            |
+|                                   | mesh, FFT build: apply the drag of the solid inside the  |                    |                  |
+|                                   | projection, m = (m* - grad phi) / (1 + dt rate) on each  |                    |                  |
+|                                   | face (FFT-preconditioned GMRES), and do not zero the     |                    |                  |
+|                                   | solid faces afterwards, so the projected momenta are     |                    |                  |
+|                                   | divergence free in the solid too                         |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_z0**                     | roughness length [m] used by the immersed forcing wall   | Real > 0           | 0.1              |
 |                                   | model                                                    |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -3932,6 +3948,16 @@ selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 |                                   | velocity, as a fraction of :math:`\ln(z/z_0)`; WRF uses  |                    |                  |
 |                                   | 0.9; 1 caps the target at :math:`\ln(z/z_0)` and         |                    |                  |
 |                                   | leaves :math:`u_*` uncapped                              |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_average_down**           | cell average down over refined levels with two-way       | ``plain``,         | ``plain``        |
+|                                   | coupling: ``plain`` is the plain cell average;           | ``fluid_mass``     |                  |
+|                                   | ``fluid_mass`` weights the fine cells by their fluid     |                    |                  |
+|                                   | mass :math:`(1-\beta_f)\rho_f` and leaves coarse cells   |                    |                  |
+|                                   | that are solid on their own level alone, so solid fine   |                    |                  |
+|                                   | cells do not mix into coarse fluid and partial cells;    |                    |                  |
+|                                   | not conservative over the covered cells; the face        |                    |                  |
+|                                   | momenta keep the plain average either way; needs         |                    |                  |
+|                                   | amr.max_level > 0 and two-way coupling to act            |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_damp_alpha**             | damping coefficient used in the immersed forcing wall    | Real               | 0.5              |
 |                                   | model                                                    |                    |                  |
@@ -5920,9 +5946,10 @@ Immersed Forcing and Canopy Source Terms
 
 * :ref:`Forest Canopy <inputs-forest-canopy>` -- ``erf.forest_substep``
 * :ref:`Terrain <inputs-terrain>` -- ``erf.if_Cd_momentum``, ``erf.if_Cd_scalar``,
-  ``erf.if_Olen``, ``erf.if_damp_alpha``, ``erf.if_implicit_drag``,
+  ``erf.if_Olen``, ``erf.if_damp_alpha``, ``erf.if_implicit_drag``, ``erf.if_implicit_projection``,
   ``erf.if_init_surf_temp``, ``erf.if_stability_correction``, ``erf.if_surf_heating_rate``,
-  ``erf.if_snap_partial_cells``, ``erf.if_surf_temp_flux``, ``erf.if_use_most``, ``erf.if_ws_floor``, ``erf.if_z0``,
+  ``erf.if_average_down``, ``erf.if_snap_partial_cells``, ``erf.if_surf_temp_flux``, ``erf.if_use_most``,
+  ``erf.if_ws_floor``, ``erf.if_z0``,
   ``erf.immersed_forcing_substep``, ``erf.use_rotate_surface_flux``
 
 Lateral Boundary Nudging for Real-Data Runs
@@ -5962,7 +5989,7 @@ Diagnostics and Testing
 -----------------------
 
 * :ref:`Diagnostic Outputs <inputs-diagnostic-outputs>` -- ``erf.Ave_Plane``,
-  ``erf.test_mapfactor``, ``erf.time_avg_vel``
+  ``erf.test_mapfactor``, ``erf.test_mapfactor_amp``, ``erf.time_avg_vel``
 
 Ensemble Initialization
 -----------------------

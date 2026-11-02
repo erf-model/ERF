@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cfenv>
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
@@ -1938,4 +1939,88 @@ TEST(SurfaceLayer, SetPblhFillsEveryGhostCell)
     const auto [max_err, n_undiagnosed] = pblh_ghost_error(*pblh, geom.Domain());
     EXPECT_EQ(n_undiagnosed, 0);
     EXPECT_EQ(max_err, Real(0.0));
+}
+
+namespace {
+
+// Compute_roughness for one set of inputs, next to the expression without the
+// overflow guard (zref / exp(arg), bounded the same way), evaluated on the
+// device. A free function so the device lambda is not inside a TEST body.
+// The unguarded form is skipped where exp(arg) would overflow in this precision.
+std::array<Real, 2>
+roughness_new_and_old (const Real zref, const Real olen, const Real umm, const Real ustar)
+{
+    Gpu::DeviceVector<Real> out(2, Real(0.0));
+    Real* o = out.data();
+    const Box cell(IntVect(0), IntVect(0));
+    ParallelFor(cell, [=] AMREX_GPU_DEVICE (int, int, int)
+    {
+        o[0] = Compute_roughness(zref, olen, umm, ustar);
+        similarity_funs sfuns;
+        const Real arg = KAPPA*umm/ustar + sfuns.calc_psi_m2(zref / olen);
+        constexpr Real exp_max = std::numeric_limits<Real>::max();
+        o[1] = (arg < std::log(exp_max)) ? bound_inverted_roughness(zref / std::exp(arg), zref) : Real(-1.0);
+    });
+    std::array<Real, 2> h{};
+    Gpu::copy(Gpu::deviceToHost, out.begin(), out.end(), h.begin());
+    Gpu::streamSynchronize();
+    return h;
+}
+
+} // namespace
+
+// Compute_roughness inverts the log law, z0 = zref / exp(kappa U / u* + psi_m).
+// With no drag (bulk_coeff with most.Cd = 0, or an LSM that returns zero stress)
+// u* is the floor eps, and exp(kappa 5 / 2e-16) overflowed: a run with
+// amrex.fpe_trap_overflow = 1 stopped in compute_SurfaceLayer_bcs at step 1.
+// The floor z0 = 1e-7 is now returned before exp is evaluated. Every input at
+// or below the guard takes the old path and gives the same z0 to the bit; past
+// it the old code gave the floor too (zref / inf = 0, raised to 1e-7). On GPU
+// builds only the value is checked: the overflow flag of a device exp is not
+// observable from the host, so the CPU build is the one that fails on the old code.
+TEST(SurfaceLayer, ComputeRoughnessNoOverflowWithoutDrag)
+{
+    const Real eps = std::numeric_limits<Real>::epsilon();
+#ifndef AMREX_USE_GPU
+    std::feclearexcept(FE_ALL_EXCEPT);
+#endif
+    const auto none = roughness_new_and_old(Real(24.6), Real(1.0e6), Real(5.0), eps);
+#ifndef AMREX_USE_GPU
+    EXPECT_FALSE(std::fetestexcept(FE_OVERFLOW)) << "exp overflowed for u* = eps";
+#endif
+    EXPECT_EQ(none[0], Real(1.0e-7));
+
+    // The Obukhov length a zero-drag bulk_coeff cell reaches: u* = t* = eps gives
+    // L = eps theta / (kappa g), about 1.6e-14 m, so the stable arm of psi_m sees
+    // zeta ~ 1e15 as well
+#ifndef AMREX_USE_GPU
+    std::feclearexcept(FE_ALL_EXCEPT);
+#endif
+    const Real olen_nodrag = eps * Real(300.0) / (KAPPA * CONST_GRAV);
+    const auto nodrag = roughness_new_and_old(Real(32.0), olen_nodrag, Real(10.0), eps);
+#ifndef AMREX_USE_GPU
+    EXPECT_FALSE(std::fetestexcept(FE_OVERFLOW)) << "overflow at the no-drag Obukhov length";
+#endif
+    EXPECT_EQ(nodrag[0], Real(1.0e-7));
+
+    // Just below the guard: exp(arg) is finite, z0 sits just above the floor,
+    // and the guarded and unguarded forms agree to the bit
+    {
+        const Real zref = Real(10.0);
+        const Real arg  = std::log(zref / Real(1.0e-7)) - Real(1.0e-3);
+        const Real ustar = KAPPA * Real(5.0) / arg;   // L -> infinity, psi_m = 0
+        const auto z = roughness_new_and_old(zref, Real(1.0e30), Real(5.0), ustar);
+        EXPECT_EQ(z[0], z[1]);
+        EXPECT_GT(z[0], Real(1.0e-7));
+        EXPECT_LT(z[0], Real(1.01e-7));
+    }
+
+    // Ordinary inputs: unchanged to the bit
+    for (const auto& c : {std::array<Real, 4>{Real(10.0), Real(1.0e6), Real(5.0), Real(0.4)},
+                          std::array<Real, 4>{Real(24.6), Real(-50.0), Real(3.79), Real(0.3)},
+                          std::array<Real, 4>{Real(5.0), Real(200.0), Real(8.0), Real(0.25)},
+                          std::array<Real, 4>{Real(2.0), Real(50.0), Real(0.5), Real(0.3)}}) {
+        const auto z = roughness_new_and_old(c[0], c[1], c[2], c[3]);
+        EXPECT_EQ(z[0], z[1]) << "zref " << c[0] << " L " << c[1] << " U " << c[2] << " u* " << c[3];
+    }
 }

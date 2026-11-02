@@ -99,6 +99,8 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
     const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
     const Real U_s = one; // unit velocity scale
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
+    // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
+    const bool l_drag = !solverChoice.if_implicit_projection;
 
     // MOST parameters
     similarity_funs sfuns;
@@ -141,7 +143,9 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
 
         const Real rho_xface = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
 
-        if ((t_blank > 0 && (t_blank_above == zero)) && l_use_most) { // force to MOST value
+        // With erf.if_implicit_projection a fully solid face is held by the drag in the projection
+        // (the explicit path zeroes it after the projection instead), so the wall law is not applied there
+        if ((t_blank > 0 && (t_blank_above == zero)) && l_use_most && (l_drag || t_blank < one)) { // force to MOST value
             // calculate tangential velocity one cell above
             const Real ux2r = u(i, j, k+1) ;
             const Real uy2r = fourth * ( v(i, j  , k+1) + v(i-1, j  , k+1)
@@ -183,7 +187,7 @@ void ImmersedForcingTerrain_Xmom (const Box& tbx,
             const Real lambda = (1-t_blank) * CdM * U_s; // affine relaxation rate toward MOST target [1/s]
             const Real fac_local    = l_implicit_drag ? lambda / (one + lambda*dt) : lambda; // point-implicit rescale (else explicit)
             xmom_src_arr(i, j, k) -= fac_local * rho_xface * bc_forcing_x; // if Vf low, force more strongly to MOST. If high, less forcing.
-        } else {
+        } else if (l_drag) {
             const Real lambda = t_blank * CdM * windspeed; // linear drag rate [1/s]
             const Real fac_local    = l_implicit_drag ? lambda / (one + lambda*dt) : lambda; // point-implicit rescale (else explicit)
             xmom_src_arr(i, j, k) -= fac_local * rho_xface * ux;
@@ -217,6 +221,8 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
     const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
     const Real U_s = one; // unit velocity scale
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
+    // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
+    const bool l_drag = !solverChoice.if_implicit_projection;
 
     // MOST parameters
     similarity_funs sfuns;
@@ -258,7 +264,9 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
 
         const Real rho_yface =  myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
 
-        if ((t_blank > 0 && (t_blank_above == zero)) && l_use_most) { // force to MOST value
+        // With erf.if_implicit_projection a fully solid face is held by the drag in the projection
+        // (the explicit path zeroes it after the projection instead), so the wall law is not applied there
+        if ((t_blank > 0 && (t_blank_above == zero)) && l_use_most && (l_drag || t_blank < one)) { // force to MOST value
             // calculate tangential velocity one cell above
             const Real ux2r = fourth * ( u(i  , j  , k+1) + u(i  , j-1, k+1)
                                + u(i+1, j  , k+1) + u(i+1, j-1, k+1) );
@@ -300,7 +308,7 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
             const Real lambda = (1 - t_blank) * CdM * U_s; // affine relaxation rate toward MOST target [1/s]
             const Real fac_local    = l_implicit_drag ? lambda / (one + lambda*dt) : lambda; // point-implicit rescale (else explicit)
             ymom_src_arr(i, j, k) -= fac_local * rho_yface * bc_forcing_y; // if Vf low, force more strongly to MOST. If high, less forcing.
-        } else {
+        } else if (l_drag) {
             const Real lambda = t_blank * CdM * windspeed; // linear drag rate [1/s]
             const Real fac_local    = l_implicit_drag ? lambda / (one + lambda*dt) : lambda; // point-implicit rescale (else explicit)
             ymom_src_arr(i, j, k) -= fac_local * rho_yface * uy;
@@ -333,6 +341,8 @@ void ImmersedForcingTerrain_Zmom (const Box& tbz,
     const Real alpha_m = solverChoice.if_Cd_momentum;
     const Real tiny = std::numeric_limits<amrex::Real>::epsilon();
     const bool l_implicit_drag = solverChoice.if_implicit_drag;
+    // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
+    const bool l_drag = !solverChoice.if_implicit_projection;
 
     const Real small_volfrac = solverChoice.if_small_volfrac;
     // The terrain kernels keep the raw fractions: erf.if_snap_partial_cells
@@ -359,7 +369,7 @@ void ImmersedForcingTerrain_Zmom (const Box& tbz,
         const Real rho_zface =  myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
         const Real lambda = t_blank * CdM * windspeed; // linear drag rate [1/s]
         const Real fac_local    = l_implicit_drag ? lambda / (one + lambda*dt) : lambda; // point-implicit rescale (else explicit)
-        zmom_src_arr(i, j, k) -= fac_local * rho_zface * uz;
+        if (l_drag) { zmom_src_arr(i, j, k) -= fac_local * rho_zface * uz; }
     });
 }
 

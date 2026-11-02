@@ -49,13 +49,26 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_perturbational_a
     }
     AMREX_ALWAYS_ASSERT(solverChoice.coupling_type == CouplingType::TwoWay);
 
+    // Immersed forcing with erf.if_average_down = fluid_mass: each level forces its own solid
+    // and partial cells, so the fine cells are weighted by their fluid mass and coarse cells that
+    // are solid on their own level keep their value (the plain average mixes the values of solid
+    // fine cells into coarse fluid cells). The branch carries the cell volume detJ/(m_x m_y) in
+    // its weight itself (see if_average_down), so the scaling of the state around the plain
+    // average is skipped, and it takes the coarse density as it is when the density is not
+    // averaged, so the rescaling of the plain anelastic branch is built in. The density slot
+    // holds the full density here: erf.interpolation_type = Perturbational is not supported with
+    // refinement.
+    const bool if_fluid_mass = (solverChoice.if_average_down == "fluid_mass") &&
+                               (solverChoice.terrain_type   == TerrainType::ImmersedForcing ||
+                                solverChoice.buildings_type == BuildingsType::ImmersedForcing);
+
     // ******************************************************************************************
     // First do cell-centered quantities
     // The quantity that is conserved is not (rho S), but rather (rho S / m^2) where
     // m is the map scale factor at cell centers
     // Here we multiply (rho S) by detJ and divide (rho S) by m^2 before average down
     // ******************************************************************************************
-    for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
+    for (int lev = crse_lev; lev <= crse_lev+1 && !if_fluid_mass; lev++) {
       for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
         const Array4<      Real>   cons_arr = vars_new[lev][Vars::cons].array(mfi);
@@ -96,9 +109,83 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_perturbational_a
                            BaseState::th0_comp,RhoTheta_comp,1,IntVect{0});
     }
 
-    if (SolverChoice::terrain_type != TerrainType::EB) {
+    if (if_fluid_mass) {
+        // the fine cell volume, detJ/(m_x m_y), as in the scaling of the plain branch
+        const MultiFab& fcons = vars_new[fine_lev][Vars::cons];
+        MultiFab vol_fine(fcons.boxArray(), fcons.DistributionMap(), 1, 0);
+        for (MFIter mfi(vol_fine, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const Box& bx = mfi.tilebox();
+            const Array4<      Real> vol_arr = vol_fine.array(mfi);
+            const Array4<const Real> mfx_arr = mapfac[fine_lev][MapFacType::m_x]->const_array(mfi);
+            const Array4<const Real> mfy_arr = mapfac[fine_lev][MapFacType::m_y]->const_array(mfi);
+            if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+                const Array4<const Real> detJ_arr = detJ_cc[fine_lev]->const_array(mfi);
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    vol_arr(i,j,k) = detJ_arr(i,j,k) / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
+                });
+            } else {
+                ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    vol_arr(i,j,k) = Real(1.0) / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
+                });
+            }
+        }
+        if_average_down(fcons, vars_new[crse_lev][Vars::cons],
+                        *terrain_blanking[fine_lev], *terrain_blanking[crse_lev], vol_fine,
+                        scomp, ncomp, refRatio(crse_lev));
+    } else if (SolverChoice::terrain_type != TerrainType::EB) {
+        // Anelastic: rho is not averaged down (rho == rho0 on each level), so averaging
+        //    w (rho S) with w = detJ/(m_x m_y) gives rho_c S for a uniform S only if the fine
+        //    w (rho) average exactly to the coarse w (rho), which fails when m varies (#4904).
+        //    Rescale the covered coarse cells by w_c rho_c / avg(w_f rho_f) so that
+        //    (rho S)_c = rho_c * (the same-weighted mean of S_f).
+        const bool rescale_by_rho = solverChoice.anelastic[crse_lev] && (scomp > Rho_comp);
+
+        MultiFab rho_w_fac;
+        if (rescale_by_rho) {
+            MultiFab rho_w[2];
+            for (int l = 0; l < 2; ++l) {
+                const int lev = crse_lev + l;
+                const MultiFab& cons = vars_new[lev][Vars::cons];
+                rho_w[l].define(cons.boxArray(), cons.DistributionMap(), 1, 0);
+                for (MFIter mfi(rho_w[l], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+                    const Box& bx = mfi.tilebox();
+                    const Array4<      Real> rw_arr   = rho_w[l].array(mfi);
+                    const Array4<const Real> cons_arr = cons.const_array(mfi);
+                    const Array4<const Real> mfx_arr  = mapfac[lev][MapFacType::m_x]->const_array(mfi);
+                    const Array4<const Real> mfy_arr  = mapfac[lev][MapFacType::m_y]->const_array(mfi);
+                    if (SolverChoice::mesh_type != MeshType::ConstantDz) {
+                        const Array4<const Real> detJ_arr = detJ_cc[lev]->const_array(mfi);
+                        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                        {
+                            rw_arr(i,j,k) = cons_arr(i,j,k,Rho_comp) * detJ_arr(i,j,k)
+                                          / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
+                        });
+                    } else {
+                        ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                        {
+                            rw_arr(i,j,k) = cons_arr(i,j,k,Rho_comp) / (mfx_arr(i,j,0)*mfy_arr(i,j,0));
+                        });
+                    }
+                } // mfi
+            } // l
+
+            // Uncovered cells keep rho_w[0] unchanged, so their factor is exactly one
+            rho_w_fac.define(rho_w[0].boxArray(), rho_w[0].DistributionMap(), 1, 0);
+            MultiFab::Copy(rho_w_fac, rho_w[0], 0, 0, 1, 0);
+            average_down(rho_w[1], rho_w[0], 0, 1, refRatio(crse_lev));
+            MultiFab::Divide(rho_w_fac, rho_w[0], 0, 0, 1, 0);
+        }
+
         average_down(vars_new[crse_lev+1][Vars::cons],vars_new[crse_lev  ][Vars::cons],
                     scomp, ncomp, refRatio(crse_lev));
+
+        if (rescale_by_rho) {
+            for (int n = 0; n < ncomp; ++n) {
+                MultiFab::Multiply(vars_new[crse_lev][Vars::cons], rho_w_fac, 0, scomp+n, 1, 0);
+            }
+        }
     } else {
         // const auto dx = geom[fine_lev].CellSize();
         // Setting cell_vol to the exact value may cause round-off errors in volume average.
@@ -136,7 +223,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_perturbational_a
     // ******************************************************************************************
     // Here we multiply (rho S) by m^2 and divide by detJ after average down
     // ******************************************************************************************
-    for (int lev = crse_lev; lev <= crse_lev+1; lev++) {
+    for (int lev = crse_lev; lev <= crse_lev+1 && !if_fluid_mass; lev++) {
       for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.tilebox();
         const Array4<      Real> cons_arr = vars_new[lev][Vars::cons].array(mfi);
@@ -206,6 +293,9 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_perturbational_a
                         c_vfrac);
     }
 
+    // The momenta of immersed forcing keep the plain face average with either cell average: it
+    // is the fine mass flux through the coarse face, which keeps the anelastic constraint (a
+    // fluid-weighted face average does not, and advecting theta with it heats the flow)
     if (SolverChoice::terrain_type != TerrainType::EB) {
         // Anelastic over terrain: the horizontal momenta as mass fluxes (see average_down_mass_flux)
         if (solverChoice.anelastic[crse_lev] && cf_interp_mass_flux(crse_lev+1)) {
