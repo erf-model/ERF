@@ -512,6 +512,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
         const GpuArray<const Array4<Real>, AMREX_SPACEDIM>
             flx_arr{{AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
 
+        // On an anelastic level, in the stage whose fluxes are refluxed, the diffusion of (rho theta)
+        // adds its face fluxes to flux[] too, so that the flux registers see the diffusive as well as
+        // the advective transport (EB diffusion does not do this), as in erf_slow_rhs_post
+        const ScalarDiffusionRefluxViews* l_reflux_diffusion =
+            (l_reflux && l_anelastic && !l_use_eb) ? &flx_arr : nullptr;
+
         // Define flux arrays for momentum variables (used only for EB now)
         GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_u_arr{};
         GpuArray<Array4<Real>, AMREX_SPACEDIM> flx_v_arr{};
@@ -685,7 +691,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        mf_my, mf_uy, mf_vy,
                                        hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z,
                                        mu_turb, solverChoice, level,
-                                       bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
+                                       bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac,
+                                       l_reflux_diffusion);
             } else if (l_use_terrain_fitted_coords) {
                 DiffusionSrcForState_T(bx, domain, n_start, n_comp, l_rotate,
                                        cell_data, cell_prim, cell_rhs,
@@ -696,7 +703,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        mf_my, mf_uy, mf_vy,
                                        hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z,
                                        mu_turb, solverChoice, level,
-                                       bc_ptr_d, bc_ptr_h, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
+                                       bc_ptr_d, bc_ptr_h, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac,
+                                       l_reflux_diffusion);
             } else if (l_use_eb) {
                 DiffusionSrcForState_EB(bx, domain, n_start, n_comp, u, v,
                                        cell_data, cell_prim, cell_rhs,
@@ -716,7 +724,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        mf_my, mf_uy, mf_vy,
                                        hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z,
                                        mu_turb, solverChoice, level,
-                                       bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac);
+                                       bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac,
+                                       l_reflux_diffusion);
             }
             if (use_physical_chamber_wall_flux) {
                 erf_cloud_chamber_wall_flux::apply(
@@ -961,13 +970,12 @@ void erf_slow_rhs_pre (int level, int finest_level,
         BL_PROFILE("slow_rhs_pre_fluxreg");
         // We add to the flux registers only in the stages whose fluxes the step's update applies,
         // weighted as in that update (RefluxStageWeight)
-        // NOTE: for now we are only refluxing density not (rho theta) since the latter seems to introduce
-        //       a problem at top and bottom boundaries -- except when rho is held fixed, in which case
-        //       there is no density flux to reflux and we reflux (rho theta) instead.
+        // On anelastic levels we reflux (rho theta); the density is fixed so there is no density flux.
+        //       Compressible levels do not reflux either rho or (rho theta) (see ERF::post_timestep).
         // The flux components are indexed by conserved state component, which is why srccomp and
         //       destcomp below are both the state component being refluxed.
-        if (l_reflux) {
-            int strt_comp_reflux = (l_fixed_rho) ? 1 : 0;
+        if (l_reflux && l_anelastic) {
+            int strt_comp_reflux = RhoTheta_comp;
             int  num_comp_reflux = 1;
             if (level < finest_level) {
                 fr_as_crse->CrseAdd(mfi, {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}},
