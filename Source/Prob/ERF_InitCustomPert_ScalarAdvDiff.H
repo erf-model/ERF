@@ -18,6 +18,10 @@
 
     int prob_type = -1; pp.query("prob_type", prob_type);
 
+    // If nonzero, theta is perturbed with the same profile as the scalar: rho theta += theta_pert_amp * (rho scalar).
+    // Used to test that two-way coupling conserves (rho theta)
+    Real theta_pert_amp = zero; pp.query("theta_pert_amp", theta_pert_amp);
+
     // prob_type 11, 12 and 13 divide by the radius
     if (prob_type == 11 || prob_type == 12 || prob_type == 13) {
         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rad_0 > zero,
@@ -79,4 +83,5 @@
         }
 
         state_pert(i, j, k, RhoScalar_comp) *= rho_0;
+        state_pert(i, j, k, RhoTheta_comp)  += theta_pert_amp * state_pert(i, j, k, RhoScalar_comp);
   });

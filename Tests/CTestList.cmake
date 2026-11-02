@@ -2699,6 +2699,23 @@ add_test_conservation(Conservation_ScalarAdvection_AnelasticRK2 ScalarDiffusion_
 add_test_conservation(Conservation_ScalarDiffusion_Smagorinsky ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.molec_diff_type=None erf.les_type=Smagorinsky erf.Cs=0.2 prob.prob_type=12 prob.rad_0=0.25 prob.uRef=10 prob.zRef=1 prob.z0=0.01")
 
+# On anelastic levels two-way coupling also refluxes (rho theta), advective and diffusive fluxes
+# alike, so the composite integral of rho theta is conserved too (compressible levels do not reflux
+# it).  theta is perturbed with the scalar's profile and diffused (alpha_T) through the faces of the
+# fine patch: on a flat, a stretched and a terrain-fitted (hill, 2 x 2 x 1 refinement as anelastic
+# terrain requires) mesh, with the MidPoint and RK2 integrators, and advected and not diffused
+set(_theta_cons_options "erf.anelastic=1 prob.theta_pert_amp=10 erf.alpha_T=1.0")
+add_test_conservation(Conservation_ThetaDiffusion_Anelastic ScalarDiffusion_Reflux "RHO THETA"
+    OPTIONS "${_theta_cons_options} erf.anelastic_type=MidPoint")
+add_test_conservation(Conservation_ThetaDiffusion_AnelasticRK2 ScalarDiffusion_Reflux "RHO THETA"
+    OPTIONS "${_theta_cons_options} erf.anelastic_type=RK2")
+add_test_conservation(Conservation_ThetaDiffusion_AnelasticStretched ScalarDiffusion_Reflux "RHO THETA"
+    OPTIONS "${_theta_cons_options} erf.anelastic_type=RK2 erf.initial_dz=0.025")
+add_test_conservation(Conservation_ThetaDiffusion_AnelasticHill ScalarDiffusion_Reflux "RHO THETA"
+    OPTIONS "${_theta_cons_options} erf.anelastic_type=RK2 erf.terrain_type=StaticFittedMesh prob.custom_terrain_type=WoA prob.dir=2 prob.hmax=0.25 prob.L=0.15 'amr.ref_ratio_vect=2 2 1'")
+add_test_conservation(Conservation_ThetaAdvection_AnelasticRK2 ScalarDiffusion_Reflux "RHO THETA"
+    OPTIONS "${_theta_cons_options} erf.anelastic_type=RK2 erf.molec_diff_type=None prob.U_0=10 prob.V_0=5")
+
 # Under two-way coupling with acoustic substepping the fine level takes the fluxes through its
 # coarse/fine faces from the coarse level's substeps (erf.cf_flux_history), so in a closed domain
 # the composite mass is conserved to round-off.  On a terrain-fitted mesh those fluxes carry the
