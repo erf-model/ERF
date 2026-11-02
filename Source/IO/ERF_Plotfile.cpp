@@ -941,7 +941,7 @@ ERF::FillPlot3DVars (int lev,
                     getTgivenPandTh(p_arr(i,j,k), S_arr(i,j,k,RhoTheta_comp) /
                                     S_arr(i,j,k,Rho_comp), rdOcp) :
                     getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
-                const Real e_sat = Real(100.0) * erf_esatw_cc(T);
+                const Real e_sat = Real(100.0) * erf_esatw(T);
 
                 const Real P     = p_arr(i,j,k);
                 const Real e_act = P * qv / (RdoRv + qv);
