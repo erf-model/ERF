@@ -1022,7 +1022,9 @@ ERF::init_zphys (int lev, double elapsed_time)
         solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
         make_terrain_blanking(lev);
 
-        // Preserve the velocity initialization from WRFInput and Metgrid.
+        // Keep imported WRFInput/Metgrid winds in immersed cells at startup.
+        // Where active, momentum forcing relaxes the winds during time stepping
+        // instead of replacing them abruptly during initialization.
         if (solverChoice.init_type != InitType::WRFInput &&
             solverChoice.init_type != InitType::Metgrid) {
             init_immersed_forcing(lev);

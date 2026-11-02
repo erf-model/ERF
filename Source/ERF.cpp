@@ -3408,7 +3408,10 @@ ERF::init_only (int lev, double elapsed_time)
         }
     }
 
-    // Set immersed-cell velocities close to 0, preserving WRFInput and Metgrid initialization.
+    // On a WRFInput/Metgrid level with its own file, init_only runs before
+    // init_zphys fills terrain_blanking from the EB volume fractions; until
+    // then the allocated mask is one everywhere. Keep the imported winds here
+    // and let immersed forcing relax them during time stepping where active.
     if (solverChoice.init_type != InitType::WRFInput &&
         solverChoice.init_type != InitType::Metgrid &&
         (solverChoice.terrain_type == TerrainType::ImmersedForcing ||

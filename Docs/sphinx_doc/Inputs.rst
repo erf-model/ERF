@@ -3861,6 +3861,13 @@ Building cells at the surface are marked as ``landmask = 2`` only on those level
 coarser levels retain their land/sea mask. Immersed terrain has no such resolution
 cutoff.
 
+With ``erf.init_type = WRFInput`` or ``Metgrid``, ERF retains the imported initial
+winds inside immersed cells. It does not reset those winds to near zero during
+initialization; the immersed momentum forcing relaxes them during time stepping
+on levels where it is active.
+Other initialization paths set velocities on fully immersed faces to 0.01 m/s
+after initialization.
+
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | Parameter                         | Definition                                               | Acceptable Values  | Default          |
 +===================================+==========================================================+====================+==================+
