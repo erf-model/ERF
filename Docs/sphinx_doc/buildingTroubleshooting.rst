@@ -109,6 +109,14 @@ Quick Diagnostic
 
    → See :ref:`verification` for full verification steps
 
+.. dropdown:: Run fails: ``error while loading shared libraries: libcudart.so.NN``
+   :icon: alert
+   :color: warning
+
+   The build succeeded but the job loads a different module stack than the build did, so
+   ``libcudart`` or Cray MPICH's ``libmpi_gtl_cuda`` resolves to a version that needs another
+   CUDA runtime major version → See :ref:`troubleshoot-runtime-libs`
+
 Build Process Issues
 --------------------
 
@@ -208,13 +216,16 @@ If (1) and (2) disagree in major version, that is the fault. These two loops the
      printf '%s -> ' "$g"; readelf -d "$g" | grep -o 'libcudart\.so\.[0-9]*'
    done
 
-**Solution:** source the machine profile, which pins a known-good pair:
+**Solution:** source the machine profile, which uses the default ``cudatoolkit`` and
+``cray-mpich`` (a matched pair: CUDA 13 with ``cray-mpich`` 9.1.0):
 
 .. code-block:: bash
 
    source Build/machines/perlmutter_erf.profile
 
-Or set the pair by hand and verify it before configuring:
+Or set a non-default pair by hand and verify it before configuring. A GNU Make build made this
+way also needs the same modules, and ``LD_LIBRARY_PATH`` set from them, at run time; see
+:ref:`troubleshoot-runtime-libs`.
 
 .. code-block:: bash
 
@@ -227,10 +238,55 @@ Or set the pair by hand and verify it before configuring:
 Then reconfigure in a **fresh** build directory, not the one that failed — ERF's Cray detection writes ``CMAKE_*_STANDARD_LIBRARIES`` into the cache with ``FORCE``, so those values do not re-derive on a reconfigure. See :ref:`troubleshoot-cache`.
 
 .. note::
-   The default ``cray-mpich`` advances with the CPE release, so a system default that worked before an upgrade can start requiring a newer CUDA runtime than the pinned toolkit provides. This is why the machine profiles pin both halves explicitly; scripts that load ``cray-mpich`` without a version are exposed to the default moving underneath them.
+   The default ``cray-mpich`` advances with the CPE release, and the defaults move as a pair, so
+   the Perlmutter profile follows them rather than pinning. Pinning only part of the stack is
+   what breaks: the pinned ``cudatoolkit`` stays put while anything resolved through
+   ``/opt/cray/pe/lib64`` follows the new default (see :ref:`troubleshoot-runtime-libs`).
 
 .. tip::
    Both AMReX and the vendored Kokkos guard these CUDA APIs on ``CUDART_VERSION >= 13000``, so either matched pair (CUDA 12 with ``cray-mpich`` 8.1.28–9.0.1, or CUDA 13 with ``cray-mpich`` 9.1.0 and later) builds with or without EKAT.
+
+.. _troubleshoot-runtime-libs:
+
+Run-Time ``libcudart.so.NN`` Not Found (Cray)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Symptom:** the build succeeds, but the job dies at startup:
+
+.. code-block:: text
+
+   ./ERF3d.gnu.TEST.MPI.CUDA.NC.NMP.RRTMGP.ex: error while loading shared libraries:
+   libcudart.so.13: cannot open shared object file: No such file or directory
+
+**Cause:** the Cray PE does not embed library paths in executables. GNU Make CUDA builds link
+with ``nvcc``, so at run time ``libcudart`` comes from whatever ``cudatoolkit`` is loaded, and
+``libmpi_gtl_cuda.so.0`` (and the other Cray libraries) come from ``LD_LIBRARY_PATH`` or
+``/opt/cray/pe/lib64``. The latter always points at the *default* ``cray-mpich``, whose GTL
+needs the default CUDA runtime major version. Two ways to hit it:
+
+* Built with the defaults (CUDA 13), run in a job that loads ``cudatoolkit/12.x``: the
+  executable and the default GTL both need ``libcudart.so.13``, which is not on the path.
+* Built with a non-default pair (e.g. ``cudatoolkit/12.9`` and ``cray-mpich/9.0.1``): even in
+  the same environment, the GTL found in ``/opt/cray/pe/lib64`` is the default 9.1.0 one and
+  needs ``libcudart.so.13``.
+
+CMake builds are not affected: CMake records the full library paths it linked as the
+executable's rpath.
+
+**Diagnosis:** run ``ldd`` in the job's environment (after its ``module load`` lines):
+
+.. code-block:: bash
+
+   ldd ./ERF3d.*.ex | grep -E 'not found|libcudart|libmpi_gtl_cuda'
+
+**Solution:** build and run with the same modules. Source the machine profile in the batch
+script as well as before building (the Perlmutter sbatch example does). If the modules include
+non-default Cray versions, also put their library directories ahead of the defaults:
+
+.. code-block:: bash
+
+   source Build/machines/perlmutter_erf.profile
+   export LD_LIBRARY_PATH=$CRAY_LD_LIBRARY_PATH:$LD_LIBRARY_PATH
 
 .. _troubleshoot-memory:
 

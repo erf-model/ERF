@@ -11,6 +11,11 @@
 #SBATCH --job-name=erf
 #SBATCH --output=erf_%j.out
 
+# Run with the modules the executable was built with (submitted from install/bin).
+# GNU Make builds resolve libmpi_gtl_cuda and libcudart at run time from the loaded
+# modules, so a different stack here fails with "libcudart.so.NN: cannot open shared object file".
+source ../../Build/machines/perlmutter_erf.profile
+
 # GPU-aware MPI optimizations
 export MPICH_OFI_NIC_POLICY=GPU
 export MPICH_GPU_SUPPORT_ENABLED=1

@@ -2,6 +2,7 @@
 #include "ERF_SLM_DefaultParams.H"
 #include "ERF_EOS.H"
 #include "ERF_TileNoZ.H"
+#include "ERF_PlanarBoundary.H"
 #include "ERF_MicrophysicsUtils.H"
 #include <AMReX_PlotFileUtil.H>
 #include "ERF.H"
@@ -475,9 +476,12 @@ SLM::Init (const int& /*lev*/,
     // Following Noah-MP, zref is modified to become ztop (canopy top height) + dz0 (height above the ground of the center of the atmosphere's lowest cell)
     if (!use_wrfinput) {
         Real dz       = m_geom.CellSize(2);
+        // The ground nodes under every box, including those that start above the ground
+        const auto z_ground = (use_terrain) ? copy_ground_plane(*z_phys_nd, m_geom.Domain().smallEnd(2))
+                                            : std::unique_ptr<MultiFab>{};
         for ( MFIter mfi(cons_in,TileNoZ()); mfi.isValid(); ++mfi) {
             const Box& xybx      = mfi.growntilebox(0);
-            const Array4<const Real>& z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) : Array4<Real>{};
+            const Array4<const Real>& z_nd_arr = (use_terrain) ? z_ground->const_array(mfi) : Array4<Real>{};
             auto ztop_arr = ztop.array(mfi);
             auto zrefxy_arr = zrefxy.array(mfi);
 
@@ -1365,10 +1369,13 @@ void
 SLM::initialize_zrefxy ()
 {
     const Real dz = m_geom.CellSize(2);
+    // The ground nodes under every box, including those that start above the ground
+    const auto z_ground = use_terrain ? copy_ground_plane(*z_phys_nd, m_geom.Domain().smallEnd(2))
+                                      : std::unique_ptr<MultiFab>{};
     for (MFIter mfi(landtype, TileNoZ()); mfi.isValid(); ++mfi) {
         const Box& xybx = mfi.growntilebox(0);
         const Array4<const Real>& z_nd_arr = use_terrain
-            ? z_phys_nd->const_array(mfi) : Array4<Real>{};
+            ? z_ground->const_array(mfi) : Array4<Real>{};
         auto ztop_arr = ztop.array(mfi);
         auto zrefxy_arr = zrefxy.array(mfi);
         auto landmask_arr = landmask.const_array(mfi);

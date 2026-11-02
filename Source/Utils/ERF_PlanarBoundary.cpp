@@ -126,6 +126,65 @@ PlanarBoundary::gather_surface (const MultiFab& mf, MultiFab& dst,
 }
 
 /**
+ * The ground plane of a field on a level's 3D grids, on one planar box per 3D box (see
+ * ERF_PlanarBoundary.H).
+ *
+ * @param[in] src field on the level's 3D grids
+ * @param[in] klo index of the lowest cell of the domain
+ */
+std::unique_ptr<MultiFab>
+copy_ground_plane (const MultiFab& src, int klo)
+{
+    const IndexType ixtype = src.ixType();
+    const BoxArray& ba = src.boxArray();
+    const int ncomp = src.nComp();
+
+    BoxList bl(ixtype);
+    for (int ib = 0; ib < static_cast<int>(ba.size()); ++ib) {
+        Box b = enclosedCells(ba[ib]);
+        b.setRange(2, klo);
+        bl.push_back(convert(b, ixtype));
+    }
+    auto plane = std::make_unique<MultiFab>(BoxArray(std::move(bl)), src.DistributionMap(), ncomp, 0);
+
+    // Every box first holds the lowest plane of its own 3D box, so that it holds finite
+    // values even over columns in which no box reaches the ground
+    for (MFIter mfi(*plane); mfi.isValid(); ++mfi) {
+        const Box& pbx = mfi.validbox();
+        const int dk = enclosedCells(ba[mfi.index()]).smallEnd(2) - klo;
+        (*plane)[mfi].copy<RunOn::Device>(src[mfi], amrex::shift(pbx, 2, dk), 0, pbx, 0, ncomp);
+    }
+
+    // Then the ground plane, from the boxes that hold it
+    plane->ParallelCopy(src, 0, 0, ncomp);
+
+    return plane;
+}
+
+/**
+ * Finish a column sum computed box by box on a planar MultiFab (see ERF_PlanarBoundary.H).
+ *
+ * @param[in,out] mf    planar MultiFab, one box per 3D box
+ * @param[in]     comp  first component holding a column sum
+ * @param[in]     ncomp number of components
+ */
+void
+sum_over_stacked_boxes (MultiFab& mf, int comp, int ncomp)
+{
+    if (mf.boxArray().isDisjoint()) { return; }
+
+    // The columns covered by the planar boxes, each in exactly one box
+    BoxArray ba_cols(mf.boxArray().boxList());
+    ba_cols.removeOverlap();
+    MultiFab sums(ba_cols, DistributionMapping(ba_cols), ncomp, 0);
+    sums.setVal(0.0);
+
+    // Every planar box adds its part into the columns it covers, then each takes the totals back
+    sums.ParallelAdd(mf, comp, 0, ncomp);
+    mf.ParallelCopy(sums, 0, comp, ncomp);
+}
+
+/**
  * Gather buffer for one target layout, index type, and number of components, allocated on
  * first use.  The source MultiFab list avoids rebuilding the layout key on every fill.
  *
