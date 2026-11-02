@@ -260,6 +260,30 @@ where :math:`u_{i,target}` is a value determined through MOST and :math:`|U_s|` 
 This formulation essentially forces the velocity at the wall to a value determined by using MOST, but the strength forcing is inversely related to how immersed the cell is.
 For cells that are more immersed, there is weaker forcing to the target velocity while for cells that are less immersed, there is stronger forcing to the MOST value.
 
+With the anelastic model the solid cells are also held by the projection. By default the drag of the
+solid is a source term, the projection (which treats the solid as fluid) then adds a pressure
+correction there, and the faces between two fully solid cells are set to zero after it. The face
+between a solid and a fluid cell keeps its projected flux, so the solid cell under it is left with a
+net inflow or outflow: the solid row under the surface becomes a mass sink and source wherever the
+flow crosses the surface, and :math:`\theta` drifts. ``erf.if_implicit_projection = true`` applies the
+drag inside the projection instead. On each face
+
+.. math::
+
+    m^{n+1} = \frac{m^* - \nabla\phi}{1 + \Delta t\, r}, \qquad
+    \nabla\cdot\left(\sigma \nabla\phi\right) = \nabla\cdot\left(\sigma m^*\right), \qquad
+    \sigma = \frac{1}{1 + \Delta t\, r},
+
+with :math:`r = \beta_f\, C_{d,m} / \sqrt[3]{\Delta x_1 \Delta x_2 \Delta x_3}` the drag rate of the source
+term (:math:`\beta_f` the solid fraction of the face, without the cap :math:`\min(1, U)` the source term
+applies) and :math:`r = 0` on the faces where the MOST wall law acts instead. The variable-coefficient
+equation is solved with GMRES, preconditioned by the FFT Poisson solve, so it needs a
+constant-:math:`\Delta z` mesh with map factors of one and a build with FFT. The source term then drops
+its drag, and the solid faces are not zeroed after the projection: the projected momenta are
+divergence free in every cell, the solid included. The pressure gradient kept for the next step is
+:math:`\nabla\phi / \Delta t` itself. This option is available for terrain immersed forcing only, not
+for buildings.
+
 Temperature forcing is also available to represent the temperature of the 'surface'.
 The user can specify either a surface temperature and heating rate, a surface flux, or an Obukhov length.
 The temperature forcing is then formulated as follows:
