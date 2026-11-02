@@ -436,6 +436,9 @@ public:
     void project_momenta (int lev, double l_time, double l_dt, amrex::Vector<amrex::MultiFab >& vars);
 
     // A refined level that stops inside the domain in z (ERF_CoarseFineFaces.cpp)
+    void cf_zface_coarse_at (int lev, double tc, bool conserved_rho,
+                             const amrex::MultiFab& pz, const amrex::MultiFab& pmu, const amrex::MultiFab& pmv,
+                             amrex::MultiFab& cOm, amrex::MultiFab& cRu, amrex::MultiFab& cRv);
     bool cf_zface_coarse_data (int lev, double time, bool conserved_rho,
                                amrex::MultiFab& omega_t, amrex::MultiFab& rhou_g, amrex::MultiFab& rhov_g,
                                amrex::Vector<int>& slab_box);
@@ -443,6 +446,23 @@ public:
                                    amrex::MultiFab& omega_t, amrex::Vector<int>& slab_box);
     void set_cf_zface_omega (int lev, amrex::MultiFab& omega, const amrex::MultiFab& omega_t,
                              const amrex::Vector<int>& slab_box);
+    bool cf_interp_mass_flux (int lev) const;
+    void RegisterCoarseMomentumCF (int levc, const amrex::MultiFab& xold, const amrex::MultiFab& xnew,
+                                   const amrex::MultiFab& yold, const amrex::MultiFab& ynew,
+                                   const amrex::Vector<double>& times);
+    // Anelastic coarse/fine faces in time (ERF_CoarseFineFaces.cpp)
+    bool cf_anelastic_flux_match (int lev) const;
+    void cf_anelastic_record (int levc, int nrk);
+    void cf_anelastic_stage_registration (int lev, int nrk);
+    void average_down_mass_flux (int crse_lev);
+    bool cf_anelastic_stage1 (int lev) const;
+    // Whether each fine level is in the first stage of its step (cf_anelastic_stage_registration)
+    amrex::Vector<int> m_cf_stage1;
+    // The horizontal mass flux the level's last step applied (cf_anelastic_record)
+    amrex::Vector<amrex::Array<amrex::MultiFab, 2>> m_cf_step_flux;
+    // ... and its vertical flux, as Omega
+    amrex::Vector<amrex::MultiFab> m_cf_step_zflux;
+    void FillSetHorizontalMomentaCF (int lev, double time, amrex::MultiFab& xmom, amrex::MultiFab& ymom);
     void FillSetMomentaCF (int lev, double time, amrex::MultiFab& xmom, amrex::MultiFab& ymom,
                            amrex::MultiFab& zmom);
     void fill_surface_nodes (int lev, amrex::MultiFab& znd_surf);
@@ -1626,6 +1646,7 @@ private:
         amrex::MultiFab tgt_w;
     };
     amrex::Vector<CFFluxHistory> m_cf_flux_hist;
+    static bool cf_flux_history_enabled ();
     bool cf_flux_history_active (int crse_lev) const;
     CFFluxHistory& cf_flux_history (int lev);
     void cf_flux_history_record (int crse_lev, int fast_step, int n_sub,

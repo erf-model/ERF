@@ -144,6 +144,9 @@ public:
     void Fill (amrex::MultiFab& mf, double time,
                BC& cbc, amrex::Vector<amrex::BCRec> const& bcs, int mask_val);
 
+    //! The times of the coarse data last registered (RegisterCoarseData)
+    [[nodiscard]] amrex::Vector<double> const& crse_times () const { return m_crse_times; }
+
 private:
 
     amrex::BoxArray m_fba;

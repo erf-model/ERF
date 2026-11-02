@@ -450,13 +450,11 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
             // We must fill the ghost cells of these so that the parallel copy works correctly
             state_old[IntVars::xmom].FillBoundary(geom[lev].periodicity());
             state_new[IntVars::xmom].FillBoundary(geom[lev].periodicity());
-            FPr_u[lev].RegisterCoarseData({&state_old[IntVars::xmom], &state_new[IntVars::xmom]},
-                                          {time, time+dt_lev});
-
             state_old[IntVars::ymom].FillBoundary(geom[lev].periodicity());
             state_new[IntVars::ymom].FillBoundary(geom[lev].periodicity());
-            FPr_v[lev].RegisterCoarseData({&state_old[IntVars::ymom], &state_new[IntVars::ymom]},
-                                          {time, time+dt_lev});
+            RegisterCoarseMomentumCF(lev, state_old[IntVars::xmom], state_new[IntVars::xmom],
+                                     state_old[IntVars::ymom], state_new[IntVars::ymom],
+                                     {time, time+dt_lev});
 
             state_old[IntVars::zmom].FillBoundary(geom[lev].periodicity());
             state_new[IntVars::zmom].FillBoundary(geom[lev].periodicity());
