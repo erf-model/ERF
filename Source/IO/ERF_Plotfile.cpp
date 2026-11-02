@@ -909,7 +909,7 @@ ERF::FillPlot3DVars (int lev,
                 // Relative-humidity factor H^(-r_v R_v / fac) of Emanuel (1994, eq. 4.5.11);
                 // H is capped at 1 (supersaturation) and floored so dry air gives exactly 1
                 Real e_sat = Real(100.0) * erf_esatw(T);
-                Real H = amrex::max(Real(1.e-10), amrex::min(one, pv / e_sat));
+                Real H = amrex::max(Real(1.e-10), amrex::min(Real(1.0), pv / e_sat));
 
                 derdat(i, j, k, mf_comp) = T*std::pow((p_arr(i,j,k) - pv)/p_0, -R_d/fac)
                                             *std::exp(-(qv*R_v/fac)*std::log(H))
