@@ -152,7 +152,8 @@ void ERF::project_initial_velocity (int lev, double time, double l_dt)
     // Use the same time that was registered in the FillPatcher above so that the
     // FillSet assertion (time >= crse_times[0] && time <= crse_times[1]) is satisfied
     // when called at non-zero simulation time (restart or mid-run regrid).
-    project_momenta(lev, time, l_dt, tmp_mom);
+    // The initial projection only makes the initial condition divergence free: no drag
+    project_momenta(lev, time, l_dt, tmp_mom, false);
 
     MomentumToVelocity(vars_new[lev][Vars::xvel],
                        vars_new[lev][Vars::yvel],
@@ -170,8 +171,10 @@ void ERF::project_initial_velocity (int lev, double time, double l_dt)
  * @param l_time Time used for coarse-fine momentum fills
  * @param l_dt Time step used in the projection update
  * @param vars Conserved density and face-centered momenta to project
+ * @param apply_if_drag With erf.if_implicit_projection, apply the implicit immersed drag
  */
-void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFab>& mom_mf)
+void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFab>& mom_mf,
+                           bool apply_if_drag)
 {
     BL_PROFILE("ERF::project_momenta()");
     Real l_dt = static_cast<Real>(l_dt_d);
@@ -318,6 +321,19 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     }
 
     // ****************************************************************************
+    // Implicit immersed drag (erf.if_implicit_projection): m = sigma (m* - grad phi) with
+    // sigma = 1 / (1 + dt rate) on each face, so the constraint is div(sigma grad phi) = div(sigma m*)
+    // ****************************************************************************
+    const bool l_if_implicit = solverChoice.if_implicit_projection && apply_if_drag;
+    Array<MultiFab,AMREX_SPACEDIM> if_sigma;
+    if (l_if_implicit) {
+        make_if_projection_sigma(lev, l_dt, if_sigma);
+        MultiFab::Multiply(mom_mf[IntVars::xmom], if_sigma[0], 0, 0, 1, 0);
+        MultiFab::Multiply(mom_mf[IntVars::ymom], if_sigma[1], 0, 0, 1, 0);
+        MultiFab::Multiply(mom_mf[IntVars::zmom], if_sigma[2], 0, 0, 1, 0);
+    }
+
+    // ****************************************************************************
     // Allocate fluxes
     // ****************************************************************************
     Vector<Array<MultiFab,AMREX_SPACEDIM> > fluxes;
@@ -361,10 +377,14 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
 
     Array<MultiFab,AMREX_SPACEDIM> rho0_u_sub;
     Array<MultiFab const*, AMREX_SPACEDIM> rho0_u_const;
+    Array<MultiFab,AMREX_SPACEDIM> sigma_sub;
 
     // A flat mesh whose map factors are not all one is projected with the terrain Poisson solver
     const bool use_terrain_solver = projection_uses_terrain_solver(lev);
     const bool flat_with_mapfac   = use_terrain_solver && (solverChoice.mesh_type != MeshType::VariableDz);
+    if (l_if_implicit && use_terrain_solver) {
+        amrex::Abort("erf.if_implicit_projection needs map factors of one (it does not use the terrain Poisson solver)");
+    }
     if (flat_with_mapfac && lev > 0) {
         amrex::Abort("The projection on a refined level of a mesh without terrain (or with only "
                      "grid stretching) and map factors other than one is not supported");
@@ -495,6 +515,19 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         rho0_u_const[0] = &rho0_u_sub[0];
         rho0_u_const[1] = &rho0_u_sub[1];
         rho0_u_const[2] = &rho0_u_sub[2];
+
+        if (l_if_implicit) {
+            for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+                sigma_sub[idim].define(convert(ba_sub, IntVect::TheDimensionVector(idim)), DistributionMapping(dm_sub), 1,
+                                       IntVect::TheZeroVector(), MFInfo{}.SetAlloc(false));
+            }
+            for (MFIter mfi(rhs_sub[0]); mfi.isValid(); ++mfi) {
+                int orig_index = index_map[mfi.index()];
+                for (int idim = 0; idim < AMREX_SPACEDIM; ++idim) {
+                    sigma_sub[idim].setFab(mfi, FArrayBox(if_sigma[idim][orig_index], amrex::make_alias, 0, 1));
+                }
+            }
+        }
 
         if (solverChoice.mesh_type != MeshType::ConstantDz || use_terrain_solver) {
             ax_sub.define(convert(ba_sub,IntVect(1,0,0)), DistributionMapping(dm_sub), 1,
@@ -774,7 +807,15 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
         // No terrain or grid stretching
         // ****************************************************************************
         if (solverChoice.mesh_type == MeshType::ConstantDz && !use_terrain_solver) {
-            if (will_solve_with_mlmg) {
+            if (l_if_implicit) {
+#ifdef ERF_USE_FFT
+                if (my_region.numPts() != subdomains[lev][isub].numPts()) {
+                    amrex::Abort("erf.if_implicit_projection: the FFT preconditioner needs a rectangular union of boxes");
+                }
+#endif
+                solve_with_if_gmres(lev, my_region, rhs_sub[0], phi_sub[0], fluxes_sub[0],
+                                    {&sigma_sub[0], &sigma_sub[1], &sigma_sub[2]});
+            } else if (will_solve_with_mlmg) {
                 solve_with_mlmg(lev, rhs_sub, phi_sub, fluxes_sub, geom[lev], ref_ratio, domain_bc_type,
                                 mg_verbose, solverChoice.poisson_reltol, solverChoice.poisson_abstol);
             } else {
@@ -947,19 +988,26 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     }
 
     // ****************************************************************************
-    // Subtract dt grad(phi) from the momenta (rho0u, rho0v, Omega)
-    // ****************************************************************************
-    MultiFab::Add(mom_mf[IntVars::xmom],fluxes[0][0],0,0,1,0);
-    MultiFab::Add(mom_mf[IntVars::ymom],fluxes[0][1],0,0,1,0);
-    MultiFab::Add(mom_mf[IntVars::zmom],fluxes[0][2],0,0,1,0);
-
-    // ****************************************************************************
     // Define gradp from fluxes -- note that fluxes is dt * change in Gp
     //   (weighted by map factor!)
     // ****************************************************************************
     MultiFab::Saxpy(gradp[lev][GpVars::gpx],-one/l_dt,fluxes[0][0],0,0,1,0);
     MultiFab::Saxpy(gradp[lev][GpVars::gpy],-one/l_dt,fluxes[0][1],0,0,1,0);
     MultiFab::Saxpy(gradp[lev][GpVars::gpz],-one/l_dt,fluxes[0][2],0,0,1,0);
+
+    // ****************************************************************************
+    // Subtract dt grad(phi) from the momenta (rho0u, rho0v, Omega); with the implicit
+    // immersed drag the momenta already hold sigma m*, and the pressure part is sigma dt grad(phi)
+    // (gradp above keeps the pressure gradient itself)
+    // ****************************************************************************
+    if (l_if_implicit) {
+        MultiFab::Multiply(fluxes[0][0], if_sigma[0], 0, 0, 1, 0);
+        MultiFab::Multiply(fluxes[0][1], if_sigma[1], 0, 0, 1, 0);
+        MultiFab::Multiply(fluxes[0][2], if_sigma[2], 0, 0, 1, 0);
+    }
+    MultiFab::Add(mom_mf[IntVars::xmom],fluxes[0][0],0,0,1,0);
+    MultiFab::Add(mom_mf[IntVars::ymom],fluxes[0][1],0,0,1,0);
+    MultiFab::Add(mom_mf[IntVars::zmom],fluxes[0][2],0,0,1,0);
 
     gradp[lev][GpVars::gpx].FillBoundary(geom_tmp[0].periodicity());
     gradp[lev][GpVars::gpy].FillBoundary(geom_tmp[0].periodicity());

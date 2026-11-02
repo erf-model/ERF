@@ -1348,6 +1348,31 @@ struct SolverChoice {
             }
         }
 
+        // Implicit drag of the terrain immersed forcing inside the anelastic projection
+        // (erf-model/ERF#4919): each face momentum becomes (m* - grad phi) / (1 + dt rate), with
+        // rate the drag rate of the source term on that face, and the solid is not frozen
+        // afterwards, so the projected field stays divergence free in the solid too
+        pp.queryAdd("if_implicit_projection", if_implicit_projection);
+        if (if_implicit_projection) {
+            if (terrain_type != TerrainType::ImmersedForcing) {
+                amrex::Abort("erf.if_implicit_projection needs erf.terrain_type = ImmersedForcing");
+            }
+            if (buildings_type == BuildingsType::ImmersedForcing) {
+                amrex::Abort("erf.if_implicit_projection is not implemented for erf.buildings_type = ImmersedForcing");
+            }
+            if (mesh_type != MeshType::ConstantDz) {
+                amrex::Abort("erf.if_implicit_projection needs a constant-dz mesh");
+            }
+            for (int lev = 0; lev <= max_level; ++lev) {
+                if (!anelastic[lev]) {
+                    amrex::Abort("erf.if_implicit_projection needs erf.anelastic = 1 on every level");
+                }
+            }
+#ifndef ERF_USE_FFT
+            amrex::Abort("erf.if_implicit_projection needs a build with FFT (its GMRES solve is FFT-preconditioned)");
+#endif
+        }
+
         // Flag to do MOST rotations with terrain
         pp.queryAdd("use_rotate_surface_flux",use_rotate_surface_flux);
         if (use_rotate_surface_flux) {
@@ -2492,6 +2517,7 @@ struct SolverChoice {
     // Use a point-implicit (linearly-implicit) formulation of the immersed-forcing
     // drag. Defaults to false (explicit forward-Euler source).
     bool        if_implicit_drag      = false;
+    bool        if_implicit_projection = false;  // erf.if_implicit_projection: solid drag inside the anelastic projection
     // immersed forcing MOST parameters.
     amrex::Real if_z0                    = amrex::Real(0.1);   // [m]
     amrex::Real if_surf_temp_flux        = amrex::Real(1e-8);  // [K m/s]

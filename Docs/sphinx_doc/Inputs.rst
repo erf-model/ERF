@@ -3882,6 +3882,13 @@ selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 |                                   | immersed forcing drag rather than an explicit            |                    |                  |
 |                                   | forward-Euler source                                     |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_implicit_projection**    | anelastic terrain immersed forcing on a constant-dz      | Boolean            | false            |
+|                                   | mesh, FFT build: apply the drag of the solid inside the  |                    |                  |
+|                                   | projection, m = (m* - grad phi) / (1 + dt rate) on each  |                    |                  |
+|                                   | face (FFT-preconditioned GMRES), and do not zero the     |                    |                  |
+|                                   | solid faces afterwards, so the projected momenta are     |                    |                  |
+|                                   | divergence free in the solid too                         |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_z0**                     | roughness length [m] used by the immersed forcing wall   | Real > 0           | 0.1              |
 |                                   | model                                                    |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -5851,7 +5858,7 @@ Immersed Forcing and Canopy Source Terms
 
 * :ref:`Forest Canopy <inputs-forest-canopy>` -- ``erf.forest_substep``
 * :ref:`Terrain <inputs-terrain>` -- ``erf.if_Cd_momentum``, ``erf.if_Cd_scalar``,
-  ``erf.if_Olen``, ``erf.if_damp_alpha``, ``erf.if_implicit_drag``,
+  ``erf.if_Olen``, ``erf.if_damp_alpha``, ``erf.if_implicit_drag``, ``erf.if_implicit_projection``,
   ``erf.if_init_surf_temp``, ``erf.if_stability_correction``, ``erf.if_surf_heating_rate``,
   ``erf.if_average_down``, ``erf.if_snap_partial_cells``, ``erf.if_surf_temp_flux``, ``erf.if_use_most``,
   ``erf.if_ws_floor``, ``erf.if_z0``,
