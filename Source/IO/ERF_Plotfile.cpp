@@ -876,6 +876,14 @@ ERF::FillPlot3DVars (int lev,
 
     if (containerHasElement(plot_var_names, "eq_pot_temp"))
     {
+        // Total water mixing ratio r_t (all moisture species, not just qv + qc)
+        MultiFab qt(mf_dst.boxArray(), mf_dst.DistributionMap(), 1, 0);
+        qt.setVal(0.);
+        int n_qstate_into_total = micro->Get_Qstate_Moist_Size() - micro->Get_Qstate_Moist_NumConc_Size();
+        if (solverChoice.moisture_type != MoistureType::None) {
+            make_qt(vars_new[lev][Vars::cons], qt, n_qstate_into_total);
+        }
+
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
@@ -885,22 +893,27 @@ ERF::FillPlot3DVars (int lev,
             const Array4<Real>& derdat  = mf_dst.array(mfi);
             const Array4<Real const>& S_arr = vars_new[lev][Vars::cons].const_array(mfi);
             const Array4<Real const>& p_arr = pressure.const_array(mfi);
+            const Array4<Real const>& qt_arr = qt.const_array(mfi);
             const int qv_comp = mi.qv;
-            const int qc_comp = mi.qc;
             const bool anelastic = solverChoice.anelastic[lev];
             const Real rdOcp = solverChoice.rdOcp;
             ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
                 Real qv = (qv_comp >= 0) ? S_arr(i,j,k,qv_comp)/S_arr(i,j,k,Rho_comp) : zero;
-                Real qc = (qc_comp >= 0) ? S_arr(i,j,k,qc_comp)/S_arr(i,j,k,Rho_comp) : zero;
                 Real T = anelastic ?
                     getTgivenPandTh(p_arr(i,j,k), S_arr(i,j,k,RhoTheta_comp) /
                                     S_arr(i,j,k,Rho_comp), rdOcp) :
                     getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
-                Real fac = Cp_d + Cp_l*(qv + qc);
+                Real fac = Cp_d + Cp_l*qt_arr(i,j,k);
                 // Dry-air partial pressure uses the actual vapor pressure, not e_sat
                 Real pv = p_arr(i,j,k) * qv / (RdoRv + qv);
+                // Relative-humidity factor H^(-r_v R_v / fac) of Emanuel (1994, eq. 4.5.11);
+                // H is capped at 1 (supersaturation) and floored so dry air gives exactly 1
+                Real e_sat = Real(100.0) * erf_esatw(T);
+                Real H = amrex::max(Real(1.e-10), amrex::min(one, pv / e_sat));
 
-                derdat(i, j, k, mf_comp) = T*std::pow((p_arr(i,j,k) - pv)/p_0, -R_d/fac)*std::exp(L_v*qv/(fac*T)) ;
+                derdat(i, j, k, mf_comp) = T*std::pow((p_arr(i,j,k) - pv)/p_0, -R_d/fac)
+                                            *std::exp(-(qv*R_v/fac)*std::log(H))
+                                            *std::exp(L_v*qv/(fac*T)) ;
             });
         }
         mf_comp ++;
@@ -928,7 +941,7 @@ ERF::FillPlot3DVars (int lev,
                     getTgivenPandTh(p_arr(i,j,k), S_arr(i,j,k,RhoTheta_comp) /
                                     S_arr(i,j,k,Rho_comp), rdOcp) :
                     getTgivenRandRTh(S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv);
-                const Real e_sat = Real(100.0) * erf_esatw_cc(T);
+                const Real e_sat = Real(100.0) * erf_esatw(T);
 
                 const Real P     = p_arr(i,j,k);
                 const Real e_act = P * qv / (RdoRv + qv);
