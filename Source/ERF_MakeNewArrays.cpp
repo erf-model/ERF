@@ -1021,19 +1021,22 @@ ERF::init_zphys (int lev, double elapsed_time)
     if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
         solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
         make_terrain_blanking(lev);
+        const bool immersed_forcing_active =
+            solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+            solverChoice.use_building_immersed_forcing(geom[lev]);
 
         // Keep imported WRFInput/Metgrid winds in immersed cells at startup.
         // Where active, momentum forcing relaxes the winds during time stepping
         // instead of replacing them abruptly during initialization.
-        if (solverChoice.init_type != InitType::WRFInput &&
+        if (immersed_forcing_active &&
+            solverChoice.init_type != InitType::WRFInput &&
             solverChoice.init_type != InitType::Metgrid) {
             init_immersed_forcing(lev);
         }
 
         // Mark immersed solids as landmask = 2 only where their forcing is active.
         // Immersed terrain has no resolution cutoff.
-        if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
-            solverChoice.use_building_immersed_forcing(geom[lev])) {
+        if (immersed_forcing_active) {
             for (MFIter mfi(*lmask_lev[lev][0]); mfi.isValid(); ++mfi) {
                 const Box& bx2d = mfi.growntilebox();
                 auto lmask_arr = lmask_lev[lev][0]->array(mfi);
@@ -1161,13 +1164,26 @@ ERF::remake_zphys (int lev, Real time, std::unique_ptr<MultiFab>& temp_zphys_nd)
  * fraction, with fractions below eb2.small_volfrac (almost fluid cells) set to zero in the valid
  * cells and in the ghost cells FillBoundary fills; with the face-centred factories, the same on
  * the faces. A fresh start, a regrid and a restart all build it here, so a restarted run forces
- * the same cells as the run it continues.
+ * the same cells as the run it continues. On levels coarser than the building cutoff, all
+ * allocated masks are zero.
  *
  * @param lev Integer specifying the level
  */
 void
 ERF::make_terrain_blanking (int lev)
 {
+    // Keep allocated masks empty on levels where building forcing is disabled.
+    // IBSEB, plotfiles, and IB-aware PBL schemes still read these masks.
+    if (solverChoice.terrain_type != TerrainType::ImmersedForcing &&
+        solverChoice.buildings_type == BuildingsType::ImmersedForcing &&
+        !solverChoice.use_building_immersed_forcing(geom[lev])) {
+        terrain_blanking[lev]->setVal(zero);
+        if (terrain_blanking_xface[lev]) { terrain_blanking_xface[lev]->setVal(zero); }
+        if (terrain_blanking_yface[lev]) { terrain_blanking_yface[lev]->setVal(zero); }
+        if (terrain_blanking_zface[lev]) { terrain_blanking_zface[lev]->setVal(zero); }
+        return;
+    }
+
     // eb2.small_volfrac, read once in SolverChoice before the EB build, so the blanking, the EB
     // and the forcing kernels share it
     const Real small_volfrac = solverChoice.if_small_volfrac;

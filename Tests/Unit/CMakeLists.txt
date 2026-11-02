@@ -454,6 +454,25 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3")
       RUN_SERIAL TRUE
       TIMEOUT 120)
   endforeach()
+
+  if(NOT AMReX_HDF5)
+    # At 50 m the masks are active; at 60 m the masks are zero and winds stay unchanged.
+    add_executable(erf_immersed_cutoff_check
+      ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_CheckImmersedBuildingCutoff.cpp)
+    target_link_libraries(erf_immersed_cutoff_check PRIVATE AMReX::amrex)
+    target_compile_features(erf_immersed_cutoff_check PRIVATE cxx_std_17)
+    add_test(NAME ImmersedBuildingResolutionCutoff
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+        -DCHECK_EXECUTABLE=$<TARGET_FILE:erf_immersed_cutoff_check>
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/ImmersedForcing/inputs_building_fc_factories
+        -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/RunImmersedBuildingCutoff.cmake)
+    set_tests_properties(ImmersedBuildingResolutionCutoff PROPERTIES
+      LABELS "integration;immersed-forcing"
+      RUN_SERIAL TRUE
+      TIMEOUT 120)
+  endif()
 endif()
 
 # Exercise M3 through ERF's native level,

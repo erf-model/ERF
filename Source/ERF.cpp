@@ -3415,7 +3415,7 @@ ERF::init_only (int lev, double elapsed_time)
     if (solverChoice.init_type != InitType::WRFInput &&
         solverChoice.init_type != InitType::Metgrid &&
         (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
-         solverChoice.buildings_type == BuildingsType::ImmersedForcing)) {
+         solverChoice.use_building_immersed_forcing(geom[lev]))) {
         init_immersed_forcing(lev);
     }
 }
