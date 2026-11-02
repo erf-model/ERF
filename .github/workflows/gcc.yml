@@ -152,27 +152,6 @@ jobs:
         return=$(tail -n 1 ${{runner.workspace}}/build-output-warnings.txt | awk '{print $2}')
         exit ${return}
 
-    - name: GNUmake Compile and Link
-      # Merge tier only: a second, uncached full compile that checks the Makefile build, not the code.
-      if: github.event_name != 'pull_request' && matrix.particles == 'OFF' && matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
-      run: |
-        make -C Exec -j2 USE_NETCDF=FALSE USE_PARTICLES=FALSE
-
-    - name: GNUmake Compile and Link with an out-of-tree fire engine
-      # Merge tier only: ERF plus the example fire engine directory, built from a
-      # directory outside the ERF tree as a fire-model repository would build it.
-      if: github.event_name != 'pull_request' && matrix.particles == 'OFF' && matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
-      run: |
-        mkdir -p ${{runner.temp}}/fire_build
-        cd ${{runner.temp}}/fire_build
-        printf 'ERF_HOME = %s\nFIRE_HOME = %s/Tests/FireEngineExample\nUSE_FIRE = TRUE\nUSE_MPI = TRUE\nUSE_NETCDF = FALSE\nCOMP = gnu\nDIM = 3\ninclude $(ERF_HOME)/Exec/Make.ERF\n' \
-          "${{github.workspace}}" "${{github.workspace}}" > GNUmakefile
-        cp ${{github.workspace}}/Exec/ERF_Prob.cpp ${{github.workspace}}/Exec/ERF_Prob.H ${{github.workspace}}/Exec/Make.package .
-        make -j2
-        cp ${{github.workspace}}/Tests/FireEngineExample/inputs_fire_example ${{github.workspace}}/Tests/FireEngineExample/input_sounding .
-        mpiexec -n 2 ./ERF3d.gnu*.ex inputs_fire_example max_step=4 erf.check_int=-1 | tee run.log
-        grep -q "fire_phi" plt00004/Header
-
     - name: Check Unit Test Registration
       if: matrix.particles_precision == 'DOUBLE' && matrix.mesh_precision == 'DOUBLE'
       run: |
@@ -251,6 +230,43 @@ jobs:
         if-no-files-found: ignore
         retention-days: 14
 
+  gnumake:
+    name: GNU Make - Mesh DOUBLE Particles OFF DOUBLE
+    # Merge tier only: two uncached make builds that check the Makefile build, not the
+    # code. Their own job so the matrix jobs report their tests without waiting for them.
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+
+    - uses: actions/checkout@v7
+      with:
+        submodules: true
+        persist-credentials: false
+
+    - name: Install Dependencies
+      run: Submodules/AMReX/.github/workflows/dependencies/dependencies.sh
+
+    - name: GNUmake Compile and Link
+      run: |
+        make -C Exec -j2 USE_NETCDF=FALSE USE_PARTICLES=FALSE
+
+    - name: GNUmake Compile and Link with an out-of-tree fire engine
+      # ERF plus the example fire engine directory, built from a directory outside
+      # the ERF tree as a fire-model repository would build it.
+      run: |
+        mkdir -p ${{runner.temp}}/fire_build
+        cd ${{runner.temp}}/fire_build
+        printf 'ERF_HOME = %s\nFIRE_HOME = %s/Tests/FireEngineExample\nUSE_FIRE = TRUE\nUSE_MPI = TRUE\nUSE_NETCDF = FALSE\nCOMP = gnu\nDIM = 3\ninclude $(ERF_HOME)/Exec/Make.ERF\n' \
+          "${{github.workspace}}" "${{github.workspace}}" > GNUmakefile
+        cp ${{github.workspace}}/Exec/ERF_Prob.cpp ${{github.workspace}}/Exec/ERF_Prob.H ${{github.workspace}}/Exec/Make.package .
+        make -j2
+        cp ${{github.workspace}}/Tests/FireEngineExample/inputs_fire_example ${{github.workspace}}/Tests/FireEngineExample/input_sounding .
+        mpiexec -n 2 ./ERF3d.gnu*.ex inputs_fire_example max_step=4 erf.check_int=-1 | tee run.log
+        grep -q "fire_phi" plt00004/Header
+
   # Single stable required status check. Branch protection previously pinned the
   # individual matrix job names ("GNU@9.3 C++17 Release - Particles OFF"), which silently
   # stopped matching when the matrix gained its Mesh/precision axes -- leaving every PR
@@ -259,14 +275,17 @@ jobs:
   ci-required:
     name: ci-required
     if: always()
-    needs: [library]
+    needs: [library, gnumake]
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     steps:
       - name: Check build matrix result
         run: |
-          result="${{ needs.library.result }}"
-          echo "Linux GCC matrix result: ${result}"
-          # 'skipped' is legitimate (path filters); anything other than that or
-          # 'success' means the matrix did not pass.
-          [[ "${result}" == "success" || "${result}" == "skipped" ]] || exit 1
+          library="${{ needs.library.result }}"
+          gnumake="${{ needs.gnumake.result }}"
+          echo "Linux GCC matrix result: ${library}; GNU Make: ${gnumake}"
+          # 'skipped' is legitimate (path filters, PR tier); anything other than that
+          # or 'success' means the build did not pass.
+          for result in "${library}" "${gnumake}"; do
+            [[ "${result}" == "success" || "${result}" == "skipped" ]] || exit 1
+          done
