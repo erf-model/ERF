@@ -159,6 +159,32 @@ fill_wall_dist_ghost_cells (amrex::MultiFab& wdist, const amrex::Geometry& geom)
 void
 make_qt (const amrex::MultiFab& cons_state, amrex::MultiFab& qt, int n_qstate_into_total);
 
+/**
+ * Average down a cell-centred state over immersed-forcing levels (erf.if_average_down =
+ * fluid_mass). The fine cells are weighted by their fluid mass,
+ * (rho S)_c = rho_c * sum (1 - beta_f) V_f (rho S)_f / sum (1 - beta_f) V_f rho_f,
+ * with beta the solid fraction, V the fine cell volume (detJ / (m_x m_y), the weight the plain
+ * average carries in the state) and rho_c the coarse density: the fluid-volume-weighted mean of
+ * the fine density, sum (1 - beta_f) V_f rho_f / sum (1 - beta_f) V_f, when the density is in the
+ * component range, else the coarse cell's own. The coarse value is the fluid mean over the whole
+ * coarse cell (intensive), not the sum over the fine cells. Coarse cells that are solid on their
+ * own level, or with no fluid fine cell under them, keep their value. The plain average mixes the
+ * values of solid fine cells into coarse fluid cells.
+ * @param[in] S_fine Fine state (unscaled).
+ * @param[in,out] S_crse Coarse state (unscaled); the covered cells are written.
+ * @param[in] beta_fine Fine solid fraction (terrain_blanking).
+ * @param[in] beta_crse Coarse solid fraction.
+ * @param[in] vol_fine Fine cell volume weight (any constant factor cancels).
+ * @param[in] scomp First component to average.
+ * @param[in] ncomp Number of components.
+ * @param[in] ratio Refinement ratio.
+ */
+void
+if_average_down (const amrex::MultiFab& S_fine, amrex::MultiFab& S_crse,
+                 const amrex::MultiFab& beta_fine, const amrex::MultiFab& beta_crse,
+                 const amrex::MultiFab& vol_fine,
+                 int scomp, int ncomp, const amrex::IntVect& ratio);
+
 /*
  * Create the Jacobian for the metric transformation when use_terrain is true
  */
