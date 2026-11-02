@@ -367,6 +367,27 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         for (int i = 3; i < mapfac[lev].size(); i++) {
             mapfac[lev][i]->setVal(fourth);
         }
+    } else if (solverChoice.test_mapfactor_amp != zero && lev == 0) {
+        // Smoothly varying map factors on level 0 alone, valid and ghost cells, evaluated at each
+        // MultiFab's own locations (cell centers, x-faces or y-faces); finer levels interpolate them
+        const auto dx  = geom[lev].CellSizeArray();
+        const auto plo = geom[lev].ProbLoArray();
+        const auto phi = geom[lev].ProbHiArray();
+        const Real amp = solverChoice.test_mapfactor_amp;
+        for (int i = 0; i < mapfac[lev].size(); i++) {
+            MultiFab& mf = *mapfac[lev][i];
+            const IntVect nodal = mf.ixType().toIntVect();
+            for (MFIter mfi(mf); mfi.isValid(); ++mfi) {
+                const Array4<Real> m_arr = mf.array(mfi);
+                ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int ii, int jj, int kk) noexcept
+                {
+                    const Real x = plo[0] + (ii + (nodal[0] ? Real(0) : Real(0.5))) * dx[0];
+                    const Real y = plo[1] + (jj + (nodal[1] ? Real(0) : Real(0.5))) * dx[1];
+                    m_arr(ii,jj,kk) = Real(1) + amp * std::sin(Real(2)*PI*(x-plo[0])/(phi[0]-plo[0]))
+                                                    * std::cos(Real(2)*PI*(y-plo[1])/(phi[1]-plo[1]));
+                });
+            }
+        }
     } else {
         for (int i = 0; i < mapfac[lev].size(); i++) {
             mapfac[lev][i]->setVal(one);

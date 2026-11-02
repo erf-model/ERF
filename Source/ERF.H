@@ -431,9 +431,21 @@ public:
                              amrex::MultiFab const& dJ_in,
                              amrex::Geometry const& geom_at_lev);
 
+    // Does any map factor at this level differ from one?
+    bool has_nonunit_mapfac (int lev) const;
+
+    // Does the projection at this level use the terrain Poisson solver?  Always on a
+    //     terrain-fitted mesh, and on a flat mesh whose map factors are not all one (#4903)
+    bool projection_uses_terrain_solver (int lev) const;
+
     // Project the velocities to be divergence-free -- this is only relevant if anelastic == 1
     void project_initial_velocity (int lev, double time, double dt);
-    void project_momenta (int lev, double l_time, double l_dt, amrex::Vector<amrex::MultiFab >& vars);
+    void project_momenta (int lev, double l_time, double l_dt, amrex::Vector<amrex::MultiFab >& vars,
+                          bool apply_if_drag);
+
+    //! Face coefficients sigma = 1 / (1 + dt rate) of the implicit immersed drag in the projection
+    //! (erf.if_implicit_projection); 1 on faces on the boundary of the level's grids
+    void make_if_projection_sigma (int lev, amrex::Real dt, amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& sigma);
 
     // A refined level that stops inside the domain in z (ERF_CoarseFineFaces.cpp)
     void cf_zface_coarse_at (int lev, double tc, bool conserved_rho,
@@ -495,6 +507,12 @@ public:
                                   amrex::MultiFab& az_sub,
                                   amrex::MultiFab& dJ_sub, amrex::MultiFab& znd_sub,
                                   bool use_gmres);
+    //! FFT-preconditioned GMRES solve of div(sigma grad phi) = rhs (erf.if_implicit_projection);
+    //! fluxes = -grad phi, without sigma
+    void solve_with_if_gmres (int lev, const amrex::Box& subdomain,
+                              amrex::MultiFab& rhs, amrex::MultiFab& phi,
+                              amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes,
+                              amrex::Array<amrex::MultiFab const*,AMREX_SPACEDIM> const& sigma);
     void solve_with_gmres (int lev, const amrex::Box& subdomain,
                            amrex::MultiFab& rhs, amrex::MultiFab& p,
                            amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& fluxes,
