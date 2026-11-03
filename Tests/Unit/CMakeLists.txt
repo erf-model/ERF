@@ -472,6 +472,10 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3")
     # At 50 m the masks are active; at 60 m the masks are zero and winds stay unchanged.
     add_executable(erf_immersed_cutoff_check
       ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_CheckImmersedBuildingCutoff.cpp)
+    # AMReX's headers need nvcc in a CUDA build
+    if(ERF_ENABLE_CUDA)
+      setup_target_for_cuda_compilation(erf_immersed_cutoff_check)
+    endif()
     target_link_libraries(erf_immersed_cutoff_check PRIVATE AMReX::amrex)
     target_compile_features(erf_immersed_cutoff_check PRIVATE cxx_std_17)
     add_test(NAME ImmersedBuildingResolutionCutoff
