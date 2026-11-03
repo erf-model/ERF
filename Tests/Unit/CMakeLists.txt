@@ -369,6 +369,9 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMFoundation.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMRemapping.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/SLM/ERF_GTestSLMInterface.cpp
+    # Motivation: a finer level's land state must be interpolated land from land and water
+    # from water (erf-model/ERF#4390), keeping each coarse mean and cell_cons_interp elsewhere.
+    ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/ERF_GTestLandWaterInterp.cpp
 )
 # The fire coupling's headers are only on the include path, and its sources
 # only in the library, when the fire coupling is built.
