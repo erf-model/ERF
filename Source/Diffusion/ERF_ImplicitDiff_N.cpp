@@ -45,11 +45,16 @@ ImplicitDiffForStateLU_N (const Box& bx,
                           const bool use_SurfLayer,
                           const Real implicit_fac,
                           const bool use_mrf_countergradient,
-                          const Array4<const Real>& wall_face)
+                          const Array4<const Real>& wall_face,
+                          const Array4<const Real>& wall_pin)
 {
     // Fraction-stress immersed wall law: wall_face is zero on the bottom face of the wall cell of
     // each column (z faces), which then carries no diffusive coupling. Empty when not in use.
     const bool has_wall_face = static_cast<bool>(wall_face);
+    // ... and wall_pin (the TKE solve with erf.if_wall_tke_time_factor = 1) holds the wall value
+    // of the TKE where it is >= 0: that row is a Dirichlet row, like the pinned first cell of flat
+    // ground, and the row above sees it as a Dirichlet neighbour
+    const bool has_wall_pin = static_cast<bool>(wall_pin);
 
     BL_PROFILE_VAR("ImplicitDiffForState_N()",ImplicitDiffForState_N);
 
@@ -140,11 +145,15 @@ ImplicitDiffForStateLU_N (const Box& bx,
                     a_tmp *= wall_face(i,j,klo);
                     c_tmp *= wall_face(i,j,klo+1);
                 }
+                const bool pin_here_lo = has_wall_pin && (wall_pin(i,j,klo) >= zero);
+                if (pin_here_lo) { a_tmp = zero; c_tmp = zero; }
                 b_tmp      = cell_data(i,j,klo,Rho_comp) - a_tmp - c_tmp;
                 inv_b2_tmp = one;
 
                 RHS_a(i,j,klo) = cell_data(i,j,klo,n); // NOTE: this is rho*phi; solution is phi
-                if (!at_zlo) {
+                if (pin_here_lo) {
+                    // Dirichlet row: no flux terms
+                } else if (!at_zlo) {
                     // Coarse/fine boundary: close the system with the known value below
                     RHS_a(i,j,klo) -= a_tmp * (cell_data(i,j,klo-1,n) / cell_data(i,j,klo-1,Rho_comp));
                 } else if (pin_klo) {
@@ -187,6 +196,8 @@ ImplicitDiffForStateLU_N (const Box& bx,
                     a_tmp *= wall_face(i,j,k);
                     c_tmp *= wall_face(i,j,k+1);
                 }
+                const bool pin_here = has_wall_pin && (wall_pin(i,j,k) >= zero);
+                if (pin_here) { a_tmp = zero; c_tmp = zero; }
                 b_tmp      = cell_data(i,j,k,Rho_comp) - a_tmp - c_tmp;
                 inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,k-1));
 

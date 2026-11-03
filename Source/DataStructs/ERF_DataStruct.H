@@ -1313,9 +1313,11 @@ struct SolverChoice {
         else if (if_wall_face_spacing_in == "physical") { if_wall_face_spacing = 1; }
         else if (if_wall_face_spacing_in == "log")      { if_wall_face_spacing = 2; }
         else { amrex::Abort("erf.if_wall_face_spacing must be log, physical or grid"); }
-        // Wall value of the k-eqn TKE in the fraction-stress wall cell: relax toward
-        // (u*^3 + kappa B d1)^(2/3) / Cmu0^2 over if_wall_tke_time_factor steps (the value
-        // erf.dirichlet_k holds over flat ground; kynema-sgf does the same at its immersed wall)
+        // Wall value of the k-eqn TKE in the fraction-stress wall cell, (u*^3 + kappa B d1)^(2/3)
+        // / Cmu0^2 (the value erf.dirichlet_k holds over flat ground): with a time factor of 1
+        // (the default) the wall cell is held at it after every stage and in the implicit TKE
+        // solve, as flat ground is; a larger factor relaxes toward it as a source over that many
+        // steps (the kynema-sgf form)
         // (a value of false is accepted with the legacy law, so one deck can run both laws)
         pp.queryAdd("if_wall_tke", if_wall_tke);
         const bool tke_factor_given = pp.queryAdd("if_wall_tke_time_factor", if_wall_tke_time_factor);
@@ -2661,7 +2663,7 @@ struct SolverChoice {
     bool        if_fraction_stress       = false;  // erf.if_wall_form = fraction_stress
     int         if_wall_face_spacing     = 2;      // erf.if_wall_face_spacing: 0 grid, 1 physical, 2 log (default)
     bool        if_wall_tke              = false;  // erf.if_wall_tke: wall value of the k-eqn TKE in the wall cell
-    amrex::Real if_wall_tke_time_factor  = amrex::Real(5.0); // erf.if_wall_tke_time_factor: relaxation steps
+    amrex::Real if_wall_tke_time_factor  = amrex::Real(1.0); // erf.if_wall_tke_time_factor: 1 pins, > 1 relaxes over that many steps
     bool        if_flat_wall_dissipation = false;  // erf.if_flat_wall_dissipation (default: = if_fraction_stress)
     amrex::Real if_ws_floor              = 0.001;  // [m/s]
     amrex::Real if_damp_alpha            = 0.5;    // [-]
@@ -3120,10 +3122,11 @@ struct SolverChoice {
  * @brief Spacing the face above the fraction-stress wall cell differences over: 0 the cell
  *        height, 1 the centroid spacing, 2 (default) the log spacing (ib_wall::face_above_factor).
  * @var SolverChoice::if_wall_tke
- * @brief Relax the k-eqn TKE of the fraction-stress wall cell toward its flat-ground wall value
- *        (ib_wall::wall_tke) over if_wall_tke_time_factor steps.
+ * @brief Hold the k-eqn TKE of the fraction-stress wall cell at its flat-ground wall value
+ *        (ib_wall::wall_tke), as erf.dirichlet_k does over flat ground.
  * @var SolverChoice::if_wall_tke_time_factor
- * @brief Steps over which that relaxation acts (>= 1).
+ * @brief 1 (the default) pins the wall cell after every stage and in the implicit TKE solve;
+ *        a larger value relaxes toward the wall value as a source over that many steps.
  * @var SolverChoice::if_flat_wall_dissipation
  * @brief Partial fraction-stress wall cells dissipate TKE with the length scale of flat ground's
  *        first cell; on by default with the fraction-stress law.

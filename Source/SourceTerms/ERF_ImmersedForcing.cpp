@@ -489,7 +489,9 @@ void ImmersedForcingTerrain_Ymom_FractionStress (const Box& tby,
  * ERF_ImmersedWallCell.H: the wall heat flux -u* theta* in the wall cell of each column, with the
  * u* and theta* of the momentum law, and the relaxation of fully immersed cells to the planar
  * average of the legacy kernel. The kinematic wall flux -u* theta* is stored in wall_hfx at the
- * wall cell (zero elsewhere), for the TKE buoyancy on the wall face.
+ * wall cell (zero elsewhere), for the TKE buoyancy on the wall face; with wall_tke the wall value
+ * of the TKE is stored in wall_ktarget at the wall cell (-1 elsewhere), and a time factor of 1
+ * leaves the pin to erf_slow_rhs_post and the implicit TKE solve.
  */
 void ImmersedForcingTerrain_Scalar_FractionStress (const Box& bx,
                                                    const Array4<const Real>& u,
@@ -498,6 +500,7 @@ void ImmersedForcingTerrain_Scalar_FractionStress (const Box& bx,
                                                    const Array4<const Real>& t_blank_arr,
                                                    const Array4<      Real>& cell_src,
                                                    const Array4<      Real>& wall_hfx,
+                                                   const Array4<      Real>& wall_ktarget,
                                                    const Geometry& geom,
                                                    const SolverChoice& solverChoice,
                                                    const Table1D<Real>& r_avg,
@@ -510,6 +513,10 @@ void ImmersedForcingTerrain_Scalar_FractionStress (const Box& bx,
     const Real* dx_arr = geom.CellSize();
     const Real dz = dx_arr[2];   // fraction_stress runs on a constant-dz mesh
     const Real tke_time_factor = solverChoice.if_wall_tke_time_factor;
+    // a time factor of 1 pins the wall cell at the wall value after every stage (erf_slow_rhs_post
+    // and the implicit TKE solve read wall_ktarget), as erf.dirichlet_k does on flat ground;
+    // larger factors relax toward it here as a source
+    const bool tke_pin = (tke_time_factor <= one);
     const Real drag_coefficient = solverChoice.if_Cd_scalar / std::pow(dx_arr[0]*dx_arr[1]*dz, one/three);
     const Real z0    = solverChoice.if_z0;
     const Real small = solverChoice.if_small_volfrac;
@@ -522,6 +529,7 @@ void ImmersedForcingTerrain_Scalar_FractionStress (const Box& bx,
     {
         const Real b_k = if_cell_beta(t_blank_arr, i, j, k, klo, khi, small);
         if (wall_hfx) { wall_hfx(i, j, k) = zero; }
+        if (wall_ktarget) { wall_ktarget(i, j, k) = -one; }   // no wall value: not a wall cell
 
         if (ib_wall::is_wall_cell(if_cell_beta(t_blank_arr, i, j, k-1, klo, khi, small), b_k,
                                   if_cell_beta(t_blank_arr, i, j, k+1, klo, khi, small), small)) {
@@ -539,10 +547,13 @@ void ImmersedForcingTerrain_Scalar_FractionStress (const Box& bx,
             cell_src(i, j, k, RhoTheta_comp) += rho * ib_wall::heat_source(ws, theta, cond, dz, dt);
             if (wall_hfx) { wall_hfx(i, j, k) = -ws.ustar * ws.thetastar; }
             if (wall_tke) {
-                // relax the wall-cell TKE toward its wall value over tke_time_factor steps
                 const Real k_wall = ib_wall::wall_tke(ws, ib_wall::wall_beta(b_k, small), dz, z0, theta, Cmu0);
-                const Real k_now  = cell_data(i, j, k, RhoKE_comp) / rho;
-                cell_src(i, j, k, RhoKE_comp) += rho * (k_wall - k_now) / (tke_time_factor * dt);
+                if (wall_ktarget) { wall_ktarget(i, j, k) = k_wall; }
+                if (!tke_pin) {
+                    // relax the wall-cell TKE toward its wall value over tke_time_factor steps
+                    const Real k_now  = cell_data(i, j, k, RhoKE_comp) / rho;
+                    cell_src(i, j, k, RhoKE_comp) += rho * (k_wall - k_now) / (tke_time_factor * dt);
+                }
             }
         } else if (b_k == one && have_avg) {
             // fully immersed cells: relax to the planar average, as the legacy kernel does

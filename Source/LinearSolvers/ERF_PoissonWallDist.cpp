@@ -742,6 +742,10 @@ void ERF::make_ib_wall_face_masks_lev (int lev)
     ib_wall_face33[lev] = std::make_unique<MultiFab>(convert(ba, IntVect(0,0,1)), dm, 1, 1);
     ib_wall_hfx[lev]    = std::make_unique<MultiFab>(ba, dm, 1, 0);
     ib_wall_hfx[lev]->setVal(zero);
+    if (solverChoice.if_wall_tke) {
+        ib_wall_ktarget[lev] = std::make_unique<MultiFab>(ba, dm, 1, 0);
+        ib_wall_ktarget[lev]->setVal(-one);
+    }
     make_ib_wall_face_masks(*terrain_blanking[lev], *ib_wall_face13[lev], *ib_wall_face23[lev],
                             *ib_wall_face33[lev],
                             geom[lev].Domain(), solverChoice.if_small_volfrac,

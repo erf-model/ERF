@@ -100,7 +100,8 @@ void make_sources (int level, int nrk,
                    const amrex::MultiFab* forest_drag,
                    const amrex::MultiFab* cons_old,
                    bool is_slow_step,
-                   amrex::MultiFab* ib_wall_hfx = nullptr);
+                   amrex::MultiFab* ib_wall_hfx = nullptr,
+                   amrex::MultiFab* ib_wall_ktarget = nullptr);
 
 #if defined(ERF_USE_NETCDF)
 /**

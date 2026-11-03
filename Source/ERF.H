@@ -1715,6 +1715,10 @@ private:
     // kinematic wall heat flux -u* theta* of the fraction-stress law in the wall cell (zero elsewhere),
     // written by the immersed scalar forcing, read as the TKE buoyancy flux on the wall face
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> ib_wall_hfx;
+    // wall value of the k-eqn TKE in the wall cell (erf.if_wall_tke; -1 elsewhere), written by the
+    // immersed scalar forcing; with erf.if_wall_tke_time_factor = 1 the cell is held at it after
+    // every stage and in the implicit TKE solve
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> ib_wall_ktarget;
     // Height the immersed wall distance is measured from in each column (fraction-stress law with
     // RANS), on the level's BoxArray flattened to its bottom cell; a fine box that does not see the
     // surface of a column takes it from the coarser level

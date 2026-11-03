@@ -311,13 +311,14 @@ takes the wall heat flux, and the strain and :math:`\partial\theta/\partial z` o
 stencils of the flat surface (the strain of the face above; the wall cell itself below it), so a
 surface on a cell face reproduces flat ground. The option needs ``erf.if_use_most = true`` and a
 constant-:math:`\Delta z` mesh; ``erf.if_stability_correction`` belongs to the legacy law.
-With the k-equation RANS closure, ``erf.if_wall_tke = true`` relaxes the TKE of the wall cell over
-``erf.if_wall_tke_time_factor`` steps (5 by default) toward
+With the k-equation RANS closure, ``erf.if_wall_tke = true`` holds the TKE of the wall cell at
 :math:`k_w = (u_*^3 + \kappa B d_1)^{2/3}/C_{\mu 0}^2`, with :math:`B = -g u_*\theta_*/\theta` in unstable
 conditions (zero otherwise) and :math:`d_1` the fluid-centroid height of the wall cell. This is the value
-``erf.dirichlet_k`` holds in the first cell over flat ground (Axell and Liungman 2001, Eq. 16), and
-kynema-sgf relaxes its immersed wall cells toward it the same way. Without it the wall cell has no
-wall value, and its TKE settles well below the log-layer equilibrium. A partial wall cell also dissipates
+``erf.dirichlet_k`` holds in the first cell over flat ground (Axell and Liungman 2001, Eq. 16), and it is
+held the same way: after every stage and in the implicit TKE solve (``erf.if_wall_tke_time_factor = 1``,
+the default); a larger factor relaxes toward it as a source over that many steps instead, as kynema-sgf
+does. Without the wall value the wall cell's TKE is set by its own production, which the strain of the
+face above overstates against the pinned first cell of flat ground. A partial wall cell also dissipates
 TKE with the length scale of flat ground's first cell (``erf.if_flat_wall_dissipation``, on by default with
 this law): its own length, at :math:`d_1`, would make a nearly solid wall cell dissipate several times faster
 than the wall value restores it. See `erf-model/ERF#4134 <https://github.com/erf-model/ERF/issues/4134>`_.

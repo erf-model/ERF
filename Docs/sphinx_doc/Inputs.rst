@@ -3964,13 +3964,17 @@ selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 |                                   | first-face error for a log profile, physical the         | ``grid``           |                  |
 |                                   | centroid spacing, grid the cell height                   |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.if_wall_tke**               | fraction_stress with the k-eqn RANS only: relax the      | Boolean            | false            |
-|                                   | wall-cell TKE toward (u*^3 + kappa B d1)^(2/3)/Cmu0^2    |                    |                  |
-|                                   | (the value erf.dirichlet_k holds over flat ground), from |                    |                  |
-|                                   | the wall law's u* and theta*, d1 the fluid-centroid      |                    |                  |
-|                                   | height of the wall cell                                  |                    |                  |
+| **erf.if_wall_tke**               | fraction_stress with the k-eqn RANS only: hold the       | Boolean            | false            |
+|                                   | wall-cell TKE at (u*^3 + kappa B d1)^(2/3)/Cmu0^2 (the   |                    |                  |
+|                                   | value erf.dirichlet_k holds over flat ground), from the  |                    |                  |
+|                                   | wall law's u* and theta*, d1 the fluid-centroid height   |                    |                  |
+|                                   | of the wall cell; a value of false is accepted with the  |                    |                  |
+|                                   | legacy law                                               |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.if_wall_tke_time_factor**   | steps over which erf.if_wall_tke relaxes the wall TKE    | Real >= 1          | 5                |
+| **erf.if_wall_tke_time_factor**   | 1 holds the wall cell at its wall value after every      | Real >= 1          | 1                |
+|                                   | stage and in the implicit TKE solve, as erf.dirichlet_k  |                    |                  |
+|                                   | does on flat ground; a larger value relaxes toward it as |                    |                  |
+|                                   | a source over that many steps                            |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_flat_wall_dissipation**  | fraction_stress with the k-eqn RANS only: partial wall   | Boolean            | true with        |
 |                                   | cells dissipate TKE with the length scale of flat        |                    | fraction_stress  |

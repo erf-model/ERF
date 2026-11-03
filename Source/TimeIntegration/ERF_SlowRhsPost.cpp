@@ -114,7 +114,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                         erf_auxiliary::AuxiliaryInertTracer* auxiliary_inert_tracer,
                         erf_sbm::SBMStateManager* sbm_state_manager,
                         erf_sbm::SBMTransport* sbm_transport,
-                        const MultiFab* ib_wall_face33)
+                        const MultiFab* ib_wall_face33,
+                        const MultiFab* ib_wall_ktarget)
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 
@@ -820,6 +821,18 @@ void erf_slow_rhs_post (int level, int finest_level,
 
             } // is_valid
         } // ivar
+
+        // Fraction-stress immersed wall law with erf.if_wall_tke_time_factor = 1: hold the wall
+        // cell of each column at its wall value (ib_wall::wall_tke), as erf.dirichlet_k holds the
+        // first cell over flat ground. ib_wall_ktarget is -1 outside the wall cells.
+        if (ib_wall_ktarget && solverChoice.if_wall_tke_time_factor <= one && is_valid_slow_var[RhoKE_comp]) {
+            const Array4<const Real>& kt = ib_wall_ktarget->const_array(mfi);
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                if (kt(i,j,k) >= zero) {
+                    cur_cons(i,j,k,RhoKE_comp) = cur_cons(i,j,k,Rho_comp) * kt(i,j,k);
+                }
+            });
+        }
 
         // Re-impose the Dirichlet wall value of k (first cell above the wall)
         if (l_dirichlet_k && is_valid_slow_var[RhoKE_comp]) {
