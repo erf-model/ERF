@@ -158,9 +158,14 @@ void ERFFillPatcher::Define (BoxArray const& fba, DistributionMapping const& fdm
     m_cf_mask = std::make_unique<iMultiFab> (fba, fdm, 1, 0);
 
     // Populate mask array.  BuildMask(fba, n, val) sets val in every cell farther than
-    //    n cells from the coarse-fine boundary, so after these three steps the band of
-    //    width nghost_set holds m_set_mask, the band out to nghost holds m_relax_mask,
+    //    -n cells (n <= 0) from the coarse-fine boundary, so after these three steps the band
+    //    of width -nghost_set holds m_set_mask, the band out to -nghost holds m_relax_mask,
     //    and the rest of the fine level holds 0
+    //
+    // NOTE: the relax band is not currently used.  Nothing calls FillRelax, and
+    //    ERF::ReadParameters requires cf_width = 0 with two-way coupling, so the band is
+    //    empty there; with one-way coupling a cf_width > 0 builds it but nothing reads it.
+    //    It is kept so that relaxation can be re-enabled.
     m_cf_mask->setVal(m_set_mask);
     BuildMask(fba,nghost_set,m_relax_mask);
     BuildMask(fba,nghost,0);
@@ -242,7 +247,17 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
     // com_bl cannot be null since we grew with halo cells
     AMREX_ALWAYS_ASSERT(com_bl.size() > 0);
 
-    IntVect box_grow_vect(-nghost,-nghost,0);
+    // A band of width -nghost fine cells inside every coarse/fine face, including the top and
+    // bottom faces of a level that does not reach the top or bottom of the domain (issue 4303)
+    IntVect box_grow_vect(-nghost,-nghost,-nghost);
+
+    // In z, only those coarse/fine faces start a band: drop the part of the complement that lies
+    // above or below a non-periodic domain, so a level that does reach the top or bottom gets no
+    // band at the physical boundary (in x and y the complement is used as it is)
+    Box zdomain = convert(m_fgeom.Domain(), fba.ixType());
+    zdomain.setRange(0, fba_bnd.smallEnd(0), fba_bnd.length(0));
+    zdomain.setRange(1, fba_bnd.smallEnd(1), fba_bnd.length(1));
+    const bool clip_z = (nghost != 0) && !m_fgeom.isPeriodic(2);
 
     // cf_set_width = cf_width = 0 is a special case
     // In this case we set only the normal velocities
@@ -259,12 +274,17 @@ void ERFFillPatcher::BuildMask (BoxArray const& fba,
     }
 
     // Grow the complement boxes and trim with the bounding box
-    Vector<Box>& com_bl_v = com_bl.data();
-    for (int i(0); i<com_bl.size(); ++i) {
-        Box& bx = com_bl_v[i];
+    BoxList grown_bl(fba.ixType());
+    for (Box bx : com_bl) {
+        if (clip_z) {
+            bx &= zdomain;
+            if (!bx.ok()) { continue; }
+        }
         bx.grow(box_grow_vect);
         bx &= fba_bnd;
+        grown_bl.push_back(bx);
     }
+    com_bl = std::move(grown_bl);
 
 
     // Do second complement with the grown boxes
@@ -299,10 +319,11 @@ void ERFFillPatcher::RegisterCoarseData (Vector<MultiFab const*> const& crse_dat
     AMREX_ALWAYS_ASSERT(crse_data.size() == 2); // old and new
     AMREX_ALWAYS_ASSERT(crse_time[1] >= crse_time[0]);
 
-    // NOTE: CoarseBox with CellConsLinear interpolation grows the
-    //       box by 1 in all directions. This pushes the domain for
-    //       m_cf_crse_data into ghost cells in the z-dir. So we need
-    //       to include ghost cells for crse_data when doing the copy
+    // NOTE: CoarseBox grows the coarsened fine box by one cell in each direction whose
+    //       refinement ratio is > 1 (and, for face_cons_linear_interp, that is cell-centered).
+    //       Where the fine level touches the domain boundary, the grown box reaches past the
+    //       coarse domain (e.g. in z when the vertical ratio is > 1), so include the ghost
+    //       cells of crse_data in the copy
     IntVect src_ng = crse_data[0]->nGrowVect();
     IntVect dst_ng = m_cf_crse_data_old->nGrowVect();
 
