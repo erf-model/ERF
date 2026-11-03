@@ -643,6 +643,24 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
 
         return args
 
+    def check(self):
+        """Run CTest directly so Make's job server cannot override test concurrency."""
+        if not self.spec.satisfies("+tests"):
+            return
+        ctest = Executable(join_path(self.spec["cmake"].prefix.bin, "ctest"))
+        # Spack's default CMake check invokes make test and replaces
+        # CTEST_PARALLEL_LEVEL with the build worker count. CTest 3.31.6
+        # crashed while using that job server. Keep tests serial by default,
+        # honor an explicit test worker count, and preserve failure output.
+        with working_dir(self.build_directory):
+            ctest(
+                "--output-on-failure",
+                "--no-tests=error",
+                "--parallel",
+                os.environ.get("CTEST_PARALLEL_LEVEL") or "1",
+                extra_env={"MAKEFLAGS": "", "MFLAGS": ""},
+            )
+
     @staticmethod
     def _cuda_arch_number(arch):
         """Numeric part of a compute capability ("90a" -> 90), for ordering."""
