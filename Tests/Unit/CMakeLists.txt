@@ -118,6 +118,9 @@ target_sources(${erf_exe_name}
     # Motivation: the roughness inverted from surface fluxes must stay inside its bounds.
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestInvertedRoughness.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestMOSTAverage.cpp
+    # Motivation: the MOST flux kernels must stay bounded and correctly signed at the
+    # stable fold of a prescribed flux and when the log-law bracket would change sign.
+    ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestMOSTIteration.cpp
     # Motivation: the MOST reference height must use the true stretched cell
     # centers, and a query on a mesh face must be found rather than abort.
     ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestMOSTAverageZref.cpp
