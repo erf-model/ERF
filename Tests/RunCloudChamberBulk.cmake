@@ -1,3 +1,5 @@
+cmake_minimum_required(VERSION 3.20)
+
 include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
 
 foreach(required MPIEXEC MPIEXEC_NUMPROC_FLAG NRANKS TEST_EXE INPUT
