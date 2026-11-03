@@ -807,7 +807,7 @@ void SuperDropletPC::ComputeBinnedDistributions ( const int a_iter, const int a_
     R, g_mass(ln R), g_n(ln R) */
 void SuperDropletPC::ComputeBinnedDistributionsCell ( const int a_iter,
                                                      const int a_lev,
-                                                     const double a_time )
+                                                     const amrex::Real a_time )
 {
     BL_PROFILE("SuperDropletPC::ComputeBinnedDistributionsCell()");
     AMREX_ASSERT(OK());
