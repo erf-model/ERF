@@ -99,7 +99,8 @@ void make_sources (int level, int nrk,
                    const amrex::Table1D<amrex::Real> t_plane_avg,
                    const amrex::MultiFab* forest_drag,
                    const amrex::MultiFab* cons_old,
-                   bool is_slow_step);
+                   bool is_slow_step,
+                   amrex::MultiFab* ib_wall_hfx = nullptr);
 
 #if defined(ERF_USE_NETCDF)
 /**

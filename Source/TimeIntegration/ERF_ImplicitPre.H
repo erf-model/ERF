@@ -139,16 +139,23 @@
                                                      stage_dt, l_bc_neumann_vals_d, cell_data,
                                                      dxInv, hfx_z, mu_turb, solverChoice,
                                                      bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
-                                                     l_use_mrf_cg);
+                                                     l_use_mrf_cg,
+                                                     (ib_wall_face33[level]) ? ib_wall_face33[level]->const_array(mfi)
+                                                                             : Array4<const Real>{});
                         }
                         if (l_do_implicit_mom) {
+                            // Fraction-stress immersed wall law: no coupling through the wall face
+                            const Array4<const Real> wall13 = (ib_wall_face13[level])
+                                ? ib_wall_face13[level]->const_array(mfi) : Array4<const Real>{};
+                            const Array4<const Real> wall23 = (ib_wall_face23[level])
+                                ? ib_wall_face23[level]->const_array(mfi) : Array4<const Real>{};
                             ImplicitDiffForMomLU_N<0>(tbx, fine_geom.Domain(), level, stage_dt,
                                                       col_kext,
                                                       cell_data, rho_u, tau13, tau13_corr,
                                                       dxInv,
                                                       mu_turb, solverChoice,
                                                       bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
-                                                      l_use_ysu_mom_cg);
+                                                      l_use_ysu_mom_cg, wall13);
 
                             ImplicitDiffForMomLU_N<1>(tby, fine_geom.Domain(), level, stage_dt,
                                                       col_kext,
@@ -156,7 +163,7 @@
                                                       dxInv,
                                                       mu_turb, solverChoice,
                                                       bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac,
-                                                      l_use_ysu_mom_cg);
+                                                      l_use_ysu_mom_cg, wall23);
                         }
                     }
                 } // mfi

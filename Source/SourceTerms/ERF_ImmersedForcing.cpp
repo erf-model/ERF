@@ -3,6 +3,7 @@
 #include "ERF_TI_slow_headers.H"
 #include "ERF_SrcHeaders.H"
 #include "ERF_ImmersedWallStability.H"
+#include "ERF_ImmersedWallCell.H"
 
 using namespace amrex;
 
@@ -315,6 +316,244 @@ void ImmersedForcingTerrain_Ymom (const Box& tby,
         }
     });
 }
+
+/**
+ * Surface condition of the fraction-stress wall law from the erf.if_* inputs at this time: a given
+ * Obukhov length, a given heat flux, a given surface temperature (erf.if_init_surf_temp, changing
+ * at erf.if_surf_heating_rate, which is stored in K/s), or none (neutral). The inputs guarantee
+ * that at most one is set.
+ */
+static ib_wall::WallCond
+make_wall_cond (const SolverChoice& sc, const Real time)
+{
+    ib_wall::WallCond c;
+    if (sc.if_Olen_in != Real(1e-8)) {
+        c.type = ib_wall::WallCond::obukhov;
+        c.Linv = one / sc.if_Olen_in;
+    } else if (sc.if_surf_temp_flux != Real(1e-8)) {
+        c.type = ib_wall::WallCond::heat_flux;
+        c.q = sc.if_surf_temp_flux;
+    } else if (sc.if_init_surf_temp > zero) {
+        c.type = ib_wall::WallCond::surface_temp;
+        c.theta_s = sc.if_init_surf_temp + sc.if_surf_heating_rate * time;
+    }
+    return c;
+}
+
+namespace {
+
+/// Solid fraction on a face column at level kk, clamped to the domain in k, fluid below small
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real if_face_beta (const Array4<const Real>& tb, const Array4<const Real>& tb_face,
+                   int i, int j, int kk, int io, int jo, int klo, int khi, Real small) noexcept
+{
+    const int kc = amrex::min(amrex::max(kk, klo), khi);
+    const Real b = (tb_face) ? tb_face(i, j, kc) : myhalf * (tb(i, j, kc) + tb(i-io, j-jo, kc));
+    return (b < small) ? zero : b;
+}
+
+/// Solid fraction of a cell column at level kk, clamped to the domain in k, fluid below small
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real if_cell_beta (const Array4<const Real>& tb, int i, int j, int kk, int klo, int khi, Real small) noexcept
+{
+    const Real b = tb(i, j, amrex::min(amrex::max(kk, klo), khi));
+    return (b < small) ? zero : b;
+}
+
+/// Horizontal speed on a face of direction dir at level kk (the cross component averaged to it)
+template <int dir>
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real if_face_speed (const Array4<const Real>& u, const Array4<const Real>& v, int i, int j, int kk) noexcept
+{
+    const Real un = (dir == 0) ? u(i, j, kk) : v(i, j, kk);
+    const Real uc = (dir == 0) ? fourth * ( v(i, j, kk) + v(i-1, j, kk) + v(i, j+1, kk) + v(i-1, j+1, kk) )
+                               : fourth * ( u(i, j, kk) + u(i+1, j, kk) + u(i, j-1, kk) + u(i+1, j-1, kk) );
+    return std::sqrt(un * un + uc * uc);
+}
+
+/// Potential temperature on a face of direction dir at level kk
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real if_face_theta (const Array4<const Real>& cell_data, int i, int j, int kk, int io, int jo) noexcept
+{
+    return myhalf * ( cell_data(i,j,kk,RhoTheta_comp) / cell_data(i,j,kk,Rho_comp)
+                    + cell_data(i-io,j-jo,kk,RhoTheta_comp) / cell_data(i-io,j-jo,kk,Rho_comp) );
+}
+
+} // namespace
+
+/**
+ * Fraction-stress wall law (erf.if_wall_form = fraction_stress) for a horizontal momentum
+ * component, see ERF_ImmersedWallCell.H: the wall stress in the wall cell of each face column,
+ * the drag of the terrain kernels elsewhere (solid cells, and partial cells under the wall cell).
+ * dir = 0 forces x-momentum, dir = 1 y-momentum.
+ */
+template <int dir>
+void ImmersedForcingTerrain_HorizMom_FractionStress (const Box& tb,
+                                                    const Array4<const Real>& u,
+                                                    const Array4<const Real>& v,
+                                                    const Array4<const Real>& w,
+                                                    const Array4<const Real>& cell_data,
+                                                    const Array4<const Real>& t_blank_arr,
+                                                    const Array4<const Real>& t_blank_face_arr,
+                                                    const Array4<      Real>& mom_src_arr,
+                                                    const Geometry& geom,
+                                                    const SolverChoice& solverChoice,
+                                                    const Real dt,
+                                                    const Real time)
+{
+    const Real* dx_arr = geom.CellSize();
+    const Real dx_x = dx_arr[0];
+    const Real dx_y = dx_arr[1];
+    const Real dz   = dx_arr[2];   // fraction_stress runs on a constant-dz mesh
+    const Real alpha_m = solverChoice.if_Cd_momentum;
+    const Real z0      = solverChoice.if_z0;
+    const bool l_implicit_drag = solverChoice.if_implicit_drag;
+    // erf.if_implicit_projection: the drag of the solid is applied inside the anelastic projection
+    const bool l_drag = !solverChoice.if_implicit_projection;
+    const Real tiny  = std::numeric_limits<Real>::epsilon();
+    const Real small = solverChoice.if_small_volfrac;
+    const ib_wall::WallCond cond = make_wall_cond(solverChoice, time);
+    constexpr int io = (dir == 0) ? 1 : 0;
+    constexpr int jo = (dir == 1) ? 1 : 0;
+    const int klo = geom.Domain().smallEnd(2);
+    const int khi = geom.Domain().bigEnd(2);
+
+    ParallelFor(tb, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        // solid fraction on this face column, as the terrain kernels read it, with the column
+        // ends clamped to the domain as make_ib_wall_face_masks does
+        const Real b_km1 = if_face_beta(t_blank_arr, t_blank_face_arr, i, j, k-1, io, jo, klo, khi, small);
+        const Real b_k   = if_face_beta(t_blank_arr, t_blank_face_arr, i, j, k,   io, jo, klo, khi, small);
+        const Real b_kp1 = if_face_beta(t_blank_arr, t_blank_face_arr, i, j, k+1, io, jo, klo, khi, small);
+        const Real rho_face = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-io,j-jo,k,Rho_comp) );
+        const Real un = (dir == 0) ? u(i, j, k) : v(i, j, k);
+
+        if (ib_wall::is_wall_cell(b_km1, b_k, b_kp1, small)) {
+            const Real ut     = if_face_speed<dir>(u, v, i, j, k);
+            const Real ut_ref = if_face_speed<dir>(u, v, i, j, k+1);
+            const ib_wall::WallState ws = ib_wall::wall_state(ut, ut_ref,
+                                                              if_face_theta(cell_data, i, j, k,   io, jo),
+                                                              if_face_theta(cell_data, i, j, k+1, io, jo),
+                                                              ib_wall::wall_beta(b_k, small), dz, z0, cond);
+            mom_src_arr(i, j, k) -= ib_wall::stress_rate(ws.ustar, ut, dz, dt) * rho_face * un;
+        } else if (l_drag) {
+            const Real wz = (dir == 0) ? fourth * ( w(i, j, k) + w(i-1, j, k) + w(i, j, k+1) + w(i-1, j, k+1) )
+                                       : fourth * ( w(i, j, k) + w(i, j-1, k) + w(i, j, k+1) + w(i, j-1, k+1) );
+            const Real uh = if_face_speed<dir>(u, v, i, j, k);
+            const Real windspeed = std::sqrt(uh * uh + wz * wz);
+            const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dz, one/three);
+            const Real CdM = std::min(drag_coefficient / (windspeed + tiny), drag_coefficient);
+            const Real lambda = b_k * CdM * windspeed;   // linear drag rate [1/s]; zero in fluid cells
+            const Real fac_local = l_implicit_drag ? lambda / (one + lambda*dt) : lambda;
+            mom_src_arr(i, j, k) -= fac_local * rho_face * un;
+        }
+    });
+}
+
+void ImmersedForcingTerrain_Xmom_FractionStress (const Box& tbx,
+                                                 const Array4<const Real>& u,
+                                                 const Array4<const Real>& v,
+                                                 const Array4<const Real>& w,
+                                                 const Array4<const Real>& cell_data,
+                                                 const Array4<const Real>& t_blank_arr,
+                                                 const Array4<const Real>& t_blank_xface_arr,
+                                                 const Array4<      Real>& xmom_src_arr,
+                                                 const Geometry& geom,
+                                                 const SolverChoice& solverChoice,
+                                                 const Real fac,
+                                                 const Real time)
+{
+    ImmersedForcingTerrain_HorizMom_FractionStress<0>(tbx, u, v, w, cell_data, t_blank_arr, t_blank_xface_arr,
+                                                      xmom_src_arr, geom, solverChoice, fac, time);
+}
+
+void ImmersedForcingTerrain_Ymom_FractionStress (const Box& tby,
+                                                 const Array4<const Real>& u,
+                                                 const Array4<const Real>& v,
+                                                 const Array4<const Real>& w,
+                                                 const Array4<const Real>& cell_data,
+                                                 const Array4<const Real>& t_blank_arr,
+                                                 const Array4<const Real>& t_blank_yface_arr,
+                                                 const Array4<      Real>& ymom_src_arr,
+                                                 const Geometry& geom,
+                                                 const SolverChoice& solverChoice,
+                                                 const Real fac,
+                                                 const Real time)
+{
+    ImmersedForcingTerrain_HorizMom_FractionStress<1>(tby, u, v, w, cell_data, t_blank_arr, t_blank_yface_arr,
+                                                      ymom_src_arr, geom, solverChoice, fac, time);
+}
+
+/**
+ * Fraction-stress wall law for the scalars (erf.if_wall_form = fraction_stress), see
+ * ERF_ImmersedWallCell.H: the wall heat flux -u* theta* in the wall cell of each column, with the
+ * u* and theta* of the momentum law, and the relaxation of fully immersed cells to the planar
+ * average of the legacy kernel. The kinematic wall flux -u* theta* is stored in wall_hfx at the
+ * wall cell (zero elsewhere), for the TKE buoyancy on the wall face.
+ */
+void ImmersedForcingTerrain_Scalar_FractionStress (const Box& bx,
+                                                   const Array4<const Real>& u,
+                                                   const Array4<const Real>& v,
+                                                   const Array4<const Real>& cell_data,
+                                                   const Array4<const Real>& t_blank_arr,
+                                                   const Array4<      Real>& cell_src,
+                                                   const Array4<      Real>& wall_hfx,
+                                                   const Geometry& geom,
+                                                   const SolverChoice& solverChoice,
+                                                   const Table1D<Real>& r_avg,
+                                                   const Table1D<Real>& t_avg,
+                                                   const Real dt,
+                                                   const Real time,
+                                                   const bool wall_tke,
+                                                   const Real Cmu0)
+{
+    const Real* dx_arr = geom.CellSize();
+    const Real dz = dx_arr[2];   // fraction_stress runs on a constant-dz mesh
+    const Real tke_time_factor = solverChoice.if_wall_tke_time_factor;
+    const Real drag_coefficient = solverChoice.if_Cd_scalar / std::pow(dx_arr[0]*dx_arr[1]*dz, one/three);
+    const Real z0    = solverChoice.if_z0;
+    const Real small = solverChoice.if_small_volfrac;
+    const ib_wall::WallCond cond = make_wall_cond(solverChoice, time);
+    const int klo = geom.Domain().smallEnd(2);
+    const int khi = geom.Domain().bigEnd(2);
+    const bool have_avg = (r_avg && t_avg);
+
+    ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
+    {
+        const Real b_k = if_cell_beta(t_blank_arr, i, j, k, klo, khi, small);
+        if (wall_hfx) { wall_hfx(i, j, k) = zero; }
+
+        if (ib_wall::is_wall_cell(if_cell_beta(t_blank_arr, i, j, k-1, klo, khi, small), b_k,
+                                  if_cell_beta(t_blank_arr, i, j, k+1, klo, khi, small), small)) {
+            // horizontal speed at the cell centres of the wall cell and the cell above
+            const Real uc0 = myhalf * (u(i, j, k)   + u(i+1, j, k));
+            const Real vc0 = myhalf * (v(i, j, k)   + v(i, j+1, k));
+            const Real uc1 = myhalf * (u(i, j, k+1) + u(i+1, j, k+1));
+            const Real vc1 = myhalf * (v(i, j, k+1) + v(i, j+1, k+1));
+            const Real rho       = cell_data(i, j, k,   Rho_comp);
+            const Real theta     = cell_data(i, j, k,   RhoTheta_comp) / rho;
+            const Real theta_ref = cell_data(i, j, k+1, RhoTheta_comp) / cell_data(i, j, k+1, Rho_comp);
+            const ib_wall::WallState ws = ib_wall::wall_state(std::sqrt(uc0*uc0 + vc0*vc0), std::sqrt(uc1*uc1 + vc1*vc1),
+                                                              theta, theta_ref,
+                                                              ib_wall::wall_beta(b_k, small), dz, z0, cond);
+            cell_src(i, j, k, RhoTheta_comp) += rho * ib_wall::heat_source(ws, theta, cond, dz, dt);
+            if (wall_hfx) { wall_hfx(i, j, k) = -ws.ustar * ws.thetastar; }
+            if (wall_tke) {
+                // relax the wall-cell TKE toward its wall value over tke_time_factor steps
+                const Real k_wall = ib_wall::wall_tke(ws, ib_wall::wall_beta(b_k, small), dz, z0, theta, Cmu0);
+                const Real k_now  = cell_data(i, j, k, RhoKE_comp) / rho;
+                cell_src(i, j, k, RhoKE_comp) += rho * (k_wall - k_now) / (tke_time_factor * dt);
+            }
+        } else if (b_k == one && have_avg) {
+            // fully immersed cells: relax to the planar average, as the legacy kernel does
+            const Real rho_avg   = r_avg(k);
+            const Real theta_avg = t_avg(k) / rho_avg;
+            cell_src(i, j, k, Rho_comp)      -= drag_coefficient * (cell_data(i,j,k,Rho_comp) - rho_avg);
+            cell_src(i, j, k, RhoTheta_comp) -= drag_coefficient * (cell_data(i,j,k,RhoTheta_comp) - rho_avg * theta_avg);
+        }
+    });
+}
+
 
 /**
  * Apply terrain immersed forcing to Z-momentum

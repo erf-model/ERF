@@ -44,8 +44,13 @@ ImplicitDiffForStateLU_N (const Box& bx,
                           const BCRec* bc_ptr,
                           const bool use_SurfLayer,
                           const Real implicit_fac,
-                          const bool use_mrf_countergradient)
+                          const bool use_mrf_countergradient,
+                          const Array4<const Real>& wall_face)
 {
+    // Fraction-stress immersed wall law: wall_face is zero on the bottom face of the wall cell of
+    // each column (z faces), which then carries no diffusive coupling. Empty when not in use.
+    const bool has_wall_face = static_cast<bool>(wall_face);
+
     BL_PROFILE_VAR("ImplicitDiffForState_N()",ImplicitDiffForState_N);
 
     Real dt = static_cast<Real>(dt_d);
@@ -131,6 +136,10 @@ ImplicitDiffForStateLU_N (const Box& bx,
                 a_tmp      = zero;
                 if (!at_zlo) { a_tmp = -Fact * rhoAlpha_lo * dz_inv; }
                 c_tmp      = (pin_klo) ? zero : -Fact * rhoAlpha_hi * dz_inv;
+                if (has_wall_face) {
+                    a_tmp *= wall_face(i,j,klo);
+                    c_tmp *= wall_face(i,j,klo+1);
+                }
                 b_tmp      = cell_data(i,j,klo,Rho_comp) - a_tmp - c_tmp;
                 inv_b2_tmp = one;
 
@@ -174,6 +183,10 @@ ImplicitDiffForStateLU_N (const Box& bx,
 
                 a_tmp      = -Fact * rhoAlpha_lo * dz_inv;
                 c_tmp      = -Fact * rhoAlpha_hi * dz_inv;
+                if (has_wall_face) {
+                    a_tmp *= wall_face(i,j,k);
+                    c_tmp *= wall_face(i,j,k+1);
+                }
                 b_tmp      = cell_data(i,j,k,Rho_comp) - a_tmp - c_tmp;
                 inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,k-1));
 
@@ -206,6 +219,10 @@ ImplicitDiffForStateLU_N (const Box& bx,
                 a_tmp      = -Fact * rhoAlpha_lo * dz_inv;
                 c_tmp      = zero;
                 if (!at_zhi) { c_tmp = -Fact * rhoAlpha_hi * dz_inv; }
+                if (has_wall_face) {
+                    a_tmp *= wall_face(i,j,khi);
+                    if (!at_zhi) { c_tmp *= wall_face(i,j,khi+1); }
+                }
                 b_tmp      = cell_data(i,j,khi,Rho_comp) - a_tmp - c_tmp;
                 inv_b2_tmp = one / (b_tmp - a_tmp * coeffG_a(i,j,khi-1));
 
@@ -295,8 +312,14 @@ ImplicitDiffForMomLU_N (const Box& bx,
                         const BCRec* bc_ptr,
                         const bool use_SurfLayer,
                         const Real implicit_fac,
-                        const bool use_ysu_mom_countergradient)
+                        const bool use_ysu_mom_countergradient,
+                        const Array4<const Real>& wall_face)
 {
+    // Fraction-stress immersed wall law: wall_face is zero on the bottom face of the wall cell
+    // of each face column (xz or yz edges), which then carries no diffusive coupling; the wall
+    // stress is a source term (ERF_ImmersedWallCell.H). Empty when not in use.
+    const bool has_wall_face = static_cast<bool>(wall_face);
+
     BL_PROFILE_VAR("ImplicitDiffForMom_N()",ImplicitDiffForMom_N);
 
     Real dt = static_cast<Real>(dt_d);
@@ -428,6 +451,7 @@ ImplicitDiffForMomLU_N (const Box& bx,
 
               a_tmp = zero;
               c_tmp = -Fact * rhoAlpha_hi * dz_inv;
+              if (has_wall_face) { c_tmp *= wall_face(i,j,klo+1); }
 
               RHS_a(i,j,klo) = face_data(i,j,klo); // NOTE: this is momenta; solution is velocity
 
@@ -502,6 +526,10 @@ ImplicitDiffForMomLU_N (const Box& bx,
 
               a_tmp      = -Fact * rhoAlpha_lo * dz_inv;
               c_tmp      = -Fact * rhoAlpha_hi * dz_inv;
+              if (has_wall_face) {
+                  a_tmp *= wall_face(i,j,k);
+                  c_tmp *= wall_face(i,j,k+1);
+              }
               b_tmp      = rhoface - a_tmp - c_tmp;
               inv_b2_tmp = one/ (b_tmp - a_tmp * coeffG_a(i,j,k-1));
 
@@ -534,6 +562,7 @@ ImplicitDiffForMomLU_N (const Box& bx,
 
               a_tmp = -Fact * rhoAlpha_lo * dz_inv;
               c_tmp = zero;
+              if (has_wall_face) { a_tmp *= wall_face(i,j,khi); }
 
               RHS_a(i,j,khi)  = face_data(i,j,khi); // NOTE: this is momenta; solution is velocity
               RHS_a(i,j,khi) += Fact * (tau_corr(i,j,khi+1) - tau_corr(i,j,khi));
@@ -625,7 +654,8 @@ ImplicitDiffForMomLU_N (const Box& bx,
         const BCRec*, \
         const bool, \
         const Real, \
-        const bool);
+        const bool, \
+        const Array4<const Real>&);
 INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU(0)
 INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU(1)
 #undef INSTANTIATE_IMPLICIT_DIFF_FOR_MOM_LU

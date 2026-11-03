@@ -135,7 +135,7 @@
                      turbPert,
                      r_avg_to_pass, t_avg_to_pass,
                      forest_drag, &S_old[IntVars::cons],
-                     true);
+                     true, ib_wall_hfx[level].get());
 
         // *****************************************************************************
         // Inject the fire-to-atmosphere heat flux AFTER make_sources, which resets
@@ -280,7 +280,9 @@
                          native_shoc_driver[level].get(),
                          fr_as_crse, fr_as_fine, &base_to_use,
                          cloud_chamber_config.active ? &cloud_chamber_config : nullptr,
-                         cloud_chamber_budget.get());
+                         cloud_chamber_budget.get(),
+                         ib_wall_face13[level].get(), ib_wall_face23[level].get(),
+                         ib_wall_face33[level].get(), ib_wall_hfx[level].get());
 
         // Anelastic coarse/fine faces in time (ERF_CoarseFineFaces.cpp): a coarse level adds
         // this stage's mass fluxes to those of its step, a fine level registers the coarse

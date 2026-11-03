@@ -1289,6 +1289,74 @@ struct SolverChoice {
             if_implicit_drag = true;
         }
         pp.queryAdd("if_stability_correction",if_stability_correction);
+
+        // Wall law of the terrain immersed forcing (erf-model/ERF#4134): "legacy" (the default)
+        // relaxes the top partial cell toward the log law at fixed 0.5/1.5 dz;
+        // "fraction_stress" applies the wall stress of ERF_ImmersedWallCell.H in the wall cell
+        // and closes the wall face to diffusion (form 7 of the kynema-sgf immersed terrain)
+        std::string if_wall_form_in = "legacy";
+        pp.queryAdd("if_wall_form", if_wall_form_in);
+        if (if_wall_form_in == "fraction_stress") {
+            if_fraction_stress = true;
+        } else if (if_wall_form_in != "legacy") {
+            amrex::Abort("erf.if_wall_form must be legacy or fraction_stress, not " + if_wall_form_in);
+        }
+        // Spacing of the face above the wall cell (fraction_stress only): "log" (default) gives
+        // that face the relative error of flat ground's first interior face for a log profile,
+        // "physical" the centroid spacing, "grid" the cell height (ib_wall::face_above_factor)
+        std::string if_wall_face_spacing_in = "log";
+        const bool spacing_given = pp.queryAdd("if_wall_face_spacing", if_wall_face_spacing_in);
+        if (spacing_given && !if_fraction_stress) {
+            amrex::Abort("erf.if_wall_face_spacing belongs to erf.if_wall_form = fraction_stress");
+        }
+        if      (if_wall_face_spacing_in == "grid")     { if_wall_face_spacing = 0; }
+        else if (if_wall_face_spacing_in == "physical") { if_wall_face_spacing = 1; }
+        else if (if_wall_face_spacing_in == "log")      { if_wall_face_spacing = 2; }
+        else { amrex::Abort("erf.if_wall_face_spacing must be log, physical or grid"); }
+        // Wall value of the k-eqn TKE in the fraction-stress wall cell: relax toward
+        // (u*^3 + kappa B d1)^(2/3) / Cmu0^2 over if_wall_tke_time_factor steps (the value
+        // erf.dirichlet_k holds over flat ground; kynema-sgf does the same at its immersed wall)
+        // (a value of false is accepted with the legacy law, so one deck can run both laws)
+        pp.queryAdd("if_wall_tke", if_wall_tke);
+        const bool tke_factor_given = pp.queryAdd("if_wall_tke_time_factor", if_wall_tke_time_factor);
+        if ((if_wall_tke || tke_factor_given) && !if_fraction_stress) {
+            amrex::Abort("erf.if_wall_tke = true and erf.if_wall_tke_time_factor belong to erf.if_wall_form = fraction_stress");
+        }
+        if (!(if_wall_tke_time_factor >= one)) {
+            amrex::Abort("erf.if_wall_tke_time_factor must be >= 1 (steps over which the wall TKE is relaxed)");
+        }
+        // Partial wall cells of the fraction-stress law dissipate TKE with the length scale of flat
+        // ground's first cell (kynema-sgf KLAxell.flat_wall_dissipation); on by default with it
+        if_flat_wall_dissipation = if_fraction_stress;
+        const bool diss_given = pp.queryAdd("if_flat_wall_dissipation", if_flat_wall_dissipation);
+        if (diss_given && !if_fraction_stress) {
+            amrex::Abort("erf.if_flat_wall_dissipation belongs to erf.if_wall_form = fraction_stress");
+        }
+        if (if_fraction_stress) {
+            if (terrain_type != TerrainType::ImmersedForcing) {
+                amrex::Abort("erf.if_wall_form = fraction_stress needs erf.terrain_type = ImmersedForcing");
+            }
+            if (buildings_type == BuildingsType::ImmersedForcing) {
+                amrex::Abort("erf.if_wall_form = fraction_stress is not available with erf.buildings_type = ImmersedForcing");
+            }
+            if (!if_use_most) {
+                amrex::Abort("erf.if_wall_form = fraction_stress is a wall law: it needs erf.if_use_most = true");
+            }
+            if (mesh_type != MeshType::ConstantDz) {
+                amrex::Abort("erf.if_wall_form = fraction_stress needs a constant-dz mesh");
+            }
+            // One surface condition (heat flux, surface temperature - optionally changing at
+            // erf.if_surf_heating_rate - or Obukhov length; none is neutral, checked below); the
+            // MOST stability functions always apply, as on the flat surface layer, so
+            // erf.if_stability_correction (a legacy switch) must not be set
+            if (if_surf_heating_rate != zero && !(if_init_surf_temp > zero)) {
+                amrex::Abort("erf.if_surf_heating_rate needs erf.if_init_surf_temp");
+            }
+            if (if_stability_correction) {
+                amrex::Abort("erf.if_wall_form = fraction_stress always applies the stability functions; "
+                             "erf.if_stability_correction is for the legacy wall law");
+            }
+        }
         pp.queryAdd("if_ws_floor",if_ws_floor);
         pp.queryAdd("if_damp_alpha",if_damp_alpha);
         // Opt-in WRF-style bounds on the wall law (erf-model/ERF#4016): the wind floor behind the
@@ -2019,6 +2087,13 @@ struct SolverChoice {
                                "(amr.max_level > 0) and erf.coupling_type = TwoWay");
             }
         }
+        if (if_fraction_stress) {
+            amrex::Print() << "Immersed forcing: erf.if_wall_form = fraction_stress (wall stress in the wall cell, "
+                           << "the wall face closed to diffusion; face spacing "
+                           << ((if_wall_face_spacing == 2) ? "log" : (if_wall_face_spacing == 1) ? "physical" : "grid")
+                           << ", wall TKE " << (if_wall_tke ? "on" : "off")
+                           << ", flat-wall dissipation " << (if_flat_wall_dissipation ? "on" : "off") << ")\n";
+        }
         // The log-law coarse/fine fill acts only on refined levels
         if (cf_loglaw_fill) {
             const bool immersed = (terrain_type == TerrainType::ImmersedForcing ||
@@ -2583,6 +2658,11 @@ struct SolverChoice {
     bool        if_use_most              = false;
     bool        if_snap_partial_cells    = false;
     bool        if_stability_correction  = false;
+    bool        if_fraction_stress       = false;  // erf.if_wall_form = fraction_stress
+    int         if_wall_face_spacing     = 2;      // erf.if_wall_face_spacing: 0 grid, 1 physical, 2 log (default)
+    bool        if_wall_tke              = false;  // erf.if_wall_tke: wall value of the k-eqn TKE in the wall cell
+    amrex::Real if_wall_tke_time_factor  = amrex::Real(5.0); // erf.if_wall_tke_time_factor: relaxation steps
+    bool        if_flat_wall_dissipation = false;  // erf.if_flat_wall_dissipation (default: = if_fraction_stress)
     amrex::Real if_ws_floor              = 0.001;  // [m/s]
     amrex::Real if_damp_alpha            = 0.5;    // [-]
     amrex::Real if_stability_wind_floor  = amrex::Real(0.0);  // [m/s]
@@ -3032,6 +3112,21 @@ struct SolverChoice {
  * @brief Immersed-forcing surface temperature flux [K m/s].
  * @var SolverChoice::if_init_surf_temp
  * @brief Initial immersed-forcing surface temperature [K].
+ * @var SolverChoice::if_fraction_stress
+ * @brief erf.if_wall_form = fraction_stress: the wall stress of ERF_ImmersedWallCell.H in the wall
+ *        cell of each column, with the wall face closed to diffusion; false is the legacy MOST
+ *        relaxation at fixed 0.5/1.5 dz (the default, unchanged).
+ * @var SolverChoice::if_wall_face_spacing
+ * @brief Spacing the face above the fraction-stress wall cell differences over: 0 the cell
+ *        height, 1 the centroid spacing, 2 (default) the log spacing (ib_wall::face_above_factor).
+ * @var SolverChoice::if_wall_tke
+ * @brief Relax the k-eqn TKE of the fraction-stress wall cell toward its flat-ground wall value
+ *        (ib_wall::wall_tke) over if_wall_tke_time_factor steps.
+ * @var SolverChoice::if_wall_tke_time_factor
+ * @brief Steps over which that relaxation acts (>= 1).
+ * @var SolverChoice::if_flat_wall_dissipation
+ * @brief Partial fraction-stress wall cells dissipate TKE with the length scale of flat ground's
+ *        first cell; on by default with the fraction-stress law.
  * @var SolverChoice::if_surf_heating_rate
  * @brief Immersed-forcing surface heating rate [K/hr].
  * @var SolverChoice::if_Olen_in

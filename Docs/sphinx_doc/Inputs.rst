@@ -3949,6 +3949,34 @@ selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 |                                   | forcing similarity functions; use with caution for       |                    |                  |
 |                                   | horizontal walls                                         |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_wall_form**              | wall law of the terrain immersed forcing: ``legacy``     | ``legacy``,        | ``legacy``       |
+|                                   | (MOST relaxation of the top partial cell at fixed        | ``fraction_stress``|                  |
+|                                   | 0.5/1.5 dz, unchanged) or ``fraction_stress`` (wall      |                    |                  |
+|                                   | stress in the wall cell with u* mixed by the immersed    |                    |                  |
+|                                   | fraction, no diffusion through the wall face, the RANS   |                    |                  |
+|                                   | wall distance from the surface); needs                   |                    |                  |
+|                                   | erf.if_use_most = true, a constant-dz mesh, terrain      |                    |                  |
+|                                   | only (not buildings); erf.if_stability_correction is     |                    |                  |
+|                                   | for the legacy law                                       |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_wall_face_spacing**      | fraction_stress only: spacing the face above the wall    | ``log``,           | ``log``          |
+|                                   | cell differences over; log gives it flat ground's        | ``physical``,      |                  |
+|                                   | first-face error for a log profile, physical the         | ``grid``           |                  |
+|                                   | centroid spacing, grid the cell height                   |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_wall_tke**               | fraction_stress with the k-eqn RANS only: relax the      | Boolean            | false            |
+|                                   | wall-cell TKE toward (u*^3 + kappa B d1)^(2/3)/Cmu0^2    |                    |                  |
+|                                   | (the value erf.dirichlet_k holds over flat ground), from |                    |                  |
+|                                   | the wall law's u* and theta*, d1 the fluid-centroid      |                    |                  |
+|                                   | height of the wall cell                                  |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_wall_tke_time_factor**   | steps over which erf.if_wall_tke relaxes the wall TKE    | Real >= 1          | 5                |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_flat_wall_dissipation**  | fraction_stress with the k-eqn RANS only: partial wall   | Boolean            | true with        |
+|                                   | cells dissipate TKE with the length scale of flat        |                    | fraction_stress  |
+|                                   | ground's first cell (dz/2 + z0) instead of their own     |                    |                  |
+|                                   | fluid-centroid length                                    |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_ws_floor**               | lower bound [m/s] on the wind speed in the limit on the  | Real > 0           | 0.001            |
 |                                   | per-step change of the building wall-law forcing; the    |                    |                  |
 |                                   | stability estimate has its own, off by default           |                    |                  |
@@ -5883,6 +5911,8 @@ Immersed Forcing and Canopy Source Terms
 * :ref:`Terrain <inputs-terrain>` -- ``erf.if_Cd_momentum``, ``erf.if_Cd_scalar``,
   ``erf.if_Olen``, ``erf.if_damp_alpha``, ``erf.if_implicit_drag``, ``erf.if_implicit_projection``,
   ``erf.if_init_surf_temp``, ``erf.if_stability_correction``, ``erf.if_surf_heating_rate``,
+  ``erf.if_wall_form``, ``erf.if_wall_face_spacing``, ``erf.if_wall_tke``, ``erf.if_wall_tke_time_factor``,
+  ``erf.if_flat_wall_dissipation``,
   ``erf.if_average_down``, ``erf.if_cf_mismatch_warning``,
   ``erf.if_snap_partial_cells``, ``erf.if_surf_temp_flux``, ``erf.if_use_most``,
   ``erf.if_ws_floor``, ``erf.if_z0``,

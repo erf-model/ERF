@@ -315,6 +315,21 @@ choices are offered through ``erf.wall_dist_type``:
   no linear solve. It cannot see side walls or overhangs, which the
   Poisson distance can.
 
+With terrain immersed forcing (``erf.terrain_type = ImmersedForcing``) the
+mesh is flat, and with the legacy wall law the distance is the height above
+the bottom of the domain, inside the solid, whatever ``erf.wall_dist_type``
+says. With the fraction-stress wall law (``erf.if_wall_form = fraction_stress``,
+see :ref:`Forcings <Forcings>`) the distance is measured from the surface the
+wall law uses, :math:`h = z_{bot} + \beta \Delta z` of the wall cell, with the
+wall cell at its fluid centroid :math:`(1 - \beta)\Delta z / 2` above it and
+every other cell at :math:`|z - h|`, so the length scale and the wall law see
+the same geometry; ``erf.wall_dist_type`` then does not apply. The distance is
+vertical (the wall law is), and a column without solid keeps the bottom of the
+domain as its wall. On a refined level a box need not hold the whole column:
+where a box does not see the surface of a column (it lies wholly inside the
+solid, or above the surface without reaching the bottom of the domain) the
+distance is measured from the wall height of the coarser level.
+
 The distance is available as the plot variable ``walldist``. It is
 computed at initialisation, also on a restart, and again on every level
 that a regrid adds or remakes.

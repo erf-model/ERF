@@ -113,7 +113,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                         CloudChamberBudget* cloud_budget,
                         erf_auxiliary::AuxiliaryInertTracer* auxiliary_inert_tracer,
                         erf_sbm::SBMStateManager* sbm_state_manager,
-                        erf_sbm::SBMTransport* sbm_transport)
+                        erf_sbm::SBMTransport* sbm_transport,
+                        const MultiFab* ib_wall_face33)
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 

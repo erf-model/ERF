@@ -497,6 +497,9 @@ public:
     // correction); called when the level is made and again whenever a regrid
     // remakes or adds it, since init_stuff resets the field on new grids
     void make_wall_dist (int lev);
+    //! Build the wall-face masks of the fraction-stress immersed wall law at this level
+    //! (erf.if_wall_form = fraction_stress; make_wall_dist calls it, so regrids rebuild them)
+    void make_ib_wall_face_masks_lev (int lev);
 
     void make_subdomains (const amrex::BoxList& ba, amrex::Vector<amrex::BoxArray>& bins);
 
@@ -1702,6 +1705,20 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking_xface;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking_yface;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking_zface;
+    // Wall-face masks of the fraction-stress immersed wall law (erf.if_wall_form = fraction_stress):
+    // zero on the bottom face of the wall cell of each x-face (xz edges) and y-face (yz edges) column,
+    // the spacing factor on the face above it, one elsewhere
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> ib_wall_face13;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> ib_wall_face23;
+    // and the same for the cell columns (z faces), applied to the vertical diffusive fluxes of theta and TKE
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> ib_wall_face33;
+    // kinematic wall heat flux -u* theta* of the fraction-stress law in the wall cell (zero elsewhere),
+    // written by the immersed scalar forcing, read as the TKE buoyancy flux on the wall face
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> ib_wall_hfx;
+    // Height the immersed wall distance is measured from in each column (fraction-stress law with
+    // RANS), on the level's BoxArray flattened to its bottom cell; a fine box that does not see the
+    // surface of a column takes it from the coarser level
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> ib_wall_height;
 
     // Wall distance function
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>  walldist;
