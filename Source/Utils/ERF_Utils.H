@@ -1,6 +1,8 @@
 #ifndef ERF_UTILS_H_
 #define ERF_UTILS_H_
 
+#include <utility>
+
 #include "AMReX.H"
 #include "AMReX_MultiFab.H"
 #include "AMReX_BCRec.H"
@@ -158,6 +160,58 @@ fill_wall_dist_ghost_cells (amrex::MultiFab& wdist, const amrex::Geometry& geom)
  */
 void
 make_qt (const amrex::MultiFab& cons_state, amrex::MultiFab& qt, int n_qstate_into_total);
+
+/**
+ * Average down a cell-centred state over immersed-forcing levels (erf.if_average_down =
+ * fluid_mass). The fine cells are weighted by their fluid mass,
+ * (rho S)_c = rho_c * sum (1 - beta_f) V_f (rho S)_f / sum (1 - beta_f) V_f rho_f,
+ * with beta the solid fraction, V the fine cell volume (detJ / (m_x m_y), the weight the plain
+ * average carries in the state) and rho_c the coarse density: the fluid-volume-weighted mean of
+ * the fine density, sum (1 - beta_f) V_f rho_f / sum (1 - beta_f) V_f, when the density is in the
+ * component range, else the coarse cell's own. The coarse value is the fluid mean over the whole
+ * coarse cell (intensive), not the sum over the fine cells. Coarse cells that are solid on their
+ * own level, or with no fluid fine cell under them, keep their value. The plain average mixes the
+ * values of solid fine cells into coarse fluid cells.
+ * @param[in] S_fine Fine state (unscaled).
+ * @param[in,out] S_crse Coarse state (unscaled); the covered cells are written.
+ * @param[in] beta_fine Fine solid fraction (terrain_blanking).
+ * @param[in] beta_crse Coarse solid fraction.
+ * @param[in] vol_fine Fine cell volume weight (any constant factor cancels).
+ * @param[in] scomp First component to average.
+ * @param[in] ncomp Number of components.
+ * @param[in] ratio Refinement ratio.
+ */
+void
+if_average_down (const amrex::MultiFab& S_fine, amrex::MultiFab& S_crse,
+                 const amrex::MultiFab& beta_fine, const amrex::MultiFab& beta_crse,
+                 const amrex::MultiFab& vol_fine,
+                 int scomp, int ncomp, const amrex::IntVect& ratio);
+
+/**
+ * Where the coarse and fine levels disagree on an immersed surface along the lateral coarse/fine
+ * faces of the fine level (erf.if_cf_mismatch_warning): the surface on a coarse cell's mid-plane
+ * leaves the coarse cell half solid over fine cells that are all solid and all fluid. For each
+ * coarse cell covered by the fine level and next to an uncovered one, the spread (max - min) of
+ * the fine solid fractions under it is formed; cells with a spread of at least warn are counted.
+ *
+ * @param[in] fine_tb    fine solid fraction (terrain_blanking)
+ * @param[in] fine_grids fine BoxArray
+ * @param[in] crse_grids coarse BoxArray
+ * @param[in] crse_dmap  coarse DistributionMapping
+ * @param[in] crse_geom  coarse Geometry
+ * @param[in] ratio      refinement ratio
+ * @param[in] warn       spread at or above which a cell is counted
+ * @return the number of counted cells over all ranks, and the largest spread along those faces
+ */
+std::pair<int, amrex::Real>
+if_cf_surface_mismatch (const amrex::MultiFab& fine_tb,
+                        const amrex::BoxArray& fine_grids,
+                        const amrex::BoxArray& crse_grids,
+                        const amrex::DistributionMapping& crse_dmap,
+                        const amrex::Geometry& crse_geom,
+                        const amrex::IntVect& ratio,
+                        amrex::Real warn);
+
 
 /*
  * Create the Jacobian for the metric transformation when use_terrain is true

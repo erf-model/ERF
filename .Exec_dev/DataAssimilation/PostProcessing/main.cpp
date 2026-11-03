@@ -40,42 +40,41 @@ ReadPlotFileList(const std::string& filename)
     return files;
 }
 
-// Compute RMS error between ground truth and simulation plotfiles.
+// Compute RMS error between plotfiles.
 static Real
-ComputeRMS(const MultiFab& mf_truth,
-           const MultiFab& mf_solution)
+ComputeRMS(const MultiFab& mf_1,
+           const MultiFab& mf_2)
 {
-    if (mf_truth.nComp() != mf_solution.nComp()) {
-        Abort("Ground truth and solution have different component counts.");
+    if (mf_1.nComp() != mf_2.nComp()) {
+        Abort("The plot files in list 1 and list 2 have different component counts.");
     }
 
-    if (mf_truth.boxArray().size() == 0 ||
-        mf_solution.boxArray().size() == 0) {
+    if (mf_1.boxArray().size() == 0 ||
+        mf_2.boxArray().size() == 0) {
         Abort("Empty MultiFab.");
     }
 
-    // Copy the solution onto the ground-truth BoxArray and
+    // Copy onto BoxArray and
     // DistributionMapping. This permits different box decompositions,
     // provided both MultiFabs represent the same mesh resolution/domain.
-    MultiFab mf_solution_aligned(
-        mf_truth.boxArray(),
-        mf_truth.DistributionMap(),
-        mf_truth.nComp(),
+    MultiFab mf_2_aligned(
+        mf_1.boxArray(),
+        mf_1.DistributionMap(),
+        mf_1.nComp(),
         0);
 
-    mf_solution_aligned.ParallelCopy(
-        mf_solution, 0, 0, mf_truth.nComp(), 0, 0);
+    mf_2_aligned.ParallelCopy(
+        mf_2, 0, 0, mf_1.nComp(), 0, 0);
 
-    // Difference = ground truth - solution.
     MultiFab dvec(
-        mf_truth.boxArray(),
-        mf_truth.DistributionMap(),
-        mf_truth.nComp(),
+        mf_1.boxArray(),
+        mf_1.DistributionMap(),
+        mf_1.nComp(),
         0);
 
-    MultiFab::Copy(dvec, mf_truth, 0, 0, mf_truth.nComp(), 0);
-    MultiFab::Subtract(dvec, mf_solution_aligned, 0, 0,
-                       mf_truth.nComp(), 0);
+    MultiFab::Copy(dvec, mf_1, 0, 0, mf_1.nComp(), 0);
+    MultiFab::Subtract(dvec, mf_2_aligned, 0, 0,
+                       mf_1.nComp(), 0);
 
     Real sum_sq = 0.0;
     long count = 0;
@@ -127,36 +126,52 @@ int main(int argc, char* argv[])
     int exit_code = 0;
 
     {
-        // Input lists.
-        const std::string truth_list_file =
-            "ground_truth_plt_files.txt";
 
-        const std::string solution_list_file =
-            "coarse_simulation_plt_files.txt";
+        std::string a_file_list_1;
+        std::string a_file_list_2;
+
+        for (int i = 1; i < argc; ++i) {
+            std::string arg(argv[i]);
+
+            if (arg.find("--file-list-1=") == 0) {
+                a_file_list_1 = arg.substr(14);
+            }
+            else if (arg.find("--file-list-2=") == 0) {
+                a_file_list_2 = arg.substr(14);
+            }
+        }
+
+        if (a_file_list_1.empty() || a_file_list_2.empty()) {
+            amrex::Print()
+                << "Usage: " << argv[0]
+                << " --f1ile-list-1=<list1>"
+                << " --f1ile-list-2=<list2>\n";
+            amrex::Finalize();
+            return 1;
+        }
 
         const std::string vars_file = "vars.txt";
-
         const std::string output_file = "rms_error.txt";
 
         // Read both lists.
-        const std::vector<std::string> truth_files =
-            ReadPlotFileList(truth_list_file);
+        const std::vector<std::string> file_list_1 =
+            ReadPlotFileList(a_file_list_1);
 
-        const std::vector<std::string> solution_files =
-            ReadPlotFileList(solution_list_file);
+        const std::vector<std::string> file_list_2 =
+            ReadPlotFileList(a_file_list_2);
 
-        if (truth_files.size() != solution_files.size()) {
-            Abort("Ground-truth and simulation lists have different "
+        if (file_list_1.size() != file_list_2.size()) {
+            Abort("file_list_1 and file_list_2 have different "
                   "numbers of plotfiles.");
         }
 
-        if (truth_files.empty()) {
+        if (file_list_1.empty()) {
             Abort("No plotfiles found in the input lists.");
         }
 
         if (ParallelDescriptor::IOProcessor()) {
             Print() << "Number of plotfile pairs: "
-                    << truth_files.size() << '\n';
+                    << file_list_1.size() << '\n';
             Print() << "Writing RMS errors to: "
                     << output_file << '\n';
         }
@@ -177,35 +192,34 @@ int main(int argc, char* argv[])
 
         // Read corresponding plotfiles and compute RMS error.
         for (std::size_t iter = 0;
-             iter < truth_files.size(); ++iter)
+             iter < file_list_1.size(); ++iter)
         {
             if (ParallelDescriptor::IOProcessor()) {
                 Print() << "\nPair " << iter << '\n';
-                Print() << "  Ground truth: "
-                        << truth_files[iter] << '\n';
-                Print() << "  Solution:     "
-                        << solution_files[iter] << '\n';
+                Print() << "  File list 1: "
+                        << file_list_1[iter] << '\n';
+                Print() << "  File list 2:     "
+                        << file_list_2[iter] << '\n';
             }
 
-            // Read ground-truth plotfile.
-            MultiFab mf_cc_truth;
+            MultiFab mf_cc_1;
 
-            PlotFileData pf_truth(truth_files[iter]);
+            PlotFileData pf_1(file_list_1[iter]);
 
             ReadPlotFile(
-                vars_file, pf_truth, mf_cc_truth);
+                vars_file, pf_1, mf_cc_1);
 
             // Read simulation plotfile.
-            MultiFab mf_cc_solution;
+            MultiFab mf_cc_2;
 
-            PlotFileData pf_solution(solution_files[iter]);
+            PlotFileData pf_2(file_list_2[iter]);
 
             ReadPlotFile(
-                vars_file, pf_solution, mf_cc_solution);
+                vars_file, pf_2, mf_cc_2);
 
             // Compute RMS error for this time instant.
             const Real rms =
-                ComputeRMS(mf_cc_truth, mf_cc_solution);
+                ComputeRMS(mf_cc_1, mf_cc_2);
 
             // Write: iteration, RMS error.
             if (ParallelDescriptor::IOProcessor()) {

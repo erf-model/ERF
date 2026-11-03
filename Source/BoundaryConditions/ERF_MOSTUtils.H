@@ -339,6 +339,10 @@ WaveCoupled_roughness (amrex::Real Hwave,
 }
 
 
+/// Lower bound of the roughness recovered by Compute_roughness; shared with
+/// the guard in Compute_roughness so the two cannot drift apart.
+constexpr amrex::Real inverted_roughness_lo = amrex::Real(1.0e-7);
+
 /**
  * Bounds on the roughness recovered by Compute_roughness.  The inversion is
  * unbounded above: in weak wind under strong stability (u* from an LSM or bulk
@@ -352,7 +356,7 @@ AMREX_FORCE_INLINE
 amrex::Real
 bound_inverted_roughness (amrex::Real z0, amrex::Real zref) noexcept
 {
-    const amrex::Real z0_lo = amrex::Real(1.0e-7);
+    const amrex::Real z0_lo = inverted_roughness_lo;
     const amrex::Real z0_hi = amrex::min(amrex::Real(1.5), amrex::Real(0.5) * zref);
     return amrex::min(amrex::max(z0, z0_lo), z0_hi);
 }
@@ -376,7 +380,16 @@ Compute_roughness (amrex::Real zref,
     similarity_funs sfuns;
     amrex::Real zeta  = zref / Olen;
     amrex::Real psi_m = sfuns.calc_psi_m2(zeta);
-    amrex::Real z0    = zref / std::exp(KAPPA*umm/ustar + psi_m);
+    // z0 = zref / exp(arg) is below the lower bound once arg > log(zref / z0_lo),
+    // so the bound is returned without evaluating exp(arg), which overflows when
+    // u* sits at its floor of machine epsilon (zero stress: bulk_coeff with
+    // Cd = 0, or an LSM that returns none). At or below the threshold exp(arg)
+    // is finite and the inversion runs as before, so no other input changes.
+    const amrex::Real arg = KAPPA*umm/ustar + psi_m;
+    if (arg > std::log(zref / inverted_roughness_lo)) {
+        return bound_inverted_roughness(inverted_roughness_lo, zref);
+    }
+    amrex::Real z0    = zref / std::exp(arg);
     return bound_inverted_roughness(z0, zref);
 }
 #endif

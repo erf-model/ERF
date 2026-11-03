@@ -313,6 +313,15 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestTerrainFileChecks.cpp
     # Motivation: a BTF fine level's mesh must not depend on how its grids are split in z.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestTerrainFineColumns.cpp
+    # Motivation: the average down over immersed-forcing levels must weight the fine cells by
+    # their fluid mass and leave coarse cells that are solid on their own level alone.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestImmersedAverageDown.cpp
+    # Motivation: the coarse/fine surface-mismatch warning must count only the coarse cells along
+    # the coarse/fine faces whose fine solid fractions spread by at least the threshold.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestImmersedCFFaces.cpp
+    # Motivation: the log-law coarse/fine fill must keep the flux of every coarse face and share
+    # the wall face's flux by ln(1 + z/z0), closing the solid sub-faces of immersed terrain.
+    ${CMAKE_CURRENT_SOURCE_DIR}/BoundaryConditions/ERF_GTestCFLogLawFill.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/HashRng/ERF_GTestHashRngScalar.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/HashRng/ERF_GTestHashRngKernel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/EOS/ERF_GTestEOSScalar.cpp
@@ -816,6 +825,10 @@ if(ERF_ENABLE_MPI)
       ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestTerrainFineColumns.cpp
       # The boxes are spread over the ranks, so a k may be held by another rank only
       ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestReduceToMaxPerHeight.cpp
+      # The immersed average down copies the fine sums to the coarse layout: check it across ranks
+      ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestImmersedAverageDown.cpp
+      # The mismatch count reduces over the ranks: check it across ranks
+      ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestImmersedCFFaces.cpp
   )
   if(ERF_ENABLE_NETCDF)
     # The terrain reader opens the fixture only on the I/O rank and then

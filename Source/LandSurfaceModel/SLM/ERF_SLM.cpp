@@ -3456,7 +3456,13 @@ void SLM::transfer_coeff (const amrex::MFIter &mfi)
         amrex::Real thp = tref_arr(i, j, 0) * std::pow(amrex::Real(1000.0) / pref_arr(i, j, 0), R_d / Cp_d);
 
         amrex::Real vel;
-        // Add additional velocity depending on the stratification
+        // Add additional velocity depending on the stratification.
+        // The two branches are intentionally identical (see issue #4487): following
+        // SLM in gSAM (the global version of SAM), vel does not depend on the
+        // stratification.  The original SAM SLM added a stratification-dependent
+        // velocity scale (U_c = 0.1 m/s if stable, U_c = 1 m/s if unstable); gSAM
+        // instead uses vel = max(0.5, |U|).  The if-else is kept so that a
+        // stratification-dependent term can be added back here if needed.
         if ((thp - tsp) >= zero)
         {
             vel = std::max(amrex::Real(myhalf), std::sqrt(amrex::Math::powi<2>(ur_arr(i, j, 0)) + amrex::Math::powi<2>(vr_arr(i, j, 0))));
@@ -3468,7 +3474,10 @@ void SLM::transfer_coeff (const amrex::MFIter &mfi)
         const Real d_zref = zref_arr(i,j,0);
 
         amrex::Real r = 9.81 / tsp * (thp * (1.0 + epsv * qr_arr(i, j, 0)) - tsp * (1.0 + epsv * q_sfc_arr(i, j, 0))) * (d_zref - disp_hgt_arr(i, j, 0)) / (vel*vel);
-        r = std::max(amrex::Real(-10.0), std::min(r, amrex::Real(myhalf))); // cap r for stability of iterations
+        // Cap the bulk Richardson number for stability of the iterations.  The upper
+        // cap of 0.5 follows SLM in gSAM; the original SAM SLM used 0.19 (0.2 in older
+        // versions).  See issue #4487.
+        r = std::max(amrex::Real(-10.0), std::min(r, amrex::Real(myhalf)));
         // initial guess
         amrex::Real xsi, fm, fh, xsi1;
         amrex::Real xsim0, xsih0;

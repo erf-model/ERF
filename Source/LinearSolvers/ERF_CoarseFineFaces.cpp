@@ -106,6 +106,40 @@ copy_slabs_into (MultiFab& dst, const MultiFab& slabs, const Vector<int>& slab_b
     }
 }
 
+/**
+ * Multiply (or divide, with divide = true) the w-face data f, one plane of faces per box, by
+ * m_x m_y of the column each face caps (the cell map factors at its (i,j)).  The vertical flux the
+ * advection and the projection balance is az Omega / (m_x m_y), so this converts between Omega and
+ * that flux.  mx and my are the level's map factors, their ghost cells included.
+ */
+void
+scale_by_column_mapfac (MultiFab& f, const MultiFab& mx, const MultiFab& my,
+                        const Periodicity& per, bool divide)
+{
+    BoxList bl;
+    for (int n = 0; n < f.boxArray().size(); ++n) {
+        const Box& b = f.boxArray()[n];
+        bl.push_back(Box(IntVect(b.smallEnd(0), b.smallEnd(1), 0), IntVect(b.bigEnd(0), b.bigEnd(1), 0)));
+    }
+    const BoxArray ba2d(std::move(bl));
+    MultiFab pmx(ba2d, f.DistributionMap(), 1, 0);
+    MultiFab pmy(ba2d, f.DistributionMap(), 1, 0);
+    pmx.setVal(1.0);
+    pmy.setVal(1.0);
+    pmx.ParallelCopy(mx, 0, 0, 1, mx.nGrowVect(), IntVect(0), per);
+    pmy.ParallelCopy(my, 0, 0, 1, my.nGrowVect(), IntVect(0), per);
+    for (MFIter mfi(f); mfi.isValid(); ++mfi) {
+        const Array4<Real      > f_a = f.array(mfi);
+        const Array4<Real const> x_a = pmx.const_array(mfi);
+        const Array4<Real const> y_a = pmy.const_array(mfi);
+        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            const Real m2 = x_a(i,j,0) * y_a(i,j,0);
+            f_a(i,j,k) = divide ? f_a(i,j,k) / m2 : f_a(i,j,k) * m2;
+        });
+    }
+}
+
 } // namespace
 
 /**
@@ -388,6 +422,14 @@ bool ERF::cf_zface_coarse_data (int lev, double time_d, bool conserved_rho,
         }
     }
 
+    // Interpolate the vertical flux Omega / (m_x m_y) rather than Omega itself, and recover the fine
+    // Omega with the fine map factors below: with map factors that vary in space the fine faces over
+    // a coarse face then carry the coarse face's flux between them, as the horizontal coarse/fine
+    // faces do with the mass flux (cf_interp_mass_flux).  Omega alone would average to the coarse
+    // Omega, not the flux, and the level's boundary fluxes would no longer add up to zero
+    // (erf-model/ERF#4922)
+    scale_by_column_mapfac(cOm, *mapfac[levc][MapFacType::m_x], *mapfac[levc][MapFacType::m_y], cper, true);
+
     clamp_outside_domain(cOm, cdom, per_x, per_y);
     clamp_outside_domain(cRu, cdom, per_x, per_y);
     clamp_outside_domain(cRv, cdom, per_x, per_y);
@@ -405,6 +447,10 @@ bool ERF::cf_zface_coarse_data (int lev, double time_d, bool conserved_rho,
                           null_bc, 0, null_bc, 0, rr, &face_cons_linear_interp, domain_bcs_type, BCVars::xvel_bc);
     InterpFromCoarseLevel(rhov_g, IntVect(0), Real(0), cRv, 0, 0, 1, geom[levc], geom[lev],
                           null_bc, 0, null_bc, 0, rr, &face_cons_linear_interp, domain_bcs_type, BCVars::yvel_bc);
+
+    // From the interpolated flux back to Omega, with this level's map factors
+    scale_by_column_mapfac(omega_t, *mapfac[lev][MapFacType::m_x], *mapfac[lev][MapFacType::m_y],
+                           geom[lev].periodicity(), false);
     return true;
 }
 
@@ -987,8 +1033,10 @@ void ERF::FillSetMomentaCF (int lev, double time_d, MultiFab& xmom, MultiFab& ym
 {
     BL_PROFILE("ERF::FillSetMomentaCF()");
     PhysBCFunctNoOp null_bc;
+    set_cf_fill_options(lev, true);
     FillSetHorizontalMomentaCF(lev, time_d, xmom, ymom);
     FPr_w[lev-1].FillSet(zmom, time_d, null_bc, domain_bcs_type);
+    set_cf_fill_options(lev, false);
 
     if (!solverChoice.anelastic[lev] || solverChoice.mesh_type != MeshType::VariableDz) { return; }
 
@@ -1043,5 +1091,28 @@ void ERF::FillSetMomentaCF (int lev, double time_d, MultiFab& xmom, MultiFab& ym
                 w_a(i,j,k) = WFromOmega(i,j,k,t_a(i,j,k),ru_a,rv_a,mf_u,mf_v,z_nd,dxInv);
             });
         }
+    }
+}
+
+/**
+ * Give the face fills of level lev (FPr_u/v/w[lev-1]) the log-law share of the wall coarse face's
+ * flux (erf.cf_loglaw_fill) for the set fills that follow, or clear it (on = false), so that the
+ * relax fills never see it. The wall is the immersed surface (from the level's solid fraction)
+ * when the terrain or the buildings are immersed, else the bottom of the domain.
+ *
+ * @param lev Fine level whose coarse/fine faces are filled
+ * @param on  Set the option (true) or clear it (false)
+ */
+void
+ERF::set_cf_fill_options (int lev, bool on)
+{
+    if (lev < 1) { return; }
+    const bool immersed = (solverChoice.terrain_type   == TerrainType::ImmersedForcing ||
+                           solverChoice.buildings_type == BuildingsType::ImmersedForcing);
+    const bool have_tb = immersed && terrain_blanking[lev];
+    const bool loglaw  = on && solverChoice.cf_loglaw_fill && (!immersed || have_tb);
+    const MultiFab* wall_tb = (loglaw && have_tb) ? terrain_blanking[lev].get() : nullptr;  // no stale pointer when off
+    for (ERFFillPatcher* fp : {&FPr_u[lev-1], &FPr_v[lev-1], &FPr_w[lev-1]}) {
+        fp->SetLogLawFill(loglaw, solverChoice.cf_loglaw_z0, wall_tb);
     }
 }

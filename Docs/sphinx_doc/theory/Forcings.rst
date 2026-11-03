@@ -260,6 +260,30 @@ where :math:`u_{i,target}` is a value determined through MOST and :math:`|U_s|` 
 This formulation essentially forces the velocity at the wall to a value determined by using MOST, but the strength forcing is inversely related to how immersed the cell is.
 For cells that are more immersed, there is weaker forcing to the target velocity while for cells that are less immersed, there is stronger forcing to the MOST value.
 
+With the anelastic model the solid cells are also held by the projection. By default the drag of the
+solid is a source term, the projection (which treats the solid as fluid) then adds a pressure
+correction there, and the faces between two fully solid cells are set to zero after it. The face
+between a solid and a fluid cell keeps its projected flux, so the solid cell under it is left with a
+net inflow or outflow: the solid row under the surface becomes a mass sink and source wherever the
+flow crosses the surface, and :math:`\theta` drifts. ``erf.if_implicit_projection = true`` applies the
+drag inside the projection instead. On each face
+
+.. math::
+
+    m^{n+1} = \frac{m^* - \nabla\phi}{1 + \Delta t\, r}, \qquad
+    \nabla\cdot\left(\sigma \nabla\phi\right) = \nabla\cdot\left(\sigma m^*\right), \qquad
+    \sigma = \frac{1}{1 + \Delta t\, r},
+
+with :math:`r = \beta_f\, C_{d,m} / \sqrt[3]{\Delta x_1 \Delta x_2 \Delta x_3}` the drag rate of the source
+term (:math:`\beta_f` the solid fraction of the face, without the cap :math:`\min(1, U)` the source term
+applies) and :math:`r = 0` on the faces where the MOST wall law acts instead. The variable-coefficient
+equation is solved with GMRES, preconditioned by the FFT Poisson solve, so it needs a
+constant-:math:`\Delta z` mesh with map factors of one and a build with FFT. The source term then drops
+its drag, and the solid faces are not zeroed after the projection: the projected momenta are
+divergence free in every cell, the solid included. The pressure gradient kept for the next step is
+:math:`\nabla\phi / \Delta t` itself. This option is available for terrain immersed forcing only, not
+for buildings.
+
 Temperature forcing is also available to represent the temperature of the 'surface'.
 The user can specify either a surface temperature and heating rate, a surface flux, or an Obukhov length.
 The temperature forcing is then formulated as follows:
@@ -317,9 +341,47 @@ The following inputs are available when representing terrain using immersed forc
         erf.if_Olen                    = FLOAT
         erf.if_use_most                = BOOL
         erf.if_implicit_drag           = BOOL
+        erf.if_average_down            = STRING
+        erf.if_cf_mismatch_warning     = FLOAT
         erf.immersed_forcing_substep   = BOOL
 
 An example of using immersed forcing for a Witch of Agnesi hill is available in ``Exec/RegTests/ImmersedForcingTest``.
+
+**Mesh refinement.** Each level builds its own solid fraction :math:`\beta` and forces its own solid and partial
+cells, so near the surface the levels disagree about the geometry. With two-way coupling the covered coarse cells
+take the average of the fine cells over them. The plain cell average (``erf.if_average_down = plain``, the default)
+mixes the values of solid fine cells into coarse fluid and partial cells. With ``erf.if_average_down = fluid_mass``
+the fine cells are weighted by their fluid mass,
+
+.. math::
+
+   (\rho \phi)_c = \rho_c \, \frac{\sum_f (1-\beta_f)\, V_f\, (\rho \phi)_f}{\sum_f (1-\beta_f)\, V_f\, \rho_f},
+
+with :math:`V_f` the fine cell volume (:math:`\det J / (m_x m_y)`, the weight the plain average carries) and
+:math:`\rho_c` the coarse density: the coarse cell's own base-state density when the density is not averaged
+(anelastic), and the fluid-volume-weighted mean of the fine density when it is (compressible). Coarse cells that
+are solid on their own level, or with no fluid fine cell under them, keep their value. The coarse value is the
+fluid mean over the whole coarse cell, so the integral of :math:`\rho\phi` over a covered partial cell is
+:math:`1/(1-\beta_c)` times the fine fluid integral: this average is not conservative over the covered region,
+where the plain average is. The face momenta keep the plain average with either setting: it is the fine mass flux
+through the coarse face, which keeps the anelastic constraint. See
+`erf-model/ERF#4918 <https://github.com/erf-model/ERF/issues/4918>`_.
+
+**Coarse/fine faces that cross the surface.** A refined patch whose lateral coarse/fine faces cross the surface
+takes its face momenta there from the coarse level, which is open over the whole coarse face. With the explicit
+treatment of the solid (``erf.if_implicit_projection = false``, the default) the projection makes the momenta
+divergence free and the solid is frozen afterwards, so the partial cells at the patch edges keep a divergence of
+their own, which advects a uniform :math:`\theta` into a spurious source. With ``erf.if_implicit_projection = true``
+the drag is applied inside the projection and the solid is not frozen, and the momenta stay divergence free in the
+partial cells: multi-level anelastic runs with immersed forcing should use it. The ``ImmersedLES2LevHeatBalance``
+test (a plane at 45 m, a two-level patch, 20 steps) requires the fluid-mass-weighted mean :math:`\theta` of the
+domain to stay within 1e-6 K of its uniform start with the implicit projection, and checks that the explicit
+freeze exceeds that. Where the surface lies on the mid-plane of a coarse cell, the two levels describe different
+walls along the coarse/fine faces and the fill errors are largest; ``erf.if_cf_mismatch_warning`` (a spread of
+fine solid fractions, default 0.75; 0 turns it off) counts those coarse cells at start-up and prints a warning.
+The log-law share of the wall coarse face's flux, ``erf.cf_loglaw_fill``, applies to immersed surfaces too (see
+:ref:`Mesh refinement <MeshRefinement>`). See
+`erf-model/ERF#4920 <https://github.com/erf-model/ERF/issues/4920>`_.
 
 .. note:: When using fully compressible simulations, it is recommended to apply immersed forcing on the substep for numerical stability.
 
