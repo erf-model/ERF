@@ -3,6 +3,7 @@
 
 #include <AMReX_Algorithm.H>
 #include <AMReX_BLassert.H>
+#include <AMReX_Math.H>
 #include "ERF_Constants.H"
 
 /**
@@ -335,6 +336,11 @@ most_rib_zeta_bracketed (const similarity_funs& sfuns, amrex::Real C, amrex::Rea
     amrex::Real ra = resid(a);
     if (ra == zero) { return a; }
 
+    // A non-finite residual (a NaN or infinite C, Rib or zeta0) cannot be bracketed: with it the
+    // step below is NaN and the search never reaches zlim. Return it, so the bad input shows up
+    // in the caller's results rather than as a hang.
+    if (!amrex::Math::isfinite(ra)) { return ra; }
+
     // Step against the residual, within +-most_zeta_lim, until it changes sign
     const amrex::Real dir  = (ra > zero) ? amrex::Real(-1.0) : amrex::Real(1.0);
     const amrex::Real zlim = dir * most_zeta_lim;
@@ -346,12 +352,16 @@ most_rib_zeta_bracketed (const similarity_funs& sfuns, amrex::Real C, amrex::Rea
                                 tol);
     amrex::Real b  = step(a, h);
     amrex::Real rb = resid(b);
-    while ((rb > zero) == (ra > zero) && b != zlim) {
+    // With finite values the doubling step reaches zlim in well under 200 steps (from tol to
+    // 2 most_zeta_lim); the cap only guarantees that this loop ends
+    int nstep = 0;
+    while ((rb > zero) == (ra > zero) && b != zlim && nstep < 200) {
         a  = b;
         ra = rb;
         h *= two;
         b  = step(a, h);
         rb = resid(b);
+        ++nstep;
     }
     // No root within the bound: hold zeta there
     if ((rb > zero) == (ra > zero)) { return zlim; }
