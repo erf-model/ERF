@@ -314,6 +314,7 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
         when="~particles",
         msg="the ML microphysics diagnostics live in the particle (SDM) microphysics",
     )
+    patch("ml-diagnostics-single.patch", when="@26.09+ml_uphys_diagnostics precision=single")
     conflicts(
         "+wsm6_fort",
         when="precision=single",
