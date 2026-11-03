@@ -286,6 +286,13 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             return m_qstate_nonmoist_size;
         }
 
+        bool Qstate_Is_Diagnostic (int q) const override
+        {
+            // Water slots participate in the existing total-water handoff.
+            // Appended condensate, unlike appended vapor, is deposited from particles.
+            return q >= m_qstate_moist_size && (q - m_qstate_moist_size) % 2 == 1;
+        }
+
         /*! \brief returns pointer to super-droplets particle container */
         inline virtual ERFPC* getParticleContainer () override
         {

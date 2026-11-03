@@ -1728,6 +1728,52 @@ function(add_test_sdm TEST_NAME TEST_DIR TEST_EXE PLTFILE TEST_RTOL TEST_ATOL)
     )
 endfunction(add_test_sdm)
 
+if(ERF_ENABLE_PARTICLES AND Python3_Interpreter_FOUND)
+    set(_species_input "${CMAKE_CURRENT_SOURCE_DIR}/test_files/SDM_SpeciesDiffusion")
+    set(_species_mpi_exec "")
+    set(_species_ranks 1)
+    if(ERF_ENABLE_MPI)
+        set(_species_mpi_exec "${MPIEXEC_EXECUTABLE}")
+        set(_species_ranks ${ERF_TEST_NRANKS})
+    endif()
+    string(JOIN " " _species_mpi_preflags ${MPIEXEC_PREFLAGS})
+    if(ERF_PRECISION STREQUAL "SINGLE")
+        set(_species_tol 2.e-5)
+        set(_species_atol 2.e-8)
+    else()
+        set(_species_tol 2.e-11)
+        set(_species_atol 2.e-14)
+    endif()
+    foreach(_case column amr phase)
+        set(_species_dir "${CMAKE_CURRENT_BINARY_DIR}/test_files/SDM_SpeciesDiffusion_${_case}")
+        file(MAKE_DIRECTORY "${_species_dir}")
+        add_test(NAME SDM_SpeciesDiffusion_${_case}
+            COMMAND "${Python3_EXECUTABLE}" "${_species_input}/check_species_diffusion.py"
+                "--exe=$<TARGET_FILE:erf_exec>"
+                "--input=${_species_input}/SDM_SpeciesDiffusion.i"
+                "--reader-dir=${PROJECT_SOURCE_DIR}/Exec/Tools"
+                "--case=${_case}" "--tolerance=${_species_tol}"
+                "--mpi-exec=${_species_mpi_exec}"
+                "--mpi-numproc-flag=${MPIEXEC_NUMPROC_FLAG}"
+                "--mpi-preflags=${_species_mpi_preflags}" "--ranks=${_species_ranks}")
+        set_tests_properties(SDM_SpeciesDiffusion_${_case} PROPERTIES
+            WORKING_DIRECTORY "${_species_dir}" TIMEOUT 600
+            PROCESSORS ${_species_ranks} LABELS "regression;diffusion;particles"
+            ATTACHED_FILES_ON_FAIL "${_species_dir}/implicit/simulation.log;${_species_dir}/explicit/simulation.log")
+    endforeach()
+    add_test_restart_parity(SDM_SpeciesDiffusion_Restart SDM_SpeciesDiffusion 2 4
+        COMMON_OPTIONS "erf.input_sounding_file=${_species_input}/input_sounding"
+        FCOMPARE_RTOL ${_species_tol} FCOMPARE_ATOL ${_species_atol})
+    add_test_restart_parity(SDM_SpeciesDiffusion_AMRRestart SDM_SpeciesDiffusion 2 4
+        COMMON_OPTIONS "erf.input_sounding_file=${_species_input}/input_sounding amr.max_level=1 amr.ref_ratio=2 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo=0 0 0 erf.box1.in_box_hi=8 4 8 amr.regrid_int=1"
+        FCOMPARE_RTOL ${_species_tol} FCOMPARE_ATOL ${_species_atol})
+    add_test_box_parity(SDM_SpeciesDiffusion_BoxParity SDM_SpeciesDiffusion plt00004
+        COMMON_OPTIONS "erf.input_sounding_file=${_species_input}/input_sounding"
+        REFERENCE_OPTIONS "amr.max_grid_size=32"
+        SPLIT_OPTIONS "amr.max_grid_size_x=4"
+        FCOMPARE_RTOL ${_species_tol} FCOMPARE_ATOL ${_species_atol})
+endif()
+
 #=============================================================================
 # Regression tests
 #=============================================================================

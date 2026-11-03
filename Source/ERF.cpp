@@ -2112,6 +2112,14 @@ ERF::InitData_post ()
             const amrex::MultiFab* base = solverChoice.anelastic[lev] ? &base_state[lev] : nullptr;
             micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons], base);
             micro->FinishInit(lev, vars_new[lev][Vars::cons], z_phys_nd);
+#ifdef ERF_USE_PARTICLES
+            // Level-0 initialization may change particle attributes. Establish
+            // finest-level ownership before initializing fine condensate projections.
+            if (lev == 0 && finest_level > 0 &&
+                Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+                particleData.Redistribute(z_phys_nd);
+            }
+#endif
         }
 
         // Lagrangian microphysics with AMR (TwoWay): the per-level init above
@@ -3080,11 +3088,16 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
 #endif
     }
 
-    // The moist species (RhoQ1_comp onward) are the ones whose vertical diffusion is
-    // split between the explicit and implicit parts; non-water species follow them
     solverChoice.diffChoice.n_qstate_moist = micro->Get_Qstate_Moist_Size();
     AMREX_ALWAYS_ASSERT(solverChoice.diffChoice.n_qstate_moist >= 0 &&
                         solverChoice.diffChoice.n_qstate_moist <= NMOIST_max);
+    solverChoice.diffChoice.n_qstate_nonmoist = micro->Get_Qstate_NonMoist_Size();
+    const int nq = micro->Get_Qstate_Size();
+    AMREX_ALWAYS_ASSERT(solverChoice.diffChoice.n_qstate_nonmoist >= 0 &&
+                        RhoQ1_comp + nq <= NVAR_max);
+    for (int q = 0; q < nq; ++q) {
+        solverChoice.diffChoice.qstate_is_diagnostic[q] = micro->Qstate_Is_Diagnostic(q);
+    }
 
     qmoist.resize(a_nlevsmax);
     precip.resize(a_nlevsmax);

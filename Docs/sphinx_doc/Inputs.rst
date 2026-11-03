@@ -926,8 +926,8 @@ List of Parameters
 |                                      | diffusion                                                |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.implicit_moisture_diffusion**  | include the implicit contribution to vertical moisture   | Boolean            | true              |
-|                                      | diffusion of every moisture species (qv only with SBM,   |                    |                   |
-|                                      | whose liquid is owned by the spectral solver)            |                    |                   |
+|                                      | diffusion of host-transported microphysics species       |                    |                   |
+|                                      | (including appended non-water vapor; qv only with SBM)    |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.implicit_ke_diffusion**        | include the implicit contribution to vertical turbulent  | Boolean            | true              |
 |                                      | kinetic energy diffusion                                 |                    |                   |
@@ -1138,10 +1138,12 @@ Notes
      default ``1 1 0`` (Crank-Nicolson for the vertical diffusion) and ``1 1 1`` (backward
      Euler) give :math:`e = 0`, and ``0 0 0``, anelastic RK2 (no implicit solve), ``1 0 0``,
      ``0 0 1`` or ``0.995 0.1 0.0666`` (whose last stage amplifies by 1.0008) give :math:`e = 1`.
-     Every moisture variable is in the implicit solve (with SBM only qv,
-     the one the host diffuses), so the moisture term has :math:`e = 1` only when a
-     microphysics model also carries non-water species (packed directly after the water
-     species, these diffuse explicitly), and the advected scalar always does.  If dt times this rate
+     Host-transported microphysics species, including appended non-water vapor,
+     use the same stage-dependent :math:`e` as water species (with SBM only qv,
+     the one the host diffuses). Particle-derived appended condensate is not
+     independently diffused by the host and contributes no separate explicit
+     diffusion restriction. The advected passive scalar remains explicit.
+     If dt times this rate
      exceeds **erf.diffusive_cfl** a warning is printed, repeated on a level only when the
      Fourier number has grown by half.  The default 0.5 is the forward-Euler bound; the
      three-stage scheme is stable to about 0.63 for a pure diffusion.  With

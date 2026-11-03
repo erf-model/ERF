@@ -42,6 +42,28 @@ The current Super-Droplet thermodynamic coupling uses the compressible equation
 of state and does not consume the hydrostatic base-state pressure used by
 anelastic Eulerian microphysics.
 
+Species transport and diffusion
+-------------------------------
+
+Additional species have Eulerian vapor fields and particle-derived condensate
+fields. The host advects and turbulently diffuses the vapor, including implicit
+vertical diffusion when ``erf.implicit_moisture_diffusion`` is enabled. Appended
+condensate fields are projections of particle mass, not independently transported
+mass reservoirs; they do not receive host advection, diffusion, or positivity
+clipping. Their projections are initialized on every AMR level.
+
+This treatment retains the existing water total-content handoff and molecular
+coefficients: appended non-water species have no molecular scalar diffusion.
+It does not introduce turbulent particle dispersion. Vapor diffusion does not
+by itself model turbulent mixing of condensed particles.
+
+Implicit diffusion uses the existing stage fractions and supported vertical
+boundary conditions (zero-gradient extrapolation or Neumann gradients).
+Unsupported species boundary conditions disable the moisture implicit option
+with a warning. Horizontal diffusion, explicitly treated stages, and terrain
+mixed terms can still restrict the timestep; enabling the implicit solve is
+not an unconditional positivity guarantee for the full integration scheme.
+
 Model configuration
 -------------------
 

@@ -92,6 +92,9 @@ public:
     /*! \brief get the number of  microphysics conserved non-moist (non-water, i.e., other vapor/condensed species) state variables */
     virtual int Get_Qstate_NonMoist_Size () = 0;
 
+    /*! \brief Whether a Q-state offset is a projection rather than host-transported state. */
+    virtual bool Qstate_Is_Diagnostic (int /*q*/) const { return false; }
+
     /*! \brief get total number of conserved state variables */
     inline int Get_Qstate_Size ()
     {

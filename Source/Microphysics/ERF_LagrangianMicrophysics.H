@@ -17,13 +17,8 @@
 /* forward declaration */
 class ERFPC;
 
-/*! \brief Eulerian microphysics interface
- *
- * One key difference from #EulerianMicrophysics is that only the base AMR
- * level has the moisture model. Thus, for higher AMR levels, the microphysics
- * interface need not do anything. The number of conserved state variables for
- * moisture (RhoQ1, RhoQ2, ...) are the same for all AMR levels; however, for
- * levels other than the base, they just contain and evolve zeros. */
+/*! \brief Lagrangian microphysics interface sharing a particle container
+ * across AMR levels, with per-level Eulerian coupling fields. */
 class LagrangianMicrophysics : public Microphysics {
 
 public:
@@ -77,7 +72,7 @@ public:
                      amrex::MultiFab& cons_in, /*!< Conserved state variable */
                      const amrex::Vector<std::unique_ptr<amrex::MultiFab>>& z_phys_nd /*!< terrain */) override
     {
-        if (lev > 0) return;
+        m_moist_model->SetCurrentLevel(lev);
         m_moist_model->FinishInit( lev, cons_in, z_phys_nd );
     }
 
@@ -149,6 +144,11 @@ public:
     int Get_Qstate_NonMoist_Size () override
     {
         return m_moist_model->Qstate_NonMoist_Size();
+    }
+
+    bool Qstate_Is_Diagnostic (int q) const override
+    {
+        return m_moist_model->Qstate_Is_Diagnostic(q);
     }
 
     SurfacePrecipAccumulationSources
