@@ -862,7 +862,7 @@ based on cloud water/ice content.
 
 **Enhancement:** Proper handling of moisture effects on buoyancy throughout the scheme.
 
-- Computes :math:`\theta_v = \theta(1 + 0.61 \cdot q_v)` at all levels
+- Computes the virtual potential temperature :math:`\theta_v` at all levels, including vapor buoyancy and condensate loading (see :ref:`MoistPotentialTemperatures`)
 - Used in Richardson number diagnosis: :math:`Rig = \frac{g}{\theta_v} \frac{d\theta_v}{dz} / (shear)^2`
 - Critical for accurate PBL height and convective strength
 
@@ -1451,7 +1451,7 @@ The YSUNew implementation includes extensions for handling cloud-topped boundary
 
 **Liquid Potential Temperature PBLH Extension**
 
-When enabled, an additional upward scan of the PBL height is performed using liquid potential temperature (:math:`\theta_{li}`) as the stability criterion. This extension allows detection of deeper cloud-topped boundary layers where the traditional bulk Richardson number criterion may underestimate the mixed layer depth. The scan uses an unstable threshold (zero Richardson number) to extend the PBL height upward through layers where cloud liquid water provides buoyancy support.
+When enabled, an additional upward scan of the PBL height is performed using the liquid-ice water potential temperature (:math:`\theta_{li}`, written :math:`\theta_l` in :ref:`MoistPotentialTemperatures`) as the stability criterion. This extension allows detection of deeper cloud-topped boundary layers where the traditional bulk Richardson number criterion may underestimate the mixed layer depth. The scan uses an unstable threshold (zero Richardson number) to extend the PBL height upward through layers where cloud liquid water provides buoyancy support.
 
 Configuration: ``enable_ysu_topdown = true``, ``use_moisture = true``
 
