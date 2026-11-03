@@ -214,6 +214,45 @@ function(add_test_immersed_average_down TEST_NAME TEST_FILES_DIR TOL EXPECT_CHEC
         ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
 endfunction(add_test_immersed_average_down)
 
+# Run a two-level immersed-forcing case and check the fluid-mass-weighted mean theta of its
+# plotfile against THETA0 (Tests/ImmersedCFHeatBalanceCheck.cpp); EXPECT_CHECKER_FAIL ON requires
+# the check to fail (the explicit solid freeze), so the test proves the checker sees the difference;
+# EXPECT_WARNING ON requires the coarse/fine surface-mismatch warning in the run's output.
+function(add_test_immersed_cf_heat_balance TEST_NAME TEST_FILES_DIR THETA0 TOL EXPECT_CHECKER_FAIL EXPECT_WARNING RUNTIME_OPTIONS)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i")
+    set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
+    set(test_checker_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.checker.log")
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${test_input}"
+        "-DRUNTIME_OPTIONS=${RUNTIME_OPTIONS}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DSIMULATION_LOG=${test_simulation_log}"
+        "-DCHECKER_LOG=${test_checker_log}"
+        "-DCHECKER=$<TARGET_FILE:erf_immersed_cf_heat_balance_check>"
+        "-DPLOTFILE=${CURRENT_TEST_BINARY_DIR}/plt00020"
+        "-DTHETA0=${THETA0}"
+        "-DTOL=${TOL}"
+        "-DEXPECT_CHECKER_FAIL=${EXPECT_CHECKER_FAIL}"
+        "-DEXPECT_WARNING=${EXPECT_WARNING}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunImmersedCFHeatBalance.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1800
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;multilevel;immersed"
+        ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
+endfunction(add_test_immersed_cf_heat_balance)
+
 # Checker-driven Cloud Chamber tests.  The short run checks the exact initial
 # conserved-state correction and a bounded early buoyant response; it
 # intentionally avoids a fragile turbulent gold file.
@@ -1909,6 +1948,20 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_immersed_average_down(ImmersedLES2LevAverageDown ImmersedLES2LevAverageDown 0.001 OFF "")
   add_test_immersed_average_down(ImmersedLES2LevAverageDown_Plain ImmersedLES2LevAverageDown 0.001 ON
                                  "erf.if_average_down=plain")
+  # Immersed LES on two levels, a patch whose lateral coarse/fine faces cross the surface, theta
+  # uniform and no heat entering (erf-model/ERF#4920): with the implicit projection
+  # (erf.if_implicit_projection, FFT) the fluid-mean theta must hold within 1e-6 K; the explicit
+  # freeze of the solid after the projection leaves the partial cells at the patch edges a
+  # divergence (0.04 K in 20 steps on one build) and must fail the same check. The third leg runs
+  # the log-law coarse/fine fill and a mismatch threshold the surface crosses: the mean must hold
+  # and the start-up warning must be printed.
+  if(ERF_ENABLE_FFT)
+    add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF OFF "")
+    add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_Freeze ImmersedLES2LevHeatBalance 300.0 1.0e-6 ON OFF
+                                      "erf.if_implicit_projection=false")
+    add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_LogLaw ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF ON
+                                      "erf.cf_loglaw_fill=true erf.if_cf_mismatch_warning=0.4")
+  endif()
   # Box, rank and tiling parity of the other closures: one box on one rank without tiling
   # against four boxes on two ranks with 8 x 8 tiles (Tests/test_files/Closure_BoxParity).
   set(_cbp_ref   "amr.max_grid_size_x=32 amr.max_grid_size_y=32 fabarray.mfiter_tile_size=1024 1024 1024")

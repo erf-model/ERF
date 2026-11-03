@@ -1053,6 +1053,7 @@ ERF::init_zphys (int lev, double elapsed_time)
     if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
         solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
         make_terrain_blanking(lev);
+        check_if_cf_mismatch(lev);
         const bool forcing_active = immersed_forcing_active(lev);
 
         // Keep imported WRFInput/Metgrid winds in immersed cells at startup.
@@ -1187,6 +1188,7 @@ ERF::remake_zphys (int lev, Real time, std::unique_ptr<MultiFab>& temp_zphys_nd)
         solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
         // This assumes we have already remade the EBGeometry
         make_terrain_blanking(lev);
+        check_if_cf_mismatch(lev);
     }
 
     // Compute the min dz and pass to the micro model
@@ -1365,4 +1367,32 @@ ERF::make_physbcs (int lev)
                                                                (solverChoice.terrain_type == TerrainType::MovingFittedMesh),
                                                                (solverChoice.mesh_type != MeshType::ConstantDz),
                                                                solverChoice.rdOcp, solverChoice.gravity);
+}
+
+/**
+ * Warn where a lateral coarse/fine boundary of level lev crosses the immersed surface so that the
+ * two levels describe it differently (erf.if_cf_mismatch_warning): the surface on a coarse cell's
+ * mid-plane leaves the coarse cell half solid over fine cells that are all solid and all fluid,
+ * and the two levels then see different walls along the coarse/fine faces. Counts the coarse
+ * cells along those faces whose fine solid fractions spread by at least the threshold (0 turns
+ * the check off). Called once the level's blanking exists.
+ *
+ * @param lev Level index (nothing to check on level 0)
+ */
+void
+ERF::check_if_cf_mismatch (int lev)
+{
+    const Real warn = solverChoice.if_cf_mismatch_warning;
+    if (lev < 1 || !(warn > zero) || !terrain_blanking[lev]) { return; }
+    const auto [nflagged, worst] = if_cf_surface_mismatch(*terrain_blanking[lev], grids[lev],
+                                                          grids[lev-1], dmap[lev-1], geom[lev-1],
+                                                          refRatio(lev-1), warn);
+    if (nflagged > 0) {
+        amrex::Print() << "WARNING: immersed forcing, level " << lev << ": " << nflagged
+                       << " coarse cells along the lateral coarse/fine faces hold fine cells whose solid "
+                       << "fractions spread by " << warn << " or more (largest spread " << worst
+                       << "); the levels describe the surface differently there, and the coarse/fine "
+                       << "fill errors are largest there (erf.if_cf_mismatch_warning, 0 turns this off)."
+                       << std::endl;
+    }
 }

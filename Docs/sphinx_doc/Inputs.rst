@@ -540,6 +540,23 @@ List of Parameters
 | **erf.cf_set_width**                             | width, in cells, of the region within ``erf.cf_width``   | Integer >= 0       | 0                    |
 |                                                  | in which the fine solution is set from the coarse one    |                    |                      |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.cf_loglaw_fill**                           | lateral coarse/fine faces next to a wall (the immersed   | Boolean            | false                |
+|                                                  | surface, or a ``surface_layer`` bottom; constant dz, not |                    |                      |
+|                                                  | EB terrain): share the flux of the first coarse face     |                    |                      |
+|                                                  | above the wall among its fine sub-faces by the integral  |                    |                      |
+|                                                  | of ln(1 + z/z0) over the fluid part of each, instead of  |                    |                      |
+|                                                  | the linear interpolation, which gives the fine face at   |                    |                      |
+|                                                  | the wall too much flow; the flux of every coarse face is |                    |                      |
+|                                                  | kept. Acts on the set region of fine boxes that reach    |                    |                      |
+|                                                  | the bottom of the domain; the relax region keeps the     |                    |                      |
+|                                                  | linear fill                                              |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.cf_loglaw_z0**                             | roughness length [m] of that share; only with            | Real > 0           | erf.if_z0 with       |
+|                                                  | erf.cf_loglaw_fill = true. The default is the inputs'    |                    | immersed forcing,    |
+|                                                  | value, not a roughness a land model supplies later       |                    | else erf.most.z0 or  |
+|                                                  |                                                          |                    | erf.zlo.most.z0      |
+|                                                  |                                                          |                    | (0.1 if neither)     |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
 | **erf.interpolation_type**                       | what is interpolated when filling a fine level from the  | FullState,         | FullState            |
 |                                                  | coarse one                                               | Perturbational     |                      |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
@@ -3996,6 +4013,12 @@ building combinations.
 |                                   | momenta keep the plain average either way; needs         |                    |                  |
 |                                   | amr.max_level > 0 and two-way coupling to act            |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_cf_mismatch_warning**    | warn at start-up where a lateral coarse/fine boundary    | 0 <= Real <= 1     | 0.75             |
+|                                   | crosses the immersed surface so that the levels          |                    |                  |
+|                                   | describe it differently: counts the coarse cells along   |                    |                  |
+|                                   | those faces whose fine solid fractions spread (max -     |                    |                  |
+|                                   | min) by at least this; 0 turns the check off             |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_damp_alpha**             | damping coefficient used in the immersed forcing wall    | Real               | 0.5              |
 |                                   | model                                                    |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -5897,7 +5920,8 @@ Immersed Forcing and Canopy Source Terms
 * :ref:`Terrain <inputs-terrain>` -- ``erf.if_Cd_momentum``, ``erf.if_Cd_scalar``,
   ``erf.if_Olen``, ``erf.if_damp_alpha``, ``erf.if_implicit_drag``, ``erf.if_implicit_projection``,
   ``erf.if_init_surf_temp``, ``erf.if_stability_correction``, ``erf.if_surf_heating_rate``,
-  ``erf.if_average_down``, ``erf.if_snap_partial_cells``, ``erf.if_surf_temp_flux``, ``erf.if_use_most``,
+  ``erf.if_average_down``, ``erf.if_cf_mismatch_warning``,
+  ``erf.if_snap_partial_cells``, ``erf.if_surf_temp_flux``, ``erf.if_use_most``,
   ``erf.if_ws_floor``, ``erf.if_z0``,
   ``erf.immersed_forcing_substep``, ``erf.use_rotate_surface_flux``
 

@@ -475,6 +475,12 @@ public:
     // ... and its vertical flux, as Omega
     amrex::Vector<amrex::MultiFab> m_cf_step_zflux;
     void FillSetHorizontalMomentaCF (int lev, double time, amrex::MultiFab& xmom, amrex::MultiFab& ymom);
+    // Give the face fills of level lev the log-law share of the wall coarse face's flux
+    // (erf.cf_loglaw_fill) for the set fills that follow, or clear it (on = false)
+    void set_cf_fill_options (int lev, bool on);
+    // Warn where a lateral coarse/fine boundary of level lev crosses the immersed surface so that
+    // the two levels describe it differently (erf.if_cf_mismatch_warning)
+    void check_if_cf_mismatch (int lev);
     void FillSetMomentaCF (int lev, double time, amrex::MultiFab& xmom, amrex::MultiFab& ymom,
                            amrex::MultiFab& zmom);
     void fill_surface_nodes (int lev, amrex::MultiFab& znd_surf);
