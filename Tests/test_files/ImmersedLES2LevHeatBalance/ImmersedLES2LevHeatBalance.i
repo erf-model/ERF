@@ -4,15 +4,18 @@
 # patch (20 m over 10 m) whose lateral coarse/fine faces cross the surface. Theta is uniform and no
 # heat enters, so no net heat may appear (erf-model/ERF#4920). With the implicit projection
 # (erf.if_implicit_projection = true, erf-model/ERF#4926) the solid is not frozen after the
-# projection, the momenta stay divergence free in the partial cells at the patch edges, and the
-# fluid-mass-weighted mean theta holds to 1e-8 K over 20 steps. With the explicit freeze
-# (erf.if_implicit_projection = false) those partial cells keep a divergence of their own, which
-# advects the uniform theta: 1 K in the half-solid fine layer at the inflow edge, 0.04 K in the
-# mean, after 20 steps. One level alone holds the mean to 1e-7 K either way.
+# projection and the momenta stay divergence free in the partial cells at the patch edges. With
+# the explicit freeze (erf.if_implicit_projection = false) those partial cells keep a divergence
+# of their own, which advects the uniform theta. Measured on one build (Release, 2 ranks, 20
+# steps): mean theta drift 2e-9 K implicit, 0.04 K with the freeze (1 K in the half-solid fine
+# layer at the inflow edge); one level alone 1e-7 K either way.
 #
 # Tests/CTestList.cmake runs it with both settings and checks the mean theta of the domain, the
-# fine level where it exists (Tests/ImmersedCFHeatBalanceCheck.cpp): the implicit run must pass,
-# the freeze run must not. The implicit projection needs an FFT build.
+# fine level where it exists (Tests/ImmersedCFHeatBalanceCheck.cpp): the implicit run must hold
+# it within 1e-6 K, the freeze run must not. A third leg adds the log-law coarse/fine fill
+# (erf.cf_loglaw_fill) and a mismatch threshold the surface crosses (erf.if_cf_mismatch_warning =
+# 0.4: the fine cell 40-50 m is half solid, a spread of 0.5) and must hold the mean and print the
+# warning. The implicit projection needs an FFT build.
 #
 erf.prob_name = "ABL"
 

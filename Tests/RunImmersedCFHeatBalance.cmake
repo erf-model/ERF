@@ -1,12 +1,14 @@
 # Run a two-level immersed-forcing case, then check its plotfile with
 # Tests/ImmersedCFHeatBalanceCheck.cpp. With EXPECT_CHECKER_FAIL the check must fail (the leg that
-# runs the explicit solid freeze), so the test proves the checker sees the difference.
+# runs the explicit solid freeze), so the test proves the checker sees the difference. With
+# EXPECT_WARNING the run must have printed the coarse/fine surface-mismatch warning (and without it,
+# must not have).
 # -DX= defines X as empty, so test for a value, not for DEFINED
 include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/ResolveExecutable.cmake")
 
 foreach(arg NRANKS TEST_EXE INPUT WORKING_DIRECTORY SIMULATION_LOG CHECKER_LOG CHECKER
-            PLOTFILE THETA0 TOL EXPECT_CHECKER_FAIL)
+            PLOTFILE THETA0 TOL EXPECT_CHECKER_FAIL EXPECT_WARNING)
     if("${${arg}}" STREQUAL "")
         message(FATAL_ERROR "RunImmersedCFHeatBalance.cmake: ${arg} must be given and non-empty")
     endif()
@@ -42,6 +44,15 @@ execute_process(
     RESULT_VARIABLE simulation_result)
 if(NOT simulation_result EQUAL 0)
     message(FATAL_ERROR "simulation failed: ${simulation_result} (see ${SIMULATION_LOG})")
+endif()
+# With EXPECT_WARNING the start-up warning of erf.if_cf_mismatch_warning must have been printed
+file(READ "${SIMULATION_LOG}" simulation_output)
+if(EXPECT_WARNING)
+    if(NOT simulation_output MATCHES "coarse cells along the lateral coarse/fine faces")
+        message(FATAL_ERROR "the coarse/fine surface-mismatch warning was not printed (see ${SIMULATION_LOG})")
+    endif()
+elseif(simulation_output MATCHES "coarse cells along the lateral coarse/fine faces")
+    message(FATAL_ERROR "the coarse/fine surface-mismatch warning was printed at the default threshold (see ${SIMULATION_LOG})")
 endif()
 
 execute_process(

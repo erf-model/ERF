@@ -34,11 +34,21 @@ Real cf_wall_height (Array4<Real const> const& tb, int i, int j, int klo, int kh
     return zlo + dz * (static_cast<Real>(klo) + h);
 }
 
-/// Height above the surface zs of the fluid centroid of a face spanning [zb, zb + dz]
+/**
+ * Integral of ln(1 + z/z0) over the fluid part of a face spanning [zb, zb + dz], with z the height
+ * above the surface zs: I(Z) = (z0 + Z) ln(1 + Z/z0) - Z between Z = max(zs, zb) - zs and
+ * Z = zb + dz - zs. This is the flux a log profile puts through the fluid part of the face, so the
+ * weight carries the fluid area fraction of a partly solid face as well as the profile's shape.
+ */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-Real cf_fluid_centroid_height (Real zs, Real zb, Real dz) noexcept
+Real cf_loglaw_weight (Real zs, Real zb, Real dz, Real z0) noexcept
 {
-    return amrex::max(Real(0.5) * (amrex::max(zs, zb) + zb + dz) - zs, Real(0.0));
+    const Real za = amrex::max(amrex::max(zs, zb) - zs, Real(0.0));
+    const Real zt = amrex::max(zb + dz - zs, Real(0.0));
+    if (!(zt > za)) { return Real(0.0); }
+    const Real It = (z0 + zt) * std::log(Real(1.0) + zt / z0) - zt;
+    const Real Ia = (z0 + za) * std::log(Real(1.0) + za / z0) - za;
+    return It - Ia;
 }
 
 } // namespace
@@ -431,16 +441,21 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
         } // IndexType::NODE
 
         // Log-law fill (erf.cf_loglaw_fill), lateral faces of a box that reaches the ground only.
-        // The coarse face velocity next to a wall is a point value at the centroid of its fluid
-        // part, but the linear fill above spreads it over the fine sub-faces with a slope that does
-        // not know the wall: the fine sub-face at the wall gets too much flow and, at a
-        // surface-layer bottom (where the slope is limited to about zero), the one above it too
-        // little. Share the flux of the first coarse face above the wall among its fine sub-faces
-        // in proportion to ln(1 + z/z0) at their heights above the wall. The flux of every coarse
-        // face is kept, so the average down of the c/f faces gives back the coarse values (moving
-        // flux between coarse faces would drive a circulation in the coarse cells next to the fine
-        // box). The wall is the top of the solid stack at the bottom of the column (the solid
-        // fraction, averaged over the two cells of the face), or the bottom of the domain.
+        // The coarse face value next to a wall is a mean of a log profile, but the linear fill
+        // above spreads it over the fine sub-faces with a slope that does not know the wall: the
+        // fine sub-face at the wall gets too much flow and, at a surface-layer bottom (where the
+        // slope is limited to about zero), the one above it too little. Share the flux F of the
+        // first coarse face above the wall among its fine sub-faces in proportion to the integral
+        // of ln(1 + z/z0) over the fluid part of each (cf_loglaw_weight), so a half-solid sub-face
+        // carries its fluid share too. F is the sum of the sub-face values the linear fill put
+        // there, the solid ones included, and the share returns F exactly, so the average down
+        // of the c/f faces gives back the coarse values (moving flux between coarse faces would
+        // drive a circulation in the coarse cells next to the fine box). The wall is the top of
+        // the solid stack at the bottom of the column (the solid fraction, averaged over the two
+        // cells of the face), or the bottom of the domain. A wall coarse face with no fluid
+        // sub-face (the two columns' walls differ by a coarse cell or more) keeps the linear fill.
+        // The option is set only around the set fills (ERF::set_cf_fill_options), so the relax
+        // band keeps the linear fill.
         const int ldir = (fbx.type(0) == IndexType::NODE) ? 0 : ((fbx.type(1) == IndexType::NODE) ? 1 : 2);
         if (m_loglaw && ldir < 2 && fbx.smallEnd(2) == m_fgeom.Domain().smallEnd(2))
         {
@@ -451,15 +466,28 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
             const Real z0  = m_loglaw_z0;
             const int klo = fbx.smallEnd(2), khi = fbx.bigEnd(2);
             const bool have_tb = (m_loglaw_tblank != nullptr);
+            if (have_tb) {
+                // the solid fraction is read with the face array's MFIter: same boxes and ranks
+                AMREX_ALWAYS_ASSERT(m_loglaw_tblank->DistributionMap() == fine.DistributionMap() &&
+                                    m_loglaw_tblank->boxArray().size() == fine.boxArray().size());
+            }
             Array4<Real const> const tb = have_tb ? m_loglaw_tblank->const_array(mfi) : Array4<Real const>{};
             Box colbx = fbx; colbx.setRange(2, klo);
             ParallelFor(colbx, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
             {
+                // the surface height of the face (the mean of its two columns; the neighbour
+                // column across the coarse/fine boundary is a ghost cell of the fine blanking,
+                // which holds the geometry there), and the wall cell: the first cell up the
+                // column whose face is not next to a fully solid cell, found in integer
+                // arithmetic so that a wall on a cell face does not round to the cell below
                 const Real zs = have_tb ? Real(0.5) * (cf_wall_height(tb,i,j,klo,khi,zlo,dzf) +
                                                        cf_wall_height(tb,i-di,j-dj,klo,khi,zlo,dzf))
                                         : zlo + dzf * static_cast<Real>(klo);
-                const int kf  = static_cast<int>(std::floor((zs - zlo) / dzf));
-                const int kc0 = coarsen(amrex::max(kf, klo), rz) * rz;
+                int kf = klo;
+                if (have_tb) {
+                    while (kf <= khi && cf_face_solid(tb,i,j,kf,di,dj,0)) { ++kf; }
+                }
+                const int kc0 = coarsen(kf, rz) * rz;
                 if (kc0 < klo || kc0 + rz - 1 > khi) { return; }
                 for (int kk = kc0; kk < kc0+rz; ++kk) {
                     if (mask_arr(i,j,kk) != mask_val) { return; }
@@ -469,7 +497,7 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
                     F += fine_arr(i,j,kk,0);
                     if (have_tb && cf_face_solid(tb,i,j,kk,di,dj,0)) { continue; }
                     const Real zb = zlo + dzf * static_cast<Real>(kk);
-                    W += std::log1p(cf_fluid_centroid_height(zs, zb, dzf) / z0);
+                    W += cf_loglaw_weight(zs, zb, dzf, z0);
                 }
                 if (W <= Real(0.0)) { return; }
                 // the solid sub-faces of the wall face carry nothing; the fluid ones share the
@@ -477,7 +505,7 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
                 for (int kk = kc0; kk < kc0+rz; ++kk) {
                     if (have_tb && cf_face_solid(tb,i,j,kk,di,dj,0)) { fine_arr(i,j,kk,0) = Real(0.0); continue; }
                     const Real zb = zlo + dzf * static_cast<Real>(kk);
-                    fine_arr(i,j,kk,0) = F * std::log1p(cf_fluid_centroid_height(zs, zb, dzf) / z0) / W;
+                    fine_arr(i,j,kk,0) = F * cf_loglaw_weight(zs, zb, dzf, z0) / W;
                 }
             });
         }

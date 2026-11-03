@@ -540,6 +540,23 @@ List of Parameters
 | **erf.cf_set_width**                             | width, in cells, of the region within ``erf.cf_width``   | Integer >= 0       | 0                    |
 |                                                  | in which the fine solution is set from the coarse one    |                    |                      |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.cf_loglaw_fill**                           | lateral coarse/fine faces next to a wall (the immersed   | Boolean            | false                |
+|                                                  | surface, or a ``surface_layer`` bottom; constant dz, not |                    |                      |
+|                                                  | EB terrain): share the flux of the first coarse face     |                    |                      |
+|                                                  | above the wall among its fine sub-faces by the integral  |                    |                      |
+|                                                  | of ln(1 + z/z0) over the fluid part of each, instead of  |                    |                      |
+|                                                  | the linear interpolation, which gives the fine face at   |                    |                      |
+|                                                  | the wall too much flow; the flux of every coarse face is |                    |                      |
+|                                                  | kept. Acts on the set region of fine boxes that reach    |                    |                      |
+|                                                  | the bottom of the domain; the relax region keeps the     |                    |                      |
+|                                                  | linear fill                                              |                    |                      |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
+| **erf.cf_loglaw_z0**                             | roughness length [m] of that share; only with            | Real > 0           | erf.if_z0 with       |
+|                                                  | erf.cf_loglaw_fill = true. The default is the inputs'    |                    | immersed forcing,    |
+|                                                  | value, not a roughness a land model supplies later       |                    | else erf.most.z0 or  |
+|                                                  |                                                          |                    | erf.zlo.most.z0      |
+|                                                  |                                                          |                    | (0.1 if neither)     |
++--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
 | **erf.interpolation_type**                       | what is interpolated when filling a fine level from the  | FullState,         | FullState            |
 |                                                  | coarse one                                               | Perturbational     |                      |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
@@ -4449,20 +4466,6 @@ List of Parameters
 |                        | ``OneWay`` if some levels are anelastic and others       |                    |                  |
 |                        | compressible                                             |                    |                  |
 +------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.cf_loglaw_fill** | lateral coarse/fine faces next to a wall (the immersed   | Boolean            | false            |
-|                        | surface, or a ``surface_layer`` bottom; constant dz, not |                    |                  |
-|                        | EB terrain): share the flux of the first coarse face     |                    |                  |
-|                        | above the wall among its fine sub-faces by               |                    |                  |
-|                        | ln(1 + z/z0) at the heights of their fluid centroids     |                    |                  |
-|                        | above the wall, instead of the linear interpolation,     |                    |                  |
-|                        | which gives the fine face at the wall too much flow;     |                    |                  |
-|                        | the flux of every coarse face is kept                    |                    |                  |
-+------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.cf_loglaw_z0**   | roughness length [m] of that share; only with            | Real > 0           | erf.if_z0 with   |
-|                        | erf.cf_loglaw_fill = true                                |                    | immersed forcing,|
-|                        |                                                          |                    | else erf.most.z0 |
-|                        |                                                          |                    | (0.1 if not set) |
-+------------------------+----------------------------------------------------------+--------------------+------------------+
 
 Notes
 -----
@@ -5803,7 +5806,7 @@ Equation Set
 ------------
 
 * :ref:`Coupling Type (Data Exchange) <inputs-coupling-type-data-exchange>` --
-  ``erf.cf_loglaw_fill``, ``erf.cf_loglaw_z0``, ``erf.coupling_type``
+  ``erf.coupling_type``
 * :ref:`Forcing Terms <inputs-forcing-terms>` -- ``erf.use_gravity``
 * :ref:`Governing Equations <inputs-governing-equations>` -- ``erf.anelastic``,
   ``erf.buoyancy_type``, ``erf.c_p``, ``erf.fixed_density``, ``erf.gradp_type``,

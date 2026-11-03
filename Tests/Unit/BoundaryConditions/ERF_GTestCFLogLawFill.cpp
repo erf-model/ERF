@@ -113,7 +113,12 @@ Real at (MultiFab const& host, int j, int k)
     return std::numeric_limits<Real>::quiet_NaN();
 }
 
-Real ln1p (Real z) { return std::log1p(z / z0); }
+// integral of ln(1 + z/z0) from za to zt (the weight of a sub-face whose fluid part spans that)
+Real wlog (Real za, Real zt)
+{
+    auto I = [] (Real z) { return (z0 + z) * std::log1p(z / z0) - z; };
+    return I(zt) - I(za);
+}
 
 } // namespace
 
@@ -130,10 +135,10 @@ TEST(CFLogLawFill, FlatSurfaceKeepsTheCoarseFluxAndSharesItByTheLogLaw)
     for (int j = 0; j < 2*ncy; ++j) {
         // the flux of the coarse face at the wall is kept
         EXPECT_NEAR(at(log,j,0) + at(log,j,1), at(lin,j,0) + at(lin,j,1), tol * at(lin,j,1));
-        // its two fine faces, 5 and 15 m above the ground, share it by ln(1 + z/z0)
-        EXPECT_NEAR(at(log,j,0) / at(log,j,1), ln1p(5.) / ln1p(15.), tol);
+        // its two fine faces, 0-10 and 10-20 m, share it by the integral of ln(1 + z/z0)
+        EXPECT_NEAR(at(log,j,0) / at(log,j,1), wlog(0., 10.) / wlog(10., 20.), tol);
         // the linear fill does not (else this test shows nothing)
-        EXPECT_GT(std::abs(at(lin,j,0) / at(lin,j,1) - ln1p(5.) / ln1p(15.)), 0.05);
+        EXPECT_GT(std::abs(at(lin,j,0) / at(lin,j,1) - wlog(0., 10.) / wlog(10., 20.)), 0.05);
         // the faces above the wall face are left alone
         for (int k = 2; k <= fk_hi; ++k) { EXPECT_EQ(at(log,j,k), at(lin,j,k)); }
     }
@@ -159,11 +164,36 @@ TEST(CFLogLawFill, ImmersedSurfaceClosesTheSolidAndSharesTheWallFace)
         for (int k = 0; k < 4; ++k) { EXPECT_EQ(at(log,j,k), Real(0.)); }
         // the flux of the solid coarse faces and of the wall coarse face is kept
         EXPECT_NEAR(sum_log, sum_lin, tol * sum_lin);
-        // the fine faces of the wall coarse face, 2.5 and 10 m above the surface (the fluid centroid
-        // of the half-solid face, and the face above), share it by ln(1 + z/z0)
-        EXPECT_NEAR(at(log,j,4) / at(log,j,5), ln1p(2.5) / ln1p(10.), tol);
-        // (the linear fill gives 0.733 here against 0.706)
-        EXPECT_GT(std::abs(at(lin,j,4) / at(lin,j,5) - ln1p(2.5) / ln1p(10.)), 0.01);
+        // the fine faces of the wall coarse face share it by the integral of ln(1 + z/z0) over
+        // their fluid parts: 0-5 m above the surface for the half-solid face, 5-15 m for the one
+        // above (the half-solid face carries its fluid share, about a quarter of the flux)
+        EXPECT_NEAR(at(log,j,4) / at(log,j,5), wlog(0., 5.) / wlog(5., 15.), tol);
+        // (the linear fill gives 0.733 here against 0.33)
+        EXPECT_GT(std::abs(at(lin,j,4) / at(lin,j,5) - wlog(0., 5.) / wlog(5., 15.)), 0.1);
+        for (int k = 6; k <= fk_hi; ++k) { EXPECT_EQ(at(log,j,k), at(lin,j,k)); }
+    }
+}
+
+TEST(CFLogLawFill, SurfaceInTheUpperHalfOfTheWallFaceZeroesItsSolidSubFace)
+{
+    Levels L;
+    MultiFab crse(convert(L.cba, IntVect(1,0,0)), L.cdm, 1, 1);
+    // surface at 55 m: coarse cells 0-40 m solid, 40-60 m three quarters solid, with flow
+    fill_coarse(crse, {0., 0., 0., 4.0, 6.93, 7.78, 8.35, 8.7, 9.0, 9.2});
+    // fine: 0-50 m solid, the 50-60 m cell half solid
+    MultiFab tb(L.fba, L.fdm, 1, 2);
+    fill_tblank(tb, 5, Real(0.5));
+
+    MultiFab lin = fill_fine(L, crse, &tb, false);
+    MultiFab log = fill_fine(L, crse, &tb, true);
+
+    for (int j = 0; j < 2*ncy; ++j) {
+        // the wall coarse face is 40-60 m; its sub-face 40-50 m is next to a fully solid cell and
+        // carries nothing, whatever the linear fill put there
+        ASSERT_NE(at(lin,j,4), Real(0.));   // (else this test shows nothing)
+        EXPECT_EQ(at(log,j,4), Real(0.));
+        // the one fluid sub-face carries the whole flux of the coarse face
+        EXPECT_NEAR(at(log,j,5), at(lin,j,4) + at(lin,j,5), tol * (at(lin,j,4) + at(lin,j,5)));
         for (int k = 6; k <= fk_hi; ++k) { EXPECT_EQ(at(log,j,k), at(lin,j,k)); }
     }
 }

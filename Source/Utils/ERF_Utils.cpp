@@ -1,5 +1,6 @@
 #include "ERF_Utils.H"
 
+#include <AMReX_iMultiFab.H>
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_Reduce.H>
 

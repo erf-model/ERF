@@ -100,7 +100,8 @@ public:
     /**
      * Log-law fill of the lateral coarse/fine faces next to a wall (erf.cf_loglaw_fill): the flux
      * of the first coarse face above the wall is shared among its fine sub-faces in proportion to
-     * ln(1 + z/z0) at their heights above the wall, so the flux of every coarse face is kept.
+     * the integral of ln(1 + z/z0) over the fluid part of each, so the flux of every coarse face
+     * is kept. Acts on the set fills of fine boxes that reach the bottom of the domain.
      *
      * @param[in] on          enable the log-law fill (constant dz only)
      * @param[in] z0          roughness length [m]

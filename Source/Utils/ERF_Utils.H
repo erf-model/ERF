@@ -2,11 +2,9 @@
 #define ERF_UTILS_H_
 
 #include <utility>
-#include <vector>
 
 #include "AMReX.H"
 #include "AMReX_MultiFab.H"
-#include "AMReX_iMultiFab.H"
 #include "AMReX_BCRec.H"
 #include "ERF_NumericalConstants.H"
 #include "ERF_MicrophysicsConstants.H"

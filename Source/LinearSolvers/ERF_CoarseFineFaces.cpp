@@ -1111,7 +1111,7 @@ ERF::set_cf_fill_options (int lev, bool on)
                            solverChoice.buildings_type == BuildingsType::ImmersedForcing);
     const bool have_tb = immersed && terrain_blanking[lev];
     const bool loglaw  = on && solverChoice.cf_loglaw_fill && (!immersed || have_tb);
-    const MultiFab* wall_tb = have_tb ? terrain_blanking[lev].get() : nullptr;
+    const MultiFab* wall_tb = (loglaw && have_tb) ? terrain_blanking[lev].get() : nullptr;  // no stale pointer when off
     for (ERFFillPatcher* fp : {&FPr_u[lev-1], &FPr_v[lev-1], &FPr_w[lev-1]}) {
         fp->SetLogLawFill(loglaw, solverChoice.cf_loglaw_z0, wall_tb);
     }
