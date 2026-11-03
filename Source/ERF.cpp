@@ -122,8 +122,6 @@ PlotFileType ERF::plotfile3d_type_2  = PlotFileType::None;
 PlotFileType ERF::plotfile2d_type_1  = PlotFileType::None;
 PlotFileType ERF::plotfile2d_type_2  = PlotFileType::None;
 
-StateInterpType ERF::interpolation_type;
-
 // NetCDF wrfinput (initialization) file(s)
 Vector<Vector<std::string>> ERF::nc_init_file = {{""}}; // Must provide via input
 Vector<Vector<int>>         ERF::have_read_nc_init_file = {{0}};
@@ -647,7 +645,7 @@ ERF::write_bndry_planes (int step, double time)
         FillPatchFineLevel(lev, t_new[lev], {&vars_new[lev][Vars::cons], &vars_new[lev][Vars::xvel],
                            &vars_new[lev][Vars::yvel], &vars_new[lev][Vars::zvel]},
                            {&vars_new[lev][Vars::cons], &rU_new[lev], &rV_new[lev], &rW_new[lev]},
-                           base_state[lev], base_state[lev], fillset);
+                           fillset);
     }
 
     bool is_moist = (micro->Get_Qstate_Moist_Size() > 0);
@@ -1596,7 +1594,6 @@ ERF::InitData_post ()
             FillPatchFineLevel(lev, t_new[lev],
                       {&lev_new[Vars::cons],&lev_new[Vars::xvel],&lev_new[Vars::yvel],&lev_new[Vars::zvel]},
                       {&lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
-                      base_state[lev], base_state[lev],
                       fillset);
         }
 
@@ -3352,8 +3349,7 @@ ERF::init_only (int lev, double elapsed_time)
         rebuild_base_state_from_wrfinput(lev, base_state[lev]);
         (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
 
-        // The state itself is interpolated from the coarser level.  This must come after the
-        // base state, since it interpolates perturbational quantities relative to it.
+        // The state itself is interpolated from the coarser level.
         FillCoarsePatch(lev, elapsed_time);
 
         // The 2D/surface arrays likewise have no file to come from at this level.  That
@@ -3654,30 +3650,6 @@ ERF::ReadParameters ()
         //       below, so it is parsed further down once that default has been chosen.
         pp.queryAdd("erfbdy_file",              erfbdy_file);
         pp.queryAdd("use_erfbdy",               use_erfbdy);
-
-        // Set default to FullState for now ... later we will try Perturbation
-        interpolation_type = StateInterpType::FullState;
-        pp.query_enum_case_insensitive("interpolation_type"  ,interpolation_type);
-
-        //
-        // Perturbational interpolation is only ever reached from FillPatchFineLevel, so
-        // it does nothing at all without refinement.  With refinement it is a mode that
-        // nothing measures: no input file in the repository selects it, so it has no
-        // regression coverage, and what it does is transform the live conserved state in
-        // place -- on both levels, including ghost cells -- and then undo the transform.
-        // Neither (rt/r)*r == rt nor (r - r0) + r0 == r holds in IEEE arithmetic, so every
-        // traversal perturbs the solution it was supposed to leave alone (issue 4257).
-        //
-        // Refuse the combination here, where the message can explain itself, rather than
-        // silently taking that path part-way through a run.  Lift this once the mode has
-        // a deck and a test to hold it.
-        //
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-            !(interpolation_type == StateInterpType::Perturbational && max_level > 0),
-            "erf.interpolation_type = Perturbational is not supported with refinement "
-            "(amr.max_level > 0): the mode has no regression coverage and round-trips "
-            "the live state in place on every fill (ERF issue 4257).  Use the default "
-            "FullState, or run with amr.max_level = 0.");
 
         PlotFileType plotfile3d_type_temp = PlotFileType::None;
         pp.query_enum_case_insensitive("plotfile_type"  ,plotfile3d_type_temp);

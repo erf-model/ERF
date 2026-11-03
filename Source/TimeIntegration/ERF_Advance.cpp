@@ -65,8 +65,7 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
         // Set ghost cells to bogus values so they aren't uninitialized
         W_old.setBndry(bogus_large_value);
         FillPatchFineLevel(lev, time, {&S_old, &U_old, &V_old, &W_old},
-                           {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]},
-                           base_state[lev], base_state[lev]);
+                           {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]});
     }
 
     // Update the inflow perturbation update time and amplitude
@@ -251,7 +250,6 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                 } else {
                     Vector<MultiFab*> mfs_mom = {&S_old, &rU_old[lev], &rV_old[lev], &rW_old[lev]};
                     FillPatchFineLevel(lev, time, mfs_vel, mfs_mom,
-                                       base_state[lev], base_state[lev],
                                        true, false);
                 }
             }
@@ -378,7 +376,6 @@ ERF::Advance (int lev, double time, double dt_lev, int iteration, int /*ncycle*/
                 FillPatchFineLevel(lev, t_new[lev],
                                    {&S_new, &U_new, &V_new, &W_new},
                                    {&S_new, &rU_new[lev], &rV_new[lev], &rW_new[lev]},
-                                   base_state[lev], base_state[lev],
                                    /*fillset=*/true, /*cons_only=*/true);
             }
         }

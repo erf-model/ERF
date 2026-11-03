@@ -33,9 +33,9 @@ ERF::AverageDown ()
 
 // Set covered coarse cells to be the average of overlying fine cells at level crse_lev
 void
-ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_perturbational_and_momenta) // NOLINT
+ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_full_state_and_momenta) // NOLINT
 {
-    if (do_perturbational_and_momenta) {
+    if (do_full_state_and_momenta) {
         if (solverChoice.anelastic[crse_lev]) {
             AMREX_ALWAYS_ASSERT(scomp == 1);
         } else {
@@ -55,9 +55,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_perturbational_a
     // fine cells into coarse fluid cells). The branch carries the cell volume detJ/(m_x m_y) in
     // its weight itself (see if_average_down), so the scaling of the state around the plain
     // average is skipped, and it takes the coarse density as it is when the density is not
-    // averaged, so the rescaling of the plain anelastic branch is built in. The density slot
-    // holds the full density here: erf.interpolation_type = Perturbational is not supported with
-    // refinement.
+    // averaged, so the rescaling of the plain anelastic branch is built in.
     const bool if_fluid_mass = (solverChoice.if_average_down == "fluid_mass") &&
                                (solverChoice.terrain_type   == TerrainType::ImmersedForcing ||
                                 solverChoice.buildings_type == BuildingsType::ImmersedForcing);
@@ -90,24 +88,6 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_perturbational_a
     } // lev
 
     int fine_lev = crse_lev+1;
-
-    if (do_perturbational_and_momenta && interpolation_type == StateInterpType::Perturbational) {
-        // Make the fine rho and (rho theta) be perturbational
-        MultiFab::Divide(vars_new[fine_lev][Vars::cons],vars_new[fine_lev][Vars::cons],
-                         Rho_comp,RhoTheta_comp,1,IntVect{0});
-        MultiFab::Subtract(vars_new[fine_lev][Vars::cons],base_state[fine_lev],
-                           BaseState::r0_comp,Rho_comp,1,IntVect{0});
-        MultiFab::Subtract(vars_new[fine_lev][Vars::cons],base_state[fine_lev],
-                           BaseState::th0_comp,RhoTheta_comp,1,IntVect{0});
-
-        // Make the crse rho and (rho theta) be perturbational
-        MultiFab::Divide(vars_new[crse_lev][Vars::cons],vars_new[crse_lev][Vars::cons],
-                         Rho_comp,RhoTheta_comp,1,IntVect{0});
-        MultiFab::Subtract(vars_new[crse_lev][Vars::cons],base_state[crse_lev],
-                           BaseState::r0_comp,Rho_comp,1,IntVect{0});
-        MultiFab::Subtract(vars_new[crse_lev][Vars::cons],base_state[crse_lev],
-                           BaseState::th0_comp,RhoTheta_comp,1,IntVect{0});
-    }
 
     if (if_fluid_mass) {
         // the fine cell volume, detJ/(m_x m_y), as in the scaling of the plain branch
@@ -200,24 +180,6 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_perturbational_a
                     scomp, ncomp, refRatio(crse_lev));
     }
 
-    if (do_perturbational_and_momenta && interpolation_type == StateInterpType::Perturbational) {
-        // Restore the fine data to what it was
-        MultiFab::Add(vars_new[fine_lev][Vars::cons],base_state[fine_lev],
-                      BaseState::r0_comp,Rho_comp,1,IntVect{0});
-        MultiFab::Add(vars_new[fine_lev][Vars::cons],base_state[fine_lev],
-                      BaseState::th0_comp,RhoTheta_comp,1,IntVect{0});
-        MultiFab::Multiply(vars_new[fine_lev][Vars::cons],vars_new[fine_lev][Vars::cons],
-                           Rho_comp,RhoTheta_comp,1,IntVect{0});
-
-        // Make the crse data be full values not perturbational
-        MultiFab::Add(vars_new[crse_lev][Vars::cons],base_state[crse_lev],
-                      BaseState::r0_comp,Rho_comp,1,IntVect{0});
-        MultiFab::Add(vars_new[crse_lev][Vars::cons],base_state[crse_lev],
-                      BaseState::th0_comp,RhoTheta_comp,1,IntVect{0});
-        MultiFab::Multiply(vars_new[crse_lev][Vars::cons],vars_new[crse_lev][Vars::cons],
-                           Rho_comp,RhoTheta_comp,1,IntVect{0});
-    }
-
     vars_new[crse_lev][Vars::cons].FillBoundary(geom[crse_lev].periodicity());
 
     // ******************************************************************************************
@@ -263,7 +225,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_perturbational_a
         } // lev
     }
 
-    if (!do_perturbational_and_momenta) return;
+    if (!do_full_state_and_momenta) return;
 
     // ******************************************************************************************
     // Now average down momenta.
@@ -333,7 +295,7 @@ ERF::AverageDownTo (int crse_lev, int scomp, int ncomp, bool do_perturbational_a
 
 // Conservation-preserving fine-to-coarse average of RhoTheta and the active
 // moist conserved components. Uses the same detJ/mfac weighting as AverageDownTo,
-// but skips perturbational-state and momentum handling.
+// but skips the full-state component checks and the momentum average-down.
 void
 ERF::AverageDownMoistStateTo (int crse_lev)
 {

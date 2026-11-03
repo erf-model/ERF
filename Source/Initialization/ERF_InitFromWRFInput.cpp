@@ -2277,8 +2277,8 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
     //
     // NOTE: On the interp_atmos_from_coarse path the caller rebuilds the base state
     //       itself, after this level's terrain has been finalized by init_zphys and
-    //       before it interpolates the (perturbational) atmospheric state from the
-    //       coarse level.  See MakeNewLevelFromCoarse.
+    //       before it interpolates the atmospheric state from the coarse level.
+    //       See MakeNewLevelFromCoarse.
     // **************************************************************************
     if (!read_atmos_state) {
         // The SST/TSK time slices, as at the end of this routine
