@@ -71,6 +71,14 @@ positions. Newly injected particles are assigned before phase change or
 condensate projection, including when ``include_advection = false``.
 This assignment does not require ``split_merge_amr = true``.
 
+Initial populations are seeded only in cells not covered by finer grids, so
+refining a region does not add another copy of its prescribed particle mass.
+Density scaling and condensate-based attribute initialization are completed
+on each level before redistribution. If initial phase-change relaxation is
+enabled, it then runs on each particle's owning level and retains the associated
+vapor and latent-heat changes in the initial atmospheric state. These
+initialization operations are not repeated when restarting from a checkpoint.
+
 For additional species, cloud-in-cell projection uses only cells on the
 particle's level that are not covered by finer grids. The retained weights are
 renormalized, so projection at a physical wall or coarse/fine boundary preserves

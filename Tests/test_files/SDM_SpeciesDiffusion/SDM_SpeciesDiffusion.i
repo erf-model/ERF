@@ -29,7 +29,7 @@ erf.v = 1
 erf.sum_interval = 1
 erf.plot_file_1 = plt
 erf.plot_int_1 = 1
-erf.plot_vars_1 = density rhoQ7 rhoQ8 rhoQ9 rhoQ10 \
+erf.plot_vars_1 = density rhotheta rhoQ7 rhoQ8 rhoQ9 rhoQ10 \
                   qv_water qc_water qv_agua qc_agua \
                   super_droplets_moisture_species_mass_density_water \
                   super_droplets_moisture_species_mass_density_agua Kmv

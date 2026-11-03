@@ -84,6 +84,89 @@ TEST(SpeciesProjection, CompositeCICConservesParticleMassAtWallsAndLevelEdges)
     composite_cic_mass_test();
 }
 
+void composite_initialization_test ()
+{
+    const Box domain(IntVect(0), IntVect(3));
+    const RealBox rb(Real(0), Real(0), Real(0), Real(4), Real(4), Real(4));
+    Vector<Geometry> geom{Geometry(domain, rb, CoordSys::cartesian, {0,0,0}),
+                          Geometry(refine(domain, 2), rb, CoordSys::cartesian, {0,0,0})};
+    Box fine = geom[1].Domain();
+    fine.setBig(2, 3);
+    Vector<BoxArray> ba{BoxArray(domain), BoxArray(fine)};
+    Vector<DistributionMapping> dm{DistributionMapping(ba[0]), DistributionMapping(ba[1])};
+    ParGDB gdb(geom, dm, ba, {IntVect(2)});
+    const std::string name = "composite_initialization_test";
+    ParmParse pp(name);
+    pp.add("num_initializations", 1);
+    pp.add("num_injections", 0);
+    pp.add("initial_number_density", Real(16));
+    pp.add("initial_super_droplet_density", Real(16));
+    pp.add("multiplicity_type", "constant");
+    pp.add("initial_species_mean_mass_H2O", Real(1.e-12));
+    pp.add("initial_species_mean_mass_water", Real(1.e-12));
+    pp.add("initial_aerosol_mean_mass_NaCl", Real(1.e-19));
+    pp.add("density_scaling", true);
+    pp.add("place_randomly_in_cells", false);
+    SuperDropletPC pc(&gdb, {Species::Name::H2O, Species::Name::water},
+                     {Species::Name::NaCl}, 0.02, name);
+    ParticleReal total = 0;
+    for (int lev = 0; lev < 2; ++lev) {
+        BoxArray nodes(ba[lev]);
+        nodes.surroundingNodes();
+        auto height = std::make_unique<MultiFab>(nodes, dm[lev], 1, 2);
+        const Real dz = geom[lev].CellSize(2);
+        for (MFIter mfi(*height); mfi.isValid(); ++mfi) {
+            const auto h = height->array(mfi);
+            ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                h(i,j,k) = Real(k) * dz;
+            });
+        }
+        pc.InitializeParticles(lev, 0, height);
+        MultiFab rho(ba[lev], dm[lev], 1, 1);
+        rho.setVal(Real(lev + 2));
+        pc.DensityScaling(rho, lev);
+        EXPECT_EQ(pc.NumberOfParticlesAtLevel(lev), 512);
+        for (SuperDropletPC::ParIterType pti(pc, lev); pti.isValid(); ++pti) {
+            const auto& xi = pti.GetStructOfArrays().GetRealData(
+                static_cast<int>(SDPCDefn::SuperDropletsRealIdx::ncomps) +
+                SDPCDefn::SuperDropletsRealIdxSoA_RT::multiplicity);
+            Vector<ParticleReal> multiplicity(xi.size());
+            Gpu::copy(Gpu::deviceToHost, xi.begin(), xi.end(), multiplicity.begin());
+            for (auto value : multiplicity) {
+                EXPECT_EQ(value, ParticleReal(lev + 2));
+                total += value;
+            }
+        }
+        MultiFab condensate(ba[lev], dm[lev], 1, 0);
+        condensate.setVal(Real(1.e-4));
+        pc.SetAttributes(condensate, lev);
+        for (SuperDropletPC::ParIterType pti(pc, lev); pti.isValid(); ++pti) {
+            const auto& soa = pti.GetStructOfArrays();
+            const auto& xi = soa.GetRealData(static_cast<int>(SDPCDefn::SuperDropletsRealIdx::ncomps) +
+                                            SDPCDefn::SuperDropletsRealIdxSoA_RT::multiplicity);
+            const auto& mass = soa.GetRealData(SDPCDefn::SuperDropletsRealIdx::mass);
+            Vector<ParticleReal> multiplicity(xi.size()), per_drop(mass.size());
+            Gpu::copy(Gpu::deviceToHost, xi.begin(), xi.end(), multiplicity.begin());
+            Gpu::copy(Gpu::deviceToHost, mass.begin(), mass.end(), per_drop.begin());
+            const Real expected = Real(1.e-4) / Real(16);
+            for (int i = 0; i < static_cast<int>(multiplicity.size()); ++i) {
+                EXPECT_NEAR(multiplicity[i] * (per_drop[i] - ParticleReal(1.e-12) - ParticleReal(1.e-19)),
+                            expected, expected * Real(32) * std::numeric_limits<ParticleReal>::epsilon());
+            }
+        }
+    }
+    EXPECT_EQ(total, ParticleReal(2560));
+}
+
+// Motivation: Covered coarse cells must not seed a second initial population,
+// and density scaling must use the flow on each owning level before particles
+// move. Distinct level densities give an exact composite multiplicity oracle;
+// volume-based sampling also checks the level-local condensate attribute divisor.
+TEST(SpeciesProjection, CompositeInitializationScalesEachLevelOnce)
+{
+    composite_initialization_test();
+}
+
 void set_test_particle (SuperDropletPC& pc, ParticleReal multiplicity,
                         Real x, Real y, Real z, int tag)
 {
@@ -141,7 +224,7 @@ void limited_donor_test ()
                           tile.GetArrayOfStructs().dataPtr()+np, particles.begin());
                 Vector<ParticleReal> multiplicity(np), mass(np);
                 const auto& soa = tile.GetStructOfArrays();
-                const auto& xi = soa.GetRealData(SDPCDefn::SuperDropletsRealIdx::ncomps
+                const auto& xi = soa.GetRealData(static_cast<int>(SDPCDefn::SuperDropletsRealIdx::ncomps)
                                                 + SDPCDefn::SuperDropletsRealIdxSoA_RT::multiplicity);
                 Gpu::copy(Gpu::deviceToHost, xi.begin(), xi.end(), multiplicity.begin());
                 for (int c = 0; c < soa.NumRealComps(); ++c) {

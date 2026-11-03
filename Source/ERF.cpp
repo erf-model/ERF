@@ -2113,18 +2113,22 @@ ERF::InitData_post ()
 
     // Update micro vars and finish moisture model initializations before first plot file
     if (solverChoice.moisture_type != MoistureType::None) {
-        for (int lev = 0; lev <= finest_level; ++lev) {
-            const amrex::MultiFab* base = solverChoice.anelastic[lev] ? &base_state[lev] : nullptr;
-            micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons], base);
-            micro->FinishInit(lev, vars_new[lev][Vars::cons], z_phys_nd);
-#ifdef ERF_USE_PARTICLES
-            // Level-0 initialization may change particle attributes. Establish
-            // finest-level ownership before initializing fine condensate projections.
-            if (lev == 0 && finest_level > 0 &&
-                Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
-                particleData.Redistribute(z_phys_nd);
+        const bool lagrangian =
+            Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian;
+        // Lagrangian initialization prepares attributes across the hierarchy
+        // before ownership is established and any level starts phase relaxation.
+        if (lagrangian) {
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                const amrex::MultiFab* base = solverChoice.anelastic[lev] ? &base_state[lev] : nullptr;
+                micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons], base);
             }
-#endif
+        }
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            if (!lagrangian) {
+                const amrex::MultiFab* base = solverChoice.anelastic[lev] ? &base_state[lev] : nullptr;
+                micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons], base);
+            }
+            micro->FinishInit(lev, vars_new[lev][Vars::cons], z_phys_nd);
         }
 
         // Lagrangian microphysics with AMR (TwoWay): the per-level init above

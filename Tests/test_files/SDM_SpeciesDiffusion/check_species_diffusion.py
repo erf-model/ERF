@@ -34,6 +34,7 @@ def particle_budget(plotfile, header):
     species = [3 + names.index("species_mass_" + name) for name in ("water", "agua")]
     masses = [0.0, 0.0]
     counts = [0] * (finest + 1)
+    level_masses = [[0.0, 0.0] for _ in counts]
     for level, entries in enumerate(chunks):
         for which, count, offset in entries:
             if count == 0:
@@ -58,9 +59,10 @@ def particle_budget(plotfile, header):
                 for s in range(2):
                     assert values[species[s]] >= 0
                     masses[s] += values[xi] * values[species[s]]
+                    level_masses[level][s] += values[xi] * values[species[s]]
                 counts[level] += 1
     assert sum(counts) == total
-    return masses, counts
+    return masses, counts, level_masses
 
 
 def composite(plotfile):
@@ -73,6 +75,7 @@ def composite(plotfile):
         "super_droplets_moisture_species_mass_density_" + species
         for species in ("water", "agua")
     ]
+    fields.append("rhotheta")
     components = [names.index(field) for field in fields]
     levels = []
     for level in range(header["finest"] + 1):
@@ -124,7 +127,8 @@ def metrics(plotfile, tolerance):
             mass[species] += volume * (vapor + particle)
             condensate[species] += volume * particle
             vapor_square[species] += volume * vapor * vapor / rho
-    return header, mass, vapor_square, condensate, max(v[5] for _, v in cells)
+    thermal = sum(volume * values[8] for volume, values in cells)
+    return header, mass, vapor_square, condensate, max(v[5] for _, v in cells), thermal
 
 
 def run(args, label, options, injected_volume=0):
@@ -147,11 +151,22 @@ def run(args, label, options, injected_volume=0):
         subprocess.run(command, cwd=directory, stdout=log, stderr=subprocess.STDOUT,
                        check=True, timeout=180)
     plots = sorted(directory.glob("plt[0-9][0-9][0-9][0-9][0-9]"))
-    assert len(plots) >= 2, directory
+    initial_only = args.case == "initialization"
+    assert len(plots) >= (1 if initial_only else 2), directory
     first = metrics(plots[0], args.tolerance)
     last = metrics(plots[-1], args.tolerance)
     assert abs(first[0]["time"]) < 1.e-12
-    assert abs(last[0]["time"] - 0.08) < 1.e-6
+    assert abs(last[0]["time"] - (0 if initial_only else 0.08)) < 1.e-6
+    # Motivation: Conservation from a measured t=0 reservoir misses populations
+    # seeded twice in covered coarse cells. Check prescribed initial mass too.
+    if not initial_only:
+        particles, _, _ = particle_budget(plots[0], first[0])
+        for s in range(2):
+            expected = 512 * 1.e7 * (s + 1) * 1.e-12
+            for measured in (first[3][s], particles[s]):
+                assert abs(measured - expected) <= args.tolerance * expected, (
+                    "incorrect initial particle reservoir", directory, expected, measured
+                )
     for plot in plots[1:]:
         current = metrics(plot, args.tolerance)
         for s, (initial, measured) in enumerate(zip(first[1], current[1])):
@@ -162,7 +177,7 @@ def run(args, label, options, injected_volume=0):
     if injected_volume:
         for plot in plots:
             current = metrics(plot, args.tolerance)
-            particles, counts = particle_budget(plot, current[0])
+            particles, counts, _ = particle_budget(plot, current[0])
             for deposited, independent in zip(current[3], particles):
                 assert abs(deposited - independent) <= args.tolerance * max(independent, 1.e-20), (
                     "mesh projection disagrees with independent particle mass", plot, deposited, independent
@@ -187,13 +202,69 @@ def run(args, label, options, injected_volume=0):
                     "redistribution changed particle species mass", plot, initial, measured
                 )
         print("refined cell counts:", [len(cells) for cells in coverage], flush=True)
-    assert last[4] > 1, ("test must activate turbulent diffusion", last[4])
+    if not initial_only:
+        assert last[4] > 1, ("test must activate turbulent diffusion", last[4])
     print(label, "mass:", last[1], "vapor L2:", last[2],
           "particle condensate:", last[3], "max Kmv:", last[4], flush=True)
     return first, last
 
 
 def main(args):
+    if args.case == "initialization":
+        # Motivation: Initial relaxation is a separate pre-timestep ownership
+        # boundary. Its vapor/latent-heat exchange must be retained on every
+        # owning level, not just a changed particle condensate projection.
+        for refined in (False, True):
+            for splitmerge in ("false", "true"):
+                unrelaxed = None
+                for relax in (False, True):
+                    options = [
+                        "max_step=0", "prob.z_r=0",
+                        "super_droplets_moisture.include_phase_change=true",
+                        "super_droplets_moisture.initial_phase_change_relaxation=" +
+                        str(relax).lower(),
+                        "super_droplets_moisture.initial_phase_change_relaxation_time=0.02",
+                        "super_droplets_moisture.split_merge_amr=" + splitmerge,
+                        "amr.max_grid_size_x=4",
+                    ]
+                    if refined:
+                        options += [
+                            "amr.max_level=1", "amr.ref_ratio=2",
+                            "erf.refinement_indicators=box1", "erf.box1.max_level=1",
+                            "erf.box1.in_box_lo=0 0 0", "erf.box1.in_box_hi=8 4 8",
+                        ]
+                    label = "refined_%s_split_%s_relax_%s" % (refined, splitmerge, relax)
+                    initial, _ = run(args, label, options)
+                    plot = Path(label) / "plt00000"
+                    particles, counts, level_masses = particle_budget(plot, initial[0])
+                    for s in range(2):
+                        expected_c = 512 * 1.e7 * (s + 1) * 1.e-12
+                        expected_total = expected_c + 512 * 0.0025 * (s + 1)
+                        assert abs(initial[1][s] - expected_total) <= args.tolerance * expected_total, (
+                            "initial relaxation did not conserve species", label,
+                            expected_total, initial[1][s]
+                        )
+                        assert abs(initial[3][s] - particles[s]) <= args.tolerance * expected_c
+                        if not relax:
+                            assert abs(particles[s] - expected_c) <= args.tolerance * expected_c
+                        else:
+                            assert particles[s] < 0.99999 * unrelaxed[s], (
+                                "initial relaxation must change particle mass", label, particles
+                            )
+                            for level, masses in enumerate(level_masses):
+                                assert masses[s] < 0.99999 * unrelaxed_levels[level][s], (
+                                    "initial relaxation must act on every owning level", label, level
+                                )
+                    if not relax:
+                        unrelaxed = particles
+                        unrelaxed_levels = level_masses
+                        unrelaxed_thermal = initial[5]
+                    else:
+                        assert initial[5] < unrelaxed_thermal, (
+                            "initial evaporation must retain latent cooling", label
+                        )
+                    assert all(count > 0 for count in counts)
+        return
     if args.case.startswith("injection"):
         for advection in ("false", "true"):
             for splitmerge in ("false", "true"):
@@ -271,7 +342,7 @@ if __name__ == "__main__":
     parser.add_argument("--input", required=True)
     parser.add_argument("--reader-dir", required=True)
     parser.add_argument("--case", choices=("column", "amr", "phase", "regrid", "regrid_splitmerge",
-                                         "injection", "injection_phase"), required=True)
+                                         "injection", "injection_phase", "initialization"), required=True)
     parser.add_argument("--mpi-exec", default="")
     parser.add_argument("--mpi-numproc-flag", default="-n")
     parser.add_argument("--mpi-preflags", default="")

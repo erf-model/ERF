@@ -126,10 +126,10 @@ TEST(MultiScalarSlots, EveryScalarGetsTheMolecularDiffusivityOfTheExplicitPath)
     }
 }
 
-// Motivation: Conserved components and BC slots do not advance together when
-// passive scalars share a slot. Grouped implicit ghost fills must match separate
-// per-component fills, including appended species with distinct boundary data.
-TEST(MultiScalarSlots, ImplicitCoarseFineRunsMatchIndependentBoundarySlices)
+namespace {
+
+// NVCC requires device lambdas outside GoogleTest's non-public TestBody.
+void implicit_coarse_fine_runs_test ()
 {
     using namespace amrex;
     const Box coarse_domain(IntVect(0), IntVect(7));
@@ -186,6 +186,16 @@ TEST(MultiScalarSlots, ImplicitCoarseFineRunsMatchIndependentBoundarySlices)
     for (int n = RhoKE_comp; n < ncomp; ++n) {
         EXPECT_EQ(grouped.norm0(n, 1, ng), Real(0)) << "state component " << n;
     }
+}
+
+} // namespace
+
+// Motivation: Conserved components and BC slots do not advance together when
+// passive scalars share a slot. Grouped implicit ghost fills must match separate
+// per-component fills, including appended species with distinct boundary data.
+TEST(MultiScalarSlots, ImplicitCoarseFineRunsMatchIndependentBoundarySlices)
+{
+    implicit_coarse_fine_runs_test();
 }
 
 // Motivation: Prescribed water-vapor inflow must not become an unintended source

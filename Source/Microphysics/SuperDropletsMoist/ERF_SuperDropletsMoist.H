@@ -481,6 +481,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         /*! let initial superdroplets "relax" to a physically-appropriate size? */
         bool m_init_phase_change;
+        bool m_restarted_particles = false;
         /*! time (in seconds) of initial relaxation */
         amrex::Real m_init_phase_change_time;
 
