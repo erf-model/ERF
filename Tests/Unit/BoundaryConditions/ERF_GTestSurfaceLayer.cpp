@@ -1544,6 +1544,10 @@ TEST(SurfaceLayer, ImmersedColumnsRemainBenignThroughFluxAndTkeUpdates)
     for (const bool with_lsm : {false, true}) {
         SCOPED_TRACE(with_lsm);
         SurfaceLayerFields fields(make_qsurf_geometry());
+        // The density too, in the ghost cells: the LSM-flux update also sets the ghost
+        // columns from their own state, and a zero ghost density there made theta and z0
+        // non-finite
+        fields.cons.setVal(test_rho, Rho_comp, 1, fields.cons.nGrowVect());
         fields.cons.setVal(test_rho * test_surface_temperature, RhoTheta_comp, 1,
                            fields.cons.nGrowVect());
         const int ib = fields.domain.bigEnd(0);
