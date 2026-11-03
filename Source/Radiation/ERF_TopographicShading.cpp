@@ -139,6 +139,12 @@ void TopographicShading::initialize_geometry (int lev, const TopographicShadingC
     // One search patch per owning rank, enlarged to include every possible ray
     // and the slope stencil. ParallelCopy brings remote terrain across MPI
     // boundaries once, at initialization/regrid, rather than at every sun update.
+    // This patch bounds all boxes owned by the rank, not just their individual
+    // ray neighborhoods. SFC or knapsack placement can assign distant boxes to
+    // one rank, making its patch nearly the full 2D domain and increasing cache
+    // memory and copy traffic even when shadlen is small. apply() currently reads
+    // one contiguous terrain patch per rank; a per-box cache would need a
+    // corresponding change there.
     const auto& ba = l.ground.boxArray();
     const auto& dm = l.ground.DistributionMap();
     BoxList boxes;
