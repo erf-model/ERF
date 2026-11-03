@@ -1,5 +1,9 @@
 #include "ERF_Utils.H"
 
+#include <AMReX_iMultiFab.H>
+#include <AMReX_MultiFabUtil.H>
+#include <AMReX_Reduce.H>
+
 using namespace amrex;
 
 /**
@@ -200,4 +204,66 @@ if_average_down (const MultiFab& S_fine, MultiFab& S_crse,
             }
         });
     }
+}
+
+std::pair<int, Real>
+if_cf_surface_mismatch (const MultiFab& fine_tb,
+                        const BoxArray& fine_grids,
+                        const BoxArray& crse_grids,
+                        const DistributionMapping& crse_dmap,
+                        const Geometry& crse_geom,
+                        const IntVect& ratio,
+                        Real warn)
+{
+    const IntVect rr = ratio;
+    const iMultiFab covered = makeFineMask(crse_grids, crse_dmap, IntVect(1,1,0), fine_grids, rr,
+                                           crse_geom.periodicity(), 0, 1);
+
+    // spread of the fine fractions under each coarse cell, formed on the coarsened fine layout
+    MultiFab ftmp(amrex::coarsen(fine_grids, rr), fine_tb.DistributionMap(), 1, 0);
+    const int rx = rr[0], ry = rr[1], rz = rr[2];
+    for (MFIter mfi(ftmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        auto const s = ftmp.array(mfi);
+        auto const f = fine_tb.const_array(mfi);
+        ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real bmin = Real(one), bmax = Real(zero);
+            for (int kk = k*rz; kk < (k+1)*rz; ++kk) {
+            for (int jj = j*ry; jj < (j+1)*ry; ++jj) {
+            for (int ii = i*rx; ii < (i+1)*rx; ++ii) {
+                const Real b = amrex::min(amrex::max(f(ii,jj,kk), Real(zero)), Real(one));
+                bmin = amrex::min(bmin, b);
+                bmax = amrex::max(bmax, b);
+            }}}
+            s(i,j,k) = bmax - bmin;
+        });
+    }
+    MultiFab spread(crse_grids, crse_dmap, 1, 0);
+    spread.setVal(zero);
+    spread.ParallelCopy(ftmp, 0, 0, 1);
+
+    const Box& dom = crse_geom.Domain();
+    const int per_x = crse_geom.isPeriodic(0), per_y = crse_geom.isPeriodic(1);
+    const int dlo_x = dom.smallEnd(0), dhi_x = dom.bigEnd(0), dlo_y = dom.smallEnd(1), dhi_y = dom.bigEnd(1);
+    ReduceOps<ReduceOpSum, ReduceOpMax> reduce_op;
+    ReduceData<int, Real> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+    for (MFIter mfi(spread, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        auto const m  = covered.const_array(mfi);
+        auto const sp = spread.const_array(mfi);
+        reduce_op.eval(mfi.tilebox(), reduce_data, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> ReduceTuple
+        {
+            if (m(i,j,k) != 1) { return {0, Real(zero)}; }
+            const bool edge = ((per_x || i > dlo_x) && m(i-1,j,k) == 0) || ((per_x || i < dhi_x) && m(i+1,j,k) == 0)
+                           || ((per_y || j > dlo_y) && m(i,j-1,k) == 0) || ((per_y || j < dhi_y) && m(i,j+1,k) == 0);
+            if (!edge) { return {0, Real(zero)}; }
+            return {(sp(i,j,k) >= warn) ? 1 : 0, sp(i,j,k)};
+        });
+    }
+    ReduceTuple hv = reduce_data.value(reduce_op);
+    int  nflagged = amrex::get<0>(hv);
+    Real worst    = amrex::get<1>(hv);
+    ParallelDescriptor::ReduceIntSum(nflagged);
+    ParallelDescriptor::ReduceRealMax(worst);
+    return {nflagged, worst};
 }

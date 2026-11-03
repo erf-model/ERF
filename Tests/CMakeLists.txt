@@ -108,6 +108,14 @@ if(ERF_ENABLE_TESTS)
   target_link_libraries(erf_immersed_average_down_check PRIVATE AMReX::amrex)
   target_compile_features(erf_immersed_average_down_check PRIVATE cxx_std_17)
 
+  # Motivation: a refined patch whose coarse/fine faces cross an immersed surface must leave no net
+  # heat source; checked on the plotfile instead of a gold file, with a leg that proves the explicit
+  # solid freeze fails the check.
+  add_executable(erf_immersed_cf_heat_balance_check
+    ${CMAKE_CURRENT_SOURCE_DIR}/ImmersedCFHeatBalanceCheck.cpp)
+  target_link_libraries(erf_immersed_cf_heat_balance_check PRIVATE AMReX::amrex)
+  target_compile_features(erf_immersed_cf_heat_balance_check PRIVATE cxx_std_17)
+
   # Motivation: the chamber regressions must prove the initializer is wired
   # into a real 3-D run and that the SatAdj deck forms finite cloud water.
   add_executable(erf_cloud_chamber_check
@@ -164,7 +172,9 @@ if(ERF_ENABLE_TESTS)
         erf_cloud_chamber_check
         erf_cloud_chamber_parser_check
         erf_two_stream_radiation_check
-        erf_cloud_chamber_wall_dt_guard_check)
+        erf_cloud_chamber_wall_dt_guard_check
+        erf_immersed_average_down_check
+        erf_immersed_cf_heat_balance_check)
       setup_target_for_cuda_compilation(${_erf_test_tool})
     endforeach()
   endif()
