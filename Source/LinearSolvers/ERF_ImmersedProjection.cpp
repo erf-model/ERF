@@ -17,10 +17,10 @@
  * needed. The faces where the source term applies the wall law instead of the drag keep sigma = 1.
  */
 #include "ERF.H"
+#include "ERF_ImmersedWallCell.H"
 
 #ifdef ERF_USE_FFT
 #include "ERF_ImmersedPoisson.H"
-#include "ERF_ImmersedWallCell.H"
 #include <AMReX_GMRES.H>
 #endif
 
