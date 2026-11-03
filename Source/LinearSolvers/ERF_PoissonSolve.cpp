@@ -183,8 +183,10 @@ void ERF::project_momenta (int lev, double l_time, double l_dt_d, Vector<MultiFa
     //
     if (lev > 0) {
         PhysBCFunctNoOp null_bc;
+        set_cf_fill_options(lev, true);
         FillSetHorizontalMomentaCF(lev, l_time, mom_mf[IntVars::xmom], mom_mf[IntVars::ymom]);
         FPr_w[lev-1].FillSet(mom_mf[IntVars::zmom], l_time, null_bc, domain_bcs_type);
+        set_cf_fill_options(lev, false);
     }
 
     // Make sure the solver only sees the levels over which we are solving

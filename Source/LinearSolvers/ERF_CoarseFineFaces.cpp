@@ -1033,8 +1033,10 @@ void ERF::FillSetMomentaCF (int lev, double time_d, MultiFab& xmom, MultiFab& ym
 {
     BL_PROFILE("ERF::FillSetMomentaCF()");
     PhysBCFunctNoOp null_bc;
+    set_cf_fill_options(lev, true);
     FillSetHorizontalMomentaCF(lev, time_d, xmom, ymom);
     FPr_w[lev-1].FillSet(zmom, time_d, null_bc, domain_bcs_type);
+    set_cf_fill_options(lev, false);
 
     if (!solverChoice.anelastic[lev] || solverChoice.mesh_type != MeshType::VariableDz) { return; }
 
@@ -1089,5 +1091,28 @@ void ERF::FillSetMomentaCF (int lev, double time_d, MultiFab& xmom, MultiFab& ym
                 w_a(i,j,k) = WFromOmega(i,j,k,t_a(i,j,k),ru_a,rv_a,mf_u,mf_v,z_nd,dxInv);
             });
         }
+    }
+}
+
+/**
+ * Give the face fills of level lev (FPr_u/v/w[lev-1]) the log-law share of the wall coarse face's
+ * flux (erf.cf_loglaw_fill) for the set fills that follow, or clear it (on = false), so that the
+ * relax fills never see it. The wall is the immersed surface (from the level's solid fraction)
+ * when the terrain or the buildings are immersed, else the bottom of the domain.
+ *
+ * @param lev Fine level whose coarse/fine faces are filled
+ * @param on  Set the option (true) or clear it (false)
+ */
+void
+ERF::set_cf_fill_options (int lev, bool on)
+{
+    if (lev < 1) { return; }
+    const bool immersed = (solverChoice.terrain_type   == TerrainType::ImmersedForcing ||
+                           solverChoice.buildings_type == BuildingsType::ImmersedForcing);
+    const bool have_tb = immersed && terrain_blanking[lev];
+    const bool loglaw  = on && solverChoice.cf_loglaw_fill && (!immersed || have_tb);
+    const MultiFab* wall_tb = (loglaw && have_tb) ? terrain_blanking[lev].get() : nullptr;  // no stale pointer when off
+    for (ERFFillPatcher* fp : {&FPr_u[lev-1], &FPr_v[lev-1], &FPr_w[lev-1]}) {
+        fp->SetLogLawFill(loglaw, solverChoice.cf_loglaw_z0, wall_tb);
     }
 }
