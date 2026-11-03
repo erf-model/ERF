@@ -243,9 +243,9 @@ bool check_bulk_plotfiles (const std::string& model_name,
             const Real z = prob_lo[2] + (Real(k - domain.smallEnd(2)) + Real(0.5))*dx[2];
             const Real profile_value = bottom + (top - bottom) *
                 (z - prob_lo[2]) / lz + amplitude *
-                std::sin(Real(2.0)*Real(3.14159265358979323846)*(x-prob_lo[0])/lx) *
-                std::sin(Real(2.0)*Real(3.14159265358979323846)*(y-prob_lo[1])/ly) *
-                std::sin(Real(3.14159265358979323846)*(z-prob_lo[2])/lz);
+                std::sin(Real(2.0)*Real(PI)*(x-prob_lo[0])/lx) *
+                std::sin(Real(2.0)*Real(PI)*(y-prob_lo[1])/ly) *
+                std::sin(Real(PI)*(z-prob_lo[2])/lz);
             if (physical_initialization) {
                 const Real expected_temperature = profile_value;
                 const Real expected_theta = expected_temperature *
@@ -799,7 +799,7 @@ int main (int argc, char** argv)
             return fail(error);
         }
         std::cout << "mode=" << mode << " model=" << argv[2]
-                  << " active_fields=" << initial.varNames().size()
+                  << " plotfile_fields=" << initial.varNames().size()
                   << " initial_time=" << initial.time()
                   << " final_time=" << final.time() << "\n";
         amrex::Finalize();

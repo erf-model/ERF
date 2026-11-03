@@ -733,7 +733,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     cloud_chamber_base_state->const_array(mfi), u, v, w, cell_rhs,
                     diffflux_x, diffflux_y, diffflux_z, dxInv,
                     chamber_walls, dc.alpha_T, dc.alpha_C,
-                    solverChoice.rdOcp, cloud_chamber_config->cloudy);
+                    solverChoice.rdOcp, cloud_chamber_config->has_moisture);
             }
         }
 
@@ -786,7 +786,7 @@ void erf_slow_rhs_pre (int level, int finest_level,
                     bx, domain, cell_data,
                     cloud_chamber_base_state->const_array(mfi), u, v, w,
                     tau12, tau13, tau23, dxInv, chamber_walls,
-                    solverChoice.rdOcp, cloud_chamber_config->cloudy);
+                        solverChoice.rdOcp, cloud_chamber_config->has_moisture);
             }
 
             // Note: tau** were calculated with calls to

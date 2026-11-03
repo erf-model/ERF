@@ -68,6 +68,10 @@ Choose the thermodynamic mode
      - ``MoistNoCondensation``
      - An ERF moisture-transport shell with no condensation source.
 
+For dry mode, omit ``erf.moisture_model`` rather than explicitly setting it
+to ``None``. An explicit ``None`` is rejected with a diagnostic naming this
+requirement.
+
 A ``dry`` wall blocks exchange of water **vapor** through the wall. The
 Cloud Chamber also sets the normal diffusive wall flux of suspended cloud
 water and of additional conserved moisture constituents to zero. These
@@ -1262,6 +1266,12 @@ and again at step 1000, with zero relative and absolute ``fcompare``
 tolerances. This is a restart-state fidelity regression, **not** a
 quantitative CCN-activation validation. The shorter WDM6 restart case is
 only a smoke test.
+
+The active condensation and excited WDM6 restart regressions are qualified
+and registered only for ``DOUBLE`` precision. ``SINGLE`` retains the bulk
+startup smoke cases, the short WDM6 restart where supported, and the
+precision-aware unit/property tests. The active tests' physical thresholds
+are not single-precision qualification criteria.
 
 Separate **seeded Kessler public-flow property tests** exercise native
 sedimentation, water-column budgets, and the scheme's surface-accumulation

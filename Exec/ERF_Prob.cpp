@@ -41,9 +41,6 @@ Problem::Problem (const Real* problo, const Real* probhi)
         // against the selected moisture model instead of treating any present
         // string as an implicitly supported model.
         MoistureType selected_moisture_model = MoistureType::None;
-        if (pp_erf.query("moisture_type", selected_moisture_model) > 0) {
-            amrex::Error("The input moisture_type is deprecated.  Set moisture_model instead.");
-        }
         pp_erf.query_enum_case_insensitive("moisture_model", selected_moisture_model);
         m_cloud_chamber_config = erf_cloud_chamber::parse_config(
             problo, probhi, selected_moisture_model);

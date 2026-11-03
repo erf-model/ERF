@@ -173,6 +173,12 @@ set(chk_plot_option "erf.plot_int_1=-1")
 if(NOT "${CHECK_MODE}" STREQUAL "")
     set(chk_plot_option "erf.plot_int_1=${STEP_CHK}")
 endif()
+set(straight_plot_interval "${STEP_END}")
+if(CHECK_MODE STREQUAL "wdm6_active")
+    math(EXPR first_post_checkpoint_step "${STEP_CHK} + 1")
+    # ERF also writes the final plotfile when STEP_END is off this cadence.
+    set(straight_plot_interval "${first_post_checkpoint_step}")
+endif()
 
 # BNDRY_PLANES_STALE leaves the series of an earlier, longer run in both run directories, as a
 # rerun in the same directory finds it: a fresh start has to begin a new series, not append to it.
@@ -187,7 +193,7 @@ endif()
 
 # straight to the end, no checkpoint
 run_erf_with("${launch}" "${STRAIGHT_DIR}" "simulation.log" ${RUN_TIMEOUT}
-        "max_step=${STEP_END}" "erf.check_int=-1" "erf.plot_int_1=${STEP_END}"
+        "max_step=${STEP_END}" "erf.check_int=-1" "erf.plot_int_1=${straight_plot_interval}"
         ${plot2d_end})
 # to the checkpoint step, writing it there (and on to CHK_LEG_END when that is given)
 run_erf_with("${launch_chk}" "${RESTART_DIR}" "checkpoint.log" ${RUN_TIMEOUT}
@@ -220,27 +226,21 @@ endif()
 # can be hidden later if the same mutated solver advances both long legs.
 set(post_checkpoint_log "")
 if(CHECK_MODE STREQUAL "wdm6_active")
-    math(EXPR first_post_checkpoint_step "${STEP_CHK} + 1")
     padded(${first_post_checkpoint_step} first_post_checkpoint_plot_step)
-    set(first_straight_dir "${WORKING_DIRECTORY}/first_step_straight")
     set(first_restart_dir "${WORKING_DIRECTORY}/first_step_restart")
-    file(REMOVE_RECURSE "${first_straight_dir}" "${first_restart_dir}")
-    file(MAKE_DIRECTORY "${first_straight_dir}" "${first_restart_dir}")
+    file(REMOVE_RECURSE "${first_restart_dir}")
+    file(MAKE_DIRECTORY "${first_restart_dir}")
     foreach(_rp_f IN LISTS _rp_aux)
         if(NOT IS_DIRECTORY "${_rp_f}")
-            file(COPY "${_rp_f}" DESTINATION "${first_straight_dir}")
             file(COPY "${_rp_f}" DESTINATION "${first_restart_dir}")
         endif()
     endforeach()
-    run_erf_with("${launch}" "${first_straight_dir}" "simulation.log" ${RUN_TIMEOUT}
-        "max_step=${first_post_checkpoint_step}" "erf.check_int=-1"
-        "erf.plot_int_1=${first_post_checkpoint_step}")
     run_erf_with("${launch}" "${first_restart_dir}" "restart.log" ${RUN_TIMEOUT}
         "erf.restart=${RESTART_DIR}/${CHKFILE}"
         "max_step=${first_post_checkpoint_step}" "erf.check_int=-1"
         "erf.plot_int_1=${first_post_checkpoint_step}")
     set(first_post_checkpoint_plot "plt${first_post_checkpoint_plot_step}")
-    foreach(dir "${first_straight_dir}" "${first_restart_dir}")
+    foreach(dir "${STRAIGHT_DIR}" "${first_restart_dir}")
         if(NOT EXISTS "${dir}/${first_post_checkpoint_plot}/Header")
             message(FATAL_ERROR "RunRestartParity.cmake: no ${first_post_checkpoint_plot} in ${dir}")
         endif()
@@ -249,7 +249,7 @@ if(CHECK_MODE STREQUAL "wdm6_active")
     execute_process(
         COMMAND ${launch_one} ${FCOMPARE} --abort_if_not_all_found ${fcompare_grids}
                 --rel_tol ${RTOL} --abs_tol ${ATOL}
-                ${first_straight_dir}/${first_post_checkpoint_plot}
+                ${STRAIGHT_DIR}/${first_post_checkpoint_plot}
                 ${first_restart_dir}/${first_post_checkpoint_plot}
         WORKING_DIRECTORY "${WORKING_DIRECTORY}"
         OUTPUT_FILE "${post_checkpoint_log}"

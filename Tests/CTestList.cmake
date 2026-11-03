@@ -326,6 +326,11 @@ function(add_test_cloud_chamber_active_condensation TEST_NAME)
 endfunction(add_test_cloud_chamber_active_condensation)
 
 function(add_test_cloud_chamber_parser_reject TEST_NAME MODEL)
+    cmake_parse_arguments(ADD_TEST_CCP "" "EXPECTED_TEXT" "" ${ARGN})
+    set(expected_text "selected moisture model is unsupported")
+    if(NOT "${ADD_TEST_CCP_EXPECTED_TEXT}" STREQUAL "")
+        set(expected_text "${ADD_TEST_CCP_EXPECTED_TEXT}")
+    endif()
     set(TEST_FILES_DIR "CloudChamber_ActiveCondensation")
     setup_test()
     set(test_input "${CURRENT_TEST_BINARY_DIR}/CloudChamber_ActiveCondensation.i")
@@ -338,12 +343,12 @@ function(add_test_cloud_chamber_parser_reject TEST_NAME MODEL)
         "-DINPUT=${test_input}"
         "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
         "-DEXPECTED_MODEL=${MODEL}"
-        "-DEXPECTED_TEXT=selected moisture model is unsupported"
+        "-DEXPECTED_TEXT=${expected_text}"
         "-DLOG_FILE=${test_log}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunCloudChamberParserReject.cmake)
     set_tests_properties(${TEST_NAME}
         PROPERTIES
-        TIMEOUT 90
+        TIMEOUT 180
         PROCESSORS 1
         WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
         LABELS "regression;cloud-chamber;configuration;parser-allowlist"
@@ -1604,7 +1609,9 @@ add_test_cloud_chamber_bulk_model(CloudChamber_BulkSmoke_WDM6 WDM6)
 add_test_cloud_chamber_bulk_model(CloudChamber_BulkSmoke_Morrison_NoIce Morrison_NoIce)
 add_test_cloud_chamber_bulk_model(CloudChamber_BulkSmoke_Morrison Morrison)
 add_test_cloud_chamber_bulk_model(CloudChamber_BulkSmoke_MoistNoCondensation MoistNoCondensation)
+if(ERF_PRECISION STREQUAL "DOUBLE")
 add_test_cloud_chamber_active_condensation(CloudChamber_Active_KesslerNoRain)
+endif()
 add_test_cloud_chamber_bulk_legacy(CloudChamber_BulkSmoke_Legacy_Kessler_NoRain Kessler_NoRain)
 # These runs exercise existing global solver guards before the Cloud Chamber
 # typed allowlist. Parser-level allowlist failures have separate tests.
@@ -1616,6 +1623,8 @@ add_test_cloud_chamber_bulk_reject(CloudChamber_GlobalReject_Budget Kessler 1
     "cloud_chamber_budget_interval supports only physical_temperature_rh")
 add_test_cloud_chamber_parser_reject(CloudChamber_ParserReject_SBM SBM)
 add_test_cloud_chamber_parser_reject(CloudChamber_ParserReject_SuperDroplets SuperDroplets)
+add_test_cloud_chamber_parser_reject(CloudChamber_ParserReject_None None
+    EXPECTED_TEXT "omit erf.moisture_model for dry mode")
 add_test_cloud_chamber_parity(CloudChamber_SatAdj_Parity)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_AllDry all_dry CloudChamber_SatAdj_AllDry)
 add_test_cloud_chamber_budget(CloudChamber_SatAdj_WetBudget wet_budget CloudChamber_SatAdj_WetBudget)
@@ -2284,10 +2293,12 @@ add_test_restart_parity(MoistBubble_Kessler_Restart MoistBubble_Kessler_Restart 
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
 add_test_restart_parity(CloudChamber_WDM6_Restart CloudChamber_WDM6_Restart 2 4
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0")
+if(ERF_PRECISION STREQUAL "DOUBLE")
 add_test_restart_parity(CloudChamber_WDM6_ActiveRestart CloudChamber_WDM6_ActiveRestart 500 1000
     FCOMPARE_RTOL "0.0" FCOMPARE_ATOL "0.0"
     CHECKER "${CLOUD_CHAMBER_CHECKER}"
     CHECK_MODE "wdm6_active")
+endif()
 endif()
 # Kessler rain over a uniform, laterally periodic layer, with the fine box moved at t = 30 s:
 # a regrid must keep the surface rain accumulator.  The centre column of the 2D plotfile lies

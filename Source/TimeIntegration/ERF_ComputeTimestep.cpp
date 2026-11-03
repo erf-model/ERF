@@ -386,8 +386,8 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
                                                         &vars_new[level][Vars::yvel],
                                                         &vars_new[level][Vars::zvel],});
 
-    const bool chamber_cloudy = cloud_chamber_config.active &&
-        cloud_chamber_config.cloudy;
+    const bool chamber_has_moisture = cloud_chamber_config.active &&
+        cloud_chamber_config.has_moisture;
     const Real rdOcp = solverChoice.rdOcp;
     const MultiFab& chamber_base_state = base_state[level];
     for (MFIter mfi(S_new); mfi.isValid(); ++mfi) {
@@ -399,7 +399,7 @@ ERF::estTimeStep (int level, long& dt_fast_ratio) const
         {
             const Real rho = state(i,j,k,Rho_comp);
             velocity(i,j,k,3) = state(i,j,k,RhoTheta_comp) / rho;
-            velocity(i,j,k,4) = chamber_cloudy ?
+            velocity(i,j,k,4) = chamber_has_moisture ?
                 state(i,j,k,RhoQ1_comp) / rho : Real(0.0);
             velocity(i,j,k,5) = base(i,j,k,BaseState::p0_comp);
             velocity(i,j,k,6) = rdOcp;

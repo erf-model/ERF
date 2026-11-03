@@ -26,7 +26,7 @@ AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
     erf_cloud_chamber::supports_moisture_model(sc.moisture_type),
     "Cloud Chamber: unsupported moisture model in custom initializer");
 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
-    m_cloud_chamber_config.cloudy ==
+    m_cloud_chamber_config.has_moisture ==
         (sc.moisture_type != MoistureType::None),
     "Cloud Chamber: moisture-model selection and chamber configuration disagree");
 
@@ -59,14 +59,14 @@ ParallelFor(bx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
     state_pert(i,j,k,RhoTheta_comp) =
         rho * target_theta - state(i,j,k,RhoTheta_comp);
 
-    if (config.cloudy) {
+    if (config.has_moisture) {
         const Real target_qv = config.physical_initialization ?
             erf_cloud_chamber::vapor_mixing_ratio_from_relative_humidity(
                 temperature, p_hse(i,j,k), config.initial_relative_humidity) :
             erf_cloud_chamber::qv_at(config, z);
         state_pert(i,j,k,RhoQ1_comp) =
             rho * target_qv - state(i,j,k,RhoQ1_comp);
-        // SatAdj owns the first adjustment of cloud water.  Starting from
+        // The selected native scheme owns cloud-water evolution. Starting from
         // zero makes that source explicit instead of carrying stale state.
         state_pert(i,j,k,RhoQ2_comp) = -state(i,j,k,RhoQ2_comp);
     }
