@@ -306,9 +306,10 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
     conflicts("+eamxx_shoc", when="~mpi", msg="SHOC (EKAT) requires MPI")
     conflicts("+eamxx_shoc", when="precision=single", msg="EAMxx SHOC is double precision only")
     conflicts("+tools", when="~netcdf", msg="The tools require NetCDF")
-    # Exec/Tools builds erf_plt_to_nc as plain C++, which a CUDA AMReX's headers reject
-    # (AMReX.H: '__host__' does not name a type).
-    conflicts("+tools", when="+cuda", msg="the plotfile tools do not build with CUDA")
+    # Backport the CUDA source-language fix to the current release. Older
+    # releases still compile the tools as C++, which CUDA AMReX headers reject.
+    patch("cuda-tools.patch", when="@26.09+cuda+tools")
+    conflicts("+tools", when="@:26.06+cuda", msg="CUDA plotfile tools require ERF 26.09 or newer")
     conflicts(
         "+ml_uphys_diagnostics",
         when="~particles",
