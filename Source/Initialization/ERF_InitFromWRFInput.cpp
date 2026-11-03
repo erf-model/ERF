@@ -678,6 +678,7 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
         int ratio_from_file;
         Box subdomain_to_read = read_subdomain_from_wrfinput(lev, nc_init_file[lev][idx], ratio_from_file);
         Print() << "Box in file " << subdomain_to_read << "\n";
+        const Box global_file_box = wrfinput_file_box(lev, idx);
 
         Box subdomain_to_fill = boxes_at_level[lev][idx];
         Print() << "Box to fill " << subdomain_to_fill << "\n";
@@ -731,15 +732,15 @@ ERF::init_from_wrfinput (int lev, MultiFab& mf_PSFC_lev, bool read_atmos_state)
             FArrayBox var_fab_crse;
 
             if (success) {
-                // This shift occurs only when the coarser grid is at least at level 1,
-                // because the indices are always given relative to that coarser "domain"
+                // WRF parent starts are relative to the full parent file, whereas an
+                // ERF refinement patch may cover only part of that file.  Accumulate
+                // the file origins instead of aligning its first cell with the patch.
                 IntVect shift_by(0);
+                shift_by[0] = global_file_box.smallEnd(0) - file_box.smallEnd(0);
+                shift_by[1] = global_file_box.smallEnd(1) - file_box.smallEnd(1);
                 if (lev > 1) {
                     Box shift_by_box(subdomains[lev][0].minimalBox());
-                    shift_by = shift_by_box.smallEnd();
-                    for (int i = 0; i < AMREX_SPACEDIM; i++) {
-                        shift_by[i] -= file_box.smallEnd(i);
-                    }
+                    shift_by[2] = shift_by_box.smallEnd(2) - file_box.smallEnd(2);
                     // The fab just read lives on the file's vertical grid, so when this level
                     // is refined in the vertical the z part of the shift has to be expressed
                     // there too rather than in this level's index space.
@@ -3485,33 +3486,44 @@ ERF::read_psfc_from_own_init_file (int lev)
     }
 }
 
-/**
- * The 2D box of cells at a level > 0 that its own init file covers, placed as ERF::ErrorEst
- * places the level when it is made from that file: the file's box (relative to the parent's
- * region, in units of this level's cells) is coarsened to the parent, shifted to the parent's
- * region and refined again.  Unlike boxes_at_level, which ErrorEst fills when it makes the
- * level, this is also available on a restart.
- *
- * @param[in] lev level (> 0) with a single init file of its own
- */
+/** Return a WRF file's box in the global ERF index space.  WRF's I/J_PARENT_START
+ * are relative to the complete parent file, not to the smaller ERF patch on it. */
+Box
+ERF::wrfinput_file_box (int lev, int file_index)
+{
+    AMREX_ALWAYS_ASSERT(lev >= 0 && file_index >= 0 &&
+                        file_index < static_cast<int>(nc_init_file[lev].size()));
+    if (lev == 0) { return geom[0].Domain(); }
+
+    IntVect parent_origin(0);
+    for (int level = 1; level <= lev; ++level) {
+        // With multiple files on an ancestor level the WRF metadata does not identify
+        // which file is the parent.  Do not silently place a child on the wrong grid.
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(level == lev || nc_init_file[level].size() == 1,
+            "WRF nests above level 1 require one parent wrfinput file per ancestor level");
+        const int idx = (level == lev) ? file_index : 0;
+        int ratio;
+        Box file_box = read_subdomain_from_wrfinput(level, nc_init_file[level][idx], ratio);
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ratio == refRatio(level-1)[0] &&
+                                         ratio == refRatio(level-1)[1],
+            "WRF parent ratio does not match ERF horizontal refinement");
+        for (int d = 0; d < 2; ++d) {
+            file_box.shift(d, parent_origin[d] * refRatio(level-1)[d]);
+        }
+        if (level == lev) { return file_box; }
+        parent_origin = file_box.smallEnd();
+    }
+    amrex::Abort("wrfinput_file_box: invalid level");
+    return Box();
+}
+
+/** The surface slice of this level's only WRF input file, also available on restart. */
 Box
 ERF::nest_box_from_own_init_file (int lev)
 {
     AMREX_ALWAYS_ASSERT(lev > 0 && nc_init_file[lev].size() == 1);
-    AMREX_ALWAYS_ASSERT(subdomains[lev-1].size() == 1);
-
-    int ratio;
-    Box box2d = read_subdomain_from_wrfinput(lev-1, nc_init_file[lev][0], ratio);
-    box2d.setRange(2,0);
-
-    const IntVect rr2d(refRatio(lev-1)[0], refRatio(lev-1)[1], 1);
-    const Box parent_region = subdomains[lev-1][0].minimalBox();
-    IntVect parent_lo = parent_region.smallEnd();
-    parent_lo[2] = 0;
-
-    box2d.coarsen(rr2d);
-    box2d.shift(parent_lo);
-    box2d.refine(rr2d);
+    Box box2d = wrfinput_file_box(lev, 0);
+    box2d.setRange(2, 0);
     return box2d;
 }
 #endif // ERF_USE_NETCDF

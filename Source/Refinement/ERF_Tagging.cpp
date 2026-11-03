@@ -78,6 +78,9 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                         if (solverChoice.init_type == InitType::WRFInput) {
                             amrex::Print() << " WRFInput file to read: " << nc_init_file[levc+1][isub] << std::endl;
                             subdomain = read_subdomain_from_wrfinput(levc, nc_init_file[levc+1][isub], ratio);
+                            // WRF starts are relative to the full parent file.  Account
+                            // for every ancestor before locating this nest in ERF.
+                            subdomain = wrfinput_file_box(levc+1, isub);
                             amrex::Print() << " WRFInput subdomain " << isub << " at level " << levc+1 << " is " << subdomain << std::endl;
                         } else if (solverChoice.init_type == InitType::Metgrid) {
                             amrex::Print() << "met_em file to read: " << nc_init_file[levc+1][0] << std::endl;
@@ -113,9 +116,12 @@ ERF::ErrorEst (int levc, TagBoxArray& tags, Real time, int /*ngrow*/)
                             subdomain.coarsen(ref_ratio[levc]);
                         }
 
-                        // Recall we asserted that there is only one box at level levc
-                        Box coarser_level(subdomains[levc][0].minimalBox());
-                        subdomain.shift(coarser_level.smallEnd());
+                        // Metgrid boxes are relative to the parent ERF region.  WRF
+                        // boxes have already been placed in global coordinates above.
+                        if (solverChoice.init_type == InitType::Metgrid) {
+                            Box coarser_level(subdomains[levc][0].minimalBox());
+                            subdomain.shift(coarser_level.smallEnd());
+                        }
 
                         if (verbose > 0) {
                             amrex::Print() << " Crse version of subdomain available for tagging is" << subdomain << std::endl;
