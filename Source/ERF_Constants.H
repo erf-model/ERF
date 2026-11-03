@@ -27,6 +27,9 @@ constexpr amrex::Real bogus_large_value = amrex::Real(1.e150);
 // the surface-layer scheme rather than taking an undefined LSM flux.
 constexpr amrex::Real lsm_undefined = bogus_large_value;
 
+// Finite neutral Obukhov length [m] for immersed columns in MOST and IB-aware PBL schemes.
+constexpr amrex::Real immersed_neutral_obukhov_length = amrex::Real(1.0e10);
+
 // The one definition of "this LSM coupling value was computed": finite and below the
 // lsm_undefined sentinel. amrex::Math::isfinite rather than std::isfinite because the
 // latter is always false in SYCL device code. Consumers that must also reject other

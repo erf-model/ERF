@@ -257,7 +257,8 @@ TEST(Plotfile2D, CatalogNamesMatchCanonicalOrder)
         "z_surf", "landmask", "mapfac", "lat_m", "lon_m",
         "u_star", "w_star", "t_star", "q_star", "Olen", "pblh",
         "t_surf", "q_surf", "z0", "u_10m", "v_10m", "u_east_10m", "v_north_10m",
-        "OLR", "seb_t_sfc", "seb_q_sfc",
+        "OLR", "topographic_shadow", "terrain_direct_factor", "terrain_incidence",
+        "unshaded_sw_flux_dn", "terrain_sw_flux_dn", "seb_t_sfc", "seb_q_sfc",
         "seb_hfx", "seb_lh",
         "sens_flux", "laten_flux",
         "surf_pres",
@@ -394,6 +395,8 @@ TEST(Plotfile2DWaterPath, NoPrecipitationSchemesExcludeAccumulations)
 TEST(Plotfile2DWaterPath, LandSurfaceAvailabilityIsSchemeAware)
 {
     SolverChoice dry;
+    // This case has no land model, including in a Noah-MP-enabled build.
+    dry.lsm_type = LandSurfaceType::None;
     dry.moisture_type = MoistureType::None;
     const auto surface_layer_names = plotfile2d::available_diagnostic_names(dry, true);
     EXPECT_TRUE(has_name(surface_layer_names, "temperature_2m"));
@@ -408,6 +411,37 @@ TEST(Plotfile2DWaterPath, LandSurfaceAvailabilityIsSchemeAware)
     EXPECT_FALSE(has_name(no_surface_layer_names, "temperature_2m"));
     EXPECT_FALSE(has_name(no_surface_layer_names, "water_vapor_mixing_ratio_2m"));
     EXPECT_FALSE(has_name(no_surface_layer_names, "near_surface_diagnostic_source"));
+}
+
+// Motivation: Terrain radiation fields are offered only when their correction
+// is active; either slope or shadow correction can supply all five diagnostics.
+TEST(Plotfile2DWaterPath, TopographicRadiationAvailabilityFollowsOptions)
+{
+    const amrex::Vector<std::string> terrain_names{
+        "topographic_shadow", "terrain_direct_factor", "terrain_incidence",
+        "unshaded_sw_flux_dn", "terrain_sw_flux_dn"};
+
+    SolverChoice sc;
+    const auto inactive = available_diagnostic_names(sc);
+    for (const auto& name : terrain_names) {
+        EXPECT_FALSE(has_name(inactive, name)) << name;
+    }
+    const auto selection = select_requested_plot_variables(terrain_names, inactive);
+    EXPECT_TRUE(selection.accepted.empty());
+    EXPECT_EQ(selection.unavailable, terrain_names);
+
+    sc.topographicChoice.slope_rad = true;
+    const auto slope_names = available_diagnostic_names(sc);
+    for (const auto& name : terrain_names) {
+        EXPECT_TRUE(has_name(slope_names, name)) << name;
+    }
+
+    sc.topographicChoice.slope_rad = false;
+    sc.topographicChoice.topo_shading = true;
+    const auto shading_names = available_diagnostic_names(sc);
+    for (const auto& name : terrain_names) {
+        EXPECT_TRUE(has_name(shading_names, name)) << name;
+    }
 }
 
 // Motivation: Warm-rain and no-ice schemes should expose only the accumulators

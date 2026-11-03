@@ -255,6 +255,11 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
                     for (int k = old_finest; k >= 1; k--) {
                         pc->MergeParticlesAtDerefinement(k, old_pc_ba[k], refRatio(k-1));
                     }
+                    if (solverChoice.diffChoice.n_qstate_nonmoist > 0) {
+                        for (int k = lev; k <= finest_level; ++k) {
+                            micro->Update_Diagnostic_State_Lev(k, vars_new[k][Vars::cons], *z_phys_nd[k]);
+                        }
+                    }
                 }
 #endif
 

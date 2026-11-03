@@ -63,7 +63,9 @@ void make_sources (int level,
                    const Table1D<Real> t_plane_avg,
                    const MultiFab* forest_drag,
                    const MultiFab* cons_old,
-                   bool is_slow_step)
+                   bool is_slow_step,
+                   MultiFab* ib_wall_hfx,
+                   MultiFab* ib_wall_ktarget)
 {
     BL_PROFILE_REGION("erf_make_sources()");
 
@@ -500,20 +502,26 @@ void make_sources (int level,
             const Array4<const Real>& v = yvel.array(mfi);
 
             AMREX_ALWAYS_ASSERT(dptr_r_plane_if && dptr_t_plane_if);  // Tables must be filled before immersed forcing
-            ImmersedForcingTerrain_Scalar(bx, u, v, cell_data, t_blank_arr, z_cc_arr,
-                                         cell_src, geom, solverChoice, dptr_r_plane_if, dptr_t_plane_if, time);
+            if (solverChoice.if_fraction_stress) {
+                const Array4<Real> wall_hfx = (ib_wall_hfx) ? ib_wall_hfx->array(mfi) : Array4<Real>{};
+                const Array4<Real> wall_kt  = (ib_wall_ktarget) ? ib_wall_ktarget->array(mfi) : Array4<Real>{};
+                const auto& tc_lev = solverChoice.turbChoice[level];
+                const bool wall_tke = solverChoice.if_wall_tke && (tc_lev.rans_type == RANSType::kEqn);
+                ImmersedForcingTerrain_Scalar_FractionStress(bx, u, v, cell_data, t_blank_arr, cell_src, wall_hfx, wall_kt,
+                                                             geom, solverChoice, dptr_r_plane_if, dptr_t_plane_if,
+                                                             static_cast<Real>(dt), static_cast<Real>(time),
+                                                             wall_tke, tc_lev.Cmu0);
+            } else {
+                ImmersedForcingTerrain_Scalar(bx, u, v, cell_data, t_blank_arr, z_cc_arr,
+                                             cell_src, geom, solverChoice, dptr_r_plane_if, dptr_t_plane_if, time);
+            }
         }
 
         // *************************************************************************************
         // 10b. Add immersed source terms for buildings
         // *************************************************************************************
-        // geometric properties
-        const Real* dx_arr = geom.CellSize();
-        const Real delta_xy = std::sqrt(dx_arr[0] * dx_arr[1]);
-
-        if ((solverChoice.buildings_type == BuildingsType::ImmersedForcing) &&
-           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)) &&
-            (delta_xy <= 50.0)) { // only apply immersed forcing when grid spacing is less than 50m
+        if (solverChoice.use_building_immersed_forcing(geom) &&
+           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast))) {
 
             const Array4<const Real>& u = xvel.array(mfi);
             const Array4<const Real>& v = yvel.array(mfi);

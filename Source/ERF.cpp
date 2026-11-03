@@ -672,6 +672,11 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
 
 #ifdef ERF_USE_PARTICLES
     particleData.Redistribute(z_phys_nd);
+    if (solverChoice.diffChoice.n_qstate_nonmoist > 0) {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            micro->Update_Diagnostic_State_Lev(lev, vars_new[lev][Vars::cons], *z_phys_nd[lev]);
+        }
+    }
 #endif
 
     if (solverChoice.coupling_type == CouplingType::TwoWay)
@@ -1920,7 +1925,8 @@ ERF::InitData_post ()
 #endif
                                                                  eb_ptrs,
                                                                  (static_cast<int>(ori) == Orientation::zlo())
-                                                                     ? m_SurfaceModel.get() : nullptr);
+                                                                     ? m_SurfaceModel.get() : nullptr,
+                                                                 solverChoice.buildings_type == BuildingsType::ImmersedForcing);
             m_SurfaceLayer[ori]->set_surface_layer_faces(surface_layer_faces);
             // The two-stream balance's land roughness (Noah-MP's tables), where erf.most.z0
             // is not given; before the levels below take z0. seb_land_roughness is -1 when
@@ -2108,9 +2114,21 @@ ERF::InitData_post ()
 
     // Update micro vars and finish moisture model initializations before first plot file
     if (solverChoice.moisture_type != MoistureType::None) {
+        const bool lagrangian =
+            Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian;
+        // Lagrangian initialization prepares attributes across the hierarchy
+        // before ownership is established and any level starts phase relaxation.
+        if (lagrangian) {
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                const amrex::MultiFab* base = solverChoice.anelastic[lev] ? &base_state[lev] : nullptr;
+                micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons], base);
+            }
+        }
         for (int lev = 0; lev <= finest_level; ++lev) {
-            const amrex::MultiFab* base = solverChoice.anelastic[lev] ? &base_state[lev] : nullptr;
-            micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons], base);
+            if (!lagrangian) {
+                const amrex::MultiFab* base = solverChoice.anelastic[lev] ? &base_state[lev] : nullptr;
+                micro->Update_Micro_Vars_Lev(lev, vars_new[lev][Vars::cons], base);
+            }
             micro->FinishInit(lev, vars_new[lev][Vars::cons], z_phys_nd);
         }
 
@@ -2121,8 +2139,8 @@ ERF::InitData_post ()
         // use it.  Doing it here instead means initialization, not an output,
         // is what hands step 1 a coarse/fine consistent state -- so the initial
         // checkpoint records the same solution whether or not an initial
-        // plotfile was written.  The restriction is idempotent, so the one in
-        // BuildPlot3DScratch becomes a no-op at t=0.
+        // plotfile was written. The final particle diagnostic refresh below
+        // repeats this restriction if it changes the coarse projection.
         //
         // Fresh starts only.  A restart has to hand step N+1 exactly the state
         // the checkpoint holds, which is the state the straight run carried at
@@ -2197,6 +2215,20 @@ ERF::InitData_post ()
     // before the initial plotfile write
     if (finest_level > 0) {
         particleData.Redistribute(z_phys_nd);
+        if (restart_chkfile.empty() && solverChoice.diffChoice.n_qstate_nonmoist > 0) {
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                micro->Update_Diagnostic_State_Lev(lev, vars_new[lev][Vars::cons], *z_phys_nd[lev]);
+            }
+            // Composite deposition zeroes covered coarse cells. Restore their
+            // fine averages before output or checkpointing can observe them.
+            if (solverChoice.coupling_type == CouplingType::TwoWay &&
+                Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+                micro->AverageDownMicroVars(finest_level);
+                for (int flev = finest_level-1; flev >= 0; --flev) {
+                    AverageDownMoistStateTo(flev);
+                }
+            }
+        }
     }
 #endif
 
@@ -3080,11 +3112,16 @@ ERF::initializeMicrophysics (const int& a_nlevsmax /*!< number of AMR levels */)
 #endif
     }
 
-    // The moist species (RhoQ1_comp onward) are the ones whose vertical diffusion is
-    // split between the explicit and implicit parts; non-water species follow them
     solverChoice.diffChoice.n_qstate_moist = micro->Get_Qstate_Moist_Size();
     AMREX_ALWAYS_ASSERT(solverChoice.diffChoice.n_qstate_moist >= 0 &&
                         solverChoice.diffChoice.n_qstate_moist <= NMOIST_max);
+    solverChoice.diffChoice.n_qstate_nonmoist = micro->Get_Qstate_NonMoist_Size();
+    const int nq = micro->Get_Qstate_Size();
+    AMREX_ALWAYS_ASSERT(solverChoice.diffChoice.n_qstate_nonmoist >= 0 &&
+                        RhoQ1_comp + nq <= NVAR_max);
+    for (int q = 0; q < nq; ++q) {
+        solverChoice.diffChoice.qstate_is_diagnostic[q] = micro->Qstate_Is_Diagnostic(q);
+    }
 
     qmoist.resize(a_nlevsmax);
     precip.resize(a_nlevsmax);
@@ -3411,9 +3448,12 @@ ERF::init_only (int lev, double elapsed_time)
         }
     }
 
-    // Set initial velocity field for immersed cells to be close to 0
-    if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
-        solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
+    // On a WRFInput/Metgrid level with its own file, init_only runs before
+    // init_zphys fills terrain_blanking from the EB volume fractions; until
+    // then the allocated mask is one everywhere. Keep the imported winds here
+    // and let immersed forcing relax them during time stepping where active.
+    if (solverChoice.init_type != InitType::WRFInput &&
+        solverChoice.init_type != InitType::Metgrid && immersed_forcing_active(lev)) {
         init_immersed_forcing(lev);
     }
 }

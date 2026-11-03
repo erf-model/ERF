@@ -9,6 +9,9 @@
 #include <ERF_Utils.H>
 #include <ERF_ReadBndryPlanes.H>
 #include <ERF_NativeScalarDiffusion.H>
+#include <ERF_PhysBCFunct.H>
+#include <AMReX_FillPatchUtil.H>
+#include <AMReX_Interpolater.H>
 
 /**
  * @file ERF_GTestMultiScalarSlots.cpp
@@ -120,5 +123,120 @@ TEST(MultiScalarSlots, EveryScalarGetsTheMolecularDiffusivityOfTheExplicitPath)
             EXPECT_EQ(alpha[comp - 1], policy.coefficients.molecular_coeff) << "component " << comp;
             EXPECT_GT(alpha[comp - 1], amrex::Real(0)) << "component " << comp;
         }
+    }
+}
+
+namespace {
+
+// NVCC requires device lambdas outside GoogleTest's non-public TestBody.
+void implicit_coarse_fine_runs_test ()
+{
+    using namespace amrex;
+    const Box coarse_domain(IntVect(0), IntVect(7));
+    const Box fine_domain = refine(coarse_domain, 2);
+    const RealBox rb(Real(0), Real(0), Real(0), Real(8), Real(8), Real(8));
+    const Geometry cg(coarse_domain, rb, CoordSys::cartesian, {0, 0, 0});
+    const Geometry fg(fine_domain, rb, CoordSys::cartesian, {0, 0, 0});
+    Box fine_box = fine_domain;
+    fine_box.setBig(2, 7);
+    const BoxArray cba(coarse_domain), fba(fine_box);
+    const DistributionMapping cdm(cba), fdm(fba);
+    constexpr int ncomp = NVAR_max;
+    MultiFab coarse(cba, cdm, ncomp, 2), fine(fba, fdm, ncomp, 2);
+    MultiFab grouped(fba, fdm, ncomp, 2), reference(fba, fdm, ncomp, 2);
+    coarse.setVal(Real(0));
+    fine.setVal(Real(-17));
+    grouped.setVal(Real(-17));
+    reference.setVal(Real(-17));
+    for (MFIter mfi(coarse); mfi.isValid(); ++mfi) {
+        const auto c = coarse.array(mfi);
+        ParallelFor(mfi.fabbox(), ncomp,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept {
+            c(i,j,k,n) = Real(10+n) + Real(i*i) + Real(j*j) + Real(k*k);
+        });
+    }
+    Vector<BCRec> bcs(BCVars::NumTypes);
+    for (int n = 0; n < BCVars::NumTypes; ++n) {
+        for (int d = 0; d < 3; ++d) {
+            bcs[n].setLo(d, n % 2 ? BCType::ext_dir : BCType::foextrap);
+            bcs[n].setHi(d, n % 2 ? BCType::foextrap : BCType::ext_dir);
+        }
+    }
+    const Vector<Real> times{Real(0)};
+    Vector<MultiFab*> cmf{&coarse}, fmf{&fine};
+    const IntVect ng(0,0,1);
+    for (int start = RhoKE_comp; start < ncomp; ) {
+        int end = start + 1;
+        while (end < ncomp && cons_bc_run_contiguous(end-1, end)) { ++end; }
+        FillPatchTwoLevels(grouped, ng, IntVect(0), Real(0), cmf, times, fmf, times,
+                           start, start, end-start, cg, fg, IntVect(2),
+                           &cell_cons_interp, bcs, cons_bc_comp(start));
+        start = end;
+    }
+    // One fill per component is an independent oracle for the grouped BC slices.
+    for (int n = RhoKE_comp; n < ncomp; ++n) {
+        const int slot = n < RhoScalar_comp ? n :
+                         n < RhoQ1_comp ? int(BCVars::RhoScalar_bc_comp) :
+                         int(BCVars::RhoQ1_bc_comp) + n - RhoQ1_comp;
+        FillPatchTwoLevels(reference, ng, IntVect(0), Real(0), cmf, times, fmf, times,
+                           n, n, 1, cg, fg, IntVect(2), &cell_cons_interp, bcs, slot);
+    }
+    MultiFab::Subtract(grouped, reference, RhoKE_comp, RhoKE_comp,
+                       ncomp-RhoKE_comp, ng);
+    for (int n = RhoKE_comp; n < ncomp; ++n) {
+        EXPECT_EQ(grouped.norm0(n, 1, ng), Real(0)) << "state component " << n;
+    }
+}
+
+} // namespace
+
+// Motivation: Conserved components and BC slots do not advance together when
+// passive scalars share a slot. Grouped implicit ghost fills must match separate
+// per-component fills, including appended species with distinct boundary data.
+TEST(MultiScalarSlots, ImplicitCoarseFineRunsMatchIndependentBoundarySlices)
+{
+    implicit_coarse_fine_runs_test();
+}
+
+// Motivation: Prescribed water-vapor inflow must not become an unintended source
+// of appended species. Their unsupported prescribed inflow remains zero without
+// overwriting valid interior vapor.
+TEST(MultiScalarSlots, AppendedInflowDoesNotInheritWaterVaporExternalValue)
+{
+    using namespace amrex;
+    const Box domain(IntVect(0), IntVect(3));
+    const RealBox rb(Real(0), Real(0), Real(0), Real(4), Real(4), Real(4));
+    const Geometry geom(domain, rb, CoordSys::cartesian, {0, 1, 0});
+    Vector<BCRec> bcs(BCVars::NumTypes);
+    for (auto& bc : bcs) {
+        for (int d = 0; d < 3; ++d) {
+            bc.setLo(d, ERFBCType::foextrap);
+            bc.setHi(d, ERFBCType::foextrap);
+        }
+        bc.setLo(0, ERFBCType::ext_dir);
+    }
+    Gpu::DeviceVector<BCRec> device_bcs(bcs.size());
+    Gpu::copy(Gpu::hostToDevice, bcs.begin(), bcs.end(), device_bcs.begin());
+    Array<Array<Real,6>, AMREX_SPACEDIM+NBCVAR_max> external{}, gradients{};
+    external[BCVars::RhoQ1_bc_comp][0] = Real(0.123);
+    std::unique_ptr<MultiFab> z;
+    ERFPhysBCFunct_cons bc(0, geom, bcs, device_bcs, external, gradients,
+                           TerrainType::None, z, false, nullptr, {});
+    FArrayBox state(grow(domain, 1), NVAR_max);
+    FArrayBox u(surroundingNodes(grow(domain, 1), 0), 1);
+    FArrayBox v(surroundingNodes(grow(domain, 1), 1), 1);
+    state.setVal<RunOn::Device>(Real(7));
+    u.setVal<RunOn::Device>(Real(1));
+    v.setVal<RunOn::Device>(Real(0));
+    bc.impose_lateral_cons_bcs(state.array(), u.const_array(), v.const_array(),
+                               grow(domain, IntVect(1,1,0)), domain,
+                               RhoQ1_comp, 10, IntVect(1), 0);
+    Gpu::streamSynchronize();
+    FArrayBox host(state.box(), NVAR_max, The_Pinned_Arena());
+    Gpu::dtoh_memcpy(host.dataPtr(), state.dataPtr(), state.nBytes());
+    EXPECT_EQ(host.const_array()(-1,1,1,RhoQ1_comp), Real(0.123));
+    for (int n : {RhoQ7_comp, RhoQ9_comp}) {
+        EXPECT_EQ(host.const_array()(-1,1,1,n), Real(0));
+        EXPECT_EQ(host.const_array()(0,1,1,n), Real(7));
     }
 }

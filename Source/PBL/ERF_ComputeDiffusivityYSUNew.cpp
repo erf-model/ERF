@@ -364,7 +364,7 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                     us_eff_arr(i, j, 0)   = amrex::max(KAPPA * ws_top / std::log(myhalf * dz_ib / z0_ib), Real(1.0e-3));
                     ts_eff_arr(i, j, 0)   = Real(0);
                     qs_eff_arr(i, j, 0)   = Real(0);
-                    ol_eff_arr(i, j, 0)   = Real(1.0e10);
+                    ol_eff_arr(i, j, 0)   = immersed_neutral_obukhov_length;
                     t10_eff_arr(i, j, 0)  = cell_data(i, j, ks, RhoTheta_comp) / cell_data(i, j, ks, Rho_comp);
                     q10_eff_arr(i, j, 0)  = (use_moisture && moisture_indices.qv >= 0)
                                           ? cell_data(i, j, ks, moisture_indices.qv) / cell_data(i, j, ks, Rho_comp) : Real(0);
@@ -399,7 +399,6 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
         // This improves GPU performance by eliminating serial while-loops in favor of simple
         // array lookups during the three PBLH pass loops.
         //
-        const bool enable_ysu_liquid_theta = turbChoice.enable_ysu_liquid_theta;
         FArrayBox rib_base_fab(gbx_work, 1, The_Async_Arena());    // Rib with base t_layer_v
         FArrayBox rib_enhan_fab(gbx_work, 1, The_Async_Arena());   // Rib with enhanced t_layer_v+VPERT
         const auto& rib_base_arr  = rib_base_fab.array();
@@ -421,12 +420,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                                       ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr)
                                       : (k + myhalf) * dz;
           const amrex::Real zrel      = amrex::max(zval - z_sfc, amrex::Real(1.0e-4));
-          const amrex::Real theta_v   = (use_moisture && enable_ysu_liquid_theta)
-                                      ? GetThetavl(i,j,k,cell_data,moisture_indices)
-                                      : GetThetav(i,j,k,cell_data,moisture_indices);
-          const amrex::Real theta_v_klo = (use_moisture && enable_ysu_liquid_theta)
-                                        ? GetThetavl(i,j,ksrf,cell_data,moisture_indices)
-                                        : GetThetav(i,j,ksrf,cell_data,moisture_indices);
+          const amrex::Real theta_v   = GetThetav(i,j,k,cell_data,moisture_indices);
+          const amrex::Real theta_v_klo = GetThetav(i,j,ksrf,cell_data,moisture_indices);
           const amrex::Real ws2_raw   = fourth * ((uvel(i,j,k)+uvel(i+1,j,k))*(uvel(i,j,k)+uvel(i+1,j,k))
                                       + (vvel(i,j,k)+vvel(i,j+1,k))*(vvel(i,j,k)+vvel(i,j+1,k)));
           // Vogelezang & Holtslag (1996): Add shear correction term to denominator instead of ad-hoc floor
@@ -1050,12 +1045,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                                       ? Compute_Zrel_AtCellCenter(i,j,k,z_nd_arr)
                                       : (k + myhalf) * dz;
           const amrex::Real zrel      = amrex::max(zval - z_sfc, amrex::Real(1.0e-4));
-          const amrex::Real theta_v   = (use_moisture && enable_ysu_liquid_theta)
-                                      ? GetThetavl(i,j,k,cell_data,moisture_indices)
-                                      : GetThetav(i,j,k,cell_data,moisture_indices);
-          const amrex::Real theta_v_klo = (use_moisture && enable_ysu_liquid_theta)
-                                        ? GetThetavl(i,j,ksrf,cell_data,moisture_indices)
-                                        : GetThetav(i,j,ksrf,cell_data,moisture_indices);
+          const amrex::Real theta_v   = GetThetav(i,j,k,cell_data,moisture_indices);
+          const amrex::Real theta_v_klo = GetThetav(i,j,ksrf,cell_data,moisture_indices);
           const amrex::Real ws2_raw   = fourth * ((uvel(i,j,k)+uvel(i+1,j,k))*(uvel(i,j,k)+uvel(i+1,j,k))
                                       + (vvel(i,j,k)+vvel(i,j+1,k))*(vvel(i,j,k)+vvel(i,j+1,k)));
           // Vogelezang & Holtslag (1996): Add shear correction term to denominator instead of ad-hoc floor
@@ -1178,8 +1169,8 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 const int kpblold = pbli_arr(i,j,0);  // Starting PBLH index from Pass 2
                 bool definebrup = false;
 
-                // Surface liquid-theta virtual potential temperature reference
-                const Real thermalli = GetThetavl(i, j, ksrf, cell_data, moisture_indices);
+                // Surface liquid-ice potential temperature reference (WRF thermalli = thlix(1))
+                const Real thermalli = GetThetal(i, j, ksrf, cell_data, moisture_indices);
 
                 // Upward scan using liquid-theta stability criterion
                 for (int kk = kpblold; kk < khi; ++kk) {
@@ -1200,9 +1191,9 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                                        : (kk + myhalf) * dz;
                     const Real zrel_kk = amrex::max(zval_kk - z_sfc, amrex::Real(1.0e-4));
 
-                    // Liquid-theta virtual potential temperature at current level and surface
-                    const Real thlix_kk = GetThetavl(i, j, kk, cell_data, moisture_indices);
-                    const Real thlix_klo = GetThetavl(i, j, ksrf, cell_data, moisture_indices);
+                    // Liquid-ice potential temperature (WRF thlix) at current level and surface
+                    const Real thlix_kk = GetThetal(i, j, kk, cell_data, moisture_indices);
+                    const Real thlix_klo = GetThetal(i, j, ksrf, cell_data, moisture_indices);
 
                     // Bulk Richardson number using liquid-theta potential temperature
                     const Real bruptmp = CONST_GRAV * zrel_kk * (thlix_kk - thermalli) / (ws2 * thlix_klo);
@@ -1298,21 +1289,15 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                 const Real wm2   = std::pow(wm3, amrex::Real(2.0) / amrex::Real(3.0));
 
                 // bfxpbl = -0.15 * thvx(ksrf)/g * wm3 / hpbl
-                // thvx at ksrf: use liquid-theta equivalent if enabled (WRF thlix path)
-                const Real thvx_klo = (use_moisture && enable_ysu_liquid_theta)
-                                    ? GetThetavl(i, j, ksrf, cell_data, moisture_indices)
-                                    : GetThetav(i, j, ksrf, cell_data, moisture_indices);
+                // thvx keeps the loading of every condensate, as the buoyancy does (WRF's thvx has none)
+                const Real thvx_klo = GetThetav(i, j, ksrf, cell_data, moisture_indices);
                 const Real bfxpbl = amrex::Real(-0.15) * thvx_klo / CONST_GRAV * wm3 / pblh;
 
                 // dthvx = max(thvx(kpbl+1) - thvx(kpbl), tmin)  [inversion strength at PBL top]
                 // Guard against kpbl+1 exceeding domain top
                 const int kpbl_p1 = amrex::min(kpbl + 1, izmax);
-                const Real thvx_kpbl   = (use_moisture && enable_ysu_liquid_theta)
-                                       ? GetThetavl(i, j, kpbl,   cell_data, moisture_indices)
-                                       : GetThetav(i, j, kpbl,   cell_data, moisture_indices);
-                const Real thvx_kpbl_p1 = (use_moisture && enable_ysu_liquid_theta)
-                                        ? GetThetavl(i, j, kpbl_p1, cell_data, moisture_indices)
-                                        : GetThetav(i, j, kpbl_p1, cell_data, moisture_indices);
+                const Real thvx_kpbl   = GetThetav(i, j, kpbl,   cell_data, moisture_indices);
+                const Real thvx_kpbl_p1 = GetThetav(i, j, kpbl_p1, cell_data, moisture_indices);
                 const Real dthvx = amrex::max(thvx_kpbl_p1 - thvx_kpbl, amrex::Real(1.0e-2));
 
                 // we = max(bfxpbl / dthvx, -sqrt(wm2))
@@ -1351,12 +1336,22 @@ ComputeDiffusivityYSUNew (const MultiFab& xvel,
                         // buoyancy jump between layers. Limited to 0.4 by WRF methodology.
                         // Uses theta-li jump from k_below to kpbl+1 for inversion strength.
 
-                        // Liquid-theta virtual potential temperature at relevant levels
+                        // Buoyancy jump across two layers, thlix + theta * 0.61 * (qv + qc)
+                        // as in WRF bl_ysu.F90 (dthvx in the cloudy entrainment branch)
                         const int k_p2  = amrex::min(kpbl + 1, izmax);
-                        const Real thlix_kbelow = GetThetavl(i, j, k_below, cell_data, moisture_indices);
-                        const Real thlix_kp2    = GetThetavl(i, j, k_p2,   cell_data, moisture_indices);
+                        auto thlix_v = [=] (int kk) {
+                            const Real rho_kk   = cell_data(i, j, kk, Rho_comp);
+                            const Real theta_kk = cell_data(i, j, kk, RhoTheta_comp) / rho_kk;
+                            const Real qv_kk = (moisture_indices.qv >= 0)
+                                             ? cell_data(i, j, kk, moisture_indices.qv) / rho_kk : zero;
+                            const Real qc_kk = (moisture_indices.qc >= 0)
+                                             ? cell_data(i, j, kk, moisture_indices.qc) / rho_kk : zero;
+                            return GetThetal(i, j, kk, cell_data, moisture_indices)
+                                 + theta_kk * epsv * (qv_kk + qc_kk);
+                        };
+                        const Real thlix_kbelow = thlix_v(k_below);
+                        const Real thlix_kp2    = thlix_v(k_p2);
 
-                        // Buoyancy jump using liquid-theta across two layers
                         const Real dthvx_li = amrex::max(thlix_kp2 - thlix_kbelow, amrex::Real(0.1));
 
                         // Entrainment efficiency from cloud liquid water
