@@ -927,7 +927,7 @@ List of Parameters
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.implicit_moisture_diffusion**  | include the implicit contribution to vertical moisture   | Boolean            | true              |
 |                                      | diffusion of host-transported microphysics species       |                    |                   |
-|                                      | (including appended non-water vapor; qv only with SBM)    |                    |                   |
+|                                      | (including additional non-water vapor; qv only with SBM) |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.implicit_ke_diffusion**        | include the implicit contribution to vertical turbulent  | Boolean            | true              |
 |                                      | kinetic energy diffusion                                 |                    |                   |
@@ -1096,9 +1096,12 @@ Notes
      **erf.dynamic_viscosity** with ``Constant`` and **erf.dynamic_viscosity** /
      **erf.rho0_trans** times the largest density around the cell with ``ConstantAlpha`` (the
      stresses take twice it, as they take twice the eddy viscosity).  For theta it is
-     **erf.alpha_T**, and for moisture and the advected scalar **erf.alpha_C**, times
+     **erf.alpha_T**, and for water species and the advected scalar **erf.alpha_C**, times
      **erf.rho0_trans** with ``Constant`` and times the largest density around the cell with
-     ``ConstantAlpha``.  Turbulent kinetic energy has none.  For momentum the rate is the largest of the u, v and w rows,
+     ``ConstantAlpha``. Additional non-water vapor species have no molecular scalar
+     diffusion; the moisture-category timestep estimate still includes the water
+     molecular coefficient and is therefore conservative for those vapors.
+     Turbulent kinetic energy has none. For momentum the rate is the largest of the u, v and w rows,
      :math:`\mu_h (2a+b) + e_{uv}\mu_v/\Delta z^2`, :math:`\mu_h (a+2b) + e_{uv}\mu_v/\Delta z^2`
      and :math:`\mu_v (a+b) + 2 \mu_v/\Delta z^2` (the vertical diffusion of w is always
      explicit; its horizontal diffusion uses :math:`\mu_v`: :math:`\tau_{31}` and
@@ -1143,9 +1146,6 @@ Notes
      the one the host diffuses). Particle-derived appended condensate is not
      independently diffused by the host and contributes no separate explicit
      diffusion restriction. The advected passive scalar remains explicit.
-     This option does not provide per-appended-species inflow values; see the
-     :ref:`super-droplet model <sec:SuperDroplets>` documentation for the
-     existing inflow behavior.
      If dt times this rate
      exceeds **erf.diffusive_cfl** a warning is printed, repeated on a level only when the
      Fourier number has grown by half.  The default 0.5 is the forward-Euler bound; the

@@ -17,13 +17,6 @@ container inherits from the generic ERF particle container use the same prefix;
 they are listed under :ref:`inputs-particles` for tracer particles and behave
 the same way here.
 
-.. note::
-
-   These entries were reconstructed from the source rather than from a
-   specification, so the descriptions state what each input controls and where
-   it is read.  The physical guidance -- which kernel or which time integrator
-   to prefer for a given problem -- is not covered here.
-
 .. _superdroplets-anelastic-compatibility:
 
 Anelastic compatibility
@@ -45,42 +38,102 @@ anelastic Eulerian microphysics.
 Species transport and diffusion
 -------------------------------
 
-Additional species have Eulerian vapor fields and particle-derived condensate
-fields. The host advects and turbulently diffuses the vapor, including implicit
-vertical diffusion when ``erf.implicit_moisture_diffusion`` is enabled. Appended
-condensate fields are projections of particle mass, not independently transported
-mass reservoirs; they do not receive host advection, diffusion, or positivity
-clipping. Their projections are initialized on every AMR level.
+In coupled atmospheric simulations, each additional species specified by
+``super_droplets_moisture.species`` has an Eulerian vapor mixing ratio and a
+condensate mixing ratio diagnosed from the super-droplets.
+ERF advects the vapor with the resolved flow and applies the
+configured turbulent diffusivity. Vertical turbulent diffusion includes an
+implicit contribution when ``erf.implicit_moisture_diffusion`` is enabled and
+the stage factor in ``erf.vert_implicit_fac`` is nonzero. These additional
+species have no molecular scalar diffusion, even when molecular diffusion is
+enabled for water or passive scalars.
 
-For appended species, cloud-in-cell deposition is restricted to exposed valid
-cells on the particle's owning level. Weights are renormalized there so that
-physical walls and coarse/fine edges cannot discard part of its mass. This
-one-sided projection preserves mass but changes the interpolation stencil near
-those edges; it is not a cross-level particle-transport closure. Diagnostic
-condensate is refreshed after redistribution, including regridding, before
-another transport step or output can consume it.
-When AMR split/merge repopulates empty cells, new super-droplets share their
-donor's multiplicity rather than adding another copy of its represented mass.
-Copies requiring fewer than one real droplet are not created.
+The condensate field is a diagnostic of particle-carried mass, not a second
+mass reservoir. It is not independently advected, diffused, or positivity-clipped
+by the atmospheric solver. Particle motion and microphysical processes determine
+its evolution. In particular, vapor diffusion alone does not represent turbulent
+dispersion of condensed particles. These rules apply to the additional species;
+the existing water microphysics coupling is unchanged.
 
-This treatment retains the existing water total-content handoff and molecular
-coefficients: appended non-water species have no molecular scalar diffusion.
-It does not introduce turbulent particle dispersion. Vapor diffusion does not
-by itself model turbulent mixing of condensed particles.
+For vertical implicit diffusion, the supported species boundary conditions are
+zero-gradient extrapolation and prescribed Neumann gradients. If a transported
+species has an unsupported vertical boundary condition, ERF issues a warning
+and disables the shared moisture implicit-diffusion option. Horizontal diffusion,
+explicitly treated stages, and terrain mixed terms can still constrain the
+timestep. An implicit vertical solve is not an unconditional positivity or
+stability guarantee for the full time integration.
 
-Implicit diffusion uses the existing stage fractions and supported vertical
-boundary conditions (zero-gradient extrapolation or Neumann gradients).
-Unsupported species boundary conditions disable the moisture implicit option
-with a warning. Horizontal diffusion, explicitly treated stages, and terrain
-mixed terms can still restrict the timestep; enabling the implicit solve is
-not an unconditional positivity guarantee for the full integration scheme.
+AMR and particle sampling
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This change does not add a per-species inflow interface. Ordinary prescribed
-inflow with a specified density uses the default zero external value for
-appended species; ``qv`` and ``qc`` inflow settings prescribe water only.
+Particles are assigned to the finest available AMR level containing their
+positions. Newly injected particles are assigned before phase change or
+condensate projection, including when ``include_advection = false``.
+This assignment does not require ``split_merge_amr = true``.
+
+For additional species, cloud-in-cell projection uses only cells on the
+particle's level that are not covered by finer grids. The retained weights are
+renormalized, so projection at a physical wall or coarse/fine boundary preserves
+the particle's represented mass. Near these boundaries the stencil is one-sided;
+it does not transfer condensate mass between levels independently of particle
+motion. Diagnostic condensate is refreshed after initialization, time-step
+redistribution, and regridding without advancing phase change or vapor transport.
+
+With ``split_merge_amr = true``, ERF also adjusts the super-droplet sampling as
+particles change levels. When empty fine cells are populated from a neighboring
+donor, the donor and its daughters share the original multiplicity. Each retained
+daughter represents at least one real droplet; insufficient multiplicity leaves
+some cells empty rather than creating physical mass. The allocation uses a fixed
+cell ordering for a fixed particle population and grid decomposition. This is
+not a guarantee of identical particle distributions across decompositions.
+
+Condensate output and mass budgets
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The output fields ``qv_<species>`` and ``qc_<species>`` are mixing ratios per unit
+dry-air mass (:math:`\mathrm{kg\,kg^{-1}}`), whereas
+``super_droplets_moisture_species_mass_density_<species>`` is particle-derived
+condensate mass per physical volume (:math:`\mathrm{kg\,m^{-3}}`). Thus the
+condensate density corresponding to ``qc_<species>`` is
+:math:`\rho q_{c,s}`, not :math:`q_{c,s}` alone; :math:`\rho` is ERF's dry-air
+density (the ``density`` output field).
+
+For a three-dimensional mass budget, sum only uncovered cells of the AMR
+hierarchy, using their physical volumes :math:`V_c`:
+
+.. math::
+
+   M_s = \sum_{\mathrm{composite\ cells}} V_c
+         \left(\rho q_{v,s} + \rho q_{c,s}\right),
+   \qquad
+   M_{c,s} = \sum_{\mathrm{active\ particles}} \xi_p m_{p,s}.
+
+Here :math:`\xi_p` is the number of real droplets represented by super-droplet
+:math:`p`, and :math:`m_{p,s}` is the mass of species :math:`s` in one real
+droplet. The particle sum is an independent measure of condensate mass:
+do not add it to the mesh condensate term, which represents the same mass.
+Phase change exchanges vapor and condensate. Account separately for injection,
+precipitation, and other physical sources, sinks, or boundary fluxes when
+assessing conservation; an injection run is not a closed system.
+
+With ``dimensionality = one_d_z``, species condensate density from the reference
+column (the lowest horizontal indices in each grid box) is replicated
+horizontally before conversion to mixing ratio. Both normal microphysics
+updates and diagnostic refreshes use this convention. It is not a horizontal
+average: a volume integral over the replicated field must be interpreted using
+the represented column area, rather than compared directly with an unreplicated
+particle-column sum. The ``three_d``, ``two_d_xz``, and ``two_d_yz`` species
+projections do not apply this extra horizontal replication.
+
+Inflow limitations
+~~~~~~~~~~~~~~~~~~
+
+There is no per-additional-species prescribed inflow interface. Ordinary inflow
+with a specified density uses a zero external value for these species;
+``qv`` and ``qc`` inflow settings prescribe water only.
 When inflow density is not prescribed, the existing fallback extrapolates
 non-ingested conserved fields from the interior. Boundary-plane ingestion
-does not supply appended species. Do not interpret water-vapor boundary
+does not supply additional species. Do not interpret water-vapor boundary
 settings as non-water inflow concentrations.
 
 Model configuration
@@ -287,22 +340,23 @@ Initialization blocks
 The initial particle population is described by one or more numbered blocks.
 ``super_droplets_moisture.num_initializations`` sets how many there are, and
 block ``i`` is read under the prefix ``super_droplets_moisture.<i>`` for
-``i = 0 ... num_initializations-1`` (``ERF_SuperDropletPCInitializations.cpp``).
+``i = 0 ... num_initializations-1``. A block-specific value overrides the same
+key under ``super_droplets_moisture``; otherwise that common value is used.
 
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | Parameter                                       | Definition                                               | Acceptable Values                                | Default                             |
 +=================================================+==========================================================+==================================================+=====================================+
-| **num_initializations**                         | how many initialization blocks are read                  | Integer > 0                                      | 1                                   |
+| **num_initializations**                         | how many initialization blocks are read                  | Integer >= 0                                     | 1                                   |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
-| **<i>.distribution_type**                       | shape of the seeded region                               | box, bubble                                      | box                                 |
+| **<i>.initial_distribution_type**               | shape of the seeded region                               | uniform, bubble                                  | uniform                             |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
-| **<i>.particles_per_cell**                      | super-droplets created per cell in that region           | Integer > 0                                      | set from the number density         |
+| **<i>.initial_particles_per_cell**              | super-droplets created per cell in that region           | Integer > 0                                      | set from the number density         |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | **particle_box_lo**, **particle_box_hi**        | corners of the seeded box; read when                     | 3 Reals                                          | domain corners                      |
-|                                                 | ``distribution_type`` = ``box``                          |                                                  |                                     |
+|                                                 | ``initial_distribution_type`` = ``uniform``              |                                                  |                                     |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | **particle_bubble_center**,                     | centre and radii of the seeded bubble; read when         | 3 Reals                                          | none                                |
-| **particle_bubble_radius**                      | ``distribution_type`` = ``bubble``                       |                                                  |                                     |
+| **particle_bubble_radius**                      | ``initial_distribution_type`` = ``bubble``               |                                                  |                                     |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | **initial_number_density**                      | number density of real droplets represented              | Real > 0                                         | none                                |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
@@ -315,14 +369,18 @@ block ``i`` is read under the prefix ``super_droplets_moisture.<i>`` for
 | **ice_apparent_density**                        | apparent density [kg/m^3] used for ice particles         | Real > 0                                         | none                                |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 
-Within a block, each condensate species and each aerosol is given its own
-initial size or mass distribution, using keys named after that material --
-``<species>_init_type``, and then the subset of ``<species>_mass_min``,
-``<species>_mass_mean``, ``<species>_mass_max``, ``<species>_radius_min``,
-``<species>_radius_mean``, ``<species>_radius_max`` and a standard deviation
-(``_std``) or geometric standard deviation (``_gstd``) that the chosen type
-requires.  Aerosol materials use the same pattern.  The exact key names depend
-on the configured species and aerosol names; see ``ERF_SDInitialization.cpp``.
+Each material has its own size or mass distribution. For example,
+``initial_species_distribution_type_<species> = mass_constant`` uses
+``initial_species_mean_mass_<species>`` in kg per real droplet, not per
+super-droplet. Other supported distributions are ``mass_exponential``,
+``radius_log_normal``, and ``radius_lognormal_autorange``. Their parameters use
+the same prefix with ``min_mass``, ``max_mass``, ``min_radius``, ``mean_radius``,
+or ``max_radius`` in place of ``mean_mass``, as appropriate. Radii are in metres.
+For log-normal radii, specify either ``initial_species_std_radius_<species>``
+(the standard deviation of log radius) or
+``initial_species_geomstd_radius_<species>`` (the geometric standard deviation),
+not both. Aerosols use ``initial_aerosol_`` in place of ``initial_species_``.
+Material names must match the configured species and aerosol names.
 
 Injection blocks
 ----------------
@@ -330,26 +388,42 @@ Injection blocks
 Particles may also be injected during the run.
 ``super_droplets_moisture.num_injections`` sets how many injection blocks are
 read, and block ``i`` uses the prefix ``super_droplets_moisture.injection.<i>``.
+Block-specific values override common injection values under
+``super_droplets_moisture.injection``. The rate is a volumetric number source
+within the injection region, not a total particle count per second for the domain.
+The region may lie inside fine coverage or span a coarse/fine boundary;
+particles are injected once and then assigned to their finest available level.
 
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | Parameter                                       | Definition                                               | Acceptable Values                                | Default                             |
 +=================================================+==========================================================+==================================================+=====================================+
 | **num_injections**                              | how many injection blocks are read                       | Integer >= 0                                     | 0                                   |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
-| **rate**                                        | injection rate of real droplets                          | Real > 0                                         | none                                |
+| **rate**                                        | real-droplet number source [m^-3 s^-1]                   | Real > 0                                         | 0 (no injection)                    |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
-| **sd_rate**                                     | injection rate of super-droplets; an alternative to      | Real > 0                                         | derived from ``rate``               |
-|                                                 | deriving it from ``rate``                                |                                                  |                                     |
+| **sd_rate**                                     | super-droplet number source [m^-3 s^-1]                  | Real > 0                                         | derived from rate and multiplicity  |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
-| **min_multiplicity**                            | lower bound on the multiplicity of injected particles    | Real > 0                                         | none                                |
+| **min_multiplicity**                            | target minimum multiplicity in per-box injection mode    | Real > 0                                         | 100                                 |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | **t_start**, **t_stop**                         | simulation times [s] between which injection is active   | Real                                             | whole run                           |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
-| **domain_velocity**                             | velocity [m/s] imposed on the injected particles         | 3 Reals                                          | 0.0 0.0 0.0                         |
+| **domain_velocity**                             | translation velocity [m/s] of the injection region       | 3 Reals                                          | 0.0 0.0 0.0                         |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
-| **fractional_tol**                              | tolerance used when converting a fractional injection    | Real > 0                                         | none                                |
+| **fractional_tol**                              | tolerance used when converting a fractional injection    | Real > 0                                         | 1.0e-3                              |
 |                                                 | count into whole particles                               |                                                  |                                     |
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 
-An injection block also accepts the same per-species and per-aerosol
-distribution keys as an initialization block.
+Within an injection block, use ``distribution_type = uniform`` for a box
+specified by ``particle_box_lo`` and ``particle_box_hi``, or ``bubble`` with
+``particle_bubble_center`` and ``particle_bubble_radius``. Material distribution
+keys follow the initialization pattern without ``initial_``; for example,
+``species_distribution_type_<species>`` and ``species_mean_mass_<species>``.
+
+Specifying ``particles_per_cell`` selects per-cell injection. Otherwise, ERF
+accumulates a super-droplet count over the injection region using ``sd_rate``
+or ``rate / min_multiplicity``. If both are explicitly specified, the smaller
+super-droplet rate is used. Physical-particle counts and integer multiplicities
+are accumulated or rounded according to the selected mode, so low rates need
+not produce an injection event every time step. Include the actual represented
+injected mass in conservation diagnostics rather than assuming a continuously
+realized source at every step.
