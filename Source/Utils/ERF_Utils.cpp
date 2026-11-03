@@ -332,7 +332,7 @@ immersed_wall_dist (MultiFab& wdist,
                 kw = kb_lo;
                 h  = z_face(kb_lo);
                 if (kt >= kb_lo) {
-                    const Real b = amrex::min(tb_arr(i,j,kt), one);
+                    const Real b = amrex::min(tb_arr(i,j,kt), Real(one));
                     h  = z_face(kt) + b * (z_face(kt+1) - z_face(kt));
                     kw = ib_wall::is_solid(tb_arr(i,j,kt), small) ? kt + 1 : kt;
                 }

@@ -535,7 +535,7 @@ TEST(ImmersedFractionStress, WallFaceMasksCarryTheSpacingFactorAboveTheWallCell)
 // buoyancy term kappa B d1 with d1 the fluid-centroid height of the wall cell (floored at 2 z0).
 TEST(ImmersedFractionStress, WallTkeIsTheFlatGroundWallValue)
 {
-    const Real Cmu0 = Real(0.5562), dz = Real(10.), z0 = Real(0.1), theta = Real(300.);
+    const Real Cmu0 = Real(0.5562), theta = Real(300.);
     ib_wall::WallState w{};
     w.ustar = Real(0.4); w.thetastar = Real(0.);
     const Real k_neutral = w.ustar * w.ustar / (Cmu0 * Cmu0);

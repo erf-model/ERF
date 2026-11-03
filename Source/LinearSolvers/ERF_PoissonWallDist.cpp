@@ -123,10 +123,10 @@ void ERF::poisson_wall_dist (int lev)
         const DistributionMapping& dm = walldist[lev]->DistributionMap();
         BoxList bl2d = walldist[lev]->boxArray().boxList();
         for (Box& b : bl2d) { b.setRange(2, klo); }
-        BoxArray ba2d(std::move(bl2d));
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ba2d.isDisjoint(),
+        BoxArray ba_cols(std::move(bl2d));
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ba_cols.isDisjoint(),
             "poisson_wall_dist: the immersed wall distance needs one box per column at each level");
-        ib_wall_height[lev] = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
+        ib_wall_height[lev] = std::make_unique<MultiFab>(ba_cols, dm, 1, 0);
 
         // A fine level need not reach the surface or the top: bring the coarser level's wall
         // height to this level's columns (piecewise constant) for the boxes that do not see it
@@ -135,10 +135,10 @@ void ERF::poisson_wall_dist (int lev)
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ib_wall_height[lev-1],
                 "poisson_wall_dist: the immersed wall distance of a fine level needs the coarser level's");
             const IntVect rr = refRatio(lev-1);
-            BoxArray cba2d = ba2d; cba2d.coarsen(rr);
+            BoxArray cba2d = ba_cols; cba2d.coarsen(rr);
             MultiFab tmp(cba2d, dm, 1, 0);
             tmp.ParallelCopy(*ib_wall_height[lev-1], 0, 0, 1, IntVect(0), IntVect(0), geom[lev-1].periodicity());
-            height_crse = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
+            height_crse = std::make_unique<MultiFab>(ba_cols, dm, 1, 0);
             for (MFIter mfi(*height_crse); mfi.isValid(); ++mfi) {
                 auto const hf = height_crse->array(mfi);
                 auto const hc = tmp.const_array(mfi);
