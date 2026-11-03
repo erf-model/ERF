@@ -117,7 +117,8 @@ void validate_sbm_m3_advection (const SolverChoice& choice,
 }
 
 void validate_auxiliary_inert_tracer_fixture (const SolverChoice& choice,
-                                              const int max_level)
+                                              const int max_level,
+                                              const amrex::Geometry& geom0)
 {
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.moisture_type == MoistureType::None,
         "M2 auxiliary inert tracer fixture requires moisture_model=None");
@@ -129,6 +130,11 @@ void validate_auxiliary_inert_tracer_fixture (const SolverChoice& choice,
                                      choice.terrain_type == TerrainType::None &&
                                      choice.buildings_type == BuildingsType::None,
         "M2 auxiliary inert tracer fixture requires static Cartesian ConstantDz geometry");
+    // The tracer has no boundary conditions of its own: FillBoundary fills only periodic and
+    // inter-box ghosts of its intensive field, so a face on a non-periodic domain boundary
+    // would read stale ghost values (erf-model/ERF#4559)
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(geom0.isAllPeriodic(),
+        "M2 auxiliary inert tracer fixture requires a fully periodic domain (geometry.is_periodic = 1 1 1)");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!choice.use_gravity,
         "M2 auxiliary inert tracer fixture requires gravity disabled");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(choice.substepping_type.size() == 1 &&
@@ -286,7 +292,7 @@ ERF::ERF_shared ()
     ParmParse pp_auxiliary("erf");
     pp_auxiliary.queryAdd("auxiliary_inert_tracer_test", auxiliary_inert_tracer_test);
     if (auxiliary_inert_tracer_test) {
-        validate_auxiliary_inert_tracer_fixture(solverChoice, max_level);
+        validate_auxiliary_inert_tracer_fixture(solverChoice, max_level, geom[0]);
         auxiliary_inert_tracer = std::make_unique<erf_auxiliary::AuxiliaryInertTracer>(max_level + 1);
     }
     if (solverChoice.moisture_type == MoistureType::SBM) {
