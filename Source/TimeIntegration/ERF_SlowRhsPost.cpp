@@ -681,7 +681,8 @@ void erf_slow_rhs_post (int level, int finest_level,
                                                mu_turb, solverChoice, level,
                                                bc_ptr_d,
                                                l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac,
-                                               l_reflux_diffusion);
+                                               l_reflux_diffusion,
+                                               (ib_wall_face33) ? ib_wall_face33->const_array(mfi) : Array4<const Real>{});
                     }
                     if (use_physical_chamber_wall_flux) {
                         // Apply the physical wall correction immediately to

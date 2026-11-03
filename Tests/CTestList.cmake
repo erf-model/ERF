@@ -257,7 +257,7 @@ endfunction(add_test_immersed_cf_heat_balance)
 # cell face K_OFFSET cells above the domain bottom) and compare their profiles
 # (Tests/ImmersedFlatEquivalenceCheck.cpp); EXPECT_CHECKER_FAIL ON requires the comparison to fail
 # (the legacy wall law), so the test proves the checker sees the difference.
-function(add_test_immersed_flat_equivalence TEST_NAME TEST_FILES_DIR K_OFFSET TOL EXPECT_CHECKER_FAIL RUNTIME_OPTIONS)
+function(add_test_immersed_flat_equivalence TEST_NAME TEST_FILES_DIR K_OFFSET TOL K_COUNT EXPECT_CHECKER_FAIL RUNTIME_OPTIONS)
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
 
@@ -281,6 +281,7 @@ function(add_test_immersed_flat_equivalence TEST_NAME TEST_FILES_DIR K_OFFSET TO
         "-DPLOTFILE_PLANE=${CURRENT_TEST_BINARY_DIR}/plt_plane00100"
         "-DK_OFFSET=${K_OFFSET}"
         "-DTOL=${TOL}"
+        "-DK_COUNT=${K_COUNT}"
         "-DEXPECT_CHECKER_FAIL=${EXPECT_CHECKER_FAIL}"
         -P ${PROJECT_SOURCE_DIR}/Tests/RunImmersedFlatEquivalence.cmake)
     set_tests_properties(${TEST_NAME}
@@ -2002,11 +2003,11 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                                       "erf.cf_loglaw_fill=true erf.if_cf_mismatch_warning=0.4")
     # Neutral ABL with the k-eqn RANS over an immersed plane on a cell face, two solid rows below it,
     # against the same ABL on flat ground (erf-model/ERF#4134): with the fraction-stress wall law the
-    # profiles must agree (TOL set from the measured difference, see the deck); the legacy law leaves
+    # profiles over the lowest 500 m must agree within 1 % (measured: wind 0.05 %, TKE 1 %); the legacy law leaves
     # the fluid cell on the solid unforced and measures the wall distance from the domain bottom, and
     # must fail the same check.
-    add_test_immersed_flat_equivalence(ImmersedForm7Equivalence ImmersedForm7Equivalence 2 TOL_PLACEHOLDER OFF "")
-    add_test_immersed_flat_equivalence(ImmersedForm7Equivalence_Legacy ImmersedForm7Equivalence 2 TOL_PLACEHOLDER ON
+    add_test_immersed_flat_equivalence(ImmersedForm7Equivalence ImmersedForm7Equivalence 2 0.01 25 OFF "")
+    add_test_immersed_flat_equivalence(ImmersedForm7Equivalence_Legacy ImmersedForm7Equivalence 2 0.01 25 ON
                                        "erf.if_wall_form=legacy erf.if_wall_tke=false")
   endif()
   # Box, rank and tiling parity of the other closures: one box on one rank without tiling

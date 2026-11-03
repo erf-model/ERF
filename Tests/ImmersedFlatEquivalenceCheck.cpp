@@ -14,12 +14,12 @@
 // Compares a run over an immersed plane that lies on a cell face with the same run on flat
 // ground (the surface layer at the bottom of the domain):
 //
-//   checker <plotfile_flat> <plotfile_plane> <k_offset> <tol>
+//   checker <plotfile_flat> <plotfile_plane> <k_offset> <tol> [k_count]
 //
 // For x_velocity, y_velocity, theta and KE (when present) the horizontally averaged profile of
-// the plane run, from its cell k_offset up, must match the flat run's profile from its cell 0 up,
-// within tol relative to the flat run's largest |value| of that variable (theta against its
-// departure from its own bottom value). With the fraction-stress wall law a face-aligned surface
+// the plane run, from its cell k_offset up, must match the flat run's profile from its cell 0 up
+// (the lowest k_count cells, all by default), within tol relative to the flat run's largest
+// |value| of that variable over those cells (theta against its departure from its own bottom value). With the fraction-stress wall law a face-aligned surface
 // is the surface-layer law of flat ground, so the two agree; the legacy law leaves the fluid cell
 // on the solid unforced and must fail.
 // Exit 0: passed; 1: a profile differs by more than tol; 3: the plotfiles cannot be compared
@@ -59,11 +59,12 @@ std::vector<Real> profile (PlotFileData& pf, const std::string& name)
     return sum;
 }
 
-int compare (PlotFileData& pf_flat, PlotFileData& pf_plane, int k_off, Real tol)
+int compare (PlotFileData& pf_flat, PlotFileData& pf_plane, int k_off, Real tol, int k_count)
 {
     const int nk_flat  = pf_flat.probDomain(0).length(2);
     const int nk_plane = pf_plane.probDomain(0).length(2);
     if (nk_plane != nk_flat + k_off) { return fail("the plane run must have k_offset more cells in z than the flat run"); }
+    const int nk_cmp = (k_count > 0) ? std::min(k_count, nk_flat) : nk_flat;
     int rc = 0;
     for (const char* name : {"x_velocity", "y_velocity", "theta", "KE"}) {
         if (!has_variable(pf_flat, name) || !has_variable(pf_plane, name)) {
@@ -75,12 +76,12 @@ int compare (PlotFileData& pf_flat, PlotFileData& pf_plane, int k_off, Real tol)
         const bool is_theta = (std::string(name) == "theta");
         Real scale = Real(0.), worst = Real(0.);
         int k_worst = -1;
-        for (int k = 0; k < nk_flat; ++k) {
+        for (int k = 0; k < nk_cmp; ++k) {
             const Real ak = is_theta ? a[k] - a[0] : a[k];
             scale = std::max(scale, std::abs(ak));
         }
         if (is_theta) { scale = std::max(scale, Real(1.)); }   // a uniform theta compares in kelvin
-        for (int k = 0; k < nk_flat; ++k) {
+        for (int k = 0; k < nk_cmp; ++k) {
             const Real ak = is_theta ? a[k] - a[0] : a[k];
             const Real bk = is_theta ? b[k + k_off] - a[0] : b[k + k_off];
             if (!std::isfinite(ak) || !std::isfinite(bk)) { return fail(std::string("non-finite ") + name); }
@@ -88,8 +89,8 @@ int compare (PlotFileData& pf_flat, PlotFileData& pf_plane, int k_off, Real tol)
             if (diff > worst) { worst = diff; k_worst = k; }
         }
         const Real rel = worst / scale;
-        Print() << name << ": largest |flat - plane| = " << worst << " at flat cell " << k_worst
-                << " (relative to " << scale << ": " << rel << ", tol " << tol << ")\n";
+        Print() << name << ": largest |flat - plane| over the lowest " << nk_cmp << " cells = " << worst
+                << " at flat cell " << k_worst << " (relative to " << scale << ": " << rel << ", tol " << tol << ")\n";
         if (rel > tol) { rc = 1; }
     }
     if (rc) { return fail("the plane run differs from flat ground by more than tol", 1); }
@@ -104,11 +105,12 @@ int main (int argc, char* argv[])
     int rc = 0;
     {
         if (argc < 5) {
-            rc = fail("usage: checker <plotfile_flat> <plotfile_plane> <k_offset> <tol>");
+            rc = fail("usage: checker <plotfile_flat> <plotfile_plane> <k_offset> <tol> [k_count]");
         } else {
             PlotFileData pf_flat(argv[1]);
             PlotFileData pf_plane(argv[2]);
-            rc = compare(pf_flat, pf_plane, std::atoi(argv[3]), static_cast<Real>(std::atof(argv[4])));
+            const int k_count = (argc > 5) ? std::atoi(argv[5]) : 0;
+            rc = compare(pf_flat, pf_plane, std::atoi(argv[3]), static_cast<Real>(std::atof(argv[4])), k_count);
         }
     }
     amrex::Finalize();

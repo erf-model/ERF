@@ -113,6 +113,49 @@ void ERF::poisson_wall_dist (int lev)
         havewall = true;
     }
 
+    if (solverChoice.if_fraction_stress) {
+        // Fraction-stress immersed wall law: measure from the surface itself, so the RANS
+        // length scale and the wall law see the same geometry (ERF_ImmersedWallCell.H);
+        // erf.wall_dist_type does not apply (the surface is inside the domain)
+        Print() << "Calculating wall distance from the immersed surface (fraction-stress wall law)" << std::endl;
+        AMREX_ALWAYS_ASSERT(terrain_blanking[lev]);
+        const int klo = geom[lev].Domain().smallEnd(2);
+        const DistributionMapping& dm = walldist[lev]->DistributionMap();
+        BoxList bl2d = walldist[lev]->boxArray().boxList();
+        for (Box& b : bl2d) { b.setRange(2, klo); }
+        BoxArray ba2d(std::move(bl2d));
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ba2d.isDisjoint(),
+            "poisson_wall_dist: the immersed wall distance needs one box per column at each level");
+        ib_wall_height[lev] = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
+
+        // A fine level need not reach the surface or the top: bring the coarser level's wall
+        // height to this level's columns (piecewise constant) for the boxes that do not see it
+        std::unique_ptr<MultiFab> height_crse;
+        if (lev > 0) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ib_wall_height[lev-1],
+                "poisson_wall_dist: the immersed wall distance of a fine level needs the coarser level's");
+            const IntVect rr = refRatio(lev-1);
+            BoxArray cba2d = ba2d; cba2d.coarsen(rr);
+            MultiFab tmp(cba2d, dm, 1, 0);
+            tmp.ParallelCopy(*ib_wall_height[lev-1], 0, 0, 1, IntVect(0), IntVect(0), geom[lev-1].periodicity());
+            height_crse = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
+            for (MFIter mfi(*height_crse); mfi.isValid(); ++mfi) {
+                auto const hf = height_crse->array(mfi);
+                auto const hc = tmp.const_array(mfi);
+                ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    hf(i,j,k) = hc(amrex::coarsen(i,rr[0]), amrex::coarsen(j,rr[1]), amrex::coarsen(k,rr[2]));
+                });
+            }
+        }
+        immersed_wall_dist(*walldist[lev], *terrain_blanking[lev], *z_phys_nd[lev], *z_phys_cc[lev],
+                           geom[lev].Domain(), solverChoice.if_small_volfrac,
+                           ib_wall_height[lev].get(), height_crse.get());
+        fill_wall_dist_ghost_cells(*walldist[lev], geom[lev]);
+        return;
+    }
+
+
     auto const& geomdata = geom[lev];
     auto const& dxinv    = geomdata.InvCellSizeArray();
 
@@ -163,47 +206,6 @@ void ERF::poisson_wall_dist (int lev)
     else
     {
         Error("No solid boundaries in the computational domain");
-    }
-
-    if (solverChoice.if_fraction_stress) {
-        // Fraction-stress immersed wall law: measure from the surface itself, so the RANS
-        // length scale and the wall law see the same geometry (ERF_ImmersedWallCell.H);
-        // erf.wall_dist_type does not apply (the surface is inside the domain)
-        Print() << "Calculating wall distance from the immersed surface (fraction-stress wall law)" << std::endl;
-        AMREX_ALWAYS_ASSERT(terrain_blanking[lev]);
-        const DistributionMapping& dm = walldist[lev]->DistributionMap();
-        BoxList bl2d = walldist[lev]->boxArray().boxList();
-        for (Box& b : bl2d) { b.setRange(2, klo); }
-        BoxArray ba2d(std::move(bl2d));
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ba2d.isDisjoint(),
-            "poisson_wall_dist: the immersed wall distance needs one box per column at each level");
-        ib_wall_height[lev] = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
-
-        // A fine level need not reach the surface or the top: bring the coarser level's wall
-        // height to this level's columns (piecewise constant) for the boxes that do not see it
-        std::unique_ptr<MultiFab> height_crse;
-        if (lev > 0) {
-            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(ib_wall_height[lev-1],
-                "poisson_wall_dist: the immersed wall distance of a fine level needs the coarser level's");
-            const IntVect rr = refRatio(lev-1);
-            BoxArray cba2d = ba2d; cba2d.coarsen(rr);
-            MultiFab tmp(cba2d, dm, 1, 0);
-            tmp.ParallelCopy(*ib_wall_height[lev-1], 0, 0, 1, IntVect(0), IntVect(0), geom[lev-1].periodicity());
-            height_crse = std::make_unique<MultiFab>(ba2d, dm, 1, 0);
-            for (MFIter mfi(*height_crse); mfi.isValid(); ++mfi) {
-                auto const hf = height_crse->array(mfi);
-                auto const hc = tmp.const_array(mfi);
-                ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    hf(i,j,k) = hc(amrex::coarsen(i,rr[0]), amrex::coarsen(j,rr[1]), amrex::coarsen(k,rr[2]));
-                });
-            }
-        }
-        immersed_wall_dist(*walldist[lev], *terrain_blanking[lev], *z_phys_nd[lev], *z_phys_cc[lev],
-                           geomdata.Domain(), solverChoice.if_small_volfrac,
-                           ib_wall_height[lev].get(), height_crse.get());
-        fill_wall_dist_ghost_cells(*walldist[lev], geom[lev]);
-        return;
     }
 
     if (havewall && solverChoice.wall_dist_type == "terrain_height") {

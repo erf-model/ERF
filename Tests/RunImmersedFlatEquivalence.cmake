@@ -7,7 +7,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/ResolveExecutable.cmake")
 
 foreach(arg NRANKS TEST_EXE INPUT_FLAT INPUT_PLANE WORKING_DIRECTORY SIMULATION_LOG CHECKER_LOG CHECKER
-            PLOTFILE_FLAT PLOTFILE_PLANE K_OFFSET TOL EXPECT_CHECKER_FAIL)
+            PLOTFILE_FLAT PLOTFILE_PLANE K_OFFSET TOL K_COUNT EXPECT_CHECKER_FAIL)
     if("${${arg}}" STREQUAL "")
         message(FATAL_ERROR "RunImmersedFlatEquivalence.cmake: ${arg} must be given and non-empty")
     endif()
@@ -55,7 +55,7 @@ if(NOT plane_result EQUAL 0)
 endif()
 
 execute_process(
-    COMMAND ${mpi_launch_one} ${CHECKER} ${PLOTFILE_FLAT} ${PLOTFILE_PLANE} ${K_OFFSET} ${TOL}
+    COMMAND ${mpi_launch_one} ${CHECKER} ${PLOTFILE_FLAT} ${PLOTFILE_PLANE} ${K_OFFSET} ${TOL} ${K_COUNT}
     WORKING_DIRECTORY "${WORKING_DIRECTORY}"
     OUTPUT_FILE "${CHECKER_LOG}"
     ERROR_FILE "${CHECKER_LOG}"
