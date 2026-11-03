@@ -1083,7 +1083,10 @@ public:
    * otherwise from the registered LSM fluxes.  A flux that is not available is left null,
    * and SurfaceFluxView::valid then rejects every cell.  compute_fluxes,
    * compute_sfc_params_from_lsm_fluxes and get_lsm_tsurf all take their fluxes from here,
-   * so they agree on which land columns use the LSM flux.
+   * so they agree on which land columns use the LSM flux.  Each decides a ghost column
+   * outside a non-periodic domain from the nearest column inside it; compute_SurfaceLayer_bcs
+   * also reads the fluxes one ghost cell beyond the grid, so they must carry one filled
+   * lateral ghost cell.
    *
    * @param[in] lev level index
    * @param[in] mfi iterator over a MultiFab with the cons BoxArray and DistributionMapping

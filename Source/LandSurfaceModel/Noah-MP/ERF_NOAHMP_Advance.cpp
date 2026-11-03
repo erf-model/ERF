@@ -397,10 +397,16 @@ NOAHMP::Advance_With_State (const int& lev,
     if (m_first_advance_nstep < 0) { m_first_advance_nstep = nstep; }
 
     if (!m_has_nc_file) {
-        // Skip interpolation if lev 0 was just updated: Noah runs post-step, so
-        // the fluxes & data still hold lsm_undefined values.
-        if (!updated_lev0) {
+        // Level 0's data and fluxes change only when its driver fires, which it does in
+        // its own advance, before this level's substeps of the same step (nstep is level
+        // 0's step).  So interpolate once per such step, and whenever this level's fields
+        // or its level-0 pointers have been (re)built.  Radiation also writes its forcing
+        // fields at every level; between level-0 land steps this level keeps what its own
+        // radiation wrote there, and the next interpolation replaces it with level 0's.
+        if (m_interp_pending || (updated_lev0 && nstep != m_interp_nstep)) {
             interp_from_lev0(lev, cons_in, nstep);
+            m_interp_pending = false;
+            m_interp_nstep   = nstep;
         } else {
             m_updated = false;
         }
