@@ -1,0 +1,59 @@
+# Anelastic advection of a passive scalar on a stretched terrain-fitted mesh
+# (VariableDz): the blob must move at the wind speed on every level.
+# A hill 1e-6 m high keeps the ground flat for this purpose, so the wind stays uniform, on the
+# terrain-fitted path (without prob.custom_terrain_type ERF would reset a flat mesh to
+# StretchedDz, and prob.hmax = 0 would select a different, 0.5 m high hill).
+# Before the fix the blob moved at U / h_zeta, about 3x too fast in the 20 m bottom level.
+erf.prob_name = "Scalar Advection/Diffusion"
+erf.anelastic = 1
+
+max_step  = 50            # half an advection period (500 m at 10 m/s)
+stop_time = 1000.0
+amrex.fpe_trap_invalid = 1
+fabarray.mfiter_tile_size = 1024 1024 1024
+
+geometry.prob_lo     =    0.    0.   0.
+geometry.prob_hi     = 1000. 1000. 791.6    # 12 levels from 20 m stretched by 1.2
+amr.n_cell           =   32    32   12
+geometry.is_periodic =    1     1    0
+amr.max_level        = 0
+
+erf.terrain_type          = StaticFittedMesh
+erf.terrain_smoothing     = 0
+erf.initial_dz            = 20.0
+erf.grid_stretching_ratio = 1.2
+prob.custom_terrain_type  = "WoA"
+prob.hmax                 = 1.0e-6
+prob.L                    = 300.0
+
+# Multigrid needs no FFT build, so this case runs in every CI job
+erf.terrain_poisson_solver = mlmg
+
+zlo.type = "SlipWall"
+zhi.type = "SlipWall"
+
+erf.fixed_dt = 1.0        # advective CFL 0.32
+erf.v = 1
+amr.v = 0
+erf.check_int   = -1
+erf.plot_file_1 = plt
+erf.plot_int_1  = 50
+erf.plot_vars_1 = density scalar x_velocity z_velocity z_phys
+
+erf.dycore_horiz_adv_type    = "Upwind_3rd"
+erf.dycore_vert_adv_type     = "Upwind_3rd"
+erf.dryscal_horiz_adv_type   = "Upwind_3rd"
+erf.dryscal_vert_adv_type    = "Upwind_3rd"
+
+erf.use_gravity     = false
+erf.les_type        = "None"
+erf.molec_diff_type = "None"
+
+erf.init_type = "uniform"
+prob.rho_0 = 1.0
+prob.T_0   = 300.0
+prob.A_0   = 1.0
+prob.U_0   = 10.0
+prob.V_0   = 0.0
+prob.rad_0 = 0.25         # blob radius 250 m, centred at x = y = 500 m, uniform in z
+prob.prob_type = 11

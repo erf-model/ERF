@@ -1,25 +1,12 @@
 name: CleanUpCache
 
 on:
-  workflow_run:
-    workflows:
-      - ERF CI
-      - Linux GCC
-      - Linux GCC NetCDF RRTMGP
-      - ERF CI (cuda)
-      - ERF CI (hip)
-      - ERF CI (sycl)
-      - MacOS
-      - Windows
-    types:
-      - completed
   schedule:
     - cron: '0 7 * * *'
   workflow_dispatch:
 
-# Keyed on branch only, not branch+sha, so back-to-back pushes coalesce instead of racing.
 concurrency:
-  group: cleanup-${{ github.event.workflow_run.head_branch || github.ref }}
+  group: cleanup-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -33,28 +20,10 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v7
       - name: Clean up ccache
         run: |
           REPO=${{ github.repository }}
-
-          # push or pull_request or schedule or ...
-          EVENT="${{ github.event.workflow_run.event }}"
-          HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
-
-          # For debugging, cat ${GITHUB_EVENT_PATH} to see the payload.
-
-          if [[ $EVENT == "pull_request" ]]; then
-            pr_head_sha=${{ github.event.workflow_run.head_sha }}
-            pr_number=$(gh pr list --search $pr_head_sha --json number --jq '.[0].number')
-            echo "Clean up cache for PR ${pr_number}"
-            BRANCH=refs/pull/${pr_number}/merge
-          elif [[ -n $HEAD_BRANCH ]]; then
-            BRANCH=refs/heads/${HEAD_BRANCH}
-          else
-            # schedule / workflow_dispatch: no workflow_run context to inherit
-            BRANCH=refs/heads/development
-          fi
+          BRANCH=refs/heads/development
 
           # Setting this to not fail the workflow while deleting cache keys.
           set +e

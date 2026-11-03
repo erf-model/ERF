@@ -22,7 +22,7 @@ ERF uses the AMReX framework. The default method uses an internal AMReX submodul
 
 **Submodule Management**
 
-AMReX, EKAT, NOAH-MP, and RTE-RRTMGP are available as submodules in the ERF repository. SHOC requires additional setup steps (see :ref:`sec:build:systems`). Kokkos is accessed as a submodule within EKAT.
+AMReX, EKAT, NOAH-MP, and RTE-RRTMGP are available as submodules in the ERF repository. SHOC requires additional setup steps (see :ref:`sec:build:systems`). Kokkos is accessed as a submodule within EKAT (currently Kokkos 5.1, which requires C++20).
 
 **Dependency Relationships**
 
@@ -82,8 +82,8 @@ Compiler and Tool Requirements
      - Description
      - Version
    * - **C++ Compiler**
-     - Must support C++17 standard
-     - GCC >= 8.0
+     - Must support C++20 standard
+     - GCC >= 10.4 (Kokkos minimum for EKAT builds)
    * - **C Compiler**
      - Must support C99 standard
      - Any modern version
@@ -92,7 +92,7 @@ Compiler and Tool Requirements
      - Any modern version
    * - **CMake**
      - Build configuration tool
-     - >= 3.20 (>= 3.25 for Cray)
+     - >= 3.20 (>= 3.22 with EKAT; >= 3.25 for Cray)
    * - **Python**
      - Build script dependency
      - >= 2.7 (including 3.x)
@@ -101,7 +101,7 @@ Compiler and Tool Requirements
      - MPICH, OpenMPI, Cray MPICH
    * - **CUDA (Optional)**
      - NVIDIA GPU support
-     - >= 11.0
+     - >= 12.2 (Kokkos minimum for EKAT builds)
    * - **HIP (Optional)**
      - AMD GPU support
      - Latest versions only

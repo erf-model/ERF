@@ -123,7 +123,6 @@ jobs:
       run: |
         export CCACHE_COMPRESS=1
         export CCACHE_COMPRESSLEVEL=10
-        export CCACHE_MAXSIZE=600M
         ccache -z
         build_start=$(date +%s)
 

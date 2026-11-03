@@ -22,6 +22,7 @@
 #include "ERF_IntervalMeansCheckpoint.H"
 #include "ERF_PlotfileSelection.H"
 #include "ERF_Utils.H"
+#include "ERF_PlanarBoundary.H"
 #include "ERF_TerrainMetrics.H"
 #include "ERF_TerrainFileChecks.H"
 #include "ERF_SrcHeaders.H"
@@ -700,9 +701,11 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
                 }
             } // mfi
 
-            // This call refluxes all "slow" cell-centered variables
-            // (i.e. not density or (rho theta) or velocities) from the lev/lev+1 interface onto lev
-            getAdvFluxReg(lev+1)->Reflux(vars_new[lev][Vars::cons], 2, 2, ncomp-2);
+            // This call refluxes the cell-centered variables from the lev/lev+1 interface onto lev:
+            // all "slow" variables, plus (rho theta) on anelastic levels. Density is never refluxed
+            // (it is fixed on anelastic levels), nor is (rho theta) on compressible levels.
+            int reflux_comp = (solverChoice.anelastic[lev]) ? RhoTheta_comp : RhoTheta_comp + 1;
+            getAdvFluxReg(lev+1)->Reflux(vars_new[lev][Vars::cons], reflux_comp, reflux_comp, ncomp-reflux_comp);
 
             // Here we multiply (rho S) by m^2 after refluxing
             for (MFIter mfi(vars_new[lev][Vars::cons], TilingIfNotGPU()); mfi.isValid(); ++mfi) {
@@ -4839,9 +4842,11 @@ ERF::check_mesh_type (int lev)
    if (SolverChoice::mesh_type == MeshType::VariableDz) {
        MultiFab z_slab(convert(ba2d[lev],IntVect(1,1,1)),dmap[lev],1,0);
        int klo = geom[lev].Domain().smallEnd(2);
+       // The ground nodes under every box, including those that start above the ground
+       const auto z_ground = copy_ground_plane(*z_phys_nd[lev], klo);
        for (MFIter mfi(z_slab); mfi.isValid(); ++mfi) {
            Box nbx = mfi.tilebox();
-           Array4<Real const> const& z_arr      = z_phys_nd[lev]->const_array(mfi);
+           Array4<Real const> const& z_arr      = z_ground->const_array(mfi);
            Array4<Real      > const& z_slab_arr = z_slab.array(mfi);
            ParallelFor(nbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
            {

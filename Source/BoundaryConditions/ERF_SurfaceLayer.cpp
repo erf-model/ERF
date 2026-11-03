@@ -1730,22 +1730,22 @@ SurfaceLayer::compute_SurfaceLayer_bcs_EB (const int& lev,
  *
  * @param[in] lev       Current level
  * @param[in] cons_in   Conserved state supplying the first-cell density
- * @param[in] sfc_tflux Sensible heat flux H [W/m2]
- * @param[in] sfc_qflux Latent heat flux LE [W/m2]
+ * @param[in] tflux_in  Sensible heat flux H [W/m2]
+ * @param[in] qflux_in  Latent heat flux LE [W/m2]
  * @param[in] sfc_tau   Kinematic surface stress TAU [m2/s2]
  */
 void
 SurfaceLayer::set_sfc_params_from_file_fluxes (const int& lev,
                                                const MultiFab& cons_in,
-                                               const Real& sfc_tflux,
-                                               const Real& sfc_qflux,
+                                               const Real& tflux_in,
+                                               const Real& qflux_in,
                                                const Real& sfc_tau)
 {
     u_star[lev]->setVal(std::sqrt(sfc_tau));
 
     const int klo = m_geom[lev].Domain().smallEnd(2);
-    const Real rho_tflux = sfc_tflux / Cp_d;
-    const Real rho_qflux = sfc_qflux / L_v;
+    const Real rho_tflux = tflux_in / Cp_d;
+    const Real rho_qflux = qflux_in / L_v;
 
     for (MFIter mfi(*t_star[lev]); mfi.isValid(); ++mfi)
     {

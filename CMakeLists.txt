@@ -208,7 +208,7 @@ endif()
 option(ERF_ENABLE_TOOLS "Enable building of additional tools" OFF)
 
 #Options for C++
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -432,7 +432,7 @@ if(ERF_ENABLE_EKAT)
     set(Kokkos_ENABLE_SYCL_LAMBDA ON CACHE BOOL "kokkos enable sycl lambda")
   endif()
 
-  set(CMAKE_CXX_STANDARD 17)
+  set(CMAKE_CXX_STANDARD 20)
   set(EKAT_ENABLE_MPI ON CACHE BOOL "ekat enable mpi")
   set(EKAT_ENABLE_TESTS OFF CACHE BOOL "ekat enable tests")
   set(EKAT_ENABLE_KOKKOS ON CACHE BOOL "ekat enable kokkos")

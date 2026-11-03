@@ -976,14 +976,14 @@ ERF::convert_legacy_precip_accumulations (int lev)
             ? " from the old rain_accum, which held the total, and taking the snow and graupel out of rain_accum"
             : " as the sum of rain_accum, snow_accum and graupel_accum"));
 
-    MultiFab& precip = *qmoist[lev][mi.precip_accum];
-    MultiFab& rain   = *qmoist[lev][mi.rain_accum];
+    MultiFab& precip_mf = *qmoist[lev][mi.precip_accum];
+    MultiFab& rain      = *qmoist[lev][mi.rain_accum];
     const MultiFab* snow    = (mi.snow_accum    >= 0) ? qmoist[lev][mi.snow_accum]    : nullptr;
     const MultiFab* graupel = (mi.graupel_accum >= 0) ? qmoist[lev][mi.graupel_accum] : nullptr;
 
-    for (MFIter mfi(precip); mfi.isValid(); ++mfi) {
+    for (MFIter mfi(precip_mf); mfi.isValid(); ++mfi) {
         const Box& bx = mfi.fabbox();
-        const auto p_arr = precip.array(mfi);
+        const auto p_arr = precip_mf.array(mfi);
         const auto r_arr = rain.array(mfi);
         const auto s_arr = (snow)    ? snow->const_array(mfi)    : Array4<const Real>{};
         const auto g_arr = (graupel) ? graupel->const_array(mfi) : Array4<const Real>{};
@@ -1247,22 +1247,11 @@ ERF::ReadCheckpointFile ()
             (regrid_level_0_on_restart || ba.size() < ParallelDescriptor::NProcs()))
         {
             //
-            // Coarsening before we split the grids ensures that each resulting
-            // grid will have an even number of cells in each direction.
+            // The grids a fresh start would build.  MakeBaseGrids keeps every box inside the
+            // domain when a direction has an odd number of cells (it then does not coarsen
+            // that direction before splitting), and it honours amr.no_box_split_dir.
             //
-            BoxArray new_ba(amrex::coarsen(Geom(0).Domain(),2));
-            //
-            // Now split up into list of grids within max_grid_size[0] limit.
-            //
-            new_ba.maxSize(max_grid_size[0]/2);
-            //
-            // Now refine these boxes back to level zero
-            //
-            new_ba.refine(2);
-
-            if (refine_grid_layout) {
-                ChopGrids(0, new_ba, ParallelDescriptor::NProcs());
-            }
+            BoxArray new_ba = MakeBaseGrids();
 
             if (new_ba != ba) {
                 ba_target = new_ba;

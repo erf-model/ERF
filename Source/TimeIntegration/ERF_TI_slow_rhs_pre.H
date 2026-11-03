@@ -282,6 +282,14 @@
                          cloud_chamber_config.active ? &cloud_chamber_config : nullptr,
                          cloud_chamber_budget.get());
 
+        // Anelastic coarse/fine faces in time (ERF_CoarseFineFaces.cpp): a coarse level adds
+        // this stage's mass fluxes to those of its step, a fine level registers the coarse
+        // momenta its coarse/fine faces are filled from in this stage
+        if (solverChoice.anelastic[level]) {
+            if (level < finest_level) { cf_anelastic_record(level, nrk); }
+            if (level > 0)            { cf_anelastic_stage_registration(level, nrk); }
+        }
+
         if ((solverChoice.vert_implicit_fac[level][nrk] > zero_d) && solverChoice.implicit_before_substep) {
             const Real stage_dt = static_cast<Real>(slow_dt);
             /**
@@ -327,6 +335,12 @@
             }
 
 #include "ERF_ImplicitPre.H"
+
+            // NOTE: the implicit part of the vertical (rho theta) diffusion is not added to the flux
+            //       registers.  (rho theta) is refluxed only on anelastic levels, and there no stage
+            //       whose fluxes are registered solves implicitly: RK2 turns the solve off, and
+            //       MidPoint solves in stage 0 but registers stage 1 (see SolverChoice and
+            //       StageFluxWeight).
 
             MultiFab::Saxpy(scratch, -one_d, S_old[IntVars::cons], 1, 1, 1, 0); // scratch  := (S_new - S_old)           (for rhotheta only)
             scratch.mult(one_d / stage_dt);                                 // scratch  := (S_new - S_old) / stage_dt

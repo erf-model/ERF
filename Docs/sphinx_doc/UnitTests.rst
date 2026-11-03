@@ -98,7 +98,7 @@ Prerequisites
 ERF unit tests require:
 
 - CMake 3.20 or newer;
-- a C++17 compiler;
+- a C++20 compiler;
 - the ERF submodules;
 - MPI for the parallel suite;
 - the libraries and runtime required by the selected ERF backend.
@@ -871,7 +871,7 @@ Keep tests portable
 
 A new test must preserve ERF's supported build configurations.
 
-- Use standard C++17.
+- Use standard C++20.
 - Use ``amrex::Real`` for ERF real-valued state.
 - Respect single and double precision.
 - Keep host-only code out of device paths.

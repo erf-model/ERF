@@ -140,6 +140,9 @@ target_sources(${erf_exe_name}
     # Motivation: reusable scalar advection must honor explicit source, flux, and
     # tendency components instead of inferring primitive storage from native cons layout.
     ${CMAKE_CURRENT_SOURCE_DIR}/Advection/ERF_GTestScalarAdvection.cpp
+    # Motivation: with an EB that cuts no cell, EB momentum advection must equal the non-EB
+    # operator, map factors included: x-face mass fluxes divide by m_y, y-face ones by m_x.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Advection/ERF_GTestEBMomMapFactors.cpp
     # Motivation: the z-momentum box must be shrunk only at the bottom and top of the
     # domain, so that a grid split in z leaves no w-face without a source term.
     ${CMAKE_CURRENT_SOURCE_DIR}/Advection/ERF_GTestZmomBoxDecomposition.cpp
@@ -310,6 +313,9 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestTerrainFileChecks.cpp
     # Motivation: a BTF fine level's mesh must not depend on how its grids are split in z.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestTerrainFineColumns.cpp
+    # Motivation: the average down over immersed-forcing levels must weight the fine cells by
+    # their fluid mass and leave coarse cells that are solid on their own level alone.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestImmersedAverageDown.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/HashRng/ERF_GTestHashRngScalar.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/HashRng/ERF_GTestHashRngKernel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/EOS/ERF_GTestEOSScalar.cpp
@@ -536,7 +542,18 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3" AND
   add_sbm_expected_failure_test(SBM_M3_Fixed_Unsafe_Anelastic_Stretched_Donor_DT
     inputs_adaptive_anelastic_stretched_donor
     "SBM M3 fixed timestep exceeds donor positivity limit"
-    "-DOVERRIDE=erf.fixed_dt=0.05")
+    "-DOVERRIDE=erf.fixed_dt=0.08")
+  # The limit on this deck is 1/14.4 s = 0.0694 s, from the outflow rate U/dx + V/dy + W/dz of the
+  # 0.1 thick bottom cell: the estimate must see the same mapped faces as the transport
+  add_test(NAME SBM_M3_Fixed_Safe_Anelastic_Stretched_Donor_DT
+    COMMAND $<TARGET_FILE:erf_exec>
+      ${PROJECT_SOURCE_DIR}/Tests/test_files/SBM/inputs_adaptive_anelastic_stretched_donor
+      erf.fixed_dt=0.068 erf.check_int=-1 amrex.call_addr2line=0
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+  set_tests_properties(SBM_M3_Fixed_Safe_Anelastic_Stretched_Donor_DT PROPERTIES
+    LABELS "integration;sbm"
+    RUN_SERIAL TRUE
+    TIMEOUT 120)
   add_sbm_expected_failure_test(SBM_M3_Reject_Legacy_Zero_Transport inputs_zero_carrier
     "erf.sbm_zero_transport_fixture=true is obsolete"
     "-DOVERRIDE=erf.sbm_zero_transport_fixture=true")
@@ -802,6 +819,8 @@ if(ERF_ENABLE_MPI)
       ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestTerrainFineColumns.cpp
       # The boxes are spread over the ranks, so a k may be held by another rank only
       ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestReduceToMaxPerHeight.cpp
+      # The immersed average down copies the fine sums to the coarse layout: check it across ranks
+      ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestImmersedAverageDown.cpp
   )
   if(ERF_ENABLE_NETCDF)
     # The terrain reader opens the fixture only on the I/O rank and then

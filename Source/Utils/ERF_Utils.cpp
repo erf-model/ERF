@@ -118,3 +118,86 @@ make_qt (const MultiFab& cons_state, MultiFab& qt, int n_qstate_into_total)
 
     MultiFab::Divide(qt, cons_state, Rho_comp, 0, 1, qt.nGrowVect());
 }
+
+/**
+ * Fluid-mass-weighted average down over immersed-forcing levels (see ERF_Utils.H).
+ */
+void
+if_average_down (const MultiFab& S_fine, MultiFab& S_crse,
+                 const MultiFab& beta_fine, const MultiFab& beta_crse,
+                 const MultiFab& vol_fine,
+                 int scomp, int ncomp, const IntVect& ratio)
+{
+    BL_PROFILE("if_average_down()");
+    AMREX_ALWAYS_ASSERT(S_fine.is_cell_centered() && S_crse.is_cell_centered());
+    AMREX_ALWAYS_ASSERT(scomp >= 0 && ncomp > 0 && scomp + ncomp <= S_crse.nComp());
+    AMREX_ALWAYS_ASSERT(S_fine.boxArray().coarsenable(ratio));
+    AMREX_ALWAYS_ASSERT(beta_fine.boxArray() == S_fine.boxArray() && vol_fine.boxArray() == S_fine.boxArray());
+    AMREX_ALWAYS_ASSERT(beta_fine.DistributionMap() == S_fine.DistributionMap() &&
+                        vol_fine.DistributionMap() == S_fine.DistributionMap());
+    AMREX_ALWAYS_ASSERT(beta_crse.boxArray() == S_crse.boxArray() &&
+                        beta_crse.DistributionMap() == S_crse.DistributionMap());
+
+    // Per coarse cell, on the coarsened fine layout: the fluid-mass-weighted sums of the
+    // components, the fluid volume and the fluid mass
+    BoxArray cba = S_fine.boxArray(); cba.coarsen(ratio);
+    const int nsum = ncomp + 2;
+    MultiFab csum(cba, S_fine.DistributionMap(), nsum, 0);
+    const int rx = ratio[0], ry = ratio[1], rz = ratio[2];
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(csum, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        auto const c = csum.array(mfi);
+        auto const f = S_fine.const_array(mfi);
+        auto const b = beta_fine.const_array(mfi);
+        auto const v = vol_fine.const_array(mfi);
+        ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real w = zero, wr = zero;
+            for (int n = 0; n < ncomp; ++n) { c(i,j,k,n) = zero; }
+            for (int kk = k*rz; kk < (k+1)*rz; ++kk) {
+            for (int jj = j*ry; jj < (j+1)*ry; ++jj) {
+            for (int ii = i*rx; ii < (i+1)*rx; ++ii) {
+                // fluid volume of the fine cell (prvalues: the constants are not odr-used)
+                const Real wf = (one - amrex::min(amrex::max(b(ii,jj,kk), Real(zero)), Real(one)))
+                              * v(ii,jj,kk);
+                w  += wf;
+                wr += wf * f(ii,jj,kk,Rho_comp);
+                for (int n = 0; n < ncomp; ++n) { c(i,j,k,n) += wf * f(ii,jj,kk,scomp+n); }
+            }}}
+            c(i,j,k,ncomp)   = w;
+            c(i,j,k,ncomp+1) = wr;
+        });
+    }
+
+    // The sums on the coarse layout: zero where the fine level does not cover the coarse level
+    MultiFab csum_c(S_crse.boxArray(), S_crse.DistributionMap(), nsum, 0);
+    csum_c.setVal(zero);
+    csum_c.ParallelCopy(csum, 0, 0, nsum);
+
+#ifdef _OPENMP
+#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
+#endif
+    for (MFIter mfi(S_crse, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        auto const s  = S_crse.array(mfi);
+        auto const c  = csum_c.const_array(mfi);
+        auto const bc = beta_crse.const_array(mfi);
+        ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            // uncovered coarse cells, coarse cells solid on their own level and coarse cells
+            // without a fluid fine cell under them keep their value
+            if (c(i,j,k,ncomp) > zero && c(i,j,k,ncomp+1) > zero && bc(i,j,k) < one) {
+                // the coarse density: the fluid-volume mean of the fine density when it is in
+                // the range, else the coarse cell's own
+                const Real rho_c = (scomp == Rho_comp) ? c(i,j,k,ncomp+1) / c(i,j,k,ncomp)
+                                                       : s(i,j,k,Rho_comp);
+                const Real fac = rho_c / c(i,j,k,ncomp+1);
+                for (int n = 0; n < ncomp; ++n) {
+                    s(i,j,k,scomp+n) = (scomp+n == Rho_comp) ? rho_c : fac * c(i,j,k,n);
+                }
+            }
+        });
+    }
+}

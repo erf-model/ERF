@@ -105,6 +105,12 @@ validate_flat_terrain (int lev,
                        const amrex::MultiFab& z_phys_nd,
                        const amrex::Vector<amrex::Real>& z_levels_h);
 
+/** Abort unless z_phys_nd is the same at every node of the top of the domain. */
+void
+validate_flat_top (int lev,
+                   const amrex::Geometry& geom,
+                   const amrex::MultiFab& z_phys_nd);
+
 /**
  * Initialize the terrain grid mapping.
  *

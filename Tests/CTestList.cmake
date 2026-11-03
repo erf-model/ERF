@@ -178,6 +178,42 @@ function(add_test_anelastic_wall_diffusion TEST_NAME TEST_AXIS)
         ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
 endfunction(add_test_anelastic_wall_diffusion)
 
+# Two-level immersed-forcing case checked against the fluid-mass-weighted fine average
+# (Tests/ImmersedAverageDownCheck.cpp). EXPECT_CHECKER_FAIL ON registers the leg that must fail
+# the check (the plain average), so the test proves the check sees the difference.
+function(add_test_immersed_average_down TEST_NAME TEST_FILES_DIR TOL EXPECT_CHECKER_FAIL RUNTIME_OPTIONS)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(test_input "${CURRENT_TEST_BINARY_DIR}/${TEST_FILES_DIR}.i")
+    set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
+    set(test_checker_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.checker.log")
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT=${test_input}"
+        "-DRUNTIME_OPTIONS=${RUNTIME_OPTIONS}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DSIMULATION_LOG=${test_simulation_log}"
+        "-DCHECKER_LOG=${test_checker_log}"
+        "-DCHECKER=$<TARGET_FILE:erf_immersed_average_down_check>"
+        "-DPLOTFILE=${CURRENT_TEST_BINARY_DIR}/plt00005"
+        "-DTOL=${TOL}"
+        "-DEXPECT_CHECKER_FAIL=${EXPECT_CHECKER_FAIL}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunImmersedAverageDown.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1800
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;multilevel;immersed"
+        ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
+endfunction(add_test_immersed_average_down)
+
 # Checker-driven Cloud Chamber tests.  The short run checks the exact initial
 # conserved-state correction and a bounded early buoyant response; it
 # intentionally avoids a fragile turbulent gold file.
@@ -2077,6 +2113,13 @@ add_test_r(ABL_MYNN_PBL                      ""  "erf_exec" "plt00100" INPUT_SOU
 # RunTilingParity.cmake calls mpiexec and fcompare through execute_process,
 # which neither drops an empty MPIEXEC nor expands the Windows exe globs.
 if(ERF_ENABLE_MPI AND NOT WIN32)
+  # Immersed LES on two levels with the surface on a coarse mid-plane and a theta gradient: with
+  # erf.if_average_down = fluid_mass every covered coarse cell is the fluid-mass-weighted average
+  # of the fine cells over it; the plain average (the default) mixes the solid fine cell in,
+  # 0.10 K off here, and must fail the same check.
+  add_test_immersed_average_down(ImmersedLES2LevAverageDown ImmersedLES2LevAverageDown 0.001 OFF "")
+  add_test_immersed_average_down(ImmersedLES2LevAverageDown_Plain ImmersedLES2LevAverageDown 0.001 ON
+                                 "erf.if_average_down=plain")
   # Box, rank and tiling parity of the other closures: one box on one rank without tiling
   # against four boxes on two ranks with 8 x 8 tiles (Tests/test_files/Closure_BoxParity).
   set(_cbp_ref   "amr.max_grid_size_x=32 amr.max_grid_size_y=32 fabarray.mfiter_tile_size=1024 1024 1024")
@@ -2915,6 +2958,23 @@ add_test_conservation(Conservation_ScalarAdvection_AnelasticRK2 ScalarDiffusion_
     OPTIONS "erf.anelastic=1 erf.anelastic_type=RK2 erf.molec_diff_type=None prob.U_0=10 prob.V_0=5")
 add_test_conservation(Conservation_ScalarDiffusion_Smagorinsky ScalarDiffusion_Reflux "RHO SCALAR"
     OPTIONS "erf.molec_diff_type=None erf.les_type=Smagorinsky erf.Cs=0.2 prob.prob_type=12 prob.rad_0=0.25 prob.uRef=10 prob.zRef=1 prob.z0=0.01")
+
+# On anelastic levels two-way coupling also refluxes (rho theta), advective and diffusive fluxes
+# alike, so the composite integral of rho theta is conserved too (compressible levels do not reflux
+# it).  theta is perturbed with the scalar's profile and diffused (alpha_T) through the faces of the
+# fine patch: on a flat, a stretched and a terrain-fitted (hill, 2 x 2 x 1 refinement as anelastic
+# terrain requires) mesh, with the MidPoint and RK2 integrators, and advected and not diffused
+set(_theta_cons_options "erf.anelastic=1 prob.theta_pert_amp=10 erf.alpha_T=1.0")
+add_test_conservation(Conservation_ThetaDiffusion_Anelastic ScalarDiffusion_Reflux "RHO THETA"
+    OPTIONS "${_theta_cons_options} erf.anelastic_type=MidPoint")
+add_test_conservation(Conservation_ThetaDiffusion_AnelasticRK2 ScalarDiffusion_Reflux "RHO THETA"
+    OPTIONS "${_theta_cons_options} erf.anelastic_type=RK2")
+add_test_conservation(Conservation_ThetaDiffusion_AnelasticStretched ScalarDiffusion_Reflux "RHO THETA"
+    OPTIONS "${_theta_cons_options} erf.anelastic_type=RK2 erf.initial_dz=0.025")
+add_test_conservation(Conservation_ThetaDiffusion_AnelasticHill ScalarDiffusion_Reflux "RHO THETA"
+    OPTIONS "${_theta_cons_options} erf.anelastic_type=RK2 erf.terrain_type=StaticFittedMesh prob.custom_terrain_type=WoA prob.dir=2 prob.hmax=0.25 prob.L=0.15 'amr.ref_ratio_vect=2 2 1'")
+add_test_conservation(Conservation_ThetaAdvection_AnelasticRK2 ScalarDiffusion_Reflux "RHO THETA"
+    OPTIONS "${_theta_cons_options} erf.anelastic_type=RK2 erf.molec_diff_type=None prob.U_0=10 prob.V_0=5")
 
 # Under two-way coupling with acoustic substepping the fine level takes the fluxes through its
 # coarse/fine faces from the coarse level's substeps (erf.cf_flux_history), so in a closed domain
@@ -4754,6 +4814,140 @@ if(NOT WIN32 AND ERF_TEST_PYTHON)
     add_test_moist_pert(${_case}_RandomAndSineQv_Sum ${_case} inputs_Kessler_regtest ${_s} "--vars qv ${_mp_sum_tol}"
                         base "prob.qv_0_Pert_Mag=2.5e-5" "prob.pert_deltaQV=2.5e-5" "prob.qv_0_Pert_Mag=2.5e-5 prob.pert_deltaQV=2.5e-5")
   endforeach()
+endif()
+
+#=============================================================================
+# Anelastic advection of the slow scalars (Exec/RegTests/AnelasticScalarAdvection)
+#
+# AdvectionSrcForScalars expects the momenta that advect the scalars with their face areas
+# and map factors, and with Omega in the vertical.  Each test runs a deck and passes its
+# plotfile to a check script against an exact answer: the drift U t of a blob on every level
+# (Fitted, Stretched), the drift U t m / dx with map factors and the compressible run as a
+# reference (MapFactor), or a uniform scalar and theta that stay uniform over a hill (Hill).
+# Multigrid solves the projection in the cases that need no FFT build, so they run in CI.
+# The plotfile reader, Exec/Tools/erf_plotfile.py, is written for double precision.
+#=============================================================================
+function(add_test_anelastic_scalar_advection TEST_NAME INPUT_FILE NSTEPS)
+    cmake_parse_arguments(ARG "" "REFERENCE_INPUT;RUNTIME_OPTIONS" "CHECK" ${ARGN})
+    set(_case_dir ${PROJECT_SOURCE_DIR}/Exec/RegTests/AnelasticScalarAdvection)
+    set(_binary_dir ${CMAKE_CURRENT_BINARY_DIR}/test_files/${TEST_NAME})
+    file(MAKE_DIRECTORY ${_binary_dir})
+    if(ERF_ENABLE_MPI)
+        set(NP ${ERF_TEST_NRANKS})
+        set(_mpi "${ERF_SH_MPI_LAUNCHER}${MPIEXEC_NUMPROC_FLAG} ${NP} ${MPIEXEC_PREFLAGS}")
+    else()
+        set(NP 1)
+        set(_mpi "")
+    endif()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    string(LENGTH "${NSTEPS}" _len)
+    math(EXPR _pad "5 - ${_len}")
+    string(REPEAT "0" ${_pad} _zeros)
+    set(_step "${_zeros}${NSTEPS}")
+    set(_options "max_step=${NSTEPS} erf.plot_int_1=${NSTEPS} erf.check_int=-1 ${ARG_RUNTIME_OPTIONS}")
+    set(_log ${_binary_dir}/${TEST_NAME}.log)
+    # Remove the plotfiles of an earlier pass, so a run that stops early cannot be checked
+    # against them, and show the end of the log of a run that fails
+    set(_run "${_mpi} ${TEST_EXE} ${_case_dir}/${INPUT_FILE} ${_options} erf.plot_file_1=plt > ${_log} 2>&1 || ( tail -n 40 ${_log} && false )")
+    set(_clean "${_binary_dir}/plt*")
+    set(_plotfiles "${_binary_dir}/plt${_step}")
+    if(ARG_REFERENCE_INPUT)
+        set(_run "( ${_mpi} ${TEST_EXE} ${_case_dir}/${ARG_REFERENCE_INPUT} ${_options} erf.plot_file_1=ref_plt > ${_log}.ref 2>&1 || ( tail -n 40 ${_log}.ref && false ) ) && ${_run}")
+        set(_clean "${_clean} ${_binary_dir}/ref_plt*")
+        set(_plotfiles "${_plotfiles} ${_binary_dir}/ref_plt${_step}")
+    endif()
+    list(JOIN ARG_CHECK " " _check)
+    string(REPLACE "PLOTFILES" "${_plotfiles}" _check "${_check}")
+    add_test(${TEST_NAME} sh -c
+        "rm -rf ${_clean} && ${_run} && ${ERF_TEST_PYTHON} ${_case_dir}/${_check}")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${_binary_dir}/"
+        LABELS "regression;anelastic" ATTACHED_FILES_ON_FAIL "${_log}")
+endfunction(add_test_anelastic_scalar_advection)
+
+if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_MapFactor inputs_mapfac_anelastic 60
+      REFERENCE_INPUT inputs_mapfac_compressible CHECK check_mapfac_parity.py PLOTFILES)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Fitted inputs_fitted 50
+      CHECK check_scalar_centroid.py PLOTFILES)
+  set(_hill_tol 1.0e-4)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill inputs_hill 30
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol})
+  # Boxes split in z: the lowest and highest w-face of a box read the horizontal momenta from ghost faces
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_SplitZ inputs_hill 30
+      RUNTIME_OPTIONS "amr.no_box_split_dir=-1 amr.max_grid_size_x=16 amr.max_grid_size_y=16 amr.max_grid_size_z=6"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol} --require-z-split)
+  # Map factors over terrain: the vertical flux carries 1 / (mf_mx mf_my) only where Omega is nonzero
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_MapFactor inputs_hill 30
+      RUNTIME_OPTIONS "erf.test_mapfactor=true"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol})
+  # Refined patches on the hill's flanks, 2 x 2 x 1, one-way and two-way coupled, through all of
+  # z and stopping inside the domain in z.  Over each coarse step the fine fluxes through the
+  # coarse/fine faces add up to the flux the coarse level's stages applied, in space and in time
+  # (ERF_CoarseFineFaces.cpp), and two-way coupling averages the momenta down as mass fluxes, so
+  # a uniform scalar and theta stay uniform to the projection's tolerance.  The tolerance is set
+  # to 1e-12 so that its floor (1e-7 at the default 1e-6) does not hide a real departure:
+  # measured 1.8e-11 at most.  Two-way used to depart by 2.2e-4 through all of z, and by 8.7e-3
+  # stopping inside the domain in z (with a non-uniform flow), next to the patch.
+  set(_hill_amr "amr.max_level=1 'amr.ref_ratio_vect=2 2 1' erf.refinement_indicators=box1 erf.box1.max_level=1 erf.poisson_reltol=1e-12 erf.poisson_abstol=1e-12")
+  set(_hill_full "'erf.box1.in_box_lo_indices_crse=8 12 0' 'erf.box1.in_box_hi_indices_crse=19 23 11'")
+  set(_hill_part "'erf.box1.in_box_lo_indices_crse=8 12 2' 'erf.box1.in_box_hi_indices_crse=19 23 8'")
+  set(_hill_amr_tol 1.0e-9)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_TwoLevels inputs_hill 30
+      RUNTIME_OPTIONS "${_hill_amr} ${_hill_full} erf.coupling_type=OneWay"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_PartialDepth inputs_hill 30
+      RUNTIME_OPTIONS "${_hill_amr} ${_hill_part} erf.coupling_type=OneWay"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_TwoWay inputs_hill 30
+      RUNTIME_OPTIONS "${_hill_amr} ${_hill_full}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  # Map factors that vary in space on level 0 (as if read from its init file), which the fine
+  # level, having no file of its own, interpolates.  The fine map factors must be in place before
+  # the initial projection, or the first step departs by ~1e-2 (erf-model/ERF#4905)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_TwoLevels_VaryingMapFactor inputs_hill 30
+      RUNTIME_OPTIONS "${_hill_amr} ${_hill_full} erf.coupling_type=OneWay erf.test_mapfactor_amp=0.2"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_TwoWay_VaryingMapFactor inputs_hill 30
+      RUNTIME_OPTIONS "${_hill_amr} ${_hill_full} erf.test_mapfactor_amp=0.2"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  # The same with a patch that does not span the full depth: its coarse/fine faces in z take the
+  # vertical flux Omega / (m_x m_y) from the coarse level, not Omega, or with the map factors varying
+  # in a coarse column the level's boundary fluxes do not add up to zero (erf-model/ERF#4922)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_PartialDepth_VaryingMapFactor inputs_hill 30
+      RUNTIME_OPTIONS "${_hill_amr} ${_hill_part} erf.coupling_type=OneWay erf.test_mapfactor_amp=0.2"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_PartialDepth_TwoWay_VaryingMapFactor inputs_hill 30
+      RUNTIME_OPTIONS "${_hill_amr} ${_hill_part} erf.test_mapfactor_amp=0.2"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_PartialDepth_TwoWay inputs_hill 30
+      RUNTIME_OPTIONS "${_hill_amr} ${_hill_part}"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_amr_tol} --require-level)
+  # The other anelastic integrator (the default is RK2)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_MidPoint inputs_hill 30
+      RUNTIME_OPTIONS "erf.anelastic_type=MidPoint"
+      CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol})
+  # A wind that varies in time, for both integrators: the error is second order in dt
+  # (measured 0.072 m at dt = 0.4 s; with the momenta of the end of each stage it was 3.4 m)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Inertial_RK2 inputs_inertial 40
+      RUNTIME_OPTIONS "erf.anelastic_type=RK2"
+      CHECK check_inertial_drift.py PLOTFILES)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Inertial_MidPoint inputs_inertial 40
+      RUNTIME_OPTIONS "erf.anelastic_type=MidPoint"
+      CHECK check_inertial_drift.py PLOTFILES)
+  # The time step from erf.cfl with map factors
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_CFL_MapFactor inputs_mapfac_anelastic 5
+      RUNTIME_OPTIONS "erf.fixed_dt=-1 erf.cfl=0.5 erf.change_max=100"
+      CHECK check_cfl_dt.py PLOTFILES)
+  if(ERF_ENABLE_FFT)
+    # A stretched mesh without terrain has only the FFT projection
+    add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Stretched inputs_stretched 50
+        CHECK check_scalar_centroid.py PLOTFILES)
+    # The default projection on a terrain-fitted mesh, FFT-preconditioned GMRES
+    add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Hill_GmresFFT inputs_hill 30
+        RUNTIME_OPTIONS "erf.terrain_poisson_solver=gmres_fft"
+        CHECK check_uniform_scalar.py PLOTFILES ${_hill_tol})
+  endif()
 endif()
 
 #=============================================================================

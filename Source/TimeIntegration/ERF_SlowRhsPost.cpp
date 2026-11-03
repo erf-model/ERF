@@ -265,22 +265,11 @@ void erf_slow_rhs_post (int level, int finest_level,
     //       components come from the LES model or are left as zero.
     // *************************************************************************
 
-    // EB Anelastic: Copy projected momentum with ghost-cell synchronization
-    if (l_anelastic && l_use_eb) {
-        avg_xmom.ParallelCopy(S_data[IntVars::xmom], 0, 0, 1, 0, 1, geom.periodicity());
-        avg_ymom.ParallelCopy(S_data[IntVars::ymom], 0, 0, 1, 0, 1, geom.periodicity());
-        avg_zmom.ParallelCopy(S_data[IntVars::zmom], 0, 0, 1, 0, 1, geom.periodicity());
-    }
-
-    // Non-EB Anelastic: the slow scalars are advected with the projected momentum.  Copy it
-    // before the tile loop below: a copy per tile inside that loop left the faces of the tiles
-    // not yet visited at their values from the previous stage while earlier tiles were already
-    // advecting with them, so the scalars depended on the tile size.
-    if (l_anelastic && !l_use_eb) {
-        MultiFab::Copy(avg_xmom, S_data[IntVars::xmom], 0, 0, 1, 0);
-        MultiFab::Copy(avg_ymom, S_data[IntVars::ymom], 0, 0, 1, 0);
-        MultiFab::Copy(avg_zmom, S_data[IntVars::zmom], 0, 0, 1, 0);
-    }
+    // Anelastic: the slow scalars are advected with the momenta (EB)AdvectionSrcForRho set in
+    // erf_slow_rhs_pre from the start of this stage (ax rho_u / mf_uy, ay rho_v / mf_vx,
+    // az Omega / (mf_mx mf_my); with EB the area fractions are applied to the fluxes instead),
+    // the same faces that advect theta.  These momenta are already projected, by the previous
+    // stage or step.
 
     // M2 proof consumer: run after the stage carrier is final and before the
     // caller copies S_data over S_new, preserving the predictor density view.
@@ -866,12 +855,16 @@ void erf_slow_rhs_post (int level, int finest_level,
         {
         BL_PROFILE("rhs_post_10()");
         if (l_anelastic && terrain_blank) { // explicitly set fully immersed cells to have 0 velocities for anelastic (unstable for fully compressible).
+            // With erf.if_implicit_projection the drag of the solid is inside the projection, which
+            // already left these momenta divergence free; zeroing the faces between solid cells here
+            // would leave the surface faces unbalanced (a mass sink in the solid below them).
+            const bool l_freeze_mom = !solverChoice.if_implicit_projection;
             ParallelFor(xtbx, ytbx, ztbx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                 // Use face-centered terrain_blanking if available, otherwise average from cell centers
                 Real t_blank = (t_blank_xface_arr) ? t_blank_xface_arr(i, j, k) :
                                myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
-                if (t_blank == one) {
+                if (l_freeze_mom && t_blank == one) {
                     new_xmom(i,j,k) = zero;
                 } else {
                     new_xmom(i,j,k) = cur_xmom(i,j,k);
@@ -881,7 +874,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                 // Use face-centered terrain_blanking if available, otherwise average from cell centers
                 Real t_blank = (t_blank_yface_arr) ? t_blank_yface_arr(i, j, k) :
                                myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
-                if (t_blank == one) {
+                if (l_freeze_mom && t_blank == one) {
                     new_ymom(i,j,k) = zero;
                 } else {
                     new_ymom(i,j,k) = cur_ymom(i,j,k);
@@ -891,7 +884,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                 // Use face-centered terrain_blanking if available, otherwise average from cell centers
                 Real t_blank = (t_blank_zface_arr) ? t_blank_zface_arr(i, j, k) :
                                myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
-                if (t_blank == one) {
+                if (l_freeze_mom && t_blank == one) {
                     new_zmom(i,j,k) = zero;
                 } else {
                     new_zmom(i,j,k) = cur_zmom(i,j,k);

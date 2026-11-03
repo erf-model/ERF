@@ -2,6 +2,7 @@
 #include "ERF_SLM_DefaultParams.H"
 #include "ERF_EOS.H"
 #include "ERF_TileNoZ.H"
+#include "ERF_PlanarBoundary.H"
 #include "ERF_MicrophysicsUtils.H"
 #include <AMReX_PlotFileUtil.H>
 #include "ERF.H"
@@ -475,9 +476,12 @@ SLM::Init (const int& /*lev*/,
     // Following Noah-MP, zref is modified to become ztop (canopy top height) + dz0 (height above the ground of the center of the atmosphere's lowest cell)
     if (!use_wrfinput) {
         Real dz       = m_geom.CellSize(2);
+        // The ground nodes under every box, including those that start above the ground
+        const auto z_ground = (use_terrain) ? copy_ground_plane(*z_phys_nd, m_geom.Domain().smallEnd(2))
+                                            : std::unique_ptr<MultiFab>{};
         for ( MFIter mfi(cons_in,TileNoZ()); mfi.isValid(); ++mfi) {
             const Box& xybx      = mfi.growntilebox(0);
-            const Array4<const Real>& z_nd_arr = (use_terrain) ? z_phys_nd->const_array(mfi) : Array4<Real>{};
+            const Array4<const Real>& z_nd_arr = (use_terrain) ? z_ground->const_array(mfi) : Array4<Real>{};
             auto ztop_arr = ztop.array(mfi);
             auto zrefxy_arr = zrefxy.array(mfi);
 
@@ -1365,10 +1369,13 @@ void
 SLM::initialize_zrefxy ()
 {
     const Real dz = m_geom.CellSize(2);
+    // The ground nodes under every box, including those that start above the ground
+    const auto z_ground = use_terrain ? copy_ground_plane(*z_phys_nd, m_geom.Domain().smallEnd(2))
+                                      : std::unique_ptr<MultiFab>{};
     for (MFIter mfi(landtype, TileNoZ()); mfi.isValid(); ++mfi) {
         const Box& xybx = mfi.growntilebox(0);
         const Array4<const Real>& z_nd_arr = use_terrain
-            ? z_phys_nd->const_array(mfi) : Array4<Real>{};
+            ? z_ground->const_array(mfi) : Array4<Real>{};
         auto ztop_arr = ztop.array(mfi);
         auto zrefxy_arr = zrefxy.array(mfi);
         auto landmask_arr = landmask.const_array(mfi);
@@ -3445,7 +3452,13 @@ void SLM::transfer_coeff (const amrex::MFIter &mfi)
         amrex::Real thp = tref_arr(i, j, 0) * std::pow(amrex::Real(1000.0) / pref_arr(i, j, 0), R_d / Cp_d);
 
         amrex::Real vel;
-        // Add additional velocity depending on the stratification
+        // Add additional velocity depending on the stratification.
+        // The two branches are intentionally identical (see issue #4487): following
+        // SLM in gSAM (the global version of SAM), vel does not depend on the
+        // stratification.  The original SAM SLM added a stratification-dependent
+        // velocity scale (U_c = 0.1 m/s if stable, U_c = 1 m/s if unstable); gSAM
+        // instead uses vel = max(0.5, |U|).  The if-else is kept so that a
+        // stratification-dependent term can be added back here if needed.
         if ((thp - tsp) >= zero)
         {
             vel = std::max(amrex::Real(myhalf), std::sqrt(amrex::Math::powi<2>(ur_arr(i, j, 0)) + amrex::Math::powi<2>(vr_arr(i, j, 0))));
@@ -3457,7 +3470,10 @@ void SLM::transfer_coeff (const amrex::MFIter &mfi)
         const Real d_zref = zref_arr(i,j,0);
 
         amrex::Real r = 9.81 / tsp * (thp * (1.0 + epsv * qr_arr(i, j, 0)) - tsp * (1.0 + epsv * q_sfc_arr(i, j, 0))) * (d_zref - disp_hgt_arr(i, j, 0)) / (vel*vel);
-        r = std::max(amrex::Real(-10.0), std::min(r, amrex::Real(myhalf))); // cap r for stability of iterations
+        // Cap the bulk Richardson number for stability of the iterations.  The upper
+        // cap of 0.5 follows SLM in gSAM; the original SAM SLM used 0.19 (0.2 in older
+        // versions).  See issue #4487.
+        r = std::max(amrex::Real(-10.0), std::min(r, amrex::Real(myhalf)));
         // initial guess
         amrex::Real xsi, fm, fh, xsi1;
         amrex::Real xsim0, xsih0;
