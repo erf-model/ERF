@@ -2794,8 +2794,16 @@ add_test_r(CouetteFlow_ImplicitCF            "" "erf_exec" "plt00050"
 
 # The same closure for the implicit moisture solve in slow_rhs_post (ERF_ImplicitPost.H): a
 # moist layer diffusing down through a fine patch over the lower half of the column
+set(_moist_cf_rtol "1.0e-8")
+if(ERF_PRECISION STREQUAL "SINGLE")
+    # Unchanged upstream accumulates ~6.6e-6 relative density roundoff over 200 steps.
+    # At this deck's qv <= 0.01, the unchanged 1e-7 absolute bound still controls
+    # moisture accuracy and rejects the >8e-7 absolute error of a lagged closure.
+    set(_moist_cf_rtol "1.0e-5")
+endif()
 add_test_r(MoistDiffusion_ImplicitCF         "" "erf_exec" "plt00200"
-           FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "1.0e-7")
+           FCOMPARE_RTOL "${_moist_cf_rtol}" FCOMPARE_ATOL "1.0e-7")
+unset(_moist_cf_rtol)
 
 # CouetteFlow_ImplicitCF with the implicit solves after the last acoustic substep of each stage
 # (erf.implicit_before_substep = false).  Until erf-model/ERF#4333 was fixed the new state's ghost
