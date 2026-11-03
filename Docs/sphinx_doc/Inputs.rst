@@ -926,8 +926,8 @@ List of Parameters
 |                                      | diffusion                                                |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.implicit_moisture_diffusion**  | include the implicit contribution to vertical moisture   | Boolean            | true              |
-|                                      | diffusion of every moisture species (qv only with SBM,   |                    |                   |
-|                                      | whose liquid is owned by the spectral solver)            |                    |                   |
+|                                      | diffusion of host-transported microphysics species       |                    |                   |
+|                                      | (including additional non-water vapor; qv only with SBM) |                    |                   |
 +--------------------------------------+----------------------------------------------------------+--------------------+-------------------+
 | **erf.implicit_ke_diffusion**        | include the implicit contribution to vertical turbulent  | Boolean            | true              |
 |                                      | kinetic energy diffusion                                 |                    |                   |
@@ -1096,9 +1096,12 @@ Notes
      **erf.dynamic_viscosity** with ``Constant`` and **erf.dynamic_viscosity** /
      **erf.rho0_trans** times the largest density around the cell with ``ConstantAlpha`` (the
      stresses take twice it, as they take twice the eddy viscosity).  For theta it is
-     **erf.alpha_T**, and for moisture and the advected scalar **erf.alpha_C**, times
+     **erf.alpha_T**, and for water species and the advected scalar **erf.alpha_C**, times
      **erf.rho0_trans** with ``Constant`` and times the largest density around the cell with
-     ``ConstantAlpha``.  Turbulent kinetic energy has none.  For momentum the rate is the largest of the u, v and w rows,
+     ``ConstantAlpha``. Additional non-water vapor species have no molecular scalar
+     diffusion; the moisture-category timestep estimate still includes the water
+     molecular coefficient and is therefore conservative for those vapors.
+     Turbulent kinetic energy has none. For momentum the rate is the largest of the u, v and w rows,
      :math:`\mu_h (2a+b) + e_{uv}\mu_v/\Delta z^2`, :math:`\mu_h (a+2b) + e_{uv}\mu_v/\Delta z^2`
      and :math:`\mu_v (a+b) + 2 \mu_v/\Delta z^2` (the vertical diffusion of w is always
      explicit; its horizontal diffusion uses :math:`\mu_v`: :math:`\tau_{31}` and
@@ -1138,10 +1141,12 @@ Notes
      default ``1 1 0`` (Crank-Nicolson for the vertical diffusion) and ``1 1 1`` (backward
      Euler) give :math:`e = 0`, and ``0 0 0``, anelastic RK2 (no implicit solve), ``1 0 0``,
      ``0 0 1`` or ``0.995 0.1 0.0666`` (whose last stage amplifies by 1.0008) give :math:`e = 1`.
-     Every moisture variable is in the implicit solve (with SBM only qv,
-     the one the host diffuses), so the moisture term has :math:`e = 1` only when a
-     microphysics model also carries non-water species (packed directly after the water
-     species, these diffuse explicitly), and the advected scalar always does.  If dt times this rate
+     Host-transported microphysics species, including appended non-water vapor,
+     use the same stage-dependent :math:`e` as water species (with SBM only qv,
+     the one the host diffuses). Particle-derived appended condensate is not
+     independently diffused by the host and contributes no separate explicit
+     diffusion restriction. The advected passive scalar remains explicit.
+     If dt times this rate
      exceeds **erf.diffusive_cfl** a warning is printed, repeated on a level only when the
      Fourier number has grown by half.  The default 0.5 is the forward-Euler bound; the
      three-stage scheme is stable to about 0.63 for a pure diffusion.  With

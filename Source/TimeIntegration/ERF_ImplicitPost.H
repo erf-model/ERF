@@ -66,18 +66,7 @@
                 const BCRec* bc_ptr_h = domain_bcs_type.data();
                 const bool l_use_SurfLayer = (m_SurfaceLayer[Orientation(Direction::z, Orientation::low)] != nullptr);
 
-                // Same moisture range as NativeScalarDiffusionPolicy::is_moist (the water
-                // species only), whose explicit vertical flux is scaled by
-                // (1 - vert_implicit_fac).  Non-water species packed after them stay explicit.
-                // With SBM only the host-owned qv is diffused; the projected liquid lanes are
-                // owned by the spectral solver.
                 const bool l_sbm = (solverChoice.moisture_type == MoistureType::SBM);
-                const int l_n_moist = solverChoice.diffChoice.n_qstate_moist;
-                AMREX_ALWAYS_ASSERT(RhoQ1_comp + l_n_moist <= S_new[IntVars::cons].nComp());
-                const int l_moist_end = (l_sbm) ? RhoQ1_comp + amrex::min(l_n_moist, 1)
-                                                : RhoQ1_comp + l_n_moist;
-                erf_sbm::require_host_write_range_allowed(
-                    l_sbm, RhoQ1_comp, l_moist_end - RhoQ1_comp, erf_sbm::HostWritePath::Diffusion);
 
                 for ( MFIter mfi(S_new[IntVars::cons],TileNoZ()); mfi.isValid(); ++mfi)
                 {
@@ -95,7 +84,11 @@
 
                     const Array4<const Real>& mu_turb = l_use_turb ? eddyDiffs->const_array(mfi) :
                                                                      Array4<const Real>{};
-                    for (int m_comp(RhoQ1_comp); m_comp<l_moist_end; ++m_comp) {
+                    for (int m_comp : implicit_post_comps) {
+                        if (m_comp < RhoQ1_comp) { continue; }
+                        AMREX_ALWAYS_ASSERT(m_comp < S_new[IntVars::cons].nComp());
+                        erf_sbm::require_host_write_range_allowed(
+                            l_sbm, m_comp, 1, erf_sbm::HostWritePath::Diffusion);
                         // Neumann values are stored by BC variable, not by state component
                         const int l_bc_comp =
                             ResolveNativeScalarDiffusionPolicy(m_comp, solverChoice.diffChoice).bc_comp;

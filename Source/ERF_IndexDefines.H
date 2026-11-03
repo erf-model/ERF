@@ -143,6 +143,12 @@ int cons_bc_comp (int n) noexcept
     return (n >= RhoScalar_comp + NSCALARS) ? n - (NSCALARS - 1) : n;
 }
 
+AMREX_FORCE_INLINE
+bool cons_bc_run_contiguous (int prev, int next) noexcept
+{
+    return next == prev + 1 && cons_bc_comp(next) == cons_bc_comp(prev) + 1;
+}
+
 // Note that we don't use these, but we need this vector to be long enough
 //  not to segfault when we do the FillPatch operation.
 namespace BaseBCVars {
