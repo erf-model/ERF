@@ -2218,9 +2218,6 @@ List of Parameters
 |                                        | Per level, like erf.smag2d_slope_limiter; aborts if      |                    |                  |
 |                                        | negative or with EB                                      |                    |                  |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.use_moist_Ri_correction**        | Apply moist Richardson number limiter to the Smagorinsky | Boolean            | false            |
-|                                        | model                                                    |                    |                  |
-+----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.Ck**                             | Constant Deardorff k coeff.                              | Real               | 0.1              |
 +----------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.Ce**                             | Constant Deardorff epsilon coeff.                        | Real               | 0.93             |
