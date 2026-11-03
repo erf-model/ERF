@@ -87,8 +87,10 @@ eb2.cover_multiple_cuts = 1
 erf.theta_ref       = 300.0
 
 # same initial k in every case: 0.84 m2/s2, linear decay to zero at 900 m above z = 0
-prob.KE_0            = 0.84
-prob.KE_decay_height = 900.0
+# the initial TKE profile is measured from geometry.prob_lo, 40 m below the ground: KE_0 and the
+# decay height are scaled so that it matches flat.i's 0.84 (1 - z/900) above the ground
+prob.KE_0            = 0.877333333
+prob.KE_decay_height = 940.0
 prob.KE_decay_order  = 1
 prob.pert_deltaU  = 0.0
 prob.pert_deltaV  = 0.0
