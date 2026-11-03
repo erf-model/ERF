@@ -766,7 +766,11 @@ void ERF::init_bcs ()
         bool neumann_on_zhi  = (bc_ptr[bc_comp].hi(2) == ERFBCType::neumann);
         if ( (!foextrap_on_zlo && !neumann_on_zlo && !use_surfacelayer) ||
              (!foextrap_on_zhi && !neumann_on_zhi) ) {
-            Print() << "WARNING: Selected BCs for " << cc_comp_name[icomp] << " are not supported with implicit diffusion. Turning off implicit diffusion for this component." << "\n";
+            Print() << "WARNING: Selected BCs for " << cc_comp_name[icomp]
+                    << " are not supported with implicit diffusion. "
+                    << (bc_comp >= BCVars::RhoQ1_bc_comp
+                        ? "All host-transported moisture species fall back to explicit diffusion."
+                        : "Turning off implicit diffusion for this component.") << "\n";
             if (bc_comp == BCVars::RhoTheta_bc_comp) { solverChoice.implicit_thermal_diffusion  = false; }
             if (bc_comp == BCVars::RhoKE_bc_comp)    { solverChoice.implicit_ke_diffusion       = false; }
             if (bc_comp >= BCVars::RhoQ1_bc_comp)    { solverChoice.implicit_moisture_diffusion = false; }

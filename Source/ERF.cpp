@@ -2138,8 +2138,8 @@ ERF::InitData_post ()
         // use it.  Doing it here instead means initialization, not an output,
         // is what hands step 1 a coarse/fine consistent state -- so the initial
         // checkpoint records the same solution whether or not an initial
-        // plotfile was written.  The restriction is idempotent, so the one in
-        // BuildPlot3DScratch becomes a no-op at t=0.
+        // plotfile was written. The final particle diagnostic refresh below
+        // repeats this restriction if it changes the coarse projection.
         //
         // Fresh starts only.  A restart has to hand step N+1 exactly the state
         // the checkpoint holds, which is the state the straight run carried at
@@ -2217,6 +2217,15 @@ ERF::InitData_post ()
         if (restart_chkfile.empty() && solverChoice.diffChoice.n_qstate_nonmoist > 0) {
             for (int lev = 0; lev <= finest_level; ++lev) {
                 micro->Update_Diagnostic_State_Lev(lev, vars_new[lev][Vars::cons], *z_phys_nd[lev]);
+            }
+            // Composite deposition zeroes covered coarse cells. Restore their
+            // fine averages before output or checkpointing can observe them.
+            if (solverChoice.coupling_type == CouplingType::TwoWay &&
+                Microphysics::modelType(solverChoice.moisture_type) == MoistureModelType::Lagrangian) {
+                micro->AverageDownMicroVars(finest_level);
+                for (int flev = finest_level-1; flev >= 0; --flev) {
+                    AverageDownMoistStateTo(flev);
+                }
             }
         }
     }

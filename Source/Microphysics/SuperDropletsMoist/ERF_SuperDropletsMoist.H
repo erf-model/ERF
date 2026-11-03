@@ -290,6 +290,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
         {
             // Water slots participate in the existing total-water handoff.
             // Appended condensate, unlike appended vapor, is deposited from particles.
+            // This Q-relative pairing matches q_qv_idx/q_qc_idx below.
             return q >= m_qstate_moist_size && (q - m_qstate_moist_size) % 2 == 1;
         }
 

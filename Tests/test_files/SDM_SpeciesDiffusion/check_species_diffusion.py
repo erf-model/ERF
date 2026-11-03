@@ -131,6 +131,61 @@ def metrics(plotfile, tolerance):
     return header, mass, vapor_square, condensate, max(v[5] for _, v in cells), thermal
 
 
+def checkpoint_cells(directory, level):
+    directory = directory / ("Level_%d" % level)
+    ncomp, _, boxes, fabs = _read_cell_h(str(directory))
+    cells = {}
+    for (lo, hi), (filename, offset) in zip(boxes, fabs):
+        flo, fhi, data = _read_fab(str(directory / filename), offset, ncomp)
+        nx, ny, nz = [fhi[d] - flo[d] + 1 for d in range(3)]
+        for k in range(lo[2], hi[2] + 1):
+            for j in range(lo[1], hi[1] + 1):
+                for i in range(lo[0], hi[0] + 1):
+                    index = ((k - flo[2]) * ny + j - flo[1]) * nx + i - flo[0]
+                    cells[i, j, k] = [
+                        data[c * nx * ny * nz + index] for c in range(ncomp)
+                    ]
+    return cells
+
+
+def check_initial_checkpoint(args, directory, command, header):
+    # Motivation: Plotfile output must not repair startup state that an initial
+    # checkpoint or the first timestep would otherwise see as unsynchronized.
+    without_plot = directory / "without_initial_plot"
+    without_plot.mkdir(exist_ok=True)
+    checkpoint = without_plot / "chk00000"
+    if checkpoint.exists():
+        shutil.rmtree(checkpoint)
+    with (without_plot / "simulation.log").open("w") as log:
+        subprocess.run(command + ["erf.plot_int_1=-1"], cwd=without_plot,
+                       stdout=log, stderr=subprocess.STDOUT, check=True, timeout=180)
+    for level in range(header["finest"] + 1):
+        reference = checkpoint_cells(directory / "chk00000", level)
+        actual = checkpoint_cells(checkpoint, level)
+        assert actual.keys() == reference.keys()
+        for cell, values in reference.items():
+            for comp, value in enumerate(values):
+                measured = actual[cell][comp]
+                assert math.isfinite(value) and math.isfinite(measured)
+                assert abs(measured - value) <= args.tolerance * max(abs(value), 1.e-12), (
+                    "initial conserved state depends on plot output", level, cell, comp,
+                    value, measured
+                )
+    if header["finest"]:
+        coarse = checkpoint_cells(checkpoint, 0)
+        fine = checkpoint_cells(checkpoint, 1)
+        covered = {tuple(n // 2 for n in cell) for cell in fine}
+        # The checkpoint has the actual allocated layout, including NSCALARS.
+        qstart = len(next(iter(coarse.values()))) - 10
+        for cell in covered:
+            for comp in (qstart + 7, qstart + 9):
+                average = sum(fine[2*cell[0]+i, 2*cell[1]+j, 2*cell[2]+k][comp]
+                              for i in (0, 1) for j in (0, 1) for k in (0, 1)) / 8
+                assert abs(coarse[cell][comp] - average) <= args.tolerance * max(
+                    abs(average), 1.e-12), ("covered coarse condensate is not restricted",
+                                          cell, comp, coarse[cell][comp], average)
+
+
 def run(args, label, options, injected_volume=0):
     directory = Path(label)
     directory.mkdir(exist_ok=True)
@@ -147,6 +202,11 @@ def run(args, label, options, injected_volume=0):
         args.exe, args.input,
         "erf.input_sounding_file=" + str(Path(args.input).with_name("input_sounding")),
     ] + options
+    if args.case == "initialization":
+        checkpoint = directory / "chk00000"
+        if checkpoint.exists():
+            shutil.rmtree(checkpoint)
+        command += ["erf.check_int=1", "erf.check_file=chk"]
     with (directory / "simulation.log").open("w") as log:
         subprocess.run(command, cwd=directory, stdout=log, stderr=subprocess.STDOUT,
                        check=True, timeout=180)
@@ -156,6 +216,8 @@ def run(args, label, options, injected_volume=0):
     first = metrics(plots[0], args.tolerance)
     last = metrics(plots[-1], args.tolerance)
     assert abs(first[0]["time"]) < 1.e-12
+    if initial_only:
+        check_initial_checkpoint(args, directory, command, first[0])
     assert abs(last[0]["time"] - (0 if initial_only else 0.08)) < 1.e-6
     # Motivation: Conservation from a measured t=0 reservoir misses populations
     # seeded twice in covered coarse cells. Check prescribed initial mass too.
