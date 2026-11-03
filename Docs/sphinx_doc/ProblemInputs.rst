@@ -80,8 +80,8 @@ Initial state perturbation
 |                         |                                                  | ``pert_deltaT``, ``pert_periods_QV``, ``pert_periods_T``, ``pert_ref_height``,     |
 |                         |                                                  | ``rho_0``                                                                          |
 +-------------------------+--------------------------------------------------+------------------------------------------------------------------------------------+
-| ScalarAdvDiff           | ``ERF_InitCustomPert_ScalarAdvDiff.H``           | ``A_0``, ``B_0``, ``prob_type``, ``rad_0``, ``rho_0``, ``xc_frac``, ``yc_frac``,   |
-|                         |                                                  | ``zc_frac``                                                                        |
+| ScalarAdvDiff           | ``ERF_InitCustomPert_ScalarAdvDiff.H``           | ``A_0``, ``B_0``, ``prob_type``, ``rad_0``, ``rho_0``, ``theta_pert_amp``,         |
+|                         |                                                  | ``xc_frac``, ``yc_frac``, ``zc_frac``                                              |
 +-------------------------+--------------------------------------------------+------------------------------------------------------------------------------------+
 | SquallLine              | ``ERF_InitCustomPert_SquallLine.H``              | ``T_tr``, ``eq_pot_temp``, ``height``, ``qt_init``, ``theta_0``, ``theta_c``,      |
 |                         |                                                  | ``theta_tr``, ``use_empirical_psat``, ``x_c``, ``x_r``, ``z_c``, ``z_r``, ``z_tr`` |

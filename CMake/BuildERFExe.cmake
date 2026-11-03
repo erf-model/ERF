@@ -537,6 +537,8 @@ function(build_erf_lib erf_lib_name)
        ${SRC_DIR}/LinearSolvers/ERF_ComputeDivergence.cpp
        ${SRC_DIR}/LinearSolvers/ERF_FillZeroAreaFaceFluxes.cpp
        ${SRC_DIR}/LinearSolvers/ERF_ImposeBCsOnPhi.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_ImmersedPoisson.cpp
+       ${SRC_DIR}/LinearSolvers/ERF_ImmersedProjection.cpp
        ${SRC_DIR}/LinearSolvers/ERF_SolveWithEBMLMG.cpp
        ${SRC_DIR}/LinearSolvers/ERF_SolveWithGMRES.cpp
        ${SRC_DIR}/LinearSolvers/ERF_SolveWithTerrainMLMG.cpp

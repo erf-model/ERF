@@ -20,6 +20,14 @@ employs Moeng's formulation for Monin-Obukhov similarity theory (MOST) and ``cus
 specify the fluxes through ``ustar; tstar; qstar``. Currently, the MOST pathway is the primary flux type employed
 in ERF simulations and will be the focus in subsequent sections.
 
+With ``bulk_coeff`` fluxes, and on land cells where a land-surface model supplies the stresses, the roughness
+length is replaced each step by the value diagnosed from the stress by inverting the log law,
+:math:`z_0 = z_{ref} \exp[-(\kappa \overline{u}/u_{\star} + \Psi_m(\zeta))]`, and bounded to
+:math:`10^{-7}\,\mathrm{m} \le z_0 \le \min(1.5\,\mathrm{m}, z_{ref}/2)`. When the stress is zero
+(``erf.most.Cd = 0``, or a land-surface model that returns no momentum flux) :math:`u_{\star}` sits at its
+floor of machine epsilon and the exponent is far beyond the floating-point range; the lower bound is then
+returned without evaluating the exponential, so a run with ``amrex.fpe_trap_overflow = 1`` keeps going.
+
 
 MOST Theory
 ~~~~~~~~~~~~~~~~~~~

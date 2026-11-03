@@ -30,6 +30,13 @@ The following problems are currently tested in the CI:
 | AnelasticWallDiffusion_X/Y/Z  | 8 12 17  |NoSlipWall|NoSlipWall| NoSlipWall | None  | rotated stationary linear-theta |
 |                               |          |          |          |            |       | wall-diffusion tests            |
 +-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
+| ImmersedLES2LevAverageDown    | 16 8  20 | Periodic | Periodic | NoSlipWall | None  | two-level immersed LES; coarse  |
+| (and _Plain)                  |          |          |          | SlipWall   |       | cells vs fluid-mass fine average|
++-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
+| ImmersedLES2LevHeatBalance    | 16 8  20 | Periodic | Periodic | NoSlipWall | None  | two-level immersed LES, patch   |
+| (and _Freeze, _LogLaw)        |          |          |          | SlipWall   |       | edges cross the surface; mean   |
+|                               |          |          |          |            |       | theta holds (implicit proj.)    |
++-------------------------------+----------+----------+----------+------------+-------+---------------------------------+
 | CouetteFlow_x                 | 32 4  16 | Periodic | Periodic | NoSlipWall | None  | inhomogeneous                   |
 |                               |          |          |          | NoSlipWall |       | bc at zhi (u = 2)               |
 +-------------------------------+----------+----------+----------+------------+-------+---------------------------------+

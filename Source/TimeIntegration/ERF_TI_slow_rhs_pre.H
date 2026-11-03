@@ -336,6 +336,12 @@
 
 #include "ERF_ImplicitPre.H"
 
+            // NOTE: the implicit part of the vertical (rho theta) diffusion is not added to the flux
+            //       registers.  (rho theta) is refluxed only on anelastic levels, and there no stage
+            //       whose fluxes are registered solves implicitly: RK2 turns the solve off, and
+            //       MidPoint solves in stage 0 but registers stage 1 (see SolverChoice and
+            //       StageFluxWeight).
+
             MultiFab::Saxpy(scratch, -one_d, S_old[IntVars::cons], 1, 1, 1, 0); // scratch  := (S_new - S_old)           (for rhotheta only)
             scratch.mult(one_d / stage_dt);                                 // scratch  := (S_new - S_old) / stage_dt
             MultiFab::Copy(S_rhs[IntVars::cons], scratch, 1, 1, 1, 0);        // slow_rhs := (S_new - S_old) / stage_dt (for rhotheta only)

@@ -13,10 +13,27 @@ allowing refinement in one coordinate direction but not another.
 
 We utilize two-way coupling, in which the coarse solution is used to provide boundary conditions for the fine solution
 and the fine solution is averaged down onto the coarser level.  In addition, we reflux all advected scalars to ensure conservation.
+(With immersed forcing, ``erf.if_average_down = fluid_mass`` weights that average by the fluid mass of the fine cells,
+which gives up conservation over the covered partial cells; see :ref:`Forcings <Forcings>`.)
 For coarse-to-fine communication we provide "ghost cell" data for cell-centered data and tangential momentum components to
 the fine level by interpolating in space and time outside the region covered by the fine level.
 We also interpolate the normal momentum from coarse to fine on the coarse-fine interface itself;
 this ensures mass conservation since the normal momentum is in fact the flux for the density field.
+Next to a wall that interpolation is linear in :math:`z` and does not know the log profile, so the fine face at the
+wall gets too much flow. With ``erf.cf_loglaw_fill = true`` (constant dz; the immersed surface, or a
+``surface_layer`` bottom; not EB terrain) the flux of the first coarse face above the wall is shared among its fine
+sub-faces in proportion to the integral of :math:`\ln(1 + z/z_0)` over the fluid part of each, :math:`z` the
+height above the wall, with :math:`z_0` from ``erf.cf_loglaw_z0`` (by default ``erf.if_z0`` with immersed forcing,
+else the inputs' ``erf.most.z0`` or ``erf.zlo.most.z0``). A half-solid sub-face of an immersed surface so carries its
+fluid share. The flux of every coarse face is kept, so the average down of the coarse/fine faces still returns the
+coarse values; the faces above the wall face keep the linear interpolation, as does the relax region
+(``erf.cf_width`` beyond ``erf.cf_set_width``), a fine box that does not reach the bottom of the domain, and a wall
+coarse face none of whose fine sub-faces is open (the two levels disagree on the surface by a coarse cell, the case
+``erf.if_cf_mismatch_warning`` reports).
+On a flat neutral two-level case (20 m over 10 m, surface layer, :math:`z_0 = 0.1` m) the linear fill puts the
+first fine cell at the inflow edge of the patch 17 % above the log profile through the coarse first cell and the
+second 8 % below it; the share puts both within 4 %, and the first-cell wind then varies by 0.6 % along the patch
+instead of 7 %.
 In order to ensure that the fine momentum on the coarse-fine boundary stays consistent with the
 interpolated coarse values throughout a fine timestep, we also interpolate the source term for
 the normal momentum on the coarse-fine interface.
