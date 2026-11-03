@@ -59,6 +59,9 @@ public:
     /*! \brief update ERF state variables from microphysics variables */
     virtual void Update_State_Vars_Lev (const int&, amrex::MultiFab&, const amrex::MultiFab&) = 0;
 
+    /*! Refresh diagnostic Q projections after particle redistribution, without advancing sources. */
+    virtual void Update_Diagnostic_State_Lev (const int&, amrex::MultiFab&, const amrex::MultiFab&) {}
+
     /*! \brief average down moisture multifabs from finest_level to 0 (AMR coverage); no-op for non-Lagrangian models */
     virtual void AverageDownMicroVars (const int /*finest_level*/) { }
 
@@ -91,6 +94,9 @@ public:
 
     /*! \brief get the number of  microphysics conserved non-moist (non-water, i.e., other vapor/condensed species) state variables */
     virtual int Get_Qstate_NonMoist_Size () = 0;
+
+    /*! \brief Whether a Q-state offset is a projection rather than host-transported state. */
+    virtual bool Qstate_Is_Diagnostic (int /*q*/) const { return false; }
 
     /*! \brief get total number of conserved state variables */
     inline int Get_Qstate_Size ()

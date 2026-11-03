@@ -146,6 +146,31 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``W/m^2``
      - ``FillMinus999WhenUnavailable``
      - Outgoing longwave radiation at the model top
+   * - ``topographic_shadow``
+     - ``Radiation``
+     - ``1``
+     - ``FillMinus999WhenUnavailable``
+     - Direct sunlight blocked by terrain or by a midpoint sun below the cutoff when averaged cosine exceeds it (1 blocked, 0 otherwise)
+   * - ``terrain_direct_factor``
+     - ``Radiation``
+     - ``1``
+     - ``FillMinus999WhenUnavailable``
+     - Terrain correction factor for direct shortwave
+   * - ``terrain_incidence``
+     - ``Radiation``
+     - ``1``
+     - ``FillMinus999WhenUnavailable``
+     - Nonnegative cosine of sunlight incidence on terrain
+   * - ``unshaded_sw_flux_dn``
+     - ``Radiation``
+     - ``W/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Surface downwelling shortwave before terrain correction
+   * - ``terrain_sw_flux_dn``
+     - ``Radiation``
+     - ``W/m^2``
+     - ``FillMinus999WhenUnavailable``
+     - Surface downwelling shortwave after terrain correction
    * - ``seb_t_sfc``
      - ``Radiation``
      - ``K``
@@ -479,6 +504,11 @@ The selection contract and the value written after selection are separate:
    * - ``OLR``
      - Selectable: fixed request name.
      - Value: radiation output; ``-999`` when the radiation source is absent.
+   * - ``topographic_shadow``, ``terrain_direct_factor``, ``terrain_incidence``, ``unshaded_sw_flux_dn``, ``terrain_sw_flux_dn``
+     - Selectable: when either ``erf.topo_shading`` or ``erf.slope_rad`` is enabled.
+     - Value: diagnostics of the RRTMGP terrain correction, held between radiation
+       updates. ``-999`` before the first radiation update. See
+       :ref:`sec:Plotfile2DTopographicRadiation`.
    * - ``seb_t_sfc``, ``seb_q_sfc``
      - Selectable: fixed request names.
      - Value: the two-stream simplified surface energy balance's own prognostic surface
@@ -549,6 +579,61 @@ The selection contract and the value written after selection are separate:
    * - ``near_surface_diagnostic_source``
      - Selectable: a Noah-MP or SurfaceLayer pathway exists, including a dry source-only request.
      - Value: categorical code ``0`` through ``6``; its ``AlwaysAvailable`` metadata policy records ``missing_value: null``.
+
+.. _sec:Plotfile2DTopographicRadiation:
+
+Topographic shading diagnostics
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+With RRTMGP on static fitted terrain, enabling ``erf.topo_shading`` or
+``erf.slope_rad`` produces five diagnostics of the surface shortwave correction.
+Both options default to false; see :ref:`inputs-topographic-radiation` for
+configuration and :ref:`sec:TopographicRadiation` for the equations.
+
+``topographic_shadow`` is 1 where intervening terrain blocks direct sunlight
+and 0 otherwise. It remains 0 when shading is disabled, even if slope
+correction is enabled. A slope facing away from the sun can have zero direct
+flux without a cast shadow, so the mask alone does not describe all slope
+effects.
+
+``terrain_direct_factor`` multiplies the horizontal direct shortwave flux.
+It is 0 in a cast shadow and can exceed 1 on a sun-facing slope.
+``terrain_incidence`` is the nonnegative cosine of the angle between the sun
+direction and the terrain normal. If RRTMGP's interval-averaged zenith cosine
+is at or below ``1.e-4``, the mask is 0 and the direct factor is 1. If the
+midpoint sun is at or below the same cutoff while the averaged cosine is above
+it, incidence is 0 and the direct factor is 0; the mask is 1 when shading is
+enabled and 0 when only slope correction is enabled. Thus mask 0 alone does
+not imply daytime illumination.
+
+``unshaded_sw_flux_dn`` and ``terrain_sw_flux_dn`` are the total downwelling
+shortwave fluxes before and after correction, respectively. They include the
+unchanged diffuse component, so corrected shortwave need not vanish in shadow.
+Where Noah-MP receives this forcing, its ``sw_flux_dn`` corresponds to the
+corrected flux.
+
+These fields update with radiation at ``erf.rad_freq_in_steps`` and remain
+fixed between radiation updates. More frequent plotfiles do not cause more
+frequent shadow calculations. Before the first radiation update, all five
+diagnostics use the missing value ``-999``. They are selectable only when
+``erf.topo_shading`` or ``erf.slope_rad`` is enabled.
+
+To visualize the mask and its effect, add these outputs to a case with terrain
+correction enabled:
+
+.. code-block:: text
+
+   erf.plot2d_file_1 = plt2d
+   erf.plot2d_int_1 = 1
+   erf.plot2d_vars_1 = z_surf topographic_shadow terrain_direct_factor terrain_incidence unshaded_sw_flux_dn terrain_sw_flux_dn
+
+In ParaView or VisIt, color by ``topographic_shadow`` and overlay ``z_surf``
+contours to locate shadows relative to ridges and valleys. Compare the two
+shortwave fields to see the forcing change. For a simple directional check,
+the fixed low eastern sun in :ref:`inputs-topographic-radiation` should cast
+shadows west of a hill; geographic west need not align with the negative grid
+x direction on a rotated real-case grid. Use outputs after a radiation update
+and exclude ``-999`` values from the color scale.
 
 .. _sec:Plotfile2DSeaLevelPressure:
 

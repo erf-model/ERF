@@ -260,6 +260,77 @@ where :math:`u_{i,target}` is a value determined through MOST and :math:`|U_s|` 
 This formulation essentially forces the velocity at the wall to a value determined by using MOST, but the strength forcing is inversely related to how immersed the cell is.
 For cells that are more immersed, there is weaker forcing to the target velocity while for cells that are less immersed, there is stronger forcing to the MOST value.
 
+**Fraction-stress wall law.** With ``erf.if_wall_form = fraction_stress`` the MOST relaxation above is replaced
+by a wall stress (form 7 of the immersed terrain of Kynema-SGF; the default, ``legacy``, is the relaxation above
+and is unchanged). Each column meets the air in its *wall cell*: a partially immersed cell with free cells above
+it, or, when the surface lies on a cell face, the free cell sitting on the fully immersed cell. With :math:`\beta`
+the immersed fraction of the wall cell (zero for a free wall cell), the surface is at
+:math:`h = z_{bot} + \beta \Delta z`, the fluid centroid of the wall cell at :math:`d_1 = (1 - \beta)\Delta z/2`
+above it and the centre of the cell above at :math:`d_2 = (3/2 - \beta)\Delta z`. The friction velocity mixes
+the wall cell's own estimate and the one of the better resolved cell above by the fraction,
+
+.. math::
+
+    u_*^2 = (1 - \beta)\left(\frac{\kappa |u_{t}|}{\ln(d_1/z_0)}\right)^2
+          + \beta \left(\frac{\kappa |u_{t,ref}|}{\ln(d_2/z_0)}\right)^2,
+
+so a face-aligned surface (:math:`\beta = 0`) gets the surface-layer law of flat ground at :math:`\Delta z/2`
+and a thin sliver takes :math:`u_*` from above (distances floored at :math:`2 z_0`). The stress is spread over
+the cell height and integrated exactly over the step,
+
+.. math::
+
+    F_{\rho u_i} = -\rho\, \frac{1 - e^{-r \Delta t}}{\Delta t}\, u_i, \qquad
+    r = \frac{u_*^2}{\Delta z\, |u_t|},
+
+with :math:`u_t` the horizontal velocity, and the vertical diffusive momentum flux through the bottom face of
+the wall cell is switched off (explicit stress and implicit solve), so the column loses exactly :math:`u_*^2`
+through the wall. Fully immersed cells and partial cells below the wall cell keep the drag above; the wall cell
+has none. The solver differences the face above the wall cell over :math:`\Delta z`, although the wall cell's
+fluid centroid and the centre of the cell above are :math:`d_2 - d_1 = (1 - \beta/2)\Delta z` apart; left alone
+this acts like a smaller roughness (a constant speed offset aloft, 1.5 to 3 % in the neutral ABL). The diffusive
+coupling through that face (momentum, strain, :math:`\theta`, TKE) is therefore scaled by
+:math:`\Delta z / \Delta z_{eff}` with, by default (``erf.if_wall_face_spacing = log``),
+:math:`\Delta z_{eff} = (d_1 + d_2) \ln(d_2/d_1) / (2 \ln 3)`, the spacing that gives the face flux, with the
+face viscosity the mean of the two cells' :math:`\kappa u_* z`, the same relative error for a log profile as the
+first interior face of flat ground, :math:`\ln 3\, u_*^2` for every :math:`\beta` (:math:`\Delta z_{eff} = \Delta z`
+for :math:`\beta = 0`); ``physical`` uses :math:`d_2 - d_1` and ``grid`` leaves :math:`\Delta z`. The factor is
+bounded only while :math:`z_0 < \Delta z/4`, which the inputs require. With a RANS closure
+the wall distance is measured from :math:`h`, with the wall cell at :math:`d_1` (see :ref:`RANS <RANS>`).
+
+Stratification enters through the MOST stability functions of the flat surface layer (Dyer),
+:math:`\ln(d/z_0) \to \ln(d/z_0) - \psi_{m,h}(d/L)`, with one surface condition:
+``erf.if_surf_temp_flux`` (a kinematic heat flux :math:`q`, :math:`\theta_* = -q/u_*`),
+``erf.if_init_surf_temp`` (a surface temperature :math:`\theta_s`, changing at
+``erf.if_surf_heating_rate`` [K/h] when that is set, with
+:math:`\theta_* = (1-\beta)\kappa(\theta - \theta_s)/\phi_h(d_1) + \beta\kappa(\theta_{ref} - \theta_s)/\phi_h(d_2)`,
+mixed as :math:`u_*`) or ``erf.if_Olen`` (a fixed Obukhov length, :math:`\theta_* = \theta u_*^2/(\kappa g L)`).
+With a flux or a surface temperature :math:`L = u_*^2 \theta / (\kappa g \theta_*)` is iterated with
+:math:`u_*` inside the step (12 fixed passes, :math:`u_*` floored at 1 mm/s and :math:`d_1/L` kept within
+:math:`\pm 100`). As on flat ground, the stable given-flux problem has no solution below a wind threshold
+(about 3 m/s at :math:`q = -0.02` K m/s, :math:`d_1 = 10` m, :math:`z_0 = 0.1` m), where :math:`u_*` falls to
+its floor and the wall carries almost no stress; a surface temperature avoids that. The wall heat flux :math:`-u_*\theta_*` is spread over the cell height
+(integrated exactly toward :math:`\theta_s` when a surface temperature is given), the diffusive
+:math:`\theta` and TKE fluxes through the wall face are switched off, the TKE buoyancy on that face
+takes the wall heat flux, and the strain and :math:`\partial\theta/\partial z` of the wall cell use the
+stencils of the flat surface (the strain of the face above; the wall cell itself below it), so a
+surface on a cell face reproduces flat ground. The option needs ``erf.if_use_most = true``, a
+constant-:math:`\Delta z` mesh and the anelastic model (the compressible fast substep does not carry the wall
+heat flux and the wall TKE); ``erf.if_stability_correction`` belongs to the legacy law. With a RANS closure the
+geometric length scale over the immersed surface is :math:`\kappa (d + z_0)` with ``erf.if_z0``, as it is
+:math:`\kappa (d + z_0)` with the surface layer's roughness on flat ground.
+With the k-equation RANS closure, ``erf.if_wall_tke = true`` holds the TKE of the wall cell at
+:math:`k_w = (u_*^3 + \kappa B d_1)^{2/3}/C_{\mu 0}^2`, with :math:`B = -g u_*\theta_*/\theta` in unstable
+conditions (zero otherwise) and :math:`d_1` the fluid-centroid height of the wall cell. This is the value
+``erf.dirichlet_k`` holds in the first cell over flat ground (Axell and Liungman 2001, Eq. 16), and it is
+held the same way: after every stage and in the implicit TKE solve (``erf.if_wall_tke_time_factor = 1``,
+the default); a larger factor relaxes toward it as a source over that many steps instead, as kynema-sgf
+does. Without the wall value the wall cell's TKE is set by its own production, which the strain of the
+face above overstates against the pinned first cell of flat ground. A partial wall cell also dissipates
+TKE with the length scale of flat ground's first cell (``erf.if_flat_wall_dissipation``, on by default with
+this law): its own length, at :math:`d_1`, would make a nearly solid wall cell dissipate several times faster
+than the wall value restores it. See `erf-model/ERF#4134 <https://github.com/erf-model/ERF/issues/4134>`_.
+
 With the anelastic model the solid cells are also held by the projection. By default the drag of the
 solid is a source term, the projection (which treats the solid as fluid) then adds a pressure
 correction there, and the faces between two fully solid cells are set to zero after it. The face
@@ -340,6 +411,11 @@ The following inputs are available when representing terrain using immersed forc
         erf.if_surf_heating_rate       = FLOAT
         erf.if_Olen                    = FLOAT
         erf.if_use_most                = BOOL
+        erf.if_wall_form               = STRING
+        erf.if_wall_face_spacing       = STRING
+        erf.if_wall_tke                = BOOL
+        erf.if_wall_tke_time_factor    = FLOAT
+        erf.if_flat_wall_dissipation   = BOOL
         erf.if_implicit_drag           = BOOL
         erf.if_average_down            = STRING
         erf.if_cf_mismatch_warning     = FLOAT

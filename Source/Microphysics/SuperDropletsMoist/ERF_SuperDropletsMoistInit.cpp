@@ -271,6 +271,7 @@ void SuperDropletsMoist::RestartParticles ( ParGDBBase* /* a_gdb */, const std::
 
     m_super_droplets->Restart(a_fname, m_name);
     m_super_droplets->Redistribute();
+    m_restarted_particles = true;
 
     amrex::Print() << "Restarted "
                    << m_super_droplets->NumSuperDroplets()
@@ -290,42 +291,53 @@ void SuperDropletsMoist::RestartParticles ( ParGDBBase* /* a_gdb */, const std::
  * 5. Updates the rhoq2 component in conserved variables with computed cloud water
  * 6. Runs initial diagnostics for superdroplets
  *
- * \param[in] a_lev Unused AMR level parameter
+ * \param[in] a_lev AMR level
  * \param[in,out] a_cons_vars Conserved variables MultiFab to be updated
  * \param[in] a_z_phys_nd Vector of MultiFabs containing terrain information
  */
-void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
+void SuperDropletsMoist::FinishInit (const int& a_lev,
                                      MultiFab& a_cons_vars,
                                      const Vector<MFPtr>& a_z_phys_nd)
 {
     BL_PROFILE("SuperDropletsMoist::FinishInit()");
-    const int lev = 0; // FinishInit is called for level 0 only
-    m_super_droplets->DensityScaling(*(m_mic_fab_vars[lev][MicVar_SD::rho]));
-
-    if (m_init_type == SDMoistInit::condensate_density) {
-
-        /* initial super-droplets attributes computed from condensate mass density */
-        MultiFab rho_c ( m_mic_fab_vars[lev][MicVar_SD::q_c]->boxArray(),
-                         m_mic_fab_vars[lev][MicVar_SD::q_c]->DistributionMap(),
-                         1,
-                         m_mic_fab_vars[lev][MicVar_SD::q_c]->nGrowVect() );
-        MultiFab::Copy( rho_c, *m_mic_fab_vars[lev][MicVar_SD::q_c], 0, 0, 1, rho_c.nGrowVect() );
-        ratioToDensity(rho_c);
-
-        m_super_droplets->SetAttributes(rho_c);
-        amrex::Print() << "Initialized "
-                       << m_super_droplets->NumSuperDroplets()
-                       << " super-droplets representing "
-                       << m_super_droplets->TotalNumberOfParticles()
-                       << " particles in super-droplets moisture model.\n";
-
-    } else {
-
-        /* call the phase change function so that the super-droplets "relax" to their
-         * physical size corresponding to the initial flow */
-        if (m_flag_phase_change && m_init_phase_change) {
-            phaseChange(m_init_phase_change_time, a_z_phys_nd, lev);
+    const int lev = a_lev;
+    if (lev == 0 && !m_restarted_particles) {
+        // All native flow fields are available before this call. Finish local
+        // particle attributes on every level before redistribution can move them.
+        for (int k = 0; k <= m_super_droplets->finestLevel(); ++k) {
+            m_super_droplets->DensityScaling(*m_mic_fab_vars[k][MicVar_SD::rho], k);
+            if (m_init_type == SDMoistInit::condensate_density) {
+                auto& qc = *m_mic_fab_vars[k][MicVar_SD::q_c];
+                MultiFab rho_c(qc.boxArray(), qc.DistributionMap(), 1, qc.nGrowVect());
+                MultiFab::Copy(rho_c, qc, 0, 0, 1, qc.nGrowVect());
+                SetCurrentLevel(k);
+                ratioToDensity(rho_c);
+                m_super_droplets->SetAttributes(rho_c, k);
+            }
         }
+        SetCurrentLevel(lev);
+        if (m_init_type == SDMoistInit::condensate_density) {
+            amrex::Print() << "Initialized "
+                           << m_super_droplets->NumSuperDroplets()
+                           << " super-droplets representing "
+                           << m_super_droplets->TotalNumberOfParticles()
+                           << " particles in super-droplets moisture model.\n";
+        }
+    }
+    if (lev == 0) {
+        // Restart setup may also change the grids after particles were read.
+        // Establish ownership before any projection or initial relaxation.
+        m_super_droplets->Redistribute();
+        if (!m_restarted_particles) {
+            m_super_droplets->SplitMergeAtLevelBoundary();
+        }
+    }
+
+    const bool relax = !m_restarted_particles &&
+                       m_init_type != SDMoistInit::condensate_density &&
+                       m_flag_phase_change && m_init_phase_change;
+    if (relax) {
+        phaseChange(m_init_phase_change_time, a_z_phys_nd, lev);
     }
 
     computeQcQrWater(*a_z_phys_nd[lev]);
@@ -350,6 +362,8 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
         });
     }
 
+    // Appended condensate is a projection on every level, including before
+    // the first step; fine-level state cannot wait for the first Advance.
     computeQcSpecies(*a_z_phys_nd[lev]);
     computeQtSpecies();
 
@@ -366,7 +380,15 @@ void SuperDropletsMoist::FinishInit (const int& /* a_lev */,
         }
     }
 
-    m_super_droplets->Diagnostics(-1, lev, zero, (m_diagnostics_iter>0));
+    // Relaxation changes particle mass, vapor and latent heat together. Keep
+    // that exchange in the initial conserved state, not just its condensate.
+    if (relax && !m_kinematic_mode) {
+        Copy_Micro_to_State(a_cons_vars);
+    }
+
+    if (lev == 0) {
+        m_super_droplets->Diagnostics(-1, lev, zero, (m_diagnostics_iter>0));
+    }
 
     return;
 }

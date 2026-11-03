@@ -216,6 +216,13 @@ target_sources(${erf_exe_name}
     # Motivation: a calm cell above an immersed wall gave the wall law u* = 0, an Obukhov length
     # of zero and z / 0 (erf-model/ERF#4016); the stability estimate is now bounded as on flat ground.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestImmersedWallStability.cpp
+    # Motivation: the fraction-stress immersed wall law (erf.if_wall_form = fraction_stress) must
+    # force the wall cell (the fluid cell on a face-aligned surface too, which the legacy law leaves
+    # unforced), close its bottom face to diffusion and measure the RANS wall distance from the surface.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestImmersedFractionStress.cpp
+    # Motivation: the implicit solves must carry no flux through the wall face of the fraction-stress
+    # wall law, and a partial wall cell must dissipate like flat ground's first cell.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestImmersedWallFace.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestImmersedBuildingCutoff.cpp
     # Motivation: a refined level's buildings must keep level 0's numbers for the
     # materials by building, even when its tallest column is a spire level 0
@@ -283,6 +290,7 @@ target_sources(${erf_exe_name}
     # respect land/water precedence, and preserve valid land LSM temperatures.
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestRRTMGP_SurfaceTemperature.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestOrbitalGeometry.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTopographicShading.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestPlotfile2D.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestPlotfileSelection.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestStationSampler.cpp
@@ -320,6 +328,9 @@ target_sources(${erf_exe_name}
     # Motivation: the average down over immersed-forcing levels must weight the fine cells by
     # their fluid mass and leave coarse cells that are solid on their own level alone.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestImmersedAverageDown.cpp
+    # Motivation: over immersed-forcing terrain with the fraction-stress wall law the RANS wall
+    # distance must be measured from the surface the wall law uses, column by column.
+    ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestImmersedWallDist.cpp
     # Motivation: the coarse/fine surface-mismatch warning must count only the coarse cells along
     # the coarse/fine faces whose fine solid fractions spread by at least the threshold.
     ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestImmersedCFFaces.cpp
@@ -394,10 +405,11 @@ endif()
 target_sources(${erf_exe_name} PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/IO/ERF_GTestIntervalMeansRestart.cpp
 )
-# These exercise the super-droplet phase-change kernels, whose headers are
+# These exercise super-droplet projection and process kernels, whose headers are
 # only available when particles are enabled.
 if(ERF_ENABLE_PARTICLES)
   target_sources(${erf_exe_name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/ERF_GTestSpeciesProjection.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/TerminalVelocity/ERF_GTestTerminalVelocityScalar.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/TerminalVelocity/ERF_GTestTerminalVelocityKernel.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/IceDeposition/ERF_GTestIceDepositionScalar.cpp
@@ -876,6 +888,7 @@ if(ERF_ENABLE_MPI)
       ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestTerrainFineColumns.cpp
       # The boxes are spread over the ranks, so a k may be held by another rank only
       ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestReduceToMaxPerHeight.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/Radiation/ERF_GTestTopographicShading.cpp
       # The immersed average down copies the fine sums to the coarse layout: check it across ranks
       ${CMAKE_CURRENT_SOURCE_DIR}/Utils/ERF_GTestImmersedAverageDown.cpp
       # The mismatch count reduces over the ranks: check it across ranks
