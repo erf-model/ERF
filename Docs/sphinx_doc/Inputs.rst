@@ -4814,11 +4814,17 @@ ERF default and satisfies this requirement.
 at ``erf.rad_freq_in_steps`` (default ``1``). Both are held between radiation
 updates; there is no separate shadow-update interval. For the astronomical
 sun, the ray direction and slope incidence use the midpoint of the upcoming
-radiation interval. Use a shorter interval to resolve moving shadows. On
-restart or grid creation, missing raw surface forcing triggers a radiation
-refresh even if that step would normally be skipped. Levels that inherit
-radiation from their parent use the parent's radiation time and apply their
-own terrain correction after interpolation.
+radiation interval. Use a shorter interval to resolve moving shadows. Raw
+surface forcing is not checkpointed. After a restart or a level regrid, a
+full-column level with missing raw forcing runs RRTMGP on its next step even
+if that step is outside the regular radiation schedule. For
+``erf.rad_freq_in_steps > 1``, this can make a restarted run differ bitwise
+from an uninterrupted run and can add RRTMGP calls after regridding. The
+forced call still averages the zenith cosine over the full radiation interval,
+even when the next scheduled update is sooner. A fine level built with
+``erf.interp_atmos_from_coarse`` on its first step, or a nested patch that
+cannot run RRTMGP, instead interpolates its parent's radiation forcing and
+uses the parent's radiation time for its own terrain correction.
 
 For a fixed sun 10 degrees above the eastern horizon, also set:
 

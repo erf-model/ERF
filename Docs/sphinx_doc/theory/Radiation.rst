@@ -95,9 +95,14 @@ RRTMGP averages its zenith cosine over the upcoming radiation interval; the
 terrain correction uses the sun direction at that interval's midpoint, keeping
 the column solver's zenith cosine as the land-model input. This approximates
 shadow motion over the interval, so resolving a moving shadow requires a
-sufficiently short radiation interval. A fine level inheriting radiation uses
-its parent's radiation time. Missing raw forcing after restart or grid creation
-forces a refresh before the next correction.
+sufficiently short radiation interval. Raw surface forcing is not checkpointed:
+after restart or a level regrid, a full-column level without it forces an
+RRTMGP update on its next step, even if that step is off schedule. With
+``erf.rad_freq_in_steps > 1``, restarts may therefore lose bitwise equivalence
+to uninterrupted runs and regrids may add radiation calls. The forced update
+still averages the zenith cosine over the full interval. A fine level that
+inherits radiation interpolates the parent's forcing and uses its radiation
+time for the terrain correction instead of forcing an update.
 
 See :ref:`sec:Plotfile2DTopographicRadiation` for diagnostics of the cast shadow,
 slope factor, and original and corrected shortwave fluxes.

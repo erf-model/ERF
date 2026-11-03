@@ -334,10 +334,13 @@ are required to checkpoint or restart a Noah-MP simulation; whenever a
 checkpoint is written, the land-surface state is written alongside the
 atmospheric state, and it is read back automatically on restart.
 
-A Noah-MP restart is **bitwise reproducible**: restarting from a checkpoint
-reproduces the trajectory of an equivalent cold-start run exactly. Achieving
-this requires persisting two pieces of state in addition to the regular ERF
-MultiFab data:
+Noah-MP checkpoints the state needed to reproduce its land-surface trajectory
+bitwise when the coupled forcing is the same. With topographic shading or slope
+radiation and ``erf.rad_freq_in_steps > 1``, a restart can force an off-schedule
+RRTMGP update because raw surface forcing is not checkpointed, so the coupled
+run is not guaranteed to match an uninterrupted run bitwise. See
+:ref:`inputs-topographic-radiation` for the update timing. Noah-MP persists two
+pieces of state in addition to the regular ERF MultiFab data:
 
 #. **The land-surface substep counter** (Noah-MP's ``itimestep``). When the
    Noah-MP timestep is larger than the ERF timestep (subcycling via
