@@ -3935,12 +3935,13 @@ building combinations.
 |                                   | immersed forcing drag rather than an explicit            |                    |                  |
 |                                   | forward-Euler source                                     |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.if_implicit_projection**    | anelastic terrain immersed forcing on a constant-dz      | Boolean            | false            |
-|                                   | mesh, FFT build: apply the drag of the solid inside the  |                    |                  |
-|                                   | projection, m = (m* - grad phi) / (1 + dt rate) on each  |                    |                  |
-|                                   | face (FFT-preconditioned GMRES), and do not zero the     |                    |                  |
-|                                   | solid faces afterwards, so the projected momenta are     |                    |                  |
-|                                   | divergence free in the solid too                         |                    |                  |
+| **erf.if_implicit_projection**    | terrain or buildings immersed forcing (not both),        | Boolean            | false            |
+|                                   | erf.anelastic = 1 on every level, constant-dz mesh, map  |                    |                  |
+|                                   | factors of one, FFT build: apply the drag of the solid   |                    |                  |
+|                                   | inside the projection, m = (m* - grad phi) / (1 + dt     |                    |                  |
+|                                   | rate) on each face (FFT-preconditioned GMRES), and do    |                    |                  |
+|                                   | not zero the solid faces afterwards, so the projected    |                    |                  |
+|                                   | momenta are divergence free in the solid too             |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_z0**                     | roughness length [m] used by the immersed forcing wall   | Real > 0           | 0.1              |
 |                                   | model                                                    |                    |                  |

@@ -883,7 +883,8 @@ void erf_slow_rhs_post (int level, int finest_level,
         if (l_anelastic && terrain_blank) { // explicitly set fully immersed cells to have 0 velocities for anelastic (unstable for fully compressible).
             // With erf.if_implicit_projection the drag of the solid is inside the projection, which
             // already left these momenta divergence free; zeroing the faces between solid cells here
-            // would leave the surface faces unbalanced (a mass sink in the solid below them).
+            // would leave the surface faces unbalanced (a mass sink in the solid cells next to them,
+            // under a terrain surface or behind building walls and roofs).
             const bool l_freeze_mom = !solverChoice.if_implicit_projection;
             ParallelFor(xtbx, ytbx, ztbx,
             [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {

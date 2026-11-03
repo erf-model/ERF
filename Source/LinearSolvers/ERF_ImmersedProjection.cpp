@@ -2,7 +2,7 @@
  * \file ERF_ImmersedProjection.cpp
  *
  * Implicit immersed-forcing drag in the anelastic projection (erf.if_implicit_projection,
- * erf-model/ERF#4919).
+ * erf-model/ERF#4919 for terrain, #4887 for buildings).
  *
  * The terrain immersed forcing drags the momentum of the solid faces toward zero at the rate
  * rate = beta_face * if_Cd_momentum / (dx dy dz)^(1/3). Applied explicitly, the drag is undone by
@@ -15,9 +15,13 @@
  *
  * the projected momenta are divergence free everywhere, the solid included, and no freeze is
  * needed. The faces where the source term applies the wall law instead of the drag keep sigma = 1.
+ * For buildings (erf.buildings_type = ImmersedForcing, erf-model/ERF#4887) the rate is the linear
+ * drag of ImmersedForcingBuildings_{X,Y,Z}mom (partial-wall and interior faces, from the masks of
+ * ERF_ImmersedBuildingMasks.H), and the faces between two solid cells take the full rate.
  */
 #include "ERF.H"
 #include "ERF_ImmersedWallCell.H"
+#include "ERF_ImmersedBuildingMasks.H"
 
 #ifdef ERF_USE_FFT
 #include "ERF_ImmersedPoisson.H"
@@ -28,8 +32,9 @@ using namespace amrex;
 
 /**
  * Face coefficients sigma = 1 / (1 + dt rate) of the implicit immersed drag in the projection,
- * with rate the drag rate of ImmersedForcingTerrain_{X,Y,Z}mom on that face (zero where those
- * apply the wall law). The faces on the boundary of the level's grids keep sigma = 1.
+ * with rate the drag rate of ImmersedForcingTerrain_{X,Y,Z}mom (or, for buildings,
+ * ImmersedForcingBuildings_{X,Y,Z}mom) on that face, zero where those apply the wall law.
+ * The faces on the boundary of the level's grids keep sigma = 1.
  *
  * @param lev   Level index
  * @param l_dt  Time step of the projection
@@ -65,6 +70,13 @@ void ERF::make_if_projection_sigma (int lev, Real l_dt, Array<MultiFab,AMREX_SPA
     const bool use_most      = solverChoice.if_use_most;
     // the fraction-stress law (erf.if_wall_form = fraction_stress) has its own wall cell
     const bool fraction_stress = solverChoice.if_fraction_stress;
+    // Buildings (erf.buildings_type = ImmersedForcing, erf-model/ERF#4887): the linear drag of
+    // ImmersedForcingBuildings_{X,Y,Z}mom, from the masks of ERF_ImmersedBuildingMasks.H, read
+    // with the blanking as those kernels read it (snapped with erf.if_snap_partial_cells)
+    // (a level above the 50 m cutoff of the building forcing has no blanking, so every face
+    // gets sigma = 1 there, as the kernels and the explicit path leave it alone)
+    const bool buildings = (solverChoice.buildings_type == BuildingsType::ImmersedForcing);
+    const bool snap      = solverChoice.if_snap_partial_cells;
     const int  dom_klo = geom[lev].Domain().smallEnd(2);
     const int  dom_khi = geom[lev].Domain().bigEnd(2);
 
@@ -83,6 +95,30 @@ void ERF::make_if_projection_sigma (int lev, Real l_dt, Array<MultiFab,AMREX_SPA
             const int ko = (dir == 2) ? 1 : 0;
             const Array4<const Real> tf = (tb_face[dir]) ? tb_face[dir]->const_array(mfi) : Array4<const Real>{};
             const Array4<Real>       sg = sigma[dir].array(mfi);
+
+            if (buildings) {
+                ParallelFor(mfi.nodaltilebox(dir), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    if (in(i,j,k) == 0 || in(i-io,j-jo,k-ko) == 0) {
+                        sg(i,j,k) = one;
+                        return;
+                    }
+                    // the face as the building kernels read it, and the weight of the drag they drop
+                    Real w;
+                    if (dir == 0) {
+                        const if_bld::HorizFace f = if_bld::horiz_face<0>(t, tf, i, j, k, dom_klo, snap, small_volfrac);
+                        w = if_bld::implicit_weight(if_bld::horiz_masks(f, use_most, snap).linear(f.t), f.raw);
+                    } else if (dir == 1) {
+                        const if_bld::HorizFace f = if_bld::horiz_face<1>(t, tf, i, j, k, dom_klo, snap, small_volfrac);
+                        w = if_bld::implicit_weight(if_bld::horiz_masks(f, use_most, snap).linear(f.t), f.raw);
+                    } else {
+                        const if_bld::VertFace f = if_bld::vert_face(t, tf, i, j, k, snap, small_volfrac);
+                        w = if_bld::implicit_weight(if_bld::vert_masks(f, k >= dom_klo + 1, use_most, snap).linear(f.t), f.raw);
+                    }
+                    sg(i,j,k) = one / (one + l_dt * w * rate_solid);
+                });
+                continue;
+            }
 
             ParallelFor(mfi.nodaltilebox(dir), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
             {
@@ -158,6 +194,17 @@ void ERF::solve_with_if_gmres (int lev, const Box& subdomain, MultiFab& rhs, Mul
     gmsolver.setVerbose(mg_verbose);
     gmsolver.setRestartLength(50);
     gmsolver.solve(phi, rhs, solverChoice.poisson_reltol, solverChoice.poisson_abstol);
+    // GMRES returns quietly when it stops at its iteration cap; the projection then would not be
+    // divergence free, so stop here (the FFT preconditioner keeps the count at about ten)
+    if (gmsolver.getStatus() != 0) {
+        amrex::Abort("erf.if_implicit_projection: the GMRES solve of div(sigma grad phi) = rhs did not converge "
+                     "(residual " + std::to_string(gmsolver.getResidualNorm()) + " after " +
+                     std::to_string(gmsolver.getNumIters()) + " iterations)");
+    }
+    if (mg_verbose > 0) {
+        amrex::Print() << "erf.if_implicit_projection: GMRES converged in " << gmsolver.getNumIters()
+                       << " iterations, residual " << gmsolver.getResidualNorm() << "\n";
+    }
 
     ip.getFluxes(phi, fluxes);
 #else
