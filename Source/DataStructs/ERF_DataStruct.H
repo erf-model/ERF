@@ -1330,9 +1330,11 @@ struct SolverChoice {
             amrex::Abort("erf.if_wall_tke_time_factor must be >= 1 (steps over which the wall TKE is relaxed)");
         }
         // Partial wall cells of the fraction-stress law dissipate TKE with the length scale of flat
-        // ground's first cell (kynema-sgf KLAxell.flat_wall_dissipation); on by default with it
+        // ground's first cell (kynema-sgf KLAxell.flat_wall_dissipation); on by default with it.
+        // query, not queryAdd: the default depends on erf.if_wall_form, so storing it would make a
+        // later init_params in the same process (the unit tests) see it as given (cf. #4940)
         if_flat_wall_dissipation = if_fraction_stress;
-        pp.queryAdd("if_flat_wall_dissipation", if_flat_wall_dissipation);
+        pp.query("if_flat_wall_dissipation", if_flat_wall_dissipation);
         if (if_flat_wall_dissipation && !if_fraction_stress) {
             amrex::Abort("erf.if_flat_wall_dissipation = true belongs to erf.if_wall_form = fraction_stress");
         }
