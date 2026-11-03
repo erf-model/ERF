@@ -4,6 +4,7 @@
 #include <ERF_OrbCosZenith.H>
 #include <AMReX_MultiFabUtil.H>
 #include <AMReX_ParallelDescriptor.H>
+#include <limits>
 
 using namespace amrex;
 using T = TopographicShading;
@@ -275,4 +276,23 @@ TEST(TopographicShading, ObliqueRayInterpolatesAndUsesBothCellWidths)
         false,false,2,1,{h,h,Real(0.2)},10));
     EXPECT_FALSE(erf_topography::shadowed(0,0,terrain.const_array(),0,7,0,7,
         false,false,1,1,{h,h,Real(0.2)},10));
+}
+
+TEST(TopographicShading, ElevatedTerrainIgnoresOneUlpShadowNoise)
+{
+    const Box b(IntVect(0,0,0),IntVect(2,0,0));
+    FArrayBox terrain(b,1,The_Pinned_Arena());
+    terrain.setVal(Real(3000));
+    auto a = terrain.array();
+    const erf_topography::Sun sun{std::sqrt(Real(0.75)),Real(0),Real(0.5)};
+    const Real horizontal = std::sqrt(sun.x*sun.x);
+    const Real ray_height = Real(3000) + sun.z/horizontal;
+    a(1,0,0) = std::nextafter(ray_height,std::numeric_limits<Real>::infinity());
+    auto blocked = [&] {
+        return erf_topography::shadowed(0,0,terrain.const_array(),0,2,0,0,
+                                        false,false,1,1,sun,1);
+    };
+    EXPECT_FALSE(blocked());
+    a(1,0,0) = ray_height + Real(0.1);
+    EXPECT_TRUE(blocked());
 }

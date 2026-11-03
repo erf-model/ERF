@@ -45,10 +45,13 @@ bool shadowed (int i, int j, const amrex::Array4<const Real>& terrain,
                Real dx, Real dy, Sun s, Real search_length)
 {
     const Real horizontal = std::sqrt(s.x*s.x + s.y*s.y);
-    if (s.z <= Real(1.e-4) || horizontal <= Real(1.e-8)) { return false; }
+    constexpr Real real_eps = std::numeric_limits<Real>::epsilon();
+    // A horizontal component below sqrt(eps) cannot be distinguished reliably
+    // from a vertical ray when the unit sun vector is rounded to Real.
+    if (s.z <= Real(1.e-4) || horizontal <= std::sqrt(real_eps)) { return false; }
     // Trigonometric roundoff at cardinal azimuths must not send a ray out
     // through a domain edge to which it is parallel (e.g. cos(90 degrees)).
-    constexpr Real angular_eps = Real(8)*std::numeric_limits<Real>::epsilon();
+    constexpr Real angular_eps = Real(8)*real_eps;
     const Real di = std::abs(s.x) < angular_eps*horizontal ? Real(0) : s.x / (horizontal * dx);
     const Real dj = std::abs(s.y) < angular_eps*horizontal ? Real(0) : s.y / (horizontal * dy);
     const Real ds = Real(1) / amrex::max(std::abs(di), std::abs(dj));
@@ -67,9 +70,14 @@ bool shadowed (int i, int j, const amrex::Array4<const Real>& terrain,
         AMREX_ASSERT(terrain.contains(ix,jy,0) && terrain.contains(ip,jp,0));
         const Real h = (Real(1)-wy)*((Real(1)-wx)*terrain(ix,jy,0,0) + wx*terrain(ip,jy,0,0))
                      + wy*((Real(1)-wx)*terrain(ix,jp,0,0) + wx*terrain(ip,jp,0,0));
-        // A small vertical tolerance avoids self-shadowing a numerically flat
-        // or exactly sun-parallel surface through interpolation roundoff.
-        if (h > z + r*s.z/horizontal + Real(1.e-4)) { return true; }
+        // Interpolation and ray-height arithmetic can differ by several ulps
+        // at the local terrain height, especially with single precision.
+        const Real ray_height = z + r*s.z/horizontal;
+        // All heights are metres; use a 1 m scale near sea level.
+        const Real height_scale = amrex::max(Real(1),
+            amrex::max(std::abs(z), amrex::max(std::abs(h), std::abs(ray_height))));
+        const Real height_tol = Real(8)*real_eps*height_scale;
+        if (h > ray_height + height_tol) { return true; }
     }
     return false;
 }
