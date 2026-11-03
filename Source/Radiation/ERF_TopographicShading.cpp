@@ -246,13 +246,18 @@ void TopographicShading::apply (int lev, const TopographicShadingChoice& choice,
             const int jp = py ? erf_topography::wrap(j+1,jlo,jhi-jlo+1) : amrex::min(j+1,jhi);
             const Real hx = (terrain(ip,j,0)-terrain(im,j,0))/(dxp*(px ? 2 : amrex::max(1,ip-im)));
             const Real hy = (terrain(i,jp,0)-terrain(i,jm,0))/(dyp*(py ? 2 : amrex::max(1,jp-jm)));
-            const bool daytime = s.z > Real(1.e-4);
-            const Real inc = daytime ? erf_topography::incidence(hx,hy,s) : Real(0);
-            const bool shadow = daytime && choice.topo_shading &&
-                erf_topography::shadowed(i,j,terrain,ilo,ihi,jlo,jhi,px,py,dxp,dyp,s,choice.shadlen);
-            // Match WRF's near-horizon cutoff; avoid dividing by a tiny zenith cosine.
+            // RRTMGP's direct flux uses its interval-averaged cosine. The
+            // midpoint sun supplies direction only; scaling by its cosine
+            // would amplify the averaged flux near sunrise or sunset.
+            const Real mu0 = r(i,j,k,CosZen);
+            const bool has_direct_sun = mu0 > Real(1.e-4);
+            const bool midpoint_daytime = s.z > Real(1.e-4);
+            const Real inc = midpoint_daytime ? erf_topography::incidence(hx,hy,s) : Real(0);
+            const bool shadow = has_direct_sun && choice.topo_shading &&
+                (!midpoint_daytime || erf_topography::shadowed(
+                    i,j,terrain,ilo,ihi,jlo,jhi,px,py,dxp,dyp,s,choice.shadlen));
             const Real factor = shadow ? Real(0) :
-                ((daytime && choice.slope_rad) ? inc/s.z : Real(1));
+                ((has_direct_sun && choice.slope_rad) ? inc/mu0 : Real(1));
             const Real direct = r(i,j,k,DirectVis) + r(i,j,k,DirectNir);
             const Real diffuse = r(i,j,k,DiffuseVis) + r(i,j,k,DiffuseNir);
             // Preserve the exact raw broadband flux when no adjustment is needed.

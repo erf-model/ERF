@@ -143,6 +143,23 @@ TEST(TopographicShading, SlopeUsesPhysicalMapFactors)
     EXPECT_NEAR(sw.min(0),100+300*factor,tol);
 }
 
+TEST(TopographicShading, SlopeUsesRadiationIntervalCosine)
+{
+    TerrainCase c(false,2,3);
+    c.choice.topo_shading = false;
+    c.terrain(2); c.map.setVal(2); c.initialize();
+    // The midpoint sun remains at choice.fixed_mu, while RRTMGP used the
+    // interval-averaged cosine below for its raw direct flux.
+    const Real averaged_mu0 = Real(0.25);
+    c.topo.raw(0)->setVal(averaged_mu0,T::CosZen,1);
+    c.topo.apply(0,c.choice,{});
+    const Real midpoint_factor = Real(0.75)/std::sqrt(Real(1.0625));
+    const Real expected = midpoint_factor*c.choice.fixed_mu/averaged_mu0;
+    EXPECT_NEAR(c.topo.diagnostics(0)->min(T::DirectFactor),expected,tol);
+    EXPECT_NEAR(c.topo.diagnostics(0)->max(T::DirectFactor),expected,tol);
+    EXPECT_NEAR(c.topo.diagnostics(0)->min(T::TerrainSW),100+300*expected,tol);
+}
+
 TEST(TopographicShading, SearchDistanceAndPeriodicBoundary)
 {
     TerrainCase c(true);
@@ -170,6 +187,7 @@ TEST(TopographicShading, NightAndZenithHaveNoTerrainShadow)
     c.choice.latitude = 0; c.choice.longitude = 0;
     c.topo.initialize_geometry(0,c.choice,c.z,c.map,c.map,nullptr,nullptr);
     c.topo.set_sun(0,1.0,0);
+    c.topo.raw(0)->setVal(Real(0),T::CosZen,1);
     c.topo.apply(0,c.choice,{});
     EXPECT_EQ(c.topo.diagnostics(0)->max(T::Shadow),0);
     EXPECT_EQ(c.topo.diagnostics(0)->max(T::Incidence),0);
