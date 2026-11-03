@@ -12,6 +12,8 @@ extern "C" {
     void dgetri_(int* N, double* A, int* lda, int* ipiv,
                  double* work, int* lwork, int* info);
     void dpotrf_(char* UPLO, int* N, double* A, int* LDA, int* INFO);
+    void dsyev_(char* JOBZ, char* UPLO, int* N, double* A, int* LDA,
+                double* W, double* WORK, int* LWORK, int* INFO);
 }
 
 class Matrix
@@ -102,6 +104,66 @@ public:
         }
 
         return L;
+    }
+
+    // Symmetric inverse square root A^{-1/2} = V Lambda^{-1/2} V^T of a
+    // symmetric positive definite matrix, via eigendecomposition (dsyev).
+    // Unlike a Cholesky factor, the result is symmetric, so for the ETKF
+    // matrix S (which has S*1 = 1) it satisfies T*1 = 1 and keeps the
+    // analysis perturbations zero-mean.
+    Matrix inverse_sqrt_symmetric() const
+    {
+        int n = n_;
+
+        // Symmetrize to remove round-off asymmetry; dsyev reads the lower triangle
+        Matrix V(n);
+        for (int i = 0; i < n; ++i) {
+            for (int j = 0; j < n; ++j) {
+                V(i,j) = 0.5 * ((*this)(i,j) + (*this)(j,i));
+            }
+        }
+
+        std::vector<double> w(n);
+        int lda = n;
+        int info;
+        char jobz = 'V';   // eigenvalues and eigenvectors
+        char uplo = 'L';
+
+        // workspace query
+        int lwork = -1;
+        double work_query;
+        dsyev_(&jobz, &uplo, &n, V.data(), &lda, w.data(),
+               &work_query, &lwork, &info);
+
+        lwork = static_cast<int>(work_query);
+        std::vector<double> work(lwork);
+
+        // V is overwritten with orthonormal eigenvectors (columns)
+        dsyev_(&jobz, &uplo, &n, V.data(), &lda, w.data(),
+               work.data(), &lwork, &info);
+
+        if (info != 0) {
+            throw std::runtime_error("Symmetric eigendecomposition failed");
+        }
+
+        for (int k = 0; k < n; ++k) {
+            if (w[k] <= 0.0) {
+                throw std::runtime_error("Matrix not positive definite in inverse_sqrt_symmetric");
+            }
+        }
+
+        // T = V * diag(w^{-1/2}) * V^T
+        Matrix T(n);
+        for (int i = 0; i < n; ++i) {
+            for (int j = 0; j < n; ++j) {
+                double sum = 0.0;
+                for (int k = 0; k < n; ++k) {
+                    sum += V(i,k) * V(j,k) / std::sqrt(w[k]);
+                }
+                T(i,j) = sum;
+            }
+        }
+        return T;
     }
 
     Matrix transpose() const
@@ -218,4 +280,9 @@ MakeEnsembleCheckpointName (int da_iter, int ens_no);
 
 std::string
 MakeFullPath (const std::string& filename, const int da_iter);
+
+void
+WriteInnovationRMS(const amrex::MultiFab& dvec,
+                   const std::string& filename,
+                   int da_iter);
 #endif
