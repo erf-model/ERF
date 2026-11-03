@@ -446,7 +446,7 @@ public:
 
     //! Face coefficients sigma = 1 / (1 + dt rate) of the implicit immersed drag in the projection
     //! (erf.if_implicit_projection); 1 on faces on the boundary of the level's grids
-    void make_if_projection_sigma (int lev, amrex::Real dt, amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& sigma);
+    void make_if_projection_sigma (int lev, amrex::Real l_dt, amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& sigma);
 
     // A refined level that stops inside the domain in z (ERF_CoarseFineFaces.cpp)
     void cf_zface_coarse_at (int lev, double tc, bool conserved_rho,
@@ -1160,6 +1160,12 @@ public:
     void remake_zphys          (int lev, amrex::Real time, std::unique_ptr<amrex::MultiFab>& temp_zphys_nd);
     void update_terrain_arrays (int lev);
     void make_terrain_blanking (int lev);
+
+    [[nodiscard]] bool immersed_forcing_active (int lev) const noexcept
+    {
+        return solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+               solverChoice.use_building_immersed_forcing(geom[lev]);
+    }
 
     bool m_driver_has_atm2ocn_coupling = false;
     bool m_driver_uses_two_way_coupling = false;
@@ -2546,6 +2552,15 @@ private:
 
     // array of EB objects
     amrex::Vector<std::unique_ptr<eb_>> eb;
+
+    // Keep EB geometry construction, factories, and face-mask allocation in agreement.
+    // Immersed buildings on a static fitted mesh default to cell-centered blanking.
+    [[nodiscard]] bool use_native_fc_factories () const noexcept {
+        return USE_FC_FACTORY &&
+            !(solverChoice.buildings_type == BuildingsType::ImmersedForcing &&
+              solverChoice.terrain_type == TerrainType::StaticFittedMesh &&
+              !solverChoice.buildings_fc_factories);
+    }
 
     [[nodiscard]] eb_ const& get_eb (int lev) const noexcept {
         AMREX_ASSERT(lev >= 0 && lev < eb.size() && eb[lev] != nullptr);
