@@ -68,6 +68,52 @@ AMREX_ENUM(TauModel, PerLayer, Mass);
  */
 AMREX_ENUM(SEBTurbulentFluxSource, SurfaceLayer, Defaults);
 
+/** Inputs shared by RRTMGP and the topographic surface correction. */
+struct RRTMGPSolarChoice
+{
+  amrex::Real fixed_mu = -9999.0;
+  amrex::Real latitude = 39.809860;
+  amrex::Real longitude = -98.555183;
+  int radiation_interval = 1;
+
+  void read (const std::string& prefix)
+  {
+    amrex::ParmParse pp(prefix);
+    pp.queryAdd("fixed_solar_zenith_angle", fixed_mu);
+    pp.queryAdd("rad_cons_lat", latitude);
+    pp.queryAdd("rad_cons_lon", longitude);
+    pp.queryAdd("rad_freq_in_steps", radiation_interval);
+    if (!std::isfinite(latitude) || latitude < -90.0 || latitude > 90.0) {
+      amrex::Abort("erf.rad_cons_lat = " + std::to_string(latitude) +
+                   " must lie in [-90, 90] degrees.");
+    }
+    if (!std::isfinite(longitude) || longitude < -180.0 || longitude > 180.0) {
+      amrex::Abort("erf.rad_cons_lon = " + std::to_string(longitude) +
+                   " must lie in [-180, 180] degrees.");
+    }
+    if (fixed_mu > 1.0) {
+      amrex::Abort("erf.fixed_solar_zenith_angle = " + std::to_string(fixed_mu) +
+                   " is the cosine of the solar zenith angle and cannot exceed 1; 60 degrees is 0.5.");
+    }
+  }
+};
+
+/** Inputs for the optional topographic correction of RRTMGP land forcing. */
+struct TopographicShadingChoice
+{
+  bool slope_rad = false;
+  bool topo_shading = false;
+  amrex::Real shadlen = 25000;
+  amrex::Real fixed_mu = 0;
+  amrex::Real fixed_azimuth = -1; // degrees clockwise from geographic north
+  amrex::Real latitude = 0;
+  amrex::Real longitude = 0;
+  int radiation_interval = 0;
+
+  bool active () const { return slope_rad || topo_shading; }
+  void read (const std::string& prefix, const RRTMGPSolarChoice& solar);
+};
+
 /**
  * @brief Container holding radiation-related choices and parameters.
  *

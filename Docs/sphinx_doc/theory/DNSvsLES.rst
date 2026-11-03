@@ -109,84 +109,64 @@ where :math:`K = 2\mu_{t}`
 In the Smagorinsky model, modeling of :math:`\mu_{t}` does not account for the turbulent kinetic energy (TKE) corresponding to
 unresolved scales and no extra equation for TKE is solved.
 
-Enhanced Smagorinsky Model with Moist Stratification
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Richardson-Number Correction
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The standard Smagorinsky model uses a fixed relationship between mixing length and grid scale (:math:`\ell = \Delta`).
-For atmospheric applications involving moisture, this can be inappropriate in stably stratified regions where buoyancy effects
-significantly suppress turbulent mixing. ERF includes an enhanced Smagorinsky formulation that accounts for moist atmospheric
-stratification effects while maintaining computational efficiency.
-
-The enhanced model modifies the mixing length based on local atmospheric stability:
+The standard Smagorinsky model mixes at the same rate whatever the stratification. In stably stratified regions, where buoyancy
+suppresses turbulence, this mixes too much. ERF therefore multiplies the Smagorinsky viscosity by a stability factor that depends on
+the local gradient Richardson number:
 
 .. math::
-   \ell_m = \begin{cases}
-   \Delta & \text{if } N^2_{eff} \leq 0 \\
-   \min\left(\Delta, \sqrt{\frac{u_c^2}{N^2_{eff}}}\right) & \text{if } N^2_{eff} > 0
+   \mu_{t} = (C_s \Delta)^2 (\sqrt{2 \tilde{S} \tilde{S}}) \, \overline{\rho} \, f(Ri),
+   \qquad
+   f(Ri) = \begin{cases}
+   1 & Ri \leq 0 \\
+   \sqrt{1 - Ri/Ri_{crit}} & 0 < Ri < Ri_{crit} \\
+   0 & Ri \geq Ri_{crit}
    \end{cases}
 
-where :math:`u_c = |\tilde{S}| \Delta` is a characteristic velocity scale based on the local strain rate magnitude,
-and :math:`N^2_{eff}` is the effective moist Brunt-Väisälä frequency.
+so neutral and unstable cells recover the standard model, and mixing switches off at the critical Richardson number
+:math:`Ri_{crit}`. The scalar diffusivities follow from :math:`\mu_t` through :math:`Pr_t` and :math:`Sc_t`, so they are damped
+by the same factor. With ``erf.mix_isotropic = true`` (the default) the factor multiplies both the horizontal and the vertical
+viscosity. With an anisotropic mixing length it multiplies only the vertical viscosity.
 
-**Moist Stratification Parameter**
-
-The moist stratification parameter accounts for three key atmospheric effects:
-
-1. **Virtual potential temperature effects**: Water vapor decreases air density (enhancing buoyancy) while condensate increases density (reducing buoyancy):
+The Richardson number is
 
 .. math::
-   \theta_v = \theta \left(1 + 0.61 q_v - q_c - q_i\right)
+   Ri = \frac{N^2}{\max\left(S^2_{vert},\, 10^{-10}\right)},
+   \qquad
+   S^2_{vert} = \left(\frac{\partial u}{\partial z}\right)^2 + \left(\frac{\partial v}{\partial z}\right)^2,
 
-where :math:`q_v`, :math:`q_c`, and :math:`q_i` are mixing ratios of water vapor, liquid water, and ice, respectively.
-
-2. **Moist Brunt-Väisälä frequency**: The stratification parameter uses virtual potential temperature instead of dry potential temperature:
-
-.. math::
-   N^2_m = \frac{g}{\theta_0} \frac{\partial \theta_v}{\partial z}
-
-3. **Conditional instability correction**: In saturated regions with condensate present, the effective stratification is reduced due to latent heat release:
+with both derivatives taken as centered differences at the cell center. The Brunt-Väisälä frequency uses the potential
+temperature appropriate to the cell:
 
 .. math::
-   N^2_{eff} = N^2_m \cdot \frac{1 + \frac{L_{eff} q_{s,eff}}{R_d T}}{1 + \frac{L_{eff}^2 q_{s,eff}}{c_p R_v T^2}}
+   N^2 = \frac{g}{\theta_*} \frac{\partial \theta_*}{\partial z},
+   \qquad
+   \theta_* = \begin{cases}
+   \theta_l & \text{saturated cells, } q_c > 10^{-8}\ \text{kg/kg} \\
+   \theta_v & \text{other cells, when water vapor is present} \\
+   \theta & \text{dry runs}
+   \end{cases}
 
-where :math:`L_{eff}` and :math:`q_{s,eff}` are phase-weighted effective latent heat and saturation mixing ratio, accounting for the presence of both liquid and ice phases:
+The liquid-ice water potential temperature :math:`\theta_l` and the virtual potential temperature :math:`\theta_v` are defined in
+:ref:`MoistPotentialTemperatures`. Inside a cloud, latent heating keeps :math:`\theta_l` nearly constant through well-mixed
+layers. In a cloudy updraft :math:`\partial\theta_l/\partial z` can be negative, which gives :math:`N^2 < 0` and leaves
+mixing undamped. This choice of potential temperature is fixed: ``erf.thermal_stratification`` does not change it.
 
-.. math::
-   L_{eff} &= f_l L_v + f_i (L_v + L_i) \\
-   q_{s,eff} &= f_l q_{s,w} + f_i q_{s,i} \\
-   f_l &= \frac{q_c}{q_c + q_i + \epsilon}, \quad f_i = 1 - f_l
-
-The enhanced turbulent viscosity becomes:
-
-.. math::
-   \mu_{t} = (C_s \ell_m)^2 (\sqrt{2 \tilde{S} \tilde{S}}) \overline{\rho}
-
-with mixing length bounds applied to prevent numerical issues:
-
-.. math::
-   \ell_m \geq 0.001 \Delta
-
-**Physical Interpretation**
-
-This formulation creates an effective Richardson number criterion where turbulent length scales respond to atmospheric stability:
-
-.. math::
-   Ri_{eff} = \frac{N^2_{eff}}{|\tilde{S}|^2}
-
-When :math:`Ri_{eff} > 1`, stratification dominates and mixing is suppressed.
-When :math:`0 < Ri_{eff} < 1`, shear dominates and mixing approaches standard Smagorinsky behavior.
-When :math:`Ri_{eff} \leq 0`, stratification is unstable and the standard Smagorinsky behavior is exactly recovered, regardless of moisture.
+Next to an embedded boundary, the vertical derivatives use one-sided differences where a neighbor cell is covered. If no
+usable shear stencil exists, the factor is left at 1.
 
 **Implementation Control**
 
-The moist Richardson number limiter can be enabled via the input parameter:
-
 .. code-block:: none
 
-    erf.use_moist_Ri_correction = true   # Apply moist Richardson number limiter
-    erf.use_moist_Ri_correction = false  # Standard Smagorinsky
+    erf.use_Ri_correction = true   # Apply the Richardson-number correction (default)
+    erf.use_Ri_correction = false  # Standard Smagorinsky
+    erf.Ri_crit           = 0.25   # Critical Richardson number (default)
 
-When disabled, the model reverts to the standard Smagorinsky formulation with :math:`\ell_m = \Delta`.
+Both inputs can be set per level. When the correction is disabled, :math:`f = 1` and the model is the standard Smagorinsky
+formulation.
 
 Deardorff Model
 ~~~~~~~~~~~~~~~

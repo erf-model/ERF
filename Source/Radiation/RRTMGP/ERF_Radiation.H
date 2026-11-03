@@ -143,7 +143,7 @@ public:
          amrex::MultiFab* z_phys,
          amrex::MultiFab* lat_ptr,
          amrex::MultiFab* lon_ptr,
-         const bool updated_lsm,
+         const bool force_update,
          amrex::Real& declin,
          amrex::Real& calday) override
     {
@@ -163,7 +163,7 @@ public:
                   cons_in, lmask, t_surf,
                   lsm_input_ptrs, qheating_rates,
                   rad_fluxes, z_phys, lat_ptr, lon_ptr,
-                  updated_lsm);
+                  force_update);
         rad_run_impl(lsm_output_ptrs);
         declin = m_declin;
         calday = m_calday;
@@ -188,7 +188,7 @@ public:
                amrex::MultiFab* z_phys,
                amrex::MultiFab* lat,
                amrex::MultiFab* lon,
-               const bool updated_lsm);
+               const bool force_update);
 
     // Initialize the temporary variables
     void
@@ -341,8 +341,8 @@ private:
     amrex::MultiFab* m_lon = nullptr;
 
     // Constant lat/lon if the above MFs are not valid
-    amrex::Real m_lat_cons =  amrex::Real(39.809860);
-    amrex::Real m_lon_cons = -amrex::Real(98.555183);
+    amrex::Real m_lat_cons;
+    amrex::Real m_lon_cons;
 
     // Holds output from KOKKOS views used in the datalog
     amrex::MultiFab datalog_mf;
@@ -426,7 +426,7 @@ private:
 
     // Fixed solar zenith angle to use for shortwave calculations
     // This is only used if a positive value is supplied
-    amrex::Real m_fixed_solar_zenith_angle = -amrex::Real(9999.);
+    amrex::Real m_fixed_solar_zenith_angle;
 
     amrex::Real m_declin = 0.0;
     amrex::Real m_calday = 0.0;
@@ -438,7 +438,7 @@ private:
     int m_nlwgpts;
 
     // Rad frequency in number of steps
-    int m_rad_freq_in_steps = 1;
+    int m_rad_freq_in_steps;
 
     // Number of columns to process per RRTMGP chunk (controls peak memory).
     // m_ncol_chunk_requested is the user's erf.rad_ncol_chunk; it is set once in the

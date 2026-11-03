@@ -1,17 +1,23 @@
 #include <cmath>
+#include <filesystem>
+#include <fstream>
 #include <limits>
 #include <string>
 
 #include <AMReX_Geometry.H>
+#include <AMReX_Gpu.H>
 #include <AMReX_MultiFab.H>
+#include <AMReX_ParallelDescriptor.H>
 #include <AMReX_Vector.H>
 
 #include <gtest/gtest.h>
 
+#include "ERF_ProbCommon.H"
 #include "ERF_TerrainFileChecks.H"
+#include "../ERF_GTestTempDir.H"
 
-// Motivation: a terrain or buildings height file that is malformed, mis-ordered or too small
-// for the domain used to be read without a word -- a short x list held the edge height over
+// Motivation: malformed or mis-ordered height files, or terrain tables too small
+// for the domain, used to be read without a word -- a short x list held the edge height over
 // the rest of the domain, lists out of order bracketed the wrong points -- and a file written
 // with x varying fastest put a north-south ridge east-west.  TableProblem names the first such
 // problem, TableSummary prints where the highest point and the steepest slopes sit, and
@@ -52,9 +58,11 @@ struct Table
 };
 
 std::string
-problem (const Table& t, bool usgs = false, Real xlo = 0, Real xhi = 800, Real ylo = 0, Real yhi = 400)
+problem (const Table& t, bool usgs = false, Real xlo = 0, Real xhi = 800, Real ylo = 0, Real yhi = 400,
+         bool require_domain_coverage = true)
 {
-    return TableProblem(usgs, t.nx, t.ny, t.x, t.y, t.z, lo_of(xlo, ylo), hi_of(xhi, yhi));
+    return TableProblem(usgs, t.nx, t.ny, t.x, t.y, t.z, lo_of(xlo, ylo), hi_of(xhi, yhi),
+                        require_domain_coverage);
 }
 
 // Nodal heights on 50 m cells: a ramp of slope 0.6 in x from x = 400 m to 600 m, flat before
@@ -95,6 +103,127 @@ TEST(TerrainFileChecks, CoverageLimitIsOneTableSpacing)
     EXPECT_EQ(problem(t, false, -50, 800), "");
     EXPECT_NE(problem(t, false, -51, 800).find("x values 0 .. 800 do not cover"), std::string::npos);
     EXPECT_NE(problem(t, false, 0, 800, 0, 451).find("y values 0 .. 400 do not cover"), std::string::npos);
+}
+
+TEST(TerrainFileChecks, BuildingPatchMayCoverOnlyPartOfDomain)
+{
+    Table t(Real(0.), Real(0.));
+    for (auto& x : t.x) { x += Real(10000.); }
+    for (auto& y : t.y) { y += Real(45002.5); }
+    // A local building patch inside a 60 km domain must pass, while the same
+    // table used as terrain must still fail the default coverage check.
+    EXPECT_EQ(problem(t, false, 0, 60000, 0, 60000, false), "");
+    EXPECT_NE(problem(t, false, 0, 60000, 0, 60000).find("do not cover the domain"),
+              std::string::npos);
+}
+
+TEST(TerrainFileChecks, BuildingPatchIsZeroOutsideItsTable)
+{
+    const std::string fname = erf_gtest_temp_path("erf_unit_building_patch").string() + ".txt";
+    if (ParallelDescriptor::IOProcessor()) {
+        std::ofstream file(fname);
+        // x = 2, 3, 4; y = 2, 3, 4. Nonzero border rows expose edge extension.
+        file << "3\n3\n2\n3\n4\n2\n3\n4\n"
+             << "20\n20\n20\n0\n0\n0\n20\n20\n20\n";
+    }
+    ParallelDescriptor::Barrier();
+
+    const Box domain(IntVect(0,0,0), IntVect(5,5,0));
+    const RealBox rb({Real(0.), Real(0.), Real(0.)},
+                     {Real(6.), Real(6.), Real(1.)});
+    const Geometry geom(domain, rb, CoordSys::cartesian, {0, 0, 0});
+    const Box nodes = convert(domain, IntVect(1, 1, 0));
+    FArrayBox heights(nodes, 1);
+    ProblemBase problem;
+    problem.read_custom_terrain(fname, false, geom, heights, 0.0,
+                                /*require_domain_coverage=*/false,
+                                /*zero_outside_table=*/true);
+
+    FArrayBox host_heights(nodes, 1, The_Pinned_Arena());
+    Gpu::copy(Gpu::deviceToHost, heights.dataPtr(), heights.dataPtr() + heights.size(),
+              host_heights.dataPtr());
+    Gpu::streamSynchronize();
+    const auto h = host_heights.const_array();
+    for (int j = 0; j <= 6; ++j) {
+        for (int i = 0; i <= 6; ++i) {
+            if (i < 2 || i > 4 || j < 2 || j > 4) {
+                EXPECT_EQ(h(i,j,0), Real(0.)) << "node (" << i << ", " << j << ")";
+            }
+        }
+    }
+    EXPECT_NEAR(h(2,3,0), Real(20.), Real(0.05));
+    EXPECT_NEAR(h(3,3,0), Real(0.), Real(0.05));
+    EXPECT_NEAR(h(4,3,0), Real(20.), Real(0.05));
+    EXPECT_NEAR(h(2,4,0), Real(20.), Real(0.05));
+
+    ParallelDescriptor::Barrier();
+    if (ParallelDescriptor::IOProcessor()) { std::filesystem::remove(fname); }
+}
+
+TEST(TerrainFileChecks, OneDimensionalBuildingTableExtendsItsConstantDirection)
+{
+    const Box domain(IntVect(0,0,0), IntVect(5,5,0));
+    const RealBox rb({Real(0.), Real(0.), Real(0.)},
+                     {Real(6.), Real(6.), Real(1.)});
+    const Geometry geom(domain, rb, CoordSys::cartesian, {0, 0, 0});
+    const Box nodes = convert(domain, IntVect(1, 1, 0));
+    ProblemBase problem;
+
+    for (const bool one_x : {false, true}) {
+        const std::string fname = erf_gtest_temp_path(
+            one_x ? "erf_unit_building_one_x" : "erf_unit_building_one_y").string() + ".txt";
+        if (ParallelDescriptor::IOProcessor()) {
+            std::ofstream file(fname);
+            if (one_x) {
+                file << "1\n3\n2\n2\n3\n4\n20\n0\n20\n";
+            } else {
+                file << "3\n1\n2\n3\n4\n2\n20\n0\n20\n";
+            }
+        }
+        ParallelDescriptor::Barrier();
+
+        FArrayBox heights(nodes, 1);
+        problem.read_custom_terrain(fname, false, geom, heights, 0.0,
+                                    /*require_domain_coverage=*/false,
+                                    /*zero_outside_table=*/true);
+        FArrayBox host_heights(nodes, 1, The_Pinned_Arena());
+        Gpu::copy(Gpu::deviceToHost, heights.dataPtr(), heights.dataPtr() + heights.size(),
+                  host_heights.dataPtr());
+        Gpu::streamSynchronize();
+        const auto h = host_heights.const_array();
+        for (int j = 0; j <= 6; ++j) {
+            for (int i = 0; i <= 6; ++i) {
+                const int varying_node = one_x ? j : i;
+                const Real expected = varying_node < 2 || varying_node > 4 ||
+                    varying_node == 3 ? Real(0.) : Real(20.);
+                EXPECT_NEAR(h(i,j,0), expected, Real(0.05))
+                    << "one_x=" << one_x << " node (" << i << ", " << j << ")";
+            }
+        }
+
+        ParallelDescriptor::Barrier();
+        if (ParallelDescriptor::IOProcessor()) { std::filesystem::remove(fname); }
+    }
+}
+
+TEST(TerrainFileChecks, BuildingPatchStillRejectsMalformedTables)
+{
+    const Table valid(Real(0.), Real(0.));
+    auto patch_problem = [] (const Table& t) {
+        return problem(t, false, -10000, 60000, -10000, 60000, false);
+    };
+    Table t = valid;
+    std::swap(t.x[5], t.x[6]);
+    EXPECT_NE(patch_problem(t).find("x values must increase strictly"), std::string::npos);
+    t = valid;
+    t.y[3] = t.y[2];
+    EXPECT_NE(patch_problem(t).find("y values must increase strictly"), std::string::npos);
+    t = valid;
+    t.z.pop_back();
+    EXPECT_NE(patch_problem(t).find("expected"), std::string::npos);
+    t = valid;
+    t.z[0] = std::numeric_limits<Real>::quiet_NaN();
+    EXPECT_NE(patch_problem(t).find("not finite"), std::string::npos);
 }
 
 TEST(TerrainFileChecks, AcceptsPerCellTablesWithRoundedCoordinates)

@@ -141,6 +141,20 @@ bool active_lsm_contains (const amrex::Vector<std::string>& active_lsm_names,
            active_lsm_names.end();
 }
 
+bool is_topographic_radiation_field (DiagnosticID id) noexcept
+{
+    switch (id) {
+    case DiagnosticID::TopographicShadow:
+    case DiagnosticID::TerrainDirectFactor:
+    case DiagnosticID::TerrainIncidence:
+    case DiagnosticID::UnshadedSwFluxDn:
+    case DiagnosticID::TerrainSwFluxDn:
+        return true;
+    default:
+        return false;
+    }
+}
+
 amrex::Vector<std::string>
 available_diagnostic_names (const SolverChoice& solver_choice)
 {
@@ -166,6 +180,10 @@ available_diagnostic_names (const SolverChoice& solver_choice,
     const bool has_moisture = solver_choice.moisture_type != MoistureType::None;
 
     for (const auto& descriptor : diagnostic_catalog()) {
+        if (is_topographic_radiation_field(descriptor.id) &&
+            !solver_choice.topographicChoice.active()) {
+            continue;
+        }
         if (is_land_surface_provider_field(descriptor.id) &&
             ((!active_lsm_names.empty() &&
               !active_lsm_contains(active_lsm_names, descriptor.name)) ||

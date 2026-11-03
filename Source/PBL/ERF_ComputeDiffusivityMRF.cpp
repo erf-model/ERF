@@ -400,7 +400,7 @@ if (ng_pblh > 1) {
                     us_eff_arr(i, j, 0)  = amrex::max(KAPPA * ws_top / std::log(myhalf * dz_ib / z0_ib), Real(1.0e-3));
                     ts_eff_arr(i, j, 0)  = Real(0);
                     qs_eff_arr(i, j, 0)  = Real(0);
-                    ol_eff_arr(i, j, 0)  = Real(1.0e10);
+                    ol_eff_arr(i, j, 0)  = immersed_neutral_obukhov_length;
                     t10_eff_arr(i, j, 0) = cell_data(i, j, ks, RhoTheta_comp) / cell_data(i, j, ks, Rho_comp);
                     q10_eff_arr(i, j, 0) = (use_moisture && moisture_indices.qv >= 0)
                                          ? cell_data(i, j, ks, moisture_indices.qv) / cell_data(i, j, ks, Rho_comp) : Real(0);

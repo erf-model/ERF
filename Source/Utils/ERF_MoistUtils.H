@@ -53,6 +53,25 @@ void GetMoistureVars (int i, int j, int k,
 }
 
 /**
+ * Extract water vapor and the cloud condensate alone: cloud liquid qc and cloud ice qi, without
+ * the precipitating species (rain, snow, graupel) that GetMoistureVars adds in
+ */
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+void GetCloudMoistureVars (int i, int j, int k,
+                           const amrex::Array4<amrex::Real const>& cell_data,
+                           amrex::Real& qv,
+                           amrex::Real& qc_liquid,
+                           amrex::Real& qc_ice,
+                           const MoistureComponentIndices& moisture_indices)
+{
+    const amrex::Real rho = cell_data(i,j,k,Rho_comp);
+    qv        = (moisture_indices.qv >= 0) ? cell_data(i,j,k,moisture_indices.qv) / rho : zero;
+    qc_liquid = (moisture_indices.qc >= 0) ? cell_data(i,j,k,moisture_indices.qc) / rho : zero;
+    qc_ice    = (moisture_indices.qi >= 0) ? cell_data(i,j,k,moisture_indices.qi) / rho : zero;
+}
+
+/**
  * Compute virtual potential temperature with moisture loading effects
  */
 AMREX_GPU_DEVICE
@@ -84,46 +103,24 @@ amrex::Real GetThetav (const int& i, const int& j, const int& k,
 }
 
 /**
- * Compute liquid-water virtual potential temperature
- * theta_vl = theta * (1 + 0.61*qv - ql - qi)
- * where ql = qc (cloud liquid) and qi = qi (cloud ice)
- * This accounts for condensate loading in the virtual temperature effect
- */
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE
-amrex::Real GetThetavl (int i, int j, int k,
-                        const amrex::Array4<amrex::Real const>& cell_data,
-                        const MoistureComponentIndices& moisture_indices)
-{
-    const amrex::Real rho   = cell_data(i, j, k, Rho_comp);
-    const amrex::Real theta = cell_data(i, j, k, RhoTheta_comp) / rho;
-
-    amrex::Real qv = zero, qc = zero, qi = zero;
-    if (moisture_indices.qv >= 0)
-        qv = cell_data(i, j, k, moisture_indices.qv) / rho;
-    if (moisture_indices.qc >= 0)
-        qc = cell_data(i, j, k, moisture_indices.qc) / rho;
-    if (moisture_indices.qi >= 0)
-        qi = cell_data(i, j, k, moisture_indices.qi) / rho;
-
-    return theta * (one + epsv * qv - qc - qi);
-}
-
-
-/**
- * Compute linearized liquid-water potential temperature
+ * Compute linearized liquid-ice water potential temperature,
+ * theta_l = theta - (theta / T) (L_v q_c + L_s q_i) / c_p
+ * from the cloud liquid q_c and cloud ice q_i (WRF's thlix in YSU)
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real ComputeLiquidWaterPotentialTemperature (const amrex::Real& theta,
                                                     const amrex::Real& T,
-                                                    const amrex::Real& qc_liquid)
+                                                    const amrex::Real& qc_liquid,
+                                                    const amrex::Real& qc_ice)
 {
-    return theta - (theta / T) * (L_v / Cp_d) * qc_liquid;
+    return theta - (theta / T) * (L_v * qc_liquid + lsub * qc_ice) / Cp_d;
 }
 
 /**
- * Wrapper around ComputeLiquidWaterPotentialTemperature
+ * Wrapper around ComputeLiquidWaterPotentialTemperature.  theta_l is the variable conserved under
+ * reversible condensation, so it uses the cloud condensate only: precipitation falls out of the
+ * parcel and does not enter the latent-heat term (erf-model/ERF#4892)
  */
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -132,7 +129,7 @@ amrex::Real GetThetal (const int& i, const int& j, const int& k,
                        const MoistureComponentIndices& moisture_indices)
 {
     amrex::Real qv, qcl, qci;
-    GetMoistureVars(i, j, k, cell_data, qv, qcl, qci, moisture_indices);
+    GetCloudMoistureVars(i, j, k, cell_data, qv, qcl, qci, moisture_indices);
 
     amrex::Real theta = cell_data(i, j, k, RhoTheta_comp) / cell_data(i, j, k, Rho_comp);
 
@@ -140,7 +137,7 @@ amrex::Real GetThetal (const int& i, const int& j, const int& k,
                                      cell_data(i, j, k, RhoTheta_comp),
                                      qv);
 
-    return ComputeLiquidWaterPotentialTemperature(theta, T, qcl);
+    return ComputeLiquidWaterPotentialTemperature(theta, T, qcl, qci);
 }
 
 #endif

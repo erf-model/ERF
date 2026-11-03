@@ -6,6 +6,7 @@
 #include <gtest/gtest.h>
 
 #include "ERF_CheckpointSurfaceTemperature.H"
+#include "ERF_CheckpointLandmask.H"
 
 namespace {
 
@@ -44,6 +45,31 @@ touch_surface_temperature_file (const std::filesystem::path& root,
 }
 
 } // namespace
+
+TEST(CheckpointLandmask, RestoresLegacyCoarseBuildingColumnsToLand)
+{
+    const amrex::Box box(amrex::IntVect(0,0,0), amrex::IntVect(2,0,0));
+    const amrex::BoxArray ba(box);
+    const amrex::DistributionMapping dm(ba);
+    amrex::iMultiFab mask(ba, dm, 1, amrex::IntVect(1,0,0));
+    mask.setVal(2);
+    mask[0].setVal<amrex::RunOn::Device>(
+        0, amrex::Box(amrex::IntVect(0,0,0), amrex::IntVect(0,0,0)), 0, 1);
+    mask[0].setVal<amrex::RunOn::Device>(
+        1, amrex::Box(amrex::IntVect(1,0,0), amrex::IntVect(1,0,0)), 0, 1);
+
+    erf_checkpoint_landmask::restore_coarse_building_landmask(mask);
+
+    amrex::IArrayBox host(mask[0].box(), 1, amrex::The_Pinned_Arena());
+    amrex::Gpu::dtoh_memcpy(host.dataPtr(), mask[0].dataPtr(), host.size() * sizeof(int));
+    amrex::Gpu::streamSynchronize();
+    const auto values = host.const_array();
+    EXPECT_EQ(values(-1,0,0), 1); // old building mask in a ghost cell
+    EXPECT_EQ(values(0,0,0), 0);  // water remains water
+    EXPECT_EQ(values(1,0,0), 1);  // land remains land
+    EXPECT_EQ(values(2,0,0), 1);  // old building mask becomes land
+    EXPECT_EQ(values(3,0,0), 1);
+}
 
 TEST(CheckpointSurfaceTemperature, ReadsVersionOneMarker)
 {

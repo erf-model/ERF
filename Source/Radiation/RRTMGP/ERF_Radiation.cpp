@@ -104,8 +104,13 @@ Radiation::Radiation (const int& lev,
     // Must specify a surface temp (LSM can overwrite)
     pp.get("rad_t_sfc", m_rad_t_sfc);
 
-    // Radiation timestep, as a number of atm steps
-    pp.queryAdd("rad_freq_in_steps", m_rad_freq_in_steps);
+    // SolverChoice reads the sun, site and update interval once for RRTMGP
+    // and the optional topographic surface correction.
+    const auto& solar = sc.rrtmgpSolarChoice;
+    m_rad_freq_in_steps = solar.radiation_interval;
+    m_lat_cons = solar.latitude;
+    m_lon_cons = solar.longitude;
+    m_fixed_solar_zenith_angle = solar.fixed_mu;
 
     // Get nvar if specified
     pp.queryAdd("rad_nvar", m_rad_nvar);
@@ -141,35 +146,12 @@ Radiation::Radiation (const int& lev,
     pp.queryAdd("rad_orbital_obliquity"   , m_orbital_obliq);
     pp.queryAdd("rad_orbital_mvelp"       , m_orbital_mvelp);
 
-    // Get a constant lat/lon for idealized simulations
-    pp.queryAdd("rad_cons_lat", m_lat_cons);
-    pp.queryAdd("rad_cons_lon", m_lon_cons);
-
-    // Both models read these keys and feed them to the same cos-zenith formula in the
-    // same units, so apply the range checks RadChoice::init_params already applies.
-    if (!std::isfinite(m_lat_cons) || m_lat_cons < Real(-90.0) || m_lat_cons > Real(90.0)) {
-        amrex::Abort("erf.rad_cons_lat = " + std::to_string(m_lat_cons) +
-                     " must lie in [-90, 90] degrees.");
-    }
-    if (!std::isfinite(m_lon_cons) || m_lon_cons < Real(-180.0) || m_lon_cons > Real(180.0)) {
-        amrex::Abort("erf.rad_cons_lon = " + std::to_string(m_lon_cons) +
-                     " must lie in [-180, 180] degrees.");
-    }
-
     // Value for prescribing an invariant solar constant (i.e. total solar irradiance at
     // TOA).  Used for idealized experiments such as RCE. Disabled when value is less than zero
     pp.queryAdd("fixed_total_solar_irradiance", m_fixed_total_solar_irradiance);
 
-    // Determine whether or not we are using a fixed solar zenith angle (positive value)
-    pp.queryAdd("fixed_solar_zenith_angle", m_fixed_solar_zenith_angle);
-
-    // The same checks the two-stream model applies to these shared inputs
-    // (RadChoice::init_params): the fixed zenith input is a cosine, and the
-    // surface temperature must be a temperature.
-    if (m_fixed_solar_zenith_angle > Real(1.0)) {
-        amrex::Abort("erf.fixed_solar_zenith_angle = " + std::to_string(m_fixed_solar_zenith_angle) +
-                     " is the cosine of the solar zenith angle and cannot exceed 1; 60 degrees is 0.5.");
-    }
+    // The solar-input range checks live in RRTMGPSolarChoice::read. Surface
+    // temperature is still read and validated by this interface.
     if (!std::isfinite(m_rad_t_sfc) || m_rad_t_sfc <= Real(0.0)) {
         amrex::Abort("erf.rad_t_sfc = " + std::to_string(m_rad_t_sfc) +
                      " must be a positive temperature [K].");
@@ -274,7 +256,7 @@ Radiation::set_grids (int& level,
                       MultiFab* z_phys,
                       MultiFab* lat,
                       MultiFab* lon,
-                      const bool /*updated_lsm*/)
+                      const bool force_update)
 
 {
     // Set data members that may change
@@ -305,8 +287,10 @@ Radiation::set_grids (int& level,
     }
 
     // Only allocate and proceed if we are going to update radiation
-    m_update_rad = false;
-    if (m_rad_freq_in_steps > 0) { m_update_rad = ( (m_step == 0) || (m_step % m_rad_freq_in_steps == 0) ); }
+    m_update_rad = force_update;
+    if (m_rad_freq_in_steps > 0) {
+        m_update_rad = m_update_rad || (m_step == 0) || (m_step % m_rad_freq_in_steps == 0);
+    }
 
     if (m_update_rad) {
         // Call to Init() has set the dimensions: ncol & nlay

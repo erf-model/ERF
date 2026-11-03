@@ -213,7 +213,8 @@ class ERFPC : public amrex::ParticleContainer<  0,                              
         void ERFPCParticleToMesh (amrex::MultiFab& a_mf,
                                   const amrex::MultiFab& a_z_phys_nd,
                                   int a_lev, int a_comp,
-                                  ValueFunc&& value_func) const;
+                                  ValueFunc&& value_func,
+                                  bool composite = false) const;
 
         /*! Default particle initialization */
         void initializeParticlesUniformDistributionInBox (const std::unique_ptr<amrex::MultiFab>& a_ptr,

@@ -915,6 +915,7 @@ struct SolverChoice {
         if (buildings_type_temp == "ImmersedForcing") {
             buildings_type = BuildingsType::ImmersedForcing;
         }
+        pp.queryAdd("buildings_fc_factories", buildings_fc_factories);
 
         //
         // Read the init_type here to make sure we correctly set the mesh and terrain types
@@ -1405,7 +1406,7 @@ struct SolverChoice {
         // to erf.if_z0 with immersed forcing and to the inputs' erf.most.z0 or erf.zlo.most.z0
         // (0.1 m when neither is given) otherwise.
         pp.queryAdd("cf_loglaw_fill", cf_loglaw_fill);
-        const bool z0_given = pp.queryAdd("cf_loglaw_z0", cf_loglaw_z0);
+        const bool z0_given = pp.query("cf_loglaw_z0", cf_loglaw_z0);
         if (z0_given && !cf_loglaw_fill) {
             amrex::Abort("erf.cf_loglaw_z0 belongs to erf.cf_loglaw_fill = true");
         }
@@ -1670,6 +1671,16 @@ struct SolverChoice {
         // erf.radiation_model = TwoStream selects the two-stream model; its
         // erf.radiation.* sub-options are read only then.
         radChoice.init_params(rad_type == RadiationType::TwoStream, pp_prefix);
+        if (rad_type == RadiationType::RRTMGP) {
+            rrtmgpSolarChoice.read(pp_prefix);
+        }
+        topographicChoice.read(pp_prefix, rrtmgpSolarChoice);
+        if (topographicChoice.active()) {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(terrain_type == TerrainType::StaticFittedMesh,
+                "Topographic radiation requires erf.terrain_type = StaticFittedMesh");
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(rad_type == RadiationType::RRTMGP,
+                "Topographic radiation currently requires erf.radiation_model = RRTMGP");
+        }
 
         // Noah-MP integrates on the downwelling shortwave, downwelling longwave and solar
         // zenith angle a radiation model writes into it. Only RRTMGP and TwoStream register
@@ -2578,6 +2589,9 @@ struct SolverChoice {
     BuildingsType buildings_type = BuildingsType::None;
 
     inline static
+    bool buildings_fc_factories = false;
+
+    inline static
     bool use_real_bcs = false;
 
     inline static
@@ -2600,6 +2614,8 @@ struct SolverChoice {
     amrex::Vector<TurbChoice>  turbChoice;
     EBChoice      ebChoice;
     RadChoice     radChoice;
+    RRTMGPSolarChoice rrtmgpSolarChoice;
+    TopographicShadingChoice topographicChoice;
 
     int         force_stage1_single_substep = 1;
 
@@ -2781,6 +2797,14 @@ struct SolverChoice {
     // Reset interval means after each plotfile or once at a requested time
     std::string mean_vars_reset_mode = "plotfile";
     amrex::Real mean_vars_reset_time = -one;
+
+    // Building forcing and its landmask use the same horizontal resolution cutoff.
+    [[nodiscard]] bool use_building_immersed_forcing (const amrex::Geometry& geom) const noexcept
+    {
+        return buildings_type == BuildingsType::ImmersedForcing &&
+               std::sqrt(geom.CellSize(0) * geom.CellSize(1)) <=
+                   amrex::Real(50.0) * (one + amrex::Real(1.e-6));
+    }
 
     /**
      * @brief Query whether any turbulent perturbation mode is enabled on a level.
@@ -3047,6 +3071,8 @@ struct SolverChoice {
  * @brief Permit fixed-index planar averages after validating a flat fitted mesh.
  * @var SolverChoice::buildings_type
  * @brief Building representation.
+ * @var SolverChoice::buildings_fc_factories
+ * @brief Use native face-centered EB factories for immersed buildings on a static fitted mesh.
  * @var SolverChoice::use_real_bcs
  * @brief Whether real-data lateral boundary conditions are used.
  * @var SolverChoice::mesh_type

@@ -54,6 +54,10 @@ public:
     /*! \brief average down moisture multifabs from finest_level to 0 */
     virtual void AverageDownMicroVars (const int /*finest_level*/) {}
 
+    virtual bool Qstate_Is_Diagnostic (int /*q*/) const { return false; }
+
+    virtual void Update_Diagnostic_State (amrex::MultiFab&, const amrex::MultiFab&) {}
+
     void Advance ( const amrex::Real&, const SolverChoice& ) override
     {
         amrex::Abort("Do not use this advance() for Lagrangian microphysics.");
