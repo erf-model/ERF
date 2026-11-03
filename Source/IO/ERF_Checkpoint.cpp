@@ -18,6 +18,7 @@
 #include "ERF_IntervalMeansCheckpoint.H"
 #include "ERF_CheckpointSurfaceTemperature.H"
 #include "ERF_CheckpointLsmData.H"
+#include "ERF_CheckpointLandmask.H"
 #include "ERF_ReadCheckpointMF.H"
 #include "ERF_SBMStateManager.H"
 #include "ERF_SBMRestart.H"
@@ -1941,6 +1942,11 @@ ERF::ReadCheckpointFile ()
         } else {
             lmask_lev[lev][0]->setVal(solverChoice.is_land[lev]);
             lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
+        }
+
+        if (solverChoice.buildings_type == BuildingsType::ImmersedForcing &&
+            !immersed_forcing_active(lev)) {
+            erf_checkpoint_landmask::restore_coarse_building_landmask(*lmask_lev[lev][0]);
         }
 
         std::string LTypeFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LANDTYPE_0_H");

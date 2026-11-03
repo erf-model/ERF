@@ -1920,7 +1920,8 @@ ERF::InitData_post ()
 #endif
                                                                  eb_ptrs,
                                                                  (static_cast<int>(ori) == Orientation::zlo())
-                                                                     ? m_SurfaceModel.get() : nullptr);
+                                                                     ? m_SurfaceModel.get() : nullptr,
+                                                                 solverChoice.buildings_type == BuildingsType::ImmersedForcing);
             m_SurfaceLayer[ori]->set_surface_layer_faces(surface_layer_faces);
             // The two-stream balance's land roughness (Noah-MP's tables), where erf.most.z0
             // is not given; before the levels below take z0. seb_land_roughness is -1 when
@@ -3416,9 +3417,7 @@ ERF::init_only (int lev, double elapsed_time)
     // then the allocated mask is one everywhere. Keep the imported winds here
     // and let immersed forcing relax them during time stepping where active.
     if (solverChoice.init_type != InitType::WRFInput &&
-        solverChoice.init_type != InitType::Metgrid &&
-        (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
-         solverChoice.use_building_immersed_forcing(geom[lev]))) {
+        solverChoice.init_type != InitType::Metgrid && immersed_forcing_active(lev)) {
         init_immersed_forcing(lev);
     }
 }

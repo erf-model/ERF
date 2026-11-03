@@ -79,6 +79,7 @@ public:
    * @param[in]     low_time_interval   low-boundary-data time interval
    * @param[in]     eb_vec              optional embedded-boundary geometry data
    * @param[in]     surf_model          optional weighted surface-model interface
+   * @param[in]     a_has_immersed_buildings  whether building immersed forcing is configured
    */
   explicit SurfaceLayer (amrex::Orientation face,
                          const amrex::Vector<amrex::Geometry>& geom,
@@ -95,7 +96,8 @@ public:
                          double final_low_time,
                          double low_time_interval = 0.0,
                          const amrex::Vector<const eb_*>& eb_vec = {},
-                         SurfaceModel* surf_model = nullptr)
+                         SurfaceModel* surf_model = nullptr,
+                         bool a_has_immersed_buildings = false)
   : m_face(face),
     m_pp_prefix(a_pp_prefix),
     m_geom(geom),
@@ -105,6 +107,7 @@ public:
     m_low_time_interval(low_time_interval),
     m_eb_vec(eb_vec),
     m_terrain_type(a_terrain_type),
+    m_has_immersed_buildings(a_has_immersed_buildings),
     m_rdOcp(a_rdOcp),
     m_ma(face, geom, (z_phys_nd[0] != nullptr), a_pp_prefix, a_mesh_type, a_terrain_type,
          zlevels_stag, eb_vec),
@@ -1859,6 +1862,7 @@ private:
 
   amrex::Vector<const eb_*> m_eb_vec;
   TerrainType m_terrain_type;
+  bool m_has_immersed_buildings = false;
   amrex::Real m_rdOcp = RdoCp;
   MOSTAverage m_ma;
   SurfaceModel* m_surf_model = nullptr;

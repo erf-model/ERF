@@ -3873,13 +3873,13 @@ grid spacing satisfies :math:`\sqrt{\Delta x\,\Delta y} \leq 50\,\mathrm{m}`.
 Building cells at the surface are marked as ``landmask = 2`` only on those levels;
 coarser levels retain their land/sea mask and have zero building blanking masks.
 The initialization-time velocity reset also follows this cutoff.
+The comparison allows a relative tolerance of :math:`10^{-6}` for coordinate
+roundoff at the 50 m boundary.
 Immersed terrain has no such resolution cutoff.
 
-Checkpoints written before this cutoff was applied to the building landmask may
-still contain ``landmask = 2`` on coarser levels. A restart restores that saved
-landmask even though building forcing and blanking are disabled there. MOST
-skips those columns, so they receive no surface stress. Start a new run when
-an older checkpoint has this coarse-level mask.
+On restart, ``landmask = 2`` values saved by older checkpoints are converted
+back to land on levels where the building cutoff disables immersed forcing.
+This keeps MOST and the land-surface model active on those coarse levels.
 
 With ``erf.init_type = WRFInput`` or ``Metgrid``, ERF retains the imported initial
 winds inside immersed cells. It does not reset those winds to near zero during

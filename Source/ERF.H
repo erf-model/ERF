@@ -1152,6 +1152,12 @@ public:
     void update_terrain_arrays (int lev);
     void make_terrain_blanking (int lev);
 
+    [[nodiscard]] bool immersed_forcing_active (int lev) const noexcept
+    {
+        return solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+               solverChoice.use_building_immersed_forcing(geom[lev]);
+    }
+
     bool m_driver_has_atm2ocn_coupling = false;
     bool m_driver_uses_two_way_coupling = false;
     bool m_driver_atm2ocn_uses_state_contract = true;

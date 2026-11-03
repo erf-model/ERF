@@ -444,7 +444,8 @@ struct SurfaceLayerFields
                    const std::string& lsm_name = "",
                    const Real lsm_value = Real(0.0),
                    const bool coupled_active = false,
-                   const Real rdOcp = RdoCp)
+                   const Real rdOcp = RdoCp,
+                   const bool has_immersed_buildings = false)
     {
         bool rotate = false;
         Vector<Geometry> geoms{geom};
@@ -461,7 +462,7 @@ struct SurfaceLayerFields
             face, geoms, rotate, prefix, qv_prim, z_phys_nd,
             Vector<Vector<Real>>{},
             MeshType::ConstantDz, TerrainType::None, TurbChoice{}, rdOcp,
-            0.0, 0.0);
+            0.0, 0.0, 0.0, Vector<const eb_*>{}, nullptr, has_immersed_buildings);
         layer->set_surface_layer_faces(active_faces);
         if (coupled_active) {
             layer->set_coupled_sst_active(true);
@@ -1510,7 +1511,8 @@ TEST(SurfaceLayer, ImmersedColumnsHaveBenignInitialParameters)
         SurfaceLayerFields fields(make_geometry(), true);
         const int ilo = fields.domain.smallEnd(0);
         set_clamped_landmask(*fields.lmask[0], ilo);
-        auto layer = fields.prepare_layer(face, active_faces({face}), prefix, false, false);
+        auto layer = fields.prepare_layer(face, active_faces({face}), prefix, false, false,
+                                          "", Real(0), false, RdoCp, true);
         const std::array<MultiFab*, 9> parameters = {
             layer->get_u_star(0), layer->get_w_star(0), layer->get_t_star(0),
             layer->get_q_star(0), layer->get_olen(0), layer->get_pblh(0),
@@ -1519,12 +1521,14 @@ TEST(SurfaceLayer, ImmersedColumnsHaveBenignInitialParameters)
             bogus_large_value, bogus_large_value, Real(0), Real(0),
             bogus_large_value, bogus_large_value, Real(0.1), Real(300), Real(0)};
         const std::array<Real, 9> immersed = {
-            Real(0), Real(0), Real(0), Real(0), Real(1.0e10),
+            Real(0), Real(0), Real(0), Real(0), immersed_neutral_obukhov_length,
             bogus_large_value, Real(0.1), Real(300), Real(0)};
         for (int n = 0; n < 9; ++n) {
             SCOPED_TRACE(n);
+            // A ground-column mask must not clear the full height of a lateral wall.
+            const Real wall_or_immersed = face.coordDir() == 2 ? immersed[n] : ordinary[n];
             EXPECT_EQ(count_parameter_mismatches(*parameters[n], ilo + 2,
-                                                 ordinary[n], immersed[n]), 0);
+                                                 ordinary[n], wall_or_immersed), 0);
         }
     }
     pp.remove("most.roughness_type_sea");
@@ -1555,11 +1559,13 @@ TEST(SurfaceLayer, ImmersedColumnsRemainBenignThroughFluxAndTkeUpdates)
                 fields.lsm_flux_names.push_back(name);
             }
         }
-        auto layer = fields.prepare_layer(face, active_faces({face}), prefix, false, false);
+        auto layer = fields.prepare_layer(face, active_faces({face}), prefix, false, false,
+                                          "", Real(0), false, RdoCp, true);
         const std::array<MultiFab*, 5> parameters = {
             layer->get_u_star(0), layer->get_w_star(0), layer->get_t_star(0),
             layer->get_q_star(0), layer->get_olen(0)};
-        const std::array<Real, 5> expected = {Real(0), Real(0), Real(0), Real(0), Real(1.0e10)};
+        const std::array<Real, 5> expected = {Real(0), Real(0), Real(0), Real(0),
+                                              immersed_neutral_obukhov_length};
         // A diagnosed height must survive the inactive-column reset.
         layer->get_pblh(0)->setVal(Real(500));
         for (const bool stale_values : {false, true}) {

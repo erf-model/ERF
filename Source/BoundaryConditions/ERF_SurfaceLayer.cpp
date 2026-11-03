@@ -37,11 +37,15 @@ struct NearestColumn
 void
 SurfaceLayer::set_immersed_surface_params (const int& lev)
 {
+    // The land mask describes ground columns, not the full height of a lateral wall.
+    if (m_face.coordDir() != 2 ||
+        (m_terrain_type != TerrainType::ImmersedForcing && !m_has_immersed_buildings)) {
+        return;
+    }
     const auto& surface_mask = *m_lmask_lev[lev][0];
     for (MFIter mfi(*u_star[lev]); mfi.isValid(); ++mfi) {
         Box bx = mfi.fabbox();
-        // The mask is an (i,j,0) field even for lateral or EB surfaces.
-        // Limit the lateral halo to the mask's available ghost cells.
+        // Limit the halo to the mask's available ghost cells.
         Box mask_columns = surface_mask.fabbox(mfi.index());
         mask_columns.setRange(2, bx.smallEnd(2), bx.length(2));
         bx &= mask_columns;
@@ -61,8 +65,7 @@ SurfaceLayer::set_immersed_surface_params (const int& lev)
                 w_star_arr(i,j,k) = zero;
                 t_star_arr(i,j,k) = zero;
                 q_star_arr(i,j,k) = zero;
-                // Finite neutral limit, also used by the IB-aware PBL schemes.
-                olen_arr(i,j,k) = Real(1.0e10);
+                olen_arr(i,j,k) = immersed_neutral_obukhov_length;
             }
         });
     }

@@ -990,11 +990,13 @@ public:
             // A local building table describes no buildings beyond its footprint.
             // Use the unshifted node position so a node on the last table point
             // remains inside, despite the interpolation offset above.
-            if (zero_outside_table &&
-                (x_node < d_xt[0] || x_node > d_xt[nx-1] ||
-                 y_node < d_yt[0] || y_node > d_yt[ny-1])) {
-                z_arr(i,j,klo) = amrex::Real(0.0);
-                return;
+            if (zero_outside_table) {
+                const bool out_x = nx > 1 && (x_node < d_xt[0] || x_node > d_xt[nx-1]);
+                const bool out_y = ny > 1 && (y_node < d_yt[0] || y_node > d_yt[ny-1]);
+                if (out_x || out_y) {
+                    z_arr(i,j,klo) = amrex::Real(0.0);
+                    return;
+                }
             }
 
             int ind11, ind12, ind21, ind22;

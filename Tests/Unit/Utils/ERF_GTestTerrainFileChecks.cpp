@@ -160,6 +160,52 @@ TEST(TerrainFileChecks, BuildingPatchIsZeroOutsideItsTable)
     if (ParallelDescriptor::IOProcessor()) { std::filesystem::remove(fname); }
 }
 
+TEST(TerrainFileChecks, OneDimensionalBuildingTableExtendsItsConstantDirection)
+{
+    const Box domain(IntVect(0,0,0), IntVect(5,5,0));
+    const RealBox rb({Real(0.), Real(0.), Real(0.)},
+                     {Real(6.), Real(6.), Real(1.)});
+    const Geometry geom(domain, rb, CoordSys::cartesian, {0, 0, 0});
+    const Box nodes = convert(domain, IntVect(1, 1, 0));
+    ProblemBase problem;
+
+    for (const bool one_x : {false, true}) {
+        const std::string fname = erf_gtest_temp_path(
+            one_x ? "erf_unit_building_one_x" : "erf_unit_building_one_y").string() + ".txt";
+        if (ParallelDescriptor::IOProcessor()) {
+            std::ofstream file(fname);
+            if (one_x) {
+                file << "1\n3\n2\n2\n3\n4\n20\n0\n20\n";
+            } else {
+                file << "3\n1\n2\n3\n4\n2\n20\n0\n20\n";
+            }
+        }
+        ParallelDescriptor::Barrier();
+
+        FArrayBox heights(nodes, 1);
+        problem.read_custom_terrain(fname, false, geom, heights, 0.0,
+                                    /*require_domain_coverage=*/false,
+                                    /*zero_outside_table=*/true);
+        FArrayBox host_heights(nodes, 1, The_Pinned_Arena());
+        Gpu::copy(Gpu::deviceToHost, heights.dataPtr(), heights.dataPtr() + heights.size(),
+                  host_heights.dataPtr());
+        Gpu::streamSynchronize();
+        const auto h = host_heights.const_array();
+        for (int j = 0; j <= 6; ++j) {
+            for (int i = 0; i <= 6; ++i) {
+                const int varying_node = one_x ? j : i;
+                const Real expected = varying_node < 2 || varying_node > 4 ||
+                    varying_node == 3 ? Real(0.) : Real(20.);
+                EXPECT_NEAR(h(i,j,0), expected, Real(0.05))
+                    << "one_x=" << one_x << " node (" << i << ", " << j << ")";
+            }
+        }
+
+        ParallelDescriptor::Barrier();
+        if (ParallelDescriptor::IOProcessor()) { std::filesystem::remove(fname); }
+    }
+}
+
 TEST(TerrainFileChecks, BuildingPatchStillRejectsMalformedTables)
 {
     const Table valid(Real(0.), Real(0.));

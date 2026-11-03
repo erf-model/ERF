@@ -2620,7 +2620,8 @@ struct SolverChoice {
     [[nodiscard]] bool use_building_immersed_forcing (const amrex::Geometry& geom) const noexcept
     {
         return buildings_type == BuildingsType::ImmersedForcing &&
-               std::sqrt(geom.CellSize(0) * geom.CellSize(1)) <= amrex::Real(50.0);
+               std::sqrt(geom.CellSize(0) * geom.CellSize(1)) <=
+                   amrex::Real(50.0) * (one + amrex::Real(1.e-6));
     }
 
     /**

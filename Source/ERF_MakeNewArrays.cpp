@@ -1042,14 +1042,12 @@ ERF::init_zphys (int lev, double elapsed_time)
     if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
         solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
         make_terrain_blanking(lev);
-        const bool immersed_forcing_active =
-            solverChoice.terrain_type == TerrainType::ImmersedForcing ||
-            solverChoice.use_building_immersed_forcing(geom[lev]);
+        const bool forcing_active = immersed_forcing_active(lev);
 
         // Keep imported WRFInput/Metgrid winds in immersed cells at startup.
         // Where active, momentum forcing relaxes the winds during time stepping
         // instead of replacing them abruptly during initialization.
-        if (immersed_forcing_active &&
+        if (forcing_active &&
             solverChoice.init_type != InitType::WRFInput &&
             solverChoice.init_type != InitType::Metgrid) {
             init_immersed_forcing(lev);
@@ -1057,7 +1055,7 @@ ERF::init_zphys (int lev, double elapsed_time)
 
         // Mark immersed solids as landmask = 2 only where their forcing is active.
         // Immersed terrain has no resolution cutoff.
-        if (immersed_forcing_active) {
+        if (forcing_active) {
             for (MFIter mfi(*lmask_lev[lev][0]); mfi.isValid(); ++mfi) {
                 const Box& bx2d = mfi.growntilebox();
                 auto lmask_arr = lmask_lev[lev][0]->array(mfi);
@@ -1200,9 +1198,8 @@ ERF::make_terrain_blanking (int lev)
 {
     // Keep allocated masks empty on levels where building forcing is disabled.
     // IBSEB, plotfiles, and IB-aware PBL schemes still read these masks.
-    if (solverChoice.terrain_type != TerrainType::ImmersedForcing &&
-        solverChoice.buildings_type == BuildingsType::ImmersedForcing &&
-        !solverChoice.use_building_immersed_forcing(geom[lev])) {
+    if (solverChoice.buildings_type == BuildingsType::ImmersedForcing &&
+        !immersed_forcing_active(lev)) {
         terrain_blanking[lev]->setVal(zero);
         if (terrain_blanking_xface[lev]) { terrain_blanking_xface[lev]->setVal(zero); }
         if (terrain_blanking_yface[lev]) { terrain_blanking_yface[lev]->setVal(zero); }
