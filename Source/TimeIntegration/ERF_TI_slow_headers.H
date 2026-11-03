@@ -107,7 +107,9 @@ void erf_make_tau_terms (int level, int nrk,
                          const amrex::MultiFab& ax,
                          const amrex::MultiFab& ay,
                          const amrex::MultiFab& az,
-                         const eb_& ebfact);
+                         const eb_& ebfact,
+                         const amrex::MultiFab* ib_wall_face13 = nullptr,
+                         const amrex::MultiFab* ib_wall_face23 = nullptr);
 
 void copy_surface_tau_for_implicit (amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_lev,
                                     amrex::Vector<std::unique_ptr<amrex::MultiFab>>& Tau_corr_lev);
@@ -174,7 +176,11 @@ void erf_slow_rhs_pre (int level, int finest_level, int nrk,
                       amrex::YAFluxRegister* fr_as_fine,
                       const amrex::MultiFab* cloud_chamber_base_state,
                       const erf_cloud_chamber::Config* cloud_chamber_config,
-                      CloudChamberBudget* cloud_budget);
+                      CloudChamberBudget* cloud_budget,
+                      const amrex::MultiFab* ib_wall_face13 = nullptr,
+                      const amrex::MultiFab* ib_wall_face23 = nullptr,
+                      const amrex::MultiFab* ib_wall_face33 = nullptr,
+                      const amrex::MultiFab* ib_wall_hfx = nullptr);
 
 /**
  * Function for computing the slow RHS for the evolution equations for the scalars other than density or potential temperature
@@ -241,6 +247,8 @@ void erf_slow_rhs_post (int level, int finest_level, int nrk,
                        CloudChamberBudget* cloud_budget,
                        erf_auxiliary::AuxiliaryInertTracer* auxiliary_inert_tracer,
                        erf_sbm::SBMStateManager* sbm_state_manager,
-                       erf_sbm::SBMTransport* sbm_transport);
+                       erf_sbm::SBMTransport* sbm_transport,
+                       const amrex::MultiFab* ib_wall_face33 = nullptr,
+                       const amrex::MultiFab* ib_wall_ktarget = nullptr);
 
 #endif

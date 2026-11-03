@@ -12,6 +12,7 @@
 #include "ERF_IndexDefines.H"
 #include "ERF_SurfaceLayer.H"
 #include "ERF_FillPatcher.H"
+#include "ERF_ImmersedWallCell.H"
 #include "ERF_ReadBndryPlanes.H"
 
 /** Build one density-weighted, nonnegative WRF moisture target. */
@@ -186,6 +187,64 @@ if_average_down (const amrex::MultiFab& S_fine, amrex::MultiFab& S_crse,
                  const amrex::MultiFab& beta_fine, const amrex::MultiFab& beta_crse,
                  const amrex::MultiFab& vol_fine,
                  int scomp, int ncomp, const amrex::IntVect& ratio);
+
+/**
+ * RANS wall distance over terrain represented by immersed forcing with the fraction-stress wall
+ * law (erf.if_wall_form = fraction_stress): measured vertically from the surface itself,
+ * h = z_bot + beta dz of the wall cell (the partial cell, or the fluid cell on a solid cell;
+ * ERF_ImmersedWallCell.H), the wall cell at its fluid centroid (1 - beta) dz / 2 above it and
+ * every other cell at |z_cc - h|; a column without solid measures from the bottom of the domain.
+ * A box that does not see the surface of a column (a fine box inside the solid, or above the
+ * surface without reaching the bottom) measures from the coarser level's wall height.
+ * @param[out] wdist Wall distance (valid cells; ghost cells are left untouched).
+ * @param[in] terrain_blank Cell-centred solid fraction.
+ * @param[in] z_phys_nd Node heights.
+ * @param[in] z_phys_cc Cell-centre heights.
+ * @param[in] domain Index domain of the level.
+ * @param[in] small_volfrac Solid fraction below which a cell counts as fluid.
+ * @param[out] wall_height Optional: the height measured from in each column, on the level's
+ *            BoxArray flattened to the bottom cell (same DistributionMapping).
+ * @param[in] wall_height_crse Optional, fine levels: wall_height of the coarser level brought to
+ *            this level's flattened BoxArray. Without it every box must hold whole columns.
+ */
+void
+immersed_wall_dist (amrex::MultiFab& wdist,
+                    const amrex::MultiFab& terrain_blank,
+                    const amrex::MultiFab& z_phys_nd,
+                    const amrex::MultiFab& z_phys_cc,
+                    const amrex::Box& domain,
+                    amrex::Real small_volfrac,
+                    amrex::MultiFab* wall_height = nullptr,
+                    const amrex::MultiFab* wall_height_crse = nullptr);
+
+/**
+ * Wall-face masks of the fraction-stress wall law (erf.if_wall_form = fraction_stress):
+ * zero on the xz (yz) edge that is the bottom face of the wall cell of an x-face (y-face)
+ * column, the spacing factor on the face above it, one elsewhere. The vertical flux of x (y)
+ * momentum is multiplied by them, so no resolved flux crosses the wall face (see
+ * ERF_ImmersedWallCell.H).
+ * @param[in] terrain_blank Cell-centred solid fraction; needs one more ghost cell than the masks.
+ * @param[out] mask13 On convert(ba, IntVect(1,0,1)), valid and ghost cells.
+ * @param[out] mask23 On convert(ba, IntVect(0,1,1)), valid and ghost cells.
+ * @param[out] mask33 On convert(ba, IntVect(0,0,1)): the same for the cell columns, applied to
+ *             the vertical diffusive fluxes of theta and TKE (zero on the bottom face of the wall cell).
+ * @param[in] domain Index domain of the level.
+ * @param[in] small_volfrac Solid fraction below which a cell counts as fluid.
+ * @param[in] spacing erf.if_wall_face_spacing (0 grid, 1 physical, 2 log): the face ABOVE the wall
+ *            cell gets ib_wall::face_above_factor instead of one.
+ * @param[in] dz Cell height (constant-dz mesh).
+ * @param[in] z0 Roughness length of the wall law.
+ */
+void
+make_ib_wall_face_masks (const amrex::MultiFab& terrain_blank,
+                         amrex::MultiFab& mask13,
+                         amrex::MultiFab& mask23,
+                         amrex::MultiFab& mask33,
+                         const amrex::Box& domain,
+                         amrex::Real small_volfrac,
+                         int spacing = 0,
+                         amrex::Real dz = amrex::Real(1.0),
+                         amrex::Real z0 = amrex::Real(0.1));
 
 /**
  * Where the coarse and fine levels disagree on an immersed surface along the lateral coarse/fine

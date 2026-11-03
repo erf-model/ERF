@@ -121,7 +121,9 @@ void DiffusionSrcForState_N (const amrex::Box& bx, const amrex::Box& domain,
                              const bool use_SurfLayer,
                              const amrex::Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer,
                              const amrex::Real implicit_fac,
-                             const ScalarDiffusionRefluxViews* reflux_flx = nullptr);
+                             const ScalarDiffusionRefluxViews* reflux_flx = nullptr,
+                             const amrex::Array4<const amrex::Real>& wall_face33 = amrex::Array4<const amrex::Real>{},
+                             const amrex::Array4<const amrex::Real>& wall_hfx = amrex::Array4<const amrex::Real>{});
 
 /** \brief Native adapter for regular scalar diffusion on a vertically stretched grid. */
 void DiffusionSrcForState_S (const amrex::Box& bx, const amrex::Box& domain,
@@ -545,7 +547,9 @@ void ImplicitDiffForStateLU_N (const amrex::Box& bx,
                                const amrex::BCRec* bc_ptr,
                                const bool use_SurfLayer,
                                const amrex::Real implicit_fac,
-                               const bool use_mrf_countergradient = false);
+                               const bool use_mrf_countergradient = false,
+                               const amrex::Array4<const amrex::Real>& wall_face = amrex::Array4<const amrex::Real>{},
+                               const amrex::Array4<const amrex::Real>& wall_pin = amrex::Array4<const amrex::Real>{});
 
 /** \brief Apply implicit vertical state diffusion on a vertically stretched grid. */
 void ImplicitDiffForStateLU_S (const amrex::Box& bx,
@@ -609,7 +613,8 @@ void ImplicitDiffForMomLU_N (const amrex::Box& bx,
                              const amrex::BCRec* bc_ptr,
                              const bool use_SurfLayer,
                              const amrex::Real implicit_fac,
-                             const bool use_ysu_mom_countergradient);
+                             const bool use_ysu_mom_countergradient,
+                             const amrex::Array4<const amrex::Real>& wall_face = amrex::Array4<const amrex::Real>{});
 
 /** \brief Apply implicit vertical momentum diffusion on a vertically stretched grid. */
 template <int stagdir>

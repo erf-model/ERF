@@ -74,7 +74,8 @@
                           m_r2d, &base_state[level],
                           cloud_chamber_config.active ? &cloud_chamber_config : nullptr,
                           cloud_chamber_budget.get(), auxiliary_inert_tracer.get(),
-                          sbm_state_manager.get(), sbm_transport.get());
+                          sbm_state_manager.get(), sbm_transport.get(),
+                          ib_wall_face33[level].get(), ib_wall_ktarget[level].get());
 
         // One component list for the solve, stage ghosts and implicit reflux.
         Vector<int> implicit_post_comps;

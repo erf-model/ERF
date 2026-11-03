@@ -54,7 +54,11 @@
                         ImplicitDiffForStateLU_N(bx, fine_geom.Domain(), level, RhoKE_comp,
                                                  slow_dt, l_bc_neumann_vals_d, cell_data,
                                                  dxInv, Array4<const Real>{}, mu_turb, solverChoice,
-                                                 bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac);
+                                                 bc_ptr_h, l_use_SurfLayer, l_vert_implicit_fac, false,
+                                                 (ib_wall_face33[level]) ? ib_wall_face33[level]->const_array(mfi)
+                                                                         : Array4<const Real>{},
+                                                 (ib_wall_ktarget[level] && solverChoice.if_wall_tke_time_factor <= one)
+                                                     ? ib_wall_ktarget[level]->const_array(mfi) : Array4<const Real>{});
                     }
                 } // mfi
             } // do implicit tke and evolve tke

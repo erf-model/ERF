@@ -86,6 +86,51 @@ void ImmersedForcingBuildings_Zmom (const amrex::Box& tbz,
                                     const SolverChoice& solverChoice,
                                     const amrex::Real fac);
 
+// Terrain immersed forcing - MOMENTUM, fraction-stress wall law (erf.if_wall_form = fraction_stress)
+void ImmersedForcingTerrain_Xmom_FractionStress (const amrex::Box& tbx,
+                                                 const amrex::Array4<const amrex::Real>& u,
+                                                 const amrex::Array4<const amrex::Real>& v,
+                                                 const amrex::Array4<const amrex::Real>& w,
+                                                 const amrex::Array4<const amrex::Real>& cell_data,
+                                                 const amrex::Array4<const amrex::Real>& t_blank_arr,
+                                                 const amrex::Array4<const amrex::Real>& t_blank_xface_arr,
+                                                 const amrex::Array4<      amrex::Real>& xmom_src_arr,
+                                                 const amrex::Geometry& geom,
+                                                 const SolverChoice& solverChoice,
+                                                 const amrex::Real fac,
+                                                 const amrex::Real time);
+
+void ImmersedForcingTerrain_Ymom_FractionStress (const amrex::Box& tby,
+                                                 const amrex::Array4<const amrex::Real>& u,
+                                                 const amrex::Array4<const amrex::Real>& v,
+                                                 const amrex::Array4<const amrex::Real>& w,
+                                                 const amrex::Array4<const amrex::Real>& cell_data,
+                                                 const amrex::Array4<const amrex::Real>& t_blank_arr,
+                                                 const amrex::Array4<const amrex::Real>& t_blank_yface_arr,
+                                                 const amrex::Array4<      amrex::Real>& ymom_src_arr,
+                                                 const amrex::Geometry& geom,
+                                                 const SolverChoice& solverChoice,
+                                                 const amrex::Real fac,
+                                                 const amrex::Real time);
+
+// Terrain immersed forcing - SCALARS, fraction-stress wall law (erf.if_wall_form = fraction_stress)
+void ImmersedForcingTerrain_Scalar_FractionStress (const amrex::Box& bx,
+                                                   const amrex::Array4<const amrex::Real>& u,
+                                                   const amrex::Array4<const amrex::Real>& v,
+                                                   const amrex::Array4<const amrex::Real>& cell_data,
+                                                   const amrex::Array4<const amrex::Real>& t_blank_arr,
+                                                   const amrex::Array4<      amrex::Real>& cell_src,
+                                                   const amrex::Array4<      amrex::Real>& wall_hfx,
+                                                   const amrex::Array4<      amrex::Real>& wall_ktarget,
+                                                   const amrex::Geometry& geom,
+                                                   const SolverChoice& solverChoice,
+                                                   const amrex::Table1D<amrex::Real>& r_avg,
+                                                   const amrex::Table1D<amrex::Real>& t_avg,
+                                                   const amrex::Real dt,
+                                                   const amrex::Real time,
+                                                   bool wall_tke = false,
+                                                   amrex::Real Cmu0 = amrex::Real(0.5562));
+
 // Terrain immersed forcing - SCALARS
 void ImmersedForcingTerrain_Scalar (const amrex::Box& bx,
                                    const amrex::Array4<const amrex::Real>& u,
