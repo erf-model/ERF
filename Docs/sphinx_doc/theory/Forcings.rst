@@ -291,9 +291,11 @@ fluid centroid and the centre of the cell above are :math:`d_2 - d_1 = (1 - \bet
 this acts like a smaller roughness (a constant speed offset aloft, 1.5 to 3 % in the neutral ABL). The diffusive
 coupling through that face (momentum, strain, :math:`\theta`, TKE) is therefore scaled by
 :math:`\Delta z / \Delta z_{eff}` with, by default (``erf.if_wall_face_spacing = log``),
-:math:`\Delta z_{eff} = (d_1 + d_2) \ln(d_2/d_1) / (2 \ln 3)`, the spacing that gives the face the same relative
-error for a log profile as the first interior face of flat ground (:math:`\Delta z_{eff} = \Delta z` for
-:math:`\beta = 0`); ``physical`` uses :math:`d_2 - d_1` and ``grid`` leaves :math:`\Delta z`. With a RANS closure
+:math:`\Delta z_{eff} = (d_1 + d_2) \ln(d_2/d_1) / (2 \ln 3)`, the spacing that gives the face flux, with the
+face viscosity the mean of the two cells' :math:`\kappa u_* z`, the same relative error for a log profile as the
+first interior face of flat ground, :math:`\ln 3\, u_*^2` for every :math:`\beta` (:math:`\Delta z_{eff} = \Delta z`
+for :math:`\beta = 0`); ``physical`` uses :math:`d_2 - d_1` and ``grid`` leaves :math:`\Delta z`. The factor is
+bounded only while :math:`z_0 < \Delta z/4`, which the inputs require. With a RANS closure
 the wall distance is measured from :math:`h`, with the wall cell at :math:`d_1` (see :ref:`RANS <RANS>`).
 
 Stratification enters through the MOST stability functions of the flat surface layer (Dyer),
@@ -304,13 +306,19 @@ Stratification enters through the MOST stability functions of the flat surface l
 :math:`\theta_* = (1-\beta)\kappa(\theta - \theta_s)/\phi_h(d_1) + \beta\kappa(\theta_{ref} - \theta_s)/\phi_h(d_2)`,
 mixed as :math:`u_*`) or ``erf.if_Olen`` (a fixed Obukhov length, :math:`\theta_* = \theta u_*^2/(\kappa g L)`).
 With a flux or a surface temperature :math:`L = u_*^2 \theta / (\kappa g \theta_*)` is iterated with
-:math:`u_*` inside the step. The wall heat flux :math:`-u_*\theta_*` is spread over the cell height
+:math:`u_*` inside the step (12 fixed passes, :math:`u_*` floored at 1 mm/s and :math:`d_1/L` kept within
+:math:`\pm 100`). As on flat ground, the stable given-flux problem has no solution below a wind threshold
+(about 3 m/s at :math:`q = -0.02` K m/s, :math:`d_1 = 10` m, :math:`z_0 = 0.1` m), where :math:`u_*` falls to
+its floor and the wall carries almost no stress; a surface temperature avoids that. The wall heat flux :math:`-u_*\theta_*` is spread over the cell height
 (integrated exactly toward :math:`\theta_s` when a surface temperature is given), the diffusive
 :math:`\theta` and TKE fluxes through the wall face are switched off, the TKE buoyancy on that face
 takes the wall heat flux, and the strain and :math:`\partial\theta/\partial z` of the wall cell use the
 stencils of the flat surface (the strain of the face above; the wall cell itself below it), so a
-surface on a cell face reproduces flat ground. The option needs ``erf.if_use_most = true`` and a
-constant-:math:`\Delta z` mesh; ``erf.if_stability_correction`` belongs to the legacy law.
+surface on a cell face reproduces flat ground. The option needs ``erf.if_use_most = true``, a
+constant-:math:`\Delta z` mesh and the anelastic model (the compressible fast substep does not carry the wall
+heat flux and the wall TKE); ``erf.if_stability_correction`` belongs to the legacy law. With a RANS closure the
+geometric length scale over the immersed surface is :math:`\kappa (d + z_0)` with ``erf.if_z0``, as it is
+:math:`\kappa (d + z_0)` with the surface layer's roughness on flat ground.
 With the k-equation RANS closure, ``erf.if_wall_tke = true`` holds the TKE of the wall cell at
 :math:`k_w = (u_*^3 + \kappa B d_1)^{2/3}/C_{\mu 0}^2`, with :math:`B = -g u_*\theta_*/\theta` in unstable
 conditions (zero otherwise) and :math:`d_1` the fluid-centroid height of the wall cell. This is the value

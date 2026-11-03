@@ -3954,17 +3954,20 @@ selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 |                                   | 0.5/1.5 dz, unchanged) or ``fraction_stress`` (wall      |                    |                  |
 |                                   | stress in the wall cell with u* mixed by the immersed    |                    |                  |
 |                                   | fraction, no diffusion through the wall face, the RANS   |                    |                  |
-|                                   | wall distance from the surface); needs                   |                    |                  |
-|                                   | erf.if_use_most = true, a constant-dz mesh, terrain      |                    |                  |
-|                                   | only (not buildings); erf.if_stability_correction is     |                    |                  |
-|                                   | for the legacy law                                       |                    |                  |
+|                                   | wall distance from the surface, kappa (d + if_z0));      |                    |                  |
+|                                   | needs erf.if_use_most = true, a constant-dz mesh with    |                    |                  |
+|                                   | erf.if_z0 < dz/4 on every level, the anelastic model (no |                    |                  |
+|                                   | immersed_forcing_substep), terrain only (not buildings); |                    |                  |
+|                                   | erf.if_stability_correction is for the legacy law        |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.if_wall_face_spacing**      | fraction_stress only: spacing the face above the wall    | ``log``,           | ``log``          |
-|                                   | cell differences over; log gives it flat ground's        | ``physical``,      |                  |
-|                                   | first-face error for a log profile, physical the         | ``grid``           |                  |
-|                                   | centroid spacing, grid the cell height                   |                    |                  |
+| **erf.if_wall_face_spacing**      | fraction_stress only (the default is accepted with the   | ``log``,           | ``log``          |
+|                                   | legacy law): spacing the face above the wall cell        | ``physical``,      |                  |
+|                                   | differences over; log gives it flat ground's first-face  | ``grid``           |                  |
+|                                   | error for a log profile, physical the centroid spacing,  |                    |                  |
+|                                   | grid the cell height                                     |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.if_wall_tke**               | fraction_stress with the k-eqn RANS only: hold the       | Boolean            | false            |
+| **erf.if_wall_tke**               | fraction_stress with the k-eqn RANS only (aborts without | Boolean            | false            |
+|                                   | a k-eqn level): hold the                                 |                    |                  |
 |                                   | wall-cell TKE at (u*^3 + kappa B d1)^(2/3)/Cmu0^2 (the   |                    |                  |
 |                                   | value erf.dirichlet_k holds over flat ground), from the  |                    |                  |
 |                                   | wall law's u* and theta*, d1 the fluid-centroid height   |                    |                  |
@@ -3974,12 +3977,14 @@ selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 | **erf.if_wall_tke_time_factor**   | 1 holds the wall cell at its wall value after every      | Real >= 1          | 1                |
 |                                   | stage and in the implicit TKE solve, as erf.dirichlet_k  |                    |                  |
 |                                   | does on flat ground; a larger value relaxes toward it as |                    |                  |
-|                                   | a source over that many steps                            |                    |                  |
+|                                   | a source over that many steps (fraction_stress only; 1   |                    |                  |
+|                                   | is accepted with the legacy law)                         |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
-| **erf.if_flat_wall_dissipation**  | fraction_stress with the k-eqn RANS only: partial wall   | Boolean            | true with        |
-|                                   | cells dissipate TKE with the length scale of flat        |                    | fraction_stress  |
-|                                   | ground's first cell (dz/2 + z0) instead of their own     |                    |                  |
-|                                   | fluid-centroid length                                    |                    |                  |
+| **erf.if_flat_wall_dissipation**  | fraction_stress with the k-eqn RANS only (aborts without | Boolean            | true with        |
+|                                   | a k-eqn level; false is accepted with the legacy law):   |                    | fraction_stress, |
+|                                   | partial wall cells dissipate TKE with the length scale   |                    | else false       |
+|                                   | of flat ground's first cell, kappa (dz/2 + z0), instead  |                    |                  |
+|                                   | of their own fluid-centroid length                       |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_ws_floor**               | lower bound [m/s] on the wind speed in the limit on the  | Real > 0           | 0.001            |
 |                                   | per-step change of the building wall-law forcing; the    |                    |                  |

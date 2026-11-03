@@ -97,10 +97,13 @@ amrex::Real friction_velocity (amrex::Real ut, amrex::Real ut_ref, amrex::Real b
  * replaces dz by
  *   spacing = 0 (grid):     dz                                    (factor 1)
  *   spacing = 1 (physical): d2 - d1 = (1 - beta/2) dz
- *   spacing = 2 (log):      (d1 + d2) ln(d2/d1) / (2 ln 3), the spacing that gives the face the
+ *   spacing = 2 (log):      (d1 + d2) ln(d2/d1) / (2 ln 3), the spacing that gives the face flux,
+ *                           with the face viscosity the mean of the two cells' kappa u* z, the
  *                           same relative error for a log profile as the first interior face of
- *                           flat ground (d1 = dz/2, d2 = 3 dz/2), where it equals dz
- * All three are 1 for beta = 0, so a surface on a cell face stays flat ground.
+ *                           flat ground (d1 = dz/2, d2 = 3 dz/2), where it equals dz: ln 3 u*^2
+ *                           for every beta
+ * All three are 1 for beta = 0, so a surface on a cell face stays flat ground. The factor is
+ * bounded only while z0 < dz/4 (d2 > d1 for every beta): the inputs require that.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 amrex::Real face_above_factor (amrex::Real beta, amrex::Real dz, amrex::Real z0, int spacing) noexcept
@@ -170,7 +173,12 @@ WallState wall_state (amrex::Real ut, amrex::Real ut_ref, amrex::Real theta, amr
 
     WallState w;
     w.Linv = (c.type == WallCond::obukhov) ? c.Linv : amrex::Real(0.0);
+    // 1/L is kept where d1/L stays within the zeta clamp: the stable given-flux problem has no
+    // solution below a wind threshold (about 3 m/s at q = -0.02 K m/s, d1 = 10 m, z0 = 0.1 m)
+    // and the iteration would otherwise run 1/L away while u* collapses to the floor
+    const amrex::Real Linv_max = zmax / d1;
     for (int it = 0; it < n_iter; ++it) {
+        w.Linv = amrex::max(amrex::min(w.Linv, Linv_max), -Linv_max);
         const amrex::Real z1 = amrex::max(amrex::min(d1 * w.Linv, zmax), -zmax);
         const amrex::Real z2 = amrex::max(amrex::min(d2 * w.Linv, zmax), -zmax);
         const amrex::Real us_own = KAPPA * ut     / phi(d1, z0, sfuns.calc_psi_m(z1));
@@ -191,6 +199,9 @@ WallState wall_state (amrex::Real ut, amrex::Real ut_ref, amrex::Real theta, amr
             w.Linv = kg * w.thetastar / (us_f * us_f * theta);
         }
     }
+    // the stress uses the same floored u* as theta* and 1/L
+    w.ustar = amrex::max(w.ustar, us_min);
+    w.Linv  = amrex::max(amrex::min(w.Linv, Linv_max), -Linv_max);
     return w;
 }
 

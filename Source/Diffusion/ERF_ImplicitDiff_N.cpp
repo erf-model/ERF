@@ -158,7 +158,8 @@ ImplicitDiffForStateLU_N (const Box& bx,
                     RHS_a(i,j,klo) -= a_tmp * (cell_data(i,j,klo-1,n) / cell_data(i,j,klo-1,Rho_comp));
                 } else if (pin_klo) {
                     // Dirichlet row: no flux terms
-                } else if (use_SurfLayer && scalar_zflux) {
+                } else if (use_SurfLayer && scalar_zflux && !(has_wall_face && wall_face(i,j,klo) == zero)) {
+                    // (a wall cell at klo takes its wall flux from the source, not from the surface layer)
                     RHS_a(i,j,klo) +=  Fact * scalar_zflux(i,j,klo); // NOTE: scalar_zflux = -K*d_z(\phi)
                 } else if (neumann_on_zlo) {
                     RHS_a(i,j,klo) += -Fact * rhoAlpha_lo * bc_neumann_vals[2]; // NOTE: N_val = d_z(\phi)
@@ -520,6 +521,8 @@ ImplicitDiffForMomLU_N (const Box& bx,
                   }
               }
 
+              // the bottom face of a wall cell at a coarse/fine boundary carries no coupling either
+              if (has_wall_face) { a_tmp *= wall_face(i,j,klo); }
               b_tmp      = rhoface - a_tmp - c_tmp;
               inv_b2_tmp = one;
 

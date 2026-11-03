@@ -148,7 +148,9 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
             });
             if (qty_index == RhoTheta_comp && hfx_z) {
                 // the TKE buoyancy reads hfx_z: on the wall face it is the wall heat flux of the
-                // wall law (rho times the kinematic flux, as the surface layer writes it at zlo)
+                // wall law (rho times the kinematic flux, as the surface layer writes it at zlo).
+                // wall_hfx has no ghost cells: on the top face of a box split in z (never with
+                // amr.no_box_split_dir = 2) the face reads zero here and its value from the box above
                 const Box hbx = mbx & Box(hfx_z);
                 ParallelFor(hbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {

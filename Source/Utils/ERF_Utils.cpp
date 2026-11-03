@@ -376,9 +376,11 @@ make_ib_wall_face_masks (const MultiFab& terrain_blank,
                          Real z0)
 {
     BL_PROFILE("make_ib_wall_face_masks()");
-    AMREX_ALWAYS_ASSERT(terrain_blank.nGrowVect().allGT(mask13.nGrowVect()) &&
-                        terrain_blank.nGrowVect().allGT(mask23.nGrowVect()) &&
-                        terrain_blank.nGrowVect().allGE(mask33.nGrowVect()));
+    // the masks are built on their ghost cells too, reading the blanking one cell sideways and two
+    // cells up and down the column (clamped to the domain in k, not to the box)
+    AMREX_ALWAYS_ASSERT(terrain_blank.nGrowVect().allGE(mask13.nGrowVect() + IntVect(1,1,2)) &&
+                        terrain_blank.nGrowVect().allGE(mask23.nGrowVect() + IntVect(1,1,2)) &&
+                        terrain_blank.nGrowVect().allGE(mask33.nGrowVect() + IntVect(0,0,2)));
 
     const int  klo   = domain.smallEnd(2);
     const int  khi   = domain.bigEnd(2);

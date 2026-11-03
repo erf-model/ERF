@@ -577,8 +577,9 @@ void erf_make_tau_terms (int level, int nrk,
                 // (2 u_0 - u_1) gives the first cell the gradient of the face above. The TKE production
                 // of the wall cell then does not see the solid below as a no-slip wall. (The stress on
                 // that face is zeroed below: the wall law supplies it.) One wall face per column, and
-                // the face above is never one, so the copy has no read/write overlap. The face above
-                // the wall cell carries the spacing factor of erf.if_wall_face_spacing.
+                // the face above is never one, so the copy has no read/write overlap. The copy comes
+                // first, so the wall face carries the unscaled strain; the face above the wall cell
+                // is then scaled by the spacing factor of erf.if_wall_face_spacing.
                 if (ib_wall_face13 && ib_wall_face23) {
                     auto const m13 = ib_wall_face13->const_array(mfi);
                     auto const m23 = ib_wall_face23->const_array(mfi);
@@ -586,19 +587,6 @@ void erf_make_tau_terms (int level, int nrk,
                     Box yz = tbxyz & ib_wall_face23->fabbox(mfi.index()); yz.growHi(2, -1);
                     const Box xz_all = tbxxz & ib_wall_face13->fabbox(mfi.index());
                     const Box yz_all = tbxyz & ib_wall_face23->fabbox(mfi.index());
-                    ParallelFor(xz_all, yz_all,
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        if (m13(i,j,k) != zero) {
-                            s13(i,j,k) *= m13(i,j,k);
-                            if (s13_corr) s13_corr(i,j,k) *= m13(i,j,k);
-                        }
-                    },
-                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                        if (m23(i,j,k) != zero) {
-                            s23(i,j,k) *= m23(i,j,k);
-                            if (s23_corr) s23_corr(i,j,k) *= m23(i,j,k);
-                        }
-                    });
                     ParallelFor(xz, yz,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
                         if (m13(i,j,k) == zero) {
@@ -610,6 +598,19 @@ void erf_make_tau_terms (int level, int nrk,
                         if (m23(i,j,k) == zero) {
                             s23(i,j,k) = s23(i,j,k+1);
                             if (s23_corr) s23_corr(i,j,k) = s23_corr(i,j,k+1);
+                        }
+                    });
+                    ParallelFor(xz_all, yz_all,
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        if (m13(i,j,k) != zero) {
+                            s13(i,j,k) *= m13(i,j,k);
+                            if (s13_corr) s13_corr(i,j,k) *= m13(i,j,k);
+                        }
+                    },
+                    [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                        if (m23(i,j,k) != zero) {
+                            s23(i,j,k) *= m23(i,j,k);
+                            if (s23_corr) s23_corr(i,j,k) *= m23(i,j,k);
                         }
                     });
                 }

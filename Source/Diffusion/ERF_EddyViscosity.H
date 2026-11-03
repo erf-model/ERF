@@ -91,7 +91,8 @@ ComputeTurbulentViscosityRANS (int level,
                                const amrex::MultiFab* forest_drag,
                                const amrex::MultiFab* ib_blank = nullptr,
                                bool flat_wall_diss = false,
-                               amrex::Real ib_small_volfrac = amrex::Real(0.005));
+                               amrex::Real ib_small_volfrac = amrex::Real(0.005),
+                               amrex::Real ib_z0 = amrex::Real(0.0));
 
 /** Compute LES turbulent viscosity and heat fluxes for embedded-boundary cells. */
 void

@@ -1304,9 +1304,11 @@ struct SolverChoice {
         // Spacing of the face above the wall cell (fraction_stress only): "log" (default) gives
         // that face the relative error of flat ground's first interior face for a log profile,
         // "physical" the centroid spacing, "grid" the cell height (ib_wall::face_above_factor)
+        // (the keys below are accepted at their default values with the legacy law, so one deck
+        // can run both laws; any other value belongs to fraction_stress)
         std::string if_wall_face_spacing_in = "log";
-        const bool spacing_given = pp.queryAdd("if_wall_face_spacing", if_wall_face_spacing_in);
-        if (spacing_given && !if_fraction_stress) {
+        pp.queryAdd("if_wall_face_spacing", if_wall_face_spacing_in);
+        if (if_wall_face_spacing_in != "log" && !if_fraction_stress) {
             amrex::Abort("erf.if_wall_face_spacing belongs to erf.if_wall_form = fraction_stress");
         }
         if      (if_wall_face_spacing_in == "grid")     { if_wall_face_spacing = 0; }
@@ -1318,11 +1320,10 @@ struct SolverChoice {
         // (the default) the wall cell is held at it after every stage and in the implicit TKE
         // solve, as flat ground is; a larger factor relaxes toward it as a source over that many
         // steps (the kynema-sgf form)
-        // (a value of false is accepted with the legacy law, so one deck can run both laws)
         pp.queryAdd("if_wall_tke", if_wall_tke);
-        const bool tke_factor_given = pp.queryAdd("if_wall_tke_time_factor", if_wall_tke_time_factor);
-        if ((if_wall_tke || tke_factor_given) && !if_fraction_stress) {
-            amrex::Abort("erf.if_wall_tke = true and erf.if_wall_tke_time_factor belong to erf.if_wall_form = fraction_stress");
+        pp.queryAdd("if_wall_tke_time_factor", if_wall_tke_time_factor);
+        if ((if_wall_tke || if_wall_tke_time_factor != one) && !if_fraction_stress) {
+            amrex::Abort("erf.if_wall_tke = true and erf.if_wall_tke_time_factor != 1 belong to erf.if_wall_form = fraction_stress");
         }
         if (!(if_wall_tke_time_factor >= one)) {
             amrex::Abort("erf.if_wall_tke_time_factor must be >= 1 (steps over which the wall TKE is relaxed)");
@@ -1330,9 +1331,9 @@ struct SolverChoice {
         // Partial wall cells of the fraction-stress law dissipate TKE with the length scale of flat
         // ground's first cell (kynema-sgf KLAxell.flat_wall_dissipation); on by default with it
         if_flat_wall_dissipation = if_fraction_stress;
-        const bool diss_given = pp.queryAdd("if_flat_wall_dissipation", if_flat_wall_dissipation);
-        if (diss_given && !if_fraction_stress) {
-            amrex::Abort("erf.if_flat_wall_dissipation belongs to erf.if_wall_form = fraction_stress");
+        pp.queryAdd("if_flat_wall_dissipation", if_flat_wall_dissipation);
+        if (if_flat_wall_dissipation && !if_fraction_stress) {
+            amrex::Abort("erf.if_flat_wall_dissipation = true belongs to erf.if_wall_form = fraction_stress");
         }
         if (if_fraction_stress) {
             if (terrain_type != TerrainType::ImmersedForcing) {
@@ -1346,6 +1347,12 @@ struct SolverChoice {
             }
             if (mesh_type != MeshType::ConstantDz) {
                 amrex::Abort("erf.if_wall_form = fraction_stress needs a constant-dz mesh");
+            }
+            // The wall heat flux and the wall TKE are written by the slow scalar source; the
+            // compressible fast substep (erf.immersed_forcing_substep) does not carry them
+            if (immersed_forcing_substep) {
+                amrex::Abort("erf.if_wall_form = fraction_stress runs with the anelastic model (erf.anelastic = 1 on "
+                             "every level); it does not support erf.immersed_forcing_substep = true");
             }
             // One surface condition (heat flux, surface temperature - optionally changing at
             // erf.if_surf_heating_rate - or Obukhov length; none is neutral, checked below); the
@@ -2087,6 +2094,28 @@ struct SolverChoice {
             } else {
                 amrex::Warning("erf.if_average_down = fluid_mass has no effect without refined levels "
                                "(amr.max_level > 0) and erf.coupling_type = TwoWay");
+            }
+        }
+        if (if_fraction_stress) {
+            // The face-above spacing factor is bounded only while z0 < dz/4 (then d2 > d1 for
+            // every solid fraction and the fluid centroid of a full wall cell sits above 2 z0)
+            for (int lev = 0; lev <= max_level; ++lev) {
+                const amrex::Real dz = geom_vect[lev].CellSize(2);
+                if (!(if_z0 < amrex::Real(0.25) * dz)) {
+                    amrex::Abort("erf.if_wall_form = fraction_stress needs erf.if_z0 < dz/4 on every level (level " +
+                                 std::to_string(lev) + ": z0 = " + std::to_string(if_z0) + " m, dz = " +
+                                 std::to_string(dz) + " m)");
+                }
+            }
+        }
+        if (if_fraction_stress && (if_wall_tke || if_flat_wall_dissipation)) {
+            bool any_keqn = false;
+            for (int lev = 0; lev <= max_level; ++lev) {
+                any_keqn = any_keqn || (turbChoice[lev].rans_type == RANSType::kEqn);
+            }
+            if (!any_keqn) {
+                amrex::Abort("erf.if_wall_tke and erf.if_flat_wall_dissipation act on the k-eqn RANS closure: "
+                             "set erf.rans_type = kEqn on a level, or turn them off (erf.if_flat_wall_dissipation = false)");
             }
         }
         if (if_fraction_stress) {

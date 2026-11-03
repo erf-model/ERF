@@ -641,7 +641,8 @@ void ComputeTurbulentViscosityRANS (int level,
                                     const MultiFab* forest_drag,
                                     const MultiFab* ib_blank,
                                     bool flat_wall_diss,
-                                    Real ib_small_volfrac)
+                                    Real ib_small_volfrac,
+                                    Real ib_z0)
 {
     const GpuArray<Real, AMREX_SPACEDIM> cellSizeInv = geom.InvCellSizeArray();
     const bool use_SurfLayer = (SurfLayer != nullptr);
@@ -755,7 +756,10 @@ void ComputeTurbulentViscosityRANS (int level,
                 }
 
                 // Geometric length scale (AL01, Eqn. 22)
+                // the surface layer's roughness, or the immersed wall law's (fraction_stress) when
+                // there is no surface layer at the bottom
                 Real l_g = (z0_arr) ? KAPPA * (d_arr(i, j, k) + z0_arr(i, j, 0))
+                         : (ib_arr) ? KAPPA * (d_arr(i, j, k) + ib_z0)
                                     : KAPPA * d_arr(i, j, k);
 
                 // Enforce a maximum value: fixed, or kappa * 0.1 * zi clamped to
@@ -787,9 +791,9 @@ void ComputeTurbulentViscosityRANS (int level,
                 // length the same formula gives at dz / 2, the distance of flat ground's first cell
                 if (flat_wall_diss && ib_arr) {
                     const Real bk = ib_arr(i,j,k);
-                    if (bk >= ib_small && bk < one) {
+                    if (bk >= ib_small && bk < one - ib_small) {   // a partial cell as ib_wall::is_wall_cell sees it
                         Real l_flat = (z0_arr) ? KAPPA * (myhalf / cellSizeInv[2] + z0_arr(i, j, 0))
-                                               : KAPPA * (myhalf / cellSizeInv[2]);
+                                               : KAPPA * (myhalf / cellSizeInv[2] + ib_z0);
                         l_flat = AL01::geom_length(l_flat, l_cap);
                         const Real len_flat = AL01::turb_length(l_flat, N2, tke, Cmu0_pow3, inv_Cb_sq, Rt_crit, Rt_min, eps);
                         diss(i, j, k) = AL01::dissipation(cell_data(i, j, k, Rho_comp), Cmu0_pow3, tke, len_flat);
@@ -1003,7 +1007,8 @@ void ComputeTurbulentViscosity (double dt,
                                       solverChoice.canopyTurb, forest_drag,
                                       (solverChoice.if_fraction_stress) ? terrain_blank : nullptr,
                                       solverChoice.if_flat_wall_dissipation,
-                                      solverChoice.if_small_volfrac);
+                                      solverChoice.if_small_volfrac,
+                                      solverChoice.if_z0);
     }
 
     if (turbChoice.pbl_type == PBLType::MYJ) {
