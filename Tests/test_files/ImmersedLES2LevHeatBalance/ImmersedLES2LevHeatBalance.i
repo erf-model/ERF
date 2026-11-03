@@ -2,19 +2,17 @@
 #
 # Immersed-forcing terrain (a plane at 45 m) with Smagorinsky LES, anelastic, two levels: a refined
 # patch (20 m over 10 m) whose lateral coarse/fine faces cross the surface. Theta is uniform and no
-# heat enters, so no net heat may appear. The coarse level zeroes its solid faces after its
-# projection, so the fluxes filled into the patch's coarse/fine faces need not balance, and the
-# fine projection spreads that imbalance as a uniform divergence, a heat source. With
-# erf.if_cf_fill = fluid the fill closes the solid sub-faces and the net inflow is removed
-# (ERF::balance_cf_fluxes); the plain fill (the default) drifts.
+# heat enters, so no net heat may appear (erf-model/ERF#4920). With the implicit projection
+# (erf.if_implicit_projection = true, erf-model/ERF#4926) the solid is not frozen after the
+# projection, the momenta stay divergence free in the partial cells at the patch edges, and the
+# fluid-mass-weighted mean theta holds to 1e-8 K over 20 steps. With the explicit freeze
+# (erf.if_implicit_projection = false) those partial cells keep a divergence of their own, which
+# advects the uniform theta: 1 K in the half-solid fine layer at the inflow edge, 0.04 K in the
+# mean, after 20 steps. One level alone holds the mean to 1e-7 K either way.
 #
-# (Theta is not uniform cell by cell: with the solid freeze after the projection, the fine partial
-# cells at the patch edges keep a divergence of their own; erf.if_implicit_projection removes it
-# but needs an FFT build.)
-#
-# Tests/CTestList.cmake runs it with both settings and checks the fluid-mass-weighted mean theta
-# of the domain (Tests/ImmersedCFHeatBalanceCheck.cpp): the fluid run must pass, the plain run
-# must not.
+# Tests/CTestList.cmake runs it with both settings and checks the mean theta of the domain, the
+# fine level where it exists (Tests/ImmersedCFHeatBalanceCheck.cpp): the implicit run must pass,
+# the freeze run must not. The implicit projection needs an FFT build.
 #
 erf.prob_name = "ABL"
 
@@ -39,7 +37,7 @@ erf.terrain_file_name = "terrain.txt"
 erf.if_use_most       = true
 erf.if_z0             = 0.1
 erf.if_implicit_drag  = true
-erf.if_cf_fill        = fluid
+erf.if_implicit_projection = true
 eb2.cover_multiple_cuts = 1
 
 erf.anelastic      = 1

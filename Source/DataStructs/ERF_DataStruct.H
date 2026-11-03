@@ -1315,24 +1315,6 @@ struct SolverChoice {
             amrex::Abort("erf.if_average_down = fluid_mass needs erf.terrain_type = ImmersedForcing "
                          "or erf.buildings_type = ImmersedForcing");
         }
-        // The coarse/fine face fill over immersed-forcing levels (erf-model/ERF#4920): the plain
-        // fill (the default), or one that closes the fine faces next to fully solid fine cells,
-        // moves their flux to the fluid faces of the same coarse face and removes the net flux
-        // through the coarse/fine faces of each fine subdomain (anelastic levels, constant dz)
-        pp.queryAdd("if_cf_fill", if_cf_fill);
-        if (if_cf_fill != "plain" && if_cf_fill != "fluid") {
-            amrex::Abort("erf.if_cf_fill must be plain or fluid");
-        }
-        if (if_cf_fill == "fluid") {
-            if (terrain_type != TerrainType::ImmersedForcing && buildings_type != BuildingsType::ImmersedForcing) {
-                amrex::Abort("erf.if_cf_fill = fluid needs erf.terrain_type = ImmersedForcing "
-                             "or erf.buildings_type = ImmersedForcing");
-            }
-            if (mesh_type != MeshType::ConstantDz) {
-                amrex::Abort("erf.if_cf_fill = fluid needs a constant-dz mesh (the flux moved between "
-                             "the fine faces of a coarse face is shared per face, not per area)");
-            }
-        }
         // Warn at start-up where a lateral coarse/fine boundary crosses the immersed surface so
         // that the levels disagree: spread of the fine solid fractions under a coarse edge cell
         // at least this (0 turns the check off)
@@ -2032,19 +2014,7 @@ struct SolverChoice {
                                "(amr.max_level > 0) and erf.coupling_type = TwoWay");
             }
         }
-        // The coarse/fine fill options act only on refined levels
-        if (if_cf_fill == "fluid") {
-            bool any_anelastic = false;
-            for (int lev = 1; lev <= max_level; ++lev) { any_anelastic = any_anelastic || anelastic[lev]; }
-            if (any_anelastic) {
-                amrex::Print() << "Immersed forcing: erf.if_cf_fill = fluid (the coarse/fine faces next to solid fine "
-                               << "cells are closed, their flux moved to the fluid faces of the same coarse face, and "
-                               << "the net flux through each fine subdomain's coarse/fine faces removed)\n";
-            } else {
-                amrex::Warning("erf.if_cf_fill = fluid has no effect without an anelastic refined level "
-                               "(amr.max_level > 0 and erf.anelastic = 1 there)");
-            }
-        }
+        // The log-law coarse/fine fill acts only on refined levels
         if (cf_loglaw_fill) {
             const bool immersed = (terrain_type == TerrainType::ImmersedForcing ||
                                    buildings_type == BuildingsType::ImmersedForcing);
@@ -2614,7 +2584,6 @@ struct SolverChoice {
     amrex::Real if_psi_cap_factor        = amrex::Real(1.0);  // [-]
     amrex::Real if_small_volfrac         = amrex::Real(0.005);  // [-] eb2.small_volfrac
     std::string if_average_down          = "plain";  // or fluid_mass
-    std::string if_cf_fill               = "plain";  // or fluid: erf.if_cf_fill, the c/f face fill over immersed levels
     amrex::Real if_cf_mismatch_warning   = amrex::Real(0.75); // erf.if_cf_mismatch_warning: c/f surface mismatch threshold
     bool        cf_loglaw_fill           = false;    // erf.cf_loglaw_fill: log-law share of the wall coarse face's flux
     amrex::Real cf_loglaw_z0             = amrex::Real(-1.0); // erf.cf_loglaw_z0 [m]; < 0: resolved from if_z0 / most.z0
@@ -3068,12 +3037,6 @@ struct SolverChoice {
  * @brief Cell average down over immersed-forcing levels: "plain" (the default, the plain cell
  *        average) or "fluid_mass" (the fine cells weighted by their fluid mass, coarse cells solid
  *        on their own level kept; see if_average_down in ERF_Utils.H).
- * @var SolverChoice::if_cf_fill
- * @brief Coarse/fine face fill over immersed-forcing levels: "plain" (the default, the fill as it
- *        was) or "fluid" (fine faces next to fully solid fine cells closed, their flux moved to the
- *        fluid faces of the same coarse face, and the net flux through each fine subdomain's
- *        coarse/fine faces removed; anelastic levels on a constant-dz mesh; see
- *        ERFFillPatcher::SetSolidFraction and if_balance_cf_fluxes in ERF_Utils.H).
  * @var SolverChoice::if_cf_mismatch_warning
  * @brief Spread of the fine solid fractions under a coarse cell along a lateral coarse/fine face
  *        at or above which the start-up warning counts the cell (the levels describe the surface

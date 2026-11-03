@@ -11,7 +11,7 @@
 #include <iostream>
 #include <string>
 
-// Checks the heat balance of a two-level immersed-forcing plotfile:
+// Checks the heat balance of an immersed-forcing plotfile (one or two levels):
 //
 //   checker <plotfile> <theta0> <tol>
 //
@@ -23,7 +23,7 @@
 // share of a coarse volume. Taking the fine level where it exists keeps the check independent of
 // how the covered coarse cells are averaged down (erf.if_average_down).
 // Exit 0: passed; 1: the mean drifted by more than tol; 3: the plotfile cannot be checked
-// (missing level or variable, non-finite theta, no fluid mass).
+// (missing variable, non-finite theta, no fluid mass).
 
 namespace {
 
@@ -70,33 +70,43 @@ void weighted_sums (const MultiFab& th, const MultiFab& rho, const MultiFab& b, 
 
 int check_mean (PlotFileData& pf, Real theta0, Real tol)
 {
-    if (pf.finestLevel() < 1) { return fail("needs two levels"); }
     for (const char* name : {"theta", "density", "terrain_IB_mask"}) {
         if (!has_variable(pf, name)) { return fail(std::string("plotfile has no ") + name); }
     }
     const MultiFab th_c = pf.get(0, "theta");
     const MultiFab r_c  = pf.get(0, "density");
     const MultiFab b_c  = pf.get(0, "terrain_IB_mask");
-    const MultiFab th_f = pf.get(1, "theta");
-    const MultiFab r_f  = pf.get(1, "density");
-    const MultiFab b_f  = pf.get(1, "terrain_IB_mask");
-    if (!th_c.is_finite() || !th_f.is_finite()) { return fail("non-finite theta"); }
+    if (!th_c.is_finite()) { return fail("non-finite theta"); }
 
-    const IntVect rr(pf.refRatio(0));
-    const Geometry cgeom(pf.probDomain(0), RealBox(pf.probLo(), pf.probHi()), pf.coordSys(), {AMREX_D_DECL(0,0,0)});
-    const iMultiFab covered = amrex::makeFineMask(th_c.boxArray(), th_c.DistributionMap(), IntVect(0),
-                                                  th_f.boxArray(), rr, cgeom.periodicity(), 0, 1);
-    const Real w_fine = Real(1.) / static_cast<Real>(rr[0] * rr[1] * rr[2]);
+    Real num_c = Real(0.), den_c = Real(0.), num_f = Real(0.), den_f = Real(0.);
+    if (pf.finestLevel() < 1) {
+        // one level: the whole domain from level 0
+        weighted_sums(th_c, r_c, b_c, nullptr, theta0, Real(1.), num_c, den_c);
+    } else {
+        const MultiFab th_f = pf.get(1, "theta");
+        const MultiFab r_f  = pf.get(1, "density");
+        const MultiFab b_f  = pf.get(1, "terrain_IB_mask");
+        if (!th_f.is_finite()) { return fail("non-finite theta"); }
 
-    Real num = Real(0.), den = Real(0.);
-    weighted_sums(th_c, r_c, b_c, &covered, theta0, Real(1.), num, den);
-    weighted_sums(th_f, r_f, b_f, nullptr,  theta0, w_fine,   num, den);
-    ParallelDescriptor::ReduceRealSum(num);
-    ParallelDescriptor::ReduceRealSum(den);
+        const IntVect rr(pf.refRatio(0));
+        const Geometry cgeom(pf.probDomain(0), RealBox(pf.probLo(), pf.probHi()), pf.coordSys(), {AMREX_D_DECL(0,0,0)});
+        const iMultiFab covered = amrex::makeFineMask(th_c.boxArray(), th_c.DistributionMap(), IntVect(0),
+                                                      th_f.boxArray(), rr, cgeom.periodicity(), 0, 1);
+        const Real w_fine = Real(1.) / static_cast<Real>(rr[0] * rr[1] * rr[2]);
+        weighted_sums(th_c, r_c, b_c, &covered, theta0, Real(1.), num_c, den_c);
+        weighted_sums(th_f, r_f, b_f, nullptr,  theta0, w_fine,   num_f, den_f);
+    }
+    ParallelDescriptor::ReduceRealSum(num_c);
+    ParallelDescriptor::ReduceRealSum(den_c);
+    ParallelDescriptor::ReduceRealSum(num_f);
+    ParallelDescriptor::ReduceRealSum(den_f);
+    const Real den = den_c + den_f;
     if (!(den > Real(0.))) { return fail("no fluid mass"); }
 
-    const Real drift = num / den;
-    Print() << "fluid-mass-weighted mean theta - theta0 = " << drift << " K (tol " << tol << " K)\n";
+    const Real drift = (num_c + num_f) / den;
+    Print() << "fluid-mass-weighted mean theta - theta0 = " << drift << " K (tol " << tol << " K)"
+            << "; uncovered coarse cells " << ((den_c > Real(0.)) ? num_c / den_c : Real(0.))
+            << " K, fine level " << ((den_f > Real(0.)) ? num_f / den_f : Real(0.)) << " K\n";
     if (std::abs(drift) > tol) { return fail("the mean theta drifted by more than tol", 1); }
     return 0;
 }

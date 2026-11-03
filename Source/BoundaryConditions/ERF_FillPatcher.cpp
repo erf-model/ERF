@@ -430,89 +430,6 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
             });
         } // IndexType::NODE
 
-        // Immersed forcing (erf.if_cf_fill = fluid): a fine coarse/fine face next to a fully solid
-        // fine cell carries no flux (the anelastic update holds those cells still), while the
-        // coarse face over it may be open, e.g. a coarse cell half solid over fine cells that are
-        // all solid and all fluid; and the coarse projection also puts flux through coarse faces
-        // that are wholly solid, which the immersed forcing only removes afterwards. Close the solid
-        // sub-faces and give their flux to fluid sub-faces: those of the same coarse face, or, for a
-        // coarse face with no fluid sub-face, those of the next coarse face up the same column (the
-        // air just above the surface). The fine faces then carry the coarse fluxes, so the fine
-        // level sees the same inflow as the coarse level. All sub-faces of a coarse face lie in this
-        // fine box, and so does the column of a lateral face (amr.no_box_split_dir = 2, the ERF
-        // default, never splits a grid in z); flux carried up to the top of a box that another box
-        // continues is dropped there, and the net flux of the level is balanced afterwards
-        // (if_balance_cf_fluxes).
-        if (m_tblank) {
-            Array4<Real const> const& tb = m_tblank->const_array(mfi);
-            const int dir = (fbx.type(0) == IndexType::NODE) ? 0 : ((fbx.type(1) == IndexType::NODE) ? 1 : 2);
-            const int rx = ratio[0], ry = ratio[1], rz = ratio[2];
-            const Box vfbx = fbx;
-            if (dir < 2) {
-                const int di = (dir == 0), dj = (dir == 1);
-                // one thread per column of coarse faces: the lateral plane index and the
-                // tangential horizontal coarse index, walking up the coarse faces in z
-                Box colbx = fbx; colbx.setRange(2, fbx.smallEnd(2));
-                ParallelFor(colbx, [=] AMREX_GPU_DEVICE (int i, int j, int k0) noexcept
-                {
-                    if (mask_arr(i,j,k0) != mask_val) { return; }
-                    if ((dir == 1 && i != coarsen(i,rx)*rx) || (dir == 0 && j != coarsen(j,ry)*ry)) { return; }
-                    const int nt = (dir == 0) ? ry : rx;   // horizontal sub-faces of a coarse face
-                    Real carry = Real(0.0);
-                    for (int kc0 = coarsen(k0,rz)*rz; kc0 <= vfbx.bigEnd(2); kc0 += rz) {
-                        Real blocked = carry;
-                        int  nfluid  = 0;
-                        for (int kk = kc0; kk < kc0+rz; ++kk) {
-                        for (int t = 0; t < nt; ++t) {
-                            const int ii = (dir == 1) ? i+t : i, jj = (dir == 0) ? j+t : j;
-                            if (!vfbx.contains(ii,jj,kk) || mask_arr(ii,jj,kk) != mask_val) { continue; }
-                            if (cf_face_solid(tb,ii,jj,kk,di,dj,0)) {
-                                blocked += fine_arr(ii,jj,kk,0); fine_arr(ii,jj,kk,0) = Real(0.0);
-                            } else {
-                                ++nfluid;
-                            }
-                        }}
-                        if (nfluid == 0) { carry = blocked; continue; }
-                        carry = Real(0.0);
-                        if (blocked == Real(0.0)) { continue; }
-                        const Real add = blocked / static_cast<Real>(nfluid);
-                        for (int kk = kc0; kk < kc0+rz; ++kk) {
-                        for (int t = 0; t < nt; ++t) {
-                            const int ii = (dir == 1) ? i+t : i, jj = (dir == 0) ? j+t : j;
-                            if (!vfbx.contains(ii,jj,kk) || mask_arr(ii,jj,kk) != mask_val) { continue; }
-                            if (!cf_face_solid(tb,ii,jj,kk,di,dj,0)) { fine_arr(ii,jj,kk,0) += add; }
-                        }}
-                    }
-                });
-            } else {
-                // z-faces (the top or bottom of a fine box): per coarse face
-                ParallelFor(fbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
-                {
-                    if (mask_arr(i,j,k) != mask_val) { return; }
-                    if (i != coarsen(i,rx)*rx || j != coarsen(j,ry)*ry) { return; }
-                    Real blocked = Real(0.0);
-                    int  nfluid  = 0;
-                    for (int jj = j; jj < j+ry; ++jj) {
-                    for (int ii = i; ii < i+rx; ++ii) {
-                        if (!vfbx.contains(ii,jj,k) || mask_arr(ii,jj,k) != mask_val) { continue; }
-                        if (cf_face_solid(tb,ii,jj,k,0,0,1)) {
-                            blocked += fine_arr(ii,jj,k,0); fine_arr(ii,jj,k,0) = Real(0.0);
-                        } else {
-                            ++nfluid;
-                        }
-                    }}
-                    if (nfluid > 0 && blocked != Real(0.0)) {
-                        const Real add = blocked / static_cast<Real>(nfluid);
-                        for (int jj = j; jj < j+ry; ++jj) {
-                        for (int ii = i; ii < i+rx; ++ii) {
-                            if (!vfbx.contains(ii,jj,k) || mask_arr(ii,jj,k) != mask_val) { continue; }
-                            if (!cf_face_solid(tb,ii,jj,k,0,0,1)) { fine_arr(ii,jj,k,0) += add; }
-                        }}
-                    }
-                });
-            }
-        }
-
         // Log-law fill (erf.cf_loglaw_fill), lateral faces of a box that reaches the ground only.
         // The coarse face velocity next to a wall is a point value at the centroid of its fluid
         // part, but the linear fill above spreads it over the fine sub-faces with a slope that does
@@ -555,8 +472,8 @@ void ERFFillPatcher::InterpFace (MultiFab& fine,
                     W += std::log1p(cf_fluid_centroid_height(zs, zb, dzf) / z0);
                 }
                 if (W <= Real(0.0)) { return; }
-                // the solid sub-faces of the wall face carry nothing (whether or not the closure
-                // above ran); the fluid ones share the whole flux of the coarse face
+                // the solid sub-faces of the wall face carry nothing; the fluid ones share the
+                // whole flux of the coarse face
                 for (int kk = kc0; kk < kc0+rz; ++kk) {
                     if (have_tb && cf_face_solid(tb,i,j,kk,di,dj,0)) { fine_arr(i,j,kk,0) = Real(0.0); continue; }
                     const Real zb = zlo + dzf * static_cast<Real>(kk);

@@ -1,6 +1,6 @@
 # Run a two-level immersed-forcing case, then check its plotfile with
 # Tests/ImmersedCFHeatBalanceCheck.cpp. With EXPECT_CHECKER_FAIL the check must fail (the leg that
-# runs the plain coarse/fine fill), so the test proves the checker sees the difference.
+# runs the explicit solid freeze), so the test proves the checker sees the difference.
 # -DX= defines X as empty, so test for a value, not for DEFINED
 include("${CMAKE_CURRENT_LIST_DIR}/MPILauncher.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/ResolveExecutable.cmake")
@@ -53,11 +53,11 @@ execute_process(
 file(READ "${CHECKER_LOG}" checker_output)
 if(EXPECT_CHECKER_FAIL)
     if(checker_result EQUAL 0)
-        message(FATAL_ERROR "the plain fill passed the heat-balance check; the check cannot see the difference\n${checker_output}")
+        message(FATAL_ERROR "the explicit freeze passed the heat-balance check; the check cannot see the difference\n${checker_output}")
     elseif(NOT checker_result EQUAL 1 OR NOT checker_output MATCHES "drifted by more than tol")
         message(FATAL_ERROR "the checker did not reach the comparison (exit ${checker_result})\n${checker_output}")
     endif()
-    message(STATUS "the plain fill fails the check, as expected:\n${checker_output}")
+    message(STATUS "the explicit freeze fails the check, as expected:\n${checker_output}")
 elseif(NOT checker_result EQUAL 0)
     message(FATAL_ERROR "immersed heat-balance check failed: ${checker_result}\n${checker_output}")
 else()

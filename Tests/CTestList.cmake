@@ -216,7 +216,7 @@ endfunction(add_test_immersed_average_down)
 
 # Run a two-level immersed-forcing case and check the fluid-mass-weighted mean theta of its
 # plotfile against THETA0 (Tests/ImmersedCFHeatBalanceCheck.cpp); EXPECT_CHECKER_FAIL ON requires
-# the check to fail (the plain coarse/fine fill), so the test proves the checker sees the difference.
+# the check to fail (the explicit solid freeze), so the test proves the checker sees the difference.
 function(add_test_immersed_cf_heat_balance TEST_NAME TEST_FILES_DIR THETA0 TOL EXPECT_CHECKER_FAIL RUNTIME_OPTIONS)
     setup_test()
     resolve_test_exe("" "erf_exec" TEST_EXE)
@@ -1947,13 +1947,15 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_immersed_average_down(ImmersedLES2LevAverageDown_Plain ImmersedLES2LevAverageDown 0.001 ON
                                  "erf.if_average_down=plain")
   # Immersed LES on two levels, a patch whose lateral coarse/fine faces cross the surface, theta
-  # uniform and no heat entering: with erf.if_cf_fill = fluid the fill closes the solid sub-faces
-  # and the net inflow is removed, and the fluid-mean theta must hold; the plain fill (the
-  # default) spreads the unbalanced inflow as a uniform divergence, a heat source, and must fail
-  # the same check (TOL_FLUID / TOL set from the measured drifts, see the deck).
-  add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance ImmersedLES2LevHeatBalance 300.0 TOL_PLACEHOLDER OFF "")
-  add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_Plain ImmersedLES2LevHeatBalance 300.0 TOL_PLACEHOLDER ON
-                                    "erf.if_cf_fill=plain")
+  # uniform and no heat entering (erf-model/ERF#4920): with the implicit projection
+  # (erf.if_implicit_projection, FFT) the fluid-mean theta holds to 1e-8 K; the explicit freeze
+  # of the solid after the projection leaves the partial cells at the patch edges a divergence,
+  # 0.04 K in 20 steps here, and must fail the same check.
+  if(ERF_ENABLE_FFT)
+    add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF "")
+    add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_Freeze ImmersedLES2LevHeatBalance 300.0 1.0e-6 ON
+                                      "erf.if_implicit_projection=false")
+  endif()
   # Box, rank and tiling parity of the other closures: one box on one rank without tiling
   # against four boxes on two ranks with 8 x 8 tiles (Tests/test_files/Closure_BoxParity).
   set(_cbp_ref   "amr.max_grid_size_x=32 amr.max_grid_size_y=32 fabarray.mfiter_tile_size=1024 1024 1024")

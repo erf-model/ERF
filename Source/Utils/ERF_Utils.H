@@ -214,29 +214,6 @@ if_cf_surface_mismatch (const amrex::MultiFab& fine_tb,
                         const amrex::IntVect& ratio,
                         amrex::Real warn);
 
-/**
- * Immersed forcing with the anelastic model (erf.if_cf_fill = fluid): remove the net mass flux
- * through the coarse/fine faces of each fine subdomain, taking it off the fluid coarse/fine faces
- * in equal parts per unit area (less inflow, more outflow). Faces on a non-periodic side of the
- * domain and faces next to a fully solid cell are left alone. Constant dz: every face of a
- * direction has the same area. See ERF::balance_cf_fluxes.
- *
- * @param[in]     geom       fine Geometry
- * @param[in]     subdomains fine subdomains (each fine box lies in one)
- * @param[in]     grids      fine BoxArray
- * @param[in,out] mom        the x, y and z momenta of the fine level (c/f faces filled)
- * @param[in]     mask       the c/f masks of the x, y and z face fills (ERFFillPatcher::GetMask)
- * @param[in]     set_val    the mask value of the filled c/f faces, per direction
- * @param[in]     tb         fine solid fraction (terrain_blanking, one ghost cell)
- */
-void
-if_balance_cf_fluxes (const amrex::Geometry& geom,
-                      const amrex::Vector<amrex::BoxArray>& subdomains,
-                      const amrex::BoxArray& grids,
-                      const amrex::Array<amrex::MultiFab*, 3>& mom,
-                      const amrex::Array<const amrex::iMultiFab*, 3>& mask,
-                      const amrex::Array<int, 3>& set_val,
-                      const amrex::MultiFab& tb);
 
 /*
  * Create the Jacobian for the metric transformation when use_terrain is true

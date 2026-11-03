@@ -342,7 +342,6 @@ The following inputs are available when representing terrain using immersed forc
         erf.if_use_most                = BOOL
         erf.if_implicit_drag           = BOOL
         erf.if_average_down            = STRING
-        erf.if_cf_fill                 = STRING
         erf.if_cf_mismatch_warning     = FLOAT
         erf.immersed_forcing_substep   = BOOL
 
@@ -368,21 +367,20 @@ where the plain average is. The face momenta keep the plain average with either 
 through the coarse face, which keeps the anelastic constraint. See
 `erf-model/ERF#4918 <https://github.com/erf-model/ERF/issues/4918>`_.
 
-**Coarse/fine faces that cross the surface.** The fine faces on the lateral coarse/fine boundary are filled from
-the coarse momentum, which is open over the whole coarse face, so flow is pushed into fine cells that are fully
-solid and leaves through the surface; and the coarse level zeroes its faces between two solid cells only after its
-projection, so the coarse fluxes around a fine box whose boundary crosses the solid do not sum to zero. The fine
-projection, Neumann at those faces, spreads the imbalance as a uniform divergence over the box, which advects a
-uniform :math:`\theta` into a spurious heat source. With ``erf.if_cf_fill = fluid`` (anelastic levels on a
-constant-dz mesh) the fill closes the fine faces next to a fully solid fine cell and moves their flux to the fluid
-fine faces of the same coarse face (or, when it has none, of the next coarse face up the column), and the net mass
-flux left through the coarse/fine faces of each fine subdomain is removed from its fluid faces in equal parts per
-unit area. The fine faces of a coarse face then average to it up to that one uniform correction per subdomain.
-The plain fill (``erf.if_cf_fill = plain``, the default) is unchanged. Where the surface lies on the mid-plane of a
-coarse cell, the two levels describe different walls along the coarse/fine faces and the fill errors are largest;
-``erf.if_cf_mismatch_warning`` (a spread of fine solid fractions, default 0.75; 0 turns it off) counts those coarse
-cells at start-up and prints a warning. The log-law share of the wall coarse face's flux, ``erf.cf_loglaw_fill``,
-applies to immersed surfaces too (see :ref:`Mesh refinement <MeshRefinement>`). See
+**Coarse/fine faces that cross the surface.** A refined patch whose lateral coarse/fine faces cross the surface
+takes its face momenta there from the coarse level, which is open over the whole coarse face. With the explicit
+treatment of the solid (``erf.if_implicit_projection = false``, the default) the projection makes the momenta
+divergence free and the solid is frozen afterwards, so the partial cells at the patch edges keep a divergence of
+their own, which advects a uniform :math:`\theta` into a spurious source: on the ``ImmersedLES2LevHeatBalance``
+test (a plane at 45 m, a two-level patch, 20 steps) the half-solid fine layer at the inflow edge departs by 1 K and
+the fluid-mass-weighted mean of the domain by 0.04 K, while one level alone holds it to 1e-7 K. With
+``erf.if_implicit_projection = true`` the drag is applied inside the projection and the solid is not frozen, the
+momenta stay divergence free in the partial cells, and the mean holds to 1e-8 K: multi-level anelastic runs with
+immersed forcing should use it. Where the surface lies on the mid-plane of a coarse cell, the two levels describe
+different walls along the coarse/fine faces and the fill errors are largest; ``erf.if_cf_mismatch_warning`` (a
+spread of fine solid fractions, default 0.75; 0 turns it off) counts those coarse cells at start-up and prints a
+warning. The log-law share of the wall coarse face's flux, ``erf.cf_loglaw_fill``, applies to immersed surfaces too
+(see :ref:`Mesh refinement <MeshRefinement>`). See
 `erf-model/ERF#4920 <https://github.com/erf-model/ERF/issues/4920>`_.
 
 .. note:: When using fully compressible simulations, it is recommended to apply immersed forcing on the substep for numerical stability.

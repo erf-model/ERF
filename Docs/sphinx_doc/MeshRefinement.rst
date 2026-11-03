@@ -26,8 +26,6 @@ sub-faces in proportion to :math:`\ln(1 + z/z_0)` at the heights of their fluid 
 :math:`z_0` from ``erf.cf_loglaw_z0`` (by default ``erf.if_z0`` with immersed forcing, else ``erf.most.z0``). The
 flux of every coarse face is kept, so the average down of the coarse/fine faces still returns the coarse values;
 the faces above the wall face keep the linear interpolation.
-(With immersed forcing, ``erf.if_cf_fill = fluid`` closes the fine faces next to solid fine cells and balances the
-net flux through each fine subdomain's coarse/fine faces; see :ref:`Forcings <Forcings>`.)
 In order to ensure that the fine momentum on the coarse-fine boundary stays consistent with the
 interpolated coarse values throughout a fine timestep, we also interpolate the source term for
 the normal momentum on the coarse-fine interface.

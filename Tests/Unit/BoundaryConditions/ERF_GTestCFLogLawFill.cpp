@@ -21,9 +21,8 @@
 // the flux of the first coarse face above the wall among its fine sub-faces by ln(1 + z/z0) at
 // their heights above the wall. It must keep the flux of every coarse face (the c/f faces are
 // averaged down, and moving flux between coarse faces drives a circulation beside the fine box),
-// close the solid sub-faces of immersed terrain, and leave the faces above the wall face alone.
-// The solid-face closure alone (erf.if_cf_fill = fluid) must close every solid sub-face and move
-// its flux to the fluid sub-faces of the same coarse face, or up the column when it has none.
+// close the solid sub-faces of the wall coarse face over immersed terrain, and leave the faces
+// above the wall face alone.
 
 using namespace amrex;
 
@@ -90,7 +89,6 @@ MultiFab fill_fine (Levels const& L, MultiFab const& crse, MultiFab const* tb, b
     BoxArray fbax = convert(L.fba, IntVect(1,0,0));
     ERFFillPatcher fp(fbax, L.fdm, L.fgeom, convert(L.cba, IntVect(1,0,0)), L.cdm, L.cgeom,
                       0, 0, 1, &face_cons_linear_interp);
-    fp.SetSolidFraction(tb);
     fp.SetLogLawFill(loglaw, z0, tb);
     fp.RegisterCoarseData({&crse, &crse}, {0., 1.});
 
@@ -167,33 +165,5 @@ TEST(CFLogLawFill, ImmersedSurfaceClosesTheSolidAndSharesTheWallFace)
         // (the linear fill gives 0.733 here against 0.706)
         EXPECT_GT(std::abs(at(lin,j,4) / at(lin,j,5) - ln1p(2.5) / ln1p(10.)), 0.01);
         for (int k = 6; k <= fk_hi; ++k) { EXPECT_EQ(at(log,j,k), at(lin,j,k)); }
-    }
-}
-
-TEST(CFLogLawFill, SolidClosureMovesTheFluxWithinTheCoarseFaceAndUpTheColumn)
-{
-    Levels L;
-    MultiFab crse(convert(L.cba, IntVect(1,0,0)), L.cdm, 1, 1);
-    // the coarse faces below 60 m carry flow too (the coarse projection puts flux through solid
-    // faces, which the immersed forcing only removes afterwards)
-    fill_coarse(crse, {1., 1., 2., 3., 6., 7., 8., 8.5, 9., 9.2});
-    // surface at 50 m, the mid-plane of the coarse cell 40-60 m: fine cells 0-50 m solid
-    MultiFab tb(L.fba, L.fdm, 1, 2);
-    fill_tblank(tb, 5, Real(0.));
-
-    MultiFab lin = fill_fine(L, crse, nullptr, false);
-    MultiFab cls = fill_fine(L, crse, &tb, false);
-
-    for (int j = 0; j < 2*ncy; ++j) {
-        // the solid sub-faces (0-50 m) carry nothing
-        for (int k = 0; k < 5; ++k) { EXPECT_EQ(at(cls,j,k), Real(0.)); }
-        // the coarse faces 0-40 m have no fluid sub-face: their flux is carried up to the coarse
-        // face 40-60 m, whose one fluid sub-face (50-60 m) takes it all with its own
-        Real carried = 0.;
-        for (int k = 0; k < 6; ++k) { carried += at(lin,j,k); }
-        EXPECT_NEAR(at(cls,j,5), carried, tol * carried);
-        EXPECT_GT(at(cls,j,5), at(lin,j,5));   // (else the closure moved nothing)
-        // the faces above are left alone
-        for (int k = 6; k <= fk_hi; ++k) { EXPECT_EQ(at(cls,j,k), at(lin,j,k)); }
     }
 }

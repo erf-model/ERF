@@ -475,13 +475,9 @@ public:
     // ... and its vertical flux, as Omega
     amrex::Vector<amrex::MultiFab> m_cf_step_zflux;
     void FillSetHorizontalMomentaCF (int lev, double time, amrex::MultiFab& xmom, amrex::MultiFab& ymom);
-    // Immersed forcing at the coarse/fine faces (ERF_CoarseFineFaces.cpp): give the face fills of
-    // level lev the fine solid fraction (erf.if_cf_fill = fluid) and the log-law share
-    // (erf.cf_loglaw_fill) for the set fills that follow, or clear both (on = false)
+    // Give the face fills of level lev the log-law share of the wall coarse face's flux
+    // (erf.cf_loglaw_fill) for the set fills that follow, or clear it (on = false)
     void set_cf_fill_options (int lev, bool on);
-    // ... and remove the net mass flux through the c/f faces of each fine subdomain after a set
-    // fill (erf.if_cf_fill = fluid), so the fine projection sees a balanced boundary
-    void balance_cf_fluxes (int lev, amrex::MultiFab& xmom, amrex::MultiFab& ymom, amrex::MultiFab& zmom);
     // Warn where a lateral coarse/fine boundary of level lev crosses the immersed surface so that
     // the two levels describe it differently (erf.if_cf_mismatch_warning)
     void check_if_cf_mismatch (int lev);
