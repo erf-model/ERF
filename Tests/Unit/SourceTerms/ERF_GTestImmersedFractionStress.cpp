@@ -462,7 +462,7 @@ Real wall_heat_source_at (const Mesh& m, MomFields& f, const SolverChoice& sc, R
     for (MFIter mfi(src); mfi.isValid(); ++mfi) {
         ImmersedForcingTerrain_Scalar_FractionStress(mfi.validbox(), f.u.const_array(mfi), f.v.const_array(mfi),
                                                      f.cons.const_array(mfi), f.beta.const_array(mfi),
-                                                     src.array(mfi), Array4<Real>{}, m.geom, sc,
+                                                     src.array(mfi), Array4<Real>{}, Array4<Real>{}, m.geom, sc,
                                                      Table1D<Real>{}, Table1D<Real>{}, dt, time);
     }
     Gpu::streamSynchronize();
