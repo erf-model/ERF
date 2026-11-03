@@ -132,17 +132,14 @@ and :math:`N^2_{eff}` is the effective moist Brunt-Väisälä frequency.
 
 The moist stratification parameter accounts for three key atmospheric effects:
 
-1. **Virtual potential temperature effects**: Water vapor decreases air density (enhancing buoyancy) while condensate increases density (reducing buoyancy):
+1. **Virtual potential temperature effects**: Water vapor decreases air density (enhancing buoyancy) while condensate increases density (reducing buoyancy). In unsaturated cells the stratification uses the virtual potential temperature :math:`\theta_v`, which includes the loading of every condensed species. Saturated cells (:math:`q_c > 10^{-8}` kg/kg) use the liquid-ice water potential temperature :math:`\theta_l` instead. Both are defined in :ref:`MoistPotentialTemperatures`.
+
+2. **Moist Brunt-Väisälä frequency**: The stratification parameter uses :math:`\theta_v` (or :math:`\theta_l` in saturated cells) instead of dry potential temperature, with centered differences in :math:`z`:
 
 .. math::
-   \theta_v = \theta \left(1 + 0.61 q_v - q_c - q_i\right)
-
-where :math:`q_v`, :math:`q_c`, and :math:`q_i` are mixing ratios of water vapor, liquid water, and ice, respectively.
-
-2. **Moist Brunt-Väisälä frequency**: The stratification parameter uses virtual potential temperature instead of dry potential temperature:
-
-.. math::
-   N^2_m = \frac{g}{\theta_0} \frac{\partial \theta_v}{\partial z}
+   N^2_m = \frac{g}{\theta_v} \frac{\partial \theta_v}{\partial z}
+   \quad \text{or} \quad
+   N^2_m = \frac{g}{\theta_l} \frac{\partial \theta_l}{\partial z}
 
 3. **Conditional instability correction**: In saturated regions with condensate present, the effective stratification is reduced due to latent heat release:
 

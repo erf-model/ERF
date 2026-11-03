@@ -60,6 +60,7 @@ In addition to this documentation, there is API documentation for ERF generated 
    theory/GoverningEquations.rst
    theory/BaseState.rst
    theory/Buoyancy.rst
+   theory/MoistPotentialTemperatures.rst
    theory/Microphysics.rst
    SpectralBinMicrophysics.rst
    theory/DNSvsLES.rst
