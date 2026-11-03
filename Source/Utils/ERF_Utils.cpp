@@ -267,3 +267,162 @@ if_cf_surface_mismatch (const MultiFab& fine_tb,
     ParallelDescriptor::ReduceRealMax(worst);
     return {nflagged, worst};
 }
+
+void
+immersed_wall_dist (MultiFab& wdist,
+                    const MultiFab& terrain_blank,
+                    const MultiFab& z_phys_nd,
+                    const MultiFab& z_phys_cc,
+                    const Box& domain,
+                    Real small_volfrac,
+                    MultiFab* wall_height,
+                    const MultiFab* wall_height_crse)
+{
+    BL_PROFILE("immersed_wall_dist()");
+
+    const int  klo     = domain.smallEnd(2);
+    const int  khi     = domain.bigEnd(2);
+    const Real small   = small_volfrac;
+    const Real d_floor = std::numeric_limits<Real>::epsilon();
+    const bool have_crse = (wall_height_crse != nullptr);
+
+    for (MFIter mfi(wdist); mfi.isValid(); ++mfi)
+    {
+        const Box& bx = mfi.validbox();
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(have_crse || (bx.smallEnd(2) == klo && bx.bigEnd(2) == khi),
+            "immersed_wall_dist: the wall distance over immersed terrain needs whole columns in each box");
+
+        const int kb_lo = bx.smallEnd(2);
+        const int kb_hi = bx.bigEnd(2);
+        Box bx2d = bx; bx2d.setRange(2, klo);
+        auto const tb_arr   = terrain_blank.const_array(mfi);
+        auto const znd_arr  = z_phys_nd.const_array(mfi);
+        auto const zcc_arr  = z_phys_cc.const_array(mfi);
+        auto       dist_arr = wdist.array(mfi);
+        auto const hw_arr   = (wall_height)  ? wall_height->array(mfi) : Array4<Real>{};
+        auto const hc_arr   = (have_crse) ? wall_height_crse->const_array(mfi) : Array4<const Real>{};
+
+        ParallelFor(bx2d, [=] AMREX_GPU_DEVICE (int i, int j, int) noexcept
+        {
+            // the height of the cell face kk, the mean of its four nodes
+            auto z_face = [=] (int kk) -> Real {
+                return fourth * ( znd_arr(i,j,kk) + znd_arr(i+1,j,kk)
+                                + znd_arr(i,j+1,kk) + znd_arr(i+1,j+1,kk) );
+            };
+            // topmost cell of the box that is not fluid
+            int kt = kb_lo - 1;
+            for (int kk = kb_hi; kk >= kb_lo; --kk) {
+                if (!ib_wall::is_fluid(tb_arr(i,j,kk), small)) { kt = kk; break; }
+            }
+            // The box sees the surface of its column if it holds the whole column, if it has
+            // fluid above its top solid cell, or if it starts at the bottom and holds no solid.
+            // Otherwise (a fine box wholly inside the solid, or above the surface) the wall
+            // height comes from the coarser level.
+            const bool whole  = (kb_lo == klo) && (kb_hi == khi);
+            const bool sees   = whole || (kt >= kb_lo && kt < kb_hi) || (kt < kb_lo && kb_lo == klo);
+            const bool local  = sees || !have_crse;
+
+            // h: the surface height; kw: the wall cell (none below kb_lo). A local box without
+            // solid starts at the bottom (klo).
+            Real h;
+            int  kw = kb_lo - 1;
+            if (!local) {
+                h = hc_arr(i,j,klo);
+            } else {
+                kw = kb_lo;
+                h  = z_face(kb_lo);
+                if (kt >= kb_lo) {
+                    const Real b = amrex::min(tb_arr(i,j,kt), Real(one));
+                    h  = z_face(kt) + b * (z_face(kt+1) - z_face(kt));
+                    kw = ib_wall::is_solid(tb_arr(i,j,kt), small) ? kt + 1 : kt;
+                }
+            }
+            if (hw_arr) { hw_arr(i,j,klo) = h; }
+            for (int kk = kb_lo; kk <= kb_hi; ++kk) {
+                // the wall cell is represented by its fluid centroid
+                const Real d = (kk == kw) ? myhalf * (z_face(kk+1) - h)
+                                          : std::abs(zcc_arr(i,j,kk) - h);
+                dist_arr(i,j,kk) = amrex::max(d, d_floor);
+            }
+        });
+    } // mfi
+}
+
+namespace {
+
+/// The wall-face mask value on face k of a column with solid fractions b(kk): zero on the bottom
+/// face of the wall cell, the spacing factor on the face above it, one elsewhere
+template <typename BetaFn>
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real ib_wall_face_mask_value (int k, int klo, int khi, Real small, Real dz, Real z0, int spacing, BetaFn const& b) noexcept
+{
+    const bool wall_below = (k >= klo) && (k <= khi) && ib_wall::is_wall_cell(b(k-1), b(k), b(k+1), small);
+    const bool wall_above = (k-1 >= klo) && (k-1 <= khi) && ib_wall::is_wall_cell(b(k-2), b(k-1), b(k), small);
+    const Real g = ib_wall::face_above_factor(ib_wall::wall_beta(b(k-1), small), dz, z0, spacing);
+    return wall_below ? zero : (wall_above ? g : one);
+}
+
+} // namespace
+
+void
+make_ib_wall_face_masks (const MultiFab& terrain_blank,
+                         MultiFab& mask13,
+                         MultiFab& mask23,
+                         MultiFab& mask33,
+                         const Box& domain,
+                         Real small_volfrac,
+                         int spacing,
+                         Real dz,
+                         Real z0)
+{
+    BL_PROFILE("make_ib_wall_face_masks()");
+    // the masks are built on their ghost cells too, reading the blanking one cell sideways and two
+    // cells up and down the column (clamped to the domain in k, not to the box)
+    AMREX_ALWAYS_ASSERT(terrain_blank.nGrowVect().allGE(mask13.nGrowVect() + IntVect(1,1,2)) &&
+                        terrain_blank.nGrowVect().allGE(mask23.nGrowVect() + IntVect(1,1,2)) &&
+                        terrain_blank.nGrowVect().allGE(mask33.nGrowVect() + IntVect(0,0,2)));
+
+    const int  klo   = domain.smallEnd(2);
+    const int  khi   = domain.bigEnd(2);
+    const Real small = small_volfrac;
+
+    // the solid fraction of a face column, clamped to the domain in k, fluid below small
+    for (MFIter mfi(mask13); mfi.isValid(); ++mfi) {
+        auto const tb = terrain_blank.const_array(mfi);
+        auto const m  = mask13.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            auto b = [=] (int kk) -> Real {
+                const int kc = amrex::min(amrex::max(kk, klo), khi);
+                const Real v = myhalf * (tb(i-1,j,kc) + tb(i,j,kc));
+                return (v < small) ? zero : v;
+            };
+            m(i,j,k) = ib_wall_face_mask_value(k, klo, khi, small, dz, z0, spacing, b);
+        });
+    }
+    for (MFIter mfi(mask23); mfi.isValid(); ++mfi) {
+        auto const tb = terrain_blank.const_array(mfi);
+        auto const m  = mask23.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            auto b = [=] (int kk) -> Real {
+                const int kc = amrex::min(amrex::max(kk, klo), khi);
+                const Real v = myhalf * (tb(i,j-1,kc) + tb(i,j,kc));
+                return (v < small) ? zero : v;
+            };
+            m(i,j,k) = ib_wall_face_mask_value(k, klo, khi, small, dz, z0, spacing, b);
+        });
+    }
+    for (MFIter mfi(mask33); mfi.isValid(); ++mfi) {
+        auto const tb = terrain_blank.const_array(mfi);
+        auto const m  = mask33.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            auto b = [=] (int kk) -> Real {
+                const Real v = tb(i,j,amrex::min(amrex::max(kk, klo), khi));
+                return (v < small) ? zero : v;
+            };
+            m(i,j,k) = ib_wall_face_mask_value(k, klo, khi, small, dz, z0, spacing, b);
+        });
+    }
+}

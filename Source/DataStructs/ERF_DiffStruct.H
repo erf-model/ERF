@@ -114,6 +114,23 @@ struct DiffChoice {
     // Set from Microphysics::Get_Qstate_Moist_Size() once the microphysics model exists;
     // any non-water species a model carries are packed directly after these.
     int n_qstate_moist = NMOIST_max;
+    int n_qstate_nonmoist = 0;
+    amrex::GpuArray<bool, NVAR_max - RhoQ1_comp> qstate_is_diagnostic{};
+
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    bool host_transports (int n) const noexcept
+    {
+        AMREX_ASSERT(n >= 0 && n < NVAR_max);
+        return n < RhoQ1_comp || !qstate_is_diagnostic[n - RhoQ1_comp];
+    }
+
+    AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    bool implicit_q (int n) const noexcept
+    {
+        return n >= RhoQ1_comp &&
+               n < RhoQ1_comp + n_qstate_moist + n_qstate_nonmoist &&
+               host_transports(n);
+    }
 };
 
 /**
@@ -138,7 +155,7 @@ struct DiffChoice {
  * @var DiffChoice::eb_diff_constraint_z
  * @brief Whether to constrain EB diffusion in the z direction.
  * @var DiffChoice::n_qstate_moist
- * @brief Number of moist conserved components starting at RhoQ1_comp; these are the
- *        species whose vertical diffusion is split between the explicit and implicit parts.
+ * @brief Number of water-related conserved components starting at RhoQ1_comp,
+ *        retaining their water-species molecular-diffusion coefficients.
  */
 #endif

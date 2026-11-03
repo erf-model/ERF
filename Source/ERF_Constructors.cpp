@@ -609,6 +609,12 @@ ERF::ERF_shared ()
     terrain_blanking_xface.resize(nlevs_max);
     terrain_blanking_yface.resize(nlevs_max);
     terrain_blanking_zface.resize(nlevs_max);
+    ib_wall_face13.resize(nlevs_max);
+    ib_wall_face23.resize(nlevs_max);
+    ib_wall_face33.resize(nlevs_max);
+    ib_wall_hfx.resize(nlevs_max);
+    ib_wall_ktarget.resize(nlevs_max);
+    ib_wall_height.resize(nlevs_max);
 
     // Wall distance
     walldist.resize(nlevs_max);

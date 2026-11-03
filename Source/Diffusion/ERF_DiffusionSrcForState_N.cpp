@@ -71,7 +71,9 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
                         const bool use_SurfLayer,
                         const Vector<std::unique_ptr<SurfaceLayer>>& SurfLayer,
                         const Real implicit_fac,
-                        const ScalarDiffusionRefluxViews* reflux_flx)
+                        const ScalarDiffusionRefluxViews* reflux_flx,
+                        const Array4<const Real>& wall_face33,
+                        const Array4<const Real>& wall_hfx)
 {
     BL_PROFILE_VAR("DiffusionSrcForState_N()",DiffusionSrcForState_N);
 
@@ -134,6 +136,29 @@ DiffusionSrcForState_N (const Box& bx, const Box& domain,
         if (native_policy.scale_raw_vertical_flux) {
             ScaleScalarDiffusionVerticalFlux(
                 zbx, zflux, field.flux_comp, explicit_fac);
+        }
+        // Fraction-stress immersed wall law: no theta or TKE flux through the bottom face of the
+        // wall cell, as through zlo on flat ground (ERF_ImmersedWallCell.H)
+        if (wall_face33 && (qty_index == RhoTheta_comp || qty_index == RhoKE_comp)) {
+            const int fc = field.flux_comp;
+            const Box mbx = zbx & amrex::convert(Box(wall_face33), zbx.ixType());
+            ParallelFor(mbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                zflux(i,j,k,fc) *= wall_face33(i,j,k);
+            });
+            if (qty_index == RhoTheta_comp && hfx_z) {
+                // the TKE buoyancy reads hfx_z: on the wall face it is the wall heat flux of the
+                // wall law (rho times the kinematic flux, as the surface layer writes it at zlo).
+                // wall_hfx has no ghost cells: on the top face of a box split in z (never with
+                // amr.no_box_split_dir = 2) the face reads zero here and its value from the box above
+                const Box hbx = mbx & amrex::convert(Box(hfx_z), zbx.ixType());
+                ParallelFor(hbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+                {
+                    const Real q_wall = (wall_hfx && wall_hfx.contains(i,j,k))
+                                      ? cell_data(i,j,k,Rho_comp) * wall_hfx(i,j,k) : zero;
+                    hfx_z(i,j,k) = (wall_face33(i,j,k) == zero) ? q_wall : wall_face33(i,j,k) * hfx_z(i,j,k);
+                });
+            }
         }
         ApplyScalarDiffusionFluxDivergence_N(
             bx, xflux, yflux, zflux, field.flux_comp, cell_rhs, field.rhs_comp,

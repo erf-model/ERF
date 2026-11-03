@@ -4,8 +4,8 @@ Standard library only, so the regression check scripts run on a bare CI
 runner. Returns planar (x-y) averages of cell-centred fields as a function
 of the vertical index, plus the cell-centre heights of a flat mesh.
 
-Limitations: one AMR level, double precision, native byte order as written
-in the FAB headers (little endian on every platform ERF is tested on).
+Limitations: one AMR level. Single/double precision and byte order are read
+from the FAB headers.
 """
 
 import array
@@ -74,11 +74,12 @@ def _read_fab(path, offset, ncomp):
             header += fh.read(1)
         htxt = header.decode()
         # FAB ((8, (64 11 52 0 1 12 0 1023)),(8, (1 2 3 4 5 6 7 8)))((lo) (hi) (0)) ncomp
-        nbytes = int(re.search(r"FAB \(\((\d+)", htxt).group(1))
         # AMReX byte-order descriptor: "(1 2 ... 8)" is big endian,
         # "(8 7 ... 1)" is little endian (native on x86 and Apple silicon).
-        order = re.search(r"\(\d+, \(([\d ]+)\)\)\)\(", htxt).group(1).split()
-        little = order[0] == "8"
+        descriptor = re.search(r"\((\d+), \(([\d ]+)\)\)\)\(", htxt)
+        nbytes = int(descriptor.group(1))
+        order = descriptor.group(2).split()
+        little = order[0] == str(nbytes)
         lo, hi = re.findall(r"\(([-\d,]+)\)", htxt.split(")))")[1])[:2]
         lo = [int(v) for v in lo.split(",")]
         hi = [int(v) for v in hi.split(",")]
@@ -174,4 +175,3 @@ def read_fields(plotfile, fields):
                     for i in range(blo[0], bhi[0] + 1):
                         arr[i - lo[0]][j - lo[1]][k - lo[2]] = data[row + (i - flo[0])]
     return hdr, out
-

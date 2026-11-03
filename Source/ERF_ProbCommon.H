@@ -335,7 +335,10 @@ public:
         auto valid_fname = pp.queryAdd("buildings_file_name",fname);
 
         if (valid_fname) {
-            read_custom_terrain(fname,false,geom,buildings_fab,time);
+            // Buildings may occupy only a local patch of the physical domain.
+            read_custom_terrain(fname,false,geom,buildings_fab,time,
+                                /*require_domain_coverage=*/false,
+                                /*zero_outside_table=*/true);
         } else {
             init_my_custom_terrain(geom, buildings_fab, time);
         }
@@ -932,12 +935,15 @@ public:
                          const bool is_usgs,
                          const amrex::Geometry& geom,
                          amrex::FArrayBox& terrain_fab,
-                         const double& /*time*/)
+                         const double& /*time*/,
+                         bool require_domain_coverage = true,
+                         bool zero_outside_table = false)
     {
         // Read, checked and broadcast once per file; other levels, regrids, the EB build and
         // the station slabs reuse the table
         const auto& table = erf_terrain_file::ReadHeightTable(fname, is_usgs,
-                                                              geom.ProbLoArray(), geom.ProbHiArray());
+                                                              geom.ProbLoArray(), geom.ProbHiArray(),
+                                                              require_domain_coverage);
         const int nx = table.nx;
         const int ny = table.ny;
         const amrex::Vector<amrex::Real>& m_xterrain = table.x;
@@ -976,8 +982,22 @@ public:
             int jj = amrex::min(amrex::max(j,jlo),jhi);
 
             // Location of nodes
-            amrex::Real x = ProbLoArr[0] + ii * dx[0] + amrex::Real(1e-3);
-            amrex::Real y = ProbLoArr[1] + jj * dx[1] + amrex::Real(1e-3);
+            amrex::Real x_node = ProbLoArr[0] + ii * dx[0];
+            amrex::Real y_node = ProbLoArr[1] + jj * dx[1];
+            amrex::Real x = x_node + amrex::Real(1e-3);
+            amrex::Real y = y_node + amrex::Real(1e-3);
+
+            // A local building table describes no buildings beyond its footprint.
+            // Use the unshifted node position so a node on the last table point
+            // remains inside, despite the interpolation offset above.
+            if (zero_outside_table) {
+                const bool out_x = nx > 1 && (x_node < d_xt[0] || x_node > d_xt[nx-1]);
+                const bool out_y = ny > 1 && (y_node < d_yt[0] || y_node > d_yt[ny-1]);
+                if (out_x || out_y) {
+                    z_arr(i,j,klo) = amrex::Real(0.0);
+                    return;
+                }
+            }
 
             int ind11, ind12, ind21, ind22;
             amrex::Real x1, x2, y1, y2;

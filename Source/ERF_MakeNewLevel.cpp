@@ -158,11 +158,11 @@ void ERF::MakeNewLevelFromScratch (int lev, Real time, const BoxArray& ba_in,
             eb[lev]->make_all_factories(lev, geom[lev], grids[lev], dmap[lev], eb_level);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
-#if USE_FC_FACTORY
-            eb[lev]->make_all_factories(lev, geom[lev], grids[lev], dmap[lev], eb_level);
-#else
-            eb[lev]->make_cc_factory(lev, geom[lev], grids[lev], dmap[lev], eb_level);
-#endif
+            if (use_native_fc_factories()) {
+                eb[lev]->make_all_factories(lev, geom[lev], grids[lev], dmap[lev], eb_level);
+            } else {
+                eb[lev]->make_cc_factory(lev, geom[lev], grids[lev], dmap[lev], eb_level);
+            }
         }
     }
 
@@ -607,11 +607,11 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
             eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
-#if USE_FC_FACTORY
-            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
-#else
-            eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
-#endif
+            if (use_native_fc_factories()) {
+                eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
+            } else {
+                eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
+            }
         }
     }
     init_zphys(lev, time);
@@ -818,8 +818,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
         // interpolate the atmospheric state from coarse (just like a level with no init file)
         //
         if (use_surface_only) {
-            // Rebuild base state from wrfinput on top of the fine terrain (must happen before
-            // FillCoarsePatch, which interpolates perturbational quantities relative to base state)
+            // Rebuild base state from wrfinput on top of the fine terrain
             rebuild_base_state_from_wrfinput(lev, base_state[lev]);
             (*physbcs_base[lev])(base_state[lev],0,base_state[lev].nComp(),base_state[lev].nGrowVect());
 
@@ -839,8 +838,7 @@ ERF::MakeNewLevelFromCoarse (int lev, Real time, const BoxArray& ba,
     //
     // A WRFInput level created by refinement rather than read from a file: build its base
     // state by the same construction level 0 used, on top of the coarse interpolation done
-    // above.  This must happen BEFORE FillCoarsePatch, which interpolates perturbational
-    // quantities relative to the base state.
+    // above.
     //
     if ( (solverChoice.init_type == InitType::WRFInput) && nc_init_file[lev].empty() ) {
         rebuild_base_state_from_wrfinput(lev, base_state[lev]);
@@ -1241,11 +1239,11 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
             eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
         } else if (solverChoice.terrain_type == TerrainType::ImmersedForcing ||
                    solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
-#if USE_FC_FACTORY
-            eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
-#else
-            eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
-#endif
+            if (use_native_fc_factories()) {
+                eb[lev]->make_all_factories(lev, geom[lev], ba, dm, eb_level);
+            } else {
+                eb[lev]->make_cc_factory(lev, geom[lev], ba, dm, eb_level);
+            }
         }
     }
     remake_zphys(lev, time, temp_zphys_nd);
@@ -1338,9 +1336,7 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         // with its parent in the way it did at t = 0.
         //
         // Note this must come AFTER the FillPatchTwoLevels above (which fills the region of
-        // this level outside the fine grids, and the ghost cells) and BEFORE the
-        // FillPatchFineLevel below, which interpolates perturbational quantities relative to
-        // the new base state.
+        // this level outside the fine grids, and the ghost cells).
         // *************************************************************************************************
         if (solverChoice.init_type == InitType::WRFInput) {
             rebuild_base_state_from_wrfinput(lev, temp_base_state);
@@ -1351,13 +1347,11 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
         // *************************************************************************************************
         // This will fill the temporary MultiFabs with data from vars_new
         // NOTE: the momenta here are only used as scratch space, the momenta themselves are not fillpatched
-        // NOTE: we must create the new base state before calling FillPatch because we will
-        //       interpolate perturbational quantities
         // *************************************************************************************************
         FillPatchFineLevel(lev, time, {&temp_lev_new[Vars::cons],&temp_lev_new[Vars::xvel],
                            &temp_lev_new[Vars::yvel],&temp_lev_new[Vars::zvel]},
                           {&temp_lev_new[Vars::cons],&rU_new[lev],&rV_new[lev],&rW_new[lev]},
-                           base_state[lev], temp_base_state, false);
+                           false);
     } else {
         //
         // The base state may be copied from its halo as well as its valid region: the

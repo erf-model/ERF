@@ -18,6 +18,7 @@
 #include "ERF_IntervalMeansCheckpoint.H"
 #include "ERF_CheckpointSurfaceTemperature.H"
 #include "ERF_CheckpointLsmData.H"
+#include "ERF_CheckpointLandmask.H"
 #include "ERF_ReadCheckpointMF.H"
 #include "ERF_SBMStateManager.H"
 #include "ERF_SBMRestart.H"
@@ -1943,6 +1944,11 @@ ERF::ReadCheckpointFile ()
             lmask_lev[lev][0]->FillBoundary(geom[lev].periodicity());
         }
 
+        if (solverChoice.buildings_type == BuildingsType::ImmersedForcing &&
+            !immersed_forcing_active(lev)) {
+            erf_checkpoint_landmask::restore_coarse_building_landmask(*lmask_lev[lev][0]);
+        }
+
         std::string LTypeFileName = MultiFabFileFullPrefix(lev, restart_chkfile, "Level_", "LANDTYPE_0_H");
         if (amrex::FileExists(LTypeFileName))
         {
@@ -2444,6 +2450,10 @@ ERF::ReadCheckpointFileSurfaceLayer ()
 
                 // Z0
                 read_most_var("Z0" + face, m_SurfaceLayer[ori]->get_z0(lev));
+
+                // Older checkpoints can contain initialization sentinels in
+                // immersed columns, which skip the usual MOST/LSM updates.
+                m_SurfaceLayer[ori]->set_immersed_surface_params(lev);
 
                 // The exponentially filtered averages.  We only mark the filter as initialized
                 // if every piece of its state came back, so that a partial restore degrades to

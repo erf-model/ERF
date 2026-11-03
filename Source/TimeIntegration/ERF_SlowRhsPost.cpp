@@ -113,7 +113,9 @@ void erf_slow_rhs_post (int level, int finest_level,
                         CloudChamberBudget* cloud_budget,
                         erf_auxiliary::AuxiliaryInertTracer* auxiliary_inert_tracer,
                         erf_sbm::SBMStateManager* sbm_state_manager,
-                        erf_sbm::SBMTransport* sbm_transport)
+                        erf_sbm::SBMTransport* sbm_transport,
+                        const MultiFab* ib_wall_face33,
+                        const MultiFab* ib_wall_ktarget)
 {
     BL_PROFILE_REGION("erf_slow_rhs_post()");
 
@@ -202,9 +204,7 @@ void erf_slow_rhs_post (int level, int finest_level,
     // *************************************************************************
     int nvars                     = S_data[IntVars::cons].nComp();
 
-    // Total number of q state components.  This is n_qstate (the water species) plus
-    // any non-water species that the microphysics model appends after them, and is the
-    // count that the advection, diffusion, state update and reflux all work over.
+    // The Q layout includes particle projections; only host-owned runs are transported.
     const int n_qstate_total      = nvars - RhoQ1_comp;
 
     const BoxArray& ba            = S_data[IntVars::cons].boxArray();
@@ -516,9 +516,6 @@ void erf_slow_rhs_post (int level, int finest_level,
         const Array4<const Real>& mu_turb =
             l_use_turb ? eddyDiffs->const_array(mfi) : Array4<const Real>{};
 
-        //
-        // Note that we either advect and diffuse all or none of the moisture variables
-        //
         for (int ivar(RhoKE_comp); ivar<= RhoQ1_comp; ++ivar)
         {
 
@@ -538,12 +535,6 @@ void erf_slow_rhs_post (int level, int finest_level,
                           vert_adv_type = EfficientAdvType(nrk,ac.moistscal_vert_adv_type);
                     }
 
-                    // Every state component from RhoQ1_comp to the end of the state, not
-                    // just the n_qstate water species: a microphysics model may append
-                    // non-water species after those (SuperDropletsMoist does), and they
-                    // are advanced by the state update below and included in the reflux.
-                    // Computing residuals for only the first n_qstate would leave the
-                    // rest to be updated with a residual nothing ever wrote.
                     num_comp = n_qstate_total;
                     if (sbm_active) {
                         // Keep vapor on the normal path. The test fault widens
@@ -568,136 +559,156 @@ void erf_slow_rhs_post (int level, int finest_level,
                     }
                 }
 
-                if (( ivar != RhoKE_comp                 ) ||
-                    ((ivar == RhoKE_comp) && l_advect_KE))
-                {
-                    if (!l_eb_terrain_cc){
-                        if (sbm_active && ivar == RhoQ1_comp) {
-                            erf_sbm::require_host_write_range_allowed(
-                                true, start_comp, num_comp, erf_sbm::HostWritePath::Advection);
+                const int group_end = start_comp + num_comp;
+                for (int run_start = start_comp; run_start < group_end; ) {
+                    if (!dc.host_transports(run_start)) {
+                        const int diagnostic_comp = run_start;
+                        ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                            cell_rhs(i,j,k,diagnostic_comp) = zero;
+                        });
+                        ++run_start;
+                        continue;
+                    }
+                    start_comp = run_start;
+                    num_comp = 1;
+                    while (start_comp + num_comp < group_end &&
+                           dc.host_transports(start_comp + num_comp)) {
+                        ++num_comp;
+                    }
+                    run_start += num_comp;
+
+                    if (( ivar != RhoKE_comp                 ) ||
+                        ((ivar == RhoKE_comp) && l_advect_KE))
+                    {
+                        if (!l_eb_terrain_cc){
+                            if (sbm_active && ivar == RhoQ1_comp) {
+                                erf_sbm::require_host_write_range_allowed(
+                                    true, start_comp, num_comp, erf_sbm::HostWritePath::Advection);
+                            }
+                            AdvectionSrcForScalars(tbx, start_comp, num_comp,
+                                                   avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
+                                                   cur_prim, cell_rhs,
+                                                   detJ_arr, dxInv, mf_mx, mf_my,
+                                                   horiz_adv_type, vert_adv_type,
+                                                   horiz_upw_frac, vert_upw_frac,
+                                                   flx_arr, domain, bc_ptr_h);
+                        } else {
+                            if (sbm_active && ivar == RhoQ1_comp) {
+                                erf_sbm::require_host_write_range_allowed(
+                                    true, start_comp, num_comp, erf_sbm::HostWritePath::Advection);
+                            }
+                            EBAdvectionSrcForScalars(tbx, start_comp, num_comp,
+                                                     avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
+                                                     cur_prim, cell_rhs,
+                                                     mask_arr, cfg_arr, ax_arr, ay_arr, az_arr,
+                                                     fcx_arr, fcy_arr, fcz_arr,
+                                                     detJ_arr, dxInv, mf_mx, mf_my,
+                                                     horiz_adv_type, vert_adv_type,
+                                                     horiz_upw_frac, vert_upw_frac,
+                                                     flx_arr, domain, bc_ptr_h,
+                                                     already_on_centroids);
                         }
-                        AdvectionSrcForScalars(tbx, start_comp, num_comp,
-                                               avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
-                                               cur_prim, cell_rhs,
-                                               detJ_arr, dxInv, mf_mx, mf_my,
-                                               horiz_adv_type, vert_adv_type,
-                                               horiz_upw_frac, vert_upw_frac,
-                                               flx_arr, domain, bc_ptr_h);
-                    } else {
-                        if (sbm_active && ivar == RhoQ1_comp) {
-                            erf_sbm::require_host_write_range_allowed(
-                                true, start_comp, num_comp, erf_sbm::HostWritePath::Advection);
+                    }
+
+                    if (l_use_diff)
+                    {
+                        // Allow for implicit moisture diffusion
+                        Real l_vert_implicit_fac = zero;
+                        if ( (ivar == RhoKE_comp && solverChoice.implicit_ke_diffusion      ) ||
+                             (ivar == RhoQ1_comp && solverChoice.implicit_moisture_diffusion) ) {
+                            l_vert_implicit_fac = solverChoice.vert_implicit_fac[level][nrk];
                         }
-                        EBAdvectionSrcForScalars(tbx, start_comp, num_comp,
-                                                 avg_xmom_arr, avg_ymom_arr, avg_zmom_arr,
-                                                 cur_prim, cell_rhs,
-                                                 mask_arr, cfg_arr, ax_arr, ay_arr, az_arr,
-                                                 fcx_arr, fcy_arr, fcz_arr,
-                                                 detJ_arr, dxInv, mf_mx, mf_my,
-                                                 horiz_adv_type, vert_adv_type,
-                                                 horiz_upw_frac, vert_upw_frac,
-                                                 flx_arr, domain, bc_ptr_h,
-                                                 already_on_centroids);
-                    }
-                }
 
-                if (l_use_diff)
-                {
-                    // Allow for implicit moisture diffusion
-                    Real l_vert_implicit_fac = zero;
-                    if ( (ivar == RhoKE_comp && solverChoice.implicit_ke_diffusion      ) ||
-                         (ivar == RhoQ1_comp && solverChoice.implicit_moisture_diffusion) ) {
-                        l_vert_implicit_fac = solverChoice.vert_implicit_fac[level][nrk];
-                    }
+                        // Only the physical chamber needs separate qv/qc calls:
+                        // its wall correction must be applied to distinct flux
+                        // components.  Generic moisture models retain the
+                        // established multi-component diffusion call.
+                        const bool componentwise_moisture =
+                            use_physical_chamber_wall_flux && ivar == RhoQ1_comp;
+                        const int n_diff_calls = componentwise_moisture ? n_qstate_total : 1;
+                        for (int qstate = 0; qstate < n_diff_calls; ++qstate) {
+                            const int state_comp = componentwise_moisture ?
+                                RhoQ1_comp + qstate : start_comp;
+                            const int diffusion_start = state_comp;
+                            const int diffusion_num = componentwise_moisture ? 1 : num_comp;
+                            erf_sbm::require_host_write_range_allowed(
+                                sbm_active, diffusion_start, diffusion_num,
+                                erf_sbm::HostWritePath::Diffusion);
+                            const int flux_comp = componentwise_moisture ? qstate : 0;
+                            AMREX_ALWAYS_ASSERT(state_comp >= 0 && state_comp < nvars);
+                            AMREX_ALWAYS_ASSERT(flux_comp < dflux_x->nComp());
+                            AMREX_ALWAYS_ASSERT(flux_comp < dflux_y->nComp());
+                            AMREX_ALWAYS_ASSERT(flux_comp < dflux_z->nComp());
+                            const Array4<Real> diffusion_x = dflux_x->array(mfi, flux_comp);
+                            const Array4<Real> diffusion_y = dflux_y->array(mfi, flux_comp);
+                            const Array4<Real> diffusion_z = dflux_z->array(mfi, flux_comp);
 
-                    // Only the physical chamber needs separate qv/qc calls:
-                    // its wall correction must be applied to distinct flux
-                    // components.  Generic moisture models retain the
-                    // established multi-component diffusion call.
-                    const bool componentwise_moisture =
-                        use_physical_chamber_wall_flux && ivar == RhoQ1_comp;
-                    const int n_diff_calls = componentwise_moisture ? n_qstate_total : 1;
-                    for (int qstate = 0; qstate < n_diff_calls; ++qstate) {
-                        const int state_comp = componentwise_moisture ?
-                            RhoQ1_comp + qstate : start_comp;
-                        const int diffusion_start = state_comp;
-                        const int diffusion_num = componentwise_moisture ? 1 : num_comp;
-                        erf_sbm::require_host_write_range_allowed(
-                            sbm_active, diffusion_start, diffusion_num,
-                            erf_sbm::HostWritePath::Diffusion);
-                        const int flux_comp = componentwise_moisture ? qstate : 0;
-                        AMREX_ALWAYS_ASSERT(state_comp >= 0 && state_comp < nvars);
-                        AMREX_ALWAYS_ASSERT(flux_comp < dflux_x->nComp());
-                        AMREX_ALWAYS_ASSERT(flux_comp < dflux_y->nComp());
-                        AMREX_ALWAYS_ASSERT(flux_comp < dflux_z->nComp());
-                        const Array4<Real> diffusion_x = dflux_x->array(mfi, flux_comp);
-                        const Array4<Real> diffusion_y = dflux_y->array(mfi, flux_comp);
-                        const Array4<Real> diffusion_z = dflux_z->array(mfi, flux_comp);
-
-                    if (solverChoice.mesh_type == MeshType::StretchedDz) {
-                        DiffusionSrcForState_S(tbx, domain, diffusion_start, diffusion_num,
-                                               new_cons, cur_prim, cell_rhs,
-                                               diffusion_x, diffusion_y, diffusion_z,
-                                               stretched_dz_d, dxInv,
-                                               mf_mx, mf_ux, mf_vx,
-                                               mf_my, mf_uy, mf_vy,
-                                               hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z,
-                                               mu_turb, solverChoice, level,
-                                               bc_ptr_d,
-                                               l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac,
-                                               l_reflux_diffusion);
-                    } else if (l_use_terrain) {
-                        DiffusionSrcForState_T(tbx, domain, diffusion_start, diffusion_num, l_rotate,
-                                               new_cons, cur_prim, cell_rhs,
-                                               diffusion_x, diffusion_y, diffusion_z,
-                                               z_nd, z_cc, ax_arr, ay_arr, az_arr,
-                                               detJ_arr, dxInv,
-                                               mf_mx, mf_ux, mf_vx,
-                                               mf_my, mf_uy, mf_vy,
-                                               hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z,
-                                               mu_turb, solverChoice, level,
-                                               bc_ptr_d, bc_ptr_h,
-                                               l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac,
-                                               l_reflux_diffusion);
-                    } else if (l_use_eb) {
-                        DiffusionSrcForState_EB(tbx, domain, diffusion_start, diffusion_num, u, v,
-                                                new_cons, cur_prim, cell_rhs,
-                                                diffusion_x, diffusion_y, diffusion_z,
-                                                cfg_arr, ax_arr, ay_arr, az_arr, detJ_arr,
-                                                barea_arr, bcent_arr,
-                                                dx, dxInv,
-                                                hfx_z, q1fx_z, q2fx_z, hfx_EB,
-                                                mu_turb, solverChoice, level,
-                                                bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer);
-                    } else {
-                        DiffusionSrcForState_N(tbx, domain, diffusion_start, diffusion_num, u, v,
-                                               new_cons, cur_prim, cell_rhs,
-                                               diffusion_x, diffusion_y, diffusion_z, dxInv,
-                                               mf_mx, mf_ux, mf_vx,
-                                               mf_my, mf_uy, mf_vy,
-                                               hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z,
-                                               mu_turb, solverChoice, level,
-                                               bc_ptr_d,
-                                               l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac,
-                                               l_reflux_diffusion);
-                    }
-                    if (use_physical_chamber_wall_flux) {
-                        // Apply the physical wall correction immediately to
-                        // the flux component just computed.  This keeps the
-                        // q-state diffusion path identical with budgets on
-                        // and off and guarantees no stale flux is consumed.
-                        // The diffusion views are component-shifted; the
-                        // wall helper receives the unshifted views and the
-                        // explicit flux component index.
-                        erf_cloud_chamber_wall_flux::apply(
-                            tbx, domain, state_comp, flux_comp, new_cons, cur_prim,
-                            cloud_chamber_base_state->const_array(mfi), u, v, w, cell_rhs,
-                            diffflux_x, diffflux_y, diffflux_z, dxInv,
-                            chamber_walls, dc.alpha_T, dc.alpha_C,
-                            solverChoice.rdOcp, cloud_chamber_config->has_moisture);
-                    }
-                    }
-                } // use_diff
+                        if (solverChoice.mesh_type == MeshType::StretchedDz) {
+                            DiffusionSrcForState_S(tbx, domain, diffusion_start, diffusion_num,
+                                                   new_cons, cur_prim, cell_rhs,
+                                                   diffusion_x, diffusion_y, diffusion_z,
+                                                   stretched_dz_d, dxInv,
+                                                   mf_mx, mf_ux, mf_vx,
+                                                   mf_my, mf_uy, mf_vy,
+                                                   hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z,
+                                                   mu_turb, solverChoice, level,
+                                                   bc_ptr_d,
+                                                   l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac,
+                                                   l_reflux_diffusion);
+                        } else if (l_use_terrain) {
+                            DiffusionSrcForState_T(tbx, domain, diffusion_start, diffusion_num, l_rotate,
+                                                   new_cons, cur_prim, cell_rhs,
+                                                   diffusion_x, diffusion_y, diffusion_z,
+                                                   z_nd, z_cc, ax_arr, ay_arr, az_arr,
+                                                   detJ_arr, dxInv,
+                                                   mf_mx, mf_ux, mf_vx,
+                                                   mf_my, mf_uy, mf_vy,
+                                                   hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z,q2fx_z,
+                                                   mu_turb, solverChoice, level,
+                                                   bc_ptr_d, bc_ptr_h,
+                                                   l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac,
+                                                   l_reflux_diffusion);
+                        } else if (l_use_eb) {
+                            DiffusionSrcForState_EB(tbx, domain, diffusion_start, diffusion_num, u, v,
+                                                    new_cons, cur_prim, cell_rhs,
+                                                    diffusion_x, diffusion_y, diffusion_z,
+                                                    cfg_arr, ax_arr, ay_arr, az_arr, detJ_arr,
+                                                    barea_arr, bcent_arr,
+                                                    dx, dxInv,
+                                                    hfx_z, q1fx_z, q2fx_z, hfx_EB,
+                                                    mu_turb, solverChoice, level,
+                                                    bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer);
+                        } else {
+                            DiffusionSrcForState_N(tbx, domain, diffusion_start, diffusion_num, u, v,
+                                                   new_cons, cur_prim, cell_rhs,
+                                                   diffusion_x, diffusion_y, diffusion_z, dxInv,
+                                                   mf_mx, mf_ux, mf_vx,
+                                                   mf_my, mf_uy, mf_vy,
+                                                   hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z,
+                                                   mu_turb, solverChoice, level,
+                                                   bc_ptr_d,
+                                                   l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac,
+                                                   l_reflux_diffusion,
+                                                   (ib_wall_face33) ? ib_wall_face33->const_array(mfi) : Array4<const Real>{});
+                        }
+                        if (use_physical_chamber_wall_flux) {
+                            // Apply the physical wall correction immediately to
+                            // the flux component just computed.  This keeps the
+                            // q-state diffusion path identical with budgets on
+                            // and off and guarantees no stale flux is consumed.
+                            // The diffusion views are component-shifted; the
+                            // wall helper receives the unshifted views and the
+                            // explicit flux component index.
+                            erf_cloud_chamber_wall_flux::apply(
+                                tbx, domain, state_comp, flux_comp, new_cons, cur_prim,
+                                cloud_chamber_base_state->const_array(mfi), u, v, w, cell_rhs,
+                                diffflux_x, diffflux_y, diffflux_z, dxInv,
+                                chamber_walls, dc.alpha_T, dc.alpha_C,
+                                solverChoice.rdOcp, cloud_chamber_config->has_moisture);
+                        }
+                        }
+                    } // use_diff
+                } // host-transported run
             } // valid slow var
         } // loop ivar
 
@@ -772,6 +783,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                     ParallelFor(tbx, num_comp,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                         const int n = start_comp + nn;
+                        if (!dc.host_transports(n)) { return; }
                         cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
                         Real temp_val = detJ_arr(i,j,k) * old_cons(i,j,k,n) + dt * detJ_arr(i,j,k) * cell_rhs(i,j,k,n);
                         cur_cons(i,j,k,n) = temp_val / detJ_new_arr(i,j,k);
@@ -787,6 +799,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                     ParallelFor(tbx, num_comp,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                         const int n = start_comp + nn;
+                        if (!dc.host_transports(n)) { return; }
                         cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
 
                         // Re-construct the cell_rhs used in the first RK stage
@@ -808,6 +821,7 @@ void erf_slow_rhs_post (int level, int finest_level,
                     ParallelFor(tbx, num_comp,
                     [=] AMREX_GPU_DEVICE (int i, int j, int k, int nn) noexcept {
                         const int n = start_comp + nn;
+                        if (!dc.host_transports(n)) { return; }
                         cell_rhs(i,j,k,n) += src_arr(i,j,k,n);
                         cur_cons(i,j,k,n) = old_cons(i,j,k,n) + dt * cell_rhs(i,j,k,n);
                         if (ivar == RhoKE_comp && l_implicit_diss) {
@@ -819,6 +833,18 @@ void erf_slow_rhs_post (int level, int finest_level,
 
             } // is_valid
         } // ivar
+
+        // Fraction-stress immersed wall law with erf.if_wall_tke_time_factor = 1: hold the wall
+        // cell of each column at its wall value (ib_wall::wall_tke), as erf.dirichlet_k holds the
+        // first cell over flat ground. ib_wall_ktarget is -1 outside the wall cells.
+        if (ib_wall_ktarget && solverChoice.if_wall_tke_time_factor <= one && is_valid_slow_var[RhoKE_comp]) {
+            const Array4<const Real>& kt = ib_wall_ktarget->const_array(mfi);
+            ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                if (kt(i,j,k) >= zero) {
+                    cur_cons(i,j,k,RhoKE_comp) = cur_cons(i,j,k,Rho_comp) * kt(i,j,k);
+                }
+            });
+        }
 
         // Re-impose the Dirichlet wall value of k (first cell above the wall)
         if (l_dirichlet_k && is_valid_slow_var[RhoKE_comp]) {

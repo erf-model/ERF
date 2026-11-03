@@ -253,6 +253,46 @@ function(add_test_immersed_cf_heat_balance TEST_NAME TEST_FILES_DIR THETA0 TOL E
         ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_checker_log}")
 endfunction(add_test_immersed_cf_heat_balance)
 
+# Run the flat-ground and immersed-plane decks of TEST_FILES_DIR (flat.i and plane.i, the plane on a
+# cell face K_OFFSET cells above the domain bottom) and compare their profiles
+# (Tests/ImmersedFlatEquivalenceCheck.cpp); EXPECT_CHECKER_FAIL ON requires the comparison to fail
+# (the legacy wall law), so the test proves the checker sees the difference.
+function(add_test_immersed_flat_equivalence TEST_NAME TEST_FILES_DIR K_OFFSET TOL K_COUNT EXPECT_CHECKER_FAIL RUNTIME_OPTIONS)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+
+    set(test_simulation_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.simulation.log")
+    set(test_checker_log "${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.checker.log")
+    add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+        "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+        "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+        "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+        "-DNRANKS=${NP}"
+        "-DTEST_EXE=${TEST_EXE}"
+        "-DCONFIG=$<CONFIG>"
+        "-DINPUT_FLAT=${CURRENT_TEST_BINARY_DIR}/flat.i"
+        "-DINPUT_PLANE=${CURRENT_TEST_BINARY_DIR}/plane.i"
+        "-DRUNTIME_OPTIONS=${RUNTIME_OPTIONS}"
+        "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+        "-DSIMULATION_LOG=${test_simulation_log}"
+        "-DCHECKER_LOG=${test_checker_log}"
+        "-DCHECKER=$<TARGET_FILE:erf_immersed_flat_equivalence_check>"
+        "-DPLOTFILE_FLAT=${CURRENT_TEST_BINARY_DIR}/plt_flat00100"
+        "-DPLOTFILE_PLANE=${CURRENT_TEST_BINARY_DIR}/plt_plane00100"
+        "-DK_OFFSET=${K_OFFSET}"
+        "-DTOL=${TOL}"
+        "-DK_COUNT=${K_COUNT}"
+        "-DEXPECT_CHECKER_FAIL=${EXPECT_CHECKER_FAIL}"
+        -P ${PROJECT_SOURCE_DIR}/Tests/RunImmersedFlatEquivalence.cmake)
+    set_tests_properties(${TEST_NAME}
+        PROPERTIES
+        TIMEOUT 1800
+        PROCESSORS ${NP}
+        WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression;immersed;rans"
+        ATTACHED_FILES_ON_FAIL "${test_simulation_log};${test_simulation_log}.flat;${test_checker_log}")
+endfunction(add_test_immersed_flat_equivalence)
+
 # Checker-driven Cloud Chamber tests.  The short run checks the exact initial
 # conserved-state correction and a bounded early buoyant response; it
 # intentionally avoids a fragile turbulent gold file.
@@ -1948,6 +1988,91 @@ function(add_test_sdm TEST_NAME TEST_DIR TEST_EXE PLTFILE TEST_RTOL TEST_ATOL)
     )
 endfunction(add_test_sdm)
 
+if(ERF_ENABLE_PARTICLES AND Python3_Interpreter_FOUND)
+    set(_species_input "${CMAKE_CURRENT_SOURCE_DIR}/test_files/SDM_SpeciesDiffusion")
+    set(_species_mpi_exec "")
+    set(_species_ranks 1)
+    if(ERF_ENABLE_MPI)
+        set(_species_mpi_exec "${MPIEXEC_EXECUTABLE}")
+        set(_species_ranks ${ERF_TEST_NRANKS})
+    endif()
+    string(JOIN " " _species_mpi_preflags ${MPIEXEC_PREFLAGS})
+    if(ERF_PRECISION STREQUAL "SINGLE")
+        set(_species_tol 2.e-5)
+        set(_species_atol 2.e-8)
+    else()
+        set(_species_tol 2.e-11)
+        set(_species_atol 2.e-14)
+    endif()
+    foreach(_case
+        # Motivation: A stiff vapor slab must diffuse conservatively through the
+        # real SDM handoff, agree with resolved explicit evolution, and leave
+        # particle condensate unchanged rather than independently diffusing it.
+        column
+        # Motivation: Coarse/fine stage ghosts and reflux must conserve composite
+        # species mass while particle condensate is counted on its owning level.
+        amr
+        # Motivation: Active phase change must exchange vapor and particle mass
+        # without creating or losing their combined species reservoir.
+        phase
+        # Motivation: Removing and recreating fine coverage must preserve particle
+        # mass and refresh diagnostic condensate on the new composite hierarchy.
+        regrid
+        # Motivation: The same changing hierarchy must conserve represented mass
+        # when AMR splitting, merging and empty-cell repopulation are enabled.
+        regrid_splitmerge
+        # Motivation: Refined and interface-crossing injection must establish
+        # finest-level ownership even without advection, conserve analytic input
+        # mass, and agree with independent particle budgets with split/merge on/off.
+        injection
+        # Motivation: The injection ownership invariant must hold before phase
+        # change, not only before end-of-step deposition, while conserving the
+        # injected vapor-plus-particle reservoir across the same option matrix.
+        injection_phase
+        # Motivation: Refinement must not duplicate the prescribed initial
+        # population. Initial phase relaxation must run only after ownership
+        # and retain the conserved vapor/particle exchange before timestep 1.
+        initialization)
+        set(_species_dir "${CMAKE_CURRENT_BINARY_DIR}/test_files/SDM_SpeciesDiffusion_${_case}")
+        file(MAKE_DIRECTORY "${_species_dir}")
+        add_test(NAME SDM_SpeciesDiffusion_${_case}
+            COMMAND "${Python3_EXECUTABLE}" "${_species_input}/check_species_diffusion.py"
+                "--exe=$<TARGET_FILE:erf_exec>"
+                "--input=${_species_input}/SDM_SpeciesDiffusion.i"
+                "--reader-dir=${PROJECT_SOURCE_DIR}/Exec/Tools"
+                "--case=${_case}" "--tolerance=${_species_tol}"
+                "--mpi-exec=${_species_mpi_exec}"
+                "--mpi-numproc-flag=${MPIEXEC_NUMPROC_FLAG}"
+                "--mpi-preflags=${_species_mpi_preflags}" "--ranks=${_species_ranks}")
+        set_tests_properties(SDM_SpeciesDiffusion_${_case} PROPERTIES
+            WORKING_DIRECTORY "${_species_dir}" TIMEOUT 600
+            PROCESSORS ${_species_ranks} LABELS "regression;diffusion;particles"
+            ATTACHED_FILES_ON_FAIL "${_species_dir}/implicit/simulation.log;${_species_dir}/explicit/simulation.log")
+    endforeach()
+    # Motivation: Restart must preserve authoritative vapor and particle-owned
+    # condensate so resumed diffusion matches uninterrupted evolution.
+    add_test_restart_parity(SDM_SpeciesDiffusion_Restart SDM_SpeciesDiffusion 2 4
+        COMMON_OPTIONS "erf.input_sounding_file=${_species_input}/input_sounding"
+        FCOMPARE_RTOL ${_species_tol} FCOMPARE_ATOL ${_species_atol})
+    # Motivation: Restart with AMR and regridding must also preserve particle-level
+    # ownership and composite condensate, not just single-level field values.
+    add_test_restart_parity(SDM_SpeciesDiffusion_AMRRestart SDM_SpeciesDiffusion 2 4
+        COMMON_OPTIONS "erf.input_sounding_file=${_species_input}/input_sounding amr.max_level=1 amr.ref_ratio=2 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo=0 0 0 erf.box1.in_box_hi=8 4 8 erf.regrid_int=1"
+        FCOMPARE_RTOL ${_species_tol} FCOMPARE_ATOL ${_species_atol})
+    # Motivation: Resuming a relaxed initial population must not apply density
+    # scaling or initial phase relaxation again to checkpointed particle mass.
+    add_test_restart_parity(SDM_SpeciesDiffusion_InitialRelaxationRestart SDM_SpeciesDiffusion 2 4
+        COMMON_OPTIONS "erf.input_sounding_file=${_species_input}/input_sounding amr.max_level=1 amr.ref_ratio=2 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo=0 0 0 erf.box1.in_box_hi=8 4 8 super_droplets_moisture.include_phase_change=true super_droplets_moisture.initial_phase_change_relaxation=true super_droplets_moisture.initial_phase_change_relaxation_time=0.02 erf.Cs=2"
+        FCOMPARE_RTOL ${_species_tol} FCOMPARE_ATOL ${_species_atol})
+    # Motivation: Species transport and particle projection must not depend on
+    # whether the same physical domain is stored in one box or split boxes.
+    add_test_box_parity(SDM_SpeciesDiffusion_BoxParity SDM_SpeciesDiffusion plt00004
+        COMMON_OPTIONS "erf.input_sounding_file=${_species_input}/input_sounding"
+        REFERENCE_OPTIONS "amr.max_grid_size=32"
+        SPLIT_OPTIONS "amr.max_grid_size_x=4"
+        FCOMPARE_RTOL ${_species_tol} FCOMPARE_ATOL ${_species_atol})
+endif()
+
 #=============================================================================
 # Regression tests
 #=============================================================================
@@ -2181,6 +2306,14 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                                       "erf.if_implicit_projection=false")
     add_test_immersed_cf_heat_balance(ImmersedLES2LevHeatBalance_LogLaw ImmersedLES2LevHeatBalance 300.0 1.0e-6 OFF ON
                                       "erf.cf_loglaw_fill=true erf.if_cf_mismatch_warning=0.4")
+    # Neutral ABL with the k-eqn RANS over an immersed plane on a cell face, two solid rows below it,
+    # against the same ABL on flat ground (erf-model/ERF#4134): with the fraction-stress wall law the
+    # profiles over the lowest 500 m must agree within 1 % (measured: wind 0.02 %, TKE 0.2 %); the legacy law leaves
+    # the fluid cell on the solid unforced (wind 18 % off, TKE 5x) and measures the wall distance from the domain bottom, and
+    # must fail the same check (that leg also has no wall TKE pin, since erf.if_wall_tke belongs to the new law).
+    add_test_immersed_flat_equivalence(ImmersedForm7Equivalence ImmersedForm7Equivalence 2 0.01 25 OFF "")
+    add_test_immersed_flat_equivalence(ImmersedForm7Equivalence_Legacy ImmersedForm7Equivalence 2 0.01 25 ON
+                                       "erf.if_wall_form=legacy erf.if_wall_tke=false")
   endif()
   # Box, rank and tiling parity of the other closures: one box on one rank without tiling
   # against four boxes on two ranks with 8 x 8 tiles (Tests/test_files/Closure_BoxParity).
@@ -2244,8 +2377,10 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
   add_test_tiling_parity(ABL_YSUNew_Tiling   ABL_MRF_Tiling "00010" "00010"
       RUNTIME_OPTIONS "erf.pbl_type=YSUNew erf.most.pblh_calc=YSU"
       VARYING_3D "Lturb Kmv" VARYING_2D "pblh u_star")
-  # Legacy YSU aborts in unstable conditions, so cool the surface (a stronger
-  # cooling than -0.02 with the 5 m/s wind stops the MOST iteration converging).
+  # Legacy YSU aborts in unstable conditions, so cool the surface. A stronger
+  # cooling than -0.02 with the 5 m/s wind passes the stable fold of the
+  # prescribed-flux MOST problem, where the surface layer then applies a weaker
+  # flux than prescribed (see "Limits on the similarity solution" in SurfaceLayer.rst).
   # It covers the full-column assert only: legacy YSU never calls set_pblh, so
   # pblh is left out of the 2D plotfile rather than compared as a constant.
   add_test_tiling_parity(ABL_YSU_Tiling      ABL_MRF_Tiling "00010" "00010"
@@ -2468,6 +2603,34 @@ endif( )
 # registered only once someone adds the inputs.
 if(ERF_ENABLE_RRTMGP AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_files/Radiation")
   add_test_r(Radiation                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
+endif()
+
+# Exercise the complete RRTMGP -> raw forcing -> terrain correction -> SLM
+# path. Flat terrain has an exact factor of one, so no gold file is needed.
+if(ERF_ENABLE_RRTMGP AND ERF_ENABLE_FCOMPARE AND NOT WIN32)
+  set(TEST_NAME TopographicRadiation_FlatParity)
+  set(TEST_FILES_DIR TopographicRadiationFlat)
+  setup_test()
+  resolve_test_exe("" "erf_exec" TEST_EXE)
+  add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+      "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+      "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+      "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+      "-DNRANKS=${NP}"
+      "-DTEST_EXE=${TEST_EXE}"
+      "-DCONFIG=$<CONFIG>"
+      "-DINPUT=${CURRENT_TEST_BINARY_DIR}/TopographicRadiationFlat.i"
+      "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+      "-DFCOMPARE=${FCOMPARE_EXE}"
+      "-DFEXTREMA=${FEXTREMA_EXE}"
+      "-DRRTMGP_ROOT=${PROJECT_SOURCE_DIR}/Submodules/RRTMGP"
+      -P ${PROJECT_SOURCE_DIR}/Tests/RunTopographicRadiationFlat.cmake)
+  set_tests_properties(${TEST_NAME} PROPERTIES
+      TIMEOUT 900
+      PROCESSORS ${NP}
+      WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+      LABELS "regression;radiation;option-parity"
+      ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/topo_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/topo_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/plt00003_parity.log;${CURRENT_TEST_BINARY_DIR}/plt_lsm_2D_00003_parity.log")
 endif()
 
 # TwoStream radiation needs no external library and no gold plotfiles: the
@@ -2976,8 +3139,16 @@ add_test_r(CouetteFlow_ImplicitCF            "" "erf_exec" "plt00050"
 
 # The same closure for the implicit moisture solve in slow_rhs_post (ERF_ImplicitPost.H): a
 # moist layer diffusing down through a fine patch over the lower half of the column
+set(_moist_cf_rtol "1.0e-8")
+if(ERF_PRECISION STREQUAL "SINGLE")
+    # Unchanged upstream accumulates ~6.6e-6 relative density roundoff over 200 steps.
+    # At this deck's qv <= 0.01, the unchanged 1e-7 absolute bound still controls
+    # moisture accuracy and rejects the >8e-7 absolute error of a lagged closure.
+    set(_moist_cf_rtol "1.0e-5")
+endif()
 add_test_r(MoistDiffusion_ImplicitCF         "" "erf_exec" "plt00200"
-           FCOMPARE_RTOL "1.0e-8" FCOMPARE_ATOL "1.0e-7")
+           FCOMPARE_RTOL "${_moist_cf_rtol}" FCOMPARE_ATOL "1.0e-7")
+unset(_moist_cf_rtol)
 
 # CouetteFlow_ImplicitCF with the implicit solves after the last acoustic substep of each stage
 # (erf.implicit_before_substep = false).  Until erf-model/ERF#4333 was fixed the new state's ghost
