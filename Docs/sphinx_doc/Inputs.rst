@@ -1143,6 +1143,9 @@ Notes
      the one the host diffuses). Particle-derived appended condensate is not
      independently diffused by the host and contributes no separate explicit
      diffusion restriction. The advected passive scalar remains explicit.
+     This option does not provide per-appended-species inflow values; see the
+     :ref:`super-droplet model <sec:SuperDroplets>` documentation for the
+     existing inflow behavior.
      If dt times this rate
      exceeds **erf.diffusive_cfl** a warning is printed, repeated on a level only when the
      Fourier number has grown by half.  The default 0.5 is the forward-Euler bound; the

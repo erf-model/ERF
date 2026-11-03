@@ -293,6 +293,8 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             return q >= m_qstate_moist_size && (q - m_qstate_moist_size) % 2 == 1;
         }
 
+        void Update_Diagnostic_State (amrex::MultiFab&, const amrex::MultiFab&) override;
+
         /*! \brief returns pointer to super-droplets particle container */
         inline virtual ERFPC* getParticleContainer () override
         {

@@ -2,6 +2,7 @@
 
 import argparse
 import math
+import shutil
 import shlex
 import subprocess
 import sys
@@ -36,6 +37,7 @@ def composite(plotfile):
                         ]
         levels.append(cells)
     result = []
+    header["fine_cells"] = frozenset(levels[1]) if len(levels) > 1 else frozenset()
     for level, cells in enumerate(levels):
         covered = (
             {tuple(n // 2 for n in index) for index in levels[level + 1]}
@@ -73,6 +75,10 @@ def metrics(plotfile, tolerance):
 def run(args, label, options):
     directory = Path(label)
     directory.mkdir(exist_ok=True)
+    # Remove only this checker's named outputs, so reruns cannot reuse old plots.
+    for plot in directory.glob("plt[0-9][0-9][0-9][0-9][0-9]"):
+        if plot.is_dir():
+            shutil.rmtree(plot)
     command = []
     if args.mpi_exec:
         command = shlex.split(args.mpi_exec)
@@ -97,6 +103,18 @@ def run(args, label, options):
             assert abs(measured - initial) <= args.tolerance * initial, (
                 "species mass is not conserved", plot, initial, measured
             )
+    if args.case.startswith("regrid"):
+        coverage = [composite(plot)[0]["fine_cells"] for plot in plots]
+        assert coverage[0] and coverage[-1], "both refined regions must exist"
+        assert any(not cells for cells in coverage), "fine level must disappear"
+        assert coverage[0] != coverage[-1], "refinement coverage must actually change"
+        for plot in plots[1:]:
+            current = metrics(plot, args.tolerance)
+            for initial, measured in zip(first[3], current[3]):
+                assert abs(measured - initial) <= args.tolerance * initial, (
+                    "redistribution changed particle species mass", plot, initial, measured
+                )
+        print("refined cell counts:", [len(cells) for cells in coverage], flush=True)
     assert last[4] > 1, ("test must activate turbulent diffusion", last[4])
     print(label, "mass:", last[1], "vapor L2:", last[2],
           "particle condensate:", last[3], "max Kmv:", last[4], flush=True)
@@ -105,12 +123,21 @@ def run(args, label, options):
 
 def main(args):
     options = []
-    if args.case == "amr":
+    if args.case == "amr" or args.case.startswith("regrid"):
         options += [
             "amr.max_level=1", "amr.ref_ratio=2",
             "erf.refinement_indicators=box1", "erf.box1.max_level=1",
             "erf.box1.in_box_lo=0 0 0", "erf.box1.in_box_hi=8 4 8",
         ]
+    if args.case.startswith("regrid"):
+        options += [
+            "erf.regrid_int=1", "erf.refinement_indicators=box1 box2",
+            "erf.box1.end_time=0.019", "erf.box2.start_time=0.06",
+            "erf.box2.max_level=1", "erf.box2.in_box_lo=0 0 8",
+            "erf.box2.in_box_hi=8 4 16",
+        ]
+        if args.case == "regrid_splitmerge":
+            options.append("super_droplets_moisture.split_merge_amr=true")
     if args.case == "phase":
         options.append("super_droplets_moisture.include_phase_change=true")
     initial, implicit = run(args, "implicit", options)
@@ -139,7 +166,7 @@ if __name__ == "__main__":
     parser.add_argument("--exe", required=True)
     parser.add_argument("--input", required=True)
     parser.add_argument("--reader-dir", required=True)
-    parser.add_argument("--case", choices=("column", "amr", "phase"), required=True)
+    parser.add_argument("--case", choices=("column", "amr", "phase", "regrid", "regrid_splitmerge"), required=True)
     parser.add_argument("--mpi-exec", default="")
     parser.add_argument("--mpi-numproc-flag", default="-n")
     parser.add_argument("--mpi-preflags", default="")

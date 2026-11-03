@@ -1744,7 +1744,7 @@ if(ERF_ENABLE_PARTICLES AND Python3_Interpreter_FOUND)
         set(_species_tol 2.e-11)
         set(_species_atol 2.e-14)
     endif()
-    foreach(_case column amr phase)
+    foreach(_case column amr phase regrid regrid_splitmerge)
         set(_species_dir "${CMAKE_CURRENT_BINARY_DIR}/test_files/SDM_SpeciesDiffusion_${_case}")
         file(MAKE_DIRECTORY "${_species_dir}")
         add_test(NAME SDM_SpeciesDiffusion_${_case}
@@ -1765,7 +1765,7 @@ if(ERF_ENABLE_PARTICLES AND Python3_Interpreter_FOUND)
         COMMON_OPTIONS "erf.input_sounding_file=${_species_input}/input_sounding"
         FCOMPARE_RTOL ${_species_tol} FCOMPARE_ATOL ${_species_atol})
     add_test_restart_parity(SDM_SpeciesDiffusion_AMRRestart SDM_SpeciesDiffusion 2 4
-        COMMON_OPTIONS "erf.input_sounding_file=${_species_input}/input_sounding amr.max_level=1 amr.ref_ratio=2 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo=0 0 0 erf.box1.in_box_hi=8 4 8 amr.regrid_int=1"
+        COMMON_OPTIONS "erf.input_sounding_file=${_species_input}/input_sounding amr.max_level=1 amr.ref_ratio=2 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo=0 0 0 erf.box1.in_box_hi=8 4 8 erf.regrid_int=1"
         FCOMPARE_RTOL ${_species_tol} FCOMPARE_ATOL ${_species_atol})
     add_test_box_parity(SDM_SpeciesDiffusion_BoxParity SDM_SpeciesDiffusion plt00004
         COMMON_OPTIONS "erf.input_sounding_file=${_species_input}/input_sounding"

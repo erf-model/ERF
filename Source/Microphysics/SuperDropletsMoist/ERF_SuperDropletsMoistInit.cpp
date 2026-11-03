@@ -354,6 +354,9 @@ void SuperDropletsMoist::FinishInit (const int& a_lev,
 
     // Appended condensate is a projection on every level, including before
     // the first step; fine-level state cannot wait for the first Advance.
+    if (lev == 0 && m_qstate_nonmoist_size > 0) {
+        m_super_droplets->Redistribute();
+    }
     computeQcSpecies(*a_z_phys_nd[lev]);
     computeQtSpecies();
 

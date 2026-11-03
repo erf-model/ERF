@@ -56,6 +56,8 @@ public:
 
     virtual bool Qstate_Is_Diagnostic (int /*q*/) const { return false; }
 
+    virtual void Update_Diagnostic_State (amrex::MultiFab&, const amrex::MultiFab&) {}
+
     void Advance ( const amrex::Real&, const SolverChoice& ) override
     {
         amrex::Abort("Do not use this advance() for Lagrangian microphysics.");

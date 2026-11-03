@@ -672,6 +672,11 @@ ERF::post_timestep (int nstep, double time, double dt_lev0)
 
 #ifdef ERF_USE_PARTICLES
     particleData.Redistribute(z_phys_nd);
+    if (solverChoice.diffChoice.n_qstate_nonmoist > 0) {
+        for (int lev = 0; lev <= finest_level; ++lev) {
+            micro->Update_Diagnostic_State_Lev(lev, vars_new[lev][Vars::cons], *z_phys_nd[lev]);
+        }
+    }
 #endif
 
     if (solverChoice.coupling_type == CouplingType::TwoWay)
@@ -2205,6 +2210,11 @@ ERF::InitData_post ()
     // before the initial plotfile write
     if (finest_level > 0) {
         particleData.Redistribute(z_phys_nd);
+        if (restart_chkfile.empty() && solverChoice.diffChoice.n_qstate_nonmoist > 0) {
+            for (int lev = 0; lev <= finest_level; ++lev) {
+                micro->Update_Diagnostic_State_Lev(lev, vars_new[lev][Vars::cons], *z_phys_nd[lev]);
+            }
+        }
     }
 #endif
 

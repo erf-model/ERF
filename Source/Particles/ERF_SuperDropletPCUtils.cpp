@@ -321,7 +321,7 @@ void SuperDropletPC::speciesMassDensity ( MultiFab&  a_mf,
             auto num_par = ptd.m_runtime_rdata[SuperDropletsRealIdxSoA_RT::multiplicity][i];
             auto species_mass = ptd.m_runtime_rdata[ridx_s(a_idx,na,ns)][i];
             return ai * num_par * species_mass;
-        });
+        }, a_idx != m_idx_w && a_idx != m_idx_i);
 }
 
 /*! Computes the cloud/rain mass density of the particles over a mesh */
@@ -1300,6 +1300,17 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                 const auto local_blen = blen;
                 const auto local_blo  = box.smallEnd();
                 auto* inject_active = inject_soa.GetIntData(active_idx).data();
+                auto* inject_mult = inject_soa.GetRealData(mult_idx).data();
+
+                // Several empty cells may select the same donor. Split its
+                // multiplicity once across all copies, rather than creating mass.
+                Gpu::DeviceVector<int> donor_count_d(np, 0);
+                Gpu::DeviceVector<int> donor_piece_d(n_inject);
+                auto* donor_count = donor_count_d.data();
+                auto* donor_piece = donor_piece_d.data();
+                amrex::ParallelFor(n_inject, [=] AMREX_GPU_DEVICE (int i) {
+                    donor_piece[i] = Gpu::Atomic::Add(&donor_count[compact_donor[i]], 1) + 1;
+                });
 
                 amrex::ParallelFor(n_inject, [=] AMREX_GPU_DEVICE (int i) {
                     inject_p[i].id()  = static_cast<int>(pid_start + i);
@@ -1315,14 +1326,39 @@ void SuperDropletPC::SplitMergeAtLevelBoundary ()
                     inject_p[i].pos(2) = local_plo[2] + (cell_k + Real(0.5)) * local_dx[2];
 
                     inject_active[i] = flev_native;
+                    const ParticleReal xi = inject_mult[i];
+                    const int requested = donor_count[compact_donor[i]] + 1;
+                    const int pieces = xi >= ParticleReal(requested) ? requested
+                        : amrex::max(1, static_cast<int>(xi));
+                    if (donor_piece[i] < pieces) {
+                        inject_mult[i] = amrex::Math::floor(xi / ParticleReal(pieces));
+                    } else {
+                        inject_p[i].id() = -1;
+                        inject_active[i] = 0;
+                        inject_mult[i] = ParticleReal(0);
+                    }
                 });
+                auto* orig_mult = soa.GetRealData(mult_idx).data();
+                amrex::ParallelFor(np, [=] AMREX_GPU_DEVICE (int i) {
+                    if (donor_count[i] == 0) { return; }
+                    const ParticleReal xi = orig_mult[i];
+                    const int requested = donor_count[i] + 1;
+                    const int pieces = xi >= ParticleReal(requested) ? requested
+                        : amrex::max(1, static_cast<int>(xi));
+                    const ParticleReal base = amrex::Math::floor(xi / ParticleReal(pieces));
+                    orig_mult[i] = xi - ParticleReal(pieces-1) * base;
+                });
+                const int n_added = amrex::Reduce::Sum<int>(n_inject,
+                    [=] AMREX_GPU_DEVICE (int i) -> int {
+                        return inject_p[i].id() > 0 ? 1 : 0;
+                    });
                 Gpu::synchronize();
 
                 auto old_np = ptile.numParticles();
                 ptile.resize(old_np + n_inject);
                 amrex::copyParticles(ptile, inject_tile, 0, old_np, n_inject);
 
-                n_injected += n_inject;
+                n_injected += n_added;
             }
 
             ParallelDescriptor::ReduceLongSum(n_injected);

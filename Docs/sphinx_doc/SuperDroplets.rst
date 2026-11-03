@@ -52,6 +52,17 @@ condensate fields are projections of particle mass, not independently transporte
 mass reservoirs; they do not receive host advection, diffusion, or positivity
 clipping. Their projections are initialized on every AMR level.
 
+For appended species, cloud-in-cell deposition is restricted to exposed valid
+cells on the particle's owning level. Weights are renormalized there so that
+physical walls and coarse/fine edges cannot discard part of its mass. This
+one-sided projection preserves mass but changes the interpolation stencil near
+those edges; it is not a cross-level particle-transport closure. Diagnostic
+condensate is refreshed after redistribution, including regridding, before
+another transport step or output can consume it.
+When AMR split/merge repopulates empty cells, new super-droplets share their
+donor's multiplicity rather than adding another copy of its represented mass.
+Copies requiring fewer than one real droplet are not created.
+
 This treatment retains the existing water total-content handoff and molecular
 coefficients: appended non-water species have no molecular scalar diffusion.
 It does not introduce turbulent particle dispersion. Vapor diffusion does not
@@ -63,6 +74,14 @@ Unsupported species boundary conditions disable the moisture implicit option
 with a warning. Horizontal diffusion, explicitly treated stages, and terrain
 mixed terms can still restrict the timestep; enabling the implicit solve is
 not an unconditional positivity guarantee for the full integration scheme.
+
+This change does not add a per-species inflow interface. Ordinary prescribed
+inflow with a specified density uses the default zero external value for
+appended species; ``qv`` and ``qc`` inflow settings prescribe water only.
+When inflow density is not prescribed, the existing fallback extrapolates
+non-ingested conserved fields from the interior. Boundary-plane ingestion
+does not supply appended species. Do not interpret water-vapor boundary
+settings as non-water inflow concentrations.
 
 Model configuration
 -------------------

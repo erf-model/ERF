@@ -390,6 +390,31 @@ void SuperDropletsMoist::Update_State_Vars (MultiFab& a_cons_vars, const MultiFa
     if (!m_kinematic_mode) { Copy_Micro_to_State(a_cons_vars); }
 }
 
+void SuperDropletsMoist::Update_Diagnostic_State (MultiFab& cons, const MultiFab& z)
+{
+    if (m_kinematic_mode || m_qstate_nonmoist_size == 0) { return; }
+    const int lev = m_current_lev;
+    EnsureMicFabVars(lev, cons);
+    for (int is = m_istart_sp; is < m_num_species; ++is) {
+        auto& qc = *m_mic_fab_vars[lev][s_qc_idx(is,m_istart_sp)];
+        m_super_droplets->speciesMassDensity(qc, z, lev, is);
+        const int qc_comp = q_qc_idx(is,m_istart_sp);
+        const int qv_comp = q_qv_idx(is,m_istart_sp);
+        for (MFIter mfi(cons); mfi.isValid(); ++mfi) {
+            const auto s = cons.array(mfi);
+            const auto c = qc.array(mfi);
+            const auto v = m_mic_fab_vars[lev][s_qv_idx(is,m_istart_sp)]->array(mfi);
+            const auto t = m_mic_fab_vars[lev][s_qt_idx(is,m_istart_sp)]->array(mfi);
+            ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                s(i,j,k,qc_comp) = c(i,j,k);
+                c(i,j,k) /= s(i,j,k,Rho_comp);
+                v(i,j,k) = s(i,j,k,qv_comp) / s(i,j,k,Rho_comp);
+                t(i,j,k) = v(i,j,k) + c(i,j,k);
+            });
+        }
+    }
+}
+
 /*! \brief Convert a density field to a mixing ratio field */
 void SuperDropletsMoist::densityToRatio (MultiFab& a_var,
                                          const int a_comp)

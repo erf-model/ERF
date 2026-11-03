@@ -59,6 +59,9 @@ public:
     /*! \brief update ERF state variables from microphysics variables */
     virtual void Update_State_Vars_Lev (const int&, amrex::MultiFab&, const amrex::MultiFab&) = 0;
 
+    /*! Refresh diagnostic Q projections after particle redistribution, without advancing sources. */
+    virtual void Update_Diagnostic_State_Lev (const int&, amrex::MultiFab&, const amrex::MultiFab&) {}
+
     /*! \brief average down moisture multifabs from finest_level to 0 (AMR coverage); no-op for non-Lagrangian models */
     virtual void AverageDownMicroVars (const int /*finest_level*/) { }
 
