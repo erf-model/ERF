@@ -1329,7 +1329,7 @@ struct SolverChoice {
         // to erf.if_z0 with immersed forcing and to the inputs' erf.most.z0 or erf.zlo.most.z0
         // (0.1 m when neither is given) otherwise.
         pp.queryAdd("cf_loglaw_fill", cf_loglaw_fill);
-        const bool z0_given = pp.queryAdd("cf_loglaw_z0", cf_loglaw_z0);
+        const bool z0_given = pp.query("cf_loglaw_z0", cf_loglaw_z0);
         if (z0_given && !cf_loglaw_fill) {
             amrex::Abort("erf.cf_loglaw_z0 belongs to erf.cf_loglaw_fill = true");
         }

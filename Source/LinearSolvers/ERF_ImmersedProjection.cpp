@@ -31,10 +31,10 @@ using namespace amrex;
  * apply the wall law). The faces on the boundary of the level's grids keep sigma = 1.
  *
  * @param lev   Level index
- * @param dt    Time step of the projection
+ * @param l_dt  Time step of the projection
  * @param sigma Face coefficients on the x-, y- and z-faces of the level's grids (defined here)
  */
-void ERF::make_if_projection_sigma (int lev, Real dt, Array<MultiFab,AMREX_SPACEDIM>& sigma)
+void ERF::make_if_projection_sigma (int lev, Real l_dt, Array<MultiFab,AMREX_SPACEDIM>& sigma)
 {
     BL_PROFILE("ERF::make_if_projection_sigma()");
 
@@ -96,7 +96,7 @@ void ERF::make_if_projection_sigma (int lev, Real dt, Array<MultiFab,AMREX_SPACE
                 // under a fluid face (a fully solid face there is held by the drag in the projection)
                 const bool wall = (dir < 2) && use_most && (b > zero) && (b < one) && (face_blank(k+1) == zero);
                 const Real rate = wall ? zero : b * rate_solid;
-                sg(i,j,k) = one / (one + dt * rate);
+                sg(i,j,k) = one / (one + l_dt * rate);
             });
         }
     }
