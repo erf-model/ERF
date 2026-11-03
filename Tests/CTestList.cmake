@@ -1744,7 +1744,7 @@ if(ERF_ENABLE_PARTICLES AND Python3_Interpreter_FOUND)
         set(_species_tol 2.e-11)
         set(_species_atol 2.e-14)
     endif()
-    foreach(_case column amr phase regrid regrid_splitmerge)
+    foreach(_case column amr phase regrid regrid_splitmerge injection injection_phase)
         set(_species_dir "${CMAKE_CURRENT_BINARY_DIR}/test_files/SDM_SpeciesDiffusion_${_case}")
         file(MAKE_DIRECTORY "${_species_dir}")
         add_test(NAME SDM_SpeciesDiffusion_${_case}

@@ -395,6 +395,7 @@ void SuperDropletPC::InitializeParticles (const int a_lev, const double a_t, con
 /*! Inject particles */
 void SuperDropletPC::InjectParticles (const double a_t, const MFPtr& a_ptr, const double a_dt)
 {
+    bool injected = false;
     for (int i = 0; i < m_num_injections; i++) {
         const bool active = (m_injections[i]->m_inj_rate > 0)
                          && (a_t >= m_injections[i]->m_tstart)
@@ -404,8 +405,15 @@ void SuperDropletPC::InjectParticles (const double a_t, const MFPtr& a_ptr, cons
             Print() << "SuperDropletPC(" << m_name << "): "
                     << " injecting particles (" << i << ").\n";
             addParticles( 0, a_ptr, *(m_injections[i]) );
+            injected = true;
             Print() << "    Particle container size: " << NumSuperDroplets() << "\n";
         }
+    }
+    if (injected) {
+        // Phase change and composite deposition require finest-level ownership,
+        // even when particle advection (and its redistribution) is disabled.
+        Redistribute();
+        SplitMergeAtLevelBoundary();
     }
 }
 
