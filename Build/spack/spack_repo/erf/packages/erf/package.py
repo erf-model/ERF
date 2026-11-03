@@ -306,14 +306,16 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
     conflicts("+eamxx_shoc", when="~mpi", msg="SHOC (EKAT) requires MPI")
     conflicts("+eamxx_shoc", when="precision=single", msg="EAMxx SHOC is double precision only")
     conflicts("+tools", when="~netcdf", msg="The tools require NetCDF")
-    # Exec/Tools builds erf_plt_to_nc as plain C++, which a CUDA AMReX's headers reject
-    # (AMReX.H: '__host__' does not name a type).
-    conflicts("+tools", when="+cuda", msg="the plotfile tools do not build with CUDA")
+    # Backport the CUDA source-language fix to the current release. Older
+    # releases still compile the tools as C++, which CUDA AMReX headers reject.
+    patch("cuda-tools.patch", when="@26.09+cuda+tools")
+    conflicts("+tools", when="@:26.06+cuda", msg="CUDA plotfile tools require ERF 26.09 or newer")
     conflicts(
         "+ml_uphys_diagnostics",
         when="~particles",
         msg="the ML microphysics diagnostics live in the particle (SDM) microphysics",
     )
+    patch("ml-diagnostics-single.patch", when="@26.09+ml_uphys_diagnostics precision=single")
     conflicts(
         "+wsm6_fort",
         when="precision=single",
@@ -642,6 +644,24 @@ class Erf(CMakePackage, CudaPackage, ROCmPackage):
                 args.append(self.define("AMReX_AMD_ARCH", ";".join(targets)))
 
         return args
+
+    def check(self):
+        """Run CTest directly so Make's job server cannot override test concurrency."""
+        if not self.spec.satisfies("+tests"):
+            return
+        ctest = Executable(join_path(self.spec["cmake"].prefix.bin, "ctest"))
+        # Spack's default CMake check invokes make test and replaces
+        # CTEST_PARALLEL_LEVEL with the build worker count. CTest 3.31.6
+        # crashed while using that job server. Keep tests serial by default,
+        # honor an explicit test worker count, and preserve failure output.
+        with working_dir(self.build_directory):
+            ctest(
+                "--output-on-failure",
+                "--no-tests=error",
+                "--parallel",
+                os.environ.get("CTEST_PARALLEL_LEVEL") or "1",
+                extra_env={"MAKEFLAGS": "", "MFLAGS": ""},
+            )
 
     @staticmethod
     def _cuda_arch_number(arch):
