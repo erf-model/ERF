@@ -43,6 +43,18 @@ if(ERF_ENABLE_NETCDF)
         target_link_libraries(${tool_exe} PUBLIC $<$<BOOL:${MPI_CXX_FOUND}>:MPI::MPI_CXX>)
     endif()
 
+    # With a CUDA AMReX the headers need nvcc: the same source-language setup
+    # BuildERFExe.cmake gives the ERF library
+    if(ERF_ENABLE_CUDA)
+        get_target_property(tool_sources ${tool_exe} SOURCES)
+        list(FILTER tool_sources INCLUDE REGEX "\\.cpp")
+        set_source_files_properties(${tool_sources} PROPERTIES LANGUAGE CUDA)
+        set_target_properties(${tool_exe} PROPERTIES
+            LANGUAGE CUDA
+            CUDA_SEPARABLE_COMPILATION ON
+            CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+    endif()
+
     include(${PROJECT_SOURCE_DIR}/CMake/SetERFCompileFlags.cmake)
     set_erf_compile_flags(${tool_exe})
 
