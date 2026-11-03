@@ -75,6 +75,29 @@ void check_cells (const MultiFab& mf, F check)
     }
 }
 constexpr Real tol = sizeof(Real) == 8 ? Real(1.e-10) : Real(1.e-3);
+
+// Device kernels live outside TEST bodies: nvcc rejects extended lambdas in
+// gtest's private TestBody().
+void fill_lat_lon (MultiFab& lat, MultiFab& lon)
+{
+    for (MFIter mfi(lat); mfi.isValid(); ++mfi) {
+        auto la = lat.array(mfi), lo = lon.array(mfi);
+        ParallelFor(lat[mfi].box(), [=] AMREX_GPU_DEVICE (int i,int j,int k) {
+            la(i,j,k) = Real(40)+Real(0.01)*i;
+            lo(i,j,k) = Real(-100)-Real(0.01)*j;
+        });
+    }
+}
+
+void copy_surface_plane (MultiFab& surface, const MultiFab& soil)
+{
+    for (MFIter mfi(surface); mfi.isValid(); ++mfi) {
+        auto d = surface.array(mfi); auto s = soil.const_array(mfi);
+        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i,int j,int k) {
+            d(i,j,k) = s(i,j,0);
+        });
+    }
+}
 }
 
 TEST(TopographicShading, SolarVectorMatchesOrbitalConvention)
@@ -250,13 +273,7 @@ TEST(TopographicShading, GeographicSunRotatesOntoProjectedGrid)
     TerrainCase c;
     c.terrain(2); c.initialize();
     MultiFab lat(c.ba,c.dm,1,IntVect(1,1,0)), lon(c.ba,c.dm,1,IntVect(1,1,0));
-    for (MFIter mfi(lat); mfi.isValid(); ++mfi) {
-        auto la = lat.array(mfi), lo = lon.array(mfi);
-        ParallelFor(lat[mfi].box(), [=] AMREX_GPU_DEVICE (int i,int j,int k) {
-            la(i,j,k) = Real(40)+Real(0.01)*i;
-            lo(i,j,k) = Real(-100)-Real(0.01)*j;
-        });
-    }
+    fill_lat_lon(lat, lon);
     c.topo.initialize_geometry(0,c.choice,c.z,c.map,c.map,&lat,&lon);
     c.topo.apply(0,c.choice,{});
     // grid x is north: east sunlight is parallel to this ridge/slope.
@@ -276,12 +293,7 @@ TEST(TopographicShading, SpectralForcingWritesSlmSurfaceGhostPlaneOnly)
     EXPECT_EQ(soil.min(0),-999); // valid soil layers untouched
     EXPECT_EQ(soil.max(0),-999);
     MultiFab surface(c.ba,c.dm,1,0);
-    for (MFIter mfi(surface); mfi.isValid(); ++mfi) {
-        auto d = surface.array(mfi); auto s = soil.const_array(mfi);
-        ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i,int j,int k) {
-            d(i,j,k) = s(i,j,0);
-        });
-    }
+    copy_surface_plane(surface, soil);
     EXPECT_EQ(surface.min(0),0); // direct VIS extinguished in shadow
     EXPECT_GE(surface.max(0),100);
 }
@@ -290,7 +302,7 @@ TEST(TopographicShading, ObliqueRayInterpolatesAndUsesBothCellWidths)
 {
     const Box b(IntVect(0,0,0),IntVect(7,7,0));
     FArrayBox terrain(b,1,The_Pinned_Arena());
-    terrain.setVal(0);
+    terrain.setVal<RunOn::Host>(0);
     auto a = terrain.array();
     // Sun travels one x cell and two y cells per sample: dx=2, dy=1,
     // geographic x/y components equal. At (2,4), terrain crosses the ray.
@@ -306,7 +318,7 @@ TEST(TopographicShading, ElevatedTerrainIgnoresOneUlpShadowNoise)
 {
     const Box b(IntVect(0,0,0),IntVect(2,0,0));
     FArrayBox terrain(b,1,The_Pinned_Arena());
-    terrain.setVal(Real(3000));
+    terrain.setVal<RunOn::Host>(Real(3000));
     auto a = terrain.array();
     const erf_topography::Sun sun{std::sqrt(Real(0.75)),Real(0),Real(0.5)};
     const Real horizontal = std::sqrt(sun.x*sun.x);
