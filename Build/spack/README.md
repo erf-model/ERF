@@ -47,7 +47,7 @@ The following platform and toolchain limits apply:
   oneAPI 2026.
 * OpenMP on macOS needs GCC for C and C++ throughout the dependency tree:
   `spack install erf +openmp %%c,cxx=gcc`.
-* CUDA builds cannot enable `+tools`.
+* CUDA builds with `+tools` require ERF 26.09 or newer.
 * GPU builds with RRTMGP or SHOC require a single GPU architecture for their
   bundled Kokkos.
 
