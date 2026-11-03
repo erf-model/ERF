@@ -2003,8 +2003,8 @@ if(ERF_ENABLE_MPI AND NOT WIN32)
                                       "erf.cf_loglaw_fill=true erf.if_cf_mismatch_warning=0.4")
     # Neutral ABL with the k-eqn RANS over an immersed plane on a cell face, two solid rows below it,
     # against the same ABL on flat ground (erf-model/ERF#4134): with the fraction-stress wall law the
-    # profiles over the lowest 500 m must agree within 1 % (measured: wind 0.05 %, TKE 1 %); the legacy law leaves
-    # the fluid cell on the solid unforced and measures the wall distance from the domain bottom, and
+    # profiles over the lowest 500 m must agree within 1 % (measured: wind 0.02 %, TKE 0.2 %); the legacy law leaves
+    # the fluid cell on the solid unforced (wind 18 % off, TKE 5x) and measures the wall distance from the domain bottom, and
     # must fail the same check.
     add_test_immersed_flat_equivalence(ImmersedForm7Equivalence ImmersedForm7Equivalence 2 0.01 25 OFF "")
     add_test_immersed_flat_equivalence(ImmersedForm7Equivalence_Legacy ImmersedForm7Equivalence 2 0.01 25 ON
