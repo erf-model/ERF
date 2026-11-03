@@ -557,9 +557,6 @@ List of Parameters
 |                                                  |                                                          |                    | erf.zlo.most.z0      |
 |                                                  |                                                          |                    | (0.1 if neither)     |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
-| **erf.interpolation_type**                       | what is interpolated when filling a fine level from the  | FullState,         | FullState            |
-|                                                  | coarse one                                               | Perturbational     |                      |
-+--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
 | **erf.refinement_indicators**                    | names of the refinement indicators to apply; each name   | List of Strings    | None                 |
 |                                                  | becomes the prefix of its own group of options below     |                    |                      |
 +--------------------------------------------------+----------------------------------------------------------+--------------------+----------------------+
