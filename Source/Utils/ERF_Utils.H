@@ -1,6 +1,8 @@
 #ifndef ERF_UTILS_H_
 #define ERF_UTILS_H_
 
+#include <utility>
+
 #include "AMReX.H"
 #include "AMReX_MultiFab.H"
 #include "AMReX_BCRec.H"
@@ -184,6 +186,32 @@ if_average_down (const amrex::MultiFab& S_fine, amrex::MultiFab& S_crse,
                  const amrex::MultiFab& beta_fine, const amrex::MultiFab& beta_crse,
                  const amrex::MultiFab& vol_fine,
                  int scomp, int ncomp, const amrex::IntVect& ratio);
+
+/**
+ * Where the coarse and fine levels disagree on an immersed surface along the lateral coarse/fine
+ * faces of the fine level (erf.if_cf_mismatch_warning): the surface on a coarse cell's mid-plane
+ * leaves the coarse cell half solid over fine cells that are all solid and all fluid. For each
+ * coarse cell covered by the fine level and next to an uncovered one, the spread (max - min) of
+ * the fine solid fractions under it is formed; cells with a spread of at least warn are counted.
+ *
+ * @param[in] fine_tb    fine solid fraction (terrain_blanking)
+ * @param[in] fine_grids fine BoxArray
+ * @param[in] crse_grids coarse BoxArray
+ * @param[in] crse_dmap  coarse DistributionMapping
+ * @param[in] crse_geom  coarse Geometry
+ * @param[in] ratio      refinement ratio
+ * @param[in] warn       spread at or above which a cell is counted
+ * @return the number of counted cells over all ranks, and the largest spread along those faces
+ */
+std::pair<int, amrex::Real>
+if_cf_surface_mismatch (const amrex::MultiFab& fine_tb,
+                        const amrex::BoxArray& fine_grids,
+                        const amrex::BoxArray& crse_grids,
+                        const amrex::DistributionMapping& crse_dmap,
+                        const amrex::Geometry& crse_geom,
+                        const amrex::IntVect& ratio,
+                        amrex::Real warn);
+
 
 /*
  * Create the Jacobian for the metric transformation when use_terrain is true

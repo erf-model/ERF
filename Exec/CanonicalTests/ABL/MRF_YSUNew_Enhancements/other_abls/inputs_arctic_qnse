@@ -107,7 +107,6 @@ erf.qnse_bh = 0.4
 # erf.enable_ysu_cloud_pblh = true
 # erf.enable_ysu_countergradient = true
 # erf.enable_ysu_entrainment = true
-# erf.enable_ysu_liquid_theta = true
 # erf.enable_ysu_sat_limiter = false
 # erf.enable_ysu_terrain_pblh_floor = true
 # erf.enable_ysu_topdown = true

@@ -252,8 +252,15 @@ public:
           pp, "pbl_ysu_land_Ribcr", pbl_ysu_land_Ribcr, lev, max_level);
         query_one_or_per_level(
           pp, "pbl_ysu_unst_Ribcr", pbl_ysu_unst_Ribcr, lev, max_level);
-        query_one_or_per_level(
-          pp, "enable_ysu_liquid_theta", enable_ysu_liquid_theta, lev, max_level);
+        // YSU now uses theta_v at WRF's thvx sites and theta_l at its thlix
+        // sites; catch the retired switch between them rather than ignoring it.
+        if (pp.contains("enable_ysu_liquid_theta")) {
+            amrex::Abort("erf.enable_ysu_liquid_theta has been removed. YSU uses "
+                         "theta_v (all condensate loading) for the bulk Richardson "
+                         "number and clear-sky entrainment, and theta_l (cloud "
+                         "liquid and ice) for the cloud-top extension scan and "
+                         "cloudy entrainment, as WRF does with thvx and thlix.");
+        }
         query_one_or_per_level(
           pp, "enable_ysu_countergradient", enable_ysu_countergradient, lev, max_level);
         query_one_or_per_level(
@@ -724,8 +731,6 @@ public:
                      << pbl_ysu_land_Ribcr << std::endl;
       amrex::Print() << "    pbl_ysu_unst_Ribcr                 : "
                      << pbl_ysu_unst_Ribcr << std::endl;
-      amrex::Print() << "    enable_ysu_liquid_theta            : "
-                     << enable_ysu_liquid_theta << std::endl;
       amrex::Print() << "    enable_ysu_countergradient         : "
                      << enable_ysu_countergradient << std::endl;
       amrex::Print() << "    enable_ysu_terrain_pblh_floor      : "
@@ -1000,8 +1005,6 @@ public:
     fourth; // Critical Bulk Richardson number of Land for stable conditions
   amrex::Real pbl_ysu_unst_Ribcr =
     zero; // Critical Bulk Richardson number for unstable conditions
-  bool enable_ysu_liquid_theta =
-    true; // if true, use liquid-water virtual potential temperature in YSU stability
   bool enable_ysu_countergradient =
     true; // if true, apply YSU-style HGAMT/HGAMQ/HGAMU/HGAMV countergradient correction
   bool enable_ysu_terrain_pblh_floor =
@@ -1145,8 +1148,6 @@ public:
  * @brief Critical bulk Richardson number over land for stable YSU conditions.
  * @var TurbChoice::pbl_ysu_unst_Ribcr
  * @brief Critical bulk Richardson number for unstable YSU conditions.
- * @var TurbChoice::enable_ysu_liquid_theta
- * @brief Whether YSU uses liquid-water virtual potential temperature for stability.
  * @var TurbChoice::enable_ysu_countergradient
  * @brief Whether YSU countergradient corrections are enabled.
  * @var TurbChoice::enable_ysu_terrain_pblh_floor

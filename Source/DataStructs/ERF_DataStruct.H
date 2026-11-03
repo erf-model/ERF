@@ -1316,6 +1316,47 @@ struct SolverChoice {
             amrex::Abort("erf.if_average_down = fluid_mass needs erf.terrain_type = ImmersedForcing "
                          "or erf.buildings_type = ImmersedForcing");
         }
+        // Warn at start-up where a lateral coarse/fine boundary crosses the immersed surface so
+        // that the levels disagree: spread of the fine solid fractions under a coarse edge cell
+        // at least this (0 turns the check off)
+        pp.queryAdd("if_cf_mismatch_warning", if_cf_mismatch_warning);
+        if (!(if_cf_mismatch_warning >= zero && if_cf_mismatch_warning <= one)) {
+            amrex::Abort("erf.if_cf_mismatch_warning must be in [0, 1] (a spread of solid fractions; 0 turns it off)");
+        }
+        // Log-law share of the wall coarse face's flux among its fine sub-faces at the lateral
+        // coarse/fine faces (erf-model/ERF#4920): the immersed surface or a surface-layer bottom
+        // (checked in check_params); constant dz, not EB terrain. The roughness length defaults
+        // to erf.if_z0 with immersed forcing and to the inputs' erf.most.z0 or erf.zlo.most.z0
+        // (0.1 m when neither is given) otherwise.
+        pp.queryAdd("cf_loglaw_fill", cf_loglaw_fill);
+        const bool z0_given = pp.queryAdd("cf_loglaw_z0", cf_loglaw_z0);
+        if (z0_given && !cf_loglaw_fill) {
+            amrex::Abort("erf.cf_loglaw_z0 belongs to erf.cf_loglaw_fill = true");
+        }
+        if (cf_loglaw_fill) {
+            if (mesh_type != MeshType::ConstantDz) {
+                amrex::Abort("erf.cf_loglaw_fill needs a constant-dz mesh");
+            }
+            if (terrain_type == TerrainType::EB) {
+                amrex::Abort("erf.cf_loglaw_fill is not implemented for erf.terrain_type = EB "
+                             "(its wall is not the bottom of the domain)");
+            }
+            if (!z0_given) {
+                if (terrain_type == TerrainType::ImmersedForcing || buildings_type == BuildingsType::ImmersedForcing) {
+                    cf_loglaw_z0 = if_z0;
+                } else {
+                    // the roughness given in the inputs for the bottom surface layer
+                    // (erf.most.z0, or erf.zlo.most.z0 when the faces are set one by one); a
+                    // roughness a land model supplies later is not seen here
+                    cf_loglaw_z0 = amrex::Real(0.1);
+                    pp.query("most.z0", cf_loglaw_z0);
+                    pp.query("zlo.most.z0", cf_loglaw_z0);
+                }
+            }
+            if (!(cf_loglaw_z0 > zero)) {
+                amrex::Abort("erf.cf_loglaw_z0 must be > 0 [m] (the roughness length of the log-law coarse/fine fill)");
+            }
+        }
         // Say so when a bound is set and the wall law's stability estimate is in use
         if ((terrain_type == TerrainType::ImmersedForcing || buildings_type == BuildingsType::ImmersedForcing) &&
             (if_use_most || if_surf_temp_flux != amrex::Real(1e-8) || if_Olen_in != amrex::Real(1e-8)) &&
@@ -1986,6 +2027,21 @@ struct SolverChoice {
                                "(amr.max_level > 0) and erf.coupling_type = TwoWay");
             }
         }
+        // The log-law coarse/fine fill acts only on refined levels
+        if (cf_loglaw_fill) {
+            const bool immersed = (terrain_type == TerrainType::ImmersedForcing ||
+                                   buildings_type == BuildingsType::ImmersedForcing);
+            if (!immersed && phys_bc_type[amrex::Orientation(amrex::Direction::z, amrex::Orientation::low)] != ERF_BC::surface_layer) {
+                amrex::Abort("erf.cf_loglaw_fill needs an immersed surface (erf.terrain_type or "
+                             "erf.buildings_type = ImmersedForcing) or zlo.type = surface_layer");
+            }
+            if (max_level > 0) {
+                amrex::Print() << "Coarse/fine faces: erf.cf_loglaw_fill = true (the wall coarse face's flux is shared "
+                               << "among its fine sub-faces by the integral of ln(1 + z/z0), z0 = " << cf_loglaw_z0 << " m)\n";
+            } else {
+                amrex::Warning("erf.cf_loglaw_fill has no effect without refined levels (amr.max_level > 0)");
+            }
+        }
         if (perturbation_auto && any_perturbation() &&
             (terrain_type == TerrainType::EB || terrain_type == TerrainType::ImmersedForcing)) {
             amrex::Abort("Automatic perturbations currently support flat, stretched, and fitted-terrain meshes; "
@@ -2542,6 +2598,9 @@ struct SolverChoice {
     amrex::Real if_psi_cap_factor        = amrex::Real(1.0);  // [-]
     amrex::Real if_small_volfrac         = amrex::Real(0.005);  // [-] eb2.small_volfrac
     std::string if_average_down          = "plain";  // or fluid_mass
+    amrex::Real if_cf_mismatch_warning   = amrex::Real(0.75); // erf.if_cf_mismatch_warning: c/f surface mismatch threshold
+    bool        cf_loglaw_fill           = false;    // erf.cf_loglaw_fill: log-law share of the wall coarse face's flux
+    amrex::Real cf_loglaw_z0             = amrex::Real(-1.0); // erf.cf_loglaw_z0 [m]; < 0: resolved from if_z0 / most.z0
 
     // This defaults to true but can be set to false for moving terrain cases only
     bool        use_lagged_delta_rt   = true;
@@ -2992,6 +3051,17 @@ struct SolverChoice {
  * @brief Cell average down over immersed-forcing levels: "plain" (the default, the plain cell
  *        average) or "fluid_mass" (the fine cells weighted by their fluid mass, coarse cells solid
  *        on their own level kept; see if_average_down in ERF_Utils.H).
+ * @var SolverChoice::if_cf_mismatch_warning
+ * @brief Spread of the fine solid fractions under a coarse cell along a lateral coarse/fine face
+ *        at or above which the start-up warning counts the cell (the levels describe the surface
+ *        differently there); 0 turns the check off.
+ * @var SolverChoice::cf_loglaw_fill
+ * @brief Share the flux of the first coarse face above a wall among its fine sub-faces at the
+ *        lateral coarse/fine faces by ln(1 + z/z0) at their heights above the wall, instead of the
+ *        linear interpolation; the immersed surface or a surface-layer bottom, constant dz.
+ * @var SolverChoice::cf_loglaw_z0
+ * @brief Roughness length [m] of that share; by default erf.if_z0 with immersed forcing, else
+ *        the inputs' erf.most.z0 or erf.zlo.most.z0 (0.1 m when neither is given).
  * @var SolverChoice::if_small_volfrac
  * @brief Immersed-forcing solid fraction below which a cell or face counts as fluid; read from
  *        eb2.small_volfrac (default 0.005), the same value the EB build uses.
