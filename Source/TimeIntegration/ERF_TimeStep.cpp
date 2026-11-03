@@ -176,8 +176,7 @@ ERF::timeStep (int lev, double time, int /*iteration*/)
         FillPatchCrseLevel(lev, time, {&S_new, &U_new, &V_new, &W_new});
     } else if (lev < finest_level) {
         FillPatchFineLevel(lev, time, {&S_new, &U_new, &V_new, &W_new},
-                           {&S_new, &rU_new[lev], &rV_new[lev], &rW_new[lev]},
-                           base_state[lev], base_state[lev]);
+                           {&S_new, &rU_new[lev], &rV_new[lev], &rW_new[lev]});
     }
 
     if (regrid_int > 0)  // We may need to regrid

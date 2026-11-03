@@ -113,13 +113,6 @@ namespace plotfile2d { struct Plotfile2DOutputDescriptor; }
 namespace erf_sbm { class SBMStateManager; class SBMTransport; }
 
 /**
- * Enum of possible interpolation types between coarse/fine
-*/
-AMREX_ENUM(StateInterpType,
-    FullState, Perturbational
-);
-
-/**
  * Main class in ERF code, instantiated from main.cpp
 */
 
@@ -1131,11 +1124,11 @@ public:
     void AverageDownTo (int crse_lev,
                         int scomp,
                         int ncomp,
-                        bool do_perturbational_and_momenta = true); // NOLINT
+                        bool do_full_state_and_momenta = true); // NOLINT
 
     /*! \brief Conservation-preserving fine-to-coarse average of RhoTheta and
      *  the active moist conserved components using detJ/mfac weighting, reusing
-     *  AverageDownTo with perturbational-state and momentum handling disabled. */
+     *  AverageDownTo with the full-state component checks and the momentum average-down disabled. */
     void AverageDownMoistStateTo (int crse_lev);
 
     // Write checkpoint file to disk
@@ -1270,8 +1263,6 @@ private:
     void FillPatchFineLevel (int lev, double time,
                              const amrex::Vector<amrex::MultiFab*>& mfs_vel,
                              const amrex::Vector<amrex::MultiFab*>& mfs_mom,
-                             const amrex::MultiFab& old_base_state,
-                             const amrex::MultiFab& new_base_state,
                              bool fillset=true, bool cons_only=false);
 
     // Compute new multifabs by copying data from valid region and filling ghost cells.
@@ -2093,8 +2084,6 @@ private:
 
     int file_name_digits = 5;
     bool use_real_time_in_pltname = false;
-
-    static StateInterpType interpolation_type;
 
     // NetCDF initialization (wrfinput) file
     static amrex::Vector<amrex::Vector<std::string>> nc_init_file;

@@ -132,8 +132,7 @@ void ERF::advance_microphysics (int lev,
             MultiFab& W_new = vars_new[lev][Vars::zvel];
             FillPatchFineLevel(lev, time + dt_advance,
                                {&cons, &U_new, &V_new, &W_new},
-                               {&cons, &rU_new[lev], &rV_new[lev], &rW_new[lev]},
-                               base_state[lev], base_state[lev]);
+                               {&cons, &rU_new[lev], &rV_new[lev], &rW_new[lev]});
         } else {
             cons.FillBoundary(geom[lev].periodicity());
         }

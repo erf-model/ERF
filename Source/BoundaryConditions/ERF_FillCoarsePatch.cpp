@@ -37,7 +37,6 @@ ERF::FillCoarsePatch (int lev, double time)
                            &vars_new[lev-1][Vars::yvel], &vars_new[lev-1][Vars::zvel]},
                           {&vars_new[lev-1][Vars::cons],
                            &rU_new[lev-1], &rV_new[lev-1], &rW_new[lev-1]},
-                           base_state[lev-1], base_state[lev-1],
                            false, cons_only);
     }
 
