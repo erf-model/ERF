@@ -31,7 +31,8 @@ shortwave forcing while retaining the column solver's atmospheric fluxes and
 heating. It is not a three-dimensional atmospheric radiative-transfer solve.
 
 Let :math:`h(x,y)` be the terrain elevation, :math:`\boldsymbol{s}` the unit
-vector toward the sun in grid coordinates, and :math:`\mu=s_z`. The upward
+vector toward the sun at the radiation interval's midpoint in grid coordinates,
+and :math:`\bar\mu` RRTMGP's interval-averaged zenith cosine. The upward
 terrain normal and nonnegative incidence cosine are
 
 .. math::
@@ -39,20 +40,23 @@ terrain normal and nonnegative incidence cosine are
    \boldsymbol{n} = \frac{(-h_x,-h_y,1)}{\sqrt{1+h_x^2+h_y^2}},
    \qquad I = \max(0,\boldsymbol{n}\cdot\boldsymbol{s}).
 
-For :math:`\mu>10^{-4}`, with both corrections enabled, the surface shortwave
-flux is
+For :math:`\bar\mu>10^{-4}`, with both corrections enabled, the surface
+shortwave flux is
 
 .. math::
 
    F_{\mathrm{SW,terrain}} = F_{\mathrm{diffuse}}
-       + (1-S)\,\frac{I}{\mu}\,F_{\mathrm{direct,horizontal}},
+       + (1-S)\,\frac{I}{\bar\mu}\,F_{\mathrm{direct,horizontal}},
 
-where :math:`S=1` if terrain obstructs the ray toward the sun and :math:`S=0`
-otherwise. Disabling shading sets :math:`S=0`; disabling the slope correction
-replaces :math:`I/\mu` with 1. At night and near the horizon
-(:math:`\mu\leq10^{-4}`), the correction is bypassed, with shadow mask 0 and
-direct factor 1. A surface facing away from the sun has :math:`I=0` even when
-no other terrain casts a shadow on it.
+where :math:`S=1` if terrain obstructs the ray toward the sun or the midpoint
+sun has :math:`s_z\leq10^{-4}`, and :math:`S=0` otherwise. ERF sets :math:`I=0`
+at that midpoint cutoff. Disabling shading sets :math:`S=0`; disabling the
+slope correction replaces :math:`I/\bar\mu` with 1. When the averaged cosine
+is at or below :math:`10^{-4}`, the correction is bypassed, with shadow mask 0
+and direct factor 1. The midpoint sun can be below its cutoff while the
+interval-averaged cosine remains above its cutoff; then the direct factor is 0
+when either correction is enabled. A surface facing away from the sun has
+:math:`I=0` even when no other terrain casts a shadow on it.
 
 RRTMGP's visible and near-infrared direct fluxes receive the same factor.
 Their diffuse components are preserved, and the corrected components supply

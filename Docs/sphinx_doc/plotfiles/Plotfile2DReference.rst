@@ -150,7 +150,8 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``Radiation``
      - ``1``
      - ``FillMinus999WhenUnavailable``
-     - Terrain blocks direct sunlight (1 blocked, 0 unblocked; 0 at night)
+     - Direct sunlight blocked by terrain, or by a midpoint sun below the
+       cutoff when the averaged cosine exceeds it (1 blocked, 0 otherwise)
    * - ``terrain_direct_factor``
      - ``Radiation``
      - ``1``
@@ -597,9 +598,11 @@ effects.
 ``terrain_direct_factor`` multiplies the horizontal direct shortwave flux.
 It is 0 in a cast shadow and can exceed 1 on a sun-facing slope.
 ``terrain_incidence`` is the nonnegative cosine of the angle between the sun
-direction and the terrain normal. At night and near the horizon (vertical
-sun-direction component at or below ``1.e-4``), ERF bypasses both corrections:
-the mask is 0, direct factor is 1, and incidence is 0. Thus mask 0 alone does
+direction and the terrain normal. If RRTMGP's interval-averaged zenith cosine
+is at or below ``1.e-4``, the mask is 0 and the direct factor is 1. If the
+midpoint sun is at or below the same cutoff while the averaged cosine is above
+it, incidence is 0 and the direct factor is 0; the mask is 1 when shading is
+enabled and 0 when only slope correction is enabled. Thus mask 0 alone does
 not imply daytime illumination.
 
 ``unshaded_sw_flux_dn`` and ``terrain_sw_flux_dn`` are the total downwelling

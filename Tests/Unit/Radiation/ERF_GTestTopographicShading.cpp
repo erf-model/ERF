@@ -161,6 +161,30 @@ TEST(TopographicShading, SlopeUsesRadiationIntervalCosine)
     EXPECT_NEAR(c.topo.diagnostics(0)->min(T::TerrainSW),100+300*expected,tol);
 }
 
+TEST(TopographicShading, MidpointNightWithAveragedSunRemovesDirectBeam)
+{
+    TerrainCase c;
+    c.terrain(0); c.initialize();
+    c.choice.fixed_mu = -1;
+    c.topo.set_sun(0,1.0,0);
+    c.topo.raw(0)->setVal(Real(0.25),T::CosZen,1);
+    c.topo.apply(0,c.choice,{});
+    EXPECT_EQ(c.topo.diagnostics(0)->min(T::Shadow),1);
+    EXPECT_EQ(c.topo.diagnostics(0)->max(T::Incidence),0);
+    EXPECT_EQ(c.topo.diagnostics(0)->max(T::DirectFactor),0);
+    EXPECT_EQ(c.topo.diagnostics(0)->min(T::TerrainSW),100);
+
+    c.choice.topo_shading = false;
+    c.topo.apply(0,c.choice,{});
+    EXPECT_EQ(c.topo.diagnostics(0)->max(T::Shadow),0);
+    EXPECT_EQ(c.topo.diagnostics(0)->max(T::DirectFactor),0);
+
+    c.topo.raw(0)->setVal(Real(0),T::CosZen,1);
+    c.topo.apply(0,c.choice,{});
+    EXPECT_EQ(c.topo.diagnostics(0)->max(T::Shadow),0);
+    EXPECT_EQ(c.topo.diagnostics(0)->min(T::DirectFactor),1);
+}
+
 TEST(TopographicShading, SearchDistanceAndPeriodicBoundary)
 {
     TerrainCase c(true);
