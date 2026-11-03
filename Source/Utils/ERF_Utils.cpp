@@ -1,5 +1,8 @@
 #include "ERF_Utils.H"
 
+#include <AMReX_MultiFabUtil.H>
+#include <AMReX_Reduce.H>
+
 using namespace amrex;
 
 /**
@@ -199,5 +202,159 @@ if_average_down (const MultiFab& S_fine, MultiFab& S_crse,
                 }
             }
         });
+    }
+}
+
+std::pair<int, Real>
+if_cf_surface_mismatch (const MultiFab& fine_tb,
+                        const BoxArray& fine_grids,
+                        const BoxArray& crse_grids,
+                        const DistributionMapping& crse_dmap,
+                        const Geometry& crse_geom,
+                        const IntVect& ratio,
+                        Real warn)
+{
+    const IntVect rr = ratio;
+    const iMultiFab covered = makeFineMask(crse_grids, crse_dmap, IntVect(1,1,0), fine_grids, rr,
+                                           crse_geom.periodicity(), 0, 1);
+
+    // spread of the fine fractions under each coarse cell, formed on the coarsened fine layout
+    MultiFab ftmp(amrex::coarsen(fine_grids, rr), fine_tb.DistributionMap(), 1, 0);
+    const int rx = rr[0], ry = rr[1], rz = rr[2];
+    for (MFIter mfi(ftmp, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        auto const s = ftmp.array(mfi);
+        auto const f = fine_tb.const_array(mfi);
+        ParallelFor(mfi.tilebox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            Real bmin = Real(one), bmax = Real(zero);
+            for (int kk = k*rz; kk < (k+1)*rz; ++kk) {
+            for (int jj = j*ry; jj < (j+1)*ry; ++jj) {
+            for (int ii = i*rx; ii < (i+1)*rx; ++ii) {
+                const Real b = amrex::min(amrex::max(f(ii,jj,kk), Real(zero)), Real(one));
+                bmin = amrex::min(bmin, b);
+                bmax = amrex::max(bmax, b);
+            }}}
+            s(i,j,k) = bmax - bmin;
+        });
+    }
+    MultiFab spread(crse_grids, crse_dmap, 1, 0);
+    spread.setVal(zero);
+    spread.ParallelCopy(ftmp, 0, 0, 1);
+
+    const Box& dom = crse_geom.Domain();
+    const int per_x = crse_geom.isPeriodic(0), per_y = crse_geom.isPeriodic(1);
+    const int dlo_x = dom.smallEnd(0), dhi_x = dom.bigEnd(0), dlo_y = dom.smallEnd(1), dhi_y = dom.bigEnd(1);
+    ReduceOps<ReduceOpSum, ReduceOpMax> reduce_op;
+    ReduceData<int, Real> reduce_data(reduce_op);
+    using ReduceTuple = typename decltype(reduce_data)::Type;
+    for (MFIter mfi(spread, TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+        auto const m  = covered.const_array(mfi);
+        auto const sp = spread.const_array(mfi);
+        reduce_op.eval(mfi.tilebox(), reduce_data, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> ReduceTuple
+        {
+            if (m(i,j,k) != 1) { return {0, Real(zero)}; }
+            const bool edge = ((per_x || i > dlo_x) && m(i-1,j,k) == 0) || ((per_x || i < dhi_x) && m(i+1,j,k) == 0)
+                           || ((per_y || j > dlo_y) && m(i,j-1,k) == 0) || ((per_y || j < dhi_y) && m(i,j+1,k) == 0);
+            if (!edge) { return {0, Real(zero)}; }
+            return {(sp(i,j,k) >= warn) ? 1 : 0, sp(i,j,k)};
+        });
+    }
+    ReduceTuple hv = reduce_data.value(reduce_op);
+    int  nflagged = amrex::get<0>(hv);
+    Real worst    = amrex::get<1>(hv);
+    ParallelDescriptor::ReduceIntSum(nflagged);
+    ParallelDescriptor::ReduceRealMax(worst);
+    return {nflagged, worst};
+}
+
+void
+if_balance_cf_fluxes (const Geometry& geom,
+                      const Vector<BoxArray>& subdomains,
+                      const BoxArray& grids,
+                      const Array<MultiFab*, 3>& mom,
+                      const Array<const iMultiFab*, 3>& mask,
+                      const Array<int, 3>& set_val,
+                      const MultiFab& tbmf)
+{
+    const int nsub = static_cast<int>(subdomains.size());
+    const Box dom = geom.Domain();
+    const auto dxl = geom.CellSizeArray();
+    const Real area[3] = {dxl[1]*dxl[2], dxl[0]*dxl[2], dxl[0]*dxl[1]};
+
+    // subdomain of each fine box
+    std::vector<int> box_sub(grids.size(), -1);
+    for (int b = 0; b < static_cast<int>(grids.size()); ++b) {
+        for (int isub = 0; isub < nsub; ++isub) {
+            if (subdomains[isub].contains(grids[b])) { box_sub[b] = isub; break; }
+        }
+    }
+
+    // A face counts when the fill set it (mask == set_val), it is a lo or hi face of its box in its
+    // direction, and it is not on a non-periodic side of the domain (nothing is filled there; a
+    // periodic side can hold a coarse/fine face, whose coarse neighbour is across the boundary).
+    // net inflow and open (fluid) c/f area per subdomain
+    std::vector<Real> net(nsub, Real(0.0)), open(nsub, Real(0.0));
+    for (int dir = 0; dir < 3; ++dir) {
+        const int sval = set_val[dir];
+        const iMultiFab& msk = *mask[dir];
+        const int di = (dir == 0), dj = (dir == 1), dk = (dir == 2);
+        const bool per = geom.isPeriodic(dir);
+        const int dlo = dom.smallEnd(dir), dhi = dom.bigEnd(dir) + 1;
+        for (MFIter mfi(*mom[dir]); mfi.isValid(); ++mfi) {
+            const int isub = box_sub[mfi.index()];
+            if (isub < 0) { continue; }
+            const Box vb = mfi.validbox();
+            const int flo = vb.smallEnd(dir), fhi = vb.bigEnd(dir);
+            auto const m  = mom[dir]->const_array(mfi);
+            auto const mk = msk.const_array(mfi);
+            auto const tb = tbmf.const_array(mfi);
+            const Real a  = area[dir];
+            ReduceOps<ReduceOpSum,ReduceOpSum> reduce_op;
+            ReduceData<Real,Real> reduce_data(reduce_op);
+            reduce_op.eval(vb, reduce_data,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> GpuTuple<Real,Real>
+            {
+                const int f = (dir == 0) ? i : ((dir == 1) ? j : k);
+                if (mk(i,j,k) != sval || (f != flo && f != fhi) || (!per && (f == dlo || f == dhi))) {
+                    return {Real(0.0), Real(0.0)};
+                }
+                const Real sgn = (f == flo) ? Real(1.0) : Real(-1.0);
+                const bool solid = (tb(i,j,k) >= Real(1.0)) || (tb(i-di,j-dj,k-dk) >= Real(1.0));
+                return {sgn * m(i,j,k) * a, solid ? Real(0.0) : a};
+            });
+            auto hv = reduce_data.value(reduce_op);
+            net[isub]  += amrex::get<0>(hv);
+            open[isub] += amrex::get<1>(hv);
+        }
+    }
+    ParallelDescriptor::ReduceRealSum(net.data(),  nsub);
+    ParallelDescriptor::ReduceRealSum(open.data(), nsub);
+
+    // take the net inflow off the open faces: -sgn * c on each, c = net / open area
+    for (int dir = 0; dir < 3; ++dir) {
+        const int sval = set_val[dir];
+        const iMultiFab& msk = *mask[dir];
+        const int di = (dir == 0), dj = (dir == 1), dk = (dir == 2);
+        const bool per = geom.isPeriodic(dir);
+        const int dlo = dom.smallEnd(dir), dhi = dom.bigEnd(dir) + 1;
+        for (MFIter mfi(*mom[dir]); mfi.isValid(); ++mfi) {
+            const int isub = box_sub[mfi.index()];
+            if (isub < 0 || !(open[isub] > Real(0.0))) { continue; }
+            const Real c = net[isub] / open[isub];
+            const Box vb = mfi.validbox();
+            const int flo = vb.smallEnd(dir), fhi = vb.bigEnd(dir);
+            auto const m  = mom[dir]->array(mfi);
+            auto const mk = msk.const_array(mfi);
+            auto const tb = tbmf.const_array(mfi);
+            ParallelFor(vb, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                const int f = (dir == 0) ? i : ((dir == 1) ? j : k);
+                if (mk(i,j,k) != sval || (f != flo && f != fhi) || (!per && (f == dlo || f == dhi))) { return; }
+                const bool solid = (tb(i,j,k) >= Real(1.0)) || (tb(i-di,j-dj,k-dk) >= Real(1.0));
+                if (solid) { return; }
+                const Real sgn = (f == flo) ? Real(1.0) : Real(-1.0);
+                m(i,j,k) -= sgn * c;
+            });
+        }
     }
 }

@@ -1033,8 +1033,11 @@ void ERF::FillSetMomentaCF (int lev, double time_d, MultiFab& xmom, MultiFab& ym
 {
     BL_PROFILE("ERF::FillSetMomentaCF()");
     PhysBCFunctNoOp null_bc;
+    set_cf_fill_options(lev, true);
     FillSetHorizontalMomentaCF(lev, time_d, xmom, ymom);
     FPr_w[lev-1].FillSet(zmom, time_d, null_bc, domain_bcs_type);
+    set_cf_fill_options(lev, false);
+    balance_cf_fluxes(lev, xmom, ymom, zmom);
 
     if (!solverChoice.anelastic[lev] || solverChoice.mesh_type != MeshType::VariableDz) { return; }
 
@@ -1090,4 +1093,71 @@ void ERF::FillSetMomentaCF (int lev, double time_d, MultiFab& xmom, MultiFab& ym
             });
         }
     }
+}
+
+/**
+ * Give the face fills of level lev (FPr_u/v/w[lev-1]) the options of the immersed forcing for the
+ * set fills that follow, or clear them (on = false), so that the relax fills never see them:
+ *
+ *   erf.if_cf_fill = fluid:  the fine solid fraction, when the terrain or the buildings are
+ *       immersed and the level is anelastic. The anelastic update holds fully solid cells still,
+ *       so a coarse/fine face next to one must carry no flux, while the coarse face over it may be
+ *       open (a coarse cell half solid over fine cells that are all solid and all fluid). The fill
+ *       then closes those faces and moves their flux to the fluid faces of the same coarse face
+ *       (ERFFillPatcher::InterpFace).
+ *   erf.cf_loglaw_fill:  the log-law share of the wall coarse face's flux among its fine
+ *       sub-faces, from the immersed surface (the solid fraction) or the bottom of the domain.
+ *
+ * @param lev Fine level whose coarse/fine faces are filled
+ * @param on  Set the options (true) or clear them (false)
+ */
+void
+ERF::set_cf_fill_options (int lev, bool on)
+{
+    if (lev < 1) { return; }
+    const bool immersed = (solverChoice.terrain_type   == TerrainType::ImmersedForcing ||
+                           solverChoice.buildings_type == BuildingsType::ImmersedForcing);
+    const bool have_tb = immersed && terrain_blanking[lev];
+    const bool fluid   = on && have_tb && solverChoice.if_cf_fill == "fluid" && solverChoice.anelastic[lev];
+    const bool loglaw  = on && solverChoice.cf_loglaw_fill && (!immersed || have_tb);
+    const MultiFab* tb      = fluid   ? terrain_blanking[lev].get() : nullptr;
+    const MultiFab* wall_tb = have_tb ? terrain_blanking[lev].get() : nullptr;
+    for (ERFFillPatcher* fp : {&FPr_u[lev-1], &FPr_v[lev-1], &FPr_w[lev-1]}) {
+        fp->SetSolidFraction(tb);
+        fp->SetLogLawFill(loglaw, solverChoice.cf_loglaw_z0, wall_tb);
+    }
+}
+
+/**
+ * Immersed forcing with the anelastic model (erf.if_cf_fill = fluid): after the coarse/fine faces
+ * of level lev are filled from the coarse level, remove the net mass flux through them, subdomain
+ * by subdomain. The coarse level zeroes its faces between two fully solid cells after its
+ * projection, so the coarse fluxes around a fine box whose coarse/fine faces cross the solid do not
+ * sum to zero; the fine projection (Neumann at the coarse/fine faces, singular) would then subtract
+ * the mean of its right-hand side, i.e. spread the imbalance as a uniform divergence, which
+ * advects a uniform theta into a spurious heat source. The net inflow is taken off the fluid
+ * coarse/fine faces in equal parts per unit area (less inflow, more outflow); faces on a
+ * non-periodic side of the domain and faces next to a fully solid cell are left alone. The fine
+ * faces of a coarse face then no longer average to it exactly: the difference is the one uniform
+ * correction per subdomain.
+ *
+ * @param lev  Fine level
+ * @param xmom x-momentum of level lev (coarse/fine faces filled)
+ * @param ymom y-momentum of level lev (coarse/fine faces filled)
+ * @param zmom z-momentum of level lev (coarse/fine faces filled)
+ */
+void
+ERF::balance_cf_fluxes (int lev, MultiFab& xmom, MultiFab& ymom, MultiFab& zmom)
+{
+    if (lev < 1 || solverChoice.if_cf_fill != "fluid" || !solverChoice.anelastic[lev]) { return; }
+    const bool immersed = (solverChoice.terrain_type   == TerrainType::ImmersedForcing ||
+                           solverChoice.buildings_type == BuildingsType::ImmersedForcing);
+    if (!(immersed && terrain_blanking[lev])) { return; }
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!subdomains[lev].empty(),
+        "balance_cf_fluxes: the subdomains of the level are not built yet");
+
+    if_balance_cf_fluxes(geom[lev], subdomains[lev], grids[lev], {&xmom, &ymom, &zmom},
+                         {FPr_u[lev-1].GetMask(), FPr_v[lev-1].GetMask(), FPr_w[lev-1].GetMask()},
+                         {FPr_u[lev-1].GetSetMaskVal(), FPr_v[lev-1].GetSetMaskVal(), FPr_w[lev-1].GetSetMaskVal()},
+                         *terrain_blanking[lev]);
 }

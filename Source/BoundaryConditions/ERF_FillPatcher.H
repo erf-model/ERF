@@ -98,6 +98,32 @@ public:
     int GetSetMaskVal () { return m_set_mask; }
 
     /**
+     * Solid fraction of the fine level (immersed forcing, 1 = solid) for the face fill
+     * (erf.if_cf_fill = fluid): when set, InterpFace closes the fine coarse/fine faces next to a
+     * fully solid fine cell and puts their flux on the fluid fine faces of the same coarse face,
+     * so no flux enters a solid fine cell and the fine faces still carry the coarse flux.
+     * nullptr (the default) leaves the fill as it was.
+     *
+     * @param[in] tblank fine solid fraction, with at least one ghost cell, or nullptr
+     */
+    void SetSolidFraction (amrex::MultiFab const* tblank) { m_tblank = tblank; }
+
+    /**
+     * Log-law fill of the lateral coarse/fine faces next to a wall (erf.cf_loglaw_fill): the flux
+     * of the first coarse face above the wall is shared among its fine sub-faces in proportion to
+     * ln(1 + z/z0) at their heights above the wall, so the flux of every coarse face is kept.
+     *
+     * @param[in] on          enable the log-law fill (constant dz only)
+     * @param[in] z0          roughness length [m]
+     * @param[in] wall_tblank fine solid fraction giving the wall height (immersed forcing), or
+     *                        nullptr for a wall at the bottom of the domain
+     */
+    void SetLogLawFill (bool on, amrex::Real z0, amrex::MultiFab const* wall_tblank)
+    {
+        m_loglaw = on; m_loglaw_z0 = z0; m_loglaw_tblank = wall_tblank;
+    }
+
+    /**
      * Return the mask value for the relax region.
      */
     int GetRelaxMaskVal () { return m_relax_mask; }
@@ -163,6 +189,10 @@ private:
     std::unique_ptr<amrex::MultiFab> m_cf_crse_data_old;
     std::unique_ptr<amrex::MultiFab> m_cf_crse_data_new;
     std::unique_ptr<amrex::iMultiFab> m_cf_mask;
+    amrex::MultiFab const* m_tblank = nullptr;         // fine solid fraction (SetSolidFraction)
+    bool m_loglaw = false;                              // log-law c/f fill (SetLogLawFill)
+    amrex::Real m_loglaw_z0 = amrex::Real(0.1);
+    amrex::MultiFab const* m_loglaw_tblank = nullptr;
     amrex::Vector<double> m_crse_times;
     double m_dt_crse;
     int m_set_mask{2};

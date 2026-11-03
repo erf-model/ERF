@@ -108,6 +108,13 @@ if(ERF_ENABLE_TESTS)
   target_link_libraries(erf_immersed_average_down_check PRIVATE AMReX::amrex)
   target_compile_features(erf_immersed_average_down_check PRIVATE cxx_std_17)
 
+  # Motivation: the coarse/fine fill over immersed levels must leave no net heat source; checked
+  # on the plotfile instead of a gold file, with a leg that proves the plain fill fails the check.
+  add_executable(erf_immersed_cf_heat_balance_check
+    ${CMAKE_CURRENT_SOURCE_DIR}/ImmersedCFHeatBalanceCheck.cpp)
+  target_link_libraries(erf_immersed_cf_heat_balance_check PRIVATE AMReX::amrex)
+  target_compile_features(erf_immersed_cf_heat_balance_check PRIVATE cxx_std_17)
+
   # Motivation: the chamber regressions must prove the initializer is wired
   # into a real 3-D run and that the SatAdj deck forms finite cloud water.
   add_executable(erf_cloud_chamber_check

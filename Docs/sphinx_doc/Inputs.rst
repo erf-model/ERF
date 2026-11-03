@@ -3959,6 +3959,22 @@ selected with ``erf.terrain_type`` = ``ImmersedForcing`` or
 |                                   | momenta keep the plain average either way; needs         |                    |                  |
 |                                   | amr.max_level > 0 and two-way coupling to act            |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_cf_fill**                | fill of the coarse/fine faces of refined levels:         | ``plain``,         | ``plain``        |
+|                                   | ``plain`` is the fill as it was; ``fluid`` closes the    | ``fluid``          |                  |
+|                                   | fine faces next to fully solid fine cells, moves their   |                    |                  |
+|                                   | flux to the fluid fine faces of the same coarse face     |                    |                  |
+|                                   | (or the next one up the column) and removes the net      |                    |                  |
+|                                   | mass flux through the coarse/fine faces of each fine     |                    |                  |
+|                                   | subdomain from its fluid faces, so the fine projection   |                    |                  |
+|                                   | sees a balanced boundary; anelastic levels on a          |                    |                  |
+|                                   | constant-dz mesh; needs amr.max_level > 0 to act         |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.if_cf_mismatch_warning**    | warn at start-up where a lateral coarse/fine boundary    | 0 <= Real <= 1     | 0.75             |
+|                                   | crosses the immersed surface so that the levels          |                    |                  |
+|                                   | describe it differently: counts the coarse cells along   |                    |                  |
+|                                   | those faces whose fine solid fractions spread (max -     |                    |                  |
+|                                   | min) by at least this; 0 turns the check off             |                    |                  |
++-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_damp_alpha**             | damping coefficient used in the immersed forcing wall    | Real               | 0.5              |
 |                                   | model                                                    |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
@@ -4442,6 +4458,20 @@ List of Parameters
 | **erf.coupling_type**  | how data is exchanged between AMR levels.  Forced to     | OneWay, TwoWay     | TwoWay           |
 |                        | ``OneWay`` if some levels are anelastic and others       |                    |                  |
 |                        | compressible                                             |                    |                  |
++------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.cf_loglaw_fill** | lateral coarse/fine faces next to a wall (the immersed   | Boolean            | false            |
+|                        | surface, or a ``surface_layer`` bottom; constant dz, not |                    |                  |
+|                        | EB terrain): share the flux of the first coarse face     |                    |                  |
+|                        | above the wall among its fine sub-faces by               |                    |                  |
+|                        | ln(1 + z/z0) at the heights of their fluid centroids     |                    |                  |
+|                        | above the wall, instead of the linear interpolation,     |                    |                  |
+|                        | which gives the fine face at the wall too much flow;     |                    |                  |
+|                        | the flux of every coarse face is kept                    |                    |                  |
++------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.cf_loglaw_z0**   | roughness length [m] of that share; only with            | Real > 0           | erf.if_z0 with   |
+|                        | erf.cf_loglaw_fill = true                                |                    | immersed forcing,|
+|                        |                                                          |                    | else erf.most.z0 |
+|                        |                                                          |                    | (0.1 if not set) |
 +------------------------+----------------------------------------------------------+--------------------+------------------+
 
 Notes
@@ -5783,7 +5813,7 @@ Equation Set
 ------------
 
 * :ref:`Coupling Type (Data Exchange) <inputs-coupling-type-data-exchange>` --
-  ``erf.coupling_type``
+  ``erf.cf_loglaw_fill``, ``erf.cf_loglaw_z0``, ``erf.coupling_type``
 * :ref:`Forcing Terms <inputs-forcing-terms>` -- ``erf.use_gravity``
 * :ref:`Governing Equations <inputs-governing-equations>` -- ``erf.anelastic``,
   ``erf.buoyancy_type``, ``erf.c_p``, ``erf.fixed_density``, ``erf.gradp_type``,
@@ -5860,7 +5890,8 @@ Immersed Forcing and Canopy Source Terms
 * :ref:`Terrain <inputs-terrain>` -- ``erf.if_Cd_momentum``, ``erf.if_Cd_scalar``,
   ``erf.if_Olen``, ``erf.if_damp_alpha``, ``erf.if_implicit_drag``, ``erf.if_implicit_projection``,
   ``erf.if_init_surf_temp``, ``erf.if_stability_correction``, ``erf.if_surf_heating_rate``,
-  ``erf.if_average_down``, ``erf.if_snap_partial_cells``, ``erf.if_surf_temp_flux``, ``erf.if_use_most``,
+  ``erf.if_average_down``, ``erf.if_cf_fill``, ``erf.if_cf_mismatch_warning``,
+  ``erf.if_snap_partial_cells``, ``erf.if_surf_temp_flux``, ``erf.if_use_most``,
   ``erf.if_ws_floor``, ``erf.if_z0``,
   ``erf.immersed_forcing_substep``, ``erf.use_rotate_surface_flux``
 

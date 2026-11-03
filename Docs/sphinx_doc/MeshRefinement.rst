@@ -19,6 +19,15 @@ For coarse-to-fine communication we provide "ghost cell" data for cell-centered 
 the fine level by interpolating in space and time outside the region covered by the fine level.
 We also interpolate the normal momentum from coarse to fine on the coarse-fine interface itself;
 this ensures mass conservation since the normal momentum is in fact the flux for the density field.
+Next to a wall that interpolation is linear in :math:`z` and does not know the log profile, so the fine face at the
+wall gets too much flow. With ``erf.cf_loglaw_fill = true`` (constant dz; the immersed surface, or a
+``surface_layer`` bottom; not EB terrain) the flux of the first coarse face above the wall is shared among its fine
+sub-faces in proportion to :math:`\ln(1 + z/z_0)` at the heights of their fluid centroids above the wall, with
+:math:`z_0` from ``erf.cf_loglaw_z0`` (by default ``erf.if_z0`` with immersed forcing, else ``erf.most.z0``). The
+flux of every coarse face is kept, so the average down of the coarse/fine faces still returns the coarse values;
+the faces above the wall face keep the linear interpolation.
+(With immersed forcing, ``erf.if_cf_fill = fluid`` closes the fine faces next to solid fine cells and balances the
+net flux through each fine subdomain's coarse/fine faces; see :ref:`Forcings <Forcings>`.)
 In order to ensure that the fine momentum on the coarse-fine boundary stays consistent with the
 interpolated coarse values throughout a fine timestep, we also interpolate the source term for
 the normal momentum on the coarse-fine interface.
