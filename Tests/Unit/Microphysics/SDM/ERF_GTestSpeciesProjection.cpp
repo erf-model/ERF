@@ -76,6 +76,9 @@ void composite_cic_mass_test ()
     }
 }
 
+// Motivation: CIC weight outside physical walls or on covered coarse cells must
+// not lose or duplicate represented particle mass. A unit-mass particle checks
+// composite deposition on both sides of a level edge and across a periodic seam.
 TEST(SpeciesProjection, CompositeCICConservesParticleMassAtWallsAndLevelEdges)
 {
     composite_cic_mass_test();
@@ -184,6 +187,10 @@ void limited_donor_test ()
     }
 }
 
+// Motivation: Several empty fine cells can exhaust one donor's multiplicity.
+// Repopulation must conserve its species mass, retain the donor, discard invalid
+// daughters and choose the same surviving cells on repeated identical inputs,
+// without changing per-particle species, aerosol or runtime metadata.
 TEST(SpeciesProjection, LimitedDonorIsConservativeCompactAndDeterministic)
 {
     limited_donor_test();
@@ -289,6 +296,11 @@ void diagnostic_projection_test ()
     }
 }
 
+// Motivation: Redistribution-only refresh must preserve normal SDM projection
+// semantics, including one_d_z horizontal replication, without mixing density
+// and mixing-ratio representations in ghosts. Sentinel-filled, split/periodic
+// boxes expose stale data while checking that water and conserved vapor stay
+// unchanged in every supported dimensional mode.
 TEST(SpeciesProjection, DiagnosticRefreshMatchesNormalDimensionsAndGhostRepresentation)
 {
     diagnostic_projection_test();

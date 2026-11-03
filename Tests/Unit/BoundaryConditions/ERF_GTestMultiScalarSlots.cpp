@@ -126,6 +126,9 @@ TEST(MultiScalarSlots, EveryScalarGetsTheMolecularDiffusivityOfTheExplicitPath)
     }
 }
 
+// Motivation: Conserved components and BC slots do not advance together when
+// passive scalars share a slot. Grouped implicit ghost fills must match separate
+// per-component fills, including appended species with distinct boundary data.
 TEST(MultiScalarSlots, ImplicitCoarseFineRunsMatchIndependentBoundarySlices)
 {
     using namespace amrex;
@@ -185,6 +188,9 @@ TEST(MultiScalarSlots, ImplicitCoarseFineRunsMatchIndependentBoundarySlices)
     }
 }
 
+// Motivation: Prescribed water-vapor inflow must not become an unintended source
+// of appended species. Their unsupported prescribed inflow remains zero without
+// overwriting valid interior vapor.
 TEST(MultiScalarSlots, AppendedInflowDoesNotInheritWaterVaporExternalValue)
 {
     using namespace amrex;

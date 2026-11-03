@@ -1744,7 +1744,31 @@ if(ERF_ENABLE_PARTICLES AND Python3_Interpreter_FOUND)
         set(_species_tol 2.e-11)
         set(_species_atol 2.e-14)
     endif()
-    foreach(_case column amr phase regrid regrid_splitmerge injection injection_phase)
+    foreach(_case
+        # Motivation: A stiff vapor slab must diffuse conservatively through the
+        # real SDM handoff, agree with resolved explicit evolution, and leave
+        # particle condensate unchanged rather than independently diffusing it.
+        column
+        # Motivation: Coarse/fine stage ghosts and reflux must conserve composite
+        # species mass while particle condensate is counted on its owning level.
+        amr
+        # Motivation: Active phase change must exchange vapor and particle mass
+        # without creating or losing their combined species reservoir.
+        phase
+        # Motivation: Removing and recreating fine coverage must preserve particle
+        # mass and refresh diagnostic condensate on the new composite hierarchy.
+        regrid
+        # Motivation: The same changing hierarchy must conserve represented mass
+        # when AMR splitting, merging and empty-cell repopulation are enabled.
+        regrid_splitmerge
+        # Motivation: Refined and interface-crossing injection must establish
+        # finest-level ownership even without advection, conserve analytic input
+        # mass, and agree with independent particle budgets with split/merge on/off.
+        injection
+        # Motivation: The injection ownership invariant must hold before phase
+        # change, not only before end-of-step deposition, while conserving the
+        # injected vapor-plus-particle reservoir across the same option matrix.
+        injection_phase)
         set(_species_dir "${CMAKE_CURRENT_BINARY_DIR}/test_files/SDM_SpeciesDiffusion_${_case}")
         file(MAKE_DIRECTORY "${_species_dir}")
         add_test(NAME SDM_SpeciesDiffusion_${_case}
@@ -1761,12 +1785,18 @@ if(ERF_ENABLE_PARTICLES AND Python3_Interpreter_FOUND)
             PROCESSORS ${_species_ranks} LABELS "regression;diffusion;particles"
             ATTACHED_FILES_ON_FAIL "${_species_dir}/implicit/simulation.log;${_species_dir}/explicit/simulation.log")
     endforeach()
+    # Motivation: Restart must preserve authoritative vapor and particle-owned
+    # condensate so resumed diffusion matches uninterrupted evolution.
     add_test_restart_parity(SDM_SpeciesDiffusion_Restart SDM_SpeciesDiffusion 2 4
         COMMON_OPTIONS "erf.input_sounding_file=${_species_input}/input_sounding"
         FCOMPARE_RTOL ${_species_tol} FCOMPARE_ATOL ${_species_atol})
+    # Motivation: Restart with AMR and regridding must also preserve particle-level
+    # ownership and composite condensate, not just single-level field values.
     add_test_restart_parity(SDM_SpeciesDiffusion_AMRRestart SDM_SpeciesDiffusion 2 4
         COMMON_OPTIONS "erf.input_sounding_file=${_species_input}/input_sounding amr.max_level=1 amr.ref_ratio=2 erf.refinement_indicators=box1 erf.box1.max_level=1 erf.box1.in_box_lo=0 0 0 erf.box1.in_box_hi=8 4 8 erf.regrid_int=1"
         FCOMPARE_RTOL ${_species_tol} FCOMPARE_ATOL ${_species_atol})
+    # Motivation: Species transport and particle projection must not depend on
+    # whether the same physical domain is stored in one box or split boxes.
     add_test_box_parity(SDM_SpeciesDiffusion_BoxParity SDM_SpeciesDiffusion plt00004
         COMMON_OPTIONS "erf.input_sounding_file=${_species_input}/input_sounding"
         REFERENCE_OPTIONS "amr.max_grid_size=32"

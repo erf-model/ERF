@@ -682,7 +682,9 @@ ERF_GPU_TEST(
     Real(0.0));
 }
 
-// Water identity controls molecular coefficients, not implicit eligibility.
+// Motivation: Water identity controls molecular coefficients, not implicit
+// eligibility. Appended host-owned vapor needs the matching vertical split
+// without molecular diffusion; particle-owned condensate must stay excluded.
 ERF_GPU_TEST(ScalarDiffusionPolicy, MoistRangeFollowsMoistStateSize)
 {
   DiffChoice choice;
@@ -724,7 +726,8 @@ ERF_GPU_TEST(ScalarDiffusionPolicy, MoistRangeFollowsMoistStateSize)
 
 // Motivation: Exercise appended q components through the public N adapter so
 // a fixed Q1-Q11 coefficient lookup, stale primitive extent, or wrong Q eddy
-// component produces a finite, independently checkable failure.
+// component produces a finite, independently checkable failure. Fractional and
+// endpoint stage factors must scale only the explicit vertical contribution.
 ERF_GPU_TEST(
   ScalarDiffusionPolicy,
   ExtendedQStateRunsThroughNativeAdapterWithoutFixedTableLookup)
@@ -2776,6 +2779,11 @@ ERF_GPU_TEST(ScalarDiffusionPrimitives, CanonicalMappedDivergenceTelescopes)
                 std::max(Real(1.0), absolute_sum));
 }
 
+// Motivation: An appended vapor must obey the same density-weighted finite-volume
+// balance as water without acquiring its molecular coefficient or BC slot.
+// An independent two-cell solve checks damping, the constant-ratio nullspace,
+// boundary mass input and stage weighting in Cartesian, stretched and terrain
+// columns, while leaving the neighboring diagnostic condensate untouched.
 ERF_GPU_TEST(ScalarDiffusionPolicy, AppendedVaporConservativeImplicitColumns)
 {
   const Box column(IntVect(0), IntVect(0, 0, 1));
