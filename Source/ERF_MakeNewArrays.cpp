@@ -129,15 +129,20 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         terrain_blanking[lev] = std::make_unique<MultiFab>(ba,dm,1,ngrow);
         terrain_blanking[lev]->setVal(one);
 
-#if USE_FC_FACTORY
-        // Face-centered terrain blanking for momentum forcing
-        terrain_blanking_xface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)),dm,1,ngrow);
-        terrain_blanking_yface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)),dm,1,ngrow);
-        terrain_blanking_zface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,ngrow);
-        terrain_blanking_xface[lev]->setVal(one);
-        terrain_blanking_yface[lev]->setVal(one);
-        terrain_blanking_zface[lev]->setVal(one);
-#endif
+        if (use_native_fc_factories()) {
+            // Face-centered terrain blanking for momentum forcing
+            terrain_blanking_xface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)),dm,1,ngrow);
+            terrain_blanking_yface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,1,0)),dm,1,ngrow);
+            terrain_blanking_zface[lev] = std::make_unique<MultiFab>(convert(ba,IntVect(0,0,1)),dm,1,ngrow);
+            terrain_blanking_xface[lev]->setVal(one);
+            terrain_blanking_yface[lev]->setVal(one);
+            terrain_blanking_zface[lev]->setVal(one);
+        } else {
+            // Null face masks select the existing cell-centered average in the forcing kernels.
+            terrain_blanking_xface[lev].reset();
+            terrain_blanking_yface[lev].reset();
+            terrain_blanking_zface[lev].reset();
+        }
 
         // Initialize planar average storage for immersed forcing
         // Sized to match PlaneAverage output with ghost cells, using same indexing as subsidence
@@ -562,6 +567,10 @@ ERF::init_stuff (int lev, const BoxArray& ba, const DistributionMapping& dm,
         // lie outside the physical domain are never written by anything else, and they are
         // read as interpolation-stencil neighbors when this level is a parent.
         rad_fluxes[lev]->setVal(zero);
+    }
+
+    if (solverChoice.topographicChoice.active()) {
+        topographic_radiation.define_level(lev, ba2d[lev], dm, geom[lev]);
     }
 
     // Two-stream radiation: the model owns its 2D surface and SEB fields.
@@ -1049,21 +1058,32 @@ ERF::init_zphys (int lev, double elapsed_time)
         solverChoice.buildings_type == BuildingsType::ImmersedForcing) {
         make_terrain_blanking(lev);
         check_if_cf_mismatch(lev);
+        const bool forcing_active = immersed_forcing_active(lev);
 
-        init_immersed_forcing(lev); // needed for real cases
+        // Keep imported WRFInput/Metgrid winds in immersed cells at startup.
+        // Where active, momentum forcing relaxes the winds during time stepping
+        // instead of replacing them abruptly during initialization.
+        if (forcing_active &&
+            solverChoice.init_type != InitType::WRFInput &&
+            solverChoice.init_type != InitType::Metgrid) {
+            init_immersed_forcing(lev);
+        }
 
-        // buildings are landmask = 2
-        for (MFIter mfi(*lmask_lev[lev][0]); mfi.isValid(); ++mfi) {
-            const Box& bx2d = mfi.growntilebox();
-            auto lmask_arr = lmask_lev[lev][0]->array(mfi);
-            const auto& t_blank_arr = terrain_blanking[lev]->array(mfi);
+        // Mark immersed solids as landmask = 2 only where their forcing is active.
+        // Immersed terrain has no resolution cutoff.
+        if (forcing_active) {
+            for (MFIter mfi(*lmask_lev[lev][0]); mfi.isValid(); ++mfi) {
+                const Box& bx2d = mfi.growntilebox();
+                auto lmask_arr = lmask_lev[lev][0]->array(mfi);
+                const auto& t_blank_arr = terrain_blanking[lev]->array(mfi);
 
-            amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
-                // Use k=0 for the terrain_blanking field
-                if (t_blank_arr(i, j, 0) > 0.0) {
-                    lmask_arr(i, j, k) = 2;
-                }
-            });
+                amrex::ParallelFor(bx2d, [=] AMREX_GPU_DEVICE(int i, int j, int k) {
+                    // Use k=0 for the terrain_blanking field
+                    if (t_blank_arr(i, j, 0) > 0.0) {
+                        lmask_arr(i, j, k) = 2;
+                    }
+                });
+            }
         }
     }
 
@@ -1185,13 +1205,25 @@ ERF::remake_zphys (int lev, Real time, std::unique_ptr<MultiFab>& temp_zphys_nd)
  * fraction, with fractions below eb2.small_volfrac (almost fluid cells) set to zero in the valid
  * cells and in the ghost cells FillBoundary fills; with the face-centred factories, the same on
  * the faces. A fresh start, a regrid and a restart all build it here, so a restarted run forces
- * the same cells as the run it continues.
+ * the same cells as the run it continues. On levels coarser than the building cutoff, all
+ * allocated masks are zero.
  *
  * @param lev Integer specifying the level
  */
 void
 ERF::make_terrain_blanking (int lev)
 {
+    // Keep allocated masks empty on levels where building forcing is disabled.
+    // IBSEB, plotfiles, and IB-aware PBL schemes still read these masks.
+    if (solverChoice.buildings_type == BuildingsType::ImmersedForcing &&
+        !immersed_forcing_active(lev)) {
+        terrain_blanking[lev]->setVal(zero);
+        if (terrain_blanking_xface[lev]) { terrain_blanking_xface[lev]->setVal(zero); }
+        if (terrain_blanking_yface[lev]) { terrain_blanking_yface[lev]->setVal(zero); }
+        if (terrain_blanking_zface[lev]) { terrain_blanking_zface[lev]->setVal(zero); }
+        return;
+    }
+
     // eb2.small_volfrac, read once in SolverChoice before the EB build, so the blanking, the EB
     // and the forcing kernels share it
     const Real small_volfrac = solverChoice.if_small_volfrac;
@@ -1214,6 +1246,8 @@ ERF::make_terrain_blanking (int lev)
     terrain_blanking[lev]->FillBoundary(geom[lev].periodicity());
 
 #if USE_FC_FACTORY
+    if (!use_native_fc_factories()) { return; }
+
     // Face-centered terrain blanking from face-centered EB volume fractions
     terrain_blanking_xface[lev]->setVal(one);
     terrain_blanking_yface[lev]->setVal(one);

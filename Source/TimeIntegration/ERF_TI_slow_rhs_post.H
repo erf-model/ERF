@@ -74,21 +74,22 @@
                           m_r2d, &base_state[level],
                           cloud_chamber_config.active ? &cloud_chamber_config : nullptr,
                           cloud_chamber_budget.get(), auxiliary_inert_tracer.get(),
-                          sbm_state_manager.get(), sbm_transport.get());
+                          sbm_state_manager.get(), sbm_transport.get(),
+                          ib_wall_face33[level].get(), ib_wall_ktarget[level].get());
 
-        // The components the implicit solves of ERF_ImplicitPost.H diffuse: KE, and every moisture
-        // species the implicit moisture solve covers -- the water species, or qv only with SBM
+        // One component list for the solve, stage ghosts and implicit reflux.
         Vector<int> implicit_post_comps;
         if (solverChoice.vert_implicit_fac[level][nrk] > zero) {
             if (solverChoice.implicit_ke_diffusion && solverChoice.turbChoice[level].use_tke) {
                 implicit_post_comps.push_back(RhoKE_comp);
             }
             if (solverChoice.implicit_moisture_diffusion && solverChoice.moisture_type != MoistureType::None) {
-                const int n_moist = solverChoice.diffChoice.n_qstate_moist;
-                const int n_implicit = (solverChoice.moisture_type == MoistureType::SBM) ? amrex::min(n_moist, 1)
-                                                                                         : n_moist;
-                for (int n = 0; n < n_implicit; ++n) {
-                    implicit_post_comps.push_back(RhoQ1_comp + n);
+                const int q_end = (solverChoice.moisture_type == MoistureType::SBM) ?
+                    RhoQ1_comp + 1 : S_new[IntVars::cons].nComp();
+                for (int n = RhoQ1_comp; n < q_end; ++n) {
+                    if (solverChoice.diffChoice.implicit_q(n)) {
+                        implicit_post_comps.push_back(n);
+                    }
                 }
             }
         }
@@ -200,6 +201,7 @@
             const int num_comp_total = S_rhs[IntVars::cons].nComp();
             const int num_grow       = S_rhs[IntVars::cons].nGrow();
             const int nvars          = S_data[IntVars::cons].nComp();
+            const DiffChoice l_diff_choice = solverChoice.diffChoice;
 
             MultiFab dUdt_tmp(ba, dm, num_comp_total, num_grow, MFInfo(), EBFactory(level));
             dUdt_tmp.setVal(0, 0, num_comp_total, num_grow);
@@ -257,7 +259,9 @@
                         {
                             if (detJ_arr(i,j,k) > zero) {
                                 const int n = start_comp + nn;
-                                snew(i,j,k,n) = sold(i,j,k,n) + sdt * srhs(i,j,k,n);
+                                if (l_diff_choice.host_transports(n)) {
+                                    snew(i,j,k,n) = sold(i,j,k,n) + sdt * srhs(i,j,k,n);
+                                }
                             }
                         });
                     }

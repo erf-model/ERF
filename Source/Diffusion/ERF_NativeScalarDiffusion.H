@@ -31,13 +31,13 @@ ResolveNativeScalarDiffusionPolicy (const int qty_comp, const DiffChoice& choice
     policy.flux_comp   = 0;
     policy.bc_comp     = cons_bc_comp(qty_comp);
     policy.is_theta = (qty_comp == RhoTheta_comp);
-    // Only the water species are in the implicit moisture solve; non-water species
-    // packed after them keep a fully explicit vertical flux
+    // Water identity determines molecular diffusion, independently of ownership
+    // and eligibility for the implicit turbulent vertical solve.
     policy.is_moist = (qty_comp >= RhoQ1_comp && qty_comp < (RhoQ1_comp + choice.n_qstate_moist));
     policy.is_q1    = (qty_comp == RhoQ1_comp);
     policy.is_q2    = (qty_comp == RhoQ2_comp);
     policy.scale_raw_vertical_flux =
-        (policy.is_theta || qty_comp == RhoKE_comp || policy.is_moist);
+        (policy.is_theta || qty_comp == RhoKE_comp || choice.implicit_q(qty_comp));
 
     if (policy.is_theta) {
         policy.coefficients.eddy_h_comp = EddyDiff::Theta_h;

@@ -1,5 +1,6 @@
 #include <random>
 #include "ERF_SuperDropletPC.H"
+#include <AMReX_MultiFabUtil.H>
 
 #ifdef ERF_USE_PARTICLES
 
@@ -244,7 +245,8 @@ void SuperDropletPC::setNumSDBubbleDistribution ( int a_lev,
 */
 void SuperDropletPC::addParticles ( int a_lev,
                                     const MFPtr& a_height_ptr, /*!< terrain */
-                                    const SDInitProperties& a_init /*!< initialization parameters */ )
+                                    const SDInitProperties& a_init, /*!< initialization parameters */
+                                    bool composite_init )
 {
     BL_PROFILE("SuperDropletPC::addParticles");
 
@@ -324,6 +326,19 @@ void SuperDropletPC::addParticles ( int a_lev,
                         << " is not a valid initialization for "
                         << m_name << " particle species.\n";
         amrex::Error("See error message!");
+    }
+
+    iMultiFab exposed;
+    if (composite_init && a_lev < finestLevel()) {
+        exposed = makeFineMask(num_superdroplets, ParticleBoxArray(a_lev+1),
+                               GetParGDB()->refRatio(a_lev), 1, 0);
+        for (MFIter mfi(num_superdroplets); mfi.isValid(); ++mfi) {
+            const auto count = num_superdroplets.array(mfi);
+            const auto mask = exposed.const_array(mfi);
+            ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                if (!mask(i,j,k)) { count(i,j,k) = 0; }
+            });
+        }
     }
 
     iMultiFab offsets( ParticleBoxArray(a_lev),

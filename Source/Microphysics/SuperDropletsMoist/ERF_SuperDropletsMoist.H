@@ -286,6 +286,16 @@ class SuperDropletsMoist : public NullMoistLagrangian {
             return m_qstate_nonmoist_size;
         }
 
+        bool Qstate_Is_Diagnostic (int q) const override
+        {
+            // Water slots participate in the existing total-water handoff.
+            // Appended condensate, unlike appended vapor, is deposited from particles.
+            // This Q-relative pairing matches q_qv_idx/q_qc_idx below.
+            return q >= m_qstate_moist_size && (q - m_qstate_moist_size) % 2 == 1;
+        }
+
+        void Update_Diagnostic_State (amrex::MultiFab&, const amrex::MultiFab&) override;
+
         /*! \brief returns pointer to super-droplets particle container */
         inline virtual ERFPC* getParticleContainer () override
         {
@@ -472,6 +482,7 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
         /*! let initial superdroplets "relax" to a physically-appropriate size? */
         bool m_init_phase_change;
+        bool m_restarted_particles = false;
         /*! time (in seconds) of initial relaxation */
         amrex::Real m_init_phase_change_time;
 

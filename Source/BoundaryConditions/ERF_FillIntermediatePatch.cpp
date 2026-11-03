@@ -522,7 +522,8 @@ ERF::FillCoarseFineGhostsForImplicit (int lev, double time_d,
         Vector<MultiFab*> fmf = {&tmp, &tmp};
         Vector<MultiFab*> cmf = select_time_data(csel, vars_old[lev-1][Vars::cons], vars_new[lev-1][Vars::cons]);
 
-        // One fill per run of contiguous components, over the ghost cells any of them needs.
+        // Each run must be contiguous in both state and BC storage: passive scalars
+        // share one BC slot, while Q slots shift when NSCALARS > 1.
         // cell_cons_interp limits the slopes of each component separately, and the value it
         // gives a fine cell depends only on the coarse data around it, so this gives the same
         // result in each cell as one fill per component over all its ghost cells.
@@ -531,7 +532,7 @@ ERF::FillCoarseFineGhostsForImplicit (int lev, double time_d,
         {
             IntVect ngf = (comps[i0] == Rho_comp) ? ng_rho : ng_solved;
             int i1 = i0 + 1;
-            while (i1 < ncomps && comps[i1] == comps[i1-1] + 1) {
+            while (i1 < ncomps && cons_bc_run_contiguous(comps[i1-1], comps[i1])) {
                 ngf.max((comps[i1] == Rho_comp) ? ng_rho : ng_solved);
                 ++i1;
             }
@@ -543,7 +544,7 @@ ERF::FillCoarseFineGhostsForImplicit (int lev, double time_d,
                                time_rel, cmf, ctime, fmf, ftime,
                                scomp, scomp, ncomp, geom[lev-1], geom[lev],
                                refRatio(lev-1), &cell_cons_interp, domain_bcs_type,
-                               BCVars::cons_bc+scomp);
+                               cons_bc_comp(scomp));
             copy_cf_ghosts(cons, tmp, mask, scomp, ncomp, ngf);
 
             i0 = i1;

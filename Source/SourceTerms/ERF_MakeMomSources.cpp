@@ -847,10 +847,17 @@ void make_mom_sources (double time_d,
         if (solverChoice.terrain_type == TerrainType::ImmersedForcing &&
            ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast))) {
 
-            ImmersedForcingTerrain_Xmom(tbx, u, v, w, cell_data, t_blank_arr, t_blank_xface_arr,
-                                        z_cc_arr, xmom_src_arr, geom, solverChoice, dt);
-            ImmersedForcingTerrain_Ymom(tby, u, v, w, cell_data, t_blank_arr, t_blank_yface_arr,
-                                        z_cc_arr, ymom_src_arr, geom, solverChoice, dt);
+            if (solverChoice.if_fraction_stress) {
+                ImmersedForcingTerrain_Xmom_FractionStress(tbx, u, v, w, cell_data, t_blank_arr, t_blank_xface_arr,
+                                                           xmom_src_arr, geom, solverChoice, dt, time);
+                ImmersedForcingTerrain_Ymom_FractionStress(tby, u, v, w, cell_data, t_blank_arr, t_blank_yface_arr,
+                                                           ymom_src_arr, geom, solverChoice, dt, time);
+            } else {
+                ImmersedForcingTerrain_Xmom(tbx, u, v, w, cell_data, t_blank_arr, t_blank_xface_arr,
+                                            z_cc_arr, xmom_src_arr, geom, solverChoice, dt);
+                ImmersedForcingTerrain_Ymom(tby, u, v, w, cell_data, t_blank_arr, t_blank_yface_arr,
+                                            z_cc_arr, ymom_src_arr, geom, solverChoice, dt);
+            }
             ImmersedForcingTerrain_Zmom(tbz, u, v, w, cell_data, t_blank_arr, t_blank_zface_arr,
                                         z_cc_arr, zmom_src_arr, geom, solverChoice, dt);
         }
@@ -858,12 +865,8 @@ void make_mom_sources (double time_d,
         // *****************************************************************************
         // 9b. Add immersed source terms for buildings
         // *****************************************************************************
-        // geometric properties
-        const Real* dx_arr = geom.CellSize();
-        const Real delta_xy = std::sqrt(dx_arr[0] * dx_arr[1]);
-        if ((solverChoice.buildings_type == BuildingsType::ImmersedForcing) &&
-           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast)) &&
-            (delta_xy <= 50.0)) { // only apply immersed forcing when grid spacing is less than 50m
+        if (solverChoice.use_building_immersed_forcing(geom) &&
+           ((is_slow_step && !use_ImmersedForcing_fast) || (!is_slow_step && use_ImmersedForcing_fast))) {
 
             ImmersedForcingBuildings_Xmom(tbx, u, v, w, cell_data, t_blank_arr, t_blank_xface_arr,
                                           z_cc_arr, xmom_src_arr, geom, solverChoice, dt);

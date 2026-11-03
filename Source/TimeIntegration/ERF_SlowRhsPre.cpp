@@ -120,7 +120,11 @@ void erf_slow_rhs_pre (int level, int finest_level,
                        YAFluxRegister* fr_as_fine,
                        const MultiFab* cloud_chamber_base_state,
                        const erf_cloud_chamber::Config* cloud_chamber_config,
-                       CloudChamberBudget* cloud_budget)
+                       CloudChamberBudget* cloud_budget,
+                       const MultiFab* ib_wall_face13,
+                       const MultiFab* ib_wall_face23,
+                       const MultiFab* ib_wall_face33,
+                       const MultiFab* ib_wall_hfx)
 {
     BL_PROFILE_REGION("erf_slow_rhs_pre()");
 
@@ -230,7 +234,8 @@ void erf_slow_rhs_pre (int level, int finest_level,
                            S_data,xvel,yvel,zvel,
                            Tau_lev,Tau_corr_lev,
                            SmnSmn,eddyDiffs,geom,solverChoice,SurfLayer,
-                           stretched_dz_d, detJ,mapfac, ax, ay, az, ebfact);
+                           stretched_dz_d, detJ,mapfac, ax, ay, az, ebfact,
+                           ib_wall_face13, ib_wall_face23);
 
         IntVect ng(0,0,1);
         dflux_x = std::make_unique<MultiFab>(convert(ba,IntVect(1,0,0)), dm, nvars, ng);
@@ -725,7 +730,9 @@ void erf_slow_rhs_pre (int level, int finest_level,
                                        hfx_x, hfx_y, hfx_z, q1fx_x, q1fx_y, q1fx_z, q2fx_z,
                                        mu_turb, solverChoice, level,
                                        bc_ptr_d, l_apply_surface_layer_fluxes_in_diffusion, SurfLayer, l_vert_implicit_fac,
-                                       l_reflux_diffusion);
+                                       l_reflux_diffusion,
+                                       (ib_wall_face33) ? ib_wall_face33->const_array(mfi) : Array4<const Real>{},
+                                       (ib_wall_hfx)    ? ib_wall_hfx->const_array(mfi)    : Array4<const Real>{});
             }
             if (use_physical_chamber_wall_flux) {
                 erf_cloud_chamber_wall_flux::apply(

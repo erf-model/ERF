@@ -43,6 +43,7 @@
 #include <ERF_NumericalConstants.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_DataStruct.H>
+#include <ERF_TopographicShading.H>
 #include <ERF_PlotfileSelection.H>
 #include <ERF_BaseStateParams.H>
 #include <ERF_TurbPertStruct.H>
@@ -445,7 +446,7 @@ public:
 
     //! Face coefficients sigma = 1 / (1 + dt rate) of the implicit immersed drag in the projection
     //! (erf.if_implicit_projection); 1 on faces on the boundary of the level's grids
-    void make_if_projection_sigma (int lev, amrex::Real dt, amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& sigma);
+    void make_if_projection_sigma (int lev, amrex::Real l_dt, amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& sigma);
 
     // A refined level that stops inside the domain in z (ERF_CoarseFineFaces.cpp)
     void cf_zface_coarse_at (int lev, double tc, bool conserved_rho,
@@ -497,6 +498,9 @@ public:
     // correction); called when the level is made and again whenever a regrid
     // remakes or adds it, since init_stuff resets the field on new grids
     void make_wall_dist (int lev);
+    //! Build the wall-face masks of the fraction-stress immersed wall law at this level
+    //! (erf.if_wall_form = fraction_stress; make_wall_dist calls it, so regrids rebuild them)
+    void make_ib_wall_face_masks_lev (int lev);
 
     void make_subdomains (const amrex::BoxList& ba, amrex::Vector<amrex::BoxArray>& bins);
 
@@ -1160,6 +1164,12 @@ public:
     void update_terrain_arrays (int lev);
     void make_terrain_blanking (int lev);
 
+    [[nodiscard]] bool immersed_forcing_active (int lev) const noexcept
+    {
+        return solverChoice.terrain_type == TerrainType::ImmersedForcing ||
+               solverChoice.use_building_immersed_forcing(geom[lev]);
+    }
+
     bool m_driver_has_atm2ocn_coupling = false;
     bool m_driver_uses_two_way_coupling = false;
     bool m_driver_atm2ocn_uses_state_contract = true;
@@ -1579,6 +1589,7 @@ private:
     // surface and SEB state; every call from ERF is behind a test of
     // solverChoice.rad_type == RadiationType::TwoStream.
     TwoStreamRadiation two_stream_rad;
+    TopographicShading topographic_radiation;
 
 #ifdef ERF_USE_EAMXX_SHOC
     amrex::Vector<std::unique_ptr<SHOCInterface>> eamxx_shoc_interface; // EAMxx SHOC model at each level
@@ -1704,6 +1715,24 @@ private:
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking_xface;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking_yface;
     amrex::Vector<std::unique_ptr<amrex::MultiFab>> terrain_blanking_zface;
+    // Wall-face masks of the fraction-stress immersed wall law (erf.if_wall_form = fraction_stress):
+    // zero on the bottom face of the wall cell of each x-face (xz edges) and y-face (yz edges) column,
+    // the spacing factor on the face above it, one elsewhere
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> ib_wall_face13;
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> ib_wall_face23;
+    // and the same for the cell columns (z faces), applied to the vertical diffusive fluxes of theta and TKE
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> ib_wall_face33;
+    // kinematic wall heat flux -u* theta* of the fraction-stress law in the wall cell (zero elsewhere),
+    // written by the immersed scalar forcing, read as the TKE buoyancy flux on the wall face
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> ib_wall_hfx;
+    // wall value of the k-eqn TKE in the wall cell (erf.if_wall_tke; -1 elsewhere), written by the
+    // immersed scalar forcing; with erf.if_wall_tke_time_factor = 1 the cell is held at it after
+    // every stage and in the implicit TKE solve
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> ib_wall_ktarget;
+    // Height the immersed wall distance is measured from in each column (fraction-stress law with
+    // RANS), on the level's BoxArray flattened to its bottom cell; a fine box that does not see the
+    // surface of a column takes it from the coarser level
+    amrex::Vector<std::unique_ptr<amrex::MultiFab>> ib_wall_height;
 
     // Wall distance function
     amrex::Vector<std::unique_ptr<amrex::MultiFab>>  walldist;
@@ -2544,6 +2573,15 @@ private:
 
     // array of EB objects
     amrex::Vector<std::unique_ptr<eb_>> eb;
+
+    // Keep EB geometry construction, factories, and face-mask allocation in agreement.
+    // Immersed buildings on a static fitted mesh default to cell-centered blanking.
+    [[nodiscard]] bool use_native_fc_factories () const noexcept {
+        return USE_FC_FACTORY &&
+            !(solverChoice.buildings_type == BuildingsType::ImmersedForcing &&
+              solverChoice.terrain_type == TerrainType::StaticFittedMesh &&
+              !solverChoice.buildings_fc_factories);
+    }
 
     [[nodiscard]] eb_ const& get_eb (int lev) const noexcept {
         AMREX_ASSERT(lev >= 0 && lev < eb.size() && eb[lev] != nullptr);

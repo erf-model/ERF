@@ -17,6 +17,7 @@
  * needed. The faces where the source term applies the wall law instead of the drag keep sigma = 1.
  */
 #include "ERF.H"
+#include "ERF_ImmersedWallCell.H"
 
 #ifdef ERF_USE_FFT
 #include "ERF_ImmersedPoisson.H"
@@ -31,10 +32,10 @@ using namespace amrex;
  * apply the wall law). The faces on the boundary of the level's grids keep sigma = 1.
  *
  * @param lev   Level index
- * @param dt    Time step of the projection
+ * @param l_dt  Time step of the projection
  * @param sigma Face coefficients on the x-, y- and z-faces of the level's grids (defined here)
  */
-void ERF::make_if_projection_sigma (int lev, Real dt, Array<MultiFab,AMREX_SPACEDIM>& sigma)
+void ERF::make_if_projection_sigma (int lev, Real l_dt, Array<MultiFab,AMREX_SPACEDIM>& sigma)
 {
     BL_PROFILE("ERF::make_if_projection_sigma()");
 
@@ -62,6 +63,10 @@ void ERF::make_if_projection_sigma (int lev, Real dt, Array<MultiFab,AMREX_SPACE
     const Real rate_solid    = solverChoice.if_Cd_momentum / std::pow(dx[0]*dx[1]*dx[2], one/three);
     const Real small_volfrac = solverChoice.if_small_volfrac;
     const bool use_most      = solverChoice.if_use_most;
+    // the fraction-stress law (erf.if_wall_form = fraction_stress) has its own wall cell
+    const bool fraction_stress = solverChoice.if_fraction_stress;
+    const int  dom_klo = geom[lev].Domain().smallEnd(2);
+    const int  dom_khi = geom[lev].Domain().bigEnd(2);
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -88,15 +93,20 @@ void ERF::make_if_projection_sigma (int lev, Real dt, Array<MultiFab,AMREX_SPACE
                 // The face blanking as the terrain kernels read it: face-centered if available,
                 // otherwise the average of the two cells, thresholded at small_volfrac
                 auto face_blank = [=] (int kk) -> Real {
-                    const Real b = (tf) ? tf(i,j,kk) : myhalf * (t(i,j,kk) + t(i-io,j-jo,kk-ko));
+                    const int kc = amrex::min(amrex::max(kk, dom_klo), dom_khi);
+                    const Real b = (tf) ? tf(i,j,kc) : myhalf * (t(i,j,kc) + t(i-io,j-jo,kc-ko));
                     return (b < small_volfrac) ? zero : b;
                 };
                 const Real b = face_blank(k);
                 // The horizontal kernels apply the wall law instead of the drag on a partial face
-                // under a fluid face (a fully solid face there is held by the drag in the projection)
-                const bool wall = (dir < 2) && use_most && (b > zero) && (b < one) && (face_blank(k+1) == zero);
+                // under a fluid face (a fully solid face there is held by the drag in the projection);
+                // the fraction-stress law forces its wall cell (ib_wall::is_wall_cell), the fluid face
+                // on a solid one included, and treats a face within small_volfrac of solid as solid
+                const bool wall = (dir < 2) && use_most &&
+                                  (fraction_stress ? ib_wall::is_wall_cell(face_blank(k-1), b, face_blank(k+1), small_volfrac)
+                                                   : ((b > zero) && (b < one) && (face_blank(k+1) == zero)));
                 const Real rate = wall ? zero : b * rate_solid;
-                sg(i,j,k) = one / (one + dt * rate);
+                sg(i,j,k) = one / (one + l_dt * rate);
             });
         }
     }

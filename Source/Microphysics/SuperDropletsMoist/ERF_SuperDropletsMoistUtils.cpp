@@ -390,6 +390,54 @@ void SuperDropletsMoist::Update_State_Vars (MultiFab& a_cons_vars, const MultiFa
     if (!m_kinematic_mode) { Copy_Micro_to_State(a_cons_vars); }
 }
 
+void SuperDropletsMoist::Update_Diagnostic_State (MultiFab& cons, const MultiFab& z)
+{
+    if (m_kinematic_mode || m_qstate_nonmoist_size == 0) { return; }
+    const int lev = m_current_lev;
+    EnsureMicFabVars(lev, cons);
+    auto& rho = *m_mic_fab_vars[lev][MicVar_SD::rho];
+    const auto& geom = m_super_droplets->Geom(lev);
+    // Regridding can leave conserved ghosts unfilled. Seed only from valid
+    // state, extrapolate at unowned edges, then exchange same-level/periodic data.
+    for (MFIter mfi(rho); mfi.isValid(); ++mfi) {
+        const auto s = cons.const_array(mfi);
+        const auto r = rho.array(mfi);
+        const Box valid = mfi.validbox();
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+            const IntVect cell = amrex::min(amrex::max(IntVect(i,j,k), valid.smallEnd()),
+                                           valid.bigEnd());
+            r(i,j,k) = s(cell, Rho_comp);
+        });
+    }
+    rho.FillBoundary(geom.periodicity());
+    for (int is = m_istart_sp; is < m_num_species; ++is) {
+        auto& qc = *m_mic_fab_vars[lev][s_qc_idx(is,m_istart_sp)];
+        auto& qv = *m_mic_fab_vars[lev][s_qv_idx(is,m_istart_sp)];
+        const int qc_comp = q_qc_idx(is,m_istart_sp);
+        const int qv_comp = q_qv_idx(is,m_istart_sp);
+        for (MFIter mfi(qv); mfi.isValid(); ++mfi) {
+            const auto s = cons.const_array(mfi);
+            const auto v = qv.array(mfi);
+            const Box valid = mfi.validbox();
+            ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                const IntVect cell = amrex::min(amrex::max(IntVect(i,j,k), valid.smallEnd()),
+                                               valid.bigEnd());
+                v(i,j,k) = s(cell, qv_comp) / s(cell, Rho_comp);
+            });
+        }
+        qv.FillBoundary(geom.periodicity());
+        computeQcSpecies(is, z);
+        computeQtSpecies(is);
+        for (MFIter mfi(cons); mfi.isValid(); ++mfi) {
+            const auto s = cons.array(mfi);
+            const auto c = qc.const_array(mfi);
+            ParallelFor(mfi.validbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                s(i,j,k,qc_comp) = c(i,j,k) * s(i,j,k,Rho_comp);
+            });
+        }
+    }
+}
+
 /*! \brief Convert a density field to a mixing ratio field */
 void SuperDropletsMoist::densityToRatio (MultiFab& a_var,
                                          const int a_comp)
