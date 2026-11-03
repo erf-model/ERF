@@ -150,8 +150,7 @@ configuration and runtime details that cannot be inferred from metadata alone.
      - ``Radiation``
      - ``1``
      - ``FillMinus999WhenUnavailable``
-     - Direct sunlight blocked by terrain, or by a midpoint sun below the
-       cutoff when the averaged cosine exceeds it (1 blocked, 0 otherwise)
+     - Direct sunlight blocked by terrain or by a midpoint sun below the cutoff when averaged cosine exceeds it (1 blocked, 0 otherwise)
    * - ``terrain_direct_factor``
      - ``Radiation``
      - ``1``
