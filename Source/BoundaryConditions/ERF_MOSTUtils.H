@@ -257,6 +257,54 @@ most_bracket (amrex::Real C, amrex::Real psi)
 }
 
 /**
+ * Bound on |z/L| of the MOST kernels (see most_rib_zeta_bracketed and most_clamp_zeta).
+ */
+inline constexpr amrex::Real most_zeta_lim = amrex::Real(100.0);
+
+/**
+ * Residual zeta - Rib (C - psi_m)^2 / (C - psi_h) of the prescribed-temperature kernels'
+ * z/L equation, with the Jimenez functions and the brackets of most_bracket.
+ *
+ * @param[in] sfuns similarity functions
+ * @param[in] C     ln(zref/z0)
+ * @param[in] Rib   bulk Richardson number
+ * @param[in] zeta  z/L
+ */
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real
+most_rib_resid (const similarity_funs& sfuns, amrex::Real C, amrex::Real Rib, amrex::Real zeta)
+{
+    const amrex::Real CmPsim = most_bracket(C, sfuns.calc_psi_m2(zeta));
+    const amrex::Real CmPsih = most_bracket(C, sfuns.calc_psi_h2(zeta));
+    return zeta - Rib * CmPsim * CmPsim / CmPsih;
+}
+
+/**
+ * Whether a root of most_rib_resid lies within delta of zeta.
+ *
+ * The relaxed fixed-point iteration stops on a small step, which a near-touch of the
+ * residual also gives where no root is near; the residual must change sign across
+ * [zeta - delta, zeta + delta] for zeta to be taken as a solution.
+ *
+ * @param[in] sfuns similarity functions
+ * @param[in] C     ln(zref/z0)
+ * @param[in] Rib   bulk Richardson number
+ * @param[in] zeta  z/L the relaxed iteration stopped at
+ * @param[in] delta half-width of the interval checked
+ */
+AMREX_GPU_HOST_DEVICE
+AMREX_FORCE_INLINE
+bool
+most_rib_zeta_is_root (const similarity_funs& sfuns, amrex::Real C, amrex::Real Rib,
+                       amrex::Real zeta, amrex::Real delta)
+{
+    const amrex::Real rlo = most_rib_resid(sfuns, C, Rib, zeta - delta);
+    const amrex::Real rhi = most_rib_resid(sfuns, C, Rib, zeta + delta);
+    return (rlo > zero) != (rhi > zero) || rlo == zero || rhi == zero;
+}
+
+/**
  * Solve zeta = Rib (C - psi_m)^2 / (C - psi_h) of the prescribed-temperature kernels by
  * bracketing and bisection, with the Jimenez functions and the brackets of most_bracket.
  *
@@ -265,7 +313,9 @@ most_bracket (amrex::Real C, amrex::Real psi)
  * above zref (C below about 1): each pass then moves zeta by about the tolerance. From zeta0
  * this steps, with doubling steps, in the direction the iteration moves until the residual
  * changes sign, and bisects that interval, so it returns the root the iteration was heading
- * to, or the next one past a near-touch.
+ * to, or the next one past a near-touch. The first step is limited so that two nearby roots
+ * are not stepped over together. The search stays within +-most_zeta_lim, and returns that
+ * bound when no root lies inside it, as the prescribed-flux kernels bound zeta.
  *
  * @param[in] sfuns similarity functions
  * @param[in] C     ln(zref/z0)
@@ -279,35 +329,35 @@ amrex::Real
 most_rib_zeta_bracketed (const similarity_funs& sfuns, amrex::Real C, amrex::Real Rib,
                          amrex::Real zeta0, amrex::Real tol)
 {
-    auto resid = [&] (amrex::Real zeta) {
-        const amrex::Real CmPsim = most_bracket(C, sfuns.calc_psi_m2(zeta));
-        const amrex::Real CmPsih = most_bracket(C, sfuns.calc_psi_h2(zeta));
-        return zeta - Rib * CmPsim * CmPsim / CmPsih;
-    };
+    auto resid = [&] (amrex::Real zeta) { return most_rib_resid(sfuns, C, Rib, zeta); };
 
     amrex::Real a  = zeta0;
     amrex::Real ra = resid(a);
     if (ra == zero) { return a; }
 
-    // Step against the residual until it changes sign
-    const amrex::Real dir = (ra > zero) ? amrex::Real(-1.0) : amrex::Real(1.0);
-    amrex::Real h  = amrex::max(std::abs(ra), tol);
-    amrex::Real b  = a + dir * h;
+    // Step against the residual, within +-most_zeta_lim, until it changes sign
+    const amrex::Real dir  = (ra > zero) ? amrex::Real(-1.0) : amrex::Real(1.0);
+    const amrex::Real zlim = dir * most_zeta_lim;
+    auto step = [&] (amrex::Real z, amrex::Real dz) {
+        return (dir > zero) ? amrex::min(z + dz, zlim) : amrex::max(z - dz, zlim);
+    };
+    amrex::Real h  = amrex::max(amrex::min(std::abs(ra),
+                                           amrex::Real(0.1) * amrex::max(one, std::abs(a))),
+                                tol);
+    amrex::Real b  = step(a, h);
     amrex::Real rb = resid(b);
-    int n = 0;
-    while ((rb > zero) == (ra > zero) && n < 60) {
+    while ((rb > zero) == (ra > zero) && b != zlim) {
         a  = b;
         ra = rb;
         h *= two;
-        b  = a + dir * h;
+        b  = step(a, h);
         rb = resid(b);
-        ++n;
     }
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE((rb > zero) != (ra > zero),
-                                     "MOST zeta solve found no sign change.");
+    // No root within the bound: hold zeta there
+    if ((rb > zero) == (ra > zero)) { return zlim; }
 
     // Bisect [a, b]
-    n = 0;
+    int n = 0;
     while (std::abs(b - a) > tol && n < 60) {
         const amrex::Real m  = myhalf * (a + b);
         const amrex::Real rm = resid(m);
@@ -323,7 +373,7 @@ most_rib_zeta_bracketed (const similarity_funs& sfuns, amrex::Real C, amrex::Rea
 }
 
 /**
- * z/L of the prescribed-flux kernels, bounded below by -100 and above by the fold (see
+ * z/L of the prescribed-flux kernels, bounded below by -most_zeta_lim and above by the fold (see
  * similarity_funs::calc_zeta_fold), where the prescribed stable flux stops having a solution.
  *
  * @param[in]  zeta      z/L from the current u* and flux
@@ -336,7 +386,7 @@ amrex::Real
 most_clamp_zeta (amrex::Real zeta, amrex::Real zeta_fold, bool& at_fold)
 {
     at_fold = (zeta >= zeta_fold);
-    return amrex::max(amrex::min(zeta, zeta_fold), amrex::Real(-100.0));
+    return amrex::max(amrex::min(zeta, zeta_fold), -most_zeta_lim);
 }
 
 /**
@@ -397,11 +447,16 @@ most_fold_flux_scale (bool at_fold, amrex::Real zeta_fold, amrex::Real ustar,
 }
 
 /**
+ * Minimum friction velocity [m/s] of the prescribed-flux kernels' outputs (see most_flux_outputs).
+ */
+inline constexpr amrex::Real most_min_ustar = amrex::Real(0.001);
+
+/**
  * Surface state of a prescribed-flux kernel once its u* iteration has converged.
  *
  * Sets t_surf, t_star and q_star (and q_surf when the moisture flux is prescribed). At the
  * fold the prescribed fluxes are reduced by most_fold_flux_scale and the Obukhov length is set
- * to the fold value.
+ * to the fold value. u* is floored at most_min_ustar here, so every kernel applies the same floor.
  *
  * @param[in]    mdata      MOST data (prescribed fluxes, kappa, gravity)
  * @param[in]    spec_qflux whether the moisture flux is prescribed
@@ -409,7 +464,7 @@ most_fold_flux_scale (bool at_fold, amrex::Real zeta_fold, amrex::Real ustar,
  * @param[in]    zeta_fold  z/L at the fold
  * @param[in]    C          ln(zref/z0)
  * @param[in]    psi_h      heat stability correction of the last pass
- * @param[in]    ustar      friction velocity
+ * @param[in]    ustar      friction velocity (floored at most_min_ustar)
  * @param[in]    zref       reference height
  * @param[in]    tm         potential temperature at zref
  * @param[in]    tvm        virtual potential temperature at zref
@@ -431,6 +486,7 @@ most_flux_outputs (const most_data& mdata, bool spec_qflux, bool at_fold,
                    amrex::Real& olen, amrex::Real& t_surf, amrex::Real& t_star,
                    amrex::Real& q_surf, amrex::Real& q_star)
 {
+    ustar = amrex::max(ustar, most_min_ustar);
     const most_flux_scale scale = most_fold_flux_scale(at_fold, zeta_fold, ustar, tvm,
                                                        mdata.surf_temp_flux * (one + epsv * qvm),
                                                        qflux * epsv * tm, spec_qflux,

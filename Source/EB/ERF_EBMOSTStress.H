@@ -179,9 +179,10 @@ struct surface_temp_eb
 
             ++iter;
         } while ( (std::abs(zeta - zeta_old) > tol) && (iter <= max_iters) );
-        if (iter > max_iters) {
-            // The relaxed iteration stalls where its residual nearly touches zero (z0
-            // comparable to zref); solve the same equation by bracketing instead
+        if (iter > max_iters ||
+            !most_rib_zeta_is_root(sfuns, C, Rib, zeta, amrex::Real(10.0) * tol)) {
+            // The relaxed iteration stalls, or stops where no root is near, where its residual
+            // nearly touches zero (z0 comparable to zref); solve the same equation by bracketing
             zeta   = most_rib_zeta_bracketed(sfuns, C, Rib, zeta_start, tol);
             CmPsim = most_bracket(C, sfuns.calc_psi_m2(zeta));
             CmPsih = most_bracket(C, sfuns.calc_psi_h2(zeta));

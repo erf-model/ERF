@@ -584,21 +584,17 @@ struct surface_flux
                 // update w* and Umagmean
                 w_star_arr(i,j,k) = calc_wstar(tflux, pblh_arr(i,j,k), tvm_arr(i,j,k));
                 wstar = mdata.Bjr_beta * w_star_arr(i,j,k);
-                //umm = std::sqrt(umm_arr(i,j,k)*umm_arr(i,j,k) + wstar*wstar);
                 amrex::Real umm_new = std::sqrt(umm_arr(i,j,k)*umm_arr(i,j,k) + wstar*wstar);
                 umm = (one - alpha) * umm + alpha * umm_new;
                 umm = std::max(umm, WSMIN);
             }
-            //Olen  = -ustar * ustar * ustar * tvm_arr(i,j,k) / (mdata.kappa * mdata.gravity * tflux);
-            //zeta  = zref / Olen;
-             amrex::Real ustar_floor = amrex::max(ustar, USTARMIN);
+            amrex::Real ustar_floor = amrex::max(ustar, USTARMIN);
             Olen  = -ustar_floor * ustar_floor * ustar_floor * tvm_arr(i,j,k) /
                     (mdata.kappa * mdata.gravity * tflux);
             // Stable side bounded at the fold, where the prescribed flux stops having a solution
             zeta  = most_clamp_zeta(zref / Olen, zeta_fold, at_fold);
             psi_m = sfuns.calc_psi_m(zeta);
             psi_h = sfuns.calc_psi_h(zeta);
-            //u_star_arr(i,j,k) = mdata.kappa * umm / (std::log(zref / z0_arr(i,j,k)) - psi_m);
             {
                 amrex::Real ustar_new = mdata.kappa * umm / most_bracket(C, psi_m);
                 u_star_arr(i,j,k) = (one - alpha) * ustar + alpha * ustar_new;
@@ -611,8 +607,7 @@ struct surface_flux
                                          "Maximum number of MOST iterations reached.");
 
         // Populate the stored MOST arrays; below the fold, apply the flux the wind can carry
-        amrex::Real ustar_final = amrex::max(u_star_arr(i,j,k), USTARMIN);
-        most_flux_outputs(mdata, spec_qflux, at_fold, zeta_fold, C, psi_h, ustar_final, zref,
+        most_flux_outputs(mdata, spec_qflux, at_fold, zeta_fold, C, psi_h, u_star_arr(i,j,k), zref,
                           tm_arr(i,j,k), tvm_arr(i,j,k), qvm_arr(i,j,k), qflux, Olen,
                           t_surf_arr(i,j,k), t_star_arr(i,j,k), q_surf_arr(i,j,k), q_star_arr(i,j,k));
         olen_arr(i,j,k)   = Olen;
@@ -624,7 +619,7 @@ private:
     similarity_funs sfuns;
     const amrex::Real tol = amrex::Real(1.0e-5);
     const amrex::Real WSMIN = most_min_wind_speed; // minimum wind speed
-    const amrex::Real USTARMIN = amrex::Real(0.001); // minimum friction velocity
+    const amrex::Real USTARMIN = most_min_ustar; // minimum friction velocity
     const amrex::Real alpha = amrex::Real(0.5); // under-relaxation factor for umm/u* iteration
 };
 
@@ -1325,9 +1320,10 @@ struct surface_temp
 
             ++iter;
         } while ( (std::abs(zeta - zeta_old) > tol) && (iter <= max_iters) );
-        if (iter > max_iters) {
-            // The relaxed iteration stalls where its residual nearly touches zero (z0
-            // comparable to zref); solve the same equation by bracketing instead
+        if (iter > max_iters ||
+            !most_rib_zeta_is_root(sfuns, C, Rib, zeta, amrex::Real(10.0) * tol)) {
+            // The relaxed iteration stalls, or stops where no root is near, where its residual
+            // nearly touches zero (z0 comparable to zref); solve the same equation by bracketing
             zeta   = most_rib_zeta_bracketed(sfuns, C, Rib, zeta_start, tol);
             CmPsim = most_bracket(C, sfuns.calc_psi_m2(zeta));
             CmPsih = most_bracket(C, sfuns.calc_psi_h2(zeta));

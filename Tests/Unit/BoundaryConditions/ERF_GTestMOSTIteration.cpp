@@ -79,6 +79,45 @@ Result run_temp (const Point& p)
     return run(surface_temp(Real(0.0), Real(0.0), false, 2, true), p);
 }
 
+// Run surface_temp once per wind in umms on the same point, each call warm-started from the
+// stored state of the one before it (the first from cold)
+std::vector<Result> run_temp_sweep (const Point& p, const std::vector<Real>& umms)
+{
+    const surface_temp kernel(Real(0.0), Real(0.0), false, 2, true);
+    amrex::Gpu::DeviceVector<Real> buf(NSLOT, Real(0.0));
+    Real* d = buf.data();
+    amrex::single_task([=] AMREX_GPU_DEVICE () noexcept {
+        d[ZREF]  = p.zref;
+        d[Z0]    = p.z0;
+        d[TM]    = p.theta;
+        d[TVM]   = p.theta;
+        d[TSURF] = p.t_surf;
+        d[USTAR] = bogus_large_value;
+        d[OLEN]  = bogus_large_value;
+        d[PBLH]  = Real(1000.0);
+    });
+    std::vector<Result> out;
+    std::vector<Real> h(NSLOT);
+    for (const Real umm : umms) {
+        amrex::single_task([=] AMREX_GPU_DEVICE () noexcept {
+            auto slot = [d] (int s) {
+                return amrex::Array4<Real>(d + s, amrex::Dim3{0,0,0}, amrex::Dim3{1,1,1}, 1);
+            };
+            d[UMM]   = umm;
+            d[TSURF] = p.t_surf;
+            kernel.iterate_flux(0, 0, 0, 100,
+                                slot(ZREF), slot(Z0), slot(UMM), slot(TM), slot(TVM), slot(QVM),
+                                slot(USTAR), amrex::Array4<Real>{}, slot(TSTAR), slot(QSTAR),
+                                slot(TSURF), slot(QSURF), slot(OLEN), slot(PBLH),
+                                slot(HWAVE), slot(LWAVE), slot(ETA));
+        });
+        amrex::Gpu::copy(amrex::Gpu::deviceToHost, buf.begin(), buf.end(), h.begin());
+        amrex::Gpu::streamSynchronize();
+        out.push_back(Result{h[USTAR], h[TSTAR], h[TSURF], h[OLEN], h[QSTAR]});
+    }
+    return out;
+}
+
 } // namespace
 
 // Motivation: the floor is 1 where the bracket is large, never exceeds the neutral value C
@@ -353,6 +392,56 @@ TEST(MOSTIteration, StableSurfaceTempWithZ0AtZrefConverges)
         EXPECT_NEAR(zeta, Rib * CmPsim * CmPsim / CmPsih, Real(2.0e-3));
         EXPECT_GT(r.ustar, Real(0.0));
         EXPECT_GT(r.tstar, Real(0.0));
+    }
+}
+
+// Motivation: the bracketed fallback may step past a near-touch to a farther root, and the
+// next, warm-started call could then settle elsewhere, so z/L, u* and t* could toggle between
+// roots from step to step. Over this wind range zeta = Rib F(zeta) has a near-neutral and a
+// very stable root, so a sweep must jump between them once, where the root it follows ends,
+// and otherwise follow one root: no jump back, z/L monotone in the wind and within the bound.
+// Each z/L must also be a root: the residual must change sign within 0.01 of it, which the
+// relaxed iteration's small-step test alone accepted at a near-touch with no root near.
+TEST(MOSTIteration, StableSurfaceTempWithZ0AtZrefIsContinuousInTime)
+{
+    const std::vector<Point> pts{
+        {Real(1.0), Real(1.0), Real(0.8), Real(300.0), Real(295.0)},
+        {Real(5.0), Real(5.0), Real(0.8), Real(300.0), Real(299.0)},
+    };
+    std::vector<Real> rising;
+    for (int n = 0; n <= 60; ++n) { rising.push_back(Real(0.6) * std::pow(Real(1.01), n)); }
+    const std::vector<Real> falling(rising.rbegin(), rising.rend());
+    similarity_funs sfuns;
+    for (const auto& p : pts) {
+        const Real C = std::log(p.zref / p.z0);
+        for (const bool up : {true, false}) {
+            const std::vector<Real>& umms = up ? rising : falling;
+            const std::vector<Result> r = run_temp_sweep(p, umms);
+            int jumps = 0;
+            for (std::size_t n = 0; n < r.size(); ++n) {
+                const Real zeta = p.zref / r[n].olen;
+                const Real Rib  = CONST_GRAV * p.zref / p.theta * (p.theta - p.t_surf) /
+                                  (umms[n] * umms[n]);
+                const Real rlo  = most_rib_resid(sfuns, C, Rib, zeta - Real(0.01));
+                const Real rhi  = most_rib_resid(sfuns, C, Rib, zeta + Real(0.01));
+                EXPECT_LE(rlo * rhi, Real(0.0)) << "no root near zeta " << zeta
+                                                << " at wind " << umms[n];
+                EXPECT_GT(zeta, Real(0.0));
+                EXPECT_LE(zeta, most_zeta_lim);
+                EXPECT_GT(r[n].ustar, Real(0.0));
+                EXPECT_GT(r[n].tstar, Real(0.0));
+                if (n == 0) { continue; }
+                const Real zeta_prev = p.zref / r[n-1].olen;
+                // Stronger wind, smaller Rib: z/L must not move against the wind
+                if (up) {
+                    EXPECT_LE(zeta, zeta_prev + Real(1.0e-6)) << "step " << n;
+                } else {
+                    EXPECT_GE(zeta, zeta_prev - Real(1.0e-6)) << "step " << n;
+                }
+                if (std::abs(zeta - zeta_prev) > Real(0.3) * std::abs(zeta_prev)) { ++jumps; }
+            }
+            EXPECT_EQ(jumps, 1) << (up ? "rising" : "falling") << " wind, zref " << p.zref;
+        }
     }
 }
 
