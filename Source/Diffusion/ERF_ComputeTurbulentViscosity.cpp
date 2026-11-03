@@ -596,6 +596,16 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
     }
 }
 
+namespace {
+/// Solid fraction of a cell column at level kk, clamped to the domain in k, fluid below small
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real if_rans_beta (const Array4<Real const>& tb, int i, int j, int kk, int klo, int khi, Real small) noexcept
+{
+    const Real v = tb(i, j, amrex::min(amrex::max(kk, klo), khi));
+    return (v < small) ? zero : v;
+}
+}
+
 /**
  * Function for computing the eddy viscosity with RANS.
  *
@@ -613,17 +623,11 @@ void ComputeTurbulentViscosityLES_EB (Vector<std::unique_ptr<MultiFab>>& Tau_lev
  * @param[in]  z_0 roughness length
  * @param[in]  canopy canopy terms of the k-eqn model (erf.forest_canopy_*)
  * @param[in]  forest_drag forest drag field C_d LAD, or null without a forest
+ * @param[in]  ib_blank solid fraction for the fraction-stress immersed wall law, or null without it
+ * @param[in]  flat_wall_diss partial wall cells dissipate with flat ground's first-cell length (erf.if_flat_wall_dissipation)
+ * @param[in]  ib_small_volfrac solid fractions below this count as fluid (eb2.small_volfrac)
+ * @param[in]  ib_z0 roughness length of the immersed wall law (erf.if_z0), used without a surface layer
  */
-namespace {
-/// Solid fraction of a cell column at level kk, clamped to the domain in k, fluid below small
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-Real if_rans_beta (const Array4<Real const>& tb, int i, int j, int kk, int klo, int khi, Real small) noexcept
-{
-    const Real v = tb(i, j, amrex::min(amrex::max(kk, klo), khi));
-    return (v < small) ? zero : v;
-}
-}
-
 void ComputeTurbulentViscosityRANS (int level,
                                     Vector<std::unique_ptr<MultiFab>>& Tau_lev,
                                     const MultiFab& cons_in,
