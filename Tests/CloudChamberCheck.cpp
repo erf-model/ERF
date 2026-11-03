@@ -177,7 +177,7 @@ bool check_bulk_plotfiles (const std::string& model_name,
 
     const std::vector<std::string> moisture_candidates = {
         "qv", "qc", "qi", "qrain", "qsnow", "qgraup", "nc", "ni", "nr",
-        "ns", "ng", "nn", "rain_accum", "snow_accum", "graup_accum",
+        "ns", "ng", "nn", "rain_accum", "snow_accum", "graupel_accum",
         "qt", "qsat", "rel_humidity"};
     std::vector<std::string> active_fields;
     for (const auto& name : moisture_candidates) {
@@ -288,7 +288,7 @@ bool check_bulk_plotfiles (const std::string& model_name,
 
     const std::vector<std::string> cold_start_zero = {
         "qc", "qi", "qrain", "qsnow", "qgraup", "nc", "ni", "nr", "ns",
-        "ng", "nn", "rain_accum", "snow_accum", "graup_accum"};
+        "ng", "nn", "rain_accum", "snow_accum", "graupel_accum"};
     for (const auto& name : cold_start_zero) {
         if (moisture.query_var(name).available &&
             initial.get(0, name).norm0(0, 0, false) > scaled_tolerance(Real(1.0))) {
@@ -542,7 +542,7 @@ bool check_wdm6_activity (PlotFileData& initial, PlotFileData& checkpoint,
 {
     const std::vector<std::string> required = {
         "density", "theta", "temp", "qv", "qc", "qi", "qrain", "qsnow",
-        "qgraup", "nc", "nn", "nr", "rain_accum", "snow_accum", "graup_accum"};
+        "qgraup", "nc", "nn", "nr", "rain_accum", "snow_accum", "graupel_accum"};
     for (const auto& name : required) {
         if (!has_variable(initial, name) || !has_variable(checkpoint, name)) {
             error = "WDM6 active restart plotfile is missing " + name;

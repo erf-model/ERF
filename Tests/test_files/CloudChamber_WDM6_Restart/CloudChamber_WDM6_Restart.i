@@ -18,7 +18,7 @@ erf.check_file = chk
 erf.check_int = 2
 erf.plot_file_1 = plt
 erf.plot_int_1 = 2
-erf.plot_vars_1 = density theta temp pressure qv qc qi qrain qsnow qgraup nc nn nr qt qsat rain_accum snow_accum graup_accum x_velocity y_velocity z_velocity
+erf.plot_vars_1 = density theta temp pressure qv qc qi qrain qsnow qgraup nc nn nr qt qsat rain_accum snow_accum graupel_accum x_velocity y_velocity z_velocity
 
 max_step = 4
 geometry.prob_lo = 0.0 0.0 0.0

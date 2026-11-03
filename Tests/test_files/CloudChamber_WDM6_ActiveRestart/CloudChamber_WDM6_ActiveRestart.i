@@ -22,7 +22,7 @@ erf.check_file = chk
 erf.check_int = 500
 erf.plot_file_1 = plt
 erf.plot_int_1 = 1000
-erf.plot_vars_1 = density theta temp pressure qv qc qi qrain qsnow qgraup nc nn nr qt qsat rain_accum snow_accum graup_accum x_velocity y_velocity z_velocity
+erf.plot_vars_1 = density theta temp pressure qv qc qi qrain qsnow qgraup nc nn nr qt qsat rain_accum snow_accum graupel_accum x_velocity y_velocity z_velocity
 wdm6.ccn0 = 1000.0e6
 
 max_step = 1000
