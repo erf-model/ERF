@@ -458,12 +458,15 @@ if(TARGET erf_exec AND ERF_DIM STREQUAL "3")
       set(_factory_override)
     endif()
     add_test(NAME ImmersedBuildingFactories_${_factory_choice}
-      COMMAND $<TARGET_FILE:erf_exec>
-        ${PROJECT_SOURCE_DIR}/Tests/test_files/ImmersedForcing/inputs_building_fc_factories
-        ${_factory_override})
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/ImmersedForcing/inputs_building_fc_factories
+        "-DEXPECTED_FACTORY=${_expected_factory}"
+        -DFACTORY_OVERRIDES=${_factory_override}
+        -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/RunImmersedBuildingFactories.cmake)
     set_tests_properties(ImmersedBuildingFactories_${_factory_choice} PROPERTIES
       LABELS "integration;immersed-forcing"
-      PASS_REGULAR_EXPRESSION "Building EB factories: ${_expected_factory}"
       RUN_SERIAL TRUE
       TIMEOUT 120)
   endforeach()
