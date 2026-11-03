@@ -342,7 +342,7 @@ most_rib_zeta_bracketed (const similarity_funs& sfuns, amrex::Real C, amrex::Rea
         return (dir > zero) ? amrex::min(z + dz, zlim) : amrex::max(z - dz, zlim);
     };
     amrex::Real h  = amrex::max(amrex::min(std::abs(ra),
-                                           amrex::Real(0.1) * amrex::max(one, std::abs(a))),
+                                           amrex::Real(0.1) * amrex::max(amrex::Real(one), std::abs(a))),
                                 tol);
     amrex::Real b  = step(a, h);
     amrex::Real rb = resid(b);
@@ -486,7 +486,7 @@ most_flux_outputs (const most_data& mdata, bool spec_qflux, bool at_fold,
                    amrex::Real& olen, amrex::Real& t_surf, amrex::Real& t_star,
                    amrex::Real& q_surf, amrex::Real& q_star)
 {
-    ustar = amrex::max(ustar, most_min_ustar);
+    ustar = amrex::max(ustar, amrex::Real(most_min_ustar));
     const most_flux_scale scale = most_fold_flux_scale(at_fold, zeta_fold, ustar, tvm,
                                                        mdata.surf_temp_flux * (one + epsv * qvm),
                                                        qflux * epsv * tm, spec_qflux,
