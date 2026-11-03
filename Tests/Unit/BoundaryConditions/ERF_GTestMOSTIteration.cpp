@@ -3,6 +3,7 @@
 // log-law bracket ln(zref/z0) - psi would change sign (strongly unstable, rough or calm
 // points), and must leave ordinary points as they were.
 #include <cmath>
+#include <limits>
 #include <vector>
 
 #include <AMReX_Gpu.H>
@@ -393,6 +394,18 @@ TEST(MOSTIteration, StableSurfaceTempWithZ0AtZrefConverges)
         EXPECT_GT(r.ustar, Real(0.0));
         EXPECT_GT(r.tstar, Real(0.0));
     }
+}
+
+// Motivation: a non-finite roughness (z0 = NaN, so C = ln(zref/z0) is NaN) sent surface_temp to
+// the bracketed fallback with a NaN residual, whose search then never reached its bound, and the
+// run hung (seen at a ghost column of SurfaceLayer.ImmersedColumnsRemainBenignThroughFluxAndTkeUpdates,
+// at exactly this point). It must return, carrying the bad input into its result.
+TEST(MOSTIteration, SurfaceTempWithNonFiniteZ0ReturnsInsteadOfLooping)
+{
+    const Point p{Real(0.5), std::numeric_limits<Real>::quiet_NaN(), Real(5.0), Real(300.0), Real(300.0)};
+    const Result r = run_temp(p);
+    EXPECT_FALSE(std::isfinite(r.olen));
+    EXPECT_FALSE(std::isfinite(r.ustar));
 }
 
 // Motivation: the bracketed fallback may step past a near-touch to a farther root, and the
