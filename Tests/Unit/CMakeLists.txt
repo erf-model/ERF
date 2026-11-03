@@ -213,6 +213,7 @@ target_sources(${erf_exe_name}
     # Motivation: a calm cell above an immersed wall gave the wall law u* = 0, an Obukhov length
     # of zero and z / 0 (erf-model/ERF#4016); the stability estimate is now bounded as on flat ground.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestImmersedWallStability.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestImmersedBuildingCutoff.cpp
     # Motivation: a refined level's buildings must keep level 0's numbers for the
     # materials by building, even when its tallest column is a spire level 0
     # leaves fluid, or the level holds only some of the buildings.
@@ -446,6 +447,53 @@ add_test(NAME erf_unit_tests_shuffle_repeat
     --gtest_repeat=3
     --gtest_output=xml:${ERF_GTEST_REPORT_ROOT}/${erf_exe_name}/shuffle-repeat.xml
 )
+
+if(TARGET erf_exec AND ERF_DIM STREQUAL "3")
+  foreach(_factory_choice IN ITEMS default native)
+    if(_factory_choice STREQUAL "native")
+      set(_expected_factory "native face-centered")
+      set(_factory_override erf.buildings_fc_factories=true)
+    else()
+      set(_expected_factory "cell-centered")
+      set(_factory_override)
+    endif()
+    add_test(NAME ImmersedBuildingFactories_${_factory_choice}
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/ImmersedForcing/inputs_building_fc_factories
+        "-DEXPECTED_FACTORY=${_expected_factory}"
+        -DFACTORY_OVERRIDES=${_factory_override}
+        -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/RunImmersedBuildingFactories.cmake)
+    set_tests_properties(ImmersedBuildingFactories_${_factory_choice} PROPERTIES
+      LABELS "integration;immersed-forcing"
+      RUN_SERIAL TRUE
+      TIMEOUT 120)
+  endforeach()
+
+  if(NOT AMReX_HDF5)
+    # At 50 m the masks are active; at 60 m the masks are zero and winds stay unchanged.
+    add_executable(erf_immersed_cutoff_check
+      ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_CheckImmersedBuildingCutoff.cpp)
+    # AMReX's headers need nvcc in a CUDA build
+    if(ERF_ENABLE_CUDA)
+      setup_target_for_cuda_compilation(erf_immersed_cutoff_check)
+    endif()
+    target_link_libraries(erf_immersed_cutoff_check PRIVATE AMReX::amrex)
+    target_compile_features(erf_immersed_cutoff_check PRIVATE cxx_std_17)
+    add_test(NAME ImmersedBuildingResolutionCutoff
+      COMMAND ${CMAKE_COMMAND}
+        -DERF_EXECUTABLE=$<TARGET_FILE:erf_exec>
+        -DCHECK_EXECUTABLE=$<TARGET_FILE:erf_immersed_cutoff_check>
+        -DINPUT_FILE=${PROJECT_SOURCE_DIR}/Tests/test_files/ImmersedForcing/inputs_building_fc_factories
+        -DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/RunImmersedBuildingCutoff.cmake)
+    set_tests_properties(ImmersedBuildingResolutionCutoff PROPERTIES
+      LABELS "integration;immersed-forcing"
+      RUN_SERIAL TRUE
+      TIMEOUT 120)
+  endif()
+endif()
 
 # Exercise M3 through ERF's native level,
 # advance, checkpoint, and exact-schema restart paths.  Header min/max values

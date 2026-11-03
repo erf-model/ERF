@@ -431,7 +431,9 @@ configuration and runtime details that cannot be inferred from metadata alone.
 .. note::
 
    For the ``landmask`` variable, land is ``1`` and sea is ``0``. Buildings are
-   ``2`` when using ``ImmersedForcing``.
+   ``2`` when using ``ImmersedForcing`` on levels where
+   :math:`\sqrt{\Delta x\,\Delta y} \leq 50\,\mathrm{m}`, matching the building
+   forcing cutoff. Immersed terrain retains its ``2`` mask at all resolutions.
 
 If a requested fixed diagnostic is not selectable for the active configuration,
 ERF warns and skips it. The descriptor table above records metadata; it does
