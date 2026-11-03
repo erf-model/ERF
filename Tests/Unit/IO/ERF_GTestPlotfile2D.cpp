@@ -413,6 +413,37 @@ TEST(Plotfile2DWaterPath, LandSurfaceAvailabilityIsSchemeAware)
     EXPECT_FALSE(has_name(no_surface_layer_names, "near_surface_diagnostic_source"));
 }
 
+// Motivation: Terrain radiation fields are offered only when their correction
+// is active; either slope or shadow correction can supply all five diagnostics.
+TEST(Plotfile2DWaterPath, TopographicRadiationAvailabilityFollowsOptions)
+{
+    const amrex::Vector<std::string> terrain_names{
+        "topographic_shadow", "terrain_direct_factor", "terrain_incidence",
+        "unshaded_sw_flux_dn", "terrain_sw_flux_dn"};
+
+    SolverChoice sc;
+    const auto inactive = available_diagnostic_names(sc);
+    for (const auto& name : terrain_names) {
+        EXPECT_FALSE(has_name(inactive, name)) << name;
+    }
+    const auto selection = select_requested_plot_variables(terrain_names, inactive);
+    EXPECT_TRUE(selection.accepted.empty());
+    EXPECT_EQ(selection.unavailable, terrain_names);
+
+    sc.topographicChoice.slope_rad = true;
+    const auto slope_names = available_diagnostic_names(sc);
+    for (const auto& name : terrain_names) {
+        EXPECT_TRUE(has_name(slope_names, name)) << name;
+    }
+
+    sc.topographicChoice.slope_rad = false;
+    sc.topographicChoice.topo_shading = true;
+    const auto shading_names = available_diagnostic_names(sc);
+    for (const auto& name : terrain_names) {
+        EXPECT_TRUE(has_name(shading_names, name)) << name;
+    }
+}
+
 // Motivation: Warm-rain and no-ice schemes should expose only the accumulators
 // they actually carry, plus the derived total and frozen fields.
 TEST(Plotfile2DWaterPath, SchemeSpecificPrecipitationAvailabilityMatchesCurrentSupport)

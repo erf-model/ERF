@@ -503,10 +503,10 @@ The selection contract and the value written after selection are separate:
      - Selectable: fixed request name.
      - Value: radiation output; ``-999`` when the radiation source is absent.
    * - ``topographic_shadow``, ``terrain_direct_factor``, ``terrain_incidence``, ``unshaded_sw_flux_dn``, ``terrain_sw_flux_dn``
-     - Selectable: fixed request names.
+     - Selectable: when either ``erf.topo_shading`` or ``erf.slope_rad`` is enabled.
      - Value: diagnostics of the RRTMGP terrain correction, held between radiation
-       updates. ``-999`` when both terrain options are disabled or before the
-       first radiation update. See :ref:`sec:Plotfile2DTopographicRadiation`.
+       updates. ``-999`` before the first radiation update. See
+       :ref:`sec:Plotfile2DTopographicRadiation`.
    * - ``seb_t_sfc``, ``seb_q_sfc``
      - Selectable: fixed request names.
      - Value: the two-stream simplified surface energy balance's own prognostic surface
@@ -610,8 +610,9 @@ corrected flux.
 
 These fields update with radiation at ``erf.rad_freq_in_steps`` and remain
 fixed between radiation updates. More frequent plotfiles do not cause more
-frequent shadow calculations. Before the first radiation update, or with both
-terrain options disabled, all five diagnostics use the missing value ``-999``.
+frequent shadow calculations. Before the first radiation update, all five
+diagnostics use the missing value ``-999``. They are selectable only when
+``erf.topo_shading`` or ``erf.slope_rad`` is enabled.
 
 To visualize the mask and its effect, add these outputs to a case with terrain
 correction enabled:
