@@ -138,6 +138,9 @@ public:
     /**
      * Fill fine data in the relax region.
      *
+     * Not currently used: nothing calls it, and two-way coupling requires cf_width = 0, which
+     * leaves the relax region empty. Kept so that relaxation can be re-enabled.
+     *
      * @param[in,out] mf   MultiFab to be filled
      * @param[in]     time time at which to fill data
      * @param[in]     cbc  coarse boundary condition
