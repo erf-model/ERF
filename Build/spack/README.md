@@ -1,67 +1,110 @@
 # ERF's Spack package
 
 `spack_repo/erf` is a [Spack](https://spack.io) package repository with one
-package, `erf`, and one override, `amrex`. It is kept here, next to ERF's
-CMake, so that a new release, a new CMake option or a submodule bump and the
-recipe that follows it land in the same pull request.
+package, `erf`, and one override, `amrex`.
 
-```
-spack repo add /path/to/ERF/Build/spack/spack_repo/erf   # Spack 1.1 or newer
-spack repo add https://github.com/erf-model/ERF.git        # Spack 1.1+, no checkout needed
-spack install erf                                          # latest release, MPI on, double precision
-spack install erf@develop +netcdf +noahmp +rrtmgp +fft     # ERF's development branch
-spack info erf                                             # available variants
+## Getting Started
+
+Use Spack 1.1 or newer and a recent `spack/spack-packages` checkout.
+
+Register the repository from a local checkout or directly from GitHub:
+
+```sh
+# From a local ERF checkout
+spack repo add /path/to/ERF/Build/spack/spack_repo/erf
+
+# Or directly from GitHub, without a local checkout
+spack repo add https://github.com/erf-model/ERF.git
 ```
 
-Spack's builtin repository (`spack/spack-packages`, registered by default) must
-be present too: the recipe uses its build systems and its `amrex`, `mpi`,
-`netcdf` and `googletest` packages. GPU builds take `+cuda cuda_arch=<n>`,
-`+rocm amdgpu_target=<gfx>` or `+sycl %oneapi`; `+rrtmgp` and `+eamxx_shoc`
-build the RTE-RRTMGP/EKAT stack and SHOC from the commits ERF pins, `+noahmp`
-Noah-MP from its pin, each at the version the ERF release vendors.
+Then install ERF or inspect its build options:
+
+```sh
+spack install erf                                      # latest release, MPI on, double precision
+spack install erf@develop +netcdf +noahmp +rrtmgp +fft    # development with optional physics and I/O
+spack info erf                                         # available variants
+```
+
+Keep Spack's builtin repository (`spack/spack-packages`, registered by default)
+registered too. It supplies the build systems and dependencies, including
+AMReX, MPI, NetCDF, and GoogleTest.
+
+## Build options and limitations
+
+For GPU builds, use `+cuda cuda_arch=<n>`, `+rocm amdgpu_target=<gfx>`, or
+`+sycl %oneapi`.
+
+The `+rrtmgp`, `+eamxx_shoc`, and `+noahmp` variants enable RTE-RRTMGP radiation,
+EAMxx SHOC turbulence, and Noah-MP, respectively. The recipe fetches their
+sources and the required EKAT stack at the commits pinned by the selected ERF
+version.
+
+The following platform and toolchain limits apply:
+
+* RRTMGP and EAMxx SHOC are unavailable on Apple Silicon with ERF's EKAT pins.
+* For ERF releases through 26.09, SYCL builds with RRTMGP or SHOC need oneAPI
+  older than 2026. The development branch's newer EKAT/Kokkos stack supports
+  oneAPI 2026.
+* OpenMP on macOS needs GCC for C and C++ throughout the dependency tree:
+  `spack install erf +openmp %%c,cxx=gcc`.
+* CUDA builds cannot enable `+tools`.
+* GPU builds with RRTMGP or SHOC require a single GPU architecture for their
+  bundled Kokkos.
+
+## Documentation
+
+See [Getting Started](https://erf.readthedocs.io/en/latest/GettingStarted.html)
+for instructions on running an ERF example. The
+[ERF documentation](https://erf.readthedocs.io/en/latest/) describes the model,
+build options, and input parameters.
+
+The [Spack documentation](https://spack.readthedocs.io/en/latest/) covers
+package installation, compilers, environments, and package development.
+
+## Development model
+
+See [CONTRIBUTING.md](../../CONTRIBUTING.md) for how to contribute to ERF
+development.
+
+This repository contains ERF's maintained Spack recipe. Spack's builtin
+repository also carries an `erf` package, which may lag behind this version.
+Registering this repository puts it ahead of builtin, so `spack install erf`
+uses this recipe.
 
 | File | Purpose |
 |---|---|
-| `spack_repo/erf/packages/erf/package.py` | the recipe: release versions from 23.10 and `develop`, with variants for the supported build options |
-| `spack_repo/erf/packages/amrex/package.py` | Spack's `amrex` plus a `particles_precision` variant, needed for `ERF_PARTICLES_PRECISION`; delete once spack-packages carries it |
-| `spack_repo/erf/repo.yaml` | repository namespace (`erf`) and package API version |
-| `check_pins.py` | the recipe's RRTMGP/EKAT, Noah-MP, E3SM and AMReX pins must equal ERF's submodule gitlinks; `--fix` rewrites the develop Noah-MP and AMReX pins |
-| `../../spack-repo-index.yaml` | tells `spack repo add <git URL>` where this repository is |
+| `spack_repo/erf/packages/erf/package.py` | ERF recipe for releases from 23.10 and `develop`, with variants for supported build options |
+| `spack_repo/erf/packages/amrex/package.py` | AMReX override adding `particles_precision` for `ERF_PARTICLES_PRECISION` |
+| `spack_repo/erf/repo.yaml` | Repository namespace (`erf`) and package API version |
+| `check_pins.py` | Checks dependency pins against ERF's source tree and EKAT's dependencies |
+| `../../spack-repo-index.yaml` | Locates this repository for `spack repo add <git URL>` |
 
-## Requirements and limits
+When updating the package:
 
-Use Spack 1.1 or newer and a recent `spack/spack-packages` checkout (the AMReX
-recipe must include the tracer-header fix merged on 2026-10-19). The recipe has
-been tested with Spack 1.2.2.
-
-* RRTMGP and EAMxx SHOC are unavailable on Apple Silicon with ERF's EKAT pins.
-* Through ERF 26.09, SYCL builds with RRTMGP or SHOC need oneAPI older than
-  2026; development's newer EKAT/Kokkos stack supports oneAPI 2026.
-* OpenMP on macOS needs GCC for C and C++ throughout the dependency tree:
-  `spack install erf +openmp %%c,cxx=gcc`.
-* CUDA builds cannot enable `+tools`. Builds with RRTMGP or SHOC require a
-  single GPU architecture for their bundled Kokkos.
-
-## Policies
-
-* **This recipe is canonical.** Spack's builtin repository also carries an
-  `erf` package; it is a snapshot that may lag. Registering this repository
-  puts it ahead of builtin, so `spack install erf` uses this one.
-* **Pins move with the tree.** The RRTMGP/EKAT, Noah-MP and E3SM commits the
-  recipe fetches, and the AMReX commit `@develop` builds, must equal ERF's
-  gitlinks; run `python3 Build/spack/check_pins.py` after a submodule bump
-  (`--fix` rewrites the develop Noah-MP and AMReX pins). Releases from 24.10
-  build the AMReX release of the same month (24.10 builds 24.11: its submodule
-  is five commits past the 24.10 tag), with embedded boundaries off before
-  25.03 as ERF's CMake sets them; 23.10 to 24.09 build the AMReX they bundle.
-* **A release adds one step.** Add the version with the tarball's sha256
-  (`spack checksum erf <version>`) and a Noah-MP pin line for it
+* After changing dependency pins, run `python3 Build/spack/check_pins.py`
+  from the ERF root. The RRTMGP/EKAT and Noah-MP commits, and the AMReX commit
+  used by `@develop`, must match ERF's submodule pins. The E3SM commit must
+  match `Build/GNU_Ekat/eamxx_clone.sh`. Use `--fix` to update the recipe's
+  development Noah-MP and AMReX pins.
+* For a new release, add the version and tarball's SHA-256 checksum
+  (`spack checksum erf <version>`), plus its Noah-MP pin
   (`git ls-tree <tag> Submodules/Noah-MP`).
-* **A CMake option adds a variant** with `when="@<first release>:"`, its
-  `define_from_variant` in `cmake_args` and any conflict ERF's CMake enforces.
-* **Overrides are temporary.** `packages/amrex` exists only for
-  `particles_precision`; delete it once spack-packages carries that variant.
+* To expose a supported CMake option, add a variant with
+  `when="@<first release>:"`, its `define_from_variant` in `cmake_args`, and
+  any conflicts ERF's CMake enforces.
+* Remove the AMReX override once spack-packages carries the
+  `particles_precision` variant, which maps to `ERF_PARTICLES_PRECISION`.
 
-Other projects keep their recipe the same way, for example ParaView
-(`Utilities/spack/repo`), Axom (`scripts/spack`), COSMA (`spack_repo/cosma`),
-Rayleigh (`spack-repo`) and Amanzi (`config/spack`).
+ERF releases from 24.10 use the AMReX release of the same month, except
+ERF 24.10 uses AMReX 24.11: its submodule is five commits past the AMReX 24.10
+tag. Before ERF 25.03, embedded boundaries are off, matching ERF's CMake
+settings. ERF 23.10 through 24.09 use their bundled AMReX.
+
+## License
+
+See [LICENSE.md](../../LICENSE.md) for ERF's license.
+
+## Citation
+
+See the [main README](../../README.rst#citation) for publications to cite
+when using ERF.
