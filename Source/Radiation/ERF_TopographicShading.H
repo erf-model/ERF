@@ -3,23 +3,8 @@
 
 #include <AMReX_Geometry.H>
 #include <AMReX_MultiFab.H>
-#include <AMReX_ParmParse.H>
+#include <ERF_RadStruct.H>
 #include <memory>
-
-struct TopographicShadingChoice
-{
-    bool slope_rad = false;
-    bool topo_shading = false;
-    amrex::Real shadlen = 25000;
-    amrex::Real fixed_mu = -1;
-    amrex::Real fixed_azimuth = -1; // degrees clockwise from geographic north
-    amrex::Real latitude = 39.809860;
-    amrex::Real longitude = -98.555183;
-    int radiation_interval = 1;
-
-    bool active () const { return slope_rad || topo_shading; }
-    void read (const std::string& prefix);
-};
 
 /** Surface-only correction of the radiation supplied to land models.
  * The atmospheric fluxes and heating remain the column solver's outputs.

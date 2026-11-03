@@ -20,7 +20,6 @@
 #include "ERF_TurbStruct.H"
 #include "ERF_TurbPertStruct.H"
 #include "ERF_RadStruct.H"
-#include "ERF_TopographicShading.H"
 #include "ERF_ShocTransportStruct.H"
 #include "ERF_CanopyTurbStruct.H"
 
@@ -1594,7 +1593,10 @@ struct SolverChoice {
         // erf.radiation_model = TwoStream selects the two-stream model; its
         // erf.radiation.* sub-options are read only then.
         radChoice.init_params(rad_type == RadiationType::TwoStream, pp_prefix);
-        topographicChoice.read(pp_prefix);
+        if (rad_type == RadiationType::RRTMGP) {
+            rrtmgpSolarChoice.read(pp_prefix);
+        }
+        topographicChoice.read(pp_prefix, rrtmgpSolarChoice);
         if (topographicChoice.active()) {
             AMREX_ALWAYS_ASSERT_WITH_MESSAGE(terrain_type == TerrainType::StaticFittedMesh,
                 "Topographic radiation requires erf.terrain_type = StaticFittedMesh");
@@ -2502,6 +2504,7 @@ struct SolverChoice {
     amrex::Vector<TurbChoice>  turbChoice;
     EBChoice      ebChoice;
     RadChoice     radChoice;
+    RRTMGPSolarChoice rrtmgpSolarChoice;
     TopographicShadingChoice topographicChoice;
 
     int         force_stage1_single_substep = 1;

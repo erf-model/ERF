@@ -36,18 +36,18 @@ IntVect horizontal_ratio (const Geometry& coarse, const Geometry& fine)
 }
 }
 
-void TopographicShadingChoice::read (const std::string& prefix)
+void TopographicShadingChoice::read (const std::string& prefix, const RRTMGPSolarChoice& solar)
 {
     ParmParse pp(prefix);
     pp.queryAdd("slope_rad", slope_rad);
     pp.queryAdd("topo_shading", topo_shading);
     if (!active()) { return; }
     pp.queryAdd("shadlen", shadlen);
-    pp.query("fixed_solar_zenith_angle", fixed_mu);
     const bool has_azimuth = pp.query("fixed_solar_azimuth_angle", fixed_azimuth);
-    pp.query("rad_cons_lat", latitude);
-    pp.query("rad_cons_lon", longitude);
-    pp.query("rad_freq_in_steps", radiation_interval);
+    fixed_mu = solar.fixed_mu;
+    latitude = solar.latitude;
+    longitude = solar.longitude;
+    radiation_interval = solar.radiation_interval;
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(std::isfinite(shadlen) && shadlen > 0,
         "erf.shadlen must be a positive finite horizontal distance in metres");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(std::isfinite(fixed_mu) && fixed_mu <= 1,
