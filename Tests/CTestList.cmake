@@ -2327,6 +2327,34 @@ if(ERF_ENABLE_RRTMGP AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_files/Radiatio
   add_test_r(Radiation                       ""  "erf_exec" "plt00010" RUNTIME_OPTIONS "erf.vert_implicit=false ")
 endif()
 
+# Exercise the complete RRTMGP -> raw forcing -> terrain correction -> SLM
+# path. Flat terrain has an exact factor of one, so no gold file is needed.
+if(ERF_ENABLE_RRTMGP AND ERF_ENABLE_FCOMPARE AND NOT WIN32)
+  set(TEST_NAME TopographicRadiation_FlatParity)
+  set(TEST_FILES_DIR TopographicRadiationFlat)
+  setup_test()
+  resolve_test_exe("" "erf_exec" TEST_EXE)
+  add_test(NAME ${TEST_NAME} COMMAND ${CMAKE_COMMAND}
+      "-DMPIEXEC=${MPIEXEC_EXECUTABLE}"
+      "-DMPIEXEC_NUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+      "-DMPIEXEC_PREFLAGS=${MPIEXEC_PREFLAGS}"
+      "-DNRANKS=${NP}"
+      "-DTEST_EXE=${TEST_EXE}"
+      "-DCONFIG=$<CONFIG>"
+      "-DINPUT=${CURRENT_TEST_BINARY_DIR}/TopographicRadiationFlat.i"
+      "-DWORKING_DIRECTORY=${CURRENT_TEST_BINARY_DIR}"
+      "-DFCOMPARE=${FCOMPARE_EXE}"
+      "-DFEXTREMA=${FEXTREMA_EXE}"
+      "-DRRTMGP_ROOT=${PROJECT_SOURCE_DIR}/Submodules/RRTMGP"
+      -P ${PROJECT_SOURCE_DIR}/Tests/RunTopographicRadiationFlat.cmake)
+  set_tests_properties(${TEST_NAME} PROPERTIES
+      TIMEOUT 900
+      PROCESSORS ${NP}
+      WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+      LABELS "regression;radiation;option-parity"
+      ATTACHED_FILES_ON_FAIL "${CURRENT_TEST_BINARY_DIR}/topo_off/simulation.log;${CURRENT_TEST_BINARY_DIR}/topo_on/simulation.log;${CURRENT_TEST_BINARY_DIR}/plt00003_parity.log;${CURRENT_TEST_BINARY_DIR}/plt_lsm_2D_00003_parity.log")
+endif()
+
 # TwoStream radiation needs no external library and no gold plotfiles: the
 # column-physics checker verifies the vertical structure of the heating
 # rates, and the header test verifies that qsrc_sw/qsrc_lw are written.

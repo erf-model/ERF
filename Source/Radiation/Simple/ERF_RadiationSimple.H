@@ -51,7 +51,7 @@ public:
                       amrex::MultiFab* z_phys,
                       amrex::MultiFab* lat,
                       amrex::MultiFab* lon,
-                      const bool updated_lsm,
+                      const bool force_update,
                       amrex::Real& declin,
                       amrex::Real& calday) override;
 

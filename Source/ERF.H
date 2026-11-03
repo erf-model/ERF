@@ -43,6 +43,7 @@
 #include <ERF_NumericalConstants.H>
 #include <ERF_IndexDefines.H>
 #include <ERF_DataStruct.H>
+#include <ERF_TopographicShading.H>
 #include <ERF_PlotfileSelection.H>
 #include <ERF_BaseStateParams.H>
 #include <ERF_TurbPertStruct.H>
@@ -1585,6 +1586,7 @@ private:
     // surface and SEB state; every call from ERF is behind a test of
     // solverChoice.rad_type == RadiationType::TwoStream.
     TwoStreamRadiation two_stream_rad;
+    TopographicShading topographic_radiation;
 
 #ifdef ERF_USE_EAMXX_SHOC
     amrex::Vector<std::unique_ptr<SHOCInterface>> eamxx_shoc_interface; // EAMxx SHOC model at each level

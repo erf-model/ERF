@@ -98,6 +98,13 @@ Several other conditions are reported at start-up or on the first land step:
   252 K in one land hour. With RRTMGP or TwoStream, inputs still missing on the first land step
   mean the coupling did not reach that level (RRTMGP does not solve on a fine level that is a
   nested patch), and ERF stops with a message instead of running on zero.
+  On static terrain-following grids with RRTMGP, ``erf.topo_shading`` and
+  ``erf.slope_rad`` optionally correct direct sunlight for terrain obstruction
+  and slope before supplying Noah-MP's broadband shortwave forcing. The mask
+  and correction follow ``erf.rad_freq_in_steps``; diffuse shortwave, longwave,
+  and the original solar zenith cosine are preserved. These terrain options
+  currently require RRTMGP. See :ref:`inputs-topographic-radiation` for controls
+  and :ref:`sec:Plotfile2DTopographicRadiation` for the diagnostic outputs.
 - **Surface layer.** The land model's fluxes reach the atmosphere only through the surface layer,
   so a ``surface_layer`` boundary is needed (``zlo.type = "surface_layer"``); without one ERF warns
   that the fluxes will not be applied. The surface layer in turn needs a diffusive closure.
@@ -327,10 +334,13 @@ are required to checkpoint or restart a Noah-MP simulation; whenever a
 checkpoint is written, the land-surface state is written alongside the
 atmospheric state, and it is read back automatically on restart.
 
-A Noah-MP restart is **bitwise reproducible**: restarting from a checkpoint
-reproduces the trajectory of an equivalent cold-start run exactly. Achieving
-this requires persisting two pieces of state in addition to the regular ERF
-MultiFab data:
+Noah-MP checkpoints the state needed to reproduce its land-surface trajectory
+bitwise when the coupled forcing is the same. With topographic shading or slope
+radiation and ``erf.rad_freq_in_steps > 1``, a restart can force an off-schedule
+RRTMGP update because raw surface forcing is not checkpointed, so the coupled
+run is not guaranteed to match an uninterrupted run bitwise. See
+:ref:`inputs-topographic-radiation` for the update timing. Noah-MP persists two
+pieces of state in addition to the regular ERF MultiFab data:
 
 #. **The land-surface substep counter** (Noah-MP's ``itimestep``). When the
    Noah-MP timestep is larger than the ERF timestep (subcycling via
