@@ -445,7 +445,7 @@ public:
 
     //! Face coefficients sigma = 1 / (1 + dt rate) of the implicit immersed drag in the projection
     //! (erf.if_implicit_projection); 1 on faces on the boundary of the level's grids
-    void make_if_projection_sigma (int lev, amrex::Real dt, amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& sigma);
+    void make_if_projection_sigma (int lev, amrex::Real l_dt, amrex::Array<amrex::MultiFab,AMREX_SPACEDIM>& sigma);
 
     // A refined level that stops inside the domain in z (ERF_CoarseFineFaces.cpp)
     void cf_zface_coarse_at (int lev, double tc, bool conserved_rho,
