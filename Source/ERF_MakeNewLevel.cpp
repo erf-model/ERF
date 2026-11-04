@@ -1593,8 +1593,8 @@ ERF::RemakeLevel (int lev, Real time, const BoxArray& ba, const DistributionMapp
     // level's first step after the regrid.
     //
     // At lev > 0 this is cheap and lossless when the level takes its land state from level 0:
-    // NOAHMP::Advance calls interp_from_lev0 every step, so such a level carries no
-    // prognostic state of its own.  A level that runs the driver on a land setup file of its
+    // NOAHMP::Advance calls interp_from_lev0 after every level-0 land step and after a
+    // rebuild, so such a level carries no prognostic state of its own.  A level that runs the driver on a land setup file of its
     // own (level 0 always; a finer level with erf.nc_init_file_<lev>, or in an idealized run
     // with ERF_SETUP_FILE_0<lev+1> in namelist.erf) keeps its state in the per-box Fortran
     // NoahmpIO_type objects, for which no redistribution onto a new decomposition exists.
