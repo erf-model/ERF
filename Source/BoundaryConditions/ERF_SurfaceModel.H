@@ -843,6 +843,92 @@ public:
     void weight_model_field (int lev, const amrex::MultiFab* source,
                              amrex::MultiFab* weighted, SurfaceModelType type);
 
+    /** A field to interpolate to a new fine level: its fine and coarse data and components. */
+    struct InterpTransfer
+    {
+        amrex::MultiFab* fine;
+        const amrex::MultiFab* crse;
+        int ncomp;
+    };
+
+    /**
+     * @brief Fills fine-level surface fields from the next coarser level with interp_by_type.
+     *
+     * Each component is typed valid or invalid (is_valid_lsm_value) per coarse cell, so a
+     * valid fine cell takes no slope toward an invalid coarse cell; where every neighbour is
+     * valid this is cell_cons_interp.  A fine cell whose parent is invalid is set to
+     * lsm_undefined.  Fine ghost cells outside the domain keep their values.
+     *
+     * @param lev Fine AMR level.
+     * @param transfers Fields to fill; all share one fine and one coarse layout.
+     * @param bc Boundary condition every field takes.
+     * @param ratio Refinement ratio from level lev-1 to lev.
+     */
+    void interp_surface_fields_from_coarse (const int lev,
+                                            const amrex::Vector<InterpTransfer>& transfers,
+                                            const amrex::BCRec& bc, const amrex::IntVect& ratio)
+    {
+        constexpr amrex::Real valid_type     = 0.0;
+        constexpr amrex::Real undefined_type = 1.0;
+
+        int nfield = 0;
+        for (const auto& t : transfers) { nfield += t.ncomp; }
+
+        // Each pack holds the nfield components and then their nfield types
+        const amrex::MultiFab& f0 = *transfers[0].fine;
+        const amrex::MultiFab& c0 = *transfers[0].crse;
+        amrex::MultiFab fine_pack(f0.boxArray(), f0.DistributionMap(), 2*nfield, f0.nGrowVect());
+        amrex::MultiFab crse_pack(c0.boxArray(), c0.DistributionMap(), 2*nfield, c0.nGrowVect());
+        int n0 = 0;
+        for (const auto& t : transfers) {
+            AMREX_ALWAYS_ASSERT(t.fine->boxArray() == f0.boxArray() &&
+                                t.fine->DistributionMap() == f0.DistributionMap() &&
+                                t.fine->nGrowVect() == f0.nGrowVect());
+            AMREX_ALWAYS_ASSERT(t.crse->boxArray() == c0.boxArray() &&
+                                t.crse->DistributionMap() == c0.DistributionMap() &&
+                                t.crse->nGrowVect() == c0.nGrowVect());
+            amrex::MultiFab::Copy(fine_pack, *t.fine, 0, n0, t.ncomp, f0.nGrowVect());
+            amrex::MultiFab::Copy(crse_pack, *t.crse, 0, n0, t.ncomp, c0.nGrowVect());
+            n0 += t.ncomp;
+        }
+
+        // The interpolation reads the coarse ghost cells; fill them in the pack only, so the
+        // coarse fields themselves are not touched
+        crse_pack.FillBoundary(0, nfield, m_geom2d[lev-1].periodicity());
+        for (amrex::MFIter mfi(crse_pack, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const auto p = crse_pack.array(mfi);
+            amrex::ParallelFor(mfi.growntilebox(), nfield,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                p(i,j,k,nfield+n) = is_valid_lsm_value(p(i,j,k,n)) ? valid_type : undefined_type;
+            });
+        }
+        // The fine types come out as their parents'; a cell the interpolation does not fill
+        // keeps valid_type and so its value
+        fine_pack.setVal(valid_type, nfield, nfield, f0.nGrowVect());
+
+        // The fields are planar
+        amrex::IntVect rr2d = ratio;
+        rr2d[2] = 1;
+        interp_by_type_packed(fine_pack, crse_pack, nfield, m_geom2d[lev-1], m_geom2d[lev], rr2d,
+                              bc);
+
+        for (amrex::MFIter mfi(fine_pack, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const auto p = fine_pack.array(mfi);
+            amrex::ParallelFor(mfi.growntilebox(), nfield,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                if (p(i,j,k,nfield+n) != valid_type) { p(i,j,k,n) = lsm_undefined; }
+            });
+        }
+
+        n0 = 0;
+        for (const auto& t : transfers) {
+            amrex::MultiFab::Copy(*t.fine, fine_pack, n0, 0, t.ncomp, f0.nGrowVect());
+            n0 += t.ncomp;
+        }
+    }
+
 private:
 
     /**
@@ -932,92 +1018,6 @@ private:
                           SurfaceModelType::LAND, 1, 0);
         wavg[lev]->setVal(mode == SurfaceProviderMode::UrbanOnly ? 1.0 : 0.0,
                           SurfaceModelType::URBAN, 1, 0);
-    }
-
-    /** A field to interpolate to a new fine level: its fine and coarse data and components. */
-    struct InterpTransfer
-    {
-        amrex::MultiFab* fine;
-        const amrex::MultiFab* crse;
-        int ncomp;
-    };
-
-    /**
-     * @brief Fills fine-level surface fields from the next coarser level with interp_by_type.
-     *
-     * Each component is typed valid or invalid (is_valid_lsm_value) per coarse cell, so a
-     * valid fine cell takes no slope toward an invalid coarse cell; where every neighbour is
-     * valid this is cell_cons_interp.  A fine cell whose parent is invalid is set to
-     * lsm_undefined.  Fine ghost cells outside the domain keep their values.
-     *
-     * @param lev Fine AMR level.
-     * @param transfers Fields to fill; all share one fine and one coarse layout.
-     * @param bc Boundary condition every field takes.
-     * @param ratio Refinement ratio from level lev-1 to lev.
-     */
-    void interp_surface_fields_from_coarse (const int lev,
-                                            const amrex::Vector<InterpTransfer>& transfers,
-                                            const amrex::BCRec& bc, const amrex::IntVect& ratio)
-    {
-        constexpr amrex::Real valid_type     = 0.0;
-        constexpr amrex::Real undefined_type = 1.0;
-
-        int nfield = 0;
-        for (const auto& t : transfers) { nfield += t.ncomp; }
-
-        // Each pack holds the nfield components and then their nfield types
-        const amrex::MultiFab& f0 = *transfers[0].fine;
-        const amrex::MultiFab& c0 = *transfers[0].crse;
-        amrex::MultiFab fine_pack(f0.boxArray(), f0.DistributionMap(), 2*nfield, f0.nGrowVect());
-        amrex::MultiFab crse_pack(c0.boxArray(), c0.DistributionMap(), 2*nfield, c0.nGrowVect());
-        int n0 = 0;
-        for (const auto& t : transfers) {
-            AMREX_ALWAYS_ASSERT(t.fine->boxArray() == f0.boxArray() &&
-                                t.fine->DistributionMap() == f0.DistributionMap() &&
-                                t.fine->nGrowVect() == f0.nGrowVect());
-            AMREX_ALWAYS_ASSERT(t.crse->boxArray() == c0.boxArray() &&
-                                t.crse->DistributionMap() == c0.DistributionMap() &&
-                                t.crse->nGrowVect() == c0.nGrowVect());
-            amrex::MultiFab::Copy(fine_pack, *t.fine, 0, n0, t.ncomp, f0.nGrowVect());
-            amrex::MultiFab::Copy(crse_pack, *t.crse, 0, n0, t.ncomp, c0.nGrowVect());
-            n0 += t.ncomp;
-        }
-
-        // The interpolation reads the coarse ghost cells; fill them in the pack only, so the
-        // coarse fields themselves are not touched
-        crse_pack.FillBoundary(0, nfield, m_geom2d[lev-1].periodicity());
-        for (amrex::MFIter mfi(crse_pack, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            const auto p = crse_pack.array(mfi);
-            amrex::ParallelFor(mfi.growntilebox(), nfield,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                p(i,j,k,nfield+n) = is_valid_lsm_value(p(i,j,k,n)) ? valid_type : undefined_type;
-            });
-        }
-        // The fine types come out as their parents'; a cell the interpolation does not fill
-        // keeps valid_type and so its value
-        fine_pack.setVal(valid_type, nfield, nfield, f0.nGrowVect());
-
-        // The fields are planar
-        amrex::IntVect rr2d = ratio;
-        rr2d[2] = 1;
-        interp_by_type_packed(fine_pack, crse_pack, nfield, m_geom2d[lev-1], m_geom2d[lev], rr2d,
-                              bc);
-
-        for (amrex::MFIter mfi(fine_pack, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-            const auto p = fine_pack.array(mfi);
-            amrex::ParallelFor(mfi.growntilebox(), nfield,
-            [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
-            {
-                if (p(i,j,k,nfield+n) != valid_type) { p(i,j,k,n) = lsm_undefined; }
-            });
-        }
-
-        n0 = 0;
-        for (const auto& t : transfers) {
-            amrex::MultiFab::Copy(*t.fine, fine_pack, n0, 0, t.ncomp, f0.nGrowVect());
-            n0 += t.ncomp;
-        }
     }
 
     /**
