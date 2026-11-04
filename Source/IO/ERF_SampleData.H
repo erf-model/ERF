@@ -175,6 +175,21 @@ struct LineSampler
             // times appended to the same file.  The files are opened at the first
             // write, once "conserved" has been expanded into its components
             pp.queryAdd("line_sampling_text_output",m_write_ascii);
+
+            // The z of erf.sample_line_lo_real/hi_real of a vertical line is the height above
+            // the ground under it instead of the height above sea level
+            pp.queryAdd("sample_line_z_agl",m_z_agl);
+            if (m_z_agl && SolverChoice::terrain_type == TerrainType::EB) {
+                amrex::Abort("erf.sample_line_z_agl is not supported with erf.terrain_type = EB");
+            }
+
+            // Where the levels are not equally spaced, the z of the plotfile of a line is not
+            // the height of its samples, so the height is written with them
+            if (SolverChoice::mesh_type != MeshType::ConstantDz &&
+                !containerHasElement(m_varnames, std::string("z"))) {
+                const bool cons_first = !m_varnames.empty() && m_varnames[0] == "conserved";
+                m_varnames.insert(m_varnames.begin() + (cons_first ? 1 : 0), "z");
+            }
         }
     }
 
@@ -229,7 +244,7 @@ struct LineSampler
     line_sampling_var_order ()
     {
         static const amrex::Vector<std::string> order = {
-            "conserved", "density", "x_velocity", "y_velocity", "z_velocity", "magvel", "theta",
+            "conserved", "z", "density", "x_velocity", "y_velocity", "z_velocity", "magvel", "theta",
             "qv", "qc", "pressure", "sgs_tke",
             "sgs_tau11", "sgs_tau12", "sgs_tau13", "sgs_tau22", "sgs_tau23", "sgs_tau33", "sgs_hfx3"};
         return order;
@@ -269,6 +284,87 @@ struct LineSampler
         }
     }
 
+    //! Whether the z of a vertical line given by real coordinates is found from the heights
+    //! of the column: on a stretched or terrain-fitted mesh, or for a height above ground
+    [[nodiscard]] bool
+    use_column_heights () const
+    {
+        return m_z_agl || SolverChoice::mesh_type != MeshType::ConstantDz;
+    }
+
+    /**
+     * The heights of the faces of the column through cell (i,j) on a level, from the nodal
+     * heights z_nd: the lower face of each cell, its upper face, and 1 where the level holds
+     * the cell (0 where it does not).  Each is indexed from the bottom of the domain.
+     */
+    static amrex::Vector<amrex::Gpu::HostVector<amrex::Real>>
+    column_face_heights (const amrex::MultiFab& z_nd, const amrex::Geometry& geom,
+                         const amrex::IntVect& cell)
+    {
+        const amrex::Box& dom = geom.Domain();
+        amrex::IntVect lo(cell); lo[2] = dom.smallEnd(2);
+        amrex::IntVect hi(cell); hi[2] = dom.bigEnd(2);
+        const amrex::Box col(lo, hi);
+
+        amrex::MultiFab f(amrex::convert(z_nd.boxArray(), amrex::IntVect(0)),
+                          z_nd.DistributionMap(), 3, 0);
+        f.setVal(amrex::Real(0.0));
+        for (amrex::MFIter mfi(f); mfi.isValid(); ++mfi) {
+            const amrex::Box b = mfi.validbox() & col;
+            if (!b.ok()) { continue; }
+            const auto& out = f.array(mfi);
+            const auto& z = z_nd.const_array(mfi);
+            amrex::ParallelFor(b, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
+                out(i,j,k,0) = amrex::Real(0.25) * (z(i,j,k  ) + z(i+1,j,k  ) + z(i,j+1,k  ) + z(i+1,j+1,k  ));
+                out(i,j,k,1) = amrex::Real(0.25) * (z(i,j,k+1) + z(i+1,j,k+1) + z(i,j+1,k+1) + z(i+1,j+1,k+1));
+                out(i,j,k,2) = amrex::Real(1.0);
+            });
+        }
+        return {amrex::sumToLine(f, 0, 1, col, 2), amrex::sumToLine(f, 1, 1, col, 2),
+                amrex::sumToLine(f, 2, 1, col, 2)};
+    }
+
+    /**
+     * The cells of a vertical line given by real coordinates on a level: the column through
+     * (x,y), from the cell that holds the lower z to the cell that holds the upper z (each
+     * clamped to the column).  With erf.sample_line_z_agl, ground is added to both.  The box
+     * is empty if the level does not hold every one of these cells.
+     */
+    amrex::Box
+    columnIndexBox (int iline, const amrex::Geometry& geom, const amrex::MultiFab& z_nd,
+                    amrex::Real ground)
+    {
+        const amrex::RealBox& rb = m_bnd_rbx[iline];
+        const amrex::Box ibx = getIndexBox(rb, geom);
+        const amrex::IntVect cell = ibx.smallEnd();
+        const auto h = column_face_heights(z_nd, geom, cell);
+        const auto& zl = h[0];
+        const auto& zu = h[1];
+        const auto& held = h[2];
+        const int n = static_cast<int>(zl.size());
+        const int kdlo = geom.Domain().smallEnd(2);
+        const amrex::Real offset = m_z_agl ? ground : amrex::Real(0.0);
+
+        // The cell (from the bottom) that holds height z, or -1 where the level does not hold it
+        auto find_cell = [&] (amrex::Real z) -> int {
+            if (held[0] > amrex::Real(0.5) && z < zl[0]) { return 0; }
+            if (held[n-1] > amrex::Real(0.5) && z >= zu[n-1]) { return n-1; }
+            for (int m = 0; m < n; ++m) {
+                if (held[m] > amrex::Real(0.5) && zl[m] <= z && z < zu[m]) { return m; }
+            }
+            return -1;
+        };
+        const int mlo = find_cell(rb.lo(2) + offset);
+        const int mhi = find_cell(rb.hi(2) + offset);
+        if (mlo < 0 || mhi < 0 || mhi < mlo) { return amrex::Box(); }
+        for (int m = mlo; m <= mhi; ++m) {
+            if (held[m] < amrex::Real(0.5)) { return amrex::Box(); }
+        }
+        amrex::IntVect lo(cell); lo[2] = kdlo + mlo;
+        amrex::IntVect hi(cell); hi[2] = kdlo + mhi;
+        return amrex::Box(lo, hi);
+    }
+
     amrex::Box
     getIndexBox (const amrex::RealBox& real_box,
                  const amrex::Geometry& geom) {
@@ -287,6 +383,7 @@ struct LineSampler
 
     void
     write_coords (amrex::Vector<std::unique_ptr<amrex::MultiFab> >& z_phys_cc,
+                  amrex::Vector<std::unique_ptr<amrex::MultiFab> >& z_phys_nd,
                   amrex::Vector<amrex::Geometry>& geom)
     {
         if (!m_write_ascii) return;
@@ -310,9 +407,25 @@ struct LineSampler
             int nline = static_cast<int>(m_ls_mf.size());
             for (int iline(0); iline<nline; ++iline) {
                 int dir = m_dir[iline];
-                amrex::Box bnd_bx = (m_use_real_bx)
-                                  ? getIndexBox(m_bnd_rbx[iline], geom[lev])
-                                  : m_bnd_bx[iline];
+                amrex::Box bnd_bx;
+                if (m_use_real_bx && dir == 2 && use_column_heights()) {
+                    // As in get_sample_data: the cells of the line come from the heights
+                    amrex::Real ground = amrex::Real(0.0);
+                    if (m_z_agl) {
+                        const amrex::Box ibx0 = getIndexBox(m_bnd_rbx[iline], geom[0]);
+                        const amrex::IntVect cell0 = ibx0.smallEnd();
+                        ground = column_face_heights(*z_phys_nd[0], geom[0], cell0)[0][0];
+                    }
+                    bnd_bx = columnIndexBox(iline, geom[lev], *z_phys_nd[lev], ground);
+                    if (bnd_bx.isEmpty()) {
+                        // This level does not hold the line
+                        if (amrex::ParallelDescriptor::IOProcessor()) { outfile << std::endl; }
+                        continue;
+                    }
+                } else {
+                    bnd_bx = (m_use_real_bx) ? getIndexBox(m_bnd_rbx[iline], geom[lev])
+                                             : m_bnd_bx[iline];
+                }
                 amrex::IntVect first_cell = bnd_bx.smallEnd();
 
                 // Create multifab with "sampled" z_phys values
@@ -343,7 +456,9 @@ struct LineSampler
                      amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new,
                      const amrex::Vector<amrex::Vector<amrex::MultiFab*>>& tau_lev = {},
                      const amrex::Vector<amrex::MultiFab*>& hfx3_lev = {},
-                     const amrex::Vector<int>& prognostic_tke_available = {})
+                     const amrex::Vector<int>& prognostic_tke_available = {},
+                     const amrex::Vector<amrex::MultiFab*>& z_cc_lev = {},
+                     const amrex::Vector<amrex::MultiFab*>& z_nd_lev = {})
     {
         if (m_ncons < 0) { expand_conserved(vars_new[0][Vars::cons].nComp()); }
 
@@ -365,11 +480,31 @@ struct LineSampler
         for (int iline(0); iline<nline; ++iline) {
             int dir = m_dir[iline];
 
+            // For a vertical line given by real coordinates, its cells come from the heights of
+            // the column, and a height above ground from the bottom face on level 0
+            const bool by_height = m_use_real_bx && dir == 2 && use_column_heights();
+            if (by_height) {
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!z_nd_lev.empty() && z_nd_lev[0] != nullptr,
+                    "Line sampling by height needs the nodal heights of each level");
+            }
+            amrex::Real ground = amrex::Real(0.0);
+            if (by_height && m_z_agl) {
+                const amrex::Box ibx0 = getIndexBox(m_bnd_rbx[iline], geom[0]);
+                const amrex::IntVect cell0 = ibx0.smallEnd();
+                ground = column_face_heights(*z_nd_lev[0], geom[0], cell0)[0][0];
+            }
+
             // Search each level to get the finest data possible
             for (int ilev(nlev-1); ilev>=0; --ilev) {
-                amrex::Box bnd_bx = (m_use_real_bx)
-                                  ? getIndexBox(m_bnd_rbx[iline], geom[ilev])
-                                  : m_bnd_bx[iline];
+                amrex::Box bnd_bx;
+                if (by_height) {
+                    if (ilev >= static_cast<int>(z_nd_lev.size()) || z_nd_lev[ilev] == nullptr) { continue; }
+                    bnd_bx = columnIndexBox(iline, geom[ilev], *z_nd_lev[ilev], ground);
+                    if (bnd_bx.isEmpty()) { continue; }
+                } else {
+                    bnd_bx = (m_use_real_bx) ? getIndexBox(m_bnd_rbx[iline], geom[ilev])
+                                             : m_bnd_bx[iline];
+                }
                 amrex::IntVect cell = bnd_bx.smallEnd();
 
                 // Construct CC velocities
@@ -392,6 +527,15 @@ struct LineSampler
                 if (m_ncons > 0) {
                     amrex::MultiFab::Copy(mf_cc_data, vars_new[ilev][Vars::cons], 0, mf_comp, m_ncons, 0);
                     mf_comp += m_ncons;
+                }
+
+                // The height of each cell centre
+                if (containerHasElement(m_varnames, std::string("z"))) {
+                    amrex::MultiFab* z_cc = ilev < static_cast<int>(z_cc_lev.size()) ? z_cc_lev[ilev] : nullptr;
+                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(z_cc != nullptr,
+                        "Line sampling of z needs the cell-centre heights of each level");
+                    amrex::MultiFab::Copy(mf_cc_data, *z_cc, 0, mf_comp, 1, 0);
+                    mf_comp += 1;
                 }
 
                 if (containerHasElement(m_varnames, "density")) {
@@ -766,6 +910,7 @@ struct LineSampler
     bool m_use_real_bx{false};
     bool m_write_ascii{false};
     bool m_write_log{false};
+    bool m_z_agl{false};   // erf.sample_line_z_agl
     int  m_max_level{-1};  // finest level to sample; -1 for all
     int  m_ncons{-1};      // components "conserved" expands into; -1 until the first sample
     amrex::Vector<std::string> m_varnames {"magvel","theta"};

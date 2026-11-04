@@ -607,7 +607,7 @@ ERF::sample_points (int ifile, int /*lev*/, double time, IntVect cell, MultiFab&
 
 /**
  * Sample the lines of a LineSampler and write them, passing it the stresses, the SGS heat
- * flux and whether each level carries a prognostic TKE.  Used for erf.do_line_sampling and
+ * flux, whether each level carries a prognostic TKE, and the heights of each level.  Used for erf.do_line_sampling and
  * for erf.sample_line, which is a LineSampler of full-depth columns on level 0.
  *
  * @param sampler the line sampler
@@ -619,8 +619,12 @@ ERF::run_line_sampler (LineSampler& sampler)
     Vector<Vector<MultiFab*>> tau_lev(nlev);
     Vector<MultiFab*> hfx3_lev(nlev, nullptr);
     Vector<int> prognostic_tke_available(nlev, 0);
+    Vector<MultiFab*> z_cc_lev(nlev, nullptr);
+    Vector<MultiFab*> z_nd_lev(nlev, nullptr);
     for (int lev = 0; lev < nlev; ++lev) {
         prognostic_tke_available[lev] = solverChoice.turbChoice[lev].use_tke ? 1 : 0;
+        if (lev < static_cast<int>(z_phys_cc.size())) { z_cc_lev[lev] = z_phys_cc[lev].get(); }
+        if (lev < static_cast<int>(z_phys_nd.size())) { z_nd_lev[lev] = z_phys_nd[lev].get(); }
         if (lev < static_cast<int>(Tau.size())) {
             for (const auto& tau : Tau[lev]) {
                 tau_lev[lev].push_back(tau.get());
@@ -630,7 +634,8 @@ ERF::run_line_sampler (LineSampler& sampler)
             hfx3_lev[lev] = SFS_hfx3_lev[lev].get();
         }
     }
-    sampler.get_sample_data(geom, vars_new, tau_lev, hfx3_lev, prognostic_tke_available);
+    sampler.get_sample_data(geom, vars_new, tau_lev, hfx3_lev, prognostic_tke_available,
+                            z_cc_lev, z_nd_lev);
     sampler.write_sample_data(t_new, istep, ref_ratio, geom);
 }
 

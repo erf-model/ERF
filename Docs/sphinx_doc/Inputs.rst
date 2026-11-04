@@ -1686,11 +1686,21 @@ to the physical locations of the beginning and end of the line. These two ways o
 the line are mutually exclusive. The indices of ``sample_line_lo`` and ``sample_line_hi`` are
 those of level 0, and these lines are sampled on level 0 even when there are finer levels; a line
 given by ``sample_line_lo_real`` and ``sample_line_hi_real`` is sampled on the finest level that
-holds the entire line. Additionally, users must specify ``sample_line_dir`` to
+holds the entire line.
+
+On a stretched or terrain-fitted mesh, the cells of a vertical line (``sample_line_dir = 2``)
+given by ``sample_line_lo_real`` and ``sample_line_hi_real`` come from the heights of its column:
+the line runs from the cell that holds the lower z to the cell that holds the upper z, each clamped
+to the column, on the finest level that holds all of these cells. The z values are heights above
+sea level, or above the ground under the line if ``erf.sample_line_z_agl = true`` (on any mesh
+except an embedded boundary). The heights are found again at each sample, so the line follows
+moving terrain. A horizontal line follows a terrain-fitted level of cells, not a constant height.
+On these meshes the variable ``z``, the height of each sample, is always written with the line, since
+the z coordinates of a line plotfile assume equally spaced levels; it may be requested on any mesh.
+Plane sampling has not been implemented for terrain. Additionally, users must specify ``sample_line_dir`` to
 prescribed the direction of the line. The same inputs are used for the plane sampling except
 that ``sample_plane_lo/hi``
-must be the physical locations of the plane corners. This output functionality has
-not been implemented for terrain. By default, sampled line and plane data will have the
+must be the physical locations of the plane corners. By default, sampled line and plane data will have the
 prefixes "plt_line" and "plt_plane", respectively. Names for sampled data may optionally
 be provided with ``sample_line_name`` and/or ``sample_plane_name`` -- if provided, each
 line and/or plane must be named.
@@ -1714,7 +1724,7 @@ The sampled variables can be selected with the ``erf.line_sampling_vars`` and
 ``erf.plane_sampling_vars`` options and include a subset of the plotfile outputs:
 ``density``, ``x_velocity``, ``y_velocity``, ``z_velocity``, ``magvel``,
 ``theta``, ``qv``, ``qc``, and ``pressure``. Line sampling additionally supports
-``conserved``, ``sgs_tke``, ``sgs_tau11``, ``sgs_tau12``, ``sgs_tau13``, ``sgs_tau22``,
+``conserved``, ``z``, ``sgs_tke``, ``sgs_tau11``, ``sgs_tau12``, ``sgs_tau13``, ``sgs_tau22``,
 ``sgs_tau23``, ``sgs_tau33``, and ``sgs_hfx3``. ``conserved`` writes every component of the
 conserved state as stored, named ``cons_0``, ``cons_1``, ... in component order (density,
 rho theta, ...). The variables are written in a fixed order, not the order they are listed in.
@@ -1757,6 +1767,9 @@ List of Parameters
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.sample_line_lo_real**,       | Bounding point on the line(s)                            | 3 Reals per line   | None             |
 | **erf.sample_line_hi_real**        |                                                          |                    |                  |
++------------------------------------+----------------------------------------------------------+--------------------+------------------+
+| **erf.sample_line_z_agl**          | z of the real bounding points of vertical lines is the   | Boolean            | false            |
+|                                    | height above the ground instead of above sea level       |                    |                  |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.sample_plane_lo/hi**         | Bounding point on the plane(s)                           | 3 Reals per plane  | None             |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+

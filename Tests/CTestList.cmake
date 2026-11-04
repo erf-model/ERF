@@ -5327,6 +5327,23 @@ if(NOT WIN32 AND ERF_TEST_PYTHON)
         LABELS "regression" ATTACHED_FILES_ON_FAIL "${_log}")
   endfunction(add_test_sample_line)
   add_test_sample_line(SampleLine)
+
+  # Vertical lines given by real coordinates over a hill, by height above sea level and above
+  # the ground: each must sample the cells that hold its heights, and write their heights
+  function(add_test_line_sampling_terrain TEST_NAME)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+    set(_lines "top:16:16:0:300 far:0:0:0:300 top_high:16:16:150:420")
+    set(_agl "erf.sample_line_z_agl=1 erf.plot_file_1=agl_plt 'erf.sample_line_name=agl_top agl_far agl_top_high'")
+    set(_check "ERF_TOOLS=${PROJECT_SOURCE_DIR}/Exec/Tools ${ERF_TEST_PYTHON} check_line_heights.py")
+    add_test(${TEST_NAME} sh -c
+        "rm -rf plt0* agl_plt0* top.* far.* top_high.* agl_top.* agl_far.* agl_top_high.* && ( ${MPI_COMMANDS} ${TEST_EXE} ${TEST_NAME}.i > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) ) && ${_check} plt00001 0 '' ${_lines} && ( ${MPI_COMMANDS} ${TEST_EXE} ${TEST_NAME}.i ${_agl} > ${_log}.agl 2>&1 || ( tail -n 40 ${_log}.agl && false ) ) && ${_check} agl_plt00001 1 agl_ ${_lines}")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression" ATTACHED_FILES_ON_FAIL "${_log}")
+  endfunction(add_test_line_sampling_terrain)
+  add_test_line_sampling_terrain(LineSamplingTerrain)
 endif()
 
 #=============================================================================
