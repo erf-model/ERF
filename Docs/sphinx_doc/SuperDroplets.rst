@@ -22,18 +22,60 @@ the same way here.
 Anelastic compatibility
 -----------------------
 
+``SuperDroplets`` uses a thermodynamic pressure source selected independently
+on each AMR level. On a level with ``erf.anelastic = 1``, the pressure supplied
+to the super-droplet microphysics is the hydrostatic base-state pressure at
+each cell, rather than a pressure diagnosed from the compressible equation of
+state. ERF diagnoses the temperature from dry potential temperature using
+
+.. math::
+
+   \theta = \frac{\rho_d\theta}{\rho_d}, \qquad
+   p_{\mathrm{SDM}} = p_{\mathrm{base}}, \qquad
+   T = \theta\left(\frac{p_{\mathrm{base}}}{p_{\mathrm{ref}}}\right)^{R_d/c_p}.
+
+Here :math:`\rho_d` is dry-air density, :math:`p_{\mathrm{base}}` is the
+cellwise hydrostatic base-state pressure, :math:`p_{\mathrm{ref}}=10^5` Pa is
+the fixed reference pressure used to define potential temperature, and
+:math:`c_p` is the configured ``erf.c_p``. These pressures are in pascals.
+No additional pressure or Exner-function input is required.
+
+During an anelastic SDM microphysics source step, the pressure remains the
+base-state pressure while the temperature is refreshed from the updated
+potential temperature after each phase-change substep. Latent heating uses
+the fixed inverse Exner factor for every process, including sequential
+processes within a substep:
+
+.. math::
+
+   \Delta\theta =
+   \left(\frac{p_{\mathrm{ref}}}{p_{\mathrm{base}}}\right)^{R_d/c_p}
+   \frac{L}{c_p}\,\Delta q.
+
+Here :math:`\Delta q` is the signed, dry-air-referenced mass transfer
+and :math:`L` is the corresponding latent heat. This pressure and temperature
+are supplied consistently to the scheme's saturation, phase-change,
+terminal-velocity, and collision calculations. On compressible levels, SDM
+diagnoses pressure and temperature from the local equation of state and uses
+the local potential-temperature-to-temperature ratio for latent heating.
+
+For example, with a particles-enabled build:
+
+.. code-block:: text
+
+   erf.anelastic = 1
+   erf.moisture_model = SuperDroplets
+
+Choose compatible mesh, solver, particle, and AMR options, and validate the
+selected configuration before using results for quantitative cloud-microphysics
+analysis.
+
 .. warning::
 
-   ``SuperDroplets`` cannot currently be used in a simulation in which any AMR
-   level has ``erf.anelastic = 1``. ERF detects this combination during input
-   validation and exits with an error.
-
-   Use ``SuperDroplets`` with compressible dynamics, or choose a supported
-   Eulerian microphysics scheme for an anelastic simulation.
-
-The current Super-Droplet thermodynamic coupling uses the compressible equation
-of state and does not consume the hydrostatic base-state pressure used by
-anelastic Eulerian microphysics.
+   Anelastic ``SuperDroplets`` execution has not been validated on CUDA or HIP
+   GPUs. Check the selected particle processes, restart behavior, and AMR
+   configuration before using GPU results for scientific analysis; do not
+   assume reproducibility between CPU and GPU runs.
 
 Species transport and diffusion
 -------------------------------
@@ -78,6 +120,12 @@ on each level before redistribution. If initial phase-change relaxation is
 enabled, it then runs on each particle's owning level and retains the associated
 vapor and latent-heat changes in the initial atmospheric state. These
 initialization operations are not repeated when restarting from a checkpoint.
+
+A restart restores the condensate fields from the checkpoint, including
+fine-level averages in covered coarse cells. Turbulent diffusivities, including
+``Kmv``, are not checkpointed. They can be zero in the initial restart plotfile
+until the next turbulence update, even when the conserved state has been
+restored correctly.
 
 For additional species, cloud-in-cell projection uses only cells on the
 particle's level that are not covered by finer grids. The retained weights are
@@ -207,6 +255,12 @@ Solver and time integration
 
 The condensational growth of each particle is an ODE in the droplet mass, solved
 per particle per step.
+
+The implicit Newton solve uses the larger of ``newton_solver_stol`` and the
+particle arithmetic's machine epsilon as its relative step stopping criterion.
+This avoids rejecting a physically resolved update when its remaining Newton
+correction is at roundoff. Requesting a tolerance below machine epsilon does
+not increase the arithmetic precision of the solve.
 
 +-------------------------------------------------+----------------------------------------------------------+--------------------------------------------------+-------------------------------------+
 | Parameter                                       | Definition                                               | Acceptable Values                                | Default                             |

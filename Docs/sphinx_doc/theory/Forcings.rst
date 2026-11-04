@@ -364,7 +364,18 @@ The temperature forcing is then formulated as follows:
 
     F_{\rho\theta} = -C_{d,s} \beta_r \left(\sqrt[3]{\Delta x_1 \Delta x_2 \Delta x_3}\right)^{-1} |U_s| (\rho \theta_{target} - \rho\theta)
 
-The target temperature :math:`\theta_{target}`` is straightforward when using a surface temperature and heating rate; when specifying a surface flux or Obukhov length, the target temperature is determined using MOST.
+The target temperature :math:`\theta_{target}` is straightforward when using a surface temperature and heating rate; when specifying a surface flux or Obukhov length, the target temperature is determined using MOST.
+``erf.if_stability_correction`` governs the temperature kernels as it does the momentum kernels
+(`erf-model/ERF#4931 <https://github.com/erf-model/ERF/issues/4931>`_): off (the default), :math:`\psi_m = \psi_h = 0`
+on every branch, so :math:`u_* = \kappa U / \ln(1.5\,\Delta/z_0)` and the target is
+:math:`\theta_{target} = \theta_{above} - (\theta_*/\kappa) \ln 3`, with :math:`\theta_* = -q/u_*` from a prescribed
+flux :math:`q` (through the bounded Obukhov length below, so exactly while neither the bound on :math:`L` nor the clamp on
+:math:`u_*` binds) and :math:`\theta_* = \theta u_*^2/(\kappa g L)` from a prescribed Obukhov length :math:`L`; the given
+flux or length still sets the wall heat, only the stratification of the profile is dropped (:math:`u_*` is held in
+:math:`[0, 2]` m/s on every branch; with a prescribed length the wall heat flux is then :math:`q = -\theta u_*^3/(\kappa g L)`
+with the neutral :math:`u_*`, so :math:`L` sets the flux and no longer the shape of the profile). Before #4931 the
+temperature kernels applied the similarity functions whatever the flag said, so a deck with a flux and the default
+flag ran the log law for momentum and the stability-corrected profile for :math:`\theta`.
 
 The stability estimate of the wall law is bounded as on flat ground (:ref:`sec:surface_layer`):
 
@@ -393,7 +404,7 @@ Two bounds of WRF's revised surface layer are available as options, both off by 
   strongly unstable air keeps a positive :math:`u_*` and a nonzero target (a cap of :math:`\ln(z/z_0)` makes
   the target zero, and a :math:`\psi_m` past :math:`\ln(1.5\,\Delta/z_0)` sets :math:`u_* = 0`).
 
-The temperature forcing keeps caps of :math:`\ln(z/z_0)` on :math:`\psi_h` on every branch: its surface-flux branch forms
+With the flag on, the temperature forcing keeps caps of :math:`\ln(z/z_0)` on :math:`\psi_h` on every branch: its surface-flux branch forms
 :math:`\theta_*` from an Obukhov length that is not consistent with :math:`u_*`, which those caps keep from
 reaching the target in strongly unstable air. The legacy law is kept as it is; the fraction-stress law of
 `erf-model/ERF#4134 <https://github.com/erf-model/ERF/issues/4134>`_ forms :math:`u_*`, :math:`\theta_*` and
@@ -506,7 +517,8 @@ with
           u_{\*,i+1} = U_{i+1, \textrm{tangent}} \frac{\kappa}{\log \left[\frac{1.5 \Delta x_i}{z_{0,\textrm{w}}} \right]}
 
 This formulation is used for all three direction and we assume walls are orthogonal to cell faces.
-If ``erf.if_stability_correction = false`` (which is the default), then MOST simply becomes the log law.
+If ``erf.if_stability_correction = false`` (which is the default), then MOST simply becomes the log law, for the
+momentum and the temperature forcing alike (see the terrain section above).
 The stability corrections are available for the similarity functions ``erf.if_stability_correction = true``; however, they should only be used with extreme caution as their validity for horizontal walls is questionable.
 For additional details on this formulation, please see see `Wise et al. (2025) <https://essopenarchive.org/doi/full/10.22541/essoar.176659709.97467775/v1>`_.
 

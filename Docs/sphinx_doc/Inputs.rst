@@ -3983,8 +3983,10 @@ building combinations.
 |                                   | ``Exec/RegTests/ImmersedForcingTest/PartialCells``)      |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_stability_correction**   | include the stability corrections in the immersed        | Boolean            | false            |
-|                                   | forcing similarity functions; use with caution for       |                    |                  |
-|                                   | horizontal walls                                         |                    |                  |
+|                                   | forcing similarity functions, in the momentum and the    |                    |                  |
+|                                   | temperature kernels alike (false: the log law; a         |                    |                  |
+|                                   | prescribed heat flux or Obukhov length still sets        |                    |                  |
+|                                   | theta*); use with caution for horizontal walls           |                    |                  |
 +-----------------------------------+----------------------------------------------------------+--------------------+------------------+
 | **erf.if_wall_form**              | wall law of the terrain immersed forcing: ``legacy``     | ``legacy``,        | ``legacy``       |
 |                                   | (MOST relaxation of the top partial cell at fixed        | ``fraction_stress``|                  |

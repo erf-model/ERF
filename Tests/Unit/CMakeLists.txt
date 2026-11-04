@@ -216,6 +216,10 @@ target_sources(${erf_exe_name}
     # Motivation: a calm cell above an immersed wall gave the wall law u* = 0, an Obukhov length
     # of zero and z / 0 (erf-model/ERF#4016); the stability estimate is now bounded as on flat ground.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestImmersedWallStability.cpp
+    # Motivation: the immersed-forcing temperature kernels applied the MOST similarity functions whatever
+    # erf.if_stability_correction said, while the momentum kernels gate on it (erf-model/ERF#4931); off,
+    # every kernel is the log law.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestImmersedScalarStability.cpp
     # Motivation: the fraction-stress immersed wall law (erf.if_wall_form = fraction_stress) must
     # force the wall cell (the fluid cell on a face-aligned surface too, which the legacy law leaves
     # unforced), close its bottom face to diffusion and measure the RANS wall distance from the surface.
@@ -375,6 +379,9 @@ target_sources(${erf_exe_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMFoundation.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SBM/ERF_GTestSBMRemapping.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/SLM/ERF_GTestSLMInterface.cpp
+    # Motivation: a finer level's land state must be interpolated land from land and water
+    # from water (erf-model/ERF#4390), keeping each coarse mean and cell_cons_interp elsewhere.
+    ${CMAKE_CURRENT_SOURCE_DIR}/LandSurfaceModel/ERF_GTestLandWaterInterp.cpp
 )
 # The fire coupling's headers are only on the include path, and its sources
 # only in the library, when the fire coupling is built.
@@ -418,6 +425,7 @@ target_sources(${erf_exe_name} PRIVATE
 # only available when particles are enabled.
 if(ERF_ENABLE_PARTICLES)
   target_sources(${erf_exe_name} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/ERF_GTestAnelasticThermodynamics.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/ERF_GTestSpeciesProjection.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/TerminalVelocity/ERF_GTestTerminalVelocityScalar.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/Microphysics/SDM/TerminalVelocity/ERF_GTestTerminalVelocityKernel.cpp
