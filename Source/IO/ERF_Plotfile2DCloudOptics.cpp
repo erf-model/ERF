@@ -57,6 +57,7 @@ parse_cloud_optics_parameters ()
     // The writer caches this result, so runtime settings are logged once,
     // on first requested use, including when only a station needs the fields.
     amrex::Print output;
+    output.SetPrecision(std::numeric_limits<Real>::max_digits10);
     output << "Plot2D cloud optics: illustrative kext [m^2/kg]";
     for (int n = 0; n < 5; ++n) {
         output << " " << coefficient_keys[n] << "=" << parameters.kext[n];

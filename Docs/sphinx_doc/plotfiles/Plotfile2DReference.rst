@@ -974,6 +974,17 @@ column entirely aloft is missing in that level's slab. Stations sample the
 proxy on the level chosen by the existing station stencil rules; they do not
 combine level-columns into a composite atmospheric column.
 
+.. warning::
+
+   On a nested simulation, these are **per-level partial-column proxies**,
+   not full-atmosphere or composite cloud albedos. A bottom-only fine level
+   can report a much smaller optical depth than the coarse level if clouds
+   lie above the fine level's top. Compare levels only with their vertical
+   coverage in mind. The ``CloudOptics_MixedPhase_PartialAMR_Plot2D`` test
+   demonstrates this with a real two-level Morrison writer and upper-cloud
+   mass omitted from the fine level. It also checks every species against
+   native 3D conserved mass, independently of the water-path helper.
+
 The five illustrative default mass-extinction coefficients, in
 :math:`\mathrm{m^2\,kg^{-1}}`, are:
 
@@ -1053,6 +1064,28 @@ Example (water-path outputs are optional):
    erf.plot2d.cloud_optics.kext_qs = 30.0
    erf.plot2d.cloud_optics.kext_qg = 7.5
    erf.plot2d.cloud_optics.reflectance_scale = 7.7
+
+Reproducing the optical settings
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``2DMetadata.json`` keeps the generic diagnostic-descriptor schema; it does
+not record the per-run cloud-optics coefficients. Archive the input deck,
+``job_info``, ERF commit/build configuration, and complete standard output
+with the plotfiles. On first requested use, ERF prints one ``Plot2D cloud
+optics:`` line containing **all five resolved coefficients and the resolved
+reflectance scale**, including defaults omitted from the input deck. Values
+are printed with enough digits to recover the build's ``Real`` values.
+For example, capture and retain this record alongside the plotfiles:
+
+.. code-block:: bash
+
+   ./erf_exec inputs > run.log 2>&1
+   sed -n '/^Plot2D cloud optics:/p' run.log > cloud_optics_resolved_settings.txt
+
+Keep both files, rather than relying on ``job_info`` alone: supplied overrides
+may be present there while unprovided defaults are absent. The writer tests
+archive this same resolved-settings record. Logging and these settings do not
+change the diagnostic values or the generic metadata format.
 
 .. _sec:Plotfile2DSourceCodes:
 
