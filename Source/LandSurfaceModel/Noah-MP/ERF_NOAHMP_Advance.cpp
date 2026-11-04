@@ -82,8 +82,12 @@ NOAHMP::interp_from_lev0 (const int& lev,
     MultiFab fine_pack(f0.boxArray(), f0.DistributionMap(), 2*ntot, f0.nGrowVect());
     MultiFab lev0_pack(c0.boxArray(), c0.DistributionMap(), 2*ntot, c0.nGrowVect());
     for (int n(0); n<ntot; ++n) {
-        AMREX_ASSERT(fine_mf(n).boxArray() == f0.boxArray() && fine_mf(n).nGrowVect() == f0.nGrowVect());
-        AMREX_ASSERT(lev0_mf(n).boxArray() == c0.boxArray() && lev0_mf(n).nGrowVect() == c0.nGrowVect());
+        AMREX_ALWAYS_ASSERT(fine_mf(n).boxArray() == f0.boxArray() &&
+                            fine_mf(n).DistributionMap() == f0.DistributionMap() &&
+                            fine_mf(n).nGrowVect() == f0.nGrowVect());
+        AMREX_ALWAYS_ASSERT(lev0_mf(n).boxArray() == c0.boxArray() &&
+                            lev0_mf(n).DistributionMap() == c0.DistributionMap() &&
+                            lev0_mf(n).nGrowVect() == c0.nGrowVect());
         // The fine ghost cells outside the domain are not interpolated and keep these values
         MultiFab::Copy(fine_pack, fine_mf(n), 0, n, 1, f0.nGrowVect());
         MultiFab::Copy(lev0_pack, lev0_mf(n), 0, n, 1, c0.nGrowVect());

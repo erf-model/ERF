@@ -12,7 +12,7 @@
 
 #include <ERF_Constants.H>
 #include <ERF_DataStruct.H>
-#include <ERF_LSMInterp.H>
+#include <ERF_TypedInterp.H>
 
 enum SurfaceModelType { LAND = 0, URBAN = 1};
 
@@ -155,99 +155,28 @@ public:
         rad_fields[lev].clear();
         rad_output_fields[lev].clear();
 
-        // Interpolate the new finer level using coarse data
+        // Interpolate the new finer level using coarse data.  These fields hold lsm_undefined
+        // where no provider has a value, and their consumers fall back to MOST there.  A valid
+        // and an invalid value are two types (interp_by_type), so no valid fine cell takes a
+        // slope toward an invalid coarse cell, and a fine cell under an invalid one is
+        // lsm_undefined.  Every field moves in one pack: one ghost exchange and one
+        // coarse-to-fine copy.
         if (lev > 0) {
-            amrex::Real time_for_fp = zero; // This is not actually used
-            amrex::Vector<amrex::Real> ftime    = {time_for_fp, time_for_fp};
-            amrex::Vector<amrex::Real> ctime    = {time_for_fp, time_for_fp};
-            amrex::IntVect ng_od(0, 0, 0); // ng outside domain
-            amrex::Interpolater* mapper = &amrex::cell_cons_interp;
-            amrex::Vector<amrex::MultiFab*> fmf;
-            amrex::Vector<amrex::MultiFab*> cmf;
-            // These fields hold lsm_undefined where no provider has a value, and their
-            // consumers fall back to MOST there.  The linear interpolation below does not
-            // keep such a cell exactly lsm_undefined, nor its valid neighbours bounded, so
-            // correct the fine cells afterwards (see lsm_mask_invalid_parents).
-            auto mask_invalid = [&] (amrex::MultiFab& fine, const amrex::IntVect& ngv,
-                                     const amrex::MultiFab& crse, int ncomp)
-            {
-                lsm_mask_invalid_parents(fine, ngv, ng_od, crse, ncomp,
-                                         m_geom[lev-1], m_geom[lev], refRatio[lev-1]);
-            };
+            amrex::Vector<InterpTransfer> transfers;
             if (u_star[lev] != nullptr && u_star[lev-1] != nullptr) {
-            amrex::InterpFromCoarseLevel(*u_star[lev], u_star[lev-1]->nGrowVect(), ng_od,
-                                         *u_star[lev-1], 0, 0, 2,
-                                         m_geom[lev-1], m_geom[lev],
-                                         refRatio[lev-1], mapper,
-                                         domain_bcs_type, BCVars::cons_bc);
-            amrex::InterpFromCoarseLevel(*t_star[lev], t_star[lev-1]->nGrowVect(), ng_od,
-                                         *t_star[lev-1], 0, 0, 1,
-                                         m_geom[lev-1], m_geom[lev],
-                                         refRatio[lev-1], mapper,
-                                         domain_bcs_type, BCVars::cons_bc);
-            amrex::InterpFromCoarseLevel(*q_star[lev], q_star[lev-1]->nGrowVect(), ng_od,
-                                         *q_star[lev-1], 0, 0, 1,
-                                         m_geom[lev-1], m_geom[lev],
-                                         refRatio[lev-1], mapper,
-                                         domain_bcs_type, BCVars::cons_bc);
-            amrex::InterpFromCoarseLevel(*t_surf[lev], t_surf[lev-1]->nGrowVect(), ng_od,
-                                         *t_surf[lev-1], 0, 0, 1,
-                                         m_geom[lev-1], m_geom[lev],
-                                         refRatio[lev-1], mapper,
-                                         domain_bcs_type, BCVars::cons_bc);
-
-            fmf = {u_star[lev  ].get(), u_star[lev  ].get()};
-            cmf = {u_star[lev-1].get(), u_star[lev-1].get()};
-            amrex::FillPatchTwoLevels(*u_star[lev].get(), u_star[lev]->nGrowVect(), ng_od,
-                                      time_for_fp, cmf, ctime, fmf, ftime,
-                                      0, 0, 2, m_geom[lev-1], m_geom[lev],
-                                      refRatio[lev-1], mapper, domain_bcs_type,
-                                      BCVars::cons_bc);
-            fmf = {t_star[lev  ].get(), t_star[lev  ].get()};
-            cmf = {t_star[lev-1].get(), t_star[lev-1].get()};
-            amrex::FillPatchTwoLevels(*t_star[lev].get(), t_star[lev]->nGrowVect(), ng_od,
-                                      time_for_fp, cmf, ctime, fmf, ftime,
-                                      0, 0, 1, m_geom[lev-1], m_geom[lev],
-                                      refRatio[lev-1], mapper, domain_bcs_type,
-                                      BCVars::cons_bc);
-            fmf = {q_star[lev  ].get(), q_star[lev  ].get()};
-            cmf = {q_star[lev-1].get(), q_star[lev-1].get()};
-            amrex::FillPatchTwoLevels(*q_star[lev].get(), q_star[lev]->nGrowVect(), ng_od,
-                                      time_for_fp, cmf, ctime, fmf, ftime,
-                                      0, 0, 1, m_geom[lev-1], m_geom[lev],
-                                      refRatio[lev-1], mapper, domain_bcs_type,
-                                      BCVars::cons_bc);
-            fmf = {t_surf[lev  ].get(), t_surf[lev  ].get()};
-            cmf = {t_surf[lev-1].get(), t_surf[lev-1].get()};
-            amrex::FillPatchTwoLevels(*t_surf[lev].get(), t_surf[lev]->nGrowVect(), ng_od,
-                                      time_for_fp, cmf, ctime, fmf, ftime,
-                                      0, 0, 1, m_geom[lev-1], m_geom[lev],
-                                      refRatio[lev-1], mapper, domain_bcs_type,
-                                      BCVars::cons_bc);
-
-            // t_surf starts at 300 but is lsm_undefined where its provider has no field
-            mask_invalid(*u_star[lev], u_star[lev]->nGrowVect(), *u_star[lev-1], 2);
-            mask_invalid(*t_star[lev], t_star[lev]->nGrowVect(), *t_star[lev-1], 1);
-            mask_invalid(*q_star[lev], q_star[lev]->nGrowVect(), *q_star[lev-1], 1);
-            mask_invalid(*t_surf[lev], t_surf[lev]->nGrowVect(), *t_surf[lev-1], 1);
+                transfers.push_back({u_star[lev].get(), u_star[lev-1].get(), 2});
+                transfers.push_back({t_star[lev].get(), t_star[lev-1].get(), 1});
+                transfers.push_back({q_star[lev].get(), q_star[lev-1].get(), 1});
+                // t_surf starts at 300 but is lsm_undefined where its provider has no field
+                transfers.push_back({t_surf[lev].get(), t_surf[lev-1].get(), 1});
             }
-
             for (int field = 0; field < static_cast<int>(fields.size()); ++field) {
                 if (fields[field][lev] == nullptr || fields[field][lev-1] == nullptr) { continue; }
-                amrex::IntVect ngv = fields[field][lev-1]->nGrowVect(); ngv[2] = 0;
-                amrex::InterpFromCoarseLevel(*fields[field][lev], ngv, ng_od,
-                                             *fields[field][lev-1], 0, 0, 1,
-                                             m_geom[lev-1], m_geom[lev],
-                                             refRatio[lev-1], mapper,
-                                             domain_bcs_type, BCVars::cons_bc);
-                fmf = {fields[field][lev  ].get(), fields[field][lev  ].get()};
-                cmf = {fields[field][lev-1].get(), fields[field][lev-1].get()};
-                amrex::FillPatchTwoLevels(*fields[field][lev].get(), ngv, ng_od,
-                                          time_for_fp, cmf, ctime, fmf, ftime,
-                                          0, 0, 1, m_geom[lev-1], m_geom[lev],
-                                          refRatio[lev-1], mapper, domain_bcs_type,
-                                          BCVars::cons_bc);
-                mask_invalid(*fields[field][lev], ngv, *fields[field][lev-1], 1);
+                transfers.push_back({fields[field][lev].get(), fields[field][lev-1].get(), 1});
+            }
+            if (!transfers.empty()) {
+                interp_surface_fields_from_coarse(lev, transfers, domain_bcs_type[BCVars::cons_bc],
+                                                  refRatio[lev-1]);
             }
         }
     }
@@ -1003,6 +932,92 @@ private:
                           SurfaceModelType::LAND, 1, 0);
         wavg[lev]->setVal(mode == SurfaceProviderMode::UrbanOnly ? 1.0 : 0.0,
                           SurfaceModelType::URBAN, 1, 0);
+    }
+
+    /** A field to interpolate to a new fine level: its fine and coarse data and components. */
+    struct InterpTransfer
+    {
+        amrex::MultiFab* fine;
+        const amrex::MultiFab* crse;
+        int ncomp;
+    };
+
+    /**
+     * @brief Fills fine-level surface fields from the next coarser level with interp_by_type.
+     *
+     * Each component is typed valid or invalid (is_valid_lsm_value) per coarse cell, so a
+     * valid fine cell takes no slope toward an invalid coarse cell; where every neighbour is
+     * valid this is cell_cons_interp.  A fine cell whose parent is invalid is set to
+     * lsm_undefined.  Fine ghost cells outside the domain keep their values.
+     *
+     * @param lev Fine AMR level.
+     * @param transfers Fields to fill; all share one fine and one coarse layout.
+     * @param bc Boundary condition every field takes.
+     * @param ratio Refinement ratio from level lev-1 to lev.
+     */
+    void interp_surface_fields_from_coarse (const int lev,
+                                            const amrex::Vector<InterpTransfer>& transfers,
+                                            const amrex::BCRec& bc, const amrex::IntVect& ratio)
+    {
+        constexpr amrex::Real valid_type     = 0.0;
+        constexpr amrex::Real undefined_type = 1.0;
+
+        int nfield = 0;
+        for (const auto& t : transfers) { nfield += t.ncomp; }
+
+        // Each pack holds the nfield components and then their nfield types
+        const amrex::MultiFab& f0 = *transfers[0].fine;
+        const amrex::MultiFab& c0 = *transfers[0].crse;
+        amrex::MultiFab fine_pack(f0.boxArray(), f0.DistributionMap(), 2*nfield, f0.nGrowVect());
+        amrex::MultiFab crse_pack(c0.boxArray(), c0.DistributionMap(), 2*nfield, c0.nGrowVect());
+        int n0 = 0;
+        for (const auto& t : transfers) {
+            AMREX_ALWAYS_ASSERT(t.fine->boxArray() == f0.boxArray() &&
+                                t.fine->DistributionMap() == f0.DistributionMap() &&
+                                t.fine->nGrowVect() == f0.nGrowVect());
+            AMREX_ALWAYS_ASSERT(t.crse->boxArray() == c0.boxArray() &&
+                                t.crse->DistributionMap() == c0.DistributionMap() &&
+                                t.crse->nGrowVect() == c0.nGrowVect());
+            amrex::MultiFab::Copy(fine_pack, *t.fine, 0, n0, t.ncomp, f0.nGrowVect());
+            amrex::MultiFab::Copy(crse_pack, *t.crse, 0, n0, t.ncomp, c0.nGrowVect());
+            n0 += t.ncomp;
+        }
+
+        // The interpolation reads the coarse ghost cells; fill them in the pack only, so the
+        // coarse fields themselves are not touched
+        crse_pack.FillBoundary(0, nfield, m_geom2d[lev-1].periodicity());
+        for (amrex::MFIter mfi(crse_pack, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const auto p = crse_pack.array(mfi);
+            amrex::ParallelFor(mfi.growntilebox(), nfield,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                p(i,j,k,nfield+n) = is_valid_lsm_value(p(i,j,k,n)) ? valid_type : undefined_type;
+            });
+        }
+        // The fine types come out as their parents'; a cell the interpolation does not fill
+        // keeps valid_type and so its value
+        fine_pack.setVal(valid_type, nfield, nfield, f0.nGrowVect());
+
+        // The fields are planar
+        amrex::IntVect rr2d = ratio;
+        rr2d[2] = 1;
+        interp_by_type_packed(fine_pack, crse_pack, nfield, m_geom2d[lev-1], m_geom2d[lev], rr2d,
+                              bc);
+
+        for (amrex::MFIter mfi(fine_pack, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
+            const auto p = fine_pack.array(mfi);
+            amrex::ParallelFor(mfi.growntilebox(), nfield,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                if (p(i,j,k,nfield+n) != valid_type) { p(i,j,k,n) = lsm_undefined; }
+            });
+        }
+
+        n0 = 0;
+        for (const auto& t : transfers) {
+            amrex::MultiFab::Copy(*t.fine, fine_pack, n0, 0, t.ncomp, f0.nGrowVect());
+            n0 += t.ncomp;
+        }
     }
 
     /**

@@ -624,4 +624,27 @@ TEST(SurfaceModel, CheckpointRoundTripPreservesSyntheticState)
 
 }
 
+// Motivation: a column takes the LSM fluxes only where all four exist and are valid, so a
+// missing or undefined stress sends the whole column to MOST rather than only that flux.
+TEST(SurfaceFluxView, ValidNeedsAllFourFluxes)
+{
+    Real t_flux = Real(0.1);
+    Real q_flux = Real(1.e-5);
+    Real tau13  = Real(-0.2);
+    Real tau23  = Real(0.3);
+    Real undef  = lsm_undefined;
+    auto view = [] (Real& x) {
+        return amrex::Array4<const Real>(&x, amrex::Dim3{0,0,0}, amrex::Dim3{1,1,1}, 1);
+    };
+
+    SurfaceFluxView flux{view(tau13), view(tau23), view(t_flux), view(q_flux)};
+    EXPECT_TRUE(flux.valid(0, 0));
+
+    flux.tau23 = amrex::Array4<const Real>{};
+    EXPECT_FALSE(flux.valid(0, 0));
+
+    flux.tau23 = view(undef);
+    EXPECT_FALSE(flux.valid(0, 0));
+}
+
 } // namespace

@@ -798,6 +798,18 @@ void SurfaceModel::write_output (const int &finest_lev, const amrex::Real &time,
             varnames[field] = field_names[field];
         }
 
+        // The outputs hold lsm_undefined where no provider gives a valid value (water, an
+        // unprocessed cell, u_star component 1 in non-flux mode), which consumers test for.
+        // Plot 0 there instead, as before the outputs started at the sentinel.
+        for (MFIter mfi(fab[lev], TileNoZ()); mfi.isValid(); ++mfi) {
+            const auto out = fab[lev].array(mfi);
+            ParallelFor(mfi.tilebox(), nfields,
+            [=] AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept
+            {
+                if (!is_valid_lsm_value(out(i,j,k,n))) { out(i,j,k,n) = 0.0; }
+            });
+        }
+
         int nout = nfields;
 
         MultiFab lmask_tmp = amrex::ToMultiFab(*m_lmask[lev]); // iMultiFab -> MultiFab

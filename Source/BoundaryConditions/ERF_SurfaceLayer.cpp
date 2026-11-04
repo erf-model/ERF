@@ -33,6 +33,31 @@ struct NearestColumn
 };
 
 /**
+ * The column whose LSM fluxes a face stress reads for cell (ii,jj), at most one cell beyond
+ * the grid.  A column that another grid of the level or a periodic image holds is read
+ * where it is (in_domain only maps it into the domain or its periodic images).  Any other
+ * column beyond the grid, at a coarse/fine boundary or outside a non-periodic domain,
+ * holds no current LSM flux, and compute_fluxes and compute_sfc_params_from_lsm_fluxes
+ * set its u* from the grid's nearest column, so it reads that column.  Without a held
+ * mask, every column inside the domain counts as held.
+ */
+struct LsmFluxColumn
+{
+    NearestColumn in_domain;
+    NearestColumn in_grid;
+    Array4<const int> held; ///< 1 where a grid of the level holds the column
+
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    bool from_grid (int ii, int jj) const noexcept { return held && held(ii,jj,0) == 0; }
+
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    int i (int ii, int jj) const noexcept { return from_grid(ii,jj) ? in_grid.i(ii) : in_domain.i(ii); }
+
+    [[nodiscard]] AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+    int j (int ii, int jj) const noexcept { return from_grid(ii,jj) ? in_grid.j(jj) : in_domain.j(jj); }
+};
+
+/**
  * Whether a planar field covers the columns of b laterally; a null field covers nothing
  * and is not tested.
  */
@@ -668,8 +693,8 @@ SurfaceLayer::compute_fluxes (const int& lev,
         // compute_sfc_params_from_lsm_fluxes.  The decision for a ghost column is made from
         // the nearest valid column, as that routine makes it; fill_planar_boundary then
         // replaces the interior and periodic ghosts with the owning grid's values.  (The
-        // face stresses in compute_SurfaceLayer_bcs still read one filled lateral ghost of
-        // the fluxes.)
+        // face stresses in compute_SurfaceLayer_bcs read one lateral ghost of the fluxes
+        // where a grid of the level holds it, and the nearest column elsewhere.)
         // Both take the fluxes from get_lsm_flux_view and test them with
         // SurfaceFluxView::valid, so a column with lmask == 1 gets exactly one of the two.
         // (compute_sfc_params_from_lsm_fluxes also treats a missing lmask as land.)
@@ -1070,6 +1095,21 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
     }
     const NearestColumn in_domain(lsm_flux_columns);
 
+    // On a refined level a ghost column at a coarse/fine boundary also holds no current LSM
+    // flux: the LSMs refill only the ghost cells that a grid of the level holds (SLM calls
+    // just FillBoundary), so it keeps what the last regrid left there.  Mark the columns a
+    // grid of the level holds, so such a column reads the grid's nearest column too
+    // (LsmFluxColumn).  Level 0 has no coarse/fine boundary, and in_domain alone suffices.
+    iMultiFab held_columns;
+    const bool has_lsm_flux_source = m_has_lsm_fluxes || (use_surface_model && surf_model_fluxes);
+    if (lev > 0 && dir == 2 && m_face.isLow() && has_lsm_flux_source) {
+        held_columns.define(u_star[lev]->boxArray(), u_star[lev]->DistributionMap(), 1,
+                            IntVect(1,1,0));
+        held_columns.setVal(0);
+        held_columns.setVal(1, 0);
+        held_columns.FillBoundary(m_geom[lev].periodicity());
+    }
+
     for (MFIter mfi(*mfs[0]); mfi.isValid(); ++mfi)
     {
         // Skip boxes that do not own the selected face before acquiring any
@@ -1198,6 +1238,9 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
         const auto surface_tau13_arr = lsm_flux.tau13;
         const auto surface_tau23_arr = lsm_flux.tau23;
         const bool has_lsm_t_flux = static_cast<bool>(t_flux_arr);
+        const LsmFluxColumn flux_col{in_domain, NearestColumn(valid_bx),
+                                     held_columns.empty() ? Array4<const int>{}
+                                                          : held_columns.const_array(mfi)};
         {
             Box flux_columns = amrex::grow(valid_bx, IntVect(AMREX_D_DECL(1, 1, 0)));
             flux_columns &= lsm_flux_columns;
@@ -1231,7 +1274,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
             int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
             const bool lsm_flux_is_valid = lsm_flux.valid(i,j);
             const bool has_land_and_flux = (is_land == 1 && lsm_flux_is_valid);
-            if (t_flux_arr && has_land_and_flux) {
+            if (has_land_and_flux) {
                 // LSM flux MultiFabs store kinematic fluxes for MOST parameter
                 // updates. The applied hfx array stores the conservative RHS flux.
                 Tflux = cons_arr(i,j,k,Rho_comp) * t_flux_arr(i,j,0);
@@ -1308,7 +1351,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 int is_land = (lmask_arr) ? lmask_arr(i,j,0) : 1;
                 const bool lsm_flux_is_valid = lsm_flux.valid(i,j);
                 const bool has_land_and_flux = (is_land == 1 && lsm_flux_is_valid);
-                if (q_flux_arr && has_land_and_flux) {
+                if (has_land_and_flux) {
                     // LSM flux MultiFabs store kinematic fluxes for MOST parameter
                     // updates. The applied qfx array stores the conservative RHS flux.
                     Qflux = cons_arr(i,j,k,Rho_comp) * q_flux_arr(i,j,0);
@@ -1383,14 +1426,11 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 Real stressx;
                 int is_land_hi = (lmask_arr) ? lmask_arr(i  ,j,0) : 1;
                 int is_land_lo = (lmask_arr) ? lmask_arr(i-1,j,0) : 1;
-                const int ihi = in_domain.i(i  );
-                const int ilo = in_domain.i(i-1);
-                const int jc  = in_domain.j(j);
-                const bool lsm_hi_flux_is_valid = is_land_hi == 1 && lsm_flux.valid(ihi,jc);
-                const bool lsm_lo_flux_is_valid = is_land_lo == 1 && lsm_flux.valid(ilo,jc);
-                const bool has_land_and_flux_hi = (is_land_hi == 1 && lsm_hi_flux_is_valid);
-                const bool has_land_and_flux_lo = (is_land_lo == 1 && lsm_lo_flux_is_valid);
-                if (surface_tau13_arr && (has_land_and_flux_hi || has_land_and_flux_lo)) {
+                const int ihi = flux_col.i(i  ,j), jhi = flux_col.j(i  ,j);
+                const int ilo = flux_col.i(i-1,j), jlo = flux_col.j(i-1,j);
+                const bool has_land_and_flux_hi = (is_land_hi == 1 && lsm_flux.valid(ihi,jhi));
+                const bool has_land_and_flux_lo = (is_land_lo == 1 && lsm_flux.valid(ilo,jlo));
+                if (has_land_and_flux_hi || has_land_and_flux_lo) {
                     const Real rho_hi = cons_arr(i  ,j,k,Rho_comp);
                     const Real rho_lo = cons_arr(i-1,j,k,Rho_comp);
                     const Real most_stress = (!has_land_and_flux_hi || !has_land_and_flux_lo) ?
@@ -1398,7 +1438,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                                  cons_arr, velx_arr, vely_arr, velz_arr,
                                                  dir_umm_arr, um_arr, vm_arr, wm_arr, u_star_arr) : zero;
                     const auto result = surface_layer_stress::combine_lsm_and_most_stress(
-                        rho_lo, rho_hi, surface_tau13_arr(ilo,jc,0), surface_tau13_arr(ihi,jc,0),
+                        rho_lo, rho_hi, surface_tau13_arr(ilo,jlo,0), surface_tau13_arr(ihi,jhi,0),
                         has_land_and_flux_lo, has_land_and_flux_hi, most_stress);
                     stressx = result.face_stress;
                     // NOTE: do NOT write the MOST-fallback stress back into the
@@ -1456,14 +1496,11 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                 Real stressy;
                 int is_land_hi = (lmask_arr) ? lmask_arr(i,j  ,0) : 1;
                 int is_land_lo = (lmask_arr) ? lmask_arr(i,j-1,0) : 1;
-                const int ic  = in_domain.i(i);
-                const int jhi = in_domain.j(j  );
-                const int jlo = in_domain.j(j-1);
-                const bool lsm_hi_flux_is_valid = is_land_hi == 1 && lsm_flux.valid(ic,jhi);
-                const bool lsm_lo_flux_is_valid = is_land_lo == 1 && lsm_flux.valid(ic,jlo);
-                const bool has_land_and_flux_hi = (is_land_hi == 1 && lsm_hi_flux_is_valid);
-                const bool has_land_and_flux_lo = (is_land_lo == 1 && lsm_lo_flux_is_valid);
-                if (surface_tau23_arr && (has_land_and_flux_hi || has_land_and_flux_lo)) {
+                const int ihi = flux_col.i(i,j  ), jhi = flux_col.j(i,j  );
+                const int ilo = flux_col.i(i,j-1), jlo = flux_col.j(i,j-1);
+                const bool has_land_and_flux_hi = (is_land_hi == 1 && lsm_flux.valid(ihi,jhi));
+                const bool has_land_and_flux_lo = (is_land_lo == 1 && lsm_flux.valid(ilo,jlo));
+                if (has_land_and_flux_hi || has_land_and_flux_lo) {
                     const Real rho_hi = cons_arr(i,j  ,k,Rho_comp);
                     const Real rho_lo = cons_arr(i,j-1,k,Rho_comp);
                     const Real most_stress = (!has_land_and_flux_hi || !has_land_and_flux_lo) ?
@@ -1471,7 +1508,7 @@ SurfaceLayer::compute_SurfaceLayer_bcs (const int& lev,
                                                  cons_arr, velx_arr, vely_arr, velz_arr,
                                                  dir_umm_arr, um_arr, vm_arr, wm_arr, u_star_arr) : zero;
                     const auto result = surface_layer_stress::combine_lsm_and_most_stress(
-                        rho_lo, rho_hi, surface_tau23_arr(ic,jlo,0), surface_tau23_arr(ic,jhi,0),
+                        rho_lo, rho_hi, surface_tau23_arr(ilo,jlo,0), surface_tau23_arr(ihi,jhi,0),
                         has_land_and_flux_lo, has_land_and_flux_hi, most_stress);
                     stressy = result.face_stress;
                     // NOTE: no writeback into cell-centered lsm_tau23_arr -- see the

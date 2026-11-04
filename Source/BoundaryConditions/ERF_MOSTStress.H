@@ -603,7 +603,8 @@ struct surface_flux
             u_star_arr(i,j,k) = accel.update(u_star_arr(i,j,k), iter);
         } while ((accel.extrapolated || std::abs(u_star_arr(i,j,k) - ustar) > tol) &&
                  iter <= max_iters);
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter <= max_iters,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!accel.extrapolated &&
+                                         std::abs(u_star_arr(i,j,k) - ustar) <= tol,
                                          "Maximum number of MOST iterations reached.");
 
         // Populate the stored MOST arrays; below the fold, apply the flux the wind can carry
@@ -746,7 +747,8 @@ struct surface_flux_charnock
             u_star_arr(i,j,k) = accel.update(u_star_arr(i,j,k), iter);
         } while ((accel.extrapolated || std::abs(u_star_arr(i,j,k) - ustar) > tol) &&
                  iter <= max_iters);
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter <= max_iters,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!accel.extrapolated &&
+                                         std::abs(u_star_arr(i,j,k) - ustar) <= tol,
                                          "Maximum number of MOST iterations reached.");
 
         // Populate the stored MOST arrays; below the fold, apply the flux the wind can carry
@@ -881,7 +883,8 @@ struct surface_flux_mod_charnock
             u_star_arr(i,j,k) = accel.update(u_star_arr(i,j,k), iter);
         } while ((accel.extrapolated || std::abs(u_star_arr(i,j,k) - ustar) > tol) &&
                  iter <= max_iters);
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter <= max_iters,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!accel.extrapolated &&
+                                         std::abs(u_star_arr(i,j,k) - ustar) <= tol,
                                          "Maximum number of MOST iterations reached.");
 
         // Populate the stored MOST arrays; below the fold, apply the flux the wind can carry
@@ -1013,7 +1016,8 @@ struct surface_flux_donelan
             u_star_arr(i,j,k) = accel.update(u_star_arr(i,j,k), iter);
         } while ((accel.extrapolated || std::abs(u_star_arr(i,j,k) - ustar) > tol) &&
                  iter <= max_iters);
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter <= max_iters,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!accel.extrapolated &&
+                                         std::abs(u_star_arr(i,j,k) - ustar) <= tol,
                                          "Maximum number of MOST iterations reached.");
 
         // Populate the stored MOST arrays; below the fold, apply the flux the wind can carry
@@ -1146,7 +1150,8 @@ struct surface_flux_wave_coupled
             u_star_arr(i,j,k) = accel.update(u_star_arr(i,j,k), iter);
         } while ((accel.extrapolated || std::abs(u_star_arr(i,j,k) - ustar) > tol) &&
                  iter <= max_iters);
-        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(iter <= max_iters,
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!accel.extrapolated &&
+                                         std::abs(u_star_arr(i,j,k) - ustar) <= tol,
                                          "Maximum number of MOST iterations reached.");
 
         // Populate the stored MOST arrays; below the fold, apply the flux the wind can carry
