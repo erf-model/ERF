@@ -1,5 +1,5 @@
-#ifndef ERF_LAND_WATER_INTERP_H_
-#define ERF_LAND_WATER_INTERP_H_
+#ifndef ERF_TYPED_INTERP_H_
+#define ERF_TYPED_INTERP_H_
 
 #include <AMReX_FillPatchUtil.H>
 #include <AMReX_Interpolater.H>
@@ -26,11 +26,11 @@
  * so a cell whose neighbours are all of other types (an isolated sentinel, say) comes through
  * exactly.
  */
-class LandWaterConsLinear
+class TypedConsLinear
     : public amrex::Interpolater
 {
 public:
-    explicit LandWaterConsLinear (int nind = 1) : m_nind(nind) {}
+    explicit TypedConsLinear (int nind = 1) : m_nind(nind) {}
 
     amrex::Box CoarseBox (const amrex::Box& fine, const amrex::IntVect& ratio) override
     {
@@ -63,7 +63,7 @@ private:
  * in direction d goes to component ns + d*nslope, the layout mf_cell_cons_lin_interp reads.
  */
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void land_water_mcslope (int i, int j, int k, amrex::Array4<amrex::Real> const& slope,
+void typed_mcslope (int i, int j, int k, amrex::Array4<amrex::Real> const& slope,
                     int ns, int nslope,
                     amrex::Array4<amrex::Real const> const& u, int nu, int nm,
                     amrex::Box const& domain, amrex::IntVect const& ratio,
@@ -134,7 +134,7 @@ void land_water_mcslope (int i, int j, int k, amrex::Array4<amrex::Real> const& 
 }
 
 inline void
-LandWaterConsLinear::interp (const amrex::FArrayBox& crse, int crse_comp,
+TypedConsLinear::interp (const amrex::FArrayBox& crse, int crse_comp,
                          amrex::FArrayBox& fine, int fine_comp, int ncomp,
                          const amrex::Box& fine_region, const amrex::IntVect& ratio,
                          const amrex::Geometry& crse_geom, const amrex::Geometry& /*fine_geom*/,
@@ -145,7 +145,7 @@ LandWaterConsLinear::interp (const amrex::FArrayBox& crse, int crse_comp,
     const int nind   = m_nind;
     const int nfield = ncomp - nind;
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nfield >= 1 && (nind == 1 || nind == nfield),
-        "LandWaterConsLinear interpolates nfield fields followed by 1 or nfield type indicators");
+        "TypedConsLinear interpolates nfield fields followed by 1 or nfield type indicators");
     AMREX_ASSERT(fine.box().contains(fine_region));
     AMREX_ASSERT(!bcr.empty());
 
@@ -169,7 +169,7 @@ LandWaterConsLinear::interp (const amrex::FArrayBox& crse, int crse_comp,
     AMREX_HOST_DEVICE_PARALLEL_FOR_4D_FLAG(runon, cslope_bx, nfield, i, j, k, n,
     {
         const int nm = ind_comp + (nind == 1 ? 0 : n);
-        land_water_mcslope(i, j, k, tmp, n, nfield, crsearr, crse_comp+n, nm, cdomain, ratio, bc);
+        typed_mcslope(i, j, k, tmp, n, nfield, crsearr, crse_comp+n, nm, cdomain, ratio, bc);
     });
 
     AMREX_HOST_DEVICE_PARALLEL_FOR_4D_FLAG(runon, fine_region, ncomp, i, j, k, n,
@@ -186,7 +186,7 @@ LandWaterConsLinear::interp (const amrex::FArrayBox& crse, int crse_comp,
 }
 
 /**
- * LandWaterConsLinear on data already packed for it. Components 0 to nfield-1 of csrc are the
+ * TypedConsLinear on data already packed for it. Components 0 to nfield-1 of csrc are the
  * coarse fields and the nind (1 or nfield) after them their type indicators, one value per
  * type; ghost cells included, since the interpolation reads them. The indicators are set to NaN
  * (no type) outside the domain here. fdst has the same layout: its fields are interpolated, and
@@ -194,10 +194,10 @@ LandWaterConsLinear::interp (const amrex::FArrayBox& crse, int crse_comp,
  * domain); its indicator components are scratch. Every field takes the boundary condition bc.
  *
  * Packing many fields moves them in one ParallelCopy rather than one apiece; a caller that packs
- * them anyway saves interp_land_water's copies by building csrc and fdst directly.
+ * them anyway saves interp_by_type's copies by building csrc and fdst directly.
  */
 inline void
-interp_land_water_packed (amrex::MultiFab& fdst, amrex::MultiFab& csrc, int nind,
+interp_by_type_packed (amrex::MultiFab& fdst, amrex::MultiFab& csrc, int nind,
                        const amrex::Geometry& cgeom, const amrex::Geometry& fgeom,
                        const amrex::IntVect& ratio, const amrex::BCRec& bc)
 {
@@ -205,22 +205,22 @@ interp_land_water_packed (amrex::MultiFab& fdst, amrex::MultiFab& csrc, int nind
     const int ntot   = csrc.nComp();
     const int nfield = ntot - nind;
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(fdst.nComp() == ntot,
-        "interp_land_water_packed: csrc and fdst have different numbers of components");
+        "interp_by_type_packed: csrc and fdst have different numbers of components");
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(nfield >= 1 && (nind == 1 || nind == nfield),
-        "interp_land_water_packed: the indicators need 1 component or one per field");
-    LandWaterConsLinear land_water_interp(nind);
+        "interp_by_type_packed: the indicators need 1 component or one per field");
+    TypedConsLinear typed_interp(nind);
 
     csrc.setDomainBndry(std::numeric_limits<Real>::quiet_NaN(), nfield, nind, cgeom);
 
     // InterpFromCoarseLevel reads a BCRec for every component it interpolates
     const Vector<BCRec> bcs(ntot, bc);
     InterpFromCoarseLevel(fdst, fdst.nGrowVect(), IntVect(0), csrc, 0, 0, ntot,
-                          cgeom, fgeom, ratio, &land_water_interp, bcs, 0);
+                          cgeom, fgeom, ratio, &typed_interp, bcs, 0);
 }
 
 /**
  * Interpolate the coarse fields src into the fine fields dst (same number of components) with
- * LandWaterConsLinear. The type of each coarse cell is given by indicator, one value
+ * TypedConsLinear. The type of each coarse cell is given by indicator, one value
  * per type, on any BoxArray (it is copied onto src's cells, ghost cells included): with one
  * component it applies to every field, with src.nComp() components component n applies to field
  * n. Coarse cells it does not reach, and cells outside the domain, have no type and are never
@@ -228,7 +228,7 @@ interp_land_water_packed (amrex::MultiFab& fdst, amrex::MultiFab& csrc, int nind
  * keep their values in dst. Every field takes the boundary condition bcs[bcscomp].
  */
 inline void
-interp_land_water (amrex::MultiFab& dst, const amrex::MultiFab& src,
+interp_by_type (amrex::MultiFab& dst, const amrex::MultiFab& src,
                 const amrex::MultiFab& indicator,
                 const amrex::Geometry& cgeom, const amrex::Geometry& fgeom,
                 const amrex::IntVect& ratio,
@@ -239,7 +239,7 @@ interp_land_water (amrex::MultiFab& dst, const amrex::MultiFab& src,
     const int nind   = indicator.nComp();
     const int ntot   = nfield + nind;
     AMREX_ALWAYS_ASSERT_WITH_MESSAGE(dst.nComp() == nfield,
-        "interp_land_water: src and dst have different numbers of components");
+        "interp_by_type: src and dst have different numbers of components");
 
     // The fields and then their indicators, interpolated together
     MultiFab csrc(src.boxArray(), src.DistributionMap(), ntot, src.nGrowVect());
@@ -252,7 +252,7 @@ interp_land_water (amrex::MultiFab& dst, const amrex::MultiFab& src,
     MultiFab::Copy(fdst, dst, 0, 0, nfield, dst.nGrowVect());
     fdst.setVal(Real(0.0), nfield, nind, dst.nGrowVect());
 
-    interp_land_water_packed(fdst, csrc, nind, cgeom, fgeom, ratio, bcs[bcscomp]);
+    interp_by_type_packed(fdst, csrc, nind, cgeom, fgeom, ratio, bcs[bcscomp]);
     MultiFab::Copy(dst, fdst, 0, 0, nfield, dst.nGrowVect());
 }
 

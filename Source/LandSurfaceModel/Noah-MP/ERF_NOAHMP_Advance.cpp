@@ -14,13 +14,13 @@
 #include "ERF_Constants.H"
 #include "ERF_EOS.H"
 #include "ERF_NOAHMP_ResultPolicy.H"
-#include "ERF_LandWaterInterp.H"
+#include "ERF_TypedInterp.H"
 #include "ERF_TerrainMetrics.H"
 
 using namespace amrex;
 
 namespace {
-// The cell types Noah-MP interpolates by (interp_land_water_packed): a cell holds a valid value
+// The cell types Noah-MP interpolates by (interp_by_type_packed): a cell holds a valid value
 // or the lsm_undefined sentinel. Only their being distinct matters.
 namespace NoahInterpType {
     constexpr Real valid     = 0.0;
@@ -76,7 +76,7 @@ NOAHMP::interp_from_lev0 (const int& lev,
         return (n < ndata) ? *lsm_lev0_data[n] : *lsm_lev0_flux[n-ndata];
     };
 
-    // Each pack holds the ntot fields and then their ntot types (interp_land_water_packed)
+    // Each pack holds the ntot fields and then their ntot types (interp_by_type_packed)
     const MultiFab& f0 = fine_mf(0);
     const MultiFab& c0 = lev0_mf(0);
     MultiFab fine_pack(f0.boxArray(), f0.DistributionMap(), 2*ntot, f0.nGrowVect());
@@ -106,7 +106,7 @@ NOAHMP::interp_from_lev0 (const int& lev,
         });
     }
 
-    interp_land_water_packed(fine_pack, lev0_pack, ntot, m_geom0, m_geom, rr2d,
+    interp_by_type_packed(fine_pack, lev0_pack, ntot, m_geom0, m_geom, rr2d,
                              m_domain_bcs_type[BCVars::cons_bc]);
 
     for (int n(0); n<ntot; ++n) {

@@ -10,12 +10,12 @@
 #include <gtest/gtest.h>
 
 #include "ERF_Constants.H"
-#include "ERF_LandWaterInterp.H"
+#include "ERF_TypedInterp.H"
 
 // Motivation (erf-model/ERF#4390): a finer level that takes its land state from a coarser one
 // interpolated the land fields across the coastline, so the slope of a coastal land cell was
 // set partly by its water neighbour (soil wetness 1 over water in SLM) and the fine cells inside
-// it got a spurious land/water gradient. LandWaterConsLinear interpolates land from land and
+// it got a spurious land/water gradient. TypedConsLinear interpolates land from land and
 // water from water only, as WRF's masked nest interpolation does. It must keep each coarse
 // cell's mean, leave every cell whose neighbours are all of its own type exactly as
 // cell_cons_interp has it, and give no slope toward a neighbour outside the domain.
@@ -100,7 +100,7 @@ Real at (const MultiFab& host, int i, int j, int n = 0)
 bool coarse_is_water (int ic) { return ((ic % nc) + nc) % nc >= ncoast; }
 
 // As NOAHMP::interp_from_lev0 does: the field alone (water holding lsm_undefined), its
-// indicator the validity of each value, interpolated with interp_land_water; on host
+// indicator the validity of each value, interpolated with interp_by_type; on host
 MultiFab interpolate_by_validity (const Levels& L, Real land_offset)
 {
     MultiFab src(L.cba, L.cdm, 1, 1);
@@ -123,7 +123,7 @@ MultiFab interpolate_by_validity (const Levels& L, Real land_offset)
             bc.setLo(d, t); bc.setHi(d, t);
         }
     }
-    interp_land_water(fine, src, valid, L.cgeom, L.fgeom, ratio, bcs, 0);
+    interp_by_type(fine, src, valid, L.cgeom, L.fgeom, ratio, bcs, 0);
     MultiFab host(L.fba, L.fdm, 1, 0, MFInfo().SetArena(The_Pinned_Arena()));
     MultiFab::Copy(host, fine, 0, 0, 1, 0);
     Gpu::streamSynchronize();
@@ -132,10 +132,10 @@ MultiFab interpolate_by_validity (const Levels& L, Real land_offset)
 
 } // namespace
 
-TEST(LandWaterInterp, LandAndWaterDoNotSeeEachOther)
+TEST(TypedInterp, LandAndWaterDoNotSeeEachOther)
 {
     Levels L(true);
-    LandWaterConsLinear interp;
+    TypedConsLinear interp;
     const MultiFab a = interpolate(L, make_coarse(L, Real(1.0), Real(0.)), &interp, 2);
     const MultiFab b = interpolate(L, make_coarse(L, Real(5.0), Real(0.)), &interp, 2);   // other water
     const MultiFab c = interpolate(L, make_coarse(L, Real(1.0), Real(0.3)), &interp, 2);  // other land
@@ -152,10 +152,10 @@ TEST(LandWaterInterp, LandAndWaterDoNotSeeEachOther)
     }
 }
 
-TEST(LandWaterInterp, KeepsCoarseMeansAndMatchesCellConsAwayFromTheCoast)
+TEST(TypedInterp, KeepsCoarseMeansAndMatchesCellConsAwayFromTheCoast)
 {
     Levels L(true);
-    LandWaterConsLinear interp;
+    TypedConsLinear interp;
     const MultiFab crse = make_coarse(L, Real(1.0), Real(0.));
     const MultiFab masked = interpolate(L, crse, &interp, 2);
     const MultiFab plain  = interpolate(L, crse, &cell_cons_interp, 1);
@@ -184,10 +184,10 @@ TEST(LandWaterInterp, KeepsCoarseMeansAndMatchesCellConsAwayFromTheCoast)
     EXPECT_NE(at(plain, ic*2, jc*2), at(plain, ic*2+1, jc*2));
 }
 
-TEST(LandWaterInterp, NoSlopeTowardOutsideTheDomain)
+TEST(TypedInterp, NoSlopeTowardOutsideTheDomain)
 {
     Levels L(false);   // not periodic in x: the indicator is NaN beyond i = 0 and i = nc-1
-    LandWaterConsLinear interp;
+    TypedConsLinear interp;
     const MultiFab f = interpolate(L, make_coarse(L, Real(1.0), Real(0.)), &interp, 2);
     for (int j = 0; j < nc*ratio[1]; ++j) {
         EXPECT_EQ(at(f, 0, j), at(f, 1, j)) << "j=" << j;   // land cell at the domain edge
@@ -200,7 +200,7 @@ TEST(LandWaterInterp, NoSlopeTowardOutsideTheDomain)
 // Motivation: Noah-MP holds the lsm_undefined sentinel over water and its fine levels take
 // their land state from level 0 every step. The sentinel must come through exactly (consumers
 // reject it with is_valid_lsm_value) and must not enter a land cell's slope.
-TEST(LandWaterInterp, SentinelComesThroughExactlyAndStaysOutOfLandSlopes)
+TEST(TypedInterp, SentinelComesThroughExactlyAndStaysOutOfLandSlopes)
 {
     Levels L(true);
     const MultiFab f = interpolate_by_validity(L, Real(0.));
@@ -221,8 +221,8 @@ TEST(LandWaterInterp, SentinelComesThroughExactlyAndStaysOutOfLandSlopes)
 
 namespace {
 
-// interp_land_water of src (any number of fields) with indicator, from a BC vector of one entry
-MultiFab interpolate_land_water (const Levels& L, const MultiFab& src, const MultiFab& indicator)
+// interp_by_type of src (any number of fields) with indicator, from a BC vector of one entry
+MultiFab interpolate_by_type (const Levels& L, const MultiFab& src, const MultiFab& indicator)
 {
     MultiFab fine(L.fba, L.fdm, src.nComp(), 0);
     fine.setVal(Real(0.));
@@ -231,7 +231,7 @@ MultiFab interpolate_land_water (const Levels& L, const MultiFab& src, const Mul
         const int t = L.cgeom.isPeriodic(d) ? BCType::int_dir : BCType::foextrap;
         bcs[0].setLo(d, t); bcs[0].setHi(d, t);
     }
-    interp_land_water(fine, src, indicator, L.cgeom, L.fgeom, ratio, bcs, 0);
+    interp_by_type(fine, src, indicator, L.cgeom, L.fgeom, ratio, bcs, 0);
     MultiFab host(L.fba, L.fdm, src.nComp(), 0, MFInfo().SetArena(The_Pinned_Arena()));
     MultiFab::Copy(host, fine, 0, 0, src.nComp(), 0);
     Gpu::streamSynchronize();
@@ -244,7 +244,7 @@ MultiFab interpolate_land_water (const Levels& L, const MultiFab& src, const Mul
 // indicator, and interpolates them in one call to move them in one ParallelCopy. Each field must
 // come out exactly as it does on its own, whether it has its own indicator or shares one, and
 // the call must not read past the one BCRec it is handed.
-TEST(LandWaterInterp, PackedFieldsMatchTheirSingleFieldInterpolation)
+TEST(TypedInterp, PackedFieldsMatchTheirSingleFieldInterpolation)
 {
     Levels L(false);
     constexpr int nf = 3;
@@ -270,15 +270,15 @@ TEST(LandWaterInterp, PackedFieldsMatchTheirSingleFieldInterpolation)
     MultiFab water(L.cba, L.cdm, 1, 1);
     MultiFab::Copy(water, c0, 1, 0, 1, 1);
 
-    const MultiFab own    = interpolate_land_water(L, src, valid);
-    const MultiFab shared = interpolate_land_water(L, src, water);
+    const MultiFab own    = interpolate_by_type(L, src, valid);
+    const MultiFab shared = interpolate_by_type(L, src, water);
 
     for (int n = 0; n < nf; ++n) {
         MultiFab src_n(L.cba, L.cdm, 1, 1), valid_n(L.cba, L.cdm, 1, 1);
         MultiFab::Copy(src_n, src, n, 0, 1, 1);
         MultiFab::Copy(valid_n, valid, n, 0, 1, 1);
-        const MultiFab own_n    = interpolate_land_water(L, src_n, valid_n);
-        const MultiFab shared_n = interpolate_land_water(L, src_n, water);
+        const MultiFab own_n    = interpolate_by_type(L, src_n, valid_n);
+        const MultiFab shared_n = interpolate_by_type(L, src_n, water);
         for (int j = 0; j < nc*ratio[1]; ++j) {
             for (int i = 0; i < nc*ratio[0]; ++i) {
                 EXPECT_EQ(at(own, i, j, n), at(own_n, i, j)) << "n=" << n << " i=" << i << " j=" << j;
@@ -297,7 +297,7 @@ TEST(LandWaterInterp, PackedFieldsMatchTheirSingleFieldInterpolation)
 // neighbours a slope toward the sentinel and be blended with them; as a type of its own (land/
 // water type + 2) the sentinel comes through exactly and the land around it takes no slope
 // toward it. The packed interface takes the field and its indicator as built by the caller.
-TEST(LandWaterInterp, SentinelOnLandIsATypeOfItsOwn)
+TEST(TypedInterp, SentinelOnLandIsATypeOfItsOwn)
 {
     Levels L(true);
     constexpr int ic_sentinel = 1;   // a land column holding the sentinel
@@ -316,7 +316,7 @@ TEST(LandWaterInterp, SentinelOnLandIsATypeOfItsOwn)
     fine.setVal(Real(0.));
     BCRec bc;
     for (int d = 0; d < AMREX_SPACEDIM; ++d) { bc.setLo(d, BCType::int_dir); bc.setHi(d, BCType::int_dir); }
-    interp_land_water_packed(fine, crse, 1, L.cgeom, L.fgeom, ratio, bc);
+    interp_by_type_packed(fine, crse, 1, L.cgeom, L.fgeom, ratio, bc);
     MultiFab f(L.fba, L.fdm, 2, 0, MFInfo().SetArena(The_Pinned_Arena()));
     MultiFab::Copy(f, fine, 0, 0, 2, 0);
     Gpu::streamSynchronize();

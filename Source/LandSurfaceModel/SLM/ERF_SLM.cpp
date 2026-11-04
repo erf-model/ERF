@@ -5,7 +5,7 @@
 #include "ERF_Constants.H"
 #include "ERF_PlanarBoundary.H"
 #include "ERF_MicrophysicsUtils.H"
-#include "ERF_LandWaterInterp.H"
+#include "ERF_TypedInterp.H"
 #include <AMReX_PlotFileUtil.H>
 #include "ERF.H"
 
@@ -1277,7 +1277,7 @@ SLM::Lsm_Regrid_Level (const int& lev,
 
 namespace {
 /**
- * The cell types SLM interpolates by (interp_land_water_packed): land or water, and for a flux
+ * The cell types SLM interpolates by (interp_by_type_packed): land or water, and for a flux
  * also whether it holds lsm_undefined. Only their being distinct matters.
  */
 namespace SlmInterpType {
@@ -1441,7 +1441,7 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
     }
     {
         MultiFab state_dst = pack_dst(state, nstate+1);
-        interp_land_water_packed(state_dst, state_src, 1, source_lsm_geom, m_lsm_geom, rr2d, bc);
+        interp_by_type_packed(state_dst, state_src, 1, source_lsm_geom, m_lsm_geom, rr2d, bc);
         unpack(state, state_dst);
     }
 
@@ -1471,7 +1471,7 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
     }
     {
         MultiFab flux_dst = pack_dst(flux, 2*nflux);
-        interp_land_water_packed(flux_dst, flux_src, nflux, source_geom, m_geom, rr2d, bc);
+        interp_by_type_packed(flux_dst, flux_src, nflux, source_geom, m_geom, rr2d, bc);
         unpack(flux, flux_dst);
     }
 
