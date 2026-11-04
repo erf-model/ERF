@@ -27,13 +27,23 @@ def parse_d_options(text):
     return dict(sorted(out.items()))
 
 
-def _option_defaults(erf_root):
+def _options(erf_root, overrides):
+    """Every ERF option: a -D override, else its CMakeLists default, where a default of ${OTHER} follows OTHER (after
+    OTHER's own override), as in option(ERF_ENABLE_HDF5 "..." ${ERF_ENABLE_NETCDF})."""
     opts = dict(re.findall(r'option\s*\(\s*(ERF_\w+)\s+"[^"]*"\s+([^)\s]+)\s*\)',
                            (erf_root / "CMakeLists.txt").read_text()))
-    resolved = {}
-    for name, value in opts.items():
-        ref = re.fullmatch(r"\$\{(\w+)\}", value)
-        resolved[name] = (opts.get(ref.group(1), "OFF") if ref else value).upper() == "ON"
+
+    def value(name, seen=()):
+        if isinstance(overrides.get(name), bool):
+            return overrides[name]
+        raw = opts.get(name, "OFF")
+        ref = re.fullmatch(r"\$\{(\w+)\}", raw)
+        if ref:
+            return value(ref.group(1), seen + (name,)) if ref.group(1) not in seen else False
+        return as_bool(raw) is True
+
+    resolved = {name: value(name) for name in opts}
+    resolved.update({k: v for k, v in overrides.items() if isinstance(v, bool)})
     return resolved
 
 
@@ -49,20 +59,22 @@ def _truth(expr, resolved):
 
 
 def _scan_file(path, rel, resolved, features, sources):
-    stack = []
+    stack = []                                       # per open if(): [active, a branch of this chain was taken]
     for i, line in enumerate(path.read_text().split("\n"), 1):
-        s = line.strip()
+        s = re.sub(r"\s+#.*$", "", line.strip())    # if(X) # note
         m = re.match(r"(if|elseif)\s*\((.*)\)\s*$", s)
         if m and m.group(1) == "if":
-            stack.append(_truth(m.group(2), resolved))
-        elif m:
-            stack[-1] = (not any(stack[-1:]) and _truth(m.group(2), resolved)) if stack else False
+            on = _truth(m.group(2), resolved)
+            stack.append([on, on])
+        elif m and stack:
+            on = not stack[-1][1] and _truth(m.group(2), resolved)
+            stack[-1] = [on, stack[-1][1] or on]
         elif re.match(r"else\s*\(", s) and stack:
-            stack[-1] = not stack[-1]
+            stack[-1] = [not stack[-1][1], True]
         elif re.match(r"endif\s*\(", s) and stack:
             stack.pop()
         for macro in re.findall(r"\b(ERF_USE_\w+)\b", s) if "compile_definitions" in s else []:
-            on = all(stack)
+            on = all(active for active, _ in stack)
             if on or macro not in features:
                 features[macro] = features.get(macro, False) or on
                 sources[macro] = f"{rel}:{i}"
@@ -70,8 +82,7 @@ def _scan_file(path, rel, resolved, features, sources):
 
 def cmake_features(erf_root, cmake_options):
     """(features, sources): ERF_USE_X -> on?, and the CMake line that defines it."""
-    resolved = _option_defaults(erf_root)
-    resolved.update({k: v for k, v in cmake_options.items() if isinstance(v, bool)})
+    resolved = _options(erf_root, cmake_options)
     features, sources = {}, {}
     for path in sorted([erf_root / "CMakeLists.txt", *(erf_root / "CMake").glob("*.cmake")]):
         _scan_file(path, str(path.relative_to(erf_root)), resolved, features, sources)
