@@ -211,7 +211,7 @@ jobs:
 
     - name: CMake Regression Tests # see file ERF/Tests/CTestList.cmake
       run: |
-        ctest -L regression -VV
+        ctest -L regression --parallel "$(nproc)" -VV
       working-directory: ${{ github.workspace }}/erf_clone/build
 
     - name: Upload backtraces from failed tests
