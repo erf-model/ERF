@@ -9,6 +9,7 @@
 
 #include <gtest/gtest.h>
 
+#include "ERF_Constants.H"
 #include "ERF_LandWaterInterp.H"
 
 // Motivation (erf-model/ERF#4390): a finer level that takes its land state from a coarser one
@@ -98,6 +99,37 @@ Real at (const MultiFab& host, int i, int j, int n = 0)
 
 bool coarse_is_water (int ic) { return ((ic % nc) + nc) % nc >= ncoast; }
 
+// As NOAHMP::interp_from_lev0 does: the field alone (water holding lsm_undefined), its
+// indicator the validity of each value, interpolated with interp_land_water; on host
+MultiFab interpolate_by_validity (const Levels& L, Real land_offset)
+{
+    MultiFab src(L.cba, L.cdm, 1, 1);
+    MultiFab::Copy(src, make_coarse(L, lsm_undefined, land_offset), 0, 0, 1, 1);
+    MultiFab valid(L.cba, L.cdm, 1, 1);
+    for (MFIter mfi(src); mfi.isValid(); ++mfi) {
+        const auto v = src.const_array(mfi);
+        const auto w = valid.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            w(i,j,k) = is_valid_lsm_value(v(i,j,k)) ? Real(0.0) : Real(1.0);
+        });
+    }
+    MultiFab fine(L.fba, L.fdm, 1, 0);
+    fine.setVal(Real(0.));
+    Vector<BCRec> bcs(2);
+    for (auto& bc : bcs) {
+        for (int d = 0; d < AMREX_SPACEDIM; ++d) {
+            const int t = L.cgeom.isPeriodic(d) ? BCType::int_dir : BCType::foextrap;
+            bc.setLo(d, t); bc.setHi(d, t);
+        }
+    }
+    interp_land_water(fine, src, valid, L.cgeom, L.fgeom, ratio, bcs, 0);
+    MultiFab host(L.fba, L.fdm, 1, 0, MFInfo().SetArena(The_Pinned_Arena()));
+    MultiFab::Copy(host, fine, 0, 0, 1, 0);
+    Gpu::streamSynchronize();
+    return host;
+}
+
 } // namespace
 
 TEST(LandWaterInterp, LandAndWaterDoNotSeeEachOther)
@@ -163,4 +195,26 @@ TEST(LandWaterInterp, NoSlopeTowardOutsideTheDomain)
     }
     // an interior land cell still has its x slope
     EXPECT_LT(at(f, 2, 4), at(f, 3, 4));
+}
+
+// Motivation: Noah-MP holds the lsm_undefined sentinel over water and its fine levels take
+// their land state from level 0 every step. The sentinel must come through exactly (consumers
+// reject it with is_valid_lsm_value) and must not enter a land cell's slope.
+TEST(LandWaterInterp, SentinelComesThroughExactlyAndStaysOutOfLandSlopes)
+{
+    Levels L(true);
+    const MultiFab f = interpolate_by_validity(L, Real(0.));
+    for (int j = 0; j < nc*ratio[1]; ++j) {
+        for (int i = 0; i < nc*ratio[0]; ++i) {
+            if (coarse_is_water(i / ratio[0])) {
+                EXPECT_EQ(at(f, i, j), lsm_undefined) << "i=" << i << " j=" << j;
+            } else {
+                EXPECT_TRUE(is_valid_lsm_value(at(f, i, j))) << "i=" << i << " j=" << j;
+                EXPECT_LT(at(f, i, j), Real(1.)) << "i=" << i << " j=" << j;
+            }
+        }
+    }
+    // the coastal land cell has no slope toward the sentinel
+    const int ic = ncoast - 1, jc = 3;
+    EXPECT_EQ(at(f, ic*2, jc*2), at(f, ic*2+1, jc*2));
 }

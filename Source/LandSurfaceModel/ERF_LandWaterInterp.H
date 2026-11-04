@@ -1,8 +1,12 @@
 #ifndef ERF_LAND_WATER_INTERP_H_
 #define ERF_LAND_WATER_INTERP_H_
 
+#include <AMReX_FillPatchUtil.H>
 #include <AMReX_Interpolater.H>
 #include <AMReX_MFInterp_C.H>
+#include <AMReX_MultiFab.H>
+
+#include <limits>
 
 /**
  * Conservative linear interpolation of a land-surface field that does not mix land and water
@@ -159,6 +163,41 @@ LandWaterConsLinear::interp (const amrex::FArrayBox& crse, int crse_comp,
                                              amrex::coarsen(j,ratio[1]),
                                              amrex::coarsen(k,ratio[2]), nm);
     });
+}
+
+/**
+ * Interpolate the coarse field src (one component) into the fine field dst with
+ * LandWaterConsLinear. The land/water type of each coarse cell is component 0 of indicator, one
+ * value per type, on any BoxArray (it is copied onto src's cells, ghost cells included). Coarse
+ * cells it does not reach, and cells outside the domain, have no type and are never anyone's
+ * neighbour. Fine cells the interpolation does not fill (ghost cells outside the domain) keep
+ * their values in dst.
+ */
+inline void
+interp_land_water (amrex::MultiFab& dst, const amrex::MultiFab& src,
+                   const amrex::MultiFab& indicator,
+                   const amrex::Geometry& cgeom, const amrex::Geometry& fgeom,
+                   const amrex::IntVect& ratio,
+                   const amrex::Vector<amrex::BCRec>& bcs, int bcscomp)
+{
+    using namespace amrex;
+    static LandWaterConsLinear land_water_interp;
+    constexpr Real no_type = std::numeric_limits<Real>::quiet_NaN();
+
+    // The field and its indicator, interpolated together
+    MultiFab csrc(src.boxArray(), src.DistributionMap(), 2, src.nGrowVect());
+    MultiFab::Copy(csrc, src, 0, 0, 1, src.nGrowVect());
+    csrc.setVal(no_type, 1, 1, src.nGrowVect());
+    csrc.ParallelCopy(indicator, 0, 1, 1, indicator.nGrowVect(), src.nGrowVect(),
+                      cgeom.periodicity());
+    csrc.setDomainBndry(no_type, 1, 1, cgeom);
+
+    MultiFab fdst(dst.boxArray(), dst.DistributionMap(), 2, dst.nGrowVect());
+    MultiFab::Copy(fdst, dst, 0, 0, 1, dst.nGrowVect());
+    fdst.setVal(Real(0.0), 1, 1, dst.nGrowVect());
+    InterpFromCoarseLevel(fdst, dst.nGrowVect(), IntVect(0), csrc, 0, 0, 2,
+                          cgeom, fgeom, ratio, &land_water_interp, bcs, bcscomp);
+    MultiFab::Copy(dst, fdst, 0, 0, 1, dst.nGrowVect());
 }
 
 #endif

@@ -14,6 +14,7 @@
 #include "ERF_Constants.H"
 #include "ERF_EOS.H"
 #include "ERF_NOAHMP_ResultPolicy.H"
+#include "ERF_LandWaterInterp.H"
 #include "ERF_TerrainMetrics.H"
 
 using namespace amrex;
@@ -44,26 +45,33 @@ NOAHMP::interp_from_lev0 (const int& lev,
     //
     const IntVect rr2d(m_refRatio[0], m_refRatio[1], 1);
 
-    for (int ivar(0); ivar<m_lsm_data_size; ++ivar) {
-        InterpFromCoarseLevel(*lsm_fab_data[ivar], lsm_fab_data[ivar]->nGrowVect(),
-                              IntVect(0,0,0), // do NOT fill ghost cells outside the domain
-                              *lsm_lev0_data[ivar], 0, 0, 1,
-                              m_geom0, m_geom,
-                              rr2d, &cell_cons_interp,
-                              m_domain_bcs_type, BCVars::cons_bc);
-    }
+    // Noah-MP leaves the lsm_undefined sentinel in the cells it does not process (water) --
+    // in its results and soil profile and, through SurfaceLayer (#3446), in the level-0 flux.
+    // Interpolate valid values from valid neighbours only and the sentinel from sentinel
+    // cells only (#4390), as WRF's masked nest interpolation keeps land and water apart: a
+    // coastal land cell then takes no slope toward the water, and the sentinel comes through
+    // exactly, so consumers keep rejecting it with is_valid_lsm_value. Fields that are valid
+    // everywhere (the radiation forcing) are interpolated exactly as cell_cons_interp does.
+    auto interpolate = [&] (MultiFab& dst, const MultiFab& src)
+    {
+        MultiFab valid(src.boxArray(), src.DistributionMap(), 1, src.nGrowVect());
+        for (MFIter mfi(src); mfi.isValid(); ++mfi) {
+            const auto v = src.const_array(mfi);
+            const auto w = valid.array(mfi);
+            ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+            {
+                w(i,j,k) = is_valid_lsm_value(v(i,j,k)) ? Real(0.0) : Real(1.0);
+            });
+        }
+        interp_land_water(dst, src, valid, m_geom0, m_geom, rr2d,
+                          m_domain_bcs_type, BCVars::cons_bc);
+    };
 
-    // The level-0 flux still holds lsm_undefined in cells Noah-MP did not process:
-    // SurfaceLayer falls back to MOST there but does not write that flux back (see #3446).
-    // These sentinels are interpolated along with the valid values, so every consumer of
-    // the fine-level flux must go on rejecting values that are not below lsm_undefined.
+    for (int ivar(0); ivar<m_lsm_data_size; ++ivar) {
+        interpolate(*lsm_fab_data[ivar], *lsm_lev0_data[ivar]);
+    }
     for (int ivar(0); ivar<LsmFlux_NOAHMP::NumVars; ++ivar) {
-        InterpFromCoarseLevel(*lsm_fab_flux[ivar], lsm_fab_flux[ivar]->nGrowVect(),
-                              IntVect(0,0,0), // do NOT fill ghost cells outside the domain
-                              *lsm_lev0_flux[ivar], 0, 0, 1,
-                              m_geom0, m_geom,
-                              rr2d, &cell_cons_interp,
-                              m_domain_bcs_type, BCVars::cons_bc);
+        interpolate(*lsm_fab_flux[ivar], *lsm_lev0_flux[ivar]);
     }
     Print () << "Noah-MP interpolation at level " << lev << " completed" << std::endl;
 }
