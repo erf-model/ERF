@@ -1,0 +1,47 @@
+# PROPOSED, not active. To enable, the owner moves this file to .github/workflows/; nothing under proposed_ci/ runs.
+#
+# Inputs Schema Validate: on a PR that touches the source or the tools, run the schema tool's tests and the input
+# checker's self-test, then generate a schema at the PR head with ERF's default options as a smoke test. Python only;
+# no ERF build. The pattern is REMORA's generic-inputs-validate.yml (#616).
+
+name: Inputs Schema Validate
+
+on:
+  pull_request:
+    branches: [development]
+    paths:
+      - "Source/**"
+      - "Submodules/AMReX"
+      - "CMakeLists.txt"
+      - "CMake/**"
+      - "Exec/Tools/**"
+      - ".github/workflows/inputs-schema-validate.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.head_ref }}-inputs-schema
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate-inputs-schema:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true           # AMReX is read by git archive at ERF's gitlink
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Schema tool tests and the checker self-test
+        run: |
+          python3 -m unittest discover -s Exec/Tools/erf_inputs_schema/tests
+          python3 Exec/Tools/check_erf_inputs.py --self-test
+
+      - name: Generate a schema at the PR head (smoke test)
+        run: |
+          python3 Exec/Tools/build_erf_schema.py --repo . --erf HEAD --out "$RUNNER_TEMP/erf_inputs_schema.json"
+          python3 -c "import json,sys; s=json.load(open(sys.argv[1])); assert len(s['keys']) > 1000, len(s['keys'])" \
+            "$RUNNER_TEMP/erf_inputs_schema.json"

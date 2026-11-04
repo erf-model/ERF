@@ -34,11 +34,12 @@ class Options:
     """Command-line knobs that change the advice."""
 
     def __init__(self, ranks: Optional[int] = None, gpu: bool = False,
-                 umax: float = 20.0, theta: float = 300.0):
+                 umax: float = 20.0, theta: float = 300.0, schema: Optional[dict] = None):
         self.ranks = ranks
         self.gpu = gpu
         self.umax = umax      # largest wind speed [m/s] expected, for CFL estimates
         self.theta = theta    # potential temperature [K] used for the sound speed
+        self.schema = schema  # a per-build inputs schema (build_erf_schema.py), or None
 
 
 class RunContext:
