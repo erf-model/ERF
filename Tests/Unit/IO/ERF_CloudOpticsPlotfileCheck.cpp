@@ -283,6 +283,8 @@ main (int argc, char** argv)
         return 2;
     }
     Initialize(argc, argv, false);
+    // Keep the native integration errors useful in reproducible test logs.
+    OutStream().precision(std::numeric_limits<Real>::max_digits10);
     int result = 0;
     try {
         if (argc == 6 && std::string(argv[1]) == "--station") {
