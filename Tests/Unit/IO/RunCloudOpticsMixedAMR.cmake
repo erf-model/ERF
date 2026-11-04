@@ -41,7 +41,8 @@ foreach(case IN ITEMS mixed partial)
       "erf.CloudOptics.field=cloud_albedo_est cloud_optical_depth_sw")
   endif()
   execute_process(COMMAND "${ERF_EXECUTABLE}" "${INPUT_FILE}" ${common} ${options}
-    "erf.restart=${checkpoint}" erf.plot_int_1=1 erf.plot_file_1=volume
+    "erf.restart=${checkpoint}" erf.plot_file_on_restart=true
+    erf.plot_int_1=1 erf.plot_file_1=volume
     "erf.plot_vars_1=rhoQ2 rhoQ3 rhoQ4 rhoQ5 rhoQ6"
     erf.plot2d_int_1=1 "erf.plot2d_file_1=${case}"
     "erf.plot2d_vars_1=cloud_albedo_est integrated_qg integrated_qs cloud_optical_depth_sw integrated_qr integrated_qi integrated_qc"
