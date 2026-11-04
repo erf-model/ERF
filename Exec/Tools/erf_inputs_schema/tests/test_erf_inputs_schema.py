@@ -267,6 +267,9 @@ erf.widget_on = true
 erf.notakey = 1
 erf.nsteps = 20
 erf.moisture_species = Kessler SAM
+erf.probe_only = 1 2
+erf.eye_latitude = 2*0.5
+erf.no_substepping = true
 """
 
 
@@ -286,7 +289,22 @@ class CheckerSchemaTests(unittest.TestCase):
     def test_the_checker_uses_a_given_schema(self):
         got = {k: v for (c, k), v in check_deck(["--schema", "S"]).items() if c == "schema"}
         self.assertEqual(got, {"erf.old_knob": "ERROR", "erf.cfl": "ERROR", "erf.widget_on": "ERROR",
-                               "erf.notakey": "WARNING"})
+                               "erf.notakey": "WARNING", "erf.eye_latitude": "WARNING"})
+
+    def test_an_unknown_type_takes_any_number_of_words(self):
+        self.assertNotIn(("schema", "erf.probe_only"), check_deck(["--schema", "S"]))
+
+    def test_an_expression_is_a_warning_since_parmparse_evaluates_it(self):
+        from erf_input_checker.checks import schema as schema_check
+        real = {"type": "real"}
+        self.assertIsNone(schema_check.value_problem(real, ["2*0.5"], 1))
+        self.assertEqual(schema_check.expression_words(real, ["2*0.5", "1.0", "(a+b)", "${x}"]), ["2*0.5", "(a+b)", "${x}"])
+        self.assertEqual(schema_check.value_problem(real, ["fast"], 1), "not a real literal: 'fast'")
+
+    def test_a_retired_key_gets_one_error_not_two(self):
+        found = check_deck(["--schema", "S"])
+        self.assertEqual(found.get(("keys.retired", "erf.no_substepping")), "ERROR")
+        self.assertNotIn(("schema", "erf.no_substepping"), found)
 
     def test_without_a_schema_the_schema_check_does_not_run(self):
         self.assertFalse([k for (c, k) in check_deck([]) if c == "schema"])
