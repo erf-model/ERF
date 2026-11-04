@@ -224,6 +224,12 @@ target_sources(${erf_exe_name}
     # wall law, and a partial wall cell must dissipate like flat ground's first cell.
     ${CMAKE_CURRENT_SOURCE_DIR}/Diffusion/ERF_GTestImmersedWallFace.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestImmersedBuildingCutoff.cpp
+    # Motivation (erf-model/ERF#4887): the building kernels and the implicit projection read each
+    # face and its masks through one header; with erf.if_implicit_projection the kernels keep the
+    # wall law only, and the drag they drop must equal, face by face, the weight the projection
+    # applies (checked with and without the snap and the face-centred blanking).
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestImmersedBuildingMasks.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestImmersedBuildingImplicit.cpp
     # Motivation: a refined level's buildings must keep level 0's numbers for the
     # materials by building, even when its tallest column is a spire level 0
     # leaves fluid, or the level holds only some of the buildings.
