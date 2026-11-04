@@ -103,6 +103,7 @@ jobs:
              ccache-${{ github.workflow }}-${{ github.job }}-${{ matrix.mesh_precision }}-git-
 
     - name: Build & Install
+      shell: bash
       run: |
         export CCACHE_COMPRESS=1
         export CCACHE_COMPRESSLEVEL=10
