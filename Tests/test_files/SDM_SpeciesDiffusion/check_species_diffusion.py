@@ -202,6 +202,12 @@ def run(args, label, options, injected_volume=0):
         args.exe, args.input,
         "erf.input_sounding_file=" + str(Path(args.input).with_name("input_sounding")),
     ] + options
+    if args.anelastic:
+        command += ["erf.anelastic=1", "super_droplets_moisture.num_substeps_phase_change=2"]
+        if args.case != "initialization":
+            # Anelastic RK2 disables the vertical implicit solve: resolve this
+            # fixture's deliberately stiff diffusion at the same final time.
+            command += ["erf.fixed_dt=0.0005", "max_step=160", "erf.plot_int_1=40"]
     if args.case == "initialization":
         checkpoint = directory / "chk00000"
         if checkpoint.exists():
@@ -410,6 +416,7 @@ if __name__ == "__main__":
     parser.add_argument("--mpi-preflags", default="")
     parser.add_argument("--ranks", type=int, default=1)
     parser.add_argument("--tolerance", type=float, default=2.e-11)
+    parser.add_argument("--anelastic", action="store_true")
     arguments = parser.parse_args()
     sys.path.insert(0, arguments.reader_dir)
     from erf_plotfile import _read_cell_h, _read_fab, _read_header

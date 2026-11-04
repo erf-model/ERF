@@ -9,6 +9,7 @@
 #include <AMReX_Geometry.H>
 #include <AMReX_iMultiFab.H>
 #include <AMReX_MultiFabUtil.H>
+#include "ERF_EOS.H"
 #include "ERF_NullMoistLagrangian.H"
 #include "ERF_SuperDropletPC.H"
 
@@ -52,6 +53,16 @@ namespace MicVar_SD_Aerosols {
         accum = 0,  /*!< Ground accumulation */
         NumVars
     };
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+amrex::Real sdm_theta_per_temperature (amrex::Real theta, amrex::Real temperature,
+                                      amrex::Real pressure, amrex::Real rdOcp,
+                                      bool use_base) noexcept
+{
+    // Theta changes between processes, but temperature is lagged within a substep.
+    return use_base ? getThgivenTandP(amrex::Real(1), pressure, rdOcp)
+                    : theta / temperature;
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -217,6 +228,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
          */
         virtual void Update_Micro_Vars (amrex::MultiFab& a_cons_vars) override;
 
+        void Update_Micro_Vars (amrex::MultiFab& a_cons_vars,
+                               const amrex::MultiFab* base_state) override;
+
         /*! \brief Update state variables from microphysics variables
          * \param[in,out] a_cons_vars Conservative variables multifab to update
          * \param[in] a_z_phys_nd Terrain heights (nodal)
@@ -231,6 +245,9 @@ class SuperDropletsMoist : public NullMoistLagrangian {
          * \param[in] a_state State multifab to copy from
          */
         virtual void Copy_State_to_Micro (const amrex::MultiFab& a_state) override;
+
+        void Copy_State_to_Micro (const amrex::MultiFab& a_state,
+                                  const amrex::MultiFab* base_state);
 
         /*! \brief Copy moisture model vars to state from member multifabs
          * \param[out] a_state State multifab to copy to
@@ -472,11 +489,21 @@ class SuperDropletsMoist : public NullMoistLagrangian {
 
     protected:
 
+        bool uses_anelastic_reference_pressure (int lev) const
+        {
+            AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                lev >= 0 && lev < static_cast<int>(m_anelastic.size()),
+                "SDM thermodynamics requires a configured AMR level");
+            return m_anelastic[lev] == 1;
+        }
+
         bool m_flag_phase_change;   /*!< Enable/disable phase changes */
         bool m_flag_advection;      /*!< Enable/disable advection */
         bool m_flag_coalescence;    /*!< Enable/disable coalescence */
 
         amrex::Real m_Cp; /*!< specific heat at constant pressure for dry air */
+        amrex::Real m_rdOcp;
+        amrex::Vector<int> m_anelastic;
         amrex::Real m_r_rain; /*!< minimum radius to be considered rain */
         amrex::Real m_rime_ratio; /*!< rime mass ratio to be considered graupel */
 
