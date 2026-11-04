@@ -201,6 +201,7 @@ public:
     {
         AMREX_ALWAYS_ASSERT(varIdx >= 0 && varIdx < m_lsm_data_size);
         lsm_lev0_data[varIdx] = lev0_data_ptr;
+        m_interp_pending = true;
     }
 
     void
@@ -209,6 +210,7 @@ public:
     {
         AMREX_ALWAYS_ASSERT(varIdx >= 0 && varIdx < int(LsmFlux_NOAHMP::NumVars));
         lsm_lev0_flux[varIdx] = lev0_flux_ptr;
+        m_interp_pending = true;
     }
 
     bool
@@ -242,7 +244,8 @@ public:
     // --- Advance_With_State pipeline helpers (ERF_NOAHMP_Advance.cpp) ---------
 
     // Fine-level (lev>0) coupling data/flux fill by interpolation from level 0,
-    // taken when there is no per-level NetCDF land file. Sets m_updated.
+    // taken when there is no per-level NetCDF land file, on the steps level 0's
+    // driver fires (see Advance_With_State). Sets m_updated.
     void
     interp_from_lev0 (const int& lev,
                       amrex::MultiFab& cons_in,
@@ -428,6 +431,12 @@ private:
 
     // Update status
     bool m_updated = false;
+
+    // A level without a land file of its own interpolates from level 0 only when level 0
+    // has fired since (m_interp_nstep is the level-0 step of the last interpolation), or
+    // when its fields or level-0 pointers have been rebuilt since (m_interp_pending).
+    bool m_interp_pending = true;
+    int  m_interp_nstep   = -1;
 
     // Does this level run the driver on a land setup file of its own? (See Init.)
     bool m_has_nc_file = false;
