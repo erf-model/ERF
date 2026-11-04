@@ -10,7 +10,8 @@ deck key is looked up in the schema, exactly or by a family pattern such as ``er
 * a string or enum word that is not a value of the key's type, or too few per-level values: ERROR. A key of type
   ``unknown`` takes any number of words;
 * a bool, int or real word that is not a plain literal (``2*0.5``, ``${x}``, ``300.;``, ``1e9`` for an int):
-  WARNING, since ParmParse hands it to its parser at run time (``pp_parser``);
+  WARNING, since ParmParse hands it to its parser at run time (``pp_parser``); none for a key read with the parser
+  (``queryWithParser``, ``queryAsDouble``), which takes an expression by design;
 * more words than a scalar key reads (``erf.check_int = 10 steps``): WARNING, since ParmParse reads the first word
   (``ival = FIRST``) and ignores the rest; the same for per-level values beyond the number of levels;
 * the key, or this value of it, needs a build feature the schema says is off: ERROR.
@@ -80,8 +81,8 @@ def _is_literal(scalar, word, fact):
 def read_words(fact, words, nlev=1):
     """The words ERF reads: all of a list, the first nlev of a per-level key, the first of a scalar."""
     kind = fact["type"]
-    if kind.endswith("_list") or kind == "unknown":
-        return list(words)
+    if kind.endswith("_list") or kind == "unknown" or fact.get("line") or fact.get("table"):
+        return list(words)                           # queryline reads the whole line, querytable a {{..} {..}}
     if fact.get("per_level"):
         return list(words[:max(nlev, 1)])
     return list(words[:1])
@@ -96,13 +97,18 @@ WORD = re.compile(r"[A-Za-z_]+")                    # a bare name: the parser ha
 PLACEHOLDER = re.compile(r"@\w+@")                  # CMake configure_file: erf.moisture_model = @BULK_MODEL@
 
 
-def expression_words(fact, words):
-    """The words ParmParse would hand to its parser rather than read as a literal (bool, int, real keys): anything
-    that is not a plain literal, except a bare word such as ``fast``, which the parser cannot evaluate either."""
+def _evaluated(fact, words):
     scalar = _scalar(fact["type"])
     if scalar not in EVALUATED:
         return []
     return [w for w in words if not _is_literal(scalar, w, fact) and not WORD.fullmatch(w)]
+
+
+def expression_words(fact, words):
+    """The words ParmParse would hand to its parser rather than read as a literal (bool, int, real keys): anything
+    that is not a plain literal, except a bare word such as ``fast``, which the parser cannot evaluate either. None
+    for a parser read (queryWithParser, queryAsDouble), where an expression is what the key takes."""
+    return [] if fact.get("parser") else _evaluated(fact, words)
 
 
 def value_problem(fact, words, nlev):
@@ -110,6 +116,8 @@ def value_problem(fact, words, nlev):
     (ignored_words) are not problems."""
     kind = fact["type"]
     scalar = _scalar(kind)
+    if fact.get("line") or fact.get("table"):
+        return None if words else "this key needs a value"
     if kind.endswith("_list"):
         if not words:
             return "a list key needs at least one value"
@@ -118,7 +126,7 @@ def value_problem(fact, words, nlev):
             return "give one value, or one per level (%d)" % nlev
     elif kind != "unknown" and not words:
         return "this key needs a value"
-    skip = set(expression_words(fact, words))
+    skip = set(_evaluated(fact, words))
     for word in read_words(fact, words, nlev):
         if word in skip:
             continue
