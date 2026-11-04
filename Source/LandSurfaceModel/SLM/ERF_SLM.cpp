@@ -8,7 +8,6 @@
 #include <AMReX_PlotFileUtil.H>
 #include "ERF.H"
 
-#include <limits>
 #include <optional>
 #include <AMReX_Math.H>
 
@@ -1358,7 +1357,6 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
         });
     }
 
-    LandWaterConsLinear land_water_interp;
     auto interpolate = [&] (MultiFab& dst, const MultiFab& src, const MultiFab& water,
                             const Geometry& cgeom, const Geometry& fgeom, bool category)
     {
@@ -1366,23 +1364,10 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
             InterpFromCoarseLevel(dst, dst.nGrowVect(), IntVect(0,0,0), src, 0, 0, 1,
                                   cgeom, fgeom, rr2d, &pc_interp, m_domain_bcs_type,
                                   BCVars::cons_bc);
-            return;
+        } else {
+            interp_land_water(dst, src, water, cgeom, fgeom, rr2d,
+                              m_domain_bcs_type, BCVars::cons_bc);
         }
-        // The field and its indicator, interpolated together
-        MultiFab csrc(src.boxArray(), src.DistributionMap(), 2, src.nGrowVect());
-        MultiFab::Copy(csrc, src, 0, 0, 1, src.nGrowVect());
-        csrc.setVal(std::numeric_limits<Real>::quiet_NaN(), 1, 1, src.nGrowVect());
-        csrc.ParallelCopy(water, 0, 1, 1, water.nGrowVect(), src.nGrowVect(), cgeom.periodicity());
-        csrc.setDomainBndry(std::numeric_limits<Real>::quiet_NaN(), 1, 1, cgeom);
-        // Start from the current values, so the cells the interpolation does not fill
-        // (ghost cells outside the domain) keep them
-        MultiFab fdst(dst.boxArray(), dst.DistributionMap(), 2, dst.nGrowVect());
-        MultiFab::Copy(fdst, dst, 0, 0, 1, dst.nGrowVect());
-        fdst.setVal(Real(0.0), 1, 1, dst.nGrowVect());
-        InterpFromCoarseLevel(fdst, dst.nGrowVect(), IntVect(0,0,0), csrc, 0, 0, 2,
-                              cgeom, fgeom, rr2d, &land_water_interp, m_domain_bcs_type,
-                              BCVars::cons_bc);
-        MultiFab::Copy(dst, fdst, 0, 0, 1, dst.nGrowVect());
     };
 
     for (int ivar = 0; ivar < m_lsm_data_size; ++ivar) {
