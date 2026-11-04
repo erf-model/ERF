@@ -942,7 +942,10 @@ For each present species :math:`s\in\{qc,qi,qr,qs,qg\}`:
 
    W_s(i,j)=\int \max(0,(\rho q_s)_{i,j,z})\,dz,
    \qquad \tau_{sw}=\max\left(0,\sum_s k_{ext,s}W_s\right),
-   \qquad A_{est}=\frac{\tau_{sw}}{\tau_{sw}+c},\quad c=7.7.
+   \qquad A_{est}=\frac{\tau_{sw}}{\tau_{sw}+c}.
+
+Here :math:`c` is the run-time ``reflectance_scale``; the default of 7.7 is
+explained below.
 
 The conserved component already contains density; it is not multiplied by
 density again. Absent species contribute exactly zero, and number
@@ -1016,12 +1019,24 @@ These defaults use an **equivalent-sphere approximation**:
 :math:`Q_{ext}\pi r_{eff}^2` divided by its mass
 :math:`4\pi\rho_{particle}r_{eff}^3/3`. The representative radii and densities
 in the table are assumptions, not quantities diagnosed from the active
-microphysics scheme. They are fixed, tunable bulk proxies, **not
-scheme-calibrated or retrieval-grade optics**. Ice, snow, and graupel are often
-non-spherical; their equivalent radii and densities are particularly crude
-proxies. Real mass-size relations, scattering properties, and particle size
-distributions may differ greatly. Sensitivity test these assumptions before
-quantitative research use.
+microphysics scheme. In the geometric-optics limit, where the size parameter
+:math:`2\pi r_{eff}/\lambda` is large, the extinction paradox gives
+:math:`Q_{ext}\rightarrow2`: diffraction contributes roughly another
+geometric cross section to the extinction. This limit is best supported here
+for spherical liquid cloud droplets at visible wavelengths. `Bohren and
+Huffman (1983) <https://doi.org/10.1002/9783527618156>`_ discuss the extinction
+paradox. `Grosvenor et al. (2018, Section 2.1, Eq. 2) <https://doi.org/10.1029/2017RG000593>`_
+define extinction for a spherical droplet size distribution, use
+:math:`Q_{ext}\simeq2` when droplet radius is large relative to wavelength,
+and relate optical depth to liquid water and effective radius in Section 2.2,
+Eq. 6.
+
+The representative radii and densities are fixed, tunable bulk proxies,
+**not scheme-calibrated or retrieval-grade optics**. Ice, snow, and graupel
+are often non-spherical; their equivalent radii and densities are particularly
+crude proxies. Real mass-size relations, scattering properties, and particle
+size distributions may differ greatly. Sensitivity test these assumptions
+before quantitative research use.
 
 The inputs configure the five extinction coefficients in
 :math:`\mathrm{m^2\,kg^{-1}}`, not radius or particle density directly. Users
@@ -1029,12 +1044,26 @@ wanting different assumed effective radii or densities must calculate the
 corresponding coefficients themselves and supply ``kext_qc``, ``kext_qi``,
 ``kext_qr``, ``kext_qs``, and/or ``kext_qg`` overrides.
 
-``reflectance_scale = 7.7`` is a **user-tunable heuristic default** in the
-chosen reflectance proxy. No authoritative derivation or calibration is
-established here for this value; it must not be interpreted as a diagnosed
-optical property or an empirically validated universal constant. A positive
-scale sets the optical depth at which this proxy equals one half. Users
-should sensitivity test it along with the extinction coefficients.
+The common two-stream approximation for a conservatively scattering,
+horizontally homogeneous cloud with asymmetry factor :math:`g` gives
+
+.. math::
+
+   A_{est}=\frac{\tau}{\tau+c},\qquad
+   c=\frac{2}{\sqrt{3}(1-g)}\simeq7.7\quad\text{for }g=0.85.
+
+`Lacis and Hansen (1974) <https://www.giss.nasa.gov/pubs/abs/la05000n.html>`_
+and `Lu et al. (2008, Section 4.3) <https://doi.org/10.1029/2007JD009354>`_
+give the corresponding nonabsorbing-cloud expression
+:math:`R=\tau/(\tau+7.7)` for :math:`g=0.85`. This published approximation
+motivates the default ``reflectance_scale = 7.7``; it does **not** make that
+value a universal or scheme-calibrated albedo parameter. Its assumptions,
+including a fixed asymmetry factor, are particularly limited for ice and
+mixed-phase clouds, whose scattering properties vary with particle habit,
+size, and wavelength. ``reflectance_scale`` remains a positive runtime
+override, and sets the optical depth at which this proxy equals one half.
+The implemented proxy is independent of solar zenith angle and does not solve
+full radiative transfer, as described in the warning below.
 
 .. warning::
 
@@ -1086,6 +1115,23 @@ Keep both files, rather than relying on ``job_info`` alone: supplied overrides
 may be present there while unprovided defaults are absent. The writer tests
 archive this same resolved-settings record. Logging and these settings do not
 change the diagnostic values or the generic metadata format.
+
+References
+^^^^^^^^^^
+
+* Lacis, A. A., and J. E. Hansen (1974). `A parameterization for the
+  absorption of solar radiation in the Earth's atmosphere
+  <https://www.giss.nasa.gov/pubs/abs/la05000n.html>`_. *Journal of the
+  Atmospheric Sciences*, 31, 118–133.
+* Lu, M.-L., et al. (2008). `Aerosol-cloud relationships in continental shallow
+  cumulus <https://doi.org/10.1029/2007JD009354>`_. *Journal of Geophysical
+  Research: Atmospheres*, 113, D15201.
+* Bohren, C. F., and D. R. Huffman (1983). `Absorption and Scattering of Light
+  by Small Particles <https://doi.org/10.1002/9783527618156>`_. Wiley.
+* Grosvenor, D. P., et al. (2018). `Remote sensing of droplet number
+  concentration in warm clouds: A review of the current state of knowledge and
+  perspectives <https://doi.org/10.1029/2017RG000593>`_. *Reviews of
+  Geophysics*, 56, 409–453.
 
 .. _sec:Plotfile2DSourceCodes:
 
