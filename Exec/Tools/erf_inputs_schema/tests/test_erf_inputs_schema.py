@@ -690,16 +690,19 @@ class ParmParseWordRulesTests(unittest.TestCase):
         self.assertIsNone(sc.value_problem(fact, ["1"], 3))
         self.assertEqual(sc.value_problem(fact, ["1", "2"], 3), "give one value, or one per level (3)")
 
-    def test_fortran_exponents_are_reals(self):
-        self.assertEqual(canonical.canonical_value("real", "1D0", {}), "1.0")
-        self.assertEqual(canonical.canonical_value("real", "1.d-3", {}), "0.001")
+    def test_fortran_exponents_are_not_reals(self):
+        # AMReX at ERF's gitlink: isT (AMReX_ParmParse.cpp) reads with istringstream >> double, which leaves "D0"
+        # unread and fails, and the parser's lexer has EXP ([Ee][-+]?[0-9]+) only (amrex_parser.l)
+        for word in ("1D0", "1.d-3"):
+            with self.assertRaises(ValueError):
+                canonical.canonical_value("real", word, {})
 
-    def test_the_checker_reports_the_three_cases_as_warnings(self):
+    def test_the_checker_reports_the_three_cases(self):
         s = generate()
         found = check_schema(s, "erf.nsteps = 20 steps\nerf.cfl = 300.;\nerf.eye_latitude = 1D0\n")
         self.assertEqual(found.get(("schema", "erf.nsteps")), "WARNING")
         self.assertEqual(found.get(("schema", "erf.cfl")), "WARNING")
-        self.assertNotIn(("schema", "erf.eye_latitude"), found)
+        self.assertEqual(found.get(("schema", "erf.eye_latitude")), "ERROR")    # ERF stops at start-up
 
 
 class StationNameTests(unittest.TestCase):
