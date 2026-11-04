@@ -4,9 +4,11 @@ Runs only when ``check_erf_inputs.py --schema FILE`` gives one (written by ``Exe
 deck key is looked up in the schema, exactly or by a family pattern such as ``erf.<station>.lat``:
 
 * not in the schema: WARNING, since no query in this build's ERF or AMReX reads it;
-* ``removed``: ERROR, since ERF stops at start-up when it is present (the schema names the line);
+* ``removed``: ERROR, since ERF stops at start-up when it is present (the schema names the line), unless the keys
+  check already reports it from RETIRED_KEYS;
 * a value that is not a plain literal of the key's type, a wrong per-level count, or an enum name ERF does not
-  know: ERROR;
+  know: ERROR. A key of type ``unknown`` takes any number of words;
+* an expression for a bool, int or real key (``2*0.5``, ``${x}``): WARNING, since ParmParse evaluates it at run time;
 * the key, or this value of it, needs a build feature the schema says is off: ERROR.
 """
 import os
@@ -48,19 +50,37 @@ def cross_check(schema, retired=RETIRED_KEYS):
     return curated_only, source_only
 
 
+EVALUATED = ("bool", "int", "real")               # ParmParse evaluates an expression for these (pp_parser)
+EXPRESSION = re.compile(r"\$\{|[*/^()]|.[+-](?<![eE][+-])")
+
+
+def _scalar(kind):
+    return kind[:-5] if kind.endswith("_list") else kind
+
+
+def expression_words(fact, words):
+    """The words ParmParse would evaluate as an expression rather than read as a literal (bool, int, real keys)."""
+    if _scalar(fact["type"]) not in EVALUATED:
+        return []
+    return [w for w in words if EXPRESSION.search(w)]
+
+
 def value_problem(fact, words, nlev):
-    """Why these words are not a value of the key, or None."""
+    """Why these words are not a value of the key, or None. Expressions are not problems (expression_words)."""
     kind = fact["type"]
-    scalar = kind[:-5] if kind.endswith("_list") else kind
+    scalar = _scalar(kind)
     if kind.endswith("_list"):
         if not words:
             return "a list key needs at least one value"
     elif fact.get("per_level"):
         if len(words) not in (1, nlev):
             return "give one value, or one per level (%d)" % nlev
-    elif len(words) != 1:
+    elif kind != "unknown" and len(words) != 1:
         return "this key takes one value, not %d" % len(words)
+    skip = set(expression_words(fact, words))
     for word in words:
+        if word in skip:
+            continue
         try:
             canonical_value(scalar, word, fact)
         except ValueError as exc:
@@ -86,8 +106,9 @@ class SchemaCheck(Checker):
                 self.warn(key, "no query in this build's ERF or AMReX reads this key (per the schema)",
                           "Check the spelling, or generate the schema for the build you run.")
             elif fact["type"] == "removed":
-                self.error(key, "this input was removed from ERF; the run stops at start-up (%s)"
-                           % fact.get("removed_evidence", "?"), "Take it out of the deck.")
+                if key not in RETIRED_KEYS:                  # the keys check already reports a retired key
+                    self.error(key, "this input was removed from ERF; the run stops at start-up (%s)"
+                               % fact.get("removed_evidence", "?"), "Take it out of the deck.")
             else:
                 self._value(key, fact, schema)
 
@@ -97,10 +118,16 @@ class SchemaCheck(Checker):
         if problem:
             self.error(key, problem, "Give a value of the type the key expects (%s)." % fact["type"])
             return
+        evaluated = expression_words(fact, words)
+        if evaluated:
+            self.warn(key, "%s is an expression; ParmParse evaluates it at run time, so the schema cannot check it"
+                      % ", ".join(evaluated), "Check that it evaluates to a %s." % _scalar(fact["type"]))
         features = schema.get("features", {})
         off = [f for f in fact.get("requires", []) if not features.get(f, False)]
-        scalar = fact["type"][:-5] if fact["type"].endswith("_list") else fact["type"]
+        scalar = _scalar(fact["type"])
         for word in words:
+            if word in evaluated:
+                continue
             need = fact.get("value_requires", {}).get(canonical_value(scalar, word, fact))
             if need and not features.get(need["feature"], False):
                 off.append(need["feature"])
