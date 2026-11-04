@@ -84,6 +84,65 @@ scaled_tolerance (Real expected)
     return Real(64.0) * std::numeric_limits<Real>::epsilon() * scale;
 }
 
+double
+stable_most_residual (double z, double Ri, double D_m, double D_s)
+{
+    // similarity_funs takes Real, not a double template argument. Keep this
+    // oracle in double so float cancellation cannot hide a missed narrow pair.
+    const double psi_m =
+        -6.1 * std::log(z + std::pow(1.0 + std::pow(z, 2.5), 1.0 / 2.5));
+    const double psi_s =
+        -5.3 * std::log(z + std::pow(1.0 + std::pow(z, 1.1), 1.0 / 1.1));
+    const double A_m = std::max(D_m - psi_m, 1.0);
+    const double A_s = std::max(D_s - psi_s, 1.0);
+    return z - Ri * A_m * A_m / A_s;
+}
+
+void
+expect_stable_most_root (Real z, Real Ri, Real D_m, Real D_s, double expected)
+{
+    // The production bracket is at most 1e-3 wide. Allow that absolute
+    // location error in either precision; evaluate the oracle in double so
+    // single-precision cancellation cannot masquerade as a small residual.
+    constexpr double tolerance = 1.0e-3;
+    ASSERT_TRUE(std::isfinite(z));
+    EXPECT_NEAR(z, expected, tolerance);
+    const double lower = std::max(0.0, double(z) - tolerance);
+    const double upper = double(z) + tolerance;
+    const double f_lower = stable_most_residual(lower, Ri, D_m, D_s);
+    const double f_upper = stable_most_residual(upper, Ri, D_m, D_s);
+    EXPECT_LT(f_lower, 0.0);
+    EXPECT_GT(f_upper, 0.0);
+    EXPECT_LE(std::abs(stable_most_residual(z, Ri, D_m, D_s)),
+              std::max(std::abs(f_lower), std::abs(f_upper)));
+
+    similarity_funs sfuns;
+    const Real A_m = std::max(D_m - sfuns.calc_psi_m2(z), Real(1.0));
+    const Real A_s = std::max(D_s - sfuns.calc_psi_h2(z), Real(1.0));
+    const double rhs = double(Ri) * double(A_m) * double(A_m) / double(A_s);
+    EXPECT_NEAR(stable_most_residual(z, Ri, D_m, D_s), double(z) - rhs,
+                64.0 * std::numeric_limits<Real>::epsilon() *
+                    std::max(1.0, std::abs(rhs)));
+}
+
+amrex::Gpu::HostVector<Real>
+most_coordinates_in_kernel (GpuArray<Real, 5> Ri,
+                            GpuArray<Real, 5> D_m,
+                            GpuArray<Real, 5> D_s)
+{
+    amrex::Gpu::DeviceVector<Real> device(5);
+    Real* values = device.data();
+    amrex::ParallelFor(5, [=] AMREX_GPU_DEVICE(int n) noexcept {
+        values[n] = erf_cloud_chamber_wall_flux::most_stability_coordinate(
+                        Ri[n], D_m[n], D_s[n])
+                        .zeta;
+    });
+    amrex::Gpu::HostVector<Real> host(5);
+    amrex::Gpu::copy(amrex::Gpu::deviceToHost, device.begin(), device.end(),
+                     host.begin());
+    return host;
+}
+
 Real
 staggered_tangential_speed (int dir, const amrex::Box& domain,
                             const amrex::MultiFab& u,
@@ -1209,7 +1268,9 @@ TEST(CloudChamberWallFlux, MOSTUsesActiveScalarRoughnessForStability)
     EXPECT_DOUBLE_EQ(dry_vapor_flux.rhoQv_in, Real(0.0));
 }
 
-TEST(CloudChamberWallFlux, MOSTStableStateUsesHundredIterationBudget)
+// Motivation: this valid state needed more than forty relaxed updates; the
+// contract is an accurate shared root, not a particular iteration count.
+TEST(CloudChamberWallFlux, MOSTStableStateCertifiesSlowlyConvergingRoot)
 {
     using namespace erf_cloud_chamber_wall_flux;
     using namespace erf_wall_thermodynamics;
@@ -1226,8 +1287,8 @@ TEST(CloudChamberWallFlux, MOSTStableStateUsesHundredIterationBudget)
     wall.vapor.model = ScalarModel::ResolvedMolecular;
 
     const auto reference = most_stability_coordinate(Real(0.5), Real(2.0), Real(15.0));
-    EXPECT_GT(reference.iterations, 40);
-    EXPECT_LE(reference.iterations, 100);
+    expect_stable_most_root(reference.zeta, Real(0.5), Real(2.0), Real(15.0),
+                            4.237669315020899);
 
     const auto runtime = most_wall_coefficients(
         wall, Real(300.0), Real(0.0), Real(100000.0), R_d/Cp_d,
@@ -1237,6 +1298,228 @@ TEST(CloudChamberWallFlux, MOSTStableStateUsesHundredIterationBudget)
     EXPECT_TRUE(std::isfinite(static_cast<double>(runtime.C_D)));
     EXPECT_TRUE(std::isfinite(static_cast<double>(runtime.C_H)));
 }
+
+// Motivation: F-4576-A aborts after one hundred updates even though the
+// Jimenez closure has a finite stable root at this admissible roughness.
+TEST(CloudChamberWallFlux, MOSTCertifiesRootAfterIterationBudget)
+{
+    const auto result = erf_cloud_chamber_wall_flux::most_stability_coordinate(
+        Real(0.2), Real(0.5), Real(0.5));
+    expect_stable_most_root(result.zeta, Real(0.2), Real(0.5), Real(0.5),
+                            1.545814710591);
+}
+
+// Motivation: F-4576-B has a negative residual near the momentum-resistance
+// floor at 0.155, not a root. False convergence inflated drag about 932-fold.
+TEST(CloudChamberWallFlux,
+     MOSTRejectsFalseConvergenceAndSharesCorrectCoefficients)
+{
+    using namespace erf_cloud_chamber_wall_flux;
+    using namespace erf_wall_thermodynamics;
+    const auto result =
+        most_stability_coordinate(Real(4.0), Real(0.1), Real(24.4));
+    expect_stable_most_root(result.zeta, Real(4.0), Real(0.1), Real(24.4),
+                            73.281971961051);
+
+    FaceWall wall;
+    wall.thermal.mode = ThermalMode::FixedPhysicalTemperature;
+    wall.moisture = MoistureMode::DryImpermeable;
+    wall.momentum.model = MomentumModel::BulkAero;
+    wall.momentum.provider = CoefficientProvider::MOST;
+    wall.momentum.z0_m = Real(0.5) * std::exp(-Real(0.1));
+    wall.heat.model = ScalarModel::BulkAero;
+    wall.heat.provider = CoefficientProvider::MOST;
+    wall.heat.z0 = Real(0.5) * std::exp(-Real(24.4));
+    const Real U_t = Real(0.2);
+    wall.thermal.temperature_K = Real(300.0) - Real(4.0) * Real(300.0) * U_t *
+                                                   U_t /
+                                                   (CONST_GRAV * Real(0.5));
+    const auto runtime = most_wall_coefficients(
+        wall, Real(300.0), Real(0.0), p_0, R_d / Cp_d, U_t, Real(0.5), 1);
+    EXPECT_EQ(runtime.valid, 1);
+    EXPECT_NEAR(runtime.zeta, Real(73.281971961051), Real(1.0e-3));
+    EXPECT_TRUE(std::isfinite(runtime.C_D));
+    EXPECT_TRUE(std::isfinite(runtime.C_H));
+    // Root-location uncertainty dominates rounding in these coefficients.
+    EXPECT_NEAR(runtime.C_D, Real(0.000180425456), Real(2.0e-8));
+    const double A_m = 0.41 / std::sqrt(0.0001804254559951541);
+    const double A_h =
+        24.4 + 5.3 * std::log(73.281971961051 +
+                              std::pow(1.0 + std::pow(73.281971961051, 1.1),
+                                       1.0 / 1.1));
+    EXPECT_NEAR(runtime.C_H, Real(0.41 * 0.41 / (A_m * A_h)), Real(2.0e-8));
+
+    MomentumWallSample momentum;
+    momentum.rho = Real(1.2);
+    momentum.u_t = {U_t, Real(0.0), Real(0.0)};
+    momentum.U_t = U_t;
+    momentum.wall_distance = Real(0.5);
+    momentum.theta_air = Real(300.0);
+    momentum.p_hse = p_0;
+    momentum.rdOcp = R_d / Cp_d;
+    momentum.gravity_sign = 1;
+    const auto traction = evaluate_momentum_traction(wall, momentum);
+    EXPECT_NEAR(traction.traction_on_fluid[0],
+                -momentum.rho * runtime.C_D * U_t * U_t,
+                scaled_tolerance(traction.traction_on_fluid[0]));
+    ScalarWallSample scalar;
+    scalar.rho = momentum.rho;
+    scalar.scalar_air = momentum.theta_air;
+    scalar.theta_air = momentum.theta_air;
+    scalar.p_hse = p_0;
+    scalar.rdOcp = R_d / Cp_d;
+    scalar.U_t = U_t;
+    scalar.wall_distance = Real(0.5);
+    scalar.gravity_sign = 1;
+    const auto heat =
+        evaluate_scalar_flux_in(wall, ScalarChannel::Heat, scalar);
+    EXPECT_NEAR(heat.rhoTheta_in,
+                scalar.rho * runtime.C_H * U_t *
+                    (wall.thermal.temperature_K - scalar.theta_air),
+                scaled_tolerance(heat.rhoTheta_in));
+
+    const Real expected_rate =
+        std::max(momentum_infinity_row_sum_factor() * runtime.C_D * U_t,
+                 runtime.C_H * U_t);
+    const Real current_rate = wall_rate_for_face(
+        wall, Real(300.0), Real(0.0), p_0, R_d / Cp_d, U_t, Real(1.0), 1);
+    EXPECT_NEAR(current_rate, expected_rate, scaled_tolerance(expected_rate));
+    EXPECT_NEAR(wall_dt_from_max_rate(current_rate),
+                wall_dt_from_max_rate(expected_rate),
+                scaled_tolerance(wall_dt_from_max_rate(expected_rate)));
+    wall.thermal.temperature_K = Real(300.0);
+    const Real neutral_rate = wall_rate_for_face(
+        wall, Real(300.0), Real(0.0), p_0, R_d / Cp_d, U_t, Real(1.0), 1);
+    EXPECT_NE(neutral_rate, current_rate);
+    EXPECT_LT(wall_dt_from_max_rate(neutral_rate),
+              wall_dt_from_max_rate(current_rate));
+}
+
+// Motivation: for these inputs the neutral-start iteration reaches the lower
+// root. A broad bracket must not replace it with the distant third root.
+TEST(CloudChamberWallFlux, MOSTKeepsNeutralConnectedLowerRoot)
+{
+    const auto result = erf_cloud_chamber_wall_flux::most_stability_coordinate(
+        Real(4.0), Real(0.1), Real(25.0));
+    expect_stable_most_root(result.zeta, Real(4.0), Real(0.1), Real(25.0),
+                            0.152368429532);
+}
+
+// Motivation: the neutral-start iteration does not always reach the first
+// positive root. Preserve its certified branch rather than silently changing
+// a legacy solution to a different root of the same closure.
+TEST(CloudChamberWallFlux, MOSTPreservesCertifiedOuterIterationBranch)
+{
+    const Real Ri = Real(0.39927092596413188);
+    const Real D_m = Real(0.001);
+    const Real D_s = Real(1.0008842237169981);
+    const auto result =
+        erf_cloud_chamber_wall_flux::most_stability_coordinate(Ri, D_m, D_s);
+    expect_stable_most_root(result.zeta, Ri, D_m, D_s, 6.6318009022167015);
+    EXPECT_LT(stable_most_residual(0.168, Ri, D_m, D_s), 0.0);
+    EXPECT_GT(stable_most_residual(0.169, Ri, D_m, D_s), 0.0);
+}
+
+// Motivation: close to the resistance-floor corner, both ends of a 1e-3
+// probe can be negative despite an intervening first-root pair. The fallback
+// must not discard that interval just because its endpoint signs agree.
+TEST(CloudChamberWallFlux, MOSTFindsNarrowLowerRootPair)
+{
+    const Real D_s = Real(24.5003);
+    const auto result = erf_cloud_chamber_wall_flux::most_stability_coordinate(
+        Real(4.0), Real(0.1), D_s);
+    EXPECT_NEAR(result.zeta, Real(0.15519547), Real(1.0e-3));
+    EXPECT_LT(stable_most_residual(0.154, 4.0, Real(0.1), D_s), 0.0);
+    EXPECT_GT(stable_most_residual(0.15519609, 4.0, Real(0.1), D_s), 0.0);
+    EXPECT_LT(stable_most_residual(0.157, 4.0, Real(0.1), D_s), 0.0);
+}
+
+// Motivation: logarithmic stable corrections allow finite roots above 100;
+// importing another MOST solver's zeta bound would change valid chamber fluxes.
+TEST(CloudChamberWallFlux, MOSTDoesNotCapStableCoordinateAtHundred)
+{
+    using namespace erf_cloud_chamber_wall_flux;
+    using namespace erf_wall_thermodynamics;
+    const auto result =
+        most_stability_coordinate(Real(4.0), Real(6.0), Real(6.0));
+    expect_stable_most_root(result.zeta, Real(4.0), Real(6.0), Real(6.0),
+                            190.376227351357);
+    FaceWall wall;
+    wall.thermal.mode = ThermalMode::FixedPhysicalTemperature;
+    wall.thermal.temperature_K = Real(300.0) - Real(4.0) * Real(300.0) *
+                                                   Real(0.2) * Real(0.2) /
+                                                   (CONST_GRAV * Real(0.5));
+    wall.moisture = MoistureMode::DryImpermeable;
+    wall.momentum.model = MomentumModel::BulkAero;
+    wall.momentum.provider = CoefficientProvider::MOST;
+    wall.momentum.z0_m = Real(0.5) * std::exp(-Real(6.0));
+    wall.heat.model = ScalarModel::BulkAero;
+    wall.heat.provider = CoefficientProvider::MOST;
+    wall.heat.z0 = wall.momentum.z0_m;
+    const auto runtime = most_wall_coefficients(
+        wall, Real(300.0), Real(0.0), p_0, R_d / Cp_d, Real(0.2), Real(0.5), 1);
+    EXPECT_NEAR(runtime.zeta, Real(190.376227351357), Real(1.0e-3));
+    EXPECT_TRUE(std::isfinite(runtime.C_D));
+    EXPECT_TRUE(std::isfinite(runtime.C_H));
+    EXPECT_TRUE(std::isfinite(runtime.C_E));
+}
+
+// Motivation: stable root repair must leave neutral and unstable behavior
+// unchanged; these values freeze the old neutral-start iteration's outputs.
+TEST(CloudChamberWallFlux, MOSTPreservesNeutralAndUnstableControls)
+{
+    using namespace erf_cloud_chamber_wall_flux;
+    EXPECT_EQ(most_stability_coordinate(Real(0.0), Real(6.0), Real(6.0)).zeta,
+              Real(0.0));
+    const auto unstable =
+        most_stability_coordinate(Real(-0.2), Real(6.0), Real(6.0));
+    // Float rounding of the unchanged iteration is below 2e-6 here.
+    EXPECT_NEAR(unstable.zeta, Real(-1.149188573236494), Real(2.0e-6));
+}
+
+// Motivation: host-only evaluation does not exercise device compilation or
+// device arithmetic. Run the discriminators in an AMReX kernel and
+// check copied-back results against the independent host residual.
+TEST(CloudChamberWallFlux, MOSTCertifiedRootsInKernel)
+{
+    const GpuArray<Real, 5> Ri = {Real(0.2), Real(4.0), Real(4.0), Real(4.0),
+                                  Real(0.39927092596413188)};
+    const GpuArray<Real, 5> D_m = {Real(0.5), Real(0.1), Real(0.1), Real(6.0),
+                                   Real(0.001)};
+    const GpuArray<Real, 5> D_s = {Real(0.5), Real(24.4), Real(25.0), Real(6.0),
+                                   Real(1.0008842237169981)};
+    const GpuArray<double, 5> expected = {1.545814710591, 73.281971961051,
+                                          0.152368429532, 190.376227351357,
+                                          6.6318009022167015};
+    const auto host = most_coordinates_in_kernel(Ri, D_m, D_s);
+    for (int n = 0; n < 5; ++n) {
+        SCOPED_TRACE(n);
+        expect_stable_most_root(host[n], Ri[n], D_m[n], D_s[n], expected[n]);
+    }
+}
+
+#if GTEST_HAS_DEATH_TEST && !defined(AMREX_USE_MPI)
+// Motivation: a numerical failure must stop the kernel even when NDEBUG
+// disables AMReX device assertions; it must not return uncertified
+// coefficients.
+TEST(CloudChamberWallFlux, MOSTRejectsNonfiniteStateInKernel)
+{
+    const auto saved_style = GTEST_FLAG_GET(death_test_style);
+    GTEST_FLAG_SET(death_test_style, "threadsafe");
+    const GpuArray<Real, 5> Ri = {Real(4), Real(4), Real(4), Real(4), Real(4)};
+    const Real inf = std::numeric_limits<Real>::infinity();
+    const GpuArray<Real, 5> D_m = {inf, inf, inf, inf, inf};
+    const GpuArray<Real, 5> D_s = {Real(6), Real(6), Real(6), Real(6), Real(6)};
+#if defined(AMREX_USE_GPU)
+    const char* message = ".*"; // A device trap need not flush its diagnostic.
+#else
+    const char* message =
+        "Cloud Chamber MOST requires finite positive stable resistances";
+#endif
+    EXPECT_DEATH((void)most_coordinates_in_kernel(Ri, D_m, D_s), message);
+    GTEST_FLAG_SET(death_test_style, saved_style);
+}
+#endif
 
 TEST(CloudChamberWallFlux, MOSTFrozenWallRateUsesCurrentSharedCoefficients)
 {
