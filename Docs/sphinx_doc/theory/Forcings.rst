@@ -289,7 +289,7 @@ through the wall. Fully immersed cells and partial cells below the wall cell kee
 has none. The solver differences the face above the wall cell over :math:`\Delta z`, although the wall cell's
 fluid centroid and the centre of the cell above are :math:`d_2 - d_1 = (1 - \beta/2)\Delta z` apart; left alone
 this acts like a smaller roughness (a constant speed offset aloft, 1.5 to 3 % in the neutral ABL). The diffusive
-coupling through that face (momentum, strain, :math:`\theta`, TKE) is therefore scaled by
+coupling through that face (momentum, strain, :math:`\theta`, TKE, scalars, moisture) is therefore scaled by
 :math:`\Delta z / \Delta z_{eff}` with, by default (``erf.if_wall_face_spacing = log``),
 :math:`\Delta z_{eff} = (d_1 + d_2) \ln(d_2/d_1) / (2 \ln 3)`, the spacing that gives the face flux, with the
 face viscosity the mean of the two cells' :math:`\kappa u_* z`, the same relative error for a log profile as the
@@ -311,10 +311,15 @@ With a flux or a surface temperature :math:`L = u_*^2 \theta / (\kappa g \theta_
 (about 3 m/s at :math:`q = -0.02` K m/s, :math:`d_1 = 10` m, :math:`z_0 = 0.1` m), where :math:`u_*` falls to
 its floor and the wall carries almost no stress; a surface temperature avoids that. The wall heat flux :math:`-u_*\theta_*` is spread over the cell height
 (integrated exactly toward :math:`\theta_s` when a surface temperature is given), the diffusive
-:math:`\theta` and TKE fluxes through the wall face are switched off, the TKE buoyancy on that face
+fluxes of every scalar (:math:`\theta`, TKE, the passive scalars and the moisture species) through
+the wall face are switched off, the TKE buoyancy on that face
 takes the wall heat flux, and the strain and :math:`\partial\theta/\partial z` of the wall cell use the
 stencils of the flat surface (the strain of the face above; the wall cell itself below it), so a
-surface on a cell face reproduces flat ground. The option needs ``erf.if_use_most = true``, a
+surface on a cell face reproduces flat ground. With a moisture model the microphysics species the host
+transports keep their initial value in fully immersed cells, as :math:`\rho` and :math:`\theta` do (the
+lateral faces of a slope stay open to diffusion, as for :math:`\theta`); the surface has no moisture
+flux (no evaporation or deposition), as the flat surface layer without ``erf.most.surf_moist_flux``
+or ``erf.most.surf_moist``. The option needs ``erf.if_use_most = true``, a
 constant-:math:`\Delta z` mesh and the anelastic model (the compressible fast substep does not carry the wall
 heat flux and the wall TKE); ``erf.if_stability_correction`` belongs to the legacy law. With a RANS closure the
 geometric length scale over the immersed surface is :math:`\kappa (d + z_0)` with ``erf.if_z0``, as it is

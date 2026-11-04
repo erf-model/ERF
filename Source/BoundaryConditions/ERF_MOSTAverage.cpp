@@ -325,9 +325,9 @@ MOSTAverage::make_MOSTAverage_at_level (const int& lev,
             m_rot_fields[lev][4] = nullptr;
         }
 
-        // Default zref to 10 and fill will true values later
+        // Filled by the lookup routine below; the sentinel marks a column it missed
         m_zref[lev] = std::make_unique<MultiFab>(ba2d,dm,1,ng);
-        m_zref[lev]->setVal(zref_default);
+        m_zref[lev]->setVal(zref_sentinel);
 
         if (use_terrain_fitted_coords && m_norm_vec && m_interp) {
             m_x_pos[lev] = std::make_unique<MultiFab>(ba2d,dm,ncomp,ng);
@@ -739,7 +739,6 @@ MOSTAverage::set_k_indices_N (const int& lev)
     Real zref_tmp = zref_sentinel;
     pp.queryAdd("most.zref",zref_tmp);
     bool read_z = (zref_tmp > Real(0));
-    if (!read_z) { zref_tmp = zref_default; }
     auto read_k = pp.queryarr("most.k_arr_in",m_k_in);
 
     const int dir = m_face.coordDir();
@@ -985,7 +984,6 @@ MOSTAverage::set_z_positions_EB (const int& lev)
     ParmParse pp(m_pp_prefix);
     pp.queryAdd("most.zref",zref_tmp);
     bool read_z = (zref_tmp > Real(0));
-    if (!read_z) { zref_tmp = zref_default; }
 
     if (read_z) {
         m_zref[lev]->setVal( zref_tmp );
@@ -1020,24 +1018,27 @@ MOSTAverage::set_k_indices_T (const int& lev)
     Real zref_tmp = zref_sentinel;
     pp.queryAdd("most.zref",zref_tmp);
     const bool user_zref = (zref_tmp > Real(0));
-    bool read_z = user_zref;
     auto read_k = pp.queryarr("most.k_arr_in",m_k_in);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!(user_zref && read_k),
+                                     "Specify erf.most.zref or erf.most.k_arr_in for MOST, not both");
 
-    // Allow default zref
-    if (!read_z) {
-        zref_tmp = zref_default;
-        Print() << "most.zref not specified, query distance default is " << zref_tmp << std::endl;
-        read_z = true;
+    // Without most.zref the reference is the centre of the first cell above the
+    // wall, as on every other mesh.  On a terrain-fitted mesh its height above
+    // the wall varies by column, so it is filled column by column below
+    // (erf-model/ERF#4935).
+    const bool read_z = user_zref || !read_k;
+    if (!user_zref && !read_k) {
+        Print() << "erf.most.zref not set: the MOST reference is the center of the first cell above the surface"
+                << std::endl;
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_radius == 0,
+            "erf.most.radius > 0 needs erf.most.zref placing the reference at least radius cells "
+            "above the surface; without it the reference is the first cell");
     }
-
-    // No default behavior with terrain (we can't tell the difference between
-    // vertical grid stretching and true terrain)
-    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(read_z != read_k,
-                                     "Need to specify zref or k_arr_in for MOST");
 
     // Capture for device
     Real d_zref   = zref_tmp;
     Real d_radius = static_cast<Real>(m_radius);
+    const bool d_user_zref = user_zref;
     const bool is_lo_face = m_face.isLow();
     const int ng = m_k_indx[lev]->nGrow() - 1;
 
@@ -1107,19 +1108,19 @@ MOSTAverage::set_k_indices_T (const int& lev)
                 const int cell_step = is_lo_face ? 1 : -1;
                 k_arr(i,j,k) = first_cell;
 
+                // Default: the centre of this column's first cell, half its
+                // thickness above the wall
+                if (!d_user_zref) {
+                    zref_arr(i,j,k) = myhalf * (z_at(i, j, first_cell + 1) - z_at(i, j, first_cell));
+                    return;
+                }
+
                 bool found = false;
                 for (int cell = first_cell; ; cell += cell_step) {
                     const Real z_lo = z_at(i, j, cell);
                     const Real z_hi = z_at(i, j, cell + 1);
-                    // Preserve the legacy wall-adjacent choice for an explicitly
-                    // requested zref.  The half-open interval is needed for the
-                    // default query on stretched meshes, where the default can
-                    // land exactly on a cell face.
-                    const bool in_cell = user_zref
-                        ? (z_target >= z_lo && z_target <= z_hi)
-                        : (is_lo_face
-                            ? (z_target >= z_lo && z_target < z_hi)
-                            : (z_target > z_lo && z_target <= z_hi));
+                    // A requested zref on a cell face keeps the wall-adjacent cell
+                    const bool in_cell = (z_target >= z_lo && z_target <= z_hi);
                     if (in_cell) {
                         const int wall_offset = is_lo_face ? cell - zlo : zhi - cell;
                         AMREX_ALWAYS_ASSERT_WITH_MESSAGE(wall_offset >= d_radius,
@@ -1144,7 +1145,7 @@ MOSTAverage::set_k_indices_T (const int& lev)
 
         const Periodicity period = tangential_periodicity(m_geom[lev], 2);
         m_k_indx[lev]->FillBoundary(m_k_indx[lev]->nGrowVect(), period);
-        m_zref[lev]->FillBoundary(m_zref[lev]->nGrowVect(), period);
+        fill_zref_planar(lev);
 
     // Specified k_indx & compute z_ref
     } else if (read_k) {
@@ -1173,10 +1174,14 @@ MOSTAverage::set_norm_indices_T (const int& lev)
     // first parse of the key and this routine runs once per level.
     Real zref_tmp = zref_sentinel;
     pp.queryAdd("most.zref",zref_tmp);
-    bool read_zref = (zref_tmp > Real(0));
-    if (!read_zref) {
-        zref_tmp = zref_default;
-        Print() << "most.zref not specified, query distance default is " << zref_tmp << std::endl;
+    const bool user_zref = (zref_tmp > Real(0));
+    if (!user_zref) {
+        // The centre of each column's first cell (erf-model/ERF#4935)
+        Print() << "erf.most.zref not set: the MOST reference is the center of the first cell above the surface"
+                << std::endl;
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_radius == 0,
+            "erf.most.radius > 0 needs erf.most.zref placing the reference at least radius cells "
+            "above the surface; without it the reference is the first cell");
     }
 
     AMREX_ALWAYS_ASSERT(m_face.coordDir() == 2);
@@ -1185,6 +1190,7 @@ MOSTAverage::set_norm_indices_T (const int& lev)
     // Capture for device
     Real d_zref   = zref_tmp;
     Real d_radius = static_cast<Real>(m_radius);
+    const bool d_user_zref = user_zref;
 
     const auto dxInv  = m_geom[lev].InvCellSizeArray();
 
@@ -1221,6 +1227,21 @@ MOSTAverage::set_norm_indices_T (const int& lev)
 
         ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+            // Search for k (grid is stretched in z)
+            Real z_bot_face  = fourth * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
+                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+            Real z_top_face  = fourth * ( z_phys_arr(i  ,j  ,k+1) + z_phys_arr(i+1,j  ,k+1)
+                                          + z_phys_arr(i  ,j+1,k+1) + z_phys_arr(i+1,j+1,k+1) );
+
+            // Default: the centre of this column's first cell, no displacement
+            if (!d_user_zref) {
+                i_arr(i,j,0)    = i;
+                j_arr(i,j,0)    = j;
+                k_arr(i,j,0)    = klo;
+                zref_arr(i,j,0) = myhalf * (z_top_face - z_bot_face);
+                return;
+            }
+
             // Elements of normal vector
             Real met_h_xi  = Compute_h_xi_AtCellCenter (i,j,k,dxInv,z_phys_arr);
             Real met_h_eta = Compute_h_eta_AtCellCenter(i,j,k,dxInv,z_phys_arr);
@@ -1239,14 +1260,10 @@ MOSTAverage::set_norm_indices_T (const int& lev)
             i_arr(i,j,0) = i_new;
             j_arr(i,j,0) = j_new;
 
-            // Search for k (grid is stretched in z)
-            Real z_bot_face  = fourth * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
-                                          + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
             Real z_target    = z_bot_face + delta_z;
             k_arr(i,j,0)     = klo;
-            zref_arr(i,j,0)  = myhalf * z_bot_face +
-                               Real(0.125) * ( z_phys_arr(i  ,j  ,k+1) + z_phys_arr(i+1,j  ,k+1)
-                                             + z_phys_arr(i  ,j+1,k+1) + z_phys_arr(i+1,j+1,k+1) );
+            // Fallback if no cell holds the target: the first cell's centre height
+            zref_arr(i,j,0)  = myhalf * (z_top_face - z_bot_face);
             for (int lk(klo); lk<=kmax; ++lk) {
                 Real z_lo = fourth * ( z_phys_arr(i_new,j_new  ,lk  ) + z_phys_arr(i_new+1,j_new  ,lk  )
                                      + z_phys_arr(i_new,j_new+1,lk  ) + z_phys_arr(i_new+1,j_new+1,lk  ) );
@@ -1263,6 +1280,7 @@ MOSTAverage::set_norm_indices_T (const int& lev)
             }
         });
     }
+    fill_zref_planar(lev);
 }
 
 
@@ -1288,16 +1306,20 @@ MOSTAverage::set_z_positions_T (const int& lev)
     // first parse of the key and this routine runs once per level.
     Real zref_tmp = zref_sentinel;
     pp.queryAdd("most.zref",zref_tmp);
-    bool read_zref = (zref_tmp > Real(0));
-    if (!read_zref) {
-        zref_tmp = zref_default;
-        Print() << "most.zref not specified, query distance default is " << zref_tmp << std::endl;
+    const bool user_zref = (zref_tmp > Real(0));
+    if (!user_zref) {
+        // The centre of each column's first cell (erf-model/ERF#4935)
+        Print() << "erf.most.zref not set: the MOST reference is the center of the first cell above the surface"
+                << std::endl;
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_radius == 0,
+            "erf.most.radius > 0 needs erf.most.zref placing the reference at least radius cells "
+            "above the surface; without it the reference is the first cell");
     }
-    m_zref[lev]->setVal(zref_tmp);
     int klo = m_geom[lev].Domain().smallEnd(2);
 
     // Capture for device
     Real d_zref = zref_tmp;
+    const bool d_user_zref = user_zref;
     const auto plo = m_geom[lev].ProbLoArray();
 
     RealVect base;
@@ -1326,6 +1348,7 @@ MOSTAverage::set_z_positions_T (const int& lev)
         auto x_pos_arr = m_x_pos[lev]->array(mfi);
         auto y_pos_arr = m_y_pos[lev]->array(mfi);
         auto z_pos_arr = m_z_pos[lev]->array(mfi);
+        auto zref_arr  = m_zref[lev]->array(mfi);
         ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
             // Final position at end of vector
@@ -1333,7 +1356,12 @@ MOSTAverage::set_z_positions_T (const int& lev)
             y_pos_arr(i,j,k) = plo[1] + ((Real) j + myhalf) * dx[1];
             Real z_bot_face  = fourth * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
                                         + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
-            z_pos_arr(i,j,k) = z_bot_face + d_zref;
+            Real z_top_face  = fourth * ( z_phys_arr(i  ,j  ,k+1) + z_phys_arr(i+1,j  ,k+1)
+                                        + z_phys_arr(i  ,j+1,k+1) + z_phys_arr(i+1,j+1,k+1) );
+            // Query distance: the requested height, or half of this column's first cell
+            const Real zq = d_user_zref ? d_zref : myhalf * (z_top_face - z_bot_face);
+            zref_arr(i,j,k)  = zq;
+            z_pos_arr(i,j,k) = z_bot_face + zq;
 
             // Destination position must be contained on the current process!
             Real pos[] = {x_pos_arr(i,j,k)-plo[0],y_pos_arr(i,j,k)-plo[1],myhalf*dx[2]};
@@ -1342,6 +1370,7 @@ MOSTAverage::set_z_positions_T (const int& lev)
                                              "Query point outside of proc domain!");
         });
     }
+    fill_zref_planar(lev);
 }
 
 
@@ -1367,16 +1396,20 @@ MOSTAverage::set_norm_positions_T (const int& lev)
     // first parse of the key and this routine runs once per level.
     Real zref_tmp = zref_sentinel;
     pp.queryAdd("most.zref",zref_tmp);
-    bool read_zref = (zref_tmp > Real(0));
-    if (!read_zref) {
-        zref_tmp = zref_default;
-        Print() << "most.zref not specified, query distance default is " << zref_tmp << std::endl;
+    const bool user_zref = (zref_tmp > Real(0));
+    if (!user_zref) {
+        // The centre of each column's first cell (erf-model/ERF#4935)
+        Print() << "erf.most.zref not set: the MOST reference is the center of the first cell above the surface"
+                << std::endl;
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_radius == 0,
+            "erf.most.radius > 0 needs erf.most.zref placing the reference at least radius cells "
+            "above the surface; without it the reference is the first cell");
     }
-    m_zref[lev]->setVal(zref_tmp);
     int klo = m_geom[lev].Domain().smallEnd(2);
 
     // Capture for device
     Real d_zref = zref_tmp;
+    const bool d_user_zref = user_zref;
     const auto plo = m_geom[lev].ProbLoArray();
 
     RealVect base;
@@ -1407,6 +1440,23 @@ MOSTAverage::set_norm_positions_T (const int& lev)
         auto zref_arr    = m_zref[lev]->array(mfi);
         ParallelFor(npbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
         {
+            // Position of the current node (indx:0,0,1)
+            Real x0 = plo[0] + ((Real) i + myhalf) * dx[0];
+            Real y0 = plo[1] + ((Real) j + myhalf) * dx[1];
+            Real z_bot_face  = fourth * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
+                                        + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
+
+            // Default: the centre of this column's first cell, no displacement
+            if (!d_user_zref) {
+                Real z_top_face = fourth * ( z_phys_arr(i  ,j  ,k+1) + z_phys_arr(i+1,j  ,k+1)
+                                           + z_phys_arr(i  ,j+1,k+1) + z_phys_arr(i+1,j+1,k+1) );
+                x_pos_arr(i,j,0) = x0;
+                y_pos_arr(i,j,0) = y0;
+                z_pos_arr(i,j,0) = myhalf * (z_bot_face + z_top_face);
+                zref_arr(i,j,0)  = myhalf * (z_top_face - z_bot_face);
+                return;
+            }
+
             // Elements of normal vector
             Real met_h_xi  = Compute_h_xi_AtCellCenter (i,j,k,dxInv,z_phys_arr);
             Real met_h_eta = Compute_h_eta_AtCellCenter(i,j,k,dxInv,z_phys_arr);
@@ -1417,15 +1467,9 @@ MOSTAverage::set_norm_positions_T (const int& lev)
             Real delta_y = -met_h_eta * imag * d_zref;
             Real delta_z =              imag * d_zref;
 
-            // Position of the current node (indx:0,0,1)
-            Real x0 = plo[0] + ((Real) i + myhalf) * dx[0];
-            Real y0 = plo[1] + ((Real) j + myhalf) * dx[1];
-
             // Final position at end of vector
             x_pos_arr(i,j,0) = x0 + delta_x;
             y_pos_arr(i,j,0) = y0 + delta_y;
-            Real z_bot_face  = fourth * ( z_phys_arr(i  ,j  ,k) + z_phys_arr(i+1,j  ,k)
-                                        + z_phys_arr(i  ,j+1,k) + z_phys_arr(i+1,j+1,k) );
             z_pos_arr(i,j,0) = z_bot_face + delta_z;
 
             // NOTE: Normal vector end point can be below the surface for concave regions.
@@ -1447,6 +1491,7 @@ MOSTAverage::set_norm_positions_T (const int& lev)
                                               "Query point outside of proc domain!");
         });
     }
+    fill_zref_planar(lev);
 }
 
 
@@ -2076,6 +2121,25 @@ MOSTAverage::fill_planar_boundary (const int& lev, MultiFab& mf)
     } else {
         m_planar_bndry[lev].fill(mf, period);
     }
+}
+
+/**
+ * Copy the reference heights of the wall-owning planar boxes onto every planar box.
+ *
+ * @param[in] lev Current level
+ *
+ * The lookups fill only the planar boxes whose 3D box touches the wall.  When the
+ * level is split in the wall-normal direction the planar BoxArray holds duplicates
+ * of those boxes, which would otherwise keep the sentinel: a plain FillBoundary may
+ * copy it into a ghost cell, and min() would report it.  No column may be left at
+ * the sentinel afterwards.
+ */
+void
+MOSTAverage::fill_zref_planar (const int& lev)
+{
+    fill_planar_boundary(lev, *m_zref[lev]);
+    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(m_zref[lev]->min(0) > zero,
+                                     "MOSTAverage: a column has no reference height");
 }
 
 /**
