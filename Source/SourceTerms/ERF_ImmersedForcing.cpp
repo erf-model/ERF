@@ -4,6 +4,7 @@
 #include "ERF_SrcHeaders.H"
 #include "ERF_ImmersedWallStability.H"
 #include "ERF_ImmersedWallCell.H"
+#include "ERF_ImmersedBuildingMasks.H"
 
 using namespace amrex;
 
@@ -663,6 +664,9 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
     const Real damp_alpha         = solverChoice.if_damp_alpha;
     // Point-implicit alternative to the clamp above; stabilizes both compressible and anelastic
     const bool l_implicit_drag    = solverChoice.if_implicit_drag;
+    // erf.if_implicit_projection: the linear drag of the solid is applied inside the anelastic
+    // projection (ERF::make_if_projection_sigma), not here
+    const bool l_ip               = solverChoice.if_implicit_projection;
 
     const bool is_slow_step = true;  // This is determined by calling context
     const bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
@@ -681,18 +685,9 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
     // carries the wall law and the interior drag together as before. See
     // SolverChoice::if_snap_partial_cells.
     const bool l_snap = solverChoice.if_snap_partial_cells;
-    auto snapb = [=] AMREX_GPU_DEVICE (amrex::Real b) noexcept -> amrex::Real {
-        return l_snap ? ((b >= myhalf) ? one : zero) : b;
-    };
-    // Blanking of an x-face (i, j, k): with the snap, from the two cells it
-    // joins (solid when either is), so both builds give the same staircase;
-    // otherwise the face-centred fraction when the build has it, else the
-    // mean of the two cells.
-    auto fb = [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> amrex::Real {
-        if (l_snap) { return amrex::max(snapb(t_blank_arr(i, j, k)), snapb(t_blank_arr(i-1, j, k))); }
-        return (t_blank_xface_arr) ? t_blank_xface_arr(i, j, k)
-                                   : myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i-1, j, k));
-    };
+    // The face blanking and its neighbours are read through ERF_ImmersedBuildingMasks.H, as the
+    // implicit projection reads them
+    const int dom_klo = geom.Domain().smallEnd(2);
 
 
     ParallelFor(tbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -707,26 +702,18 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
         const Real rho_xface   = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i-1,j,k,Rho_comp) );
         const Real theta_xface = (myhalf * (cell_data(i,j,k,RhoTheta_comp) + cell_data(i-1,j,k, RhoTheta_comp))) / rho_xface;
 
-        // Use face-centered terrain_blanking if available, otherwise average from cell centers with threshold
-        Real t_blank_raw       = fb(i, j, k);
-        const Real t_blank     = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
+        // the face, its neighbours and the raw blanking the explicit path zeroes on (ERF_ImmersedBuildingMasks.H)
+        const if_bld::HorizFace fc = if_bld::horiz_face<0>(t_blank_arr, t_blank_xface_arr, i, j, k, dom_klo, l_snap, small_volfrac);
+        const Real t_blank       = fc.t;
         // With the snap the boundary solid face stands for the wall layer and
         // takes the full log-law target; the partial-cell weight (1 - t_blank)
         // of compute_if_most_target_vel() would make it zero (a no-slip
         // staircase), so the snap path passes a zero blanking to it.
         const Real t_blank_law = l_snap ? zero : t_blank;
-
-        Real t_blank_below_raw = (k == 0) ? zero : fb(i, j, k-1);
-        const Real t_blank_below = (t_blank_below_raw < small_volfrac) ? zero : t_blank_below_raw;
-
-        Real t_blank_above_raw = fb(i, j, k+1);
-        const Real t_blank_above = (t_blank_above_raw < small_volfrac) ? zero : t_blank_above_raw;
-
-        Real t_blank_north_raw = fb(i, j+1, k);
-        const Real t_blank_north = (t_blank_north_raw < small_volfrac) ? zero : t_blank_north_raw;
-
-        Real t_blank_south_raw = fb(i, j-1, k);
-        const Real t_blank_south = (t_blank_south_raw < small_volfrac) ? zero : t_blank_south_raw;
+        const Real t_blank_below = fc.below;
+        const Real t_blank_above = fc.above;
+        const Real t_blank_south = fc.lo;
+        const Real t_blank_north = fc.hi;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
         const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
@@ -734,18 +721,26 @@ void ImmersedForcingBuildings_Xmom (const Box& tbx,
         // With the snap a face joining a solid and a fluid cell is wall-normal:
         // it gets the interior drag (no penetration), not a wall law, whatever
         // row it lies in.
-        const bool normal_face = l_snap && (snapb(t_blank_arr(i, j, k)) != snapb(t_blank_arr(i-1, j, k)));
+        const bool normal_face = fc.normal;
 
         // With the snap every solid face has t_blank = 1: a roof face lies in
         // the top solid row (t_blank <= t_blank_below, the face above fluid),
         // and a face carrying a wall law is not also an interior face.
-        const Real roof_mask     = (!normal_face && t_blank > zero && (l_snap ? t_blank <= t_blank_below : t_blank < t_blank_below) && t_blank_above == zero && l_use_most) ? one : zero; // roof cell
-        const Real south_mask    = (!normal_face && t_blank > zero && t_blank <= t_blank_north && t_blank_south == zero && l_use_most) ? one : zero; // south wall cell
-        const Real north_mask    = (!normal_face && t_blank > zero && t_blank <= t_blank_south && t_blank_north == zero && l_use_most) ? one : zero; // north wall cell
-        const Real wall_mask     = (t_blank > zero && t_blank < one && !l_use_most) ? one : zero; // all walls when NOT using MOST
-        const Real most_mask     = roof_mask + south_mask + north_mask; // cells getting MOST treatment
-        const Real east_west_mask = (t_blank > zero && t_blank < one && l_use_most && most_mask == zero) ? one : zero; // partial cells not covered by MOST (east/west walls)
-        const Real interior_mask = (t_blank == 1.0 && !(l_snap && most_mask > zero)) ? one : zero; // interior cell
+        // roof, south/north wall law, partial-wall and interior drag (ERF_ImmersedBuildingMasks.H)
+        if_bld::HorizMasks mk = if_bld::horiz_masks(t_blank, t_blank_below, t_blank_above, t_blank_south, t_blank_north,
+                                                    normal_face, l_use_most, l_snap);
+        // erf.if_implicit_projection: the linear drag is in the projection, and a face the explicit
+        // path would zero after the projection (solid on both sides) is held there, with no wall law
+        if (l_ip) {
+            mk.wall = zero; mk.side = zero; mk.interior = zero;
+            if (fc.raw == one) { mk.roof = zero; mk.lo = zero; mk.hi = zero; }
+        }
+        const Real roof_mask      = mk.roof;
+        const Real south_mask     = mk.lo;
+        const Real north_mask     = mk.hi;
+        const Real wall_mask      = mk.wall;
+        const Real east_west_mask = mk.side;
+        const Real interior_mask  = mk.interior;
 
         Real drag             = zero;
         Real u1_cellaway      = zero;
@@ -862,6 +857,9 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
     const Real damp_alpha         = solverChoice.if_damp_alpha;
     // Point-implicit alternative to the clamp above; stabilizes both compressible and anelastic
     const bool l_implicit_drag    = solverChoice.if_implicit_drag;
+    // erf.if_implicit_projection: the linear drag of the solid is applied inside the anelastic
+    // projection (ERF::make_if_projection_sigma), not here
+    const bool l_ip               = solverChoice.if_implicit_projection;
 
     const bool is_slow_step = true;  // This is determined by calling context
     const bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
@@ -880,18 +878,9 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
     // carries the wall law and the interior drag together as before. See
     // SolverChoice::if_snap_partial_cells.
     const bool l_snap = solverChoice.if_snap_partial_cells;
-    auto snapb = [=] AMREX_GPU_DEVICE (amrex::Real b) noexcept -> amrex::Real {
-        return l_snap ? ((b >= myhalf) ? one : zero) : b;
-    };
-    // Blanking of a y-face (i, j, k): with the snap, from the two cells it
-    // joins (solid when either is), so both builds give the same staircase;
-    // otherwise the face-centred fraction when the build has it, else the
-    // mean of the two cells.
-    auto fb = [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> amrex::Real {
-        if (l_snap) { return amrex::max(snapb(t_blank_arr(i, j, k)), snapb(t_blank_arr(i, j-1, k))); }
-        return (t_blank_yface_arr) ? t_blank_yface_arr(i, j, k)
-                                   : myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j-1, k));
-    };
+    // The face blanking and its neighbours are read through ERF_ImmersedBuildingMasks.H, as the
+    // implicit projection reads them
+    const int dom_klo = geom.Domain().smallEnd(2);
 
 
     ParallelFor(tby, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -906,26 +895,18 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
         const Real rho_yface   = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j-1,k,Rho_comp) );
         const Real theta_yface = (myhalf * (cell_data(i,j,k  ,RhoTheta_comp) + cell_data(i,j-1,k,RhoTheta_comp))) / rho_yface;
 
-        // Use face-centered terrain_blanking if available, otherwise average from cell centers with threshold
-        Real t_blank_raw       = fb(i, j, k);
-        const Real t_blank     = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
+        // the face, its neighbours and the raw blanking the explicit path zeroes on (ERF_ImmersedBuildingMasks.H)
+        const if_bld::HorizFace fc = if_bld::horiz_face<1>(t_blank_arr, t_blank_yface_arr, i, j, k, dom_klo, l_snap, small_volfrac);
+        const Real t_blank       = fc.t;
         // With the snap the boundary solid face stands for the wall layer and
         // takes the full log-law target; the partial-cell weight (1 - t_blank)
         // of compute_if_most_target_vel() would make it zero (a no-slip
         // staircase), so the snap path passes a zero blanking to it.
         const Real t_blank_law = l_snap ? zero : t_blank;
-
-        Real t_blank_below_raw = (k == 0) ? zero : fb(i, j, k-1);
-        const Real t_blank_below = (t_blank_below_raw < small_volfrac) ? zero : t_blank_below_raw;
-
-        Real t_blank_above_raw = fb(i, j, k+1);
-        const Real t_blank_above = (t_blank_above_raw < small_volfrac) ? zero : t_blank_above_raw;
-
-        Real t_blank_east_raw  = fb(i+1, j, k);
-        const Real t_blank_east = (t_blank_east_raw < small_volfrac) ? zero : t_blank_east_raw;
-
-        Real t_blank_west_raw  = fb(i-1, j, k);
-        const Real t_blank_west = (t_blank_west_raw < small_volfrac) ? zero : t_blank_west_raw;
+        const Real t_blank_below = fc.below;
+        const Real t_blank_above = fc.above;
+        const Real t_blank_west  = fc.lo;
+        const Real t_blank_east  = fc.hi;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
         const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
@@ -933,17 +914,24 @@ void ImmersedForcingBuildings_Ymom (const Box& tby,
         // With the snap a face joining a solid and a fluid cell is wall-normal:
         // it gets the interior drag (no penetration), not a wall law, whatever
         // row it lies in.
-        const bool normal_face = l_snap && (snapb(t_blank_arr(i, j, k)) != snapb(t_blank_arr(i, j-1, k)));
+        const bool normal_face = fc.normal;
 
         // As in the x-momentum: with the snap a roof face lies in the top
         // solid row and a wall-law face is not also an interior face.
-        const Real roof_mask     = (!normal_face && t_blank > zero && (l_snap ? t_blank <= t_blank_below : t_blank < t_blank_below) && t_blank_above == zero && l_use_most) ? one : zero; // roof cell
-        const Real west_mask     = (!normal_face && t_blank > zero && t_blank <= t_blank_east  && t_blank_west  == zero && l_use_most) ? one : zero; // west wall cell
-        const Real east_mask     = (!normal_face && t_blank > zero && t_blank <= t_blank_west  && t_blank_east  == zero && l_use_most) ? one : zero; // east wall cell
-        const Real wall_mask     = (t_blank > zero && t_blank < one && !l_use_most) ? one : zero; // all walls when NOT using MOST
-        const Real most_mask     = roof_mask + west_mask + east_mask; // cells getting MOST treatment
-        const Real north_south_mask = (t_blank > zero && t_blank < one && l_use_most && most_mask == zero) ? one : zero; // partial cells not covered by MOST (north/south walls)
-        const Real interior_mask = (t_blank == 1.0 && !(l_snap && most_mask > zero)) ? one : zero; // interior cell
+        // roof, west/east wall law, partial-wall and interior drag (ERF_ImmersedBuildingMasks.H)
+        if_bld::HorizMasks mk = if_bld::horiz_masks(t_blank, t_blank_below, t_blank_above, t_blank_west, t_blank_east,
+                                                    normal_face, l_use_most, l_snap);
+        // erf.if_implicit_projection: as in the x-momentum
+        if (l_ip) {
+            mk.wall = zero; mk.side = zero; mk.interior = zero;
+            if (fc.raw == one) { mk.roof = zero; mk.lo = zero; mk.hi = zero; }
+        }
+        const Real roof_mask        = mk.roof;
+        const Real west_mask        = mk.lo;
+        const Real east_mask        = mk.hi;
+        const Real wall_mask        = mk.wall;
+        const Real north_south_mask = mk.side;
+        const Real interior_mask    = mk.interior;
 
         Real drag             = zero;
         Real u1_cellaway      = zero;
@@ -1060,6 +1048,9 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
     const Real damp_alpha         = solverChoice.if_damp_alpha;
     // Point-implicit alternative to the clamp above; stabilizes both compressible and anelastic
     const bool l_implicit_drag    = solverChoice.if_implicit_drag;
+    // erf.if_implicit_projection: the linear drag of the solid is applied inside the anelastic
+    // projection (ERF::make_if_projection_sigma), not here
+    const bool l_ip               = solverChoice.if_implicit_projection;
 
     const bool is_slow_step = true;  // This is determined by calling context
     const bool use_ImmersedForcing_fast = solverChoice.immersed_forcing_substep;
@@ -1078,18 +1069,8 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
     // carries the wall law and the interior drag together as before. See
     // SolverChoice::if_snap_partial_cells.
     const bool l_snap = solverChoice.if_snap_partial_cells;
-    auto snapb = [=] AMREX_GPU_DEVICE (amrex::Real b) noexcept -> amrex::Real {
-        return l_snap ? ((b >= myhalf) ? one : zero) : b;
-    };
-    // Blanking of a z-face (i, j, k): with the snap, from the two cells it
-    // joins (solid when either is), so both builds give the same staircase;
-    // otherwise the face-centred fraction when the build has it, else the
-    // mean of the two cells.
-    auto fb = [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept -> amrex::Real {
-        if (l_snap) { return amrex::max(snapb(t_blank_arr(i, j, k)), snapb(t_blank_arr(i, j, k-1))); }
-        return (t_blank_zface_arr) ? t_blank_zface_arr(i, j, k)
-                                   : myhalf * (t_blank_arr(i, j, k) + t_blank_arr(i, j, k-1));
-    };
+    // The face blanking and its neighbours are read through ERF_ImmersedBuildingMasks.H, as the
+    // implicit projection reads them
 
 
     ParallelFor(tbz, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -1104,29 +1085,19 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
         const Real rho_zface   = myhalf * ( cell_data(i,j,k,Rho_comp) + cell_data(i,j,k-1,Rho_comp) );
         const Real theta_zface = (myhalf * (cell_data(i,j,k,RhoTheta_comp) + cell_data(i,j,k-1,RhoTheta_comp))) / rho_zface;
 
-        // Use face-centered terrain_blanking if available, otherwise average from cell centers with threshold
-        Real t_blank_raw       = fb(i, j, k);
-        const Real t_blank     = (t_blank_raw < small_volfrac) ? zero : t_blank_raw;
+        // the face, its neighbours and the raw blanking the explicit path zeroes on (ERF_ImmersedBuildingMasks.H)
+        const if_bld::VertFace fc = if_bld::vert_face(t_blank_arr, t_blank_zface_arr, i, j, k, l_snap, small_volfrac);
+        const Real t_blank       = fc.t;
         // With the snap the boundary solid face stands for the wall layer and
         // takes the full log-law target; the partial-cell weight (1 - t_blank)
         // of compute_if_most_target_vel() would make it zero (a no-slip
         // staircase), so the snap path passes a zero blanking to it.
         const Real t_blank_law = l_snap ? zero : t_blank;
-
-        Real t_blank_above_raw = fb(i, j, k+1);
-        const Real t_blank_above = (t_blank_above_raw < small_volfrac) ? zero : t_blank_above_raw;
-
-        Real t_blank_north_raw = fb(i, j+1, k);
-        const Real t_blank_north = (t_blank_north_raw < small_volfrac) ? zero : t_blank_north_raw;
-
-        Real t_blank_south_raw = fb(i, j-1, k);
-        const Real t_blank_south = (t_blank_south_raw < small_volfrac) ? zero : t_blank_south_raw;
-
-        Real t_blank_east_raw  = fb(i+1, j, k);
-        const Real t_blank_east = (t_blank_east_raw < small_volfrac) ? zero : t_blank_east_raw;
-
-        Real t_blank_west_raw  = fb(i-1, j, k);
-        const Real t_blank_west = (t_blank_west_raw < small_volfrac) ? zero : t_blank_west_raw;
+        const Real t_blank_above = fc.above;
+        const Real t_blank_south = fc.south;
+        const Real t_blank_north = fc.north;
+        const Real t_blank_west  = fc.west;
+        const Real t_blank_east  = fc.east;
 
         const Real dx_z = (z_cc_arr) ? (z_cc_arr(i,j,k) - z_cc_arr(i,j,k-1)) : dx_arr[2];
         const Real drag_coefficient = alpha_m / std::pow(dx_x*dx_y*dx_z, one/three);
@@ -1134,17 +1105,24 @@ void ImmersedForcingBuildings_Zmom (const Box& tbz,
         // With the snap a face joining a solid and a fluid cell is wall-normal:
         // it gets the interior drag (no penetration), not a wall law, whatever
         // row it lies in.
-        const bool normal_face = l_snap && (snapb(t_blank_arr(i, j, k)) != snapb(t_blank_arr(i, j, k-1)));
+        const bool normal_face = fc.normal;
 
-        const Real south_mask    = (!normal_face && t_blank > zero && t_blank <= t_blank_north && t_blank_south == zero && l_use_most && k >= 1) ? one : zero; // south wall cell
-        const Real north_mask    = (!normal_face && t_blank > zero && t_blank <= t_blank_south && t_blank_north == zero && l_use_most && k >= 1) ? one : zero; // north wall cell
-        const Real west_mask     = (!normal_face && t_blank > zero && t_blank <= t_blank_east  && t_blank_west  == zero && l_use_most && k >= 1) ? one : zero; // west wall cell
-        const Real east_mask     = (!normal_face && t_blank > zero && t_blank <= t_blank_west  && t_blank_east  == zero && l_use_most && k >= 1) ? one : zero; // east wall cell
-        const Real wall_mask     = (t_blank > zero && t_blank < one && !l_use_most) ? one : zero; // all walls when NOT using MOST
-        const Real roof_mask     = (!normal_face && t_blank > zero && t_blank_above == zero && l_use_most) ? one : zero; // roof cell (horizontal surface) - uses simple drag
-        // With the snap a face carrying a wall law or the roof drag is not also an interior face.
-        const Real most_mask     = south_mask + north_mask + west_mask + east_mask + roof_mask;
-        const Real interior_mask = (t_blank == 1.0 && !(l_snap && most_mask > zero)) ? one : zero; // interior cell
+        // wall law on the four sides, partial-wall, roof and interior drag (ERF_ImmersedBuildingMasks.H);
+        // with the snap a face carrying a wall law or the roof drag is not also an interior face
+        if_bld::VertMasks mk = if_bld::vert_masks(t_blank, t_blank_above, t_blank_south, t_blank_north,
+                                                  t_blank_west, t_blank_east, k >= 1, normal_face, l_use_most, l_snap);
+        // erf.if_implicit_projection: as in the x-momentum
+        if (l_ip) {
+            mk.wall = zero; mk.roof = zero; mk.interior = zero;
+            if (fc.raw == one) { mk.south = zero; mk.north = zero; mk.west = zero; mk.east = zero; }
+        }
+        const Real south_mask    = mk.south;
+        const Real north_mask    = mk.north;
+        const Real west_mask     = mk.west;
+        const Real east_mask     = mk.east;
+        const Real wall_mask     = mk.wall;
+        const Real roof_mask     = mk.roof;
+        const Real interior_mask = mk.interior;
 
         Real drag             = zero;
         Real u1_cellaway      = zero;

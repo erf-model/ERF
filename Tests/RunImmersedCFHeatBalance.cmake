@@ -1,4 +1,4 @@
-# Run a two-level immersed-forcing case, then check its plotfile with
+# Run a one- or two-level immersed-forcing case, then check its plotfile with
 # Tests/ImmersedCFHeatBalanceCheck.cpp. With EXPECT_CHECKER_FAIL the check must fail (the leg that
 # runs the explicit solid freeze), so the test proves the checker sees the difference. With
 # EXPECT_WARNING the run must have printed the coarse/fine surface-mismatch warning (and without it,
