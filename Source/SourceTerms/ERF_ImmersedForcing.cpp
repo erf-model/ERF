@@ -1252,6 +1252,9 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
 
     const Real Olen_in            = solverChoice.if_Olen_in;
     const Real stab_wind_floor    = solverChoice.if_stability_wind_floor;
+    // erf.if_stability_correction (off by default): the similarity functions of the temperature
+    // kernels, as of the momentum kernels; off, the log law (erf-model/ERF#4931)
+    const bool l_stability_correction = solverChoice.if_stability_correction;
 
     ParallelFor(bx, [=]
                 AMREX_GPU_DEVICE(int i, int j, int k) noexcept
@@ -1291,10 +1294,12 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
                 const Real zeta          = ib_stability::bounded_zeta(myhalf * dx_z, Olen);
                 const Real zeta_neighbor = ib_stability::bounded_zeta(Real(1.5) * dx_z, Olen);
 
-                // similarity functions
-                psi_m          = sfuns.calc_psi_m(zeta);
-                psi_h          = sfuns.calc_psi_h(zeta);
-                psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
+                // similarity functions (off by default: the plain log law, as in the momentum kernels)
+                if (l_stability_correction) {
+                    psi_m          = sfuns.calc_psi_m(zeta);
+                    psi_h          = sfuns.calc_psi_h(zeta);
+                    psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
+                }
                 ustar = h_windspeed2r * kappa / (std::log((Real(1.5)) * dx_z / z0) - psi_m);
 
                 // prevent some unphysical math
@@ -1302,8 +1307,11 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
                 // caps of ln(z / z0): erf.if_psi_cap_factor stays off the temperature forcing, whose
                 // theta* comes from an L not made consistent with u* (the legacy law, kept as it is;
                 // the fraction-stress law of erf-model/ERF#4134 forms them consistently)
-                psi_h_neighbor = ib_stability::capped_psi(psi_h_neighbor, Real(1.5) * dx_z, z0, one);
-                psi_h = ib_stability::capped_psi(psi_h, myhalf * dx_z, z0, one);
+                // (with the flag off psi_h is zero and stays so; a cap of ln(z / z0) <= 0, for z0 >= z, is not applied)
+                if (l_stability_correction) {
+                    psi_h_neighbor = ib_stability::capped_psi(psi_h_neighbor, Real(1.5) * dx_z, z0, one);
+                    psi_h = ib_stability::capped_psi(psi_h, myhalf * dx_z, z0, one);
+                }
 
                 // We do not know the actual temperature so use cell above
                 const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);
@@ -1323,10 +1331,11 @@ void ImmersedForcingTerrain_Scalar (const Box& bx,
                 const Real zeta          = ib_stability::bounded_zeta(myhalf * dx_z, Olen);
                 const Real zeta_neighbor = ib_stability::bounded_zeta(Real(1.5) * dx_z, Olen);
 
-                // similarity functions; psi_h capped at ln(z / z0) as on the other temperature branches
-                const Real psi_m          = sfuns.calc_psi_m(zeta);
-                const Real psi_h          = ib_stability::capped_psi(sfuns.calc_psi_h(zeta), myhalf * dx_z, z0, one);
-                const Real psi_h_neighbor = ib_stability::capped_psi(sfuns.calc_psi_h(zeta_neighbor), Real(1.5) * dx_z, z0, one);
+                // similarity functions (off by default: the log law, theta* from the given L); psi_h
+                // capped at ln(z / z0) as on the other temperature branches
+                const Real psi_m          = l_stability_correction ? sfuns.calc_psi_m(zeta) : zero;
+                const Real psi_h          = l_stability_correction ? ib_stability::capped_psi(sfuns.calc_psi_h(zeta), myhalf * dx_z, z0, one) : zero;
+                const Real psi_h_neighbor = l_stability_correction ? ib_stability::capped_psi(sfuns.calc_psi_h(zeta_neighbor), Real(1.5) * dx_z, z0, one) : zero;
                 // psi_m at 0.5 dz against ln(1.5 dz / z0) can cancel; u* is held in [0, 2] m/s as on the
                 // other branches. In unstable air psi_h >= psi_m and psi_h grows with |zeta|, so wherever
                 // psi_m reaches ln(1.5 dz / z0) both psi_h caps above bind, the two log brackets close
@@ -1402,6 +1411,9 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
     const Real init_surf_temp     = solverChoice.if_init_surf_temp;
     const Real surf_heating_rate  = solverChoice.if_surf_heating_rate;
     const Real stab_wind_floor    = solverChoice.if_stability_wind_floor;
+    // erf.if_stability_correction (off by default): the similarity functions of the temperature
+    // kernels, as of the momentum kernels; off, the log law (erf-model/ERF#4931)
+    const bool l_stability_correction = solverChoice.if_stability_correction;
 
     ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
     {
@@ -1491,10 +1503,12 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
                     Real zeta          = ib_stability::bounded_zeta(myhalf * dx_z, Olen);
                     Real zeta_neighbor = ib_stability::bounded_zeta(Real(1.5) * dx_z, Olen);
 
-                    // similarity functions
-                    psi_m          = sfuns.calc_psi_m(zeta);
-                    psi_h          = sfuns.calc_psi_h(zeta);
-                    psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
+                    // similarity functions (off by default: the plain log law, as in the momentum kernels)
+                    if (l_stability_correction) {
+                        psi_m          = sfuns.calc_psi_m(zeta);
+                        psi_h          = sfuns.calc_psi_h(zeta);
+                        psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
+                    }
                     ustar = h_windspeed2r * kappa / (std::log((1.5) * dx_z / z0) - psi_m);
                 }
 
@@ -1503,8 +1517,11 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
                 // caps of ln(z / z0): erf.if_psi_cap_factor stays off the temperature forcing, whose
                 // theta* comes from an L not made consistent with u* (the legacy law, kept as it is;
                 // the fraction-stress law of erf-model/ERF#4134 forms them consistently)
-                psi_h_neighbor = ib_stability::capped_psi(psi_h_neighbor, Real(1.5) * dx_z, z0, one);
-                psi_h = ib_stability::capped_psi(psi_h, myhalf * dx_z, z0, one);
+                // (with the flag off psi_h is zero and stays so; a cap of ln(z / z0) <= 0, for z0 >= z, is not applied)
+                if (l_stability_correction) {
+                    psi_h_neighbor = ib_stability::capped_psi(psi_h_neighbor, Real(1.5) * dx_z, z0, one);
+                    psi_h = ib_stability::capped_psi(psi_h, myhalf * dx_z, z0, one);
+                }
 
                 // We do not know the actual temperature so use cell above
                 const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);
@@ -1584,18 +1601,23 @@ void ImmersedForcingBuildings_Scalar (const Box& bx,
                     Real zeta          = ib_stability::bounded_zeta(myhalf * delta, Olen);
                     Real zeta_neighbor = ib_stability::bounded_zeta(Real(1.5) * delta, Olen);
 
-                    // similarity functions
-                    psi_m          = sfuns.calc_psi_m(zeta);
-                    psi_h          = sfuns.calc_psi_h(zeta);
-                    psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
+                    // similarity functions (off by default: the plain log law, as in the momentum kernels)
+                    if (l_stability_correction) {
+                        psi_m          = sfuns.calc_psi_m(zeta);
+                        psi_h          = sfuns.calc_psi_h(zeta);
+                        psi_h_neighbor = sfuns.calc_psi_h(zeta_neighbor);
+                    }
                     ustar = tan_wspd * kappa / (std::log((1.5) * delta / z0) - psi_m);
                 }
 
                 // prevent some unphysical math
                 ustar = ib_stability::clamped_ustar(ustar);
                 // caps of ln(z / z0), as above (erf-model/ERF#4134)
-                psi_h_neighbor = ib_stability::capped_psi(psi_h_neighbor, Real(1.5) * delta, z0, one);
-                psi_h = ib_stability::capped_psi(psi_h, myhalf * delta, z0, one);
+                // (with the flag off psi_h is zero and stays so; a cap of ln(z / z0) <= 0, for z0 >= z, is not applied)
+                if (l_stability_correction) {
+                    psi_h_neighbor = ib_stability::capped_psi(psi_h_neighbor, Real(1.5) * delta, z0, one);
+                    psi_h = ib_stability::capped_psi(psi_h, myhalf * delta, z0, one);
+                }
 
                 // We do not know the actual temperature so use cell above
                 const Real thetastar    = theta * ustar * ustar / (kappa * ggg * Olen);

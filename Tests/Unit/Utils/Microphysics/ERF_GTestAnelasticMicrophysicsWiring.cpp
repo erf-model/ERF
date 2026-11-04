@@ -646,15 +646,3 @@ TEST(AnelasticMicrophysicsWiring, SAMHeterogeneousPlaneUsesDiagnosedTemperature)
 
     expect_coefficients_near(sam.CoefficientRowAt(0), expected);
 }
-
-// Motivation: The invalid SuperDroplets/anelastic combination must be
-// recognized before the simulation reaches a compressible-only source path.
-TEST(AnelasticMicrophysicsWiring, SuperDropletsAnelasticConfigurationIsInvalid)
-{
-    EXPECT_TRUE(anelastic_superdroplets_configuration_invalid(
-        MoistureType::SuperDroplets, true));
-    EXPECT_FALSE(anelastic_superdroplets_configuration_invalid(
-        MoistureType::SuperDroplets, false));
-    EXPECT_FALSE(anelastic_superdroplets_configuration_invalid(
-        MoistureType::SAM, true));
-}

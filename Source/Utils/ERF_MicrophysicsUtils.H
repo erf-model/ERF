@@ -15,7 +15,7 @@
 #include "ERF_EOS.H"
 
 /**
- * Thermodynamic state passed from ERF into an Eulerian microphysics scheme.
+ * Thermodynamic state passed from ERF into a microphysics scheme.
  * Pressure is always in Pa here; schemes with legacy mbar storage convert it
  * once at their copy-in boundary.
  */
@@ -25,7 +25,7 @@ struct MicrophysicsThermoState {
 };
 
 /**
- * Diagnose the state used by one Eulerian microphysics cell.
+ * Diagnose the state used by one microphysics cell.
  *
  * In anelastic mode, the conserved state supplies theta while the hydrostatic
  * reference pressure supplied by BaseState supplies the thermodynamic pressure.

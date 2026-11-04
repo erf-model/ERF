@@ -154,16 +154,17 @@ struct MaterialPropertiesCore { // For GPU
             auto sigma = amrex::Real(1.18e-8) * std::cbrt(mol_weight_v/m_density);
             auto sigma_v_air = myhalf * (sigma + s_sigma_air);
 
-            auto eps_v = amrex::Real(1.15) * m_Tb * s_kb;
-            auto eps_v_air = std::sqrt( eps_v * s_eps_air_k * s_kb);
-            auto T_star = a_T / (eps_v_air/s_kb);
+            auto eps_v_air_over_kb = std::sqrt(amrex::Real(1.15) * m_Tb * s_eps_air_k);
+            auto T_star = a_T / eps_v_air_over_kb;
 
             auto omegaD =    amrex::Real(1.06036) / std::pow(T_star, amrex::Real(0.1561))
                           +  amrex::Real(0.193)   / std::exp(amrex::Real(0.47635)*T_star)
                           +  amrex::Real(1.03587) / std::exp(amrex::Real(1.52996)*T_star)
                           +  amrex::Real(1.76474) / std::exp(amrex::Real(3.89411)*T_star);
 
-            auto term1 = 3 * std::sqrt( s_kb*a_T * s_kb*a_T * s_kb*a_T);
+            // Avoid cubing an O(1e-21) energy, which underflows in SINGLE.
+            auto thermal_energy = s_kb * a_T;
+            auto term1 = 3 * thermal_energy * std::sqrt(thermal_energy);
             auto term2 = amrex::Real(8.0) * std::sqrt(2*PI) * a_P * sigma_v_air*sigma_v_air * omegaD;
             auto term3 = std::sqrt( m_Nav_by_molweight + s_N_av/s_mol_weight_air );
 

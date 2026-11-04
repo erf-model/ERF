@@ -90,6 +90,8 @@ def main(argv=None) -> int:
     ap.add_argument("--include-bases", action="store_true",
                     help="also check files that a sibling deck pulls in with FILE = (skipped by default, since they are not complete decks)")
     ap.add_argument("--self-test", action="store_true", help="run the built-in tests and exit")
+    ap.add_argument("--schema", help="a per-build inputs schema from build_erf_schema.py; checks keys, types and "
+                                     "build features against it")
     args = ap.parse_args(argv)
 
     if args.self_test:
@@ -111,9 +113,28 @@ def main(argv=None) -> int:
     if not paths:
         ap.error("give at least one inputs file")
 
-    opts = Options(ranks=args.ranks, gpu=args.gpu, umax=args.umax, theta=args.theta)
-    worst = Severity.INFO
     minsev = Severity[args.min_severity]
+    schema = None
+    if args.schema:
+        import json
+        from erf_input_checker.checks.schema import cross_check
+        try:
+            with open(args.schema) as fh:
+                schema = json.load(fh)
+        except (OSError, ValueError) as exc:
+            ap.error("cannot read the schema %s: %s" % (args.schema, exc))
+        if not isinstance(schema, dict) or not isinstance(schema.get("keys"), dict):
+            ap.error("%s is not an inputs schema (no 'keys'); write one with build_erf_schema.py" % args.schema)
+        curated_only, source_only = cross_check(schema)
+        if not args.json and minsev <= Severity.INFO and (curated_only or source_only):
+            print("== schema %s (ERF %s)" % (args.schema, (schema.get("erf_commit") or "?")[:9]))
+            for key in curated_only:
+                print("[INFO] %s\n    retired in the docs' list, but this build's source does not refuse it" % key)
+            for key, where in source_only:
+                print("[INFO] %s (%s)\n    this build's source refuses it; the docs' list lacks it" % (key, where))
+            print()
+    opts = Options(ranks=args.ranks, gpu=args.gpu, umax=args.umax, theta=args.theta, schema=schema)
+    worst = Severity.INFO
     reports = []
     for path in paths:
         if os.path.isdir(path):

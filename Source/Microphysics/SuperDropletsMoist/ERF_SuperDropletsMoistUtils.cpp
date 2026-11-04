@@ -1,6 +1,7 @@
 #include "ERF_SuperDropletsMoist.H"
 #include "ERF_EOS.H"
 #include "ERF_IndexDefines.H"
+#include "ERF_MicrophysicsUtils.H"
 
 #ifdef ERF_USE_PARTICLES
 
@@ -28,6 +29,7 @@ void SuperDropletsMoist::EnsureMicFabVars (const int a_lev, const MultiFab& a_co
         need_recreate = true;
     } else if (static_cast<int>(m_mic_fab_vars[a_lev].size()) <= MicVar_SD::rho ||
                !m_mic_fab_vars[a_lev][MicVar_SD::rho] ||
+               m_mic_fab_vars[a_lev][MicVar_SD::rho]->nGrowVect() != a_cons_vars.nGrowVect() ||
                m_mic_fab_vars[a_lev][MicVar_SD::rho]->boxArray() != a_cons_vars.boxArray() ||
                m_mic_fab_vars[a_lev][MicVar_SD::rho]->DistributionMap() != a_cons_vars.DistributionMap()) {
         need_recreate = true;
@@ -94,9 +96,27 @@ iMultiFab SuperDropletsMoist::buildFineMask (const int a_lev) const
  */
 void SuperDropletsMoist::Copy_State_to_Micro (const MultiFab& a_cons_vars)
 {
+    Copy_State_to_Micro(a_cons_vars, nullptr);
+}
+
+void SuperDropletsMoist::Copy_State_to_Micro (const MultiFab& a_cons_vars,
+                                             const MultiFab* base_state)
+{
     BL_PROFILE("SuperDropletsMoist::Copy_State_to_Micro()");
 
     const int lev = m_current_lev;
+    const bool use_base = uses_anelastic_reference_pressure(lev);
+    const Real rdOcp = m_rdOcp;
+    if (use_base) {
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(base_state != nullptr,
+                                         "Anelastic SDM requires hydrostatic base pressure");
+        AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+            base_state->boxArray() == a_cons_vars.boxArray() &&
+            base_state->DistributionMap() == a_cons_vars.DistributionMap() &&
+            base_state->nComp() > BaseState::p0_comp &&
+            base_state->nGrowVect().allGE(a_cons_vars.nGrowVect()),
+            "Anelastic SDM base state must match the conserved layout and cover its ghosts");
+    }
     EnsureMicFabVars(lev, a_cons_vars);
 
     const auto& gvec = a_cons_vars.nGrowVect();
@@ -118,6 +138,14 @@ void SuperDropletsMoist::Copy_State_to_Micro (const MultiFab& a_cons_vars)
             auto theta_arr = m_mic_fab_vars[lev][MicVar_SD::theta]->array(mfi);
             ParallelFor( bx, [=] AMREX_GPU_DEVICE (int i, int j, int k)
             {
+                if (use_base) {
+                    AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                        Math::isfinite(states_arr(i,j,k,Rho_comp)) &&
+                        states_arr(i,j,k,Rho_comp) > Real(0) &&
+                        Math::isfinite(states_arr(i,j,k,RhoTheta_comp)) &&
+                        Math::isfinite(states_arr(i,j,k,RhoQ1_comp)),
+                        "Anelastic SDM requires positive dry density and finite thermodynamic inputs");
+                }
                 rho_arr(i,j,k) = states_arr(i,j,k,Rho_comp);
                 theta_arr(i,j,k) = states_arr(i,j,k,RhoTheta_comp)/states_arr(i,j,k,Rho_comp);
             });
@@ -171,11 +199,26 @@ void SuperDropletsMoist::Copy_State_to_Micro (const MultiFab& a_cons_vars)
         const Array4<Real      >& p_arr  = m_mic_fab_vars[lev][MicVar_SD::pressure]->array(mfi);
         const Array4<Real const>& S_arr  = a_cons_vars.const_array(mfi);
         const Array4<Real const>& qv_arr = m_mic_fab_vars[lev][MicVar_SD::q_v]->const_array(mfi);
+        const auto base = use_base ? base_state->const_array(mfi) : Array4<const Real>{};
 
         ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept
         {
-            t_arr(i,j,k,0) = getTgivenRandRTh(S_arr(i,j,k,Rho_comp),S_arr(i,j,k,RhoTheta_comp),qv_arr(i,j,k,0));
-            p_arr(i,j,k,0) = getPgivenRTh(S_arr(i,j,k,RhoTheta_comp),qv_arr(i,j,k,0));
+            const Real pbase = use_base ? base(i,j,k,BaseState::p0_comp) : Real(0);
+            if (use_base) {
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(Math::isfinite(pbase) && pbase > Real(0),
+                                                 "Anelastic SDM requires finite positive base pressure");
+            }
+            const auto thermo = diagnose_microphysics_thermo_state(
+                S_arr(i,j,k,Rho_comp), S_arr(i,j,k,RhoTheta_comp), qv_arr(i,j,k,0),
+                rdOcp, use_base, pbase);
+            if (use_base) {
+                AMREX_ALWAYS_ASSERT_WITH_MESSAGE(
+                    Math::isfinite(qv_arr(i,j,k,0)) &&
+                    Math::isfinite(thermo.temperature) && thermo.temperature > Real(0),
+                    "Anelastic SDM requires finite vapor and positive finite temperature");
+            }
+            t_arr(i,j,k,0) = thermo.temperature;
+            p_arr(i,j,k,0) = thermo.pressure_pa;
         });
     }
 
@@ -336,6 +379,12 @@ void SuperDropletsMoist::Update_Micro_Vars (MultiFab& a_cons_vars)
 {
     BL_PROFILE("SuperDropletsMoist::Update_Micro_Vars()");
     Copy_State_to_Micro(a_cons_vars);
+}
+
+void SuperDropletsMoist::Update_Micro_Vars (MultiFab& a_cons_vars,
+                                           const MultiFab* base_state)
+{
+    Copy_State_to_Micro(a_cons_vars, base_state);
 }
 
 /*! \brief Average down moisture multifabs from the finest level down to 0
