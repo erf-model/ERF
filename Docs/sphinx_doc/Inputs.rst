@@ -2160,6 +2160,12 @@ upwind and 0 is fully central.
 Note: if using WENO schemes, the horizontal and vertical advection types must be set to
 the same string.
 
+With ``erf.terrain_type = EB`` only "Centered_2nd", "Upwind_3rd", "Centered_4th", "Upwind_5th"
+and "Centered_6th" (and the blended schemes built from them) are available, for the dycore and the
+dry scalars and, when moisture is on, for the moist scalars; the code aborts at start-up with any
+other.  Since the moist scalars default to "WENO3", an EB run with moisture must set
+``erf.moistscal_horiz_adv_type`` and ``erf.moistscal_vert_adv_type``.
+
 The efficient advection schemes for dry and moist scalars exploit the substages of the
 time advancing RK3 scheme by using lower order schemes in the first two substages and the
 solver's choice of scheme in the final stage. Based on CPU-only runtimes on Perlmutter for

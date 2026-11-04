@@ -1607,6 +1607,34 @@ struct SolverChoice {
         }
 
             advChoice.init_params(pp_prefix);
+
+        // EB advection (EBAdvectionSrcForScalars, EBAdvectionSrcForMom) has only the centred and
+        // upwind schemes; with any other the fluxes are never set and, in a Release build, the
+        // fields are not advected at all.  The moist scalars default to WENO3, so they are checked
+        // only when they are advected.
+        if (terrain_type == TerrainType::EB) {
+            auto eb_supports = [] (AdvType t) {
+                return (t == AdvType::Centered_2nd || t == AdvType::Upwind_3rd ||
+                        t == AdvType::Centered_4th || t == AdvType::Upwind_5th ||
+                        t == AdvType::Centered_6th);
+            };
+            auto check_eb_adv = [&] (const std::string& name, AdvType t) {
+                if (!eb_supports(t)) {
+                    amrex::Abort("erf." + name + " = " + advChoice.adv_type_convert_int_to_string(t) +
+                                 " is not supported with erf.terrain_type = EB; use Centered_2nd, "
+                                 "Upwind_3rd, Centered_4th, Upwind_5th or Centered_6th");
+                }
+            };
+            check_eb_adv("dycore_horiz_adv_type",  advChoice.dycore_horiz_adv_type);
+            check_eb_adv("dycore_vert_adv_type",   advChoice.dycore_vert_adv_type);
+            check_eb_adv("dryscal_horiz_adv_type", advChoice.dryscal_horiz_adv_type);
+            check_eb_adv("dryscal_vert_adv_type",  advChoice.dryscal_vert_adv_type);
+            if (moisture_type != MoistureType::None) {
+                check_eb_adv("moistscal_horiz_adv_type", advChoice.moistscal_horiz_adv_type);
+                check_eb_adv("moistscal_vert_adv_type",  advChoice.moistscal_vert_adv_type);
+            }
+        }
+
            diffChoice.init_params(pp_prefix);
         dampingChoice.init_params(pp_prefix);
          spongeChoice.init_params(pp_prefix);

@@ -4546,6 +4546,17 @@ add_test_abort(Smag2D_Abort_SlopeWithoutTerrain ${_smag2d_dir} Smag2D_Ridge.i
 add_test_abort(Smag2D_Abort_CapWithEB ${CMAKE_CURRENT_SOURCE_DIR}/test_files/HillEB HillEB.i
                "erf.smag2d_kh_cap is not supported with erf.terrain_type = EB"
                "erf.les_type=Smagorinsky2D erf.Cs=0.1 erf.smag2d_kh_cap=10")
+# EB advection has no WENO: in a Release build the fields were silently not advected (#4876).
+# The moist scalars default to WENO3, so they abort with moisture on and no choice given.
+add_test_abort(EBAdvection_Abort_WenoScalars ${CMAKE_CURRENT_SOURCE_DIR}/test_files/HillEB HillEB.i
+               "erf.dryscal_horiz_adv_type = WENO5 is not supported with erf.terrain_type = EB"
+               "erf.dryscal_horiz_adv_type=WENO5")
+add_test_abort(EBAdvection_Abort_WenoDycore ${CMAKE_CURRENT_SOURCE_DIR}/test_files/HillEB HillEB.i
+               "erf.dycore_vert_adv_type = WENOZ5 is not supported with erf.terrain_type = EB"
+               "erf.dycore_vert_adv_type=WENOZ5")
+add_test_abort(EBAdvection_Abort_MoistDefault ${CMAKE_CURRENT_SOURCE_DIR}/test_files/HillEB HillEB.i
+               "erf.moistscal_horiz_adv_type = WENO3 is not supported with erf.terrain_type = EB"
+               "erf.moisture_model=Kessler")
 add_test_abort(DiffusiveDt_Abort_CflRange ${_smag2d_dir} Smag2D_Ridge.i
                "erf.diffusive_cfl must be in"
                "erf.diffusive_cfl=1.5")
@@ -5252,6 +5263,15 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Inertial_MidPoint inputs_inertial 40
       RUNTIME_OPTIONS "erf.anelastic_type=MidPoint"
       CHECK check_inertial_drift.py PLOTFILES)
+  # The same with an EB plane that cuts layer k = 1, checked in the cut layer and a full one
+  # (measured 0.074 m at dt = 0.4 s for both; RK2 was 3.4 m when the EB redistribution step
+  # replaced the Heun average of the second stage with old + dt R2)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Inertial_EB_RK2 inputs_inertial_eb 40
+      RUNTIME_OPTIONS "erf.anelastic_type=RK2"
+      CHECK check_inertial_drift.py PLOTFILES --layers 1 2)
+  add_test_anelastic_scalar_advection(AnelasticScalarAdvection_Inertial_EB_MidPoint inputs_inertial_eb 40
+      RUNTIME_OPTIONS "erf.anelastic_type=MidPoint"
+      CHECK check_inertial_drift.py PLOTFILES --layers 1 2)
   # The time step from erf.cfl with map factors
   add_test_anelastic_scalar_advection(AnelasticScalarAdvection_CFL_MapFactor inputs_mapfac_anelastic 5
       RUNTIME_OPTIONS "erf.fixed_dt=-1 erf.cfl=0.5 erf.change_max=100"
