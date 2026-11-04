@@ -23,8 +23,19 @@
 
 struct LineSampler
 {
+    //! Line sampling does not follow a mesh that moves
+    static void
+    abort_if_moving_terrain ()
+    {
+        if (SolverChoice::terrain_type == TerrainType::MovingFittedMesh) {
+            amrex::Abort("Line sampling (erf.do_line_sampling, erf.sample_line, erf.sample_line_real) "
+                         "is not supported with erf.terrain_type = MovingFittedMesh");
+        }
+    }
+
     LineSampler ()
     {
+        abort_if_moving_terrain();
         amrex::ParmParse pp("erf");
 
         bool has_line_idx  = pp.contains("sample_line_lo") || pp.contains("sample_line_hi");
@@ -136,6 +147,34 @@ struct LineSampler
             m_dir.resize(n_line_dir);
             pp.queryarr("sample_line_dir",m_dir,0,n_line_dir);
 
+            // A line runs along one direction: its two ends must agree in the other two, or
+            // the sampler would take a slab of cells and add them up at each point
+            for (int iline(0); iline<nline; ++iline) {
+                const int dir = m_dir[iline];
+                if (dir < 0 || dir >= AMREX_SPACEDIM) {
+                    amrex::Abort("erf.sample_line_dir must be 0, 1 or 2");
+                }
+                for (int d(0); d<AMREX_SPACEDIM; ++d) {
+                    const bool differ = has_line_idx
+                        ? (m_bnd_bx[iline].smallEnd(d) != m_bnd_bx[iline].bigEnd(d))
+                        : (m_bnd_rbx[iline].lo(d) != m_bnd_rbx[iline].hi(d));
+                    const bool reversed = has_line_idx
+                        ? (m_bnd_bx[iline].smallEnd(d) > m_bnd_bx[iline].bigEnd(d))
+                        : (m_bnd_rbx[iline].lo(d) > m_bnd_rbx[iline].hi(d));
+                    if (d != dir && differ) {
+                        amrex::Abort("Line " + std::to_string(iline) + " of erf.sample_line_lo/hi"
+                                     + std::string(has_line_idx ? "" : "_real")
+                                     + " is not along erf.sample_line_dir: its ends differ in direction "
+                                     + std::to_string(d));
+                    }
+                    if (d == dir && reversed) {
+                        amrex::Abort("Line " + std::to_string(iline) + " of erf.sample_line_lo/hi"
+                                     + std::string(has_line_idx ? "" : "_real")
+                                     + " has its lo end above its hi end");
+                    }
+                }
+            }
+
             // Parse names
             std::string name_base = "plt_line_";
             m_name.resize(nline);
@@ -207,6 +246,7 @@ struct LineSampler
                  const amrex::Vector<std::string>& log_names,
                  const amrex::Box& domain)
     {
+        abort_if_moving_terrain();
         AMREX_ALWAYS_ASSERT(cells.size() == log_names.size());
         const int nline = static_cast<int>(cells.size());
         constexpr int dir = 2;
@@ -284,8 +324,8 @@ struct LineSampler
         }
     }
 
-    //! Whether the z of a vertical line given by real coordinates is found from the heights
-    //! of the column: on a stretched or terrain-fitted mesh, or for a height above ground
+    //! Whether the z of a line given by real coordinates is found from the heights of a
+    //! column: on a stretched or terrain-fitted mesh, or for a height above ground
     [[nodiscard]] bool
     use_column_heights () const
     {
@@ -325,17 +365,19 @@ struct LineSampler
     }
 
     /**
-     * The cells of a vertical line given by real coordinates on a level: the column through
-     * (x,y), from the cell that holds the lower z to the cell that holds the upper z (each
-     * clamped to the column).  With erf.sample_line_z_agl, ground is added to both.  The box
-     * is empty if the level does not hold every one of these cells.
+     * The cells of a line given by real coordinates on a level, from the face heights of the
+     * column through its first point.  A vertical line runs from the cell that holds the lower
+     * z to the cell that holds the upper z (each clamped to the column); a horizontal line is
+     * the row of cells at the level of cells that holds z in that column, so it follows the
+     * terrain-fitted mesh.  With erf.sample_line_z_agl, ground is added to z.  The box is
+     * empty if the level does not hold these cells of the column.
      */
     amrex::Box
-    columnIndexBox (int iline, const amrex::Geometry& geom, const amrex::MultiFab& z_nd,
-                    amrex::Real ground)
+    lineIndexBox (int iline, const amrex::Geometry& geom, const amrex::MultiFab& z_nd,
+                  amrex::Real ground)
     {
         const amrex::RealBox& rb = m_bnd_rbx[iline];
-        const amrex::Box ibx = getIndexBox(rb, geom);
+        const amrex::Box ibx = lineIndexBoxXY(rb, geom);
         const amrex::IntVect cell = ibx.smallEnd();
         const auto h = column_face_heights(z_nd, geom, cell);
         const auto& zl = h[0];
@@ -355,13 +397,28 @@ struct LineSampler
             return -1;
         };
         const int mlo = find_cell(rb.lo(2) + offset);
-        const int mhi = find_cell(rb.hi(2) + offset);
+        const int mhi = (m_dir[iline] == 2) ? find_cell(rb.hi(2) + offset) : mlo;
         if (mlo < 0 || mhi < 0 || mhi < mlo) { return amrex::Box(); }
         for (int m = mlo; m <= mhi; ++m) {
             if (held[m] < amrex::Real(0.5)) { return amrex::Box(); }
         }
-        amrex::IntVect lo(cell); lo[2] = kdlo + mlo;
-        amrex::IntVect hi(cell); hi[2] = kdlo + mhi;
+        amrex::IntVect lo(ibx.smallEnd()); lo[2] = kdlo + mlo;
+        amrex::IntVect hi(ibx.bigEnd());   hi[2] = kdlo + mhi;
+        return amrex::Box(lo, hi);
+    }
+
+    //! The cells of a real box in x and y on a level, with k = 0: its k comes from heights
+    static amrex::Box
+    lineIndexBoxXY (const amrex::RealBox& rb, const amrex::Geometry& geom)
+    {
+        amrex::IntVect lo, hi;
+        for (int d(0); d<2; ++d) {
+            lo[d] = static_cast<int>(std::floor((rb.lo(d) - geom.ProbLo(d))/geom.CellSize(d)));
+            hi[d] = static_cast<int>(std::floor((rb.hi(d) - geom.ProbLo(d))/geom.CellSize(d)));
+            lo[d] = std::max(lo[d], geom.Domain().smallEnd(d));
+            hi[d] = std::min(hi[d], geom.Domain().bigEnd(d));
+        }
+        lo[2] = hi[2] = geom.Domain().smallEnd(2);
         return amrex::Box(lo, hi);
     }
 
@@ -408,15 +465,15 @@ struct LineSampler
             for (int iline(0); iline<nline; ++iline) {
                 int dir = m_dir[iline];
                 amrex::Box bnd_bx;
-                if (m_use_real_bx && dir == 2 && use_column_heights()) {
+                if (m_use_real_bx && use_column_heights()) {
                     // As in get_sample_data: the cells of the line come from the heights
                     amrex::Real ground = amrex::Real(0.0);
                     if (m_z_agl) {
-                        const amrex::Box ibx0 = getIndexBox(m_bnd_rbx[iline], geom[0]);
+                        const amrex::Box ibx0 = lineIndexBoxXY(m_bnd_rbx[iline], geom[0]);
                         const amrex::IntVect cell0 = ibx0.smallEnd();
                         ground = column_face_heights(*z_phys_nd[0], geom[0], cell0)[0][0];
                     }
-                    bnd_bx = columnIndexBox(iline, geom[lev], *z_phys_nd[lev], ground);
+                    bnd_bx = lineIndexBox(iline, geom[lev], *z_phys_nd[lev], ground);
                     if (bnd_bx.isEmpty()) {
                         // This level does not hold the line
                         if (amrex::ParallelDescriptor::IOProcessor()) { outfile << std::endl; }
@@ -480,16 +537,17 @@ struct LineSampler
         for (int iline(0); iline<nline; ++iline) {
             int dir = m_dir[iline];
 
-            // For a vertical line given by real coordinates, its cells come from the heights of
-            // the column, and a height above ground from the bottom face on level 0
-            const bool by_height = m_use_real_bx && dir == 2 && use_column_heights();
+            // For a line given by real coordinates, its cells come from the heights of the
+            // column through its first point, and a height above ground from the bottom face
+            // of that column on level 0
+            const bool by_height = m_use_real_bx && use_column_heights();
             if (by_height) {
                 AMREX_ALWAYS_ASSERT_WITH_MESSAGE(!z_nd_lev.empty() && z_nd_lev[0] != nullptr,
                     "Line sampling by height needs the nodal heights of each level");
             }
             amrex::Real ground = amrex::Real(0.0);
             if (by_height && m_z_agl) {
-                const amrex::Box ibx0 = getIndexBox(m_bnd_rbx[iline], geom[0]);
+                const amrex::Box ibx0 = lineIndexBoxXY(m_bnd_rbx[iline], geom[0]);
                 const amrex::IntVect cell0 = ibx0.smallEnd();
                 ground = column_face_heights(*z_nd_lev[0], geom[0], cell0)[0][0];
             }
@@ -499,7 +557,7 @@ struct LineSampler
                 amrex::Box bnd_bx;
                 if (by_height) {
                     if (ilev >= static_cast<int>(z_nd_lev.size()) || z_nd_lev[ilev] == nullptr) { continue; }
-                    bnd_bx = columnIndexBox(iline, geom[ilev], *z_nd_lev[ilev], ground);
+                    bnd_bx = lineIndexBox(iline, geom[ilev], *z_nd_lev[ilev], ground);
                     if (bnd_bx.isEmpty()) { continue; }
                 } else {
                     bnd_bx = (m_use_real_bx) ? getIndexBox(m_bnd_rbx[iline], geom[ilev])

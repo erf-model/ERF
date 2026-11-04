@@ -1,11 +1,12 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 # Vertical lines given by real coordinates on a terrain-fitted mesh: their cells come from the
 # heights of each column, and the height of each sample is written with it (the variable z).
-# Over a 100 m Witch of Agnesi hill, on 12 levels from 20 m stretched by 1.2, three lines are
-# sampled: over the hill top and far from it, from z = 0 to 300 m, and over the hill top from
-# 150 to 420 m.  The CTest entry runs it as given (heights above sea level) and with
-# erf.sample_line_z_agl = 1 (heights above the ground), and check_line_heights.py compares each
-# line with z_phys of its column in the plotfile.
+# Over a 100 m Witch of Agnesi hill, on 12 levels from 20 m stretched by 1.2, four lines are
+# sampled: three vertical ones, over the hill top and far from it from z = 0 to 300 m and over
+# the hill top from 150 to 420 m, and one horizontal one across the hill at z = 150 m.  The
+# CTest entry runs it as given (heights above sea level) and with erf.sample_line_z_agl = 1
+# (heights above the ground), and check_line_heights.py compares each line with z_phys in the
+# plotfile.
 
 erf.prob_name = "Scalar Advection/Diffusion"
 erf.anelastic = 1
@@ -47,10 +48,12 @@ erf.do_line_sampling          = true
 erf.line_sampling_interval    = 1
 erf.line_sampling_text_output = true
 erf.line_sampling_vars        = theta
-erf.sample_line_dir     = 2 2 2
-erf.sample_line_name    = top far top_high
-erf.sample_line_lo_real =   40.   40.   0.   -1240. -1240.   0.   40. 40. 150.
-erf.sample_line_hi_real =   40.   40. 300.   -1240. -1240. 300.   40. 40. 420.
+# and the fourth line runs in x at y = 40 over the hill, on the level of cells that holds
+# z = 150 m at its first point (cell 0,16)
+erf.sample_line_dir     = 2 2 2 0
+erf.sample_line_name    = top far top_high across
+erf.sample_line_lo_real =   40.   40.   0.   -1240. -1240.   0.   40. 40. 150.   -1240. 40. 150.
+erf.sample_line_hi_real =   40.   40. 300.   -1240. -1240. 300.   40. 40. 420.    1240. 40. 150.
 
 # CHECKPOINT AND PLOTFILES
 erf.check_int   = -1
