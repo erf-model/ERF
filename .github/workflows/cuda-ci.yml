@@ -153,6 +153,10 @@ jobs:
         shell: bash
         run: |
           build_log="${{runner.workspace}}/build-${{matrix.cuda_pkg}}-output.txt"
+          if [ ! -f "$build_log" ] || [ ! -r "$build_log" ]; then
+            echo "::error::Missing or unreadable build log: $build_log"
+            exit 1
+          fi
           diagnostics="${{runner.workspace}}/build-${{matrix.cuda_pkg}}-diagnostics.txt"
           grep -Ei "warning:|warning #|error:|error #" "$build_log" \
             | grep -Ev "Submodules/(amrex|AMReX|googletest)" \
