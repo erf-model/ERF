@@ -216,6 +216,10 @@ target_sources(${erf_exe_name}
     # Motivation: a calm cell above an immersed wall gave the wall law u* = 0, an Obukhov length
     # of zero and z / 0 (erf-model/ERF#4016); the stability estimate is now bounded as on flat ground.
     ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestImmersedWallStability.cpp
+    # Motivation: the immersed-forcing temperature kernels applied the MOST similarity functions whatever
+    # erf.if_stability_correction said, while the momentum kernels gate on it (erf-model/ERF#4931); off,
+    # every kernel is the log law.
+    ${CMAKE_CURRENT_SOURCE_DIR}/SourceTerms/ERF_GTestImmersedScalarStability.cpp
     # Motivation: the fraction-stress immersed wall law (erf.if_wall_form = fraction_stress) must
     # force the wall cell (the fluid cell on a face-aligned surface too, which the legacy law leaves
     # unforced), close its bottom face to diffusion and measure the RANS wall distance from the surface.

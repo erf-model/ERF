@@ -3220,7 +3220,8 @@ struct SolverChoice {
  * and the interior drag together, and the roof only the drag); set it for
  * height-map buildings.
  * @var SolverChoice::if_stability_correction
- * @brief Whether immersed-forcing stability corrections are enabled.
+ * @brief Whether the immersed-forcing wall law applies the MOST similarity functions, in the momentum and the
+ * temperature kernels alike (off: the log law; a prescribed flux or Obukhov length still sets theta*).
  * @var SolverChoice::if_ws_floor
  * @brief Wind-speed floor [m/s] in the per-step change limit of the building wall-law forcing.
  * @var SolverChoice::if_damp_alpha
