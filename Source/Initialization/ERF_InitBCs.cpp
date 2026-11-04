@@ -551,15 +551,8 @@ void ERF::init_bcs ()
     // *****************************************************************************
     {
         auto wall_scalar_type = [this] (int bc_comp, Orientation ori) {
-            const auto intent = m_wall_scalar_bc_intent[bc_comp][ori];
-            if (intent == erf_wall_scalar_bc::WallScalarBCIntent::DirichletConserved) {
-                return ERFBCType::ext_dir;
-            } else if (intent == erf_wall_scalar_bc::WallScalarBCIntent::DirichletPrimitive) {
-                return ERFBCType::ext_dir_prim;
-            } else if (intent == erf_wall_scalar_bc::WallScalarBCIntent::Neumann) {
-                return ERFBCType::neumann;
-            }
-            return ERFBCType::foextrap;
+            return erf_wall_scalar_bc::logical_boundary_type(
+                m_wall_scalar_bc_intent[bc_comp][ori]);
         };
 
         for (OrientationIter oit; oit; ++oit) {
