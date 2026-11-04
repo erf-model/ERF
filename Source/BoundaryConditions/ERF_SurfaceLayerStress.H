@@ -21,23 +21,6 @@ conservative_to_kinematic_stress (
   return conservative_stress / rho;
 }
 
-/**
- * Test one LSM side without coupling validity to another component's handle.
- *
- * @param[in] has_flux whether the LSM flux array exists
- * @param[in] is_land whether the side is classified as land
- * @param[in] flux flux value to test against the undefined sentinel
- * @param[in] undefined sentinel value marking undefined LSM fluxes
- */
-AMREX_GPU_HOST_DEVICE
-AMREX_FORCE_INLINE
-bool
-lsm_flux_is_valid (
-  bool has_flux, bool is_land, amrex::Real flux, amrex::Real undefined)
-{
-  return has_flux && is_land && flux < undefined;
-}
-
 struct FaceStressResult
 {
   amrex::Real face_stress;
