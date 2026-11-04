@@ -288,6 +288,118 @@ class DefaultTests(unittest.TestCase):
         self.assertEqual((keys["erf.mode"]["default"], keys["erf.mode"].get("default_source")), ("lagged", "Source/ERF_T.cpp:2"))
 
 
+def tree_schema(erf_files, amrex_files=None):
+    """The schema of a small ERF tree ({path under Source/: text}) and AMReX tree ({path under Src/: text})."""
+    from erf_inputs_schema import schema
+    with tempfile.TemporaryDirectory() as td:
+        erf, amrex = Path(td) / "erf", Path(td) / "AMReX"
+        (erf / "CMake").mkdir(parents=True)
+        (erf / "CMakeLists.txt").write_text("")
+        for root, files in ((erf / "Source", erf_files), (amrex / "Src", amrex_files or {})):
+            root.mkdir(parents=True)
+            for rel, text in files.items():
+                (root / rel).parent.mkdir(parents=True, exist_ok=True)
+                (root / rel).write_text(text)
+        return schema.generate(erf, amrex)
+
+
+METHODS_SOURCE = """AMREX_ENUM(FluxSource, SurfaceLayer, Bulk);
+void f ()
+{
+    ParmParse pp("erf");
+    amrex::Real kth_val;
+    pp.querykth("kv", 0, kth_val);
+    amrex::Vector<int> karr;
+    pp.queryktharr("ka", 1, karr);
+    std::string title;
+    pp.queryline("title", title);
+    std::vector<std::vector<amrex::Real>> lai_table;
+    pp.gettable("lai", lai_table);
+    FluxSource src;
+    pp.query_enum_sloppy("flux_source", src, "_");
+    amrex::Real expr_val = 1.0;
+    pp.queryWithParser("expr", expr_val);
+    amrex::Vector<amrex::Real> exprs;
+    pp.queryarrWithParser("exprs", 3, exprs);
+    int big = 0;
+    pp.queryAsDouble("big", big);
+    int added = 2;
+    pp.queryAddWithParser("added", added);
+}
+"""
+
+
+class ParmParseMethodTests(unittest.TestCase):
+    """Every read method AMReX_ParmParse.H has, typed from the variable it fills."""
+
+    def test_kth_reads_take_the_variable_after_the_occurrence_index(self):
+        keys = tree_keys(METHODS_SOURCE)
+        self.assertEqual((keys["erf.kv"]["type"], keys["erf.ka"]["type"]), ("real", "int_list"))
+
+    def test_a_line_read_is_a_string_of_any_number_of_words(self):
+        fact = tree_keys(METHODS_SOURCE)["erf.title"]
+        self.assertEqual((fact["type"], fact.get("line")), ("string", True))
+
+    def test_a_table_read_is_recorded_as_a_table(self):
+        # ERF_SLM.cpp: pp.gettable("lai", lai_table)
+        fact = tree_keys(METHODS_SOURCE)["erf.lai"]
+        self.assertEqual((fact["type"], fact.get("table"), fact["required"]), ("unknown", True, True))
+
+    def test_a_sloppy_enum_read_is_case_insensitive_and_names_its_ignored_characters(self):
+        # ERF_RadStruct.H: pp.query_enum_sloppy("radiation.seb_turbulent_flux_source", ..., "_")
+        fact = tree_keys(METHODS_SOURCE)["erf.flux_source"]
+        self.assertEqual((fact["type"], fact["values"], fact["case_insensitive"], fact.get("ignores")),
+                         ("enum", ["SurfaceLayer", "Bulk"], True, "_"))
+
+    def test_parser_reads_are_marked_and_typed(self):
+        keys = tree_keys(METHODS_SOURCE)
+        got = {k: (keys[k]["type"], keys[k].get("parser"), keys[k]["default"])
+               for k in ("erf.expr", "erf.exprs", "erf.big", "erf.added")}
+        self.assertEqual(got, {"erf.expr": ("real", True, "1.0"), "erf.exprs": ("real_list", True, None),
+                               "erf.big": ("int", True, "0"), "erf.added": ("int", True, "2")})
+
+
+class CheckerMethodTests(unittest.TestCase):
+    """The checker reads a value the way the method that reads it does."""
+
+    def setUp(self):
+        from erf_input_checker.checks import schema as schema_check
+        self.problem, self.expr = schema_check.value_problem, schema_check.expression_words
+
+    def test_a_parser_read_takes_an_expression_without_a_warning(self):
+        fact = {"type": "real", "parser": True}
+        self.assertEqual((self.problem(fact, ["2*pi"], 1), self.expr(fact, ["2*pi"])), (None, []))
+
+    def test_an_as_double_read_takes_a_real_spelling_of_an_int(self):
+        self.assertIsNone(self.problem({"type": "int", "parser": True, "as_double": True}, ["1e9"], 1))
+
+    def test_a_sloppy_enum_ignores_its_characters_and_case(self):
+        fact = {"type": "enum", "values": ["SurfaceLayer", "Bulk"], "case_insensitive": True, "ignores": "_"}
+        self.assertIsNone(self.problem(fact, ["surface_layer"], 1))
+        self.assertIsNotNone(self.problem(fact, ["surface-layer"], 1))
+
+    def test_a_line_or_table_read_takes_any_number_of_words(self):
+        self.assertIsNone(self.problem({"type": "string", "line": True}, ["a", "title", "here"], 1))
+        self.assertIsNone(self.problem({"type": "unknown", "table": True}, ["{{1,", "2}", "{3,", "4}}"], 1))
+
+
+class AddDefaultTests(unittest.TestCase):
+    """pp.add in ERF's add_par (main.cpp, run before the inputs are read) sets the default the inputs override."""
+
+    MAIN = 'void add_par () {\n    ParmParse pp("amr");\n    pp.add("n_proper",2);\n' \
+           '    amrex::Vector<int> n_cell;\n    pp.queryarr("n_cell", n_cell);\n    pp.addarr("n_cell", n_cell);\n}\n'
+    AMREX = 'void g () {\n    ParmParse pp("amr");\n    int n_proper = 1;\n    pp.query("n_proper", n_proper);\n}\n'
+
+    def test_a_literal_add_is_the_default(self):
+        fact = tree_schema({"main.cpp": self.MAIN}, {"AmrCore/AMReX_AmrMesh.cpp": self.AMREX})["keys"]["amr.n_proper"]
+        self.assertEqual((fact["type"], fact["default"], fact["default_origin"], fact["default_source"]),
+                         ("int", "2", "add", "Source/main.cpp:3"))
+
+    def test_an_add_of_a_variable_sets_no_default(self):
+        fact = tree_schema({"main.cpp": self.MAIN})["keys"]["amr.n_cell"]
+        self.assertEqual((fact["default"], fact["default_origin"]), (None, "none"))
+
+
 class EnumListTests(unittest.TestCase):
     """A Vector of an enum read with queryarr is a list of enum values, not one value."""
 
