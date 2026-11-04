@@ -4,9 +4,11 @@
 #include "ERF_TileNoZ.H"
 #include "ERF_PlanarBoundary.H"
 #include "ERF_MicrophysicsUtils.H"
+#include "ERF_LandWaterInterp.H"
 #include <AMReX_PlotFileUtil.H>
 #include "ERF.H"
 
+#include <limits>
 #include <optional>
 #include <AMReX_Math.H>
 
@@ -1273,6 +1275,19 @@ SLM::Lsm_Regrid_Level (const int& lev,
     source_unmapped.clear();
 }
 
+namespace {
+/**
+ * Land/water indicator of an SLM vegetation type: 1 for water (type <= 0, 17 or the lake type
+ * 21, as in initialize_processed_state), 0 for land.
+ */
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+Real slm_water_indicator (Real vegtype) noexcept
+{
+    const int t = static_cast<int>(vegtype);
+    return (t <= 0 || t == 17 || t == 21) ? Real(1.0) : Real(0.0);
+}
+} // namespace
+
 /**
  * Transfers SLM fields from a source AMR level.
  */
@@ -1305,43 +1320,90 @@ SLM::Lsm_Interpolate_From_Source (const Geometry& source_geom,
     // The vegetation and soil types are categories: a fine cell takes its coarse cell's,
     // since a linear interpolation between two of them (17, water, and 5, say, along a
     // coastline) gives a third (12, cropland) once SLM truncates it to an integer
-    auto interp_for = [] (int var) -> Interpolater*
+    auto is_category = [] (int var)
     {
-        return (var == LsmVar_SLM::vegtype || var == LsmVar_SLM::soiltype)
-            ? static_cast<Interpolater*>(&pc_interp) : static_cast<Interpolater*>(&cell_cons_interp);
+        return var == LsmVar_SLM::vegtype || var == LsmVar_SLM::soiltype;
+    };
+
+    // Every other field is interpolated without mixing land and water (#4390): a land cell's
+    // slopes come from land neighbours only and a water cell's from water ones, as WRF's
+    // masked nest interpolation does, so a coastal land cell is not pulled toward the water
+    // value (SLM holds soilw = 1 and soilt = SST there). The land/water indicator comes from
+    // the source level's vegetation type at the top soil level, with the water rule of
+    // initialize_processed_state, and is NaN outside the domain: no neighbour there.
+    int ivar_veg = -1;
+    for (int ivar = 0; ivar < m_lsm_data_size; ++ivar) {
+        if (LsmDataMap[ivar] == LsmVar_SLM::vegtype) { ivar_veg = ivar; }
+    }
+    AMREX_ALWAYS_ASSERT(ivar_veg >= 0 && source_data[ivar_veg] != nullptr);
+    const MultiFab veg = with_filled_ghosts(*source_data[ivar_veg], source_lsm_geom);
+    const int khi_src = source_lsm_geom.Domain().bigEnd(2);
+    // at every soil level of a column (soil state), and on the surface slab (fluxes)
+    MultiFab water_lsm(veg.boxArray(), veg.DistributionMap(), 1, veg.nGrowVect());
+    BoxList bl_2d = veg.boxArray().boxList();
+    for (auto& b : bl_2d) { b.setRange(2, 0, 1); }
+    MultiFab water_2d(BoxArray(std::move(bl_2d)), veg.DistributionMap(), 1,
+                      IntVect(veg.nGrowVect()[0], veg.nGrowVect()[1], 0));
+    for (MFIter mfi(veg); mfi.isValid(); ++mfi) {
+        const auto v  = veg.const_array(mfi);
+        const auto w3 = water_lsm.array(mfi);
+        const auto w2 = water_2d.array(mfi);
+        ParallelFor(mfi.fabbox(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            w3(i,j,k) = slm_water_indicator(v(i,j,khi_src));
+        });
+        ParallelFor(water_2d[mfi].box(), [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept
+        {
+            w2(i,j,k) = slm_water_indicator(v(i,j,khi_src));
+        });
+    }
+
+    LandWaterConsLinear land_water_interp;
+    auto interpolate = [&] (MultiFab& dst, const MultiFab& src, const MultiFab& water,
+                            const Geometry& cgeom, const Geometry& fgeom, bool category)
+    {
+        if (category) {
+            InterpFromCoarseLevel(dst, dst.nGrowVect(), IntVect(0,0,0), src, 0, 0, 1,
+                                  cgeom, fgeom, rr2d, &pc_interp, m_domain_bcs_type,
+                                  BCVars::cons_bc);
+            return;
+        }
+        // The field and its indicator, interpolated together
+        MultiFab csrc(src.boxArray(), src.DistributionMap(), 2, src.nGrowVect());
+        MultiFab::Copy(csrc, src, 0, 0, 1, src.nGrowVect());
+        csrc.setVal(std::numeric_limits<Real>::quiet_NaN(), 1, 1, src.nGrowVect());
+        csrc.ParallelCopy(water, 0, 1, 1, water.nGrowVect(), src.nGrowVect(), cgeom.periodicity());
+        csrc.setDomainBndry(std::numeric_limits<Real>::quiet_NaN(), 1, 1, cgeom);
+        // Start from the current values, so the cells the interpolation does not fill
+        // (ghost cells outside the domain) keep them
+        MultiFab fdst(dst.boxArray(), dst.DistributionMap(), 2, dst.nGrowVect());
+        MultiFab::Copy(fdst, dst, 0, 0, 1, dst.nGrowVect());
+        fdst.setVal(Real(0.0), 1, 1, dst.nGrowVect());
+        InterpFromCoarseLevel(fdst, dst.nGrowVect(), IntVect(0,0,0), csrc, 0, 0, 2,
+                              cgeom, fgeom, rr2d, &land_water_interp, m_domain_bcs_type,
+                              BCVars::cons_bc);
+        MultiFab::Copy(dst, fdst, 0, 0, 1, dst.nGrowVect());
     };
 
     for (int ivar = 0; ivar < m_lsm_data_size; ++ivar) {
         AMREX_ALWAYS_ASSERT(source_data[ivar] != nullptr);
         const MultiFab src = with_filled_ghosts(*source_data[ivar], source_lsm_geom);
-        InterpFromCoarseLevel(*lsm_fab_vars[LsmDataMap[ivar]],
-                              lsm_fab_vars[LsmDataMap[ivar]]->nGrowVect(),
-                              IntVect(0,0,0), src, 0, 0, 1,
-                              source_lsm_geom, m_lsm_geom, rr2d,
-                              interp_for(LsmDataMap[ivar]), m_domain_bcs_type,
-                              BCVars::cons_bc);
+        interpolate(*lsm_fab_vars[LsmDataMap[ivar]], src, water_lsm,
+                    source_lsm_geom, m_lsm_geom, is_category(LsmDataMap[ivar]));
     }
 
     for (int ivar = 0; ivar < m_lsm_flux_size; ++ivar) {
         AMREX_ALWAYS_ASSERT(source_flux[ivar] != nullptr);
         const MultiFab src = with_filled_ghosts(*source_flux[ivar], source_geom);
-        InterpFromCoarseLevel(*lsm_fab_flux[LsmFluxMap[ivar]],
-                              lsm_fab_flux[LsmFluxMap[ivar]]->nGrowVect(),
-                              IntVect(0,0,0), src, 0, 0, 1,
-                              source_geom, m_geom, rr2d,
-                              &cell_cons_interp, m_domain_bcs_type,
-                              BCVars::cons_bc);
+        interpolate(*lsm_fab_flux[LsmFluxMap[ivar]], src, water_2d,
+                    source_geom, m_geom, false);
     }
 
     for (int ivar = 0; ivar < static_cast<int>(unmapped_fields.size()); ++ivar) {
         AMREX_ALWAYS_ASSERT(source_unmapped[ivar] != nullptr);
         const MultiFab src = with_filled_ghosts(*source_unmapped[ivar], source_lsm_geom);
-        InterpFromCoarseLevel(*lsm_fab_vars[unmapped_fields[ivar]],
-                              lsm_fab_vars[unmapped_fields[ivar]]->nGrowVect(),
-                              IntVect(0,0,0), src, 0, 0, 1,
-                              source_lsm_geom, m_lsm_geom, rr2d,
-                              interp_for(unmapped_fields[ivar]), m_domain_bcs_type,
-                              BCVars::cons_bc);
+        interpolate(*lsm_fab_vars[unmapped_fields[ivar]], src, water_lsm,
+                    source_lsm_geom, m_lsm_geom, is_category(unmapped_fields[ivar]));
     }
 
     // tref, qref and pref were interpolated from the source, so they are only as
