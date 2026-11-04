@@ -360,6 +360,37 @@ class SiteFactTests(unittest.TestCase):
         self.assertEqual(need["evidence"], "site: the MPI is configured without CUDA; "
                                            "AMReX/Src/Base/AMReX_ParallelDescriptor.cpp:6")
 
+    def test_a_site_fact_value_is_stored_in_canonical_form(self):
+        for spelling in ("1", "TRUE", True):
+            facts = [dict(SITE_FACTS[0], value=spelling)]
+            got = generate(site_facts=facts)["keys"]["amrex.use_gpu_aware_mpi"]["value_requires"]
+            self.assertEqual(list(got), ["true"], spelling)
+
+
+class MergeOrderTests(unittest.TestCase):
+    """A removed key's record names the removal, whichever file sorts first; types in shadowed_reads are schema types."""
+
+    def test_a_removal_after_a_typed_read_names_the_removal_and_its_layer(self):
+        from erf_inputs_schema import schema
+        typed = {"type": "real", "source": "AMReX/Src/A.cpp:5"}
+        removed = {"type": "removed", "source": "Source/ERF_Removed.cpp:4", "removed_evidence": "Source/ERF_Removed.cpp:5"}
+        got = schema.merge(schema.merge(None, typed), removed)
+        self.assertEqual((got["source"], got["layer"]), ("Source/ERF_Removed.cpp:4", "ERF"))
+        self.assertEqual(got["layers"], {"AMReX": "AMReX/Src/A.cpp:5", "ERF": "Source/ERF_Removed.cpp:4"})
+        self.assertEqual(got["shadowed_reads"], ["AMReX/Src/A.cpp:5 real"])
+
+    def test_a_shadowed_enum_read_shows_the_schema_type(self):
+        from erf_inputs_schema import schema
+        removed = {"type": "removed", "source": "Source/ERF_Removed.cpp:4", "removed_evidence": "Source/ERF_Removed.cpp:5"}
+        got = schema.merge(schema.merge(None, removed), {"type": "enum:MoistureType_list", "source": "Source/A.cpp:3"})
+        self.assertEqual(got["shadowed_reads"], ["Source/A.cpp:3 enum_list"])
+
+    def test_a_presence_read_then_a_case_insensitive_enum_read_keeps_case_insensitive(self):
+        from erf_inputs_schema import schema
+        unknown = {"type": "unknown", "source": "Source/A.cpp:2"}
+        enum = {"type": "enum:MoistureType", "source": "Source/A.cpp:9", "case_insensitive": True}
+        self.assertIs(schema.merge(schema.merge(None, unknown), enum).get("case_insensitive"), True)
+
     def test_the_schema_records_where_its_build_facts_came_from(self):
         with tempfile.TemporaryDirectory() as td:
             out, facts = Path(td) / "s.json", Path(td) / "site.json"
