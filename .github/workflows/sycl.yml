@@ -133,6 +133,19 @@ jobs:
           -DCMAKE_CXX_COMPILER="$(which icpx)" \
           -DCMAKE_CXX_STANDARD=17 \
           -DAMReX_PARALLEL_LINK_JOBS=4
+        # Check core diagnostics before the remaining compilation and linking.
+        build_log="${{runner.workspace}}/build-output.txt"
+        make -j 4 amrex_3d erf_srclib 2>&1 | tee -a "$build_log"
+
+        warning_report="${build_log%.txt}-warnings.txt"
+        # Use the same diagnostic exclusions as the final Report step.
+        awk 'tolower($0) ~ /warning:|error:/ &&
+             $0 !~ /Submodules\/(amrex|AMReX|googletest)/ &&
+             $0 !~ /lto-wrapper: warning:/' "$build_log" \
+          | sort | uniq > "$warning_report"
+        cat "$warning_report"
+        test ! -s "$warning_report"
+
         make -j 4 2>&1 | tee -a ${{runner.workspace}}/build-output.txt;
 
         echo '```' >> "$GITHUB_STEP_SUMMARY"
