@@ -8,9 +8,21 @@ import re
 from .canonical import canonical_value
 
 ERF_ALIASES = {"pp_prefix", "m_pp_prefix", "a_pp_prefix", "face_pp_prefix"}      # all "erf" (ERF.H: pp_prefix {"erf"})
-# Prefixes built at run time from a name, read as families (the name is checked separately).
+# Prefixes built at run time, keyed by (file, the ParmParse constructor's argument): a name read as a family (the
+# name is checked separately), or a member whose value is fixed (m_name). schema.generate stops when an entry whose
+# file exists matches nothing, so an edit of the constructor argument is caught rather than dropping the keys.
 FAMILIES = {("Source/Initialization/ERF_InitBCs.cpp", "pp_text"): (["<face>", "erf.<face>"], "face"),
-            ("Source/IO/ERF_StationSampler.cpp", 'pp_prefix + "." + name'): (["erf.<station>"], "station")}
+            ("Source/Prob/ERF_CloudChamber.H", "face.c_str()"): (["<face>"], "face"),
+            ("Source/IO/ERF_StationSampler.cpp", 'pp_prefix + "." + name'): (["erf.<station>"], "station"),
+            ("Source/ObsNudging/ERF_ObsNudging.cpp", '"erf.obs_nudging." + name'):
+                (["erf.obs_nudging.<station>"], "station"),
+            ("Source/Refinement/ERF_Tagging.cpp", "ref_prefix"): (["erf.<indicator>"], "indicator"),
+            ("Source/Refinement/ERF_RefineBox.cpp", "ref_prefix"): (["erf.<indicator>"], "indicator"),
+            ("Source/Particles/ERFPCInitializations.cpp", "m_name"):             # ERFPC and SuperDropletPC (derived)
+                (["tracer_particles", "super_droplets_moisture"], None),
+            ("Source/Particles/ERF_SuperDropletPCInitializations.cpp", "m_name"): (["super_droplets_moisture"], None),
+            ("Source/Microphysics/SuperDropletsMoist/ERF_SuperDropletsMoistInit.cpp", "m_name"):
+                (["super_droplets_moisture"], None)}
 METHODS = ("query_enum_case_insensitive", "get_enum_case_insensitive", "query_enum", "get_enum", "queryarrAdd",
            "queryarr", "getarr", "queryAdd", "query", "get")
 CPP_TYPES = {"int": "int", "long": "int", "unsigned": "int", "Long": "int", "amrex::Long": "int", "bool": "bool",
@@ -231,6 +243,7 @@ class FileScan:
         for line in self.lines:
             self.offsets.append(self.offsets[-1] + len(line) + 1)
         self.decls = self._pp_decls()
+        self.families_hit = set()                          # FAMILIES keys a declaration here matched
 
     def line_of(self, pos):
         return next(i for i in range(len(self.offsets) - 1) if self.offsets[i + 1] > pos)
@@ -246,12 +259,42 @@ class FileScan:
     def prefixes(self, var, line):
         expr = next((e for ln, v, e in reversed(self.decls) if v == var and ln <= line), "__none__")
         if expr == "__none__":
-            return None, None
-        fam = FAMILIES.get((self.rel, (expr or "").strip()))
+            return self.parameter_prefixes(var)
+        return self._prefixes_of(self.rel, expr)
+
+    def _prefixes_of(self, rel, expr):
+        key = (rel, (expr or "").strip())
+        fam = FAMILIES.get(key)
         if fam:
+            if rel == self.rel:
+                self.families_hit.add(key)
             return fam
         p = resolve_prefix(expr)
         return ([p], None) if p is not None else (None, None)
+
+    def parameter_prefixes(self, var):
+        """A `ParmParse& var` parameter of a function here takes the prefixes of the ParmParse objects passed at the
+        function's call sites in any file (ERF_WallScalarBC.H's parse_wall_face_scalars, called from ERF_InitBCs.cpp
+        with the face object). None when var is not such a parameter or no call site resolves."""
+        sig = re.search(r"(\w+)\s*\([^;{)]*?ParmParse\s*&\s*" + var + r"\b", self.text)
+        if not sig:
+            return None, None
+        prefixes, family = [], None
+        for rel, other in self.all_files:
+            for call in re.finditer(r"\b" + sig.group(1) + r"\s*\(\s*(\w+)\s*[,)]", other):
+                decl = None
+                for m in re.finditer(r"(?:amrex::)?ParmParse\s+" + call.group(1) + r"\s*\(\s*(.*?)\s*\)\s*;|"
+                                     r"\b" + call.group(1) + r"\s*=\s*(?:amrex::)?ParmParse\s*\(\s*(.*?)\s*\)\s*;",
+                                     other):
+                    if m.start() < call.start():
+                        decl = m.group(1) if m.group(1) is not None else m.group(2)
+                if decl is None:
+                    continue
+                pfx, fam = self._prefixes_of(rel, decl)
+                if pfx:
+                    prefixes += [p for p in pfx if p not in prefixes]
+                    family = family or fam
+        return (prefixes, family) if prefixes else (None, None)
 
     def kind_of(self, name, method="query", line=0, per_level=False):
         """The kind of the variable a read fills: its declarations in this file (pick_kind), else the one kind it has
@@ -289,10 +332,11 @@ class FileScan:
         if method in ("contains", "countval"):
             return "unknown"                                 # a presence read; a typed read of the same key wins
         kind = self.kind_of(target_name(target), method, line, per_level)
-        if per_level and kind.endswith("_list"):
+        indexed = "[" in target                              # fixed_dt[0]: one element of a Vector
+        if (per_level or indexed) and kind.endswith("_list") and method not in LIST_METHODS:
             kind = kind[:-5]
-        if method in LIST_METHODS and not kind.endswith("_list") and kind != "unknown":
-            kind += "_list"
+        if method in LIST_METHODS and not kind.endswith("_list"):
+            kind += "_list"                                  # unknown_list: several words, each of unknown type
         return kind
 
     def default(self, target, kind, line, fact):
@@ -307,6 +351,8 @@ class FileScan:
         if found is None and name and self.header_text and decl in (None, 0):
             found, rel = _initializer(name, self.header_text, None), self.header_rel
         if found is None or kind.endswith("_list") or kind == "unknown" or not found[0]:
+            return None, "none", None
+        if kind == "unknown_list":
             return None, "none", None
         raw, at = found
         if kind == "string" and not re.fullmatch(r'"[^"]*"', raw):
@@ -417,12 +463,21 @@ def _abort_line(text, pos):
     return None
 
 
+def _in_string(text, pos):
+    """Is pos inside a "..." literal on its line? (strip_comments keeps strings, so an Error("Set x = y instead.")
+    text can look like an initializer of x.)"""
+    line = text[text.rfind("\n", 0, pos) + 1:pos]
+    return len(re.findall(r'(?<!\\)"', line)) % 2 == 1
+
+
 def _initializer(name, text, before_line):
     """(raw initializer, 1-based line) of the last declaration of name before before_line (any line if None)."""
     rx = re.compile(r"(?:[\w>]\s+|,\s*)&?\s*" + re.escape(name) +
                     r"\s*(?:=(?!=)\s*([^;,{}]+?)|\{\s*([^{}]*?)\s*\}|\(\s*([^()]*?)\s*\))\s*[;,]")   # not ==
     best = None
     for m in rx.finditer(text):
+        if _in_string(text, m.start() + 1):
+            continue
         at = text.count("\n", 0, m.start()) + 1
         if before_line is None or at <= before_line + 1:
             best = (next(g for g in m.groups() if g is not None).strip(), at)
@@ -447,14 +502,17 @@ def posix_rel(path, root):
 
 
 def scan(root, rel_base, enum_names, global_decls, erf_side, all_files=()):
-    """Every literal query in the tree: (key, fact, conditions, method, target), and unresolved reads."""
-    hits, unresolved = [], []
+    """Every literal query in the tree: (key, fact, conditions, method, target), unresolved reads, and the FAMILIES
+    entries some declaration matched."""
+    hits, unresolved, families_hit = [], [], set()
     for path in sorted(p for p in root.rglob("*") if p.suffix in (".H", ".cpp")):
         rel = f"{rel_base}/{posix_rel(path, root)}"
-        h, u = FileScan(path, rel, enum_names, global_decls, erf_side, all_files).hits()
+        fs = FileScan(path, rel, enum_names, global_decls, erf_side, all_files)
+        h, u = fs.hits()
         hits += h
         unresolved += u
-    return hits, sorted(set(unresolved))
+        families_hit |= fs.families_hit
+    return hits, sorted(set(unresolved)), families_hit
 
 
 def value_requirements(files, enum_names):
