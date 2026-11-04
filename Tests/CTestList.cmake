@@ -5311,5 +5311,24 @@ if(NOT WIN32 AND ERF_TEST_PYTHON AND ERF_PRECISION STREQUAL "DOUBLE")
 endif()
 
 #=============================================================================
+# erf.sample_line is a LineSampler of full-depth columns on level 0: its logs must agree
+# with erf.do_line_sampling text output of the same columns (test_files/SampleLine)
+#=============================================================================
+if(NOT WIN32 AND ERF_TEST_PYTHON)
+  function(add_test_sample_line TEST_NAME)
+    setup_test()
+    resolve_test_exe("" "erf_exec" TEST_EXE)
+    set(_log ${CURRENT_TEST_BINARY_DIR}/${TEST_NAME}.log)
+    # Remove the logs and text files of an earlier pass: both are appended to
+    add_test(${TEST_NAME} sh -c
+        "rm -f col_a col_b dls_a.* dls_b.* && ( ${MPI_COMMANDS} ${TEST_EXE} ${TEST_NAME}.i > ${_log} 2>&1 || ( tail -n 40 ${_log} && false ) ) && ${ERF_TEST_PYTHON} check_sample_line.py col_a:dls_a col_b:dls_b")
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        TIMEOUT 600 PROCESSORS ${NP} WORKING_DIRECTORY "${CURRENT_TEST_BINARY_DIR}/"
+        LABELS "regression" ATTACHED_FILES_ON_FAIL "${_log}")
+  endfunction(add_test_sample_line)
+  add_test_sample_line(SampleLine)
+endif()
+
+#=============================================================================
 # Performance tests
 #=============================================================================

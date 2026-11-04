@@ -1711,8 +1711,12 @@ The sampled variables can be selected with the ``erf.line_sampling_vars`` and
 ``erf.plane_sampling_vars`` options and include a subset of the plotfile outputs:
 ``density``, ``x_velocity``, ``y_velocity``, ``z_velocity``, ``magvel``,
 ``theta``, ``qv``, ``qc``, and ``pressure``. Line sampling additionally supports
-``sgs_tke``, ``sgs_tau13``, ``sgs_tau23``, and ``sgs_hfx3``. The SGS stress and
-heat-flux values are averaged from their native edge/face locations to cell
+``conserved``, ``sgs_tke``, ``sgs_tau11``, ``sgs_tau12``, ``sgs_tau13``, ``sgs_tau22``,
+``sgs_tau23``, ``sgs_tau33``, and ``sgs_hfx3``. ``conserved`` writes every component of the
+conserved state as stored, named ``cons_0``, ``cons_1``, ... in component order (density,
+rho theta, ...). The variables are written in a fixed order, not the order they are listed in.
+The SGS stresses ``sgs_tau11``, ``sgs_tau22`` and ``sgs_tau33`` are stored at cell centers; the
+other stresses and the heat flux are averaged from their native edge/face locations to cell
 centers; if their diffusion storage is unavailable, ERF writes zero. Velocities
 are output at cell centers only. The water vapor mixing ratio ``qv`` will only
 output valid values if a moisture model is used. Pressure is calculated from
@@ -1786,6 +1790,16 @@ List of Parameters
 | **erf.sample_line_log**            | log-file name for each sampled line; exactly one name    | List of Strings    | None             |
 |                                    | per line is required                                     |                    |                  |
 +------------------------------------+----------------------------------------------------------+--------------------+------------------+
+
+``erf.sample_line`` and ``erf.sample_line_real`` are a shorthand for line sampling. Each line is
+the full-depth vertical column through the given cell or point on level 0 (its k or z only
+selects the column), sampled with the line-sampling machinery above with the variables
+``conserved``, ``x_velocity``, ``y_velocity``, ``z_velocity`` and ``sgs_tau11`` ...
+``sgs_tau33``. Each line is written to its own log at the cadence of the other logs
+(``erf.sum_interval`` or ``erf.sum_per``), one row per sample: the time, then each variable over
+the column from bottom to top, in that order. The stresses are at cell centers, as for line
+sampling; before this used the line sampler, ``tau12``, ``tau13`` and ``tau23`` were written at the
+lower corner edge of each cell instead.
 
 .. _examples-of-usage-10b:
 

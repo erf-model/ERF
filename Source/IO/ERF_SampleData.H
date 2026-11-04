@@ -4,6 +4,9 @@
 #ifndef ERF_SAMPLEDATA_H
 #define ERF_SAMPLEDATA_H
 
+#include <algorithm>
+#include <fstream>
+#include <iomanip>
 #include <memory>
 
 #include <AMReX_ParmParse.H>
@@ -14,6 +17,7 @@
 #include <ERF_IndexDefines.H>
 #include <ERF_EOS.H>
 #include <ERF_Container.H>
+#include <ERF_DataStruct.H>
 
 #include <iostream>
 
@@ -139,85 +143,116 @@ struct LineSampler
             // Allocate space for MF pointers
             m_ls_mf.resize(nline);
 
-            // Get requested vars
+            // Get requested vars.  They are stored, sampled and written in the order of
+            // line_sampling_var_order(), whatever order they are requested in
             if (pp.countval("line_sampling_vars") > 0) {
                 m_varnames.clear();
                 amrex::Vector<std::string> requested_vars;
                 pp.queryarr("line_sampling_vars",requested_vars);
                 amrex::Print() << "Selected line sampling vars :";
-                if (containerHasElement(requested_vars, "density")) {
-                    m_varnames.push_back("density");
-                    amrex::Print() << " " << "density";
-                }
-                if (containerHasElement(requested_vars, "x_velocity")) {
-                    m_varnames.push_back("x_velocity");
-                    amrex::Print() << " " << "x_velocity";
-                }
-                if (containerHasElement(requested_vars, "y_velocity")) {
-                    m_varnames.push_back("y_velocity");
-                    amrex::Print() << " " << "y_velocity";
-                }
-                if (containerHasElement(requested_vars, "z_velocity")) {
-                    m_varnames.push_back("z_velocity");
-                    amrex::Print() << " " << "z_velocity";
-                }
-                if (containerHasElement(requested_vars, "magvel")) {
-                    m_varnames.push_back("magvel");
-                    amrex::Print() << " " << "magvel";
-                }
-                if (containerHasElement(requested_vars, "theta")) {
-                    m_varnames.push_back("theta");
-                    amrex::Print() << " " << "theta";
-                }
-                if (containerHasElement(requested_vars, "qv")) {
-                    m_varnames.push_back("qv");
-                    amrex::Print() << " " << "qv";
-                }
-                if (containerHasElement(requested_vars, "qc")) {
-                    m_varnames.push_back("qc");
-                    amrex::Print() << " " << "qc";
-                }
-                if (containerHasElement(requested_vars, "pressure")) {
-                    m_varnames.push_back("pressure");
-                    amrex::Print() << " " << "pressure";
-                }
-                if (containerHasElement(requested_vars, "sgs_tke")) {
-                    m_varnames.push_back("sgs_tke");
-                    amrex::Print() << " " << "sgs_tke";
-                }
-                if (containerHasElement(requested_vars, "sgs_tau13")) {
-                    m_varnames.push_back("sgs_tau13");
-                    amrex::Print() << " " << "sgs_tau13";
-                }
-                if (containerHasElement(requested_vars, "sgs_tau23")) {
-                    m_varnames.push_back("sgs_tau23");
-                    amrex::Print() << " " << "sgs_tau23";
-                }
-                if (containerHasElement(requested_vars, "sgs_hfx3")) {
-                    m_varnames.push_back("sgs_hfx3");
-                    amrex::Print() << " " << "sgs_hfx3";
+                for (const auto& name : line_sampling_var_order()) {
+                    if (containerHasElement(requested_vars, name)) {
+                        m_varnames.push_back(name);
+                        amrex::Print() << " " << name;
+                    }
                 }
                 amrex::Print() << std::endl;
             }
 
             // Write outputs to text files, one file per variable, with all
-            // times appended to the same file
+            // times appended to the same file.  The files are opened at the first
+            // write, once "conserved" has been expanded into its components
             pp.queryAdd("line_sampling_text_output",m_write_ascii);
-            if (m_write_ascii && amrex::ParallelDescriptor::IOProcessor()) {
-                int nvar = static_cast<int>(m_varnames.size());
-                m_datastream.resize(nline * nvar);
-                int i = 0;
-                for (int iline(0); iline<nline; ++iline) {
-                    for (int ivar(0); ivar<nvar; ++ivar) {
-                        std::string filename = m_name[iline] + "." + m_varnames[ivar];
-                        m_datastream[i] = std::make_unique<std::fstream>();
-                        m_datastream[i]->open(filename.c_str(),std::ios::out|std::ios::app);
-                        if (!m_datastream[i]->good()) {
-                            amrex::FileOpenFailed(filename);
-                        }
-                        i++;
-                    }
+        }
+    }
+
+    /**
+     * Sample the full-depth vertical column through each cell on level 0, with the
+     * variables erf.sample_line writes: every conserved component, the cell-centred
+     * velocities and the six stresses at cell centres.  Each column is written to its own
+     * log, one row per sample: the time, then each variable over the column, bottom to top.
+     *
+     * @param[in] cells     a cell in each column; its k is ignored
+     * @param[in] log_names the log file of each column
+     * @param[in] domain    the level-0 domain
+     */
+    LineSampler (const amrex::Vector<amrex::IntVect>& cells,
+                 const amrex::Vector<std::string>& log_names,
+                 const amrex::Box& domain)
+    {
+        AMREX_ALWAYS_ASSERT(cells.size() == log_names.size());
+        const int nline = static_cast<int>(cells.size());
+        constexpr int dir = 2;
+
+        m_bnd_bx.resize(nline);
+        for (int iline(0); iline<nline; ++iline) {
+            amrex::IntVect lo(cells[iline]); lo[dir] = domain.smallEnd(dir);
+            amrex::IntVect hi(cells[iline]); hi[dir] = domain.bigEnd(dir);
+            m_bnd_bx[iline] = amrex::Box(lo, hi);
+        }
+        m_dir.assign(nline, dir);
+        m_lev.assign(nline, 0);
+        m_ls_mf.resize(nline);
+        m_name = log_names;
+        m_max_level = 0;
+        m_varnames = {"conserved", "x_velocity", "y_velocity", "z_velocity",
+                      "sgs_tau11", "sgs_tau12", "sgs_tau13", "sgs_tau22", "sgs_tau23", "sgs_tau33"};
+
+        m_write_log = true;
+        if (amrex::ParallelDescriptor::IOProcessor()) {
+            m_logstream.resize(nline);
+            for (int iline(0); iline<nline; ++iline) {
+                m_logstream[iline] = std::make_unique<std::fstream>();
+                m_logstream[iline]->open(log_names[iline].c_str(),std::ios::out|std::ios::app);
+                if (!m_logstream[iline]->good()) {
+                    amrex::FileOpenFailed(log_names[iline]);
                 }
+            }
+        }
+        amrex::ParallelDescriptor::Barrier("LineSampler::LineSampler");
+    }
+
+    //! The variables that may be sampled, in the order they are stored and written
+    static const amrex::Vector<std::string>&
+    line_sampling_var_order ()
+    {
+        static const amrex::Vector<std::string> order = {
+            "conserved", "density", "x_velocity", "y_velocity", "z_velocity", "magvel", "theta",
+            "qv", "qc", "pressure", "sgs_tke",
+            "sgs_tau11", "sgs_tau12", "sgs_tau13", "sgs_tau22", "sgs_tau23", "sgs_tau33", "sgs_hfx3"};
+        return order;
+    }
+
+    //! Replace "conserved" by one name per component of the conserved state, cons_0, cons_1, ...
+    void
+    expand_conserved (int ncons)
+    {
+        auto it = std::find(m_varnames.begin(), m_varnames.end(), std::string("conserved"));
+        if (it == m_varnames.end()) { m_ncons = 0; return; }
+        amrex::Vector<std::string> names;
+        for (int n(0); n<ncons; ++n) { names.push_back(amrex::Concatenate("cons_", n, 1)); }
+        it = m_varnames.erase(it);
+        m_varnames.insert(it, names.begin(), names.end());
+        m_ncons = ncons;
+    }
+
+    void
+    open_ascii_streams ()
+    {
+        if (!m_datastream.empty() || !amrex::ParallelDescriptor::IOProcessor()) { return; }
+        int nline = static_cast<int>(m_name.size());
+        int nvar = static_cast<int>(m_varnames.size());
+        m_datastream.resize(nline * nvar);
+        int i = 0;
+        for (int iline(0); iline<nline; ++iline) {
+            for (int ivar(0); ivar<nvar; ++ivar) {
+                std::string filename = m_name[iline] + "." + m_varnames[ivar];
+                m_datastream[i] = std::make_unique<std::fstream>();
+                m_datastream[i]->open(filename.c_str(),std::ios::out|std::ios::app);
+                if (!m_datastream[i]->good()) {
+                    amrex::FileOpenFailed(filename);
+                }
+                i++;
             }
         }
     }
@@ -294,16 +329,25 @@ struct LineSampler
     void
     get_sample_data (amrex::Vector<amrex::Geometry>& geom,
                      amrex::Vector<amrex::Vector<amrex::MultiFab>>& vars_new,
-                     const amrex::Vector<amrex::MultiFab*>& tau13_lev = {},
-                     const amrex::Vector<amrex::MultiFab*>& tau23_lev = {},
+                     const amrex::Vector<amrex::Vector<amrex::MultiFab*>>& tau_lev = {},
                      const amrex::Vector<amrex::MultiFab*>& hfx3_lev = {},
                      const amrex::Vector<int>& prognostic_tke_available = {})
     {
+        if (m_ncons < 0) { expand_conserved(vars_new[0][Vars::cons].nComp()); }
+
         int nlev  = static_cast<int>(vars_new.size());
+        if (m_max_level >= 0) { nlev = std::min(nlev, m_max_level + 1); }
         int nline = static_cast<int>(m_bnd_bx.size());
         int ncomp = static_cast<int>(m_varnames.size());
 
         int qv_comp = -1;
+
+        // The stress tau_type on level ilev, or nullptr where it is not stored
+        auto get_tau = [&] (int ilev, int tau_type) -> amrex::MultiFab* {
+            if (ilev >= static_cast<int>(tau_lev.size()) ||
+                tau_type >= static_cast<int>(tau_lev[ilev].size())) { return nullptr; }
+            return tau_lev[ilev][tau_type];
+        };
 
         // Loop over each line
         for (int iline(0); iline<nline; ++iline) {
@@ -331,6 +375,12 @@ struct LineSampler
                 mf_cc_data.define(ba, dm, ncomp, 1);
 
                 int mf_comp = 0;
+
+                // The raw conserved components, cons_0, cons_1, ..., come first
+                if (m_ncons > 0) {
+                    amrex::MultiFab::Copy(mf_cc_data, vars_new[ilev][Vars::cons], 0, mf_comp, m_ncons, 0);
+                    mf_comp += m_ncons;
+                }
 
                 if (containerHasElement(m_varnames, "density")) {
                     amrex::MultiFab::Copy(mf_cc_data, vars_new[ilev][Vars::cons], Rho_comp, mf_comp, 1, 0);
@@ -484,51 +534,42 @@ struct LineSampler
                     mf_comp += 1;
                 }
 
-                if (containerHasElement(m_varnames, "sgs_tau13")) {
-                    amrex::MultiFab* tau13 = ilev < static_cast<int>(tau13_lev.size())
-                        ? tau13_lev[ilev] : nullptr;
-                    if (tau13 != nullptr) {
+                // The stresses at cell centres: tau11, tau22 and tau33 are stored there, and the
+                // others are averaged from the four edges around the cell
+                auto sample_tau = [&] (const char* name, int tau_type,
+                                       amrex::IntVect const& e1, amrex::IntVect const& e2) {
+                    if (!containerHasElement(m_varnames, std::string(name))) { return; }
+                    amrex::MultiFab* tau = get_tau(ilev, tau_type);
+                    if (tau != nullptr) {
+                        const bool at_centre = (e1 == amrex::IntVect(0));
+                        const int comp = mf_comp;
+                        const int ax = e1[0], ay = e1[1], az = e1[2];
+                        const int bx = e2[0], by = e2[1], bz = e2[2];
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
                         for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
                             const amrex::Box& tbx = mfi.tilebox();
                             const auto& out = mf_cc_data.array(mfi);
-                            const auto& tau = tau13->const_array(mfi);
+                            const auto& t = tau->const_array(mfi);
                             amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                                out(i,j,k,mf_comp) = amrex::Real(0.25) *
-                                    (tau(i,j,k) + tau(i+1,j,k) +
-                                     tau(i,j,k+1) + tau(i+1,j,k+1));
+                                out(i,j,k,comp) = at_centre ? t(i,j,k) : amrex::Real(0.25) *
+                                    (t(i,j,k) + t(i+ax,j+ay,k+az) +
+                                     t(i+bx,j+by,k+bz) + t(i+ax+bx,j+ay+by,k+az+bz));
                             });
                         }
                     } else {
                         mf_cc_data.setVal(0.0, mf_comp, 1, 0);
                     }
                     mf_comp += 1;
-                }
-
-                if (containerHasElement(m_varnames, "sgs_tau23")) {
-                    amrex::MultiFab* tau23 = ilev < static_cast<int>(tau23_lev.size())
-                        ? tau23_lev[ilev] : nullptr;
-                    if (tau23 != nullptr) {
-#ifdef _OPENMP
-#pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
-#endif
-                        for (amrex::MFIter mfi(mf_cc_data, amrex::TilingIfNotGPU()); mfi.isValid(); ++mfi) {
-                            const amrex::Box& tbx = mfi.tilebox();
-                            const auto& out = mf_cc_data.array(mfi);
-                            const auto& tau = tau23->const_array(mfi);
-                            amrex::ParallelFor(tbx, [=] AMREX_GPU_DEVICE (int i, int j, int k) noexcept {
-                                out(i,j,k,mf_comp) = amrex::Real(0.25) *
-                                    (tau(i,j,k) + tau(i,j+1,k) +
-                                     tau(i,j,k+1) + tau(i,j+1,k+1));
-                            });
-                        }
-                    } else {
-                        mf_cc_data.setVal(0.0, mf_comp, 1, 0);
-                    }
-                    mf_comp += 1;
-                }
+                };
+                const amrex::IntVect ex(1,0,0), ey(0,1,0), ez(0,0,1), e0(0);
+                sample_tau("sgs_tau11", TauType::tau11, e0, e0);
+                sample_tau("sgs_tau12", TauType::tau12, ex, ey);
+                sample_tau("sgs_tau13", TauType::tau13, ex, ez);
+                sample_tau("sgs_tau22", TauType::tau22, e0, e0);
+                sample_tau("sgs_tau23", TauType::tau23, ey, ez);
+                sample_tau("sgs_tau33", TauType::tau33, e0, e0);
 
                 if (containerHasElement(m_varnames, "sgs_hfx3")) {
                     amrex::MultiFab* hfx3 = ilev < static_cast<int>(hfx3_lev.size())
@@ -574,10 +615,47 @@ struct LineSampler
                        amrex::Vector<amrex::IntVect>& ref_ratio,
                        amrex::Vector<amrex::Geometry>& geom)
     {
-        if (m_write_ascii) {
+        if (m_write_log) {
+            write_line_log(time);
+        } else if (m_write_ascii) {
             write_line_ascii(time);
         } else {
             write_line_plotfile(time, level_steps, ref_ratio, geom);
+        }
+    }
+
+    //! One row per line in its log: the time, then each variable along the line
+    void
+    write_line_log (amrex::Vector<double>& time)
+    {
+        // same as definitions in ERF.H
+        constexpr int datwidth = 14;
+        constexpr int datprecision = 6;
+
+        int nline = static_cast<int>(m_ls_mf.size());
+        int nvar  = static_cast<int>(m_varnames.size());
+        for (int iline(0); iline<nline; ++iline) {
+            int dir = m_dir[iline];
+            double m_time = time[m_lev[iline]];
+            amrex::Box m_dom = m_bnd_bx[iline];
+
+            amrex::Vector<amrex::Gpu::HostVector<amrex::Real>> vecs(nvar);
+            for (int ivar(0); ivar<nvar; ++ivar) {
+                vecs[ivar] = sumToLine(m_ls_mf[iline], ivar, 1, m_dom, dir);
+            }
+
+            if (amrex::ParallelDescriptor::IOProcessor()) {
+                std::ostream& fs = *m_logstream[iline];
+                if (fs.good()) {
+                    fs << std::setw(datwidth) << std::setprecision(datprecision) << m_time;
+                    for (const auto& vec : vecs) {
+                        for (const auto& val : vec) {
+                            fs << std::setw(datwidth) << std::setprecision(datprecision) << val;
+                        }
+                    }
+                    fs << std::endl;
+                }
+            }
         }
     }
 
@@ -588,6 +666,8 @@ struct LineSampler
         constexpr int datwidth = 14;
         constexpr int datprecision = 6;
         constexpr int timeprecision = 13;
+
+        open_ascii_streams();
 
         int nline = static_cast<int>(m_ls_mf.size());
         int nvar  = static_cast<int>(m_varnames.size());
@@ -673,8 +753,12 @@ struct LineSampler
 
     bool m_use_real_bx{false};
     bool m_write_ascii{false};
+    bool m_write_log{false};
+    int  m_max_level{-1};  // finest level to sample; -1 for all
+    int  m_ncons{-1};      // components "conserved" expands into; -1 until the first sample
     amrex::Vector<std::string> m_varnames {"magvel","theta"};
     amrex::Vector<std::unique_ptr<std::fstream> > m_datastream;
+    amrex::Vector<std::unique_ptr<std::fstream> > m_logstream;
 };
 
 
